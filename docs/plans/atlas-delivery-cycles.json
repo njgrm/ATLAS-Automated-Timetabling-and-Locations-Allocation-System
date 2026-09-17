@@ -1,9 +1,9 @@
 {
   "contractVersion": "1.2.0",
   "registry": {
-    "lastUpdatedAt": "2026-09-17T11:14:48.917Z",
-    "lastUpdatedBy": "primary-planner:mig-apply-0002-0003",
-    "revision": 298
+    "lastUpdatedAt": "2026-09-17T11:26:46.893Z",
+    "lastUpdatedBy": "primary-planner:export-presentation-s15-rebaseline",
+    "revision": 301
   },
   "coordination": {
     "mode": "MANUAL",
@@ -6141,10 +6141,14 @@
       "objective": "Apply exactly two additive reviewed migrations (0002_companion_sso_code sha256 c2502e3070a98e6a6ddf4a1568cf2b3368a5cc72db2983cd02d0311012e43baf; 0003_teacher_program_presentation sha256 b3270f02f16486f7b4e25538f80d675e42ba7cd6a9b704aebd3fff2593a764ee) to the live ATLAS database atlas_recovery_clean_rebuild_20260905 at host localhost:5432 through the canonical guarded wrapper (npm run migrate:guarded from atlas-server/), preceded by a verified fresh logical backup and an immediately re-measured pre-state, with the bounded 12-row post-action verification matrix and rollback limited to dropping the two new tables or restoring that backup. No deployment, runtime restart, product source, data mutation, seed, reset, generation, publication, task/env, or companion action; companion SSO activation and the consolidated deployment remain separate HIGH actions.",
       "riskTier": "HIGH",
       "state": "INTEGRATED",
-      "stateUpdatedAt": "2026-09-17T11:11:32.964Z",
-      "nextAction": "Commission one fresh Wave Completion Auditor over the integrated wave and record its capsule; then close MIG-APPLY-0002-0003 COMPLETE with its receipt.",
+      "stateUpdatedAt": "2026-09-17T11:22:03.443Z",
+      "nextAction": "Wave Completion Auditor ses_f50eec155ffeIoARuYvLaK2lgr returned CORRECTION_REQUIRED (7/6/1/0/0) with blocking finding B1: the committed C06B S15 assertion that teacher_program_presentation_revisions is absent from the configured database is falsified by the applied 0003. Dispatch the bounded EXPORT-PRESENTATION-S15-REBASELINE test-only correction, then fresh QA, integration, and one fresh Wave Completion Auditor over the changed final tree, before closing this stream COMPLETE.",
       "awaited": [
-        "fresh Wave Completion Auditor"
+        "bounded EXPORT-PRESENTATION-S15-REBASELINE correction (test-only rebaseline of C06B S15; retire the stale unregistered companion-sso-migration-live-c02 packet; add the O1 preflight row to the C10 packet)",
+        "fresh independent QA over the corrected frozen range",
+        "integration of the corrected range",
+        "one fresh Wave Completion Auditor over the changed final tree",
+        "closure of MIG-APPLY-0002-0003 COMPLETE with its receipt, then the consolidated-deployment approval sentence"
       ],
       "running": [],
       "git": {
@@ -6242,13 +6246,8 @@
       "blocker": {
         "kind": "NONE",
         "detail": "",
-        "safeWorkRemaining": true,
-        "safeWorkItems": [
-          "install the isolated atlas-server dependencies and verify npm run test:migration-guard",
-          "dispatch the fresh independent pre-action review over the packet",
-          "execute the approved guarded apply with its verified backup and 12-row verification matrix after the recorded approval",
-          "produce the evidence document and the frozen QA candidate"
-        ]
+        "safeWorkRemaining": false,
+        "safeWorkItems": []
       },
       "approval": {
         "required": true,
@@ -6458,6 +6457,155 @@
           "reason": "the stream changes the canonical grids and the preflight resolution consumed by generation, so a fresh adversarial Wave Completion Auditor is required after integration."
         }
       }
+    },
+    {
+      "id": "EXPORT-PRESENTATION-S15-REBASELINE",
+      "kind": "STREAM",
+      "objective": "Rebaseline the committed EXPORT-PRESENTATION-SCHEMA-GUARD-C06B acceptance row S15 from 'the configured database must not have migration 0003 applied' to 'this suite must never mutate the configured database', because MIG-APPLY-0002-0003 applied 0003_teacher_program_presentation to atlas_recovery_clean_rebuild_20260905 on 2026-09-17 under the operator's exact HIGH approval. Also retire the stale, unapproved docs/prompts/companion-sso-migration-live-c02-2026-09-15.md packet whose preconditions are falsified, annotate the C06B executor handoff S15 row, and record the O1 Prisma-migrations checkout-encoding preflight as a precondition row in docs/prompts/consolidated-deployment-c10-2026-09-17.md. Test and documentation only: no product source, no migration, no database write, no deployment, runtime, task, env, generation, publication, login, or companion action.",
+      "riskTier": "MEDIUM",
+      "state": "RUNNING",
+      "stateUpdatedAt": "2026-09-17T11:26:46.893Z",
+      "nextAction": "Dispatch one bounded executor to rebaseline C06B S15 in E:/ATLAS-worktrees/export-presentation-s15-rebaseline, then fresh independent QA over the corrected frozen range, integration, and one fresh Wave Completion Auditor over the changed final tree before MIG-APPLY-0002-0003 may close.",
+      "awaited": [
+        "bounded executor correction return and its frozen candidate",
+        "fresh independent QA over the corrected range",
+        "fresh Wave Completion Auditor over the changed final tree",
+        "then closure of MIG-APPLY-0002-0003 COMPLETE with its receipt"
+      ],
+      "running": [
+        "preparation in E:/ATLAS-worktrees/export-presentation-s15-rebaseline: the bounded test-only rebaseline of C06B S15, the retirement of the stale companion-sso-migration-live-c02 packet, and the O1 preflight precondition row; no database, migration, or runtime action"
+      ],
+      "git": {
+        "worktree": "E:/ATLAS-worktrees/export-presentation-s15-rebaseline",
+        "branch": "fix/export-presentation-s15-rebaseline",
+        "baseSha": "10769108392b7ed5b5dbe0cb930ac5226de66f32",
+        "candidateSha": null,
+        "integrationSha": null,
+        "changedPaths": [],
+        "remoteObservation": {
+          "ref": "refs/remotes/origin/main",
+          "sha": "10769108392b7ed5b5dbe0cb930ac5226de66f32",
+          "observedAt": "2026-09-17T11:26:46.893Z",
+          "kind": "REMOTE_TRACKING_REF"
+        }
+      },
+      "owners": {
+        "planner": {
+          "sessionId": null,
+          "status": "IDLE",
+          "writable": false
+        },
+        "executor": {
+          "sessionId": null,
+          "status": "NONE",
+          "writable": false
+        },
+        "qa": {
+          "sessionId": null,
+          "status": "NONE",
+          "writable": false
+        },
+        "auditor": {
+          "sessionId": null,
+          "status": "NONE",
+          "writable": false
+        }
+      },
+      "gates": {
+        "total": 0,
+        "passed": 0,
+        "failed": 0,
+        "blocked": 0,
+        "unperformed": 0,
+        "plan": {
+          "MANDATORY_SOURCE": 4,
+          "MANDATORY_LIVE": 1,
+          "DEFERRED_EXTERNAL": 0
+        },
+        "classes": {
+          "MANDATORY_SOURCE": {
+            "total": 0,
+            "passed": 0,
+            "failed": 0,
+            "blocked": 0,
+            "unperformed": 0
+          },
+          "MANDATORY_LIVE": {
+            "total": 0,
+            "passed": 0,
+            "failed": 0,
+            "blocked": 0,
+            "unperformed": 0
+          },
+          "DEFERRED_EXTERNAL": {
+            "total": 0,
+            "passed": 0,
+            "failed": 0,
+            "blocked": 0,
+            "unperformed": 0
+          }
+        }
+      },
+      "review": {
+        "qaVerdict": null,
+        "qaSessionId": null,
+        "auditorVerdict": null,
+        "auditorSessionId": null,
+        "auditRequired": true,
+        "qaRounds": []
+      },
+      "corrections": [],
+      "successors": [],
+      "requires": [
+        "MIG-APPLY-0002-0003"
+      ],
+      "blocker": {
+        "kind": "NONE",
+        "detail": "",
+        "safeWorkRemaining": true,
+        "safeWorkItems": [
+          "rebaseline the C06B S15 assertion from configured-database absence to non-mutation in the named test file",
+          "retire the stale companion-sso-migration-live-c02 packet and annotate the C06B handoff S15 row",
+          "record the O1 Prisma-migrations checkout-encoding preflight as a precondition row in the C10 packet",
+          "run the corrected suite and produce the frozen QA candidate"
+        ]
+      },
+      "approval": {
+        "required": false,
+        "presentedReady": false,
+        "granted": false,
+        "operatorIdentity": null,
+        "approvedAt": null,
+        "boundary": null,
+        "approvedActions": [],
+        "requiredObservationIds": [],
+        "execution": null
+      },
+      "observations": [],
+      "artifacts": [],
+      "closure": null,
+      "sessionRouting": {
+        "planner": {
+          "decision": "EXISTING",
+          "sessionId": null,
+          "reason": "the primary planner that closed the MIG-APPLY-0002-0003 wave audit owns this correction's dispatch, QA commissioning, integration, and the follow-on wave audit."
+        },
+        "executor": {
+          "decision": "FRESH_REQUIRED",
+          "sessionId": null,
+          "reason": "the bounded test-only rebaseline runs in a fresh executor context in E:/ATLAS-worktrees/export-presentation-s15-rebaseline."
+        },
+        "qa": {
+          "decision": "FRESH_REQUIRED",
+          "sessionId": null,
+          "reason": "one fresh independent QA over the corrected frozen range; a second fresh context is not required because no live mutation is in scope."
+        },
+        "auditor": {
+          "decision": "FRESH_REQUIRED",
+          "sessionId": null,
+          "reason": "changing a committed mandatory acceptance test reopens the wave-completion loop, so one fresh adversarial auditor is required over the changed final tree."
+        }
+      }
     }
   ],
   "leases": [
@@ -6599,9 +6747,9 @@
       "worktree": "E:/ATLAS-worktrees/mig-apply-0002-0003",
       "role": "executor",
       "sessionId": null,
-      "state": "ACTIVE",
-      "revision": 1,
-      "updatedAt": "2026-09-17T10:25:47.647Z",
+      "state": "RETURNED",
+      "revision": 2,
+      "updatedAt": "2026-09-17T11:21:50.665Z",
       "expiresAt": null
     },
     {
@@ -6613,6 +6761,17 @@
       "state": "ACTIVE",
       "revision": 1,
       "updatedAt": "2026-09-17T10:31:33.960Z",
+      "expiresAt": null
+    },
+    {
+      "id": "lease-export-presentation-s15-rebaseline",
+      "streamId": "EXPORT-PRESENTATION-S15-REBASELINE",
+      "worktree": "E:/ATLAS-worktrees/export-presentation-s15-rebaseline",
+      "role": "executor",
+      "sessionId": null,
+      "state": "ACTIVE",
+      "revision": 1,
+      "updatedAt": "2026-09-17T11:26:46.893Z",
       "expiresAt": null
     }
   ],
