@@ -1,9 +1,9 @@
 {
   "contractVersion": "1.2.0",
   "registry": {
-    "lastUpdatedAt": "2026-09-17T15:29:24.678Z",
-    "lastUpdatedBy": "primary-planner:consolidated-deployment-c10-amendment-reconcile",
-    "revision": 332
+    "lastUpdatedAt": "2026-09-17T15:42:30.011Z",
+    "lastUpdatedBy": "primary-planner:consolidated-deployment-c10-resume",
+    "revision": 333
   },
   "coordination": {
     "mode": "CYCLE_ACTIVE",
@@ -6776,11 +6776,12 @@
       "objective": "Deploy one release pinned at the accepted origin/main tip that includes the C07R1 authorization fix, published-revision immutability, warning realism, export parity, generation-authority realism and the R3 term-authority canonicalization; remove the vestigial ATLAS_DEFAULT_SCHOOL_ID key from the durable env; re-point and restart the registered ATLAS-Runtime-Supervisor task on ports 5001/5174; then run the 13-row acceptance matrix with exactly one authorized login and logout. No data mutation, generation, publication, Teaching Load apply, term-cache apply, rollover, migration, or companion change.",
       "riskTier": "HIGH",
       "state": "REVIEW_REQUIRED",
-      "stateUpdatedAt": "2026-09-17T15:29:24.678Z",
-      "nextAction": "Await the completed and satisfiable operator sentence, then carry the changed boundary on a successor stream: amend the packet, run one fresh independent pre-action review, create-stream with its own lease, and record-approval on the successor (the C10 grant is immutable). The staged PIN40 release and the unconsumed login remain reusable.",
+      "stateUpdatedAt": "2026-09-17T15:42:30.011Z",
+      "nextAction": "Dispatch the executor to resume the approved cutover from step 4: prove git -C <staged> rev-parse HEAD equals PIN40 BEFORE stopping the incumbent, then stop only the supervisor-owned 5001/5174 processes, re-point and restart the task, run the 13-row matrix with the single reserved login, and record the evidence. The operator performed the env change himself (13 keys, ATLAS_DEFAULT_SCHOOL_ID absent).",
       "awaited": [
-        "the completed ACL-clause text: the amended sentence contains the literal placeholder <ACL clause below> with no clause after it, so the security-descriptor operation is not actually authorized",
-        "the SSO decision: the amended sentence re-adds the four companion-SSO keys, reversing the previous drop, but D:\\ATLAS-runtime-config\\sso-provisioning-20260917.local.env does not exist and the paired values require rotation, so that clause is currently unsatisfiable"
+        "the resumed executor return (REVIEW_REQUIRED) with the 13-row acceptance matrix",
+        "the fresh post-action independent acceptance review (authorized to perform its own disclosed logins after the matrix)",
+        "the fresh Wave Completion Auditor"
       ],
       "running": [],
       "git": {
@@ -6873,14 +6874,10 @@
         "G9G10-FLAG-SOURCE-LANE"
       ],
       "blocker": {
-        "kind": "APPROVAL",
-        "detail": "The operator amended the boundary to variant A, but the amended sentence is incomplete (the ACL clause is an unfilled placeholder) and partly unsatisfiable (the SSO provisioning file does not exist and the paired values require rotation). Separately, a granted approval is recorded once and cannot be amended or withdrawn, so the expanded boundary cannot be recorded on this stream.",
-        "safeWorkRemaining": true,
-        "safeWorkItems": [
-          "capture the original SDDL of the env file",
-          "reconcile the env-file ACL hardening applied after the 2026-09-16 write",
-          "draft the successor stream spec and packet amendment once the sentence is final"
-        ]
+        "kind": "NONE",
+        "detail": "Resolved: the operator removed ATLAS_DEFAULT_SCHOOL_ID himself (verified 13 keys, key absent, no SSO keys, all 13 expected names present, ACL untouched) and withdrew the 9d293879 rollback tier. The amended SSO clause is not in force; the recorded boundary stands. The cutover is resuming against the already-staged PIN40 release with the reserved login unconsumed.",
+        "safeWorkRemaining": false,
+        "safeWorkItems": []
       },
       "approval": {
         "required": true,
