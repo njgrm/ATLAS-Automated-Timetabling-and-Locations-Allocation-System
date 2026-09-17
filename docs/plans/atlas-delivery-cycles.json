@@ -1,14 +1,14 @@
 {
   "contractVersion": "1.2.0",
   "registry": {
-    "lastUpdatedAt": "2026-09-17T11:26:46.893Z",
+    "lastUpdatedAt": "2026-09-17T11:31:18.096Z",
     "lastUpdatedBy": "primary-planner:export-presentation-s15-rebaseline",
-    "revision": 301
+    "revision": 305
   },
   "coordination": {
     "mode": "MANUAL",
     "activeCycleId": null,
-    "globalNextAction": "MIG-APPLY-0002-0003 is ACCEPT_READY (fresh independent QA ses_f50f49d82ffeBADNwOO2vsstR4 ACCEPT_READY, MANDATORY_SOURCE 4/4/0/0/0, MANDATORY_LIVE 8/8/0/0/0) and is being integrated at origin/main b93430ad; one fresh Wave Completion Auditor is required before closure. Migrations 0002_companion_sso_code and 0003_teacher_program_presentation are APPLIED to atlas_recovery_clean_rebuild_20260905; the shared runtime still serves its previous release and was not restarted. Peers: G9G10-FLAG-SOURCE-LANE RUNNING; SYNC-SECTION-ENROLMENT-C01, ROLLOVER-GRADED-AUTONOMY-C01, G9-G10-CONFIG-CORRECTION-C01 and TERM-CACHE-CATCHUP-APPLY remain registered or pending and unchanged. Every live/HIGH action (consolidated deployment, runtime install/restart, term-cache apply, Teaching Load apply, generation, publication, login, companion) remains locked and NOT granted."
+    "globalNextAction": "MIG-APPLY-0002-0003 is INTEGRATED at origin/main 61fe8515 (register revisions 293-295) and its fresh Wave Completion Auditor returned CORRECTION_REQUIRED; a bounded correction is pending. G9G10-FLAG-SOURCE-LANE is INTEGRATED at register revision 298 (candidate cca958d7, integration ec235689) and its fresh Wave Completion Auditor returned AUDIT_CLEAR 12/12/0/0; it closes COMPLETE with its receipt pinned. DATA-CORRECTION-C01 stays locked and unregistered (spec-only; presentedReady false; granted false) because its live-deployment precondition is unmet: the live release 54dce67b does not contain cca958d7, so reseeding now would fail the preflight closed in the opposite direction. The shared runtime serves supervised release 54dce67b (supervisor-state running; launcher PID 4020; 5001->13244 server, 5174->13260 host). Peers: SYNC-SECTION-ENROLMENT-C01 is PLANNED, TERM-CACHE-CATCHUP-APPLY is HIGH_APPROVAL_REQUIRED, EXPORT-PRESENTATION-S15-REBASELINE is registered, and ROLLOVER-GRADED-AUTONOMY-C01 (R1) and G9-G10-CONFIG-CORRECTION-C01 remain unregistered spec-only successors. Every live/HIGH action (consolidated deployment, runtime install/restart, term-cache apply, Teaching Load apply, generation, publication, login, companion) remains locked and NOT granted."
   },
   "streams": [
     {
@@ -6311,12 +6311,10 @@
       "kind": "STREAM",
       "objective": "Ordinary MEDIUM source lane implementing the operator's shift-based lunch ruling and the per-scope Flag/HGP resolution: decouple GRADE_9_10_SPECIAL from GRADE_9_10_REGULAR so the six special scopes are defined explicitly and keep 10 CLASS + 2 BREAK with lunch BREAK at 11:30-12:15 (two-row pre-lunch Specialization block, unmodelled 11:15-11:30 seam), make GRADE_9_10_REGULAR 8 CLASS + 2 BREAK with lunch BREAK 11:30-12:15 and first CLASS 12:15-13:00 (shift 11:30-18:30), leave the g7/g8 grids unchanged, resolve the Monday Flag/HGP overlay PER SCOPE-FAMILY in generation-preflight instead of one global window tested against all 16 shape contracts, correct the WORKLOAD_POLICY_BLOCK misclassification so a slot collision no longer outranks the true room reason, and update every always-run test the change invalidates with justification. No database write, no register write, no runtime, no companion.",
       "riskTier": "MEDIUM",
-      "state": "INTEGRATED",
-      "stateUpdatedAt": "2026-09-17T11:14:48.917Z",
-      "nextAction": "Commission exactly one fresh Wave Completion Auditor over the integrated wave before any successor unlock; keep DATA-CORRECTION-C01 locked.",
-      "awaited": [
-        "fresh Wave Completion Auditor"
-      ],
+      "state": "COMPLETE",
+      "stateUpdatedAt": "2026-09-17T11:31:18.096Z",
+      "nextAction": "Closed COMPLETE. Successor recommendations G9G10-WINDOW-BREADTH-FOLLOWUP, G9G10-SEED-LUNCH-ALIGN and G9G10-MODULAR-COVERAGE-REASON are recorded in docs/reviews/g9g10-flag-source-lane-20260917/wave-completion-audit.md; none is unlocked and each requires a new operator-activated cycle. DATA-CORRECTION-C01 (live grid reseed, HIGH) stays locked until a deployment whose pin contains this lane is live.",
+      "awaited": [],
       "running": [],
       "git": {
         "worktree": "E:/ATLAS-worktrees/g9g10-flag-source-lane",
@@ -6358,8 +6356,8 @@
           "writable": false
         },
         "auditor": {
-          "sessionId": null,
-          "status": "NONE",
+          "sessionId": "ses_f50eb3020ffeWjLLbxjsNENsj6",
+          "status": "RETURNED",
           "writable": false
         }
       },
@@ -6401,8 +6399,8 @@
       "review": {
         "qaVerdict": "ACCEPT_READY",
         "qaSessionId": "ses_f50fa2ca2ffeMfAgKvdfKQSELz",
-        "auditorVerdict": null,
-        "auditorSessionId": null,
+        "auditorVerdict": "AUDIT_CLEAR",
+        "auditorSessionId": "ses_f50eb3020ffeWjLLbxjsNENsj6",
         "auditRequired": true,
         "qaRounds": [
           {
@@ -6434,7 +6432,12 @@
       },
       "observations": [],
       "artifacts": [],
-      "closure": null,
+      "closure": {
+        "receipt": {
+          "path": "docs/plans/receipts/g9g10-flag-source-lane.receipt.json",
+          "sha256": "63ea4bb10ebd484362d42065a656811d59a6902e246438fc3303d7c65f13f715"
+        }
+      },
       "sessionRouting": {
         "planner": {
           "decision": "FRESH_REQUIRED",
@@ -6758,9 +6761,9 @@
       "worktree": "E:/ATLAS-worktrees/g9g10-flag-source-lane",
       "role": "executor",
       "sessionId": null,
-      "state": "ACTIVE",
-      "revision": 1,
-      "updatedAt": "2026-09-17T10:31:33.960Z",
+      "state": "RETURNED",
+      "revision": 2,
+      "updatedAt": "2026-09-17T11:31:12.507Z",
       "expiresAt": null
     },
     {
