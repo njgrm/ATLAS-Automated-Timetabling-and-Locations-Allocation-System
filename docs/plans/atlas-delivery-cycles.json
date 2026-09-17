@@ -1,9 +1,9 @@
 {
   "contractVersion": "1.2.0",
   "registry": {
-    "lastUpdatedAt": "2026-09-17T05:27:24.838Z",
+    "lastUpdatedAt": "2026-09-17T05:34:07.217Z",
     "lastUpdatedBy": "primary-planner:slot-break-authority-c11r",
-    "revision": 274
+    "revision": 275
   },
   "coordination": {
     "mode": "MANUAL",
@@ -5986,11 +5986,11 @@
       "kind": "STREAM",
       "objective": "Complete SLOT-BREAK-AUTHORITY-C11 on the display surfaces: make the canonical classProgramSlot grid the source of displayed period, break, and shift slots whenever canonical rows exist for a (gradeLevel, programType) scope, removing the retired 11:55-12:55 fallbacks from schedule-constructor.ts and threading the canonical authority into room-schedule, locked-session, published-schedule, and pre-generation-draft, while freezing canonical-derived slots at publication time and preserving published immutability. Source and tests only.",
       "riskTier": "MEDIUM",
-      "state": "ACCEPT_READY",
-      "stateUpdatedAt": "2026-09-17T05:25:12.116Z",
-      "nextAction": "Fresh independent QA returned ACCEPT_READY 10/10/0/0/0 over 4deb9d9c...06319bb0. Next: move coordination to MANUAL, integrate the candidate on integration/slot-break-authority-c11r-20260917 over the then-current origin/main, then commission one fresh Wave Completion Auditor. No live/HIGH action is unlocked.",
+      "state": "INTEGRATED",
+      "stateUpdatedAt": "2026-09-17T05:34:07.217Z",
+      "nextAction": "Integrated at merge af7824e3 over origin/main 5649f7b9; the merged product tree is byte-identical to the QA'd candidate (atlas-server subtree e53b7636), with combined integration gates green: tsc build exit 0, C11R 8/8, C11 14/14, published-immutability-c08 135/0. Next: commission one fresh Wave Completion Auditor over the integrated wave, then record-audit and close-cycle. No live/HIGH action is unlocked.",
       "awaited": [
-        "planner validates the immutable range and integration boundary"
+        "fresh Wave Completion Auditor"
       ],
       "running": [],
       "git": {
@@ -5998,7 +5998,7 @@
         "branch": "fix/slot-break-authority-c11r",
         "baseSha": "4deb9d9cd75dccba6a3bebfe62511a2b54644cac",
         "candidateSha": "06319bb038329f93ec79e032cbc502f7d462d7d1",
-        "integrationSha": null,
+        "integrationSha": "af7824e3b4d954dd7f13f3857a03f87914c1f0fd",
         "changedPaths": [
           "atlas-server/src/__tests__/slot-break-authority-c11r.test.ts",
           "atlas-server/src/services/locked-session.service.ts",
@@ -6010,8 +6010,8 @@
         ],
         "remoteObservation": {
           "ref": "refs/remotes/origin/main",
-          "sha": "4deb9d9cd75dccba6a3bebfe62511a2b54644cac",
-          "observedAt": "2026-09-17T03:26:03.479Z",
+          "sha": "af7824e3b4d954dd7f13f3857a03f87914c1f0fd",
+          "observedAt": "2026-09-17T05:34:07.217Z",
           "kind": "REMOTE_TRACKING_REF"
         }
       },
