@@ -1,14 +1,14 @@
 {
   "contractVersion": "1.2.0",
   "registry": {
-    "lastUpdatedAt": "2026-09-17T21:35:54.952Z",
+    "lastUpdatedAt": "2026-09-17T21:50:39.988Z",
     "lastUpdatedBy": "primary-planner:consolidated-deployment-c10-integration",
-    "revision": 360
+    "revision": 364
   },
   "coordination": {
-    "mode": "CYCLE_ACTIVE",
-    "activeCycleId": "CLIENT-QUALITY-RELEASE-SWAP-01",
-    "globalNextAction": "CLIENT-QUALITY-RELEASE-SWAP-01 is the active cycle: the HIGH shared-runtime release swap that ships the accepted CLIENT-QUALITY-C01 client fixes (integrated at 1fd4c1a6) and clears its blocked live gate L2, removing the live /timetable React #310 crash. Next: one fresh independent pre-action review of docs/prompts/client-quality-release-swap-01-2026-09-17.md, then the operator's exact approval sentence, which is NOT granted. Rollback is a symmetric re-point to the currently-live 8eb0511baa537d4212f24a007ac40e2dded38c0e. No data mutation, generation, publication, Teaching Load apply, term-cache apply, rollover, migration, durable-env edit, or companion change."
+    "mode": "MANUAL",
+    "activeCycleId": null,
+    "globalNextAction": "CLIENT-QUALITY-RELEASE-SWAP-01 closes COMPLETE: release 78be1b760e4059a4c0d0ea227579eaeb731cdf6d serves the supervised runtime on 5001/5174 and the live React #310 crash is gone. Coordination is MANUAL. Unlocked next: the DATA-CORRECTION-C01 grid reseed (its pre-action review can run now), then generation and the export surfaces; SSO-ENV-ACTIVATION-C01 follows with one restart; CLIENT-QUALITY-C01 needs a fresh independent QA to record its unblocked live gate L2. Generation, publication, the term-cache and Teaching Load applies remain locked."
   },
   "streams": [
     {
@@ -7301,27 +7301,25 @@
       "kind": "STREAM",
       "objective": "One HIGH shared-runtime release swap that ships the accepted CLIENT-QUALITY-C01 client fixes and clears its blocked live gate. Build and install a release pinned at the accepted tip, re-point and restart the supervisor-owned runtime via the registered ATLAS-Runtime-Supervisor task, and run the live acceptance matrix including the client-route-smoke spec across every route on https://njgrm.buru-degree.ts.net. Clears gate L2 (every route passing live), removes the live /timetable React #310 crash, and verifies the four UX rows in production. Rollback is a symmetric re-point to the currently-live 8eb0511baa537d4212f24a007ac40e2dded38c0e. No data mutation, generation, publication, Teaching Load apply, term-cache apply, rollover, migration, durable-env edit, or companion change.",
       "riskTier": "HIGH",
-      "state": "ACCEPT_READY",
-      "stateUpdatedAt": "2026-09-17T21:35:54.952Z",
-      "nextAction": "Post-action acceptance ACCEPT_READY 12/12/0/0: the 8-row live matrix independently reproduced including a 30-route crawl with zero React/page errors, and an adversarial SYSTEM-run pin check confirming the ownership fix does not depend on a per-user safe.directory entry. Next: one fresh Wave Completion Auditor, then close-cycle. A planner-owned docs reconciliation is owed for N1.",
-      "awaited": [
-        "planner validates the immutable range and integration boundary"
-      ],
+      "state": "COMPLETE",
+      "stateUpdatedAt": "2026-09-17T21:50:39.988Z",
+      "nextAction": "Closed COMPLETE: release 78be1b760e4059a4c0d0ea227579eaeb731cdf6d serves the supervised runtime on 5001/5174 and the live React #310 crash is gone (30-route crawl clean). Rollback to 8eb0511baa537d4212f24a007ac40e2dded38c0e is retained. Generation, publication, the term-cache and Teaching Load applies, SSO activation, and the grid reseed remain separately gated.",
+      "awaited": [],
       "running": [],
       "git": {
         "worktree": "E:/ATLAS-worktrees/release-client-quality-01",
         "branch": "release/client-quality-01",
         "baseSha": "78be1b760e4059a4c0d0ea227579eaeb731cdf6d",
         "candidateSha": "d8ca175fa87fd33447259848a5e2ffc153984003",
-        "integrationSha": null,
+        "integrationSha": "a3fae08066fa1e2b97f9a6cba826e653b909b0a0",
         "changedPaths": [
           "docs/plans/atlas-active-delivery-streams.generated.md",
           "docs/plans/atlas-delivery-cycles.json"
         ],
         "remoteObservation": {
           "ref": "refs/remotes/origin/main",
-          "sha": "d4412111dbb57dfad5cdf9792a48ee0c5369ac97",
-          "observedAt": "2026-09-17T20:07:45.624Z",
+          "sha": "a3fae08066fa1e2b97f9a6cba826e653b909b0a0",
+          "observedAt": "2026-09-17T21:50:18.228Z",
           "kind": "REMOTE_TRACKING_REF"
         }
       },
@@ -7342,8 +7340,8 @@
           "writable": false
         },
         "auditor": {
-          "sessionId": null,
-          "status": "NONE",
+          "sessionId": "ses_f4eb2fa52ffeRjH9ygi8SiEDzF",
+          "status": "RETURNED",
           "writable": false
         }
       },
@@ -7385,8 +7383,8 @@
       "review": {
         "qaVerdict": "ACCEPT_READY",
         "qaSessionId": "ses_f4ec2aadcffezuvYqcrftWvwkM",
-        "auditorVerdict": null,
-        "auditorSessionId": null,
+        "auditorVerdict": "AUDIT_CLEAR",
+        "auditorSessionId": "ses_f4eb2fa52ffeRjH9ygi8SiEDzF",
         "auditRequired": true,
         "qaRounds": [
           {
@@ -7437,7 +7435,12 @@
       },
       "observations": [],
       "artifacts": [],
-      "closure": null,
+      "closure": {
+        "receipt": {
+          "path": "docs/plans/receipts/client-quality-release-swap-01.receipt.json",
+          "sha256": "6b2d321efdb9948b679cfa44449eac1fb8e5fabee9fe66c2d72ec9c4eaefcb49"
+        }
+      },
       "sessionRouting": {
         "planner": {
           "decision": "EXISTING",
