@@ -1,9 +1,9 @@
 {
   "contractVersion": "1.2.0",
   "registry": {
-    "lastUpdatedAt": "2026-09-17T11:14:48.917Z",
-    "lastUpdatedBy": "primary-planner:mig-apply-0002-0003",
-    "revision": 298
+    "lastUpdatedAt": "2026-09-17T11:22:03.443Z",
+    "lastUpdatedBy": "primary-planner:mig-apply-0002-0003-audit",
+    "revision": 300
   },
   "coordination": {
     "mode": "MANUAL",
@@ -6141,10 +6141,14 @@
       "objective": "Apply exactly two additive reviewed migrations (0002_companion_sso_code sha256 c2502e3070a98e6a6ddf4a1568cf2b3368a5cc72db2983cd02d0311012e43baf; 0003_teacher_program_presentation sha256 b3270f02f16486f7b4e25538f80d675e42ba7cd6a9b704aebd3fff2593a764ee) to the live ATLAS database atlas_recovery_clean_rebuild_20260905 at host localhost:5432 through the canonical guarded wrapper (npm run migrate:guarded from atlas-server/), preceded by a verified fresh logical backup and an immediately re-measured pre-state, with the bounded 12-row post-action verification matrix and rollback limited to dropping the two new tables or restoring that backup. No deployment, runtime restart, product source, data mutation, seed, reset, generation, publication, task/env, or companion action; companion SSO activation and the consolidated deployment remain separate HIGH actions.",
       "riskTier": "HIGH",
       "state": "INTEGRATED",
-      "stateUpdatedAt": "2026-09-17T11:11:32.964Z",
-      "nextAction": "Commission one fresh Wave Completion Auditor over the integrated wave and record its capsule; then close MIG-APPLY-0002-0003 COMPLETE with its receipt.",
+      "stateUpdatedAt": "2026-09-17T11:22:03.443Z",
+      "nextAction": "Wave Completion Auditor ses_f50eec155ffeIoARuYvLaK2lgr returned CORRECTION_REQUIRED (7/6/1/0/0) with blocking finding B1: the committed C06B S15 assertion that teacher_program_presentation_revisions is absent from the configured database is falsified by the applied 0003. Dispatch the bounded EXPORT-PRESENTATION-S15-REBASELINE test-only correction, then fresh QA, integration, and one fresh Wave Completion Auditor over the changed final tree, before closing this stream COMPLETE.",
       "awaited": [
-        "fresh Wave Completion Auditor"
+        "bounded EXPORT-PRESENTATION-S15-REBASELINE correction (test-only rebaseline of C06B S15; retire the stale unregistered companion-sso-migration-live-c02 packet; add the O1 preflight row to the C10 packet)",
+        "fresh independent QA over the corrected frozen range",
+        "integration of the corrected range",
+        "one fresh Wave Completion Auditor over the changed final tree",
+        "closure of MIG-APPLY-0002-0003 COMPLETE with its receipt, then the consolidated-deployment approval sentence"
       ],
       "running": [],
       "git": {
@@ -6242,13 +6246,8 @@
       "blocker": {
         "kind": "NONE",
         "detail": "",
-        "safeWorkRemaining": true,
-        "safeWorkItems": [
-          "install the isolated atlas-server dependencies and verify npm run test:migration-guard",
-          "dispatch the fresh independent pre-action review over the packet",
-          "execute the approved guarded apply with its verified backup and 12-row verification matrix after the recorded approval",
-          "produce the evidence document and the frozen QA candidate"
-        ]
+        "safeWorkRemaining": false,
+        "safeWorkItems": []
       },
       "approval": {
         "required": true,
@@ -6599,9 +6598,9 @@
       "worktree": "E:/ATLAS-worktrees/mig-apply-0002-0003",
       "role": "executor",
       "sessionId": null,
-      "state": "ACTIVE",
-      "revision": 1,
-      "updatedAt": "2026-09-17T10:25:47.647Z",
+      "state": "RETURNED",
+      "revision": 2,
+      "updatedAt": "2026-09-17T11:21:50.665Z",
       "expiresAt": null
     },
     {
