@@ -1,9 +1,9 @@
 {
   "contractVersion": "1.2.0",
   "registry": {
-    "lastUpdatedAt": "2026-09-17T20:08:03.143Z",
+    "lastUpdatedAt": "2026-09-17T21:00:46.973Z",
     "lastUpdatedBy": "primary-planner:consolidated-deployment-c10-integration",
-    "revision": 356
+    "revision": 357
   },
   "coordination": {
     "mode": "CYCLE_ACTIVE",
@@ -7302,7 +7302,7 @@
       "objective": "One HIGH shared-runtime release swap that ships the accepted CLIENT-QUALITY-C01 client fixes and clears its blocked live gate. Build and install a release pinned at the accepted tip, re-point and restart the supervisor-owned runtime via the registered ATLAS-Runtime-Supervisor task, and run the live acceptance matrix including the client-route-smoke spec across every route on https://njgrm.buru-degree.ts.net. Clears gate L2 (every route passing live), removes the live /timetable React #310 crash, and verifies the four UX rows in production. Rollback is a symmetric re-point to the currently-live 8eb0511baa537d4212f24a007ac40e2dded38c0e. No data mutation, generation, publication, Teaching Load apply, term-cache apply, rollover, migration, durable-env edit, or companion change.",
       "riskTier": "HIGH",
       "state": "PLANNED",
-      "stateUpdatedAt": "2026-09-17T20:07:45.624Z",
+      "stateUpdatedAt": "2026-09-17T21:00:46.973Z",
       "nextAction": "Register by CAS, re-point the active cycle to this lane, commission one fresh independent pre-action review of docs/prompts/client-quality-release-swap-01-2026-09-17.md, return its exact approval sentence to the operator, then execute the swap and the 8-row live acceptance matrix.",
       "awaited": [
         "one fresh independent pre-action review of the swap packet",
@@ -7404,14 +7404,14 @@
       "approval": {
         "required": true,
         "presentedReady": false,
-        "granted": false,
-        "operatorIdentity": null,
-        "approvedAt": null,
-        "boundary": null,
+        "granted": true,
+        "operatorIdentity": "operator:njgrm",
+        "approvedAt": "2026-09-17T21:00:46.973Z",
+        "boundary": "I approve CLIENT-QUALITY-RELEASE-SWAP-01 exactly as reviewed (packet blob 88a0bea51d7781dbda58d89de3cbf9431edfff01 at origin/main 78be1b76): build and install a release pinned at the accepted tip <PIN> (re-verify at dispatch), including the alternate-port preflight smoke and the rollback startability proof; quiesce the resident supervisor by terminating the exact supervisor process tree with taskkill /PID <supervisor> /T /F before running cli.mjs stop, then holding a released-port settle window of at least 10 seconds and re-verifying that 5001 and 5174 are free with no old-release node process remaining; re-point the ATLAS-Runtime-Supervisor task action, working directory and the Machine-scope ATLAS_RUNTIME_SOURCE_DIR / ATLAS_RUNTIME_RELEASE_SHA to the new release while preserving every other registration property, and register the new release directory in the global Git safe.directory list; restart via schtasks /run /tn ATLAS-Runtime-Supervisor; then run the 8-row live acceptance matrix, including the route smoke across every route at https://njgrm.buru-degree.ts.net, with every browser login disclosed as one LOCAL_LOGIN_SUCCESS audit row plus the complete atlas_auth_accounts login write set including the engine-managed updated_at advance, and every other signature delta 0. Rollback to 8eb0511baa537d4212f24a007ac40e2dded38c0e by the same sequence is pre-authorized only if a mandatory acceptance row fails. No data mutation, generation, publication, Teaching Load apply, term-cache apply, rollover, migration, durable-env edit, or companion change is approved.",
         "approvedActions": [
           "build and install a release pinned at the accepted tip, including the alternate-port preflight smoke and the rollback startability proof",
-          "re-point and restart the ATLAS-Runtime-Supervisor task on the supervisor-owned ports 5001/5174, and register the new release directory in the global Git safe.directory list",
-          "run the live acceptance matrix including the client-route-smoke spec across every route at https://njgrm.buru-degree.ts.net, disclosing every browser login and its expected audit delta"
+          "quiesce the resident supervisor tree then re-point and restart the ATLAS-Runtime-Supervisor task on the supervisor-owned ports 5001/5174, and register the new release directory in the global Git safe.directory list",
+          "run the live acceptance matrix including the client-route-smoke spec across every route at https://njgrm.buru-degree.ts.net, disclosing every browser login and its complete expected delta"
         ],
         "requiredObservationIds": [],
         "execution": null
