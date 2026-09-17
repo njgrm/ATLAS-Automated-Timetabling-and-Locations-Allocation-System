@@ -1,0 +1,106 @@
+{
+  "id": "SYNC-SECTION-ENROLMENT-C01",
+  "kind": "STREAM",
+  "objective": "Reconcile the 20 EnrollPro year-9 sections into ATLAS section_mirrors for school 1 / school year 9 through the existing authenticated POST /api/v1/sections/sync route, so the active year carries real enrolledCount values (currently all zero while the previous year carries 81). One mirror-data write of derived, idempotent, refreshable data. No schema, migration, rollover, Teaching Load, generation, publication, deployment, runtime/task/env, or companion action.",
+  "riskTier": "MEDIUM",
+  "state": "PLANNED",
+  "stateUpdatedAt": "2026-09-17T00:00:00Z",
+  "nextAction": "Register when the register is free (CAS), commission one fresh independent pre-action review of docs/prompts/sync-section-enrolment-c01-2026-09-17.md, return its exact approval sentence, then issue the single POST and run the 10-row acceptance matrix.",
+  "awaited": [
+    "the register to be free of any held revision window so this stream can register by CAS",
+    "one fresh independent pre-action review of docs/prompts/sync-section-enrolment-c01-2026-09-17.md",
+    "the operator's exact approval sentence (returned only after the pre-action review passes)"
+  ],
+  "running": [],
+  "git": {
+    "worktree": "E:/ATLAS-worktrees/sync-section-enrolment-c01",
+    "branch": "chore/sync-section-enrolment-c01",
+    "baseSha": "dd4f8552843863203bf49f1832baf4d4fa7b8e2a",
+    "candidateSha": null,
+    "integrationSha": null,
+    "changedPaths": [],
+    "remoteObservation": null
+  },
+  "owners": {
+    "planner": { "sessionId": null, "status": "IDLE", "writable": false },
+    "executor": { "sessionId": null, "status": "NONE", "writable": false },
+    "qa": { "sessionId": null, "status": "NONE", "writable": false },
+    "auditor": { "sessionId": null, "status": "NONE", "writable": false }
+  },
+  "gates": {
+    "total": 0,
+    "passed": 0,
+    "failed": 0,
+    "blocked": 0,
+    "unperformed": 0,
+    "plan": {
+      "MANDATORY_SOURCE": 2,
+      "MANDATORY_LIVE": 10,
+      "DEFERRED_EXTERNAL": 0
+    },
+    "classes": {
+      "MANDATORY_SOURCE": { "total": 0, "passed": 0, "failed": 0, "blocked": 0, "unperformed": 0 },
+      "MANDATORY_LIVE": { "total": 0, "passed": 0, "failed": 0, "blocked": 0, "unperformed": 0 },
+      "DEFERRED_EXTERNAL": { "total": 0, "passed": 0, "failed": 0, "blocked": 0, "unperformed": 0 }
+    }
+  },
+  "review": {
+    "qaVerdict": null,
+    "qaSessionId": null,
+    "auditorVerdict": null,
+    "auditorSessionId": null,
+    "auditRequired": true,
+    "qaRounds": []
+  },
+  "corrections": [],
+  "successors": [],
+  "requires": [],
+  "blocker": {
+    "kind": "DEPENDENCY",
+    "detail": "Registration must not interleave with another stream's held register revision window. The action itself is otherwise ready; preflight and approval are the only gates.",
+    "safeWorkRemaining": true,
+    "safeWorkItems": [
+      "author the packet and stream spec (done)",
+      "commission the fresh independent pre-action review",
+      "run the zero-cost preflight re-probe immediately before the POST"
+    ]
+  },
+  "approval": {
+    "required": true,
+    "presentedReady": false,
+    "granted": false,
+    "operatorIdentity": null,
+    "approvedAt": null,
+    "boundary": null,
+    "approvedActions": [
+      "one authenticated POST /api/v1/sections/sync with body {\"schoolId\":1,\"schoolYearId\":9} using the ATLAS system token, reconciling the 20 EnrollPro year-9 sections into section_mirrors"
+    ],
+    "requiredObservationIds": [],
+    "execution": null
+  },
+  "observations": [],
+  "artifacts": [],
+  "closure": null,
+  "sessionRouting": {
+    "planner": {
+      "decision": "FRESH_REQUIRED",
+      "sessionId": null,
+      "reason": "new objective with its own cycle."
+    },
+    "executor": {
+      "decision": "FRESH_REQUIRED",
+      "sessionId": null,
+      "reason": "the single authorized POST runs in a fresh context with the exact approved boundary."
+    },
+    "qa": {
+      "decision": "FRESH_REQUIRED",
+      "sessionId": null,
+      "reason": "one fresh independent pre-action review before the approval, plus post-action evidence review."
+    },
+    "auditor": {
+      "decision": "FRESH_REQUIRED",
+      "sessionId": null,
+      "reason": "a live mirror-data write requires a fresh Wave Completion Auditor after the action."
+    }
+  }
+}
