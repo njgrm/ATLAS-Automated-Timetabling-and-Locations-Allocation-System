@@ -1,9 +1,9 @@
 {
   "contractVersion": "1.2.0",
   "registry": {
-    "lastUpdatedAt": "2026-09-17T02:46:03.324Z",
+    "lastUpdatedAt": "2026-09-17T02:48:00.156Z",
     "lastUpdatedBy": "primary-planner:faculty-sync-cas-c01",
-    "revision": 257
+    "revision": 258
   },
   "coordination": {
     "mode": "MANUAL",
@@ -5362,7 +5362,7 @@
       "objective": "Make the canonical classProgramSlot grid the effective break-window and shift-bound authority for every (gradeLevel, programType) scope that has canonical rows, replacing the retired persisted policy lunch window (11:55-12:55) with the canonical per-grade breaks (Grades 7-8 Health 09:00-09:15 and Lunch 12:15-13:00; Grades 9-10 Lunch 12:15-13:00 and Health 15:15-15:30); close the manual-edit absent-authority fail-open; extend the policy-row-only Flag/HGP path with the single-canonical-CLASS-row snap validation; and cover classProgramSlot in the generation consumed-input fingerprint. Source and tests only.",
       "riskTier": "MEDIUM",
       "state": "COMPLETE",
-      "stateUpdatedAt": "2026-09-17T02:45:42.757Z",
+      "stateUpdatedAt": "2026-09-17T02:48:00.156Z",
       "nextAction": "Closed; wave-audited AUDIT_CLEAR. No live/HIGH action is unlocked.",
       "awaited": [],
       "running": [],
@@ -5382,8 +5382,8 @@
         ],
         "remoteObservation": {
           "ref": "refs/remotes/origin/main",
-          "sha": "6d52f8436431209074ce6d43c6657e7855500b75",
-          "observedAt": "2026-09-17T02:19:30.675Z",
+          "sha": "b9b0926691ea576cc59e8ed1d8a3ce260af98ecc",
+          "observedAt": "2026-09-17T02:48:00.156Z",
           "kind": "REMOTE_TRACKING_REF"
         }
       },
