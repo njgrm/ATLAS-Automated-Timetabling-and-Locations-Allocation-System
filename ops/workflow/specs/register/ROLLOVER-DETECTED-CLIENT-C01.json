@@ -1,0 +1,100 @@
+{
+  "id": "ROLLOVER-DETECTED-CLIENT-C01",
+  "kind": "STREAM",
+  "objective": "Expose the ROLLOVER-GRADED-AUTONOMY-C01 detection event to the operator in atlas-client: the server now publishes ROLLOVER_DETECTED (domain integration, audience PRIVILEGED) on every drift-status transition, but the client's NOTIFICATION_EVENT_TYPES allowlist in atlas-client/src/hooks/useNotificationStream.ts does not include it, so the real-bus event is silently discarded and the previous user-visible ROLLOVER_ATTENTION_REQUIRED attention signal is lost. Add the type to the allowlist and an AppShell handler branch that routes the operator to the existing Year Setup surface, so unattended detection is actually visible; do not change any other rollover surface. Source only: no live/shared database write, no runtime/task/env change, no companion edit.",
+  "riskTier": "MEDIUM",
+  "state": "PLANNED",
+  "stateUpdatedAt": "2026-09-17T00:00:00Z",
+  "nextAction": "Author the bounded client packet and dispatch one fresh source executor after the ROLLOVER-GRADED-AUTONOMY-C01 cycle closes; this successor must land before any deployment that flips ROLLOVER_AUTO_SYNC_ENABLED to true.",
+  "awaited": [],
+  "running": [],
+  "git": {
+    "worktree": "E:/ATLAS-worktrees/rollover-detected-client-c01",
+    "branch": "fix/rollover-detected-client",
+    "baseSha": "6be2d5e7f9d03b4e7d8e77f7a3967b1b190bd64e",
+    "candidateSha": null,
+    "integrationSha": null,
+    "changedPaths": [],
+    "remoteObservation": null
+  },
+  "owners": {
+    "planner": { "sessionId": null, "status": "IDLE", "writable": false },
+    "executor": { "sessionId": null, "status": "NONE", "writable": false },
+    "qa": { "sessionId": null, "status": "NONE", "writable": false },
+    "auditor": { "sessionId": null, "status": "NONE", "writable": false }
+  },
+  "gates": {
+    "total": 0,
+    "passed": 0,
+    "failed": 0,
+    "blocked": 0,
+    "unperformed": 0,
+    "plan": {
+      "MANDATORY_SOURCE": 4,
+      "MANDATORY_LIVE": 0,
+      "DEFERRED_EXTERNAL": 0
+    },
+    "classes": {
+      "MANDATORY_SOURCE": { "total": 0, "passed": 0, "failed": 0, "blocked": 0, "unperformed": 0 },
+      "MANDATORY_LIVE": { "total": 0, "passed": 0, "failed": 0, "blocked": 0, "unperformed": 0 },
+      "DEFERRED_EXTERNAL": { "total": 0, "passed": 0, "failed": 0, "blocked": 0, "unperformed": 0 }
+    }
+  },
+  "review": {
+    "qaVerdict": null,
+    "qaSessionId": null,
+    "auditorVerdict": null,
+    "auditorSessionId": null,
+    "auditRequired": true,
+    "qaRounds": []
+  },
+  "corrections": [],
+  "successors": [],
+  "requires": [],
+  "blocker": {
+    "kind": "NONE",
+    "detail": "No approval gate and no blocker to starting the work; the dispatch condition is sequencing, not permission. This successor is the remediation for QA finding F1 on the integrated ROLLOVER-GRADED-AUTONOMY-C01 wave: the new ROLLOVER_DETECTED event reaches the server notification bus but is dropped by the client allowlist, so the operator would not see the unattended detection. Because the shipped ops/runtime/runtime-contract.json still declares ROLLOVER_AUTO_SYNC_ENABLED=false, no live behaviour changes today; the binding requirement is that this successor lands before any deployment that flips that value to true.",
+    "safeWorkRemaining": true,
+    "safeWorkItems": [
+      "author the bounded client packet",
+      "dispatch one fresh source executor in E:/ATLAS-worktrees/rollover-detected-client-c01",
+      "prove the allowlist and AppShell branch through the real notification stream path"
+    ]
+  },
+  "approval": {
+    "required": false,
+    "presentedReady": false,
+    "granted": false,
+    "operatorIdentity": null,
+    "approvedAt": null,
+    "boundary": null,
+    "approvedActions": [],
+    "requiredObservationIds": [],
+    "execution": null
+  },
+  "observations": [],
+  "artifacts": [],
+  "closure": null,
+  "sessionRouting": {
+    "planner": {
+      "decision": "FRESH_REQUIRED",
+      "sessionId": null,
+      "reason": "new objective with its own cycle."
+    },
+    "executor": {
+      "decision": "FRESH_REQUIRED",
+      "sessionId": null,
+      "reason": "the client correction runs in a fresh executor context in E:/ATLAS-worktrees/rollover-detected-client-c01."
+    },
+    "qa": {
+      "decision": "FRESH_REQUIRED",
+      "sessionId": null,
+      "reason": "fresh independent QA over the frozen candidate, including real-path proof that the event is no longer discarded."
+    },
+    "auditor": {
+      "decision": "FRESH_REQUIRED",
+      "sessionId": null,
+      "reason": "the successor gates a later deployment that enables unattended rollover mutation, so a fresh adversarial audit is required at its integration."
+    }
+  }
+}
