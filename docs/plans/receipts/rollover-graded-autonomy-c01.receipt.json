@@ -1,0 +1,23 @@
+{
+  "receiptVersion": "1.1.0",
+  "generatedAt": "2026-09-17T13:29:02.341Z",
+  "statePath": "docs/plans/atlas-delivery-cycles.json",
+  "stateSha256": "48455fc24db33d0206eb855bab01aa8e39bb7eae314037bacbeac09d9f484169",
+  "status": "ok",
+  "streamId": "ROLLOVER-GRADED-AUTONOMY-C01",
+  "verified": {
+    "candidateSha": "bfa4c7e3282bed1886130f8db281f9ba5d27a552",
+    "integrationSha": "fd470f08eb6987c1c47bbaefd027fd45b829ca5c",
+    "qaVerdict": "ACCEPT_READY",
+    "auditorVerdict": "AUDIT_CLEAR",
+    "gates": {
+      "total": 12,
+      "passed": 12,
+      "failed": 0,
+      "blocked": 0,
+      "unperformed": 0
+    },
+    "readiness": "SOURCE_ONLY",
+    "artifacts": []
+  }
+}
