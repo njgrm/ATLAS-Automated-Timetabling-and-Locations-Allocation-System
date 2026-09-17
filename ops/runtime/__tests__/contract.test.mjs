@@ -36,17 +36,49 @@ function envIo(overrides = {}) {
 	};
 }
 
-test('reviewed contract validates and pins the rollover invariant to false', () => {
+test('reviewed contract declares a valid boolean-string rollover control and passes it through', () => {
 	const contract = loadContract();
-	assert.equal(contract.invariants.ROLLOVER_AUTO_SYNC_ENABLED, 'false');
-	assert.deepEqual(resolveInvariantEnv(contract), { ROLLOVER_AUTO_SYNC_ENABLED: 'false', ATLAS_SUPERVISED: 'true' });
+	assert.ok(
+		contract.invariants.ROLLOVER_AUTO_SYNC_ENABLED === 'true' || contract.invariants.ROLLOVER_AUTO_SYNC_ENABLED === 'false',
+		'shipped contract declares ROLLOVER_AUTO_SYNC_ENABLED as a boolean string',
+	);
+	assert.deepEqual(resolveInvariantEnv(contract), {
+		ROLLOVER_AUTO_SYNC_ENABLED: contract.invariants.ROLLOVER_AUTO_SYNC_ENABLED,
+		ATLAS_SUPERVISED: 'true',
+	});
 	assert.match(contract.productPin, /^[0-9a-f]{40}$/);
 });
 
-test('contract validation rejects a fail-open rollover invariant', () => {
+test('contract validation accepts an unpinned rollover control value of "true" (pass-through)', () => {
 	const contract = clone();
 	contract.invariants.ROLLOVER_AUTO_SYNC_ENABLED = 'true';
-	assert.throws(() => validateContract(contract), (error) => error.code === 'RUNTIME_CONTRACT_INVALID');
+	const validated = validateContract(contract);
+	assert.equal(validated.invariants.ROLLOVER_AUTO_SYNC_ENABLED, 'true');
+	assert.equal(resolveInvariantEnv(validated).ROLLOVER_AUTO_SYNC_ENABLED, 'true');
+});
+
+test('contract validation rejects invalid rollover control values', () => {
+	for (const invalid of ['yes', 'TRUE', '', 1, true, null, undefined]) {
+		const contract = clone();
+		contract.invariants.ROLLOVER_AUTO_SYNC_ENABLED = invalid;
+		assert.throws(
+			() => validateContract(contract),
+			(error) => error.code === 'RUNTIME_CONTRACT_INVALID',
+			`${JSON.stringify(invalid)} must be rejected as RUNTIME_CONTRACT_INVALID`,
+		);
+	}
+});
+
+test('contract validation keeps ATLAS_SUPERVISED hard-pinned to "true"', () => {
+	for (const invalid of ['false', 'TRUE', '', 1, true, null, undefined]) {
+		const contract = clone();
+		contract.invariants.ATLAS_SUPERVISED = invalid;
+		assert.throws(
+			() => validateContract(contract),
+			(error) => error.code === 'RUNTIME_CONTRACT_INVALID',
+			`ATLAS_SUPERVISED ${JSON.stringify(invalid)} must be rejected as RUNTIME_CONTRACT_INVALID`,
+		);
+	}
 });
 
 test('contract validation rejects absolute and traversing entries', () => {

@@ -15,6 +15,8 @@
  *     audits use actor 0 / initiatedBy system.
  *  5. The clean `atlas-stale` automation branch is proven through the real
  *     automation tick against a hermetic fixture (ATLAS 100 -> EnrollPro 101).
+ *     ROLLOVER-GRADED-AUTONOMY-C01: the tick syncs but never archives; the
+ *     superseded year stays non-archived until an operator archives it.
  *  6. Interruption points: cleanup failure, sync failure, archive failure,
  *     and post-return durability all behave transactionally.
  */
@@ -1076,7 +1078,7 @@ async function runArchiveFailureInterruption() {
 }
 
 async function runCleanAutomationFixture() {
-	section('RR-15F: clean atlas-stale automation branch (ATLAS 100 -> EnrollPro 101)');
+	section('RR-15F: clean atlas-stale automation branch syncs without archiving (ATLAS 100 -> EnrollPro 101)');
 	{
 		const ACTOR = 0;
 		const oldYearId = 100;
@@ -1117,10 +1119,13 @@ async function runCleanAutomationFixture() {
 				assertEqual(newMirror?.isActive, true, 'Year 101 becomes active');
 				assertEqual(newMirror?.yearLabel, '2100-2101', 'Year 101 carries the upstream label');
 
-				// 4) Year 100 becomes inactive and archived.
+				// 4) Year 100 becomes inactive. ROLLOVER-GRADED-AUTONOMY-C01:
+				//    the unattended tick never archives; superseding the
+				//    previous year stays an explicit operator action.
 				const oldMirror = await findMirror(fixture.schoolId, oldYearId);
 				assertEqual(oldMirror?.isActive, false, 'Year 100 is deactivated');
-				assertEqual(oldMirror?.isArchived, true, 'Year 100 is archived');
+				assertEqual(oldMirror?.isArchived, false, 'Year 100 is NOT archived by the unattended tick');
+				assertEqual(oldMirror?.archivedBy, null, 'No archiver is recorded for year 100');
 
 				// 5) Year-100 data remains unchanged.
 				const oldState = await yearArtifactState(fixture.schoolId, oldYearId);
@@ -1151,7 +1156,8 @@ async function runCleanAutomationFixture() {
 				const canonicalSlots = await prisma.classProgramSlot.count({ where: { schoolId: fixture.schoolId, schoolYearId: newYearId } });
 				assert(canonicalSlots > 0, `Year-101 canonical class-program slots seeded (got ${canonicalSlots})`);
 
-				// 10) Audits identify initiatedBy system and actor 0.
+				// 10) Audits identify initiatedBy system and actor 0. No archive
+				//     audit is written: the tick never archives.
 				const syncAudit = await prisma.auditLog.findFirst({
 					where: { schoolId: fixture.schoolId, schoolYearId: newYearId, action: 'ROLLOVER_SYNC_APPLIED' },
 					select: { actorId: true, metadata: true },
@@ -1159,25 +1165,23 @@ async function runCleanAutomationFixture() {
 				assertEqual(syncAudit?.actorId, 0, 'Rollover sync audit actor is 0');
 				const syncMetadata = syncAudit?.metadata as Record<string, unknown> | null;
 				assertEqual(syncMetadata?.initiatedBy, 'system', 'Rollover sync audit initiatedBy is system');
-				const archiveAudit = await prisma.auditLog.findFirst({
+				const archiveAudits = await prisma.auditLog.count({
 					where: { schoolId: fixture.schoolId, schoolYearId: oldYearId, action: 'ARCHIVE_SCHOOL_YEAR' },
-					select: { actorId: true, metadata: true },
 				});
-				assertEqual(archiveAudit?.actorId, 0, 'Archive audit actor is 0');
-				const archiveMetadata = archiveAudit?.metadata as Record<string, unknown> | null;
-				assertEqual(archiveMetadata?.initiatedBy, 'system', 'Archive audit initiatedBy is system');
-				const oldMirrorRow = await findMirror(fixture.schoolId, oldYearId);
-				assertEqual(oldMirrorRow?.archivedBy, 0, 'Archived-year mirror records archivedBy 0');
+				assertEqual(archiveAudits, 0, 'No ARCHIVE_SCHOOL_YEAR audit is written by the unattended tick');
 
-				// 11) Completion notification identifies the new and archived years.
+				// 11) Completion notification identifies the newly synced year and
+				//     never claims an archived year.
 				const completionEvents = events.filter((event) => event.type === 'ROLLOVER_AUTO_SYNC_COMPLETED');
 				assertEqual(completionEvents.length, 1, 'One ROLLOVER_AUTO_SYNC_COMPLETED notification');
 				const completion = completionEvents[0] as Record<string, unknown> | undefined;
 				assertEqual(completion?.schoolYearId, newYearId, 'Completion notification targets year 101');
 				const completionMetadata = completion?.metadata as Record<string, unknown> | undefined;
 				const archivedMeta = (completionMetadata?.archivedYears as Array<{ schoolYearId: number }> | undefined) ?? [];
-				assertEqual(archivedMeta.length, 1, 'Completion notification carries the archived year');
-				assertEqual(archivedMeta[0]?.schoolYearId, oldYearId, 'Completion notification names year 100');
+				assertEqual(archivedMeta.length, 0, 'Completion notification carries no archived year');
+				assert(!String(completion?.message ?? '').includes('archiv'), 'Completion message does not claim an archive');
+				const detectedEvents = events.filter((event) => event.type === 'ROLLOVER_DETECTED');
+				assertEqual(detectedEvents.length, 0, 'The auto-apply path does not emit a detection notification');
 
 				// 12-13) A second tick skips and duplicates nothing.
 				const sectionsBeforeSecond = await prisma.sectionMirror.count({ where: { schoolId: fixture.schoolId, schoolYearId: newYearId } });
@@ -1194,7 +1198,7 @@ async function runCleanAutomationFixture() {
 				const archiveAuditsAfterSecond = await prisma.auditLog.count({
 					where: { schoolId: fixture.schoolId, schoolYearId: oldYearId, action: 'ARCHIVE_SCHOOL_YEAR' },
 				});
-				assertEqual(archiveAuditsAfterSecond, 1, 'Second tick does not re-archive');
+				assertEqual(archiveAuditsAfterSecond, 0, 'Second tick never archives');
 				const completionsAfterSecond = events.filter((event) => event.type === 'ROLLOVER_AUTO_SYNC_COMPLETED');
 				assertEqual(completionsAfterSecond.length, 1, 'Second tick emits no duplicate completion notification');
 

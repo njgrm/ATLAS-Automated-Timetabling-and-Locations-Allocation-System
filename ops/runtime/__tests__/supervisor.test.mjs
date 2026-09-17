@@ -141,15 +141,24 @@ function makeHarness(options = {}) {
 	};
 }
 
-test('buildTargets pins ports, rollover-disabled, and supervised invariants', () => {
+test('buildTargets pins ports, passes the rollover control through, and keeps supervision pinned', () => {
 	const targets = buildTargets({ contract: CONTRACT, sourceDir: 'C:/deploy/atlas', envValues: {} });
 	const server = targets.find((target) => target.name === 'server');
 	const client = targets.find((target) => target.name === 'client');
-	assert.equal(server.env.ROLLOVER_AUTO_SYNC_ENABLED, 'false');
+	assert.equal(server.env.ROLLOVER_AUTO_SYNC_ENABLED, CONTRACT.invariants.ROLLOVER_AUTO_SYNC_ENABLED);
 	assert.equal(server.env.ATLAS_SUPERVISED, 'true');
 	assert.equal(server.env.PORT, String(CONTRACT.ports.server));
 	assert.equal(client.env.ATLAS_HOST_PORT, String(CONTRACT.ports.client));
 	assert.equal(client.env.ATLAS_HOST_API_TARGET, `http://127.0.0.1:${CONTRACT.ports.server}`);
+});
+
+test('buildTargets passes an enabled rollover control through without rewriting it', () => {
+	const contract = JSON.parse(JSON.stringify(CONTRACT));
+	contract.invariants.ROLLOVER_AUTO_SYNC_ENABLED = 'true';
+	const targets = buildTargets({ contract, sourceDir: 'C:/deploy/atlas', envValues: {} });
+	const server = targets.find((target) => target.name === 'server');
+	assert.equal(server.env.ROLLOVER_AUTO_SYNC_ENABLED, 'true');
+	assert.equal(server.env.ATLAS_SUPERVISED, 'true');
 });
 
 test('duplicate-instance prevention refuses to start over a live recorded instance', async () => {
