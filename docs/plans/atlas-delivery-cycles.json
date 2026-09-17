@@ -1,9 +1,9 @@
 {
   "contractVersion": "1.2.0",
   "registry": {
-    "lastUpdatedAt": "2026-09-17T05:47:42.034Z",
-    "lastUpdatedBy": "primary-planner:slot-break-authority-c11r",
-    "revision": 278
+    "lastUpdatedAt": "2026-09-17T06:43:35.342Z",
+    "lastUpdatedBy": "primary-planner:slot-break-authority-c11r-r2",
+    "revision": 281
   },
   "coordination": {
     "mode": "MANUAL",
@@ -5987,12 +5987,12 @@
       "objective": "Complete SLOT-BREAK-AUTHORITY-C11 on the display surfaces: make the canonical classProgramSlot grid the source of displayed period, break, and shift slots whenever canonical rows exist for a (gradeLevel, programType) scope, removing the retired 11:55-12:55 fallbacks from schedule-constructor.ts and threading the canonical authority into room-schedule, locked-session, published-schedule, and pre-generation-draft, while freezing canonical-derived slots at publication time and preserving published immutability. Source and tests only.",
       "riskTier": "MEDIUM",
       "state": "INTEGRATED",
-      "stateUpdatedAt": "2026-09-17T05:47:42.034Z",
-      "nextAction": "Wave Completion Audit returned PLANNER_DECISION_REQUIRED (7/8/0/0). The C11R product tree is sound and all product gates pass, but the successor HIGH packet G9-G10-CONFIG-CORRECTION-C01 is not executable: operator decision D-D section 8 conflicts with R3 sections R3.2/R3.3, and executing R3 would break already-integrated wave-audited assertions in SLOT-BREAK-AUTHORITY-C11/C11R. Stream stays INTEGRATED and must not close COMPLETE until the operator rules. No HIGH approval may be presented; no live action is unlocked.",
+      "stateUpdatedAt": "2026-09-17T06:43:35.342Z",
+      "nextAction": "Row A8 (successor/HIGH-packet readiness) failed again in round 2 (auditor ses_f51f18d43ffeemG7MM52J5XA3V; capsule docs/reviews/slot-break-authority-c11r-20260917/wave-completion-audit-r2.md). The C11R product tree is unchanged and sound, but R4's mandatory catalog change to class-program-slot.service.ts:208-218 invalidates always-run assertions in timetable-shape-diagnostic-c02.test.ts:69-70, generation-stakeholder-shape-genc02r.test.ts:84-90 and tt-output-c03r.test.ts:518 (plus DB-guarded C11/C11R controls), which R4 neither names nor authorizes; and GRADE_9_10_SPECIAL spreading GRADE_9_10_REGULAR makes the change affect 8 G9/G10 scopes while R4 demands 14 unchanged. Stream stays INTEGRATED and must not close COMPLETE; no HIGH approval may be presented and no successor artifact was edited.",
       "awaited": [
-        "the operator or planner ruling on whether D-D section 8 or the G9/G10 R3 packet governs the G9-10 persisted grid and the banded-lunch display and enforcement mechanism",
-        "correction of the G9/G10 R3 packet and its register spec (approval.approvedActions[0] is unsatisfiable as written; R3 section R3.0 is refuted by D-D section 8)",
-        "a fresh Wave Completion Auditor over the changed final tree once the decision is recorded"
+        "the operator/planner stream-boundary decision: does the class-program-slot.service.ts catalog edit plus its dependent test updates ride inside the HIGH persisted-config packet as a mixed source+live packet, or land first as a separate bounded ordinary source lane",
+        "the affected-scope decision: confirm all 8 G9/G10 scopes change and correct R4 acceptance row 1 and approvedActions[1], or explicitly rule that the Special Program grids keep 12:15-13:00",
+        "the corrected successor packet, spec, contract section 8.1 and the five dependent test files; then a fresh Wave Completion Auditor, a fresh pre-action review, and the exact approval sentence (NOT GRANTED)"
       ],
       "running": [],
       "git": {
@@ -6034,7 +6034,7 @@
           "writable": false
         },
         "auditor": {
-          "sessionId": "ses_f5223318bffeVh1MWUqACOkrFW",
+          "sessionId": "ses_f51f18d43ffeemG7MM52J5XA3V",
           "status": "RETURNED",
           "writable": false
         }
@@ -6078,7 +6078,7 @@
         "qaVerdict": "ACCEPT_READY",
         "qaSessionId": "ses_f5246fce5ffeQvdpsJ18vxRUZi",
         "auditorVerdict": "PLANNER_DECISION_REQUIRED",
-        "auditorSessionId": "ses_f5223318bffeVh1MWUqACOkrFW",
+        "auditorSessionId": "ses_f51f18d43ffeemG7MM52J5XA3V",
         "auditRequired": true,
         "qaRounds": [
           {
@@ -6093,7 +6093,7 @@
       "requires": [],
       "blocker": {
         "kind": "DEPENDENCY",
-        "detail": "No C11R product or authority defect remains: the integrated product tree is byte-identical to the ACCEPT_READY candidate (atlas-server subtree e53b7636) and every product gate passes. The blocker is the mandatory Wave Completion Audit verdict PLANNER_DECISION_REQUIRED (7/8/0/0), whose single failed row is successor/HIGH-packet readiness: the prepared HIGH packet G9-G10-CONFIG-CORRECTION-C01 is not executable because operator decision D-D section 8 (G9-10 persisted Lunch BREAK 12:15-13:00 plus 8 CLASS rows) conflicts with packet R3 sections R3.2/R3.3 (12:15-13:00 is the defect; 8 CLASS plus a lunch band over a CLASS row; shift 12:15-18:30), and executing R3 would break already-integrated wave-audited assertions. C11R therefore stays INTEGRATED and must not be closed COMPLETE (mechanical closure invariant 1); no HIGH approval may be presented. This is NOT an approval gate for this MEDIUM stream: approval.required is false.",
+        "detail": "Row A8 (successor/HIGH-packet readiness) failed again in the round-2 Wave Completion Auditor (7/8/0/0; ses_f51f18d43ffeemG7MM52J5XA3V). No C11R product or authority defect remains: the integrated product tree is byte-identical to the ACCEPT_READY candidate (atlas-server subtree e53b7636) and all C11R product gates pass. The successor HIGH packet G9-G10-CONFIG-CORRECTION-C01 R4 is still not executable as written because its mandatory catalog change to class-program-slot.service.ts:208-218 invalidates already-integrated always-run assertions (timetable-shape-diagnostic-c02.test.ts:69-70; generation-stakeholder-shape-genc02r.test.ts:84-90; tt-output-c03r.test.ts:518) that R4 neither names nor authorizes, and its scope arithmetic contradicts itself (GRADE_9_10_SPECIAL spreads GRADE_9_10_REGULAR, so 8 G9/G10 scopes change while R4 demands 14 unchanged). C11R therefore stays INTEGRATED and must not be closed COMPLETE (mechanical closure invariant 1); no HIGH approval may be presented. This is NOT an approval gate for this MEDIUM stream: approval.required is false.",
         "safeWorkRemaining": false,
         "safeWorkItems": []
       },
@@ -6263,9 +6263,9 @@
       "worktree": "E:/ATLAS-worktrees/slot-break-authority-c11r",
       "role": "executor",
       "sessionId": null,
-      "state": "ACTIVE",
-      "revision": 1,
-      "updatedAt": "2026-09-17T03:26:03.479Z",
+      "state": "RETURNED",
+      "revision": 2,
+      "updatedAt": "2026-09-17T06:43:35.342Z",
       "expiresAt": null
     }
   ],
