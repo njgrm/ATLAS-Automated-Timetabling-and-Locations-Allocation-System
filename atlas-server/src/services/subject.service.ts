@@ -533,6 +533,12 @@ const VALID_PATCH_FIELDS = new Set([
 	'programScopes',
 	'allowedSpecializations',
 	'requiredFeatures',
+	// The Subjects edit surface always sends this field (Subjects.tsx:381) and
+	// updateSubjectAtomic merges it into requiredFeatures as OWNER_DEPT:<code>
+	// (line ~1700), so omitting it here rejected EVERY subject edit with a 400
+	// UNKNOWN_FIELD before the handler or its own INVALID_OWNER_DEPARTMENTS
+	// validation (line ~791) could ever run.
+	'allowedOwnerDepartments',
 	'ownerDepartment',
 	'qualificationPriority',
 	'rotationFamily',

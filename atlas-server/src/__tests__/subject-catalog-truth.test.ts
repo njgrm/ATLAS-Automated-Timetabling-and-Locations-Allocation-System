@@ -170,6 +170,25 @@ async function main() {
 		expectPatchError({ qualificationPriority: 'ANYTHING' }, 'INVALID_QUALIFICATION_PRIORITY', 'patch qualification enum enforced');
 		expectPatchError({ requiredFeatures: ['OK', 'OK'] }, 'DUPLICATE_VALUES', 'patch duplicate features rejected');
 		expectPatchError({ requiredFeatures: 'LAB' as any }, 'INVALID_REQUIRED_FEATURES', 'patch non-array features rejected');
+		// The Subjects edit surface ALWAYS sends allowedOwnerDepartments
+		// (atlas-client/src/pages/Subjects.tsx:381) and updateSubjectAtomic merges
+		// it into requiredFeatures as OWNER_DEPT:<code> (subject.service.ts:1700).
+		// Omitting it from VALID_PATCH_FIELDS made the unknown-field guard reject
+		// every subject edit with a 400 UNKNOWN_FIELD before either the handler or
+		// this validator's own INVALID_OWNER_DEPARTMENTS branch could run.
+		{
+			const accepted = validateAndFilterPatchFields({ allowedOwnerDepartments: ['TLE'] });
+			ok(accepted.ok, 'allowedOwnerDepartments is an accepted patch field');
+			if (accepted.ok) {
+				ok(
+					JSON.stringify(accepted.data.allowedOwnerDepartments) === JSON.stringify(['TLE']),
+					'allowedOwnerDepartments passes through unmodified',
+				);
+			}
+		}
+		expectPatchError({ allowedOwnerDepartments: 'TLE' as any }, 'INVALID_OWNER_DEPARTMENTS', 'patch non-array owner departments rejected');
+		expectPatchError({ allowedOwnerDepartments: ['TLE', 'TLE'] }, 'DUPLICATE_VALUES', 'patch duplicate owner departments rejected');
+		expectPatchError({ allowedOwnerDepartments: [''] }, 'INVALID_OWNER_DEPARTMENTS', 'patch empty owner department rejected');
 		// TERM-SUBJ-C01: termCount is EnrollPro-owned regardless of supplied value.
 		expectPatchError({ termCount: null }, 'PROTECTED_TERM_AUTHORITY', 'patch null termCount rejected as protected');
 		expectPatchError({ programScopes: [] }, 'INVALID_PROGRAM_SCOPES', 'patch empty programScopes rejected');
