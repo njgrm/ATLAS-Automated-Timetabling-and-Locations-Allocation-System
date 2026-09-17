@@ -1,14 +1,14 @@
 {
   "contractVersion": "1.2.0",
   "registry": {
-    "lastUpdatedAt": "2026-09-17T05:21:57.087Z",
-    "lastUpdatedBy": "primary-planner:wf-c10-closure",
-    "revision": 272
+    "lastUpdatedAt": "2026-09-17T05:27:24.838Z",
+    "lastUpdatedBy": "primary-planner:slot-break-authority-c11r",
+    "revision": 274
   },
   "coordination": {
-    "mode": "CYCLE_ACTIVE",
-    "activeCycleId": "SLOT-BREAK-AUTHORITY-C11R",
-    "globalNextAction": "SLOT-BREAK-AUTHORITY-C11R is RUNNING (base 4deb9d9c, lease-slot-break-authority-c11r ACTIVE, executor lease) for the display-surface parity correction of SLOT-BREAK-AUTHORITY-C11: the canonical classProgramSlot grid becomes the displayed period/break/shift authority wherever canonical rows exist, the silent 11:55/12:55 fallbacks are deleted, and canonical-derived slots are frozen at publication while published immutability is preserved. Next: one fresh source executor returns REVIEW_REQUIRED, then fresh independent QA over the frozen candidate, clean current-main integration on integration/slot-break-authority-c11r-20260917, and one fresh Wave Completion Auditor. Peer streams are NOT disturbed: WF-C10-TRANSITION-GUARD-HARDENING is COMPLETE with its wave-audited receipt (AUDIT_CLEAR 12/12/0/0; no HIGH action unlocked) and SYNC-SECTION-ENROLMENT-C01 remains PLANNED awaiting its own pre-action review and the operator's exact approval sentence. Every live/HIGH action (runtime install/restart, term-cache apply, Teaching Load apply, DB/schema apply, generation, publication, login, companion) remains locked and NOT granted."
+    "mode": "MANUAL",
+    "activeCycleId": null,
+    "globalNextAction": "SLOT-BREAK-AUTHORITY-C11R is ACCEPT_READY (candidate 06319bb0, base 4deb9d9c; QA ACCEPT_READY 10/10/0/0/0); coordination moved to MANUAL because the closing stream was the active cycle. Next: integrate on integration/slot-break-authority-c11r-20260917 over then-current origin/main, record the integration, then commission one fresh Wave Completion Auditor. Peer SYNC-SECTION-ENROLMENT-C01 remains PLANNED awaiting its pre-action review and the operator's exact HIGH approval. Every live/HIGH action (runtime install/restart, term-cache apply, Teaching Load apply, DB/schema apply, generation, publication, login, companion) remains locked and NOT granted."
   },
   "streams": [
     {
@@ -5666,7 +5666,7 @@
       "objective": "Make the machine register able to record HIGH gates and stale directives truthfully, and close four register-integrity defect classes found at R0: add record-approval and record-execution, add withdraw-approval as the documented exit from the currently dead-end HIGH_APPROVAL_REQUIRED state, add a directive-copy fail-closed check, add a packet-artifact pin lint that validates directive-pin reproducibility (A4: a directive bump must not invalidate an already-queued reproducible pin), add LF-normalized dependency-tree identity, extend the register revision window so a reservation spans from declaration through the holder's terminal transition with a WINDOW_LAPSED guard on bounded windows (A1), pin the RUNNING-without-live-evidence negative fixture with a settled account of the R2 substitution (A2), make the mandatory plugin-load gate hermetic by tracking .opencode/package.json with type=module (A3), and verify plus use record-executor-return --base (A5). Verify (do not re-implement) the WF-C09 R2 register revision-window reservation. No product source, runtime, database, or companion change.",
       "riskTier": "MEDIUM",
       "state": "COMPLETE",
-      "stateUpdatedAt": "2026-09-17T05:21:57.087Z",
+      "stateUpdatedAt": "2026-09-17T05:15:24.607Z",
       "nextAction": "Closed COMPLETE with the wave-audited receipt ses_f52503f1effe3RPktq4Oeg7eos (AUDIT_CLEAR 12/12/0/0). Candidate db5a9fce on integration 86ad12b1; fresh QA ses_f53a770dbffehtUdAumTNPWZ9v ACCEPT_READY over the 38 candidate-tier rows, plus planner integration-tier rows 29/34/35 completing the predeclared 41-row MANDATORY_SOURCE plan. No HIGH action is unlocked. Worktrees RETIRE_AFTER_INTEGRATION.",
       "awaited": [],
       "running": [],
@@ -5702,8 +5702,8 @@
         ],
         "remoteObservation": {
           "ref": "refs/remotes/origin/main",
-          "sha": "de15e5e013ce56c221f3b523845289ddf30f1b80",
-          "observedAt": "2026-09-17T05:21:57.087Z",
+          "sha": "86ad12b11a2c755ed23b7000c60d28de451ed568",
+          "observedAt": "2026-09-17T04:43:43.955Z",
           "kind": "REMOTE_TRACKING_REF"
         }
       },
@@ -5986,24 +5986,28 @@
       "kind": "STREAM",
       "objective": "Complete SLOT-BREAK-AUTHORITY-C11 on the display surfaces: make the canonical classProgramSlot grid the source of displayed period, break, and shift slots whenever canonical rows exist for a (gradeLevel, programType) scope, removing the retired 11:55-12:55 fallbacks from schedule-constructor.ts and threading the canonical authority into room-schedule, locked-session, published-schedule, and pre-generation-draft, while freezing canonical-derived slots at publication time and preserving published immutability. Source and tests only.",
       "riskTier": "MEDIUM",
-      "state": "RUNNING",
-      "stateUpdatedAt": "2026-09-17T03:26:03.479Z",
-      "nextAction": "Await the source executor REVIEW_REQUIRED return for the frozen candidate in E:/ATLAS-worktrees/slot-break-authority-c11r (branch fix/slot-break-authority-c11r, base 4deb9d9c) against docs/prompts/slot-break-authority-c11r-2026-09-17.md; then validate the immutable range and commission one fresh independent QA over the complete base...candidate range, integrate on integration/slot-break-authority-c11r-20260917 over the then-current origin/main, and commission one fresh Wave Completion Auditor. No runtime, DB, migration, generation, or publication action is unlocked by this stream.",
+      "state": "ACCEPT_READY",
+      "stateUpdatedAt": "2026-09-17T05:25:12.116Z",
+      "nextAction": "Fresh independent QA returned ACCEPT_READY 10/10/0/0/0 over 4deb9d9c...06319bb0. Next: move coordination to MANUAL, integrate the candidate on integration/slot-break-authority-c11r-20260917 over the then-current origin/main, then commission one fresh Wave Completion Auditor. No live/HIGH action is unlocked.",
       "awaited": [
-        "executor REVIEW_REQUIRED return for the SLOT-BREAK-AUTHORITY-C11R frozen candidate",
-        "fresh independent QA over the frozen candidate range",
-        "clean current-main integration and fresh Wave Completion Audit"
+        "planner validates the immutable range and integration boundary"
       ],
-      "running": [
-        "one bounded executor implementation of packet docs/prompts/slot-break-authority-c11r-2026-09-17.md on branch fix/slot-break-authority-c11r; the executor session is dispatched in the same planner turn as this registration and its session id is recorded at return"
-      ],
+      "running": [],
       "git": {
         "worktree": "E:/ATLAS-worktrees/slot-break-authority-c11r",
         "branch": "fix/slot-break-authority-c11r",
         "baseSha": "4deb9d9cd75dccba6a3bebfe62511a2b54644cac",
-        "candidateSha": null,
+        "candidateSha": "06319bb038329f93ec79e032cbc502f7d462d7d1",
         "integrationSha": null,
-        "changedPaths": [],
+        "changedPaths": [
+          "atlas-server/src/__tests__/slot-break-authority-c11r.test.ts",
+          "atlas-server/src/services/locked-session.service.ts",
+          "atlas-server/src/services/pre-generation-draft.service.ts",
+          "atlas-server/src/services/published-identity-snapshot.service.ts",
+          "atlas-server/src/services/published-schedule.service.ts",
+          "atlas-server/src/services/room-schedule.service.ts",
+          "atlas-server/src/services/schedule-constructor.ts"
+        ],
         "remoteObservation": {
           "ref": "refs/remotes/origin/main",
           "sha": "4deb9d9cd75dccba6a3bebfe62511a2b54644cac",
@@ -6018,13 +6022,13 @@
           "writable": false
         },
         "executor": {
-          "sessionId": null,
-          "status": "NONE",
+          "sessionId": "ses_f52943352ffeqWHZ6W53NJi5mI",
+          "status": "RETURNED",
           "writable": false
         },
         "qa": {
-          "sessionId": null,
-          "status": "NONE",
+          "sessionId": "ses_f5246fce5ffeQvdpsJ18vxRUZi",
+          "status": "RETURNED",
           "writable": false
         },
         "auditor": {
@@ -6034,8 +6038,8 @@
         }
       },
       "gates": {
-        "total": 0,
-        "passed": 0,
+        "total": 10,
+        "passed": 10,
         "failed": 0,
         "blocked": 0,
         "unperformed": 0,
@@ -6046,8 +6050,8 @@
         },
         "classes": {
           "MANDATORY_SOURCE": {
-            "total": 0,
-            "passed": 0,
+            "total": 10,
+            "passed": 10,
             "failed": 0,
             "blocked": 0,
             "unperformed": 0
@@ -6069,12 +6073,18 @@
         }
       },
       "review": {
-        "qaVerdict": null,
-        "qaSessionId": null,
+        "qaVerdict": "ACCEPT_READY",
+        "qaSessionId": "ses_f5246fce5ffeQvdpsJ18vxRUZi",
         "auditorVerdict": null,
         "auditorSessionId": null,
         "auditRequired": true,
-        "qaRounds": []
+        "qaRounds": [
+          {
+            "round": 1,
+            "verdict": "ACCEPT_READY",
+            "sessionId": "ses_f5246fce5ffeQvdpsJ18vxRUZi"
+          }
+        ]
       },
       "corrections": [],
       "successors": [],
