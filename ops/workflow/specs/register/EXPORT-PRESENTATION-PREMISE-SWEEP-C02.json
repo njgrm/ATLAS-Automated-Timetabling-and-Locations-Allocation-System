@@ -1,0 +1,106 @@
+{
+  "id": "EXPORT-PRESENTATION-PREMISE-SWEEP-C02",
+  "kind": "STREAM",
+  "objective": "Docs-only truth correction of every surviving authoritative premise that migrations 0002_companion_sso_code and 0003_teacher_program_presentation are unapplied. The blocking case is docs/prompts/term-cache-catchup-apply-2026-09-14.md, a live HIGH_APPROVAL_REQUIRED packet that still records a 2-row _prisma_migrations registry and a pending 0002, which makes it unexecutable as written now that 4 migrations are applied; the remaining cases are the C06B packet S15 row, the teacher-program output contract status line, the companion-SSO live-prep and EnrollPro configuration handoffs, the runtime-activation packet dependency name, and the executed MIG-APPLY packet banner. Annotate, do not rewrite. No product source, test, migration, prisma, ops/workflow, machine register, runtime, task, env, database, login, browser, generation, publication, or companion action.",
+  "riskTier": "MEDIUM",
+  "state": "PLANNED",
+  "stateUpdatedAt": "2026-09-17T00:00:00Z",
+  "nextAction": "Register by CAS at the then-current revision with the atomic executor lease and dispatch the authored packet docs/prompts/export-presentation-premise-sweep-c02-2026-09-17.md; then one fresh independent QA over the frozen range, integration, and one fresh Wave Completion Auditor over the changed final tree.",
+  "awaited": [
+    "the operator's or planner's decision to dispatch this authored docs-only lane",
+    "bounded executor correction return and its frozen candidate",
+    "fresh independent QA over the frozen range",
+    "one fresh Wave Completion Auditor over the changed final tree"
+  ],
+  "running": [],
+  "git": {
+    "worktree": "E:/ATLAS-worktrees/export-presentation-premise-sweep-c02",
+    "branch": "fix/export-presentation-premise-sweep-c02",
+    "baseSha": "43341ac7cb908f9ca692dbc93f8da8ef26ec52b0",
+    "candidateSha": null,
+    "integrationSha": null,
+    "changedPaths": [],
+    "remoteObservation": null
+  },
+  "owners": {
+    "planner": { "sessionId": null, "status": "IDLE", "writable": false },
+    "executor": { "sessionId": null, "status": "NONE", "writable": false },
+    "qa": { "sessionId": null, "status": "NONE", "writable": false },
+    "auditor": { "sessionId": null, "status": "NONE", "writable": false }
+  },
+  "gates": {
+    "total": 0,
+    "passed": 0,
+    "failed": 0,
+    "blocked": 0,
+    "unperformed": 0,
+    "plan": {
+      "MANDATORY_SOURCE": 4,
+      "MANDATORY_LIVE": 1,
+      "DEFERRED_EXTERNAL": 0
+    },
+    "classes": {
+      "MANDATORY_SOURCE": { "total": 0, "passed": 0, "failed": 0, "blocked": 0, "unperformed": 0 },
+      "MANDATORY_LIVE": { "total": 0, "passed": 0, "failed": 0, "blocked": 0, "unperformed": 0 },
+      "DEFERRED_EXTERNAL": { "total": 0, "passed": 0, "failed": 0, "blocked": 0, "unperformed": 0 }
+    }
+  },
+  "review": {
+    "qaVerdict": null,
+    "qaSessionId": null,
+    "auditorVerdict": null,
+    "auditorSessionId": null,
+    "auditRequired": true,
+    "qaRounds": []
+  },
+  "corrections": [],
+  "successors": [],
+  "requires": ["MIG-APPLY-0002-0003"],
+  "blocker": {
+    "kind": "NONE",
+    "detail": "",
+    "safeWorkRemaining": true,
+    "safeWorkItems": [
+      "register the authored packet and spec by CAS at the then-current revision with the atomic executor lease",
+      "re-base the term-cache-catchup-apply packet registry value and pending-0002 statement without weakening its divergence STOP",
+      "annotate the six remaining stale pre-apply premises",
+      "run the mechanical premise sweep and the failing-first control, then produce the frozen QA candidate"
+    ]
+  },
+  "approval": {
+    "required": false,
+    "presentedReady": false,
+    "granted": false,
+    "operatorIdentity": null,
+    "approvedAt": null,
+    "boundary": null,
+    "approvedActions": [],
+    "requiredObservationIds": [],
+    "execution": null
+  },
+  "observations": [],
+  "artifacts": [],
+  "closure": null,
+  "sessionRouting": {
+    "planner": {
+      "decision": "EXISTING",
+      "sessionId": null,
+      "reason": "the planner that owns the MIG-APPLY-0002-0003 closure owns this sweep end to end."
+    },
+    "executor": {
+      "decision": "FRESH_REQUIRED",
+      "sessionId": null,
+      "reason": "the docs-only sweep runs in a fresh executor context in E:/ATLAS-worktrees/export-presentation-premise-sweep-c02."
+    },
+    "qa": {
+      "decision": "FRESH_REQUIRED",
+      "sessionId": null,
+      "reason": "one fresh independent QA over the frozen sweep range."
+    },
+    "auditor": {
+      "decision": "FRESH_REQUIRED",
+      "sessionId": null,
+      "reason": "changing a live HIGH packet's preconditions reopens the wave-completion loop."
+    }
+  }
+}

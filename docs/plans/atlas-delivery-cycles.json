@@ -1,9 +1,9 @@
 {
   "contractVersion": "1.2.0",
   "registry": {
-    "lastUpdatedAt": "2026-09-17T12:01:35.507Z",
-    "lastUpdatedBy": "primary-planner:rollover-graded-autonomy-c01",
-    "revision": 311
+    "lastUpdatedAt": "2026-09-17T12:17:10.766Z",
+    "lastUpdatedBy": "primary-planner:export-presentation-s15-rebaseline-closure",
+    "revision": 314
   },
   "coordination": {
     "mode": "CYCLE_ACTIVE",
@@ -6141,14 +6141,14 @@
       "objective": "Apply exactly two additive reviewed migrations (0002_companion_sso_code sha256 c2502e3070a98e6a6ddf4a1568cf2b3368a5cc72db2983cd02d0311012e43baf; 0003_teacher_program_presentation sha256 b3270f02f16486f7b4e25538f80d675e42ba7cd6a9b704aebd3fff2593a764ee) to the live ATLAS database atlas_recovery_clean_rebuild_20260905 at host localhost:5432 through the canonical guarded wrapper (npm run migrate:guarded from atlas-server/), preceded by a verified fresh logical backup and an immediately re-measured pre-state, with the bounded 12-row post-action verification matrix and rollback limited to dropping the two new tables or restoring that backup. No deployment, runtime restart, product source, data mutation, seed, reset, generation, publication, task/env, or companion action; companion SSO activation and the consolidated deployment remain separate HIGH actions.",
       "riskTier": "HIGH",
       "state": "INTEGRATED",
-      "stateUpdatedAt": "2026-09-17T11:22:03.443Z",
-      "nextAction": "Wave Completion Auditor ses_f50eec155ffeIoARuYvLaK2lgr returned CORRECTION_REQUIRED (7/6/1/0/0) with blocking finding B1: the committed C06B S15 assertion that teacher_program_presentation_revisions is absent from the configured database is falsified by the applied 0003. Dispatch the bounded EXPORT-PRESENTATION-S15-REBASELINE test-only correction, then fresh QA, integration, and one fresh Wave Completion Auditor over the changed final tree, before closing this stream COMPLETE.",
+      "stateUpdatedAt": "2026-09-17T12:16:00.195Z",
+      "nextAction": "All 12 acceptance rows PASS and QA is ACCEPT_READY; the two additive migrations are applied and verified. Closure is barred pending the second Wave Completion Auditor remedy: dispatch the authored EXPORT-PRESENTATION-PREMISE-SWEEP-C02 docs-only correction (blocking F-1: the term-cache-catchup-apply packet still asserts a 2-row registry and a pending 0002), then fresh QA, integration, and one fresh Wave Completion Auditor; only on AUDIT_CLEAR close this stream COMPLETE with its receipt.",
       "awaited": [
-        "bounded EXPORT-PRESENTATION-S15-REBASELINE correction (test-only rebaseline of C06B S15; retire the stale unregistered companion-sso-migration-live-c02 packet; add the O1 preflight row to the C10 packet)",
-        "fresh independent QA over the corrected frozen range",
-        "integration of the corrected range",
+        "EXPORT-PRESENTATION-PREMISE-SWEEP-C02 docs-only correction (blocking F-1 plus the F-2 to F-7 and F-9 annotations)",
+        "fresh independent QA over the sweep range",
+        "integration of the sweep",
         "one fresh Wave Completion Auditor over the changed final tree",
-        "closure of MIG-APPLY-0002-0003 COMPLETE with its receipt, then the consolidated-deployment approval sentence"
+        "then closure of MIG-APPLY-0002-0003 and EXPORT-PRESENTATION-S15-REBASELINE COMPLETE with receipts, then the consolidated-deployment approval carrying the O1 precondition"
       ],
       "running": [],
       "git": {
@@ -6467,10 +6467,13 @@
       "objective": "Rebaseline the committed EXPORT-PRESENTATION-SCHEMA-GUARD-C06B acceptance row S15 from 'the configured database must not have migration 0003 applied' to 'this suite must never mutate the configured database', because MIG-APPLY-0002-0003 applied 0003_teacher_program_presentation to atlas_recovery_clean_rebuild_20260905 on 2026-09-17 under the operator's exact HIGH approval. Also retire the stale, unapproved docs/prompts/companion-sso-migration-live-c02-2026-09-15.md packet whose preconditions are falsified, annotate the C06B executor handoff S15 row, and record the O1 Prisma-migrations checkout-encoding preflight as a precondition row in docs/prompts/consolidated-deployment-c10-2026-09-17.md. Test and documentation only: no product source, no migration, no database write, no deployment, runtime, task, env, generation, publication, login, or companion action.",
       "riskTier": "MEDIUM",
       "state": "INTEGRATED",
-      "stateUpdatedAt": "2026-09-17T11:52:06.155Z",
-      "nextAction": "Commission one fresh Wave Completion Auditor over the changed final tree; on AUDIT_CLEAR close this stream and MIG-APPLY-0002-0003 COMPLETE with receipts.",
+      "stateUpdatedAt": "2026-09-17T12:17:10.766Z",
+      "nextAction": "Integrated at 8fcafe64 with QA ACCEPT_READY 5/5 and the corrected C06B S15 suite green (2/2). Closure is barred pending the second Wave Completion Auditor remedy: the authored EXPORT-PRESENTATION-PREMISE-SWEEP-C02 docs-only correction, fresh QA, integration, and one fresh Wave Completion Auditor over the changed final tree.",
       "awaited": [
-        "fresh Wave Completion Auditor"
+        "EXPORT-PRESENTATION-PREMISE-SWEEP-C02 docs-only correction",
+        "fresh independent QA over the sweep range",
+        "one fresh Wave Completion Auditor over the changed final tree",
+        "closure of this stream COMPLETE with its receipt"
       ],
       "running": [],
       "git": {
@@ -6571,13 +6574,8 @@
       "blocker": {
         "kind": "NONE",
         "detail": "",
-        "safeWorkRemaining": true,
-        "safeWorkItems": [
-          "rebaseline the C06B S15 assertion from configured-database absence to non-mutation in the named test file",
-          "retire the stale companion-sso-migration-live-c02 packet and annotate the C06B handoff S15 row",
-          "record the O1 Prisma-migrations checkout-encoding preflight as a precondition row in the C10 packet",
-          "run the corrected suite and produce the frozen QA candidate"
-        ]
+        "safeWorkRemaining": false,
+        "safeWorkItems": []
       },
       "approval": {
         "required": false,
@@ -6921,9 +6919,9 @@
       "worktree": "E:/ATLAS-worktrees/export-presentation-s15-rebaseline",
       "role": "executor",
       "sessionId": null,
-      "state": "ACTIVE",
-      "revision": 1,
-      "updatedAt": "2026-09-17T11:26:46.893Z",
+      "state": "RETURNED",
+      "revision": 2,
+      "updatedAt": "2026-09-17T12:17:10.766Z",
       "expiresAt": null
     },
     {
