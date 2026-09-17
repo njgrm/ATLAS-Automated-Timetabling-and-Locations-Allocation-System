@@ -1,9 +1,9 @@
 {
   "contractVersion": "1.2.0",
   "registry": {
-    "lastUpdatedAt": "2026-09-17T13:28:56.521Z",
+    "lastUpdatedAt": "2026-09-17T13:29:45.527Z",
     "lastUpdatedBy": "primary-planner:rollover-graded-autonomy-c01",
-    "revision": 326
+    "revision": 327
   },
   "coordination": {
     "mode": "MANUAL",
@@ -6620,7 +6620,7 @@
       "objective": "Implement the operator's rollover decision as graded autonomy in the automated rollover tick, narrowed by R1 and corrected by R2: keep unattended drift detection and reuse the existing preview/drift computation; auto-apply applyRolloverSync ONLY when the codebase's own verdict holds (drift.status === 'atlas-stale' && drift.recommendedAction === 'RUN_ROLLOVER_SYNC' && conflicts.length === 0 && reconfiguredSections.length === 0), otherwise emit one typed notification carrying drift.status, drift.recommendedAction, drift.message and the conflict count, and apply nothing; emit that notification only on a drift-status transition; never auto-archive (the automation must never reach archiveSchoolYear, archiveSupersededYearsForRecovery, archiveAndSyncActiveYear or applyTestYearRecovery); unpin the supervisor invariant ROLLOVER_AUTO_SYNC_ENABLED at ops/runtime/lib/contract.mjs:59-61 so the contract value is passed through as a real, reviewable control while ATLAS_SUPERVISED stays hard-pinned to true and a false kill-switch still disables everything; and preserve single-flight, bounded backoff and idempotency. Source only: no live/shared database write, no register write by the lane, no runtime/task/env change in this lane, no companion edit.",
       "riskTier": "MEDIUM",
       "state": "COMPLETE",
-      "stateUpdatedAt": "2026-09-17T13:28:56.521Z",
+      "stateUpdatedAt": "2026-09-17T13:29:45.527Z",
       "nextAction": "Cycle closed COMPLETE with an AUDIT_CLEAR wave verdict over origin/main dabd2fc8 (integration fd470f08, candidate bfa4c7e3, product 5d61857b); the closure receipt is pinned and both junction-bearing cycle worktrees are PRESERVE_FOR_DECISION. Next: author and dispatch ROLLOVER-DETECTED-CLIENT-C01, and treat any flip of ROLLOVER_AUTO_SYNC_ENABLED to true as a separate HIGH action ordered after it.",
       "awaited": [],
       "running": [],
@@ -6643,8 +6643,8 @@
         ],
         "remoteObservation": {
           "ref": "refs/remotes/origin/main",
-          "sha": "6be2d5e7f9d03b4e7d8e77f7a3967b1b190bd64e",
-          "observedAt": "2026-09-17T13:17:42.612Z",
+          "sha": "f2b8116a78abc9d0d46518e74dd3bede022d33a8",
+          "observedAt": "2026-09-17T13:29:45.527Z",
           "kind": "REMOTE_TRACKING_REF"
         }
       },
