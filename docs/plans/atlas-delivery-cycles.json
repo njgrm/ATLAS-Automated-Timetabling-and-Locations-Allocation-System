@@ -1,14 +1,14 @@
 {
   "contractVersion": "1.2.0",
   "registry": {
-    "lastUpdatedAt": "2026-09-17T11:04:28.682Z",
-    "lastUpdatedBy": "primary-planner:mig-apply-0002-0003-execution",
-    "revision": 292
+    "lastUpdatedAt": "2026-09-17T11:11:32.964Z",
+    "lastUpdatedBy": "primary-planner:mig-apply-0002-0003",
+    "revision": 295
   },
   "coordination": {
-    "mode": "CYCLE_ACTIVE",
-    "activeCycleId": "MIG-APPLY-0002-0003",
-    "globalNextAction": "Migrate MIG-APPLY-0002-0003 (RUNNING, registered at revision 287): dispatch one fresh independent high pre-action review of docs/prompts/mig-apply-0002-0003-2026-09-17.md, then return the packets exact section 9 HIGH approval sentence to the operator before any database action. Peers unchanged: SYNC-SECTION-ENROLMENT-C01 and G9-G10-CONFIG-CORRECTION-C01 remain unregistered or PLANNED awaiting their own reviews. Every live/HIGH action (this 0002/0003 schema apply, runtime install/restart, term-cache apply, Teaching Load apply, generation, publication, login, companion) remains locked and NOT granted."
+    "mode": "MANUAL",
+    "activeCycleId": null,
+    "globalNextAction": "MIG-APPLY-0002-0003 is ACCEPT_READY (fresh independent QA ses_f50f49d82ffeBADNwOO2vsstR4 ACCEPT_READY, MANDATORY_SOURCE 4/4/0/0/0, MANDATORY_LIVE 8/8/0/0/0) and is being integrated at origin/main b93430ad; one fresh Wave Completion Auditor is required before closure. Migrations 0002_companion_sso_code and 0003_teacher_program_presentation are APPLIED to atlas_recovery_clean_rebuild_20260905; the shared runtime still serves its previous release and was not restarted. Peers: G9G10-FLAG-SOURCE-LANE RUNNING; SYNC-SECTION-ENROLMENT-C01, ROLLOVER-GRADED-AUTONOMY-C01, G9-G10-CONFIG-CORRECTION-C01 and TERM-CACHE-CATCHUP-APPLY remain registered or pending and unchanged. Every live/HIGH action (consolidated deployment, runtime install/restart, term-cache apply, Teaching Load apply, generation, publication, login, companion) remains locked and NOT granted."
   },
   "streams": [
     {
@@ -6140,11 +6140,11 @@
       "kind": "STREAM",
       "objective": "Apply exactly two additive reviewed migrations (0002_companion_sso_code sha256 c2502e3070a98e6a6ddf4a1568cf2b3368a5cc72db2983cd02d0311012e43baf; 0003_teacher_program_presentation sha256 b3270f02f16486f7b4e25538f80d675e42ba7cd6a9b704aebd3fff2593a764ee) to the live ATLAS database atlas_recovery_clean_rebuild_20260905 at host localhost:5432 through the canonical guarded wrapper (npm run migrate:guarded from atlas-server/), preceded by a verified fresh logical backup and an immediately re-measured pre-state, with the bounded 12-row post-action verification matrix and rollback limited to dropping the two new tables or restoring that backup. No deployment, runtime restart, product source, data mutation, seed, reset, generation, publication, task/env, or companion action; companion SSO activation and the consolidated deployment remain separate HIGH actions.",
       "riskTier": "HIGH",
-      "state": "REVIEW_REQUIRED",
-      "stateUpdatedAt": "2026-09-17T11:04:28.682Z",
-      "nextAction": "Dispatch one fresh independent QA over the frozen evidence candidate 6058d3ab..33b1a907, then integrate and commission a fresh Wave Completion Auditor.",
+      "state": "INTEGRATED",
+      "stateUpdatedAt": "2026-09-17T11:11:32.964Z",
+      "nextAction": "Commission one fresh Wave Completion Auditor over the integrated wave and record its capsule; then close MIG-APPLY-0002-0003 COMPLETE with its receipt.",
       "awaited": [
-        "fresh independent QA over the frozen candidate"
+        "fresh Wave Completion Auditor"
       ],
       "running": [],
       "git": {
@@ -6152,14 +6152,14 @@
         "branch": "chore/mig-apply-0002-0003",
         "baseSha": "6058d3ab3bb4050ede27ec8c52c56f84029767e7",
         "candidateSha": "33b1a90739cd5812c31c21f64c9bd311eb225c1b",
-        "integrationSha": null,
+        "integrationSha": "b93430ad2e22e36363afe9d3382bdbc08ca7f380",
         "changedPaths": [
           "docs/reviews/mig-apply-0002-0003/apply-evidence-2026-09-17.md"
         ],
         "remoteObservation": {
           "ref": "refs/remotes/origin/main",
-          "sha": "cb4fa7ac1c0c469d54b748098bb3b457f830788c",
-          "observedAt": "2026-09-17T10:25:47.647Z",
+          "sha": "b93430ad2e22e36363afe9d3382bdbc08ca7f380",
+          "observedAt": "2026-09-17T11:11:32.964Z",
           "kind": "REMOTE_TRACKING_REF"
         }
       },
@@ -6175,8 +6175,8 @@
           "writable": false
         },
         "qa": {
-          "sessionId": null,
-          "status": "NONE",
+          "sessionId": "ses_f50f49d82ffeBADNwOO2vsstR4",
+          "status": "RETURNED",
           "writable": false
         },
         "auditor": {
@@ -6186,8 +6186,8 @@
         }
       },
       "gates": {
-        "total": 0,
-        "passed": 0,
+        "total": 12,
+        "passed": 12,
         "failed": 0,
         "blocked": 0,
         "unperformed": 0,
@@ -6198,15 +6198,15 @@
         },
         "classes": {
           "MANDATORY_SOURCE": {
-            "total": 0,
-            "passed": 0,
+            "total": 4,
+            "passed": 4,
             "failed": 0,
             "blocked": 0,
             "unperformed": 0
           },
           "MANDATORY_LIVE": {
-            "total": 0,
-            "passed": 0,
+            "total": 8,
+            "passed": 8,
             "failed": 0,
             "blocked": 0,
             "unperformed": 0
@@ -6221,12 +6221,18 @@
         }
       },
       "review": {
-        "qaVerdict": null,
-        "qaSessionId": null,
+        "qaVerdict": "ACCEPT_READY",
+        "qaSessionId": "ses_f50f49d82ffeBADNwOO2vsstR4",
         "auditorVerdict": null,
         "auditorSessionId": null,
         "auditRequired": true,
-        "qaRounds": []
+        "qaRounds": [
+          {
+            "round": 1,
+            "verdict": "ACCEPT_READY",
+            "sessionId": "ses_f50f49d82ffeBADNwOO2vsstR4"
+          }
+        ]
       },
       "corrections": [],
       "successors": [],
