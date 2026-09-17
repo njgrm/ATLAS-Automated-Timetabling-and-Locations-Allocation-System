@@ -1,9 +1,9 @@
 {
   "contractVersion": "1.2.0",
   "registry": {
-    "lastUpdatedAt": "2026-09-17T16:40:04.337Z",
-    "lastUpdatedBy": "primary-planner:consolidated-deployment-c10-b1-ratified-refresh",
-    "revision": 340
+    "lastUpdatedAt": "2026-09-17T17:24:16.099Z",
+    "lastUpdatedBy": "primary-planner:consolidated-deployment-c10-round2-qa",
+    "revision": 341
   },
   "coordination": {
     "mode": "CYCLE_ACTIVE",
@@ -6776,10 +6776,10 @@
       "objective": "Deploy one release pinned at the accepted origin/main tip that includes the C07R1 authorization fix, published-revision immutability, warning realism, export parity, generation-authority realism and the R3 term-authority canonicalization; remove the vestigial ATLAS_DEFAULT_SCHOOL_ID key from the durable env; re-point and restart the registered ATLAS-Runtime-Supervisor task on ports 5001/5174; then run the 13-row acceptance matrix with exactly one authorized login and logout. No data mutation, generation, publication, Teaching Load apply, term-cache apply, rollover, migration, or companion change.",
       "riskTier": "HIGH",
       "state": "CORRECTION_REQUIRED",
-      "stateUpdatedAt": "2026-09-17T16:31:13.888Z",
-      "nextAction": "Commit and push the corrected errata, then commission one fresh independent QA over PIN40..<correction tip>; on ACCEPT_READY commission one fresh Wave Completion Auditor; on AUDIT_CLEAR apply closure, the receipt, the register reconciliation, worktree retirement, and coordination back to MANUAL.",
+      "stateUpdatedAt": "2026-09-17T17:24:16.099Z",
+      "nextAction": "Commission one fresh independent QA over PIN40..<correction tip>; on ACCEPT_READY record-integration, then record the historical auditor verdict for correction round 1 (CORRECTION_REQUIRED, ses_f4fd7eefeffeYuPtVH3Xq5ThcU) to reconcile review.auditorVerdict and corrections[0].auditorVerdict, then commission the fresh Wave Completion Auditor; on AUDIT_CLEAR close the cycle with the receipt and return coordination to MANUAL.",
       "awaited": [
-        "the fresh independent QA over the correction range",
+        "the fresh independent QA over the corrected range",
         "the fresh Wave Completion Auditor over the corrected final tree"
       ],
       "running": [],
@@ -6814,7 +6814,7 @@
           "writable": false
         },
         "qa": {
-          "sessionId": "ses_f4fdfea75ffeyEixQrxgfeb65e",
+          "sessionId": "ses_f4fc91dccffeZL9yxCIifsElog",
           "status": "RETURNED",
           "writable": false
         },
@@ -6826,9 +6826,9 @@
       },
       "gates": {
         "total": 16,
-        "passed": 16,
+        "passed": 15,
         "failed": 0,
-        "blocked": 0,
+        "blocked": 1,
         "unperformed": 0,
         "plan": {
           "MANDATORY_SOURCE": 3,
@@ -6845,9 +6845,9 @@
           },
           "MANDATORY_LIVE": {
             "total": 13,
-            "passed": 13,
+            "passed": 12,
             "failed": 0,
-            "blocked": 0,
+            "blocked": 1,
             "unperformed": 0
           },
           "DEFERRED_EXTERNAL": {
@@ -6860,8 +6860,8 @@
         }
       },
       "review": {
-        "qaVerdict": "ACCEPT_READY",
-        "qaSessionId": "ses_f4fdfea75ffeyEixQrxgfeb65e",
+        "qaVerdict": "CORRECTION_REQUIRED",
+        "qaSessionId": "ses_f4fc91dccffeZL9yxCIifsElog",
         "auditorVerdict": null,
         "auditorSessionId": null,
         "auditRequired": true,
@@ -6870,6 +6870,11 @@
             "round": 1,
             "verdict": "ACCEPT_READY",
             "sessionId": "ses_f4fdfea75ffeyEixQrxgfeb65e"
+          },
+          {
+            "round": 2,
+            "verdict": "CORRECTION_REQUIRED",
+            "sessionId": "ses_f4fc91dccffeZL9yxCIifsElog"
           }
         ]
       },
@@ -6879,8 +6884,8 @@
           "baseSha": "21222a66c3c0fa0f7e8d6997ed30229a176e25f2",
           "candidateSha": "3771cced9d7cd91f17ab2cffbd72529ce6dd0588",
           "reason": "Wave Completion Auditor ses_f4fd7eefeffeYuPtVH3Xq5ThcU returned CORRECTION_REQUIRED. B1: a global Git trust-allowlist entry (safe.directory D:/ATLAS-runtime-supervised-8eb0511baa53-20260917) was added inside this cycle window, is outside approvedActions, and the cutover evidence falsely states no config entry was added or changed. B2: the register coordination snapshot and git fields were stale (globalNextAction still described the pre-approval state and release 54dce67b; candidateSha named the preflight STOP evidence and changedPaths omitted the cutover evidence). This round records the truthful errata and reconciles the register; the runtime is untouched and stays on PIN40.",
-          "qaVerdict": null,
-          "qaSessionId": null,
+          "qaVerdict": "CORRECTION_REQUIRED",
+          "qaSessionId": "ses_f4fc91dccffeZL9yxCIifsElog",
           "auditorVerdict": null,
           "auditorSessionId": null
         }
