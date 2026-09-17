@@ -4,7 +4,7 @@
  */
 
 import { prisma } from '../lib/prisma.js';
-import { buildPeriodSlots, type PeriodSlot, type PolicyInput } from './schedule-constructor.js';
+import { buildCanonicalDisplayGrid, buildPeriodSlots, type PeriodSlot, type PolicyInput } from './schedule-constructor.js';
 import { getOrCreatePolicy } from './scheduling-policy.service.js';
 
 function err(statusCode: number, code: string, message: string): Error & { statusCode: number; code: string } {
@@ -12,6 +12,42 @@ function err(statusCode: number, code: string, message: string): Error & { statu
 	e.statusCode = statusCode;
 	e.code = code;
 	return e;
+}
+
+/**
+ * SLOT-BREAK-AUTHORITY-C11R — the persisted canonical `classProgramSlot` rows
+ * for the school/year. Only the fields the display authority consumes are read.
+ */
+async function loadCanonicalDisplayRows(schoolId: number, schoolYearId: number) {
+	return prisma.classProgramSlot.findMany({
+		where: { schoolId, schoolYearId, isActive: true },
+		select: { gradeLevel: true, programType: true, startTime: true, endTime: true, rowKind: true, subjectLabel: true, dayOfWeek: true },
+		orderBy: [{ gradeLevel: 'asc' }, { startTime: 'asc' }],
+	});
+}
+
+/**
+ * SLOT-BREAK-AUTHORITY-C11R — the canonical `(gradeLevel, programType)` scope a
+ * lock's section belongs to. The section roster keys sections by their EnrollPro
+ * `externalId` (the same key the generation/pre-generation entry sets use), and
+ * `displayOrder` is the actual grade number the canonical grid is keyed by.
+ * Returns `null` when the section is unknown, so the caller keeps the
+ * school-wide canonical union rather than coercing a missing scope.
+ */
+async function resolveSectionCanonicalScope(
+	schoolId: number,
+	schoolYearId: number,
+	sectionId: number,
+): Promise<{ gradeLevel: number; programType: string | null } | null> {
+	const section = await prisma.sectionMirror.findFirst({
+		where: { schoolId, schoolYearId, externalId: sectionId },
+		select: { displayOrder: true, gradeLevelId: true, programType: true },
+	});
+	if (!section) return null;
+	return {
+		gradeLevel: Number(section.displayOrder ?? section.gradeLevelId ?? 0),
+		programType: section.programType ?? null,
+	};
 }
 
 // ─── Types ───
@@ -76,8 +112,11 @@ export async function createLock(
 		throw err(400, 'MISSING_FIELDS', 'roomId is required and must be a positive integer. Locks must specify an explicit room assignment.');
 	}
 
-	// Validate time slot matches a canonical period slot
-	const effectiveSlots = await getEffectivePeriodSlots(schoolId, schoolYearId);
+	// Validate time slot matches a canonical period slot. The canonical
+	// `classProgramSlot` grid owns the slot set for the lock's section scope;
+	// the policy path remains the fallback for a scope with no canonical rows.
+	const sectionScope = await resolveSectionCanonicalScope(schoolId, schoolYearId, input.sectionId);
+	const effectiveSlots = await getEffectivePeriodSlots(schoolId, schoolYearId, sectionScope);
 	const slotMatch = effectiveSlots.find((s) => s.startTime === input.startTime && s.endTime === input.endTime);
 	if (!slotMatch) {
 		const valid = effectiveSlots.map((s) => `${s.startTime}-${s.endTime}`).join(', ');
@@ -118,7 +157,11 @@ export async function createLock(
 
 // ─── Get effective period slots ───
 
-export async function getEffectivePeriodSlots(schoolId: number, schoolYearId: number): Promise<PeriodSlot[]> {
+export async function getEffectivePeriodSlots(
+	schoolId: number,
+	schoolYearId: number,
+	scope?: { gradeLevel: number; programType: string | null } | null,
+): Promise<PeriodSlot[]> {
 	const policyRecord = await getOrCreatePolicy(schoolId, schoolYearId);
 	const policyInput: PolicyInput = {
 		maxConsecutiveTeachingMinutesBeforeBreak: policyRecord.maxConsecutiveTeachingMinutesBeforeBreak,
@@ -129,8 +172,22 @@ export async function getEffectivePeriodSlots(schoolId: number, schoolYearId: nu
 		lunchStartTime: policyRecord.lunchStartTime ?? undefined,
 		lunchEndTime: policyRecord.lunchEndTime ?? undefined,
 		enforceLunchWindow: policyRecord.enforceLunchWindow ?? undefined,
+		enableLunchWindow: policyRecord.enableLunchWindow ?? undefined,
 	};
-	return buildPeriodSlots(policyInput);
+	// SLOT-BREAK-AUTHORITY-C11R: a scope that HAS canonical `classProgramSlot`
+	// rows derives its period grid from them. `scope` absent resolves the honest
+	// union of every canonical scope present (never a coerced single scope). The
+	// policy path below is only the fallback for scopes with no canonical rows.
+	const canonicalRows = await loadCanonicalDisplayRows(schoolId, schoolYearId);
+	if (canonicalRows.length === 0) {
+		return buildPeriodSlots(policyInput);
+	}
+	const grid = buildCanonicalDisplayGrid({
+		rows: canonicalRows,
+		scopes: scope ? [scope] : null,
+		policy: policyInput,
+	});
+	return grid.periodSlots;
 }
 
 // ─── Delete ───

@@ -26,7 +26,7 @@ import {
 	loadVerifiedOrderedTermContract,
 	type LoadedAcademicTermContract,
 } from './academic-term.service.js';
-import { buildSpecialEventSlots } from './schedule-constructor.js';
+import { buildCanonicalDisplayGrid, buildSpecialEventSlots, type PolicyInput } from './schedule-constructor.js';
 import { resolveCanonicalSlotsFromRows, type ClassProgramSlotRow, type ResolvedSlotRow } from './class-program-slot.service.js';
 import {
 	isRejectedFlagCeremonyRow,
@@ -268,7 +268,7 @@ export function assertSnapshotConsistency(snapshot: PublishedIdentitySnapshot): 
 	// reverse), or by the frozen policy's own global break configuration when no
 	// explicit event row exists (`buildSpecialEventSlots` falls back to those
 	// policy fields).
-	const globalEventIntervals = policyGlobalEventIntervals(snapshot.policy);
+	const globalEventIntervals = policyGlobalEventIntervals(snapshot.policy, snapshot.classProgramSlots);
 	for (const slot of snapshot.displaySlots) {
 		if (slot.kind !== 'SPECIAL_EVENT') continue;
 		const intervalKey = `${slot.startTime}-${slot.endTime}`;
@@ -290,9 +290,18 @@ export function assertSnapshotConsistency(snapshot: PublishedIdentitySnapshot): 
 
 /**
  * The intervals `buildSpecialEventSlots` derives from the frozen policy's global
- * break configuration when no explicit special-event rows exist.
+ * break configuration when no explicit special-event rows exist, plus the
+ * canonical `classProgramSlot` break bands the frozen grid renders.
+ *
+ * SLOT-BREAK-AUTHORITY-C11R: a canonical scope's BREAK rows ARE displayed
+ * intervals, so they are recognized authority here. A policy with no explicit
+ * lunch bounds contributes NO lunch interval — the retired 11:55-12:55 window is
+ * never invented.
  */
-function policyGlobalEventIntervals(policy: Record<string, unknown>): Set<string> {
+function policyGlobalEventIntervals(
+	policy: Record<string, unknown>,
+	classProgramSlots?: readonly FrozenClassProgramSlot[],
+): Set<string> {
 	const intervals = new Set<string>();
 	const asString = (value: unknown, fallback: string): string => (typeof value === 'string' && value.length > 0 ? value : fallback);
 	if (policy.enableFlagCeremony ?? true) {
@@ -301,8 +310,16 @@ function policyGlobalEventIntervals(policy: Record<string, unknown>): Set<string
 	if (policy.enableRecess ?? true) {
 		intervals.add(`${asString(policy.recessStartTime, '09:45')}-${asString(policy.recessEndTime, '10:00')}`);
 	}
-	if ((policy.enableLunchWindow ?? policy.enforceLunchWindow ?? true) !== false) {
-		intervals.add(`${asString(policy.lunchStartTime, '11:55')}-${asString(policy.lunchEndTime, '12:55')}`);
+	const lunchEnforced = (policy.enableLunchWindow ?? policy.enforceLunchWindow ?? true) !== false;
+	if (lunchEnforced && typeof policy.lunchStartTime === 'string' && policy.lunchStartTime.length > 0
+		&& typeof policy.lunchEndTime === 'string' && policy.lunchEndTime.length > 0) {
+		intervals.add(`${policy.lunchStartTime}-${policy.lunchEndTime}`);
+	}
+	for (const row of classProgramSlots ?? []) {
+		if (String(row.rowKind ?? '').trim().toUpperCase() !== 'BREAK') continue;
+		if (typeof row.startTime !== 'string' || typeof row.endTime !== 'string') continue;
+		if (row.startTime.length === 0 || row.endTime.length === 0) continue;
+		intervals.add(`${row.startTime}-${row.endTime}`);
 	}
 	return intervals;
 }
@@ -595,7 +612,21 @@ export async function buildPublishedIdentitySnapshot(args: BuildSnapshotArgs): P
 		}
 		: {};
 
-	const displaySlots = freezeDisplaySlots(args.summaryDisplaySlots, policyProjection, frozenSpecialEvents);
+	const frozenClassProgramSlots: PublishedIdentitySnapshot['classProgramSlots'] = classProgramSlotRows.map((row) => ({
+		id: Number(row.id ?? 0),
+		gradeLevel: Number(row.gradeLevel ?? 0),
+		programType: row.programType != null ? String(row.programType) : null,
+		dayOfWeek: row.dayOfWeek != null ? String(row.dayOfWeek) : null,
+		startTime: String(row.startTime ?? ''),
+		endTime: String(row.endTime ?? ''),
+		rowKind: String(row.rowKind ?? 'CLASS'),
+		subjectFamily: row.subjectFamily != null ? String(row.subjectFamily) : null,
+		subjectLabel: row.subjectLabel != null ? String(row.subjectLabel) : null,
+		sourceLabel: String(row.sourceLabel ?? ''),
+		sourceNote: row.sourceNote != null ? String(row.sourceNote) : null,
+	}));
+
+	const displaySlots = freezeDisplaySlots(args.summaryDisplaySlots, policyProjection, frozenSpecialEvents, frozenClassProgramSlots);
 
 	const buildings: Record<string, { name: string }> = {};
 	const roomsFrozen: PublishedIdentitySnapshot['rooms'] = {};
@@ -685,19 +716,7 @@ export async function buildPublishedIdentitySnapshot(args: BuildSnapshotArgs): P
 		displaySlots,
 		specialEvents: frozenSpecialEvents,
 		policy: policyProjection,
-		classProgramSlots: classProgramSlotRows.map((row) => ({
-			id: Number(row.id ?? 0),
-			gradeLevel: Number(row.gradeLevel ?? 0),
-			programType: row.programType != null ? String(row.programType) : null,
-			dayOfWeek: row.dayOfWeek != null ? String(row.dayOfWeek) : null,
-			startTime: String(row.startTime ?? ''),
-			endTime: String(row.endTime ?? ''),
-			rowKind: String(row.rowKind ?? 'CLASS'),
-			subjectFamily: row.subjectFamily != null ? String(row.subjectFamily) : null,
-			subjectLabel: row.subjectLabel != null ? String(row.subjectLabel) : null,
-			sourceLabel: String(row.sourceLabel ?? ''),
-			sourceNote: row.sourceNote != null ? String(row.sourceNote) : null,
-		})),
+		classProgramSlots: frozenClassProgramSlots,
 	};
 
 	assertSnapshotConsistency(snapshot);
@@ -714,6 +733,7 @@ function freezeDisplaySlots(
 	summaryDisplaySlots: DisplaySlotSource[] | undefined,
 	policy: Record<string, unknown>,
 	specialEvents: FrozenSpecialEvent[],
+	classProgramSlots: PublishedIdentitySnapshot['classProgramSlots'],
 ): FrozenDisplaySlot[] {
 	const persisted = Array.isArray(summaryDisplaySlots) ? summaryDisplaySlots : [];
 	if (persisted.length > 0) {
@@ -728,7 +748,7 @@ function freezeDisplaySlots(
 		}));
 	}
 
-	const derived = buildSpecialEventSlots({
+	const policyInput = {
 		maxConsecutiveTeachingMinutesBeforeBreak: Number(policy.maxConsecutiveTeachingMinutesBeforeBreak ?? 120),
 		minBreakMinutesAfterConsecutiveBlock: Number(policy.minBreakMinutesAfterConsecutiveBlock ?? 15),
 		maxTeachingMinutesPerDay: Number(policy.maxTeachingMinutesPerDay ?? 400),
@@ -753,7 +773,28 @@ function freezeDisplaySlots(
 			gradeGroup: event.gradeGroup,
 			programType: event.programType,
 		})),
-	});
+	} satisfies PolicyInput;
+
+	// SLOT-BREAK-AUTHORITY-C11R: when the run persisted no display slots, the
+	// canonical `classProgramSlot` rows this publication freezes ARE the displayed
+	// period/break grid for every scope that has rows. Scopes with no canonical
+	// rows keep the configured policy/event derivation below.
+	const canonicalGrid = buildCanonicalDisplayGrid({ rows: classProgramSlots, policy: policyInput });
+	if (canonicalGrid.hasCanonicalRows) {
+		return canonicalGrid.displaySlots
+			.map((slot, index) => ({
+				key: `${slot.startTime}-${slot.endTime}`,
+				label: slot.eventName ?? `${slot.startTime}-${slot.endTime}`,
+				startTime: slot.startTime,
+				endTime: slot.endTime,
+				order: index,
+				kind: (slot.isSpecialEvent ? 'SPECIAL_EVENT' : 'PERIOD') as FrozenDisplaySlot['kind'],
+				dayOfWeek: (slot.dayOfWeek ?? '').trim().toUpperCase() || null,
+			}))
+			.sort((a, b) => a.startTime.localeCompare(b.startTime) || a.endTime.localeCompare(b.endTime) || (a.order - b.order));
+	}
+
+	const derived = buildSpecialEventSlots(policyInput);
 
 	return derived
 		.map((slot, index) => ({

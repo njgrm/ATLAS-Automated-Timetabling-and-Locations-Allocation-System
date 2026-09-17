@@ -8,7 +8,7 @@ import { prisma } from '../lib/prisma.js';
 import type { ScheduledEntry } from './constraint-validator.js';
 import * as genService from './generation.service.js';
 import { computeOccupiedMinutesByIntervalUnion, countUniqueEntryIds } from './room-schedule.metrics.js';
-import { buildPeriodSlots, buildSpecialEventSlots, mergeDisplaySlots } from './schedule-constructor.js';
+import { buildCanonicalDisplayGrid, buildPeriodSlots, buildSpecialEventSlots, mergeDisplaySlots, type PolicyInput } from './schedule-constructor.js';
 import { effectiveTermsOverlap, entryTermScope } from './effective-scheduled-resources.js';
 import * as policyService from './scheduling-policy.service.js';
 import { normalizeSubjectDisplayLabel } from './schedule-output-normalization.service.js';
@@ -122,7 +122,7 @@ export async function getRoomScheduleView(
 			gradeGroup: se.gradeGroup,
 			programType: se.programType,
 		}));
-	const specialEventSlots = buildSpecialEventSlots({
+	const roomPolicyInput: PolicyInput = {
 		maxConsecutiveTeachingMinutesBeforeBreak: policy.maxConsecutiveTeachingMinutesBeforeBreak,
 		minBreakMinutesAfterConsecutiveBlock: policy.minBreakMinutesAfterConsecutiveBlock,
 		maxTeachingMinutesPerDay: policy.maxTeachingMinutesPerDay,
@@ -139,25 +139,23 @@ export async function getRoomScheduleView(
 		recessStartTime: policy.recessStartTime,
 		recessEndTime: policy.recessEndTime,
 		specialEvents: mappedRoomSpecialEvents,
+	};
+	// SLOT-BREAK-AUTHORITY-C11R: the canonical `classProgramSlot` grid owns the
+	// displayed period/break bands for every scope that has rows. Scopes with no
+	// canonical rows keep the persisted policy derivation. A run that persisted
+	// its own display slots still overrides this below.
+	const canonicalRows = await prisma.classProgramSlot.findMany({
+		where: { schoolId, schoolYearId, isActive: true },
+		select: { gradeLevel: true, programType: true, startTime: true, endTime: true, rowKind: true, subjectLabel: true, dayOfWeek: true },
+		orderBy: [{ gradeLevel: 'asc' }, { startTime: 'asc' }],
 	});
-	let classPeriodSlots = buildPeriodSlots({
-		maxConsecutiveTeachingMinutesBeforeBreak: policy.maxConsecutiveTeachingMinutesBeforeBreak,
-		minBreakMinutesAfterConsecutiveBlock: policy.minBreakMinutesAfterConsecutiveBlock,
-		maxTeachingMinutesPerDay: policy.maxTeachingMinutesPerDay,
-		earliestStartTime: policy.earliestStartTime,
-		latestEndTime: policy.latestEndTime,
-		lunchStartTime: policy.lunchStartTime,
-		lunchEndTime: policy.lunchEndTime,
-		enableLunchWindow: policy.enableLunchWindow,
-		enforceLunchWindow: policy.enforceLunchWindow,
-		enableFlagCeremony: policy.enableFlagCeremony,
-		flagCeremonyStartTime: policy.flagCeremonyStartTime,
-		flagCeremonyEndTime: policy.flagCeremonyEndTime,
-		enableRecess: policy.enableRecess,
-		recessStartTime: policy.recessStartTime,
-		recessEndTime: policy.recessEndTime,
-		specialEvents: mappedRoomSpecialEvents,
-	});
+	const canonicalGrid = buildCanonicalDisplayGrid({ rows: canonicalRows, policy: roomPolicyInput });
+	const specialEventSlots = canonicalGrid.hasCanonicalRows
+		? canonicalGrid.specialEventSlots
+		: buildSpecialEventSlots(roomPolicyInput);
+	let classPeriodSlots = canonicalGrid.hasCanonicalRows
+		? canonicalGrid.periodSlots
+		: buildPeriodSlots(roomPolicyInput);
 	let PERIOD_SLOTS = (policy.showSpecialEventsInGrid ?? true)
 		? mergeDisplaySlots(classPeriodSlots, specialEventSlots)
 		: classPeriodSlots;
