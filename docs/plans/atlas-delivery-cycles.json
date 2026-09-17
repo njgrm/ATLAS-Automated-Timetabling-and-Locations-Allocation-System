@@ -1,9 +1,9 @@
 {
   "contractVersion": "1.2.0",
   "registry": {
-    "lastUpdatedAt": "2026-09-17T06:43:35.342Z",
+    "lastUpdatedAt": "2026-09-17T06:49:13.598Z",
     "lastUpdatedBy": "primary-planner:slot-break-authority-c11r-r2",
-    "revision": 281
+    "revision": 282
   },
   "coordination": {
     "mode": "MANUAL",
@@ -5987,8 +5987,8 @@
       "objective": "Complete SLOT-BREAK-AUTHORITY-C11 on the display surfaces: make the canonical classProgramSlot grid the source of displayed period, break, and shift slots whenever canonical rows exist for a (gradeLevel, programType) scope, removing the retired 11:55-12:55 fallbacks from schedule-constructor.ts and threading the canonical authority into room-schedule, locked-session, published-schedule, and pre-generation-draft, while freezing canonical-derived slots at publication time and preserving published immutability. Source and tests only.",
       "riskTier": "MEDIUM",
       "state": "INTEGRATED",
-      "stateUpdatedAt": "2026-09-17T06:43:35.342Z",
-      "nextAction": "Row A8 (successor/HIGH-packet readiness) failed again in round 2 (auditor ses_f51f18d43ffeemG7MM52J5XA3V; capsule docs/reviews/slot-break-authority-c11r-20260917/wave-completion-audit-r2.md). The C11R product tree is unchanged and sound, but R4's mandatory catalog change to class-program-slot.service.ts:208-218 invalidates always-run assertions in timetable-shape-diagnostic-c02.test.ts:69-70, generation-stakeholder-shape-genc02r.test.ts:84-90 and tt-output-c03r.test.ts:518 (plus DB-guarded C11/C11R controls), which R4 neither names nor authorizes; and GRADE_9_10_SPECIAL spreading GRADE_9_10_REGULAR makes the change affect 8 G9/G10 scopes while R4 demands 14 unchanged. Stream stays INTEGRATED and must not close COMPLETE; no HIGH approval may be presented and no successor artifact was edited.",
+      "stateUpdatedAt": "2026-09-17T06:49:13.598Z",
+      "nextAction": "Row A8 (successor/HIGH-packet readiness) failed again in round 2 (auditor ses_f51f18d43ffeemG7MM52J5XA3V; capsule docs/reviews/slot-break-authority-c11r-20260917/wave-completion-audit-r2.md). The C11R product tree is unchanged and sound, but R4's mandatory catalog change to class-program-slot.service.ts:208-218 invalidates always-run assertions in timetable-shape-diagnostic-c02.test.ts:69-70, generation-stakeholder-shape-genc02r.test.ts:84-90 and tt-output-c03r.test.ts:518 (plus DB-guarded C11/C11R controls), which R4 neither names nor authorizes; and GRADE_9_10_SPECIAL spreading GRADE_9_10_REGULAR makes the change affect 8 G9/G10 scopes while R4 demands 14 unchanged. Stream stays INTEGRATED and must not close COMPLETE; no HIGH approval may be presented and no successor artifact was edited. Worktree disposition: BOTH cycle worktrees KEEP_ACTIVE / PRESERVE_FOR_DECISION, owner = next primary planner, retention reason = the cycle is not terminal and the operator stream-boundary/affected-scope decision is awaited; E:/ATLAS-worktrees/planner-slot-break-c11r (branch integration/slot-break-authority-c11r-20260917, HEAD 5bdebe41 = origin/main, clean) and E:/ATLAS-worktrees/slot-break-authority-c11r (branch fix/slot-break-authority-c11r, HEAD 06319bb0, ancestor of origin/main, clean); no branch deleted; executor lease RETURNED.",
       "awaited": [
         "the operator/planner stream-boundary decision: does the class-program-slot.service.ts catalog edit plus its dependent test updates ride inside the HIGH persisted-config packet as a mixed source+live packet, or land first as a separate bounded ordinary source lane",
         "the affected-scope decision: confirm all 8 G9/G10 scopes change and correct R4 acceptance row 1 and approvedActions[1], or explicitly rule that the Special Program grids keep 12:15-13:00",
