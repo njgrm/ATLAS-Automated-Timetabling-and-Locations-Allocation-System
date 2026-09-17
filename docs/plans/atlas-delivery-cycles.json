@@ -1,14 +1,14 @@
 {
   "contractVersion": "1.2.0",
   "registry": {
-    "lastUpdatedAt": "2026-09-17T21:50:39.988Z",
+    "lastUpdatedAt": "2026-09-17T21:53:02.852Z",
     "lastUpdatedBy": "primary-planner:consolidated-deployment-c10-integration",
-    "revision": 364
+    "revision": 366
   },
   "coordination": {
-    "mode": "MANUAL",
-    "activeCycleId": null,
-    "globalNextAction": "CLIENT-QUALITY-RELEASE-SWAP-01 closes COMPLETE: release 78be1b760e4059a4c0d0ea227579eaeb731cdf6d serves the supervised runtime on 5001/5174 and the live React #310 crash is gone. Coordination is MANUAL. Unlocked next: the DATA-CORRECTION-C01 grid reseed (its pre-action review can run now), then generation and the export surfaces; SSO-ENV-ACTIVATION-C01 follows with one restart; CLIENT-QUALITY-C01 needs a fresh independent QA to record its unblocked live gate L2. Generation, publication, the term-cache and Teaching Load applies remain locked."
+    "mode": "CYCLE_ACTIVE",
+    "activeCycleId": "DATA-CORRECTION-C01",
+    "globalNextAction": "DATA-CORRECTION-C01 is the active cycle: the HIGH persisted-configuration write that reconciles the G9/G10 classProgramSlot rows to the corrected canonical grids and moves the cap-exceeding section-subject ownership pairs to qualified peers, clearing CANONICAL_TEMPLATE_INCOMPLETE so generation can proceed. Its sequencing preconditions are satisfied: G9G10-FLAG-SOURCE-LANE is COMPLETE and the live release 78be1b760e4059a4c0d0ea227579eaeb731cdf6d contains it. Next: one fresh independent pre-action review of docs/prompts/data-correction-c01-2026-09-17.md, then the operator exact approval sentence, which is NOT granted. No generation, publication, runtime, task, env, migration, term-cache or Teaching Load apply is approved."
   },
   "streams": [
     {
@@ -7461,6 +7461,153 @@
           "decision": "FRESH_REQUIRED",
           "sessionId": null,
           "reason": "a HIGH shared-runtime swap requires a fresh adversarial Wave Completion Auditor after the action."
+        }
+      }
+    },
+    {
+      "id": "DATA-CORRECTION-C01",
+      "kind": "STREAM",
+      "objective": "One HIGH persisted-configuration write for school 1 / school year 9 covering two measured corrections: (A) reconcile the classProgramSlot rows for g9-REGULAR, g10-REGULAR and the six g9/g10 STE/SPA/SPS scopes to the corrected canonical grids (afternoon lunch BREAK 11:30-12:15; REGULAR 8 CLASS + 2 BREAK spanning 11:30-18:30; specials 10 CLASS + 2 BREAK spanning 09:45-18:30 with a two-row pre-lunch Specialization block) leaving the eight g7/g8 scopes byte-identical; and (B) move the 10 section-subject ownership pairs off the 7 cap-exceeding FIL/ESP/ENG/MATH owners to the 5 qualified same-department peers, updating BOTH subject_section_ownerships.faculty_id and the receivers' faculty_subjects.section_ids. Measured effect: unassigned 123 -> 64, blockers 308 -> 113, WORKLOAD_POLICY_BLOCK 244 -> 45. No cap change, no allowFlexibleSubjectAssignment change, no schema, migration, generation, publication, Teaching Load apply, deployment, runtime/task/env, or companion action.",
+      "riskTier": "HIGH",
+      "state": "PLANNED",
+      "stateUpdatedAt": "2026-09-17T21:52:52.965Z",
+      "nextAction": "Both sequencing preconditions are now SATISFIED: G9G10-FLAG-SOURCE-LANE is COMPLETE, and the live release 8eb0511baa537d4212f24a007ac40e2dded38c0e contains it and is serving 5001/5174. The day_of_week question is also settled: class_program_slots.day_of_week NULL is correct because the canonical catalogSlot(start,end,kind,label,note) is day-agnostic and validation keys are `${startTime}-${endTime}-${rowKind}`, so no day backfill is in scope. Register by CAS, commission one fresh independent pre-action review of docs/prompts/data-correction-c01-2026-09-17.md, return its exact approval sentence, then execute the fingerprinted write and the 8-row acceptance matrix.",
+      "awaited": [
+        "one fresh independent pre-action review of docs/prompts/data-correction-c01-2026-09-17.md",
+        "the operator's exact approval sentence (returned only after the pre-action review passes)"
+      ],
+      "running": [],
+      "git": {
+        "worktree": "E:/ATLAS-worktrees/data-correction-c01",
+        "branch": "chore/data-correction-c01",
+        "baseSha": "056f2e4bf3e3beca20d52aa0ab4f96ab19875f01",
+        "candidateSha": null,
+        "integrationSha": null,
+        "changedPaths": [],
+        "remoteObservation": {
+          "ref": "refs/remotes/origin/main",
+          "sha": "d32f6671bc6ae2bb7dbd3811a17fe8bcf079d05b",
+          "observedAt": "2026-09-17T21:52:52.965Z",
+          "kind": "REMOTE_TRACKING_REF"
+        }
+      },
+      "owners": {
+        "planner": {
+          "sessionId": null,
+          "status": "IDLE",
+          "writable": false
+        },
+        "executor": {
+          "sessionId": null,
+          "status": "NONE",
+          "writable": false
+        },
+        "qa": {
+          "sessionId": null,
+          "status": "NONE",
+          "writable": false
+        },
+        "auditor": {
+          "sessionId": null,
+          "status": "NONE",
+          "writable": false
+        }
+      },
+      "gates": {
+        "total": 0,
+        "passed": 0,
+        "failed": 0,
+        "blocked": 0,
+        "unperformed": 0,
+        "plan": {
+          "MANDATORY_SOURCE": 0,
+          "MANDATORY_LIVE": 8,
+          "DEFERRED_EXTERNAL": 0
+        },
+        "classes": {
+          "MANDATORY_SOURCE": {
+            "total": 0,
+            "passed": 0,
+            "failed": 0,
+            "blocked": 0,
+            "unperformed": 0
+          },
+          "MANDATORY_LIVE": {
+            "total": 0,
+            "passed": 0,
+            "failed": 0,
+            "blocked": 0,
+            "unperformed": 0
+          },
+          "DEFERRED_EXTERNAL": {
+            "total": 0,
+            "passed": 0,
+            "failed": 0,
+            "blocked": 0,
+            "unperformed": 0
+          }
+        }
+      },
+      "review": {
+        "qaVerdict": null,
+        "qaSessionId": null,
+        "auditorVerdict": null,
+        "auditorSessionId": null,
+        "auditRequired": true,
+        "qaRounds": []
+      },
+      "corrections": [],
+      "successors": [],
+      "requires": [
+        "G9G10-FLAG-SOURCE-LANE"
+      ],
+      "blocker": {
+        "kind": "APPROVAL",
+        "detail": "Preconditions SATISFIED as of 2026-09-17: G9G10-FLAG-SOURCE-LANE is COMPLETE; the live release 8eb0511baa537d4212f24a007ac40e2dded38c0e contains it and serves 5001/5174 (verified: listeners 18348/48244, health 200); and class_program_slots.day_of_week NULL is confirmed correct because the canonical catalogSlot is day-agnostic. The only remaining gate is the operator's exact approval sentence, returned after one fresh independent pre-action review of the packet.",
+        "safeWorkRemaining": true,
+        "safeWorkItems": [
+          "author the packet and stream spec (done)",
+          "commission the fresh independent pre-action review",
+          "run the zero-cost preflight immediately before the write"
+        ]
+      },
+      "approval": {
+        "required": true,
+        "presentedReady": false,
+        "granted": false,
+        "operatorIdentity": null,
+        "approvedAt": null,
+        "boundary": null,
+        "approvedActions": [
+          "reconcile the school-1 / year-9 classProgramSlot rows for g9/g10 REGULAR and the six g9/g10 special scopes to the corrected canonical grids, leaving the eight g7/g8 scopes byte-identical",
+          "move the 10 section-subject ownership pairs off the 7 cap-exceeding FIL/ESP/ENG/MATH owners to the 5 qualified same-department peers, updating both subject_section_ownerships.faculty_id and the receivers' faculty_subjects.section_ids"
+        ],
+        "requiredObservationIds": [],
+        "execution": null
+      },
+      "observations": [],
+      "artifacts": [],
+      "closure": null,
+      "sessionRouting": {
+        "planner": {
+          "decision": "FRESH_REQUIRED",
+          "sessionId": null,
+          "reason": "new objective with its own HIGH approval boundary."
+        },
+        "executor": {
+          "decision": "FRESH_REQUIRED",
+          "sessionId": null,
+          "reason": "the fingerprinted configuration write runs in a fresh context with the exact approved boundary."
+        },
+        "qa": {
+          "decision": "FRESH_REQUIRED",
+          "sessionId": null,
+          "reason": "one fresh independent pre-action review before the approval, plus post-action acceptance review."
+        },
+        "auditor": {
+          "decision": "FRESH_REQUIRED",
+          "sessionId": null,
+          "reason": "a HIGH persisted-configuration write requires a fresh adversarial Wave Completion Auditor after the action."
         }
       }
     }
