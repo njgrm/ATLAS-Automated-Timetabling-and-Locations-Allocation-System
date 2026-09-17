@@ -7,7 +7,6 @@
   "stateUpdatedAt": "2026-09-17T00:00:00Z",
   "nextAction": "Confirm the two sequencing preconditions (G9G10-FLAG-SOURCE-LANE integrated AND a deployment whose pin contains it live), register by CAS when the register is free, commission one fresh independent pre-action review of docs/prompts/data-correction-c01-2026-09-17.md, return its exact approval sentence, then execute the fingerprinted write and the 8-row acceptance matrix.",
   "awaited": [
-    "G9G10-FLAG-SOURCE-LANE to integrate (the reseed targets its corrected catalog)",
     "a deployment whose pin contains that lane to be live (otherwise the reseed makes the live grid inconsistent)",
     "the register to be free of any held revision window",
     "one fresh independent pre-action review of docs/prompts/data-correction-c01-2026-09-17.md",
