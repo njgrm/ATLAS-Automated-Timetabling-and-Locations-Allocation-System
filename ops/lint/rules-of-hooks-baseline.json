@@ -1,0 +1,9 @@
+{
+  "$comment": "CLIENT-QUALITY-C01 react-hooks/rules-of-hooks baseline. The rule stays `error` everywhere; only the files listed here are exempt, each with a recorded rationale. Remove an entry when the file no longer needs it. Never add an entry to absorb a new violation without a documented test-harness reason.",
+  "files": {
+    "atlas-client/src/hooks/__tests__/useTimetableCollaboration.test.ts": {
+      "violations": 1,
+      "reason": "Manual test renderer. createHookHarness re-implements useState/useRef/useEffect and invokes the production hook from a plain render() helper across simulated renders, so the call site is neither a component nor a custom hook. Switching the helper name to a use-prefix would make every harness.render(...) call site inside a node:test callback look like a hook call and re-trigger the rule. Test-only harness, not product code."
+    }
+  }
+}

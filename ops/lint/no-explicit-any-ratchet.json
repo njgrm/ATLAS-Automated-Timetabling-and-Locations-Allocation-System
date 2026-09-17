@@ -1,8 +1,10 @@
 {
-  "$comment": "CLIENT-QUALITY-C01 no-explicit-any ratchet baseline. `files` maps a client source path to the number of TSAnyKeyword nodes grandfathered at authoring time. The ratchet rule (ops/lint/eslint-rules/no-explicit-any-ratchet.cjs) reports any occurrence above the recorded count. Counts may only decrease: clean a file and lower/remove its entry; never raise one to absorb a new `any`. Generated from a TypeScript-AST census (ts.SyntaxKind.AnyKeyword), which is the exact node @typescript-eslint/no-explicit-any reports.",
-  "method": "typescript-ast-census",
+  "$comment": "CLIENT-QUALITY-C01 no-explicit-any ratchet baseline. `files` maps a client source path to the number of @typescript-eslint/no-explicit-any violations grandfathered at authoring time. The ratchet rule (ops/lint/eslint-rules/no-explicit-any-ratchet.cjs) reports any occurrence above the recorded count. Counts may only decrease: clean a file and lower/remove its entry; never raise one to absorb a new `any`. VERIFIED against a real ESLint run (eslint 9.39.5 + typescript-eslint 8.70.0): the committed counts equal the emitted per-file violation counts exactly (39 files, 208 nodes, 0 diffs).",
+  "method": "typescript-ast-census+eslint-verified",
   "generatedAt": "2026-09-17",
-  "clientFilesScanned": 380,
+  "verifiedAt": "2026-09-17",
+  "verifiedWith": { "eslint": "9.39.5", "typescript-eslint": "8.70.0", "eslint-plugin-react-hooks": "5.2.0" },
+  "clientFilesScanned": 381,
   "offenderFiles": 39,
   "totalAnyNodes": 208,
   "files": {

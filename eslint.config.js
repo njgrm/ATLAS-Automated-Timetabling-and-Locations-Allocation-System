@@ -15,19 +15,29 @@
  * Scope: the client source (`atlas-client/src`). Server lint adoption is a
  * separate scope decision and intentionally not implied here.
  *
- * Toolchain: `eslint`, `typescript-eslint`, and `eslint-plugin-react-hooks` are
- * installed into the executor worktree with `--no-save --no-package-lock`; the
- * reviewed release wiring must pin them in devDependencies before this gate
- * runs in CI.
+ * Toolchain: the scoped, reproducible toolchain lives in
+ * `ops/lint/toolchain/` (its own package.json + committed package-lock.json).
+ * The plugins are required from that directory explicitly so the config resolves
+ * from a clean checkout after only the scoped install, without depending on the
+ * application `node_modules` (which is frequently a shared junction into another
+ * worktree and must never be written through).
  */
-const tseslint = require('typescript-eslint');
-const reactHooks = require('eslint-plugin-react-hooks');
+const path = require('node:path');
+const { createRequire } = require('node:module');
+
+// Resolve the toolchain plugins from inside `ops/lint/toolchain/` so bare
+// specifiers use that package's dependency tree (not the application
+// node_modules junction). `typescript-eslint` ships `exports`-only, so a direct
+// relative directory require would not resolve.
+const toolchainRequire = createRequire(path.join(__dirname, 'ops', 'lint', 'toolchain', 'package.json'));
+const tseslint = toolchainRequire('typescript-eslint');
+const reactHooks = toolchainRequire('eslint-plugin-react-hooks');
 
 const ratchetBaseline = require('./ops/lint/no-explicit-any-ratchet.json');
+const rulesOfHooksBaseline = require('./ops/lint/rules-of-hooks-baseline.json');
 const noExplicitAnyRatchet = require('./ops/lint/eslint-rules/no-explicit-any-ratchet.cjs');
 
 const LINT_TARGET = ['atlas-client/src/**/*.{ts,tsx}'];
-
 module.exports = tseslint.config(
 	{
 		ignores: [
@@ -57,6 +67,16 @@ module.exports = tseslint.config(
 			'react-hooks/rules-of-hooks': 'error',
 			'react-hooks/exhaustive-deps': 'warn',
 			'@typescript-eslint/no-explicit-any': 'error',
+		},
+	},
+	{
+		// react-hooks/rules-of-hooks baseline: test-only manual renderers whose
+		// hook call site cannot be expressed as a component/custom hook. The rule
+		// stays `error` everywhere else; rationale lives in
+		// ops/lint/rules-of-hooks-baseline.json.
+		files: Object.keys(rulesOfHooksBaseline.files),
+		rules: {
+			'react-hooks/rules-of-hooks': 'off',
 		},
 	},
 	{

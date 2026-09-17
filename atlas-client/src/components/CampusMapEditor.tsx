@@ -742,7 +742,6 @@ export function CampusMapEditor({
 						{campusImage ? (
 							<>
 								<Rect name="bg" x={0} y={0} width={CANVAS_WIDTH} height={CANVAS_HEIGHT} fill="#f5f5f4" />
-								{/* eslint-disable-next-line jsx-a11y/alt-text */}
 								<Rect
 									name="bg"
 									x={0}

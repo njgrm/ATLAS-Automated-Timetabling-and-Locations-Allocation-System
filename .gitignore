@@ -73,6 +73,8 @@ atlas-dev*.log
 # Local/generated dependencies and sibling apps
 EnrollPro/
 node_modules/
+# Scoped ESLint toolchain (ops/lint/toolchain): commit the pin, never the install
+ops/lint/toolchain/node_modules/
 .npm-cache/
 
 .env*

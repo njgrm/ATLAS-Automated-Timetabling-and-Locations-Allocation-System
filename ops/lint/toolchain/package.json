@@ -1,0 +1,11 @@
+{
+  "name": "atlas-lint-toolchain",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Scoped, reproducible ESLint toolchain for ATLAS. Deliberately isolated from the application dependency tree so the app node_modules, which is often a shared junction into another worktree, is never written through. Invoked by the root lint script.",
+  "devDependencies": {
+    "eslint": "^9.0.0",
+    "typescript-eslint": "^8.0.0",
+    "eslint-plugin-react-hooks": "^5.0.0"
+  }
+}
