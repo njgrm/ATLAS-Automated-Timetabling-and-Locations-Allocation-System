@@ -76,6 +76,72 @@ No HIGH packet may be offered for approval until
 `WORKFLOW-DISPATCH-PREFLIGHT-C01`'s probe reports all preconditions satisfiable.
 Rationale: every C10 stall was a free check performed too late.
 
+### R8 — `record-execution` is paired with a coordination refresh, same turn
+
+Recording an execution must, in the **same turn**, refresh
+`coordination.globalNextAction` and correct `git.candidateSha` /
+`git.changedPaths`. Rationale: without the pairing the register keeps advertising
+the pre-execution state while the runtime has already moved — the drift that
+produced C10's B2 finding.
+
+### R9 — The approval boundary and the dispatch prompt are one source
+
+`approval.approvedActions` is transcribed **from** the dispatched executor
+prompt, and any authorization present in the prompt but absent from
+`approvedActions` is refused at dispatch. Rationale: C10's B1 finding was not an
+unauthorized act but a record gap — the operator explicitly instructed the
+conditional `safe.directory` addition in the dispatch prompt, and the recorded
+boundary was narrower. A granted approval is immutable, so the defect can only be
+reconciled by errata; preventing it at dispatch is strictly cheaper.
+
+### R10 — Environment prerequisites are named up front in HIGH boundaries
+
+For any HIGH install, the boundary must name the environment prerequisites that
+can silently escape `approvedActions`: Git trust-allowlist / ownership
+(`safe.directory`) for a release directory that may be created by an elevated
+process, the target env file's DACL and which principal will write it, and every
+named input artifact the clause depends on. Rationale: covered operationally by
+`WORKFLOW-DISPATCH-PREFLIGHT-C01` check 5, and required here as an authoring rule
+so the boundary text and the probe agree.
+
+### R11 — No-change assertions are capture-derived
+
+Any "unchanged" assertion in evidence (config, env, ACL, listeners, rows) must be
+derived from a recorded before/after capture, never from intent. Rationale: the
+C10 cutover evidence made three false "config unchanged" claims, each of which a
+trivial before/after snapshot would have prevented.
+
+### R12 — Closure requires a recorded auditor verdict and matching tallies
+
+A stream may not close while `review.auditorVerdict` is null after an auditor has
+returned, or while the machine gate tally and the reported tally disagree.
+Rationale: at C10's first closure attempt the auditor verdict was unrecorded and
+`gates.total` (16, of a 3-source + 13-live plan) disagreed with the reported
+`14/14/0/0`.
+
+### R13 — Retain load-bearing state rather than reverting it
+
+When an unrecorded but operationally load-bearing change is found (a trust
+allowlist, an ownership adjustment, a DACL), and reverting it is untestable
+without a HIGH action while retention risk is bounded, **retain and ratify by
+errata** rather than reverting. Never retroactively mutate a granted approval's
+`approvedActions`. Rationale: the C10 B1 decision — removing the entry could have
+broken the SYSTEM-run supervisor's pin check on the next restart or boot.
+
+## Staging convention for process improvements
+
+Every cycle report ends with a process-improvement note. Those notes are lost when
+the session ends, and only committed files persist. Therefore:
+
+- This file is the **single staging area** for directive improvements. No separate
+  "memory" file is created — an extra surface adds to the sprawl R6 removes and an
+  unreferenced file is ignored (cf. the retired `.github/copilot-instructions.md`).
+- At each cycle closure, append that cycle's process-improvement note here as a
+  numbered rule with its rationale and the incident that produced it.
+- Rules land in `AGENTS.md` only in one deliberate revision, then the
+  corresponding entries are struck from this file. The file is retired when
+  empty.
+
 ## Measurement (to prove the revision worked)
 
 | Metric | C10 baseline | Target |
@@ -90,6 +156,6 @@ Rationale: every C10 stall was a free check performed too late.
 1. C10 closes (execution is already performed; matrix, acceptance review, and
    Wave Auditor outstanding).
 2. Register `WORKFLOW-PIN-SEMANTICS-C01` and `WORKFLOW-DISPATCH-PREFLIGHT-C01`.
-3. Apply R1–R7 as **one** `AGENTS.md` revision with those two lanes' evidence,
+3. Apply R1–R13 as **one** `AGENTS.md` revision with those two lanes' evidence,
    then re-pin the directive and reconcile every packet that declares the old
    hash.
