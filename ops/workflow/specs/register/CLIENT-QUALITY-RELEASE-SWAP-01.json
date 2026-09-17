@@ -12,8 +12,8 @@
   ],
   "running": [],
   "git": {
-    "worktree": "E:/ATLAS-worktrees/client-quality-release-swap-01",
-    "branch": "chore/client-quality-release-swap-01",
+    "worktree": "E:/ATLAS-worktrees/release-client-quality-01",
+    "branch": "release/client-quality-01",
     "baseSha": "ee5a2bf19c2491aa204a78e775fec98056780350",
     "candidateSha": null,
     "integrationSha": null,
