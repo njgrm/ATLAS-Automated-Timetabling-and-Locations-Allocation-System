@@ -1,9 +1,9 @@
 {
   "contractVersion": "1.2.0",
   "registry": {
-    "lastUpdatedAt": "2026-09-17T02:53:48.022Z",
-    "lastUpdatedBy": "primary-planner:faculty-sync-cas-c01",
-    "revision": 259
+    "lastUpdatedAt": "2026-09-17T03:17:29.328Z",
+    "lastUpdatedBy": "primary-planner",
+    "revision": 260
   },
   "coordination": {
     "mode": "MANUAL",
@@ -5804,6 +5804,152 @@
           "decision": "FRESH_REQUIRED",
           "sessionId": null,
           "reason": "the stream changes the register/transition contract, so a fresh adversarial Wave Completion Auditor is required after integration."
+        }
+      }
+    },
+    {
+      "id": "SYNC-SECTION-ENROLMENT-C01",
+      "kind": "STREAM",
+      "objective": "Reconcile the 20 EnrollPro year-9 sections into ATLAS section_mirrors for school 1 / school year 9 through the existing authenticated POST /api/v1/sections/sync route, so the active year carries real enrolledCount values (currently all zero while the previous year carries 81). One mirror-data write of derived, idempotent, refreshable data, executed as a live data apply and therefore governed at HIGH risk. No schema, migration, rollover, Teaching Load, generation, publication, deployment, runtime/task/env, or companion action.",
+      "riskTier": "HIGH",
+      "state": "PLANNED",
+      "stateUpdatedAt": "2026-09-17T03:17:29.328Z",
+      "nextAction": "Register when the register is free (CAS), commission one fresh independent pre-action review of docs/prompts/sync-section-enrolment-c01-2026-09-17.md (R1), return its exact approval sentence to the operator, and only on the operator's exact grant execute the single POST through the reviewed harness and run the 10-row acceptance matrix.",
+      "awaited": [
+        "the register to be free of any held revision window so this stream can register by CAS",
+        "one fresh independent pre-action review of docs/prompts/sync-section-enrolment-c01-2026-09-17.md (R1) returning ACCEPT_READY 2/2/0/0/0",
+        "the operator's exact approval sentence, returned only after the pre-action review passes"
+      ],
+      "running": [],
+      "git": {
+        "worktree": "E:/ATLAS-worktrees/sync-section-enrolment-c01",
+        "branch": "chore/sync-section-enrolment-c01",
+        "baseSha": "43f6909f09f73c43de1f77092c23fdb764f545e7",
+        "candidateSha": null,
+        "integrationSha": null,
+        "changedPaths": [],
+        "remoteObservation": {
+          "ref": "refs/remotes/origin/main",
+          "sha": "43f6909f09f73c43de1f77092c23fdb764f545e7",
+          "observedAt": "2026-09-17T03:17:29.328Z",
+          "kind": "REMOTE_TRACKING_REF"
+        }
+      },
+      "owners": {
+        "planner": {
+          "sessionId": null,
+          "status": "IDLE",
+          "writable": false
+        },
+        "executor": {
+          "sessionId": null,
+          "status": "NONE",
+          "writable": false
+        },
+        "qa": {
+          "sessionId": null,
+          "status": "NONE",
+          "writable": false
+        },
+        "auditor": {
+          "sessionId": null,
+          "status": "NONE",
+          "writable": false
+        }
+      },
+      "gates": {
+        "total": 0,
+        "passed": 0,
+        "failed": 0,
+        "blocked": 0,
+        "unperformed": 0,
+        "plan": {
+          "MANDATORY_SOURCE": 2,
+          "MANDATORY_LIVE": 10,
+          "DEFERRED_EXTERNAL": 1
+        },
+        "classes": {
+          "MANDATORY_SOURCE": {
+            "total": 0,
+            "passed": 0,
+            "failed": 0,
+            "blocked": 0,
+            "unperformed": 0
+          },
+          "MANDATORY_LIVE": {
+            "total": 0,
+            "passed": 0,
+            "failed": 0,
+            "blocked": 0,
+            "unperformed": 0
+          },
+          "DEFERRED_EXTERNAL": {
+            "total": 0,
+            "passed": 0,
+            "failed": 0,
+            "blocked": 0,
+            "unperformed": 0
+          }
+        }
+      },
+      "review": {
+        "qaVerdict": null,
+        "qaSessionId": null,
+        "auditorVerdict": null,
+        "auditorSessionId": null,
+        "auditRequired": true,
+        "qaRounds": []
+      },
+      "corrections": [],
+      "successors": [],
+      "requires": [],
+      "blocker": {
+        "kind": "APPROVAL",
+        "detail": "The action is a live data apply at HIGH risk. The operator's exact approval sentence is required before the single POST, and is presented only after the fresh independent pre-action review returns ACCEPT_READY. The machine record cannot set approval.granted because the record-approval and record-execution transitions belong to WF-C10 and are not yet integrated; the grant is recorded in committed evidence with the under-report disclosed in packet section 9.",
+        "safeWorkRemaining": true,
+        "safeWorkItems": [
+          "author the packet and stream spec (done, R1)",
+          "register the stream by CAS",
+          "commission the fresh independent pre-action review",
+          "run the read-only preflight inside the reviewed harness immediately before the POST"
+        ]
+      },
+      "approval": {
+        "required": true,
+        "presentedReady": false,
+        "granted": false,
+        "operatorIdentity": null,
+        "approvedAt": null,
+        "boundary": null,
+        "approvedActions": [
+          "one authenticated POST /api/v1/sections/sync with body {\"schoolId\":1,\"schoolYearId\":9} using the ATLAS system token, reconciling the 20 EnrollPro year-9 sections into section_mirrors"
+        ],
+        "requiredObservationIds": [],
+        "execution": null
+      },
+      "observations": [],
+      "artifacts": [],
+      "closure": null,
+      "sessionRouting": {
+        "planner": {
+          "decision": "EXISTING",
+          "sessionId": null,
+          "reason": "the registering primary planner (user-visible chat label: SYNC-SECTION-ENROLMENT-C01) owns this stream's registration, pre-action review dispatch, approval presentation, integration, and closure; the harness exposed no session id, so no id is invented."
+        },
+        "executor": {
+          "decision": "FRESH_REQUIRED",
+          "sessionId": null,
+          "reason": "the single authorized POST runs in a fresh context with the exact approved boundary and the reviewed harness."
+        },
+        "qa": {
+          "decision": "FRESH_REQUIRED",
+          "sessionId": null,
+          "reason": "one fresh independent pre-action review before the approval, and a second fresh context for the post-action acceptance verification."
+        },
+        "auditor": {
+          "decision": "FRESH_REQUIRED",
+          "sessionId": null,
+          "reason": "a live data apply requires a fresh Wave Completion Auditor after the action."
         }
       }
     }
