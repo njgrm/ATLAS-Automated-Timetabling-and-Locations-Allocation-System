@@ -1,0 +1,23 @@
+{
+  "receiptVersion": "1.1.0",
+  "generatedAt": "2026-09-17T05:15:55.365Z",
+  "statePath": "docs/plans/atlas-delivery-cycles.json",
+  "stateSha256": "24657835d2a9f8f016beb688e1dd7ea0779a946c7aac4a9198925602e6ac6ddb",
+  "status": "ok",
+  "streamId": "WF-C10-TRANSITION-GUARD-HARDENING",
+  "verified": {
+    "candidateSha": "db5a9fce4dfa100632a47502262be4fe74a1ac58",
+    "integrationSha": "86ad12b11a2c755ed23b7000c60d28de451ed568",
+    "qaVerdict": "ACCEPT_READY",
+    "auditorVerdict": "AUDIT_CLEAR",
+    "gates": {
+      "total": 41,
+      "passed": 41,
+      "failed": 0,
+      "blocked": 0,
+      "unperformed": 0
+    },
+    "readiness": "SOURCE_ONLY",
+    "artifacts": []
+  }
+}
