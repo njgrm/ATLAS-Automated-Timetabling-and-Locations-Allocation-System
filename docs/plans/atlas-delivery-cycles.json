@@ -1,9 +1,9 @@
 {
   "contractVersion": "1.2.0",
   "registry": {
-    "lastUpdatedAt": "2026-09-17T16:06:30.822Z",
-    "lastUpdatedBy": "primary-planner:consolidated-deployment-c10-execution",
-    "revision": 334
+    "lastUpdatedAt": "2026-09-17T16:14:48.765Z",
+    "lastUpdatedBy": "primary-planner:consolidated-deployment-c10-qa-result",
+    "revision": 335
   },
   "coordination": {
     "mode": "CYCLE_ACTIVE",
@@ -6775,13 +6775,11 @@
       "kind": "STREAM",
       "objective": "Deploy one release pinned at the accepted origin/main tip that includes the C07R1 authorization fix, published-revision immutability, warning realism, export parity, generation-authority realism and the R3 term-authority canonicalization; remove the vestigial ATLAS_DEFAULT_SCHOOL_ID key from the durable env; re-point and restart the registered ATLAS-Runtime-Supervisor task on ports 5001/5174; then run the 13-row acceptance matrix with exactly one authorized login and logout. No data mutation, generation, publication, Teaching Load apply, term-cache apply, rollover, migration, or companion change.",
       "riskTier": "HIGH",
-      "state": "REVIEW_REQUIRED",
-      "stateUpdatedAt": "2026-09-17T16:06:30.822Z",
-      "nextAction": "Dispatch the executor to resume the approved cutover from step 4: prove git -C <staged> rev-parse HEAD equals PIN40 BEFORE stopping the incumbent, then stop only the supervisor-owned 5001/5174 processes, re-point and restart the task, run the 13-row matrix with the single reserved login, and record the evidence. The operator performed the env change himself (13 keys, ATLAS_DEFAULT_SCHOOL_ID absent).",
+      "state": "ACCEPT_READY",
+      "stateUpdatedAt": "2026-09-17T16:14:48.765Z",
+      "nextAction": "Commission one fresh Wave Completion Auditor (ROLE: WAVE_COMPLETION_AUDITOR, max reasoning) over the integrated wave and the live release before closure; on AUDIT_CLEAR apply closure and the receipt, reconcile the register, retire the cycle worktrees per disposition, and return coordination to MANUAL.",
       "awaited": [
-        "the resumed executor return (REVIEW_REQUIRED) with the 13-row acceptance matrix",
-        "the fresh post-action independent acceptance review (authorized to perform its own disclosed logins after the matrix)",
-        "the fresh Wave Completion Auditor"
+        "the fresh Wave Completion Auditor for this HIGH shared-runtime action"
       ],
       "running": [],
       "git": {
@@ -6814,8 +6812,8 @@
           "writable": false
         },
         "qa": {
-          "sessionId": null,
-          "status": "NONE",
+          "sessionId": "ses_f4fdfea75ffeyEixQrxgfeb65e",
+          "status": "RETURNED",
           "writable": false
         },
         "auditor": {
@@ -6825,8 +6823,8 @@
         }
       },
       "gates": {
-        "total": 0,
-        "passed": 0,
+        "total": 16,
+        "passed": 16,
         "failed": 0,
         "blocked": 0,
         "unperformed": 0,
@@ -6837,15 +6835,15 @@
         },
         "classes": {
           "MANDATORY_SOURCE": {
-            "total": 0,
-            "passed": 0,
+            "total": 3,
+            "passed": 3,
             "failed": 0,
             "blocked": 0,
             "unperformed": 0
           },
           "MANDATORY_LIVE": {
-            "total": 0,
-            "passed": 0,
+            "total": 13,
+            "passed": 13,
             "failed": 0,
             "blocked": 0,
             "unperformed": 0
@@ -6860,12 +6858,18 @@
         }
       },
       "review": {
-        "qaVerdict": null,
-        "qaSessionId": null,
+        "qaVerdict": "ACCEPT_READY",
+        "qaSessionId": "ses_f4fdfea75ffeyEixQrxgfeb65e",
         "auditorVerdict": null,
         "auditorSessionId": null,
         "auditRequired": true,
-        "qaRounds": []
+        "qaRounds": [
+          {
+            "round": 1,
+            "verdict": "ACCEPT_READY",
+            "sessionId": "ses_f4fdfea75ffeyEixQrxgfeb65e"
+          }
+        ]
       },
       "corrections": [],
       "successors": [],
