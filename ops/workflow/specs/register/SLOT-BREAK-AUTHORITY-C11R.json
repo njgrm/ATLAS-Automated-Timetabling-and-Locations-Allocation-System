@@ -3,17 +3,21 @@
   "kind": "STREAM",
   "objective": "Complete SLOT-BREAK-AUTHORITY-C11 on the display surfaces: make the canonical classProgramSlot grid the source of displayed period, break, and shift slots whenever canonical rows exist for a (gradeLevel, programType) scope, removing the retired 11:55-12:55 fallbacks from schedule-constructor.ts and threading the canonical authority into room-schedule, locked-session, published-schedule, and pre-generation-draft, while freezing canonical-derived slots at publication time and preserving published immutability. Source and tests only.",
   "riskTier": "MEDIUM",
-  "state": "PLANNED",
+  "state": "RUNNING",
   "stateUpdatedAt": "2026-09-17T00:00:00Z",
-  "nextAction": "Register by CAS when the register is free, acquire the executor lease, then dispatch one fresh source executor in E:/ATLAS-worktrees/slot-break-authority-c11r against docs/prompts/slot-break-authority-c11r-2026-09-17.md.",
+  "nextAction": "Await the source executor REVIEW_REQUIRED return for the frozen candidate in E:/ATLAS-worktrees/slot-break-authority-c11r (branch fix/slot-break-authority-c11r, base 4deb9d9c) against docs/prompts/slot-break-authority-c11r-2026-09-17.md; then validate the immutable range and commission one fresh independent QA over the complete base...candidate range, integrate on integration/slot-break-authority-c11r-20260917 over the then-current origin/main, and commission one fresh Wave Completion Auditor. No runtime, DB, migration, generation, or publication action is unlocked by this stream.",
   "awaited": [
-    "the register to be free of any held revision window so this stream can register by CAS"
+    "executor REVIEW_REQUIRED return for the SLOT-BREAK-AUTHORITY-C11R frozen candidate",
+    "fresh independent QA over the frozen candidate range",
+    "clean current-main integration and fresh Wave Completion Audit"
   ],
-  "running": [],
+  "running": [
+    "one bounded executor implementation of packet docs/prompts/slot-break-authority-c11r-2026-09-17.md on branch fix/slot-break-authority-c11r; the executor session is dispatched in the same planner turn as this registration and its session id is recorded at return"
+  ],
   "git": {
     "worktree": "E:/ATLAS-worktrees/slot-break-authority-c11r",
     "branch": "fix/slot-break-authority-c11r",
-    "baseSha": "43f6909f09f73c43de1f77092c23fdb764f545e7",
+    "baseSha": "4deb9d9cd75dccba6a3bebfe62511a2b54644cac",
     "candidateSha": null,
     "integrationSha": null,
     "changedPaths": [],
@@ -54,12 +58,14 @@
   "successors": [],
   "requires": [],
   "blocker": {
-    "kind": "DEPENDENCY",
-    "detail": "Registration must not interleave with another stream's held register revision window. No approval gate: this is an ordinary MEDIUM source correction.",
+    "kind": "NONE",
+    "detail": "The registration prerequisite is satisfied: the live register declares no held revision window, so this stream registers by CAS at revision 261. The authored authoring base 43f6909f was advanced to the dispatch tip 4deb9d9c; the range 43f6909f..4deb9d9c is docs/workflow only (packet, spec, register and generated register), so no product byte differs between the authoring base and the dispatch base. No dependency or approval blocker remains; this is an ordinary MEDIUM source correction governed at no approval gate, backed by the executor lease created at registration.",
     "safeWorkRemaining": true,
     "safeWorkItems": [
-      "author the packet and stream spec (done)",
-      "dispatch the fresh source executor after registration"
+      "author the packet and stream spec (done by the planner)",
+      "dispatch one fresh bounded executor into E:/ATLAS-worktrees/slot-break-authority-c11r",
+      "delete the silent 11:55/12:55 display fallbacks and derive display slots from the canonical grid",
+      "thread the canonical authority into the five display call sites and freeze canonical-derived slots at publication"
     ]
   },
   "approval": {
