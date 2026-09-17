@@ -1,9 +1,9 @@
 {
   "contractVersion": "1.2.0",
   "registry": {
-    "lastUpdatedAt": "2026-09-17T14:39:44.685Z",
-    "lastUpdatedBy": "primary-planner:consolidated-deployment-c10-approval",
-    "revision": 330
+    "lastUpdatedAt": "2026-09-17T15:02:50.209Z",
+    "lastUpdatedBy": "primary-planner:consolidated-deployment-c10-executor-return",
+    "revision": 331
   },
   "coordination": {
     "mode": "CYCLE_ACTIVE",
@@ -6775,25 +6775,25 @@
       "kind": "STREAM",
       "objective": "Deploy one release pinned at the accepted origin/main tip that includes the C07R1 authorization fix, published-revision immutability, warning realism, export parity, generation-authority realism and the R3 term-authority canonicalization; remove the vestigial ATLAS_DEFAULT_SCHOOL_ID key from the durable env; re-point and restart the registered ATLAS-Runtime-Supervisor task on ports 5001/5174; then run the 13-row acceptance matrix with exactly one authorized login and logout. No data mutation, generation, publication, Teaching Load apply, term-cache apply, rollover, migration, or companion change.",
       "riskTier": "HIGH",
-      "state": "RUNNING",
-      "stateUpdatedAt": "2026-09-17T14:39:44.685Z",
-      "nextAction": "Commission one fresh independent pre-action review over this amended packet and the frozen pin; on PASS return the packet's exact approval sentence (including the rotated out-of-band SSO provisioning channel, or the drop variant) to the operator; on approval record it through record-approval and dispatch the deployment executor in E:/ATLAS-worktrees/consolidated-deploy-c10, then record execution, evidence, the post-action acceptance review, and the Wave Completion Auditor.",
+      "state": "REVIEW_REQUIRED",
+      "stateUpdatedAt": "2026-09-17T15:02:50.209Z",
+      "nextAction": "Present the F2 env-ACL remedy decision to the operator (authorize a bounded ACL-modify -> remove the one key -> restore the exact original DACL, or the operator performs the removal, or amend the approval to drop the env change); on authorization resume the approved cutover from the already-staged and smoke-verified PIN40 release, then run the 13-row acceptance matrix with the still-unconsumed single login.",
       "awaited": [
-        "one fresh independent pre-action review of the amended deployment packet and the frozen pin",
-        "the operator's exact approval sentence, which must name the literal pin and either the rotated SSO provisioning path or the drop variant",
-        "the deployment executor return (REVIEW_REQUIRED) with the 13-row acceptance matrix and evidence",
-        "the fresh post-action acceptance review and the fresh Wave Completion Auditor"
+        "operator decision on the env-file write authority: the approved ATLAS_DEFAULT_SCHOOL_ID removal is not executable because D:\\ATLAS-runtime-config\\atlas-server.env carries an inheritance-protected read-only DACL granting only Read to SYSTEM, Administrators and the owner",
+        "acknowledgement that the approved second-tier rollback 9d293879 is not startable (missing helmet in its atlas-server dependencies) while the primary tier 54dce67b is proven startable"
       ],
-      "running": [
-        "CONSOLIDATED-DEPLOYMENT-C10 dispatch: amended packet and frozen pin prepared, register row created by CAS with an ACTIVE executor lease, pre-action review being commissioned; no listener, task, env, or data mutation has occurred"
-      ],
+      "running": [],
       "git": {
         "worktree": "E:/ATLAS-worktrees/consolidated-deploy-c10",
         "branch": "chore/consolidated-deploy-c10",
-        "baseSha": "43341ac7cb908f9ca692dbc93f8da8ef26ec52b0",
-        "candidateSha": null,
+        "baseSha": "8eb0511baa537d4212f24a007ac40e2dded38c0e",
+        "candidateSha": "21222a66c3c0fa0f7e8d6997ed30229a176e25f2",
         "integrationSha": null,
-        "changedPaths": [],
+        "changedPaths": [
+          "docs/plans/atlas-active-delivery-streams.generated.md",
+          "docs/plans/atlas-delivery-cycles.json",
+          "docs/reviews/consolidated-deployment-c10/deployment-evidence-2026-09-17.md"
+        ],
         "remoteObservation": {
           "ref": "refs/remotes/origin/main",
           "sha": "3b9e00c1209daacf559245636eab3521195b63ef",
@@ -6808,8 +6808,8 @@
           "writable": false
         },
         "executor": {
-          "sessionId": null,
-          "status": "NONE",
+          "sessionId": "ses_f502d598dffeY52XJMw6LXeWrm",
+          "status": "RETURNED",
           "writable": false
         },
         "qa": {
