@@ -1,0 +1,106 @@
+{
+  "id": "SSO-ENV-ACTIVATION-C01",
+  "kind": "STREAM",
+  "objective": "Bring the already-deployed and already-reviewed companion-SSO code into service with ONE restart of the supervisor-owned runtime so it loads the four companion-SSO keys the operator has already appended to the durable env. No build, no install, no task re-point, and no release change: the live release remains 8eb0511baa537d4212f24a007ac40e2dded38c0e. Acceptance proves the four key names are loaded, the runtime is healthy and singly-owned by the task-launched supervisor, the SSO routes are mounted, the reverse exchange no longer returns COMPANION_SSO_CLIENT_INVALID against the paired bearer, and a mutated bearer is rejected without consuming a code. The end-to-end cross-system browser test with EnrollPro is a separate joint session. No data mutation, generation, publication, Teaching Load apply, term-cache apply, rollover, migration, release change, task re-point, env edit, or companion action.",
+  "riskTier": "HIGH",
+  "state": "PLANNED",
+  "stateUpdatedAt": "2026-09-17T00:00:00Z",
+  "nextAction": "Register by CAS, commission one fresh independent pre-action review of docs/prompts/sso-env-activation-c01-2026-09-17.md, return its exact approval sentence, then perform the single stop/restart of the supervisor-owned tree and run the 8-row acceptance matrix.",
+  "awaited": [
+    "one fresh independent pre-action review of docs/prompts/sso-env-activation-c01-2026-09-17.md",
+    "the operator's exact approval sentence (returned only after the pre-action review passes)"
+  ],
+  "running": [],
+  "git": {
+    "worktree": "E:/ATLAS-worktrees/sso-env-activation-c01",
+    "branch": "chore/sso-env-activation-c01",
+    "baseSha": "65a58f2f4c36b5bc2835bde6c6cef6b1af51c68c",
+    "candidateSha": null,
+    "integrationSha": null,
+    "changedPaths": [],
+    "remoteObservation": null
+  },
+  "owners": {
+    "planner": { "sessionId": null, "status": "IDLE", "writable": false },
+    "executor": { "sessionId": null, "status": "NONE", "writable": false },
+    "qa": { "sessionId": null, "status": "NONE", "writable": false },
+    "auditor": { "sessionId": null, "status": "NONE", "writable": false }
+  },
+  "gates": {
+    "total": 0,
+    "passed": 0,
+    "failed": 0,
+    "blocked": 0,
+    "unperformed": 0,
+    "plan": {
+      "MANDATORY_SOURCE": 0,
+      "MANDATORY_LIVE": 8,
+      "DEFERRED_EXTERNAL": 0
+    },
+    "classes": {
+      "MANDATORY_SOURCE": { "total": 0, "passed": 0, "failed": 0, "blocked": 0, "unperformed": 0 },
+      "MANDATORY_LIVE": { "total": 0, "passed": 0, "failed": 0, "blocked": 0, "unperformed": 0 },
+      "DEFERRED_EXTERNAL": { "total": 0, "passed": 0, "failed": 0, "blocked": 0, "unperformed": 0 }
+    }
+  },
+  "review": {
+    "qaVerdict": null,
+    "qaSessionId": null,
+    "auditorVerdict": null,
+    "auditorSessionId": null,
+    "auditRequired": true,
+    "qaRounds": []
+  },
+  "corrections": [],
+  "successors": [],
+  "requires": [],
+  "blocker": {
+    "kind": "APPROVAL",
+    "detail": "Env precondition SATISFIED as of 2026-09-17: the operator appended the four companion-SSO keys to D:\\ATLAS-runtime-config\\atlas-server.env, independently verified at 17 keys with both secret values at 43 characters, the callback URL byte-exact with no trailing slash, the restored read-only DACL, and zero duplicate keys. EnrollPro's side is complete (F1/F2 applied, both secrets rotated, the active school year resolves VALID, and the /auth/enrollpro/authorize mediator confirmed). The only remaining gate is the operator's exact approval sentence, returned after one fresh independent pre-action review.",
+    "safeWorkRemaining": true,
+    "safeWorkItems": [
+      "author the packet and stream spec (done)",
+      "commission the fresh independent pre-action review",
+      "run the zero-cost preflight immediately before the restart"
+    ]
+  },
+  "approval": {
+    "required": true,
+    "presentedReady": false,
+    "granted": false,
+    "operatorIdentity": null,
+    "approvedAt": null,
+    "boundary": null,
+    "approvedActions": [
+      "stop only the supervisor-owned runtime tree and restart it via the registered task ATLAS-Runtime-Supervisor so the four operator-appended companion-SSO keys are loaded, changing no release, task registration, or durable-env key",
+      "run the 8-row acceptance matrix including the SSO half-proof against the paired reverse bearer and the mutated-bearer negative control, disclosing every login with its expected audit delta"
+    ],
+    "requiredObservationIds": [],
+    "execution": null
+  },
+  "observations": [],
+  "artifacts": [],
+  "closure": null,
+  "sessionRouting": {
+    "planner": {
+      "decision": "FRESH_REQUIRED",
+      "sessionId": null,
+      "reason": "new objective with its own HIGH approval boundary."
+    },
+    "executor": {
+      "decision": "FRESH_REQUIRED",
+      "sessionId": null,
+      "reason": "the HIGH restart runs in a fresh context with the exact approved boundary."
+    },
+    "qa": {
+      "decision": "FRESH_REQUIRED",
+      "sessionId": null,
+      "reason": "one fresh independent pre-action review before the approval, plus a post-action acceptance review."
+    },
+    "auditor": {
+      "decision": "FRESH_REQUIRED",
+      "sessionId": null,
+      "reason": "a HIGH shared-runtime restart requires a fresh adversarial Wave Completion Auditor after the action."
+    }
+  }
+}

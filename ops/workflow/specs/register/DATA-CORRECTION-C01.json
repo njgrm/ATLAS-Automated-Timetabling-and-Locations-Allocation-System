@@ -5,10 +5,8 @@
   "riskTier": "HIGH",
   "state": "PLANNED",
   "stateUpdatedAt": "2026-09-17T00:00:00Z",
-  "nextAction": "Confirm the two sequencing preconditions (G9G10-FLAG-SOURCE-LANE integrated AND a deployment whose pin contains it live), register by CAS when the register is free, commission one fresh independent pre-action review of docs/prompts/data-correction-c01-2026-09-17.md, return its exact approval sentence, then execute the fingerprinted write and the 8-row acceptance matrix.",
+  "nextAction": "Both sequencing preconditions are now SATISFIED: G9G10-FLAG-SOURCE-LANE is COMPLETE, and the live release 8eb0511baa537d4212f24a007ac40e2dded38c0e contains it and is serving 5001/5174. The day_of_week question is also settled: class_program_slots.day_of_week NULL is correct because the canonical catalogSlot(start,end,kind,label,note) is day-agnostic and validation keys are `${startTime}-${endTime}-${rowKind}`, so no day backfill is in scope. Register by CAS, commission one fresh independent pre-action review of docs/prompts/data-correction-c01-2026-09-17.md, return its exact approval sentence, then execute the fingerprinted write and the 8-row acceptance matrix.",
   "awaited": [
-    "a deployment whose pin contains that lane to be live (otherwise the reseed makes the live grid inconsistent)",
-    "the register to be free of any held revision window",
     "one fresh independent pre-action review of docs/prompts/data-correction-c01-2026-09-17.md",
     "the operator's exact approval sentence (returned only after the pre-action review passes)"
   ],
@@ -57,8 +55,8 @@
   "successors": [],
   "requires": ["G9G10-FLAG-SOURCE-LANE"],
   "blocker": {
-    "kind": "DEPENDENCY",
-    "detail": "Dependency-locked on G9G10-FLAG-SOURCE-LANE integrating AND on a deployment whose pin contains it being live. Applying the reseed against a runtime that lacks the lane would make the live grid inconsistent in the opposite direction and fail the preflight closed.",
+    "kind": "APPROVAL",
+    "detail": "Preconditions SATISFIED as of 2026-09-17: G9G10-FLAG-SOURCE-LANE is COMPLETE; the live release 8eb0511baa537d4212f24a007ac40e2dded38c0e contains it and serves 5001/5174 (verified: listeners 18348/48244, health 200); and class_program_slots.day_of_week NULL is confirmed correct because the canonical catalogSlot is day-agnostic. The only remaining gate is the operator's exact approval sentence, returned after one fresh independent pre-action review of the packet.",
     "safeWorkRemaining": true,
     "safeWorkItems": [
       "author the packet and stream spec (done)",
