@@ -1,14 +1,14 @@
 {
   "contractVersion": "1.2.0",
   "registry": {
-    "lastUpdatedAt": "2026-09-17T16:14:48.765Z",
-    "lastUpdatedBy": "primary-planner:consolidated-deployment-c10-qa-result",
-    "revision": 335
+    "lastUpdatedAt": "2026-09-17T16:25:52.900Z",
+    "lastUpdatedBy": "primary-planner:consolidated-deployment-c10-correction",
+    "revision": 338
   },
   "coordination": {
     "mode": "CYCLE_ACTIVE",
     "activeCycleId": "CONSOLIDATED-DEPLOYMENT-C10",
-    "globalNextAction": "CYCLE_ACTIVE for CONSOLIDATED-DEPLOYMENT-C10 (HIGH shared-runtime deployment). Registered RUNNING at revision 315 with ACTIVE lease lease-consolidated-deployment-c10; packet frozen at PIN40 8eb0511baa537d4212f24a007ac40e2dded38c0e (packet blob 7c650dcb, LF-SHA-256 ec7817fc8f8d9aaaed13edd7e00ee80b61ef39981a735ef00afd33110095b1a5). Four independent pre-action review rounds ran; the fresh round-4 review ses_f50687019ffePqOLlPCuAhZ2uS returned ACCEPT_READY 17/17/0/0 with zero blocking findings, so the packet and pin are approvable. AWAITING the operator's exact approval sentence (SSO-clause variant with the rotated out-of-band provisioning path, or the drop variant). No listener, task, env, login, browser, or data mutation has occurred; the shared runtime still serves supervised release 54dce67b. Seven non-blocking packet-accuracy notes (W1-W7) are recorded for the next packet touch. Peers: ROLLOVER-GRADED-AUTONOMY-C01 is COMPLETE; MIG-APPLY-0002-0003 awaits only its docs-only premise-sweep correction; DATA-CORRECTION-C01, TERM-CACHE-CATCHUP-APPLY, AUTHZ-CLASS-TEMPLATE-LIVE, live generation, and publication remain locked and NOT granted."
+    "globalNextAction": "CONSOLIDATED-DEPLOYMENT-C10 is CORRECTION_REQUIRED at revision 336. The cutover IS executed and the shared runtime serves supervised release 8eb0511baa537d4212f24a007ac40e2dded38c0e (PIN40) on 5001/5174 under the task-launched supervisor (PIDs 18348/48244, parent 54804, Task Scheduler grandparent); local health and ready 200, host live 200, Tailnet 200. Acceptance was 14/14/0/0 (rows 1-8 and 10-13 by the executor, row 9 completed by the post-action review with its own disclosed logins 801/802; matrix login audit id 800). The Wave Completion Auditor returned CORRECTION_REQUIRED: B1 an undisclosed in-cycle global Git safe.directory addition with contrary evidence claims, B2 stale register coordination/git fields. Awaiting the operator decision on B1 (ratify retention of the entry for the SYSTEM-run supervisor, or authorize its removal plus a restart test) and then the reconciliation docs, fresh QA, and a fresh auditor before COMPLETE. DATA-CORRECTION-C01, the four companion-SSO keys, TERM-CACHE-CATCHUP-APPLY, AUTHZ-CLASS-TEMPLATE-LIVE, generation, and publication remain locked."
   },
   "streams": [
     {
@@ -6775,22 +6775,25 @@
       "kind": "STREAM",
       "objective": "Deploy one release pinned at the accepted origin/main tip that includes the C07R1 authorization fix, published-revision immutability, warning realism, export parity, generation-authority realism and the R3 term-authority canonicalization; remove the vestigial ATLAS_DEFAULT_SCHOOL_ID key from the durable env; re-point and restart the registered ATLAS-Runtime-Supervisor task on ports 5001/5174; then run the 13-row acceptance matrix with exactly one authorized login and logout. No data mutation, generation, publication, Teaching Load apply, term-cache apply, rollover, migration, or companion change.",
       "riskTier": "HIGH",
-      "state": "ACCEPT_READY",
-      "stateUpdatedAt": "2026-09-17T16:14:48.765Z",
-      "nextAction": "Commission one fresh Wave Completion Auditor (ROLE: WAVE_COMPLETION_AUDITOR, max reasoning) over the integrated wave and the live release before closure; on AUDIT_CLEAR apply closure and the receipt, reconcile the register, retire the cycle worktrees per disposition, and return coordination to MANUAL.",
+      "state": "CORRECTION_REQUIRED",
+      "stateUpdatedAt": "2026-09-17T16:25:52.900Z",
+      "nextAction": "Record the B1/B2 reconciliation (truthful errata for the in-cycle safe.directory addition and the corrected evidence claims, plus the register continuity fixes), then run one fresh independent QA over the correction range and one fresh Wave Completion Auditor before any COMPLETE closure and receipt.",
       "awaited": [
-        "the fresh Wave Completion Auditor for this HIGH shared-runtime action"
+        "the operator decision on the B1 global Git safe.directory entry (ratify retention, or authorize removal plus a restart test)",
+        "the fresh independent QA over the reconciliation candidate",
+        "the fresh Wave Completion Auditor over the corrected final tree"
       ],
       "running": [],
       "git": {
         "worktree": "E:/ATLAS-worktrees/consolidated-deploy-c10",
         "branch": "chore/consolidated-deploy-c10",
         "baseSha": "8eb0511baa537d4212f24a007ac40e2dded38c0e",
-        "candidateSha": "21222a66c3c0fa0f7e8d6997ed30229a176e25f2",
+        "candidateSha": "3771cced9d7cd91f17ab2cffbd72529ce6dd0588",
         "integrationSha": null,
         "changedPaths": [
           "docs/plans/atlas-active-delivery-streams.generated.md",
           "docs/plans/atlas-delivery-cycles.json",
+          "docs/reviews/consolidated-deployment-c10/cutover-evidence-2026-09-17.md",
           "docs/reviews/consolidated-deployment-c10/deployment-evidence-2026-09-17.md"
         ],
         "remoteObservation": {
@@ -6871,17 +6874,32 @@
           }
         ]
       },
-      "corrections": [],
+      "corrections": [
+        {
+          "round": 1,
+          "baseSha": "21222a66c3c0fa0f7e8d6997ed30229a176e25f2",
+          "candidateSha": "3771cced9d7cd91f17ab2cffbd72529ce6dd0588",
+          "reason": "Wave Completion Auditor ses_f4fd7eefeffeYuPtVH3Xq5ThcU returned CORRECTION_REQUIRED. B1: a global Git trust-allowlist entry (safe.directory D:/ATLAS-runtime-supervised-8eb0511baa53-20260917) was added inside this cycle window, is outside approvedActions, and the cutover evidence falsely states no config entry was added or changed. B2: the register coordination snapshot and git fields were stale (globalNextAction still described the pre-approval state and release 54dce67b; candidateSha named the preflight STOP evidence and changedPaths omitted the cutover evidence). This round records the truthful errata and reconciles the register; the runtime is untouched and stays on PIN40.",
+          "qaVerdict": null,
+          "qaSessionId": null,
+          "auditorVerdict": null,
+          "auditorSessionId": null
+        }
+      ],
       "successors": [],
       "requires": [
         "MIG-APPLY-0002-0003",
         "G9G10-FLAG-SOURCE-LANE"
       ],
       "blocker": {
-        "kind": "NONE",
-        "detail": "Resolved: the operator removed ATLAS_DEFAULT_SCHOOL_ID himself (verified 13 keys, key absent, no SSO keys, all 13 expected names present, ACL untouched) and withdrew the 9d293879 rollback tier. The amended SSO clause is not in force; the recorded boundary stands. The cutover is resuming against the already-staged PIN40 release with the reserved login unconsumed.",
-        "safeWorkRemaining": false,
-        "safeWorkItems": []
+        "kind": "INTERNAL",
+        "detail": "Wave Completion Auditor ses_f4fd7eefeffeYuPtVH3Xq5ThcU returned CORRECTION_REQUIRED: B1 an in-cycle global Git safe.directory addition outside approvedActions with contrary cutover-evidence claims; B2 stale register coordination and git fields. The deployed runtime is healthy on PIN40 and is not in question.",
+        "safeWorkRemaining": true,
+        "safeWorkItems": [
+          "write the truthful B1 errata and correct the cutover evidence claims",
+          "complete the register continuity reconciliation",
+          "register successor owners for DATA-CORRECTION-C01 and the four SSO keys"
+        ]
       },
       "approval": {
         "required": true,
