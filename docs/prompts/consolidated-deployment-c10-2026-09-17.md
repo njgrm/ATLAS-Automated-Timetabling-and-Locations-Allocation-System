@@ -49,11 +49,22 @@ accepted correction after 2026-09-14, including:
   `TERM_AUTHORITY_STALE` blocker.
 - `TL-DIAGNOSTICS-LOADING-C06`, `WF-SEED-INVENTORY-C02`, `WF-SEED-PIN-C01`.
 
-Exposure is established from source and deployed-blob evidence only. Do NOT probe
-anonymous `GET /api/v1/class-templates` or `/:id` to "confirm" it: that route
-performs a write on read.
+Exposure is established from source and deployed-blob evidence only. While the
+incumbent `54dce67b` is still live, do NOT probe anonymous
+`GET /api/v1/class-templates` or `/:id` to "confirm" it: on that release the route
+performs a write on read. The prohibition is scoped to the pre-deploy incumbent
+only — after row 1 confirms the pin is live, row 6 deliberately probes the route,
+because the pinned route authenticates before any handler runs and has no write on
+read.
 
 ## 2. Prerequisites (all mandatory, all zero-cost, before consuming any approval)
+
+The listener-changing prerequisites (§2.5, §2.6) are **execution-time**: they are
+re-confirmed and completed after the approval sentence and before the first
+listener change, in the §4 order. "Before consuming any approval" means before the
+approval's effects are consumed — that is, before the listener change — not before
+the sentence is returned. Nothing here requires binding 5001/5174 or mutating
+anything before the approval.
 
 1. `MIG-APPLY-0002-0003` applied and verified (`0002_companion_sso_code`,
    `0003_teacher_program_presentation`). The target server code requires those
@@ -100,6 +111,25 @@ performs a write on read.
 | §2.5 and §2.6 listener identity, alternate-port build, rollback startability | EXECUTION-TIME — re-confirm immediately before the listener change; any divergence from the recorded pre-state is a STOP |
 | §2.7 O1 migration-encoding preflight | NOT TRIGGERED — this action runs no Prisma migration command. It remains mandatory if any migration command is ever added to this boundary |
 
+### 2.2 Declared MANDATORY_SOURCE gates (the three rows behind `gates.plan`)
+
+The stream spec declares `MANDATORY_SOURCE: 3`; these are the three source rows,
+so closure arithmetic is not bookkeeping-ambiguous:
+
+- **S1 — identity reproduction.** At the frozen pin: `node ops/workflow/pins.mjs
+  check --packet docs/prompts/consolidated-deployment-c10-2026-09-17.md` exits 0;
+  the packet's blob and LF-SHA-256 reproduce from the pinned blob via
+  `ops/workflow/lib/util.mjs` `lfSha256`; `directivePinAtTip` and
+  `operatingCopyHash` both equal `76631646…`; `verify-cycle.mjs` exits 0.
+- **S2 — server build from the pin.** `atlas-server` TypeScript build succeeds
+  with the explicit `.js` ESM runtime-import proof, and the built server starts
+  on an alternate port.
+- **S3 — client build from the pin.** `atlas-client` production build succeeds
+  with the declared `VITE_ENROLLPRO_URL`, and the built host serves it on an
+  alternate port.
+
+S2 and S3 are the §4 step 2 build; they never bind 5001/5174.
+
 ## 3. Verified starting authority (elevated read-only, 2026-09-16/17)
 
 | Item | Verified value |
@@ -113,7 +143,7 @@ performs a write on read.
 | Health | local `/api/v1/health` 200; `/api/v1/health/ready` 200 (`database: ok`); host `/__host/live` + `/__host/ready` 200; Tailnet health 200 |
 | Invariants | `ATLAS_SUPERVISED=true`, `ROLLOVER_AUTO_SYNC_ENABLED=false` |
 | Durable env | `D:\ATLAS-runtime-config\atlas-server.env` (+ `backups\` sibling). **14 keys at dispatch**, not 13: the authoring-time count was stale because `ENROLLPRO_PROXY_ORIGIN` was recovered 2026-09-15. File SHA-256 `eb941b11231a16e38056a92ffa7cea5835f35c3cf7aaa161c6720e04d7b7bdfa`. Key names only: `ATLAS_AUTH_DISABLE_RATE_LIMIT`, `ATLAS_DEFAULT_SCHOOL_ID`, `ATLAS_SYSTEM_TOKEN`, `CLIENT_URL`, `CORS_EXTRA_ORIGINS`, `DATABASE_URL`, `ENROLLPRO_API`, `ENROLLPRO_CLIENT_URL`, `ENROLLPRO_PROXY_ORIGIN`, `ENROLLPRO_SERVICE_TOKEN`, `FACULTY_ADAPTER`, `JWT_SECRET`, `PORT`, `SECTION_SOURCE_MODE`. No `SSO`/`COMPANION` key is present |
-| Disk | C: 16.52 GiB, D: 31.26 GiB, E: 67.14 GiB free at dispatch — above floors |
+| Disk | C: 16.48 GiB, D: 31.26 GiB, E: 65.97 GiB free at pre-action review (drifts continuously; all above the 25 GiB warn and 15 GiB fail-closed floors, re-checked at execution) |
 
 Dispatch re-verification (2026-09-17, read-only): task `\ATLAS-Runtime-Supervisor`
 Enabled, State Running, SYSTEM, "Task To Run" and "Start In" both still
@@ -178,8 +208,10 @@ Not changed by this action (recorded for the next one):
   **The paired values are known-compromised and must be rotated first.** The
   same reply, §3 F3/F4, records that EnrollPro published both secrets in a
   plaintext document and that both must be treated as compromised and
-  re-provisioned out of band (`ATLAS_SSO_CLIENT_SECRET` is `sha256("test")`,
-  verified). Deploying the leaked values would ship a known-weak shared secret.
+  re-provisioned out of band; `ATLAS_SSO_CLIENT_SECRET` is a trivially guessable
+  published value whose preimage digest is recorded in the response handoff §3 F3
+  and deliberately not restated here. Deploying the leaked values would ship a
+  known-weak shared secret.
   This clause therefore executes ONLY against rotated values; if the operator has
   not re-provisioned them out of band before execution, the clause is DROPPED.
 
@@ -224,8 +256,11 @@ delta.
 2. Build `atlas-server` (with explicit `.js` ESM runtime-import proof) and
    `atlas-client` at the pinned SHA, setting the non-secret client build input
    `VITE_ENROLLPRO_URL=https://dev-jegs.buru-degree.ts.net` so the EnrollPro
-   links resolve; install to `D:\ATLAS-runtime-supervised-<pin12>-<date>`. Smoke
-   the built server and host on ALTERNATE ports only; never bind 5001/5174.
+   links resolve; install to `D:\ATLAS-runtime-supervised-<pin12>-<date>`. The
+   install MUST carry a real `.git` at PIN40 (`git -C <install> rev-parse HEAD`
+   equals `ATLAS_RUNTIME_RELEASE_SHA`), because `verifyProductPin` requires it —
+   the incumbent release directories do. Smoke the built server and host on
+   ALTERNATE ports only; never bind 5001/5174.
 3. Explicitly stop ONLY the supervisor-owned processes.
 4. Apply the declared env change — remove `ATLAS_DEFAULT_SCHOOL_ID`, plus the
    four declared companion-SSO keys when the returned sentence authorizes the
@@ -270,16 +305,16 @@ remains healthy **after the invoking executor shell exits**.
 
 | # | Row | Pass condition |
 |---|---|---|
-| 1 | Release identity | supervisor status + installed HEAD equal the pin |
-| 2 | Listeners | exactly one owner per port (5001, 5174) |
+| 1 | Release identity | `cli.mjs status` `releaseSha` and `sourceDir`, plus the installed HEAD (`git -C <install> rev-parse HEAD`), all equal the pin. Score on those fields, NOT on the status `live` flags, which are known stale (see the §5.2 probe-method note) |
+| 2 | Listeners | exactly one owner per port (5001, 5174), and the owning process tree is the **task-launched** supervisor — not an executor-started process — and remains so after the invoking executor shell exits (§4.1) |
 | 3 | Health | local health + ready (`database: ok`), host live/ready, Tailnet health all 200 |
 | 4 | Rollover automation | `ROLLOVER_AUTO_SYNC_ENABLED=false` |
 | 5 | Env change | `ATLAS_DEFAULT_SCHOOL_ID` absent; every companion-SSO key the returned sentence authorizes is present (**key names only — values are never printed**); all other keys unchanged against the §3.2 set |
 | 6 | Anonymous class-template read | `GET /api/v1/class-templates` and `/:id` → 401 with `class_templates` row-count delta 0. **Sequencing:** §1 currently forbids probing this route pre-fix, so this row runs only after row 1 confirms the pin is live |
 | 7 | False authority blocker removed | `GET /api/v1/generation/1/9/readiness/diagnostic` (authenticated privileged session, zero-write) emits ZERO `TERM_AUTHORITY_STALE`, and no returned blocker is an authority blocker. A `CANONICAL_TEMPLATE_INCOMPLETE` blocker IS EXPECTED here per §5.1 and does not fail this row |
-| 8 | Published-revision immutability | the frozen-revision read path resolves the persisted revision authority rather than the live tables; with zero `PublishedScheduleRevision` rows the probe returns its defined typed empty result and does not fall back to live tables. The executor names the exact probe and expected typed result in the preflight evidence |
+| 8 | Published-revision immutability | exact probe `GET /api/v1/schools/1/schedules/published` (public, no auth) → **404 `CURRENT_PUBLISHED_RUN_NOT_FOUND`** with zero schedule entries. That is the honest observable in the zero-`PublishedScheduleRevision` state: the published-run authority fails closed before any entry is served. Recorded limitation: this state does NOT exercise the frozen-revision path positively, and the published-run term resolver DOES fall back to the live term authority at `atlas-server/src/services/published-schedule.service.ts:892` — that fallback is unreachable here only because no published run exists. Do not claim a positive immutability proof |
 | 9 | Actor scope | `/api/v1/runtime/context` matrix returns the authenticated actor's school; no fail-open default |
-| 10 | Login footprint | exactly one `LOCAL_LOGIN_SUCCESS` row + that actor's `last_login_at`; both named in advance |
+| 10 | Login footprint | exactly one `LOCAL_LOGIN_SUCCESS` audit row plus that actor's `last_login_at`, and the same successful-login write's other named fields (`atlasAuthAccount.facultyId`, `failedLoginCount` → 0, `lockedUntil` → null) — the full expected delta set is named in §5.3 |
 | 11 | Session cleanup | logout → `/api/v1/auth/me` 401 `NO_TOKEN`; custody owner named |
 | 12 | Rollback startable | rollback release proven startable (not executed unless row 2–4 fail) |
 | 13 | Zero data mutation | all other recorded signatures delta 0 |
@@ -297,9 +332,10 @@ therefore fails closed with `CANONICAL_TEMPLATE_INCOMPLETE` until that reseed
 happens, and no generation may be attempted in between. This deployment's
 acceptance is its own 13 numbered rows — release identity, one listener per port,
 health/ready/host/Tailnet, the anonymous class-template 401 with row-count delta
-0, the SSO key names present, published-revision immutability, the actor-scope
-matrix, the login footprint, session cleanup, rollback startability, and zero
-data mutation. Those 13 rows are the *numbered* matrix; the two launch-ownership
+0, the SSO key names present, the published-run typed fail-closed with its
+recorded limitation, the actor-scope matrix, the login footprint, session
+cleanup, rollback startability, and zero data mutation. Those 13 rows are the
+*numbered* matrix; the two launch-ownership
 obligations added in §4.1 (the task-launched resident owns 5001/5174, and it
 stays healthy after the invoking executor shell exits) are equally mandatory and
 are verified as part of row 2. It is explicitly **not** a full generation-readiness pass;
@@ -339,6 +375,21 @@ targets from a stale persisted health snapshot (`updatedAt` 2026-09-15) while
 direct probes return `200`; do **not** use that field as liveness evidence — use
 rows 2 and 3.
 
+### 5.3 Named login delta (the expected mutation set for the single login)
+
+A successful local login writes exactly these, and row 13's signature set must
+treat them as the expected delta rather than a stray mutation
+(`atlas-server/src/services/local-auth.service.ts:1054-1062` and `:1064-1073`):
+
+- one `LOCAL_LOGIN_SUCCESS` audit row (actor id, school 1);
+- `atlasAuthAccount.lastLoginAt` = the login instant;
+- `atlasAuthAccount.facultyId` = the resolved value (may be null);
+- `atlasAuthAccount.failedLoginCount` = 0;
+- `atlasAuthAccount.lockedUntil` = null.
+
+Everything else must be delta 0. Naming these five up front is what keeps row 13
+honest instead of scoring the login's own writes as an unexpected mutation.
+
 ## 6. Boundaries
 
 No data mutation, generation, publication, Teaching Load apply, term-cache apply,
@@ -352,12 +403,32 @@ when the returned sentence authorizes that clause).
 Pin, install directory, task action/working-directory diff, env key-name
 before/after plus checksums and the SSO key-name presence proof (names only, never
 values), the provisioning file's final disposition, PID/listener before and after,
-health results, the 13-row acceptance matrix with the login delta and the
-`TERM_AUTHORITY_STALE` row plus the truthful `CANONICAL_TEMPLATE_INCOMPLETE`
-statement required by §5.1, rollback proof, worktree disposition, running/awaited
-roles, push status, single next action, safe parallel work, locked successors.
+health results, the 13-row acceptance matrix with the full §5.3 login delta and
+the `TERM_AUTHORITY_STALE` row plus the truthful `CANONICAL_TEMPLATE_INCOMPLETE`
+statement required by §5.1 and the row-8 recorded limitation, the §4.1
+launch-ownership proof (task-launched resident, not executor-parented, healthy
+after the invoking shell exits), rollback proof, worktree disposition,
+running/awaited roles, push status, single next action, safe parallel work, locked
+successors.
 
 ## 8. Approval (to be returned only after the fresh pre-action review passes)
+
+Pre-action review history. Two independent rounds have run against this packet:
+
+- round 1, `ses_f509a9222ffe4CQFGStFdXVarc` — `CORRECTION_REQUIRED` 17/14/0/0:
+  row 7's declared authentication authority was false against the pinned route,
+  row 8's "defined typed empty result" was undefined, and the four launch-ownership
+  fields were missing.
+- round 2, `ses_f508fe65bffeIwGQ5zcErRCFdF` — `CORRECTION_REQUIRED` 10/9/0/0: the
+  same row 7 defect as its single blocking finding, plus five non-blocking items.
+
+Both rounds' findings are now applied: row 7 and §5.2 use the shared single
+authenticated session with the corrected citations; row 8 names its exact probe
+and typed result with the recorded limitation; §4.1 (added at `eb9ab887`) names
+all four launch-ownership fields and the post-shell-exit survivorship obligation;
+§2.2, §5.3, and the N-item corrections are folded in. A **fresh** independent
+pre-action review is required over this corrected packet before the sentence below
+may be returned — neither earlier verdict carries over.
 
 > "I approve CONSOLIDATED-DEPLOYMENT-C10 exactly as reviewed: build and install a
 > release pinned at `<PIN40>`, including the alternate-port preflight smoke and
