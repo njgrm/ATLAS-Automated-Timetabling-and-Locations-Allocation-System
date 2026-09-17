@@ -1,9 +1,9 @@
 {
   "contractVersion": "1.2.0",
   "registry": {
-    "lastUpdatedAt": "2026-09-17T13:29:45.527Z",
+    "lastUpdatedAt": "2026-09-17T13:30:41.640Z",
     "lastUpdatedBy": "primary-planner:rollover-graded-autonomy-c01",
-    "revision": 327
+    "revision": 328
   },
   "coordination": {
     "mode": "MANUAL",
@@ -6620,7 +6620,7 @@
       "objective": "Implement the operator's rollover decision as graded autonomy in the automated rollover tick, narrowed by R1 and corrected by R2: keep unattended drift detection and reuse the existing preview/drift computation; auto-apply applyRolloverSync ONLY when the codebase's own verdict holds (drift.status === 'atlas-stale' && drift.recommendedAction === 'RUN_ROLLOVER_SYNC' && conflicts.length === 0 && reconfiguredSections.length === 0), otherwise emit one typed notification carrying drift.status, drift.recommendedAction, drift.message and the conflict count, and apply nothing; emit that notification only on a drift-status transition; never auto-archive (the automation must never reach archiveSchoolYear, archiveSupersededYearsForRecovery, archiveAndSyncActiveYear or applyTestYearRecovery); unpin the supervisor invariant ROLLOVER_AUTO_SYNC_ENABLED at ops/runtime/lib/contract.mjs:59-61 so the contract value is passed through as a real, reviewable control while ATLAS_SUPERVISED stays hard-pinned to true and a false kill-switch still disables everything; and preserve single-flight, bounded backoff and idempotency. Source only: no live/shared database write, no register write by the lane, no runtime/task/env change in this lane, no companion edit.",
       "riskTier": "MEDIUM",
       "state": "COMPLETE",
-      "stateUpdatedAt": "2026-09-17T13:29:45.527Z",
+      "stateUpdatedAt": "2026-09-17T13:30:41.640Z",
       "nextAction": "Cycle closed COMPLETE with an AUDIT_CLEAR wave verdict over origin/main dabd2fc8 (integration fd470f08, candidate bfa4c7e3, product 5d61857b); the closure receipt is pinned and both junction-bearing cycle worktrees are PRESERVE_FOR_DECISION. Next: author and dispatch ROLLOVER-DETECTED-CLIENT-C01, and treat any flip of ROLLOVER_AUTO_SYNC_ENABLED to true as a separate HIGH action ordered after it.",
       "awaited": [],
       "running": [],
@@ -6724,13 +6724,9 @@
       "requires": [],
       "blocker": {
         "kind": "NONE",
-        "detail": "Registration is complete and no register revision window is held, so this stream no longer waits on the register. There is no approval gate: ordinary MEDIUM source work. Consequential sequencing note: the unpinned invariant and the new tick behaviour take effect only in a deployment, and the shipped ops/runtime/runtime-contract.json deliberately still declares ROLLOVER_AUTO_SYNC_ENABLED=false, so a separately approved deployment/config decision must flip it before graded autonomy is live; the live runtime therefore stays pinned off and safe until then.",
-        "safeWorkRemaining": true,
-        "safeWorkItems": [
-          "dispatch the fresh source executor for the corrected R1/R2 scope",
-          "run the always-run test inventory",
-          "build the disposable-database synthetic-drift controls and the never-archive spies"
-        ]
+        "detail": "Cycle closed COMPLETE: the stream is integrated at fd470f08, QA-accepted 12/12/0/0, and wave-audited AUDIT_CLEAR 15/15, so no safe work remains and no blocker applies. Retained sequencing note: graded autonomy takes effect only in a deployment, and the shipped ops/runtime/runtime-contract.json still declares ROLLOVER_AUTO_SYNC_ENABLED=false; flipping it to true is a separate HIGH action that must be ordered after ROLLOVER-DETECTED-CLIENT-C01.",
+        "safeWorkRemaining": false,
+        "safeWorkItems": []
       },
       "approval": {
         "required": false,
