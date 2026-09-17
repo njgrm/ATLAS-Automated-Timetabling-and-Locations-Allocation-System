@@ -18,7 +18,31 @@ Evidence (read-only, this cycle):
 - `generation-preflight.service.ts:1040-1064` already resolves the overlay **per scope** (`G9G10-FLAG-SOURCE-LANE §3.2`): each shape consumes its own `getEffectiveEvents` flag authority and falls back to the global policy window only when no scoped rows exist. With 0 persisted rows every shape falls back to the global window, and the afternoon shapes then fail the containment test.
 - `schedule-constructor.ts:538-559` `resolvePolicyFlagOverlaySlots` resolves the same overlay **permissively**: an unsnappable window yields **no overlay**, silently (`if (!snapped) continue` / no push). The constructor therefore renders no afternoon flag and never complains — while the preflight blocks.
 
-**The defect is the disagreement.** The preflight is stricter than the only consumer it guards. The afternoon shift legitimately has no flag overlay under the current (morning) global default, and the school configures a per-scope flag through `PolicySpecialEvent` rows (`gradeGroup`/`programType`) when it wants one — that mechanism already exists and already wins over the global field.
+**The defect is the disagreement.** The preflight is stricter than the only consumer it guards.
+
+### Stakeholder authority for the afternoon window (operator-supplied)
+
+`D:\ATLAS\stakeholderFiles\grade9STE_Sched.jpg` — the DepEd **Class Program for Grade 9
+Enhanced K to 10, SY 2026-2027**, section FE DEL MUNDO — shows the afternoon grid and its
+flag explicitly:
+
+| Time | Row |
+| --- | --- |
+| 11:30 – 12:15 | Lunch Break |
+| **12:15 – 1:00** | **Flag Ceremony/HGP (Monday)** |
+| 1:00 – 1:45 | Araling Panlipunan |
+| 3:15 – 3:30 | Health Break |
+
+**The afternoon shift has its own flag ceremony at `12:15-13:00`** (the operator confirms
+the afternoon cohort is not at school for the morning ceremony). That window is exactly a
+canonical G9/G10 CLASS row, so it snaps cleanly — the afternoon authority **exists in the
+school's contract and was simply never configured in ATLAS**.
+
+Consequence for this packet: the afternoon scopes must end up with a **rendered flag at
+`12:15-13:00`**, not merely a suppressed blocker. That is delivered by configuring
+per-scope `PolicySpecialEvent` rows (a separate data action, below); this packet supplies
+the source contract that makes the resolution correct and per-scope. Do **not** hard-code
+`12:15-13:00`, any grade group, or any school-specific window in server source.
 
 ## Required behaviour (the contract to implement)
 
@@ -75,7 +99,21 @@ Run the focused suites that already cover this surface — at minimum `generatio
 
 ## Product note for the reviewer
 
-If the school wants an **afternoon** flag ceremony, it configures a `PolicySpecialEvent` row scoped to that `gradeGroup`/`programType` with a window inside one of that grid's CLASS rows; the existing per-scope mechanism then applies it and this packet's fail-closed case protects it. This packet does not decide whether an afternoon flag should exist — it only stops the *global morning default* from being reported as an invalid configuration for a shift it was never meant to cover.
+**Confirmed by the operator:** the afternoon shift **has its own flag ceremony**, because
+those learners are not at school for the morning one. The authority is
+`grade9STE_Sched.jpg` → `12:15-13:00` for the G9 afternoon grid.
+
+Therefore this packet's source contract is necessary but **not sufficient** on its own: on
+the live year the afternoon scopes have no configured flag row, so the corrected preflight
+would produce "no blocker, no overlay" and the afternoon would silently have **no** flag.
+The complete outcome requires the companion **data** action — configure per-scope
+`PolicySpecialEvent` flag rows for the afternoon scopes with the stakeholder window
+(`12:15-13:00`), and confirm the morning scopes keep their authority. That action writes
+live policy data, so it is **out of scope for this packet** and must be separately reviewed
+and approved.
+
+Acceptance row 3 covers the resulting end state: once such a row exists and snaps, the
+preflight must emit no blocker **and** the constructor must render the overlay.
 
 ## Return contract
 
