@@ -20,7 +20,8 @@ import { buildGenerationPreflight, buildPreflightConstructorInput, buildPrefligh
 import { buildGenerationReadiness } from '../services/generation-readiness.service.js';
 import { runHybridScheduler } from '../services/hybrid-scheduler.js';
 import { validateHardConstraints, type ScheduledEntry } from '../services/constraint-validator.js';
-import { buildUnionDisplaySlots, resolveTimetableShapeContract } from '../services/schedule-constructor.js';
+import { buildSpecialEventSlots, buildUnionDisplaySlots, resolveCanonicalDisplayScope, resolveTimetableShapeContract } from '../services/schedule-constructor.js';
+import { getEffectiveEvents, isFlagCeremonyEvent, isRejectedFlagCeremonyRow } from '../lib/policy-special-events.js';
 import type { SectionsByGrade } from '../services/section-adapter.js';
 import type { VerifiedTermContract } from '../services/enrollpro-term-contract.service.js';
 import type { ProgramType } from '@prisma/client';
@@ -575,4 +576,185 @@ test('F3 control. The old helper-only assertion would not detect the injected en
 		if (row.startTime === '06:00' && row.endTime === '06:45') helperDetectedEntry = true;
 	}
 	assert.equal(helperDetectedEntry, false, 'the helper-only catalog check never sees the smuggled entry and reports no violation for it');
+});
+
+// ─── FLAG-WINDOW-PER-SCOPE-C01: authority-source discrimination ────────────
+//
+// The preflight blocker decision and the constructor's `resolvePolicyFlagOverlaySlots`
+// must agree per scope. Explicit per-scope configuration fails closed when it
+// cannot snap; the school-wide global policy window is a default that simply does
+// not apply to a grid it cannot fit (the live G9/G10 afternoon defect).
+//
+// `resolvePolicyFlagOverlaySlots` is module-private and must not be edited, so it
+// is exercised through its real exported production callers
+// (`buildSpecialEventSlots` / `resolveCanonicalDisplayScope`) — the exact code
+// path `schedule-constructor.ts:346` uses.
+
+type FlagRow = {
+	eventType: string;
+	label: string;
+	startTime: string;
+	endTime: string;
+	dayOfWeek: string | null;
+	gradeGroup: string | null;
+	programType: string | null;
+	enabled: boolean;
+	sortOrder?: number;
+};
+
+function flagRow(overrides: Partial<FlagRow> = {}): FlagRow {
+	return {
+		eventType: 'FLAG_OR_HGP',
+		label: 'Flag Ceremony / HGP',
+		startTime: '07:00',
+		endTime: '07:30',
+		dayOfWeek: null,
+		gradeGroup: null,
+		programType: null,
+		enabled: true,
+		sortOrder: 1,
+		...overrides,
+	};
+}
+
+function canonicalDisplayRows() {
+	return GRADES.flatMap((grade) => PROGRAMS.flatMap((program) =>
+		getExpectedCanonicalSlots(grade, program).map((slot) => ({
+			gradeLevel: grade,
+			programType: program as string,
+			startTime: slot.startTime,
+			endTime: slot.endTime,
+			rowKind: slot.rowKind,
+			subjectLabel: slot.subjectLabel ?? null,
+			dayOfWeek: null,
+		})),
+	));
+}
+
+function flagEvents(rawEvents: FlagRow[]): FlagRow[] {
+	return rawEvents
+		.filter((event) => isFlagCeremonyEvent(event.eventType, event.label))
+		.filter((event) => !isRejectedFlagCeremonyRow(event.eventType, event.dayOfWeek, event.label));
+}
+
+async function loadFlagPreflight(options: { specialEvents?: FlagRow[]; enableFlagCeremony?: boolean }) {
+	const built = buildStakeholderClient(options as { specialEvents?: Array<Record<string, unknown>>; enableFlagCeremony?: boolean });
+	const preflight = await buildGenerationPreflight(SCHOOL_ID, SCHOOL_YEAR_ID, { client: built.client, termContract: TERM_CONTRACT, enforceShiftWindows: false });
+	assert.equal(preflight.assembly.timetableShapeContracts.length, 16, 'the fixture must expose all 16 grade/program scopes');
+	return { ...built, preflight };
+}
+
+function flagBlockers(preflight: { blockers: Array<{ code: string; entity: string; category: string; owningSurface: string; nextAction: string }> }) {
+	return preflight.blockers.filter((blocker) => blocker.code === 'FLAG_CEREMONY_SCOPE_INVALID');
+}
+
+/** The producer's overlay for one scope, through the real exported caller of `resolvePolicyFlagOverlaySlots`. */
+function producerFlagOverlay(rows: ReturnType<typeof canonicalDisplayRows>, policy: unknown, rawEvents: FlagRow[], gradeLevel: number, programType: string) {
+	const scoped = getEffectiveEvents(flagEvents(rawEvents), gradeLevel, programType);
+	const canonical = resolveCanonicalDisplayScope({ rows, gradeLevel, programType });
+	const slots = buildSpecialEventSlots({ ...(policy as Record<string, unknown>), specialEvents: scoped } as never, canonical);
+	return slots.filter((slot) => slot.isSpecialEvent && /flag|hgp/i.test(slot.eventName ?? ''));
+}
+
+test('FLAG-WINDOW-PER-SCOPE-C01 control A. the live-shape state (0 scoped rows + global 07:00-07:30) blocks no scope', async () => {
+	// Exact live active-year state: `policy_special_events` empty, `enableFlagCeremony`
+	// true, `flagCeremonyStartTime/EndTime` 07:00/07:30, and 16 scope grids whose
+	// afternoon (G9/G10) CLASS rows start at 09:45/12:15 and never contain 07:00-07:30.
+	//
+	// Failing-first: on the unmodified base this fixture reports exactly 8 blockers
+	// (Grade 9/10 x REGULAR|STE|SPA|SPS); the global morning default must not apply
+	// to a grid that cannot contain it.
+	const { preflight, writes } = await loadFlagPreflight({ specialEvents: [], enableFlagCeremony: true });
+	assert.equal(preflight.assembly.policyRow?.enableFlagCeremony, true);
+	assert.equal(preflight.assembly.policyRow?.flagCeremonyStartTime, '07:00');
+	assert.equal(preflight.assembly.policyRow?.flagCeremonyEndTime, '07:30');
+	const blockers = flagBlockers(preflight as never);
+	assert.deepEqual(blockers, [], `the inapplicable global morning default must block no scope: ${blockers.map((b) => b.entity).join(', ')}`);
+	// The morning scopes still resolve their unchanged overlay.
+	const rows = canonicalDisplayRows();
+	for (const grade of [7, 8]) {
+		for (const program of PROGRAMS) {
+			assert.equal(producerFlagOverlay(rows, preflight.assembly.policy, [], grade, program).length, 1, `G${grade} ${program} keeps the global overlay`);
+		}
+	}
+	assert.deepEqual(writes, [], 'control A is zero-write');
+});
+
+test('FLAG-WINDOW-PER-SCOPE-C01 control B. an explicit scoped flag row that cannot snap stays fail-closed, exactly one blocker per affected scope', async () => {
+	// A persisted row scoped to Grade 9-10 STE only. `getEffectiveEvents` resolves it
+	// for G9 STE and G10 STE; every other scope has NO scoped row and stays
+	// unblocked. 07:00-08:00 is contained by no afternoon CLASS row.
+	const rawEvents = [flagRow({ gradeGroup: '9-10', programType: 'STE', startTime: '07:00', endTime: '08:00' })];
+	const { preflight, writes } = await loadFlagPreflight({ specialEvents: rawEvents, enableFlagCeremony: true });
+	const blockers = flagBlockers(preflight as never);
+	assert.equal(blockers.length, 2, `only the two explicitly configured scopes may block: ${blockers.map((b) => b.entity).join(', ')}`);
+	assert.deepEqual(blockers.map((blocker) => blocker.entity).sort(), ['Flag Ceremony/HGP · Grade 10 STE', 'Flag Ceremony/HGP · Grade 9 STE']);
+	for (const blocker of blockers) {
+		assert.equal(blocker.category, 'POLICY_BLOCKER');
+		assert.equal(blocker.owningSurface, 'Scheduling policy / special events');
+		assert.match(blocker.nextAction, /configured per-scope Flag\/HGP window/);
+	}
+	assert.equal(preflight.ok, false, 'an explicit scoped misconfiguration keeps the preflight blocked');
+	// The constructor agrees: neither scoped shape renders an overlay.
+	const rows = canonicalDisplayRows();
+	for (const grade of [9, 10]) {
+		assert.equal(producerFlagOverlay(rows, preflight.assembly.policy, rawEvents, grade, 'STE').length, 0, `G${grade} STE renders no overlay`);
+	}
+	assert.deepEqual(writes, [], 'control B is zero-write');
+});
+
+test('FLAG-WINDOW-PER-SCOPE-C01 control B mutant discriminator. the scoped fail-closed blocker is load-bearing', async () => {
+	// Mutant: making the scoped case permissive (treating an unsnapped explicit
+	// scoped row like the inapplicable global default) makes control B report zero
+	// blockers. The real production decision is fail-closed (2), so control B fails
+	// under the mutant. The executed source mutation is recorded in the handoff.
+	const rawEvents = [flagRow({ gradeGroup: '9-10', programType: 'STE', startTime: '07:00', endTime: '08:00' })];
+	const { preflight } = await loadFlagPreflight({ specialEvents: rawEvents, enableFlagCeremony: true });
+	assert.equal(flagBlockers(preflight as never).length, 2, 'the real production decision is fail-closed');
+	const permissiveMutantBlocked = 0;
+	assert.notEqual(flagBlockers(preflight as never).length, permissiveMutantBlocked, 'the permissive mutant would report zero blockers');
+});
+
+test('FLAG-WINDOW-PER-SCOPE-C01 control C. production-shape parity over 16 scopes x 3 authority cases', async () => {
+	const cases: Array<{ name: string; events: FlagRow[]; enableFlagCeremony: boolean }> = [
+		{ name: 'global-only', events: [], enableFlagCeremony: true },
+		{ name: 'scoped-snapping', events: [flagRow({ gradeGroup: '7-8', startTime: '06:00', endTime: '06:45' }), flagRow({ gradeGroup: '9-10', startTime: '12:15', endTime: '13:00' })], enableFlagCeremony: true },
+		{ name: 'scoped-non-snapping', events: [flagRow({ gradeGroup: '9-10', programType: 'STE', startTime: '07:00', endTime: '08:00' })], enableFlagCeremony: true },
+	];
+	const rows = canonicalDisplayRows();
+	let parityRows = 0;
+	let blockerTotal = 0;
+	let overlayTotal = 0;
+	for (const authorityCase of cases) {
+		const { preflight, writes } = await loadFlagPreflight({ specialEvents: authorityCase.events, enableFlagCeremony: authorityCase.enableFlagCeremony });
+		assert.deepEqual(writes, [], `${authorityCase.name}: zero writes`);
+		const blockerEntities = new Set(flagBlockers(preflight as never).map((blocker) => blocker.entity));
+		for (const shape of preflight.assembly.timetableShapeContracts as Array<{ gradeLevel: number; programType: string }>) {
+			const scoped = getEffectiveEvents(flagEvents(authorityCase.events), shape.gradeLevel, shape.programType);
+			const overlay = producerFlagOverlay(rows, preflight.assembly.policy, authorityCase.events, shape.gradeLevel, shape.programType);
+			const entity = `Flag Ceremony/HGP · Grade ${shape.gradeLevel} ${shape.programType}`;
+			const blocked = blockerEntities.has(entity);
+			const hasScoped = scoped.length > 0;
+			const context = `${authorityCase.name} G${shape.gradeLevel} ${shape.programType}`;
+			// Conservation: the constructor emits at most one overlay per shape.
+			assert.ok(overlay.length <= 1, `${context}: the producer emits at most one overlay`);
+			// Parity: explicit scoped authority blocks iff the producer renders
+			// nothing; an inapplicable global default never blocks.
+			assert.equal(blocked, hasScoped && overlay.length === 0, `${context}: blocker=${blocked} hasScoped=${hasScoped} overlays=${overlay.length}`);
+			if (authorityCase.name === 'global-only' && shape.gradeLevel <= 8) {
+				assert.equal(overlay.length, 1, `${context}: the morning scope keeps the global overlay`);
+			}
+			if (authorityCase.name === 'global-only' && shape.gradeLevel > 8) {
+				assert.equal(overlay.length, 0, `${context}: the inapplicable global default renders no overlay`);
+			}
+			parityRows += 1;
+			if (blocked) blockerTotal += 1;
+			overlayTotal += overlay.length;
+		}
+	}
+	assert.equal(parityRows, 48, '16 scopes x 3 authority cases');
+	// global-only 0 blockers / 8 morning overlays; scoped-snapping 0 blockers / 16
+	// overlays; scoped-non-snapping 2 blockers (G9/G10 STE) / 8 morning fallbacks.
+	assert.equal(blockerTotal, 2, 'only the explicitly misconfigured scoped shapes block across all 48 rows');
+	assert.equal(overlayTotal, 32, 'overlay conservation across the three authority cases');
 });

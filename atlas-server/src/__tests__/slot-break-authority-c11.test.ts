@@ -636,7 +636,7 @@ test('C09. control 9: an absent manual authority no longer means "no breaks"', {
 
 // ─── Control 10: policy-row-only Flag/HGP snap ──────────────────────────────
 
-test('C10. control 10: the policy-row-only Flag/HGP fallback snaps or fails closed', { skip: SKIP }, async () => {
+test('C10. control 10: the policy-row-only global Flag/HGP default applies only when it snaps', { skip: SKIP }, async () => {
 	// No persisted Flag/HGP special-event row exists; the policy row alone is the
 	// flag authority on this path.
 	assert.equal(
@@ -651,11 +651,17 @@ test('C10. control 10: the policy-row-only Flag/HGP fallback snaps or fails clos
 			data: { enableFlagCeremony: true, flagCeremonyStartTime: startTime, flagCeremonyEndTime: endTime },
 		});
 
+	// FLAG-WINDOW-PER-SCOPE-C01: with NO persisted scoped row the policy row is an
+	// inapplicable global default, not explicit authority. A window the grid cannot
+	// contain is skipped (no overlay) and must never block — the constructor's
+	// `resolvePolicyFlagOverlaySlots` already renders nothing for it. This control
+	// was previously fail-closed; that expectation was deliberately updated here.
 	await setFlag('06:00', '07:30');
 	const unsnappable = await buildGenerationPreflight(fixtureB.schoolId, fixtureB.schoolYearId, { includeRetainedDrafts: false });
-	assert.ok(
+	assert.equal(
 		unsnappable.blockers.some((blocker: any) => blocker.code === 'FLAG_CEREMONY_SCOPE_INVALID'),
-		'an unsnappable policy-row-only Flag/HGP window fails closed with FLAG_CEREMONY_SCOPE_INVALID',
+		false,
+		'an unsnappable policy-row-only global default does not block a grid that cannot contain it',
 	);
 
 	await setFlag('06:00', '06:45');
