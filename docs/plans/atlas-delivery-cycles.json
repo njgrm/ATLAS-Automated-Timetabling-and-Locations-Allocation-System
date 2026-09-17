@@ -1,9 +1,9 @@
 {
   "contractVersion": "1.2.0",
   "registry": {
-    "lastUpdatedAt": "2026-09-17T15:02:50.209Z",
-    "lastUpdatedBy": "primary-planner:consolidated-deployment-c10-executor-return",
-    "revision": 331
+    "lastUpdatedAt": "2026-09-17T15:29:24.678Z",
+    "lastUpdatedBy": "primary-planner:consolidated-deployment-c10-amendment-reconcile",
+    "revision": 332
   },
   "coordination": {
     "mode": "CYCLE_ACTIVE",
@@ -6776,11 +6776,11 @@
       "objective": "Deploy one release pinned at the accepted origin/main tip that includes the C07R1 authorization fix, published-revision immutability, warning realism, export parity, generation-authority realism and the R3 term-authority canonicalization; remove the vestigial ATLAS_DEFAULT_SCHOOL_ID key from the durable env; re-point and restart the registered ATLAS-Runtime-Supervisor task on ports 5001/5174; then run the 13-row acceptance matrix with exactly one authorized login and logout. No data mutation, generation, publication, Teaching Load apply, term-cache apply, rollover, migration, or companion change.",
       "riskTier": "HIGH",
       "state": "REVIEW_REQUIRED",
-      "stateUpdatedAt": "2026-09-17T15:02:50.209Z",
-      "nextAction": "Present the F2 env-ACL remedy decision to the operator (authorize a bounded ACL-modify -> remove the one key -> restore the exact original DACL, or the operator performs the removal, or amend the approval to drop the env change); on authorization resume the approved cutover from the already-staged and smoke-verified PIN40 release, then run the 13-row acceptance matrix with the still-unconsumed single login.",
+      "stateUpdatedAt": "2026-09-17T15:29:24.678Z",
+      "nextAction": "Await the completed and satisfiable operator sentence, then carry the changed boundary on a successor stream: amend the packet, run one fresh independent pre-action review, create-stream with its own lease, and record-approval on the successor (the C10 grant is immutable). The staged PIN40 release and the unconsumed login remain reusable.",
       "awaited": [
-        "operator decision on the env-file write authority: the approved ATLAS_DEFAULT_SCHOOL_ID removal is not executable because D:\\ATLAS-runtime-config\\atlas-server.env carries an inheritance-protected read-only DACL granting only Read to SYSTEM, Administrators and the owner",
-        "acknowledgement that the approved second-tier rollback 9d293879 is not startable (missing helmet in its atlas-server dependencies) while the primary tier 54dce67b is proven startable"
+        "the completed ACL-clause text: the amended sentence contains the literal placeholder <ACL clause below> with no clause after it, so the security-descriptor operation is not actually authorized",
+        "the SSO decision: the amended sentence re-adds the four companion-SSO keys, reversing the previous drop, but D:\\ATLAS-runtime-config\\sso-provisioning-20260917.local.env does not exist and the paired values require rotation, so that clause is currently unsatisfiable"
       ],
       "running": [],
       "git": {
@@ -6874,12 +6874,12 @@
       ],
       "blocker": {
         "kind": "APPROVAL",
-        "detail": "Approval-gated HIGH action, dispatched 2026-09-17. Every prerequisite is satisfied and verified at dispatch: MIG-APPLY-0002-0003 applied and verified (INTEGRATED, 12/12 rows; only a docs-only closure correction remains), G9G10-FLAG-SOURCE-LANE integrated (COMPLETE), SLOT-BREAK-AUTHORITY-C11/C11R COMPLETE, WF-C10-TRANSITION-GUARD-HARDENING COMPLETE, directive pin reproduced at the dispatch tip. The binding gate is the operator's exact approval sentence, which is returned only after one fresh independent pre-action review passes, and which must resolve the SSO clause: the paired EnrollPro secrets were published in plaintext and must be rotated and re-provisioned out of band, so the clause either runs against rotated values from the named operator-only provisioning file or is dropped to a separate HIGH env action. FACULTY-SYNC-PUBLICATION-CAS-C01 is NOT a prerequisite for this action (zero published revisions exist); it is required before publication only. Kind is APPROVAL rather than DEPENDENCY because the contract forbids DEPENDENCY blockers that carry safe work, and this stream legitimately has safe work remaining.",
+        "detail": "The operator amended the boundary to variant A, but the amended sentence is incomplete (the ACL clause is an unfilled placeholder) and partly unsatisfiable (the SSO provisioning file does not exist and the paired values require rotation). Separately, a granted approval is recorded once and cannot be amended or withdrawn, so the expanded boundary cannot be recorded on this stream.",
         "safeWorkRemaining": true,
         "safeWorkItems": [
-          "commission the fresh independent pre-action review over the amended packet and the frozen pin",
-          "present the exact approval sentence, with the SSO clause resolved, and hold custody of the declared provisioning channel",
-          "prepare the alternate-port preflight build plan and the rollback startability proof"
+          "capture the original SDDL of the env file",
+          "reconcile the env-file ACL hardening applied after the 2026-09-16 write",
+          "draft the successor stream spec and packet amendment once the sentence is final"
         ]
       },
       "approval": {
