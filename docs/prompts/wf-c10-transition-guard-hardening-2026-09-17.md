@@ -10,9 +10,13 @@ correction round. **R1b, same day, after the first registration was overtaken by
 two concurrent peer registrations:** §3.12 documents the two concurrency limits
 the live register exposed (a reservation is only correct for a sole register
 writer, and `coordination.activeCycleId` is single-valued), and §8 records the
-resulting registration decision. The mandatory source plan is 40 rows; the
-planner raises `gates.plan.MANDATORY_SOURCE` at `record-qa-result` if any row is
-added. The stream is registered and `RUNNING`; see §8.
+resulting registration decision. **R1c, same day, after the first executor pass
+returned `PLANNER_DECISION_REQUIRED`:** the pin coupling in §3.8 is ratified as an
+integration-tier gate (rows 29/34/35 plus new row 41), and the §3.5 rule-1
+narrowing to the declared pin slot is ratified. The mandatory source plan is 41
+rows; the planner raises `gates.plan.MANDATORY_SOURCE` at `record-qa-result`,
+which is the only transition that owns the plan and may only increase it. The
+stream is registered and `RUNNING`; see §8.
 
 ## 0. Immutable identity
 
@@ -189,6 +193,18 @@ Two distinct rules, and the distinction is the A4 requirement:
 3. **Scope discipline.** Hashes that are not directive pins (for example a
    `liveSemanticRevision` or a fixture fingerprint on a line with no directive
    marker) must never fire. Prove both directions with fixtures.
+4. **R1c ratification — the rule reads the *declared pin slot*, not every 64-hex
+   token on a directive-marked line.** The first executor pass proved that a
+   literal "every 64-hex token" rule is unsatisfiable against the committed
+   corpus, because a *correction note* legitimately quotes the superseded value
+   in prose (`docs/prompts/published-immutability-c08r1-2026-09-16.md` does), and
+   `docs/prompts/**` is planner-owned. The ratified rule is: validate the 64-hex
+   that occupies the declared pin slot of a marker line
+   (`<… SHA-256> <64-hex>`), which still catches the original misprint and lets
+   the corrected tree sweep clean. Add a fixture for each direction: a bare
+   declared misprint fires `PIN_DIRECTIVE_HASH_UNKNOWN`; a quoted historical
+   value in a correction note does not fire; and a *declared* historical but
+   reproducible pin still passes (A4).
 
 Enforcement: `create-stream` accepts an optional `--packet-path` and lints the
 registering stream's own packet; `record-approval` lints its `--packet-path`
@@ -259,6 +275,33 @@ Add exactly two things:
 The escape hatch for a stuck holder stays `lease-update --release-window`, and a
 second window for the same stream is still refused
 (`TRANSITION_WINDOW_DUPLICATE`) — to re-declare, release first, then declare.
+
+**R1c — the pin coupling, ratified.** `revisionWindow` in
+`ops/workflow/schema/cycle-state.schema.json` lists `toRevision` in `required`
+and sets `additionalProperties: false`, so the through-terminal form cannot be
+expressed without editing that file. That file is a **pinned artifact of the
+WF-C01 stream in the live register**, so editing it invalidates the pin:
+`workflow:verify` then exits 1 with a single `ARTIFACT_HASH_MISMATCH` and the
+dependent tests fail from that one root cause. The first executor pass measured
+exactly this (one error, `934dd847…` vs pinned `73747303…`, 9 dependent rows).
+
+Resolution (ratified; do **not** carry a register delta in the candidate):
+`ARTIFACT_HASH_MISMATCH` is a `REPAIRABLE_ERROR_CODES` member and the designed
+remedy is the planner-owned `refresh-artifact-pin` transition. Because two peer
+cycles are writing the register concurrently, a register delta carried in this
+candidate would require a hand-merge of machine state at integration, which is
+forbidden. The candidate therefore stays **source-only**, and the planner applies
+`refresh-artifact-pin --stream WF-C01 --artifact-path
+ops/workflow/schema/cycle-state.schema.json --artifact-sha256 <the new schema
+hash>` on the merged tree at integration, pushing the refresh and the merge
+together so `main` is never inconsistent. Consequently rows 29/34/35 are
+**integration-tier** gates for this cycle, and the candidate must instead supply
+row 41: with the pin refreshed in a **scratch copy** of the register (never the
+tracked file), `workflow:verify` exits 0 and the full suite passes — proving the
+red rows are pin-only and nothing else.
+
+Do not attempt to make `workflow:verify` green on your own worktree, and do not
+edit `docs/plans/**`.
 
 ### 3.9 A2 — settle the RUNNING-without-live-evidence rule
 
@@ -374,31 +417,39 @@ recorded in §8.
 | 26 | **A2** settling evidence recorded (R2 did not weaken the rule) | README names `938e3063`'s scope and the surviving `verify.mjs` sites |
 | 27 | **A3** fresh-checkout plugin load | in a checkout with no local `.opencode/package.json`, `plugin-load.test.mjs` is fully green (6/6) |
 | 28 | **A3** load-bearing mutant | removing `"type": "module"` from the tracked file makes that row fail (proves the fix is causal, not incidental) |
-| 29 | **A3** full suite baseline | `npm run workflow:test` = 327/327 pass, 0 fail (was 324/327 with the 3 plugin-load failures) — see §6 |
+| 29 | **A3** full suite baseline | `workflow:test` = 327/327 pass, 0 fail with the plugin-load fix (was 324/327). **INTEGRATION_TIER** for rows 34/35 reasons; on the candidate supply row 41 |
 | 30 | **A5** `record-executor-return --base` | an explicit `--base` differing from the spec's `git.baseSha` is honoured and recorded |
 | 31 | §3.6 LF-normalized lockfile identity | CRLF and LF materializations compare equal; a real difference is still detected |
 | 32 | §3.7 `docs/prompts/**` materialization regression | LF-normalized pin and blob hash unchanged under a CRLF re-materialization |
 | 33 | Render determinism on every rejection | render output byte-identical for every refusal above |
-| 34 | `workflow:verify` on the committed tree | exit 0 |
-| 35 | `workflow:render:check` | exit 0 |
+| 34 | `workflow:verify` on the committed tree | exit 0. **INTEGRATION_TIER**: the candidate cannot reach this because §3.8 edits a WF-C01-pinned artifact; the planner refreshes the pin on the merged tree |
+| 35 | `workflow:render:check` | exit 0. **INTEGRATION_TIER** for the same reason |
 | 36 | `git diff --check` | clean |
 | 37 | §3.11 every documented `workflow:*` alias invoked as published from a clean checkout | `verify`, `render`, `render:check`, `status`, `checkpoint` exit 0; `custody` exits 0 or 2-for-help exactly as its README documents |
 | 38 | §3.11 alias repair is minimal and fail-closed | `package.json` changes only the `workflow:*` script strings; a wrong-working-directory invocation still fails closed |
 | 39 | §3.11 regression protection | a committed test fails if a future edit breaks an alias's documented invocation |
 | 40 | §3.12 concurrency limits documented | the README states the sole-writer precondition for a reservation and the single-valued `activeCycleId` limit beside the R2.10 section, with no new mechanism added |
+| 41 | §3.8 pin-coupling isolation (candidate-tier substitute for 29/34/35) | with the WF-C01 artifact pin refreshed in a **scratch copy** of the register only: `workflow:verify` exits 0, zero errors, and the full suite passes; the tracked register is byte-unchanged |
 
-Rows 22–30, 16–17, 37–39 and 40 are the A1–A5, gate-alias and concurrency deltas
-and are **not** satisfiable by re-running existing tests: each needs a new fixture
-or a documentation edit. No row needs a credential, session, runtime, database, or
-network beyond the local Git object store.
+Rows 22–30, 16–17, 37–41 are the A1–A5, gate-alias, concurrency and pin-coupling
+deltas and are **not** satisfiable by re-running existing tests: each needs a new
+fixture, a probe, or a documentation edit. No row needs a credential, session,
+runtime, database, or network beyond the local Git object store.
+
+**Tier split for this cycle.** Candidate-tier: rows 1–28, 30–33, 36–41.
+Integration-tier (planner, on the merged tree): rows 29, 34, 35 — they depend on
+a planner-owned register pin refresh that must not be carried through a
+concurrent-machine-state merge (§3.8 R1c).
 
 ## 5. Gates
 
 `ops/workflow` suite with one negative fixture per capability; every documented
-`workflow:*` alias invoked as published; `workflow:verify` exit 0;
-`workflow:render:check` exit 0; `git diff --check`; the A3 fresh-checkout proof;
-fresh independent QA over the frozen candidate; clean current-main integration
-with exact candidate-tree parity; fresh Wave Completion Audit.
+`workflow:*` alias invoked as published; `git diff --check`; the A3
+fresh-checkout proof; the §3.8 pin-coupling scratch probe (row 41); the A3
+tracked-file non-rewrite check (§6); fresh independent QA over the frozen
+candidate; clean current-main integration with exact candidate-tree parity; the
+planner's `refresh-artifact-pin` on the merged tree; `workflow:verify` exit 0 and
+`workflow:render:check` exit 0 on the merged tree; fresh Wave Completion Audit.
 
 ## 6. Baselines that must be quantified, not asserted
 
@@ -417,6 +468,21 @@ with exact candidate-tree parity; fresh Wave Completion Audit.
   failure is wrong and must not be repeated.
 - Report the after-fix count and the delta. If the delta is more than the three
   named rows, stop and report rather than adjusting expectations.
+- **R1c — the tracked `.opencode/package.json` must survive the session
+  unmodified.** OpenCode itself materializes `.opencode/package.json` and an
+  ignoring `.opencode/.gitignore` (containing a self-ignoring `.gitignore` line)
+  when it resolves a plugin directory, which is why the file appeared in this
+  worktree after the first pass while `git status --untracked-files=all` did not
+  list the ignore file. A tracked file that a tool rewrites on every boot would
+  dirty every worktree, which is worse than the defect being fixed. Prove that
+  after `opencode debug config` and a full suite run the tracked
+  `.opencode/package.json` bytes are unchanged and `git status --porcelain=v2` is
+  empty. If a tool does rewrite it, abandon the tracked-file approach, make the
+  gate hermetic by another means (for example a scratch copy of the plugin
+  directory carrying its own package root), and report the change of approach.
+- Also confirm the A3 fix is not incidental: state explicitly that
+  `docs/prompts/wf-c10-transition-guard-hardening-2026-09-17.md` §3.12 is
+  documentation-only and adds no mechanism.
 
 ## 7. Boundaries
 

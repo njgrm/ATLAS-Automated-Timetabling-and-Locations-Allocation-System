@@ -194,7 +194,13 @@ export function readPublishedIdentitySnapshot(value: unknown): PublishedIdentity
 
 function timeToMinutes(value: string): number {
 	const [hours, minutes] = value.split(':').map(Number);
-	return (Number.isFinite(hours) ? hours : 0) * 60 + (Number.isFinite(minutes) ? minutes : 0);
+	// FACULTY-SYNC-PUBLICATION-CAS-C01 R3 — FAIL CLOSED, never coerce. Mirror the
+	// producer (`schedule-constructor.ts` `timeToMinutes`: `h * 60 + m`), which
+	// yields `NaN` for any non-finite component. A partial/non-numeric interval
+	// such as `07:xx` must therefore never be silently read as `420`; containment
+	// is false and the existing typed contradiction
+	// (`EVENT_INTERVAL_MISSING` / `SPECIAL_EVENT_SLOT_UNBACKED`) surfaces.
+	return hours * 60 + minutes;
 }
 
 /**

@@ -36,7 +36,7 @@
     "blocked": 0,
     "unperformed": 0,
     "plan": {
-      "MANDATORY_SOURCE": 40,
+      "MANDATORY_SOURCE": 41,
       "MANDATORY_LIVE": 0,
       "DEFERRED_EXTERNAL": 0
     },

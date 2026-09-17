@@ -1636,6 +1636,65 @@ export async function getLatestRunDraft(schoolId: number, schoolYearId: number):
 	return buildDraftReport(run, schoolId, schoolYearId);
 }
 
+/** The routine-sync CAS-skip audit action (FACULTY-SYNC-PUBLICATION-CAS-C01 R2). */
+export const GENERATION_RUN_INVALIDATION_CONCURRENT_SKIPPED = 'GENERATION_RUN_INVALIDATION_CONCURRENT_SKIPPED';
+
+/**
+ * The deterministic interleave seam (`PublicationDependencies` pattern).
+ * Production passes nothing; `undefined` is behaviourally identical to the
+ * pre-CAS implementation.
+ */
+export type InvalidateStaleCompletedRunsDependencies = {
+	/**
+	 * Invoked after the classification read and before the write transaction, so
+	 * a test can transpose a concurrent publication between the read and the CAS
+	 * write deterministically. Must not be used in production.
+	 */
+	afterClassification?: () => Promise<void> | void;
+};
+
+export type InvalidateStaleCompletedRunsResult = {
+	/**
+	 * TRUTHFUL invalidation count: the number of runs this call actually
+	 * transitioned `COMPLETED -> FAILED` through the destructive CAS
+	 * (`count === 1`). It is NOT `staleRunIds.length` (the classified set) when a
+	 * concurrent publication changed a run between classification and the write.
+	 */
+	invalidatedCount: number;
+	/**
+	 * The runs the classification read found stale. Existing callers
+	 * (`faculty.service.ts`, `scripts/seed-realistic.ts`) depend on this being
+	 * the classified set, so it keeps that meaning even when a CAS skips a run.
+	 */
+	staleRunIds: number[];
+	/**
+	 * The destructive-branch runs actually set `FAILED` by this call. Truthful:
+	 * only runs whose CAS matched are pushed (R2.3b).
+	 */
+	unpublishedRunIds: number[];
+	/** Published-marker runs whose drift this call actually recorded. */
+	driftedPublishedRunIds: number[];
+	/**
+	 * Runs whose write CAS missed because a concurrent writer changed the run
+	 * (version/status) after classification. Zero writes were applied to them and
+	 * each produced exactly one
+	 * `GENERATION_RUN_INVALIDATION_CONCURRENT_SKIPPED` audit row.
+	 */
+	concurrentChangedRunIds: number[];
+};
+
+/**
+ * Compare a persisted id array with the classified stale set without imposing an
+ * order contract. Used only for the replay-idempotency check below.
+ */
+function sameIdSet(left: unknown, right: number[]): boolean {
+	if (!Array.isArray(left) || left.length !== right.length) return false;
+	const leftIds = left.filter((value): value is number => typeof value === 'number' && Number.isInteger(value));
+	if (leftIds.length !== right.length) return false;
+	const leftSet = new Set(leftIds);
+	return right.every((id) => leftSet.has(id));
+}
+
 /**
  * DEMAND/ROLLOVER mirror-reset protection for COMPLETED runs.
  *
@@ -1645,13 +1704,26 @@ export async function getLatestRunDraft(schoolId: number, schoolYearId: number):
  * `publishedAt`, `publishedBy`, and published revision are preserved and the
  * drift is recorded as a typed, audited successor condition. Unpublished
  * COMPLETED runs keep today's invalidation behavior.
+ *
+ * FACULTY-SYNC-PUBLICATION-CAS-C01 — both writes are compare-and-swap against
+ * the classification's `version` (and pinned `schoolId`/`schoolYearId`, plus
+ * `status: 'COMPLETED'` for the destructive transition), so a concurrent
+ * `publishSchedule` can never be clobbered by a stale copy. A missed CAS is a
+ * typed, singly-audited successor condition (`concurrentChangedRunIds`), never
+ * a blind retry.
  */
-export async function invalidateStaleCompletedRuns(schoolId: number, schoolYearId: number) {
+export async function invalidateStaleCompletedRuns(
+	schoolId: number,
+	schoolYearId: number,
+	dependencies: InvalidateStaleCompletedRunsDependencies = {},
+): Promise<InvalidateStaleCompletedRunsResult> {
 	const [runs, activeFacultyIds] = await Promise.all([
 		db().generationRun.findMany({
 			where: { schoolId, schoolYearId, status: 'COMPLETED' },
 			orderBy: { createdAt: 'desc' },
-			select: { id: true, schoolYearId: true, status: true, draftEntries: true, summary: true },
+			// `version` is the CAS predicate source: every write below is bound to
+			// the row version observed by this read.
+			select: { id: true, schoolYearId: true, status: true, draftEntries: true, summary: true, version: true },
 		}),
 		getActiveFacultyMirrorIdSet(schoolId),
 	]);
@@ -1665,12 +1737,48 @@ export async function invalidateStaleCompletedRuns(schoolId: number, schoolYearI
 			staleRunIds: [] as number[],
 			unpublishedRunIds: [] as number[],
 			driftedPublishedRunIds: [] as number[],
+			concurrentChangedRunIds: [] as number[],
 		};
 	}
+
+	// Deterministic test seam: the last point before the write transaction, so a
+	// test can interleave a concurrent publication after classification.
+	await dependencies.afterClassification?.();
 
 	const reconciledAtIso = new Date().toISOString();
 	const unpublishedRunIds: number[] = [];
 	const driftedPublishedRunIds: number[] = [];
+	const concurrentChangedRunIds: number[] = [];
+	let invalidatedCount = 0;
+
+	/**
+	 * Exactly one audit row per CAS miss (R2). Distinct from
+	 * `GENERATION_RUN_PUBLICATION_DRIFT_DETECTED` so per-run drift audit counts
+	 * stay exactly one (the C08 suite asserts that).
+	 */
+	const recordConcurrentSkip = async (
+		tx: Prisma.TransactionClient,
+		runId: number,
+		observedVersion: number,
+		reason: string,
+	): Promise<void> => {
+		await tx.auditLog.create({
+			data: {
+				schoolId,
+				schoolYearId,
+				action: GENERATION_RUN_INVALIDATION_CONCURRENT_SKIPPED,
+				actorId: 0,
+				targetIds: [runId],
+				metadata: {
+					runId,
+					observedVersion,
+					reason,
+					detectedAt: reconciledAtIso,
+				} as object,
+			},
+		});
+	};
+
 	await db().$transaction(async (tx) => {
 		for (const run of staleRuns) {
 			const wasPublished = hasPublishedMarkers(run.summary);
@@ -1689,6 +1797,20 @@ export async function invalidateStaleCompletedRuns(schoolId: number, schoolYearI
 				const candidate = asSummaryRecord(run.summary);
 				const existingIntegrity = asSummaryRecord(candidate.publicationIntegrity);
 				const driftStaleFacultyIds = getStaleFacultyIdsForRun(run, activeFacultyIds);
+
+				// R2.5 replay idempotency: the identical drift for the identical
+				// stale set is already recorded, so a second no-input sync must not
+				// write or re-audit it.
+				if (
+					existingIntegrity.driftReason === 'FACULTY_SYNC_DRIFT'
+					&& typeof existingIntegrity.driftDetectedAt === 'string'
+					&& existingIntegrity.driftDetectedAt.length > 0
+					&& sameIdSet(existingIntegrity.driftStaleFacultyIds, driftStaleFacultyIds)
+				) {
+					driftedPublishedRunIds.push(run.id);
+					continue;
+				}
+
 				const nextSummary = {
 					...candidate,
 					// `isPublished`/`publishedAt`/`publishedBy` are intentionally
@@ -1700,10 +1822,19 @@ export async function invalidateStaleCompletedRuns(schoolId: number, schoolYearI
 						driftStaleFacultyIds,
 					},
 				};
-				await tx.generationRun.update({
-					where: { id: run.id },
+				// CAS WITHOUT a version increment (R1.4): the published run's
+				// version must be preserved through drift (C08 asserts this).
+				const driftWrite = await tx.generationRun.updateMany({
+					where: { id: run.id, schoolId, schoolYearId, version: run.version },
 					data: { summary: nextSummary as object },
 				});
+				if (driftWrite.count !== 1) {
+					// A concurrent publication changed the run after classification.
+					// Do not clobber it; record exactly one typed skip.
+					concurrentChangedRunIds.push(run.id);
+					await recordConcurrentSkip(tx, run.id, run.version, 'PUBLICATION_DRIFT_CONCURRENT_CHANGE');
+					continue;
+				}
 				await tx.auditLog.create({
 					data: {
 						schoolId,
@@ -1723,20 +1854,28 @@ export async function invalidateStaleCompletedRuns(schoolId: number, schoolYearI
 				continue;
 			}
 
-			const data: {
-				status: 'FAILED';
-				error: string;
-			} = {
-				status: 'FAILED',
-				error: 'INVALIDATED_BY_MIRROR_RESET',
-			};
-
-			await tx.generationRun.update({
-				where: { id: run.id },
-				data,
+			// Destructive branch: CAS with a version increment and the predicate
+			// pinned to `status: 'COMPLETED'`, so `COMPLETED -> FAILED` is version
+			// visible and cannot be applied to a run that already changed status.
+			const destructiveWrite = await tx.generationRun.updateMany({
+				where: { id: run.id, schoolId, schoolYearId, status: 'COMPLETED', version: run.version },
+				data: {
+					status: 'FAILED',
+					error: 'INVALIDATED_BY_MIRROR_RESET',
+					version: { increment: 1 },
+				},
 			});
+			if (destructiveWrite.count !== 1) {
+				concurrentChangedRunIds.push(run.id);
+				await recordConcurrentSkip(tx, run.id, run.version, 'MIRROR_RESET_CONCURRENT_CHANGE');
+				continue;
+			}
+			unpublishedRunIds.push(run.id);
+			invalidatedCount += 1;
 		}
 	});
 
-	return { invalidatedCount: staleRunIds.length, staleRunIds, unpublishedRunIds, driftedPublishedRunIds };
+	// `invalidatedCount` counts runs actually set FAILED (truthful), while
+	// `staleRunIds` stays the classified set for existing callers (R2.3).
+	return { invalidatedCount, staleRunIds, unpublishedRunIds, driftedPublishedRunIds, concurrentChangedRunIds };
 }
