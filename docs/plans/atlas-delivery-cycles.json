@@ -1,14 +1,14 @@
 {
   "contractVersion": "1.2.0",
   "registry": {
-    "lastUpdatedAt": "2026-09-17T03:17:29.328Z",
+    "lastUpdatedAt": "2026-09-17T03:18:30.119Z",
     "lastUpdatedBy": "primary-planner",
-    "revision": 260
+    "revision": 261
   },
   "coordination": {
-    "mode": "MANUAL",
-    "activeCycleId": null,
-    "globalNextAction": "SLOT-BREAK-AUTHORITY-C11 is COMPLETE (wave-audited AUDIT_CLEAR 12/12/0/0; receipt docs/plans/receipts/slot-break-authority-c11.receipt.json). Coordinator MANUAL. Every live/HIGH action (runtime install/restart, term-cache apply, Teaching Load apply, DB/schema apply, generation, publication, login, companion) remains locked and NOT granted; dispatch requires a new operator-activated cycle (WF-C10-TRANSITION-GUARD-HARDENING is registered and RUNNING). Ranked unregistered residual (owner: next primary planner): display-surface period/break parity is not yet canonical when classProgramSlot rows exist (room-schedule.service.ts buildPeriodSlots, locked-session.service.ts getEffectivePeriodSlots, published-schedule.service.ts buildSpecialEventSlots payload, pre-generation-draft display slots); validator authority is canonical, presentation bands are the follow-up."
+    "mode": "CYCLE_ACTIVE",
+    "activeCycleId": "SYNC-SECTION-ENROLMENT-C01",
+    "globalNextAction": "SYNC-SECTION-ENROLMENT-C01 (CYCLE_ACTIVE): registered at revision 260 with packet R1 corrected (runtime identity 54dce67b; notification row reclassified DEFERRED_EXTERNAL; audit row corrected to an observable zero delta). Next: one fresh independent pre-action review of the R1 packet is dispatched; on ACCEPT_READY 2/2/0/0/0 return the exact approval sentence, await the operator grant, then execute one POST through the reviewed harness and the 10-row acceptance matrix. Every other live/HIGH action (runtime install/restart, term-cache apply, Teaching Load apply, DB/schema apply, generation, publication, login, companion) remains locked and NOT granted; WF-C10-TRANSITION-GUARD-HARDENING remains RUNNING and is not touched by this cycle."
   },
   "streams": [
     {
