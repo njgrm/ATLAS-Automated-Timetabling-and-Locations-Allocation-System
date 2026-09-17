@@ -1,9 +1,9 @@
 {
   "contractVersion": "1.2.0",
   "registry": {
-    "lastUpdatedAt": "2026-09-17T12:39:41.955Z",
-    "lastUpdatedBy": "primary-planner:consolidated-deployment-c10-registration",
-    "revision": 315
+    "lastUpdatedAt": "2026-09-17T12:50:08.422Z",
+    "lastUpdatedBy": "primary-planner:rollover-graded-autonomy-c01",
+    "revision": 316
   },
   "coordination": {
     "mode": "CYCLE_ACTIVE",
@@ -6619,22 +6619,30 @@
       "kind": "STREAM",
       "objective": "Implement the operator's rollover decision as graded autonomy in the automated rollover tick, narrowed by R1 and corrected by R2: keep unattended drift detection and reuse the existing preview/drift computation; auto-apply applyRolloverSync ONLY when the codebase's own verdict holds (drift.status === 'atlas-stale' && drift.recommendedAction === 'RUN_ROLLOVER_SYNC' && conflicts.length === 0 && reconfiguredSections.length === 0), otherwise emit one typed notification carrying drift.status, drift.recommendedAction, drift.message and the conflict count, and apply nothing; emit that notification only on a drift-status transition; never auto-archive (the automation must never reach archiveSchoolYear, archiveSupersededYearsForRecovery, archiveAndSyncActiveYear or applyTestYearRecovery); unpin the supervisor invariant ROLLOVER_AUTO_SYNC_ENABLED at ops/runtime/lib/contract.mjs:59-61 so the contract value is passed through as a real, reviewable control while ATLAS_SUPERVISED stays hard-pinned to true and a false kill-switch still disables everything; and preserve single-flight, bounded backoff and idempotency. Source only: no live/shared database write, no register write by the lane, no runtime/task/env change in this lane, no companion edit.",
       "riskTier": "MEDIUM",
-      "state": "RUNNING",
-      "stateUpdatedAt": "2026-09-17T12:00:50.354Z",
-      "nextAction": "Dispatch one fresh high-reasoning source executor in E:/ATLAS-worktrees/rollover-graded-autonomy-c01 against docs/prompts/rollover-graded-autonomy-c01-2026-09-17.md (R1 plus the planner R2 addendum), then fresh high-reasoning independent QA over the frozen candidate, integration, and one fresh Wave Completion Auditor before closure.",
+      "state": "REVIEW_REQUIRED",
+      "stateUpdatedAt": "2026-09-17T12:50:08.422Z",
+      "nextAction": "Commission one fresh high-reasoning independent QA over the frozen range b3ae9fbb...bfa4c7e3 (9 attributed paths), covering the four-condition auto-apply gate, the never-archive spy controls, the transition-keyed ROLLOVER_DETECTED notification, the contract unpin with ATLAS_SUPERVISED still pinned, the control-10 mutant and its byte-exact restore, and the two pre-existing broken npm script targets test:notifications and test:rollover-readiness; then integrate and commission one fresh Wave Completion Auditor.",
       "awaited": [
-        "the fresh source executor to return REVIEW_REQUIRED with base/candidate SHAs and the per-control matrix including the byte-exact mutant restore"
+        "fresh independent QA over the frozen candidate"
       ],
-      "running": [
-        "one bounded MEDIUM source lane: rollover graded autonomy in rollover-automation.service.ts (graded auto-apply gate, transition-triggered detection notification, absolute no-auto-archive) plus the ops/runtime invariant unpin and its test updates; source only, no database, runtime, task, env, or companion action"
-      ],
+      "running": [],
       "git": {
         "worktree": "E:/ATLAS-worktrees/rollover-graded-autonomy-c01",
         "branch": "fix/rollover-graded-autonomy",
-        "baseSha": "43341ac7cb908f9ca692dbc93f8da8ef26ec52b0",
-        "candidateSha": null,
+        "baseSha": "b3ae9fbb797c37201508e2fc347bf47b21bbc74f",
+        "candidateSha": "bfa4c7e3282bed1886130f8db281f9ba5d27a552",
         "integrationSha": null,
-        "changedPaths": [],
+        "changedPaths": [
+          "atlas-server/src/__tests__/enrollpro-rollover-automation.test.ts",
+          "atlas-server/src/__tests__/enrollpro-rollover-lifecycle-closure.test.ts",
+          "atlas-server/src/__tests__/rollover-graded-autonomy-c01.test.ts",
+          "atlas-server/src/services/rollover-automation.service.ts",
+          "docs/handoffs/rollover-graded-autonomy-c01-executor.md",
+          "ops/runtime/__tests__/contract.test.mjs",
+          "ops/runtime/__tests__/enrollpro-origin.test.mjs",
+          "ops/runtime/__tests__/supervisor.test.mjs",
+          "ops/runtime/lib/contract.mjs"
+        ],
         "remoteObservation": {
           "ref": "refs/remotes/origin/main",
           "sha": "43341ac7cb908f9ca692dbc93f8da8ef26ec52b0",
@@ -6649,8 +6657,8 @@
           "writable": false
         },
         "executor": {
-          "sessionId": null,
-          "status": "NONE",
+          "sessionId": "ses_f50b9988dffe6ztEhmkeiSLe7B",
+          "status": "RETURNED",
           "writable": false
         },
         "qa": {
