@@ -1,14 +1,14 @@
 {
   "contractVersion": "1.2.0",
   "registry": {
-    "lastUpdatedAt": "2026-09-17T02:48:00.156Z",
+    "lastUpdatedAt": "2026-09-17T02:53:48.022Z",
     "lastUpdatedBy": "primary-planner:faculty-sync-cas-c01",
-    "revision": 258
+    "revision": 259
   },
   "coordination": {
     "mode": "MANUAL",
     "activeCycleId": null,
-    "globalNextAction": "SLOT-BREAK-AUTHORITY-C11 is COMPLETE (wave-audited AUDIT_CLEAR 12/12/0/0; receipt docs/plans/receipts/slot-break-authority-c11.receipt.json). Coordinator returned to MANUAL. Every live/HIGH action (runtime install/restart, term-cache apply, Teaching Load apply, DB/schema apply, generation, publication, login, companion) remains locked and NOT granted. Dispatchable successors require a new operator-activated cycle; WF-C10-TRANSITION-GUARD-HARDENING is already registered and remains the standing candidate."
+    "globalNextAction": "SLOT-BREAK-AUTHORITY-C11 is COMPLETE (wave-audited AUDIT_CLEAR 12/12/0/0; receipt docs/plans/receipts/slot-break-authority-c11.receipt.json). Coordinator MANUAL. Every live/HIGH action (runtime install/restart, term-cache apply, Teaching Load apply, DB/schema apply, generation, publication, login, companion) remains locked and NOT granted; dispatch requires a new operator-activated cycle (WF-C10-TRANSITION-GUARD-HARDENING is registered and RUNNING). Ranked unregistered residual (owner: next primary planner): display-surface period/break parity is not yet canonical when classProgramSlot rows exist (room-schedule.service.ts buildPeriodSlots, locked-session.service.ts getEffectivePeriodSlots, published-schedule.service.ts buildSpecialEventSlots payload, pre-generation-draft display slots); validator authority is canonical, presentation bands are the follow-up."
   },
   "streams": [
     {
