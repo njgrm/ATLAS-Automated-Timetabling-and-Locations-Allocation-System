@@ -83,6 +83,6 @@
     "planner": { "decision": "EXISTING", "sessionId": null, "reason": "this planner authored the lane and owns sequencing." },
     "executor": { "decision": "FRESH_REQUIRED", "sessionId": null, "reason": "bounded implementation in its own worktree." },
     "qa": { "decision": "FRESH_REQUIRED", "sessionId": null, "reason": "one independent review of the candidate range." },
-    "auditor": { "decision": "NOT_REQUIRED", "sessionId": null, "reason": "Tier A lane: the Wave Completion Auditor is Tier B only under the corrected directive." }
+    "auditor": { "decision": "EXISTING", "sessionId": null, "reason": "Tier A lane: the Wave Completion Auditor is Tier B only under the corrected directive, so no auditor session is commissioned for this lane." }
   }
 }
