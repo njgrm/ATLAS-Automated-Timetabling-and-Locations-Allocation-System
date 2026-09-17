@@ -1,16 +1,19 @@
-# SYNC-SECTION-ENROLMENT-C01 — bounded live-data sync packet (R2)
+# SYNC-SECTION-ENROLMENT-C01 — bounded live-data sync packet (R3)
 
 Status: authored 2026-09-17 (Asia/Manila); **R1 corrected 2026-09-17**, **R2 corrected 2026-09-17**
-after a fresh independent pre-action review returned `CORRECTION_REQUIRED` (MANDATORY_SOURCE 1/2,
-blocked 1) over the R1 harness (see §10). Requires the operator's exact approval before the POST.
+after a fresh independent pre-action review returned `CORRECTION_REQUIRED` over the R1 harness, and
+**R3 corrected 2026-09-17** after a second fresh review returned `CORRECTION_REQUIRED` on the §2.1
+delete-guard wording while confirming `MANDATORY_SOURCE 2/2, blocked 0, unperformed 0` (see §10).
+Requires the operator's exact approval before the POST.
 
 ## 0. Immutable identity
 
 - Directive: `origin/main:AGENTS.md`, blob `051ad26a07509e3af4f1c1762e1ccfff8bb6cc88`,
   LF-SHA-256 `7663164608a330af5440a6e0ea1ffade20987b49a7bb0d939f3b50f1aa2df0a3`. Re-verified from
   Git bytes 2026-09-17.
-- Git ranges: **review base `19d4dbba` → R1 candidate `4deb9d9c` → R2 candidate `<see §10>`**.
-  R2 corrects forward from `4deb9d9c`; the enlarged review range is `19d4dbba..<R2 tip>`.
+- Git ranges: **review base `19d4dbba` → R1 `4deb9d9c` → R2 `3ceab907` → R3 tip named in the
+  dispatch handoff** (a packet cannot self-pin the commit that contains it). Each revision corrects
+  forward from the previous one; the enlarged review range is `19d4dbba..<R3 tip>`.
   The registered `git.baseSha` retains its creation-time value `43f6909f` (the immediate ancestor
   of `19d4dbba`) by design; `19d4dbba` is the review base and was `origin/main` when R1 was pushed.
   `origin/main` advanced to `0a134bba` during R2 authoring because a **concurrent planner cycle**
@@ -89,8 +92,13 @@ Body: { "schoolId": 1, "schoolYearId": 9 }
 - Upsert key `(schoolId, schoolYearId, externalId)` — 20 rows for (1, 9).
 - **The route also hard-deletes** rows in scope whose `externalId` is absent from the upstream
   response (`section.service.ts:283-289`). The delete is scoped to `(schoolId, schoolYearId)`, so
-  **year 8 cannot be touched**, and it is conditioned on a non-empty `externalIds` set; but a
-  truncated or invalid upstream page would still remove rows. Three controls:
+  **year 8 cannot be touched**. There is **no non-empty-set guard**: the `deleteMany` runs
+  unconditionally with `externalId: { notIn: Array.from(externalIds) }`, and an empty or reduced
+  valid set removes every in-scope row it does not name — an empty `notIn` matches all 20 in-scope
+  year-9 rows, while the response would report a low `count`. The operative protections are therefore
+  the harness preflight (20 raw upstream rows, 20 counted, a 20-row local baseline) plus L1
+  (`count 20`, `skipped 0`, `removed 0`), with the pre-state y9 signature as the only recovery
+  source. Three controls:
   1. the preflight requires 20 upstream rows and a 20-row local baseline before the POST;
   2. L1 requires `count = 20`, `skipped = 0`, and `removed = 0` in the response (`skipped > 0` is the
      mechanism by which an invalid upstream row would be silently deleted, so it is blocking);
@@ -314,7 +322,7 @@ Invocation (single command, workdir `D:\ATLAS-runtime-supervised-54dce67b-202609
 node "%TEMP%\opencode\sync-section-enrolment-c01\run.mjs"
 ```
 
-## 4. Acceptance matrix (R2)
+## 4. Acceptance matrix (R3)
 
 Classes: `MANDATORY_SOURCE` = 2, `MANDATORY_LIVE` = 10, `DEFERRED_EXTERNAL` = 1 (plan total 13).
 Tally form for every class: **`passed/total, blocked, unperformed`**.
@@ -330,6 +338,11 @@ Tally form for every class: **`passed/total, blocked, unperformed`**.
 
 L1–L10 as computed by the harness in §3. Every row has a predicate that can be **false**; no row is
 hard-coded true. L1's `removed: 0` and `skipped: 0` are blocking conditions, not notes.
+
+L3 compares `[externalId, name, maxCapacity]` pre/post, so a legitimate upstream rename or capacity
+change since the mirror's last sync (`2026-09-10`) makes L3 false and reports `ACCEPTANCE_FAIL` for
+an otherwise correct action. That is fail-safe (it can never false-pass); the test's own probe
+already shows identical identity, so this is a documented false-alarm path, not an expected outcome.
 
 ### DEFERRED_EXTERNAL
 
@@ -368,8 +381,10 @@ recorded as a disclosed entailment, **not** as a passed gate.
 
 One POST, one school (1), one year (9). Read-only ATLAS HTTP access is limited to `/api/v1/health`
 and `/api/v1/health/ready`. No other ATLAS endpoint. Read-only database access is limited to
-`findMany`/`count` on the tables named in §3. EnrollPro is **READ_ONLY** and is read exactly once
-through the packet's preflight GET. No rollover, term-cache apply, Teaching Load write, generation,
+`findMany`/`count` on the tables named in §3. EnrollPro is **READ_ONLY**. The harness performs exactly
+one preflight GET; the authorized POST itself then causes exactly two further upstream reads
+(`section-adapter.ts:577` and `fetchEnrollProActiveSchoolYear` at `section.router.ts:137`). All three
+are read-only. No rollover, term-cache apply, Teaching Load write, generation,
 publication, migration, deployment or restart, task/environment change, or companion action. No
 browser login.
 
@@ -380,7 +395,7 @@ table with the y9 count total; the resulting mirror `syncStatus` (pre → post, 
 non-gating); the full delta table; rollback statement; approval status; register state; push status;
 worktree disposition; single next action; and the D1 deferral restated.
 
-## 9. Registration annex (R2)
+## 9. Registration annex (R3)
 
 Registered via `ops/workflow/transition.mjs` from `origin/main` (CAS on `registry.revision`); the
 stream row is `SYNC-SECTION-ENROLMENT-C01`, `PLANNED`, `HIGH`, register revision 260, and the
@@ -413,4 +428,5 @@ available transitions: `record-executor-return` → `record-qa-result` (`ACCEPT_
 |---|---|---|
 | 2026-09-17 | planner | Initial packet + stream spec authored (base `dd4f8552`) |
 | 2026-09-17 | primary planner | **R1**: raised the risk tier to HIGH per the `AGENTS.md` non-downgradable live-data floor; pinned the verified live runtime identity (`54dce67b`, supervisor 4020 / server 13244 / host 13260); named the exact reviewed single-process execution harness and its read-only DB/env boundaries; reclassified the notification row as `DEFERRED_EXTERNAL`; corrected the audit row to an observable `audit_logs delta = 0`; added `skipped: 0` / `removed: 0` as blocking conditions for the documented hard-delete path; added the single-fetch uniformity row; documented the WF-C10 transition-surface under-report. Candidate `4deb9d9c`. |
-| 2026-09-17 | primary planner | **R2** (this revision), after the fresh pre-action review returned `CORRECTION_REQUIRED` (MANDATORY_SOURCE 1/2, blocked 1). Fixes: **B1** the harness loaded the release-root Prisma stub, which throws at `new PrismaClient()`; it now loads the generated client from `…\atlas-server\node_modules\.prisma\client\`. **B2** L10 was a hard-coded `true`; it is now a real write-scope-isolation predicate (every `section_mirrors` row outside school 1 / year 9 byte-identical), with the `enrollProSchoolYearMirror.syncStatus` pre→post reported as an explicit non-gating disclosure because this route cannot change it. **B3** L5's "checksum changed" was unsound (the checksum is a pure function of the payload, so it is unchanged when upstream is unchanged) and would have thrown on an absent snapshot; L5 now asserts snapshot `fetchedAt` strictly after a harness-captured pre-POST clock, guarded for absence, and L6 reuses that guarded result. **N1** network reads now use a `getJson` helper that catches on `fetch` itself. **N3** §6 distinguishes an idempotent re-run from a restore of hard-deleted rows. **N4** §0 states the review base `19d4dbba` and R2 base `4deb9d9c`. **N5** the tally form is `passed/total, blocked, unperformed`. Plus the register-contention disclosure in §9. Docs-only; no product, test, or harness file. |
+| 2026-09-17 | primary planner | **R2** (candidate `3ceab907`), after the first fresh pre-action review returned `CORRECTION_REQUIRED` (MANDATORY_SOURCE 1/2, blocked 1). Fixes: **B1** the harness loaded the release-root Prisma stub, which throws at `new PrismaClient()`; it now loads the generated client from `…\atlas-server\node_modules\.prisma\client\`. **B2** L10 was a hard-coded `true`; it is now a real write-scope-isolation predicate (every `section_mirrors` row outside school 1 / year 9 byte-identical), with the `enrollProSchoolYearMirror.syncStatus` pre→post reported as an explicit non-gating disclosure because this route cannot change it. **B3** L5's "checksum changed" was unsound (the checksum is a pure function of the payload, so it is unchanged when upstream is unchanged) and would have thrown on an absent snapshot; L5 now asserts snapshot `fetchedAt` strictly after a harness-captured pre-POST clock, guarded for absence, and L6 reuses that guarded result. **N1** network reads now use a `getJson` helper that catches on `fetch` itself. **N3** §6 distinguishes an idempotent re-run from a restore of hard-deleted rows. **N4** §0 states the review base `19d4dbba` and R2 base `4deb9d9c`. **N5** the tally form is `passed/total, blocked, unperformed`. Plus the register-contention disclosure in §9. Docs-only; no product, test, or harness file. |
+| 2026-09-17 | primary planner | **R3** (this revision), after a second fresh pre-action review returned `CORRECTION_REQUIRED` while confirming both mandatory classes (`MANDATORY_SOURCE 2/2, blocked 0, unperformed 0`) and verifying B1/B2/B3 fixed with `node --check` exit 0 and an independently reproduced failing-first control. Fixes: **F1** §2.1 wrongly asserted that the hard delete "is conditioned on a non-empty `externalIds` set"; the production `deleteMany` (`section.service.ts:283-289`) has no such guard and an empty `notIn` matches all 20 in-scope rows, so §2.1 now states the true semantics and attributes the protection to the preflight + L1, with the pre-state y9 signature as the only recovery source. **N-a** §0 names the R2 SHA `3ceab907` and states that the R3 tip is carried by the dispatch handoff. **N-c** §7 now states that the POST itself causes two further read-only upstream GETs. **N-d** §4 documents L3's fail-safe false-alarm path. Packet prose only: harness bytes, acceptance predicates, scope, rollback, and the D1 deferral are unchanged from R2. |

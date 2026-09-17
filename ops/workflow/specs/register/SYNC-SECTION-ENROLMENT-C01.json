@@ -8,7 +8,7 @@
   "nextAction": "Packet corrected to R2 after the first fresh pre-action review returned CORRECTION_REQUIRED (MANDATORY_SOURCE 1/2, blocked 1) over the R1 harness. Next: one fresh independent pre-action review of the R2 packet docs/prompts/sync-section-enrolment-c01-2026-09-17.md; on ACCEPT_READY with MANDATORY_SOURCE 2/2, blocked 0, unperformed 0 return the exact approval sentence to the operator, and only on the operator's exact grant execute the single POST through the reviewed harness and run the 10-row acceptance matrix. Register writes for this cycle are deferred until the concurrent SLOT-BREAK-AUTHORITY-C11R transition and the WF-C10-TRANSITION-GUARD-HARDENING recovery both settle.",
   "awaited": [
     "the register to be free of any held revision window so this stream can register by CAS",
-    "one fresh independent pre-action review of docs/prompts/sync-section-enrolment-c01-2026-09-17.md (R1) returning ACCEPT_READY 2/2/0/0/0",
+    "one fresh independent pre-action review of docs/prompts/sync-section-enrolment-c01-2026-09-17.md (R3) returning ACCEPT_READY with MANDATORY_SOURCE 2/2, blocked 0, unperformed 0",
     "the operator's exact approval sentence, returned only after the pre-action review passes"
   ],
   "running": [],
