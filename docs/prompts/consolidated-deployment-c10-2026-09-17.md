@@ -95,6 +95,21 @@ Not changed by this action (recorded for the next one):
   is `true` (`sha256("true")`, `b5bea41b…`); it bypasses all login rate limiting
   (`local-auth.service.ts:12-14`).
 - Keep `ENROLLPRO_PROXY_ORIGIN` and `ENROLLPRO_API` as recovered 2026-09-15.
+- **ADD the EnrollPro companion-SSO keys (operator decision 2026-09-17)** so the SSO
+  integration can be tested with EnrollPro without a second restart. The ATLAS SSO code is
+  already live (`c989f03d` is an ancestor of `54dce67b`) and the routes are mounted on Tailnet
+  (read-only probes return 401, not 404, for `/api/v1/auth/sso/authorize` and
+  `/api/v1/auth/sso/exchange`), but **no `SSO`/`COMPANION` key exists in the durable env**, so
+  the service fails closed with `COMPANION_SSO_NOT_CONFIGURED`. Required, from the paired values
+  provisioned by the operator and EnrollPro (per `docs/handoffs/companion-sso-live-prep-c02-evidence.md`):
+  `ENROLLPRO_SSO_CLIENT_SECRET` (>= 32 chars, identical on both sides),
+  `ENROLLPRO_SSO_CALLBACK_URL` (EnrollPro's exact reverse callback URL), and `ENROLLPRO_BASE_URL`
+  (if not already implied by `ENROLLPRO_API`). Optionally, for the client build,
+  `VITE_ENROLLPRO_SSO_START_URL` as an explicit reverse-start override.
+  **Never invent, print, or log a secret value.** Record only key names and a checksum of the file.
+  This amendment is DROPPED (and the SSO keys become a separate HIGH env action) if the paired
+  values are not available at approval time — say so in the approval rather than deploying a
+  half-configured integration.
 - Leave port 5175, unrelated processes, Tailscale Serve, and every other key
   untouched.
 
@@ -127,7 +142,7 @@ last resort only.
 | 2 | Listeners | exactly one owner per port (5001, 5174) |
 | 3 | Health | local health + ready (`database: ok`), host live/ready, Tailnet health all 200 |
 | 4 | Rollover automation | `ROLLOVER_AUTO_SYNC_ENABLED=false` |
-| 5 | Env change | `ATLAS_DEFAULT_SCHOOL_ID` absent from the durable env; all other keys unchanged |
+| 5 | Env change | `ATLAS_DEFAULT_SCHOOL_ID` absent; the companion-SSO keys present (**key names only — values are never printed**); all other keys unchanged |
 | 6 | Anonymous class-template read | `GET /api/v1/class-templates` and `/:id` → 401 with `class_templates` row-count delta 0 |
 | 7 | False authority blocker removed | school 1 / year 9 generation preflight emits ZERO `TERM_AUTHORITY_STALE`; row 4 no longer reports an authority blocker (truthful soft/hard blockers may remain) |
 | 8 | Published-revision immutability | spot check resolves frozen identity, not live tables |

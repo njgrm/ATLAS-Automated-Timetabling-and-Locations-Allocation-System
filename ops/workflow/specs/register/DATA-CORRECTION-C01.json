@@ -1,0 +1,109 @@
+{
+  "id": "DATA-CORRECTION-C01",
+  "kind": "STREAM",
+  "objective": "One HIGH persisted-configuration write for school 1 / school year 9 covering two measured corrections: (A) reconcile the classProgramSlot rows for g9-REGULAR, g10-REGULAR and the six g9/g10 STE/SPA/SPS scopes to the corrected canonical grids (afternoon lunch BREAK 11:30-12:15; REGULAR 8 CLASS + 2 BREAK spanning 11:30-18:30; specials 10 CLASS + 2 BREAK spanning 09:45-18:30 with a two-row pre-lunch Specialization block) leaving the eight g7/g8 scopes byte-identical; and (B) move the 10 section-subject ownership pairs off the 7 cap-exceeding FIL/ESP/ENG/MATH owners to the 5 qualified same-department peers, updating BOTH subject_section_ownerships.faculty_id and the receivers' faculty_subjects.section_ids. Measured effect: unassigned 123 -> 64, blockers 308 -> 113, WORKLOAD_POLICY_BLOCK 244 -> 45. No cap change, no allowFlexibleSubjectAssignment change, no schema, migration, generation, publication, Teaching Load apply, deployment, runtime/task/env, or companion action.",
+  "riskTier": "HIGH",
+  "state": "PLANNED",
+  "stateUpdatedAt": "2026-09-17T00:00:00Z",
+  "nextAction": "Confirm the two sequencing preconditions (G9G10-FLAG-SOURCE-LANE integrated AND a deployment whose pin contains it live), register by CAS when the register is free, commission one fresh independent pre-action review of docs/prompts/data-correction-c01-2026-09-17.md, return its exact approval sentence, then execute the fingerprinted write and the 8-row acceptance matrix.",
+  "awaited": [
+    "G9G10-FLAG-SOURCE-LANE to integrate (the reseed targets its corrected catalog)",
+    "a deployment whose pin contains that lane to be live (otherwise the reseed makes the live grid inconsistent)",
+    "the register to be free of any held revision window",
+    "one fresh independent pre-action review of docs/prompts/data-correction-c01-2026-09-17.md",
+    "the operator's exact approval sentence (returned only after the pre-action review passes)"
+  ],
+  "running": [],
+  "git": {
+    "worktree": "E:/ATLAS-worktrees/data-correction-c01",
+    "branch": "chore/data-correction-c01",
+    "baseSha": "056f2e4bf3e3beca20d52aa0ab4f96ab19875f01",
+    "candidateSha": null,
+    "integrationSha": null,
+    "changedPaths": [],
+    "remoteObservation": null
+  },
+  "owners": {
+    "planner": { "sessionId": null, "status": "IDLE", "writable": false },
+    "executor": { "sessionId": null, "status": "NONE", "writable": false },
+    "qa": { "sessionId": null, "status": "NONE", "writable": false },
+    "auditor": { "sessionId": null, "status": "NONE", "writable": false }
+  },
+  "gates": {
+    "total": 0,
+    "passed": 0,
+    "failed": 0,
+    "blocked": 0,
+    "unperformed": 0,
+    "plan": {
+      "MANDATORY_SOURCE": 0,
+      "MANDATORY_LIVE": 8,
+      "DEFERRED_EXTERNAL": 0
+    },
+    "classes": {
+      "MANDATORY_SOURCE": { "total": 0, "passed": 0, "failed": 0, "blocked": 0, "unperformed": 0 },
+      "MANDATORY_LIVE": { "total": 0, "passed": 0, "failed": 0, "blocked": 0, "unperformed": 0 },
+      "DEFERRED_EXTERNAL": { "total": 0, "passed": 0, "failed": 0, "blocked": 0, "unperformed": 0 }
+    }
+  },
+  "review": {
+    "qaVerdict": null,
+    "qaSessionId": null,
+    "auditorVerdict": null,
+    "auditorSessionId": null,
+    "auditRequired": true,
+    "qaRounds": []
+  },
+  "corrections": [],
+  "successors": [],
+  "requires": ["G9G10-FLAG-SOURCE-LANE"],
+  "blocker": {
+    "kind": "DEPENDENCY",
+    "detail": "Dependency-locked on G9G10-FLAG-SOURCE-LANE integrating AND on a deployment whose pin contains it being live. Applying the reseed against a runtime that lacks the lane would make the live grid inconsistent in the opposite direction and fail the preflight closed.",
+    "safeWorkRemaining": true,
+    "safeWorkItems": [
+      "author the packet and stream spec (done)",
+      "commission the fresh independent pre-action review",
+      "run the zero-cost preflight immediately before the write"
+    ]
+  },
+  "approval": {
+    "required": true,
+    "presentedReady": false,
+    "granted": false,
+    "operatorIdentity": null,
+    "approvedAt": null,
+    "boundary": null,
+    "approvedActions": [
+      "reconcile the school-1 / year-9 classProgramSlot rows for g9/g10 REGULAR and the six g9/g10 special scopes to the corrected canonical grids, leaving the eight g7/g8 scopes byte-identical",
+      "move the 10 section-subject ownership pairs off the 7 cap-exceeding FIL/ESP/ENG/MATH owners to the 5 qualified same-department peers, updating both subject_section_ownerships.faculty_id and the receivers' faculty_subjects.section_ids"
+    ],
+    "requiredObservationIds": [],
+    "execution": null
+  },
+  "observations": [],
+  "artifacts": [],
+  "closure": null,
+  "sessionRouting": {
+    "planner": {
+      "decision": "FRESH_REQUIRED",
+      "sessionId": null,
+      "reason": "new objective with its own HIGH approval boundary."
+    },
+    "executor": {
+      "decision": "FRESH_REQUIRED",
+      "sessionId": null,
+      "reason": "the fingerprinted configuration write runs in a fresh context with the exact approved boundary."
+    },
+    "qa": {
+      "decision": "FRESH_REQUIRED",
+      "sessionId": null,
+      "reason": "one fresh independent pre-action review before the approval, plus post-action acceptance review."
+    },
+    "auditor": {
+      "decision": "FRESH_REQUIRED",
+      "sessionId": null,
+      "reason": "a HIGH persisted-configuration write requires a fresh adversarial Wave Completion Auditor after the action."
+    }
+  }
+}
