@@ -1,14 +1,14 @@
 {
   "contractVersion": "1.2.0",
   "registry": {
-    "lastUpdatedAt": "2026-09-17T12:50:08.422Z",
+    "lastUpdatedAt": "2026-09-17T13:15:06.857Z",
     "lastUpdatedBy": "primary-planner:rollover-graded-autonomy-c01",
-    "revision": 316
+    "revision": 318
   },
   "coordination": {
-    "mode": "CYCLE_ACTIVE",
-    "activeCycleId": "ROLLOVER-GRADED-AUTONOMY-C01",
-    "globalNextAction": "CYCLE_ACTIVE for ROLLOVER-GRADED-AUTONOMY-C01 (MEDIUM source, no HIGH approval): registered at revision 310, base 43341ac7, worktree E:/ATLAS-worktrees/rollover-graded-autonomy-c01, branch fix/rollover-graded-autonomy, executor lease lease-rollover-graded-autonomy-c01 ACTIVE. Next: dispatch one fresh high-reasoning source executor against docs/prompts/rollover-graded-autonomy-c01-2026-09-17.md (R1 plus the planner R2 corrections), then fresh QA, integration, and one fresh Wave Completion Auditor. Packet R2 records two planner-verified corrections: the section-1 line table does not resolve at base, and the auto-apply gate is the four-condition intersection (atlas-stale, RUN_ROLLOVER_SYNC, zero conflicts, zero reconfigured sections) rather than R1.1's two-term quotation. Peers unchanged: EXPORT-PRESENTATION-S15-REBASELINE is INTEGRATED and its stale ACTIVE executor lease still needs RETURNED; MIG-APPLY-0002-0003 is INTEGRATED with a pending bounded correction from its Wave Completion Auditor; G9G10-FLAG-SOURCE-LANE closed COMPLETE at revision 306; G9-G10-CONFIG-CORRECTION-C01 and DATA-CORRECTION-C01 remain unregistered spec-only successors; SYNC-SECTION-ENROLMENT-C01 is PLANNED; TERM-CACHE-CATCHUP-APPLY is HIGH_APPROVAL_REQUIRED; the shared runtime serves supervised release 54dce67b. Every live/HIGH action (consolidated deployment, runtime install/restart, term-cache apply, Teaching Load apply, generation, publication, login, companion) remains locked and NOT granted."
+    "mode": "MANUAL",
+    "activeCycleId": null,
+    "globalNextAction": "ROLLOVER-GRADED-AUTONOMY-C01 (MEDIUM source) is ACCEPT_READY at revision 317: candidate bfa4c7e3 over base b3ae9fbb passed fresh independent QA 12/12/0/0 with an independently reproduced failing-first mutant and a byte-exact restore; integration and a fresh Wave Completion Auditor are the next steps. QA finding F1 is a bounded, dependency-locked successor: ROLLOVER_DETECTED is absent from the atlas-client NOTIFICATION_EVENT_TYPES allowlist, so the new detection event reaches the server bus but is dropped client-side; it must land before any deployment that flips ROLLOVER_AUTO_SYNC_ENABLED to true, and until then the shipped contract still declares false so no live behaviour changes. Peers: CONSOLIDATED-DEPLOYMENT-C10 is registered with its packet and handoffs; EXPORT-PRESENTATION-S15-REBASELINE is INTEGRATED; MIG-APPLY-0002-0003 is INTEGRATED with a pending bounded correction; G9G10-FLAG-SOURCE-LANE closed COMPLETE; G9-G10-CONFIG-CORRECTION-C01 and DATA-CORRECTION-C01 remain unregistered spec-only successors; SYNC-SECTION-ENROLMENT-C01 is PLANNED; TERM-CACHE-CATCHUP-APPLY is HIGH_APPROVAL_REQUIRED; the shared runtime serves supervised release 54dce67b. Every live/HIGH action remains locked and NOT granted."
   },
   "streams": [
     {
@@ -6619,11 +6619,11 @@
       "kind": "STREAM",
       "objective": "Implement the operator's rollover decision as graded autonomy in the automated rollover tick, narrowed by R1 and corrected by R2: keep unattended drift detection and reuse the existing preview/drift computation; auto-apply applyRolloverSync ONLY when the codebase's own verdict holds (drift.status === 'atlas-stale' && drift.recommendedAction === 'RUN_ROLLOVER_SYNC' && conflicts.length === 0 && reconfiguredSections.length === 0), otherwise emit one typed notification carrying drift.status, drift.recommendedAction, drift.message and the conflict count, and apply nothing; emit that notification only on a drift-status transition; never auto-archive (the automation must never reach archiveSchoolYear, archiveSupersededYearsForRecovery, archiveAndSyncActiveYear or applyTestYearRecovery); unpin the supervisor invariant ROLLOVER_AUTO_SYNC_ENABLED at ops/runtime/lib/contract.mjs:59-61 so the contract value is passed through as a real, reviewable control while ATLAS_SUPERVISED stays hard-pinned to true and a false kill-switch still disables everything; and preserve single-flight, bounded backoff and idempotency. Source only: no live/shared database write, no register write by the lane, no runtime/task/env change in this lane, no companion edit.",
       "riskTier": "MEDIUM",
-      "state": "REVIEW_REQUIRED",
-      "stateUpdatedAt": "2026-09-17T12:50:08.422Z",
-      "nextAction": "Commission one fresh high-reasoning independent QA over the frozen range b3ae9fbb...bfa4c7e3 (9 attributed paths), covering the four-condition auto-apply gate, the never-archive spy controls, the transition-keyed ROLLOVER_DETECTED notification, the contract unpin with ATLAS_SUPERVISED still pinned, the control-10 mutant and its byte-exact restore, and the two pre-existing broken npm script targets test:notifications and test:rollover-readiness; then integrate and commission one fresh Wave Completion Auditor.",
+      "state": "ACCEPT_READY",
+      "stateUpdatedAt": "2026-09-17T13:14:46.341Z",
+      "nextAction": "Integrate the accepted candidate bfa4c7e3 over the current origin/main and push; then register the bounded atlas-client F1 successor (NOTIFICATION_EVENT_TYPES plus an AppShell branch for ROLLOVER_DETECTED) as a dependency-locked stream that must land before any deployment that flips ROLLOVER_AUTO_SYNC_ENABLED to true; then commission one fresh Wave Completion Auditor over the integrated wave.",
       "awaited": [
-        "fresh independent QA over the frozen candidate"
+        "planner validates the immutable range and integration boundary"
       ],
       "running": [],
       "git": {
@@ -6662,8 +6662,8 @@
           "writable": false
         },
         "qa": {
-          "sessionId": null,
-          "status": "NONE",
+          "sessionId": "ses_f50949220ffeRC9x6zk74o1Rji",
+          "status": "RETURNED",
           "writable": false
         },
         "auditor": {
@@ -6673,20 +6673,20 @@
         }
       },
       "gates": {
-        "total": 0,
-        "passed": 0,
+        "total": 12,
+        "passed": 12,
         "failed": 0,
         "blocked": 0,
         "unperformed": 0,
         "plan": {
-          "MANDATORY_SOURCE": 10,
+          "MANDATORY_SOURCE": 12,
           "MANDATORY_LIVE": 0,
           "DEFERRED_EXTERNAL": 0
         },
         "classes": {
           "MANDATORY_SOURCE": {
-            "total": 0,
-            "passed": 0,
+            "total": 12,
+            "passed": 12,
             "failed": 0,
             "blocked": 0,
             "unperformed": 0
@@ -6708,12 +6708,18 @@
         }
       },
       "review": {
-        "qaVerdict": null,
-        "qaSessionId": null,
+        "qaVerdict": "ACCEPT_READY",
+        "qaSessionId": "ses_f50949220ffeRC9x6zk74o1Rji",
         "auditorVerdict": null,
         "auditorSessionId": null,
         "auditRequired": true,
-        "qaRounds": []
+        "qaRounds": [
+          {
+            "round": 1,
+            "verdict": "ACCEPT_READY",
+            "sessionId": "ses_f50949220ffeRC9x6zk74o1Rji"
+          }
+        ]
       },
       "corrections": [],
       "successors": [],
