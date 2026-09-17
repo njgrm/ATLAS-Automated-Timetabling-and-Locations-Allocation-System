@@ -1,9 +1,9 @@
 {
   "contractVersion": "1.2.0",
   "registry": {
-    "lastUpdatedAt": "2026-09-17T16:25:52.900Z",
-    "lastUpdatedBy": "primary-planner:consolidated-deployment-c10-correction",
-    "revision": 338
+    "lastUpdatedAt": "2026-09-17T16:31:13.888Z",
+    "lastUpdatedBy": "primary-planner:consolidated-deployment-c10-b1-ratified",
+    "revision": 339
   },
   "coordination": {
     "mode": "CYCLE_ACTIVE",
@@ -6776,11 +6776,10 @@
       "objective": "Deploy one release pinned at the accepted origin/main tip that includes the C07R1 authorization fix, published-revision immutability, warning realism, export parity, generation-authority realism and the R3 term-authority canonicalization; remove the vestigial ATLAS_DEFAULT_SCHOOL_ID key from the durable env; re-point and restart the registered ATLAS-Runtime-Supervisor task on ports 5001/5174; then run the 13-row acceptance matrix with exactly one authorized login and logout. No data mutation, generation, publication, Teaching Load apply, term-cache apply, rollover, migration, or companion change.",
       "riskTier": "HIGH",
       "state": "CORRECTION_REQUIRED",
-      "stateUpdatedAt": "2026-09-17T16:25:52.900Z",
-      "nextAction": "Record the B1/B2 reconciliation (truthful errata for the in-cycle safe.directory addition and the corrected evidence claims, plus the register continuity fixes), then run one fresh independent QA over the correction range and one fresh Wave Completion Auditor before any COMPLETE closure and receipt.",
+      "stateUpdatedAt": "2026-09-17T16:31:13.888Z",
+      "nextAction": "Commit and push the corrected errata, then commission one fresh independent QA over PIN40..<correction tip>; on ACCEPT_READY commission one fresh Wave Completion Auditor; on AUDIT_CLEAR apply closure, the receipt, the register reconciliation, worktree retirement, and coordination back to MANUAL.",
       "awaited": [
-        "the operator decision on the B1 global Git safe.directory entry (ratify retention, or authorize removal plus a restart test)",
-        "the fresh independent QA over the reconciliation candidate",
+        "the fresh independent QA over the correction range",
         "the fresh Wave Completion Auditor over the corrected final tree"
       ],
       "running": [],
@@ -6893,12 +6892,12 @@
       ],
       "blocker": {
         "kind": "INTERNAL",
-        "detail": "Wave Completion Auditor ses_f4fd7eefeffeYuPtVH3Xq5ThcU returned CORRECTION_REQUIRED: B1 an in-cycle global Git safe.directory addition outside approvedActions with contrary cutover-evidence claims; B2 stale register coordination and git fields. The deployed runtime is healthy on PIN40 and is not in question.",
+        "detail": "B1 RESOLVED by operator ratification: retention of the global Git safe.directory entry D:/ATLAS-runtime-supervised-8eb0511baa53-20260917 is ratified, and the operator recorded that the addition was explicitly instructed in the dispatched executor prompt for the cutover, conditional on the dubious-ownership failure, but was never transcribed into the recorded approvedActions - a record gap, not an unauthorized act; the granted approvedActions were NOT retroactively modified. The errata and the cutover evidence now record both the instruction and the record gap. B2 is fixed at revisions 336-338. Remaining: one fresh independent QA over the correction range, then one fresh Wave Completion Auditor, then closure. The deployed runtime is healthy on PIN40 and is not in question.",
         "safeWorkRemaining": true,
         "safeWorkItems": [
-          "write the truthful B1 errata and correct the cutover evidence claims",
-          "complete the register continuity reconciliation",
-          "register successor owners for DATA-CORRECTION-C01 and the four SSO keys"
+          "fresh independent QA over the correction range",
+          "fresh Wave Completion Auditor over the corrected final tree",
+          "register successor rows for DATA-CORRECTION-C01 and the four companion-SSO keys"
         ]
       },
       "approval": {

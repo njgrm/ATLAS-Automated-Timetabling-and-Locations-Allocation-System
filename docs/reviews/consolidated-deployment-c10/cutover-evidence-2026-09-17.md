@@ -3,7 +3,7 @@
 - **Role:** `ROLE: EXECUTOR` (fresh context; one HIGH shared-runtime deployment under the already-granted operator approval).
 - **Outcome:** `REVIEW_REQUIRED` — cutover **executed**; the new release is live and healthy; rows 1–8, 10–13 **PASS**; row 9 **BLOCKED/NOT PERFORMED** by an executor evidence-sequencing defect (see §6 and §12). No rollback was executed; the decision is returned to the planner.
 - **Cutover executed:** **YES** — supervisor-owned 5001/5174 stopped, task re-pointed to the staged release, task restarted, new release live.
-- **Zero-mutation statement:** outside the declared login delta, all 46 public tables are delta 0; the durable env file and its ACL are unchanged. **Correction (see `register-reconciliation-errata-2026-09-17.md`):** the git global `safe.directory` configuration was NOT unchanged — one entry naming this cycle's release directory was added inside the cutover window and is outside the recorded approved actions. This executor did not add it; the actor is not determinable from committed evidence. Companion repositories were read-only and untouched.
+- **Zero-mutation statement:** outside the declared login delta, all 46 public tables are delta 0; the durable env file and its ACL are unchanged. **Correction (see `register-reconciliation-errata-2026-09-17.md`):** the git global `safe.directory` configuration was NOT unchanged — one entry naming this cycle's release directory was added inside the cutover window. The addition was explicitly instructed in the dispatched executor prompt, conditional on the dubious-ownership failure, but was never transcribed into the stream's recorded `approvedActions` — a **record gap**, not an unauthorized act; the operator has ratified retention. Companion repositories were read-only and untouched.
 
 ---
 
@@ -33,7 +33,7 @@ git -C D:\ATLAS-runtime-supervised-8eb0511baa53-20260917 rev-parse HEAD
    exit 0
 ```
 
-Verified `safe.directory` precondition (read-only). **Corrected:** this executor added no config entry, but the configuration was NOT unchanged across the cycle — the third entry below names this cycle's release directory and was added inside the cutover window, outside the recorded approved actions:
+Verified `safe.directory` precondition (read-only). **Corrected:** this executor added no config entry, but the configuration was NOT unchanged across the cycle — the third entry below names this cycle's release directory and was added inside the cutover window under an instruction that was never transcribed into the recorded `approvedActions` (a record gap; retention ratified by the operator):
 
 ```
 git config --global --get-all safe.directory
@@ -170,7 +170,7 @@ Immediately after this cutover the live catalog expects the corrected `classProg
 | Durable env SHA-256 / keys | `21ab1fad…` / 13 | identical | 0 |
 | Env ACL SDDL / protected | `…(A;;FR;;;SY)(A;;FR;;;BA)(A;;FR;;;S-1-5-21-…1001)` / True | identical | 0 |
 | Task action / Start-In / machine vars | `…\54dce67b…` | `…\8eb0511baa53…` | intended cutover delta only |
-| git global `safe.directory` | 2 entries | 3 entries | **+1 — the new release directory entry, added in-cycle outside the approved actions (corrected; see the errata)** |
+| git global `safe.directory` | 2 entries | 3 entries | **+1 — the new release directory entry, added in-cycle under an instructed-but-unrecorded step (record gap, not an unauthorized act; retention ratified — see the errata)** |
 | Supervisor / listeners | 4020 → 13244, 13260 | 54804 → 18348, 48244 | intended cutover delta only |
 | Unrelated PIDs 25648 / 12692 / 43816 | alive | alive | 0 |
 | Port 5175 / Tailscale Serve | untouched | untouched | 0 |
