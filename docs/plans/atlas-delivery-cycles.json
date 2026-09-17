@@ -1,9 +1,9 @@
 {
   "contractVersion": "1.2.0",
   "registry": {
-    "lastUpdatedAt": "2026-09-17T11:33:30.679Z",
+    "lastUpdatedAt": "2026-09-17T11:52:06.155Z",
     "lastUpdatedBy": "primary-planner:export-presentation-s15-rebaseline",
-    "revision": 306
+    "revision": 309
   },
   "coordination": {
     "mode": "MANUAL",
@@ -6466,29 +6466,29 @@
       "kind": "STREAM",
       "objective": "Rebaseline the committed EXPORT-PRESENTATION-SCHEMA-GUARD-C06B acceptance row S15 from 'the configured database must not have migration 0003 applied' to 'this suite must never mutate the configured database', because MIG-APPLY-0002-0003 applied 0003_teacher_program_presentation to atlas_recovery_clean_rebuild_20260905 on 2026-09-17 under the operator's exact HIGH approval. Also retire the stale, unapproved docs/prompts/companion-sso-migration-live-c02-2026-09-15.md packet whose preconditions are falsified, annotate the C06B executor handoff S15 row, and record the O1 Prisma-migrations checkout-encoding preflight as a precondition row in docs/prompts/consolidated-deployment-c10-2026-09-17.md. Test and documentation only: no product source, no migration, no database write, no deployment, runtime, task, env, generation, publication, login, or companion action.",
       "riskTier": "MEDIUM",
-      "state": "RUNNING",
-      "stateUpdatedAt": "2026-09-17T11:26:46.893Z",
-      "nextAction": "Dispatch one bounded executor to rebaseline C06B S15 in E:/ATLAS-worktrees/export-presentation-s15-rebaseline, then fresh independent QA over the corrected frozen range, integration, and one fresh Wave Completion Auditor over the changed final tree before MIG-APPLY-0002-0003 may close.",
+      "state": "INTEGRATED",
+      "stateUpdatedAt": "2026-09-17T11:52:06.155Z",
+      "nextAction": "Commission one fresh Wave Completion Auditor over the changed final tree; on AUDIT_CLEAR close this stream and MIG-APPLY-0002-0003 COMPLETE with receipts.",
       "awaited": [
-        "bounded executor correction return and its frozen candidate",
-        "fresh independent QA over the corrected range",
-        "fresh Wave Completion Auditor over the changed final tree",
-        "then closure of MIG-APPLY-0002-0003 COMPLETE with its receipt"
+        "fresh Wave Completion Auditor"
       ],
-      "running": [
-        "preparation in E:/ATLAS-worktrees/export-presentation-s15-rebaseline: the bounded test-only rebaseline of C06B S15, the retirement of the stale companion-sso-migration-live-c02 packet, and the O1 preflight precondition row; no database, migration, or runtime action"
-      ],
+      "running": [],
       "git": {
         "worktree": "E:/ATLAS-worktrees/export-presentation-s15-rebaseline",
         "branch": "fix/export-presentation-s15-rebaseline",
-        "baseSha": "10769108392b7ed5b5dbe0cb930ac5226de66f32",
-        "candidateSha": null,
-        "integrationSha": null,
-        "changedPaths": [],
+        "baseSha": "041847c473679322527f04b64be94815a264f166",
+        "candidateSha": "0d770e93feff3c189b1dc8b195391f30f2551f0a",
+        "integrationSha": "8fcafe642d69cc0e8ed5bd4ec84a09e530abca34",
+        "changedPaths": [
+          "atlas-server/src/__tests__/export-presentation-schema-guard-c06b.test.ts",
+          "docs/handoffs/export-presentation-schema-guard-c06b-executor.md",
+          "docs/prompts/companion-sso-migration-live-c02-2026-09-15.md",
+          "docs/prompts/consolidated-deployment-c10-2026-09-17.md"
+        ],
         "remoteObservation": {
           "ref": "refs/remotes/origin/main",
-          "sha": "10769108392b7ed5b5dbe0cb930ac5226de66f32",
-          "observedAt": "2026-09-17T11:26:46.893Z",
+          "sha": "8fcafe642d69cc0e8ed5bd4ec84a09e530abca34",
+          "observedAt": "2026-09-17T11:52:06.155Z",
           "kind": "REMOTE_TRACKING_REF"
         }
       },
@@ -6499,13 +6499,13 @@
           "writable": false
         },
         "executor": {
-          "sessionId": null,
-          "status": "NONE",
+          "sessionId": "ses_f50e0f6e8ffeaR5p9Zivbdq4SH",
+          "status": "RETURNED",
           "writable": false
         },
         "qa": {
-          "sessionId": null,
-          "status": "NONE",
+          "sessionId": "ses_f50d7833bffeyBOdjElMFrO5ai",
+          "status": "RETURNED",
           "writable": false
         },
         "auditor": {
@@ -6515,8 +6515,8 @@
         }
       },
       "gates": {
-        "total": 0,
-        "passed": 0,
+        "total": 5,
+        "passed": 5,
         "failed": 0,
         "blocked": 0,
         "unperformed": 0,
@@ -6527,15 +6527,15 @@
         },
         "classes": {
           "MANDATORY_SOURCE": {
-            "total": 0,
-            "passed": 0,
+            "total": 4,
+            "passed": 4,
             "failed": 0,
             "blocked": 0,
             "unperformed": 0
           },
           "MANDATORY_LIVE": {
-            "total": 0,
-            "passed": 0,
+            "total": 1,
+            "passed": 1,
             "failed": 0,
             "blocked": 0,
             "unperformed": 0
@@ -6550,12 +6550,18 @@
         }
       },
       "review": {
-        "qaVerdict": null,
-        "qaSessionId": null,
+        "qaVerdict": "ACCEPT_READY",
+        "qaSessionId": "ses_f50d7833bffeyBOdjElMFrO5ai",
         "auditorVerdict": null,
         "auditorSessionId": null,
         "auditRequired": true,
-        "qaRounds": []
+        "qaRounds": [
+          {
+            "round": 1,
+            "verdict": "ACCEPT_READY",
+            "sessionId": "ses_f50d7833bffeyBOdjElMFrO5ai"
+          }
+        ]
       },
       "corrections": [],
       "successors": [],
