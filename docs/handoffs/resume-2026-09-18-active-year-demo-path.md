@@ -27,35 +27,72 @@ summary) and the corrected **Teaching Load + dynamic-timetable UX**, working on 
 2. **Directive ceremony cut applied** (increments 1–2): browser QA normalized (no per-instance login approval), Tier A exempted from receipts/leases/auditors, prose register retired, Wave Auditor narrowed to Tier B. Staged rules R1–R19 live in `docs/plans/directive-revision-proposal-2026-09-17.md`.
 3. **Durable finding:** a SYSTEM-run supervisor cannot resolve a release pinned in a worktree owned by the interactive user — `safe.directory` is per-user and does **not** help. The release root, its `.git`, and `D:\ATLAS\.git\worktrees\<release>` must be owned by `BUILTIN\Administrators`.
 
-## The NEW blocker discovery — the active year is not set up
+## The active-year blocker picture (CORRECTED — the earlier "not set up" claim was WRONG)
 
-`GET /api/v1/generation/1/551/readiness/diagnostic` → **`status: BLOCKED`, `generateAllowed: false`**, with four blockers:
+### The identity trap that caused the error
 
-| Blocker | Meaning | Owning surface |
+The mirror table has **two identifiers**. `EnrollProSchoolYearMirror` rows are:
+
+| Local `id` | `enrollProSchoolYearId` | Label | isActive | isArchived |
+| --- | --- | --- | --- | --- |
+| 1 | 8 | 2029-2030 | false | **true** |
+| 223 | 9 | 2030-2031 | false | false |
+| **551** | **10** | **2031-2032** | **true** | false |
+
+`resolveSoleActiveNonArchivedYear` (`derived-demand.service.ts:904`) returns the
+**`enrollProSchoolYearId`** — i.e. **10** — and the **data tables key `schoolYearId`
+on that upstream value**. Querying or calling the diagnostic with the mirror row id
+`551` matches nothing, so every count reads 0 and the year check fails with a
+**false `INACTIVE_HISTORICAL_YEAR`**. Always use **`schoolYearId = 10`** for the
+active year 2031-2032. (The archived prior year is `9`; its mirror row id is 223.)
+
+### The real diagnostic for the active year (schoolYearId=10)
+
+`GET /api/v1/generation/1/10/readiness/diagnostic` → `status: BLOCKED`,
+`generateAllowed: false`, but **`schedulerExecuted: true`** and the year is fully
+set up:
+
+- `derivedDemandBlockers: []`; terms **T1/T2/T3** (TRIMESTER); demand **925 sessions
+  per term** (555 lines / 265 pairs)
+- **Teaching Load 265/265 owned, 0 missing, 0 inactive/stale** ✓
+- **All 16 class-program scopes present with 0 issues** (G7–G10 × REGULAR/STE/SPA/SPS) ✓
+- Policy present (45 min periods, 10/day, max 480 teaching min/day); 98 rooms,
+  4379 capacity ✓
+
+### The 66 genuine blockers, by class
+
+| Count | Code | Meaning |
 | --- | --- | --- |
-| `SECTION_SETUP_REQUIRED` | No active, non-stale section mirrors for year 551 | Sections / EnrollPro sync |
-| `TEACHING_LOAD_REVIEW_REQUIRED` | No Teaching Load owner rows for year 551 | Teaching Load |
-| `INACTIVE_HISTORICAL_YEAR` | "not the sole active, non-archived year" — **yet 551 IS `is_active=true` and the only active year**, so this fires for another reason (likely the unresolved ordered-term contract; `termStructure: null`) | Term contract / subject authority |
-| `POLICY_UNINITIALIZED` | Policy not initialised | Policy |
+| 8 | `FLAG_CEREMONY_SCOPE_INVALID` | The policy Flag Ceremony/HGP window **07:00–07:30** is contained by no canonical CLASS row. The shape signatures render the flag at **09:00–09:15** (G7/G8) and **15:15–15:30** (G9/G10). Affects G9 + G10 × all four programs. |
+| 3 | `CANONICAL_SHAPE_CAPACITY_EXCEEDED` | **G10 STE requires 55 weekly sessions but only 50 canonical CLASS slots exist** (T1, T2, T3). Fix by reducing demand, correcting the canonical shape, or splitting the section — never by widening the shift. |
+| 24 | `WORKLOAD_POLICY_BLOCK` | Every candidate owner is at their workload/slot limit for the session. |
+| 26 | `ROOM_RESOURCE_UNAVAILABLE` | No room matched the required type/features/capacity. |
+| 5 | `SEARCH_LIMIT_UNRESOLVED` | Scheduler could not place the session (`NO_AVAILABLE_SLOT`) within its bounded search. |
 
-Totals all zero (`lines: 0`, `pairs: 0`, `sessionsByTerm: {}`). The active year's
-`classProgramSlots` grid is **incomplete**: G9/G10 REGULAR are canonical (10 rows,
-8 CLASS, lunch 11:30–12:15) but **G7/G8 are absent** (`classRowCount: 0`).
+Two further **product decisions** are recorded in `decisionNotes`:
+1. The Friday variant allowing ARAL to be replaced by TLE is not encoded as schedulable.
+2. A **duplicate 12:15–13:00 row**: Lunch Break remains blocked for class placement,
+   but an overlapping Flag Ceremony/HGP/TLE row remains template drift pending a
+   Product decision.
 
-**Therefore `DATA-CORRECTION-C01` is NOT on the demo's critical path** — it targets
-the archived year and its 4 blocking findings (below) make it unapprovable.
+### Consequences
+
+- **`DATA-CORRECTION-C01` is mis-targeted**: it operates on the archived year and its
+  four blocking findings make it unapprovable. The demo needs a **policy + shape +
+  capacity correction on year 10**, in this priority order: (1) align the policy Flag
+  Ceremony window with the canonical per-shift rows, (2) resolve the G10 STE 55-vs-50
+  capacity conflict, (3) review workload limits, (4) review room type/feature
+  classification, (5) place the 5 unplaced sessions.
 
 ## Immediate next action
 
-**Investigate `INACTIVE_HISTORICAL_YEAR` against year 551 (read-only).** It is the
-one blocker that may be a small authority fix rather than an operational setup
-task, and it determines whether the demo is hours or days away. If 551 is genuinely
-the sole active year, find why the demand-authority check rejects it (start at
-`generation-preflight.service.ts` / the derived-demand year-authority path and the
-ordered-term contract resolution).
-
-Then, in order: sync sections for 551 → assign Teaching Load owners → initialise
-policy → generation → exports browser QA.
+**Investigate the `FLAG_CEREMONY_SCOPE_INVALID` blocker** — 8 of the 66, and the one
+most likely to be a policy-configuration defect rather than a demand/resource reality.
+Start from the policy's flag-window fields and the shape-signature rendering path
+(`generation-preflight.service.ts` around the flag-scope validation, and the
+`shapeSignatures` producer). Confirm whether the policy can express a per-shift or
+day-scoped flag window; if it cannot, that is a code change, and if it can, it is a
+policy data correction.
 
 ## Stream states
 
