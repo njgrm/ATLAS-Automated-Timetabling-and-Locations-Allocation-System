@@ -1,0 +1,101 @@
+{
+  "id": "SLOT-BREAK-AUTHORITY-C11R",
+  "kind": "STREAM",
+  "objective": "Complete SLOT-BREAK-AUTHORITY-C11 on the display surfaces: make the canonical classProgramSlot grid the source of displayed period, break, and shift slots whenever canonical rows exist for a (gradeLevel, programType) scope, removing the retired 11:55-12:55 fallbacks from schedule-constructor.ts and threading the canonical authority into room-schedule, locked-session, published-schedule, and pre-generation-draft, while freezing canonical-derived slots at publication time and preserving published immutability. Source and tests only.",
+  "riskTier": "MEDIUM",
+  "state": "PLANNED",
+  "stateUpdatedAt": "2026-09-17T00:00:00Z",
+  "nextAction": "Register by CAS when the register is free, acquire the executor lease, then dispatch one fresh source executor in E:/ATLAS-worktrees/slot-break-authority-c11r against docs/prompts/slot-break-authority-c11r-2026-09-17.md.",
+  "awaited": [
+    "the register to be free of any held revision window so this stream can register by CAS"
+  ],
+  "running": [],
+  "git": {
+    "worktree": "E:/ATLAS-worktrees/slot-break-authority-c11r",
+    "branch": "fix/slot-break-authority-c11r",
+    "baseSha": "43f6909f09f73c43de1f77092c23fdb764f545e7",
+    "candidateSha": null,
+    "integrationSha": null,
+    "changedPaths": [],
+    "remoteObservation": null
+  },
+  "owners": {
+    "planner": { "sessionId": null, "status": "IDLE", "writable": false },
+    "executor": { "sessionId": null, "status": "NONE", "writable": false },
+    "qa": { "sessionId": null, "status": "NONE", "writable": false },
+    "auditor": { "sessionId": null, "status": "NONE", "writable": false }
+  },
+  "gates": {
+    "total": 0,
+    "passed": 0,
+    "failed": 0,
+    "blocked": 0,
+    "unperformed": 0,
+    "plan": {
+      "MANDATORY_SOURCE": 10,
+      "MANDATORY_LIVE": 0,
+      "DEFERRED_EXTERNAL": 0
+    },
+    "classes": {
+      "MANDATORY_SOURCE": { "total": 0, "passed": 0, "failed": 0, "blocked": 0, "unperformed": 0 },
+      "MANDATORY_LIVE": { "total": 0, "passed": 0, "failed": 0, "blocked": 0, "unperformed": 0 },
+      "DEFERRED_EXTERNAL": { "total": 0, "passed": 0, "failed": 0, "blocked": 0, "unperformed": 0 }
+    }
+  },
+  "review": {
+    "qaVerdict": null,
+    "qaSessionId": null,
+    "auditorVerdict": null,
+    "auditorSessionId": null,
+    "auditRequired": true,
+    "qaRounds": []
+  },
+  "corrections": [],
+  "successors": [],
+  "requires": [],
+  "blocker": {
+    "kind": "DEPENDENCY",
+    "detail": "Registration must not interleave with another stream's held register revision window. No approval gate: this is an ordinary MEDIUM source correction.",
+    "safeWorkRemaining": true,
+    "safeWorkItems": [
+      "author the packet and stream spec (done)",
+      "dispatch the fresh source executor after registration"
+    ]
+  },
+  "approval": {
+    "required": false,
+    "presentedReady": false,
+    "granted": false,
+    "operatorIdentity": null,
+    "approvedAt": null,
+    "boundary": null,
+    "approvedActions": [],
+    "requiredObservationIds": [],
+    "execution": null
+  },
+  "observations": [],
+  "artifacts": [],
+  "closure": null,
+  "sessionRouting": {
+    "planner": {
+      "decision": "FRESH_REQUIRED",
+      "sessionId": null,
+      "reason": "new objective with its own cycle; the C11 cycle is closed."
+    },
+    "executor": {
+      "decision": "FRESH_REQUIRED",
+      "sessionId": null,
+      "reason": "the display-surface correction runs in a fresh executor context in E:/ATLAS-worktrees/slot-break-authority-c11r."
+    },
+    "qa": {
+      "decision": "FRESH_REQUIRED",
+      "sessionId": null,
+      "reason": "fresh independent QA over the frozen candidate, including the display/validator parity row and the mutant."
+    },
+    "auditor": {
+      "decision": "FRESH_REQUIRED",
+      "sessionId": null,
+      "reason": "the stream changes what beneficiary-facing displays and frozen published snapshots render, so a fresh adversarial Wave Completion Auditor is required after integration."
+    }
+  }
+}
