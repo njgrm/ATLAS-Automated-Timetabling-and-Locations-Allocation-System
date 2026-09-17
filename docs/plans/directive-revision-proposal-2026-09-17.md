@@ -150,6 +150,39 @@ superseded phrase (the old state name, the old blocker, "awaiting <decision>",
 the retired release id) and fix every hit before the commit. This joins the
 existing cross-section consistency gate as a commit-time obligation.
 
+### R15 — A successor HIGH handoff may not be presented before its predecessor clears
+
+No planner-cycle handoff for a successor HIGH action may be offered, and no
+approval sentence requested, while the predecessor stream's latest Wave Completion
+Auditor verdict is not exactly `AUDIT_CLEAR`. The register's own locked-successor
+list must be reconciled in the same check, and the handoff must not claim
+"C10 does not block this" unless a register transition explicitly supersedes the
+lock.
+
+Rationale: `SSO-ENV-ACTIVATION-C01` was handed off as ready while
+`CONSOLIDATED-DEPLOYMENT-C10` sat at `CORRECTION_REQUIRED` with the SSO keys named
+as locked successors. `create-stream` had no active-cycle guard, so the mechanical
+check passed and the **normative** invariant #1 was missed. The distinction to
+internalise: mechanical non-blocking does not imply permitted.
+
+### R16 — Planner-cycle step order and coordination flags
+
+In every planner-cycle handoff: `create-stream` **before**
+`coordination-update --active-cycle-id` (the coordination transition validates that
+the named cycle is a defined stream and otherwise throws
+`TRANSITION_COORDINATION_UNKNOWN_CYCLE`), and pass `--global-next-action` explicitly
+so the previous cycle's text is not inherited.
+
+### R17 — Verify Machine-scope variables from the registry, never the inherited env
+
+Machine-scope values must be read with
+`[Environment]::GetEnvironmentVariable(name,'Machine')` (or HKLM), never from the
+session's inherited environment, and no release path may be resolved from an
+inherited env var. `ops/runtime/cli.mjs` resolves its state path from
+`ATLAS_RUNTIME_SOURCE_DIR`, so any process started before a machine-variable change
+reports the **previous** release and can point a "stop from the release directory"
+at the wrong tree. Two independent sessions hit this on the same day.
+
 ## Staging convention for process improvements
 
 Every cycle report ends with a process-improvement note. Those notes are lost when
