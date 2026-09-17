@@ -73,7 +73,7 @@ executed on the disposable harness from `atlas-server`:
 | S12 | settings route, valid cross-school JWT | any Prisma dispatch | same suite | PASS |
 | S13 | unguarded direct `findFirst` (table dropped) + real `errorHandler` | `code === 'P2021'`, not the typed error, `500` (≠ typed `503`) | same suite | PASS |
 | S14 | unguarded direct `findFirst` (`footer_text` dropped) + real `errorHandler` | `code === 'P2022'`, not the typed error, `500` (≠ typed `503`) | same suite | PASS |
-| S15 | configured DB read-only `to_regclass(...)` probe before and after the suite | non-empty result ⇒ configured DB was migrated | same suite (`127.0.0.1`, configured DB name resolved, never printed) | PASS |
+| S15 | configured DB read-only `to_regclass(...)` probe before and after the suite, asserting **non-mutation** (`after === before`) | any before/after difference ⇒ the suite mutated the configured database | same suite (`127.0.0.1`, configured DB name resolved, never printed) | PASS — **premise superseded 2026-09-17** under `MIG-APPLY-0002-0003`: `0003_teacher_program_presentation` is APPLIED to `atlas_recovery_clean_rebuild_20260905`, so the original "must not exist" premise became false; the row now asserts non-mutation of the configured database (see `docs/prompts/export-presentation-s15-rebaseline-2026-09-17.md`) |
 | S16 | `teardownCanonicalFixture` + `$disconnect` + server close + `drop()` + `assertDropped()` | residual database / stray listener | same suite | PASS |
 | S17 | the six preservation suites + `npm --prefix atlas-server run build` + `git diff --check` + exactly four owned paths | assertion removal / new type error / extra path | §5 commands | PASS |
 

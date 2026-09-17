@@ -62,6 +62,17 @@ performs a write on read.
    change. Any divergence from the recorded pre-state is a STOP.
 6. Build the target release on ALTERNATE ports in an isolated directory and smoke
    it; never bind 5001/5174 during preflight. Prove the rollback release starts.
+7. **O1 preflight — migration-file line-ending/checksum integrity (required
+   before any Prisma migration command).** `.gitattributes` LF coverage omits
+   `prisma/migrations/**`, so those files are `w/crlf` with an empty `attr/`
+   column (`git ls-files --eol prisma/migrations`). The persisted
+   `_prisma_migrations.checksum` values are **mixed form**: `0001`, `0002`, and
+   `0003` equal the CRLF bytestream digest of their `migration.sql`, while `0000`
+   equals its LF digest. Require that `git ls-files --eol prisma/migrations` still
+   shows `w/crlf` **or** that each recomputed `migration.sql` digest equals the
+   persisted `_prisma_migrations.checksum` for that migration; on any mismatch
+   STOP. Do **not** add an LF rule for `prisma/migrations/**` while the persisted
+   checksums are CRLF-form — that would itself create checksum drift.
 
 ## 3. Verified starting authority (elevated read-only, 2026-09-16/17)
 

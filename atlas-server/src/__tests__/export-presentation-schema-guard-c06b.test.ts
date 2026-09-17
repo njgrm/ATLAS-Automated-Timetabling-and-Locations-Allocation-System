@@ -16,6 +16,14 @@
  * The configured (non-disposable) database is only ever probed read-only for
  * `to_regclass(...)` and is never the target of any migration in this suite.
  *
+ * Dated supersession (2026-09-17): migration `0003_teacher_program_presentation`
+ * IS APPLIED to `atlas_recovery_clean_rebuild_20260905` under `MIG-APPLY-0002-0003`.
+ * The former S15 premise ("the presentation table must not exist on the configured
+ * database") is therefore false, not a defect. S15 now asserts the invariant that
+ * was always the real one: this suite must never MUTATE the configured database's
+ * presentation-table state. The P2021/P2022 negative controls keep running on the
+ * disposable database where `0003` is deliberately unapplied, so no coverage is lost.
+ *
  * Run: `npx tsx src/__tests__/export-presentation-schema-guard-c06b.test.ts`
  */
 
@@ -87,15 +95,22 @@ function assertTypedSchemaUnavailable(label: string, status: number, headers: an
 	}
 }
 
-// ─── S15 — the configured database is never migrated by this suite ───
+// ─── S15 — the configured database is never mutated by this suite ───
 
-test('S15 — configured database remains unapplied before the suite', () => {
+// The before-probe result is captured read-only at the start and re-probed after
+// the disposable matrix. S15 controls NON-MUTATION of the configured database's
+// presentation-table state, not absence (migration 0003 is applied — see the
+// dated supersession note in the file header).
+let configuredBefore: string | null = null;
+
+test('S15 — this suite never mutates the configured database', () => {
 	assert.ok(RUNNABLE, 'FATAL: disposable PostgreSQL harness unavailable (S1 precondition cannot be satisfied)');
 	const sourceUrl = readSourceDatabaseUrl();
 	assert.ok(sourceUrl, 'DATABASE_URL must resolve from the environment, atlas-server/.env, or the durable runtime env');
 	const configured = new URL(sourceUrl!).pathname.replace(/^\//, '');
-	const before = psqlValue(sourceUrl!, configured, PROBE_SQL);
-	assert.equal(before, '', `S15(before): public.${PRESENTATION_TABLE} must not exist on the configured database`);
+	configuredBefore = psqlValue(sourceUrl!, configured, PROBE_SQL);
+	assert.notEqual(configuredBefore, null, 'S15(before): the read-only configured-database probe must actually run');
+	console.log(`S15(before): to_regclass('public.${PRESENTATION_TABLE}') on ${configured} = ${JSON.stringify(configuredBefore)}`);
 });
 
 // ─── S1..S14, S16 — the disposable matrix ───
@@ -382,5 +397,10 @@ test('teacher-program presentation schema guard matrices on a disposable Postgre
 		configuredAfter = psqlValue(sourceUrl!, configuredDatabase, PROBE_SQL);
 	}
 
-	assert.equal(configuredAfter, '', `S15(after): public.${PRESENTATION_TABLE} must still not exist on the configured database`);
+	assert.notEqual(configuredBefore, null, 'S15: the before-probe must have run, otherwise the non-mutation control would be vacuous');
+	assert.equal(
+		configuredAfter,
+		configuredBefore,
+		`S15(after): the suite must not mutate the configured database's presentation-table state (before=${JSON.stringify(configuredBefore)}, after=${JSON.stringify(configuredAfter)})`,
+	);
 });

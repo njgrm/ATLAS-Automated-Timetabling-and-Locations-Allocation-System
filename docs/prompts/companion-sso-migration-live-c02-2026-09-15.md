@@ -1,3 +1,12 @@
+> **RETIRED — `SUPERSEDED by MIG-APPLY-0002-0003 (2026-09-17)`. This packet is
+> NOT executable and must never be presented as executable.** Its premise is
+> falsified: both target objects now exist — `public.companion_sso_codes`
+> (`0002_companion_sso_code`) and `public.teacher_program_presentation_revisions`
+> (`0003_teacher_program_presentation`) — and `_prisma_migrations` holds 4
+> finished, non-rolled-back rows. Its §3 "both objects ABSENT" snapshot, its
+> two-row registry rollback target (§5.6/§7.4/§8), and its §9 approval sentence
+> are void. Preserved below unamended as historical evidence only.
+
 # COMPANION-SSO-MIGRATION-LIVE-C02-2026-09-15 — prepared HIGH migration preview/apply packet
 
 Status: **PREPARED — NOT APPROVED. The exact operator approval sentence in
