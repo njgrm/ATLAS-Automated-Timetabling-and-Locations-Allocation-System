@@ -26,6 +26,7 @@ import { resolveCanonicalSlotsFromRows, type ClassProgramSlotRow } from './class
 import { isSubjectAllowedForSectionProgram } from './subject-program-scope.service.js';
 import {
 	matchesSubjectOwnershipDepartment,
+	roomRequiredFeatures,
 } from './subject-ownership.service.js';
 import {
 	resolveMaxConsecutiveTeachingMinutesBeforeBreak,
@@ -2489,7 +2490,13 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 					&& isRoomGradeScopeCompatible(preferredHomeRoom, item.gradeLevel);
 
 				const featuresOf = (room: RoomInput) => new Set(room.features || []);
-				const requiredFeatures = subject.requiredFeatures ?? [];
+				// Only REAL room features may gate room selection. requiredFeatures
+				// also carries OWNER_DEPT:<code> ownership markers (written by
+				// mergeRequiredFeaturesWithAdditionalOwnerDepartments and read back
+				// by the qualification evaluator), which no room declares. Treating
+				// them as room requirements fails every room and reports a false
+				// ROOM_RESOURCE_UNAVAILABLE for the whole subject.
+				const requiredFeatures = roomRequiredFeatures(subject.requiredFeatures);
 
 				if (!isSpecializedDemand) {
 					// D-A: CLASSROOM authority may use only grade-scope-compatible,
@@ -2662,9 +2669,12 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 							if (!invariantVerdict.accepted) continue;
 						}
 
-						if (subject.requiredFeatures && subject.requiredFeatures.length > 0) {
+						// Ownership markers (OWNER_DEPT:*) are not room features and
+						// must not gate room selection here either.
+						const roomFeatureRequirements = roomRequiredFeatures(subject.requiredFeatures);
+						if (roomFeatureRequirements.length > 0) {
 							const roomFeatures = new Set(room.features || []);
-							if (!subject.requiredFeatures.every((feature) => roomFeatures.has(feature))) continue;
+							if (!roomFeatureRequirements.every((feature) => roomFeatures.has(feature))) continue;
 						}
 
 						if (getDemandSectionIds(item).some((sectionId) => wouldCreateConsecutiveLab(sectionId, slotCandidate.day, slotCandidate.startTime, slotCandidate.endTime, room.type))) continue;

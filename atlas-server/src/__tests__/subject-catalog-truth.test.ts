@@ -30,6 +30,7 @@ import {
 	getSubjectById,
 	ensureDefaultSubjects,
 } from '../services/subject.service.js';
+import { roomRequiredFeatures, isOwnerDepartmentFeature } from '../services/subject-ownership.service.js';
 
 // Disposable fixture school — NEVER canonical school 1.
 const SCHOOL = 99994;
@@ -639,6 +640,23 @@ async function main() {
 		}
 	} finally {
 		server.close();
+	}
+
+	console.log('=== 10. room-feature authority excludes OWNER_DEPT ownership markers ===');
+	{
+		// requiredFeatures is a mixed list: real room features AND OWNER_DEPT:*
+		// ownership markers (written by mergeRequiredFeaturesWithAdditionalOwner
+		// Departments, read by the qualification evaluator). Only room features
+		// may gate room selection or raise ROOM_FEATURE_MISMATCH. A live edit that
+		// folded OWNER_DEPT:TLE into requiredFeatures produced 100 false
+		// ROOM_RESOURCE_UNAVAILABLE blockers because no room declares it.
+		const mixed = roomRequiredFeatures(['LAB_BENCH', 'OWNER_DEPT:TLE']);
+		ok(mixed.length === 1 && mixed[0] === 'LAB_BENCH', `ownership marker stripped, real feature kept (${JSON.stringify(mixed)})`);
+		ok(roomRequiredFeatures(['OWNER_DEPT:TLE']).length === 0, 'ownership-marker-only list yields no room requirement');
+		ok(roomRequiredFeatures(['owner_dept:tle']).length === 0, 'marker filtering is case-insensitive');
+		ok(roomRequiredFeatures([]).length === 0, 'empty requirements stay empty');
+		ok(roomRequiredFeatures(undefined).length === 0, 'undefined requirements yield an empty list');
+		ok(isOwnerDepartmentFeature('OWNER_DEPT:TLE') && !isOwnerDepartmentFeature('LAB_BENCH'), 'marker predicate is precise');
 	}
 
 	// Exact cleanup — zero residue on the disposable school.

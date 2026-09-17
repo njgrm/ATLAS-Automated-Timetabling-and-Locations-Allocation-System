@@ -141,6 +141,21 @@ export function mergeRequiredFeaturesWithAdditionalOwnerDepartments(
 	return [...sanitizedFeatures, ...ownerFeatures];
 }
 
+/**
+ * `requiredFeatures` is a MIXED list: it carries real room features AND
+ * `OWNER_DEPT:<code>` ownership markers written by
+ * mergeRequiredFeaturesWithAdditionalOwnerDepartments and read back by the
+ * qualification evaluator. Only real room features may gate room selection —
+ * treating an ownership marker as a room requirement makes every room fail.
+ */
+export function isOwnerDepartmentFeature(feature: string | null | undefined): boolean {
+	return (feature ?? '').trim().toUpperCase().startsWith(OWNER_DEPARTMENT_FEATURE_PREFIX);
+}
+
+export function roomRequiredFeatures(requiredFeatures: string[] | null | undefined): string[] {
+	return (requiredFeatures ?? []).filter((feature) => !isOwnerDepartmentFeature(feature));
+}
+
 export function resolveSubjectAllowedOwnerDepartments(
 	explicitOwnerDepartment: string | null | undefined,
 	subjectCode: string | null | undefined,

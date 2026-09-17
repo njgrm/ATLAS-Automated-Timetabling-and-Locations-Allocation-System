@@ -32,6 +32,7 @@ import {
 	entryTermScope,
 	effectiveTermsOverlap,
 } from './effective-scheduled-resources.js';
+import { roomRequiredFeatures } from './subject-ownership.service.js';
 
 // ─── Violation codes ───
 
@@ -756,9 +757,13 @@ export function validateHardConstraints(ctx: ValidatorContext): ValidationResult
 		}
 
 		// Feature match — same "genuine failure" rule; silent when no features are required.
-		if (subject.requiredFeatures && subject.requiredFeatures.length > 0) {
+		// requiredFeatures also carries OWNER_DEPT:<code> ownership markers, which
+		// no room declares. They are not room features and must never raise a
+		// ROOM_FEATURE_MISMATCH (a HARD violation that would block publication).
+		const roomFeatureRequirements = roomRequiredFeatures(subject.requiredFeatures);
+		if (roomFeatureRequirements.length > 0) {
 			const roomFeatures = new Set(room.features || []);
-			const missing = subject.requiredFeatures.filter(f => !roomFeatures.has(f));
+			const missing = roomFeatureRequirements.filter(f => !roomFeatures.has(f));
 			if (missing.length > 0) {
 				const shouldDeferRoomFeatures = isModularPoolAssignment || e.metadata?.deferredRoomTypePreference === true;
 				violations.push({
@@ -770,7 +775,7 @@ export function validateHardConstraints(ctx: ValidatorContext): ValidationResult
 						: `Entry ${e.entryId}: room ${e.roomId} lacks required features: ${missing.join(', ')}.`,
 					entities: { roomId: e.roomId, subjectId: e.subjectId, sectionId: e.sectionId, entryIds: [e.entryId] },
 					meta: {
-						required: subject.requiredFeatures,
+						required: roomFeatureRequirements,
 						actual: room.features || [],
 						missing,
 						deferredRoomTypePreference: shouldDeferRoomFeatures,
