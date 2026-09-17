@@ -1,9 +1,9 @@
 {
   "contractVersion": "1.2.0",
   "registry": {
-    "lastUpdatedAt": "2026-09-17T12:17:10.766Z",
-    "lastUpdatedBy": "primary-planner:export-presentation-s15-rebaseline-closure",
-    "revision": 314
+    "lastUpdatedAt": "2026-09-17T12:39:41.955Z",
+    "lastUpdatedBy": "primary-planner:consolidated-deployment-c10-registration",
+    "revision": 315
   },
   "coordination": {
     "mode": "CYCLE_ACTIVE",
@@ -6756,6 +6756,162 @@
           "reason": "the stream changes when an unattended live data mutation may occur, so a fresh adversarial Wave Completion Auditor is required after integration."
         }
       }
+    },
+    {
+      "id": "CONSOLIDATED-DEPLOYMENT-C10",
+      "kind": "STREAM",
+      "objective": "Deploy one release pinned at the accepted origin/main tip that includes the C07R1 authorization fix, published-revision immutability, warning realism, export parity, generation-authority realism and the R3 term-authority canonicalization; remove the vestigial ATLAS_DEFAULT_SCHOOL_ID key from the durable env; re-point and restart the registered ATLAS-Runtime-Supervisor task on ports 5001/5174; then run the 13-row acceptance matrix with exactly one authorized login and logout. No data mutation, generation, publication, Teaching Load apply, term-cache apply, rollover, migration, or companion change.",
+      "riskTier": "HIGH",
+      "state": "RUNNING",
+      "stateUpdatedAt": "2026-09-17T12:39:41.955Z",
+      "nextAction": "Commission one fresh independent pre-action review over this amended packet and the frozen pin; on PASS return the packet's exact approval sentence (including the rotated out-of-band SSO provisioning channel, or the drop variant) to the operator; on approval record it through record-approval and dispatch the deployment executor in E:/ATLAS-worktrees/consolidated-deploy-c10, then record execution, evidence, the post-action acceptance review, and the Wave Completion Auditor.",
+      "awaited": [
+        "one fresh independent pre-action review of the amended deployment packet and the frozen pin",
+        "the operator's exact approval sentence, which must name the literal pin and either the rotated SSO provisioning path or the drop variant",
+        "the deployment executor return (REVIEW_REQUIRED) with the 13-row acceptance matrix and evidence",
+        "the fresh post-action acceptance review and the fresh Wave Completion Auditor"
+      ],
+      "running": [
+        "CONSOLIDATED-DEPLOYMENT-C10 dispatch: amended packet and frozen pin prepared, register row created by CAS with an ACTIVE executor lease, pre-action review being commissioned; no listener, task, env, or data mutation has occurred"
+      ],
+      "git": {
+        "worktree": "E:/ATLAS-worktrees/consolidated-deploy-c10",
+        "branch": "chore/consolidated-deploy-c10",
+        "baseSha": "43341ac7cb908f9ca692dbc93f8da8ef26ec52b0",
+        "candidateSha": null,
+        "integrationSha": null,
+        "changedPaths": [],
+        "remoteObservation": {
+          "ref": "refs/remotes/origin/main",
+          "sha": "3b9e00c1209daacf559245636eab3521195b63ef",
+          "observedAt": "2026-09-17T12:39:41.955Z",
+          "kind": "REMOTE_TRACKING_REF"
+        }
+      },
+      "owners": {
+        "planner": {
+          "sessionId": null,
+          "status": "IDLE",
+          "writable": false
+        },
+        "executor": {
+          "sessionId": null,
+          "status": "NONE",
+          "writable": false
+        },
+        "qa": {
+          "sessionId": null,
+          "status": "NONE",
+          "writable": false
+        },
+        "auditor": {
+          "sessionId": null,
+          "status": "NONE",
+          "writable": false
+        }
+      },
+      "gates": {
+        "total": 0,
+        "passed": 0,
+        "failed": 0,
+        "blocked": 0,
+        "unperformed": 0,
+        "plan": {
+          "MANDATORY_SOURCE": 3,
+          "MANDATORY_LIVE": 13,
+          "DEFERRED_EXTERNAL": 0
+        },
+        "classes": {
+          "MANDATORY_SOURCE": {
+            "total": 0,
+            "passed": 0,
+            "failed": 0,
+            "blocked": 0,
+            "unperformed": 0
+          },
+          "MANDATORY_LIVE": {
+            "total": 0,
+            "passed": 0,
+            "failed": 0,
+            "blocked": 0,
+            "unperformed": 0
+          },
+          "DEFERRED_EXTERNAL": {
+            "total": 0,
+            "passed": 0,
+            "failed": 0,
+            "blocked": 0,
+            "unperformed": 0
+          }
+        }
+      },
+      "review": {
+        "qaVerdict": null,
+        "qaSessionId": null,
+        "auditorVerdict": null,
+        "auditorSessionId": null,
+        "auditRequired": true,
+        "qaRounds": []
+      },
+      "corrections": [],
+      "successors": [],
+      "requires": [
+        "MIG-APPLY-0002-0003",
+        "G9G10-FLAG-SOURCE-LANE"
+      ],
+      "blocker": {
+        "kind": "APPROVAL",
+        "detail": "Approval-gated HIGH action, dispatched 2026-09-17. Every prerequisite is satisfied and verified at dispatch: MIG-APPLY-0002-0003 applied and verified (INTEGRATED, 12/12 rows; only a docs-only closure correction remains), G9G10-FLAG-SOURCE-LANE integrated (COMPLETE), SLOT-BREAK-AUTHORITY-C11/C11R COMPLETE, WF-C10-TRANSITION-GUARD-HARDENING COMPLETE, directive pin reproduced at the dispatch tip. The binding gate is the operator's exact approval sentence, which is returned only after one fresh independent pre-action review passes, and which must resolve the SSO clause: the paired EnrollPro secrets were published in plaintext and must be rotated and re-provisioned out of band, so the clause either runs against rotated values from the named operator-only provisioning file or is dropped to a separate HIGH env action. FACULTY-SYNC-PUBLICATION-CAS-C01 is NOT a prerequisite for this action (zero published revisions exist); it is required before publication only. Kind is APPROVAL rather than DEPENDENCY because the contract forbids DEPENDENCY blockers that carry safe work, and this stream legitimately has safe work remaining.",
+        "safeWorkRemaining": true,
+        "safeWorkItems": [
+          "commission the fresh independent pre-action review over the amended packet and the frozen pin",
+          "present the exact approval sentence, with the SSO clause resolved, and hold custody of the declared provisioning channel",
+          "prepare the alternate-port preflight build plan and the rollback startability proof"
+        ]
+      },
+      "approval": {
+        "required": true,
+        "presentedReady": false,
+        "granted": false,
+        "operatorIdentity": null,
+        "approvedAt": null,
+        "boundary": null,
+        "approvedActions": [
+          "build and install a release pinned at the frozen pin, including the alternate-port preflight smoke and the rollback startability proof, with the non-secret client build input VITE_ENROLLPRO_URL=https://dev-jegs.buru-degree.ts.net",
+          "remove the vestigial ATLAS_DEFAULT_SCHOOL_ID key from D:\\ATLAS-runtime-config\\atlas-server.env and add exactly the four declared companion-SSO keys (ENROLLPRO_SSO_CLIENT_SECRET, ATLAS_SSO_REVERSE_CLIENT_SECRET, ENROLLPRO_SSO_CALLBACK_URL, ENROLLPRO_BASE_URL) from the operator-only provisioning file using rotated out-of-band values only, then delete that provisioning file after the env change is verified",
+          "re-point and restart the ATLAS-Runtime-Supervisor task on ports 5001/5174",
+          "one authorized login and logout for the acceptance matrix",
+          "symmetric rollback to 54dce67b (then 9d293879) only on a failed mandatory acceptance row",
+          "record the bounded approval, execution, evidence, and register docs-only records"
+        ],
+        "requiredObservationIds": [],
+        "execution": null
+      },
+      "observations": [],
+      "artifacts": [],
+      "closure": null,
+      "sessionRouting": {
+        "planner": {
+          "decision": "FRESH_REQUIRED",
+          "sessionId": null,
+          "reason": "a HIGH shared-runtime deployment requires its own activated cycle and custody."
+        },
+        "executor": {
+          "decision": "FRESH_REQUIRED",
+          "sessionId": null,
+          "reason": "the deployment executor runs in a fresh context with the exact approved boundary."
+        },
+        "qa": {
+          "decision": "FRESH_REQUIRED",
+          "sessionId": null,
+          "reason": "one fresh independent pre-action review before the approval, and post-action acceptance evidence review."
+        },
+        "auditor": {
+          "decision": "FRESH_REQUIRED",
+          "sessionId": null,
+          "reason": "a HIGH runtime action requires a fresh adversarial Wave Completion Auditor after the deployment."
+        }
+      }
     }
   ],
   "leases": [
@@ -6933,6 +7089,17 @@
       "state": "ACTIVE",
       "revision": 1,
       "updatedAt": "2026-09-17T12:00:50.354Z",
+      "expiresAt": null
+    },
+    {
+      "id": "lease-consolidated-deployment-c10",
+      "streamId": "CONSOLIDATED-DEPLOYMENT-C10",
+      "worktree": "E:/ATLAS-worktrees/consolidated-deploy-c10",
+      "role": "executor",
+      "sessionId": null,
+      "state": "ACTIVE",
+      "revision": 1,
+      "updatedAt": "2026-09-17T12:39:41.955Z",
       "expiresAt": null
     }
   ],
