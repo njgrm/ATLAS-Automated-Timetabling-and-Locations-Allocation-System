@@ -59,12 +59,12 @@ set up:
 - Policy present (45 min periods, 10/day, max 480 teaching min/day); 98 rooms,
   4379 capacity ✓
 
-### The 66 genuine blockers, by class
+### The 66 genuine blockers, by class (INITIAL state, before the Robotics fix)
 
 | Count | Code | Meaning |
 | --- | --- | --- |
 | 8 | `FLAG_CEREMONY_SCOPE_INVALID` | The policy Flag Ceremony/HGP window **07:00–07:30** is contained by no canonical CLASS row. The shape signatures render the flag at **09:00–09:15** (G7/G8) and **15:15–15:30** (G9/G10). Affects G9 + G10 × all four programs. |
-| 3 | `CANONICAL_SHAPE_CAPACITY_EXCEEDED` | **G10 STE requires 55 weekly sessions but only 50 canonical CLASS slots exist** (T1, T2, T3). Fix by reducing demand, correcting the canonical shape, or splitting the section — never by widening the shift. |
+| 3 | `CANONICAL_SHAPE_CAPACITY_EXCEEDED` | **G10 STE requires 55 weekly sessions but only 50 canonical CLASS slots exist** (T1, T2, T3). |
 | 24 | `WORKLOAD_POLICY_BLOCK` | Every candidate owner is at their workload/slot limit for the session. |
 | 26 | `ROOM_RESOURCE_UNAVAILABLE` | No room matched the required type/features/capacity. |
 | 5 | `SEARCH_LIMIT_UNRESOLVED` | Scheduler could not place the session (`NO_AVAILABLE_SLOT`) within its bounded search. |
@@ -75,24 +75,64 @@ Two further **product decisions** are recorded in `decisionNotes`:
    but an overlapping Flag Ceremony/HGP/TLE row remains template drift pending a
    Product decision.
 
+## Progress against the blockers (this session)
+
+### ✅ Robotics removed — cleared 18 blockers (66 → 48)
+
+G10 STE demand decomposes exactly to **11 contributing subjects × 5 sessions = 55**:
+AP · ENG · ESP · FIL · MAPEH · MATH · Science-rotation · Applied Physics · Research ·
+**Robotics** · TLE-rotation. The three TLE members collapse to one 5-session rotation,
+the three Sciences to one 5-session rotation, and HG is `REFERENCE_ONLY`.
+
+**Robotics was archived live via the Subjects page** (subject id 18, `STE_ROBOTICS`,
+grade 10 / STE only, 225 min/wk). "Archive for new schedules" sets the subject
+inactive; `derived-demand.service.ts:342` filters on
+`subject.isActive && schedulingDisposition === 'SCHEDULED_TEACHING'`, so it leaves
+demand while its 3 historical `facultySubject` / `subjectSectionOwnership` rows are
+preserved. **This is a live data mutation and must be recorded as such.**
+
+| | Before | After |
+| --- | --- | --- |
+| Total blockers | 66 | **48** |
+| `CANONICAL_SHAPE_CAPACITY_EXCEEDED` | 3 | **0** |
+| `WORKLOAD_POLICY_BLOCK` | 24 | **9** (15 cleared as a side effect) |
+| sessions per term | 925 | 920 (−5) |
+
+### The remaining 48 blockers
+
+| Count | Code | Now concentrated on |
+| --- | --- | --- |
+| 26 | `ROOM_RESOURCE_UNAVAILABLE` | **All `TLE_ICT_EXP`** (sections 143/144/145/149…, externalIds). `TLE_ICT_EXP` requires `preferredRoomType = COMPUTER_LAB`; the school has exactly **one** `COMPUTER_LAB` — "Computer Lab 1", id 88, capacity 40, `isTeachingSpace: true`. Section `maxCapacity` is 40, so capacity matches and neither side declares features; the likely cause is **contention** (`ROOM_PATH_EXHAUSTED`) for a single lab. `classifyUnassignedBlocker` (`generation-preflight.service.ts:416`) collapses `NO_COMPATIBLE_ROOM`, `ROOM_CAPACITY_EXCEEDED`, `ROOM_PATH_EXHAUSTED`, `SPECIALIZED_ROOM_UNAVAILABLE`, and `HOME_ROOM_UNAVAILABLE` into this one code, and the serialized blocker does not expose which fired. **Next probe:** surface the raw `roomAssignmentReason` to confirm before changing data. **Probable fix:** reclassify one or two rooms (e.g. the TLE_WORKSHOP "Electronics Lab" id 95, or a spare classroom) as `COMPUTER_LAB` via the Campus Map. |
+| 9 | `WORKLOAD_POLICY_BLOCK` | `SPS_SPEC` (sec 142), `DEVL_READING` (sec 145), `STE_BIOTECH` (sec 148) — **all at "session 5"**, i.e. the owner is at the workload cap on the fifth weekly session. |
+| 8 | `FLAG_CEREMONY_SCOPE_INVALID` | The approved per-scope flag-window correction (below). |
+| 5 | `SEARCH_LIMIT_UNRESOLVED` | `SCI_BIO` (sec 141, 146, T2 session 5) and `DEVL_READING` (sec 147, T1/T2/T3 session 5) — again the **fifth session**. |
+
+**Note the dominant pattern:** most non-room blockers are about the **fifth weekly
+session** of a 225-min/week (5-session) subject. Workload limits and/or available
+slots are the constraint, not demand shape.
+
 ### Consequences
 
-- **`DATA-CORRECTION-C01` is mis-targeted**: it operates on the archived year and its
-  four blocking findings make it unapprovable. The demo needs a **policy + shape +
-  capacity correction on year 10**, in this priority order: (1) align the policy Flag
-  Ceremony window with the canonical per-shift rows, (2) resolve the G10 STE 55-vs-50
-  capacity conflict, (3) review workload limits, (4) review room type/feature
-  classification, (5) place the 5 unplaced sessions.
+- **`DATA-CORRECTION-C01` is mis-targeted and must be RESCOPED** (operator ruling):
+  it operates on the archived year and its four blocking findings make it
+  unapprovable. Its subject matter belongs on **year 10**.
+- **Approved product direction (operator, this session):** the **per-scope shape**
+  owns the Flag/HGP window, not the single global `flagCeremonyStartTime/EndTime`
+  policy field. The preflight must validate the per-scope shape window; the global
+  field's role in this check is retired.
 
 ## Immediate next action
 
-**Investigate the `FLAG_CEREMONY_SCOPE_INVALID` blocker** — 8 of the 66, and the one
-most likely to be a policy-configuration defect rather than a demand/resource reality.
-Start from the policy's flag-window fields and the shape-signature rendering path
-(`generation-preflight.service.ts` around the flag-scope validation, and the
-`shapeSignatures` producer). Confirm whether the policy can express a per-shift or
-day-scoped flag window; if it cannot, that is a code change, and if it can, it is a
-policy data correction.
+1. Author the **per-scope Flag/HGP window correction packet** (approved): validate
+   the shape's per-scope flag window in `generation-preflight.service.ts`
+   (`~line 1033-1082`) instead of the global policy field; prove with a mutant that
+   a stale global window no longer blocks a correctly-shaped afternoon shift.
+2. Confirm the `TLE_ICT_EXP` room reason (raw `roomAssignmentReason`) and, if
+   contention, reclassify rooms as `COMPUTER_LAB` via the Campus Map.
+3. Review the "session 5" workload/slot constraint for `SPS_SPEC`,
+   `DEVL_READING`, `STE_BIOTECH`, `SCI_BIO`.
+4. Rescope `DATA-CORRECTION-C01` onto year 10 (or abandon it in favour of the
+   above), and reconcile the register's stale `8eb0511b` stream text.
 
 ## Stream states
 
