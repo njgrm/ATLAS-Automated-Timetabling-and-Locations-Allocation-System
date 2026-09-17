@@ -1,9 +1,9 @@
 {
   "contractVersion": "1.2.0",
   "registry": {
-    "lastUpdatedAt": "2026-09-17T21:18:08.520Z",
+    "lastUpdatedAt": "2026-09-17T21:35:54.952Z",
     "lastUpdatedBy": "primary-planner:consolidated-deployment-c10-integration",
-    "revision": 358
+    "revision": 360
   },
   "coordination": {
     "mode": "CYCLE_ACTIVE",
@@ -7301,21 +7301,23 @@
       "kind": "STREAM",
       "objective": "One HIGH shared-runtime release swap that ships the accepted CLIENT-QUALITY-C01 client fixes and clears its blocked live gate. Build and install a release pinned at the accepted tip, re-point and restart the supervisor-owned runtime via the registered ATLAS-Runtime-Supervisor task, and run the live acceptance matrix including the client-route-smoke spec across every route on https://njgrm.buru-degree.ts.net. Clears gate L2 (every route passing live), removes the live /timetable React #310 crash, and verifies the four UX rows in production. Rollback is a symmetric re-point to the currently-live 8eb0511baa537d4212f24a007ac40e2dded38c0e. No data mutation, generation, publication, Teaching Load apply, term-cache apply, rollover, migration, durable-env edit, or companion change.",
       "riskTier": "HIGH",
-      "state": "PLANNED",
-      "stateUpdatedAt": "2026-09-17T21:18:08.520Z",
-      "nextAction": "Register by CAS, re-point the active cycle to this lane, commission one fresh independent pre-action review of docs/prompts/client-quality-release-swap-01-2026-09-17.md, return its exact approval sentence to the operator, then execute the swap and the 8-row live acceptance matrix.",
+      "state": "ACCEPT_READY",
+      "stateUpdatedAt": "2026-09-17T21:35:54.952Z",
+      "nextAction": "Post-action acceptance ACCEPT_READY 12/12/0/0: the 8-row live matrix independently reproduced including a 30-route crawl with zero React/page errors, and an adversarial SYSTEM-run pin check confirming the ownership fix does not depend on a per-user safe.directory entry. Next: one fresh Wave Completion Auditor, then close-cycle. A planner-owned docs reconciliation is owed for N1.",
       "awaited": [
-        "one fresh independent pre-action review of the swap packet",
-        "the operator's exact approval sentence (returned only after the pre-action review passes)"
+        "planner validates the immutable range and integration boundary"
       ],
       "running": [],
       "git": {
-        "worktree": "E:/ATLAS-worktrees/client-quality-release-swap-01",
-        "branch": "chore/client-quality-release-swap-01",
-        "baseSha": "ee5a2bf19c2491aa204a78e775fec98056780350",
-        "candidateSha": null,
+        "worktree": "E:/ATLAS-worktrees/release-client-quality-01",
+        "branch": "release/client-quality-01",
+        "baseSha": "78be1b760e4059a4c0d0ea227579eaeb731cdf6d",
+        "candidateSha": "d8ca175fa87fd33447259848a5e2ffc153984003",
         "integrationSha": null,
-        "changedPaths": [],
+        "changedPaths": [
+          "docs/plans/atlas-active-delivery-streams.generated.md",
+          "docs/plans/atlas-delivery-cycles.json"
+        ],
         "remoteObservation": {
           "ref": "refs/remotes/origin/main",
           "sha": "d4412111dbb57dfad5cdf9792a48ee0c5369ac97",
@@ -7330,13 +7332,13 @@
           "writable": false
         },
         "executor": {
-          "sessionId": null,
-          "status": "NONE",
+          "sessionId": "planner-executed-closure",
+          "status": "RETURNED",
           "writable": false
         },
         "qa": {
-          "sessionId": null,
-          "status": "NONE",
+          "sessionId": "ses_f4ec2aadcffezuvYqcrftWvwkM",
+          "status": "RETURNED",
           "writable": false
         },
         "auditor": {
@@ -7346,27 +7348,27 @@
         }
       },
       "gates": {
-        "total": 0,
-        "passed": 0,
+        "total": 12,
+        "passed": 12,
         "failed": 0,
         "blocked": 0,
         "unperformed": 0,
         "plan": {
-          "MANDATORY_SOURCE": 0,
+          "MANDATORY_SOURCE": 4,
           "MANDATORY_LIVE": 8,
           "DEFERRED_EXTERNAL": 0
         },
         "classes": {
           "MANDATORY_SOURCE": {
-            "total": 0,
-            "passed": 0,
+            "total": 4,
+            "passed": 4,
             "failed": 0,
             "blocked": 0,
             "unperformed": 0
           },
           "MANDATORY_LIVE": {
-            "total": 0,
-            "passed": 0,
+            "total": 8,
+            "passed": 8,
             "failed": 0,
             "blocked": 0,
             "unperformed": 0
@@ -7381,12 +7383,18 @@
         }
       },
       "review": {
-        "qaVerdict": null,
-        "qaSessionId": null,
+        "qaVerdict": "ACCEPT_READY",
+        "qaSessionId": "ses_f4ec2aadcffezuvYqcrftWvwkM",
         "auditorVerdict": null,
         "auditorSessionId": null,
         "auditRequired": true,
-        "qaRounds": []
+        "qaRounds": [
+          {
+            "round": 1,
+            "verdict": "ACCEPT_READY",
+            "sessionId": "ses_f4ec2aadcffezuvYqcrftWvwkM"
+          }
+        ]
       },
       "corrections": [],
       "successors": [],
