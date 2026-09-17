@@ -120,12 +120,21 @@ Not changed by this action (recorded for the next one):
   already live (`c989f03d` is an ancestor of `54dce67b`) and the routes are mounted on Tailnet
   (read-only probes return 401, not 404, for `/api/v1/auth/sso/authorize` and
   `/api/v1/auth/sso/exchange`), but **no `SSO`/`COMPANION` key exists in the durable env**, so
-  the service fails closed with `COMPANION_SSO_NOT_CONFIGURED`. Required, from the paired values
-  provisioned by the operator and EnrollPro (per `docs/handoffs/companion-sso-live-prep-c02-evidence.md`):
-  `ENROLLPRO_SSO_CLIENT_SECRET` (>= 32 chars, identical on both sides),
-  `ENROLLPRO_SSO_CALLBACK_URL` (EnrollPro's exact reverse callback URL), and `ENROLLPRO_BASE_URL`
-  (if not already implied by `ENROLLPRO_API`). Optionally, for the client build,
-  `VITE_ENROLLPRO_SSO_START_URL` as an explicit reverse-start override.
+   the service fails closed with `COMPANION_SSO_NOT_CONFIGURED`. Required, from the paired values
+   provisioned by the operator and EnrollPro (per `docs/handoffs/companion-sso-live-prep-c02-evidence.md`):
+   `ENROLLPRO_SSO_CLIENT_SECRET` (>= 32 chars, identical on both sides),
+   `ENROLLPRO_SSO_CALLBACK_URL` (EnrollPro's exact reverse callback URL), and `ENROLLPRO_BASE_URL`
+   (if not already implied by `ENROLLPRO_API`). Optionally, for the client build,
+   `VITE_ENROLLPRO_SSO_START_URL` as an explicit reverse-start override.
+   **Also required, and easy to miss:** `ATLAS_SSO_REVERSE_CLIENT_SECRET` — the vendor-shared
+   *inbound* bearer that EnrollPro presents to `POST /api/v1/auth/sso/exchange`. ATLAS resolves the
+   outbound secret by preferring `ENROLLPRO_SSO_CLIENT_SECRET` then falling back to
+   `ATLAS_SSO_CLIENT_SECRET`, but resolves the inbound expected secret by preferring
+   **`ATLAS_SSO_REVERSE_CLIENT_SECRET`** then falling back to `ENROLLPRO_REVERSE_CLIENT_SECRET`
+   (`companion-sso.service.ts:131-143`), compared with `timingSafeEqual` at `:170`. With only the
+   three keys above set, ATLAS can *call* EnrollPro but rejects EnrollPro's reverse-exchange bearer,
+   so the reverse leg fails closed. Set the key under its canonical (EnrollPro) name from their
+   configuration block; do not set both the canonical and legacy name for the same direction.
   **Never invent, print, or log a secret value.** Record only key names and a checksum of the file.
   This amendment is DROPPED (and the SSO keys become a separate HIGH env action) if the paired
   values are not available at approval time — say so in the approval rather than deploying a

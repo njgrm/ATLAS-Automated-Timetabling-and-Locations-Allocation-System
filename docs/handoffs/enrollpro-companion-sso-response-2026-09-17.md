@@ -61,14 +61,25 @@ server route**, canonically `/api/v1/auth/enrollpro/callback`.
 
 ## 4. The paired-values table (both sides must agree)
 
-| EnrollPro key | ATLAS key | Must be |
-|---|---|---|
-| `ATLAS_SSO_CLIENT_SECRET` | `ENROLLPRO_SSO_CLIENT_SECRET` | identical, random, >= 32 chars, never printed |
-| (registered reverse callback) | `ENROLLPRO_SSO_CALLBACK_URL` | the exact string `https://dev-jegs.buru-degree.ts.net/api/auth/companion-sso/atlas/reverse/callback` — ATLAS compares the presented `redirect_uri` against this value strictly |
-| `ENROLLPRO_BASE_URL` / `<ENROLLPRO_BASE_URL>` | `ENROLLPRO_BASE_URL` | EnrollPro's base URL used by ATLAS for outbound calls |
+| Their key (as published in your configuration block) | Our key | Direction / job | Must be |
+|---|---|---|---|
+| `ATLAS_SSO_CLIENT_SECRET` | `ENROLLPRO_SSO_CLIENT_SECRET` (ATLAS also accepts `ATLAS_SSO_CLIENT_SECRET` as a legacy fallback) | **ATLAS -> EnrollPro**: ATLAS presents this as the bearer when calling your exchange | identical on both sides, >= 32 chars, never printed |
+| **`ATLAS_SSO_REVERSE_CLIENT_SECRET`** | **`ATLAS_SSO_REVERSE_CLIENT_SECRET`** (same name; legacy fallback `ENROLLPRO_REVERSE_CLIENT_SECRET`) | **EnrollPro -> ATLAS**: the bearer you present to `POST /api/v1/auth/sso/exchange`, which ATLAS validates with a constant-time compare | identical on both sides, >= 32 chars, never printed |
+| (your registered reverse callback) | `ENROLLPRO_SSO_CALLBACK_URL` | the `redirect_uri` ATLAS sends you | the exact string `https://dev-jegs.buru-degree.ts.net/api/auth/companion-sso/atlas/reverse/callback` — ATLAS compares the presented `redirect_uri` against this value strictly |
+| `<ENROLLPRO_BASE_URL>` | `ENROLLPRO_BASE_URL` | EnrollPro's base URL for ATLAS's outbound calls | your canonical base URL |
 
-ATLAS also needs `ENROLLPRO_SSO_CALLBACK_URL` and `ENROLLPRO_BASE_URL`; both are being set with our pending
-deployment alongside `ENROLLPRO_SSO_CLIENT_SECRET`. Nothing is live on our side yet.
+**Key-name note:** ATLAS deliberately accepts *your* key names. `ENROLLPRO_SSO_CLIENT_SECRET` is our
+canonical outbound name with `ATLAS_SSO_CLIENT_SECRET` as a legacy fallback, and
+`ATLAS_SSO_REVERSE_CLIENT_SECRET` is our canonical inbound name with `ENROLLPRO_REVERSE_CLIENT_SECRET` as
+the fallback (`atlas-server/src/services/companion-sso.service.ts:131-143`, compared with
+`timingSafeEqual` at `:170`). So the two secret **names** and values from your block can be set on our side
+verbatim; no renaming is needed on either side. Set one name per direction, not both.
+
+**Correction to §4 as first published:** ATLAS does **not** need you to mint an additional value. Both
+directions are already covered by the two secret values in your published block — our durable env simply
+takes those two values (plus `ENROLLPRO_SSO_CALLBACK_URL` and `ENROLLPRO_BASE_URL`) at the pending
+deployment. Nothing is live on our side yet. The only change we ask for on the values themselves is the
+rotation in §3 **F3/F4**; if you rotate, you must send us the new value for the direction you rotated.
 
 ## 5. ATLAS-side status (so you can plan the joint session)
 
