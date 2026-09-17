@@ -1,9 +1,9 @@
 {
   "contractVersion": "1.2.0",
   "registry": {
-    "lastUpdatedAt": "2026-09-17T03:26:22.203Z",
+    "lastUpdatedAt": "2026-09-17T03:52:47.791Z",
     "lastUpdatedBy": "primary-planner:slot-break-c11r-registration",
-    "revision": 263
+    "revision": 264
   },
   "coordination": {
     "mode": "CYCLE_ACTIVE",
@@ -17,7 +17,7 @@
       "objective": "Introduce the repository-owned machine-readable delivery-cycle state contract, a fail-closed verifier, a deterministic Markdown register renderer, and regression fixtures.",
       "riskTier": "MEDIUM",
       "state": "COMPLETE",
-      "stateUpdatedAt": "2026-09-16T17:41:03.020Z",
+      "stateUpdatedAt": "2026-09-17T03:52:47.791Z",
       "nextAction": null,
       "awaited": [],
       "running": [],
@@ -216,7 +216,7 @@
       "artifacts": [
         {
           "path": "ops/workflow/schema/cycle-state.schema.json",
-          "sha256": "73747303bf2d0d72fec19277be090fe3afcf49606f6910faad389409bd78db7c"
+          "sha256": "934dd847f7cc295e141f940697471b712b8970b1229f4c8e8271eb2ad0e51e64"
         },
         {
           "path": "docs/handoffs/wf-c01-executor.md",
