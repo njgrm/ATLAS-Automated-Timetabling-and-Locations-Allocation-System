@@ -1,9 +1,9 @@
 {
   "contractVersion": "1.2.0",
   "registry": {
-    "lastUpdatedAt": "2026-09-17T15:42:30.011Z",
-    "lastUpdatedBy": "primary-planner:consolidated-deployment-c10-resume",
-    "revision": 333
+    "lastUpdatedAt": "2026-09-17T16:06:30.822Z",
+    "lastUpdatedBy": "primary-planner:consolidated-deployment-c10-execution",
+    "revision": 334
   },
   "coordination": {
     "mode": "CYCLE_ACTIVE",
@@ -6776,7 +6776,7 @@
       "objective": "Deploy one release pinned at the accepted origin/main tip that includes the C07R1 authorization fix, published-revision immutability, warning realism, export parity, generation-authority realism and the R3 term-authority canonicalization; remove the vestigial ATLAS_DEFAULT_SCHOOL_ID key from the durable env; re-point and restart the registered ATLAS-Runtime-Supervisor task on ports 5001/5174; then run the 13-row acceptance matrix with exactly one authorized login and logout. No data mutation, generation, publication, Teaching Load apply, term-cache apply, rollover, migration, or companion change.",
       "riskTier": "HIGH",
       "state": "REVIEW_REQUIRED",
-      "stateUpdatedAt": "2026-09-17T15:42:30.011Z",
+      "stateUpdatedAt": "2026-09-17T16:06:30.822Z",
       "nextAction": "Dispatch the executor to resume the approved cutover from step 4: prove git -C <staged> rev-parse HEAD equals PIN40 BEFORE stopping the incumbent, then stop only the supervisor-owned 5001/5174 processes, re-point and restart the task, run the 13-row matrix with the single reserved login, and record the evidence. The operator performed the env change himself (13 keys, ATLAS_DEFAULT_SCHOOL_ID absent).",
       "awaited": [
         "the resumed executor return (REVIEW_REQUIRED) with the 13-row acceptance matrix",
@@ -6896,7 +6896,20 @@
           "record the bounded approval, execution, evidence, and register docs-only records"
         ],
         "requiredObservationIds": [],
-        "execution": null
+        "execution": {
+          "performed": true,
+          "actionsPerformed": [
+            "build and install a release pinned at 8eb0511baa537d4212f24a007ac40e2dded38c0e, including the alternate-port preflight smoke and the rollback startability proof, with the non-secret client build input VITE_ENROLLPRO_URL=https://dev-jegs.buru-degree.ts.net",
+            "remove the vestigial ATLAS_DEFAULT_SCHOOL_ID key from D:\\ATLAS-runtime-config\\atlas-server.env; the four companion-SSO keys are not part of this approval and must not be added",
+            "re-point and restart the ATLAS-Runtime-Supervisor task on the supervisor-owned ports 5001/5174",
+            "run the 13-row acceptance matrix with exactly one authorized login (LOCAL_LOGIN_SUCCESS + last_login_at delta named in advance) followed by logout",
+            "record the bounded approval, execution, evidence, and register docs-only records"
+          ],
+          "evidence": null,
+          "outcome": "Cutover EXECUTED and the release is live under the task-launched supervisor. Verified by the planner: 5001 to PID 18348 and 5174 to PID 48244, both children of supervisor PID 54804 whose parent is the Task Scheduler svchost; the task action and Start In now point at D:/ATLAS-runtime-supervised-8eb0511baa53-20260917; machine ATLAS_RUNTIME_SOURCE_DIR/RELEASE_SHA updated; cli.mjs status (with current machine env) reports releaseSha 8eb0511b and that sourceDir; the release supervisor-state.json corroborates ownedPids 18348/48244 at 2026-09-17T15:57:10Z; local health and ready 200, host live 200, Tailnet health 200. Env: the operator performed the ATLAS_DEFAULT_SCHOOL_ID removal himself (13 keys, sha 21ab1fad, no SSO keys, ACL untouched) - recorded here as the sanctioned action 2 with the actor disclosed. Acceptance: rows 1-8 and 10-13 PASS; row 9 (runtime/context actor-scope matrix) was NOT performed because the single authorized login was consumed for row 7 and the executor correctly refused a second login that would have falsified row 10. Row 9 is to be completed by the operator-authorized fresh post-action acceptance review using its own disclosed logins. No rollback was executed (no mandatory row failed); 54dce67b remains proven startable and 9d293879 stays withdrawn.",
+          "executedAt": "2026-09-17T16:06:30.822Z",
+          "recordedBy": "primary-planner:consolidated-deployment-c10-execution"
+        }
       },
       "observations": [],
       "artifacts": [],
