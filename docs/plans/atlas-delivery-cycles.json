@@ -1,9 +1,9 @@
 {
   "contractVersion": "1.2.0",
   "registry": {
-    "lastUpdatedAt": "2026-09-17T04:39:32.670Z",
+    "lastUpdatedAt": "2026-09-17T04:43:43.955Z",
     "lastUpdatedBy": "primary-planner:slot-break-c11r-registration",
-    "revision": 266
+    "revision": 267
   },
   "coordination": {
     "mode": "CYCLE_ACTIVE",
@@ -5665,11 +5665,11 @@
       "kind": "STREAM",
       "objective": "Make the machine register able to record HIGH gates and stale directives truthfully, and close four register-integrity defect classes found at R0: add record-approval and record-execution, add withdraw-approval as the documented exit from the currently dead-end HIGH_APPROVAL_REQUIRED state, add a directive-copy fail-closed check, add a packet-artifact pin lint that validates directive-pin reproducibility (A4: a directive bump must not invalidate an already-queued reproducible pin), add LF-normalized dependency-tree identity, extend the register revision window so a reservation spans from declaration through the holder's terminal transition with a WINDOW_LAPSED guard on bounded windows (A1), pin the RUNNING-without-live-evidence negative fixture with a settled account of the R2 substitution (A2), make the mandatory plugin-load gate hermetic by tracking .opencode/package.json with type=module (A3), and verify plus use record-executor-return --base (A5). Verify (do not re-implement) the WF-C09 R2 register revision-window reservation. No product source, runtime, database, or companion change.",
       "riskTier": "MEDIUM",
-      "state": "ACCEPT_READY",
-      "stateUpdatedAt": "2026-09-17T04:39:32.670Z",
-      "nextAction": "Planner: record the integration of candidate db5a9fce on merge 98a1550d with the refreshed remote observation, then push the merge together with this register state. Gate ledger: fresh QA ses_f53a770dbffehtUdAumTNPWZ9v accepted the candidate-tier rows (1-28, 30-33, 36-41) at 38/38/0/0; the packet integration-tier rows 29/34/35 are planner-owned and passed on the merged tree (suite 365/365 with 0 fail; verify-cycle exit 0 with 0 errors; workflow:render:check exit 0), completing the predeclared 41-row MANDATORY_SOURCE plan at 41/41/0/0/0.",
+      "state": "INTEGRATED",
+      "stateUpdatedAt": "2026-09-17T04:43:43.955Z",
+      "nextAction": "Planner: run one fresh independent Wave Completion Auditor over the integrated wave (candidate db5a9fce on integration 86ad12b1), then record-audit and close-cycle with the pinned receipt. The remote observation is recorded as the integration commit itself per the documented downstream-or-equal rule and is refreshed from the creation-time 27bfa11d.",
       "awaited": [
-        "planner validates the immutable range and integration boundary"
+        "fresh Wave Completion Auditor"
       ],
       "running": [],
       "git": {
@@ -5677,7 +5677,7 @@
         "branch": "work/wf-c10-transition-guard-hardening",
         "baseSha": "3ca730f09d13d81a61917b0c6da9220f8b2e3bac",
         "candidateSha": "db5a9fce4dfa100632a47502262be4fe74a1ac58",
-        "integrationSha": null,
+        "integrationSha": "86ad12b11a2c755ed23b7000c60d28de451ed568",
         "changedPaths": [
           ".opencode/package.json",
           "ops/workflow/README.md",
@@ -5704,8 +5704,8 @@
         ],
         "remoteObservation": {
           "ref": "refs/remotes/origin/main",
-          "sha": "27bfa11d72ee22bb15270bc4f49cee0917c8610e",
-          "observedAt": "2026-09-16T21:21:30.482Z",
+          "sha": "86ad12b11a2c755ed23b7000c60d28de451ed568",
+          "observedAt": "2026-09-17T04:43:43.955Z",
           "kind": "REMOTE_TRACKING_REF"
         }
       },
