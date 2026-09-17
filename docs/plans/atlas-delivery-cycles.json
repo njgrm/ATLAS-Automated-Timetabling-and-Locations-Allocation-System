@@ -1,9 +1,9 @@
 {
   "contractVersion": "1.2.0",
   "registry": {
-    "lastUpdatedAt": "2026-09-17T10:31:33.960Z",
-    "lastUpdatedBy": "primary-planner:mig-apply-0002-0003-registration",
-    "revision": 289
+    "lastUpdatedAt": "2026-09-17T10:58:33.064Z",
+    "lastUpdatedBy": "primary-planner:mig-apply-0002-0003-approval",
+    "revision": 290
   },
   "coordination": {
     "mode": "CYCLE_ACTIVE",
@@ -6141,7 +6141,7 @@
       "objective": "Apply exactly two additive reviewed migrations (0002_companion_sso_code sha256 c2502e3070a98e6a6ddf4a1568cf2b3368a5cc72db2983cd02d0311012e43baf; 0003_teacher_program_presentation sha256 b3270f02f16486f7b4e25538f80d675e42ba7cd6a9b704aebd3fff2593a764ee) to the live ATLAS database atlas_recovery_clean_rebuild_20260905 at host localhost:5432 through the canonical guarded wrapper (npm run migrate:guarded from atlas-server/), preceded by a verified fresh logical backup and an immediately re-measured pre-state, with the bounded 12-row post-action verification matrix and rollback limited to dropping the two new tables or restoring that backup. No deployment, runtime restart, product source, data mutation, seed, reset, generation, publication, task/env, or companion action; companion SSO activation and the consolidated deployment remain separate HIGH actions.",
       "riskTier": "HIGH",
       "state": "RUNNING",
-      "stateUpdatedAt": "2026-09-17T10:25:47.647Z",
+      "stateUpdatedAt": "2026-09-17T10:58:33.064Z",
       "nextAction": "Dispatch one fresh independent pre-action review of docs/prompts/mig-apply-0002-0003-2026-09-17.md; on its pass return the packet's exact approval sentence, then execute the guarded apply (verified backup -> pre-state re-measure -> npm run migrate:guarded) and run the 12-row acceptance matrix.",
       "awaited": [
         "one fresh independent pre-action review of docs/prompts/mig-apply-0002-0003-2026-09-17.md",
@@ -6251,11 +6251,18 @@
       "approval": {
         "required": true,
         "presentedReady": false,
-        "granted": false,
-        "operatorIdentity": null,
-        "approvedAt": null,
-        "boundary": null,
-        "approvedActions": [],
+        "granted": true,
+        "operatorIdentity": "operator:njgrm",
+        "approvedAt": "2026-09-17T10:58:33.064Z",
+        "boundary": "Exactly the reviewed boundary: apply migrations 0002_companion_sso_code (sha256 c2502e3070a98e6a6ddf4a1568cf2b3368a5cc72db2983cd02d0311012e43baf) and 0003_teacher_program_presentation (sha256 b3270f02f16486f7b4e25538f80d675e42ba7cd6a9b704aebd3fff2593a764ee) to database atlas_recovery_clean_rebuild_20260905 at host localhost:5432 using npm run migrate:guarded from atlas-server, preceded by a verified logical backup, with post-action verification and rollback limited to dropping the two new tables or restoring that backup. No other database, table, row, runtime, task, env, deployment, generation, or publication action is approved.",
+        "approvedActions": [
+          "re-measure the read-only pre-state immediately before the apply and stop on any divergence",
+          "take and validate the fresh pre-apply logical backup to the operator-only backup root",
+          "apply migrations 0002_companion_sso_code and 0003_teacher_program_presentation to atlas_recovery_clean_rebuild_20260905 through npm run migrate:guarded from atlas-server only",
+          "run the read-only L3-L8 post-action verification matrix and record the single evidence document",
+          "roll back on a failed mandatory verification by dropping only the two new tables or restoring the pre-apply backup",
+          "record the bounded approval, execution, evidence, and register docs-only records"
+        ],
         "requiredObservationIds": [],
         "execution": null
       },
