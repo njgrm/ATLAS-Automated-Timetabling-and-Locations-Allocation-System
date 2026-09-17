@@ -1,14 +1,14 @@
 {
   "contractVersion": "1.2.0",
   "registry": {
-    "lastUpdatedAt": "2026-09-17T16:31:13.888Z",
-    "lastUpdatedBy": "primary-planner:consolidated-deployment-c10-b1-ratified",
-    "revision": 339
+    "lastUpdatedAt": "2026-09-17T16:40:04.337Z",
+    "lastUpdatedBy": "primary-planner:consolidated-deployment-c10-b1-ratified-refresh",
+    "revision": 340
   },
   "coordination": {
     "mode": "CYCLE_ACTIVE",
     "activeCycleId": "CONSOLIDATED-DEPLOYMENT-C10",
-    "globalNextAction": "CONSOLIDATED-DEPLOYMENT-C10 is CORRECTION_REQUIRED at revision 336. The cutover IS executed and the shared runtime serves supervised release 8eb0511baa537d4212f24a007ac40e2dded38c0e (PIN40) on 5001/5174 under the task-launched supervisor (PIDs 18348/48244, parent 54804, Task Scheduler grandparent); local health and ready 200, host live 200, Tailnet 200. Acceptance was 14/14/0/0 (rows 1-8 and 10-13 by the executor, row 9 completed by the post-action review with its own disclosed logins 801/802; matrix login audit id 800). The Wave Completion Auditor returned CORRECTION_REQUIRED: B1 an undisclosed in-cycle global Git safe.directory addition with contrary evidence claims, B2 stale register coordination/git fields. Awaiting the operator decision on B1 (ratify retention of the entry for the SYSTEM-run supervisor, or authorize its removal plus a restart test) and then the reconciliation docs, fresh QA, and a fresh auditor before COMPLETE. DATA-CORRECTION-C01, the four companion-SSO keys, TERM-CACHE-CATCHUP-APPLY, AUTHZ-CLASS-TEMPLATE-LIVE, generation, and publication remain locked."
+    "globalNextAction": "CONSOLIDATED-DEPLOYMENT-C10 is CORRECTION_REQUIRED. The cutover IS executed and the shared runtime serves supervised release 8eb0511baa537d4212f24a007ac40e2dded38c0e (PIN40) on 5001/5174 under the task-launched supervisor (PIDs 18348/48244, parent 54804, Task Scheduler grandparent); local health and ready 200, host live 200, Tailnet 200. Acceptance was 14/14/0/0 (rows 1-8 and 10-13 by the executor; row 9 completed by the post-action review with its own disclosed logins 801/802; matrix login audit id 800). The Wave Completion Auditor returned CORRECTION_REQUIRED. B1 is RESOLVED by operator ratification: retention of the global Git safe.directory entry D:/ATLAS-runtime-supervised-8eb0511baa53-20260917 is ratified, the addition was explicitly instructed in the dispatched executor prompt but never transcribed into the recorded approvedActions - a record gap, not an unauthorized act - and the granted approvedActions were NOT retroactively modified. B2 is fixed. NO OPERATOR DECISION REMAINS. Remaining: one fresh independent QA over the corrected range, then one fresh Wave Completion Auditor, then closure, receipt, worktree retirement, and coordination back to MANUAL. DATA-CORRECTION-C01, the four companion-SSO keys, TERM-CACHE-CATCHUP-APPLY, AUTHZ-CLASS-TEMPLATE-LIVE, generation, and publication remain locked."
   },
   "streams": [
     {

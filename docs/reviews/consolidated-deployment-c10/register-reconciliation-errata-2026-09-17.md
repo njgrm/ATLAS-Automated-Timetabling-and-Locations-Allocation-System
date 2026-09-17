@@ -22,7 +22,7 @@ and the cutover evidence asserted the opposite.
 | Provenance | **explicitly instructed** in the planner's dispatched executor prompt for the C10 cutover, conditional on the dubious-ownership failure, and **not transcribed** into the stream's recorded `approvedActions` — a **record gap**, not an unauthorized act (operator ratification, 2026-09-17) |
 | Recorded `approvedActions` retroactively modified | **no** — the granted approval stands exactly as recorded |
 | Load-bearing for the elevated session | no (an empty-global test still resolves the pin while elevated) |
-| Load-bearing for the SYSTEM-run supervisor | **not established** — the supervisor runs as `SYSTEM` via Task Scheduler, and the incumbent release directory carries the same class of entry |
+| Load-bearing for the SYSTEM-run supervisor | operationally required, but **not independently tested as `SYSTEM`** — the supervisor runs as `SYSTEM` via Task Scheduler, and the incumbent release directory carries the same class of entry |
 
 **Why it matters.** The packet's install requirement (`verifyProductPin` →
 `git -C <sourceDir> rev-parse HEAD`) fails with `detected dubious ownership`
@@ -94,11 +94,12 @@ Candidate lineage, stated explicitly to avoid ambiguity:
 - **N4** The review's 14-gate tally versus the register's 16 (3 source + 13 live)
   is a counting-scope difference, not a defect.
 
-## Closure bar (unchanged)
+## Closure bar
 
-This cycle is **not** `COMPLETE`. Closure requires, in order: the operator's B1
-decision, this reconciliation committed, one **fresh** independent QA over the
-correction range, and one **fresh** Wave Completion Auditor over the corrected
-final tree. The deployed runtime is healthy on PIN40 throughout and is not in
-question; no runtime, task, env, login, or database action belongs to this
-reconciliation.
+This cycle is **not** `COMPLETE`. B1 is resolved (retention ratified; the
+instruction and the record gap are both recorded) and B2 is fixed. Closure
+requires, in order: this reconciliation committed, one **fresh** independent QA
+over the correction range, and one **fresh** Wave Completion Auditor over the
+corrected final tree. **No operator decision remains.** The deployed runtime is
+healthy on PIN40 throughout and is not in question; no runtime, task, env, login,
+or database action belongs to this reconciliation.
