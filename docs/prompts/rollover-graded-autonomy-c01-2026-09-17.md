@@ -195,3 +195,185 @@ transition-triggered notification, auto-apply under the pre-existing gate, and t
 operator judges even that insufficient to justify a cycle, the honest alternative is to leave the
 supervisor pin in place and rely on the existing Year Setup surface — say so rather than building it for
 its own sake.
+
+---
+
+## R2 — PLANNER VERIFICATION AND CORRECTIONS (governs where it conflicts with sections 1–3 or R1)
+
+Authored 2026-09-17 by the head planner after reading the real base tree at `43341ac7`. R1 stands except
+where R2.2 and R2.3 correct it.
+
+### R2.1 The section-1 line table is not valid evidence
+
+The packet's line references do not resolve against any version of this file. At the dispatch base,
+`atlas-server/src/services/rollover-automation.service.ts` is **612 lines**; section 1 cites `:1550`,
+`:1626`, `:1667`, `:1859`, `:1910-1912`, `:2095-2118`, `:2175`, and section 2.4 cites `:2017-2060`. Those
+anchors are **not** evidence and must not be treated as authoritative. Locate behaviour by symbol.
+
+Planner-verified anchors (base `43341ac7`):
+
+| Item | Real anchor |
+|---|---|
+| `ENABLED` = `process.env.ROLLOVER_AUTO_SYNC_ENABLED !== 'false'` | `rollover-automation.service.ts:35` |
+| `TICK_INTERVAL_MS` default 300000 / `MAX_BACKOFF_MS` default 1800000 | `:37-38` |
+| `RolloverAutomationDependencies` seam | `:40-51` |
+| `SchoolAutomationState` (`lastResult`, `lastNotifiedState`, `currentlyApplying`) | `:55-63` |
+| `notifyOnce` (dedupe key is `type:lastResult`) | `:114-134` |
+| `tickRolloverAutomation` | `:138-427` |
+| unreachable + bounded backoff | `:168-175` |
+| `previewRollover(schoolId)` | `:177` |
+| pending-archive marker retry (`applyTestRecovery`) | `:188-245` |
+| test-mode collision auto-clear (`applyTestRecovery`) | `:249-307` |
+| conflicts branch | `:309-346` |
+| archive-resolvable self-heal (applies and archives) | `:314-339` |
+| non-aligned skip | `:348-353` |
+| reconfigured-section guard | `:355-361` |
+| auto-apply call | `:363` |
+| post-sync archive loop | `:369-392` |
+| completion notification | `:394-416` |
+| `withSchoolLock` / `runTick` / `startRolloverAutomation` | `:444-462` / `:466-477` / `:479-494` |
+| `getAutomationStatus` | `:590-612` |
+| `buildDriftState` (the drift verdict) | `enrollpro-rollover.service.ts:424-479` |
+| `resolveMappingConflictAction` / `isArchiveResolvableConflict` | `:402-422` / `:398-400` |
+| `applyRolloverSync` unacknowledged-reconfigure rejection (409 `SECTION_RECONFIGURATION_REVIEW_REQUIRED`) | `:1524-1542` |
+| `archiveSchoolYear` definition / callers | `:1198` / `:1355`, `:2103`, tick `:378` |
+| `archiveSupersededYearsForRecovery` | `:2089`, called from `:2377` inside `applyTestYearRecovery` (`:2186`) |
+| `archiveAndSyncActiveYear` | `:1334`; tick caller `:316`; operator route `runtime.router.ts:387` |
+| operator surfaces (do not touch) | `runtime.router.ts:122,145,158,183,213,227,238,256,270,323,369,387,400` |
+
+Two further verified facts that change the plan:
+
+- `drift.status === 'atlas-stale'` and `recommendedAction === 'RUN_ROLLOVER_SYNC'` are the **same**
+  condition in `buildDriftState` (`:458-468`); `aligned` maps to `NONE` (`:470-478`),
+  `enrollpro-unreachable` to `RETRY_ENROLLPRO` (`:433-443`), and `mapping-conflict` to
+  `RUN_ARCHIVE_AND_SYNC` / `RESET_DUMMY_YEAR` / `REVIEW_MAPPING_CONFLICT` (`:445-456`).
+- `reconfiguredSections` is computed independently (`:1025`) and attached separately (`:1068`), so
+  `RUN_ROLLOVER_SYNC` **can** coexist with reconfigured sections.
+
+### R2.2 The auto-apply gate is the intersection — not R1.1's two-term quotation
+
+Because `applyRolloverSync` hard-rejects unacknowledged reconfigured sections with
+`409 SECTION_RECONFIGURATION_REVIEW_REQUIRED` (`:1524-1542`), and the product's own guidance says
+"Review and acknowledge the changes before syncing" (`:813`), R1.1's literal predicate
+(`RUN_ROLLOVER_SYNC && conflicts.length === 0`) would drop a load-bearing guard, breach R1.3's
+instruction not to modify the reconfigured-section acknowledgement, and convert a clean notification into
+a 409-driven failure/backoff loop.
+
+**Required predicate — all four conditions:**
+
+```ts
+drift.status === 'atlas-stale'
+  && drift.recommendedAction === 'RUN_ROLLOVER_SYNC'
+  && conflicts.length === 0
+  && reconfiguredSections.length === 0
+```
+
+Any other preview notifies and does not apply. This is R1.1's actual intent: one safety contract shared
+with the operator UI.
+
+### R2.3 No auto-archive is absolute
+
+The automation must never reach `archiveSchoolYear`, `archiveSupersededYearsForRecovery`,
+`archiveAndSyncActiveYear`, or `applyTestYearRecovery` — directly or through a dependency seam. Retire
+from the tick: (i) the post-sync archive loop `:369-392`; (ii) the `isArchiveResolvableStatus` self-heal
+apply `:314-339`; (iii) the pending-archive marker retry `:188-245`; (iv) the test-mode collision
+auto-clear `:249-307`. Any tick that would previously have taken those paths now falls through to the
+R2.4 notification.
+
+**Disclosed conflict:** section 2.4 asks that the recovery-completion markers "keep working", while the
+operator's instruction for this cycle is "NO auto-archive ever". The operator instruction governs. The
+durable marker machinery and the operator routes inside `enrollpro-rollover.service.ts` stay untouched, so
+an operator can still complete a pending recovery or archiving; only the unattended completion is retired.
+Restoring the pending-archive retry is a separate bounded lane if the operator wants it.
+
+Keep the three archive-producing seams (`applyArchiveAndSync`, `archiveYear`, `applyTestRecovery`) in
+`RolloverAutomationDependencies` so the never-archive control can inject throwing spies, and keep the
+exported helper functions.
+
+### R2.4 Notification contract
+
+Add event type `ROLLOVER_DETECTED` (`NotificationEvent.type` is a plain string, so no union change).
+Shape: `domain: 'integration'`, `audience: 'PRIVILEGED'`, `severity: 'warning'`, `schoolId`,
+`schoolYearId: preview.enrollProActiveYear?.id ?? 0`, `facultyId: null`, a `message` naming the drift
+status and the next action, and
+`metadata: { driftStatus, recommendedAction, driftMessage, conflictCount, fromYearLabel, toYearLabel }`.
+`audience: 'PRIVILEGED'` plus `domain: 'integration'` is required for the Year Setup subscriber to receive
+it (`notification-events.service.ts:48-56`).
+
+**Transition trigger:** add `lastNotifiedDriftStatus` to `SchoolAutomationState`. Emit at most one
+notification per observed drift-status change — emit only when
+`preview.drift.status !== state.lastNotifiedDriftStatus` and the status is not `aligned`; always record the
+observed status. Do not route this through `notifyOnce` (its key is `type:lastResult`, a different axis).
+Replace the `notifyOnce(ROLLOVER_ATTENTION_REQUIRED, ...)` attention calls at `:173`, `:344`, `:359` with
+this single transition-triggered notification, so one status change produces exactly one notification.
+Keep `notifyOnce` for genuine failure/error paths and the bounded-backoff retry notices.
+
+### R2.5 Auto-apply definition
+
+When the R2.2 gate holds: call `applyRolloverSync(schoolId, undefined, { initiatedBy: 'system' })` exactly
+as today, set `lastResult='success'`, `consecutiveFailures=0`, `nextAttemptAt = now + TICK_INTERVAL_MS`,
+`lastNotifiedState=null`, `lastNotifiedDriftStatus=null`, and publish the existing
+`ROLLOVER_AUTO_SYNC_COMPLETED` with a message that no longer claims any archived year. No archive call and
+no write beyond what `applyRolloverSync` already performs.
+
+### R2.6 Mandatory controls (R1.4 rows 1–5 as corrected, plus 6–10)
+
+Drive `tickRolloverAutomation` through the real dependency seam. Use a **disposable** database only.
+
+| # | Control | Expected |
+|---|---|---|
+| 1 | Gate holds (atlas-stale, `RUN_ROLLOVER_SYNC`, zero conflicts, zero reconfigured) | applies exactly once; one `ROLLOVER_AUTO_SYNC_COMPLETED`; **zero** archive-seam invocations; no `ROLLOVER_DETECTED` |
+| 2 | Any conflict | does not apply; `ROLLOVER_DETECTED` carries `driftStatus` + `conflictCount`; zero target-year writes |
+| 3 | `RUN_ARCHIVE_AND_SYNC`, `mapping-conflict`, or `enrollpro-unreachable` | does not apply; notification only |
+| 4 | Unchanged drift status across consecutive ticks | exactly one notification in total |
+| 5 | Every scenario above, plus a pending-archive-marker scenario and a test-mode collision scenario | the three throwing archive spies record **zero** invocations |
+| 6 | Two overlapping ticks for one school | exactly one apply (single-flight) |
+| 7 | EnrollPro unreachable | bounded backoff (`nextAttemptAt` grows, capped at `MAX_BACKOFF_MS`), one notification, no apply |
+| 8 | Second tick after a successful apply | `skipped`; no new mirror or audit rows (assert counts before/after) |
+| 9 | Fresh process with `ROLLOVER_AUTO_SYNC_ENABLED=false` | `getAutomationStatus().enabled === false`; no timer; no detection |
+| 10 | MUTANT restoring unconditional auto-apply on drift | controls 2, 3, 4 and 5 fail decisively; then restore byte-exactly and record the before/after SHA-256 of the mutated file |
+
+### R2.7 Invariant unpin
+
+- `ops/runtime/lib/contract.mjs:59-61`: replace the hard pin. New rule —
+  `invariants.ROLLOVER_AUTO_SYNC_ENABLED` must be the string `'true'` or `'false'`, otherwise
+  `RUNTIME_CONTRACT_INVALID` (fail-closed against `'yes'`, `'TRUE'`, `''`, `1`). Add a hard pin that
+  `invariants.ATLAS_SUPERVISED === 'true'` so unpinning one value does not weaken the pinned-invariant
+  model.
+- `ops/runtime/runtime-contract.json`: **unchanged** (`ROLLOVER_AUTO_SYNC_ENABLED: "false"`). Do not
+  enable it in this lane; that is a separately approved deployment/config decision.
+- `resolveInvariantEnv` keeps passing declared values through unchanged.
+- Tests: rewrite `ops/runtime/__tests__/contract.test.mjs:39-50` so the shipped contract still declares a
+  valid boolean string, `resolveInvariantEnv` passes that value through, validation **accepts** `'true'`
+  (pass-through) and **rejects** invalid values, and validation rejects a non-`'true'` `ATLAS_SUPERVISED`.
+  Update `supervisor.test.mjs:148` and `enrollpro-origin.test.mjs:79` to assert value pass-through and
+  that `ATLAS_SUPERVISED` stays `'true'` (their "pinned invariants stay pinned" wording is now imprecise
+  for the rollover key, not the assertion). Re-run `lifecycle.e2e.test.mjs:42-43,74` and change it only if
+  the invariant model itself changes.
+- The service kill-switch (`:35`, `:479-483`) is unchanged and must remain working.
+
+### R2.8 Gates
+
+`npx tsx src/__tests__/enrollpro-rollover-automation.test.ts` (custom harness, `process.exitCode=1` on any
+failure), `enrollpro-rollover-lifecycle-closure.test.ts`, `notification-events.test.ts`,
+`npm --prefix atlas-server run test:rollover-readiness`, the whole of `npm run runtime:test` (including
+`contract.test.mjs`, `supervisor.test.mjs`, `enrollpro-origin.test.mjs`, `lifecycle.e2e.test.mjs`), server
+`tsc` plus the production build, a built-server startup with explicit `.js` ESM import proof, and
+`git diff --check`.
+
+The disposable-PostgreSQL tier must follow the established guarded pattern
+(`atlas_restore_drill_<yyyymmdd>_<rand>`, schema applied only inside it, `try/finally` zero-residue
+cleanup, skip-safe without `DATABASE_URL`). Never target the live database
+`atlas_recovery_clean_rebuild_20260905`. Record the resolved host, database name, environment
+classification, school count, and migration count without exposing secrets.
+
+### R2.9 Boundaries and return contract
+
+Source only. No live/shared database write, no register write by the lane, no `ops/runtime` deployment, no
+runtime/ports/task/env change, no companion edit, and do not touch the client surfaces named in R1.3. Do not
+edit `docs/plans/atlas-delivery-cycles.json` or its generated register.
+
+Return `REVIEW_REQUIRED` with base/candidate SHAs, changed paths, the implemented predicate, the
+notification payload shape, the per-control matrix including the mutant and its byte-exact restore, the
+updated-test inventory with justifications, any removed assertion and why, and the seams proven never
+invoked. Never self-approve, merge, or push.

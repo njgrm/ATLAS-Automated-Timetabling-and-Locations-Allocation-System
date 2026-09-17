@@ -1,19 +1,21 @@
 {
   "id": "ROLLOVER-GRADED-AUTONOMY-C01",
   "kind": "STREAM",
-  "objective": "Implement the operator's rollover decision as graded autonomy in the automated rollover tick: keep unattended drift detection, auto-apply applyRolloverSync ONLY when the preview is provably trivial (zero conflicts, zero reconfigured sections, and an empty target-year Teaching Load so the cleanup deleteMany calls are no-ops), otherwise emit a typed notification carrying the preview summary and apply nothing; never auto-archive superseded years; unpin the supervisor invariant ROLLOVER_AUTO_SYNC_ENABLED at ops/runtime/lib/contract.mjs:59-60 and update the three tests that assert the pin, keeping a working false kill-switch; and preserve single-flight, bounded backoff, recovery markers and idempotency. Source only: no database write, no register write by the lane, no runtime/task/env change in this lane, no companion edit.",
+  "objective": "Implement the operator's rollover decision as graded autonomy in the automated rollover tick, narrowed by R1 and corrected by R2: keep unattended drift detection and reuse the existing preview/drift computation; auto-apply applyRolloverSync ONLY when the codebase's own verdict holds (drift.status === 'atlas-stale' && drift.recommendedAction === 'RUN_ROLLOVER_SYNC' && conflicts.length === 0 && reconfiguredSections.length === 0), otherwise emit one typed notification carrying drift.status, drift.recommendedAction, drift.message and the conflict count, and apply nothing; emit that notification only on a drift-status transition; never auto-archive (the automation must never reach archiveSchoolYear, archiveSupersededYearsForRecovery, archiveAndSyncActiveYear or applyTestYearRecovery); unpin the supervisor invariant ROLLOVER_AUTO_SYNC_ENABLED at ops/runtime/lib/contract.mjs:59-61 so the contract value is passed through as a real, reviewable control while ATLAS_SUPERVISED stays hard-pinned to true and a false kill-switch still disables everything; and preserve single-flight, bounded backoff and idempotency. Source only: no live/shared database write, no register write by the lane, no runtime/task/env change in this lane, no companion edit.",
   "riskTier": "MEDIUM",
-  "state": "PLANNED",
+  "state": "RUNNING",
   "stateUpdatedAt": "2026-09-17T00:00:00Z",
-  "nextAction": "Register by CAS when the register is free, acquire the executor lease, then dispatch one fresh source executor in E:/ATLAS-worktrees/rollover-graded-autonomy-c01 against docs/prompts/rollover-graded-autonomy-c01-2026-09-17.md.",
+  "nextAction": "Dispatch one fresh high-reasoning source executor in E:/ATLAS-worktrees/rollover-graded-autonomy-c01 against docs/prompts/rollover-graded-autonomy-c01-2026-09-17.md (R1 plus the planner R2 addendum), then fresh high-reasoning independent QA over the frozen candidate, integration, and one fresh Wave Completion Auditor before closure.",
   "awaited": [
-    "the register to be free of any held revision window so this stream can register by CAS"
+    "the fresh source executor to return REVIEW_REQUIRED with base/candidate SHAs and the per-control matrix including the byte-exact mutant restore"
   ],
-  "running": [],
+  "running": [
+    "one bounded MEDIUM source lane: rollover graded autonomy in rollover-automation.service.ts (graded auto-apply gate, transition-triggered detection notification, absolute no-auto-archive) plus the ops/runtime invariant unpin and its test updates; source only, no database, runtime, task, env, or companion action"
+  ],
   "git": {
     "worktree": "E:/ATLAS-worktrees/rollover-graded-autonomy-c01",
     "branch": "fix/rollover-graded-autonomy",
-    "baseSha": "6058d3ab",
+    "baseSha": "43341ac7cb908f9ca692dbc93f8da8ef26ec52b0",
     "candidateSha": null,
     "integrationSha": null,
     "changedPaths": [],
@@ -54,14 +56,13 @@
   "successors": [],
   "requires": [],
   "blocker": {
-    "kind": "DEPENDENCY",
-    "detail": "Registration must not interleave with another stream's held register revision window. No approval gate: ordinary MEDIUM source work. The unpinned invariant and the new tick behaviour only take effect in a deployment, so this lane should integrate before the next deployment and the operator decides whether that deployment carries it.",
+    "kind": "NONE",
+    "detail": "Registration is complete and no register revision window is held, so this stream no longer waits on the register. There is no approval gate: ordinary MEDIUM source work. Consequential sequencing note: the unpinned invariant and the new tick behaviour take effect only in a deployment, and the shipped ops/runtime/runtime-contract.json deliberately still declares ROLLOVER_AUTO_SYNC_ENABLED=false, so a separately approved deployment/config decision must flip it before graded autonomy is live; the live runtime therefore stays pinned off and safe until then.",
     "safeWorkRemaining": true,
     "safeWorkItems": [
-      "author the packet and stream spec (done)",
-      "dispatch the fresh source executor after registration",
+      "dispatch the fresh source executor for the corrected R1/R2 scope",
       "run the always-run test inventory",
-      "build the disposable-DB synthetic-drift controls"
+      "build the disposable-database synthetic-drift controls and the never-archive spies"
     ]
   },
   "approval": {
@@ -92,12 +93,12 @@
     "qa": {
       "decision": "FRESH_REQUIRED",
       "sessionId": null,
-      "reason": "fresh independent QA over the frozen candidate, including the graded predicate, the no-archive control and the mutant."
+      "reason": "fresh independent QA over the frozen candidate, including the graded predicate, the never-archive controls and the mutant."
     },
     "auditor": {
       "decision": "FRESH_REQUIRED",
       "sessionId": null,
-      "reason": "the stream changes when a live data mutation may occur unattended, so a fresh adversarial Wave Completion Auditor is required after integration."
+      "reason": "the stream changes when an unattended live data mutation may occur, so a fresh adversarial Wave Completion Auditor is required after integration."
     }
   }
 }
