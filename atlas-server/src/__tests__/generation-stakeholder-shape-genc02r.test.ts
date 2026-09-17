@@ -76,18 +76,43 @@ test('C1-3. Every active grade/program scope has canonical base + specialization
 	}
 });
 
-test('C1-4. Lunch and health breaks are blocked; the duplicate 12:15â€“13:00 row is a BREAK, never a CLASS', () => {
-	for (const grade of [7, 8, 9, 10]) {
+test('C1-4. Lunch and health breaks follow the shift: G7/G8 lunch 12:15-13:00, G9/G10 lunch 11:30-12:15, never teachable time', () => {
+	// 2026-09-17 shift-based lunch ruling: lunch is a SHIFT property, not a
+	// program property. The morning shift (Grades 7-8, all programs) lunches at
+	// 12:15-13:00; the afternoon shift (Grades 9-10, all programs) lunches at
+	// 11:30-12:15, so 12:15-13:00 is a CLASS row there, never a break.
+	for (const grade of [7, 8]) {
 		for (const program of KNOWN_PROGRAM_TYPES) {
 			const rows = slots(grade, program);
 			const lunch = rows.filter((row) => row.startTime === '12:15' && row.endTime === '13:00');
-			assert.ok(lunch.length >= 1, `G${grade} ${program} must block lunch at 12:15â€“13:00`);
-			assert.ok(lunch.every((row) => row.rowKind === 'BREAK'), `G${grade} ${program} 12:15â€“13:00 must be BREAK`);
-			const health = rows.filter((row) => row.startTime === '15:15' && row.endTime === '15:30');
-			assert.ok(health.every((row) => row.rowKind === 'BREAK'), `G${grade} ${program} 15:15â€“15:30 must be BREAK`);
-			// No CLASS row may occupy the blocked lunch window.
+			assert.ok(lunch.length >= 1, `G${grade} ${program} must block morning-shift lunch at 12:15-13:00`);
+			assert.ok(lunch.every((row) => row.rowKind === 'BREAK'), `G${grade} ${program} 12:15-13:00 must be BREAK`);
+			// No CLASS row may occupy the blocked morning-shift lunch window.
 			const classAtLunch = rows.filter((row) => row.rowKind === 'CLASS' && minutes(row.startTime) < minutes('13:00') && minutes(row.endTime) > minutes('12:15'));
 			assert.equal(classAtLunch.length, 0, `G${grade} ${program} must not schedule a class over lunch`);
+			assert.equal(
+				rows.some((row) => row.rowKind === 'BREAK' && row.startTime === '11:30' && row.endTime === '12:15'),
+				false,
+				`G${grade} ${program} must not carry the afternoon-shift lunch`,
+			);
+		}
+	}
+	for (const grade of [9, 10]) {
+		for (const program of KNOWN_PROGRAM_TYPES) {
+			const rows = slots(grade, program);
+			const lunch = rows.filter((row) => row.startTime === '11:30' && row.endTime === '12:15');
+			assert.equal(lunch.length, 1, `G${grade} ${program} must block afternoon-shift lunch at 11:30-12:15`);
+			assert.ok(lunch.every((row) => row.rowKind === 'BREAK' && row.subjectLabel === 'Lunch Break'), `G${grade} ${program} 11:30-12:15 must be the Lunch Break`);
+			// No CLASS row may occupy the blocked afternoon-shift lunch window.
+			const classAtLunch = rows.filter((row) => row.rowKind === 'CLASS' && minutes(row.startTime) < minutes('12:15') && minutes(row.endTime) > minutes('11:30'));
+			assert.equal(classAtLunch.length, 0, `G${grade} ${program} must not schedule a class over the afternoon lunch`);
+			const health = rows.filter((row) => row.startTime === '15:15' && row.endTime === '15:30');
+			assert.ok(health.length >= 1 && health.every((row) => row.rowKind === 'BREAK'), `G${grade} ${program} 15:15-15:30 must be BREAK`);
+			// 12:15-13:00 is a CLASS row on the afternoon shift.
+			assert.ok(
+				rows.some((row) => row.rowKind === 'CLASS' && row.startTime === '12:15' && row.endTime === '13:00'),
+				`G${grade} ${program} must teach 12:15-13:00 on the afternoon shift`,
+			);
 		}
 	}
 });
@@ -115,7 +140,103 @@ test('C8. duplicate canonical rows are detected; set de-duplication cannot hide 
 	assert.ok(issues.some((issue) => issue.startsWith('duplicate-rows:')), 'a duplicated canonical row must be reported');
 });
 
-// ─── GEN-C02R1 F2/F3: executable production assembly + scheduler + validators ───
+// ─── G9G10-FLAG-SOURCE-LANE §3.1: exact canonical-grid tables (controls 2-5) ───
+
+function slotKey(rows: Array<{ startTime: string; endTime: string; rowKind: string; subjectLabel?: string | null }>): string[] {
+	return rows.map((row) => `${row.startTime}-${row.endTime}:${row.rowKind}:${row.subjectLabel ?? ''}`);
+}
+
+// Control 2: G7/G8 are byte-identical to the pre-ruling contract (morning shift).
+const G7_REGULAR_EXPECTED = [
+	'06:00-06:45:CLASS:Class',
+	'06:45-07:30:CLASS:Class',
+	'07:30-08:15:CLASS:Class',
+	'08:15-09:00:CLASS:Class',
+	'09:00-09:15:BREAK:Health Break',
+	'09:15-10:00:CLASS:Class',
+	'10:00-10:45:CLASS:Class',
+	'10:45-11:30:CLASS:Class',
+	'11:30-12:15:CLASS:Class',
+	'12:15-13:00:BREAK:Lunch Break',
+];
+const G7_SPECIAL_EXPECTED = [
+	...G7_REGULAR_EXPECTED,
+	'13:00-13:45:CLASS:Specialization',
+	'13:45-14:30:CLASS:Specialization',
+];
+
+// Controls 3/4/5: the two G9/G10 families are pinned independently. Because this
+// expected table is a literal, a re-introduced `...GRADE_9_10_REGULAR` spread
+// that carried a REGULAR edit into the specialized scopes would fail it.
+const G9_REGULAR_EXPECTED = [
+	'11:30-12:15:BREAK:Lunch Break',
+	'12:15-13:00:CLASS:Class',
+	'13:00-13:45:CLASS:Class',
+	'13:45-14:30:CLASS:Class',
+	'14:30-15:15:CLASS:Class',
+	'15:15-15:30:BREAK:Health Break',
+	'15:30-16:15:CLASS:Class',
+	'16:15-17:00:CLASS:Class',
+	'17:00-17:45:CLASS:Class',
+	'17:45-18:30:CLASS:Class',
+];
+const G9_SPECIAL_EXPECTED = [
+	'09:45-10:30:CLASS:Specialization',
+	'10:30-11:15:CLASS:Specialization',
+	...G9_REGULAR_EXPECTED,
+];
+
+test('G9G10 control 1/2. all 16 scopes match the producer; G7/G8 stay byte-identical to the morning contract', () => {
+	// Control 1: every scope equals the real producer exactly.
+	for (const grade of GRADES) {
+		for (const program of KNOWN_PROGRAM_TYPES) {
+			assert.deepEqual(slotKey(slots(grade, program)), slotKey(getExpectedCanonicalSlots(grade, program)), `G${grade} ${program} must equal the producer output`);
+		}
+	}
+	// Control 2: G7/G8 REGULAR and SPECIAL are unchanged (all four programs).
+	for (const grade of [7, 8]) {
+		assert.deepEqual(slotKey(slots(grade, 'REGULAR')), G7_REGULAR_EXPECTED, `G${grade} REGULAR must stay byte-identical`);
+		for (const program of ['STE', 'SPA', 'SPS'] as ProgramType[]) {
+			assert.deepEqual(slotKey(slots(grade, program)), G7_SPECIAL_EXPECTED, `G${grade} ${program} must stay byte-identical`);
+		}
+	}
+});
+
+test('G9G10 control 3/4/5. G9/G10 REGULAR and special scopes carry the shift-based lunch and independent literals', () => {
+	for (const grade of [9, 10]) {
+		// Control 3: 8 CLASS + 2 BREAK, lunch BREAK 11:30-12:15, first CLASS 12:15-13:00, span 420 minutes.
+		const regular = slots(grade, 'REGULAR');
+		assert.deepEqual(slotKey(regular), G9_REGULAR_EXPECTED, `G${grade} REGULAR must equal the ruling table`);
+		assert.equal(regular.filter((row) => row.rowKind === 'CLASS').length, 8);
+		assert.equal(regular.filter((row) => row.rowKind === 'BREAK').length, 2);
+		assert.equal(regular[0].startTime, '11:30');
+		assert.equal(regular[regular.length - 1].endTime, '18:30');
+		const span = minutes(regular[regular.length - 1].endTime) - minutes(regular[0].startTime);
+		assert.equal(span, 420, 'G9/G10 REGULAR full-grid span must be 420 minutes (8x45 + 45 lunch + 15 health)');
+		const classShift = minutes(regular.filter((row) => row.rowKind === 'CLASS')[0].startTime);
+		assert.equal(minutes('18:30') - classShift, 375, 'G9/G10 REGULAR CLASS shift window is 12:15-18:30 = 375 minutes');
+
+		// Control 4/5: 10 CLASS + 2 BREAK, lunch 11:30-12:15, CLASS shift 09:45-18:30, two pre-lunch rows.
+		for (const program of ['STE', 'SPA', 'SPS'] as ProgramType[]) {
+			const special = slots(grade, program);
+			assert.deepEqual(slotKey(special), G9_SPECIAL_EXPECTED, `G${grade} ${program} must equal the ruling table`);
+			assert.equal(special.filter((row) => row.rowKind === 'CLASS').length, 10);
+			assert.equal(special.filter((row) => row.rowKind === 'BREAK').length, 2);
+			const preLunch = special.filter((row) => row.rowKind === 'CLASS' && minutes(row.startTime) < minutes('11:30'));
+			assert.equal(preLunch.length, 2, `G${grade} ${program} pre-lunch specialization block must be two rows`);
+			assert.deepEqual(preLunch.map((row) => `${row.startTime}-${row.endTime}`), ['09:45-10:30', '10:30-11:15']);
+			assert.equal(
+				special.some((row) => row.startTime === '11:15' && row.endTime === '12:00'),
+				false,
+				'the removed third pre-lunch specialization row must never reappear',
+			);
+			const classRows = special.filter((row) => row.rowKind === 'CLASS');
+			assert.equal(minutes(classRows[0].startTime), minutes('09:45'));
+			assert.equal(minutes(classRows[classRows.length - 1].endTime), minutes('18:30'), `G${grade} ${program} CLASS shift window is 09:45-18:30`);
+		}
+	}
+});
+
 
 const SCHOOL_ID = 41;
 const SCHOOL_YEAR_ID = 8;
@@ -143,7 +264,7 @@ function sectionIdFor(grade: number, programIndex: number): number {
 	return grade * 100 + programIndex;
 }
 
-function buildStakeholderClient() {
+function buildStakeholderClient(options: { specialEvents?: Array<Record<string, unknown>>; enableFlagCeremony?: boolean } = {}) {
 	const writes: string[] = [];
 	const recordWrite = (name: string) => (..._args: unknown[]) => { writes.push(name); return Promise.resolve({}); };
 
@@ -195,7 +316,7 @@ function buildStakeholderClient() {
 		maxBackToBackTransitionsWithoutBuffer: 2, maxIdleGapMinutesPerDay: 60, avoidEarlyFirstPeriod: false, avoidLateLastPeriod: false,
 		enableVacantAwareConstraints: false, targetFacultyDailyVacantMinutes: 60, targetSectionDailyVacantPeriods: 1,
 		maxCompressedTeachingMinutesPerDay: 300, lunchStartTime: '12:15', lunchEndTime: '13:00', enforceLunchWindow: false,
-		showSpecialEventsInGrid: true, enableFlagCeremony: false, flagCeremonyStartTime: '07:00', flagCeremonyEndTime: '07:30',
+		showSpecialEventsInGrid: true, enableFlagCeremony: options.enableFlagCeremony ?? false, flagCeremonyStartTime: '07:00', flagCeremonyEndTime: '07:30',
 		enableRecess: false, recessStartTime: '09:00', recessEndTime: '09:15', enableLunchWindow: false,
 		enableTleTwoPassPriority: true, allowFlexibleSubjectAssignment: false, allowConsecutiveLabSessions: false, constraintConfig: null,
 	};
@@ -229,7 +350,7 @@ function buildStakeholderClient() {
 		room: { findMany: async () => rooms },
 		building: { findMany: async () => buildings },
 		facultyPreference: { findMany: async () => [] },
-		policySpecialEvent: { findMany: async () => [] },
+		policySpecialEvent: { findMany: async () => options.specialEvents ?? [] },
 		gradeShiftWindow: { findMany: async () => [] },
 		classProgramSlot: { findMany: async (args: any) => {
 			const where = args?.where ?? {};
@@ -249,8 +370,8 @@ function buildStakeholderClient() {
 	return { client, writes, sections, ownership, rooms };
 }
 
-async function loadProductionAssembly() {
-	const built = buildStakeholderClient();
+async function loadProductionAssembly(options: { specialEvents?: Array<Record<string, unknown>>; enableFlagCeremony?: boolean } = {}) {
+	const built = buildStakeholderClient(options);
 	const preflight = await buildGenerationPreflight(SCHOOL_ID, SCHOOL_YEAR_ID, { client: built.client, termContract: TERM_CONTRACT, enforceShiftWindows: false });
 	assert.equal(preflight.ok, true, `preflight must be ready: ${preflight.blockers.map((blocker) => blocker.code).join(', ')}`);
 	assert.deepEqual(built.writes, [], 'the production preflight must be zero-write');
@@ -258,6 +379,56 @@ async function loadProductionAssembly() {
 	const result = runHybridScheduler(constructorInput);
 	return { ...built, preflight, assembly: preflight.assembly, result, constructorInput };
 }
+
+test('G9G10 control 6. per-scope Flag/HGP resolution readies all 16 scopes x 3 terms with zero FLAG_CEREMONY_SCOPE_INVALID', async () => {
+	// Two SCOPED persisted rows, morning first (the order that made the old
+	// single-global-window resolution report 8 G9/G10 blockers):
+	//   - G7/G8   06:00-06:45 -> the first canonical morning CLASS row
+	//   - G9/G10  12:15-13:00 -> the first canonical afternoon CLASS row
+	const scopedFlagRows = [
+		{ eventType: 'FLAG_OR_HGP', label: 'Flag Ceremony / HGP', startTime: '06:00', endTime: '06:45', dayOfWeek: null, gradeGroup: '7-8', programType: null, enabled: true, sortOrder: 1 },
+		{ eventType: 'FLAG_OR_HGP', label: 'Flag Ceremony / HGP', startTime: '12:15', endTime: '13:00', dayOfWeek: null, gradeGroup: '9-10', programType: null, enabled: true, sortOrder: 2 },
+	];
+	const { preflight, assembly } = await loadProductionAssembly({ specialEvents: scopedFlagRows, enableFlagCeremony: true });
+	assert.equal(
+		preflight.blockers.some((blocker) => blocker.code === 'FLAG_CEREMONY_SCOPE_INVALID'),
+		false,
+		`no scope may fail the per-scope snap: ${preflight.blockers.map((blocker) => `${blocker.code}@${blocker.entity}`).join(', ')}`,
+	);
+	assert.equal(assembly.timetableShapeContracts.length, 16, 'the fixture must expose all 16 grade/program scopes');
+	assert.equal(assembly.derived?.termStructure.terms.length, 3, 'the fixture runs the ordered three-term contract');
+
+	// Every shape's own scoped flag window snaps onto exactly one of its own CLASS rows.
+	for (const shape of assembly.timetableShapeContracts) {
+		const classRows = (shape.canonicalSlots ?? []).filter((slot) => slot.rowKind === 'CLASS');
+		const expectedWindow = shape.gradeLevel <= 8 ? '06:00-06:45' : '12:15-13:00';
+		assert.ok(
+			classRows.some((row) => `${row.startTime}-${row.endTime}` === expectedWindow),
+			`Grade ${shape.gradeLevel} ${shape.programType} must own the scoped flag row ${expectedWindow}`,
+		);
+	}
+});
+
+test('G9G10 control 7. the Flag/HGP overlay adds no demand, no Teaching Load minutes, and no period', async () => {
+	const baseline = await loadProductionAssembly();
+	const withFlag = await loadProductionAssembly({
+		specialEvents: [
+			{ eventType: 'FLAG_OR_HGP', label: 'Flag Ceremony / HGP', startTime: '06:00', endTime: '06:45', dayOfWeek: null, gradeGroup: '7-8', programType: null, enabled: true, sortOrder: 1 },
+			{ eventType: 'FLAG_OR_HGP', label: 'Flag Ceremony / HGP', startTime: '12:15', endTime: '13:00', dayOfWeek: null, gradeGroup: '9-10', programType: null, enabled: true, sortOrder: 2 },
+		],
+		enableFlagCeremony: true,
+	});
+	assert.deepEqual(withFlag.assembly.demand, baseline.assembly.demand, 'the Monday overlay must add no demand line');
+	assert.deepEqual(withFlag.assembly.derived?.totalsByTerm, baseline.assembly.derived?.totalsByTerm, 'the Monday overlay must add no Teaching Load minutes');
+	assert.deepEqual(withFlag.assembly.pairOwners, baseline.assembly.pairOwners, 'the Monday overlay must add no ownership pair');
+	assert.equal(withFlag.preflight.ok, true, 'the flagged assembly must stay ready');
+
+	// No added period: each shape keeps exactly its canonical CLASS period grid.
+	for (const shape of withFlag.assembly.timetableShapeContracts) {
+		const canonicalClass = (shape.canonicalSlots ?? []).filter((slot) => slot.rowKind === 'CLASS');
+		assert.equal(shape.periodSlots.length, canonicalClass.length, `Grade ${shape.gradeLevel} ${shape.programType} must not gain a period from the overlay`);
+	}
+});
 
 test('F2. production readiness assembly + scheduler conform to the exact grade/program canonical CLASS rows', async () => {
 	const { assembly, result, sections } = await loadProductionAssembly();

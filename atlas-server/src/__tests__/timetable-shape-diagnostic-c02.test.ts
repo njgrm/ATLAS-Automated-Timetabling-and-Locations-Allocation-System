@@ -28,7 +28,10 @@ function matrixShapes() {
 	return [7, 8, 9, 10].map((gradeLevel) => ({
 		gradeLevel,
 		programType: 'REGULAR',
-		startTime: gradeLevel <= 8 ? '06:00' : '13:00',
+		// 2026-09-17 shift-based lunch ruling: the G9/G10 REGULAR canonical CLASS
+		// shift starts at 12:15 (lunch 11:30-12:15), so the shape input start must
+		// agree with the canonical grid it carries.
+		startTime: gradeLevel <= 8 ? '06:00' : '12:15',
 		endTime: gradeLevel <= 8 ? '13:00' : '18:30',
 		periodLengthMinutes: 45,
 		periodsPerDay: getExpectedCanonicalSlots(gradeLevel, 'REGULAR').filter((row) => row.rowKind === 'CLASS').length,
@@ -42,8 +45,8 @@ function validInput(overrides: Partial<TimetableShapePolicyInput> = {}): Timetab
 		shiftWindows: [
 			{ gradeLevel: 7, programType: 'REGULAR', startTime: '06:00', endTime: '12:15' },
 			{ gradeLevel: 8, programType: 'REGULAR', startTime: '06:00', endTime: '12:15' },
-			{ gradeLevel: 9, programType: 'REGULAR', startTime: '13:00', endTime: '18:30' },
-			{ gradeLevel: 10, programType: 'REGULAR', startTime: '13:00', endTime: '18:30' },
+			{ gradeLevel: 9, programType: 'REGULAR', startTime: '12:15', endTime: '18:30' },
+			{ gradeLevel: 10, programType: 'REGULAR', startTime: '12:15', endTime: '18:30' },
 		],
 		sections: [7, 8, 9, 10].map((gradeLevel) => ({ id: gradeLevel, gradeLevel, programType: 'REGULAR' })),
 		shapes: matrixShapes().map((shape) => buildTimetableShapeContract({ ...shape, basePolicy: { maxConsecutiveTeachingMinutesBeforeBreak: 120, minBreakMinutesAfterConsecutiveBlock: 15, maxTeachingMinutesPerDay: 480, earliestStartTime: '06:00', latestEndTime: '18:30', enableFlagCeremony: false } })),
@@ -65,9 +68,13 @@ test('stakeholder matrix: G7/G8 morning and G9/G10 afternoon rows preserve durat
 		assert.ok(rows.some((row) => row.startTime === '12:15' && row.endTime === '13:00' && row.rowKind === 'BREAK'));
 	}
 	for (const grade of [9, 10]) {
+		// 2026-09-17 shift-based lunch ruling: the afternoon shift lunches at
+		// 11:30-12:15, so 12:15-13:00 is the first CLASS row and the CLASS shift
+		// spans 12:15-18:30 (420-minute full span, 8 CLASS + 2 BREAK rows).
 		const rows = getExpectedCanonicalSlots(grade, 'REGULAR');
-		assert.equal(rows.find((row) => row.rowKind === 'CLASS')?.startTime, '13:00');
-		assert.equal(rows.filter((row) => row.rowKind === 'CLASS').length, 7);
+		assert.equal(rows.find((row) => row.rowKind === 'CLASS')?.startTime, '12:15');
+		assert.equal(rows.filter((row) => row.rowKind === 'CLASS').length, 8);
+		assert.ok(rows.some((row) => row.startTime === '11:30' && row.endTime === '12:15' && row.rowKind === 'BREAK' && row.subjectLabel === 'Lunch Break'));
 		assert.ok(rows.some((row) => row.startTime === '15:15' && row.endTime === '15:30' && row.rowKind === 'BREAK'));
 	}
 });
@@ -77,6 +84,53 @@ test('failing-first mutant: a Monday flag row widened to five days is blocked', 
 	assert.equal(blockers.some((blocker) => blocker.code === 'FLAG_CEREMONY_SCOPE_INVALID'), false);
 	const mutant = validateTimetableShapePolicy({ ...validInput(), flagCeremony: { enabled: true, dayOfWeek: 'WEEKDAYS', startTime: '07:00', endTime: '07:30' } });
 	assert.ok(mutant.some((blocker) => blocker.code === 'FLAG_CEREMONY_SCOPE_INVALID'));
+});
+
+test('G9G10 ruling: the Monday Flag/HGP overlay adds no period and lands on one existing canonical CLASS row', () => {
+	const grade9 = getExpectedCanonicalSlots(9, 'REGULAR');
+	const classRows = grade9.filter((row) => row.rowKind === 'CLASS');
+	const basePolicy: Parameters<typeof buildTimetableShapeContract>[0]['basePolicy'] = {
+		maxConsecutiveTeachingMinutesBeforeBreak: 120,
+		minBreakMinutesAfterConsecutiveBlock: 15,
+		maxTeachingMinutesPerDay: 480,
+		earliestStartTime: '12:15',
+		latestEndTime: '18:30',
+		enableFlagCeremony: true,
+		showSpecialEventsInGrid: true,
+		specialEvents: [{ eventType: 'FLAG_OR_HGP', label: 'Flag Ceremony / HGP', startTime: '12:15', endTime: '13:00', dayOfWeek: null, gradeGroup: '9-10', programType: null, enabled: true }],
+	};
+	const shape = buildTimetableShapeContract({
+		gradeLevel: 9, programType: 'REGULAR', startTime: '12:15', endTime: '18:30',
+		periodLengthMinutes: 45, periodsPerDay: classRows.length, canonicalSlots: grade9, basePolicy,
+	});
+
+	// No extra period: the CLASS period grid stays exactly the 8 canonical CLASS rows.
+	assert.deepEqual(
+		shape.periodSlots.map((slot) => `${slot.startTime}-${slot.endTime}`),
+		classRows.map((row) => `${row.startTime}-${row.endTime}`),
+	);
+	assert.equal(shape.periodSlots.length, 8, 'the Monday overlay must not add a period');
+
+	// The overlay is a Monday-only display event on the SAME interval as a canonical CLASS row.
+	const overlay = shape.displaySlots.find((slot) => slot.isSpecialEvent && slot.eventName === 'Flag Ceremony / HGP');
+	assert.equal(overlay?.dayOfWeek, 'MONDAY', 'the Flag/HGP overlay is Monday-only');
+	assert.equal(`${overlay?.startTime}-${overlay?.endTime}`, '12:15-13:00', 'the overlay occupies exactly one canonical CLASS row');
+
+	// A window that no single canonical CLASS row contains is never invented.
+	const unsnappable = buildTimetableShapeContract({
+		gradeLevel: 9, programType: 'REGULAR', startTime: '12:15', endTime: '18:30',
+		periodLengthMinutes: 45, periodsPerDay: classRows.length, canonicalSlots: grade9,
+		basePolicy: { ...basePolicy, specialEvents: [{ eventType: 'FLAG_OR_HGP', label: 'Flag Ceremony / HGP', startTime: '12:15', endTime: '13:45', dayOfWeek: null, gradeGroup: '9-10', programType: null, enabled: true }] },
+	});
+	assert.equal(unsnappable.displaySlots.some((slot) => slot.eventName === 'Flag Ceremony / HGP'), false, 'an unsnappable window is never invented as a multi-period overlay');
+
+	// Monday-only day scope: the interval is blocked only on Monday.
+	const windows = buildDayScopedEventWindows({
+		maxConsecutiveTeachingMinutesBeforeBreak: 120, minBreakMinutesAfterConsecutiveBlock: 15, maxTeachingMinutesPerDay: 480,
+		earliestStartTime: '12:15', latestEndTime: '18:30',
+		specialEvents: [{ eventType: 'FLAG_OR_HGP', label: 'Flag Ceremony / HGP', startTime: '12:15', endTime: '13:00', dayOfWeek: null }],
+	});
+	assert.deepEqual(windows.map((window) => window.day), ['MONDAY']);
 });
 
 test('canonical schedule-constructor marks flag ceremony as a Monday-only display event', () => {

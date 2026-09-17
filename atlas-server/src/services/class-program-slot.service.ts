@@ -205,23 +205,38 @@ const GRADE_7_8_SPECIAL = [
 	catalogSlot('13:45', '14:30', 'CLASS', 'Specialization', 'DNO expanded morning specialization row 2'),
 ];
 
+// 2026-09-17 shift-based lunch ruling (G9G10-FLAG-SOURCE-LANE §3.1): the
+// afternoon shift — Grades 9-10, ALL programs — lunches at 11:30-12:15, so the
+// 12:15-13:00 interval is a CLASS row on this shift (the morning shift keeps its
+// 12:15-13:00 lunch). The two G9/G10 arrays below are INDEPENDENT explicit
+// literals: neither references the other, so editing GRADE_9_10_REGULAR can
+// never silently move a specialized scope.
 const GRADE_9_10_REGULAR: CatalogSlot[] = [
-	catalogSlot('12:15', '13:00', 'BREAK', 'Lunch Break', 'DNO afternoon lunch break'),
-	catalogSlot('13:00', '13:45', 'CLASS', 'Class', 'DNO afternoon base row 1'),
-	catalogSlot('13:45', '14:30', 'CLASS', 'Class', 'DNO afternoon base row 2'),
-	catalogSlot('14:30', '15:15', 'CLASS', 'Class', 'DNO afternoon base row 3'),
+	catalogSlot('11:30', '12:15', 'BREAK', 'Lunch Break', '2026-09-17 shift-based lunch ruling: the afternoon shift (Grades 9-10, all programs) lunches 11:30-12:15; the retired 12:00-12:15 seam stays unmodelled'),
+	catalogSlot('12:15', '13:00', 'CLASS', 'Class', '2026-09-17 shift-based lunch ruling: afternoon base row 1 (12:15-13:00 is a CLASS row on the afternoon shift, not a lunch break)'),
+	catalogSlot('13:00', '13:45', 'CLASS', 'Class', 'DNO afternoon base row 2'),
+	catalogSlot('13:45', '14:30', 'CLASS', 'Class', 'DNO afternoon base row 3'),
+	catalogSlot('14:30', '15:15', 'CLASS', 'Class', 'DNO afternoon base row 4'),
 	catalogSlot('15:15', '15:30', 'BREAK', 'Health Break', 'DNO afternoon health break'),
-	catalogSlot('15:30', '16:15', 'CLASS', 'Class', 'DNO afternoon base row 4'),
-	catalogSlot('16:15', '17:00', 'CLASS', 'Class', 'DNO afternoon base row 5'),
-	catalogSlot('17:00', '17:45', 'CLASS', 'Class', 'DNO afternoon base row 6'),
-	catalogSlot('17:45', '18:30', 'CLASS', 'Class', 'DNO afternoon base row 7'),
+	catalogSlot('15:30', '16:15', 'CLASS', 'Class', 'DNO afternoon base row 5'),
+	catalogSlot('16:15', '17:00', 'CLASS', 'Class', 'DNO afternoon base row 6'),
+	catalogSlot('17:00', '17:45', 'CLASS', 'Class', 'DNO afternoon base row 7'),
+	catalogSlot('17:45', '18:30', 'CLASS', 'Class', 'DNO afternoon base row 8'),
 ];
 
 const GRADE_9_10_SPECIAL: CatalogSlot[] = [
 	catalogSlot('09:45', '10:30', 'CLASS', 'Specialization', 'Approved 2026-09-03: photographed 09:45 start row — 45-minute specialization class'),
-	catalogSlot('10:30', '11:15', 'CLASS', 'Specialization', 'DNO expanded afternoon specialization row 1 (45-minute class)'),
-	catalogSlot('11:15', '12:00', 'CLASS', 'Specialization', 'DNO expanded afternoon specialization row 2 (45-minute class per corrected stakeholder contract)'),
-	...GRADE_9_10_REGULAR,
+	catalogSlot('10:30', '11:15', 'CLASS', 'Specialization', '2026-09-17 shift-based lunch ruling: the pre-lunch specialization block is two rows; the 11:15-11:30 seam stays unmodelled (the same treatment the grid gives the former 12:00-12:15 seam)'),
+	catalogSlot('11:30', '12:15', 'BREAK', 'Lunch Break', '2026-09-17 shift-based lunch ruling: the afternoon shift (Grades 9-10, all programs) lunches 11:30-12:15'),
+	catalogSlot('12:15', '13:00', 'CLASS', 'Class', '2026-09-17 shift-based lunch ruling: afternoon base row 1'),
+	catalogSlot('13:00', '13:45', 'CLASS', 'Class', 'DNO afternoon base row 2'),
+	catalogSlot('13:45', '14:30', 'CLASS', 'Class', 'DNO afternoon base row 3'),
+	catalogSlot('14:30', '15:15', 'CLASS', 'Class', 'DNO afternoon base row 4'),
+	catalogSlot('15:15', '15:30', 'BREAK', 'Health Break', 'DNO afternoon health break'),
+	catalogSlot('15:30', '16:15', 'CLASS', 'Class', 'DNO afternoon base row 5'),
+	catalogSlot('16:15', '17:00', 'CLASS', 'Class', 'DNO afternoon base row 6'),
+	catalogSlot('17:00', '17:45', 'CLASS', 'Class', 'DNO afternoon base row 7'),
+	catalogSlot('17:45', '18:30', 'CLASS', 'Class', 'DNO afternoon base row 8'),
 ];
 
 export const KNOWN_PROGRAM_TYPES: ProgramType[] = ['REGULAR', 'STE', 'SPA', 'SPS'];

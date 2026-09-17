@@ -2837,6 +2837,16 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 				// faculty/data failure must never be reported as a room result, because
 				// `generation.service.ts` maps SPECIALIZED_ROOM_UNAVAILABLE to a SOFT
 				// room warning and would launder a genuine hard blocker.
+				//
+				// G9G10-FLAG-SOURCE-LANE §3.3: the converse holds too. `reason` is
+				// already resolved by the documented priority above, so when it IS a
+				// room cause (NO_COMPATIBLE_ROOM / ROOM_CAPACITY_EXCEEDED) that cause
+				// is decisive and must outrank the `sawFacultySlotUnavailable`
+				// residue — which is also set by a bare slot collision
+				// (`qReason === 'NO_AVAILABLE_SLOT'`, line ~2464). A genuine
+				// per-term weekly-cap breach keeps `reason === 'FACULTY_OVERLOADED'`
+				// (line ~1841), so it still resolves to FACULTY_SLOT_UNAVAILABLE and
+				// is classified WORKLOAD_POLICY_BLOCK by the preflight.
 				const requestedRoomType = item.roomTypePreference ?? subject.preferredRoomType;
 				const isSpecializedDemand = SPECIALIZED_ROOM_TYPES.has(requestedRoomType);
 				const roomPathExhausted = reason === 'NO_COMPATIBLE_ROOM' || reason === 'ROOM_CAPACITY_EXCEEDED';
@@ -2844,11 +2854,13 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 					? 'NO_QUALIFIED_FACULTY'
 					: sawDailyHardLimit || sawConsecutiveHardLimit
 						? 'POLICY_SLOT_BLOCKED'
-						: reason === 'FACULTY_OVERLOADED' || sawFacultySlotUnavailable
+						: reason === 'FACULTY_OVERLOADED'
 							? 'FACULTY_SLOT_UNAVAILABLE'
 							: roomPathExhausted
 								? (isSpecializedDemand ? 'SPECIALIZED_ROOM_UNAVAILABLE' : 'ROOM_PATH_EXHAUSTED')
-								: 'FALLBACK_UNRESOLVED';
+								: sawFacultySlotUnavailable
+									? 'FACULTY_SLOT_UNAVAILABLE'
+									: 'FALLBACK_UNRESOLVED';
 				const homeRoomFallbackCause: HomeRoomFallbackCause | undefined = preferredHomeRoomId != null
 					? (sawDailyHardLimit
 						? 'FACULTY_DAILY_LIMIT_EXCEEDED'

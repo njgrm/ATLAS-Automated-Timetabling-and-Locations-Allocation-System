@@ -17,8 +17,8 @@
  * Controls:
  *   1. G7-8 scope with canonical rows -> display bands carry Health 09:00-09:15
  *      and Lunch 12:15-13:00
- *   2. G9-10 scope with canonical rows -> display bands carry Lunch 12:15-13:00
- *      and Health 15:15-15:30
+ *   2. G9-10 scope with canonical rows -> display bands carry Lunch 11:30-12:15
+ *      and Health 15:15-15:30 (2026-09-17 shift-based lunch ruling)
  *   3. any canonical scope -> 11:55 / 12:55 appear NOWHERE in the built slots
  *   4. shift bounds come from the canonical CLASS grid, not policy start/end
  *   5. display break set == the C11 validator break-window set for the scope
@@ -58,6 +58,8 @@ const DAYS = ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY'] as const;
 /** The retired window the canonical grid supersedes. */
 const RETIRED_LUNCH = '11:55-12:55';
 const CANONICAL_LUNCH = '12:15-13:00';
+/** 2026-09-17 shift-based lunch ruling: the afternoon shift lunches at 11:30-12:15. */
+const AFTERNOON_LUNCH = '11:30-12:15';
 const G7_HEALTH = '09:00-09:15';
 const G9_HEALTH = '15:15-15:30';
 
@@ -274,12 +276,13 @@ test('C11R control 1: G7-8 canonical scope displays Health 09:00-09:15 and Lunch
 	assert.deepEqual(intervals(serviceSlots), intervals(expectedClass), 'locked-session period slots must equal the canonical CLASS grid');
 });
 
-test('C11R control 2: G9-10 canonical scope displays Lunch 12:15-13:00 and Health 15:15-15:30', { skip: SKIP }, async () => {
+test('C11R control 2: G9-10 canonical scope displays Lunch 11:30-12:15 and Health 15:15-15:30', { skip: SKIP }, async () => {
 	const rows = await liveCanonicalRows();
 	const policy = await persistedPolicyInput();
 	const grid = buildCanonicalDisplayGrid({ rows, scopes: [{ gradeLevel: 9, programType: 'REGULAR' }], policy });
 	assert.equal(grid.hasCanonicalRows, true, 'the G9 REGULAR scope must resolve canonical rows');
-	assert.equal(hasInterval(grid.specialEventSlots, CANONICAL_LUNCH), true, `G9-10 break bands must carry Lunch ${CANONICAL_LUNCH}`);
+	assert.equal(hasInterval(grid.specialEventSlots, AFTERNOON_LUNCH), true, `G9-10 break bands must carry Lunch ${AFTERNOON_LUNCH}`);
+	assert.equal(hasInterval(grid.specialEventSlots, CANONICAL_LUNCH), false, 'G9-10 must not borrow the G7-8 lunch window');
 	assert.equal(hasInterval(grid.specialEventSlots, G9_HEALTH), true, `G9-10 break bands must carry Health ${G9_HEALTH}`);
 	assert.equal(hasInterval(grid.specialEventSlots, G7_HEALTH), false, 'G9-10 must not borrow the G7-8 health window');
 });
@@ -310,10 +313,11 @@ test('C11R control 4: shift bounds derive from the canonical CLASS grid, not pol
 	assert.notEqual(g7.shiftWindow?.startTime, policy.earliestStartTime, 'shift start must not come from the policy row');
 
 	const g9 = buildCanonicalDisplayGrid({ rows, scopes: [{ gradeLevel: 9, programType: 'REGULAR' }], policy });
-	// The G9 canonical grid's 12:15-13:00 row is a BREAK, so the CLASS shift
-	// starts at 13:00 (the shift bound excludes break rows, exactly like the C11
-	// validator authority's canonical shift window).
-	assert.deepEqual(g9.shiftWindow, { startTime: '13:00', endTime: '18:30' }, 'G9 shift bounds must be the canonical CLASS min/max');
+	// 2026-09-17 shift-based lunch ruling: the G9 canonical grid's 11:30-12:15 row
+	// is the Lunch BREAK, so the CLASS shift starts at 12:15 (the shift bound
+	// excludes break rows, exactly like the C11 validator authority's canonical
+	// shift window).
+	assert.deepEqual(g9.shiftWindow, { startTime: '12:15', endTime: '18:30' }, 'G9 shift bounds must be the canonical CLASS min/max');
 	assert.notEqual(g9.shiftWindow?.endTime, policy.latestEndTime, 'shift end must not come from the policy row');
 });
 
