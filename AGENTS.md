@@ -252,6 +252,27 @@ You are an expert product requirements architect and technical writer for this p
 - **Credential handling:** Read only the minimum credential fields needed for the active login. Never persist credentials into browser traces, screenshots, test fixtures, shell history, environment artifacts, logs, or repository files. The fixed retired faculty identifier `2000056` must never be recreated; select an active/non-stale faculty identity according to the local credential source.
 - **No Push/Pull Needed:** The local and remote environments are bridged via Tailscale; code changes in the workspace are reflected in the local backend, which is visible to the remote surfaces.
 - **Localhost Exception:** Only use `localhost` if explicitly requested for a specific isolated task.
+- **Standing browser-QA authorization (removes the per-instance tax).** Any QA or
+  executor role may drive the live Tailnet with the persistent QA browser profile
+  **without a separate per-instance approval** for read-only product inspection:
+  navigation, accessibility snapshots, screenshots, console and network reads,
+  read-only `evaluate`, and clicks on non-mutating controls (tabs, filters,
+  drawers, dialogs, disclosures). The login mutation is pre-authorized as a
+  **standing expectation** rather than a per-instance request: each session
+  discloses that one login was performed and its expected delta - one
+  `LOCAL_LOGIN_SUCCESS` audit row plus that actor's `last_login_at` - and a session
+  that reuses an already-authenticated profile consumes none and says so. This
+  does **not** relax the mutation boundary: never submit a form that persists and
+  never activate a control matching the write deny-list (save, apply, submit,
+  generate, publish, delete, remove, confirm, sync, reset, create, add, import,
+  upload, archive, rollover, carry, assign, unassign, approve, commit, wipe, seed,
+  logout); crawl harnesses must enforce that deny-list mechanically and prove zero
+  mutation with before/after signatures. Any validation of a *write* still requires
+  its own exact authorization. Live-origin browser evidence is **mandatory** for
+  any lane whose diff can change a rendered surface, and its absence is
+  `CORRECTION_REQUIRED`, not a non-blocking note: the crash class that has actually
+  reached production was invisible to every static gate and every record-level
+  review, and visible in seconds to a browser.
 
 ## Browser Playwright MCP (Live QA, UX/UI Validation, And Audit)
 
@@ -1929,8 +1950,23 @@ for successful deployment or durable documentation.
   publication mutation, cutover, or persisted-authority migration. Require a
   separately pinned plan/artifact, independent pre-action review, exact target
   and rollback, explicit approval where required, and post-action verification.
-  The designated QA delegate may perform that independent pre-action review;
-  do not add another general reviewer unless a distinct specialty is necessary.
+   The designated QA delegate may perform that independent pre-action review;
+   do not add another general reviewer unless a distinct specialty is necessary.
+- **Tier A (ordinary) is exempt from the Tier B ceremony.** Product source, tests,
+  ops tooling, and documentation changes are Tier A: no receipt, no lease, no Wave
+  Completion Auditor, and at most one reviewer. Their gates are lint, typecheck,
+  focused tests, and - for anything that can change a rendered surface - live
+  browser evidence. A documentation-only change is a plain commit, not a stream.
+  Tier B is exactly the `HIGH` set above (schema/data apply, destructive or
+  production-data mutation, auth/authorization boundary, generation, publication,
+  cutover, shared-runtime replacement, persisted-authority migration) and keeps
+  every current control unchanged. Pre-action review is capped at **one** round
+  plus **one** bounded correction; a second substantive correction on the same
+  artifact returns to the operator as a decision rather than starting a third
+  round. Do not apply Tier B ceremony to Tier A work: that overhead has not caught
+  a product defect, while the absent lint, typecheck, and browser gates let two
+  live crashes reach the deployed release.
+
 
 ### Evidence And Hashing Policy
 
