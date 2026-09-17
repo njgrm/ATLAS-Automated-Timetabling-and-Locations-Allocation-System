@@ -164,19 +164,111 @@ every subject should carry `preferredRoomType = CLASSROOM`; `TLE_ICT_EXP` (subje
    `flagCeremonyStartTime/EndTime` policy field.
 3. **`DATA-CORRECTION-C01` must be rescoped** — it targets the archived year.
 
-## Immediate next action
+## RESOLVED: the room blocker class (and two real defects behind it)
 
-1. **Fix the `VALID_PATCH_FIELDS` defect** (one line + regression test) — it blocks
-   the entire Subjects edit surface, not just the demo.
-2. Then re-apply the `TLE_ICT_EXP` → `CLASSROOM` edit and re-run the diagnostic
-   (expect the 26 room blockers to clear).
-3. Author the **per-scope Flag/HGP window correction packet** (approved): validate
-   the shape's per-scope flag window in `generation-preflight.service.ts`
-   (`~line 1033-1082`) instead of the global policy field; mutant must prove a stale
-   global window no longer blocks a correctly-shaped afternoon shift.
-4. Review the **"session 5" workload/slot ceiling** for `SPS_SPEC`, `DEVL_READING`,
-   `STE_BIOTECH`, `SCI_BIO` (9 workload + 5 search blockers).
-5. Rescope `DATA-CORRECTION-C01` onto year 10; reconcile the register's stale
+### Final state after this session's work
+
+`GET /api/v1/generation/1/10/readiness/diagnostic` → **55 blockers** (was 66 at the
+start), with the entire `ROOM_RESOURCE_UNAVAILABLE` class **gone (0)**:
+
+| Code | Count |
+| --- | --- |
+| `WORKLOAD_POLICY_BLOCK` | 33 |
+| `SEARCH_LIMIT_UNRESOLVED` | 14 |
+| `FLAG_CEREMONY_SCOPE_INVALID` | 8 |
+| `ROOM_RESOURCE_UNAVAILABLE` | **0** |
+
+Demand is unchanged at 552 lines / 264 pairs / 920 sessions per term. Note that
+workload and search blockers rose (they were previously *masked* by the false room
+constraint): now that every session can reach a room, the scheduler reaches the real
+faculty/slot ceilings. That is truthful signal, not regression.
+
+### Blocker-count arc
+
+| State | Total | Room |
+| --- | --- | --- |
+| Start | 66 | 26 |
+| Robotics archived | 48 | 26 |
+| After the subject edit folded `OWNER_DEPT:TLE` in | **110** | **100** |
+| After the scheduler fix (deployed `131baab7`) | **55** | **0** |
+
+### Three defects found and fixed (all committed and deployed)
+
+1. **`20f07f59` — subject edit rejected every payload.**
+   `VALID_PATCH_FIELDS` omitted `allowedOwnerDepartments`, so validation rejected
+   every Subjects-page edit with `400 UNKNOWN_FIELD`.
+2. **`405e5b18` — the first fix moved the failure instead of removing it.**
+   Adding the field to the allowlist let it through validation, but
+   `updateSubjectAtomic` passes the validated fields straight to Prisma
+   (`data: safeChanges`) and `allowedOwnerDepartments` has **no Subject column**
+   (0 occurrences in `schema.prisma`) → live `500 Unknown argument
+   allowedOwnerDepartments`. The atomic path now consumes it into `requiredFeatures`
+   via `mergeRequiredFeaturesWithAdditionalOwnerDepartments` and deletes it before
+   the write, matching the create and non-atomic paths. **Test gap closed:** the
+   first attempt's test only exercised `validateAndFilterPatchFields`; the suite now
+   drives `updateSubjectAtomic` and asserts `OWNER_DEPT:TLE` is persisted.
+3. **`131baab7` — ownership markers treated as required room features (the real
+   cause of the whole room class).**
+   `requiredFeatures` is a **mixed list**: real room features *and* `OWNER_DEPT:<code>`
+   ownership markers written by `mergeRequiredFeaturesWithAdditionalOwnerDepartments`
+   and read back by `qualification-evaluator.service.ts:243` for Teaching Load
+   ownership. Three room-facing gates treated **every** entry as a required room
+   feature, and **no room declares any feature at all** (the room feature aggregate
+   is empty), so any subject carrying a marker could never match a room:
+   - `schedule-constructor.ts:2554` — the non-specialized candidate filter
+   - `schedule-constructor.ts:2676` — the per-candidate feature check
+   - `constraint-validator.ts:761` — `ROOM_FEATURE_MISMATCH`, which would have been a
+     **HARD violation and blocked publication**
+
+   Added `isOwnerDepartmentFeature` + `roomRequiredFeatures` to
+   `subject-ownership.service.ts` and applied `roomRequiredFeatures` at all three
+   gates. Ownership matching (`matchesSubjectOwnershipDepartment`) still reads the
+   full list — that is its intended contract.
+
+### The operator's ruling that unblocked it
+
+**Laboratories are out of scope**: special-room use is booked internally on demand,
+so every subject should schedule into a `CLASSROOM`. The Subjects dialog states this
+itself — *"Classroom: regular classroom; special-room use handled outside this
+timetable."* `TLE_ICT_EXP` (id 11) was the only active subject on `COMPUTER_LAB`; it
+is now `CLASSROOM` with `requiredFeatures: ["OWNER_DEPT:TLE"]` (the marker is
+legitimate ownership data and is now harmless).
+
+### Runtime state (deployed this session)
+
+| Item | Value |
+| --- | --- |
+| Live release | **`131baab7d68fcc8a1a9b874d88e30f45d56a63e0`** at `D:\ATLAS-runtime-supervised-131baab7-20260918` |
+| Listeners | 5001→30164, 5174→47088 (task-launched supervisor) |
+| Machine env | `ATLAS_RUNTIME_SOURCE_DIR` / `ATLAS_RUNTIME_RELEASE_SHA` re-pointed to `131baab7` |
+| Rollback chain | `405e5b18`, `20f07f59`, `78be1b760e40` (all built, all on disk) |
+| Health | local health/ready 200, host ready 200, Tailnet 200 |
+
+**Deploy procedure that works (proven 3×):** create a release worktree at the target
+SHA → junction `atlas-server/node_modules` and `atlas-client/node_modules` from the
+previous release (lockfiles verified identical) → `tsc` in `atlas-server` → `npm run
+build` in `atlas-client` → set both machine env vars → **quiesce with
+`taskkill /PID <supervisor> /T /F`** (an out-of-process `cli.mjs stop` reports
+`stopped` but does **not** quiesce the resident supervisor — it respawns its
+children) → wait ~12s → `schtasks /run /tn ATLAS-Runtime-Supervisor` (the durable
+launch owner) → verify listeners + health. Ownership of the new release dir is
+already `BUILTIN\Administrators` (inherited from `D:\ATLAS`), so the SYSTEM pin check
+passes.
+
+**Note:** a fresh login was consumed (one `LOCAL_LOGIN_SUCCESS`) after the deploy
+restart invalidated the session.
+
+## Remaining work
+
+1. **`FLAG_CEREMONY_SCOPE_INVALID` (8)** — the approved per-scope Flag/HGP window
+   correction: validate the shape's per-scope window in
+   `generation-preflight.service.ts` (~1033-1082) instead of the single global
+   `flagCeremonyStartTime/EndTime` policy field (07:00–07:30, which matches no
+   canonical CLASS row for the afternoon G9/G10 shift). Not yet authored.
+2. **`WORKLOAD_POLICY_BLOCK` (33) + `SEARCH_LIMIT_UNRESOLVED` (14)** — the real
+   capacity ceiling, concentrated on the fifth weekly session of 225-min subjects.
+   Needs a workload-policy review, now visible without the room noise.
+3. **Rescope `DATA-CORRECTION-C01`** onto year 10 and reconcile the register's stale
    `8eb0511b` stream text.
 
 ## Stream states
