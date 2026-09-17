@@ -10,10 +10,19 @@ sentence is returned by the operator after a fresh independent pre-action review
   LF-SHA-256 `7663164608a330af5440a6e0ea1ffade20987b49a7bb0d939f3b50f1aa2df0a3`.
 - Base: re-verify at dispatch. Placeholder base recorded at authoring:
   `f4ff7c8a8e5f058438af38e0c0684cb3ee394bef`.
-- Target pin: the `origin/main` tip AFTER `MIG-APPLY-0002-0003` has applied and
-  AFTER `SLOT-BREAK-AUTHORITY-C11` (and `WF-C10-TRANSITION-GUARD-HARDENING`,
-  needed only so this gate can be recorded truthfully) have integrated. Refresh
-  and report the base if it moved; do not pin a non-existent tip.
+- Target pin: the `origin/main` tip AFTER `MIG-APPLY-0002-0003` has **applied**,
+  AFTER `SLOT-BREAK-AUTHORITY-C11` (and `WF-C10-TRANSITION-GUARD-HARDENING`, needed
+  only so this gate can be recorded truthfully) have integrated, and AFTER
+  **`G9G10-FLAG-SOURCE-LANE`** (`cca958d7` / integration `ec235689` / closure
+  `479e5423`) has integrated. `G9G10` is **mandatory** in this pin: it changes the
+  canonical `class-program-slot.service.ts` catalog, so a deployment pinning the
+  old catalog would make the subsequent `DATA-CORRECTION-C01` reseed fail closed in
+  the opposite direction (`CANONICAL_TEMPLATE_INCOMPLETE`). Refresh and report the
+  base if it moved; do not pin a non-existent tip.
+- Known post-cutover state to record, not to fix: once this release is live the
+  catalog expects the corrected grid while the database still holds the old one, so
+  generation fails closed until `DATA-CORRECTION-C01` reseeds. Acceptance for this
+  action is its own rows, **not** a full readiness pass.
 - Risk tier: HIGH (shared-runtime deployment + durable env change).
 - Worktree: `E:/ATLAS-worktrees/consolidated-deploy-c10` (build/verify only),
   branch `chore/consolidated-deploy-c10`, disposition `RETIRE_AFTER_INTEGRATION`.
