@@ -1,9 +1,9 @@
 {
   "contractVersion": "1.2.0",
   "registry": {
-    "lastUpdatedAt": "2026-09-17T03:54:15.630Z",
+    "lastUpdatedAt": "2026-09-17T04:39:32.670Z",
     "lastUpdatedBy": "primary-planner:slot-break-c11r-registration",
-    "revision": 265
+    "revision": 266
   },
   "coordination": {
     "mode": "CYCLE_ACTIVE",
@@ -5665,11 +5665,11 @@
       "kind": "STREAM",
       "objective": "Make the machine register able to record HIGH gates and stale directives truthfully, and close four register-integrity defect classes found at R0: add record-approval and record-execution, add withdraw-approval as the documented exit from the currently dead-end HIGH_APPROVAL_REQUIRED state, add a directive-copy fail-closed check, add a packet-artifact pin lint that validates directive-pin reproducibility (A4: a directive bump must not invalidate an already-queued reproducible pin), add LF-normalized dependency-tree identity, extend the register revision window so a reservation spans from declaration through the holder's terminal transition with a WINDOW_LAPSED guard on bounded windows (A1), pin the RUNNING-without-live-evidence negative fixture with a settled account of the R2 substitution (A2), make the mandatory plugin-load gate hermetic by tracking .opencode/package.json with type=module (A3), and verify plus use record-executor-return --base (A5). Verify (do not re-implement) the WF-C09 R2 register revision-window reservation. No product source, runtime, database, or companion change.",
       "riskTier": "MEDIUM",
-      "state": "REVIEW_REQUIRED",
-      "stateUpdatedAt": "2026-09-17T03:54:15.630Z",
-      "nextAction": "Executor implements docs/prompts/wf-c10-transition-guard-hardening-2026-09-17.md (R1) in E:/ATLAS-worktrees/wf-c10-transition-guards on branch work/wf-c10-transition-guard-hardening, from the registration tip recorded in this stream's git.remoteObservation. Return REVIEW_REQUIRED with --base <that registration tip>; the planner then validates the immutable range and dispatches fresh independent QA.",
+      "state": "ACCEPT_READY",
+      "stateUpdatedAt": "2026-09-17T04:39:32.670Z",
+      "nextAction": "Planner: record the integration of candidate db5a9fce on merge 98a1550d with the refreshed remote observation, then push the merge together with this register state. Gate ledger: fresh QA ses_f53a770dbffehtUdAumTNPWZ9v accepted the candidate-tier rows (1-28, 30-33, 36-41) at 38/38/0/0; the packet integration-tier rows 29/34/35 are planner-owned and passed on the merged tree (suite 365/365 with 0 fail; verify-cycle exit 0 with 0 errors; workflow:render:check exit 0), completing the predeclared 41-row MANDATORY_SOURCE plan at 41/41/0/0/0.",
       "awaited": [
-        "fresh independent QA over the frozen candidate"
+        "planner validates the immutable range and integration boundary"
       ],
       "running": [],
       "git": {
@@ -5721,8 +5721,8 @@
           "writable": false
         },
         "qa": {
-          "sessionId": null,
-          "status": "NONE",
+          "sessionId": "ses_f53a770dbffehtUdAumTNPWZ9v",
+          "status": "RETURNED",
           "writable": false
         },
         "auditor": {
@@ -5732,20 +5732,20 @@
         }
       },
       "gates": {
-        "total": 0,
-        "passed": 0,
+        "total": 41,
+        "passed": 41,
         "failed": 0,
         "blocked": 0,
         "unperformed": 0,
         "plan": {
-          "MANDATORY_SOURCE": 40,
+          "MANDATORY_SOURCE": 41,
           "MANDATORY_LIVE": 0,
           "DEFERRED_EXTERNAL": 0
         },
         "classes": {
           "MANDATORY_SOURCE": {
-            "total": 0,
-            "passed": 0,
+            "total": 41,
+            "passed": 41,
             "failed": 0,
             "blocked": 0,
             "unperformed": 0
@@ -5767,12 +5767,18 @@
         }
       },
       "review": {
-        "qaVerdict": null,
-        "qaSessionId": null,
+        "qaVerdict": "ACCEPT_READY",
+        "qaSessionId": "ses_f53a770dbffehtUdAumTNPWZ9v",
         "auditorVerdict": null,
         "auditorSessionId": null,
         "auditRequired": true,
-        "qaRounds": []
+        "qaRounds": [
+          {
+            "round": 1,
+            "verdict": "ACCEPT_READY",
+            "sessionId": "ses_f53a770dbffehtUdAumTNPWZ9v"
+          }
+        ]
       },
       "corrections": [],
       "successors": [],
