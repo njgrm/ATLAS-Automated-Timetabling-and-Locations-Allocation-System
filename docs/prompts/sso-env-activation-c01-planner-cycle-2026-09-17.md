@@ -22,7 +22,7 @@ no release change.
 | Live release (unchanged by this lane) | `8eb0511baa537d4212f24a007ac40e2dded38c0e` |
 | Release directory | `D:\ATLAS-runtime-supervised-8eb0511baa53-20260917` |
 | Expected worktree / branch | `E:/ATLAS-worktrees/sso-env-activation-c01` / `chore/sso-env-activation-c01` |
-| Directive | read `origin/main:AGENTS.md`; blob `051ad26a07509e3af4f1c1762e1ccfff8bb6cc88`, LF-SHA-256 `7663164608a330af5440a6e0ea1ffade20987b49a7bb0d939f3b50f1aa2df0a3` |
+| Directive | read `origin/main:AGENTS.md`; blob `58e0535adff79c0f01da52fb49525443a5b52603`, LF-SHA-256 `e7ea7f7d6b2bb36a41c7d3be29063f70900163c75de605880ac958bf1f02aa11` |
 
 ## Preconditions - VERIFIED, do not re-litigate
 

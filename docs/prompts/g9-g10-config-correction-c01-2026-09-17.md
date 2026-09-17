@@ -54,8 +54,8 @@ approval before any write. No schema change.
 
 ## 0. Identity
 
-- Directive pin: `origin/main:AGENTS.md` blob `051ad26a07509e3af4f1c1762e1ccfff8bb6cc88`,
-  LF-SHA-256 `7663164608a330af5440a6e0ea1ffade20987b49a7bb0d939f3b50f1aa2df0a3`. Read from Git bytes.
+- Directive pin: `origin/main:AGENTS.md` blob `58e0535adff79c0f01da52fb49525443a5b52603`,
+  LF-SHA-256 `e7ea7f7d6b2bb36a41c7d3be29063f70900163c75de605880ac958bf1f02aa11`. Read from Git bytes.
 - Base: `origin/main` at dispatch. Authoring base `0a134bba`.
 - Risk: **HIGH** (live configuration data). Disposition: `RETIRE_AFTER_INTEGRATION`.
 - Worktree `E:/ATLAS-worktrees/g9-g10-config-correction-c01`, branch
