@@ -171,6 +171,25 @@ export default function ScheduleReviewWorkspace() {
 		});
 	}, []);
 
+	// R3: the selected-class Swap affordances must arm the same two-class swap
+	// workflow the Simple task path arms. Setting `activeSimpleTask` alone was a
+	// state-only no-op (finding A-05).
+	//
+	// CLIENT-QUALITY-C01 (#310): this hook MUST be declared before the component's
+	// early returns below. When it sat after the loading-skeleton early return,
+	// the loading->loaded transition rendered fewer hooks than the previous render
+	// and React threw the canonical #310 error.
+	// Declaration order only; the dependency array is unchanged.
+	const armSwapSessions = useCallback(() => {
+		createSwapArmHandler({
+			setTask: setActiveSimpleTask,
+			setMode: (mode) => state.setSwapClassTimesMode?.(mode),
+			setEntryIdA: (id) => state.setSwapClassAEntryId?.(id),
+			setEntryIdB: (id) => state.setSwapClassBEntryId?.(id),
+			setStatus: (status) => state.setInlineActionStatus(status),
+		})();
+	}, [state.setSwapClassTimesMode, state.setSwapClassAEntryId, state.setSwapClassBEntryId, state.setInlineActionStatus]);
+
 	const isDraftPublished = isDraftPublishedStrict(state.draft);
 
 	if (state.loading && !state.draft) {
@@ -240,19 +259,6 @@ export default function ScheduleReviewWorkspace() {
 		params.set('task', 'missing-load');
 		navigate(`/teaching-load?${params.toString()}`);
 	};
-
-	// R3: the selected-class Swap affordances must arm the same two-class swap
-	// workflow the Simple task path arms. Setting `activeSimpleTask` alone was a
-	// state-only no-op (finding A-05).
-	const armSwapSessions = useCallback(() => {
-		createSwapArmHandler({
-			setTask: setActiveSimpleTask,
-			setMode: (mode) => state.setSwapClassTimesMode?.(mode),
-			setEntryIdA: (id) => state.setSwapClassAEntryId?.(id),
-			setEntryIdB: (id) => state.setSwapClassBEntryId?.(id),
-			setStatus: (status) => state.setInlineActionStatus(status),
-		})();
-	}, [state.setSwapClassTimesMode, state.setSwapClassAEntryId, state.setSwapClassBEntryId, state.setInlineActionStatus]);
 
 	const selectedPrimaryAction = activeSimpleTask === 'swap-sessions'
 		? {

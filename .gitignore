@@ -102,6 +102,7 @@ qa-artifacts/playwright/*
 !qa-artifacts/playwright/specs/
 qa-artifacts/playwright/specs/*
 !qa-artifacts/playwright/specs/teaching-load-post-qa-remediation.spec.ts
+!qa-artifacts/playwright/specs/client-route-smoke.spec.ts
 
 # Root-level throwaway outputs
 /*.png

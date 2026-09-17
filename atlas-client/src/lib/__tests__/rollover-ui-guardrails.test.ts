@@ -33,3 +33,19 @@ test('the advanced disclosure trigger exposes aria-expanded for keyboard and scr
 	const accordion = readSource('../../ui/accordion.tsx');
 	assert.ok(accordion.includes('aria-expanded={isOpen}'), 'accordion trigger reports its expanded state');
 });
+
+test('the year-change banner is explicitly dismissible and expires via changedAt', () => {
+	// CLIENT-QUALITY-C01 (deliberate contract change): the notice was persisted
+	// to localStorage and re-hydrated on every load with no dismiss control and
+	// no expiry. It must now expose a dismiss control wired to removal of the
+	// durable cache entry, and a bounded window keyed on `changedAt`.
+	const appShell = readSource('../../components/AppShell.tsx');
+	assert.ok(appShell.includes('rollover-awareness-dismiss'), 'the banner exposes a dismiss control');
+	assert.ok(appShell.includes('clearRolloverAwarenessNotice'), 'dismiss removes the durable notice cache entry');
+	assert.ok(appShell.includes('setRolloverNotice(null)'), 'dismiss clears the in-session notice state');
+
+	const awareness = readSource('../../lib/rollover-awareness.ts');
+	assert.ok(awareness.includes('ROLLOVER_NOTICE_TTL_MS'), 'a bounded notice window is declared');
+	assert.ok(awareness.includes('isRolloverNoticeExpired'), 'expiry is evaluated from changedAt');
+	assert.ok(awareness.includes('clearRolloverAwarenessNotice'), 'the durable cache entry can be removed');
+});

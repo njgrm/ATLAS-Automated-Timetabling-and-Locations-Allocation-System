@@ -25,12 +25,13 @@ import { cn } from '@/lib/utils';
 import {
 	resolveTeachingActualHours,
 	teachingUtilizationPercentFor,
+	remainingCapacityMinutesForLoadProfile,
 	type FacultyOwnershipState,
 	type TeachingLoadStatusFilter,
 	type TeachingLoadLoadFilter,
 	type TeachingLoadFacet,
 } from '@/lib/faculty-assignment-helpers';
-import type { FacultySummary, FacultyAssignmentDraft, Subject, ExternalSection } from '@/types';
+import type { FacultySummary, FacultyAssignmentDraft, Subject, ExternalSection, LoadProfile } from '@/types';
 import { SubjectRow } from './SubjectRow';
 
 type TeacherGridModeProps = {
@@ -53,7 +54,14 @@ type TeacherGridModeProps = {
 	departmentQualifiedSubjects: Subject[];
 	outsideDepartmentSubjects: Subject[];
 	homeroomHint: { advisedSectionId: number | null } | null;
-	loadProfile: any;
+	/**
+	 * Canonical workload profile for the selected teacher. Null until the
+	 * selected teacher's load resolves (and when no teacher is selected), which
+	 * is why every dereference below is nullable. Typed as `LoadProfile | null`
+	 * instead of `any` after the live null-dereference crash
+	 * (`remainingHours`) — see CLIENT-QUALITY-C01.
+	 */
+	loadProfile: LoadProfile | null;
 	onHoverLoadMinutes: (minutes: number) => void;
 	onClearHoverLoad: () => void;
 	activeFacultyIds: Set<number>;
@@ -530,7 +538,7 @@ export function TeacherGridMode({
 																				savedConflictMap={savedConflictMap}
 																				onSetSections={onSetSections}
 																				advisedSectionId={homeroomHint?.advisedSectionId}
-																				remainingCapacityMinutes={loadProfile.remainingHours * 60}
+																				remainingCapacityMinutes={remainingCapacityMinutesForLoadProfile(loadProfile)}
 																				onHoverLoadMinutes={onHoverLoadMinutes}
 																				onClearHoverLoad={onClearHoverLoad}
 																				activeFacultyIds={activeFacultyIds}
@@ -564,7 +572,7 @@ export function TeacherGridMode({
 																				onSetSections={onSetSections}
 																				isOutsideDepartment
 																				advisedSectionId={homeroomHint?.advisedSectionId}
-																				remainingCapacityMinutes={loadProfile.remainingHours * 60}
+																				remainingCapacityMinutes={remainingCapacityMinutesForLoadProfile(loadProfile)}
 																				onHoverLoadMinutes={onHoverLoadMinutes}
 																				onClearHoverLoad={onClearHoverLoad}
 																				activeFacultyIds={activeFacultyIds}

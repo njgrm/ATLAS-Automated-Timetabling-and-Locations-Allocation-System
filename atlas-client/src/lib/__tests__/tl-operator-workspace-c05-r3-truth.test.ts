@@ -363,11 +363,27 @@ test('R3 the truth panel preserves the no-scroll shell contract', () => {
 	assert.doesNotMatch(panel, /overflow-y-auto/);
 	assert.doesNotMatch(panel, /h-screen/);
 
+	// CLIENT-QUALITY-C01 (deliberate contract change): the truth surface is now
+	// collapsed by default behind the shared @/ui Accordion disclosure with a
+	// one-line summary. The detailed metric rows stay in the DOM (CSS collapse,
+	// not unmount), so the canonical-value assertions above still hold.
+	assert.match(panel, /AccordionContent/);
+	assert.match(panel, /teaching-load-truth-summary-line/);
+
 	const page = source('src/pages/TeachingLoad.tsx');
 	assert.match(page, /h-\[calc\(100svh-3\.5rem\)\]/);
 	assert.match(page, /<TeachingLoadTruthPanel/);
-	// The summary strip is suppressed on very short viewports to protect space.
-	assert.match(page, /\[@media\(max-height:640px\)\]:hidden[\s\S]{0,400}<TeachingLoadTruthPanel/);
+	// The compact one-line panel is no longer suppressed on short viewports:
+	// collapsing it is what reclaims the vertical space that previously forced
+	// the `[@media(max-height:640px)]:hidden` wrapper.
+	const panelIndex = page.indexOf('<TeachingLoadTruthPanel');
+	assert.ok(panelIndex > 0, 'the page must render the truth panel');
+	const wrapperBeforePanel = page.slice(Math.max(0, panelIndex - 400), panelIndex);
+	assert.doesNotMatch(
+		wrapperBeforePanel,
+		/\[@media\(max-height:640px\)\]:hidden/,
+		'the collapsed truth strip must stay reachable on short viewports',
+	);
 });
 
 test('R3 every Touch target and detail affordance is a real shadcn control', () => {

@@ -196,7 +196,7 @@ export function WorkloadInspector({
 						<div className="p-4 rounded-xl border border-border/40 bg-muted/5 space-y-1">
 							<span className="text-xs font-bold text-muted-foreground/60 uppercase tracking-widest block">Remaining teaching time</span>
 							<p className="text-xl font-black tracking-tight tabular-nums text-emerald-600">
-								{loadProfile.remainingHours.toFixed(1)}h
+								{loadProfile?.remainingHours?.toFixed(1) ?? '0.0'}h
 							</p>
 						</div>
 					)}

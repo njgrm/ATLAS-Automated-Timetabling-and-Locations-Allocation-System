@@ -9,8 +9,27 @@ export type RolloverAwarenessNotice = {
 
 const NOTICE_PREFIX = 'atlas:rollover-awareness:v1';
 
+/**
+ * CLIENT-QUALITY-C01: a verified year-change notice is a transient operator
+ * alert, not permanent chrome. It is re-hydrated from localStorage on every
+ * load, so without an upper bound an old notice would reappear forever
+ * (`changedAt` was stored but unused). Fourteen days is long enough to cover a
+ * normal rollover hand-off and short enough that stale guidance cannot
+ * masquerade as current.
+ */
+export const ROLLOVER_NOTICE_TTL_MS = 14 * 24 * 60 * 60 * 1000;
+
 export function rolloverNoticeCacheKey(schoolId: number): string {
 	return `${NOTICE_PREFIX}:${schoolId}`;
+}
+
+export function isRolloverNoticeExpired(
+	notice: Pick<RolloverAwarenessNotice, 'changedAt'>,
+	now: number = Date.now(),
+): boolean {
+	const changedAtMs = Date.parse(notice.changedAt);
+	if (!Number.isFinite(changedAtMs)) return true;
+	return now - changedAtMs > ROLLOVER_NOTICE_TTL_MS;
 }
 
 export function createRolloverAwarenessNotice(input: {
@@ -37,9 +56,25 @@ export function readRolloverAwarenessNotice(schoolId: number): RolloverAwareness
 		const notice = JSON.parse(raw) as RolloverAwarenessNotice;
 		if (notice.schoolId !== schoolId || !Number.isInteger(notice.activeSchoolYearId)
 			|| !Number.isInteger(notice.previousSchoolYearId) || !notice.changedAt) return null;
+		if (isRolloverNoticeExpired(notice)) return null;
 		return notice;
 	} catch {
 		return null;
+	}
+}
+
+/**
+ * Explicit operator dismissal: remove the durable cache entry so the notice does
+ * not re-hydrate on the next load. Returns true when an entry was present.
+ */
+export function clearRolloverAwarenessNotice(schoolId: number): boolean {
+	try {
+		const key = rolloverNoticeCacheKey(schoolId);
+		const present = localStorage.getItem(key) != null;
+		localStorage.removeItem(key);
+		return present;
+	} catch {
+		return false;
 	}
 }
 

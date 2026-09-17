@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
-import { AlertTriangle, UserRound } from 'lucide-react';
+import { AlertTriangle, History, UserRound } from 'lucide-react';
 import { Card } from '@/ui/card';
 import { Button } from '@/ui/button';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/ui/sheet';
@@ -677,14 +677,32 @@ export default function TeachingLoad() {
 						)}
 
 						{/* Summary-first canonical truth. Details (names, reasons) stay on
-							demand so an older scheduler is never handed a diagnostic wall. */}
-						<div className="shrink-0 px-3 pt-1 lg:px-5 [@media(max-height:640px)]:hidden">
-							<TeachingLoadTruthPanel
-								model={truthModel}
-								loading={data.loading || data.authorityDiagnosticsLoading}
-								sourceRevision={data.authorityDiagnostics?.sourceRevision ?? null}
-								unresolvedReasons={truthUnresolvedReasons}
-							/>
+							demand so an older scheduler is never handed a diagnostic wall.
+							CLIENT-QUALITY-C01: the panel is now collapsed by default, so this
+							strip is one compact line and is no longer suppressed on short
+							viewports; the archived-load control sits beside it so the global
+							rollover banner is not the only path to prior-year load. */}
+						<div className="shrink-0 flex items-start gap-2 px-3 pt-1 lg:px-5">
+							<div className="min-w-0 flex-1">
+								<TeachingLoadTruthPanel
+									model={truthModel}
+									loading={data.loading || data.authorityDiagnosticsLoading}
+									sourceRevision={data.authorityDiagnostics?.sourceRevision ?? null}
+									unresolvedReasons={truthUnresolvedReasons}
+								/>
+							</div>
+							<Button
+								asChild
+								variant="outline"
+								size="sm"
+								className="h-8 shrink-0 gap-1.5 text-xs"
+								data-testid="teaching-load-history-link"
+							>
+								<Link to="/teaching-load/history">
+									<History className="size-3.5" aria-hidden="true" />
+									Archived load
+								</Link>
+							</Button>
 						</div>
 
 						{/* Phase 4.1: the standalone TeachingLoadTaskGuide is removed.

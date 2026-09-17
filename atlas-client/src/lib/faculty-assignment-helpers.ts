@@ -233,6 +233,20 @@ export function resolveEffectiveLoadBaselineHours(
 }
 
 /**
+ * CLIENT-QUALITY-C01: null-safe remaining teaching capacity (minutes).
+ *
+ * `loadProfile` is null until the selected teacher's workload resolves (and
+ * while no teacher is selected). The pre-fix `TeacherGridMode` typed this prop
+ * as `any` and dereferenced `loadProfile.remainingHours`, which produced the
+ * live `Cannot read properties of null (reading 'remainingHours')` crash when
+ * "review load" opened before the profile existed. Keeping the guard in one
+ * exported pure helper makes the null path directly testable.
+ */
+export function remainingCapacityMinutesForLoadProfile(loadProfile: LoadProfile | null): number {
+	return (loadProfile?.remainingHours ?? 0) * 60;
+}
+
+/**
  * Canonical teaching-load status from ACTUAL teaching hours against the
  * explicit effective standard. All parameters required — no local defaults.
  */

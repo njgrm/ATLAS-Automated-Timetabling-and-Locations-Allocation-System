@@ -2,10 +2,13 @@ import { afterEach, beforeEach, test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
+	clearRolloverAwarenessNotice,
 	createRolloverAwarenessNotice,
 	evaluateRolloverTransition,
+	isRolloverNoticeExpired,
 	persistRolloverAwarenessNotice,
 	readRolloverAwarenessNotice,
+	ROLLOVER_NOTICE_TTL_MS,
 	rolloverNoticeCacheKey,
 } from '@/lib/rollover-awareness';
 
@@ -124,4 +127,33 @@ test('sensitivity: without recording the verified year, a stale duplicate looks 
 		evaluateRolloverTransition({ schoolId: 7, previous: advanced, next: { id: 21, label: 'B' } }).changed,
 		true,
 	);
+});
+
+/* ================================================================== *
+ * CLIENT-QUALITY-C01 — dismiss + bounded expiry
+ * ================================================================== */
+
+test('a notice older than the bounded window is not re-hydrated', () => {
+	const notice = createRolloverAwarenessNotice({
+		schoolId: 7, activeSchoolYearId: 20, activeSchoolYearLabel: 'A',
+		previousSchoolYearId: 19, previousSchoolYearLabel: 'B',
+	});
+	notice.changedAt = new Date(Date.now() - ROLLOVER_NOTICE_TTL_MS - 60_000).toISOString();
+	assert.equal(isRolloverNoticeExpired(notice), true);
+	persistRolloverAwarenessNotice(notice);
+	assert.equal(readRolloverAwarenessNotice(7), null, 'an expired notice must not reappear on load');
+});
+
+test('a fresh notice survives the window and dismissal removes it durably', () => {
+	const notice = createRolloverAwarenessNotice({
+		schoolId: 7, activeSchoolYearId: 20, activeSchoolYearLabel: 'A',
+		previousSchoolYearId: 19, previousSchoolYearLabel: 'B',
+	});
+	assert.equal(isRolloverNoticeExpired(notice), false);
+	persistRolloverAwarenessNotice(notice);
+	assert.ok(readRolloverAwarenessNotice(7), 'a fresh notice re-hydrates');
+
+	assert.equal(clearRolloverAwarenessNotice(7), true, 'dismiss removes a present notice');
+	assert.equal(readRolloverAwarenessNotice(7), null, 'a dismissed notice does not reappear');
+	assert.equal(clearRolloverAwarenessNotice(7), false, 'dismiss is idempotent');
 });

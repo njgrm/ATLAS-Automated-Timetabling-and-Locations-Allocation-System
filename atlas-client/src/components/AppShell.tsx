@@ -13,6 +13,7 @@ import { resolveEnrollProLogoutRedirect } from '@/lib/companion-config';
 import { applyEnrollProAccentTheme, fetchPublicSettings, verifySessionToken } from '@/lib/settings';
 import { invalidateActiveSchoolYearContext, resolveActiveSchoolYearContext } from '@/lib/enrollpro-public-settings';
 import {
+	clearRolloverAwarenessNotice,
 	evaluateRolloverTransition,
 	persistRolloverAwarenessNotice,
 	readRolloverAwarenessNotice,
@@ -549,6 +550,20 @@ export function AppShell() {
 							</Button>
 							<Button asChild variant='ghost' className='min-h-11'>
 								<Link to='/admin/year-setup'>Year Setup</Link>
+							</Button>
+							<Button
+								type='button'
+								variant='ghost'
+								size='icon'
+								className='min-h-11 min-w-11 text-amber-950'
+								data-testid='rollover-awareness-dismiss'
+								aria-label='Dismiss school year change notice'
+								onClick={() => {
+									if (actorSchoolId != null) clearRolloverAwarenessNotice(actorSchoolId);
+									setRolloverNotice(null);
+								}}
+							>
+								<X className='size-4' aria-hidden='true' />
 							</Button>
 						</div>
 					</section>

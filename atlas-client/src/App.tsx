@@ -3,6 +3,7 @@ import { lazy, Suspense } from 'react';
 import { Toaster } from 'sonner';
 
 import { AppShell } from './components/AppShell';
+import { RouteErrorBoundary } from './components/RouteErrorBoundary';
 
 const Login = lazy(() => import('./pages/Login'));
 const Dashboard = lazy(() => import('./pages/Dashboard'));
@@ -57,26 +58,32 @@ const router = createBrowserRouter([
 	{
 		path: '/login',
 		element: <Login />,
+		errorElement: <RouteErrorBoundary />,
 	},
 	{
 		path: '/auth/sso/callback',
 		element: <SsoCallback />,
+		errorElement: <RouteErrorBoundary />,
 	},
 	{
 		path: '/auth/enrollpro/authorize',
 		element: <EnrollProAuthorize />,
+		errorElement: <RouteErrorBoundary />,
 	},
 	{
 		path: '/public/schedules',
 		element: <PublicPublishedSchedule />,
+		errorElement: <RouteErrorBoundary />,
 	},
 	{
 		path: '/public/schedule',
 		element: <LegacyRouteRedirect to="/public/schedules" />,
+		errorElement: <RouteErrorBoundary />,
 	},
 	{
 		path: '/',
 		element: <AppShell />,
+		errorElement: <RouteErrorBoundary />,
 		children: [
 			{
 				index: true,

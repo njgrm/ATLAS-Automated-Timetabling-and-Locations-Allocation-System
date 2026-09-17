@@ -23,7 +23,6 @@ import { RolloverGuidanceCard } from '@/components/runtime/RolloverGuidanceCard'
 import { SmartHelpTrigger } from '@/components/smart/SmartPageShell';
 
 const CampusReadinessCard = lazy(() => import('@/components/dashboard/CampusReadinessCard').then((module) => ({ default: module.CampusReadinessCard })));
-const DashboardCharts = lazy(() => import('@/components/dashboard/DashboardCharts').then((module) => ({ default: module.DashboardCharts })));
 
 type StatTone = 'brand' | 'sky' | 'violet' | 'amber';
 
@@ -811,17 +810,6 @@ export default function Dashboard() {
 									)}
 								</CardContent>
 							</Card>
-
-							{/* Dashboard Charts - Run Health Donut */}
-							<Suspense fallback={<div className='h-48 flex items-center justify-center text-sm text-muted-foreground'>Loading charts...</div>}>
-								<DashboardCharts
-									loading={loading}
-									assignedCount={assignedCount}
-									unassignedCount={unassignedCount}
-									hardViolationCount={hardViolationCount}
-									latestRunStatus={latestRunStatus}
-								/>
-							</Suspense>
 					</div>
 
 					{/* Campus Map & Rooms – full-width */}
