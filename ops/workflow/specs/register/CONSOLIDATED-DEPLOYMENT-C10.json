@@ -3,21 +3,22 @@
   "kind": "STREAM",
   "objective": "Deploy one release pinned at the accepted origin/main tip that includes the C07R1 authorization fix, published-revision immutability, warning realism, export parity, generation-authority realism and the R3 term-authority canonicalization; remove the vestigial ATLAS_DEFAULT_SCHOOL_ID key from the durable env; re-point and restart the registered ATLAS-Runtime-Supervisor task on ports 5001/5174; then run the 13-row acceptance matrix with exactly one authorized login and logout. No data mutation, generation, publication, Teaching Load apply, term-cache apply, rollover, migration, or companion change.",
   "riskTier": "HIGH",
-  "state": "PLANNED",
-  "stateUpdatedAt": "2026-09-17T00:00:00Z",
-  "nextAction": "Wait for MIG-APPLY-0002-0003 to apply, SLOT-BREAK-AUTHORITY-C11 to integrate, and WF-C10-TRANSITION-GUARD-HARDENING to integrate; then freeze the pin, commission one fresh independent pre-action review of docs/prompts/consolidated-deployment-c10-2026-09-17.md, and only after that review passes return the packet's exact approval sentence.",
+  "state": "RUNNING",
+  "stateUpdatedAt": "2026-09-17T12:35:46Z",
+  "nextAction": "Commission one fresh independent pre-action review over this amended packet and the frozen pin; on PASS return the packet's exact approval sentence (including the rotated out-of-band SSO provisioning channel, or the drop variant) to the operator; on approval record it through record-approval and dispatch the deployment executor in E:/ATLAS-worktrees/consolidated-deploy-c10, then record execution, evidence, the post-action acceptance review, and the Wave Completion Auditor.",
   "awaited": [
-    "MIG-APPLY-0002-0003 applied and verified (the target code requires companion_sso_codes and teacher_program_presentation_revisions)",
-    "SLOT-BREAK-AUTHORITY-C11 integrated, or an explicit operator deferral that accepts retired-window warnings",
-    "WF-C10-TRANSITION-GUARD-HARDENING integrated so this HIGH gate can be recorded through record-approval and record-execution",
-    "one fresh independent pre-action review of the deployment packet",
-    "the operator's exact approval sentence (returned only after the pre-action review passes)"
+    "one fresh independent pre-action review of the amended deployment packet and the frozen pin",
+    "the operator's exact approval sentence, which must name the literal pin and either the rotated SSO provisioning path or the drop variant",
+    "the deployment executor return (REVIEW_REQUIRED) with the 13-row acceptance matrix and evidence",
+    "the fresh post-action acceptance review and the fresh Wave Completion Auditor"
   ],
-  "running": [],
+  "running": [
+    "CONSOLIDATED-DEPLOYMENT-C10 dispatch: amended packet and frozen pin prepared, register row created by CAS with an ACTIVE executor lease, pre-action review being commissioned; no listener, task, env, or data mutation has occurred"
+  ],
   "git": {
     "worktree": "E:/ATLAS-worktrees/consolidated-deploy-c10",
     "branch": "chore/consolidated-deploy-c10",
-    "baseSha": "f4ff7c8a8e5f058438af38e0c0684cb3ee394bef",
+    "baseSha": "43341ac7cb908f9ca692dbc93f8da8ef26ec52b0",
     "candidateSha": null,
     "integrationSha": null,
     "changedPaths": [],
@@ -56,16 +57,15 @@
   },
   "corrections": [],
   "successors": [],
-  "requires": [],
+  "requires": ["MIG-APPLY-0002-0003", "G9G10-FLAG-SOURCE-LANE"],
   "blocker": {
     "kind": "APPROVAL",
-    "detail": "Approval-gated HIGH action. The binding gate is the operator's exact approval sentence, which is returned only after one fresh independent pre-action review passes. It also depends on MIG-APPLY-0002-0003 applying and on SLOT-BREAK-AUTHORITY-C11 and WF-C10-TRANSITION-GUARD-HARDENING integrating. FACULTY-SYNC-PUBLICATION-CAS-C01 is NOT a prerequisite for this action (zero published revisions exist); it is required before publication only. Kind is APPROVAL rather than DEPENDENCY because the contract forbids DEPENDENCY blockers that carry safe work, and this stream legitimately has safe work remaining.",
+    "detail": "Approval-gated HIGH action, dispatched 2026-09-17. Every prerequisite is satisfied and verified at dispatch: MIG-APPLY-0002-0003 applied and verified (INTEGRATED, 12/12 rows; only a docs-only closure correction remains), G9G10-FLAG-SOURCE-LANE integrated (COMPLETE), SLOT-BREAK-AUTHORITY-C11/C11R COMPLETE, WF-C10-TRANSITION-GUARD-HARDENING COMPLETE, directive pin reproduced at the dispatch tip. The binding gate is the operator's exact approval sentence, which is returned only after one fresh independent pre-action review passes, and which must resolve the SSO clause: the paired EnrollPro secrets were published in plaintext and must be rotated and re-provisioned out of band, so the clause either runs against rotated values from the named operator-only provisioning file or is dropped to a separate HIGH env action. FACULTY-SYNC-PUBLICATION-CAS-C01 is NOT a prerequisite for this action (zero published revisions exist); it is required before publication only. Kind is APPROVAL rather than DEPENDENCY because the contract forbids DEPENDENCY blockers that carry safe work, and this stream legitimately has safe work remaining.",
     "safeWorkRemaining": true,
     "safeWorkItems": [
-      "author the deployment packet and stream spec (done)",
-      "freeze the target pin once the prerequisites integrate",
-      "commission the fresh independent pre-action review",
-      "build and smoke the target on alternate ports"
+      "commission the fresh independent pre-action review over the amended packet and the frozen pin",
+      "present the exact approval sentence, with the SSO clause resolved, and hold custody of the declared provisioning channel",
+      "prepare the alternate-port preflight build plan and the rollback startability proof"
     ]
   },
   "approval": {
@@ -76,11 +76,12 @@
     "approvedAt": null,
     "boundary": null,
     "approvedActions": [
-      "build and install a release pinned at the reviewed accepted tip",
-      "remove the vestigial ATLAS_DEFAULT_SCHOOL_ID key from D:\\ATLAS-runtime-config\\atlas-server.env",
+      "build and install a release pinned at the frozen pin, including the alternate-port preflight smoke and the rollback startability proof, with the non-secret client build input VITE_ENROLLPRO_URL=https://dev-jegs.buru-degree.ts.net",
+      "remove the vestigial ATLAS_DEFAULT_SCHOOL_ID key from D:\\ATLAS-runtime-config\\atlas-server.env and add exactly the four declared companion-SSO keys (ENROLLPRO_SSO_CLIENT_SECRET, ATLAS_SSO_REVERSE_CLIENT_SECRET, ENROLLPRO_SSO_CALLBACK_URL, ENROLLPRO_BASE_URL) from the operator-only provisioning file using rotated out-of-band values only, then delete that provisioning file after the env change is verified",
       "re-point and restart the ATLAS-Runtime-Supervisor task on ports 5001/5174",
       "one authorized login and logout for the acceptance matrix",
-      "symmetric rollback to 54dce67b (then 9d293879) only on a failed mandatory acceptance row"
+      "symmetric rollback to 54dce67b (then 9d293879) only on a failed mandatory acceptance row",
+      "record the bounded approval, execution, evidence, and register docs-only records"
     ],
     "requiredObservationIds": [],
     "execution": null
