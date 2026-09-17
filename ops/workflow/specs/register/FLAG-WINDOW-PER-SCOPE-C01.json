@@ -1,0 +1,96 @@
+{
+  "id": "FLAG-WINDOW-PER-SCOPE-C01",
+  "kind": "STREAM",
+  "objective": "Ordinary MEDIUM source lane correcting the Flag/HGP overlay gate so it agrees with the constructor's per-scope contract. generation-preflight resolved the overlay per scope but fell back to the single global policy window (07:00-07:30) when a shape had no scoped PolicySpecialEvent rows, then failed closed with FLAG_CEREMONY_SCOPE_INVALID when that window was contained by no canonical CLASS row. Because the canonical grids are shift-specific, the morning default was reported as invalid configuration for the afternoon shift, producing 8 false blockers on the live active year (schoolYearId=10; G9 and G10 across REGULAR/STE/SPA/SPS), while schedule-constructor.resolvePolicyFlagOverlaySlots resolved the same overlay permissively and silently rendered no overlay. The gate was stricter than the only consumer it guarded. The lane makes explicit configuration fail closed (a configured scoped flag row that cannot snap still blocks) while an inapplicable global default produces no blocker and no overlay, and adds constructor-parity and mutant coverage. The constructor is the parity reference and is not edited. No live action, no database write, no runtime, no companion.",
+  "riskTier": "MEDIUM",
+  "state": "PLANNED",
+  "stateUpdatedAt": "2026-09-18T00:00:00.000Z",
+  "nextAction": "Record the executor return, the fresh QA result, and the integration, then commission one fresh Wave Completion Auditor over the integrated tree.",
+  "awaited": [],
+  "running": [],
+  "git": {
+    "worktree": "E:/ATLAS-worktrees/flag-window-per-scope-c01",
+    "branch": "work/flag-window-per-scope-c01",
+    "baseSha": "0f8a2dabcb9d055e674d4b7b508918a2daa795c6",
+    "candidateSha": null,
+    "integrationSha": null,
+    "changedPaths": [],
+    "remoteObservation": null
+  },
+  "owners": {
+    "planner": { "sessionId": null, "status": "IDLE", "writable": false },
+    "executor": { "sessionId": null, "status": "NONE", "writable": false },
+    "qa": { "sessionId": null, "status": "NONE", "writable": false },
+    "auditor": { "sessionId": null, "status": "NONE", "writable": false }
+  },
+  "gates": {
+    "total": 0,
+    "passed": 0,
+    "failed": 0,
+    "blocked": 0,
+    "unperformed": 0,
+    "plan": {
+      "MANDATORY_SOURCE": 8,
+      "MANDATORY_LIVE": 0,
+      "DEFERRED_EXTERNAL": 0
+    },
+    "classes": {
+      "MANDATORY_SOURCE": { "total": 0, "passed": 0, "failed": 0, "blocked": 0, "unperformed": 0 },
+      "MANDATORY_LIVE": { "total": 0, "passed": 0, "failed": 0, "blocked": 0, "unperformed": 0 },
+      "DEFERRED_EXTERNAL": { "total": 0, "passed": 0, "failed": 0, "blocked": 0, "unperformed": 0 }
+    }
+  },
+  "review": {
+    "qaVerdict": null,
+    "qaSessionId": null,
+    "auditorVerdict": null,
+    "auditorSessionId": null,
+    "auditRequired": true,
+    "qaRounds": []
+  },
+  "corrections": [],
+  "successors": [],
+  "requires": [],
+  "blocker": {
+    "kind": "NONE",
+    "detail": "No approval gate: ordinary MEDIUM source work that performs no live action. COMPANION DEPENDENCY: the source contract alone is necessary but not sufficient. With zero persisted scoped PolicySpecialEvent rows on the live year, the corrected preflight yields no blocker and no overlay, so the afternoon shift would render no flag. The operator confirmed the afternoon shift has its own flag ceremony (they are not at school for the morning one), with stakeholder authority at 12:15-13:00 (D:/ATLAS/stakeholderFiles/grade9STE_Sched.jpg, DepEd Class Program Grade 9 Enhanced K to 10 SY 2026-2027, section FE DEL MUNDO). The companion per-scope PolicySpecialEvent data action is a separate HIGH write and remains ungranted.",
+    "safeWorkRemaining": false,
+    "safeWorkItems": []
+  },
+  "approval": {
+    "required": false,
+    "presentedReady": false,
+    "granted": false,
+    "operatorIdentity": null,
+    "approvedAt": null,
+    "boundary": null,
+    "approvedActions": [],
+    "requiredObservationIds": [],
+    "execution": null
+  },
+  "observations": [],
+  "artifacts": [],
+  "closure": null,
+  "sessionRouting": {
+    "planner": {
+      "decision": "EXISTING",
+      "sessionId": null,
+      "reason": "same planner session authored the packet and integrated the accepted candidate."
+    },
+    "executor": {
+      "decision": "FRESH_REQUIRED",
+      "sessionId": "ses_f4e6955e0ffed5KoQIb3ynhWTN",
+      "reason": "the source correction ran in a fresh executor context in E:/ATLAS-worktrees/flag-window-per-scope-c01."
+    },
+    "qa": {
+      "decision": "FRESH_REQUIRED",
+      "sessionId": "ses_f4e5e9a6bffe3CbGoa96ZUcok3",
+      "reason": "fresh independent QA over the frozen candidate range, including the constructor-parity table and both mutants."
+    },
+    "auditor": {
+      "decision": "FRESH_REQUIRED",
+      "sessionId": null,
+      "reason": "the stream changes the readiness gate consumed by generation, so a fresh adversarial Wave Completion Auditor is required after integration."
+    }
+  }
+}
