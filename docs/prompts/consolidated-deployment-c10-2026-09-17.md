@@ -241,6 +241,30 @@ Rollback: symmetric re-point + relaunch to `54dce67b`, then the supervised
 `d44f29e0` fallback at `D:\ATLAS-runtime-fallback-d44-20260912` remains a manual
 last resort only.
 
+### 4.1 Launch ownership (mechanical closure invariant — was missing before `f8d99b16`)
+
+The four launch-ownership fields are now named explicitly. The durable resident
+owner is the **registered task**, never the executor shell.
+
+| Field | Value |
+| --- | --- |
+| `launchOwner` | Windows scheduled task `\ATLAS-Runtime-Supervisor` — principal `SYSTEM`, trigger at system startup (ONSTART), delay `PT0S`, multiple-instances policy `IgnoreNew`. It, and not the invoking executor process, is the durable resident owner |
+| `launchMechanism` | (a) re-point the task action to `"C:\Program Files\nodejs\node.exe" "D:\ATLAS-runtime-supervised-<pin12>-<date>\ops\runtime\cli.mjs" start`, with the task working directory and `ATLAS_RUNTIME_SOURCE_DIR` / `ATLAS_RUNTIME_RELEASE_SHA` updated to the new release; then (b) `schtasks /run /tn ATLAS-Runtime-Supervisor`. `ops/runtime/cli.mjs` is then the resident parent that owns the 5001 (`server.js`) and 5174 (`host.mjs`) children |
+| `rollbackLaunchOwner` | The same registered task `\ATLAS-Runtime-Supervisor` |
+| `rollbackLaunchMechanism` | Symmetric re-point of the same task back to `54dce67b` at `D:\ATLAS-runtime-supervised-54dce67b-20260914`, `schtasks /run /tn ATLAS-Runtime-Supervisor`, then the same health/ready/host/Tailnet proof; failing that, the supervised `9d293879` at `D:\ATLAS-runtime-supervised-20260912`. `d44f29e0` at `D:\ATLAS-runtime-fallback-d44-20260912` is a **manual, non-supervised** last resort and is not a durable launch mechanism |
+
+**Forbidden launch mechanism.** Starting the long-lived runtime as a child of the
+executor's agent command, terminal, or a temporary wrapper is prohibited, as is
+any `Start-Process`/foreground `node` invocation that leaves the resident process
+parented to the executor shell. If the task cannot be re-pointed and run, the
+action stops and reports the blocker rather than substituting an attached
+process.
+
+**Acceptance obligation added by this subsection.** Beyond the §5 rows, the
+execution evidence must prove that the **task-launched** resident process — not an
+executor-started one — owns the 5001 and 5174 children and listeners, and that it
+remains healthy **after the invoking executor shell exits**.
+
 ## 5. Acceptance matrix
 
 | # | Row | Pass condition |
