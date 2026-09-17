@@ -230,7 +230,15 @@ All five previously open decisions are RESOLVED by the operator as of
   Grades 9-10 Regular 8 CLASS rows, and Grades 9-10 Special Program 10 CLASS
   rows. The canonical persisted break rows are Grades 7-8 Health Break
   09:00-09:15 and Lunch Break 12:15-13:00, and Grades 9-10 Lunch Break
-  12:15-13:00 and Health Break 15:15-15:30. The legacy 11:55-12:55 lunch window
+  **11:30-12:15** and Health Break 15:15-15:30. Afternoon-shift sections --
+  including the Special Program afternoon block -- take lunch at 11:30-12:15;
+  for Grades 9-10 Regular this yields a shift of 11:30-18:30 whose
+  `12:15-13:00` interval is the FIRST CLASS row, not a lunch row
+  (operator clarification 2026-09-17; corroborated by the Grade 10 Regular
+  Section PEARL form `Total minutes per day 420` = 8x45 + 45 + 15, and by the
+  Grade 9 STE schedule whose lunch band prints at 11:30-12:15).
+  ARAL-Reading rows are OUT OF SCOPE and are never modelled on any grid.
+  The legacy 11:55-12:55 lunch window
   and other global recess/lunch fallbacks are NOT authoritative when canonical
   `classProgramSlot` rows exist. The v1 default is the same canonical CLASS-row
   structure Monday-Friday; no Friday-only shortened timetable is implemented for
