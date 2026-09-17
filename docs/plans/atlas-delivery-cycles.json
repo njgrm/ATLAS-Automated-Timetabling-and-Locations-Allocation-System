@@ -1,9 +1,9 @@
 {
   "contractVersion": "1.2.0",
   "registry": {
-    "lastUpdatedAt": "2026-09-17T05:38:52.793Z",
-    "lastUpdatedBy": "primary-planner:wf-c10-closure",
-    "revision": 276
+    "lastUpdatedAt": "2026-09-17T05:47:42.034Z",
+    "lastUpdatedBy": "primary-planner:slot-break-authority-c11r",
+    "revision": 278
   },
   "coordination": {
     "mode": "MANUAL",
@@ -5987,10 +5987,12 @@
       "objective": "Complete SLOT-BREAK-AUTHORITY-C11 on the display surfaces: make the canonical classProgramSlot grid the source of displayed period, break, and shift slots whenever canonical rows exist for a (gradeLevel, programType) scope, removing the retired 11:55-12:55 fallbacks from schedule-constructor.ts and threading the canonical authority into room-schedule, locked-session, published-schedule, and pre-generation-draft, while freezing canonical-derived slots at publication time and preserving published immutability. Source and tests only.",
       "riskTier": "MEDIUM",
       "state": "INTEGRATED",
-      "stateUpdatedAt": "2026-09-17T05:34:07.217Z",
-      "nextAction": "Integrated at merge af7824e3 over origin/main 5649f7b9; the merged product tree is byte-identical to the QA'd candidate (atlas-server subtree e53b7636), with combined integration gates green: tsc build exit 0, C11R 8/8, C11 14/14, published-immutability-c08 135/0. Next: commission one fresh Wave Completion Auditor over the integrated wave, then record-audit and close-cycle. No live/HIGH action is unlocked.",
+      "stateUpdatedAt": "2026-09-17T05:47:42.034Z",
+      "nextAction": "Wave Completion Audit returned PLANNER_DECISION_REQUIRED (7/8/0/0). The C11R product tree is sound and all product gates pass, but the successor HIGH packet G9-G10-CONFIG-CORRECTION-C01 is not executable: operator decision D-D section 8 conflicts with R3 sections R3.2/R3.3, and executing R3 would break already-integrated wave-audited assertions in SLOT-BREAK-AUTHORITY-C11/C11R. Stream stays INTEGRATED and must not close COMPLETE until the operator rules. No HIGH approval may be presented; no live action is unlocked.",
       "awaited": [
-        "fresh Wave Completion Auditor"
+        "the operator or planner ruling on whether D-D section 8 or the G9/G10 R3 packet governs the G9-10 persisted grid and the banded-lunch display and enforcement mechanism",
+        "correction of the G9/G10 R3 packet and its register spec (approval.approvedActions[0] is unsatisfiable as written; R3 section R3.0 is refuted by D-D section 8)",
+        "a fresh Wave Completion Auditor over the changed final tree once the decision is recorded"
       ],
       "running": [],
       "git": {
@@ -6032,8 +6034,8 @@
           "writable": false
         },
         "auditor": {
-          "sessionId": null,
-          "status": "NONE",
+          "sessionId": "ses_f5223318bffeVh1MWUqACOkrFW",
+          "status": "RETURNED",
           "writable": false
         }
       },
@@ -6075,8 +6077,8 @@
       "review": {
         "qaVerdict": "ACCEPT_READY",
         "qaSessionId": "ses_f5246fce5ffeQvdpsJ18vxRUZi",
-        "auditorVerdict": null,
-        "auditorSessionId": null,
+        "auditorVerdict": "PLANNER_DECISION_REQUIRED",
+        "auditorSessionId": "ses_f5223318bffeVh1MWUqACOkrFW",
         "auditRequired": true,
         "qaRounds": [
           {
@@ -6090,15 +6092,10 @@
       "successors": [],
       "requires": [],
       "blocker": {
-        "kind": "NONE",
-        "detail": "The registration prerequisite is satisfied: the live register declares no held revision window, so this stream registers by CAS at revision 261. The authored authoring base 43f6909f was advanced to the dispatch tip 4deb9d9c; the range 43f6909f..4deb9d9c is docs/workflow only (packet, spec, register and generated register), so no product byte differs between the authoring base and the dispatch base. No dependency or approval blocker remains; this is an ordinary MEDIUM source correction governed at no approval gate, backed by the executor lease created at registration.",
-        "safeWorkRemaining": true,
-        "safeWorkItems": [
-          "author the packet and stream spec (done by the planner)",
-          "dispatch one fresh bounded executor into E:/ATLAS-worktrees/slot-break-authority-c11r",
-          "delete the silent 11:55/12:55 display fallbacks and derive display slots from the canonical grid",
-          "thread the canonical authority into the five display call sites and freeze canonical-derived slots at publication"
-        ]
+        "kind": "DEPENDENCY",
+        "detail": "No C11R product or authority defect remains: the integrated product tree is byte-identical to the ACCEPT_READY candidate (atlas-server subtree e53b7636) and every product gate passes. The blocker is the mandatory Wave Completion Audit verdict PLANNER_DECISION_REQUIRED (7/8/0/0), whose single failed row is successor/HIGH-packet readiness: the prepared HIGH packet G9-G10-CONFIG-CORRECTION-C01 is not executable because operator decision D-D section 8 (G9-10 persisted Lunch BREAK 12:15-13:00 plus 8 CLASS rows) conflicts with packet R3 sections R3.2/R3.3 (12:15-13:00 is the defect; 8 CLASS plus a lunch band over a CLASS row; shift 12:15-18:30), and executing R3 would break already-integrated wave-audited assertions. C11R therefore stays INTEGRATED and must not be closed COMPLETE (mechanical closure invariant 1); no HIGH approval may be presented. This is NOT an approval gate for this MEDIUM stream: approval.required is false.",
+        "safeWorkRemaining": false,
+        "safeWorkItems": []
       },
       "approval": {
         "required": false,
