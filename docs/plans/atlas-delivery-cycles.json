@@ -1,9 +1,9 @@
 {
   "contractVersion": "1.2.0",
   "registry": {
-    "lastUpdatedAt": "2026-09-17T13:52:21.112Z",
-    "lastUpdatedBy": "primary-planner:consolidated-deployment-c10-approval-await",
-    "revision": 329
+    "lastUpdatedAt": "2026-09-17T14:39:44.685Z",
+    "lastUpdatedBy": "primary-planner:consolidated-deployment-c10-approval",
+    "revision": 330
   },
   "coordination": {
     "mode": "CYCLE_ACTIVE",
@@ -6776,7 +6776,7 @@
       "objective": "Deploy one release pinned at the accepted origin/main tip that includes the C07R1 authorization fix, published-revision immutability, warning realism, export parity, generation-authority realism and the R3 term-authority canonicalization; remove the vestigial ATLAS_DEFAULT_SCHOOL_ID key from the durable env; re-point and restart the registered ATLAS-Runtime-Supervisor task on ports 5001/5174; then run the 13-row acceptance matrix with exactly one authorized login and logout. No data mutation, generation, publication, Teaching Load apply, term-cache apply, rollover, migration, or companion change.",
       "riskTier": "HIGH",
       "state": "RUNNING",
-      "stateUpdatedAt": "2026-09-17T12:39:41.955Z",
+      "stateUpdatedAt": "2026-09-17T14:39:44.685Z",
       "nextAction": "Commission one fresh independent pre-action review over this amended packet and the frozen pin; on PASS return the packet's exact approval sentence (including the rotated out-of-band SSO provisioning channel, or the drop variant) to the operator; on approval record it through record-approval and dispatch the deployment executor in E:/ATLAS-worktrees/consolidated-deploy-c10, then record execution, evidence, the post-action acceptance review, and the Wave Completion Auditor.",
       "awaited": [
         "one fresh independent pre-action review of the amended deployment packet and the frozen pin",
@@ -6885,15 +6885,16 @@
       "approval": {
         "required": true,
         "presentedReady": false,
-        "granted": false,
-        "operatorIdentity": null,
-        "approvedAt": null,
-        "boundary": null,
+        "granted": true,
+        "operatorIdentity": "operator:njgrm",
+        "approvedAt": "2026-09-17T14:39:44.685Z",
+        "boundary": "Exactly the reviewed boundary as returned by the operator: build and install a release pinned at 8eb0511baa537d4212f24a007ac40e2dded38c0e, including the alternate-port preflight smoke and the rollback startability proof, with the non-secret client build input VITE_ENROLLPRO_URL=https://dev-jegs.buru-degree.ts.net; remove the vestigial ATLAS_DEFAULT_SCHOOL_ID key from D:\\ATLAS-runtime-config\\atlas-server.env - the four companion-SSO keys are NOT part of this approval and must not be added; re-point and restart the ATLAS-Runtime-Supervisor task on the supervisor-owned ports 5001/5174; run the 13-row acceptance matrix with exactly one authorized login (LOCAL_LOGIN_SUCCESS + last_login_at delta named in advance) followed by logout; additionally the fresh post-action independent acceptance review may perform as many authenticated logins as its verification requires, each disclosed in its evidence with its expected audit delta (one LOCAL_LOGIN_SUCCESS plus that actor last_login_at per login), occurring after the 13-row matrix and not altering its row 10 or row 13 scoring; symmetric rollback to 54dce67b (then 9d293879) only if a mandatory acceptance row fails. No data mutation, generation, publication, Teaching Load apply, term-cache apply, rollover, migration, or companion change is approved.",
         "approvedActions": [
-          "build and install a release pinned at the frozen pin, including the alternate-port preflight smoke and the rollback startability proof, with the non-secret client build input VITE_ENROLLPRO_URL=https://dev-jegs.buru-degree.ts.net",
-          "remove the vestigial ATLAS_DEFAULT_SCHOOL_ID key from D:\\ATLAS-runtime-config\\atlas-server.env and add exactly the four declared companion-SSO keys (ENROLLPRO_SSO_CLIENT_SECRET, ATLAS_SSO_REVERSE_CLIENT_SECRET, ENROLLPRO_SSO_CALLBACK_URL, ENROLLPRO_BASE_URL) from the operator-only provisioning file using rotated out-of-band values only, then delete that provisioning file after the env change is verified",
-          "re-point and restart the ATLAS-Runtime-Supervisor task on ports 5001/5174",
-          "one authorized login and logout for the acceptance matrix",
+          "build and install a release pinned at 8eb0511baa537d4212f24a007ac40e2dded38c0e, including the alternate-port preflight smoke and the rollback startability proof, with the non-secret client build input VITE_ENROLLPRO_URL=https://dev-jegs.buru-degree.ts.net",
+          "remove the vestigial ATLAS_DEFAULT_SCHOOL_ID key from D:\\ATLAS-runtime-config\\atlas-server.env; the four companion-SSO keys are not part of this approval and must not be added",
+          "re-point and restart the ATLAS-Runtime-Supervisor task on the supervisor-owned ports 5001/5174",
+          "run the 13-row acceptance matrix with exactly one authorized login (LOCAL_LOGIN_SUCCESS + last_login_at delta named in advance) followed by logout",
+          "authorize the fresh post-action independent acceptance review to perform as many authenticated logins as its verification requires, each disclosed with its expected audit delta (one LOCAL_LOGIN_SUCCESS plus that actor last_login_at per login), after the 13-row matrix and without altering its row 10 or row 13 scoring",
           "symmetric rollback to 54dce67b (then 9d293879) only on a failed mandatory acceptance row",
           "record the bounded approval, execution, evidence, and register docs-only records"
         ],
