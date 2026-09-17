@@ -143,7 +143,7 @@ S2 and S3 are the §4 step 2 build; they never bind 5001/5174.
 | Health | local `/api/v1/health` 200; `/api/v1/health/ready` 200 (`database: ok`); host `/__host/live` + `/__host/ready` 200; Tailnet health 200 |
 | Invariants | `ATLAS_SUPERVISED=true`, `ROLLOVER_AUTO_SYNC_ENABLED=false` |
 | Durable env | `D:\ATLAS-runtime-config\atlas-server.env` (+ `backups\` sibling). **14 keys at dispatch**, not 13: the authoring-time count was stale because `ENROLLPRO_PROXY_ORIGIN` was recovered 2026-09-15. File SHA-256 `eb941b11231a16e38056a92ffa7cea5835f35c3cf7aaa161c6720e04d7b7bdfa`. Key names only: `ATLAS_AUTH_DISABLE_RATE_LIMIT`, `ATLAS_DEFAULT_SCHOOL_ID`, `ATLAS_SYSTEM_TOKEN`, `CLIENT_URL`, `CORS_EXTRA_ORIGINS`, `DATABASE_URL`, `ENROLLPRO_API`, `ENROLLPRO_CLIENT_URL`, `ENROLLPRO_PROXY_ORIGIN`, `ENROLLPRO_SERVICE_TOKEN`, `FACULTY_ADAPTER`, `JWT_SECRET`, `PORT`, `SECTION_SOURCE_MODE`. No `SSO`/`COMPANION` key is present |
-| Disk | C: 16.48 GiB, D: 31.26 GiB, E: 65.97 GiB free at pre-action review (drifts continuously; all above the 25 GiB warn and 15 GiB fail-closed floors, re-checked at execution) |
+| Disk | C: 18.09 GiB, D: 31.26 GiB, E: 65.39 GiB free at pre-action review (drifts continuously). The governed volume is **D:** — PostgreSQL plus this action's install target — at 31.26 GiB, above the 25 GiB warn and 15 GiB fail-closed floors; C: is below the warn threshold but is not the governed volume. Re-checked at execution |
 
 Dispatch re-verification (2026-09-17, read-only): task `\ATLAS-Runtime-Supervisor`
 Enabled, State Running, SYSTEM, "Task To Run" and "Start In" both still
@@ -285,9 +285,9 @@ owner is the **registered task**, never the executor shell.
 | Field | Value |
 | --- | --- |
 | `launchOwner` | Windows scheduled task `\ATLAS-Runtime-Supervisor` — principal `SYSTEM`, trigger at system startup (ONSTART), execution time limit `PT0S`, multiple-instances policy `IgnoreNew` (the task carries **no** startup delay; the live XML shows `<ExecutionTimeLimit>PT0S</ExecutionTimeLimit>` and no `<Delay>` element). It, and not the invoking executor process, is the durable resident owner |
-| `launchMechanism` | (a) re-point the task action to `"C:\Program Files\nodejs\node.exe" "D:\ATLAS-runtime-supervised-<pin12>-<date>\ops\runtime\cli.mjs" start`, with the task working directory and `ATLAS_RUNTIME_SOURCE_DIR` / `ATLAS_RUNTIME_RELEASE_SHA` updated to the new release; then (b) `schtasks /run /tn ATLAS-Runtime-Supervisor`. `ops/runtime/cli.mjs` is then the resident parent that owns the 5001 (`server.js`) and 5174 (`host.mjs`) children |
+| `launchMechanism` | (a) re-point the task action to `"C:\Program Files\nodejs\node.exe" "D:\ATLAS-runtime-supervised-<pin12>-<date>\ops\runtime\cli.mjs" start`, with the task working directory and the **Machine-scope** environment variables `ATLAS_RUNTIME_SOURCE_DIR` / `ATLAS_RUNTIME_RELEASE_SHA` updated to the new release. Those two are machine variables, NOT durable-env keys, so §6's file-delta restriction does not cover them — update them explicitly or row 1 will misreport. Then (b) `schtasks /run /tn ATLAS-Runtime-Supervisor`. `ops/runtime/cli.mjs` is then the resident parent that owns the 5001 (`server.js`) and 5174 (`host.mjs`) children. **Preserve every other registration property** — task name and folder, principal, run level, trigger, `IgnoreNew`, enabled state; only the action, the working directory, and those two machine variables change, and both directions record a before/after diff |
 | `rollbackLaunchOwner` | The same registered task `\ATLAS-Runtime-Supervisor` |
-| `rollbackLaunchMechanism` | Symmetric re-point of the same task back to `54dce67b` at `D:\ATLAS-runtime-supervised-54dce67b-20260914`, `schtasks /run /tn ATLAS-Runtime-Supervisor`, then the same health/ready/host/Tailnet proof; failing that, the supervised `9d293879` at `D:\ATLAS-runtime-supervised-20260912`. `d44f29e0` at `D:\ATLAS-runtime-fallback-d44-20260912` is a **manual, non-supervised** last resort and is not a durable launch mechanism |
+| `rollbackLaunchMechanism` | Symmetric re-point of the same task back to `54dce67b` at `D:\ATLAS-runtime-supervised-54dce67b-20260914` — action, working directory, and both machine variables restored, every other registration property preserved — then `schtasks /run /tn ATLAS-Runtime-Supervisor` and the same health/ready/host/Tailnet proof; failing that, the supervised `9d293879` at `D:\ATLAS-runtime-supervised-20260912`. `d44f29e0` at `D:\ATLAS-runtime-fallback-d44-20260912` is a **manual, non-supervised** last resort and is not a durable launch mechanism |
 
 **Forbidden launch mechanism.** Starting the long-lived runtime as a child of the
 executor's agent command, terminal, or a temporary wrapper is prohibited, as is
@@ -312,12 +312,16 @@ remains healthy **after the invoking executor shell exits**.
 | 5 | Env change | `ATLAS_DEFAULT_SCHOOL_ID` absent; every companion-SSO key the returned sentence authorizes is present (**key names only — values are never printed**); all other keys unchanged against the §3.2 set |
 | 6 | Anonymous class-template read | `GET /api/v1/class-templates` and `/:id` → 401 with `class_templates` row-count delta 0. **Sequencing:** §1 currently forbids probing this route pre-fix, so this row runs only after row 1 confirms the pin is live |
 | 7 | False authority blocker removed | `GET /api/v1/generation/1/9/readiness/diagnostic` (authenticated privileged session, zero-write) emits ZERO `TERM_AUTHORITY_STALE`, and no returned blocker is an authority blocker. A `CANONICAL_TEMPLATE_INCOMPLETE` blocker IS EXPECTED here per §5.1 and does not fail this row |
-| 8 | Published-revision immutability | exact probe `GET /api/v1/schools/1/schedules/published` (public, no auth) → **404 `CURRENT_PUBLISHED_RUN_NOT_FOUND`** with zero schedule entries. That is the honest observable in the zero-`PublishedScheduleRevision` state: the published-run authority fails closed before any entry is served. Recorded limitation: this state does NOT exercise the frozen-revision path positively, and the published-run term resolver DOES fall back to the live term authority at `atlas-server/src/services/published-schedule.service.ts:892` — that fallback is unreachable here only because no published run exists. Do not claim a positive immutability proof |
+| 8 | Published-revision immutability | exact probe `GET /api/v1/schools/1/schedules/published` (public, no auth) → **404 `CURRENT_PUBLISHED_RUN_NOT_FOUND`** with zero schedule entries. That is the honest observable here: the 404 comes from
+the absence of a current published generation **run**
+(`published-schedule.service.ts:250-252`), which fails closed before any entry is
+served — the zero-`PublishedScheduleRevision` count is a necessary condition, not
+the operative one. Recorded limitation: this state does NOT exercise the frozen-revision path positively, and the published-run term resolver DOES fall back to the live term authority at `atlas-server/src/services/published-schedule.service.ts:892` — that fallback is unreachable here only because no published run exists. Do not claim a positive immutability proof |
 | 9 | Actor scope | `/api/v1/runtime/context` matrix returns the authenticated actor's school; no fail-open default |
-| 10 | Login footprint | exactly one `LOCAL_LOGIN_SUCCESS` audit row plus that actor's `last_login_at`, and the same successful-login write's other named fields (`atlasAuthAccount.facultyId`, `failedLoginCount` → 0, `lockedUntil` → null) — the full expected delta set is named in §5.3 |
+| 10 | Login footprint | exactly one `LOCAL_LOGIN_SUCCESS` audit row on `audit_logs` plus the actor's `atlas_auth_accounts` write (`last_login_at`, `faculty_id`, `failed_login_count` → 0, `locked_until` → null, and the engine-managed `updated_at` advance) — the complete expected delta set, with its actor (role `officer`, school 1), is named in §5.3 |
 | 11 | Session cleanup | logout → `/api/v1/auth/me` 401 `NO_TOKEN`; custody owner named |
 | 12 | Rollback startable | rollback release proven startable (not executed unless row 2–4 fail) |
-| 13 | Zero data mutation | all other recorded signatures delta 0 |
+| 13 | Zero data mutation | all other recorded signatures delta 0 — that is, every signature outside the complete §5.3 login delta |
 
 Row 7 is the failing-first anchor: the same request against `54dce67b` returns
 the false authority blocker.
@@ -359,8 +363,11 @@ counted as a failure.
   `/api/v1/generation/1/9/readiness/diagnostic` zero-write read, row 9 the
   `/api/v1/runtime/context` actor-school matrix, row 10 the
   `LOCAL_LOGIN_SUCCESS` plus `last_login_at` delta, row 11 logout and
-  `/api/v1/auth/me` 401 `NO_TOKEN`. The whole action still produces **exactly
-  one** login footprint - one `LOCAL_LOGIN_SUCCESS` row plus that actor's
+  `/api/v1/auth/me` 401 `NO_TOKEN`. The credential MUST be a privileged account
+  (`admin`, `officer`, or `SYSTEM_ADMIN`) whose actor school is 1 — committed
+  evidence records actor `46` as role `officer`, school 1
+  (`docs/prompts/term-cache-catchup-apply-2026-09-14.md:77`). The whole action
+  still produces **exactly one** login footprint - one `LOCAL_LOGIN_SUCCESS` row plus that actor's
   `last_login_at`. One login, one named custody owner, cleaned up in row 11.
 - Rows 1-6, 8, 12, and 13 are unauthenticated, read-only, or local process and
   file checks.
@@ -371,24 +378,42 @@ an unauthenticated `POST` returns `401`. Confirm route *mounting* with the corre
 method — verified 2026-09-17: unauth `POST /api/v1/auth/sso/authorize` → `401` and
 `POST /api/v1/auth/sso/exchange` → `401`, so §3.1's "401, not 404" claim holds for
 the real method. Separately, `cli.mjs status` reports `live: false` for both
-targets from a stale persisted health snapshot (`updatedAt` 2026-09-15) while
-direct probes return `200`; do **not** use that field as liveness evidence — use
-rows 2 and 3.
+targets because `live` is computed from the supervisor's **in-process** handles
+map (`ops/runtime/lib/supervisor.mjs:375-402`) while `status` runs in a fresh
+process (`ops/runtime/cli.mjs:81-90`), so that field is always `false` regardless
+of real health; do **not** use it as liveness evidence — use rows 2 and 3.
 
-### 5.3 Named login delta (the expected mutation set for the single login)
+### 5.3 Named login delta (the complete expected mutation set for the single login)
 
-A successful local login writes exactly these, and row 13's signature set must
-treat them as the expected delta rather than a stray mutation
-(`atlas-server/src/services/local-auth.service.ts:1054-1062` and `:1064-1073`):
+The authorized credential is a **privileged** local account with actor school 1 —
+committed evidence records actor `46` as role `officer`, school 1
+(`docs/prompts/term-cache-catchup-apply-2026-09-14.md:77`,
+`docs/reviews/term-cache-catchup-apply-20260914/apply-execution-evidence.md:36`).
+For an `officer` login the success path in
+`atlas-server/src/services/local-auth.service.ts` (`login`, `:655-1083`) performs
+**exactly two** database writes, and row 13's signature set must treat these as
+the expected delta rather than a stray mutation:
 
-- one `LOCAL_LOGIN_SUCCESS` audit row (actor id, school 1);
-- `atlasAuthAccount.lastLoginAt` = the login instant;
-- `atlasAuthAccount.facultyId` = the resolved value (may be null);
-- `atlasAuthAccount.failedLoginCount` = 0;
-- `atlasAuthAccount.lockedUntil` = null.
+1. `prisma.atlasAuthAccount.update` (`:1054-1062`) on `atlas_auth_accounts`,
+   writing:
+   - `last_login_at` = the login instant;
+   - `faculty_id` = the resolved value (may be null);
+   - `failed_login_count` = 0;
+   - `locked_until` = null;
+   - `updated_at` = **advanced automatically by the Prisma engine**, because the
+     model declares `updatedAt DateTime @updatedAt @map("updated_at")`
+     (`prisma/schema.prisma`, `model AtlasAuthAccount`). This is an expected
+     engine-managed advance: bind it against the actor's pre-action value instead
+     of scoring it as an unexpected mutation.
+2. one `audit_logs` row with action `LOCAL_LOGIN_SUCCESS` (school 1, actor 46),
+   via `writeAuditLog` (`:1064-1073` → `prisma.auditLog.create`, `:109`).
 
-Everything else must be delta 0. Naming these five up front is what keeps row 13
-honest instead of scoring the login's own writes as an unexpected mutation.
+Everything else must be delta 0. Two independent reasons this set is exhaustive
+for the declared credential: the faculty-only hydration and re-provision branches
+(`:946-992` and `:993+`) are gated on `account.role === 'faculty'` and are skipped
+for an `officer`; and the failed-login writes (`:894`, `:902`) are unreachable on
+a successful login. Login rate limiting is in-memory (`:59-93`), not a table, so
+it contributes no row delta.
 
 ## 6. Boundaries
 
@@ -413,7 +438,7 @@ successors.
 
 ## 8. Approval (to be returned only after the fresh pre-action review passes)
 
-Pre-action review history. Two independent rounds have run against this packet:
+Pre-action review history. Three independent rounds have run against this packet:
 
 - round 1, `ses_f509a9222ffe4CQFGStFdXVarc` — `CORRECTION_REQUIRED` 17/14/0/0:
   row 7's declared authentication authority was false against the pinned route,
@@ -421,14 +446,20 @@ Pre-action review history. Two independent rounds have run against this packet:
   fields were missing.
 - round 2, `ses_f508fe65bffeIwGQ5zcErRCFdF` — `CORRECTION_REQUIRED` 10/9/0/0: the
   same row 7 defect as its single blocking finding, plus five non-blocking items.
+- round 3, `ses_f50784051ffeVR6OM8lshWYFt7` — `CORRECTION_REQUIRED` 16/15/1/0: one
+  blocking finding, that §5.3's login delta omitted the engine-managed
+  `atlas_auth_accounts.updated_at` advance. Rounds 1 and 2's three prior findings
+  were independently re-verified as genuinely closed.
 
-Both rounds' findings are now applied: row 7 and §5.2 use the shared single
+All three rounds' findings are now applied: row 7 and §5.2 use the shared single
 authenticated session with the corrected citations; row 8 names its exact probe
 and typed result with the recorded limitation; §4.1 (added at `eb9ab887`) names
-all four launch-ownership fields and the post-shell-exit survivorship obligation;
-§2.2, §5.3, and the N-item corrections are folded in. A **fresh** independent
-pre-action review is required over this corrected packet before the sentence below
-may be returned — neither earlier verdict carries over.
+all four launch-ownership fields, the machine-variable scope, and the
+post-shell-exit survivorship obligation; §5.3 now enumerates the login delta
+exhaustively — including the engine-managed `updated_at` — with its actor; §2.2
+and the N-item corrections are folded in. A **fresh** independent pre-action review
+is required over this corrected packet before the sentence below may be returned —
+no earlier verdict carries over.
 
 > "I approve CONSOLIDATED-DEPLOYMENT-C10 exactly as reviewed: build and install a
 > release pinned at `<PIN40>`, including the alternate-port preflight smoke and
@@ -485,16 +516,18 @@ node ops/workflow/transition.mjs --transition create-stream \
 ```
 
 **Register only; do NOT run `coordination-update`.** `coordination.activeCycleId`
-is single-valued and is already held by the concurrent RUNNING peer
-`ROLLOVER-GRADED-AUTONOMY-C01` (registered at revision 310 with an `ACTIVE`
-executor lease). The workflow contract is explicit: the first claimant keeps the
-pointer and every additional concurrent cycle is represented by its own stream
-row, not by stealing `coordination-update`. This stream is therefore represented
-by its row and its `ACTIVE` lease. Declare **no** register window: a reservation
-is only correct when its holder is the sole active register writer, and two peer
-cycles are running. Re-read `registry.revision` immediately before every
-transition — it was 314 at dispatch and the peer is pushing concurrently — never
-guess a revision, and never hand-edit the register.
+is single-valued and cannot represent two concurrent cycles. At registration the
+pointer was held by the then-RUNNING peer `ROLLOVER-GRADED-AUTONOMY-C01`; by
+register revision 320 that peer is `INTEGRATED` and the register is back to
+`coordination.mode = MANUAL` with `activeCycleId = null`. The instruction is
+unchanged and correct either way: the first claimant keeps the pointer, every
+additional concurrent cycle is represented by its own stream row, and this stream
+is represented by its row and its `ACTIVE` lease rather than by stealing
+`coordination-update`. Declare **no** register window: a reservation is only
+correct when its holder is the sole active register writer. Re-read
+`registry.revision` immediately before every transition — the revision advances
+continuously as peers push — never guess a revision, and never hand-edit the
+register.
 
 Then `record-approval` with the reviewed packet pin, and `record-execution` after
 the action.
