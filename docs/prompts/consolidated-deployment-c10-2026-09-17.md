@@ -150,7 +150,8 @@ Not changed by this action (recorded for the next one):
    provisioned by the operator and EnrollPro (per `docs/handoffs/companion-sso-live-prep-c02-evidence.md`):
    `ENROLLPRO_SSO_CLIENT_SECRET` (>= 32 chars, identical on both sides),
    `ENROLLPRO_SSO_CALLBACK_URL` (EnrollPro's exact reverse callback URL), and `ENROLLPRO_BASE_URL`
-   (if not already implied by `ENROLLPRO_API`). Optionally, for the client build,
+   (**required as its own key** — no code path derives it from `ENROLLPRO_API`, and the upstream
+   exchange fails closed without it, `companion-sso.service.ts:337-341`). Optionally, for the client build,
    `VITE_ENROLLPRO_SSO_START_URL` as an explicit reverse-start override.
    **Also required, and easy to miss:** `ATLAS_SSO_REVERSE_CLIENT_SECRET` — the vendor-shared
    *inbound* bearer that EnrollPro presents to `POST /api/v1/auth/sso/exchange`. ATLAS resolves the
@@ -248,7 +249,7 @@ owner is the **registered task**, never the executor shell.
 
 | Field | Value |
 | --- | --- |
-| `launchOwner` | Windows scheduled task `\ATLAS-Runtime-Supervisor` — principal `SYSTEM`, trigger at system startup (ONSTART), delay `PT0S`, multiple-instances policy `IgnoreNew`. It, and not the invoking executor process, is the durable resident owner |
+| `launchOwner` | Windows scheduled task `\ATLAS-Runtime-Supervisor` — principal `SYSTEM`, trigger at system startup (ONSTART), execution time limit `PT0S`, multiple-instances policy `IgnoreNew` (the task carries **no** startup delay; the live XML shows `<ExecutionTimeLimit>PT0S</ExecutionTimeLimit>` and no `<Delay>` element). It, and not the invoking executor process, is the durable resident owner |
 | `launchMechanism` | (a) re-point the task action to `"C:\Program Files\nodejs\node.exe" "D:\ATLAS-runtime-supervised-<pin12>-<date>\ops\runtime\cli.mjs" start`, with the task working directory and `ATLAS_RUNTIME_SOURCE_DIR` / `ATLAS_RUNTIME_RELEASE_SHA` updated to the new release; then (b) `schtasks /run /tn ATLAS-Runtime-Supervisor`. `ops/runtime/cli.mjs` is then the resident parent that owns the 5001 (`server.js`) and 5174 (`host.mjs`) children |
 | `rollbackLaunchOwner` | The same registered task `\ATLAS-Runtime-Supervisor` |
 | `rollbackLaunchMechanism` | Symmetric re-point of the same task back to `54dce67b` at `D:\ATLAS-runtime-supervised-54dce67b-20260914`, `schtasks /run /tn ATLAS-Runtime-Supervisor`, then the same health/ready/host/Tailnet proof; failing that, the supervised `9d293879` at `D:\ATLAS-runtime-supervised-20260912`. `d44f29e0` at `D:\ATLAS-runtime-fallback-d44-20260912` is a **manual, non-supervised** last resort and is not a durable launch mechanism |
@@ -274,8 +275,8 @@ remains healthy **after the invoking executor shell exits**.
 | 3 | Health | local health + ready (`database: ok`), host live/ready, Tailnet health all 200 |
 | 4 | Rollover automation | `ROLLOVER_AUTO_SYNC_ENABLED=false` |
 | 5 | Env change | `ATLAS_DEFAULT_SCHOOL_ID` absent; every companion-SSO key the returned sentence authorizes is present (**key names only — values are never printed**); all other keys unchanged against the §3.2 set |
-| 6 | Anonymous class-template read | `GET /api/v1/class-templates` and `/:id` → 401 with `class_templates` row-count delta 0 |
-| 7 | False authority blocker removed | `GET /api/v1/generation/1/9/readiness/diagnostic` (system-token, zero-write) emits ZERO `TERM_AUTHORITY_STALE`, and no returned blocker is an authority blocker. A `CANONICAL_TEMPLATE_INCOMPLETE` blocker IS EXPECTED here per §5.1 and does not fail this row |
+| 6 | Anonymous class-template read | `GET /api/v1/class-templates` and `/:id` → 401 with `class_templates` row-count delta 0. **Sequencing:** §1 currently forbids probing this route pre-fix, so this row runs only after row 1 confirms the pin is live |
+| 7 | False authority blocker removed | `GET /api/v1/generation/1/9/readiness/diagnostic` (authenticated privileged session, zero-write) emits ZERO `TERM_AUTHORITY_STALE`, and no returned blocker is an authority blocker. A `CANONICAL_TEMPLATE_INCOMPLETE` blocker IS EXPECTED here per §5.1 and does not fail this row |
 | 8 | Published-revision immutability | the frozen-revision read path resolves the persisted revision authority rather than the live tables; with zero `PublishedScheduleRevision` rows the probe returns its defined typed empty result and does not fall back to live tables. The executor names the exact probe and expected typed result in the preflight evidence |
 | 9 | Actor scope | `/api/v1/runtime/context` matrix returns the authenticated actor's school; no fail-open default |
 | 10 | Login footprint | exactly one `LOCAL_LOGIN_SUCCESS` row + that actor's `last_login_at`; both named in advance |
@@ -294,28 +295,49 @@ Immediately after this cutover the live catalog expects the NEW
 `DATA-CORRECTION-C01` has not yet reseeded the live rows. Canonical generation
 therefore fails closed with `CANONICAL_TEMPLATE_INCOMPLETE` until that reseed
 happens, and no generation may be attempted in between. This deployment's
-acceptance is its own 13 rows — release identity, one listener per port,
+acceptance is its own 13 numbered rows — release identity, one listener per port,
 health/ready/host/Tailnet, the anonymous class-template 401 with row-count delta
 0, the SSO key names present, published-revision immutability, the actor-scope
 matrix, the login footprint, session cleanup, rollback startability, and zero
-data mutation. It is explicitly **not** a full generation-readiness pass;
+data mutation. Those 13 rows are the *numbered* matrix; the two launch-ownership
+obligations added in §4.1 (the task-launched resident owns 5001/5174, and it
+stays healthy after the invoking executor shell exits) are equally mandatory and
+are verified as part of row 2. It is explicitly **not** a full generation-readiness pass;
 `CANONICAL_TEMPLATE_INCOMPLETE` is reported truthfully rather than suppressed or
 counted as a failure.
 
 ### 5.2 Authentication budget per row (satisfiability)
 
-- Row 7 uses the existing `ATLAS_SYSTEM_TOKEN` from the durable env on the
-  zero-write diagnostic route
-  (`atlas-server/src/routes/generation.router.ts:142`,
-  `authenticateWithSystemToken` plus `requirePrivilegedRole`). It consumes no
-  login.
-- Rows 9, 10, and 11 are the ONLY rows that use the single authorized login:
-  row 9 the `/api/v1/runtime/context` actor-school matrix, row 10 the
+- **Row 7 uses the SAME single authorized authenticated session as rows 9-11.**
+  A system token does NOT authenticate this route: at the pin,
+  `atlas-server/src/routes/generation.router.ts:3` imports only `authenticate`,
+  and `atlas-server/src/middleware/authenticate.ts:176-191` verifies only a JWT -
+  it never reaches `isSystemTokenMatch` (`:74`), which is reachable solely through
+  `authenticateWithSystemToken` (`:135`). A `Bearer` `ATLAS_SYSTEM_TOKEN` on this
+  route returns `401 INVALID_TOKEN`. An earlier revision of this packet mis-cited
+  `authenticateWithSystemToken` plus `requirePrivilegedRole` at
+  `generation.router.ts:142`; that mechanism belongs to a different router, and
+  the same code shape holds at this packet's own base `43341ac7`, so this was a
+  mis-citation rather than drift. The route remains zero-write.
+- Rows 7, 9, 10, and 11 share the single authorized login: row 7 the
+  `/api/v1/generation/1/9/readiness/diagnostic` zero-write read, row 9 the
+  `/api/v1/runtime/context` actor-school matrix, row 10 the
   `LOCAL_LOGIN_SUCCESS` plus `last_login_at` delta, row 11 logout and
-  `/api/v1/auth/me` 401 `NO_TOKEN`. One login, one named custody owner, cleaned
-  up in row 11.
+  `/api/v1/auth/me` 401 `NO_TOKEN`. The whole action still produces **exactly
+  one** login footprint - one `LOCAL_LOGIN_SUCCESS` row plus that actor's
+  `last_login_at`. One login, one named custody owner, cleaned up in row 11.
 - Rows 1-6, 8, 12, and 13 are unauthenticated, read-only, or local process and
   file checks.
+
+**Probe-method note (recorded so it is not re-litigated).** A `GET` on the SSO
+routes returns `404` because they are `POST`-only (`auth.router.ts:109,150`), while
+an unauthenticated `POST` returns `401`. Confirm route *mounting* with the correct
+method — verified 2026-09-17: unauth `POST /api/v1/auth/sso/authorize` → `401` and
+`POST /api/v1/auth/sso/exchange` → `401`, so §3.1's "401, not 404" claim holds for
+the real method. Separately, `cli.mjs status` reports `live: false` for both
+targets from a stale persisted health snapshot (`updatedAt` 2026-09-15) while
+direct probes return `200`; do **not** use that field as liveness evidence — use
+rows 2 and 3.
 
 ## 6. Boundaries
 
