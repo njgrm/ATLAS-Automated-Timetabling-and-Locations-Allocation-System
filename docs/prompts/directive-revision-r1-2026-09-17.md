@@ -108,11 +108,60 @@ wave touching the client.
 Every client-touching lane's matrix must carry: *"no new page or console errors on
 affected routes."* This is the row absent from all four C10 rounds.
 
+## Part D - normalize browser QA (remove the per-instance authorization tax)
+
+Today any agent that wants to look at the running product must first obtain an
+explicit, per-instance login authorization naming its expected database delta. The
+practical result is that agents audit records instead of the product - which is
+exactly how two live crashes survived four review rounds.
+
+Replace the per-instance ask with a **standing browser-QA authorization**, subject
+to hard invariants.
+
+### D1. Standing authorization
+
+Any QA or executor role may drive the live Tailnet with the dedicated QA browser
+profile **without a per-instance approval**, for read-only product inspection:
+navigation, accessibility snapshots, screenshots, console and network inspection,
+read-only `evaluate`, and clicks on non-mutating controls (tabs, filters, drawers,
+dialogs, disclosures).
+
+### D2. Pre-authorized, disclosed login delta
+
+The login mutation is pre-authorized as a standing expectation rather than a
+per-instance request. Each browser-QA session discloses, in its evidence: that one
+login was performed, and the expected delta - one `LOCAL_LOGIN_SUCCESS` audit row
+plus that actor's `last_login_at`. A session that finds a reusable authenticated
+profile consumes no login and says so.
+
+### D3. Hard invariants that do not relax
+
+- **Read-only by default.** Never submit a form that persists, and never activate a
+  control whose label matches the write deny-list (save, apply, submit, generate,
+  publish, delete, remove, confirm, sync, reset, create, add, import, upload,
+  archive, rollover, carry, assign, unassign, approve, commit, wipe, seed, logout).
+- **Crawl harnesses must enforce the deny-list mechanically**, not by author
+  discipline, and must prove zero mutation with before/after signatures.
+- **One controller per persistent profile**, with explicit custody handoff.
+- **Never** print, log, commit, or paste a credential value.
+- Any *write* validation still requires its own exact authorization; this
+  normalization covers inspection only.
+
+### D4. Browser QA becomes mandatory, not exceptional
+
+Any lane whose diff can change a rendered surface must include browser evidence
+from the live Tailnet origin, and its matrix must carry the G4 row. Client-touching
+work with no browser evidence is `CORRECTION_REQUIRED`, not `NON_BLOCKING`.
+
+Rationale to record: the crash class that shipped was invisible to every static
+gate and every record-level review, and visible in seconds to a browser.
+
 ## Part C - already staged
 
 R1-R17 in `docs/plans/directive-revision-proposal-2026-09-17.md` (pin semantics,
 citation verification, sentence templates, dispatch preflight, stale-wording
-reconciliation, successor gating, step order, machine-scope verification). This
+reconciliation, successor gating, step order, machine-scope verification), plus
+R18 and R19 added from the C10 closure. This
 revision applies them together with Part A and Part B.
 
 ## Execution of this revision

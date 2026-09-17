@@ -183,6 +183,28 @@ inherited env var. `ops/runtime/cli.mjs` resolves its state path from
 reports the **previous** release and can point a "stop from the release directory"
 at the wrong tree. Two independent sessions hit this on the same day.
 
+### R18 — A CORRECTION_REQUIRED QA round is paired with a correction round, same turn
+
+Whenever `record-qa-result` records a `CORRECTION_REQUIRED` verdict, the same turn
+must also record the corresponding `record-correction` round. The verifier refuses
+the later acceptance with `CORRECTION_NOT_RECORDED` when a QA round discloses a
+correction that `corrections[]` does not hold.
+
+Rationale: the C10 closure turn was rejected once for exactly this, then accepted
+only after modelling the F1 fix as correction round 2. Pairing them is free.
+
+### R19 — Release the active-cycle pointer before recording integration
+
+A stream cannot record integration while the coordination pointer still names it,
+because the pointer may not name a terminal stream
+(`ACTIVE_CYCLE_TERMINAL`). The closure sequence is therefore fixed:
+
+final QA -> correction round (if any) -> acceptance -> `coordination-update --mode
+MANUAL` -> `record-integration` -> `record-audit` -> `close-cycle`.
+
+Rationale: C10's `record-integration` was refused until coordination was returned
+to `MANUAL` first (revision 344, then integration at 345).
+
 ## Staging convention for process improvements
 
 Every cycle report ends with a process-improvement note. Those notes are lost when
