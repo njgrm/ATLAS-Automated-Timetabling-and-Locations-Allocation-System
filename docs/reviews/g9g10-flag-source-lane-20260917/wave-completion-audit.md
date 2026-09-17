@@ -122,13 +122,47 @@ at `create-stream`; they are recorded here and in the stream's `nextAction`.
   independently probed; the no-generation/no-publication conclusion rests on Git
   inventory, runtime identity, and the register.
 
-## Required planner action (all applied in this closure turn)
+## Required planner action (all applied)
 
 1. Apply the F-A1 coordination reconciliation — done via `coordination-update`
-   at revision 300.
+   at revision 303.
 2. Apply the F-A2 `DATA-CORRECTION-C01` awaited-entry removal — done.
-3. Record the auditor session id and `AUDIT_CLEAR` — done at revision 299.
-4. Pin the closure receipt and mark the stream `COMPLETE`.
-5. Keep `DATA-CORRECTION-C01` and every live/HIGH action locked. No deployment,
+3. Record the auditor session id and `AUDIT_CLEAR` — done at revision 302.
+4. `lease-g9g10-flag-source-executor` returned at revision 304 (the verifier
+   correctly refused `close-cycle` while the lease was still `ACTIVE`).
+5. Pin the closure receipt and mark the stream `COMPLETE` — done at revision 305
+   (`docs/plans/receipts/g9g10-flag-source-lane.receipt.json`).
+6. Keep `DATA-CORRECTION-C01` and every live/HIGH action locked. No deployment,
    generation, publication, login, data apply, or runtime change is authorized by
    this audit.
+
+## Closure and worktree disposition
+
+The closure was first derived at revisions 299-302, then **re-derived** at
+302-305 after a peer cycle (`EXPORT-PRESENTATION-S15-REBASELINE`) registered into
+the same revision window; the register was adopted from `origin/main` and every
+step replayed through the transition engine, never by hand-merging machine state.
+A second collision on the closure push was resolved the same way (adopted
+`origin/main` `513e84ef`, register revision 301). Final `origin/main` after the
+closure push: `479e5423de2d910f7123f177f515fc3906147b29`.
+
+Disposition `RETIRE_AFTER_INTEGRATION` was satisfied in the same closure cycle:
+
+| Worktree | Branch | HEAD | git status --short | Evidence |
+|---|---|---|---|---|
+| `E:/ATLAS-worktrees/g9g10-flag-source-lane` | `fix/g9g10-flag-source` | `cca958d7` | empty | ancestor of `origin/main`; `atlas-server/src` byte-identical to `origin/main`; its `atlas-server/node_modules` was a recorded read-only junction to `E:/ATLAS-worktrees/g9g10-grid-delta-probe/atlas-server/node_modules` at `package-lock.json` SHA-256 `ECF06AEF5C385591A0CF4C03F6852018B283182375F9B23656210BF13794B6E5` — only the reparse link was removed, the target tree is intact |
+| `E:/ATLAS-worktrees/planner-g9g10-flag-lane-20260917` | `integration/g9g10-flag-source-lane-20260917` | `479e5423` (= `origin/main`) | empty | ancestor-or-equal of `origin/main` |
+
+Both were retired with non-forced `git worktree remove` followed by
+`git worktree prune`. **No branch was deleted**; `fix/g9g10-flag-source` and
+`integration/g9g10-flag-source-lane-20260917` are retained. The unrelated
+`E:/ATLAS-worktrees/g9g10-grid-delta-probe` worktree was not touched. No live
+process or session was owned by either retired worktree.
+
+A separate disposable-database cleanup was performed by the planner: exactly one
+database created by this cycle's QA run
+(`atlas_restore_drill_20260917_c11r881898`, one active connection at inspection
+time) was dropped. Two pre-existing drills
+(`atlas_restore_drill_20260911_uxc01rc6e5ba0d`,
+`atlas_restore_drill_20260912_rrtc80be4ffb`) predate this cycle and were not
+touched.
