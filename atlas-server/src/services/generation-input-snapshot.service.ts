@@ -273,6 +273,7 @@ export async function computeGenerationInputSnapshot(
 				SELECT 'policy' AS "tableName", id, to_jsonb(p.*) AS row FROM scheduling_policies p WHERE school_id = $1 AND school_year_id = $2
 				UNION ALL SELECT 'window', id, to_jsonb(w.*) FROM grade_shift_windows w WHERE school_id = $1 AND school_year_id = $2
 				UNION ALL SELECT 'specialEvent', id, to_jsonb(e.*) FROM policy_special_events e WHERE e.school_id = $1 AND e.school_year_id = $2
+				UNION ALL SELECT 'classProgramSlot', id, to_jsonb(c.*) FROM class_program_slots c WHERE school_id = $1 AND school_year_id = $2
 			) x) AS "policy",
 			(SELECT md5(COALESCE(string_agg(to_jsonb(x)::text, '|' ORDER BY x."tableName", x.id), '')) FROM (
 				SELECT 'building' AS "tableName", id, to_jsonb(b.*) AS row FROM buildings b WHERE school_id = $1 AND is_teaching_building = true
@@ -357,6 +358,12 @@ export async function computeGenerationInputSnapshot(
 			// and max-id/updated-at signals are bound here so a post-run edit cannot
 			// leave a run reported FRESH. The arm is enabled-agnostic: a disabled row
 			// still changes the digest.
+			//
+			// SLOT-BREAK-AUTHORITY-C11: the canonical `class_program_slots` grid is
+			// the effective break-window and shift-bound authority for every scope
+			// that has rows, so it is part of the `policy` exact-digest union. A
+			// one-row slot change therefore changes the policy domain fingerprint and
+			// the run compares STALE (never FRESH) with zero writes.
 			specialEventCount: specialEventAggregate._count._all,
 			specialEventMaxId: specialEventAggregate._max.id,
 			specialEventMaxUpdatedAt: iso(specialEventAggregate._max.updatedAt),

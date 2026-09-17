@@ -1,14 +1,14 @@
 {
   "contractVersion": "1.2.0",
   "registry": {
-    "lastUpdatedAt": "2026-09-16T21:54:24.736Z",
-    "lastUpdatedBy": "primary-planner:faculty-sync-cas-c01",
-    "revision": 249
+    "lastUpdatedAt": "2026-09-17T03:18:30.119Z",
+    "lastUpdatedBy": "primary-planner",
+    "revision": 261
   },
   "coordination": {
     "mode": "CYCLE_ACTIVE",
-    "activeCycleId": "SLOT-BREAK-AUTHORITY-C11",
-    "globalNextAction": "SLOT-BREAK-AUTHORITY-C11 is RUNNING (base 16e70be2, lease-slot-break-authority-c11 ACTIVE, executor lease). Next: source executor returns REVIEW_REQUIRED, then fresh independent QA over the frozen candidate, clean current-main integration on integration/slot-break-authority-c11-20260917, and one fresh Wave Completion Auditor. WF-C10-TRANSITION-GUARD-HARDENING remains an independent successor available for a separate operator-activated cycle. Every live/HIGH action (term-cache apply, runtime install/restart, Teaching Load, generation, publication, migration) remains locked and NOT granted."
+    "activeCycleId": "SYNC-SECTION-ENROLMENT-C01",
+    "globalNextAction": "SYNC-SECTION-ENROLMENT-C01 (CYCLE_ACTIVE): registered at revision 260 with packet R1 corrected (runtime identity 54dce67b; notification row reclassified DEFERRED_EXTERNAL; audit row corrected to an observable zero delta). Next: one fresh independent pre-action review of the R1 packet is dispatched; on ACCEPT_READY 2/2/0/0/0 return the exact approval sentence, await the operator grant, then execute one POST through the reviewed harness and the 10-row acceptance matrix. Every other live/HIGH action (runtime install/restart, term-cache apply, Teaching Load apply, DB/schema apply, generation, publication, login, companion) remains locked and NOT granted; WF-C10-TRANSITION-GUARD-HARDENING remains RUNNING and is not touched by this cycle."
   },
   "streams": [
     {
@@ -5361,19 +5361,17 @@
       "kind": "STREAM",
       "objective": "Make the canonical classProgramSlot grid the effective break-window and shift-bound authority for every (gradeLevel, programType) scope that has canonical rows, replacing the retired persisted policy lunch window (11:55-12:55) with the canonical per-grade breaks (Grades 7-8 Health 09:00-09:15 and Lunch 12:15-13:00; Grades 9-10 Lunch 12:15-13:00 and Health 15:15-15:30); close the manual-edit absent-authority fail-open; extend the policy-row-only Flag/HGP path with the single-canonical-CLASS-row snap validation; and cover classProgramSlot in the generation consumed-input fingerprint. Source and tests only.",
       "riskTier": "MEDIUM",
-      "state": "REVIEW_REQUIRED",
-      "stateUpdatedAt": "2026-09-16T21:28:42.302Z",
-      "nextAction": "Commission one fresh independent QA over the frozen candidate range 16e70be2..34c550df (6 paths), then integrate on integration/slot-break-authority-c11-20260917 and run one fresh Wave Completion Auditor.",
-      "awaited": [
-        "fresh independent QA over the frozen candidate"
-      ],
+      "state": "COMPLETE",
+      "stateUpdatedAt": "2026-09-17T02:48:00.156Z",
+      "nextAction": "Closed; wave-audited AUDIT_CLEAR. No live/HIGH action is unlocked.",
+      "awaited": [],
       "running": [],
       "git": {
         "worktree": "E:/ATLAS-worktrees/slot-break-authority-c11",
         "branch": "fix/slot-break-authority-c11",
         "baseSha": "16e70be2a01bf815447ee323f13e775bb825ad4f",
         "candidateSha": "34c550dfc930ce561a4d0875f66b0ff7ca457a58",
-        "integrationSha": null,
+        "integrationSha": "6d52f8436431209074ce6d43c6657e7855500b75",
         "changedPaths": [
           "atlas-server/src/__tests__/slot-break-authority-c11.test.ts",
           "atlas-server/src/services/generation-input-snapshot.service.ts",
@@ -5384,8 +5382,8 @@
         ],
         "remoteObservation": {
           "ref": "refs/remotes/origin/main",
-          "sha": "16e70be2a01bf815447ee323f13e775bb825ad4f",
-          "observedAt": "2026-09-16T20:42:33.449Z",
+          "sha": "b9b0926691ea576cc59e8ed1d8a3ce260af98ecc",
+          "observedAt": "2026-09-17T02:48:00.156Z",
           "kind": "REMOTE_TRACKING_REF"
         }
       },
@@ -5401,19 +5399,19 @@
           "writable": false
         },
         "qa": {
-          "sessionId": null,
-          "status": "NONE",
+          "sessionId": "ses_f53df6659ffeVDu1Pd7H207aMy",
+          "status": "RETURNED",
           "writable": false
         },
         "auditor": {
-          "sessionId": null,
-          "status": "NONE",
+          "sessionId": "ses_f52ca03d2ffeha1MSNlQqpREYR",
+          "status": "RETURNED",
           "writable": false
         }
       },
       "gates": {
-        "total": 0,
-        "passed": 0,
+        "total": 12,
+        "passed": 12,
         "failed": 0,
         "blocked": 0,
         "unperformed": 0,
@@ -5424,8 +5422,8 @@
         },
         "classes": {
           "MANDATORY_SOURCE": {
-            "total": 0,
-            "passed": 0,
+            "total": 12,
+            "passed": 12,
             "failed": 0,
             "blocked": 0,
             "unperformed": 0
@@ -5447,25 +5445,27 @@
         }
       },
       "review": {
-        "qaVerdict": null,
-        "qaSessionId": null,
-        "auditorVerdict": null,
-        "auditorSessionId": null,
+        "qaVerdict": "ACCEPT_READY",
+        "qaSessionId": "ses_f53df6659ffeVDu1Pd7H207aMy",
+        "auditorVerdict": "AUDIT_CLEAR",
+        "auditorSessionId": "ses_f52ca03d2ffeha1MSNlQqpREYR",
         "auditRequired": true,
-        "qaRounds": []
+        "qaRounds": [
+          {
+            "round": 1,
+            "verdict": "ACCEPT_READY",
+            "sessionId": "ses_f53df6659ffeVDu1Pd7H207aMy"
+          }
+        ]
       },
       "corrections": [],
       "successors": [],
       "requires": [],
       "blocker": {
         "kind": "NONE",
-        "detail": "The registration prerequisite is satisfied: WF-TRANSITION-TERMINAL-RECONCILE-C09 is COMPLETE at origin/main 16e70be2 and its register revision window is released. The spec is RUNNING and is backed by the ACTIVE executor lease created atomically at create-stream time on base 16e70be2.",
-        "safeWorkRemaining": true,
-        "safeWorkItems": [
-          "author the packet and stream spec (done)",
-          "provision and verify the isolated dependency tree (done)",
-          "dispatch the fresh source executor after registration"
-        ]
+        "detail": "The create-stream registration snapshot is superseded: the stream executed, passed fresh QA (12/12/0/0/0), integrated at merge 6d52f843, and was wave-audited AUDIT_CLEAR. No blocker remains.",
+        "safeWorkRemaining": false,
+        "safeWorkItems": []
       },
       "approval": {
         "required": false,
@@ -5480,7 +5480,12 @@
       },
       "observations": [],
       "artifacts": [],
-      "closure": null,
+      "closure": {
+        "receipt": {
+          "path": "docs/plans/receipts/slot-break-authority-c11.receipt.json",
+          "sha256": "a70dfe9ed2f9f75f4996ed77ba84ae2eda4dfa7f83c2545cfbdfe38985ba3047"
+        }
+      },
       "sessionRouting": {
         "planner": {
           "decision": "FRESH_REQUIRED",
@@ -5801,6 +5806,152 @@
           "reason": "the stream changes the register/transition contract, so a fresh adversarial Wave Completion Auditor is required after integration."
         }
       }
+    },
+    {
+      "id": "SYNC-SECTION-ENROLMENT-C01",
+      "kind": "STREAM",
+      "objective": "Reconcile the 20 EnrollPro year-9 sections into ATLAS section_mirrors for school 1 / school year 9 through the existing authenticated POST /api/v1/sections/sync route, so the active year carries real enrolledCount values (currently all zero while the previous year carries 81). One mirror-data write of derived, idempotent, refreshable data, executed as a live data apply and therefore governed at HIGH risk. No schema, migration, rollover, Teaching Load, generation, publication, deployment, runtime/task/env, or companion action.",
+      "riskTier": "HIGH",
+      "state": "PLANNED",
+      "stateUpdatedAt": "2026-09-17T03:17:29.328Z",
+      "nextAction": "Register when the register is free (CAS), commission one fresh independent pre-action review of docs/prompts/sync-section-enrolment-c01-2026-09-17.md (R1), return its exact approval sentence to the operator, and only on the operator's exact grant execute the single POST through the reviewed harness and run the 10-row acceptance matrix.",
+      "awaited": [
+        "the register to be free of any held revision window so this stream can register by CAS",
+        "one fresh independent pre-action review of docs/prompts/sync-section-enrolment-c01-2026-09-17.md (R1) returning ACCEPT_READY 2/2/0/0/0",
+        "the operator's exact approval sentence, returned only after the pre-action review passes"
+      ],
+      "running": [],
+      "git": {
+        "worktree": "E:/ATLAS-worktrees/sync-section-enrolment-c01",
+        "branch": "chore/sync-section-enrolment-c01",
+        "baseSha": "43f6909f09f73c43de1f77092c23fdb764f545e7",
+        "candidateSha": null,
+        "integrationSha": null,
+        "changedPaths": [],
+        "remoteObservation": {
+          "ref": "refs/remotes/origin/main",
+          "sha": "43f6909f09f73c43de1f77092c23fdb764f545e7",
+          "observedAt": "2026-09-17T03:17:29.328Z",
+          "kind": "REMOTE_TRACKING_REF"
+        }
+      },
+      "owners": {
+        "planner": {
+          "sessionId": null,
+          "status": "IDLE",
+          "writable": false
+        },
+        "executor": {
+          "sessionId": null,
+          "status": "NONE",
+          "writable": false
+        },
+        "qa": {
+          "sessionId": null,
+          "status": "NONE",
+          "writable": false
+        },
+        "auditor": {
+          "sessionId": null,
+          "status": "NONE",
+          "writable": false
+        }
+      },
+      "gates": {
+        "total": 0,
+        "passed": 0,
+        "failed": 0,
+        "blocked": 0,
+        "unperformed": 0,
+        "plan": {
+          "MANDATORY_SOURCE": 2,
+          "MANDATORY_LIVE": 10,
+          "DEFERRED_EXTERNAL": 1
+        },
+        "classes": {
+          "MANDATORY_SOURCE": {
+            "total": 0,
+            "passed": 0,
+            "failed": 0,
+            "blocked": 0,
+            "unperformed": 0
+          },
+          "MANDATORY_LIVE": {
+            "total": 0,
+            "passed": 0,
+            "failed": 0,
+            "blocked": 0,
+            "unperformed": 0
+          },
+          "DEFERRED_EXTERNAL": {
+            "total": 0,
+            "passed": 0,
+            "failed": 0,
+            "blocked": 0,
+            "unperformed": 0
+          }
+        }
+      },
+      "review": {
+        "qaVerdict": null,
+        "qaSessionId": null,
+        "auditorVerdict": null,
+        "auditorSessionId": null,
+        "auditRequired": true,
+        "qaRounds": []
+      },
+      "corrections": [],
+      "successors": [],
+      "requires": [],
+      "blocker": {
+        "kind": "APPROVAL",
+        "detail": "The action is a live data apply at HIGH risk. The operator's exact approval sentence is required before the single POST, and is presented only after the fresh independent pre-action review returns ACCEPT_READY. The machine record cannot set approval.granted because the record-approval and record-execution transitions belong to WF-C10 and are not yet integrated; the grant is recorded in committed evidence with the under-report disclosed in packet section 9.",
+        "safeWorkRemaining": true,
+        "safeWorkItems": [
+          "author the packet and stream spec (done, R1)",
+          "register the stream by CAS",
+          "commission the fresh independent pre-action review",
+          "run the read-only preflight inside the reviewed harness immediately before the POST"
+        ]
+      },
+      "approval": {
+        "required": true,
+        "presentedReady": false,
+        "granted": false,
+        "operatorIdentity": null,
+        "approvedAt": null,
+        "boundary": null,
+        "approvedActions": [
+          "one authenticated POST /api/v1/sections/sync with body {\"schoolId\":1,\"schoolYearId\":9} using the ATLAS system token, reconciling the 20 EnrollPro year-9 sections into section_mirrors"
+        ],
+        "requiredObservationIds": [],
+        "execution": null
+      },
+      "observations": [],
+      "artifacts": [],
+      "closure": null,
+      "sessionRouting": {
+        "planner": {
+          "decision": "EXISTING",
+          "sessionId": null,
+          "reason": "the registering primary planner (user-visible chat label: SYNC-SECTION-ENROLMENT-C01) owns this stream's registration, pre-action review dispatch, approval presentation, integration, and closure; the harness exposed no session id, so no id is invented."
+        },
+        "executor": {
+          "decision": "FRESH_REQUIRED",
+          "sessionId": null,
+          "reason": "the single authorized POST runs in a fresh context with the exact approved boundary and the reviewed harness."
+        },
+        "qa": {
+          "decision": "FRESH_REQUIRED",
+          "sessionId": null,
+          "reason": "one fresh independent pre-action review before the approval, and a second fresh context for the post-action acceptance verification."
+        },
+        "auditor": {
+          "decision": "FRESH_REQUIRED",
+          "sessionId": null,
+          "reason": "a live data apply requires a fresh Wave Completion Auditor after the action."
+        }
+      }
     }
   ],
   "leases": [
@@ -5898,9 +6049,9 @@
       "worktree": "E:/ATLAS-worktrees/slot-break-authority-c11",
       "role": "executor",
       "sessionId": null,
-      "state": "ACTIVE",
-      "revision": 1,
-      "updatedAt": "2026-09-16T20:42:33.449Z",
+      "state": "RETURNED",
+      "revision": 2,
+      "updatedAt": "2026-09-17T02:45:20.768Z",
       "expiresAt": null
     },
     {

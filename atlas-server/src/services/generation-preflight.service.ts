@@ -47,7 +47,7 @@ import { normalizePersistedTermStructure } from './derived-demand.service.js';
 import type { SectionsByGrade } from './section-adapter.js';
 import { buildSectionRosterIndex, normalizeStoredAssignmentScope } from './faculty-assignment-scope.service.js';
 import { DEFAULT_CONSTRAINT_CONFIG, POLICY_DEFAULTS, computeEffectiveWeeklyTeachingMinutes, resolveMaxConsecutiveTeachingMinutesBeforeBreak, resolveWarningFamilyPolicy } from './scheduling-policy.service.js';
-import { buildWarningWindowAuthority } from './warning-window-authority.service.js';
+import { buildWarningWindowAuthority, type CanonicalSlotWindowSource } from './warning-window-authority.service.js';
 import { getTemplatePeriodProfiles } from './class-template.service.js';
 import {
 	readCanonicalClassProgramSlotsCoverage,
@@ -150,6 +150,12 @@ export interface GenerationPreflightAssembly {
 	missingSlotScopes: Array<{ gradeLevel: number; programType: string }>;
 	missingWindows: Array<{ gradeLevel: number; programType: string }>;
 	canonicalSlotsByGradeProgram: Map<string, Array<{ startTime: string; endTime: string; subjectFamily: string | null; subjectLabel?: string | null; rowKind: string }>>;
+	/**
+	 * SLOT-BREAK-AUTHORITY-C11 — the persisted canonical `classProgramSlot` grid
+	 * for this school/year. It is the break-window and shift-bound authority for
+	 * every scope that has canonical rows.
+	 */
+	classProgramSlotRows: CanonicalSlotWindowSource[];
 	templateProfiles: Array<{ programType: string; periodLengthMinutes: number; periodsPerDay: number }>;
 	classTemplatePeriods: Record<string, number>;
 	timetableShapeContracts: TimetableShapeContract[];
@@ -725,6 +731,7 @@ async function buildGenerationPreflightWithContext(
 		gradeWindows,
 		ownershipRows,
 		cohorts,
+		classProgramSlotRows,
 	] = await Promise.all([
 		client.facultyMirror.findMany({
 			where: { schoolId, isActiveForScheduling: true, isStale: false },
@@ -770,6 +777,15 @@ async function buildGenerationPreflightWithContext(
 				expectedEnrollment: true,
 				preferredRoomType: true,
 			},
+		}),
+		// SLOT-BREAK-AUTHORITY-C11: the canonical class-program grid is the
+		// break-window and shift-bound authority for every scope that has rows.
+		// Read once, read-only, through the same client as the rest of the
+		// preflight snapshot.
+		client.classProgramSlot.findMany({
+			where: { schoolId, schoolYearId, isActive: true },
+			select: { gradeLevel: true, programType: true, startTime: true, endTime: true, rowKind: true, subjectLabel: true, dayOfWeek: true },
+			orderBy: [{ gradeLevel: 'asc' }, { startTime: 'asc' }],
 		}),
 	]);
 
@@ -997,26 +1013,38 @@ async function buildGenerationPreflightWithContext(
 		// containing the configured window. A window that no canonical CLASS row
 		// contains — or that more than one contains — fails closed with the typed
 		// `FLAG_CEREMONY_SCOPE_INVALID` blocker (never invent a multi-period overlay).
-		if (configuredFlagEvent && !flagScopeRejected) {
-			const flagWindow = { startTime: String(configuredFlagEvent.startTime ?? ''), endTime: String(configuredFlagEvent.endTime ?? '') };
-			if (flagWindow.startTime && flagWindow.endTime) {
-				for (const shape of timetableShapeContracts) {
-					const classRows = (shape.canonicalSlots ?? []).filter((slot) => slot.rowKind === 'CLASS');
-					if (classRows.length === 0) continue;
-					if (resolveContainingClassRow(classRows, flagWindow.startTime, flagWindow.endTime)) continue;
-					blockers.push({
-						code: 'FLAG_CEREMONY_SCOPE_INVALID',
-						category: 'POLICY_BLOCKER',
-						termIdentity: null,
-						sectionId: null,
-						subjectId: null,
-						subjectCode: null,
-						entity: `Flag Ceremony/HGP · Grade ${shape.gradeLevel} ${shape.programType}`,
-						reason: `The configured Flag Ceremony/HGP window ${flagWindow.startTime}-${flagWindow.endTime} is not contained by exactly one canonical CLASS row, so it cannot be rendered as an overlay on the underlying advisory-section period.`,
-						owningSurface: 'Scheduling policy / special events',
-						nextAction: `Align the Flag Ceremony/HGP window with a single canonical CLASS row for Grade ${shape.gradeLevel} ${shape.programType}, then re-run generation.`,
-					});
-				}
+		//
+		// SLOT-BREAK-AUTHORITY-C11: the SAME snap check applies to the
+		// policy-row-only fallback path. A configured `enableFlagCeremony` window
+		// that no persisted special-event row backs must still be snappable, or an
+		// unsnappable overlay would silently reach the shape contract.
+		const policyFlagWindow = {
+			startTime: typeof policyRow?.flagCeremonyStartTime === 'string' ? policyRow.flagCeremonyStartTime : '',
+			endTime: typeof policyRow?.flagCeremonyEndTime === 'string' ? policyRow.flagCeremonyEndTime : '',
+		};
+		const snapWindow = configuredFlagEvent
+			? { startTime: String(configuredFlagEvent.startTime ?? ''), endTime: String(configuredFlagEvent.endTime ?? '') }
+			: (policyRow?.enableFlagCeremony && policyFlagWindow.startTime && policyFlagWindow.endTime
+				? policyFlagWindow
+				: null);
+		if (snapWindow && !flagScopeRejected) {
+			const flagWindow = snapWindow;
+			for (const shape of timetableShapeContracts) {
+				const classRows = (shape.canonicalSlots ?? []).filter((slot) => slot.rowKind === 'CLASS');
+				if (classRows.length === 0) continue;
+				if (resolveContainingClassRow(classRows, flagWindow.startTime, flagWindow.endTime)) continue;
+				blockers.push({
+					code: 'FLAG_CEREMONY_SCOPE_INVALID',
+					category: 'POLICY_BLOCKER',
+					termIdentity: null,
+					sectionId: null,
+					subjectId: null,
+					subjectCode: null,
+					entity: `Flag Ceremony/HGP · Grade ${shape.gradeLevel} ${shape.programType}`,
+					reason: `The configured Flag Ceremony/HGP window ${flagWindow.startTime}-${flagWindow.endTime} is not contained by exactly one canonical CLASS row, so it cannot be rendered as an overlay on the underlying advisory-section period.`,
+					owningSurface: 'Scheduling policy / special events',
+					nextAction: `Align the Flag Ceremony/HGP window with a single canonical CLASS row for Grade ${shape.gradeLevel} ${shape.programType}, then re-run generation.`,
+				});
 			}
 		}
 		const shapePolicyBlockers = validateTimetableShapePolicy({
@@ -1169,6 +1197,7 @@ async function buildGenerationPreflightWithContext(
 		missingSlotScopes,
 		missingWindows,
 		canonicalSlotsByGradeProgram,
+		classProgramSlotRows,
 		templateProfiles,
 		classTemplatePeriods,
 		timetableShapeContracts,
@@ -1314,6 +1343,9 @@ export function buildPreflightValidatorContext(
 			startTime: window.startTime,
 			endTime: window.endTime,
 		})),
+		// SLOT-BREAK-AUTHORITY-C11: the canonical grid owns the breaks and shift
+		// bounds for every scope that has canonical rows.
+		classProgramSlots: assembly.classProgramSlotRows ?? [],
 	});
 	return {
 		schoolId: assembly.scope.schoolId,

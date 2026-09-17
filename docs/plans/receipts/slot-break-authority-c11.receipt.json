@@ -1,0 +1,23 @@
+{
+  "receiptVersion": "1.1.0",
+  "generatedAt": "2026-09-17T02:45:51.452Z",
+  "statePath": "docs/plans/atlas-delivery-cycles.json",
+  "stateSha256": "6abdc068ec3bca399046e6bd8babec3440d589e5d7d89c44576ffa23362efd56",
+  "status": "ok",
+  "streamId": "SLOT-BREAK-AUTHORITY-C11",
+  "verified": {
+    "candidateSha": "34c550dfc930ce561a4d0875f66b0ff7ca457a58",
+    "integrationSha": "6d52f8436431209074ce6d43c6657e7855500b75",
+    "qaVerdict": "ACCEPT_READY",
+    "auditorVerdict": "AUDIT_CLEAR",
+    "gates": {
+      "total": 12,
+      "passed": 12,
+      "failed": 0,
+      "blocked": 0,
+      "unperformed": 0
+    },
+    "readiness": "SOURCE_ONLY",
+    "artifacts": []
+  }
+}
