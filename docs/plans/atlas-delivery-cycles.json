@@ -1,9 +1,9 @@
 {
   "contractVersion": "1.2.0",
   "registry": {
-    "lastUpdatedAt": "2026-09-17T10:06:12.543Z",
+    "lastUpdatedAt": "2026-09-17T10:12:10.451Z",
     "lastUpdatedBy": "primary-planner:slot-break-authority-c11r-r2",
-    "revision": 285
+    "revision": 286
   },
   "coordination": {
     "mode": "MANUAL",
@@ -5987,8 +5987,8 @@
       "objective": "Complete SLOT-BREAK-AUTHORITY-C11 on the display surfaces: make the canonical classProgramSlot grid the source of displayed period, break, and shift slots whenever canonical rows exist for a (gradeLevel, programType) scope, removing the retired 11:55-12:55 fallbacks from schedule-constructor.ts and threading the canonical authority into room-schedule, locked-session, published-schedule, and pre-generation-draft, while freezing canonical-derived slots at publication time and preserving published immutability. Source and tests only.",
       "riskTier": "MEDIUM",
       "state": "COMPLETE",
-      "stateUpdatedAt": "2026-09-17T10:06:01.230Z",
-      "nextAction": "Closed COMPLETE: fresh QA ACCEPT_READY 10/10/0/0/0 and fresh round-3 Wave Completion Auditor ses_f51300321ffewG767uMgGAAs7D AUDIT_CLEAR 7/7/0/0/0 over the integrated product (candidate 06319bb0, integration af7824e3, atlas-server subtree e53b7636, byte-identical at candidate/merge/origin-main). Tracked successor precondition (separate stream, NOT a C11R gate, NOT approved): G9-G10-CONFIG-CORRECTION-C01 (HIGH, unregistered) must correct R4 plus its spec approvedActions[1], acceptance row 1 and gate plan, reconcile contract 8.1 with 8 D-D, and name plus update the five dependent test files before any registration, pre-action review, or approval sentence; presentedReady and granted stay false. No live/HIGH action is unlocked.",
+      "stateUpdatedAt": "2026-09-17T10:12:10.451Z",
+      "nextAction": "Closed COMPLETE: fresh QA ACCEPT_READY 10/10/0/0/0 and round-3 Wave Completion Auditor ses_f51300321ffewG767uMgGAAs7D AUDIT_CLEAR 7/7/0/0/0 over the integrated product (candidate 06319bb0, integration af7824e3, atlas-server subtree e53b7636 byte-identical at candidate/merge/origin-main); capsule docs/reviews/slot-break-authority-c11r-20260917/wave-completion-audit-r3.md; closure pushed. Worktree disposition RETIRE_AFTER_INTEGRATION satisfied in this closure turn: E:/ATLAS-worktrees/slot-break-authority-c11r and E:/ATLAS-worktrees/planner-slot-break-c11r retired with non-forced git worktree remove plus git worktree prune; all branches retained. Tracked successor precondition (separate stream, NOT a C11R gate, NOT approved): G9-G10-CONFIG-CORRECTION-C01 (HIGH, unregistered) must correct R4 plus its spec approvedActions[1], acceptance row 1 and gate plan, reconcile contract 8.1 with 8 D-D, and name plus update the five dependent test files before any registration, pre-action review, or approval sentence; presentedReady and granted stay false. No live/HIGH action is unlocked.",
       "awaited": [],
       "running": [],
       "git": {
@@ -6088,8 +6088,8 @@
       "successors": [],
       "requires": [],
       "blocker": {
-        "kind": "DEPENDENCY",
-        "detail": "Row A8 (successor/HIGH-packet readiness) failed again in the round-2 Wave Completion Auditor (7/8/0/0; ses_f51f18d43ffeemG7MM52J5XA3V). No C11R product or authority defect remains: the integrated product tree is byte-identical to the ACCEPT_READY candidate (atlas-server subtree e53b7636) and all C11R product gates pass. The successor HIGH packet G9-G10-CONFIG-CORRECTION-C01 R4 is still not executable as written because its mandatory catalog change to class-program-slot.service.ts:208-218 invalidates already-integrated always-run assertions (timetable-shape-diagnostic-c02.test.ts:69-70; generation-stakeholder-shape-genc02r.test.ts:84-90; tt-output-c03r.test.ts:518) that R4 neither names nor authorizes, and its scope arithmetic contradicts itself (GRADE_9_10_SPECIAL spreads GRADE_9_10_REGULAR, so 8 G9/G10 scopes change while R4 demands 14 unchanged). C11R therefore stays INTEGRATED and must not be closed COMPLETE (mechanical closure invariant 1); no HIGH approval may be presented. This is NOT an approval gate for this MEDIUM stream: approval.required is false.",
+        "kind": "NONE",
+        "detail": "No blocker: SLOT-BREAK-AUTHORITY-C11R closed COMPLETE on its integrated product (candidate 06319bb0, integration af7824e3, atlas-server subtree e53b7636, byte-identical at candidate/merge/origin-main) after fresh QA ACCEPT_READY 10/10/0/0/0 and the round-3 Wave Completion Auditor AUDIT_CLEAR 7/7/0/0/0. The former round-2 DEPENDENCY blocker (successor/HIGH-packet readiness, row A8) is superseded: the operator ruled it out of scope for C11R and the round-3 auditor independently adjudicated and accepted the rescope. The successor defect F-A3 is now a tracked separate-stream precondition of G9-G10-CONFIG-CORRECTION-C01, not a C11R blocker.",
         "safeWorkRemaining": false,
         "safeWorkItems": []
       },
