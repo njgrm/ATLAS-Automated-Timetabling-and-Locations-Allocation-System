@@ -1,9 +1,9 @@
 {
   "contractVersion": "1.2.0",
   "registry": {
-    "lastUpdatedAt": "2026-09-17T03:52:47.791Z",
+    "lastUpdatedAt": "2026-09-17T03:54:15.630Z",
     "lastUpdatedBy": "primary-planner:slot-break-c11r-registration",
-    "revision": 264
+    "revision": 265
   },
   "coordination": {
     "mode": "CYCLE_ACTIVE",
@@ -5665,24 +5665,43 @@
       "kind": "STREAM",
       "objective": "Make the machine register able to record HIGH gates and stale directives truthfully, and close four register-integrity defect classes found at R0: add record-approval and record-execution, add withdraw-approval as the documented exit from the currently dead-end HIGH_APPROVAL_REQUIRED state, add a directive-copy fail-closed check, add a packet-artifact pin lint that validates directive-pin reproducibility (A4: a directive bump must not invalidate an already-queued reproducible pin), add LF-normalized dependency-tree identity, extend the register revision window so a reservation spans from declaration through the holder's terminal transition with a WINDOW_LAPSED guard on bounded windows (A1), pin the RUNNING-without-live-evidence negative fixture with a settled account of the R2 substitution (A2), make the mandatory plugin-load gate hermetic by tracking .opencode/package.json with type=module (A3), and verify plus use record-executor-return --base (A5). Verify (do not re-implement) the WF-C09 R2 register revision-window reservation. No product source, runtime, database, or companion change.",
       "riskTier": "MEDIUM",
-      "state": "RUNNING",
-      "stateUpdatedAt": "2026-09-16T21:21:30.482Z",
+      "state": "REVIEW_REQUIRED",
+      "stateUpdatedAt": "2026-09-17T03:54:15.630Z",
       "nextAction": "Executor implements docs/prompts/wf-c10-transition-guard-hardening-2026-09-17.md (R1) in E:/ATLAS-worktrees/wf-c10-transition-guards on branch work/wf-c10-transition-guard-hardening, from the registration tip recorded in this stream's git.remoteObservation. Return REVIEW_REQUIRED with --base <that registration tip>; the planner then validates the immutable range and dispatches fresh independent QA.",
       "awaited": [
-        "executor REVIEW_REQUIRED return for the WF-C10-TRANSITION-GUARD-HARDENING candidate",
-        "fresh independent QA over the frozen candidate",
-        "fresh Wave Completion Auditor over the integrated wave"
+        "fresh independent QA over the frozen candidate"
       ],
-      "running": [
-        "one bounded executor implementation of packet docs/prompts/wf-c10-transition-guard-hardening-2026-09-17.md (R1) on branch work/wf-c10-transition-guard-hardening; the executor session is dispatched in the same planner turn as this registration and its session id is recorded at return"
-      ],
+      "running": [],
       "git": {
         "worktree": "E:/ATLAS-worktrees/wf-c10-transition-guards",
         "branch": "work/wf-c10-transition-guard-hardening",
-        "baseSha": "8a13ca8a4bbfb7b598a14c477a16f482f6730d64",
-        "candidateSha": null,
+        "baseSha": "3ca730f09d13d81a61917b0c6da9220f8b2e3bac",
+        "candidateSha": "db5a9fce4dfa100632a47502262be4fe74a1ac58",
         "integrationSha": null,
-        "changedPaths": [],
+        "changedPaths": [
+          ".opencode/package.json",
+          "ops/workflow/README.md",
+          "ops/workflow/__tests__/artifact-portability.test.mjs",
+          "ops/workflow/__tests__/harness.mjs",
+          "ops/workflow/__tests__/high-approval.test.mjs",
+          "ops/workflow/__tests__/lifecycle-traversal.test.mjs",
+          "ops/workflow/__tests__/pins.test.mjs",
+          "ops/workflow/__tests__/plugin-load.test.mjs",
+          "ops/workflow/__tests__/terminal-reconcile.test.mjs",
+          "ops/workflow/__tests__/workflow-aliases.test.mjs",
+          "ops/workflow/deps.mjs",
+          "ops/workflow/lib/directive.mjs",
+          "ops/workflow/lib/git.mjs",
+          "ops/workflow/lib/paths.mjs",
+          "ops/workflow/lib/render.mjs",
+          "ops/workflow/lib/transition.mjs",
+          "ops/workflow/lib/util.mjs",
+          "ops/workflow/lib/verify.mjs",
+          "ops/workflow/pins.mjs",
+          "ops/workflow/schema/cycle-state.schema.json",
+          "ops/workflow/transition.mjs",
+          "package.json"
+        ],
         "remoteObservation": {
           "ref": "refs/remotes/origin/main",
           "sha": "27bfa11d72ee22bb15270bc4f49cee0917c8610e",
@@ -5697,8 +5716,8 @@
           "writable": false
         },
         "executor": {
-          "sessionId": null,
-          "status": "NONE",
+          "sessionId": "ses_f53e6303effenpiWDoZgzD25iA",
+          "status": "RETURNED",
           "writable": false
         },
         "qa": {
