@@ -1,9 +1,9 @@
 {
   "contractVersion": "1.2.0",
   "registry": {
-    "lastUpdatedAt": "2026-09-17T10:58:33.064Z",
-    "lastUpdatedBy": "primary-planner:mig-apply-0002-0003-approval",
-    "revision": 290
+    "lastUpdatedAt": "2026-09-17T11:04:28.682Z",
+    "lastUpdatedBy": "primary-planner:mig-apply-0002-0003-execution",
+    "revision": 292
   },
   "coordination": {
     "mode": "CYCLE_ACTIVE",
@@ -6140,26 +6140,22 @@
       "kind": "STREAM",
       "objective": "Apply exactly two additive reviewed migrations (0002_companion_sso_code sha256 c2502e3070a98e6a6ddf4a1568cf2b3368a5cc72db2983cd02d0311012e43baf; 0003_teacher_program_presentation sha256 b3270f02f16486f7b4e25538f80d675e42ba7cd6a9b704aebd3fff2593a764ee) to the live ATLAS database atlas_recovery_clean_rebuild_20260905 at host localhost:5432 through the canonical guarded wrapper (npm run migrate:guarded from atlas-server/), preceded by a verified fresh logical backup and an immediately re-measured pre-state, with the bounded 12-row post-action verification matrix and rollback limited to dropping the two new tables or restoring that backup. No deployment, runtime restart, product source, data mutation, seed, reset, generation, publication, task/env, or companion action; companion SSO activation and the consolidated deployment remain separate HIGH actions.",
       "riskTier": "HIGH",
-      "state": "RUNNING",
-      "stateUpdatedAt": "2026-09-17T10:58:33.064Z",
-      "nextAction": "Dispatch one fresh independent pre-action review of docs/prompts/mig-apply-0002-0003-2026-09-17.md; on its pass return the packet's exact approval sentence, then execute the guarded apply (verified backup -> pre-state re-measure -> npm run migrate:guarded) and run the 12-row acceptance matrix.",
+      "state": "REVIEW_REQUIRED",
+      "stateUpdatedAt": "2026-09-17T11:04:28.682Z",
+      "nextAction": "Dispatch one fresh independent QA over the frozen evidence candidate 6058d3ab..33b1a907, then integrate and commission a fresh Wave Completion Auditor.",
       "awaited": [
-        "one fresh independent pre-action review of docs/prompts/mig-apply-0002-0003-2026-09-17.md",
-        "the operator's exact approval sentence (returned only after the pre-action review passes)",
-        "apply executor execution return and evidence candidate",
-        "fresh independent QA over the frozen evidence candidate",
-        "fresh Wave Completion Auditor over the integrated wave"
+        "fresh independent QA over the frozen candidate"
       ],
-      "running": [
-        "pre-action preparation in E:/ATLAS-worktrees/mig-apply-0002-0003: isolated atlas-server dependency install (migration-guard suite) and the fresh independent pre-action review; no database action before the recorded approval"
-      ],
+      "running": [],
       "git": {
         "worktree": "E:/ATLAS-worktrees/mig-apply-0002-0003",
         "branch": "chore/mig-apply-0002-0003",
-        "baseSha": "cb4fa7ac1c0c469d54b748098bb3b457f830788c",
-        "candidateSha": null,
+        "baseSha": "6058d3ab3bb4050ede27ec8c52c56f84029767e7",
+        "candidateSha": "33b1a90739cd5812c31c21f64c9bd311eb225c1b",
         "integrationSha": null,
-        "changedPaths": [],
+        "changedPaths": [
+          "docs/reviews/mig-apply-0002-0003/apply-evidence-2026-09-17.md"
+        ],
         "remoteObservation": {
           "ref": "refs/remotes/origin/main",
           "sha": "cb4fa7ac1c0c469d54b748098bb3b457f830788c",
@@ -6174,8 +6170,8 @@
           "writable": false
         },
         "executor": {
-          "sessionId": null,
-          "status": "NONE",
+          "sessionId": "ses_f50fa9b14ffercMN9Uk3hbyfmr",
+          "status": "RETURNED",
           "writable": false
         },
         "qa": {
@@ -6264,7 +6260,20 @@
           "record the bounded approval, execution, evidence, and register docs-only records"
         ],
         "requiredObservationIds": [],
-        "execution": null
+        "execution": {
+          "performed": true,
+          "actionsPerformed": [
+            "re-measure the read-only pre-state immediately before the apply and stop on any divergence",
+            "take and validate the fresh pre-apply logical backup to the operator-only backup root",
+            "apply migrations 0002_companion_sso_code and 0003_teacher_program_presentation to atlas_recovery_clean_rebuild_20260905 through npm run migrate:guarded from atlas-server only",
+            "run the read-only L3-L8 post-action verification matrix and record the single evidence document",
+            "record the bounded approval, execution, evidence, and register docs-only records"
+          ],
+          "evidence": null,
+          "outcome": "APPLIED within the approved boundary: migrations 0002_companion_sso_code and 0003_teacher_program_presentation applied to atlas_recovery_clean_rebuild_20260905 at localhost:5432 through npm run migrate:guarded only; registry 2 to 4 applied with both new rows finished and not rolled back; both new tables, their indexes and FKs present and empty; protected-domain delta 0; health ready 200 local and Tailnet; no rollback was required. Evidence candidate 33b1a907; all 12 acceptance rows PASS (SOURCE 4/4, LIVE 8/8, blocked 0, unperformed 0).",
+          "executedAt": "2026-09-17T11:04:28.682Z",
+          "recordedBy": "primary-planner:mig-apply-0002-0003-execution"
+        }
       },
       "observations": [],
       "artifacts": [],
