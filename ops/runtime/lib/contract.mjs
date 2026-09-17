@@ -56,8 +56,17 @@ export function validateContract(contract) {
 	if (ports.server === ports.client) throw fail('RUNTIME_CONTRACT_INVALID', 'server and client ports must differ.');
 
 	const invariants = assertObject(contract.invariants, 'RUNTIME_CONTRACT_INVALID', 'invariants');
-	if (invariants.ROLLOVER_AUTO_SYNC_ENABLED !== 'false') {
-		throw fail('RUNTIME_CONTRACT_INVALID', 'invariants.ROLLOVER_AUTO_SYNC_ENABLED must be the pinned string "false".');
+	// ROLLOVER-GRADED-AUTONOMY-C01: ROLLOVER_AUTO_SYNC_ENABLED became a real,
+	// reviewable operator control. It must still be an explicit boolean string
+	// so a typo such as 'yes', 'TRUE', '', or a non-string can never enable or
+	// ambiguously leave the automation state undecided.
+	if (invariants.ROLLOVER_AUTO_SYNC_ENABLED !== 'true' && invariants.ROLLOVER_AUTO_SYNC_ENABLED !== 'false') {
+		throw fail('RUNTIME_CONTRACT_INVALID', 'invariants.ROLLOVER_AUTO_SYNC_ENABLED must be the string "true" or "false".');
+	}
+	// Unpinning one value must not weaken the pinned-invariant model: the
+	// supervision flag stays hard-pinned.
+	if (invariants.ATLAS_SUPERVISED !== 'true') {
+		throw fail('RUNTIME_CONTRACT_INVALID', 'invariants.ATLAS_SUPERVISED must be the pinned string "true".');
 	}
 
 	const envRef = assertObject(contract.environmentReference, 'RUNTIME_CONTRACT_INVALID', 'environmentReference');

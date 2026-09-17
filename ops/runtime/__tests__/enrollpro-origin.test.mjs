@@ -76,7 +76,8 @@ test('buildTargets resolves the EnrollPro target from the durable env, not the i
 	});
 	const client = targets.find((target) => target.name === 'client');
 	assert.equal(client.env.ATLAS_HOST_ENROLLPRO_TARGET, DURABLE);
-	assert.equal(client.env.ROLLOVER_AUTO_SYNC_ENABLED, 'false', 'pinned invariants stay pinned');
+	assert.equal(client.env.ROLLOVER_AUTO_SYNC_ENABLED, CONTRACT.invariants.ROLLOVER_AUTO_SYNC_ENABLED, 'the rollover control value is passed through unchanged');
+	assert.equal(client.env.ATLAS_SUPERVISED, 'true', 'the supervision invariant stays pinned');
 });
 
 test('buildTargets uses a durable value when the inherited environment has none, and normalizes a trailing slash', () => {

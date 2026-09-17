@@ -15,7 +15,6 @@ import {
 	findPendingArchiveRecoveryMarker,
 	type RolloverStatusResult,
 } from '../services/enrollpro-rollover.service.js';
-import { subscribeNotificationEvents, type NotificationEvent } from '../services/notification-events.service.js';
 
 let passCount = 0;
 let failCount = 0;
@@ -413,22 +412,29 @@ async function run() {
 
 			resetAutomationState();
 			let recoveryApplyCalls = 0;
+			let classifyCalls = 0;
+			const markedPublished: Array<{ type: string }> = [];
 			const markedRecovery = await tickRolloverAutomation(SCHOOL_ID, {
 				testModeEnabled: true,
 				fetchIntegrationHealth: async () => ({ reachable: true } as never),
 				previewRollover: async () => ({ ...preview, testDataMarked: true, publishedResetBlocked: false }),
-				classifyRecovery: async () => ({
-					classification: 'TEST_DATA_RECOVERY_AVAILABLE',
-					confirmationText: `CLEAR_TEST_DATA_AND_SYNC_${effectiveYearId}`,
-				} as never),
+				classifyRecovery: async () => {
+					classifyCalls += 1;
+					return {
+						classification: 'TEST_DATA_RECOVERY_AVAILABLE',
+						confirmationText: `CLEAR_TEST_DATA_AND_SYNC_${effectiveYearId}`,
+					} as never;
+				},
 				applyTestRecovery: async () => {
 					recoveryApplyCalls += 1;
 					return undefined as never;
 				},
-				publishNotification: () => ({} as never),
+				publishNotification: ((event: { type: string }) => { markedPublished.push(event); }) as never,
 			});
-			assertEqual(markedRecovery.action, 'applied', 'Marked mapping-conflict enters the auto-recovery path in test mode');
-			assertEqual(recoveryApplyCalls, 1, 'Marked mapping-conflict invokes recovery exactly once');
+			assertEqual(markedRecovery.action, 'conflict', 'Marked mapping-conflict is no longer auto-cleared in test mode');
+			assertEqual(recoveryApplyCalls, 0, 'Marked mapping-conflict never invokes the retired recovery path');
+			assertEqual(classifyCalls, 0, 'The retired recovery classifier is never consulted');
+			assertEqual(markedPublished.filter((event) => event.type === 'ROLLOVER_DETECTED').length, 1, 'Marked mapping-conflict notifies instead');
 		} finally {
 			if (origApi === undefined) delete process.env.ENROLLPRO_API;
 			else process.env.ENROLLPRO_API = origApi;
@@ -525,7 +531,7 @@ async function run() {
 		}
 	}
 
-	section('RR-09B archive-resolvable conflict self-heals with no attention noise');
+	section('RR-09B retired: archive-resolvable conflicts notify instead of self-healing');
 	{
 		resetAutomationState();
 		const archiveResolvablePreview = {
@@ -552,26 +558,26 @@ async function run() {
 			testDataMarked: false,
 		} as RolloverStatusResult;
 
-		assertEqual(isArchiveResolvableStatus(archiveResolvablePreview), true, 'isArchiveResolvableStatus recognizes the label-only wedge');
+		assertEqual(isArchiveResolvableStatus(archiveResolvablePreview), true, 'isArchiveResolvableStatus still recognizes the label-only wedge');
 
-		const published: Array<{ type: string }> = [];
+		const published: Array<{ type: string; metadata?: Record<string, unknown> }> = [];
 		let archiveApplyCalls = 0;
-		let archiveApplyInitiatedBy = '';
 		const result = await tickRolloverAutomation(SCHOOL_ID, {
 			fetchIntegrationHealth: async () => ({ reachable: true } as never),
 			previewRollover: async () => archiveResolvablePreview,
-			applyArchiveAndSync: async (input: { initiatedBy?: string }) => {
+			applyArchiveAndSync: async () => {
 				archiveApplyCalls += 1;
-				archiveApplyInitiatedBy = input?.initiatedBy ?? '';
 				return { archivedYears: [{ schoolYearId: 5 }], enrollProActiveYear: { id: 6, yearLabel: '2027-2028' } } as never;
 			},
 			publishNotification: ((event: { type: string }) => { published.push(event); }) as never,
 		});
-		assertEqual(result.action, 'applied', 'Archive-resolvable conflict self-heals (applied)');
-		assertEqual(result.state.lastResult, 'success', 'Automation records success for the self-heal');
-		assertEqual(archiveApplyCalls, 1, 'archiveAndSyncActiveYear invoked exactly once');
-		assertEqual(archiveApplyInitiatedBy, 'system', 'Self-heal runs with initiatedBy system');
-		assertEqual(published.filter((event) => event.type === 'ROLLOVER_ATTENTION_REQUIRED').length, 0, 'No attention publications on the injected publisher for archive-resolvable conflicts');
+		assertEqual(result.action, 'conflict', 'Archive-resolvable conflict no longer self-heals');
+		assertEqual(result.state.lastResult, 'conflict', 'Automation records a conflict state');
+		assertEqual(archiveApplyCalls, 0, 'archiveAndSyncActiveYear is never invoked by the tick');
+		assertEqual(published.filter((event) => event.type === 'ROLLOVER_ATTENTION_REQUIRED').length, 0, 'No attention publications for archive-resolvable conflicts');
+		const detected = published.filter((event) => event.type === 'ROLLOVER_DETECTED');
+		assertEqual(detected.length, 1, 'Exactly one transition notification replaces the retired self-heal');
+		assertEqual(detected[0]?.metadata?.recommendedAction, 'RUN_ARCHIVE_AND_SYNC', 'Notification names the archive-and-sync next action');
 		assertEqual(result.state.lastNotifiedState, null, 'No standing attention state recorded for archive-resolvable conflicts');
 	}
 
@@ -618,12 +624,13 @@ async function run() {
 		assertEqual(result.action, 'conflict', 'Non-resolvable conflict still pauses for manual review');
 		assertEqual(result.state.lastResult, 'conflict', 'Automation records a conflict state');
 		assertEqual(archiveApplyCalls, 0, 'archiveAndSyncActiveYear is NOT invoked for section collisions');
-		// notifyOnce records the standing attention state on the school's
-		// automation state; that marker is the observable attention signal.
-		assertEqual(result.state.lastNotifiedState, 'ROLLOVER_ATTENTION_REQUIRED:conflict', 'Attention notification state recorded for manual conflicts');
+		// The transition-triggered detection notification replaced notifyOnce for
+		// this path: one typed ROLLOVER_DETECTED names the conflict count.
+		assertEqual(published.filter((event) => event.type === 'ROLLOVER_DETECTED').length, 1, 'One detection notification for the manual conflict');
+		assertEqual(result.state.lastNotifiedState, null, 'No standing attention state is recorded for manual conflicts');
 	}
 
-	section('RR-09B clean drift auto-applies AND archives the superseded year (sandbox)');
+	section('RR-09B clean drift auto-applies WITHOUT archiving the superseded year (sandbox)');
 	{
 		resetAutomationState();
 		const SANDBOX_NAME = 'RR09B Automation Archive Sandbox';
@@ -718,7 +725,7 @@ async function run() {
 				where: { schoolId_enrollProSchoolYearId: { schoolId: sandbox.id, enrollProSchoolYearId: OLD_YEAR } },
 				select: { isArchived: true, isActive: true },
 			});
-			assertEqual(oldMirror?.isArchived, true, 'Superseded year archived automatically after the sync');
+			assertEqual(oldMirror?.isArchived, false, 'Superseded year is NOT archived by the unattended tick');
 			assertEqual(oldMirror?.isActive, false, 'Superseded year deactivated');
 
 			const newMirror = await prisma.enrollProSchoolYearMirror.findUnique({
@@ -738,14 +745,13 @@ async function run() {
 			const archiveAudits = await prisma.auditLog.count({
 				where: { schoolId: sandbox.id, schoolYearId: OLD_YEAR, action: 'ARCHIVE_SCHOOL_YEAR' },
 			});
-			assertEqual(archiveAudits, 1, 'ARCHIVE_SCHOOL_YEAR audit written with initiatedBy system');
+			assertEqual(archiveAudits, 0, 'No ARCHIVE_SCHOOL_YEAR audit is written by the unattended tick');
 
 			const completion = published.find((event) => event.type === 'ROLLOVER_AUTO_SYNC_COMPLETED');
 			assert(completion != null, 'ROLLOVER_AUTO_SYNC_COMPLETED notification published');
 			const archivedMeta = (completion?.metadata?.archivedYears as Array<{ schoolYearId: number }> | undefined) ?? [];
-			assertEqual(archivedMeta.length, 1, 'Completion notification carries archive metadata');
-			assertEqual(archivedMeta[0]?.schoolYearId, OLD_YEAR, 'Archive metadata names the superseded year');
-			assert(String(completion?.message ?? '').includes('archived 1 superseded'), 'Completion message mentions the archive');
+			assertEqual(archivedMeta.length, 0, 'Completion notification carries no archive metadata');
+			assert(!String(completion?.message ?? '').includes('archiv'), 'Completion message does not claim an archive');
 		} finally {
 			if (origApi === undefined) delete process.env.ENROLLPRO_API;
 			else process.env.ENROLLPRO_API = origApi;
@@ -754,211 +760,103 @@ async function run() {
 		}
 	}
 
-	section('RR-15A: test-mode pending-archive recovery retries through the real automation tick');
+	section('RR-15A retired: the tick never performs unattended archival or test-data clearing');
 	{
 		const fixture = await setupRr15aFixture('RR15A Automation Archive Retry Sandbox', 991101, 991102);
-		const busEvents: Array<Record<string, unknown>> = [];
 		const tickEvents: Array<Record<string, unknown>> = [];
-		let unsubscribe = () => {};
 		try {
-			// Scaffold + mark the mirror-less legacy fixture (real services).
+			// Scaffold + mark the mirror-less legacy fixture (real services), then
+			// craft a REAL pending archive marker for the active year: exactly the
+			// state the retired RR-15A retry used to complete unattended.
 			await withInstrumentedFake(rr15aFakeOptions(fixture), () => scaffoldTestYearRecoveryMirror({ schoolId: fixture.schoolId, actorId: 0 }));
 			await markSchoolYearAsTestData(fixture.schoolId, fixture.newYearId, 0);
-			const unsubscribers = [fixture.oldYearId, fixture.newYearId].map((schoolYearId) => subscribeNotificationEvents({
-				schoolId: fixture.schoolId,
-				schoolYearId,
-				facultyId: null,
-				send: (event: NotificationEvent) => { busEvents.push(event as unknown as Record<string, unknown>); },
-			}));
-			unsubscribe = () => { for (const unsub of unsubscribers) unsub(); };
+			const marker = await craftRecoveryMarker(
+				fixture.schoolId,
+				fixture.newYearId,
+				{ cleared: true, syncApplied: true, archivesApplied: false },
+				fixture.oldYearId,
+			);
+			const pendingBefore = await findPendingArchiveRecoveryMarker(fixture.schoolId, fixture.newYearId);
+			assert(pendingBefore !== null, 'A real pending archive marker exists before the tick');
+
 			const injectPublisher = ((event: Record<string, unknown>) => { tickEvents.push(event); }) as never;
-
-			//   Tick 1: marked collision enters recovery; sync succeeds;
-			// archival fails (school-year call 6).
-			const fakeOptions = rr15aFakeOptions(fixture, { schoolYearFailAfter: 5 });
-			const tick1 = await withInstrumentedFake(fakeOptions, () => tickRolloverAutomation(fixture.schoolId, {
+			let archiveSeamCalls = 0;
+			let classifyCalls = 0;
+			resetAutomationState();
+			const result = await tickRolloverAutomation(fixture.schoolId, {
 				testModeEnabled: true,
+				fetchIntegrationHealth: async () => ({ reachable: true } as never),
+				previewRollover: async () => ({
+					schoolId: fixture.schoolId,
+					atlasSchoolYearId: fixture.oldYearId,
+					enrollProActiveYear: { id: fixture.newYearId, yearLabel: '2099-2100' },
+					drift: {
+						status: 'mapping-conflict',
+						message: 'ATLAS has dummy data using the EnrollPro year ID. Reset dummy data and sync from EnrollPro.',
+						recommendedAction: 'RESET_DUMMY_YEAR',
+						atlasSchoolYearId: fixture.oldYearId,
+						enrollProSchoolYearId: fixture.newYearId,
+						enrollProSchoolYearLabel: '2099-2100',
+						mirrorSyncedAt: null,
+					},
+					mirror: null,
+					conflicts: [{ code: 'SECTION_ID_COLLISION', message: 'Collision' }],
+					reconfiguredSections: [],
+					canResetDummyYear: false,
+					resetTargetSchoolYearId: fixture.newYearId,
+					conflictingRecordCounts: null,
+					teachingLoadResetRequired: false,
+					publishedResetBlocked: false,
+					testDataMarked: true,
+				}) as never,
+				classifyRecovery: async () => {
+					classifyCalls += 1;
+					return { classification: 'TEST_DATA_RECOVERY_AVAILABLE', confirmationText: 'X' } as never;
+				},
+				applyTestRecovery: async () => {
+					archiveSeamCalls += 1;
+					throw new Error('applyTestRecovery must never be invoked by the tick');
+				},
+				applyArchiveAndSync: async () => {
+					archiveSeamCalls += 1;
+					throw new Error('applyArchiveAndSync must never be invoked by the tick');
+				},
+				archiveYear: async () => {
+					archiveSeamCalls += 1;
+					throw new Error('archiveYear must never be invoked by the tick');
+				},
 				publishNotification: injectPublisher,
-			}));
-			assertEqual(tick1.action, 'archive-pending', 'Tick 1 returns archive-pending');
-			assertEqual(tick1.state.lastResult, 'partial-success', 'Tick 1 records partial-success (not success)');
-			assert(tick1.state.consecutiveFailures >= 1, `Tick 1 advanced the failure counter (got ${tick1.state.consecutiveFailures})`);
-			assert(tick1.state.nextAttemptAt.getTime() > Date.now(), 'Tick 1 set a future retry time via backoff');
-			assert(!tickEvents.some((event) => event.type === 'ROLLOVER_AUTO_SYNC_COMPLETED'), 'Tick 1 does NOT emit a complete rollover notification');
+			});
+
+			assertEqual(archiveSeamCalls, 0, 'All three archive-producing seams stay at zero invocations');
+			assertEqual(classifyCalls, 0, 'The retired recovery classifier is never consulted');
+			assertEqual(result.action, 'conflict', 'A marked collision is left for the operator');
 			assertEqual(
-				busEvents.filter((event) => event.type === 'TEST_YEAR_RECOVERY_PARTIAL_SUCCESS').length,
+				tickEvents.filter((event) => event.type === 'ROLLOVER_DETECTED').length,
 				1,
-				'Exactly one partial-success notification after tick 1',
+				'Exactly one detection notification replaces the retired auto-recovery',
 			);
+			assert(!tickEvents.some((event) => event.type === 'ROLLOVER_AUTO_SYNC_COMPLETED'), 'No completion notification is emitted');
+
+			// The pending marker and the superseded year are untouched.
+			const markerAfter = await prisma.auditLog.findFirst({
+				where: { schoolId: fixture.schoolId, action: 'TEST_YEAR_RECOVERY_CLEANUP' },
+				select: { id: true, metadata: true },
+			});
+			assertEqual(markerAfter?.id, marker.id, 'Pending marker id is unchanged');
+			const phasesAfter = (markerAfter?.metadata as Record<string, unknown> | null)?.phases as Record<string, boolean> | null;
+			assertEqual(phasesAfter?.archivesApplied, false, 'Marker still records archivesApplied=false');
+			const oldMirrorAfter = await prisma.enrollProSchoolYearMirror.findUnique({
+				where: { schoolId_enrollProSchoolYearId: { schoolId: fixture.schoolId, enrollProSchoolYearId: fixture.oldYearId } },
+				select: { isArchived: true },
+			});
+			assertEqual(oldMirrorAfter?.isArchived, false, 'Superseded year stays non-archived');
 			assertEqual(
-				busEvents.filter((event) => event.type === 'TEST_YEAR_RECOVERY_COMPLETED').length,
+				await prisma.auditLog.count({ where: { schoolId: fixture.schoolId, schoolYearId: fixture.newYearId, action: 'ROLLOVER_SYNC_APPLIED' } }),
 				0,
-				'No completion notification while archival is pending',
-			);
-
-			const newMirror1 = await prisma.enrollProSchoolYearMirror.findUnique({
-				where: { schoolId_enrollProSchoolYearId: { schoolId: fixture.schoolId, enrollProSchoolYearId: fixture.newYearId } },
-				select: { isActive: true, isArchived: true, yearLabel: true },
-			});
-			assertEqual(newMirror1?.isActive, true, 'Year becomes aligned (new year active)');
-			assertEqual(newMirror1?.yearLabel, '2099-2100', 'New year carries the upstream label');
-			assertEqual(newMirror1?.isArchived, false, 'The current EnrollPro active year is never archived');
-			const oldMirror1 = await prisma.enrollProSchoolYearMirror.findUnique({
-				where: { schoolId_enrollProSchoolYearId: { schoolId: fixture.schoolId, enrollProSchoolYearId: fixture.oldYearId } },
-				select: { isActive: true, isArchived: true },
-			});
-			assertEqual(oldMirror1?.isActive, false, 'Old year deactivated by the sync');
-			assertEqual(oldMirror1?.isArchived, false, 'Old year NOT archived (archival pending)');
-			assertEqual(
-				await prisma.auditLog.count({ where: { schoolId: fixture.schoolId, schoolYearId: fixture.newYearId, action: 'ROLLOVER_SYNC_APPLIED' } }),
-				1,
-				'Sync executed exactly once in tick 1',
-			);
-			const cycleAfterTick1 = await prisma.teachingLoadCycle.findMany({ where: { schoolId: fixture.schoolId, schoolYearId: fixture.newYearId } });
-			assertEqual(cycleAfterTick1.length, 1, 'TeachingLoadCycle created by tick 1');
-			assertEqual(cycleAfterTick1[0]?.state, 'EMPTY', 'Cycle EMPTY after tick 1');
-
-			//   Tick 2 (immediate, backoff not elapsed): skipped, no change.
-			fakeOptions.schoolYearFailAfter = 0;
-			const tick2 = await withInstrumentedFake(fakeOptions, () => tickRolloverAutomation(fixture.schoolId, {
-				testModeEnabled: true,
-				publishNotification: injectPublisher,
-			}));
-			assertEqual(tick2.action, 'skipped', 'Tick 2 skips while backoff has not elapsed');
-			assert(String(tick2.detail ?? '').includes('Backoff'), 'Tick 2 detail names the backoff guard');
-
-			//   Unreachable upstream between retries: marker stays pending.
-			{
-				resetAutomationState();
-				const server = createFakeServer({
-					'/api/integration/v1/health': (_req, res) => sendJson(res, 503, { error: 'unavailable' }),
-				});
-				const baseUrl = await startAndGetUrl(server);
-				const origApi = process.env.ENROLLPRO_API;
-				try {
-					process.env.ENROLLPRO_API = baseUrl;
-					const tickUnreachable = await tickRolloverAutomation(fixture.schoolId, {
-						testModeEnabled: true,
-						publishNotification: injectPublisher,
-					});
-					assertEqual(tickUnreachable.action, 'unreachable', 'Unreachable retry returns unreachable');
-				} finally {
-					if (origApi === undefined) delete process.env.ENROLLPRO_API;
-					else process.env.ENROLLPRO_API = origApi;
-					await stopServer(server);
-				}
-				const markerAfterUnreachable = await prisma.auditLog.findFirst({
-					where: { schoolId: fixture.schoolId, action: 'TEST_YEAR_RECOVERY_CLEANUP' },
-					select: { metadata: true },
-				});
-				const phasesAfterUnreachable = (markerAfterUnreachable?.metadata as Record<string, unknown> | null)?.phases as Record<string, boolean> | null;
-				assertEqual(phasesAfterUnreachable?.archivesApplied, false, 'Unreachable retry leaves the marker pending');
-			}
-
-			//   Tick 3 (process restart, archival fails again): pending kept,
-			// backoff advanced.
-			resetAutomationState();
-			const tick3 = await withInstrumentedFake(rr15aFakeOptions(fixture, { schoolYearFailAfter: 2 }), () => tickRolloverAutomation(fixture.schoolId, {
-				testModeEnabled: true,
-				publishNotification: injectPublisher,
-			}));
-			assertEqual(tick3.action, 'archive-pending', 'Tick 3 (retry failure) returns archive-pending');
-			assertEqual(tick3.state.lastResult, 'partial-success', 'Tick 3 keeps partial-success while archival is pending');
-			const markerBeforeHeal = await prisma.auditLog.findFirst({
-				where: { schoolId: fixture.schoolId, action: 'TEST_YEAR_RECOVERY_CLEANUP' },
-				select: { id: true, metadata: true },
-			});
-			const phasesBeforeHeal = (markerBeforeHeal?.metadata as Record<string, unknown> | null)?.phases as Record<string, boolean> | null;
-			assertEqual(phasesBeforeHeal?.archivesApplied, false, 'Archive retry failure preserves the marker (archivesApplied=false)');
-			const oldMirrorBeforeHeal = await prisma.enrollProSchoolYearMirror.findUnique({
-				where: { schoolId_enrollProSchoolYearId: { schoolId: fixture.schoolId, enrollProSchoolYearId: fixture.oldYearId } },
-				select: { isArchived: true },
-			});
-			assertEqual(oldMirrorBeforeHeal?.isArchived, false, 'Archive retry failure does not archive the old year');
-
-			//   Tick 4 (process restart, healthy): pending marker detected
-			// DESPITE aligned drift; archive-only completion.
-			resetAutomationState();
-			const markerId = markerBeforeHeal?.id;
-			const syncAuditsBeforeHeal = await prisma.auditLog.count({
-				where: { schoolId: fixture.schoolId, schoolYearId: fixture.newYearId, action: 'ROLLOVER_SYNC_APPLIED' },
-			});
-			const tick4 = await withInstrumentedFake(rr15aFakeOptions(fixture), () => tickRolloverAutomation(fixture.schoolId, {
-				testModeEnabled: true,
-				publishNotification: injectPublisher,
-			}));
-			assertEqual(tick4.action, 'applied', 'Tick 4 completes the pending archival');
-			assertEqual(tick4.state.lastResult, 'success', 'Tick 4 records success after archival completes');
-			assertEqual(tick4.state.consecutiveFailures, 0, 'Tick 4 clears the failure/backoff state');
-			const markerAfterHeal = await prisma.auditLog.findFirst({
-				where: { schoolId: fixture.schoolId, action: 'TEST_YEAR_RECOVERY_CLEANUP' },
-				select: { id: true, metadata: true },
-			});
-			assertEqual(markerAfterHeal?.id, markerId, 'Pending marker id unchanged through retries');
-			const phasesAfterHeal = (markerAfterHeal?.metadata as Record<string, unknown> | null)?.phases as Record<string, boolean> | null;
-			assertEqual(phasesAfterHeal?.cleared, true, 'Marker cleared=true after completion');
-			assertEqual(phasesAfterHeal?.syncApplied, true, 'Marker syncApplied=true after completion');
-			assertEqual(phasesAfterHeal?.archivesApplied, true, 'Marker archivesApplied=true after completion');
-			assertEqual(
-				await prisma.auditLog.count({ where: { schoolId: fixture.schoolId, schoolYearId: fixture.newYearId, action: 'ROLLOVER_SYNC_APPLIED' } }),
-				syncAuditsBeforeHeal,
-				'Sync invocation count remains one across all ticks',
-			);
-			assertEqual(
-				await prisma.auditLog.count({ where: { schoolId: fixture.schoolId, schoolYearId: fixture.newYearId, action: 'TEST_YEAR_RECOVERY_CLEANUP' } }),
-				1,
-				'Destructive cleanup ran exactly once across all ticks',
-			);
-			const oldMirrorAfterHeal = await prisma.enrollProSchoolYearMirror.findUnique({
-				where: { schoolId_enrollProSchoolYearId: { schoolId: fixture.schoolId, enrollProSchoolYearId: fixture.oldYearId } },
-				select: { isArchived: true },
-			});
-			assertEqual(oldMirrorAfterHeal?.isArchived, true, 'Superseded year archived by the retry completion');
-			const newMirrorAfterHeal = await prisma.enrollProSchoolYearMirror.findUnique({
-				where: { schoolId_enrollProSchoolYearId: { schoolId: fixture.schoolId, enrollProSchoolYearId: fixture.newYearId } },
-				select: { isArchived: true, isActive: true },
-			});
-			assertEqual(newMirrorAfterHeal?.isActive, true, 'New year still active after completion');
-			assertEqual(newMirrorAfterHeal?.isArchived, false, 'Current active year never archived');
-			assertEqual(
-				await prisma.teachingLoadCycle.count({ where: { schoolId: fixture.schoolId, schoolYearId: fixture.newYearId } }),
-				1,
-				'No duplicate TeachingLoadCycle across retries',
-			);
-			const completionTicks = tickEvents.filter((event) => event.type === 'ROLLOVER_AUTO_SYNC_COMPLETED');
-			assertEqual(completionTicks.length, 1, 'Exactly one complete-rollover notification (tick 4)');
-			assertEqual(
-				busEvents.filter((event) => event.type === 'TEST_YEAR_RECOVERY_COMPLETED').length,
-				1,
-				'Exactly one service completion notification',
-			);
-			assertEqual(
-				busEvents.filter((event) => event.type === 'TEST_YEAR_RECOVERY_PARTIAL_SUCCESS').length,
-				2,
-				'Partial-success notification emitted per failing attempt only',
-			);
-
-			//   Tick 5: further ticks skip without duplicates.
-			resetAutomationState();
-			const auditsBeforeTick5 = await prisma.auditLog.count({ where: { schoolId: fixture.schoolId } });
-			const tick5 = await withInstrumentedFake(rr15aFakeOptions(fixture), () => tickRolloverAutomation(fixture.schoolId, {
-				testModeEnabled: true,
-				publishNotification: injectPublisher,
-			}));
-			assertEqual(tick5.action, 'skipped', 'Subsequent tick skips (aligned, no pending marker)');
-			assertEqual(await prisma.auditLog.count({ where: { schoolId: fixture.schoolId } }), auditsBeforeTick5, 'Subsequent tick produces no duplicate audits');
-			assertEqual(
-				tickEvents.filter((event) => event.type === 'ROLLOVER_AUTO_SYNC_COMPLETED').length,
-				1,
-				'Subsequent tick emits no duplicate completion notification',
-			);
-			assertEqual(
-				busEvents.filter((event) => event.type === 'TEST_YEAR_RECOVERY_COMPLETED').length,
-				1,
-				'Subsequent tick emits no duplicate service completion',
+				'No unattended sync is attempted for a marked collision',
 			);
 		} finally {
-			unsubscribe();
 			const sandbox = await prisma.school.findFirst({ where: { name: 'RR15A Automation Archive Retry Sandbox' }, select: { id: true } });
 			if (sandbox) await cleanupRr15aSandbox(sandbox.id);
 		}
