@@ -1,14 +1,14 @@
 {
   "contractVersion": "1.2.0",
   "registry": {
-    "lastUpdatedAt": "2026-09-17T03:18:30.119Z",
-    "lastUpdatedBy": "primary-planner",
-    "revision": 261
+    "lastUpdatedAt": "2026-09-17T03:26:22.203Z",
+    "lastUpdatedBy": "primary-planner:slot-break-c11r-registration",
+    "revision": 263
   },
   "coordination": {
     "mode": "CYCLE_ACTIVE",
-    "activeCycleId": "SYNC-SECTION-ENROLMENT-C01",
-    "globalNextAction": "SYNC-SECTION-ENROLMENT-C01 (CYCLE_ACTIVE): registered at revision 260 with packet R1 corrected (runtime identity 54dce67b; notification row reclassified DEFERRED_EXTERNAL; audit row corrected to an observable zero delta). Next: one fresh independent pre-action review of the R1 packet is dispatched; on ACCEPT_READY 2/2/0/0/0 return the exact approval sentence, await the operator grant, then execute one POST through the reviewed harness and the 10-row acceptance matrix. Every other live/HIGH action (runtime install/restart, term-cache apply, Teaching Load apply, DB/schema apply, generation, publication, login, companion) remains locked and NOT granted; WF-C10-TRANSITION-GUARD-HARDENING remains RUNNING and is not touched by this cycle."
+    "activeCycleId": "SLOT-BREAK-AUTHORITY-C11R",
+    "globalNextAction": "SLOT-BREAK-AUTHORITY-C11R is RUNNING (base 4deb9d9c, lease-slot-break-authority-c11r ACTIVE, executor lease) for the display-surface parity correction of SLOT-BREAK-AUTHORITY-C11: the canonical classProgramSlot grid becomes the displayed period/break/shift authority wherever canonical rows exist, the silent 11:55/12:55 fallbacks are deleted, and canonical-derived slots are frozen at publication while published immutability is preserved. Next: one fresh source executor returns REVIEW_REQUIRED, then fresh independent QA over the frozen candidate, clean current-main integration on integration/slot-break-authority-c11r-20260917, and one fresh Wave Completion Auditor. Peer streams are NOT disturbed: WF-C10-TRANSITION-GUARD-HARDENING remains RUNNING and SYNC-SECTION-ENROLMENT-C01 remains PLANNED awaiting its own pre-action review and the operator's exact approval sentence. Every live/HIGH action (runtime install/restart, term-cache apply, Teaching Load apply, DB/schema apply, generation, publication, login, companion) remains locked and NOT granted."
   },
   "streams": [
     {
@@ -5952,6 +5952,152 @@
           "reason": "a live data apply requires a fresh Wave Completion Auditor after the action."
         }
       }
+    },
+    {
+      "id": "SLOT-BREAK-AUTHORITY-C11R",
+      "kind": "STREAM",
+      "objective": "Complete SLOT-BREAK-AUTHORITY-C11 on the display surfaces: make the canonical classProgramSlot grid the source of displayed period, break, and shift slots whenever canonical rows exist for a (gradeLevel, programType) scope, removing the retired 11:55-12:55 fallbacks from schedule-constructor.ts and threading the canonical authority into room-schedule, locked-session, published-schedule, and pre-generation-draft, while freezing canonical-derived slots at publication time and preserving published immutability. Source and tests only.",
+      "riskTier": "MEDIUM",
+      "state": "RUNNING",
+      "stateUpdatedAt": "2026-09-17T03:26:03.479Z",
+      "nextAction": "Await the source executor REVIEW_REQUIRED return for the frozen candidate in E:/ATLAS-worktrees/slot-break-authority-c11r (branch fix/slot-break-authority-c11r, base 4deb9d9c) against docs/prompts/slot-break-authority-c11r-2026-09-17.md; then validate the immutable range and commission one fresh independent QA over the complete base...candidate range, integrate on integration/slot-break-authority-c11r-20260917 over the then-current origin/main, and commission one fresh Wave Completion Auditor. No runtime, DB, migration, generation, or publication action is unlocked by this stream.",
+      "awaited": [
+        "executor REVIEW_REQUIRED return for the SLOT-BREAK-AUTHORITY-C11R frozen candidate",
+        "fresh independent QA over the frozen candidate range",
+        "clean current-main integration and fresh Wave Completion Audit"
+      ],
+      "running": [
+        "one bounded executor implementation of packet docs/prompts/slot-break-authority-c11r-2026-09-17.md on branch fix/slot-break-authority-c11r; the executor session is dispatched in the same planner turn as this registration and its session id is recorded at return"
+      ],
+      "git": {
+        "worktree": "E:/ATLAS-worktrees/slot-break-authority-c11r",
+        "branch": "fix/slot-break-authority-c11r",
+        "baseSha": "4deb9d9cd75dccba6a3bebfe62511a2b54644cac",
+        "candidateSha": null,
+        "integrationSha": null,
+        "changedPaths": [],
+        "remoteObservation": {
+          "ref": "refs/remotes/origin/main",
+          "sha": "4deb9d9cd75dccba6a3bebfe62511a2b54644cac",
+          "observedAt": "2026-09-17T03:26:03.479Z",
+          "kind": "REMOTE_TRACKING_REF"
+        }
+      },
+      "owners": {
+        "planner": {
+          "sessionId": null,
+          "status": "IDLE",
+          "writable": false
+        },
+        "executor": {
+          "sessionId": null,
+          "status": "NONE",
+          "writable": false
+        },
+        "qa": {
+          "sessionId": null,
+          "status": "NONE",
+          "writable": false
+        },
+        "auditor": {
+          "sessionId": null,
+          "status": "NONE",
+          "writable": false
+        }
+      },
+      "gates": {
+        "total": 0,
+        "passed": 0,
+        "failed": 0,
+        "blocked": 0,
+        "unperformed": 0,
+        "plan": {
+          "MANDATORY_SOURCE": 10,
+          "MANDATORY_LIVE": 0,
+          "DEFERRED_EXTERNAL": 0
+        },
+        "classes": {
+          "MANDATORY_SOURCE": {
+            "total": 0,
+            "passed": 0,
+            "failed": 0,
+            "blocked": 0,
+            "unperformed": 0
+          },
+          "MANDATORY_LIVE": {
+            "total": 0,
+            "passed": 0,
+            "failed": 0,
+            "blocked": 0,
+            "unperformed": 0
+          },
+          "DEFERRED_EXTERNAL": {
+            "total": 0,
+            "passed": 0,
+            "failed": 0,
+            "blocked": 0,
+            "unperformed": 0
+          }
+        }
+      },
+      "review": {
+        "qaVerdict": null,
+        "qaSessionId": null,
+        "auditorVerdict": null,
+        "auditorSessionId": null,
+        "auditRequired": true,
+        "qaRounds": []
+      },
+      "corrections": [],
+      "successors": [],
+      "requires": [],
+      "blocker": {
+        "kind": "NONE",
+        "detail": "The registration prerequisite is satisfied: the live register declares no held revision window, so this stream registers by CAS at revision 261. The authored authoring base 43f6909f was advanced to the dispatch tip 4deb9d9c; the range 43f6909f..4deb9d9c is docs/workflow only (packet, spec, register and generated register), so no product byte differs between the authoring base and the dispatch base. No dependency or approval blocker remains; this is an ordinary MEDIUM source correction governed at no approval gate, backed by the executor lease created at registration.",
+        "safeWorkRemaining": true,
+        "safeWorkItems": [
+          "author the packet and stream spec (done by the planner)",
+          "dispatch one fresh bounded executor into E:/ATLAS-worktrees/slot-break-authority-c11r",
+          "delete the silent 11:55/12:55 display fallbacks and derive display slots from the canonical grid",
+          "thread the canonical authority into the five display call sites and freeze canonical-derived slots at publication"
+        ]
+      },
+      "approval": {
+        "required": false,
+        "presentedReady": false,
+        "granted": false,
+        "operatorIdentity": null,
+        "approvedAt": null,
+        "boundary": null,
+        "approvedActions": [],
+        "requiredObservationIds": [],
+        "execution": null
+      },
+      "observations": [],
+      "artifacts": [],
+      "closure": null,
+      "sessionRouting": {
+        "planner": {
+          "decision": "FRESH_REQUIRED",
+          "sessionId": null,
+          "reason": "new objective with its own cycle; the C11 cycle is closed."
+        },
+        "executor": {
+          "decision": "FRESH_REQUIRED",
+          "sessionId": null,
+          "reason": "the display-surface correction runs in a fresh executor context in E:/ATLAS-worktrees/slot-break-authority-c11r."
+        },
+        "qa": {
+          "decision": "FRESH_REQUIRED",
+          "sessionId": null,
+          "reason": "fresh independent QA over the frozen candidate, including the display/validator parity row and the mutant."
+        },
+        "auditor": {
+          "decision": "FRESH_REQUIRED",
+          "sessionId": null,
+          "reason": "the stream changes what beneficiary-facing displays and frozen published snapshots render, so a fresh adversarial Wave Completion Auditor is required after integration."
+        }
+      }
     }
   ],
   "leases": [
@@ -6074,6 +6220,17 @@
       "state": "ACTIVE",
       "revision": 1,
       "updatedAt": "2026-09-16T21:21:30.482Z",
+      "expiresAt": null
+    },
+    {
+      "id": "lease-slot-break-authority-c11r",
+      "streamId": "SLOT-BREAK-AUTHORITY-C11R",
+      "worktree": "E:/ATLAS-worktrees/slot-break-authority-c11r",
+      "role": "executor",
+      "sessionId": null,
+      "state": "ACTIVE",
+      "revision": 1,
+      "updatedAt": "2026-09-17T03:26:03.479Z",
       "expiresAt": null
     }
   ],
