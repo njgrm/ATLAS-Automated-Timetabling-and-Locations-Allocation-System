@@ -1,8 +1,56 @@
 # G9-G10-CONFIG-CORRECTION-C01 — persisted-configuration correction packet
 
-Status: authored 2026-09-17 (Asia/Manila). This is a **persisted-configuration write** (HIGH): it needs a
-fingerprinted preview, a fresh independent pre-action review, and the operator's exact approval before
-any write. No schema change.
+Status: **REVISION 1** — 2026-09-17 (Asia/Manila). This is a **persisted-configuration write** (HIGH):
+it needs a fingerprinted preview, a fresh independent pre-action review, and the operator's exact
+approval before any write. No schema change.
+
+> ## R1 — SUPERSEDES SECTION 1 PART A. READ THIS FIRST.
+>
+> **Part A ("G9/G10 REGULAR is one CLASS row short") is WITHDRAWN — its premise was false.**
+>
+> The authoritative stakeholder template `DNO-CLASS-PROGRAM-TEMPLATE-2026-2027.docx` page 3 (Grade 9,
+> single-section day-column) was extracted and read (2026-09-17). Its rows are:
+>
+> | Row | No. of min | Content |
+> |---|---|---|
+> | `11:15 - 12:15` | **60** | ARAL-Reading (Mon–Thu) / `TLE *45 min only` (Fri) |
+> | `12:15 - 1:00` | 45 | **Lunch Break** |
+> | `12:15 - 1:00` | 45 | **Flag Ceremony/HGP** (Mon) / TLE — a DUPLICATE row overlapping the lunch |
+> | `1:00 - 1:45`, `1:45 - 2:30`, `2:30 - 3:15` | 45 | Science, Filipino, Mathematics |
+> | `3:15 - 3:30` | 15 | Health Break |
+> | `3:30 - 4:15` … `5:45 - 6:30` | 45 | English and the remaining subjects |
+>
+> Excluding the ARAL-Reading row (60 minutes, and **ARAL must never be encoded** per the settled rules)
+> and the two break rows, the template yields **exactly 7 afternoon CLASS rows** — identical to the
+> persisted `g9-REGULAR` / `g10-REGULAR` grids. **The persisted 7-row grid is faithful; the earlier
+> claim that it is "short by one" was wrong.** The "8" in operator decision D-D counted the ARAL row.
+>
+> Consequences:
+> - **Do NOT add an 8th CLASS row to G9/G10 REGULAR.** Doing so would corrupt a canonical grid that
+>   currently matches the stakeholder template.
+> - The `8` in the contract's D-D text is a **documentation error** and should be corrected to the
+>   shift-aware truth: **morning REGULAR (G7/G8) 8 CLASS rows; afternoon REGULAR (G9/G10) 7 CLASS rows;
+>   Special Program 10 CLASS rows.** This correction is a product-decision amendment and requires the
+>   operator's confirmation before the contract is edited.
+> - The reported "82.8% of unassigned instances in the four REGULAR scopes" therefore has a different
+>   cause than a short grid and must be re-explained by the remaining Part B work or by workload policy.
+>
+> **Part B SURVIVES and is strengthened.** The extracted pages also show:
+> - the template's G7 page places Flag Ceremony/HGP on the **`6:00 - 6:45`** row, not on the policy's
+>   `07:00 - 07:30` window (which snaps to `06:45 - 07:30` — a *different* row), so the global window is
+>   wrong even for G7/G8; and
+> - the template's G9 page places Flag/HGP on the **duplicated `12:15 - 1:00`** row, which overlaps the
+>   Lunch Break and is unusable — while the beneficiary's own G10 STE schedule photo shows it on the
+>   **`1:00 - 1:45`** CLASS row with the ordinary subject on Tue–Fri.
+>
+> So Part B is correct as written: the overlay must be scoped per shift and land on the advisory CLASS
+> row (G7/G8 ≈ `06:00 - 06:45`; G9/G10 ≈ `13:00 - 13:45`), the template's duplicate `12:15 - 1:00` row
+> is drift to be ignored, and the global fallback window must be reconciled so no scope produces an
+> unsnapable overlay.
+>
+> The reconnaissance artifact `docs/analysis/unassigned-feasibility-recon-2026-09-17.md` (branch
+> `work/unassigned-feasibility-recon-c01`, `67125b91`) carries the same F1 "7 vs 8" defect claim and
+> requires the equivalent correction note before it is merged.
 
 ## 0. Identity
 
