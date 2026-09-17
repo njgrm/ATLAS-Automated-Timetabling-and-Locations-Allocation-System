@@ -172,7 +172,7 @@ revision applies them together with Part A and Part B.
    directive change.
 3. Apply Part A + Part C as **one** `AGENTS.md` commit.
 4. Re-pin the directive and reconcile every packet that declares the old hash
-   `58e0535adff79c0f01da52fb49525443a5b52603`, in the same turn (R14).
+   `09ede31cbb133ed424039049cbaf44382dd3e4bf`, in the same turn (R14).
 5. Replace the one-state-per-step enforcement for Tier A lanes; record the new
    tier on each active stream.
 

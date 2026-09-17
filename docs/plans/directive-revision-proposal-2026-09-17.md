@@ -15,8 +15,8 @@ the directive was still unmodified; that premise is now historical.
 
 
 Status: **proposal only.** `AGENTS.md` is deliberately **unmodified** here. The
-directive blob `58e0535adff79c0f01da52fb49525443a5b52603` (LF-SHA-256
-`e7ea7f7d6b2bb36a41c7d3be29063f70900163c75de605880ac958bf1f02aa11`) is pinned
+directive blob `09ede31cbb133ed424039049cbaf44382dd3e4bf` (LF-SHA-256
+`3ef09bb64eb623a6c7412fb98549c9143e16589739628656036b19c144a70d79`) is pinned
 inside live packets — including `CONSOLIDATED-DEPLOYMENT-C10` §0 — so editing it
 mid-flight invalidates every declared pin. Apply this as **one deliberate
 revision**, after C10 closes, in the same commit as `WORKFLOW-PIN-SEMANTICS-C01`.

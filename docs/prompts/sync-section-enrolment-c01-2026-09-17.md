@@ -6,8 +6,8 @@ before the POST.
 
 ## 0. Immutable identity
 
-- Directive: `origin/main:AGENTS.md`, blob `58e0535adff79c0f01da52fb49525443a5b52603`,
-  LF-SHA-256 `e7ea7f7d6b2bb36a41c7d3be29063f70900163c75de605880ac958bf1f02aa11`.
+- Directive: `origin/main:AGENTS.md`, blob `09ede31cbb133ed424039049cbaf44382dd3e4bf`,
+  LF-SHA-256 `3ef09bb64eb623a6c7412fb98549c9143e16589739628656036b19c144a70d79`.
   Re-verified from Git bytes 2026-09-17.
 - Base: the `origin/main` tip at dispatch. Authoring base `dd4f8552…`; dispatch base
   `43f6909f09f73c43de1f77092c23fdb764f545e7` (re-verify at execution).

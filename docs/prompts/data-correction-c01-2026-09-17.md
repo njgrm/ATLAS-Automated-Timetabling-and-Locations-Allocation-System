@@ -6,8 +6,8 @@ operator's **exact** approval sentence before any write. No schema change.
 
 ## 0. Identity
 
-- Directive pin: `origin/main:AGENTS.md` blob `58e0535adff79c0f01da52fb49525443a5b52603`,
-  LF-SHA-256 `e7ea7f7d6b2bb36a41c7d3be29063f70900163c75de605880ac958bf1f02aa11`. Read from Git bytes.
+- Directive pin: `origin/main:AGENTS.md` blob `09ede31cbb133ed424039049cbaf44382dd3e4bf`,
+  LF-SHA-256 `3ef09bb64eb623a6c7412fb98549c9143e16589739628656036b19c144a70d79`. Read from Git bytes.
 - Base: `origin/main` at dispatch. Authoring base `056f2e4bf3e3beca20d52aa0ab4f96ab19875f01`.
 - Worktree `E:/ATLAS-worktrees/data-correction-c01`, branch `chore/data-correction-c01`,
   disposition `RETIRE_AFTER_INTEGRATION`. Risk **HIGH** (live configuration data).

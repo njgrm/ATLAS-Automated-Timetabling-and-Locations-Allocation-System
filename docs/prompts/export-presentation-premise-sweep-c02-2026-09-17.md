@@ -22,7 +22,7 @@ scope. This is a document-truth correction only.
 | Accepted base | `git rev-parse HEAD` at dispatch (it is `origin/main` at dispatch; `43341ac7cb908f9ca692dbc93f8da8ef26ec52b0` was observed at packet authoring) |
 | Worktree | `E:/ATLAS-worktrees/export-presentation-premise-sweep-c02` |
 | Branch | `fix/export-presentation-premise-sweep-c02` |
-| Directive | read `origin/main:AGENTS.md` directly; blob `58e0535adff79c0f01da52fb49525443a5b52603`, LF-normalized SHA-256 `e7ea7f7d6b2bb36a41c7d3be29063f70900163c75de605880ac958bf1f02aa11` |
+| Directive | read `origin/main:AGENTS.md` directly; blob `09ede31cbb133ed424039049cbaf44382dd3e4bf`, LF-normalized SHA-256 `3ef09bb64eb623a6c7412fb98549c9143e16589739628656036b19c144a70d79` |
 | Budget | 30 minutes; freeze scope at 23 minutes |
 | Worktree disposition | `RETIRE_AFTER_INTEGRATION` |
 
