@@ -880,7 +880,7 @@ export async function updateSubjectAtomic(input: {
 	}
 
 	// snapshot for outcome classification when the conditional update matches zero rows
-	const existing = await prisma.subject.findUnique({ where: { id }, select: { id: true, schoolId: true, updatedAt: true, gradeLevels: true } });
+	const existing = await prisma.subject.findUnique({ where: { id }, select: { id: true, schoolId: true, updatedAt: true, gradeLevels: true, requiredFeatures: true } });
 
 	// SCA-01.3: inter-section grades must sit inside the final grade scope
 	// (incoming gradeLevels win; otherwise the currently stored scope applies).
@@ -895,6 +895,22 @@ export async function updateSubjectAtomic(input: {
 			}
 		}
 	}
+
+	// `allowedOwnerDepartments` is an INPUT-ONLY field with no Subject column.
+	// It is folded into requiredFeatures as OWNER_DEPT:<code>, exactly like the
+	// create path (buildSubjectContractData) and the non-atomic update path.
+	// Spreading the raw validated changes into Prisma would fail with
+	// "Unknown argument `allowedOwnerDepartments`" (a 500), so it must be
+	// consumed and removed before the write.
+	if (safeChanges.allowedOwnerDepartments !== undefined || safeChanges.requiredFeatures !== undefined) {
+		safeChanges.requiredFeatures = mergeRequiredFeaturesWithAdditionalOwnerDepartments(
+			(safeChanges.requiredFeatures as string[] | undefined)
+				?? (existing?.requiredFeatures as string[] | undefined)
+				?? [],
+			safeChanges.allowedOwnerDepartments as string[] | undefined,
+		);
+	}
+	delete safeChanges.allowedOwnerDepartments;
 
 	try {
 		const updated = await prisma.$transaction(async (tx) => {

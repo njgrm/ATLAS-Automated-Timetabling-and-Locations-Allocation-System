@@ -237,6 +237,29 @@ async function main() {
 		ok(!inter.ok && inter.error.code === 'INVALID_INTER_SECTION_GRADES', 'inter-section outside scope rejected');
 		const unchanged = await prisma.subject.findUniqueOrThrow({ where: { id: probe.id } });
 		ok(unchanged.name === 'SCA-01 Probe Renamed', 'rejected patches wrote nothing');
+
+		// allowedOwnerDepartments is INPUT-ONLY: it has no Subject column (0
+		// occurrences in schema.prisma). The atomic path must fold it into
+		// requiredFeatures as OWNER_DEPT:<code> and strip it before the Prisma
+		// write. Spreading it into the update data produces an unknown-argument
+		// 500, so this case MUST exercise updateSubjectAtomic rather than only
+		// the field validator — a validator-only test passes while the real
+		// edit path is still broken.
+		{
+			const beforeDepartments = await prisma.subject.findUniqueOrThrow({ where: { id: probe.id } });
+			const withDepartments = await updateSubjectAtomic({
+				id: probe.id, actorSchoolId: SCHOOL,
+				expectedUpdatedAt: beforeDepartments.updatedAt.toISOString(),
+				changes: { allowedOwnerDepartments: ['TLE'] },
+			});
+			const departmentErrCode = withDepartments.ok ? '' : withDepartments.error.code;
+			ok(withDepartments.ok, `allowedOwnerDepartments applies through the atomic path${withDepartments.ok ? '' : ` — got ${departmentErrCode}`}`);
+			const afterDepartments = await prisma.subject.findUniqueOrThrow({ where: { id: probe.id } });
+			ok(
+				Array.isArray(afterDepartments.requiredFeatures) && afterDepartments.requiredFeatures.includes('OWNER_DEPT:TLE'),
+				`allowedOwnerDepartments folded into requiredFeatures as OWNER_DEPT:TLE (${JSON.stringify(afterDepartments.requiredFeatures)})`,
+			);
+		}
 	}
 
 	console.log('=== 4. ordering + passive-read zero-write + create-missing-only bootstrap ===');
