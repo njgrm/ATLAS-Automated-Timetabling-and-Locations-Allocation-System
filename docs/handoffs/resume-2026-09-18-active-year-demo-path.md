@@ -121,18 +121,63 @@ slots are the constraint, not demand shape.
   policy field. The preflight must validate the per-scope shape window; the global
   field's role in this check is retired.
 
+## BLOCKING DEFECT FOUND: subject edit is broken (400 UNKNOWN_FIELD)
+
+**The Subjects page cannot edit any subject.** `PATCH /api/v1/subjects/:id` returns:
+
+```
+400 {"code":"UNKNOWN_FIELD","message":"Unknown fields not allowed: allowedOwnerDepartments."}
+```
+
+**Root cause — one line.** `subject.service.ts:526-543` `VALID_PATCH_FIELDS` lists
+`allowedSpecializations` and `requiredFeatures` but **omits `allowedOwnerDepartments`**.
+`validateAndFilterPatchFields` (line 682) rejects any key not in that set. Yet:
+
+- the **create** path accepts it (`subject.router.ts:128,171`),
+- the **update** handler already supports it (`subject.service.ts:1700-1702`):
+  `if (data.requiredFeatures !== undefined || data.allowedOwnerDepartments !== undefined)`
+  → `updateData.requiredFeatures = resolvedRequiredFeatures`, which merges each
+  department into `requiredFeatures` as `OWNER_DEPT:<code>` (the same
+  `OWNER_DEPT:TLE` feature observed on Robotics),
+- the **client always sends it** on edit (`atlas-client/src/pages/Subjects.tsx:381`,
+  and `lib/subject-create-payload.ts:30`).
+
+So validation fails before the handler can apply it. **Fix: add
+`'allowedOwnerDepartments'` to `VALID_PATCH_FIELDS`**, plus a regression test that
+edits a subject carrying `allowedOwnerDepartments` and asserts 200 (failing-first on
+the current tree).
+
+**Impact on the demo:** this is why the `TLE_ICT_EXP` → `CLASSROOM` room change did
+not persist (the room blockers are still 26/26). The operator's ruling is that
+laboratory rooms are booked internally on demand and are **out of ATLAS's scope**, so
+every subject should carry `preferredRoomType = CLASSROOM`; `TLE_ICT_EXP` (subject id
+11) is the **only** active subject still on `COMPUTER_LAB` (all other 21 are already
+`CLASSROOM`). Once this defect is fixed, that single edit clears all 26 room blockers.
+
+### Operator rulings recorded this session
+
+1. **Laboratories are out of scope.** Special-room use is handled outside this
+   timetable (the Subjects dialog says exactly this: *"Classroom: regular classroom;
+   special-room use handled outside this timetable"*). Move all subjects to
+   `preferredRoomType = CLASSROOM`.
+2. **Per-scope shape owns the Flag/HGP window**, not the global
+   `flagCeremonyStartTime/EndTime` policy field.
+3. **`DATA-CORRECTION-C01` must be rescoped** — it targets the archived year.
+
 ## Immediate next action
 
-1. Author the **per-scope Flag/HGP window correction packet** (approved): validate
+1. **Fix the `VALID_PATCH_FIELDS` defect** (one line + regression test) — it blocks
+   the entire Subjects edit surface, not just the demo.
+2. Then re-apply the `TLE_ICT_EXP` → `CLASSROOM` edit and re-run the diagnostic
+   (expect the 26 room blockers to clear).
+3. Author the **per-scope Flag/HGP window correction packet** (approved): validate
    the shape's per-scope flag window in `generation-preflight.service.ts`
-   (`~line 1033-1082`) instead of the global policy field; prove with a mutant that
-   a stale global window no longer blocks a correctly-shaped afternoon shift.
-2. Confirm the `TLE_ICT_EXP` room reason (raw `roomAssignmentReason`) and, if
-   contention, reclassify rooms as `COMPUTER_LAB` via the Campus Map.
-3. Review the "session 5" workload/slot constraint for `SPS_SPEC`,
-   `DEVL_READING`, `STE_BIOTECH`, `SCI_BIO`.
-4. Rescope `DATA-CORRECTION-C01` onto year 10 (or abandon it in favour of the
-   above), and reconcile the register's stale `8eb0511b` stream text.
+   (`~line 1033-1082`) instead of the global policy field; mutant must prove a stale
+   global window no longer blocks a correctly-shaped afternoon shift.
+4. Review the **"session 5" workload/slot ceiling** for `SPS_SPEC`, `DEVL_READING`,
+   `STE_BIOTECH`, `SCI_BIO` (9 workload + 5 search blockers).
+5. Rescope `DATA-CORRECTION-C01` onto year 10; reconcile the register's stale
+   `8eb0511b` stream text.
 
 ## Stream states
 
