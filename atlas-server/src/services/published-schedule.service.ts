@@ -1,6 +1,6 @@
 import { getDataContext } from '../lib/data-context.js';
 import type { ScheduledEntry } from './constraint-validator.js';
-import { buildSpecialEventSlots } from './schedule-constructor.js';
+import { buildCanonicalDisplayGrid, buildSpecialEventSlots, type CanonicalDisplayRow, type PolicyInput } from './schedule-constructor.js';
 import { POLICY_DEFAULTS } from './scheduling-policy.service.js';
 import {
 	isTermIndexWithinContract,
@@ -532,25 +532,36 @@ async function loadReferenceMaps(
 function buildSpecialEventsPayload(
 	policy: NonNullable<Parameters<typeof buildSpecialEventSlots>[0]>,
 	specialEvents?: Array<{ eventType: string; label: string; startTime: string; endTime: string; dayOfWeek?: string | null; gradeGroup?: string | null; programType?: string | null }>,
+	canonicalRows?: readonly CanonicalDisplayRow[] | null,
 ) {
-	const specialEventSlots = buildSpecialEventSlots({
-		maxConsecutiveTeachingMinutesBeforeBreak: policy.maxConsecutiveTeachingMinutesBeforeBreak,
-		minBreakMinutesAfterConsecutiveBlock: policy.minBreakMinutesAfterConsecutiveBlock,
-		maxTeachingMinutesPerDay: policy.maxTeachingMinutesPerDay,
-		earliestStartTime: policy.earliestStartTime,
-		latestEndTime: policy.latestEndTime,
-		lunchStartTime: policy.lunchStartTime ?? undefined,
-		lunchEndTime: policy.lunchEndTime ?? undefined,
-		enforceLunchWindow: policy.enforceLunchWindow ?? undefined,
-		enableLunchWindow: policy.enableLunchWindow ?? undefined,
-		enableFlagCeremony: policy.enableFlagCeremony ?? undefined,
-		flagCeremonyStartTime: policy.flagCeremonyStartTime ?? undefined,
-		flagCeremonyEndTime: policy.flagCeremonyEndTime ?? undefined,
-		enableRecess: policy.enableRecess ?? undefined,
-		recessStartTime: policy.recessStartTime ?? undefined,
-		recessEndTime: policy.recessEndTime ?? undefined,
-		specialEvents,
+	// SLOT-BREAK-AUTHORITY-C11R: when canonical `classProgramSlot` rows exist for a
+	// scope, their BREAK rows ARE the displayed break bands and the retired policy
+	// lunch window is never rendered. The policy/event derivation below remains the
+	// fallback for a school with no canonical rows.
+	const canonicalGrid = buildCanonicalDisplayGrid({
+		rows: canonicalRows ?? [],
+		policy: { ...(policy as unknown as PolicyInput), specialEvents },
 	});
+	const specialEventSlots = canonicalGrid.hasCanonicalRows
+		? canonicalGrid.specialEventSlots
+		: buildSpecialEventSlots({
+			maxConsecutiveTeachingMinutesBeforeBreak: policy.maxConsecutiveTeachingMinutesBeforeBreak,
+			minBreakMinutesAfterConsecutiveBlock: policy.minBreakMinutesAfterConsecutiveBlock,
+			maxTeachingMinutesPerDay: policy.maxTeachingMinutesPerDay,
+			earliestStartTime: policy.earliestStartTime,
+			latestEndTime: policy.latestEndTime,
+			lunchStartTime: policy.lunchStartTime ?? undefined,
+			lunchEndTime: policy.lunchEndTime ?? undefined,
+			enforceLunchWindow: policy.enforceLunchWindow ?? undefined,
+			enableLunchWindow: policy.enableLunchWindow ?? undefined,
+			enableFlagCeremony: policy.enableFlagCeremony ?? undefined,
+			flagCeremonyStartTime: policy.flagCeremonyStartTime ?? undefined,
+			flagCeremonyEndTime: policy.flagCeremonyEndTime ?? undefined,
+			enableRecess: policy.enableRecess ?? undefined,
+			recessStartTime: policy.recessStartTime ?? undefined,
+			recessEndTime: policy.recessEndTime ?? undefined,
+			specialEvents,
+		});
 
 	return specialEventSlots.map((event) => ({
 		eventName: event.eventName,
@@ -619,6 +630,26 @@ export async function getPublishedSchedulePayload(
 				gradeGroup: se.gradeGroup,
 				programType: se.programType,
 			}));
+
+	// SLOT-BREAK-AUTHORITY-C11R — the canonical `classProgramSlot` grid owns the
+	// displayed break bands for every scope that has rows. A frozen publication
+	// renders its OWN frozen rows (published immutability); a legacy live
+	// projection reads the same rows the generation path consumed. A client that
+	// does not expose the delegate (test doubles, older narrow clients) resolves
+	// no canonical rows and keeps the persisted policy fallback, exactly like
+	// `published-identity-snapshot.service.ts`.
+	const canonicalSlotDelegate = (db() as unknown as {
+		classProgramSlot?: { findMany: (args: unknown) => Promise<readonly CanonicalDisplayRow[]> };
+	}).classProgramSlot;
+	const canonicalDisplayRows: readonly CanonicalDisplayRow[] = frozen
+		? (frozen.classProgramSlots ?? [])
+		: typeof canonicalSlotDelegate?.findMany === 'function'
+			? await canonicalSlotDelegate.findMany({
+				where: { schoolId: resolved.source.schoolId, schoolYearId: resolved.source.schoolYearId, isActive: true },
+				select: { gradeLevel: true, programType: true, startTime: true, endTime: true, rowKind: true, subjectLabel: true, dayOfWeek: true },
+				orderBy: [{ gradeLevel: 'asc' }, { startTime: 'asc' }],
+			})
+			: [];
 
 	const sectionIds = Array.from(new Set(filteredEntries.map((entry) => entry.sectionId)));
 	const subjectIds = Array.from(new Set(filteredEntries.map((entry) => entry.subjectId)));
@@ -790,7 +821,7 @@ export async function getPublishedSchedulePayload(
 		timeSlots,
 		// C08 — frozen policy/special events feed the same deterministic slot
 		// builder the live path uses, so a frozen artifact reproduces byte-stably.
-		specialEvents: buildSpecialEventsPayload(policy as never, mappedPublishedSpecialEvents),
+		specialEvents: buildSpecialEventsPayload(policy as never, mappedPublishedSpecialEvents, canonicalDisplayRows),
 		entries,
 	};
 }
