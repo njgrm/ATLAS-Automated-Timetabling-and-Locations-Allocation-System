@@ -1,14 +1,14 @@
 {
   "contractVersion": "1.2.0",
   "registry": {
-    "lastUpdatedAt": "2026-09-17T17:40:01.015Z",
+    "lastUpdatedAt": "2026-09-17T17:57:37.801Z",
     "lastUpdatedBy": "primary-planner:consolidated-deployment-c10-integration",
-    "revision": 345
+    "revision": 350
   },
   "coordination": {
     "mode": "MANUAL",
     "activeCycleId": null,
-    "globalNextAction": "CONSOLIDATED-DEPLOYMENT-C10 is INTEGRATED and accepted: fresh QA ses_f4f992aadffe8LQQVx2MFopEQd returned ACCEPT_READY 7/7/0/0 over the corrected range 8eb0511b..148052b2, after correction round 2 closed the round-2 QA finding F1. The deployment is live and healthy on PIN40 (8eb0511baa537d4212f24a007ac40e2dded38c0e) on 5001/5174 under the task-launched supervisor; B1 is resolved by operator ratification of the safe.directory retention with the record gap recorded; approvedActions were not retroactively modified. Coordination is MANUAL because the active cycle pointer cannot name a terminal stream during integration. REMAINING: one fresh Wave Completion Auditor, then close-cycle with a pinned receipt, retire the cycle worktree, and leave coordination MANUAL. No operator decision remains. DATA-CORRECTION-C01, SSO-ENV-ACTIVATION-C01, TERM-CACHE-CATCHUP-APPLY, AUTHZ-CLASS-TEMPLATE-LIVE, generation, and publication remain locked."
+    "globalNextAction": "CONSOLIDATED-DEPLOYMENT-C10 is COMPLETE at revision 349 (receipt docs/plans/receipts/consolidated-deployment-c10.receipt.json); release 8eb0511baa537d4212f24a007ac40e2dded38c0e serves the supervised runtime on 5001/5174 and the wave audit returned AUDIT_CLEAR 9/9/0/0. Coordination is MANUAL. Unlocked next actions: apply the directive revision (ceremony cut plus the UI regression gates), present the queued client fix bundle (TT-RENDER-FIX-C01 with the four UX findings and the two remainingHours guards), and dispatch the SSO-ENV-ACTIVATION-C01 and DATA-CORRECTION-C01 successors whose specs are ready. Generation, publication, the term-cache and Teaching Load applies remain locked."
   },
   "streams": [
     {
@@ -6775,12 +6775,10 @@
       "kind": "STREAM",
       "objective": "Deploy one release pinned at the accepted origin/main tip that includes the C07R1 authorization fix, published-revision immutability, warning realism, export parity, generation-authority realism and the R3 term-authority canonicalization; remove the vestigial ATLAS_DEFAULT_SCHOOL_ID key from the durable env; re-point and restart the registered ATLAS-Runtime-Supervisor task on ports 5001/5174; then run the 13-row acceptance matrix with exactly one authorized login and logout. No data mutation, generation, publication, Teaching Load apply, term-cache apply, rollover, migration, or companion change.",
       "riskTier": "HIGH",
-      "state": "INTEGRATED",
-      "stateUpdatedAt": "2026-09-17T17:40:01.015Z",
-      "nextAction": "Commission one fresh Wave Completion Auditor over the accepted corrected range 8eb0511b..148052b2; on AUDIT_CLEAR record the audit verdict, close the cycle with a pinned receipt, retire the cycle worktree per RETIRE_AFTER_INTEGRATION, and return coordination to MANUAL.",
-      "awaited": [
-        "the fresh Wave Completion Auditor over the corrected final tree"
-      ],
+      "state": "COMPLETE",
+      "stateUpdatedAt": "2026-09-17T17:57:19.337Z",
+      "nextAction": "Closed COMPLETE; PIN40 8eb0511baa537d4212f24a007ac40e2dded38c0e serves the supervised runtime on 5001/5174. Generation, publication, the term-cache and Teaching Load applies, and every successor HIGH action remain locked and separately gated.",
+      "awaited": [],
       "running": [],
       "git": {
         "worktree": "E:/ATLAS-worktrees/consolidated-deploy-c10",
@@ -6828,8 +6826,8 @@
           "writable": false
         },
         "auditor": {
-          "sessionId": null,
-          "status": "NONE",
+          "sessionId": "ses_f4f85787effey9zJdoIz4a86L2",
+          "status": "RETURNED",
           "writable": false
         }
       },
@@ -6871,8 +6869,8 @@
       "review": {
         "qaVerdict": "ACCEPT_READY",
         "qaSessionId": "ses_f4f992aadffe8LQQVx2MFopEQd",
-        "auditorVerdict": null,
-        "auditorSessionId": null,
+        "auditorVerdict": "AUDIT_CLEAR",
+        "auditorSessionId": "ses_f4f85787effey9zJdoIz4a86L2",
         "auditRequired": true,
         "qaRounds": [
           {
@@ -6910,8 +6908,8 @@
           "reason": "Correction round 2: fresh QA ses_f4fc91dccffeZL9yxCIifsElog found F1 - the stale B1-awaiting wording in the coordination snapshot and the errata closure bar after revision 339 updated only the stream blocker. Fixed at revision 340 (coordination.globalNextAction rewritten to the ratified B1 state with no operator decision remaining; errata closure bar corrected; rationale-table contradiction removed; projection regenerated). Docs/register only; the runtime is untouched on PIN40.",
           "qaVerdict": "ACCEPT_READY",
           "qaSessionId": "ses_f4f992aadffe8LQQVx2MFopEQd",
-          "auditorVerdict": null,
-          "auditorSessionId": null
+          "auditorVerdict": "AUDIT_CLEAR",
+          "auditorSessionId": "ses_f4f85787effey9zJdoIz4a86L2"
         }
       ],
       "successors": [],
@@ -6920,14 +6918,10 @@
         "G9G10-FLAG-SOURCE-LANE"
       ],
       "blocker": {
-        "kind": "INTERNAL",
-        "detail": "B1 RESOLVED by operator ratification: retention of the global Git safe.directory entry D:/ATLAS-runtime-supervised-8eb0511baa53-20260917 is ratified, and the operator recorded that the addition was explicitly instructed in the dispatched executor prompt for the cutover, conditional on the dubious-ownership failure, but was never transcribed into the recorded approvedActions - a record gap, not an unauthorized act; the granted approvedActions were NOT retroactively modified. The errata and the cutover evidence now record both the instruction and the record gap. B2 is fixed at revisions 336-338. Remaining: one fresh independent QA over the correction range, then one fresh Wave Completion Auditor, then closure. The deployed runtime is healthy on PIN40 and is not in question.",
-        "safeWorkRemaining": true,
-        "safeWorkItems": [
-          "fresh independent QA over the correction range",
-          "fresh Wave Completion Auditor over the corrected final tree",
-          "register successor rows for DATA-CORRECTION-C01 and the four companion-SSO keys"
-        ]
+        "kind": "NONE",
+        "detail": "B1 resolved by operator ratification: retention of the global Git safe.directory entry for D:/ATLAS-runtime-supervised-8eb0511baa53-20260917 is ratified; the addition was instructed in the dispatch and never transcribed into approvedActions - a record gap, not an unauthorized act; granted actions were not retroactively modified. B2 fixed at revisions 336-338. The correction-range QA and the successor-row registrations are complete. One fresh Wave Completion Auditor returned AUDIT_CLEAR 9/9/0/0; closure is the only remaining step.",
+        "safeWorkRemaining": false,
+        "safeWorkItems": []
       },
       "approval": {
         "required": true,
@@ -6963,7 +6957,12 @@
       },
       "observations": [],
       "artifacts": [],
-      "closure": null,
+      "closure": {
+        "receipt": {
+          "path": "docs/plans/receipts/consolidated-deployment-c10.receipt.json",
+          "sha256": "4d5dd675eb571c30701ea4d25de62db658313788f3d850a5b8bab4919fedf347"
+        }
+      },
       "sessionRouting": {
         "planner": {
           "decision": "FRESH_REQUIRED",
@@ -7310,9 +7309,9 @@
       "worktree": "E:/ATLAS-worktrees/consolidated-deploy-c10",
       "role": "executor",
       "sessionId": null,
-      "state": "ACTIVE",
-      "revision": 1,
-      "updatedAt": "2026-09-17T12:39:41.955Z",
+      "state": "RETURNED",
+      "revision": 2,
+      "updatedAt": "2026-09-17T17:57:11.812Z",
       "expiresAt": null
     }
   ],
