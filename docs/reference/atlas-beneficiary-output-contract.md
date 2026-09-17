@@ -238,7 +238,11 @@ All five previously open decisions are RESOLVED by the operator as of
   Section PEARL form `Total minutes per day 420` = 8x45 + 45 + 15, and by the
   Grade 9 STE schedule whose lunch band prints at 11:30-12:15).
   ARAL-Reading rows are OUT OF SCOPE and are never modelled on any grid.
-  The legacy 11:55-12:55 lunch window
+  Reference exemplars for the output families (`stakeholderFiles/`, read-only):
+  `grade9STE_Sched.jpg` and `grade10STE_Sched.jpg` (Special Program; `09:45-18:30`;
+  10 CLASS rows; lunch band at 11:30-12:15; one 60-minute row printed in error) and
+  `GRADE10_REGULAR.jpg` (Regular afternoon; Section PEARL; 8 CLASS rows;
+  `Total minutes per day 420`). The legacy 11:55-12:55 lunch window
   and other global recess/lunch fallbacks are NOT authoritative when canonical
   `classProgramSlot` rows exist. The v1 default is the same canonical CLASS-row
   structure Monday-Friday; no Friday-only shortened timetable is implemented for

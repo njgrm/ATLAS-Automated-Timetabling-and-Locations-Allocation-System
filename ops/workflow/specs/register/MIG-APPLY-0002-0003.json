@@ -19,7 +19,7 @@
   "git": {
     "worktree": "E:/ATLAS-worktrees/mig-apply-0002-0003",
     "branch": "chore/mig-apply-0002-0003",
-    "baseSha": "544bbf81d087098f9b5f28b9f598311f19c5288d",
+    "baseSha": "01a70895d20151603aed77405f30f24631686991",
     "candidateSha": null,
     "integrationSha": null,
     "changedPaths": [],
@@ -58,7 +58,7 @@
   },
   "corrections": [],
   "successors": [],
-  "requires": [],
+  "requires": ["WF-C10-TRANSITION-GUARD-HARDENING"],
   "blocker": {
     "kind": "NONE",
     "detail": "",

@@ -1,21 +1,22 @@
 {
   "id": "G9-G10-CONFIG-CORRECTION-C01",
   "kind": "STREAM",
-  "objective": "Repair two verified defects in the school-1 / year-9 scheduling configuration: (A) the G9 and G10 REGULAR canonical classProgramSlot grids carry 7 CLASS rows instead of the 8 required by operator decision D-D, and (B) the Monday-only Flag Ceremony/HGP overlay cannot be represented for G9/G10 because the global policy window 07:00-07:30 contains no G9/G10 canonical CLASS row, so the snap check fails closed with FLAG_CEREMONY_SCOPE_INVALID. Repair the two grids to the canonical template and make the overlay representable per scope via scoped PolicySpecialEvent rows plus a reconciled global flag window. Persisted-configuration write only: no schema, migration, Teaching Load, generation, publication, deployment, runtime/task/env, or companion action.",
+  "objective": "Repair two verified defects in the school-1 / year-9 scheduling configuration per operator ruling 2026-09-17 and packet R4 (docs/prompts/g9-g10-config-correction-c01-2026-09-17-r4.md): (A) the G9 and G10 REGULAR canonical classProgramSlot grids carry 7 CLASS rows because their Lunch Break BREAK row sits at 12:15-13:00; the operator confirmed afternoon-shift lunch is 11:30-12:15, so the catalog GRADE_9_10_REGULAR must move its lunch BREAK row to 11:30-12:15 and make 12:15-13:00 the FIRST CLASS row, giving 8 CLASS + 2 BREAK with a 11:30-18:30 shift (11:30 -> 18:30 = 420 min = 8x45 + 45 + 15, matching the Grade 10 Regular Section PEARL form's printed Total 420); and (B) the Monday-only Flag Ceremony/HGP overlay cannot be represented for G9/G10 because the global policy window 07:00-07:30 contains no G9/G10 canonical CLASS row, so the snap check fails closed with FLAG_CEREMONY_SCOPE_INVALID, which must be made representable per scope via scoped PolicySpecialEvent rows plus a reconciled global flag window. ARAL-Reading is OUT OF SCOPE and is never modelled. No lunch-band-over-CLASS mechanism and no teaching-semantics change are required. Persisted-configuration write only: no schema, migration, Teaching Load, generation, publication, deployment, runtime/task/env, or companion action.",
   "riskTier": "HIGH",
   "state": "PLANNED",
   "stateUpdatedAt": "2026-09-17T00:00:00Z",
-  "nextAction": "Register by CAS when the register is free, commission one fresh independent pre-action review of docs/prompts/g9-g10-config-correction-c01-2026-09-17.md, return its exact approval sentence, then execute the fingerprinted configuration write and the 8-row acceptance matrix.",
+  "nextAction": "Register by CAS when the register is free, commission one fresh independent pre-action review of docs/prompts/g9-g10-config-correction-c01-2026-09-17-r4.md (R4 is authoritative; R1-R3 are superseded), return its exact approval sentence, then execute the fingerprinted configuration write and the 11-row acceptance matrix at R4 section R4.3.",
   "awaited": [
     "the register to be free of any other stream's held revision window",
-    "one fresh independent pre-action review of docs/prompts/g9-g10-config-correction-c01-2026-09-17.md",
-    "the operator's exact approval sentence (returned only after the pre-action review passes)"
+    "one fresh independent pre-action review of docs/prompts/g9-g10-config-correction-c01-2026-09-17-r4.md",
+    "the operator's exact approval sentence (returned only after the pre-action review passes)",
+    "the Part A2 Special Program lunch measurement, or a PLANNER_DECISION_REQUIRED return if that split is ambiguous"
   ],
   "running": [],
   "git": {
     "worktree": "E:/ATLAS-worktrees/g9-g10-config-correction-c01",
     "branch": "chore/g9-g10-config-correction-c01",
-    "baseSha": "0a134bba",
+    "baseSha": "01a70895d20151603aed77405f30f24631686991",
     "candidateSha": null,
     "integrationSha": null,
     "changedPaths": [],
@@ -34,8 +35,8 @@
     "blocked": 0,
     "unperformed": 0,
     "plan": {
-      "MANDATORY_SOURCE": 3,
-      "MANDATORY_LIVE": 8,
+      "MANDATORY_SOURCE": 0,
+      "MANDATORY_LIVE": 11,
       "DEFERRED_EXTERNAL": 0
     },
     "classes": {
@@ -57,12 +58,13 @@
   "requires": [],
   "blocker": {
     "kind": "DEPENDENCY",
-    "detail": "Registration must not interleave with another stream's held register revision window. The action itself is ready; the fresh pre-action review and the operator's exact approval are the only remaining gates.",
+    "detail": "Registration must not interleave with another stream's held register revision window. The action itself is ready and executable as written at R4; the fresh pre-action review and the operator's exact approval are the only remaining gates. NOTE: this stream previously blocked SLOT-BREAK-AUTHORITY-C11R's wave audit on successor/HIGH-packet readiness; R4 resolved that defect (its predecessor R3 required an unimplementable lunch-band-over-CLASS mechanism) and the amended approvedActions below are satisfiable.",
     "safeWorkRemaining": true,
     "safeWorkItems": [
-      "author the packet and stream spec (done)",
+      "author the packet and stream spec (done; R4 authoritative)",
       "commission the fresh independent pre-action review",
-      "run the zero-cost preflight immediately before the write"
+      "run the zero-cost preflight immediately before the write",
+      "measure the Part A2 Special Program lunch placement"
     ]
   },
   "approval": {
@@ -73,9 +75,10 @@
     "approvedAt": null,
     "boundary": null,
     "approvedActions": [
-      "repair the school-1 / year-9 G9 and G10 REGULAR classProgramSlot grids to 8 CLASS rows each per the canonical template",
-      "seed scoped Monday-only PolicySpecialEvent FLAG_OR_HGP rows so the overlay snaps to each shift's advisory CLASS row",
-      "reconcile the global enableFlagCeremony window so no fallback scope produces an unsnappable overlay"
+      "move the Lunch Break BREAK row in the canonical classProgramSlot catalog GRADE_9_10_REGULAR (atlas-server/src/services/class-program-slot.service.ts) from 12:15-13:00 to 11:30-12:15 and make 12:15-13:00 a CLASS row, leaving Health Break at 15:15-15:30",
+      "reseed or repair the school-1 / year-9 g9-REGULAR and g10-REGULAR persisted rows so each equals getExpectedCanonicalSlots(9|10,'REGULAR') exactly with 8 CLASS + 2 BREAK and a 11:30-18:30 shift, leaving the 14 other scopes byte-identical",
+      "measure and record whether the Special Program grids also move their lunch to 11:30-12:15, returning PLANNER_DECISION_REQUIRED rather than silently re-splitting them",
+      "seed scoped Monday-only PolicySpecialEvent FLAG_OR_HGP rows so the overlay snaps to each shift's advisory CLASS row, and reconcile the global enableFlagCeremony window so no fallback scope produces an unsnappable overlay"
     ],
     "requiredObservationIds": [],
     "execution": null
