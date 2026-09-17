@@ -7,7 +7,7 @@ import {
 	type Violation,
 } from './constraint-validator.js';
 import {
-	buildPeriodSlots,
+	buildCanonicalDisplayGrid,
 	buildSpecialEventSlots,
 	buildTimetableShapeContract,
 	buildUnionClassPeriodSlots,
@@ -413,6 +413,17 @@ function normalizeProgramType(programType?: string | null): string {
 	return (programType ?? 'REGULAR').toUpperCase();
 }
 
+/**
+ * SLOT-BREAK-AUTHORITY-C11R — the actual grade number a draft grade group maps
+ * to on the canonical `classProgramSlot` grid. Mirrors the validator leg's
+ * scope expression (`displayOrder ?? gradeLevelId`), so the displayed grid and
+ * the validator window authority resolve the same scope. A grade that resolves
+ * to no canonical rows simply keeps the policy-derived shape.
+ */
+function canonicalScopeGrade(grade: { gradeLevelId: number; displayOrder?: number | null }): number {
+	return Number((grade as { displayOrder?: number | null }).displayOrder ?? grade.gradeLevelId ?? 0);
+}
+
 /** Sum teaching minutes for a faculty member on a given day from a list of entries */
 function computeFacultyDailyMinutes(facultyId: number, day: string, entries: ScheduledEntry[]): number {
 	return entries
@@ -695,6 +706,26 @@ async function loadDraftContext(schoolId: number, schoolYearId: number, authToke
 		programType: se.programType,
 	}));
 
+	// SLOT-BREAK-AUTHORITY-C11R: index the same persisted canonical rows the
+	// validator leg consumes so the DISPLAYED period/break grid is derived from
+	// the canonical `classProgramSlot` authority for every scope that has rows.
+	const canonicalRowsByScope = new Map<string, Array<{ startTime: string; endTime: string; subjectFamily: string | null; subjectLabel: string | null; rowKind: string }>>();
+	for (const row of classProgramSlots) {
+		const key = `${row.gradeLevel}:${row.programType ?? 'NULL'}`;
+		const list = canonicalRowsByScope.get(key) ?? [];
+		list.push({
+			startTime: row.startTime,
+			endTime: row.endTime,
+			subjectFamily: null,
+			subjectLabel: row.subjectLabel ?? null,
+			rowKind: row.rowKind,
+		});
+		canonicalRowsByScope.set(key, list);
+	}
+	for (const list of canonicalRowsByScope.values()) {
+		list.sort((left, right) => left.startTime.localeCompare(right.startTime) || left.endTime.localeCompare(right.endTime));
+	}
+
 	const shapeContracts = sectionResult.gradeLevels.flatMap((grade) => {
 		const programTypes = new Set<string>(['REGULAR']);
 		for (const section of grade.sections) {
@@ -711,6 +742,12 @@ async function loadDraftContext(schoolId: number, schoolYearId: number, authToke
 				endTime: shiftWindow?.endTime ?? policyRecord.latestEndTime,
 				periodLengthMinutes: template.periodLengthMinutes,
 				periodsPerDay: template.periodsPerDay,
+				// SLOT-BREAK-AUTHORITY-C11R: the persisted canonical grid owns the
+				// displayed period/break bands for every scope that has rows; scopes
+				// with no rows keep the policy-derived shape unchanged. This is the
+				// same threading the generation shape assembly performs, so the draft
+				// board and the generated grid cannot disagree.
+				canonicalSlots: canonicalRowsByScope.get(`${canonicalScopeGrade(grade)}:${programType}`) ?? [],
 				basePolicy: {
 					maxConsecutiveTeachingMinutesBeforeBreak: policyRecord.maxConsecutiveTeachingMinutesBeforeBreak,
 					minBreakMinutesAfterConsecutiveBlock: policyRecord.minBreakMinutesAfterConsecutiveBlock,
@@ -735,7 +772,7 @@ async function loadDraftContext(schoolId: number, schoolYearId: number, authToke
 	});
 
 	const classPeriodSlots = buildUnionClassPeriodSlots(shapeContracts);
-	const fallbackClassPeriodSlots = classPeriodSlots.length > 0 ? classPeriodSlots : buildPeriodSlots({
+	const draftFallbackPolicy = {
 		maxConsecutiveTeachingMinutesBeforeBreak: policyRecord.maxConsecutiveTeachingMinutesBeforeBreak,
 		minBreakMinutesAfterConsecutiveBlock: policyRecord.minBreakMinutesAfterConsecutiveBlock,
 		maxTeachingMinutesPerDay: policyRecord.maxTeachingMinutesPerDay,
@@ -752,25 +789,16 @@ async function loadDraftContext(schoolId: number, schoolYearId: number, authToke
 		recessStartTime: policyRecord.recessStartTime ?? undefined,
 		recessEndTime: policyRecord.recessEndTime ?? undefined,
 		specialEvents: mappedSpecialEvents,
-	} satisfies PolicyInput);
-	const specialEventSlots = buildSpecialEventSlots({
-		maxConsecutiveTeachingMinutesBeforeBreak: policyRecord.maxConsecutiveTeachingMinutesBeforeBreak,
-		minBreakMinutesAfterConsecutiveBlock: policyRecord.minBreakMinutesAfterConsecutiveBlock,
-		maxTeachingMinutesPerDay: policyRecord.maxTeachingMinutesPerDay,
-		earliestStartTime: policyRecord.earliestStartTime,
-		latestEndTime: policyRecord.latestEndTime,
-		lunchStartTime: policyRecord.lunchStartTime ?? undefined,
-		lunchEndTime: policyRecord.lunchEndTime ?? undefined,
-		enableLunchWindow: policyRecord.enableLunchWindow ?? undefined,
-		enforceLunchWindow: policyRecord.enforceLunchWindow ?? undefined,
-		enableFlagCeremony: policyRecord.enableFlagCeremony ?? undefined,
-		flagCeremonyStartTime: policyRecord.flagCeremonyStartTime ?? undefined,
-		flagCeremonyEndTime: policyRecord.flagCeremonyEndTime ?? undefined,
-		enableRecess: policyRecord.enableRecess ?? undefined,
-		recessStartTime: policyRecord.recessStartTime ?? undefined,
-		recessEndTime: policyRecord.recessEndTime ?? undefined,
-		specialEvents: mappedSpecialEvents,
-	} satisfies PolicyInput);
+	} satisfies PolicyInput;
+	// SLOT-BREAK-AUTHORITY-C11R: the policy path is the FALLBACK for scopes with
+	// no canonical rows; when canonical rows exist the grid comes from them.
+	const canonicalFallbackGrid = buildCanonicalDisplayGrid({ rows: classProgramSlots, policy: draftFallbackPolicy });
+	const fallbackClassPeriodSlots = classPeriodSlots.length > 0
+		? classPeriodSlots
+		: canonicalFallbackGrid.periodSlots;
+	const specialEventSlots = canonicalFallbackGrid.hasCanonicalRows
+		? canonicalFallbackGrid.specialEventSlots
+		: buildSpecialEventSlots(draftFallbackPolicy);
 	const periodSlots = buildUnionDisplaySlots(shapeContracts).length > 0
 		? buildUnionDisplaySlots(shapeContracts)
 		: ((policyRecord.showSpecialEventsInGrid ?? true)

@@ -21,7 +21,8 @@
 
 import type { ScheduledEntry } from './constraint-validator.js';
 import type { SectionsByGrade } from './section-adapter.js';
-import type { RoomType } from '@prisma/client';
+import type { ProgramType, RoomType } from '@prisma/client';
+import { resolveCanonicalSlotsFromRows, type ClassProgramSlotRow } from './class-program-slot.service.js';
 import { isSubjectAllowedForSectionProgram } from './subject-program-scope.service.js';
 import {
 	matchesSubjectOwnershipDepartment,
@@ -237,9 +238,16 @@ type PeriodSlot = { startTime: string; endTime: string; isSpecialEvent?: boolean
  * Build schedulable class period slots from policy bounds and lunch window.
  * Special event rows are built separately via buildSpecialEventSlots().
  */
-function buildPeriodSlots(policy?: PolicyInput): PeriodSlot[] {
+function buildPeriodSlots(policy?: PolicyInput, canonical?: ResolvedCanonicalDisplayScope | null): PeriodSlot[] {
 	let slots: PeriodSlot[] = [];
-	
+
+	// SLOT-BREAK-AUTHORITY-C11R: when the scope HAS canonical `classProgramSlot`
+	// rows, its CLASS rows ARE the period grid. The policy path below is a
+	// fallback for scopes with no canonical rows.
+	if (canonical?.hasCanonicalRows) {
+		return canonical.periodSlots.map((slot) => ({ startTime: slot.startTime, endTime: slot.endTime }));
+	}
+
 	if (!policy) {
 		slots = [...DEFAULT_PERIOD_SLOTS];
 	} else {
@@ -282,10 +290,13 @@ function buildPeriodSlots(policy?: PolicyInput): PeriodSlot[] {
 			}
 
 			const lunchEnforced = policy.enableLunchWindow ?? policy.enforceLunchWindow ?? true;
-			if (lunchEnforced) {
+			// SLOT-BREAK-AUTHORITY-C11R: never invent the retired 11:55-12:55 window.
+			// An enabled lunch window without explicit bounds contributes no block;
+			// the canonical `classProgramSlot` grid (when present) is the authority.
+			if (lunchEnforced && policy.lunchStartTime && policy.lunchEndTime) {
 				blockedWindows.push({
-					start: timeToMinutes(policy.lunchStartTime ?? '11:55'),
-					end: timeToMinutes(policy.lunchEndTime ?? '12:55'),
+					start: timeToMinutes(policy.lunchStartTime),
+					end: timeToMinutes(policy.lunchEndTime),
 				});
 			}
 		}
@@ -325,7 +336,15 @@ function buildPeriodSlots(policy?: PolicyInput): PeriodSlot[] {
 	return slots;
 }
 
-function buildSpecialEventSlots(policy?: PolicyInput): PeriodSlot[] {
+function buildSpecialEventSlots(policy?: PolicyInput, canonical?: ResolvedCanonicalDisplayScope | null): PeriodSlot[] {
+	// SLOT-BREAK-AUTHORITY-C11R: when the scope HAS canonical `classProgramSlot`
+	// rows, its BREAK rows ARE the break bands. The Monday Flag/HGP overlay stays
+	// owned by the policy row (it is never a canonical BREAK row) and is snapped
+	// to the single canonical CLASS row that contains it.
+	if (canonical?.hasCanonicalRows) {
+		return mergeDisplaySlots(canonical.canonicalBreakSlots, resolvePolicyFlagOverlaySlots(policy, canonical.periodSlots));
+	}
+
 	if (!policy) {
 		return [];
 	}
@@ -368,10 +387,10 @@ function buildSpecialEventSlots(policy?: PolicyInput): PeriodSlot[] {
 				eventName: 'RECESS',
 			});
 		}
-		if (policy.enableLunchWindow ?? policy.enforceLunchWindow ?? true) {
+		if ((policy.enableLunchWindow ?? policy.enforceLunchWindow ?? true) && policy.lunchStartTime && policy.lunchEndTime) {
 			events.push({
-				startTime: policy.lunchStartTime ?? '11:55',
-				endTime: policy.lunchEndTime ?? '12:55',
+				startTime: policy.lunchStartTime,
+				endTime: policy.lunchEndTime,
 				isSpecialEvent: true,
 				eventName: 'LUNCH BREAK',
 			});
@@ -393,6 +412,229 @@ function mergeDisplaySlots(periodSlots: PeriodSlot[], specialEventSlots: PeriodS
 		if (leftStart !== rightStart) return leftStart - rightStart;
 		return timeToMinutes(left.endTime) - timeToMinutes(right.endTime);
 	});
+}
+
+// ─── SLOT-BREAK-AUTHORITY-C11R: canonical display authority ───
+
+const CLOCK_TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
+
+function isClockTime(value: unknown): value is string {
+	return typeof value === 'string' && CLOCK_TIME.test(value);
+}
+
+function normalizeCanonicalScopeProgramType(programType?: string | null): string | null {
+	if (typeof programType !== 'string' || programType.trim().length === 0) return null;
+	return programType.trim().toUpperCase();
+}
+
+function dedupeIntervalSlots(slots: PeriodSlot[]): PeriodSlot[] {
+	const deduped = new Map<string, PeriodSlot>();
+	for (const slot of slots) {
+		const key = `${slot.startTime}-${slot.endTime}`;
+		if (!deduped.has(key)) deduped.set(key, slot);
+	}
+	return [...deduped.values()].sort((left, right) => {
+		const startDiff = timeToMinutes(left.startTime) - timeToMinutes(right.startTime);
+		return startDiff !== 0 ? startDiff : timeToMinutes(left.endTime) - timeToMinutes(right.endTime);
+	});
+}
+
+/**
+ * SLOT-BREAK-AUTHORITY-C11R — a persisted canonical `classProgramSlot` row the
+ * DISPLAY path consumes. Structurally a subset of `ClassProgramSlotRow`, so a
+ * production `select` can return exactly this shape.
+ */
+export interface CanonicalDisplayRow {
+	gradeLevel: number;
+	programType: string | null;
+	startTime: string;
+	endTime: string;
+	rowKind: string;
+	subjectLabel?: string | null;
+	dayOfWeek?: string | null;
+}
+
+export interface CanonicalDisplayScope {
+	gradeLevel: number;
+	programType: string | null;
+}
+
+export interface ResolvedCanonicalDisplayScope {
+	hasCanonicalRows: boolean;
+	/** Canonical CLASS rows — the effective period grid and shift bounds. */
+	periodSlots: PeriodSlot[];
+	/** Canonical BREAK rows only — parity identity with the C11 validator authority. */
+	canonicalBreakSlots: PeriodSlot[];
+	/** Min start / max end of the canonical CLASS rows. */
+	shiftWindow: { startTime: string; endTime: string } | null;
+}
+
+/**
+ * SLOT-BREAK-AUTHORITY-C11R — resolve the canonical display authority for ONE
+ * `(gradeLevel, programType)` scope.
+ *
+ * Resolution reuses `resolveCanonicalSlotsFromRows`, the SAME exact-match /
+ * known-program / grade-generic fallback / dedupe / ordering semantics the live
+ * scheduler resolver and the C11 validator authority (`warning-window-authority`)
+ * use, so display and validator can never disagree about which grid governs a
+ * scope. A known program type never falls back to the grade-generic rows.
+ *
+ * `hasCanonicalRows: false` means the scope has NO canonical rows; the caller
+ * must then keep the persisted policy fallback (never coerce a missing scope to
+ * another grade/program, and never invent a window).
+ */
+export function resolveCanonicalDisplayScope(args: {
+	rows?: readonly CanonicalDisplayRow[] | null;
+	gradeLevel: number;
+	programType?: string | null;
+}): ResolvedCanonicalDisplayScope {
+	const empty: ResolvedCanonicalDisplayScope = { hasCanonicalRows: false, periodSlots: [], canonicalBreakSlots: [], shiftWindow: null };
+	const rows = args.rows ?? [];
+	if (rows.length === 0) return empty;
+
+	const resolved = resolveCanonicalSlotsFromRows(
+		rows as unknown as readonly ClassProgramSlotRow[],
+		args.gradeLevel,
+		[normalizeCanonicalScopeProgramType(args.programType) as ProgramType | null],
+	);
+	if (resolved.length === 0) return empty;
+
+	const periodSlots = dedupeIntervalSlots(
+		resolved
+			.filter((row) => row.rowKind === 'CLASS' && isClockTime(row.startTime) && isClockTime(row.endTime))
+			.map((row) => ({ startTime: row.startTime, endTime: row.endTime })),
+	);
+	const canonicalBreakSlots = dedupeIntervalSlots(
+		resolved
+			.filter((row) => row.rowKind === 'BREAK' && isClockTime(row.startTime) && isClockTime(row.endTime))
+			.map((row) => ({
+				startTime: row.startTime,
+				endTime: row.endTime,
+				isSpecialEvent: true,
+				eventName: (row.subjectLabel ?? '').trim() || 'BREAK',
+			})),
+	);
+
+	let shiftWindow: { startTime: string; endTime: string } | null = null;
+	if (periodSlots.length > 0) {
+		shiftWindow = {
+			startTime: periodSlots.reduce((min, slot) => (timeToMinutes(slot.startTime) < timeToMinutes(min) ? slot.startTime : min), periodSlots[0].startTime),
+			endTime: periodSlots.reduce((max, slot) => (timeToMinutes(slot.endTime) > timeToMinutes(max) ? slot.endTime : max), periodSlots[0].endTime),
+		};
+	}
+
+	return { hasCanonicalRows: true, periodSlots, canonicalBreakSlots, shiftWindow };
+}
+
+/**
+ * The Monday Flag/HGP overlay is policy-row owned, never a canonical BREAK row.
+ * It must occupy the single canonical CLASS row that fully contains its persisted
+ * window (`resolveContainingClassRow`); a window that no canonical CLASS row
+ * contains yields no synthesized interval, preserving the preflight's typed
+ * `FLAG_CEREMONY_SCOPE_INVALID` fail-closed behaviour. A Flag/HGP row persisted
+ * with an explicit non-Monday day is rejected authority and never rendered.
+ */
+function resolvePolicyFlagOverlaySlots(policy: PolicyInput | undefined, canonicalClassRows: PeriodSlot[]): PeriodSlot[] {
+	if (!policy) return [];
+	const events = Array.isArray(policy.specialEvents) ? policy.specialEvents : [];
+	const flagRows = events.filter((event) => isFlagCeremonyEvent(event.eventType, event.label));
+
+	const overlay: PeriodSlot[] = [];
+	if (flagRows.length > 0) {
+		for (const event of flagRows) {
+			if (isRejectedFlagCeremonyRow(event.eventType, event.dayOfWeek, event.label)) continue;
+			const snapped = resolveContainingClassRow(canonicalClassRows, event.startTime, event.endTime);
+			if (!snapped) continue;
+			const day = resolveSpecialEventDayOfWeek(event.eventType, event.dayOfWeek, event.label) ?? 'MONDAY';
+			overlay.push({ startTime: snapped.startTime, endTime: snapped.endTime, isSpecialEvent: true, eventName: event.label, dayOfWeek: day });
+		}
+	} else if (policy.enableFlagCeremony ?? true) {
+		const snapped = resolveContainingClassRow(canonicalClassRows, policy.flagCeremonyStartTime ?? '07:00', policy.flagCeremonyEndTime ?? '07:30');
+		if (snapped) {
+			overlay.push({ startTime: snapped.startTime, endTime: snapped.endTime, isSpecialEvent: true, eventName: 'FLAG CEREMONY', dayOfWeek: 'MONDAY' });
+		}
+	}
+	return overlay.slice(0, 1);
+}
+
+/**
+ * SLOT-BREAK-AUTHORITY-C11R — the canonical display grid for a set of scopes.
+ *
+ * When at least one scope resolves canonical rows, the deduped union of those
+ * scopes' CLASS rows is the period grid, their BREAK rows are the break bands,
+ * and the shift bounds are the min/max of the CLASS rows. Scopes with NO
+ * canonical rows never contribute (they are never forced to another scope's
+ * grid). When NO requested scope has canonical rows the persisted policy
+ * fallback is returned unchanged.
+ *
+ * `scopes` omitted/empty means "every distinct (gradeLevel, programType) scope
+ * present in `rows`" — an honest union, never a coerced single scope.
+ */
+export function buildCanonicalDisplayGrid(args: {
+	rows?: readonly CanonicalDisplayRow[] | null;
+	scopes?: ReadonlyArray<CanonicalDisplayScope> | null;
+	policy?: PolicyInput;
+}): {
+	hasCanonicalRows: boolean;
+	periodSlots: PeriodSlot[];
+	canonicalBreakSlots: PeriodSlot[];
+	shiftWindow: { startTime: string; endTime: string } | null;
+	specialEventSlots: PeriodSlot[];
+	displaySlots: PeriodSlot[];
+} {
+	const rows = args.rows ?? [];
+	const scopes: CanonicalDisplayScope[] = args.scopes && args.scopes.length > 0
+		? args.scopes.map((scope) => ({ gradeLevel: scope.gradeLevel, programType: normalizeCanonicalScopeProgramType(scope.programType) }))
+		: [...new Map(rows.map((row) => [
+			`${row.gradeLevel}:${row.programType ?? '*'}`,
+			{ gradeLevel: row.gradeLevel, programType: row.programType ?? null },
+		] as const)).values()];
+
+	const periodSlots: PeriodSlot[] = [];
+	const canonicalBreakSlots: PeriodSlot[] = [];
+	for (const scope of scopes) {
+		const resolved = resolveCanonicalDisplayScope({ rows, gradeLevel: scope.gradeLevel, programType: scope.programType });
+		if (!resolved.hasCanonicalRows) continue;
+		periodSlots.push(...resolved.periodSlots);
+		canonicalBreakSlots.push(...resolved.canonicalBreakSlots);
+	}
+
+	if (periodSlots.length === 0 && canonicalBreakSlots.length === 0) {
+		// No requested scope has canonical rows — keep the persisted policy path.
+		const fallbackPeriodSlots = buildPeriodSlots(args.policy);
+		const fallbackSpecialEventSlots = buildSpecialEventSlots(args.policy);
+		return {
+			hasCanonicalRows: false,
+			periodSlots: fallbackPeriodSlots,
+			canonicalBreakSlots: [],
+			shiftWindow: null,
+			specialEventSlots: fallbackSpecialEventSlots,
+			displaySlots: (args.policy?.showSpecialEventsInGrid ?? true)
+				? mergeDisplaySlots(fallbackPeriodSlots, fallbackSpecialEventSlots)
+				: fallbackPeriodSlots,
+		};
+	}
+
+	const dedupedPeriodSlots = dedupeIntervalSlots(periodSlots);
+	const dedupedBreakSlots = dedupeIntervalSlots(canonicalBreakSlots);
+	const specialEventSlots = mergeDisplaySlots(dedupedBreakSlots, resolvePolicyFlagOverlaySlots(args.policy, dedupedPeriodSlots));
+	return {
+		hasCanonicalRows: true,
+		periodSlots: dedupedPeriodSlots,
+		canonicalBreakSlots: dedupedBreakSlots,
+		// Shift bounds are the canonical CLASS grid's min start / max end across
+		// the resolved scopes — never the policy row's earliest/latest bounds.
+		shiftWindow: dedupedPeriodSlots.length > 0
+			? {
+				startTime: dedupedPeriodSlots.reduce((min, slot) => (timeToMinutes(slot.startTime) < timeToMinutes(min) ? slot.startTime : min), dedupedPeriodSlots[0].startTime),
+				endTime: dedupedPeriodSlots.reduce((max, slot) => (timeToMinutes(slot.endTime) > timeToMinutes(max) ? slot.endTime : max), dedupedPeriodSlots[0].endTime),
+			}
+			: null,
+		specialEventSlots,
+		displaySlots: (args.policy?.showSpecialEventsInGrid ?? true)
+			? mergeDisplaySlots(dedupedPeriodSlots, specialEventSlots)
+			: dedupedPeriodSlots,
+	};
 }
 
 /** A special event bound to one weekday (e.g. Monday Flag/HGP). */
