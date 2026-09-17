@@ -1,9 +1,9 @@
 {
   "contractVersion": "1.2.0",
   "registry": {
-    "lastUpdatedAt": "2026-09-17T05:16:22.997Z",
-    "lastUpdatedBy": "primary-planner:wf-c10-closure",
-    "revision": 271
+    "lastUpdatedAt": "2026-09-17T05:24:13.931Z",
+    "lastUpdatedBy": "primary-planner:slot-break-authority-c11r",
+    "revision": 272
   },
   "coordination": {
     "mode": "CYCLE_ACTIVE",
@@ -5986,24 +5986,28 @@
       "kind": "STREAM",
       "objective": "Complete SLOT-BREAK-AUTHORITY-C11 on the display surfaces: make the canonical classProgramSlot grid the source of displayed period, break, and shift slots whenever canonical rows exist for a (gradeLevel, programType) scope, removing the retired 11:55-12:55 fallbacks from schedule-constructor.ts and threading the canonical authority into room-schedule, locked-session, published-schedule, and pre-generation-draft, while freezing canonical-derived slots at publication time and preserving published immutability. Source and tests only.",
       "riskTier": "MEDIUM",
-      "state": "RUNNING",
-      "stateUpdatedAt": "2026-09-17T03:26:03.479Z",
-      "nextAction": "Await the source executor REVIEW_REQUIRED return for the frozen candidate in E:/ATLAS-worktrees/slot-break-authority-c11r (branch fix/slot-break-authority-c11r, base 4deb9d9c) against docs/prompts/slot-break-authority-c11r-2026-09-17.md; then validate the immutable range and commission one fresh independent QA over the complete base...candidate range, integrate on integration/slot-break-authority-c11r-20260917 over the then-current origin/main, and commission one fresh Wave Completion Auditor. No runtime, DB, migration, generation, or publication action is unlocked by this stream.",
+      "state": "REVIEW_REQUIRED",
+      "stateUpdatedAt": "2026-09-17T05:24:13.931Z",
+      "nextAction": "Executor returned candidate 06319bb0 (base 4deb9d9c, 7 paths); fresh independent QA has already returned ACCEPT_READY 10/10/0/0 over the frozen range. Next: record the QA result, move coordination to MANUAL, integrate on integration/slot-break-authority-c11r-20260917 over the then-current origin/main, then commission one fresh Wave Completion Auditor. No live/HIGH action is unlocked.",
       "awaited": [
-        "executor REVIEW_REQUIRED return for the SLOT-BREAK-AUTHORITY-C11R frozen candidate",
-        "fresh independent QA over the frozen candidate range",
-        "clean current-main integration and fresh Wave Completion Audit"
+        "fresh independent QA over the frozen candidate"
       ],
-      "running": [
-        "one bounded executor implementation of packet docs/prompts/slot-break-authority-c11r-2026-09-17.md on branch fix/slot-break-authority-c11r; the executor session is dispatched in the same planner turn as this registration and its session id is recorded at return"
-      ],
+      "running": [],
       "git": {
         "worktree": "E:/ATLAS-worktrees/slot-break-authority-c11r",
         "branch": "fix/slot-break-authority-c11r",
         "baseSha": "4deb9d9cd75dccba6a3bebfe62511a2b54644cac",
-        "candidateSha": null,
+        "candidateSha": "06319bb038329f93ec79e032cbc502f7d462d7d1",
         "integrationSha": null,
-        "changedPaths": [],
+        "changedPaths": [
+          "atlas-server/src/__tests__/slot-break-authority-c11r.test.ts",
+          "atlas-server/src/services/locked-session.service.ts",
+          "atlas-server/src/services/pre-generation-draft.service.ts",
+          "atlas-server/src/services/published-identity-snapshot.service.ts",
+          "atlas-server/src/services/published-schedule.service.ts",
+          "atlas-server/src/services/room-schedule.service.ts",
+          "atlas-server/src/services/schedule-constructor.ts"
+        ],
         "remoteObservation": {
           "ref": "refs/remotes/origin/main",
           "sha": "4deb9d9cd75dccba6a3bebfe62511a2b54644cac",
@@ -6018,8 +6022,8 @@
           "writable": false
         },
         "executor": {
-          "sessionId": null,
-          "status": "NONE",
+          "sessionId": "ses_f52943352ffeqWHZ6W53NJi5mI",
+          "status": "RETURNED",
           "writable": false
         },
         "qa": {
