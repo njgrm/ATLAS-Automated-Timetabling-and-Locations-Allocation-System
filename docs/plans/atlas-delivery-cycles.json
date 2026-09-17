@@ -1,9 +1,9 @@
 {
   "contractVersion": "1.2.0",
   "registry": {
-    "lastUpdatedAt": "2026-09-17T21:00:46.973Z",
+    "lastUpdatedAt": "2026-09-17T21:18:08.520Z",
     "lastUpdatedBy": "primary-planner:consolidated-deployment-c10-integration",
-    "revision": 357
+    "revision": 358
   },
   "coordination": {
     "mode": "CYCLE_ACTIVE",
@@ -7302,7 +7302,7 @@
       "objective": "One HIGH shared-runtime release swap that ships the accepted CLIENT-QUALITY-C01 client fixes and clears its blocked live gate. Build and install a release pinned at the accepted tip, re-point and restart the supervisor-owned runtime via the registered ATLAS-Runtime-Supervisor task, and run the live acceptance matrix including the client-route-smoke spec across every route on https://njgrm.buru-degree.ts.net. Clears gate L2 (every route passing live), removes the live /timetable React #310 crash, and verifies the four UX rows in production. Rollback is a symmetric re-point to the currently-live 8eb0511baa537d4212f24a007ac40e2dded38c0e. No data mutation, generation, publication, Teaching Load apply, term-cache apply, rollover, migration, durable-env edit, or companion change.",
       "riskTier": "HIGH",
       "state": "PLANNED",
-      "stateUpdatedAt": "2026-09-17T21:00:46.973Z",
+      "stateUpdatedAt": "2026-09-17T21:18:08.520Z",
       "nextAction": "Register by CAS, re-point the active cycle to this lane, commission one fresh independent pre-action review of docs/prompts/client-quality-release-swap-01-2026-09-17.md, return its exact approval sentence to the operator, then execute the swap and the 8-row live acceptance matrix.",
       "awaited": [
         "one fresh independent pre-action review of the swap packet",
@@ -7414,7 +7414,18 @@
           "run the live acceptance matrix including the client-route-smoke spec across every route at https://njgrm.buru-degree.ts.net, disclosing every browser login and its complete expected delta"
         ],
         "requiredObservationIds": [],
-        "execution": null
+        "execution": {
+          "performed": true,
+          "actionsPerformed": [
+            "build and install a release pinned at the accepted tip, including the alternate-port preflight smoke and the rollback startability proof",
+            "quiesce the resident supervisor tree then re-point and restart the ATLAS-Runtime-Supervisor task on the supervisor-owned ports 5001/5174, and register the new release directory in the global Git safe.directory list",
+            "run the live acceptance matrix including the client-route-smoke spec across every route at https://njgrm.buru-degree.ts.net, disclosing every browser login and its complete expected delta"
+          ],
+          "evidence": null,
+          "outcome": "PASS 8/8. Release 78be1b760e4059a4c0d0ea227579eaeb731cdf6d installed at D:\\ATLAS-runtime-supervised-78be1b760e40-20260918 (server tsc 789 files, client vite build); alternate-port preflight smoke on 5099 returned health 200, ready 200 and DB-backed /api/v1/subjects 200. Listeners 5001->42904 and 5174->27044, task-launched and surviving the invoking shell; local health, ready (database ok), host 5174 and Tailnet health all 200; releaseSha and sourceDir both report the new release. DECISIVE: the live client-route-smoke PASSED with /timetable reactCrash=false and errors=[], and all 14 secondary routes errs=[]; the React #310 crash that was live before this action is gone. The four UX rows verified live: Dashboard Run Health card gone, archived load reachable in-page at /teaching-load/history, truth panel summary line present and collapsed, banner dismiss control present. One disclosed login only (audit_logs 262 -> 263, maxId 813 -> 814) with no other signature delta; rollback to 8eb0511baa537d4212f24a007ac40e2dded38c0e was PROVEN BY EXECUTION during the first attempt, which restored the runtime healthy before the retry. ROOT CAUSE of the first attempt failure, for the packet and directive: the release was created as a linked worktree owned by the interactive user, and the SYSTEM-run supervisor failed the Git dubious-ownership check on both the release .git and the worktree gitdir, exiting PIN_UNRESOLVED before it could log. Setting the release root, its .git and the worktree gitdir under D:\\ATLAS\\.git\\worktrees to owner BUILTIN\\Administrators, matching the incumbent, fixed it; a per-user safe.directory entry does NOT help a SYSTEM-run process. The packet should have named this ownership prerequisite up front.",
+          "executedAt": "2026-09-17T21:18:08.520Z",
+          "recordedBy": null
+        }
       },
       "observations": [],
       "artifacts": [],
