@@ -1,0 +1,108 @@
+{
+  "id": "G9-G10-CONFIG-CORRECTION-C01",
+  "kind": "STREAM",
+  "objective": "Repair two verified defects in the school-1 / year-9 scheduling configuration: (A) the G9 and G10 REGULAR canonical classProgramSlot grids carry 7 CLASS rows instead of the 8 required by operator decision D-D, and (B) the Monday-only Flag Ceremony/HGP overlay cannot be represented for G9/G10 because the global policy window 07:00-07:30 contains no G9/G10 canonical CLASS row, so the snap check fails closed with FLAG_CEREMONY_SCOPE_INVALID. Repair the two grids to the canonical template and make the overlay representable per scope via scoped PolicySpecialEvent rows plus a reconciled global flag window. Persisted-configuration write only: no schema, migration, Teaching Load, generation, publication, deployment, runtime/task/env, or companion action.",
+  "riskTier": "HIGH",
+  "state": "PLANNED",
+  "stateUpdatedAt": "2026-09-17T00:00:00Z",
+  "nextAction": "Register by CAS when the register is free, commission one fresh independent pre-action review of docs/prompts/g9-g10-config-correction-c01-2026-09-17.md, return its exact approval sentence, then execute the fingerprinted configuration write and the 8-row acceptance matrix.",
+  "awaited": [
+    "the register to be free of any other stream's held revision window",
+    "one fresh independent pre-action review of docs/prompts/g9-g10-config-correction-c01-2026-09-17.md",
+    "the operator's exact approval sentence (returned only after the pre-action review passes)"
+  ],
+  "running": [],
+  "git": {
+    "worktree": "E:/ATLAS-worktrees/g9-g10-config-correction-c01",
+    "branch": "chore/g9-g10-config-correction-c01",
+    "baseSha": "0a134bba",
+    "candidateSha": null,
+    "integrationSha": null,
+    "changedPaths": [],
+    "remoteObservation": null
+  },
+  "owners": {
+    "planner": { "sessionId": null, "status": "IDLE", "writable": false },
+    "executor": { "sessionId": null, "status": "NONE", "writable": false },
+    "qa": { "sessionId": null, "status": "NONE", "writable": false },
+    "auditor": { "sessionId": null, "status": "NONE", "writable": false }
+  },
+  "gates": {
+    "total": 0,
+    "passed": 0,
+    "failed": 0,
+    "blocked": 0,
+    "unperformed": 0,
+    "plan": {
+      "MANDATORY_SOURCE": 3,
+      "MANDATORY_LIVE": 8,
+      "DEFERRED_EXTERNAL": 0
+    },
+    "classes": {
+      "MANDATORY_SOURCE": { "total": 0, "passed": 0, "failed": 0, "blocked": 0, "unperformed": 0 },
+      "MANDATORY_LIVE": { "total": 0, "passed": 0, "failed": 0, "blocked": 0, "unperformed": 0 },
+      "DEFERRED_EXTERNAL": { "total": 0, "passed": 0, "failed": 0, "blocked": 0, "unperformed": 0 }
+    }
+  },
+  "review": {
+    "qaVerdict": null,
+    "qaSessionId": null,
+    "auditorVerdict": null,
+    "auditorSessionId": null,
+    "auditRequired": true,
+    "qaRounds": []
+  },
+  "corrections": [],
+  "successors": [],
+  "requires": [],
+  "blocker": {
+    "kind": "DEPENDENCY",
+    "detail": "Registration must not interleave with another stream's held register revision window. The action itself is ready; the fresh pre-action review and the operator's exact approval are the only remaining gates.",
+    "safeWorkRemaining": true,
+    "safeWorkItems": [
+      "author the packet and stream spec (done)",
+      "commission the fresh independent pre-action review",
+      "run the zero-cost preflight immediately before the write"
+    ]
+  },
+  "approval": {
+    "required": true,
+    "presentedReady": false,
+    "granted": false,
+    "operatorIdentity": null,
+    "approvedAt": null,
+    "boundary": null,
+    "approvedActions": [
+      "repair the school-1 / year-9 G9 and G10 REGULAR classProgramSlot grids to 8 CLASS rows each per the canonical template",
+      "seed scoped Monday-only PolicySpecialEvent FLAG_OR_HGP rows so the overlay snaps to each shift's advisory CLASS row",
+      "reconcile the global enableFlagCeremony window so no fallback scope produces an unsnappable overlay"
+    ],
+    "requiredObservationIds": [],
+    "execution": null
+  },
+  "observations": [],
+  "artifacts": [],
+  "closure": null,
+  "sessionRouting": {
+    "planner": {
+      "decision": "FRESH_REQUIRED",
+      "sessionId": null,
+      "reason": "new objective with its own cycle and its own HIGH approval boundary."
+    },
+    "executor": {
+      "decision": "FRESH_REQUIRED",
+      "sessionId": null,
+      "reason": "the fingerprinted configuration write runs in a fresh context with the exact approved boundary."
+    },
+    "qa": {
+      "decision": "FRESH_REQUIRED",
+      "sessionId": null,
+      "reason": "one fresh independent pre-action review before the approval, plus post-action acceptance review."
+    },
+    "auditor": {
+      "decision": "FRESH_REQUIRED",
+      "sessionId": null,
+      "reason": "a HIGH persisted-configuration write requires a fresh adversarial Wave Completion Auditor after the action."
+    }
+  }
+}
