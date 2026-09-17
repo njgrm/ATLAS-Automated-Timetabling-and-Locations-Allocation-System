@@ -1,14 +1,14 @@
 {
   "contractVersion": "1.2.0",
   "registry": {
-    "lastUpdatedAt": "2026-09-16T21:54:24.736Z",
+    "lastUpdatedAt": "2026-09-17T02:19:30.675Z",
     "lastUpdatedBy": "primary-planner:faculty-sync-cas-c01",
-    "revision": 249
+    "revision": 252
   },
   "coordination": {
-    "mode": "CYCLE_ACTIVE",
-    "activeCycleId": "SLOT-BREAK-AUTHORITY-C11",
-    "globalNextAction": "SLOT-BREAK-AUTHORITY-C11 is RUNNING (base 16e70be2, lease-slot-break-authority-c11 ACTIVE, executor lease). Next: source executor returns REVIEW_REQUIRED, then fresh independent QA over the frozen candidate, clean current-main integration on integration/slot-break-authority-c11-20260917, and one fresh Wave Completion Auditor. WF-C10-TRANSITION-GUARD-HARDENING remains an independent successor available for a separate operator-activated cycle. Every live/HIGH action (term-cache apply, runtime install/restart, Teaching Load, generation, publication, migration) remains locked and NOT granted."
+    "mode": "MANUAL",
+    "activeCycleId": null,
+    "globalNextAction": "SLOT-BREAK-AUTHORITY-C11 is ACCEPT_READY at candidate 34c550df; integration merge 6d52f843 is prepared on integration/slot-break-authority-c11-20260917. Next: record integration, run combined gates, push the merge plus register, commission one fresh Wave Completion Auditor, close with the receipt, and return the lease. Every live/HIGH action (runtime, DB, migration, generation, publication, login, companion) remains locked and NOT granted."
   },
   "streams": [
     {
@@ -5361,11 +5361,11 @@
       "kind": "STREAM",
       "objective": "Make the canonical classProgramSlot grid the effective break-window and shift-bound authority for every (gradeLevel, programType) scope that has canonical rows, replacing the retired persisted policy lunch window (11:55-12:55) with the canonical per-grade breaks (Grades 7-8 Health 09:00-09:15 and Lunch 12:15-13:00; Grades 9-10 Lunch 12:15-13:00 and Health 15:15-15:30); close the manual-edit absent-authority fail-open; extend the policy-row-only Flag/HGP path with the single-canonical-CLASS-row snap validation; and cover classProgramSlot in the generation consumed-input fingerprint. Source and tests only.",
       "riskTier": "MEDIUM",
-      "state": "REVIEW_REQUIRED",
-      "stateUpdatedAt": "2026-09-16T21:28:42.302Z",
-      "nextAction": "Commission one fresh independent QA over the frozen candidate range 16e70be2..34c550df (6 paths), then integrate on integration/slot-break-authority-c11-20260917 and run one fresh Wave Completion Auditor.",
+      "state": "INTEGRATED",
+      "stateUpdatedAt": "2026-09-17T02:19:30.675Z",
+      "nextAction": "One fresh Wave Completion Auditor over the integrated wave 16e70be2..34c550df (merge 6d52f843); then closure receipt, lease return, and non-forced worktree retirement. No live/HIGH action is unlocked.",
       "awaited": [
-        "fresh independent QA over the frozen candidate"
+        "fresh Wave Completion Auditor"
       ],
       "running": [],
       "git": {
@@ -5373,7 +5373,7 @@
         "branch": "fix/slot-break-authority-c11",
         "baseSha": "16e70be2a01bf815447ee323f13e775bb825ad4f",
         "candidateSha": "34c550dfc930ce561a4d0875f66b0ff7ca457a58",
-        "integrationSha": null,
+        "integrationSha": "6d52f8436431209074ce6d43c6657e7855500b75",
         "changedPaths": [
           "atlas-server/src/__tests__/slot-break-authority-c11.test.ts",
           "atlas-server/src/services/generation-input-snapshot.service.ts",
@@ -5384,8 +5384,8 @@
         ],
         "remoteObservation": {
           "ref": "refs/remotes/origin/main",
-          "sha": "16e70be2a01bf815447ee323f13e775bb825ad4f",
-          "observedAt": "2026-09-16T20:42:33.449Z",
+          "sha": "6d52f8436431209074ce6d43c6657e7855500b75",
+          "observedAt": "2026-09-17T02:19:30.675Z",
           "kind": "REMOTE_TRACKING_REF"
         }
       },
@@ -5401,8 +5401,8 @@
           "writable": false
         },
         "qa": {
-          "sessionId": null,
-          "status": "NONE",
+          "sessionId": "ses_f53df6659ffeVDu1Pd7H207aMy",
+          "status": "RETURNED",
           "writable": false
         },
         "auditor": {
@@ -5412,8 +5412,8 @@
         }
       },
       "gates": {
-        "total": 0,
-        "passed": 0,
+        "total": 12,
+        "passed": 12,
         "failed": 0,
         "blocked": 0,
         "unperformed": 0,
@@ -5424,8 +5424,8 @@
         },
         "classes": {
           "MANDATORY_SOURCE": {
-            "total": 0,
-            "passed": 0,
+            "total": 12,
+            "passed": 12,
             "failed": 0,
             "blocked": 0,
             "unperformed": 0
@@ -5447,12 +5447,18 @@
         }
       },
       "review": {
-        "qaVerdict": null,
-        "qaSessionId": null,
+        "qaVerdict": "ACCEPT_READY",
+        "qaSessionId": "ses_f53df6659ffeVDu1Pd7H207aMy",
         "auditorVerdict": null,
         "auditorSessionId": null,
         "auditRequired": true,
-        "qaRounds": []
+        "qaRounds": [
+          {
+            "round": 1,
+            "verdict": "ACCEPT_READY",
+            "sessionId": "ses_f53df6659ffeVDu1Pd7H207aMy"
+          }
+        ]
       },
       "corrections": [],
       "successors": [],
