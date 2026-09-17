@@ -1,5 +1,13 @@
 # ATLAS Active Delivery Streams
 
+> **RETIRED 2026-09-17. Historical snapshot; not maintained.** The operational
+> status authority is the machine register `docs/plans/atlas-delivery-cycles.json`,
+> rendered to `docs/plans/atlas-active-delivery-streams.generated.md`. Do not update
+> this file and do not cite it as current. It is preserved only as dated history;
+> Git retains its lineage. It was retired because a second hand-written status board
+> duplicated the machine state, and every "reconcile all the places this status
+> appears" chore descended from that duplication.
+
 Last reconciled: 2026-09-14 (Asia/Manila)
 
 This is the current operational register for executor, QA, integration, and

@@ -1,4 +1,18 @@
-# Directive revision proposal — 2026-09-17 (DEFERRED, not applied)
+# Directive revision proposal — 2026-09-17 (INCREMENTS 1-2 APPLIED)
+
+**Application status (updated 2026-09-17):**
+
+| Increment | Contents | State |
+| --- | --- | --- |
+| 1 | Browser-QA normalization + Tier A ceremony exemption (additive) | **APPLIED** at `ea890401` |
+| 1b | Pin reconciliation across the queued packets | **APPLIED** at `0afcd4e1` |
+| 2 | Prose register retired + Wave Completion Auditor narrowed to Tier B (additive/deletion, no engine change) | **APPLIED** in this commit |
+| 3 | State-enum collapse (13 -> 6) | **DEFERRED, deliberately.** This is a code change to the workflow engine (`transition.mjs`, `verify.mjs`, the renderer) and must not ride a directive commit; it is also the lowest-value item, since the enum never caused a delay |
+| 4 | R1-R19 rules (pin semantics, citation verification, dispatch preflight, stale-wording reconciliation, successor gating, step order, machine-scope verification, correction pairing, closure order) | **PARTIALLY APPLIED**; R1, R2, R7 remain as their own lanes (`WORKFLOW-PIN-SEMANTICS-C01`, `UI-REGRESSION-GATES-C01`, `WORKFLOW-DISPATCH-PREFLIGHT-C01`) |
+
+The original proposal text follows unmodified for the record. It was authored when
+the directive was still unmodified; that premise is now historical.
+
 
 Status: **proposal only.** `AGENTS.md` is deliberately **unmodified** here. The
 directive blob `58e0535adff79c0f01da52fb49525443a5b52603` (LF-SHA-256

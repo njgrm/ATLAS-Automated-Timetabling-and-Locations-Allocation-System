@@ -1459,11 +1459,19 @@ risk action and opts into the legacy high-risk protocol below.
 
 ### Living Delivery Stream Register
 
-`docs/plans/atlas-active-delivery-streams.md` is the sole operational status
-register for current prompt streams. `phasePlan.md`, dated phase documents,
-per-stream progress ledgers, review artifacts, and `CHANGELOG.md` remain useful
-history and evidence, but they must not be treated as competing current-status
-boards.
+`docs/plans/atlas-delivery-cycles.json` is the machine register and the sole
+operational status authority for current prompt streams; its generated projection
+`docs/plans/atlas-active-delivery-streams.generated.md` is the human-readable view
+and is never hand-edited. `docs/plans/atlas-active-delivery-streams.md` is
+**RETIRED** - a dated historical snapshot that is not maintained and must not be
+updated or cited as current. `phasePlan.md`, dated phase documents, per-stream
+progress ledgers, review artifacts, and `CHANGELOG.md` remain useful history and
+evidence, but they must not be treated as competing current-status boards.
+
+Because there are now only two live register surfaces - the machine state and its
+generated projection - the reconciliation obligation is limited to those two plus
+the stream's own evidence artifact. Do not maintain a third hand-written status
+board, and do not re-introduce one.
 
 - The primary planner or integration owner is the only role that edits the
   living register. Executors update only their assigned progress ledger. QA is
@@ -1793,6 +1801,16 @@ or another pending HIGH action, use the strongest available planning model at
 max reasoning. Use high only when max is unavailable and disclose that fallback
 in the audit capsule. Ordinary isolated LOW work does not require this extra
 audit.
+
+**Scope is Tier B only.** The auditor is required exclusively for Tier B work:
+schema or data apply, destructive or production-data mutation, the
+auth/authorization boundary, generation, publication, cutover, shared-runtime
+replacement, and persisted-authority migration. Tier A work - product source,
+tests, ops tooling, documentation, and ordinary client changes - never requires a
+Wave Completion Auditor, a receipt, or a lease; its closure is a reviewed commit.
+Do not commission this audit to re-examine a register's prose, and do not let it
+substitute for the lint, typecheck, or browser gates: an audit of records has
+never caught a product defect, while a browser has caught one in seconds.
 Where the orchestration harness (for example the OpenCode task tool) exposes
 the reviewer's task/session identifier only after the delegated task returns,
 the primary planner records that returned identifier in the committed capsule
