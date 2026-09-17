@@ -4,6 +4,14 @@ Status: authored 2026-09-17 (Asia/Manila). Ordinary source lane — no HIGH appr
 the lane, no database write. Decisions applied: **Q3 = yes** (per-scope Flag/HGP resolution authorised)
 and the operator's shift-based lunch ruling.
 
+> **SCOPE — this IS the canonical-grid lane.** The filename is historical. This single lane carries
+> **three coupled corrections** which cannot be split without colliding in the always-run test files:
+> **(1) the canonical grids** — §3.1, decoupling `GRADE_9_10_SPECIAL` from `GRADE_9_10_REGULAR` and
+> applying the shift-based lunch ruling (the `class-program-slot.service.ts` catalog); **(2) the
+> per-scope Flag/HGP resolution** — §3.2 (`generation-preflight.service.ts`); and **(3) the
+> `WORKLOAD_POLICY_BLOCK` relabel fix** — §3.3 (same file as 3.2). Its downstream data correction and
+> reseed live in `docs/prompts/data-correction-c01-2026-09-17.md`, which `requires` this lane.
+
 ## 0. Identity
 
 - Directive: `origin/main:AGENTS.md`, blob `051ad26a07509e3af4f1c1762e1ccfff8bb6cc88`,
