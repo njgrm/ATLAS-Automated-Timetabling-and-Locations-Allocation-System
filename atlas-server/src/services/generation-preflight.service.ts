@@ -57,6 +57,7 @@ import {
 } from './class-program-slot.service.js';
 import { buildRunTimetableShapeContracts, normalizeProgramType } from './generation-shape-assembly.service.js';
 import {
+	getEffectiveEvents,
 	isFlagCeremonyEvent,
 	isRejectedFlagCeremonyRow,
 	resolveFlagCeremonyDayAuthority,
@@ -1018,33 +1019,48 @@ async function buildGenerationPreflightWithContext(
 		// policy-row-only fallback path. A configured `enableFlagCeremony` window
 		// that no persisted special-event row backs must still be snappable, or an
 		// unsnappable overlay would silently reach the shape contract.
+		//
+		// G9G10-FLAG-SOURCE-LANE §3.2: resolve the overlay PER SCOPE, mirroring the
+		// constructor's per-grid `resolvePolicyFlagOverlaySlots`
+		// (`schedule-constructor.ts:537-558`). The morning (G7/G8) and afternoon
+		// (G9/G10) families share no interval, so a single global window can never
+		// snap onto all 16 shape contracts; the old global selection also tested
+		// only the FIRST persisted scoped row against every family's grid. Each
+		// shape now consumes its own `getEffectiveEvents` (gradeGroup/program-scoped)
+		// flag authority and its own canonical CLASS rows. Resolution only: the
+		// overlay still renders nothing new — no period, no demand, no minutes.
 		const policyFlagWindow = {
 			startTime: typeof policyRow?.flagCeremonyStartTime === 'string' ? policyRow.flagCeremonyStartTime : '',
 			endTime: typeof policyRow?.flagCeremonyEndTime === 'string' ? policyRow.flagCeremonyEndTime : '',
 		};
-		const snapWindow = configuredFlagEvent
-			? { startTime: String(configuredFlagEvent.startTime ?? ''), endTime: String(configuredFlagEvent.endTime ?? '') }
-			: (policyRow?.enableFlagCeremony && policyFlagWindow.startTime && policyFlagWindow.endTime
-				? policyFlagWindow
-				: null);
-		if (snapWindow && !flagScopeRejected) {
-			const flagWindow = snapWindow;
+		const policyFlagWindowAvailable = Boolean(
+			policyRow?.enableFlagCeremony && policyFlagWindow.startTime && policyFlagWindow.endTime,
+		);
+		if (!flagScopeRejected) {
 			for (const shape of timetableShapeContracts) {
 				const classRows = (shape.canonicalSlots ?? []).filter((slot) => slot.rowKind === 'CLASS');
 				if (classRows.length === 0) continue;
-				if (resolveContainingClassRow(classRows, flagWindow.startTime, flagWindow.endTime)) continue;
-				blockers.push({
-					code: 'FLAG_CEREMONY_SCOPE_INVALID',
-					category: 'POLICY_BLOCKER',
-					termIdentity: null,
-					sectionId: null,
-					subjectId: null,
-					subjectCode: null,
-					entity: `Flag Ceremony/HGP · Grade ${shape.gradeLevel} ${shape.programType}`,
-					reason: `The configured Flag Ceremony/HGP window ${flagWindow.startTime}-${flagWindow.endTime} is not contained by exactly one canonical CLASS row, so it cannot be rendered as an overlay on the underlying advisory-section period.`,
-					owningSurface: 'Scheduling policy / special events',
-					nextAction: `Align the Flag Ceremony/HGP window with a single canonical CLASS row for Grade ${shape.gradeLevel} ${shape.programType}, then re-run generation.`,
-				});
+				const scopedFlagEvents = getEffectiveEvents(persistedSpecialEvents, shape.gradeLevel, shape.programType)
+					.filter((event) => isFlagCeremonyEvent(event.eventType, event.label))
+					.filter((event) => !isRejectedFlagCeremonyRow(event.eventType, event.dayOfWeek ?? null, event.label));
+				const shapeFlagWindows = scopedFlagEvents.length > 0
+					? scopedFlagEvents.map((event) => ({ startTime: event.startTime, endTime: event.endTime }))
+					: (policyFlagWindowAvailable ? [policyFlagWindow] : []);
+				for (const flagWindow of shapeFlagWindows) {
+					if (resolveContainingClassRow(classRows, flagWindow.startTime, flagWindow.endTime)) continue;
+					blockers.push({
+						code: 'FLAG_CEREMONY_SCOPE_INVALID',
+						category: 'POLICY_BLOCKER',
+						termIdentity: null,
+						sectionId: null,
+						subjectId: null,
+						subjectCode: null,
+						entity: `Flag Ceremony/HGP · Grade ${shape.gradeLevel} ${shape.programType}`,
+						reason: `The configured Flag Ceremony/HGP window ${flagWindow.startTime}-${flagWindow.endTime} is not contained by exactly one canonical CLASS row, so it cannot be rendered as an overlay on the underlying advisory-section period.`,
+						owningSurface: 'Scheduling policy / special events',
+						nextAction: `Align the Flag Ceremony/HGP window with a single canonical CLASS row for Grade ${shape.gradeLevel} ${shape.programType}, then re-run generation.`,
+					});
+				}
 			}
 		}
 		const shapePolicyBlockers = validateTimetableShapePolicy({

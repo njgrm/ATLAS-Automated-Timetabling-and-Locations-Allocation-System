@@ -6,6 +6,7 @@ import { buildEntryGrid, exportClassProgramWorkbook, EXPORT_FIRST_BLOCK_ROW } fr
 import { generateClassProgramMatrix } from '../services/class-program-matrix.service.js';
 import { buildTimetableShapeContract, constructBaseline } from '../services/schedule-constructor.js';
 import { getExpectedCanonicalSlots } from '../services/class-program-slot.service.js';
+import { classifyUnassignedBlocker } from '../services/generation-preflight.service.js';
 
 // ─── Shared in-memory fixtures (zero writes) ───
 
@@ -464,6 +465,71 @@ test('constructBaseline rejects the Monday Flag interval while the identical Tue
 	);
 });
 
+// ─── 6b. G9G10 relabel precedence: a genuine room cause is not outranked ───
+
+test('G9G10 control 8. a genuine room cause reports ROOM_RESOURCE_UNAVAILABLE; a genuine cap breach stays WORKLOAD_POLICY_BLOCK', () => {
+	const shape = buildTimetableShapeContract({
+		gradeLevel: 7, programType: 'REGULAR', startTime: '06:00', endTime: '13:00',
+		periodLengthMinutes: 45, periodsPerDay: 8,
+		canonicalSlots: getExpectedCanonicalSlots(7, 'REGULAR').map((slot) => ({
+			startTime: slot.startTime, endTime: slot.endTime, subjectFamily: slot.subjectFamily, subjectLabel: slot.subjectLabel, rowKind: slot.rowKind,
+		})),
+	});
+
+	// Genuine ROOM cause: a LABORATORY authority with no laboratory room. Both
+	// qualified owners are also persisted UNAVAILABLE every Monday, which sets the
+	// slot-collision residue (`NO_AVAILABLE_SLOT`) the old precedence let outrank
+	// the room cause. `reason` is still resolved as NO_COMPATIBLE_ROOM by the
+	// documented priority, so the room cause must win the room-assignment reason.
+	const roomCause = constructBaseline({
+		...baselineInput(),
+		rooms: [{ id: 601, type: 'CLASSROOM', isTeachingSpace: true, capacity: 40 }],
+		subjects: [{ id: 11, code: 'ROBOTICS', name: 'Robotics', minMinutesPerWeek: 45, preferredRoomType: 'LABORATORY', gradeLevels: [7] }],
+		faculty: [{ id: 501, maxHoursPerWeek: 40 }, { id: 502, maxHoursPerWeek: 40 }],
+		facultySubjects: [
+			{ facultyId: 501, subjectId: 11, gradeLevels: [7], sectionIds: [701] },
+			{ facultyId: 502, subjectId: 11, gradeLevels: [7], sectionIds: [701] },
+		],
+		preferences: [501, 502].map((facultyId) => ({
+			facultyId,
+			status: 'SUBMITTED',
+			timeSlots: [{ day: 'MONDAY', startTime: '06:00', endTime: '12:15', preference: 'UNAVAILABLE' }],
+		})),
+		timetableShapes: [shape],
+		policy: { ...baselineInput().policy, specialEvents: [], enableFlagCeremony: false },
+	});
+	const roomUnassigned = roomCause.unassignedItems.filter((item) => item.subjectId === 11);
+	assert.ok(roomUnassigned.length > 0, 'the unsatisfiable specialized demand must stay unassigned');
+	assert.equal(roomUnassigned[0].reason, 'NO_COMPATIBLE_ROOM', `a genuine room cause must be the primary reason, saw ${roomUnassigned[0].reason}`);
+	assert.notEqual(roomUnassigned[0].roomAssignmentReason, 'FACULTY_SLOT_UNAVAILABLE', 'a genuine room cause must not be relabelled a faculty slot result');
+	assert.equal(roomUnassigned[0].roomAssignmentReason, 'SPECIALIZED_ROOM_UNAVAILABLE');
+	assert.equal(
+		classifyUnassignedBlocker({ ...roomUnassigned[0] }, null, 'ROBOTICS').code,
+		'ROOM_RESOURCE_UNAVAILABLE',
+		'the observable preflight blocker code must be the true room cause',
+	);
+
+	// Genuine per-term weekly-cap breach: rooms are available and the CAP is the
+	// only cause. This must stay WORKLOAD_POLICY_BLOCK.
+	const capCause = constructBaseline({
+		...baselineInput(),
+		subjects: [{ id: 11, code: 'MATH', name: 'Mathematics', minMinutesPerWeek: 180, preferredRoomType: 'CLASSROOM', gradeLevels: [7] }],
+		faculty: [{ id: 501, maxHoursPerWeek: 1 }],
+		facultySubjects: [{ facultyId: 501, subjectId: 11, gradeLevels: [7], sectionIds: [701] }],
+		timetableShapes: [shape],
+		policy: { ...baselineInput().policy, specialEvents: [], enableFlagCeremony: false },
+	});
+	const capUnassigned = capCause.unassignedItems.filter((item) => item.subjectId === 11);
+	assert.ok(capUnassigned.length > 0, 'the over-cap demand must stay unassigned');
+	assert.equal(capUnassigned[0].reason, 'FACULTY_OVERLOADED', `a genuine cap breach must keep its reason, saw ${capUnassigned[0].reason}`);
+	assert.equal(capUnassigned[0].roomAssignmentReason, 'FACULTY_SLOT_UNAVAILABLE');
+	assert.equal(
+		classifyUnassignedBlocker({ ...capUnassigned[0] }, null, 'MATH').code,
+		'WORKLOAD_POLICY_BLOCK',
+		'a genuine per-term weekly-cap breach must stay a workload policy block',
+	);
+});
+
 // ─── 7. Matrix preserves weekday cells and run/term binding ───
 
 test('class-program matrix preserves weekday cells, binds the requested run/term, and has no stale-faculty fallback', async () => {
@@ -503,7 +569,7 @@ test('persisted G7/G8 morning and G9/G10 afternoon shapes are consumed without c
 		})),
 	});
 	const grade9Shape = buildTimetableShapeContract({
-		gradeLevel: 9, programType: 'REGULAR', startTime: '13:00', endTime: '18:30',
+		gradeLevel: 9, programType: 'REGULAR', startTime: '12:15', endTime: '18:30',
 		periodLengthMinutes: 45, periodsPerDay: 8,
 		canonicalSlots: getExpectedCanonicalSlots(9, 'REGULAR').map((slot) => ({
 			startTime: slot.startTime, endTime: slot.endTime, subjectFamily: slot.subjectFamily, subjectLabel: slot.subjectLabel, rowKind: slot.rowKind,
@@ -515,7 +581,8 @@ test('persisted G7/G8 morning and G9/G10 afternoon shapes are consumed without c
 	assert.ok(grade7ClassStarts.includes('06:00'));
 	assert.ok(grade9ClassStarts.includes('13:00'));
 	assert.ok(grade7ClassStarts.every((time) => time < '12:15'), 'G7/G8 shape stays in the morning window');
-	assert.ok(grade9ClassStarts.every((time) => time >= '13:00'), 'G9/G10 shape stays in the afternoon window');
+	// 2026-09-17 shift-based lunch ruling: the G9/G10 CLASS shift starts at 12:15.
+	assert.ok(grade9ClassStarts.every((time) => time >= '12:15'), 'G9/G10 shape stays in the afternoon window');
 
 	const result = constructBaseline(baselineInput({
 		sectionsByGrade: [
@@ -541,5 +608,5 @@ test('persisted G7/G8 morning and G9/G10 afternoon shapes are consumed without c
 	const grade9Entries = result.entries.filter((entry) => entry.sectionId === 901);
 	assert.ok(grade7Entries.length > 0 && grade9Entries.length > 0, 'both shifts are placed');
 	assert.ok(grade7Entries.every((entry) => entry.startTime < '12:15'), 'grade 7 never leaks into the afternoon shift');
-	assert.ok(grade9Entries.every((entry) => entry.startTime >= '13:00'), 'grade 9 never leaks into the morning shift');
+	assert.ok(grade9Entries.every((entry) => entry.startTime >= '12:15'), 'grade 9 never leaks into the morning shift');
 });

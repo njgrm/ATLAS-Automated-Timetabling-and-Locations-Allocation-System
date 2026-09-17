@@ -8,7 +8,7 @@
  * authority builders. No grid row in this file is hand-written.
  *
  * Controls:
- *   1. 12:15-13:00 is a break for every scope (never teachable time)
+ *   1. lunch follows the shift: 12:15-13:00 for G7/G8, 11:30-12:15 for G9/G10
  *   2. 09:00-09:15 is a break for Grades 7-8
  *   3. 15:15-15:30 is a break for Grades 9-10
  *   4. the retired policy lunch 11:55-12:55 is NOT applied
@@ -338,16 +338,24 @@ test('C01. the fixture grid is the REAL canonical producer output for all 16 sco
 	}
 });
 
-test('C01. control 1: 12:15-13:00 is a canonical break for every scope', { skip: SKIP }, () => {
+test('C01. control 1: the canonical lunch break follows the shift (G7/G8 12:15-13:00, G9/G10 11:30-12:15)', { skip: SKIP }, () => {
 	const authority = scopeAuthority();
+	// 2026-09-17 shift-based lunch ruling: lunch is a shift property, not a
+	// program property. Grades 7-8 keep 12:15-13:00; Grades 9-10 lunch 11:30-12:15.
 	for (const scope of ALL_SCOPES) {
+		const breakfast = scope.gradeLevel <= 8 ? { startTime: '12:15', endTime: '13:00' } : { startTime: '11:30', endTime: '12:15' };
 		const windows = windowsForScope(authority, scope.gradeLevel, scope.programType);
 		assert.ok(
-			hasWindow(windows, '12:15', '13:00'),
-			`scope ${scope.gradeLevel}:${scope.programType} must carry the canonical 12:15-13:00 lunch break`,
+			hasWindow(windows, breakfast.startTime, breakfast.endTime),
+			`scope ${scope.gradeLevel}:${scope.programType} must carry the canonical ${breakfast.startTime}-${breakfast.endTime} lunch break`,
 		);
-		const lunch = windows.find((window: any) => window.startTime === '12:15' && window.endTime === '13:00');
+		const lunch = windows.find((window: any) => window.startTime === breakfast.startTime && window.endTime === breakfast.endTime);
 		assert.equal(lunch.eventType, 'LUNCH_BREAK');
+		// The other shift's lunch window is never borrowed.
+		const otherShift = scope.gradeLevel <= 8
+			? hasWindow(windows, '11:30', '12:15')
+			: hasWindow(windows, '12:15', '13:00');
+		assert.equal(otherShift, false, `scope ${scope.gradeLevel}:${scope.programType} must not carry the other shift's lunch window`);
 	}
 });
 
@@ -400,7 +408,7 @@ test('C04. control 4: the retired policy lunch 11:55-12:55 is NOT applied', { sk
 	);
 });
 
-test('C07. control 7: 8 vs 10 canonical CLASS rows (no global 10-period rule)', { skip: SKIP }, async () => {
+test('C07. control 7: 8 vs 10 canonical CLASS rows (no global 10-period and no 7-period rule)', { skip: SKIP }, async () => {
 	const classCount = async (gradeLevel: number, programType: string) =>
 		(await resolveCanonicalSlotsForPrograms(fixture.schoolId, fixture.schoolYearId, gradeLevel, [programType]))
 			.filter((row: any) => row.rowKind === 'CLASS').length;
@@ -409,15 +417,17 @@ test('C07. control 7: 8 vs 10 canonical CLASS rows (no global 10-period rule)', 
 	assert.equal(await classCount(7, 'STE'), 10, 'Grade 7 STE must honour 10 canonical CLASS rows');
 	assert.equal(await classCount(8, 'REGULAR'), 8);
 	assert.equal(await classCount(8, 'SPS'), 10);
-	assert.equal(await classCount(9, 'REGULAR'), 7, 'Grade 9 REGULAR must honour 7 canonical CLASS rows');
+	// 2026-09-17 shift-based lunch ruling: the afternoon shift lunches at
+	// 11:30-12:15, so 12:15-13:00 is a CLASS row and G9/G10 REGULAR carries 8.
+	assert.equal(await classCount(9, 'REGULAR'), 8, 'Grade 9 REGULAR must honour 8 canonical CLASS rows');
 	assert.equal(await classCount(9, 'SPA'), 10);
-	assert.equal(await classCount(10, 'REGULAR'), 7);
+	assert.equal(await classCount(10, 'REGULAR'), 8);
 	assert.equal(getExpectedCanonicalSlots(7, 'REGULAR').filter((slot: any) => slot.rowKind === 'CLASS').length, 8);
-	assert.equal(getExpectedCanonicalSlots(9, 'REGULAR').filter((slot: any) => slot.rowKind === 'CLASS').length, 7);
+	assert.equal(getExpectedCanonicalSlots(9, 'REGULAR').filter((slot: any) => slot.rowKind === 'CLASS').length, 8);
 	assert.equal(
 		new Set([7, 8, 9, 10].map((grade) => getExpectedCanonicalSlots(grade, 'REGULAR').filter((slot: any) => slot.rowKind === 'CLASS').length)).size,
-		2,
-		'Grades 7-8 and 9-10 carry distinct CLASS capacities; no global 10-period assumption',
+		1,
+		'every REGULAR scope now carries 8 canonical CLASS rows (the 10-period rule never existed for either)',
 	);
 });
 
@@ -441,8 +451,8 @@ test('C02. canonical CLASS rows define the scope shift bounds', { skip: SKIP }, 
 	);
 	assert.deepEqual(
 		{ start: shiftFor(9, 'REGULAR')?.startTime, end: shiftFor(9, 'REGULAR')?.endTime },
-		{ start: '13:00', end: '18:30' },
-		'Grade 9 REGULAR shift spans its afternoon CLASS rows',
+		{ start: '12:15', end: '18:30' },
+		'Grade 9 REGULAR shift spans its afternoon CLASS rows (lunch 11:30-12:15 is excluded)',
 	);
 	// A persisted GradeShiftWindow keeps its authority.
 	const persisted = scopeAuthority(ALL_SCOPES, { shiftWindows: [{ gradeLevel: 7, programType: 'REGULAR', startTime: '05:00', endTime: '13:00' }] });
