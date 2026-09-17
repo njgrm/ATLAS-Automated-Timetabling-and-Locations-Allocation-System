@@ -1,0 +1,88 @@
+{
+  "id": "CLIENT-QUALITY-C01",
+  "kind": "STREAM",
+  "objective": "One client-quality lane with two halves that verify each other. (A) Add the three missing static and behavioural gates: ESLint with react-hooks/rules-of-hooks as error and @typescript-eslint/no-explicit-any as error with a checked-in ratchet baseline, a client tsc --noEmit typecheck script, and a route smoke Playwright spec that loads every route, opens primary non-mutating controls, and fails on any pageerror, React render error, or unexpected >=400 response (documented benign 404s allow-listed). (B) Fix the defects those gates exist to catch: hoist the armSwapSessions useCallback above the early returns in ScheduleReviewWorkspace.tsx (the live /timetable React #310 crash); guard and correctly type loadProfile in TeacherGridMode.tsx and WorkloadInspector.tsx (the live 'Cannot read properties of null (reading remainingHours)' crash); add a route-level ErrorBoundary; and apply four operator-requested UX findings - dismissible and expiring year-change banner, archived Teaching Load reachable from within the Teaching Load page, TeachingLoadTruthPanel collapsed by default, and the Dashboard Run Health card removed. No runtime, database, generation, publication, Teaching Load apply, term-cache, rollover, migration, or companion change. The release swap that ships (B) is a separate HIGH action with its own approval.",
+  "riskTier": "MEDIUM",
+  "state": "PLANNED",
+  "stateUpdatedAt": "2026-09-17T00:00:00Z",
+  "nextAction": "Register by CAS, then activate the cycle, then dispatch one executor with docs/prompts/client-quality-c01-2026-09-17.md. The executor installs the lint toolchain into its own worktree only, using --no-save --no-package-lock so no root lockfile or shared tree is touched, and produces a candidate. Then one independent review, then the separate release-swap approval.",
+  "awaited": [
+    "one independent review of the candidate range",
+    "the operator's exact approval sentence for the release swap (a separate HIGH action)"
+  ],
+  "running": [],
+  "git": {
+    "worktree": "E:/ATLAS-worktrees/client-quality-c01",
+    "branch": "work/client-quality-c01",
+    "baseSha": "74f4e66e3fdedc07cc31a14d45332683d8bf8ae4",
+    "candidateSha": null,
+    "integrationSha": null,
+    "changedPaths": [],
+    "remoteObservation": null
+  },
+  "owners": {
+    "planner": { "sessionId": null, "status": "IDLE", "writable": false },
+    "executor": { "sessionId": null, "status": "NONE", "writable": false },
+    "qa": { "sessionId": null, "status": "NONE", "writable": false },
+    "auditor": { "sessionId": null, "status": "NONE", "writable": false }
+  },
+  "gates": {
+    "total": 0,
+    "passed": 0,
+    "failed": 0,
+    "blocked": 0,
+    "unperformed": 0,
+    "plan": {
+      "MANDATORY_SOURCE": 9,
+      "MANDATORY_LIVE": 3,
+      "DEFERRED_EXTERNAL": 1
+    },
+    "classes": {
+      "MANDATORY_SOURCE": { "total": 0, "passed": 0, "failed": 0, "blocked": 0, "unperformed": 0 },
+      "MANDATORY_LIVE": { "total": 0, "passed": 0, "failed": 0, "blocked": 0, "unperformed": 0 },
+      "DEFERRED_EXTERNAL": { "total": 0, "passed": 0, "failed": 0, "blocked": 0, "unperformed": 0 }
+    }
+  },
+  "review": {
+    "qaVerdict": null,
+    "qaSessionId": null,
+    "auditorVerdict": null,
+    "auditorSessionId": null,
+    "auditRequired": false,
+    "qaRounds": []
+  },
+  "corrections": [],
+  "successors": [],
+  "requires": [],
+  "blocker": {
+    "kind": "NONE",
+    "detail": "No dependency. Tier A lane under the corrected directive: no lease, no receipt, and no Wave Completion Auditor. The single review is the independent commit-range verification; the release swap that ships the fixes is a separate HIGH action.",
+    "safeWorkRemaining": true,
+    "safeWorkItems": [
+      "author spec and packet (done)",
+      "dispatch one executor",
+      "commission one independent review",
+      "return the release-swap approval sentence to the operator"
+    ]
+  },
+  "approval": {
+    "required": false,
+    "presentedReady": false,
+    "granted": false,
+    "operatorIdentity": null,
+    "approvedAt": null,
+    "boundary": null,
+    "approvedActions": [],
+    "requiredObservationIds": [],
+    "execution": null
+  },
+  "observations": [],
+  "artifacts": [],
+  "closure": null,
+  "sessionRouting": {
+    "planner": { "decision": "EXISTING", "sessionId": null, "reason": "this planner authored the lane and owns sequencing." },
+    "executor": { "decision": "FRESH_REQUIRED", "sessionId": null, "reason": "bounded implementation in its own worktree." },
+    "qa": { "decision": "FRESH_REQUIRED", "sessionId": null, "reason": "one independent review of the candidate range." },
+    "auditor": { "decision": "NOT_REQUIRED", "sessionId": null, "reason": "Tier A lane: the Wave Completion Auditor is Tier B only under the corrected directive." }
+  }
+}
