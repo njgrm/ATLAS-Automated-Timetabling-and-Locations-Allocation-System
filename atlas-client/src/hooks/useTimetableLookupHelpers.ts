@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useRef } from 'react';
 
 import { gradeLabel } from '@/lib/grade-labels';
-import { getProgramBadgeLabel } from '@/lib/schedule-review-helpers';
+import { getProgramBadgeLabel, resolveSectionGradeNumber } from '@/lib/schedule-review-helpers';
 import type { ExternalSection, FacultyMirror, ScheduledEntry, Subject, UnassignedItem } from '@/types';
 import type { RoomInfo, ViewMode } from '@/components/timetable/ScheduleReviewWorkspace.constants';
 
@@ -69,15 +69,19 @@ export function useTimetableLookupHelpers({
 
 	const gradeForSection = useCallback((sectionId: number): number | null => {
 		const section = sectionMap.get(sectionId);
-		if (section?.displayOrder) return section.displayOrder;
-		const gradeMatch = section?.gradeLevelName?.match(/(\d+)/);
-		return gradeMatch ? Number(gradeMatch[1]) : null;
+		if (!section) return null;
+		// Use the shared resolver, NOT `displayOrder`: displayOrder is the section's
+		// order WITHIN its grade (Luna=1, Aguinaldo=2, …), so reading it as the grade
+		// labelled every Grade 10 section "Grade 1" and sorted it first.
+		// The resolver also normalizes EnrollPro's internal gradeLevelId (17→7 … 20→10).
+		return resolveSectionGradeNumber(section);
 	}, [sectionMap]);
 
 	const rawGroupedPivotEntities = useMemo(() => {
-		const grouped = new Map<string, number[]>();
+		const grouped = new Map<string, { ids: number[]; grade: number | null }>();
 		for (const id of pivotEntityIds) {
 			let label = 'Unassigned';
+			let grade: number | null = null;
 			if (viewMode === 'room') {
 				const room = roomMap.get(id);
 				label = room ? room.buildingShortCode || room.buildingName : 'Unknown';
@@ -86,14 +90,26 @@ export function useTimetableLookupHelpers({
 				const program = section?.programType && section.programType !== 'REGULAR'
 					? getProgramBadgeLabel(section.programType, section.programCode)
 					: 'Regular';
-				const grade = gradeForSection(id);
+				grade = gradeForSection(id);
 				label = grade ? `${gradeLabel(grade)} · ${program}` : program;
 			} else {
 				label = facultyMap.get(id)?.department || 'Unassigned';
 			}
-			grouped.set(label, [...(grouped.get(label) ?? []), id]);
+			const bucket = grouped.get(label) ?? { ids: [], grade };
+			bucket.ids.push(id);
+			grouped.set(label, bucket);
 		}
-		return Array.from(grouped, ([label, ids]) => ({ label, ids })).sort((a, b) => a.label.localeCompare(b.label));
+		// Sort by GRADE NUMBER first, then label. A plain `localeCompare` on the label
+		// ordered "Grade 10 · …" before "Grade 7 · …" (string order), so Grade 10 led
+		// the section dropdown instead of coming last.
+		return Array.from(grouped, ([label, bucket]) => ({ label, ids: bucket.ids, grade: bucket.grade }))
+			.sort((a, b) => {
+				const ag = a.grade ?? Number.MAX_SAFE_INTEGER;
+				const bg = b.grade ?? Number.MAX_SAFE_INTEGER;
+				if (ag !== bg) return ag - bg;
+				return a.label.localeCompare(b.label);
+			})
+			.map(({ label, ids }) => ({ label, ids }));
 	}, [facultyMap, gradeForSection, pivotEntityIds, roomMap, sectionMap, viewMode]);
 
 	const prevGroupedRef = useRef(rawGroupedPivotEntities);
