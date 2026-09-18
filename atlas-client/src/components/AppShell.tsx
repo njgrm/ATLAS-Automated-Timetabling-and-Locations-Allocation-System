@@ -439,7 +439,9 @@ export function AppShell() {
 		for (const group of breadcrumbGroups) {
 			for (const item of group.items) {
 				if (location.pathname === item.to) {
-					if (group.label === 'Navigation') return [{ label: item.label }];
+					// F5 — never repeat the leaf. A section whose label matches its
+					// item ("Timetable / Timetable", "Audit / Audit") renders one crumb.
+					if (group.label === 'Navigation' || group.label === item.label) return [{ label: item.label }];
 					return [{ label: group.label }, { label: item.label }];
 				}
 			}

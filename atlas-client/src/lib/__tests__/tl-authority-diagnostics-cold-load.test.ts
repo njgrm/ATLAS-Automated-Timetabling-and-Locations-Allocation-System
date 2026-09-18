@@ -264,6 +264,37 @@ test('C-5 an in-flight read that fails still clears loading and renders the type
 });
 
 /* ================================================================== *
+ * 2b — F4: the source badge agrees with the workspace source sentence
+ * ================================================================== */
+
+test('F4 a cache-sourced workspace never renders "Source verified" beside the unverified notice', () => {
+	const model = buildTeachingLoadTruthModel({
+		diagnostics: diagnostics(),
+		placeholderFacultyIds: new Set<number>(),
+		workloadPolicyStatus: 'CONFIGURED',
+	});
+	const renderBadge = (upstreamVerified: boolean) => renderToStaticMarkup(
+		createElement(TooltipProvider, null, createElement(TeachingLoadTruthPanel, {
+			model,
+			loading: false,
+			sourceRevision: diagnostics().sourceRevision ?? null,
+			upstreamVerified,
+			unresolvedReasons: [],
+		})),
+	);
+
+	const verified = renderBadge(true);
+	assert.match(verified, /Source verified/);
+	assert.doesNotMatch(verified, /Source not verified/);
+
+	// Negative control: the same panel with an unverified upstream source must
+	// stop claiming verification while the page sentence says cache-only.
+	const cached = renderBadge(false);
+	assert.match(cached, /Source not verified/);
+	assert.doesNotMatch(cached, /Source verified/);
+});
+
+/* ================================================================== *
  * 3 — resolving the SAME scope again does not self-invalidate
  * ================================================================== */
 

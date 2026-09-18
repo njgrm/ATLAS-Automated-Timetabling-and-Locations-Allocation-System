@@ -286,6 +286,15 @@ export function pickNextStep(args: {
 		if (!buildingsDone) {
 			return { title: 'Finish campus setup', body: 'Mark every teaching room before generation so placements have rooms.', cta: 'Open campus map', href: '/map' };
 		}
+		// F1 — every setup input checked above is satisfied. Return an explicit
+		// ready-for-readiness action instead of falling through to the published
+		// fallback, which is only truthful for a real PUBLISHED phase.
+		return {
+			title: 'Setup complete — check generation readiness',
+			body: 'Year, terms, subjects, sections, and rooms are ready. Confirm Teaching Load ownership, schedule shape, policy, and hard validators on the Timetable before generating.',
+			cta: 'Check generation readiness',
+			href: '/timetable',
+		};
 	}
 	if (phase === 'PREFERENCES') {
 		// UX-C01R — derived-demand inputs being ready is an input milestone, not

@@ -438,7 +438,7 @@ export const CenterWorkspace = memo(function CenterWorkspace(props: CenterWorksp
 							<div className="flex items-center gap-2">
 								<Badge variant="outline" className="h-5 px-1.5 text-xs uppercase">Map</Badge>
 								<p className="text-xs text-muted-foreground">
-									{preGenOnboarding ? 'Click a building then a room to pivot the timetable grid to that room.' : 'View-only map workspace. Editing remains in `/map-editor`.'}
+									{preGenOnboarding ? 'Click a building then a room to pivot the timetable grid to that room.' : 'View-only map workspace. Editing remains in `/map?mode=editor`.'}
 								</p>
 							</div>
 							<Button variant="outline" size="sm" className="h-7 text-xs"

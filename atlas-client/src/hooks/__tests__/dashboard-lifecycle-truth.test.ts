@@ -209,6 +209,28 @@ test('published phase => single published next action', () => {
 	assert.equal(next.href, '/schedules');
 });
 
+test('F1: setup phase with every setup input satisfied => readiness check, never a published claim', () => {
+	// The published fallback is only valid for a real PUBLISHED phase. Before the
+	// fix the SETUP branch had no terminal return, so a fully satisfied setup
+	// fell through and the opening hero card falsely read "Schedule is published".
+	const next = pickNextStep({
+		phase: 'SETUP',
+		subjectCount: 22,
+		facultyCount: 42,
+		sectionCount: 20,
+		unassignedSubjectCount: 0,
+		missingCoverageSubjectIds: [],
+		buildingsDone: true,
+		latestRunStatus: 'NONE',
+		violationCount: null,
+		derivedDemand: null,
+		degraded: false,
+	});
+	assert.doesNotMatch(next.title, /published/i);
+	assert.equal(next.cta, 'Check generation readiness');
+	assert.equal(next.href, '/timetable');
+});
+
 test('review with violations => audit action with blocker count', () => {
 	const next = pickNextStep({
 		phase: 'REVIEW',

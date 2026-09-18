@@ -17,6 +17,12 @@ type TeachingLoadTruthPanelProps = {
 	model: TeachingLoadTruthModel | null;
 	loading?: boolean;
 	sourceRevision?: string | null;
+	/**
+	 * F4 — whether the upstream source the page sentence describes is verified.
+	 * When false the badge must not claim "Source verified": the workspace is
+	 * showing the ATLAS runtime cache while upstream verification is unavailable.
+	 */
+	upstreamVerified?: boolean;
 	/** Concise server explanations for unresolved pairs, shown on demand only. */
 	unresolvedReasons?: Array<{ code: string; message: string }>;
 };
@@ -89,7 +95,7 @@ function DrillDownList({ title, values, empty }: { title: string; values: string
  * explanations, and server reasons on demand. Never renders a raw diagnostic
  * wall and never invents a number for an unknown authority.
  */
-export function TeachingLoadTruthPanel({ model, loading = false, sourceRevision = null, unresolvedReasons = [] }: TeachingLoadTruthPanelProps) {
+export function TeachingLoadTruthPanel({ model, loading = false, sourceRevision = null, upstreamVerified = true, unresolvedReasons = [] }: TeachingLoadTruthPanelProps) {
 	const zeroLoadNames = model && isKnown(model.zeroLoadFaculty) ? model.zeroLoadFaculty.value.names : [];
 	const adviserNames = model && isKnown(model.adviserStatus) ? model.adviserStatus.value.names : [];
 	const hgExplanation = model && isKnown(model.excludedHgRows) ? model.excludedHgRows.value.explanation : '';
@@ -142,12 +148,23 @@ export function TeachingLoadTruthPanel({ model, loading = false, sourceRevision 
 							) : sourceRevision ? (
 								<Tooltip>
 									<TooltipTrigger asChild>
-										<Badge variant="outline" className="h-6 cursor-help rounded-full border-slate-200 bg-slate-50 px-2 text-xs font-semibold text-slate-700 shadow-none">
-											Source verified
+										<Badge
+											variant="outline"
+											className={cn(
+												'h-6 cursor-help rounded-full px-2 text-xs font-semibold shadow-none',
+												upstreamVerified
+													? 'border-slate-200 bg-slate-50 text-slate-700'
+													: 'border-amber-200 bg-amber-50 text-amber-800',
+											)}
+											data-testid="teaching-load-truth-source-badge"
+										>
+											{upstreamVerified ? 'Source verified' : 'Source not verified'}
 										</Badge>
 									</TooltipTrigger>
 									<TooltipContent side="bottom" className="max-w-72 p-3 text-xs font-medium leading-relaxed">
-										This summary is derived from the canonical read-only Teaching Load authority.
+										{upstreamVerified
+											? 'This summary is derived from the canonical read-only Teaching Load authority.'
+											: 'This summary is derived from the canonical read-only Teaching Load authority, but upstream EnrollPro verification is unavailable, so the workspace is showing the ATLAS runtime cache.'}
 									</TooltipContent>
 								</Tooltip>
 							) : null}

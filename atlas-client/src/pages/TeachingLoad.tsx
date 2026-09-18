@@ -688,6 +688,7 @@ export default function TeachingLoad() {
 									model={truthModel}
 									loading={data.loading || data.authorityDiagnosticsLoading}
 									sourceRevision={data.authorityDiagnostics?.sourceRevision ?? null}
+									upstreamVerified={data.degradedNotice === null}
 									unresolvedReasons={truthUnresolvedReasons}
 								/>
 							</div>

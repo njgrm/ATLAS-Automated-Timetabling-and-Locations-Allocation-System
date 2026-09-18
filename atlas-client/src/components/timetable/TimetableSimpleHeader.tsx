@@ -23,7 +23,7 @@ import {
 	UserRoundX,
 	type LucideIcon,
 } from 'lucide-react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 
 import { cn } from '@/lib/utils';
 import { deriveSimpleLifecycleAction } from '@/lib/simple-timetable-state';
@@ -94,6 +94,7 @@ function TimetableSimpleHeaderImpl({
 	onSwapClassTimesCancel,
 }: TimetableSimpleHeaderProps) {
 	const navigate = useNavigate();
+	const location = useLocation();
 	const [moreOpen, setMoreOpen] = useState(false);
 	const [filtersOpen, setFiltersOpen] = useState(false);
 	const [statusKeyOpen, setStatusKeyOpen] = useState(false);
@@ -152,6 +153,17 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 	const generationGate = capabilities.generation;
 	const generationReady = generationGate.enabled;
 	const setupRepair = generationGate.repair.kind === 'navigate' ? generationGate.repair : setupState.repair;
+	// F3 — a repair target equal to the current route is a dead control ("Review
+	// timetable" while already on /timetable). Treat it as no destination so the
+	// prompt never renders a self-link primary action.
+	const setupRepairTargetsCurrentRoute = setupRepair.kind === 'navigate'
+		&& setupRepair.href != null
+		&& setupRepair.href.split('?')[0] === location.pathname;
+	// F2 — a blocked readiness message is a raw engine diagnostic (entity ·
+	// subject · term · session reason). Keep the operator sentence short and
+	// expose the technical detail behind a tooltip for support.
+	const setupBlockedDiagnostic = context.curriculumReadiness?.state === 'blocked' ? setupState.message : null;
+	const setupOperatorMessage = 'Setup needs attention before ATLAS can generate a timetable. Review the reported setup item, then check readiness again.';
 	const canPlanOrGenerate = scopeResolved && generationReady && !context.loading;
 	// R7 — the shared capability model is the production guard for every Simple
 	// task action (publish/swap/review), not just generation.
@@ -630,10 +642,30 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 							<p className="truncate text-sm font-semibold text-foreground" data-testid="timetable-simple-next-action">
 								No timetable exists for {visibleYearLabel ?? 'the active school year'}
 							</p>
-							<p className="break-words text-xs text-muted-foreground" data-testid="timetable-curriculum-readiness-message">
-								{setupState.message}
-							</p>
-							{setupRepair.kind === 'navigate' && (
+							{setupBlockedDiagnostic ? (
+								<TooltipProvider delayDuration={200}>
+									<Tooltip>
+										<TooltipTrigger asChild>
+											<p
+												className="break-words text-xs text-muted-foreground underline decoration-dotted decoration-muted-foreground/50 underline-offset-2"
+												data-testid="timetable-curriculum-readiness-message"
+												tabIndex={0}
+											>
+												{setupOperatorMessage}
+											</p>
+										</TooltipTrigger>
+										<TooltipContent side="bottom" className="max-w-xs text-xs leading-relaxed">
+											<span className="block font-semibold">Technical detail</span>
+											<span className="mt-1 block">{setupBlockedDiagnostic}</span>
+										</TooltipContent>
+									</Tooltip>
+								</TooltipProvider>
+							) : (
+								<p className="break-words text-xs text-muted-foreground" data-testid="timetable-curriculum-readiness-message">
+									{setupState.message}
+								</p>
+							)}
+							{setupRepair.kind === 'navigate' && !setupRepairTargetsCurrentRoute && (
 								<p className="text-xs text-muted-foreground" data-testid="timetable-setup-repair-hint">
 									{setupRepair.label ? `Fix this in ${setupRepair.label}.` : 'Finish setup before generating.'}
 								</p>
@@ -647,7 +679,7 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 					</div>
 					<div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
 						<TimetableStatusLegend compact />
-						{lifecycleAction.kind === 'fix-setup' && setupRepair.kind === 'navigate' ? (
+						{lifecycleAction.kind === 'fix-setup' && setupRepair.kind === 'navigate' && setupRepairTargetsCurrentRoute ? null : lifecycleAction.kind === 'fix-setup' && setupRepair.kind === 'navigate' ? (
 							<Button asChild type="button" size="sm" className="h-11 gap-1.5 px-3 text-sm" data-testid="timetable-simple-primary-action">
 								<Link to={setupRepair.href ?? YEAR_SETUP_HREF}>
 									<BookOpen className="size-3.5" aria-hidden="true" />
