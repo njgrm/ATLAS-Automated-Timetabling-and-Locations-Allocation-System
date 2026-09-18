@@ -17,6 +17,14 @@ import {
 } from '@/lib/timetable-grid-slots';
 import { buildLiveConflictIndex, createLiveConflictLookup } from '@/lib/timetable-live-conflict';
 import { matchesTermScope } from '@/lib/timetable-term-scope';
+import {
+	buildFacultyInitials,
+	buildFacultyLabel,
+	buildRoomLabel,
+	buildRoomLabelShort,
+	buildSectionLabel,
+	buildSubjectLabel,
+} from '@/lib/timetable-reference-labels';
 import { deriveGenerationReadinessState, type TimetableCurriculumReadinessState } from '@/lib/timetable-generation-readiness';
 import { buildTimetableGenerationPath } from '@/components/timetable/timetableSchoolScope';
 import type {
@@ -1728,48 +1736,24 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 		void fetchReferenceData(schoolYearId, { forceRefresh: true });
 	}, [fetchReferenceData, schoolYearId]);
 
-	const subjectLabel = useCallback((id: number) => {
-		const s = subjectMap.get(id);
-		if (s) return s.displayCode ?? s.code;
-		return subjectMap.size === 0 ? 'Loading subject name...' : 'Subject name missing';
-	}, [subjectMap]);
+	// QF-CELL-INFO: reference labels degrade to a stable id fallback instead of a
+	// permanent "Loading …" placeholder. `fetchReferenceData` is allowed to fail
+	// without blocking the grid, so an empty/partial map must never leave a cell
+	// stuck on a loading string.
+	const subjectLabel = useMemo(() => buildSubjectLabel(subjectMap), [subjectMap]);
 
-	const facultyLabel = useCallback((id: number) => {
-		const f = facultyMap.get(id);
-		if (!f) return facultyMap.size === 0 ? 'Loading teacher name...' : 'Teacher name missing';
-		const adviserSuffix = f.advisedSectionName ? ` · Adviser ${f.advisedSectionName}` : '';
-		return `${f.lastName}, ${f.firstName}${adviserSuffix}`;
-	}, [facultyMap]);
+	const facultyLabel = useMemo(() => buildFacultyLabel(facultyMap), [facultyMap]);
 
-	const formatFacultyInitials = useCallback((id: number) => {
-		const f = facultyMap.get(id);
-		if (!f) return `Faculty #${id}`;
-		const initial = f.firstName ? `${f.firstName.charAt(0).toUpperCase()}.` : '';
-		return `${initial} ${f.lastName}`.trim();
-	}, [facultyMap]);
+	const formatFacultyInitials = useMemo(() => buildFacultyInitials(facultyMap), [facultyMap]);
 
-	const sectionLabel = useCallback((id: number) => {
-		const s = sectionMap.get(id);
-		if (!s) return sectionMap.size === 0 ? 'Loading section name...' : 'Section name missing';
-		const programLabel = s.programType && s.programType !== 'REGULAR'
-			? ` · ${getProgramBadgeLabel(s.programType, s.programCode)}`
-			: '';
-		return `${s.name}${programLabel}`;
-	}, [sectionMap]);
+	const sectionLabel = useMemo(
+		() => buildSectionLabel(sectionMap, getProgramBadgeLabel),
+		[sectionMap],
+	);
 
-	const roomLabel = useCallback((roomId: number) => {
-		const ri = roomMap.get(roomId);
-		if (!ri) return roomMap.size === 0 ? 'Loading room name...' : 'Room name missing';
-		const bldg = ri.buildingShortCode || ri.buildingName;
-		return `${ri.name} · ${bldg} (Floor ${ri.floor})`;
-	}, [roomMap]);
+	const roomLabel = useMemo(() => buildRoomLabel(roomMap), [roomMap]);
 
-	const roomLabelShort = useCallback((roomId: number) => {
-		const ri = roomMap.get(roomId);
-		if (!ri) return roomMap.size === 0 ? 'Loading room name...' : 'Room name missing';
-		const bldg = ri.buildingShortCode || ri.buildingName;
-		return `${ri.name} · ${bldg}`;
-	}, [roomMap]);
+	const roomLabelShort = useMemo(() => buildRoomLabelShort(roomMap), [roomMap]);
 
 	const referenceLookupStatus = useMemo(() => {
 		if (subjectMap.size === 0 || sectionMap.size === 0 || facultyMap.size === 0 || roomMap.size === 0) {

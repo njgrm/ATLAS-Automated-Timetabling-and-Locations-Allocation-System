@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 
 import { parseDraftPlacementId } from '@/lib/timetable-utils';
 import { isDayScopedOverlay } from '@/lib/timetable-grid-slots';
+import { resolveCellTeacherText } from '@/lib/timetable-cell-teacher';
 import { cn, formatTime } from '@/lib/utils';
 import type { CellConflictInfo, ScheduledEntry, Violation, ViolationCode } from '@/types';
 
@@ -128,6 +129,8 @@ interface GridCellProps {
 	formatFacultyInitials: (id: number) => string;
 	facultyLabel: (id: number) => string;
 	viewMode: 'section' | 'faculty' | 'room';
+	/** Selected ordered-term scope. Resolves the teacher from the entry in that term. */
+	termFilter?: 'all' | number;
 	showTeacherDetails?: boolean;
 	pivotLabel: (id: number) => string;
 	roomLabelShort: (roomId: number) => string;
@@ -214,6 +217,7 @@ const GridCell = memo(function GridCell({
 	formatFacultyInitials,
 	facultyLabel,
 	viewMode,
+	termFilter = 'all',
 	showTeacherDetails = true,
 	pivotLabel,
 	roomLabelShort,
@@ -526,18 +530,28 @@ const GridCell = memo(function GridCell({
 							</div>
 							{(() => {
 								const roomText = roomLabelShort(entry.roomId);
-								const teacherText = entry.facultyId ? formatFacultyInitials(entry.facultyId) : 'No teacher';
+								// QF-CELL-INFO: resolve the teacher from the entry in the
+								// selected term (distinct terms may name distinct teachers).
+								const teacherText = resolveCellTeacherText(entry, termFilter, formatFacultyInitials);
 								const sectionText = sectionLabel(entry.sectionId);
 								let detailsText = '';
 								if (viewMode === 'section') {
+									// Section is the pivot row; the cell names the non-pivot
+									// dimensions: teacher + room.
 									detailsText = showTeacherDetails ? `${teacherText} · ${roomText}` : roomText;
 								} else if (viewMode === 'faculty') {
+									// Faculty is the pivot row; the cell names section + room.
 									detailsText = `${sectionText} · ${roomText}`;
 								} else if (viewMode === 'room') {
 									detailsText = `${sectionText} · ${teacherText}`;
 								}
 								return (
-									<p className="truncate text-xs font-medium text-muted-foreground/80 mt-0.5">
+									<p
+										className="truncate text-xs font-medium text-muted-foreground/80 mt-0.5"
+										data-testid="timetable-cell-detail"
+										data-cell-term={entry.termIndex ?? ''}
+										data-cell-teacher={teacherText}
+									>
 										{detailsText}
 									</p>
 								);
@@ -613,6 +627,8 @@ interface TimetableGridProps {
 	formatFacultyInitials: (id: number) => string;
 	facultyLabel: (id: number) => string;
 	viewMode: 'section' | 'faculty' | 'room';
+	/** Selected ordered-term scope. Resolves the teacher from the entry in that term. */
+	termFilter?: 'all' | number;
 	showTeacherDetails?: boolean;
 	pivotLabel: (id: number) => string;
 	roomLabelShort: (roomId: number) => string;
@@ -653,6 +669,7 @@ export const TimetableGrid = memo(function TimetableGrid({
 	formatFacultyInitials,
 	facultyLabel,
 	viewMode,
+	termFilter = 'all',
 	showTeacherDetails = true,
 	pivotLabel,
 	roomLabelShort,
@@ -909,6 +926,7 @@ export const TimetableGrid = memo(function TimetableGrid({
 												formatFacultyInitials={formatFacultyInitials}
 												facultyLabel={facultyLabel}
 												viewMode={viewMode}
+												termFilter={termFilter}
 												showTeacherDetails={showTeacherDetails}
 												pivotLabel={pivotLabel}
 												roomLabelShort={roomLabelShort}
