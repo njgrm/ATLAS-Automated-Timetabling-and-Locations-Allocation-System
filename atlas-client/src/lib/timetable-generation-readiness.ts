@@ -61,7 +61,17 @@ export type TimetableGenerationReadinessDiagnostic = {
 	zeroWrite: boolean;
 };
 
-export type TimetableReadinessRepair = { label: string; href: string };
+/**
+ * A readiness repair is either a real navigation to a *different* surface or a
+ * real in-place retry of the readiness check. There is deliberately no
+ * "navigate to the current route" state: an action whose target equals the
+ * route the operator is already on is a no-op, so it must be expressed as
+ * `retry` (which the headers render as an actionable button) instead of as a
+ * dead self-link.
+ */
+export type TimetableReadinessRepair =
+	| { kind: 'navigate'; label: string; href: string }
+	| { kind: 'retry'; label: string };
 
 export type TimetableCurriculumReadinessState =
 	| { state: 'loading'; message: string }
@@ -191,20 +201,26 @@ export function parseGenerationReadinessDiagnostic(raw: unknown): TimetableGener
 }
 
 /** The one smallest repair for the exact first blocker, chosen by owning code
- * then category. Never the retired requirements page. */
+ * then category. Never the retired requirements page and never a self-link back
+ * to the route that already rendered the blocked state. */
 export function deriveTimetableReadinessRepair(blocker: TimetableGenerationBlocker | null): TimetableReadinessRepair {
-	if (!blocker) return { label: 'Open Year Setup', href: '/admin/year-setup' };
+	if (!blocker) return { kind: 'navigate', label: 'Open Year Setup', href: '/admin/year-setup' };
 	const code = blocker.code.toUpperCase();
 	if (code.includes('OWNERSHIP') || code.includes('OWNER') || code.includes('TEACHING_LOAD')) {
-		return { label: 'Open Teaching Load', href: '/teaching-load' };
+		return { kind: 'navigate', label: 'Open Teaching Load', href: '/teaching-load' };
 	}
 	if (code.includes('ROOM') || blocker.category === 'RESOURCE_INFEASIBLE') {
-		return { label: 'Review rooms', href: '/map' };
+		return { kind: 'navigate', label: 'Review rooms', href: '/map' };
 	}
 	if (blocker.category === 'ALGORITHM_LIMIT') {
-		return { label: 'Review timetable', href: '/timetable' };
+		// The bounded scheduler search could not place the session (the server
+		// owning surface is the generation algorithm itself, with "re-run
+		// readiness after data/policy fixes" as its next action). Re-running the
+		// readiness check in place is the only real repair here; navigating to
+		// the current /timetable route would be a no-op self-link.
+		return { kind: 'retry', label: 'Recheck generation readiness' };
 	}
-	return { label: 'Open Year Setup', href: '/admin/year-setup' };
+	return { kind: 'navigate', label: 'Open Year Setup', href: '/admin/year-setup' };
 }
 
 function describeBlocker(blocker: TimetableGenerationBlocker): string {
@@ -224,20 +240,20 @@ function blockedMessage(
 		return {
 			message: 'Generation readiness could not prove a zero-write check. Retry the readiness check before generating.',
 			code: 'ZERO_WRITE_UNPROVEN',
-			repair: { label: 'Retry readiness check', href: '/timetable' },
+			repair: { kind: 'retry', label: 'Retry readiness check' },
 		};
 	}
 	if (!diagnostic.schedulerExecuted) {
 		return {
 			message: 'The scheduling dry run did not complete. Retry the readiness check before generating.',
 			code: 'SCHEDULER_NOT_EXECUTED',
-			repair: { label: 'Retry readiness check', href: '/timetable' },
+			repair: { kind: 'retry', label: 'Retry readiness check' },
 		};
 	}
 	return {
 		message: 'Generation readiness is blocked. Resolve the reported setup items, then check again.',
 		code: 'GENERATION_BLOCKED',
-		repair: { label: 'Open Year Setup', href: '/admin/year-setup' },
+		repair: { kind: 'navigate', label: 'Open Year Setup', href: '/admin/year-setup' },
 	};
 }
 

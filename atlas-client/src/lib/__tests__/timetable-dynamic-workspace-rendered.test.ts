@@ -8,9 +8,11 @@ import { MemoryRouter } from 'react-router-dom';
 
 import { SimpleDriftBanner } from '../../components/timetable/simple/SimpleDriftBanner';
 import { SimpleMoreMenuContent } from '../../components/timetable/simple/SimpleMoreMenuContent';
+import { simpleTutorialSteps } from '../../components/timetable/simple/SimpleHeaderHelpers';
 import { TimetableSimpleHeader } from '../../components/timetable/TimetableSimpleHeader';
 import type { ScheduleReviewWorkspaceHeaderContext } from '../../components/timetable/buildScheduleReviewWorkspaceContexts';
 import { deriveTimetableCapabilities } from '../timetable-capabilities';
+import { deriveGenerationReadinessState } from '../timetable-generation-readiness';
 import type { DraftReport, GenerationInputComparison } from '../../types';
 
 const clientRoot = resolve(import.meta.dirname, '../../..');
@@ -295,4 +297,87 @@ test('R7 Simple renders the setup-sync entry point from the shared drift surface
 	assert.match(markup, /timetable-simple-sync-setup/);
 	assert.match(markup, /timetable-simple-repair-rooms/);
 	assert.match(markup, /href="\/map"/);
+});
+
+// --- F3/Ux-quickfix: the no-run primary action is never absent and never a dead self-link ---
+
+/** A real blocked readiness state for the active scope, built through the
+ * production adapter so the repair is the exact production repair. */
+function blockedReadiness(code: string, category: string) {
+	return deriveGenerationReadinessState(
+		{
+			scope: { schoolId: 1, schoolYearId: 9 },
+			status: 'BLOCKED',
+			generateAllowed: false,
+			schedulerExecuted: true,
+			derivedDemandRevision: 'REV-BLOCKED',
+			termStructure: { format: 'TRIMESTER', terms: [{ identity: 'T1', order: 1 }] },
+			totals: { lines: 12, pairs: 4, sessionsByTerm: { T1: 12 } },
+			teachingLoadCoverage: null,
+			blockers: [
+				{
+					code,
+					category,
+					termIdentity: 'T1',
+					sectionId: 9001,
+					subjectId: 7,
+					subjectCode: 'TLE-7',
+					entity: 'Section 7-A · TLE-7',
+					reason: `${code} blocks generation.`,
+					owningSurface: 'Generation algorithm',
+					nextAction: 'Re-run readiness after data/policy fixes.',
+				},
+			],
+			zeroWrite: true,
+		},
+		{ schoolId: 1, schoolYearId: 9 },
+	);
+}
+
+test('ALGORITHM_LIMIT/self-route repair renders a real in-place primary action, never absent', () => {
+	const markup = renderHeader({
+		schoolYearId: 9,
+		curriculumReadiness: blockedReadiness('SEARCH_LIMIT_UNRESOLVED', 'ALGORITHM_LIMIT'),
+	});
+	// The empty state references the primary action, so it must exist.
+	assert.match(markup, /No timetable exists for/);
+	assert.match(markup, /data-testid="timetable-simple-primary-action"/);
+	// It must be a real in-place button (re-run readiness), not a dead self-link.
+	assert.match(markup, /<button[^>]*data-testid="timetable-simple-primary-action"/);
+	assert.doesNotMatch(
+		markup,
+		/href="\/timetable"[^>]*data-testid="timetable-simple-primary-action"|data-testid="timetable-simple-primary-action"[^>]*href="\/timetable"/,
+	);
+	assert.match(markup, /Recheck generation readiness/);
+});
+
+test('a genuinely external repair still renders a navigable primary action', () => {
+	const markup = renderHeader({
+		schoolYearId: 9,
+		curriculumReadiness: blockedReadiness('OWNERSHIP_MISSING', 'DEMAND_AUTHORITY'),
+	});
+	assert.match(markup, /data-testid="timetable-simple-primary-action"/);
+	assert.match(
+		markup,
+		/href="\/teaching-load"[^>]*data-testid="timetable-simple-primary-action"|data-testid="timetable-simple-primary-action"[^>]*href="\/teaching-load"/,
+	);
+});
+
+test('the empty-state copy and the no-run tutorial agree with the rendered primary action', () => {
+	const markup = renderHeader({
+		schoolYearId: 9,
+		curriculumReadiness: blockedReadiness('SEARCH_LIMIT_UNRESOLVED', 'ALGORITHM_LIMIT'),
+	});
+	const noRunSteps = simpleTutorialSteps('ready-no-run');
+	const actionStep = noRunSteps.find((step) => step.title === 'Check the lifecycle action');
+	assert.ok(actionStep, 'the no-run tutorial must name the lifecycle action step');
+	assert.equal(actionStep.targetTestId, 'timetable-simple-primary-action');
+	// The tutorial targets the exact testid that the empty state renders.
+	assert.match(markup, new RegExp(`data-testid="${actionStep.targetTestId}"`));
+	// The raw engine diagnostic stays behind the tooltip: the operator sentence is
+	// rendered, and the technical reason is not leaked into it.
+	const operatorMatch = markup.match(/data-testid="timetable-curriculum-readiness-message"[^>]*>([^<]*)</);
+	assert.ok(operatorMatch, 'the operator readiness sentence must render');
+	assert.match(operatorMatch[1], /Setup needs attention before ATLAS can generate a timetable\./);
+	assert.doesNotMatch(operatorMatch[1], /SEARCH_LIMIT_UNRESOLVED/);
 });
