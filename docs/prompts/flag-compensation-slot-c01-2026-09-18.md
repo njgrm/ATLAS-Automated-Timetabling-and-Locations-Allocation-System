@@ -121,31 +121,51 @@ five-day block, and must not report a false capacity blocker.
 row**, plus the Monday-only compensation row, and must compute Monday's total
 from the resolved grid (see `EXPORT-PRESENTATION-C12` R1).
 
-## 2. Operator decisions required before dispatch
+## 2. Decisions
+
+### RESOLVED by the operator (2026-09-18)
+
+**D2 — Interval resolution.** The compensation row is **`9:15-10:00`** (45 min),
+aligned to the existing `10:00-10:45` row so the day stays contiguous and
+non-overlapping. The source artifact's `9:45-10:30` window and `60`-minute value
+are **assumed wrong** and must not be reproduced.
+
+> **Follow-on conflict this creates (must be resolved in the same packet).**
+> The seeded `grade_shift_windows` for G9/G10 STE/SPA/SPS is **`09:45-18:30`**.
+> A `9:15-10:00` compensation row starts **30 minutes before** that window, so
+> the row would violate its own section's shift authority. Resolve by either
+> (a) moving the G9/G10 STE/SPA/SPS window to **`09:15-18:30`**, or
+> (b) explicitly exempting the Monday compensation row from the shift window
+> and documenting why. Option (a) is preferred because it keeps one authority.
+> This is a `grade_shift_windows` data change and therefore needs the same
+> separate approval as any other live config apply.
+
+### OPEN — required before dispatch
 
 1. **Flag slot derivation.** The division template places the flag at
-   `6:00-6:45` for a morning shift and `12:15-1:00` for an afternoon shift.
-   Confirm the rule: **the flag occupies the first period of the section's own
-   shift window** (derived from `grade_shift_windows`), rather than one fixed
-   clock time. Note the one artifact that does not obviously fit: the G9 STE
-   section in `grade9STE_Sched.jpg` has a `09:45-18:30` shift window yet shows
-   the flag at `12:15-1:00` with `9:45-10:30` used as the compensation row.
-2. **Interval resolution (R4).** The source documents overlap
-   `9:45-10:30` with `10:00-10:45`, and print `60` minutes where the corrected
-   value is 45. Choose: (a) compensation row `9:45-10:30` (45 min) and shift the
-   following rows so the day stays non-overlapping, or (b) re-base the whole grid
-   to a canonical 45-minute ladder and place the compensation row in the first
-   free band. The packet cannot proceed without one.
-3. **Scope of the relocation.** The flag ceremony is school-wide. Confirm that
-   the period is occupied for **every** program type (REGULAR, STE, SPA, SPS) and
-   that only the compensation placement may differ by program. The division
-   template uses `TLE` as the displaced subject and the school artifact uses
-   `Science`, so the displaced subject is data-driven, not fixed.
-4. **`Total minutes per day` semantics.** Compute per day. With a 45-minute
-   compensation row: Monday = 495, Tue-Fri = 450. Both the division template and
-   the school artifact print internally inconsistent totals (Friday always 15
-   less than Mon-Thu), so the computed rule must be confirmed as authoritative
-   over the source documents.
+   `6:00-6:45` for a morning-shift sample and `12:15-1:00` for afternoon-shift
+   samples, so the slot follows the section's shift rather than one fixed clock
+   time. ATLAS already carries per-grade/program shift windows in
+   `grade_shift_windows`. Confirm whether HNHS actually runs **both** a morning
+   and an afternoon shift. If every section shares one shift, a fixed time is
+   equivalent and simpler; if both exist, the flag must be derived per section or
+   a morning section would show a flag after its day has ended.
+2. **Scope of the relocation.** Confirm the period is occupied for **every**
+   program type (REGULAR, STE, SPA, SPS) and that **the displaced subject is
+   whatever the timetable placed in that period** (data-driven), not a fixed
+   subject. The division template uses `TLE`; the school artifact uses
+   `Science`. Capacity evidence supports a broad rule: the grid holds 900
+   sessions without the compensation row and the run needs 920, so the extra
+   rows are required for feasibility, not optional.
+3. **`Total minutes per day` semantics.** Confirmed rule to adopt: **sum of
+   instructional minutes per weekday, breaks excluded, each weekday computed
+   independently.** Derived from the division template (sample 1: 8 x 45 = 360
+   plus a 60-minute ARAL block = `420`; lunch 45 and health break 15 are
+   excluded; Friday reads `405` because its ARAL/TLE block runs 45 instead of
+   60). Both source documents print internally inconsistent totals, so the
+   computed rule is authoritative over the printed values. Under this rule the
+   G9 STE section with the resolved `9:15-10:00` row yields **Monday 495,
+   Tue-Fri 450**.
 
 ## 3. Production-path proof required
 
