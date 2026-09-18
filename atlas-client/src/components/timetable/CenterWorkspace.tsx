@@ -139,6 +139,8 @@ type CenterWorkspaceProps = {
 	entityFilter: string;
 	pivotLabel: (id: number) => string;
 	viewMode: 'section' | 'faculty' | 'room';
+	/** Selected ordered-term scope; resolves per-term cell details. */
+	termFilter: 'all' | number;
 	setPreGenOnboarding: (value: boolean) => void;
 	gridEntries: any[];
 	highlightedEntryIds: Set<string>;
@@ -224,6 +226,7 @@ export const CenterWorkspace = memo(function CenterWorkspace(props: CenterWorksp
 		entityFilter,
 		pivotLabel,
 		viewMode,
+		termFilter,
 		setPreGenOnboarding,
 		gridEntries,
 		highlightedEntryIds,
@@ -567,6 +570,7 @@ export const CenterWorkspace = memo(function CenterWorkspace(props: CenterWorksp
 							gradeForSection={gradeForSection}
 							subjectLabel={subjectLabel}
 							roomLabelShort={roomLabelShort}
+							formatFacultyInitials={formatFacultyInitials}
 							entryContextLabel={entryContextLabel}
 							onEntryClick={handleEntryClick}
 							selectedEntryId={selectedEntry?.entryId ?? null}
@@ -640,7 +644,8 @@ export const CenterWorkspace = memo(function CenterWorkspace(props: CenterWorksp
 										formatFacultyInitials={formatFacultyInitials}
 										facultyLabel={facultyLabel}
 										viewMode={viewMode}
-										showTeacherDetails={viewMode !== 'section'}
+										termFilter={termFilter}
+										showTeacherDetails
 										pivotLabel={pivotLabel}
 										roomLabelShort={roomLabelShort}
 										kbSelectedSource={kbSelectedSource}

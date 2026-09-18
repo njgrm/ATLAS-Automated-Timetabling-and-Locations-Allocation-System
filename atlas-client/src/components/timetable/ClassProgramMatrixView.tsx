@@ -42,6 +42,7 @@ type ClassProgramMatrixViewProps = {
 	gradeForSection: (sectionId: number) => number | null;
 	subjectLabel: (subjectId: number) => string;
 	roomLabelShort: (roomId: number) => string;
+	formatFacultyInitials: (facultyId: number) => string;
 	entryContextLabel: (entry: ScheduledEntry) => string;
 	onEntryClick: (entry: ScheduledEntry) => void;
 	selectedEntryId: string | null;
@@ -121,6 +122,7 @@ export function ClassProgramMatrixView({
 	gradeForSection,
 	subjectLabel,
 	roomLabelShort,
+	formatFacultyInitials,
 	entryContextLabel,
 	onEntryClick,
 	selectedEntryId,
@@ -214,7 +216,10 @@ export function ClassProgramMatrixView({
 																						<span className="truncate font-semibold text-foreground">{subjectLabel(entry.subjectId)}</span>
 																						<span className="shrink-0 text-xs text-muted-foreground">{formatTime(entry.startTime)}-{formatTime(entry.endTime)}</span>
 																					</div>
-																					<div className="mt-0.5 text-xs text-muted-foreground">{roomLabelShort(entry.roomId)}</div>
+																					<div className="mt-0.5 truncate text-xs text-muted-foreground">
+																						{roomLabelShort(entry.roomId)}
+																						{entry.facultyId != null ? ` · ${formatFacultyInitials(entry.facultyId)}` : ''}
+																					</div>
 																					<div className="mt-0.5 truncate text-xs text-muted-foreground/80">{entryContextLabel(entry)}</div>
 																				</div>
 																			</Button>
