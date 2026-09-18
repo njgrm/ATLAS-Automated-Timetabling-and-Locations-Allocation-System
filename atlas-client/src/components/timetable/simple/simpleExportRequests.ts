@@ -10,6 +10,12 @@
 
 import { MAX_ACADEMIC_TERM_INDEX } from '@/lib/academic-term';
 import { getPreferredAccessToken } from '@/lib/auth';
+import {
+	ensureFilenameExtension,
+	resolveDownloadFilename,
+	triggerBlobDownload,
+	type BlobDownloadDeps,
+} from '@/lib/export-download';
 
 export type SimpleExportKind = 'summary-teacher-schedule' | 'class-program' | 'teacher-program';
 
@@ -105,15 +111,19 @@ export function resolveSimpleExportRequest(
 export type SimpleExportDispatchDeps = {
 	fetchImpl?: typeof fetch;
 	getAccessToken?: () => string | null;
-	createObjectUrl?: (blob: Blob) => string;
-	revokeObjectUrl?: (url: string) => void;
-	triggerDownload?: (objectUrl: string, filename: string) => void;
-};
+} & BlobDownloadDeps;
 
 /**
  * Dispatch one resolved export request. `null` is a deliberate no-op: this is
- * the single production path used by the Simple header handlers, so an
- * "All terms" selection can never send an official all-term request.
+ * the single production path used by the Simple header handlers (and the
+ * RoomSchedules room program), so an "All terms" selection can never send an
+ * official all-term request.
+ *
+ * EXPORT-FILENAME-FIX — the download name is the server's authoritative
+ * `Content-Disposition` filename, not the client-constructed mirror, so the
+ * school-year token and the `.xlsx`/`.docx` extension always match the bytes.
+ * The client name remains the fallback for a header-less response, and the
+ * extension is re-asserted from the request URL either way.
  */
 export async function dispatchSimpleExport(
 	descriptor: { url: string; filename: string } | null,
@@ -131,15 +141,10 @@ export async function dispatchSimpleExport(
 		throw new Error(message && message.length > 0 ? message : 'Export failed');
 	}
 	const blob = await response.blob();
-	const objectUrl = (deps.createObjectUrl ?? URL.createObjectURL)(blob);
-	if (deps.triggerDownload) {
-		deps.triggerDownload(objectUrl, descriptor.filename);
-	} else {
-		const anchor = document.createElement('a');
-		anchor.href = objectUrl;
-		anchor.download = descriptor.filename;
-		anchor.click();
-	}
-	(deps.revokeObjectUrl ?? URL.revokeObjectURL)(objectUrl);
+	const filename = ensureFilenameExtension(
+		resolveDownloadFilename(response, descriptor.filename),
+		descriptor.url,
+	);
+	triggerBlobDownload(blob, filename, deps);
 	return 'downloaded';
 }
