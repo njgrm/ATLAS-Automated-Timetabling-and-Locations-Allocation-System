@@ -50,7 +50,14 @@ import {
 	firstPivotValue,
 	readinessLabel,
 	resolvePublishTaskDispatch,
+	resolveSimpleGenerateActionState,
+	resolveSimplePublishActionState,
+	shouldDispatchSimpleGenerate,
+	shouldDispatchSimplePublish,
 	SimpleFiltersContent,
+	SimpleGenerateAction,
+	SimplePublishAction,
+	SimplePublishedState,
 	SimpleScheduleControls,
 	SimpleScheduleSheet,
 	SimpleTutorialControl,
@@ -220,6 +227,32 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 		latestRunFailed,
 	});
 
+	// UX-QUICKFIX-C01 — Generate and Publish are now first-class, always-visible
+	// controls in the action row. Their disabled/reason state is derived from the
+	// SAME shared capability gates the More menu and lifecycle dispatcher use.
+	const generateActionState = resolveSimpleGenerateActionState({
+		canPlanOrGenerate,
+		loading: context.loading,
+		generating: context.generating,
+		gateReason: generationGate.reason,
+	});
+	const publishActionState = resolveSimplePublishActionState({
+		publicationEnabled: capabilities.gates.publication.enabled,
+		isRunPublished,
+		gateReason: capabilities.gates.publication.reason,
+	});
+	const showPublishAction = hasGeneratedRun && !isRunPublished;
+	// The dynamic primary button must never render the (possibly dead) publish
+	// task when a dedicated publish control or the published state owns that
+	// slot. All other next-step actions keep the existing primary affordance.
+	const primaryRendersPublish = activeTask
+		? activeTaskDefinition.id === 'publish'
+		: lifecycleAction.kind === 'publish';
+	const primaryIsPublished = activeTask
+		? (activeTaskDefinition.id === 'publish' && isRunPublished)
+		: lifecycleAction.kind === 'published';
+	const suppressPrimaryAction = primaryRendersPublish || primaryIsPublished;
+
 	const handlePublishClick = () => {
 		if (isRunPublished) return;
 		// R7 — the shared capability model is the production guard, not a local count.
@@ -233,6 +266,19 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 			return;
 		}
 		setReadinessSheetOpen(true);
+	};
+
+	// UX-QUICKFIX-C01 — every visible action reads its gate before it dispatches,
+	// so a closed gate dispatches zero requests even if the disabled control is
+	// activated programmatically.
+	const handleGenerateClick = () => {
+		if (!shouldDispatchSimpleGenerate(canPlanOrGenerate)) return;
+		context.handleTriggerGenerate();
+	};
+
+	const handlePublishActionClick = () => {
+		if (!shouldDispatchSimplePublish(capabilities.gates.publication.enabled, isRunPublished)) return;
+		handlePublishClick();
 	};
 
 	const handleLifecycleAction = () => {
@@ -683,6 +729,13 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 					</div>
 					<div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
 						<TimetableStatusLegend compact />
+						{/* UX-QUICKFIX-C01 — Generate stays visible before a run exists,
+						    gated by the same readiness decision as the lifecycle action. */}
+						<SimpleGenerateAction
+							disabled={generateActionState.disabled}
+							disabledReason={generateActionState.reason}
+							onClick={handleGenerateClick}
+						/>
 						{setupRepairIsInPlace ? (
 							<Button
 								type="button"
@@ -780,7 +833,25 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 
 					<div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
 					<TimetableStatusLegend compact />
-					{activeTask && activeTaskDefinition.href ? (
+					{/* UX-QUICKFIX-C01 — Generate and Publish are always reachable without
+					    opening More. Generate is gated on the readiness decision; Publish
+					    is gated on the shared publication capability. A published run
+					    shows the published state instead of a dead disabled Publish. */}
+					<SimpleGenerateAction
+						disabled={generateActionState.disabled}
+						disabledReason={generateActionState.reason}
+						onClick={handleGenerateClick}
+					/>
+					{isRunPublished ? (
+						<SimplePublishedState followUpCount={context.summary?.unassignedCount ?? 0} />
+					) : showPublishAction ? (
+						<SimplePublishAction
+							enabled={!publishActionState.disabled}
+							disabledReason={publishActionState.reason}
+							onClick={handlePublishActionClick}
+						/>
+					) : null}
+					{suppressPrimaryAction ? null : activeTask && activeTaskDefinition.href ? (
 						<Button
 							asChild
 							size="sm"

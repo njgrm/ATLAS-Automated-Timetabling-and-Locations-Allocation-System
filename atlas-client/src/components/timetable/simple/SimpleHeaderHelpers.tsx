@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
-import { ArrowRightLeft, BookOpen, CalendarClock, CheckCircle2, ChevronDown, ClipboardCheck, Download, GraduationCap, ListChecks, Send, Settings2, SlidersHorizontal, Sun, type LucideIcon } from 'lucide-react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { ArrowRightLeft, BookOpen, CalendarClock, CheckCircle2, ChevronDown, ClipboardCheck, Download, GraduationCap, ListChecks, Play, Send, Settings2, SlidersHorizontal, Sun, type LucideIcon } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
 import { Badge } from '@/ui/badge';
@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui/select';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from '@/ui/sheet';
 import { SearchableSelect } from '@/ui/searchable-select';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip';
 import type { TimetableCapabilities, TimetableLifecycleState } from '@/lib/timetable-capabilities';
 import type { ScheduleReviewWorkspaceHeaderContext } from '@/components/timetable/buildScheduleReviewWorkspaceContexts';
 import type { TimetableSimpleTask } from '@/components/timetable/TimetableSimpleTypes';
@@ -78,11 +79,11 @@ const NO_RUN_STEPS: readonly SimpleTutorialStep[] = [
 const GENERATED_STEPS: readonly SimpleTutorialStep[] = [
 	SCHEDULE_SWITCHER_STEP,
 	{
-		title: 'Review the lifecycle action',
-		body: 'The main button shows your current status: Fix blockers, Review warnings, or Publish. Tap it to take the next step.',
-	target: 'Lifecycle action',
-	targetTestId: 'timetable-simple-primary-action',
-		icon: Send,
+		title: 'Generate or re-generate the timetable',
+		body: 'Use Generate to build a fresh run after setup or data changes. The run status chip shows whether the schedule is clean, blocked, or published, and Generate stays visible without opening More.',
+		target: 'Generate action',
+		targetTestId: 'timetable-simple-generate-action',
+		icon: Play,
 	},
 	{
 		title: 'Understand publish blockers',
@@ -125,9 +126,9 @@ const PUBLISHED_STEPS: readonly SimpleTutorialStep[] = [
 	SCHEDULE_SWITCHER_STEP,
 	{
 		title: 'This timetable is published',
-		body: 'Published schedules are read-only history. Review the grid and use export if you need an offline copy.',
-		target: 'Lifecycle action',
-		targetTestId: 'timetable-simple-primary-action',
+		body: 'Published schedules are read-only history. Review the grid, use Generate to build a new run from current data, or export an offline copy.',
+		target: 'Published state',
+		targetTestId: 'timetable-simple-published-state',
 		icon: CheckCircle2,
 	},
 	{
@@ -487,6 +488,118 @@ export function SimpleTutorialControl({ open, onOpenChange, lifecycle }: { open:
 	);
 }
 
+/**
+ * UX-QUICKFIX-C01 — the Simple header action cluster.
+ *
+ * Generate and Publish were previously reachable only through the More menu
+ * (Generate) or as the single dynamic primary button (Publish). They are now
+ * first-class, always-visible controls in the header action row. Every control
+ * reads the SAME capability gate the More menu and the lifecycle dispatcher use,
+ * so a closed gate renders a disabled control with a truthful tooltip and can
+ * never dispatch a request.
+ */
+function GatedAction({ disabled, reason, children }: { disabled: boolean; reason: string | null; children: ReactNode }) {
+	if (!disabled || !reason) return <>{children}</>;
+	return (
+		<TooltipProvider delayDuration={200}>
+			<Tooltip>
+				<TooltipTrigger asChild>
+					{/* A disabled button cannot receive pointer events, so the tooltip
+					    trigger is a focusable wrapper. The reason is also exposed through
+					    the control's aria-label for keyboard/screen-reader users. */}
+					<span className="inline-flex" tabIndex={0}>
+						{children}
+					</span>
+				</TooltipTrigger>
+				<TooltipContent side="bottom" className="max-w-xs text-xs leading-relaxed">
+					{reason}
+				</TooltipContent>
+			</Tooltip>
+		</TooltipProvider>
+	);
+}
+
+export function SimpleGenerateAction({
+	disabled,
+	disabledReason,
+	onClick,
+}: {
+	disabled: boolean;
+	disabledReason: string | null;
+	onClick: () => void;
+}) {
+	const reason = disabled ? (disabledReason ?? 'Generation is not available for this school year yet.') : null;
+	return (
+		<GatedAction disabled={disabled} reason={reason}>
+			<Button
+				type="button"
+				variant="outline"
+				size="sm"
+				className="h-11 gap-1.5 px-3 text-sm"
+				disabled={disabled}
+				aria-label={reason ? `Generate schedule — ${reason}` : 'Generate schedule'}
+				onClick={onClick}
+				data-testid="timetable-simple-generate-action"
+			>
+				<Play className="size-3.5" aria-hidden="true" />
+				<span>Generate</span>
+			</Button>
+		</GatedAction>
+	);
+}
+
+export function SimplePublishAction({
+	enabled,
+	disabledReason,
+	onClick,
+}: {
+	enabled: boolean;
+	disabledReason: string | null;
+	onClick: () => void;
+}) {
+	const reason = enabled ? null : (disabledReason ?? 'Publishing is not available for this run yet.');
+	return (
+		<GatedAction disabled={!enabled} reason={reason}>
+			<Button
+				type="button"
+				variant={enabled ? 'default' : 'outline'}
+				size="sm"
+				className="h-11 gap-1.5 px-3 text-sm"
+				disabled={!enabled}
+				aria-label={reason ? `Publish schedule — ${reason}` : 'Publish schedule'}
+				onClick={onClick}
+				data-testid="timetable-simple-publish-action"
+			>
+				<Send className="size-3.5" aria-hidden="true" />
+				<span>Publish schedule</span>
+			</Button>
+		</GatedAction>
+	);
+}
+
+/**
+ * The honest published state. A published run has no publish action; showing a
+ * disabled "Publish schedule" as the primary control read as a dead end. The
+ * adjacent Generate control is the real next step (re-generate from new data).
+ */
+export function SimplePublishedState({ followUpCount }: { followUpCount: number }) {
+	const label = followUpCount > 0
+		? `Published — ${followUpCount} follow-up item${followUpCount === 1 ? '' : 's'} remain`
+		: 'Published — read only';
+	return (
+		<div
+			className="flex h-11 min-w-28 items-center gap-1.5 rounded-md border border-emerald-200 bg-emerald-50 px-3 text-sm font-semibold text-emerald-800"
+			data-testid="timetable-simple-published-state"
+			data-published-follow-ups={followUpCount}
+			role="status"
+			aria-label={label}
+		>
+			<CheckCircle2 className="size-3.5 shrink-0" aria-hidden="true" />
+			<span className="truncate">{label}</span>
+		</div>
+	);
+}
+
 export function useSimpleTasks(
 	context: ScheduleReviewWorkspaceHeaderContext,
 	gates: TimetableCapabilities['gates'],
@@ -591,4 +704,52 @@ export type PublishTaskDispatch = 'publish-task' | 'readiness-sheet';
 
 export function resolvePublishTaskDispatch(publicationEnabled: boolean): PublishTaskDispatch {
 	return publicationEnabled ? 'publish-task' : 'readiness-sheet';
+}
+
+/* ------------------------------------------------------------------ *
+ * UX-QUICKFIX-C01 — visible Generate/Publish dispatch guards
+ * ------------------------------------------------------------------ */
+
+export type SimpleHeaderActionState = {
+	disabled: boolean;
+	reason: string | null;
+};
+
+/**
+ * The single guard behind the visible Generate control. A closed generation
+ * gate must dispatch zero requests, so the click handler reads this decision
+ * before it calls `context.handleTriggerGenerate()`.
+ */
+export function shouldDispatchSimpleGenerate(canPlanOrGenerate: boolean): boolean {
+	return canPlanOrGenerate;
+}
+
+/**
+ * The single guard behind the visible Publish control. A closed publication
+ * gate (including an already-published run) must dispatch zero requests.
+ */
+export function shouldDispatchSimplePublish(publicationEnabled: boolean, isRunPublished: boolean): boolean {
+	return publicationEnabled && !isRunPublished;
+}
+
+export function resolveSimpleGenerateActionState(input: {
+	canPlanOrGenerate: boolean;
+	loading: boolean;
+	generating: boolean;
+	gateReason: string | null;
+}): SimpleHeaderActionState {
+	if (input.canPlanOrGenerate) return { disabled: false, reason: null };
+	if (input.generating) return { disabled: true, reason: 'A generation run is already in progress.' };
+	if (input.loading) return { disabled: true, reason: 'The timetable is still loading.' };
+	return { disabled: true, reason: input.gateReason ?? 'Generation is not available for this school year yet.' };
+}
+
+export function resolveSimplePublishActionState(input: {
+	publicationEnabled: boolean;
+	isRunPublished: boolean;
+	gateReason: string | null;
+}): SimpleHeaderActionState {
+	if (input.isRunPublished) return { disabled: true, reason: 'This timetable is already published.' };
+	if (input.publicationEnabled) return { disabled: false, reason: null };
+	return { disabled: true, reason: input.gateReason ?? 'Publishing is not available for this run yet.' };
 }

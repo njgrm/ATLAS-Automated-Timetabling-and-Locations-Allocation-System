@@ -123,7 +123,7 @@ test('lifecycle fails closed while readiness is unresolved or unavailable', () =
 	}
 });
 
-test('production no-run header consumes the lifecycle action and has no hidden generate bypass', () => {
+test('production no-run header consumes the lifecycle action and mounts the visible gated Generate control', () => {
 	const header = source('src/components/timetable/TimetableSimpleHeader.tsx');
 	const noRunStart = header.indexOf('{!hasGeneratedRun && !context.isPreGenerationWorkspace ? (');
 	const generatedBranch = header.indexOf('\n\t\t\t) : (', noRunStart);
@@ -137,30 +137,44 @@ test('production no-run header consumes the lifecycle action and has no hidden g
 	assert.doesNotMatch(noRunBranch, /className="hidden"[\s\S]{0,180}handleTriggerGenerate/);
 	assert.equal((noRunBranch.match(/data-testid="timetable-simple-primary-action"/g) ?? []).length, 3,
 		'the three conditional render forms (external Link, in-place retry, lifecycle dispatcher) must identify the same sole primary action');
+	// UX-QUICKFIX-C01 supersedes the "Generate exists only in More" contract: the
+	// no-run action row now mounts the visible, gate-guarded Generate control.
+	// Dispatch still flows through the guarded handler, never inline.
+	assert.match(noRunBranch, /<SimpleGenerateAction/);
+	assert.match(noRunBranch, /onClick=\{handleGenerateClick\}/);
+	assert.doesNotMatch(noRunBranch, /context\.handleTriggerGenerate/);
 });
 
-test('removed hidden generation bypasses are gone from the full header', () => {
+test('the hidden generation bypasses are superseded by the visible, gated action cluster', () => {
 	const header = source('src/components/timetable/TimetableSimpleHeader.tsx');
-	// Neither removed control may exist anywhere in the production header.
+	const helpers = source('src/components/timetable/simple/SimpleHeaderHelpers.tsx');
+	// The removed hidden control may never return anywhere in the header.
 	assert.doesNotMatch(header, /timetable-simple-mobile-lifecycle-action/);
-	assert.doesNotMatch(header, /timetable-simple-generate-action/);
+	// UX-QUICKFIX-C01 deliberately reintroduces Generate as a VISIBLE, gated
+	// control. The old grep guarded a hidden control that bypassed the lifecycle
+	// dispatcher; the replacement lives in the extracted action module, is always
+	// visible, and reads the shared readiness decision before it dispatches.
+	assert.match(header, /<SimpleGenerateAction/);
+	assert.match(helpers, /data-testid="timetable-simple-generate-action"/);
 	// No hidden control may carry a direct generation call.
 	assert.doesNotMatch(header, /onClick=\{context\.handleTriggerGenerate\}/);
 	assert.doesNotMatch(header, /className="hidden"[\s\S]{0,300}context\.handleTriggerGenerate/);
-	// The only direct generation calls left are the visible lifecycle
-	// dispatcher and the explicitly gated More-menu item.
+	// The direct generation calls left are the gate-guarded visible handler, the
+	// visible lifecycle retry, and the explicitly gated More-menu item.
+	assert.match(header, /if \(!shouldDispatchSimpleGenerate\(canPlanOrGenerate\)\) return;/);
 	assert.match(header, /case 'retry-generate': context\.handleTriggerGenerate\(\); break;/);
 	// C04: the More menu was extracted; its gated generate item keeps its guard.
 	const moreMenu = source('src/components/timetable/simple/SimpleMoreMenuContent.tsx');
 	assert.match(moreMenu, /disabled=\{!canPlanOrGenerate\}[\s\S]{0,200}context\.handleTriggerGenerate\(\)/);
 
-	// No-run branch: sole primary is the lifecycle dispatcher, secondary stays
-	// preview-only, and no control bypasses the dispatcher.
+	// No-run branch: the lifecycle dispatcher remains the sole primary, the
+	// visible Generate control is mounted, and the preview action stays
+	// preview-only.
 	const noRunStart = header.indexOf('{!hasGeneratedRun && !context.isPreGenerationWorkspace ? (');
 	const generatedBranch = header.indexOf('\n\t\t\t) : (', noRunStart);
 	assert.ok(noRunStart >= 0 && generatedBranch > noRunStart, 'production no-run branch must exist');
 	const noRunBranch = header.slice(noRunStart, generatedBranch);
-	assert.doesNotMatch(noRunBranch, /handleTriggerGenerate/);
+	assert.match(noRunBranch, /<SimpleGenerateAction/);
 	assert.match(noRunBranch, /data-testid="timetable-unassigned-insertion-action"/);
 	assert.match(noRunBranch, /Preview demand/);
 	assert.match(noRunBranch, /setInsertionOpen\(true\)/);
@@ -428,7 +442,12 @@ test('TTX-11 room-request no-run 404 is empty, deduplicated, and gated on a comp
 	);
 });
 
-test('TTX-12 no permanently hidden publish control remains', () => {
+test('TTX-12 a visible, gated publish control replaces the permanently hidden one', () => {
 	const header = source('src/components/timetable/TimetableSimpleHeader.tsx');
-	assert.doesNotMatch(header, /timetable-simple-publish-action/);
+	const helpers = source('src/components/timetable/simple/SimpleHeaderHelpers.tsx');
+	// UX-QUICKFIX-C01 deliberately reintroduces Publish as a VISIBLE, gated
+	// control; the permanently hidden control is superseded.
+	assert.match(header, /<SimplePublishAction/);
+	assert.match(helpers, /data-testid="timetable-simple-publish-action"/);
+	assert.doesNotMatch(header, /className="hidden"[\s\S]{0,300}timetable-simple-publish-action/);
 });
