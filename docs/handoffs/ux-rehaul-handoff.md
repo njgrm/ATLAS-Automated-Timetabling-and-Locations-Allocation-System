@@ -58,9 +58,9 @@ every dispatch; the base above is already superseded.
 | # | File | Why |
 |---|---|---|
 | 4 | `docs/reviews/ux-audit-c01/atlas-timetable-relaxed-view-audit.md` | **The audit.** F-01…F-18, continuity findings C-01…C-05, live measurements, the Simple interaction inventory (partial), Round 2 (perf + SMART patterns + the nine capstone verdicts + revised stream order). |
-| 5 | `work/smart-ux-audit-c01:docs/design/atlas-smart-ux-convergence-contract.md` | 17-section target contract incl. §14 Teaching Load and §15 Simple Timetable. **Recommended UX baseline.** Not in `main`. |
-| 6 | `work/smart-ux-audit-c01:docs/reports/smart-registrar-teacher-ux-identity-audit-2026-09-12.md` | Source of the ADOPT/ADAPT/DO_NOT_COPY matrix. |
-| 7 | `work/smart-ux-audit-c01:docs/handoffs/atlas-smart-ux-convergence-handoff-2026-09-12.md` | Companion handoff. |
+| 5 | `docs/reviews/ux-audit-c01/smart-ux-convergence-contract.md` | **The SMART unified-design contract**, landed byte-identical (blob `d6df7e90…`) from `work/smart-ux-audit-c01` @ `7d047989`. 17 sections incl. §14 Teaching Load and §15 Simple Timetable. **Recommended UX baseline (pending D-1).** |
+| 6 | `docs/reviews/ux-audit-c01/smart-ux-convergence-contract-DELTA-2026-09-18.md` | **Read immediately after #5.** Corrects the stale pins, adds the Base-UI-vs-Radix engine finding, the SMART usage-reality caveat, the performance prerequisite, §1.1/§2/§4/§8 amendments, the nine capstone requirements, and the revised stream order. |
+| 7 | `docs/reviews/ux-audit-c01/smart-registrar-teacher-ux-identity-audit.md` | SMART source/live audit — the evidence base for the ADOPT/ADAPT/DO_NOT_COPY matrix (blob `1df05b4e…`). |
 
 ### 2.3 ATLAS client source you will actually change
 
@@ -296,10 +296,14 @@ contract; this is a client data-layer refactor with byte-identical payload expec
 git show origin/docs/ux-audit-c01:docs/handoffs/ux-rehaul-handoff.md
 git show origin/docs/ux-audit-c01:docs/reviews/ux-audit-c01/atlas-timetable-relaxed-view-audit.md
 
-# the un-integrated SMART UX baseline
+# the SMART unified-design baseline (now landed in the tracked tree)
+git show origin/docs/ux-audit-c01:docs/reviews/ux-audit-c01/smart-ux-convergence-contract.md
+git show origin/docs/ux-audit-c01:docs/reviews/ux-audit-c01/smart-ux-convergence-contract-DELTA-2026-09-18.md
+git show origin/docs/ux-audit-c01:docs/reviews/ux-audit-c01/smart-registrar-teacher-ux-identity-audit.md
+
+# provenance check (landed files are byte-identical to the original branch)
+git cat-file -p d6df7e90c95473841db8028027a1d1451c3ea829 | git hash-object --stdin
 git log --oneline -1 7d047989
-git show 7d047989:docs/design/atlas-smart-ux-convergence-contract.md
-git show 7d047989:docs/reports/smart-registrar-teacher-ux-identity-audit-2026-09-12.md
 
 # fresh worktree at the current base
 git -C D:\ATLAS fetch origin
