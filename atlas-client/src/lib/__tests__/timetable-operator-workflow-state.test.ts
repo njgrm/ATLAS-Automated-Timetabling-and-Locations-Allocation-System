@@ -135,8 +135,8 @@ test('production no-run header consumes the lifecycle action and has no hidden g
 	assert.match(noRunBranch, /\{lifecycleAction\.label\}/);
 	assert.doesNotMatch(noRunBranch, /data-testid="timetable-empty-generate-action"/);
 	assert.doesNotMatch(noRunBranch, /className="hidden"[\s\S]{0,180}handleTriggerGenerate/);
-	assert.equal((noRunBranch.match(/data-testid="timetable-simple-primary-action"/g) ?? []).length, 2,
-		'the two conditional render forms must identify the same sole primary action');
+	assert.equal((noRunBranch.match(/data-testid="timetable-simple-primary-action"/g) ?? []).length, 3,
+		'the three conditional render forms (external Link, in-place retry, lifecycle dispatcher) must identify the same sole primary action');
 });
 
 test('removed hidden generation bypasses are gone from the full header', () => {

@@ -101,7 +101,8 @@ test('UX-C01R: derived-ready with a missing exact Teaching Load owner stays bloc
 	assert.equal(state.state, 'blocked');
 	if (state.state === 'blocked') {
 		assert.equal(state.code, 'OWNERSHIP_MISSING');
-		assert.equal(state.repair.href, '/teaching-load');
+		assert.equal(state.repair.kind, 'navigate');
+		if (state.repair.kind === 'navigate') assert.equal(state.repair.href, '/teaching-load');
 		assert.equal(state.diagnostic.generateAllowed, false, 'the full diagnostic is retained, not collapsed to a boolean');
 	}
 	const caps = deriveTimetableCapabilities(baseCapabilities({
@@ -113,7 +114,51 @@ test('UX-C01R: derived-ready with a missing exact Teaching Load owner stays bloc
 	assert.equal(caps.generation.repair.href, '/teaching-load');
 });
 
-test('UX-C01R: derived-ready with an out-of-shape entry stays blocked with a shape repair', () => {
+test('UX-C01R: an ALGORITHM_LIMIT repair is a real in-place retry, never a self-link to /timetable', () => {
+	const diagnostic = readyDiagnostic({
+		status: 'BLOCKED',
+		generateAllowed: false,
+		blockers: [blocker('SEARCH_LIMIT_UNRESOLVED', 'ALGORITHM_LIMIT', { owningSurface: 'Generation algorithm' })],
+	});
+	const state = deriveGenerationReadinessState(diagnostic, SCOPE);
+	assert.equal(state.state, 'blocked');
+	if (state.state === 'blocked') {
+		// The bounded-search repair must be re-runnable in place; a navigation to
+		// the route already rendering this state would be a dead no-op.
+		assert.equal(state.repair.kind, 'retry');
+		assert.equal('href' in state.repair, false, 'a retry repair must not carry a self-route href');
+		if (state.repair.kind === 'retry') assert.match(state.repair.label, /readiness/i);
+	}
+	const caps = deriveTimetableCapabilities(baseCapabilities({
+		curriculumState: state.state,
+		generationDiagnostic: summarizeGenerationReadiness(state),
+		readinessRepair: state.state === 'blocked' ? state.repair : null,
+	}));
+	assert.equal(caps.generation.enabled, false);
+	assert.equal(caps.generation.repair.kind, 'retry', 'the shared capability model must preserve the retry repair');
+	assert.notEqual(caps.generation.repair.href, '/timetable');
+	// Negative control: a genuinely external owning surface still navigates.
+	const externalDiagnostic = readyDiagnostic({
+		status: 'BLOCKED',
+		generateAllowed: false,
+		blockers: [blocker('OWNERSHIP_MISSING', 'DEMAND_AUTHORITY')],
+	});
+	const externalState = deriveGenerationReadinessState(externalDiagnostic, SCOPE);
+	assert.equal(externalState.state, 'blocked');
+	if (externalState.state === 'blocked') {
+		assert.equal(externalState.repair.kind, 'navigate');
+		if (externalState.repair.kind === 'navigate') assert.equal(externalState.repair.href, '/teaching-load');
+	}
+	const externalCaps = deriveTimetableCapabilities(baseCapabilities({
+		curriculumState: externalState.state,
+		generationDiagnostic: summarizeGenerationReadiness(externalState),
+		readinessRepair: externalState.state === 'blocked' ? externalState.repair : null,
+	}));
+	assert.equal(externalCaps.generation.repair.kind, 'navigate');
+	assert.equal(externalCaps.generation.repair.href, '/teaching-load');
+});
+
+test('UX-C01R: derived-ready with an out-of-shape entry stays blocked with an in-place repair', () => {
 	const diagnostic = readyDiagnostic({
 		status: 'BLOCKED',
 		generateAllowed: false,
@@ -121,7 +166,10 @@ test('UX-C01R: derived-ready with an out-of-shape entry stays blocked with a sha
 	});
 	const state = deriveGenerationReadinessState(diagnostic, SCOPE);
 	assert.equal(state.state, 'blocked');
-	if (state.state === 'blocked') assert.equal(state.repair.href, '/timetable');
+	if (state.state === 'blocked') {
+		assert.equal(state.repair.kind, 'retry');
+		assert.equal('href' in state.repair, false, 'no repair may self-link to /timetable');
+	}
 	const caps = deriveTimetableCapabilities(baseCapabilities({
 		curriculumState: state.state,
 		generationDiagnostic: summarizeGenerationReadiness(state),
@@ -148,7 +196,10 @@ test('UX-C01R: derived-ready with a policy/template/window blocker stays blocked
 	});
 	const state = deriveGenerationReadinessState(diagnostic, SCOPE);
 	assert.equal(state.state, 'blocked');
-	if (state.state === 'blocked') assert.equal(state.repair.href, '/admin/year-setup');
+	if (state.state === 'blocked') {
+		assert.equal(state.repair.kind, 'navigate');
+		if (state.repair.kind === 'navigate') assert.equal(state.repair.href, '/admin/year-setup');
+	}
 });
 
 test('UX-C01R: derived-ready with a hard-validator blocker stays blocked and keeps every blocker', () => {
@@ -164,7 +215,8 @@ test('UX-C01R: derived-ready with a hard-validator blocker stays blocked and kee
 	assert.equal(state.state, 'blocked');
 	if (state.state === 'blocked') {
 		assert.equal(state.diagnostic.blockers.length, 2, 'every blocker is retained in the readiness state');
-		assert.equal(state.repair.href, '/map', 'the first blocker owns the one smallest repair');
+		assert.equal(state.repair.kind, 'navigate');
+		if (state.repair.kind === 'navigate') assert.equal(state.repair.href, '/map', 'the first blocker owns the one smallest repair');
 	}
 });
 
@@ -223,22 +275,38 @@ test('UX-C01R: summary gate refuses a ready state whose diagnostic does not prov
 		generationDiagnostic: { generateAllowed: false, zeroWrite: true, blockerCount: 0 },
 	}));
 	assert.equal(caps.generation.enabled, false);
+	// The unproven-readiness repair must be an in-place retry, never a self-link
+	// back to the route that is already rendering the blocked state.
+	assert.equal(caps.generation.repair.kind, 'retry');
+	assert.notEqual(caps.generation.repair.href, '/timetable');
 });
 
-test('UX-C01R: repair mapping is deterministic and never the retired requirements page', () => {
+test('UX-C01R: repair mapping is deterministic, never the retired requirements page, and never a self-route', () => {
 	const teachingLoad = deriveTimetableReadinessRepair({
 		code: 'OWNERSHIP_MISSING', category: 'DEMAND_AUTHORITY', termIdentity: null, sectionId: null,
 		subjectId: null, subjectCode: null, entity: 'x', reason: 'x', owningSurface: 'Teaching Load', nextAction: 'x',
 	});
-	assert.equal(teachingLoad.href, '/teaching-load');
+	assert.equal(teachingLoad.kind, 'navigate');
+	if (teachingLoad.kind === 'navigate') assert.equal(teachingLoad.href, '/teaching-load');
 	const room = deriveTimetableReadinessRepair({
 		code: 'ROOM_TIME_CONFLICT', category: 'RESOURCE_INFEASIBLE', termIdentity: null, sectionId: null,
 		subjectId: null, subjectCode: null, entity: 'x', reason: 'x', owningSurface: 'Rooms', nextAction: 'x',
 	});
-	assert.equal(room.href, '/map');
+	assert.equal(room.kind, 'navigate');
+	if (room.kind === 'navigate') assert.equal(room.href, '/map');
+	// The bounded scheduler search is repaired in place: `/timetable` is the
+	// route that renders the blocked state, so it can never be the target.
+	const algorithmLimit = deriveTimetableReadinessRepair({
+		code: 'SEARCH_LIMIT_UNRESOLVED', category: 'ALGORITHM_LIMIT', termIdentity: null, sectionId: null,
+		subjectId: null, subjectCode: null, entity: 'x', reason: 'x', owningSurface: 'Generation algorithm', nextAction: 'x',
+	});
+	assert.equal(algorithmLimit.kind, 'retry');
+	assert.equal('href' in algorithmLimit, false);
 	for (const entry of [teachingLoad, room]) {
+		if (entry.kind !== 'navigate') continue;
 		assert.notEqual(entry.href, '/curriculum-requirements');
 		assert.notEqual(entry.href, '/subjects/requirements');
+		assert.notEqual(entry.href, '/timetable', 'no repair may self-navigate to the route rendering it');
 	}
 });
 

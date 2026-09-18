@@ -152,13 +152,17 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 	});
 	const generationGate = capabilities.generation;
 	const generationReady = generationGate.enabled;
-	const setupRepair = generationGate.repair.kind === 'navigate' ? generationGate.repair : setupState.repair;
+	// Keep every real generation repair (navigate OR retry); only fall back to
+	// the setup-state repair when the generation gate offers no repair at all.
+	const setupRepair = generationGate.repair.kind !== 'none' ? generationGate.repair : setupState.repair;
 	// F3 — a repair target equal to the current route is a dead control ("Review
-	// timetable" while already on /timetable). Treat it as no destination so the
-	// prompt never renders a self-link primary action.
+	// timetable" while already on /timetable). It must never be suppressed into
+	// an absent primary action: a self-route or retry repair is served by a real
+	// in-place action (re-run the readiness check) instead of a dead link.
 	const setupRepairTargetsCurrentRoute = setupRepair.kind === 'navigate'
 		&& setupRepair.href != null
 		&& setupRepair.href.split('?')[0] === location.pathname;
+	const setupRepairIsInPlace = setupRepair.kind === 'retry' || setupRepairTargetsCurrentRoute;
 	// F2 — a blocked readiness message is a raw engine diagnostic (entity ·
 	// subject · term · session reason). Keep the operator sentence short and
 	// expose the technical detail behind a tooltip for support.
@@ -679,7 +683,19 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 					</div>
 					<div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
 						<TimetableStatusLegend compact />
-						{lifecycleAction.kind === 'fix-setup' && setupRepair.kind === 'navigate' && setupRepairTargetsCurrentRoute ? null : lifecycleAction.kind === 'fix-setup' && setupRepair.kind === 'navigate' ? (
+						{setupRepairIsInPlace ? (
+							<Button
+								type="button"
+								size="sm"
+								className="h-11 gap-1.5 px-3 text-sm"
+								disabled={lifecycleAction.disabled || context.loading}
+								onClick={() => context.handleRefresh()}
+								data-testid="timetable-simple-primary-action"
+							>
+								<RefreshCw className="size-3.5" aria-hidden="true" />
+								<span>{setupRepair.label ?? lifecycleAction.label}</span>
+							</Button>
+						) : lifecycleAction.kind === 'fix-setup' && setupRepair.kind === 'navigate' ? (
 							<Button asChild type="button" size="sm" className="h-11 gap-1.5 px-3 text-sm" data-testid="timetable-simple-primary-action">
 								<Link to={setupRepair.href ?? YEAR_SETUP_HREF}>
 									<BookOpen className="size-3.5" aria-hidden="true" />

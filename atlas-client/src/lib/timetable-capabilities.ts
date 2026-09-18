@@ -139,8 +139,10 @@ export function deriveTimetableCapabilities(input: TimetableCapabilityInput): Ti
 		if (input.generating) return denied('A generation run is already in progress.');
 		if (input.curriculumState === 'loading') return denied('Still checking setup inputs for this school year.');
 		if (input.curriculumState === 'blocked') {
-			const repair = input.readinessRepair
-				? { kind: 'navigate' as const, label: input.readinessRepair.label, href: input.readinessRepair.href }
+			const repair: TimetableRepair = input.readinessRepair
+				? input.readinessRepair.kind === 'retry'
+					? retry(input.readinessRepair.label)
+					: navigate(input.readinessRepair.label, input.readinessRepair.href)
 				: navigate('Open Year Setup', YEAR_SETUP_HREF);
 			return denied('Setup inputs for the active school year are not ready yet.', repair);
 		}
@@ -153,7 +155,7 @@ export function deriveTimetableCapabilities(input: TimetableCapabilityInput): Ti
 			&& (!input.generationDiagnostic.generateAllowed || !input.generationDiagnostic.zeroWrite || input.generationDiagnostic.blockerCount > 0)) {
 			return denied(
 				'Generation readiness is not verified for this school year.',
-				navigate('Check generation readiness', '/timetable'),
+				retry('Recheck generation readiness'),
 			);
 		}
 		if (input.driftBlocked) {
