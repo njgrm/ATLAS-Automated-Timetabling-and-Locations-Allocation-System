@@ -69,28 +69,45 @@ Retained startable releases on disk: `f0d65a53`, `4ce73d15`, `3c4cc3cd`,
 - Blocker arc closed: 66 -> 48 -> 110 -> 55 -> 69 -> 30 -> 0 (room, capacity,
   flag, scheduler search).
 
-## Open items
+## Confirmed defects with ready packets
 
-1. **Product decision needed** — does REGULAR overlay the Flag/HGP period while
-   only STE/SPA/SPS relocate the displaced session to a Monday-only
-   compensation row? Determines the size of the flag/compensation lane.
-   Note: `ec2430ab` ("in-period overlay") is inconsistent with the stakeholder
-   image for the relocated subject.
-2. Export DepEd styling — mirror the DOCX renderer's header/borders/merges into
-   the exceljs class-program renderer; fix `Total minutes per day` writing the
-   same value to all five weekday cells.
-3. `Building.gradeScope` is `[]` for every building, so `buildingMatchScore`
-   collapses to building-name order. Current home-room assignment is correct
-   only because it was set manually.
-4. `manual-edit.service.ts` leaks the internal string
-   "Published repairs require the Prompt 6 revision workflow" to operators.
-5. Published-safe swap and revision-time hard-constraint validation
-   (revision path performs none today).
-6. `DATA-CORRECTION-C01` is mis-targeted at the archived year and has 4 blocking
+| Packet | Defect (confirmed live) |
+| --- | --- |
+| `docs/prompts/home-room-auto-assign-c01-2026-09-18.md` | Auto-assign places **all 20 sections of every grade into the Grade 10 Academic Wing**. Captured via `mode: 'preview'`, `overwriteExisting: true` (zero writes). Persisted manual assignment is per-grade correct, so the manual data masks it. Cause: every academic wing has `gradeScope=[]` -> all score any-grade -> tiebreak falls to `buildingName`, and `"Grade 10 Academic Wing"` sorts before `"Grade 7 Academic Wing"`. Needs a source fix **plus** a separate HIGH-gated `gradeScope` apply. |
+| `docs/prompts/flag-compensation-slot-c01-2026-09-18.md` | The flag ceremony **occupies** the Monday 12:15-1:00 period and the displaced subject is **relocated to a Monday-only compensation row** (Science at 9:45-10:30 in `grade9STE_Sched.jpg`). `ec2430ab` ("in-period overlay") encodes the opposite and must be replaced. |
+| `docs/prompts/export-presentation-c12-2026-09-18.md` | `Total minutes per day` writes one value into all five weekday cells; xlsx class-program renderer lacks borders/alignment/merged header; no grade palette (G7 green, G8 yellow, G9 red, G10 blue); header fields hardcoded empty. |
+| `docs/prompts/published-revision-authority-c12-2026-09-18.md` | The published-revision path performs **no hard-constraint validation**, so a revision can introduce a HARD violation. No published-safe swap. `manual-edit.service.ts:461` leaks "Prompt 6". |
+
+## Operator decisions required
+
+1. **Interval resolution for the flag lane.** `grade9STE_Sched.jpg` overlaps
+   `9:45-10:30` with `10:00-10:45`, and prints `60` minutes where the corrected
+   value is 45. Choose: shift the following rows, or re-base the grid to a
+   canonical 45-minute ladder.
+2. **Flag relocation scope.** The ceremony is school-wide; confirm the period is
+   occupied for every program type (REGULAR, STE, SPA, SPS) with only the
+   compensation placement varying.
+3. **Export architecture.** DepEd prescribes curriculum and time allotments, not
+   document layout — division memoranda state the DO 9 s. 2026 samples are
+   "illustrative references ... not rigid or mandatory templates". So exports
+   must ship a default renderer matching the stakeholder artifacts **plus** a
+   template-override seam. Confirm before the packet is dispatched.
+
+## Other open items
+
+4. `DATA-CORRECTION-C01` is mis-targeted at the archived year and has 4 blocking
    findings — rescope onto year 10 or abandon.
-7. SSO env activation needs one restart (must not overlap another runtime action).
-8. Hygiene: untracked scratch `atlas-server/src/__probe-preflight.ts` in the
+5. SSO env activation needs one restart (must not overlap another runtime action).
+6. Hygiene: untracked scratch `atlas-server/src/__probe-preflight.ts` in the
    integration worktree.
+
+## Operator log viewing
+
+`ops/runtime/atlas-logs.ps1` tails the merged supervisor log in an interactive
+window (`-Stream all|server|client`). Two logon-triggered tasks open one window
+per stream. The runtime itself stays SYSTEM-owned in the background: Windows
+Session 0 isolation means a SYSTEM process cannot display a window on the
+interactive desktop, so visible terminals must be launched in the user session.
 
 ## Boundaries
 
