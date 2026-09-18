@@ -280,8 +280,142 @@ publication, deployment, or shared-runtime changes. Desktop-first.
 
 ---
 
-## 10. Change log
+## 10. Round 2 — performance, SMART source patterns, and unified-system analysis
+
+### 10.1 The data layer is the real blocker for a route split
+
+The operator raised a decisive concern: *"currently it takes too long to load … going
+back and forth will be a nightmare."* This is correct, and it invalidates the original
+UX-R03 sequencing. Measured evidence:
+
+| Evidence | Finding |
+|---|---|
+| `atlas-client/package.json` | **No server-state cache.** No TanStack Query, no SWR. |
+| grep `prefetch\|staleTime\|keepPreviousData\|useQuery` | **0 occurrences** in the entire client. |
+| `App.tsx` | **23 lazy routes** — every navigation swaps a chunk. |
+| `hooks/useTimetableData.ts` | **15 sequential `await`s** vs only **3** `Promise.all` blocks → request waterfall. |
+| Live `/timetable` load | **10 API calls**; UI renders *"finding the latest run first, then adding labels and secondary diagnostics"* → deliberate 2-phase load. |
+| Behaviour | Every mount **refetches everything**; nothing is cached. |
+
+**Conclusion:** splitting `/timetable` into sub-pages today would **multiply** this cost
+by the number of sub-pages. The data layer must be fixed first.
+
+### 10.2 Patterns that fix back-and-forth navigation
+
+| # | Pattern | Effect | Source |
+|---|---|---|---|
+| A | **Persistent layout route** — `/timetable` renders the workspace shell once; sub-pages render into `<Outlet/>` beside the grid | Grid **never unmounts** → zero reload on back/forth | React Router v7 nested routes (in use) |
+| B | **Server-state cache (TanStack Query)** — `staleTime` 30–60 s for run/grid, longer for reference data; `placeholderData: keepPreviousData`; `gcTime` | Revisits render instantly; scope switches keep the previous grid instead of a skeleton | context7 `/tanstack/query` docs |
+| C | **Prefetch on hover/focus** — `queryClient.prefetchQuery({ queryKey, queryFn, staleTime })` | Data warm before the click | context7 `/tanstack/query` |
+| D | **Collapse the waterfall** — batch the 15 sequential awaits into parallel `Promise.all` groups | Direct latency cut | source |
+| E | **Chunk prefetch** — `import()` the sub-page chunk on hover | Removes JS download from the critical path | source |
+| F | **Stale-while-revalidate UI** — keep the previous grid with a subtle "updating" cue instead of `TimetableSkeleton` | Perceived speed | source |
+
+### 10.3 SMART source-derived design patterns
+
+SMART reference mirror: `D:\smart-final-capstone` @ **`1bda233`** (READ_ONLY).
+**Note:** the living register still claims `c3806e12` at `atlas-active-delivery-streams.md:600` — that is **stale**.
+
+**Engine comparison (answers "will we not look like them because of Radix?"):**
+
+| | SMART | ATLAS |
+|---|---|---|
+| Headless engine | **`@base-ui/react` v1.3.0 — zero Radix** | **14 `@radix-ui/*` packages** |
+| Component system | shadcn/ui (`shadcn` ^4.1.1) | shadcn/ui |
+| Styling conventions | `class-variance-authority`, `clsx`, `tailwind-merge`, `lucide-react` | identical |
+| CSS | Tailwind v4 (CSS-first) | Tailwind v4 |
+
+**A Radix `Dialog` and a Base UI `Dialog` render identically when styled with the same
+tokens — users never see the engine. Do NOT migrate ATLAS off Radix.**
+
+**Honest caveat — SMART owns good primitives but barely uses them:**
+
+| SMART component | Exists | Actual usage sites |
+|---|---|---|
+| `ui/breadcrumb.tsx` | yes | **0** |
+| `layout/PageHeader.tsx` | yes | **0** |
+| `data-table/DataTable.tsx` | yes | **0** |
+
+Their calm feel comes from **tokens + spacing + typography**, not shared-component
+discipline. Copy the visual language, not the usage discipline.
+
+**Page header anatomy** — `src/components/layout/PageHeader.tsx` (42 lines):
+
+```tsx
+<div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+  <div className="flex items-center gap-3">
+    <h1 className="text-2xl font-bold tracking-tight text-foreground">{title}</h1>
+    {badge}
+  </div>
+  <div className="flex items-center gap-3">
+    <p className="text-sm text-muted-foreground hidden sm:block">{description}</p>
+    {actions}
+  </div>
+</div>
+```
+
+**Other concrete SMART facts:** shell = sidebar `w-[280px]` expanded / `lg:w-[70px]`
+collapsed (`AdminLayout.tsx:174`); **`min-h-screen` document scroll (do NOT copy — violates
+ATLAS no-scroll)**; tokens = **154 CSS vars** in `src/index.css` incl. a 7-level shadow
+scale (`--shadow-xs…2xl`, `--shadow-glow`, `--shadow-emerald`) and ledger tokens;
+`--sans: 'DM Sans'`, base `16px/1.6`, `letter-spacing:-0.011em`.
+Primitive inventory (17): avatar, badge, breadcrumb, button, card, dialog, dropdown-menu,
+input, label, pagination, scroll-area, select, separator, skeleton, table, tabs, tooltip.
+
+### 10.4 ATLAS is ALREADY partially SMART-aligned at the token layer
+
+`atlas-client/src/index.css` states in its own comments:
+*"Base surface tokens (light slate / white, **SMART-aligned**)"*;
+*"Default accent: emerald (**SMART scheduling portal identity**)"*;
+*"**SMART-compatible theme aliases**"*.
+ATLAS has **83** token vars vs SMART's 154. Unification is partly done; the gap is structural.
+
+### 10.5 What actually makes two apps look unified (four levers)
+
+| Lever | ATLAS today | Action |
+|---|---|---|
+| 1. Tokens (colour, radius, shadow, type scale) | Partially SMART-aligned; lacks shadow scale | Adopt SMART's shadow/semantic token **structure** |
+| 2. Layout conventions (shell, nav, page header) | No `PageHeader`; Timetable has a bespoke ~981-line header | Promote the `PageHeader` anatomy (`SmartCommandBar` is ~80% of it) |
+| 3. Component anatomy (button/card/table density) | `ui/card.tsx` hardcodes zinc | Token-ise the card; freeze button/card metrics |
+| 4. State conventions (loading/empty/error/degraded) | Inconsistent per page | Adopt one canonical state set |
+
+**The primitive engine is not one of the levers.**
+
+### 10.6 Verdicts on the nine capstone items
+
+| # | Item | Verdict | Evidence |
+|---|---|---|---|
+| 1 | "grades/program" → "grade level / program" | **AGREE** | `pages/Subjects.tsx:663` `label="Grades / program"`; also `SubjectMobileCard.tsx:76`, `SubjectFilterToolbar.tsx:90` ("All Grades") |
+| 2 | "owner department" → "department" | **AGREE WITH CAUTION** | Field `ownerDepartment` + `allowedOwnerDepartments` (`SubjectFormModal.tsx:37-38,292-299`). Rename the **label only**; if both become "Department" the primary/additional distinction is lost. Do not rename the DB field. |
+| 3 | All clickable buttons visible; filtering obvious | **STRONGLY AGREE — verified defect** | Filters is **item 15 of 17 inside the More menu** → an active filter is invisible. Needs a visible Filters button with an active-count badge + removable filter chips. |
+| 4 | "Timetable" → "Class Schedule" | **AGREE + ambiguity warning** | `navigation.ts:38` item, `:60` group. **`/schedules` ("Schedules") already exists** → "Class Schedule" vs "Schedules" is *more* ambiguous. Rename both, or rename `Schedules` → "Room Schedules". Keep the `/timetable` URL. |
+| 5 | Remove warnings when published | **PARTIALLY AGREE — needs one check** | Code gates on `isRunPublishedStrict` (`TimetableSimpleHeader.tsx:139`) and `readinessLabel` returns "Published" when published. If warnings showed on a *published* run, the likely defect is **which run is considered published**, not the chip. Verify Run #316 state before treating as a bug. |
+| 6 | Panels not separated / panel display clear | **AGREE (inverted)** | In Simple there is effectively **one** panel + a collapsed icon rail — panels are *merged*, with no boundary between header rows and grid. In Advanced the rails collapse to bare icons and can vanish. Confirm which screen. |
+| 7 | Clarify button arrangement | **STRONGLY AGREE — measured** | The rendered header aligns controls **three different ways**: row 1 right-aligned, row 2 left-aligned, row 3 split (status left / primary right). |
+| 8 | Put sub-menus into the main menu | **DISAGREE AS STATED** | Adding timetable internals to the sidebar re-creates overwhelm at nav level. Instead: sidebar = **domains** (Class Schedule, Teaching Load, Campus & Rooms); **sub-tabs inside** the workspace for policies/setup/runs/exports. If the intent is "stop burying things in *More*", agree. |
+| 9 | Controls on same side; emphasize clickability | **AGREE** | Row-2 "1 earlier row hidden" / "Show full day" are `ghost` chips reading as passive badges. Plus F-18: the primary action renders `ChevronDown` but dispatches an action — false affordance. |
+
+### 10.7 Revised stream order
+
+```
+UX-P01   Data layer: TanStack Query + parallel fetches + prefetch + keepPreviousData   ← NEW, prerequisite
+UX-R00   Register reconciliation + land/refresh SMART-UX-AUDIT-C01 baseline
+UX-R01   Primitives: PageHeader (promote SmartCommandBar) + breadcrumbs + token fixes
+UX-R01a  Shared visual language: SMART PageHeader anatomy, shadow/token structure,
+         type-role unification with a 12px chrome floor, canonical state set        ← NEW
+UX-R02   Simple strip-down: visible filters w/ count, one status region, one primary,
+         one action alignment, affordance fixes
+UX-R03   Nested layout route (grid stays mounted) + sub-page panels                 ← depends on UX-P01
+UX-R04   Move admin/diagnostics off the operator surface
+UX-R05   Advanced demotion to "Expert"
+UX-R06   Micro-copy: items 1, 2, 4 (+ resolve "Schedules" ambiguity)                ← safe now
+```
+
+---
+
+## 11. Change log
 
 | Date | Author | Change |
 |---|---|---|
 | 2026-09-18 | primary planner | Initial capture: live rendered + source-traced audit, continuity findings, interaction inventory (partial). |
+| 2026-09-18 | primary planner | Round 2: zero-cache data-layer finding and the six navigation/perf patterns; SMART source patterns (Base UI vs Radix, PageHeader anatomy, token system); four unified-system levers; verdicts on the nine capstone items; revised stream order with `UX-P01` as prerequisite and `UX-R01a` added. |
