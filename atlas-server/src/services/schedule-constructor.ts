@@ -659,20 +659,47 @@ export interface DayScopedEventWindow {
 export { resolveSpecialEventDayOfWeek };
 
 /**
- * Day-scoped non-schedulable windows. A Monday-only event must block candidate
- * construction on Monday while leaving the identical interval eligible on every
- * other instructional weekday.
+ * Capability gate for day-scoped placement blocking.
+ *
+ * A Flag Ceremony / HGP row is an OVERLAY *inside* an instructional period.
+ * Every SY 2026-2027 stakeholder class program prints `Flag Ceremony/HGP` in
+ * the Monday cell of a row whose Tue–Fri cells are ordinary subjects, and the
+ * printed daily totals are identical Mon–Thu; teacher programs state the
+ * period is "45 mins Inclusive of HGP/PEACE Campaign (Monday)". The overlay
+ * therefore never removes a teaching slot and must never block candidate
+ * construction. Break-like events and unknown event types remain
+ * capacity-blocking (fail-closed) unless they carry the Flag/HGP identity.
+ *
+ * Identity comes from the ONE shared authority (`isFlagCeremonyEvent`) so the
+ * constructor, preflight, room view, and published view cannot disagree.
+ */
+export function isCapacityBlockingSpecialEvent(
+	eventType: string | null | undefined,
+	label: string | null | undefined,
+): boolean {
+	return !isFlagCeremonyEvent(eventType, label);
+}
+
+/**
+ * Day-scoped non-schedulable windows. A Monday-only capacity-blocking event
+ * must block candidate construction on Monday while leaving the identical
+ * interval eligible on every other instructional weekday.
+ *
+ * A Flag/HGP overlay is excluded entirely (`isCapacityBlockingSpecialEvent`):
+ * it occupies an INSTRUCTIONAL period, so it must never be pushed as a
+ * block. Break-like events (health/lunch) with an explicit weekday keep their
+ * day scope; day-agnostic breaks stay owned by `buildPeriodSlots`.
  *
  * R3: a Flag/HGP row persisted with an explicit non-Monday day is REJECTED
- * authority. It is excluded here (no non-Monday day-scoped window, no
- * non-Monday overlay) so a bypassed preflight cannot silently schedule a
- * Wednesday/Thursday ceremony.
+ * authority and no longer produces any window here (it can never block, and
+ * the display path drops it) so a bypassed preflight cannot silently schedule
+ * a Wednesday/Thursday ceremony.
  *
- * R2: when canonical CLASS rows are supplied, the window is snapped to the
- * single containing CLASS row (the underlying advisory-section period) so the
- * overlay occupies exactly that period. A window that no canonical CLASS row
- * contains — or that more than one contains — yields no synthesized window;
- * the preflight reports the typed `FLAG_CEREMONY_SCOPE_INVALID` blocker.
+ * R2: when canonical CLASS rows are supplied, a capacity-blocking window is
+ * snapped to the single containing CLASS row (the underlying
+ * advisory-section period). A window that no canonical CLASS row contains —
+ * or that more than one contains — yields no synthesized window; the
+ * preflight reports the typed `FLAG_CEREMONY_SCOPE_INVALID` blocker.
  */
 export function buildDayScopedEventWindows(
 	policy?: PolicyInput,
@@ -683,6 +710,9 @@ export function buildDayScopedEventWindows(
 	const hasShiftEvents = policy.specialEvents && policy.specialEvents.length > 0;
 	if (hasShiftEvents) {
 		for (const evt of policy.specialEvents!) {
+			// A Flag/HGP overlay occupies an instructional period and must never
+			// remove a teachable slot. Unknown/break-like events stay blocking.
+			if (!isCapacityBlockingSpecialEvent(evt.eventType, evt.label)) continue;
 			const flagAuthority = resolveFlagCeremonyDayAuthority(evt.eventType, evt.dayOfWeek, evt.label);
 			if (flagAuthority.explicitNonMonday) continue;
 			const day = flagAuthority.day ?? resolveSpecialEventDayOfWeek(evt.eventType, evt.dayOfWeek, evt.label);
@@ -696,14 +726,10 @@ export function buildDayScopedEventWindows(
 				label: evt.label,
 			});
 		}
-	} else if ((policy.enableFlagCeremony ?? true) && !(canonicalClassRows && canonicalClassRows.length > 0)) {
-		windows.push({
-			day: 'MONDAY',
-			startTime: policy.flagCeremonyStartTime ?? '07:00',
-			endTime: policy.flagCeremonyEndTime ?? '07:30',
-			label: 'FLAG CEREMONY',
-		});
 	}
+	// The synthetic global flag window is intentionally retired: a global Flag
+	// Ceremony is still an in-period overlay, never a placement block.
+	// `buildPeriodSlots` already owns recess/lunch capacity removal.
 	return windows;
 }
 

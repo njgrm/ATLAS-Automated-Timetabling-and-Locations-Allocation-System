@@ -279,7 +279,7 @@ function buildPreflightClient(flagRows: ReturnType<typeof persistedSpecialEvents
 	return { client, writes };
 }
 
-test('C07-S02. the constructor policy built from the assembly carries the persisted special events verbatim and the Monday window equals the persisted interval', async () => {
+test('C07-S02. the constructor policy built from the assembly carries the persisted special events verbatim and the flag overlay is not a capacity block', async () => {
 	const { client, writes } = buildPreflightClient(persistedSpecialEvents(null));
 	const preflight = await buildGenerationPreflight(SCHOOL_ID, SCHOOL_YEAR_ID, { client, termContract: TERM_CONTRACT, enforceShiftWindows: false });
 	assert.equal(preflight.ok, true, `expected a ready preflight: ${preflight.blockers.map((b) => b.code).join(', ')}`);
@@ -299,11 +299,12 @@ test('C07-S02. the constructor policy built from the assembly carries the persis
 	assert.equal(overlay?.endTime, '07:30');
 	assert.equal(overlay?.dayOfWeek, 'MONDAY');
 
-	// Non-day-scoped persisted events are day-scoped-blocked for every weekday;
-	// a Monday-only overlay blocks Monday only.
+	// The persisted FLAG_OR_HGP row is an in-period overlay: it must NOT produce
+	// a day-scoped capacity block. Its snapped display overlay (06:45-07:30,
+	// asserted above) is the only rendering, and the underlying CLASS period
+	// stays schedulable.
 	const windows = buildDayScopedEventWindows(constructorInput.policy, CANON_7_CLASS_ROWS);
-	assert.equal(windows.length, 1);
-	assert.equal(windows[0].day, 'MONDAY');
+	assert.deepEqual(windows, [], 'a Flag/HGP overlay must not become a capacity-blocking window');
 	assert.deepEqual(writes, [], 'a read-only preflight performs zero writes');
 });
 

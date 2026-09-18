@@ -124,13 +124,15 @@ test('G9G10 ruling: the Monday Flag/HGP overlay adds no period and lands on one 
 	});
 	assert.equal(unsnappable.displaySlots.some((slot) => slot.eventName === 'Flag Ceremony / HGP'), false, 'an unsnappable window is never invented as a multi-period overlay');
 
-	// Monday-only day scope: the interval is blocked only on Monday.
+	// The flag is an in-period overlay, never a capacity block: it produces no
+	// day-scoped placement window (the CLASS row it overlays stays schedulable
+	// on Monday, exactly like the other weekdays).
 	const windows = buildDayScopedEventWindows({
 		maxConsecutiveTeachingMinutesBeforeBreak: 120, minBreakMinutesAfterConsecutiveBlock: 15, maxTeachingMinutesPerDay: 480,
 		earliestStartTime: '12:15', latestEndTime: '18:30',
 		specialEvents: [{ eventType: 'FLAG_OR_HGP', label: 'Flag Ceremony / HGP', startTime: '12:15', endTime: '13:00', dayOfWeek: null }],
 	});
-	assert.deepEqual(windows.map((window) => window.day), ['MONDAY']);
+	assert.deepEqual(windows, [], 'a Flag/HGP overlay must not create a capacity-blocking window');
 });
 
 test('canonical schedule-constructor marks flag ceremony as a Monday-only display event', () => {

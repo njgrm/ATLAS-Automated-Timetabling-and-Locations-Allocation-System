@@ -3,7 +3,7 @@ import test from 'node:test';
 import { readFile } from 'node:fs/promises';
 
 import { buildTeacherProgramExportShape, sortTeacherProgramWorkloadRows } from '../services/teacher-program-export.service.js';
-import { buildPeriodSlots, buildSpecialEventSlots } from '../services/schedule-constructor.js';
+import { buildDayScopedEventWindows, buildPeriodSlots, buildSpecialEventSlots, isCapacityBlockingSpecialEvent } from '../services/schedule-constructor.js';
 import { loadExportContext } from '../services/workbook-export.service.js';
 
 test('canonical special-event builder defaults schema-shaped FLAG_OR_HGP to Monday and rejects explicit non-Monday scope (C07-R3)', () => {
@@ -61,6 +61,51 @@ test('N2 F3. a non-schedulable CUSTOM row labelled as a flag ceremony does not b
 		buildPeriodSlots({ ...policy, specialEvents: [{ eventType: 'CUSTOM', label: 'Reading Camp', startTime: '06:00', endTime: '06:45' }] }).map((slot) => `${slot.startTime}-${slot.endTime}`),
 		['06:45-07:30'],
 	);
+});
+
+test('capacity classification: Flag/HGP overlays never block a slot while breaks and unknown rows stay fail-closed', () => {
+	// Flag/HGP identity — by eventType or by label — is an in-period overlay.
+	assert.equal(isCapacityBlockingSpecialEvent('FLAG_OR_HGP', 'Flag Ceremony'), false);
+	assert.equal(isCapacityBlockingSpecialEvent('CUSTOM', 'Flag Ceremony / HGP'), false);
+	// Genuine capacity blocks and unknown break-like rows stay blocking.
+	assert.equal(isCapacityBlockingSpecialEvent('LUNCH_BREAK', 'Lunch Break'), true);
+	assert.equal(isCapacityBlockingSpecialEvent('HEALTH_BREAK', 'Health Break'), true);
+	assert.equal(isCapacityBlockingSpecialEvent('CUSTOM', 'Reading Camp'), true);
+
+	const policy = {
+		periodLengthMinutes: 45,
+		maxConsecutiveTeachingMinutesBeforeBreak: 120,
+		minBreakMinutesAfterConsecutiveBlock: 15,
+		maxTeachingMinutesPerDay: 480,
+		earliestStartTime: '06:00',
+		latestEndTime: '18:30',
+	};
+	assert.deepEqual(
+		buildDayScopedEventWindows({
+			...policy,
+			specialEvents: [{ eventType: 'FLAG_OR_HGP', label: 'Flag Ceremony / HGP', startTime: '06:45', endTime: '07:30', enabled: true }],
+		}),
+		[],
+		'a Flag/HGP overlay must not synthesize a day-scoped placement window',
+	);
+	for (const eventType of ['LUNCH_BREAK', 'HEALTH_BREAK'] as const) {
+		const windows = buildDayScopedEventWindows({
+			...policy,
+			specialEvents: [{
+				eventType,
+				label: eventType === 'LUNCH_BREAK' ? 'Lunch Break' : 'Health Break',
+				startTime: '06:45',
+				endTime: '07:30',
+				dayOfWeek: 'MONDAY',
+				enabled: true,
+			}],
+		});
+		assert.deepEqual(
+			windows.map((window) => `${window.day} ${window.startTime}-${window.endTime}`),
+			['MONDAY 06:45-07:30'],
+			`${eventType} explicitly scoped to MONDAY must keep its day-scoped block`,
+		);
+	}
 });
 
 test('teacher-program production builder keeps Monday-only breaks, numeric print order, and reference-only exclusion', async () => {

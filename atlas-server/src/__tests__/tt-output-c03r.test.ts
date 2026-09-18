@@ -417,7 +417,19 @@ test('class-program layout merges weekday-agnostic break bands across Mon–Fri'
 	assert.deepEqual(merges, [[14, 3, 14, 7]], 'the break band merges the five weekday columns');
 });
 
-// ─── 6. Real constructBaseline control for the day-scope gap ───
+// ─── 6. Flag/HGP is an IN-PERIOD overlay, never a capacity block ───
+//
+// Proven from 14 SY 2026-2027 stakeholder programs: every program prints
+// `Flag Ceremony/HGP` in the Monday cell of a row whose Tue–Fri cells are an
+// ordinary subject, the printed daily totals are identical Mon–Thu, and
+// teacher programs say "45 mins Inclusive of HGP/PEACE Campaign (Monday)".
+// The previous model treated the flag as a hard placement blocker, which lost
+// one teaching slot per section on Monday (capacity 39/49 vs required 40/50).
+//
+// The former assertion here encoded that refuted model
+// ("constructBaseline rejects the Monday Flag interval"); it is deliberately
+// inverted rather than deleted so the corrected contract stays regression-
+// locked. The genuine capacity-blocking events keep their day scope.
 
 function baselineInput(overrides: Record<string, unknown> = {}) {
 	return {
@@ -451,19 +463,129 @@ function baselineInput(overrides: Record<string, unknown> = {}) {
 	} as any;
 }
 
-test('constructBaseline rejects the Monday Flag interval while the identical Tuesday slot stays eligible', () => {
-	const result = constructBaseline(baselineInput());
-	const mondayFlag = result.entries.find((entry) => entry.day === 'MONDAY' && entry.startTime === '06:00' && entry.endTime === '07:00');
-	assert.equal(mondayFlag, undefined, 'no class may be placed in the Monday flag interval');
-	const tuesdayFirst = result.entries.find((entry) => entry.day === 'TUESDAY' && entry.startTime === '06:00' && entry.endTime === '07:00');
-	assert.ok(tuesdayFirst, 'the identical Tuesday first-period slot remains eligible');
-	// Failing-first control: without the day scope this same input placed Monday 06:00.
-	const dayAgnostic = constructBaseline(baselineInput({ policy: { ...baselineInput().policy, specialEvents: [] } }));
+const FLAG_OVERLAY_WINDOW = { startTime: '06:45', endTime: '07:30' };
+const CANONICAL_G7_SLOTS = getExpectedCanonicalSlots(7, 'REGULAR').map((slot) => ({
+	startTime: slot.startTime,
+	endTime: slot.endTime,
+	subjectFamily: slot.subjectFamily,
+	subjectLabel: slot.subjectLabel,
+	rowKind: slot.rowKind,
+}));
+/** Required weekly MATH sessions for the shared flag-overlay fixture. */
+const FLAG_OVERLAY_REQUIRED_SESSIONS = 13;
+
+function flagOverlayShape(specialEvent: Record<string, unknown>) {
+	return buildTimetableShapeContract({
+		gradeLevel: 7, programType: 'REGULAR', startTime: '06:00', endTime: '12:15',
+		periodLengthMinutes: 45, periodsPerDay: 8,
+		canonicalSlots: CANONICAL_G7_SLOTS,
+		basePolicy: {
+			maxConsecutiveTeachingMinutesBeforeBreak: 360,
+			minBreakMinutesAfterConsecutiveBlock: 0,
+			maxTeachingMinutesPerDay: 480,
+			earliestStartTime: '06:00',
+			latestEndTime: '12:15',
+			showSpecialEventsInGrid: true,
+			specialEvents: [specialEvent],
+		} as any,
+	});
+}
+
+/**
+ * One Grade 7 section requiring 13 MATH sessions (585 min / 45-min shape
+ * periods) over the canonical 8-row shape. The demand exceeds one day of
+ * capacity, so the constructor must spill into `06:45-07:30` on Monday and
+ * then Tuesday — that makes the overlay-vs-block distinction observable as a
+ * concrete entry rather than an inferred eligibility.
+ */
+function flagOverlayDemandInput(specialEvent: Record<string, unknown>) {
+	return {
+		schoolId: SCHOOL_ID,
+		schoolYearId: SCHOOL_YEAR_ID,
+		sectionsByGrade: [{
+			gradeLevelId: 1,
+			gradeLevelName: 'Grade 7',
+			displayOrder: 7,
+			sections: [{
+				id: 701, name: '7-Rizal', maxCapacity: 40, enrolledCount: 35,
+				gradeLevelId: 1, gradeLevelName: 'Grade 7', displayOrder: 7,
+				programType: 'REGULAR' as const,
+			}],
+		}],
+		subjects: [{ id: 11, code: 'MATH', name: 'Mathematics', minMinutesPerWeek: 585, preferredRoomType: 'CLASSROOM' as const, gradeLevels: [7] }],
+		faculty: [{ id: 501, maxHoursPerWeek: 40 }],
+		facultySubjects: [{ facultyId: 501, subjectId: 11, gradeLevels: [7], sectionIds: [701] }],
+		rooms: [{ id: 601, type: 'CLASSROOM' as const, isTeachingSpace: true, capacity: 40 }],
+		preferences: [],
+		timetableShapes: [flagOverlayShape(specialEvent)],
+		policy: {
+			periodLengthMinutes: 45,
+			earliestStartTime: '06:00',
+			latestEndTime: '12:15',
+			maxConsecutiveTeachingMinutesBeforeBreak: 360,
+			minBreakMinutesAfterConsecutiveBlock: 0,
+			maxTeachingMinutesPerDay: 480,
+			showSpecialEventsInGrid: true,
+			specialEvents: [specialEvent],
+		},
+	} as any;
+}
+
+function hasFlagOverlaySlot(entries: Entry[], day: string): boolean {
+	return entries.some((entry) =>
+		entry.day === day
+		&& entry.startTime === FLAG_OVERLAY_WINDOW.startTime
+		&& entry.endTime === FLAG_OVERLAY_WINDOW.endTime,
+	);
+}
+
+test('constructBaseline schedules MONDAY 06:45-07:30 with a Flag/HGP overlay on the same interval', () => {
+	const flag = { eventType: 'FLAG_OR_HGP', label: 'Flag Ceremony', startTime: '06:45', endTime: '07:30', enabled: true };
+	const result = constructBaseline(flagOverlayDemandInput(flag));
 	assert.ok(
-		dayAgnostic.entries.some((entry) => entry.day === 'MONDAY' && entry.startTime === '06:00' && entry.endTime === '07:00'),
-		'the old day-agnostic behavior would have used Monday 06:00',
+		hasFlagOverlaySlot(result.entries, 'MONDAY'),
+		'the Monday Flag/HGP overlay is an in-period overlay; the 06:45-07:30 period stays schedulable',
+	);
+	assert.equal(result.assignedCount, FLAG_OVERLAY_REQUIRED_SESSIONS, 'no teaching slot is lost to the overlay');
+	assert.equal(result.unassignedCount, 0, 'every required session is placed');
+});
+
+test('Flag/HGP overlay and its canonical CLASS period coexist in the shape display slots', () => {
+	const flag = { eventType: 'FLAG_OR_HGP', label: 'Flag Ceremony', startTime: '06:45', endTime: '07:30', enabled: true };
+	const shape = flagOverlayShape(flag);
+	const overlay = shape.displaySlots.find((slot) => slot.isSpecialEvent && /flag|hgp/i.test(slot.eventName ?? ''));
+	assert.ok(overlay, 'the Monday flag overlay is still rendered');
+	assert.equal(overlay?.dayOfWeek, 'MONDAY');
+	assert.equal(`${overlay?.startTime}-${overlay?.endTime}`, '06:45-07:30');
+	assert.ok(
+		shape.displaySlots.some((slot) =>
+			!slot.isSpecialEvent && slot.startTime === '06:45' && slot.endTime === '07:30'),
+		'the underlying CLASS period 06:45-07:30 is still present alongside the overlay',
 	);
 });
+
+for (const eventType of ['LUNCH_BREAK', 'HEALTH_BREAK'] as const) {
+	test(`${eventType} explicitly scoped to MONDAY still blocks Monday 06:45-07:30 while Tuesday stays eligible`, () => {
+		const blocker = {
+			eventType,
+			label: eventType === 'LUNCH_BREAK' ? 'Lunch Break' : 'Health Break',
+			startTime: '06:45',
+			endTime: '07:30',
+			dayOfWeek: 'MONDAY',
+			enabled: true,
+		};
+		const result = constructBaseline(flagOverlayDemandInput(blocker));
+		assert.equal(
+			hasFlagOverlaySlot(result.entries, 'MONDAY'),
+			false,
+			'a genuine capacity block on Monday must still remove that slot',
+		);
+		assert.ok(
+			hasFlagOverlaySlot(result.entries, 'TUESDAY'),
+			'the identical Tuesday interval is unaffected by a MONDAY-scoped block',
+		);
+	});
+}
 
 // ─── 6b. G9G10 relabel precedence: a genuine room cause is not outranked ───
 
