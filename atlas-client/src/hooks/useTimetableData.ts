@@ -10,6 +10,11 @@ import {
 	deriveTimeSlotsFromSummary,
 	minutesBetween,
 } from '@/lib/timetable-utils';
+import {
+	buildGridRows,
+	resolveEntityDisplaySlots,
+	type GridDisplaySlot,
+} from '@/lib/timetable-grid-slots';
 import { buildLiveConflictIndex, createLiveConflictLookup } from '@/lib/timetable-live-conflict';
 import { matchesTermScope } from '@/lib/timetable-term-scope';
 import { deriveGenerationReadinessState, type TimetableCurriculumReadinessState } from '@/lib/timetable-generation-readiness';
@@ -629,41 +634,49 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 
 	const activeGridEntriesBase = useMemo(() => isPreGenerationWorkspace ? preGenEntries : (draft?.entries ?? []), [isPreGenerationWorkspace, preGenEntries, draft]);
 
-	// Resolve section-specific display slots when in section view
-	const sectionDisplaySlots = useMemo(() => {
-		if (viewMode !== 'section') return undefined;
-		const selectedId = Number(entityFilter);
-		if (!selectedId) return undefined;
-		const section = sectionMap.get(selectedId);
-		if (!section) return undefined;
-		const gradeNumber = resolveSectionGradeNumber(section);
-		if (gradeNumber == null) return undefined;
+	// GRID-SHAPE-AUTHORITY: resolve the shape contract(s) this entity actually
+	// consumes instead of the run-wide union of every shape. Section view renders
+	// exactly that section's own shape; teacher/room views union only the shapes
+	// of the sections the entity is actually scheduled against. The selected
+	// slots are then collapsed to one row per (startTime, endTime) so a
+	// day-scoped Monday Flag/HGP shares its period row instead of duplicating it.
+	const gridDisplaySlots = useMemo<GridDisplaySlot[] | undefined>(() => {
+		if (isPreGenerationWorkspace && draftBoard?.periodSlots?.length) return undefined;
 		const contracts = draft?.summary?.timetableShapeContracts;
-		if (!contracts || contracts.length === 0) return undefined;
-		// Find matching contract by grade level and program type
-		const normalizedProgram = (section.programType ?? 'REGULAR').toUpperCase();
-		const matching = contracts.find(
-			(c) => c.gradeLevel === gradeNumber && c.programType === normalizedProgram,
-		) ?? contracts.find(
-			(c) => c.gradeLevel === gradeNumber,
-		);
-		if (!matching || !matching.displaySlots || matching.displaySlots.length === 0) return undefined;
-		return matching.displaySlots;
-	}, [viewMode, entityFilter, sectionMap, draft?.summary?.timetableShapeContracts]);
+		const entitySlots = resolveEntityDisplaySlots({
+			viewMode,
+			entityFilter,
+			sectionMap,
+			entries: activeGridEntriesBase,
+			contracts,
+		});
+		const source = entitySlots && entitySlots.length > 0
+			? entitySlots
+			: draft?.summary?.timetableDisplaySlots;
+		if (!source || source.length === 0) return undefined;
+		return buildGridRows(source);
+	}, [
+		activeGridEntriesBase,
+		draft?.summary?.timetableDisplaySlots,
+		draft?.summary?.timetableShapeContracts,
+		draftBoard?.periodSlots,
+		entityFilter,
+		isPreGenerationWorkspace,
+		sectionMap,
+		viewMode,
+	]);
 
 	const timeSlots = useMemo(
-		() => isPreGenerationWorkspace && draftBoard?.periodSlots?.length
+		() => (isPreGenerationWorkspace && draftBoard?.periodSlots?.length
 			? draftBoard.periodSlots
-			: deriveTimeSlotsFromSummary(activeGridEntriesBase, {
-				timetableDisplaySlots: sectionDisplaySlots ?? draft?.summary?.timetableDisplaySlots,
+			: gridDisplaySlots ?? deriveTimeSlotsFromSummary(activeGridEntriesBase, {
 				timetableShapeContracts: draft?.summary?.timetableShapeContracts,
-			}),
+			})),
 		[
 			activeGridEntriesBase,
-			sectionDisplaySlots,
-			draft?.summary?.timetableDisplaySlots,
 			draft?.summary?.timetableShapeContracts,
 			draftBoard?.periodSlots,
+			gridDisplaySlots,
 			isPreGenerationWorkspace,
 		],
 	);

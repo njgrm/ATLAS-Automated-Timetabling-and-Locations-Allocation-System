@@ -5,6 +5,7 @@ import { useDroppable } from '@dnd-kit/core';
 import { toast } from 'sonner';
 
 import { parseDraftPlacementId } from '@/lib/timetable-utils';
+import { isDayScopedOverlay } from '@/lib/timetable-grid-slots';
 import { cn, formatTime } from '@/lib/utils';
 import type { CellConflictInfo, ScheduledEntry, Violation, ViolationCode } from '@/types';
 
@@ -250,7 +251,12 @@ const GridCell = memo(function GridCell({
 
 	// A day-scoped event (Monday Flag/HGP) is only non-schedulable on its own
 	// weekday; the identical interval remains an ordinary class cell elsewhere.
-	const eventAppliesToDay = isSpecialEvent && (!eventDayOfWeek || eventDayOfWeek === day);
+	// A merged period row carrying a day-scoped overlay renders the event inside
+	// its own period cell on the event weekday while Tue–Fri show the class.
+	const dayScopedOverlay = isDayScopedOverlay({ isSpecialEvent, eventName, dayOfWeek: eventDayOfWeek });
+	const eventAppliesToDay = isSpecialEvent
+		? (!eventDayOfWeek || eventDayOfWeek === day)
+		: dayScopedOverlay && eventDayOfWeek === day;
 
 	if (eventAppliesToDay) {
 		if (hasKbSource) {

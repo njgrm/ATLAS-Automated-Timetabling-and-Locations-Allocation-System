@@ -1,4 +1,5 @@
 import { minutesBetween } from '@/lib/timetable-utils';
+import { isDayScopedOverlay, slotBlocksDay } from '@/lib/timetable-grid-slots';
 import type { CellConflictInfo, ScheduledEntry } from '@/types';
 
 const DAYS = ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY'] as const;
@@ -154,11 +155,13 @@ export function buildLiveConflictIndex(
 			const key = `${day}-${slot.startTime}-${slot.endTime}`;
 			// A day-scoped event (Monday Flag/HGP) blocks only its own weekday. On
 			// every other weekday the same interval is an ordinary schedulable slot.
-			const appliesToDay = !slot.isSpecialEvent || !slot.dayOfWeek || slot.dayOfWeek === day;
+			// A merged period row carries its day-scoped overlay and scopes the
+			// block identically via the one shared predicate.
+			const appliesToDay = slotBlocksDay(slot, day);
 			if (appliesToDay) {
 				slotByKey.set(key, slot);
 			} else if (!slotByKey.has(key)) {
-				slotByKey.set(key, { ...slot, isSpecialEvent: false, eventName: undefined });
+				slotByKey.set(key, { ...slot, isSpecialEvent: false, eventName: undefined, dayOfWeek: undefined });
 			}
 			slotMinutesByKey.set(key, minutes);
 		}
@@ -244,7 +247,7 @@ export function createLiveConflictInspector(
 	const calculateCompact = (cellId: string): LiveConflictCompactState | null => {
 		const slot = slotByKey.get(cellId);
 		if (!slot) return null;
-		if (slot.isSpecialEvent) {
+		if (slot.isSpecialEvent || isDayScopedOverlay(slot)) {
 			return { kind: 'blocked', codes: ['SPECIAL_EVENT'], displacedEntryIds: [] };
 		}
 
@@ -350,7 +353,7 @@ export function createLiveConflictInspector(
 	const calculate = (cellId: string, detailed: boolean): LiveConflictDetail | null => {
 		const slot = slotByKey.get(cellId);
 		if (!slot) return null;
-		if (slot.isSpecialEvent) {
+		if (slot.isSpecialEvent || isDayScopedOverlay(slot)) {
 			const info: CellConflictInfo = {
 				kind: 'hard',
 				reasons: detailed ? [`${slot.eventName ?? 'Special event'} slot is non-schedulable`] : [],

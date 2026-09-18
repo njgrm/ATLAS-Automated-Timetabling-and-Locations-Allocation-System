@@ -8,18 +8,71 @@ type ReviewEntryKind = 'SECTION' | 'COHORT' | undefined;
 const VALID_JHS_GRADES = new Set([7, 8, 9, 10]);
 
 /**
+ * EnrollPro `grade_level_id` is an internal FK and is NOT the academic grade.
+ * The current feed uses 17–20 for Grades 7–10; the legacy feed used 5–8.
+ * Mirrors the server authority (`normalizeInternalGradeId`) so the client grid
+ * resolves the same shape contract the scheduler produced.
+ */
+const INTERNAL_GRADE_ID_MAP: Record<number, number> = {
+	5: 7,
+	6: 8,
+	7: 9,
+	8: 10,
+	17: 7,
+	18: 8,
+	19: 9,
+	20: 10,
+};
+
+/**
+ * Map an actual/display grade number (7–10) or a current-feed internal grade ID
+ * (17–20) to a JHS grade number. Returns null for anything else.
+ *
+ * Only 17–20 are mapped here because `displayOrder` and `gradeLevelName` are
+ * expected to carry the actual grade; the ambiguous legacy 5–8 IDs are handled
+ * exclusively by `normalizeInternalGradeId` for the `gradeLevelId` field.
+ */
+export function normalizeJhsGradeNumber(value: unknown): number | null {
+	const n = typeof value === 'number' ? value : Number(value);
+	if (!Number.isInteger(n)) return null;
+	if (VALID_JHS_GRADES.has(n)) return n;
+	if (n >= 17 && n <= 20) return n - 10;
+	return null;
+}
+
+/**
+ * Normalize an EnrollPro internal `gradeLevelId` to an actual JHS grade.
+ * Identical mapping to the server's `normalizeInternalGradeId`.
+ */
+export function normalizeInternalGradeId(value: unknown): number {
+	const n = typeof value === 'number' ? value : Number(value);
+	if (!Number.isInteger(n)) return n as number;
+	if (n in INTERNAL_GRADE_ID_MAP) return INTERNAL_GRADE_ID_MAP[n];
+	if (n >= 7 && n <= 10) return n;
+	if (n >= 100) {
+		const normalized = n % 100;
+		if (normalized >= 1 && normalized <= 12) return normalized;
+	}
+	return n;
+}
+
+/**
  * Extract the academic grade number from an ExternalSection.
  * Priority: gradeLevelName → displayOrder → gradeLevelId.
+ * The first two carry the actual grade (with a 17–20 feed fallback); the last
+ * is an EnrollPro internal FK and is normalized through the shared mapping.
  * Returns null if no valid JHS grade (7–10) can be determined.
  */
 export function resolveSectionGradeNumber(section: ExternalSection): number | null {
 	const nameMatch = (section.gradeLevelName ?? '').match(/(\d+)/);
 	if (nameMatch) {
-		const n = Number(nameMatch[1]);
-		if (VALID_JHS_GRADES.has(n)) return n;
+		const fromName = normalizeJhsGradeNumber(Number(nameMatch[1]));
+		if (fromName != null) return fromName;
 	}
-	if (VALID_JHS_GRADES.has(section.displayOrder)) return section.displayOrder;
-	if (VALID_JHS_GRADES.has(section.gradeLevelId)) return section.gradeLevelId;
+	const fromDisplayOrder = normalizeJhsGradeNumber(section.displayOrder);
+	if (fromDisplayOrder != null) return fromDisplayOrder;
+	const fromGradeId = normalizeJhsGradeNumber(normalizeInternalGradeId(section.gradeLevelId));
+	if (fromGradeId != null) return fromGradeId;
 	return null;
 }
 
