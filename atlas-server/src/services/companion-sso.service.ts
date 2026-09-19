@@ -781,6 +781,16 @@ export async function issueCompanionSsoCode(params: {
 	const expiresAt = new Date(now.getTime() + COMPANION_SSO_CODE_TTL_MS);
 	const code = generateCompanionSsoCode();
 	const codeHash = hashCompanionSsoCode(code);
+	const account = await prisma.atlasAuthAccount.findUnique({
+		where: { id: params.userId },
+		select: { schoolId: true, isActive: true },
+	});
+	if (!account?.isActive || account.schoolId !== params.schoolId) {
+		throw new CompanionSsoError(
+			'COMPANION_SSO_IDENTITY_INCOMPLETE',
+			'The authenticated account does not belong to the asserted school.',
+		);
+	}
 
 	// Build and validate the callback URL BEFORE persisting anything, so a
 	// misconfigured/invalid callback can never leave an orphan code row.
@@ -965,6 +975,12 @@ async function buildAssertion(claimed: {
 	});
 	if (!account || !account.isActive) {
 		throw new CompanionSsoError('COMPANION_SSO_ACCOUNT_UNAVAILABLE');
+	}
+	if (!claimed.schoolId || claimed.schoolId !== account.schoolId) {
+		throw new CompanionSsoError(
+			'COMPANION_SSO_IDENTITY_INCOMPLETE',
+			'The authorization code school does not match the persisted account school.',
+		);
 	}
 
 	const schoolId = account.schoolId;

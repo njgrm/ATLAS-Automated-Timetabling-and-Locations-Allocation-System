@@ -22,14 +22,15 @@ const authRouter = (await import('../routes/auth.router.js')).default;
 const { prisma } = await import('../lib/prisma.js');
 
 const SCHOOL_ID = 9_300_401;
+const OTHER_SCHOOL_ID = 9_300_402;
 const YEAR_ID = 960_401;
 const YEAR_LABEL = '2030-2031';
 
 async function clearFixture(): Promise<void> {
-	await prisma.companionSsoCode.deleteMany({ where: { OR: [{ schoolId: SCHOOL_ID }, { audience: { in: ['state:smart', 'state:aims'] } }] } });
-	await prisma.auditLog.deleteMany({ where: { schoolId: SCHOOL_ID } });
-	await prisma.enrollProSchoolYearMirror.deleteMany({ where: { schoolId: SCHOOL_ID } });
-	await prisma.atlasAuthAccount.deleteMany({ where: { schoolId: SCHOOL_ID } });
+	await prisma.companionSsoCode.deleteMany({ where: { OR: [{ schoolId: { in: [SCHOOL_ID, OTHER_SCHOOL_ID] } }, { audience: { in: ['state:smart', 'state:aims'] } }] } });
+	await prisma.auditLog.deleteMany({ where: { schoolId: { in: [SCHOOL_ID, OTHER_SCHOOL_ID] } } });
+	await prisma.enrollProSchoolYearMirror.deleteMany({ where: { schoolId: { in: [SCHOOL_ID, OTHER_SCHOOL_ID] } } });
+	await prisma.atlasAuthAccount.deleteMany({ where: { schoolId: { in: [SCHOOL_ID, OTHER_SCHOOL_ID] } } });
 }
 
 async function seedExistingOfficer(): Promise<{ id: number }> {
@@ -51,13 +52,14 @@ async function seedExistingOfficer(): Promise<{ id: number }> {
 }
 
 test.before(async () => {
-	await prisma.school.deleteMany({ where: { id: SCHOOL_ID } });
+	await prisma.school.deleteMany({ where: { id: { in: [SCHOOL_ID, OTHER_SCHOOL_ID] } } });
 	await prisma.school.create({ data: { id: SCHOOL_ID, name: 'Direct Federation Test School', shortName: 'C04' } });
+	await prisma.school.create({ data: { id: OTHER_SCHOOL_ID, name: 'Direct Federation Other School', shortName: 'C04B' } });
 });
 
 test.after(async () => {
 	await clearFixture();
-	await prisma.school.deleteMany({ where: { id: SCHOOL_ID } });
+	await prisma.school.deleteMany({ where: { id: { in: [SCHOOL_ID, OTHER_SCHOOL_ID] } } });
 	await prisma.$disconnect();
 });
 
@@ -260,4 +262,52 @@ test('C04 mounted direct callbacks succeed for SMART and AIMS with state, existi
 			});
 		});
 	}
+});
+
+test('C04 authorize rejects an account-school mismatch before issuing a code or success audit', async () => {
+	const account = await seedExistingOfficer();
+	await prisma.enrollProSchoolYearMirror.create({
+		data: { schoolId: OTHER_SCHOOL_ID, enrollProSchoolYearId: YEAR_ID, yearLabel: YEAR_LABEL, isActive: true, isArchived: false, syncStatus: 'synced' },
+	});
+	const token = jwt.sign(
+		{ userId: account.id, accountId: account.id, role: 'admin', authSource: 'local', schoolId: OTHER_SCHOOL_ID },
+		process.env.JWT_SECRET!,
+		{ expiresIn: '5m' },
+	);
+	await withServer(async (base) => {
+		const response = await fetch(`${base}/api/v1/auth/sso/authorize`, {
+			method: 'POST',
+			headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+			body: JSON.stringify({ response_type: 'code', client_id: 'smart', redirect_uri: process.env.SMART_SSO_CALLBACK_URL, state: 'cross-school' }),
+		});
+		assert.equal(response.status, 401);
+		assert.equal((await response.json() as { code: string }).code, 'COMPANION_SSO_IDENTITY_INCOMPLETE');
+		assert.equal(await prisma.companionSsoCode.count({ where: { schoolId: { in: [SCHOOL_ID, OTHER_SCHOOL_ID] } } }), 0);
+		assert.equal(await prisma.auditLog.count({ where: { schoolId: { in: [SCHOOL_ID, OTHER_SCHOOL_ID] }, action: 'COMPANION_SSO_CODE_CONSUMED' } }), 0);
+	});
+});
+
+test('C04 exchange consumes but rejects a persisted code whose school was tampered away from its account', async () => {
+	const account = await seedExistingOfficer();
+	await prisma.enrollProSchoolYearMirror.create({
+		data: { schoolId: OTHER_SCHOOL_ID, enrollProSchoolYearId: YEAR_ID, yearLabel: YEAR_LABEL, isActive: true, isArchived: false, syncStatus: 'synced' },
+	});
+	const issued = await service.issueCompanionSsoCode({
+		peer: 'smart', userId: account.id, schoolId: SCHOOL_ID,
+		redirectUri: process.env.SMART_SSO_CALLBACK_URL!, state: 'tampered-row',
+	});
+	const original = await prisma.companionSsoCode.findFirstOrThrow({ where: { schoolId: SCHOOL_ID, audience: 'smart' } });
+	await prisma.companionSsoCode.update({ where: { id: original.id }, data: { schoolId: OTHER_SCHOOL_ID } });
+	await withServer(async (base) => {
+		const response = await fetch(`${base}/api/v1/auth/sso/exchange`, {
+			method: 'POST',
+			headers: { authorization: 'Bearer smart-reverse-secret', 'content-type': 'application/json' },
+			body: JSON.stringify({ code: issued.code, clientId: 'smart', redirectUri: process.env.SMART_SSO_CALLBACK_URL }),
+		});
+		assert.equal(response.status, 401);
+		assert.deepEqual(await response.json(), service.COMPANION_SSO_INVALID_CODE_BODY);
+	});
+	const consumed = await prisma.companionSsoCode.findUniqueOrThrow({ where: { id: original.id } });
+	assert.ok(consumed.consumedAt, 'tampered code must be burned and never become retryable');
+	assert.equal(await prisma.auditLog.count({ where: { schoolId: { in: [SCHOOL_ID, OTHER_SCHOOL_ID] }, action: 'COMPANION_SSO_CODE_CONSUMED' } }), 0);
 });
