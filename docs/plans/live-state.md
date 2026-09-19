@@ -60,16 +60,22 @@ and AIMS.
   identity, suppresses only the false unspecified-zone signal, explains floor
   transitions truthfully, and actor-scopes both violation-report routes. It is
   not deployed.
-- `UX-R01-SHARED-CHROME-C01` is independently accepted for integration: shared
+- `UX-R01-SHARED-CHROME-C01` is integrated and independently accepted: shared
   SMART-style breadcrumbs, PageHeader, semantic Card/state primitives, and a
-  mechanically enforced 12px application-chrome floor. It is foundational and
-  does not complete page-level UX-R02-R05.
+  mechanically enforced 12px application-chrome floor. It is not deployed, is
+  foundational, and does not complete page-level UX-R02-R05.
 - `COMPANION-DIRECT-FEDERATION-C04` is integrated and independently accepted.
   The deployed runtime still supports EnrollPro only. SMART/AIMS activation
   remains blocked on their companion-side implementations, directional key
   installation, deployment, and serialized live browser acceptance.
 - Direct SMART and AIMS federation requires two independent secrets per peer
   pair. Companion repositories remain read-only from ATLAS work.
+- The SMART and AIMS mirrors remain at the handoff baselines and do not yet
+  implement their ATLAS peer routes. Generate/install no directional keys yet.
+- `CURRENT-SOURCE-LIVE-DEPLOY-C01` is prepared for independent pre-action review.
+  It deploys the accepted source without activating SMART/AIMS SSO and without a
+  login or database write. `D:` is below the 25 GiB warning threshold, so its
+  disk projection is a mandatory execution precondition.
 
 ## Operator decisions
 
@@ -86,8 +92,8 @@ and AIMS.
 
 ## Single next action
 
-Dispatch the integrated SMART and AIMS developer handoffs to their repository
-owners. Generate and install the directional keys only after both sides consume
-the agreed names, then prepare one deployment/env packet containing the accepted
-UX, federation, public-term, and warning corrections. Regeneration and
-publication remain locked behind a separate explicit HIGH approval.
+Obtain independent pre-action review of
+`docs/prompts/current-source-live-deploy-c01-2026-09-19.md`; if accepted, request
+its exact HIGH approval. Dispatch the SMART and AIMS handoffs to their repository
+owners in parallel. Generate/install directional keys only after both sides
+consume the agreed names. Regeneration and publication remain separately locked.
