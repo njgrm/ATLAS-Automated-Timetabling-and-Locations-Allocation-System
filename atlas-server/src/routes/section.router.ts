@@ -25,8 +25,9 @@ function actorSchoolIdOf(req: Request): number | null {
 
 /**
  * Actor-school guard.  Returns the actor school, or writes the typed 403 and
- * returns `null` so the handler returns BEFORE any parameter validation,
- * school equality check, or service dispatch.
+ * returns `null` so the handler returns early.  Callers must place this after
+ * parameter validation (schoolYearId, schoolId body/query) but before the
+ * school-equality check and service dispatch.
  */
 function requireActorSchool(req: Request, res: Response): number | null {
 	const schoolId = actorSchoolIdOf(req);

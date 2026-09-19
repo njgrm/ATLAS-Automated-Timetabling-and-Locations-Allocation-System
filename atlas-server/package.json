@@ -25,6 +25,7 @@
     "test:room-pref-sse": "tsx src/__tests__/room-preference-sse.test.ts",
     "test:notifications": "tsx src/__tests__/notification-events.test.ts",
     "test:home-room-auto-assign": "tsx src/__tests__/home-room-auto-assign.test.ts",
+    "test:section-route-authority": "tsx src/__tests__/section-route-authority-c01.test.ts",
     "test:room-pref-sync": "tsx src/__tests__/room-preference-sync.test.ts",
     "test:faculty-dashboard-contract": "tsx src/__tests__/faculty-dashboard-contract.test.ts",
     "test:faculty-sync-reconciliation": "tsx src/__tests__/faculty-sync-reconciliation.test.ts",

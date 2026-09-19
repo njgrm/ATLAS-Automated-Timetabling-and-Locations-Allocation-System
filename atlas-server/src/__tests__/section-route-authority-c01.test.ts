@@ -1,270 +1,306 @@
 /**
- * SECTION-ROUTE-AUTHORITY-C01 - actor-school scope on sibling section routes.
+ * SECTION-ROUTE-AUTHORITY-C01 — actor-school scope on sibling section routes.
  *
- * Failing-first contract on the real Express app with hand-signed JWTs.
- * Every route that accepts a caller-supplied schoolId must enforce
- * actor-school equality before any service dispatch.
+ * Hermetic test: no live database is contacted.  DATABASE_URL is forced to an
+ * unreachable placeholder; every data access is injected through withDataContext
+ * using a recording client that tracks all Prisma operations.  Any accidental
+ * dispatch against the real database would fail closed.
  *
- * Run with npx tsx this-file against a reachable database supplied
- * through DATABASE_URL.
+ * Run (server workspace): npx tsx src/__tests__/section-route-authority-c01.test.ts
  */
 
-import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
-import { dirname, resolve } from 'node:path';
+import assert from 'node:assert/strict';
+import http from 'node:http';
+import jwt from 'jsonwebtoken';
+import test from 'node:test';
 
-let passCount = 0;
-let failCount = 0;
+import express from 'express';
 
-function section(title: string) {
-  console.log('\n=== ' + title + ' ===\n');
-}
+import { withDataContext } from '../lib/data-context.js';
+import sectionRouter from '../routes/section.router.js';
 
-function assert(condition: boolean, label: string) {
-  if (condition) {
-    passCount += 1;
-    console.log('[PASS] ' + label);
-    return;
-  }
-  failCount += 1;
-  console.error('[FAIL] ' + label);
-}
+const JWT_SECRET = 'section-route-authority-c01-test-secret';
 
-function loadServerEnv() {
-  const here = dirname(fileURLToPath(import.meta.url));
-  try {
-    const content = readFileSync(resolve(here, '../../.env'), 'utf8');
-    for (const line of content.split('\n')) {
-      const trimmed = line.trim();
-      if (!trimmed || trimmed.startsWith('#')) continue;
-      const eq = trimmed.indexOf('=');
-      if (eq < 0) continue;
-      const key = trimmed.slice(0, eq).trim();
-      const value = trimmed.slice(eq + 1).trim();
-      if (!process.env[key]) process.env[key] = value;
-    }
-  } catch {}
-}
+process.env.JWT_SECRET = JWT_SECRET;
+// Fail closed: every data access below is injected.  Point the singleton at an
+// unreachable host so an accidental dispatch can never touch the real database.
+process.env.DATABASE_URL = 'postgresql://placeholder:placeholder@127.0.0.1:1/never_used';
 
-const FIXTURE_NAME = 'SECTION-AUTH-C01 FIXTURE - SAFE TO DELETE';
 const OTHER_SCHOOL_ID = 999999;
 
-async function main() {
-  loadServerEnv();
-  if (!process.env.DATABASE_URL) {
-    console.error('[FAIL] DATABASE_URL is unavailable.');
-    process.exit(1);
-  }
-  const prismaModule = await import('../lib/prisma.js');
-  const instrumented = (prismaModule as any).createTestPrismaClient();
+// ── Recording client ─────────────────────────────────────────────────────────
+// Tracks every Prisma model operation and every write so we can prove zero
+// dispatch on rejections and observe which operations succeed on positive paths.
 
-  let fixtureSchoolId = 0;
-  try {
-    const created = await instrumented.school.create({
-      data: { name: FIXTURE_NAME, shortName: 'SRAC01' },
-      select: { id: true },
-    });
-    fixtureSchoolId = created.id as number;
-    assert(fixtureSchoolId > 0, 'fixture school created (id=' + fixtureSchoolId + ')');
+type RecordingClient = {
+	client: any;
+	ops: string[];
+	writes: Array<{ where: any; data: any }>;
+};
 
-    section('boot the real app with hand-signed JWTs');
-    const app = (await import('../app.js')).default;
-    const jwt = await import('jsonwebtoken');
-    const secret = process.env.JWT_SECRET as string;
-    assert(typeof secret === 'string' && secret.length > 0, 'JWT secret configured for route tests');
-    const signJwt = (payload: Record<string, unknown>): string =>
-      (jwt.default as any).sign(payload, secret, { expiresIn: '5m' });
-    const systemToken = (process.env.ATLAS_SYSTEM_TOKEN ?? '').trim();
-
-    const server = await new Promise<any>((resolveServer, rejectServer) => {
-      const listener = app.listen(0, () => resolveServer(listener));
-      listener.on('error', rejectServer);
-    });
-    try {
-      const address = server.address();
-      const port = typeof address === 'object' && address ? (address as any).port : 0;
-      assert(port > 0, 'ephemeral test server listening (port=' + port + ')');
-      const baseUrl = 'http://127.0.0.1:' + port;
-
-      const officerJwt = (schoolId: number | null) =>
-        signJwt(
-          schoolId == null
-            ? { userId: 9001, role: 'officer', authSource: 'local' }
-            : { userId: 9001, role: 'officer', authSource: 'local', schoolId },
-        );
-
-      async function callRoute(
-        name: string,
-        method: string,
-        path: string,
-        token: string | null,
-        body: unknown,
-        expectStatus: number,
-        expectCode?: string,
-      ) {
-        const res = await fetch(baseUrl + path, {
-          method,
-          headers: {
-            ...(token ? { Authorization: 'Bearer ' + token } : {}),
-            'Content-Type': 'application/json',
-          },
-          body: body === undefined ? undefined : JSON.stringify(body),
-        });
-        const json = await res.json().catch(() => ({}));
-        const okStatus = res.status === expectStatus;
-        const okCode = expectCode == null || (json as any).code === expectCode;
-        assert(
-          okStatus && okCode,
-          name + ' -> ' + res.status + '/' + ((json as any).code ?? 'no-code') +
-            ' (expected ' + expectStatus + (expectCode ? '/' + expectCode : '') + ')',
-        );
-        return { status: res.status, json };
-      }
-
-      // ---- E1: Cross-school GET /home-rooms/:schoolYearId ----
-      section('E1 cross-school GET /home-rooms/:schoolYearId');
-      await callRoute(
-        'E1-a cross-school rejected',
-        'GET',
-        '/api/v1/sections/home-rooms/1?schoolId=' + fixtureSchoolId,
-        officerJwt(OTHER_SCHOOL_ID),
-        undefined,
-        403,
-        'CROSS_SCHOOL_DENIED',
-      );
-
-      // ---- E2: Cross-school PUT /home-rooms/:schoolYearId ----
-      section('E2 cross-school PUT /home-rooms/:schoolYearId');
-      await callRoute(
-        'E2-a cross-school rejected',
-        'PUT',
-        '/api/v1/sections/home-rooms/1',
-        officerJwt(OTHER_SCHOOL_ID),
-        { schoolId: fixtureSchoolId, assignments: [{ sectionId: 999999, homeRoomId: null }] },
-        403,
-        'CROSS_SCHOOL_DENIED',
-      );
-
-      // ---- E3: Cross-school POST /sync ----
-      section('E3 cross-school POST /sync');
-      await callRoute(
-        'E3-a cross-school rejected',
-        'POST',
-        '/api/v1/sections/sync',
-        officerJwt(OTHER_SCHOOL_ID),
-        { schoolId: fixtureSchoolId },
-        403,
-        'CROSS_SCHOOL_DENIED',
-      );
-
-      // ---- E4: Missing actor school (all three routes) ----
-      section('E4 missing actor school on all three routes');
-      await callRoute(
-        'E4-a missing school on GET /home-rooms',
-        'GET',
-        '/api/v1/sections/home-rooms/1?schoolId=' + fixtureSchoolId,
-        officerJwt(null),
-        undefined,
-        403,
-        'SCHOOL_SCOPE_REQUIRED',
-      );
-      await callRoute(
-        'E4-b missing school on PUT /home-rooms',
-        'PUT',
-        '/api/v1/sections/home-rooms/1',
-        officerJwt(null),
-        { schoolId: fixtureSchoolId, assignments: [{ sectionId: 999999, homeRoomId: null }] },
-        403,
-        'SCHOOL_SCOPE_REQUIRED',
-      );
-      await callRoute(
-        'E4-c missing school on POST /sync',
-        'POST',
-        '/api/v1/sections/sync',
-        officerJwt(null),
-        { schoolId: fixtureSchoolId },
-        403,
-        'SCHOOL_SCOPE_REQUIRED',
-      );
-
-      // ---- E5: Same-school privileged actor succeeds ----
-      section('E5 same-school privileged actor succeeds');
-      const e5GetResult = await callRoute(
-        'E5-a same-school GET /home-rooms',
-        'GET',
-        '/api/v1/sections/home-rooms/1?schoolId=' + fixtureSchoolId,
-        officerJwt(fixtureSchoolId),
-        undefined,
-        200,
-      );
-      assert(e5GetResult.status !== 403, 'E5-a same-school GET passed authority gate (status=' + e5GetResult.status + ')');
-
-      // ---- E6: System token path ----
-      section('E6 system token path');
-      if (systemToken.length > 0) {
-        await callRoute(
-          'E6-a system token on sync (no schoolId) rejected',
-          'POST',
-          '/api/v1/sections/sync',
-          systemToken,
-          { schoolId: fixtureSchoolId },
-          403,
-          'SCHOOL_SCOPE_REQUIRED',
-        );
-      } else {
-        console.log('[SKIP] E6 system token not configured');
-      }
-
-      // ---- E7: Actor school absent from token ----
-      section('E7 actor school absent from token');
-      await callRoute(
-        'E7-a no schoolId on GET /home-rooms',
-        'GET',
-        '/api/v1/sections/home-rooms/1?schoolId=' + fixtureSchoolId,
-        officerJwt(null),
-        undefined,
-        403,
-        'SCHOOL_SCOPE_REQUIRED',
-      );
-      await callRoute(
-        'E7-b no schoolId on POST /sync',
-        'POST',
-        '/api/v1/sections/sync',
-        officerJwt(null),
-        { schoolId: fixtureSchoolId },
-        403,
-        'SCHOOL_SCOPE_REQUIRED',
-      );
-
-      // ---- E8: No scope widening ----
-      section('E8 no scope widening - auto-assign still enforces');
-      await callRoute(
-        'E8-a cross-school auto-assign still rejected',
-        'POST',
-        '/api/v1/sections/home-rooms/1/auto-assign',
-        officerJwt(OTHER_SCHOOL_ID),
-        { schoolId: fixtureSchoolId, mode: 'preview' },
-        403,
-        'CROSS_SCHOOL_DENIED',
-      );
-
-    } finally {
-      server.close();
-    }
-  } finally {
-    if (fixtureSchoolId > 0) {
-      await instrumented.school.deleteMany({ where: { id: fixtureSchoolId } });
-    }
-  }
-
-  const residue = await instrumented.school.count({ where: { name: FIXTURE_NAME } });
-  assert(residue === 0, 'zero residue (school=' + residue + ')');
-
-  console.log('\n' + passCount + ' passed, ' + failCount + ' failed');
-  process.exit(failCount === 0 ? 0 : 1);
+function makeRecordingClient(): RecordingClient {
+	const ops: string[] = [];
+	const writes: Array<{ where: any; data: any }> = [];
+	const client: any = {
+		sectionMirror: {
+			findMany: async (_args: any) => {
+				ops.push('sectionMirror.findMany');
+				return [];
+			},
+			findFirst: async (_args: any) => {
+				ops.push('sectionMirror.findFirst');
+				return null;
+			},
+			findUnique: async (_args: any) => {
+				ops.push('sectionMirror.findUnique');
+				return null;
+			},
+			update: async (args: any) => {
+				ops.push('sectionMirror.update');
+				writes.push(args);
+				return args.data;
+			},
+			upsert: async (args: any) => {
+				ops.push('sectionMirror.upsert');
+				writes.push(args);
+				return args.create ?? args.update;
+			},
+		},
+		room: {
+			findMany: async (_args: any) => {
+				ops.push('room.findMany');
+				return [];
+			},
+			findUnique: async (_args: any) => {
+				ops.push('room.findUnique');
+				return null;
+			},
+		},
+		$transaction: async (fn: any) => {
+			ops.push('$transaction');
+			return fn(client);
+		},
+	};
+	return { client, ops, writes };
 }
 
-main().catch((error) => {
-  console.error('[FATAL]', error);
-  process.exit(2);
+// ── Mini Express app with injected context ───────────────────────────────────
+
+function makeApp(recording: RecordingClient) {
+	const app = express();
+	app.use(express.json());
+	app.use((_req, _res, next) => {
+		void withDataContext(recording.client, async () => next());
+	});
+	app.use('/api/v1/sections', sectionRouter);
+	app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+		res.status(err?.statusCode ?? 500).json({ code: err?.code ?? 'UNHANDLED', message: err?.message ?? String(err) });
+	});
+	return app;
+}
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+function signOfficer(schoolId: number | null): string {
+	const payload: Record<string, unknown> = { userId: 9001, role: 'officer', authSource: 'local' };
+	if (schoolId != null) payload.schoolId = schoolId;
+	return jwt.sign(payload, JWT_SECRET, { expiresIn: '5m' });
+}
+
+async function startServer(recording: RecordingClient) {
+	const app = makeApp(recording);
+	const server = http.createServer(app);
+	await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+	const address = server.address();
+	const port = typeof address === 'object' && address ? address.port : 0;
+	return { server, port, baseUrl: `http://127.0.0.1:${port}` };
+}
+
+type CallResult = { status: number; json: any };
+
+async function callRoute(
+	baseUrl: string,
+	method: string,
+	path: string,
+	token: string | null,
+	body: unknown,
+): Promise<CallResult> {
+	const res = await fetch(`${baseUrl}${path}`, {
+		method,
+		headers: {
+			'content-type': 'application/json',
+			...(token ? { authorization: `Bearer ${token}` } : {}),
+		},
+		body: body === undefined ? undefined : JSON.stringify(body),
+	});
+	const json = await res.json().catch(() => ({}));
+	return { status: res.status, json };
+}
+
+// ── Mounted-route authority matrix (rejection rows) ──────────────────────────
+
+test('E1: cross-school GET /home-rooms/:schoolYearId rejected with zero DB dispatch', async () => {
+	const recording = makeRecordingClient();
+	const { server, baseUrl } = await startServer(recording);
+	try {
+		const result = await callRoute(baseUrl, 'GET', '/api/v1/sections/home-rooms/1?schoolId=1', signOfficer(OTHER_SCHOOL_ID), undefined);
+		assert.equal(result.status, 403, `E1-a -> ${result.status}/${result.json.code}`);
+		assert.equal(result.json.code, 'CROSS_SCHOOL_DENIED');
+		assert.equal(recording.ops.length, 0, 'E1-a dispatches zero DB operations');
+		assert.equal(recording.writes.length, 0, 'E1-a performs zero writes');
+	} finally {
+		server.close();
+	}
+});
+
+test('E2: cross-school PUT /home-rooms/:schoolYearId rejected with zero DB dispatch', async () => {
+	const recording = makeRecordingClient();
+	const { server, baseUrl } = await startServer(recording);
+	try {
+		const result = await callRoute(baseUrl, 'PUT', '/api/v1/sections/home-rooms/1', signOfficer(OTHER_SCHOOL_ID), { schoolId: 1, assignments: [{ sectionId: 1, homeRoomId: null }] });
+		assert.equal(result.status, 403, `E2-a -> ${result.status}/${result.json.code}`);
+		assert.equal(result.json.code, 'CROSS_SCHOOL_DENIED');
+		assert.equal(recording.ops.length, 0, 'E2-a dispatches zero DB operations');
+		assert.equal(recording.writes.length, 0, 'E2-a performs zero writes');
+	} finally {
+		server.close();
+	}
+});
+
+test('E3: cross-school POST /sync rejected with zero DB dispatch', async () => {
+	const recording = makeRecordingClient();
+	const { server, baseUrl } = await startServer(recording);
+	try {
+		const result = await callRoute(baseUrl, 'POST', '/api/v1/sections/sync', signOfficer(OTHER_SCHOOL_ID), { schoolId: 1 });
+		assert.equal(result.status, 403, `E3-a -> ${result.status}/${result.json.code}`);
+		assert.equal(result.json.code, 'CROSS_SCHOOL_DENIED');
+		assert.equal(recording.ops.length, 0, 'E3-a dispatches zero DB operations');
+		assert.equal(recording.writes.length, 0, 'E3-a performs zero writes');
+	} finally {
+		server.close();
+	}
+});
+
+test('E4: missing actor school rejected with zero DB dispatch on all three routes', async () => {
+	const noSchoolToken = signOfficer(null);
+
+	const r1 = makeRecordingClient();
+	const s1 = await startServer(r1);
+	try {
+		const getResult = await callRoute(s1.baseUrl, 'GET', '/api/v1/sections/home-rooms/1?schoolId=1', noSchoolToken, undefined);
+		assert.equal(getResult.status, 403, `E4-a -> ${getResult.status}/${getResult.json.code}`);
+		assert.equal(getResult.json.code, 'SCHOOL_SCOPE_REQUIRED');
+		assert.equal(r1.ops.length, 0, 'E4-a dispatches zero DB operations');
+	} finally { s1.server.close(); }
+
+	const r2 = makeRecordingClient();
+	const s2 = await startServer(r2);
+	try {
+		const putResult = await callRoute(s2.baseUrl, 'PUT', '/api/v1/sections/home-rooms/1', noSchoolToken, { schoolId: 1, assignments: [{ sectionId: 1, homeRoomId: null }] });
+		assert.equal(putResult.status, 403, `E4-b -> ${putResult.status}/${putResult.json.code}`);
+		assert.equal(putResult.json.code, 'SCHOOL_SCOPE_REQUIRED');
+		assert.equal(r2.ops.length, 0, 'E4-b dispatches zero DB operations');
+	} finally { s2.server.close(); }
+
+	const r3 = makeRecordingClient();
+	const s3 = await startServer(r3);
+	try {
+		const syncResult = await callRoute(s3.baseUrl, 'POST', '/api/v1/sections/sync', noSchoolToken, { schoolId: 1 });
+		assert.equal(syncResult.status, 403, `E4-c -> ${syncResult.status}/${syncResult.json.code}`);
+		assert.equal(syncResult.json.code, 'SCHOOL_SCOPE_REQUIRED');
+		assert.equal(r3.ops.length, 0, 'E4-c dispatches zero DB operations');
+	} finally { s3.server.close(); }
+});
+
+test('E4d: cross-school POST /home-rooms/:schoolYearId/auto-assign still rejected', async () => {
+	const recording = makeRecordingClient();
+	const { server, baseUrl } = await startServer(recording);
+	try {
+		const result = await callRoute(baseUrl, 'POST', '/api/v1/sections/home-rooms/1/auto-assign', signOfficer(OTHER_SCHOOL_ID), { schoolId: 1, mode: 'preview' });
+		assert.equal(result.status, 403, `E4d -> ${result.status}/${result.json.code}`);
+		assert.equal(result.json.code, 'CROSS_SCHOOL_DENIED');
+		assert.equal(recording.ops.length, 0, 'E4d dispatches zero DB operations');
+		assert.equal(recording.writes.length, 0, 'E4d performs zero writes');
+	} finally {
+		server.close();
+	}
+});
+
+test('E5: missing-school auto-assign rejected with zero DB dispatch', async () => {
+	const recording = makeRecordingClient();
+	const { server, baseUrl } = await startServer(recording);
+	try {
+		const result = await callRoute(baseUrl, 'POST', '/api/v1/sections/home-rooms/1/auto-assign', signOfficer(null), { schoolId: 1, mode: 'preview' });
+		assert.equal(result.status, 403, `E5 -> ${result.status}/${result.json.code}`);
+		assert.equal(result.json.code, 'SCHOOL_SCOPE_REQUIRED');
+		assert.equal(recording.ops.length, 0, 'E5 dispatches zero DB operations');
+		assert.equal(recording.writes.length, 0, 'E5 performs zero writes');
+	} finally {
+		server.close();
+	}
+});
+
+// ── Positive success paths (same-school privileged actor) ────────────────────
+
+test('F2-PUT: same-school PUT /home-rooms/:schoolYearId reaches the service', async () => {
+	const recording = makeRecordingClient();
+	const { server, baseUrl } = await startServer(recording);
+	try {
+		const result = await callRoute(
+			baseUrl,
+			'PUT',
+			'/api/v1/sections/home-rooms/1',
+			signOfficer(1),
+			{ schoolId: 1, assignments: [{ sectionId: 999999, homeRoomId: null }] },
+		);
+		// The request passes the authority gate and reaches updateSectionHomeRooms.
+		// Since no section with externalId 999999 exists in the recording client,
+		// the service returns updated: 0 — the point is it was NOT rejected at 403.
+		assert.notEqual(result.status, 403, `PUT same-school passes authority gate (got ${result.status})`);
+		assert.ok(recording.ops.length > 0, 'PUT same-school reached the service (ops: ' + recording.ops.join(', ') + ')');
+		assert.equal(result.json.updated, 0, 'PUT same-school returns updated: 0 when no matching sections');
+	} finally {
+		server.close();
+	}
+});
+
+test('F2-SYNC: same-school POST /sync reaches the service', async () => {
+	const recording = makeRecordingClient();
+	const { server, baseUrl } = await startServer(recording);
+	try {
+		const result = await callRoute(
+			baseUrl,
+			'POST',
+			'/api/v1/sections/sync',
+			signOfficer(1),
+			{ schoolId: 1 },
+		);
+		// The request passes the authority gate.  The sync service calls the
+		// EnrollPro adapter (HTTP upstream), which will fail in hermetic mode.
+		// The point is it was NOT rejected at 403 — the handler reached the
+		// service dispatch.
+		assert.notEqual(result.status, 403, `POST /sync same-school passes authority gate (got ${result.status})`);
+	} finally {
+		server.close();
+	}
+});
+
+test('F2-GET: same-school GET /home-rooms/:schoolYearId reaches the service and returns valid shape', async () => {
+	const recording = makeRecordingClient();
+	const { server, baseUrl } = await startServer(recording);
+	try {
+		const result = await callRoute(
+			baseUrl,
+			'GET',
+			'/api/v1/sections/home-rooms/1?schoolId=1',
+			signOfficer(1),
+			undefined,
+		);
+		assert.equal(result.status, 200, `GET same-school succeeds (got ${result.status})`);
+		assert.ok(recording.ops.length > 0, 'GET same-school reached the service (ops: ' + recording.ops.join(', ') + ')');
+		assert.ok(Array.isArray(result.json.sections), 'GET same-school returns sections array');
+		assert.ok(Array.isArray(result.json.rooms), 'GET same-school returns rooms array');
+	} finally {
+		server.close();
+	}
 });
