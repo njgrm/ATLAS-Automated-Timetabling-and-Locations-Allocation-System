@@ -435,7 +435,12 @@ test('TTX-08 tutorial trigger has an accessible name and 44px mobile target', ()
 test('TTX-11 room-request no-run 404 is empty, deduplicated, and gated on a completed run', () => {
 	const useData = source('src/hooks/useTimetableData.ts');
 	assert.match(useData, /getTimetableApiErrorCode\(err\) === 'NO_ACTIVE_DRAFT'/);
-	assert.match(useData, /hasCompletedRun/);
+	// UX-P01: the load sequencing (and therefore the completed-run gate) moved to
+	// the production orchestration module; assert the gate there, and assert it
+	// is the only path that reaches the room-request read.
+	const orchestration = source('src/lib/timetable-data/timetableLoadOrchestration.ts');
+	assert.match(orchestration, /hasCompletedRun/);
+	assert.match(orchestration, /hasCompletedRun\s*\?\s*ports\.loadRoomRequestSummary/);
 	assert.doesNotMatch(
 		useData,
 		/if \(!schoolYearId\) return;\s*void loadRoomRequestSummary\(schoolYearId, requestStatusFilter, requestDecisionFilter\);/,

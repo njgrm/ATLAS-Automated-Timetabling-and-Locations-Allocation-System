@@ -323,10 +323,15 @@ test('UX-C01R: the parser ignores a missing nested zero-write form only when fla
 
 test('UX-C01R: the timetable hook consumes the generation diagnostic, never the raw derived-ready route', () => {
 	const hook = source('src/hooks/useTimetableData.ts');
-	assert.match(hook, /\/readiness\/diagnostic/, 'the hook must fetch the canonical generation diagnostic');
+	// UX-P01: the canonical diagnostic URL moved into the data-layer source
+	// module; the hook still consumes it through `ensureTimetableReadiness`.
+	const sources = source('src/lib/timetable-data/timetableDataSources.ts');
+	assert.match(sources, /\/readiness\/diagnostic/, 'the data layer must fetch the canonical generation diagnostic');
+	assert.match(hook, /ensureTimetableReadiness/);
 	assert.match(hook, /deriveGenerationReadinessState/);
 	// The retired derivation-only readiness route must no longer gate generation.
 	assert.doesNotMatch(hook, /\/derived-demand\/\$\{schoolId\}\/\$\{syId\}\/readiness/);
+	assert.doesNotMatch(sources, /\/derived-demand\/\$\{schoolId\}\/\$\{syId\}\/readiness/);
 });
 
 test('UX-C01R: both timetable headers feed the canonical diagnostic into the shared generation gate', () => {
