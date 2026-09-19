@@ -58,6 +58,19 @@ router.get('/summary/:schoolYearId', authenticate, requirePrivilegedRole, async 
 			res.status(400).json({ code: 'INVALID_PARAM', message: 'schoolId query parameter is required and must be a positive integer.' });
 			return;
 		}
+
+		// SECTION-ROUTE-AUTHORITY-C02 (R2): the summary read is scoped entirely
+		// by the caller-supplied `schoolId` query parameter, so an actor bound to
+		// school A could otherwise read school B's mirror plus trigger an
+		// external sync for it. Reject cross-school before any runtime-context
+		// read, upstream verification, mirror read, or auto-sync dispatch.
+		const actorSchoolId = requireActorSchool(req, res);
+		if (actorSchoolId === null) return;
+		if (actorSchoolId !== schoolId) {
+			res.status(403).json({ code: 'CROSS_SCHOOL_DENIED', message: 'Requested school does not match the authenticated actor school.' });
+			return;
+		}
+
 		const authToken = getUpstreamAuthToken(req);
 		const summary = await sectionService.getSectionSummary(schoolYearId, schoolId, authToken);
 		res.json({ ...summary, sourceMode: sectionSourceMode });
@@ -90,6 +103,24 @@ router.get('/assigned-classes', authenticateWithSystemToken, requirePrivilegedRo
 		if (!Number.isInteger(schoolYearId) || schoolYearId <= 0) {
 			res.status(400).json({ code: 'INVALID_PARAM', message: 'schoolYearId query parameter is required and must be a positive integer.' });
 			return;
+		}
+
+		// SECTION-ROUTE-AUTHORITY-C02 (R3, C01 Option A): a system token declares
+		// its target school explicitly through the validated `schoolId` query
+		// parameter and is accepted unchanged. authenticateWithSystemToken also
+		// admits JWT/bridge actors, so those must be cross-checked against the
+		// actor school — otherwise an actor bound to school A could read school
+		// B's roster. Malformed/missing schoolId already fails closed above with
+		// a typed 400 and zero dispatch.
+		if (req.user?.authSource === 'system') {
+			// Explicit, validated schoolId is the machine declaration of intent.
+		} else {
+			const actorSchoolId = requireActorSchool(req, res);
+			if (actorSchoolId === null) return;
+			if (actorSchoolId !== schoolId) {
+				res.status(403).json({ code: 'CROSS_SCHOOL_DENIED', message: 'Requested school does not match the authenticated actor school.' });
+				return;
+			}
 		}
 
 		const includeDiagnostics = parseBooleanQueryFlag(req.query.includeDiagnostics);
@@ -358,6 +389,17 @@ router.post('/special-program-placement/overlay', authenticate, requirePrivilege
 		const schoolId = Number(req.body.schoolId);
 		if (!Number.isInteger(schoolId) || schoolId <= 0) {
 			res.status(400).json({ code: 'INVALID_BODY', message: 'schoolId is required and must be a positive integer.' });
+			return;
+		}
+
+		// SECTION-ROUTE-AUTHORITY-C02 (R1): this actor route takes a
+		// caller-supplied body.schoolId and performs a write. Reject a
+		// cross-school target before any upstream year resolution
+		// (fetchEnrollProActiveSchoolYear) or mirror read/write dispatch.
+		const actorSchoolId = requireActorSchool(req, res);
+		if (actorSchoolId === null) return;
+		if (actorSchoolId !== schoolId) {
+			res.status(403).json({ code: 'CROSS_SCHOOL_DENIED', message: 'Requested school does not match the authenticated actor school.' });
 			return;
 		}
 
