@@ -39,7 +39,7 @@ export function SimpleTermSwitcher({ context }: { context: ScheduleReviewWorkspa
 						<SelectItem key={option.value} value={option.value}>
 							{option.label}
 							{context.activeTermIndex !== null && option.value === String(context.activeTermIndex) ? (
-								<span className="ml-1 text-[0.6rem] text-muted-foreground">(active)</span>
+								<span className="ml-1 text-xs text-muted-foreground">(active)</span>
 							) : null}
 						</SelectItem>
 					))}

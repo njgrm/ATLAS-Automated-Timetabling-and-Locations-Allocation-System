@@ -102,6 +102,9 @@ test('R02 Simple timetable chrome does not use typography below the 12px floor',
 		'src/components/timetable/simple/SimpleMoreMenuContent.tsx',
 		'src/components/timetable/simple/SimpleFilterControls.tsx',
 	]) {
-		assert.doesNotMatch(readSource(path), /text-\[0\.(?:65|68)rem\]/, path);
+		const source = readSource(path);
+		for (const match of source.matchAll(/text-\[([0-9.]+)rem\]/g)) {
+			assert.ok(Number(match[1]) >= 0.75, `${path} contains ${match[0]}, below the 12px floor`);
+		}
 	}
 });

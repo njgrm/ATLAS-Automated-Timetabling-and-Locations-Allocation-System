@@ -116,6 +116,7 @@ export function SimpleFilterControls({ context }: { context: ScheduleReviewWorks
 				<div
 					className="flex min-w-0 items-center gap-1.5 overflow-x-auto"
 					data-testid="timetable-active-filters"
+					role="group"
 					aria-label="Active timetable filters"
 				>
 					{activeFilters.map((filter) => (
