@@ -259,14 +259,63 @@ for the whole UX program, not just token parity.
 | Lane | Packet | State |
 | --- | --- | --- |
 | `HOME-ROOM-AUTO-ASSIGN-C01` | `docs/prompts/home-room-auto-assign-c01-2026-09-18.md` | **INTEGRATED** `9a263016` (QA `ACCEPT_READY` 10/10/0/0) |
-| `UX-R06` | `docs/handoffs/ux-rehaul-handoff.md` §C | **INTEGRATED** `eff7d507` (QA round 1 `CORRECTION_REQUIRED` 14/12/2/0; round 2 `ACCEPT_READY` 8/8/0/0) |
-| `SSO-CLIENT-CONFIG-C01` | to author — build-time `VITE_ENROLLPRO_URL` + static env access + fail-closed build guard | ready to author |
+| `UX-R06` | `docs/handoffs/ux-rehaul-handoff.md` §C | **INTEGRATED** `eff7d507` (round 1 `CORRECTION_REQUIRED` 14/12/2/0; round 2 `ACCEPT_READY` 8/8/0/0) |
+| `UX-P01` | delta §3.3 / handoff §D | **INTEGRATED** `d2a94491` (QA `ACCEPT_READY` 15/15/0/0) |
+| `SSO-CLIENT-CONFIG-C01` | `docs/prompts/sso-client-config-c01-2026-09-18.md` | **INTEGRATED** `0a06f306` (QA 12/11/1/0, `PLANNER_DECISION_REQUIRED` — see ruling below) |
 | `FLAG-COMPENSATION-SLOT-C01` | `docs/prompts/flag-compensation-slot-c01-2026-09-18.md` | decisions resolved; large lane |
 | `EXPORT-PRESENTATION-C12` | `docs/prompts/export-presentation-c12-2026-09-18.md` | ready; sequence after flag |
+| `UX-R00` | refresh the SMART baseline at the new pin `79b182c` | ready |
+| `UX-R01`, `UX-R01a`, `UX-R02` | delta §5 | ready |
+| `UX-R03`, `UX-R04`, `UX-R05` | delta §5 | `UX-R03` now unblocked by `UX-P01` |
 | `PUBLISHED-REVISION-AUTHORITY-C12` | `docs/prompts/published-revision-authority-c12-2026-09-18.md` | second wave |
-| `UX-P01`, `UX-R01..R05` | `docs/handoffs/ux-rehaul-handoff.md` | gated on D-1/D-2/D-3 |
-| `UX-GUARDRAIL-SUITE-REPAIR-C01` | to author — registered defect F4, see below | backlog |
-| `SECTION-ROUTE-AUTHORITY-C01` | to author — registered defect, see below | backlog |
+| `UX-GUARDRAIL-SUITE-REPAIR-C01` | registered defect, see below | backlog |
+| `SECTION-ROUTE-AUTHORITY-C01` | registered defect, see below | backlog |
+
+### CRITICAL — every client build must set `VITE_ENROLLPRO_URL`
+
+`SSO-CLIENT-CONFIG-C01` added a **fail-closed production build guard**. A production
+`vite build` without `VITE_ENROLLPRO_URL` now **exits 1** and emits **no bundle**:
+
+```
+Error: [atlas-client] Missing required production build configuration: VITE_ENROLLPRO_URL.
+```
+
+Verified on the merged tree: without the var → exit 1, no bundle; with
+`VITE_ENROLLPRO_URL=https://dev-jegs.buru-degree.ts.net` → `✓ built`, and the emitted
+bundle carries the origin (`dev-jegs` x2, previously **0**). A development build and
+the Node test runner are unaffected.
+
+**Consequence for the next deploy:** the release build pipeline must export
+`VITE_ENROLLPRO_URL` before building `atlas-client`, or the build will fail by design.
+
+### SSO ruling — deferred browser row (planner decision)
+
+QA returned `PLANNER_DECISION_REQUIRED` (12/11/1/0) on
+`SSO-CLIENT-CONFIG-C01`. Source, build, security and server-side gates all pass; the
+single blocked row is the packet-mandated **live authenticated Tailnet browser
+rendered-state** check, which is **unsatisfiable before deployment** — the host still
+serves the pre-fix bundle, and no authenticated session is available.
+
+**Ruling: explicitly DEFERRED to post-deploy acceptance**, recorded as a deferral with
+its reason — not downgraded to non-blocking. It becomes a mandatory row of the next
+client deployment's acceptance, together with the end-to-end EnrollPro cross-system
+session. Nothing was deployed by this lane.
+
+### Corrected SSO root cause
+
+The packet's original premise — that `viteEnv()`'s cast defeats Vite's static
+substitution — is **FALSE**, disproved by QA on Vite `8.0.3`/rolldown: the base builds
+inline the origin correctly when the variable is present. The **sole** reproducible
+root cause is the **missing build-time value**. R1 is retained on robustness and
+explicitness merits only.
+
+### Runtime identity — only the active state file counts
+
+There is one `supervisor-state.json` **per release directory**. Only the one inside the
+**active** `ATLAS_RUNTIME_SOURCE_DIR` is authoritative. A QA note reporting identity
+drift (`f0d65a53` / `stopped`) was a false alarm caused by reading the stale file from
+the previous release. Verified: machine env, both listeners (PIDs 63688 / 12992) and the
+active state file all report `74c1f12a5c06`, `state: running`.
 
 ### Registered defect — `test:ux-guardrails` is vacuous (F4)
 
