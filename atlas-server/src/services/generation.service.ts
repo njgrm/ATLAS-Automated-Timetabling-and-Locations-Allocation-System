@@ -13,10 +13,12 @@ import { Prisma, type GenerationRunStatus } from '@prisma/client';
 import {
 	applyConstraintOverrides,
 	validateHardConstraints,
+	VIOLATION_CODES,
 	type ValidatorContext,
 	type ScheduledEntry,
 	type ValidationResult,
 	type Violation,
+	type ViolationCode,
 } from './constraint-validator.js';
 import {
 	buildUnionDisplaySlots,
@@ -1491,20 +1493,136 @@ export interface ViolationReport {
 	};
 }
 
+const COMBINED_FACULTY_PRESSURE_CODES = new Set<ViolationCode>([
+	'FACULTY_CONSECUTIVE_LIMIT_EXCEEDED',
+	'FACULTY_INSUFFICIENT_TRANSITION_BUFFER',
+]);
+
+function violationTermIndex(
+	violation: Violation,
+	entryTermById: Map<string, number | undefined>,
+): number | undefined {
+	const explicit = violation.meta?.termIndex;
+	if (typeof explicit === 'number') return explicit;
+	const terms = new Set(
+		(violation.entities?.entryIds ?? [])
+			.map((entryId) => entryTermById.get(entryId))
+			.filter((term): term is number => typeof term === 'number'),
+	);
+	return terms.size === 1 ? [...terms][0] : undefined;
+}
+
+function normalizedEntryIds(violation: Violation): string[] {
+	return [...new Set((violation.entities?.entryIds ?? []).map((entryId) => entryId.replace(/::t[1-4]$/i, '')))].sort();
+}
+
+function violationsShareEntries(left: Violation, right: Violation): boolean {
+	const leftIds = new Set(normalizedEntryIds(left));
+	return normalizedEntryIds(right).some((entryId) => leftIds.has(entryId));
+}
+
+function exactIssueKey(violation: Violation): string {
+	return JSON.stringify({
+		code: violation.code,
+		severity: violation.severity,
+		termIndex: violation.meta?.termIndex ?? null,
+		facultyId: violation.entities?.facultyId ?? null,
+		roomId: violation.entities?.roomId ?? null,
+		sectionId: violation.entities?.sectionId ?? null,
+		subjectId: violation.entities?.subjectId ?? null,
+		day: violation.entities?.day ?? null,
+		startTime: violation.entities?.startTime ?? null,
+		endTime: violation.entities?.endTime ?? null,
+		entryIds: normalizedEntryIds(violation),
+	});
+}
+
+function relatedCodes(violation: Violation): ViolationCode[] {
+	const related = Array.isArray(violation.meta?.relatedCodes)
+		? violation.meta.relatedCodes.filter((code): code is ViolationCode => typeof code === 'string' && (VIOLATION_CODES as readonly string[]).includes(code))
+		: [];
+	return [...new Set<ViolationCode>([violation.code, ...related])];
+}
+
+function mergePresentedViolations(primary: Violation, supporting: Violation): Violation {
+	return {
+		...primary,
+		entities: {
+			...primary.entities,
+			entryIds: [...new Set([...(primary.entities?.entryIds ?? []), ...(supporting.entities?.entryIds ?? [])])],
+		},
+		meta: {
+			...(primary.meta ?? {}),
+			relatedCodes: [...new Set([...relatedCodes(primary), ...relatedCodes(supporting)])],
+			relatedMessages: [...new Set([
+				...(Array.isArray(primary.meta?.relatedMessages) ? primary.meta.relatedMessages.filter((message): message is string => typeof message === 'string') : [primary.message]),
+				supporting.message,
+			])],
+		},
+	};
+}
+
+/**
+ * Project persisted validator rows into operator-facing issues. The persisted
+ * rows remain untouched for audit/publication acknowledgement. This projection
+ * removes exact duplicate instances within one ordered term, combines the two
+ * overlapping faculty-day pressure labels, and omits the meaningless
+ * UNSPECIFIED-zone warning emitted by historical runs without zone authority.
+ */
+export function projectViolationIssues(
+	violations: Violation[],
+	entries: ScheduledEntry[],
+): Violation[] {
+	const entryTermById = new Map(entries.map((entry) => [entry.entryId, resolveEntryTermIndex(entry)]));
+	const projected: Violation[] = [];
+	const exactIndex = new Map<string, number>();
+
+	for (const raw of violations) {
+		if (raw.code === 'ZONE_IMBALANCE_WARNING' && raw.meta?.zone === 'UNSPECIFIED') continue;
+		const termIndex = violationTermIndex(raw, entryTermById);
+		const violation: Violation = {
+			...raw,
+			entities: { ...(raw.entities ?? {}), entryIds: [...(raw.entities?.entryIds ?? [])] },
+			meta: { ...(raw.meta ?? {}), ...(termIndex === undefined ? {} : { termIndex }) },
+		};
+		const key = exactIssueKey(violation);
+		const exact = exactIndex.get(key);
+		if (exact !== undefined) {
+			projected[exact] = mergePresentedViolations(projected[exact], violation);
+			continue;
+		}
+
+		const related = projected.findIndex((candidate) =>
+			COMBINED_FACULTY_PRESSURE_CODES.has(candidate.code)
+			&& COMBINED_FACULTY_PRESSURE_CODES.has(violation.code)
+			&& candidate.meta?.termIndex === violation.meta?.termIndex
+			&& candidate.entities?.facultyId === violation.entities?.facultyId
+			&& candidate.entities?.day === violation.entities?.day
+			&& violationsShareEntries(candidate, violation),
+		);
+		if (related >= 0) {
+			projected[related] = mergePresentedViolations(projected[related], violation);
+			continue;
+		}
+
+		exactIndex.set(key, projected.length);
+		projected.push(violation);
+	}
+
+	return projected;
+}
+
 export function buildViolationReport(
 	run: { id: number; status: string; violations: unknown; summary: unknown; draftEntries: unknown },
 	resolvedTermIndex: number | undefined,
 ): ViolationReport {
 	const entries = ensureEntriesHaveTermIndex((run.draftEntries ?? []) as unknown as ScheduledEntry[]);
-	const allViolations = (run.violations ?? []) as unknown as Violation[];
+	const persistedViolations = (run.violations ?? []) as unknown as Violation[];
+	const allViolations = projectViolationIssues(persistedViolations, entries);
 	const violations = filterViolationsByTerm(allViolations, entries, resolvedTermIndex);
-	const summary = (run.summary ?? {}) as Record<string, unknown>;
-	const violationCounts = (summary.violationCounts ?? {}) as Record<string, number>;
-	const runWideByCode: Record<string, number> = { ...violationCounts };
-	if (Object.keys(runWideByCode).length === 0) {
-		for (const violation of allViolations) {
-			runWideByCode[violation.code] = (runWideByCode[violation.code] ?? 0) + 1;
-		}
+	const runWideByCode: Record<string, number> = {};
+	for (const violation of allViolations) {
+		runWideByCode[violation.code] = (runWideByCode[violation.code] ?? 0) + 1;
 	}
 	const displayByCode: Record<string, number> = {};
 	for (const violation of violations) {

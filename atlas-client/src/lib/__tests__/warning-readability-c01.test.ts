@@ -68,4 +68,3 @@ test('R2/R6: copy explains minutes as periods and floor movement in readable ter
 	assert.match(`${floor.meaning} ${floor.action}`, /floor/i);
 	assert.doesNotMatch(`${floor.meaning} ${floor.action}`, /transition buffer|configured threshold/i);
 });
-

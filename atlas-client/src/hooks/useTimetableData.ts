@@ -69,37 +69,11 @@ import type {
 	ViolationCode,
 	ViolationReport,
 } from '@/types';
+import { VIOLATION_TITLES } from '@/lib/violation-presentation';
 
 const DAYS = ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY'] as const;
 
-const VIOLATION_LABELS: Record<ViolationCode, string> = {
-	FACULTY_TIME_CONFLICT: 'Faculty Time Conflict',
-	ROOM_TIME_CONFLICT: 'Room Time Conflict',
-	SECTION_TIME_CONFLICT: 'Section Time Conflict',
-	FACULTY_OVERLOAD: 'Faculty Overload',
-	ROOM_TYPE_MISMATCH: 'Room Type Mismatch',
-	ROOM_FEATURE_MISMATCH: 'Room Feature Mismatch',
-	FACULTY_SUBJECT_NOT_QUALIFIED: 'Teaching Load Review',
-	FACULTY_CONSECUTIVE_LIMIT_EXCEEDED: 'Consecutive Limit',
-	FACULTY_BREAK_REQUIREMENT_VIOLATED: 'Break Requirement',
-	FACULTY_DAILY_STANDARD_EXCEEDED: 'Daily Load Warning',
-	FACULTY_DAILY_MAX_EXCEEDED: 'Daily Max Exceeded',
-	FACULTY_EXCESSIVE_TRAVEL_DISTANCE: 'Excessive Travel Distance',
-	FACULTY_FLOOR_TRANSITION: 'Cross-Floor Transition',
-	FACULTY_EXCESSIVE_BUILDING_TRANSITIONS: 'Excessive Building Transitions',
-	FACULTY_INSUFFICIENT_TRANSITION_BUFFER: 'Insufficient Transition Buffer',
-	FACULTY_EXCESSIVE_IDLE_GAP: 'Excessive Idle Gap',
-	FACULTY_EARLY_START_PREFERENCE: 'Early Start Preference',
-	FACULTY_LATE_END_PREFERENCE: 'Late End Preference',
-	FACULTY_INSUFFICIENT_DAILY_VACANT: 'Insufficient Daily Vacant',
-	SECTION_OVERCOMPRESSED: 'Section Overcompressed',
-	ROOM_CAPACITY_EXCEEDED: 'Room Capacity Exceeded',
-	LACKING_FACULTY: 'Lacking Faculty',
-	INCOMPLETE_MODULAR_GROUP: 'Incomplete Modular Group',
-	SPECIALIZED_ROOM_UNAVAILABLE: 'Specialized Room Unavailable',
-	UNASSIGNED_SECTION: 'Unassigned Section',
-	ZONE_IMBALANCE_WARNING: 'Zone Imbalance Warning',
-};
+const VIOLATION_LABELS: Record<ViolationCode, string> = VIOLATION_TITLES;
 
 const CONFLICT_CODES: Set<ViolationCode> = new Set([
 	'FACULTY_TIME_CONFLICT',

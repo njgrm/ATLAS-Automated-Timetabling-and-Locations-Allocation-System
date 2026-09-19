@@ -5,91 +5,13 @@ import type { Violation, UnassignedItem, ViolationCode } from '@/types';
 import { Button } from '@/ui/button';
 import { ScrollArea } from '@/ui/scroll-area';
 import { isBlockingHardViolation, isInformationalHardViolation } from '@/components/timetable/simplePublishReadiness';
+import { VIOLATION_PRESENTATION } from '@/lib/violation-presentation';
 
 /* ─── Human-readable explanations per violation code ─── */
 
-export const VIOLATION_EXPLANATIONS: Record<string, { why: string; fix: string }> = {
-	FACULTY_TIME_CONFLICT: {
-		why: 'This teacher is assigned to two different classes at the same time.',
-		fix: 'Move one of the conflicting entries to a different time slot, or reassign one to another teacher.',
-	},
-	ROOM_TIME_CONFLICT: {
-		why: 'Two classes are scheduled in the same room at the same time.',
-		fix: 'Move one class to a different time slot, or change one of them to a different room.',
-	},
-	SECTION_TIME_CONFLICT: {
-		why: 'The same section is assigned to overlapping classes in the same time window.',
-		fix: 'Move one of the conflicting section entries to a different slot so students are not double-booked.',
-	},
-	FACULTY_OVERLOAD: {
-		why: "This teacher's total teaching hours exceed their configured weekly maximum.",
-		fix: 'Reduce this teacher\'s load by reassigning some of their classes to other qualified teachers.',
-	},
-	ROOM_TYPE_MISMATCH: {
-		why: "The subject requires a specific room type (e.g., Lab) but is placed in a different type (e.g., Classroom).",
-		fix: 'Change the room to one that matches the subject\'s preferred room type.',
-	},
-	ROOM_FEATURE_MISMATCH: {
-		why: "The subject requires specific room features or equipment (e.g., Greenhouse, Internet) that are missing from the assigned room.",
-		fix: 'Move to a room that has the required features, or update the room features in the Campus Map editor.',
-	},
-	FACULTY_SUBJECT_NOT_QUALIFIED: {
-		why: 'This teaching-load assignment does not currently cover this subject at this grade level.',
-		fix: 'Verify the saved teaching load, or update Teacher Assignments if the assignment is missing.',
-	},
-	FACULTY_CONSECUTIVE_LIMIT_EXCEEDED: {
-		why: 'This teacher has too many consecutive teaching periods without a break.',
-		fix: 'Insert a free period or move one class to create a gap. You can also adjust the consecutive limit in Scheduling Policy.',
-	},
-	FACULTY_BREAK_REQUIREMENT_VIOLATED: {
-		why: 'After a long consecutive block, the teacher does not have a long enough break.',
-		fix: 'Extend the gap between classes or move an adjacent class to a different slot.',
-	},
-	FACULTY_DAILY_STANDARD_EXCEEDED: {
-		why: 'This teacher teaches more than the 6-hour daily target, even though they are still below the hard daily cap.',
-		fix: 'Move one of their classes to another day or reassign it to another qualified teacher.',
-	},
-	FACULTY_DAILY_MAX_EXCEEDED: {
-		why: "This teacher's total teaching minutes on this day exceed the daily maximum.",
-		fix: 'Move one of their classes on this day to a different day, or reassign to another teacher.',
-	},
-	FACULTY_FLOOR_TRANSITION: {
-		why: 'A teacher moves between floors in the same building with too little time to make the transition.',
-		fix: 'Insert a buffer period between the classes, or move one class to the same floor.',
-	},
-	FACULTY_EXCESSIVE_BUILDING_TRANSITIONS: {
-		why: 'This teacher moves between too many different buildings in a single day.',
-		fix: 'Cluster classes in fewer buildings, or reassign some to teachers who are already in those buildings.',
-	},
-	FACULTY_INSUFFICIENT_TRANSITION_BUFFER: {
-		why: 'There is not enough time between back-to-back classes in different buildings for the teacher to walk there.',
-		fix: 'Add a free period between the transitions, or move one class to the same building.',
-	},
-	FACULTY_EXCESSIVE_IDLE_GAP: {
-		why: 'This teacher has too much idle (unscheduled) time between their classes during the day.',
-		fix: 'Compact their schedule by moving classes closer together or reassigning one to reduce the gap.',
-	},
-	FACULTY_EARLY_START_PREFERENCE: {
-		why: 'This teacher expressed a preference not to start too early, but their first class begins in an early slot.',
-		fix: 'Move their first class to a later time slot if possible.',
-	},
-	FACULTY_LATE_END_PREFERENCE: {
-		why: 'This teacher prefers not to end too late, but their last class finishes in a late slot.',
-		fix: 'Move their last class to an earlier time slot if possible.',
-	},
-	FACULTY_INSUFFICIENT_DAILY_VACANT: {
-		why: "This teacher does not have enough vacant (free) periods during the day for rest or preparation.",
-		fix: 'Reduce their daily load or redistribute classes to other days.',
-	},
-	SECTION_OVERCOMPRESSED: {
-		why: 'This section has too many consecutive teaching periods in a row without any break for students.',
-		fix: 'Spread the section\'s classes across more time slots or add a break period.',
-	},
-	ROOM_CAPACITY_EXCEEDED: {
-		why: 'The assigned room does not have enough capacity for the number of students enrolled in this section.',
-		fix: 'Move the class to a larger room, or reduce the section enrollment. Check the room capacity settings in your campus map.',
-	},
-};
+export const VIOLATION_EXPLANATIONS: Record<string, { why: string; fix: string }> = Object.fromEntries(
+	Object.entries(VIOLATION_PRESENTATION).map(([code, copy]) => [code, { why: copy.meaning, fix: copy.action }]),
+);
 
 const UNASSIGNED_EXPLANATIONS: Record<string, { why: string; whatItMeans: string }> = {
 	NO_QUALIFIED_FACULTY: {
