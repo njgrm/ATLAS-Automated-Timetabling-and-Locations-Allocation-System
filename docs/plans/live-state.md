@@ -4,7 +4,7 @@ Current operational truth only. Git history and handoff documents retain older
 evidence. Update this file when a live fact, blocking decision, or next action
 changes.
 
-Last verified: 2026-09-19 17:20 +08
+Last verified: 2026-09-19 18:10 +08
 
 ## Objective
 
@@ -51,10 +51,15 @@ and AIMS.
 
 - Current source is ahead of the deployed release. Deployment remains a
   separate HIGH action.
-- Public schedule cells still merge entries from three ordered terms; a source
-  correction packet is required before presentation.
-- Warning totals must represent unique issues within each term, preserve term
-  identity, remove false zone warnings, and correct floor-transition wording.
+- `PUBLIC-SCHEDULE-TERM-SCOPE-C01` is integrated and independently accepted.
+  Public reads now require or resolve one verified term, isolate cache identity
+  by requested and resolved term, reject malformed term selection before
+  dispatch, and preserve all public route families. It is not deployed.
+- `WARNING-READABILITY-C01` is integrated and independently accepted. Warning
+  projection now counts unique issues within each term, preserves term
+  identity, suppresses only the false unspecified-zone signal, explains floor
+  transitions truthfully, and actor-scopes both violation-report routes. It is
+  not deployed.
 - `UX-R01-SHARED-CHROME-C01` is independently accepted for integration: shared
   SMART-style breadcrumbs, PageHeader, semantic Card/state primitives, and a
   mechanically enforced 12px application-chrome floor. It is foundational and
@@ -83,6 +88,6 @@ and AIMS.
 
 Dispatch the integrated SMART and AIMS developer handoffs to their repository
 owners. Generate and install the directional keys only after both sides consume
-the agreed names, then prepare one deployment/env packet. In parallel, author
-the public term-scoping correction. Regeneration and publication remain locked
-behind a separate explicit HIGH approval.
+the agreed names, then prepare one deployment/env packet containing the accepted
+UX, federation, public-term, and warning corrections. Regeneration and
+publication remain locked behind a separate explicit HIGH approval.
