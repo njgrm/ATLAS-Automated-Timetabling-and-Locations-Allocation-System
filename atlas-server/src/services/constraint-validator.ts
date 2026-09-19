@@ -1080,7 +1080,7 @@ export function validateHardConstraints(ctx: ValidatorContext): ValidationResult
 					violations.push({
 						...base, severity: 'SOFT',
 						code: 'FACULTY_FLOOR_TRANSITION',
-						message: `Faculty ${facultyId} moves ${floorDelta} floors in one building on ${day} (${prev.endTime}→${curr.startTime}) with only ${gapMinutes} min gap.`,
+						message: `Faculty ${facultyId} finishes on floor ${fromFloor} at ${prev.endTime} and starts on floor ${toFloor} at ${curr.startTime} on ${day} — ${gapMinutes === 0 ? 'no time' : `only ${gapMinutes} minutes`} to move.`,
 						entities: { facultyId, day, entryIds: [prev.entryId, curr.entryId] },
 						meta: {
 							facultyId, day,

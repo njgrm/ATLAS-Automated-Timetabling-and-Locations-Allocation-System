@@ -155,6 +155,12 @@ export function ViolationGroup({
 						{visibleViolations.map((v, i) => {
 							const isSelected = selectedViolation === v;
 							const formattedMessage = formatConstraintMessage ? formatConstraintMessage(v.message, v) : v.message;
+							const relatedMessages = Array.isArray(v.meta?.relatedMessages)
+								? v.meta.relatedMessages.filter((message): message is string => typeof message === 'string')
+								: [];
+							const relatedCodes = Array.isArray(v.meta?.relatedCodes)
+								? v.meta.relatedCodes.filter((relatedCode): relatedCode is string => typeof relatedCode === 'string')
+								: [];
 							const action = renderAction?.(v) ?? null;
 							return (
 								<div key={i} className={`flex min-w-0 flex-wrap items-stretch gap-1 ${
@@ -173,7 +179,15 @@ export function ViolationGroup({
 														onClick={() => onSelect(v)}
 														className="h-auto min-h-9 min-w-0 flex-[1_1_13rem] justify-start rounded-none px-3 py-2 text-left text-xs leading-tight transition-colors hover:bg-transparent"
 													>
-														<span className="min-w-0 whitespace-normal break-words text-left underline decoration-dashed decoration-muted-foreground/50 underline-offset-2 line-clamp-2">{formattedMessage}</span>
+												<span className="min-w-0 whitespace-normal break-words text-left underline decoration-dashed decoration-muted-foreground/50 underline-offset-2">
+													<span className="line-clamp-2">{formattedMessage}</span>
+													{relatedCodes.length > 1 ? (
+														<span className="mt-1 block text-xs font-medium text-amber-700 no-underline">
+															Combines {relatedCodes.length} related checks
+															{relatedMessages[1] ? ` · ${formatConstraintMessage ? formatConstraintMessage(relatedMessages[1], v) : relatedMessages[1]}` : ''}
+														</span>
+													) : null}
+												</span>
 													</Button>
 												</TooltipTrigger>
 												<TooltipContent className="max-w-[min(18rem,calc(100vw-2rem))] whitespace-normal break-words text-xs font-normal leading-relaxed space-y-1 py-2 px-3 border-amber-200 bg-amber-50 text-amber-900" side="right">
@@ -193,10 +207,18 @@ export function ViolationGroup({
 													{v.meta.gapMinutes != null && (
 														<div>Gap: {String(v.meta.gapMinutes)} min</div>
 													)}
-													{v.meta.buildingTransitions != null && (
-														<div>Building trans: {String(v.meta.buildingTransitions)}{v.meta.configuredThresholds ? ` · Limit: ${String((v.meta.configuredThresholds as Record<string, unknown>).maxBuildingTransitionsPerDay ?? '?')}` : ''}</div>
-													)}
-												</TooltipContent>
+											{v.meta.buildingTransitions != null && (
+												<div>Building trans: {String(v.meta.buildingTransitions)}{v.meta.configuredThresholds ? ` · Limit: ${String((v.meta.configuredThresholds as Record<string, unknown>).maxBuildingTransitionsPerDay ?? '?')}` : ''}</div>
+											)}
+											{relatedCodes.length > 1 && (
+												<div className="mt-1 border-t border-amber-200/60 pt-1">
+													<div className="font-semibold">Combines {relatedCodes.length} related checks</div>
+													{relatedMessages.slice(1).map((relatedMessage) => (
+														<div key={relatedMessage}>{formatConstraintMessage ? formatConstraintMessage(relatedMessage, v) : relatedMessage}</div>
+													))}
+												</div>
+											)}
+										</TooltipContent>
 											</Tooltip>
 										</TooltipProvider>
 									) : (
