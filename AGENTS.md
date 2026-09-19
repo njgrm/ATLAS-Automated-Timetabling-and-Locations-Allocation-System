@@ -294,23 +294,17 @@ commands actually run with results · known risks, each marked `BLOCKING` or
 
 ## 11. Risk Tiers And Verification
 
-- **LOW** — reversible source, test, UI, or docs with no authority or data boundary.
-  Executor diff review plus focused tests. No independent reviewer required.
-- **MEDIUM** — production wiring, behaviour replacement, cross-layer shape changes,
-  concurrency logic. One independent review of the commit range, plus negative
-  controls.
-- **HIGH** — schema/migration apply, destructive or production-data mutation,
-  auth/authorization boundaries, deployment/cutover, generation, publication,
-  live-data apply. Independent review **before** the action, exact target, explicit
-  approval, rollback, and post-action verification.
+Classify by behaviour and authority, not ease of rollback. User-facing or production
+behaviour defaults to MEDIUM; a live action remains HIGH even when its source was
+already accepted.
 
 ### Review loops by tier — do not add ceremony
 
 | Tier | Required loop |
 | --- | --- |
-| **LOW** — docs, copy, test-only, reversible source with no authority or data boundary | `executor self-check → planner review`. **No independent QA. No auditor.** |
+| **LOW** — non-authorising docs, copy-only, test-only, or mechanically provable non-behavioural source | `executor self-check → planner review`. **No independent QA. No auditor.** |
 | **MEDIUM** — production wiring, cross-layer shape, concurrency | `executor → one fresh QA → planner integration`. Auditor only if QA returns ambiguity, or the integration has genuinely overlapping changes. |
-| **HIGH** — migration, destructive or production-data write, auth boundary, deployment, generation, publication, live apply | `packet review → explicit approval → executor → independent post-action QA`. Completion auditor only for irreversible writes, deployment failure, conflicting evidence, or publication. |
+| **HIGH** — migration, destructive or production-data write, auth boundary, deployment, generation, publication, live apply | `independent packet review → explicit approval → executor → independent post-action QA`. Completion auditor only for irreversible writes, deployment failure, conflicting evidence, or publication. |
 
 - **Documentation-only corrections:** the planner applies and verifies them directly.
   No executor/QA loop, unless the document grants authority or contains a HIGH
@@ -320,6 +314,8 @@ commands actually run with results · known risks, each marked `BLOCKING` or
   production code changed.
 - **A bounded correction does not require a full re-review.** After a correction
   commit, review the *new commit and its blast radius*, not the whole range again.
+  Still prove that the prior accepted commits remain ancestors, unchanged reviewed
+  paths retain their accepted blobs, and one relevant preservation control passes.
 - **Checkpoint large cycles.** Commit a coherent candidate every 45–60 minutes so a
   step limit resumes from a checkpoint instead of reconstructing the cycle.
 - **One writer per stream.** Before dispatch the planner names the stream owner and
@@ -350,13 +346,18 @@ commands actually run with results · known risks, each marked `BLOCKING` or
    and a negative control must prove the write aborts with zero residue.
 6. **Zero-write on rejection.** Prove no downstream dispatch and no writes when
    authority, freshness, or concurrency checks reject.
-7. **Live browser QA on the Tailnet** is the default acceptance for user-facing work.
+7. **Separate source QA from deployed browser acceptance.** Undeployed user-facing
+   source uses component/rendered interaction proof. Live Tailnet browser QA is the
+   post-deployment acceptance and must never be cited as proof of undeployed bytes.
    See §12.
 
 ---
 
 ## 12. Live Browser QA
 
+- A source candidate that is not deployed cannot claim its new behaviour was proven
+  by the live Tailnet. Record source QA and post-deployment browser acceptance as
+  separate outcomes.
 - Test against **`https://njgrm.buru-degree.ts.net`** — the real environment.
   `localhost` reflects only the local process and hides deployment, proxy, routing,
   and cross-service behaviour. Use it only for an explicitly-labelled isolated check.
@@ -464,29 +465,33 @@ these plus the branches are enough to resume.
 - **Do not reload this directive from disk** when it is already in context. Use
   targeted reads only to recover a specific rule.
 
-### Token economy — the bill is uncached input
+### Token economy — coordination is context
 
-Measured on real work: **~40,000 new (uncached) input tokens per request** against
-~200,000 cached, and uncached input was **82% of the cost**. Every request re-sends
-the whole session context; only the new content bills at full rate. Coordination
-ceremony *is* token burn — an extra reviewer is a whole extra session reading context.
+Provider billing and cache ratios vary by model, harness, and session. Keep measured
+cost figures in workflow-analysis artifacts, not in this normative directive. The
+durable rule is to avoid duplicated coordination that produces no new evidence.
 
-- **Reset the session between lanes.** A long session re-sends its entire context on
-  every request. The living-state file and the committed packets exist so this is
-  safe; that is their real payoff. **This is the single largest lever.**
+- **Use a fresh session for a new independent lane only after durable checkpointing.**
+  The prior lane must have a committed handoff and must release browser, worktree,
+  runtime, and register custody. Never reset through an uncommitted correction, an
+  active HIGH action, or a live browser handoff. A fresh session can also lose prompt-
+  cache benefits, so use it at real lane boundaries rather than after every turn.
 - **Point at artifacts, do not paste them.** A subagent prompt names a committed
   packet path; it does not contain the packet.
 - **Batch independent shell checks into one call.** Each extra call is a full
   round-trip through the context.
 - **Cap every output** — `-First`, `--oneline`, `--stat`, `-Tail`. Never dump a whole
   file, a directory listing, or a JSON payload into context.
-- **Never re-verify a fact established in the same session.** Re-running a check for
-  reassurance costs a full request and buys nothing.
-- **No `webfetch` on documentation pages** — one page can exceed 10,000 tokens. Prefer
-  a targeted search, and state the answer is a snapshot.
+- **Do not re-verify a stable fact merely for reassurance.** Always reverify after a
+  source merge, runtime or environment change, custody transition, meaningful elapsed
+  time for an external dependency, concurrent `origin/main` advance, and immediately
+  before a HIGH mutation.
+- **Use Context7 or targeted official-documentation queries.** Do not ingest an entire
+  documentation page when a scoped query or section is sufficient; record when an
+  answer is only a current snapshot.
 - **Keep this directive short.** Detailed test matrices and domain contracts belong in
   referenced files under `docs/`, not here. Every agent pays for every line of this
   file on every request.
-- Verification gates, independent QA, and immutable commit ranges are **cheap** and
-  stay. This rule targets exploratory volume and duplicated coordination, not
-  discipline.
+- Immutable commit ranges are cheap. Independent QA is expensive but intentionally
+  retained where the risk justifies its cost. This rule targets exploratory volume
+  and duplicated coordination, not discipline.
