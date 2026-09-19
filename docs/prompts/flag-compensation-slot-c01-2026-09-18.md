@@ -140,32 +140,67 @@ are **assumed wrong** and must not be reproduced.
 > This is a `grade_shift_windows` data change and therefore needs the same
 > separate approval as any other live config apply.
 
-### OPEN — required before dispatch
+### RESOLVED — D1 flag slot is shift-derived
 
-1. **Flag slot derivation.** The division template places the flag at
-   `6:00-6:45` for a morning-shift sample and `12:15-1:00` for afternoon-shift
-   samples, so the slot follows the section's shift rather than one fixed clock
-   time. ATLAS already carries per-grade/program shift windows in
-   `grade_shift_windows`. Confirm whether HNHS actually runs **both** a morning
-   and an afternoon shift. If every section shares one shift, a fixed time is
-   equivalent and simpler; if both exist, the flag must be derived per section or
-   a morning section would show a flag after its day has ended.
-2. **Scope of the relocation.** Confirm the period is occupied for **every**
-   program type (REGULAR, STE, SPA, SPS) and that **the displaced subject is
-   whatever the timetable placed in that period** (data-driven), not a fixed
-   subject. The division template uses `TLE`; the school artifact uses
-   `Science`. Capacity evidence supports a broad rule: the grid holds 900
-   sessions without the compensation row and the run needs 920, so the extra
-   rows are required for feasibility, not optional.
-3. **`Total minutes per day` semantics.** Confirmed rule to adopt: **sum of
-   instructional minutes per weekday, breaks excluded, each weekday computed
-   independently.** Derived from the division template (sample 1: 8 x 45 = 360
-   plus a 60-minute ARAL block = `420`; lunch 45 and health break 15 are
-   excluded; Friday reads `405` because its ARAL/TLE block runs 45 instead of
-   60). Both source documents print internally inconsistent totals, so the
-   computed rule is authoritative over the printed values. Under this rule the
-   G9 STE section with the resolved `9:15-10:00` row yields **Monday 495,
-   Tue-Fri 450**.
+HNHS runs **both** a morning and an afternoon shift, and the flag ceremony runs
+**every Monday for both shifts**. The flag row is therefore derived from the
+section's own shift window, never one fixed clock time.
+
+### RESOLVED — D3 three distinct displacement strategies exist
+
+The operator confirmed the relocation applies to the **special programs**, and
+that the displaced subject is **data-driven** (never hardcoded `TLE` or
+`Science`). Investigation of the artifacts found **three different strategies in
+real use**, and the model must support all three:
+
+| # | Strategy | Evidence | Mechanism |
+| --- | --- | --- | --- |
+| S1 | **Monday-only compensation row** | `grade9STE_Sched.jpg` (G9 STE, Science) | The displaced Monday session moves to a Monday-only extra row (`9:15-10:00`). Subject keeps 5 sessions. |
+| S2 | **Cross-day relocation** | `GRADE10_REGULAR.jpg` (G10 REGULAR, Section PEARL) | The displaced Monday session moves into another day's free slot. Science shows `Tue-Fri` at `12:15-1:00` plus a 5th session in Friday's `11:15-12:15` block. |
+| S3 | **Partial occupancy, no relocation** | `aral-prog_G7_Class-Program_SY2026-2027docx.docx` (G7 morning) | The `6:00-6:45` row carries a real subject for **every** section (`TLE`, `SCIENCE`, `SCIENCE`, `MATH`, `MAPEH`) — no flag label. The ceremony consumes part of the period and the class still runs in the remainder. |
+
+**This corrects the packet's earlier stance.** `ec2430ab` ("treat Flag/HGP as
+in-period overlay, not a capacity block") is **correct for the S3 morning case**
+and **wrong for the S1/S2 afternoon cases**. The requirement is therefore not
+"replace the overlay model" but **"make blocking-vs-overlay a per-shift,
+per-program configuration"**. The operator's direction: expose these options
+through the existing `grade_shift_windows` authority rather than a new parallel
+config.
+
+**Also unresolved by design (make it *possible*, do not guess):** G7 and G8
+special programs whose shift spans both blocks would attend **two** flag
+ceremonies and would have **two** subjects displaced. The operator has not yet
+confirmed what the school actually does here. The model must be able to express
+two displacements for one section; it must not be hardcoded to one.
+
+### RESOLVED — D2 interval and shift window
+
+- Compensation row: **`9:15-10:00`** (45 min), contiguous with `10:00-10:45`.
+  The source's `9:45-10:30` / `60`-minute values are assumed wrong.
+- The G9/G10 STE/SPA/SPS shift window moves to **`09:15-18:30`** so the
+  compensation row no longer precedes its own section's window. (Operator chose
+  option (a).) This is a `grade_shift_windows` data change and needs the same
+  separate approval as any other live config apply.
+
+### RESOLVED — D4 totals semantics
+
+**Sum of instructional minutes per weekday, breaks excluded, each weekday
+computed independently.** The flag/compensation period counts as an occupied
+period. Derived from the division template (8 x 45 = 360 plus a 60-minute ARAL
+block = `420`; lunch 45 and health break 15 excluded). All source documents print
+internally inconsistent totals, so the computed rule is authoritative over the
+printed values. Under this rule the G9 STE section with the resolved
+`9:15-10:00` row yields **Monday 495, Tue-Fri 450**.
+
+### Additional finding — a fourth export artifact
+
+`aral-prog_G7_Class-Program_SY2026-2027docx.docx` is **not** the same shape as
+the division template. It is a **grade-level master class program** with
+**sections as columns** (`STE DEL ROSARIO | STE SANTIAGO | SPA CAYABYAB |
+SPA CELERIO | SPS REYES`), an `ADVISER` row, a `BLDG/ROOM NO.` row, and the
+subject grid across time rows — plus the G7 green palette (`70AD47`/`E2EFD9`).
+Header reads *HINIGARAN NATIONAL HIGH SCHOOL*. This is a distinct renderer, not a
+variant of the per-section form. Folded into `EXPORT-PRESENTATION-C12`.
 
 ## 3. Production-path proof required
 

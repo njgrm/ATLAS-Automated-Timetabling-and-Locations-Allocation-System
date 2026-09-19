@@ -78,20 +78,55 @@ Retained startable releases on disk: `f0d65a53`, `4ce73d15`, `3c4cc3cd`,
 | `docs/prompts/export-presentation-c12-2026-09-18.md` | `Total minutes per day` writes one value into all five weekday cells; xlsx class-program renderer lacks borders/alignment/merged header; no grade palette (G7 green, G8 yellow, G9 red, G10 blue); header fields hardcoded empty. |
 | `docs/prompts/published-revision-authority-c12-2026-09-18.md` | The published-revision path performs **no hard-constraint validation**, so a revision can introduce a HARD violation. No published-safe swap. `manual-edit.service.ts:461` leaks "Prompt 6". |
 
-## Operator decisions required
+## Operator decisions — all resolved (2026-09-18)
 
-1. **Interval resolution for the flag lane.** `grade9STE_Sched.jpg` overlaps
-   `9:45-10:30` with `10:00-10:45`, and prints `60` minutes where the corrected
-   value is 45. Choose: shift the following rows, or re-base the grid to a
-   canonical 45-minute ladder.
-2. **Flag relocation scope.** The ceremony is school-wide; confirm the period is
-   occupied for every program type (REGULAR, STE, SPA, SPS) with only the
-   compensation placement varying.
-3. **Export architecture.** DepEd prescribes curriculum and time allotments, not
-   document layout — division memoranda state the DO 9 s. 2026 samples are
-   "illustrative references ... not rigid or mandatory templates". So exports
-   must ship a default renderer matching the stakeholder artifacts **plus** a
-   template-override seam. Confirm before the packet is dispatched.
+1. **Flag interval** — compensation row is `9:15-10:00` (45 min), contiguous
+   with `10:00-10:45`. Source's `9:45-10:30` / `60` assumed wrong.
+2. **Shift window** — move G9/G10 STE/SPA/SPS to `09:15-18:30` so the
+   compensation row does not precede its own section's window. (Data change,
+   needs its own approval.)
+3. **Flag slot** — HNHS runs **both** a morning and an afternoon shift, with a
+   flag ceremony every Monday for **both**. The flag row is derived from the
+   section's own shift, never a fixed clock time.
+4. **Displacement strategies — three, all real, all required:**
+   - **S1** Monday-only compensation row (`grade9STE_Sched.jpg`, G9 STE Science)
+   - **S2** cross-day relocation into another day's free slot
+     (`GRADE10_REGULAR.jpg`, G10 REGULAR Science -> Friday `11:15-12:15`)
+   - **S3** partial occupancy, no relocation (`aral-prog_G7...`, the `6:00-6:45`
+     row keeps a real subject for every section)
+   Blocking-vs-overlay must be a **per-shift, per-program configuration** exposed
+   through the existing `grade_shift_windows` authority. This **corrects** the
+   earlier stance: `ec2430ab` is *right* for S3 and *wrong* for S1/S2.
+   Deliberately left open: G7/G8 special programs spanning both shifts would
+   attend **two** ceremonies and have **two** displacements — the model must be
+   able to express that; it must not assume one.
+5. **Displaced subject** — data-driven, never hardcoded `TLE`/`Science`.
+   Relocation applies to the **special programs**; HNHS's shifting is an edge
+   case caused by buildings under construction, and normal schools run whole-day.
+6. **Totals semantics** — instructional minutes per weekday, **breaks excluded**,
+   computed independently. Flag period counts as occupied.
+7. **Export architecture** — DepEd prescribes curriculum and time allotments, not
+   layout; division memoranda call the DO 9 s. 2026 samples "illustrative
+   references ... not rigid or mandatory templates". Ship a default renderer
+   matching the artifacts plus a template-override seam, with the grade palette
+   **switchable** (the division blank form uses one accent, `83CAEB`).
+
+## Two distinct class-program export shapes
+
+- **Per-section** — one section per document, `Teacher` column (division
+  template `DNO-CLASS-PROGRAM-TEMPLATE-2026-2027.docx`).
+- **Grade-level master** — **all sections of a grade side by side as columns**,
+  with `ADVISER` and `BLDG/ROOM NO.` rows
+  (`aral-prog_G7_Class-Program_SY2026-2027docx.docx`).
+
+Both are required. The master form is not a variant of the per-section form.
+
+## School identity
+
+HNHS — Hinigaran National High School. Masthead chain: *Republic of the
+Philippines / Department of Education / NEGROS ISLAND REGION / DIVISION OF
+NEGROS OCCIDENTAL / HINIGARAN NATIONAL HIGH SCHOOL*. Footer tagline: *"Tatak
+Negrense: Smart, Healthy, Strong, Happy Schools!"*.
 
 ## Other open items
 

@@ -15,19 +15,20 @@ Authoritative inputs (READ_ONLY, `D:/ATLAS/stakeholderFiles/`):
 
 | Artifact | Role |
 | --- | --- |
-| `aral-prog_G7_Class-Program_SY2026-2027docx.docx` | **Class Program** template (Grade 7), green palette |
-| `grade9STE_Sched.jpg` | **Class Program**, Grade 9 STE / Fe Del Mundo (section-level worked example) |
-| `grade10STE_Sched.jpg`, `GRADE10_REGULAR.jpg` | Class Program, Grade 10 STE and Regular |
+| `DNO-CLASS-PROGRAM-TEMPLATE-2026-2027.docx` | **Division-issued blank form** (4 samples). Masthead in `header1.xml`, single `83CAEB` accent, no placeholders, fill-in-by-hand. This is the per-section layout authority. |
+| `aral-prog_G7_Class-Program_SY2026-2027docx.docx` | **Grade-level master class program** — sections as **columns**, with `ADVISER` and `BLDG/ROOM NO.` rows. G7 green palette verified (`70AD47` / `E2EFD9`). Header: *HINIGARAN NATIONAL HIGH SCHOOL*. **A distinct renderer, not a variant.** |
+| `grade9STE_Sched.jpg` | Per-section **Class Program**, G9 STE / Fe Del Mundo (worked example) |
+| `GRADE10_REGULAR.jpg` | Per-section **Class Program**, G10 REGULAR / PEARL (worked example) |
+| `grade10STE_Sched.jpg` | Per-section **Class Program**, G10 STE |
 | `Teachers-PROGRAM_SPEC-PROG-AFTERNOON.docx` | **Teacher Program** output |
 | `CLASS-PROGRAM-SY-2025-2026-GRADE-8.xlsx` | Class Program, Grade 8 (xlsx form) |
-| `DNO-CLASS-PROGRAM-TEMPLATE-2026-2027.docx` | Division-issued template (locked/open in Word at packet authoring — copy before reading) |
 | `teacherSched+LoadActual.png`, `teacher2Sched+LoadActual.png` | Teacher schedule + actual load |
 
-**Terminology note (confirm with the operator).** `grade9STE_Sched.jpg` is titled
-*"Class Program for Grade 9 Enhanced K to 10 for SY 2026-2027"*. The "section
-schedule" and the "class program" are therefore **the same artifact**, viewed per
-section. Do not build a third renderer for a distinct "section schedule" unless
-the operator confirms one exists.
+**There are two distinct class-program shapes.** The per-section form (division
+template) has one section per document with a `Teacher` column. The grade-level
+master form (`aral-prog_G7...`) has **all sections of a grade side by side as
+columns**, with `ADVISER` and `BLDG/ROOM NO.` rows above the grid. Both must be
+produced. Do not treat one as a variant of the other.
 
 ### DepEd scope (researched 2026-09-18)
 
@@ -91,6 +92,18 @@ requests and explain that one term must be selected.
 **R6 — Template-override seam.** Isolate layout in one descriptor so a
 school-supplied layout can replace the default without touching data assembly.
 Document the seam; do not build a UI for it.
+
+**R7 — Grade-level master class program.** Produce the `aral-prog_G7...` shape
+as its own renderer: **one column per section of the grade**, with `SECTION`,
+`ADVISER`, and `BLDG/ROOM NO.` rows above the time grid, and the grade palette
+applied. Column set is data-driven (the artifact shows 5 sections; a grade may
+have more). Prove conservation: every section of the grade appears exactly once,
+and every session appears in the correct section column and time row.
+
+**R8 — Palette switchable.** The grade palette is an HNHS artifact convention,
+not a DepEd requirement (the division's blank form uses one accent, `83CAEB`).
+Expose palette-on/off in the layout descriptor so an export intended for
+division submission can render the neutral form.
 
 ## 3. Data-availability gaps (must be resolved or explicitly blanked)
 
