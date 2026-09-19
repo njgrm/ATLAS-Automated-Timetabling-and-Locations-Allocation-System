@@ -86,6 +86,19 @@ commits, and pushed artifacts preserve history; retaining every checkout does no
   write-mode or snapshot-updating test runs.
 - Before fetching or pulling a companion repo, verify its worktree is clean. If it
   is dirty: do not stash, reset, clean, or pull — report the state.
+- **Sync before you inspect.** A companion mirror is evidence only at a recorded
+  commit. Before reading its source, benchmarking its UX/UI, or citing its
+  behaviour, fetch upstream, confirm the clone is clean, fast-forward it, and
+  record the exact pin in the artifact. A stale mirror silently invalidates the
+  comparison: the SMART UX baseline was authored against `c3806e12`/`1bda233`
+  while upstream had advanced 34 commits, including companion-SSO and per-portal
+  auth changes that bore directly on our own work.
+- Remotes differ and must be checked, not assumed: `D:/smart-final-capstone`
+  tracks upstream `madebyseaan/smart-final-capstone`, while `D:/EnrollPro` and
+  `D:/AIMS` track our forks (`njgrm/EnrollPro`, `njgrm/AIMS`). To bring a fork in
+  step, first prove it has no fork-only commits
+  (`git merge-base --is-ancestor fork/main upstream/main`), then fast-forward push
+  it. **Never force-push a companion repo.**
 - When a defect belongs to EnrollPro/AIMS/SMART, write a developer-facing handoff in
   `D:/ATLAS/docs/` with the upstream commit, exact source path/line evidence, the
   required contract, and acceptance tests. **Do not implement the external patch.**
