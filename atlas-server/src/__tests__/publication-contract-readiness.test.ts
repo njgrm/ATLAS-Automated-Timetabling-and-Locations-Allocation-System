@@ -193,9 +193,19 @@ function makeRevisionFixture(options: RevisionFixtureOptions = {}) {
 	const baseEffectiveDate = options.baseEffectiveDate ?? new Date('2030-01-01T00:00:00.000Z');
 	const generationRunSummary = options.summary ?? { isPublished: true, publishedAt: FIXED_NOW.toISOString(), publication: { revisionId: 700, sourceRunVersion: 5 } };
 	const changedEntries = options.changes ?? [{ entryId: 'e-1', entry: { entryId: 'e-1', roomId: 30, termIndex: 1 } }];
+	const zeroAggregate = () => async () => ({ _count: { _all: 0 }, _max: { id: null, updatedAt: null, createdAt: null } });
 	const tx: any = {
 		$executeRawUnsafe: async () => 1,
-		$queryRawUnsafe: async () => changedEntries,
+		$queryRawUnsafe: async (query: string) => {
+			// PUBLISHED-REVISION-AUTHORITY-C12: the revision write contract now
+			// also binds the canonical generation-input digest through the same
+			// raw-query delegate. Dispatch on the query shape; the digest row
+			// carries every domain digest the snapshot builder reads.
+			if (query.includes('faculty_mirrors')) {
+				return [{ teachingLoad: 'tl', policy: 'pl', rooms: 'rm', sections: 'sc', subjects: 'sb', availability: 'av' }];
+			}
+			return changedEntries;
+		},
 		enrollProSchoolYearMirror: {
 			findMany: async () => [{ enrollProSchoolYearId: 81 }],
 			findUnique: async ({ where }: any) => {
@@ -217,6 +227,31 @@ function makeRevisionFixture(options: RevisionFixtureOptions = {}) {
 			findFirst: async ({ where }: any) => state.audits.find((row) => row.targetIds.includes(where.targetIds.has)) ?? null,
 			create: async ({ data }: any) => { const row = { id: 902, ...data }; state.audits.push(row); return row; },
 		},
+		// PUBLISHED-REVISION-AUTHORITY-C12: the revision write contract now
+		// validates the merged entry set through `loadRunContext` and binds
+		// the canonical generation-input snapshot, all through the
+		// transaction client. These benign stubs keep the legacy
+		// single-entry fixtures hermetic: empty reference data means the
+		// legacy changed entry validates with zero violations, and constant
+		// aggregate signals keep the pre-validation / pre-commit snapshots
+		// FRESH. No legacy assertion is touched.
+		facultyMirror: { findMany: async () => [], aggregate: zeroAggregate() },
+		facultySubject: { findMany: async () => [], aggregate: zeroAggregate() },
+		subjectSectionOwnership: { aggregate: zeroAggregate() },
+		teachingLoadCycle: { findUnique: async () => null },
+		room: { findMany: async () => [], aggregate: zeroAggregate() },
+		building: { findMany: async () => [], aggregate: zeroAggregate() },
+		subject: { findMany: async () => [], aggregate: zeroAggregate() },
+		sectionMirror: { findMany: async () => [], aggregate: zeroAggregate() },
+		schedulingPolicy: { findUnique: async () => null },
+		sectionSnapshot: { findUnique: async () => null },
+		policySpecialEvent: { findMany: async () => [], aggregate: zeroAggregate() },
+		gradeShiftWindow: { findMany: async () => [], aggregate: zeroAggregate() },
+		classProgramSlot: { findMany: async () => [] },
+		classTemplate: { aggregate: async () => ({ _count: { _all: 0 }, _max: { id: null, createdAt: null } }) },
+		classTemplateSubject: { aggregate: async () => ({ _count: { _all: 0 }, _max: { id: null, createdAt: null } }) },
+		facultyPreference: { aggregate: zeroAggregate() },
+		preferenceTimeSlot: { aggregate: async () => ({ _count: { _all: 0 }, _max: { id: null, createdAt: null } }) },
 	};
 	let lock = Promise.resolve();
 	const client: any = {
@@ -395,9 +430,15 @@ async function main() {
 	assert.equal(failureFixture.state.audits.length, 1, 'notification failure preserves committed audit');
 
 	const revisionState = { revisions: [] as any[], audits: [] as any[] };
+	const zeroRevisionAggregate = () => async () => ({ _count: { _all: 0 }, _max: { id: null, updatedAt: null, createdAt: null } });
 	const revisionTx: any = {
 		$executeRawUnsafe: async () => 1,
-		$queryRawUnsafe: async () => [{ entryId: 'e-1', entry: { entryId: 'e-1', roomId: 30, termIndex: 1 } }],
+		$queryRawUnsafe: async (query: string) => {
+			if (query.includes('faculty_mirrors')) {
+				return [{ teachingLoad: 'tl', policy: 'pl', rooms: 'rm', sections: 'sc', subjects: 'sb', availability: 'av' }];
+			}
+			return [{ entryId: 'e-1', entry: { entryId: 'e-1', roomId: 30, termIndex: 1 } }];
+		},
 		enrollProSchoolYearMirror: {
 			findMany: async () => [{ enrollProSchoolYearId: 81 }],
 			findUnique: async ({ where }: any) => {
@@ -419,6 +460,26 @@ async function main() {
 			findFirst: async ({ where }: any) => revisionState.audits.find((row) => row.targetIds.includes(where.targetIds.has)) ?? null,
 			create: async ({ data }: any) => { const row = { id: 902, ...data }; revisionState.audits.push(row); return row; },
 		},
+		// PUBLISHED-REVISION-AUTHORITY-C12: benign stubs for the revision
+		// write contract's merged-entry validation and canonical snapshot
+		// binding (see makeRevisionFixture above). No assertion below changes.
+		facultyMirror: { findMany: async () => [], aggregate: zeroRevisionAggregate() },
+		facultySubject: { findMany: async () => [], aggregate: zeroRevisionAggregate() },
+		subjectSectionOwnership: { aggregate: zeroRevisionAggregate() },
+		teachingLoadCycle: { findUnique: async () => null },
+		room: { findMany: async () => [], aggregate: zeroRevisionAggregate() },
+		building: { findMany: async () => [], aggregate: zeroRevisionAggregate() },
+		subject: { findMany: async () => [], aggregate: zeroRevisionAggregate() },
+		sectionMirror: { findMany: async () => [], aggregate: zeroRevisionAggregate() },
+		schedulingPolicy: { findUnique: async () => null },
+		sectionSnapshot: { findUnique: async () => null },
+		policySpecialEvent: { findMany: async () => [], aggregate: zeroRevisionAggregate() },
+		gradeShiftWindow: { findMany: async () => [], aggregate: zeroRevisionAggregate() },
+		classProgramSlot: { findMany: async () => [] },
+		classTemplate: { aggregate: async () => ({ _count: { _all: 0 }, _max: { id: null, createdAt: null } }) },
+		classTemplateSubject: { aggregate: async () => ({ _count: { _all: 0 }, _max: { id: null, createdAt: null } }) },
+		facultyPreference: { aggregate: zeroRevisionAggregate() },
+		preferenceTimeSlot: { aggregate: async () => ({ _count: { _all: 0 }, _max: { id: null, createdAt: null } }) },
 	};
 	const revisionClient: any = { $transaction: async (work: any) => work(revisionTx) };
 	const revisionInput = {
