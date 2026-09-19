@@ -482,7 +482,7 @@ export function AppShell() {
 							<div className='flex-1 truncate text-center text-sm font-semibold'>{currentPageTitle}</div>
 							<Badge
 								variant='outline'
-								className={`h-7 px-2 text-[0.65rem] ${isOnline ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-amber-200 bg-amber-50 text-amber-800'}`}
+								className={`h-7 px-2 text-xs ${isOnline ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-amber-200 bg-amber-50 text-amber-800'}`}
 							>
 								{isOnline ? <Wifi className='mr-1 size-3' /> : <WifiOff className='mr-1 size-3' />}
 								{mobileSyncLabel}
@@ -499,7 +499,7 @@ export function AppShell() {
 								{activeTermLabel && (
 									<Badge
 										variant='outline'
-										className='h-7 px-2 text-[0.65rem] border-primary/20 bg-primary/5 text-primary hidden sm:inline-flex'
+										className='hidden h-7 border-primary/20 bg-primary/5 px-2 text-xs text-primary sm:inline-flex'
 									>
 										Active Term: {activeTermLabel}
 									</Badge>

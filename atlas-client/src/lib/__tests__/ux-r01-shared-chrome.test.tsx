@@ -93,6 +93,17 @@ function assertSharedChromeSources(pageHeader: string, card: string, smartShell:
 	assert.match(smartShell, /<PageHeader/);
 }
 
+test('shared app chrome keeps its text at the 12px minimum', () => {
+	const chrome = [
+		source('src/components/AppShell.tsx'),
+		source('src/components/app-shell/PageHeader.tsx'),
+		source('src/components/smart/SmartPageShell.tsx'),
+		source('src/ui/breadcrumb.tsx'),
+		source('src/ui/card.tsx'),
+	].join('\n');
+	assert.doesNotMatch(chrome, /text-\[(?:0\.(?:[0-6]\d|7[0-4])rem|(?:[0-9]|1[01])px)\]/);
+});
+
 test('shared chrome guard is load-bearing for missing breadcrumbs and raw neutral colors', () => {
 	const pageHeader = source('src/components/app-shell/PageHeader.tsx');
 	const card = source('src/ui/card.tsx');
