@@ -423,6 +423,45 @@ The section dropdown's 20 options carry no `role=group` / `aria-label` semantics
 so the grade grouping is visual only. Order is correct; grouping is not exposed to
 assistive tech.
 
+### Warning trustworthiness — audited 2026-09-19
+
+Sample-verified against real schedule data (full detail in
+`docs/prompts/warning-readability-c01-2026-09-19.md`):
+
+- **335 API rows = 116 unique issues.** The API returns one row per term for the same
+  underlying problem (`entry-523::t1/t2/t3`). The UI silently dedupes to **113**. Two
+  screens, same schedule, different numbers.
+- **The faculty-comfort math is CORRECT.** `FACULTY_CONSECUTIVE_LIMIT_EXCEEDED`
+  verified exactly (4 x 45 = 180 min > 135 limit, `blockEntryIds` match the four
+  contiguous entries); `FACULTY_EXCESSIVE_IDLE_GAP` verified exactly (Faculty 39
+  Friday `06:00-06:45` -> `08:15-09:00` = the reported 90 min, breaks correctly
+  excluded); `FACULTY_EXCESSIVE_BUILDING_TRANSITIONS` verified (6 entries -> 5
+  transitions).
+- **`ZONE_IMBALANCE_WARNING` is NOT trustworthy.** It fires because **0 of 103 rooms**
+  have a zone configured, and reports "zone UNSPECIFIED has 100% of entries (920 of
+  920)". A configuration gap presented as a schedule warning, carrying 920 entry ids.
+- **`FACULTY_FLOOR_TRANSITION`'s message is broken**: `(14:30->14:30) with only 0 min
+  gap` reads as a zero-length transition.
+- **Duplicate classes overlap**: `FACULTY_CONSECUTIVE_LIMIT_EXCEEDED` and
+  `FACULTY_INSUFFICIENT_TRANSITION_BUFFER` fire on the same faculty/day with
+  overlapping entry sets.
+
+### Regenerate / republish — status
+
+**All 20 sections' persisted home rooms are per-grade correct** (verified live:
+Grade 7 -> G7 wing, 8 -> G8 wing, 9 -> G9 wing, 10 -> G10 wing, no cross-grade
+leakage). Generation consumes persisted home rooms (`homeRoomAssignedCount 2130 /
+2130`), so **regeneration would produce correct room assignments**.
+
+**But the auto-assign button is NOT yet fixed in live data.** The source fix is
+integrated, yet all four wings still have `gradeScope = []`, so pressing auto-assign
+now would move all 20 sections into the **Grade 7** wing. Order of operations must be:
+
+1. the `gradeScope` apply (`1->[7], 2->[8], 3->[9], 4->[10]`) — small, reversible;
+2. then regenerate + republish.
+
+Both are `HIGH` and need explicit approval.
+
 ## Boundaries
 
 - `D:\ATLAS` is a stale/dirty checkout (~466 behind) and is never an
