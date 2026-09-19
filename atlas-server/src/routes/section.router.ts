@@ -138,6 +138,17 @@ router.get('/:sectionId/assigned-classes', authenticateWithSystemToken, requireP
 /**
  * POST /api/v1/sections/sync
  * Manually trigger a reconciliation from EnrollPro sections into ATLAS SectionMirror.
+ *
+ * Accepts EITHER:
+ *  1. A JWT- or bridge-authenticated actor whose bound school matches the
+ *     request body `schoolId` (actor-school cross-check), OR
+ *  2. A valid system token (`authSource === 'system'`) with an explicit
+ *     `schoolId` in the request body — the machine declares its target
+ *     explicitly so intent is auditable.
+ *
+ * Still rejected: a system token with NO explicit schoolId (fail closed,
+ * typed error, zero dispatch).  GET and PUT home-room routes keep their
+ * actor-only gate unchanged.
  */
 router.post('/sync', authenticateWithSystemToken, requirePrivilegedRole, async (req: Request, res: Response, next: NextFunction) => {
 	try {
@@ -147,12 +158,22 @@ router.post('/sync', authenticateWithSystemToken, requirePrivilegedRole, async (
 			return;
 		}
 
-		// Actor-school authority: reject cross-school before any upstream dispatch.
-		const actorSchoolId = requireActorSchool(req, res);
-		if (actorSchoolId === null) return;
-		if (actorSchoolId !== schoolId) {
-			res.status(403).json({ code: 'CROSS_SCHOOL_DENIED', message: 'Requested school does not match the authenticated actor school.' });
-			return;
+		// ---- School-scope authority ----
+		// System tokens declare their target school in the request body; the
+		// explicit body.schoolId is the auditable declaration.  JWT/bridge
+		// actors are cross-checked against the authenticated token school.
+		if (req.user?.authSource === 'system') {
+			// System token with explicit schoolId already validated above;
+			// intent is auditable (body.schoolId was the machine declaration).
+			// Fall through — no actor-school cross-check needed for system tokens.
+		} else {
+			// Actor-school authority: reject cross-school before any upstream dispatch.
+			const actorSchoolId = requireActorSchool(req, res);
+			if (actorSchoolId === null) return;
+			if (actorSchoolId !== schoolId) {
+				res.status(403).json({ code: 'CROSS_SCHOOL_DENIED', message: 'Requested school does not match the authenticated actor school.' });
+				return;
+			}
 		}
 
 		const upstreamAuthToken = getUpstreamAuthToken(req);
