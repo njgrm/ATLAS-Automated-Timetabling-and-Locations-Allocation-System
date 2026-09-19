@@ -13,7 +13,7 @@ import {
 	issueSignedPeerState,
 	registerSignedPeerState,
 	consumeSignedPeerState,
-	matchReverseClientSecret,
+	matchReverseClientPeer,
 	resolveAtlasPeerCallbackUrl,
 	resolveCompanionPeer,
 	resolvePeerAuthorizeUrl,
@@ -239,19 +239,14 @@ router.post('/sso/authorize', authenticate, async (req: Request, res: Response, 
  */
 router.post('/sso/exchange', async (req: Request, res: Response, next: NextFunction) => {
 	try {
-		const peer = resolveCompanionPeer(req.body?.clientId);
-		if (!peer) {
-			res.status(401).json({ code: 'COMPANION_SSO_CLIENT_INVALID', message: 'The reverse SSO client is missing or invalid.' });
-			return;
-		}
 		const provided = extractBearerToken(req);
-		const matchedEnvName = matchReverseClientSecret(provided, peer.id);
-		if (!matchedEnvName) {
+		const matched = matchReverseClientPeer(provided);
+		if (!matched) {
 			res.status(401).json({ code: 'COMPANION_SSO_CLIENT_INVALID', message: 'The reverse SSO client secret is missing or invalid.' });
 			return;
 		}
 		const result = await exchangeCompanionSsoCode({
-			peer: peer.id,
+			peer: matched.peer,
 			code: req.body?.code,
 			clientId: req.body?.clientId,
 			redirectUri: req.body?.redirectUri,

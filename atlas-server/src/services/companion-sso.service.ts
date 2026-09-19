@@ -54,6 +54,7 @@ export type CompanionPeerConfig = {
 	label: string;
 	clientId: CompanionPeerId;
 	baseUrlEnv: string;
+	exchangeUrlEnv: string;
 	outboundSecretEnv: string;
 	reverseSecretEnv: string;
 	registeredCallbackEnv: string;
@@ -65,19 +66,19 @@ export type CompanionPeerConfig = {
 export const COMPANION_PEERS: Readonly<Record<CompanionPeerId, CompanionPeerConfig>> = Object.freeze({
 	enrollpro: {
 		id: 'enrollpro', label: 'EnrollPro', clientId: 'enrollpro',
-		baseUrlEnv: 'ENROLLPRO_BASE_URL', outboundSecretEnv: 'ENROLLPRO_SSO_CLIENT_SECRET',
+		baseUrlEnv: 'ENROLLPRO_BASE_URL', exchangeUrlEnv: 'ENROLLPRO_SSO_EXCHANGE_URL', outboundSecretEnv: 'ENROLLPRO_SSO_CLIENT_SECRET',
 		reverseSecretEnv: 'ATLAS_SSO_REVERSE_CLIENT_SECRET', registeredCallbackEnv: 'ENROLLPRO_SSO_CALLBACK_URL',
 		authorizeUrlEnv: 'ENROLLPRO_SSO_AUTHORIZE_URL', atlasCallbackUrlEnv: 'ATLAS_ENROLLPRO_SSO_CALLBACK_URL',
 	},
 	smart: {
 		id: 'smart', label: 'SMART', clientId: 'smart',
-		baseUrlEnv: 'SMART_BASE_URL', outboundSecretEnv: 'SMART_SSO_CLIENT_SECRET',
+		baseUrlEnv: 'SMART_BASE_URL', exchangeUrlEnv: 'SMART_SSO_EXCHANGE_URL', outboundSecretEnv: 'SMART_SSO_CLIENT_SECRET',
 		reverseSecretEnv: 'ATLAS_SMART_SSO_REVERSE_CLIENT_SECRET', registeredCallbackEnv: 'SMART_SSO_CALLBACK_URL',
 		authorizeUrlEnv: 'SMART_SSO_AUTHORIZE_URL', atlasCallbackUrlEnv: 'ATLAS_SMART_SSO_CALLBACK_URL',
 	},
 	aims: {
 		id: 'aims', label: 'AIMS', clientId: 'aims',
-		baseUrlEnv: 'AIMS_BASE_URL', outboundSecretEnv: 'AIMS_SSO_CLIENT_SECRET',
+		baseUrlEnv: 'AIMS_BASE_URL', exchangeUrlEnv: 'AIMS_SSO_EXCHANGE_URL', outboundSecretEnv: 'AIMS_SSO_CLIENT_SECRET',
 		reverseSecretEnv: 'ATLAS_AIMS_SSO_REVERSE_CLIENT_SECRET', registeredCallbackEnv: 'AIMS_SSO_CALLBACK_URL',
 		authorizeUrlEnv: 'AIMS_SSO_AUTHORIZE_URL', atlasCallbackUrlEnv: 'ATLAS_AIMS_SSO_CALLBACK_URL',
 	},
@@ -212,6 +213,15 @@ export function resolvePeerBaseUrl(peer: CompanionPeerId): string | null {
 	return raw ? raw.replace(/\/+$/, '') : null;
 }
 
+export function resolvePeerExchangeUrl(peer: CompanionPeerId): string | null {
+	const config = COMPANION_PEERS[peer];
+	const explicit = trimmedEnv(config.exchangeUrlEnv);
+	if (explicit) return explicit;
+	if (peer !== 'enrollpro') return null;
+	const base = resolvePeerBaseUrl(peer);
+	return base ? `${base}/auth/companion-sso/${COMPANION_SSO_COMPANION}/exchange` : null;
+}
+
 export function resolveEnrollProCallbackUrl(): string | null {
 	return trimmedEnv('ENROLLPRO_SSO_CALLBACK_URL');
 }
@@ -242,6 +252,15 @@ export function matchReverseClientSecret(provided: string | null | undefined, pe
 	if (expected.length !== actual.length) return null;
 	if (!timingSafeEqual(expected, actual)) return null;
 	return configured.name;
+}
+
+export function matchReverseClientPeer(provided: string | null | undefined): { peer: CompanionPeerId; envName: string } | null {
+	const matches: Array<{ peer: CompanionPeerId; envName: string }> = [];
+	for (const peer of Object.keys(COMPANION_PEERS) as CompanionPeerId[]) {
+		const envName = matchReverseClientSecret(provided, peer);
+		if (envName) matches.push({ peer, envName });
+	}
+	return matches.length === 1 ? matches[0] : null;
 }
 
 type SignedPeerState = { peer: CompanionPeerId; nonce: string; expiresAt: number };
@@ -483,15 +502,14 @@ export async function exchangePeerCallbackCode(
 }
 
 async function performUpstreamExchange(peer: CompanionPeerId, code: string, accountNameHint: string | null): Promise<ValidatedCompanionIdentity> {
-	const baseUrl = resolvePeerBaseUrl(peer);
+	const exchangeUrl = resolvePeerExchangeUrl(peer);
 	const secret = resolvePeerOutboundSecret(peer);
-	if (!baseUrl || !secret) {
+	if (!exchangeUrl || !secret) {
 		throw new CompanionSsoError('COMPANION_SSO_NOT_CONFIGURED');
 	}
-	const endpoint = `${baseUrl}/auth/companion-sso/${COMPANION_SSO_COMPANION}/exchange`;
 	let response: Response;
 	try {
-		response = await fetch(endpoint, {
+		response = await fetch(exchangeUrl, {
 			method: 'POST',
 			headers: {
 				Authorization: `Bearer ${secret.value}`,
@@ -714,6 +732,9 @@ export function validateAuthorizeRequest(params: AuthorizeParams): { peer: Compa
 	}
 	const peer = resolveCompanionPeer(params.peer ?? params.clientId);
 	if (!peer) throw new CompanionSsoError('COMPANION_SSO_INVALID_REQUEST', 'client_id is not recognized.');
+	if (peer.id !== 'enrollpro' && !resolvePeerCallbackUrl(peer.id)) {
+		throw new CompanionSsoError('COMPANION_SSO_INVALID_REQUEST', 'client_id is not configured.');
+	}
 	const responseType = typeof params.responseType === 'string' ? params.responseType : '';
 	const clientId = typeof params.clientId === 'string' ? params.clientId : '';
 	const redirectUri = typeof params.redirectUri === 'string' ? params.redirectUri : '';
@@ -760,19 +781,19 @@ export async function issueCompanionSsoCode(params: {
 	const expiresAt = new Date(now.getTime() + COMPANION_SSO_CODE_TTL_MS);
 	const code = generateCompanionSsoCode();
 	const codeHash = hashCompanionSsoCode(code);
-	const activeYears = await prisma.enrollProSchoolYearMirror.findMany({
-		where: { schoolId: params.schoolId, isActive: true, isArchived: false },
-		select: { enrollProSchoolYearId: true },
-	});
-	if (activeYears.length !== 1) {
-		throw new CompanionSsoError(activeYears.length === 0 ? 'ACTIVE_SCHOOL_YEAR_REQUIRED' : 'ACTIVE_SCHOOL_YEAR_CONFLICT');
-	}
 
 	// Build and validate the callback URL BEFORE persisting anything, so a
 	// misconfigured/invalid callback can never leave an orphan code row.
 	const callbackUrl = buildCompanionSsoCallbackUrl(params.redirectUri, code, params.state);
 	if (!callbackUrl) {
 		throw new CompanionSsoError('COMPANION_SSO_NOT_CONFIGURED', 'The companion reverse callback is not a valid absolute URL.');
+	}
+	const activeYears = await prisma.enrollProSchoolYearMirror.findMany({
+		where: { schoolId: params.schoolId, isActive: true, isArchived: false },
+		select: { enrollProSchoolYearId: true },
+	});
+	if (activeYears.length !== 1) {
+		throw new CompanionSsoError(activeYears.length === 0 ? 'ACTIVE_SCHOOL_YEAR_REQUIRED' : 'ACTIVE_SCHOOL_YEAR_CONFLICT');
 	}
 
 	await prisma.companionSsoCode.create({

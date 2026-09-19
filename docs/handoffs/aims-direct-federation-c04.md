@@ -12,7 +12,7 @@ Implement direct AIMS ↔ ATLAS SSO without routing identity through EnrollPro. 
 - AIMS authorize target configured in ATLAS as `AIMS_SSO_AUTHORIZE_URL`.
 - ATLAS callback: `GET /api/v1/auth/aims/callback`; exact URL configured as `ATLAS_AIMS_SSO_CALLBACK_URL`.
 - AIMS calls ATLAS `POST /api/v1/auth/sso/exchange` with `clientId: "aims"`, its exact registered callback, and `Authorization: Bearer <ATLAS_AIMS_SSO_REVERSE_CLIENT_SECRET>`.
-- ATLAS calls AIMS's equivalent exchange with `AIMS_SSO_CLIENT_SECRET` and `AIMS_BASE_URL`.
+- ATLAS calls AIMS's exact exchange URL from `AIMS_SSO_EXCHANGE_URL` with `AIMS_SSO_CLIENT_SECRET`; `AIMS_BASE_URL` remains the non-secret peer origin.
 - ATLAS client link is enabled only by `VITE_AIMS_SSO_START_URL`.
 
 ## AIMS changes required
@@ -28,4 +28,3 @@ A tracked AIMS documentation file currently contains a literal SSO credential. T
 ## Acceptance
 
 Mounted tests must cover both directions, exact callback/audience/client binding, wrong-peer secret, state tamper/expiry/replay, concurrent code consumption, inactive/ambiguous identity, student/role denial, active-year mismatch, and zero writes/audits on rejection. Deployment acceptance must exercise AIMS → ATLAS and ATLAS → AIMS on their Tailnet origins, assert the origin after each transition, and prove a single session per direction without exposing codes, JWTs, or secrets.
-

@@ -12,7 +12,7 @@ Implement direct SMART ↔ ATLAS SSO without routing identity through EnrollPro.
 - SMART authorize target configured in ATLAS as `SMART_SSO_AUTHORIZE_URL`.
 - ATLAS callback: `GET /api/v1/auth/smart/callback`; exact URL configured as `ATLAS_SMART_SSO_CALLBACK_URL`.
 - SMART calls ATLAS `POST /api/v1/auth/sso/exchange` with `clientId: "smart"`, its exact registered callback, and `Authorization: Bearer <ATLAS_SMART_SSO_REVERSE_CLIENT_SECRET>`.
-- ATLAS calls SMART's equivalent exchange with `SMART_SSO_CLIENT_SECRET` and `SMART_BASE_URL`.
+- ATLAS calls SMART's exact exchange URL from `SMART_SSO_EXCHANGE_URL` with `SMART_SSO_CLIENT_SECRET`; `SMART_BASE_URL` remains the non-secret peer origin.
 - ATLAS client link is enabled only by `VITE_SMART_SSO_START_URL`.
 
 ## SMART changes required
@@ -24,4 +24,3 @@ Role mapping into ATLAS must emit only `SYSTEM_ADMIN`, `HEAD_REGISTRAR`, `CLASS_
 ## Acceptance
 
 Mounted tests must cover both directions, exact callback/audience/client binding, wrong-peer secret, state tamper/expiry/replay, concurrent code consumption, inactive/ambiguous identity, denied role, active-year mismatch, and zero writes/audits on rejection. Deployment acceptance must exercise SMART → ATLAS and ATLAS → SMART on their Tailnet origins, assert the origin after each transition, and prove a single session per direction without exposing codes, JWTs, or secrets.
-
