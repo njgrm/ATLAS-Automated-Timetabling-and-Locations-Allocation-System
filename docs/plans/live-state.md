@@ -218,13 +218,46 @@ on the Simple view; **demote Advanced to "Expert"** (do not fix it).
 
 | Lane | Packet | State |
 | --- | --- | --- |
-| `HOME-ROOM-AUTO-ASSIGN-C01` | `docs/prompts/home-room-auto-assign-c01-2026-09-18.md` | dispatchable now |
-| `UX-R06` | `docs/handoffs/ux-rehaul-handoff.md` §C | dispatchable now |
+| `HOME-ROOM-AUTO-ASSIGN-C01` | `docs/prompts/home-room-auto-assign-c01-2026-09-18.md` | **INTEGRATED** `9a263016` (QA `ACCEPT_READY` 10/10/0/0) |
+| `UX-R06` | `docs/handoffs/ux-rehaul-handoff.md` §C | **INTEGRATED** `eff7d507` (QA round 1 `CORRECTION_REQUIRED` 14/12/2/0; round 2 `ACCEPT_READY` 8/8/0/0) |
 | `SSO-CLIENT-CONFIG-C01` | to author — build-time `VITE_ENROLLPRO_URL` + static env access + fail-closed build guard | ready to author |
 | `FLAG-COMPENSATION-SLOT-C01` | `docs/prompts/flag-compensation-slot-c01-2026-09-18.md` | decisions resolved; large lane |
 | `EXPORT-PRESENTATION-C12` | `docs/prompts/export-presentation-c12-2026-09-18.md` | ready; sequence after flag |
 | `PUBLISHED-REVISION-AUTHORITY-C12` | `docs/prompts/published-revision-authority-c12-2026-09-18.md` | second wave |
 | `UX-P01`, `UX-R01..R05` | `docs/handoffs/ux-rehaul-handoff.md` | gated on D-1/D-2/D-3 |
+| `UX-GUARDRAIL-SUITE-REPAIR-C01` | to author — registered defect F4, see below | backlog |
+| `SECTION-ROUTE-AUTHORITY-C01` | to author — registered defect, see below | backlog |
+
+### Registered defect — `test:ux-guardrails` is vacuous (F4)
+
+`atlas-client/package.json` runs `tsx --test` over three files, but
+`src/lib/__tests__/ux-guardrails.test.ts` and
+`src/lib/__tests__/public-schedule-grade.test.ts` **do not exist** — they were
+deleted from `origin/main` by `4794bd9e chore(repo): remove local-only files
+from tracking` while the script reference remained. `tsx --test` silently
+ignores missing paths when at least one valid path is present, so the script
+**exits 0 with 21 tests, all from `useTeachingLoadRouteIntent.test.ts` alone**.
+Independently reproduced by both the executor and QA. Consequence: this suite
+must **not** be cited as evidence, and the UX program's guardrail gate is
+currently empty. Pre-existing; not introduced by any lane.
+
+### Registered defect — sibling section routes lack actor-school enforcement
+
+QA found (pre-existing, outside the integrated range) that
+`GET /home-rooms/:schoolYearId` (`section.router.ts:163`),
+`PUT /home-rooms/:schoolYearId` (`:185`), and `POST /sync` (`:116`) still accept
+a caller-supplied `schoolId` without actor-school enforcement. The
+`auto-assign` route gained that check in `HOME-ROOM-AUTO-ASSIGN-C01`; its
+siblings did not. Recommend a bounded successor lane.
+
+### Live `gradeScope` apply is still required
+
+The integrated source fix is **not sufficient alone**. With all four wings still
+`gradeScope = []`, the corrected ordering routes all 20 sections to the **Grade 7**
+wing instead of Grade 10 — better, but still wrong. Per-grade parity needs the
+separate config apply `1->[7], 2->[8], 3->[9], 4->[10]`, which remains a
+HIGH-gated action with its own preview and approval. **Do not press Apply before
+that lands.**
 
 ## Boundaries
 
