@@ -72,10 +72,11 @@ type SectionReference = {
 	programName: string | null;
 };
 
-function err(statusCode: number, code: string, message: string): Error & { statusCode: number; code: string } {
-	const e = new Error(message) as Error & { statusCode: number; code: string };
+function err(statusCode: number, code: string, message: string, details?: Record<string, unknown>): Error & { statusCode: number; code: string; details?: Record<string, unknown> } {
+	const e = new Error(message) as Error & { statusCode: number; code: string; details?: Record<string, unknown> };
 	e.statusCode = statusCode;
 	e.code = code;
+	e.details = details;
 	return e;
 }
 
@@ -672,15 +673,26 @@ export async function getPublishedSchedulePayload(
 	let resolvedTermIndex: number | null = null;
 	let activeTermVerified = false;
 	let entriesToMap = filteredEntries;
+	let resolvedTermContract: ReturnType<typeof frozenTermContract> | null = null;
 
 	if (options?.termIndex !== undefined) {
 		const requestedTerm = options.termIndex;
+		resolvedTermContract = frozen
+			? frozenTermContract(frozen, resolved.source.schoolId, resolved.source.schoolYearId)
+			: await loadVerifiedOrderedTermContract(resolved.source.schoolId, resolved.source.schoolYearId);
+		const orderedTermDetails = { orderedTerms: resolvedTermContract?.terms.map((term) => ({ ...term })) ?? [] };
+		if (!resolvedTermContract) {
+			throw err(409, 'TERM_STRUCTURE_UNAVAILABLE', 'No verified ordered term contract is available for this published schedule.', orderedTermDetails);
+		}
 
 		if (frozen) {
 			// C08 — a published run's term authority is the FROZEN ordered-term
 			// contract, never the live active/non-archived mirror cache. This is what
 			// makes archived per-term reads and every official export resolvable.
-			const frozenContract = frozenTermContract(frozen, resolved.source.schoolId, resolved.source.schoolYearId);
+			const frozenContract = resolvedTermContract;
+			if (requestedTerm === 'active' && frozenContract.activeTermOrder == null) {
+				throw err(409, 'TERM_SELECTION_REQUIRED', 'The active term is unresolved. Choose one ordered term.', orderedTermDetails);
+			}
 			resolvedTermIndex = resolveRequestedTermIndexFromContract(
 				frozenContract,
 				resolved.source.schoolId,
@@ -692,9 +704,9 @@ export async function getPublishedSchedulePayload(
 		} else if (requestedTerm === 'active') {
 			// The active term resolves only through the persisted, verified EnrollPro
 			// ordered contract and fails closed when it is unavailable.
-			const contract = await loadVerifiedOrderedTermContract(resolved.source.schoolId, resolved.source.schoolYearId);
+			const contract = resolvedTermContract;
 			if (!contract || contract.activeTermOrder == null) {
-				throw err(501, 'TERM_FILTER_NOT_READY', 'The active term cannot be verified from the persisted EnrollPro term authority. Use an explicit termIndex or omit termIndex for an all-term read.');
+				throw err(409, 'TERM_SELECTION_REQUIRED', 'The active term is unresolved. Choose one ordered term.', orderedTermDetails);
 			}
 			resolvedTermIndex = contract.activeTermOrder;
 			activeTermVerified = true;
@@ -702,7 +714,7 @@ export async function getPublishedSchedulePayload(
 		} else {
 			// Semantic validation: reject an index absent from the exact school/year
 			// contract. A missing contract fails closed rather than guessing.
-			const contract = await loadVerifiedOrderedTermContract(resolved.source.schoolId, resolved.source.schoolYearId);
+			const contract = resolvedTermContract;
 			if (!contract) {
 				throw err(409, 'TERM_STRUCTURE_UNAVAILABLE', 'No verified ordered term contract is available for this school year, so the requested term cannot be validated.');
 			}
@@ -817,6 +829,7 @@ export async function getPublishedSchedulePayload(
 			termScope,
 			termIndex: resolvedTermIndex,
 			activeTermVerified,
+			orderedTerms: resolvedTermContract?.terms.map((term) => ({ ...term })) ?? [],
 		},
 		timeSlots,
 		// C08 — frozen policy/special events feed the same deterministic slot

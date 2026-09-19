@@ -41,13 +41,26 @@ function readStringQuery(raw: unknown): string | undefined {
 	return value.length > 0 ? value : undefined;
 }
 
-function readScheduleOptions(req: Request) {
+function readScheduleOptions(req: Request, defaultTerm?: 'active') {
 	const termIndex = parseTermIndexQuery(req.query.termIndex);
 	return {
 		requestedDate: readStringQuery(req.query.date) ?? readStringQuery(req.query.asOfDate),
-		termIndex: termIndex === 'INVALID' ? undefined : termIndex,
+		termIndex: termIndex === 'INVALID' ? undefined : (termIndex ?? defaultTerm),
 		invalidTermIndex: termIndex === 'INVALID',
 	};
+}
+
+function requireTermSelection(req: Request, res: Response): ReturnType<typeof readScheduleOptions> | null {
+	const options = readScheduleOptions(req);
+	if (options.invalidTermIndex) {
+		res.status(400).json({ code: 'INVALID_TERM_INDEX', message: `termIndex must be 1..${MAX_ACADEMIC_TERM_INDEX}, or "active".` });
+		return null;
+	}
+	if (options.termIndex === undefined) {
+		res.status(400).json({ code: 'TERM_SELECTION_REQUIRED', message: 'Choose one ordered term before reading a published schedule.' });
+		return null;
+	}
+	return options;
 }
 
 function parseTermIndexQuery(raw: unknown): number | 'active' | 'INVALID' | undefined {
@@ -98,7 +111,7 @@ router.get('/schools/:schoolId/schedules/published', async (req: Request, res: R
 		}
 
 		const activeSchoolYearId = activeMirrors[0].enrollProSchoolYearId;
-		const scheduleOptions = readScheduleOptions(req);
+		const scheduleOptions = readScheduleOptions(req, 'active');
 		if (scheduleOptions.invalidTermIndex) {
 			res.status(400).json({
 				code: 'INVALID_TERM_INDEX',
@@ -150,7 +163,7 @@ router.get('/schools/:schoolId/schedules/published/sections/:sectionId', async (
 		}
 
 		try {
-			const payload = await getPublishedSectionSchedule(schoolId, sectionId, activeSchoolYearId, readScheduleOptions(req));
+			const payload = await getPublishedSectionSchedule(schoolId, sectionId, activeSchoolYearId, readScheduleOptions(req, 'active'));
 			res.json(payload);
 		} catch (serviceError: any) {
 			if (serviceError?.code === 'PUBLISHED_RUN_NOT_FOUND') {
@@ -192,7 +205,7 @@ router.get('/schools/:schoolId/schedules/published/faculty/:facultyId', async (r
 		}
 
 		try {
-			const payload = await getPublishedFacultySchedule(schoolId, facultyId, activeSchoolYearId, readScheduleOptions(req));
+			const payload = await getPublishedFacultySchedule(schoolId, facultyId, activeSchoolYearId, readScheduleOptions(req, 'active'));
 			res.json(payload);
 		} catch (serviceError: any) {
 			if (serviceError?.code === 'PUBLISHED_RUN_NOT_FOUND') {
@@ -234,7 +247,7 @@ router.get('/schools/:schoolId/schedules/published/faculty-external/:externalFac
 		}
 
 		try {
-			const payload = await getPublishedFacultyScheduleByExternalId(schoolId, externalFacultyId, activeSchoolYearId, readScheduleOptions(req));
+			const payload = await getPublishedFacultyScheduleByExternalId(schoolId, externalFacultyId, activeSchoolYearId, readScheduleOptions(req, 'active'));
 			res.json(payload);
 		} catch (serviceError: any) {
 			if (serviceError?.code === 'FACULTY_NOT_FOUND') {
@@ -272,7 +285,9 @@ router.get('/schools/:schoolId/school-years/:schoolYearId/schedules/published/fa
 			// C08 — active/historical metadata is computed once by the published
 			// schedule service from the single active-year election; route-local
 			// overrides are removed so both families agree for the same scope.
-			const payload = await getPublishedFacultyScheduleByExternalId(schoolId, externalFacultyId, schoolYearId, readScheduleOptions(req));
+			const scheduleOptions = requireTermSelection(req, res);
+			if (!scheduleOptions) return;
+			const payload = await getPublishedFacultyScheduleByExternalId(schoolId, externalFacultyId, schoolYearId, scheduleOptions);
 			res.json(payload);
 		} catch (serviceError: any) {
 			if (serviceError?.code === 'FACULTY_NOT_FOUND') {
@@ -313,7 +328,7 @@ router.get('/schools/:schoolId/schedules/published/rooms/:roomId', async (req: R
 		}
 
 		try {
-			const payload = await getPublishedRoomSchedule(schoolId, roomId, activeSchoolYearId, readScheduleOptions(req));
+			const payload = await getPublishedRoomSchedule(schoolId, roomId, activeSchoolYearId, readScheduleOptions(req, 'active'));
 			res.json(payload);
 		} catch (serviceError: any) {
 			if (serviceError?.code === 'PUBLISHED_RUN_NOT_FOUND') {
@@ -341,8 +356,10 @@ router.get('/schools/:schoolId/school-years/:schoolYearId/schedules/published', 
 		const schoolYearId = positiveInt(req.params.schoolYearId, 'schoolYearId');
 		if (typeof schoolYearId === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: schoolYearId }); return; }
 
+		const scheduleOptions = requireTermSelection(req, res);
+		if (!scheduleOptions) return;
 		const activeSchoolYearId = await resolveActiveSchoolYearId(schoolId);
-		const payload = await getPublishedSchedulePayload(schoolId, schoolYearId, readScheduleOptions(req), undefined, activeSchoolYearId);
+		const payload = await getPublishedSchedulePayload(schoolId, schoolYearId, scheduleOptions, undefined, activeSchoolYearId);
 		res.json(payload);
 	} catch (error) {
 		next(error);
@@ -360,7 +377,9 @@ router.get('/schools/:schoolId/school-years/:schoolYearId/schedules/published/se
 
 		// C08 — active/historical metadata is computed once by the published
 		// schedule service; no route-local override.
-		const payload = await getPublishedSectionSchedule(schoolId, sectionId, schoolYearId, readScheduleOptions(req));
+		const scheduleOptions = requireTermSelection(req, res);
+		if (!scheduleOptions) return;
+		const payload = await getPublishedSectionSchedule(schoolId, sectionId, schoolYearId, scheduleOptions);
 		res.json(payload);
 	} catch (error) {
 		next(error);
@@ -378,7 +397,9 @@ router.get('/schools/:schoolId/school-years/:schoolYearId/schedules/published/fa
 
 		// C08 — active/historical metadata is computed once by the published
 		// schedule service; no route-local override.
-		const payload = await getPublishedFacultySchedule(schoolId, facultyId, schoolYearId, readScheduleOptions(req));
+		const scheduleOptions = requireTermSelection(req, res);
+		if (!scheduleOptions) return;
+		const payload = await getPublishedFacultySchedule(schoolId, facultyId, schoolYearId, scheduleOptions);
 		res.json(payload);
 	} catch (error) {
 		next(error);
@@ -396,7 +417,9 @@ router.get('/schools/:schoolId/school-years/:schoolYearId/schedules/published/ro
 
 		// C08 — active/historical metadata is computed once by the published
 		// schedule service; no route-local override.
-		const payload = await getPublishedRoomSchedule(schoolId, roomId, schoolYearId, readScheduleOptions(req));
+		const scheduleOptions = requireTermSelection(req, res);
+		if (!scheduleOptions) return;
+		const payload = await getPublishedRoomSchedule(schoolId, roomId, schoolYearId, scheduleOptions);
 		res.json(payload);
 	} catch (error) {
 		next(error);

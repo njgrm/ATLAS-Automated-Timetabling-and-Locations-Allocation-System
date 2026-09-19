@@ -26,8 +26,8 @@ function cachePart(value: string | number | null | undefined): string {
 	return normalized || 'current';
 }
 
-export function buildPublicScheduleCacheKey(schoolId: number, requestedDate?: string | null, marker?: string): string {
-	const base = `${PUBLIC_SCHEDULE_CACHE_PREFIX}:school:${schoolId}:date:${cachePart(requestedDate)}`;
+export function buildPublicScheduleCacheKey(schoolId: number, requestedDate?: string | null, marker?: string, termIndex?: number | 'active'): string {
+	const base = `${PUBLIC_SCHEDULE_CACHE_PREFIX}:school:${schoolId}:date:${cachePart(requestedDate)}:term:${cachePart(termIndex)}`;
 	return marker ? `${base}:${cachePart(marker)}` : base;
 }
 

@@ -200,7 +200,7 @@ function makeRevisionFixture(options: RevisionFixtureOptions = {}) {
 			findMany: async () => [{ enrollProSchoolYearId: 81 }],
 			findUnique: async ({ where }: any) => {
 				const key = where?.schoolId_enrollProSchoolYearId ?? {};
-				return { isActive: true, isArchived: false, termContractCachedAt: new Date(), termContractCache: validTermCache(key.schoolId, key.enrollProSchoolYearId) };
+				return { isActive: true, isArchived: false, termContractCachedAt: new Date(), termContractCache: { ...validTermCache(key.schoolId, key.enrollProSchoolYearId), activeTerm: { order: 1 } } };
 			},
 		},
 		schoolYearTermConfig: { findUnique: async () => ({ termCount: 3, termIdentities: ['T1', 'T2', 'T3'], isActive: true }) },
@@ -650,7 +650,7 @@ async function main() {
 			findMany: async () => [{ enrollProSchoolYearId: 81 }],
 			findUnique: async ({ where }: any) => {
 				const key = where?.schoolId_enrollProSchoolYearId ?? {};
-				return { isActive: true, isArchived: false, termContractCachedAt: new Date(), termContractCache: validTermCache(key.schoolId, key.enrollProSchoolYearId) };
+				return { isActive: true, isArchived: false, termContractCachedAt: new Date(), termContractCache: { ...validTermCache(key.schoolId, key.enrollProSchoolYearId), activeTerm: { order: 1 } } };
 			},
 		},
 		facultyMirror: {
@@ -674,20 +674,52 @@ async function main() {
 			assert(address && typeof address === 'object');
 			const origin = `http://127.0.0.1:${address.port}`;
 			const cases = [
-				['/api/v1/schools/51/schedules/published', 3],
-				['/api/v1/schools/51/schedules/published?termIndex=2', 1],
-				['/api/v1/schools/51/schedules/published/sections/10', 1],
-				['/api/v1/schools/51/schedules/published/faculty-external/200020', 1],
-				['/api/v1/schools/51/schedules/published/rooms/30', 1],
+				['/api/v1/schools/51/schedules/published', 1, 1],
+				['/api/v1/schools/51/schedules/published?termIndex=2', 1, 2],
+				['/api/v1/schools/51/schedules/published/sections/10', 1, 1],
+				['/api/v1/schools/51/schedules/published/faculty-external/200020', 1, 1],
+				['/api/v1/schools/51/schedules/published/rooms/30', 1, 1],
 			] as const;
-			for (const [path, expectedCount] of cases) {
+			for (const [path, expectedCount, expectedTerm] of cases) {
 				const response: Response = await fetch(origin + path);
 				assert.equal(response.status, 200, `positive public contract: ${path}`);
 				const body = await response.json() as any;
 				assert.equal(body.source.schoolId, 51);
 				assert.equal(body.source.schoolYearId, 81);
 				assert.equal(body.entries.length, expectedCount);
+				assert.equal(body.source.termIndex, expectedTerm);
+				assert.equal(body.source.orderedTerms.length, 3);
+				assert.equal(body.entries.every((entry: any) => entry.termIndex === expectedTerm), true, `public read is exact-term only: ${path}`);
 			}
+			const historicalWithoutTerm = await fetch(`${origin}/api/v1/schools/51/school-years/81/schedules/published`);
+			assert.equal(historicalWithoutTerm.status, 400, 'explicit-year public read requires a term');
+			assert.equal((await historicalWithoutTerm.json() as any).code, 'TERM_SELECTION_REQUIRED');
+		} finally {
+			await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+		}
+	});
+
+	const unresolvedActiveClient: any = {
+		...positiveClient,
+		enrollProSchoolYearMirror: {
+			...positiveClient.enrollProSchoolYearMirror,
+			findUnique: async ({ where }: any) => {
+				const key = where?.schoolId_enrollProSchoolYearId ?? {};
+				return { isActive: true, isArchived: false, termContractCachedAt: new Date(), termContractCache: validTermCache(key.schoolId, key.enrollProSchoolYearId) };
+			},
+		},
+	};
+	await withDataContext(unresolvedActiveClient, async () => {
+		const server = createServer(app);
+		await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+		try {
+			const address = server.address();
+			assert(address && typeof address === 'object');
+			const response = await fetch(`http://127.0.0.1:${address.port}/api/v1/schools/51/schedules/published`);
+			const body = await response.json() as any;
+			assert.equal(response.status, 409, 'unresolved active term prompts an explicit selection');
+			assert.equal(body.code, 'TERM_SELECTION_REQUIRED');
+			assert.deepEqual(body.details.orderedTerms.map((term: any) => term.order), [1, 2, 3]);
 		} finally {
 			await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
 		}
