@@ -19,6 +19,7 @@ import {
 	timetableReferenceQueryKey,
 	timetableRoomRequestQueryKey,
 	timetableRunBundleBaseQueryKey,
+	timetableRunBundleQueryKey,
 	timetableRunsQueryKey,
 	type ResolvedTimetableScope,
 	type TimetableScope,
@@ -102,11 +103,15 @@ export async function ensureTimetableRunBundle(
 	options?: EnsureOptions,
 ): Promise<TimetableRunBundle> {
 	const resolved = requireScope(scope);
-	return ensureQuery(
+	const bundle = await ensureQuery(
 		timetableRunBundleBaseQueryKey(resolved),
 		() => fetchTimetableRunBundle(resolved.schoolId, resolved.schoolYearId, resolved.runId ?? 'latest'),
 		options,
 	);
+	// Keep the four-part term-scoped entry the reactive hook reads in step with
+	// the base entry (notably after a forced refresh) without re-issuing HTTP.
+	timetableQueryClient.setQueryData(timetableRunBundleQueryKey(resolved), bundle);
+	return bundle;
 }
 
 export function readTimetableRunBundle(scope: TimetableScope): TimetableRunBundle | undefined {
