@@ -87,10 +87,10 @@ export function SubjectFilterToolbar({
 			</Select>
 			<Select value={String(gradeLevelFilter)} onValueChange={(v) => onGradeLevelFilterChange(v === 'all' ? 'all' : Number(v))}>
 				<SelectTrigger className="h-10 w-36 text-sm">
-					<SelectValue placeholder="All Grades" />
+					<SelectValue placeholder="All grade levels" />
 				</SelectTrigger>
 				<SelectContent>
-					<SelectItem value="all">All Grades</SelectItem>
+					<SelectItem value="all">All grade levels</SelectItem>
 					{GRADE_OPTIONS.map((g) => (
 						<SelectItem key={g} value={String(g)}>Grade {g}</SelectItem>
 					))}
