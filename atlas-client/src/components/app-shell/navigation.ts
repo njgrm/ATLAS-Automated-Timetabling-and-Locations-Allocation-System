@@ -35,11 +35,11 @@ export const teachersAndRoomsNav: NavItemDef[] = [
 ];
 
 export const timetableNav: NavItemDef[] = [
-	{ label: 'Timetable', to: '/timetable', icon: CalendarClock, adminOnly: true },
+	{ label: 'Class Schedule', to: '/timetable', icon: CalendarClock, adminOnly: true },
 ];
 
 export const reviewPublishNav: NavItemDef[] = [
-	{ label: 'Schedules', to: '/schedules', icon: CalendarDays, adminOnly: true },
+	{ label: 'Room Schedules', to: '/schedules', icon: CalendarDays, adminOnly: true },
 ];
 
 export const auditNav: NavItemDef[] = [
@@ -57,7 +57,7 @@ export const breadcrumbGroups: { label: string; items: NavItemDef[] }[] = [
 	{ label: 'Navigation', items: navigationNav },
 	{ label: 'School Setup', items: setupNav },
 	{ label: 'Teachers and Rooms', items: teachersAndRoomsNav },
-	{ label: 'Timetable', items: timetableNav },
+	{ label: 'Class Schedule', items: timetableNav },
 	{ label: 'Review and Publish', items: reviewPublishNav },
 	{ label: 'Audit', items: auditNav },
 	{ label: 'My Portal', items: facultyNav },

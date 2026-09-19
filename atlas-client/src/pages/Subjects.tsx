@@ -660,7 +660,7 @@ stats={subjectStats}
 										name + visible Tooltip. The helper closes over the
 										component's sortField/sortDir/toggleSort. */}
 									<SortableHeader field="name" label="Subject" sortField={sortField} sortDir={sortDir} onToggleSort={toggleSort} align="left" />
-									<SortableHeader field="gradeLevels" label="Grades / program" sortField={sortField} sortDir={sortDir} onToggleSort={toggleSort} align="left" />
+									<SortableHeader field="gradeLevels" label="Grade level / program" sortField={sortField} sortDir={sortDir} onToggleSort={toggleSort} align="left" />
 									<SortableHeader field="minMinutesPerWeek" label="Weekly need" sortField={sortField} sortDir={sortDir} onToggleSort={toggleSort} align="left" />
 								<SortableHeader field="preferredRoomType" label="Room need" sortField={sortField} sortDir={sortDir} onToggleSort={toggleSort} align="left" />
 								{/* SCA-01.2: Teacher coverage is a plain column, not a

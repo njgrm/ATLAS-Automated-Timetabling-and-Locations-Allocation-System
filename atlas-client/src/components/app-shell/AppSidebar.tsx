@@ -201,7 +201,7 @@ export function AppSidebar({
 										{renderNavGroup(setupNav, isAdmin, pathname)}
 										<NavDivider label='Teachers and Rooms' />
 										{renderNavGroup(teachersAndRoomsNav, isAdmin, pathname)}
-										<NavDivider label='Timetable' />
+										<NavDivider label='Class Schedule' />
 										{renderNavGroup(timetableNav, isAdmin, pathname)}
 										<NavDivider label='Review and Publish' />
 										{renderNavGroup(reviewPublishNav, isAdmin, pathname)}
