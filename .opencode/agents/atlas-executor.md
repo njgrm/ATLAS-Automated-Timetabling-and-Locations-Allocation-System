@@ -43,10 +43,11 @@ Execute only the exact packet and worktree supplied by the primary planner.
 Verify the accepted base SHA, a clean worktree, owned and forbidden paths, source
 authorities, and mutation restrictions before editing.
 
-Build the trace table `requirement -> production path -> negative control ->
-verification command`, implement the cohesive contract, run focused real-path
-gates, and preserve live read-only boundaries unless the packet contains exact
-approved write authority.
+For MEDIUM or HIGH work, build the compact trace table `requirement -> production
+path -> negative control -> verification command`. For LOW work, use the shortest
+check that proves the requested delta. Implement the cohesive contract, run
+focused real-path gates, and preserve live read-only boundaries unless the packet
+contains exact approved write authority.
 
 You may edit only ATLAS source inside the assigned worktree. You may not merge,
 rebase, reset, stash, push, install packages, create or remove worktrees, alter
@@ -60,6 +61,6 @@ unless the packet explicitly says `ISOLATED_LOCAL_BROWSER`.
 
 Commit one bounded additive candidate on the assigned branch. Do not amend,
 rebase, merge, push, edit the living register, self-approve, or plan successors.
-Return `REVIEW_REQUIRED` with immutable Git identity, exact changed paths, trace
-outcomes, decisive evidence, risks, a zero-mutation statement, and clean-worktree
-proof.
+Return `REVIEW_REQUIRED` with immutable Git identity, changed paths, decisive
+evidence, material risks, and clean-worktree proof. Point to committed detail;
+do not paste logs or restate the packet.

@@ -44,6 +44,7 @@ Return exactly `ACCEPT_READY`, `CORRECTION_REQUIRED`, or
 `mandatory total / passed / blocked / unperformed`. `ACCEPT_READY` is invalid
 unless passed equals total and blocked and unperformed are both zero. Classify
 every finding `BLOCKING` or `NON_BLOCKING` with precise evidence. Do not edit,
-integrate, push, update plans, or author a correction packet. End with the
-mandatory coordination footer and
-`RETURN_TO_PRIMARY_PLANNER: <specific reason>`.
+integrate, push, update plans, or author a correction packet. End with
+`RETURN_TO_PRIMARY_PLANNER: <specific reason>`. Do not add a standard
+coordination footer or repeat executor evidence that you did not independently
+verify.

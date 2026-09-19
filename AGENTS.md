@@ -178,42 +178,12 @@ commits, and pushed artifacts preserve history; retaining every checkout does no
 
 ## 7. Timetable Invariants
 
-These encode real school contracts. Breaking one produces a schedule that looks
-plausible and is wrong.
-
-- **Term authority is separate from cell rendering.** An academic term is the
-  authoritative scope of a schedule, not an extra visual cell. A term switcher
-  selects **one** verified ordered term; it must never merge terms into one weekly
-  cell, encode rotation as a badge, or let an all-term export masquerade as a
-  beneficiary-facing program.
-- **Ordered terms:** the current beneficiary contract is **three ordered terms**.
-  Missing term identity is unresolved authority — it must never silently become
-  Term 1. A rotating family resolves its subject/teacher/room and its **full weekly
-  session count per selected term**; rotation picks the term's member, it does not
-  split one term's sessions across the year.
-- **Breaks and ceremonies:** a `LUNCH_BREAK`/`HEALTH_BREAK` is a real non-teaching
-  period and blocks placement. A Flag/HGP ceremony occupies its period per the
-  school's class program — **read the stakeholder files**; do not assume it is an
-  overlay or a displacement without checking the actual program.
-- **Beneficiary output:** every export, room view, teacher view, section view,
-  public read, and published revision must preserve
-  `(termIndex, day, interval, section, subject, faculty, room)` and prove parity from
-  one source run.
-- **Publication gate:** zero HARD violations. Soft warnings require an explicit
-  acknowledgement, not silence.
-- **Timetable latest-run reads are memory-sensitive.** For
-  `/generation/.../runs/latest`, `/latest/timetable`, `/latest/violations`: prefer
-  lightweight candidate selection, minimal heavy-row reads, and in-place
-  normalisation. Do not load every completed run with full JSON payloads, and do not
-  clone or remap `draftEntries`/`violations` on read paths without justification.
-- **Query-shaping changes** must prove both behaviour (targeted output equals the
-  full source-of-truth output for matching *and* missing cases) and shape (the
-  optimised path avoids the specific large field or broad query). For JSON-array
-  extraction from persisted payloads, preserve response order explicitly (e.g.
-  `WITH ORDINALITY`). A probe that picks a different run than the service resolver,
-  compares against unrevised base entries when the runtime contract is
-  revision-effective, only prints samples without failing on mismatch, or still
-  loads the whole heavy payload on the production path is **not** proof.
+Before planning, editing, or reviewing timetable generation, term scope, schedule
+views, exports, publication, latest-run reads, or timetable query shaping, read
+`docs/reference/agent-timetable-invariants.md`. The core fail-closed rules are:
+missing term identity never becomes Term 1; one selected ordered term preserves
+subject/teacher/room and full weekly demand; published output has zero HARD
+violations; and every consumer proves parity from one source run.
 
 ---
 
@@ -324,78 +294,21 @@ already accepted.
 
 ### Gates that have actually caught defects — keep these
 
-1. **Production-path proof.** Exercise the real route or service. A helper-only test
-   or a grep count is not evidence.
-2. **Failing-first.** Prove the test fails without the fix. A test written after the
-   fix that never failed proves nothing.
-3. **Production-shape equivalence.** When a change translates, filters, groups,
-   defaults, persists, or renders data from another layer, trace
-   `authoritative input → producer → persisted form → API projection → consumer` and
-   record the conservation invariant (identities, counts, ordering, scope, totals).
-   A synthetic fixture is admissible only if a test proves it is field-for-field
-   equivalent to real producer output. Treat `missing`, `unknown`, `all`, and a
-   concrete value as **separate states** — never coerce one into another.
-4. **Authority and tenant scope.** Any actor- or tenant-scoped client path with a
-   fallback like `schoolId = 1`, `?? 1`, or `|| 1` is fail-open and blocks acceptance
-   unless the route is explicitly public. Scope changes must invalidate stale
-   previews, confirmations, caches, and pending mutations before the new scope can
-   act.
-5. **Set-valued invariants.** When correctness depends on "exactly one active year /
-   current revision / authoritative owner", the write transaction must re-read and
-   validate the **complete qualifying set**, not just the previously selected row,
-   and a negative control must prove the write aborts with zero residue.
-6. **Zero-write on rejection.** Prove no downstream dispatch and no writes when
-   authority, freshness, or concurrency checks reject.
-7. **Separate source QA from deployed browser acceptance.** Undeployed user-facing
-   source uses component/rendered interaction proof. Live Tailnet browser QA is the
-   post-deployment acceptance and must never be cited as proof of undeployed bytes.
-   See §12.
+For MEDIUM and HIGH work, read `docs/reference/agent-verification-gates.md` and
+apply only the gates relevant to the change. Production-path proof, failing-first
+proof, scope authority, and zero-write rejection remain mandatory when applicable.
+Live browser evidence never proves undeployed source bytes.
 
 ---
 
 ## 12. Live Browser QA
 
-- A source candidate that is not deployed cannot claim its new behaviour was proven
-  by the live Tailnet. Record source QA and post-deployment browser acceptance as
-  separate outcomes.
-- Test against **`https://njgrm.buru-degree.ts.net`** — the real environment.
-  `localhost` reflects only the local process and hides deployment, proxy, routing,
-  and cross-service behaviour. Use it only for an explicitly-labelled isolated check.
-- Every browser claim must assert
-  `window.location.origin === "https://njgrm.buru-degree.ts.net"` and cite the exact
-  route, an accessibility snapshot (preferred over screenshots), console errors, and
-  relevant network statuses. State the viewport(s) tested — desktop `1366x768` and
-  mobile `390x844` for responsive work.
-- For EnrollPro-owned or cross-app work, start at
-  `https://dev-jegs.buru-degree.ts.net/personnel/login` and assert the EnrollPro
-  origin. Evidence from one origin never proves the other's behaviour.
-- **Credentials** live at `%USERPROFILE%/.config/opencode/atlas-qa-credentials.local.md`.
-  These are **disposable test credentials**; the production identity will differ.
-  - **Allowed:** resolving them and entering them into a browser login form, even
-    though the value then appears in the interactive session transcript. The
-    transcript is ephemeral and local; blocking this forced a human to log in
-    manually for no real security gain.
-  - **Forbidden, always:** committing or staging them, writing them into any
-    repository file, or letting them reach a screenshot, browser trace, test
-    fixture, shell history, environment artifact, log, handoff document, or the
-    living register. Never paste a credential into a prompt or a committed doc —
-    the repository is pushed to GitHub.
-  - Prefer reusing an existing session over a fresh login. Never recreate the
-    retired faculty identifier `2000056`. If the file is absent, report
-    `EXTERNALLY_BLOCKED(QA_CREDENTIALS_UNAVAILABLE)`.
-- **Login is an authorised mutation boundary.** A reusable session may be consumed
-  read-only. A fresh login creates a `LOCAL_LOGIN_SUCCESS` audit row — disclose it
-  and the account's `last_login_at` delta. Do not silently log in.
-- **One controller per browser profile.** Exactly one agent may drive the shared
-  profile at a time. Serialise browser work through a named custody handoff; never
-  launch competing browser roles.
-- **Read-only by default.** Do not submit forms that persist data or click
-  Save/Apply/Generate/Publish/Delete unless the active task explicitly authorises
-  that exact write.
-- **Rendered truth beats status codes.** A page returning 200 that shows stale,
-  empty, or contradictory state is a finding — verify against the snapshot.
-- Known-benign noise: a `404` on `/generation/:schoolId/:year/runs/latest` or
-  `.../room-preferences/.../summary` means "no current run/preferences yet".
+Before any browser, UX/UI, responsive, authenticated, or cross-app evidence task,
+read `docs/reference/agent-live-browser-qa.md`. Browser work is serialized through
+one profile controller, read-only by default, and uses the named Tailnet origin.
+A fresh login is a mutation and requires explicit authorization for its audit
+delta. Never persist credentials or use live Tailnet evidence to prove undeployed
+source bytes.
 
 ---
 
@@ -489,6 +402,16 @@ durable rule is to avoid duplicated coordination that produces no new evidence.
 - **Use Context7 or targeted official-documentation queries.** Do not ingest an entire
   documentation page when a scoped query or section is sufficient; record when an
   answer is only a current snapshot.
+- **Keep the prompt prefix stable within a lane.** Choose the model, reasoning effort,
+  enabled tools, and stable instructions before dispatch. Changing them mid-session can
+  invalidate provider prompt caches; put volatile task facts and current SHAs at the end.
+- **Use one context manager.** Do not stack native compaction/pruning with a plugin that
+  replaces compaction. Prefer the harness-native mechanism unless a replacement is
+  intentionally configured, verified, and cheaper for the measured workload.
+- **Keep global tool surfaces minimal.** Enable only tools required by the lane, but do
+  not disable Context7 for current library documentation or Playwright for authorized
+  browser QA. Task-specific role files should reference this directive instead of
+  duplicating its rules.
 - **Keep this directive short.** Detailed test matrices and domain contracts belong in
   referenced files under `docs/`, not here. Every agent pays for every line of this
   file on every request.
