@@ -7,6 +7,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 
 import { ExplainabilityDrawer } from '../../components/ExplainabilityDrawer';
 import { ViolationGroup } from '../../components/timetable/TimetableShared';
+import { resolveWarningPanelSizing } from '../../components/timetable/ViolationsSidebar';
 import {
 	VIOLATION_PRESENTATION,
 	getViolationPresentation,
@@ -89,4 +90,9 @@ test('R4: one grouped warning exposes the supporting check instead of silently d
 	}));
 	assert.match(markup, /Combines 2 related checks/);
 	assert.match(markup, /no time to change buildings/);
+});
+
+test('R9: warning panel remains readable at the required desktop and mobile viewport widths', () => {
+	assert.deepEqual(resolveWarningPanelSizing(1366), { minSize: 22, maxSize: 42, defaultSize: 28 });
+	assert.deepEqual(resolveWarningPanelSizing(390), { minSize: 72, maxSize: 82, defaultSize: 72 });
 });
