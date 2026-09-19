@@ -1,9 +1,13 @@
 # CURRENT-SOURCE-LIVE-DEPLOY-C01
 
-Status: **PREPARED — NOT APPROVED**  
-Risk: **HIGH** — supervised shared-runtime replacement  
-Target source: `134bcf28b866f587f87afe8b9ba51c130d1e128b`  
-Target release: `D:\ATLAS-runtime-supervised-134bcf28-20260919`  
+Status: **PREPARED — NOT APPROVED**
+
+Risk: **HIGH** — supervised shared-runtime replacement
+
+Target source: `134bcf28b866f587f87afe8b9ba51c130d1e128b`
+
+Target release: `D:\ATLAS-runtime-supervised-134bcf28-20260919`
+
 Worktree disposition: `RETIRE_AFTER_INTEGRATION`
 
 ## Objective
