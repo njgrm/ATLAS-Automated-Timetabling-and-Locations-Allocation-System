@@ -12,6 +12,32 @@ import { computeAutoAssign } from '../services/home-room-auto-assign.service.js'
 
 const router = Router();
 
+// ---------------------------------------------------------------------------
+// Actor-school authority helpers — reused by all section routes that accept a
+// caller-supplied schoolId.  Extracted from the HOME-ROOM-AUTO-ASSIGN-C01
+// inline guard; every sibling must go through the same gate.
+// ---------------------------------------------------------------------------
+
+function actorSchoolIdOf(req: Request): number | null {
+	const schoolId = req.user?.schoolId;
+	return typeof schoolId === 'number' && Number.isInteger(schoolId) && schoolId > 0 ? schoolId : null;
+}
+
+/**
+ * Actor-school guard.  Returns the actor school, or writes the typed 403 and
+ * returns `null` so the handler returns early.  Callers must place this after
+ * parameter validation (schoolYearId, schoolId body/query) but before the
+ * school-equality check and service dispatch.
+ */
+function requireActorSchool(req: Request, res: Response): number | null {
+	const schoolId = actorSchoolIdOf(req);
+	if (schoolId === null) {
+		res.status(403).json({ code: 'SCHOOL_SCOPE_REQUIRED', message: 'Authenticated actor is missing a bound school scope.' });
+		return null;
+	}
+	return schoolId;
+}
+
 function parseBooleanQueryFlag(value: unknown): boolean {
 	if (typeof value === 'boolean') return value;
 	if (typeof value !== 'string') return false;
@@ -112,6 +138,17 @@ router.get('/:sectionId/assigned-classes', authenticateWithSystemToken, requireP
 /**
  * POST /api/v1/sections/sync
  * Manually trigger a reconciliation from EnrollPro sections into ATLAS SectionMirror.
+ *
+ * Accepts EITHER:
+ *  1. A JWT- or bridge-authenticated actor whose bound school matches the
+ *     request body `schoolId` (actor-school cross-check), OR
+ *  2. A valid system token (`authSource === 'system'`) with an explicit
+ *     `schoolId` in the request body — the machine declares its target
+ *     explicitly so intent is auditable.
+ *
+ * Still rejected: a system token with NO explicit schoolId (fail closed,
+ * typed error, zero dispatch).  GET and PUT home-room routes keep their
+ * actor-only gate unchanged.
  */
 router.post('/sync', authenticateWithSystemToken, requirePrivilegedRole, async (req: Request, res: Response, next: NextFunction) => {
 	try {
@@ -119,6 +156,24 @@ router.post('/sync', authenticateWithSystemToken, requirePrivilegedRole, async (
 		if (!schoolId) {
 			res.status(400).json({ code: 'INVALID_PARAM', message: 'schoolId is required' });
 			return;
+		}
+
+		// ---- School-scope authority ----
+		// System tokens declare their target school in the request body; the
+		// explicit body.schoolId is the auditable declaration.  JWT/bridge
+		// actors are cross-checked against the authenticated token school.
+		if (req.user?.authSource === 'system') {
+			// System token with explicit schoolId already validated above;
+			// intent is auditable (body.schoolId was the machine declaration).
+			// Fall through — no actor-school cross-check needed for system tokens.
+		} else {
+			// Actor-school authority: reject cross-school before any upstream dispatch.
+			const actorSchoolId = requireActorSchool(req, res);
+			if (actorSchoolId === null) return;
+			if (actorSchoolId !== schoolId) {
+				res.status(403).json({ code: 'CROSS_SCHOOL_DENIED', message: 'Requested school does not match the authenticated actor school.' });
+				return;
+			}
 		}
 
 		const upstreamAuthToken = getUpstreamAuthToken(req);
@@ -174,6 +229,14 @@ router.get('/home-rooms/:schoolYearId', authenticate, requirePrivilegedRole, asy
 			return;
 		}
 
+		// Actor-school authority: reject cross-school before any service read.
+		const actorSchoolId = requireActorSchool(req, res);
+		if (actorSchoolId === null) return;
+		if (actorSchoolId !== schoolId) {
+			res.status(403).json({ code: 'CROSS_SCHOOL_DENIED', message: 'Requested school does not match the authenticated actor school.' });
+			return;
+		}
+
 		const payload = await sectionService.getHomeRoomControlData(schoolYearId, schoolId);
 		res.json(payload);
 	} catch (err) {
@@ -193,6 +256,14 @@ router.put('/home-rooms/:schoolYearId', authenticate, requirePrivilegedRole, asy
 		const schoolId = Number(req.body.schoolId);
 		if (!Number.isInteger(schoolId) || schoolId <= 0) {
 			res.status(400).json({ code: 'INVALID_BODY', message: 'schoolId is required and must be a positive integer.' });
+			return;
+		}
+
+		// Actor-school authority: reject cross-school before any service write.
+		const actorSchoolId = requireActorSchool(req, res);
+		if (actorSchoolId === null) return;
+		if (actorSchoolId !== schoolId) {
+			res.status(403).json({ code: 'CROSS_SCHOOL_DENIED', message: 'Requested school does not match the authenticated actor school.' });
 			return;
 		}
 
@@ -260,11 +331,8 @@ router.post('/home-rooms/:schoolYearId/auto-assign', authenticate, requirePrivil
 		// malformed body is a typed 400 regardless of actor. A token without a
 		// bound school, or one that disagrees with the requested school, fails
 		// closed with a typed 403 and performs zero reads/writes.
-		const actorSchoolId = Number(req.user?.schoolId);
-		if (!Number.isInteger(actorSchoolId) || actorSchoolId <= 0) {
-			res.status(403).json({ code: 'SCHOOL_SCOPE_REQUIRED', message: 'Authenticated actor is missing a bound school scope.' });
-			return;
-		}
+		const actorSchoolId = requireActorSchool(req, res);
+		if (actorSchoolId === null) return;
 		if (actorSchoolId !== schoolId) {
 			res.status(403).json({ code: 'CROSS_SCHOOL_DENIED', message: 'Requested school does not match the authenticated actor school.' });
 			return;
