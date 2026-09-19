@@ -114,7 +114,7 @@ export function SimpleFilterControls({ context }: { context: ScheduleReviewWorks
 
 			{activeFilters.length > 0 ? (
 				<div
-					className="flex min-w-0 items-center gap-1.5 overflow-x-auto"
+					className="relative z-10 flex min-w-0 basis-full items-center gap-1.5 overflow-x-auto sm:basis-auto"
 					data-testid="timetable-active-filters"
 					role="group"
 					aria-label="Active timetable filters"

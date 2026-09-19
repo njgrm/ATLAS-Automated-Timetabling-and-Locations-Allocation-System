@@ -438,7 +438,7 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 				isPublished={isRunPublished}
 			/>
 			{/* Keep source, readiness, schedule choice, and actions in one non-overlapping row. */}
-			<div className="flex min-w-0 flex-wrap items-center gap-1.5 overflow-hidden px-3 py-1.5 lg:flex-nowrap [&>*]:min-w-0">
+			<div className="flex min-w-0 flex-wrap items-center gap-1.5 overflow-x-auto overflow-y-visible px-3 py-1.5 lg:flex-nowrap lg:overflow-hidden [&>*]:min-w-0">
 				<Badge
 					variant="outline"
 					className={cn(
@@ -492,7 +492,7 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 					{context.referenceLookupStatus.label}
 				</Badge>
 
-				<div className="hidden min-w-0 flex-1 lg:flex">
+				<div className="hidden min-w-0 flex-1 lg:flex lg:shrink-0 lg:min-w-[24rem]">
 					<SimpleScheduleControls
 						context={context}
 						lastEntityByMode={lastEntityByMode}
