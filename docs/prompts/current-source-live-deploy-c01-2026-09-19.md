@@ -75,9 +75,11 @@ change.
    - run locked `npm ci` independently in the release root, `atlas-server`, and
      `atlas-client`; do not reuse a dependency junction or run an install through
      a shared tree;
-   - provide `DATABASE_URL` only in the child environment, never print it, and run
-     root `npm run db:generate` (the repository-owned `prisma.config.ts` path);
-     require generated clients at both the root and server runtime locations;
+   - provide `DATABASE_URL` only in the child environment and never print it;
+     from `atlas-server`, run `npm exec prisma generate -- --schema
+     ..\prisma\schema.prisma`, require
+     `atlas-server/node_modules/.prisma/client/index.js`, and run a built-runtime
+     import smoke that loads the generated Prisma client successfully;
    - run server TypeScript/build and client TypeScript/build, with exactly
      `VITE_ENROLLPRO_URL=https://dev-jegs.buru-degree.ts.net` and with SMART/AIMS
      start URLs unset;
@@ -168,7 +170,7 @@ manual resident process.
 
 ## Exact approval sentence — not yet granted
 
-> I approve HIGH action CURRENT-SOURCE-LIVE-DEPLOY-C01: from an elevated Administrator executor, create an isolated release for ATLAS source `134bcf28b866f587f87afe8b9ba51c130d1e128b` at `D:\ATLAS-runtime-supervised-134bcf28-20260919`, using locked independent dependency installs, repository-root Prisma generation, and a client build with exactly `VITE_ENROLLPRO_URL=https://dev-jegs.buru-degree.ts.net` while SMART/AIMS start URLs remain unset; if required for the registered SYSTEM task, add only that exact release path to system-scope Git `safe.directory`; after every packet precondition and alternate-port smoke passes, replace only the supervisor-owned ATLAS processes on ports 5001 and 5174 by changing only the captured `ATLAS-Runtime-Supervisor` task action/working directory through a property-preserving XML registration, re-pointing the two machine source/release variables, and starting it only through the registered SYSTEM task; preserve the durable environment file byte-for-byte, keep rollover automation disabled, perform no login or database write, and stop before migration, Teaching Load apply, generation, publication, rollover, or companion-repository action; require exact served-client artifact hashes, typed inactive SMART/AIMS 503 responses, and an unchanged schema-wide database signature; on any mandatory failure, symmetrically restore the captured incumbent task XML and machine variables, remove the exact system safe-directory entry only if this action added it, relaunch incumbent release `74c1f12a5c06bb025a1a7a13088c1c5da1a76d74`, and prove its ownership, health, and unchanged data state.
+> I approve HIGH action CURRENT-SOURCE-LIVE-DEPLOY-C01: from an elevated Administrator executor, create an isolated release for ATLAS source `134bcf28b866f587f87afe8b9ba51c130d1e128b` at `D:\ATLAS-runtime-supervised-134bcf28-20260919`, using locked independent dependency installs, Prisma client generation from `atlas-server` against the repository-root schema, and a client build with exactly `VITE_ENROLLPRO_URL=https://dev-jegs.buru-degree.ts.net` while SMART/AIMS start URLs remain unset; if required for the registered SYSTEM task, add only that exact release path to system-scope Git `safe.directory`; after every packet precondition and alternate-port smoke passes, replace only the supervisor-owned ATLAS processes on ports 5001 and 5174 by changing only the captured `ATLAS-Runtime-Supervisor` task action/working directory through a property-preserving XML registration, re-pointing the two machine source/release variables, and starting it only through the registered SYSTEM task; preserve the durable environment file byte-for-byte, keep rollover automation disabled, perform no login or database write, and stop before migration, Teaching Load apply, generation, publication, rollover, or companion-repository action; require exact served-client artifact hashes, typed inactive SMART/AIMS 503 responses, and an unchanged schema-wide database signature; on any mandatory failure, symmetrically restore the captured incumbent task XML and machine variables, remove the exact system safe-directory entry only if this action added it, relaunch incumbent release `74c1f12a5c06bb025a1a7a13088c1c5da1a76d74`, and prove its ownership, health, and unchanged data state.
 
 ## Return
 
