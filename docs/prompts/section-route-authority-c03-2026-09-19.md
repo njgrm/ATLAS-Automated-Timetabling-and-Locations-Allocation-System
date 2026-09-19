@@ -102,3 +102,38 @@ One `REVIEW_REQUIRED` handoff: verdict; base SHA; candidate SHA; exact changed p
 evidence from real base bytes; the actual route line numbers you located; your R2
 response-shape decision with reasoning; the consumer enumeration; and any
 `BLOCKED`/`UNPERFORMED` row named explicitly. Do not self-accept.
+
+---
+
+## Integration record (2026-09-19)
+
+**R3 is superseded by a justified deviation.** Independent QA adjudicated the executor's
+deviation as `JUSTIFIED` and identified that this packet is **internally contradictory**:
+
+- **R3** requires a missing `schoolId` to fail closed for system tokens.
+- **§3** forbids weakening any existing test, and **R4** explicitly warns that a prior
+  packet in this series was corrected for silently breaking a documented system-token
+  caller.
+
+`section-route-authority-c02.test.ts:475-483` (C02-SC1) calls
+`GET /sections/9001/assigned-classes?schoolYearId=1` with a system token and **no
+`schoolId`**, asserting 200. A fail-closed 400 would fail it. The executor's resolution —
+preserve the legacy server-side resolution for a system token without `schoolId`, add the
+Option A explicit-scope path, and keep the JWT/bridge actor path fully scoped — is the
+only one consistent with the packet's hard constraints.
+
+**Recorded residuals (NON_BLOCKING):**
+
+- **F1** — a system token without `schoolId` can still read any section via the
+  pre-existing `options.schoolId` bypass (`faculty-assignment.service.ts:2078`). This is
+  pre-existing behaviour, unchanged by C03, and consistent with the trusted-machine
+  credential model.
+- **F2** — route asymmetry: `GET /assigned-classes` fails closed on a missing `schoolId`
+  for system tokens (C02-AC3) while `GET /:sectionId/assigned-classes` preserves the
+  legacy fallback. Deliberate, documented in code (`section.router.ts:171-175`), pinned
+  by C03-M3.
+- Strict machine scoping on this route would require a **deliberate future packet** that
+  changes the C02-SC1 contract — not an incidental fix.
+
+Integrated at merge `4cbe5f7a`; QA `ACCEPT_READY` 9/9/0/0; merged-tree gates green
+(13/13, 19/19, 21/21, 10/10, tsc exit 0).
