@@ -73,7 +73,7 @@ export function SubjectMobileCard({
 
 			<div className="mt-2.5 space-y-1.5 text-xs">
 				<div className="flex items-center justify-between gap-2">
-					<span className="text-muted-foreground font-medium">Grades</span>
+					<span className="text-muted-foreground font-medium">Grade level</span>
 					<span className="font-semibold text-foreground text-right">{grades}{programCopy ? ` · ${programCopy}` : ''}</span>
 				</div>
 				<div className="flex items-center justify-between gap-2">

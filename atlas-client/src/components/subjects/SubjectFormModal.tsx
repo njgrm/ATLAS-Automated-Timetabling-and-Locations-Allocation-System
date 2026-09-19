@@ -506,7 +506,7 @@ export function SubjectFormModal({
 
 							<div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
 								<div className="space-y-2">
-									<label htmlFor={`${formId}-owner`} className="text-sm font-semibold text-foreground ml-0.5">Owner department</label>
+									<label htmlFor={`${formId}-owner`} className="text-sm font-semibold text-foreground ml-0.5">Department</label>
 									<Select
 										value={form.ownerDepartment || 'UNASSIGNED'}
 										onValueChange={(value) => setForm((previous) => ({
