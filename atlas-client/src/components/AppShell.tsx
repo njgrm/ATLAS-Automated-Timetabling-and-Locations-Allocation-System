@@ -49,10 +49,10 @@ import {
 } from '@/hooks/useNotificationStream';
 
 import { AppSidebar } from './app-shell/AppSidebar';
+import { AppBreadcrumbs } from './app-shell/PageHeader';
 import { FacultyMobileBottomNav } from '@/components/app-shell/FacultyMobileBottomNav';
 import { MobileNavigationDrawer } from './app-shell/MobileNavigationDrawer';
 import {
-	breadcrumbGroups,
 	auditNav,
 	facultyNav,
 	navigationNav,
@@ -60,6 +60,7 @@ import {
 	setupNav,
 	teachersAndRoomsNav,
 	timetableNav,
+	resolveRouteChrome,
 	type NavItemDef,
 } from './app-shell/navigation';
 
@@ -435,21 +436,8 @@ export function AppShell() {
 		navigate('/login', { replace: true });
 	};
 
-	const breadcrumbs = (() => {
-		for (const group of breadcrumbGroups) {
-			for (const item of group.items) {
-				if (location.pathname === item.to) {
-					// F5 — never repeat the leaf. A section whose label matches its
-					// item ("Timetable / Timetable", "Audit / Audit") renders one crumb.
-					if (group.label === 'Navigation' || group.label === item.label) return [{ label: item.label }];
-					return [{ label: group.label }, { label: item.label }];
-				}
-			}
-		}
-		return [{ label: 'ATLAS' }];
-	})();
-	const currentPageTitle = breadcrumbs[breadcrumbs.length - 1]?.label ?? 'ATLAS';
-	const eyebrowLabel = breadcrumbs.length > 1 ? breadcrumbs[0]?.label : null;
+	const routeChrome = resolveRouteChrome(location.pathname);
+	const currentPageTitle = routeChrome.title;
 
 	return (
 		<SidebarProvider open={isMobile ? false : sidebarOpen} onOpenChange={setSidebarOpen} className="relative">
@@ -504,16 +492,7 @@ export function AppShell() {
 					<>
 						<SidebarTrigger className='-ml-1 hidden lg:inline-flex' />
 						<Separator orientation='vertical' className='mr-2 h-4! hidden lg:block' />
-						<div className='flex flex-col'>
-							{eyebrowLabel && (
-								<span className='text-[0.65rem] font-medium text-muted-foreground uppercase tracking-wider'>
-									{eyebrowLabel}
-								</span>
-							)}
-							<span className='text-base font-bold text-foreground'>
-								{currentPageTitle}
-							</span>
-						</div>
+						<AppBreadcrumbs breadcrumbs={routeChrome.breadcrumbs} />
 
 						<div className='ml-auto flex items-center gap-2'>
 								<AccessibilityMenu fontSize={fontSize} setFontSize={setFontSize} />

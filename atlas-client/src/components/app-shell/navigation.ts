@@ -62,3 +62,49 @@ export const breadcrumbGroups: { label: string; items: NavItemDef[] }[] = [
 	{ label: 'Audit', items: auditNav },
 	{ label: 'My Portal', items: facultyNav },
 ];
+
+export type RouteChrome = {
+	title: string;
+	breadcrumbs: string[];
+};
+
+const routeChromeOverrides: Record<string, { group?: string; title: string }> = {
+	'/subjects/requirements': { group: 'School Setup', title: 'Subject Requirements' },
+	'/subjects/decision-workspace': { group: 'School Setup', title: 'Subject Decisions' },
+	'/teaching-load/history': { group: 'Teachers and Rooms', title: 'Archived Teaching Load' },
+	'/faculty': { group: 'Teachers and Rooms', title: 'Faculty' },
+	'/assignments': { group: 'Teachers and Rooms', title: 'Assignments' },
+	'/faculty/preferences': { group: 'Teachers and Rooms', title: 'Faculty Preferences' },
+	'/timetabling/how-it-works': { group: 'Class Schedule', title: 'How Scheduling Works' },
+	'/room-schedules': { group: 'Review and Publish', title: 'Room Schedules' },
+	'/faculty/room-preferences': { group: 'Teachers and Rooms', title: 'Room Preferences' },
+	'/admin/year-setup': { group: 'School Setup', title: 'School Year Setup' },
+};
+
+function breadcrumbLabels(group: string | undefined, title: string): string[] {
+	if (!group || group === 'Navigation' || group === title) return [title];
+	return [group, title];
+}
+
+/** Resolve one truthful shell title and breadcrumb trail for every authenticated route. */
+export function resolveRouteChrome(pathname: string): RouteChrome {
+	const normalizedPath = pathname.length > 1 ? pathname.replace(/\/+$/, '') : pathname;
+	const override = routeChromeOverrides[normalizedPath];
+	if (override) {
+		return {
+			title: override.title,
+			breadcrumbs: breadcrumbLabels(override.group, override.title),
+		};
+	}
+
+	for (const group of breadcrumbGroups) {
+		const item = group.items.find((candidate) => candidate.to === normalizedPath);
+		if (!item) continue;
+		return {
+			title: item.label,
+			breadcrumbs: breadcrumbLabels(group.label, item.label),
+		};
+	}
+
+	return { title: 'ATLAS', breadcrumbs: ['ATLAS'] };
+}

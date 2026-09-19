@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
+import { PageHeader } from '@/components/app-shell/PageHeader';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import { Card, CardContent } from '@/ui/card';
@@ -118,31 +119,22 @@ export function SmartCommandBar({
 	testId?: string;
 }) {
 	return (
-		<header
-			className={cn(
-				'rounded-2xl border border-primary/10 bg-white px-3 py-2.5 shadow-soft sm:px-4',
-				'flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between',
-				className,
-			)}
-			data-testid={testId ?? 'smart-command-bar'}
-		>
-			<div className="min-w-0">
-				<div className="flex flex-wrap items-center gap-2">
-					{eyebrow ? <span className="text-[0.65rem] font-bold uppercase tracking-wide text-primary">{eyebrow}</span> : null}
-					{source}
-				</div>
-				<h1 className="mt-0.5 truncate text-xl font-bold text-slate-900 sm:text-2xl">{title}</h1>
-				{subtitle ? <p className="mt-0.5 line-clamp-2 text-sm font-medium leading-snug text-slate-500 lg:line-clamp-1">{subtitle}</p> : null}
-			</div>
-			<div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
-				{nextAction ? <div className="min-w-0 sm:max-w-md">{nextAction}</div> : null}
-				<div className="flex shrink-0 flex-wrap items-center gap-2">
-					{primaryAction}
+		<PageHeader
+			title={title}
+			eyebrow={eyebrow}
+			subtitle={subtitle}
+			source={source}
+			nextAction={nextAction}
+			primaryAction={primaryAction}
+			secondaryActions={(
+				<>
 					{help ? <SmartHelpTrigger {...help} /> : null}
 					{moreGroups?.length ? <SmartMoreMenu groups={moreGroups} /> : null}
-				</div>
-			</div>
-		</header>
+				</>
+			)}
+			className={className}
+			testId={testId ?? 'smart-command-bar'}
+		/>
 	);
 }
 
@@ -173,7 +165,7 @@ export function SmartNextStepCard({
 		>
 			<div className="mt-0.5 shrink-0">{icon ?? <Sparkles className="size-4" />}</div>
 			<div className="min-w-0 flex-1">
-				<p className="text-[0.65rem] font-bold uppercase tracking-wide opacity-75">{label}</p>
+				<p className="text-xs font-bold uppercase tracking-wide opacity-75">{label}</p>
 				<p className="font-bold leading-tight">{title}</p>
 				{body ? <p className="mt-0.5 line-clamp-2 text-xs font-medium opacity-80">{body}</p> : null}
 			</div>
@@ -224,8 +216,8 @@ export function SmartHelpTrigger({
 								</div>
 								<div className="min-w-0">
 									<p className="text-xs font-bold uppercase text-primary">Step {index + 1}</p>
-									<p className="font-bold text-slate-900">{step.title}</p>
-									<p className="mt-1 text-sm leading-relaxed text-slate-600">{step.body}</p>
+									<p className="font-bold text-foreground">{step.title}</p>
+									<p className="mt-1 text-sm leading-relaxed text-muted-foreground">{step.body}</p>
 									{step.target ? <Badge variant="outline" className="mt-2 rounded-full bg-white text-xs">{step.target}</Badge> : null}
 								</div>
 							</div>
@@ -266,7 +258,7 @@ export function SmartMoreMenu({ groups }: { groups: SmartMoreGroup[] }) {
 				{groups.map((group, groupIndex) => (
 					<DropdownMenuGroup key={group.label} data-testid={`smart-more-group-${group.label.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`}>
 						{groupIndex > 0 ? <DropdownMenuSeparator /> : null}
-						<DropdownMenuLabel className="text-[0.65rem] uppercase tracking-wide text-muted-foreground">{group.label}</DropdownMenuLabel>
+						<DropdownMenuLabel className="text-xs uppercase tracking-wide text-muted-foreground">{group.label}</DropdownMenuLabel>
 						{group.items.map((item) => (
 							<DropdownMenuItem
 								key={item.label}
@@ -309,13 +301,13 @@ export function SmartEmptyState({
 	testId?: string;
 }) {
 	return (
-		<Card className="rounded-2xl border-dashed border-primary/20 bg-white shadow-soft" data-testid={testId ?? 'smart-empty-state'}>
+		<Card className="rounded-2xl border-dashed border-primary/20 bg-card shadow-soft" data-testid={testId ?? 'smart-empty-state'}>
 			<CardContent className="flex flex-col items-center px-4 py-10 text-center">
 				<div className="mb-3 flex size-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">
 					{icon ?? <Info className="size-6" />}
 				</div>
-				<p className="text-base font-bold text-slate-900">{title}</p>
-				<p className="mt-1 max-w-lg text-sm leading-relaxed text-slate-500">{body}</p>
+				<p className="text-base font-bold text-foreground">{title}</p>
+				<p className="mt-1 max-w-lg text-sm leading-relaxed text-muted-foreground">{body}</p>
 				{action ? <div className="mt-4">{action}</div> : null}
 			</CardContent>
 		</Card>
@@ -347,9 +339,34 @@ export function SmartErrorState({
 	);
 }
 
+export function SmartDegradedState({
+	title = 'Showing saved data',
+	body,
+	action,
+	testId,
+}: {
+	title?: string;
+	body: string;
+	action?: ReactNode;
+	testId?: string;
+}) {
+	return (
+		<Card className="rounded-2xl border-amber-200 bg-amber-50 shadow-soft" data-testid={testId ?? 'smart-degraded-state'}>
+			<CardContent className="flex items-start gap-3 px-4 py-4 text-amber-950">
+				<ServerOff className="mt-0.5 size-5 shrink-0 text-amber-700" />
+				<div className="min-w-0 flex-1">
+					<p className="font-bold">{title}</p>
+					<p className="mt-1 text-sm leading-relaxed text-amber-900/80">{body}</p>
+					{action ? <div className="mt-3">{action}</div> : null}
+				</div>
+			</CardContent>
+		</Card>
+	);
+}
+
 export function SmartLoadingState({ label = 'Loading page details…' }: { label?: string }) {
 	return (
-		<div className="flex items-center gap-2 rounded-2xl border border-primary/10 bg-white px-4 py-3 text-sm font-semibold text-slate-600 shadow-soft" data-testid="smart-loading-state">
+		<div className="flex items-center gap-2 rounded-2xl border border-primary/10 bg-card px-4 py-3 text-sm font-semibold text-muted-foreground shadow-soft" data-testid="smart-loading-state">
 			<RefreshCw className="size-4 animate-spin text-primary" />
 			{label}
 		</div>
