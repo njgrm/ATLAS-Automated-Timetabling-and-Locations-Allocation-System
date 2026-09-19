@@ -144,6 +144,88 @@ per stream. The runtime itself stays SYSTEM-owned in the background: Windows
 Session 0 isolation means a SYSTEM process cannot display a window on the
 interactive desktop, so visible terminals must be launched in the user session.
 
+## SSO — root cause found (2026-09-18)
+
+The SSO code **is** on `origin/main` and **is** deployed: all three
+COMPANION-SSO-C01 commits (`3e0103a3`, `fbb9dc63`, `c989f03d`) are ancestors of
+main; server routes live in `atlas-server/src/routes/auth.router.ts` backed by
+`services/companion-sso.service.ts`; client surfaces are
+`lib/companion-config.ts`, `lib/companion-sso-client.ts`, `pages/SsoCallback.tsx`,
+`components/app-shell/IntegratedSystems.tsx`.
+
+**The blocker is client build-time configuration, not the runtime env.**
+
+`lib/companion-config.ts` resolves the EnrollPro origin from
+`VITE_ENROLLPRO_URL` — a **Vite build-time** variable:
+
+```ts
+export function resolveEnrollProBase(env = viteEnv()): string | null {
+  const raw = env.VITE_ENROLLPRO_URL?.trim();
+  if (!raw) return null;          // fail-closed: no raw-IP fallback
+  return raw.replace(/\/+$/, '');
+}
+```
+
+Evidence from the **served bundle** (`assets/index-CtOKnF1z.js`, 416,337 bytes):
+
+| Needle | Occurrences |
+| --- | --- |
+| `dev-jegs` (the EnrollPro origin) | **0** |
+| `VITE_ENROLLPRO_URL` (as a literal property name) | 1 |
+| `atlas/reverse/start` | 1 |
+
+So the bundle carries the reverse-start *path* but **no EnrollPro origin** — the
+value was absent when `atlas-client` was built. `resolveEnrollProBase()` returns
+`null`, every companion surface disables or omits its link, and the Integrated
+Systems area renders as "not configured". That is exactly the reported symptom.
+
+Contributing detail: `viteEnv()` accesses the env through a cast —
+`(import.meta as unknown as { env?: ... }).env` — which can defeat Vite's
+**static** `import.meta.env.X` substitution. Both the missing build value and the
+cast need to be addressed.
+
+Server-side runtime env already carries the four SSO keys plus the EnrollPro
+keys (`ENROLLPRO_SSO_CLIENT_SECRET`, `ATLAS_SSO_REVERSE_CLIENT_SECRET`,
+`ENROLLPRO_SSO_CALLBACK_URL`, `ENROLLPRO_BASE_URL`, `ENROLLPRO_API`,
+`ENROLLPRO_PROXY_ORIGIN`, `ENROLLPRO_CLIENT_URL`, `ENROLLPRO_SERVICE_TOKEN`) and
+they were loaded when the runtime was restarted for the `74c1f12a` deploy.
+
+`SSO-ENV-ACTIVATION-C01` is `PLANNED` but **stale**: it pins live release
+`8eb0511b`, which no longer exists. Superseded by `SSO-CLIENT-CONFIG-C01`.
+
+## Program: UX-REHAUL-C01 (adopted 2026-09-18)
+
+Doc set at `origin/docs/ux-audit-c01` @ `48c7ca49` (NOT merged to main):
+
+- `docs/handoffs/ux-rehaul-handoff.md` (operating brief)
+- `docs/reviews/ux-audit-c01/atlas-timetable-relaxed-view-audit.md` (F-01..F-18 + Round 2)
+- `docs/reviews/ux-audit-c01/smart-ux-convergence-contract.md` (+ `...-DELTA-2026-09-18.md`)
+- `docs/reviews/ux-audit-c01/smart-registrar-teacher-ux-identity-audit.md`
+- Unintegrated prior art: `work/smart-ux-audit-c01` @ `7d047989`
+
+Objective: rehaul the Timetable UX for older desktop scheduling officers. Build
+on the Simple view; **demote Advanced to "Expert"** (do not fix it).
+
+**Corrections to that handoff's stated "immutable state":**
+
+| Handoff said | Actual |
+| --- | --- |
+| live release `f0d65a53` | **`74c1f12a`** — deployed and verified 2026-09-18 |
+| `origin/main` = `1333b7fd` | **`91bf478a`** (advancing) |
+| SMART mirror `1bda233` | correct — the old register's `c3806e12` is wrong |
+
+## Lane queue (single integration owner)
+
+| Lane | Packet | State |
+| --- | --- | --- |
+| `HOME-ROOM-AUTO-ASSIGN-C01` | `docs/prompts/home-room-auto-assign-c01-2026-09-18.md` | dispatchable now |
+| `UX-R06` | `docs/handoffs/ux-rehaul-handoff.md` §C | dispatchable now |
+| `SSO-CLIENT-CONFIG-C01` | to author — build-time `VITE_ENROLLPRO_URL` + static env access + fail-closed build guard | ready to author |
+| `FLAG-COMPENSATION-SLOT-C01` | `docs/prompts/flag-compensation-slot-c01-2026-09-18.md` | decisions resolved; large lane |
+| `EXPORT-PRESENTATION-C12` | `docs/prompts/export-presentation-c12-2026-09-18.md` | ready; sequence after flag |
+| `PUBLISHED-REVISION-AUTHORITY-C12` | `docs/prompts/published-revision-authority-c12-2026-09-18.md` | second wave |
+| `UX-P01`, `UX-R01..R05` | `docs/handoffs/ux-rehaul-handoff.md` | gated on D-1/D-2/D-3 |
+
 ## Boundaries
 
 - `D:\ATLAS` is a stale/dirty checkout (~466 behind) and is never an
