@@ -1,9 +1,8 @@
 /**
  * COMPANION-SSO-C01 — Integrated Systems catalog and EnrollPro reverse-SSO link.
  *
- * Hub model only (guide §3.3): the only companion link ATLAS may enable is
- * EnrollPro. AIMS/SMART/MRF have no direct authenticated launch and must stay
- * plain text. No raw companion dashboard URL is ever rendered.
+ * Closed direct-federation catalog. AIMS, SMART, and EnrollPro are enabled only
+ * by explicit configured SSO start URLs; MRF remains unavailable.
  *
  * Companion URL resolution is centralized in `lib/companion-config.ts` and is
  * fail-closed: when `VITE_ENROLLPRO_URL` is not configured the reverse-SSO
@@ -23,7 +22,7 @@ export type IntegratedSystemItem = {
 	disabledReason?: string;
 };
 
-export { resolveEnrollProReverseStartUrl } from './companion-config';
+export { resolveDirectCompanionStartUrl, resolveEnrollProReverseStartUrl } from './companion-config';
 
 /** `ADMIN`/`USER`/`TEACHER` rows are not a concern here — only privileged staff. */
 export function canUseEnrollProReverseSso(role: string | null | undefined): boolean {
@@ -38,8 +37,8 @@ export function buildIntegratedSystems(
 	privilegedStaff: boolean,
 ): IntegratedSystemItem[] {
 	return [
-		{ key: 'AIMS', label: 'AIMS', enabled: false, disabledReason: 'Available after direct federation' },
-		{ key: 'SMART', label: 'SMART', enabled: false, disabledReason: 'Available after direct federation' },
+		{ key: 'AIMS', label: 'AIMS', enabled: privilegedStaff, disabledReason: 'AIMS is not configured' },
+		{ key: 'SMART', label: 'SMART', enabled: privilegedStaff, disabledReason: 'SMART is not configured' },
 		{ key: 'ATLAS', label: 'ATLAS', current: true, enabled: false },
 		{ key: 'MRF', label: 'MRF', enabled: false, disabledReason: 'Available after direct federation' },
 	];

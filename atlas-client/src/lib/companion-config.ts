@@ -24,9 +24,29 @@ function viteEnv(): Record<string, string | undefined> {
 		return {
 			VITE_ENROLLPRO_URL: import.meta.env.VITE_ENROLLPRO_URL,
 			VITE_ENROLLPRO_SSO_START_URL: import.meta.env.VITE_ENROLLPRO_SSO_START_URL,
+			VITE_SMART_SSO_START_URL: import.meta.env.VITE_SMART_SSO_START_URL,
+			VITE_AIMS_SSO_START_URL: import.meta.env.VITE_AIMS_SSO_START_URL,
 		};
 	} catch {
 		return {};
+	}
+}
+
+export type DirectCompanionPeer = 'smart' | 'aims';
+
+/** Direct federation links are explicit build-time URLs; there is no origin fallback. */
+export function resolveDirectCompanionStartUrl(
+	peer: DirectCompanionPeer,
+	env: Record<string, string | undefined> = viteEnv(),
+): string | null {
+	const key = peer === 'smart' ? 'VITE_SMART_SSO_START_URL' : 'VITE_AIMS_SSO_START_URL';
+	const raw = env[key]?.trim();
+	if (!raw) return null;
+	try {
+		const url = new URL(raw);
+		return url.protocol === 'https:' || url.protocol === 'http:' ? url.toString() : null;
+	} catch {
+		return null;
 	}
 }
 

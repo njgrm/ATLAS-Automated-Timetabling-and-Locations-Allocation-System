@@ -27,6 +27,7 @@ import {
 	resolveEnrollProBase,
 	resolveEnrollProLogoutRedirect,
 	resolveEnrollProReverseStartUrl,
+	resolveDirectCompanionStartUrl,
 } from '@/lib/companion-config';
 
 const BASE = 'https://dev-jegs.buru-degree.ts.net';
@@ -61,6 +62,21 @@ test('every resolver fails closed to null when the companion origin is not confi
 	assert.equal(resolveEnrollProBackHref({}), null);
 	assert.equal(resolveEnrollProLogoutRedirect({}), null);
 	assert.equal(resolveEnrollProReverseStartUrl({}), null);
+	assert.equal(resolveDirectCompanionStartUrl('smart', {}), null);
+	assert.equal(resolveDirectCompanionStartUrl('aims', {}), null);
+});
+
+test('SMART and AIMS require separate explicit start URLs and reject malformed values', () => {
+	assert.equal(
+		resolveDirectCompanionStartUrl('smart', { VITE_SMART_SSO_START_URL: 'https://smart.test/sso/start' }),
+		'https://smart.test/sso/start',
+	);
+	assert.equal(
+		resolveDirectCompanionStartUrl('aims', { VITE_AIMS_SSO_START_URL: 'https://aims.test/sso/start' }),
+		'https://aims.test/sso/start',
+	);
+	assert.equal(resolveDirectCompanionStartUrl('smart', { VITE_AIMS_SSO_START_URL: 'https://aims.test/sso/start' }), null);
+	assert.equal(resolveDirectCompanionStartUrl('aims', { VITE_AIMS_SSO_START_URL: 'javascript:alert(1)' }), null);
 });
 
 /* ─── Rendered fail-closed decisions ───────────────────────────────────────── */
@@ -149,4 +165,18 @@ test('IntegratedSystems emits the exact configured reverse start URL as the only
 	assert.match(html, new RegExp(`href="${start}"`));
 	assert.equal((html.match(/href="/g) ?? []).length, 1);
 	assert.doesNotMatch(html, /\/personnel\/login/);
+});
+
+test('IntegratedSystems enables SMART and AIMS independently and leaves missing peers as disabled plain text', () => {
+	const smart = 'https://atlas.test/api/v1/auth/sso/smart/start';
+	const html = render(createElement(IntegratedSystems, {
+		privilegedStaff: true,
+		enrollProStartUrl: null,
+		smartStartUrl: smart,
+		aimsStartUrl: null,
+	}));
+	assert.match(html, new RegExp(`data-testid="integrated-system-smart"[^>]*href="${smart}"|href="${smart}"[^>]*data-testid="integrated-system-smart"`));
+	const aimsRow = html.match(/<div[^>]*data-testid="integrated-system-aims"[^>]*>/)?.[0] ?? '';
+	assert.match(aimsRow, /aria-disabled="true"/);
+	assert.doesNotMatch(aimsRow, /href=/);
 });
