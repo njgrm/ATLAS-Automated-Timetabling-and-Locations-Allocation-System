@@ -9,6 +9,13 @@ description: ATLAS project directive. Lean by design — keep the rules that cha
 real defect when ignored or prevented one when followed. If a rule is not here, it
 is not a rule — use judgement.
 
+**This directive is a living document, and updating it is part of the work.** When a
+session discovers a failure mode that a rule would have prevented — or finds a rule
+that is wrong, stale, or mere ceremony — update this file in the same turn. Every rule
+below earned its place that way. Add rules that change behaviour; delete rules that
+only record it. Prefer a rule that prevented a real, named defect over a rule that
+sounds thorough.
+
 ---
 
 ## 1. Commit Message Rule
@@ -156,6 +163,16 @@ commits, and pushed artifacts preserve history; retaining every checkout does no
     schema, or the client lands in the wrong tree.
   - **Prove a deploy by fetching a chunk that only exists in the new build.** A
     healthy `/api/v1/health` on the old release looks identical to a successful deploy.
+  - **Every production client build must set `VITE_ENROLLPRO_URL`.** A fail-closed
+    guard in `atlas-client/vite.config.ts` exits 1 and emits **no bundle** without it.
+    The release build pipeline must export the EnrollPro origin
+    (`https://dev-jegs.buru-degree.ts.net`), or the build fails by design. A
+    development build and the Node test runner are unaffected.
+  - **Only the `supervisor-state.json` inside the active `ATLAS_RUNTIME_SOURCE_DIR` is
+    authoritative.** There is one per release directory; the others are stale artifacts
+    from earlier releases and will report a different release, or `stopped`, while the
+    runtime is healthy. Reading the wrong one produces a false "identity drift" alarm.
+  - A companion mirror is **evidence only at a recorded commit** — see §4.
 
 ---
 
