@@ -347,9 +347,19 @@ commands actually run with results · known risks, each marked `BLOCKING` or
   `https://dev-jegs.buru-degree.ts.net/personnel/login` and assert the EnrollPro
   origin. Evidence from one origin never proves the other's behaviour.
 - **Credentials** live at `%USERPROFILE%/.config/opencode/atlas-qa-credentials.local.md`.
-  Read the minimum needed, never print, screenshot, persist, or commit them, and
-  never recreate the retired faculty identifier `2000056`. If the file is absent,
-  report `EXTERNALLY_BLOCKED(QA_CREDENTIALS_UNAVAILABLE)`.
+  These are **disposable test credentials**; the production identity will differ.
+  - **Allowed:** resolving them and entering them into a browser login form, even
+    though the value then appears in the interactive session transcript. The
+    transcript is ephemeral and local; blocking this forced a human to log in
+    manually for no real security gain.
+  - **Forbidden, always:** committing or staging them, writing them into any
+    repository file, or letting them reach a screenshot, browser trace, test
+    fixture, shell history, environment artifact, log, handoff document, or the
+    living register. Never paste a credential into a prompt or a committed doc —
+    the repository is pushed to GitHub.
+  - Prefer reusing an existing session over a fresh login. Never recreate the
+    retired faculty identifier `2000056`. If the file is absent, report
+    `EXTERNALLY_BLOCKED(QA_CREDENTIALS_UNAVAILABLE)`.
 - **Login is an authorised mutation boundary.** A reusable session may be consumed
   read-only. A fresh login creates a `LOCAL_LOGIN_SUCCESS` audit row — disclose it
   and the account's `last_login_at` delta. Do not silently log in.
