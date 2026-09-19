@@ -20,3 +20,10 @@ Apply only gates relevant to the MEDIUM or HIGH change.
 8. Before adding an authority gate, enumerate and report the route's consumers:
    machine or system-token callers, client callers, and pending packets that depend
    on it. A gate that breaks a documented contract is a finding, not a fix.
+9. **An enumeration must be produced by a mechanical search, not from recall, and
+   must state the search performed.** "Callers" is not the whole consumer set: when a
+   gate changes acceptance behaviour, the **existing tests and fixtures that exercise
+   the changed path are consumers too**, and a fixture that stops satisfying the new
+   gate is a regression the enumeration must name. An enumeration reported as complete
+   that omits an affected fixture is a false completeness claim, not a minor gap —
+   grep the test tree for the changed entry point and report every hit.
