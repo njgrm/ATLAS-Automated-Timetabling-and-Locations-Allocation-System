@@ -235,6 +235,29 @@ async function main(): Promise<void> {
 		await prisma.schoolYearTermConfig.create({
 			data: { schoolId, schoolYearId, termCount: 3, termIdentities: ['T1', 'T2', 'T3'], isActive: true, createdBy: actorId },
 		});
+		// PUBLISHED-REVISION-AUTHORITY-C12 (correction): the R1 merged-entry
+		// gate validates qualifications inside the revision transaction. The
+		// single concurrency entry is therefore fully specified (section /
+		// subject / faculty / day / interval) and backed by additive
+		// qualification rows. RoomIds stay as JSON-only slot markers (no room
+		// rows needed: missing rooms skip type/capacity checks); the
+		// concurrency intent of this fixture is unchanged and no assertion is
+		// touched.
+		const fixtureSubject = await prisma.subject.create({
+			data: { schoolId, code: 'C12FIX', name: 'C12 Fixture Subject', minMinutesPerWeek: 45, preferredRoomType: 'CLASSROOM' as const, gradeLevels: [7], programScopes: ['REGULAR' as const], isActive: true },
+		});
+		const fixtureFaculty = await prisma.facultyMirror.create({
+			data: { schoolId, externalId: 771201, firstName: 'C12', lastName: 'Fixture', maxHoursPerWeek: 40, isActiveForScheduling: true },
+		});
+		await prisma.sectionSnapshot.create({
+			data: { schoolId, schoolYearId, payload: [{ gradeLevelId: 7, gradeLevelName: 'Grade 7', displayOrder: 7, sections: [{ id: 10, name: 'Fixture 10', enrolledCount: 30 }] }] },
+		});
+		const fixtureQualification = await prisma.facultySubject.create({
+			data: { schoolId, schoolYearId, facultyId: fixtureFaculty.id, subjectId: fixtureSubject.id, gradeLevels: [7], sectionIds: [10], assignedBy: actorId },
+		});
+		await prisma.subjectSectionOwnership.create({
+			data: { schoolId, schoolYearId, facultySubjectId: fixtureQualification.id, facultyId: fixtureFaculty.id, subjectId: fixtureSubject.id, sectionId: 10 },
+		});
 		const inputSnapshot = snapshot(schoolId, schoolYearId);
 		const run = await prisma.generationRun.create({
 			data: {
@@ -247,7 +270,7 @@ async function main(): Promise<void> {
 				summary: { inputSnapshot },
 				violations: [],
 				unassignedItems: [],
-				draftEntries: [{ entryId: 'fixture-entry-1', termIndex: 1, roomId: 30, facultyId: 40 }],
+				draftEntries: [{ entryId: 'fixture-entry-1', termIndex: 1, sectionId: 10, subjectId: fixtureSubject.id, facultyId: fixtureFaculty.id, roomId: 30, day: 'MONDAY', startTime: '07:30', endTime: '08:15', durationMinutes: 45 }],
 				version: 1,
 			},
 		});

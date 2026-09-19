@@ -341,6 +341,32 @@ test('controls 4/5/6: publication, revision, and public reads expose Q4 on a dis
 				termContractCachedAt: now,
 			},
 		});
+		// PUBLISHED-REVISION-AUTHORITY-C12 (correction): the R1 merged-entry
+		// gate validates qualifications inside the revision transaction. These
+		// additive rows qualify the quarterly entries (faculty + both subjects
+		// in section 10 via the section snapshot). RoomIds stay as JSON-only
+		// slot markers; the Control 5 quarterly-revision intent is unchanged
+		// and no assertion is touched.
+		const quarterSubjectA = await prisma.subject.create({
+			data: { schoolId: quarterSchoolId, code: 'C01R2Q40', name: 'C01R2 Quarterly A', minMinutesPerWeek: 45, preferredRoomType: 'CLASSROOM' as const, gradeLevels: [7], programScopes: ['REGULAR' as const], isActive: true },
+		});
+		const quarterSubjectB = await prisma.subject.create({
+			data: { schoolId: quarterSchoolId, code: 'C01R2Q41', name: 'C01R2 Quarterly B', minMinutesPerWeek: 45, preferredRoomType: 'CLASSROOM' as const, gradeLevels: [7], programScopes: ['REGULAR' as const], isActive: true },
+		});
+		const quarterFaculty = await prisma.facultyMirror.create({
+			data: { schoolId: quarterSchoolId, externalId: 771201, firstName: 'C01R2', lastName: 'Quarterly', maxHoursPerWeek: 40, isActiveForScheduling: true },
+		});
+		await prisma.sectionSnapshot.create({
+			data: { schoolId: quarterSchoolId, schoolYearId: quarterYearId, payload: [{ gradeLevelId: 7, gradeLevelName: 'Grade 7', displayOrder: 7, sections: [{ id: 10, name: 'Fixture 10', enrolledCount: 30 }] }] },
+		});
+		for (const subject of [quarterSubjectA, quarterSubjectB]) {
+			const qualification = await prisma.facultySubject.create({
+				data: { schoolId: quarterSchoolId, schoolYearId: quarterYearId, facultyId: quarterFaculty.id, subjectId: subject.id, gradeLevels: [7], sectionIds: [10], assignedBy: actorId },
+			});
+			await prisma.subjectSectionOwnership.create({
+				data: { schoolId: quarterSchoolId, schoolYearId: quarterYearId, facultySubjectId: qualification.id, facultyId: quarterFaculty.id, subjectId: subject.id, sectionId: 10 },
+			});
+		}
 		const quarterRun = await prisma.generationRun.create({
 			data: {
 				schoolId: quarterSchoolId,
@@ -353,8 +379,8 @@ test('controls 4/5/6: publication, revision, and public reads expose Q4 on a dis
 				violations: [],
 				unassignedItems: [],
 				draftEntries: [
-					{ entryId: 'q-1', termIndex: 1, sectionId: 10, subjectId: 40, facultyId: 20, roomId: 30, day: 'MONDAY', startTime: '07:30', endTime: '08:15', durationMinutes: 45 },
-					{ entryId: 'q-4', termIndex: 4, sectionId: 10, subjectId: 41, facultyId: 20, roomId: 30, day: 'TUESDAY', startTime: '07:30', endTime: '08:15', durationMinutes: 45 },
+					{ entryId: 'q-1', termIndex: 1, sectionId: 10, subjectId: quarterSubjectA.id, facultyId: quarterFaculty.id, roomId: 30, day: 'MONDAY', startTime: '07:30', endTime: '08:15', durationMinutes: 45 },
+					{ entryId: 'q-4', termIndex: 4, sectionId: 10, subjectId: quarterSubjectB.id, facultyId: quarterFaculty.id, roomId: 30, day: 'TUESDAY', startTime: '07:30', endTime: '08:15', durationMinutes: 45 },
 				],
 				version: 1,
 			},
@@ -474,6 +500,13 @@ test('controls 4/5/6: publication, revision, and public reads expose Q4 on a dis
 				await tx.auditLog.deleteMany({ where: { schoolId: { in: fixtureSchoolIds } } });
 				await tx.generationRun.deleteMany({ where: { schoolId: { in: fixtureSchoolIds } } });
 				await tx.enrollProSchoolYearMirror.deleteMany({ where: { schoolId: { in: fixtureSchoolIds } } });
+				// C12 correction cleanup (additive, FK-safe): qualification rows
+				// added for the R1 merged-entry gate.
+				await tx.subjectSectionOwnership.deleteMany({ where: { schoolId: { in: fixtureSchoolIds } } });
+				await tx.facultySubject.deleteMany({ where: { schoolId: { in: fixtureSchoolIds } } });
+				await tx.facultyMirror.deleteMany({ where: { schoolId: { in: fixtureSchoolIds } } });
+				await tx.subject.deleteMany({ where: { schoolId: { in: fixtureSchoolIds } } });
+				await tx.sectionSnapshot.deleteMany({ where: { schoolId: { in: fixtureSchoolIds } } });
 				await tx.school.deleteMany({ where: { id: { in: fixtureSchoolIds } } });
 			});
 			const residue = await prisma.$transaction(async (tx) => {
@@ -482,6 +515,11 @@ test('controls 4/5/6: publication, revision, and public reads expose Q4 on a dis
 					await tx.auditLog.count({ where: { schoolId: { in: fixtureSchoolIds } } }),
 					await tx.generationRun.count({ where: { schoolId: { in: fixtureSchoolIds } } }),
 					await tx.enrollProSchoolYearMirror.count({ where: { schoolId: { in: fixtureSchoolIds } } }),
+					await tx.subjectSectionOwnership.count({ where: { schoolId: { in: fixtureSchoolIds } } }),
+					await tx.facultySubject.count({ where: { schoolId: { in: fixtureSchoolIds } } }),
+					await tx.facultyMirror.count({ where: { schoolId: { in: fixtureSchoolIds } } }),
+					await tx.subject.count({ where: { schoolId: { in: fixtureSchoolIds } } }),
+					await tx.sectionSnapshot.count({ where: { schoolId: { in: fixtureSchoolIds } } }),
 					await tx.school.count({ where: { id: { in: fixtureSchoolIds } } }),
 				];
 			});
