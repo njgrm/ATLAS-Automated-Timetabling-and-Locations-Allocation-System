@@ -134,22 +134,29 @@ test('R6: floor-transition producer states both floors and timestamps instead of
 	assert.doesNotMatch(floor.message, /14:30\s*(?:→|->)\s*14:30/);
 });
 
-test('R3: mounted authenticated API serializes the same unique list and count', async () => {
+test('R3/S1: mounted warning routes preserve count parity and reject unbound actor schools before dispatch', async () => {
 	process.env.JWT_SECRET = 'warning-readability-c01-secret-value';
 	const generationRouter = (await import('../routes/generation.router.js')).default;
+	let dispatches = 0;
+	const run = {
+		id: 316,
+		schoolYearId: 10,
+		status: 'COMPLETED',
+		createdAt: new Date('2030-01-01T00:00:00.000Z'),
+		draftEntries: entries,
+		summary: {},
+		violations: [
+			warning('FACULTY_EXCESSIVE_IDLE_GAP', 1, ['entry-523::t1']),
+			warning('FACULTY_EXCESSIVE_IDLE_GAP', 1, ['entry-523::t1']),
+		],
+	};
 	const client = {
 		generationRun: {
-			findFirst: async () => ({
-				id: 316,
-				status: 'COMPLETED',
-				draftEntries: entries,
-				summary: {},
-				violations: [
-					warning('FACULTY_EXCESSIVE_IDLE_GAP', 1, ['entry-523::t1']),
-					warning('FACULTY_EXCESSIVE_IDLE_GAP', 1, ['entry-523::t1']),
-				],
-			}),
+			findFirst: async () => { dispatches += 1; return run; },
+			findMany: async () => { dispatches += 1; return [run]; },
+			findUnique: async () => { dispatches += 1; return run; },
 		},
+		facultyMirror: { findMany: async () => { dispatches += 1; return [{ id: 16 }]; } },
 	};
 	const app = express();
 	app.use((_req, _res, next) => { void withDataContext(client as never, async () => next()); });
@@ -159,14 +166,28 @@ test('R3: mounted authenticated API serializes the same unique list and count', 
 	try {
 		const address = server.address();
 		assert.ok(address && typeof address === 'object');
-		const bearer = jwt.sign({ userId: 46, role: 'officer', schoolId: 1 }, process.env.JWT_SECRET, { expiresIn: '5m' });
-		const response = await fetch(`http://127.0.0.1:${address.port}/api/v1/generation/1/10/runs/316/violations`, {
-			headers: { authorization: `Bearer ${bearer}` },
+		const baseUrl = `http://127.0.0.1:${address.port}/api/v1/generation/1/10`;
+		const request = (path: string, payload: Record<string, unknown>) => fetch(`${baseUrl}${path}`, {
+			headers: { authorization: `Bearer ${jwt.sign(payload, process.env.JWT_SECRET!, { expiresIn: '5m' })}` },
 		});
+		const response = await request('/runs/316/violations', { userId: 46, role: 'officer', schoolId: 1 });
 		const body = await response.json() as { violations: Violation[]; counts: { total: number } };
 		assert.equal(response.status, 200);
 		assert.equal(body.violations.length, 1);
 		assert.equal(body.counts.total, body.violations.length);
+		const afterSameSchool = dispatches;
+		for (const path of ['/runs/316/violations', '/runs/latest/violations']) {
+			const crossSchool = await request(path, { userId: 46, role: 'officer', schoolId: 2 });
+			assert.equal(crossSchool.status, 403);
+			assert.equal((await crossSchool.json() as { code: string }).code, 'CROSS_SCHOOL_DENIED');
+			const missingSchool = await request(path, { userId: 46, role: 'officer' });
+			assert.equal(missingSchool.status, 403);
+			assert.equal((await missingSchool.json() as { code: string }).code, 'SCHOOL_SCOPE_REQUIRED');
+			const unboundSystemAdmin = await request(path, { userId: 1, role: 'SYSTEM_ADMIN' });
+			assert.equal(unboundSystemAdmin.status, 403, 'SYSTEM_ADMIN follows canonical bound-school semantics');
+			assert.equal((await unboundSystemAdmin.json() as { code: string }).code, 'SCHOOL_SCOPE_REQUIRED');
+		}
+		assert.equal(dispatches, afterSameSchool, 'rejected actor scopes dispatch zero service/database reads');
 	} finally {
 		await new Promise<void>((resolve) => server.close(() => resolve()));
 	}
