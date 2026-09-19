@@ -73,9 +73,9 @@ function CurrentRow({ item }: { item: IntegratedSystemItem }) {
 
 /**
  * Integrated Systems area (guide §4.5). Placed after primary navigation and
- * before system administration. EnrollPro is the only enabled companion: it
- * navigates same-tab to EnrollPro's reverse-SSO start endpoint. AIMS/SMART/MRF
- * are plain disabled text with no raw companion URL anywhere.
+ * before system administration. Eligible companions navigate in the same tab
+ * only when their explicit SSO start URL is configured. Missing configuration
+ * fails closed as disabled text; MRF remains unavailable.
  */
 export function IntegratedSystems({ privilegedStaff, enrollProStartUrl, smartStartUrl, aimsStartUrl, className }: IntegratedSystemsProps) {
 	const systems = buildIntegratedSystems(privilegedStaff);
