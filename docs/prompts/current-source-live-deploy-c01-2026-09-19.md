@@ -34,6 +34,8 @@ change.
   names/hash only; change no byte.
 - Build input: preserve the currently accepted EnrollPro origin. Do not define
   `VITE_SMART_SSO_START_URL` or `VITE_AIMS_SSO_START_URL` in this release.
+- Build dependencies must be isolated inside the target release. Dependency
+  junctions/symlinks and installs through a shared dependency tree are forbidden.
 
 ## Preconditions — fail closed
 
@@ -52,29 +54,71 @@ change.
    worktrees, PostgreSQL data, backups, or logs.
 5. Prove the incumbent has its built server, production host, dependencies, Git
    identity, and runtime CLI required for rollback.
-6. Build the pinned server and client and smoke both on alternate ports before
-   touching 5001/5174. The built Node server must start successfully; TypeScript
-   or build success alone is insufficient.
-7. Capture read-only database signatures for the tables touched by login, audit,
-   Teaching Load, generation, publication, term authority, and migrations.
+6. Export the existing task XML to an operator-only `%TEMP%` path and record its
+   SHA-256. Capture its principal, trigger, execution time limit, multiple-instance
+   policy, action, arguments, and working directory as separately comparable
+   fields. Preserve the original XML for symmetric rollback.
+7. Record the system-scope Git `safe.directory` list. If the exact target path is
+   absent, the approval below permits adding only that one path at system scope;
+   no user-scope entry is sufficient for the SYSTEM task. Record whether the
+   entry was pre-existing or added by this action.
+8. Capture a schema-wide read-only database signature map. Enumerate every
+   `public` base table from `information_schema.tables`, ordered by table name;
+   for each safely quoted table compute `(rowCount, signature)` where `signature`
+   is `md5(string_agg(md5(row_to_json(t)::text), '' ORDER BY
+   md5(row_to_json(t)::text)))`, using `md5('')` for an empty table. Store only
+   table names, counts, and hashes. This includes `_prisma_migrations`, audit,
+   login/account, companion-code, Teaching Load, generation, publication, and
+   term-authority tables without relying on an incomplete hand-picked list.
+9. Construct the release before touching 5001/5174:
+   - create a clean checkout at the exact target SHA;
+   - run locked `npm ci` independently in the release root, `atlas-server`, and
+     `atlas-client`; do not reuse a dependency junction or run an install through
+     a shared tree;
+   - provide `DATABASE_URL` only in the child environment, never print it, and run
+     root `npm run db:generate` (the repository-owned `prisma.config.ts` path);
+     require generated clients at both the root and server runtime locations;
+   - run server TypeScript/build and client TypeScript/build, with exactly
+     `VITE_ENROLLPRO_URL=https://dev-jegs.buru-degree.ts.net` and with SMART/AIMS
+     start URLs unset;
+   - from `atlas-client`, run `npx tsx --test
+     src/lib/__tests__/companion-config.test.ts` and require SMART and AIMS to
+     render as disabled plain text with no `href` when those URLs are absent;
+   - smoke the built Node server and production host on alternate ports. The
+     built server must start successfully; type-check/build alone is insufficient.
+10. From built `atlas-client/dist/index.html`, record every referenced JS asset
+    basename and SHA-256. At least one newly built asset must be referenced; this
+    manifest is the served-artifact identity used by acceptance row 6.
 
 ## Authorized mutations
 
-Only these mutations are authorized after all preconditions pass:
+Only these mutations are authorized, and each may begin only after its preceding
+fail-closed checks pass:
 
 1. create the target release directory at the exact pinned Git SHA;
-2. add that exact release directory to Git `safe.directory` if required;
+2. if absent, add only that exact release directory to system-scope Git
+   `safe.directory` so the registered SYSTEM task can verify the product pin;
 3. quiesce only the incumbent supervisor process tree and its 5001/5174 children;
 4. update machine-scope `ATLAS_RUNTIME_SOURCE_DIR` and
    `ATLAS_RUNTIME_RELEASE_SHA` to the target;
-5. re-point only the registered `ATLAS-Runtime-Supervisor` task action and working
-   directory to the target while preserving every other task property; and
+5. create a replacement task XML from the captured original by changing only the
+   action path/arguments and working directory to the target, then register it
+   with `schtasks /Create /F /TN "\\ATLAS-Runtime-Supervisor" /XML <temp>`;
+   re-export and field-compare the task, failing unless SYSTEM, ONSTART, PT0S,
+   IgnoreNew, and every non-action property are preserved; and
 6. start the replacement only through
    `schtasks /run /tn "ATLAS-Runtime-Supervisor"`.
 
+Remove every temporary task XML after its recorded hashes are captured. The
+operator-only original XML capture may be retained only until post-action QA or
+rollback is terminal, then must be removed.
+
 Do not start a resident runtime from the executor shell. Stop the exact incumbent
-supervisor tree first, invoke its supported `cli.mjs stop`, wait at least ten
-seconds, and prove 5001/5174 are free before re-pointing.
+supervisor tree first, invoke its supported `cli.mjs stop` with the incumbent
+machine values supplied in that child environment, wait at least ten seconds,
+prove 5001/5174 are free, and require the task no longer to be `Running` before
+re-pointing. After registration, require the task to be `Ready` before the single
+`schtasks /run` invocation.
 
 ## Acceptance — 8 mandatory rows
 
@@ -91,13 +135,21 @@ seconds, and prove 5001/5174 are free before re-pointing.
    report routes return 401 before service dispatch. No authenticated login is
    authorized in this action; same-school/cross-school live rows remain a later
    serialized browser/API acceptance, not a deployment failure.
-6. **Client:** the Tailnet login/public shell renders without a React crash; the
-   served bundle contains the EnrollPro origin and contains neither a SMART nor
-   AIMS SSO start URL. No claim is made for protected-page UX.
+6. **Client and served-artifact identity:** the Tailnet login/public shell renders
+   without a React crash. Fetch its HTML and every referenced JS asset; require
+   asset basenames and byte SHA-256 values to equal the built-dist manifest from
+   precondition 10. The served assets contain the EnrollPro origin and neither a
+   SMART nor AIMS SSO start URL. The pre-stop production component control proves
+   both absent peers render as disabled plain text with no `href`. No claim is
+   made for protected-page UX.
 7. **Configuration:** durable-env bytes and key-name set are unchanged;
    `ROLLOVER_AUTO_SYNC_ENABLED=false`; no SMART/AIMS secret or URL was invented.
-8. **Zero data mutation:** every captured signature is unchanged. Runtime logs and
-   supervisor state files are expected operational artifacts, not database writes.
+8. **Inactive SMART/AIMS and zero data mutation:** unauthenticated GETs to
+   `/api/v1/auth/sso/smart/start` and `/api/v1/auth/sso/aims/start` each return
+   typed `503 COMPANION_SSO_NOT_CONFIGURED`; neither returns a redirect or
+   `Set-Cookie`. The schema-wide signature map is byte-identical before/after,
+   including companion-code tables. Runtime logs and supervisor state files are
+   expected operational artifacts, not database writes.
 
 Fresh independent post-action QA must reproduce rows 1–8. `ACCEPT_READY` requires
 8/8 passed, 0 blocked, 0 unperformed. The protected authenticated rows explicitly
@@ -106,18 +158,22 @@ deferred in row 5 are outside this action's mandatory count.
 ## Rollback
 
 On any mandatory failure after quiescence, stop the target supervisor tree using
-the same sequence; restore the incumbent task action, working directory, and both
-machine variables; relaunch through the registered task; and reproduce ownership,
-health, readiness, Tailnet, and durable-env invariants. Retain evidence of the
-failed target. Do not improvise a manual resident process.
+the same sequence; restore both machine variables and register the exact captured
+incumbent XML; require its SHA-256 and comparable fields to match the pre-action
+capture; remove the exact system-scope `safe.directory` entry only if this action
+added it; require the restored task to be `Ready`, relaunch through that task, and
+reproduce ownership, health, readiness, Tailnet, durable-env, and schema-wide DB
+signature invariants. Retain evidence of the failed target. Do not improvise a
+manual resident process.
 
 ## Exact approval sentence — not yet granted
 
-> I approve HIGH action CURRENT-SOURCE-LIVE-DEPLOY-C01: from an elevated Administrator executor, build and install ATLAS release `134bcf28b866f587f87afe8b9ba51c130d1e128b` at `D:\ATLAS-runtime-supervised-134bcf28-20260919`; after every packet precondition passes, replace only the supervisor-owned ATLAS processes on ports 5001 and 5174 by re-pointing the existing `ATLAS-Runtime-Supervisor` task and machine source/release variables and starting it only through the registered SYSTEM task; preserve the durable environment file byte-for-byte, keep rollover automation disabled, configure no SMART/AIMS URL or secret, perform no login or database write, and stop before migration, Teaching Load apply, generation, publication, rollover, or companion-repository action; on any mandatory failure, symmetrically restore and relaunch incumbent release `74c1f12a5c06bb025a1a7a13088c1c5da1a76d74` and prove its ownership and health.
+> I approve HIGH action CURRENT-SOURCE-LIVE-DEPLOY-C01: from an elevated Administrator executor, create an isolated release for ATLAS source `134bcf28b866f587f87afe8b9ba51c130d1e128b` at `D:\ATLAS-runtime-supervised-134bcf28-20260919`, using locked independent dependency installs, repository-root Prisma generation, and a client build with exactly `VITE_ENROLLPRO_URL=https://dev-jegs.buru-degree.ts.net` while SMART/AIMS start URLs remain unset; if required for the registered SYSTEM task, add only that exact release path to system-scope Git `safe.directory`; after every packet precondition and alternate-port smoke passes, replace only the supervisor-owned ATLAS processes on ports 5001 and 5174 by changing only the captured `ATLAS-Runtime-Supervisor` task action/working directory through a property-preserving XML registration, re-pointing the two machine source/release variables, and starting it only through the registered SYSTEM task; preserve the durable environment file byte-for-byte, keep rollover automation disabled, perform no login or database write, and stop before migration, Teaching Load apply, generation, publication, rollover, or companion-repository action; require exact served-client artifact hashes, typed inactive SMART/AIMS 503 responses, and an unchanged schema-wide database signature; on any mandatory failure, symmetrically restore the captured incumbent task XML and machine variables, remove the exact system safe-directory entry only if this action added it, relaunch incumbent release `74c1f12a5c06bb025a1a7a13088c1c5da1a76d74`, and prove its ownership, health, and unchanged data state.
 
 ## Return
 
-Return one concise evidence artifact with the exact before/after task and machine
-fields, PIDs/listeners, disk proof, build/smoke result, rows 1–8, database
-signatures, rollback status, and immutable evidence SHA. Do not paste logs or
-environment contents.
+Return one concise evidence artifact with the exact before/after task fields and
+XML hashes, machine fields, system safe-directory delta, PIDs/listeners, disk
+proof, dependency/Prisma/build/smoke results, built-versus-served asset manifest,
+rows 1–8, schema-wide database signatures, rollback status, and immutable
+evidence SHA. Do not paste logs, secrets, database rows, or environment contents.
