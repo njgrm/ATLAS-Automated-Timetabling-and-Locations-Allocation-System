@@ -255,6 +255,21 @@ router.post('/home-rooms/:schoolYearId/auto-assign', authenticate, requirePrivil
 		}
 		const allowCrossGradeFallback = rawFallback === true;
 
+		// HOME-ROOM-AUTO-ASSIGN-C01 (R6): actor-school authority is enforced
+		// before any service dispatch. Body validation above still wins, so a
+		// malformed body is a typed 400 regardless of actor. A token without a
+		// bound school, or one that disagrees with the requested school, fails
+		// closed with a typed 403 and performs zero reads/writes.
+		const actorSchoolId = Number(req.user?.schoolId);
+		if (!Number.isInteger(actorSchoolId) || actorSchoolId <= 0) {
+			res.status(403).json({ code: 'SCHOOL_SCOPE_REQUIRED', message: 'Authenticated actor is missing a bound school scope.' });
+			return;
+		}
+		if (actorSchoolId !== schoolId) {
+			res.status(403).json({ code: 'CROSS_SCHOOL_DENIED', message: 'Requested school does not match the authenticated actor school.' });
+			return;
+		}
+
 		const result = await computeAutoAssign({
 			schoolId,
 			schoolYearId,
