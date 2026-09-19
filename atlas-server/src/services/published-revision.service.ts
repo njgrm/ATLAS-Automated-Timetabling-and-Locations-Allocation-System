@@ -4,6 +4,14 @@ import { getDataContext } from '../lib/data-context.js';
 import { publishPublishedScheduleEvent } from './published-schedule-events.service.js';
 import { runSerializablePublicationTransaction } from './serializable-transaction-retry.js';
 import { loadVerifiedOrderedTermContract, MAX_ACADEMIC_TERM_INDEX, isTermIndexWithinContract } from './academic-term.service.js';
+import { validateHardConstraints, type ScheduledEntry } from './constraint-validator.js';
+import { buildValidatorCtx, loadRunContext } from './manual-edit.service.js';
+import { countBlockingHardViolations } from './publication-contract.service.js';
+import {
+	compareGenerationInputSnapshots,
+	computeGenerationInputSnapshot,
+	type GenerationInputSnapshot,
+} from './generation-input-snapshot.service.js';
 
 const db = () => getDataContext();
 
@@ -50,6 +58,44 @@ export type CreatePublishedScheduleRevisionResult = {
 	auditId: number;
 	replayed: boolean;
 	notificationDelivery: 'DELIVERED' | 'FAILED_AFTER_COMMIT';
+	/**
+	 * PUBLISHED-REVISION-AUTHORITY-C12 — the R1 hard-constraint decision for
+	 * this commit. Soft/warning violations never block; they are preserved
+	 * here (and counted in the audit record) instead of being dropped. A
+	 * replayed idempotent retry replays the committed decision, so it carries
+	 * no fresh validation summary (`null`).
+	 */
+	validation: PublishedRevisionValidationSummary | null;
+};
+
+export type PublishedRevisionValidationSummary = {
+	/** Blocking HARD violations under the publication gate predicate (always 0 here — a nonzero count fails closed before any write). */
+	blockingHardViolationCount: number;
+	/** Every HARD-severity violation, including non-promotable informational codes. */
+	hardViolationCount: number;
+	/** Distinct HARD-severity violation codes observed on the merged set. */
+	hardCodes: string[];
+	softViolationCount: number;
+	softViolations: Array<{ code: string; severity: 'SOFT'; message: string }>;
+};
+
+export type PublishedRevisionServiceOptions = {
+	now?: Date;
+	publishEvent?: (event: Parameters<typeof publishPublishedScheduleEvent>[0]) => unknown;
+	/**
+	 * R2 interleave seam. Defaults to the canonical
+	 * `computeGenerationInputSnapshot`, whose rooms / teachingLoad
+	 * (faculty qualification + ownership) / policy (scheduling policy,
+	 * grade-shift windows, special events, class-program slots) / sections /
+	 * subjects / derivedDemand / availability domains cover every R2 input at
+	 * minimum. Tests inject a scripted stub to prove the stale-source abort
+	 * deterministically.
+	 */
+	computeInputSnapshot?: (
+		schoolId: number,
+		schoolYearId: number,
+		client: Prisma.TransactionClient | PrismaClient,
+	) => Promise<GenerationInputSnapshot>;
 };
 
 function err(
@@ -193,6 +239,47 @@ function buildValueSnapshot(changes: PublishedRevisionEntryChange[], side: 'prev
 	}));
 }
 
+function minutesBetweenTimes(start: string, end: string): number | null {
+	if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(start) || !/^([01]\d|2[0-3]):[0-5]\d$/.test(end)) return null;
+	const [startHour, startMinute] = start.split(':').map(Number);
+	const [endHour, endMinute] = end.split(':').map(Number);
+	return endHour * 60 + endMinute - (startHour * 60 + startMinute);
+}
+
+/**
+ * PUBLISHED-REVISION-AUTHORITY-C12 (R1) — apply one revision `next` snapshot
+ * onto a stored entry. `durationMinutes` is recomputed from the merged
+ * interval (the same derivation the manual-swap path uses) so the validator
+ * sees the true merged duration rather than a stale stored value.
+ */
+function applyRevisionNextToEntry(
+	base: Record<string, unknown>,
+	next: PublishedRevisionValueSnapshot,
+): Record<string, unknown> {
+	const merged = { ...base, ...next };
+	if (typeof merged.startTime === 'string' && typeof merged.endTime === 'string') {
+		const minutes = minutesBetweenTimes(merged.startTime, merged.endTime);
+		if (minutes !== null && minutes > 0) merged.durationMinutes = minutes;
+	}
+	return merged;
+}
+
+function toValidationSummary(
+	violations: Array<{ code: string; severity: 'HARD' | 'SOFT'; message: string }>,
+	blockingHardViolationCount: number,
+): PublishedRevisionValidationSummary {
+	const hard = violations.filter((violation) => violation.severity === 'HARD');
+	return {
+		blockingHardViolationCount,
+		hardViolationCount: hard.length,
+		hardCodes: [...new Set(hard.map((violation) => violation.code))].sort(),
+		softViolationCount: violations.filter((violation) => violation.severity === 'SOFT').length,
+		softViolations: violations
+			.filter((violation) => violation.severity === 'SOFT')
+			.map((violation) => ({ code: violation.code, severity: 'SOFT' as const, message: violation.message })),
+	};
+}
+
 type AuthoritativeLatestRevision = {
 	baseRevisionId: number;
 	latestRevisionId: number;
@@ -263,7 +350,7 @@ async function resolveAuthoritativeLatestRevision(
 
 export async function createPublishedScheduleRevision(
 	input: CreatePublishedScheduleRevisionInput,
-	options?: { now?: Date; publishEvent?: (event: Parameters<typeof publishPublishedScheduleEvent>[0]) => unknown },
+	options?: PublishedRevisionServiceOptions,
 ): Promise<CreatePublishedScheduleRevisionResult> {
 	if (!isPositiveInt32(input.schoolId)) throw err(400, 'INVALID_SCHOOL_ID', 'schoolId must be a positive Int32 integer.');
 	if (!isPositiveInt32(input.schoolYearId)) throw err(400, 'INVALID_SCHOOL_YEAR_ID', 'schoolYearId must be a positive Int32 integer.');
@@ -294,6 +381,8 @@ export async function createPublishedScheduleRevision(
 	});
 	const result = await runSerializablePublicationTransaction(db(), async (tx) => {
 		await tx.$executeRawUnsafe('SELECT pg_advisory_xact_lock($1::integer, $2::integer)', input.schoolId, input.schoolYearId);
+
+		const computeSnapshot = options?.computeInputSnapshot ?? computeGenerationInputSnapshot;
 
 		const activeYears = await tx.enrollProSchoolYearMirror.findMany({
 			where: { schoolId: input.schoolId, isActive: true, isArchived: false },
@@ -344,7 +433,7 @@ export async function createPublishedScheduleRevision(
 				select: { id: true },
 			});
 			if (!replayAudit) throw err(409, 'PUBLISHED_REVISION_STATE_AMBIGUOUS', 'The revision replay has no matching audit record.');
-			return { revision: replay, auditId: replayAudit.id, replayed: true };
+			return { revision: replay, auditId: replayAudit.id, replayed: true, validation: null };
 		}
 
 		if (input.sourceRevisionId !== resolved.latestRevisionId) {
@@ -389,6 +478,77 @@ export async function createPublishedScheduleRevision(
 			}
 		}
 
+		// PUBLISHED-REVISION-AUTHORITY-C12 (R2) — bind the revision to the
+		// covered-input snapshot that produced it. `preValidationSnapshot` is
+		// read through the transaction client before validation; the
+		// pre-commit re-read below must match it exactly or the write aborts
+		// with zero writes. The canonical snapshot domains (rooms,
+		// teachingLoad incl. faculty qualification/ownership, policy incl.
+		// scheduling policy + grade-shift windows + special events +
+		// class-program slots, sections, subjects, derivedDemand,
+		// availability) cover every R2 input at minimum.
+		const preValidationSnapshot = await computeSnapshot(input.schoolId, input.schoolYearId, tx);
+
+		// PUBLISHED-REVISION-AUTHORITY-C12 (R1) — validate the MERGED entry
+		// set (the full published draft with the revision chain and the
+		// requested changes applied) through the same canonical authority the
+		// publication gate consumes: `validateHardConstraints` produces the
+		// violations and `countBlockingHardViolations` (the exact publication
+		// predicate: HARD severity AND promotable constraint code) decides.
+		// Reference data is loaded through the transaction client, so the
+		// decision is bound to the transaction snapshot. A soft/warning
+		// violation never blocks; only a blocking HARD fails closed with
+		// PUBLISHED_REVISION_BLOCKED_HARD_VIOLATIONS and zero writes.
+		const refData = await loadRunContext(input.sourceRunId, input.schoolId, input.schoolYearId, tx, { allowPublished: true });
+		const mergedEntriesById = new Map<string, Record<string, unknown>>();
+		for (const entry of refData.entries) {
+			mergedEntriesById.set(entry.entryId, { ...(entry as unknown as Record<string, unknown>) });
+		}
+		for (const revision of resolved.revisionChain) {
+			if (!Array.isArray(revision.changeSet)) continue;
+			for (const raw of revision.changeSet) {
+				const prior = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw as Record<string, unknown> : null;
+				const entryId = typeof prior?.entryId === 'string' ? prior.entryId : '';
+				const next = prior?.next && typeof prior.next === 'object' && !Array.isArray(prior.next) ? prior.next as Record<string, unknown> : null;
+				const base = entryId ? mergedEntriesById.get(entryId) : undefined;
+				if (next && base) mergedEntriesById.set(entryId, applyRevisionNextToEntry(base, next as PublishedRevisionValueSnapshot));
+			}
+		}
+		for (const change of changes) {
+			const base = mergedEntriesById.get(change.entryId);
+			if (base) mergedEntriesById.set(change.entryId, applyRevisionNextToEntry(base, change.next));
+		}
+		const mergedEntries = [...mergedEntriesById.values()] as unknown as ScheduledEntry[];
+		const mergedValidation = validateHardConstraints(buildValidatorCtx(input.schoolId, input.schoolYearId, input.sourceRunId, mergedEntries, refData));
+		const blockingHardViolationCount = countBlockingHardViolations(mergedValidation.violations);
+		const validation = toValidationSummary(mergedValidation.violations, blockingHardViolationCount);
+		if (blockingHardViolationCount !== 0) {
+			throw err(422, 'PUBLISHED_REVISION_BLOCKED_HARD_VIOLATIONS', 'Cannot revise a published schedule while the merged entries contain hard violations.', {
+				details: {
+					sourceRunId: input.sourceRunId,
+					blockingHardViolationCount,
+					hardViolationCount: validation.hardViolationCount,
+					softViolationCount: validation.softViolationCount,
+					violations: mergedValidation.violations.slice(0, 25).map((violation) => ({
+						code: violation.code,
+						severity: violation.severity,
+						message: violation.message,
+					})),
+				},
+			});
+		}
+
+		// PUBLISHED-REVISION-AUTHORITY-C12 (R2) — pre-commit re-read. Any
+		// covered-input change between validation and commit fails closed with
+		// a typed stale-source error before the first write.
+		const preCommitSnapshot = await computeSnapshot(input.schoolId, input.schoolYearId, tx);
+		const snapshotComparison = compareGenerationInputSnapshots(preValidationSnapshot, preCommitSnapshot, now.toISOString());
+		if (snapshotComparison.status !== 'FRESH') {
+			throw err(409, 'PUBLISHED_REVISION_INPUTS_STALE', 'Published revision inputs changed between validation and commit. Reload the latest revision token and retry.', {
+				details: { changedDomains: snapshotComparison.changedDomains, status: snapshotComparison.status },
+			});
+		}
+
 		const revision = await tx.publishedScheduleRevision.create({
 			data: {
 				schoolId: input.schoolId,
@@ -429,11 +589,13 @@ export async function createPublishedScheduleRevision(
 					changedEntryIds,
 					status: revision.status,
 					publishedTruthPreserved: true,
+					blockingHardViolationCount: validation.blockingHardViolationCount,
+					softViolationCount: validation.softViolationCount,
 				} as Prisma.InputJsonValue,
 			},
 		});
 
-		return { revision, auditId: audit.id, replayed: false };
+		return { revision, auditId: audit.id, replayed: false, validation };
 	});
 
 	// Fire notification event after successful commit
@@ -477,6 +639,101 @@ export async function createPublishedScheduleRevision(
 	}
 
 	return { ...result, notificationDelivery };
+}
+
+export type CreatePublishedSwapRevisionInput = {
+	schoolId: number;
+	schoolYearId: number;
+	sourceRunId: number;
+	sourceRevisionId?: number | null;
+	actorId?: number | null;
+	effectiveDate?: string | Date | null;
+	reason?: string | null;
+	entryIdA: string;
+	entryIdB: string;
+	changeSummary?: Record<string, unknown> | null;
+	metadata?: Record<string, unknown> | null;
+};
+
+/**
+ * PUBLISHED-REVISION-AUTHORITY-C12 (R3) — the supported path for a swap on a
+ * published run. A direct swap (`swapManualEntries`) stays fail-closed with
+ * 409 `RUN_ALREADY_PUBLISHED`: a published run's draft must never be silently
+ * mutated. This helper expresses the same timeslot exchange (A takes B's
+ * day/startTime/endTime and B takes A's, mirroring `applySwapWithTarget`
+ * semantics) as a two-change `PUBLISHED_SWAP` revision and delegates to the
+ * full `createPublishedScheduleRevision` write contract, inheriting shape
+ * validation, R1 hard-constraint validation, R2 snapshot binding, the latest-
+ * token concurrency check, idempotent replay, and the audit row.
+ *
+ * The current slot values are read outside the write transaction; any drift
+ * between this read and the commit fails closed inside the write transaction
+ * as `REVISION_PREVIOUS_VALUES_STALE` (or `SOURCE_REVISION_STALE`) with zero
+ * writes — the same read-token-then-post composition the client already uses.
+ */
+export async function createPublishedSwapRevision(
+	input: CreatePublishedSwapRevisionInput,
+	options?: PublishedRevisionServiceOptions,
+): Promise<CreatePublishedScheduleRevisionResult> {
+	const entryIdA = typeof input.entryIdA === 'string' ? input.entryIdA.trim() : '';
+	const entryIdB = typeof input.entryIdB === 'string' ? input.entryIdB.trim() : '';
+	if (!entryIdA || !entryIdB) throw err(400, 'SWAP_ENTRY_REQUIRED', 'A published swap requires two entryIds.');
+	if (entryIdA === entryIdB) throw err(400, 'SWAP_SAME_ENTRY', 'A published swap requires two distinct entries.');
+
+	const client = db();
+	const run = await client.generationRun.findFirst({
+		where: { id: input.sourceRunId, schoolId: input.schoolId, schoolYearId: input.schoolYearId },
+	});
+	if (!run) throw err(404, 'SOURCE_RUN_NOT_FOUND', 'Source generation run was not found in this school/year scope.');
+	const draftEntries = Array.isArray((run as unknown as Record<string, unknown>).draftEntries)
+		? (run as unknown as { draftEntries: Array<Record<string, unknown>> }).draftEntries
+		: [];
+	const chain = await client.publishedScheduleRevision.findMany({
+		where: { schoolId: input.schoolId, schoolYearId: input.schoolYearId, sourceRunId: input.sourceRunId, status: { in: ['SCHEDULED', 'SUPERSEDED'] } },
+		orderBy: [{ effectiveDate: 'asc' }, { createdAt: 'asc' }, { id: 'asc' }],
+	});
+	const effectiveById = new Map<string, Record<string, unknown>>();
+	for (const entry of draftEntries) {
+		if (entry && typeof entry.entryId === 'string') effectiveById.set(entry.entryId, { ...entry });
+	}
+	for (const revision of chain) {
+		const changeSet = (revision as unknown as { changeSet: unknown }).changeSet;
+		if (!Array.isArray(changeSet)) continue;
+		for (const raw of changeSet) {
+			const prior = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw as Record<string, unknown> : null;
+			const entryId = typeof prior?.entryId === 'string' ? prior.entryId : '';
+			const next = prior?.next && typeof prior.next === 'object' && !Array.isArray(prior.next) ? prior.next as Record<string, unknown> : null;
+			const base = entryId ? effectiveById.get(entryId) : undefined;
+			if (next && base) effectiveById.set(entryId, { ...base, ...next });
+		}
+	}
+	const slotOf = (entryId: string): { day: string; startTime: string; endTime: string } => {
+		const entry = effectiveById.get(entryId);
+		if (!entry) throw err(422, 'REVISION_ENTRY_NOT_FOUND', 'Every revision change must target one valid entry in the published source run.');
+		const { day, startTime, endTime } = entry;
+		if (typeof day !== 'string' || typeof startTime !== 'string' || typeof endTime !== 'string') {
+			throw err(422, 'SWAP_ENTRY_NOT_SWAPPABLE', `Published swap requires both entries to carry a concrete day/startTime/endTime slot: ${entryId}.`);
+		}
+		return { day, startTime, endTime };
+	};
+	const slotA = slotOf(entryIdA);
+	const slotB = slotOf(entryIdB);
+
+	return createPublishedScheduleRevision({
+		schoolId: input.schoolId,
+		schoolYearId: input.schoolYearId,
+		sourceRunId: input.sourceRunId,
+		sourceRevisionId: input.sourceRevisionId ?? null,
+		actorId: input.actorId,
+		effectiveDate: input.effectiveDate,
+		reason: input.reason ?? `Swap ${entryIdA} with ${entryIdB} on the published schedule`,
+		changes: [
+			{ entryId: entryIdA, changeType: 'PUBLISHED_SWAP', previous: slotA, next: slotB },
+			{ entryId: entryIdB, changeType: 'PUBLISHED_SWAP', previous: slotB, next: slotA },
+		],
+		changeSummary: input.changeSummary ?? null,
+		metadata: input.metadata ?? null,
+	}, options);
 }
 
 export async function listPublishedScheduleRevisions(params: {

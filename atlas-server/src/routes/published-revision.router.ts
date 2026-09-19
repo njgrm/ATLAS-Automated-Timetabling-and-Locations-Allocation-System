@@ -3,6 +3,7 @@ import type { Request, Response, NextFunction } from 'express';
 import { authenticate } from '../middleware/authenticate.js';
 import {
 	createPublishedScheduleRevision,
+	createPublishedSwapRevision,
 	listPublishedScheduleRevisions,
 	resolveLatestPublishedSourceRevision,
 } from '../services/published-revision.service.js';
@@ -110,6 +111,50 @@ router.post(
 				effectiveDate,
 				reason,
 				changes,
+				changeSummary: changeSummary ?? null,
+				metadata: metadata ?? null,
+			});
+
+			res.status(201).json(result);
+		} catch (e) { next(e); }
+	},
+);
+
+/**
+ * PUBLISHED-REVISION-AUTHORITY-C12 (R3) — the supported path for a swap on a
+ * published run. Direct manual swaps stay fail-closed with 409
+ * `RUN_ALREADY_PUBLISHED`; this action expresses the same two-entry timeslot
+ * exchange as a `PUBLISHED_SWAP` published revision with an effective date,
+ * inheriting revision shape validation, hard-constraint validation, snapshot
+ * binding, and the audit row. Same privileged + actor-school gates as the
+ * revision create path.
+ */
+router.post(
+	'/:schoolId/:schoolYearId/runs/:runId/published-revisions/swap',
+	authenticate,
+	async (req: Request, res: Response, next: NextFunction) => {
+		try {
+			if (!assertPrivileged(req, res)) return;
+
+			const scope = parseScope(req.params as Record<string, string>);
+			if (typeof scope === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: scope }); return; }
+			if (!assertActorSchool(req, res, scope.schoolId)) return;
+
+			const actorId = req.user?.userId;
+			if (!actorId) { res.status(401).json({ code: 'NO_USER', message: 'Authenticated user required.' }); return; }
+
+			const { effectiveDate, reason, sourceRevisionId, entryIdA, entryIdB, changeSummary, metadata } = req.body ?? {};
+
+			const result = await createPublishedSwapRevision({
+				schoolId: scope.schoolId,
+				schoolYearId: scope.schoolYearId,
+				sourceRunId: scope.runId,
+				sourceRevisionId: sourceRevisionId ?? null,
+				actorId,
+				effectiveDate,
+				reason,
+				entryIdA,
+				entryIdB,
 				changeSummary: changeSummary ?? null,
 				metadata: metadata ?? null,
 			});

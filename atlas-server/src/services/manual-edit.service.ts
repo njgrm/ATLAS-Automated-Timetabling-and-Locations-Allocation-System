@@ -199,13 +199,19 @@ export async function loadRunContext(
 	schoolId: number,
 	schoolYearId: number,
 	client: Prisma.TransactionClient | PrismaClient = prisma,
+	options?: { allowPublished?: boolean },
 ) {
 	const run = await client.generationRun.findFirst({
 		where: { id: runId, schoolId, schoolYearId },
 	});
 	if (!run) throw err(404, 'RUN_NOT_FOUND', 'Generation run not found in this school/year scope.');
 	if (run.status !== 'COMPLETED') throw err(400, 'RUN_NOT_COMPLETED', 'Manual edits can only be applied to COMPLETED runs.');
-	assertRunIsEditable(run.summary);
+	// PUBLISHED-REVISION-AUTHORITY-C12: the published-revision path reuses this
+	// loader inside its own serializable transaction to validate the merged
+	// entry set. A published run is COMPLETED, so the status check above still
+	// holds; only the editability guard is lifted for that read-only caller.
+	// Direct manual edits keep the default fail-closed behaviour.
+	if (!options?.allowPublished) assertRunIsEditable(run.summary);
 
 	const entries = (run.draftEntries ?? []) as unknown as ScheduledEntry[];
 	const unassignedItems = (run.unassignedItems ?? []) as unknown as UnassignedItem[];
@@ -458,7 +464,7 @@ export function isPublishedSummary(summary: unknown): boolean {
 
 export function assertRunIsEditable(summary: unknown): void {
 	if (!isPublishedSummary(summary)) return;
-	throw err(409, 'RUN_ALREADY_PUBLISHED', 'This schedule is already published. Published repairs require the Prompt 6 revision workflow before changes can take effect.');
+	throw err(409, 'RUN_ALREADY_PUBLISHED', 'This schedule is already published. Direct edits and swaps are disabled on a published schedule. To change it, create a published revision with an effective date: POST /api/v1/generation/:schoolId/:schoolYearId/runs/:runId/published-revisions (use the ../published-revisions/swap action for a two-entry timeslot swap).');
 }
 
 /**
