@@ -61,7 +61,7 @@ import {
 	sourceLabel,
 	useSimpleTasks,
 } from '@/components/timetable/simple/SimpleHeaderHelpers';
-import { SimpleFilterControls } from '@/components/timetable/simple/SimpleFilterControls';
+import { SimpleActiveFilterChips, SimpleFilterControls } from '@/components/timetable/simple/SimpleFilterControls';
 import type { SimpleViewMode } from '@/components/timetable/simple/SimpleHeaderHelpers';
 import { SimpleExportErrorBanner, SimpleExportMenu, SimpleTermSwitcher } from '@/components/timetable/simple/SimpleBeneficiaryControls';
 import { dispatchSimpleExport, resolveSimpleExportRequest, type SimpleExportKind } from '@/components/timetable/simple/simpleExportRequests';
@@ -503,7 +503,7 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 
 				<div className="order-last flex w-full min-w-0 shrink-0 items-center justify-start gap-1.5 overflow-x-auto lg:order-none lg:ml-auto lg:w-auto lg:max-w-[48vw] lg:justify-end">
 					<SimpleTermSwitcher context={context} />
-					<SimpleFilterControls context={context} />
+					<SimpleFilterControls context={context} renderActiveFilters={false} />
 					<SimpleScheduleSheet
 						context={context}
 						lastEntityByMode={lastEntityByMode}
@@ -552,6 +552,7 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 						</DropdownMenuContent>
 					</DropdownMenu>
 				</div>
+				<SimpleActiveFilterChips context={context} />
 			</div>
 
 			<SimpleExportErrorBanner

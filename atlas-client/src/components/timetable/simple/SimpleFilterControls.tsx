@@ -51,7 +51,7 @@ export function resolveActiveSimpleFilters({
 	return filters;
 }
 
-export function SimpleFilterControls({ context }: { context: ScheduleReviewWorkspaceHeaderContext }) {
+function activeFiltersFor(context: ScheduleReviewWorkspaceHeaderContext) {
 	const activeFilters = resolveActiveSimpleFilters({
 		programFilter: context.programFilter,
 		entryKindFilter: context.entryKindFilter,
@@ -59,17 +59,62 @@ export function SimpleFilterControls({ context }: { context: ScheduleReviewWorks
 		programOptions: context.PROGRAM_FILTER_OPTIONS,
 		entryKindOptions: context.ENTRY_KIND_FILTER_OPTIONS,
 	});
+	return activeFilters;
+}
+
+function clearSimpleFilter(context: ScheduleReviewWorkspaceHeaderContext, key: SimpleFilterKey) {
+	if (key === 'program') context.setProgramFilter('all');
+	if (key === 'entry-kind') context.setEntryKindFilter('all');
+	if (key === 'attention') context.setSeverityFilter('all');
+}
+
+function clearAllSimpleFilters(context: ScheduleReviewWorkspaceHeaderContext) {
+	context.setProgramFilter('all');
+	context.setEntryKindFilter('all');
+	context.setSeverityFilter('all');
+}
+
+export function SimpleActiveFilterChips({ context }: { context: ScheduleReviewWorkspaceHeaderContext }) {
+	const activeFilters = activeFiltersFor(context);
+	if (activeFilters.length === 0) return null;
+
+	return (
+		<div
+			className="order-last flex min-w-0 basis-full items-center gap-1.5 overflow-x-auto sm:basis-auto lg:order-none lg:shrink-0"
+			data-testid="timetable-active-filters"
+			role="group"
+			aria-label="Active timetable filters"
+		>
+			{activeFilters.map((filter) => (
+				<Button
+					key={filter.key}
+					type="button"
+					variant="secondary"
+					size="sm"
+					className="h-7 shrink-0 gap-1 px-2 text-xs"
+					onClick={() => clearSimpleFilter(context, filter.key)}
+					aria-label={`Remove ${filter.label} filter`}
+				>
+					{filter.label}
+					<X className="size-3" aria-hidden="true" />
+				</Button>
+			))}
+			<Button type="button" variant="ghost" size="sm" className="h-7 shrink-0 px-2 text-xs" onClick={() => clearAllSimpleFilters(context)}>
+				Clear all
+			</Button>
+		</div>
+	);
+}
+
+export function SimpleFilterControls({ context, renderActiveFilters = true }: { context: ScheduleReviewWorkspaceHeaderContext; renderActiveFilters?: boolean }) {
+	const activeFilters = activeFiltersFor(context);
 
 	const clearFilter = (key: SimpleFilterKey) => {
-		if (key === 'program') context.setProgramFilter('all');
-		if (key === 'entry-kind') context.setEntryKindFilter('all');
-		if (key === 'attention') context.setSeverityFilter('all');
+		clearSimpleFilter(context, key);
 	};
 
 	const clearAll = () => {
-		context.setProgramFilter('all');
-		context.setEntryKindFilter('all');
-		context.setSeverityFilter('all');
+		clearAllSimpleFilters(context);
 	};
 
 	return (
@@ -112,7 +157,7 @@ export function SimpleFilterControls({ context }: { context: ScheduleReviewWorks
 				</DialogContent>
 			</Dialog>
 
-			{activeFilters.length > 0 ? (
+			{renderActiveFilters && activeFilters.length > 0 ? (
 				<div
 					className="relative z-10 flex min-w-0 basis-full items-center gap-1.5 overflow-x-auto sm:basis-auto"
 					data-testid="timetable-active-filters"

@@ -81,7 +81,8 @@ test('R02 production header exposes filters directly and More no longer duplicat
 	const menu = readSource('src/components/timetable/simple/SimpleMoreMenuContent.tsx');
 	const controls = readSource('src/components/timetable/simple/SimpleFilterControls.tsx');
 
-	assert.match(header, /<SimpleFilterControls context=\{context\} \/>/);
+	assert.match(header, /<SimpleFilterControls context=\{context\} renderActiveFilters=\{false\} \/>/);
+	assert.match(header, /<SimpleActiveFilterChips context=\{context\} \/>/);
 	assert.equal((header.match(/<SimpleFilterControls\b/g) ?? []).length, 1);
 	assert.doesNotMatch(menu, />Filters</);
 	assert.doesNotMatch(menu, />Tutorial</);
