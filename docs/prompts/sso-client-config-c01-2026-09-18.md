@@ -50,15 +50,36 @@ Integrated Systems area renders as "not configured". That is exactly the reporte
 symptom: *"our app shell is not configured and EnrollPro cannot access even though
 our env is already correct."*
 
-**Contributing defect.** `viteEnv()` reads the environment through a cast:
+**Contributing defect — CORRECTED BY QA, and the correction stands.**
 
-```ts
-return ((import.meta as unknown as { env?: Record<string, string | undefined> }).env) ?? {};
-```
+This packet originally asserted that `viteEnv()`'s cast
+(`(import.meta as unknown as {...}).env`) defeats Vite's static substitution.
+**That premise is FALSE.** Independent QA reproduced it on Vite `8.0.3` /
+rolldown / Node `v24.14.1`:
 
-Vite performs **static** substitution of `import.meta.env.X`. Accessing `.env`
-through a cast defeats that substitution, so even a correctly configured build can
-fail to inline the value. Both the missing build value and the cast must be fixed.
+| Build | Var | `dev-jegs` in emitted bundle |
+| --- | --- | --- |
+| base `b7ee67d4` | **set** | **2** — substitution works *through* the cast |
+| base `b7ee67d4` | absent | **0** |
+| fix `0a06f306` | set | 2 |
+| fix `0a06f306` | absent (production) | guard fails, no bundle emitted |
+
+The base-with-var minified output contains
+`...VITE_ENROLLPRO_URL:"https://dev-jegs.buru-degree.ts.net",...` reached through the
+cast path. **The sole reproducible root cause is the missing build-time value.**
+
+R1 (statically analyzable access) is therefore retained on its own merits —
+robustness and explicitness: it narrows the inlined environment to two named keys
+instead of the whole env object, so a future bundler or config change cannot silently
+regress it. It is **not** justified by the false premise, and the record now says so.
+
+**Also resolved (not a defect):** a QA note reported runtime identity drift
+(`cli.mjs status` showing `f0d65a53` / `stopped`). That was a **false alarm** — there
+is one `supervisor-state.json` per release directory, and only the one inside the
+**active** `ATLAS_RUNTIME_SOURCE_DIR` is authoritative. Verified 2026-09-18: machine
+env, both listeners (PIDs 63688 / 12992) and the active state file all report
+`74c1f12a5c06`, `state: running`. The `f0d65a53` file is a stale artifact from the
+previous release.
 
 ## 1. Required outcomes
 
