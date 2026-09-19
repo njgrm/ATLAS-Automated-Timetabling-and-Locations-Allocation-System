@@ -23,7 +23,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/ui/
  * here afterward. When authenticated it calls the JWT-authed authorize API and
  * performs a same-tab `window.location.assign(callbackUrl)`.
  */
-export default function EnrollProAuthorize() {
+export default function EnrollProAuthorize({ peer = 'enrollpro' }: { peer?: 'enrollpro' | 'smart' | 'aims' }) {
+	const peerLabel = peer === 'smart' ? 'SMART' : peer === 'aims' ? 'AIMS' : 'EnrollPro';
 	const navigate = useNavigate();
 	const [error, setError] = useState<string | null>(null);
 	const startedRef = useRef(false);
@@ -49,23 +50,23 @@ export default function EnrollProAuthorize() {
 				const response = await atlasApi.post<{ callbackUrl?: string }>('/auth/sso/authorize', buildAuthorizeRequestBody(search));
 				const callbackUrl = response.data?.callbackUrl;
 				if (typeof callbackUrl !== 'string' || callbackUrl.length === 0) {
-					setError('EnrollPro did not receive a valid sign-in code. Please try again.');
+					setError(`${peerLabel} did not receive a valid sign-in code. Please try again.`);
 					return;
 				}
 				window.location.assign(callbackUrl);
 			} catch {
-				setError('You do not have access to EnrollPro, or the request could not be completed.');
+			setError(`You do not have access to ${peerLabel}, or the request could not be completed.`);
 			}
 		};
 
 		void run();
-	}, [navigate]);
+	}, [navigate, peerLabel]);
 
 	return (
 		<div className='flex min-h-svh items-center justify-center bg-background p-6'>
 			<Card className='w-full max-w-md'>
 				<CardHeader className='text-center'>
-					<CardTitle className='text-xl'>Opening EnrollPro</CardTitle>
+					<CardTitle className='text-xl'>Opening {peerLabel}</CardTitle>
 					<CardDescription>
 						{error ? 'ATLAS could not complete the hand-off.' : 'Please wait a moment.'}
 					</CardDescription>

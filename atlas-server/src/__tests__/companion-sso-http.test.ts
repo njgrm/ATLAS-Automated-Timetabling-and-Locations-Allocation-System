@@ -583,6 +583,7 @@ test('COMPANION-SSO proof 5: Flow B authorize rejects missing/invalid JWT, non-p
 	}
 
 	// Valid request issues exactly one hash-only row.
+	await createActiveMirror();
 	response = await fetch(`${baseOrigin}/api/v1/auth/sso/authorize`, {
 		method: 'POST', headers: { Authorization: `Bearer ${privileged}`, 'Content-Type': 'application/json' }, body: JSON.stringify(validBody),
 	});
@@ -909,6 +910,7 @@ test('COMPANION-SSO proof 15: authorize rejects a privileged JWT without a usabl
 	assert.equal(await prisma.companionSsoCode.count({ where: { schoolId: SCHOOL_ID } }), 0);
 
 	// A fully-formed local JWT still issues exactly one row.
+	await createActiveMirror();
 	response = await post(privilegedToken(account.id));
 	assert.equal(response.status, 200);
 	assert.equal(await prisma.companionSsoCode.count({ where: { schoolId: SCHOOL_ID } }), 1);

@@ -8,9 +8,19 @@ import {
 	COMPANION_SSO_INVALID_CODE_BODY,
 	exchangeCompanionSsoCode,
 	exchangeEnrollProCallbackCode,
+	exchangePeerCallbackCode,
 	issueCompanionSsoCode,
-	matchReverseClientSecret,
+	issueSignedPeerState,
+	registerSignedPeerState,
+	consumeSignedPeerState,
+	matchReverseClientPeer,
+	resolveAtlasPeerCallbackUrl,
+	resolveCompanionPeer,
+	resolvePeerAuthorizeUrl,
+	secureTextEqual,
 	validateAuthorizeRequest,
+	verifySignedPeerState,
+	type CompanionPeerId,
 	type CompanionSsoErrorCode,
 } from '../services/companion-sso.service.js';
 
@@ -18,6 +28,20 @@ const router = Router();
 
 /** SPA result page that consumes the fragment token (or renders the error). */
 const COMPANION_SSO_RESULT_PATH = '/auth/sso/callback';
+const peerStateCookieName = (peer: CompanionPeerId) => `atlas_sso_state_${peer}`;
+
+function readCookie(req: Request, name: string): string | null {
+	const header = req.get('cookie') ?? '';
+	for (const part of header.split(';')) {
+		const [key, ...rest] = part.trim().split('=');
+		if (key === name) return decodeURIComponent(rest.join('='));
+	}
+	return null;
+}
+
+function stateCookie(peer: CompanionPeerId, value: string, maxAgeSeconds: number): string {
+	return `${peerStateCookieName(peer)}=${encodeURIComponent(value)}; Path=/api/v1/auth/${peer}/callback; HttpOnly; Secure; SameSite=Lax; Max-Age=${maxAgeSeconds}`;
+}
 
 function redirectToCompanionSsoResult(res: Response, params: URLSearchParams, fragment?: string): void {
 	// Set `Location` directly: `res.redirect()` re-encodes a `#fragment` into a
@@ -101,6 +125,70 @@ router.get('/enrollpro/callback', async (req: Request, res: Response) => {
 	}
 });
 
+/** Begin a direct ATLAS → peer federation flow with a signed, peer-bound state cookie. */
+router.get('/sso/:peer/start', async (req: Request, res: Response) => {
+	const peer = resolveCompanionPeer(req.params.peer);
+	if (!peer) {
+		res.status(404).json({ code: 'COMPANION_SSO_INVALID_REQUEST', message: 'Unknown companion.' });
+		return;
+	}
+	const authorizeUrl = resolvePeerAuthorizeUrl(peer.id);
+	const callbackUrl = resolveAtlasPeerCallbackUrl(peer.id);
+	if (!authorizeUrl || !callbackUrl) {
+		res.status(503).json({ code: 'COMPANION_SSO_NOT_CONFIGURED', message: `${peer.label} federation is not configured.` });
+		return;
+	}
+	let target: URL;
+	try {
+		target = new URL(authorizeUrl);
+		const callback = new URL(callbackUrl);
+		if (!['http:', 'https:'].includes(target.protocol) || !['http:', 'https:'].includes(callback.protocol)) throw new Error('invalid protocol');
+	} catch {
+		res.status(503).json({ code: 'COMPANION_SSO_NOT_CONFIGURED', message: `${peer.label} federation URL is invalid.` });
+		return;
+	}
+	try {
+		const state = issueSignedPeerState(peer.id);
+		await registerSignedPeerState(state, peer.id);
+		target.searchParams.set('response_type', 'code');
+		target.searchParams.set('client_id', 'atlas');
+		target.searchParams.set('redirect_uri', callbackUrl);
+		target.searchParams.set('state', state);
+		res.setHeader('Set-Cookie', stateCookie(peer.id, state, 300));
+		res.redirect(302, target.toString());
+	} catch (error) {
+		const status = error instanceof CompanionSsoError ? error.status : 503;
+		res.status(status).json({ code: 'COMPANION_SSO_NOT_CONFIGURED', message: `${peer.label} federation is not configured.` });
+	}
+});
+
+/** Complete a direct peer → ATLAS callback; state is required, signed, short-lived and peer-bound. */
+router.get('/:peer/callback', async (req: Request, res: Response) => {
+	const peer = resolveCompanionPeer(req.params.peer);
+	if (!peer || peer.id === 'enrollpro') {
+		res.status(404).end();
+		return;
+	}
+	const state = typeof req.query.state === 'string' ? req.query.state : '';
+	const cookieState = readCookie(req, peerStateCookieName(peer.id));
+	res.setHeader('Set-Cookie', stateCookie(peer.id, '', 0));
+	if (!state || !cookieState || !secureTextEqual(state, cookieState) || !verifySignedPeerState(state, peer.id) || !await consumeSignedPeerState(state, peer.id)) {
+		redirectToCompanionSsoResult(res, new URLSearchParams({ ssoError: 'COMPANION_SSO_INVALID_REQUEST' }));
+		return;
+	}
+	const rawCode = typeof req.query.code === 'string' ? req.query.code.trim() : '';
+	if (!COMPANION_SSO_CODE_PATTERN.test(rawCode)) {
+		redirectToCompanionSsoResult(res, new URLSearchParams({ ssoError: 'COMPANION_SSO_CODE_INVALID' }));
+		return;
+	}
+	const outcome = await exchangePeerCallbackCode(peer.id, rawCode);
+	if (!outcome.ok) {
+		redirectToCompanionSsoResult(res, new URLSearchParams({ ssoError: outcome.code }));
+		return;
+	}
+	redirectToCompanionSsoResult(res, new URLSearchParams(), `atlasToken=${outcome.token}`);
+});
+
 /**
  * Flow B — issue a one-time reverse SSO code. JWT-authenticated, privileged
  * roles only. Open-redirect rejection: an unknown client/redirect yields a typed
@@ -109,6 +197,7 @@ router.get('/enrollpro/callback', async (req: Request, res: Response) => {
 router.post('/sso/authorize', authenticate, async (req: Request, res: Response, next: NextFunction) => {
 	try {
 		const validated = validateAuthorizeRequest({
+			peer: req.body?.client_id,
 			responseType: req.body?.response_type,
 			clientId: req.body?.client_id,
 			redirectUri: req.body?.redirect_uri,
@@ -127,6 +216,7 @@ router.post('/sso/authorize', authenticate, async (req: Request, res: Response, 
 			return;
 		}
 		const issued = await issueCompanionSsoCode({
+			peer: validated.peer,
 			userId: accountId as number,
 			schoolId: schoolId as number,
 			redirectUri: validated.redirectUri,
@@ -150,12 +240,13 @@ router.post('/sso/authorize', authenticate, async (req: Request, res: Response, 
 router.post('/sso/exchange', async (req: Request, res: Response, next: NextFunction) => {
 	try {
 		const provided = extractBearerToken(req);
-		const matchedEnvName = matchReverseClientSecret(provided);
-		if (!matchedEnvName) {
+		const matched = matchReverseClientPeer(provided);
+		if (!matched) {
 			res.status(401).json({ code: 'COMPANION_SSO_CLIENT_INVALID', message: 'The reverse SSO client secret is missing or invalid.' });
 			return;
 		}
 		const result = await exchangeCompanionSsoCode({
+			peer: matched.peer,
 			code: req.body?.code,
 			clientId: req.body?.clientId,
 			redirectUri: req.body?.redirectUri,

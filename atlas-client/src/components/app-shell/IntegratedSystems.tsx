@@ -3,6 +3,7 @@ import { ExternalLink } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
 	buildIntegratedSystems,
+	resolveDirectCompanionStartUrl,
 	resolveEnrollProReverseStartUrl,
 	shouldEnableEnrollPro,
 	type IntegratedSystemItem,
@@ -14,18 +15,20 @@ export type IntegratedSystemsProps = {
 	privilegedStaff: boolean;
 	/** Next start URL; injectable for hermetic tests. */
 	enrollProStartUrl?: string | null;
+	smartStartUrl?: string | null;
+	aimsStartUrl?: string | null;
 	className?: string;
 };
 
-function EnrollProRow({ startUrl }: { startUrl: string }) {
+function CompanionRow({ item, startUrl }: { item: IntegratedSystemItem; startUrl: string }) {
 	return (
 		<a
-			data-testid='integrated-system-enrollpro'
+			data-testid={`integrated-system-${item.key.toLowerCase()}`}
 			href={startUrl}
 			className='flex h-8 w-full items-center gap-2 rounded-md px-2 text-sm text-sidebar-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
 		>
 			<ExternalLink className='size-4 shrink-0' />
-			<span className='truncate'>EnrollPro</span>
+			<span className='truncate'>{item.label}</span>
 		</a>
 	);
 }
@@ -74,12 +77,16 @@ function CurrentRow({ item }: { item: IntegratedSystemItem }) {
  * navigates same-tab to EnrollPro's reverse-SSO start endpoint. AIMS/SMART/MRF
  * are plain disabled text with no raw companion URL anywhere.
  */
-export function IntegratedSystems({ privilegedStaff, enrollProStartUrl, className }: IntegratedSystemsProps) {
+export function IntegratedSystems({ privilegedStaff, enrollProStartUrl, smartStartUrl, aimsStartUrl, className }: IntegratedSystemsProps) {
 	const systems = buildIntegratedSystems(privilegedStaff);
 	const showEnrollPro = shouldEnableEnrollPro(privilegedStaff);
 	// Fail closed: when the companion origin is not configured this is `null`
 	// and EnrollPro renders as disabled plain text with no href.
 	const startUrl = enrollProStartUrl === undefined ? resolveEnrollProReverseStartUrl() : enrollProStartUrl;
+	const directUrls: Record<'AIMS' | 'SMART', string | null> = {
+		AIMS: aimsStartUrl === undefined ? resolveDirectCompanionStartUrl('aims') : aimsStartUrl,
+		SMART: smartStartUrl === undefined ? resolveDirectCompanionStartUrl('smart') : smartStartUrl,
+	};
 	const enrollProItem: IntegratedSystemItem = {
 		key: 'ENROLLPRO',
 		label: 'EnrollPro',
@@ -91,9 +98,13 @@ export function IntegratedSystems({ privilegedStaff, enrollProStartUrl, classNam
 		<div data-testid='integrated-systems' className={cn('flex flex-col gap-0.5', className)}>
 			{systems.map((item) => {
 				if (item.current) return <CurrentRow key={item.key} item={item} />;
+				if ((item.key === 'AIMS' || item.key === 'SMART') && privilegedStaff) {
+					const directUrl = directUrls[item.key];
+					return directUrl ? <CompanionRow key={item.key} item={item} startUrl={directUrl} /> : <DisabledRow key={item.key} item={item} />;
+				}
 				return <DisabledRow key={item.key} item={item} />;
 			})}
-			{showEnrollPro && (startUrl ? <EnrollProRow startUrl={startUrl} /> : <DisabledRow item={enrollProItem} />)}
+			{showEnrollPro && (startUrl ? <CompanionRow item={enrollProItem} startUrl={startUrl} /> : <DisabledRow item={enrollProItem} />)}
 		</div>
 	);
 }

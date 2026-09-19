@@ -1,4 +1,4 @@
-import { randomBytes, createHash, timingSafeEqual } from 'node:crypto';
+import { randomBytes, createHash, createHmac, timingSafeEqual } from 'node:crypto';
 
 import { prisma } from '../lib/prisma.js';
 import { hasPrivilegedRole } from '../middleware/authorize.js';
@@ -45,6 +45,50 @@ export const COMPANION_SSO_ISSUER = 'ATLAS';
 export const COMPANION_SSO_UPSTREAM_TIMEOUT_MS = 5_000;
 const MAX_STATE_LENGTH = 2_048;
 const MAX_CODE_HASH_LENGTH = 64;
+export const COMPANION_SSO_STATE_TTL_MS = 5 * 60_000;
+
+export type CompanionPeerId = 'enrollpro' | 'smart' | 'aims';
+
+export type CompanionPeerConfig = {
+	id: CompanionPeerId;
+	label: string;
+	clientId: CompanionPeerId;
+	baseUrlEnv: string;
+	exchangeUrlEnv: string;
+	outboundSecretEnv: string;
+	reverseSecretEnv: string;
+	registeredCallbackEnv: string;
+	authorizeUrlEnv: string;
+	atlasCallbackUrlEnv: string;
+};
+
+/** Closed federation registry. Unknown peers never fall back to EnrollPro. */
+export const COMPANION_PEERS: Readonly<Record<CompanionPeerId, CompanionPeerConfig>> = Object.freeze({
+	enrollpro: {
+		id: 'enrollpro', label: 'EnrollPro', clientId: 'enrollpro',
+		baseUrlEnv: 'ENROLLPRO_BASE_URL', exchangeUrlEnv: 'ENROLLPRO_SSO_EXCHANGE_URL', outboundSecretEnv: 'ENROLLPRO_SSO_CLIENT_SECRET',
+		reverseSecretEnv: 'ATLAS_SSO_REVERSE_CLIENT_SECRET', registeredCallbackEnv: 'ENROLLPRO_SSO_CALLBACK_URL',
+		authorizeUrlEnv: 'ENROLLPRO_SSO_AUTHORIZE_URL', atlasCallbackUrlEnv: 'ATLAS_ENROLLPRO_SSO_CALLBACK_URL',
+	},
+	smart: {
+		id: 'smart', label: 'SMART', clientId: 'smart',
+		baseUrlEnv: 'SMART_BASE_URL', exchangeUrlEnv: 'SMART_SSO_EXCHANGE_URL', outboundSecretEnv: 'SMART_SSO_CLIENT_SECRET',
+		reverseSecretEnv: 'ATLAS_SMART_SSO_REVERSE_CLIENT_SECRET', registeredCallbackEnv: 'SMART_SSO_CALLBACK_URL',
+		authorizeUrlEnv: 'SMART_SSO_AUTHORIZE_URL', atlasCallbackUrlEnv: 'ATLAS_SMART_SSO_CALLBACK_URL',
+	},
+	aims: {
+		id: 'aims', label: 'AIMS', clientId: 'aims',
+		baseUrlEnv: 'AIMS_BASE_URL', exchangeUrlEnv: 'AIMS_SSO_EXCHANGE_URL', outboundSecretEnv: 'AIMS_SSO_CLIENT_SECRET',
+		reverseSecretEnv: 'ATLAS_AIMS_SSO_REVERSE_CLIENT_SECRET', registeredCallbackEnv: 'AIMS_SSO_CALLBACK_URL',
+		authorizeUrlEnv: 'AIMS_SSO_AUTHORIZE_URL', atlasCallbackUrlEnv: 'ATLAS_AIMS_SSO_CALLBACK_URL',
+	},
+});
+
+export function resolveCompanionPeer(value: unknown): CompanionPeerConfig | null {
+	if (typeof value !== 'string') return null;
+	const id = value.trim().toLowerCase() as CompanionPeerId;
+	return Object.prototype.hasOwnProperty.call(COMPANION_PEERS, id) ? COMPANION_PEERS[id] : null;
+}
 
 /**
  * The ATLAS local roles that may create a companion SSO session. The local
@@ -135,8 +179,20 @@ export function resolveEnrollProOutboundSecret(): { name: string; value: string 
 	return null;
 }
 
+export function resolvePeerOutboundSecret(peer: CompanionPeerId): { name: string; value: string } | null {
+	if (peer === 'enrollpro') return resolveEnrollProOutboundSecret();
+	const config = COMPANION_PEERS[peer];
+	const value = trimmedEnv(config.outboundSecretEnv);
+	return value ? { name: config.outboundSecretEnv, value } : null;
+}
+
 /** Canonical reverse inbound secret, accepting the legacy alias. */
-export function resolveReverseClientSecret(): { name: string; value: string } | null {
+export function resolveReverseClientSecret(peer: CompanionPeerId = 'enrollpro'): { name: string; value: string } | null {
+	if (peer !== 'enrollpro') {
+		const config = COMPANION_PEERS[peer];
+		const value = trimmedEnv(config.reverseSecretEnv);
+		return value ? { name: config.reverseSecretEnv, value } : null;
+	}
 	const canonical = trimmedEnv('ATLAS_SSO_REVERSE_CLIENT_SECRET');
 	if (canonical) return { name: 'ATLAS_SSO_REVERSE_CLIENT_SECRET', value: canonical };
 	const legacy = trimmedEnv('ENROLLPRO_REVERSE_CLIENT_SECRET');
@@ -151,8 +207,35 @@ export function resolveEnrollProBaseUrl(): string | null {
 	return raw.replace(/\/+$/, '');
 }
 
+export function resolvePeerBaseUrl(peer: CompanionPeerId): string | null {
+	if (peer === 'enrollpro') return resolveEnrollProBaseUrl();
+	const raw = trimmedEnv(COMPANION_PEERS[peer].baseUrlEnv);
+	return raw ? raw.replace(/\/+$/, '') : null;
+}
+
+export function resolvePeerExchangeUrl(peer: CompanionPeerId): string | null {
+	const config = COMPANION_PEERS[peer];
+	const explicit = trimmedEnv(config.exchangeUrlEnv);
+	if (explicit) return explicit;
+	if (peer !== 'enrollpro') return null;
+	const base = resolvePeerBaseUrl(peer);
+	return base ? `${base}/auth/companion-sso/${COMPANION_SSO_COMPANION}/exchange` : null;
+}
+
 export function resolveEnrollProCallbackUrl(): string | null {
 	return trimmedEnv('ENROLLPRO_SSO_CALLBACK_URL');
+}
+
+export function resolvePeerCallbackUrl(peer: CompanionPeerId): string | null {
+	return trimmedEnv(COMPANION_PEERS[peer].registeredCallbackEnv);
+}
+
+export function resolvePeerAuthorizeUrl(peer: CompanionPeerId): string | null {
+	return trimmedEnv(COMPANION_PEERS[peer].authorizeUrlEnv);
+}
+
+export function resolveAtlasPeerCallbackUrl(peer: CompanionPeerId): string | null {
+	return trimmedEnv(COMPANION_PEERS[peer].atlasCallbackUrlEnv);
 }
 
 /**
@@ -160,15 +243,92 @@ export function resolveEnrollProCallbackUrl(): string | null {
  * matching env NAME (never the value) or null. A length mismatch short-circuits
  * to an invalid result without throwing.
  */
-export function matchReverseClientSecret(provided: string | null | undefined): string | null {
+export function matchReverseClientSecret(provided: string | null | undefined, peer: CompanionPeerId = 'enrollpro'): string | null {
 	if (typeof provided !== 'string' || provided.length === 0) return null;
-	const configured = resolveReverseClientSecret();
+	const configured = resolveReverseClientSecret(peer);
 	if (!configured) return null;
 	const expected = Buffer.from(configured.value, 'utf8');
 	const actual = Buffer.from(provided, 'utf8');
 	if (expected.length !== actual.length) return null;
 	if (!timingSafeEqual(expected, actual)) return null;
 	return configured.name;
+}
+
+export function matchReverseClientPeer(provided: string | null | undefined): { peer: CompanionPeerId; envName: string } | null {
+	const matches: Array<{ peer: CompanionPeerId; envName: string }> = [];
+	for (const peer of Object.keys(COMPANION_PEERS) as CompanionPeerId[]) {
+		const envName = matchReverseClientSecret(provided, peer);
+		if (envName) matches.push({ peer, envName });
+	}
+	return matches.length === 1 ? matches[0] : null;
+}
+
+type SignedPeerState = { peer: CompanionPeerId; nonce: string; expiresAt: number };
+
+function resolveStateSecret(): string | null {
+	return trimmedEnv('COMPANION_SSO_STATE_SECRET');
+}
+
+export function issueSignedPeerState(peer: CompanionPeerId, now = Date.now()): string {
+	const secret = resolveStateSecret();
+	if (!secret) throw new CompanionSsoError('COMPANION_SSO_NOT_CONFIGURED', 'The companion state-signing secret is not configured.');
+	const payload: SignedPeerState = { peer, nonce: randomBytes(16).toString('base64url'), expiresAt: now + COMPANION_SSO_STATE_TTL_MS };
+	const encoded = Buffer.from(JSON.stringify(payload), 'utf8').toString('base64url');
+	const signature = createHmac('sha256', secret).update(encoded).digest('base64url');
+	return `${encoded}.${signature}`;
+}
+
+export function verifySignedPeerState(value: string | null | undefined, expectedPeer: CompanionPeerId, now = Date.now()): boolean {
+	const secret = resolveStateSecret();
+	if (!secret || typeof value !== 'string') return false;
+	const [encoded, providedSignature, extra] = value.split('.');
+	if (!encoded || !providedSignature || extra) return false;
+	const expectedSignature = createHmac('sha256', secret).update(encoded).digest('base64url');
+	const actual = Buffer.from(providedSignature, 'utf8');
+	const expected = Buffer.from(expectedSignature, 'utf8');
+	if (actual.length !== expected.length || !timingSafeEqual(actual, expected)) return false;
+	try {
+		const payload = JSON.parse(Buffer.from(encoded, 'base64url').toString('utf8')) as Partial<SignedPeerState>;
+		return payload.peer === expectedPeer && typeof payload.nonce === 'string' && payload.nonce.length > 0 &&
+			typeof payload.expiresAt === 'number' && payload.expiresAt >= now;
+	} catch {
+		return false;
+	}
+}
+
+export function secureTextEqual(left: string | null | undefined, right: string | null | undefined): boolean {
+	if (typeof left !== 'string' || typeof right !== 'string') return false;
+	const leftHash = createHash('sha256').update(left, 'utf8').digest();
+	const rightHash = createHash('sha256').update(right, 'utf8').digest();
+	return timingSafeEqual(leftHash, rightHash);
+}
+
+/** Persist only the state hash so callback replay is rejected atomically. */
+export async function registerSignedPeerState(state: string, peer: CompanionPeerId, now = new Date()): Promise<void> {
+	if (!verifySignedPeerState(state, peer, now.getTime())) throw new CompanionSsoError('COMPANION_SSO_INVALID_REQUEST');
+	const callback = resolveAtlasPeerCallbackUrl(peer);
+	if (!callback) throw new CompanionSsoError('COMPANION_SSO_NOT_CONFIGURED');
+	await prisma.companionSsoCode.create({
+		data: {
+			codeHash: hashCompanionSsoCode(state), userId: null, schoolId: null,
+			audience: `state:${peer}`, redirectUri: callback,
+			expiresAt: new Date(now.getTime() + COMPANION_SSO_STATE_TTL_MS),
+		},
+	});
+}
+
+export async function consumeSignedPeerState(state: string, peer: CompanionPeerId, now = new Date()): Promise<boolean> {
+	if (!verifySignedPeerState(state, peer, now.getTime())) return false;
+	const callback = resolveAtlasPeerCallbackUrl(peer);
+	if (!callback) return false;
+	const result = await prisma.companionSsoCode.updateMany({
+		where: {
+			codeHash: hashCompanionSsoCode(state), audience: `state:${peer}`,
+			redirectUri: callback, consumedAt: null, expiresAt: { gt: now },
+		},
+		data: { consumedAt: now },
+	});
+	return result.count === 1;
 }
 
 export function hashCompanionSsoCode(code: string): string {
@@ -322,8 +482,16 @@ export async function exchangeEnrollProCallbackCode(
 	rawCode: string,
 	accountNameHint: string | null = null,
 ): Promise<CompanionSsoCallbackOutcome> {
+	return exchangePeerCallbackCode('enrollpro', rawCode, accountNameHint);
+}
+
+export async function exchangePeerCallbackCode(
+	peer: CompanionPeerId,
+	rawCode: string,
+	accountNameHint: string | null = null,
+): Promise<CompanionSsoCallbackOutcome> {
 	try {
-		const identity = await performUpstreamExchange(rawCode, accountNameHint);
+		const identity = await performUpstreamExchange(peer, rawCode, accountNameHint);
 		return await createSessionForExistingAccount(identity);
 	} catch (error) {
 		if (error instanceof CompanionSsoError) {
@@ -333,16 +501,15 @@ export async function exchangeEnrollProCallbackCode(
 	}
 }
 
-async function performUpstreamExchange(code: string, accountNameHint: string | null): Promise<ValidatedCompanionIdentity> {
-	const baseUrl = resolveEnrollProBaseUrl();
-	const secret = resolveEnrollProOutboundSecret();
-	if (!baseUrl || !secret) {
+async function performUpstreamExchange(peer: CompanionPeerId, code: string, accountNameHint: string | null): Promise<ValidatedCompanionIdentity> {
+	const exchangeUrl = resolvePeerExchangeUrl(peer);
+	const secret = resolvePeerOutboundSecret(peer);
+	if (!exchangeUrl || !secret) {
 		throw new CompanionSsoError('COMPANION_SSO_NOT_CONFIGURED');
 	}
-	const endpoint = `${baseUrl}/auth/companion-sso/${COMPANION_SSO_COMPANION}/exchange`;
 	let response: Response;
 	try {
-		response = await fetch(endpoint, {
+		response = await fetch(exchangeUrl, {
 			method: 'POST',
 			headers: {
 				Authorization: `Bearer ${secret.value}`,
@@ -547,6 +714,7 @@ async function resolveActiveSchoolYearMirror(
 /* ─── Flow B — authorize (issue) ───────────────────────────────────────────── */
 
 export type AuthorizeParams = {
+	peer?: unknown;
 	responseType?: unknown;
 	clientId?: unknown;
 	redirectUri?: unknown;
@@ -558,9 +726,14 @@ export type AuthorizeParams = {
  * Strict Flow B authorize validation. Throws a typed error (no redirect, no
  * code row) on any mismatch — including open-redirect attempts.
  */
-export function validateAuthorizeRequest(params: AuthorizeParams): { redirectUri: string; state: string } {
+export function validateAuthorizeRequest(params: AuthorizeParams): { peer: CompanionPeerId; redirectUri: string; state: string } {
 	if (!hasPrivilegedRole(params.role)) {
 		throw new CompanionSsoError('COMPANION_SSO_ROLE_DENIED', 'This endpoint is restricted to scheduler officers and administrators.');
+	}
+	const peer = resolveCompanionPeer(params.peer ?? params.clientId);
+	if (!peer) throw new CompanionSsoError('COMPANION_SSO_INVALID_REQUEST', 'client_id is not recognized.');
+	if (peer.id !== 'enrollpro' && !resolvePeerCallbackUrl(peer.id)) {
+		throw new CompanionSsoError('COMPANION_SSO_INVALID_REQUEST', 'client_id is not configured.');
 	}
 	const responseType = typeof params.responseType === 'string' ? params.responseType : '';
 	const clientId = typeof params.clientId === 'string' ? params.clientId : '';
@@ -570,20 +743,20 @@ export function validateAuthorizeRequest(params: AuthorizeParams): { redirectUri
 	if (responseType !== 'code') {
 		throw new CompanionSsoError('COMPANION_SSO_INVALID_REQUEST', 'response_type must be "code".');
 	}
-	if (clientId !== COMPANION_SSO_CLIENT_ID) {
+	if (clientId !== peer.clientId) {
 		throw new CompanionSsoError('COMPANION_SSO_INVALID_REQUEST', 'client_id is not recognized.');
 	}
 	if (state.length === 0 || state.length > MAX_STATE_LENGTH) {
 		throw new CompanionSsoError('COMPANION_SSO_INVALID_REQUEST', 'state must be a non-empty bounded string.');
 	}
-	const registeredCallback = resolveEnrollProCallbackUrl();
+	const registeredCallback = resolvePeerCallbackUrl(peer.id);
 	if (!registeredCallback) {
-		throw new CompanionSsoError('COMPANION_SSO_NOT_CONFIGURED', 'The EnrollPro reverse callback is not configured.');
+		throw new CompanionSsoError('COMPANION_SSO_NOT_CONFIGURED', `The ${peer.label} reverse callback is not configured.`);
 	}
 	if (redirectUri !== registeredCallback) {
-		throw new CompanionSsoError('COMPANION_SSO_INVALID_REQUEST', 'redirect_uri is not the registered EnrollPro callback.');
+		throw new CompanionSsoError('COMPANION_SSO_INVALID_REQUEST', `redirect_uri is not the registered ${peer.label} callback.`);
 	}
-	return { redirectUri, state };
+	return { peer: peer.id, redirectUri, state };
 }
 
 export type IssuedCompanionSsoCode = {
@@ -597,6 +770,7 @@ export type IssuedCompanionSsoCode = {
  * redirect URI. Persists ONLY the SHA-256 hash.
  */
 export async function issueCompanionSsoCode(params: {
+	peer?: CompanionPeerId;
 	userId: number;
 	schoolId: number;
 	redirectUri: string;
@@ -607,12 +781,29 @@ export async function issueCompanionSsoCode(params: {
 	const expiresAt = new Date(now.getTime() + COMPANION_SSO_CODE_TTL_MS);
 	const code = generateCompanionSsoCode();
 	const codeHash = hashCompanionSsoCode(code);
+	const account = await prisma.atlasAuthAccount.findUnique({
+		where: { id: params.userId },
+		select: { schoolId: true, isActive: true },
+	});
+	if (!account?.isActive || account.schoolId !== params.schoolId) {
+		throw new CompanionSsoError(
+			'COMPANION_SSO_IDENTITY_INCOMPLETE',
+			'The authenticated account does not belong to the asserted school.',
+		);
+	}
 
 	// Build and validate the callback URL BEFORE persisting anything, so a
 	// misconfigured/invalid callback can never leave an orphan code row.
 	const callbackUrl = buildCompanionSsoCallbackUrl(params.redirectUri, code, params.state);
 	if (!callbackUrl) {
-		throw new CompanionSsoError('COMPANION_SSO_NOT_CONFIGURED', 'The EnrollPro reverse callback is not a valid absolute URL.');
+		throw new CompanionSsoError('COMPANION_SSO_NOT_CONFIGURED', 'The companion reverse callback is not a valid absolute URL.');
+	}
+	const activeYears = await prisma.enrollProSchoolYearMirror.findMany({
+		where: { schoolId: params.schoolId, isActive: true, isArchived: false },
+		select: { enrollProSchoolYearId: true },
+	});
+	if (activeYears.length !== 1) {
+		throw new CompanionSsoError(activeYears.length === 0 ? 'ACTIVE_SCHOOL_YEAR_REQUIRED' : 'ACTIVE_SCHOOL_YEAR_CONFLICT');
 	}
 
 	await prisma.companionSsoCode.create({
@@ -620,7 +811,8 @@ export async function issueCompanionSsoCode(params: {
 			codeHash,
 			userId: params.userId,
 			schoolId: params.schoolId,
-			audience: COMPANION_SSO_AUDIENCE,
+			schoolYearId: activeYears[0].enrollProSchoolYearId,
+			audience: params.peer ?? COMPANION_SSO_AUDIENCE,
 			redirectUri: params.redirectUri,
 			expiresAt,
 		},
@@ -652,6 +844,7 @@ export type ExchangeResult =
 	| { ok: false; body: typeof COMPANION_SSO_INVALID_CODE_BODY };
 
 type ExchangeParams = {
+	peer?: CompanionPeerId;
 	code?: unknown;
 	clientId?: unknown;
 	redirectUri?: unknown;
@@ -671,10 +864,11 @@ function readExchangeCode(params: ExchangeParams): string | null {
  * read-then-update window exists.
  */
 export async function consumeCompanionSsoCode(params: {
+	peer?: CompanionPeerId;
 	code: string;
 	redirectUri: string;
 	now?: Date;
-}): Promise<{ id: number; userId: number | null; schoolId: number | null; consumedAt: Date } | null> {
+}): Promise<{ id: number; userId: number | null; schoolId: number | null; schoolYearId: number | null; consumedAt: Date } | null> {
 	const now = params.now ?? new Date();
 	const codeHash = hashCompanionSsoCode(params.code);
 	const claimed = await prisma.companionSsoCode.updateMany({
@@ -682,7 +876,7 @@ export async function consumeCompanionSsoCode(params: {
 			codeHash,
 			consumedAt: null,
 			expiresAt: { gt: now },
-			audience: COMPANION_SSO_AUDIENCE,
+			audience: params.peer ?? COMPANION_SSO_AUDIENCE,
 			redirectUri: params.redirectUri,
 		},
 		data: { consumedAt: now },
@@ -691,15 +885,16 @@ export async function consumeCompanionSsoCode(params: {
 
 	const row = await prisma.companionSsoCode.findUnique({
 		where: { codeHash },
-		select: { id: true, userId: true, schoolId: true, consumedAt: true },
+		select: { id: true, userId: true, schoolId: true, schoolYearId: true, consumedAt: true },
 	});
 	if (!row || !row.consumedAt) return null;
-	return { id: row.id, userId: row.userId, schoolId: row.schoolId, consumedAt: row.consumedAt };
+	return { id: row.id, userId: row.userId, schoolId: row.schoolId, schoolYearId: row.schoolYearId, consumedAt: row.consumedAt };
 }
 
 export async function exchangeCompanionSsoCode(params: ExchangeParams): Promise<ExchangeResult> {
 	const invalid = { ok: false as const, body: COMPANION_SSO_INVALID_CODE_BODY };
-	const registeredCallback = resolveEnrollProCallbackUrl();
+	const peer = params.peer ?? 'enrollpro';
+	const registeredCallback = resolvePeerCallbackUrl(peer);
 	if (!registeredCallback) return invalid;
 
 	const code = readExchangeCode(params);
@@ -707,11 +902,11 @@ export async function exchangeCompanionSsoCode(params: ExchangeParams): Promise<
 
 	const redirectUri = typeof params.redirectUri === 'string' ? params.redirectUri : '';
 	const clientId = typeof params.clientId === 'string' ? params.clientId : '';
-	if (clientId !== COMPANION_SSO_REVERSE_CLIENT_ID || redirectUri !== registeredCallback) {
+	if (clientId !== COMPANION_PEERS[peer].clientId || redirectUri !== registeredCallback) {
 		return invalid;
 	}
 
-	const claimed = await consumeCompanionSsoCode({ code, redirectUri });
+	const claimed = await consumeCompanionSsoCode({ peer, code, redirectUri });
 	if (!claimed) return invalid;
 
 	try {
@@ -721,7 +916,7 @@ export async function exchangeCompanionSsoCode(params: ExchangeParams): Promise<
 			actorId: assertion.audit.actorId,
 			action: 'COMPANION_SSO_CODE_CONSUMED',
 			targetIds: [assertion.audit.actorId],
-			metadata: { codeId: claimed.id, audience: COMPANION_SSO_AUDIENCE },
+			metadata: { codeId: claimed.id, audience: peer },
 		});
 		return { ok: true, assertion: assertion.assertion };
 	} catch (error) {
@@ -746,6 +941,7 @@ async function buildAssertion(claimed: {
 	id: number;
 	userId: number | null;
 	schoolId: number | null;
+	schoolYearId: number | null;
 	consumedAt: Date;
 }): Promise<AssertionBundle> {
 	if (!claimed.userId) {
@@ -780,6 +976,12 @@ async function buildAssertion(claimed: {
 	if (!account || !account.isActive) {
 		throw new CompanionSsoError('COMPANION_SSO_ACCOUNT_UNAVAILABLE');
 	}
+	if (!claimed.schoolId || claimed.schoolId !== account.schoolId) {
+		throw new CompanionSsoError(
+			'COMPANION_SSO_IDENTITY_INCOMPLETE',
+			'The authorization code school does not match the persisted account school.',
+		);
+	}
 
 	const schoolId = account.schoolId;
 	const mirrors = await prisma.enrollProSchoolYearMirror.findMany({
@@ -788,6 +990,9 @@ async function buildAssertion(claimed: {
 	});
 	if (mirrors.length !== 1) {
 		throw new CompanionSsoError(mirrors.length === 0 ? 'ACTIVE_SCHOOL_YEAR_REQUIRED' : 'ACTIVE_SCHOOL_YEAR_CONFLICT');
+	}
+	if (claimed.schoolYearId !== mirrors[0].enrollProSchoolYearId) {
+		throw new CompanionSsoError('ACTIVE_SCHOOL_YEAR_CONFLICT');
 	}
 
 	// Map the persisted local role onto the exact EnrollPro vocabulary. A role

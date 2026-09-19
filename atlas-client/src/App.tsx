@@ -71,6 +71,16 @@ const router = createBrowserRouter([
 		errorElement: <RouteErrorBoundary />,
 	},
 	{
+		path: '/auth/smart/authorize',
+		element: <EnrollProAuthorize peer='smart' />,
+		errorElement: <RouteErrorBoundary />,
+	},
+	{
+		path: '/auth/aims/authorize',
+		element: <EnrollProAuthorize peer='aims' />,
+		errorElement: <RouteErrorBoundary />,
+	},
+	{
 		path: '/public/schedules',
 		element: <PublicPublishedSchedule />,
 		errorElement: <RouteErrorBoundary />,
