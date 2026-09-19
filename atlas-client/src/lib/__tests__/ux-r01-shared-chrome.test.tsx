@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
@@ -93,15 +93,23 @@ function assertSharedChromeSources(pageHeader: string, card: string, smartShell:
 	assert.match(smartShell, /<PageHeader/);
 }
 
-test('shared app chrome keeps its text at the 12px minimum', () => {
-	const chrome = [
-		source('src/components/AppShell.tsx'),
-		source('src/components/app-shell/PageHeader.tsx'),
-		source('src/components/smart/SmartPageShell.tsx'),
-		source('src/ui/breadcrumb.tsx'),
-		source('src/ui/card.tsx'),
-	].join('\n');
-	assert.doesNotMatch(chrome, /text-\[(?:0\.(?:[0-6]\d|7[0-4])rem|(?:[0-9]|1[01])px)\]/);
+test('every shared app-shell consumer keeps arbitrary rem/px text values at the 12px minimum', () => {
+	const appShellDirectory = resolve(CLIENT_ROOT, 'src/components/app-shell');
+	const paths = [
+		'src/components/AppShell.tsx',
+		...readdirSync(appShellDirectory)
+			.filter((entry) => entry.endsWith('.tsx'))
+			.map((entry) => `src/components/app-shell/${entry}`),
+	];
+	const undersized: string[] = [];
+	for (const path of paths) {
+		for (const match of source(path).matchAll(/text-\[(\d*\.?\d+)(rem|px)\]/g)) {
+			const numeric = Number.parseFloat(match[1]);
+			const pixels = match[2] === 'rem' ? numeric * 16 : numeric;
+			if (pixels < 12) undersized.push(`${path}: ${match[0]} (${pixels}px)`);
+		}
+	}
+	assert.deepEqual(undersized, [], `shared shell contains sub-12px labels:\n${undersized.join('\n')}`);
 });
 
 test('shared chrome guard is load-bearing for missing breadcrumbs and raw neutral colors', () => {

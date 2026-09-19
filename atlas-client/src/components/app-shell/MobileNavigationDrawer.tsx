@@ -77,7 +77,7 @@ export function MobileNavigationDrawer({
 							))}
 							<Separator className='my-2' />
 							<div className='px-1 pb-1'>
-								<span className='px-2 text-[0.7rem] font-semibold uppercase tracking-wider text-muted-foreground opacity-80'>
+								<span className='px-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground opacity-80'>
 									Integrated Systems
 								</span>
 								<div className='mt-1'>

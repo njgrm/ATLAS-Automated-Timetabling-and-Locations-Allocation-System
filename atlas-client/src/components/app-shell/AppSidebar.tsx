@@ -54,7 +54,7 @@ function enrollProAsset(path: string | null): string {
 function NavDivider({ label }: { label: string }) {
 	return (
 		<div className='px-3 py-2 mt-2 transition-[margin,opacity,height] duration-200 ease-linear group-data-[collapsible=icon]:m-0 group-data-[collapsible=icon]:h-0 group-data-[collapsible=icon]:p-0 group-data-[collapsible=icon]:opacity-0 overflow-hidden'>
-			<span className='text-[0.7rem] font-semibold uppercase tracking-wider text-muted-foreground opacity-80 whitespace-nowrap'>
+			<span className='text-xs font-semibold uppercase tracking-wider text-muted-foreground opacity-80 whitespace-nowrap'>
 				{label}
 			</span>
 		</div>
@@ -159,15 +159,15 @@ export function AppSidebar({
 										<Skeleton className='h-3.5 w-28 my-0.5' />
 									)}
 									<div className='flex items-center gap-1 mt-0.5'>
-										<span className='truncate text-[0.625rem] uppercase tracking-wider font-semibold text-primary/80'>
+										<span className='truncate text-xs uppercase tracking-wider font-semibold text-primary/80'>
 											Scheduling Portal
 										</span>
 									</div>
 									<div className='flex items-center gap-1 mt-0.5'>
 										{activeYearLabel ? (
 											<>
-												<span className='truncate text-[0.6875rem] text-foreground'>S.Y. {activeYearLabel}</span>
-												<span className='shrink-0 text-[0.625rem] font-semibold text-emerald-600'>
+												<span className='truncate text-xs text-foreground'>S.Y. {activeYearLabel}</span>
+												<span className='shrink-0 text-xs font-semibold text-emerald-600'>
 													• ACTIVE
 												</span>
 											</>
@@ -176,10 +176,10 @@ export function AppSidebar({
 												<TooltipTrigger asChild>
 													<div className="flex items-center gap-1 cursor-help">
 														<AlertTriangle className='size-3 shrink-0 text-amber-500' />
-														<span className='text-[0.6875rem] text-muted-foreground'>Working from saved data</span>
+																<span className='text-xs text-muted-foreground'>Working from saved data</span>
 													</div>
 												</TooltipTrigger>
-												<TooltipContent side="right" className="text-[0.65rem] font-semibold p-2">
+															<TooltipContent side="right" className="p-2 text-xs font-semibold">
 													Unable to reach EnrollPro. Using saved school year data.
 												</TooltipContent>
 											</Tooltip>
@@ -258,15 +258,15 @@ export function AppSidebar({
 											<div className='grid flex-1 text-left text-sm leading-tight overflow-hidden'>
 												<span className='truncate font-semibold'>{bridgeUser?.role ?? 'Guest'}</span>
 												{isAdmin && (
-													<Badge variant='outline' className='mt-0.5 w-fit h-4 px-1 text-[0.5625rem] font-bold border-purple-200 bg-purple-50 text-purple-700'>
+																	<Badge variant='outline' className='mt-0.5 min-h-5 w-fit border-purple-200 bg-purple-50 px-1 text-xs font-bold text-purple-700'>
 														Admin
 													</Badge>
 												)}
 												{isFaculty && (
-													<span className='truncate text-[0.6875rem] text-muted-foreground'>Teacher</span>
+																	<span className='truncate text-xs text-muted-foreground'>Teacher</span>
 												)}
 												{!isAdmin && !isFaculty && (
-													<span className='truncate text-[0.6875rem] text-muted-foreground'>Portal access</span>
+																	<span className='truncate text-xs text-muted-foreground'>Portal access</span>
 												)}
 											</div>
 										</div>

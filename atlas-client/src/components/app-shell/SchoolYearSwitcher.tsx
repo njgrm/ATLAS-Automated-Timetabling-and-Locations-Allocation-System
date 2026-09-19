@@ -60,7 +60,7 @@ export function SchoolYearSwitcher({
 								}`}
 							>
 								<span className='flex-1 text-left'>{sy.yearLabel}</span>
-								<span className={`rounded px-1 py-0.5 text-[0.625rem] font-medium ${
+								<span className={`rounded px-1 py-0.5 text-xs font-medium ${
 									sy.isActive
 										? 'bg-emerald-100 text-emerald-700'
 										: (sy.status === 'UPCOMING'
