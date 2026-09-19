@@ -12,10 +12,19 @@
 export const ENROLLPRO_REVERSE_START_PATH = '/api/auth/companion-sso/atlas/reverse/start';
 
 function viteEnv(): Record<string, string | undefined> {
-	// `import.meta.env` exists under Vite and is undefined under the Node test
-	// runner, so guard the access rather than assuming a bundler.
+	// Each key is read as a static `import.meta.env.VITE_*` member reference so
+	// Vite inlines the value into the bundle at build time. Do not route this
+	// through a cast/`Record` lookup: that hides the member expression from the
+	// bundler and ships a bundle with no companion origin.
+	//
+	// `import.meta.env` is undefined under the Node test runner (`tsx` /
+	// `node --test`), so the member access throws and the catch fails closed to
+	// `{}` — preserving the "no configuration in tests" contract.
 	try {
-		return ((import.meta as unknown as { env?: Record<string, string | undefined> }).env) ?? {};
+		return {
+			VITE_ENROLLPRO_URL: import.meta.env.VITE_ENROLLPRO_URL,
+			VITE_ENROLLPRO_SSO_START_URL: import.meta.env.VITE_ENROLLPRO_SSO_START_URL,
+		};
 	} catch {
 		return {};
 	}
