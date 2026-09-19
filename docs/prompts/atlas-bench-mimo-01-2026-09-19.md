@@ -39,6 +39,36 @@ authoritative context beside it**, then confidently built a chain on top; it
 workflow rests on fail-closed verification and honest reporting. This benchmark exists
 to test that trait directly, on our own code, with known answers.
 
+### Live allowance — measured 2026-09-19
+
+`GET https://opencode.ai/zen/go/v1/usage` (authenticated with the working
+`opencode-go` key) returns:
+
+| Window | Used | Resets at (UTC) |
+| --- | --- | --- |
+| Rolling (5-hour) | **29%** | `2026-09-19T09:18:13Z` |
+| Weekly | **51%** | `2026-09-21T00:00:00Z` |
+| Monthly | **25%** | **`2026-10-17T22:28:59Z`** |
+
+All three report `status: ok`.
+
+**Why this matters to the decision.** The monthly cycle does **not** reset until
+**October 17**, but the DeepSeek V4.1 Flash 4x promo ends **September 20** — so the
+reversion lands **mid-cycle**, exactly the scenario the operator asked about. At 25% of
+a $60 allowance the account has used **~$15**; if the limit reverts to **$15** on
+Sep 20, the account is **instantly at 100% of the new limit**.
+
+**MiMo V2.5's Go allowance is $60, not $15.** So if the reversion happens as feared,
+routing work to MiMo V2.5 stops being a cost optimisation and becomes the **budget
+contingency**. That is what makes this benchmark operationally urgent rather than
+merely interesting.
+
+Two mitigations exist regardless of the benchmark outcome: enable **"Use balance"** in
+the console so overflow falls through to Zen credits instead of blocking (this requires
+Zen credits to be loaded — it does nothing on a Go-only account), and schedule heavy
+work **off-peak**, where DeepSeek bills at half rate (peak is 01:00-04:00 and
+06:00-10:00 UTC Mon-Fri; in Manila that is 09:00-12:00 and 14:00-18:00).
+
 ## 1. Design principles
 
 1. **Ground truth is already known.** Every probe has an answer the planner has
@@ -68,9 +98,10 @@ Create `~/.config/opencode/agents/atlas-bench-mimo.md`:
 
 ```markdown
 ---
-description: Read-only MiMo V2.5 benchmark agent for ATLAS model evaluation.
-mode: primary
-model: opencode-go-2/mimo-v2.5
+description: Read-only MiMo V2.5 benchmark investigator for ATLAS model evaluation.
+mode: subagent
+hidden: false
+model: opencode-go/mimo-v2.5
 variant: high
 temperature: 0.1
 steps: 60
@@ -80,12 +111,25 @@ permission:
   bash: allow
   skill:
     "*": deny
+    git-workflow: allow
+    repo-scan: allow
 ---
 You are a read-only ATLAS investigator. Read the repository, run read-only commands,
 and answer the question you are given with evidence. Never edit, commit, push, or
 mutate anything. Cite exact file paths and line numbers, or exact command output.
 State plainly what you could not confirm.
 ```
+
+**Provider correction (discovered while validating this packet).** The model must be
+`opencode-go/mimo-v2.5`, **not** `opencode-go-2/mimo-v2.5`.
+`~/.config/opencode/opencode.jsonc` defines an `opencode-go-2` provider block whose
+`apiKey` is `{file:~/.config/opencode/opencode-go-2.key}` — and that key file contains
+a **placeholder** (28 bytes, prefix `PASTE_`), so the provider is a **dead scaffold**
+that would fail at dispatch. The working provider is the built-in **`opencode-go`**,
+authenticated via `~/.local/share/opencode/auth.json`. Verified against
+`GET https://opencode.ai/zen/go/v1/models`: the catalogue exposes **30 models**,
+including `mimo-v2.5` and `mimo-v2.5-pro`. Recommendation: repair or delete the
+`opencode-go-2` block so it cannot mislead a future agent.
 
 **Restart cost:** restarting OpenCode interrupts any running agent. **Coordinate with
 the operator before restarting** — a concurrent planner/executor may be mid-task.
