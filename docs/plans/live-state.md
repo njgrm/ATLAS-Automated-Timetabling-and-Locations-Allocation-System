@@ -59,10 +59,10 @@ and AIMS.
   SMART-style breadcrumbs, PageHeader, semantic Card/state primitives, and a
   mechanically enforced 12px application-chrome floor. It is foundational and
   does not complete page-level UX-R02-R05.
-- `COMPANION-DIRECT-FEDERATION-C04` is in source correction. Existing runtime
-  SSO supports EnrollPro only; SMART/AIMS keys must not be installed until the
-  reviewed peer registry exists and both companion implementations agree on
-  directional key names.
+- `COMPANION-DIRECT-FEDERATION-C04` is integrated and independently accepted.
+  The deployed runtime still supports EnrollPro only. SMART/AIMS activation
+  remains blocked on their companion-side implementations, directional key
+  installation, deployment, and serialized live browser acceptance.
 - Direct SMART and AIMS federation requires two independent secrets per peer
   pair. Companion repositories remain read-only from ATLAS work.
 
@@ -81,7 +81,8 @@ and AIMS.
 
 ## Single next action
 
-Finish and independently review `COMPANION-DIRECT-FEDERATION-C04`, integrate it
-with the accepted shared-chrome source, then prepare one deployment/env packet.
-In parallel, author the public term-scoping correction. Regeneration and
-publication remain locked behind a separate explicit HIGH approval.
+Dispatch the integrated SMART and AIMS developer handoffs to their repository
+owners. Generate and install the directional keys only after both sides consume
+the agreed names, then prepare one deployment/env packet. In parallel, author
+the public term-scoping correction. Regeneration and publication remain locked
+behind a separate explicit HIGH approval.
