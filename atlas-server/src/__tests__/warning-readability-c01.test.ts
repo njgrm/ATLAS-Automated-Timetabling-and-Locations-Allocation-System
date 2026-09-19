@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict';
+import http from 'node:http';
 import test from 'node:test';
+import express from 'express';
+import jwt from 'jsonwebtoken';
 
+import { withDataContext } from '../lib/data-context.js';
 import { buildViolationReport } from '../services/generation.service.js';
 import { validateHardConstraints, type ScheduledEntry, type Violation } from '../services/constraint-validator.js';
 
@@ -128,4 +132,42 @@ test('R6: floor-transition producer states both floors and timestamps instead of
 	assert.match(floor.message, /finishes on floor 1 at 14:30/i);
 	assert.match(floor.message, /starts on floor 4 at 14:30/i);
 	assert.doesNotMatch(floor.message, /14:30\s*(?:→|->)\s*14:30/);
+});
+
+test('R3: mounted authenticated API serializes the same unique list and count', async () => {
+	process.env.JWT_SECRET = 'warning-readability-c01-secret-value';
+	const generationRouter = (await import('../routes/generation.router.js')).default;
+	const client = {
+		generationRun: {
+			findFirst: async () => ({
+				id: 316,
+				status: 'COMPLETED',
+				draftEntries: entries,
+				summary: {},
+				violations: [
+					warning('FACULTY_EXCESSIVE_IDLE_GAP', 1, ['entry-523::t1']),
+					warning('FACULTY_EXCESSIVE_IDLE_GAP', 1, ['entry-523::t1']),
+				],
+			}),
+		},
+	};
+	const app = express();
+	app.use((_req, _res, next) => { void withDataContext(client as never, async () => next()); });
+	app.use('/api/v1/generation', generationRouter);
+	const server = http.createServer(app);
+	await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+	try {
+		const address = server.address();
+		assert.ok(address && typeof address === 'object');
+		const bearer = jwt.sign({ userId: 46, role: 'officer', schoolId: 1 }, process.env.JWT_SECRET, { expiresIn: '5m' });
+		const response = await fetch(`http://127.0.0.1:${address.port}/api/v1/generation/1/10/runs/316/violations`, {
+			headers: { authorization: `Bearer ${bearer}` },
+		});
+		const body = await response.json() as { violations: Violation[]; counts: { total: number } };
+		assert.equal(response.status, 200);
+		assert.equal(body.violations.length, 1);
+		assert.equal(body.counts.total, body.violations.length);
+	} finally {
+		await new Promise<void>((resolve) => server.close(() => resolve()));
+	}
 });
