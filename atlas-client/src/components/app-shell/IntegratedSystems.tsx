@@ -31,6 +31,7 @@ function EnrollProRow({ startUrl }: { startUrl: string }) {
 }
 
 function DisabledRow({ item }: { item: IntegratedSystemItem }) {
+	const reason = item.disabledReason ?? 'Unavailable';
 	return (
 		<Tooltip>
 			<TooltipTrigger asChild>
@@ -40,10 +41,13 @@ function DisabledRow({ item }: { item: IntegratedSystemItem }) {
 					className='flex h-8 w-full cursor-not-allowed items-center gap-2 rounded-md px-2 text-sm text-muted-foreground/70'
 				>
 					<span className='truncate'>{item.label}</span>
+					{/* The reason must exist in the rendered/accessible DOM, not only in a
+					    hover tooltip, so the disabled state is explicit rather than dead. */}
+					<span className='sr-only'>{reason}</span>
 				</div>
 			</TooltipTrigger>
 			<TooltipContent side='right' className='text-[0.65rem]'>
-				{item.disabledReason ?? 'Unavailable'}
+				{reason}
 			</TooltipContent>
 		</Tooltip>
 	);
