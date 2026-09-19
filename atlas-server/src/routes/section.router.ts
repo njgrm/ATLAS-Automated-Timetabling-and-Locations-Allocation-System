@@ -135,7 +135,7 @@ router.get('/assigned-classes', authenticateWithSystemToken, requirePrivilegedRo
 	}
 });
 
-// Auth: GET /sections/:sectionId/assigned-classes?schoolYearId=Y&includeDiagnostics=true
+// Auth: GET /sections/:sectionId/assigned-classes?schoolYearId=Y&includeDiagnostics=true[&schoolId=Z]
 router.get('/:sectionId/assigned-classes', authenticateWithSystemToken, requirePrivilegedRole, async (req: Request, res: Response, next: NextFunction) => {
 	try {
 		const sectionId = Number(req.params.sectionId);
@@ -149,10 +149,59 @@ router.get('/:sectionId/assigned-classes', authenticateWithSystemToken, requireP
 			return;
 		}
 
+		// SECTION-ROUTE-AUTHORITY-C03: this section-scoped read resolved the
+		// school server-side from the section with no actor-school check, so a
+		// privileged JWT actor for school A (or any system token) could read
+		// any section's assigned classes. An optional explicit `schoolId`
+		// query parameter is the C01 Option A machine declaration of intent;
+		// a present-but-malformed value fails closed here with zero dispatch.
+		let declaredSchoolId: number | null = null;
+		if (req.query.schoolId !== undefined) {
+			const parsedSchoolId = Number(req.query.schoolId);
+			if (!Number.isInteger(parsedSchoolId) || parsedSchoolId <= 0) {
+				res.status(400).json({ code: 'INVALID_PARAM', message: 'schoolId query parameter must be a positive integer when provided.' });
+				return;
+			}
+			declaredSchoolId = parsedSchoolId;
+		}
+
 		const includeDiagnostics = parseBooleanQueryFlag(req.query.includeDiagnostics);
 		const upstreamAuthToken = getUpstreamAuthToken(req);
+
+		if (req.user?.authSource === 'system') {
+			// Machine caller: an explicit schoolId scopes the read to the
+			// declared school (a foreign section is then simply absent, hence
+			// the identical 404). Absent schoolId preserves the legacy
+			// server-side resolution (C02-SC1 semantics).
+			const payload = await assignmentService.getSectionAssignedClasses(sectionId, schoolYearId, upstreamAuthToken, {
+				includeDiagnostics,
+				...(declaredSchoolId !== null ? { schoolId: declaredSchoolId } : {}),
+			});
+
+			if (!payload) {
+				res.status(404).json({ code: 'NOT_FOUND', message: 'Section not found in active school-year scope.' });
+				return;
+			}
+
+			res.json(payload);
+			return;
+		}
+
+		// JWT/bridge actor: scope the read to the actor school via the
+		// service's existing `schoolId` option, so the roster index is built
+		// for the actor school only and no foreign-school row is ever read. A
+		// foreign section therefore yields the identical 404 NOT_FOUND as a
+		// missing one (no existence oracle; no 403 leak).
+		const actorSchoolId = requireActorSchool(req, res);
+		if (actorSchoolId === null) return;
+		if (declaredSchoolId !== null && declaredSchoolId !== actorSchoolId) {
+			res.status(403).json({ code: 'CROSS_SCHOOL_DENIED', message: 'Requested school does not match the authenticated actor school.' });
+			return;
+		}
+
 		const payload = await assignmentService.getSectionAssignedClasses(sectionId, schoolYearId, upstreamAuthToken, {
 			includeDiagnostics,
+			schoolId: actorSchoolId,
 		});
 
 		if (!payload) {
