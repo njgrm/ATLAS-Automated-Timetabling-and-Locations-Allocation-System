@@ -46,7 +46,7 @@ function DisabledRow({ item }: { item: IntegratedSystemItem }) {
 					<span className='sr-only'>{reason}</span>
 				</div>
 			</TooltipTrigger>
-			<TooltipContent side='right' className='text-[0.65rem]'>
+			<TooltipContent side='right' className='text-xs'>
 				{reason}
 			</TooltipContent>
 		</Tooltip>
@@ -61,7 +61,7 @@ function CurrentRow({ item }: { item: IntegratedSystemItem }) {
 			className='flex h-8 w-full items-center gap-2 rounded-md bg-sidebar-accent/60 px-2 text-sm font-semibold text-sidebar-accent-foreground'
 		>
 			<span className='truncate'>{item.label}</span>
-			<span className='ml-auto shrink-0 text-[0.625rem] font-medium uppercase tracking-wide text-muted-foreground'>
+			<span className='ml-auto shrink-0 text-xs font-medium uppercase tracking-wide text-muted-foreground'>
 				Current system
 			</span>
 		</div>

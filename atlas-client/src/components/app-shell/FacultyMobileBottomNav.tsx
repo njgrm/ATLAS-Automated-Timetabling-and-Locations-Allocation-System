@@ -25,7 +25,7 @@ export function FacultyMobileBottomNav() {
 							end={tab.end}
 							className={({ isActive }) =>
 								[
-									'relative flex flex-col items-center justify-center gap-1 px-1 pt-2.5 pb-1.5 text-[11px] font-medium transition-colors',
+									'relative flex flex-col items-center justify-center gap-1 px-1 pt-2.5 pb-1.5 text-xs font-medium transition-colors',
 									isActive ? 'text-primary' : 'text-muted-foreground active:text-foreground',
 								].join(' ')
 							}
