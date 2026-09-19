@@ -74,6 +74,11 @@ import { VIOLATION_TITLES } from '@/lib/violation-presentation';
 const DAYS = ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY'] as const;
 
 const VIOLATION_LABELS: Record<ViolationCode, string> = VIOLATION_TITLES;
+// Historical persisted runs can still carry the retired metric code. Keep this
+// explicit wire fallback visible here until every such run has aged out.
+const LEGACY_VIOLATION_LABELS = {
+	FACULTY_EXCESSIVE_TRAVEL_DISTANCE: 'Excessive Travel Distance',
+} as const;
 
 const CONFLICT_CODES: Set<ViolationCode> = new Set([
 	'FACULTY_TIME_CONFLICT',
@@ -137,7 +142,8 @@ const WELLBEING_CODES: Set<ViolationCode> = new Set([
  */
 export function resolveViolationLabel(code: string): string {
 	const known = VIOLATION_LABELS[code as ViolationCode];
-	return known ?? code.replace(/_/g, ' ').toLowerCase();
+	const legacy = LEGACY_VIOLATION_LABELS[code as keyof typeof LEGACY_VIOLATION_LABELS];
+	return known ?? legacy ?? code.replace(/_/g, ' ').toLowerCase();
 }
 
 /** Search predicate shared by the violation rail (guarded label lookup). */

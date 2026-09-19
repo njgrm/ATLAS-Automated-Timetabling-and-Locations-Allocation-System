@@ -68,3 +68,25 @@ test('R2/R6: copy explains minutes as periods and floor movement in readable ter
 	assert.match(`${floor.meaning} ${floor.action}`, /floor/i);
 	assert.doesNotMatch(`${floor.meaning} ${floor.action}`, /transition buffer|configured threshold/i);
 });
+
+test('R4: one grouped warning exposes the supporting check instead of silently discarding it', () => {
+	const item = violation('FACULTY_CONSECUTIVE_LIMIT_EXCEEDED', 'Ms. Dela Cruz teaches four consecutive periods.');
+	item.meta = {
+		termIndex: 1,
+		relatedCodes: ['FACULTY_CONSECUTIVE_LIMIT_EXCEEDED', 'FACULTY_INSUFFICIENT_TRANSITION_BUFFER'],
+		relatedMessages: [
+			'Ms. Dela Cruz teaches four consecutive periods.',
+			'Ms. Dela Cruz also has no time to change buildings.',
+		],
+	};
+	const markup = renderToStaticMarkup(createElement(ViolationGroup, {
+		code: item.code,
+		violations: [item],
+		selectedViolation: null,
+		onSelect: () => {},
+		formatConstraintMessage: (message: string) => message,
+		labels: Object.fromEntries(Object.entries(VIOLATION_PRESENTATION).map(([code, value]) => [code, value.title])) as Record<ViolationCode, string>,
+	}));
+	assert.match(markup, /Combines 2 related checks/);
+	assert.match(markup, /no time to change buildings/);
+});
