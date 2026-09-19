@@ -72,10 +72,11 @@ and AIMS.
   pair. Companion repositories remain read-only from ATLAS work.
 - The SMART and AIMS mirrors remain at the handoff baselines and do not yet
   implement their ATLAS peer routes. Generate/install no directional keys yet.
-- `CURRENT-SOURCE-LIVE-DEPLOY-C01` is prepared for independent pre-action review.
-  It deploys the accepted source without activating SMART/AIMS SSO and without a
-  login or database write. `D:` is below the 25 GiB warning threshold, so its
-  disk projection is a mandatory execution precondition.
+- `CURRENT-SOURCE-LIVE-DEPLOY-C01` passed independent pre-action review at
+  `ba9771a8` (`ACCEPT_READY` 10/10/0/0). It deploys the accepted source without
+  activating SMART/AIMS SSO and without a login or database write. `D:` is below
+  the 25 GiB warning threshold, so its disk projection remains a mandatory
+  execution precondition.
 
 ## Operator decisions
 
@@ -92,8 +93,9 @@ and AIMS.
 
 ## Single next action
 
-Obtain independent pre-action review of
-`docs/prompts/current-source-live-deploy-c01-2026-09-19.md`; if accepted, request
-its exact HIGH approval. Dispatch the SMART and AIMS handoffs to their repository
-owners in parallel. Generate/install directional keys only after both sides
-consume the agreed names. Regeneration and publication remain separately locked.
+Obtain the operator's exact HIGH approval from
+`docs/prompts/current-source-live-deploy-c01-2026-09-19.md`, then execute that
+bounded supervised deployment. Dispatch the SMART and AIMS handoffs to their
+repository owners in parallel. Generate/install directional keys only after both
+sides consume the agreed names. Regeneration and publication remain separately
+locked.
