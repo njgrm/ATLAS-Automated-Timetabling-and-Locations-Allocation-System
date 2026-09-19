@@ -1,25 +1,54 @@
 # CURRENT-SOURCE-LIVE-DEPLOY-C01
 
-Status: **PREPARED — NOT APPROVED**
+Status: **PREPARED (REPINNED 2026-09-20) — NOT APPROVED**
 
 Risk: **HIGH** — supervised shared-runtime replacement
 
-Target source: `134bcf28b866f587f87afe8b9ba51c130d1e128b`
+Target source: `7499916886707c35ea708a17ef7a87e791a6bade` (`origin/main` tip at repin)
 
-Target release: `D:\ATLAS-runtime-supervised-134bcf28-20260919`
+Target release: `D:\ATLAS-runtime-supervised-74999168-20260920`
 
 Worktree disposition: `RETIRE_AFTER_INTEGRATION`
+
+Repin note: this packet was first prepared and independently reviewed for pin
+`134bcf28b866f587f87afe8b9ba51c130d1e128b`. The pin above supersedes it by 32
+commits. The repin is docs-only and changes no precondition, authorized
+mutation, acceptance row, or rollback step, but the pin delta below must be
+independently re-reviewed before the approval at the foot of this file is
+executed.
 
 ## Objective
 
 Deploy the integrated SMART-style shared chrome, selected-term public schedule,
-warning-readability/actor-scope, and direct-federation source to the supervised
-ATLAS runtime. SMART and AIMS remain intentionally inactive because their peer
-implementations and paired secrets do not yet exist.
+warning-readability/actor-scope, direct-federation, Simple-workspace
+simplification, section-route actor-school authority, and published-revision
+publication-contract source to the supervised ATLAS runtime. SMART and AIMS
+remain intentionally inactive because their peer implementations and paired
+secrets do not yet exist.
 
 This action performs no login, database write, migration, environment-file edit,
 generation, publication, Teaching Load apply, rollover, or companion-repository
 change.
+
+## Repin delta — `134bcf28` → `74999168` (32 commits; 34 files, 20 non-docs)
+
+- `atlas-client/src/components/timetable/**` (8 files, incl.
+  `TimetableSimpleHeader.tsx`, `simple/**`, `ScheduleReviewWorkspace.tsx`):
+  Simple-workspace simplification and readable Simple chrome.
+- `atlas-server/src/routes/section.router.ts` with
+  `__tests__/section-route-authority-c0{1,2,3}.test.ts`: actor-school authority
+  on the sibling section routes.
+- `atlas-server/src/routes/published-revision.router.ts`,
+  `atlas-server/src/services/published-revision.service.ts`,
+  `atlas-server/src/services/manual-edit.service.ts`, with the C12 and
+  publication-contract test files.
+- `atlas-server/package.json` (one dependency line).
+
+The delta changes no port, no durable-env byte, no dependency-isolation rule, no
+SMART/AIMS inactive posture, and no acceptance row. Rows 1 and 6 are the ones
+re-evaluated against the new pin: the built-versus-served asset manifest is
+recomputed at precondition 10, and the schema-wide signature map of precondition
+8 remains the proof that the added surface writes nothing at rest.
 
 ## Frozen boundary
 
@@ -170,7 +199,7 @@ manual resident process.
 
 ## Exact approval sentence — not yet granted
 
-> I approve HIGH action CURRENT-SOURCE-LIVE-DEPLOY-C01: from an elevated Administrator executor, create an isolated release for ATLAS source `134bcf28b866f587f87afe8b9ba51c130d1e128b` at `D:\ATLAS-runtime-supervised-134bcf28-20260919`, using locked independent dependency installs, Prisma client generation from `atlas-server` against the repository-root schema, and a client build with exactly `VITE_ENROLLPRO_URL=https://dev-jegs.buru-degree.ts.net` while SMART/AIMS start URLs remain unset; if required for the registered SYSTEM task, add only that exact release path to system-scope Git `safe.directory`; after every packet precondition and alternate-port smoke passes, replace only the supervisor-owned ATLAS processes on ports 5001 and 5174 by changing only the captured `ATLAS-Runtime-Supervisor` task action/working directory through a property-preserving XML registration, re-pointing the two machine source/release variables, and starting it only through the registered SYSTEM task; preserve the durable environment file byte-for-byte, keep rollover automation disabled, perform no login or database write, and stop before migration, Teaching Load apply, generation, publication, rollover, or companion-repository action; require exact served-client artifact hashes, typed inactive SMART/AIMS 503 responses, and an unchanged schema-wide database signature; on any mandatory failure, symmetrically restore the captured incumbent task XML and machine variables, remove the exact system safe-directory entry only if this action added it, relaunch incumbent release `74c1f12a5c06bb025a1a7a13088c1c5da1a76d74`, and prove its ownership, health, and unchanged data state.
+> I approve HIGH action CURRENT-SOURCE-LIVE-DEPLOY-C01: from an elevated Administrator executor, create an isolated release for ATLAS source `7499916886707c35ea708a17ef7a87e791a6bade` at `D:\ATLAS-runtime-supervised-74999168-20260920`, using locked independent dependency installs, Prisma client generation from `atlas-server` against the repository-root schema, and a client build with exactly `VITE_ENROLLPRO_URL=https://dev-jegs.buru-degree.ts.net` while SMART/AIMS start URLs remain unset; if required for the registered SYSTEM task, add only that exact release path to system-scope Git `safe.directory`; after every packet precondition and alternate-port smoke passes, replace only the supervisor-owned ATLAS processes on ports 5001 and 5174 by changing only the captured `ATLAS-Runtime-Supervisor` task action/working directory through a property-preserving XML registration, re-pointing the two machine source/release variables, and starting it only through the registered SYSTEM task; preserve the durable environment file byte-for-byte, keep rollover automation disabled, perform no login or database write, and stop before migration, Teaching Load apply, generation, publication, rollover, or companion-repository action; require exact served-client artifact hashes, typed inactive SMART/AIMS 503 responses, and an unchanged schema-wide database signature; on any mandatory failure, symmetrically restore the captured incumbent task XML and machine variables, remove the exact system safe-directory entry only if this action added it, relaunch incumbent release `74c1f12a5c06bb025a1a7a13088c1c5da1a76d74`, and prove its ownership, health, and unchanged data state.
 
 ## Return
 

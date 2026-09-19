@@ -4,7 +4,7 @@ Current operational truth only. Git history and handoff documents retain older
 evidence. Update this file when a live fact, blocking decision, or next action
 changes.
 
-Last verified: 2026-09-19 18:10 +08
+Last verified: 2026-09-20 (planner reconciliation against `origin/main` `74999168`)
 
 ## Objective
 
@@ -31,6 +31,12 @@ and AIMS.
 - Hard dependency: the active server `node_modules` resolves in one hop to
   `D:\ATLAS-runtime-supervised-0eb3b67fe94c-20260918`. Do not retire or mutate it.
 - Rollback release: `f0d65a531e34ded9d8148a1c3f7bf5ddbf2eec4a`.
+- Worktree hygiene 2026-09-20: retired `published-revision-authority-c12`
+  (`c01b171f`), `section-route-authority-c02` (`af1ed0bb`), and
+  `section-route-authority-c03` (`6f1abc2b`) after proving each clean and an
+  ancestor of `origin/main`; non-forced removal, no branch deleted.
+  `E:/ATLAS-worktrees/c02-muse` (`211dea0c`) is preserved as an unintegrated
+  alternate candidate. `stash@{0}` (`3c014d8b`) preserved.
 
 ## Live data
 
@@ -49,8 +55,11 @@ and AIMS.
 
 ## Current blockers and accepted source
 
-- Current source is ahead of the deployed release. Deployment remains a
-  separate HIGH action.
+- Current source is ahead of the deployed release. Undeployed accepted source
+  additionally includes `UX-R02` Simple-workspace simplification,
+  `SECTION-ROUTE-AUTHORITY-C01..C03`, `PUBLISHED-REVISION-AUTHORITY-C12`,
+  `HOME-ROOM-AUTO-ASSIGN-C01`, `UX-R06`, `UX-P01`, and
+  `SSO-CLIENT-CONFIG-C01`. Deployment remains a separate HIGH action.
 - `PUBLIC-SCHEDULE-TERM-SCOPE-C01` is integrated and independently accepted.
   Public reads now require or resolve one verified term, isolate cache identity
   by requested and resolved term, reject malformed term selection before
@@ -73,10 +82,14 @@ and AIMS.
 - The SMART and AIMS mirrors remain at the handoff baselines and do not yet
   implement their ATLAS peer routes. Generate/install no directional keys yet.
 - `CURRENT-SOURCE-LIVE-DEPLOY-C01` passed independent pre-action review at
-  `ba9771a8` (`ACCEPT_READY` 10/10/0/0). It deploys the accepted source without
-  activating SMART/AIMS SSO and without a login or database write. `D:` is below
-  the 25 GiB warning threshold, so its disk projection remains a mandatory
-  execution precondition.
+  `ba9771a8` (`ACCEPT_READY` 10/10/0/0) for pin `134bcf28`. **Repinned
+  2026-09-20** to `7499916886707c35ea708a17ef7a87e791a6bade`, release
+  `D:\ATLAS-runtime-supervised-74999168-20260920`; the 32-commit / 20-product-file
+  pin delta is recorded in the packet and still needs its independent
+  pre-action re-review before execution. It deploys the accepted source without
+  activating SMART/AIMS SSO and without a login or database write. `D:` is
+  23.31 GiB free, below the 25 GiB warning threshold, so its disk projection
+  remains a mandatory execution precondition.
 
 ## Operator decisions
 
@@ -93,9 +106,10 @@ and AIMS.
 
 ## Single next action
 
-Obtain the operator's exact HIGH approval from
-`docs/prompts/current-source-live-deploy-c01-2026-09-19.md`, then execute that
-bounded supervised deployment. Dispatch the SMART and AIMS handoffs to their
-repository owners in parallel. Generate/install directional keys only after both
-sides consume the agreed names. Regeneration and publication remain separately
-locked.
+Obtain the operator's exact HIGH approval for the **repinned** packet
+`docs/prompts/current-source-live-deploy-c01-2026-09-19.md`
+(pin `7499916886707c35ea708a17ef7a87e791a6bade`); on approval, run its independent
+pre-action review over the pin delta first, then execute the bounded supervised
+deployment. Dispatch the SMART and AIMS handoffs to their repository owners in
+parallel. Generate/install directional keys only after both sides consume the
+agreed names. Regeneration and publication remain separately locked.
