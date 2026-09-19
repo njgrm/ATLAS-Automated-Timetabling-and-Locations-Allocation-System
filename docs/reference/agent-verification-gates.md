@@ -17,3 +17,6 @@ Apply only gates relevant to the MEDIUM or HIGH change.
 6. Authority, freshness, or concurrency rejection must dispatch and write nothing.
 7. Source QA and deployed browser acceptance are separate. Live Tailnet evidence
    cannot prove undeployed source bytes.
+8. Before adding an authority gate, enumerate and report the route's consumers:
+   machine or system-token callers, client callers, and pending packets that depend
+   on it. A gate that breaks a documented contract is a finding, not a fix.

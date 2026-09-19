@@ -366,6 +366,17 @@ these plus the branches are enough to resume.
 - **One evidence object per role.** Executor: one commit and one short handoff.
   Reviewer: one verdict. Planner: one integration result. Do not create parallel
   ledgers, manifests, or summaries for the same fact.
+- **A mandatory row is never "not applicable".** Run it, or report it `BLOCKED` or
+  `UNPERFORMED` with the reason. Declaring a row inapplicable without executing it is
+  a false report, not a judgment call.
+- **Corrections are additive to evidence, never subtractive.** Never delete a control,
+  assertion, or evidence row to close a finding — mark it superseded and add the
+  replacement beside it. A correction that removes evidence fails review regardless of
+  whether the fix is correct.
+- **The executor deny-list is not a containment boundary.** It matches command prefixes
+  and misses wrapped or prefixed invocations. Reviewers check `git stash list` and the
+  reflog; "zero residue" means the stash list, reflog, untracked files, and worktree
+  status are all clean.
 - **Git is the integrity mechanism.** No per-file hash inventories, receipt chains,
   or reviewer-allowlist validators for ordinary work. Fingerprints remain for
   destructive data work, migrations, publication, and backup/restore.
