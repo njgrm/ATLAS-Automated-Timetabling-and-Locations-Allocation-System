@@ -41,7 +41,9 @@ V4.1 Flash's 32,500 standard). DeepSeek's own docs state the legacy names are re
 but *"their requests are served by the DeepSeek-V4.1-Flash model and billed at the
 Flash price."* The `atlas-bench-dsflash` probe **passed** and ran a real build
 experiment. **So `opencode-go/deepseek-v4-flash` gives the same model at 2× the
-allowance.** Switch planner/QA to it if the promo lapses.
+allowance.** If the promo has lapsed, edit `model:` in `atlas-planner.md` to
+`opencode-go/deepseek-v4-flash` and restart opencode. **QA is already on this model**
+(`atlas-qa-dsflashv4`) — only the planner needs changing.
 
 ### Usage monitoring — NOT in the directive
 
@@ -64,12 +66,15 @@ round count, which is dominated by the executor's reporting honesty.**
 
 ## 3. Model routing — decided, not in the directive
 
-| Lane | Model | Why |
+| Lane | Model | Status |
 | --- | --- | --- |
-| **Default executor** | `opencode-go/muse-spark-1.3-contributor` | Cheapest ($0.10/$0.20), $60 allowance, 3-for-4 clean. **Trains on prompts — operator explicitly authorized this** given budget pressure. |
-| **Fallback executor** | `opencode-go/deepseek-v4.1-flash` | Privacy-safe (`Not used` / `0 days`), tried and tested. |
-| **QA** | `opencode-go/deepseek-v4-flash` (`atlas-qa-dsflashv4`) | Passed the Probe A discriminator and ran a real build experiment. $30 allowance. |
-| **Retired** | MiMo V2.5 | **Not usable.** 3 QA rounds, ~$3, false mandatory-row claims, deleted evidence, ran a denied `git stash`, false "zero residue", invented a mock control. |
+| **Executor — DEFAULT, use this** | `opencode-go/muse-spark-1.3-contributor` (`atlas-executor-muse`) | **Use it.** Cheapest ($0.10/$0.20), $60 allowance, 3-for-4 clean, honest reporting. **Trains on prompts — operator explicitly authorized this** given budget pressure. |
+| Executor — fallback | `opencode-go/deepseek-v4.1-flash` (`atlas-executor`) | Privacy-safe (`Not used` / `0 days`), tried and tested. Use when the data clause matters more than cost. |
+| **QA — ALREADY SET, do not change** | `opencode-go/deepseek-v4-flash` (`atlas-qa-dsflashv4`) | **Already the QA agent.** Nothing to switch. Passed the Probe A discriminator and ran a real build experiment. $30 allowance. |
+| **Planner — ACTION NEEDED if the promo lapses** | currently `opencode-go/deepseek-v4.1-flash`; change to `opencode-go/deepseek-v4-flash` | The planner is on the **expiring** model. `atlas-planner.md` `model:` must be edited to `opencode-go/deepseek-v4-flash` **if the promo has lapsed** (§2), then **restart opencode**. |
+| Retired — do not use | MiMo V2.5 | **Not usable.** 3 QA rounds, ~$3, false mandatory-row claims, deleted evidence, ran a denied `git stash`, false "zero residue", invented a mock control. |
+
+**Summary in one line: executor = Muse, QA = `atlas-qa-dsflashv4` (already done), planner = switch to `deepseek-v4-flash` only if the promo has lapsed.**
 
 **Agent files** (in `~/.config/opencode/agents/`): `atlas-bench-{ds,dsflash,mimo,muse,qwen,qwen8,kimi,glm,longcat}.md`,
 `atlas-executor-muse.md`, `atlas-qa-dsflashv4.md`. Bench agents are read-only with the
@@ -207,8 +212,10 @@ resolved), `export-presentation-c12`, `home-room-auto-assign-c01` (§2 apply exe
 
 ## 10. Exact next action
 
-1. **Check the promo** with the usage command in §2. If the allowance has reverted, move
-   planner/QA to `opencode-go/deepseek-v4-flash` **before** any real work.
+1. **Check the promo** with the usage command in §2. If the allowance has reverted,
+   change `model:` in `atlas-planner.md` to `opencode-go/deepseek-v4-flash` and restart
+   opencode **before** any real work. **QA already runs on that model — only the planner
+   needs changing.** Executor stays on Muse.
 2. **Retire the finished worktrees** (§8), preserving `stash@{0}`.
 3. Then pick up either the unowned **`warning-readability-c01`** packet, or the other
    planner's lanes — **check `docs/plans/live-state.md` first**, it is shared and current.
