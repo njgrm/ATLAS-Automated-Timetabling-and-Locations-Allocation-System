@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from 'motion/react';
 import { useNavigate } from 'react-router-dom';
 
 import { getBackHref } from '@/lib/bridge';
+import { prefetchNavDestination } from '@/lib/timetable-data/timetablePrefetch';
 import { Button } from '@/ui/button';
 import { Separator } from '@/ui/separator';
 
@@ -57,6 +58,14 @@ export function MobileNavigationDrawer({
 									key={item.to}
 									variant={currentPathname === item.to ? 'secondary' : 'ghost'}
 									className='h-11 w-full justify-start text-sm'
+									onPointerDown={() => {
+										// UX-P01 R3: mobile has no hover; arm the prefetch on
+										// pointer/focus before the tap resolves.
+										prefetchNavDestination(item.to);
+									}}
+									onFocus={() => {
+										prefetchNavDestination(item.to);
+									}}
 									onClick={() => {
 										navigate(item.to);
 										onClose();

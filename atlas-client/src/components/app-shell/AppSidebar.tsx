@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 
 import { getBackHref } from '@/lib/bridge';
+import { prefetchNavDestination } from '@/lib/timetable-data/timetablePrefetch';
 import type { BridgeUser } from '@/types';
 import { Badge } from '@/ui/badge';
 import {
@@ -72,10 +73,14 @@ function NavItem({
 	pathname: string;
 }) {
 	const isActive = pathname === to;
+	// UX-P01 R3: warm the lazy route chunk (and, for the Timetable entry point,
+	// the scoped server-state queries) before the click so the destination route
+	// renders from cache instead of a network-then-skeleton sequence.
+	const handlePrefetch = () => prefetchNavDestination(to);
 	return (
 		<SidebarMenuItem>
 			<SidebarMenuButton asChild isActive={isActive} tooltip={label}>
-				<Link to={to}>
+				<Link to={to} onMouseEnter={handlePrefetch} onFocus={handlePrefetch}>
 					<Icon className='size-4' />
 					<span>{label}</span>
 				</Link>

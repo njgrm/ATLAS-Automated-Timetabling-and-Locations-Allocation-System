@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import type { ImperativePanelHandle } from 'react-resizable-panels';
 
-import atlasApi from '@/lib/api';
 import { resolveActiveSchoolYearContext, type ActiveSchoolYearContext } from '@/lib/enrollpro-public-settings';
 import { resolveActorSchoolId } from '@/lib/settings';
 import { findGradeWindow, getProgramBadgeLabel, matchesEntryKindFilter, matchesProgramFilter, resolveSectionGradeNumber } from '@/lib/schedule-review-helpers';
@@ -26,7 +26,26 @@ import {
 	buildSubjectLabel,
 } from '@/lib/timetable-reference-labels';
 import { deriveGenerationReadinessState, type TimetableCurriculumReadinessState } from '@/lib/timetable-generation-readiness';
-import { buildTimetableGenerationPath } from '@/components/timetable/timetableSchoolScope';
+import {
+	isResolvedTimetableScope,
+	timetableRunBundleQueryKey,
+	type ResolvedTimetableScope,
+	type TimetableScope,
+} from '@/lib/timetable-data/timetableQueryKeys';
+import {
+	ensureTimetableDraftBoard,
+	ensureTimetableFollowUps,
+	ensureTimetableReadiness,
+	ensureTimetableReferenceData,
+	ensureTimetableRoomRequestSummary,
+	ensureTimetableRunBundle,
+	ensureTimetableRuns,
+	readTimetableWarmSnapshot,
+	recordTimetableWarmScope,
+} from '@/lib/timetable-data/timetableServerState';
+import { TIMETABLE_GC_MS, TIMETABLE_STALE_MS, timetableQueryClient } from '@/lib/timetable-data/timetableQueryClient';
+import { runTimetableLoad } from '@/lib/timetable-data/timetableLoadOrchestration';
+import type { TimetableReferenceData } from '@/lib/timetable-data/timetableDataSources';
 import type {
 	Building,
 	CellConflictInfo,
@@ -173,71 +192,11 @@ export function resolveHardViolationCount(
 	return violations.filter((violation) => violation.severity === 'HARD').length;
 }
 
-const TIMETABLE_CACHE_TTL_MS = 120000;
-
-type CachedReferenceData = {
-	ts: number;
-	subjects: Subject[];
-	faculty: FacultyMirror[];
-	buildings: Building[];
-	sections: ExternalSection[];
-	sectionSummary: SectionSummaryResponse;
-};
-
-type CachedRunData = {
-	ts: number;
-	draft: DraftReport;
-	violations: ViolationReport;
-	followUpEntryIds: string[];
-};
-
-type CachedRuns = {
-	ts: number;
-	runs: GenerationRun[];
-};
-
-type CachedDraftBoard = {
-	ts: number;
-	board: DraftBoardState;
-};
-
-type CachedRoomRequestSummary = {
-	ts: number;
-	data: RoomPreferenceSummaryResponse;
-};
-
 type FetchOptions = {
 	preferCache?: boolean;
 	backgroundRefresh?: boolean;
 	forceRefresh?: boolean;
 };
-
-const referenceDataCacheBySchoolYear = new Map<string, CachedReferenceData>();
-const runDataCacheBySchoolYearAndRun = new Map<string, CachedRunData>();
-const runsCacheBySchoolYear = new Map<string, CachedRuns>();
-const draftBoardCacheBySchoolYear = new Map<string, CachedDraftBoard>();
-const roomRequestSummaryCacheByKey = new Map<string, CachedRoomRequestSummary>();
-
-function isFresh(cacheTs: number): boolean {
-	return Date.now() - cacheTs < TIMETABLE_CACHE_TTL_MS;
-}
-
-function cacheRunKey(schoolId: number, schoolYearId: number, runId: string): string {
-	return `${schoolId}:${schoolYearId}:${runId}`;
-}
-
-function cacheRoomRequestKey(
-	schoolId: number,
-	schoolYearId: number,
-	statusFilter: 'ALL' | RoomPreferenceStatus,
-	decisionFilter: 'ALL' | RoomPreferenceDecisionStatus,
-): string {
-	return `${schoolId}:${schoolYearId}:${statusFilter}:${decisionFilter}`;
-}
-
-function schoolYearCacheKey(schoolId: number, schoolYearId: number): string {
-	return `${schoolId}:${schoolYearId}`;
-}
 
 function sameDraftSnapshot(previous: DraftReport | null, next: DraftReport): boolean {
 	if (!previous) return false;
@@ -1252,23 +1211,22 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 		return context.activeSchoolYearId ?? null;
 	}, [setError, setSchoolYearId]);
 
+	const buildFetchScope = useCallback((syId: number, runId: string | number | null): TimetableScope => ({
+		schoolId,
+		schoolYearId: syId,
+		runId,
+		termIndex: termFilter,
+	}), [schoolId, termFilter]);
+
 	const fetchRuns = useCallback(async (syId: number, options?: FetchOptions) => {
 		if (!schoolId) throw new Error('Authenticated school scope is unavailable.');
-		const { preferCache = false, forceRefresh = false } = options ?? {};
-		const cacheKey = schoolYearCacheKey(schoolId, syId);
-		const cached = runsCacheBySchoolYear.get(cacheKey);
-		const canUseCache = !forceRefresh && preferCache && cached && isFresh(cached.ts);
-
-		if (canUseCache) {
-			setRuns(cached.runs);
-			return cached.runs;
-		}
-
-		const { data } = await atlasApi.get<{ runs: GenerationRun[] }>(buildTimetableGenerationPath(schoolId, syId, '/runs'), { params: { limit: 20 } });
-		runsCacheBySchoolYear.set(cacheKey, { ts: Date.now(), runs: data.runs });
-		setRuns(data.runs);
-		return data.runs;
-	}, [schoolId, setRuns]);
+		const { forceRefresh = false } = options ?? {};
+		// UX-P01 R2: the runs list lives in the scoped query cache. `forceRefresh`
+		// invalidates the entry before refetching; a fresh entry is a cache hit.
+		const runs = await ensureTimetableRuns(buildFetchScope(syId, selectedRunIdRef.current), { force: forceRefresh });
+		setRuns(runs);
+		return runs;
+	}, [buildFetchScope, schoolId, setRuns]);
 
 	const fetchCurriculumReadiness = useCallback(async (syId: number) => {
 		if (!schoolId || resolvedSchoolIdRef.current !== schoolId) {
@@ -1283,13 +1241,13 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 		generationReadinessSeqRef.current = requestSeq;
 		setCurriculumReadiness({ state: 'loading', message: 'Checking generation readiness (Teaching Load, shape, policy, validators)…' });
 		try {
-			const { data } = await atlasApi.get<{ readiness?: unknown }>(
-				buildTimetableGenerationPath(schoolId, syId, '/readiness/diagnostic'),
-			);
+			// Readiness gates generation, so it is always re-verified rather than
+			// served from the cache window the rest of the route uses.
+			const readiness = await ensureTimetableReadiness(buildFetchScope(syId, selectedRunIdRef.current), { force: true });
 			if (requestSeq !== generationReadinessSeqRef.current) return;
 			// A diagnostic for a different school/year, a failed read, or a
 			// derived-ready-but-blocked diagnostic never reuses a prior ready.
-			setCurriculumReadiness(deriveGenerationReadinessState(data?.readiness, { schoolId, schoolYearId: syId }));
+			setCurriculumReadiness(deriveGenerationReadinessState(readiness, { schoolId, schoolYearId: syId }));
 		} catch (error) {
 			if (requestSeq !== generationReadinessSeqRef.current) return;
 			setCurriculumReadiness({
@@ -1297,95 +1255,44 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 				message: buildTimetableErrorMessage(error, 'Generation readiness could not be checked. Retry before generating.'),
 			});
 		}
-	}, [schoolId]);
+	}, [buildFetchScope, schoolId]);
+
+	const applyRunSnapshot = useCallback((draftSnapshot: DraftReport, violationsSnapshot: ViolationReport) => {
+		setDraft((prev) => sameDraftSnapshot(prev, draftSnapshot) ? prev : draftSnapshot);
+		setViolationReport((prev) => JSON.stringify(prev) === JSON.stringify(violationsSnapshot) ? prev : violationsSnapshot);
+	}, [setDraft, setViolationReport]);
+
+	const applyFollowUpEntryIds = useCallback((followUpEntryIds: string[]) => {
+		setFollowUps((prev) => {
+			if (prev.size !== followUpEntryIds.length) return new Set(followUpEntryIds);
+			for (const item of followUpEntryIds) if (!prev.has(item)) return new Set(followUpEntryIds);
+			return prev;
+		});
+	}, [setFollowUps]);
 
 	const fetchRunData = useCallback(async (syId: number, runId: string, options?: FetchOptions) => {
 		if (!schoolId) throw new Error('Authenticated school scope is unavailable.');
-		const { preferCache = false, backgroundRefresh = false, forceRefresh = false } = options ?? {};
-		const runKey = cacheRunKey(schoolId, syId, runId);
-		const cached = runDataCacheBySchoolYearAndRun.get(runKey);
-		const canUseCache = !forceRefresh && preferCache && cached && isFresh(cached.ts);
-		const applyRunSnapshot = (draftSnapshot: DraftReport, violationsSnapshot: ViolationReport) => {
-			setDraft((prev) => sameDraftSnapshot(prev, draftSnapshot) ? prev : draftSnapshot);
-			setViolationReport((prev) => JSON.stringify(prev) === JSON.stringify(violationsSnapshot) ? prev : violationsSnapshot);
-		};
-		const refreshFollowUps = async (
-			numericRunId: number,
-			draftSnapshot: DraftReport,
-			violationsSnapshot: ViolationReport,
-			requestSeq: number,
-		) => {
-			let followUpEntryIds: string[] = [];
-			try {
-				const { data } = await atlasApi.get<{ flags: Array<{ entryId: string }> }>(`/follow-up-flags/${schoolId}/${syId}/runs/${numericRunId}/flags`);
-				followUpEntryIds = data.flags.map((flag) => flag.entryId);
-			} catch {
-				followUpEntryIds = [];
-			}
-			if (requestSeq !== latestRunDataFetchSeqRef.current) return;
-			runDataCacheBySchoolYearAndRun.set(runKey, {
-				ts: Date.now(),
-				draft: draftSnapshot,
-				violations: violationsSnapshot,
-				followUpEntryIds,
-			});
-			setFollowUps((prev) => {
-				if (prev.size !== followUpEntryIds.length) return new Set(followUpEntryIds);
-				for (const item of followUpEntryIds) if (!prev.has(item)) return new Set(followUpEntryIds);
-				return prev;
-			});
-		};
-
-		if (canUseCache) {
-			applyRunSnapshot(cached.draft, cached.violations);
-			setFollowUps((prev) => {
-				if (prev.size !== cached.followUpEntryIds.length) return new Set(cached.followUpEntryIds);
-				for (const item of cached.followUpEntryIds) if (!prev.has(item)) return new Set(cached.followUpEntryIds);
-				return prev;
-			});
-			if (backgroundRefresh) {
-				const requestSeq = latestRunDataFetchSeqRef.current + 1;
-				latestRunDataFetchSeqRef.current = requestSeq;
-				const base = `/generation/${schoolId}/${syId}/runs`;
-				const runPath = runId === 'latest' ? `${base}/latest` : `${base}/${runId}`;
-				void Promise.all([
-					atlasApi.get<DraftReport>(`${runPath}/draft`),
-					atlasApi.get<ViolationReport>(`${runPath}/violations`),
-				]).then(([draftRes, violationsRes]) => {
-					if (requestSeq !== latestRunDataFetchSeqRef.current) return;
-					runDataCacheBySchoolYearAndRun.set(runKey, {
-						ts: Date.now(),
-						draft: draftRes.data,
-						violations: violationsRes.data,
-						followUpEntryIds: cached.followUpEntryIds,
-					});
-					applyRunSnapshot(draftRes.data, violationsRes.data);
-					void refreshFollowUps(draftRes.data.runId, draftRes.data, violationsRes.data, requestSeq);
-				}).catch(() => {
-					// keep warm cache on transient refresh failure
-				});
-			}
-			return;
-		}
-
-		const base = `/generation/${schoolId}/${syId}/runs`;
-		const runPath = runId === 'latest' ? `${base}/latest` : `${base}/${runId}`;
+		const { forceRefresh = false } = options ?? {};
+		const scope = buildFetchScope(syId, runId);
 		const requestSeq = latestRunDataFetchSeqRef.current + 1;
 		latestRunDataFetchSeqRef.current = requestSeq;
 		try {
-			const [draftRes, violationsRes] = await Promise.all([
-				atlasApi.get<DraftReport>(`${runPath}/draft`),
-				atlasApi.get<ViolationReport>(`${runPath}/violations`),
-			]);
+			// R1/R2: the draft+violations pair is one run-scoped query entry. Both
+			// endpoints still fire together inside the query function.
+			const bundle = await ensureTimetableRunBundle(scope, { force: forceRefresh });
 			if (requestSeq !== latestRunDataFetchSeqRef.current) return;
-			applyRunSnapshot(draftRes.data, violationsRes.data);
-			runDataCacheBySchoolYearAndRun.set(runKey, {
-				ts: Date.now(),
-				draft: draftRes.data,
-				violations: violationsRes.data,
-				followUpEntryIds: [],
-			});
-			void refreshFollowUps(draftRes.data.runId, draftRes.data, violationsRes.data, requestSeq);
+			applyRunSnapshot(bundle.draft, bundle.violations);
+			recordTimetableWarmScope(scope);
+			void (async () => {
+				let followUpEntryIds: string[] = [];
+				try {
+					followUpEntryIds = await ensureTimetableFollowUps(scope, bundle.draft.runId);
+				} catch {
+					followUpEntryIds = [];
+				}
+				if (requestSeq !== latestRunDataFetchSeqRef.current) return;
+				applyFollowUpEntryIds(followUpEntryIds);
+			})();
 		} catch (error) {
 			// Preserve structured API errors (NO_RUNS, NO_ACTIVE_DRAFT, STALE_RUN_DATA)
 			// so loadAll's catch block can inspect the code and keep the workspace open.
@@ -1395,42 +1302,21 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 			}
 			throw new Error(buildTimetableErrorMessage(error, 'Failed to load timetable run data.'));
 		}
-	}, [schoolId, setDraft, setViolationReport, setFollowUps]);
+	}, [applyFollowUpEntryIds, applyRunSnapshot, buildFetchScope, schoolId]);
 
 	const fetchDraftBoardSummary = useCallback(async (syId: number, options?: FetchOptions) => {
 		if (!schoolId) return null;
-		const { preferCache = false, backgroundRefresh = false, forceRefresh = false } = options ?? {};
-		const cacheKey = schoolYearCacheKey(schoolId, syId);
-		const cached = draftBoardCacheBySchoolYear.get(cacheKey);
-		const canUseCache = !forceRefresh && preferCache && cached && isFresh(cached.ts);
-
-		if (canUseCache) {
-			applyDraftBoard(cached.board);
-			if (backgroundRefresh) {
-				void atlasApi
-					.get<DraftBoardState>(`/generation/${schoolId}/${syId}/pre-generation-drafts?preferCachedSections=true`)
-					.then(({ data }) => {
-						draftBoardCacheBySchoolYear.set(cacheKey, { ts: Date.now(), board: data });
-						applyDraftBoard(data);
-					})
-					.catch(() => {
-						// keep warm cache on transient refresh failure
-					});
-			}
-			return cached.board.counts;
-		}
-
+		const { forceRefresh = false } = options ?? {};
 		try {
-			const { data } = await atlasApi.get<DraftBoardState>(`/generation/${schoolId}/${syId}/pre-generation-drafts?preferCachedSections=true`);
-			draftBoardCacheBySchoolYear.set(cacheKey, { ts: Date.now(), board: data });
-			applyDraftBoard(data);
-			return data.counts;
+			const board = await ensureTimetableDraftBoard(buildFetchScope(syId, selectedRunIdRef.current), { force: forceRefresh });
+			applyDraftBoard(board);
+			return board.counts;
 		} catch {
 			// Do NOT wipe the context state on intermittent 502/network errors.
 			// Wiping the state causes massive re-renders that destroy active drag operations.
 			return null;
 		}
-	}, [applyDraftBoard, schoolId]);
+	}, [applyDraftBoard, buildFetchScope, schoolId]);
 
 	const loadRoomRequestSummary = useCallback(async (
 		syId: number,
@@ -1442,38 +1328,16 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 			setRoomRequestError('Authenticated school scope is unavailable.');
 			return;
 		}
-		const { preferCache = false, backgroundRefresh = false, forceRefresh = false } = options ?? {};
-		const requestKey = cacheRoomRequestKey(schoolId, syId, statusFilter, decisionFilter);
-		const cached = roomRequestSummaryCacheByKey.get(requestKey);
-		const canUseCache = !forceRefresh && preferCache && cached && isFresh(cached.ts);
-
-		if (canUseCache) {
-			applyRoomRequestSummary(cached.data);
-			if (backgroundRefresh) {
-				const params: Record<string, string> = {};
-				if (statusFilter !== 'ALL') params.status = statusFilter;
-				if (decisionFilter !== 'ALL') params.decisionStatus = decisionFilter;
-				void atlasApi
-					.get<RoomPreferenceSummaryResponse>(`/room-preferences/${schoolId}/${syId}/latest/summary`, { params })
-					.then(({ data }) => {
-						roomRequestSummaryCacheByKey.set(requestKey, { ts: Date.now(), data });
-						applyRoomRequestSummary(data);
-					})
-					.catch(() => {
-						// keep warm cache on transient refresh failure
-					});
-			}
-			return;
-		}
-
+		const { forceRefresh = false } = options ?? {};
 		setRoomRequestLoading(true);
 		try {
-			const params: Record<string, string> = {};
-			if (statusFilter !== 'ALL') params.status = statusFilter;
-			if (decisionFilter !== 'ALL') params.decisionStatus = decisionFilter;
-			const { data } = await atlasApi.get<RoomPreferenceSummaryResponse>(`/room-preferences/${schoolId}/${syId}/latest/summary`, { params });
-			roomRequestSummaryCacheByKey.set(requestKey, { ts: Date.now(), data });
-			applyRoomRequestSummary(data);
+			const summary = await ensureTimetableRoomRequestSummary(
+				buildFetchScope(syId, selectedRunIdRef.current),
+				statusFilter,
+				decisionFilter,
+				{ force: forceRefresh },
+			);
+			applyRoomRequestSummary(summary);
 		} catch (err) {
 			// No active generated draft means there are no room requests yet; this
 			// is an empty state, not an error. Avoid surfacing a 404 as noise.
@@ -1485,80 +1349,114 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 		} finally {
 			setRoomRequestLoading(false);
 		}
-	}, [applyRoomRequestSummary, schoolId, setRoomRequestError, setRoomRequestLoading]);
+	}, [applyRoomRequestSummary, buildFetchScope, schoolId, setRoomRequestError, setRoomRequestLoading]);
+
+	const hydrateReferenceState = useCallback((entry: TimetableReferenceData) => {
+		setSubjectMap((prev) => {
+			if (prev.size === entry.subjects.length && JSON.stringify(Array.from(prev.values())) === JSON.stringify(entry.subjects)) return prev;
+			return new Map(entry.subjects.map((subject) => [subject.id, subject]));
+		});
+
+		setFacultyMap((prev) => {
+			if (prev.size === entry.faculty.length && JSON.stringify(Array.from(prev.values())) === JSON.stringify(entry.faculty)) return prev;
+			return new Map(entry.faculty.map((facultyMember) => [facultyMember.id, facultyMember]));
+		});
+
+		setBuildings((prev) => JSON.stringify(prev) === JSON.stringify(entry.buildings) ? prev : entry.buildings);
+
+		setSectionSummary((prev) => JSON.stringify(prev) === JSON.stringify(entry.sectionSummary) ? prev : entry.sectionSummary);
+
+		setSectionMap((prev) => {
+			if (prev.size === entry.sections.length && JSON.stringify(Array.from(prev.values())) === JSON.stringify(entry.sections)) return prev;
+			return new Map(entry.sections.map((section) => [section.id, section]));
+		});
+
+		const enrichedRooms = new Map<number, RoomInfo>();
+		for (const building of entry.buildings) {
+			for (const room of building.rooms) {
+				enrichedRooms.set(room.id, {
+					id: room.id,
+					name: room.name,
+					buildingId: building.id,
+					buildingName: building.name,
+					buildingShortCode: building.shortCode,
+					floor: room.floor,
+					type: room.type,
+					isTeachingSpace: room.isTeachingSpace,
+				});
+			}
+		}
+		setRoomMap((prev) => {
+			if (prev.size === enrichedRooms.size && JSON.stringify(Array.from(prev.values())) === JSON.stringify(Array.from(enrichedRooms.values()))) return prev;
+			return enrichedRooms;
+		});
+	}, [setBuildings, setFacultyMap, setRoomMap, setSectionMap, setSectionSummary, setSubjectMap]);
 
 	const fetchReferenceData = useCallback(async (syId: number, options?: FetchOptions) => {
 		if (!schoolId) throw new Error('Authenticated school scope is unavailable.');
-		const { preferCache = false, forceRefresh = false } = options ?? {};
-		const cacheKey = schoolYearCacheKey(schoolId, syId);
-		const cached = referenceDataCacheBySchoolYear.get(cacheKey);
-		const canUseCache = !forceRefresh && preferCache && cached && isFresh(cached.ts);
+		const { forceRefresh = false } = options ?? {};
+		const entry = await ensureTimetableReferenceData(buildFetchScope(syId, selectedRunIdRef.current), { force: forceRefresh });
+		hydrateReferenceState(entry);
+	}, [buildFetchScope, hydrateReferenceState, schoolId]);
 
-		const hydrateReferenceState = (entry: CachedReferenceData) => {
-			setSubjectMap((prev) => {
-				if (prev.size === entry.subjects.length && JSON.stringify(Array.from(prev.values())) === JSON.stringify(entry.subjects)) return prev;
-				return new Map(entry.subjects.map((subject) => [subject.id, subject]));
-			});
+	// UX-P01 R2/R4: the reactive, four-part-scoped subscription to the current
+	// run bundle. It shares the cache entry the imperative fetch writes, keeps
+	// the previous bundle available while a new scope loads
+	// (`placeholderData: keepPreviousData`), and never serves another scope's
+	// entry because the key changes with every scope part.
+	const currentScope = useMemo<TimetableScope>(() => ({
+		schoolId,
+		schoolYearId,
+		runId: selectedRunId,
+		termIndex: termFilter,
+	}), [schoolId, schoolYearId, selectedRunId, termFilter]);
 
-			setFacultyMap((prev) => {
-				if (prev.size === entry.faculty.length && JSON.stringify(Array.from(prev.values())) === JSON.stringify(entry.faculty)) return prev;
-				return new Map(entry.faculty.map((facultyMember) => [facultyMember.id, facultyMember]));
-			});
+	const runBundleQuery = useQuery({
+		queryKey: timetableRunBundleQueryKey(currentScope),
+		queryFn: () => ensureTimetableRunBundle(currentScope),
+		enabled: isResolvedTimetableScope(currentScope),
+		staleTime: TIMETABLE_STALE_MS,
+		gcTime: TIMETABLE_GC_MS,
+		placeholderData: keepPreviousData,
+	}, timetableQueryClient);
 
-			setBuildings((prev) => JSON.stringify(prev) === JSON.stringify(entry.buildings) ? prev : entry.buildings);
+	// Placeholder data belongs to a different scope key and must never become
+	// actionable grid state. A real cached/refetched entry for the current key is
+	// applied here so a revisit renders from cache immediately.
+	useEffect(() => {
+		if (runBundleQuery.isPlaceholderData) return;
+		const bundle = runBundleQuery.data;
+		if (!bundle) return;
+		applyRunSnapshot(bundle.draft, bundle.violations);
+	}, [applyRunSnapshot, runBundleQuery.data, runBundleQuery.isPlaceholderData]);
 
-			setSectionSummary((prev) => JSON.stringify(prev) === JSON.stringify(entry.sectionSummary) ? prev : entry.sectionSummary);
+	// UX-P01 R4: seed the per-mount state from the warm query snapshot before the
+	// first paint so a revisit shows the previous data instead of a full
+	// skeleton. The snapshot is token-epoch bound; the effect below clears it if
+	// the resolved actor school turns out not to match the seeded scope.
+	const warmSeededScopeRef = useRef<ResolvedTimetableScope | null>(null);
+	useLayoutEffect(() => {
+		const snapshot = readTimetableWarmSnapshot();
+		if (!snapshot || warmSeededScopeRef.current) return;
+		warmSeededScopeRef.current = snapshot.scope;
+		setRuns(snapshot.runs);
+		if (snapshot.bundle) applyRunSnapshot(snapshot.bundle.draft, snapshot.bundle.violations);
+		if (snapshot.reference) hydrateReferenceState(snapshot.reference);
+		if (snapshot.draftBoard) applyDraftBoard(snapshot.draftBoard);
+		setLoading(false);
+	}, [applyDraftBoard, applyRunSnapshot, hydrateReferenceState, setLoading, setRuns]);
 
-			setSectionMap((prev) => {
-				if (prev.size === entry.sections.length && JSON.stringify(Array.from(prev.values())) === JSON.stringify(entry.sections)) return prev;
-				return new Map(entry.sections.map((section) => [section.id, section]));
-			});
-
-			const enrichedRooms = new Map<number, RoomInfo>();
-			for (const building of entry.buildings) {
-				for (const room of building.rooms) {
-					enrichedRooms.set(room.id, {
-						id: room.id,
-						name: room.name,
-						buildingId: building.id,
-						buildingName: building.name,
-						buildingShortCode: building.shortCode,
-						floor: room.floor,
-						type: room.type,
-						isTeachingSpace: room.isTeachingSpace,
-					});
-				}
-			}
-			setRoomMap((prev) => {
-				if (prev.size === enrichedRooms.size && JSON.stringify(Array.from(prev.values())) === JSON.stringify(Array.from(enrichedRooms.values()))) return prev;
-				return enrichedRooms;
-			});
-		};
-
-		if (canUseCache) {
-			hydrateReferenceState(cached);
-			return;
-		}
-
-		const [subjectsRes, facultyRes, buildingsRes, sectionsRes] = await Promise.all([
-			atlasApi.get<{ subjects: Subject[] }>(`/subjects?schoolId=${schoolId}`),
-			atlasApi.get<{ faculty: FacultyMirror[] }>(`/faculty?schoolId=${schoolId}`),
-			atlasApi.get<{ buildings: Building[] }>(`/map/schools/${schoolId}/buildings`),
-			atlasApi.get<SectionSummaryResponse>(`/sections/summary/${syId}?schoolId=${schoolId}`).catch(() => ({ data: { sections: [] as ExternalSection[] } })),
-		]);
-
-		const nextEntry: CachedReferenceData = {
-			ts: Date.now(),
-			subjects: subjectsRes.data.subjects,
-			faculty: facultyRes.data.faculty,
-			buildings: buildingsRes.data.buildings,
-			sections: sectionsRes.data.sections,
-			sectionSummary: sectionsRes.data as SectionSummaryResponse,
-		};
-		referenceDataCacheBySchoolYear.set(cacheKey, nextEntry);
-
-		hydrateReferenceState(nextEntry);
-	}, [schoolId, setBuildings, setFacultyMap, setRoomMap, setSectionMap, setSectionSummary, setSubjectMap]);
+	useEffect(() => {
+		const seeded = warmSeededScopeRef.current;
+		if (!seeded || schoolId == null || seeded.schoolId === schoolId) return;
+		// Actor school changed without a matching token epoch transition; the warm
+		// snapshot is another scope's data and must not survive.
+		warmSeededScopeRef.current = null;
+		setRuns([]);
+		setDraft(null);
+		setViolationReport(null);
+		setFollowUps(new Set());
+	}, [schoolId, setDraft, setFollowUps, setRuns, setViolationReport]);
 
 	const openMapWorkspace = useCallback(async () => {
 		if (!schoolYearId) return;
@@ -1602,62 +1500,34 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 				setLoading(false);
 				return;
 			}
-			const resolvedSchoolId = resolvedSchoolIdRef.current;
-			if (resolvedSchoolId !== schoolId) {
-				setRuns([]);
-				setDraft(null);
-				setViolationReport(null);
-				setSelectedRunId('latest');
-				setLoading(false);
-				return;
-			}
-			const fetchedRuns = await fetchRuns(syId, { preferCache: !force, forceRefresh: force });
-			const hasCompletedRun = fetchedRuns.some((run) => run.status === 'COMPLETED');
-			void fetchCurriculumReadiness(syId);
-			const referenceDataPromise = fetchReferenceData(syId, {
-				preferCache: !force,
-				forceRefresh: force,
-				backgroundRefresh: !force,
-			}).catch(() => {
-				// Reference labels and advanced map pivots are non-primary for first grid readiness.
-				// Keep the timetable usable with ID fallbacks and let explicit refresh retry.
-			});
-
-			if (fetchedRuns.length === 0) {
-				setDraft(null);
-				setViolationReport(null);
-				setSelectedRunId('latest');
-				void fetchDraftBoardSummary(syId, { preferCache: !force, forceRefresh: force });
-				// No runs at all means no room-request summary to read.
-				setRoomRequestError(null);
-				void referenceDataPromise;
-				setLoading(false);
-				return;
-			}
-
-			const runId = preserveRun ? selectedRunIdRef.current : 'latest';
-			if (!preserveRun) setSelectedRunId('latest');
-			try {
-				await fetchRunData(syId, runId, { preferCache: !force, forceRefresh: force });
-			} catch (error) {
-				const code = getTimetableApiErrorCode(error);
-				if (runId === 'latest' && code === 'STALE_RUN_DATA') {
-					const latestRunId = fetchedRuns[0]?.id;
-					if (latestRunId == null) throw error;
-					await fetchRunData(syId, String(latestRunId), { preferCache: !force, forceRefresh: force });
-				} else {
-					throw error;
-				}
-			}
-
-			// Secondary rail diagnostics are intentionally deferred to keep first render interactive.
-			void referenceDataPromise;
-			void fetchDraftBoardSummary(syId, { preferCache: !force, forceRefresh: force });
-			if (hasCompletedRun) {
-				void loadRoomRequestSummary(syId, requestStatusFilter, requestDecisionFilter, { preferCache: !force, forceRefresh: force });
-			} else {
-				setRoomRequestError(null);
-			}
+			await runTimetableLoad({
+				readResolvedSchoolId: () => resolvedSchoolIdRef.current,
+				currentSchoolId: schoolId,
+				fetchRuns: (id) => fetchRuns(id, { preferCache: !force, forceRefresh: force }),
+				fetchCurriculumReadiness: (id) => { void fetchCurriculumReadiness(id); },
+				fetchReferenceData: (id) => fetchReferenceData(id, { preferCache: !force, forceRefresh: force, backgroundRefresh: !force }),
+				fetchDraftBoardSummary: (id) => fetchDraftBoardSummary(id, { preferCache: !force, forceRefresh: force }),
+				fetchRunData: (id, runId) => fetchRunData(id, runId, { preferCache: !force, forceRefresh: force }),
+				loadRoomRequestSummary: (id) => loadRoomRequestSummary(id, requestStatusFilter, requestDecisionFilter, { preferCache: !force, forceRefresh: force }),
+				errorCodeOf: getTimetableApiErrorCode,
+				clearRoomRequestError: () => setRoomRequestError(null),
+				readSelectedRunId: () => selectedRunIdRef.current,
+				preserveRun,
+				onScopeMismatch: () => {
+					setRuns([]);
+					setDraft(null);
+					setViolationReport(null);
+					setSelectedRunId('latest');
+				},
+				onNoRuns: () => {
+					setDraft(null);
+					setViolationReport(null);
+					setSelectedRunId('latest');
+					// No runs at all means no room-request summary to read.
+					setRoomRequestError(null);
+				},
+				onRunSelected: (runId) => setSelectedRunId(runId),
+			}, syId);
 		} catch (e: unknown) {
 			const code = getTimetableApiErrorCode(e);
 			if (code === 'NO_ACTIVE_DRAFT' || code === 'STALE_RUN_DATA' || code === 'NO_RUNS') {
