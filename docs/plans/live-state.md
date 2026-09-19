@@ -211,8 +211,48 @@ on the Simple view; **demote Advanced to "Expert"** (do not fix it).
 | Handoff said | Actual |
 | --- | --- |
 | live release `f0d65a53` | **`74c1f12a`** — deployed and verified 2026-09-18 |
-| `origin/main` = `1333b7fd` | **`91bf478a`** (advancing) |
-| SMART mirror `1bda233` | correct — the old register's `c3806e12` is wrong |
+| `origin/main` = `1333b7fd` | advancing; `bb13e574` at last reconcile |
+| SMART mirror `1bda233` | **stale** — synced to upstream `79b182c` on 2026-09-18 |
+
+### SMART baseline re-pin (2026-09-18)
+
+Upstream `madebyseaan/smart-final-capstone` was **34 commits ahead** of our mirror.
+Our fork (`njgrm/Project_Capstone_Smart-Final-Defense`) was 54 behind and had
+**zero fork-only commits**, so the sync was a pure fast-forward:
+
+- local mirror `1bda233` -> **`79b182c`** (clean fast-forward)
+- fork `1a22ad2` -> **`79b182c`** (fast-forward push, no history rewrite)
+
+**The UX baseline and the delta's §2 corrections were authored against the old
+pin and must be re-verified at `79b182c`.** Relevant upstream changes:
+`ccd7a63 merge: restore companion SSO onto fixed main`,
+`bb07410 feat(auth): enforce per-portal login gate with wrong-portal hint`,
+`bb132c8 fix(rollover): RL-10a prefer EnrollPro's ACTIVE year over a pinned label`,
+`a26cdca fix(ui): P1-13 sanitize interpolated CSS colors; P0-8 show 404 instead of
+bouncing to login`.
+
+## Operator decisions — resolved 2026-09-18
+
+- **D-1 ADOPT.** The SMART convergence contract, **as amended by the delta**, is the
+  UX authority — re-verified against the new pin. Carve-outs: it is UX guidance, not
+  product authority (publication gates, ordered-term identity, actor-school scope and
+  the no-scroll shell outrank any visual preference); the delta overrides the contract
+  where they conflict (keep Radix, do not migrate to Base UI; copy SMART's visual
+  *language*, not its component *usage* discipline — its own `PageHeader`/`DataTable`/
+  `breadcrumb` have zero usage sites); its §15 stream order is superseded by the
+  delta's revised order.
+- **D-2 CYCLE ON, full program** (Tier 3: through UX-R05), with a standing stop at
+  every HIGH boundary. Operator instruction: keep the tracking real but **do not
+  reintroduce the ceremony** that previously consumed the budget.
+- **D-3 AUTHORIZED.** `UX-P01` (TanStack Query data layer) may proceed. It gates
+  `UX-R03` entirely.
+- **D-4 already done** — `74c1f12a` deployed and verified by the planner.
+- **D-5 covered** by the standing browser-QA authorization (disclose the login delta).
+- **D-6 still unverified** — whether any published run shows warnings.
+
+**Operator goal, stated plainly:** ATLAS must feel like the *same system* as SMART.
+Today it reads as a distinct, disconnected product. That is the acceptance standard
+for the whole UX program, not just token parity.
 
 ## Lane queue (single integration owner)
 
