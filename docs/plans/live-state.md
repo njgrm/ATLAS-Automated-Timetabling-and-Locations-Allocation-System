@@ -348,6 +348,81 @@ separate config apply `1->[7], 2->[8], 3->[9], 4->[10]`, which remains a
 HIGH-gated action with its own preview and approval. **Do not press Apply before
 that lands.**
 
+## Live browser QA — authenticated session, 2026-09-19
+
+First authenticated Tailnet QA session. Origin invariant asserted on every page
+(`https://njgrm.buru-degree.ts.net`). One `LOCAL_LOGIN_SUCCESS` audit row created
+(test account, identifier `1234501`).
+
+### Verified GOOD on the deployed release `74c1f12a`
+
+| Check | Result |
+| --- | --- |
+| Login + persistent session | works; session survives restarts via `playwright-profile` |
+| **Simple header fix is LIVE** | **`Generate` and `Publish schedule` both rendered** |
+| **Section dropdown order** | **correct**: Grade 7 -> 8 -> 9 -> 10, Regular then SPA/SPS/STE within each grade (20 options) |
+| No-scroll shell | holds on `/timetable` and `/public/schedules` (no global scrollbar) |
+| App console errors | 0 from the app itself (the 3 seen were the planner's own 401/422 probe fetches) |
+| Active context | `S.Y. 2031-2032 • ACTIVE`, `Active Term: T1` |
+
+### D-6 — ANSWERED (no defect; the mechanism already works)
+
+**Run #315 is the published run** — `isPublished: true`,
+`publishedAt 2026-09-18T05:38:27.923Z`, `publishedBy 46`,
+`publication.revisionId 42`, `hardViolationCount 0`,
+`blockingHardViolationCount 0`, `assigned 920 / unassigned 0`,
+`termCounts {t1:920, t2:920, t3:920}`.
+
+It carries **335 soft violations**, but they were explicitly acknowledged at
+publication: **`softViolationsAcknowledged: true`**,
+**`publishedSoftViolationCount: 335`**. The published-run summary also carries
+`isPublished`, `publication`, `publishedAt`, `publishedBy` — keys that the
+unpublished run lacks.
+
+**Run #316 is the latest, UNPUBLISHED run** (`publication: null`). It has the same
+335 soft violations and no acknowledgement.
+
+So the capstone item 5 concern — "remove warnings once published" — is **already
+satisfied**. The warnings the timetable header shows belong to the **unpublished**
+latest run, which is correct behaviour.
+
+**Observation (not yet a defect):** the UI header reads **"113 warnings"** while
+the API reports **335** soft violations for the same run. Worth investigating
+whether the UI is scoping the count to the selected section/term.
+
+Soft-violation breakdown (identical on both runs): `FACULTY_EXCESSIVE_IDLE_GAP`
+101, `FACULTY_EXCESSIVE_BUILDING_TRANSITIONS` 93,
+`FACULTY_INSUFFICIENT_TRANSITION_BUFFER` 57,
+`FACULTY_CONSECUTIVE_LIMIT_EXCEEDED` 51, `FACULTY_FLOOR_TRANSITION` 30,
+`ZONE_IMBALANCE_WARNING` 3. All faculty-comfort metrics; zero hard.
+
+### Confirmed visually
+
+- **INTEGRATED SYSTEMS renders AIMS, SMART, ATLAS — but NOT EnrollPro.** This is
+  the SSO symptom seen from the operator's side, and it matches the diagnosis:
+  the deployed bundle was built without `VITE_ENROLLPRO_URL`.
+- Nav still reads **"Timetable"**, not "Class Schedule" — expected deploy lag;
+  UX-R06 is integrated in source but not deployed.
+
+### Defects still open from this QA
+
+1. **Term merging in the public schedule** — `/public/schedules` renders every
+   cell 3x (2,760 entries = 920 x 3 terms; 720 of 1,320 groups hold 3 entries with
+   distinct `termIndex` but identical room/faculty). Violates the ordered-term
+   invariant. Real code defect.
+2. **Stale published artifact** — Aguinaldo's persisted home room is
+   `G7 Room 101 @ Grade 7 Academic Wing` but its published sessions sit in
+   `G10 Room 101 @ Grade 10 Academic Wing`. Staleness, not a code defect; needs
+   regenerate + republish (HIGH-gated).
+3. **No Flag Ceremony/HGP row anywhere** — consistent with that lane being
+   unimplemented.
+
+### Accessibility observation
+
+The section dropdown's 20 options carry no `role=group` / `aria-label` semantics,
+so the grade grouping is visual only. Order is correct; grouping is not exposed to
+assistive tech.
+
 ## Boundaries
 
 - `D:\ATLAS` is a stale/dirty checkout (~466 behind) and is never an
