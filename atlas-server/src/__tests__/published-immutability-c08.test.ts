@@ -639,10 +639,10 @@ async function main() {
 
 		// ── Gate 6: anonymous public routes expose only published data ──
 		section('G06. anonymous reads expose only published data; cross-school fails closed');
-		const anonymous = await fetch(`${baseUrl}/api/v1/schools/${schoolId}/school-years/${schoolYearId}/schedules/published`);
+		const anonymous = await fetch(`${baseUrl}/api/v1/schools/${schoolId}/school-years/${schoolYearId}/schedules/published?termIndex=1`);
 		const anonymousBody: any = await anonymous.json();
 		checkEqual(anonymous.status, 200, 'G06 anonymous explicit-year published read returns 200');
-		check(Array.isArray(anonymousBody?.entries) && anonymousBody.entries.length === 18, 'G06 anonymous read exposes only the published run entries');
+		check(Array.isArray(anonymousBody?.entries) && anonymousBody.entries.length === 6 && anonymousBody.entries.every((entry: any) => entry.termIndex === 1), 'G06 anonymous read exposes only the selected published term entries');
 		check(!JSON.stringify(anonymousBody).includes('inputSnapshot'), 'G06 anonymous read never leaks the internal run snapshot');
 		let crossSchoolCode = '';
 		try {

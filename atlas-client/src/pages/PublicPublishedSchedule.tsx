@@ -6,6 +6,7 @@ import { AlertCircle, Clock3, RefreshCcw, Search } from 'lucide-react';
 import atlasApi from '@/lib/api';
 import { buildPublishedScheduleCacheMarker, resolvePublishedScheduleRequestDate } from '@/lib/published-schedule-cache-key';
 import { buildPublicScheduleCacheKey, isLikelyOfflinePublicError, readLatestPublicScheduleSnapshotByPrefix, writePublicScheduleSnapshot } from '@/lib/public-schedule-cache';
+import { buildPublicScheduleTermRequest, isExactPublishedTermPayload, PUBLIC_SCHEDULE_INVALID_TERM_MESSAGE, resolvePublicScheduleTermSelection } from '@/lib/public-schedule-term-scope';
 import { resolvePublicSectionGrade } from '@/lib/public-schedule-grade';
 import { PublishedTimetableMatrix, DAY_ORDER, type DayKey, type PublishedScheduleMatrixEntry, formatShortTime, humanizeProgram } from '@/components/published-schedule/PublishedTimetableMatrix';
 import { GradeLevelBadge } from '@/components/GradeLevelBadge';
@@ -27,6 +28,7 @@ type ScheduleMode = 'sections' | 'teachers' | 'rooms';
 
 type PublishedScheduleEntry = {
 	entryId: string;
+	termIndex: number;
 	day: string;
 	startTime: string;
 	endTime: string;
@@ -68,6 +70,10 @@ type PublishedSchedulePayload = {
 		activeRevisionId?: number | null;
 		activeRevisionEffectiveDate?: string | null;
 		revisionMarker?: string | null;
+		termScope: 'active' | 'explicit';
+		termIndex: number;
+		activeTermVerified: boolean;
+		orderedTerms: Array<{ identity: string; displayLabel: string; order: number }>;
 	};
 	entries: PublishedScheduleEntry[];
 };
@@ -104,7 +110,10 @@ function normalizeDay(day: string): string {
 function isPublishedSchedulePayload(value: unknown): value is PublicScheduleSnapshot {
 	if (!value || typeof value !== 'object') return false;
 	const payload = value as Partial<PublicScheduleSnapshot>;
-	return Boolean(payload.payload) && typeof payload.payload?.source?.runId === 'number' && Array.isArray(payload.payload?.entries);
+	return Boolean(payload.payload)
+		&& typeof payload.payload?.source?.runId === 'number'
+		&& Array.isArray(payload.payload?.entries)
+		&& isExactPublishedTermPayload(payload.payload as PublishedSchedulePayload);
 }
 
 function formatTimestamp(value: string | null): string {
@@ -133,10 +142,12 @@ export default function PublicPublishedSchedule() {
 	const [savedAt, setSavedAt] = useState<string | null>(null);
 	const [savedIsStale, setSavedIsStale] = useState(false);
 	const [error, setError] = useState<string | null>(null);
+	const [termOptions, setTermOptions] = useState<Array<{ identity: string; displayLabel: string; order: number }>>([]);
 	const [online, setOnline] = useState<boolean>(navigator.onLine);
 
 	const schoolId = useMemo(() => parsePositiveInt(searchParams.get('schoolId')) ?? DEFAULT_SCHOOL_ID, [searchParams]);
 	const requestedDate = useMemo(() => resolvePublishedScheduleRequestDate(searchParams.get('date') ?? searchParams.get('asOfDate')), [searchParams]);
+	const requestedTerm = useMemo(() => resolvePublicScheduleTermSelection(searchParams.get('term')), [searchParams]);
 	// Public view is intentionally restricted to section schedules. Teachers and rooms
 	// are admin-only surfaces; never exposed to unauthenticated students. We cast to the
 	// wider ScheduleMode union so the dead-but-defensive branches below still type-check.
@@ -173,7 +184,17 @@ export default function PublicPublishedSchedule() {
 	const loadPublishedSchedule = useCallback(async () => {
 		setLoading(true);
 		setError(null);
-		const cachePrefix = buildPublicScheduleCacheKey(schoolId, requestedDate);
+		const termRequest = buildPublicScheduleTermRequest(requestedTerm);
+		if (!termRequest) {
+			setPayload(null);
+			setSourceMode('none');
+			setSavedAt(null);
+			setSavedIsStale(false);
+			setError(PUBLIC_SCHEDULE_INVALID_TERM_MESSAGE);
+			setLoading(false);
+			return;
+		}
+		const cachePrefix = buildPublicScheduleCacheKey(schoolId, requestedDate, undefined, termRequest.termIndex);
 		const cachedSnapshot = readLatestPublicScheduleSnapshotByPrefix<PublicScheduleSnapshot>(cachePrefix, {
 			maxAgeMs: PUBLIC_SCHEDULE_CACHE_MAX_AGE_MS,
 			validate: isPublishedSchedulePayload,
@@ -181,13 +202,17 @@ export default function PublicPublishedSchedule() {
 
 		try {
 			const { data } = await atlasApi.get<PublishedSchedulePayload>(`/schools/${schoolId}/schedules/published`, {
-				params: { date: requestedDate },
+				params: { date: requestedDate, ...termRequest },
 			});
+			if (!isExactPublishedTermPayload(data)) {
+				throw new Error('Published schedule term scope is inconsistent.');
+			}
 			setPayload(data);
+			setTermOptions(data.source.orderedTerms);
 			setSourceMode('live');
 			setSavedAt(null);
 			setSavedIsStale(false);
-			writePublicScheduleSnapshot(buildPublicScheduleCacheKey(schoolId, requestedDate, buildPublishedScheduleCacheMarker(data.source)), { payload: data });
+			writePublicScheduleSnapshot(buildPublicScheduleCacheKey(schoolId, requestedDate, buildPublishedScheduleCacheMarker(data.source), termRequest.termIndex), { payload: data });
 		} catch (fetchError) {
 			const status = isAxiosError(fetchError) ? fetchError.response?.status : undefined;
 			const responseData = isAxiosError(fetchError) ? (fetchError.response?.data as { code?: string; message?: string } | undefined) : undefined;
@@ -212,12 +237,14 @@ export default function PublicPublishedSchedule() {
 				return;
 			}
 
-			if (responseData?.code === 'TERM_FILTER_NOT_READY') {
+			if (responseData?.code === 'TERM_SELECTION_REQUIRED') {
+				const details = isAxiosError(fetchError) ? (fetchError.response?.data as { details?: { orderedTerms?: Array<{ identity: string; displayLabel: string; order: number }> } } | undefined)?.details : undefined;
+				setTermOptions(details?.orderedTerms ?? []);
 				setPayload(null);
 				setSourceMode('none');
 				setSavedAt(null);
 				setSavedIsStale(false);
-				setError('Term data is not ready yet. The published schedule will be available once the active term is confirmed by the enrollment system.');
+				setError('The active term is not confirmed. Choose the term whose official schedule you want to view.');
 				setLoading(false);
 				return;
 			}
@@ -230,7 +257,7 @@ export default function PublicPublishedSchedule() {
 		}
 
 		setLoading(false);
-	}, [requestedDate, schoolId]);
+	}, [requestedDate, requestedTerm, schoolId]);
 
 	useEffect(() => { void loadPublishedSchedule(); }, [loadPublishedSchedule]);
 	useEffect(() => {
@@ -419,6 +446,15 @@ export default function PublicPublishedSchedule() {
 								<div className="flex-1 min-w-0 space-y-2">
 									<p className="text-lg font-bold text-destructive">Unable to load public schedule</p>
 									<p className="text-sm text-muted-foreground">{error}</p>
+									{termOptions.length > 0 && (
+										<div className="max-w-xs space-y-1.5">
+											<Label>Published term</Label>
+											<Select value="" onValueChange={(value) => updateSearchParams({ term: value })}>
+												<SelectTrigger><SelectValue placeholder="Choose a term" /></SelectTrigger>
+												<SelectContent>{termOptions.map((term) => <SelectItem key={term.order} value={String(term.order)}>{term.displayLabel}</SelectItem>)}</SelectContent>
+											</Select>
+										</div>
+									)}
 									<Button variant="outline" size="sm" className="rounded-xl" onClick={() => void loadPublishedSchedule()}>
 										<RefreshCcw className="mr-2 size-4" /> Try again
 									</Button>
@@ -484,6 +520,10 @@ export default function PublicPublishedSchedule() {
 									tone={sourceTone}
 									testId="public-schedule-source-status"
 								/>
+								<Select value={String(payload.source.termIndex)} onValueChange={(value) => updateSearchParams({ term: value, sectionId: null })}>
+									<SelectTrigger className="h-8 w-36 rounded-xl" aria-label="Published term"><SelectValue /></SelectTrigger>
+									<SelectContent>{payload.source.orderedTerms.map((term) => <SelectItem key={term.order} value={String(term.order)}>{term.displayLabel}</SelectItem>)}</SelectContent>
+								</Select>
 							</div>
 						)}
 						nextAction={(

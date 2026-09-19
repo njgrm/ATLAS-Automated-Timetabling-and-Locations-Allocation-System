@@ -6,6 +6,7 @@ export type PublishedScheduleCacheSource = {
 	activeRevisionId?: number | null;
 	activeRevisionEffectiveDate?: string | null;
 	revisionMarker?: string | null;
+	termIndex?: number | null;
 };
 
 function cachePart(value: string | number | null | undefined): string {
@@ -35,6 +36,7 @@ export function buildPublishedScheduleCacheMarker(source: PublishedScheduleCache
 		'revision', cachePart(source.activeRevisionId ?? 'base'),
 		'effective', cachePart(source.activeRevisionEffectiveDate ?? 'none'),
 		'date', cachePart(requestedDate),
+		'term', cachePart(source.termIndex),
 		'marker', cachePart(source.revisionMarker ?? 'base'),
 	].join('-');
 }
