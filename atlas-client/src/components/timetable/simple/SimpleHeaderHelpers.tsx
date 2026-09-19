@@ -230,12 +230,12 @@ export function SimpleScheduleControls({
 
 	return (
 		<div
-			className="flex items-center gap-1.5 rounded-lg border border-border bg-muted/20 px-2 py-1"
+			className="flex shrink-0 items-center gap-1.5 rounded-lg border border-border bg-muted/20 px-2 py-1 lg:min-w-[24rem]"
 			data-testid="timetable-simple-schedule-switcher"
 			data-view-mode={context.viewMode}
 			data-entity-filter={context.entityFilter}
 		>
-			<span className="hidden shrink-0 text-[0.68rem] font-bold uppercase tracking-wide text-muted-foreground xl:inline">
+			<span className="hidden shrink-0 text-xs font-bold uppercase tracking-wide text-muted-foreground xl:inline">
 				Showing
 			</span>
 			<Select value={context.viewMode} onValueChange={onViewModeChange}>

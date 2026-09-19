@@ -1,17 +1,12 @@
-import { Link } from 'react-router-dom';
 import {
 	ArrowRightLeft,
-	BookOpen,
 	CalendarClock,
 	ClipboardCheck,
-	HelpCircle,
 	History,
-	Info,
 	ListChecks,
 	Play,
 	RefreshCw,
 	Settings2,
-	SlidersHorizontal,
 	UserRoundX,
 } from 'lucide-react';
 
@@ -34,9 +29,6 @@ export type SimpleMoreMenuContentProps = {
 	onStartTask: (task: TimetableSimpleTask) => void;
 	onOpenTeacherDeparture: () => void;
 	onOpenRequests: () => void;
-	onOpenTutorial: () => void;
-	onOpenStatusKey: () => void;
-	onOpenFilters: () => void;
 	onLayoutModeChange: (mode: TimetableLayoutMode) => void;
 };
 
@@ -48,9 +40,6 @@ export function SimpleMoreMenuContent({
 	onStartTask,
 	onOpenTeacherDeparture,
 	onOpenRequests,
-	onOpenTutorial,
-	onOpenStatusKey,
-	onOpenFilters,
 	onLayoutModeChange,
 }: SimpleMoreMenuContentProps) {
 	return (
@@ -90,29 +79,6 @@ export function SimpleMoreMenuContent({
 				>
 					<ClipboardCheck className="size-3.5" aria-hidden="true" />
 					Review room requests{context.requestPendingCount > 0 ? ` (${context.requestPendingCount})` : ''}
-				</DropdownMenuItem>
-			</div>
-			<div className="space-y-1 rounded-md border border-border bg-muted/20 p-2">
-				<DropdownMenuLabel className="px-0 py-0 text-xs">Help</DropdownMenuLabel>
-				<DropdownMenuItem
-					className="h-9 gap-2 text-xs"
-					onSelect={(event) => { event.preventDefault(); onClose(); onOpenTutorial(); }}
-				>
-					<BookOpen className="size-3.5" aria-hidden="true" />
-					Tutorial
-				</DropdownMenuItem>
-				<DropdownMenuItem
-					className="h-9 gap-2 text-xs"
-					onSelect={(event) => { event.preventDefault(); onClose(); onOpenStatusKey(); }}
-				>
-					<Info className="size-3.5" aria-hidden="true" />
-					Status key
-				</DropdownMenuItem>
-				<DropdownMenuItem asChild className="h-9 gap-2 text-xs">
-					<Link to="/timetabling/how-it-works">
-						<HelpCircle className="size-3.5" aria-hidden="true" />
-						How this works
-					</Link>
 				</DropdownMenuItem>
 			</div>
 			<div className="space-y-1 rounded-md border border-border bg-muted/20 p-2" data-testid="timetable-simple-more-expert-tools">
@@ -177,14 +143,6 @@ export function SimpleMoreMenuContent({
 					</SelectContent>
 				</Select>
 				<div className="grid gap-1.5">
-					<DropdownMenuItem
-						className="h-9 gap-2 text-xs"
-						data-testid="timetable-filters-trigger"
-						onSelect={(event) => { event.preventDefault(); onClose(); onOpenFilters(); }}
-					>
-						<SlidersHorizontal className="size-3.5" aria-hidden="true" />
-						Filters
-					</DropdownMenuItem>
 					<Button type="button" variant="outline" size="sm" className="h-9 justify-start gap-1.5 text-xs" onClick={() => { onClose(); context.handleRefresh(); }}>
 						<RefreshCw className="size-3.5" aria-hidden="true" />
 						Refresh timetable

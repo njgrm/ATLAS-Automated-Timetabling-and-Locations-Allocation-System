@@ -21,7 +21,7 @@ export function SimpleTermSwitcher({ context }: { context: ScheduleReviewWorkspa
 			className="flex min-w-0 shrink-0 items-center gap-1.5 rounded-lg border border-border bg-muted/20 px-2 py-1"
 			data-testid="timetable-simple-term-switcher"
 		>
-			<span className="hidden shrink-0 text-[0.68rem] font-bold uppercase tracking-wide text-muted-foreground xl:inline">
+			<span className="hidden shrink-0 text-xs font-bold uppercase tracking-wide text-muted-foreground xl:inline">
 				Term
 			</span>
 			<Select value={value} onValueChange={(next) => context.onTermFilterChange(next === 'all' ? 'all' : Number(next))}>
@@ -39,7 +39,7 @@ export function SimpleTermSwitcher({ context }: { context: ScheduleReviewWorkspa
 						<SelectItem key={option.value} value={option.value}>
 							{option.label}
 							{context.activeTermIndex !== null && option.value === String(context.activeTermIndex) ? (
-								<span className="ml-1 text-[0.6rem] text-muted-foreground">(active)</span>
+								<span className="ml-1 text-xs text-muted-foreground">(active)</span>
 							) : null}
 						</SelectItem>
 					))}
@@ -156,7 +156,7 @@ export function SimpleExportMenu({
 			</DropdownMenu>
 			{needsTerm ? (
 				<span
-					className="hidden shrink-0 text-[0.68rem] font-medium text-amber-700 lg:inline"
+					className="hidden shrink-0 text-xs font-medium text-amber-700 lg:inline"
 					data-testid="timetable-simple-export-needs-term"
 				>
 					Choose a term to export.
