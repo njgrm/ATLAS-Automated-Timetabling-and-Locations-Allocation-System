@@ -1,6 +1,12 @@
 # CURRENT-SOURCE-LIVE-DEPLOY-C01
 
-Status: **PREPARED (REPINNED 2026-09-20) — NOT APPROVED**
+Status: **BLOCKED — APPROVED BUT NOT EXECUTABLE.** The operator granted the
+approval sentence on 2026-09-20. Fresh pre-action review of the repinned
+boundary returned `PLANNER_DECISION_REQUIRED` (5/6, blocked 1, unperformed 0):
+precondition 5 cannot pass and the Rollback section cannot restore the incumbent,
+because the incumbent release and the recorded fallback are not startable — their
+shared generated Prisma client is absent (see `docs/plans/live-state.md`). Do not
+execute until the rollback basis is decided and re-reviewed.
 
 Risk: **HIGH** — supervised shared-runtime replacement
 
