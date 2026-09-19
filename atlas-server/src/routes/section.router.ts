@@ -58,6 +58,14 @@ router.get('/summary/:schoolYearId', authenticate, requirePrivilegedRole, async 
 			res.status(400).json({ code: 'INVALID_PARAM', message: 'schoolId query parameter is required and must be a positive integer.' });
 			return;
 		}
+		// SECTION-ROUTE-AUTHORITY-C02 (R2): the school scope is caller-supplied,
+		// so cross-check it against the authenticated actor school before any read.
+		const actorSchoolId = requireActorSchool(req, res);
+		if (actorSchoolId === null) return;
+		if (actorSchoolId !== schoolId) {
+			res.status(403).json({ code: 'CROSS_SCHOOL_DENIED', message: 'Requested school does not match the authenticated actor school.' });
+			return;
+		}
 		const authToken = getUpstreamAuthToken(req);
 		const summary = await sectionService.getSectionSummary(schoolYearId, schoolId, authToken);
 		res.json({ ...summary, sourceMode: sectionSourceMode });
@@ -90,6 +98,19 @@ router.get('/assigned-classes', authenticateWithSystemToken, requirePrivilegedRo
 		if (!Number.isInteger(schoolYearId) || schoolYearId <= 0) {
 			res.status(400).json({ code: 'INVALID_PARAM', message: 'schoolYearId query parameter is required and must be a positive integer.' });
 			return;
+		}
+
+		// SECTION-ROUTE-AUTHORITY-C02 (R3, C01 Option A): a system token declares
+		// its target via the explicit schoolId validated above (auditable intent,
+		// no actor cross-check).  JWT/bridge actors are cross-checked against the
+		// authenticated token school before any dispatch.
+		if (req.user?.authSource !== 'system') {
+			const actorSchoolId = requireActorSchool(req, res);
+			if (actorSchoolId === null) return;
+			if (actorSchoolId !== schoolId) {
+				res.status(403).json({ code: 'CROSS_SCHOOL_DENIED', message: 'Requested school does not match the authenticated actor school.' });
+				return;
+			}
 		}
 
 		const includeDiagnostics = parseBooleanQueryFlag(req.query.includeDiagnostics);
@@ -358,6 +379,17 @@ router.post('/special-program-placement/overlay', authenticate, requirePrivilege
 		const schoolId = Number(req.body.schoolId);
 		if (!Number.isInteger(schoolId) || schoolId <= 0) {
 			res.status(400).json({ code: 'INVALID_BODY', message: 'schoolId is required and must be a positive integer.' });
+			return;
+		}
+
+		// SECTION-ROUTE-AUTHORITY-C02 (R1): actor-school authority is enforced
+		// before the school-year resolution (which may contact upstream) and
+		// before any service write.  Body validation above still wins, so a
+		// malformed body is a typed 400 regardless of actor.
+		const actorSchoolId = requireActorSchool(req, res);
+		if (actorSchoolId === null) return;
+		if (actorSchoolId !== schoolId) {
+			res.status(403).json({ code: 'CROSS_SCHOOL_DENIED', message: 'Requested school does not match the authenticated actor school.' });
 			return;
 		}
 
