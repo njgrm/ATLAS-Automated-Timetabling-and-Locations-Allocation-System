@@ -12,6 +12,31 @@ import { computeAutoAssign } from '../services/home-room-auto-assign.service.js'
 
 const router = Router();
 
+// ---------------------------------------------------------------------------
+// Actor-school authority helpers — reused by all section routes that accept a
+// caller-supplied schoolId.  Extracted from the HOME-ROOM-AUTO-ASSIGN-C01
+// inline guard; every sibling must go through the same gate.
+// ---------------------------------------------------------------------------
+
+function actorSchoolIdOf(req: Request): number | null {
+	const schoolId = req.user?.schoolId;
+	return typeof schoolId === 'number' && Number.isInteger(schoolId) && schoolId > 0 ? schoolId : null;
+}
+
+/**
+ * Actor-school guard.  Returns the actor school, or writes the typed 403 and
+ * returns `null` so the handler returns BEFORE any parameter validation,
+ * school equality check, or service dispatch.
+ */
+function requireActorSchool(req: Request, res: Response): number | null {
+	const schoolId = actorSchoolIdOf(req);
+	if (schoolId === null) {
+		res.status(403).json({ code: 'SCHOOL_SCOPE_REQUIRED', message: 'Authenticated actor is missing a bound school scope.' });
+		return null;
+	}
+	return schoolId;
+}
+
 function parseBooleanQueryFlag(value: unknown): boolean {
 	if (typeof value === 'boolean') return value;
 	if (typeof value !== 'string') return false;
@@ -121,6 +146,14 @@ router.post('/sync', authenticateWithSystemToken, requirePrivilegedRole, async (
 			return;
 		}
 
+		// Actor-school authority: reject cross-school before any upstream dispatch.
+		const actorSchoolId = requireActorSchool(req, res);
+		if (actorSchoolId === null) return;
+		if (actorSchoolId !== schoolId) {
+			res.status(403).json({ code: 'CROSS_SCHOOL_DENIED', message: 'Requested school does not match the authenticated actor school.' });
+			return;
+		}
+
 		const upstreamAuthToken = getUpstreamAuthToken(req);
 
 		// Resolve schoolYearId: use caller-supplied value if present, otherwise fetch from EnrollPro.
@@ -174,6 +207,14 @@ router.get('/home-rooms/:schoolYearId', authenticate, requirePrivilegedRole, asy
 			return;
 		}
 
+		// Actor-school authority: reject cross-school before any service read.
+		const actorSchoolId = requireActorSchool(req, res);
+		if (actorSchoolId === null) return;
+		if (actorSchoolId !== schoolId) {
+			res.status(403).json({ code: 'CROSS_SCHOOL_DENIED', message: 'Requested school does not match the authenticated actor school.' });
+			return;
+		}
+
 		const payload = await sectionService.getHomeRoomControlData(schoolYearId, schoolId);
 		res.json(payload);
 	} catch (err) {
@@ -193,6 +234,14 @@ router.put('/home-rooms/:schoolYearId', authenticate, requirePrivilegedRole, asy
 		const schoolId = Number(req.body.schoolId);
 		if (!Number.isInteger(schoolId) || schoolId <= 0) {
 			res.status(400).json({ code: 'INVALID_BODY', message: 'schoolId is required and must be a positive integer.' });
+			return;
+		}
+
+		// Actor-school authority: reject cross-school before any service write.
+		const actorSchoolId = requireActorSchool(req, res);
+		if (actorSchoolId === null) return;
+		if (actorSchoolId !== schoolId) {
+			res.status(403).json({ code: 'CROSS_SCHOOL_DENIED', message: 'Requested school does not match the authenticated actor school.' });
 			return;
 		}
 
@@ -260,11 +309,8 @@ router.post('/home-rooms/:schoolYearId/auto-assign', authenticate, requirePrivil
 		// malformed body is a typed 400 regardless of actor. A token without a
 		// bound school, or one that disagrees with the requested school, fails
 		// closed with a typed 403 and performs zero reads/writes.
-		const actorSchoolId = Number(req.user?.schoolId);
-		if (!Number.isInteger(actorSchoolId) || actorSchoolId <= 0) {
-			res.status(403).json({ code: 'SCHOOL_SCOPE_REQUIRED', message: 'Authenticated actor is missing a bound school scope.' });
-			return;
-		}
+		const actorSchoolId = requireActorSchool(req, res);
+		if (actorSchoolId === null) return;
 		if (actorSchoolId !== schoolId) {
 			res.status(403).json({ code: 'CROSS_SCHOOL_DENIED', message: 'Requested school does not match the authenticated actor school.' });
 			return;
