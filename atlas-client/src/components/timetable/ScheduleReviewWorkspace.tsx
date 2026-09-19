@@ -52,7 +52,7 @@ function TimetableDragOverlay({
 	return (
 		<div className="rounded border border-primary/60 bg-card px-2.5 py-1.5 text-xs shadow-md pointer-events-none select-none">
 			<p className="font-medium">{label}</p>
-			<p className="mt-0.5 text-[0.68rem] text-muted-foreground">Release on a highlighted cell to review move or swap.</p>
+			<p className="mt-0.5 text-xs text-muted-foreground">Release on a highlighted cell to review move or swap.</p>
 		</div>
 	);
 }
@@ -400,14 +400,14 @@ export default function ScheduleReviewWorkspace() {
 									<GraduationCap className="mr-2 size-3.5" aria-hidden="true" />
 									<span className="flex flex-col">
 										<span>Change Teaching Load owner</span>
-										<span className="text-[0.68rem] text-muted-foreground">Opens Teaching Load for this subject, section, and teacher</span>
+										<span className="text-xs text-muted-foreground">Opens Teaching Load for this subject, section, and teacher</span>
 									</span>
 								</DropdownMenuItem>
 								<DropdownMenuItem onSelect={(event) => { event.preventDefault(); openTeacherDepartureRecovery(state.selectedEntry?.facultyId ?? null); }} data-testid="teacher-departure-selected-action">
 									<UserRoundX className="mr-2 size-3.5" aria-hidden="true" />
 									<span className="flex flex-col">
 										<span>Teacher leaving (all classes)</span>
-										<span className="text-[0.68rem] text-muted-foreground">Bulk repair for every class this teacher handles</span>
+										<span className="text-xs text-muted-foreground">Bulk repair for every class this teacher handles</span>
 									</span>
 								</DropdownMenuItem>
 								<DropdownMenuItem onSelect={(event) => {

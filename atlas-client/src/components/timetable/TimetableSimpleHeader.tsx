@@ -8,7 +8,6 @@ import {
 	ChevronDown,
 	ChevronRight,
 	ClipboardCheck,
-	HelpCircle,
 	History,
 	Info,
 	ListChecks,
@@ -18,7 +17,6 @@ import {
 	GraduationCap,
 	RefreshCw,
 	Settings2,
-	SlidersHorizontal,
 	Sun,
 	UserRoundX,
 	type LucideIcon,
@@ -54,7 +52,6 @@ import {
 	resolveSimplePublishActionState,
 	shouldDispatchSimpleGenerate,
 	shouldDispatchSimplePublish,
-	SimpleFiltersContent,
 	SimpleGenerateAction,
 	SimplePublishAction,
 	SimplePublishedState,
@@ -64,6 +61,7 @@ import {
 	sourceLabel,
 	useSimpleTasks,
 } from '@/components/timetable/simple/SimpleHeaderHelpers';
+import { SimpleFilterControls } from '@/components/timetable/simple/SimpleFilterControls';
 import type { SimpleViewMode } from '@/components/timetable/simple/SimpleHeaderHelpers';
 import { SimpleExportErrorBanner, SimpleExportMenu, SimpleTermSwitcher } from '@/components/timetable/simple/SimpleBeneficiaryControls';
 import { dispatchSimpleExport, resolveSimpleExportRequest, type SimpleExportKind } from '@/components/timetable/simple/simpleExportRequests';
@@ -103,8 +101,6 @@ function TimetableSimpleHeaderImpl({
 	const navigate = useNavigate();
 	const location = useLocation();
 	const [moreOpen, setMoreOpen] = useState(false);
-	const [filtersOpen, setFiltersOpen] = useState(false);
-	const [statusKeyOpen, setStatusKeyOpen] = useState(false);
 	const [tutorialOpen, setTutorialOpen] = useState(false);
 	const [readinessSheetOpenLocal, setReadinessSheetOpenLocal] = useState(false);
 	const [exportingKind, setExportingKind] = useState<SimpleExportKind | null>(null);
@@ -446,7 +442,7 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 				<Badge
 					variant="outline"
 					className={cn(
-						'h-6 min-w-0 max-w-[28vw] shrink gap-1.5 truncate px-2 text-[0.68rem] font-semibold sm:max-w-[30rem] sm:text-xs',
+						'h-6 min-w-0 max-w-[28vw] shrink gap-1.5 truncate px-2 text-xs font-semibold sm:max-w-[30rem]',
 						context.schoolYearContext?.source === 'enrollpro-verified'
 							? 'border-emerald-200 bg-emerald-50 text-emerald-800'
 							: 'border-amber-200 bg-amber-50 text-amber-900',
@@ -474,7 +470,7 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 				) : (
 					<Badge
 						variant={context.blockingHardCount > 0 ? 'destructive' : 'secondary'}
-						className="h-5 shrink min-w-0 gap-1 truncate px-1.5 text-[0.65rem] font-semibold sm:shrink-0 sm:gap-1.5 sm:px-2 sm:text-xs sm:h-6"
+						className="h-5 shrink min-w-0 gap-1 truncate px-1.5 text-xs font-semibold sm:h-6 sm:shrink-0 sm:gap-1.5 sm:px-2"
 						data-testid="timetable-simple-readiness-chip"
 					>
 						<CheckCircle2 className="size-3.5 shrink-0" aria-hidden="true" />
@@ -507,6 +503,7 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 
 				<div className="order-last flex w-full min-w-0 shrink-0 items-center justify-start gap-1.5 overflow-x-auto lg:order-none lg:ml-auto lg:w-auto lg:max-w-[48vw] lg:justify-end">
 					<SimpleTermSwitcher context={context} />
+					<SimpleFilterControls context={context} />
 					<SimpleScheduleSheet
 						context={context}
 						lastEntityByMode={lastEntityByMode}
@@ -550,9 +547,6 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 								onStartTask={startTask}
 								onOpenTeacherDeparture={openTeacherDeparture}
 								onOpenRequests={openRequestsTask}
-								onOpenTutorial={() => setTutorialOpen(true)}
-								onOpenStatusKey={() => setStatusKeyOpen(true)}
-								onOpenFilters={() => setFiltersOpen(true)}
 								onLayoutModeChange={onLayoutModeChange}
 							/>
 						</DropdownMenuContent>
@@ -618,55 +612,6 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 				</div>
 			)}
 
-			<Dialog open={filtersOpen} onOpenChange={setFiltersOpen}>
-				<DialogContent className="max-w-sm">
-					<DialogHeader>
-						<DialogTitle>Simple filters</DialogTitle>
-						<DialogDescription>
-							Filter what appears on the grid without opening Advanced view.
-						</DialogDescription>
-					</DialogHeader>
-					<SimpleFiltersContent context={context} />
-					<DialogFooter>
-						<Button type="button" onClick={() => setFiltersOpen(false)}>Done</Button>
-					</DialogFooter>
-				</DialogContent>
-			</Dialog>
-			<Dialog open={statusKeyOpen} onOpenChange={setStatusKeyOpen}>
-				<DialogContent className="max-w-sm">
-					<DialogHeader>
-						<DialogTitle>Status key</DialogTitle>
-						<DialogDescription>
-							Plain-language meanings for grid labels.
-						</DialogDescription>
-					</DialogHeader>
-					<div className="space-y-1">
-						<p className="text-sm font-semibold text-foreground">What the grid labels mean</p>
-						<p className="text-xs leading-relaxed text-muted-foreground">The words stay meaningful even when colors are hard to distinguish.</p>
-					</div>
-					<div className="mt-3 grid gap-2" role="list" aria-label="Timetable status definitions">
-						{[
-							{ label: 'Can place', description: 'This is an empty slot where the selected session can be placed.', tone: 'border-emerald-200 bg-emerald-50 text-emerald-800' },
-							{ label: 'Can swap', description: 'The slot already has a session and can be reviewed as a possible switch.', tone: 'border-amber-200 bg-amber-50 text-amber-800' },
-							{ label: 'Blocked', description: 'A hard conflict prevents this action. Fix the issue before saving.', tone: 'border-rose-200 bg-rose-50 text-rose-800' },
-							{ label: 'Warning', description: 'The action is possible, but review the softer concern before saving.', tone: 'border-yellow-200 bg-yellow-50 text-yellow-800' },
-							{ label: 'Occupied', description: 'This slot already has one or more scheduled sessions.', tone: 'border-slate-200 bg-slate-50 text-slate-800' },
-							{ label: 'Current', description: "This is the selected session's current slot or current value.", tone: 'border-blue-200 bg-blue-50 text-blue-800' },
-						].map((item) => (
-							<div key={item.label} className="flex items-start gap-2" role="listitem">
-								<Badge variant="outline" className={cn('mt-0.5 h-6 shrink-0 px-1.5 text-[0.68rem] font-semibold', item.tone)}>
-									{item.label}
-								</Badge>
-								<p className="text-xs leading-relaxed text-muted-foreground">{item.description}</p>
-							</div>
-						))}
-					</div>
-					<DialogFooter>
-						<Button type="button" onClick={() => setStatusKeyOpen(false)}>Done</Button>
-					</DialogFooter>
-				</DialogContent>
-			</Dialog>
-
 			{context.schoolYearId ? (
 				<UnassignedInsertionWorkflow
 					open={insertionOpen}
@@ -680,15 +625,14 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 				<div
 					className="mx-3 mb-0 flex min-w-0 items-center justify-between gap-2 rounded-lg border border-border bg-muted/20 px-2 py-0 shadow-sm sm:px-3"
 					data-testid="timetable-simple-task-prompt"
-					role="status"
-					aria-live="polite"
+					aria-label="Timetable next step"
 				>
 					<div className="flex min-w-0 items-center gap-2">
 						<div className="flex size-5 shrink-0 items-center justify-center rounded-md bg-background text-primary ring-1 ring-border sm:size-6">
 							<CalendarClock className="size-4 sm:size-4.5" aria-hidden="true" />
 						</div>
 						<div className="min-w-0">
-							<p className="hidden text-[0.68rem] font-bold uppercase tracking-wide text-muted-foreground sm:block">Get started</p>
+							<p className="hidden text-xs font-bold uppercase tracking-wide text-muted-foreground sm:block">Get started</p>
 							<p className="truncate text-sm font-semibold text-foreground" data-testid="timetable-simple-next-action">
 								No timetable exists for {visibleYearLabel ?? 'the active school year'}
 							</p>
@@ -792,15 +736,14 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 				<div
 					className="mx-3 mb-0 flex min-w-0 items-center justify-between gap-2 rounded-lg border border-border bg-muted/20 px-2 py-0 shadow-sm sm:px-3"
 					data-testid="timetable-simple-task-prompt"
-					role="status"
-					aria-live="polite"
+					aria-label="Timetable next step"
 				>
 					<div className="flex min-w-0 items-center gap-2">
 						<div className="flex size-5 shrink-0 items-center justify-center rounded-md bg-background text-primary ring-1 ring-border sm:size-6">
 							<ActiveIcon className="size-4 sm:size-4.5" aria-hidden="true" />
 						</div>
 						<div className="min-w-0">
-							<p className="hidden text-[0.68rem] font-bold uppercase tracking-wide text-muted-foreground sm:block">Next step</p>
+							<p className="hidden text-xs font-bold uppercase tracking-wide text-muted-foreground sm:block">Next step</p>
 							<p className="truncate text-sm font-semibold text-foreground" data-testid="timetable-simple-next-action">
 								{activeTask ? activeTaskDefinition.label : lifecycleAction.label}
 							</p>

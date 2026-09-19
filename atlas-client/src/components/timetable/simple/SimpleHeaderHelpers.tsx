@@ -235,7 +235,7 @@ export function SimpleScheduleControls({
 			data-view-mode={context.viewMode}
 			data-entity-filter={context.entityFilter}
 		>
-			<span className="hidden shrink-0 text-[0.68rem] font-bold uppercase tracking-wide text-muted-foreground xl:inline">
+			<span className="hidden shrink-0 text-xs font-bold uppercase tracking-wide text-muted-foreground xl:inline">
 				Showing
 			</span>
 			<Select value={context.viewMode} onValueChange={onViewModeChange}>

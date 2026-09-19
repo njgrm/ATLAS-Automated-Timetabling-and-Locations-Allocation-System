@@ -115,7 +115,7 @@ export function SimpleDriftBanner({
 					</span>
 					{/* Informational domain chips stay next to the actionable repair control. */}
 					{drift.domains.map((domain) => (
-						<Badge key={domain.domain} variant="outline" className="h-5 border-amber-300 bg-white/70 px-1.5 text-[0.65rem] font-bold text-amber-800">
+						<Badge key={domain.domain} variant="outline" className="h-5 border-amber-300 bg-white/70 px-1.5 text-xs font-bold text-amber-800">
 							{domain.label}
 						</Badge>
 					))}
