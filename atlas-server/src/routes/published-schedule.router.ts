@@ -63,6 +63,15 @@ function requireTermSelection(req: Request, res: Response): ReturnType<typeof re
 	return options;
 }
 
+function requireActiveTermSelection(req: Request, res: Response): ReturnType<typeof readScheduleOptions> | null {
+	const options = readScheduleOptions(req, 'active');
+	if (options.invalidTermIndex) {
+		res.status(400).json({ code: 'INVALID_TERM_INDEX', message: `termIndex must be 1..${MAX_ACADEMIC_TERM_INDEX}, or "active".` });
+		return null;
+	}
+	return options;
+}
+
 function parseTermIndexQuery(raw: unknown): number | 'active' | 'INVALID' | undefined {
 	if (raw == null) return undefined;
 	const value = String(raw).trim().toLowerCase();
@@ -88,6 +97,8 @@ router.get('/schools/:schoolId/schedules/published', async (req: Request, res: R
 			res.status(400).json({ code: 'INVALID_PARAM', message: schoolId });
 			return;
 		}
+		const scheduleOptions = requireActiveTermSelection(req, res);
+		if (!scheduleOptions) return;
 
 		// Resolve the current active school year from the EnrollPro mirror
 		const activeMirrors = await db().enrollProSchoolYearMirror.findMany({
@@ -111,14 +122,6 @@ router.get('/schools/:schoolId/schedules/published', async (req: Request, res: R
 		}
 
 		const activeSchoolYearId = activeMirrors[0].enrollProSchoolYearId;
-		const scheduleOptions = readScheduleOptions(req, 'active');
-		if (scheduleOptions.invalidTermIndex) {
-			res.status(400).json({
-				code: 'INVALID_TERM_INDEX',
-				message: `termIndex must be 1..${MAX_ACADEMIC_TERM_INDEX}, or "active".`,
-			});
-			return;
-		}
 		try {
 			const payload = await getPublishedSchedulePayload(schoolId, activeSchoolYearId, scheduleOptions);
 			res.json(payload);
@@ -151,6 +154,8 @@ router.get('/schools/:schoolId/schedules/published/sections/:sectionId', async (
 			res.status(400).json({ code: 'INVALID_PARAM', message: sectionId });
 			return;
 		}
+		const scheduleOptions = requireActiveTermSelection(req, res);
+		if (!scheduleOptions) return;
 
 		const activeSchoolYearId = await resolveActiveSchoolYearId(schoolId);
 		if (!activeSchoolYearId) {
@@ -163,7 +168,7 @@ router.get('/schools/:schoolId/schedules/published/sections/:sectionId', async (
 		}
 
 		try {
-			const payload = await getPublishedSectionSchedule(schoolId, sectionId, activeSchoolYearId, readScheduleOptions(req, 'active'));
+			const payload = await getPublishedSectionSchedule(schoolId, sectionId, activeSchoolYearId, scheduleOptions);
 			res.json(payload);
 		} catch (serviceError: any) {
 			if (serviceError?.code === 'PUBLISHED_RUN_NOT_FOUND') {
@@ -193,6 +198,8 @@ router.get('/schools/:schoolId/schedules/published/faculty/:facultyId', async (r
 			res.status(400).json({ code: 'INVALID_PARAM', message: facultyId });
 			return;
 		}
+		const scheduleOptions = requireActiveTermSelection(req, res);
+		if (!scheduleOptions) return;
 
 		const activeSchoolYearId = await resolveActiveSchoolYearId(schoolId);
 		if (!activeSchoolYearId) {
@@ -205,7 +212,7 @@ router.get('/schools/:schoolId/schedules/published/faculty/:facultyId', async (r
 		}
 
 		try {
-			const payload = await getPublishedFacultySchedule(schoolId, facultyId, activeSchoolYearId, readScheduleOptions(req, 'active'));
+			const payload = await getPublishedFacultySchedule(schoolId, facultyId, activeSchoolYearId, scheduleOptions);
 			res.json(payload);
 		} catch (serviceError: any) {
 			if (serviceError?.code === 'PUBLISHED_RUN_NOT_FOUND') {
@@ -235,6 +242,8 @@ router.get('/schools/:schoolId/schedules/published/faculty-external/:externalFac
 			res.status(400).json({ code: 'INVALID_PARAM', message: externalFacultyId });
 			return;
 		}
+		const scheduleOptions = requireActiveTermSelection(req, res);
+		if (!scheduleOptions) return;
 
 		const activeSchoolYearId = await resolveActiveSchoolYearId(schoolId);
 		if (!activeSchoolYearId) {
@@ -247,7 +256,7 @@ router.get('/schools/:schoolId/schedules/published/faculty-external/:externalFac
 		}
 
 		try {
-			const payload = await getPublishedFacultyScheduleByExternalId(schoolId, externalFacultyId, activeSchoolYearId, readScheduleOptions(req, 'active'));
+			const payload = await getPublishedFacultyScheduleByExternalId(schoolId, externalFacultyId, activeSchoolYearId, scheduleOptions);
 			res.json(payload);
 		} catch (serviceError: any) {
 			if (serviceError?.code === 'FACULTY_NOT_FOUND') {
@@ -316,6 +325,8 @@ router.get('/schools/:schoolId/schedules/published/rooms/:roomId', async (req: R
 			res.status(400).json({ code: 'INVALID_PARAM', message: roomId });
 			return;
 		}
+		const scheduleOptions = requireActiveTermSelection(req, res);
+		if (!scheduleOptions) return;
 
 		const activeSchoolYearId = await resolveActiveSchoolYearId(schoolId);
 		if (!activeSchoolYearId) {
@@ -328,7 +339,7 @@ router.get('/schools/:schoolId/schedules/published/rooms/:roomId', async (req: R
 		}
 
 		try {
-			const payload = await getPublishedRoomSchedule(schoolId, roomId, activeSchoolYearId, readScheduleOptions(req, 'active'));
+			const payload = await getPublishedRoomSchedule(schoolId, roomId, activeSchoolYearId, scheduleOptions);
 			res.json(payload);
 		} catch (serviceError: any) {
 			if (serviceError?.code === 'PUBLISHED_RUN_NOT_FOUND') {

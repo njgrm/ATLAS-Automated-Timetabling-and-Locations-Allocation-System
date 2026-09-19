@@ -3,13 +3,25 @@ import assert from 'node:assert/strict';
 
 import { buildPublicScheduleCacheKey } from '@/lib/public-schedule-cache';
 import { buildPublishedScheduleCacheMarker } from '@/lib/published-schedule-cache-key';
-import { isExactPublishedTermPayload, resolvePublicScheduleTermSelection } from '@/lib/public-schedule-term-scope';
+import { buildPublicScheduleTermRequest, isExactPublishedTermPayload, PUBLIC_SCHEDULE_INVALID_TERM_MESSAGE, resolvePublicScheduleTermSelection } from '@/lib/public-schedule-term-scope';
 
-test('missing or invalid URL term means verified active, never numeric Term 1', () => {
+test('missing URL term means verified active while malformed terms remain invalid, never numeric Term 1', () => {
 	assert.equal(resolvePublicScheduleTermSelection(null), 'active');
 	assert.equal(resolvePublicScheduleTermSelection(''), 'active');
-	assert.equal(resolvePublicScheduleTermSelection('garbage'), 'active');
+	assert.equal(resolvePublicScheduleTermSelection('garbage'), 'invalid');
+	assert.equal(resolvePublicScheduleTermSelection('0'), 'invalid');
 	assert.equal(resolvePublicScheduleTermSelection('2'), 2);
+});
+
+test('invalid URL terms expose a selection error and dispatch zero public requests', () => {
+	let requests = 0;
+	const request = buildPublicScheduleTermRequest(resolvePublicScheduleTermSelection('unknown-term'));
+	if (request) requests += 1;
+	assert.equal(request, null);
+	assert.equal(requests, 0);
+	assert.match(PUBLIC_SCHEDULE_INVALID_TERM_MESSAGE, /invalid.*Choose/i);
+	assert.deepEqual(buildPublicScheduleTermRequest(resolvePublicScheduleTermSelection(null)), { termIndex: 'active' });
+	assert.deepEqual(buildPublicScheduleTermRequest(resolvePublicScheduleTermSelection('3')), { termIndex: 3 });
 });
 
 test('public cache identities are isolated by requested and resolved term', () => {
