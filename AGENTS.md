@@ -304,6 +304,28 @@ commands actually run with results · known risks, each marked `BLOCKING` or
   live-data apply. Independent review **before** the action, exact target, explicit
   approval, rollback, and post-action verification.
 
+### Review loops by tier — do not add ceremony
+
+| Tier | Required loop |
+| --- | --- |
+| **LOW** — docs, copy, test-only, reversible source with no authority or data boundary | `executor self-check → planner review`. **No independent QA. No auditor.** |
+| **MEDIUM** — production wiring, cross-layer shape, concurrency | `executor → one fresh QA → planner integration`. Auditor only if QA returns ambiguity, or the integration has genuinely overlapping changes. |
+| **HIGH** — migration, destructive or production-data write, auth boundary, deployment, generation, publication, live apply | `packet review → explicit approval → executor → independent post-action QA`. Completion auditor only for irreversible writes, deployment failure, conflicting evidence, or publication. |
+
+- **Documentation-only corrections:** the planner applies and verifies them directly.
+  No executor/QA loop, unless the document grants authority or contains a HIGH
+  approval boundary.
+- **Test-only corrections:** rerun the affected tests plus **one** relevant
+  preservation suite. Do not repeat builds or full regression inventories unless
+  production code changed.
+- **A bounded correction does not require a full re-review.** After a correction
+  commit, review the *new commit and its blast radius*, not the whole range again.
+- **Checkpoint large cycles.** Commit a coherent candidate every 45–60 minutes so a
+  step limit resumes from a checkpoint instead of reconstructing the cycle.
+- **One writer per stream.** Before dispatch the planner names the stream owner and
+  worktree. No second planner or agent writes to that branch or worktree until the
+  owner releases it. Two planners on one stream is a custody defect, not parallelism.
+
 ### Gates that have actually caught defects — keep these
 
 1. **Production-path proof.** Exercise the real route or service. A helper-only test
@@ -441,3 +463,30 @@ these plus the branches are enough to resume.
   never substitutes for evidence.
 - **Do not reload this directive from disk** when it is already in context. Use
   targeted reads only to recover a specific rule.
+
+### Token economy — the bill is uncached input
+
+Measured on real work: **~40,000 new (uncached) input tokens per request** against
+~200,000 cached, and uncached input was **82% of the cost**. Every request re-sends
+the whole session context; only the new content bills at full rate. Coordination
+ceremony *is* token burn — an extra reviewer is a whole extra session reading context.
+
+- **Reset the session between lanes.** A long session re-sends its entire context on
+  every request. The living-state file and the committed packets exist so this is
+  safe; that is their real payoff. **This is the single largest lever.**
+- **Point at artifacts, do not paste them.** A subagent prompt names a committed
+  packet path; it does not contain the packet.
+- **Batch independent shell checks into one call.** Each extra call is a full
+  round-trip through the context.
+- **Cap every output** — `-First`, `--oneline`, `--stat`, `-Tail`. Never dump a whole
+  file, a directory listing, or a JSON payload into context.
+- **Never re-verify a fact established in the same session.** Re-running a check for
+  reassurance costs a full request and buys nothing.
+- **No `webfetch` on documentation pages** — one page can exceed 10,000 tokens. Prefer
+  a targeted search, and state the answer is a snapshot.
+- **Keep this directive short.** Detailed test matrices and domain contracts belong in
+  referenced files under `docs/`, not here. Every agent pays for every line of this
+  file on every request.
+- Verification gates, independent QA, and immutable commit ranges are **cheap** and
+  stay. This rule targets exploratory volume and duplicated coordination, not
+  discipline.
