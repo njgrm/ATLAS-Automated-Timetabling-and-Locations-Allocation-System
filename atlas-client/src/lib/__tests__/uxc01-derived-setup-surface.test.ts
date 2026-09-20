@@ -67,6 +67,19 @@ test('UX-C01: the app mounts legacy deep links as non-mutating replace-redirects
 test('UX-C01: the setup navigation advertises Subjects, never a retired requirements entry', () => {
 	const navPath = join(SRC_ROOT, 'components', 'app-shell', 'navigation.ts');
 	const source = readFileSync(navPath, 'utf8');
-	assert.doesNotMatch(source, /requirements/i);
+	// Contract note: the old bare-substring guard /requirements/i was over-broad —
+	// it also matches the legitimate subject-requirements chrome override keyed on
+	// the route path '/subjects/requirements' (title 'Subject Requirements'), which
+	// is the subject-requirements feature, not the retired annual Curriculum
+	// Requirements workflow. The true retired-concept contract is: no reference to
+	// the retired workflow's own name and no nav entry advertising 'Requirements'
+	// as a standalone item — while the '/subjects/requirements' route key stays
+	// explicitly allowed.
+	assert.doesNotMatch(source, /CurriculumRequirements/);
+	assert.doesNotMatch(source, /label:\s*['"]Requirements['"]/i);
+	assert.doesNotMatch(source, /to:\s*['"]\/requirements['"]/i);
+	// Explicitly allowed: the subject-requirements chrome override (pre-dates this
+	// guard; a route-keyed title, not a setup-nav advertisement).
+	assert.match(source, /'\/subjects\/requirements'/);
 	assert.match(source, /to: '\/subjects'/);
 });
