@@ -158,6 +158,19 @@ const router = createBrowserRouter([
 			{
 				path: 'timetable',
 				element: <ScheduleReview />,
+				children: [
+					// UX-R03a — index and policies share one mounted workspace shell
+					// (ScheduleReview renders the workspace once plus an Outlet).
+					// The URL only drives the existing centerView state through the
+					// guarded setter (see TimetableRouteViewSync); the element-less
+					// children below render nothing, so navigating between them
+					// never unmounts the review workspace, the grid, or the query
+					// cache and issues no fresh data requests.
+					{ index: true },
+					{ path: 'policies' },
+					// Unknown children fall back to the index surface, never a blank center.
+					{ path: '*', element: <Navigate to="/timetable" replace /> },
+				],
 			},
 			{
 				path: 'timetabling/how-it-works',
