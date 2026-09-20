@@ -300,6 +300,13 @@ already accepted.
   row, and must be labelled as one when the packet is written. Precedent: two cycles lost
   a row to wording no available harness could decide, and one demanded a DOM-identity
   property the architecture could not provide.
+- **Prove the outcome, not the wiring.** When a change alters what a user reaches, the
+  evidence must exercise that entry path end to end — the route entry, the click, the
+  deep link — and assert the state that results, not merely that a handler calls the
+  right setter. Precedent: a route entry was correctly wired to the guarded setter and
+  passed every assertion, yet a URL entry landed on the wrong left-rail panel because
+  the in-app path also sets a companion state that the route path skipped. Wiring tests
+  pass on a pane the operator cannot use.
 - **A bounded correction does not require a full re-review.** After a correction
   commit, review the *new commit and its blast radius*, not the whole range again.
   Still prove that the prior accepted commits remain ancestors, unchanged reviewed
