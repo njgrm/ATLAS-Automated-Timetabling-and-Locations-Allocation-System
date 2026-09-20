@@ -18,27 +18,28 @@ and AIMS.
 ## Live release
 
 - Tailnet: `https://njgrm.buru-degree.ts.net`
-- Release SHA: `d50dde642c10b1ea6fdc9097266ace53cdba2063`
-- Supervisor: PID 90968; server `5001 -> 91512`; client `5174 -> 90172`
-- Active directory: `D:\ATLAS-runtime-supervised-d50dde64-20260920`
-- Deployed 2026-09-20 by `CURRENT-SOURCE-LIVE-DEPLOY-C02`, the first **one-shot**
-  packet (source + deployment + browser acceptance in one cycle). Status:
-  **DEPLOYED, acceptance incomplete.** Rows 1-8 were independently reproduced by
-  post-action QA (including the zero-write proof: reverting the authorized login
-  reproduces the recorded pre hash exactly). Rows 9/10/12 — route round-trip element
-  and request identity on all six `/timetable*` routes, the `1366x768` viewport check,
-  and the policy anchor — were executed by the planner as the single browser
-  controller and are **not independently reproduced**, because browser custody is
-  serial. Row 11 (live guard dialog) is **blocked by condition**, which the packet
-  pre-authorized: no pending pre-generation draft exists (`locked_sessions`: 4 rows,
-  all `LOCKED_FOR_RUN`), and creating one would persist a write and break row 8.
-- Authorized login for that pass: `audit_logs` row 853 `LOCAL_LOGIN_SUCCESS`, actor 46.
-- Served client entry chunk: `assets/index-BZ9J8198.js`; served HTML and all 35
-  referenced assets byte-match the built dist manifest, and the bundle carries
-  `/timetable/policies`.
-- Rollback basis: `7499916886707c35ea708a17ef7a87e791a6bade` at
-  `D:\ATLAS-runtime-supervised-74999168-20260920` — startable, junction-free, with its
-  task-XML capture retained. Rollback was not executed.
+- Release SHA: `c93dd2ee352a1e1a2d2850d6f3e746b69a63f559`
+- Supervisor: PID 91896; server `5001 -> 92740`; client `5174 -> 82444`
+- Active directory: `D:\ATLAS-runtime-supervised-c93dd2ee-20260920`
+- Deployed 2026-09-20 by the `UX-R03c` one-shot. Rows 1-6 (source), 7-14 (deployment)
+  and 17 (the duplicate policy fetch is genuinely gone — exactly one
+  `GET /policies/scheduling/…`, no 502) were independently reproduced by post-action QA;
+  row 16 (no global scrollbar at `1366x768` on all seven routes) also passed. Row 18 (the
+  header's own export control) is **unperformed**, because rapid sequential child-route
+  loads intermittently failed to mount the workspace.
+- **Correction to the C02 record.** C02's planner-executed row 9 reported "same workspace
+  element instance". Independent browser QA for `R03c` **falsified** it: `AppShell.tsx:566,574`
+  keys the Outlet by `${location.pathname}:${routeEpoch}`, so every `/timetable/*` pathname
+  change unmounts and remounts the route subtree. The zero-new-request half holds (the
+  query cache survives), but the element-identity claim was a false pass and is withdrawn.
+  This is why browser rows must not be planner-executed.
+- Authorized logins: `audit_logs` row 853 (C02 pass) and row 854 (R03c QA pass), actor 46.
+- Served client entry chunk: `assets/index-BiORrVpn.js`; served HTML and all 34 referenced
+  assets byte-match the built dist manifest, and the bundle carries `/timetable/exports`.
+- Rollback basis: `d50dde642c10b1ea6fdc9097266ace53cdba2063` at
+  `D:\ATLAS-runtime-supervised-d50dde64-20260920` — startable, junction-free, with its
+  task-XML capture retained. Rollback was not executed. The older `74999168` release is
+  still present and startable.
 - Retained do-not-retire trees: `0eb3b67f` (repaired shared client),
   `8eb0511baa53` (client graft source), and `E:\ATLAS-worktrees\ux-quickfix-c01`.
 - Local/Tailnet health, readiness, client and DB-backed probes are 200; public
@@ -198,17 +199,12 @@ and AIMS.
 
 ## Single next action
 
-`CURRENT-SOURCE-LIVE-DEPLOY-C02` is **deployed** and its evidence integrated; the live
-demo now runs `UX-R03a` + `UX-R03b`. Two residuals remain from its acceptance, both
-recorded above: rows 9/10/12 are planner-executed browser rows that no independent
-reviewer has reproduced (serial browser custody), and row 11 is blocked by condition.
-The next one-shot is `UX-R03c` — new `/timetable/runs`, `/setup` and `/exports` panes,
-chrome overrides for the routes added in `UX-R03a`/`UX-R03b`, and the one-owner fix for
-the double policy fetch — bundled with its own deployment and browser acceptance; give
-its QA the browser controller so the route round-trip and viewport rows are reproduced
-independently rather than by the planner. EnrollPro needs no ATLAS action — wait for the
-peer `dev-jegs` to come back online and do not execute the superseded live packet.
-Dispatch the SMART and AIMS handoffs to their repository owners in parallel;
-generate/install directional keys only after both sides consume the agreed names.
-Regeneration and publication remain separately locked, as do all Teaching Load and
-term-cache applies.
+The next one-shot is `UX-R03d`: the `/timetable/runs` and `/timetable/setup` panes, the
+`AppShell` Outlet-keying fix so the timetable workspace stops remounting on its own child
+routes (the falsified C02 row 9), the row-18 header export-control check, and an
+investigation of the intermittent `/api/v1` 502s and workspace non-mount observed under
+rapid sequential loads. EnrollPro needs no ATLAS action — wait for the peer `dev-jegs` to
+come back online and do not execute the superseded live packet. Dispatch the SMART and
+AIMS handoffs to their repository owners in parallel; generate/install directional keys
+only after both sides consume the agreed names. Regeneration and publication remain
+separately locked, as do all Teaching Load and term-cache applies.
