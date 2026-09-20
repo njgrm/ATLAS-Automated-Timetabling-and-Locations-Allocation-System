@@ -23,30 +23,34 @@ Worktree disposition: `RETIRE_AFTER_INTEGRATION`.
 ## 1. Objective
 
 Deploy the accepted client-source delta and, against that deployed build, close the
-four clauses the `UX-R03a` and `UX-R03b` packets deferred as deployment-acceptance
-items. This is the first one-shot packet: the source is already independently accepted,
-so this packet carries deployment **and** the browser acceptance that closes its
-deferrals, in one cycle.
+deferred deployment-acceptance clauses from `UX-R03a` and `UX-R03b`: route round-trip
+identity and requests plus the `1366x768` viewport for **all six** `/timetable*` routes,
+the live guard dialog, and the policy anchor. This is the first one-shot packet: the
+source is already independently accepted, so this packet carries deployment **and** the
+browser acceptance that closes its deferrals, in one cycle.
 
 ## 2. Delta being deployed — client-only
 
-- Source (6): `atlas-client/src/App.tsx`,
+- Source (7): `atlas-client/src/App.tsx`,
   `atlas-client/src/components/app-shell/navigation.ts`,
   `atlas-client/src/components/timetable/{CenterWorkspace,ScheduleReviewWorkspace,TimetableRouteViewSync}.tsx`,
   `atlas-client/src/components/timetable/simple/SimpleMoreMenuContent.tsx`,
   `atlas-client/src/pages/ScheduleReview.tsx`.
-- Tests (5): the two new timetable route suites, the updated capabilities-guard suite,
+- Tests (4): the two new timetable route suites, the updated capabilities-guard suite,
   and the narrowed `uxc01-derived-setup-surface` suite.
 - **No server, schema, `ops/runtime`, dependency, or environment change.** Every
   `origin/main` commit above the pin is docs-only.
 
 ## 3. Deferred clauses this packet must close (browser rows 9-12)
 
-1. **Route round trip.** `/timetable` → `/timetable/policies` → `/timetable` keeps the
-   review workspace mounted — the workspace container must be the **same DOM element
-   instance** across the round trip — and issues **zero** new data requests.
-2. **Viewport.** No global scrollbar at `1366x768` on `/timetable` and
-   `/timetable/policies`.
+1. **Route round trip — all six routes.** For each of `/timetable`,
+   `/timetable/policies`, `/timetable/pre-generation`, `/timetable/map`,
+   `/timetable/manual-edit` and `/timetable/building`: a round trip away from and back
+   to the route keeps the review workspace mounted — the workspace container must be the
+   **same DOM element instance** across the round trip — and issues **zero** new data
+   requests.
+2. **Viewport — all six routes.** No global scrollbar at `1366x768` on any of the six
+   routes.
 3. **Live guard dialog.** With a guarded (unsaved-change) state, cancelling from
    `pre-generation` settles both the URL and the shown view and does **not** re-open the
    dialog for the same cancelled navigation.
@@ -77,19 +81,20 @@ deferrals, in one cycle.
    release's HEAD, `git status --short`, supervisor state (`releaseSha`, `sourceDir`,
    `ownedPids`), listener owners, and local/Tailnet health. Capture the incumbent task
    XML before any mutation.
-3. Prove the incumbent is startable (rollback basis): `dist/server.js`,
-   `atlas-client/dist/index.html`, `ops/runtime/cli.mjs`, and a loadable generated
-   client through its dependency junctions.
+3. Prove the incumbent is startable (rollback basis): `atlas-server/dist/server.js`,
+   `atlas-client/dist/index.html`, `ops/runtime/cli.mjs`, and
+   `atlas-server/node_modules/.prisma/client` loadable with its query engine present.
+   **The release is junction-free** — it was built with its own dependency trees; do not
+   look for, expect, or create a dependency-junction chain.
 4. Disk: `D:` free space before, the projected release footprint, and the free space
    after — fail closed below 15 GiB.
 5. `safe.directory` at system scope contains the wildcard `*`: satisfy this gate with
    the wildcard and add nothing.
-6. **Zero-write evidence, using the C01 method verbatim.** Reuse the exact SQL and
-   serialization recorded in
-   `docs/reviews/current-source-live-deploy-c01/evidence.md` (the dollar-quoted
-   `pg_tables` enumeration with
-   `md5(string_agg(md5(row_to_json(t)::text), '' ORDER BY md5(row_to_json(t)::text)))`
-   and the `<name> count=<n> sig=<md5>` line format, SHA-256 of the file). Do not
+6. **Zero-write evidence, using the C01 method verbatim.** Use the SQL and
+   serialization **exactly as recorded in the C01 evidence addendum**
+   (`docs/reviews/current-source-live-deploy-c01/evidence.md`) — quote its text verbatim
+   rather than retyping a paraphrase, because the bare single-quoted form fails on this
+   database with `42883`/`42846` and only the addendum's dollar-quoted form runs. Do not
    re-derive a variant; if it does not run, stop and report.
 7. Record the durable env file's key-name set and SHA-256 (no values).
 8. Record the served client entry chunk name and SHA-256 of the incumbent, for the
@@ -105,7 +110,11 @@ deferrals, in one cycle.
    processes;
 3. quiesce the incumbent supervisor tree, re-point `ATLAS_RUNTIME_SOURCE_DIR` and
    `ATLAS_RUNTIME_RELEASE_SHA`, register the replacement task XML, and start once via
-   `schtasks /run /tn "ATLAS-Runtime-Supervisor"`;
+   `schtasks /run /tn "ATLAS-Runtime-Supervisor"`. **Known hazard from C01:** `schtasks`
+   rejects the bytes its own `/query /xml` returns (UTF-8 body with a UTF-16
+   declaration); C01 had to re-declare the encoding before registration succeeded. If
+   registration fails, fix the declaration and record the literal repair — never
+   substitute silently;
 4. the browser acceptance pass, including **one** authorized login (disclose its audit
    row and `last_login_at` delta);
 5. remove every temporary XML, scratch script, and probe artifact this action created.
@@ -137,7 +146,13 @@ deferrals, in one cycle.
 9. **Route round trip (browser).** As §3 item 1, with the workspace element instance
    asserted identical and the round-trip request count asserted zero.
 10. **Viewport (browser).** As §3 item 2.
-11. **Guard dialog (browser).** As §3 item 3.
+11. **Guard dialog (browser).** As §3 item 3. **Read-only entry condition:** the guard
+   fires only while `centerView === 'pre-generation'` and a pre-generation draft is
+   pending or a draft placement exists, and the only producers of that state are draft
+   placements, which persist. Therefore: first check read-only whether the live year
+   already holds such a draft (counts > 0). If it does, exercise the cancel path. **If it
+   does not, mark this row `BLOCKED` with that reason — never place a session to create
+   the state**, because a placement persists and would break row 8.
 12. **Policy anchor and new panes (browser).** As §3 item 4.
 
 Fresh independent post-action QA must reproduce rows 1-8, and the browser rows 9-12
