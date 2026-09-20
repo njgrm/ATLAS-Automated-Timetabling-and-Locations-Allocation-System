@@ -110,10 +110,24 @@ and AIMS.
   dialog and anchor click, are **deployment-acceptance items** for the next release;
   QA's NON_BLOCKING finding that cancelling from `pre-generation` can raise the guard
   dialog twice is a bounded successor for `UX-R03b`.
-- `UX-R03b` is the remaining route split: `/timetable/runs`, `/timetable/setup`,
-  `/timetable/exports`, the `/map` dedupe, and routing the `pre-generation`,
-  `manual-edit`, `map` and `building` center views. Nothing in `UX-R03a` removed any
-  operator capability, so the four unrouted views stay reachable as before.
+- `UX-R03b` is **integrated and independently accepted** 2026-09-20 (QA `ACCEPT_READY`
+  8/8/0/0): the four remaining existing center views are routed under the same mounted
+  shell (`/timetable/pre-generation`, `/map`, `/manual-edit`, `/building`), the two
+  selection-dependent panes show truthful empty states and never fabricate a selection,
+  the `/map` duplication is resolved by routing without deleting the standalone campus
+  editor, and the `UX-R03a` double-guard-dialog residual is closed. A QA-found blocking
+  defect — a URL entry to `/timetable/pre-generation` showing the Room Requests panel
+  instead of the Draft queue — was fixed additively inside the same cycle. Not deployed.
+  The new routes fall back to generic shell chrome because `navigation.ts` was outside
+  the packet's authorized paths.
+- `UX-R03c` is the successor: new `/timetable/runs`, `/setup` and `/exports` sub-pages
+  (those panes do not exist as components yet, so they are a design task, not routing),
+  plus chrome overrides for the routes added in `UX-R03a`/`UX-R03b`.
+- Pre-existing red test, **unrelated to today's lanes**: `uxc01-derived-setup-surface.test.ts`
+  fails 1 of 4 because `navigation.ts` carries a legitimate `/subjects/requirements`
+  route override while the assertion forbids the substring `/requirements/i` anywhere in
+  that file. Reproduced present at `19e9481f`, i.e. before `UX-R03a` was integrated. A
+  bounded LOW test-contract correction is queued.
 - `COMPANION-DIRECT-FEDERATION-C04` is integrated and independently accepted.
   The deployed runtime still supports EnrollPro only. SMART/AIMS activation
   remains blocked on their companion-side implementations, directional key
@@ -162,14 +176,14 @@ and AIMS.
 
 ## Single next action
 
-Take `UX-R03b` (the remaining route split: `/timetable/runs`, `/setup`, `/exports`,
-the `/map` dedupe, and routing the four unrouted center views), folding in the
-`pre-generation` double-guard-dialog residual from `UX-R03a`. The next deployment's
-acceptance must also close `UX-R03a`'s deferred empirical clauses: DOM/request-count
-proof that a round trip remounts nothing and refetches nothing, the `1366x768` viewport
-check, the live guard dialog and the More-menu anchor click. EnrollPro needs no ATLAS
-action — wait for the peer `dev-jegs` to come back online and do not execute the
-superseded live packet. Dispatch the SMART and AIMS handoffs to their repository
-owners in parallel; generate/install directional keys only after both sides consume
-the agreed names. Regeneration and publication remain separately locked, as do all
-Teaching Load and term-cache applies.
+Deploy the accepted source — `UX-R03a` and `UX-R03b` are integrated but undeployed, and
+their deferred empirical clauses (DOM/request-count identity across the route round
+trip, the `1366x768` viewport check, the live guard dialog and anchor click) can only be
+closed against a deployed build. Then take `UX-R03c` (the new `/timetable/runs`,
+`/setup` and `/exports` sub-pages plus the chrome overrides) and the queued LOW
+test-contract correction for the pre-existing `requirements` assertion. EnrollPro needs
+no ATLAS action — wait for the peer `dev-jegs` to come back online and do not execute the
+superseded live packet. Dispatch the SMART and AIMS handoffs to their repository owners
+in parallel; generate/install directional keys only after both sides consume the agreed
+names. Regeneration and publication remain separately locked, as do all Teaching Load
+and term-cache applies.

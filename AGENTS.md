@@ -288,6 +288,18 @@ already accepted.
   by `4794bd9e` and still exited 0 with a green tally, and a Muse Spark C02 candidate
   added a 398-line test file with no script entry where the accepted DeepSeek
   candidate added one.
+- **Record what you actually ran, and never substitute silently.** When an acceptance
+  row depends on a computed artifact — a hash, a signature map, a count — the evidence
+  must retain the literal command, SQL and serialization that produced it. If a packet
+  step cannot be run literally, either stop and report it or record the literal text you
+  ran at the moment you deviate. Precedent: a deploy adapted the packet's SQL and
+  repaired a task-XML encoding without retaining either, so its zero-write row could not
+  be independently reproduced and an extra executor-plus-QA round was spent closing it.
+- **Every acceptance row names the harness that decides it.** A row that needs a
+  browser, a login, or a deployed build is a deployment-acceptance clause, not a source
+  row, and must be labelled as one when the packet is written. Precedent: two cycles lost
+  a row to wording no available harness could decide, and one demanded a DOM-identity
+  property the architecture could not provide.
 - **A bounded correction does not require a full re-review.** After a correction
   commit, review the *new commit and its blast radius*, not the whole range again.
   Still prove that the prior accepted commits remain ancestors, unchanged reviewed
