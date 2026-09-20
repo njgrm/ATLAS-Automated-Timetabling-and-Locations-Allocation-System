@@ -75,3 +75,44 @@ Not required, not executed. Symmetric path staged: original XML (`72FB5C1C…`) 
 post-action QA terminal; incumbent release, `0eb3b67f` client graft, and `ux-quickfix-c01` host deps untouched.
 
 Verdict: `REVIEW_REQUIRED` — deployed and 8/8 on the real path; awaiting fresh independent post-action QA.
+
+## Addendum (2026-09-20): retained schema-wide signature method + reproduction
+
+Post-action QA (7/8, row 8 partially blocked) found the signature method under-retained: the recorded file
+hash `222718C7…E7C3E3` could not be reproduced from the packet's literal single-quoted text, which fails on
+this database with `42883`/`42846`. This addendum retains the exact method and its reproduction. No runtime,
+task, port, machine-variable, env-file, migration, login, or write action was taken for it.
+
+Literal SQL issued (via `$queryRawUnsafe` on a throwaway Node script resolving `@prisma/client` from the
+do-not-retire graft tree `D:\ATLAS-runtime-supervised-8eb0511baa53-20260917\atlas-server`; `DATABASE_URL`
+read from the durable env file into that child process only; script deleted after each run):
+
+- Table enumeration: `SELECT tablename FROM pg_tables WHERE schemaname=$$public$$ ORDER BY tablename`
+- Per table `T` (name safely quoted as `"T"` with `"` doubled): `SELECT COUNT(*)::int AS c,
+  COALESCE(md5(string_agg(md5(row_to_json(t)::text), $$$$ ORDER BY md5(row_to_json(t)::text))),
+  md5($$$$)) AS s FROM public."T" t`
+
+`$$public$$` ≡ `'public'` and `$$$$` ≡ `''` (dollar-quoting is semantically identical to the packet's
+single quotes; it only avoids shell/round-trip mangling). The row expression is the packet's literal
+`row_to_json(t)` — unchanged.
+
+Serialization/ordering rule: for each table, per-row key `md5(row_to_json(t)::text)`, rows ordered by that
+key, concatenated with the empty-string separator, outer `md5` over the concatenation; an empty table maps
+to `md5('')`. Output text is one line per table, tables in name order, `"<name> count=<n> sig=<md5>"`, plus a
+trailing newline. The recorded value is the SHA-256 of that whole file.
+
+Reproduction (read-only, exact reconstructed script, run after QA's finding): 46 tables, file SHA-256
+`222718C713FEA9370C8BC903D067C2B002D8373F28416C313331CCA030E7C3E3` — EQUAL to the recorded pre and post
+values. No `42883`/`42846` occurred under this exact method.
+
+Timing/identity implication: the pre map was captured before the release build finished and before any
+quiescence of 5001/5174 — a true pre-mutation baseline. Pre = post (recorded in-session) = independent
+reproduction now, all three under the identical method, so the zero-database-write identity claim stands;
+the gap was retention, not runtime behaviour.
+
+Packet-correction observation: the literal single-quoted `row_to_json(t)` form from precondition 8 is
+unusable as written on this database (`42883`/`42846` per QA's 25+ variants), while the semantically
+identical dollar-quoted text above succeeds. The next packet revision must pin the exact SQL text and the
+serialization/ordering rule verbatim (as retained here) instead of the bare expression — the same class of
+correction the repair packet's sequence clause required. Residual risk: NON_BLOCKING (evidence gap closed;
+no runtime defect; rollback still executable and untouched).
