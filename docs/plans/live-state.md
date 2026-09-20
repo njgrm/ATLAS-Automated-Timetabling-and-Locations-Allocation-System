@@ -4,8 +4,8 @@ Current operational truth only. Git history and handoff documents retain older
 evidence. Update this file when a live fact, blocking decision, or next action
 changes.
 
-Last verified: 2026-09-20 (planner reconciliation; pre-action review of the
-repinned deploy packet found the live release is not restartable)
+Last verified: 2026-09-20 (planner reconciliation; live release restartability
+repaired and independently proven)
 
 ## Objective
 
@@ -45,11 +45,15 @@ and AIMS.
 - The incumbent client `node_modules` is a junction to
   `E:\ATLAS-worktrees\ux-quickfix-c01\atlas-client\node_modules`; retiring that
   worktree would break the incumbent host build. Do not retire it.
-- Rollback basis: **UNRESOLVED.** The recorded fallback
-  `f0d65a531e34ded9d8148a1c3f7bf5ddbf2eec4a` is junctioned into `4ce73d15`,
-  which also lacks the generated client, so it is **not startable**. A startable
-  basis requires either a repaired `0eb3b67f` tree or a re-based
-  verified-startable release with proven schema and data equivalence.
+- Rollback basis: **RESOLVED (2026-09-20).** `PRISMA-CLIENT-REPAIR-C01` added the
+  ten missing generated-client files to `0eb3b67f` from the schema-, version- and
+  engine-equivalent sibling `8eb0511baa53`, create-new-only, touching none of the
+  17 pre-existing files. Independent post-action QA `ACCEPT_READY` 8/8/0/0 proved
+  a fresh server process from the incumbent release starts on an alternate port
+  and serves health, readiness and a DB-backed read, with the table (47/47) and
+  sequence (48/48) maps unchanged. The recorded fallback `f0d65a53` remains
+  non-startable and must not be relied on. Graft source `8eb0511baa53` is now a
+  do-not-retire dependency.
 - Worktree hygiene 2026-09-20: retired `published-revision-authority-c12`
   (`c01b171f`), `section-route-authority-c02` (`af1ed0bb`), and
   `section-route-authority-c03` (`6f1abc2b`) after proving each clean and an
@@ -101,18 +105,17 @@ and AIMS.
 - The SMART and AIMS mirrors remain at the handoff baselines and do not yet
   implement their ATLAS peer routes. Generate/install no directional keys yet.
 - `CURRENT-SOURCE-LIVE-DEPLOY-C01` passed independent pre-action review at
-  `ba9771a8` (`ACCEPT_READY` 10/10/0/0) for pin `134bcf28`. **Repinned
-  2026-09-20** to `7499916886707c35ea708a17ef7a87e791a6bade`, release
-  `D:\ATLAS-runtime-supervised-74999168-20260920`; the 32-commit / 20-product-file
-  pin delta is recorded in the packet. Operator approval is granted (delegated
-  sentence read and accepted 2026-09-20). **Execution is BLOCKED**: the fresh
-  pre-action review of the repinned boundary returned
-  `PLANNER_DECISION_REQUIRED` (5/6, blocked 1, unperformed 0) because
-  precondition 5 cannot pass and the rollback section cannot restore the
-  incumbent — the rollback basis above is not startable. The forward path
-  (isolated release with its own dependency tree and generated client) is sound.
-  `D:` is 23.31 GiB free, below the 25 GiB warning threshold, so its disk
-  projection remains a mandatory execution precondition.
+  `ba9771a8` (`ACCEPT_READY` 10/10/0/0) for pin `134bcf28`, and was **repinned
+  2026-09-20** to `7499916886707c35ea708a17ef7a87e791a6bade` at release
+  `D:\ATLAS-runtime-supervised-74999168-20260920`. Operator approval was granted
+  (delegated sentence read and accepted 2026-09-20) and stands. The repinned
+  review's single blocking finding — no startable rollback basis — is resolved by
+  `PRISMA-CLIENT-REPAIR-C01` above. The packet is now **r3, awaiting its bounded
+  re-review** over the amendment (rollback basis plus the reviewer's non-blocking
+  corrections); execute only after that clears. Every `origin/main` tip above
+  `74999168` is docs-only, so the pin is functionally current. `D:` is 23.31 GiB
+  free, below the 25 GiB warning threshold, so its disk projection remains a
+  mandatory execution precondition.
 
 ## Operator decisions
 
@@ -129,12 +132,10 @@ and AIMS.
 
 ## Single next action
 
-Decide the rollback basis for `CURRENT-SOURCE-LIVE-DEPLOY-C01`, then re-review
-and execute the repinned deploy: (a) repair the generated Prisma client into
-`0eb3b67f` as a bounded HIGH action — restores the exact incumbent rollback basis
-and removes the live restart fragility; (b) re-base the packet's rollback to a
-verified-startable release with proven schema and data equivalence; or (c)
-execute with a documented deploy-as-restore from a startable release. In
-parallel, dispatch the SMART and AIMS handoffs to their repository owners.
-Generate/install directional keys only after both sides consume the agreed
-names. Regeneration and publication remain separately locked.
+Execute `CURRENT-SOURCE-LIVE-DEPLOY-C01` (r3) after its bounded re-review: the
+repinned deploy now has a startable rollback basis and the operator's standing
+approval, so the only open question is whether to spend the deploy now or after
+the remaining unowned packets (`flag-compensation-slot-c01`,
+`export-presentation-c12`). In parallel, dispatch the SMART and AIMS handoffs to
+their repository owners. Generate/install directional keys only after both sides
+consume the agreed names. Regeneration and publication remain separately locked.

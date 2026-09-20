@@ -1,12 +1,15 @@
 # CURRENT-SOURCE-LIVE-DEPLOY-C01
 
-Status: **BLOCKED — APPROVED BUT NOT EXECUTABLE.** The operator granted the
-approval sentence on 2026-09-20. Fresh pre-action review of the repinned
-boundary returned `PLANNER_DECISION_REQUIRED` (5/6, blocked 1, unperformed 0):
-precondition 5 cannot pass and the Rollback section cannot restore the incumbent,
-because the incumbent release and the recorded fallback are not startable — their
-shared generated Prisma client is absent (see `docs/plans/live-state.md`). Do not
-execute until the rollback basis is decided and re-reviewed.
+Status: **PREPARED (r3) — APPROVED, AWAITING BOUNDED RE-REVIEW.** The operator
+granted the approval sentence on 2026-09-20. The repinned review's single blocking
+finding — a rollback basis that could not restore the incumbent, because the
+shared generated Prisma client was absent — is resolved by
+`PRISMA-CLIENT-REPAIR-C01`, which additively restored that client from a
+schema-, version- and engine-equivalent sibling; independent post-action QA
+returned `ACCEPT_READY` 8/8/0/0 and proved a fresh server process from the
+incumbent release starts and serves. This revision also folds in the repinned
+review's non-blocking corrections. Do not execute until the amendment is
+re-reviewed.
 
 Risk: **HIGH** — supervised shared-runtime replacement
 
@@ -38,8 +41,9 @@ change.
 
 ## Repin delta — `134bcf28` → `74999168` (32 commits; 34 files, 20 non-docs)
 
-- `atlas-client/src/components/timetable/**` (8 files, incl.
-  `TimetableSimpleHeader.tsx`, `simple/**`, `ScheduleReviewWorkspace.tsx`):
+- `atlas-client/src/components/timetable/**` (7 files, incl.
+  `TimetableSimpleHeader.tsx`, `simple/**`, `ScheduleReviewWorkspace.tsx`) plus
+  `atlas-client/src/lib/__tests__/ux-r02-simple-stripdown.test.ts`:
   Simple-workspace simplification and readable Simple chrome.
 - `atlas-server/src/routes/section.router.ts` with
   `__tests__/section-route-authority-c0{1,2,3}.test.ts`: actor-school authority
@@ -48,7 +52,9 @@ change.
   `atlas-server/src/services/published-revision.service.ts`,
   `atlas-server/src/services/manual-edit.service.ts`, with the C12 and
   publication-contract test files.
-- `atlas-server/package.json` (one dependency line).
+- `atlas-server/package.json`: two added npm test scripts
+  (`test:section-route-authority`, `test:section-route-authority-c02`); no
+  dependency change. This corrects the r2 text, which said "one dependency line".
 
 The delta changes no port, no durable-env byte, no dependency-isolation rule, no
 SMART/AIMS inactive posture, and no acceptance row. Rows 1 and 6 are the ones
@@ -61,8 +67,13 @@ recomputed at precondition 10, and the schema-wide signature map of precondition
 - Incumbent release recorded in `docs/plans/live-state.md`:
   `74c1f12a5c06bb025a1a7a13088c1c5da1a76d74` at
   `D:\ATLAS-runtime-supervised-74c1f12a5c06-20260918`.
-- Rollback release: that exact incumbent. Preserve the additional recorded
-  fallback `f0d65a531e34ded9d8148a1c3f7bf5ddbf2eec4a` untouched.
+- Rollback release: that exact incumbent, whose startability was repaired and
+  proven on 2026-09-20 by `PRISMA-CLIENT-REPAIR-C01`. The additional recorded
+  fallback `f0d65a531e34ded9d8148a1c3f7bf5ddbf2eec4a` remains **non-startable**:
+  preserve it untouched, and do not rely on it as a rollback.
+- The incumbent's client `node_modules` is a junction to
+  `E:\ATLAS-worktrees\ux-quickfix-c01\atlas-client\node_modules`; that worktree is
+  a do-not-retire dependency of the incumbent host build and of any rollback.
 - Ports: server `5001`, production host `5174`. Port `5175`, unrelated processes,
   companion runtimes, and Tailscale Serve are forbidden.
 - Durable environment file: `D:\ATLAS-runtime-config\atlas-server.env` — read key
@@ -93,10 +104,12 @@ recomputed at precondition 10, and the schema-wide signature map of precondition
    SHA-256. Capture its principal, trigger, execution time limit, multiple-instance
    policy, action, arguments, and working directory as separately comparable
    fields. Preserve the original XML for symmetric rollback.
-7. Record the system-scope Git `safe.directory` list. If the exact target path is
-   absent, the approval below permits adding only that one path at system scope;
-   no user-scope entry is sufficient for the SYSTEM task. Record whether the
-   entry was pre-existing or added by this action.
+7. Record the system-scope Git `safe.directory` list. It currently contains the
+   wildcard `*`, so satisfy this gate with the wildcard and add nothing. Only if
+   the target path is genuinely absent and no wildcard exists does the approval
+   below permit adding that one path at system scope; no user-scope entry is
+   sufficient for the SYSTEM task. Record whether the entry was pre-existing, added
+   by this action, or covered by the wildcard.
 8. Capture a schema-wide read-only database signature map. Enumerate every
    `public` base table from `information_schema.tables`, ordered by table name;
    for each safely quoted table compute `(rowCount, signature)` where `signature`
@@ -160,7 +173,9 @@ re-pointing. After registration, require the task to be `Ready` before the singl
 ## Acceptance — 8 mandatory rows
 
 1. **Release:** installed HEAD, machine release SHA, task action/working directory,
-   and supervisor status all identify the target pin and directory.
+   and supervisor status all identify the target pin and directory. Read the
+   installed release from supervisor-state `releaseSha`; the supervisor's
+   `productPin` field is historical (`d44f29e0`) and is not evidence for this row.
 2. **Ownership:** exactly one listener owns each of 5001 and 5174; both descend
    from the task-launched supervisor and survive the invoking shell's exit.
 3. **Health:** local server health and readiness, production-host live/ready,
