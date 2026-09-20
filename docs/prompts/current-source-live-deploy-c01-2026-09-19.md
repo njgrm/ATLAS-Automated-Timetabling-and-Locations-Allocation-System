@@ -69,11 +69,15 @@ recomputed at precondition 10, and the schema-wide signature map of precondition
   `D:\ATLAS-runtime-supervised-74c1f12a5c06-20260918`.
 - Rollback release: that exact incumbent, whose startability was repaired and
   proven on 2026-09-20 by `PRISMA-CLIENT-REPAIR-C01`. The additional recorded
-  fallback `f0d65a531e34ded9d8148a1c3f7bf5ddbf2eec4a` remains **non-startable**:
-  preserve it untouched, and do not rely on it as a rollback.
-- The incumbent's client `node_modules` is a junction to
-  `E:\ATLAS-worktrees\ux-quickfix-c01\atlas-client\node_modules`; that worktree is
-  a do-not-retire dependency of the incumbent host build and of any rollback.
+  fallback `f0d65a531e34ded9d8148a1c3f7bf5ddbf2eec4a` reaches the repaired client
+  through `4ce73d157f9a` and is no longer excluded by that defect, but it is **not
+  the designated rollback**: preserve it untouched and do not substitute it.
+- Do-not-retire rollback dependencies: the incumbent's server `node_modules` is a
+  junction to
+  `D:\ATLAS-runtime-supervised-0eb3b67fe94c-20260918\atlas-server\node_modules`
+  (the repaired generated client), and the incumbent's client `node_modules` is a
+  junction to `E:\ATLAS-worktrees\ux-quickfix-c01\atlas-client\node_modules`; that
+  worktree backs the incumbent host build.
 - Ports: server `5001`, production host `5174`. Port `5175`, unrelated processes,
   companion runtimes, and Tailscale Serve are forbidden.
 - Durable environment file: `D:\ATLAS-runtime-config\atlas-server.env` — read key

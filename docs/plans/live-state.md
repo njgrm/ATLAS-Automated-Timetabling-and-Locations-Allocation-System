@@ -29,31 +29,32 @@ and AIMS.
 - `cli.mjs status` incorrectly reports child `live:false`; listener ownership,
   supervisor state, and HTTP probes are authoritative until that reporting bug
   is corrected.
-- Hard dependency: the active server `node_modules` is a junction to
+- Server dependency: the active server `node_modules` is a junction to
   `D:\ATLAS-runtime-supervised-0eb3b67fe94c-20260918\atlas-server\node_modules`.
-  **That tree carries no generated Prisma client**: `node_modules\.prisma\client`
-  is absent and `@prisma/client/default.js` throws `MODULE_NOT_FOUND` when it
-  requires `.prisma/client/default`. The live process (PID 63688) survives only
-  on modules loaded at its 09-18 start, so **the live release is not
-  restartable** — a child respawn or a host reboot takes the demo down.
-  Independently verified 2026-09-20 by direct path and module-resolution probe.
-- Startable releases today (own, or junctioned tree carrying
-  `.prisma/client/index.js`): `3d916b26`, `54dce67b`, `8eb0511b`, `20f07f59`
-  (-> `78be1b76`), `405e5b18` (-> `20f07f59`), `78be1b76` (-> `8eb0511b`),
-  `131baab7` (-> `405e5b18`). Non-startable: `74c1f12a` (live), `f0d65a53`,
-  `4ce73d15`, `798cd783`, `3c4cc3cd` — all junctioned into `0eb3b67f`.
+  Its generated Prisma client was **repaired on 2026-09-20**
+  (`PRISMA-CLIENT-REPAIR-C01`) and now holds `index.js`, `default.js` and
+  `package.json` beside the untouched engine. `0eb3b67f` is a do-not-retire
+  dependency: every consumer below resolves its client through it.
+- Restartability (client presence proven for all; an end-to-end fresh start proven
+  for the live release): `74c1f12a` (live — fresh start, health, readiness and a
+  DB-backed read proven on an alternate port), `3d916b26`, `54dce67b`, `8eb0511b`,
+  `20f07f59`, `405e5b18`, `78be1b76`, `131baab7`, `798cd78356ef`,
+  `3c4cc3cd8d7d`, `4ce73d157f9a`, `f0d65a53`. The last four reach the repaired
+  client through `0eb3b67f`; no release is now excluded for the missing-client
+  reason.
 - The incumbent client `node_modules` is a junction to
   `E:\ATLAS-worktrees\ux-quickfix-c01\atlas-client\node_modules`; retiring that
   worktree would break the incumbent host build. Do not retire it.
 - Rollback basis: **RESOLVED (2026-09-20).** `PRISMA-CLIENT-REPAIR-C01` added the
   ten missing generated-client files to `0eb3b67f` from the schema-, version- and
   engine-equivalent sibling `8eb0511baa53`, create-new-only, touching none of the
-  17 pre-existing files. Independent post-action QA `ACCEPT_READY` 8/8/0/0 proved
-  a fresh server process from the incumbent release starts on an alternate port
-  and serves health, readiness and a DB-backed read, with the table (47/47) and
-  sequence (48/48) maps unchanged. The recorded fallback `f0d65a53` remains
-  non-startable and must not be relied on. Graft source `8eb0511baa53` is now a
-  do-not-retire dependency.
+  17 pre-existing files. Independent post-action QA returned `ACCEPT_READY`
+  8/8/0/0 (capsule `docs/reviews/prisma-client-repair-c01/qa-verdict.md`): a fresh
+  server process from `74c1f12a` started on port 5052, served health, readiness
+  and a DB-backed read, and was stopped cleanly, with the table (47/47) and
+  sequence (48/48) maps unchanged. `f0d65a53` is **not the designated rollback**
+  but is no longer excluded by the client defect; preserve it untouched. Graft
+  source `8eb0511baa53` is a do-not-retire dependency.
 - Worktree hygiene 2026-09-20: retired `published-revision-authority-c12`
   (`c01b171f`), `section-route-authority-c02` (`af1ed0bb`), and
   `section-route-authority-c03` (`6f1abc2b`) after proving each clean and an
