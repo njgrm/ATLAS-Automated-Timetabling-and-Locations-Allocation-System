@@ -163,6 +163,7 @@ const router = createBrowserRouter([
 					// (ScheduleReview renders the workspace once plus an Outlet).
 					// UX-R03b — the four remaining existing center views join the
 					// same shell: pre-generation, map, manual-edit, building.
+					// UX-R03c — the exports sub-page joins the same shell.
 					// The URL only drives the existing centerView state through the
 					// guarded setter (see TimetableRouteViewSync); the element-less
 					// children below render nothing, so navigating between them
@@ -174,6 +175,7 @@ const router = createBrowserRouter([
 					{ path: 'map' },
 					{ path: 'manual-edit' },
 					{ path: 'building' },
+					{ path: 'exports' },
 					// Unknown children fall back to the index surface, never a blank center.
 					{ path: '*', element: <Navigate to="/timetable" replace /> },
 				],

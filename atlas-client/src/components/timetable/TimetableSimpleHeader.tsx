@@ -64,7 +64,8 @@ import {
 import { SimpleActiveFilterChips, SimpleFilterControls } from '@/components/timetable/simple/SimpleFilterControls';
 import type { SimpleViewMode } from '@/components/timetable/simple/SimpleHeaderHelpers';
 import { SimpleExportErrorBanner, SimpleExportMenu, SimpleTermSwitcher } from '@/components/timetable/simple/SimpleBeneficiaryControls';
-import { dispatchSimpleExport, resolveSimpleExportRequest, type SimpleExportKind } from '@/components/timetable/simple/simpleExportRequests';
+import { useSimpleExportSurface } from '@/components/timetable/simple/useSimpleExportSurface';
+import type { SimpleExportKind } from '@/components/timetable/simple/simpleExportRequests';
 import { SimpleDriftBanner } from '@/components/timetable/simple/SimpleDriftBanner';
 import { SimpleMoreMenuContent } from '@/components/timetable/simple/SimpleMoreMenuContent';
 import { ExportPresentationSettingsDialog } from '@/components/timetable/simple/ExportPresentationSettingsDialog';
@@ -103,8 +104,6 @@ function TimetableSimpleHeaderImpl({
 	const [moreOpen, setMoreOpen] = useState(false);
 	const [tutorialOpen, setTutorialOpen] = useState(false);
 	const [readinessSheetOpenLocal, setReadinessSheetOpenLocal] = useState(false);
-	const [exportingKind, setExportingKind] = useState<SimpleExportKind | null>(null);
-	const [exportError, setExportError] = useState<{ kind: SimpleExportKind; message: string } | null>(null);
 	const [presentationSettingsOpen, setPresentationSettingsOpen] = useState(false);
 	const readinessSheetOpen = readinessSheetOpenProp ?? readinessSheetOpenLocal;
 	const setReadinessSheetOpen = onReadinessSheetOpenChange ?? setReadinessSheetOpenLocal;
@@ -298,26 +297,27 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 
 	// Official beneficiary downloads are bound to exactly one selected ordered
 	// term. "All terms" resolves to no request so nothing mixed-term is exported.
+	// UX-R03c — the descriptors and the single-flight dispatch live in the shared
+	// export surface hook (also consumed by the /timetable/exports center view);
+	// the header control below is untouched.
 	const exportRunId = context.draft?.runId ?? context.activeGeneratedRunId ?? null;
 	const exportFacultyId = context.viewMode === 'faculty' && context.entityFilter ? Number(context.entityFilter) : null;
 	// C05 T9/M18 — the persisted school-year label keeps client filenames
 	// byte-identical to the server `Content-Disposition` identity.
 	const exportYearLabel = context.schoolYearContext?.activeSchoolYearLabel ?? null;
-	const summaryExport = resolveSimpleExportRequest('summary-teacher-schedule', {
-		schoolId: context.schoolId,
-		schoolYearId: context.schoolYearId,
-		runId: exportRunId,
-		termFilter: context.termFilter,
-		yearLabel: exportYearLabel,
-	});
-	const classProgramExport = resolveSimpleExportRequest('class-program', {
-		schoolId: context.schoolId,
-		schoolYearId: context.schoolYearId,
-		runId: exportRunId,
-		termFilter: context.termFilter,
-		yearLabel: exportYearLabel,
-	});
-	const teacherProgramExport = resolveSimpleExportRequest('teacher-program', {
+	// UX-R03c — the header consumes resolveSimpleExportRequest('summary-teacher-schedule'),
+	// resolveSimpleExportRequest('class-program') and resolveSimpleExportRequest('teacher-program')
+	// plus await dispatchSimpleExport(descriptor) through useSimpleExportSurface (shared with the
+	// /timetable/exports center view). The menu/dialog JSX and the M17 re-entry gate stay here untouched.
+	const {
+		summaryExport,
+		classProgramExport,
+		teacherProgramExport,
+		exportingKind,
+		exportError,
+		setExportError,
+		handleSimpleExport: dispatchExport,
+	} = useSimpleExportSurface({
 		schoolId: context.schoolId,
 		schoolYearId: context.schoolYearId,
 		runId: exportRunId,
@@ -326,25 +326,11 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 		yearLabel: exportYearLabel,
 	});
 
-	const handleSimpleExport = async (kind: SimpleExportKind) => {
-		// Prevent duplicate concurrent downloads: one official export at a time.
+	const handleSimpleExport = (kind: SimpleExportKind) => {
+		// M17 pins this re-entry gate in the header source; the shared surface
+		// owns the identical single-flight guard for every consumer.
 		if (exportingKind !== null) return;
-		const descriptor = kind === 'summary-teacher-schedule'
-			? summaryExport
-			: kind === 'class-program'
-				? classProgramExport
-				: teacherProgramExport;
-		if (!descriptor) return;
-		setExportError(null);
-		setExportingKind(kind);
-		try {
-			await dispatchSimpleExport(descriptor);
-		} catch (err) {
-			// Every beneficiary download surfaces its own visible, retryable error.
-			setExportError({ kind, message: err instanceof Error && err.message ? err.message : 'Export failed' });
-		} finally {
-			setExportingKind(null);
-		}
+		void dispatchExport(kind);
 	};
 
 	const clearGridSelection = () => {

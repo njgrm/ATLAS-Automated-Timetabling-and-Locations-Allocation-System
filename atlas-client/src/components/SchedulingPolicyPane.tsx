@@ -243,11 +243,17 @@ export default function SchedulingPolicyPane({
 	schoolYearId,
 	onBack,
 	onPolicySaved,
+	policyRecord,
+	policyRefreshToken,
+	onPolicyRefetch,
 }: {
 	schoolId: number;
 	schoolYearId: number | null;
 	onBack: () => void;
 	onPolicySaved?: () => void;
+	policyRecord?: SchedulingPolicy | null;
+	policyRefreshToken?: number;
+	onPolicyRefetch?: () => void;
 }) {
 	const [loading, setLoading] = useState(true);
 	const [saving, setSaving] = useState(false);
@@ -277,48 +283,43 @@ export default function SchedulingPolicyPane({
 		return !deepEqual(persisted, local) || !deepEqual(persistedShiftWindows, shiftWindows);
 	}, [persisted, local, persistedShiftWindows, shiftWindows]);
 
-	const fetchPolicy = useCallback(async () => {
+	// UX-R03c — the workspace owns the policy GET; the pane keeps its grade-windows / section-summary / special-events reads only.
+	const fetchAuxiliary = useCallback(async () => {
 		if (!schoolYearId) return;
 		setLoading(true);
-		setPolicyStatus('loading');
 		try {
-		const policyRes = await atlasApi.get<{ policy: SchedulingPolicy }>(`/policies/scheduling/${schoolId}/${schoolYearId}`, { timeout: 8_000 });
 			const [windowsRes, summaryRes, specialEventsRes] = await Promise.all([
-				atlasApi
-					.get<{ windows: GradeShiftWindow[] }>(`/generation/${schoolId}/${schoolYearId}/grade-windows`, { timeout: 8_000 })
-					.catch(() => null),
-				atlasApi
-					.get<SectionSummaryResponse>(`/sections/summary/${schoolYearId}?schoolId=${schoolId}`, { timeout: 8_000 })
-					.catch(() => null),
-				atlasApi
-					.get<{ events: PolicySpecialEvent[] }>(`/policies/special-events/${schoolId}/${schoolYearId}`, { timeout: 8_000 })
-					.catch(() => null),
+				atlasApi.get<{ windows: GradeShiftWindow[] }>(`/generation/${schoolId}/${schoolYearId}/grade-windows`, { timeout: 8_000 }).catch(() => null),
+				atlasApi.get<SectionSummaryResponse>(`/sections/summary/${schoolYearId}?schoolId=${schoolId}`, { timeout: 8_000 }).catch(() => null),
+				atlasApi.get<{ events: PolicySpecialEvent[] }>(`/policies/special-events/${schoolId}/${schoolYearId}`, { timeout: 8_000 }).catch(() => null),
 			]);
-			const lp = policyToLocal(policyRes.data.policy);
 			const localWindows = toLocalGradeWindows(windowsRes?.data.windows ?? []);
-			const summary = summaryRes?.data ?? null;
-			setPersisted(lp);
-			setLocal(lp);
 			setPersistedShiftWindows(localWindows);
 			setShiftWindows(localWindows);
 			setSpecialEvents(specialEventsRes?.data.events ?? []);
 			setPersistedSpecialEvents(specialEventsRes?.data.events ?? []);
-			setProgramOptions(toProgramOptionsFromSections(summary));
-			setProgramContextNote(buildProgramContextNote(summary));
-			setEditIntent(null);
-			setReconciliationDialog(null);
-			setPolicyStatus('loaded');
-		} catch {
-			setPolicyStatus('unavailable');
-			toast.error('Failed to load scheduling policy and shift settings.');
+			setProgramOptions(toProgramOptionsFromSections(summaryRes?.data ?? null));
+			setProgramContextNote(buildProgramContextNote(summaryRes?.data ?? null));
 		} finally {
 			setLoading(false);
 		}
 	}, [schoolId, schoolYearId]);
 
 	useEffect(() => {
-		void fetchPolicy();
-	}, [fetchPolicy]);
+		void fetchAuxiliary();
+	}, [fetchAuxiliary]);
+	// UX-R03c — hydrate editable policy state from the workspace record. A null record stays fail-closed (`unavailable`); dirty local state/editIntent win.
+	useEffect(() => {
+		if (!schoolYearId || policyRecord == null) { setPolicyStatus('unavailable'); return; }
+		if (editIntent !== null || (persisted && local && !deepEqual(persisted, local))) return;
+		const lp = policyToLocal(policyRecord);
+		if (!persisted || !deepEqual(persisted, lp)) {
+			setPersisted(lp);
+			setLocal(lp);
+			setReconciliationDialog(null);
+		}
+		setPolicyStatus('loaded');
+	}, [policyRecord, policyRefreshToken, schoolYearId, editIntent, persisted, local]);
 
 	const persistPolicyAndShiftWindows = useCallback(async (policyDraft: LocalPolicy, windowsDraft: LocalGradeWindow[]) => {
 		if (!schoolYearId) return;
@@ -346,8 +347,8 @@ export default function SchedulingPolicyPane({
 		setNewOverride(createInitialOverride());
 		setPolicyStatus('saved');
 		toast.success('Scheduling policy and shift settings saved.');
-		onPolicySaved?.();
-	}, [schoolId, schoolYearId, onPolicySaved]);
+		onPolicySaved?.(); onPolicyRefetch?.();
+	}, [schoolId, schoolYearId, onPolicySaved, onPolicyRefetch]);
 
 	const savePolicy = useCallback(async () => {
 		if (!schoolYearId || !local) return;
