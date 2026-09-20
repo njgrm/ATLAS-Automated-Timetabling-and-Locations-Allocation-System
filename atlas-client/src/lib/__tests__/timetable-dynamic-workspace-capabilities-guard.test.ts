@@ -47,7 +47,13 @@ test('R7 Simple links to policy editing without duplicating the Advanced editor'
 	const menu = source('src/components/timetable/simple/SimpleMoreMenuContent.tsx');
 	assert.match(header, /SimpleMoreMenuContent/);
 	assert.match(menu, /data-testid="timetable-more-policy"/);
-	assert.match(menu, /context\.enterPolicyView/);
+	// UX-R03a: the policy item is a real link to the nested policy route; the
+	// requestAnimationFrame state workaround is gone. The guarded centerView
+	// transition is driven by the route→view sync, not by this menu.
+	assert.match(menu, /to="\/timetable\/policies"/);
+	assert.match(menu, /asChild/);
+	assert.doesNotMatch(menu, /requestAnimationFrame\(\(\) => context\.switchCenterViewWithGuard\(context\.enterPolicyView\)\)/);
+	assert.doesNotMatch(menu, /switchCenterViewWithGuard/);
 	assert.match(menu, /onLayoutModeChange\('advanced'\)/);
 });
 

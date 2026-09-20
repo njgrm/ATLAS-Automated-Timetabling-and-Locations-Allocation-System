@@ -10,6 +10,8 @@ import {
 	UserRoundX,
 } from 'lucide-react';
 
+import { Link } from 'react-router-dom';
+
 import { Button } from '@/ui/button';
 import { DropdownMenuItem, DropdownMenuLabel } from '@/ui/dropdown-menu';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui/select';
@@ -104,20 +106,22 @@ export function SimpleMoreMenuContent({
 					<History className="size-3.5" aria-hidden="true" />
 					Edit history
 				</DropdownMenuItem>
-				{/* R7 — policy editing stays Advanced; Simple exposes the link. */}
-				<DropdownMenuItem
-					className="h-9 gap-2 text-xs"
-					onSelect={(event) => {
-						event.preventDefault();
-						onClose();
-						onLayoutModeChange('advanced');
-						window.requestAnimationFrame(() => context.switchCenterViewWithGuard(context.enterPolicyView));
-					}}
-					data-testid="timetable-more-policy"
+			{/* UX-R03a — policy editing stays Advanced; Simple links to the nested
+			    policy route. The route→view sync drives the existing guarded
+			    centerView state, so no state workaround is needed here. */}
+			<DropdownMenuItem
+				asChild
+				className="h-9 gap-2 text-xs"
+				data-testid="timetable-more-policy"
+			>
+				<Link
+					to="/timetable/policies"
+					onClick={() => { onClose(); onLayoutModeChange('advanced'); }}
 				>
 					<Settings2 className="size-3.5" aria-hidden="true" />
 					Scheduling policy (Advanced)
-				</DropdownMenuItem>
+				</Link>
+			</DropdownMenuItem>
 				<DropdownMenuItem
 					className="h-9 gap-2 text-xs"
 					onSelect={(event) => { event.preventDefault(); onClose(); onLayoutModeChange('advanced'); }}

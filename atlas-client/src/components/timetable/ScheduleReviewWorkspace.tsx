@@ -5,6 +5,7 @@ import { TimetableSimpleHeader } from '@/components/timetable/TimetableSimpleHea
 import { ScheduleReviewWorkspaceBody } from '@/components/timetable/ScheduleReviewWorkspaceBody';
 import { ScheduleReviewWorkspaceOverlays } from '@/components/timetable/ScheduleReviewWorkspaceOverlays';
 import { TimetableSkeleton } from '@/components/timetable/TimetableSkeleton';
+import { TimetableRouteViewSync } from '@/components/timetable/TimetableRouteViewSync';
 import type { TimetableLayoutMode, TimetableSimpleTask } from '@/components/timetable/TimetableSimpleTypes';
 import type { RepairOrigin } from '@/components/timetable/TimetableTaskDrawer';
 import { Button } from '@/ui/button';
@@ -281,6 +282,15 @@ export default function ScheduleReviewWorkspace() {
 
 	return (
 		<div className="flex flex-col h-[calc(100svh-3.5rem)] relative" data-timetable-year-binding="runtime-active-only">
+			{/* UX-R03a — the nested timetable URL drives the existing centerView
+			    state through the guarded setter. Renders nothing. */}
+			<TimetableRouteViewSync
+				centerView={state.headerContext.centerView}
+				switchCenterViewWithGuard={state.headerContext.switchCenterViewWithGuard}
+				enterPolicyView={state.headerContext.enterPolicyView}
+				exitPolicyView={state.headerContext.exitPolicyView}
+				leaveDialogOpen={state.dialogContext.showLeavePreGenDialog}
+			/>
 			{state.loading && state.draft && (
 				<div className="absolute inset-0 z-50 flex items-center justify-center bg-background/50 backdrop-blur-[2px] transition-all duration-150">
 					<div className="flex flex-col items-center gap-3 rounded-lg border bg-card p-6 shadow-lg">

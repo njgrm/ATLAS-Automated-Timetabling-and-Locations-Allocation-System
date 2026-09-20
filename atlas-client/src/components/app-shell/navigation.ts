@@ -76,6 +76,8 @@ const routeChromeOverrides: Record<string, { group?: string; title: string }> = 
 	'/assignments': { group: 'Teachers and Rooms', title: 'Assignments' },
 	'/faculty/preferences': { group: 'Teachers and Rooms', title: 'Faculty Preferences' },
 	'/timetabling/how-it-works': { group: 'Class Schedule', title: 'How Scheduling Works' },
+	// UX-R03a — the nested policy route shares the Class Schedule shell.
+	'/timetable/policies': { group: 'Class Schedule', title: 'Scheduling Policy' },
 	'/room-schedules': { group: 'Review and Publish', title: 'Room Schedules' },
 	'/faculty/room-preferences': { group: 'Teachers and Rooms', title: 'Room Preferences' },
 	'/admin/year-setup': { group: 'School Setup', title: 'School Year Setup' },
