@@ -283,12 +283,20 @@ export default function ScheduleReviewWorkspace() {
 	return (
 		<div className="flex flex-col h-[calc(100svh-3.5rem)] relative" data-timetable-year-binding="runtime-active-only">
 			{/* UX-R03a — the nested timetable URL drives the existing centerView
-			    state through the guarded setter. Renders nothing. */}
+			    state through the guarded setter. Renders nothing.
+			    UX-R03b — the four new route entries are plain guarded view
+			    setters (no fetch, no draft side effect); they only ever run
+			    inside switchCenterViewWithGuard, so the guard stays the sole
+			    view setter. Richer in-app entries stay on their buttons. */}
 			<TimetableRouteViewSync
 				centerView={state.headerContext.centerView}
 				switchCenterViewWithGuard={state.headerContext.switchCenterViewWithGuard}
 				enterPolicyView={state.headerContext.enterPolicyView}
 				exitPolicyView={state.headerContext.exitPolicyView}
+				enterPreGenerationView={() => state.centerWorkspaceContext.setCenterView('pre-generation')}
+				enterMapView={() => state.centerWorkspaceContext.setCenterView('map')}
+				enterManualEditView={() => state.centerWorkspaceContext.setCenterView('manual-edit')}
+				enterBuildingView={() => state.centerWorkspaceContext.setCenterView('building')}
 				leaveDialogOpen={state.dialogContext.showLeavePreGenDialog}
 			/>
 			{state.loading && state.draft && (
