@@ -49,7 +49,8 @@ and AIMS.
   ten missing generated-client files to `0eb3b67f` from the schema-, version- and
   engine-equivalent sibling `8eb0511baa53`, create-new-only, touching none of the
   17 pre-existing files. Independent post-action QA returned `ACCEPT_READY`
-  8/8/0/0 (capsule `docs/reviews/prisma-client-repair-c01/qa-verdict.md`): a fresh
+  6/6 mandatory rows (0 blocked, 0 unperformed; capsule
+  `docs/reviews/prisma-client-repair-c01/qa-verdict.md`): a fresh
   server process from `74c1f12a` started on port 5052, served health, readiness
   and a DB-backed read, and was stopped cleanly, with the table (47/47) and
   sequence (48/48) maps unchanged. `f0d65a53` is **not the designated rollback**

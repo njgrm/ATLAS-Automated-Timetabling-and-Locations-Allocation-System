@@ -6,8 +6,8 @@ finding — a rollback basis that could not restore the incumbent, because the
 shared generated Prisma client was absent — is resolved by
 `PRISMA-CLIENT-REPAIR-C01`, which additively restored that client from a
 schema-, version- and engine-equivalent sibling; independent post-action QA
-returned `ACCEPT_READY` 8/8/0/0 and proved a fresh server process from the
-incumbent release starts and serves. This revision also folds in the repinned
+returned `ACCEPT_READY` 6/6 mandatory rows (0 blocked, 0 unperformed) and proved a
+fresh server process from the incumbent release starts and serves. This revision also folds in the repinned
 review's non-blocking corrections. Do not execute until the amendment is
 re-reviewed.
 
@@ -222,7 +222,7 @@ reproduce ownership, health, readiness, Tailnet, durable-env, and schema-wide DB
 signature invariants. Retain evidence of the failed target. Do not improvise a
 manual resident process.
 
-## Exact approval sentence — not yet granted
+## Exact approval sentence — granted 2026-09-20 (delegated); execution gated on the bounded re-review of this revision
 
 > I approve HIGH action CURRENT-SOURCE-LIVE-DEPLOY-C01: from an elevated Administrator executor, create an isolated release for ATLAS source `7499916886707c35ea708a17ef7a87e791a6bade` at `D:\ATLAS-runtime-supervised-74999168-20260920`, using locked independent dependency installs, Prisma client generation from `atlas-server` against the repository-root schema, and a client build with exactly `VITE_ENROLLPRO_URL=https://dev-jegs.buru-degree.ts.net` while SMART/AIMS start URLs remain unset; if required for the registered SYSTEM task, add only that exact release path to system-scope Git `safe.directory`; after every packet precondition and alternate-port smoke passes, replace only the supervisor-owned ATLAS processes on ports 5001 and 5174 by changing only the captured `ATLAS-Runtime-Supervisor` task action/working directory through a property-preserving XML registration, re-pointing the two machine source/release variables, and starting it only through the registered SYSTEM task; preserve the durable environment file byte-for-byte, keep rollover automation disabled, perform no login or database write, and stop before migration, Teaching Load apply, generation, publication, rollover, or companion-repository action; require exact served-client artifact hashes, typed inactive SMART/AIMS 503 responses, and an unchanged schema-wide database signature; on any mandatory failure, symmetrically restore the captured incumbent task XML and machine variables, remove the exact system safe-directory entry only if this action added it, relaunch incumbent release `74c1f12a5c06bb025a1a7a13088c1c5da1a76d74`, and prove its ownership, health, and unchanged data state.
 

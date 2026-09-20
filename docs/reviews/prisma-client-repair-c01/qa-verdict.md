@@ -7,7 +7,9 @@
 - Packet: `docs/prompts/prisma-client-repair-c01-2026-09-20.md` at `584f0699`
 - Executor evidence: `docs/reviews/prisma-client-repair-c01/evidence.md` at
   `b63b4a12`
-- **Verdict: `ACCEPT_READY` — mandatory 8 passed / 8, blocked 0, unperformed 0.**
+- **Verdict: `ACCEPT_READY`** — the packet's mandatory rows 1–6 were reproduced:
+  **6 passed / 6, blocked 0, unperformed 0**. The eight bullets below are the full
+  check set, including range hygiene and the rollback recipe.
 
 This capsule is the durable record of that verdict; the QA session's message is
 not otherwise preserved.
