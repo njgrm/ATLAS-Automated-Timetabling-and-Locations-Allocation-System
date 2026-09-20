@@ -173,17 +173,26 @@ and AIMS.
   explicit and auditable.
 - Laboratory scheduling is optional for future beneficiaries and disabled for
   the current pilot.
+- **Standing authorization (2026-09-20):** for this program the operator authorizes
+  HIGH actions, deployment, and browser acceptance without a per-action approval
+  round-trip, provided every existing gate and test is retained — independent
+  pre-action review, one executor, one fresh independent post-action QA, browser rows
+  labelled as such, and a real `passed/blocked/unperformed` tally. **Packets from here
+  bundle source, deployment, and browser acceptance into one cycle** (see `AGENTS.md`
+  §13). Standing authorization removes waiting, never evidence.
 
 ## Single next action
 
-Deploy the accepted source — `UX-R03a` and `UX-R03b` are integrated but undeployed, and
-their deferred empirical clauses (DOM/request-count identity across the route round
-trip, the `1366x768` viewport check, the live guard dialog and anchor click) can only be
-closed against a deployed build. Then take `UX-R03c` (the new `/timetable/runs`,
-`/setup` and `/exports` sub-pages plus the chrome overrides) and the queued LOW
-test-contract correction for the pre-existing `requirements` assertion. EnrollPro needs
-no ATLAS action — wait for the peer `dev-jegs` to come back online and do not execute the
-superseded live packet. Dispatch the SMART and AIMS handoffs to their repository owners
-in parallel; generate/install directional keys only after both sides consume the agreed
-names. Regeneration and publication remain separately locked, as do all Teaching Load
-and term-cache applies.
+`CURRENT-SOURCE-LIVE-DEPLOY-C02` is in flight as the first one-shot packet: it deploys
+the accepted client-only delta (`UX-R03a`, `UX-R03b`, the `uxc01` test-contract fix) to
+`D:\ATLAS-runtime-supervised-d50dde64-20260920` and closes, against the deployed build,
+the four clauses those cycles deferred (route round-trip element/request identity, the
+`1366x768` viewport check, the live guard dialog, the policy anchor click) — rows 9-12 of
+its 12-row acceptance. After it lands, the next one-shot is `UX-R03c` (new
+`/timetable/runs`, `/setup`, `/exports` panes plus chrome overrides for the new routes)
+bundled with its own deployment and browser acceptance. EnrollPro needs no ATLAS action —
+wait for the peer `dev-jegs` to come back online and do not execute the superseded live
+packet. Dispatch the SMART and AIMS handoffs to their repository owners in parallel;
+generate/install directional keys only after both sides consume the agreed names.
+Regeneration and publication remain separately locked, as do all Teaching Load and
+term-cache applies.

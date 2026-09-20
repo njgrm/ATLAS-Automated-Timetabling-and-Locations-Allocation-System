@@ -355,6 +355,14 @@ runtime/task/env changes are HIGH **even when a prompt or report labels them LOW
 - If a required listener is unexpectedly absent, the plan has changed — do not
   execute a swap packet unchanged. Prepare a deploy-as-restore with the last
   accepted artifact as a startable fallback.
+- **Standing authorization and one-shot packets.** The operator may grant standing
+  authorization for a class of HIGH actions — deployment, browser acceptance — for a
+  named program. Under it, one packet may bundle source, deployment, and browser
+  acceptance in a single cycle, and the approval round-trip is waived. **No gate is
+  waived with it:** independent pre-action review, one executor, one fresh independent
+  post-action QA, browser rows labelled as browser rows, and a real
+  `passed/blocked/unperformed` tally all still apply, and every acceptance row still
+  reports its own result. Standing authorization removes waiting, never evidence.
 
 ---
 
