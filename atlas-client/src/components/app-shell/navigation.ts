@@ -78,6 +78,12 @@ const routeChromeOverrides: Record<string, { group?: string; title: string }> = 
 	'/timetabling/how-it-works': { group: 'Class Schedule', title: 'How Scheduling Works' },
 	// UX-R03a — the nested policy route shares the Class Schedule shell.
 	'/timetable/policies': { group: 'Class Schedule', title: 'Scheduling Policy' },
+	// UX-R03c — the R03a/R03b routes share the Class Schedule shell instead of the generic ATLAS fallback.
+	'/timetable/pre-generation': { group: 'Class Schedule', title: 'Pre-Generation' },
+	'/timetable/map': { group: 'Class Schedule', title: 'Campus Map' },
+	'/timetable/manual-edit': { group: 'Class Schedule', title: 'Manual Edit' },
+	'/timetable/building': { group: 'Class Schedule', title: 'Building View' },
+	'/timetable/exports': { group: 'Class Schedule', title: 'Exports' },
 	'/room-schedules': { group: 'Review and Publish', title: 'Room Schedules' },
 	'/faculty/room-preferences': { group: 'Teachers and Rooms', title: 'Room Preferences' },
 	'/admin/year-setup': { group: 'School Setup', title: 'School Year Setup' },

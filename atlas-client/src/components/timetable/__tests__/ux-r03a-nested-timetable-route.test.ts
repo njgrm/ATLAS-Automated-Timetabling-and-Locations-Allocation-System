@@ -64,7 +64,8 @@ test('UX-R03a row 2: route to view mapping keeps the schedule surface for every 
 	assert.equal(resolveTimetableRouteView('/timetable/anything-else'), 'schedule');
 	assert.equal(resolveTimetableRouteView('/timetable/runs'), 'schedule');
 	assert.equal(resolveTimetableRouteView('/timetable/setup'), 'schedule');
-	assert.equal(resolveTimetableRouteView('/timetable/exports'), 'schedule');
+	// UX-R03c — exports is a real routed sub-page now (runs/setup stay deferred).
+	assert.equal(resolveTimetableRouteView('/timetable/exports'), 'exports');
 });
 
 // --- Row 3: the guard is never bypassed ---

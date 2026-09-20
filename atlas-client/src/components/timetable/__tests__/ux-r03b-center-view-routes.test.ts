@@ -58,7 +58,8 @@ test('UX-R03b row 1: each new route resolves to its own center view, with traili
 	assert.equal(resolveTimetableRouteView('/timetable/policies'), 'policy');
 	assert.equal(resolveTimetableRouteView('/timetable/runs'), 'schedule');
 	assert.equal(resolveTimetableRouteView('/timetable/setup'), 'schedule');
-	assert.equal(resolveTimetableRouteView('/timetable/exports'), 'schedule');
+	// UX-R03c — exports is a real routed sub-page now (runs/setup stay deferred).
+	assert.equal(resolveTimetableRouteView('/timetable/exports'), 'exports');
 	assert.equal(resolveTimetableRouteView('/timetable/anything-else'), 'schedule');
 });
 
