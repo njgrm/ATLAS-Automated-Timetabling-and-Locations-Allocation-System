@@ -100,6 +100,20 @@ and AIMS.
   docs-only, so the deployed product equals current source.
 - `UX-R01-SHARED-CHROME-C01` is foundational: it does not complete the page-level
   `UX-R02`-`UX-R05` work, which remains open.
+- `UX-R03a` is **integrated and independently accepted** 2026-09-20 (QA `ACCEPT_READY`
+  8/8/0/0): `/timetable` is now a persistent parent route with element-less
+  `index`/`policies` children, so the review workspace, query cache and scope state
+  stay mounted and no request is issued on a round trip; `/timetable/policies` is the
+  first real sub-page; the More-menu policy item is a real link; cancelling the
+  unsaved-change guard restores the shown view's URL. Not deployed. Open items: the
+  empirical DOM/request-count and `1366x768` viewport clauses, plus the live guard
+  dialog and anchor click, are **deployment-acceptance items** for the next release;
+  QA's NON_BLOCKING finding that cancelling from `pre-generation` can raise the guard
+  dialog twice is a bounded successor for `UX-R03b`.
+- `UX-R03b` is the remaining route split: `/timetable/runs`, `/timetable/setup`,
+  `/timetable/exports`, the `/map` dedupe, and routing the `pre-generation`,
+  `manual-edit`, `map` and `building` center views. Nothing in `UX-R03a` removed any
+  operator capability, so the four unrouted views stay reachable as before.
 - `COMPANION-DIRECT-FEDERATION-C04` is integrated and independently accepted.
   The deployed runtime still supports EnrollPro only. SMART/AIMS activation
   remains blocked on their companion-side implementations, directional key
@@ -148,9 +162,12 @@ and AIMS.
 
 ## Single next action
 
-UX-R03a is in flight: the nested `/timetable` layout route (the grid stays mounted)
-plus `/timetable/policies` as the first operator sub-page, per
-`docs/prompts/ux-r03a-nested-timetable-route-2026-09-20.md`. EnrollPro needs no ATLAS
+Take `UX-R03b` (the remaining route split: `/timetable/runs`, `/setup`, `/exports`,
+the `/map` dedupe, and routing the four unrouted center views), folding in the
+`pre-generation` double-guard-dialog residual from `UX-R03a`. The next deployment's
+acceptance must also close `UX-R03a`'s deferred empirical clauses: DOM/request-count
+proof that a round trip remounts nothing and refetches nothing, the `1366x768` viewport
+check, the live guard dialog and the More-menu anchor click. EnrollPro needs no ATLAS
 action — wait for the peer `dev-jegs` to come back online and do not execute the
 superseded live packet. Dispatch the SMART and AIMS handoffs to their repository
 owners in parallel; generate/install directional keys only after both sides consume
