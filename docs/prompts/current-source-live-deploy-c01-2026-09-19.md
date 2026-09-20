@@ -1,15 +1,15 @@
 # CURRENT-SOURCE-LIVE-DEPLOY-C01
 
-Status: **PREPARED (r3) — APPROVED, AWAITING BOUNDED RE-REVIEW.** The operator
-granted the approval sentence on 2026-09-20. The repinned review's single blocking
-finding — a rollback basis that could not restore the incumbent, because the
-shared generated Prisma client was absent — is resolved by
-`PRISMA-CLIENT-REPAIR-C01`, which additively restored that client from a
-schema-, version- and engine-equivalent sibling; independent post-action QA
-returned `ACCEPT_READY` 6/6 mandatory rows (0 blocked, 0 unperformed) and proved a
-fresh server process from the incumbent release starts and serves. This revision also folds in the repinned
-review's non-blocking corrections. Do not execute until the amendment is
-re-reviewed.
+Status: **EXECUTED 2026-09-20 — independent post-action QA `ACCEPT_READY` 8/8
+(blocked 0, unperformed 0).** Pin `7499916886707c35ea708a17ef7a87e791a6bade` was
+deployed to `D:\ATLAS-runtime-supervised-74999168-20260920`; evidence
+`docs/reviews/current-source-live-deploy-c01/evidence.md`. The path here was:
+pre-action `ba9771a8` for pin `134bcf28`, repin to the tip, a blocking finding on
+the repinned boundary (no startable rollback basis) resolved by
+`PRISMA-CLIENT-REPAIR-C01`, then this r3 revision cleared. Residual for the next
+revision of this packet: precondition 8's literal `row_to_json(t)` form must pin
+its exact quoting and serialization, as the evidence addendum records. Do not
+re-run this packet.
 
 Risk: **HIGH** — supervised shared-runtime replacement
 
