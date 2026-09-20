@@ -1,68 +1,86 @@
 # PRISMA-CLIENT-REPAIR-C01
 
-Status: **PREPARED — NOT APPROVED**
+Status: **PREPARED (r2) — NOT APPROVED**
 
 Risk: **HIGH** — mutation of the live runtime's shared dependency tree
 
 Target: `D:\ATLAS-runtime-supervised-0eb3b67fe94c-20260918\atlas-server\node_modules\.prisma\client`
 
 Consumers repaired by one graft (every release whose `atlas-server\node_modules`
-junctions into that tree): live `74c1f12a`; `798cd78356ef`; `3c4cc3cd8d7d`;
-`4ce73d157f9a`; and the recorded fallback `f0d65a531e34`, which reaches the tree
-through `4ce73d157f9a`.
+reaches that tree): live `74c1f12a`; `798cd78356ef`; `3c4cc3cd8d7d`;
+`4ce73d157f9a`; and the recorded fallback `f0d65a531e34`, which reaches it through
+`4ce73d157f9a`.
 
-Source of the schema (the only authority): release
+Graft source (preferred): `D:\ATLAS-runtime-supervised-8eb0511baa53-20260917\atlas-server\node_modules\.prisma\client`.
+Any release may be substituted only if it passes the equivalence gate in
+precondition 3.
+
+Schema authority for the equivalence gate: release
 `D:\ATLAS-runtime-supervised-74c1f12a5c06-20260918` at commit
 `74c1f12a5c06bb025a1a7a13088c1c5da1a76d74`, file `prisma/schema.prisma`.
 
-Worktree disposition: **no worktree.** Scratch layout lives under
-`%TEMP%\opencode\prisma-repair-c01\` and is deleted by this action.
+Worktree disposition: **no worktree.** Scratch/evidence files live under
+`%TEMP%\opencode\prisma-repair-c01\` and are removed by this action.
 
 ## Objective
 
-Restore the generated Prisma client entrypoints in the shared tree so the live
-release and the recorded rollback releases can start a fresh server process
-again. The action **adds files only**; it never overwrites a file that already
-exists, and it never touches the loaded query-engine DLL.
+Restore the generated Prisma client in the shared tree so the live release and
+the recorded rollback releases can start a fresh server process again. The action
+**adds files only**: it never overwrites, renames, or deletes a file that already
+exists, and it never writes the loaded query-engine binary.
 
 ## Observed defect (independently verified 2026-09-20)
 
-- `.prisma\client` exists and contains the runtime, wasm, and
-  `query_engine-windows.dll.node` files, but **no `index.js`, no `default.js`,
-  and no `package.json`**. Directory mtime `2026-09-19 18:12:03`; engine files
-  `2026-09-18 08:39–09:02`.
-- `@prisma/client` `6.19.2` and the `prisma` CLI `6.19.2` are present in the
-  same tree. `node_modules\@prisma\engines\query_engine-windows.dll.node` is
-  present, so generation does not require a download.
-- Reflection of this: the live server PID survives only on modules loaded at its
-  2026-09-18 start. A fresh start fails with `MODULE_NOT_FOUND` on
-  `.prisma/client/default`. Packet `current-source-live-deploy-c01` precondition
-  5 therefore cannot pass, and its rollback basis is not startable.
+- `.prisma\client` exists and holds the runtime, wasm, and
+  `query_engine-windows.dll.node` files, but **no `index.js`, `default.js`, or
+  `package.json`** (also absent: `client.js`, `edge.js`, `index.d.ts`,
+  `index-browser.js`). Directory mtime `2026-09-19 18:12:03`; surviving files
+  `2026-09-18`.
+- `@prisma/client` `6.19.2`, `prisma` CLI `6.19.2`, and
+  `@prisma/engines\query_engine-windows.dll.node` are present in the target tree.
+- The live server PID survives only on modules loaded at its 2026-09-18 start; a
+  fresh start fails `MODULE_NOT_FOUND` on `.prisma/client/default`. Packet
+  `current-source-live-deploy-c01` precondition 5 therefore cannot pass and its
+  rollback basis is not startable.
 
-## Why regenerate instead of copying
+## Why an additive copy, and why not regenerate
 
-Copying entrypoints from a startable sibling release is **forbidden**. The
-generated `index.js`/`default.js` carry the schema's model metadata, and sibling
-trees were generated at different revisions; a cross-revision copy would silently
-change the data contract. The client must be regenerated from the exact committed
-schema the live release was built against. Generation must also match the CLI
-version already installed in the target tree (`6.19.2`); a mismatched CLI is a
-STOP.
+A `prisma generate` into the live tree is rejected: it rewrites the whole output
+directory, and the query-engine binary is held open by the running server, so a
+partial or failed write can only worsen the tree.
+
+Copying the missing files from a sibling release is safe **because equivalence has
+been proven, not assumed**:
+
+- `prisma` and `@prisma/client` are `6.19.2` in every candidate tree;
+- the surviving `schema.prisma` in the target and in siblings `8eb0511baa53` and
+  `405e5b18` is **token-identical** to the live release's committed schema at
+  `74c1f12a` once whitespace is stripped. The raw file differs only by
+  `prisma generate` formatting and LF/CRLF, so a raw-hash comparison would fail
+  spuriously and must not be used;
+- the `query_engine-windows.dll.node` binary is SHA-256 identical across the
+  target and both siblings (`263946105F428384D2318DC3241B85B1C3DD98FBB1BFAC62D3E81F513AB35897`).
+
+The copied `index.js` embeds the generating tree's absolute paths, but
+`prisma`-generated clients set `config.dirname = __dirname` when `schema.prisma`
+sits beside them, so the client resolves against the target directory. The graft
+source release is therefore recorded as a **do-not-retire** dependency until a
+future release rebuilds the tree.
 
 ## Frozen boundary
 
 - Never write, delete, rename, or re-permission a file that already exists under
-  the target. Create-new-only semantics, no exceptions.
-- Never run `npm ci`, `npm install`, `prisma db push`, `prisma migrate`,
-  `prisma migrate reset`, or any schema command.
+  the target. Create-new-only, no exceptions.
+- Never run `npm ci`, `npm install`, `prisma generate`, `prisma db push`,
+  `prisma migrate`, or any schema command.
 - Never stop, start, or re-point the supervisor, its children, or ports
   `5001`/`5174`; never touch port `5175`; never edit
   `D:\ATLAS-runtime-config\atlas-server.env`, any registered task, or any
   machine-scope variable.
 - No login, no application write, no generation/publication/Teaching Load/rollover
   action, no companion-repository change.
-- The isolated restart proof is the only action permitted to open a database
-  connection, and it must be read-only. A detected write is an incident stop.
+- The isolated restart proof is the only step permitted to open a database
+  connection, and it must stay read-only. A detected write is an incident stop.
 
 ## Preconditions — fail closed
 
@@ -70,92 +88,105 @@ STOP.
 2. Re-fetch `origin/main` and record the tip. Require
    `git -C D:\ATLAS-runtime-supervised-74c1f12a5c06-20260918 rev-parse HEAD` to
    equal `74c1f12a5c06bb025a1a7a13088c1c5da1a76d74`, and require its
-   `git status --short` to contain no tracked modification (untracked
+   `git status --short` to show no tracked modification (untracked
    `ops/runtime/logs/` is expected). Extract the schema with
-   `git -C <release> show 74c1f12a5c06bb025a1a7a13088c1c5da1a76d74:prisma/schema.prisma`
-   — do **not** read it from a working tree.
-3. Record the target pre-state: a recursive listing of
-   `...\node_modules\.prisma\client` with SHA-256 and last-write time per file
-   (expect the three entrypoints absent), plus a recursive listing and SHA-256
-   set of the target tree's sibling entries to bound the blast radius. Save under
+   `git -C <release> rev-parse 74c1f12a:prisma/schema.prisma` and
+   `git -C <release> cat-file blob <blob>` — never from a working tree.
+3. **Equivalence gate — all five must pass, else STOP.** Between the graft source
+   and the target:
+   a. source client contains `index.js`, `default.js`, `package.json`;
+   b. `prisma` and `@prisma/client` versions are equal in both trees;
+   c. the whitespace-stripped content of the source client's `schema.prisma`, the
+      target client's surviving `schema.prisma`, and the blob from precondition 2
+      are all equal (strip all whitespace before comparing; formatting and CRLF
+      differences are expected and are not content differences);
+   d. SHA-256 of every `query_engine*` and `schema-engine*` file present in both
+      clients is equal;
+   e. the graft list — files in the source client absent from the target client —
+      is non-empty and contains the three entrypoints of (a).
+4. Capture the target pre-state: recursive listing of `.prisma\client` with
+   SHA-256 and last-write time per file, plus a recursive listing and SHA-256 set
+   of the target tree's sibling entries. Save under
    `%TEMP%\opencode\prisma-repair-c01\pre\`.
-4. Capture a schema-wide read-only database signature map using the method in
-   `current-source-live-deploy-c01` precondition 8 (every `public` base table,
-   ordered by name, `(rowCount, md5(string_agg(md5(row_to_json(t)::text), '')))`,
-   `md5('')` for empty). Record host and database name. Save to file.
-5. Record the live identity read-only: supervisor process tree, the single owner
-   of `5001` and of `5174`, local health and readiness, Tailnet health, and one
-   DB-backed subjects read. Confirm ports `5051` and `5274` have zero listeners.
-6. Record `prisma` CLI and `@prisma/client` versions from the target tree; require
-   both `6.19.2` and require `node_modules\prisma\build\index.js` to exist and
-   `node_modules\@prisma\engines\query_engine-windows.dll.node` to exist.
-7. Resolve `DATABASE_URL` from `D:\ATLAS-runtime-config\atlas-server.env` into the
-   child environment only. Never print it, and never print any env value.
-8. Build the scratch layout so the schema's relative generator `output`
-   (`../atlas-server/node_modules/.prisma/client`) resolves **inside scratch**:
-   `%TEMP%\opencode\prisma-repair-c01\gen\prisma\schema.prisma` (byte copy of the
-   extracted blob, SHA-256 recorded) and `%TEMP%\opencode\prisma-repair-c01\gen\atlas-server\node_modules\`.
+5. Capture the zero-write evidence, saved to file: (a) the schema-wide signature
+   map — every `public` base table from `information_schema.tables`, ordered by
+   table name, each safely quoted, computing
+   `(rowCount, md5(string_agg(md5(row_to_json(t)::text), '' ORDER BY md5(row_to_json(t)::text))))`
+   with `md5('')` for an empty table (the `ORDER BY` is mandatory; without it the
+   aggregate order is unspecified and the comparison is not reproducible), and
+   (b) every sequence's `last_value` from `information_schema.sequences`. Record
+   host and database name. Known blind spots to disclose in the evidence: a
+   sequence advanced through `nextval`, a table created and dropped between
+   captures, and writes outside the `public` schema are not covered by (a).
+6. Record live identity read-only: supervisor process tree, the single owner of
+   `5001` and of `5174`, any listener on `5175`, local health and readiness,
+   Tailnet health, one DB-backed subjects read. Confirm port `5051` has no
+   listener.
+7. Resolve the durable environment file's variables into the child environment
+   only, for the row-4 smoke (including `DATABASE_URL`). Never print any value,
+   and never write the file.
+8. Create `%TEMP%\opencode\prisma-repair-c01\` and, inside it, the graft list and
+   hash captures as files. All commands name absolute paths; no command may rely
+   on an inherited working directory.
 
 ## Authorized mutations
 
-1. write the scratch layout and run the target tree's own CLI:
-   `node <target-tree>\node_modules\prisma\build\index.js generate --schema <scratch>\prisma\schema.prisma`
-   with `CHECKPOINT_DISABLE=1` and the child-only `DATABASE_URL`;
-2. load the scratch client and run exactly one read-only `SELECT 1`;
-3. compute the scratch-versus-target file-set difference and **additively** copy
-   only the files whose destination does not exist, using create-new-only
-   semantics that must throw rather than overwrite;
-4. run the isolated restart proof in "Acceptance" row 4;
-5. delete the scratch directory and every temporary script this action created.
+1. additively copy every file on the graft list from the source client into the
+   target, with create-new-only semantics that must throw rather than overwrite;
+2. run the load proof (row 3) and the isolated restart proof (row 4);
+3. on success or on abort, delete `%TEMP%\opencode\prisma-repair-c01\` and every
+   temporary script or file this action created anywhere.
 
 ## Acceptance — 6 mandatory rows
 
-1. **Generation.** The CLI version used equals the target tree's `@prisma/client`
-   version (`6.19.2`); the scratch schema blob hash equals the extracted
-   `74c1f12a` blob hash; generation exits 0; the scratch client loads and answers
-   one read-only `SELECT 1` (the query result is not printed).
-2. **Add-only graft.** Every copied file's destination was absent from the
-   precondition-3 capture; no pre-existing file's SHA-256 or last-write time
-   changed; the target now contains `index.js`, `default.js`, and
-   `package.json`. The loaded `query_engine-windows.dll.node` is untouched.
+1. **Equivalence.** All five gates of precondition 3 pass, with the compared
+   values and the source release identity recorded.
+2. **Add-only graft.** Every copied path was absent from the precondition-4
+   capture; no pre-existing file's SHA-256 or last-write time changed; the target
+   now contains `index.js`, `default.js`, `package.json`; the surviving
+   `query_engine-windows.dll.node` is untouched.
 3. **Live-release load.** From
    `D:\ATLAS-runtime-supervised-74c1f12a5c06-20260918\atlas-server`,
-   `node -e "const {PrismaClient}=require('@prisma/client'); const p=new PrismaClient(); p.\$queryRaw\`SELECT 1\`.then(()=>{})"` (equivalent form permitted) completes with no
-   `MODULE_NOT_FOUND`, and one read-only query succeeds.
+   `node -e "require.resolve('@prisma/client'); require.resolve('.prisma/client/index.js'); const {PrismaClient}=require('@prisma/client'); const p=new PrismaClient(); p.$disconnect().then(()=>{})"`
+   completes with no `MODULE_NOT_FOUND` and no unhandled rejection. This step must
+   not open a database connection.
 4. **Isolated restart proof.** Start release `74c1f12a`'s built server on port
-   `5051` with `ROLLOVER_AUTO_SYNC_ENABLED=false` and the durable-env child
-   variables, require local health and one DB-backed read to return 200, then
+   `5051` with `ROLLOVER_AUTO_SYNC_ENABLED=false` and the child environment from
+   precondition 7, require local health and one DB-backed read to return 200, then
    stop that process. Prove the `5001` and `5174` owners and PIDs are unchanged,
-   the supervisor is untouched, and no new listener exists on `5001`/`5174`/`5175`.
-5. **Zero write.** The schema-wide signature map is byte-identical to precondition
-   4. Any delta is a mandatory failure, an incident stop, and is reported without
-   attempting to undo it.
-6. **Minimal delta and cleanup.** The only repository-adjacent change is the added
-   file set under the target; the recursive listing and SHA-256 set of the target
-   tree's siblings is unchanged; no task, machine variable, env byte, or listener
-   changed; the scratch directory and all temporary scripts are removed.
+   the `5175` listener state is unchanged, the supervisor is untouched, and no new
+   listener exists on `5001`/`5174`/`5175`.
+5. **Zero write.** The precondition-5 signature map and sequence map are
+   byte-identical after. Any delta is a mandatory failure, an incident stop, and is
+   reported without attempting to undo it. The precondition-5 blind spots are
+   restated in the evidence.
+6. **Minimal delta and cleanup.** The only change is the added file set under the
+   target; the recursive listing and SHA-256 set of the target tree's siblings is
+   unchanged; no task, machine variable, env byte, or listener changed; the scratch
+   directory and every temporary artifact are removed.
 
 Fresh independent post-action QA must reproduce rows 1–6. `ACCEPT_READY` requires
 6/6 passed, 0 blocked, 0 unperformed.
 
 ## Rollback
 
-Remove exactly the files this action added under `.prisma\client`. The
-precondition-3 capture is authoritative: a path absent from it is deleted; a path
-present in it is never touched. Re-prove the target's file list and SHA-256 set
-equals the capture, and that `5001`/`5174` ownership, health, and the database
-signature map are unchanged. Rollback intentionally restores the previously
-broken state; it does not restore startability. Do not improvise an alternate
-client or a copied entrypoint.
+Delete exactly the files this action added under `.prisma\client`. The
+precondition-4 capture is authoritative: a path absent from it is deleted, a path
+present in it is never touched. Then re-prove the target's file list and SHA-256
+set equals that capture, and that `5001`/`5174`/`5175` ownership, health, and the
+database signature and sequence maps are unchanged. Also remove the scratch
+directory and every temporary artifact the action created, on abort as well as on
+success. Rollback intentionally restores the previously broken state; it does not
+restore startability. Do not improvise an alternate client or a regenerated one.
 
 ## Exact approval sentence — not yet granted
 
-> I approve HIGH action PRISMA-CLIENT-REPAIR-C01: from an elevated Administrator executor, regenerate the generated Prisma client using the target tree's own `prisma` CLI 6.19.2 and the committed `prisma/schema.prisma` of release `74c1f12a5c06bb025a1a7a13088c1c5da1a76d74` extracted from Git, with the output directed into an isolated `%TEMP%\opencode\prisma-repair-c01` scratch layout, prove the scratch client loads and answers one read-only query, then additively copy only the files missing from `D:\ATLAS-runtime-supervised-0eb3b67fe94c-20260918\atlas-server\node_modules\.prisma\client` using create-new-only semantics that never overwrite or delete any existing file, then prove a fresh start of release `74c1f12a` on alternate port 5051 with rollover automation disabled accompanied by a byte-identical schema-wide database signature; perform no dependency install, no schema or migration command, no login, no database write, no environment-file, task, or 5001/5174 change, and no companion-repository action; and on any mandatory failure remove exactly the files this action added and report rather than improvise an alternate client.
+> I approve HIGH action PRISMA-CLIENT-REPAIR-C01: from an elevated Administrator executor, restore the missing generated Prisma client files in `D:\ATLAS-runtime-supervised-0eb3b67fe94c-20260918\atlas-server\node_modules\.prisma\client` by additively copying only those files absent from that directory from release `8eb0511baa53-20260917`, after proving the equivalence gate — equal `prisma` and `@prisma/client` versions, token-identical schema content against the committed schema of release `74c1f12a5c06bb025a1a7a13088c1c5da1a76d74` with whitespace stripped, byte-equal engine binaries, and a non-empty graft list containing `index.js`, `default.js` and `package.json` — using create-new-only semantics that never overwrite, rename or delete any existing file and never write the loaded query-engine binary; and after proving with the isolated alternate-port 5051 server start, rollover automation disabled, and byte-identical schema-wide table-signature and sequence maps that no database write occurred; performing no dependency install, no `prisma generate`, no schema or migration command, no login, no environment-file, task, or 5001/5174/5175 change, and no companion-repository action; and on any mandatory failure deleting exactly the files this action added and removing the scratch directory, and reporting rather than improvising an alternate client.
 
 ## Return
 
-One concise evidence artifact: the extracted and scratch schema hashes, CLI and
-client versions, the scratch-versus-target missing-file list, the generate result,
-the pre/post file lists with hashes, rows 1–6, the database signature map before
-and after, PIDs and listeners before and after, rollback status, and an immutable
-evidence SHA. Do not paste logs, secrets, database rows, or environment contents.
+One concise evidence artifact: the equivalence-gate values and source release
+identity, the graft list, pre/post file lists with hashes, rows 1–6, the table
+signature and sequence maps before and after with the disclosed blind spots, PIDs
+and listeners before and after, rollback status, and an immutable evidence SHA. Do
+not paste logs, secrets, database rows, or environment contents.
