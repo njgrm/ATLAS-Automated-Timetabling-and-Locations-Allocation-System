@@ -282,6 +282,12 @@ already accepted.
 - **Test-only corrections:** rerun the affected tests plus **one** relevant
   preservation suite. Do not repeat builds or full regression inventories unless
   production code changed.
+- **A test no gate runs is not evidence.** A new or changed test file must be
+  reachable from a committed `package.json` script (or the documented gate entry
+  point) in the same commit. Precedent: `test:ux-guardrails` named two files deleted
+  by `4794bd9e` and still exited 0 with a green tally, and a Muse Spark C02 candidate
+  added a 398-line test file with no script entry where the accepted DeepSeek
+  candidate added one.
 - **A bounded correction does not require a full re-review.** After a correction
   commit, review the *new commit and its blast radius*, not the whole range again.
   Still prove that the prior accepted commits remain ancestors, unchanged reviewed
