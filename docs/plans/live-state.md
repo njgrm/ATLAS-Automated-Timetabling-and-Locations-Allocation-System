@@ -5,7 +5,7 @@ evidence. Update this file when a live fact, blocking decision, or next action
 changes.
 
 Last verified: 2026-09-20 (planner reconciliation; live release `74999168`
-deployed and independently accepted 8/8)
+deployed, independently accepted 8/8, and browser-accepted read-only)
 
 ## Objective
 
@@ -55,6 +55,25 @@ and AIMS.
   `E:/ATLAS-worktrees/c02-muse` (`211dea0c`) is preserved as an unintegrated
   alternate candidate. `stash@{0}` (`3c014d8b`) preserved.
 
+## Live acceptance (browser, 2026-09-20)
+
+- One authorized admin login for this pass: audit row **852** `LOCAL_LOGIN_SUCCESS`,
+  actor 46. Rows 850/851 are pre-existing and not from this pass. Read-only: no
+  Save/Apply/Generate/Publish/Delete was invoked and no timetable cell was clicked.
+- `/` renders, `window.location.origin` asserted, no global scrollbar. INTEGRATED
+  SYSTEMS now lists **EnrollPro** with its reverse-SSO start link; AIMS and SMART
+  correctly report "not configured".
+- `/timetable`: the Simple workspace renders (`timetable-simple-body`), no global
+  scrollbar. Selection-driven controls (primary action, visible undo, source truth)
+  were deliberately not exercised, because selecting a slot on this page can place
+  a session.
+- `/public/schedules?termIndex=1`: resolves a single term (`TERM 1`) and shows 40
+  published classes for the default section — the 3x term duplication is gone.
+- `/teaching-load`: renders with no error boundary and no global scrollbar.
+- Console errors are only EnrollPro-proxy 502s (see the blocker below).
+- Screenshot, not committed:
+  `%TEMP%\opencode\pw-mcp-output\atlas-timetable-simple-1366x768.png`.
+
 ## Live data
 
 - Database: `atlas_recovery_clean_rebuild_20260905` on localhost:5432.
@@ -99,6 +118,16 @@ and AIMS.
   `PRISMA-CLIENT-REPAIR-C01`. Residual for the next packet revision: precondition
   8's literal `row_to_json(t)` form must pin the exact quoting and serialization,
   as recorded in the evidence addendum.
+- **EnrollPro proxy is still down in the deployed demo.** The live host returns 502
+  for `/enrollpro-api/settings/public` and `/enrollpro-uploads/*` because the
+  durable env file has no `ENROLLPRO_PROXY_ORIGIN`; the bundle and the Integrated
+  Systems entry are correct, but live EnrollPro data and end-to-end SSO stay broken
+  until `ENROLLPRO-PROXY-RECOVERY-LIVE` is approved and executed. It is still NOT
+  GRANTED.
+- Dashboard tile wording: the Scheduling Dashboard reports "335 review blockers" on
+  a published run with zero HARD violations — the acknowledged SOFT warning total is
+  presented as blockers. This is the operator's warning-count complaint in a second
+  surface and is an open page-level follow-up.
 
 ## Operator decisions
 
@@ -115,11 +144,12 @@ and AIMS.
 
 ## Single next action
 
-The demo now runs the accepted source; the next bounded step is a live browser
-acceptance pass on the deployed release (authenticated rows were deliberately
-outside the deploy's mandate), covering the Simple timetable workspace, the
-term-scoped public schedule, exports, and the Teaching Load pages. Dispatch the
-SMART and AIMS handoffs to their repository owners in parallel; generate/install
-directional keys only after both sides consume the agreed names. Regeneration and
-publication remain separately locked, as do all Teaching Load and term-cache
-applies.
+Obtain the operator's exact approval for `ENROLLPRO-PROXY-RECOVERY-LIVE`
+(`docs/prompts/enrollpro-proxy-recovery-live-2026-09-14.md`): the live host still
+502s on `/enrollpro-api/*`, so EnrollPro data and end-to-end SSO remain broken in
+the deployed demo even though the bundle and the Integrated Systems entry are now
+correct. Dispatch the SMART and AIMS handoffs to their repository owners in
+parallel; generate/install directional keys only after both sides consume the
+agreed names. Then take the page-level UX work (`UX-R02`-`UX-R05`) for the
+remaining dense surfaces. Regeneration and publication remain separately locked, as
+do all Teaching Load and term-cache applies.
