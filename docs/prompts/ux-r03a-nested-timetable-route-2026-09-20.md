@@ -96,20 +96,32 @@ focused client tests under `atlas-client/src/**/__tests__/**`. Nothing else.
    grid; `/timetable/policies` shows the same shell with the policy pane. Cite the
    route, the accessibility snapshot and the origin `https://njgrm.buru-degree.ts.net`
    for live rows, or a rendered-test row for source-only rows.
-2. **No remount.** Navigating `/timetable` → `/timetable/policies` → `/timetable`
-   keeps the same grid element instance alive (assert node identity, not just text)
-   and does not issue a fresh data-request storm: the total request count for the
-   round trip must not exceed the requests a single page load issues today.
-3. **Guard preserved.** A route-driven center-view change runs the guarded setter.
-   Prove it by test (the route→view effect calls the guarded path) and, if a guarded
-   state can be produced without a mutation, by rendered behaviour. Direct URL entry
-   while guarded must surface the guard, not silently discard.
+2. **No workspace remount and no refetch (amended 2026-09-20 after QA).** Navigating
+   `/timetable` → `/timetable/policies` → `/timetable` must keep the **review
+   workspace** — shell, query cache, scope state — mounted, and must issue **no new
+   data request** on the round trip. The center *pane* switching (grid ⇄ policy) is
+   expected and pre-existing: `CenterWorkspace` renders one center view at a time, so
+   keeping a heavy grid element mounted behind a panel is explicitly **not** required.
+   The literal "same grid element instance" wording in the r1 packet was unachievable
+   by construction and is withdrawn. In-source proof is the structural argument
+   (element-less children, one parent element, zero new request sites) plus tests; the
+   empirical DOM-identity and request-count proof belongs to the next deployment's
+   acceptance and must be listed as an open deployment-acceptance item.
+3. **Guard preserved, and its cancel path is consistent.** A route-driven center-view
+   change runs the guarded setter. Prove it by test (the route→view effect calls the
+   guarded path) and, if a guarded state can be produced without a mutation, by
+   rendered behaviour. Direct URL entry while guarded must surface the guard, not
+   silently discard. **New in this revision (QA finding F2):** when the operator
+   cancels the guard ("stay here"), the URL must return to the route the operator is
+   actually on — a cancelled navigation must never leave the address bar describing a
+   center view the pane is not showing.
 4. **More menu.** The policy item navigates to `/timetable/policies` as a link; no
    `requestAnimationFrame` state workaround remains for it; the Advanced header's
    policy entry still opens policy.
 5. **Unknown child route** falls back to the index surface (no blank center, no crash).
 6. **Layout invariants.** Neither route produces a global scrollbar at `1366x768`;
-   no native `<select>`; no new raw button; the 12px chrome floor holds.
+   no native `<select>`; no new raw button; the 12px chrome floor holds. The viewport
+   measurement is a browser clause and is deferred to the deployment acceptance.
 7. **No functional regression.** Generate / Publish / Preview impact / Sync with setup
    behaviour is unchanged, and the ordered-term + actor-school invariants are intact.
    Existing client suites that cover them must pass unchanged.
