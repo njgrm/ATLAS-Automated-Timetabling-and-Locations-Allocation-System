@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 
 /**
  * UX-R03a — the two center views that have a URL. Everything else under
@@ -18,11 +18,35 @@ export function resolveTimetableRouteView(pathname: string): TimetableRoutedView
 	return normalized === '/timetable/policies' ? 'policy' : 'schedule';
 }
 
+/**
+ * UX-R03a (F2) — the route that truthfully describes the center view actually
+ * shown. Only `policy` has its own route; every other view (including the
+ * unrouted pre-generation/manual-edit/map/building surfaces) is described by
+ * the index route, exactly as before this increment.
+ */
+export function resolveTimetableRouteForView(centerView: string): '/timetable' | '/timetable/policies' {
+	return centerView === 'policy' ? '/timetable/policies' : '/timetable';
+}
+
+/**
+ * UX-R03a (F2) — the restore target when the guard dialog closes, or `null`
+ * when the address bar already describes the view shown. Accepted navigations
+ * converge on their own (the confirmed action sets the matching view);
+ * a cancelled navigation leaves the stale URL behind and must restore it.
+ */
+export function resolveUrlRestoreTarget(pathname: string, centerView: string): string | null {
+	const target = resolveTimetableRouteForView(centerView);
+	const normalized = pathname.length > 1 ? pathname.replace(/\/+$/, '') : pathname;
+	return normalized === target ? null : target;
+}
+
 type TimetableRouteViewSyncProps = {
 	centerView: string;
 	switchCenterViewWithGuard: (action: () => void) => void;
 	enterPolicyView: () => void;
 	exitPolicyView: () => void;
+	/** Open state of the existing leave-draft guard dialog; drives F2 restore. */
+	leaveDialogOpen: boolean;
 };
 
 /**
@@ -42,13 +66,18 @@ export function TimetableRouteViewSync({
 	switchCenterViewWithGuard,
 	enterPolicyView,
 	exitPolicyView,
+	leaveDialogOpen,
 }: TimetableRouteViewSyncProps) {
 	const { pathname } = useLocation();
+	const navigate = useNavigate();
 	const centerViewRef = useRef(centerView);
 	centerViewRef.current = centerView;
+	const pathnameRef = useRef(pathname);
+	pathnameRef.current = pathname;
 	const callbacksRef = useRef({ switchCenterViewWithGuard, enterPolicyView, exitPolicyView });
 	callbacksRef.current = { switchCenterViewWithGuard, enterPolicyView, exitPolicyView };
 	const appliedPathnameRef = useRef<string | null>(null);
+	const leaveDialogOpenRef = useRef(leaveDialogOpen);
 
 	useEffect(() => {
 		if (appliedPathnameRef.current === pathname) return;
@@ -66,6 +95,20 @@ export function TimetableRouteViewSync({
 			guarded(exit);
 		}
 	}, [pathname]);
+
+	// UX-R03a (F2) — when the leave-draft guard dialog closes, the address bar
+	// must describe the center view actually shown. A confirmed navigation
+	// already converges (its action sets the matching view, so the target is
+	// null); a cancelled one leaves the stale URL behind, so replace it with
+	// the route for the shown view. This never sets view state — the existing
+	// view remains the single source of truth.
+	useEffect(() => {
+		const wasOpen = leaveDialogOpenRef.current;
+		leaveDialogOpenRef.current = leaveDialogOpen;
+		if (wasOpen !== true || leaveDialogOpen !== false) return;
+		const target = resolveUrlRestoreTarget(pathnameRef.current, centerViewRef.current);
+		if (target !== null) navigate(target, { replace: true });
+	}, [leaveDialogOpen, navigate]);
 
 	return null;
 }

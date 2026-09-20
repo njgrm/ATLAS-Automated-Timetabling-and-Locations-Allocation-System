@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import test from 'node:test';
 
-import { resolveTimetableRouteView } from '../TimetableRouteViewSync';
+import { resolveTimetableRouteForView, resolveTimetableRouteView, resolveUrlRestoreTarget } from '../TimetableRouteViewSync';
 import { resolveRouteChrome } from '../../app-shell/navigation';
 
 const clientRoot = resolve(import.meta.dirname, '../../../..');
@@ -82,6 +82,41 @@ test('UX-R03a row 3: both route directions pass through the existing guarded set
 	assert.match(workspace, /switchCenterViewWithGuard=\{state\.headerContext\.switchCenterViewWithGuard\}/);
 	assert.match(workspace, /enterPolicyView=\{state\.headerContext\.enterPolicyView\}/);
 	assert.match(workspace, /exitPolicyView=\{state\.headerContext\.exitPolicyView\}/);
+});
+
+// --- Row 3 (F2): a cancelled guard navigation restores the shown view's URL ---
+
+test('UX-R03a row 3 F2: every center view resolves to the route that describes it', () => {
+	assert.equal(resolveTimetableRouteForView('policy'), '/timetable/policies');
+	for (const view of ['schedule', 'pre-generation', 'manual-edit', 'map', 'building']) {
+		assert.equal(resolveTimetableRouteForView(view), '/timetable');
+	}
+});
+
+test('UX-R03a row 3 F2: accepted navigations need no restore, cancelled ones restore the shown view', () => {
+	// Accepted: the confirmed action sets the matching view, so the URL already matches.
+	assert.equal(resolveUrlRestoreTarget('/timetable/policies', 'policy'), null);
+	assert.equal(resolveUrlRestoreTarget('/timetable', 'schedule'), null);
+	assert.equal(resolveUrlRestoreTarget('/timetable/', 'schedule'), null);
+	// Unrouted views keep the index URL they have always had.
+	assert.equal(resolveUrlRestoreTarget('/timetable', 'pre-generation'), null);
+	assert.equal(resolveUrlRestoreTarget('/timetable', 'manual-edit'), null);
+	// Cancelled: the stale URL is replaced with the shown view's route, both directions.
+	assert.equal(resolveUrlRestoreTarget('/timetable/policies', 'pre-generation'), '/timetable');
+	assert.equal(resolveUrlRestoreTarget('/timetable/policies', 'schedule'), '/timetable');
+	assert.equal(resolveUrlRestoreTarget('/timetable', 'policy'), '/timetable/policies');
+});
+
+test('UX-R03a row 3 F2: the sync restores via replace navigation on guard-dialog close, never by setting view state', () => {
+	const sync = source('src/components/timetable/TimetableRouteViewSync.tsx');
+	assert.match(sync, /leaveDialogOpen: boolean/);
+	assert.match(sync, /useNavigate/);
+	assert.match(sync, /navigate\(target, \{ replace: true \}\)/);
+	assert.match(sync, /resolveUrlRestoreTarget\(pathnameRef\.current, centerViewRef\.current\)/);
+	// The restore path reads state only: the guard remains the sole view setter.
+	assert.doesNotMatch(sync, /setCenterView/);
+	const workspace = source('src/components/timetable/ScheduleReviewWorkspace.tsx');
+	assert.match(workspace, /leaveDialogOpen=\{state\.dialogContext\.showLeavePreGenDialog\}/);
 });
 
 // --- Row 4: the More menu policy item is a real link ---

@@ -289,6 +289,7 @@ export default function ScheduleReviewWorkspace() {
 				switchCenterViewWithGuard={state.headerContext.switchCenterViewWithGuard}
 				enterPolicyView={state.headerContext.enterPolicyView}
 				exitPolicyView={state.headerContext.exitPolicyView}
+				leaveDialogOpen={state.dialogContext.showLeavePreGenDialog}
 			/>
 			{state.loading && state.draft && (
 				<div className="absolute inset-0 z-50 flex items-center justify-center bg-background/50 backdrop-blur-[2px] transition-all duration-150">
