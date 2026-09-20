@@ -148,11 +148,11 @@ and AIMS.
 
 ## Single next action
 
-Wait for the EnrollPro tailnet peer `dev-jegs` to come back online — that needs no
-ATLAS action, spend, or approval, and the superseded live packet must not be
-executed. The highest-value ATLAS work is therefore the page-level UX density
-(`UX-R02`-`UX-R05`) on the deployed release, starting with the surfaces the operator
-called a "pilot cockpit". Dispatch the SMART and AIMS handoffs to their repository
+UX-R03a is in flight: the nested `/timetable` layout route (the grid stays mounted)
+plus `/timetable/policies` as the first operator sub-page, per
+`docs/prompts/ux-r03a-nested-timetable-route-2026-09-20.md`. EnrollPro needs no ATLAS
+action — wait for the peer `dev-jegs` to come back online and do not execute the
+superseded live packet. Dispatch the SMART and AIMS handoffs to their repository
 owners in parallel; generate/install directional keys only after both sides consume
 the agreed names. Regeneration and publication remain separately locked, as do all
 Teaching Load and term-cache applies.
