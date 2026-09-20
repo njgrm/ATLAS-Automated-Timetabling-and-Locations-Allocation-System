@@ -76,8 +76,12 @@ test('UX-R03b row 2: manual-edit without a selection shows a truthful empty stat
 	// The copy names how to reach the pane: the schedule grid + selection actions.
 	assert.match(block, /schedule grid/);
 	assert.match(block, /Move, Change room, or Swap/);
-	// The way back is a guarded view change, never a fabricated selection.
-	assert.match(block, /setCenterView\('schedule'\)/);
+	// UX-R03b correction: the way back navigates (URL matches the shown view)
+	// instead of setting view state — never a fabricated selection either.
+	assert.match(block, /asChild/);
+	assert.match(block, /<Link to="\/timetable">/);
+	assert.doesNotMatch(block, /setCenterView/);
+	assert.doesNotMatch(block, /onClick/);
 	assert.doesNotMatch(block, /setSelectedEntry/);
 	assert.doesNotMatch(block, /selectedEntry\s*=/);
 });
@@ -93,8 +97,12 @@ test('UX-R03b row 2: building without a selection shows a truthful empty state',
 	assert.match(block, /No building selected/);
 	// The copy names how to reach the pane: the map + building selection.
 	assert.match(block, /Open the map and select a building/);
-	// The way back is a guarded view change, never a fabricated building.
-	assert.match(block, /setCenterView\('map'\)/);
+	// UX-R03b correction: the way back navigates (URL matches the shown view)
+	// instead of setting view state — never a fabricated building either.
+	assert.match(block, /asChild/);
+	assert.match(block, /<Link to="\/timetable\/map">/);
+	assert.doesNotMatch(block, /setCenterView/);
+	assert.doesNotMatch(block, /onClick/);
 	assert.doesNotMatch(block, /setMapBuildingId/);
 	assert.doesNotMatch(block, /openBuildingWorkspace/);
 });
@@ -132,7 +140,11 @@ test('UX-R03b row 3: every route direction passes through the existing guarded s
 	assert.match(workspace, /switchCenterViewWithGuard=\{state\.headerContext\.switchCenterViewWithGuard\}/);
 	assert.match(workspace, /enterPolicyView=\{state\.headerContext\.enterPolicyView\}/);
 	assert.match(workspace, /exitPolicyView=\{state\.headerContext\.exitPolicyView\}/);
-	assert.match(workspace, /enterPreGenerationView=\{\(\) => state\.centerWorkspaceContext\.setCenterView\('pre-generation'\)\}/);
+	// UX-R03b correction: the pre-generation route entry also establishes the
+	// Draft queue tab (tab before view, mirroring the in-app entry) — pinned
+	// exactly in the correction test below; the one-liner form is superseded.
+	assert.match(workspace, /enterPreGenerationView=\{\(\) => \{/);
+	assert.match(workspace, /state\.setLeftTab\('unassigned'\)/);
 	assert.match(workspace, /enterMapView=\{\(\) => state\.centerWorkspaceContext\.setCenterView\('map'\)\}/);
 	assert.match(workspace, /enterManualEditView=\{\(\) => state\.centerWorkspaceContext\.setCenterView\('manual-edit'\)\}/);
 	assert.match(workspace, /enterBuildingView=\{\(\) => state\.centerWorkspaceContext\.setCenterView\('building'\)\}/);
@@ -245,8 +257,49 @@ test('UX-R03b row 7: every touched component file stays under the 1000-line cap'
 	}
 });
 
-// --- Row 8: nothing is lost ---
+// --- UX-R03b corrections (QA round 2): URL-entry tab state + navigating way-backs ---
 
+test('UX-R03b correction: URL entry to pre-generation lands on the Draft queue tab', () => {
+	const workspace = source('src/components/timetable/ScheduleReviewWorkspace.tsx');
+	const anchor = workspace.indexOf('enterPreGenerationView=');
+	assert.ok(anchor >= 0, 'the pre-generation route entry must exist');
+	const end = workspace.indexOf('}}', anchor);
+	assert.ok(end > anchor, 'the route entry must be bounded');
+	const entry = workspace.slice(anchor, end);
+	const tabAt = entry.indexOf("state.setLeftTab('unassigned')");
+	const viewAt = entry.indexOf("setCenterView('pre-generation')");
+	assert.ok(tabAt >= 0, 'the route entry must establish the Draft queue tab');
+	assert.ok(viewAt > tabAt, 'the tab is established before the view, mirroring the in-app entry');
+	// Still a plain guarded state change: no fetch, no draft reset — and the sync
+	// invokes it only through the guarded setter (pinned in the row 3 test).
+	assert.doesNotMatch(entry, /fetch\(|atlasApi|openPreGenerationWorkspace/);
+});
+
+test('UX-R03b correction: empty-state way-backs navigate so the URL matches the shown view', () => {
+	const center = source('src/components/timetable/CenterWorkspace.tsx');
+	for (const [testid, route] of [
+		['timetable-manual-edit-empty-state', '/timetable'],
+		['timetable-building-empty-state', '/timetable/map'],
+	] as Array<[string, string]>) {
+		const anchor = center.indexOf(testid);
+		assert.ok(anchor >= 0, `${testid} must exist`);
+		const blockStart = center.lastIndexOf('<motion.div', anchor);
+		const blockEnd = center.indexOf('</motion.div>', anchor);
+		assert.ok(blockStart >= 0 && blockEnd > blockStart, `${testid} block must be bounded`);
+		const block = center.slice(blockStart, blockEnd);
+		assert.match(block, new RegExp(`<Link to="${route.replace(/\//g, '\\/')}">`));
+		assert.match(block, /asChild/);
+		assert.doesNotMatch(block, /setCenterView/);
+		assert.doesNotMatch(block, /onClick/);
+	}
+	// The route→view sync converts those navigations into guarded transitions,
+	// so the existing guard behaviour is intact.
+	const sync = source('src/components/timetable/TimetableRouteViewSync.tsx');
+	assert.match(sync, /guarded\(exit\)/);
+	assert.match(sync, /guarded\(enterMap\)/);
+});
+
+// --- Row 8: nothing is lost ---
 test('UX-R03b row 8: the four views stay reachable with unchanged Generate/Publish/Preview/Sync call sites', () => {
 	const center = source('src/components/timetable/CenterWorkspace.tsx');
 	for (const view of ['pre-generation', 'manual-edit', 'map', 'building']) {

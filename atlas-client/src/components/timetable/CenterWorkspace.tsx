@@ -1,4 +1,5 @@
 import { lazy, memo, Suspense, useCallback, useEffect, useMemo, useState, Profiler } from 'react';
+import { Link } from 'react-router-dom';
 import { AnimatePresence, motion } from 'motion/react';
 import { AlertTriangle, Building2, CalendarClock, ChevronLeft, Loader2, Lock, MapPin, MousePointerClick, Play } from 'lucide-react';
 import { onProfilerRender } from './ScheduleReviewWorkspace';
@@ -448,9 +449,14 @@ export const CenterWorkspace = memo(function CenterWorkspace(props: CenterWorksp
 								<p className="text-xs text-muted-foreground">
 									Select a class on the schedule grid first, then open Move, Change room, or Swap from the selection actions to edit it here.
 								</p>
-								<Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setCenterView('schedule')}>
-									<ChevronLeft className="size-3.5" />
-									Back to Schedule
+								{/* UX-R03b correction: navigate instead of setting view state,
+								    so the URL always matches the shown view; the route→view
+								    sync then drives the guarded transition. */}
+								<Button asChild variant="outline" size="sm" className="h-7 text-xs">
+									<Link to="/timetable">
+										<ChevronLeft className="size-3.5" />
+										Back to Schedule
+									</Link>
 								</Button>
 							</div>
 						</div>
@@ -602,9 +608,14 @@ export const CenterWorkspace = memo(function CenterWorkspace(props: CenterWorksp
 								<p className="text-xs text-muted-foreground">
 									Open the map and select a building to view its floors and rooms here.
 								</p>
-								<Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setCenterView('map')}>
-									<ChevronLeft className="size-3.5" />
-									Back to Map
+								{/* UX-R03b correction: navigate instead of setting view state,
+								    so the URL always matches the shown view; the route→view
+								    sync then drives the guarded transition. */}
+								<Button asChild variant="outline" size="sm" className="h-7 text-xs">
+									<Link to="/timetable/map">
+										<ChevronLeft className="size-3.5" />
+										Back to Map
+									</Link>
 								</Button>
 							</div>
 						</div>
