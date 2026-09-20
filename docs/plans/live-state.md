@@ -18,27 +18,34 @@ and AIMS.
 ## Live release
 
 - Tailnet: `https://njgrm.buru-degree.ts.net`
-- Release SHA: `c93dd2ee352a1e1a2d2850d6f3e746b69a63f559`
-- Supervisor: PID 91896; server `5001 -> 92740`; client `5174 -> 82444`
-- Active directory: `D:\ATLAS-runtime-supervised-c93dd2ee-20260920`
-- Deployed 2026-09-20 by the `UX-R03c` one-shot. Rows 1-6 (source), 7-14 (deployment)
-  and 17 (the duplicate policy fetch is genuinely gone — exactly one
-  `GET /policies/scheduling/…`, no 502) were independently reproduced by post-action QA;
-  row 16 (no global scrollbar at `1366x768` on all seven routes) also passed. Row 18 (the
-  header's own export control) is **unperformed**, because rapid sequential child-route
-  loads intermittently failed to mount the workspace.
-- **Correction to the C02 record.** C02's planner-executed row 9 reported "same workspace
-  element instance". Independent browser QA for `R03c` **falsified** it: `AppShell.tsx:566,574`
-  keys the Outlet by `${location.pathname}:${routeEpoch}`, so every `/timetable/*` pathname
-  change unmounts and remounts the route subtree. The zero-new-request half holds (the
-  query cache survives), but the element-identity claim was a false pass and is withdrawn.
-  This is why browser rows must not be planner-executed.
-- Authorized logins: `audit_logs` row 853 (C02 pass) and row 854 (R03c QA pass), actor 46.
-- Served client entry chunk: `assets/index-BiORrVpn.js`; served HTML and all 34 referenced
-  assets byte-match the built dist manifest, and the bundle carries `/timetable/exports`.
-- Rollback basis: `d50dde642c10b1ea6fdc9097266ace53cdba2063` at
-  `D:\ATLAS-runtime-supervised-d50dde64-20260920` — startable, junction-free, with its
-  task-XML capture retained. Rollback was not executed. The older `74999168` release is
+- Release SHA: `5f5c6c4f02caf91b1ad948ebfcb6dde409073ad6`
+- Supervisor: PID 75172; server `5001 -> 91880`; client `5174 -> 76056`
+- Active directory: `D:\ATLAS-runtime-supervised-5f5c6c4f-20260920`
+- Deployed 2026-09-20 by the `UX-R03d` one-shot: the route outlet key no longer varies
+  with the pathname inside the `/timetable` subtree, so the workspace stops remounting as
+  the operator moves between its sub-pages. Independent browser QA confirmed the fix on
+  the live build — the workspace root and `timetable-left-panel` were the **same element
+  instances** across in-subtree navigation via the app's own controls, with **zero** new
+  `/api/v1/` requests — and confirmed a non-timetable nested pair still remounts as before.
+  Viewport and the header export control passed; the deployment rows were independently
+  reproduced.
+- **Evidence-hygiene defect found and fixed in this cycle.** Independent QA applied the
+  `AGENTS.md` §11 rule and found that the route test files
+  (`ux-r03a-nested-timetable-route`, `ux-r03b-center-view-routes`, `ux-r03d-outlet-keying`)
+  were reachable from **no** committed `package.json` script — the whole
+  `components/__tests__` tree sat outside every gate, so their earlier tallies came from
+  manually-run commands. Correction `fc966a4c` adds `test:timetable-route-keys` (32/32).
+  **The live release `5f5c6c4f` predates that dev-only line; no runtime byte differs.**
+- Open provenance limitation: the deployment signature map is deterministic (46 tables)
+  but its serialization was not pinned tightly enough for QA to re-derive the recorded
+  pre hash independently. Byte-identity across the action was proven by the executor.
+- Authorized logins: `audit_logs` rows 853 (C02 pass), 854 (R03c QA), 855 (R03d QA), actor 46.
+- Served client entry chunk: `assets/index-CQqAftds.js`; served HTML and all 33 referenced
+  assets byte-match the built dist manifest.
+- Rollback basis: `c93dd2ee352a1e1a2d2850d6f3e746b69a63f559` at
+  `D:\ATLAS-runtime-supervised-c93dd2ee-20260920` — startable, junction-free, with its
+  task-XML capture retained. Rollback was not executed. The older `d50dde64` and
+  `74999168` releases are
   still present and startable.
 - Retained do-not-retire trees: `0eb3b67f` (repaired shared client),
   `8eb0511baa53` (client graft source), and `E:\ATLAS-worktrees\ux-quickfix-c01`.
@@ -164,6 +171,12 @@ and AIMS.
   execute**: its env premise is false and its release binding would downgrade the
   runtime. Handoff:
   `docs/handoffs/enrollpro-dev-jegs-unreachable-2026-09-20.md`.
+- **EnrollPro resolved 2026-09-20 without ATLAS action.** The peer came back online on its
+  own (`tailscale status`: active, direct connection) and the proxy is healthy again:
+  `https://njgrm.buru-degree.ts.net/enrollpro-api/settings/public` → 200 and
+  `https://dev-jegs.buru-degree.ts.net/api/integration/v1/health` → 200. This confirms the
+  superseded `ENROLLPRO-PROXY-RECOVERY-LIVE` packet was correctly not executed — the fault
+  was always the companion's availability, never ATLAS configuration.
 - Dashboard tile wording: the Scheduling Dashboard reports "335 review blockers" on
   a published run with zero HARD violations — the acknowledged SOFT warning total is
   presented as blockers. This is the operator's warning-count complaint in a second
@@ -199,12 +212,15 @@ and AIMS.
 
 ## Single next action
 
-The next one-shot is `UX-R03d`: the `/timetable/runs` and `/timetable/setup` panes, the
-`AppShell` Outlet-keying fix so the timetable workspace stops remounting on its own child
-routes (the falsified C02 row 9), the row-18 header export-control check, and an
-investigation of the intermittent `/api/v1` 502s and workspace non-mount observed under
-rapid sequential loads. EnrollPro needs no ATLAS action — wait for the peer `dev-jegs` to
-come back online and do not execute the superseded live packet. Dispatch the SMART and
-AIMS handoffs to their repository owners in parallel; generate/install directional keys
-only after both sides consume the agreed names. Regeneration and publication remain
-separately locked, as do all Teaching Load and term-cache applies.
+The next one-shot is `UX-R03e`: the `/timetable/runs` and `/timetable/setup` panes — which
+are design decisions about what those pages show, since no composable run-list surface
+exists — plus the deferred diagnosis of the intermittent 502s. That diagnosis now has a
+concrete lead: QA observed two 502s on an **ATLAS** route
+(`/api/v1/generation/1/10/runs/316/manual-edits`, not reproduced in four later loads) and
+eight endpoints issuing concurrent duplicate identical GETs, so the next cycle should
+establish whether duplicate concurrent client reads intermittently trip the host proxy.
+EnrollPro is back online and its proxy is healthy (see above), so no ATLAS action is
+outstanding there. Dispatch the SMART and AIMS handoffs to their repository owners in
+parallel; generate/install directional keys only after both sides consume the agreed
+names. Regeneration and publication remain separately locked, as do all Teaching Load and
+term-cache applies.
