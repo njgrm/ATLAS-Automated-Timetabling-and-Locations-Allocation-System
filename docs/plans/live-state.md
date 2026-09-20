@@ -118,12 +118,16 @@ and AIMS.
   `PRISMA-CLIENT-REPAIR-C01`. Residual for the next packet revision: precondition
   8's literal `row_to_json(t)` form must pin the exact quoting and serialization,
   as recorded in the evidence addendum.
-- **EnrollPro proxy is still down in the deployed demo.** The live host returns 502
-  for `/enrollpro-api/settings/public` and `/enrollpro-uploads/*` because the
-  durable env file has no `ENROLLPRO_PROXY_ORIGIN`; the bundle and the Integrated
-  Systems entry are correct, but live EnrollPro data and end-to-end SSO stay broken
-  until `ENROLLPRO-PROXY-RECOVERY-LIVE` is approved and executed. It is still NOT
-  GRANTED.
+- **EnrollPro proxy 502 is an upstream outage, not an ATLAS defect.** The durable
+  env already declares `ENROLLPRO_PROXY_ORIGIN`, the deployed runtime already
+  resolves it, and the live proxy truthfully returns
+  `502 {"code":"UPSTREAM_UNREACHABLE","message":"connect ETIMEDOUT 100.120.169.123:443"}`.
+  The tailnet peer `dev-jegs` (`100.120.169.123`) is **offline** (tailscale reports
+  offline, last seen 10h; TCP 443 fails; direct probes fail; ATLAS's own tailnet
+  origin returns 200). `ENROLLPRO-PROXY-RECOVERY-LIVE` is **SUPERSEDED — do not
+  execute**: its env premise is false and its release binding would downgrade the
+  runtime. Handoff:
+  `docs/handoffs/enrollpro-dev-jegs-unreachable-2026-09-20.md`.
 - Dashboard tile wording: the Scheduling Dashboard reports "335 review blockers" on
   a published run with zero HARD violations — the acknowledged SOFT warning total is
   presented as blockers. This is the operator's warning-count complaint in a second
@@ -144,12 +148,11 @@ and AIMS.
 
 ## Single next action
 
-Obtain the operator's exact approval for `ENROLLPRO-PROXY-RECOVERY-LIVE`
-(`docs/prompts/enrollpro-proxy-recovery-live-2026-09-14.md`): the live host still
-502s on `/enrollpro-api/*`, so EnrollPro data and end-to-end SSO remain broken in
-the deployed demo even though the bundle and the Integrated Systems entry are now
-correct. Dispatch the SMART and AIMS handoffs to their repository owners in
-parallel; generate/install directional keys only after both sides consume the
-agreed names. Then take the page-level UX work (`UX-R02`-`UX-R05`) for the
-remaining dense surfaces. Regeneration and publication remain separately locked, as
-do all Teaching Load and term-cache applies.
+Wait for the EnrollPro tailnet peer `dev-jegs` to come back online — that needs no
+ATLAS action, spend, or approval, and the superseded live packet must not be
+executed. The highest-value ATLAS work is therefore the page-level UX density
+(`UX-R02`-`UX-R05`) on the deployed release, starting with the surfaces the operator
+called a "pilot cockpit". Dispatch the SMART and AIMS handoffs to their repository
+owners in parallel; generate/install directional keys only after both sides consume
+the agreed names. Regeneration and publication remain separately locked, as do all
+Teaching Load and term-cache applies.

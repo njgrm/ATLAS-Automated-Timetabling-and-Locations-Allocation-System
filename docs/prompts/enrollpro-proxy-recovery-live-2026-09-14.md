@@ -1,8 +1,17 @@
 # ENROLLPRO-PROXY-RECOVERY-LIVE-2026-09-14 — prepared HIGH live-recovery packet
 
-Status: **PREPARED — NOT APPROVED. The exact operator approval sentence in
-section 8 has NOT been granted.** No part of this packet may be executed until
-the operator returns that sentence verbatim (or an explicit superset).
+Status: **SUPERSEDED 2026-09-20 — DO NOT EXECUTE. Two premises of this packet are
+now false.** (1) Its accepted-source binding would install release `54dce67b…` and
+declare that as `ATLAS_RUNTIME_RELEASE_SHA`; the live release is now
+`7499916886707c35ea708a17ef7a87e791a6bade`, so executing it verbatim would
+**downgrade the runtime and undo the 2026-09-20 deployment**. (2) Its section 3
+snapshot records `ENROLLPRO_PROXY_ORIGIN` as absent from the durable env file; that
+key is now present, and the deployed runtime already resolves it in
+`ops/runtime/lib/enrollpro-origin.mjs` and `cli.mjs`. The proxy's remaining 502 is
+an upstream condition — the EnrollPro tailnet peer `dev-jegs` (`100.120.169.123`)
+is offline — not an ATLAS configuration defect. See
+`docs/handoffs/enrollpro-dev-jegs-unreachable-2026-09-20.md`. The approval sentence
+in section 8 must **not** be granted and no part of this packet may be executed.
 
 Risk: **HIGH — shared-runtime environment change + release install + supervised
 process restart on ports 5001/5174.** Prepared 2026-09-14 (Asia/Manila) by the
