@@ -89,17 +89,27 @@ future release rebuilds the tree.
    `git -C D:\ATLAS-runtime-supervised-74c1f12a5c06-20260918 rev-parse HEAD` to
    equal `74c1f12a5c06bb025a1a7a13088c1c5da1a76d74`, and require its
    `git status --short` to show no tracked modification (untracked
-   `ops/runtime/logs/` is expected). Extract the schema with
-   `git -C <release> rev-parse 74c1f12a:prisma/schema.prisma` and
-   `git -C <release> cat-file blob <blob>` — never from a working tree.
+   `ops/runtime/logs/` is expected). Record
+   `git -C <release> rev-parse 74c1f12a:prisma/schema.prisma` as the schema blob
+   identity, and require `git -C <release> status --short -- prisma/schema.prisma`
+   to be empty so the release's working-tree `prisma\schema.prisma` is the
+   committed content modulo line endings. Do not pipe that blob through
+   PowerShell — redirection and `Get-Content` re-encode it.
 3. **Equivalence gate — all five must pass, else STOP.** Between the graft source
    and the target:
    a. source client contains `index.js`, `default.js`, `package.json`;
    b. `prisma` and `@prisma/client` versions are equal in both trees;
-   c. the whitespace-stripped content of the source client's `schema.prisma`, the
-      target client's surviving `schema.prisma`, and the blob from precondition 2
-      are all equal (strip all whitespace before comparing; formatting and CRLF
-      differences are expected and are not content differences);
+   c. the byte-stripped content of three files is equal: the source client's
+      `schema.prisma`, the target client's surviving `schema.prisma`, and the live
+      release's working-tree `prisma\schema.prisma`. Read each file with
+      `[IO.File]::ReadAllBytes`, delete every byte `0x09`, `0x0A`, `0x0B`, `0x0C`,
+      `0x0D` and `0x20`, then compare the SHA-256 of the remaining bytes; the
+      expected value is
+      `09400d5268a2f1ec4f7a2fc8c723e8a393cef285cc7708cc791e3e91c27b38b8`. Do not use
+      `Get-Content` or string comparison: PowerShell 5.1 decodes this file with a
+      legacy encoding and reports a false inequality on its non-ASCII bytes. A
+      mismatch produced by any other method is a method error, not a content
+      difference — STOP and report it;
    d. SHA-256 of every `query_engine*` and `schema-engine*` file present in both
       clients is equal;
    e. the graft list — files in the source client absent from the target client —
