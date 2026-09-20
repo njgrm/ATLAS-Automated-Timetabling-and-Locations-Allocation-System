@@ -124,10 +124,19 @@ future release rebuilds the tree.
    `(rowCount, md5(string_agg(md5(row_to_json(t)::text), '' ORDER BY md5(row_to_json(t)::text))))`
    with `md5('')` for an empty table (the `ORDER BY` is mandatory; without it the
    aggregate order is unspecified and the comparison is not reproducible), and
-   (b) every sequence's `last_value` from `information_schema.sequences`. Record
-   host and database name. Known blind spots to disclose in the evidence: a
-   sequence advanced through `nextval`, a table created and dropped between
-   captures, and writes outside the `public` schema are not covered by (a).
+   (b) every sequence's last value. For (b), first probe which read-only form
+   succeeds and record the probe outcome: (i)
+   `SELECT schemaname, sequencename, last_value FROM pg_sequences ORDER BY schemaname, sequencename`,
+   or (ii) enumerate
+   `SELECT n.nspname, c.relname FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE c.relkind = 'S' ORDER BY 1, 2`
+   and read `SELECT last_value, is_called FROM "<nspname>"."<relname>"` per row.
+   Do **not** use `information_schema.sequences.last_value`: that column does not
+   exist on PostgreSQL 18 and the row fails spuriously with `42703` (observed
+   2026-09-20). Record host and database name. Record every sequence that cannot be
+   read, with its error code, as an explicitly uncovered item. Known blind spots to
+   disclose in the evidence: a sequence advanced through `nextval`, a table created
+   and dropped between captures, and writes outside the `public` schema are not
+   covered by (a).
 6. Record live identity read-only: supervisor process tree, the single owner of
    `5001` and of `5174`, any listener on `5175`, local health and readiness,
    Tailnet health, one DB-backed subjects read. Confirm port `5051` has no
@@ -166,10 +175,11 @@ future release rebuilds the tree.
    stop that process. Prove the `5001` and `5174` owners and PIDs are unchanged,
    the `5175` listener state is unchanged, the supervisor is untouched, and no new
    listener exists on `5001`/`5174`/`5175`.
-5. **Zero write.** The precondition-5 signature map and sequence map are
-   byte-identical after. Any delta is a mandatory failure, an incident stop, and is
-   reported without attempting to undo it. The precondition-5 blind spots are
-   restated in the evidence.
+5. **Zero write.** The precondition-5 table signature map is byte-identical after,
+   and every sequence value captured before is unchanged. Any table-content delta
+   is a mandatory failure, an incident stop, and is reported without attempting to
+   undo it. Any sequence that could not be read is listed explicitly as uncovered,
+   with its error code. The precondition-5 blind spots are restated in the evidence.
 6. **Minimal delta and cleanup.** The only change is the added file set under the
    target; the recursive listing and SHA-256 set of the target tree's siblings is
    unchanged; no task, machine variable, env byte, or listener changed; the scratch
