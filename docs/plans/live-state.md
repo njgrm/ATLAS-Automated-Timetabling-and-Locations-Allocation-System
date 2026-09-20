@@ -18,22 +18,29 @@ and AIMS.
 ## Live release
 
 - Tailnet: `https://njgrm.buru-degree.ts.net`
-- Release SHA: `7499916886707c35ea708a17ef7a87e791a6bade`
-- Supervisor: PID 83856; server `5001 -> 40332`; client `5174 -> 86720`
-- Active directory: `D:\ATLAS-runtime-supervised-74999168-20260920`
-- Deployed 2026-09-20 by `CURRENT-SOURCE-LIVE-DEPLOY-C01`, independently accepted
-  `ACCEPT_READY` 8/8 (blocked 0, unperformed 0). The release carries its own
-  isolated dependency trees and generated Prisma client — no junctions.
-- Served client entry chunk: `assets/index-Bk7FKtfs.js`; the served HTML and all 36
-  referenced assets byte-match the built dist manifest.
-- Previous release `74c1f12a5c06bb025a1a7a13088c1c5da1a76d74` at
-  `D:\ATLAS-runtime-supervised-74c1f12a5c06-20260918` is the **rollback basis**:
-  startable, with the pre-action task XML capture retained. Rollback was not
-  executed. Its server tree reaches the shared Prisma client in `0eb3b67f`, which
-  `PRISMA-CLIENT-REPAIR-C01` repaired on 2026-09-20.
+- Release SHA: `d50dde642c10b1ea6fdc9097266ace53cdba2063`
+- Supervisor: PID 90968; server `5001 -> 91512`; client `5174 -> 90172`
+- Active directory: `D:\ATLAS-runtime-supervised-d50dde64-20260920`
+- Deployed 2026-09-20 by `CURRENT-SOURCE-LIVE-DEPLOY-C02`, the first **one-shot**
+  packet (source + deployment + browser acceptance in one cycle). Status:
+  **DEPLOYED, acceptance incomplete.** Rows 1-8 were independently reproduced by
+  post-action QA (including the zero-write proof: reverting the authorized login
+  reproduces the recorded pre hash exactly). Rows 9/10/12 — route round-trip element
+  and request identity on all six `/timetable*` routes, the `1366x768` viewport check,
+  and the policy anchor — were executed by the planner as the single browser
+  controller and are **not independently reproduced**, because browser custody is
+  serial. Row 11 (live guard dialog) is **blocked by condition**, which the packet
+  pre-authorized: no pending pre-generation draft exists (`locked_sessions`: 4 rows,
+  all `LOCKED_FOR_RUN`), and creating one would persist a write and break row 8.
+- Authorized login for that pass: `audit_logs` row 853 `LOCAL_LOGIN_SUCCESS`, actor 46.
+- Served client entry chunk: `assets/index-BZ9J8198.js`; served HTML and all 35
+  referenced assets byte-match the built dist manifest, and the bundle carries
+  `/timetable/policies`.
+- Rollback basis: `7499916886707c35ea708a17ef7a87e791a6bade` at
+  `D:\ATLAS-runtime-supervised-74999168-20260920` — startable, junction-free, with its
+  task-XML capture retained. Rollback was not executed.
 - Retained do-not-retire trees: `0eb3b67f` (repaired shared client),
-  `8eb0511baa53` (client graft source), and `E:\ATLAS-worktrees\ux-quickfix-c01`
-  (the incumbent's client junction).
+  `8eb0511baa53` (client graft source), and `E:\ATLAS-worktrees\ux-quickfix-c01`.
 - Local/Tailnet health, readiness, client and DB-backed probes are 200; public
   published-schedule reads are term-scoped with typed `400 INVALID_TERM_INDEX` on
   malformed input; unauthenticated violation-report routes return 401; SMART and
@@ -160,6 +167,14 @@ and AIMS.
   a published run with zero HARD violations — the acknowledged SOFT warning total is
   presented as blockers. This is the operator's warning-count complaint in a second
   surface and is an open page-level follow-up.
+- Pre-existing double policy fetch, surfaced by the new route: both
+  `SchedulingPolicyPane.tsx:285` and `useScheduleReviewWorkspaceState.ts:541` GET
+  `/policies/scheduling/{schoolId}/{schoolYearId}`, and on a clean load of
+  `/timetable/policies` the second response intermittently returns 502 (the same
+  endpoint unauthenticated correctly returns 401, and the pane fails closed to saved
+  data). Neither file is in the C02 changed set and the deployment is client-only, so
+  this is pre-existing duplication that the route made reachable — `NON_BLOCKING`,
+  bounded successor: give the policy fetch one owner.
 
 ## Operator decisions
 
@@ -183,16 +198,17 @@ and AIMS.
 
 ## Single next action
 
-`CURRENT-SOURCE-LIVE-DEPLOY-C02` is in flight as the first one-shot packet: it deploys
-the accepted client-only delta (`UX-R03a`, `UX-R03b`, the `uxc01` test-contract fix) to
-`D:\ATLAS-runtime-supervised-d50dde64-20260920` and closes, against the deployed build,
-the four clauses those cycles deferred (route round-trip element/request identity, the
-`1366x768` viewport check, the live guard dialog, the policy anchor click) — rows 9-12 of
-its 12-row acceptance. After it lands, the next one-shot is `UX-R03c` (new
-`/timetable/runs`, `/setup`, `/exports` panes plus chrome overrides for the new routes)
-bundled with its own deployment and browser acceptance. EnrollPro needs no ATLAS action —
-wait for the peer `dev-jegs` to come back online and do not execute the superseded live
-packet. Dispatch the SMART and AIMS handoffs to their repository owners in parallel;
+`CURRENT-SOURCE-LIVE-DEPLOY-C02` is **deployed** and its evidence integrated; the live
+demo now runs `UX-R03a` + `UX-R03b`. Two residuals remain from its acceptance, both
+recorded above: rows 9/10/12 are planner-executed browser rows that no independent
+reviewer has reproduced (serial browser custody), and row 11 is blocked by condition.
+The next one-shot is `UX-R03c` — new `/timetable/runs`, `/setup` and `/exports` panes,
+chrome overrides for the routes added in `UX-R03a`/`UX-R03b`, and the one-owner fix for
+the double policy fetch — bundled with its own deployment and browser acceptance; give
+its QA the browser controller so the route round-trip and viewport rows are reproduced
+independently rather than by the planner. EnrollPro needs no ATLAS action — wait for the
+peer `dev-jegs` to come back online and do not execute the superseded live packet.
+Dispatch the SMART and AIMS handoffs to their repository owners in parallel;
 generate/install directional keys only after both sides consume the agreed names.
 Regeneration and publication remain separately locked, as do all Teaching Load and
 term-cache applies.
