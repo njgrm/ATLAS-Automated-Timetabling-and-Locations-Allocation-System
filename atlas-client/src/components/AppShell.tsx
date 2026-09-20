@@ -118,6 +118,13 @@ function readSidebarOpenPreference(): boolean {
 	return match.split('=')[1] === 'true';
 }
 
+/* ─── Route outlet key (UX-R03d) ─── */
+
+export function resolveOutletKey(pathname: string, routeEpoch: number): string {
+	const scope = pathname === '/timetable' || pathname.startsWith('/timetable/') ? '/timetable' : pathname;
+	return `${scope}:${routeEpoch}`;
+}
+
 /* ─── AppShell ─── */
 
 export function AppShell() {
@@ -563,7 +570,7 @@ export function AppShell() {
 
 				<AnimatePresence mode="wait">
 					<motion.div
-						key={`${location.pathname}:${routeEpoch}`}
+						key={resolveOutletKey(location.pathname, routeEpoch)}
 						initial={reduceMotion ? false : { opacity: 0 }}
 						animate={reduceMotion ? { opacity: 1 } : { opacity: 1 }}
 						exit={reduceMotion ? { opacity: 1 } : { opacity: 0 }}
@@ -571,7 +578,7 @@ export function AppShell() {
 						className={`flex-1 min-h-0 overflow-hidden ${isMobile && isFaculty ? 'pb-16' : ''}`}
 					>
 						<Suspense fallback={suspenseFallback}>
-							{outlet && React.cloneElement(outlet as React.ReactElement, { key: `${location.pathname}:${routeEpoch}` })}
+							{outlet && React.cloneElement(outlet as React.ReactElement, { key: resolveOutletKey(location.pathname, routeEpoch) })}
 						</Suspense>
 					</motion.div>
 				</AnimatePresence>
