@@ -1,6 +1,7 @@
 import { lazy, memo, Suspense, useCallback, useEffect, useMemo, useState, Profiler } from 'react';
+import { Link } from 'react-router-dom';
 import { AnimatePresence, motion } from 'motion/react';
-import { AlertTriangle, CalendarClock, ChevronLeft, Loader2, Lock, MapPin, Play } from 'lucide-react';
+import { AlertTriangle, Building2, CalendarClock, ChevronLeft, Loader2, Lock, MapPin, MousePointerClick, Play } from 'lucide-react';
 import { onProfilerRender } from './ScheduleReviewWorkspace';
 import { isDraftPublishedStrict } from '@/components/timetable/timetableWorkspaceTruth';
 
@@ -428,6 +429,38 @@ export const CenterWorkspace = memo(function CenterWorkspace(props: CenterWorksp
 							/>
 						</Suspense>
 					</motion.div>
+				) : centerView === 'manual-edit' ? (
+					// UX-R03b — selection-dependent honesty: entered without a
+					// selection (e.g. direct URL entry to /timetable/manual-edit).
+					// Never a blank center surface and never a fabricated entry:
+					// name how to reach the pane and offer the way back.
+					<motion.div
+						key="manual-edit-empty"
+						initial={{ opacity: 0, y: 8 }}
+						animate={{ opacity: 1, y: 0 }}
+						exit={{ opacity: 0, y: 8 }}
+						transition={{ duration: 0.18 }}
+						className="flex flex-col min-h-0 h-full"
+					>
+						<div className="flex min-h-0 flex-1 items-center justify-center p-4">
+							<div className="max-w-md space-y-3 text-center" data-testid="timetable-manual-edit-empty-state">
+								<MousePointerClick className="mx-auto size-10 text-muted-foreground/30" />
+								<p className="text-sm font-medium">No class selected for manual edit</p>
+								<p className="text-xs text-muted-foreground">
+									Select a class on the schedule grid first, then open Move, Change room, or Swap from the selection actions to edit it here.
+								</p>
+								{/* UX-R03b correction: navigate instead of setting view state,
+								    so the URL always matches the shown view; the route→view
+								    sync then drives the guarded transition. */}
+								<Button asChild variant="outline" size="sm" className="h-7 text-xs">
+									<Link to="/timetable">
+										<ChevronLeft className="size-3.5" />
+										Back to Schedule
+									</Link>
+								</Button>
+							</div>
+						</div>
+					</motion.div>
 				) : centerView === 'map' ? (
 					<motion.div
 						key="map-view"
@@ -552,6 +585,38 @@ export const CenterWorkspace = memo(function CenterWorkspace(props: CenterWorksp
 										);
 									})}
 								</div>
+							</div>
+						</div>
+					</motion.div>
+				) : centerView === 'building' ? (
+					// UX-R03b — selection-dependent honesty: entered without a
+					// selected building (e.g. direct URL entry to
+					// /timetable/building). Never a blank center surface and
+					// never a fabricated building: name how to reach the pane.
+					<motion.div
+						key="building-empty"
+						initial={{ opacity: 0, y: -8 }}
+						animate={{ opacity: 1, y: 0 }}
+						exit={{ opacity: 0, y: -8 }}
+						transition={{ duration: 0.18 }}
+						className="flex flex-col min-h-0 h-full"
+					>
+						<div className="flex min-h-0 flex-1 items-center justify-center p-4">
+							<div className="max-w-md space-y-3 text-center" data-testid="timetable-building-empty-state">
+								<Building2 className="mx-auto size-10 text-muted-foreground/30" />
+								<p className="text-sm font-medium">No building selected</p>
+								<p className="text-xs text-muted-foreground">
+									Open the map and select a building to view its floors and rooms here.
+								</p>
+								{/* UX-R03b correction: navigate instead of setting view state,
+								    so the URL always matches the shown view; the route→view
+								    sync then drives the guarded transition. */}
+								<Button asChild variant="outline" size="sm" className="h-7 text-xs">
+									<Link to="/timetable/map">
+										<ChevronLeft className="size-3.5" />
+										Back to Map
+									</Link>
+								</Button>
 							</div>
 						</div>
 					</motion.div>

@@ -85,12 +85,18 @@ test('UX-R03a row 3: both route directions pass through the existing guarded set
 });
 
 // --- Row 3 (F2): a cancelled guard navigation restores the shown view's URL ---
+// UX-R03b supersedes the unrouted half of this row: every existing center view
+// now has its own route, so each view resolves to that route (the R03a
+// contract — index/policies keep working — is preserved below).
 
 test('UX-R03a row 3 F2: every center view resolves to the route that describes it', () => {
 	assert.equal(resolveTimetableRouteForView('policy'), '/timetable/policies');
-	for (const view of ['schedule', 'pre-generation', 'manual-edit', 'map', 'building']) {
-		assert.equal(resolveTimetableRouteForView(view), '/timetable');
-	}
+	assert.equal(resolveTimetableRouteForView('schedule'), '/timetable');
+	// UX-R03b: the four remaining existing center views have their own routes.
+	assert.equal(resolveTimetableRouteForView('pre-generation'), '/timetable/pre-generation');
+	assert.equal(resolveTimetableRouteForView('manual-edit'), '/timetable/manual-edit');
+	assert.equal(resolveTimetableRouteForView('map'), '/timetable/map');
+	assert.equal(resolveTimetableRouteForView('building'), '/timetable/building');
 });
 
 test('UX-R03a row 3 F2: accepted navigations need no restore, cancelled ones restore the shown view', () => {
@@ -98,11 +104,15 @@ test('UX-R03a row 3 F2: accepted navigations need no restore, cancelled ones res
 	assert.equal(resolveUrlRestoreTarget('/timetable/policies', 'policy'), null);
 	assert.equal(resolveUrlRestoreTarget('/timetable', 'schedule'), null);
 	assert.equal(resolveUrlRestoreTarget('/timetable/', 'schedule'), null);
-	// Unrouted views keep the index URL they have always had.
-	assert.equal(resolveUrlRestoreTarget('/timetable', 'pre-generation'), null);
-	assert.equal(resolveUrlRestoreTarget('/timetable', 'manual-edit'), null);
+	// UX-R03b: each routed view keeps its own URL — no restore needed there either.
+	assert.equal(resolveUrlRestoreTarget('/timetable/pre-generation', 'pre-generation'), null);
+	assert.equal(resolveUrlRestoreTarget('/timetable/manual-edit', 'manual-edit'), null);
+	assert.equal(resolveUrlRestoreTarget('/timetable/map', 'map'), null);
+	assert.equal(resolveUrlRestoreTarget('/timetable/building', 'building'), null);
 	// Cancelled: the stale URL is replaced with the shown view's route, both directions.
-	assert.equal(resolveUrlRestoreTarget('/timetable/policies', 'pre-generation'), '/timetable');
+	// UX-R03b: cancelling while on pre-generation restores its own route (this is
+	// what closes the R03a double-dialog residual — see the UX-R03b pin test).
+	assert.equal(resolveUrlRestoreTarget('/timetable/policies', 'pre-generation'), '/timetable/pre-generation');
 	assert.equal(resolveUrlRestoreTarget('/timetable/policies', 'schedule'), '/timetable');
 	assert.equal(resolveUrlRestoreTarget('/timetable', 'policy'), '/timetable/policies');
 });

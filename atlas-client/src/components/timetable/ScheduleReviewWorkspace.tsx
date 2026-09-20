@@ -282,13 +282,30 @@ export default function ScheduleReviewWorkspace() {
 
 	return (
 		<div className="flex flex-col h-[calc(100svh-3.5rem)] relative" data-timetable-year-binding="runtime-active-only">
-			{/* UX-R03a — the nested timetable URL drives the existing centerView
-			    state through the guarded setter. Renders nothing. */}
-			<TimetableRouteViewSync
-				centerView={state.headerContext.centerView}
-				switchCenterViewWithGuard={state.headerContext.switchCenterViewWithGuard}
-				enterPolicyView={state.headerContext.enterPolicyView}
-				exitPolicyView={state.headerContext.exitPolicyView}
+		{/* UX-R03a — the nested timetable URL drives the existing centerView
+		    state through the guarded setter. Renders nothing.
+		    UX-R03b — the four new route entries are plain guarded view
+		    setters (no fetch, no draft side effect); they only ever run
+		    inside switchCenterViewWithGuard, so the guard stays the sole
+		    view setter. Richer in-app entries stay on their buttons.
+		    UX-R03b correction — the pre-generation route entry also establishes
+		    the Draft queue tab, mirroring the in-app entry (which sets the tab
+		    before the view). Without it a URL entry lands on a half-initialized
+		    pane: the Violations tab is hidden in pre-generation mode, so the
+		    rail falls through to Room Requests. The whole pair still runs
+		    inside the guarded setter. */}
+		<TimetableRouteViewSync
+			centerView={state.headerContext.centerView}
+			switchCenterViewWithGuard={state.headerContext.switchCenterViewWithGuard}
+			enterPolicyView={state.headerContext.enterPolicyView}
+			exitPolicyView={state.headerContext.exitPolicyView}
+			enterPreGenerationView={() => {
+				state.setLeftTab('unassigned');
+				state.centerWorkspaceContext.setCenterView('pre-generation');
+			}}
+				enterMapView={() => state.centerWorkspaceContext.setCenterView('map')}
+				enterManualEditView={() => state.centerWorkspaceContext.setCenterView('manual-edit')}
+				enterBuildingView={() => state.centerWorkspaceContext.setCenterView('building')}
 				leaveDialogOpen={state.dialogContext.showLeavePreGenDialog}
 			/>
 			{state.loading && state.draft && (
