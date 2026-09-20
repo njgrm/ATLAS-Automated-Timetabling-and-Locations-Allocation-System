@@ -30,10 +30,14 @@ packet fixes the cause rather than the claim.
 1. Extract the outlet key into a pure, testable helper — for example
    `resolveOutletKey(pathname, routeEpoch)` — and use it at both `AppShell.tsx:566` and
    `:574`.
-2. **Collapse the key inside the `/timetable` subtree only.** `/timetable` and each of
-   `/timetable/policies`, `/timetable/pre-generation`, `/timetable/map`,
-   `/timetable/manual-edit`, `/timetable/building`, `/timetable/exports` must produce the
-   **same** key, so the workspace is not remounted as the operator moves between them.
+2. **Collapse the key inside the `/timetable` subtree only**, using the predicate
+   `pathname === '/timetable' || pathname.startsWith('/timetable/')`. That predicate — not
+   an allowlist of the seven canonical paths — must hold, so that `/timetable/`,
+   `/timetable/policies/`, `/timetable/unknown-child` and every other child share the
+   collapsed key. `TimetableRouteViewSync.tsx:36` already normalizes trailing slashes and
+   the key must agree with it, otherwise the `*` → `<Navigate to="/timetable" replace>`
+   redirect remounts mid-navigation. Query strings and hashes are excluded because the key
+   reads `location.pathname`.
 3. **Keep `routeEpoch` in the key.** It exists deliberately; find every `setRouteEpoch`
    caller first and confirm its remount semantics still hold. Do not remove or repurpose
    the epoch.
@@ -42,9 +46,13 @@ packet fixes the cause rather than the claim.
    (for example `/subjects` and `/subjects/requirements`) must keep remounting as they do
    now. This is a scoped fix, not a router redesign: do not touch route definitions,
    loaders, guards, or any other page.
-5. Add a focused test pinning: the seven timetable paths share one key; a representative
-   set of non-timetable paths (including a page with a sub-route) still yields
-   `${pathname}:${routeEpoch}`; and changing `routeEpoch` changes the key.
+5. Add a focused test pinning: the seven canonical timetable paths **and** the edge cases
+   `/timetable/`, `/timetable/policies/` and `/timetable/unknown-child` share one key;
+   non-timetable paths still yield `${pathname}:${routeEpoch}` exactly — including the
+   nested pairs `/subjects`↔`/subjects/requirements`,
+   `/teaching-load`↔`/teaching-load/history` and `/my/preferences`↔`/my/room-preferences`,
+   plus the near-boundary `/timetabling/how-it-works` (`App.tsx:184`); and changing
+   `routeEpoch` changes the key.
 
 ## 3. Carried item — the header export control (no code change expected)
 
@@ -63,14 +71,18 @@ run would produce a page nobody asked for.
 
 ## 5. Part B — deployment
 
-Rows 1-8 of `CURRENT-SOURCE-LIVE-DEPLOY-C02` apply **verbatim**, with: the incumbent and
-rollback basis bound to the release live at execution start (expected `c93dd2ee…`); and
-the artifact marker being the **new** entry chunk, which must differ from the incumbent's
-recorded chunk. Reuse that packet's frozen boundary, preconditions, authorized mutations
-and rollback section unchanged: isolated release with its own dependency trees, no
-environment byte changed, SMART/AIMS inactive, no migration or database write, ports
-5001/5174 only, elevated executor, single start via the registered task, signature map
-byte-identical using the C01 addendum's SQL verbatim.
+**Target pin: the accepted candidate commit of this cycle** (the source candidate the
+executor produces), built into `D:\ATLAS-runtime-supervised-<candidate-sha>-20260920`.
+C02's target `d50dde64` is **historical — do not build or deploy it.** C02's frozen
+boundary, preconditions, authorized mutations and rollback section apply unchanged in
+**structure**, but every literal is re-captured at execution and must never be copied from
+C02: the incumbent is the release live at start (expected `c93dd2ee…`, supervisor 91896,
+`5001`→92740, `5174`→82444, served entry `index-BiORrVpn.js`, env `BC7921A7…`) and its
+values are re-read, not reused. The artifact marker is the **new** entry chunk, which must
+differ from that incumbent's. Otherwise unchanged: isolated release with its own dependency
+trees, no environment byte changed, SMART/AIMS inactive, no migration or database write,
+ports 5001/5174 only, elevated executor, single start via the registered task, signature
+map byte-identical using the C01 addendum's SQL verbatim.
 
 ## 6. Part C — browser acceptance (custody with QA)
 
@@ -80,24 +92,30 @@ authorized login expected; disclose its audit row. **Read-only:** no Save, Apply
 Generate, Publish or Delete, and no timetable cell click (a click places a session). The
 export settings dialog exposes a PUT — inspect, persist nothing.
 
-1. **The headline row: no remount.** For each of the seven `/timetable*` routes, perform a
-   **real in-app** round trip (a sidebar/link navigation out and back, not a synthetic
-   `pushState`) and assert the **same element instance** for the workspace root and for
-   `timetable-left-panel` — the check that failed before this change — plus **zero** new
-   `/api/v1/` requests. Report the observed values both ways so the before/after is
-   unambiguous.
+1. **The headline row: no remount inside the subtree.** This is an **in-subtree** pathname
+   change, not a trip out to another page: navigate with the app's own controls —
+   `SimpleMoreMenuContent.tsx`'s `timetable-more-policy` link, the Campus-Map link at
+   `CenterWorkspace.tsx:662`, and the sidebar `/timetable` entry — and assert the **same
+   element instance** for the workspace root and for `timetable-left-panel` via
+   `document.contains`, only across `/timetable*` → `/timetable*`. `history.pushState` is
+   forbidden; the earlier false pass came from a synthetic probe. Leaving `/timetable` for a
+   non-timetable route remounts **by design** and is measured by row 2, not here. Also
+   assert **zero** new `/api/v1/` requests. Report the observed values both ways so the
+   before/after is unambiguous.
 2. **No regression outside the subtree.** Navigating between two non-timetable pages that
    share a parent path still behaves as it does today (spot-check one such pair and say
    which you chose).
 3. **Viewport.** No global horizontal or vertical window scrollbar at `1366x768` on all
    seven routes.
 4. **The header export control** (Part 3 above) — open it, persist nothing.
-5. **Report-only diagnosis, no fix required.** Attempt to reproduce the intermittent
-   `/api/v1` 502s and the intermittent workspace non-mount under rapid sequential
-   child-route loads. Report how many loads you performed, how many 502s and which routes,
-   whether any duplicate concurrent identical requests occur, and whether the non-mount
-   correlates with a 502. If it does not reproduce, say so plainly — a clean negative is
-   a valid result.
+5. **Report-only diagnosis, no fix required.** Attempt to reproduce the intermittent 502s
+   and the intermittent workspace non-mount under rapid sequential child-route loads.
+   Report how many loads you performed, how many 502s, and **which route each was on** —
+   distinguishing `/enrollpro-api/*` (the known companion outage: `dev-jegs` is offline)
+   from any 502 on an ATLAS `/api/v1/*` route, which is the one that would matter. Also
+   report whether any duplicate concurrent identical requests occur and whether the
+   non-mount correlates with a 502. If it does not reproduce, say so plainly — a clean
+   negative is a valid result.
 
 ## 7. Acceptance — 10 mandatory rows
 
