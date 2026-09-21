@@ -41,12 +41,13 @@ import { TimetableStatusLegend } from '@/components/timetable/TimetableStatusLeg
 import { isRunPublishedStrict } from '@/components/timetable/timetableWorkspaceTruth';
 import { SimplePublishReadinessSheet } from '@/components/timetable/SimplePublishReadinessSheet';
 import { resolveBlockerDestination, resolvePlacementReasonFilter } from '@/components/timetable/simplePublishReadiness';
+import type { SeverityFilter } from '@/components/timetable/ScheduleReviewWorkspace.constants';
+import type { UnassignedReason, Violation } from '@/types';
 import { UnassignedInsertionWorkflow } from '@/components/timetable/UnassignedInsertionWorkflow';
 import {
 	chooseRecommendedTask,
 	hasPivotValue,
 	firstPivotValue,
-	readinessLabel,
 	resolvePublishTaskDispatch,
 	resolveSimpleGenerateActionState,
 	resolveSimplePublishActionState,
@@ -61,6 +62,10 @@ import {
 	sourceLabel,
 	useSimpleTasks,
 } from '@/components/timetable/simple/SimpleHeaderHelpers';
+import {
+	resolveSimpleReadiness,
+	SimpleReadinessChip,
+} from '@/components/timetable/simple/SimpleSetupSharedControls';
 import { SimpleActiveFilterChips, SimpleFilterControls } from '@/components/timetable/simple/SimpleFilterControls';
 import type { SimpleViewMode } from '@/components/timetable/simple/SimpleHeaderHelpers';
 import { SimpleExportErrorBanner, SimpleExportMenu, SimpleTermSwitcher } from '@/components/timetable/simple/SimpleBeneficiaryControls';
@@ -85,6 +90,102 @@ type TimetableSimpleHeaderProps = {
 	onSwapClassTimesStart?: () => void;
 	onSwapClassTimesCancel?: () => void;
 };
+
+export type SimpleReadinessRepairIdentity = {
+	sectionId: number | null;
+	subjectId: number | null;
+	facultyId: number | null;
+};
+
+export type SimpleReadinessRepairDeps = {
+	href: string;
+	reason?: string;
+	identity?: SimpleReadinessRepairIdentity | null;
+	navigate: (to: string) => void;
+	violations: Violation[];
+	setUnassignedReasonFilter: (value: 'all' | UnassignedReason) => void;
+	setBlockerReasonFilter: (value: string | null) => void;
+	startPlaceUnresolvedTask: () => void;
+	startReviewIssuesTask: () => void;
+	setSelectedViolation: (violation: Violation | null) => void;
+	setSeverityFilter: (value: SeverityFilter) => void;
+	issueReviewEnabled: boolean;
+	onSetRepairOrigin?: ((origin: RepairOrigin | null) => void) | null;
+};
+
+/**
+ * The `SimplePublishReadinessSheet` repair dispatch. Canonical home is this
+ * module (the pre-existing header-source contracts pin it here); the
+ * `/timetable/setup` pane imports and shares this exact implementation, so
+ * there is still only one. Sheet-close stays with the caller. Every
+ * destination is real: Teaching Load deep links keep identity, room blockers
+ * go to `/map`, placement blockers honor the exact unresolved reason, and
+ * review blockers select the violation in the review rail.
+ */
+export function dispatchSimpleReadinessRepair(context: SimpleReadinessRepairDeps): void {
+	const {
+		href,
+		reason,
+		identity,
+		navigate,
+		violations,
+		setBlockerReasonFilter,
+		startPlaceUnresolvedTask,
+		startReviewIssuesTask,
+		setSelectedViolation,
+		setSeverityFilter,
+		issueReviewEnabled,
+		onSetRepairOrigin,
+	} = context;
+	const plainReason = reason === 'NO_AVAILABLE_SLOT' ? 'No available slot'
+		: reason === 'FACULTY_OVERLOADED' ? 'Teachers are overloaded'
+		: reason === 'NO_QUALIFIED_FACULTY' ? 'No qualified teacher'
+		: reason === 'NO_COMPATIBLE_ROOM' ? 'No compatible room'
+		: reason === 'ROOM_CAPACITY_EXCEEDED' ? 'Room capacity exceeded'
+		: reason ? reason.replace(/_/g, ' ').toLowerCase() : 'Unknown issue';
+	onSetRepairOrigin?.({ reason: reason ?? 'UNKNOWN', plainReason, groupCount: 0 });
+	// B3 — one shared destination resolver; every blocker action is real.
+	const destination = resolveBlockerDestination(reason, href);
+	if (destination.kind === 'teaching-load') {
+		// R9/A-18: preserve teacher/section/subject identity on the
+		// Teaching Load repair deep link.
+		const params = new URLSearchParams();
+		if (identity?.facultyId != null) params.set('facultyId', String(identity.facultyId));
+		if (identity?.sectionId != null) params.set('sectionId', String(identity.sectionId));
+		if (identity?.subjectId != null) params.set('subjectId', String(identity.subjectId));
+		params.set('task', 'missing-load');
+		navigate(`/teaching-load?${params.toString()}`);
+		return;
+	}
+	if (destination.kind === 'rooms') {
+		// R8/A-03: room configuration lives at /map; the legacy room path is
+		// unmounted. The resolver maps every room blocker reason to /map.
+		navigate('/map');
+		return;
+	}
+	if (destination.kind === 'placement') {
+		// C07B/F5 — honor the exact unresolved reason the resolver carried
+		// (`UNASSIGNED_SECTION` vs `NO_AVAILABLE_SLOT`) so the queue is never
+		// filtered down to a reason that hides the affected sessions.
+		const reasonFilter = resolvePlacementReasonFilter(destination);
+		context.setUnassignedReasonFilter(reasonFilter);
+		setBlockerReasonFilter(reasonFilter);
+		startPlaceUnresolvedTask();
+		return;
+	}
+	// review: select the exact violation in the review rail.
+	const match = destination.code
+		? violations.find((v) => v.code === destination.code && v.severity === 'HARD')
+			?? violations.find((v) => v.code === destination.code)
+		: undefined;
+	if (match) setSelectedViolation(match);
+	setSeverityFilter('hard');
+	if (issueReviewEnabled) {
+		startReviewIssuesTask();
+	} else if (destination.href) {
+		navigate(destination.href);
+	}
+}
 
 function TimetableSimpleHeaderImpl({
 	context,
@@ -116,7 +217,6 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 	const visibleRunId = context.draft?.runId ?? null;
 	const visibleYearLabel = context.schoolYearContext?.activeSchoolYearLabel ?? (context.schoolYearId ? `SY #${context.schoolYearId}` : null);
 	const source = sourceLabel(context);
-	const readiness = readinessLabel(context);
 	const setupState = describeSetupState(context.curriculumReadiness);
 	const scopeResolved = Number.isInteger(context.schoolId) && context.schoolId > 0
 		&& Number.isInteger(context.schoolYearId) && (context.schoolYearId ?? 0) > 0;
@@ -203,12 +303,19 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 		}
 	}, [activeTask, blockerReasonFilter, context]);
 
-	const publishBlocked = hasGeneratedRun && !isRunPublished && (context.blockingHardCount > 0 || (context.summary?.unassignedCount ?? 0) > 0);
-	const publishBlockedReason = context.blockingHardCount > 0
-		? `${context.blockingHardCount} hard blocker${context.blockingHardCount === 1 ? '' : 's'} must be fixed before publish.`
-		: (context.summary?.unassignedCount ?? 0) > 0
-			? `${context.summary?.unassignedCount} session${(context.summary?.unassignedCount ?? 0) === 1 ? '' : 's'} still need fixing before publish.`
-			: '';
+	// UX-R03e (setup) — the readiness triple is shared with the
+	// `/timetable/setup` center view through one implementation (same label,
+	// same predicate, same reason). The header keeps its own entry points.
+	const { readiness, publishBlocked, publishBlockedReason } = resolveSimpleReadiness({
+		draft: context.draft,
+		blockingHardCount: context.blockingHardCount,
+		summary: context.summary,
+		softCount: context.softCount,
+		isPreGenerationWorkspace: context.isPreGenerationWorkspace,
+		schoolYearContext: context.schoolYearContext,
+		hasGeneratedRun,
+		isRunPublished,
+	});
 	const lifecycleAction = deriveSimpleLifecycleAction({
 		hasGeneratedRun,
 		isPreGeneration: context.isPreGenerationWorkspace,
@@ -441,28 +548,12 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 					{visibleRunId ? <span className="hidden sm:inline">· Run #{visibleRunId}</span> : null}
 				</Badge>
 
-				{publishBlocked ? (
-					<Badge
-						variant="outline"
-						className={cn(
-							'h-10 min-w-0 shrink gap-1.5 truncate rounded-full px-3 text-sm font-semibold',
-							'border-destructive/30 bg-destructive/10 text-destructive',
-						)}
-						data-testid="timetable-simple-readiness-chip"
-					>
-						<AlertTriangle className="size-3.5 shrink-0" aria-hidden="true" />
-						<span className="truncate">{readiness}</span>
-					</Badge>
-				) : (
-					<Badge
-						variant={context.blockingHardCount > 0 ? 'destructive' : 'secondary'}
-						className="h-5 shrink min-w-0 gap-1 truncate px-1.5 text-xs font-semibold sm:h-6 sm:shrink-0 sm:gap-1.5 sm:px-2"
-						data-testid="timetable-simple-readiness-chip"
-					>
-						<CheckCircle2 className="size-3.5 shrink-0" aria-hidden="true" />
-						<span className="truncate">{readiness}</span>
-					</Badge>
-				)}
+			{/* UX-R03e (setup) — one shared chip implementation with the `/timetable/setup` pane. */}
+			<SimpleReadinessChip
+				readiness={readiness}
+				publishBlocked={publishBlocked}
+				blockingHardCount={context.blockingHardCount}
+			/>
 				<Badge
 					variant="outline"
 					className={cn(
@@ -824,57 +915,26 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 					unassignedCount: context.summary?.unassignedCount ?? 0,
 					softCount: context.softCount,
 				}}
-				onNavigateToRepair={(href, reason, identity) => {
-					setReadinessSheetOpen(false);
-					const plainReason = reason === 'NO_AVAILABLE_SLOT' ? 'No available slot'
-						: reason === 'FACULTY_OVERLOADED' ? 'Teachers are overloaded'
-						: reason === 'NO_QUALIFIED_FACULTY' ? 'No qualified teacher'
-						: reason === 'NO_COMPATIBLE_ROOM' ? 'No compatible room'
-						: reason === 'ROOM_CAPACITY_EXCEEDED' ? 'Room capacity exceeded'
-						: reason ? reason.replace(/_/g, ' ').toLowerCase() : 'Unknown issue';
-					onSetRepairOrigin?.({ reason: reason ?? 'UNKNOWN', plainReason, groupCount: 0 });
-					// B3 — one shared destination resolver; every blocker action is real.
-					const destination = resolveBlockerDestination(reason, href);
-					if (destination.kind === 'teaching-load') {
-						// R9/A-18: preserve teacher/section/subject identity on the
-						// Teaching Load repair deep link.
-						const params = new URLSearchParams();
-						if (identity?.facultyId != null) params.set('facultyId', String(identity.facultyId));
-						if (identity?.sectionId != null) params.set('sectionId', String(identity.sectionId));
-						if (identity?.subjectId != null) params.set('subjectId', String(identity.subjectId));
-						params.set('task', 'missing-load');
-						navigate(`/teaching-load?${params.toString()}`);
-						return;
-					}
-					if (destination.kind === 'rooms') {
-						// R8/A-03: room configuration lives at /map; the legacy room path is
-						// unmounted. The resolver maps every room blocker reason to /map.
-						navigate('/map');
-						return;
-					}
-					if (destination.kind === 'placement') {
-						// C07B/F5 — honor the exact unresolved reason the resolver carried
-						// (`UNASSIGNED_SECTION` vs `NO_AVAILABLE_SLOT`) so the queue is never
-						// filtered down to a reason that hides the affected sessions.
-						const reasonFilter = resolvePlacementReasonFilter(destination);
-						context.setUnassignedReasonFilter(reasonFilter);
-						setBlockerReasonFilter(reasonFilter);
-						void startTask('place-unresolved');
-						return;
-					}
-					// review: select the exact violation in the review rail.
-					const match = destination.code
-						? context.violations.find((v) => v.code === destination.code && v.severity === 'HARD')
-							?? context.violations.find((v) => v.code === destination.code)
-						: undefined;
-					if (match) context.setSelectedViolation(match);
-					context.setSeverityFilter('hard');
-					if (capabilities.gates.issueReview.enabled) {
-						void startTask('review-issues');
-					} else if (destination.href) {
-						navigate(destination.href);
-					}
-				}}
+			onNavigateToRepair={(href, reason, identity) => {
+				setReadinessSheetOpen(false);
+				// UX-R03e (setup) — one shared repair dispatch with the
+				// `/timetable/setup` pane; the sheet-close stays here.
+				dispatchSimpleReadinessRepair({
+					href,
+					reason,
+					identity,
+					navigate,
+					violations: context.violations,
+					setUnassignedReasonFilter: context.setUnassignedReasonFilter,
+					setBlockerReasonFilter,
+					startPlaceUnresolvedTask: () => { void startTask('place-unresolved'); },
+					startReviewIssuesTask: () => { void startTask('review-issues'); },
+					setSelectedViolation: context.setSelectedViolation,
+					setSeverityFilter: context.setSeverityFilter,
+					issueReviewEnabled: capabilities.gates.issueReview.enabled,
+					onSetRepairOrigin,
+				});
+			}}
 			/>
 			{swapClassTimesMode != null ? (
 				<div

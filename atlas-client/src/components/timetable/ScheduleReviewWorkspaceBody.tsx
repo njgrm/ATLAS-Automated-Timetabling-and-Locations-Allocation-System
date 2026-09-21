@@ -20,6 +20,12 @@ type ScheduleReviewWorkspaceBodyProps = {
 	onReassignTeacher?: (entry: any) => void;
 	repairOrigin?: RepairOrigin | null;
 	onBackToBlockerSummary?: () => void;
+	/**
+	 * UX-R03e (setup) — the workspace repair-origin setter for the setup pane's
+	 * readiness sheet (same `setRepairOrigin` the Simple header sheet uses).
+	 * The task starter reuses `onSimpleTaskChange` above; no second task path.
+	 */
+	onSetupSetRepairOrigin?: (origin: RepairOrigin | null) => void;
 };
 
 function ScheduleReviewWorkspaceBodyImpl({
@@ -31,6 +37,7 @@ function ScheduleReviewWorkspaceBodyImpl({
 	onReassignTeacher,
 	repairOrigin,
 	onBackToBlockerSummary,
+	onSetupSetRepairOrigin,
 }: ScheduleReviewWorkspaceBodyProps) {
 	const {
 		leftPanelRef,
@@ -58,7 +65,7 @@ function ScheduleReviewWorkspaceBodyImpl({
 			<div className="relative flex flex-1 min-h-0 overflow-hidden" data-testid="timetable-simple-body">
 				<ResizablePanelGroup direction="horizontal" className="flex flex-1 min-h-0">
 					<Profiler id="Center/Grid" onRender={onProfilerRender}>
-						<CenterWorkspace {...centerWorkspaceContext} teacherDepartureEntryIds={teacherDepartureEntryIds} onReassignTeacher={onReassignTeacher} simpleMode />
+						<CenterWorkspace {...centerWorkspaceContext} teacherDepartureEntryIds={teacherDepartureEntryIds} onReassignTeacher={onReassignTeacher} simpleMode setupOnStartTask={onSimpleTaskChange} setupOnSetRepairOrigin={onSetupSetRepairOrigin ?? null} />
 					</Profiler>
 				</ResizablePanelGroup>
 				<TimetableTaskDrawer
@@ -105,7 +112,7 @@ function ScheduleReviewWorkspaceBodyImpl({
 			<ResizableHandle withHandle className={!isDesktop && isLeftCollapsed ? 'hidden' : undefined} />
 
 			<Profiler id="Center/Grid" onRender={onProfilerRender}>
-				<CenterWorkspace {...centerWorkspaceContext} teacherDepartureEntryIds={teacherDepartureEntryIds} onReassignTeacher={onReassignTeacher} />
+				<CenterWorkspace {...centerWorkspaceContext} teacherDepartureEntryIds={teacherDepartureEntryIds} onReassignTeacher={onReassignTeacher} setupOnStartTask={onSimpleTaskChange} setupOnSetRepairOrigin={onSetupSetRepairOrigin ?? null} />
 			</Profiler>
 
 			<RightPanel {...rightPanelContext} />
@@ -121,6 +128,7 @@ function arePropsEqual(prevProps: ScheduleReviewWorkspaceBodyProps, nextProps: S
 	if (prevProps.onReassignTeacher !== nextProps.onReassignTeacher) return false;
 	if (prevProps.repairOrigin !== nextProps.repairOrigin) return false;
 	if (prevProps.onBackToBlockerSummary !== nextProps.onBackToBlockerSummary) return false;
+	if (prevProps.onSetupSetRepairOrigin !== nextProps.onSetupSetRepairOrigin) return false;
 	if (!prevProps.context || !nextProps.context) return prevProps.context === nextProps.context;
 	const prevKeys = Object.keys(prevProps.context);
 	const nextKeys = Object.keys(nextProps.context);
