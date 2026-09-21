@@ -23,6 +23,63 @@ import { getAutomationStatus, isTestModeEnabled, markSchoolYearAsTestData, withS
 const router = Router();
 const PRIVILEGED_ROLES = new Set(['admin', 'officer', 'SYSTEM_ADMIN']);
 
+type RuntimeRouterDelegates = {
+	applyRolloverSync: typeof applyRolloverSync;
+	resetDummyYearAndApplyRollover: typeof resetDummyYearAndApplyRollover;
+	publishNotificationEvent: typeof publishNotificationEvent;
+	getOrCreateTeachingLoadCycleSource: typeof getOrCreateTeachingLoadCycleSource;
+};
+
+export type RuntimeRouterOverrides = Partial<RuntimeRouterDelegates>;
+
+const defaultRuntimeRouterDelegates: RuntimeRouterDelegates = {
+	applyRolloverSync,
+	resetDummyYearAndApplyRollover,
+	publishNotificationEvent,
+	getOrCreateTeachingLoadCycleSource,
+};
+
+const runtimeDelegates = (req: Request): RuntimeRouterDelegates =>
+	(req as Request & { runtimeRouterDelegates?: RuntimeRouterDelegates }).runtimeRouterDelegates
+		?? defaultRuntimeRouterDelegates;
+
+function isCanonicalActiveYearId(value: unknown): value is number {
+	return typeof value === 'number' && Number.isSafeInteger(value) && value > 0;
+}
+
+async function requireResolvedActiveYear(
+	schoolId: number,
+	authToken: string | undefined,
+	res: Response,
+): Promise<number | null> {
+	const preview = await previewRolloverSync(schoolId, authToken);
+	if (isCanonicalActiveYearId(preview.enrollProActiveYear?.id)) {
+		return preview.enrollProActiveYear.id;
+	}
+	res.status(409).json({
+		code: 'ACTIVE_YEAR_UNRESOLVED',
+		message: 'The EnrollPro active school year could not be resolved canonically; no rollover mutation was started.',
+		mutationStarted: false,
+	});
+	return null;
+}
+
+function requireReturnedActiveYear(
+	result: { enrollProActiveYear?: { id?: unknown } | null },
+	res: Response,
+): number | null {
+	const schoolYearId = result.enrollProActiveYear?.id;
+	if (isCanonicalActiveYearId(schoolYearId)) return schoolYearId;
+	res.status(409).json({
+		code: 'ROLLOVER_ACTIVE_YEAR_IDENTITY_INVALID',
+		message: 'The rollover mutation result was received, but its active-year identity was invalid. Follow-on notifications and Teaching Load initialization were withheld; the rollover was not undone.',
+		mutationResultReceived: true,
+		followOnsWithheld: true,
+		rollbackAttempted: false,
+	});
+	return null;
+}
+
 function parseSchoolId(raw: unknown): number | string {
 	const schoolId = Number(raw ?? 1);
 	if (!Number.isInteger(schoolId) || schoolId <= 0) {
@@ -293,15 +350,19 @@ router.post('/rollover-sync/apply', authenticateWithSystemToken, async (req: Req
 		const caller = authorizeRuntimeMutation(req, res, { requirePrivileged: true });
 		if (!caller) return;
 		const schoolId = caller.schoolId;
-		const result = await withSchoolLock(schoolId, () => applyRolloverSync(schoolId, getUpstreamAuthToken(req), {
+		const authToken = getUpstreamAuthToken(req);
+		if (await requireResolvedActiveYear(schoolId, authToken, res) == null) return;
+		const delegates = runtimeDelegates(req);
+		const result = await withSchoolLock(schoolId, () => delegates.applyRolloverSync(schoolId, authToken, {
 			actorId: req.user?.userId ?? 0,
 			syncTermContract: true,
 			acknowledgeReconfiguredSectionIds: Array.isArray(req.body?.acknowledgeReconfiguredSectionIds)
 				? req.body.acknowledgeReconfiguredSectionIds
 				: undefined,
 		}));
-		const schoolYearId = Number(result.enrollProActiveYear?.id ?? 1);
-		publishNotificationEvent({
+		const schoolYearId = requireReturnedActiveYear(result, res);
+		if (schoolYearId == null) return;
+		delegates.publishNotificationEvent({
 			type: 'ROLLOVER_SYNC_COMPLETED',
 			domain: 'integration',
 			severity: 'success',
@@ -317,8 +378,8 @@ router.post('/rollover-sync/apply', authenticateWithSystemToken, async (req: Req
 				policyReady: result.sync.policyReady,
 			},
 		});
-		const teachingLoadCycle = await getOrCreateTeachingLoadCycleSource(schoolId, schoolYearId);
-		publishNotificationEvent({
+		const teachingLoadCycle = await delegates.getOrCreateTeachingLoadCycleSource(schoolId, schoolYearId);
+		delegates.publishNotificationEvent({
 			type: 'TEACHING_LOAD_CHANGED',
 			domain: 'integration',
 			severity: 'info',
@@ -340,15 +401,19 @@ router.post('/rollover-sync/reset-dummy-year', authenticateWithSystemToken, asyn
 		const caller = authorizeRuntimeMutation(req, res, { requirePrivileged: true });
 		if (!caller) return;
 		const schoolId = caller.schoolId;
-		const result = await withSchoolLock(schoolId, () => resetDummyYearAndApplyRollover({
+		const authToken = getUpstreamAuthToken(req);
+		if (await requireResolvedActiveYear(schoolId, authToken, res) == null) return;
+		const delegates = runtimeDelegates(req);
+		const result = await withSchoolLock(schoolId, () => delegates.resetDummyYearAndApplyRollover({
 			schoolId,
 			actorId: req.user?.userId ?? 0,
-			authToken: getUpstreamAuthToken(req),
+			authToken,
 			confirmReset: req.body?.confirmReset === true,
 			confirmationText: typeof req.body?.confirmationText === 'string' ? req.body.confirmationText : undefined,
 		}));
-		const schoolYearId = Number(result.enrollProActiveYear?.id ?? result.rolloverApply?.enrollProActiveYear?.id ?? result.resetTargetSchoolYearId ?? 1);
-		publishNotificationEvent({
+		const schoolYearId = requireReturnedActiveYear(result, res);
+		if (schoolYearId == null) return;
+		delegates.publishNotificationEvent({
 			type: result.resetApplied ? 'DUMMY_YEAR_RESET_COMPLETED' : 'DUMMY_YEAR_RESET_PREVIEWED',
 			domain: 'integration',
 			severity: result.resetApplied ? 'warning' : 'info',
@@ -496,5 +561,23 @@ router.post('/term-authority/apply', authenticate, async (req: Request, res: Res
 		next(err);
 	}
 });
+
+/**
+ * Build a mounted runtime router with narrowly scoped rollover delegates for
+ * production-path regression tests. The default export remains the production
+ * router; no service, auth, or data-access dependency is overridable here.
+ */
+export function createRuntimeRouter(overrides: RuntimeRouterOverrides = {}) {
+	const mounted = Router();
+	mounted.use((req: Request, _res: Response, next: NextFunction) => {
+		(req as Request & { runtimeRouterDelegates?: RuntimeRouterDelegates }).runtimeRouterDelegates = {
+			...defaultRuntimeRouterDelegates,
+			...overrides,
+		};
+		next();
+	});
+	mounted.use(router);
+	return mounted;
+}
 
 export default router;
