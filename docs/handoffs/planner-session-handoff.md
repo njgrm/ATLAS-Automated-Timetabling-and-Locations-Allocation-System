@@ -111,6 +111,23 @@ put the unaccepted candidate on `main` before acceptance — see §5.
   closed in the directive, so **record each muse executor's failure mode in this handoff when it
   happens** rather than silently reverting to ds4.1flash. `atlas-qa` stays ds4.1flash (the QA
   role needs its reliability more than its price).
+- **Console access (operator granted it 2026-09-21, but it is not usable yet).** The console
+  login page offers only *Continue with Google / GitHub / email* — OAuth, which this lane
+  cannot complete and must **never** complete using operator credentials. **Cheapest fix: the
+  operator logs in once in the Playwright profile**
+  (`C:\Users\njgro\.config\opencode\playwright-profile`); the session then persists and the
+  percentages become readable each turn with no credential handling. Until then: last-confirmed
+  console percentages + `opencode stats`.
+- **Planner model (operator, 2026-09-21): the planner stays on `deepseek-v4.1-flash` for now.**
+  Muse is a candidate to take the planner role **only if it proves itself**; keep monitoring
+  model cost and quality either way. Note planner context is the dominant cost driver, not
+  executor dispatch.
+- **STANDING RULE — offer a fresh planner handoff when context stops paying for itself.**
+  Suggest it **proactively, without being asked**, when any of these holds: many turns of large
+  tool output have accumulated; re-reading the same artifacts is replacing new work; a lane
+  boundary or a HIGH action is imminent. Name the handoff commit and let the operator choose.
+  The trigger is *context harming usage*, not turn count alone — a fresh session re-pays
+  prompt-cache setup, so it must be worth it.
 
 ## 2. Two agents, two lanes — custody
 
