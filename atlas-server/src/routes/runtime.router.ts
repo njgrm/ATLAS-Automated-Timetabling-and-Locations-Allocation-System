@@ -43,9 +43,10 @@ function isPrivilegedRole(role: unknown): boolean {
  */
 function parseStrictSchoolId(raw: unknown): number | null {
 	if (raw === undefined || raw === null || raw === '') return null;
-	if (typeof raw !== 'number' && typeof raw !== 'string') return null;
-	const value = typeof raw === 'number' ? raw : Number(raw);
-	return Number.isInteger(value) && value > 0 ? value : null;
+	if (typeof raw === 'number') return Number.isSafeInteger(raw) && raw > 0 ? raw : null;
+	if (typeof raw !== 'string' || !/^[1-9]\d*$/.test(raw)) return null;
+	const value = Number(raw);
+	return Number.isSafeInteger(value) && value > 0 ? value : null;
 }
 
 type RuntimeReadCaller = { schoolId: number; authSource: 'jwt' | 'system' };
@@ -109,7 +110,9 @@ function authorizeRuntimeMutation(
 	res: Response,
 	options: { requirePrivileged: boolean },
 ): RuntimeMutationCaller | null {
-	const requestedSchoolId = parseStrictSchoolId(req.body?.schoolId ?? req.query.schoolId);
+	const requestedSchoolId = parseStrictSchoolId(req.body && Object.prototype.hasOwnProperty.call(req.body, 'schoolId')
+		? req.body.schoolId
+		: req.query.schoolId);
 	if (requestedSchoolId == null) {
 		res.status(400).json({ code: 'INVALID_PARAM', message: 'schoolId must be a present positive integer.' });
 		return null;
@@ -241,12 +244,9 @@ router.post('/rollover-recovery/scaffold', authenticateWithSystemToken, async (r
 
 router.get('/rollover-recovery/preview', authenticateWithSystemToken, async (req: Request, res: Response, next: NextFunction) => {
 	try {
-		const schoolId = parseSchoolId(req.query.schoolId);
-		if (typeof schoolId === 'string') {
-			res.status(400).json({ code: 'INVALID_PARAM', message: schoolId });
-			return;
-		}
-		const result = await previewTestYearRecovery(schoolId, getUpstreamAuthToken(req));
+		const caller = authorizeRuntimeRead(req, res, { requirePrivileged: true });
+		if (!caller) return;
+		const result = await previewTestYearRecovery(caller.schoolId, getUpstreamAuthToken(req));
 		res.json(result);
 	} catch (err) {
 		next(err);
@@ -423,8 +423,10 @@ router.post('/rollover-archive/apply', authenticateWithSystemToken, async (req: 
  */
 function parseStrictTermAuthoritySchoolId(raw: unknown): number | null {
 	if (raw === undefined || raw === null || raw === '') return null;
-	const value = typeof raw === 'number' ? raw : Number(raw);
-	return Number.isInteger(value) && value > 0 ? value : null;
+	if (typeof raw === 'number') return Number.isSafeInteger(raw) && raw > 0 ? raw : null;
+	if (typeof raw !== 'string' || !/^[1-9]\d*$/.test(raw)) return null;
+	const value = Number(raw);
+	return Number.isSafeInteger(value) && value > 0 ? value : null;
 }
 
 type TermAuthorityCaller = { schoolId: number; actorId: number };
@@ -445,7 +447,9 @@ function authorizeTermAuthorityCaller(req: Request, res: Response): TermAuthorit
 		res.status(403).json({ code: 'ACTOR_USER_REQUIRED', message: 'An authenticated actor identity is required to preview or save ordered term authority.' });
 		return null;
 	}
-	const schoolId = parseStrictTermAuthoritySchoolId(req.body?.schoolId ?? req.query.schoolId);
+	const schoolId = parseStrictTermAuthoritySchoolId(req.body && Object.prototype.hasOwnProperty.call(req.body, 'schoolId')
+		? req.body.schoolId
+		: req.query.schoolId);
 	if (schoolId == null) {
 		res.status(400).json({ code: 'INVALID_PARAM', message: 'schoolId must be a present positive integer.' });
 		return null;
