@@ -125,27 +125,23 @@ file — hence `AGENTS.md` §15's dated-blocker rule. **Read the newest dated ha
 
 ## Next action
 
-**Ship the next release — the queue is no longer empty.** `WARNING-READABILITY-C01`
-(`b6b4033f` + `f13d4cb9`) is integrated but **not deployed**, and its packet §5 browser row is
-carried as `DEFERRED(DEPLOYMENT_ACCEPTANCE)`. One release cycle closes both: build at a fresh pin
-under the standing authorization, then run the deferred browser row (Tailnet, `1366x768` and
-`390x844`, `window.location.origin` assertion, read-only) as the release's acceptance clause —
-that is exactly the shape `AGENTS.md` §11 prescribes for a row needing a deployed build. Pin the
-**client** artifact identity (the delta is client-side) plus the usual D1–D5-style rows.
-
-Then, in value order:
+**The release queue is empty and `ecff1d7e` is accepted 6/6 — pick the next real lane.** Ranked,
+from `docs/handoffs/planner-handoff-2026-09-20.md` §8 (reconcile it first — `AGENTS.md` §15):
 
 1. **Public published-view term merging** — `/public/schedules` renders every cell 3×
    (2,760 = 920 × 3 terms). Recorded as owned by the other planner; do not take it without a
    handover.
-2. **False/incorrect warning categories** — `ZONE_IMBALANCE_WARNING` fires because 0 of 103 rooms
-   have a zone; warning-count semantics. (Note `FACULTY_FLOOR_TRANSITION`'s broken message was
-   fixed in the integrated `WARNING-READABILITY-C01`.)
+2. **False/incorrect warning categories** — `ZONE_IMBALANCE_WARNING` still fires in stored runs
+   (the *surface* now suppresses it, so this is the producer/data side); warning-count semantics.
 3. **`test:ux-guardrails` is vacuous** — names two files deleted at `4794bd9e`; never cite it.
-4. **SMART/AIMS companion handoffs**; **actor-school residual authority lane** (Planner B).
+4. **SMART/AIMS companion handoffs.**
+5. **Small recorded successors:** the `FACULTY_FLOOR_TRANSITION` stored-message phrasing (a
+   regeneration/data concern, not a formatter job) and the dead `parseSchoolId` in
+   `runtime.router.ts`.
 
-Do not re-open the term-cache apply or the readiness/generation chain — both are closed
-(dated proof in the live-state Lane A section).
+Do **not** re-open the term-cache apply or the readiness/generation chain — both are closed, with
+dated proof in the live-state Lane A section. And re-read the newest dated handoff before acting on
+any blocker line: that mistake has already cost this session one full cycle.
 
 ## Pointers
 

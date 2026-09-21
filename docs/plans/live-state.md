@@ -339,22 +339,21 @@ it complete `TEST-GATE-REACHABILITY-C01` (`f4462374`) and hand it over for integ
 referenced test files are absent, **no surviving script references a removed script name**, and
 `git diff --check` is clean.
 
-**Live release is now `d3e9dfef`** (deployed 2026-09-21; supervisor 14540; `5001`->23532;
-`5174`->10248; entry `index-BkDBtkSR.js`, 456,046 B; `D:` 34.33 GiB). It carries
-`WARNING-READABILITY-C01` **and** Planner B's actor-school residual server delta. Independent
-post-action QA: **D1-D5 PASS**, but **D6 (the deferred browser row) FAILED one assertion** - the
-live run-316 surface still rendered a bare unit (`...180 consecutive teaching min...`, x5), so the
-release is **5/6, NOT accepted**. Root cause: `formatWarningMessageText` expanded only
-**digit-adjacent** units while the stored run keeps legacy wording, and the test fixture that
-should have caught it was **invented and already contained `minutes`**.
-**Fix `33eaf929`** (2 client paths, with a control built from the verbatim live string and a mutant
-proving the old pattern leaks it) passed a bounded re-review `ACCEPT_READY` **8/8** and is
-**integrated but NOT deployed** - the queue holds one undeployed client fix. **Next: re-release and
-re-run D6.**
+**Live release is `ecff1d7e`** (deployed 2026-09-21; supervisor 26972; `5001`->26724;
+`5174`->31148; entry `index-CbCvgFxw.js`, 456,046 B; `D:` 32.83 GiB) and it is **ACCEPTED 6/6/0/0**
+by independent post-action QA. It carries the units fix plus Planner B's
+`ACTOR-SCHOOL-MUTATIONS-C02` — whose missing independent review was closed by the pre-action gate
+(`ACCEPT_READY` 15/15, with a failing-first control proving the DELETE route previously had **no**
+actor-school check and defaulted to `?? 1`). The previously failing D6 assertion now renders
+`...180 consecutive teaching minutes...` at both viewports; zero unexplained writes; one login
+(`audit_logs` **860**) disclosed with a proven logout. **The release queue is empty again.**
+The superseded `d3e9dfef` release is history: D1-D5 passed, D6 failed on a bare unit, and the root
+cause was a test fixture **invented with the correct text already in it** — the rules that came out
+of it are in `AGENTS.md` §11 (fixtures come from the real surface; record an artifact's byte
+encoding).
 Recorded successors: the `FACULTY_FLOOR_TRANSITION` legacy stored-message phrasing
 (`(14:30->14:30) with only 0 minutes gap`) is a stored-data artifact, not a formatter job;
-`parseSchoolId` is now dead code in `runtime.router.ts`; signature-map evidence should state its
-byte encoding (BOM+CRLF), not just "trailing newline".
+`parseSchoolId` is now dead code in `runtime.router.ts`.
 
 **Integrated: `WARNING-READABILITY-C01`** (`b6b4033f` + correction `f13d4cb9`) — merged 2026-09-21.
 Source only: every one of the **25** live `VIOLATION_CODES` (the packet's `~46` was stale) now has
