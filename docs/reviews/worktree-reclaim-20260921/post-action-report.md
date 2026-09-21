@@ -25,8 +25,9 @@ reconciles exactly: 112 registered − 56 removed + 1 planner worktree created f
   then its target re-checked to exist. Before execution a live anchor re-scan rebuilt the
   junction-target set from all registered worktrees and aborted if any batch path had become
   a target — it was clear.
-- **Shared targets intact.** All 17 anchor target paths verified present after removal;
-  `missing anchors = 0`.
+- **Shared targets intact.** All 17 named anchor paths verified present after removal, and an
+  independent post-action scan resolved 39 live junction links to 18 distinct targets with
+  **0 missing**.
 - **Runtime releases untouched.** Two batch links pointed into `D:\ATLAS-runtime-supervised-*`;
   those were de-linked from the source side only and no runtime directory was touched.
 - **No branch deleted.** 292 local branch refs are intact. Sampled retired branches resolve
