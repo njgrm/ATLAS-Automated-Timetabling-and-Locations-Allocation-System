@@ -18,35 +18,46 @@ and AIMS.
 ## Live release
 
 - Tailnet: `https://njgrm.buru-degree.ts.net`
-- Release SHA: `5f5c6c4f02caf91b1ad948ebfcb6dde409073ad6`
-- Supervisor: PID 75172; server `5001 -> 91880`; client `5174 -> 76056`
-- Active directory: `D:\ATLAS-runtime-supervised-5f5c6c4f-20260920`
-- Deployed 2026-09-20 by the `UX-R03d` one-shot: the route outlet key no longer varies
-  with the pathname inside the `/timetable` subtree, so the workspace stops remounting as
-  the operator moves between its sub-pages. Independent browser QA confirmed the fix on
-  the live build — the workspace root and `timetable-left-panel` were the **same element
-  instances** across in-subtree navigation via the app's own controls, with **zero** new
-  `/api/v1/` requests — and confirmed a non-timetable nested pair still remounts as before.
-  Viewport and the header export control passed; the deployment rows were independently
-  reproduced.
-- **Evidence-hygiene defect found and fixed in this cycle.** Independent QA applied the
-  `AGENTS.md` §11 rule and found that the route test files
-  (`ux-r03a-nested-timetable-route`, `ux-r03b-center-view-routes`, `ux-r03d-outlet-keying`)
-  were reachable from **no** committed `package.json` script — the whole
-  `components/__tests__` tree sat outside every gate, so their earlier tallies came from
-  manually-run commands. Correction `fc966a4c` adds `test:timetable-route-keys` (32/32).
-  **The live release `5f5c6c4f` predates that dev-only line; no runtime byte differs.**
-- Open provenance limitation: the deployment signature map is deterministic (46 tables)
-  but its serialization was not pinned tightly enough for QA to re-derive the recorded
-  pre hash independently. Byte-identity across the action was proven by the executor.
-- Authorized logins: `audit_logs` rows 853 (C02 pass), 854 (R03c QA), 855 (R03d QA), actor 46.
-- Served client entry chunk: `assets/index-CQqAftds.js`; served HTML and all 33 referenced
+- Release SHA: `434b2a81`
+- Supervisor: PID 87396; server `5001 -> 74212`; client `5174 -> 90380`
+- Active directory: `D:\ATLAS-runtime-supervised-434b2a81-20260921`
+- Deployed 2026-09-21 by the `UX-R03e` one-shot, which added the last two operator
+  sub-pages: `/timetable/runs` (a read-only run history composed from the existing
+  `GET /api/v1/generation/:schoolId/:schoolYearId/runs` endpoint, selecting through the
+  workspace's existing run selection) and `/timetable/setup` (composed from the existing
+  drift/sync, room-repair, refresh-names and readiness surfaces, with the readiness chip and
+  refresh item extracted so header and pane share one implementation). Independent QA:
+  `ACCEPT_READY` 13/13, blocked 0, unperformed 0 — source, deployment and all five browser
+  rows, including the viewport check across the nine `/timetable*` routes and the in-subtree
+  identity check.
+- **Prior correction retained:** the `UX-R03d` outlet-keying fix means the workspace no
+  longer remounts inside the `/timetable` subtree. QA confirmed the same element instances
+  and zero new requests for pure route moves; entering the **advanced** policy surface via
+  the More menu still switches layout and refetches its own data, which is pre-existing
+  advanced-surface behaviour, not an outlet remount.
+- **Evidence-hygiene defect found and fixed on 2026-09-20.** Independent QA applied the
+  `AGENTS.md` §11 rule and found the route test files were reachable from **no** committed
+  `package.json` script — the whole `components/__tests__` tree sat outside every gate, so
+  earlier tallies came from manually-run commands. `test:timetable-route-keys` now runs them
+  (57/57 at `R03e`).
+- Open provenance limitation: the deployment signature map is deterministic (46 tables) but
+  its serialization was not pinned tightly enough for QA to re-derive the executor's
+  recorded pre hash independently. Byte-identity across each action was proven by the
+  executor and, at `R03e`, recomputed by QA to the same value.
+- **Open 502 lead (report-only, not fixed).** QA observed 502s on clean loads of
+  `/api/v1/generation/1/10/runs/316/manual-edits` and
+  `/api/v1/follow-up-flags/1/10/runs/316/flags`, and concurrent duplicate identical GETs on
+  `runtime/context?schoolId=1` (×4), `rollover-status` (×2-3) and `auth/me` (×2). In this
+  sample the duplicates did **not** correlate with the 502s. Coalescing duplicate reads in
+  `atlasApi` would touch every call, so it stays a separate reviewed stream.
+- Authorized logins: `audit_logs` rows 853 (C02 pass), 854 (R03c QA), 855 (R03d QA), 856
+  (R03e QA), actor 46.
+- Served client entry chunk: `assets/index-BMgoX99N.js`; served HTML and all 34 referenced
   assets byte-match the built dist manifest.
-- Rollback basis: `c93dd2ee352a1e1a2d2850d6f3e746b69a63f559` at
-  `D:\ATLAS-runtime-supervised-c93dd2ee-20260920` — startable, junction-free, with its
-  task-XML capture retained. Rollback was not executed. The older `d50dde64` and
-  `74999168` releases are
-  still present and startable.
+- Rollback basis: `5f5c6c4f02caf91b1ad948ebfcb6dde409073ad6` at
+  `D:\ATLAS-runtime-supervised-5f5c6c4f-20260920` — startable, junction-free, with its
+  task-XML capture retained. Rollback was not executed. The older `c93dd2ee`, `d50dde64`
+  and `74999168` releases are still present and startable.
 - Retained do-not-retire trees: `0eb3b67f` (repaired shared client),
   `8eb0511baa53` (client graft source), and `E:\ATLAS-worktrees\ux-quickfix-c01`.
 - Local/Tailnet health, readiness, client and DB-backed probes are 200; public
@@ -212,15 +223,15 @@ and AIMS.
 
 ## Single next action
 
-The next one-shot is `UX-R03e`: the `/timetable/runs` and `/timetable/setup` panes — which
-are design decisions about what those pages show, since no composable run-list surface
-exists — plus the deferred diagnosis of the intermittent 502s. That diagnosis now has a
-concrete lead: QA observed two 502s on an **ATLAS** route
-(`/api/v1/generation/1/10/runs/316/manual-edits`, not reproduced in four later loads) and
-eight endpoints issuing concurrent duplicate identical GETs, so the next cycle should
-establish whether duplicate concurrent client reads intermittently trip the host proxy.
-EnrollPro is back online and its proxy is healthy (see above), so no ATLAS action is
-outstanding there. Dispatch the SMART and AIMS handoffs to their repository owners in
-parallel; generate/install directional keys only after both sides consume the agreed
-names. Regeneration and publication remain separately locked, as do all Teaching Load and
-term-cache applies.
+The route split is now complete: every operator sub-page exists, the workspace stops
+remounting inside the subtree, and the whole timetable route suite runs in a committed gate.
+The next stream is the **duplicate-read coalescing investigation** — the last open technical
+lead. QA reproduced concurrent duplicate identical GETs on `runtime/context?schoolId=1` (×4),
+`rollover-status` (×2-3) and `auth/me` (×2), and separately saw 502s on
+`generation/.../runs/316/manual-edits` and `follow-up-flags/.../flags` that did **not**
+correlate with the duplicates in that sample. It needs its own reviewed packet, because
+coalescing in `atlasApi` would touch every call in the client. EnrollPro is online and its
+proxy is healthy; no ATLAS action is outstanding there. Dispatch the SMART and AIMS handoffs
+to their repository owners in parallel; generate/install directional keys only after both
+sides consume the agreed names. Regeneration and publication remain separately locked, as do
+all Teaching Load and term-cache applies.
