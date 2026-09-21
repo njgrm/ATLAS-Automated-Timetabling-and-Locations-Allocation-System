@@ -75,7 +75,7 @@ export const GRADE_CARD_BG: Record<number, string> = {
 
 export type SeverityFilter = 'all' | 'hard' | 'soft' | 'conflicts' | 'wellbeing';
 export type ViewMode = 'section' | 'faculty' | 'room';
-export type CenterViewMode = 'schedule' | 'pre-generation' | 'policy' | 'manual-edit' | 'map' | 'building' | 'exports' | 'runs';
+export type CenterViewMode = 'schedule' | 'pre-generation' | 'policy' | 'manual-edit' | 'map' | 'building' | 'exports' | 'runs' | 'setup';
 export type PreGenDragSource =
 	| { type: 'draftQueue'; item: DraftQueueItem }
 	| { type: 'draftPlacement'; placement: DraftPlacement };

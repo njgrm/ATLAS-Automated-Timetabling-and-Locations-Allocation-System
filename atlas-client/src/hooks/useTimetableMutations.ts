@@ -172,7 +172,7 @@ type UseTimetableMutationsInput = {
 	setDraftBoard: React.Dispatch<React.SetStateAction<DraftBoardState | null>>;
 	setDraftBoardSummary: React.Dispatch<React.SetStateAction<DraftBoardState['counts'] | null>>;
 	setLeftTab: React.Dispatch<React.SetStateAction<'violations' | 'unassigned' | 'pinned' | 'requests'>>;
-	setCenterView: React.Dispatch<React.SetStateAction<'schedule' | 'pre-generation' | 'policy' | 'manual-edit' | 'map' | 'building' | 'exports' | 'runs'>>;
+	setCenterView: React.Dispatch<React.SetStateAction<'schedule' | 'pre-generation' | 'policy' | 'manual-edit' | 'map' | 'building' | 'exports' | 'runs' | 'setup'>>;
 	setPreGenOnboarding: React.Dispatch<React.SetStateAction<boolean>>;
 	setPreGenPending: React.Dispatch<React.SetStateAction<PreGenPendingPlacement | null>>;
 	setPreGenPreview: React.Dispatch<React.SetStateAction<PreviewResult | null>>;

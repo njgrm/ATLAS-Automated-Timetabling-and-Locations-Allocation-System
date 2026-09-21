@@ -62,11 +62,12 @@ test('UX-R03a row 2: route to view mapping keeps the schedule surface for every 
 	assert.equal(resolveTimetableRouteView('/timetable/policies'), 'policy');
 	assert.equal(resolveTimetableRouteView('/timetable/policies/'), 'policy');
 	assert.equal(resolveTimetableRouteView('/timetable/anything-else'), 'schedule');
-	// UX-R03e (runs) — runs is a real routed sub-page now (setup stays deferred).
+	// UX-R03e — runs and setup are real routed sub-pages now.
 	assert.equal(resolveTimetableRouteView('/timetable/runs'), 'runs');
 	assert.equal(resolveTimetableRouteView('/timetable/runs/'), 'runs');
-	assert.equal(resolveTimetableRouteView('/timetable/setup'), 'schedule');
-	// UX-R03c — exports is a real routed sub-page now; UX-R03e (runs) routes runs too (setup stays deferred).
+	assert.equal(resolveTimetableRouteView('/timetable/setup'), 'setup');
+	assert.equal(resolveTimetableRouteView('/timetable/setup/'), 'setup');
+	// UX-R03c — exports is a real routed sub-page now; UX-R03e routes runs and setup too.
 	assert.equal(resolveTimetableRouteView('/timetable/exports'), 'exports');
 });
 

@@ -308,6 +308,7 @@ export default function ScheduleReviewWorkspace() {
 				enterBuildingView={() => state.centerWorkspaceContext.setCenterView('building')}
 				enterExportsView={() => state.centerWorkspaceContext.setCenterView('exports')}
 				enterRunsView={() => state.centerWorkspaceContext.setCenterView('runs')}
+				enterSetupView={() => state.centerWorkspaceContext.setCenterView('setup')}
 				leaveDialogOpen={state.dialogContext.showLeavePreGenDialog}
 			/>
 			{state.loading && state.draft && (
@@ -519,6 +520,7 @@ export default function ScheduleReviewWorkspace() {
 						setActiveSimpleTask(null);
 						setReadinessSheetOpen(true);
 					}}
+					onSetupSetRepairOrigin={setRepairOrigin}
 					context={{
 						leftPanelRef: state.leftPanelRef,
 						setIsLeftCollapsed: state.setIsLeftCollapsed,

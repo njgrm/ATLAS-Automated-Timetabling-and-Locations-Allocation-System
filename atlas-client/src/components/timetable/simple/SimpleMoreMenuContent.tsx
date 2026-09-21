@@ -13,6 +13,7 @@ import {
 import { Link } from 'react-router-dom';
 
 import { Button } from '@/ui/button';
+import { RefreshSetupNamesButton } from '@/components/timetable/simple/SimpleSetupSharedControls';
 import { DropdownMenuItem, DropdownMenuLabel } from '@/ui/dropdown-menu';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui/select';
 import type { ScheduleReviewWorkspaceHeaderContext } from '@/components/timetable/buildScheduleReviewWorkspaceContexts';
@@ -151,17 +152,9 @@ export function SimpleMoreMenuContent({
 						<RefreshCw className="size-3.5" aria-hidden="true" />
 						Refresh timetable
 					</Button>
-					<Button
-						type="button"
-						variant="outline"
-						size="sm"
-						className="h-9 justify-start gap-1.5 text-xs"
-						onClick={() => { onClose(); context.refreshReferenceLabels(); }}
-						data-testid="timetable-refresh-setup-names"
-					>
-						<RefreshCw className="size-3.5" aria-hidden="true" />
-						Refresh names
-					</Button>
+					{/* UX-R03e (setup) — one shared refresh implementation with the
+					    `/timetable/setup` pane; the menu-close stays here. */}
+					<RefreshSetupNamesButton onRefreshNames={() => { onClose(); context.refreshReferenceLabels(); }} />
 				</div>
 			</div>
 		</div>

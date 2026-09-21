@@ -16,6 +16,9 @@ import { useLocation, useNavigate } from 'react-router-dom';
  *
  * UX-R03e (runs) — `/timetable/runs` becomes a read-only run-history center
  * view; `/timetable/setup` stays deferred to the setup checkpoint.
+ *
+ * UX-R03e (setup) — `/timetable/setup` becomes the composed setup center view
+ * sharing the Simple header's chip, refresh, drift, and readiness sheet.
  */
 export type TimetableRoutedView =
 	| 'schedule'
@@ -25,7 +28,8 @@ export type TimetableRoutedView =
 	| 'manual-edit'
 	| 'building'
 	| 'exports'
-	| 'runs';
+	| 'runs'
+	| 'setup';
 
 /**
  * UX-R03a — pure route→view mapping for the two routed center views.
@@ -54,6 +58,8 @@ export function resolveTimetableRouteView(pathname: string): TimetableRoutedView
 			return 'exports';
 		case '/timetable/runs':
 			return 'runs';
+		case '/timetable/setup':
+			return 'setup';
 		default:
 			return 'schedule';
 	}
@@ -80,7 +86,8 @@ export type TimetableCenterRoute =
 	| '/timetable/manual-edit'
 	| '/timetable/building'
 	| '/timetable/exports'
-	| '/timetable/runs';
+	| '/timetable/runs'
+	| '/timetable/setup';
 
 export function resolveTimetableRouteForView(centerView: string): TimetableCenterRoute {
 	switch (centerView) {
@@ -98,6 +105,8 @@ export function resolveTimetableRouteForView(centerView: string): TimetableCente
 			return '/timetable/exports';
 		case 'runs':
 			return '/timetable/runs';
+		case 'setup':
+			return '/timetable/setup';
 		default:
 			return '/timetable';
 	}
@@ -135,6 +144,8 @@ type TimetableRouteViewSyncProps = {
 	enterExportsView: () => void;
 	/** UX-R03e (runs) — plain route entry for the read-only run-history sub-page (same guarded-plain contract). */
 	enterRunsView: () => void;
+	/** UX-R03e (setup) — plain route entry for the composed setup sub-page (same guarded-plain contract). */
+	enterSetupView: () => void;
 	/** Open state of the existing leave-draft guard dialog; drives F2 restore. */
 	leaveDialogOpen: boolean;
 };
@@ -166,6 +177,7 @@ export function TimetableRouteViewSync({
 	enterBuildingView,
 	enterExportsView,
 	enterRunsView,
+	enterSetupView,
 	leaveDialogOpen,
 }: TimetableRouteViewSyncProps) {
 	const { pathname } = useLocation();
@@ -184,6 +196,7 @@ export function TimetableRouteViewSync({
 		enterBuildingView,
 		enterExportsView,
 		enterRunsView,
+		enterSetupView,
 	});
 	callbacksRef.current = {
 		switchCenterViewWithGuard,
@@ -195,6 +208,7 @@ export function TimetableRouteViewSync({
 		enterBuildingView,
 		enterExportsView,
 		enterRunsView,
+		enterSetupView,
 	};
 	const appliedPathnameRef = useRef<string | null>(null);
 	const leaveDialogOpenRef = useRef(leaveDialogOpen);
@@ -214,6 +228,7 @@ export function TimetableRouteViewSync({
 			enterBuildingView: enterBuilding,
 			enterExportsView: enterExports,
 			enterRunsView: enterRuns,
+			enterSetupView: enterSetup,
 		} = callbacksRef.current;
 		switch (desired) {
 			case 'policy':
@@ -236,6 +251,9 @@ export function TimetableRouteViewSync({
 				break;
 			case 'runs':
 				guarded(enterRuns);
+				break;
+			case 'setup':
+				guarded(enterSetup);
 				break;
 			default:
 				guarded(exit);

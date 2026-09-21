@@ -18,6 +18,9 @@ import { ScrollArea } from '@/ui/scroll-area';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip';
 
 import type { CommitResult, ManualEditProposal, RoomType, TeachingLoadRepairChange, TeachingLoadRepairPreviewResult, UnassignedItem, Violation } from '@/types';
+import type { TimetableSetupPaneInputs } from '@/components/timetable/TimetableSetupPane';
+import type { TimetableSimpleTask } from '@/components/timetable/TimetableSimpleTypes';
+import type { RepairOrigin } from '@/components/timetable/simple/SimpleTaskDrawerHelpers';
 
 const CampusMap = lazy(() => import('@/components/CampusMap').then((module) => ({
 	default: module.CampusMap,
@@ -29,6 +32,9 @@ const TimetableExportsPane = lazy(() => import('@/components/timetable/Timetable
 })));
 const TimetableRunsPane = lazy(() => import('@/components/timetable/TimetableRunsPane').then((module) => ({
 	default: module.TimetableRunsPane,
+})));
+const TimetableSetupPane = lazy(() => import('@/components/timetable/TimetableSetupPane').then((module) => ({
+	default: module.TimetableSetupPane,
 })));
 const BuildingView = lazy(() => import('@/components/BuildingView').then((module) => ({
 	default: module.BuildingView,
@@ -96,7 +102,7 @@ function buildSandboxTeacherConflictEntryIds(entries: any[], changedEntryIds: Se
 }
 
 type CenterWorkspaceProps = {
-	centerView: 'schedule' | 'pre-generation' | 'policy' | 'manual-edit' | 'map' | 'building' | 'exports' | 'runs';
+	centerView: 'schedule' | 'pre-generation' | 'policy' | 'manual-edit' | 'map' | 'building' | 'exports' | 'runs' | 'setup';
 	selectedEntry: any;
 	selectedUnassigned: UnassignedItem | null;
 	setSelectedUnassigned: (value: UnassignedItem | null) => void;
@@ -126,7 +132,7 @@ type CenterWorkspaceProps = {
 	isStaleRoom: (roomId: number) => boolean;
 	timeSlots: Array<{ startTime: string; endTime: string; isSpecialEvent?: boolean; eventName?: string }>;
 	preGenOnboarding: boolean;
-	setCenterView: (view: 'schedule' | 'pre-generation' | 'policy' | 'manual-edit' | 'map' | 'building' | 'exports' | 'runs') => void;
+	setCenterView: (view: 'schedule' | 'pre-generation' | 'policy' | 'manual-edit' | 'map' | 'building' | 'exports' | 'runs' | 'setup') => void;
 	buildings: any[];
 	mapBuildingId: number | null;
 	setMapBuildingId: (id: number | null) => void;
@@ -201,6 +207,16 @@ type CenterWorkspaceProps = {
 	onRunsSelect?: (value: string) => void;
 	formatRunTimestamp?: (value: string | null) => string;
 	formatRunDuration?: (value: number | null) => string;
+	/**
+	 * UX-R03e (setup) — the bound setup inputs for the `/timetable/setup` center
+	 * view (same state the Simple header consumes). Null renders the pane's
+	 * truthful unavailable state instead of invented setup data.
+	 */
+	setupInputs?: TimetableSetupPaneInputs | null;
+	/** UX-R03e (setup) — the workspace task starter (same `setActiveSimpleTask` the header uses). */
+	setupOnStartTask?: (task: TimetableSimpleTask | null) => void;
+	/** UX-R03e (setup) — the workspace repair-origin setter the header sheet uses. */
+	setupOnSetRepairOrigin?: ((origin: RepairOrigin | null) => void) | null;
 };
 
 export const CenterWorkspace = memo(function CenterWorkspace(props: CenterWorkspaceProps) {
@@ -299,6 +315,9 @@ export const CenterWorkspace = memo(function CenterWorkspace(props: CenterWorksp
 		onRunsSelect = () => {},
 		formatRunTimestamp = (value) => value ?? '',
 		formatRunDuration = (value) => value == null ? '—' : `${(value / 1000).toFixed(1)}s`,
+		setupInputs = null,
+		setupOnStartTask = () => {},
+		setupOnSetRepairOrigin = null,
 	} = props;
 
 	const [sandboxFacultyByEntryId, setSandboxFacultyByEntryId] = useState<Map<string, number>>(new Map());
@@ -472,6 +491,26 @@ export const CenterWorkspace = memo(function CenterWorkspace(props: CenterWorksp
 								onSelectRun={onRunsSelect}
 								formatTimestamp={formatRunTimestamp}
 								formatDuration={formatRunDuration}
+							/>
+						</Suspense>
+					</motion.div>
+				) : centerView === 'setup' ? (
+					<motion.div
+						key="setup"
+						initial={{ opacity: 0, y: 8 }}
+						animate={{ opacity: 1, y: 0 }}
+						exit={{ opacity: 0, y: 8 }}
+						transition={{ duration: 0.18 }}
+						className="flex flex-col min-h-0 h-full"
+					>
+						<Suspense fallback={<AdvancedSurfaceFallback label="Loading setup..." />}>
+							<TimetableSetupPane
+								inputs={setupInputs}
+								sectionLabel={sectionLabel}
+								subjectLabel={subjectLabel}
+								facultyLabel={facultyLabel}
+								onStartSimpleTask={setupOnStartTask}
+								onSetRepairOrigin={setupOnSetRepairOrigin}
 							/>
 						</Suspense>
 					</motion.div>
