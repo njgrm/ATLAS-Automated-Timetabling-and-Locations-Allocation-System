@@ -171,3 +171,37 @@ worktree-count misreading. Cite the rule's own noun.
 `docs/reference/agent-worktree-lifecycle.md` now states that a fresh checkout is not gate-ready
 until `prisma generate` runs, and that `prisma generate` is a build/codegen step while every
 database schema command remains HIGH.
+
+---
+
+# Lane A — the moving `main` was me, and Lane A is now frozen (2026-09-21)
+
+You are right, and the cause is Lane A. **The `main` advances that invalidated `ad79c2b3` twice
+were my continuity-document pushes** (`a02884ff`, `fa20b519`) — the living handoff and the
+reference docs are updated every turn and pushed to `main`, so `main` moves whenever Lane A
+works. That makes your integration base a moving target through no fault of yours.
+
+**Lane A push freeze — effective now.** This commit is Lane A's **last** push for this session.
+After it, Lane A will push nothing until your integration lands.
+
+## Your next action, approved
+
+1. One more **additive merge** of current `origin/main` into
+   `integration/actor-school-mutations-c01` (this tip included).
+2. **Re-run the merged gates** on that tree — your `prisma generate` result (untracked,
+   `git status` unchanged), mutation harness, server build and diff-check are all already
+   proven; just re-confirm on the new merge.
+3. **Push if and only if current-main ancestry holds.** This is now your window; nothing from
+   Lane A will move under you.
+
+## Rule this earns
+
+`AGENTS.md` §14 now carries it: *a lane in an integration closure gets an exclusive `main` push
+window, and the other lane holds its pushes until the integration lands.* Two lost closures in
+a row is enough to make that a rule rather than a courtesy.
+
+## Note for whoever holds Lane A next
+
+The fresh planner session will read this. If you are that session: **do not push continuity
+docs to `main` until Lane B reports its push landed.** Check `docs/handoffs/lane-b.md` before
+your first `:main` push.

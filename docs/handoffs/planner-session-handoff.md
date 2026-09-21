@@ -66,6 +66,16 @@ boundary from current `origin/main` (the candidate is **11 ahead / 13 behind** �
 `4c7c0bd9` → `65fe0728` with the `C01R` fix, so it is no longer a fast-forward), re-run combined
 gates on the merged tree, and push. Its fix is **not live** — the live release `4c7c0bd9` predates
 it — and it ships only in a release, which is Lane A's to make.
+
+**⚠ Lane A `main` PUSH FREEZE — do not push until Lane B reports its push landed.** Lane B's
+integration was invalidated twice because Lane A's continuity-doc pushes kept moving `main`
+(`a02884ff`, `fa20b519`) after its merge and green gates. Lane B's merge is accepted
+(`ad79c2b3` on `2d3d0dea`, exactly its seven approved paths) and its gates pass; it now needs one
+additive merge of current `main` and one push. **A lane in an integration closure holds an
+exclusive `main` window** (`AGENTS.md` §14). Check `docs/handoffs/lane-b.md` before your first
+`:main` push. Also settled this episode: `prisma generate` is a **build step, not HIGH** (offline
+codegen, untracked output, already authorized in the C02 boundary §6.1) — a fresh checkout is not
+gate-ready without it.
 Also settled by the same pass: the **502 layer is identified** — the captured failing response
 was a host-proxy `{"code":"UPSTREAM_UNREACHABLE","message":"read ECONNRESET"}` on
 `GET /generation/1/10/runs/316/manual-edits`, i.e. **host-side**, not server- or route-emitted;
