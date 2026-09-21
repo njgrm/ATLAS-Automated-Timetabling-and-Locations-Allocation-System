@@ -1,7 +1,15 @@
 # ATLAS planner session handoff (living document)
 
-**Updated at the end of every turn** so a fresh session resumes from this one file.
-Last updated: 2026-09-21, after the directive relocation audit.
+**Updated at the end of every turn** so a fresh session resumes from this one file. The
+planner writes and phrases it; the kickoff line below never changes. Updating it every turn is
+deliberate and cheap (~1–2k tokens): it makes any turn boundary a safe session boundary. The
+*decision* to actually start fresh stays conditional — take it at a real lane boundary, before
+a HIGH action, or once a compaction would cost more than a restart.
+Last updated: 2026-09-21, after Lane B's first checkpoint.
+
+**To resume in a fresh session, paste this one line:**
+> Read `docs/handoffs/planner-session-handoff.md` on `origin/main` and resume as the ATLAS
+> primary planner (Lane A). It is self-contained; then follow its read order.
 
 ## 0. How to resume — read in this order
 
@@ -32,6 +40,15 @@ Last updated: 2026-09-21, after the directive relocation audit.
   own docs. Charter at `docs/handoffs/lane-b-charter-2026-09-21.md`. Its first stream
   `ACTOR-SCHOOL-MUTATIONS-C01` was **approved for implementation** at
   `docs/handoffs/lane-a-to-lane-b.md` (I verified its count of eight routes independently).
+  **Status: checkpointed, implementation not started, one blocking item.** It committed the
+  failing-first reproducer and the `package.json` script that reaches it, but the test process
+  did not terminate cleanly, so the RED was not captured with its assertion detail; and the
+  checkpoint `836abba9` is **local and unpushed**, so it is not reviewable from Git. Both are
+  Lane B's to clear (§4).
+- **Lane B's budget shape is not ours:** ChatGPT **Plus** has no monthly cap, so its **5-hour
+  window is the budget unit** and it drains faster than a Pro plan. It must work in bounded
+  bursts, checkpoint a coherent commit *before* the window drains, and resume after the reset —
+  never start a workstream near the limit.
 - **Reserved to Lane A:** `docs/plans/live-state.md`, the delivery register and its generated
   projection, `AGENTS.md`, `CHANGELOG.md`, `atlas-client/**`, `ops/**`, `prisma/**`,
   `.opencode/**`, the root `package.json`, every `.env`, `D:\ATLAS-runtime-config\**`.
@@ -68,7 +85,15 @@ and the proxy is healthy. The superseded `ENROLLPRO-PROXY-RECOVERY-LIVE` packet 
   3. `atlas-client/src/components/runtime/RolloverGuidanceCard.tsx` — undeduped
      `rollover-status` read; two cards can mount.
   **Explicitly not** an `atlasApi` coalesce (would touch every call).
-- **Lane B** is implementing; review its range when the operator signals it is done.
+- **Lane B — two blocking items to clear before it implements** (both its own, neither mine):
+  1. **Push the checkpoint.** `836abba9` is local only; the review discipline is that a
+     candidate is reviewable from Git alone. `git fetch` before pushing, never force-push.
+  2. **Fix the harness teardown so the RED is capturable.** A failing-first reproducer that
+     hangs is not evidence. Close the mounted HTTP server and disconnect the instrumented
+     Prisma client in teardown — copy whatever the existing mounted runtime read-scope test
+     does — then capture the RED output to a file and commit it as evidence.
+  Only after those: implement the route-local authority helper, then A1-A3 and A5-A6 with real
+  tallies. Its own verdict (`CHECKPOINTED — IMPLEMENTATION NOT STARTED`) was honest and correct.
 - **502 lead:** needs one failing response body (status/body/headers) from a browser lane.
 - **UX backlog:** the dashboard tile reporting "335 review blockers" on a zero-HARD published
   run; the advanced policy surface's layout switch + refetch (pre-existing).
