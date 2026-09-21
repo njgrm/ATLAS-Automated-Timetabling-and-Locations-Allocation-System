@@ -8,8 +8,9 @@ a HIGH action, or once a compaction would cost more than a restart.
 Last updated: 2026-09-21, Lane A resumed in a fresh session. `DUP-READ-CALLERS-C01` is at
 **r2** after two review rounds (`CORRECTION_REQUIRED` twice, 5 blocking findings total, all
 real and all accepted). The cycle is re-scoped **source-only**; the deployment is deferred on a
-measured `D:` capacity gate, which is now an operator decision. Next: the narrow closure review
-of r2, then the executor.
+measured `D:` capacity gate, which is now an operator decision. Packet frozen at **r2b** (F1/F2
+closed; no further re-review required). Next: dispatch the executor (Part A, source-only), then
+one fresh QA.
 
 **To resume in a fresh session, paste this one line:**
 > Read `docs/handoffs/planner-session-handoff.md` on `origin/main` and resume as the ATLAS

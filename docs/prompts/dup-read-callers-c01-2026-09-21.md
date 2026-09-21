@@ -49,7 +49,8 @@ deliberately **not** a blanket coalesce.
 - `atlas-client/src/lib/settings.ts`
 - `atlas-client/src/lib/enrollpro-public-settings.ts`
 - `atlas-client/src/components/AppShell.tsx` (required by A1)
-- `atlas-client/src/hooks/useTimetableData.ts` (only for A2's redundant-follow-up removal)
+- `atlas-client/src/hooks/useTimetableData.ts` — **no edit required**: A2 keeps the
+  `:1175-1190` follow-up (see above); r1's authorized removal is withdrawn.
 - new/changed test files under `atlas-client/src/lib/__tests__/` and
   `atlas-client/src/hooks/__tests__/`
 - `atlas-client/package.json` — **test-script entries only**
@@ -87,12 +88,14 @@ join the weaker in-flight request would therefore be a **user-visible regression
 in-flight request whose load-bearing options differ. A `forceRefresh`+`verifyUpstream` caller
 joins only an equal-or-stronger profile (never `verifyUpstream:false`; never
 `allowStaleOnError:true` when it passed `false`) and is never answered from cache.
-`AppShell.tsx:174-180` and `MySchedule.tsx:157` share `schoolId:true:false` today and differ
+`AppShell.tsx:174-180` and `atlas-client/src/pages/MySchedule.tsx:157` share `schoolId:true:false` today and differ
 only on `allowStaleOnError`, which selects throw versus `{source:'cache',stale:true}`
 (`enrollpro-public-settings.ts:280-293`, `:314-328`); a join there would let AppShell adopt
 stale data instead of remaining on the last verified context. Give
 `promoteActiveSchoolYearContext` (`enrollpro-public-settings.ts:331-347`), which writes the
-same registry, the same key.
+same registry, the same key. Normalize absent options to their defaults inside the key
+(`verifyUpstream` and `allowEnrollProFallback` → `!== false`, `allowStaleOnError` →
+`!== false`), or two callers that differ only by an omitted default would fragment the dedup.
 
 **Keep** the `useTimetableData.ts:1175-1190` follow-up. Under the profile key it joins the
 background refresh's in-flight request (same profile) and adds no dispatch, but it is the only
@@ -237,7 +240,7 @@ Verdict `CORRECTION_REQUIRED`, 13/15 review rows. B1 and B2 confirmed closed; B3
 **partially** closed. Two new blocking findings, both accepted and applied here:
 
 - **F1 — the request-profile key omitted `allowStaleOnError`**, the same flag-drop class B3
-  raised on a different axis. `AppShell.tsx:174-180` passes `false` while `MySchedule.tsx:157`
+  raised on a different axis. `AppShell.tsx:174-180` passes `false` while `atlas-client/src/pages/MySchedule.tsx:157`
   passes `true`; both share `schoolId:true:false` today, so a join could let AppShell adopt
   stale data instead of remaining on the last verified context. Accepted: the key now carries
   all four axes, `promoteActiveSchoolYearContext` uses the same key, and S2 asserts the
@@ -248,3 +251,15 @@ Verdict `CORRECTION_REQUIRED`, 13/15 review rows. B1 and B2 confirmed closed; B3
   browser row would have been carrying a source-level correctness claim. Accepted: the
   follow-up is kept and the row text is corrected.
 - Doc nit: the handoff said 22 runtime directories; the filesystem says **21**. Fixed.
+
+### r2b — narrow closure review of `da58cedc...ff97813d` (`ses_f3ddca955ffevRNZdr3UhvUuoU`)
+
+F1 `CLOSED`; F2 not yet closed for one residual. Two advisories folded in:
+
+- **Residual (blocking, now closed):** the §2 authorized-path parenthetical still authorized
+  `useTimetableData.ts` *for the withdrawn removal*, contradicting A2's Keep clause in the same
+  section — the last fragment of the class F2 blocked. Corrected: the path is now marked
+  "no edit required" and r1's removal is expressly withdrawn.
+- **Advisory:** `MySchedule.tsx` citations now carry the `atlas-client/src/pages/` prefix.
+- **Advisory:** the profile key must normalize absent options to their defaults, or two callers
+  differing only by an omitted default would fragment the dedup. Added to A2.
