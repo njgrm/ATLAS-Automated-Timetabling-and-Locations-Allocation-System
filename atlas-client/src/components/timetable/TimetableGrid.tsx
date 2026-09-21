@@ -102,20 +102,20 @@ const ConflictBadgeWithTooltip = memo(function ConflictBadgeWithTooltip({
 });
 
 /**
- * C01R D4 — cell density (packet F-07). The room short label already carries
- * the grade (`G7 Room 101 · G7`) and so does the section code (`G7AW`), so a
- * `section · room` cell read `G7AW · G7 Room 101 · G7` with the grade three
- * times. Strip the room's repeated grade token only when the displayed section
- * code carries that same grade; otherwise return the room label untouched so
- * no information is ever dropped (section-pivot cells keep the full room).
+ * C01R C2 — cell density (packet F-07). The room short label repeats its own
+ * building grade (`G7 Room 103 · G7AW`: `{gradeToken} {roomName} ·
+ * {buildingCode}`). When the trailing building code starts with the leading
+ * grade token, drop that token from the room name once; otherwise return the
+ * label untouched so no information is ever dropped.
  */
-export function dedupeCellGradeRepetition(roomText: string, sectionText: string | null): string {
-	if (!sectionText) return roomText;
-	const token = sectionText.match(/^G\d+/)?.[0];
+export function dedupeCellGradeRepetition(roomText: string): string {
+	const token = roomText.match(/^G\d+/)?.[0];
 	if (!token) return roomText;
-	return roomText
-		.replace(new RegExp(`^${token}\\s+`), '')
-		.replace(new RegExp(`\\s*·\\s*${token}$`), '');
+	const segments = roomText.split('·');
+	if (segments.length < 2) return roomText;
+	const buildingCode = segments.at(-1)?.trim() ?? '';
+	if (!buildingCode.startsWith(token)) return roomText;
+	return roomText.replace(new RegExp(`^${token}\\s+`), '');
 }
 
 interface GridCellProps {
@@ -551,23 +551,25 @@ const GridCell = memo(function GridCell({
 								// selected term (distinct terms may name distinct teachers).
 								const teacherText = resolveCellTeacherText(entry, termFilter, formatFacultyInitials);
 								const sectionText = sectionLabel(entry.sectionId);
-								let detailsText = '';
+								// C01R C2 — the display copy drops the room's repeated
+								// building grade once; the full string stays behind
+								// the Tooltip.
+								const displayRoomText = dedupeCellGradeRepetition(roomText);
+								let fullDetailsText = '';
+								let displayDetailsText = '';
 								if (viewMode === 'section') {
 									// Section is the pivot row; the cell names the non-pivot
 									// dimensions: teacher + room.
-									detailsText = showTeacherDetails ? `${teacherText} · ${roomText}` : roomText;
+									fullDetailsText = showTeacherDetails ? `${teacherText} · ${roomText}` : roomText;
+									displayDetailsText = showTeacherDetails ? `${teacherText} · ${displayRoomText}` : displayRoomText;
 								} else if (viewMode === 'faculty') {
 									// Faculty is the pivot row; the cell names section + room.
-									// C01R D4 — the room's repeated grade token is display-only
-									// deduped; the full string stays behind the Tooltip.
-									detailsText = `${sectionText} · ${roomText}`;
+									fullDetailsText = `${sectionText} · ${roomText}`;
+									displayDetailsText = `${sectionText} · ${displayRoomText}`;
 								} else if (viewMode === 'room') {
-									detailsText = `${sectionText} · ${teacherText}`;
+									fullDetailsText = `${sectionText} · ${teacherText}`;
+									displayDetailsText = fullDetailsText;
 								}
-								const fullDetailsText = detailsText;
-								const displayDetailsText = viewMode === 'faculty'
-									? `${sectionText} · ${dedupeCellGradeRepetition(roomText, sectionText)}`
-									: detailsText;
 								return (
 									<TooltipProvider delayDuration={300}>
 										<Tooltip>

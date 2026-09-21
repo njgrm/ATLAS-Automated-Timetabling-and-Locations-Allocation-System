@@ -16,7 +16,6 @@ import {
 	GraduationCap,
 	RefreshCw,
 	Settings2,
-	Sun,
 	UserRoundX,
 	type LucideIcon,
 } from 'lucide-react';
@@ -29,6 +28,7 @@ import { summarizeGenerationReadiness } from '@/lib/timetable-generation-readine
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/ui/dialog';
+import { SimpleDayOptions } from '@/components/timetable/simple/SimpleDayOptions';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/ui/dropdown-menu';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui/select';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from '@/ui/sheet';
@@ -343,15 +343,17 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 		gateReason: capabilities.gates.publication.reason,
 	});
 	const showPublishAction = hasGeneratedRun && !isRunPublished;
-	// C01R D3 — the dynamic primary button renders the publish dispatch while
-	// the run is still unpublished (it is the single filled action for the
-	// publish-ready state, sharing the dedicated control's handler). It is
-	// suppressed only once publishing is done: the dedicated publish control
-	// and the published state own that slot instead.
+	// C01R C1 — one publish control per state. The dynamic primary is
+	// suppressed while the dedicated publish control owns the publish slot;
+	// the dedicated control is the solid primary exactly then. For every other
+	// next step the lifecycle primary stays the single filled action.
+	const primaryRendersPublish = activeTask
+		? activeTaskDefinition.id === 'publish'
+		: lifecycleAction.kind === 'publish';
 	const primaryIsPublished = activeTask
 		? (activeTaskDefinition.id === 'publish' && isRunPublished)
 		: lifecycleAction.kind === 'published';
-	const suppressPrimaryAction = primaryIsPublished;
+	const suppressPrimaryAction = primaryRendersPublish || primaryIsPublished;
 
 	const handlePublishClick = () => {
 		if (isRunPublished) return;
@@ -514,13 +516,15 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 
 	return (
 		<header className="shrink-0 border-b border-border bg-background" data-testid="timetable-simple-header">
-			{/* C01R D2 — one status region: the drift banner, the source/readiness
-			    row, the hidden-row controls and the NEXT STEP card render inside a
-			    single region so the header states one status surface. Disclosure
-			    stays on @/ui Popover/Tooltip; every repair action keeps its testid
-			    and dispatch. The two mutually exclusive task-prompt blocks below
-			    are the region's two states and are never collapsed into one. */}
-			<section data-testid="timetable-simple-status-region" role="region" aria-label="Timetable status">
+			{/* C01R C3 — one status surface: this card is the header's only status
+			    strip. The drift message renders here as its message line (inline,
+			    no sibling amber strip), the hidden-row controls live in the Day
+			    options popover below, and the two mutually exclusive task-prompt
+			    blocks are the region's two states (never collapsed into one).
+			    Disclosure stays on @/ui Popover/Tooltip; every repair action
+			    keeps its testid and dispatch. The source/readiness/filter/action
+			    row follows outside the region. */}
+			<section data-testid="timetable-simple-status-region" role="region" aria-label="Timetable status" className="mx-3 mb-1 mt-1 min-w-0 rounded-lg border border-border bg-muted/20 px-2 py-1 shadow-sm sm:px-3">
 			{/* R6 — run input freshness, ordered-term authority, and rollover drift are
 			    visible in Simple before publish or sync, with routed repairs. */}
 			<SimpleDriftBanner
@@ -534,6 +538,7 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 				onRolloverStatus={setRolloverStatus}
 				capabilities={capabilities}
 				isPublished={isRunPublished}
+				layout="inline"
 			/>
 			{/* Keep source, readiness, schedule choice, and actions in one non-overlapping row. */}
 			<div className="flex min-w-0 flex-wrap items-center gap-1.5 overflow-x-auto overflow-y-visible px-3 py-1.5 lg:flex-nowrap lg:overflow-hidden [&>*]:min-w-0">
@@ -653,47 +658,16 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 				/>
 			) : null}
 
-			{/* Secondary row: hidden-row status controls (only when applicable) */}
+			{/* C01R C3 — day-start visibility is disclosed through the Day options
+			    popover (one implementation in `simple/SimpleDayOptions`) instead
+			    of a sibling strip. */}
 			{(context.policyAlignmentWarning || context.hiddenRowCount > 0) && (
-				<div className="flex items-center gap-1.5 px-3 py-0.5" data-testid="timetable-hidden-row-controls">
-					{context.policyAlignmentWarning && (
-						<TooltipProvider delayDuration={300}>
-							<Tooltip>
-								<TooltipTrigger asChild>
-									<Badge
-										variant="outline"
-										tabIndex={0}
-										role="status"
-										aria-label={`${context.hiddenRowCount} earlier row${context.hiddenRowCount === 1 ? '' : 's'} hidden`}
-										className="h-5 shrink-0 cursor-default gap-1 border-amber-200 bg-amber-50 px-1.5 text-xs text-amber-800 sm:h-6"
-										data-testid="timetable-hidden-rows-chip"
-										onClick={(event) => { event.preventDefault(); event.stopPropagation(); }}
-									>
-										{context.hiddenRowCount} earlier row{context.hiddenRowCount === 1 ? '' : 's'} hidden
-									</Badge>
-								</TooltipTrigger>
-								<TooltipContent side="bottom" className="max-w-xs" data-testid="timetable-hidden-rows-explanation">
-									<p>{context.policyAlignmentWarning}</p>
-								</TooltipContent>
-							</Tooltip>
-						</TooltipProvider>
-					)}
-
-					{context.hiddenRowCount > 0 && (
-						<Button
-							type="button"
-							variant="outline"
-							size="sm"
-							className="h-5 shrink-0 gap-1 px-1.5 text-xs sm:h-6"
-							aria-pressed={context.showFullDay}
-							onClick={() => context.setShowFullDay(!context.showFullDay)}
-							data-testid="timetable-show-full-day-toggle"
-						>
-							<Sun className="size-3" aria-hidden="true" />
-							<span className="hidden sm:inline">{context.showFullDay ? 'Full day' : 'Show full day'}</span>
-						</Button>
-					)}
-				</div>
+				<SimpleDayOptions
+					policyAlignmentWarning={context.policyAlignmentWarning}
+					hiddenRowCount={context.hiddenRowCount}
+					showFullDay={context.showFullDay}
+					onToggleFullDay={() => context.setShowFullDay(!context.showFullDay)}
+				/>
 			)}
 
 			{context.schoolYearId ? (
@@ -707,7 +681,7 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 
 			{!hasGeneratedRun && !context.isPreGenerationWorkspace ? (
 				<div
-					className="mx-3 mb-0 flex min-w-0 items-center justify-between gap-2 rounded-lg border border-border bg-muted/20 px-2 py-0 shadow-sm sm:px-3"
+					className="flex min-w-0 items-center justify-between gap-2 py-0.5"
 					data-testid="timetable-simple-task-prompt"
 					aria-label="Timetable next step"
 				>
@@ -818,7 +792,7 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 				</div>
 			) : (
 				<div
-					className="mx-3 mb-0 flex min-w-0 items-center justify-between gap-2 rounded-lg border border-border bg-muted/20 px-2 py-0 shadow-sm sm:px-3"
+					className="flex min-w-0 items-center justify-between gap-2 py-0.5"
 					data-testid="timetable-simple-task-prompt"
 					aria-label="Timetable next step"
 				>
@@ -875,6 +849,7 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 						<SimplePublishAction
 							enabled={!publishActionState.disabled}
 							disabledReason={publishActionState.reason}
+							primary={primaryRendersPublish}
 							onClick={handlePublishActionClick}
 						/>
 					) : null}

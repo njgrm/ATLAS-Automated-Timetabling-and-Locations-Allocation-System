@@ -551,21 +551,23 @@ export function SimpleGenerateAction({
 export function SimplePublishAction({
 	enabled,
 	disabledReason,
+	primary,
 	onClick,
 }: {
 	enabled: boolean;
 	disabledReason: string | null;
+	/** C01R C1 — the solid primary exactly when the lifecycle primary is
+	    suppressed for the publish slot; secondary/outline otherwise, so the
+	    header never shows two solid actions or two publish controls. */
+	primary: boolean;
 	onClick: () => void;
 }) {
 	const reason = enabled ? null : (disabledReason ?? 'Publishing is not available for this run yet.');
 	return (
 		<GatedAction disabled={!enabled} reason={reason}>
-			{/* C01R D3 — Publish is always secondary/outline so the lifecycle
-			    primary stays the single filled action. Gating, aria-label and
-			    the dispatch guard are unchanged. */}
 			<Button
 				type="button"
-				variant="outline"
+				variant={primary ? 'default' : 'outline'}
 				size="sm"
 				className="h-11 gap-1.5 px-3 text-sm"
 				disabled={!enabled}

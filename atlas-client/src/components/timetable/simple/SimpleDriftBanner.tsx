@@ -40,6 +40,13 @@ type SimpleDriftBannerProps = {
 	 * direct setup-sync action; it routes to revision/review guidance instead.
 	 */
 	isPublished: boolean;
+	/**
+	 * C01R C3 — `strip` keeps the standalone full-width amber strip (used by
+	 * the `/timetable/setup` pane); `inline` renders the same message line and
+	 * the same repair actions without the strip chrome, as the message line of
+	 * the Simple header's single status region.
+	 */
+	layout?: 'strip' | 'inline';
 };
 
 export function SimpleDriftBanner({
@@ -53,6 +60,7 @@ export function SimpleDriftBanner({
 	onRolloverStatus,
 	capabilities,
 	isPublished,
+	layout = 'strip',
 }: SimpleDriftBannerProps) {
 	const inputState = draft?.inputState ?? null;
 	const drift = useMemo(() => describeRunInputDrift(inputState), [inputState]);
@@ -108,7 +116,9 @@ export function SimpleDriftBanner({
 				<div
 					role="status"
 					data-testid="timetable-simple-input-drift"
-					className="flex min-h-8 flex-wrap items-center gap-1.5 border-b border-amber-200 bg-amber-50 px-3 py-1 text-xs text-amber-900"
+					className={layout === 'inline'
+						? 'flex min-w-0 flex-wrap items-center gap-1.5 text-xs text-amber-900'
+						: 'flex min-h-8 flex-wrap items-center gap-1.5 border-b border-amber-200 bg-amber-50 px-3 py-1 text-xs text-amber-900'}
 				>
 					<span className="shrink-0 font-semibold">
 						{drift.status === 'STALE' ? 'Run inputs are stale' : 'Run inputs could not be compared'}
