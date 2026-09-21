@@ -24,8 +24,10 @@ commit:
 5. not on the policy-preserve list below;
 6. no active process holding it.
 
-Result: **58 worktrees, 37.26 GiB reclaimable** — `D:` ≈ 26.46 GiB, `E:` ≈ 10.80 GiB.
-`D:` free should go 15.81 → ~42 GiB; that removes the release-build capacity blocker.
+Result after the independent pre-action audit: **56 worktrees, ≈35.25 GiB reclaimable** —
+`D:` ≈ 24.45 GiB, `E:` ≈ 10.80 GiB. `D:` free should go 15.81 → ~40 GiB; that removes the
+release-build capacity blocker. Two trees initially listed were struck after the audit —
+see the exclusions table.
 
 ### Exclusions — never touched
 
@@ -37,19 +39,19 @@ Result: **58 worktrees, 37.26 GiB reclaimable** — `D:` ≈ 26.46 GiB, `E:` ≈
 | Junction anchors | `E:/…/ux-quickfix-c01`, `E:/…/export-presentation-s15-rebaseline`, `E:/…/g9g10-grid-delta-probe`, `E:/…/tl-operator-workspace-c05`, `D:/…/actor-scope-c01`, `D:/…/companion-sso-c01`, `D:/…/integration-rrtc01r-20260912`, `D:/…/integration-tt-tl-c03-cycle-20260913`, `D:/…/teaching-load-dept-apply`, `D:/…/teaching-load-tlc02`, `D:/…/timetable-ttc04`, `D:/…/tt-shape-diagnostic-c02` | Other worktrees' `node_modules` point into them |
 | Uncertain owner | `D:/…/planner-tt-tl-modules-c04r1`, `E:/…/planner-c06b-closure` | Named in the session handoff as earlier sessions' |
 | Unintegrated candidate | `E:/…/c02-muse` | Preserved alternate candidate |
+| Startable fallbacks | `D:/…/w1-runtime-deploy`, `D:/…/integration-tlrr01r-20260911` | Retained `PRESERVE_FOR_DECISION` by `ROOT-WORKTREE-RETIRE-C01` and **still cited as startable fallback locations** in `docs/plans/atlas-active-delivery-streams.md`. Both are real fallback images (`dist/` and installed `node_modules` present), which a re-`worktree add` would **not** restore |
 | Active stream | `E:/…/actor-school-mutations-c01` | **Two live `tsx` processes observed (Lane B mid-run)**; also 7 commits ahead |
-| Dirty (8) | `actor-scope-deploy-restore-20260912` is in the reclaim set only if clean at execution; the 8 dirty trees measured (`opencode/sca03d-rollback-src`, `companion-sso-c01`, `integration-companion-sso-20260913`, `integration-tt-sync-term-c03r4-20260913`, `teaching-load-tlc02`, `tl-authority-diagnostic-c02`, `tt-sync-term-c03r4`, `tl-operator-workspace-c05`) are excluded | `AGENTS.md` §3: preserve every dirty worktree |
+| Dirty (8 under the roots) | `E:/…/release-client-quality-01`, `D:/…/companion-sso-c01`, `D:/…/integration-companion-sso-20260913`, `D:/…/integration-tt-sync-term-c03r4-20260913`, `D:/…/teaching-load-tlc02`, `D:/…/tl-authority-diagnostic-c02`, `D:/…/tt-sync-term-c03r4`, `E:/…/tl-operator-workspace-c05` — plus the out-of-root `…/opencode/sca03d-rollback-src`, which is not under either reclaim root | `AGENTS.md` §3: preserve every dirty worktree |
 | Ahead of `origin/main` (16) | includes `dashboard-resilience-c01`, `migration-guard-r1`, `publication-pubc01`, `generation-genc01`, `teaching-load-ux-c01r2`, `timetable-ttc03`, `tl-suggestion-c03`, `sync-section-enrolment-c01`, `workflow-next-prep-20260915`, `unassigned-feasibility-recon-c01`, `workload-blocker-diagnostic`, `g9g10-grid-delta-probe`, `smart-ux-audit-c01`, `runtime-supervisor-live-install-20260912` | Unmerged commits — preserve |
 
-## Reclaim set — 58 (evidence: clean, contained, unanchored, inactive)
+## Reclaim set — 56 (evidence: clean, contained, unanchored, inactive)
 
-`D:` — 41 trees, ≈26.46 GiB:
+`D:` — 39 trees, ≈24.45 GiB:
 
 | Path | MB |
 |---|---|
 | D:/ATLAS-worktrees/tt-tl-modules-c04 | 1471 |
 | D:/ATLAS-worktrees/actor-scope-deploy-restore-20260912 | 1467 |
-| D:/ATLAS-worktrees/w1-runtime-deploy | 1466 |
 | D:/ATLAS-worktrees/tt-tl-authority-guard-c04 | 981 |
 | D:/ATLAS-worktrees/tl-suggestion-c03r2 | 967 |
 | D:/ATLAS-worktrees/integration-tl-tt-c02-20260912 | 892 |
@@ -61,7 +63,6 @@ Result: **58 worktrees, 37.26 GiB reclaimable** — `D:` ≈ 26.46 GiB, `E:` ≈
 | D:/ATLAS-worktrees/runtime-supervision-c01 | 589 |
 | D:/ATLAS-worktrees/tt-output-c03 | 589 |
 | D:/ATLAS-worktrees/integration-actor-scope-c01 | 588 |
-| D:/ATLAS-worktrees/integration-tlrr01r-20260911 | 588 |
 | D:/ATLAS-worktrees/tl-rr01r | 587 |
 | D:/ATLAS-worktrees/tl-rr01 | 587 |
 | D:/ATLAS-worktrees/teaching-load-ux-c01 | 587 |
@@ -119,17 +120,34 @@ worktrees. **`git worktree remove` on a tree containing a junction can traverse 
 delete the shared target** — the failure mode that has already taken the live runtime down.
 Therefore, per worktree, in order:
 
+0. **Re-scan for anchors immediately before the batch.** Rebuild the junction-target set from
+   every registered worktree and abort if any reclaim-set path has become a target since this
+   manifest. A new anchor appearing after manifest time is the one way this batch could
+   traverse a link.
 1. Re-verify the row live: `git status --porcelain` empty; `git rev-list --count
    origin/main..HEAD` == 0; HEAD unchanged from this manifest.
 2. Enumerate reparse points inside the worktree (`node_modules`, `atlas-client\node_modules`,
    `atlas-server\node_modules`, and any others found).
-3. Remove **each link** with `cmd /c rmdir "<link>"` — link only, never a recursive delete,
-   never `--force`. Verify the target path still exists immediately afterwards.
+3. Remove **each link** with `cmd /c rmdir "<link>"` — link only, never recursive, never `/s`,
+   never `--force`. Where a link targets a **runtime release** directory
+   (`D:\ATLAS-runtime-supervised-20260912`, `…-0eb3b67fe94c-20260918`), de-junction from the
+   **source side only**: the link is removed, the target is never touched or "cleaned". Verify
+   the target path still exists immediately afterwards.
 4. Confirm no reparse point remains inside the worktree.
 5. `git worktree remove "<exact path>"` (never `--force`), then `git worktree prune`.
-6. Re-verify the shared targets still exist: `D:\ATLAS\node_modules`,
-   `D:\ATLAS\atlas-client\node_modules`, `D:\ATLAS\atlas-server\node_modules`, and the
-   anchor worktrees' `node_modules`.
+6. Re-verify the concrete anchor target paths still exist:
+   `D:\ATLAS\{,atlas-client\,atlas-server\}node_modules`,
+   `D:\ATLAS-worktrees\actor-scope-c01\{,atlas-client\,atlas-server\}node_modules`,
+   `D:\ATLAS-worktrees\companion-sso-c01\atlas-server\node_modules`,
+   `D:\ATLAS-worktrees\integration-rrtc01r-20260912\atlas-server\node_modules`,
+   `D:\ATLAS-worktrees\integration-tt-tl-c03-cycle-20260913\atlas-client\node_modules`,
+   `D:\ATLAS-worktrees\teaching-load-dept-apply\atlas-server\node_modules`,
+   `D:\ATLAS-worktrees\timetable-ttc04\atlas-client\node_modules`,
+   `D:\ATLAS-worktrees\tt-shape-diagnostic-c02\{atlas-client,atlas-server}\node_modules`,
+   `E:\ATLAS-worktrees\export-presentation-s15-rebaseline\atlas-server\node_modules`,
+   `E:\ATLAS-worktrees\g9g10-grid-delta-probe\node_modules`,
+   `E:\ATLAS-worktrees\tl-operator-workspace-c05\atlas-client\node_modules`,
+   `E:\ATLAS-worktrees\ux-quickfix-c01\atlas-client\node_modules`.
 
 **No branch is deleted.** Removal is per-worktree and exact-path; no globs, no computed paths.
 
@@ -137,8 +155,11 @@ Therefore, per worktree, in order:
 
 - Before/after: `Get-PSDrive` free space on `D:` and `E:`; `git worktree list` count.
 - Partial failure stops the batch; the remaining rows are untouched and re-listed.
-- Rollback: a removed tree is not restorable in place, but every commit is preserved —
-  `git worktree add <path> <SHA>` recreates it from the branch. No branch is lost.
+- Rollback: a removed tree is **not** fully restorable. Every commit and branch is preserved,
+  so `git worktree add <path> <SHA>` recreates the **tracked** content — but it does **not**
+  restore `dist/`, `node_modules/`, or any `.env`. That is why the two named
+  startable-fallback trees are excluded, and why only clean, contained, re-creatable trees are
+  in the batch. **No branch is deleted.**
 - If any shared target disappears, stop immediately and treat it as an incident.
 
 ## Disposition
