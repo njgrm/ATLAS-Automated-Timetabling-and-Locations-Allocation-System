@@ -8,12 +8,14 @@ a HIGH action, or once a compaction would cost more than a restart.
 Last updated: 2026-09-21, Lane A resumed in a fresh session. `DUP-READ-CALLERS-C01` is at
 **r2** after two review rounds (`CORRECTION_REQUIRED` twice, 5 blocking findings total, all
 real and all accepted). The cycle is re-scoped **source-only**; the deployment is deferred on a
-measured `D:` capacity gate, which is now an operator decision. Executor candidate `ce0e54ec`
-(base `ccf31e77`) passed fresh QA on S1–S4 with **no assertion removed**; S5 was `BLOCKED` only
-by an incomplete worktree dependency tree, now fixed (junction removed safely, `npm ci`, and
-`68/68` + typecheck exit 0 re-run in the frozen state — see the evidence addendum). Next: the
-bounded QA re-check of S5, then integration.
-**Operator decision still pending: `D:` headroom** (deployment deferred).
+measured `D:` capacity gate, which is now an operator decision. **Accepted and integrated** at
+`6949e3d4`: fresh QA `ACCEPT_READY` 5/5, blocked 0, unperformed 0 over `ccf31e77...6949e3d4`
+(source blob-identical to candidate `ce0e54ec`; test files added, none deleted). S5's initial
+`BLOCKED` was an incomplete worktree dependency tree — fixed by removing the junction safely
+(anchor proven intact) and installing a real tree; `68/68` + typecheck exit 0 reproduced.
+**Not deployed** (deferred on `D:` capacity). One process defect to remember: my docs-sync push
+put the unaccepted candidate on `main` before acceptance — see §5.
+**Operator decision still pending: `D:` headroom.**
 
 **To resume in a fresh session, paste this one line:**
 > Read `docs/handoffs/planner-session-handoff.md` on `origin/main` and resume as the ATLAS

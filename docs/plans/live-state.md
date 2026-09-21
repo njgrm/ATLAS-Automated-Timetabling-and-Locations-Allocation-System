@@ -4,8 +4,8 @@ Current operational truth only. Git history and handoff documents retain older
 evidence. Update this file when a live fact, blocking decision, or next action
 changes.
 
-Last verified: 2026-09-20 (planner reconciliation; live release `74999168`
-deployed, independently accepted 8/8, and browser-accepted read-only)
+Last verified: 2026-09-21 (planner closure of `DUP-READ-CALLERS-C01`; live release
+`434b2a81` unchanged — the new client source is integrated but **not deployed**)
 
 ## Objective
 
@@ -117,6 +117,23 @@ and AIMS.
 
 ## Current blockers and accepted source
 
+- `DUP-READ-CALLERS-C01` is **integrated and independently accepted** 2026-09-21 (QA
+  `ACCEPT_READY` 5/5, blocked 0, unperformed 0 over `ccf31e77...6949e3d4`; source
+  blob-identical to the reviewed candidate `ce0e54ec`; test files added, none deleted). It
+  closes the three named duplicate-read callers: one in-flight `/auth/me` per token epoch
+  across **both** `resolveActorSchoolId` and `verifySessionToken`; the `runtime/context`
+  in-flight registry keyed by the full request profile
+  (`schoolId:verifyUpstream:allowEnrollProFallback:allowStaleOnError`, normalized to effective
+  defaults); and `rollover-status` keyed by `(schoolId, includeCounts)`. **Not deployed** —
+  see the capacity blocker below. Its browser rows B1/B2 are `DEFERRED`
+  deployment-acceptance clauses. No 502 fix: the layer remains unproven and needs one captured
+  failing response body.
+- **`D:` capacity is now a deployment blocker.** `D:` free is **15.81 GiB**; the rule warns
+  below 25 GiB and fails closed below 15 GiB, and the deploy boundary gates the **post-build**
+  figure. A release build measures 1.43–1.86 GiB, so a build started at 15.81 GiB lands at
+  13.95–14.38 GiB — **below the floor**, with PostgreSQL on `D:`. 21
+  `D:\ATLAS-runtime-*` directories are on this lane's never-retire list, so reclaiming them is
+  an **operator decision**. Until it is resolved, no release build may run.
 - The deployed release `74999168` now carries the accepted source, including
   `UX-R02` Simple-workspace simplification, `SECTION-ROUTE-AUTHORITY-C01..C03`,
   `PUBLISHED-REVISION-AUTHORITY-C12`, `PUBLIC-SCHEDULE-TERM-SCOPE-C01`,
@@ -231,7 +248,13 @@ and AIMS.
 
 ## Single next action
 
-The route split is now complete: every operator sub-page exists, the workspace stops
+**Operator decision required: `D:` headroom.** `D:` is at 15.81 GiB and cannot absorb a
+release build without crossing the 15 GiB fail-closed floor; 21 `D:\ATLAS-runtime-*`
+directories are on this lane's never-retire list, so only the operator can reclaim space.
+Once resolved, fold the accepted `DUP-READ-CALLERS-C01` client fix — together with the open
+dashboard tile-truth issue — into one release, and run that release's deferred browser rows.
+
+Then the previously queued work stands. The route split is now complete: every operator sub-page exists, the workspace stops
 remounting inside the subtree, and the whole timetable route suite runs in a committed gate.
 `DUP-READ-DIAGNOSIS-C01` answered the lead and **inverted the assumed fix**. Measured: the
 duplicates are **not** a StrictMode/dev artefact (a dev-only double-invoke cannot reach the
