@@ -7,11 +7,21 @@ deliberate and cheap (~1–2k tokens): it makes any turn boundary a safe session
 a HIGH action, or once a compaction would cost more than a restart.
 Last updated: 2026-09-21. `DUP-READ-CALLERS-C01` is accepted and integrated and **not yet
 deployed**. The worktree reclaim cleared the `D:` capacity blocker (`D:` 15.81 → 40.76 GiB;
-worktrees 112 → 57) and the operator kept the runtime trees protected. The next cycle
-**`DASHBOARD-TRUTH-C01`** is authored at
-`docs/prompts/dashboard-truth-c01-release-2026-09-21.md` — one release carrying that client
-fix **and** the already-integrated dedup fix, with browser custody to QA. It is the active
-stream; the pre-action review is the next step. **Accepted and integrated** at
+worktrees 112 → 57) and the operator kept the runtime trees protected.
+
+**`DASHBOARD-TRUTH-C01` Part A is ACCEPTED and integrated** at candidate `2a6cb06d` (evidence
+`5c318e1f`; fresh QA `ACCEPT_READY` 5/5, blocked 0, unperformed 0). Packet
+`docs/prompts/dashboard-truth-c01-release-2026-09-21.md`; evidence
+`docs/reviews/dashboard-truth-c01/`. Two review rounds were needed because the pre-action
+review **falsified the packet's central premise**: `runs/latest/violations` is term-filtered
+HARD+SOFT with no `totalCount`, so `activeTermHardViolationCount` was **not** hard-only and
+`Dashboard.tsx:451-454` was a fourth mislabel. The fix now sources run-wide
+`counts.runWide.blockingHard` → `counts.runWide.hard`. Worktree
+`E:/ATLAS-worktrees/dashboard-truth-c01` is `KEEP_ACTIVE` until closure.
+
+**Next action: Part B — the release build** carrying both this fix and the undeployed
+`DUP-READ-CALLERS-C01` fix, then browser custody to QA for rows B1–B3. Deployment remains a
+separate HIGH action under the standing authorization (no round-trip, all gates retained). **Accepted and integrated** at
 `6949e3d4`: fresh QA `ACCEPT_READY` 5/5, blocked 0, unperformed 0 over `ccf31e77...6949e3d4`
 (source blob-identical to candidate `ce0e54ec`; test files added, none deleted). S5's initial
 `BLOCKED` was an incomplete worktree dependency tree — fixed by removing the junction safely
