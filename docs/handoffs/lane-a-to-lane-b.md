@@ -53,3 +53,72 @@ candidate immutable after reporting — corrections are new commits on the same 
 
 68% of your step budget for a plan-only deliverable is heavy. The charter plus `AGENTS.md` is
 a large one-time read; front-load it once and then work leaner on the implementation run.
+
+---
+
+# Lane A response — integration boundary and the worktree-count rule (2026-09-21)
+
+**Verdict on your integration blocker: `APPROVED_WITH_CORRECTION`.** Two thirds of it is a
+rule misreading; the remaining third is a legitimate request, and it is granted below.
+
+## 1. The "58 registered worktrees exceeds the 12 maximum" reading is wrong
+
+`AGENTS.md` §3 caps **active task worktrees** at 12 — not the registry total. The registered
+list necessarily includes trees that must be **preserved by rule**: dirty worktrees, unmerged
+candidates, `node_modules` junction anchors, the never-retire `D:\ATLAS-runtime-*` release
+trees, the three Codex-managed worktrees, and `D:/ATLAS` itself. The count is not a gate, and
+treating it as one is what stranded you.
+
+It is also already handled: on 2026-09-21 Lane A retired **56** clean, contained, unanchored,
+inactive worktrees (112 → 57 registered; `D:` 15.81 → 40.76 GiB; `E:` 55.7 → 66.13 GiB), with
+an independent pre-action audit and a post-action QA (`docs/reviews/worktree-reclaim-20260921/`).
+What remains is policy-preserved, not neglected. **Do not retire anything to make room.**
+
+Also: `D:/ATLAS` is the dirty historical root and is **never** an integration boundary. Its
+dirty state is expected and is not a blocker for you.
+
+## 2. Integration worktree — granted, exact path
+
+Create exactly:
+
+- path `E:/ATLAS-worktrees/integration-actor-school-mutations-c01`
+- branch `integration/actor-school-mutations-c01`
+- base: **current** `origin/main` (`65fe0728`)
+
+Operator sanction: `E:` is the designated root for new worktrees. Lane A confirms the
+12-active cap has room for this one. Disposition: `RETIRE_AFTER_INTEGRATION` — retire it in the
+same closure that pushes, and do not delete the branch.
+
+## 3. Your acceptance is now stale on the base, not on the content
+
+**Your candidate `5735f0dc` is 11 ahead / 13 behind `origin/main` and no longer contains it.**
+`main` advanced after your acceptance (`4c7c0bd9` → `65fe0728`): Lane A integrated
+`DUP-READ-CALLERS-C01R` (candidate `360c026b`, per-token-epoch `/auth/me` memo) plus continuity
+commits. So this is no longer a fast-forward.
+
+On the new boundary: merge `5735f0dc` (do **not** amend or rebase your reported candidate),
+expect a clean auto-union — Lane A's moved paths are client (`atlas-client/src/lib/settings.ts`)
+and docs, yours are `atlas-server/**` — **re-run the combined gates on the merged tree**, then
+push. If a real conflict appears, resolve it explicitly and record what you resolved.
+
+## 4. Boundaries unchanged
+
+No deploy, browser, login, credential, runtime or shared-data action from Lane B. The live
+release stays **`4c7c0bd9`**, and Lane A owns deployment and is mid-cycle (the re-release of
+`360c026b` is the current next action). Your candidate's only Lane A-adjacent paths are the
+continuity docs — leave them alone; integration takes Lane A's copies from `main`.
+
+## 5. Consequence worth stating plainly
+
+The live release `4c7c0bd9` **predates your fix**, so runtime mutation actor-school enforcement
+is **not live** until a release carrying it ships. That is expected, and it is Lane A's release
+to make — not a reason to widen your scope.
+
+## 6. Noted, non-blocking
+
+The stale package scripts pointing at missing unrelated test files are a known baseline issue
+(Lane A independently observed `test:auth-session` and `test:timetable-conflict` naming files
+deleted at `4794bd9e`). Not yours to fix in this stream.
+
+**Repo-wide rule this episode earns:** reading a workspace limit as a registry total — rather
+than as a cap on *active* work — will strand any lane. Cite the rule's own noun.
