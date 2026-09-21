@@ -337,8 +337,24 @@ it complete `TEST-GATE-REACHABILITY-C01` (`f4462374`) and hand it over for integ
 **Integrated:** `TEST-GATE-REACHABILITY-C01` (`f4462374`) — reviewed LOW and merged 2026-09-21
 (`atlas-server/package.json` only, 32 orphaned scripts removed). Proof of no gate loss: all 29
 referenced test files are absent, **no surviving script references a removed script name**, and
-`git diff --check` is clean. The release queue stays empty (this is test-script hygiene, not a
-release delta).
+`git diff --check` is clean.
+
+**Live release is now `d3e9dfef`** (deployed 2026-09-21; supervisor 14540; `5001`->23532;
+`5174`->10248; entry `index-BkDBtkSR.js`, 456,046 B; `D:` 34.33 GiB). It carries
+`WARNING-READABILITY-C01` **and** Planner B's actor-school residual server delta. Independent
+post-action QA: **D1-D5 PASS**, but **D6 (the deferred browser row) FAILED one assertion** - the
+live run-316 surface still rendered a bare unit (`...180 consecutive teaching min...`, x5), so the
+release is **5/6, NOT accepted**. Root cause: `formatWarningMessageText` expanded only
+**digit-adjacent** units while the stored run keeps legacy wording, and the test fixture that
+should have caught it was **invented and already contained `minutes`**.
+**Fix `33eaf929`** (2 client paths, with a control built from the verbatim live string and a mutant
+proving the old pattern leaks it) passed a bounded re-review `ACCEPT_READY` **8/8** and is
+**integrated but NOT deployed** - the queue holds one undeployed client fix. **Next: re-release and
+re-run D6.**
+Recorded successors: the `FACULTY_FLOOR_TRANSITION` legacy stored-message phrasing
+(`(14:30->14:30) with only 0 minutes gap`) is a stored-data artifact, not a formatter job;
+`parseSchoolId` is now dead code in `runtime.router.ts`; signature-map evidence should state its
+byte encoding (BOM+CRLF), not just "trailing newline".
 
 **Integrated: `WARNING-READABILITY-C01`** (`b6b4033f` + correction `f13d4cb9`) — merged 2026-09-21.
 Source only: every one of the **25** live `VIOLATION_CODES` (the packet's `~46` was stale) now has
