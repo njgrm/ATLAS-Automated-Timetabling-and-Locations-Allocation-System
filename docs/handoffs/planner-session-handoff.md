@@ -168,6 +168,12 @@ and the proxy is healthy. The superseded `ENROLLPRO-PROXY-RECOVERY-LIVE` packet 
 - **A negative claim of mine needs the same adversarial check as a positive one.** Three of my
   own claims were falsified this session: the C02 element-identity row, "no run-list endpoint
   exists", and four rules dropped by my own compression. Independent review caught all three.
+- **`git push <branch>:main` is an integration, not a docs sync** — now `AGENTS.md` §10.11.
+  This session breached it: pushing the continuity docs from `work/dup-read-callers-c01` after
+  the executor had committed carried the **unaccepted** candidate onto `main` (`ccf31e77` →
+  `15c1725e`). History was not rewritten (no force-push; Lane B shares the remote). Acceptance
+  is being completed on the already-pushed range and the ordering defect is disclosed here.
+  Continuity commits need a docs-only branch.
 
 ## 6. Next actions, ordered
 
