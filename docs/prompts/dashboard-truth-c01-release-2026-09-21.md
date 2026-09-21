@@ -43,21 +43,30 @@ total. The number is not wrong — its label is.
   - `atlas-client/src/pages/Dashboard.tsx:378` — readiness item hint
     `${violationCount} review blocker(s)`, and the same expression drives the item's
     `done` flag via `(violationCount ?? 0) === 0`;
-  - `atlas-client/src/pages/Dashboard.tsx:318-319` — the lifecycle callout, `warn` and body
-    both say "blocker(s)";
+  - `atlas-client/src/pages/Dashboard.tsx:318-319` — the lifecycle callout, whose `warn` line
+    says "blocker(s)";
   - `atlas-client/src/pages/Dashboard.tsx:731` — the header tile, `${violationCount} review blocker(s)`.
-- A truthful hard count **already exists client-side**:
-  `useDashboardData.ts:535-549` populates `activeTermHardViolationCount` from
-  `GET /generation/{schoolId}/{schoolYearId}/runs/latest/violations?termIndex=…`
-  (`totalCount`, else `violations.length`), and `Dashboard.tsx:451-454` already renders it
-  under the correct label **"Hard violations"**.
+- **The hard-only authority that *is* truthful is run-wide, not term-scoped:**
+  `atlas-server/src/services/generation.service.ts:1641-1643` builds
+  `counts.runWide.blockingHard` and `counts.runWide.hard`; the client type is
+  `atlas-client/src/types.ts:1198-1205`, and `useTimetableData.ts:164-173` already consumes it
+  correctly via `resolveHardViolationCount`.
+- **A fourth conflation site:** `Dashboard.tsx:451-454` renders `activeTermHardViolationCount`
+  under the literal label **"Hard violations"** — but that value is **not** hard-only.
 
-**Therefore the fix is client-only: stop labelling a combined total as blockers.**
+**Why the "obvious" source is not hard-only.** `runs/latest/violations`
+(`generation.router.ts:330-361`) returns a `ViolationReport` built by `buildViolationReport`
+(`generation.service.ts:1615-1649`), which filters by **term only, never severity**
+(`filterViolationsByTerm`, `:1651-1672`), with `counts.total = violations.length` (`:1636`).
+There is **no `totalCount` field** on `ViolationReport` (`:1467-1494`), so
+`useDashboardData.ts:544-546` always falls through to `violations.length` — a **term-filtered
+HARD + SOFT** total. `activeTermHardViolationCount` therefore over-counts in exactly the same
+way as `violationCount`, which is why the packet must not "prefer the existing" count.
 
-The executor must first **verify** (read-only) that `runs/latest/violations` is genuinely
-HARD-only — read its route and service and cite the line. If it is not hard-only, or if no
-truthful hard-only count is reachable without a server change, **report `BLOCKED`** with the
-observed shape rather than inventing a number.
+**Therefore the fix is client-only — sourcing the count from `counts.runWide.blockingHard` →
+`counts.runWide.hard` and stating plainly that the count is run-wide.** No `atlas-server/**`
+change is required or permitted; if a truthful count turns out to be unreachable without one,
+**report `BLOCKED`** with the observed shape rather than inventing a number.
 
 ## 2. Part A — the source change
 
@@ -73,12 +82,18 @@ Out of bounds: `atlas-server/**`, `ops/**`, `prisma/**`, the root `package.json`
 `D:\ATLAS-runtime-config\**`, `AGENTS.md`, `CHANGELOG.md`, `docs/plans/live-state.md`, and
 every runtime release directory.
 
-### A1 — blocker language must mean HARD only
+### A1 — blocker language must mean HARD only, from a truthful source
 
-Replace the combined `violationCount` at the three sites above with a HARD-only count (prefer
-the existing `activeTermHardViolationCount`). Where a truthful hard count is **unavailable**,
-the surface must say so — `null` must never be rendered as `0` blockers and must never read as
-"clean".
+Replace the combined totals at **all four** sites — `Dashboard.tsx:318-319`, `:378`, `:451-454`
+and `:731` — with the run-wide hard count read from the latest run's violation-report counts
+(`counts.runWide.blockingHard`, else `counts.runWide.hard`; see `resolveHardViolationCount`,
+`useTimetableData.ts:164-173`). Correct the `useDashboardData.ts:541-547` read, which today
+falls through the non-existent `totalCount` to a term-filtered HARD+SOFT `violations.length`,
+and rename any state whose name now misstates its scope.
+
+State the scope where it is rendered or in the evidence: the count is **run-wide**, not
+term-scoped. Where a truthful hard count is **unavailable** (`null`/error), the surface must
+say so — `null` must never render as `0` blockers and must never read as "clean".
 
 ### A2 — the SOFT total is stated truthfully or not at all
 
@@ -88,10 +103,11 @@ information.
 
 ### A3 — the readiness step's `done` flag
 
-`Dashboard.tsx:378` currently marks "Timetable generated and reviewed" incomplete whenever the
-combined total is non-zero, so acknowledged SOFT warnings alone leave a step unfinished.
-Decide the intent from the surrounding semantics and **state the decision in the evidence**;
-whichever way it goes, a run with zero HARD must not be described as blocked.
+`Dashboard.tsx:378` marks "Timetable generated and reviewed" incomplete whenever the combined
+total is non-zero, so acknowledged SOFT warnings alone leave the step unfinished. **The step
+must not be blocked by SOFT-only violations:** with zero HARD it reads `done`, and the SOFT
+figure, if shown at all, is labelled as warnings. This is a planner decision, not an executor
+judgement call.
 
 ### A4 — additive evidence, no behaviour drift
 
@@ -148,13 +164,15 @@ Save, Apply, Generate, Publish or Delete, and **no timetable cell click**.
 ## 5. Acceptance — 12 mandatory rows
 
 **Source (5) — decided by the committed client test scripts**
-S1: the three dashboard surfaces use a HARD-only count for blocker language; with a
-0 HARD / 335 SOFT fixture **no surface renders a "blocker" claim** — asserted on the rendered
-strings, with a failing-first control.
+S1: **all four** dashboard surfaces (`:318-319`, `:378`, `:451-454`, `:731`) render a hard-only
+count for blocker language; with a 0 HARD / 335 SOFT fixture **no surface renders a "blocker"
+claim** and the "Hard violations" figure is 0 — asserted on the rendered strings, with a
+failing-first control. **Plus a `null`/unavailable control:** when the hard count cannot be
+resolved, no surface renders `0` or "No blockers" — it reports the count as unavailable.
 S2: the SOFT total is shown truthfully as warnings or omitted; the combined total is never
 labelled as blockers.
-S3: the "Timetable generated and reviewed" step is not described as blocked on zero HARD; the
-intent decision is recorded in the evidence.
+S3: with zero HARD and non-zero SOFT, the "Timetable generated and reviewed" step reads `done`
+and no surface describes the run as blocked; the SOFT figure, if shown, is labelled as warnings.
 S4: no behaviour drift — no new request, no change to counts' meaning, no server change; no
 assertion deleted or weakened.
 S5: the new/changed test file is reachable from a committed `atlas-client/package.json` script
@@ -194,3 +212,29 @@ commands with results, the 12 rows each with its own result, the literal rendere
 request counts, the hard-count provenance line (route + service), the login disclosure, the
 recorded `D:` figures, rollback status, and risks marked `BLOCKING`/`NON_BLOCKING`. No
 transcripts, secrets or database rows.
+
+## 7. Correction record (r1)
+
+Independent pre-action review `ses_f3d8dc42cffeMN8mdrnrwJ2EK7` returned
+`CORRECTION_REQUIRED` (4/8 falsification checks), including one finding that invalidated this
+packet's central premise. All accepted:
+
+- **B1 — the premise was false, and the proposed remedy was a fourth mislabel.** The packet
+  claimed `runs/latest/violations` is HARD-only and told the executor to prefer
+  `activeTermHardViolationCount`. In fact the report is **term-filtered HARD+SOFT**
+  (`buildViolationReport` → `filterViolationsByTerm`, `generation.service.ts:1615-1672`), has
+  **no `totalCount` field** (`:1467-1494`), and `Dashboard.tsx:451-454` already renders that
+  combined total under the label "Hard violations". Executed as written, A1 would have
+  relabelled combined totals as HARD and could have **false-passed against a stub**. Corrected:
+  §1 now states the real shape; A1 sources `counts.runWide.blockingHard` → `counts.runWide.hard`
+  (run-wide, per `resolveHardViolationCount`), names **four** sites, and corrects the
+  `useDashboardData.ts:541-547` read.
+- **B1b — the `null`-as-clean failure mode had no decidable row.** Corrected: S1 now carries an
+  explicit `null`/unavailable control.
+- **N1 — §1 overstated `:318-319`** ("warn and body both say blockers"). Corrected.
+- **N2 — S3's second clause was self-graded** by the executor's own evidence. Corrected: A3 is
+  now a planner decision (SOFT-only must not block the step) and S3 asserts the outcome.
+- Confirmed clean by the same review: custody disjoint from Lane B (active in
+  `actor-school-mutations-c01`, server-only paths); capacity precondition fail-closed at the
+  measured 40.76 GiB; rollback basis `5f5c6c4f` real and startable; no HIGH action bundled
+  beyond the deployment; 12-row tally shape sound with O1/O2 excluded.
