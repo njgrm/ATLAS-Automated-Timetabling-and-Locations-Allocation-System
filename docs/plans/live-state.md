@@ -372,6 +372,17 @@ typecheck clean.
 their test files were among those removed. The `auth-session` subject is unclear; candidates that do
 exist are `actor-school-session-epoch.test.ts` and `session-scope-late-discard.test.ts`.
 
+**Repo-wide sweep for the same class (read-only, 2026-09-21).** Checked every `test:*` script in
+the root, `atlas-server`, `atlas-client` and `ops` manifests for a named path that does not exist.
+Two more, both in the **root** manifest and **both a different, benign class**:
+`test:login-ui-parity -> qa-artifacts/login-ui-parity-check.mjs` and
+`test:visual:faculty -> qa-artifacts/playwright/specs/faculty-full-matrix.spec.ts`. `qa-artifacts/`
+is deliberately `.gitignore`d (with a `!qa-artifacts/` re-include, and a few files tracked), so
+these name **local-only** artifacts: they cannot run from a fresh clone and **must never be cited as
+repo evidence**, but they are not false greens in the client sense (those named *tracked* test files
+that had been removed). Recorded, not fixed — fixing them needs a decision (track the artifacts, or
+mark the scripts local-only).
+
 Recorded successors: the `FACULTY_FLOOR_TRANSITION` legacy stored-message phrasing
 (`(14:30->14:30) with only 0 minutes gap`) is a stored-data artifact, not a formatter job;
 `parseSchoolId` is now dead code in `runtime.router.ts`.
