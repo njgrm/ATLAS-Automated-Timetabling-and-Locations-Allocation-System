@@ -165,6 +165,49 @@ value is the SHA-256 of that file.
 - The probe issued only `SELECT` statements; `_prisma_migrations` is captured
   inside the map.
 
+### Correction (planner, 2026-09-21) — the TZ pin was ineffective; method restated
+
+Independent post-action QA (`atlas-qa`, 2026-09-21) returned `CORRECTION_REQUIRED` on the D4
+signature-map clause and falsified the claim above. The original sentence "`SET LOCAL TIME ZONE
+'UTC'` pinned after enumeration" is **superseded, not deleted**: it is literally what was typed,
+and it **did not take effect**.
+
+Mechanism, read off the literal text above: `SET LOCAL TIME ZONE 'UTC'` was issued as a
+**standalone statement after the enumeration query**. Under `$queryRawUnsafe` autocommit,
+`SET LOCAL` is scoped to its own implicit transaction, so it was a **no-op** for every per-table
+query that followed. The recorded value is therefore the **default-session-TZ** rendering.
+QA independently re-derived the unpinned rendering and obtained exactly the recorded value
+(`1C95C5A3…`), which with the mechanism above identifies the map as unpinned.
+
+What the record actually proves, restated literally:
+
+- **Addendum-literal method — the clause the packet mandates.** The C01 addendum
+  (`docs/reviews/current-source-live-deploy-c01/evidence.md`, "Addendum (2026-09-20)") pins the
+  table enumeration, the per-table SQL, the serialization and the ordering rule, and contains
+  **no `SET TIME ZONE` statement**. Under it: pre (x2) = post (x2) =
+  `1C95C5A396A9BFE10589C9146DB54089285E28E5E1D40BD0F4DFAD4FA654E024`, 46 tables,
+  byte-identical; QA reproduced the post value under this method. D4's "byte-identical to
+  precondition 6" clause is therefore satisfied on the literal method. The true requirement is
+  pre == post under **one identical** method within the cycle; a timezone pin is an improvement
+  (session-independence), not a precondition.
+- **UTC pinned inside one transaction — the session-independent variant.** QA's derivation,
+  post-cutover and **before** its own authorized login:
+  `97D0AF7B43D4B766630CA9B3F0F82C5F8424AA2B43591516AFABD287224A5EED` (46 tables,
+  deterministic x2). After the authorized login it moves to `17C419D2…`, as expected — a login
+  writes `audit_logs` / `last_login_at` / `updated_at`. The pinned **pre** value is not
+  recoverable (that state no longer exists) and is **not claimed**.
+- **Independent zero-write corroboration, stronger than either map.** QA's whole-database
+  timestamp scan: the maximum row timestamp before QA's pass is `06:42:00.090Z` (audit id 857),
+  **before** the cutover (~08:32Z), and the only post-login delta is the three login columns at
+  `08:45:23Z` (audit id 858). No other row moved.
+
+Consequence: **D4 passes on corrected evidence.** The correction is documentation-only — no
+runtime, task, port, env, migration or data action was taken for it, and the deployment remains
+independently verified by QA. Two documentation conflicts are carried forward for the successor
+method statement: the C01 addendum must pin the timezone **together with its transaction scope**,
+and the `docs/plans/live-state.md` advisory "pin `SET TIME ZONE` when reproducing" must live in
+that method statement rather than only as a prose hint.
+
 ## Cutover (single short step, after all above passed)
 
 - `taskkill /PID 102800 /T /F` (incumbent tree: supervisor + 2 children + 3
