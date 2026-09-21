@@ -6,7 +6,7 @@ import { AlertCircle, Clock3, RefreshCcw, Search } from 'lucide-react';
 import atlasApi from '@/lib/api';
 import { buildPublishedScheduleCacheMarker, resolvePublishedScheduleRequestDate } from '@/lib/published-schedule-cache-key';
 import { buildPublicScheduleCacheKey, isLikelyOfflinePublicError, readLatestPublicScheduleSnapshotByPrefix, writePublicScheduleSnapshot } from '@/lib/public-schedule-cache';
-import { buildPublicScheduleTermRequest, isExactPublishedTermPayload, PUBLIC_SCHEDULE_INVALID_TERM_MESSAGE, resolvePublicScheduleTermSelection } from '@/lib/public-schedule-term-scope';
+import { buildPublicScheduleRequestParams, isExactPublishedTermPayload, PUBLIC_SCHEDULE_INVALID_TERM_MESSAGE, resolvePublicScheduleTermSelection } from '@/lib/public-schedule-term-scope';
 import { resolvePublicSectionGrade } from '@/lib/public-schedule-grade';
 import { PublishedTimetableMatrix, DAY_ORDER, type DayKey, type PublishedScheduleMatrixEntry, formatShortTime, humanizeProgram } from '@/components/published-schedule/PublishedTimetableMatrix';
 import { GradeLevelBadge } from '@/components/GradeLevelBadge';
@@ -184,8 +184,8 @@ export default function PublicPublishedSchedule() {
 	const loadPublishedSchedule = useCallback(async () => {
 		setLoading(true);
 		setError(null);
-		const termRequest = buildPublicScheduleTermRequest(requestedTerm);
-		if (!termRequest) {
+		const requestParams = buildPublicScheduleRequestParams(requestedDate, requestedTerm);
+		if (!requestParams) {
 			setPayload(null);
 			setSourceMode('none');
 			setSavedAt(null);
@@ -194,7 +194,7 @@ export default function PublicPublishedSchedule() {
 			setLoading(false);
 			return;
 		}
-		const cachePrefix = buildPublicScheduleCacheKey(schoolId, requestedDate, undefined, termRequest.termIndex);
+		const cachePrefix = buildPublicScheduleCacheKey(schoolId, requestedDate, undefined, requestParams.termIndex);
 		const cachedSnapshot = readLatestPublicScheduleSnapshotByPrefix<PublicScheduleSnapshot>(cachePrefix, {
 			maxAgeMs: PUBLIC_SCHEDULE_CACHE_MAX_AGE_MS,
 			validate: isPublishedSchedulePayload,
@@ -202,7 +202,7 @@ export default function PublicPublishedSchedule() {
 
 		try {
 			const { data } = await atlasApi.get<PublishedSchedulePayload>(`/schools/${schoolId}/schedules/published`, {
-				params: { date: requestedDate, ...termRequest },
+				params: requestParams,
 			});
 			if (!isExactPublishedTermPayload(data)) {
 				throw new Error('Published schedule term scope is inconsistent.');
@@ -212,7 +212,7 @@ export default function PublicPublishedSchedule() {
 			setSourceMode('live');
 			setSavedAt(null);
 			setSavedIsStale(false);
-			writePublicScheduleSnapshot(buildPublicScheduleCacheKey(schoolId, requestedDate, buildPublishedScheduleCacheMarker(data.source), termRequest.termIndex), { payload: data });
+			writePublicScheduleSnapshot(buildPublicScheduleCacheKey(schoolId, requestedDate, buildPublishedScheduleCacheMarker(data.source), requestParams.termIndex), { payload: data });
 		} catch (fetchError) {
 			const status = isAxiosError(fetchError) ? fetchError.response?.status : undefined;
 			const responseData = isAxiosError(fetchError) ? (fetchError.response?.data as { code?: string; message?: string } | undefined) : undefined;

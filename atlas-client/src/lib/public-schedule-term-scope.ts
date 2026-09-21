@@ -11,6 +11,14 @@ export function buildPublicScheduleTermRequest(selection: PublicScheduleTermSele
 	return selection === 'invalid' ? null : { termIndex: selection };
 }
 
+export function buildPublicScheduleRequestParams(
+	requestedDate: string,
+	selection: PublicScheduleTermSelection,
+): { date: string; termIndex: number | 'active' } | null {
+	const termRequest = buildPublicScheduleTermRequest(selection);
+	return termRequest ? { date: requestedDate, ...termRequest } : null;
+}
+
 export function isExactPublishedTermPayload(value: {
 	source: { termIndex: number; termScope: 'active' | 'explicit' };
 	entries: Array<{ termIndex: number }>;
