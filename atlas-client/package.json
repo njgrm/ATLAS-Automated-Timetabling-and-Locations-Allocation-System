@@ -19,7 +19,8 @@
     "test:timetable-sync-setup": "tsx --test src/lib/__tests__/timetable-sync-setup-contract.test.ts",
     "test:client-quality": "tsx --test src/lib/__tests__/client-quality-c01-regressions.test.ts src/lib/__tests__/rollover-ui-guardrails.test.ts src/lib/__tests__/tl-operator-workspace-c05-r3-truth.test.ts src/lib/__tests__/rollover-awareness.test.ts",
     "test:timetable-route-keys": "tsx --test src/components/timetable/__tests__/ux-r03a-nested-timetable-route.test.ts src/components/timetable/__tests__/ux-r03b-center-view-routes.test.ts src/components/__tests__/ux-r03d-outlet-keying.test.ts src/components/timetable/__tests__/ux-r03e-timetable-runs-setup.test.ts",
-    "test:dup-read-callers": "tsx --test src/lib/__tests__/dup-read-auth-me-dedup.test.ts src/lib/__tests__/dup-read-runtime-context-profile.test.ts src/lib/__tests__/dup-read-rollover-status-dedup.test.ts src/lib/__tests__/actor-school-session-epoch.test.ts src/lib/__tests__/actor-scope-session.test.ts src/lib/__tests__/active-school-year-scope.test.ts src/lib/__tests__/session-scope-late-discard.test.ts src/lib/__tests__/rollover-term-repair.test.ts src/lib/__tests__/term-authority-actor-scope.test.ts src/lib/__tests__/ux-p01-timetable-data-layer.test.ts"
+    "test:dup-read-callers": "tsx --test src/lib/__tests__/dup-read-auth-me-dedup.test.ts src/lib/__tests__/dup-read-runtime-context-profile.test.ts src/lib/__tests__/dup-read-rollover-status-dedup.test.ts src/lib/__tests__/actor-school-session-epoch.test.ts src/lib/__tests__/actor-scope-session.test.ts src/lib/__tests__/active-school-year-scope.test.ts src/lib/__tests__/session-scope-late-discard.test.ts src/lib/__tests__/rollover-term-repair.test.ts src/lib/__tests__/term-authority-actor-scope.test.ts src/lib/__tests__/ux-p01-timetable-data-layer.test.ts",
+    "test:dashboard-truth-c01": "tsx --test src/lib/__tests__/dashboard-truth-c01.test.ts"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
