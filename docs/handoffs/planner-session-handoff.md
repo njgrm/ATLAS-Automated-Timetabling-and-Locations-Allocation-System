@@ -142,6 +142,17 @@ put the unaccepted candidate on `main` before acceptance — see §5.
   boundary or a HIGH action is imminent. Name the handoff commit and let the operator choose.
   The trigger is *context harming usage*, not turn count alone — a fresh session re-pays
   prompt-cache setup, so it must be worth it.
+- **Compaction is configured, so the choice between "compact" and "fresh session" is ours only
+  until compaction fires on its own.** `~/.config/opencode/opencode.jsonc`: global
+  `compaction { auto: true, prune: true, reserved: 12000 }`, and the `plan` agent overrides the
+  compaction *model* to `deepseek-v4.1-flash` variant `low`. `deepseek-v4.1-flash` has a
+  **1,000,000-token** window, so a session can run very long before `auto` triggers — this is a
+  cost/quality decision, not a hard limit. **Prefer an explicit handoff boundary over drifting
+  into automatic compaction**, because compaction replaces precise committed evidence with an
+  unauditable model-written summary, whereas this file is versioned and reviewable. Two
+  directives still bound the choice: never reset through an uncommitted correction or an active
+  HIGH action, and note that compaction invalidates the prompt-cache prefix too, so it is not a
+  cache win.
 
 ## 2. Two agents, two lanes — custody
 
