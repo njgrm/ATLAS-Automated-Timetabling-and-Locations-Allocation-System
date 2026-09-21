@@ -33,7 +33,9 @@ D1–D4, B1 (the dashboard now reads `"No hard violations · 284 warnings acknow
 in-flight map coalesces only *concurrent* callers, so it cannot fix a serial duplicate.
 **Next action: a bounded client correction** adding a short-lived per-token-epoch resolved-value
 memo shared by `resolveActorSchoolId` and `verifySessionToken`, then a new release build (HIGH)
-and a re-run of B2. B2's "two cards asserted mounted" sub-clause is unperformable on the live
+and a re-run of B2 — dispatched to **`atlas-executor-muse`** per the operator's model routing
+(see §1). Parts A and B of this cycle ran on `atlas-executor` (ds4.1flash) before that
+instruction landed. B2's "two cards asserted mounted" sub-clause is unperformable on the live
 simple view (0 cards mount) and must be amended.
 Also settled by the same pass: the **502 layer is identified** — the captured failing response
 was a host-proxy `{"code":"UPSTREAM_UNREACHABLE","message":"read ECONNRESET"}` on
@@ -89,15 +91,26 @@ put the unaccepted candidate on `main` before acceptance — see §5.
 - Rollback: incumbent `434b2a81` task XML captured at
   `%TEMP%\opencode\atlas-runtime-434b2a81-rollback.xml`; rollback basis **`5f5c6c4f`**
   (startable, junction-free). Rollback was not executed.
-- **Budget — operator-confirmed only.** Last confirmed by the operator's provider console
-  2026-09-21: **`monthly 45% · weekly 9% · rolling 2%`** (rolling resets in ~4h22m, weekly in
-  ~6d17h). There is **no machine-readable local source** for this — a search of
-  `~/.local/share/opencode`, `~/.config/opencode` and `~/.cache/opencode` found only library
-  code. Do **not** carry a stale figure as if it were current: report it as
-  "last operator-confirmed <when>" and ask the operator to re-read the console when the number
-  actually matters. The DeepSeek V4.1 Flash **x4 promo runs to Sep 27**, so `atlas-qa`
-  (ds4.1flash) stays cheaper than `dsflashv4` at identical token rates. Report the budget every
-  turn.
+- **Budget — two sources, and they measure different things.**
+  1. **Allowance percentage (the authority): the operator's provider console.** Last
+     operator-confirmed 2026-09-21: **`monthly 45% · weekly 9% · rolling 2%`** (rolling resets
+     in ~4h22m, weekly in ~6d17h). It is **not machine-readable from here**: navigating to
+     `https://opencode.ai/console/org_01M2RQRHFTZB8B37HK0EMRATYK/go` in the Playwright profile
+     redirects to `/console/login`, and this lane must **never** log into the operator's
+     provider account. Report it as "last operator-confirmed <when>" and ask for a re-read when
+     it matters.
+  2. **Local burn trend (runnable every turn): `opencode stats --days N`** — add `--models` for
+     per-model cost. Literals at 2026-09-21: last **1 day $4.24** / 40 sessions; last **7 days
+     $67.35** / 452 sessions; last **30 days $118.00** / 902 sessions. Use this for burn rate and
+     model routing.
+- **Executor model routing — operator instruction, 2026-09-21: dispatch `atlas-executor-muse`
+  (Muse Spark 1.3 Contributor), not `atlas-executor` (`opencode-go/deepseek-v4.1-flash`).**
+  Measured over the last 7 days: ds4.1flash was **$65.33 of $67.35 (97%)** of all spend across
+  26,107 messages (~$0.0025/msg), while muse-spark-1.3-contributor was **$1.18** across 1,411
+  messages (~$0.0008/msg) — roughly **3× cheaper per message**. Muse's shortcomings are being
+  closed in the directive, so **record each muse executor's failure mode in this handoff when it
+  happens** rather than silently reverting to ds4.1flash. `atlas-qa` stays ds4.1flash (the QA
+  role needs its reliability more than its price).
 
 ## 2. Two agents, two lanes — custody
 
