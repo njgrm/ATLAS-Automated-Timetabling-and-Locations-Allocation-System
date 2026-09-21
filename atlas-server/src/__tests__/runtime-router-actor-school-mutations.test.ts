@@ -17,6 +17,7 @@ import jwt from 'jsonwebtoken';
 
 const JWT_SECRET = 'actor-school-mutations-c01-disposable-proof-secret';
 const SYSTEM_TOKEN = 'actor-school-mutations-c01-system-token-not-a-jwt';
+const REQUEST_TIMEOUT_MS = 1_000;
 
 const routes = [
 	{ path: '/rollover-recovery/mark-test-data', requiresPrivileged: true },
@@ -109,7 +110,9 @@ test('runtime mutation routes fail closed before every downstream dispatch', asy
 
 	const post = async (path: string, body: Record<string, unknown>, token: string) => {
 		const controller = new AbortController();
-		const timeout = setTimeout(() => controller.abort(), 250);
+		// Allow cold local middleware/module setup to settle without weakening the
+		// downstream-dispatch assertions below.
+		const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 		try {
 			const response = await fetch(`${baseUrl}${path}`, {
 				method: 'POST',
