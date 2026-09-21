@@ -21,7 +21,7 @@ coarser steps. Cache-read tokens dominate the input side and are the planner-con
 | --- | --- | --- | --- | --- | --- |
 | baseline before the C01R closure turn | $4.63 | 42 | 3,006 | $66.76 / 444 sessions | input 14.6M, output 1.1M, cache read 496.1M |
 | C01R closure turn (release deploy + QA + correction + clone recovery) | $4.82 | 45 | 3,162 | — | **+$0.19 / +3 sessions / +156 msgs / +17.2M cache read** |
-| `ACTOR-SCHOOL-MUTATIONS-C01` release turn (source review + packet + deploy + post-action QA) | $4.84 | 45 | 3,177 | — | +$0.02 / +0 sessions / +15 msgs / +4.2M cache read — **almost certainly undercounted**: the turn ran two subagent sessions (a reviewer that reproduced the harness and a QA that re-derived the signature map and ran a whole-DB scan) and the counters clearly had not yet aggregated them. Re-measure at the next boundary; treat this row as a floor, not a total. |
+| `ACTOR-SCHOOL-MUTATIONS-C01` release turn (source review + packet + deploy + post-action QA) | $4.85 | 45 | 3,186 | — | end-of-turn reading: +$0.03 / +0 sessions / +24 msgs vs the row above. **Badly undercounted** — the turn dispatched two subagent sessions (a reviewer that reproduced the harness, and a QA that re-derived the signature map and ran a whole-DB scan); those sessions had not aggregated. Read the start-of-next-turn figure for the true delta. |
 
 > **Known measurement lag.** `opencode stats` session/message counters aggregate subagent sessions
 > after they close, so a figure taken immediately at the end of a turn that dispatched subagents can
