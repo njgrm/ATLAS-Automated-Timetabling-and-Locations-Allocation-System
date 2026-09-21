@@ -43,11 +43,13 @@ function isPrivilegedRole(role: unknown): boolean {
  */
 function parseStrictSchoolId(raw: unknown): number | null {
 	if (raw === undefined || raw === null || raw === '') return null;
+	if (typeof raw !== 'number' && typeof raw !== 'string') return null;
 	const value = typeof raw === 'number' ? raw : Number(raw);
 	return Number.isInteger(value) && value > 0 ? value : null;
 }
 
 type RuntimeReadCaller = { schoolId: number; authSource: 'jwt' | 'system' };
+type RuntimeMutationCaller = { schoolId: number; authSource: 'jwt' | 'system' };
 
 /**
  * Actor/tenant authorization gate for the three runtime READ routes
@@ -89,6 +91,45 @@ function authorizeRuntimeRead(
 	}
 	if (actorSchool !== requestedSchoolId) {
 		res.status(403).json({ code: 'CROSS_SCHOOL_DENIED', message: 'Cannot read runtime data for another school.' });
+		return null;
+	}
+	return { schoolId: requestedSchoolId, authSource: 'jwt' };
+}
+
+/**
+ * Actor/tenant authorization gate for rollover mutation routes. The target
+ * school must always be explicit: system tokens may target any valid school,
+ * while JWT callers must have and match their authenticated actor school.
+ *
+ * Every rejection returns null before locks, services, upstream calls, audit
+ * writes, or notification dispatch.
+ */
+function authorizeRuntimeMutation(
+	req: Request,
+	res: Response,
+	options: { requirePrivileged: boolean },
+): RuntimeMutationCaller | null {
+	const requestedSchoolId = parseStrictSchoolId(req.body?.schoolId ?? req.query.schoolId);
+	if (requestedSchoolId == null) {
+		res.status(400).json({ code: 'INVALID_PARAM', message: 'schoolId must be a present positive integer.' });
+		return null;
+	}
+
+	const isSystemCaller = req.user?.authSource === 'system';
+	if (!isSystemCaller && options.requirePrivileged && !isPrivilegedRole(req.user?.role)) {
+		res.status(403).json({ code: 'FORBIDDEN', message: 'Only admin, officer, or SYSTEM_ADMIN can mutate runtime data for a school.' });
+		return null;
+	}
+
+	if (isSystemCaller) return { schoolId: requestedSchoolId, authSource: 'system' };
+
+	const actorSchool = Number(req.user?.schoolId);
+	if (!Number.isInteger(actorSchool) || actorSchool <= 0) {
+		res.status(403).json({ code: 'SCHOOL_SCOPE_REQUIRED', message: 'Mutating runtime data requires an authenticated actor school.' });
+		return null;
+	}
+	if (actorSchool !== requestedSchoolId) {
+		res.status(403).json({ code: 'CROSS_SCHOOL_DENIED', message: 'Cannot mutate runtime data for another school.' });
 		return null;
 	}
 	return { schoolId: requestedSchoolId, authSource: 'jwt' };
@@ -157,15 +198,9 @@ router.get('/rollover-recovery/classify', authenticateWithSystemToken, async (re
 
 router.post('/rollover-recovery/mark-test-data', authenticateWithSystemToken, async (req: Request, res: Response, next: NextFunction) => {
 	try {
-		if (!isPrivilegedRole(req.user?.role)) {
-			res.status(403).json({ code: 'FORBIDDEN', message: 'Only admin, officer, or SYSTEM_ADMIN can mark school-year data as test data.' });
-			return;
-		}
-		const schoolId = parseSchoolId(req.body?.schoolId ?? req.query.schoolId);
-		if (typeof schoolId === 'string') {
-			res.status(400).json({ code: 'INVALID_PARAM', message: schoolId });
-			return;
-		}
+		const caller = authorizeRuntimeMutation(req, res, { requirePrivileged: true });
+		if (!caller) return;
+		const schoolId = caller.schoolId;
 		const schoolYearId = Number(req.body?.schoolYearId);
 		if (!Number.isInteger(schoolYearId) || schoolYearId <= 0) {
 			res.status(400).json({ code: 'INVALID_PARAM', message: 'schoolYearId must be a positive integer.' });
@@ -182,15 +217,9 @@ router.post('/rollover-recovery/mark-test-data', authenticateWithSystemToken, as
 
 router.post('/rollover-recovery/scaffold', authenticateWithSystemToken, async (req: Request, res: Response, next: NextFunction) => {
 	try {
-		if (!isPrivilegedRole(req.user?.role)) {
-			res.status(403).json({ code: 'FORBIDDEN', message: 'Only admin, officer, or SYSTEM_ADMIN can scaffold recovery state for a school year.' });
-			return;
-		}
-		const schoolId = parseSchoolId(req.body?.schoolId ?? req.query.schoolId);
-		if (typeof schoolId === 'string') {
-			res.status(400).json({ code: 'INVALID_PARAM', message: schoolId });
-			return;
-		}
+		const caller = authorizeRuntimeMutation(req, res, { requirePrivileged: true });
+		if (!caller) return;
+		const schoolId = caller.schoolId;
 		const rawYear = req.body?.schoolYearId;
 		const schoolYearId = rawYear === undefined || rawYear === null ? undefined : Number(rawYear);
 		if (schoolYearId !== undefined && (!Number.isInteger(schoolYearId) || schoolYearId <= 0)) {
@@ -226,15 +255,9 @@ router.get('/rollover-recovery/preview', authenticateWithSystemToken, async (req
 
 router.post('/rollover-recovery/apply', authenticateWithSystemToken, async (req: Request, res: Response, next: NextFunction) => {
 	try {
-		if (!isPrivilegedRole(req.user?.role)) {
-			res.status(403).json({ code: 'FORBIDDEN', message: 'Only admin, officer, or SYSTEM_ADMIN can clear test-year data.' });
-			return;
-		}
-		const schoolId = parseSchoolId(req.body?.schoolId ?? req.query.schoolId);
-		if (typeof schoolId === 'string') {
-			res.status(400).json({ code: 'INVALID_PARAM', message: schoolId });
-			return;
-		}
+		const caller = authorizeRuntimeMutation(req, res, { requirePrivileged: true });
+		if (!caller) return;
+		const schoolId = caller.schoolId;
 		const result = await withSchoolLock(schoolId, () => applyTestYearRecovery({
 			schoolId,
 			actorId: req.user?.userId ?? 0,
@@ -255,11 +278,9 @@ router.post('/rollover-recovery/apply', authenticateWithSystemToken, async (req:
 
 router.post('/rollover-sync/preview', authenticateWithSystemToken, async (req: Request, res: Response, next: NextFunction) => {
 	try {
-		const schoolId = parseSchoolId(req.body?.schoolId ?? req.query.schoolId);
-		if (typeof schoolId === 'string') {
-			res.status(400).json({ code: 'INVALID_PARAM', message: schoolId });
-			return;
-		}
+		const caller = authorizeRuntimeMutation(req, res, { requirePrivileged: false });
+		if (!caller) return;
+		const schoolId = caller.schoolId;
 		const result = await previewRolloverSync(schoolId, getUpstreamAuthToken(req));
 		res.json(result);
 	} catch (err) {
@@ -269,15 +290,9 @@ router.post('/rollover-sync/preview', authenticateWithSystemToken, async (req: R
 
 router.post('/rollover-sync/apply', authenticateWithSystemToken, async (req: Request, res: Response, next: NextFunction) => {
 	try {
-		if (!isPrivilegedRole(req.user?.role)) {
-			res.status(403).json({ code: 'FORBIDDEN', message: 'Only admin, officer, or SYSTEM_ADMIN can sync a new school year from EnrollPro.' });
-			return;
-		}
-		const schoolId = parseSchoolId(req.body?.schoolId ?? req.query.schoolId);
-		if (typeof schoolId === 'string') {
-			res.status(400).json({ code: 'INVALID_PARAM', message: schoolId });
-			return;
-		}
+		const caller = authorizeRuntimeMutation(req, res, { requirePrivileged: true });
+		if (!caller) return;
+		const schoolId = caller.schoolId;
 		const result = await withSchoolLock(schoolId, () => applyRolloverSync(schoolId, getUpstreamAuthToken(req), {
 			actorId: req.user?.userId ?? 0,
 			syncTermContract: true,
@@ -322,15 +337,9 @@ router.post('/rollover-sync/apply', authenticateWithSystemToken, async (req: Req
 
 router.post('/rollover-sync/reset-dummy-year', authenticateWithSystemToken, async (req: Request, res: Response, next: NextFunction) => {
 	try {
-		if (!isPrivilegedRole(req.user?.role)) {
-			res.status(403).json({ code: 'FORBIDDEN', message: 'Only admin, officer, or SYSTEM_ADMIN can reset dummy school-year data.' });
-			return;
-		}
-		const schoolId = parseSchoolId(req.body?.schoolId ?? req.query.schoolId);
-		if (typeof schoolId === 'string') {
-			res.status(400).json({ code: 'INVALID_PARAM', message: schoolId });
-			return;
-		}
+		const caller = authorizeRuntimeMutation(req, res, { requirePrivileged: true });
+		if (!caller) return;
+		const schoolId = caller.schoolId;
 		const result = await withSchoolLock(schoolId, () => resetDummyYearAndApplyRollover({
 			schoolId,
 			actorId: req.user?.userId ?? 0,
@@ -368,15 +377,9 @@ router.post('/rollover-sync/reset-dummy-year', authenticateWithSystemToken, asyn
 
 router.post('/rollover-archive/preview', authenticateWithSystemToken, async (req: Request, res: Response, next: NextFunction) => {
 	try {
-		if (!isPrivilegedRole(req.user?.role)) {
-			res.status(403).json({ code: 'FORBIDDEN', message: 'Only admin, officer, or SYSTEM_ADMIN can preview school-year archival.' });
-			return;
-		}
-		const schoolId = parseSchoolId(req.body?.schoolId ?? req.query.schoolId);
-		if (typeof schoolId === 'string') {
-			res.status(400).json({ code: 'INVALID_PARAM', message: schoolId });
-			return;
-		}
+		const caller = authorizeRuntimeMutation(req, res, { requirePrivileged: true });
+		if (!caller) return;
+		const schoolId = caller.schoolId;
 		const result = await withSchoolLock(schoolId, () => previewArchiveAndSync(schoolId, getUpstreamAuthToken(req)));
 		res.json(result);
 	} catch (err) {
@@ -386,15 +389,9 @@ router.post('/rollover-archive/preview', authenticateWithSystemToken, async (req
 
 router.post('/rollover-archive/apply', authenticateWithSystemToken, async (req: Request, res: Response, next: NextFunction) => {
 	try {
-		if (!isPrivilegedRole(req.user?.role)) {
-			res.status(403).json({ code: 'FORBIDDEN', message: 'Only admin, officer, or SYSTEM_ADMIN can archive a school year and sync.' });
-			return;
-		}
-		const schoolId = parseSchoolId(req.body?.schoolId ?? req.query.schoolId);
-		if (typeof schoolId === 'string') {
-			res.status(400).json({ code: 'INVALID_PARAM', message: schoolId });
-			return;
-		}
+		const caller = authorizeRuntimeMutation(req, res, { requirePrivileged: true });
+		if (!caller) return;
+		const schoolId = caller.schoolId;
 		const actorId = req.user?.userId ?? 0;
 		console.log(`[rollover-archive] apply school=${schoolId} actor=${actorId} (archive-and-sync, non-destructive)`);
 		const result = await withSchoolLock(schoolId, () => archiveAndSyncActiveYear({
