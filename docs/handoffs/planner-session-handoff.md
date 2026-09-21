@@ -8,9 +8,14 @@ a HIGH action, or once a compaction would cost more than a restart.
 Last updated: 2026-09-21, Lane A resumed in a fresh session. `DUP-READ-CALLERS-C01` is at
 **r2** after two review rounds (`CORRECTION_REQUIRED` twice, 5 blocking findings total, all
 real and all accepted). The cycle is re-scoped **source-only**; the deployment is deferred on a
-measured `D:` capacity gate, which is now an operator decision. Packet frozen at **r2b** (F1/F2
-closed; no further re-review required). Next: dispatch the executor (Part A, source-only), then
-one fresh QA.
+measured `D:` capacity gate, which is now an operator decision. **Accepted and integrated** at
+`6949e3d4`: fresh QA `ACCEPT_READY` 5/5, blocked 0, unperformed 0 over `ccf31e77...6949e3d4`
+(source blob-identical to candidate `ce0e54ec`; test files added, none deleted). S5's initial
+`BLOCKED` was an incomplete worktree dependency tree — fixed by removing the junction safely
+(anchor proven intact) and installing a real tree; `68/68` + typecheck exit 0 reproduced.
+**Not deployed** (deferred on `D:` capacity). One process defect to remember: my docs-sync push
+put the unaccepted candidate on `main` before acceptance — see §5.
+**Operator decision still pending: `D:` headroom.**
 
 **To resume in a fresh session, paste this one line:**
 > Read `docs/handoffs/planner-session-handoff.md` on `origin/main` and resume as the ATLAS
@@ -165,6 +170,12 @@ and the proxy is healthy. The superseded `ENROLLPRO-PROXY-RECOVERY-LIVE` packet 
 - **A negative claim of mine needs the same adversarial check as a positive one.** Three of my
   own claims were falsified this session: the C02 element-identity row, "no run-list endpoint
   exists", and four rules dropped by my own compression. Independent review caught all three.
+- **`git push <branch>:main` is an integration, not a docs sync** — now `AGENTS.md` §10.11.
+  This session breached it: pushing the continuity docs from `work/dup-read-callers-c01` after
+  the executor had committed carried the **unaccepted** candidate onto `main` (`ccf31e77` →
+  `15c1725e`). History was not rewritten (no force-push; Lane B shares the remote). Acceptance
+  is being completed on the already-pushed range and the ordering defect is disclosed here.
+  Continuity commits need a docs-only branch.
 
 ## 6. Next actions, ordered
 

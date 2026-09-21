@@ -123,6 +123,7 @@ Produce: Overview · Scope (In/Out — Out is mandatory) · Actors · Functional
 8. **Integrate and push** after acceptance, from a clean `integration/*` boundary, then retire the candidate worktree.
 9. **"Worktree clean" means the complete `git status --short` is empty** — not that unrelated or ignored files were excluded.
 10. **A progress ledger and a handoff are supporting evidence, never a substitute** for reviewing the committed production diff.
+11. **Pushing a branch to `main` is an integration, not a documentation sync.** Keep the planner's continuity documents on a docs-only branch, or wait for acceptance. `git push <work-branch>:main` on a branch an executor has already committed to silently integrates unaccepted source — it did, moving `main` past the reviewed base and onto a shared branch that another lane also pulls. Verify the pushed range contains **only accepted commits** before every `:main` push.
 
 ### Handoff format (keep it short)
 

@@ -93,9 +93,10 @@ only on `allowStaleOnError`, which selects throw versus `{source:'cache',stale:t
 (`enrollpro-public-settings.ts:280-293`, `:314-328`); a join there would let AppShell adopt
 stale data instead of remaining on the last verified context. Give
 `promoteActiveSchoolYearContext` (`enrollpro-public-settings.ts:331-347`), which writes the
-same registry, the same key. Normalize absent options to their defaults inside the key
-(`verifyUpstream` and `allowEnrollProFallback` → `!== false`, `allowStaleOnError` →
-`!== false`), or two callers that differ only by an omitted default would fragment the dedup.
+same registry, the same key. Normalize absent options to their **effective** defaults inside
+the key — `verifyUpstream` uses `=== true` (absent ⇒ **false**), while `allowStaleOnError` and
+`allowEnrollProFallback` use `!== false` — or two callers that differ only by an omitted
+default would fragment the dedup, and a wrong default would collapse a load-bearing axis.
 
 **Keep** the `useTimetableData.ts:1175-1190` follow-up. Under the profile key it joins the
 background refresh's in-flight request (same profile) and adds no dispatch, but it is the only
@@ -263,3 +264,12 @@ F1 `CLOSED`; F2 not yet closed for one residual. Two advisories folded in:
 - **Advisory:** `MySchedule.tsx` citations now carry the `atlas-client/src/pages/` prefix.
 - **Advisory:** the profile key must normalize absent options to their defaults, or two callers
   differing only by an omitted default would fragment the dedup. Added to A2.
+
+### r2c — planner correction from QA F2 (`ses_f3dc208abffeZa7InmerdOgL6v`)
+
+The A2 normalization parenthetical added in r2b was **wrong** and is corrected in place:
+`verifyUpstream` uses `=== true`, so an absent option means **false**, and the r2b wording
+(`!== false`) would have mapped an absent option to `true` — collapsing the very axis S2
+protects. `allowStaleOnError` and `allowEnrollProFallback` do default to true (`!== false`).
+The executor keyed each option to its **effective** value and was correct to deviate; the
+packet text was the defect.

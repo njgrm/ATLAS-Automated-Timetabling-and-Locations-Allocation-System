@@ -174,9 +174,26 @@ function isFresh(cachedAtIso: string, maxAgeMs: number): boolean {
 	return Date.now() - cachedAtMs <= maxAgeMs;
 }
 
+// DUP-READ-CALLERS-C01 (A2) — the in-flight registry is keyed by the FULL
+// request profile, not just the school, so no caller can join an in-flight
+// request whose load-bearing options differ. `verifyUpstream` is load-bearing
+// (without it the result is `aligned`/`NONE` instead of
+// `enrollpro-unreachable`/`RETRY_ENROLLPRO`), and `allowStaleOnError` selects
+// throw versus a stale-cache fallback. Absent options are normalized to their
+// effective defaults so two callers that differ only by an omitted default
+// still dedupe.
+function schoolYearContextProfileKey(
+	schoolId: number,
+	verifyUpstream: boolean,
+	allowEnrollProFallback: boolean,
+	allowStaleOnError: boolean,
+): string {
+	return `${schoolId}:${verifyUpstream ? 1 : 0}:${allowEnrollProFallback ? 1 : 0}:${allowStaleOnError ? 1 : 0}`;
+}
+
 // Deduplicate in-flight verification calls so rapid navigations don't spawn
-// parallel requests for the same school.
-const inflightBySchool = new Map<number, Promise<ActiveSchoolYearContext>>();
+// parallel requests for the same request profile.
+const inflightBySchool = new Map<string, Promise<ActiveSchoolYearContext>>();
 
 export async function resolveActiveSchoolYearContext(options: ResolveActiveSchoolYearContextOptions): Promise<ActiveSchoolYearContext> {
 	const schoolId = assertExplicitSchoolId(options.schoolId);
@@ -188,6 +205,7 @@ export async function resolveActiveSchoolYearContext(options: ResolveActiveSchoo
 	const maxAgeMs = options?.maxAgeMs ?? ACTIVE_SCHOOL_YEAR_MAX_AGE_MS;
 	const allowEnrollProFallback = options?.allowEnrollProFallback !== false;
 
+	const inflightKey = schoolYearContextProfileKey(schoolId, verifyUpstream, allowEnrollProFallback, allowStaleOnError);
 	const cached = readCachedActiveSchoolYear(schoolId);
 	const hasFreshCache = cached ? isFresh(cached.cachedAt, maxAgeMs) : false;
 
@@ -196,10 +214,10 @@ export async function resolveActiveSchoolYearContext(options: ResolveActiveSchoo
 	if (preferCache && cached) {
 		if (backgroundRefresh) {
 			// Fire-and-forget — deduplicate so rapid mounts don't stack requests.
-			if (!inflightBySchool.has(schoolId)) {
+			if (!inflightBySchool.has(inflightKey)) {
 				const inflight = _fetchRuntimeContext(schoolId, allowEnrollProFallback, allowStaleOnError, cached, verifyUpstream)
-					.finally(() => { inflightBySchool.delete(schoolId); });
-				inflightBySchool.set(schoolId, inflight);
+					.finally(() => { inflightBySchool.delete(inflightKey); });
+				inflightBySchool.set(inflightKey, inflight);
 				void inflight;
 			}
 		}
@@ -227,18 +245,18 @@ export async function resolveActiveSchoolYearContext(options: ResolveActiveSchoo
 	}
 
 	// Deduplicate concurrent calls so a single page mount doesn't spawn
-	// multiple overlapping verification requests.
-	const existingInflight = inflightBySchool.get(schoolId);
-	if (existingInflight && !forceRefresh) {
+	// multiple overlapping verification requests. A forceRefresh caller joins
+	// here too: the key carries every load-bearing option, so it can only share
+	// a request with the same verifyUpstream/allowStaleOnError/allowEnrollProFallback
+	// axes, and the joined request performs a live fetch rather than returning cache.
+	const existingInflight = inflightBySchool.get(inflightKey);
+	if (existingInflight) {
 		return existingInflight;
 	}
-	const promise = _fetchRuntimeContext(schoolId, allowEnrollProFallback, allowStaleOnError, cached, verifyUpstream);
-	if (!forceRefresh) {
-		const inflight = promise.finally(() => { inflightBySchool.delete(schoolId); });
-		inflightBySchool.set(schoolId, inflight);
-		return inflight;
-	}
-	return promise;
+	const inflight = _fetchRuntimeContext(schoolId, allowEnrollProFallback, allowStaleOnError, cached, verifyUpstream)
+		.finally(() => { inflightBySchool.delete(inflightKey); });
+	inflightBySchool.set(inflightKey, inflight);
+	return inflight;
 }
 
 async function _fetchRuntimeContext(
@@ -334,15 +352,16 @@ export function promoteActiveSchoolYearContext(options: PromotionOptions): Promi
 	const allowEnrollProFallback = options?.allowEnrollProFallback !== false;
 	const verifyUpstream = options?.verifyUpstream === true;
 	const cached = readCachedActiveSchoolYear(schoolId);
+	const inflightKey = schoolYearContextProfileKey(schoolId, verifyUpstream, allowEnrollProFallback, allowStaleOnError);
 
-	const existingInflight = inflightBySchool.get(schoolId);
+	const existingInflight = inflightBySchool.get(inflightKey);
 	if (existingInflight) {
 		return existingInflight;
 	}
 
 	const inflight = _fetchRuntimeContext(schoolId, allowEnrollProFallback, allowStaleOnError, cached, verifyUpstream)
-		.finally(() => { inflightBySchool.delete(schoolId); });
-	inflightBySchool.set(schoolId, inflight);
+		.finally(() => { inflightBySchool.delete(inflightKey); });
+	inflightBySchool.set(inflightKey, inflight);
 
 	return inflight;
 }
