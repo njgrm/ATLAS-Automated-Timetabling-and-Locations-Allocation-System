@@ -162,7 +162,10 @@ test('a populated section cell renders the assigned teacher with the subject and
 	const markup = renderGrid([TERM_ONE_ENTRY], 1);
 	assert.ok(markup.includes('FIL'), 'subject label renders');
 	assert.ok(markup.includes('C. AGUILAR'), 'assigned teacher name renders in section view');
-	assert.ok(markup.includes('G7 Room 101'), 'room label renders');
+	// C01R C2: the visible cell drops the room's repeated building grade once
+	// (`G7 Room 101 · G7` renders as `Room 101 · G7`); the full label stays
+	// behind the cell Tooltip.
+	assert.ok(markup.includes('Room 101 · G7'), 'room label renders without its repeated grade prefix');
 	assert.match(markup, /data-testid="timetable-cell-detail"[^>]*data-cell-term="1"[^>]*data-cell-teacher="C\. AGUILAR"/);
 });
 
