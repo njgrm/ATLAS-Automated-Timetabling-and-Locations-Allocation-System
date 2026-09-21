@@ -4,9 +4,25 @@ Current operational truth only. Git history and handoff documents retain older
 evidence. Update this file when a live fact, blocking decision, or next action
 changes.
 
-Last verified: 2026-09-21 (planner, closing `ACTOR-SCHOOL-MUTATIONS-C01` Part B; release `80acdc25`
-**deployed** and independently accepted **5/5**, 0 blocked, 0 unperformed, with an independently
-re-derived in-transaction-pinned zero-write proof)
+Last reconciled: 2026-09-21 (Lane A).
+
+## Writing protocol — two planner lanes share this file
+
+This file is co-maintained so two planners can work in parallel without a custody defect. The
+rules are what make that safe:
+
+1. **Each lane edits only its own section** — `Lane A — current lane` or `Lane B — current lane` —
+   plus the `Live release` block **when it deployed**. Never rewrite another lane's section. If a
+   merge conflicts inside another lane's section, **take theirs** and move on.
+2. **Every blocker or "not done" line carries `as of <date>` and what proves it.** An undated
+   pending line is a premise error waiting to happen (`AGENTS.md` §15): on 2026-09-21 a session
+   spent a packet, an independent review and a dispatch on a term-cache apply that had already been
+   satisfied three days earlier. **Before acting on any blocker line, verify it against the runtime
+   or the database** — or delete it.
+3. **Keep it short.** No narrative, no history, no per-transition register. Packets, evidence,
+   handoffs and Git hold the detail.
+4. Per-lane detail lives in each lane's own handoff: Lane A in
+   `docs/handoffs/planner-session-handoff.md`, Lane B in its own handoff file.
 
 ## Objective
 
@@ -303,7 +319,26 @@ and AIMS.
   controller, no deploy from Lane B. Current handoff for a fresh session:
   `docs/handoffs/planner-session-handoff.md`.
 
-## Single next action
+## Decisions awaited (operator-facing)
+
+- Removal instruction for the stray clone `E:/ATLAS-worktrees/c01r-release-20260921` (~1 GiB, no
+  unique commits) — a raw recursive delete is not permitted for a non-worktree.
+- Confirm the two-lane naming used here (Lane A = the primary planner; Lane B = the
+  operator-authorized parallel planner), and whether the earlier ChatGPT-harness agent's stream
+  (`docs/handoffs/lane-b.md`) is still active.
+
+## Lane B — current lane (written only by Planner B)
+
+Lane B owns this section. Current stream and state: see Lane B's own handoff file. Lane A last saw
+it complete `TEST-GATE-REACHABILITY-C01` (`f4462374`) and hand it over for integration.
+
+## Lane A — current lane (written only by Lane A)
+
+**Integrated:** `TEST-GATE-REACHABILITY-C01` (`f4462374`) — reviewed LOW and merged 2026-09-21
+(`atlas-server/package.json` only, 32 orphaned scripts removed). Proof of no gate loss: all 29
+referenced test files are absent, **no surviving script references a removed script name**, and
+`git diff --check` is clean. The release queue stays empty (this is test-script hygiene, not a
+release delta).
 
 **The generation/publication core is already met — do not chase the term-cache apply.** Corrected
 2026-09-21 after a wasted cycle: the active year's ordered-term cache was **applied on
