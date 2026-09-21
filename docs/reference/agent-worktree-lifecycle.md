@@ -15,6 +15,15 @@ file holds the mechanics so the directive stays short.
   PostgreSQL lives on `D:`, so database headroom is part of the gate.
 - Keep at most **12 active task worktrees** across both roots. Integration worktrees count
   and must not persist as historical evidence.
+- **The cap is on *active* worktrees — never on the registered total.** `git worktree list`
+  necessarily includes trees that must be preserved by rule: dirty worktrees, unmerged
+  candidates, `node_modules` junction anchors, the never-retire `D:\ATLAS-runtime-*` release
+  trees, Codex-managed worktrees, and `D:/ATLAS` itself. A registry count above 12 is therefore
+  **not** a blocker and is never a reason to retire something uncertain. Observed 2026-09-21:
+  exactly this misreading — reading the cap as a registry total — stalled Lane B's integration
+  when the correct reading would have let it proceed immediately. If capacity genuinely
+  pressures a lane, ask the planner to free space through the audited reclaim path; do not
+  retire on your own authority.
 
 ## Disposition
 
