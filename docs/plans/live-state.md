@@ -220,6 +220,14 @@ and AIMS.
   labelled as such, and a real `passed/blocked/unperformed` tally. **Packets from here
   bundle source, deployment, and browser acceptance into one cycle** (see `AGENTS.md`
   §13). Standing authorization removes waiting, never evidence.
+- **Two agents work this repository concurrently.** Lane A (this lane) owns the client
+  timetable surface, the continuity documents, deployment and the single browser controller.
+  Lane B (a second agent, ChatGPT harness) owns `atlas-server/src/**` and its own docs, on
+  stream `ACTOR-SCHOOL-MUTATIONS-C01`; its charter is
+  `docs/handoffs/lane-b-charter-2026-09-21.md` and its review status lives in
+  `docs/handoffs/lane-a-to-lane-b.md`. Disjoint file ownership, one runtime, one browser
+  controller, no deploy from Lane B. Current handoff for a fresh session:
+  `docs/handoffs/planner-session-handoff.md`.
 
 ## Single next action
 
