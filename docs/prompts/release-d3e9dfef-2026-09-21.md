@@ -126,3 +126,50 @@ decisive commands with results, D1–D6 each with its own result, the literal si
 with the transaction scope, the `D:` figures, PIDs and listeners before/after, the browser row's
 literal rendered strings, the login disclosure, rollback status, and risks marked
 `BLOCKING`/`NON_BLOCKING`. No transcripts, secrets or database rows.
+
+## 7. r1 amendment (planner, 2026-09-21) — supersedes §1, §4 D4/D5/D6 and §5 where noted
+
+Independent pre-action review returned **Gate 1 source `ACCEPT_READY` 12/12** and **Gate 2 lint 8/9
+with one blocking defect**. The source gate is closed and needs no re-run; these are the packet
+corrections, applied by the planner under `AGENTS.md` §11 (documentation-only, no second round).
+
+**A. D5 — BLOCKING: run the harness that actually covers this release's changed server code.**
+§4 D5 listed `test:actor-school-mutations` and `test:warning-readability`. Neither exercises the
+**residual** lane, which is what changed in `runtime.router.ts` at this pin — as written D5 could
+report a pass without executing the proof for the newly changed authority code. **D5 now requires
+all three, each with its own literal result:**
+`npm run test:actor-school-residual` (**load-bearing for this delta**),
+`npm run test:actor-school-mutations`, `npm run test:warning-readability`.
+
+**B. D4 — the expected chunk is now known, so record it rather than only asserting difference.**
+The reviewer built both trees with the incumbent's toolchain: the pin produces
+**`index-BkDBtkSR.js` (456,046 bytes)** and the incumbent `index-C6LTCXSf.js` (455,998 bytes). D4
+must assert the served entry is **byte-identical to the freshly built manifest entry** and
+**differs from the incumbent's** — "difference" is correct here because the client tree changed
+(a previous release was falsified for asserting difference on an *unchanged* tree).
+
+**C. D6 — name the browser harness, add the two missing assertions, and fix the baseline.**
+- Read `docs/reference/agent-live-browser-qa.md` first (`AGENTS.md` §12), and name the
+  single-controller persistent-profile harness. **A `BLOCKED(harness)` D6 makes the 6/6 tally
+  unreachable — the acceptor must then not return `ACCEPT_READY`.** Never simulate the row.
+- Add the two `WARNING-READABILITY-C01` §2 controls that were missing: **control 5** (one real
+  situation produces one grouped item, not two — e.g. the Faculty-16 Monday pair) and **control 6**
+  (with 0 zoned rooms the zone warning is suppressed or reframed as setup, never presented as a
+  schedule warning).
+- **Baseline is stale:** "335 rows / 116 unique / 113 shown" predates the R4 dedup. **Record the
+  counts the surface actually renders** and assert the label states its basis — do not assert a
+  remembered number.
+
+**D. §1 wording.** "Exactly these 16 paths" is **product-scoped**: within `atlas-server atlas-client
+ops prisma package.json` the pin carries exactly the 16 listed paths and nothing else, but the full
+`80acdc25..d3e9dfef` diff also carries `AGENTS.md` and nine `docs/**` paths. Read it as 16 product
+paths.
+
+**E. §5 rollback.** The duplicated SHA in "`a02884ff`, `4c7c0bd9` and `4c7c0bd9`'s predecessors" is
+a typo — read "`a02884ff`, then `4c7c0bd9` and its predecessors". Before starting the incumbent,
+**quiesce the supervisor tree and clear a stale `supervisor-state.json`** (`AGENTS.md` §6) — the
+rollback restates the C02 §6 quiesce, it does not replace it.
+
+**F. Non-blocking observation, no action in this cycle.** The reviewer found `parseSchoolId` in
+`runtime.router.ts` is now **unused dead code**. Do not remove it in this release; record it as a
+successor.
