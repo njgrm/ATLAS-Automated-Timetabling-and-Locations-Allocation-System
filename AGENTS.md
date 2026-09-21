@@ -198,6 +198,8 @@ Maintain **one short file** — `docs/plans/live-state.md` — updated **only wh
 
 Do not maintain a per-transition register, state machine, lease table, or receipt chain. Git history plus this one file are the continuity record: if a session dies, these and the branches are enough to resume.
 
+**Date every blocker and every "not done" claim, and name what proves it.** An undated "still pending" line is a premise error waiting to happen: on 2026-09-21 a session spent a packet, an independent review and an executor dispatch on a term-cache apply that had already been satisfied three days earlier, because the line saying it was unbound carried no date and contradicted a zero-HARD published run recorded elsewhere in the same file. **Reconcile the whole file — or the newest dated handoff — before acting on any blocker line.**
+
 ---
 
 ## 16. Evidence And Cost Discipline

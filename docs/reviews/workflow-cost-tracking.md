@@ -51,6 +51,21 @@ signal, not a budget: cost and coordination per **accepted, deployed increment**
 - **No budget guardrail is in force.** Do not stop work to economise; stop only when the workflow
   itself is duplicating effort, and fix the workflow instead.
 
+## Two measured waste events (2026-09-21) — the reason for the rules above
+
+1. **Three review/QA dispatches went to `atlas-qa` instead of the designated
+   `atlas-qa-dsflashv4`** (`docs/handoffs/planner-handoff-2026-09-20.md` §3 — "already set, do not
+   change"). `atlas-qa` sits on the 97%-of-spend model; the designated QA agent is ~3x cheaper per
+   dispatch. Routing is now recorded in the handoff's model-routing section.
+2. **A full packet + independent review + executor dispatch was spent on a satisfied blocker.**
+   The term-cache apply had been done on 2026-09-18 (mirror 551 cached, `TERM_CACHE_SYNC_APPLIED`
+   = 2), and a published run with zero HARD violations already existed — while an undated line in
+   `live-state.md` said the apply was "locked and unbound". The executor stopped correctly before
+   consuming the authorized login, so the cost was the packet, the review and one dispatch, not a
+   wrong write. Root cause fixed by the dated-blocker rule in `AGENTS.md` §15.
+   **Lesson: on a stale-premise day, the cheapest possible action is to read the newest dated
+   handoff and reconcile state — before authoring anything.**
+
 ## Process metrics to hold the levers
 
 Track these per accepted release; they are what the two workflow rules act on:

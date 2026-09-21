@@ -15,8 +15,16 @@ Last updated: 2026-09-21 (Lane A).
 Two cycles closed back-to-back and **both are live**: `DUP-READ-CALLERS-C01R` (client, accepted
 **7/7** on `a02884ff`) and `ACTOR-SCHOOL-MUTATIONS-C01` Part B (server, accepted **5/5** on
 `80acdc25` after an independent source review at **9/9**). **The release queue is empty** — nothing
-accepted is undeployed. The program objective is unfinished: a generated, published, zero-HARD
-timetable and companion SSO still lie ahead (see Next action).
+accepted is undeployed.
+
+**Premise correction, 2026-09-21 — read this before planning anything.** The session that wrote the
+earlier version of this file spent a packet, an independent review and an executor dispatch on a
+**term-cache apply that had already been satisfied on 2026-09-18**. The DB shows mirror **551**
+(year 10) cached, `TERM_CACHE_SYNC_APPLIED` = 2, `GenerationRun` = 4, and **published run 315 /
+revision 42 with zero HARD violations**. **The generation/publication core is already met.** The
+cause was an undated "still pending" line that contradicted facts recorded elsewhere in the same
+file — hence `AGENTS.md` §15's dated-blocker rule. **Read the newest dated handoff
+(`docs/handoffs/planner-handoff-2026-09-20.md`) and reconcile before acting on any blocker line.**
 
 ## Live identity
 
@@ -74,17 +82,27 @@ timetable and companion SSO still lie ahead (see Next action).
 
 - **Dispatch `atlas-executor-muse`** (Muse Spark 1.3 Contributor), not `atlas-executor`
   (operator instruction, 2026-09-21). Executors are ~2% of spend; they are not the cost lever.
+- **QA/reviewer agent is `atlas-qa-dsflashv4` — already set, do not change**
+  (`docs/handoffs/planner-handoff-2026-09-20.md` §3). Three review/QA dispatches on 2026-09-21 went
+  to the generic `atlas-qa` (the 97%-of-spend model) instead — a routing miss worth ~3x per
+  dispatch. Use `atlas-qa-dsflashv4`.
+- **Executors cannot create worktrees.** The muse harness denies `git worktree add`/`remove`
+  (measured 2026-09-21, which cost a dispatch). **The planner provisions the executor's registered
+  worktree before dispatch**, then hands over the exact path.
 - **Two recorded muse failure modes — both wording, not code:** (i) it **overstated its own
   evidence** (reported a failing-first tally of 8/2/6 where independent QA measured 8/3/5, naming a
   control that was not discriminating); (ii) it **claimed a method that had not executed** (a
   `SET LOCAL TIME ZONE 'UTC'` "pin" issued outside a transaction is a no-op, and it published the
-  unpinned hash as pinned). Adversarially check its counts and its method claims.
+  unpinned hash as pinned). Adversarially check its counts and its method claims. It has also
+  stopped correctly and cheaply when a packet's premise had moved — twice — which is worth as much
+  as a completed run.
 - **Burn:** `opencode stats --days N --project ""` isolates this repo. The provider-console
-  allowance percentage is **not** machine-readable from this lane and this lane must never log
-  into the operator's provider account. Figures, the model split and per-turn readings live in
+  allowance percentage is **not** machine-readable from this lane and this lane must never log into
+  the operator's provider account. Figures, the model split and per-turn readings live in
   `docs/reviews/workflow-cost-tracking.md`.
 - **Efficiency here means finishing faster**, not spending less: the levers are fewer planner
-  turns and **≤ 2 reviewer dispatches per release** (`AGENTS.md` §11, §16).
+  turns, **≤ 2 reviewer dispatches per release** (`AGENTS.md` §11, §16), and acting only on
+  **dated** blocker lines (`AGENTS.md` §15).
 
 ## Authorization
 
@@ -105,19 +123,23 @@ timetable and companion SSO still lie ahead (see Next action).
 
 ## Next action
 
-**Drive to the core deliverable: a generated, published, zero-HARD timetable for the demo year.**
-The chain is `term-cache catch-up apply → canonical readiness diagnostic → fingerprinted
-generation preview → generate → publication preview → publish`. Begin by authoring the
-fingerprinted term-cache apply packet (capture complete at `9c19b772`; bind its fingerprint
-`d4cd7cc4…` and `confirmationText SAVE_TERM_AUTHORITY_1_9`), then one batched independent
-pre-action review, then execute — all under the standing authorization, with the live-data write
-stated plainly as it runs.
+**Pick up a real open lane — the generation/publication core is already met.** Ranked, from
+`docs/handoffs/planner-handoff-2026-09-20.md` §8 (more current than the older live-state material):
 
-In parallel, the **actor-school residual authority lane** is the only other open source gap:
-`GET /rollover-recovery/preview` (`atlas-server/src/routes/runtime.router.ts:244`) still defaults
-to school 1; `parseStrictTermAuthoritySchoolId` (`:424`) lacks the non-string guard; and the
-harness does not cover body-vs-query precedence or hex/exponent/padded strings. It is
-`atlas-server/**` → Lane B's ownership, or an explicit re-assignment.
+1. **`warning-readability-c01`** — packet ready, **no owner**. Smallest complete open lane; the
+   natural next dispatch.
+2. **Public published-view term merging** — `/public/schedules` renders every cell 3×
+   (2,760 = 920 × 3 terms). **Owned by the other planner**; do not take it without a handover.
+3. **False/incorrect warning categories** — `ZONE_IMBALANCE_WARNING` fires because 0 of 103 rooms
+   have a zone; `FACULTY_FLOOR_TRANSITION`'s message is broken; warning-count semantics
+   (335 API rows / 116 unique / 113 shown).
+4. **`test:ux-guardrails` is vacuous** — names two files deleted at `4794bd9e`; never cite it.
+5. **SMART/AIMS companion handoffs**; **actor-school residual authority lane**
+   (`atlas-server/**`, Lane B's or a re-assignment).
+
+Before starting any of these: re-read the newest dated handoff, and treat the term-cache apply and
+the readiness/generation chain as **closed** — a fresh preview is expected to report
+`ALREADY_CURRENT` with no write.
 
 ## Pointers
 

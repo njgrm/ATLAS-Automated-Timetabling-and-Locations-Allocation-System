@@ -305,21 +305,34 @@ and AIMS.
 
 ## Single next action
 
-**Drive to the core deliverable: a generated, published, zero-HARD timetable.** The release queue
-is **empty** — every accepted change is live in `80acdc25`. The chain is
-**term-cache catch-up apply → canonical readiness diagnostic → fingerprinted generation preview →
-generate → publication preview → publish**, and the first step is ours: author the fingerprinted
-apply packet (capture complete at `9c19b772`; bind fingerprint `d4cd7cc4…` and `confirmationText
-SAVE_TERM_AUTHORITY_1_9`), then one batched independent pre-action review, then execute it under
-the standing authorization. The live-data write must be stated plainly as it runs.
+**The generation/publication core is already met — do not chase the term-cache apply.** Corrected
+2026-09-21 after a wasted cycle: the active year's ordered-term cache was **applied on
+2026-09-18** (mirror **551**, `termContractCachedAt 2026-09-18T04:51:01.797Z`,
+`TERM_CACHE_SYNC_APPLIED` = **2**), `GenerationRun` = 4, and **published run 315 / revision 42
+already carries zero HARD violations** with 335 acknowledged SOFT rows. The "term-cache apply
+remains locked and unbound" line elsewhere in the older material is **stale**; a fresh preview on
+the live runtime is expected to return `ALREADY_CURRENT` → no write. A packet
+(`docs/prompts/term-cache-catchup-apply-2026-09-21.md`, r1) and a pre-action review were spent on
+that stale premise — that is the cost of trusting an undated blocker line, and the reason for the
+"verified at" marker rule.
 
-Operator-gated only in the sense of being HIGH, not of needing a wait: the term-cache apply,
-generation and publication each proceed under the standing authorization with their own reviewed,
-fingerprinted packet. In parallel: the **actor-school residual authority lane** — `GET
-/rollover-recovery/preview` (`runtime.router.ts:244`) still defaults to school 1;
-`parseStrictTermAuthoritySchoolId` (`:424`) lacks the non-string guard; harness hardening — is
-`atlas-server/**`, so Lane B's or an explicit re-assignment. The SMART/AIMS companion handoffs
-stay queued for their repository owners.
+**What actually remains, in value order** (from `docs/handoffs/planner-handoff-2026-09-20.md` §8,
+which is more current than the older live-state material — read it before starting a lane):
+
+1. **`warning-readability-c01`** — packet ready, no owner. Smallest complete open lane.
+2. **Public published-view term merging** — `/public/schedules` renders every cell 3× (2,760
+   entries = 920 × 3 terms). **Owned by the other planner** (their public term-scoping correction).
+3. **False/incorrect warning categories** — `ZONE_IMBALANCE_WARNING` fires because 0 of 103 rooms
+   have a zone (a config gap, not a schedule defect); `FACULTY_FLOOR_TRANSITION` message is broken;
+   warning-count semantics (335 API rows / 116 unique / 113 shown).
+4. **`test:ux-guardrails` is vacuous** — it names two files deleted at `4794bd9e` and must never be
+   cited as evidence.
+5. **SMART/AIMS companion handoffs** — queued for their repository owners.
+6. **Actor-school residual authority lane** (`atlas-server/**`) — `GET /rollover-recovery/preview`
+   still defaults to school 1; `parseStrictTermAuthoritySchoolId` lacks the non-string guard.
+
+Ledger of completed work: the duplicate-read fixes and the server actor-school release are live in
+`80acdc25`; the release queue is **empty**.
 
 Behind that release, these are unchanged:
 
