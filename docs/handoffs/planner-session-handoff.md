@@ -5,10 +5,11 @@ planner writes and phrases it; the kickoff line below never changes. Updating it
 deliberate and cheap (~1–2k tokens): it makes any turn boundary a safe session boundary. The
 *decision* to actually start fresh stays conditional — take it at a real lane boundary, before
 a HIGH action, or once a compaction would cost more than a restart.
-Last updated: 2026-09-21, Lane A resumed in a fresh session. `DUP-READ-CALLERS-C01` r1 is
-corrected after a pre-action review returned `CORRECTION_REQUIRED`, and the cycle is
-re-scoped **source-only** — the deployment is deferred on a measured `D:` capacity gate, which
-is now an operator decision.
+Last updated: 2026-09-21, Lane A resumed in a fresh session. `DUP-READ-CALLERS-C01` is at
+**r2** after two review rounds (`CORRECTION_REQUIRED` twice, 5 blocking findings total, all
+real and all accepted). The cycle is re-scoped **source-only**; the deployment is deferred on a
+measured `D:` capacity gate, which is now an operator decision. Next: the narrow closure review
+of r2, then the executor.
 
 **To resume in a fresh session, paste this one line:**
 > Read `docs/handoffs/planner-session-handoff.md` on `origin/main` and resume as the ATLAS
@@ -28,10 +29,11 @@ is now an operator decision.
    `agent-worktree-lifecycle.md` pointers. Read `AGENTS.md` **from `origin/main`**, not from
    the injected context and not from `D:\ATLAS`.
 4. **Capacity moved into the warn band.** `D:` free was **15.81 GiB** at 2026-09-21 (warn
-   below 25, fail closed below 15), a live release is **1.86 GiB** with real non-junction
-   `node_modules`, and 22 never-retirable `D:\ATLAS-runtime-*` trees are present. Every
-   deployment permanently spends ~1.9 GiB that this lane may not reclaim. Record the figure
-   before any release build and treat release-tree accumulation as an operator decision.
+   below 25, fail closed below 15), a live release measures **1.43–1.86 GiB** with real
+   non-junction `node_modules`, and **21** never-retirable `D:\ATLAS-runtime-*` directories
+   are present (19 supervised releases + the `d44f29e0` fallback + `ATLAS-runtime-config`).
+   Every deployment permanently spends ~1.9 GiB that this lane may not reclaim. Record the
+   figure before any release build and treat release-tree accumulation as an operator decision.
 
 1. **This file.**
 2. **`AGENTS.md`** — the authority. It now points to two reference docs it did not before:
@@ -131,6 +133,13 @@ and the proxy is healthy. The superseded `ENROLLPRO-PROXY-RECOVERY-LIVE` packet 
   **Operator decision pending — `D:` headroom.** 21 `D:\ATLAS-runtime-*` directories are on
   Lane A's never-retire list, so reclaiming them is operator-only, and every future deploy
   lands below the floor until that is resolved.
+
+  **r2.** The bounded re-review (`ses_f3de10bf8ffeM7Ban32pvyJIhi`) returned
+  `CORRECTION_REQUIRED` again — 2 blocking, both in A2, both accepted: the request-profile key
+  must also carry `allowStaleOnError` (`AppShell` passes `false`, `MySchedule` passes `true`,
+  and they share a key today), and the `useTimetableData.ts:1175-1190` follow-up must be
+  **kept**, because it is the only path propagating the fresh context to hook state — deleting
+  it changes rendered `schoolYearSource`/`activeTerm`.
 - **Lane B — two blocking items to clear before it implements** (both its own, neither mine):
   1. **Push the checkpoint.** `836abba9` is local only; the review discipline is that a
      candidate is reviewable from Git alone. `git fetch` before pushing, never force-push.

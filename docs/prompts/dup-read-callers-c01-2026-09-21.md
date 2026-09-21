@@ -1,8 +1,9 @@
 # DUP-READ-CALLERS-C01 — the three named duplicate-read callers (source cycle; deployment deferred)
 
-Status: **PREPARED — CORRECTED r1** after independent pre-action review
-(`ses_f3de7e123ffem8meOv9yZ6kAdl`, `CORRECTION_REQUIRED`, 3 BLOCKING). Supersedes the r0
-packet committed at `30846e3a`; dispositions are in §7.
+Status: **PREPARED — CORRECTED r2**. r1 corrected the first independent pre-action review
+(`ses_f3de7e123ffem8meOv9yZ6kAdl`, 3 BLOCKING); r2 corrects the bounded re-review
+(`ses_f3de10bf8ffeM7Ban32pvyJIhi`, 2 BLOCKING). Supersedes the r0 packet committed at
+`30846e3a`; dispositions are in §7.
 
 Risk: **MEDIUM** source (client read-path concurrency). **Deployment is deferred and is not
 authorized by this packet** — §0 and §3.
@@ -81,10 +82,24 @@ is `verifyUpstream:false`. `verifyUpstream` is load-bearing
 `'RETRY_ENROLLPRO'`, and `activeTerm` stays `{verified:false}`. Making a `forceRefresh` caller
 join the weaker in-flight request would therefore be a **user-visible regression**.
 
-**Key the in-flight registry by request profile** — `schoolId:verifyUpstream:allowEnrollProFallback`
-— so a `forceRefresh`+`verifyUpstream` caller never joins a weaker request and is never
-answered from cache. Then remove the redundant `useTimetableData.ts:1175-1190` follow-up when
-the background refresh already covers the same epoch.
+**Key the in-flight registry by request profile** —
+`schoolId:verifyUpstream:allowEnrollProFallback:allowStaleOnError` — so no caller joins an
+in-flight request whose load-bearing options differ. A `forceRefresh`+`verifyUpstream` caller
+joins only an equal-or-stronger profile (never `verifyUpstream:false`; never
+`allowStaleOnError:true` when it passed `false`) and is never answered from cache.
+`AppShell.tsx:174-180` and `MySchedule.tsx:157` share `schoolId:true:false` today and differ
+only on `allowStaleOnError`, which selects throw versus `{source:'cache',stale:true}`
+(`enrollpro-public-settings.ts:280-293`, `:314-328`); a join there would let AppShell adopt
+stale data instead of remaining on the last verified context. Give
+`promoteActiveSchoolYearContext` (`enrollpro-public-settings.ts:331-347`), which writes the
+same registry, the same key.
+
+**Keep** the `useTimetableData.ts:1175-1190` follow-up. Under the profile key it joins the
+background refresh's in-flight request (same profile) and adds no dispatch, but it is the only
+path that propagates the fresh result to hook state (`setSchoolYearContext` at `:1184`).
+Deleting it would change rendered `schoolYearSource`/`activeTerm`
+(`useScheduleReviewWorkspaceState.ts:1651` → `TimetableWorkflowDialogs.tsx:54`) — forbidden by
+§2's out-of-scope rule.
 
 ### A3 — `rollover-status`: one in-flight request per **(school, includeCounts)**
 
@@ -154,8 +169,10 @@ dispatches a new one; a rejection clears the entry. Instrumented counter plus a 
 control.
 S2: `runtime/context` — a `forceRefresh`+`verifyUpstream` caller never joins a
 `verifyUpstream:false` in-flight request; the joined dispatch's query parameters are asserted;
-the resulting `drift`/`activeTerm` state is unchanged from today. Instrumented counter plus an
-assertion on the returned state.
+the resulting `drift`/`activeTerm` state is unchanged from today; **and a caller that passed
+`allowStaleOnError:false` never joins an in-flight request that passed
+`allowStaleOnError:true`, asserted on both the success and the failure path.** Instrumented
+counter plus an assertion on the returned state.
 S3: `rollover-status` — two concurrent callers for one `(schoolId, includeCounts)` pair
 dispatch exactly one request; differing `includeCounts` stay independent; a rejection clears
 the entry. Instrumented counter plus a failing-first control.
@@ -213,3 +230,21 @@ Independent pre-action review `ses_f3de7e123ffem8meOv9yZ6kAdl` returned
   item explicitly; require two mounted cards in the rollover measurement; name the console
   baseline; correct the runtime-directory count to 21; carry the `cli.mjs status` caveat.
   Accepted.
+
+### r2 — bounded re-review of `30846e3a...da58cedc` (`ses_f3de10bf8ffeM7Ban32pvyJIhi`)
+
+Verdict `CORRECTION_REQUIRED`, 13/15 review rows. B1 and B2 confirmed closed; B3 confirmed
+**partially** closed. Two new blocking findings, both accepted and applied here:
+
+- **F1 — the request-profile key omitted `allowStaleOnError`**, the same flag-drop class B3
+  raised on a different axis. `AppShell.tsx:174-180` passes `false` while `MySchedule.tsx:157`
+  passes `true`; both share `schoolId:true:false` today, so a join could let AppShell adopt
+  stale data instead of remaining on the last verified context. Accepted: the key now carries
+  all four axes, `promoteActiveSchoolYearContext` uses the same key, and S2 asserts the
+  `allowStaleOnError` axis on both the success and the failure path.
+- **F2 — deleting the `useTimetableData.ts:1175-1190` follow-up would silently change rendered
+  state.** That block is the only path that propagates the fresh context to hook state
+  (`setSchoolYearContext` at `:1184`), and no source row could decide it — the deferred
+  browser row would have been carrying a source-level correctness claim. Accepted: the
+  follow-up is kept and the row text is corrected.
+- Doc nit: the handoff said 22 runtime directories; the filesystem says **21**. Fixed.
