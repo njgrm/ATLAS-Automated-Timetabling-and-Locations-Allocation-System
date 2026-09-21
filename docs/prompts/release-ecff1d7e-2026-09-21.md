@@ -95,3 +95,31 @@ encoding**, the `D:` figures, PIDs and listeners before/after, the four harness 
 client chunk, the browser row's literal rendered strings at both viewports, the login disclosure,
 rollback status, and risks marked `BLOCKING`/`NON_BLOCKING`. No transcripts, secrets or database
 rows.
+
+## 7. r1 amendment (planner, 2026-09-21)
+
+Pre-action review returned **`ACCEPT_READY` 15/15** — Gate 1 (the c02 source) 8/8 with a captured
+failing-first control, Gate 2 (this packet) 7/7, **no blocking finding**. The review gate is closed.
+These are the two clarity items it raised, plus a pre-computed value:
+
+**A. D5's harness set — qualify the name, and add the client side.** `test:warning-readability`
+exists in **both** `atlas-server/package.json` and `atlas-client/package.json`. D5 runs the
+**`atlas-server`** one; **also run the `atlas-client` one** (16/16 at this pin) — it is the harness
+that actually decides the units fix, so acceptance must not leave that behaviour to D6 alone.
+**D5 is now five harnesses**, each with its own literal result: `test:actor-school-mutations-c02`
+(load-bearing for this delta), `test:actor-school-residual`, `test:actor-school-mutations`,
+`atlas-server` `test:warning-readability`, `atlas-client` `test:warning-readability`.
+
+**B. D6 names its harness and its surface.** Use the single-controller persistent profile per
+`docs/reference/agent-live-browser-qa.md`; the surface is the **Timetable run rail's warning list
+for run 316** at the Tailnet origin. Everything else in D6 stands unchanged.
+
+**C. D4's expected chunk is known.** The reviewer built the pin: it produces
+**`index-CbCvgFxw.js`**, and the incumbent reproduces `index-BkDBtkSR.js`. Assert byte-identity to
+*your* freshly built manifest entry (expected `index-CbCvgFxw.js`) **and** difference from the
+incumbent.
+
+**D. Authorization basis.** This deployment proceeds under the operator's **standing
+authorization (2026-09-20)**, which waives the per-action approval round-trip for HIGH actions in
+this program while retaining every gate — independent review, one executor, one fresh independent
+post-action QA, real tallies. The operator's current instruction is "proceed".
