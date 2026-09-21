@@ -63,26 +63,59 @@ absent. Two consequences:
 
 `employeeId` (the shared personnel key, `"1234501"`) **is** asserted, but only as a fallback.
 
-## 4. Fix plan
+## 4. The working reference — copy SMART (operator: "EnrollPro and SMART have admin SSO working both ways")
 
-**ATLAS-side (this repo):**
+All four systems are configured on the companion; each redirects to its own authorize endpoint
+(`smart` → `laptop-pfvh73qk…/auth/enrollpro/authorize`, `aims` → `tfrog…`, `atlas` → `njgrm…`,
+`mrf` → `mrf…/auth/sso/authorize`). SMART uses the **same machinery** (`server/src/lib/companionSso.ts`,
+the same `COMPANION_SSO_*` codes), so its shape is the intended contract.
 
-1. **Do not assert a local id as an EnrollPro id.** For a non-faculty account with no EnrollPro-side
-   identifier, assert `userId: null` so EnrollPro resolves by `employeeId` — the correct
-   cross-system key. Keep `facultyExternalId` for faculty accounts.
-2. **Make the name assertion satisfiable for staff accounts** — give the account a real display
-   name, or derive first/last from a persisted source that is not the identifier. **Do not** relax
-   the rule into accepting a fabricated name.
-3. Re-run the click-through; the next expected gate is EnrollPro's `employeeId` lookup or
-   `isActive` (`COMPANION_REVERSE_SSO_USER_NOT_FOUND` / `ACCOUNT_UNAVAILABLE`).
+SMART's assertion (`D:/smart-final-capstone` @ `75057cc`,
+`server/src/services/enrollproReverseSsoService.ts:214-230`):
+
+```ts
+identity: {
+  subject: `SMART_USER:${user.id}`,   // no local numeric id is asserted as the cross-system id
+  employeeId,                          // from user.teacher?.employeeId ?? username — FAILS CLOSED if empty
+  accountName: user.username,
+  firstName: user.firstName ?? "",     // EMPTY NAME IS ACCEPTED
+  lastName:  user.lastName  ?? "",
+  roles,                               // ADMIN→SYSTEM_ADMIN, REGISTRAR→HEAD_REGISTRAR, TEACHER→TEACHER
+}
+```
+
+| | SMART (works) | ATLAS (fails) |
+| --- | --- | --- |
+| Cross-system key | `subject` string + **`employeeId`** | asserts its **local numeric account id** as `userId` |
+| Name | `firstName ?? ""`, `lastName ?? ""` — optional | **requires** a two-token or faculty name → 403 |
+| Fails closed on | missing **`employeeId`** | missing name |
+
+Because SMART sends **no `userId`**, EnrollPro falls through to its `employeeId` lookup — which is
+exactly why SMART works and ATLAS does not. **Defects A and B are therefore one bounded fix, copied
+from the working implementation, not a new design.**
+
+## 5. Fix plan
+
+**ATLAS-side (this repo) — mirror SMART's assertion shape:**
+
+1. **Stop asserting a local numeric id as the cross-system id.** Send a `subject` string (or omit
+   `userId`) so EnrollPro resolves by `employeeId`. Keep `facultyExternalId` handling if it is still
+   the right key for faculty — but never `account.id`.
+2. **Make the name optional** — `firstName ?? ""`, `lastName ?? ""`, as SMART does. Drop the
+   two-token/faculty requirement. This is *not* "fabricating a name": it is sending what we have.
+3. **Fail closed on a missing `employeeId`** for the reverse path, as SMART does — that is the real
+   reconciliation key, and the correct guard.
+4. Re-run the click-through; the next expected gate is EnrollPro's `employeeId` lookup
+   (`COMPANION_REVERSE_SSO_USER_NOT_FOUND` / `ACCOUNT_UNAVAILABLE`) if no EnrollPro user carries
+   employeeId `1234501`.
 
 **EnrollPro-side (handoff — READ_ONLY, do not edit):**
 
-4. **Prefer `employeeId` over a caller-supplied `userId`**, or reject a `userId` that does not
-   correspond to the asserted `employeeId`. Otherwise any companion can assert an arbitrary id.
-5. EnrollPro collapses ATLAS's four distinct 403 reasons into one opaque `ACCESS_DENIED`, so the
-   cause is only findable from our source. Surface the companion's error code.
+5. **Prefer `employeeId` over a caller-supplied `userId`**, or reject a `userId` that does not
+   correspond to the asserted `employeeId`. SMART sidesteps this by never sending one; EnrollPro
+   should not trust an arbitrary id from any companion.
+6. EnrollPro collapses the companion's distinct 403 reasons into one opaque `ACCESS_DENIED`, so the
+   cause is only findable from the companion's source. Surface the companion's error code.
 
-**Not yet run:** EnrollPro → ATLAS. It needs an EnrollPro session; the credentials file has no
-EnrollPro section. (The operator has since confirmed the EnrollPro credentials are the same
-universal admin credentials, so this leg can be completed.)
+**Not yet run:** EnrollPro → ATLAS. It needs an EnrollPro session; the operator has confirmed the
+EnrollPro credentials are the same universal admin credentials, so this leg can now be completed.
