@@ -12,6 +12,18 @@ import { publishNotificationEvent } from '../services/notification-events.servic
 
 const router = Router();
 
+function parseStrictFacultySchoolId(raw: unknown): number | null {
+	if (typeof raw === 'number') return Number.isSafeInteger(raw) && raw > 0 ? raw : null;
+	if (typeof raw !== 'string' || !/^[1-9]\d*$/.test(raw)) return null;
+	const parsed = Number(raw);
+	return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : null;
+}
+
+function actorFacultySchoolId(req: Request): number | null {
+	const schoolId = req.user?.schoolId;
+	return typeof schoolId === 'number' && Number.isSafeInteger(schoolId) && schoolId > 0 ? schoolId : null;
+}
+
 // Auth: GET /faculty/me?schoolId=X — resolve caller's linked faculty mirror
 router.get('/me', authenticate, async (req: Request, res: Response, next: NextFunction) => {
 	try {
@@ -368,7 +380,25 @@ router.delete('/:id', authenticate, requirePrivilegedRole, async (req: Request, 
 			return;
 		}
 
-		const schoolId = Number(req.query.schoolId ?? req.body.schoolId ?? 1);
+		const requestedSchoolId = parseStrictFacultySchoolId(
+			req.body && Object.prototype.hasOwnProperty.call(req.body, 'schoolId')
+				? req.body.schoolId
+				: req.query.schoolId,
+		);
+		if (requestedSchoolId === null) {
+			res.status(400).json({ code: 'INVALID_PARAM', message: 'schoolId must be a present positive integer.' });
+			return;
+		}
+		const actorSchoolId = actorFacultySchoolId(req);
+		if (actorSchoolId === null) {
+			res.status(403).json({ code: 'SCHOOL_SCOPE_REQUIRED', message: 'Authenticated actor school scope is required.' });
+			return;
+		}
+		if (requestedSchoolId !== actorSchoolId) {
+			res.status(403).json({ code: 'CROSS_SCHOOL_DENIED', message: 'Cannot delete a faculty profile for another school.' });
+			return;
+		}
+		const schoolId = requestedSchoolId;
 		const result = await facultyService.deletePlaceholderFaculty(id, schoolId);
 		if (!result.success) {
 			res.status(400).json({ code: 'DELETE_FAILED', message: result.error });
