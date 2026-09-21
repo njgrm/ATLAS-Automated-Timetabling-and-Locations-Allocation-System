@@ -2,9 +2,9 @@
  * ACTOR-SCHOOL-MUTATIONS-C01 — mounted mutation-route authority proof.
  *
  * The test mounts the real runtime router and real mixed system/JWT middleware.
- * Every rejected request uses an unconnected, query-recording Prisma client and
- * a local upstream server. A rejection is valid only when both counters stay at
- * zero; assertions never merely claim zero dispatch.
+ * Every rejected request uses a non-resolving, query-recording Prisma adapter
+ * and a local upstream server. A rejection is valid only when both counters
+ * stay at zero; assertions never merely claim zero dispatch.
  *
  * Run: `npm run test:actor-school-mutations`
  */
@@ -44,6 +44,16 @@ test('runtime mutation routes fail closed before every downstream dispatch', asy
 	process.env.ATLAS_SYSTEM_TOKEN = SYSTEM_TOKEN;
 	(globalThis as any).__actorSchoolMutationQueries = [];
 
+	const { prisma } = await import('../lib/prisma.js');
+	const dataContext = await import('../lib/data-context.js');
+	const runtimeRouter = (await import('../routes/runtime.router.js')).default;
+	const instrumented = prisma;
+	const originalMirrorFindUnique = prisma.enrollProSchoolYearMirror.findUnique.bind(prisma.enrollProSchoolYearMirror);
+	(prisma.enrollProSchoolYearMirror as any).findUnique = () => {
+		(globalThis as any).__actorSchoolMutationQueries.push({ model: 'enrollProSchoolYearMirror', operation: 'findUnique' });
+		return new Promise<never>(() => undefined);
+	};
+
 	let upstreamRequests = 0;
 	const upstream = http.createServer((_req, res) => {
 		upstreamRequests += 1;
@@ -55,21 +65,6 @@ test('runtime mutation routes fail closed before every downstream dispatch', asy
 	if (upstreamAddress && typeof upstreamAddress === 'object') {
 		process.env.ENROLLPRO_API = `http://127.0.0.1:${upstreamAddress.port}`;
 	}
-
-	const { createTestPrismaClient } = await import('../lib/prisma.js');
-	const dataContext = await import('../lib/data-context.js');
-	const runtimeRouter = (await import('../routes/runtime.router.js')).default;
-	const base = createTestPrismaClient();
-	const instrumented = base.$extends({
-		query: {
-			$allModels: {
-				async $allOperations({ model, operation, args, query }: any) {
-					(globalThis as any).__actorSchoolMutationQueries.push({ model, operation });
-					return query(args);
-				},
-			},
-		},
-	});
 
 	const app = express();
 	app.use(express.json());
@@ -91,11 +86,23 @@ test('runtime mutation routes fail closed before every downstream dispatch', asy
 	const crossSchool = jwt.sign({ userId: 3, role: 'officer', schoolId: 99, authSource: 'local' }, JWT_SECRET, { expiresIn: '10m' });
 	const faculty = jwt.sign({ userId: 4, role: 'faculty', schoolId: 1, authSource: 'local' }, JWT_SECRET, { expiresIn: '10m' });
 
-	const post = (path: string, body: Record<string, unknown>, token: string) => fetch(`${baseUrl}${path}`, {
-		method: 'POST',
-		headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
-		body: JSON.stringify(body),
-	});
+	const post = async (path: string, body: Record<string, unknown>, token: string) => {
+		const controller = new AbortController();
+		const timeout = setTimeout(() => controller.abort(), 250);
+		try {
+			const response = await fetch(`${baseUrl}${path}`, {
+				method: 'POST',
+				headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+				body: JSON.stringify(body),
+				signal: controller.signal,
+			});
+			return { status: response.status, payload: await response.json() as any };
+		} catch (error) {
+			return { status: 598, payload: { code: error instanceof Error ? error.name : 'REQUEST_FAILED' } };
+		} finally {
+			clearTimeout(timeout);
+		}
+	};
 	const routeBody = (schoolId?: unknown) => ({ schoolYearId: 77, ...(schoolId === undefined ? {} : { schoolId }) });
 
 	const cases: Case[] = [];
@@ -122,9 +129,8 @@ test('runtime mutation routes fail closed before every downstream dispatch', asy
 			(globalThis as any).__actorSchoolMutationQueries.length = 0;
 			const beforeUpstream = upstreamRequests;
 			const response = await post(testCase.route.path, testCase.body, testCase.token);
-			const payload = await response.json() as any;
-			assert.equal(response.status, testCase.status, `${testCase.label}: expected ${testCase.status}, got ${response.status}/${payload.code}`);
-			assert.equal(payload.code, testCase.code, `${testCase.label}: expected ${testCase.code}, got ${payload.code}`);
+			assert.equal(response.status, testCase.status, `${testCase.label}: expected ${testCase.status}, got ${response.status}/${response.payload.code}`);
+			assert.equal(response.payload.code, testCase.code, `${testCase.label}: expected ${testCase.code}, got ${response.payload.code}`);
 			assert.equal((globalThis as any).__actorSchoolMutationQueries.length, 0, `${testCase.label}: dispatched Prisma work`);
 			assert.equal(upstreamRequests, beforeUpstream, `${testCase.label}: dispatched upstream work`);
 		}
@@ -137,8 +143,11 @@ test('runtime mutation routes fail closed before every downstream dispatch', asy
 		assert.notEqual(sameSchoolResponse.status, 400, 'same-school JWT passes target-school validation');
 		assert.notEqual(sameSchoolResponse.status, 403, 'same-school JWT passes actor-school validation');
 	} finally {
+		server.closeAllConnections();
+		upstream.closeAllConnections();
 		await new Promise<void>((resolve) => server.close(() => resolve()));
 		await new Promise<void>((resolve) => upstream.close(() => resolve()));
-		await base.$disconnect();
+		(prisma.enrollProSchoolYearMirror as any).findUnique = originalMirrorFindUnique;
+		await instrumented.$disconnect();
 	}
 });
