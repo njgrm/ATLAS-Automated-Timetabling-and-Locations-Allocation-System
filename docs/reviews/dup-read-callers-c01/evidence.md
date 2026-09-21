@@ -152,3 +152,18 @@ deployment state was touched. Source-only rollback is a normal Git revert on the
 ## Worktree disposition
 
 `RETIRE_AFTER_INTEGRATION`. No deployment is unlocked by this evidence.
+
+## Planner verification addendum (2026-09-21)
+
+The frozen-state S5 blocker reported by QA (`ses_f3dc208abffeZa7InmerdOgL6v`) was an
+incomplete dependency tree, not a source defect. The planner removed the worktree's
+`atlas-client/node_modules` junction to the `ux-quickfix-c01` anchor with `cmd /c rmdir`
+(never a recursive delete), verified the anchor intact afterwards (124 entries), and
+installed a real tree in the worktree with `npm ci`. Re-run in the final state:
+
+- `npm run test:dup-read-callers` → `tests 68 / pass 68 / fail 0 / cancelled 0 / skipped 0`
+- `npm run typecheck` → exit 0
+
+The executor's reported 68/68 is therefore reproducible in the frozen tree. No committed byte
+changed: `atlas-client/node_modules` is gitignored (`.gitignore:75`) and
+`git status --porcelain --untracked-files=all` is empty.

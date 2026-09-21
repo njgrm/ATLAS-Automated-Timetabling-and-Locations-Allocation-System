@@ -8,9 +8,12 @@ a HIGH action, or once a compaction would cost more than a restart.
 Last updated: 2026-09-21, Lane A resumed in a fresh session. `DUP-READ-CALLERS-C01` is at
 **r2** after two review rounds (`CORRECTION_REQUIRED` twice, 5 blocking findings total, all
 real and all accepted). The cycle is re-scoped **source-only**; the deployment is deferred on a
-measured `D:` capacity gate, which is now an operator decision. Packet frozen at **r2b** (F1/F2
-closed; no further re-review required). Next: dispatch the executor (Part A, source-only), then
-one fresh QA.
+measured `D:` capacity gate, which is now an operator decision. Executor candidate `ce0e54ec`
+(base `ccf31e77`) passed fresh QA on S1–S4 with **no assertion removed**; S5 was `BLOCKED` only
+by an incomplete worktree dependency tree, now fixed (junction removed safely, `npm ci`, and
+`68/68` + typecheck exit 0 re-run in the frozen state — see the evidence addendum). Next: the
+bounded QA re-check of S5, then integration.
+**Operator decision still pending: `D:` headroom** (deployment deferred).
 
 **To resume in a fresh session, paste this one line:**
 > Read `docs/handoffs/planner-session-handoff.md` on `origin/main` and resume as the ATLAS
