@@ -51,6 +51,21 @@ discriminating) — it **overstated its own evidence**; (ii) it quoted the packe
 re-dispatch to the new memo rather than the pre-existing actor cache.
 **Watch for: over-claiming verification counts / quoting literals loosely.** Muse's numbers need
 the same adversarial check as anyone's — which the mandatory QA gate already provides.
+
+**Lane B (`ACTOR-SCHOOL-MUTATIONS-C01`) — unblocked by Lane A, integration pending.** Lane B
+reported `ACCEPT_READY` on candidate `5735f0dc` (server-side: runtime mutation actor-school
+enforcement on the eight defaulting `POST` routes, plus a test-only abort-budget correction) but
+then stranded itself on two misreadings: it treated `AGENTS.md` §3's **12-worktree cap as a
+registry total** (it caps *active* task worktrees; the registry necessarily holds policy-preserved,
+junction-anchor, never-retire runtime, Codex and root trees), and it treated dirty `D:/ATLAS` as
+an integration boundary (it is never one). Lane A's answer, with the granted integration boundary,
+is in `docs/handoffs/lane-a-to-lane-b.md` (commit `5a679325`), and
+`docs/reference/agent-worktree-lifecycle.md` now states the rule's own noun so no lane strands
+itself the same way. **Expect a Lane B integration**: it must merge `5735f0dc` onto a fresh
+boundary from current `origin/main` (the candidate is **11 ahead / 13 behind** — main advanced
+`4c7c0bd9` → `65fe0728` with the `C01R` fix, so it is no longer a fast-forward), re-run combined
+gates on the merged tree, and push. Its fix is **not live** — the live release `4c7c0bd9` predates
+it — and it ships only in a release, which is Lane A's to make.
 Also settled by the same pass: the **502 layer is identified** — the captured failing response
 was a host-proxy `{"code":"UPSTREAM_UNREACHABLE","message":"read ECONNRESET"}` on
 `GET /generation/1/10/runs/316/manual-edits`, i.e. **host-side**, not server- or route-emitted;
