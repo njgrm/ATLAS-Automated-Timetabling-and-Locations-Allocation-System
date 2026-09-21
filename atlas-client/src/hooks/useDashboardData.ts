@@ -4,7 +4,7 @@ import atlasApi from '@/lib/api';
 import { expireAtlasSession, getAtlasTokenEpochVersion, getPreferredAccessToken, subscribeAtlasTokenEpoch } from '@/lib/auth';
 import { countSubjectsWithMissingCoverage } from '@/lib/coverage';
 import { resolveActorSchoolId } from '@/lib/settings';
-import type { Building, SubjectCoverageSummary } from '@/types';
+import type { Building, SubjectCoverageSummary, ViolationReport } from '@/types';
 
 export type BuildingSetupStatus = {
 	done: boolean;
@@ -90,6 +90,38 @@ export function resolveDashboardRequestScope(actorSchoolId: number | null | unde
 		return { ready: true, schoolId: actorSchoolId };
 	}
 	return { ready: false, schoolId: null };
+}
+
+/**
+ * DASHBOARD-TRUTH-C01 — the run-wide HARD blocker count from the latest run's
+ * violation report (`GET /generation/:schoolId/:schoolYearId/runs/latest/violations`).
+ *
+ * Precedence mirrors `resolveHardViolationCount` (`useTimetableData.ts`): the
+ * publication-allowlist-filtered `counts.runWide.blockingHard`, then the
+ * unfiltered `counts.runWide.hard`. The report's top-level `violations`/`total`
+ * are TERM-FILTERED and include SOFT, so they are never a HARD count and are
+ * never used here. When no run-wide count exists the truthful answer is
+ * `null` (unavailable) — never `0`, which would read as "clean".
+ */
+export function resolveRunWideHardViolationCount(
+	report: { counts?: { runWide?: { hard?: number; blockingHard?: number } } } | null | undefined,
+): number | null {
+	const blockingHard = report?.counts?.runWide?.blockingHard;
+	if (typeof blockingHard === 'number') return blockingHard;
+	const hard = report?.counts?.runWide?.hard;
+	if (typeof hard === 'number') return hard;
+	return null;
+}
+
+/**
+ * DASHBOARD-TRUTH-C01 — the run-wide SOFT warning total from the same report.
+ * Acknowledged warnings only; never blockers. `null` when unavailable.
+ */
+export function resolveRunWideSoftViolationCount(
+	report: { counts?: { runWide?: { soft?: number } } } | null | undefined,
+): number | null {
+	const soft = report?.counts?.runWide?.soft;
+	return typeof soft === 'number' ? soft : null;
 }
 
 /**
@@ -285,7 +317,10 @@ export type DashboardData = {
 	activeTerm: { activeTerm: string | null; termIndex: number | null } | null;
 	activeTermPublished: boolean | null;
 	activeTermUnassignedCount: number | null;
-	activeTermHardViolationCount: number | null;
+	/** DASHBOARD-TRUTH-C01 — run-wide HARD blockers from the latest violation report; null = unavailable. */
+	runWideHardViolationCount: number | null;
+	/** DASHBOARD-TRUTH-C01 — run-wide SOFT warnings from the same report; null = unavailable. */
+	runWideSoftViolationCount: number | null;
 	latestRunStatus: LatestRunStatus | null;
 	latestRunId: number | null;
 	violationCount: number | null;
@@ -333,7 +368,8 @@ export function useDashboardData(): DashboardData {
 	const [activeTerm, setActiveTerm] = useState<{ activeTerm: string | null; termIndex: number | null } | null>(null);
 	const [activeTermPublished, setActiveTermPublished] = useState<boolean | null>(null);
 	const [activeTermUnassignedCount, setActiveTermUnassignedCount] = useState<number | null>(null);
-	const [activeTermHardViolationCount, setActiveTermHardViolationCount] = useState<number | null>(null);
+	const [runWideHardViolationCount, setRunWideHardViolationCount] = useState<number | null>(null);
+	const [runWideSoftViolationCount, setRunWideSoftViolationCount] = useState<number | null>(null);
 	const [latestRunStatus, setLatestRunStatus] = useState<LatestRunStatus | null>(null);
 	const [latestRunId, setLatestRunId] = useState<number | null>(null);
 	const [violationCount, setViolationCount] = useState<number | null>(null);
@@ -375,7 +411,8 @@ export function useDashboardData(): DashboardData {
 		setActiveTerm(null);
 		setActiveTermPublished(null);
 		setActiveTermUnassignedCount(null);
-		setActiveTermHardViolationCount(null);
+		setRunWideHardViolationCount(null);
+		setRunWideSoftViolationCount(null);
 		setSummaryTeachingRoomCount(null);
 		setSummaryTotalRoomCount(null);
 		setSummaryBuildingSetupStatus(null);
@@ -538,15 +575,22 @@ export function useDashboardData(): DashboardData {
 							if (!cancelled) setActiveTermPublished(r.data?.source?.termScope === 'explicit' || r.data?.source?.termScope === 'active');
 						})
 						.catch(() => { if (!cancelled) setActiveTermPublished(null); });
-					atlasApi.get<{ violations?: unknown[]; totalCount?: number }>(`/generation/${schoolId}/${syIdForTerm}/runs/latest/violations`, { params: { termIndex } })
+					// DASHBOARD-TRUTH-C01 — the report's top-level `violations` are
+					// TERM-FILTERED HARD+SOFT and it has no `totalCount`; the
+					// run-wide HARD/SOFT counts live on `counts.runWide`. Source the
+					// truthful counts from there and never relabel the term list.
+					atlasApi.get<ViolationReport>(`/generation/${schoolId}/${syIdForTerm}/runs/latest/violations`, { params: { termIndex } })
 						.then((r) => {
 							if (cancelled) return;
-							const total = typeof r.data.totalCount === 'number'
-								? r.data.totalCount
-								: Array.isArray(r.data.violations) ? r.data.violations.length : null;
-							setActiveTermHardViolationCount(total);
+							setRunWideHardViolationCount(resolveRunWideHardViolationCount(r.data));
+							setRunWideSoftViolationCount(resolveRunWideSoftViolationCount(r.data));
 						})
-						.catch(() => { if (!cancelled) setActiveTermHardViolationCount(null); });
+						.catch(() => {
+							if (!cancelled) {
+								setRunWideHardViolationCount(null);
+								setRunWideSoftViolationCount(null);
+							}
+						});
 					atlasApi.get<{ run?: { unassignedItems?: Array<{ termIndex?: number }> } }>(`/generation/${schoolId}/${syIdForTerm}/runs/latest`)
 						.then((r) => {
 							if (cancelled) return;
@@ -561,7 +605,8 @@ export function useDashboardData(): DashboardData {
 				} else {
 					setActiveTermPublished(null);
 					setActiveTermUnassignedCount(null);
-					setActiveTermHardViolationCount(null);
+					setRunWideHardViolationCount(null);
+					setRunWideSoftViolationCount(null);
 				}
 			})
 			.catch((error) => {
@@ -679,7 +724,8 @@ export function useDashboardData(): DashboardData {
 		activeTerm,
 		activeTermPublished,
 		activeTermUnassignedCount,
-		activeTermHardViolationCount,
+		runWideHardViolationCount,
+		runWideSoftViolationCount,
 		latestRunStatus,
 		latestRunId,
 		violationCount,

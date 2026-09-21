@@ -237,7 +237,10 @@ export function pickNextStep(args: {
 	missingCoverageSubjectIds: number[] | null;
 	buildingsDone: boolean;
 	latestRunStatus: 'NONE' | 'IN_PROGRESS' | 'COMPLETED' | 'FAILED' | null;
-	violationCount: number | null;
+	/** DASHBOARD-TRUTH-C01 — run-wide HARD blockers only; null = unavailable. */
+	hardViolationCount: number | null;
+	/** DASHBOARD-TRUTH-C01 — run-wide SOFT warnings, never blockers; null = unavailable. */
+	softViolationCount: number | null;
 	derivedDemand: DashboardDerivedDemandState | null;
 	degraded: boolean;
 }): NextStep {
@@ -250,7 +253,8 @@ export function pickNextStep(args: {
 		missingCoverageSubjectIds,
 		buildingsDone,
 		latestRunStatus,
-		violationCount,
+		hardViolationCount,
+		softViolationCount,
 		derivedDemand,
 		degraded,
 	} = args;
@@ -315,12 +319,125 @@ export function pickNextStep(args: {
 		return { title: 'Generation in progress', body: 'The algorithm is still running. Open the timetable to watch progress.', cta: 'Open timetable', href: '/timetable' };
 	}
 	if (phase === 'REVIEW') {
-		if ((violationCount ?? 0) > 0) {
-			return { title: 'Resolve scheduling violations', body: `${violationCount} constraint violation${violationCount === 1 ? '' : 's'} need attention before publish.`, cta: 'Open audit', href: '/audit?focus=timetable', warn: `${violationCount} blocker${violationCount === 1 ? '' : 's'}` };
+		// DASHBOARD-TRUTH-C01 — blocker language is HARD-only and run-wide. The
+		// combined HARD+SOFT total is not a blocker count, acknowledged SOFT
+		// warnings are stated as warnings, and an unavailable HARD count never
+		// reads as "clean".
+		if (hardViolationCount === null) {
+			return { title: 'Confirm the latest run', body: 'ATLAS could not read the run-wide hard-violation count for the latest run. Open the audit for this run before publishing.', cta: 'Open audit', href: '/audit?focus=timetable', warn: 'Hard-violation count unavailable' };
 		}
-		return { title: 'Review and publish the schedule', body: 'Generation finished with no hard violations. Confirm the result and publish it.', cta: 'Open schedules', href: '/schedules' };
+		if (hardViolationCount > 0) {
+			return { title: 'Resolve scheduling violations', body: `${hardViolationCount} hard constraint violation${hardViolationCount === 1 ? '' : 's'} need attention before publish.`, cta: 'Open audit', href: '/audit?focus=timetable', warn: `${hardViolationCount} hard blocker${hardViolationCount === 1 ? '' : 's'}` };
+		}
+		const warningsAcknowledged = softViolationCount !== null && softViolationCount > 0
+			? ` ${softViolationCount} warning${softViolationCount === 1 ? '' : 's'} acknowledged.`
+			: '';
+		return { title: 'Review and publish the schedule', body: `Generation finished with no hard violations.${warningsAcknowledged} Confirm the result and publish it.`, cta: 'Open schedules', href: '/schedules' };
 	}
 	return { title: 'Schedule is published', body: 'Faculty and students can see the timetable. Use Exceptions for in-term changes.', cta: 'Open schedules', href: '/schedules' };
+}
+
+export type RunReviewChecklistItem = {
+	label: string;
+	done: boolean;
+	href: string;
+	hint?: string;
+};
+
+/**
+ * DASHBOARD-TRUTH-C01 — the "Timetable generated and reviewed" checklist item.
+ *
+ * A3 (planner decision): a SOFT-only run does not block the step. `done` is
+ * true only when the run completed and the run-wide HARD count is exactly zero;
+ * an unavailable count (`null`) leaves the step open and says so — it must
+ * never read as clean.
+ */
+export function buildRunReviewChecklistItem(args: {
+	generationAvailable: boolean;
+	latestRunStatus: 'NONE' | 'IN_PROGRESS' | 'COMPLETED' | 'FAILED' | null;
+	hardViolationCount: number | null;
+	softViolationCount: number | null;
+}): RunReviewChecklistItem {
+	const { generationAvailable, latestRunStatus, hardViolationCount, softViolationCount } = args;
+	const done = generationAvailable && latestRunStatus === 'COMPLETED' && hardViolationCount === 0;
+	let hint: string | undefined;
+	if (!generationAvailable) hint = 'Generation status is unavailable';
+	else if (latestRunStatus === 'FAILED') hint = 'The latest generation run failed';
+	else if (latestRunStatus === 'IN_PROGRESS') hint = 'Generation is still running';
+	else if (hardViolationCount === null) hint = 'Hard-violation count is unavailable — open the timetable to confirm';
+	else if (hardViolationCount > 0) hint = `${hardViolationCount} run-wide hard blocker${hardViolationCount === 1 ? '' : 's'}`;
+	else if (softViolationCount !== null && softViolationCount > 0) hint = `${softViolationCount} warning${softViolationCount === 1 ? '' : 's'} acknowledged`;
+	return { label: 'Timetable generated and reviewed', done, href: '/timetable', hint };
+}
+
+/**
+ * DASHBOARD-TRUTH-C01 — the header "Before generation" run tile. The blocker
+ * figure is the run-wide HARD count; SOFT warnings are stated as warnings.
+ */
+export function RunBlockerTile(props: {
+	generationAvailable: boolean;
+	hardViolationCount: number | null;
+	softViolationCount: number | null;
+}) {
+	const { generationAvailable, hardViolationCount, softViolationCount } = props;
+	if (!generationAvailable) {
+		return (
+			<div className='flex items-center gap-2.5 text-sm'>
+				<AlertTriangle className='w-4 h-4 shrink-0 text-amber-500' />
+				<span className='text-slate-900 font-medium'>Run status unavailable</span>
+			</div>
+		);
+	}
+	if (hardViolationCount === null) {
+		// null must never render as 0 or as "clean".
+		return (
+			<div className='flex items-center gap-2.5 text-sm'>
+				<AlertTriangle className='w-4 h-4 shrink-0 text-amber-500' />
+				<span className='text-slate-900 font-medium'>Hard-violation count unavailable</span>
+			</div>
+		);
+	}
+	if (hardViolationCount > 0) {
+		return (
+			<div className='flex items-center gap-2.5 text-sm'>
+				<AlertTriangle className='w-4 h-4 shrink-0 text-amber-500' />
+				<span className='text-slate-900 font-medium'>{hardViolationCount} run-wide review blocker{hardViolationCount === 1 ? '' : 's'}</span>
+			</div>
+		);
+	}
+	const cleanLabel = softViolationCount !== null && softViolationCount > 0
+		? `No hard violations · ${softViolationCount} warning${softViolationCount === 1 ? '' : 's'} acknowledged`
+		: 'No hard violations';
+	return (
+		<div className='flex items-center gap-2.5 text-sm'>
+			<CheckCircle2 className='w-4 h-4 shrink-0 text-emerald-500' />
+			<span className='text-slate-500'>{cleanLabel}</span>
+		</div>
+	);
+}
+
+/**
+ * DASHBOARD-TRUTH-C01 — the active-term popover's hard-violation row. The
+ * figure is the run-wide HARD count, so the label states its scope. Zero
+ * renders no figure at all; an unavailable count renders explicit "Unavailable".
+ */
+export function ActiveTermHardViolationsRow(props: { count: number | null }) {
+	const { count } = props;
+	if (count === null) {
+		return (
+			<div className='flex items-center justify-between text-xs'>
+				<span className='text-muted-foreground'>Hard violations (run-wide)</span>
+				<span className='text-amber-600 font-semibold'>Unavailable</span>
+			</div>
+		);
+	}
+	if (count <= 0) return null;
+	return (
+		<div className='flex items-center justify-between text-xs'>
+			<span className='text-muted-foreground'>Hard violations (run-wide)</span>
+			<span className='text-rose-600 font-semibold'>{count}</span>
+		</div>
+	);
 }
 
 export default function Dashboard() {
@@ -333,9 +450,9 @@ export default function Dashboard() {
 		loading, actorScopeBlocked, actorSchoolId, buildings, campusImageUrl, subjectCount, facultyCount, sectionCount,
 		unassignedSubjectCount, missingCoverageSubjectIds, buildingSetupStatus, teachingRoomCount,
 		totalRoomCount, activeSchoolYearLabel, activeTerm, activeTermPublished,
-		activeTermUnassignedCount, activeTermHardViolationCount,
-		latestRunStatus, violationCount,
-		assignedCount, unassignedCount, hardViolationCount, derivedDemand,
+		activeTermUnassignedCount, runWideHardViolationCount, runWideSoftViolationCount,
+		latestRunStatus,
+		assignedCount, unassignedCount, derivedDemand,
 		lifecyclePhase, readinessSourceState, readinessSourceMessage, refreshDashboard, retryActorScope,
 		domainAvailability, dataSource,
 	} = useDashboardData();
@@ -348,7 +465,7 @@ export default function Dashboard() {
 	const next = pickNextStep({
 		phase: lifecyclePhase, subjectCount, facultyCount, sectionCount,
 		unassignedSubjectCount, missingCoverageSubjectIds, buildingsDone: buildingSetupStatus.done,
-		latestRunStatus, violationCount, derivedDemand, degraded,
+		latestRunStatus, hardViolationCount: runWideHardViolationCount, softViolationCount: runWideSoftViolationCount, derivedDemand, degraded,
 	});
 
 	const stats: StatTile[] = [
@@ -375,7 +492,7 @@ export default function Dashboard() {
 		{ label: 'Derived demand prepared (input milestone)', done: derivedDemandAvailable && (derivedTotals?.totalPairs ?? 0) > 0, href: '/subjects', hint: !derivedDemandAvailable ? 'Derived demand could not be read' : derivedTotals ? `${derivedTotals.totalPairs} subject-section pair${derivedTotals.totalPairs === 1 ? '' : 's'} · ${derivedTotals.totalLines} session${derivedTotals.totalLines === 1 ? '' : 's'} — inputs only, not final generation approval` : 'No derived demand yet' },
 		{ label: 'Subjects have teacher coverage', done: domainAvailability.subjects && unassignedSubjectCount === 0 && (subjectCount ?? 0) > 0, href: missingCoverageSubjectIds && missingCoverageSubjectIds.length > 0 ? `/teaching-load?view=subjects&filter=missing-coverage` : '/teaching-load', hint: !domainAvailability.subjects ? 'Coverage is unavailable' : unassignedSubjectCount && unassignedSubjectCount > 0 ? `${unassignedSubjectCount} unassigned` : 'Subject-level coverage only — exact subject-section ownership is confirmed on the Timetable' },
 		{ label: 'Buildings and rooms ready', done: domainAvailability.campus && buildingSetupStatus.done, href: '/map', hint: !domainAvailability.campus ? 'Campus data is unavailable' : buildingSetupStatus.subMessage },
-		{ label: 'Timetable generated and reviewed', done: domainAvailability.generation && latestRunStatus === 'COMPLETED' && (violationCount ?? 0) === 0, href: '/timetable', hint: !domainAvailability.generation ? 'Generation status is unavailable' : latestRunStatus === 'FAILED' ? 'The latest generation run failed' : latestRunStatus === 'IN_PROGRESS' ? 'Generation is still running' : violationCount && violationCount > 0 ? `${violationCount} review blocker${violationCount === 1 ? '' : 's'}` : undefined },
+		buildRunReviewChecklistItem({ generationAvailable: domainAvailability.generation, latestRunStatus, hardViolationCount: runWideHardViolationCount, softViolationCount: runWideSoftViolationCount }),
 		// EVAL-C01: only a resolved published schedule counts as published.
 		// A reviewed timetable is "ready to publish", not published.
 		{ label: 'Schedule published', done: lifecyclePhase === 'PUBLISHED', href: '/schedules', hint: lifecyclePhase === 'PUBLISHED' ? 'Published schedule is live' : 'Review the timetable before publishing' },
@@ -448,12 +565,7 @@ export default function Dashboard() {
 																<span className='text-amber-600 font-semibold'>Not published</span>
 															)}
 														</div>
-														{activeTermHardViolationCount !== null && activeTermHardViolationCount > 0 && (
-															<div className='flex items-center justify-between text-xs'>
-																<span className='text-muted-foreground'>Hard violations</span>
-																<span className='text-rose-600 font-semibold'>{activeTermHardViolationCount}</span>
-															</div>
-														)}
+														<ActiveTermHardViolationsRow count={runWideHardViolationCount} />
 														{activeTermUnassignedCount !== null && (
 															<div className='flex items-center justify-between text-xs'>
 																<span className='text-muted-foreground'>Unassigned sessions</span>
@@ -721,16 +833,7 @@ export default function Dashboard() {
 													)}
 													<span className={domainAvailability.campus && buildingSetupStatus.done ? 'text-slate-500' : 'text-slate-900 font-medium'}>{!domainAvailability.campus ? 'Rooms unavailable' : 'Rooms ready'}</span>
 												</div>
-												<div className='flex items-center gap-2.5 text-sm'>
-													{!domainAvailability.generation || (violationCount ?? 0) > 0 ? (
-														<AlertTriangle className='w-4 h-4 shrink-0 text-amber-500' />
-													) : (
-														<CheckCircle2 className='w-4 h-4 shrink-0 text-emerald-500' />
-													)}
-													<span className={!domainAvailability.generation || (violationCount ?? 0) > 0 ? 'text-slate-900 font-medium' : 'text-slate-500'}>
-														{!domainAvailability.generation ? 'Run status unavailable' : (violationCount ?? 0) > 0 ? `${violationCount} review blocker${violationCount === 1 ? '' : 's'}` : 'No blockers'}
-													</span>
-												</div>
+												<RunBlockerTile generationAvailable={domainAvailability.generation} hardViolationCount={runWideHardViolationCount} softViolationCount={runWideSoftViolationCount} />
 												<div className='flex items-center gap-2.5 text-sm'>
 													{lifecyclePhase === 'PUBLISHED' ? (
 														<CheckCircle2 className='w-4 h-4 shrink-0 text-emerald-500' />
