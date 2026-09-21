@@ -48,9 +48,11 @@ Authority contract being shipped (from the C01 inventory):
   INVALID_PARAM` before service, upstream, lock, database or notification dispatch**;
 - a **system token** may act on an explicit valid target school (that parameter is the system
   caller's auditable target declaration);
-- a **JWT** caller must be a privileged actor with a positive actor school **matching** the
-  target; missing actor school → **`403 SCHOOL_SCOPE_REQUIRED`**, mismatch → **`403
-  CROSS_SCHOOL_DENIED`**.
+- a **JWT** caller must have a positive actor school **matching** the target (missing actor
+  school → **`403 SCHOOL_SCOPE_REQUIRED`**, mismatch → **`403 CROSS_SCHOOL_DENIED`**) and must
+  additionally be a **privileged** actor on the seven operator routes;
+  **`/rollover-sync/preview` deliberately keeps its pre-existing non-privileged, read-only,
+  same-school admission** — do not "fix" that into a privilege requirement.
 
 ## 3. Part A — the independent source review (a gate, not a tally row)
 
@@ -64,6 +66,17 @@ substance.** Before the deployment executes, one fresh independent reviewer must
 3. report `ACCEPT_READY`/`CORRECTION_REQUIRED` with its own tally, or `BLOCKED` with the reason.
 
 The deployment must not execute on a `CORRECTION_REQUIRED` source review.
+
+**Review outcome (2026-09-21, fresh independent reviewer): source `ACCEPT_READY` 9/9.** All eight
+routes reject before dispatch, the guard being each handler's first statement; the strict parser
+rejects `undefined, null, '', '   ', 'abc', true, false, [1], {}, [], 0, -1, 1.5, '1.5', '1e309',
+'Infinity', NaN`; the system/JWT split is sound (`setJwtUser` forces a JWT's `authSource` away
+from `system`, so only the timing-safe system token yields `'system'`); no assertion was deleted or
+relaxed. The reviewer independently reproduced the committed harness (exit 0, `tests 1 / pass 1`)
+**and** the failing-first control at `a02884ff` (exit 1, the `400`→`598/AbortError` capture), so
+the instrumented counter is load-bearing. Accepted leniencies, recorded rather than hidden:
+`'0x10' → 16`, `'1e2' → 100`, `'01' → 1`, `' 1 ' → 1`, `'+1' → 1` — all resolve to a positive
+integer, and a JWT actor can only ever produce its own school that way.
 
 ## 4. Part B — deployment
 
@@ -109,11 +122,14 @@ with an explicit valid `termIndex` is non-5xx and term-scoped, malformed term in
 401 before dispatch.
 
 **D4 — served-artifact identity, configuration, zero write.** Served HTML and every referenced JS
-asset match the built dist manifest; the client entry chunk differs from the incumbent's
-`index-C6LTCXSf.js`; the EnrollPro origin is present and no SMART/AIMS start URL is; env bytes and
-key set unchanged; SMART/AIMS `/start` return typed `503 COMPANION_SSO_NOT_CONFIGURED` with no
-redirect and no `Set-Cookie`; the schema-wide signature map is **byte-identical** to the pre value
-under the §4.6 pinned-in-transaction method.
+asset match the built dist manifest; the client entry chunk is **byte-identical** to the freshly
+built manifest entry `index-C6LTCXSf.js` (455,998 bytes) and to the incumbent's — an unchanged
+client tree rebuilds deterministically (independently confirmed at this pin), so **inequality is
+not required and must not be asserted**; the EnrollPro origin is present and no SMART/AIMS start
+URL is; env
+bytes and key set unchanged; SMART/AIMS `/start` return typed `503 COMPANION_SSO_NOT_CONFIGURED`
+with no redirect and no `Set-Cookie`; the schema-wide signature map is **byte-identical** to the
+pre value under the §4.6 pinned-in-transaction method.
 
 **D5 — server artifact identity (new; this release carries server source).** The running
 `atlas-server` entry resolves **inside the release directory**; its `dist/server.js` SHA-256
@@ -142,3 +158,16 @@ pin and candidate SHAs, changed paths, the decisive commands with results, D1–
 result, the literal signature-map values **with the method's transaction scope**, the `D:` figures,
 PIDs and listeners before/after, rollback status, and risks marked `BLOCKING`/`NON_BLOCKING`. No
 transcripts, secrets or database rows.
+
+## 8. Recorded successors — do not absorb into this release
+
+- `GET /rollover-recovery/preview` (`runtime.router.ts:244`) still uses the defaulting
+  `parseSchoolId`, so an authenticated JWT can read with a school-1 fallback. Pre-existing,
+  unchanged by this delta, explicitly outside the mutation inventory → successor to
+  `ACTOR-SCOPE-C01`.
+- `parseStrictTermAuthoritySchoolId` (`runtime.router.ts:424`) lacks the new
+  non-string/non-number guard (`true → 1`, `[1] → 1`). The term routes are `authenticate`-only and
+  actor-matched, so it is not a cross-tenant path → apply the same guard for consistency in a
+  later bounded change.
+- The harness does not exercise body-vs-query precedence or hex/exponent/padded-string inputs, and
+  the script has no aggregate/CI entry beyond D5 → optional hardening, not a blocker.
