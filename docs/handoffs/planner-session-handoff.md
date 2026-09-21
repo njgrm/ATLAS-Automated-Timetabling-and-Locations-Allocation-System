@@ -5,7 +5,8 @@ planner writes and phrases it; the kickoff line below never changes. Updating it
 deliberate and cheap (~1–2k tokens): it makes any turn boundary a safe session boundary. The
 *decision* to actually start fresh stays conditional — take it at a real lane boundary, before
 a HIGH action, or once a compaction would cost more than a restart.
-Last updated: 2026-09-21, after Lane B's first checkpoint.
+Last updated: 2026-09-21, Lane A resumed in a fresh session; the `DUP-READ-CALLERS-C01`
+packet is committed and the pre-action review is the next step.
 
 **To resume in a fresh session, paste this one line:**
 > Read `docs/handoffs/planner-session-handoff.md` on `origin/main` and resume as the ATLAS
@@ -20,6 +21,15 @@ Last updated: 2026-09-21, after Lane B's first checkpoint.
 2. **Two planner worktrees in the registry are not yours** — `D:/ATLAS-worktrees/planner-tt-tl-modules-c04r1`
    (`ab75c131`) and `E:/ATLAS-worktrees/planner-c06b-closure` (`dc3613eb`). They belong to
    earlier sessions. Leave them alone; §3 says preserve an uncertain owner.
+3. **The `AGENTS.md` that is auto-injected into a fresh session is the *stale* `D:\ATLAS`
+   copy** — it still lacks the `agent-runtime-deploy-facts.md` and
+   `agent-worktree-lifecycle.md` pointers. Read `AGENTS.md` **from `origin/main`**, not from
+   the injected context and not from `D:\ATLAS`.
+4. **Capacity moved into the warn band.** `D:` free was **15.81 GiB** at 2026-09-21 (warn
+   below 25, fail closed below 15), a live release is **1.86 GiB** with real non-junction
+   `node_modules`, and 22 never-retirable `D:\ATLAS-runtime-*` trees are present. Every
+   deployment permanently spends ~1.9 GiB that this lane may not reclaim. Record the figure
+   before any release build and treat release-tree accumulation as an operator decision.
 
 1. **This file.**
 2. **`AGENTS.md`** — the authority. It now points to two reference docs it did not before:
@@ -83,16 +93,23 @@ and the proxy is healthy. The superseded `ENROLLPRO-PROXY-RECOVERY-LIVE` packet 
 
 ## 4. In flight / open
 
-- **`callers` one-shot — the next action.** Its worktree was **retired** at the end of the
-  previous session with nothing written, so create a fresh one (`git worktree add
-  E:/ATLAS-worktrees/<stream> -b work/<stream> origin/main`). Fix the three named duplicate-read
-  callers (diagnosis at `docs/reviews/dup-read-diagnosis-c01/findings.md`):
-  1. `atlas-client/src/lib/settings.ts` — `resolveActorSchoolId` has no in-flight sharing
-     (`/auth/me` races).
-  2. `atlas-client/src/lib/enrollpro-public-settings.ts` — `forceRefresh` bypasses its own
-     `inflightBySchool` dedup (`runtime/context`).
-  3. `atlas-client/src/components/runtime/RolloverGuidanceCard.tsx` — undeduped
-     `rollover-status` read; two cards can mount.
+- **`DUP-READ-CALLERS-C01` — packet authored; pre-action review is the next step.** Packet
+  `docs/prompts/dup-read-callers-c01-2026-09-21.md`; worktree
+  `E:/ATLAS-worktrees/dup-read-callers-c01`, branch `work/dup-read-callers-c01`, base
+  `origin/main` `f6e5fce5`. One-shot under the standing authorization: the three named
+  callers, deployment, browser acceptance with QA custody; 13 rows; capacity precondition in
+  §0 of the packet. The planner re-verified all three callers at `origin/main` and confirmed
+  the five implicated files are **unchanged since the diagnosis base `5ce47f60`** (empty
+  diff), so the findings' line numbers hold. The previous session's worktree is gone; the
+  stale local ref `docs/dup-read-callers-20260921` is 0-ahead/5-behind `origin/main` and
+  carries nothing — do not reuse or reset it.
+  1. `atlas-client/src/lib/settings.ts:463` — `resolveActorSchoolId` has no in-flight sharing
+     (`/auth/me` races); share one promise per token epoch.
+  2. `atlas-client/src/lib/enrollpro-public-settings.ts:231-241` — `forceRefresh` bypasses its
+     own `inflightBySchool` dedup (`runtime/context`); make force join in-flight work, and drop
+     the redundant `useTimetableData.ts:1175-1190` follow-up.
+  3. `atlas-client/src/lib/settings.ts:528` (`fetchRolloverStatus`) — raw axios, zero dedup;
+     two `RolloverGuidanceCard`s can mount. Share one in-flight request per school.
   **Explicitly not** an `atlasApi` coalesce (would touch every call).
 - **Lane B — two blocking items to clear before it implements** (both its own, neither mine):
   1. **Push the checkpoint.** `836abba9` is local only; the review discipline is that a
