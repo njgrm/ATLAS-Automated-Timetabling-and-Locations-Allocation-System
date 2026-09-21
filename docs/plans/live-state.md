@@ -305,24 +305,21 @@ and AIMS.
 
 ## Single next action
 
-**Close the actor-school residual authority lane.** The release queue is **empty** — every
-accepted source change is live in `80acdc25`, and nothing is awaiting deployment. The highest-value
-item that is not operator-gated is the bounded, source-only successor to the work just shipped:
-1. `GET /rollover-recovery/preview` (`atlas-server/src/routes/runtime.router.ts:244`) still uses
-   the defaulting `parseSchoolId`, so an authenticated JWT can read with a school-1 fallback — the
-   same defect class `ACTOR-SCOPE-C01` closed on the other read routes.
-2. `parseStrictTermAuthoritySchoolId` (`:424`) should carry the same non-string/non-number guard
-   for consistency (not a cross-tenant path today).
-3. Harness hardening: body-vs-query precedence, hex/exponent/padded-string inputs, and an
-   aggregate script entry.
-That lane is `atlas-server/**`, i.e. **Lane B's file ownership** — so it is either handed to Lane
-B or explicitly re-assigned before any Lane A writer touches it.
+**Drive to the core deliverable: a generated, published, zero-HARD timetable.** The release queue
+is **empty** — every accepted change is live in `80acdc25`. The chain is
+**term-cache catch-up apply → canonical readiness diagnostic → fingerprinted generation preview →
+generate → publication preview → publish**, and the first step is ours: author the fingerprinted
+apply packet (capture complete at `9c19b772`; bind fingerprint `d4cd7cc4…` and `confirmationText
+SAVE_TERM_AUTHORITY_1_9`), then one batched independent pre-action review, then execute it under
+the standing authorization. The live-data write must be stated plainly as it runs.
 
-Operator-gated items, in value order, each needing its own reviewed packet: the term-cache
-catch-up **apply** (capture complete at `9c19b772`; still unbound), the canonical readiness
-diagnostic → fingerprinted generation preview → **generation**, then **publication**; and the
-SMART/AIMS companion handoffs to their repository owners. Regeneration, publication, Teaching Load
-applies and every migration remain separately locked.
+Operator-gated only in the sense of being HIGH, not of needing a wait: the term-cache apply,
+generation and publication each proceed under the standing authorization with their own reviewed,
+fingerprinted packet. In parallel: the **actor-school residual authority lane** — `GET
+/rollover-recovery/preview` (`runtime.router.ts:244`) still defaults to school 1;
+`parseStrictTermAuthoritySchoolId` (`:424`) lacks the non-string guard; harness hardening — is
+`atlas-server/**`, so Lane B's or an explicit re-assignment. The SMART/AIMS companion handoffs
+stay queued for their repository owners.
 
 Behind that release, these are unchanged:
 

@@ -34,20 +34,22 @@ output / 521.2M cache read**; 7 days **$65.65 / 426 sessions / 28,680 messages**
 **Model split, 7 days:** `deepseek-v4.1-flash` **$63.50 (96.7%)**;
 `muse-spark-1.3-contributor` **$1.33 (2.0%)**; `deepseek-v4-flash` $0.69; other $0.14.
 
-## Reading the numbers
+## How to read this (operator directive, 2026-09-21)
 
-- **The last week runs ~2.4× the monthly daily average** ($9.38/day vs $3.90/day). That is a ramp
-  in cycles-per-day, not obviously waste — but it is the trend to watch: if it keeps climbing
-  without a matching rise in accepted increments, the workflow is the problem.
-- **The money is in planning and verification, not implementation.** 96.7% sits on the model that
-  covers the planner *and* QA/reviewers; muse executors are 2%. So the levers are (i) fewer
-  reviewer dispatches and (ii) fewer/smaller contexts — not cheaper executors (already done).
-- **Per accepted increment, today was cheap:** two independently-reviewed, deployed, zero-write-
-  proven releases inside one session. The assurance level is the expensive part and it is the part
-  that caught three real defects today (a falsified packet premise, a missing source-review tier,
-  and a false zero-write claim).
-- **The waste signal to hunt** is a turn that re-reads artifacts to re-derive state the handoff
-  already carries. That is pure context cost for zero new evidence.
+**We are under a deadline and spend is not the constraint.** The instruction is to spend what the
+work needs while keeping the *coordination* lean — so these figures are read as a **throughput**
+signal, not a budget: cost and coordination per **accepted, deployed increment**.
+
+- **The money is in planning and verification, not implementation** — 96.7% sits on the model that
+  covers the planner and QA/reviewers, while muse executors are ~2%. That shape is intended while
+  the gates are catching real defects (today: a falsified packet premise, a missing source-review
+  tier, a false zero-write claim). It is *not* intended to drift into repeated review rounds over
+  unchanged evidence.
+- **The pure-waste signal to hunt** is a turn that re-reads artifacts to re-derive state the
+  handoff already carries, or a second reviewer dispatch for a docs-only fix. Both are coordination
+  producing zero new evidence, and both are now rules (`AGENTS.md` §11, §16).
+- **No budget guardrail is in force.** Do not stop work to economise; stop only when the workflow
+  itself is duplicating effort, and fix the workflow instead.
 
 ## Process metrics to hold the levers
 
