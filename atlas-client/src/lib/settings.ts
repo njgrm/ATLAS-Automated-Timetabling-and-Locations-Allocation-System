@@ -4,9 +4,11 @@ import {
 	ATLAS_BRIDGE_TOKEN_KEY,
 	clearBridgeToken,
 	clearLocalToken,
+	getAtlasTokenEpochVersion,
 	getBridgeToken,
 	getLocalToken,
 	getPreferredAccessToken,
+	subscribeAtlasTokenEpoch,
 } from './auth';
 import type { BridgeUser } from '@/types';
 
@@ -467,14 +469,66 @@ function isResolvedActorSchoolIdValue(value: unknown): value is number {
 // key is the exact token epoch, so a token change can never be served a previous
 // session's actor, and a rejected request clears the entry in `finally` so the
 // next caller can retry.
+// DUP-READ-CALLERS-C01R (Part A) — short-lived per-token-epoch resolved-value
+// memo for `/auth/me`, shared by `resolveActorSchoolId` and `verifySessionToken`
+// through `requestAuthMe`. The C01 in-flight promise map cannot coalesce a
+// SERIAL duplicate: the second caller starts after the first has resolved and
+// cleared the entry. Within one token epoch the first successful resolution
+// memoizes the user, and every later caller in the same epoch — serial or
+// concurrent — is served it with no dispatch.
+//
+// Fail-closed invalidation (never serve a stale actor identity):
+// - the memo is bound to the exact token string AND the monotonic epoch
+//   version, so a refreshed/same-string token never reads the previous value;
+// - EVERY session mutation (login, logout, clear, expiry) drops the memo
+//   synchronously via the epoch subscription;
+// - an authoritative 401/403 drops the memo and is never memoized;
+// - only successes with a valid actor school are memoized (a rejected request
+//   or an invalid school drops the memo, preserving the S7 fail-closed rule).
+// Bounded: a single entry. No request-parameter, rendered-output, or
+// non-`/auth/me` change — the only observable delta is the dispatch count.
+type ResolvedAuthMeMemo = { token: string; version: number; user: BridgeUser };
+
+let resolvedAuthMeMemo: ResolvedAuthMeMemo | null = null;
+
+function dropResolvedAuthMeMemo(): void {
+	resolvedAuthMeMemo = null;
+}
+
+subscribeAtlasTokenEpoch(dropResolvedAuthMeMemo);
+
 const inflightAuthMeByToken = new Map<string, Promise<{ user: BridgeUser }>>();
 
 function requestAuthMe(tokenEpoch: string): Promise<{ user: BridgeUser }> {
+	const memo = resolvedAuthMeMemo;
+	if (
+		memo &&
+		memo.token === tokenEpoch &&
+		memo.version === getAtlasTokenEpochVersion() &&
+		isResolvedActorSchoolIdValue(memo.user?.schoolId)
+	) {
+		return Promise.resolve({ user: memo.user });
+	}
 	const existing = inflightAuthMeByToken.get(tokenEpoch);
 	if (existing) return existing;
+	const requestVersion = getAtlasTokenEpochVersion();
 	const promise = atlasApi
 		.get<{ user: BridgeUser }>('/auth/me', { headers: { authorization: `Bearer ${tokenEpoch}` } })
-		.then((response) => response.data)
+		.then(
+			(response) => {
+				const user = response.data?.user;
+				if (user && isResolvedActorSchoolIdValue(user.schoolId)) {
+					resolvedAuthMeMemo = { token: tokenEpoch, version: requestVersion, user };
+				} else if (resolvedAuthMeMemo?.token === tokenEpoch) {
+					resolvedAuthMeMemo = null;
+				}
+				return response.data;
+			},
+			(error) => {
+				dropResolvedAuthMeMemo();
+				throw error;
+			},
+		)
 		.finally(() => {
 			inflightAuthMeByToken.delete(tokenEpoch);
 		});
@@ -488,6 +542,7 @@ export async function resolveActorSchoolId(): Promise<number | null> {
 	const tokenEpoch = getPreferredAccessToken();
 	if (!tokenEpoch) {
 		resetActorSchoolIdCache();
+		dropResolvedAuthMeMemo();
 		return null;
 	}
 
@@ -828,6 +883,7 @@ export async function fetchActiveSchoolYear(activeId: number | null): Promise<st
 export async function verifySessionToken(): Promise<BridgeUser | null> {
 	if (!getPreferredAccessToken()) {
 		clearCachedSessionUser();
+		dropResolvedAuthMeMemo();
 		return null;
 	}
 
