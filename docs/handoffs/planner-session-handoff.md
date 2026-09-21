@@ -5,10 +5,13 @@ planner writes and phrases it; the kickoff line below never changes. Updating it
 deliberate and cheap (~1–2k tokens): it makes any turn boundary a safe session boundary. The
 *decision* to actually start fresh stays conditional — take it at a real lane boundary, before
 a HIGH action, or once a compaction would cost more than a restart.
-Last updated: 2026-09-21, Lane A resumed in a fresh session. `DUP-READ-CALLERS-C01` is at
-**r2** after two review rounds (`CORRECTION_REQUIRED` twice, 5 blocking findings total, all
-real and all accepted). The cycle is re-scoped **source-only**; the deployment is deferred on a
-measured `D:` capacity gate, which is now an operator decision. **Accepted and integrated** at
+Last updated: 2026-09-21. `DUP-READ-CALLERS-C01` is accepted and integrated and **not yet
+deployed**. The worktree reclaim cleared the `D:` capacity blocker (`D:` 15.81 → 40.76 GiB;
+worktrees 112 → 57) and the operator kept the runtime trees protected. The next cycle
+**`DASHBOARD-TRUTH-C01`** is authored at
+`docs/prompts/dashboard-truth-c01-release-2026-09-21.md` — one release carrying that client
+fix **and** the already-integrated dedup fix, with browser custody to QA. It is the active
+stream; the pre-action review is the next step. **Accepted and integrated** at
 `6949e3d4`: fresh QA `ACCEPT_READY` 5/5, blocked 0, unperformed 0 over `ccf31e77...6949e3d4`
 (source blob-identical to candidate `ce0e54ec`; test files added, none deleted). S5's initial
 `BLOCKED` was an incomplete worktree dependency tree — fixed by removing the junction safely
