@@ -78,6 +78,45 @@ the incumbent's; schema-wide signature map byte-identical using the C01 addendum
 env bytes and key set unchanged; SMART/AIMS inactive; no migration or database write. The
 release carries this correction **plus** everything already in `4c7c0bd9`.
 
+### 3.1 Planner pre-action review (2026-09-21, Lane A) — execution notes
+
+Verdict: `ACCEPT_READY_FOR_EXECUTION` with the four corrections below. `CURRENT-SOURCE-LIVE-DEPLOY-C02`
+§4–§8 (2026-09-20) remains the reusable boundary; these notes override it where a literal has
+moved. Re-measure every figure at execution — never copy one.
+
+1. **Pin (immutable).** Pin = `a02884ff75d46c336b17d7eaa52d8cfa773bd6af`. Its product tree is
+   byte-identical to the accepted Part A candidate (`360c026b` / `2f1a8f33`):
+   `git diff --name-only a02884ff 2f1a8f33 -- atlas-client atlas-server ops prisma` is empty.
+   Delta versus the incumbent `4c7c0bd9` is exactly three client paths
+   (`atlas-client/src/lib/settings.ts`,
+   `atlas-client/src/lib/__tests__/dup-read-auth-me-epoch-memo.test.ts`,
+   `atlas-client/package.json`) — the release is **client-only**. Release directory:
+   `D:\ATLAS-runtime-supervised-a02884ff-20260921`. No Lane B server change is in this pin; do
+   not add one.
+2. **`schtasks` encoding — measure, do not assume.** C02 §6.3 records that `schtasks` rejected
+   the bytes its own `/query /xml` returned and the encoding had to be re-declared.
+   `docs/reference/agent-runtime-deploy-facts.md` (corrected 2026-09-21) measures the
+   **opposite** on this host: the file registers cleanly unmodified, and rewriting the
+   declaration to UTF-8 fails with `unable to switch the encoding`. Try the bytes as returned
+   first; if registration fails, fix it and record the literal repair. Never substitute.
+3. **Tally scope — 7 rows, not 12.** S1–S5 were decided on the accepted Part A candidate, and
+   the pin's blobs are identical, so re-running them adds no evidence (`AGENTS.md` §16). This
+   cycle runs **D1–D4 + B1–B3 = 7 rows**, requiring `passed == total`, `blocked: 0`,
+   `unperformed: 0`. S1–S5 are reported as carried-over prior acceptance **with the blob
+   identity above proven** — never silently dropped.
+4. **Dependency trees — record the deviation literally.** The harness deny-list blocks `npm ci`
+   (measured on the `4c7c0bd9` build). Copying a junction-free dependency tree from the
+   incumbent keeps the release isolated and junction-free (C02 §4) and is what the incumbent
+   build did; record the literal commands and the copied tree's provenance.
+
+Measured at review time: `D:` free **38.82 GiB** (warn below 25, fail closed below 15);
+projected release footprint 1.43–1.86 GiB ⇒ ≈ 36.9 GiB after. The incumbent `4c7c0bd9` release
+is startable in place — `atlas-server/dist/server.js`, `atlas-client/dist/index.html`,
+`ops/runtime/cli.mjs`, `atlas-server/node_modules/.prisma/client/index.js` and the Windows
+query engine are all present. Capture the incumbent's task XML **before** any mutation (C02
+§5.2); rollback restores those bytes plus both machine-scope values and starts once via the
+registered task. The executor shell is elevated (Administrator) at review time.
+
 ## 4. Part C — browser re-acceptance (QA custody)
 
 Custody goes to the independent QA task; the planner releases the profile and QA closes it.

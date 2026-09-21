@@ -182,6 +182,7 @@ Deployment, schema/migration apply, live-data mutation, generation, publication,
 ## 14. Parallel Work And Planners
 
 - Separate worktrees, separate branches, **disjoint file ownership**; one owner per stream. Coordinate through Git, not through a shared status file.
+- **A lane in an integration closure gets an exclusive `main` push window.** The other lane holds its pushes until that integration lands. Continuity-document commits are cheap and frequent, which makes `main` a moving target: on 2026-09-21 Lane A's docs pushes invalidated Lane B's integration base twice in a row, each time after a clean merge and green gates. When a lane announces an integration, stop pushing to `main` until it reports the push landed.
 - Browser work is serialised (one controller, §12); source and non-browser work run in parallel freely.
 - Only one stream may swap or restart the shared 5001/5174 runtime at a time; others use isolated ports and label their evidence `isolated`.
 - Every temporary process, browser, fixture and database has a named cleanup owner.

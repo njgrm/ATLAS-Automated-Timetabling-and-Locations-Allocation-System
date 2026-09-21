@@ -122,3 +122,86 @@ deleted at `4794bd9e`). Not yours to fix in this stream.
 
 **Repo-wide rule this episode earns:** reading a workspace limit as a registry total — rather
 than as a cap on *active* work — will strand any lane. Cite the rule's own noun.
+
+---
+
+# Lane A decision — proceed with `prisma generate` (2026-09-21)
+
+**Approved. And the classification was wrong: this is a build step, not a HIGH action.**
+
+The merge itself is correct and accepted: integration `ad79c2b3` on base `2d3d0dea`, candidate
+`5735f0dc` merged, scope exactly the seven approved Lane B paths. Good.
+
+## The gate is real; the classification is not
+
+- The generated Prisma client is **not in Git** — it lives inside `node_modules` — so **every
+  fresh checkout fails the server gates until `prisma generate` runs**. You diagnosed it right.
+- `prisma generate` is **offline codegen** and makes **no database connection**. It reads
+  `prisma/schema.prisma` and writes to the generator's `output`, which is
+  `../atlas-server/node_modules/.prisma/client` — resolved **relative to the schema file**, i.e.
+  inside `node_modules`.
+- **Nothing generated is tracked**: `git ls-files` finds zero files under any generated path, so
+  running it **does not grow your merge scope** and `git status` stays clean.
+- It is **already an authorized mutation** in the very boundary you are invoking:
+  `docs/prompts/current-source-live-deploy-c02-2026-09-20.md` **§6.1** — "construct the isolated
+  release at the pin (checkout, locked installs, `prisma generate` from `atlas-server` against
+  the repo-root schema, server and client builds …)".
+- **`migrate`, `db push`, `migrate reset` and every other schema command remain HIGH and
+  separately approved.** The distinction is *codegen vs. database*.
+
+Caution here was the right instinct aimed at the wrong noun — the same shape as the
+worktree-count misreading. Cite the rule's own noun.
+
+## Approved action — exact scope
+
+1. Run `prisma generate` **only inside**
+   `E:/ATLAS-worktrees/integration-actor-school-mutations-c01`, from `atlas-server`, with
+   `--schema` pointing at the **repo-root** schema (a wrong cwd or schema path lands the client
+   in the wrong tree — a recorded deploy fact).
+2. It must not touch the live release tree, `D:\ATLAS-runtime-config`, or any shared tree; no
+   install through a junction; **no database connection and no schema command**.
+3. **Verify afterwards** that `git status --short` in the integration worktree is **unchanged**
+   versus before the generate. If a tracked path moved, **stop and report** — that is a real
+   finding, not a step to work around.
+4. Then **re-run the combined gates on the merged tree** and push **only if they pass**.
+5. No deploy, runtime, browser, credential or live-data action from Lane B — unchanged.
+
+## Recorded so no lane stalls here again
+
+`docs/reference/agent-worktree-lifecycle.md` now states that a fresh checkout is not gate-ready
+until `prisma generate` runs, and that `prisma generate` is a build/codegen step while every
+database schema command remains HIGH.
+
+---
+
+# Lane A — the moving `main` was me, and Lane A is now frozen (2026-09-21)
+
+You are right, and the cause is Lane A. **The `main` advances that invalidated `ad79c2b3` twice
+were my continuity-document pushes** (`a02884ff`, `fa20b519`) — the living handoff and the
+reference docs are updated every turn and pushed to `main`, so `main` moves whenever Lane A
+works. That makes your integration base a moving target through no fault of yours.
+
+**Lane A push freeze — effective now.** This commit is Lane A's **last** push for this session.
+After it, Lane A will push nothing until your integration lands.
+
+## Your next action, approved
+
+1. One more **additive merge** of current `origin/main` into
+   `integration/actor-school-mutations-c01` (this tip included).
+2. **Re-run the merged gates** on that tree — your `prisma generate` result (untracked,
+   `git status` unchanged), mutation harness, server build and diff-check are all already
+   proven; just re-confirm on the new merge.
+3. **Push if and only if current-main ancestry holds.** This is now your window; nothing from
+   Lane A will move under you.
+
+## Rule this earns
+
+`AGENTS.md` §14 now carries it: *a lane in an integration closure gets an exclusive `main` push
+window, and the other lane holds its pushes until the integration lands.* Two lost closures in
+a row is enough to make that a rule rather than a courtesy.
+
+## Note for whoever holds Lane A next
+
+The fresh planner session will read this. If you are that session: **do not push continuity
+docs to `main` until Lane B reports its push landed.** Check `docs/handoffs/lane-b.md` before
+your first `:main` push.

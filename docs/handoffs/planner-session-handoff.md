@@ -66,6 +66,16 @@ boundary from current `origin/main` (the candidate is **11 ahead / 13 behind** �
 `4c7c0bd9` → `65fe0728` with the `C01R` fix, so it is no longer a fast-forward), re-run combined
 gates on the merged tree, and push. Its fix is **not live** — the live release `4c7c0bd9` predates
 it — and it ships only in a release, which is Lane A's to make.
+
+**⚠ Lane A `main` PUSH FREEZE — do not push until Lane B reports its push landed.** Lane B's
+integration was invalidated twice because Lane A's continuity-doc pushes kept moving `main`
+(`a02884ff`, `fa20b519`) after its merge and green gates. Lane B's merge is accepted
+(`ad79c2b3` on `2d3d0dea`, exactly its seven approved paths) and its gates pass; it now needs one
+additive merge of current `main` and one push. **A lane in an integration closure holds an
+exclusive `main` window** (`AGENTS.md` §14). Check `docs/handoffs/lane-b.md` before your first
+`:main` push. Also settled this episode: `prisma generate` is a **build step, not HIGH** (offline
+codegen, untracked output, already authorized in the C02 boundary §6.1) — a fresh checkout is not
+gate-ready without it.
 Also settled by the same pass: the **502 layer is identified** — the captured failing response
 was a host-proxy `{"code":"UPSTREAM_UNREACHABLE","message":"read ECONNRESET"}` on
 `GET /generation/1/10/runs/316/manual-edits`, i.e. **host-side**, not server- or route-emitted;
@@ -192,6 +202,26 @@ put the unaccepted candidate on `main` before acceptance — see §5.
   `.opencode/**`, the root `package.json`, every `.env`, `D:\ATLAS-runtime-config\**`.
 - **Serialized:** one runtime (no deploy from Lane B), one browser controller, no migrations or
   database mutation, no login.
+
+## 2b. Lane A worktrees right now (so a fresh session never guesses)
+
+- `E:/ATLAS-worktrees/planner-worktree-reclaim-20260921` — the continuity/**docs lane** (branch
+  `docs/worktree-reclaim-20260921`). **`KEEP_ACTIVE`.** Continuity commits are pushed from here,
+  and every push must `fetch` + merge first because **Lane B also moves `main`**.
+- `E:/ATLAS-worktrees/dashboard-truth-c01` (branch `work/dashboard-truth-c01`) — source
+  integrated, release built. **`RETIRE_AFTER_INTEGRATION`**: retire it (non-forced) once its gates
+  no longer need re-running; the branch survives in Git. It holds a real `node_modules` (~1–2 GB),
+  so retiring frees `E:`.
+- `E:/ATLAS-worktrees/dup-read-callers-c01r` (branch `work/dup-read-callers-c01r`) — candidate
+  `360c026b` is integrated and is the **pin for the pending re-release**. Retire **only after**
+  that release is built and verified.
+- Retire with `git worktree remove <exact path>` then `git worktree prune` — never `--force`,
+  never a glob or computed path, and **never delete the branch**.
+- **Do not touch:** Lane B's `E:/ATLAS-worktrees/actor-school-mutations-c01`, the two
+  uncertain-owner planner worktrees, `E:/ATLAS-worktrees/ux-quickfix-c01` (junction anchor), or
+  any `D:\ATLAS-runtime-*` tree.
+- **One Lane A writer at a time.** If a fresh planner session has taken over, the previous one
+  must stop writing — two Lane A planners on one stream is a custody defect, not parallelism.
 
 ## 3. Completed this session (newest first)
 
