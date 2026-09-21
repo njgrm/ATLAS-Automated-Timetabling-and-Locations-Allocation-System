@@ -43,6 +43,16 @@ sub-clause stays **not exercisable** (0 cards mount; creating drift is not autho
 primary assertion is unweakened. Evidence:
 `docs/reviews/dup-read-callers-c01r/part-b-deployment-evidence.md`.
 
+**Closure defect found and fixed — new rule `AGENTS.md` §10.12.** The executor created its
+evidence "worktree" as a **standalone clone** (`E:/ATLAS-worktrees/c01r-release-20260921`,
+`origin` = the stale `D:\ATLAS`), so its correction commit was invisible to the shared repo: the
+planner's first merge pulled a *different, older* revision of the same branch and `main` briefly
+carried the **uncorrected** evidence. Detected by re-verifying the pushed file, recovered by
+`git fetch <clone-path>`, and now verified on `main` (`05739729`). Guard added: prove a candidate
+with `git cat-file -t <sha>` **from the integration boundary** before integrating. The clone is
+`PRESERVE_FOR_DECISION` (clean, no unique commits) — do not delete it without an operator
+instruction.
+
 **First `atlas-executor-muse` run — recorded because muse failure modes feed the directive.**
 Outcome: sound structural work (fail-closed invalidation, additive tests, clean commits, and it
 volunteered one verification it *could not* perform). Independent QA found two **accuracy**
@@ -217,9 +227,14 @@ stands at 37.32 GiB after this release).
 - `E:/ATLAS-worktrees/dup-read-callers-c01r` (branch `work/dup-read-callers-c01r`, `2f1a8f33`) —
   candidate integrated, and its release built and independently verified.
   **`RETIRE_AFTER_INTEGRATION`**.
-- `E:/ATLAS-worktrees/c01r-release-20260921` (branch `release/dup-read-callers-c01r-20260921`,
-  `beedb104`) — the Part B deployment evidence plus its correction, integrated by this closure.
-  **`RETIRE_AFTER_INTEGRATION`**.
+- `E:/ATLAS-worktrees/c01r-release-20260921` — **NOT a worktree: a standalone clone** (own
+  `.git`, `origin` = `D:\ATLAS`), created by the executor against `AGENTS.md` §10.12. Its only
+  branch `release/dup-read-callers-c01r-20260921` (`beedb104`) is clean and now integrated into
+  `main`, so it holds no unique commits — but `git worktree remove` does not apply to it and a
+  raw recursive delete is not permitted. **`PRESERVE_FOR_DECISION`** (~1 GiB): flag to the
+  operator, do not delete without an explicit instruction. The same deviation exists in the live
+  release directory `D:\ATLAS-runtime-supervised-a02884ff-20260921` (a clone, not a registered
+  detached worktree); it is verified and live, so it is **not** to be re-shaped.
 - Retire with `git worktree remove <exact path>` then `git worktree prune` — never `--force`,
   never a glob or computed path, and **never delete the branch**.
 - **Do not touch:** Lane B's `E:/ATLAS-worktrees/actor-school-mutations-c01`, the two

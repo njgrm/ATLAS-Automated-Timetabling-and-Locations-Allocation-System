@@ -25,6 +25,23 @@ file holds the mechanics so the directive stays short.
   pressures a lane, ask the planner to free space through the audited reclaim path; do not
   retire on your own authority.
 
+## Create a registered worktree — never a clone
+
+`git worktree add <path> -b <branch> <base>` from the shared repository. A **standalone clone**
+(its own `.git` directory, its own `origin`) is not a worktree: it is invisible to
+`git worktree list`, its commits are invisible to the integration boundary, and its `origin`
+often points at a stale checkout rather than the real remote. Measured 2026-09-21: an executor
+built its evidence "worktree" as a clone of the stale `D:/ATLAS`, committed the correction there,
+and reported the SHA. The planner's `git merge <branch>` resolved a *different, older* commit of
+the same branch from the shared repo, so `main` briefly carried the **uncorrected** evidence while
+the planner believed the correction had been pushed. Nothing was lost, but only because the file
+was re-verified afterwards.
+
+Guard: after an executor returns a candidate SHA, run `git cat-file -t <sha>` **from the
+integration boundary**. `fatal: Not a valid object name` means the work is not in the shared
+repo — stop and transport it (`git fetch <clone-path> <branch>`) before integrating, never merge
+a same-named branch on trust.
+
 ## Disposition
 
 Every handoff states one: `KEEP_ACTIVE`, `RETIRE_AFTER_INTEGRATION`, or

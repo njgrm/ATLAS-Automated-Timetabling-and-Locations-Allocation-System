@@ -154,6 +154,13 @@ and AIMS.
   shadows machine scope, so an unqualified `node ops/runtime/cli.mjs stop` targets the wrong
   (orphan) state file. Pass explicit env overrides; the registry values are correct. Recorded in
   `docs/reference/agent-runtime-deploy-facts.md`.
+- **Awaiting a decision — the stray clone.** `E:\ATLAS-worktrees\c01r-release-20260921` is a
+  standalone clone, not a worktree (`origin` = the stale `D:\ATLAS`), created by the executor
+  against the new `AGENTS.md` §10.12. It is clean, its only branch is integrated, and it holds no
+  unique commits (~1 GiB). `git worktree remove` does not apply and a raw recursive delete is not
+  permitted, so removal needs an operator instruction. The live release directory
+  `D:\ATLAS-runtime-supervised-a02884ff-20260921` carries the same clone-not-worktree deviation;
+  it is verified and live, so leave it as-is.
 - **The 502 layer is now identified (observation O1, 2026-09-21).** A captured failing response
   was a host-proxy typed 502 — `{"code":"UPSTREAM_UNREACHABLE","message":"read ECONNRESET"}` on
   `GET /generation/1/10/runs/316/manual-edits` (also `follow-up-flags` once). Per the
