@@ -351,6 +351,27 @@ The superseded `d3e9dfef` release is history: D1-D5 passed, D6 failed on a bare 
 cause was a test fixture **invented with the correct text already in it** — the rules that came out
 of it are in `AGENTS.md` §11 (fixtures come from the real surface; record an artifact's byte
 encoding).
+**Verified fixed — do not spend a lane on it:** the public published-view ×3 term duplication
+(a live probe returns 920 entries for exactly one term, never 2,760).
+
+**Integrated: the false-gate cluster** (`0758075e`). Three client `test:*` scripts were **false
+greens** — `tsx --test` silently ignores a path that does not exist, so a gate naming deleted files
+still exits 0:
+- `test:ux-guardrails` named two files removed by `4794bd9e` and reported **21/21 green from one
+  third of its intended coverage** (measured);
+- `test:auth-session` and `test:timetable-conflict` named **only** missing files and ran **nothing
+  at all** while exiting 0.
+Fixed by repointing the guardrails gate at the live files covering the same areas, removing the two
+dead entries, and adding `atlas-client/src/lib/__tests__/gate-reachability.test.ts`, which fails if
+any `test:*` script names a file that does not exist. Failing-first: the guard listed all three dead
+paths before the fix; fixed gate **30/30**, preservation `test:timetable-operator-ux` **58/58**,
+typecheck clean.
+**Coverage gap this exposed (successor, not fixed):** the two sources
+`atlas-client/src/lib/timetable-live-conflict.ts` and
+`atlas-client/src/components/timetable/TacticalSandboxDock.helpers.ts` **exist but have no test** —
+their test files were among those removed. The `auth-session` subject is unclear; candidates that do
+exist are `actor-school-session-epoch.test.ts` and `session-scope-late-discard.test.ts`.
+
 Recorded successors: the `FACULTY_FLOOR_TRANSITION` legacy stored-message phrasing
 (`(14:30->14:30) with only 0 minutes gap`) is a stored-data artifact, not a formatter job;
 `parseSchoolId` is now dead code in `runtime.router.ts`.
