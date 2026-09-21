@@ -66,6 +66,50 @@ export const VIOLATION_CODES = [
 
 export type ViolationCode = (typeof VIOLATION_CODES)[number];
 
+export type ViolationCopy = {
+	/** Short operator-facing heading. Never a raw code or enum name. */
+	title: string;
+	/** One sentence saying what the warning means. */
+	meaning: string;
+	/** The next action where one exists; empty string only when no action applies. */
+	action: string;
+};
+
+/**
+ * WARNING-READABILITY-C01 (R1): operator-facing copy for every canonical
+ * violation code. Presentation only — the constraint math below never reads
+ * this map. A code without copy is a defect even when it is unreachable in
+ * the current UI, so the readability suite enumerates VIOLATION_CODES and
+ * fails on any code missing from this map.
+ */
+export const VIOLATION_COPY: Record<ViolationCode, ViolationCopy> = {
+	FACULTY_TIME_CONFLICT: { title: 'Teacher double-booked', meaning: 'One teacher is assigned to two classes that meet at the same time.', action: 'Move one class or assign another qualified teacher.' },
+	ROOM_TIME_CONFLICT: { title: 'Room double-booked', meaning: 'Two classes use the same room at the same time.', action: 'Move one class to a free room or time.' },
+	SECTION_TIME_CONFLICT: { title: 'Section double-booked', meaning: 'One class of learners has two lessons scheduled at the same time.', action: 'Move one of the lessons to another time.' },
+	FACULTY_OVERLOAD: { title: 'Teacher above weekly load', meaning: 'The teacher is scheduled for more minutes in one week than the saved weekly maximum allows.', action: 'Move classes to another qualified teacher or review the saved load limit.' },
+	ROOM_TYPE_MISMATCH: { title: 'Room type does not fit', meaning: 'The assigned room is not of the type the subject needs.', action: 'Choose a room of the required type or correct the subject requirement.' },
+	ROOM_FEATURE_MISMATCH: { title: 'Room missing required equipment', meaning: 'The assigned room lacks equipment the subject needs.', action: 'Choose a room with the required equipment or correct the room record.' },
+	ROOM_CAPACITY_EXCEEDED: { title: 'Room may be too small', meaning: 'The class has more learners than seats recorded for the room.', action: 'Choose a larger room or verify the room capacity and class size.' },
+	FACULTY_SUBJECT_NOT_QUALIFIED: { title: 'Teaching assignment needs review', meaning: 'The saved teaching load does not authorize this teacher for the subject and class.', action: 'Review Teaching Load and assign an authorized teacher.' },
+	FACULTY_CONSECUTIVE_LIMIT_EXCEEDED: { title: 'Long teaching block', meaning: 'The teacher teaches more back-to-back periods than the scheduling policy allows.', action: 'Insert a break or move one period to shorten the block.' },
+	FACULTY_BREAK_REQUIREMENT_VIOLATED: { title: 'Break is too short', meaning: 'The rest gap after a long teaching block is shorter than the required break.', action: 'Extend the break or move a neighboring class.' },
+	FACULTY_DAILY_STANDARD_EXCEEDED: { title: 'Daily teaching target exceeded', meaning: 'The teacher is above the preferred daily teaching target but below the hard cap.', action: 'Move a class to another day when a more balanced slot is available.' },
+	FACULTY_DAILY_MAX_EXCEEDED: { title: 'Daily teaching maximum exceeded', meaning: 'The teacher is scheduled for more minutes in one day than the daily maximum allows.', action: 'Move or reassign at least one class on that day.' },
+	FACULTY_FLOOR_TRANSITION: { title: 'Cross-floor move', meaning: 'The teacher finishes on one floor and starts on another without enough time to move.', action: 'Add a gap between the classes or place one of them on the same floor.' },
+	FACULTY_EXCESSIVE_BUILDING_TRANSITIONS: { title: 'Too many building changes', meaning: 'The teacher changes buildings more often in one day than the policy recommends.', action: 'Group the teacher classes in fewer buildings.' },
+	FACULTY_INSUFFICIENT_TRANSITION_BUFFER: { title: 'Not enough time between buildings', meaning: 'Back-to-back classes leave too little time for the teacher to change buildings.', action: 'Add a free period or place the classes in the same building.' },
+	FACULTY_EXCESSIVE_IDLE_GAP: { title: 'Long idle gap', meaning: 'The teacher has a long unscheduled gap between classes on one day.', action: 'Move classes closer together when that creates no harder conflict.' },
+	FACULTY_EARLY_START_PREFERENCE: { title: 'Starts earlier than preferred', meaning: 'The first class of the day begins earlier than the teacher preferred start.', action: 'Move the first class later when another valid slot is available.' },
+	FACULTY_LATE_END_PREFERENCE: { title: 'Ends later than preferred', meaning: 'The last class of the day ends later than the teacher preferred end.', action: 'Move the last class earlier when another valid slot is available.' },
+	FACULTY_INSUFFICIENT_DAILY_VACANT: { title: 'Too little preparation time', meaning: 'The teacher has fewer free periods in the day than the preparation target.', action: 'Move a class to another day or redistribute the load.' },
+	SPECIALIZED_ROOM_UNAVAILABLE: { title: 'Specialized room unavailable', meaning: 'No suitable specialized room was free for this session.', action: 'Free a suitable room, change the time, or review whether the specialization is required.' },
+	UNASSIGNED_SECTION: { title: 'Class session unassigned', meaning: 'A required class session could not be placed in the timetable.', action: 'Open the unassigned queue and resolve its teacher, room, or time blocker.' },
+	ZONE_IMBALANCE_WARNING: { title: 'Campus zone concentration', meaning: 'Too many classes are concentrated in one campus zone.', action: 'Spread rooms across zones or explicitly accept the concentration.' },
+	SECTION_OVERCOMPRESSED: { title: 'Class day is too compressed', meaning: 'The class has too many back-to-back periods without a sufficient break.', action: 'Spread the classes out or add a break.' },
+	LACKING_FACULTY: { title: 'No teacher available', meaning: 'A required session has no qualified teacher available.', action: 'Assign a qualified teacher in Teaching Load or free an authorized teacher.' },
+	INCOMPLETE_MODULAR_GROUP: { title: 'Rotating subject group incomplete', meaning: 'A rotating subject family is missing a required term-specific member or assignment.', action: 'Complete the subject, teacher, and room assignments for every term.' },
+};
+
 // ─── Draft schedule input shape ───
 
 export interface ScheduledEntry {
@@ -918,7 +962,7 @@ export function validateHardConstraints(ctx: ValidatorContext): ValidationResult
 				violations.push({
 					...base, severity,
 					code: 'FACULTY_CONSECUTIVE_LIMIT_EXCEEDED',
-					message: `Faculty ${facultyId} has ${consecutiveMinutes} consecutive teaching min on ${day}, exceeds limit ${maxConsecutiveMinutes} min.`,
+					message: `Faculty ${facultyId} teaches ${consecutiveMinutes} consecutive minutes (${blockEntries.length} periods) on ${day}, above the ${maxConsecutiveMinutes}-minute limit.`,
 					entities: { facultyId, day, entryIds: [...blockEntries] },
 					meta: {
 						consecutiveMinutes,

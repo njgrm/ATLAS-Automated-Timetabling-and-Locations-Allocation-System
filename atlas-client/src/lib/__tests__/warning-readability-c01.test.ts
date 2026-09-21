@@ -10,7 +10,9 @@ import { ViolationGroup } from '../../components/timetable/TimetableShared';
 import { resolveWarningPanelSizing } from '../../components/timetable/ViolationsSidebar';
 import {
 	VIOLATION_PRESENTATION,
+	formatWarningMessageText,
 	getViolationPresentation,
+	sortViolationGroupsHardFirst,
 } from '../violation-presentation';
 import type { Violation, ViolationCode } from '../../types';
 
@@ -95,4 +97,68 @@ test('R4: one grouped warning exposes the supporting check instead of silently d
 test('R9: warning panel remains readable at the required desktop and mobile viewport widths', () => {
 	assert.deepEqual(resolveWarningPanelSizing(1366), { minSize: 22, maxSize: 42, defaultSize: 28 });
 	assert.deepEqual(resolveWarningPanelSizing(390), { minSize: 72, maxSize: 82, defaultSize: 72 });
+});
+
+function renderOperatorSurface(code: ViolationCode, labels: Record<ViolationCode, string>): string {
+	const item = violation(code);
+	const group = renderToStaticMarkup(createElement(ViolationGroup, {
+		code: item.code,
+		violations: [item],
+		selectedViolation: null,
+		onSelect: () => {},
+		labels,
+	}));
+	const drawer = renderToStaticMarkup(createElement(ExplainabilityDrawer, { open: true, onClose: () => {}, violation: item }));
+	return `${group}${drawer}`;
+}
+
+test('R2/all-codes: every canonical warning renders with plain copy and no raw code', () => {
+	assert.ok(canonicalCodes.length >= 20, 'the test must enumerate the production canonical set');
+	const labels = Object.fromEntries(Object.entries(VIOLATION_PRESENTATION).map(([code, value]) => [code, value.title])) as Record<ViolationCode, string>;
+	for (const code of canonicalCodes) {
+		const markup = renderOperatorSurface(code as ViolationCode, labels);
+		assert.doesNotMatch(markup, new RegExp(code), `${code} must not leak to the operator surface`);
+	}
+});
+
+test('R2/all-codes mutant: the leak check fires when a label is missing', () => {
+	const target = canonicalCodes[0];
+	const labels = Object.fromEntries(Object.entries(VIOLATION_PRESENTATION).map(([code, value]) => [code, value.title])) as Record<ViolationCode, string>;
+	delete (labels as Record<string, string>)[target];
+	assert.throws(() => {
+		const markup = renderOperatorSurface(target as ViolationCode, labels);
+		assert.doesNotMatch(markup, new RegExp(target), `${target} must not leak to the operator surface`);
+	}, new RegExp(target));
+});
+
+test('R2: operator messages expand bare minute abbreviations and shout-free days', () => {
+	const raw = 'Faculty 16 teaches 180 min on MONDAY, above the 135-minute limit (40 h week).';
+	const formatted = formatWarningMessageText(raw);
+	assert.notEqual(formatted, raw, 'the formatter must change raw validator wording');
+	assert.match(formatted, /180 minutes/);
+	assert.match(formatted, /on Monday/);
+	assert.match(formatted, /40 hours/);
+	assert.doesNotMatch(formatted, /MONDAY/);
+	assert.doesNotMatch(formatted, /\bmin\b/);
+	assert.doesNotMatch(formatted, /\bh\b/);
+});
+
+test('R7: HARD groups lead soft groups and equal severity keeps its order', () => {
+	const soft = (code: ViolationCode): Violation => violation(code);
+	const hard = (code: ViolationCode): Violation => ({ ...violation(code), severity: 'HARD' });
+	const groups: Array<[ViolationCode, Violation[]]> = [
+		['FACULTY_EXCESSIVE_IDLE_GAP', [soft('FACULTY_EXCESSIVE_IDLE_GAP')]],
+		['FACULTY_TIME_CONFLICT', [hard('FACULTY_TIME_CONFLICT')]],
+		['ROOM_TIME_CONFLICT', [hard('ROOM_TIME_CONFLICT')]],
+		['ZONE_IMBALANCE_WARNING', [soft('ZONE_IMBALANCE_WARNING')]],
+	];
+	const ordered = sortViolationGroupsHardFirst(groups).map(([code]) => code);
+	assert.deepEqual(ordered, ['FACULTY_TIME_CONFLICT', 'ROOM_TIME_CONFLICT', 'FACULTY_EXCESSIVE_IDLE_GAP', 'ZONE_IMBALANCE_WARNING']);
+});
+
+test('R2/tooltip: the constraint-context tooltip uses full words, not abbreviations', () => {
+	const shared = readFileSync(resolve(clientRoot, 'src/components/timetable/TimetableShared.tsx'), 'utf8');
+	assert.doesNotMatch(shared, /Building trans/);
+	assert.doesNotMatch(shared, /(\d|\}) min[ ·<]/);
+	assert.match(shared, /minutes/);
 });

@@ -193,22 +193,22 @@ export function ViolationGroup({
 												<TooltipContent className="max-w-[min(18rem,calc(100vw-2rem))] whitespace-normal break-words text-xs font-normal leading-relaxed space-y-1 py-2 px-3 border-amber-200 bg-amber-50 text-amber-900" side="right">
 													<div className="font-semibold text-amber-700 pb-1 mb-1 border-b border-amber-200/60">Constraint Context</div>
 													{v.meta.consecutiveMinutes != null && v.meta.maxConsecutive != null && (
-														<div>Observed: {String(v.meta.consecutiveMinutes)} min · Limit: {String(v.meta.maxConsecutive)} min · <span className="font-semibold">Δ +{Number(v.meta.consecutiveMinutes) - Number(v.meta.maxConsecutive)} min</span></div>
+														<div>Observed: {String(v.meta.consecutiveMinutes)} minutes · Limit: {String(v.meta.maxConsecutive)} minutes · <span className="font-semibold">Δ +{Number(v.meta.consecutiveMinutes) - Number(v.meta.maxConsecutive)} minutes</span></div>
 													)}
 													{v.meta.dailyMinutes != null && v.meta.maxTeachingMinutesPerDay != null && (
-														<div>Observed: {String(v.meta.dailyMinutes)} min · Limit: {String(v.meta.maxTeachingMinutesPerDay)} min · <span className="font-semibold">Δ +{Number(v.meta.dailyMinutes) - Number(v.meta.maxTeachingMinutesPerDay)} min</span></div>
+														<div>Observed: {String(v.meta.dailyMinutes)} minutes · Limit: {String(v.meta.maxTeachingMinutesPerDay)} minutes · <span className="font-semibold">Δ +{Number(v.meta.dailyMinutes) - Number(v.meta.maxTeachingMinutesPerDay)} minutes</span></div>
 													)}
 													{v.meta.actualGapMinutes != null && v.meta.requiredBreakMinutes != null && (
-														<div>Actual break: {String(v.meta.actualGapMinutes)} min · Required: {String(v.meta.requiredBreakMinutes)} min · <span className="font-semibold">Short by {Number(v.meta.requiredBreakMinutes) - Number(v.meta.actualGapMinutes)} min</span></div>
+														<div>Actual break: {String(v.meta.actualGapMinutes)} minutes · Required: {String(v.meta.requiredBreakMinutes)} minutes · <span className="font-semibold">Short by {Number(v.meta.requiredBreakMinutes) - Number(v.meta.actualGapMinutes)} minutes</span></div>
 													)}
 													{v.meta.totalIdleMinutes != null && v.meta.configuredThresholds != null && (
-														<div>Idle: {String(v.meta.totalIdleMinutes)} min · Limit: {String((v.meta.configuredThresholds as Record<string, unknown>).maxIdleGapMinutesPerDay ?? '?')} min</div>
+														<div>Idle: {String(v.meta.totalIdleMinutes)} minutes · Limit: {String((v.meta.configuredThresholds as Record<string, unknown>).maxIdleGapMinutesPerDay ?? '?')} minutes</div>
 													)}
 													{v.meta.gapMinutes != null && (
-														<div>Gap: {String(v.meta.gapMinutes)} min</div>
+														<div>Gap: {String(v.meta.gapMinutes)} minutes</div>
 													)}
 											{v.meta.buildingTransitions != null && (
-												<div>Building trans: {String(v.meta.buildingTransitions)}{v.meta.configuredThresholds ? ` · Limit: ${String((v.meta.configuredThresholds as Record<string, unknown>).maxBuildingTransitionsPerDay ?? '?')}` : ''}</div>
+												<div>Building changes: {String(v.meta.buildingTransitions)}{v.meta.configuredThresholds ? ` · Limit: ${String((v.meta.configuredThresholds as Record<string, unknown>).maxBuildingTransitionsPerDay ?? '?')}` : ''}</div>
 											)}
 											{relatedCodes.length > 1 && (
 												<div className="mt-1 border-t border-amber-200/60 pt-1">

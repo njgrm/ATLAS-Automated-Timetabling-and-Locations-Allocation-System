@@ -2,6 +2,7 @@ import { useCallback, useMemo, useRef } from 'react';
 
 import { gradeLabel } from '@/lib/grade-labels';
 import { getProgramBadgeLabel, resolveSectionGradeNumber } from '@/lib/schedule-review-helpers';
+import { formatWarningMessageText } from '@/lib/violation-presentation';
 import type { ExternalSection, FacultyMirror, ScheduledEntry, Subject, UnassignedItem } from '@/types';
 import type { RoomInfo, ViewMode } from '@/components/timetable/ScheduleReviewWorkspace.constants';
 
@@ -62,9 +63,12 @@ export function useTimetableLookupHelpers({
 			const faculty = facultyMap.get(Number(rawId));
 			return faculty ? `${faculty.lastName}, ${faculty.firstName}` : match;
 		});
-		return facultyFormatted.replace(/\bsection\s+#?(\d+)\b/gi, (match, rawId: string) => {
+		const sectionFormatted = facultyFormatted.replace(/\bsection\s+#?(\d+)\b/gi, (match, rawId: string) => {
 			return sectionMap.get(Number(rawId))?.name ?? match;
 		});
+		// WARNING-READABILITY-C01 (R2): bare "180 min on MONDAY" reads as
+		// "180 minutes on Monday" on the operator surface.
+		return formatWarningMessageText(sectionFormatted);
 	}, [facultyMap, roomLabelShort, roomMap, sectionMap]);
 
 	const gradeForSection = useCallback((sectionId: number): number | null => {
