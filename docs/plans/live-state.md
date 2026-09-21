@@ -4,8 +4,9 @@ Current operational truth only. Git history and handoff documents retain older
 evidence. Update this file when a live fact, blocking decision, or next action
 changes.
 
-Last verified: 2026-09-21 (planner closure of `DUP-READ-CALLERS-C01`; live release
-`434b2a81` unchanged — the new client source is integrated but **not deployed**)
+Last verified: 2026-09-21 (planner closure of `DUP-READ-CALLERS-C01` and the worktree
+reclaim; live release `434b2a81` unchanged — the new client source is integrated but
+**not deployed**)
 
 ## Objective
 
@@ -128,12 +129,13 @@ and AIMS.
   see the capacity blocker below. Its browser rows B1/B2 are `DEFERRED`
   deployment-acceptance clauses. No 502 fix: the layer remains unproven and needs one captured
   failing response body.
-- **`D:` capacity is now a deployment blocker.** `D:` free is **15.81 GiB**; the rule warns
-  below 25 GiB and fails closed below 15 GiB, and the deploy boundary gates the **post-build**
-  figure. A release build measures 1.43–1.86 GiB, so a build started at 15.81 GiB lands at
-  13.95–14.38 GiB — **below the floor**, with PostgreSQL on `D:`. 21
-  `D:\ATLAS-runtime-*` directories are on this lane's never-retire list, so reclaiming them is
-  an **operator decision**. Until it is resolved, no release build may run.
+- **`D:` capacity blocker RESOLVED 2026-09-21 by the worktree reclaim.** 56 clean, contained,
+  unanchored, inactive worktrees were retired across `D:/ATLAS-worktrees` and
+  `E:/ATLAS-worktrees`: `D:` free 15.81 → **40.76 GiB**, `E:` 55.7 → **66.13 GiB** (~35.4 GiB
+  total); registered worktrees 112 → 57; every shared junction target verified intact; no
+  branch deleted; the two named startable fallbacks preserved. Evidence
+  `docs/reviews/worktree-reclaim-20260921/{manifest.md,post-action-report.md}`. Release builds
+  are unblocked. `D:\ATLAS-runtime-*` release trees remain on the never-retire list.
 - The deployed release `74999168` now carries the accepted source, including
   `UX-R02` Simple-workspace simplification, `SECTION-ROUTE-AUTHORITY-C01..C03`,
   `PUBLISHED-REVISION-AUTHORITY-C12`, `PUBLIC-SCHEDULE-TERM-SCOPE-C01`,
@@ -248,11 +250,11 @@ and AIMS.
 
 ## Single next action
 
-**Operator decision required: `D:` headroom.** `D:` is at 15.81 GiB and cannot absorb a
-release build without crossing the 15 GiB fail-closed floor; 21 `D:\ATLAS-runtime-*`
-directories are on this lane's never-retire list, so only the operator can reclaim space.
-Once resolved, fold the accepted `DUP-READ-CALLERS-C01` client fix — together with the open
-dashboard tile-truth issue — into one release, and run that release's deferred browser rows.
+The `D:` capacity gate that deferred the deployment is **cleared** (40.76 GiB free). Fold the
+accepted `DUP-READ-CALLERS-C01` client fix — together with the open dashboard tile-truth
+issue — into one release under the standing authorization: one packet, one executor Part A,
+one release build (Part B), one fresh independent QA holding browser custody, and the deferred
+browser rows B1/B2 for the dedup fix. Deployment remains a HIGH action with its own gates.
 
 Then the previously queued work stands. The route split is now complete: every operator sub-page exists, the workspace stops
 remounting inside the subtree, and the whole timetable route suite runs in a committed gate.
