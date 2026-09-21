@@ -33,11 +33,14 @@ blockers"**. The run has **zero HARD violations**; the 335 is the acknowledged S
 total. The number is not wrong — its label is.
 
 - `atlas-server/src/services/dashboard-readiness.service.ts:415-436` — `countViolations`
-  returns `summary.violationCount ?? summary.totalViolationCount`, else
+  returns, **in order**: an array's `length` (`:416`), then
+  `summary.violationCount ?? summary.totalViolationCount`, else
   `hardViolationCount + softViolationCount`, else the **sum of every `violationCounts`
-  bucket**. The dashboard payload's `violationCount`
-  (`:869-878`, `generation.violationCount`) is therefore the **combined HARD + SOFT** total.
-  This is the server's intended total metric; **it is not the defect and must not be changed.**
+  bucket**. The dashboard reaches it at `:726` as `countViolations(run.summary, run.violations)`,
+  so when the run carries a `violations` array its length is the count. Either way the payload's
+  `violationCount` (`:869-878`, `generation.violationCount`) is a **combined HARD + SOFT**
+  total. This is the server's intended total metric; **it is not the defect and must not be
+  changed.**
 - `atlas-client/src/hooks/useDashboardData.ts:504` — `setViolationCount(summary.generation.violationCount)`.
 - The client then presents that combined total as *blockers* in three places:
   - `atlas-client/src/pages/Dashboard.tsx:378` — readiness item hint
@@ -84,8 +87,11 @@ every runtime release directory.
 
 ### A1 — blocker language must mean HARD only, from a truthful source
 
-Replace the combined totals at **all four** sites — `Dashboard.tsx:318-319`, `:378`, `:451-454`
-and `:731` — with the run-wide hard count read from the latest run's violation-report counts
+Replace the combined total wherever it is presented — `Dashboard.tsx:318-319`, `:378`,
+`:451-454`, and the header tile at `:725`/`:730`/`:731` (all three read the **same state**, so
+re-source the state, not merely the rendered string, or the tile could show an amber treatment
+alongside "No blockers") — with the run-wide hard count read from the latest run's
+violation-report counts
 (`counts.runWide.blockingHard`, else `counts.runWide.hard`; see `resolveHardViolationCount`,
 `useTimetableData.ts:164-173`). Correct the `useDashboardData.ts:541-547` read, which today
 falls through the non-existent `totalCount` to a term-filtered HARD+SOFT `violations.length`,
@@ -164,11 +170,14 @@ Save, Apply, Generate, Publish or Delete, and **no timetable cell click**.
 ## 5. Acceptance — 12 mandatory rows
 
 **Source (5) — decided by the committed client test scripts**
-S1: **all four** dashboard surfaces (`:318-319`, `:378`, `:451-454`, `:731`) render a hard-only
-count for blocker language; with a 0 HARD / 335 SOFT fixture **no surface renders a "blocker"
-claim** and the "Hard violations" figure is 0 — asserted on the rendered strings, with a
-failing-first control. **Plus a `null`/unavailable control:** when the hard count cannot be
-resolved, no surface renders `0` or "No blockers" — it reports the count as unavailable.
+S1: **all four** dashboard surfaces (`:318-319`, `:378`, `:451-454`, and the tile at
+`:725`/`:730`/`:731`) render a hard-only count for blocker language; with a 0 HARD / 335 SOFT
+fixture **no surface renders a "blocker" claim** and **no surface renders a non-zero "Hard
+violations" figure** (note `:451` renders only when the count is `> 0`, so assert absence rather
+than a rendered `0`) — asserted on the rendered strings, with a failing-first control. **Plus a
+`null`/unavailable control:** when the hard count cannot be resolved, no surface renders `0` or
+"No blockers"; the evidence must state, per surface, whether it renders an explicit
+"unavailable" string or omits the row.
 S2: the SOFT total is shown truthfully as warnings or omitted; the combined total is never
 labelled as blockers.
 S3: with zero HARD and non-zero SOFT, the "Timetable generated and reviewed" step reads `done`
@@ -238,3 +247,12 @@ packet's central premise. All accepted:
   `actor-school-mutations-c01`, server-only paths); capacity precondition fail-closed at the
   measured 40.76 GiB; rollback basis `5f5c6c4f` real and startable; no HIGH action bundled
   beyond the deployment; 12-row tally shape sound with O1/O2 excluded.
+
+### r1b — advisories from the bounded re-review (`ses_f3d89441effepWSYUqecjpx41A`, `ACCEPT_READY_FOR_EXECUTION`)
+
+Folded in, since each guards against a false premise or an inconsistent fix: `countViolations`'
+first branch (`:416`, the one the dashboard actually reaches at `:726`) is now cited; A1 names
+the tile's `:725`/`:730` state rather than only the `:731` string, so the state is re-sourced;
+S1 asserts the **absence** of a non-zero "Hard violations" figure instead of a rendered `0`
+(`:451` renders only when `> 0`); and the null control now requires per-surface evidence of an
+explicit "unavailable" string versus an omitted row.
