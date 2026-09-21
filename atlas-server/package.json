@@ -21,6 +21,7 @@
     "test:actor-school-mutations": "tsx src/__tests__/runtime-router-actor-school-mutations.test.ts",
     "test:actor-school-mutations-c02": "tsx src/__tests__/faculty-delete-actor-school-c02.test.ts",
     "test:actor-school-residual": "tsx src/__tests__/runtime-router-actor-school-residual.test.ts",
+    "test:rollover-year-identity-c01": "tsx src/__tests__/rollover-year-identity-c01.test.ts",
     "test:home-room-auto-assign": "tsx src/__tests__/home-room-auto-assign.test.ts",
     "test:warning-readability": "tsx src/__tests__/warning-readability-c01.test.ts",
     "test:section-route-authority": "tsx src/__tests__/section-route-authority-c01.test.ts",
