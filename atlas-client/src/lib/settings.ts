@@ -547,12 +547,30 @@ export async function fetchAtlasRuntimeContext(schoolId: number, verifyUpstream 
 	return data;
 }
 
+// DUP-READ-CALLERS-C01 (A3) — one in-flight rollover-status request per
+// (actor school, includeCounts). The RolloverGuidanceCard mounts with
+// includeCounts:false but reloads with true, and two cards can be mounted at
+// once, so a school-only key could serve a count-less payload to a counts
+// caller. A rejected request clears the entry in `finally`.
+const inflightRolloverStatus = new Map<string, Promise<RolloverStatus>>();
+
+function rolloverStatusInflightKey(schoolId: number, includeCounts: boolean): string {
+	return `${schoolId}:${includeCounts ? 1 : 0}`;
+}
+
 export async function fetchRolloverStatus(schoolId: number, includeCounts = false): Promise<RolloverStatus> {
 	const scopedSchoolId = requirePositiveSchoolId(schoolId, 'read the rollover status');
-	const { data } = await atlasApi.get<RolloverStatus>('/runtime/rollover-status', {
-		params: { schoolId: scopedSchoolId, includeCounts },
-	});
-	return data;
+	const inflightKey = rolloverStatusInflightKey(scopedSchoolId, includeCounts);
+	const existing = inflightRolloverStatus.get(inflightKey);
+	if (existing) return existing;
+	const promise = atlasApi
+		.get<RolloverStatus>('/runtime/rollover-status', {
+			params: { schoolId: scopedSchoolId, includeCounts },
+		})
+		.then((response) => response.data)
+		.finally(() => { inflightRolloverStatus.delete(inflightKey); });
+	inflightRolloverStatus.set(inflightKey, promise);
+	return promise;
 }
 
 export async function previewRolloverSync(schoolId: number): Promise<RolloverStatus> {
