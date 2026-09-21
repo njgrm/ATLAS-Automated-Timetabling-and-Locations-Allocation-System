@@ -8,14 +8,17 @@ A fresh session pays for every line of this file before it does any work.
 > Read `docs/handoffs/planner-session-handoff.md` on `origin/main` and resume as the ATLAS
 > primary planner (Lane A). It is self-contained; then follow its read order.
 
-Last updated: 2026-09-21 (Lane A).
+Last updated: 2026-09-22 (Lane A).
 
 ## Verdict
 
-Two cycles closed back-to-back and **both are live**: `DUP-READ-CALLERS-C01R` (client, accepted
-**7/7** on `a02884ff`) and `ACTOR-SCHOOL-MUTATIONS-C01` Part B (server, accepted **5/5** on
-`80acdc25` after an independent source review at **9/9**). **The release queue is empty** — nothing
-accepted is undeployed.
+**`TIMETABLE-UX-REHAUL-C01R` is delivered, live and accepted.** Release **`d92facfa`** carries the
+relaxed Simple Timetable shell — the operator's direct 2026-09-21 request — and passed the program's
+own bar on the live page: post-action QA `ACCEPT_READY` **7/7**, **U1–U6 6/6**, blocked 0,
+unperformed 0. The same release also carried Planner B's `ROLLOVER-YEAR-IDENTITY-C01`, which had **no
+committed review verdict**; the release's opening gate reviewed that delta alone before any runtime
+action and returned `ACCEPT_READY` 22/22. **The release queue is empty** — nothing accepted is
+undeployed.
 
 **Premise correction, 2026-09-21 — read this before planning anything.** The session that wrote the
 earlier version of this file spent a packet, an independent review and an executor dispatch on a
@@ -28,15 +31,16 @@ file — hence `AGENTS.md` §15's dated-blocker rule. **Read the newest dated ha
 
 ## Live identity
 
-- Pin `80acdc257cee613418eaa24db4607114b68c2d25` at
-  `D:\ATLAS-runtime-supervised-80acdc25-20260921` (registered detached worktree, not a clone).
-- Supervisor **96476**; server `5001`→**103700**; client `5174`→**96612**; entry
-  `/assets/index-C6LTCXSf.js`; Tailnet healthy; `D:` **35.82 GiB**.
-- Rollback: `a02884ff` **startable in place** at `D:\ATLAS-runtime-supervised-a02884ff-20260921`
-  (pre-mutation task XML `B0EF4152…`); behind it `4c7c0bd9`, `5f5c6c4f`, `434b2a81`. Never
-  executed.
-- The release carries the server actor-school enforcement on the eight runtime mutation `POST`
-  routes **and** everything accepted before it.
+- Pin `d92facfa14b1d33b6da04f0c169cd73f7221e713` at
+  `D:\ATLAS-runtime-supervised-d92facfa-20260921` (registered detached worktree, not a clone).
+- Supervisor **17828**; server `5001`→**34964**; client `5174`→**344**; entry
+  `/assets/index-DgF0ZSEz.js` (456,064 B); Tailnet healthy; `D:` **31.33 GiB**.
+- Rollback: `ecff1d7e` **startable in place** at `D:\ATLAS-runtime-supervised-ecff1d7e-20260921`
+  (pre-mutation task XML captured, SHA-256 `67B900EB…`); behind it `80acdc25`, `a02884ff`,
+  `4c7c0bd9`. Never executed.
+- The release carries the relaxed Simple shell (persistent sub-nav, one status surface, one solid
+  primary per state, F-07 grade dedupe, one `h1` per surface) **and** the server rollover-year
+  identity guard, on top of everything accepted before it.
 
 ## Custody
 
@@ -164,18 +168,19 @@ recorded browser entry in `companion-sso-live-prep-c02-evidence.md`). **Do not**
 
 ## Owned program I had lost track of — `UX-REHAUL-C01` (read this before planning UI work)
 
-**The Timetable relaxed-view rehaul is a real, planned, unstarted program.** Its spec is
-`docs/handoffs/ux-rehaul-handoff.md` (2026-09-18, 241 lines) plus the audit
-`docs/reviews/ux-audit-c01/atlas-timetable-relaxed-view-audit.md`. It was **not** linked from this
-handoff, so a session resumed from here would not know it exists — that is why it stalled. Fix the
-link, not just the stream.
+**The Timetable relaxed-view rehaul is DONE and live.** Spec `docs/handoffs/ux-rehaul-handoff.md` +
+audit `docs/reviews/ux-audit-c01/atlas-timetable-relaxed-view-audit.md`; the closing stream packet is
+`docs/prompts/timetable-ux-rehaul-c01r-relaxed-shell-2026-09-21.md`.
 
-**Status:** `UX-P01` (the data-layer prerequisite: TanStack Query, parallel fetches, prefetch,
-`keepPreviousData`) and `UX-R06` (micro-copy) are **integrated**. The rehaul proper — `UX-R00`
-(register + SMART baseline), `UX-R01` (PageHeader + breadcrumbs + tokens), `UX-R01a` (shared visual
-language), `UX-R02` (Simple strip-down), `UX-R03` (nested layout route), `UX-R04` (move
-admin/diagnostics off the operator surface), `UX-R05` (Advanced demotion to "Expert") — is
-**unstarted**.
+**Status: DELIVERED in `d92facfa`** (2026-09-22). `UX-P01`, `UX-R06`, `UX-R01`, `UX-R01a`, `UX-R02`
+and `UX-R03a–e` were already integrated by earlier cycles. This session closed the remaining gap as
+`TIMETABLE-UX-REHAUL-C01R`: a persistent sub-nav that makes
+`/timetable/{setup,policies,runs,exports}` reachable (they were URL-only), one status surface,
+exactly one solid primary per state, the F-07 repeated-grade removed from the grid cell, and one `h1`
+per surface. `UX-R04` and `UX-R05` were verified already-satisfied (the TacticalSandboxDock mounts
+only when explicitly opened; the Advanced entry lives under More → Expert tools). Evidence
+`docs/reviews/release-timetable-ux-rehaul-c01r-20260921/deployment-evidence.md`. **Do not re-open
+it**; its recorded successors are in the live-state Lane A section.
 
 **Operator directives already recorded in that handoff (authoritative):** desktop-first; mobile
 de-prioritised; **Advanced view is not rehauled — demote it, don't fix it**; build on **Simple**;
@@ -191,15 +196,17 @@ D-5 (second login for the remaining inventory rows) — **still open**.
 
 ## Next action
 
-**The release queue is empty and `ecff1d7e` is accepted 6/6 — pick the next real lane.** Ranked,
-from `docs/handoffs/planner-handoff-2026-09-20.md` §8 (reconcile it first — `AGENTS.md` §15):
+**The release queue is empty and `d92facfa` is accepted 7/7 (U1–U6 6/6) — pick the next real lane.**
+The Timetable rehaul the operator asked for on 2026-09-21 is delivered and live; do not re-open it.
+Ranked, from `docs/handoffs/planner-handoff-2026-09-20.md` §8 (reconcile it first — `AGENTS.md` §15):
 
-0. **`UX-REHAUL-C01` — start it.** The operator asked for it directly on 2026-09-21 and it is the
-   largest visible gap in the demo objective. Prerequisites are done; see the dedicated section
-   above. Author the next stream's packet from `docs/handoffs/ux-rehaul-handoff.md` + the audit,
-   then dispatch. `UX-R01` (PageHeader + breadcrumbs + tokens) is the visible foundation, `UX-R02`
-   (Simple strip-down) and `UX-R03` (nested layout route, unblocked because `UX-P01` landed) are
-   the visible wins; only `UX-R01a`/`UX-R00` genuinely need D-1.
+0. **`COMPANION-SSO-REVERSE-IDENTITY-C01` — the demo-priority alternative the operator named.** The
+   packet is authored at `docs/prompts/companion-sso-reverse-identity-c01-2026-09-21.md`; the live
+   click-through (below) proves ATLAS → EnrollPro executes end to end and ATLAS itself denies the
+   assertion. **It is an account-data gap, not a code defect**: the officer demo account has no
+   two-token name, so `resolveReverseSsoNameParts` fail-closes and the exchange 403s. Fix by giving
+   the demo account a persisted first+last name, or use a named staff account. Check custody first —
+   `atlas-server/src/services/companion-sso.service.ts` belongs to the SSO lane.
 
 **Verified fixed — do not spend a lane on it:** the public published-view ×3 term duplication. A
 live read-only probe on 2026-09-21 returns **920 entries for exactly one term** (never 2,760), and
@@ -209,14 +216,19 @@ selector defaults to term 1 while a *malformed* one is a typed 400.
 
 1. **False/incorrect warning categories** — `ZONE_IMBALANCE_WARNING` still fires in stored runs
    (the *surface* now suppresses it, so this is the producer/data side); warning-count semantics.
-2. **`test:ux-guardrails` is vacuous** — names two files deleted at `4794bd9e`; never cite it.
+2. **New UX successors recorded from this release** (all NON_BLOCKING, in the live-state Lane A
+   section): clean-load API GETs 20 vs 19 baseline; the Review-issues panel's uppercase
+   `SOFT`/`HARD` badges; the status region still draws three visual lines; sub-nav links at 24 px;
+   React Router element-less-children console warnings on `/timetable*`.
 3. **SMART/AIMS companion handoffs.**
 4. **Small recorded successors:** the `FACULTY_FLOOR_TRANSITION` stored-message phrasing (a
    regeneration/data concern, not a formatter job) and the dead `parseSchoolId` in
-   `runtime.router.ts`.
-5. **In flight, not mine:** Planner B's `ROLLOVER-YEAR-IDENTITY-C01` — its crux decision is answered
-   in `docs/handoffs/lane-a-to-planner-b-rollover-2026-09-21.md`; it is server-only and will need a
-   release (Lane A's boundary) once accepted.
+   `runtime.router.ts` (now provably unused; leave it out of any release that does not own it).
+
+**Shipped, no longer in flight:** Planner B's `ROLLOVER-YEAR-IDENTITY-C01` went live in `d92facfa`
+after the release's opening gate reviewed it alone (22/22). `test:ux-guardrails` is no longer
+vacuous — the false-green cluster was repaired at `0758075e` and the guardrail gate now names live
+files plus the `gate-reachability` check.
 
 Do **not** re-open the term-cache apply or the readiness/generation chain — both are closed, with
 dated proof in the live-state Lane A section. And re-read the newest dated handoff before acting on
@@ -224,9 +236,9 @@ any blocker line: that mistake has already cost this session one full cycle.
 
 ## Pointers
 
-- Packets: `docs/prompts/*.md` (latest: `actor-school-mutations-c01-release-2026-09-21.md`;
-  `dup-read-callers-c01r-2026-09-21.md` §3.1; `current-source-live-deploy-c02-2026-09-20.md` is
-  the reusable deploy boundary).
+- Packets: `docs/prompts/*.md` (latest: `release-timetable-ux-rehaul-c01r-2026-09-21.md`;
+  `timetable-ux-rehaul-c01r-relaxed-shell-2026-09-21.md` is the stream spec;
+  `current-source-live-deploy-c02-2026-09-20.md` is the reusable deploy boundary).
 - Evidence: `docs/reviews/<stream>/`; cost: `docs/reviews/workflow-cost-tracking.md`.
 - Continuity: `docs/plans/live-state.md` (this file is session continuity).
 - Rules earned on 2026-09-21, now in the directive: §10.12 clone-not-worktree, §11 batched reviewer

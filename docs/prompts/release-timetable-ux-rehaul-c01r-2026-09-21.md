@@ -27,7 +27,7 @@ labelled as browser rows, and a real `passed/blocked/unperformed` tally.
 
 ## 1. The delta versus the live `ecff1d7e`
 
-Product paths only (the full diff also carries `docs/**` and `AGENTS.md`; those are not product):
+Product paths only (the full diff also carries `docs/**`; those are not product):
 
 **Client — `TIMETABLE-UX-REHAUL-C01R`** (reviewed **`ACCEPT_READY` 18/18/0/0** over
 `f2ea0d4a...6d0aab46`, no blocking finding): `atlas-client/src/components/timetable/TimetableSubNav.tsx`
@@ -36,7 +36,8 @@ Product paths only (the full diff also carries `docs/**` and `AGENTS.md`; those 
 `lib/__tests__/timetable-ux-rehaul-c01.test.ts` (new), `atlas-client/package.json` (one script entry).
 
 **Client — test-only gate repair `0758075e`** (no product effect): the three false-green `test:*`
-entries repaired and `lib/__tests__/gate-reachability.test.ts` added.
+entries repaired, `lib/__tests__/gate-reachability.test.ts` added, and one assertion updated in
+`lib/__tests__/timetable-cell-info.test.ts` (inside the reviewed client delta).
 
 **Server — `ROLLOVER-YEAR-IDENTITY-C01` (`a2c5205c`), integrated by its own lane with no committed
 review verdict — this packet's opening gate (§3):** `atlas-server/src/routes/runtime.router.ts`,

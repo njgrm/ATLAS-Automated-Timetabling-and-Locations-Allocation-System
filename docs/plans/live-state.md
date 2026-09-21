@@ -35,7 +35,14 @@ and AIMS.
 ## Live release
 
 - Tailnet: `https://njgrm.buru-degree.ts.net`
-- Release SHA: `80acdc257cee613418eaa24db4607114b68c2d25`. Delta versus the previous release
+- **Release SHA: `d92facfa14b1d33b6da04f0c169cd73f7221e713`** (current, deployed 2026-09-21/22;
+  supervisor 17828; `5001`->34964; `5174`->344; `D:` 31.33 GiB; served entry `index-DgF0ZSEz.js`,
+  456,064 B). Carries `TIMETABLE-UX-REHAUL-C01R` (client) and `ROLLOVER-YEAR-IDENTITY-C01` (server,
+  whose missing review was closed by the release's opening gate before any runtime action).
+  Post-action QA `ACCEPT_READY` **7/7**, U1–U6 **6/6**, blocked 0, unperformed 0; evidence
+  `docs/reviews/release-timetable-ux-rehaul-c01r-20260921/deployment-evidence.md`. Rollback
+  `ecff1d7e` startable at `D:\ATLAS-runtime-supervised-ecff1d7e-20260921`; **not executed**.
+- (superseded) Release SHA: `80acdc257cee613418eaa24db4607114b68c2d25`. Delta versus the previous release
   `a02884ff` is exactly the three `atlas-server` paths of `ACTOR-SCHOOL-MUTATIONS-C01`
   (**client delta empty**). This is the **first server-carrying release since `4c7c0bd9`**, so it
   also carries the `DUP-READ-CALLERS-C01R` client fix.
@@ -334,12 +341,32 @@ it complete `TEST-GATE-REACHABILITY-C01` (`f4462374`) and hand it over for integ
 
 ## Lane A — current lane (written only by Lane A)
 
+**Live release is `d92facfa`** (deployed 2026-09-21/22; supervisor 17828; `5001`->34964; `5174`->344;
+entry `index-DgF0ZSEz.js`, 456,064 B; `D:` 31.33 GiB) and it is **ACCEPTED 7/7, U1–U6 6/6/0/0** by
+independent post-action QA. It carries **`TIMETABLE-UX-REHAUL-C01R`** — the relaxed Simple shell: a
+persistent sub-nav (so `/timetable/{setup,policies,runs,exports}` are reachable; they were URL-only),
+one status surface, exactly one solid primary per state, the F-07 repeated-grade removed from the
+grid cell, and one `h1` per surface. Client review `ACCEPT_READY` 18/18 (`f2ea0d4a...6d0aab46`). It
+also carries Planner B's **`ROLLOVER-YEAR-IDENTITY-C01`**, which had **no committed review verdict**;
+the release's opening gate reviewed that delta alone before any runtime action and returned
+`ACCEPT_READY` 22/22/0/0. Evidence
+`docs/reviews/release-timetable-ux-rehaul-c01r-20260921/deployment-evidence.md`. Rollback: incumbent
+`ecff1d7e` startable at `D:\ATLAS-runtime-supervised-ecff1d7e-20260921`; **not executed**. One
+authorized login for the program (`audit_logs` **862**, actor 46); the QA session logged in zero
+times. **The release queue is empty.**
+Successors recorded, not fixed: clean-load API GETs 20 vs 19 baseline; the Review-issues panel's
+uppercase `SOFT`/`HARD` badges (pre-existing); the status region still draws three visual lines
+(F-03 reduced, not a single row); sub-nav links 24 px (WCAG minimum, below the 44 px ideal); React
+Router element-less-children console warnings on `/timetable*` (pre-existing). The previously
+orphaned suites `ux-r02-simple-stripdown`, `ux-quickfix-c01-header-actions` and
+`ux-r01-shared-chrome` are now gated by the new `test:timetable-ux-rehaul` script.
+
 **Integrated:** `TEST-GATE-REACHABILITY-C01` (`f4462374`) — reviewed LOW and merged 2026-09-21
 (`atlas-server/package.json` only, 32 orphaned scripts removed). Proof of no gate loss: all 29
 referenced test files are absent, **no surviving script references a removed script name**, and
 `git diff --check` is clean.
 
-**Live release is `ecff1d7e`** (deployed 2026-09-21; supervisor 26972; `5001`->26724;
+**(superseded) Live release was `ecff1d7e`** (deployed 2026-09-21; supervisor 26972; `5001`->26724;
 `5174`->31148; entry `index-CbCvgFxw.js`, 456,046 B; `D:` 32.83 GiB) and it is **ACCEPTED 6/6/0/0**
 by independent post-action QA. It carries the units fix plus Planner B's
 `ACTOR-SCHOOL-MUTATIONS-C02` — whose missing independent review was closed by the pre-action gate
