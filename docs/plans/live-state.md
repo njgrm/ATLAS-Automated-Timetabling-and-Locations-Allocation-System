@@ -270,14 +270,13 @@ and AIMS.
 
 ## Single next action
 
-**Close the `B2` failure, then re-release.** Post-action QA on the deployed `4c7c0bd9` returned
-`CORRECTION_REQUIRED` 6/7 (1 login, `audit_logs` id 857): D1–D4, B1 and B3 pass; **B2 fails** —
-a clean `/timetable` (and `/`) load still issues **2 sequential same-epoch `/auth/me` requests**
-147 ms apart with an identical bearer, and in-flight sharing cannot coalesce a *serial*
-duplicate. Add a short-lived **per-token-epoch resolved-value memo** shared by
-`resolveActorSchoolId` and `verifySessionToken`; keep it client-only; then rebuild and re-release
-(HIGH) and re-run B2. B2's "two cards asserted mounted" sub-clause is unperformable on the live
-simple view (0 cards mount) and must be amended to record the observed mount count.
+**Part B — re-release.** The `B2` correction is accepted and integrated (`DUP-READ-CALLERS-C01R`
+Part A, candidate `360c026b`, QA `ACCEPT_READY` 5/5): a per-token-epoch resolved-value memo in
+`settings.ts` so a *serial* same-epoch `/auth/me` caller is served the value instead of
+dispatching. Build the accepted candidate into a new release under the standing authorization,
+then QA re-runs **D1–D4, B1, B2 and B3** on it — B2 is the row that failed on `4c7c0bd9`, and its
+"two cards asserted mounted" sub-clause must be resolved per the packet's §4.2 amendment (0 cards
+mount on the live simple view). One more login expected; disclose its `audit_logs` row.
 
 Then the previously queued work stands. The route split is now complete: every operator sub-page exists, the workspace stops
 remounting inside the subtree, and the whole timetable route suite runs in a committed gate.

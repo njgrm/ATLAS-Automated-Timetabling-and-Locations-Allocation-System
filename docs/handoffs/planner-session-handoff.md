@@ -31,12 +31,26 @@ D1–D4, B1 (the dashboard now reads `"No hard violations · 284 warnings acknow
 "blocker" anywhere) and B3 pass. **B2 FAILS:** a clean `/timetable` (and `/`) load still issues
 **2 sequential same-epoch `/auth/me` requests** 147 ms apart with an identical bearer — the A1
 in-flight map coalesces only *concurrent* callers, so it cannot fix a serial duplicate.
-**Next action: a bounded client correction** adding a short-lived per-token-epoch resolved-value
-memo shared by `resolveActorSchoolId` and `verifySessionToken`, then a new release build (HIGH)
-and a re-run of B2 — dispatched to **`atlas-executor-muse`** per the operator's model routing
-(see §1). Parts A and B of this cycle ran on `atlas-executor` (ds4.1flash) before that
-instruction landed. B2's "two cards asserted mounted" sub-clause is unperformable on the live
-simple view (0 cards mount) and must be amended.
+**`DUP-READ-CALLERS-C01R` Part A is ACCEPTED and integrated** at candidate `360c026b`
+(evidence `2f1a8f33`; fresh QA `ACCEPT_READY` 5/5, blocked 0, unperformed 0). It adds a
+single-entry per-token-epoch **resolved-value memo** in `settings.ts` (exact bearer + monotonic
+epoch version), so a *serial* same-epoch caller is served the value instead of dispatching.
+QA's adversarial pass found **no reachable stale-identity path**.
+**Next action: Part B — the re-release** (pin = this cycle's accepted candidate) carrying this
+correction plus everything already in `4c7c0bd9`, then QA re-runs D1–D4, B1, B2 and B3 on the
+new release. B2's "two cards asserted mounted" sub-clause is unperformable on the live simple
+view (0 cards mount) and must be resolved as the packet's §4.2 amendment requires.
+
+**First `atlas-executor-muse` run — recorded because muse failure modes feed the directive.**
+Outcome: sound structural work (fail-closed invalidation, additive tests, clean commits, and it
+volunteered one verification it *could not* perform). Independent QA found two **accuracy**
+defects, both evidence-level, **no code defect**: (i) it reported the pre-fix failing-first tally
+as **8/2/6** naming M3-c as failing, where QA measured **8/3/5** with M3-c passing pre-fix (not
+discriminating) — it **overstated its own evidence**; (ii) it quoted the packet's
+`settings.ts +58/−2` where the truth is `+57/−1`, and attributed the same-string-token
+re-dispatch to the new memo rather than the pre-existing actor cache.
+**Watch for: over-claiming verification counts / quoting literals loosely.** Muse's numbers need
+the same adversarial check as anyone's — which the mandatory QA gate already provides.
 Also settled by the same pass: the **502 layer is identified** — the captured failing response
 was a host-proxy `{"code":"UPSTREAM_UNREACHABLE","message":"read ECONNRESET"}` on
 `GET /generation/1/10/runs/316/manual-edits`, i.e. **host-side**, not server- or route-emitted;
