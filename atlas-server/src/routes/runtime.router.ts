@@ -43,6 +43,7 @@ function isPrivilegedRole(role: unknown): boolean {
  */
 function parseStrictSchoolId(raw: unknown): number | null {
 	if (raw === undefined || raw === null || raw === '') return null;
+	if (typeof raw !== 'number' && typeof raw !== 'string') return null;
 	const value = typeof raw === 'number' ? raw : Number(raw);
 	return Number.isInteger(value) && value > 0 ? value : null;
 }

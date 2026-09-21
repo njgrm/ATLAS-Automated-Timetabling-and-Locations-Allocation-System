@@ -2,9 +2,9 @@
  * ACTOR-SCHOOL-MUTATIONS-C01 — mounted mutation-route authority proof.
  *
  * The test mounts the real runtime router and real mixed system/JWT middleware.
- * Every rejected request uses a non-resolving, query-recording Prisma adapter
- * and a local upstream server. A rejection is valid only when both counters
- * stay at zero; assertions never merely claim zero dispatch.
+ * Every rejected request instruments every Prisma delegate/raw operation and a
+ * local upstream server. A rejection is valid only when both counters stay at
+ * zero; assertions never merely claim zero dispatch.
  *
  * Run: `npm run test:actor-school-mutations`
  */
@@ -38,6 +38,31 @@ type Case = {
 	route: (typeof routes)[number];
 };
 
+function instrumentPrismaDispatches(prisma: any, recorded: Array<{ model: string; operation: string }>): () => void {
+	const originals: Array<{ target: any; operation: string; original: (...args: any[]) => unknown }> = [];
+	const block = (model: string, operation: string, target: any) => {
+		const original = target[operation];
+		if (typeof original !== 'function') return;
+		originals.push({ target, operation, original });
+		target[operation] = () => {
+			recorded.push({ model, operation });
+			return new Promise<never>(() => undefined);
+		};
+	};
+
+	for (const [model, delegate] of Object.entries(prisma)) {
+		if (!model.startsWith('$') && delegate && typeof delegate === 'object') {
+			for (const operation of Object.keys(delegate)) block(model, operation, delegate);
+		}
+	}
+	for (const operation of ['$transaction', '$queryRaw', '$queryRawUnsafe', '$executeRaw', '$executeRawUnsafe']) {
+		block('prisma', operation, prisma);
+	}
+	return () => {
+		for (const { target, operation, original } of originals) target[operation] = original;
+	};
+}
+
 test('runtime mutation routes fail closed before every downstream dispatch', async () => {
 	process.env.DATABASE_URL = 'postgresql://placeholder:placeholder@127.0.0.1:1/never_used';
 	process.env.JWT_SECRET = JWT_SECRET;
@@ -48,11 +73,7 @@ test('runtime mutation routes fail closed before every downstream dispatch', asy
 	const dataContext = await import('../lib/data-context.js');
 	const runtimeRouter = (await import('../routes/runtime.router.js')).default;
 	const instrumented = prisma;
-	const originalMirrorFindUnique = prisma.enrollProSchoolYearMirror.findUnique.bind(prisma.enrollProSchoolYearMirror);
-	(prisma.enrollProSchoolYearMirror as any).findUnique = () => {
-		(globalThis as any).__actorSchoolMutationQueries.push({ model: 'enrollProSchoolYearMirror', operation: 'findUnique' });
-		return new Promise<never>(() => undefined);
-	};
+	const restorePrisma = instrumentPrismaDispatches(prisma, (globalThis as any).__actorSchoolMutationQueries);
 
 	let upstreamRequests = 0;
 	const upstream = http.createServer((_req, res) => {
@@ -111,6 +132,9 @@ test('runtime mutation routes fail closed before every downstream dispatch', asy
 			['missing', undefined],
 			['empty', ''],
 			['text', 'abc'],
+			['boolean', true],
+			['array', [1]],
+			['object', {}],
 			['zero', 0],
 			['negative', -1],
 			['fractional', 1.5],
@@ -147,7 +171,7 @@ test('runtime mutation routes fail closed before every downstream dispatch', asy
 		upstream.closeAllConnections();
 		await new Promise<void>((resolve) => server.close(() => resolve()));
 		await new Promise<void>((resolve) => upstream.close(() => resolve()));
-		(prisma.enrollProSchoolYearMirror as any).findUnique = originalMirrorFindUnique;
+		restorePrisma();
 		await instrumented.$disconnect();
 	}
 });
