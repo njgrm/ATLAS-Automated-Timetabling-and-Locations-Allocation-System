@@ -560,9 +560,12 @@ export function SimplePublishAction({
 	const reason = enabled ? null : (disabledReason ?? 'Publishing is not available for this run yet.');
 	return (
 		<GatedAction disabled={!enabled} reason={reason}>
+			{/* C01R D3 — Publish is always secondary/outline so the lifecycle
+			    primary stays the single filled action. Gating, aria-label and
+			    the dispatch guard are unchanged. */}
 			<Button
 				type="button"
-				variant={enabled ? 'default' : 'outline'}
+				variant="outline"
 				size="sm"
 				className="h-11 gap-1.5 px-3 text-sm"
 				disabled={!enabled}

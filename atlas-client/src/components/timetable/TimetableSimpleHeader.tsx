@@ -5,7 +5,6 @@ import {
 	BookOpen,
 	CalendarClock,
 	CheckCircle2,
-	ChevronDown,
 	ChevronRight,
 	ClipboardCheck,
 	History,
@@ -344,16 +343,15 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 		gateReason: capabilities.gates.publication.reason,
 	});
 	const showPublishAction = hasGeneratedRun && !isRunPublished;
-	// The dynamic primary button must never render the (possibly dead) publish
-	// task when a dedicated publish control or the published state owns that
-	// slot. All other next-step actions keep the existing primary affordance.
-	const primaryRendersPublish = activeTask
-		? activeTaskDefinition.id === 'publish'
-		: lifecycleAction.kind === 'publish';
+	// C01R D3 — the dynamic primary button renders the publish dispatch while
+	// the run is still unpublished (it is the single filled action for the
+	// publish-ready state, sharing the dedicated control's handler). It is
+	// suppressed only once publishing is done: the dedicated publish control
+	// and the published state own that slot instead.
 	const primaryIsPublished = activeTask
 		? (activeTaskDefinition.id === 'publish' && isRunPublished)
 		: lifecycleAction.kind === 'published';
-	const suppressPrimaryAction = primaryRendersPublish || primaryIsPublished;
+	const suppressPrimaryAction = primaryIsPublished;
 
 	const handlePublishClick = () => {
 		if (isRunPublished) return;
@@ -516,6 +514,13 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 
 	return (
 		<header className="shrink-0 border-b border-border bg-background" data-testid="timetable-simple-header">
+			{/* C01R D2 — one status region: the drift banner, the source/readiness
+			    row, the hidden-row controls and the NEXT STEP card render inside a
+			    single region so the header states one status surface. Disclosure
+			    stays on @/ui Popover/Tooltip; every repair action keeps its testid
+			    and dispatch. The two mutually exclusive task-prompt blocks below
+			    are the region's two states and are never collapsed into one. */}
+			<section data-testid="timetable-simple-status-region" role="region" aria-label="Timetable status">
 			{/* R6 — run input freshness, ordered-term authority, and rollover drift are
 			    visible in Simple before publish or sync, with routed repairs. */}
 			<SimpleDriftBanner
@@ -677,9 +682,10 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 					{context.hiddenRowCount > 0 && (
 						<Button
 							type="button"
-							variant={context.showFullDay ? 'default' : 'outline'}
+							variant="outline"
 							size="sm"
 							className="h-5 shrink-0 gap-1 px-1.5 text-xs sm:h-6"
+							aria-pressed={context.showFullDay}
 							onClick={() => context.setShowFullDay(!context.showFullDay)}
 							data-testid="timetable-show-full-day-toggle"
 						>
@@ -882,7 +888,6 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 						>
 							<Link to={activeTaskDefinition.href}>
 								{activeTaskDefinition.primaryLabel}
-								<ChevronDown className="size-3.5" aria-hidden="true" />
 							</Link>
 						</Button>
 					) : (
@@ -895,12 +900,12 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 							data-testid="timetable-simple-primary-action"
 						>
 							{activeTask ? activeTaskDefinition.primaryLabel : lifecycleAction.label}
-							<ChevronDown className="size-3.5" aria-hidden="true" />
 						</Button>
 					)}
 				</div>
 			</div>
 			)}
+			</section>
 
 			<SimplePublishReadinessSheet
 				open={readinessSheetOpen}

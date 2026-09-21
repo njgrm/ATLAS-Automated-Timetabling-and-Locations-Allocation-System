@@ -33,7 +33,7 @@ test('every file named in a test:* script exists', () => {
 	const named = new Map<string, string[]>();
 	for (const [name, command] of Object.entries(scripts)) {
 		if (!name.startsWith('test:')) continue;
-		const paths = command.match(/src\/[\w./-]+\.ts/g) ?? [];
+		const paths = command.match(/src\/[\w./-]+\.tsx?/g) ?? [];
 		if (paths.length > 0) named.set(name, paths);
 	}
 

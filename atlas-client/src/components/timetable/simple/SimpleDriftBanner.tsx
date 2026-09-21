@@ -157,7 +157,7 @@ export function SimpleDriftBanner({
 							variant="outline"
 							size="sm"
 							disabled
-							title={repairGate.reason ?? undefined}
+							aria-label={repairGate.reason ? `Repair setup — ${repairGate.reason}` : 'Repair setup'}
 							className="h-7 shrink-0 gap-1 border-amber-300 px-2 text-xs font-semibold text-amber-900"
 							data-testid="timetable-simple-repair-disabled"
 						>

@@ -101,6 +101,23 @@ const ConflictBadgeWithTooltip = memo(function ConflictBadgeWithTooltip({
 	);
 });
 
+/**
+ * C01R D4 — cell density (packet F-07). The room short label already carries
+ * the grade (`G7 Room 101 · G7`) and so does the section code (`G7AW`), so a
+ * `section · room` cell read `G7AW · G7 Room 101 · G7` with the grade three
+ * times. Strip the room's repeated grade token only when the displayed section
+ * code carries that same grade; otherwise return the room label untouched so
+ * no information is ever dropped (section-pivot cells keep the full room).
+ */
+export function dedupeCellGradeRepetition(roomText: string, sectionText: string | null): string {
+	if (!sectionText) return roomText;
+	const token = sectionText.match(/^G\d+/)?.[0];
+	if (!token) return roomText;
+	return roomText
+		.replace(new RegExp(`^${token}\\s+`), '')
+		.replace(new RegExp(`\\s*·\\s*${token}$`), '');
+}
+
 interface GridCellProps {
 	cellId: string;
 	day: string;
@@ -541,19 +558,34 @@ const GridCell = memo(function GridCell({
 									detailsText = showTeacherDetails ? `${teacherText} · ${roomText}` : roomText;
 								} else if (viewMode === 'faculty') {
 									// Faculty is the pivot row; the cell names section + room.
+									// C01R D4 — the room's repeated grade token is display-only
+									// deduped; the full string stays behind the Tooltip.
 									detailsText = `${sectionText} · ${roomText}`;
 								} else if (viewMode === 'room') {
 									detailsText = `${sectionText} · ${teacherText}`;
 								}
+								const fullDetailsText = detailsText;
+								const displayDetailsText = viewMode === 'faculty'
+									? `${sectionText} · ${dedupeCellGradeRepetition(roomText, sectionText)}`
+									: detailsText;
 								return (
-									<p
-										className="truncate text-xs font-medium text-muted-foreground/80 mt-0.5"
-										data-testid="timetable-cell-detail"
-										data-cell-term={entry.termIndex ?? ''}
-										data-cell-teacher={teacherText}
-									>
-										{detailsText}
-									</p>
+									<TooltipProvider delayDuration={300}>
+										<Tooltip>
+											<TooltipTrigger asChild>
+												<p
+													className="truncate text-xs font-medium text-muted-foreground/80 mt-0.5"
+													data-testid="timetable-cell-detail"
+													data-cell-term={entry.termIndex ?? ''}
+													data-cell-teacher={teacherText}
+												>
+													{displayDetailsText}
+												</p>
+											</TooltipTrigger>
+											<TooltipContent side="bottom" className="max-w-xs" data-testid="timetable-cell-detail-full">
+												<p>{fullDetailsText}</p>
+											</TooltipContent>
+										</Tooltip>
+									</TooltipProvider>
 								);
 							})()}
 						</DraggableEntry>
