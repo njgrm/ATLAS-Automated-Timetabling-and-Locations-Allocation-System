@@ -13,6 +13,14 @@ Last updated: 2026-09-21, after Lane B's first checkpoint.
 
 ## 0. How to resume — read in this order
 
+**Two traps a fresh session will hit immediately.**
+1. **`D:\ATLAS` is a stale, dirty checkout** (hundreds of modified files, `main` far behind
+   `origin/main`). It is historical and **never an integration boundary**. Do not read state
+   from it, do not commit in it, and do not try to clean it. Work in `E:/ATLAS-worktrees/`.
+2. **Two planner worktrees in the registry are not yours** — `D:/ATLAS-worktrees/planner-tt-tl-modules-c04r1`
+   (`ab75c131`) and `E:/ATLAS-worktrees/planner-c06b-closure` (`dc3613eb`). They belong to
+   earlier sessions. Leave them alone; §3 says preserve an uncertain owner.
+
 1. **This file.**
 2. **`AGENTS.md`** — the authority. It now points to two reference docs it did not before:
    `docs/reference/agent-runtime-deploy-facts.md` (read before any deployment/runtime/task/env
@@ -75,9 +83,10 @@ and the proxy is healthy. The superseded `ENROLLPRO-PROXY-RECOVERY-LIVE` packet 
 
 ## 4. In flight / open
 
-- **`callers` one-shot — the next action.** Worktree `E:/ATLAS-worktrees/planner-callers-20260921`
-  exists with **nothing written**. Fix the three named duplicate-read callers (diagnosis at
-  `docs/reviews/dup-read-diagnosis-c01/findings.md`):
+- **`callers` one-shot — the next action.** Its worktree was **retired** at the end of the
+  previous session with nothing written, so create a fresh one (`git worktree add
+  E:/ATLAS-worktrees/<stream> -b work/<stream> origin/main`). Fix the three named duplicate-read
+  callers (diagnosis at `docs/reviews/dup-read-diagnosis-c01/findings.md`):
   1. `atlas-client/src/lib/settings.ts` — `resolveActorSchoolId` has no in-flight sharing
      (`/auth/me` races).
   2. `atlas-client/src/lib/enrollpro-public-settings.ts` — `forceRefresh` bypasses its own
