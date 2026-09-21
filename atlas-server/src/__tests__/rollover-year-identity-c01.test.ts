@@ -55,6 +55,7 @@ async function startServer(app: http.RequestListener): Promise<{ server: http.Se
 test('mounted rollover routes gate identity, suppress invalid follow-ons, preserve valid counts, and enforce actor school', async () => {
 	process.env.JWT_SECRET = JWT_SECRET;
 	process.env.ATLAS_SYSTEM_TOKEN = SYSTEM_TOKEN;
+	process.env.DATABASE_URL = 'postgresql://poison:poison@127.0.0.1:1/never_used';
 	let resolveActiveYear = true;
 	const upstream = await startServer((_req, res) => {
 		res.setHeader('content-type', 'application/json');
