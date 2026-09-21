@@ -123,10 +123,44 @@ file — hence `AGENTS.md` §15's dated-blocker rule. **Read the newest dated ha
 - Removal instruction for the stray clone `E:/ATLAS-worktrees/c01r-release-20260921` (~1 GiB).
 - Nothing else is blocked on the operator: the release queue is empty and the next action is ours.
 
+## Owned program I had lost track of — `UX-REHAUL-C01` (read this before planning UI work)
+
+**The Timetable relaxed-view rehaul is a real, planned, unstarted program.** Its spec is
+`docs/handoffs/ux-rehaul-handoff.md` (2026-09-18, 241 lines) plus the audit
+`docs/reviews/ux-audit-c01/atlas-timetable-relaxed-view-audit.md`. It was **not** linked from this
+handoff, so a session resumed from here would not know it exists — that is why it stalled. Fix the
+link, not just the stream.
+
+**Status:** `UX-P01` (the data-layer prerequisite: TanStack Query, parallel fetches, prefetch,
+`keepPreviousData`) and `UX-R06` (micro-copy) are **integrated**. The rehaul proper — `UX-R00`
+(register + SMART baseline), `UX-R01` (PageHeader + breadcrumbs + tokens), `UX-R01a` (shared visual
+language), `UX-R02` (Simple strip-down), `UX-R03` (nested layout route), `UX-R04` (move
+admin/diagnostics off the operator surface), `UX-R05` (Advanced demotion to "Expert") — is
+**unstarted**.
+
+**Operator directives already recorded in that handoff (authoritative):** desktop-first; mobile
+de-prioritised; **Advanced view is not rehauled — demote it, don't fix it**; build on **Simple**;
+**navigation must not get slower**; ATLAS must read as one system with SMART/EnrollPro. Boundaries:
+client source only, no-scroll architecture, shadcn/Radix only, the 1000-line cap (three hooks
+already exceed it and need extraction as they are touched), companion repos READ_ONLY.
+
+**Still-open decisions from that handoff, re-checked 2026-09-21:** D-1 (adopt/refresh
+`SMART-UX-AUDIT-C01` as the UX authority) — **still open**; D-3 (authorise `UX-P01`) — **resolved,
+it is integrated**; D-4 (deploy `74c1f12a`) — **superseded**, many releases since; D-6 (is run #316
+showing warnings) — **answered: 94 warnings, TERM-2 scoped, zero HARD**; D-2 (cycle activation) and
+D-5 (second login for the remaining inventory rows) — **still open**.
+
 ## Next action
 
 **The release queue is empty and `ecff1d7e` is accepted 6/6 — pick the next real lane.** Ranked,
 from `docs/handoffs/planner-handoff-2026-09-20.md` §8 (reconcile it first — `AGENTS.md` §15):
+
+0. **`UX-REHAUL-C01` — start it.** The operator asked for it directly on 2026-09-21 and it is the
+   largest visible gap in the demo objective. Prerequisites are done; see the dedicated section
+   above. Author the next stream's packet from `docs/handoffs/ux-rehaul-handoff.md` + the audit,
+   then dispatch. `UX-R01` (PageHeader + breadcrumbs + tokens) is the visible foundation, `UX-R02`
+   (Simple strip-down) and `UX-R03` (nested layout route, unblocked because `UX-P01` landed) are
+   the visible wins; only `UX-R01a`/`UX-R00` genuinely need D-1.
 
 **Verified fixed — do not spend a lane on it:** the public published-view ×3 term duplication. A
 live read-only probe on 2026-09-21 returns **920 entries for exactly one term** (never 2,760), and
