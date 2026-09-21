@@ -135,11 +135,11 @@ test('runtime mutation routes fail closed before every downstream dispatch', asy
 			assert.equal(upstreamRequests, beforeUpstream, `${testCase.label}: dispatched upstream work`);
 		}
 
-		const systemResponse = await post('/rollover-sync/preview', routeBody(1), SYSTEM_TOKEN);
+		const systemResponse = await post('/rollover-recovery/mark-test-data', routeBody(1), SYSTEM_TOKEN);
 		assert.notEqual(systemResponse.status, 400, 'system caller with explicit school passes target-school validation');
 		assert.notEqual(systemResponse.status, 403, 'system caller with explicit school passes actor-school validation');
 		assert.ok(upstreamRequests > 0 || (globalThis as any).__actorSchoolMutationQueries.length > 0, 'system caller reaches real route work after authorization');
-		const sameSchoolResponse = await post('/rollover-sync/preview', routeBody(1), privileged);
+		const sameSchoolResponse = await post('/rollover-recovery/mark-test-data', routeBody(1), privileged);
 		assert.notEqual(sameSchoolResponse.status, 400, 'same-school JWT passes target-school validation');
 		assert.notEqual(sameSchoolResponse.status, 403, 'same-school JWT passes actor-school validation');
 	} finally {
