@@ -122,7 +122,7 @@ test('missing EnrollPro year/terms => Year Setup repair (never publish, never re
 		missingCoverageSubjectIds: null,
 		buildingsDone: true,
 		latestRunStatus: 'NONE',
-		violationCount: null,
+		hardViolationCount: null, softViolationCount: null,
 		derivedDemand: {
 			available: true,
 			ready: false,
@@ -152,7 +152,7 @@ test('subject metadata exception => Subjects repair naming the subject (never pu
 		missingCoverageSubjectIds: [],
 		buildingsDone: true,
 		latestRunStatus: 'NONE',
-		violationCount: null,
+		hardViolationCount: null, softViolationCount: null,
 		derivedDemand: {
 			available: true,
 			ready: false,
@@ -183,7 +183,7 @@ test('degraded snapshot => recheck action (never publish)', () => {
 		missingCoverageSubjectIds: [],
 		buildingsDone: true,
 		latestRunStatus: 'COMPLETED',
-		violationCount: 0,
+		hardViolationCount: 0, softViolationCount: null,
 		derivedDemand: null,
 		degraded: true,
 	});
@@ -201,7 +201,7 @@ test('published phase => single published next action', () => {
 		missingCoverageSubjectIds: [],
 		buildingsDone: true,
 		latestRunStatus: 'COMPLETED',
-		violationCount: 0,
+		hardViolationCount: 0, softViolationCount: null,
 		derivedDemand: null,
 		degraded: false,
 	});
@@ -222,7 +222,7 @@ test('F1: setup phase with every setup input satisfied => readiness check, never
 		missingCoverageSubjectIds: [],
 		buildingsDone: true,
 		latestRunStatus: 'NONE',
-		violationCount: null,
+		hardViolationCount: null, softViolationCount: null,
 		derivedDemand: null,
 		degraded: false,
 	});
@@ -241,7 +241,7 @@ test('review with violations => audit action with blocker count', () => {
 		missingCoverageSubjectIds: [],
 		buildingsDone: true,
 		latestRunStatus: 'COMPLETED',
-		violationCount: 3,
+		hardViolationCount: 3, softViolationCount: null,
 		derivedDemand: null,
 		degraded: false,
 	});
@@ -275,7 +275,7 @@ function preferencesNext(derivedDemand: typeof READY_DERIVED | null) {
 		missingCoverageSubjectIds: [],
 		buildingsDone: true,
 		latestRunStatus: 'NONE',
-		violationCount: null,
+		hardViolationCount: null, softViolationCount: null,
 		derivedDemand,
 		degraded: false,
 	});
