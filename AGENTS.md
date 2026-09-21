@@ -156,6 +156,7 @@ Classify by behaviour and authority, not ease of rollback. User-facing or produc
 - **A bounded correction does not require a full re-review.** Review the *new commit and its blast radius*, not the whole range again — while proving the prior accepted commits remain ancestors, unchanged reviewed paths retain their accepted blobs, and one relevant preservation control passes.
 - **Checkpoint large cycles.** Commit a coherent candidate every 45–60 minutes so a step limit resumes from a checkpoint instead of reconstructing the cycle.
 - **One writer per stream.** Before dispatch the planner names the stream owner and worktree; no second planner or agent writes there until the owner releases it. Two planners on one stream is a custody defect, not parallelism.
+- **A release must not ship source that no independent reviewer has seen.** A lane that implements *and integrates* its own work leaves the next consumer holding unreviewed production behaviour. When a release would carry such a delta, its packet opens with a review gate for **that delta alone** — one fresh reviewer, the source range and the packet lint in the same pass — and the deployment must not execute on `CORRECTION_REQUIRED`. Precedent: an actor-school residual lane was merged with no committed review evidence; the release packet that would have deployed it carried that review as a gate, and the reviewer reproduced a failing-first control before the deployment ran.
 
 ### Gates that have actually caught defects — keep these
 
@@ -200,6 +201,8 @@ Maintain **one short file** — `docs/plans/live-state.md` — updated **only wh
 Do not maintain a per-transition register, state machine, lease table, or receipt chain. Git history plus this one file are the continuity record: if a session dies, these and the branches are enough to resume.
 
 **Date every blocker and every "not done" claim, and name what proves it.** An undated "still pending" line is a premise error waiting to happen: on 2026-09-21 a session spent a packet, an independent review and an executor dispatch on a term-cache apply that had already been satisfied three days earlier, because the line saying it was unbound carried no date and contradicted a zero-HARD published run recorded elsewhere in the same file. **Reconcile the whole file — or the newest dated handoff — before acting on any blocker line.**
+
+**If more than one lane co-maintains this file, partition it into lane-owned sections** and edit only your own — plus the live-release block when you deploy. Disjoint regions merge cleanly, so two planners can work in parallel without a custody defect; a second writer inside your section is one.
 
 ---
 

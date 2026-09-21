@@ -42,6 +42,13 @@ integration boundary**. `fatal: Not a valid object name` means the work is not i
 repo — stop and transport it (`git fetch <clone-path> <branch>`) before integrating, never merge
 a same-named branch on trust.
 
+**Executors usually cannot create a worktree.** Measured 2026-09-21: the executor harness denies
+`git worktree add` and `git worktree remove`. The **planner provisions** the executor's registered
+worktree — and the release directory — before dispatch, and hands over the exact path. An executor
+that finds no provisioned path must report `BLOCKED(environment)` and change nothing; inventing a
+path or a SHA is the failure this rule exists to prevent. Conversely, never assume a worktree you
+retired earlier still exists: re-check before naming it in a dispatch.
+
 ## Disposition
 
 Every handoff states one: `KEEP_ACTIVE`, `RETIRE_AFTER_INTEGRATION`, or
