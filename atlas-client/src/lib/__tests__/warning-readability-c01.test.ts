@@ -10,6 +10,7 @@ import { ViolationGroup } from '../../components/timetable/TimetableShared';
 import { resolveWarningPanelSizing } from '../../components/timetable/ViolationsSidebar';
 import {
 	VIOLATION_PRESENTATION,
+	formatIdentityFallbackText,
 	formatWarningMessageText,
 	getViolationPresentation,
 	sortViolationGroupsHardFirst,
@@ -161,4 +162,82 @@ test('R2/tooltip: the constraint-context tooltip uses full words, not abbreviati
 	assert.doesNotMatch(shared, /Building trans/);
 	assert.doesNotMatch(shared, /(\d|\}) min[ ·<]/);
 	assert.match(shared, /minutes/);
+});
+
+// WARNING-READABILITY-C01-R1 (F1): the drawer rendered violation.message
+// verbatim, so a realistic validator string reached the operator unchanged.
+// This control fails if any raw id, bare unit, or shouted day survives.
+const RAW_VALIDATOR_MESSAGE = 'Faculty 16 has 101 min idle gaps on MONDAY, exceeds limit of 120 min.';
+const FACULTY_ID_PATTERN = /\bFaculty\s+#?\d+\b/;
+const BARE_MIN_PATTERN = /\d+\s*min(?!utes)\b/;
+const BARE_HOUR_PATTERN = /\d+\s*h(?!ours)\b/;
+const SHOUTED_DAY_PATTERN = /\b(MONDAY|TUESDAY|WEDNESDAY|THURSDAY|FRIDAY|SATURDAY|SUNDAY)\b/;
+
+/** Operator-visible "What happened" paragraph of a rendered drawer. */
+function whatHappenedText(drawerMarkup: string): string {
+	const match = drawerMarkup.match(/What happened<\/h4>\s*<p[^>]*>(.*?)<\/p>/s);
+	assert.ok(match, 'drawer must render a "What happened" paragraph');
+	return match[1];
+}
+
+/** Tag-stripped operator-visible text (attributes such as Tailwind class names excluded). */
+function drawerText(drawerMarkup: string): string {
+	return drawerMarkup.replace(/<style[\s\S]*?<\/style>/g, ' ').replace(/<[^>]*>/g, ' ');
+}
+
+test('R2/drawer: the explainability drawer formats raw validator wording (F1)', () => {
+	// Mutant control: the raw validator string WOULD fail this gate, so the
+	// assertions below discriminate — they pass only because the drawer
+	// formats before rendering.
+	assert.match(RAW_VALIDATOR_MESSAGE, FACULTY_ID_PATTERN);
+	assert.match(RAW_VALIDATOR_MESSAGE, BARE_MIN_PATTERN);
+	assert.match(RAW_VALIDATOR_MESSAGE, SHOUTED_DAY_PATTERN);
+	const item = violation('FACULTY_EXCESSIVE_IDLE_GAP', RAW_VALIDATOR_MESSAGE);
+	const drawer = renderToStaticMarkup(createElement(ExplainabilityDrawer, { open: true, onClose: () => {}, violation: item }));
+	// NOTE: assertions run against the operator-visible "What happened" text,
+	// not the raw markup — Tailwind class names in attributes (e.g. `flex-1
+	// min-h-0`) legitimately contain digit+`min` sequences.
+	const happened = whatHappenedText(drawer);
+	assert.doesNotMatch(happened, FACULTY_ID_PATTERN, 'drawer must not leak Faculty ids');
+	assert.doesNotMatch(happened, BARE_MIN_PATTERN, 'drawer must expand bare min');
+	assert.doesNotMatch(happened, BARE_HOUR_PATTERN, 'drawer must expand bare h');
+	assert.doesNotMatch(happened, SHOUTED_DAY_PATTERN, 'drawer must not shout weekdays');
+	assert.match(happened, /this teacher/, 'drawer falls back to plain words without a map');
+	assert.match(happened, /101 minutes/, 'drawer expands the observed gap');
+	assert.match(happened, /on Monday/, 'drawer title-cases the day');
+	assert.doesNotMatch(drawerText(drawer), FACULTY_ID_PATTERN, 'no Faculty id anywhere in drawer text');
+});
+
+test('R2/drawer-formatter: a caller-supplied map-backed formatter reaches drawer text (F1)', () => {
+	const item = violation('FACULTY_EXCESSIVE_IDLE_GAP', RAW_VALIDATOR_MESSAGE);
+	// Production-like: the workspace resolves the known teacher id to a name
+	// before units/days are normalized.
+	const productionLike = (message: string): string =>
+		formatWarningMessageText(message.replace(/\bFaculty\s+#?16\b/gi, 'Dela Cruz, Maria'));
+	const drawer = renderToStaticMarkup(createElement(ExplainabilityDrawer, {
+		open: true,
+		onClose: () => {},
+		violation: item,
+		formatMessage: productionLike,
+	}));
+	const happened = whatHappenedText(drawer);
+	assert.match(happened, /Dela Cruz, Maria/, 'drawer shows the resolved teacher name');
+	assert.doesNotMatch(happened, FACULTY_ID_PATTERN, 'drawer must not leak Faculty ids');
+	assert.doesNotMatch(happened, BARE_MIN_PATTERN, 'drawer must expand bare min');
+	assert.doesNotMatch(happened, SHOUTED_DAY_PATTERN, 'drawer must not shout weekdays');
+});
+
+test('R2/drawer-fallback-units: the map-less identity fallback preserves unit/day formatting (F1)', () => {
+	const formatted = formatWarningMessageText(formatIdentityFallbackText(RAW_VALIDATOR_MESSAGE));
+	assert.equal(formatted, 'this teacher has 101 minutes idle gaps on Monday, exceeds limit of 120 minutes.');
+});
+
+test('R2/siblings: every operator surface that renders a violation message formats it (F1)', () => {
+	const drawerSrc = readFileSync(resolve(clientRoot, 'src/components/ExplainabilityDrawer.tsx'), 'utf8');
+	assert.doesNotMatch(drawerSrc, /\{violation\.message\}/, 'drawer must not render the raw message');
+	const overlaysSrc = readFileSync(resolve(clientRoot, 'src/components/timetable/ScheduleReviewWorkspaceOverlays.tsx'), 'utf8');
+	assert.match(overlaysSrc, /formatDrawerMessage/, 'overlays must pass the map-backed formatter to the drawer');
+	const manualSrc = readFileSync(resolve(clientRoot, 'src/components/ManualEditPanel.tsx'), 'utf8');
+	assert.doesNotMatch(manualSrc, /\{v\.message\}/, 'manual-edit panel must not render the raw message');
+	assert.match(manualSrc, /formatPanelViolationMessage/, 'manual-edit panel must format violation messages');
 });

@@ -64,6 +64,25 @@ export function formatWarningMessageText(message: string): string {
 }
 
 /**
+ * WARNING-READABILITY-C01-R1 (F1): map-less identity fallback for operator
+ * surfaces that render a raw validator message without reference maps (the
+ * explainability drawer default, the manual-edit panel). Where lookup maps
+ * exist, callers resolve known ids to names FIRST (see
+ * useTimetableLookupHelpers.formatConstraintMessage and the rail formatter);
+ * this only guarantees that no `Faculty 16`-style raw id ever reaches
+ * operator-visible text. It must stay separate from
+ * formatWarningMessageText so the map-backed paths keep resolving real
+ * names instead of degrading to the fallback.
+ */
+export function formatIdentityFallbackText(message: string): string {
+	return message
+		.replace(/\bfaculty\s+#?\d+\b/gi, 'this teacher')
+		.replace(/\bsubject\s+#?\d+\b/gi, 'this subject')
+		.replace(/\bsection\s+#?\d+\b/gi, 'this section')
+		.replace(/\broom\s+#?\d+\b/gi, 'this room');
+}
+
+/**
  * WARNING-READABILITY-C01 (R7): order warning groups so HARD blockers lead
  * and soft comfort metrics never visually compete with them. Stable: groups
  * of equal severity keep their incoming order.
