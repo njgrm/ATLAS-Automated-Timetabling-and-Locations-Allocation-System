@@ -4,9 +4,8 @@ Current operational truth only. Git history and handoff documents retain older
 evidence. Update this file when a live fact, blocking decision, or next action
 changes.
 
-Last verified: 2026-09-21 (planner closure of `DUP-READ-CALLERS-C01` and the worktree
-reclaim; live release `434b2a81` unchanged — the new client source is integrated but
-**not deployed**)
+Last verified: 2026-09-21 (planner, during `DASHBOARD-TRUTH-C01`; release `4c7c0bd9`
+**deployed**, executor rows D1–D4 4/4 — **acceptance incomplete**, post-action QA pending)
 
 ## Objective
 
@@ -19,9 +18,19 @@ and AIMS.
 ## Live release
 
 - Tailnet: `https://njgrm.buru-degree.ts.net`
-- Release SHA: `434b2a81`
-- Supervisor: PID 87396; server `5001 -> 74212`; client `5174 -> 90380`
-- Active directory: `D:\ATLAS-runtime-supervised-434b2a81-20260921`
+- Release SHA: `4c7c0bd9` (product commit `2a6cb06d`; every commit above it is docs-only, proven
+  by an empty product-tree diff)
+- Supervisor: PID 102800; server `5001 -> 102964`; client `5174 -> 87184`
+- Active directory: `D:\ATLAS-runtime-supervised-4c7c0bd9-20260921`
+- Served client entry chunk: `/assets/index-zIp12x6H.js` (incumbent was `index-BMgoX99N.js`)
+- Deployed 2026-09-21 by the `DASHBOARD-TRUTH-C01` one-shot (Part B). This release carries the
+  dashboard blocker-truth fix **and** the previously undeployed `DUP-READ-CALLERS-C01` dedup
+  fix. The executor verified deployment rows D1–D4 4/4; the **single authorized login is
+  unspent** and the browser rows are **not yet run**, so the deployment is `DEPLOYED` while
+  acceptance is **incomplete** — do not call this cycle done.
+- Incumbent `434b2a81` rollback: its task XML was captured before mutation
+  (`%TEMP%\opencode\atlas-runtime-434b2a81-rollback.xml`) with both machine-scope values;
+  rollback basis `5f5c6c4f` remains startable. Rollback was **not** executed.
 - Deployed 2026-09-21 by the `UX-R03e` one-shot, which added the last two operator
   sub-pages: `/timetable/runs` (a read-only run history composed from the existing
   `GET /api/v1/generation/:schoolId/:schoolYearId/runs` endpoint, selecting through the
@@ -250,11 +259,15 @@ and AIMS.
 
 ## Single next action
 
-The `D:` capacity gate that deferred the deployment is **cleared** (40.76 GiB free). Fold the
-accepted `DUP-READ-CALLERS-C01` client fix — together with the open dashboard tile-truth
-issue — into one release under the standing authorization: one packet, one executor Part A,
-one release build (Part B), one fresh independent QA holding browser custody, and the deferred
-browser rows B1/B2 for the dedup fix. Deployment remains a HIGH action with its own gates.
+**Post-action QA on the deployed release `4c7c0bd9`, with browser custody.** One fresh
+independent QA task reproduces deployment rows D1–D4 and runs the three browser rows:
+B1 dashboard truth on `/` (no "review blockers" on a zero-HARD run), B2 the deferred
+`DUP-READ-CALLERS-C01` request counts on `/timetable` (`/auth/me` 1 per epoch,
+`runtime/context` ≤2, `rollover-status` 1 with two cards asserted mounted), B3 no regression at
+1366×768 against the named incumbent console baseline — plus observations O1 (the 502 lead's
+exact response) and O2 (the external duplicate baseline). One authorized login, read-only, no
+timetable cell click; disclose the `audit_logs` row. The cycle closes only on a real
+`passed/blocked/unperformed` tally.
 
 Then the previously queued work stands. The route split is now complete: every operator sub-page exists, the workspace stops
 remounting inside the subtree, and the whole timetable route suite runs in a committed gate.

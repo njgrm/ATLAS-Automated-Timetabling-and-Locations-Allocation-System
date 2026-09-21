@@ -5,9 +5,8 @@ planner writes and phrases it; the kickoff line below never changes. Updating it
 deliberate and cheap (~1–2k tokens): it makes any turn boundary a safe session boundary. The
 *decision* to actually start fresh stays conditional — take it at a real lane boundary, before
 a HIGH action, or once a compaction would cost more than a restart.
-Last updated: 2026-09-21. `DUP-READ-CALLERS-C01` is accepted and integrated and **not yet
-deployed**. The worktree reclaim cleared the `D:` capacity blocker (`D:` 15.81 → 40.76 GiB;
-worktrees 112 → 57) and the operator kept the runtime trees protected.
+Last updated: 2026-09-21. The worktree reclaim cleared the `D:` capacity blocker (`D:`
+15.81 → 40.76 GiB; worktrees 112 → 57) and the operator kept the runtime trees protected.
 
 **`DASHBOARD-TRUTH-C01` Part A is ACCEPTED and integrated** at candidate `2a6cb06d` (evidence
 `5c318e1f`; fresh QA `ACCEPT_READY` 5/5, blocked 0, unperformed 0). Packet
@@ -19,9 +18,17 @@ HARD+SOFT with no `totalCount`, so `activeTermHardViolationCount` was **not** ha
 `counts.runWide.blockingHard` → `counts.runWide.hard`. Worktree
 `E:/ATLAS-worktrees/dashboard-truth-c01` is `KEEP_ACTIVE` until closure.
 
-**Next action: Part B — the release build** carrying both this fix and the undeployed
-`DUP-READ-CALLERS-C01` fix, then browser custody to QA for rows B1–B3. Deployment remains a
-separate HIGH action under the standing authorization (no round-trip, all gates retained). **Accepted and integrated** at
+**Part B is DEPLOYED and executor-verified**: pin `4c7c0bd9`, release
+`D:\ATLAS-runtime-supervised-4c7c0bd9-20260921`, supervisor 102800, `5001`→102964,
+`5174`→87184, served entry `index-zIp12x6H.js`; rows **D1–D4 4/4 PASS**; `D:` 39.73 → 38.82 GiB.
+Two deviations recorded in the evidence: dependency trees were **copied** from the junction-free
+incumbent (the harness deny-list blocks `npm ci`), and the packet's XML-encoding hazard is
+**inverted** on this host (preserving `encoding="UTF-16"` registers cleanly). The single
+authorized login is **unspent**.
+**Next action: post-action QA with browser custody** — reproduce D1–D4 and run B1–B3 (dashboard
+truth; `/auth/me` 1 per epoch, `runtime/context` ≤2, `rollover-status` 1 with two cards
+asserted mounted; no regression at 1366×768) plus observations O1/O2. **The cycle is not done**
+until that tally returns `passed == total, blocked 0, unperformed 0`. **Accepted and integrated** at
 `6949e3d4`: fresh QA `ACCEPT_READY` 5/5, blocked 0, unperformed 0 over `ccf31e77...6949e3d4`
 (source blob-identical to candidate `ce0e54ec`; test files added, none deleted). S5's initial
 `BLOCKED` was an incomplete worktree dependency tree — fixed by removing the junction safely
@@ -65,9 +72,12 @@ put the unaccepted candidate on `main` before acceptance — see §5.
 
 ## 1. What is live right now
 
-- Release **`434b2a81`** at `D:\ATLAS-runtime-supervised-434b2a81-20260921`; supervisor 87396;
-  `5001`→74212; `5174`→90380; served entry `index-BMgoX99N.js`; Tailnet healthy.
-- Rollback basis **`5f5c6c4f`** (startable, junction-free, task-XML capture retained).
+- Release **`4c7c0bd9`** at `D:\ATLAS-runtime-supervised-4c7c0bd9-20260921`; supervisor 102800;
+  `5001`→102964; `5174`→87184; served entry `/assets/index-zIp12x6H.js`; Tailnet healthy.
+  It carries the dashboard blocker-truth fix and the `DUP-READ-CALLERS-C01` dedup fix.
+- Rollback: incumbent `434b2a81` task XML captured at
+  `%TEMP%\opencode\atlas-runtime-434b2a81-rollback.xml`; rollback basis **`5f5c6c4f`**
+  (startable, junction-free). Rollback was not executed.
 - **Budget:** `monthly 41% · weekly 3% · rolling 7%`. The DeepSeek V4.1 Flash **x4 promo was
   extended to Sep 27** (verified on the docs page, updated Sep 21) — so `atlas-qa` (ds4.1flash)
   stays cheaper than `dsflashv4` at identical token rates. Report the budget every turn.
