@@ -128,3 +128,32 @@ browser evidence is **mandatory**, with a `window.location.origin` assertion, at
 desktop `1366x768` and mobile `390x844`. The evidence must include the rendered
 warning list for a run with real violations. Read-only; do not press
 Generate/Publish/Apply.
+
+## 6. r1 amendment (planner, 2026-09-21) — this supersedes §5 and re-bases the packet
+
+**Satisfiability defect found at the pre-action lint.** §5 makes live Tailnet browser evidence
+mandatory while §3 forbids deployment. The deployed bundle cannot contain an undeployed source
+change, so that row is **undecidable inside this cycle** — `AGENTS.md` §11: a row needing a browser,
+a login or a deployed build is a **deployment-acceptance clause**, not a source row. Corrected:
+
+- **This cycle delivers the source rows only**: R1–R7 as production paths, decided by the eight §2
+  controls in an isolated build. **No deployment, no login, no browser.**
+- **The §5 browser row is `DEFERRED(DEPLOYMENT_ACCEPTANCE)`** and must be re-run at `1366x768` and
+  `390x844` with the `window.location.origin` assertion by the release cycle that carries this
+  change. Report it as `DEFERRED` with that reason — never as "not applicable", and never as
+  passed.
+
+**Re-base.** The packet's base `49c69af5` is stale; `main` has moved a long way. **Branch from
+current `origin/main` and re-locate every source reference** — the line numbers and the `~46`
+code count in §0/§1 are from 2026-09-19 and must not be trusted. **Enumerate the live
+`VIOLATION_CODES` set and report the true count** in your return.
+
+**Writable files — ownership is by file (two planner lanes are active).** This lane may touch
+`atlas-server/src/services/constraint-validator.ts` and the client warning-presentation files it
+names in its return. It must **not** touch `atlas-server/src/routes/runtime.router.ts` (another
+lane is live in that file), `atlas-server/package.json` (unless adding a script entry for a new
+test — name it in the return), `docs/plans/live-state.md`, the machine register, or `CHANGELOG.md`.
+
+**Worktree.** `E:/ATLAS-worktrees/warning-readability-c01` on `work/warning-readability-c01`,
+**planner-provisioned and already fast-forwarded to the current base** — do not re-create it, do
+not re-point the branch, and commit additively on top of what is there.
