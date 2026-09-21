@@ -340,6 +340,17 @@ referenced test files are absent, **no surviving script references a removed scr
 `git diff --check` is clean. The release queue stays empty (this is test-script hygiene, not a
 release delta).
 
+**Integrated: `WARNING-READABILITY-C01`** (`b6b4033f` + correction `f13d4cb9`) — merged 2026-09-21.
+Source only: every one of the **25** live `VIOLATION_CODES` (the packet's `~46` was stale) now has
+operator-facing copy, and the raw-code/bare-number leaks are closed on the real surfaces — the
+review found `ExplainabilityDrawer` rendering `{violation.message}` verbatim, and the correction
+also caught `ManualEditPanel` doing the same. Two client/server test files are now gated by
+committed `package.json` scripts. **This change is NOT deployed**, so the packet's §5 browser row
+is carried as **`DEFERRED(DEPLOYMENT_ACCEPTANCE)`** and must be run at `1366x768` and `390x844`
+with the `window.location.origin` assertion by the next release that carries it. Note the packet's
+premise was partly stale: R3/R4/R5 and R6's floor fix were already satisfied by earlier cycles and
+were verified, not redone.
+
 **The generation/publication core is already met — do not chase the term-cache apply.** Corrected
 2026-09-21 after a wasted cycle: the active year's ordered-term cache was **applied on
 2026-09-18** (mirror **551**, `termContractCachedAt 2026-09-18T04:51:01.797Z`,

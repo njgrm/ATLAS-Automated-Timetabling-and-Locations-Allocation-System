@@ -53,10 +53,13 @@ signal, not a budget: cost and coordination per **accepted, deployed increment**
 
 ## Two measured waste events (2026-09-21) — the reason for the rules above
 
-1. **Three review/QA dispatches went to `atlas-qa` instead of the designated
-   `atlas-qa-dsflashv4`** (`docs/handoffs/planner-handoff-2026-09-20.md` §3 — "already set, do not
-   change"). `atlas-qa` sits on the 97%-of-spend model; the designated QA agent is ~3x cheaper per
-   dispatch. Routing is now recorded in the handoff's model-routing section.
+1. **A routing conclusion that was itself wrong — kept as the lesson.** This session recorded three
+   review/QA dispatches to `atlas-qa` as a "3x routing miss" against the 2026-09-20 routing table.
+   The operator corrected it: **`atlas-qa` is the DeepSeek v4.1-flash agent and v4.1 is currently
+   the cheaper model while the promo holds**, so those dispatches were correct and the 2026-09-20
+   table was the stale item. **Lesson: pricing moves; verify current rates before declaring a
+   routing error, and never let a stale routing table override a measured price.** Routing now
+   recorded in the handoff's model-routing section.
 2. **A full packet + independent review + executor dispatch was spent on a satisfied blocker.**
    The term-cache apply had been done on 2026-09-18 (mirror 551 cached, `TERM_CACHE_SYNC_APPLIED`
    = 2), and a published run with zero HARD violations already existed — while an undated line in

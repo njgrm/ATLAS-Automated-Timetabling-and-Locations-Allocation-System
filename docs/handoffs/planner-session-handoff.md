@@ -82,10 +82,12 @@ file — hence `AGENTS.md` §15's dated-blocker rule. **Read the newest dated ha
 
 - **Dispatch `atlas-executor-muse`** (Muse Spark 1.3 Contributor), not `atlas-executor`
   (operator instruction, 2026-09-21). Executors are ~2% of spend; they are not the cost lever.
-- **QA/reviewer agent is `atlas-qa-dsflashv4` — already set, do not change**
-  (`docs/handoffs/planner-handoff-2026-09-20.md` §3). Three review/QA dispatches on 2026-09-21 went
-  to the generic `atlas-qa` (the 97%-of-spend model) instead — a routing miss worth ~3x per
-  dispatch. Use `atlas-qa-dsflashv4`.
+- **QA/reviewer agent — operator instruction, 2026-09-21: `atlas-qa` (DeepSeek **v4.1** flash)**
+  while the v4.1 promo holds, because v4.1 is currently cheaper than v4. Revert to
+  `atlas-qa-dsflashv4` when the promo ends. This supersedes the 2026-09-20 routing table, which
+  named `atlas-qa-dsflashv4` — **check current pricing before concluding a routing error**: an
+  earlier note in this session wrongly recorded `atlas-qa` dispatches as a "3x miss", and that
+  conclusion was itself the error.
 - **Executors cannot create worktrees.** The muse harness denies `git worktree add`/`remove`
   (measured 2026-09-21, which cost a dispatch). **The planner provisions the executor's registered
   worktree before dispatch**, then hands over the exact path.
@@ -123,23 +125,27 @@ file — hence `AGENTS.md` §15's dated-blocker rule. **Read the newest dated ha
 
 ## Next action
 
-**Pick up a real open lane — the generation/publication core is already met.** Ranked, from
-`docs/handoffs/planner-handoff-2026-09-20.md` §8 (more current than the older live-state material):
+**Ship the next release — the queue is no longer empty.** `WARNING-READABILITY-C01`
+(`b6b4033f` + `f13d4cb9`) is integrated but **not deployed**, and its packet §5 browser row is
+carried as `DEFERRED(DEPLOYMENT_ACCEPTANCE)`. One release cycle closes both: build at a fresh pin
+under the standing authorization, then run the deferred browser row (Tailnet, `1366x768` and
+`390x844`, `window.location.origin` assertion, read-only) as the release's acceptance clause —
+that is exactly the shape `AGENTS.md` §11 prescribes for a row needing a deployed build. Pin the
+**client** artifact identity (the delta is client-side) plus the usual D1–D5-style rows.
 
-1. **`warning-readability-c01`** — packet ready, **no owner**. Smallest complete open lane; the
-   natural next dispatch.
-2. **Public published-view term merging** — `/public/schedules` renders every cell 3×
-   (2,760 = 920 × 3 terms). **Owned by the other planner**; do not take it without a handover.
-3. **False/incorrect warning categories** — `ZONE_IMBALANCE_WARNING` fires because 0 of 103 rooms
-   have a zone; `FACULTY_FLOOR_TRANSITION`'s message is broken; warning-count semantics
-   (335 API rows / 116 unique / 113 shown).
-4. **`test:ux-guardrails` is vacuous** — names two files deleted at `4794bd9e`; never cite it.
-5. **SMART/AIMS companion handoffs**; **actor-school residual authority lane**
-   (`atlas-server/**`, Lane B's or a re-assignment).
+Then, in value order:
 
-Before starting any of these: re-read the newest dated handoff, and treat the term-cache apply and
-the readiness/generation chain as **closed** — a fresh preview is expected to report
-`ALREADY_CURRENT` with no write.
+1. **Public published-view term merging** — `/public/schedules` renders every cell 3×
+   (2,760 = 920 × 3 terms). Recorded as owned by the other planner; do not take it without a
+   handover.
+2. **False/incorrect warning categories** — `ZONE_IMBALANCE_WARNING` fires because 0 of 103 rooms
+   have a zone; warning-count semantics. (Note `FACULTY_FLOOR_TRANSITION`'s broken message was
+   fixed in the integrated `WARNING-READABILITY-C01`.)
+3. **`test:ux-guardrails` is vacuous** — names two files deleted at `4794bd9e`; never cite it.
+4. **SMART/AIMS companion handoffs**; **actor-school residual authority lane** (Planner B).
+
+Do not re-open the term-cache apply or the readiness/generation chain — both are closed
+(dated proof in the live-state Lane A section).
 
 ## Pointers
 
