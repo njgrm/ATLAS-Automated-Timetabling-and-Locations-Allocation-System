@@ -460,6 +460,28 @@ function isResolvedActorSchoolIdValue(value: unknown): value is number {
 	return typeof value === 'number' && Number.isInteger(value) && value > 0;
 }
 
+// DUP-READ-CALLERS-C01 (A1) — one in-flight `/auth/me` promise per authenticated
+// token epoch, shared by `resolveActorSchoolId` and `verifySessionToken`. The
+// read-path diagnosis measured both dispatchers racing on one cold-cache load;
+// this removes the duplicate without changing what either caller receives. The
+// key is the exact token epoch, so a token change can never be served a previous
+// session's actor, and a rejected request clears the entry in `finally` so the
+// next caller can retry.
+const inflightAuthMeByToken = new Map<string, Promise<{ user: BridgeUser }>>();
+
+function requestAuthMe(tokenEpoch: string): Promise<{ user: BridgeUser }> {
+	const existing = inflightAuthMeByToken.get(tokenEpoch);
+	if (existing) return existing;
+	const promise = atlasApi
+		.get<{ user: BridgeUser }>('/auth/me', { headers: { authorization: `Bearer ${tokenEpoch}` } })
+		.then((response) => response.data)
+		.finally(() => {
+			inflightAuthMeByToken.delete(tokenEpoch);
+		});
+	inflightAuthMeByToken.set(tokenEpoch, promise);
+	return promise;
+}
+
 export async function resolveActorSchoolId(): Promise<number | null> {
 	// No authenticated session -> fail closed. Never reuse a cached school for
 	// an absent session and never dispatch /auth/me.
@@ -482,7 +504,7 @@ export async function resolveActorSchoolId(): Promise<number | null> {
 	}
 
 	try {
-		const { data } = await atlasApi.get<{ user?: { schoolId?: number | null } }>('/auth/me');
+		const data = await requestAuthMe(tokenEpoch);
 		// The session may have changed while /auth/me was in flight. A late or
 		// obsolete response must not return, seed, or overwrite a school for a
 		// different (or absent) token epoch.
@@ -794,11 +816,7 @@ export async function verifySessionToken(): Promise<BridgeUser | null> {
 	const localToken = getLocalToken();
 	if (localToken) {
 		try {
-			const { data } = await atlasApi.get<{ user: BridgeUser }>('/auth/me', {
-				headers: {
-					authorization: `Bearer ${localToken}`,
-				},
-			});
+			const data = await requestAuthMe(localToken);
 			const resolvedUser: BridgeUser = {
 				...data.user,
 				authSource: data.user.authSource ?? 'local',
@@ -823,11 +841,7 @@ export async function verifySessionToken(): Promise<BridgeUser | null> {
 	if (!bridgeToken) return null;
 
 	try {
-		const { data } = await atlasApi.get<{ user: BridgeUser }>('/auth/me', {
-			headers: {
-				authorization: `Bearer ${bridgeToken}`,
-			},
-		});
+		const data = await requestAuthMe(bridgeToken);
 		const resolvedUser: BridgeUser = {
 			...data.user,
 			authSource: data.user.authSource ?? 'bridge',
