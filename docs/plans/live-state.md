@@ -225,13 +225,24 @@ and AIMS.
 
 The route split is now complete: every operator sub-page exists, the workspace stops
 remounting inside the subtree, and the whole timetable route suite runs in a committed gate.
-The next stream is the **duplicate-read coalescing investigation** — the last open technical
-lead. QA reproduced concurrent duplicate identical GETs on `runtime/context?schoolId=1` (×4),
-`rollover-status` (×2-3) and `auth/me` (×2), and separately saw 502s on
-`generation/.../runs/316/manual-edits` and `follow-up-flags/.../flags` that did **not**
-correlate with the duplicates in that sample. It needs its own reviewed packet, because
-coalescing in `atlasApi` would touch every call in the client. EnrollPro is online and its
-proxy is healthy; no ATLAS action is outstanding there. Dispatch the SMART and AIMS handoffs
-to their repository owners in parallel; generate/install directional keys only after both
-sides consume the agreed names. Regeneration and publication remain separately locked, as do
-all Teaching Load and term-cache applies.
+`DUP-READ-DIAGNOSIS-C01` answered the lead and **inverted the assumed fix**. Measured: the
+duplicates are **not** a StrictMode/dev artefact (a dev-only double-invoke cannot reach the
+production `dist` the host asserts). Causes are per-caller: `resolveActorSchoolId`
+(`settings.ts:485`) has no in-flight sharing, so AppShell's verify races the scope hook and
+route hooks for `/auth/me`; `enrollpro-public-settings.ts:231-241` has a `forceRefresh` that
+**bypasses its own `inflightBySchool` dedup**, which `useTimetableData.ts:1161-1190` triggers
+as a background-plus-forced pair for `runtime/context`; `rollover-status` has zero dedup and
+the Timetable can mount two cards. **Recommendation: fix the named callers** (3-4 client
+files, read-path only) — explicitly **not** a blanket coalesce in `atlasApi`, which would
+touch every call in the client for no reason the evidence supports. The 502s remain
+**unproven**: 40 read-only probes gave 40 fast 401s and zero 502s, and source reading shows
+the two routes cannot emit 502 themselves (handlers `next(err)` → `?? 500`; the only
+`serviceError(502)` sites are EnrollPro paths). Settling them needs one failing response body
+from a browser lane, so no 502 fix is proposed. Findings:
+`docs/reviews/dup-read-diagnosis-c01/findings.md`.
+Next: a one-shot that fixes the three named callers (client, read-path, no deploy-time
+behaviour change beyond the bundle) with the usual deployment and QA-held browser custody.
+EnrollPro is online and its proxy is healthy; no ATLAS action is outstanding there. Dispatch
+the SMART and AIMS handoffs to their repository owners in parallel; generate/install
+directional keys only after both sides consume the agreed names. Regeneration and publication
+remain separately locked, as do all Teaching Load and term-cache applies.
