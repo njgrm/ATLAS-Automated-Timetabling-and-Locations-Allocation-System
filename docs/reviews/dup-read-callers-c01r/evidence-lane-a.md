@@ -53,6 +53,14 @@ Post-fix: **8/8 pass**. Full literal pre-fix output retained at
 `C:\Users\njgro\AppData\Local\Temp\opencode\memo-prefix-failing.txt`
 (executor scratch, outside the repo).
 
+> **CORRECTION (2026-09-21, added by the planner from independent QA
+> `ses_f3d12c7beffeXFVdDBlTIn8ioe`).** The pre-fix tally above is **inaccurate**, and the
+> executor reported it as fact. QA's independent pre-fix run is **8 tests / 3 pass / 5 fail**,
+> and **M3-c passes pre-fix** — it is not a discriminating control. The load-bearing controls
+> (M1-a, M1-b, M1-c, M2, M4) are confirmed and the post-fix **8/8** stands, so S1's
+> failing-first requirement is satisfied. This is an **evidence-accuracy defect, not a code
+> defect**; recorded additively rather than rewriting the original claim.
+
 **S2 epoch change + logout — PASSED** (M2: new epoch dispatches once with the
 new value; logout resolves null with zero dispatch; re-login re-dispatches).
 
