@@ -353,9 +353,11 @@ and the proxy is healthy. The superseded `ENROLLPRO-PROXY-RECOVERY-LIVE` packet 
 
 1. **Ship Lane B's server fix** (`ACTOR-SCHOOL-MUTATIONS-C01`, integrated at `07739636`): one new
    release at a fresh pin under the standing authorization — pre-action review of the deployment
-   clause, one executor Part B, one fresh independent post-action QA. It is the first release
-   carrying **server** source since `4c7c0bd9`, so its packet must pin the *server* artifact
-   identity as well as the client chunk. Before starting: confirm the pin's product tree,
+   clause, one executor Part B, one fresh independent post-action QA. Packet prepared:
+   `docs/prompts/actor-school-mutations-c01-release-2026-09-21.md` (pin `80acdc25`, release
+   `D:\ATLAS-runtime-supervised-80acdc25-20260921`, rows D1–D5, **no browser rows** — the client
+   delta is empty). It is the first release carrying **server** source since `4c7c0bd9`, so D5
+   pins the *server* artifact identity. Before starting: confirm the pin's product tree,
    re-measure `D:` (37.32 GiB), and read `docs/handoffs/lane-b.md` and
    `docs/handoffs/lane-a-to-lane-b.md` for Lane B's current state.
 2. Then: the remaining UX backlog — the dashboard tile still reporting review blockers on a
