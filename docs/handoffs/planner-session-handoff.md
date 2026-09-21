@@ -123,6 +123,45 @@ file — hence `AGENTS.md` §15's dated-blocker rule. **Read the newest dated ha
 - Removal instruction for the stray clone `E:/ATLAS-worktrees/c01r-release-20260921` (~1 GiB).
 - Nothing else is blocked on the operator: the release queue is empty and the next action is ours.
 
+## Companion SSO — live click-through result (2026-09-21, operator-authorized, one login)
+
+**ATLAS → EnrollPro is fully wired and executes end-to-end, but ATLAS itself denies the identity
+assertion.** Browser evidence, all four hops: `dev-jegs /api/auth/companion-sso/atlas/reverse/start`
+→ **303**; `njgrm /auth/enrollpro/authorize?…&state=<signed>` → **200** (ATLAS minted a code);
+`dev-jegs …/atlas/reverse/callback?code=…&state=…` → **303**;
+`dev-jegs /personnel/login?ssoError=COMPANION_REVERSE_SSO_ACCESS_DENIED&source=ATLAS`.
+
+**The 403 is ATLAS's, not EnrollPro's.** EnrollPro throws `COMPANION_REVERSE_SSO_ACCESS_DENIED` only
+when its server-to-server exchange call receives **HTTP 403**
+(`companion-sso-reverse.service.ts:383`). ATLAS's `/sso/exchange` deliberately maps producer-side
+conformance failures to 403 — `COMPANION_SSO_ROLE_DENIED`, `COMPANION_SSO_ROLE_UNMAPPABLE`,
+`COMPANION_SSO_IDENTITY_NAME_UNAVAILABLE`, `COMPANION_SSO_COMPLETER_BLOCKED`
+(`companion-sso.service.ts:123-126`).
+
+**Narrowed to the name assertion.** The authenticated actor is `userId 46, role "officer"` — and
+`mapLocalRoleToEnrollProRoles('officer')` returns `['SYSTEM_ADMIN']`, so the role branch passes.
+`resolveReverseSsoNameParts` (`companion-sso-identity.ts:73`) requires **either** a faculty mirror
+with non-empty first+last, **or** an `accountName` of **at least two whitespace-separated tokens**;
+otherwise it returns null and the exchange 403s. The QA/officer account has no such name.
+**This is fail-closed by design ("never fabricate a name") — it is an account-data gap, not a code
+defect.** Fix: give the demo account a persisted first+last name, or use a named staff account.
+EnrollPro collapses ATLAS's four distinct 403 reasons into one opaque code, so the cause is only
+findable from the ATLAS source — worth a line in the companion handoff.
+
+**EnrollPro → ATLAS remains UNTESTED**: it needs an EnrollPro session and the credentials file
+(`%USERPROFILE%/.config/opencode/atlas-qa-credentials.local.md`) has **no EnrollPro section** —
+`EXTERNALLY_BLOCKED(QA_CREDENTIALS_UNAVAILABLE)`. Operator authorization does not supply values.
+
+**Disclosure:** one authorized ATLAS login (officer, `userId 46`, identifier `1234501`); the session
+was cleared and `GET /api/v1/auth/me` → `401 NO_TOKEN` with empty `sessionStorage`; the browser
+context was closed. The exact `audit_logs` row id was **not** read (no DB path in this session).
+
+**EnrollPro entry point:** use `https://dev-jegs.buru-degree.ts.net/personnel/login` (already the
+recorded browser entry in `companion-sso-live-prep-c02-evidence.md`). **Do not** change
+`VITE_ENROLLPRO_URL` to that path — it must stay the bare origin, because the client appends
+`/api/auth/companion-sso/atlas/reverse/start`, `/dashboard` and `/personnel/login` to it
+(`companion-config.ts`). The bare root 404s on the companion side; that is EnrollPro's to fix.
+
 ## Owned program I had lost track of — `UX-REHAUL-C01` (read this before planning UI work)
 
 **The Timetable relaxed-view rehaul is a real, planned, unstarted program.** Its spec is
