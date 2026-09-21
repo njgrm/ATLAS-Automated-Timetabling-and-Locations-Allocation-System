@@ -69,6 +69,7 @@ test('mounted rollover routes gate identity, suppress invalid follow-ons, preser
 
 	let applyCalls = 0;
 	let resetCalls = 0;
+	let resetResultValid = false;
 	let cycleCalls = 0;
 	const events: Array<{ type: string; schoolYearId: number }> = [];
 	const apply = async () => {
@@ -80,7 +81,9 @@ test('mounted rollover routes gate identity, suppress invalid follow-ons, preser
 	};
 	const reset = async () => {
 		resetCalls += 1;
-		return { enrollProActiveYear: null, resetApplied: true } as any;
+		return resetResultValid
+			? { enrollProActiveYear: { id: ACTIVE_YEAR_ID, yearLabel: '2099-2100' }, resetApplied: true, previewOnly: false }
+			: { enrollProActiveYear: null, resetApplied: true } as any;
 	};
 	const publish = (event: any) => {
 		events.push({ type: event.type, schoolYearId: event.schoolYearId });
@@ -135,6 +138,14 @@ test('mounted rollover routes gate identity, suppress invalid follow-ons, preser
 		assert.equal(invalidReset.body.code, 'ROLLOVER_ACTIVE_YEAR_IDENTITY_INVALID');
 		assert.equal(resetCalls, 1);
 		assert.equal(events.length, 0);
+
+		resetResultValid = true;
+		const validReset = await post('/rollover-sync/reset-dummy-year', { schoolId: SCHOOL_ID, confirmReset: true }, system);
+		assert.equal(validReset.status, 200);
+		assert.equal(resetCalls, 2);
+		assert.equal(cycleCalls, 0, 'reset route must not create a route-level Teaching Load cycle');
+		assert.equal(events.length, 1, 'valid reset publishes exactly one route-level notification');
+		assert.deepEqual(events[0], { type: 'DUMMY_YEAR_RESET_COMPLETED', schoolYearId: ACTIVE_YEAR_ID });
 
 		const validApply = async () => ({
 			enrollProActiveYear: { id: ACTIVE_YEAR_ID, yearLabel: '2099-2100' },
