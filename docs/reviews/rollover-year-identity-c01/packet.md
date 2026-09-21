@@ -47,3 +47,22 @@ an evidence-preserving response, never by selecting year 1.
 Do not push an unaccepted candidate. A later source revert is limited to this
 route/test/script commit and cannot reverse a rollover that was already applied;
 therefore a live apply is expressly out of scope.
+
+## Approved contract refinement
+
+`previewRolloverSync` is the existing read-only resolver. Before either apply
+route enters its mutation, reuse it to require a canonical active-year identity
+and return `409 ACTIVE_YEAR_UNRESOLVED` when it is absent. Do not add a second
+resolver.
+
+After the locked mutation returns, validate its returned active-year id only as
+a numeric safe positive integer. Do not coerce strings or use nested/reset
+target values. If it is invalid, return typed `409
+ROLLOVER_ACTIVE_YEAR_IDENTITY_INVALID` with response-safe evidence that the
+mutation result was received and follow-ons were withheld. It must not describe
+the rollover as undone. No notification or Teaching Load get-or-create may run.
+
+For a viable mounted route test, `runtime.router.ts` may export
+`createRuntimeRouter(overrides)` while retaining its existing default router.
+Overrides may cover only `applyRolloverSync`, `resetDummyYearAndApplyRollover`,
+`publishNotificationEvent`, and `getOrCreateTeachingLoadCycleSource`.
