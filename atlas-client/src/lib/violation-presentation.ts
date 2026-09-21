@@ -51,15 +51,25 @@ const WEEKDAY_TITLE: Record<string, string> = {
 
 /**
  * WARNING-READABILITY-C01 (R2): normalize a raw validator message for the
- * operator surface without touching the underlying math. Bare minute
- * abbreviations become "minutes" and shouted weekday names become title
- * case. Teacher/room/section id resolution stays in the lookup helpers,
- * which own the reference maps.
+ * operator surface without touching the underlying math. Bare minute/hour
+ * abbreviations become "minutes"/"hours" and shouted weekday names become
+ * title case. Teacher/room/section id resolution stays in the lookup
+ * helpers, which own the reference maps.
+ *
+ * Unit tokens expand regardless of what precedes them: legacy stored runs
+ * keep wording with words between the number and the unit (e.g. "180
+ * consecutive teaching min"), which a digit-adjacent-only pattern misses.
+ * The standalone patterns are hyphen-guarded (no word char or hyphen on
+ * either side) so Tailwind class tokens such as `min-h-0`, words like
+ * `minimum`/`minWidth`, and hyphenated compounds like `135-minute` pass
+ * through untouched.
  */
 export function formatWarningMessageText(message: string): string {
 	return message
-		.replace(/(\d+)\s*min\b/g, '$1 minutes')
-		.replace(/(\d+)\s*h\b/g, '$1 hours')
+		.replace(/(\d+)\s*min(?![\w-])/g, '$1 minutes')
+		.replace(/(\d+)\s*h(?![\w-])/g, '$1 hours')
+		.replace(/(?<![\w-])min(?![\w-])/g, 'minutes')
+		.replace(/(?<![\w-])h(?![\w-])/g, 'hours')
 		.replace(/\b(MONDAY|TUESDAY|WEDNESDAY|THURSDAY|FRIDAY|SATURDAY|SUNDAY)\b/g, (day) => WEEKDAY_TITLE[day] ?? day);
 }
 

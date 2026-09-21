@@ -241,3 +241,59 @@ test('R2/siblings: every operator surface that renders a violation message forma
 	assert.doesNotMatch(manualSrc, /\{v\.message\}/, 'manual-edit panel must not render the raw message');
 	assert.match(manualSrc, /formatPanelViolationMessage/, 'manual-edit panel must format violation messages');
 });
+
+// WARNING-UNITS-FIX-20260921: verbatim real surface string from run 316
+// (live Tailnet surface, 1366x768 and 390x844). The number and the unit have
+// words between them ("180 consecutive teaching min"), so the old
+// digit-adjacent-only pattern left the token in place. This fixture differs
+// from the invented R2 fixture above ('Ms. Dela Cruz teaches 180 minutes…',
+// which already contains the expanded word) and from RAW_VALIDATOR_MESSAGE
+// ('101 min idle gaps…', digit-adjacent): it carries a NON-digit-adjacent
+// bare `min`, which is exactly what the old formatter missed.
+const REAL_RUN316_CONSECUTIVE_STRING =
+	'FERNANDEZ, JANELLA MARIE has 180 consecutive teaching min on Monday, exceeds limit 135 minutes.';
+
+/** Bare standalone unit tokens, hyphen-guarded so `minutes`, `minimum`, `min-h-0`, and `135-minute` do not match. */
+const BARE_MIN_TOKEN = /(?<![\w-])min(?![\w-])/;
+const BARE_H_TOKEN = /(?<![\w-])h(?![\w-])/;
+
+test('R2/run316: non-digit-adjacent bare min from the real surface expands (units-fix)', () => {
+	// Discriminating control: the pre-fix digit-adjacent-only pattern leaves
+	// the real string untouched, so these assertions fail against old
+	// behaviour and pass only after the fix.
+	const preFix = REAL_RUN316_CONSECUTIVE_STRING.replace(/(\d+)\s*min\b/g, '$1 minutes').replace(
+		/(\d+)\s*h\b/g,
+		'$1 hours',
+	);
+	assert.match(preFix, BARE_MIN_TOKEN, 'pre-fix formatter must still leak the bare min (control)');
+	assert.equal(
+		formatWarningMessageText(REAL_RUN316_CONSECUTIVE_STRING),
+		'FERNANDEZ, JANELLA MARIE has 180 consecutive teaching minutes on Monday, exceeds limit 135 minutes.',
+	);
+	const item = violation('FACULTY_CONSECUTIVE_LIMIT_EXCEEDED', REAL_RUN316_CONSECUTIVE_STRING);
+	const drawer = renderToStaticMarkup(createElement(ExplainabilityDrawer, { open: true, onClose: () => {}, violation: item }));
+	const happened = whatHappenedText(drawer);
+	assert.doesNotMatch(happened, BARE_MIN_TOKEN, 'rendered text must contain no bare min');
+	assert.doesNotMatch(happened, BARE_H_TOKEN, 'rendered text must contain no bare h');
+	assert.match(happened, /180 consecutive teaching minutes/, 'rendered text expands the legacy unit');
+});
+
+test('R2/run316: unit expansion never fires inside unrelated tokens (units-fix)', () => {
+	assert.equal(formatWarningMessageText('keep the minimum stay'), 'keep the minimum stay');
+	assert.equal(formatWarningMessageText('check minWidth before render'), 'check minWidth before render');
+	assert.equal(
+		formatWarningMessageText('<div class="flex-1 min-h-0">180 min</div>'),
+		'<div class="flex-1 min-h-0">180 minutes</div>',
+		'hyphenated class tokens survive while the real unit still expands',
+	);
+	assert.equal(
+		formatWarningMessageText('above the 135-minute limit'),
+		'above the 135-minute limit',
+		'hyphenated compounds survive',
+	);
+	assert.equal(
+		formatWarningMessageText('teach 40 h a week'),
+		'teach 40 hours a week',
+		'digit-adjacent h still expands',
+	);
+});
