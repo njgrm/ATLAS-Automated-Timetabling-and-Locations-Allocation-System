@@ -5,8 +5,10 @@ planner writes and phrases it; the kickoff line below never changes. Updating it
 deliberate and cheap (~1–2k tokens): it makes any turn boundary a safe session boundary. The
 *decision* to actually start fresh stays conditional — take it at a real lane boundary, before
 a HIGH action, or once a compaction would cost more than a restart.
-Last updated: 2026-09-21. The worktree reclaim cleared the `D:` capacity blocker (`D:`
-15.81 → 40.76 GiB; worktrees 112 → 57) and the operator kept the runtime trees protected.
+Last updated: 2026-09-21 (Lane A). `DUP-READ-CALLERS-C01R` is closed — release `a02884ff` is
+live and accepted 7/7; `main` also carries Lane B's server fix (`07739636`), which is **not
+deployed**. The `D:` capacity blocker is resolved (`D:` 37.32 GiB after this release, above the
+25 GiB warning) and `D:\ATLAS-runtime-*` trees stay operator-only.
 
 **`DASHBOARD-TRUTH-C01` Part A is ACCEPTED and integrated** at candidate `2a6cb06d` (evidence
 `5c318e1f`; fresh QA `ACCEPT_READY` 5/5, blocked 0, unperformed 0). Packet
@@ -26,20 +28,20 @@ incumbent (the harness deny-list blocks `npm ci`), and the packet's XML-encoding
 **inverted** on this host (preserving `encoding="UTF-16"` registers cleanly). The single
 authorized login is **unspent** — and the operator has authorized **logins as needed** for the
 post-action QA (2026-09-21), each one to be disclosed.
-**Post-action QA ran and returned `CORRECTION_REQUIRED` 6/7** (1 login, `audit_logs` id 857).
-D1–D4, B1 (the dashboard now reads `"No hard violations · 284 warnings acknowledged"` — no
-"blocker" anywhere) and B3 pass. **B2 FAILS:** a clean `/timetable` (and `/`) load still issues
-**2 sequential same-epoch `/auth/me` requests** 147 ms apart with an identical bearer — the A1
-in-flight map coalesces only *concurrent* callers, so it cannot fix a serial duplicate.
-**`DUP-READ-CALLERS-C01R` Part A is ACCEPTED and integrated** at candidate `360c026b`
-(evidence `2f1a8f33`; fresh QA `ACCEPT_READY` 5/5, blocked 0, unperformed 0). It adds a
-single-entry per-token-epoch **resolved-value memo** in `settings.ts` (exact bearer + monotonic
-epoch version), so a *serial* same-epoch caller is served the value instead of dispatching.
-QA's adversarial pass found **no reachable stale-identity path**.
-**Next action: Part B — the re-release** (pin = this cycle's accepted candidate) carrying this
-correction plus everything already in `4c7c0bd9`, then QA re-runs D1–D4, B1, B2 and B3 on the
-new release. B2's "two cards asserted mounted" sub-clause is unperformable on the live simple
-view (0 cards mount) and must be resolved as the packet's §4.2 amendment requires.
+**`DUP-READ-CALLERS-C01R` is CLOSED — deployed and accepted 7/7/0/0.** Release **`a02884ff`**
+live at `D:\ATLAS-runtime-supervised-a02884ff-20260921` (supervisor 102756; `5001`→99584;
+`5174`→96548; entry `index-C6LTCXSf.js`; `D:` 38.82 → 37.32 GiB), **client-only**. Post-action
+QA re-ran D1–D4 + B1–B3 and returned **6/7 `CORRECTION_REQUIRED`** on a single **evidence**
+defect: the executor recorded a `SET LOCAL TIME ZONE 'UTC'` signature-map pin that **had no
+effect** (issued outside a transaction → default-session-TZ rendering). One bounded
+**planner-applied additive documentation correction** (no runtime action) records the
+addendum-literal pre==post proof, QA's UTC-pinned post value, and QA's independent whole-DB
+zero-write scan; D4 then passes on accurate evidence. **B2 is FIXED** — a clean `/timetable` load
+issues `/auth/me` ×1, `runtime/context` ×2, `rollover-status` ×1, the counts that failed on
+`4c7c0bd9`. QA login: `audit_logs` id **858** (actor 46). The "two cards asserted mounted"
+sub-clause stays **not exercisable** (0 cards mount; creating drift is not authorized) and the
+primary assertion is unweakened. Evidence:
+`docs/reviews/dup-read-callers-c01r/part-b-deployment-evidence.md`.
 
 **First `atlas-executor-muse` run — recorded because muse failure modes feed the directive.**
 Outcome: sound structural work (fail-closed invalidation, additive tests, clean commits, and it
@@ -51,43 +53,40 @@ discriminating) — it **overstated its own evidence**; (ii) it quoted the packe
 re-dispatch to the new memo rather than the pre-existing actor cache.
 **Watch for: over-claiming verification counts / quoting literals loosely.** Muse's numbers need
 the same adversarial check as anyone's — which the mandatory QA gate already provides.
+**Second muse run (the `C01R` Part B deploy) — a further failure mode: a method claim that did
+not execute.** It reported "`SET LOCAL TIME ZONE 'UTC'` pinned" and published the resulting hash
+as the pinned value; `SET LOCAL` outside a transaction is a no-op, so the pin never applied. The
+deployment work itself was sound (isolated build, correct cutover, D1–D4 pass, zero-write proven)
+and the substance survived review — but the **evidence described a method that had not run**.
+Its other deviations were honest: the harness deny-list blocks even `git stash list` (recorded
+literally), and dependency trees were copied from the junction-free incumbent. Rule to carry:
+when a row depends on a computed artifact, record the literal statement **and its scope** — here,
+the enclosing transaction.
 
-**Lane B (`ACTOR-SCHOOL-MUTATIONS-C01`) — unblocked by Lane A, integration pending.** Lane B
-reported `ACCEPT_READY` on candidate `5735f0dc` (server-side: runtime mutation actor-school
-enforcement on the eight defaulting `POST` routes, plus a test-only abort-budget correction) but
-then stranded itself on two misreadings: it treated `AGENTS.md` §3's **12-worktree cap as a
-registry total** (it caps *active* task worktrees; the registry necessarily holds policy-preserved,
-junction-anchor, never-retire runtime, Codex and root trees), and it treated dirty `D:/ATLAS` as
-an integration boundary (it is never one). Lane A's answer, with the granted integration boundary,
-is in `docs/handoffs/lane-a-to-lane-b.md` (commit `5a679325`), and
-`docs/reference/agent-worktree-lifecycle.md` now states the rule's own noun so no lane strands
-itself the same way. **Expect a Lane B integration**: it must merge `5735f0dc` onto a fresh
-boundary from current `origin/main` (the candidate is **11 ahead / 13 behind** — main advanced
-`4c7c0bd9` → `65fe0728` with the `C01R` fix, so it is no longer a fast-forward), re-run combined
-gates on the merged tree, and push. Its fix is **not live** — the live release `4c7c0bd9` predates
-it — and it ships only in a release, which is Lane A's to make.
+**Lane B (`ACTOR-SCHOOL-MUTATIONS-C01`) — INTEGRATED on `main` (`07739636`), NOT deployed.**
+Lane B landed its additive merge at 16:32 (+08), after two invalidated attempts that were both
+caused by Lane A continuity pushes moving `main`. Its accepted merge `ad79c2b3` carries exactly
+its seven approved paths: server-side actor-school enforcement on the eight defaulting runtime
+mutation `POST` routes, plus a test-only abort-budget correction. The live release `a02884ff`
+predates it, so **its fix is not live**; it ships only in a release, which is Lane A's to make.
+Its two earlier misreadings (worktree cap read as a registry total; dirty `D:/ATLAS` treated as
+an integration boundary) are answered in `docs/handoffs/lane-a-to-lane-b.md` (`5a679325`), and
+`docs/reference/agent-worktree-lifecycle.md` now states the cap rule's own noun.
 
-**⚠ Lane A `main` PUSH FREEZE — do not push until Lane B reports its push landed.** Lane B's
-integration was invalidated twice because Lane A's continuity-doc pushes kept moving `main`
-(`a02884ff`, `fa20b519`) after its merge and green gates. Lane B's merge is accepted
-(`ad79c2b3` on `2d3d0dea`, exactly its seven approved paths) and its gates pass; it now needs one
-additive merge of current `main` and one push. **A lane in an integration closure holds an
-exclusive `main` window** (`AGENTS.md` §14). Check `docs/handoffs/lane-b.md` before your first
-`:main` push. Also settled this episode: `prisma generate` is a **build step, not HIGH** (offline
-codegen, untracked output, already authorized in the C02 boundary §6.1) — a fresh checkout is not
-gate-ready without it.
-Also settled by the same pass: the **502 layer is identified** — the captured failing response
-was a host-proxy `{"code":"UPSTREAM_UNREACHABLE","message":"read ECONNRESET"}` on
-`GET /generation/1/10/runs/316/manual-edits`, i.e. **host-side**, not server- or route-emitted;
-and the executor's inverted XML-encoding finding is real, so
-`docs/reference/agent-runtime-deploy-facts.md` was corrected to "measure, do not assume". **Accepted and integrated** at
-`6949e3d4`: fresh QA `ACCEPT_READY` 5/5, blocked 0, unperformed 0 over `ccf31e77...6949e3d4`
-(source blob-identical to candidate `ce0e54ec`; test files added, none deleted). S5's initial
-`BLOCKED` was an incomplete worktree dependency tree — fixed by removing the junction safely
-(anchor proven intact) and installing a real tree; `68/68` + typecheck exit 0 reproduced.
-**Not deployed** (deferred on `D:` capacity). One process defect to remember: my docs-sync push
-put the unaccepted candidate on `main` before acceptance — see §5.
-**Operator decision still pending: `D:` headroom.**
+**Lane A `main` push freeze — RELEASED.** Lane B's push landed (`07739636` is `main`'s tip), so
+the freeze condition is satisfied and Lane A may push again. The rule it earned stands: **a lane
+in an integration closure holds an exclusive `main` push window** (`AGENTS.md` §14) — hold
+continuity pushes until the integration lands, and re-check `docs/handoffs/lane-b.md` before your
+first `:main` push. **Custody note:** this session's first push (`1292ad40`) and the previous
+Lane A session's two later pushes (`fa20b519`, `40a06485`) overlapped between 16:12 and 16:22
+(+08) — two Lane A writers for ~10 minutes. The previous session declared its last push final;
+treat this session as the sole Lane A writer from here.
+Also settled: `prisma generate` is a **build step, not HIGH** (offline codegen, untracked output,
+already authorized in the C02 boundary §6.1) — a fresh checkout is not gate-ready without it. And
+the **502 layer needs no ATLAS fix**: the captured body is a host-proxy
+`{"code":"UPSTREAM_UNREACHABLE","message":"read ECONNRESET"}`, i.e. **host-side**, not
+server-emitted. `D:` headroom is no longer a blocker (the worktree reclaim freed it; it now
+stands at 37.32 GiB after this release).
 
 **To resume in a fresh session, paste this one line:**
 > Read `docs/handoffs/planner-session-handoff.md` on `origin/main` and resume as the ATLAS
@@ -124,12 +123,15 @@ put the unaccepted candidate on `main` before acceptance — see §5.
 
 ## 1. What is live right now
 
-- Release **`4c7c0bd9`** at `D:\ATLAS-runtime-supervised-4c7c0bd9-20260921`; supervisor 102800;
-  `5001`→102964; `5174`→87184; served entry `/assets/index-zIp12x6H.js`; Tailnet healthy.
-  It carries the dashboard blocker-truth fix and the `DUP-READ-CALLERS-C01` dedup fix.
-- Rollback: incumbent `434b2a81` task XML captured at
-  `%TEMP%\opencode\atlas-runtime-434b2a81-rollback.xml`; rollback basis **`5f5c6c4f`**
-  (startable, junction-free). Rollback was not executed.
+- Release **`a02884ff`** at `D:\ATLAS-runtime-supervised-a02884ff-20260921`; supervisor 102756;
+  `5001`→99584; `5174`→96548; served entry `/assets/index-C6LTCXSf.js`; Tailnet healthy. It is
+  **client-only**: it carries the accepted `DUP-READ-CALLERS-C01R` per-token-epoch `/auth/me`
+  memo (plus everything in `4c7c0bd9`), and it does **not** carry Lane B's server change — see
+  the Lane B note above.
+- Rollback: incumbent `4c7c0bd9` is startable in place at
+  `D:\ATLAS-runtime-supervised-4c7c0bd9-20260921` with its pre-mutation task XML captured at
+  `%TEMP%\opencode\c01r-incumbent-task.xml`; `434b2a81`'s XML and the **`5f5c6c4f`** basis
+  (startable, junction-free) remain available. Rollback was not executed.
 - **Budget — two sources, and they measure different things.**
   1. **Allowance percentage (the authority): the operator's provider console.** Last
      operator-confirmed 2026-09-21: **`monthly 45% · weekly 9% · rolling 2%`** (rolling resets
@@ -208,25 +210,32 @@ put the unaccepted candidate on `main` before acceptance — see §5.
 - `E:/ATLAS-worktrees/planner-worktree-reclaim-20260921` — the continuity/**docs lane** (branch
   `docs/worktree-reclaim-20260921`). **`KEEP_ACTIVE`.** Continuity commits are pushed from here,
   and every push must `fetch` + merge first because **Lane B also moves `main`**.
-- `E:/ATLAS-worktrees/dashboard-truth-c01` (branch `work/dashboard-truth-c01`) — source
-  integrated, release built. **`RETIRE_AFTER_INTEGRATION`**: retire it (non-forced) once its gates
-  no longer need re-running; the branch survives in Git. It holds a real `node_modules` (~1–2 GB),
-  so retiring frees `E:`.
-- `E:/ATLAS-worktrees/dup-read-callers-c01r` (branch `work/dup-read-callers-c01r`) — candidate
-  `360c026b` is integrated and is the **pin for the pending re-release**. Retire **only after**
-  that release is built and verified.
+- `E:/ATLAS-worktrees/dashboard-truth-c01` (branch `work/dashboard-truth-c01`, `08a9b1cd`) —
+  source integrated; its release was superseded by `a02884ff`. **`RETIRE_AFTER_INTEGRATION`**:
+  retire it (non-forced) — the branch survives in Git and it holds a real `node_modules`
+  (~1–2 GB), so retiring frees `E:`.
+- `E:/ATLAS-worktrees/dup-read-callers-c01r` (branch `work/dup-read-callers-c01r`, `2f1a8f33`) —
+  candidate integrated, and its release built and independently verified.
+  **`RETIRE_AFTER_INTEGRATION`**.
+- `E:/ATLAS-worktrees/c01r-release-20260921` (branch `release/dup-read-callers-c01r-20260921`,
+  `beedb104`) — the Part B deployment evidence plus its correction, integrated by this closure.
+  **`RETIRE_AFTER_INTEGRATION`**.
 - Retire with `git worktree remove <exact path>` then `git worktree prune` — never `--force`,
   never a glob or computed path, and **never delete the branch**.
 - **Do not touch:** Lane B's `E:/ATLAS-worktrees/actor-school-mutations-c01`, the two
   uncertain-owner planner worktrees, `E:/ATLAS-worktrees/ux-quickfix-c01` (junction anchor), or
   any `D:\ATLAS-runtime-*` tree.
-- **One Lane A writer at a time.** If a fresh planner session has taken over, the previous one
-  must stop writing — two Lane A planners on one stream is a custody defect, not parallelism.
+- **One Lane A writer at a time.** This session and the previous Lane A session overlapped for
+  ~10 minutes on 2026-09-21 (see the custody note above); the previous one declared its last push
+  final, so only one Lane A writer is active now. A second one on the same stream is a custody
+  defect, not parallelism.
 
 ## 3. Completed this session (newest first)
 
 | Stream | Result | Key SHAs |
 |---|---|---|
+| `DUP-READ-CALLERS-C01R` Part B/C | Re-release **`a02884ff`** deployed; D1–D4 + B1–B3 accepted **7/7/0/0** after one bounded planner-applied evidence correction; **B2 fixed** (`/auth/me` ×1) | `6e408e9a`, `beedb104` |
+| Lane B `ACTOR-SCHOOL-MUTATIONS-C01` | Integrated on `main`, **not deployed** (server actor-school enforcement on 8 mutation `POST` routes) | `ad79c2b3`, `07739636` |
 | Directive relocation | `AGENTS.md` **3,843 → 3,195 words** (~850 tokens/request saved), 133-rule audit, 4 dropped rules restored | `01af8d71`, `1437e137` |
 | `DUP-READ-DIAGNOSIS-C01` | Read-only diagnosis: duplicates are **not** StrictMode; per-caller causes named; 502s unproven | `5837a775`, `dbe7fde2` |
 | `UX-R03e` | Runs + Setup panes; route split **complete**; QA `ACCEPT_READY` 13/13 | `5acb08b8`, `434b2a81`, `890fa67a` |
@@ -243,7 +252,9 @@ and the proxy is healthy. The superseded `ENROLLPRO-PROXY-RECOVERY-LIVE` packet 
 
 ## 4. In flight / open
 
-- **`DUP-READ-CALLERS-C01` — packet authored; pre-action review is the next step.** Packet
+- **`DUP-READ-CALLERS-C01` / `-C01R` — CLOSED.** Source integrated, and the fix is live in
+  `a02884ff`. The narrative below is the packet's correction history — keep it, but do not
+  re-run it. Packet
   `docs/prompts/dup-read-callers-c01-2026-09-21.md`; worktree
   `E:/ATLAS-worktrees/dup-read-callers-c01`, branch `work/dup-read-callers-c01`, base
   `origin/main` `f6e5fce5`. One-shot under the standing authorization: the three named
@@ -286,7 +297,9 @@ and the proxy is healthy. The superseded `ENROLLPRO-PROXY-RECOVERY-LIVE` packet 
   and they share a key today), and the `useTimetableData.ts:1175-1190` follow-up must be
   **kept**, because it is the only path propagating the fresh context to hook state — deleting
   it changes rendered `schoolYearSource`/`activeTerm`.
-- **Lane B — two blocking items to clear before it implements** (both its own, neither mine):
+- **Lane B — CLOSED on both items; integrated at `07739636`, not deployed.** It pushed its
+  checkpoint and captured the RED; its additive merge carries exactly its seven approved paths.
+  The two items below are the historical residue of that episode:
   1. **Push the checkpoint.** `836abba9` is local only; the review discipline is that a
      candidate is reviewable from Git alone. `git fetch` before pushing, never force-push.
   2. **Fix the harness teardown so the RED is capturable.** A failing-first reproducer that
@@ -295,7 +308,11 @@ and the proxy is healthy. The superseded `ENROLLPRO-PROXY-RECOVERY-LIVE` packet 
      does — then capture the RED output to a file and commit it as evidence.
   Only after those: implement the route-local authority helper, then A1-A3 and A5-A6 with real
   tallies. Its own verdict (`CHECKPOINTED — IMPLEMENTATION NOT STARTED`) was honest and correct.
-- **502 lead:** needs one failing response body (status/body/headers) from a browser lane.
+- **502 lead — CLOSED as no-ATLAS-fix.** O1 captured the failing body: a host-proxy
+  `{"code":"UPSTREAM_UNREACHABLE","message":"read ECONNRESET"}`, and a token-authenticated retry
+  returned 200. Reopen only on a contradicting capture. O2 also records repeats outside the three
+  named callers (`runtime/context` ×2, `/notifications` per scope, and the app's own retry after
+  a 502).
 - **UX backlog:** the dashboard tile reporting "335 review blockers" on a zero-HARD published
   run; the advanced policy surface's layout switch + refetch (pre-existing).
 
@@ -319,10 +336,18 @@ and the proxy is healthy. The superseded `ENROLLPRO-PROXY-RECOVERY-LIVE` packet 
 
 ## 6. Next actions, ordered
 
-1. `callers` one-shot: author packet → pre-action review → executor (Part A) → deploy (Part B) →
-   QA with browser custody → integrate → record in `live-state.md`.
-2. Review Lane B's implementation range when the operator says it has finished.
-3. Then: the dashboard truth issue, or the 502 lead once a failing response body exists.
+1. **Ship Lane B's server fix** (`ACTOR-SCHOOL-MUTATIONS-C01`, integrated at `07739636`): one new
+   release at a fresh pin under the standing authorization — pre-action review of the deployment
+   clause, one executor Part B, one fresh independent post-action QA. It is the first release
+   carrying **server** source since `4c7c0bd9`, so its packet must pin the *server* artifact
+   identity as well as the client chunk. Before starting: confirm the pin's product tree,
+   re-measure `D:` (37.32 GiB), and read `docs/handoffs/lane-b.md` and
+   `docs/handoffs/lane-a-to-lane-b.md` for Lane B's current state.
+2. Then: the remaining UX backlog — the dashboard tile still reporting review blockers on a
+   zero-HARD published run, and the advanced policy surface's layout switch + refetch — plus the
+   `parseSchoolId` defaulting backlog on non-listed routes.
+3. The 502 lead needs **no** ATLAS fix (host-side `UPSTREAM_UNREACHABLE`/`ECONNRESET`, captured in
+   O1). Revisit only if a new captured body contradicts that.
 
 ## 7. Artifact index (paths only — do not paste contents)
 

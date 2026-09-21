@@ -47,6 +47,15 @@ holds the detail so the directive stays short.
   authoritative.** There is one per release directory; the others are stale artifacts that
   report a different release, or `stopped`, while the runtime is healthy. Reading the wrong
   one produces a false "identity drift" alarm.
+- **A stale *process-scope* env pair shadows machine scope in an agent shell.** Measured
+  2026-09-21: the agent harness's own environment carried
+  `ATLAS_RUNTIME_SOURCE_DIR=D:\ATLAS-runtime-supervised-c93dd2ee-20260920` and
+  `ATLAS_RUNTIME_RELEASE_SHA=c93dd2ee…`, while the **machine** scope (and the scheduled task)
+  held the correct active release. Every child shell inherits the stale pair, so an unqualified
+  `node ops/runtime/cli.mjs stop`/`status` reads the **orphan** release's state file and reports
+  the wrong release, or `stopped`, for a healthy runtime. It is not a registry value, so there
+  is nothing to "fix" — pass explicit env overrides to every `cli.mjs` invocation, and read
+  identity from the task action, the supervisor command line, and the **active** state file.
 - **`schtasks` XML registration: measure the encoding, do not assume the repair.**
   `schtasks /query /xml` returns ASCII bytes (`3C 3F 78 6D 6C` = `<?xml`) whose declaration
   says `encoding="UTF-16"`. Measured on this host 2026-09-21: that file **registers cleanly

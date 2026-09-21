@@ -4,8 +4,9 @@ Current operational truth only. Git history and handoff documents retain older
 evidence. Update this file when a live fact, blocking decision, or next action
 changes.
 
-Last verified: 2026-09-21 (planner, during `DASHBOARD-TRUTH-C01`; release `4c7c0bd9`
-**deployed**, executor rows D1–D4 4/4 — **acceptance incomplete**, post-action QA pending)
+Last verified: 2026-09-21 (planner, closing `DUP-READ-CALLERS-C01R`; release `a02884ff`
+**deployed** and independently accepted **7/7**, 0 blocked, 0 unperformed, after one bounded
+planner-applied documentation correction)
 
 ## Objective
 
@@ -18,20 +19,26 @@ and AIMS.
 ## Live release
 
 - Tailnet: `https://njgrm.buru-degree.ts.net`
-- Release SHA: `4c7c0bd9` (product commit `2a6cb06d`; every commit above it is docs-only, proven
-  by an empty product-tree diff)
-- Supervisor: PID 102800; server `5001 -> 102964`; client `5174 -> 87184`
-- Active directory: `D:\ATLAS-runtime-supervised-4c7c0bd9-20260921`
-- Served client entry chunk: `/assets/index-zIp12x6H.js` (incumbent was `index-BMgoX99N.js`)
-- Deployed 2026-09-21 by the `DASHBOARD-TRUTH-C01` one-shot (Part B). This release carries the
-  dashboard blocker-truth fix **and** the previously undeployed `DUP-READ-CALLERS-C01` dedup
-  fix. Post-action QA (1 login, `audit_logs` id 857) returned **6/7 `CORRECTION_REQUIRED`**:
-  D1–D4, B1 (dashboard reads `"No hard violations · 284 warnings acknowledged"`) and B3 pass;
-  **B2 fails**. The deployment is `DEPLOYED` with acceptance **incomplete** — do not call this
-  cycle done.
-- Incumbent `434b2a81` rollback: its task XML was captured before mutation
-  (`%TEMP%\opencode\atlas-runtime-434b2a81-rollback.xml`) with both machine-scope values;
-  rollback basis `5f5c6c4f` remains startable. Rollback was **not** executed.
+- Release SHA: `a02884ff` (product tree byte-identical to the accepted `DUP-READ-CALLERS-C01R`
+  Part A candidate `2f1a8f33`; the whole delta versus `4c7c0bd9` is the three client paths of
+  the per-token-epoch `/auth/me` memo). **Client-only** — it does **not** carry Lane B's
+  `ACTOR-SCHOOL-MUTATIONS-C01` server fix, which is integrated on `main` but **not deployed**.
+- Supervisor: PID 102756; server `5001 -> 99584`; client `5174 -> 96548`
+- Active directory: `D:\ATLAS-runtime-supervised-a02884ff-20260921`
+- Served client entry chunk: `/assets/index-C6LTCXSf.js` (incumbent was `index-zIp12x6H.js`)
+- Deployed 2026-09-21 by the `DUP-READ-CALLERS-C01R` Part B one-shot. Post-action QA re-ran
+  D1–D4 + B1–B3 and returned **6/7 `CORRECTION_REQUIRED`** on one evidence defect: the executor
+  recorded a `SET LOCAL TIME ZONE 'UTC'` pin that had no effect (issued outside a transaction),
+  so its published signature-map hash is the default-session-TZ rendering. One bounded,
+  planner-applied **additive documentation correction** (no runtime action) records the
+  addendum-literal pre==post proof, QA's UTC-pinned post value, and QA's independent whole-DB
+  zero-write scan; D4 then passes on accurate evidence and the cycle is **accepted 7/7/0/0**.
+  QA confirmed **B2 is fixed**: a clean `/timetable` load issues `/auth/me` ×1, `runtime/context`
+  ×2, `rollover-status` ×1. QA login: `audit_logs` id **858** (actor 46).
+- Rollback: incumbent `4c7c0bd9` is startable in place at
+  `D:\ATLAS-runtime-supervised-4c7c0bd9-20260921` (task XML captured pre-mutation at
+  `%TEMP%\opencode\c01r-incumbent-task.xml`); `434b2a81`'s XML and the `5f5c6c4f` basis remain
+  available. Rollback was **not** executed. `D:` free 38.82 → **37.32 GiB**.
 - Deployed 2026-09-21 by the `UX-R03e` one-shot, which added the last two operator
   sub-pages: `/timetable/runs` (a read-only run history composed from the existing
   `GET /api/v1/generation/:schoolId/:schoolYearId/runs` endpoint, selecting through the
@@ -128,27 +135,37 @@ and AIMS.
 
 ## Current blockers and accepted source
 
-- `DUP-READ-CALLERS-C01` is **integrated and independently accepted** 2026-09-21 (QA
-  `ACCEPT_READY` 5/5, blocked 0, unperformed 0 over `ccf31e77...6949e3d4`; source
-  blob-identical to the reviewed candidate `ce0e54ec`; test files added, none deleted). It
-  closes the three named duplicate-read callers: one in-flight `/auth/me` per token epoch
-  across **both** `resolveActorSchoolId` and `verifySessionToken`; the `runtime/context`
-  in-flight registry keyed by the full request profile
+- `DUP-READ-CALLERS-C01` / `-C01R` are **integrated, deployed and independently accepted**
+  2026-09-21. `C01` closed the three named duplicate-read callers: one in-flight `/auth/me` per
+  token epoch across **both** `resolveActorSchoolId` and `verifySessionToken`; the
+  `runtime/context` in-flight registry keyed by the full request profile
   (`schoolId:verifyUpstream:allowEnrollProFallback:allowStaleOnError`, normalized to effective
-  defaults); and `rollover-status` keyed by `(schoolId, includeCounts)`. **Not deployed** —
-  see the capacity blocker below. Its browser rows B1/B2 are `DEFERRED`
-  deployment-acceptance clauses. No 502 fix: the layer remains unproven and needs one captured
-  failing response body.
+  defaults); and `rollover-status` keyed by `(schoolId, includeCounts)`. `C01R` added the
+  per-token-epoch **resolved-value memo** that closes the *serial* duplicate the in-flight map
+  cannot, and is live in `a02884ff`. Both passed their source rows (5/5 each; C01R carried into
+  the release on proven blob identity).
+- **Lane B `ACTOR-SCHOOL-MUTATIONS-C01` is integrated on `main` (`07739636`) but NOT deployed.**
+  It applies actor-school enforcement to the eight defaulting runtime mutation `POST` routes and
+  corrects the abort budget. The live `a02884ff` predates it. Shipping it requires a release,
+  which is Lane A's to make, and because it is a server change it needs its own reviewed packet
+  and its own post-action QA.
+- **Deploy fact earned this cycle:** an agent shell inherits a **stale process-scope**
+  `ATLAS_RUNTIME_SOURCE_DIR` / `ATLAS_RUNTIME_RELEASE_SHA` (measured `c93dd2ee-20260920`) that
+  shadows machine scope, so an unqualified `node ops/runtime/cli.mjs stop` targets the wrong
+  (orphan) state file. Pass explicit env overrides; the registry values are correct. Recorded in
+  `docs/reference/agent-runtime-deploy-facts.md`.
 - **The 502 layer is now identified (observation O1, 2026-09-21).** A captured failing response
   was a host-proxy typed 502 — `{"code":"UPSTREAM_UNREACHABLE","message":"read ECONNRESET"}` on
   `GET /generation/1/10/runs/316/manual-edits` (also `follow-up-flags` once). Per the
   diagnosis's inference table that is a **host-side** connection blip to the server, not a
   server- or route-emitted 502, so the fix is **not** in the routes. No fix attempted; the
   server-side cause is uninvestigated.
-- **`/auth/me` is still duplicated sequentially** even with the A1 in-flight map deployed: a
-  clean load issues 2 requests 147 ms apart, same epoch, identical bearer. In-flight sharing
-  cannot coalesce a *serial* duplicate; a per-epoch resolved-value memo is required. This is
-  the open `B2` failure.
+- **`/auth/me` serial duplication is FIXED on the live `a02884ff`.** QA measured a clean
+  `/timetable` load issuing `/auth/me` **×1** (single token epoch), `runtime/context` **×2**, and
+  `rollover-status` **×1** — the B2 row that failed on `4c7c0bd9` now passes. The packet's
+  "two cards asserted mounted" sub-clause remains **not exercisable**: 0 `rollover-guidance-card`
+  elements mount on `/timetable`, `/` or `/teaching-load`, and no live state mounts two
+  (creating drift is not authorized). The primary count assertion is unweakened.
 - **`D:` capacity blocker RESOLVED 2026-09-21 by the worktree reclaim.** 56 clean, contained,
   unanchored, inactive worktrees were retired across `D:/ATLAS-worktrees` and
   `E:/ATLAS-worktrees`: `D:` free 15.81 → **40.76 GiB**, `E:` 55.7 → **66.13 GiB** (~35.4 GiB
@@ -270,34 +287,30 @@ and AIMS.
 
 ## Single next action
 
-**Part B — re-release.** The `B2` correction is accepted and integrated (`DUP-READ-CALLERS-C01R`
-Part A, candidate `360c026b`, QA `ACCEPT_READY` 5/5): a per-token-epoch resolved-value memo in
-`settings.ts` so a *serial* same-epoch `/auth/me` caller is served the value instead of
-dispatching. Build the accepted candidate into a new release under the standing authorization,
-then QA re-runs **D1–D4, B1, B2 and B3** on it — B2 is the row that failed on `4c7c0bd9`, and its
-"two cards asserted mounted" sub-clause must be resolved per the packet's §4.2 amendment (0 cards
-mount on the live simple view). One more login expected; disclose its `audit_logs` row.
+**Ship Lane B's server fix — the next release.** `DUP-READ-CALLERS-C01R` is closed: release
+`a02884ff` is live and accepted 7/7/0/0. The only integrated-but-undeployed source on `main` is
+Lane B's `ACTOR-SCHOOL-MUTATIONS-C01` server change (`07739636`) — actor-school enforcement on
+the eight defaulting runtime mutation `POST` routes. Shipping it is one new release built at a
+fresh pin under the standing authorization, with its own pre-action review of the deployment
+clause, one executor Part B, and one fresh independent post-action QA. It would be the first
+release carrying **server** source since `4c7c0bd9`, so its packet must pin the server artifact
+identity (not only the client chunk). Before starting: confirm the pin's product tree, re-measure
+`D:` free (37.32 GiB; warn below 25, fail closed below 15), and read the current
+`docs/handoffs/lane-b.md` and `docs/handoffs/lane-a-to-lane-b.md`.
 
-Then the previously queued work stands. The route split is now complete: every operator sub-page exists, the workspace stops
-remounting inside the subtree, and the whole timetable route suite runs in a committed gate.
-`DUP-READ-DIAGNOSIS-C01` answered the lead and **inverted the assumed fix**. Measured: the
-duplicates are **not** a StrictMode/dev artefact (a dev-only double-invoke cannot reach the
-production `dist` the host asserts). Causes are per-caller: `resolveActorSchoolId`
-(`settings.ts:485`) has no in-flight sharing, so AppShell's verify races the scope hook and
-route hooks for `/auth/me`; `enrollpro-public-settings.ts:231-241` has a `forceRefresh` that
-**bypasses its own `inflightBySchool` dedup**, which `useTimetableData.ts:1161-1190` triggers
-as a background-plus-forced pair for `runtime/context`; `rollover-status` has zero dedup and
-the Timetable can mount two cards. **Recommendation: fix the named callers** (3-4 client
-files, read-path only) — explicitly **not** a blanket coalesce in `atlasApi`, which would
-touch every call in the client for no reason the evidence supports. The 502s remain
-**unproven**: 40 read-only probes gave 40 fast 401s and zero 502s, and source reading shows
-the two routes cannot emit 502 themselves (handlers `next(err)` → `?? 500`; the only
-`serviceError(502)` sites are EnrollPro paths). Settling them needs one failing response body
-from a browser lane, so no 502 fix is proposed. Findings:
-`docs/reviews/dup-read-diagnosis-c01/findings.md`.
-Next: a one-shot that fixes the three named callers (client, read-path, no deploy-time
-behaviour change beyond the bundle) with the usual deployment and QA-held browser custody.
-EnrollPro is online and its proxy is healthy; no ATLAS action is outstanding there. Dispatch
-the SMART and AIMS handoffs to their repository owners in parallel; generate/install
-directional keys only after both sides consume the agreed names. Regeneration and publication
-remain separately locked, as do all Teaching Load and term-cache applies.
+Behind that release, these are unchanged:
+
+- The route split is complete: every operator sub-page exists, the workspace stops remounting
+  inside the `/timetable` subtree, and the whole timetable route suite runs in a committed gate.
+- The duplicate-read diagnosis is answered and its fixes are live (`C01` + `C01R`). The 502s need
+  **no ATLAS fix**: the captured body (O1) is a host-proxy `UPSTREAM_UNREACHABLE` /
+  `read ECONNRESET`, i.e. host-side. O2 records further repeats outside the three named callers
+  (`runtime/context` ×2, `/notifications` per scope, and the app's own retry after a 502) — a
+  candidate successor, not a defect. Findings:
+  `docs/reviews/dup-read-diagnosis-c01/findings.md`.
+- EnrollPro is online and its proxy is healthy; no ATLAS action is outstanding there. Dispatch
+  the SMART and AIMS handoffs to their repository owners in parallel; generate/install
+  directional keys only after both sides consume the agreed names.
+- Regeneration and publication remain separately locked, as do every Teaching Load and term-cache
+  apply. The remaining defaulting `parseSchoolId` backlog and the advanced-policy-surface
+  layout-switch/refetch observation stay non-blocking successors.
