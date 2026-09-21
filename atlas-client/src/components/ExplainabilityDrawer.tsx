@@ -5,7 +5,7 @@ import type { Violation, UnassignedItem, ViolationCode } from '@/types';
 import { Button } from '@/ui/button';
 import { ScrollArea } from '@/ui/scroll-area';
 import { isBlockingHardViolation, isInformationalHardViolation } from '@/components/timetable/simplePublishReadiness';
-import { VIOLATION_PRESENTATION } from '@/lib/violation-presentation';
+import { VIOLATION_PRESENTATION, formatIdentityFallbackText, formatWarningMessageText } from '@/lib/violation-presentation';
 
 /* ─── Human-readable explanations per violation code ─── */
 
@@ -41,6 +41,14 @@ interface ExplainabilityDrawerProps {
 	unassignedItem?: UnassignedItem | null;
 	/** Context label (e.g., preview result) */
 	contextLabel?: string;
+	/**
+	 * WARNING-READABILITY-C01-R1 (F1): optional caller-supplied formatter with
+	 * reference-map resolution (the workspace passes its constraint-message
+	 * formatter so the drawer shows teacher names, not ids). When absent the
+	 * drawer still satisfies R2 via the map-less fallback: no `Faculty 16`
+	 * ids, no bare `min`/`h`, no shouted weekday names.
+	 */
+	formatMessage?: (message: string, violation?: Violation) => string;
 }
 
 export function ExplainabilityDrawer({
@@ -49,6 +57,7 @@ export function ExplainabilityDrawer({
 	violation,
 	unassignedItem,
 	contextLabel,
+	formatMessage,
 }: ExplainabilityDrawerProps) {
 	const hasContent = violation || unassignedItem;
 
@@ -108,7 +117,9 @@ export function ExplainabilityDrawer({
 										<div>
 											<h4 className="text-xs font-semibold text-foreground mb-1">What happened</h4>
 											<p className="text-xs text-muted-foreground leading-relaxed">
-												{violation.message}
+												{formatMessage
+													? formatMessage(violation.message, violation)
+													: formatWarningMessageText(formatIdentityFallbackText(violation.message))}
 											</p>
 										</div>
 

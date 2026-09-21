@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import http from 'node:http';
 import test from 'node:test';
 import express from 'express';
@@ -6,7 +7,82 @@ import jwt from 'jsonwebtoken';
 
 import { withDataContext } from '../lib/data-context.js';
 import { buildViolationReport } from '../services/generation.service.js';
-import { validateHardConstraints, type ScheduledEntry, type Violation } from '../services/constraint-validator.js';
+import { VIOLATION_CODES, VIOLATION_COPY, validateHardConstraints, type ScheduledEntry, type Violation, type ViolationCopy } from '../services/constraint-validator.js';
+
+function assertCopyComplete(codes: readonly string[], copy: Record<string, ViolationCopy>): void {
+	const jargon = ['treatAsHard', 'entryId', 'termIndex', 'blockEntryIds', 'UNSPECIFIED', 'CAS', 'DTO'];
+	for (const code of codes) {
+		const entry = copy[code];
+		assert.ok(entry, `${code} needs operator copy`);
+		assert.ok(entry.title.trim().length > 0, `${code} needs a title`);
+		assert.ok(entry.meaning.trim().length > 0, `${code} needs a meaning`);
+		assert.ok(entry.action.trim().length > 0, `${code} needs a next action`);
+		assert.doesNotMatch(entry.meaning, /\n/, `${code} meaning must be one sentence on one line`);
+		for (const token of jargon) {
+			assert.doesNotMatch(`${entry.title} ${entry.meaning} ${entry.action}`, new RegExp(token), `${code} copy must not leak internal jargon (${token})`);
+		}
+		assert.doesNotMatch(`${entry.title} ${entry.meaning} ${entry.action}`, new RegExp(code, 'i'), `${code} copy must not repeat the raw code`);
+	}
+}
+
+test('R1: every canonical VIOLATION_CODES entry has plain title, meaning, and next action', () => {
+	assert.ok(VIOLATION_CODES.length >= 20, 'the test must enumerate the production canonical set');
+	assertCopyComplete(VIOLATION_CODES, VIOLATION_COPY as Record<string, ViolationCopy>);
+});
+
+test('R1/mutant: the coverage check fails when one code loses its copy', () => {
+	const gapped = { ...(VIOLATION_COPY as Record<string, ViolationCopy>) };
+	delete gapped[VIOLATION_CODES[0]];
+	assert.throws(() => assertCopyComplete(VIOLATION_CODES, gapped), new RegExp(VIOLATION_CODES[0]));
+});
+
+test('R6: no violation template uses an ambiguous time arrow', () => {
+	const source = readFileSync(new URL('../services/constraint-validator.ts', import.meta.url), 'utf8');
+	const templates = Array.from(source.matchAll(/message:\s*`([^`]+)`/g)).map((match) => match[1]);
+	assert.ok(templates.length >= 15, 'the scan must cover the production template set');
+	for (const template of templates) {
+		// Time movement is stated in words ("finishes ... at 14:30 and starts
+		// ... at 14:30"), never as an arrow that can read as zero-length.
+		assert.doesNotMatch(template, /->|→/, `template must state time movement in words: ${template}`);
+	}
+});
+
+test('R2: the consecutive-limit message states minutes, periods, and the named limit', () => {
+	const scheduled: ScheduledEntry[] = [0, 1, 2, 3].map((index) => ({
+		entryId: `block-${index}`,
+		termIndex: 1,
+		facultyId: 16,
+		roomId: 1,
+		subjectId: 1,
+		sectionId: 1,
+		day: 'MONDAY',
+		startTime: ['09:15', '10:00', '10:45', '11:30'][index],
+		endTime: ['10:00', '10:45', '11:30', '12:15'][index],
+		durationMinutes: 45,
+	}));
+	const result = validateHardConstraints({
+		...base,
+		entries: scheduled,
+		faculty: [{ id: 16, maxHoursPerWeek: 40 }],
+		facultySubjects: [{ facultyId: 16, subjectId: 1, sectionIds: [1] }],
+		rooms: [{ id: 1, type: 'CLASSROOM', capacity: 50, features: [] }],
+		subjects: [{ id: 1, preferredRoomType: 'CLASSROOM', requiredFeatures: [] }],
+		policy: {
+			periodLengthMinutes: 45,
+			minBreakMinutesAfterConsecutiveBlock: 15,
+			maxTeachingMinutesPerDay: 480,
+			earliestStartTime: '06:00',
+			latestEndTime: '14:30',
+			enforceConsecutiveBreakAsHard: false,
+		},
+		breakWindows: [],
+	});
+	const consecutive = result.violations.find((item) => item.code === 'FACULTY_CONSECUTIVE_LIMIT_EXCEEDED');
+	assert.ok(consecutive, 'four contiguous 45-minute periods must trip the consecutive limit');
+	assert.match(consecutive.message, /180 consecutive minutes \(4 periods\)/);
+	assert.match(consecutive.message, /135-minute limit/);
+	assert.doesNotMatch(consecutive.message, /\bmin\b/, 'no bare minute abbreviation remains');
+});
 
 const base = {
 	schoolId: 1,

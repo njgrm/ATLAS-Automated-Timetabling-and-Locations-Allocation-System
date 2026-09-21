@@ -18,6 +18,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/t
 import { DraggablePlacementPin, DraggableQueuePin, PinnedRailDropZone, UnassignDropZone } from '@/components/timetable/DraggablePinWrappers';
 import { GeneratedViolationsPanel } from '@/components/timetable/GeneratedRunRailPanels';
 import { GeneratedUnassignedPanel } from '@/components/timetable/GeneratedUnassignedPanel';
+import { sortViolationGroupsHardFirst } from '@/lib/violation-presentation';
 import type { LeftRailContentContext } from '@/components/timetable/timetableContexts.types';
 import { onProfilerRender } from '@/components/timetable/ScheduleReviewWorkspace';
 
@@ -160,7 +161,9 @@ function LeftRailContentImpl({ context }: LeftRailContentProps) {
 		}).map((placement): [number, string] => [placement.sectionId, sectionLabel(placement.sectionId)]),
 	]).entries());
 
-	const violationGroups = Array.from(violationsByCode.entries());
+	// WARNING-READABILITY-C01 (R7): HARD blockers lead; soft comfort metrics
+	// never visually compete with them. Stability keeps equal-severity order.
+	const violationGroups = sortViolationGroupsHardFirst(Array.from(violationsByCode.entries()));
 	const visibleViolationGroups = violationGroups.slice(0, violationsGroupPage);
 	const hasMoreViolationGroups = violationGroups.length > visibleViolationGroups.length;
 

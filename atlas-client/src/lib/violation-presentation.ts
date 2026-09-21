@@ -39,6 +39,68 @@ export function getViolationPresentation(code: ViolationCode): ViolationPresenta
 	return VIOLATION_PRESENTATION[code];
 }
 
+const WEEKDAY_TITLE: Record<string, string> = {
+	MONDAY: 'Monday',
+	TUESDAY: 'Tuesday',
+	WEDNESDAY: 'Wednesday',
+	THURSDAY: 'Thursday',
+	FRIDAY: 'Friday',
+	SATURDAY: 'Saturday',
+	SUNDAY: 'Sunday',
+};
+
+/**
+ * WARNING-READABILITY-C01 (R2): normalize a raw validator message for the
+ * operator surface without touching the underlying math. Bare minute
+ * abbreviations become "minutes" and shouted weekday names become title
+ * case. Teacher/room/section id resolution stays in the lookup helpers,
+ * which own the reference maps.
+ */
+export function formatWarningMessageText(message: string): string {
+	return message
+		.replace(/(\d+)\s*min\b/g, '$1 minutes')
+		.replace(/(\d+)\s*h\b/g, '$1 hours')
+		.replace(/\b(MONDAY|TUESDAY|WEDNESDAY|THURSDAY|FRIDAY|SATURDAY|SUNDAY)\b/g, (day) => WEEKDAY_TITLE[day] ?? day);
+}
+
+/**
+ * WARNING-READABILITY-C01-R1 (F1): map-less identity fallback for operator
+ * surfaces that render a raw validator message without reference maps (the
+ * explainability drawer default, the manual-edit panel). Where lookup maps
+ * exist, callers resolve known ids to names FIRST (see
+ * useTimetableLookupHelpers.formatConstraintMessage and the rail formatter);
+ * this only guarantees that no `Faculty 16`-style raw id ever reaches
+ * operator-visible text. It must stay separate from
+ * formatWarningMessageText so the map-backed paths keep resolving real
+ * names instead of degrading to the fallback.
+ */
+export function formatIdentityFallbackText(message: string): string {
+	return message
+		.replace(/\bfaculty\s+#?\d+\b/gi, 'this teacher')
+		.replace(/\bsubject\s+#?\d+\b/gi, 'this subject')
+		.replace(/\bsection\s+#?\d+\b/gi, 'this section')
+		.replace(/\broom\s+#?\d+\b/gi, 'this room');
+}
+
+/**
+ * WARNING-READABILITY-C01 (R7): order warning groups so HARD blockers lead
+ * and soft comfort metrics never visually compete with them. Stable: groups
+ * of equal severity keep their incoming order.
+ */
+export function sortViolationGroupsHardFirst<T extends { severity?: string }>(
+	groups: Array<[ViolationCode, T[]]>,
+): Array<[ViolationCode, T[]]> {
+	return [...groups]
+		.map((entry, index) => ({ entry, index }))
+		.sort((left, right) => {
+			const leftHard = left.entry[1].some((item) => item.severity === 'HARD') ? 0 : 1;
+			const rightHard = right.entry[1].some((item) => item.severity === 'HARD') ? 0 : 1;
+			if (leftHard !== rightHard) return leftHard - rightHard;
+			return left.index - right.index;
+		})
+		.map(({ entry }) => entry);
+}
+
 export const VIOLATION_TITLES: Record<ViolationCode, string> = Object.fromEntries(
 	Object.entries(VIOLATION_PRESENTATION).map(([code, copy]) => [code, copy.title]),
 ) as Record<ViolationCode, string>;

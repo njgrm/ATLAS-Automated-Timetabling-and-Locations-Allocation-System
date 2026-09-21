@@ -13,6 +13,7 @@ import { AlertCircle, ArrowLeft, Check, CheckCircle2, Clock, DoorOpen, Loader2, 
 import { AnimatePresence, motion } from 'motion/react';
 
 import { formatTime } from '@/lib/utils';
+import { formatIdentityFallbackText, formatWarningMessageText, VIOLATION_PRESENTATION } from '@/lib/violation-presentation';
 import { getQualificationTier, type QualificationTier } from '@/lib/grade-labels';
 import type { ManualEditProposal, PreviewResult, ScheduledEntry } from '@/types';
 import { Badge } from '@/ui/badge';
@@ -226,6 +227,21 @@ export default function ManualEditPanel({
 	);
 
 	const entryViolations = violationIndex.get(entry.entryId) ?? [];
+
+	/**
+	 * WARNING-READABILITY-C01-R1 (F1): the conflict inspector renders raw
+	 * validator messages, so it applies the same R2 formatting as the rail:
+	 * known teacher ids resolve to names via facultyMap, every other raw id
+	 * degrades to plain words, and bare `min`/`h` plus shouted weekdays are
+	 * expanded. Constraint math is untouched — presentation only.
+	 */
+	const formatPanelViolationMessage = (message: string): string => {
+		const withNames = message.replace(/\bfaculty\s+#?(\d+)\b/gi, (match, rawId: string) => {
+			const faculty = facultyMap.get(Number(rawId));
+			return faculty ? `${faculty.lastName}, ${faculty.firstName}` : 'this teacher';
+		});
+		return formatWarningMessageText(formatIdentityFallbackText(withNames));
+	};
 	const grade = gradeForSection(entry.sectionId);
 	const gradeBadge = grade ? GRADE_BADGE[grade] : undefined;
 
@@ -910,8 +926,8 @@ export default function ManualEditPanel({
 															key={i}
 															className="rounded border-l-[3px] border-l-red-500 border border-red-200 bg-red-50/80 px-3 py-2"
 														>
-															<div className="text-xs font-semibold text-red-800">{v.code.replace(/_/g, ' ')}</div>
-															<div className="mt-0.5 text-xs text-red-700">{v.message}</div>
+															<div className="text-xs font-semibold text-red-800">{VIOLATION_PRESENTATION[v.code]?.title ?? v.code.replace(/_/g, ' ')}</div>
+															<div className="mt-0.5 text-xs text-red-700">{formatPanelViolationMessage(v.message)}</div>
 														</div>
 													))}
 												</div>
@@ -929,8 +945,8 @@ export default function ManualEditPanel({
 															key={i}
 															className="rounded border-l-[3px] border-l-amber-500 border border-amber-200 bg-amber-50/80 px-3 py-2"
 														>
-															<div className="text-xs font-semibold text-amber-800">{v.code.replace(/_/g, ' ')}</div>
-															<div className="mt-0.5 text-xs text-amber-700">{v.message}</div>
+															<div className="text-xs font-semibold text-amber-800">{VIOLATION_PRESENTATION[v.code]?.title ?? v.code.replace(/_/g, ' ')}</div>
+															<div className="mt-0.5 text-xs text-amber-700">{formatPanelViolationMessage(v.message)}</div>
 														</div>
 													))}
 												</div>

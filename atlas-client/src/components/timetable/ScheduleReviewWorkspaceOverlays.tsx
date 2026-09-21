@@ -22,6 +22,7 @@ function ScheduleReviewWorkspaceOverlaysImpl({ context }: ScheduleReviewWorkspac
 		setDrawerUnassigned,
 		drawerViolation,
 		drawerUnassigned,
+		formatDrawerMessage,
 	} = context;
 
 	return (
@@ -43,6 +44,7 @@ function ScheduleReviewWorkspaceOverlaysImpl({ context }: ScheduleReviewWorkspac
 				onClose={() => { setDrawerViolation(null); setDrawerUnassigned(null); }}
 				violation={drawerViolation ?? undefined}
 				unassignedItem={drawerUnassigned ?? undefined}
+				formatMessage={formatDrawerMessage}
 			/>
 		</>
 	);

@@ -172,6 +172,13 @@ export type ScheduleReviewWorkspaceOverlaysContext = {
 	setDrawerUnassigned: (value: UnassignedItem | null) => void;
 	drawerViolation: Violation | null;
 	drawerUnassigned: UnassignedItem | null;
+	/**
+	 * WARNING-READABILITY-C01-R1 (F1): map-backed constraint-message
+	 * formatter so the explainability drawer renders the same R2 copy as the
+	 * rail (teacher names, expanded units). Optional; the drawer falls back
+	 * to its map-less R2 formatting when absent.
+	 */
+	formatDrawerMessage?: (message: string, violation?: Violation) => string;
 };
 
 type BuildLeftRailContextArgs = Omit<
