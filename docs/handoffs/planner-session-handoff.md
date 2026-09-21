@@ -5,8 +5,10 @@ planner writes and phrases it; the kickoff line below never changes. Updating it
 deliberate and cheap (~1–2k tokens): it makes any turn boundary a safe session boundary. The
 *decision* to actually start fresh stays conditional — take it at a real lane boundary, before
 a HIGH action, or once a compaction would cost more than a restart.
-Last updated: 2026-09-21, Lane A resumed in a fresh session; the `DUP-READ-CALLERS-C01`
-packet is committed and the pre-action review is the next step.
+Last updated: 2026-09-21, Lane A resumed in a fresh session. `DUP-READ-CALLERS-C01` r1 is
+corrected after a pre-action review returned `CORRECTION_REQUIRED`, and the cycle is
+re-scoped **source-only** — the deployment is deferred on a measured `D:` capacity gate, which
+is now an operator decision.
 
 **To resume in a fresh session, paste this one line:**
 > Read `docs/handoffs/planner-session-handoff.md` on `origin/main` and resume as the ATLAS
@@ -111,6 +113,24 @@ and the proxy is healthy. The superseded `ENROLLPRO-PROXY-RECOVERY-LIVE` packet 
   3. `atlas-client/src/lib/settings.ts:528` (`fetchRolloverStatus`) — raw axios, zero dedup;
      two `RolloverGuidanceCard`s can mount. Share one in-flight request per school.
   **Explicitly not** an `atlasApi` coalesce (would touch every call).
+
+  **State after the pre-action review (`ses_f3de7e123ffem8meOv9yZ6kAdl`).**
+  `CORRECTION_REQUIRED` — 3 blocking findings, all real, all accepted in the r1 packet:
+  (i) the capacity precondition gated only the pre-build figure, so a build would land
+  **below the 15 GiB floor**; (ii) the `/auth/me` row was unsatisfiable unless the
+  `verifySessionToken` unification became mandatory — it is now A1, and `AppShell.tsx` is
+  authorized; (iii) A2's force-join would have **silently dropped `verifyUpstream`**, a
+  user-visible drift/term regression — A2 now keys the in-flight registry by request profile.
+  Also corrected: `rollover-status` keyed by school + `includeCounts`; the new script must run
+  seven decisive suites that are in no script today; the two report-only rows are demoted to
+  observations. r1 rows: **5 mandatory source rows**, 2 deferred browser rows, 2 observations.
+
+  **Re-scoped: this cycle is SOURCE-ONLY.** The deployment cannot run at 15.81 GiB free — a
+  1.43–1.86 GiB build lands at 13.95–14.38 GiB, below the floor, with PostgreSQL on `D:`.
+  Deployment and browser acceptance are deferred into the next release.
+  **Operator decision pending — `D:` headroom.** 21 `D:\ATLAS-runtime-*` directories are on
+  Lane A's never-retire list, so reclaiming them is operator-only, and every future deploy
+  lands below the floor until that is resolved.
 - **Lane B — two blocking items to clear before it implements** (both its own, neither mine):
   1. **Push the checkpoint.** `836abba9` is local only; the review discipline is that a
      candidate is reviewable from Git alone. `git fetch` before pushing, never force-push.
