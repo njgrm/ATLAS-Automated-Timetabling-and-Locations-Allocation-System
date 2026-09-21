@@ -36,11 +36,11 @@ After every output that changes code or files, suggest a conventional commit mes
 
 **`E:/ATLAS-worktrees` is the root for every new planner, executor, QA, audit, and integration worktree.** `D:/ATLAS-worktrees` is legacy-retention only — no new worktree there without an explicit operator decision. Branches, commits and pushed artifacts preserve history; retaining every checkout does not.
 
+- **Before creating, retiring, or cleaning up any worktree, release directory, or dependency tree, read `docs/reference/agent-worktree-lifecycle.md`** — it holds the record-before-retiring list, the retirement command and its prohibitions, the do-not-retire set, and the `node_modules` junction rules that have already taken the live runtime down once.
 - Before creating a worktree, installing dependencies, or starting a heavy build, record the target volume's free space. On `D:`, **warn below 25 GiB, fail closed below 15 GiB** — PostgreSQL lives on `D:`, so database headroom is part of this gate.
 - Keep at most **12 active task worktrees** across both roots. Integration worktrees count and must not persist as historical evidence.
 - Every handoff states a worktree disposition: `KEEP_ACTIVE`, `RETIRE_AFTER_INTEGRATION`, or `PRESERVE_FOR_DECISION`. Retire a candidate's clean inactive worktrees in the same closure that integrates and pushes it.
 - **Preserve every dirty worktree, unintegrated candidate, active stream, and uncertain owner.**
-- **Before creating, retiring, or cleaning up any worktree, release directory, or dependency tree, read `docs/reference/agent-worktree-lifecycle.md`** — it holds the record-before-retiring list, the retirement command and its prohibitions, the do-not-retire set, and the `node_modules` junction rules that have already taken the live runtime down once.
 
 ---
 
@@ -67,12 +67,12 @@ After every output that changes code or files, suggest a conventional commit mes
 
 ## 6. Supervised Runtime And Log Probing Rule
 
+- **Before any deployment, runtime, task, environment, or release-directory action, read `docs/reference/agent-runtime-deploy-facts.md`.** It carries the facts learned the hard way: the elevated-shell requirement, the SYSTEM supervisor and the tree-kill quiesce, the stale-state `ALREADY_RUNNING` trap, the repo-root `prisma generate` schema path, proving a deploy by fetching a chunk that only exists in the new build, the `VITE_ENROLLPRO_URL` fail-closed build guard, and the rule that only the active `ATLAS_RUNTIME_SOURCE_DIR` state file is authoritative.
 - The host runs an auto-starting supervised runtime: scheduled task `ATLAS-Runtime-Supervisor` (SYSTEM, at system startup) launches `<sourceDir>/ops/runtime/cli.mjs`, which owns **port 5001** (`atlas-server/dist/server.js`) and **port 5174** (production host serving `atlas-client/dist`). `EADDRINUSE` on 5001, or "Port 5174 is in use, trying another one" from a manual `npm run dev`, is **expected behaviour, not a defect.**
 - Both children stream into `<sourceDir>/ops/runtime/logs/atlas-supervisor.log`, with state in `supervisor-state.json` beside it. Read-only status: `node ops/runtime/cli.mjs status` from `<sourceDir>`.
 - Resolve `<sourceDir>` from the task action or the supervisor process command line (`schtasks /query /tn ATLAS-Runtime-Supervisor /fo LIST /v`). **Never assume a directory name or PIDs from a previous session.**
 - Do not start, stop, or replace the supervisor or its children outside an approved deployment action.
 - `/api/v1/health` is **liveness only** — it proves neither database nor route readiness. Probe a database-backed read such as `GET /api/v1/subjects?schoolId=<id>` alongside the supervisor log. Transient Prisma `P1001` and Postgres client-abort lines appear during antivirus scans; confirm with the DB-backed read before reporting an outage.
-- **Before any deployment, runtime, task, environment, or release-directory action, read `docs/reference/agent-runtime-deploy-facts.md`.** It carries the facts learned the hard way: the elevated-shell requirement, the SYSTEM supervisor and the tree-kill quiesce, the stale-state `ALREADY_RUNNING` trap, the repo-root `prisma generate` schema path, proving a deploy by fetching a chunk that only exists in the new build, the `VITE_ENROLLPRO_URL` fail-closed build guard, and the rule that only the active `ATLAS_RUNTIME_SOURCE_DIR` state file is authoritative.
 
 ---
 

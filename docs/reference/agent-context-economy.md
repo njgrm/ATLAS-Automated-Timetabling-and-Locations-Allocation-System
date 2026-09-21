@@ -5,19 +5,27 @@ This is a non-normative operating note. `AGENTS.md` remains the authority.
 ## Defaults
 
 - Start a fresh session at a durable lane boundary, not during an uncommitted
-  correction, browser handoff, or HIGH action.
+  correction, browser handoff, or HIGH action. The prior lane must have a committed
+  handoff and must release browser, worktree, runtime, and register custody.
 - Keep stable instructions, model, reasoning effort, and tool definitions at the
   front of the prompt. Put changing SHAs, results, and the immediate request last.
 - Use one compaction system. OpenCode native auto-compaction and pruning are the
   default for this workspace; do not install a replacement compactor alongside it.
 - Pass committed artifact paths and immutable ranges between roles. Do not paste the
   artifact body, complete logs, or prior reasoning.
+- **Batch independent shell checks into one call.** Each extra call is a full
+  round-trip through the context.
+- **Cap every output** — `-First`, `--oneline`, `--stat`, `-Tail`. Never dump a whole
+  file, a directory listing, or a JSON payload into context.
 - Query only the documentation concept needed for the current decision. Context7 is
   preferred for library and tool documentation; broad web-page ingestion is not.
 - Use path-specific role prompts and repository instructions. Avoid copying global
   rules into every task packet.
 - Keep Context7 and Playwright available because they serve distinct required lanes;
   avoid adding global MCP servers that are unused by most work.
+- **Keep `AGENTS.md` short.** Detailed test matrices and domain contracts belong in
+  referenced files under `docs/`, not in the directive itself; every agent pays for
+  every line of it on every request.
 
 ## Review routing
 
