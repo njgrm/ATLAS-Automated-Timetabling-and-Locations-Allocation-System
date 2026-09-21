@@ -128,16 +128,22 @@ file — hence `AGENTS.md` §15's dated-blocker rule. **Read the newest dated ha
 **The release queue is empty and `ecff1d7e` is accepted 6/6 — pick the next real lane.** Ranked,
 from `docs/handoffs/planner-handoff-2026-09-20.md` §8 (reconcile it first — `AGENTS.md` §15):
 
-1. **Public published-view term merging** — `/public/schedules` renders every cell 3×
-   (2,760 = 920 × 3 terms). Recorded as owned by the other planner; do not take it without a
-   handover.
-2. **False/incorrect warning categories** — `ZONE_IMBALANCE_WARNING` still fires in stored runs
+**Verified fixed — do not spend a lane on it:** the public published-view ×3 term duplication. A
+live read-only probe on 2026-09-21 returns **920 entries for exactly one term** (never 2,760), and
+the route rejects an ambiguous active year with `409 ACTIVE_SCHOOL_YEAR_AMBIGUOUS`
+(`docs/handoffs/lane-a-to-planner-b-rollover-2026-09-21.md` §4). Minor successor: an *absent* term
+selector defaults to term 1 while a *malformed* one is a typed 400.
+
+1. **False/incorrect warning categories** — `ZONE_IMBALANCE_WARNING` still fires in stored runs
    (the *surface* now suppresses it, so this is the producer/data side); warning-count semantics.
-3. **`test:ux-guardrails` is vacuous** — names two files deleted at `4794bd9e`; never cite it.
-4. **SMART/AIMS companion handoffs.**
-5. **Small recorded successors:** the `FACULTY_FLOOR_TRANSITION` stored-message phrasing (a
+2. **`test:ux-guardrails` is vacuous** — names two files deleted at `4794bd9e`; never cite it.
+3. **SMART/AIMS companion handoffs.**
+4. **Small recorded successors:** the `FACULTY_FLOOR_TRANSITION` stored-message phrasing (a
    regeneration/data concern, not a formatter job) and the dead `parseSchoolId` in
    `runtime.router.ts`.
+5. **In flight, not mine:** Planner B's `ROLLOVER-YEAR-IDENTITY-C01` — its crux decision is answered
+   in `docs/handoffs/lane-a-to-planner-b-rollover-2026-09-21.md`; it is server-only and will need a
+   release (Lane A's boundary) once accepted.
 
 Do **not** re-open the term-cache apply or the readiness/generation chain — both are closed, with
 dated proof in the live-state Lane A section. And re-read the newest dated handoff before acting on
