@@ -25,9 +25,10 @@ and AIMS.
 - Served client entry chunk: `/assets/index-zIp12x6H.js` (incumbent was `index-BMgoX99N.js`)
 - Deployed 2026-09-21 by the `DASHBOARD-TRUTH-C01` one-shot (Part B). This release carries the
   dashboard blocker-truth fix **and** the previously undeployed `DUP-READ-CALLERS-C01` dedup
-  fix. The executor verified deployment rows D1–D4 4/4; the **single authorized login is
-  unspent** and the browser rows are **not yet run**, so the deployment is `DEPLOYED` while
-  acceptance is **incomplete** — do not call this cycle done.
+  fix. Post-action QA (1 login, `audit_logs` id 857) returned **6/7 `CORRECTION_REQUIRED`**:
+  D1–D4, B1 (dashboard reads `"No hard violations · 284 warnings acknowledged"`) and B3 pass;
+  **B2 fails**. The deployment is `DEPLOYED` with acceptance **incomplete** — do not call this
+  cycle done.
 - Incumbent `434b2a81` rollback: its task XML was captured before mutation
   (`%TEMP%\opencode\atlas-runtime-434b2a81-rollback.xml`) with both machine-scope values;
   rollback basis `5f5c6c4f` remains startable. Rollback was **not** executed.
@@ -138,6 +139,16 @@ and AIMS.
   see the capacity blocker below. Its browser rows B1/B2 are `DEFERRED`
   deployment-acceptance clauses. No 502 fix: the layer remains unproven and needs one captured
   failing response body.
+- **The 502 layer is now identified (observation O1, 2026-09-21).** A captured failing response
+  was a host-proxy typed 502 — `{"code":"UPSTREAM_UNREACHABLE","message":"read ECONNRESET"}` on
+  `GET /generation/1/10/runs/316/manual-edits` (also `follow-up-flags` once). Per the
+  diagnosis's inference table that is a **host-side** connection blip to the server, not a
+  server- or route-emitted 502, so the fix is **not** in the routes. No fix attempted; the
+  server-side cause is uninvestigated.
+- **`/auth/me` is still duplicated sequentially** even with the A1 in-flight map deployed: a
+  clean load issues 2 requests 147 ms apart, same epoch, identical bearer. In-flight sharing
+  cannot coalesce a *serial* duplicate; a per-epoch resolved-value memo is required. This is
+  the open `B2` failure.
 - **`D:` capacity blocker RESOLVED 2026-09-21 by the worktree reclaim.** 56 clean, contained,
   unanchored, inactive worktrees were retired across `D:/ATLAS-worktrees` and
   `E:/ATLAS-worktrees`: `D:` free 15.81 → **40.76 GiB**, `E:` 55.7 → **66.13 GiB** (~35.4 GiB
@@ -259,15 +270,14 @@ and AIMS.
 
 ## Single next action
 
-**Post-action QA on the deployed release `4c7c0bd9`, with browser custody.** One fresh
-independent QA task reproduces deployment rows D1–D4 and runs the three browser rows:
-B1 dashboard truth on `/` (no "review blockers" on a zero-HARD run), B2 the deferred
-`DUP-READ-CALLERS-C01` request counts on `/timetable` (`/auth/me` 1 per epoch,
-`runtime/context` ≤2, `rollover-status` 1 with two cards asserted mounted), B3 no regression at
-1366×768 against the named incumbent console baseline — plus observations O1 (the 502 lead's
-exact response) and O2 (the external duplicate baseline). **Logins are authorized as needed**
-(operator, 2026-09-21) — read-only, no timetable cell click, and **every** login's `audit_logs`
-row disclosed. The cycle closes only on a real `passed/blocked/unperformed` tally.
+**Close the `B2` failure, then re-release.** Post-action QA on the deployed `4c7c0bd9` returned
+`CORRECTION_REQUIRED` 6/7 (1 login, `audit_logs` id 857): D1–D4, B1 and B3 pass; **B2 fails** —
+a clean `/timetable` (and `/`) load still issues **2 sequential same-epoch `/auth/me` requests**
+147 ms apart with an identical bearer, and in-flight sharing cannot coalesce a *serial*
+duplicate. Add a short-lived **per-token-epoch resolved-value memo** shared by
+`resolveActorSchoolId` and `verifySessionToken`; keep it client-only; then rebuild and re-release
+(HIGH) and re-run B2. B2's "two cards asserted mounted" sub-clause is unperformable on the live
+simple view (0 cards mount) and must be amended to record the observed mount count.
 
 Then the previously queued work stands. The route split is now complete: every operator sub-page exists, the workspace stops
 remounting inside the subtree, and the whole timetable route suite runs in a committed gate.

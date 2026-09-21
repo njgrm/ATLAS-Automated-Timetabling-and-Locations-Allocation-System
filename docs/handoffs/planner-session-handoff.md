@@ -26,10 +26,20 @@ incumbent (the harness deny-list blocks `npm ci`), and the packet's XML-encoding
 **inverted** on this host (preserving `encoding="UTF-16"` registers cleanly). The single
 authorized login is **unspent** — and the operator has authorized **logins as needed** for the
 post-action QA (2026-09-21), each one to be disclosed.
-**Next action: post-action QA with browser custody** — reproduce D1–D4 and run B1–B3 (dashboard
-truth; `/auth/me` 1 per epoch, `runtime/context` ≤2, `rollover-status` 1 with two cards
-asserted mounted; no regression at 1366×768) plus observations O1/O2. **The cycle is not done**
-until that tally returns `passed == total, blocked 0, unperformed 0`. **Accepted and integrated** at
+**Post-action QA ran and returned `CORRECTION_REQUIRED` 6/7** (1 login, `audit_logs` id 857).
+D1–D4, B1 (the dashboard now reads `"No hard violations · 284 warnings acknowledged"` — no
+"blocker" anywhere) and B3 pass. **B2 FAILS:** a clean `/timetable` (and `/`) load still issues
+**2 sequential same-epoch `/auth/me` requests** 147 ms apart with an identical bearer — the A1
+in-flight map coalesces only *concurrent* callers, so it cannot fix a serial duplicate.
+**Next action: a bounded client correction** adding a short-lived per-token-epoch resolved-value
+memo shared by `resolveActorSchoolId` and `verifySessionToken`, then a new release build (HIGH)
+and a re-run of B2. B2's "two cards asserted mounted" sub-clause is unperformable on the live
+simple view (0 cards mount) and must be amended.
+Also settled by the same pass: the **502 layer is identified** — the captured failing response
+was a host-proxy `{"code":"UPSTREAM_UNREACHABLE","message":"read ECONNRESET"}` on
+`GET /generation/1/10/runs/316/manual-edits`, i.e. **host-side**, not server- or route-emitted;
+and the executor's inverted XML-encoding finding is real, so
+`docs/reference/agent-runtime-deploy-facts.md` was corrected to "measure, do not assume". **Accepted and integrated** at
 `6949e3d4`: fresh QA `ACCEPT_READY` 5/5, blocked 0, unperformed 0 over `ccf31e77...6949e3d4`
 (source blob-identical to candidate `ce0e54ec`; test files added, none deleted). S5's initial
 `BLOCKED` was an incomplete worktree dependency tree — fixed by removing the junction safely

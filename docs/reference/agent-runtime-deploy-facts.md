@@ -47,9 +47,12 @@ holds the detail so the directive stays short.
   authoritative.** There is one per release directory; the others are stale artifacts that
   report a different release, or `stopped`, while the runtime is healthy. Reading the wrong
   one produces a false "identity drift" alarm.
-- `schtasks` can reject the bytes its own `/query /xml` returns (UTF-8 body with a UTF-16
-  declaration). Repair the declaration literally and record the repair — never substitute
-  silently.
+- **`schtasks` XML registration: measure the encoding, do not assume the repair.**
+  `schtasks /query /xml` returns ASCII bytes (`3C 3F 78 6D 6C` = `<?xml`) whose declaration
+  says `encoding="UTF-16"`. Measured on this host 2026-09-21: that file **registers cleanly
+  unmodified** (exit 0), and rewriting the declaration to `UTF-8` fails with
+  `unable to switch the encoding` — the **opposite** of what `C01` recorded. If registration
+  fails, fix it and record the literal repair — never substitute silently.
 - A companion mirror is evidence only at a recorded commit — see `AGENTS.md` §4.
 
 ## Release hygiene
