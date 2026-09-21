@@ -27,6 +27,9 @@ const SchedulingPolicyPane = lazy(() => import('@/components/SchedulingPolicyPan
 const TimetableExportsPane = lazy(() => import('@/components/timetable/TimetableExportsPane').then((module) => ({
 	default: module.TimetableExportsPane,
 })));
+const TimetableRunsPane = lazy(() => import('@/components/timetable/TimetableRunsPane').then((module) => ({
+	default: module.TimetableRunsPane,
+})));
 const BuildingView = lazy(() => import('@/components/BuildingView').then((module) => ({
 	default: module.BuildingView,
 })));
@@ -93,7 +96,7 @@ function buildSandboxTeacherConflictEntryIds(entries: any[], changedEntryIds: Se
 }
 
 type CenterWorkspaceProps = {
-	centerView: 'schedule' | 'pre-generation' | 'policy' | 'manual-edit' | 'map' | 'building' | 'exports';
+	centerView: 'schedule' | 'pre-generation' | 'policy' | 'manual-edit' | 'map' | 'building' | 'exports' | 'runs';
 	selectedEntry: any;
 	selectedUnassigned: UnassignedItem | null;
 	setSelectedUnassigned: (value: UnassignedItem | null) => void;
@@ -123,7 +126,7 @@ type CenterWorkspaceProps = {
 	isStaleRoom: (roomId: number) => boolean;
 	timeSlots: Array<{ startTime: string; endTime: string; isSpecialEvent?: boolean; eventName?: string }>;
 	preGenOnboarding: boolean;
-	setCenterView: (view: 'schedule' | 'pre-generation' | 'policy' | 'manual-edit' | 'map' | 'building' | 'exports') => void;
+	setCenterView: (view: 'schedule' | 'pre-generation' | 'policy' | 'manual-edit' | 'map' | 'building' | 'exports' | 'runs') => void;
 	buildings: any[];
 	mapBuildingId: number | null;
 	setMapBuildingId: (id: number | null) => void;
@@ -189,6 +192,15 @@ type CenterWorkspaceProps = {
 	exportRunId?: number | null;
 	exportViewMode?: string;
 	exportEntityFilter?: string;
+	/**
+	 * UX-R03e (runs) — the workspace run-selection state for the
+	 * `/timetable/runs` center view: the same `selectedRunId` / `handleRunChange`
+	 * / formatters the schedule header Select uses. No second selection path.
+	 */
+	runsSelectedId?: string;
+	onRunsSelect?: (value: string) => void;
+	formatRunTimestamp?: (value: string | null) => string;
+	formatRunDuration?: (value: number | null) => string;
 };
 
 export const CenterWorkspace = memo(function CenterWorkspace(props: CenterWorkspaceProps) {
@@ -283,6 +295,10 @@ export const CenterWorkspace = memo(function CenterWorkspace(props: CenterWorksp
 		exportRunId = null,
 		exportViewMode = 'section',
 		exportEntityFilter = '',
+		runsSelectedId = 'latest',
+		onRunsSelect = () => {},
+		formatRunTimestamp = (value) => value ?? '',
+		formatRunDuration = (value) => value == null ? '—' : `${(value / 1000).toFixed(1)}s`,
 	} = props;
 
 	const [sandboxFacultyByEntryId, setSandboxFacultyByEntryId] = useState<Map<string, number>>(new Map());
@@ -437,6 +453,25 @@ export const CenterWorkspace = memo(function CenterWorkspace(props: CenterWorksp
 								viewMode={exportViewMode}
 								entityFilter={exportEntityFilter}
 								hasGeneratedRun={draft != null}
+							/>
+						</Suspense>
+					</motion.div>
+				) : centerView === 'runs' ? (
+					<motion.div
+						key="runs"
+						initial={{ opacity: 0, y: 8 }}
+						animate={{ opacity: 1, y: 0 }}
+						exit={{ opacity: 0, y: 8 }}
+						transition={{ duration: 0.18 }}
+						className="flex flex-col min-h-0 h-full"
+					>
+						<Suspense fallback={<AdvancedSurfaceFallback label="Loading runs..." />}>
+							<TimetableRunsPane
+								runs={runs}
+								selectedRunId={runsSelectedId}
+								onSelectRun={onRunsSelect}
+								formatTimestamp={formatRunTimestamp}
+								formatDuration={formatRunDuration}
 							/>
 						</Suspense>
 					</motion.div>

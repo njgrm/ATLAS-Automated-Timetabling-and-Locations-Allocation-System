@@ -7,11 +7,15 @@ import { useLocation, useNavigate } from 'react-router-dom';
  * fallback redirects them) maps to the schedule surface.
  *
  * UX-R03b — the four remaining existing center views gain their own URLs.
- * Deferred `/timetable/runs` and `/timetable/setup` sub-pages do not exist as
- * components, so they keep mapping to schedule.
+ * The deferred `/timetable/setup` sub-page does not exist as a component yet,
+ * so it keeps mapping to schedule (UX-R03e routes `/timetable/runs`; setup
+ * follows in the setup checkpoint).
  *
  * UX-R03c — `/timetable/exports` becomes the third operator sub-page with its
  * own center view; runs/setup stay deferred to UX-R03d.
+ *
+ * UX-R03e (runs) — `/timetable/runs` becomes a read-only run-history center
+ * view; `/timetable/setup` stays deferred to the setup checkpoint.
  */
 export type TimetableRoutedView =
 	| 'schedule'
@@ -20,7 +24,8 @@ export type TimetableRoutedView =
 	| 'map'
 	| 'manual-edit'
 	| 'building'
-	| 'exports';
+	| 'exports'
+	| 'runs';
 
 /**
  * UX-R03a — pure route→view mapping for the two routed center views.
@@ -47,6 +52,8 @@ export function resolveTimetableRouteView(pathname: string): TimetableRoutedView
 			return 'building';
 		case '/timetable/exports':
 			return 'exports';
+		case '/timetable/runs':
+			return 'runs';
 		default:
 			return 'schedule';
 	}
@@ -72,7 +79,8 @@ export type TimetableCenterRoute =
 	| '/timetable/map'
 	| '/timetable/manual-edit'
 	| '/timetable/building'
-	| '/timetable/exports';
+	| '/timetable/exports'
+	| '/timetable/runs';
 
 export function resolveTimetableRouteForView(centerView: string): TimetableCenterRoute {
 	switch (centerView) {
@@ -88,6 +96,8 @@ export function resolveTimetableRouteForView(centerView: string): TimetableCente
 			return '/timetable/building';
 		case 'exports':
 			return '/timetable/exports';
+		case 'runs':
+			return '/timetable/runs';
 		default:
 			return '/timetable';
 	}
@@ -123,6 +133,8 @@ type TimetableRouteViewSyncProps = {
 	enterBuildingView: () => void;
 	/** UX-R03c — plain route entry for the exports sub-page (same guarded-plain contract as the R03b entries). */
 	enterExportsView: () => void;
+	/** UX-R03e (runs) — plain route entry for the read-only run-history sub-page (same guarded-plain contract). */
+	enterRunsView: () => void;
 	/** Open state of the existing leave-draft guard dialog; drives F2 restore. */
 	leaveDialogOpen: boolean;
 };
@@ -153,6 +165,7 @@ export function TimetableRouteViewSync({
 	enterManualEditView,
 	enterBuildingView,
 	enterExportsView,
+	enterRunsView,
 	leaveDialogOpen,
 }: TimetableRouteViewSyncProps) {
 	const { pathname } = useLocation();
@@ -170,6 +183,7 @@ export function TimetableRouteViewSync({
 		enterManualEditView,
 		enterBuildingView,
 		enterExportsView,
+		enterRunsView,
 	});
 	callbacksRef.current = {
 		switchCenterViewWithGuard,
@@ -180,6 +194,7 @@ export function TimetableRouteViewSync({
 		enterManualEditView,
 		enterBuildingView,
 		enterExportsView,
+		enterRunsView,
 	};
 	const appliedPathnameRef = useRef<string | null>(null);
 	const leaveDialogOpenRef = useRef(leaveDialogOpen);
@@ -198,6 +213,7 @@ export function TimetableRouteViewSync({
 			enterManualEditView: enterManualEdit,
 			enterBuildingView: enterBuilding,
 			enterExportsView: enterExports,
+			enterRunsView: enterRuns,
 		} = callbacksRef.current;
 		switch (desired) {
 			case 'policy':
@@ -217,6 +233,9 @@ export function TimetableRouteViewSync({
 				break;
 			case 'exports':
 				guarded(enterExports);
+				break;
+			case 'runs':
+				guarded(enterRuns);
 				break;
 			default:
 				guarded(exit);

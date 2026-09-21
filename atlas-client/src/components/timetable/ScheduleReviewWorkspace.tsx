@@ -307,6 +307,7 @@ export default function ScheduleReviewWorkspace() {
 				enterManualEditView={() => state.centerWorkspaceContext.setCenterView('manual-edit')}
 				enterBuildingView={() => state.centerWorkspaceContext.setCenterView('building')}
 				enterExportsView={() => state.centerWorkspaceContext.setCenterView('exports')}
+				enterRunsView={() => state.centerWorkspaceContext.setCenterView('runs')}
 				leaveDialogOpen={state.dialogContext.showLeavePreGenDialog}
 			/>
 			{state.loading && state.draft && (

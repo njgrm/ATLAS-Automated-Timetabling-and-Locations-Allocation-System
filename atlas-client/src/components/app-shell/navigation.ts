@@ -84,6 +84,8 @@ const routeChromeOverrides: Record<string, { group?: string; title: string }> = 
 	'/timetable/manual-edit': { group: 'Class Schedule', title: 'Manual Edit' },
 	'/timetable/building': { group: 'Class Schedule', title: 'Building View' },
 	'/timetable/exports': { group: 'Class Schedule', title: 'Exports' },
+	// UX-R03e (runs) — the read-only run-history route shares the Class Schedule shell.
+	'/timetable/runs': { group: 'Class Schedule', title: 'Runs' },
 	'/room-schedules': { group: 'Review and Publish', title: 'Room Schedules' },
 	'/faculty/room-preferences': { group: 'Teachers and Rooms', title: 'Room Preferences' },
 	'/admin/year-setup': { group: 'School Setup', title: 'School Year Setup' },
