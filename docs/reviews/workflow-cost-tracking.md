@@ -78,10 +78,13 @@ Track these per accepted release; they are what the two workflow rules act on:
 | Planner turns to complete the cycle | 1 | 1 |
 | Handoff size (lines) | falling | ~370 — **too long; trim to summary + pointers** |
 
-> **Known measurement lag.** `opencode stats` session/message counters aggregate subagent sessions
-> after they close, so a figure taken immediately at the end of a turn that dispatched subagents can
-> undercount by most of that turn's work. Take the reading at the **start** of the next turn as well
-> and use the larger of the two; do not read a suspiciously small delta as a cheap turn.
+> **Two measurement caveats.** (1) `opencode stats` session/message counters aggregate subagent
+> sessions after they close, so a figure taken immediately at the end of a turn that dispatched
+> subagents can undercount by most of that turn's work. Take the reading at the **start** of the
+> next turn as well and use the larger of the two. (2) `--days N` is a **sliding window**, not a
+> cumulative counter: observed 2026-09-21 it went *down* (45 sessions / 3,191 messages →
+> 43 / 3,120) as the window rolled. For a stable cumulative view use `--days 7` or all-time;
+> never read a negative delta as a refund.
 
 ## What is known about the shape of the burn
 
