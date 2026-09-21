@@ -54,6 +54,20 @@ directories.
 
 ## Dependency trees
 
+- **A fresh checkout is not gate-ready until `prisma generate` runs.** After `npm ci` in a new
+  worktree, the server gates fail (`tsc` and the mutation suites) because the generated Prisma
+  client is absent — the client lives inside `node_modules`, not in Git. Run it from
+  `atlas-server` with `--schema` pointing at the **repo-root** schema. Observed 2026-09-21:
+  Lane B stalled an otherwise-clean integration on this, believing `prisma generate` was a HIGH
+  action.
+- **`prisma generate` is a build/codegen step, not a HIGH action.** It reads the schema and
+  writes into `atlas-server/node_modules/.prisma/client` (the schema's `output` resolves
+  relative to the schema file). That path is inside `node_modules`; **no generated path is
+  tracked**, so `git status` stays clean and an integration's merge scope does not grow. It
+  makes **no database connection** — `migrate`, `db push` and every other schema command remain
+  HIGH and separately approved. It is already listed as an authorized mutation inside the
+  deploy boundary (`current-source-live-deploy-c02` §6.1). Treating it as HIGH stalls every
+  fresh checkout forever.
 - **Do not chain `node_modules` junctions across releases.** Junction only to a *stable*
   target: a chain rooted at a retired release breaks `@prisma/client` for every release at
   once, which has already taken the live runtime down. Each release owns its dependency tree
