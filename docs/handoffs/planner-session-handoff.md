@@ -245,6 +245,12 @@ stands at 37.32 GiB after this release).
 - **Do not touch:** Lane B's `E:/ATLAS-worktrees/actor-school-mutations-c01`, the two
   uncertain-owner planner worktrees, `E:/ATLAS-worktrees/ux-quickfix-c01` (junction anchor), or
   any `D:\ATLAS-runtime-*` tree.
+- **Another writer is active (seen 2026-09-21, after the closure push):**
+  `E:/ATLAS-worktrees/test-gate-reachability-c01` on branch `work/test-gate-reachability-c01`,
+  HEAD `c6692bad`, **dirty** (`M atlas-server/package.json`), no commits beyond `main`. It is a
+  server path, so it belongs to Lane B or to a lane the operator has re-assigned — **preserve it,
+  do not touch it**, and expect `main` to move when it lands. Re-read `docs/handoffs/lane-b.md`
+  before your next `:main` push (`AGENTS.md` §14).
 - **One Lane A writer at a time.** This session and the previous Lane A session overlapped for
   ~10 minutes on 2026-09-21 (see the custody note above); the previous one declared its last push
   final, so only one Lane A writer is active now. A second one on the same stream is a custody

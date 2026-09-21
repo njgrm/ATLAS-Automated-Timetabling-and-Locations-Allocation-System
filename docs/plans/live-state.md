@@ -160,6 +160,10 @@ and AIMS.
   shadows machine scope, so an unqualified `node ops/runtime/cli.mjs stop` targets the wrong
   (orphan) state file. Pass explicit env overrides; the registry values are correct. Recorded in
   `docs/reference/agent-runtime-deploy-facts.md`.
+- **Another writer is active (2026-09-21).** `E:\ATLAS-worktrees\test-gate-reachability-c01`
+  (branch `work/test-gate-reachability-c01`, HEAD `c6692bad`, dirty `M atlas-server/package.json`,
+  no commits beyond `main`) — a server path, so Lane B's or a newly re-assigned lane's. Preserve
+  it, and re-read `docs/handoffs/lane-b.md` before the next `:main` push (`AGENTS.md` §14).
 - **Awaiting a decision — the stray clone.** `E:\ATLAS-worktrees\c01r-release-20260921` is a
   standalone clone, not a worktree (`origin` = the stale `D:\ATLAS`), created by the executor
   against the new `AGENTS.md` §10.12. It is clean, its only branch is integrated, and it holds no
