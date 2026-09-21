@@ -34,6 +34,39 @@ This is a non-normative operating note. `AGENTS.md` remains the authority.
 - HIGH: independent packet review, explicit approval, executor, and independent
   post-action QA. Add a wave auditor only for the triggers in `AGENTS.md`.
 
+## Batching gates and turn shape
+
+The two levers that actually move measured cost (figures in
+`docs/reviews/workflow-cost-tracking.md`):
+
+1. **One reviewer dispatch per pre-action, one per post-action.** A HIGH cycle's pre-action
+   reviewer closes the source range **and** the packet satisfiability lint in a single pass and
+   returns one verdict with per-row tallies; the post-action QA closes every deployment row plus
+   the independent zero-write corroboration. Target **≤ 2 reviewer dispatches per accepted
+   release**. Write the reviewer's scope into the packet as one section so the batching is
+   designed rather than improvised. Do not dispatch a reviewer to re-derive a fact an earlier
+   dispatch already established, and do not run a second round because a *packet's* wording was
+   wrong when the fix is documentation-only — the planner corrects and verifies that.
+   *Why it is safe:* the reviewer that also lints the packet is the one best placed to notice the
+   packet is unsatisfiable; on 2026-09-21 exactly that batching falsified the packet's own D4
+   before the deployment ran.
+2. **Fewer, longer planner turns.** The dominant cost is context re-read *per message*: every
+   extra turn re-pays the whole prefix, and a fresh session additionally re-pays cache setup.
+   Finish a cycle inside one turn unless a real decision or approval is needed. Never split one
+   coherent delivery across turns to report progress.
+
+**Measured shape, 2026-09-21 (ATLAS project only, `opencode stats --project ""`):** 1 day **$4.85
+/ 45 sessions / 3,191 messages**; 7 days **$65.65 / 28,680 messages**; 30 days **$116.97 / 60,478
+messages**. **96.7% of 7-day spend is one model** (`deepseek-v4.1-flash`), which covers the planner
+**and** QA/reviewers; muse executors are ~2%. The money therefore goes to **planning and
+verification**, not implementation — which is where the gates earn their keep, and also exactly
+where these two levers bite.
+
+**Keep the living handoff short.** It is re-read by every fresh session; left unchecked it grows
+until reading it costs more than the state it carries. Put narrative in packets and evidence and
+keep the handoff to: current verdict, live identity, custody/dispositions, decisions awaited, one
+next action.
+
 ## Session checkpoint
 
 Before compaction or a session reset, record only:

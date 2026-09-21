@@ -245,12 +245,16 @@ stands at 37.32 GiB after this release).
 - **Do not touch:** Lane B's `E:/ATLAS-worktrees/actor-school-mutations-c01`, the two
   uncertain-owner planner worktrees, `E:/ATLAS-worktrees/ux-quickfix-c01` (junction anchor), or
   any `D:\ATLAS-runtime-*` tree.
-- **Another writer is active (seen 2026-09-21, after the closure push):**
+- **A parallel planner is authorized (operator, 2026-09-21).**
   `E:/ATLAS-worktrees/test-gate-reachability-c01` on branch `work/test-gate-reachability-c01`,
-  HEAD `c6692bad`, **dirty** (`M atlas-server/package.json`), no commits beyond `main`. It is a
-  server path, so it belongs to Lane B or to a lane the operator has re-assigned — **preserve it,
-  do not touch it**, and expect `main` to move when it lands. Re-read `docs/handoffs/lane-b.md`
-  before your next `:main` push (`AGENTS.md` §14).
+  HEAD `c6692bad`, dirty (`M atlas-server/package.json`), no commits beyond `main`. The operator
+  has authorized that writer and instructed them to **stay out of Lane A's lane**, so the two
+  lanes run in **parallel** — preserve their worktree, do not touch it, expect `main` to move when
+  they land, and re-read `docs/handoffs/lane-b.md` plus the peer's own handoff before your next
+  `:main` push (`AGENTS.md` §14). Lane A's reserved set is unchanged: `docs/plans/live-state.md`,
+  the delivery register, `AGENTS.md`, `CHANGELOG.md`, `atlas-client/**`, `ops/**`, `prisma/**`,
+  `.opencode/**`, the root `package.json`, every `.env`, `D:\ATLAS-runtime-config\**`, deployment,
+  and the single browser controller.
 - **One Lane A writer at a time.** This session and the previous Lane A session overlapped for
   ~10 minutes on 2026-09-21 (see the custody note above); the previous one declared its last push
   final, so only one Lane A writer is active now. A second one on the same stream is a custody

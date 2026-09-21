@@ -17,11 +17,49 @@ coarser steps. Cache-read tokens dominate the input side and are the planner-con
 
 ## Log
 
-| When (2026-09-21) | 1-day cost | 1-day sessions | 1-day messages | 7-day cost | Notes |
-| --- | --- | --- | --- | --- | --- |
-| baseline before the C01R closure turn | $4.63 | 42 | 3,006 | $66.76 / 444 sessions | input 14.6M, output 1.1M, cache read 496.1M |
-| C01R closure turn (release deploy + QA + correction + clone recovery) | $4.82 | 45 | 3,162 | — | **+$0.19 / +3 sessions / +156 msgs / +17.2M cache read** |
-| `ACTOR-SCHOOL-MUTATIONS-C01` release turn (source review + packet + deploy + post-action QA) | $4.85 | 45 | 3,186 | — | end-of-turn reading: +$0.03 / +0 sessions / +24 msgs vs the row above. **Badly undercounted** — the turn dispatched two subagent sessions (a reviewer that reproduced the harness, and a QA that re-derived the signature map and ran a whole-DB scan); those sessions had not aggregated. Read the start-of-next-turn figure for the true delta. |
+Clean scope: `opencode stats --days N --project ""` isolates this repository from other work on
+the machine. The earlier rows used the all-projects figure; it agreed to the cent for the 1-day
+window, so the rows are comparable.
+
+| When (2026-09-21) | 1-day cost | 1-day sessions | 1-day messages | Notes |
+| --- | --- | --- | --- | --- |
+| baseline before the C01R closure turn | $4.63 | 42 | 3,006 | input 14.6M, output 1.1M, cache read 496.1M |
+| C01R closure (release + QA + correction + clone recovery) | $4.82 | 45 | 3,162 | +$0.19 / +3 sessions / +156 msgs |
+| `ACTOR-SCHOOL-MUTATIONS-C01` release (source review + deploy + post-action QA) | $4.85 | 45 | 3,191 | end-of-turn; see the lag warning below |
+
+**Window totals (ATLAS only):** 1 day **$4.85 / 45 sessions / 3,191 messages / 15.1M input / 1.1M
+output / 521.2M cache read**; 7 days **$65.65 / 426 sessions / 28,680 messages** (~$9.38/day);
+30 days **$116.97 / 883 sessions / 60,478 messages** (~$3.90/day).
+
+**Model split, 7 days:** `deepseek-v4.1-flash` **$63.50 (96.7%)**;
+`muse-spark-1.3-contributor` **$1.33 (2.0%)**; `deepseek-v4-flash` $0.69; other $0.14.
+
+## Reading the numbers
+
+- **The last week runs ~2.4× the monthly daily average** ($9.38/day vs $3.90/day). That is a ramp
+  in cycles-per-day, not obviously waste — but it is the trend to watch: if it keeps climbing
+  without a matching rise in accepted increments, the workflow is the problem.
+- **The money is in planning and verification, not implementation.** 96.7% sits on the model that
+  covers the planner *and* QA/reviewers; muse executors are 2%. So the levers are (i) fewer
+  reviewer dispatches and (ii) fewer/smaller contexts — not cheaper executors (already done).
+- **Per accepted increment, today was cheap:** two independently-reviewed, deployed, zero-write-
+  proven releases inside one session. The assurance level is the expensive part and it is the part
+  that caught three real defects today (a falsified packet premise, a missing source-review tier,
+  and a false zero-write claim).
+- **The waste signal to hunt** is a turn that re-reads artifacts to re-derive state the handoff
+  already carries. That is pure context cost for zero new evidence.
+
+## Process metrics to hold the levers
+
+Track these per accepted release; they are what the two workflow rules act on:
+
+| Metric | Target | 2026-09-21 `ACTOR-SCHOOL-MUTATIONS-C01` |
+| --- | --- | --- |
+| Reviewer dispatches before the action | 1 | 1 (source review + packet lint in one pass) |
+| Reviewer dispatches after the action | 1 | 1 |
+| Second review rounds caused by packet wording | 0 | 0 (D4 corrected by the planner, no re-dispatch) |
+| Planner turns to complete the cycle | 1 | 1 |
+| Handoff size (lines) | falling | ~370 — **too long; trim to summary + pointers** |
 
 > **Known measurement lag.** `opencode stats` session/message counters aggregate subagent sessions
 > after they close, so a figure taken immediately at the end of a turn that dispatched subagents can
