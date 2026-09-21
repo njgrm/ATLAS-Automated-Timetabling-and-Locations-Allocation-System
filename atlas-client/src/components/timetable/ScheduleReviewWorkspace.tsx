@@ -2,6 +2,7 @@ import { DndContext, DragOverlay, pointerWithin, useDndContext } from '@dnd-kit/
 import { useScheduleReviewWorkspaceState } from '@/hooks/useScheduleReviewWorkspaceState';
 import { ScheduleReviewWorkspaceHeader } from '@/components/timetable/ScheduleReviewWorkspaceHeader';
 import { TimetableSimpleHeader } from '@/components/timetable/TimetableSimpleHeader';
+import { TimetableSubNav } from '@/components/timetable/TimetableSubNav';
 import { ScheduleReviewWorkspaceBody } from '@/components/timetable/ScheduleReviewWorkspaceBody';
 import { ScheduleReviewWorkspaceOverlays } from '@/components/timetable/ScheduleReviewWorkspaceOverlays';
 import { TimetableSkeleton } from '@/components/timetable/TimetableSkeleton';
@@ -320,6 +321,10 @@ export default function ScheduleReviewWorkspace() {
 				</div>
 			)}
 			<div className={`h-0.5 shrink-0 bg-emerald-500 transition-opacity duration-150 ${state.showTopLoadingStrip ? 'opacity-100 animate-pulse' : 'opacity-0'}`} />
+		{/* C01R D1 — persistent sub-nav on every /timetable* route (index included).
+		    Links only: the nested children are element-less, so this never
+		    remounts the workspace or refetches the grid. */}
+		<TimetableSubNav />
 			{state.inlineActionStatus ? (
 				<div
 					role="status"

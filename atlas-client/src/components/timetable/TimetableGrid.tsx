@@ -101,6 +101,23 @@ const ConflictBadgeWithTooltip = memo(function ConflictBadgeWithTooltip({
 	);
 });
 
+/**
+ * C01R C2 — cell density (packet F-07). The room short label repeats its own
+ * building grade (`G7 Room 103 · G7AW`: `{gradeToken} {roomName} ·
+ * {buildingCode}`). When the trailing building code starts with the leading
+ * grade token, drop that token from the room name once; otherwise return the
+ * label untouched so no information is ever dropped.
+ */
+export function dedupeCellGradeRepetition(roomText: string): string {
+	const token = roomText.match(/^G\d+/)?.[0];
+	if (!token) return roomText;
+	const segments = roomText.split('·');
+	if (segments.length < 2) return roomText;
+	const buildingCode = segments.at(-1)?.trim() ?? '';
+	if (!buildingCode.startsWith(token)) return roomText;
+	return roomText.replace(new RegExp(`^${token}\\s+`), '');
+}
+
 interface GridCellProps {
 	cellId: string;
 	day: string;
@@ -534,26 +551,43 @@ const GridCell = memo(function GridCell({
 								// selected term (distinct terms may name distinct teachers).
 								const teacherText = resolveCellTeacherText(entry, termFilter, formatFacultyInitials);
 								const sectionText = sectionLabel(entry.sectionId);
-								let detailsText = '';
+								// C01R C2 — the display copy drops the room's repeated
+								// building grade once; the full string stays behind
+								// the Tooltip.
+								const displayRoomText = dedupeCellGradeRepetition(roomText);
+								let fullDetailsText = '';
+								let displayDetailsText = '';
 								if (viewMode === 'section') {
 									// Section is the pivot row; the cell names the non-pivot
 									// dimensions: teacher + room.
-									detailsText = showTeacherDetails ? `${teacherText} · ${roomText}` : roomText;
+									fullDetailsText = showTeacherDetails ? `${teacherText} · ${roomText}` : roomText;
+									displayDetailsText = showTeacherDetails ? `${teacherText} · ${displayRoomText}` : displayRoomText;
 								} else if (viewMode === 'faculty') {
 									// Faculty is the pivot row; the cell names section + room.
-									detailsText = `${sectionText} · ${roomText}`;
+									fullDetailsText = `${sectionText} · ${roomText}`;
+									displayDetailsText = `${sectionText} · ${displayRoomText}`;
 								} else if (viewMode === 'room') {
-									detailsText = `${sectionText} · ${teacherText}`;
+									fullDetailsText = `${sectionText} · ${teacherText}`;
+									displayDetailsText = fullDetailsText;
 								}
 								return (
-									<p
-										className="truncate text-xs font-medium text-muted-foreground/80 mt-0.5"
-										data-testid="timetable-cell-detail"
-										data-cell-term={entry.termIndex ?? ''}
-										data-cell-teacher={teacherText}
-									>
-										{detailsText}
-									</p>
+									<TooltipProvider delayDuration={300}>
+										<Tooltip>
+											<TooltipTrigger asChild>
+												<p
+													className="truncate text-xs font-medium text-muted-foreground/80 mt-0.5"
+													data-testid="timetable-cell-detail"
+													data-cell-term={entry.termIndex ?? ''}
+													data-cell-teacher={teacherText}
+												>
+													{displayDetailsText}
+												</p>
+											</TooltipTrigger>
+											<TooltipContent side="bottom" className="max-w-xs" data-testid="timetable-cell-detail-full">
+												<p>{fullDetailsText}</p>
+											</TooltipContent>
+										</Tooltip>
+									</TooltipProvider>
 								);
 							})()}
 						</DraggableEntry>
