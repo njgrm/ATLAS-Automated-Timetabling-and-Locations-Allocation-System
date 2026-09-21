@@ -154,6 +154,9 @@ names in its return. It must **not** touch `atlas-server/src/routes/runtime.rout
 lane is live in that file), `atlas-server/package.json` (unless adding a script entry for a new
 test — name it in the return), `docs/plans/live-state.md`, the machine register, or `CHANGELOG.md`.
 
-**Worktree.** `E:/ATLAS-worktrees/warning-readability-c01` on `work/warning-readability-c01`,
+**Worktree.** `E:/ATLAS-worktrees/warning-readability-c01-r1` on `work/warning-readability-c01`,
 **planner-provisioned and already fast-forwarded to the current base** — do not re-create it, do
-not re-point the branch, and commit additively on top of what is there.
+not re-point the branch, and commit additively on top of what is there. The packet's original path
+`E:/ATLAS-worktrees/warning-readability-c01` is occupied by a **leftover working copy with no
+`.git`** (dated 2026-09-19, uncertain owner): it is **preserved for a decision** — do not delete,
+reuse, or write to it.
