@@ -265,9 +265,9 @@ B1 dashboard truth on `/` (no "review blockers" on a zero-HARD run), B2 the defe
 `DUP-READ-CALLERS-C01` request counts on `/timetable` (`/auth/me` 1 per epoch,
 `runtime/context` ≤2, `rollover-status` 1 with two cards asserted mounted), B3 no regression at
 1366×768 against the named incumbent console baseline — plus observations O1 (the 502 lead's
-exact response) and O2 (the external duplicate baseline). One authorized login, read-only, no
-timetable cell click; disclose the `audit_logs` row. The cycle closes only on a real
-`passed/blocked/unperformed` tally.
+exact response) and O2 (the external duplicate baseline). **Logins are authorized as needed**
+(operator, 2026-09-21) — read-only, no timetable cell click, and **every** login's `audit_logs`
+row disclosed. The cycle closes only on a real `passed/blocked/unperformed` tally.
 
 Then the previously queued work stands. The route split is now complete: every operator sub-page exists, the workspace stops
 remounting inside the subtree, and the whole timetable route suite runs in a committed gate.

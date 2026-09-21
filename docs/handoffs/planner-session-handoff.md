@@ -24,7 +24,8 @@ HARD+SOFT with no `totalCount`, so `activeTermHardViolationCount` was **not** ha
 Two deviations recorded in the evidence: dependency trees were **copied** from the junction-free
 incumbent (the harness deny-list blocks `npm ci`), and the packet's XML-encoding hazard is
 **inverted** on this host (preserving `encoding="UTF-16"` registers cleanly). The single
-authorized login is **unspent**.
+authorized login is **unspent** — and the operator has authorized **logins as needed** for the
+post-action QA (2026-09-21), each one to be disclosed.
 **Next action: post-action QA with browser custody** — reproduce D1–D4 and run B1–B3 (dashboard
 truth; `/auth/me` 1 per epoch, `runtime/context` ≤2, `rollover-status` 1 with two cards
 asserted mounted; no regression at 1366×768) plus observations O1/O2. **The cycle is not done**
@@ -78,9 +79,15 @@ put the unaccepted candidate on `main` before acceptance — see §5.
 - Rollback: incumbent `434b2a81` task XML captured at
   `%TEMP%\opencode\atlas-runtime-434b2a81-rollback.xml`; rollback basis **`5f5c6c4f`**
   (startable, junction-free). Rollback was not executed.
-- **Budget:** `monthly 41% · weekly 3% · rolling 7%`. The DeepSeek V4.1 Flash **x4 promo was
-  extended to Sep 27** (verified on the docs page, updated Sep 21) — so `atlas-qa` (ds4.1flash)
-  stays cheaper than `dsflashv4` at identical token rates. Report the budget every turn.
+- **Budget — operator-confirmed only.** Last confirmed by the operator's provider console
+  2026-09-21: **`monthly 45% · weekly 9% · rolling 2%`** (rolling resets in ~4h22m, weekly in
+  ~6d17h). There is **no machine-readable local source** for this — a search of
+  `~/.local/share/opencode`, `~/.config/opencode` and `~/.cache/opencode` found only library
+  code. Do **not** carry a stale figure as if it were current: report it as
+  "last operator-confirmed <when>" and ask the operator to re-read the console when the number
+  actually matters. The DeepSeek V4.1 Flash **x4 promo runs to Sep 27**, so `atlas-qa`
+  (ds4.1flash) stays cheaper than `dsflashv4` at identical token rates. Report the budget every
+  turn.
 
 ## 2. Two agents, two lanes — custody
 

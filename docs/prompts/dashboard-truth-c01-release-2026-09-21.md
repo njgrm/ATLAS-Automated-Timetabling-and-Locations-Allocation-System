@@ -151,8 +151,10 @@ probes are authoritative.
 ## 4. Part C — browser acceptance (custody with QA)
 
 **Custody goes to the independent QA task**; the planner releases the shared profile and QA
-closes it. One authorized login expected — **disclose its `audit_logs` row**. Read-only: no
-Save, Apply, Generate, Publish or Delete, and **no timetable cell click**.
+closes it. **Logins are authorized as needed** for this pass (operator, 2026-09-21): log in as
+often as the pass requires, and **disclose every login's `audit_logs` row** together with any
+`last_login_at` delta. Read-only: no Save, Apply, Generate, Publish or Delete, and **no
+timetable cell click** (a cell click places a session and would break the zero-write claim).
 
 1. **Dashboard truth (this cycle).** On `/`, with the published run that has zero HARD
    violations: no surface claims "review blockers"; any SOFT figure is labelled as warnings.
