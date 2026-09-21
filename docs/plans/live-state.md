@@ -4,9 +4,9 @@ Current operational truth only. Git history and handoff documents retain older
 evidence. Update this file when a live fact, blocking decision, or next action
 changes.
 
-Last verified: 2026-09-21 (planner, closing `DUP-READ-CALLERS-C01R`; release `a02884ff`
-**deployed** and independently accepted **7/7**, 0 blocked, 0 unperformed, after one bounded
-planner-applied documentation correction)
+Last verified: 2026-09-21 (planner, closing `ACTOR-SCHOOL-MUTATIONS-C01` Part B; release `80acdc25`
+**deployed** and independently accepted **5/5**, 0 blocked, 0 unperformed, with an independently
+re-derived in-transaction-pinned zero-write proof)
 
 ## Objective
 
@@ -19,26 +19,30 @@ and AIMS.
 ## Live release
 
 - Tailnet: `https://njgrm.buru-degree.ts.net`
-- Release SHA: `a02884ff` (product tree byte-identical to the accepted `DUP-READ-CALLERS-C01R`
-  Part A candidate `2f1a8f33`; the whole delta versus `4c7c0bd9` is the three client paths of
-  the per-token-epoch `/auth/me` memo). **Client-only** — it does **not** carry Lane B's
-  `ACTOR-SCHOOL-MUTATIONS-C01` server fix, which is integrated on `main` but **not deployed**.
-- Supervisor: PID 102756; server `5001 -> 99584`; client `5174 -> 96548`
-- Active directory: `D:\ATLAS-runtime-supervised-a02884ff-20260921`
-- Served client entry chunk: `/assets/index-C6LTCXSf.js` (incumbent was `index-zIp12x6H.js`)
-- Deployed 2026-09-21 by the `DUP-READ-CALLERS-C01R` Part B one-shot. Post-action QA re-ran
-  D1–D4 + B1–B3 and returned **6/7 `CORRECTION_REQUIRED`** on one evidence defect: the executor
-  recorded a `SET LOCAL TIME ZONE 'UTC'` pin that had no effect (issued outside a transaction),
-  so its published signature-map hash is the default-session-TZ rendering. One bounded,
-  planner-applied **additive documentation correction** (no runtime action) records the
-  addendum-literal pre==post proof, QA's UTC-pinned post value, and QA's independent whole-DB
-  zero-write scan; D4 then passes on accurate evidence and the cycle is **accepted 7/7/0/0**.
-  QA confirmed **B2 is fixed**: a clean `/timetable` load issues `/auth/me` ×1, `runtime/context`
-  ×2, `rollover-status` ×1. QA login: `audit_logs` id **858** (actor 46).
-- Rollback: incumbent `4c7c0bd9` is startable in place at
-  `D:\ATLAS-runtime-supervised-4c7c0bd9-20260921` (task XML captured pre-mutation at
-  `%TEMP%\opencode\c01r-incumbent-task.xml`); `434b2a81`'s XML and the `5f5c6c4f` basis remain
-  available. Rollback was **not** executed. `D:` free 38.82 → **37.32 GiB**.
+- Release SHA: `80acdc257cee613418eaa24db4607114b68c2d25`. Delta versus the previous release
+  `a02884ff` is exactly the three `atlas-server` paths of `ACTOR-SCHOOL-MUTATIONS-C01`
+  (**client delta empty**). This is the **first server-carrying release since `4c7c0bd9`**, so it
+  also carries the `DUP-READ-CALLERS-C01R` client fix.
+- Supervisor: PID 96476; server `5001 -> 103700`; client `5174 -> 96612`
+- Active directory: `D:\ATLAS-runtime-supervised-80acdc25-20260921` (a registered detached
+  worktree — the clone shape used by the two previous releases is not repeated, `AGENTS.md` §10.12)
+- Served client entry chunk: `/assets/index-C6LTCXSf.js`, byte-identical to the previous release's
+  (unchanged client tree rebuilds deterministically)
+- Deployed 2026-09-21 by the `ACTOR-SCHOOL-MUTATIONS-C01` release cycle. The eight defaulting
+  runtime mutation `POST` routes now reject a missing/malformed/foreign target school **before**
+  any service, lock, upstream, database or notification dispatch; a system token may still act on
+  an explicit valid target, and a JWT actor must be privileged with a matching positive actor
+  school. Independent source review: **9/9**, including an independently reproduced failing-first
+  control. Post-action QA: **`ACCEPT_READY` 5/5/0/0** with an independently re-derived signature
+  map — `EE03F1D0…65521B`, 46 tables, pre == post, pinned in-transaction — plus a whole-database
+  timestamp scan showing **zero post-cutover writes and no login**. The eight live mutation routes
+  were deliberately **not** probed (a live `POST` can write); the server claim rests on artifact
+  identity plus the committed harness, and that limitation is stated, not papered over.
+  `D:` free 37.32 → **35.82 GiB**.
+- Rollback: incumbent `a02884ff` is startable in place at
+  `D:\ATLAS-runtime-supervised-a02884ff-20260921` (task XML captured pre-mutation,
+  `B0EF4152…`); `4c7c0bd9` and the `5f5c6c4f` / `434b2a81` bases remain available behind it.
+  Rollback was **not** executed.
 - Deployed 2026-09-21 by the `UX-R03e` one-shot, which added the last two operator
   sub-pages: `/timetable/runs` (a read-only run history composed from the existing
   `GET /api/v1/generation/:schoolId/:schoolYearId/runs` endpoint, selecting through the
@@ -144,11 +148,13 @@ and AIMS.
   per-token-epoch **resolved-value memo** that closes the *serial* duplicate the in-flight map
   cannot, and is live in `a02884ff`. Both passed their source rows (5/5 each; C01R carried into
   the release on proven blob identity).
-- **Lane B `ACTOR-SCHOOL-MUTATIONS-C01` is integrated on `main` (`07739636`) but NOT deployed.**
-  It applies actor-school enforcement to the eight defaulting runtime mutation `POST` routes and
-  corrects the abort budget. The live `a02884ff` predates it. Shipping it requires a release,
-  which is Lane A's to make, and because it is a server change it needs its own reviewed packet
-  and its own post-action QA.
+- **Lane B `ACTOR-SCHOOL-MUTATIONS-C01` is LIVE** in release `80acdc25`. Its recorded successors
+  are **not** part of it and remain open: `GET /rollover-recovery/preview`
+  (`runtime.router.ts:244`) still defaults to school 1 and needs the same treatment
+  `ACTOR-SCOPE-C01` gave the read routes; `parseStrictTermAuthoritySchoolId` (`:424`) lacks the
+  new non-string/non-number guard (`true → 1`, `[1] → 1` — not cross-tenant, those routes are
+  actor-matched); and the harness does not cover body-vs-query precedence or
+  hex/exponent/padded-string inputs.
 - **Deploy fact earned this cycle:** an agent shell inherits a **stale process-scope**
   `ATLAS_RUNTIME_SOURCE_DIR` / `ATLAS_RUNTIME_RELEASE_SHA` (measured `c93dd2ee-20260920`) that
   shadows machine scope, so an unqualified `node ops/runtime/cli.mjs stop` targets the wrong
@@ -294,16 +300,24 @@ and AIMS.
 
 ## Single next action
 
-**Ship Lane B's server fix — the next release.** `DUP-READ-CALLERS-C01R` is closed: release
-`a02884ff` is live and accepted 7/7/0/0. The only integrated-but-undeployed source on `main` is
-Lane B's `ACTOR-SCHOOL-MUTATIONS-C01` server change (`07739636`) — actor-school enforcement on
-the eight defaulting runtime mutation `POST` routes. Shipping it is one new release built at a
-fresh pin under the standing authorization, with its own pre-action review of the deployment
-clause, one executor Part B, and one fresh independent post-action QA. It would be the first
-release carrying **server** source since `4c7c0bd9`, so its packet must pin the server artifact
-identity (not only the client chunk). Before starting: confirm the pin's product tree, re-measure
-`D:` free (37.32 GiB; warn below 25, fail closed below 15), and read the current
-`docs/handoffs/lane-b.md` and `docs/handoffs/lane-a-to-lane-b.md`.
+**Close the actor-school residual authority lane.** The release queue is **empty** — every
+accepted source change is live in `80acdc25`, and nothing is awaiting deployment. The highest-value
+item that is not operator-gated is the bounded, source-only successor to the work just shipped:
+1. `GET /rollover-recovery/preview` (`atlas-server/src/routes/runtime.router.ts:244`) still uses
+   the defaulting `parseSchoolId`, so an authenticated JWT can read with a school-1 fallback — the
+   same defect class `ACTOR-SCOPE-C01` closed on the other read routes.
+2. `parseStrictTermAuthoritySchoolId` (`:424`) should carry the same non-string/non-number guard
+   for consistency (not a cross-tenant path today).
+3. Harness hardening: body-vs-query precedence, hex/exponent/padded-string inputs, and an
+   aggregate script entry.
+That lane is `atlas-server/**`, i.e. **Lane B's file ownership** — so it is either handed to Lane
+B or explicitly re-assigned before any Lane A writer touches it.
+
+Operator-gated items, in value order, each needing its own reviewed packet: the term-cache
+catch-up **apply** (capture complete at `9c19b772`; still unbound), the canonical readiness
+diagnostic → fingerprinted generation preview → **generation**, then **publication**; and the
+SMART/AIMS companion handoffs to their repository owners. Regeneration, publication, Teaching Load
+applies and every migration remain separately locked.
 
 Behind that release, these are unchanged:
 

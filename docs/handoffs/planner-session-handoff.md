@@ -5,10 +5,11 @@ planner writes and phrases it; the kickoff line below never changes. Updating it
 deliberate and cheap (~1–2k tokens): it makes any turn boundary a safe session boundary. The
 *decision* to actually start fresh stays conditional — take it at a real lane boundary, before
 a HIGH action, or once a compaction would cost more than a restart.
-Last updated: 2026-09-21 (Lane A). `DUP-READ-CALLERS-C01R` is closed — release `a02884ff` is
-live and accepted 7/7; `main` also carries Lane B's server fix (`07739636`), which is **not
-deployed**. The `D:` capacity blocker is resolved (`D:` 37.32 GiB after this release, above the
-25 GiB warning) and `D:\ATLAS-runtime-*` trees stay operator-only.
+Last updated: 2026-09-21 (Lane A). Two cycles closed back-to-back: `DUP-READ-CALLERS-C01R`
+(client, accepted 7/7 on `a02884ff`) and `ACTOR-SCHOOL-MUTATIONS-C01` **Part B** (server, accepted
+5/5 on `80acdc25`, now live). **The release queue is empty** — nothing accepted is undeployed.
+`D:` 35.82 GiB; `D:\ATLAS-runtime-*` trees stay operator-only. Per-turn burn is tracked in
+`docs/reviews/workflow-cost-tracking.md`.
 
 **`DASHBOARD-TRUTH-C01` Part A is ACCEPTED and integrated** at candidate `2a6cb06d` (evidence
 `5c318e1f`; fresh QA `ACCEPT_READY` 5/5, blocked 0, unperformed 0). Packet
@@ -73,15 +74,18 @@ literally), and dependency trees were copied from the junction-free incumbent. R
 when a row depends on a computed artifact, record the literal statement **and its scope** — here,
 the enclosing transaction.
 
-**Lane B (`ACTOR-SCHOOL-MUTATIONS-C01`) — INTEGRATED on `main` (`07739636`), NOT deployed.**
-Lane B landed its additive merge at 16:32 (+08), after two invalidated attempts that were both
-caused by Lane A continuity pushes moving `main`. Its accepted merge `ad79c2b3` carries exactly
-its seven approved paths: server-side actor-school enforcement on the eight defaulting runtime
-mutation `POST` routes, plus a test-only abort-budget correction. The live release `a02884ff`
-predates it, so **its fix is not live**; it ships only in a release, which is Lane A's to make.
-Its two earlier misreadings (worktree cap read as a registry total; dirty `D:/ATLAS` treated as
-an integration boundary) are answered in `docs/handoffs/lane-a-to-lane-b.md` (`5a679325`), and
-`docs/reference/agent-worktree-lifecycle.md` now states the cap rule's own noun.
+**Lane B (`ACTOR-SCHOOL-MUTATIONS-C01`) — LIVE in release `80acdc25` (accepted 5/5).** Its
+server change is deployed: the eight defaulting runtime mutation `POST` routes now reject a
+missing/malformed/foreign target school before any service, lock, upstream, database or
+notification dispatch; a system token may still act on an explicit valid target, and a JWT actor
+must be privileged with a matching positive actor school. A **fresh independent reviewer** closed
+the source at 9/9 — the missing review tier, since Lane B had self-reviewed — and independently
+reproduced Lane B's failing-first control at `a02884ff`. Its two earlier misreadings (worktree cap
+read as a registry total; dirty `D:/ATLAS` treated as an integration boundary) are answered in
+`docs/handoffs/lane-a-to-lane-b.md` (`5a679325`). **Three recorded successors are NOT in it**:
+`GET /rollover-recovery/preview` (`runtime.router.ts:244`) still defaults to school 1;
+`parseStrictTermAuthoritySchoolId` (`:424`) lacks the non-string guard; the harness does not cover
+body-vs-query precedence or hex/exponent/padded strings.
 
 **Lane A `main` push freeze — RELEASED.** Lane B's push landed (`07739636` is `main`'s tip), so
 the freeze condition is satisfied and Lane A may push again. The rule it earned stands: **a lane
@@ -133,15 +137,15 @@ stands at 37.32 GiB after this release).
 
 ## 1. What is live right now
 
-- Release **`a02884ff`** at `D:\ATLAS-runtime-supervised-a02884ff-20260921`; supervisor 102756;
-  `5001`→99584; `5174`→96548; served entry `/assets/index-C6LTCXSf.js`; Tailnet healthy. It is
-  **client-only**: it carries the accepted `DUP-READ-CALLERS-C01R` per-token-epoch `/auth/me`
-  memo (plus everything in `4c7c0bd9`), and it does **not** carry Lane B's server change — see
-  the Lane B note above.
-- Rollback: incumbent `4c7c0bd9` is startable in place at
-  `D:\ATLAS-runtime-supervised-4c7c0bd9-20260921` with its pre-mutation task XML captured at
-  `%TEMP%\opencode\c01r-incumbent-task.xml`; `434b2a81`'s XML and the **`5f5c6c4f`** basis
-  (startable, junction-free) remain available. Rollback was not executed.
+- Release **`80acdc257cee613418eaa24db4607114b68c2d25`** at
+  `D:\ATLAS-runtime-supervised-80acdc25-20260921` (registered detached worktree, not a clone);
+  supervisor 96476; `5001`→103700; `5174`→96612; served entry `/assets/index-C6LTCXSf.js`
+  (byte-identical to `a02884ff`'s — the client tree is unchanged); Tailnet healthy. It carries
+  Lane B's server fix **and** everything in `a02884ff`.
+- Rollback: incumbent `a02884ff` is startable in place at
+  `D:\ATLAS-runtime-supervised-a02884ff-20260921` with its pre-mutation task XML captured
+  (`B0EF4152…`); `4c7c0bd9`, `434b2a81`'s XML and the **`5f5c6c4f`** basis (startable,
+  junction-free) remain available. Rollback was not executed.
 - **Budget — two sources, and they measure different things.**
   1. **Allowance percentage (the authority): the operator's provider console.** Last
      operator-confirmed 2026-09-21: **`monthly 45% · weekly 9% · rolling 2%`** (rolling resets
@@ -220,13 +224,14 @@ stands at 37.32 GiB after this release).
 - `E:/ATLAS-worktrees/planner-worktree-reclaim-20260921` — the continuity/**docs lane** (branch
   `docs/worktree-reclaim-20260921`). **`KEEP_ACTIVE`.** Continuity commits are pushed from here,
   and every push must `fetch` + merge first because **Lane B also moves `main`**.
-- `E:/ATLAS-worktrees/dashboard-truth-c01` (branch `work/dashboard-truth-c01`, `08a9b1cd`) —
-  source integrated; its release was superseded by `a02884ff`. **`RETIRE_AFTER_INTEGRATION`**:
-  retire it (non-forced) — the branch survives in Git and it holds a real `node_modules`
-  (~1–2 GB), so retiring frees `E:`.
-- `E:/ATLAS-worktrees/dup-read-callers-c01r` (branch `work/dup-read-callers-c01r`, `2f1a8f33`) —
-  candidate integrated, and its release built and independently verified.
-  **`RETIRE_AFTER_INTEGRATION`**.
+- **Retired 2026-09-21 (non-forced; branches retained in Git):**
+  `E:/ATLAS-worktrees/dashboard-truth-c01` (`work/dashboard-truth-c01`, `08a9b1cd`) and
+  `E:/ATLAS-worktrees/dup-read-callers-c01r` (`work/dup-read-callers-c01r`, `2f1a8f33`) — both
+  clean and both ancestors of `main` at removal, verified before the removal.
+- `E:/ATLAS-worktrees/release-actor-school-mutations-c01-20260921` (branch
+  `release/actor-school-mutations-c01-20260921`, `cbe1803e`) — the Part B deployment evidence,
+  clean and integrated by this closure. **`RETIRE_AFTER_INTEGRATION`**: retire it (non-forced).
+  This worktree was created the correct way — a registered worktree, not a clone.
 - `E:/ATLAS-worktrees/c01r-release-20260921` — **NOT a worktree: a standalone clone** (own
   `.git`, `origin` = `D:\ATLAS`), created by the executor against `AGENTS.md` §10.12. Its only
   branch `release/dup-read-callers-c01r-20260921` (`beedb104`) is clean and now integrated into
@@ -250,7 +255,8 @@ stands at 37.32 GiB after this release).
 | Stream | Result | Key SHAs |
 |---|---|---|
 | `DUP-READ-CALLERS-C01R` Part B/C | Re-release **`a02884ff`** deployed; D1–D4 + B1–B3 accepted **7/7/0/0** after one bounded planner-applied evidence correction; **B2 fixed** (`/auth/me` ×1) | `6e408e9a`, `beedb104` |
-| Lane B `ACTOR-SCHOOL-MUTATIONS-C01` | Integrated on `main`, **not deployed** (server actor-school enforcement on 8 mutation `POST` routes) | `ad79c2b3`, `07739636` |
+| `ACTOR-SCHOOL-MUTATIONS-C01` release | Server fix **live** in `80acdc25`: source review **9/9**, post-action QA `ACCEPT_READY` **5/5/0/0**, in-transaction-pinned signature map pre == post, independent zero-write DB scan, **no browser rows** (client delta empty) | `cbe1803e`, `80acdc25` |
+| Lane B `ACTOR-SCHOOL-MUTATIONS-C01` source | Integrated on `main` at `07739636`: 8 runtime mutation `POST` routes gain actor-school enforcement | `ad79c2b3` |
 | Directive relocation | `AGENTS.md` **3,843 → 3,195 words** (~850 tokens/request saved), 133-rule audit, 4 dropped rules restored | `01af8d71`, `1437e137` |
 | `DUP-READ-DIAGNOSIS-C01` | Read-only diagnosis: duplicates are **not** StrictMode; per-caller causes named; 502s unproven | `5837a775`, `dbe7fde2` |
 | `UX-R03e` | Runs + Setup panes; route split **complete**; QA `ACCEPT_READY` 13/13 | `5acb08b8`, `434b2a81`, `890fa67a` |
@@ -351,15 +357,19 @@ and the proxy is healthy. The superseded `ENROLLPRO-PROXY-RECOVERY-LIVE` packet 
 
 ## 6. Next actions, ordered
 
-1. **Ship Lane B's server fix** (`ACTOR-SCHOOL-MUTATIONS-C01`, integrated at `07739636`): one new
-   release at a fresh pin under the standing authorization — pre-action review of the deployment
-   clause, one executor Part B, one fresh independent post-action QA. Packet prepared:
-   `docs/prompts/actor-school-mutations-c01-release-2026-09-21.md` (pin `80acdc25`, release
-   `D:\ATLAS-runtime-supervised-80acdc25-20260921`, rows D1–D5, **no browser rows** — the client
-   delta is empty). It is the first release carrying **server** source since `4c7c0bd9`, so D5
-   pins the *server* artifact identity. Before starting: confirm the pin's product tree,
-   re-measure `D:` (37.32 GiB), and read `docs/handoffs/lane-b.md` and
-   `docs/handoffs/lane-a-to-lane-b.md` for Lane B's current state.
+1. **Close the actor-school residual authority lane** — the highest-value item that is not
+   operator-gated, and a *source-only* successor to what just shipped: `GET /rollover-recovery/preview`
+   (`runtime.router.ts:244`) still defaults to school 1; `parseStrictTermAuthoritySchoolId` (`:424`)
+   lacks the new non-string guard; harness hardening (body-vs-query precedence, hex/exponent/padded
+   strings, an aggregate script). **That lane is `atlas-server/**`, i.e. Lane B's ownership** — hand
+   it to Lane B or explicitly re-assign it, with its own packet and review.
+2. **Operator-gated, each needing its own reviewed packet:** the term-cache catch-up **apply**
+   (capture complete at `9c19b772`, still unbound) → canonical readiness diagnostic →
+   fingerprinted generation preview → **generation** → then **publication**; and the SMART/AIMS
+   companion handoffs to their repository owners.
+3. Backlog (non-blocking): the dashboard tile reporting review blockers on a zero-HARD published
+   run; the advanced policy surface's layout switch + refetch; the `parseSchoolId` defaulting on
+   other non-listed routes.
 2. Then: the remaining UX backlog — the dashboard tile still reporting review blockers on a
    zero-HARD published run, and the advanced policy surface's layout switch + refetch — plus the
    `parseSchoolId` defaulting backlog on non-listed routes.

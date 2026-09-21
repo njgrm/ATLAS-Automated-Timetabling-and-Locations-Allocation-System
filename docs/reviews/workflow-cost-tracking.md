@@ -20,7 +20,13 @@ coarser steps. Cache-read tokens dominate the input side and are the planner-con
 | When (2026-09-21) | 1-day cost | 1-day sessions | 1-day messages | 7-day cost | Notes |
 | --- | --- | --- | --- | --- | --- |
 | baseline before the C01R closure turn | $4.63 | 42 | 3,006 | $66.76 / 444 sessions | input 14.6M, output 1.1M, cache read 496.1M |
-| after the C01R closure turn | — | — | — | — | recorded below once the turn closes |
+| C01R closure turn (release deploy + QA + correction + clone recovery) | $4.82 | 45 | 3,162 | — | **+$0.19 / +3 sessions / +156 msgs / +17.2M cache read** |
+| `ACTOR-SCHOOL-MUTATIONS-C01` release turn (source review + packet + deploy + post-action QA) | $4.84 | 45 | 3,177 | — | +$0.02 / +0 sessions / +15 msgs / +4.2M cache read — **almost certainly undercounted**: the turn ran two subagent sessions (a reviewer that reproduced the harness and a QA that re-derived the signature map and ran a whole-DB scan) and the counters clearly had not yet aggregated them. Re-measure at the next boundary; treat this row as a floor, not a total. |
+
+> **Known measurement lag.** `opencode stats` session/message counters aggregate subagent sessions
+> after they close, so a figure taken immediately at the end of a turn that dispatched subagents can
+> undercount by most of that turn's work. Take the reading at the **start** of the next turn as well
+> and use the larger of the two; do not read a suspiciously small delta as a cheap turn.
 
 ## What is known about the shape of the burn
 
