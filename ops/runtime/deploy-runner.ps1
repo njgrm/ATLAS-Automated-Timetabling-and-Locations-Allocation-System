@@ -3,16 +3,28 @@ param(
     [ValidatePattern('^[0-9a-f]{40}$')]
     [string] $TargetSha,
 
-    [ValidateScript({ [IO.Path]::IsPathFullyQualified($_) })]
+    [ValidateScript({
+        $path = [string]$_
+        -not [string]::IsNullOrWhiteSpace($path) -and
+        ($path -match '^(?:[A-Za-z]:[\\/]|\\\\)')
+    })]
     [string] $TargetSourceDir,
 
     [ValidatePattern('^[0-9a-f]{40}$')]
     [string] $IncumbentSha,
 
-    [ValidateScript({ [IO.Path]::IsPathFullyQualified($_) })]
+    [ValidateScript({
+        $path = [string]$_
+        -not [string]::IsNullOrWhiteSpace($path) -and
+        ($path -match '^(?:[A-Za-z]:[\\/]|\\\\)')
+    })]
     [string] $IncumbentSourceDir,
 
-    [ValidateScript({ [IO.Path]::IsPathFullyQualified($_) })]
+    [ValidateScript({
+        $path = [string]$_
+        -not [string]::IsNullOrWhiteSpace($path) -and
+        ($path -match '^(?:[A-Za-z]:[\\/]|\\\\)')
+    })]
     [string] $EnvFile,
 
     [string] $TaskName = 'ATLAS-Runtime-Supervisor',
