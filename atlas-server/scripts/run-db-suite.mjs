@@ -57,6 +57,11 @@ const SUFFIX_CHARS = /^[a-z0-9]+$/;
  * the rule: file + root cause + date, reported as skipped, never as passing.
  * @type {{ file: string; cause: string; date: string }[]}
  */
+// 2026-09-22 (resolved the same day): the single entry this list held was
+// department-authority-gates E9, and it was fixed by extending the .gitattributes
+// LF policy to docs/verification/** - the artifact now materialises as its pinned
+// LF bytes (4621 B, SHA d1d8e74e...) and E9 passes 82/82. The list is empty; keep
+// it that way, or add a dated entry that names a follow-up owner.
 const KNOWN_RED = [
 	// 2026-09-22 — department-authority-gates.test.ts E9 fails honestly: the
 	// committed docs/verification/department-authority-apply-r4a.json carries
@@ -69,11 +74,6 @@ const KNOWN_RED = [
 	// the artifact to its pinned LF bytes, or re-emit the sidecar) — outside the
 	// executor's writable paths, and the byte-exact assertion must not be
 	// weakened or deleted to force green. Reported BLOCKING in the handoff.
-	{
-		file: 'src/__tests__/department-authority-gates.test.ts',
-		cause: 'E9 sidecar drift: artifact CRLF bytes vs LF-pinned sidecar (content intact per E10); needs planner docs-only correction',
-		date: '2026-09-22',
-	},
 ];
 
 function failClosed(message) {
@@ -125,9 +125,22 @@ async function main() {
 	const quoteIdent = (name) => `"${name.replace(/"/g, '""')}"`;
 	const execAdmin = async (sql) => admin.$queryRawUnsafe(sql);
 
-	const dropDb = async (name) => {
-		await execAdmin(`DROP DATABASE IF EXISTS ${quoteIdent(name)} WITH (FORCE)`);
-	};
+const dropDb = async (name) => {
+	// A suite can leave a connection closing for a moment after it exits, so a
+	// single `DROP ... WITH (FORCE)` is occasionally refused. Retry briefly; a
+	// persistent failure still surfaces as DROP-FAILED and non-zero residue.
+	let lastError = null;
+	for (let attempt = 0; attempt < 5; attempt += 1) {
+		try {
+			await execAdmin(`DROP DATABASE IF EXISTS ${quoteIdent(name)} WITH (FORCE)`);
+			return;
+		} catch (error) {
+			lastError = error;
+			await new Promise((resolve) => setTimeout(resolve, 300 * (attempt + 1)));
+		}
+	}
+	throw lastError;
+};
 
 	let templateName = '';
 	try {
