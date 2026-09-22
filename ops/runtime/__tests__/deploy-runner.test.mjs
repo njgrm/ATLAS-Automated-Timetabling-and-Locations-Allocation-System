@@ -58,3 +58,48 @@ test('runner cannot turn into a build, install, migration, or database operation
 	assert.doesNotMatch(source, /prisma|DATABASE_URL|db\s+push|migrate/i);
 	assert.match(source, /secretsPrinted = \$false/);
 });
+
+test('Windows PowerShell 5.1 accepts rooted paths and rejects relative paths before runner preflight', () => {
+	const valid = [
+		`& '${runner.replaceAll("'", "''")}'`,
+		`-TargetSha ${'a'.repeat(40)}`,
+		`-TargetSourceDir 'C:\\valid-target'`,
+		`-IncumbentSha ${'b'.repeat(40)}`,
+		`-IncumbentSourceDir 'C:\\valid-incumbent'`,
+		`-EnvFile 'C:\\valid.env'`,
+	].join(' ');
+	const validResult = spawnSync('powershell.exe', [
+		'-NoProfile', '-NonInteractive', '-Command', valid,
+	], { encoding: 'utf8' });
+	const validOutput = `${validResult.stdout}\n${validResult.stderr}`;
+	assert.notEqual(validResult.status, 0, 'the missing fixture target must stop preflight');
+	assert.doesNotMatch(validOutput, /IsPathFullyQualified/);
+	assert.match(validOutput, /DEPLOY_RUNNER_STOP:|git failed with exit code/);
+
+	const validUnc = valid.replace("-TargetSourceDir 'C:\\valid-target'", "-TargetSourceDir '\\\\server\\share'");
+	const validUncResult = spawnSync('powershell.exe', [
+		'-NoProfile', '-NonInteractive', '-Command', validUnc,
+	], { encoding: 'utf8' });
+	const validUncOutput = `${validUncResult.stdout}\n${validUncResult.stderr}`;
+	assert.notEqual(validUncResult.status, 0);
+	assert.doesNotMatch(validUncOutput, /IsPathFullyQualified/);
+	assert.match(validUncOutput, /DEPLOY_RUNNER_STOP:|git failed with exit code/);
+
+	const relative = valid.replace("-TargetSourceDir 'C:\\valid-target'", "-TargetSourceDir 'relative-target'");
+	const relativeResult = spawnSync('powershell.exe', [
+		'-NoProfile', '-NonInteractive', '-Command', relative,
+	], { encoding: 'utf8' });
+	const relativeOutput = `${relativeResult.stdout}\n${relativeResult.stderr}`;
+	assert.notEqual(relativeResult.status, 0);
+	assert.match(relativeOutput, /Cannot validate argument|parameter.*TargetSourceDir/i);
+	assert.doesNotMatch(relativeOutput, /DEPLOY_RUNNER_STOP:/);
+
+	const bareUnc = valid.replace("-TargetSourceDir 'C:\\valid-target'", "-TargetSourceDir '\\\\'");
+	const bareUncResult = spawnSync('powershell.exe', [
+		'-NoProfile', '-NonInteractive', '-Command', bareUnc,
+	], { encoding: 'utf8' });
+	const bareUncOutput = `${bareUncResult.stdout}\n${bareUncResult.stderr}`;
+	assert.notEqual(bareUncResult.status, 0);
+	assert.match(bareUncOutput, /Cannot validate argument|parameter.*TargetSourceDir/i);
+	assert.doesNotMatch(bareUncOutput, /DEPLOY_RUNNER_STOP:/);
+});
