@@ -287,7 +287,43 @@ async function craftRecoveryMarker(schoolId: number, schoolYearId: number, phase
 }
 
 async function run() {
-	let effectiveYearId = await getLiveActiveYearId();
+  // Disposable premise (missing-seed-row + harness-assumption fix): the
+  // school-1 live-premise sections below were written for a pre-seeded
+  // database, but the gate runs every file against its own fresh database.
+  // Seed the smallest live-like premise they assume — school 1 with one
+  // active, non-archived year mirror, one active faculty mirror, and one
+  // active-year section mirror — and pin the upstream to a closed port so no
+  // live EnrollPro reachability can change the premise (every section below
+  // save/restores ENROLLPRO_API around its own fake server; the per-file
+  // database is dropped by the runner).
+  if (!process.env.ENROLLPRO_API) process.env.ENROLLPRO_API = 'http://127.0.0.1:9/api';
+  const PREMISE_YEAR = 910101;
+  const PREMISE_LABEL = '2029-2030';
+  const premiseSchool = await prisma.school.create({
+    data: { name: 'ROLLOVER-AUTOMATION DISPOSABLE PREMISE — SAFE TO DELETE', shortName: 'RRAUTOP' },
+    select: { id: true },
+  });
+  assert(premiseSchool.id === SCHOOL_ID, `disposable premise school owns id ${SCHOOL_ID} (got ${premiseSchool.id})`);
+  await prisma.enrollProSchoolYearMirror.create({
+    data: {
+      schoolId: SCHOOL_ID, enrollProSchoolYearId: PREMISE_YEAR, yearLabel: PREMISE_LABEL,
+      isActive: true, isArchived: false, syncStatus: 'synced', lastSyncedAt: new Date(),
+    },
+  });
+  await prisma.facultyMirror.create({
+    data: {
+      schoolId: SCHOOL_ID, externalId: 910101, firstName: 'Premise', lastName: 'Teacher',
+      department: 'MATH', maxHoursPerWeek: 30, isActiveForScheduling: true, isStale: false,
+    },
+  });
+  await prisma.sectionMirror.create({
+    data: {
+      schoolId: SCHOOL_ID, schoolYearId: PREMISE_YEAR, externalId: 910101, name: 'Premise 7-A',
+      gradeLevelId: 17, gradeLevelName: 'Grade 7', displayOrder: 7, programType: 'REGULAR',
+      maxCapacity: 50, enrolledCount: 40, isActiveForScheduling: true, isStale: false,
+    },
+  });
+  let effectiveYearId = await getLiveActiveYearId();
 	if (effectiveYearId === 0) {
 		const activeMirror = await prisma.enrollProSchoolYearMirror.findFirst({
 			where: { schoolId: SCHOOL_ID, isActive: true },

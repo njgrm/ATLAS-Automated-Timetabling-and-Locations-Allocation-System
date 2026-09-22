@@ -367,6 +367,16 @@ test('controls 4/5/6: publication, revision, and public reads expose Q4 on a dis
 				data: { schoolId: quarterSchoolId, schoolYearId: quarterYearId, facultySubjectId: qualification.id, facultyId: quarterFaculty.id, subjectId: subject.id, sectionId: 10 },
 			});
 		}
+		// Control 6 reads the published payload through the frozen identity
+		// snapshot, whose policy projection carries the persisted scheduling
+		// policy time bounds. Seed the row every production setup path writes;
+		// without it the frozen projection is an empty object the display-grid
+		// builder cannot render (missing seed row, not a product defect: the
+		// live read path falls back to POLICY_DEFAULTS and every sibling
+		// published-payload fixture seeds this row).
+		await prisma.schedulingPolicy.create({
+			data: { schoolId: quarterSchoolId, schoolYearId: quarterYearId, periodLengthMinutes: 60, periodsPerDay: 8, earliestStartTime: '07:00', latestEndTime: '17:00' },
+		});
 		const quarterRun = await prisma.generationRun.create({
 			data: {
 				schoolId: quarterSchoolId,
@@ -411,6 +421,11 @@ test('controls 4/5/6: publication, revision, and public reads expose Q4 on a dis
 				termContractCache: termCache(trimesterSchoolId, trimesterYearId, 'TRIMESTER', ['T1', 'T2', 'T3']),
 				termContractCachedAt: now,
 			},
+		});
+		// Same missing-seed-row premise as the quarterly fixture: the trimester
+		// school needs its persisted scheduling policy row.
+		await prisma.schedulingPolicy.create({
+			data: { schoolId: trimesterSchoolId, schoolYearId: trimesterYearId, periodLengthMinutes: 60, periodsPerDay: 8, earliestStartTime: '07:00', latestEndTime: '17:00' },
 		});
 		const trimesterRun = await prisma.generationRun.create({
 			data: {
@@ -489,7 +504,13 @@ test('controls 4/5/6: publication, revision, and public reads expose Q4 on a dis
 		assert.deepEqual((allPayload.entries as Array<{ entryId: string }>).map((entry) => entry.entryId), ['q-1', 'q-4'], 'public all-term read preserves base entry order');
 		await assert.rejects(
 			() => withDataContext(prisma, () => getPublishedSchedulePayload(quarterSchoolId, quarterYearId, { termIndex: 'active', requestedDate: '2030-01-04' }, undefined, quarterYearId)),
-			(error: { code?: string }) => error?.code === 'TERM_FILTER_NOT_READY',
+			// Stale-expectation update (not a weakening): 994323a4 gave the
+			// unresolved-active-term selection its own typed 409 contract
+			// (TERM_SELECTION_REQUIRED, frozen + live paths alike) after this
+			// control was written against the older 501 TERM_FILTER_NOT_READY.
+			// The fail-closed intent is unchanged — and now pinned harder with
+			// the 409 status assertion.
+			(error: { code?: string; statusCode?: number }) => error?.code === 'TERM_SELECTION_REQUIRED' && error?.statusCode === 409,
 			'active public filter fails closed without a verified active term',
 		);
 	} finally {
@@ -499,6 +520,7 @@ test('controls 4/5/6: publication, revision, and public reads expose Q4 on a dis
 				await tx.publishedScheduleRevision.deleteMany({ where: { schoolId: { in: fixtureSchoolIds } } });
 				await tx.auditLog.deleteMany({ where: { schoolId: { in: fixtureSchoolIds } } });
 				await tx.generationRun.deleteMany({ where: { schoolId: { in: fixtureSchoolIds } } });
+				await tx.schedulingPolicy.deleteMany({ where: { schoolId: { in: fixtureSchoolIds } } });
 				await tx.enrollProSchoolYearMirror.deleteMany({ where: { schoolId: { in: fixtureSchoolIds } } });
 				// C12 correction cleanup (additive, FK-safe): qualification rows
 				// added for the R1 merged-entry gate.
@@ -514,6 +536,7 @@ test('controls 4/5/6: publication, revision, and public reads expose Q4 on a dis
 					await tx.publishedScheduleRevision.count({ where: { schoolId: { in: fixtureSchoolIds } } }),
 					await tx.auditLog.count({ where: { schoolId: { in: fixtureSchoolIds } } }),
 					await tx.generationRun.count({ where: { schoolId: { in: fixtureSchoolIds } } }),
+					await tx.schedulingPolicy.count({ where: { schoolId: { in: fixtureSchoolIds } } }),
 					await tx.enrollProSchoolYearMirror.count({ where: { schoolId: { in: fixtureSchoolIds } } }),
 					await tx.subjectSectionOwnership.count({ where: { schoolId: { in: fixtureSchoolIds } } }),
 					await tx.facultySubject.count({ where: { schoolId: { in: fixtureSchoolIds } } }),

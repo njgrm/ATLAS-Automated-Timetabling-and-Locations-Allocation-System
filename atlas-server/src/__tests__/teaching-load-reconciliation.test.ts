@@ -758,6 +758,10 @@ async function runFixtureTests(svc: typeof import('../services/teaching-load-rec
 
   try {
     section('B1. fixture setup (disposable school/year, zero live impact)');
+    // Section mirrors carry EnrollPro INTERNAL grade_level_ids (GEN-C02R
+    // Correction 6): the current feed uses 17/18 for Grades 7/8, and
+    // normalizeInternalGradeId maps legacy small ids 7/8 to Grades 9/10. The
+    // pre-correction fixtures used 7/8 and derived zero demand.
     const created = await instrumented.school.create({
       data: { name: FIXTURE_NAME, shortName: 'TLC02FX' },
       select: { id: true },
@@ -810,7 +814,7 @@ async function runFixtureTests(svc: typeof import('../services/teaching-load-rec
     const section101 = await instrumented.sectionMirror.create({
       data: {
         schoolId: fixtureSchoolId, schoolYearId: fixtureYearId, externalId: 101, name: 'Grade 7 - A',
-        gradeLevelId: 7, gradeLevelName: 'Grade 7', displayOrder: 7, programType: 'REGULAR', maxCapacity: 50, enrolledCount: 50,
+        gradeLevelId: 17, gradeLevelName: 'Grade 7', displayOrder: 7, programType: 'REGULAR', maxCapacity: 50, enrolledCount: 50,
         isActiveForScheduling: true, isStale: false,
       },
       select: { id: true },
@@ -819,7 +823,7 @@ async function runFixtureTests(svc: typeof import('../services/teaching-load-rec
     const section102 = await instrumented.sectionMirror.create({
       data: {
         schoolId: fixtureSchoolId, schoolYearId: fixtureYearId, externalId: 102, name: 'Grade 7 - B',
-        gradeLevelId: 7, gradeLevelName: 'Grade 7', displayOrder: 7, programType: 'REGULAR', maxCapacity: 50, enrolledCount: 50,
+        gradeLevelId: 17, gradeLevelName: 'Grade 7', displayOrder: 7, programType: 'REGULAR', maxCapacity: 50, enrolledCount: 50,
         isActiveForScheduling: true, isStale: false,
       },
       select: { id: true },
@@ -1305,7 +1309,7 @@ async function runFixtureTests(svc: typeof import('../services/teaching-load-rec
     await instrumented.sectionMirror.create({
       data: {
         schoolId: fixtureSchoolId, schoolYearId: fixtureYearId, externalId: 201, name: 'Grade 8 - A',
-        gradeLevelId: 8, gradeLevelName: 'Grade 8', displayOrder: 8, programType: 'REGULAR', maxCapacity: 50, enrolledCount: 50,
+        gradeLevelId: 18, gradeLevelName: 'Grade 8', displayOrder: 8, programType: 'REGULAR', maxCapacity: 50, enrolledCount: 50,
         isActiveForScheduling: true, isStale: false,
       },
     });
@@ -1386,7 +1390,7 @@ async function runFixtureTests(svc: typeof import('../services/teaching-load-rec
     await instrumented.sectionMirror.create({
       data: {
         schoolId: fixtureSchoolId, schoolYearId: fixtureYearId, externalId: 202, name: 'Grade 8 - B',
-        gradeLevelId: 8, gradeLevelName: 'Grade 8', displayOrder: 8, programType: 'STE', maxCapacity: 50, enrolledCount: 50,
+        gradeLevelId: 18, gradeLevelName: 'Grade 8', displayOrder: 8, programType: 'STE', maxCapacity: 50, enrolledCount: 50,
         isActiveForScheduling: true, isStale: false,
       },
     });

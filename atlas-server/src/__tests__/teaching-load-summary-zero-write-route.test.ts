@@ -93,6 +93,62 @@ async function main() {
     },
   });
 
+  // Disposable premise (missing-seed-row fix): this suite was written for a
+  // pre-seeded database, but the gate runs every file against its own fresh
+  // database. Seed the smallest premise the assertions need — one active,
+  // non-archived school year plus the persisted policy row the state-neutral
+  // control reads — and remove it before exit with a zero-residue assertion.
+  const fixtureYearId = 9076;
+  const fixtureSchool = await instrumented.school.create({
+    data: { name: 'TL-C01R2 ZERO-WRITE FIXTURE — SAFE TO DELETE', shortName: 'TLC01R2Z' },
+    select: { id: true },
+  });
+  const fixtureSchoolId = (fixtureSchool as any).id as number;
+  await instrumented.enrollProSchoolYearMirror.create({
+    data: {
+      schoolId: fixtureSchoolId, enrollProSchoolYearId: fixtureYearId, yearLabel: '2029-2030',
+      isActive: true, isArchived: false, syncStatus: 'synced',
+      termContractCache: {
+        schoolId: fixtureSchoolId,
+        schoolYear: { id: fixtureYearId, yearLabel: '2029-2030' },
+        format: 'TRIMESTER',
+        terms: [
+          { identity: 'T1', displayLabel: 'First Trimester', order: 1 },
+          { identity: 'T2', displayLabel: 'Second Trimester', order: 2 },
+          { identity: 'T3', displayLabel: 'Third Trimester', order: 3 },
+        ],
+      },
+      termContractCachedAt: new Date(),
+    },
+  });
+  await instrumented.schedulingPolicy.create({
+    data: { schoolId: fixtureSchoolId, schoolYearId: fixtureYearId },
+  });
+  // The summary resolves sections from the cached snapshot when the upstream
+  // feed is unreachable; without it the route fails closed with
+  // UPSTREAM_UNAVAILABLE (same missing-seed-row class as the mirror above).
+  await instrumented.sectionSnapshot.create({
+    data: {
+      schoolId: fixtureSchoolId,
+      schoolYearId: fixtureYearId,
+      payload: [{
+        gradeLevelId: 17,
+        gradeLevelName: 'Grade 7',
+        displayOrder: 7,
+        sections: [{
+          id: 101,
+          name: 'Grade 7 - A',
+          displayOrder: 7,
+          gradeLevelId: 17,
+          gradeLevelName: 'Grade 7',
+          maxCapacity: 50,
+          enrolledCount: 40,
+          programType: 'REGULAR',
+        }],
+      }],
+    },
+  });
+
   section('live summary route performs zero Prisma writes');
 
   const mirrors = await instrumented.enrollProSchoolYearMirror.findMany({
@@ -160,6 +216,24 @@ async function main() {
   }
 
   await instrumented.$disconnect();
+
+  // Fixture teardown (see the premise seed above): the per-file database is
+  // dropped by the runner, but the suite proves its own zero residue.
+  const cleanup = (prismaModule as any).createTestPrismaClient();
+  try {
+    await cleanup.schedulingPolicy.deleteMany({ where: { schoolId: fixtureSchoolId, schoolYearId: fixtureYearId } });
+    await cleanup.sectionSnapshot.deleteMany({ where: { schoolId: fixtureSchoolId, schoolYearId: fixtureYearId } });
+    await cleanup.enrollProSchoolYearMirror.deleteMany({ where: { schoolId: fixtureSchoolId } });
+    await cleanup.school.deleteMany({ where: { id: fixtureSchoolId } });
+    const residue =
+      (await cleanup.schedulingPolicy.count({ where: { schoolId: fixtureSchoolId } })) +
+      (await cleanup.sectionSnapshot.count({ where: { schoolId: fixtureSchoolId } })) +
+      (await cleanup.enrollProSchoolYearMirror.count({ where: { schoolId: fixtureSchoolId } })) +
+      (await cleanup.school.count({ where: { id: fixtureSchoolId } }));
+    assert(residue === 0, `zero residue across all fixture-scoped models (found ${residue})`);
+  } finally {
+    await cleanup.$disconnect();
+  }
 
   console.log(`\n=== Teaching Load Summary Zero-Write Route Tests ===`);
   console.log(`Total: ${passCount + failCount}, Passed: ${passCount}, Failed: ${failCount}`);
