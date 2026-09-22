@@ -348,6 +348,20 @@ it complete `TEST-GATE-REACHABILITY-C01` (`f4462374`) and hand it over for integ
 
 ## Lane A — current lane (written only by Lane A)
 
+**Integrated: `TEST-GATE-COVERAGE-C01` (client half)** (`1ce9f4ad`, 2026-09-22) — LOW, planner-reviewed,
+**no release needed** (test-only + a `package.json` script entry; the live release stays `d4c9f391`).
+Adds `test:client-suite` naming all **92** client test files (was 37) and an **inverse** reachability
+assertion in `gate-reachability.test.ts`, so a new client test file that no script runs now fails the
+guard. Measured: client orphans **55 → 0**; `test:client-suite` **846/846**, ~12 s; the guard was
+verified by an independent negative control (probe file → guard fails naming it → probe removed →
+passes). The **server half is open and larger** — 94 test files, only 14 gated, **80 unreachable** —
+and is handed to Planner B because `atlas-server/package.json` is their file:
+`docs/handoffs/test-gate-coverage-c01-server-half.md` (full list + suggested approach). The gap is
+**ongoing**, not historical: Planner B's `timetable-scheduler-simplicity-c01.test.ts` (added
+2026-09-22) was already an orphan and is now covered by the client suite. This is the **inverse** of
+their integrated `TEST-GATE-REACHABILITY-C01` (`f4462374`, scripts → absent files); nothing previously
+checked files → scripts.
+
 **Integrated and live: `COMPANION-SSO-REVERSE-IDENTITY-C01`** (release `d4c9f391`, 2026-09-22).
 ATLAS → EnrollPro (reverse) SSO now works end to end: the assertion sends `subject` + `employeeId`
 (never a local numeric `userId`) and **omits** empty names, which is what EnrollPro's schema

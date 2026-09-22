@@ -12,6 +12,13 @@ Last updated: 2026-09-22 (Lane A).
 
 ## Verdict
 
+**`TEST-GATE-COVERAGE-C01` (client half) is integrated — no release needed.** `1ce9f4ad` adds
+`test:client-suite` (all **92** client test files; was 37) and an **inverse** reachability guard, so a
+client test file that no script runs now fails. Client orphans **55 → 0**; suite **846/846**. This is
+the inverse of Planner B's `TEST-GATE-REACHABILITY-C01` (scripts → absent files). **The server half is
+open and larger** (80 of 94 files unreachable) and is handed to Planner B — their file:
+`docs/handoffs/test-gate-coverage-c01-server-half.md`.
+
 **`COMPANION-SSO-REVERSE-IDENTITY-C01` is live: ATLAS → EnrollPro now works; EnrollPro → ATLAS is
 blocked on a companion config value.** Release **`d4c9f391`** ships the reverse-assertion fix (names
 omitted-when-empty, typed 403 when `employeeId` is missing) and the live click-through confirms an
@@ -238,7 +245,13 @@ the route rejects an ambiguous active year with `409 ACTIVE_SCHOOL_YEAR_AMBIGUOU
 (`docs/handoffs/lane-a-to-planner-b-rollover-2026-09-21.md` §4). Minor successor: an *absent* term
 selector defaults to term 1 while a *malformed* one is a typed 400.
 
-1. **False/incorrect warning categories** — `ZONE_IMBALANCE_WARNING` still fires in stored runs
+1. **`TEST-GATE-COVERAGE-C01` server half — Planner B's, not Lane A's.** 80 of 94 `atlas-server` test
+   files are unreachable from any committed script (the inverse of their integrated
+   `TEST-GATE-REACHABILITY-C01`). Full list, the hermetic-vs-DB split and the guard shape are in
+   `docs/handoffs/test-gate-coverage-c01-server-half.md`. Lane A's client half (`1ce9f4ad`) is the
+   reference implementation. If Planner B would rather Lane A took it, the file ownership can move —
+   say so.
+2. **False/incorrect warning categories** — `ZONE_IMBALANCE_WARNING` still fires in stored runs
    (the *surface* now suppresses it, so this is the producer/data side); warning-count semantics.
 2. **New UX successors recorded from this release** (all NON_BLOCKING, in the live-state Lane A
    section): clean-load API GETs 20 vs 19 baseline; the Review-issues panel's uppercase
