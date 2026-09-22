@@ -373,6 +373,49 @@ it complete `TEST-GATE-REACHABILITY-C01` (`f4462374`) and hand it over for integ
 
 ## Lane A — current lane (written only by Lane A)
 
+**`TIMETABLE-PUBLICATION-C01` COMPLETE — school 1 / year 10 now has its FIRST published schedule (2026-09-23).**
+Under the operator's explicit authorization ("you are authorized") and with every gate retained: the
+read-only readiness diagnostic returned `status READY`, `generateAllowed true`,
+`derivedDemandBlockers []`, teaching-load coverage **264/264 owned, 0 missing**, grade windows 20/0,
+term structure `TRIMESTER T1/T2/T3`, and `runs/gate {blocked:false, openCount:0}`. Run **#317** was
+generated (`POST …/generation/1/10/runs`, COMPLETED in 9.9 s, T1/T2/T3 = 920/920/920) and **published**
+(`POST …/runs/317/publish`, `acknowledgeSoftViolations:true`) → `isPublished:true`,
+**revision 43**, **audit 918**, `reason INITIAL_PUBLICATION`, `publicationBase:true`,
+`inputFingerprint cd220cdf…`. Fresh independent QA of the published leg returned **`ACCEPT_READY`
+5/5/0/0**: `/timetable` now shows the plain-language **"Published — read only"** state for run #317 with
+**zero** "Run inputs are stale" matches; the **public** surface renders real content
+(`/api/v1/schools/1/schedules/published` → runId 317, `activeRevisionId 43`, `snapshotState FROZEN`,
+920 entries / 20 sections / 42 faculty / 20 rooms); HARD **0**; workspace density still holds (grid top
+**180 px**, one status region, one dominant primary, no global scrollbar). **The operator's last open
+checklist row (draft → repair → review → published) is now exercised.** `as of 2026-09-23` the 289 soft
+violations are **not** a regression: run #316 has 284 raw soft (the UI's "94" is run 316's
+**T2-filtered** count). Non-blocking: `summary.publishedSoftViolationCount` (334/335) disagrees with the
+canonical list (289/284) in both runs (pre-existing, HARD unaffected); the header's "Using cached school
+year" wording can read as staleness; the public route needs `termIndex` (400 `TERM_SELECTION_REQUIRED`,
+fail-closed by design); audit row 918's write-count could not be independently verified read-only.
+
+**`NOTIFICATION-INBOX-LIVE` COMPLETE — migration applied, live 500s cleared (2026-09-23).**
+Recorded before the schema command: host `localhost:5432`, database
+`atlas_recovery_clean_rebuild_20260905`, release `28f6f03f`, **4 applied / `0004_notification_inbox`
+pending**. A fresh verified backup was taken (`atlas-backup-…-20260922-231922.dump`, 539,163 B, sha256
+`15018a8e…`, 485 restore-list entries), then the **guarded** wrapper ran (`MIGRATE_GATE_OK` →
+`0004_notification_inbox` applied; `migrate status` → "Database schema is up to date"). **No restart
+needed** (the running Prisma client already carried the model). Verified end to end:
+`GET /api/v1/notification-inbox/?limit=20` → **200 `{"items":[],"nextCursor":null}`** and
+`/unread-count` → **200 `{"count":0}`** (previously 500 on every page load). Empty is correct — only
+new events persist. Rollback for the schema step: `DROP TABLE notifications` (additive table, no
+existing data touched).
+
+**SECURITY — QA credential exposure, cleaned and rotation recommended (2026-09-23).**
+A QA agent's naive parse submitted the backtick-wrapped values from
+`%USERPROFILE%/.config/opencode/atlas-qa-credentials.local.md` literally, rendering the credential into
+that agent's transcript. A follow-up scan of the opencode temp/output roots found the **live** credential
+value in **8 pre-existing files from earlier sessions** (`atlas-rc02d-*`, `tlc02r-*`, `login-body.json`,
+two 2026-09-11 `pw-mcp-output` snapshots) — i.e. this has been leaking across sessions, not just today.
+All 8 were deleted and the scan now returns **0**. **Recommendation: rotate the school-1 QA/admin
+credential and strip the backtick wrapping from that file** — the values have been on disk in plaintext
+repeatedly, and the file's markdown-backtick format invites the naive parse that caused this.
+
 **`TIMETABLE-RELAXED-MAIN-C01` COMPLETE — the relaxed main Class Schedule workspace is live (2026-09-23).**
 Live release **`28f6f03f`** at `D:\ATLAS-runtime-supervised-28f6f03f-20260923` (supervisor-owned
 5001→17548 / 5174→39100; machine `ATLAS_RUNTIME_RELEASE_SHA` = `28f6f03f`; health/ready/DB-backed read
