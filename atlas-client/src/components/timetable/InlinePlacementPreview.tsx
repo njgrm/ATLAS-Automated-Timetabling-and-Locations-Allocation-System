@@ -43,8 +43,7 @@ export function InlinePlacementPreview({
 	const canChooseRoom = Boolean(onRoomChange) && roomOptions.length > 1;
 	return (
 		<section
-			role="status"
-			aria-live="polite"
+			aria-label="Preview before saving"
 			data-testid="inline-placement-preview"
 			data-confirmable={pending.confirmable ? 'true' : 'false'}
 			className="border-b border-primary/40 bg-primary/5 px-3 py-2 text-sm text-foreground"
@@ -58,7 +57,12 @@ export function InlinePlacementPreview({
 					)}
 					<div className="min-w-0">
 						<p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Preview before saving</p>
-						<p className="min-w-0 text-sm" data-testid="inline-placement-preview-consequence">
+						<p
+							role="status"
+							aria-live="polite"
+							className="min-w-0 text-sm"
+							data-testid="inline-placement-preview-consequence"
+						>
 							{pending.consequence}
 						</p>
 						<div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
