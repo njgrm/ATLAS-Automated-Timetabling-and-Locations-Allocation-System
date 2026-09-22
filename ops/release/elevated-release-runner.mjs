@@ -1,4 +1,3 @@
-import { existsSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import path from 'node:path';
@@ -68,7 +67,7 @@ export function collectReadOnlyMetadata(env = process.env, runner = execFileSync
 		const raw = runner('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', 'Get-NetTCPConnection -LocalPort 5001,5174 -State Listen | ForEach-Object { $p=Get-CimInstance Win32_Process -Filter ("ProcessId=" + $_.OwningProcess); [pscustomobject]@{LocalPort=$_.LocalPort; OwningProcess=$_.OwningProcess; ParentProcessId=$p.ParentProcessId; CommandLine=$p.CommandLine} } | ConvertTo-Json -Compress'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
 		listeners = raw.trim() ? JSON.parse(raw) : [];
 		if (!Array.isArray(listeners)) listeners = [listeners];
-		listeners = listeners.map((entry) => ({ localPort: entry.LocalPort, pid: entry.OwningProcess, parentPid: entry.ParentProcessId, commandLine: String(entry.CommandLine || '').replace(/(?:password|secret|token|database_url)\s*[=:]\s*[^\s]+/giu, '$1=[REDACTED]') }));
+		listeners = listeners.map((entry) => ({ localPort: entry.LocalPort, pid: entry.OwningProcess, parentPid: entry.ParentProcessId }));
 	} catch {
 		listeners = [];
 	}
@@ -97,7 +96,8 @@ export function runRelease(argv, options = {}) {
 	if (args.help) return { exitCode: 0, output: 'Usage: elevated-release-runner.mjs --sha <40-hex> --release-root <approved-root> [--mode preflight|cutover] [--approve-cutover]' };
 	if (FORBIDDEN.test(argv.join(' '))) fail('FORBIDDEN_OPERATION', 'Migration, schema, seed, reset, and database commands are never accepted.');
 	const root = args.releaseRoot;
-	const head = options.resolveHead ? options.resolveHead(root) : (existsSync(path.win32.join(root, '.git')) ? 'present' : 'unverified');
+	const head = options.resolveHead ? options.resolveHead(root) : execFileSync('git.exe', ['-C', root, 'rev-parse', 'HEAD'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim().toLowerCase();
+	if (!SHA.test(head) || head !== args.sha) fail('RELEASE_HEAD_MISMATCH', 'Release root HEAD does not exactly match the approved SHA.');
 	const metadata = collectReadOnlyMetadata(options.env, options.runner);
 	const result = {
 		schema: 'atlas-elevated-release-preflight/v1',

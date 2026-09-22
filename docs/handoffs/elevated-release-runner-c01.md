@@ -23,6 +23,14 @@ The runner accepts only a 40-hex SHA and an absolute SHA-prefixed supervised rel
 directory. It rejects traversal, arbitrary arguments, migration/schema/db push/reset/
 seed commands, and unapproved cutover. Credentials are never accepted or stored.
 
+Before copying anything, registration requires a clean checkout, a trusted ancestor
+(`8697c696`), a committed manifest whose SHA is embedded in the registration script,
+and an exact runner hash match. It also uses the fixed machine-owned
+`C:\Program Files\nodejs\node.exe`, verifies its SHA-256 and owner, and refuses PATH
+resolution. The runner preflight compares `git -C <release-root> rev-parse HEAD` to
+the approved SHA. Listener evidence contains only port/PID/parent-PID fields; process
+command lines are intentionally omitted.
+
 ## UI quality policy
 
 For user-facing timetable work, Playwright real-route lifecycle coverage is the first

@@ -33,12 +33,17 @@ test('forbidden operations and unapproved cutover fail closed', () => {
 test('registration source installs a protected fixed-path, fixed-name, preflight-only task', () => {
 	const script = readFileSync(new URL('./Register-AtlasElevatedReleaseTask.ps1', import.meta.url), 'utf8');
 	assert.match(script, /ProgramData.*ATLAS[\\/]release-runner/);
+	assert.match(script, /Program Files.*nodejs.*node\.exe/);
+	assert.match(script, /ExpectedNodeHash/);
+	assert.match(script, /ExpectedManifestHash/);
+	assert.match(script, /merge-base --is-ancestor/);
 	assert.match(script, /Get-FileHash/);
 	assert.match(script, /SYSTEM/);
 	assert.match(script, /RunLevel Highest/);
 	assert.match(script, /ATLAS-Approved-Release/);
 	assert.match(script, /Register-ScheduledTask -TaskName \$TaskName -InputObject \$definition(?!.*-Force)/s);
 	assert.doesNotMatch(script, /ATLAS-worktrees.*Register-ScheduledTask/s);
+	assert.doesNotMatch(script, /Get-Command node/);
 	assert.match(script, /\$trigger\.Enabled = \$false/);
 });
 
@@ -56,5 +61,9 @@ test('preflight evidence includes XML export, authoritative identity, and listen
 	const value = JSON.parse(result.output);
 	assert.equal(value.incumbent.taskXmlExported, true);
 	assert.equal(value.incumbent.authoritativeHead, sha);
-	assert.deepEqual(value.incumbent.listeners[0], { localPort: 5001, pid: 123, parentPid: 456, commandLine: 'node server.js' });
+	assert.deepEqual(value.incumbent.listeners[0], { localPort: 5001, pid: 123, parentPid: 456 });
+});
+
+test('release preflight rejects a checked-out tree whose HEAD differs from the approved SHA', () => {
+	assert.throws(() => runRelease(['--sha', sha, '--release-root', root], { resolveHead: () => '0'.repeat(40), runner: () => '' }), (error) => error.code === 'RELEASE_HEAD_MISMATCH');
 });

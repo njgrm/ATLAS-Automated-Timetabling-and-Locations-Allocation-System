@@ -7,16 +7,35 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $TaskName = 'ATLAS-Approved-Release'
+$TrustedAncestor = '8697c6960d8372456d883b95848b5e2f3400dcbf'
+$ExpectedManifestHash = 'bdd71465bc1f55b30ea28ce986524ca90d6906bcc5cd173ab84babaaef0bbe9'
+$NodePath = 'C:\Program Files\nodejs\node.exe'
+$ExpectedNodeHash = '58e74bf02fc5bbacc41dcb8bef089961cd5bdd37830b87784e4fc624d145d1f'
 if (-not $Register) { throw 'Registration is opt-in. Re-run with -Register after reviewing the exact task action.' }
 if (-not ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
     throw 'An elevated PowerShell is required to register the task.'
 }
 if ($ReleaseRoot -notmatch "-$($ApprovedSha.Substring(0, 12))-\d{8}$") { throw 'ReleaseRoot is not prefixed by the approved SHA.' }
+
+$repoRoot = (& git.exe -C $PSScriptRoot rev-parse --show-toplevel 2>$null).Trim()
+if (-not $repoRoot) { throw 'Registration must run from a Git checkout.' }
+if ((& git.exe -C $repoRoot status --porcelain --untracked-files=all)) { throw 'Repository is dirty; refusing elevation from modified or untracked source.' }
+& git.exe -C $repoRoot merge-base --is-ancestor $TrustedAncestor HEAD
+if ($LASTEXITCODE -ne 0) { throw 'Trusted runner ancestor is not present in this checkout.' }
+$manifest = Join-Path $repoRoot 'ops\release\release-runner-manifest.json'
+$sourceRunner = Join-Path $repoRoot 'ops\release\elevated-release-runner.mjs'
+if ((Get-FileHash -LiteralPath $manifest -Algorithm SHA256).Hash.ToLower() -ne $ExpectedManifestHash) { throw 'Committed runner manifest hash is not trusted.' }
+$manifestValue = Get-Content -LiteralPath $manifest -Raw | ConvertFrom-Json
+if ($manifestValue.trustedAncestor -ne $TrustedAncestor) { throw 'Runner manifest trusted ancestor mismatch.' }
+if ((Get-FileHash -LiteralPath $sourceRunner -Algorithm SHA256).Hash.ToLower() -ne $manifestValue.runnerSha256) { throw 'Runner source hash does not match the committed manifest.' }
+if (-not (Test-Path -LiteralPath $NodePath)) { throw "Fixed Node path is missing: $NodePath" }
+if ((Get-FileHash -LiteralPath $NodePath -Algorithm SHA256).Hash.ToLower() -ne $ExpectedNodeHash) { throw 'Fixed Node executable hash mismatch.' }
+$nodeOwner = (Get-Acl -LiteralPath $NodePath).Owner
+if ($nodeOwner -notin @('NT AUTHORITY\SYSTEM', 'BUILTIN\Administrators')) { throw 'Fixed Node executable owner is not trusted.' }
 if ($TaskName -notmatch '^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$') { throw 'TaskName contains unsupported characters.' }
 
 $installRoot = Join-Path $env:ProgramData 'ATLAS\release-runner'
 $installedRunner = Join-Path $installRoot 'elevated-release-runner.mjs'
-$sourceRunner = Join-Path $PSScriptRoot 'elevated-release-runner.mjs'
 New-Item -ItemType Directory -Path $installRoot -Force | Out-Null
 $existingHash = if (Test-Path -LiteralPath $installedRunner) { (Get-FileHash -LiteralPath $installedRunner -Algorithm SHA256).Hash } else { $null }
 $sourceHash = (Get-FileHash -LiteralPath $sourceRunner -Algorithm SHA256).Hash
@@ -38,7 +57,7 @@ Set-Acl -LiteralPath $installedRunner -AclObject $fileAcl
 $unexpectedAcl = @(Get-Acl -LiteralPath $installedRunner | Select-Object -ExpandProperty Access | Where-Object { $_.AccessControlType -eq 'Allow' -and $_.IdentityReference -notin @('NT AUTHORITY\SYSTEM', 'BUILTIN\Administrators') })
 if ($unexpectedAcl.Count -gt 0) { throw 'Protected runner ACL grants access outside SYSTEM and Administrators.' }
 
-$node = (Get-Command node.exe -ErrorAction Stop).Source
+$node = $NodePath
 $taskAction = "`"$node`" `"$installedRunner`" --mode preflight --sha $ApprovedSha --release-root `"$ReleaseRoot`""
 $task = New-ScheduledTaskAction -Execute $node -Argument "`"$installedRunner`" --mode preflight --sha $ApprovedSha --release-root `"$ReleaseRoot`""
 $trigger = New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(2)
@@ -51,7 +70,8 @@ if ($PSCmdlet.ShouldProcess($TaskName, "Register disabled SYSTEM highest-privile
     if ($existingTask) {
         $existingAction = $existingTask.Actions | Select-Object -First 1
         $expectedArgs = "`"$installedRunner`" --mode preflight --sha $ApprovedSha --release-root `"$ReleaseRoot`""
-        if ($existingAction.Execute -ne $node -or $existingAction.Arguments -ne $expectedArgs) { throw "Task '$TaskName' already exists with a mismatched action; refusing overwrite." }
+        $enabledTriggers = @($existingTask.Triggers | Where-Object { $_.Enabled })
+        if ($existingAction.Execute -ne $node -or $existingAction.Arguments -ne $expectedArgs -or $existingTask.Settings.Enabled -ne $true -or $enabledTriggers.Count -ne 0 -or $existingTask.Principal.UserId -ne 'SYSTEM' -or $existingTask.Principal.RunLevel -ne 'Highest') { throw "Task '$TaskName' already exists with a mismatched action or security policy; refusing overwrite." }
         Write-Output "Verified existing enabled on-demand task '$TaskName'; no overwrite performed."
     } else {
         Register-ScheduledTask -TaskName $TaskName -InputObject $definition | Out-Null
