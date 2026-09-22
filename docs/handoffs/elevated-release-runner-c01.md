@@ -9,16 +9,19 @@ supervisor, access a database, or use a browser.
 1. Review the exact SHA and release root in the HIGH release packet.
 2. Open **Windows PowerShell as Administrator**.
 3. Run `Register-AtlasElevatedReleaseTask.ps1` with `-ApprovedSha`, `-ReleaseRoot`,
-   and explicit `-Register`. The task is created disabled and on-demand; registration
-   never starts it.
+   and explicit `-Register`. The runner is copied and hash-verified under
+   `C:\ProgramData\ATLAS\release-runner`; the task never points at a worktree.
+   The task is enabled for on-demand runs with its trigger disabled; registration
+   never starts it and never overwrites a mismatched existing task.
 4. Run the Node runner in `--mode preflight` and retain its JSON output. It captures
-   incumbent and rollback metadata without secrets or writes.
+   the supervisor task XML hash, authoritative source/SHA/HEAD, and listener PID
+   lineage without exporting secrets or writing runtime state.
 5. A separate HIGH packet may later authorize a cutover. The runner refuses cutover
    unless `--approve-cutover` is present; this commit does not perform that action.
 
 The runner accepts only a 40-hex SHA and an absolute SHA-prefixed supervised release
 directory. It rejects traversal, arbitrary arguments, migration/schema/db push/reset/
-seed commands, and unsupported task names. Credentials are never accepted or stored.
+seed commands, and unapproved cutover. Credentials are never accepted or stored.
 
 ## UI quality policy
 

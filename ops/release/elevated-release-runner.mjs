@@ -1,5 +1,6 @@
 import { existsSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import path from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
@@ -52,13 +53,43 @@ function safeEnvironment(env) {
 
 export function collectReadOnlyMetadata(env = process.env, runner = execFileSync) {
 	let taskQuery = 'unavailable';
+	let taskXml = 'unavailable';
+	let listeners = [];
+	let authoritativeHead = null;
 	try {
 		taskQuery = runner('schtasks.exe', ['/query', '/tn', 'ATLAS-Runtime-Supervisor', '/fo', 'LIST'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] })
 			.replace(/(?:password|secret|token|database_url)\s*:\s*[^\r\n]*/giu, '$1: [REDACTED]');
+		taskXml = runner('schtasks.exe', ['/query', '/tn', 'ATLAS-Runtime-Supervisor', '/xml'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] })
+			.replace(/(?:password|secret|token|database_url)\s*=\s*[^\r\n<]*/giu, '$1=[REDACTED]');
 	} catch {
 		taskQuery = 'unavailable';
 	}
-	return { capturedAt: new Date().toISOString(), environment: safeEnvironment(env), taskQueryReadOnly: taskQuery };
+	try {
+		const raw = runner('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', 'Get-NetTCPConnection -LocalPort 5001,5174 -State Listen | ForEach-Object { $p=Get-CimInstance Win32_Process -Filter ("ProcessId=" + $_.OwningProcess); [pscustomobject]@{LocalPort=$_.LocalPort; OwningProcess=$_.OwningProcess; ParentProcessId=$p.ParentProcessId; CommandLine=$p.CommandLine} } | ConvertTo-Json -Compress'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+		listeners = raw.trim() ? JSON.parse(raw) : [];
+		if (!Array.isArray(listeners)) listeners = [listeners];
+		listeners = listeners.map((entry) => ({ localPort: entry.LocalPort, pid: entry.OwningProcess, parentPid: entry.ParentProcessId, commandLine: String(entry.CommandLine || '').replace(/(?:password|secret|token|database_url)\s*[=:]\s*[^\s]+/giu, '$1=[REDACTED]') }));
+	} catch {
+		listeners = [];
+	}
+	try {
+		const head = runner('git.exe', ['-C', env.ATLAS_RUNTIME_SOURCE_DIR, 'rev-parse', 'HEAD'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+		if (SHA.test(head)) authoritativeHead = head.toLowerCase();
+	} catch {
+		authoritativeHead = null;
+	}
+	return {
+		capturedAt: new Date().toISOString(),
+		environment: safeEnvironment(env),
+		authoritativeSourceDir: env.ATLAS_RUNTIME_SOURCE_DIR || null,
+		authoritativeReleaseSha: env.ATLAS_RUNTIME_RELEASE_SHA || null,
+		authoritativeHead,
+		taskQueryReadOnly: taskQuery,
+		taskXmlExported: taskXml !== 'unavailable',
+		taskXmlSha256: taskXml === 'unavailable' ? null : createHash('sha256').update(taskXml).digest('hex'),
+		listeners,
+		lineageReadOnly: true,
+	};
 }
 
 export function runRelease(argv, options = {}) {
