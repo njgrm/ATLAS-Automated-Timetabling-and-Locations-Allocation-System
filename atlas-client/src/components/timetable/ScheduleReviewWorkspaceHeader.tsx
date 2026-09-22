@@ -30,6 +30,7 @@ import { deriveTimetableCapabilities, YEAR_SETUP_HREF } from '@/lib/timetable-ca
 import { summarizeGenerationReadiness } from '@/lib/timetable-generation-readiness';
 import { createSyncSetupInFlightGuard, runSyncSetup } from '@/lib/timetable-sync-setup';
 import { resolveTermAuthorityNotice } from '@/hooks/useTimetableData';
+import { isVerifiedOrderedActiveTerm } from '@/lib/academic-term';
 
 type ScheduleReviewWorkspaceHeaderProps = {
 	context: ScheduleReviewWorkspaceHeaderContext;

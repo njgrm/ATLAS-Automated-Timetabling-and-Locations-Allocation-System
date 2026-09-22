@@ -5,7 +5,6 @@ import type { ImperativePanelHandle } from 'react-resizable-panels';
 import { resolveActiveSchoolYearContext, type ActiveSchoolYearContext } from '@/lib/enrollpro-public-settings';
 import { resolveActorSchoolId } from '@/lib/settings';
 import { isVerifiedOrderedActiveTerm } from '@/lib/academic-term';
-import { isVerifiedOrderedActiveTerm } from '@/lib/academic-term';
 import { findGradeWindow, getProgramBadgeLabel, matchesEntryKindFilter, matchesProgramFilter, resolveSectionGradeNumber } from '@/lib/schedule-review-helpers';
 import {
 	buildViolationIndex,
