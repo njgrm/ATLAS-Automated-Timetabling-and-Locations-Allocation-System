@@ -167,19 +167,22 @@ const router = createBrowserRouter([
 					// UX-R03e (runs) — the read-only run-history sub-page joins the same shell.
 					// UX-R03e (setup) — the composed setup sub-page joins the same shell.
 					// The URL only drives the existing centerView state through the
-					// guarded setter (see TimetableRouteViewSync); the element-less
-					// children below render nothing, so navigating between them
+					// guarded setter (see TimetableRouteViewSync); the children below
+					// render an explicit `null` element, so navigating between them
 					// never unmounts the review workspace, the grid, or the query
-					// cache and issues no fresh data requests.
-					{ index: true },
-					{ path: 'policies' },
-					{ path: 'pre-generation' },
-					{ path: 'map' },
-					{ path: 'manual-edit' },
-					{ path: 'building' },
-					{ path: 'exports' },
-					{ path: 'runs' },
-					{ path: 'setup' },
+					// cache and issues no fresh data requests. The explicit null (as
+					// opposed to an element-less child) also clears React Router's
+					// "Matched leaf route … does not have an element or Component"
+					// warning for all nine `/timetable*` routes (A5).
+					{ index: true, element: null },
+					{ path: 'policies', element: null },
+					{ path: 'pre-generation', element: null },
+					{ path: 'map', element: null },
+					{ path: 'manual-edit', element: null },
+					{ path: 'building', element: null },
+					{ path: 'exports', element: null },
+					{ path: 'runs', element: null },
+					{ path: 'setup', element: null },
 					// Unknown children fall back to the index surface, never a blank center.
 					{ path: '*', element: <Navigate to="/timetable" replace /> },
 				],

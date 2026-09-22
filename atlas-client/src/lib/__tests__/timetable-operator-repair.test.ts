@@ -46,9 +46,12 @@ test('R4 placement candidate cells render semantic text labels', () => {
 	assert.match(grid, /ArrowRightLeft/);
 });
 
-test('R4 Simple header keeps a persistent status legend', () => {
-	const header = source('src/components/timetable/TimetableSimpleHeader.tsx');
-	assert.match(header, /<TimetableStatusLegend compact \/>/);
+test('R4 the status key stays reachable (relocated from the header row to More)', () => {
+	// A3 — one STATUS_ITEMS source; the More menu renders it, the header row
+	// no longer carries the legend control.
+	const menu = source('src/components/timetable/simple/SimpleMoreMenuContent.tsx');
+	assert.match(menu, /STATUS_ITEMS/, 'the More menu renders the one shared status key source');
+	assert.match(source('src/components/timetable/TimetableStatusLegend.tsx'), /export const STATUS_ITEMS/);
 });
 
 // --- R5 swap outcomes list decisive blockers and gate commit ---

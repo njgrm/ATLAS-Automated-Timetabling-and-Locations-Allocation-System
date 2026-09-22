@@ -1,10 +1,13 @@
 import {
 	ArrowRightLeft,
+	Building2,
 	CalendarClock,
+	CircleHelp,
 	ClipboardCheck,
 	History,
 	ListChecks,
-	Play,
+	MapPin,
+	MousePointerClick,
 	RefreshCw,
 	Settings2,
 	UserRoundX,
@@ -12,8 +15,12 @@ import {
 
 import { Link } from 'react-router-dom';
 
+import { cn } from '@/lib/utils';
 import { Button } from '@/ui/button';
+import { Badge } from '@/ui/badge';
 import { RefreshSetupNamesButton } from '@/components/timetable/simple/SimpleSetupSharedControls';
+import { SimpleDayOptions } from '@/components/timetable/simple/SimpleDayOptions';
+import { STATUS_ITEMS } from '@/components/timetable/TimetableStatusLegend';
 import { DropdownMenuItem, DropdownMenuLabel } from '@/ui/dropdown-menu';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui/select';
 import type { ScheduleReviewWorkspaceHeaderContext } from '@/components/timetable/buildScheduleReviewWorkspaceContexts';
@@ -33,6 +40,8 @@ export type SimpleMoreMenuContentProps = {
 	onOpenTeacherDeparture: () => void;
 	onOpenRequests: () => void;
 	onLayoutModeChange: (mode: TimetableLayoutMode) => void;
+	/** A3 — the tutorial dialog now opens from here, not the main header row. */
+	onOpenTutorial?: () => void;
 };
 
 export function SimpleMoreMenuContent({
@@ -44,6 +53,7 @@ export function SimpleMoreMenuContent({
 	onOpenTeacherDeparture,
 	onOpenRequests,
 	onLayoutModeChange,
+	onOpenTutorial,
 }: SimpleMoreMenuContentProps) {
 	return (
 		<div className="space-y-2">
@@ -93,14 +103,6 @@ export function SimpleMoreMenuContent({
 				</DropdownMenuItem>
 				<DropdownMenuItem
 					className="h-9 gap-2 text-xs"
-					disabled={!canPlanOrGenerate}
-					onSelect={(event) => { event.preventDefault(); onClose(); context.handleTriggerGenerate(); }}
-				>
-					<Play className="size-3.5" aria-hidden="true" />
-					Generate schedule
-				</DropdownMenuItem>
-				<DropdownMenuItem
-					className="h-9 gap-2 text-xs"
 					disabled={context.editHistoryCount === 0}
 					onSelect={(event) => { event.preventDefault(); onClose(); context.setShowEditHistory(true); }}
 				>
@@ -130,6 +132,73 @@ export function SimpleMoreMenuContent({
 				>
 					<Settings2 className="size-3.5" aria-hidden="true" />
 					Advanced view
+				</DropdownMenuItem>
+			</div>
+			{/* A3 — Status key, Tutorial and Day options move out of the main header
+			    row into More, so the header keeps one status region and one action
+			    row. One STATUS_ITEMS source is shared with the grid legend. */}
+			<div className="space-y-1 rounded-md border border-border bg-muted/20 p-2" data-testid="timetable-simple-more-help">
+				<DropdownMenuLabel className="px-0 py-0 text-xs">Help &amp; display</DropdownMenuLabel>
+				{onOpenTutorial ? (
+					<DropdownMenuItem
+						className="h-9 gap-2 text-xs"
+						onSelect={(event) => { event.preventDefault(); onClose(); onOpenTutorial(); }}
+						data-testid="timetable-more-tutorial"
+					>
+						<ListChecks className="size-3.5" aria-hidden="true" />
+						Tutorial
+					</DropdownMenuItem>
+				) : null}
+				{(context.policyAlignmentWarning || context.hiddenRowCount > 0) ? (
+					<div className="rounded-md border border-border/60 bg-background p-2" data-testid="timetable-more-day-options">
+						<p className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Day options</p>
+						<SimpleDayOptions
+							inline
+							policyAlignmentWarning={context.policyAlignmentWarning}
+							hiddenRowCount={context.hiddenRowCount}
+							showFullDay={context.showFullDay}
+							onToggleFullDay={() => context.setShowFullDay(!context.showFullDay)}
+						/>
+					</div>
+				) : null}
+				<div className="rounded-md border border-border/60 bg-background p-2" data-testid="timetable-more-status-key">
+					<p className="mb-1 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+						<CircleHelp className="size-3.5" aria-hidden="true" />
+						Status key
+					</p>
+					<div className="grid gap-1" role="list" aria-label="Timetable status definitions">
+						{STATUS_ITEMS.map((item) => (
+							<div key={item.label} className="flex items-start gap-1.5" role="listitem">
+								<Badge variant="outline" className={cn('mt-0.5 h-5 shrink-0 px-1 text-xs font-semibold', item.tone)}>
+									{item.label}
+								</Badge>
+								<p className="text-xs leading-relaxed text-muted-foreground">{item.description}</p>
+							</div>
+						))}
+					</div>
+				</div>
+			</div>
+			{/* A5 — /map, /manual-edit and /building stay in-flow tools, but each is
+			    now reachable from a labelled control on the index (no orphan route). */}
+			<div className="space-y-1 rounded-md border border-border bg-muted/20 p-2" data-testid="timetable-simple-more-tools">
+				<DropdownMenuLabel className="px-0 py-0 text-xs">Tools</DropdownMenuLabel>
+				<DropdownMenuItem asChild className="h-9 gap-2 text-xs" data-testid="timetable-more-map">
+					<Link to="/timetable/map" onClick={onClose}>
+						<MapPin className="size-3.5" aria-hidden="true" />
+						Campus map
+					</Link>
+				</DropdownMenuItem>
+				<DropdownMenuItem asChild className="h-9 gap-2 text-xs" data-testid="timetable-more-manual-edit">
+					<Link to="/timetable/manual-edit" onClick={onClose}>
+						<MousePointerClick className="size-3.5" aria-hidden="true" />
+						Manual edit
+					</Link>
+				</DropdownMenuItem>
+				<DropdownMenuItem asChild className="h-9 gap-2 text-xs" data-testid="timetable-more-building">
+					<Link to="/timetable/building" onClick={onClose}>
+						<Building2 className="size-3.5" aria-hidden="true" />
+						Building view
+					</Link>
 				</DropdownMenuItem>
 			</div>
 			<div className="space-y-1 rounded-md border border-border bg-muted/20 p-2" data-testid="timetable-simple-more-schedule-data">

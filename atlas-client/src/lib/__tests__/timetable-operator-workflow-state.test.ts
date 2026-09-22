@@ -123,26 +123,21 @@ test('lifecycle fails closed while readiness is unresolved or unavailable', () =
 	}
 });
 
-test('production no-run header consumes the lifecycle action and mounts the visible gated Generate control', () => {
+test('production header mounts the lifecycle-derived primary cluster and the visible gated Generate control', () => {
 	const header = source('src/components/timetable/TimetableSimpleHeader.tsx');
-	const noRunStart = header.indexOf('{!hasGeneratedRun && !context.isPreGenerationWorkspace ? (');
-	const generatedBranch = header.indexOf('\n\t\t\t) : (', noRunStart);
-	assert.ok(noRunStart >= 0 && generatedBranch > noRunStart, 'production no-run branch must exist');
-	const noRunBranch = header.slice(noRunStart, generatedBranch);
-
-	assert.match(noRunBranch, /data-testid="timetable-simple-primary-action"/);
-	assert.match(noRunBranch, /onClick=\{handleLifecycleAction\}/);
-	assert.match(noRunBranch, /\{lifecycleAction\.label\}/);
-	assert.doesNotMatch(noRunBranch, /data-testid="timetable-empty-generate-action"/);
-	assert.doesNotMatch(noRunBranch, /className="hidden"[\s\S]{0,180}handleTriggerGenerate/);
-	assert.equal((noRunBranch.match(/data-testid="timetable-simple-primary-action"/g) ?? []).length, 3,
-		'the three conditional render forms (external Link, in-place retry, lifecycle dispatcher) must identify the same sole primary action');
+	// A3 — one action cluster. The primary identifies the same sole action in
+	// each of its four conditional render forms (in-place retry, external
+	// fix-setup Link, task-href Link, lifecycle dispatcher).
+	assert.equal((header.match(/data-testid="timetable-simple-primary-action"/g) ?? []).length, 4,
+		'the four conditional render forms must identify the same sole primary action');
+	assert.match(header, /onClick=\{\(\) => activeTask \? void startTask\(activeTaskDefinition\.id\) : handleLifecycleAction\(\)\}/);
+	assert.doesNotMatch(header, /data-testid="timetable-empty-generate-action"/);
 	// UX-QUICKFIX-C01 supersedes the "Generate exists only in More" contract: the
-	// no-run action row now mounts the visible, gate-guarded Generate control.
-	// Dispatch still flows through the guarded handler, never inline.
-	assert.match(noRunBranch, /<SimpleGenerateAction/);
-	assert.match(noRunBranch, /onClick=\{handleGenerateClick\}/);
-	assert.doesNotMatch(noRunBranch, /context\.handleTriggerGenerate/);
+	// action row mounts the visible, gate-guarded Generate control. Dispatch still
+	// flows through the guarded handler, never inline.
+	assert.match(header, /<SimpleGenerateAction/);
+	assert.match(header, /onClick=\{handleGenerateClick\}/);
+	assert.doesNotMatch(header, /onClick=\{context\.handleTriggerGenerate\}/);
 });
 
 test('the hidden generation bypasses are superseded by the visible, gated action cluster', () => {
@@ -159,25 +154,21 @@ test('the hidden generation bypasses are superseded by the visible, gated action
 	// No hidden control may carry a direct generation call.
 	assert.doesNotMatch(header, /onClick=\{context\.handleTriggerGenerate\}/);
 	assert.doesNotMatch(header, /className="hidden"[\s\S]{0,300}context\.handleTriggerGenerate/);
-	// The direct generation calls left are the gate-guarded visible handler, the
-	// visible lifecycle retry, and the explicitly gated More-menu item.
+	// The direct generation calls left are the gate-guarded visible handler and
+	// the visible lifecycle retry.
 	assert.match(header, /if \(!shouldDispatchSimpleGenerate\(canPlanOrGenerate\)\) return;/);
 	assert.match(header, /case 'retry-generate': context\.handleTriggerGenerate\(\); break;/);
-	// C04: the More menu was extracted; its gated generate item keeps its guard.
+	// A3 — the duplicate Generate entry was removed from More; the visible header
+	// control is the single Generate surface.
 	const moreMenu = source('src/components/timetable/simple/SimpleMoreMenuContent.tsx');
-	assert.match(moreMenu, /disabled=\{!canPlanOrGenerate\}[\s\S]{0,200}context\.handleTriggerGenerate\(\)/);
+	assert.doesNotMatch(moreMenu, /Generate schedule/, 'More no longer duplicates the header Generate control');
+	assert.doesNotMatch(moreMenu, /context\.handleTriggerGenerate/, 'More dispatches no generation request');
 
-	// No-run branch: the lifecycle dispatcher remains the sole primary, the
-	// visible Generate control is mounted, and the preview action stays
-	// preview-only.
-	const noRunStart = header.indexOf('{!hasGeneratedRun && !context.isPreGenerationWorkspace ? (');
-	const generatedBranch = header.indexOf('\n\t\t\t) : (', noRunStart);
-	assert.ok(noRunStart >= 0 && generatedBranch > noRunStart, 'production no-run branch must exist');
-	const noRunBranch = header.slice(noRunStart, generatedBranch);
-	assert.match(noRunBranch, /<SimpleGenerateAction/);
-	assert.match(noRunBranch, /data-testid="timetable-unassigned-insertion-action"/);
-	assert.match(noRunBranch, /Preview demand/);
-	assert.match(noRunBranch, /setInsertionOpen\(true\)/);
+	// A3 — the preview-demand control stays a preview-only action in the single
+	// action row, and the NEXT STEP names the primary action.
+	assert.match(header, /data-testid="timetable-unassigned-insertion-action"/);
+	assert.match(header, /Preview demand/);
+	assert.match(header, /setInsertionOpen\(true\)/);
 });
 
 // --- TT-C04 honest readiness copy ---

@@ -57,7 +57,7 @@ export function CampusMap({ buildings, activeBuildingId, onSelect, buildingOccup
 					<RotateCcw className="size-3.5" /> Reset
 				</button>
 				<div className="h-4 w-px bg-border mx-2" />
-				<span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">Campus Map View</span>
+				<span className="text-xs font-black uppercase tracking-widest text-muted-foreground/60">Campus Map View</span>
 			</div>
 
 			{/* Canvas */}

@@ -258,28 +258,22 @@ test('C01R C3 the header renders one status surface owning drift, day options, a
 		/<section[^>]*data-testid="timetable-simple-status-region"[^>]*>[\s\S]*?data-testid="timetable-simple-input-drift"[\s\S]*?<\/section>/,
 		'the drift message must render inside the single status region',
 	);
-	// The hidden-row controls live in the Day options popover inside the region.
-	// The panel is portal-mounted (present in the live DOM via forceMount, open
-	// or closed), so static markup carries the trigger while the sources pin
-	// the panel structure: the header mounts one `<SimpleDayOptions/>` inside
-	// the region, and that component owns trigger, then panel controls.
-	assert.match(markup, /data-testid="timetable-day-options-trigger"/, 'Day options stays reachable');
-	const regionIdx = header.indexOf('data-testid="timetable-simple-status-region"');
-	const dayOptionsIdx = header.indexOf('<SimpleDayOptions');
-	const sectionCloseIdx = header.indexOf('</section>', dayOptionsIdx);
-	assert.ok(regionIdx >= 0 && dayOptionsIdx > regionIdx, 'the Day options mount renders inside the region source');
-	assert.ok(sectionCloseIdx > dayOptionsIdx, 'the Day options mount closes inside the single status region');
+	// A3 — the hidden-row controls and the setup-input repairs moved OUT of the
+	// header row: the repairs live on `/timetable/setup`, and the Day options
+	// live in the More menu. One shared `SimpleDayOptions` still owns the panel
+	// structure (in its inline form).
+	assert.doesNotMatch(markup, /data-testid="timetable-day-options-trigger"/, 'Day options is not a header control');
+	const menu = source('src/components/timetable/simple/SimpleMoreMenuContent.tsx');
+	assert.match(menu, /<SimpleDayOptions/, 'the More menu mounts the shared Day options');
+	assert.match(menu, /data-testid="timetable-more-day-options"/);
 	const dayOptions = source('src/components/timetable/simple/SimpleDayOptions.tsx');
-	const triggerIdx = dayOptions.indexOf('data-testid="timetable-day-options-trigger"');
-	const hiddenIdx = dayOptions.indexOf('data-testid="timetable-hidden-row-controls"');
-	assert.ok(triggerIdx >= 0 && hiddenIdx > triggerIdx, 'the hidden-row controls render inside the Day options panel');
-	for (const testId of ['timetable-hidden-rows-chip', 'timetable-show-full-day-toggle', 'timetable-day-options-panel']) {
-		assert.ok(dayOptions.indexOf(`data-testid="${testId}"`, triggerIdx) >= 0, `${testId} stays wired inside the panel`);
+	for (const testId of ['timetable-hidden-rows-chip', 'timetable-show-full-day-toggle', 'timetable-hidden-row-controls']) {
+		assert.ok(dayOptions.indexOf(`data-testid="${testId}"`) >= 0, `${testId} stays wired inside the shared controls`);
 	}
 	assert.match(dayOptions, /<PopoverContent forceMount/, 'the panel stays mounted in the DOM');
 	assert.match(dayOptions, /<PopoverTrigger asChild>/, 'disclosure stays on the @/ui Popover trigger');
 	// Neither surface may remain a direct header child: strip the region and
-	// both testids must be gone from the remainder.
+	// the drift line must be gone from the remainder.
 	const withoutRegion = markup.replace(
 		/<section[^>]*data-testid="timetable-simple-status-region"[^>]*>[\s\S]*?<\/section>/,
 		'',
@@ -288,10 +282,11 @@ test('C01R C3 the header renders one status surface owning drift, day options, a
 	assert.doesNotMatch(withoutRegion, /timetable-hidden-row-controls/, 'no sibling hidden-row strip may remain');
 	// Both mutually exclusive NEXT STEP states are still the region's two blocks.
 	assert.equal((header.match(/data-testid="timetable-simple-task-prompt"/g) ?? []).length, 2, 'the two task-prompt states must be kept, not collapsed');
-	// Drift repairs and the day-options disclosure stay reachable from the region.
-	assert.match(markup, /timetable-simple-sync-setup/, 'Sync with setup stays reachable');
-	assert.match(markup, /timetable-simple-impact-preview/, 'Preview impact stays reachable');
-	assert.match(markup, /timetable-day-options-trigger/, 'Day options stays reachable');
+	// A3 — the setup-input repairs are relocated to the setup sub-page; the
+	// header keeps one labelled way there.
+	assert.match(markup, /data-testid="timetable-simple-review-setup"/, 'one labelled setup entry point remains');
+	assert.doesNotMatch(markup, /timetable-simple-sync-setup/, 'Sync with setup is not a header control');
+	assert.doesNotMatch(markup, /timetable-simple-impact-preview/, 'Preview impact is not a header control');
 	// The single required filter/readiness controls survive the consolidation.
 	assert.match(markup, /data-testid="timetable-filters-trigger"/);
 	assert.match(markup, /data-testid="timetable-simple-readiness-chip"/);
@@ -370,15 +365,17 @@ test('C01R D3 the full-day toggle is secondary and announces its pressed state',
 	assert.match(block, /variant="outline"/, 'the toggle must stay secondary so the primary stays sole');
 	assert.match(block, /aria-pressed=\{showFullDay\}/, 'the toggle state stays announced without the solid fill');
 	assert.doesNotMatch(block, /bg-primary/);
-	// The disclosure that carries it renders in the header markup.
+	// A3 — the disclosure that carries it moved out of the header row into More.
 	const markup = renderHeader({
 		...CLEAN_UNPUBLISHED,
 		policyAlignmentWarning: 'Two earlier rows are hidden by the current start-time policy.',
 		hiddenRowCount: 2,
 		showFullDay: true,
 	});
-	assert.match(markup, /data-testid="timetable-day-options-trigger"/);
-	assert.match(markup, /2 hidden/, 'the trigger names the hidden count');
+	assert.doesNotMatch(markup, /data-testid="timetable-day-options-trigger"/, 'Day options is not a header control');
+	const menu = source('src/components/timetable/simple/SimpleMoreMenuContent.tsx');
+	assert.match(menu, /hiddenRowCount=\{context\.hiddenRowCount\}/, 'the More menu passes the hidden-row count into the shared controls');
+	assert.match(menu, /data-testid="timetable-more-day-options"/);
 });
 
 /* ── D4 — cell density (F-07) ────────────────────────────────────────────── */
@@ -494,6 +491,10 @@ test('C01R boundaries: scope hygiene, term identity, actor scope, and the strict
 	assert.match(header, /<SimpleFilterControls context=\{context\} renderActiveFilters=\{false\} \/>/);
 	assert.match(header, /<SimpleActiveFilterChips context=\{context\} \/>/);
 	assert.match(header, /<SimpleReadinessChip/);
-	assert.match(header, /<TimetableStatusLegend compact \/>/);
+	// A3 — the status key left the header row; one STATUS_ITEMS source now feeds
+	// the More menu.
+	const menu = source('src/components/timetable/simple/SimpleMoreMenuContent.tsx');
+	assert.match(menu, /STATUS_ITEMS/, 'the More menu renders the shared status key');
+	assert.doesNotMatch(header, /<TimetableStatusLegend compact \/>/, 'the status key is not a header control');
 	assert.match(header, /<SimpleDriftBanner/);
 });

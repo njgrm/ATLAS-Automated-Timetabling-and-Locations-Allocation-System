@@ -9,7 +9,7 @@ type TimetableStatusLegendProps = {
 	compact?: boolean;
 };
 
-const STATUS_ITEMS = [
+export const STATUS_ITEMS = [
 	{ label: 'Can place', description: 'This is an empty slot where the selected session can be placed.', tone: 'border-emerald-200 bg-emerald-50 text-emerald-800' },
 	{ label: 'Can swap', description: 'The slot already has a session and can be reviewed as a possible switch.', tone: 'border-amber-200 bg-amber-50 text-amber-800' },
 	{ label: 'Blocked', description: 'A hard conflict prevents this action. Fix the issue before saving.', tone: 'border-rose-200 bg-rose-50 text-rose-800' },

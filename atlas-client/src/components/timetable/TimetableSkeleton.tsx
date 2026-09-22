@@ -1,15 +1,21 @@
 import { Skeleton } from '@/ui/skeleton';
 import { motion } from 'motion/react';
 
+import { TimetableSubNav } from '@/components/timetable/TimetableSubNav';
+
 export function TimetableSkeleton() {
   return (
     <motion.div
       className="flex flex-col h-[calc(100svh-3.5rem)]"
+      data-testid="timetable-first-paint"
       initial={{ opacity: 1 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 0 }}
     >
       <div className="h-0.5 shrink-0 bg-emerald-500 animate-pulse" />
+      {/* B3 — progressive first paint: the shell, the labelled sub-nav and the
+          skeleton paint immediately; only the grid waits for the latest run. */}
+      <TimetableSubNav />
       <div className="shrink-0 border-b border-border bg-muted/20 px-4 py-3 space-y-2">
         <div className="flex items-center gap-2">
           <Skeleton className="h-8 w-40 bg-muted/80" />
@@ -22,7 +28,7 @@ export function TimetableSkeleton() {
           </div>
         </div>
         <div className="rounded-lg border border-border bg-background/70 px-3 py-2 text-xs text-muted-foreground">
-          <span className="font-semibold text-foreground">Loading timetable:</span> finding the latest run first, then adding labels and secondary diagnostics after the grid is ready.
+          <span className="font-semibold text-foreground">Loading timetable:</span> navigation is ready now; the grid fills as soon as the latest run resolves.
         </div>
         <div className="flex items-center gap-2">
           <Skeleton className="h-7 w-32 bg-muted/80" />

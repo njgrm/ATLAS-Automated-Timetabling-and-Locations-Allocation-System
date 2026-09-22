@@ -42,6 +42,13 @@ import {
 } from '@/components/scheduling-policy/SchedulingPolicyDialogs';
 import { ShiftSettingsEditor } from '@/components/scheduling-policy/ShiftSettingsEditor';
 import {
+	createInitialOverride,
+	DEFAULT_GRADE_WINDOWS,
+	getPresetWindowRange,
+	GRADE_LEVELS,
+	type LocalGradeWindow,
+} from '@/components/scheduling-policy/schedulingPolicyWindowModel';
+import {
 	ConstraintRow,
 	DEFAULT_CONSTRAINT_CONFIG,
 	MetricExplain,
@@ -52,6 +59,7 @@ import {
 	WarningFamilyFields,
 } from '@/components/scheduling-policy/PolicyPanePrimitives';
 import { isPublicationBlockingCode } from '@/components/timetable/simplePublishReadiness';
+import { ensureTimetablePolicyAuxiliary } from '@/lib/timetable-data/timetableServerState';
 import { Badge } from '@/ui/badge';
 
 /* G��G��G�� Types G��G��G�� */
@@ -94,41 +102,7 @@ interface LocalPolicy {
 	constraintConfig: Record<string, ConstraintOverride>;
 }
 
-type LocalGradeWindow = {
-	gradeLevel: number;
-	programType?: 'REGULAR' | 'STE' | 'SPS' | 'SPA' | 'SPJ' | 'SPFL' | 'SPTVE' | 'OTHER' | null;
-	startTime: string;
-	endTime: string;
-};
-
-const GRADE_LEVELS: number[] = [7, 8, 9, 10];
-
-const DEFAULT_GRADE_WINDOWS: LocalGradeWindow[] = [
-	{ gradeLevel: 7, programType: null, startTime: '07:30', endTime: '17:00' },
-	{ gradeLevel: 8, programType: null, startTime: '07:30', endTime: '17:00' },
-	{ gradeLevel: 9, programType: null, startTime: '07:30', endTime: '17:00' },
-	{ gradeLevel: 10, programType: null, startTime: '07:30', endTime: '17:00' },
-];
-
-function createInitialOverride(): LocalGradeWindow {
-	return {
-		gradeLevel: GRADE_LEVELS[0],
-		programType: null,
-		startTime: '07:30',
-		endTime: '17:00',
-	};
-}
-
-function getPresetWindowRange(mode: 'FULL_DAY' | 'HALF_DAY', gradeLevel: number): { startTime: string; endTime: string } {
-	if (mode === 'HALF_DAY') {
-		if (gradeLevel <= 8) {
-			return { startTime: '06:00', endTime: '12:00' };
-		}
-		return { startTime: '12:00', endTime: '18:00' };
-	}
-
-	return { startTime: '07:30', endTime: '17:00' };
-}
+/* Grade/shift-window model helpers now live in ./schedulingPolicyWindowModel. */
 
 function toProgramOptionsFromSections(summary: SectionSummaryResponse | null): ProgramWindowOption[] {
 	if (!summary) return DEFAULT_PROGRAM_WINDOW_OPTIONS;
@@ -241,6 +215,8 @@ function deepEqual(a: unknown, b: unknown) {
 export default function SchedulingPolicyPane({
 	schoolId,
 	schoolYearId,
+	scopeRunId,
+	scopeTermIndex,
 	onBack,
 	onPolicySaved,
 	policyRecord,
@@ -249,6 +225,10 @@ export default function SchedulingPolicyPane({
 }: {
 	schoolId: number;
 	schoolYearId: number | null;
+	/** C2 — the workspace's selected run identity; part of the scoped cache key. */
+	scopeRunId?: string | number | null;
+	/** C2 — the workspace's selected ordered-term identity; part of the scoped cache key. */
+	scopeTermIndex?: 'all' | number;
 	onBack: () => void;
 	onPolicySaved?: () => void;
 	policyRecord?: SchedulingPolicy | null;
@@ -284,26 +264,29 @@ export default function SchedulingPolicyPane({
 	}, [persisted, local, persistedShiftWindows, shiftWindows]);
 
 	// UX-R03c — the workspace owns the policy GET; the pane keeps its grade-windows / section-summary / special-events reads only.
+	// C2 (TIMETABLE-RELAXED-MAIN-C01) — those three reads resolve through the shared scoped cache, so an
+	// index → sub-page → index revisit repeats no endpoint already resolved for the same scope.
 	const fetchAuxiliary = useCallback(async () => {
 		if (!schoolYearId) return;
 		setLoading(true);
 		try {
-			const [windowsRes, summaryRes, specialEventsRes] = await Promise.all([
-				atlasApi.get<{ windows: GradeShiftWindow[] }>(`/generation/${schoolId}/${schoolYearId}/grade-windows`, { timeout: 8_000 }).catch(() => null),
-				atlasApi.get<SectionSummaryResponse>(`/sections/summary/${schoolYearId}?schoolId=${schoolId}`, { timeout: 8_000 }).catch(() => null),
-				atlasApi.get<{ events: PolicySpecialEvent[] }>(`/policies/special-events/${schoolId}/${schoolYearId}`, { timeout: 8_000 }).catch(() => null),
-			]);
-			const localWindows = toLocalGradeWindows(windowsRes?.data.windows ?? []);
+			const auxiliary = await ensureTimetablePolicyAuxiliary({
+				schoolId,
+				schoolYearId,
+				runId: scopeRunId ?? null,
+				termIndex: scopeTermIndex ?? 'all',
+			});
+			const localWindows = toLocalGradeWindows(auxiliary.gradeWindows);
 			setPersistedShiftWindows(localWindows);
 			setShiftWindows(localWindows);
-			setSpecialEvents(specialEventsRes?.data.events ?? []);
-			setPersistedSpecialEvents(specialEventsRes?.data.events ?? []);
-			setProgramOptions(toProgramOptionsFromSections(summaryRes?.data ?? null));
-			setProgramContextNote(buildProgramContextNote(summaryRes?.data ?? null));
+			setSpecialEvents(auxiliary.specialEvents);
+			setPersistedSpecialEvents(auxiliary.specialEvents);
+			setProgramOptions(toProgramOptionsFromSections(auxiliary.sectionsSummary));
+			setProgramContextNote(buildProgramContextNote(auxiliary.sectionsSummary));
 		} finally {
 			setLoading(false);
 		}
-	}, [schoolId, schoolYearId]);
+	}, [schoolId, schoolYearId, scopeRunId, scopeTermIndex]);
 
 	useEffect(() => {
 		void fetchAuxiliary();

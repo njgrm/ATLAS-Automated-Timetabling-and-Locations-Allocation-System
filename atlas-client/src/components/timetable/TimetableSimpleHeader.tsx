@@ -1,22 +1,11 @@
 import { memo, useEffect, useMemo, useState } from 'react';
 import {
-	AlertTriangle,
-	ArrowRightLeft,
 	BookOpen,
 	CalendarClock,
-	CheckCircle2,
-	ChevronRight,
-	ClipboardCheck,
-	History,
-	Info,
-	ListChecks,
 	Loader2,
 	MoreHorizontal,
-	Play,
-	GraduationCap,
 	RefreshCw,
 	Settings2,
-	UserRoundX,
 	type LucideIcon,
 } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
@@ -28,7 +17,6 @@ import { summarizeGenerationReadiness } from '@/lib/timetable-generation-readine
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/ui/dialog';
-import { SimpleDayOptions } from '@/components/timetable/simple/SimpleDayOptions';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/ui/dropdown-menu';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui/select';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from '@/ui/sheet';
@@ -36,7 +24,6 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/t
 import type { ScheduleReviewWorkspaceHeaderContext } from '@/components/timetable/buildScheduleReviewWorkspaceContexts';
 import type { TimetableLayoutMode, TimetableSimpleTask } from '@/components/timetable/TimetableSimpleTypes';
 import type { RepairOrigin } from '@/components/timetable/TimetableTaskDrawer';
-import { TimetableStatusLegend } from '@/components/timetable/TimetableStatusLegend';
 import { isRunPublishedStrict } from '@/components/timetable/timetableWorkspaceTruth';
 import { SimplePublishReadinessSheet } from '@/components/timetable/SimplePublishReadinessSheet';
 import { resolveBlockerDestination, resolvePlacementReasonFilter } from '@/components/timetable/simplePublishReadiness';
@@ -71,10 +58,11 @@ import { SimpleExportErrorBanner, SimpleExportMenu, SimpleTermSwitcher } from '@
 import { useSimpleExportSurface } from '@/components/timetable/simple/useSimpleExportSurface';
 import type { SimpleExportKind } from '@/components/timetable/simple/simpleExportRequests';
 import { SimpleDriftBanner } from '@/components/timetable/simple/SimpleDriftBanner';
+import { describeRunInputDrift } from '@/components/timetable/timetableDriftRouting';
 import { SimpleMoreMenuContent } from '@/components/timetable/simple/SimpleMoreMenuContent';
 import { resolveTermAuthorityNotice } from '@/hooks/useTimetableData';
 import { ExportPresentationSettingsDialog } from '@/components/timetable/simple/ExportPresentationSettingsDialog';
-import type { RolloverStatus } from '@/lib/settings';
+import { fetchRolloverStatus, type RolloverStatus } from '@/lib/settings';
 
 type TimetableSimpleHeaderProps = {
 	context: ScheduleReviewWorkspaceHeaderContext;
@@ -213,6 +201,17 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 	// R6/R7 — Simple consumes the same rollover/term-authority status Advanced
 	// does, and that drift blocks generation exactly as it does in Advanced.
 	const [rolloverStatus, setRolloverStatus] = useState<RolloverStatus | null>(null);
+	// A3 — the rollover guidance card moved to `/timetable/setup`; the header
+	// keeps the same canonical status subscription so the generation gate still
+	// blocks on rollover drift. Authority is relocated, never weakened.
+	useEffect(() => {
+		if (!context.schoolId) return;
+		let cancelled = false;
+		void fetchRolloverStatus(context.schoolId)
+			.then((status) => { if (!cancelled) setRolloverStatus(status); })
+			.catch(() => { /* keep the last known state; the setup pane shows the detail */ });
+		return () => { cancelled = true; };
+	}, [context.schoolId]);
 	const [lastEntityByMode, setLastEntityByMode] = useState<Partial<Record<SimpleViewMode, string>>>({});
 	const visibleRunId = context.draft?.runId ?? null;
 	// TIMETABLE-TERM-GATE-C01 (D3) — same explicit-scope fallback notice as
@@ -222,6 +221,14 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 		context.schoolYearContext,
 		context.draft != null || (context.runs?.length ?? 0) > 0,
 	);
+	// A4 — one authority state. The drift comparison is derived from the same
+	// canonical helper the drift banner uses, so the header decides precedence
+	// without a second source of truth.
+	const driftSummary = useMemo(
+		() => describeRunInputDrift(context.draft?.inputState ?? null),
+		[context.draft?.inputState],
+	);
+	const showDriftState = !context.isPreGenerationWorkspace && context.draft != null && driftSummary.status !== 'FRESH';
 	const visibleYearLabel = context.schoolYearContext?.activeSchoolYearLabel ?? (context.schoolYearId ? `SY #${context.schoolYearId}` : null);
 	const source = sourceLabel(context);
 	const setupState = describeSetupState(context.curriculumReadiness);
@@ -524,91 +531,100 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 
 	return (
 		<header className="shrink-0 border-b border-border bg-background" data-testid="timetable-simple-header">
-			{/* C01R C3 — one status surface: this card is the header's only status
-			    strip. The drift message renders here as its message line (inline,
-			    no sibling amber strip), the hidden-row controls live in the Day
-			    options popover below, and the two mutually exclusive task-prompt
-			    blocks are the region's two states (never collapsed into one).
-			    Disclosure stays on @/ui Popover/Tooltip; every repair action
-			    keeps its testid and dispatch. The source/readiness/filter/action
-			    row follows outside the region. */}
+			{/* A3 — ONE status region. A4 — ONE coherent authority state: the
+			    ordered-term notice, the run-input drift message, or the source
+			    authority line renders here, never two at once. The setup-input
+			    repairs (Fix rooms / Preview impact / Sync with setup) and the
+			    rollover guidance live on `/timetable/setup`, one click away. */}
 			<section data-testid="timetable-simple-status-region" role="region" aria-label="Timetable status" className="mx-3 mb-1 mt-1 min-w-0 rounded-lg border border-border bg-muted/20 px-2 py-1 shadow-sm sm:px-3">
-			{/* R6 — run input freshness, ordered-term authority, and rollover drift are
-			    visible in Simple before publish or sync, with routed repairs. */}
-			<SimpleDriftBanner
-				schoolId={context.schoolId}
-				schoolYearId={context.schoolYearId}
-				activeGeneratedRunId={context.draft?.runId ?? context.activeGeneratedRunId ?? null}
-				draft={context.draft ?? null}
-				isPreGenerationWorkspace={context.isPreGenerationWorkspace}
-				loading={context.loading}
-				onRefresh={context.handleRefresh}
-				onRolloverStatus={setRolloverStatus}
-				capabilities={capabilities}
-				isPublished={isRunPublished}
-				layout="inline"
-			/>
-			{/* Keep source, readiness, schedule choice, and actions in one non-overlapping row. */}
-			<div className="flex min-w-0 flex-wrap items-center gap-1.5 overflow-x-auto overflow-y-visible px-3 py-1.5 lg:flex-nowrap lg:overflow-hidden [&>*]:min-w-0">
-				<Badge
-					variant="outline"
-					className={cn(
-						'h-6 min-w-0 max-w-[28vw] shrink gap-1.5 truncate px-2 text-xs font-semibold sm:max-w-[30rem]',
-						context.schoolYearContext?.source === 'enrollpro-verified'
-							? 'border-emerald-200 bg-emerald-50 text-emerald-800'
-							: 'border-amber-200 bg-amber-50 text-amber-900',
-					)}
-					data-testid="timetable-simple-source-chip"
-				>
-					<Info className="size-3.5 shrink-0" aria-hidden="true" />
-					<span className="truncate">{source}</span>
-					{visibleYearLabel ? <span className="hidden sm:inline">· {visibleYearLabel}</span> : null}
-					{visibleRunId ? <span className="hidden sm:inline">· Run #{visibleRunId}</span> : null}
-				</Badge>
+			<div className="flex min-w-0 flex-wrap items-center gap-1.5">
+				<SimpleReadinessChip
+					readiness={readiness}
+					publishBlocked={publishBlocked}
+					blockingHardCount={context.blockingHardCount}
+				/>
+				{/* A3 — the NEXT STEP names the same action as the primary. */}
+				{!hasGeneratedRun && !context.isPreGenerationWorkspace ? (
+					<div className="flex min-w-0 items-center gap-1.5" data-testid="timetable-simple-task-prompt" aria-label="Timetable next step">
+						<CalendarClock className="size-3.5 shrink-0 text-primary" aria-hidden="true" />
+						<p className="min-w-0 truncate text-xs text-muted-foreground" data-testid="timetable-simple-next-action">
+							Next step: <span className="font-semibold text-foreground">{lifecycleAction.label}</span>
+							{visibleYearLabel ? ` · No ${visibleYearLabel} timetable yet` : ''}
+						</p>
+					</div>
+				) : (
+					<div className="flex min-w-0 items-center gap-1.5" data-testid="timetable-simple-task-prompt" aria-label="Timetable next step">
+						<ActiveIcon className="size-3.5 shrink-0 text-primary" aria-hidden="true" />
+						<p className="min-w-0 truncate text-xs text-muted-foreground" data-testid="timetable-simple-next-action">
+							Next step: <span className="font-semibold text-foreground">{activeTask ? activeTaskDefinition.primaryLabel : lifecycleAction.label}</span>
+						</p>
+					</div>
+				)}
+				{/* A4 — exactly ONE authority state renders here: the run-input
+				    drift message, else the ordered-term notice, else the source
+				    line. "Run inputs are stale" and "Verified with EnrollPro" can
+				    never appear together. */}
+				{showDriftState ? (
+					<SimpleDriftBanner
+						schoolId={context.schoolId}
+						schoolYearId={context.schoolYearId}
+						activeGeneratedRunId={context.draft?.runId ?? context.activeGeneratedRunId ?? null}
+						draft={context.draft ?? null}
+						isPreGenerationWorkspace={context.isPreGenerationWorkspace}
+						loading={context.loading}
+						onRefresh={context.handleRefresh}
+						onRolloverStatus={setRolloverStatus}
+						capabilities={capabilities}
+						isPublished={isRunPublished}
+						layout="inline"
+						showActions={false}
+						showRolloverGuidance={false}
+					/>
+				) : termAuthorityNotice ? (
+					<p className="min-w-0 flex-1 truncate text-xs font-medium text-amber-800" data-testid="timetable-term-authority-unverified">{termAuthorityNotice}</p>
+				) : (
+					<p className="min-w-0 flex-1 truncate text-xs text-muted-foreground" data-testid="timetable-simple-authority">
+						{source}{visibleYearLabel ? ` · ${visibleYearLabel}` : ''}{visibleRunId ? ` · Run #${visibleRunId}` : ''}
+					</p>
+				)}
+				{latestRunFailed ? (
+					<p className="min-w-0 text-xs font-medium text-red-700" data-testid="timetable-last-generation-failed-message">
+						The last generation run failed. Review setup, then try generating again.
+					</p>
+				) : null}
+				{setupBlockedDiagnostic ? (
+					<TooltipProvider delayDuration={200}>
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<p
+									className="min-w-0 break-words text-xs text-muted-foreground underline decoration-dotted decoration-muted-foreground/50 underline-offset-2"
+									data-testid="timetable-curriculum-readiness-message"
+									tabIndex={0}
+								>
+									{setupOperatorMessage}
+								</p>
+							</TooltipTrigger>
+							<TooltipContent side="bottom" className="max-w-xs text-xs leading-relaxed">
+								<span className="block font-semibold">Technical detail</span>
+								<span className="mt-1 block">{setupBlockedDiagnostic}</span>
+							</TooltipContent>
+						</Tooltip>
+					</TooltipProvider>
+				) : null}
+				{/* A3 — one labelled way to the setup repairs. */}
+				<Button asChild type="button" variant="outline" size="sm" className="h-7 shrink-0 gap-1 px-2 text-xs" data-testid="timetable-simple-review-setup">
+					<Link to="/timetable/setup">
+						<Settings2 className="size-3" aria-hidden="true" />
+						Review setup
+					</Link>
+				</Button>
+			</div>
+			</section>
 
-			{termAuthorityNotice && (
-				<TooltipProvider delayDuration={300}>
-					<Tooltip>
-						<TooltipTrigger asChild>
-							<Badge
-								variant="outline"
-								className={cn(
-									'h-6 min-w-0 max-w-[28vw] shrink gap-1.5 truncate px-2 text-xs font-semibold sm:max-w-[30rem]',
-									'border-amber-200 bg-amber-50 text-amber-900',
-								)}
-								data-testid="timetable-term-authority-unverified"
-							>
-								<AlertTriangle className="size-3.5 shrink-0" aria-hidden="true" />
-								<span className="truncate">{termAuthorityNotice}</span>
-							</Badge>
-						</TooltipTrigger>
-						<TooltipContent side="bottom" className="max-w-xs text-xs" data-testid="timetable-term-authority-unverified-disclosure">
-							{termAuthorityNotice}
-						</TooltipContent>
-					</Tooltip>
-				</TooltipProvider>
-			)}
-
-			{/* UX-R03e (setup) — one shared chip implementation with the `/timetable/setup` pane. */}
-			<SimpleReadinessChip
-				readiness={readiness}
-				publishBlocked={publishBlocked}
-				blockingHardCount={context.blockingHardCount}
-			/>
-				<Badge
-					variant="outline"
-					className={cn(
-							'h-6 shrink-0 gap-1.5 px-2 text-xs font-semibold hidden 2xl:inline-flex',
-						context.referenceLookupStatus.state === 'ready'
-							? 'border-emerald-200 bg-emerald-50 text-emerald-800'
-							: context.referenceLookupStatus.state === 'needs-refresh'
-								? 'border-amber-200 bg-amber-50 text-amber-900'
-								: 'border-border bg-muted text-muted-foreground',
-					)}
-					data-testid="timetable-lookup-status"
-				>
-					{context.referenceLookupStatus.label}
-				</Badge>
+			{/* A3 — ONE action row: term, schedule, filters, downloads, and the
+			    single primary action. Everything else is one click away in More. */}
+			<div className="flex min-w-0 flex-wrap items-center gap-1.5 px-3 pb-1.5">
+				<SimpleTermSwitcher context={context} />
 
 				<div className="hidden min-w-0 flex-1 lg:flex lg:shrink-0 lg:min-w-[24rem]">
 					<SimpleScheduleControls
@@ -619,28 +635,106 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 					/>
 				</div>
 
-				<div className="order-last flex w-full min-w-0 shrink-0 items-center justify-start gap-1.5 overflow-x-auto lg:order-none lg:ml-auto lg:w-auto lg:max-w-[48vw] lg:justify-end">
-					<SimpleTermSwitcher context={context} />
-					<SimpleFilterControls context={context} renderActiveFilters={false} />
-					<SimpleScheduleSheet
-						context={context}
-						lastEntityByMode={lastEntityByMode}
-						onViewModeChange={handleViewModeChange}
-						onEntityChange={handleEntityChange}
+				<SimpleFilterControls context={context} renderActiveFilters={false} />
+				<SimpleScheduleSheet
+					context={context}
+					lastEntityByMode={lastEntityByMode}
+					onViewModeChange={handleViewModeChange}
+					onEntityChange={handleEntityChange}
+				/>
+				{hasGeneratedRun ? (
+					<SimpleExportMenu
+						summary={summaryExport}
+						classProgram={classProgramExport}
+						teacherProgram={teacherProgramExport}
+						showTeacherProgram={context.viewMode === 'faculty' && Boolean(context.entityFilter)}
+						needsTerm={context.termFilter === 'all'}
+						exportingKind={exportingKind}
+						onExport={(kind) => { void handleSimpleExport(kind); }}
+						onOpenPresentationSettings={() => setPresentationSettingsOpen(true)}
 					/>
-					<SimpleTutorialControl open={tutorialOpen} onOpenChange={setTutorialOpen} lifecycle={capabilities.lifecycle} />
-					{hasGeneratedRun ? (
-						<SimpleExportMenu
-							summary={summaryExport}
-							classProgram={classProgramExport}
-							teacherProgram={teacherProgramExport}
-							showTeacherProgram={context.viewMode === 'faculty' && Boolean(context.entityFilter)}
-							needsTerm={context.termFilter === 'all'}
-							exportingKind={exportingKind}
-							onExport={(kind) => { void handleSimpleExport(kind); }}
-							onOpenPresentationSettings={() => setPresentationSettingsOpen(true)}
+				) : null}
+
+				{/* A3 — the single action cluster: one lifecycle-derived primary,
+				    the secondary Generate, and the More disclosure. */}
+				<div className="order-last flex w-full min-w-0 shrink-0 items-center justify-start gap-1.5 overflow-x-auto lg:order-none lg:ml-auto lg:w-auto lg:max-w-[48vw] lg:justify-end">
+					<SimpleGenerateAction
+						disabled={generateActionState.disabled}
+						disabledReason={generateActionState.reason}
+						onClick={handleGenerateClick}
+					/>
+					{isRunPublished ? (
+						<SimplePublishedState followUpCount={context.summary?.unassignedCount ?? 0} />
+					) : showPublishAction ? (
+						<SimplePublishAction
+							enabled={!publishActionState.disabled}
+							disabledReason={publishActionState.reason}
+							primary={primaryRendersPublish}
+							onClick={handlePublishActionClick}
 						/>
 					) : null}
+					{generationReady && !hasGeneratedRun ? (
+						<Button
+							type="button"
+							variant="outline"
+							size="sm"
+							className="h-11 gap-1.5 px-3 text-sm"
+							disabled={!canPlanOrGenerate}
+							onClick={() => setInsertionOpen(true)}
+							data-testid="timetable-unassigned-insertion-action"
+						>
+							<CalendarClock className="size-3.5" aria-hidden="true" />
+							<span>Preview demand</span>
+						</Button>
+					) : null}
+					{suppressPrimaryAction ? null : setupRepairIsInPlace ? (
+						<Button
+							type="button"
+							size="sm"
+							className="h-11 gap-1.5 px-3 text-sm"
+							disabled={lifecycleAction.disabled || context.loading}
+							onClick={() => context.handleRefresh()}
+							data-testid="timetable-simple-primary-action"
+						>
+							<RefreshCw className="size-3.5" aria-hidden="true" />
+							<span>{setupRepair.label ?? lifecycleAction.label}</span>
+						</Button>
+					) : lifecycleAction.kind === 'fix-setup' && setupRepair.kind === 'navigate' ? (
+						<Button asChild type="button" size="sm" className="h-11 gap-1.5 px-3 text-sm" data-testid="timetable-simple-primary-action">
+							<Link to={setupRepair.href ?? YEAR_SETUP_HREF}>
+								<BookOpen className="size-3.5" aria-hidden="true" />
+								{setupRepair.label ?? lifecycleAction.label}
+							</Link>
+						</Button>
+					) : activeTask && activeTaskDefinition.href ? (
+						<Button
+							asChild
+							size="sm"
+							className="h-11 min-w-28 gap-1.5 px-3 text-sm"
+							disabled={activeTaskDefinition.disabled}
+							data-testid="timetable-simple-primary-action"
+						>
+							<Link to={activeTaskDefinition.href}>
+								{activeTaskDefinition.primaryLabel}
+							</Link>
+						</Button>
+					) : (
+						<Button
+							type="button"
+							size="sm"
+							className="h-11 min-w-28 gap-1.5 px-3 text-sm"
+							disabled={activeTask ? activeTaskDefinition.disabled : lifecycleAction.disabled}
+							onClick={() => activeTask ? void startTask(activeTaskDefinition.id) : handleLifecycleAction()}
+							data-testid="timetable-simple-primary-action"
+						>
+							{lifecycleAction.kind === 'generating' || (lifecycleAction.kind === 'retry-readiness' && lifecycleAction.disabled)
+								? <Loader2 className="size-3.5 animate-spin" aria-hidden="true" />
+								: lifecycleAction.kind === 'retry-generate' || lifecycleAction.kind === 'retry-readiness'
+									? <RefreshCw className="size-3.5" aria-hidden="true" />
+									: <CalendarClock className="size-3.5" aria-hidden="true" />}
+							<span>{activeTask ? activeTaskDefinition.primaryLabel : lifecycleAction.label}</span>
+						</Button>
+					)}
 
 					<DropdownMenu open={moreOpen} onOpenChange={setMoreOpen}>
 						<DropdownMenuTrigger asChild>
@@ -666,6 +760,7 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 								onOpenTeacherDeparture={openTeacherDeparture}
 								onOpenRequests={openRequestsTask}
 								onLayoutModeChange={onLayoutModeChange}
+								onOpenTutorial={() => { setMoreOpen(false); setTutorialOpen(true); }}
 							/>
 						</DropdownMenuContent>
 					</DropdownMenu>
@@ -689,17 +784,7 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 				/>
 			) : null}
 
-			{/* C01R C3 — day-start visibility is disclosed through the Day options
-			    popover (one implementation in `simple/SimpleDayOptions`) instead
-			    of a sibling strip. */}
-			{(context.policyAlignmentWarning || context.hiddenRowCount > 0) && (
-				<SimpleDayOptions
-					policyAlignmentWarning={context.policyAlignmentWarning}
-					hiddenRowCount={context.hiddenRowCount}
-					showFullDay={context.showFullDay}
-					onToggleFullDay={() => context.setShowFullDay(!context.showFullDay)}
-				/>
-			)}
+			{/* A3 — day-start visibility now lives in the More menu, not the header row. */}
 
 			{context.schoolYearId ? (
 				<UnassignedInsertionWorkflow
@@ -710,208 +795,13 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 				/>
 			) : null}
 
-			{!hasGeneratedRun && !context.isPreGenerationWorkspace ? (
-				<div
-					className="flex min-w-0 items-center justify-between gap-2 py-0.5"
-					data-testid="timetable-simple-task-prompt"
-					aria-label="Timetable next step"
-				>
-					<div className="flex min-w-0 items-center gap-2">
-						<div className="flex size-5 shrink-0 items-center justify-center rounded-md bg-background text-primary ring-1 ring-border sm:size-6">
-							<CalendarClock className="size-4 sm:size-4.5" aria-hidden="true" />
-						</div>
-						<div className="min-w-0">
-							<p className="hidden text-xs font-bold uppercase tracking-wide text-muted-foreground sm:block">Get started</p>
-							<p className="truncate text-sm font-semibold text-foreground" data-testid="timetable-simple-next-action">
-								No timetable exists for {visibleYearLabel ?? 'the active school year'}
-							</p>
-							{setupBlockedDiagnostic ? (
-								<TooltipProvider delayDuration={200}>
-									<Tooltip>
-										<TooltipTrigger asChild>
-											<p
-												className="break-words text-xs text-muted-foreground underline decoration-dotted decoration-muted-foreground/50 underline-offset-2"
-												data-testid="timetable-curriculum-readiness-message"
-												tabIndex={0}
-											>
-												{setupOperatorMessage}
-											</p>
-										</TooltipTrigger>
-										<TooltipContent side="bottom" className="max-w-xs text-xs leading-relaxed">
-											<span className="block font-semibold">Technical detail</span>
-											<span className="mt-1 block">{setupBlockedDiagnostic}</span>
-										</TooltipContent>
-									</Tooltip>
-								</TooltipProvider>
-							) : (
-								<p className="break-words text-xs text-muted-foreground" data-testid="timetable-curriculum-readiness-message">
-									{setupState.message}
-								</p>
-							)}
-							{setupRepair.kind === 'navigate' && !setupRepairTargetsCurrentRoute && (
-								<p className="text-xs text-muted-foreground" data-testid="timetable-setup-repair-hint">
-									{setupRepair.label ? `Fix this in ${setupRepair.label}.` : 'Finish setup before generating.'}
-								</p>
-							)}
-							{latestRunFailed && (
-								<p className="break-words text-xs font-medium text-red-700" data-testid="timetable-last-generation-failed-message">
-									The last generation run failed. Review setup, then try generating again.
-								</p>
-							)}
-						</div>
-					</div>
-					<div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
-						<TimetableStatusLegend compact />
-						{/* UX-QUICKFIX-C01 — Generate stays visible before a run exists,
-						    gated by the same readiness decision as the lifecycle action. */}
-						<SimpleGenerateAction
-							disabled={generateActionState.disabled}
-							disabledReason={generateActionState.reason}
-							onClick={handleGenerateClick}
-						/>
-						{setupRepairIsInPlace ? (
-							<Button
-								type="button"
-								size="sm"
-								className="h-11 gap-1.5 px-3 text-sm"
-								disabled={lifecycleAction.disabled || context.loading}
-								onClick={() => context.handleRefresh()}
-								data-testid="timetable-simple-primary-action"
-							>
-								<RefreshCw className="size-3.5" aria-hidden="true" />
-								<span>{setupRepair.label ?? lifecycleAction.label}</span>
-							</Button>
-						) : lifecycleAction.kind === 'fix-setup' && setupRepair.kind === 'navigate' ? (
-							<Button asChild type="button" size="sm" className="h-11 gap-1.5 px-3 text-sm" data-testid="timetable-simple-primary-action">
-								<Link to={setupRepair.href ?? YEAR_SETUP_HREF}>
-									<BookOpen className="size-3.5" aria-hidden="true" />
-									{setupRepair.label ?? lifecycleAction.label}
-								</Link>
-							</Button>
-						) : (
-							<Button
-								type="button"
-								size="sm"
-								className="h-11 gap-1.5 px-3 text-sm"
-								disabled={lifecycleAction.disabled}
-								onClick={handleLifecycleAction}
-								data-testid="timetable-simple-primary-action"
-							>
-								{lifecycleAction.kind === 'generating' || (lifecycleAction.kind === 'retry-readiness' && lifecycleAction.disabled)
-									? <Loader2 className="size-3.5 animate-spin" aria-hidden="true" />
-									: lifecycleAction.kind === 'retry-generate' || lifecycleAction.kind === 'retry-readiness'
-										? <RefreshCw className="size-3.5" aria-hidden="true" />
-										: <CalendarClock className="size-3.5" aria-hidden="true" />}
-								<span>{lifecycleAction.label}</span>
-							</Button>
-						)}
-						{generationReady && (
-							<Button
-								type="button"
-								variant="outline"
-								size="sm"
-								className="h-11 gap-1.5 px-3 text-sm"
-								disabled={!canPlanOrGenerate}
-								onClick={() => setInsertionOpen(true)}
-								data-testid="timetable-unassigned-insertion-action"
-							>
-								<CalendarClock className="size-3.5" aria-hidden="true" />
-								<span>Preview demand</span>
-							</Button>
-						)}
-					</div>
-				</div>
-			) : (
-				<div
-					className="flex min-w-0 items-center justify-between gap-2 py-0.5"
-					data-testid="timetable-simple-task-prompt"
-					aria-label="Timetable next step"
-				>
-					<div className="flex min-w-0 items-center gap-2">
-						<div className="flex size-5 shrink-0 items-center justify-center rounded-md bg-background text-primary ring-1 ring-border sm:size-6">
-							<ActiveIcon className="size-4 sm:size-4.5" aria-hidden="true" />
-						</div>
-						<div className="min-w-0">
-							<p className="hidden text-xs font-bold uppercase tracking-wide text-muted-foreground sm:block">Next step</p>
-							<p className="truncate text-sm font-semibold text-foreground" data-testid="timetable-simple-next-action">
-								{activeTask ? activeTaskDefinition.label : lifecycleAction.label}
-							</p>
-							<p className="hidden text-sm text-muted-foreground sm:block">{activeTask ? activeTaskDefinition.helper : readiness}</p>
-						</div>
-					</div>
-
-					{publishBlocked && (
-						<Button
-							type="button"
-							variant="outline"
-							size="sm"
-							className="hidden min-w-0 items-center gap-1.5 border-amber-200 bg-amber-50 px-2 py-1 text-xs text-amber-800 hover:bg-amber-100 sm:flex"
-							data-testid="timetable-publish-readiness-summary"
-							onClick={() => setReadinessSheetOpen(true)}
-						>
-							<span className="truncate">{publishBlockedReason}</span>
-							<ChevronRight className="size-3 shrink-0" aria-hidden="true" />
-						</Button>
-					)}
-					{isRunPublished && !publishBlocked && (context.summary?.unassignedCount ?? 0) > 0 && (
-						<div
-							className="hidden min-w-0 items-center gap-1.5 rounded-md border border-emerald-200 bg-emerald-50 px-2 py-1 text-xs text-emerald-800 sm:flex"
-							data-testid="timetable-publish-readiness-summary"
-						>
-							<CheckCircle2 className="size-3 shrink-0" aria-hidden="true" />
-							<span className="truncate">Published — {context.summary?.unassignedCount} follow-up item{(context.summary?.unassignedCount ?? 0) === 1 ? '' : 's'} remain</span>
-						</div>
-					)}
-
-					<div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
-					<TimetableStatusLegend compact />
-					{/* UX-QUICKFIX-C01 — Generate and Publish are always reachable without
-					    opening More. Generate is gated on the readiness decision; Publish
-					    is gated on the shared publication capability. A published run
-					    shows the published state instead of a dead disabled Publish. */}
-					<SimpleGenerateAction
-						disabled={generateActionState.disabled}
-						disabledReason={generateActionState.reason}
-						onClick={handleGenerateClick}
-					/>
-					{isRunPublished ? (
-						<SimplePublishedState followUpCount={context.summary?.unassignedCount ?? 0} />
-					) : showPublishAction ? (
-						<SimplePublishAction
-							enabled={!publishActionState.disabled}
-							disabledReason={publishActionState.reason}
-							primary={primaryRendersPublish}
-							onClick={handlePublishActionClick}
-						/>
-					) : null}
-					{suppressPrimaryAction ? null : activeTask && activeTaskDefinition.href ? (
-						<Button
-							asChild
-							size="sm"
-							className="h-11 min-w-28 gap-1.5 px-3 text-sm"
-							disabled={activeTaskDefinition.disabled}
-							data-testid="timetable-simple-primary-action"
-						>
-							<Link to={activeTaskDefinition.href}>
-								{activeTaskDefinition.primaryLabel}
-							</Link>
-						</Button>
-					) : (
-						<Button
-							type="button"
-							size="sm"
-							className="h-11 min-w-28 gap-1.5 px-3 text-sm"
-							disabled={activeTask ? activeTaskDefinition.disabled : lifecycleAction.disabled}
-							onClick={() => activeTask ? void startTask(activeTaskDefinition.id) : handleLifecycleAction()}
-							data-testid="timetable-simple-primary-action"
-						>
-							{activeTask ? activeTaskDefinition.primaryLabel : lifecycleAction.label}
-						</Button>
-					)}
-				</div>
-			</div>
-			)}
-			</section>
+			{/* A3 — the NEXT STEP and the single action cluster live in the status
+			    region and the action row above; the old stacked task-prompt bands
+			    (with a second Generate/Publish/primary cluster) are removed so the
+			    header has exactly one status region and one action row. */}
+			{/* A3 — the tutorial dialog is opened from More; render it without an
+			    inline trigger so the header keeps one action row. */}
+			<SimpleTutorialControl triggerless open={tutorialOpen} onOpenChange={setTutorialOpen} lifecycle={capabilities.lifecycle} />
 
 			<SimplePublishReadinessSheet
 				open={readinessSheetOpen}

@@ -6,6 +6,7 @@ import { TimetableSubNav } from '@/components/timetable/TimetableSubNav';
 import { ScheduleReviewWorkspaceBody } from '@/components/timetable/ScheduleReviewWorkspaceBody';
 import { ScheduleReviewWorkspaceOverlays } from '@/components/timetable/ScheduleReviewWorkspaceOverlays';
 import { TimetableSkeleton } from '@/components/timetable/TimetableSkeleton';
+import { InlinePlacementPreview } from '@/components/timetable/InlinePlacementPreview';
 import { isTimetableSchedulerView, TimetableRouteViewSync } from '@/components/timetable/TimetableRouteViewSync';
 import type { TimetableLayoutMode, TimetableSimpleTask } from '@/components/timetable/TimetableSimpleTypes';
 import type { RepairOrigin } from '@/components/timetable/TimetableTaskDrawer';
@@ -129,6 +130,8 @@ export default function ScheduleReviewWorkspace() {
 			() => state.setSwapClassAEntryId?.(null),
 			() => state.setSwapClassBEntryId?.(null),
 			() => state.setLastAutoSaveUndo?.(null),
+			// B1 — a preview bound to the previous scope must never stay actionable.
+			() => state.cancelInlinePlacement?.(),
 		]);
 	}, [
 		scopeKey,
@@ -136,6 +139,7 @@ export default function ScheduleReviewWorkspace() {
 		state.setSwapClassAEntryId,
 		state.setSwapClassBEntryId,
 		state.setLastAutoSaveUndo,
+		state.cancelInlinePlacement,
 	]);
 
 	const openTeacherDepartureRecovery = (facultyId?: number | null) => {
@@ -342,6 +346,20 @@ export default function ScheduleReviewWorkspace() {
 				>
 					{state.inlineActionStatus.message}
 				</div>
+			) : null}
+			{/* B1 — universal inline preview-before-save. Never a modal: the grid
+			    stays usable and exactly one Confirm commits the placement. */}
+			{state.inlinePlacementPending ? (
+				<InlinePlacementPreview
+					pending={state.inlinePlacementPending.preview}
+					roomId={state.inlinePlacementPending.roomId}
+					roomOptions={state.inlinePlacementRoomOptions}
+					saving={state.inlinePlacementSaving}
+					roomChanging={state.inlinePlacementRoomChanging}
+					onRoomChange={(value) => void state.changeInlinePlacementRoom(value)}
+					onConfirm={() => void state.confirmInlinePlacement()}
+					onCancel={state.cancelInlinePlacement}
+				/>
 			) : null}
 			{state.lastAutoSaveUndo ? (
 				<div

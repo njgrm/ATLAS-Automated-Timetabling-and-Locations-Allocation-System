@@ -1,4 +1,4 @@
-import { lazy, memo, Suspense, useCallback, useEffect, useMemo, useState, Profiler } from 'react';
+import { lazy, memo, Suspense, useCallback, useEffect, useMemo, useRef, useState, Profiler } from 'react';
 import { Link } from 'react-router-dom';
 import { AnimatePresence, motion } from 'motion/react';
 import { AlertTriangle, Building2, CalendarClock, ChevronLeft, Loader2, Lock, MapPin, MousePointerClick, Play } from 'lucide-react';
@@ -6,6 +6,7 @@ import { onProfilerRender } from './ScheduleReviewWorkspace';
 import { isDraftPublishedStrict } from '@/components/timetable/timetableWorkspaceTruth';
 
 import { ClassProgramMatrixView } from '@/components/timetable/ClassProgramMatrixView';
+import { GridScrollMemory } from '@/components/timetable/GridScrollMemory';
 import { TimetableGrid } from '@/components/timetable/TimetableGrid';
 import { ROOM_TYPE_LABELS } from '@/lib/subject-constants';
 import { buildUnassignedKey } from '@/lib/timetable-utils';
@@ -14,7 +15,6 @@ import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import { Checkbox } from '@/ui/checkbox';
 import { ResizablePanel } from '@/ui/resizable';
-import { ScrollArea } from '@/ui/scroll-area';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip';
 
 import type { CommitResult, ManualEditProposal, RoomType, TeachingLoadRepairChange, TeachingLoadRepairPreviewResult, UnassignedItem, Violation } from '@/types';
@@ -154,6 +154,10 @@ type CenterWorkspaceProps = {
 	viewMode: 'section' | 'faculty' | 'room';
 	/** Selected ordered-term scope; resolves per-term cell details. */
 	termFilter: 'all' | number;
+	/** A2 — configured ordered-term options for the `All terms` entry labels. */
+	termOptions?: ReadonlyArray<{ value: string; label: string }>;
+	/** A8 — entry ids in the active review set; only these carry a warning marker. */
+	reviewEntryIds?: ReadonlySet<string>;
 	setPreGenOnboarding: (value: boolean) => void;
 	gridEntries: any[];
 	highlightedEntryIds: Set<string>;
@@ -270,6 +274,8 @@ export const CenterWorkspace = memo(function CenterWorkspace(props: CenterWorksp
 		pivotLabel,
 		viewMode,
 		termFilter,
+		termOptions = [],
+		reviewEntryIds,
 		setPreGenOnboarding,
 		gridEntries,
 		highlightedEntryIds,
@@ -330,6 +336,8 @@ export const CenterWorkspace = memo(function CenterWorkspace(props: CenterWorksp
 	const selectedEntryId = selectedEntry?.entryId ?? null;
 	const selectedUnassignedKey = selectedUnassigned ? buildUnassignedKey(selectedUnassigned) : null;
 	const activeSandboxKey = selectedEntryId ?? selectedUnassignedKey;
+	// A7 — survives every sub-page swap because the center panel never unmounts.
+	const gridScrollTopRef = useRef(0);
 
 	useEffect(() => {
 		const syncViewport = () => setViewport({
@@ -445,6 +453,8 @@ export const CenterWorkspace = memo(function CenterWorkspace(props: CenterWorksp
 							<SchedulingPolicyPane
 								schoolId={defaultSchoolId}
 								schoolYearId={schoolYearId}
+								scopeRunId={draft?.runId ?? null}
+								scopeTermIndex={termFilter}
 								onBack={exitPolicyView}
 								onPolicySaved={handleRefresh}
 								policyRecord={policyRecord}
@@ -772,7 +782,7 @@ export const CenterWorkspace = memo(function CenterWorkspace(props: CenterWorksp
 						transition={{ duration: 0.18 }}
 						className="flex-1 min-w-0 flex flex-col min-h-0"
 					>
-						<ScrollArea className="flex-1 min-h-0">
+						<GridScrollMemory scrollTopRef={gridScrollTopRef} className="flex-1 min-h-0">
 							{(centerView === 'pre-generation' ? draftBoard != null : draft != null) ? (
 								<div className="p-4">
 									{centerView === 'pre-generation' ? (
@@ -831,6 +841,8 @@ export const CenterWorkspace = memo(function CenterWorkspace(props: CenterWorksp
 										facultyLabel={facultyLabel}
 										viewMode={viewMode}
 										termFilter={termFilter}
+										termOptions={termOptions}
+										reviewEntryIds={reviewEntryIds}
 										showTeacherDetails
 										pivotLabel={pivotLabel}
 										roomLabelShort={roomLabelShort}
@@ -860,7 +872,7 @@ export const CenterWorkspace = memo(function CenterWorkspace(props: CenterWorksp
 									</div>
 								</div>
 							)}
-						</ScrollArea>
+						</GridScrollMemory>
 						{centerView === 'pre-generation' && preGenPending && (
 							<div className="shrink-0 border-t border-border bg-muted/20 px-3 py-2 space-y-1.5">
 								<div className="flex flex-wrap items-center gap-2 text-xs">

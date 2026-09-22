@@ -21,9 +21,11 @@ export function SimpleTermSwitcher({ context }: { context: ScheduleReviewWorkspa
 			className="flex min-w-0 shrink-0 items-center gap-1.5 rounded-lg border border-border bg-muted/20 px-2 py-1"
 			data-testid="timetable-simple-term-switcher"
 		>
-			<span className="hidden shrink-0 text-xs font-bold uppercase tracking-wide text-muted-foreground xl:inline">
-				Term
-			</span>
+			{/* A2 — the ordered-term labels already read "TERM N", so a separate
+			    visible "Term" field label rendered the literal duplicated trigger
+			    text "TERM TERM 2". The trigger keeps its `aria-label="Term"` and
+			    the screen-reader option list below; only the duplicated visible
+			    prefix is removed. */}
 			<Select value={value} onValueChange={(next) => context.onTermFilterChange(next === 'all' ? 'all' : Number(next))}>
 				<SelectTrigger
 					className="h-8 w-[8.5rem] shrink-0 text-xs"

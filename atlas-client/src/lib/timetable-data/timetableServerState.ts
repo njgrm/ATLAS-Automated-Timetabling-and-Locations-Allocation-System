@@ -15,32 +15,41 @@ import {
 	isResolvedTimetableScope,
 	timetableDraftBoardQueryKey,
 	timetableFollowUpsQueryKey,
+	timetableGradeWindowsQueryKey,
+	timetablePolicySpecialEventsQueryKey,
 	timetableReadinessQueryKey,
 	timetableReferenceQueryKey,
 	timetableRoomRequestQueryKey,
 	timetableRunBundleBaseQueryKey,
 	timetableRunBundleQueryKey,
 	timetableRunsQueryKey,
+	timetableSectionsSummaryQueryKey,
 	type ResolvedTimetableScope,
 	type TimetableScope,
 } from './timetableQueryKeys';
 import {
 	fetchTimetableDraftBoard,
 	fetchTimetableFollowUpEntryIds,
+	fetchTimetableGradeWindows,
+	fetchTimetablePolicySpecialEvents,
 	fetchTimetableReadiness,
 	fetchTimetableReferenceData,
 	fetchTimetableRoomRequestSummary,
 	fetchTimetableRunBundle,
 	fetchTimetableRuns,
+	fetchTimetableSectionsSummary,
 	type TimetableReferenceData,
 	type TimetableRunBundle,
 } from './timetableDataSources';
 import type {
 	DraftBoardState,
 	GenerationRun,
+	GradeShiftWindow,
+	PolicySpecialEvent,
 	RoomPreferenceDecisionStatus,
 	RoomPreferenceStatus,
 	RoomPreferenceSummaryResponse,
+	SectionSummaryResponse,
 } from '@/types';
 
 type EnsureOptions = { force?: boolean };
@@ -166,6 +175,49 @@ export async function ensureTimetableReferenceData(
 		() => fetchTimetableReferenceData(resolved.schoolId, resolved.schoolYearId),
 		options,
 	);
+}
+
+export type TimetablePolicyAuxiliary = {
+	gradeWindows: GradeShiftWindow[];
+	sectionsSummary: SectionSummaryResponse | null;
+	specialEvents: PolicySpecialEvent[];
+};
+
+/**
+ * C2 (TIMETABLE-RELAXED-MAIN-C01) — the sub-page policy pane's three reads
+ * (grade windows, section summary, special events), resolved through the shared
+ * scoped cache. A revisit within the same scope is a cache hit; each read keeps
+ * the pane's existing per-endpoint fail-soft behaviour (a failed read yields the
+ * empty/null fallback, never a thrown render). An unresolved scope throws before
+ * any request is dispatched.
+ */
+export async function ensureTimetablePolicyAuxiliary(
+	scope: TimetableScope,
+	options?: EnsureOptions,
+): Promise<TimetablePolicyAuxiliary> {
+	const resolved = requireScope(scope);
+	const [gradeWindows, sectionsSummary, specialEvents] = await Promise.all([
+		ensureQuery(
+			timetableGradeWindowsQueryKey(resolved),
+			() => fetchTimetableGradeWindows(resolved.schoolId, resolved.schoolYearId),
+			options,
+		).catch(() => null),
+		ensureQuery(
+			timetableSectionsSummaryQueryKey(resolved),
+			() => fetchTimetableSectionsSummary(resolved.schoolId, resolved.schoolYearId),
+			options,
+		).catch(() => null),
+		ensureQuery(
+			timetablePolicySpecialEventsQueryKey(resolved),
+			() => fetchTimetablePolicySpecialEvents(resolved.schoolId, resolved.schoolYearId),
+			options,
+		).catch(() => null),
+	]);
+	return {
+		gradeWindows: gradeWindows?.windows ?? [],
+		sectionsSummary: sectionsSummary ?? null,
+		specialEvents: specialEvents?.events ?? [],
+	};
 }
 
 // ─── Warm snapshot (R4) ───

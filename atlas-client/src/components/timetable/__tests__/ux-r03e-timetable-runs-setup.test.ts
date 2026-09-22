@@ -57,10 +57,10 @@ test('UX-R03e runs row 1: every route direction passes through the existing guar
 
 // --- UX-R03e (runs) row 1: App.tsx child, CenterWorkspace view, chrome override ---
 
-test('UX-R03e runs row 1: runs is an element-less nested child (shell stays mounted)', () => {
+test('UX-R03e runs row 1: runs is a null-element nested child (shell stays mounted)', () => {
 	const block = timetableRouteBlock();
-	assert.match(block, /\{ path: 'runs' \}/);
-	assert.doesNotMatch(block, /path: 'runs', element:/);
+	assert.match(block, /\{ path: 'runs', element: null \}/);
+	assert.doesNotMatch(block, /path: 'runs' \},/);
 	assert.doesNotMatch(block, /path: 'timetable\/runs'/);
 });
 
@@ -179,10 +179,10 @@ test('UX-R03e setup row 2: every route direction passes through the existing gua
 
 // --- UX-R03e (setup) row 2: App.tsx child, CenterWorkspace view, chrome override ---
 
-test('UX-R03e setup row 2: setup is an element-less nested child (shell stays mounted)', () => {
+test('UX-R03e setup row 2: setup is a null-element nested child (shell stays mounted)', () => {
 	const block = timetableRouteBlock();
-	assert.match(block, /\{ path: 'setup' \}/);
-	assert.doesNotMatch(block, /path: 'setup', element:/);
+	assert.match(block, /\{ path: 'setup', element: null \}/);
+	assert.doesNotMatch(block, /path: 'setup' \},/);
 	assert.doesNotMatch(block, /path: 'timetable\/setup'/);
 });
 

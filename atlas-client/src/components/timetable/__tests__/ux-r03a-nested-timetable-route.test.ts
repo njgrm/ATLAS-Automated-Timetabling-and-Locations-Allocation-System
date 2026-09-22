@@ -25,12 +25,14 @@ test('UX-R03a row 1: /timetable mounts the review shell with nested index and po
 	assert.ok(nextSibling > parentStart, 'the timetable route block must be bounded');
 	const block = app.slice(parentStart, nextSibling);
 	assert.match(block, /element: <ScheduleReview \/>/);
-	assert.match(block, /\{ index: true \}/);
-	assert.match(block, /\{ path: 'policies' \}/);
-	// The index and policies children are element-less: they render nothing into
-	// the Outlet, so the workspace shell above them never unmounts.
-	assert.doesNotMatch(block, /\{ index: true, element:/);
-	assert.doesNotMatch(block, /path: 'policies', element:/);
+	assert.match(block, /\{ index: true, element: null \}/);
+	assert.match(block, /\{ path: 'policies', element: null \}/);
+	// The index and policies children render an explicit `null` element: nothing
+	// into the Outlet, so the workspace shell above them never unmounts. The
+	// explicit null (vs an element-less child) also clears the router's
+	// element-less leaf warning.
+	assert.doesNotMatch(block, /\{ index: true \},/);
+	assert.doesNotMatch(block, /path: 'policies' \},/);
 });
 
 test('UX-R03a row 1: ScheduleReview mounts the workspace once plus an Outlet', () => {

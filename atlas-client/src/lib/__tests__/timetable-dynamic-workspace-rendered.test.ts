@@ -245,8 +245,8 @@ test('R1 a run-wide blocking HARD renders a truthful publish block', () => {
 		blockingHardCount: 1,
 		summary: { assignedCount: 5, classesProcessed: 5, hardViolationCount: 1, unassignedCount: 0 },
 	});
-	assert.match(markup, /data-testid="timetable-publish-readiness-summary"/);
-	assert.match(markup, /1 hard blocker/);
+	assert.match(markup, /data-testid="timetable-simple-readiness-chip"/);
+	assert.match(markup, /1 blocker/);
 });
 
 test('R1 a legacy non-blocking HARD does not block publish', () => {
@@ -292,11 +292,13 @@ test('R7 Simple renders the setup-sync entry point from the shared drift surface
 		),
 		blockingHardCount: 0,
 	});
-	// The drift banner renders the live setup-sync entry point plus the routed repair.
+	// A3 — the drift message renders inside the single status region; the
+	// setup-input repairs (Fix rooms / Preview impact / Sync with setup) are
+	// relocated to the `/timetable/setup` sub-page, one click away.
 	assert.match(markup, /timetable-simple-input-drift/);
-	assert.match(markup, /timetable-simple-sync-setup/);
-	assert.match(markup, /timetable-simple-repair-rooms/);
-	assert.match(markup, /href="\/map"/);
+	assert.match(markup, /data-testid="timetable-simple-review-setup"/);
+	assert.doesNotMatch(markup, /timetable-simple-sync-setup/);
+	assert.doesNotMatch(markup, /timetable-simple-repair-rooms/);
 });
 
 // --- F3/Ux-quickfix: the no-run primary action is never absent and never a dead self-link ---
@@ -340,7 +342,7 @@ test('ALGORITHM_LIMIT/self-route repair renders a real in-place primary action, 
 		curriculumReadiness: blockedReadiness('SEARCH_LIMIT_UNRESOLVED', 'ALGORITHM_LIMIT'),
 	});
 	// The empty state references the primary action, so it must exist.
-	assert.match(markup, /No timetable exists for/);
+	assert.match(markup, /data-testid="timetable-simple-next-action"/);
 	assert.match(markup, /data-testid="timetable-simple-primary-action"/);
 	// It must be a real in-place button (re-run readiness), not a dead self-link.
 	assert.match(markup, /<button[^>]*data-testid="timetable-simple-primary-action"/);

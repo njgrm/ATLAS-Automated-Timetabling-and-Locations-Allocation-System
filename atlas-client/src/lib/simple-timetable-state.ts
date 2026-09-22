@@ -254,7 +254,7 @@ export type AutoSaveEligibilityInput = {
 };
 
 export type AutoSaveDecision =
-	| { kind: 'auto-commit' }
+	| { kind: 'preview-confirm'; softCount: number }
 	| { kind: 'review-soft'; softCount: number }
 	| { kind: 'review-blocked'; hardTitle: string | null }
 	| { kind: 'review-no-room' }
@@ -269,6 +269,8 @@ export function decideAutoSavePlacement(input: AutoSaveEligibilityInput): AutoSa
 	if (input.forceReview) return { kind: 'review-no-room' };
 	if (!input.preview) return { kind: 'review-no-preview' };
 	if (!input.preview.allowed) return { kind: 'review-blocked', hardTitle: null };
+	// B1 — a clean slot no longer commits immediately. It becomes an inline
+	// preview with one Confirm, so the consequence is stated before saving.
 	if (input.preview.softViolations.length > 0) return { kind: 'review-soft', softCount: input.preview.softViolations.length };
-	return { kind: 'auto-commit' };
+	return { kind: 'preview-confirm', softCount: 0 };
 }
