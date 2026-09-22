@@ -589,6 +589,7 @@ export function useScheduleReviewWorkspaceState() {
 	// Term 1 (or to expose fabricated term options).
 	const activeTermContext = schoolYearContext?.activeTerm ?? null;
 	const orderedTerms: OrderedAcademicTerm[] | null = activeTermContext?.orderedTerms ?? null;
+	const orderedTermsKey = orderedTerms?.map((term) => `${term.identity}:${term.displayLabel}:${term.order}`).join('|') ?? '';
 	const hasVerifiedTermAuthority = Boolean(
 		activeTermContext?.verified === true
 		&& activeTermContext.termIndex != null
@@ -622,7 +623,7 @@ export function useScheduleReviewWorkspaceState() {
 		setTermFilter((current) => hasVerifiedTermAuthority
 			? repairTermFilter(current, orderedTerms)
 			: 'all');
-	}, [hasVerifiedTermAuthority, orderedTerms, schoolYearId]);
+	}, [hasVerifiedTermAuthority, orderedTermsKey, schoolYearId]);
 
 	const resetTermScopedUiRef = useRef<() => void>(() => {});
 	const handleTermFilterChange = useCallback((value: 'all' | number) => {
