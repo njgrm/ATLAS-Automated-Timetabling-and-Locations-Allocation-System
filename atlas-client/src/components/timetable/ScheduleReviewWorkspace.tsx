@@ -19,6 +19,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import type { ScheduledEntry } from '@/types';
 import { isDraftPublishedStrict } from '@/components/timetable/timetableWorkspaceTruth';
 import { TimetableUndoRedoControl } from '@/components/timetable/TimetableUndoRedoControl';
+import { dispatchUndoByLedger } from '@/components/timetable/timetableUndoRedoState';
 import { createSwapArmHandler } from '@/components/timetable/timetableSwapArming';
 import { buildScopeKey, clearScopeState, shouldClearForScopeChange } from '@/components/timetable/timetableScopeHygiene';
 import { YEAR_SETUP_HREF } from '@/lib/timetable-capabilities';
@@ -381,7 +382,14 @@ export default function ScheduleReviewWorkspace() {
 							className="h-11 shrink-0 gap-1.5 text-sm"
 							data-testid="timetable-auto-save-undo"
 							onClick={async () => {
-								const ok = await state.revertEditById(state.lastAutoSaveUndo!.editId, state.lastAutoSaveUndo!.newVersion);
+								// C11 — a pre-generation draft placement lives in the draft
+								// ledger, so its Undo must revert that ledger; genuine run
+								// manual edits keep the run manual-edits revert.
+								const target = state.lastAutoSaveUndo!;
+								const ok = await dispatchUndoByLedger(target, {
+									revertRunEdit: state.revertEditById,
+									revertDraftEdit: state.revertDraftEditById,
+								});
 								if (ok) {
 									state.setLastAutoSaveUndo(null);
 									state.setInlineActionStatus({ tone: 'success', message: 'Edit reverted.' });

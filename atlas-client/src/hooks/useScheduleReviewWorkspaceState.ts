@@ -342,6 +342,8 @@ export function useScheduleReviewWorkspaceState() {
 	const [assignPickerSaving, setAssignPickerSaving] = useState(false);
 	const [inlineActionStatus, setInlineActionStatus] = useState<{ tone: 'loading' | 'success' | 'warning' | 'error'; message: string } | null>(null);
 	const [lastAutoSaveUndo, setLastAutoSaveUndo] = useState<{
+		/** C11 — which ledger owns this Undo target (`draft` or run manual edits). */
+		ledger: 'run' | 'draft';
 		editId: number;
 		newVersion: number;
 		subjectLabel: string;
@@ -702,6 +704,7 @@ export function useScheduleReviewWorkspaceState() {
 		commitTeachingLoadRepair,
 		revertLastEdit,
 		revertEditById,
+		revertDraftEditById,
 		redoState,
 		redoVersionStale,
 		redoLastEdit,
@@ -838,6 +841,9 @@ export function useScheduleReviewWorkspaceState() {
 		const result = await commitPreGenPending();
 		if (result && preGenPending) {
 			setLastAutoSaveUndo({
+				// C11 — the draft commit authors the draft ledger, so Undo must
+				// revert the draft ledger, not the run manual-edits ledger.
+				ledger: 'draft',
 				editId: result.operationId,
 				newVersion: result.resultingVersion,
 				subjectLabel: subjectLabel ? subjectLabel(preGenPending.subjectId) : 'Draft placement',
@@ -863,6 +869,8 @@ export function useScheduleReviewWorkspaceState() {
 		if (!result || !ctx) return;
 		const draftSubjectId = ctx.source.type === 'draftQueue' ? ctx.source.item.subjectId : ctx.source.placement.subjectId;
 		setLastAutoSaveUndo({
+			// C11 — the dialog commits the same pre-generation draft ledger.
+			ledger: 'draft',
 			editId: result.operationId,
 			newVersion: result.resultingVersion,
 			subjectLabel: subjectLabel ? subjectLabel(draftSubjectId) : 'Draft placement',
@@ -1229,6 +1237,8 @@ export function useScheduleReviewWorkspaceState() {
 			}
 			const { preview } = pending;
 			setLastAutoSaveUndo({
+				// C11 — a genuine run manual edit keeps the run manual-edits revert.
+				ledger: 'run',
 				editId: commitResult.editId,
 				newVersion: commitResult.newVersion,
 				subjectLabel: preview.subjectLabel,
@@ -1417,6 +1427,8 @@ export function useScheduleReviewWorkspaceState() {
 				return;
 			}
 			setLastAutoSaveUndo({
+				// C11 — a genuine run manual edit keeps the run manual-edits revert.
+				ledger: 'run',
 				editId: commitResult.editId,
 				newVersion: commitResult.newVersion,
 				subjectLabel: subjectLabel ? subjectLabel(item.subjectId) : `Session ${item.session}`,
@@ -1555,6 +1567,8 @@ export function useScheduleReviewWorkspaceState() {
 				return;
 			}
 			setLastAutoSaveUndo({
+				// C11 — a genuine run manual edit keeps the run manual-edits revert.
+				ledger: 'run',
 				editId: commitResult.editId,
 				newVersion: commitResult.newVersion,
 				subjectLabel: proposal.subjectId != null ? subjectLabel(proposal.subjectId) : 'Session',
@@ -1671,6 +1685,8 @@ export function useScheduleReviewWorkspaceState() {
 				return;
 			}
 			setLastAutoSaveUndo({
+				// C11 — a genuine run manual edit keeps the run manual-edits revert.
+				ledger: 'run',
 				editId: commitResult.editId,
 				newVersion: commitResult.newVersion,
 				subjectLabel: proposal.subjectId != null ? subjectLabel(proposal.subjectId) : 'Session',
@@ -1839,7 +1855,7 @@ export function useScheduleReviewWorkspaceState() {
 		headerContext.curriculumReadiness = curriculumReadiness;
 		const dialogContext = buildDialogContext({ showUnassignConfirm, setShowUnassignConfirm, setPendingUnassignId, pendingUnassignId, unassignDraftPlacement, showGenerateConfirm, setShowGenerateConfirm, enforceShiftWindows, setEnforceShiftWindows, draftBoardSummary, followUps, confirmGenerate, activeSchoolYearLabel: schoolYearContext?.activeSchoolYearLabel ?? null, schoolYearSource: schoolYearContext?.source ?? null, showResetDraftDialog, setShowResetDraftDialog, openPreGenerationWorkspace, showLeavePreGenDialog, setShowLeavePreGenDialog, pendingCenterSwitch, setPendingCenterSwitch, requestPreview, requestPreviewLoading, setRequestPreview, setSelectedRequestId, setRequestAppeals, setAppealReason, requestPreviewHardConflicts, requestPreviewSoftWarnings, requestAppeals, appealsLoading, isPrivilegedUser, updateAppealStatus, appealReason, appealSubmitting, submitAppeal, requestReviewerNotes, setRequestReviewerNotes, requestReviewSaving, reviewRoomRequest, generating, generationElapsed, showPublishDialog, setShowPublishDialog, publishAcknowledged, setPublishAcknowledged, softCount, publishUnassignedCount: summary?.unassignedCount ?? 0, policy, handlePublishConfirm, captureReviewFocusReturn, restoreReviewFocus, showPreGenConfirm, setShowPreGenConfirm, setPreGenConfirmCtx, setConfirmPreview, setConfirmRawPreview, setConfirmPreviewError, setConfirmAllowSoftOverride, setConfirmAllowDailyOverride, preGenConfirmCtx, confirmFacultyId, setConfirmFacultyId, confirmPreview, confirmRoomId, setConfirmRoomId, facultyMap, roomMap, confirmPreviewLoading, confirmPreviewError, confirmDisplacedPlacement, toast, openSwapPrompt, confirmAllowDailyOverride, confirmSaving, commitConfirmPlacement: wrappedCommitConfirmPlacement, showSwapConfirm, setShowSwapConfirm, setSwapAction, swapAction, formatFacultyInitials, roomLabelShort, subjectLabel, sectionLabel, swapSaving, executeSwapAction, swapPreview, regularSwapPreview, regularSwapPending, setRegularSwapPending, regularSwapSaving, regularSwapStrategy, setRegularSwapStrategy, executeRegularSwap, showSoftConfirm, setShowSoftConfirm, softConfirmWarnings, commitLoading, formatConstraintMessage, setPendingCommitProposal, setPreviewResult, setSoftConfirmWarnings, setDragItem, pendingCommitProposal, commitEdit, showAssignmentPicker, setShowAssignmentPicker, setAssignPickerTarget, assignPickerTarget, assignPickerFacultyId, setAssignPickerFacultyId, assignPickerRoomId, setAssignPickerRoomId, assignPickerPreview, assignPickerPreviewLoading, assignPickerPreviewError, assignPickerSaving, confirmAssignmentPicker, showEditHistory, setShowEditHistory, editHistory, revertEditById, revertLoading, currentRunVersion: draft?.version ?? null });
 		const overlaysContext = buildOverlaysContext({ dialogContext, tutorial, userRole, blockerModalData, setBlockerModalData, showExplainDrawer, setDrawerViolation, setDrawerUnassigned, drawerViolation, drawerUnassigned, formatDrawerMessage: formatConstraintMessage });
-		return { leftRailContentContext, centerWorkspaceContext, rightPanelContext, headerContext, overlaysContext, dialogContext, lastAutoSaveUndo, setLastAutoSaveUndo, inlinePlacementPending, inlinePlacementSaving, inlinePlacementRoomChanging, inlinePlacementRoomOptions, confirmInlinePlacement, changeInlinePlacementRoom, cancelInlinePlacement, revertEditById, redoState, redoVersionStale, redoLastEdit, clearRedo, swapClassTimesMode, setSwapClassTimesMode, swapClassAEntryId, swapClassBEntryId, setSwapClassAEntryId, setSwapClassBEntryId };
+		return { leftRailContentContext, centerWorkspaceContext, rightPanelContext, headerContext, overlaysContext, dialogContext, lastAutoSaveUndo, setLastAutoSaveUndo, inlinePlacementPending, inlinePlacementSaving, inlinePlacementRoomChanging, inlinePlacementRoomOptions, confirmInlinePlacement, changeInlinePlacementRoom, cancelInlinePlacement, revertEditById, revertDraftEditById, redoState, redoVersionStale, redoLastEdit, clearRedo, swapClassTimesMode, setSwapClassTimesMode, swapClassAEntryId, swapClassBEntryId, setSwapClassAEntryId, setSwapClassBEntryId };
 	})();
 
 	const prevContextsRef = useRef<typeof rawWorkspaceContexts | null>(null);

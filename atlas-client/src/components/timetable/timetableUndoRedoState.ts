@@ -66,3 +66,36 @@ export async function dispatchRedo(
 	await revert(target.operationId, target.expectedVersion);
 	return { dispatched: true, stale: false };
 }
+
+/**
+ * C11 — which ledger owns an Undo target. Pre-generation draft placements are
+ * authored in the draft ledger (`lockedSessionAction`) and their commit returns
+ * the draft-ledger action id as both `operationId` and `resultingVersion`.
+ * Dispatching that id to the run manual-edits revert CASes against
+ * `run.version` and always 409s (`UNDO_CONFLICT`), so the draft target must go
+ * to the draft-ledger undo endpoint. Genuine run manual edits keep the run
+ * manual-edits revert.
+ */
+export type UndoLedger = 'run' | 'draft';
+
+export type UndoTarget = {
+	ledger?: UndoLedger;
+	editId: number;
+	newVersion: number;
+};
+
+export type UndoDispatchHandlers = {
+	revertRunEdit: (operationId: number, expectedVersion: number) => Promise<boolean>;
+	revertDraftEdit: (operationId: number, expectedVersion: number) => Promise<boolean>;
+};
+
+/**
+ * Route an Undo by the ledger that owns the operation. A target with no explicit
+ * ledger predates C11 and is the only ledger that existed then: a run edit.
+ */
+export function dispatchUndoByLedger(target: UndoTarget, handlers: UndoDispatchHandlers): Promise<boolean> {
+	if (target.ledger === 'draft') {
+		return handlers.revertDraftEdit(target.editId, target.newVersion);
+	}
+	return handlers.revertRunEdit(target.editId, target.newVersion);
+}
