@@ -2,7 +2,7 @@
 
 **Verdict: ACCEPT_SOURCE_CORRECTION**
 
-Base: `2f162ccd2d73592f9d0b8854b92e3ce11e30675a`  
+Base: `2f162ccd2d73592f9d0b8854b92e3ce11e30675a`
 Candidate: `2ed471db78a615921b336d5abff0c9bf8bf5531d`
 
 The additive correction extends the real local `/timetable` Playwright lifecycle
