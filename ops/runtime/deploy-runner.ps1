@@ -57,10 +57,7 @@ function Save-SchtasksXml([string] $Name, [string] $Path) {
     [IO.File]::ReadAllBytes($Path)
 }
 
-function Replace-TaskSourceBytes([byte[]] $XmlBytes, [string] $Incumbent, [string] $Target) {
-    $ascii = [Text.Encoding]::ASCII
-    $oldBytes = $ascii.GetBytes($Incumbent)
-    $newBytes = $ascii.GetBytes($Target)
+function Replace-ByteSequence([byte[]] $XmlBytes, [byte[]] $OldBytes, [byte[]] $NewBytes) {
     $result = [Collections.Generic.List[byte]]::new()
     $matches = 0
     for ($i = 0; $i -lt $XmlBytes.Length;) {
@@ -80,8 +77,29 @@ function Replace-TaskSourceBytes([byte[]] $XmlBytes, [string] $Incumbent, [strin
             $i++
         }
     }
-    if ($matches -ne 2) { Fail "Expected exactly two incumbent task-path references; found $matches." }
-    return [byte[]]$result.ToArray()
+    [pscustomobject]@{ Bytes = [byte[]]$result.ToArray(); Matches = $matches }
+}
+
+function Replace-TaskSourceBytes([byte[]] $XmlBytes, [string] $Incumbent, [string] $Target) {
+    # Prefer the encoding proven by a BOM. Without a BOM, schtasks emits an
+    # ASCII-compatible stream on this host; UTF-8 is also accepted for a
+    # declaration/body pair that contains non-ASCII task metadata.
+    $encodings = [Collections.Generic.List[Text.Encoding]]::new()
+    if ($XmlBytes.Length -ge 2 -and $XmlBytes[0] -eq 0xff -and $XmlBytes[1] -eq 0xfe) {
+        $encodings.Add([Text.Encoding]::Unicode)
+    } elseif ($XmlBytes.Length -ge 2 -and $XmlBytes[0] -eq 0xfe -and $XmlBytes[1] -eq 0xff) {
+        $encodings.Add([Text.Encoding]::BigEndianUnicode)
+    } elseif ($XmlBytes.Length -ge 3 -and $XmlBytes[0] -eq 0xef -and $XmlBytes[1] -eq 0xbb -and $XmlBytes[2] -eq 0xbf) {
+        $encodings.Add([Text.Encoding]::UTF8)
+    } else {
+        $encodings.Add([Text.Encoding]::ASCII)
+        $encodings.Add([Text.Encoding]::UTF8)
+    }
+    foreach ($encoding in $encodings) {
+        $replacement = Replace-ByteSequence $XmlBytes $encoding.GetBytes($Incumbent) $encoding.GetBytes($Target)
+        if ($replacement.Matches -eq 2) { return $replacement.Bytes }
+    }
+    Fail 'Expected exactly two incumbent task-path references in the task XML encoding.'
 }
 
 function Get-MachineIdentity([string] $ExpectedSource, [string] $ExpectedSha, [string] $ExpectedEnv) {
@@ -163,6 +181,7 @@ if (-not $Execute) {
 $oldSource = $machine.SourceDir
 $oldSha = $machine.ReleaseSha
 $quiesced = $false
+$portsCleared = $false
 try {
     Invoke-Native 'schtasks' @('/create', '/tn', $TaskName, '/xml', $targetXmlPath, '/f') | Out-Null
     [Environment]::SetEnvironmentVariable('ATLAS_RUNTIME_SOURCE_DIR', $TargetSourceDir, 'Machine')
@@ -170,6 +189,9 @@ try {
     Invoke-Native 'taskkill' @('/PID', [string]$lineage.SupervisorPid, '/T', '/F') | Out-Null
     $quiesced = $true
     Start-Sleep -Seconds 10
+    $remainingListeners = foreach ($port in @(5001, 5174)) { @(Get-NetTCPConnection -State Listen -LocalPort $port -ErrorAction SilentlyContinue) }
+    if (@($remainingListeners).Count -ne 0) { Fail 'Supervisor ports did not clear after targeted task-tree shutdown.' }
+    $portsCleared = $true
     Invoke-Native 'schtasks' @('/run', '/tn', $TaskName) | Out-Null
     [pscustomobject]@{ result = 'CUTOVER_STARTED'; releaseSha = $TargetSha; auditDirectory = $audit; plan = $planPath } | ConvertTo-Json -Depth 5
 }
@@ -177,7 +199,7 @@ catch {
     [Environment]::SetEnvironmentVariable('ATLAS_RUNTIME_SOURCE_DIR', $oldSource, 'Machine')
     [Environment]::SetEnvironmentVariable('ATLAS_RUNTIME_RELEASE_SHA', $oldSha, 'Machine')
     Invoke-Native 'schtasks' @('/create', '/tn', $TaskName, '/xml', $xmlPath, '/f') | Out-Null
-    if ($quiesced) { Invoke-Native 'schtasks' @('/run', '/tn', $TaskName) | Out-Null }
+    if ($quiesced -and $portsCleared) { Invoke-Native 'schtasks' @('/run', '/tn', $TaskName) | Out-Null }
     throw
 }
 }

@@ -30,10 +30,27 @@ test('byte-preserving task path replacement keeps the XML declaration and requir
 	assert.equal(result.stdout.trim(), '<?xml version="1.0" encoding="UTF-16"?><A>C:/new/pathxx C:/new/pathxx</A>');
 });
 
+test('task path replacement supports a BOM-marked UTF-16LE task export', () => {
+	const command = [
+		`\. '${runner.replaceAll("'", "''")}'`,
+		`$xml = '<?xml version="1.0" encoding="UTF-16"?><A>C:/old/pathxx C:/old/pathxx</A>'`,
+		`$encoding = [Text.UnicodeEncoding]::new($false, $true)`,
+		`$bytes = $encoding.GetPreamble() + $encoding.GetBytes($xml)`,
+		`$out = Replace-TaskSourceBytes $bytes 'C:/old/pathxx' 'C:/new/pathxx'`,
+		`([BitConverter]::ToString($out[0..1]) + '|' + [Text.UnicodeEncoding]::new($false, $true).GetString($out))`,
+	].join('; ');
+	const result = spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', command], { encoding: 'utf8' });
+	assert.equal(result.status, 0, result.stderr || result.stdout);
+	assert.equal(result.stdout.trim(), 'FF-FE|\ufeff<?xml version="1.0" encoding="UTF-16"?><A>C:/new/pathxx C:/new/pathxx</A>');
+});
+
 test('runner narrows process termination to the resolved supervisor PID tree', () => {
 	assert.match(source, /taskkill.*\/PID.*\/T.*\/F/);
 	assert.doesNotMatch(source, /taskkill.*\/IM/i);
 	assert.match(source, /CommandLine -notlike.*ops\\runtime\\cli\.mjs/);
+	assert.match(source, /remainingListeners/);
+	assert.match(source, /portsCleared/);
+	assert.match(source, /remainingListeners.*Count -ne 0/);
 });
 
 test('runner cannot turn into a build, install, migration, or database operation', () => {
