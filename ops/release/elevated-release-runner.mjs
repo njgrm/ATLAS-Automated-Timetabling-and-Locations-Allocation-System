@@ -31,14 +31,13 @@ export function parseArgs(argv) {
 		else fail('ARGUMENT_REJECTED', `Unsupported argument: ${arg}`);
 	}
 	if (values.help) return values;
-	if (!['preflight', 'cutover'].includes(values.mode)) fail('ARGUMENT_REJECTED', 'Mode must be preflight or cutover.');
+	if (values.mode !== 'preflight') fail('ARGUMENT_REJECTED', 'Only read-only preflight is supported by this operator runner.');
 	if (typeof values.sha !== 'string' || !SHA.test(values.sha)) fail('SHA_REJECTED', 'SHA must be exactly 40 hexadecimal characters.');
 	if (typeof values.releaseRoot !== 'string' || !path.win32.isAbsolute(values.releaseRoot)) fail('RELEASE_ROOT_REJECTED', 'Release root must be an absolute Windows path.');
 	if (values.releaseRoot.includes('..') || /[\r\n"']/u.test(values.releaseRoot)) fail('RELEASE_ROOT_REJECTED', 'Release root contains forbidden path characters.');
 	const name = path.win32.basename(values.releaseRoot.replace(/[\\/]$/u, ''));
 	const match = RELEASE_ROOT.exec(name);
 	if (!match || match[1].toLowerCase() !== values.sha.slice(0, 12).toLowerCase()) fail('RELEASE_ROOT_REJECTED', 'Release root must be the approved SHA-prefixed supervised release directory.');
-	if (values.mode === 'cutover' && !values.approved) fail('CUTOVER_APPROVAL_REQUIRED', 'Cutover requires the explicit --approve-cutover flag.');
 	return { ...values, sha: values.sha.toLowerCase() };
 }
 
@@ -46,6 +45,7 @@ function safeEnvironment(env) {
 	return {
 		sourceDir: env.ATLAS_RUNTIME_SOURCE_DIR || null,
 		releaseSha: env.ATLAS_RUNTIME_RELEASE_SHA || null,
+		environmentKeys: ['ATLAS_RUNTIME_SOURCE_DIR', 'ATLAS_RUNTIME_RELEASE_SHA', 'ATLAS_RUNTIME_ENV_FILE'],
 		taskName: 'ATLAS-Runtime-Supervisor',
 	};
 }
@@ -93,7 +93,7 @@ export function collectReadOnlyMetadata(env = process.env, runner = execFileSync
 
 export function runRelease(argv, options = {}) {
 	const args = parseArgs(argv);
-	if (args.help) return { exitCode: 0, output: 'Usage: elevated-release-runner.mjs --sha <40-hex> --release-root <approved-root> [--mode preflight|cutover] [--approve-cutover]' };
+	if (args.help) return { exitCode: 0, output: 'Usage: elevated-release-runner.mjs --sha <40-hex> --release-root <approved-root> --mode preflight' };
 	if (FORBIDDEN.test(argv.join(' '))) fail('FORBIDDEN_OPERATION', 'Migration, schema, seed, reset, and database commands are never accepted.');
 	const root = args.releaseRoot;
 	const head = options.resolveHead ? options.resolveHead(root) : execFileSync('git.exe', ['-C', root, 'rev-parse', 'HEAD'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim().toLowerCase();
@@ -102,14 +102,14 @@ export function runRelease(argv, options = {}) {
 	const result = {
 		schema: 'atlas-elevated-release-preflight/v1',
 		mode: args.mode,
-		readOnly: args.mode === 'preflight',
+		readOnly: true,
 		cutoverExecuted: false,
 		approvedSha: args.sha,
 		releaseRoot: root,
 		releaseHead: head,
 		incumbent: metadata,
 		rollback: { required: true, source: metadata.environment.sourceDir, sha: metadata.environment.releaseSha },
-		message: args.mode === 'preflight' ? 'Preflight captured; no task, runtime, database, or release files were changed.' : 'Cutover approval recorded; execution is intentionally delegated to the separately reviewed HIGH packet.',
+		message: 'Preflight captured; no task, runtime, database, or release files were changed.',
 	};
 	return { exitCode: 0, output: JSON.stringify(result, null, 2) };
 }

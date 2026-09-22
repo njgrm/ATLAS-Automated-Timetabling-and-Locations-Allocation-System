@@ -2,5 +2,5 @@
   "schema": 1,
   "trustedAncestor": "8697c6960d8372456d883b95848b5e2f3400dcbf",
   "runnerPath": "ops/release/elevated-release-runner.mjs",
-  "runnerSha256": "67e032936b36cf3f4ad8103d1187eba9f726183a37befd5f0f7305bdb2a0a3e8"
+  "runnerSha256": "b65913e6c890f702240a8b0994f54a95b31903112340d7124b807ab246d733cd"
 }
