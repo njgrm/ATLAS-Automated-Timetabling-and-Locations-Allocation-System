@@ -501,6 +501,7 @@ export function useScheduleReviewWorkspaceState() {
 		programFilter,
 		entryKindFilter,
 		termFilter,
+		userOverrodeTermFilter,
 		leftTab,
 		setLeftTab,
 		unassignedReasonFilter,
@@ -583,35 +584,45 @@ export function useScheduleReviewWorkspaceState() {
 		});
 	}, [fetchReferenceData, isPreGenerationWorkspace, roomMap.size, schoolYearId]);
 
-	// The verified ordered EnrollPro term contract drives the term filter. Labels
-	// are exact; T1/T2/... is only the fail-closed fallback.
-	const orderedTerms: OrderedAcademicTerm[] | null = schoolYearContext?.activeTerm?.orderedTerms ?? null;
+	// The verified ordered EnrollPro term contract drives the term filter. A
+	// missing or unverified contract is setup-required, not permission to guess
+	// Term 1 (or to expose fabricated term options).
+	const activeTermContext = schoolYearContext?.activeTerm ?? null;
+	const orderedTerms: OrderedAcademicTerm[] | null = activeTermContext?.orderedTerms ?? null;
+	const hasVerifiedTermAuthority = Boolean(
+		activeTermContext?.verified === true
+		&& activeTermContext.termIndex != null
+		&& orderedTerms?.some((term) => term.order === activeTermContext.termIndex),
+	);
 	const termOptions = useMemo(
-		() => buildAcademicTermOptions(orderedTerms, schoolYearContext?.activeTerm?.termIndex ?? null),
-		[orderedTerms, schoolYearContext?.activeTerm?.termIndex],
+		() => hasVerifiedTermAuthority
+			? buildAcademicTermOptions(orderedTerms, activeTermContext?.termIndex ?? null)
+			: [{ value: 'all', label: 'All terms' }],
+		[activeTermContext?.termIndex, hasVerifiedTermAuthority, orderedTerms],
 	);
 
 	// Default term filter to active term when available (unless user manually overrode)
 	useEffect(() => {
 		if (userOverrodeTermFilter) return;
-		const activeTermIndex = schoolYearContext?.activeTerm?.termIndex;
-		const contractTerms = schoolYearContext?.activeTerm?.orderedTerms ?? null;
+		const activeTermIndex = activeTermContext?.termIndex;
+		const contractTerms = orderedTerms;
 		const withinContract = activeTermIndex != null
-			&& (contractTerms && contractTerms.length > 0
-				? contractTerms.some((term) => term.order === activeTermIndex)
-				: activeTermIndex >= 1);
+			&& hasVerifiedTermAuthority
+			&& Boolean(contractTerms?.some((term) => term.order === activeTermIndex));
 		if (withinContract) {
 			setTermFilter(activeTermIndex);
 		}
-	}, [schoolYearContext?.activeTerm?.termIndex, schoolYearContext?.activeTerm?.orderedTerms, userOverrodeTermFilter]);
+	}, [activeTermContext?.termIndex, hasVerifiedTermAuthority, orderedTerms, userOverrodeTermFilter]);
 
 	// Reset user override and repair an invalid selection when the school year or
 	// the ordered contract changes; never dispatch a request for a term absent
 	// from the current contract.
 	useEffect(() => {
 		setUserOverrodeTermFilter(false);
-		setTermFilter((current) => repairTermFilter(current, schoolYearContext?.activeTerm?.orderedTerms ?? null));
-	}, [schoolYearId, schoolYearContext?.activeTerm?.orderedTerms]);
+		setTermFilter((current) => hasVerifiedTermAuthority
+			? repairTermFilter(current, orderedTerms)
+			: 'all');
+	}, [hasVerifiedTermAuthority, orderedTerms, schoolYearId]);
 
 	const resetTermScopedUiRef = useRef<() => void>(() => {});
 	const handleTermFilterChange = useCallback((value: 'all' | number) => {

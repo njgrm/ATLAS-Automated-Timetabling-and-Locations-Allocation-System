@@ -233,6 +233,7 @@ type UseTimetableDataInput = {
 	programFilter: ProgramFilter;
 	entryKindFilter: EntryKindFilter;
 	termFilter: 'all' | number;
+	userOverrodeTermFilter: boolean;
 	leftTab: 'violations' | 'unassigned' | 'pinned' | 'requests';
 	setLeftTab: React.Dispatch<React.SetStateAction<'violations' | 'unassigned' | 'pinned' | 'requests'>>;
 	unassignedReasonFilter: UnassignedReason | 'all';
@@ -280,6 +281,32 @@ type UseTimetableDataInput = {
 	setPreGenKbSource: React.Dispatch<React.SetStateAction<any>>;
 	setKbSelectedSource: React.Dispatch<React.SetStateAction<any>>;
 };
+
+export type TimetableTermScopeState = {
+	authorityReady: boolean;
+	queryEnabled: boolean;
+	termIndex: 'all' | number | null;
+	status: 'checking' | 'setup-required' | 'active';
+};
+
+/**
+ * Resolve the route's term gate before any run query is enabled. The initial
+ * unscoped state is deliberately distinct from a deliberate All terms choice.
+ */
+export function resolveTimetableTermScopeState(
+	activeTerm: ActiveSchoolYearContext['activeTerm'] | null | undefined,
+	termFilter: 'all' | number,
+	userOverrodeTermFilter: boolean,
+): TimetableTermScopeState {
+	if (!activeTerm) return { authorityReady: false, queryEnabled: false, termIndex: null, status: 'checking' };
+	const authorityReady = activeTerm.verified === true
+		&& activeTerm.termIndex != null
+		&& Boolean(activeTerm.orderedTerms?.some((term) => term.order === activeTerm.termIndex));
+	if (!authorityReady) return { authorityReady: false, queryEnabled: false, termIndex: null, status: 'setup-required' };
+	if (typeof termFilter === 'number') return { authorityReady: true, queryEnabled: true, termIndex: termFilter, status: 'active' };
+	if (userOverrodeTermFilter) return { authorityReady: true, queryEnabled: true, termIndex: 'all', status: 'active' };
+	return { authorityReady: true, queryEnabled: false, termIndex: null, status: 'active' };
+}
 
 export type TimetableDataState = {
 	schoolId: number | null;
@@ -461,6 +488,7 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 	const selectedRunIdRef = useRef(selectedRunId);
 	const latestRunDataFetchSeqRef = useRef(0);
 	const [schoolYearContext, setSchoolYearContext] = useState<ActiveSchoolYearContext | null>(null);
+	const termAuthorityReadyRef = useRef(false);
 	const [schoolId, setSchoolId] = useState<number | null>(null);
 	const resolvedSchoolIdRef = useRef<number | null>(null);
 	const generationReadinessSeqRef = useRef(0);
@@ -579,7 +607,12 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 		|| (centerView === 'map' && (preGenOnboarding || preGenMapContext))
 		|| (centerView === 'building' && preGenMapContext);
 
-	const activeGridEntriesBase = useMemo(() => isPreGenerationWorkspace ? preGenEntries : (draft?.entries ?? []), [isPreGenerationWorkspace, preGenEntries, draft]);
+	const termScope = resolveTimetableTermScopeState(schoolYearContext?.activeTerm, termFilter, input.userOverrodeTermFilter);
+	const termScopeReady = termScope.queryEnabled;
+	const activeGridEntriesBase = useMemo(
+		() => !termScopeReady ? [] : (isPreGenerationWorkspace ? preGenEntries : (draft?.entries ?? [])),
+		[isPreGenerationWorkspace, preGenEntries, draft, termScopeReady],
+	);
 
 	// GRID-SHAPE-AUTHORITY: resolve the shape contract(s) this entity actually
 	// consumes instead of the run-wide union of every shape. Section view renders
@@ -1171,6 +1204,11 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 		if (resolvedSchoolIdRef.current !== actorSchoolId) return null;
 		setSchoolId(actorSchoolId);
 		setSchoolYearContext({ ...context, schoolId: actorSchoolId });
+		termAuthorityReadyRef.current = Boolean(
+			context.activeTerm?.verified === true
+			&& context.activeTerm.termIndex != null
+			&& context.activeTerm.orderedTerms?.some((term) => term.order === context.activeTerm?.termIndex),
+		);
 		if (context.activeSchoolYearId) setSchoolYearId(context.activeSchoolYearId);
 		if (context.source === 'cache' || context.stale) {
 			void resolveActiveSchoolYearContext({
@@ -1182,6 +1220,11 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 				// A fresh response for an obsolete actor school must never bind.
 				if (resolvedSchoolIdRef.current !== actorSchoolId) return;
 				setSchoolYearContext({ ...freshContext, schoolId: actorSchoolId });
+				termAuthorityReadyRef.current = Boolean(
+					freshContext.activeTerm?.verified === true
+					&& freshContext.activeTerm.termIndex != null
+					&& freshContext.activeTerm.orderedTerms?.some((term) => term.order === freshContext.activeTerm?.termIndex),
+				);
 				if (freshContext.activeSchoolYearId) setSchoolYearId(freshContext.activeSchoolYearId);
 			}).catch(() => {
 				// Keep the visible cached/stale source state. The header will state that
@@ -1394,7 +1437,7 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 	const runBundleQuery = useQuery({
 		queryKey: timetableRunBundleQueryKey(currentScope),
 		queryFn: () => ensureTimetableRunBundle(currentScope),
-		enabled: isResolvedTimetableScope(currentScope),
+		enabled: isResolvedTimetableScope(currentScope) && termScopeReady,
 		staleTime: TIMETABLE_STALE_MS,
 		gcTime: TIMETABLE_GC_MS,
 		placeholderData: keepPreviousData,
@@ -1480,6 +1523,18 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 				setLoading(false);
 				return;
 			}
+			// Do not fetch runs, references, or a bundle with an implicit all-term
+			// scope while EnrollPro term authority is unresolved. The first enabled
+			// timetable request after authority resolves is the verified active term;
+			// an explicit All terms choice is only allowed after that point.
+			if (!termAuthorityReadyRef.current || (typeof termFilter !== 'number' && !input.userOverrodeTermFilter)) {
+				setRuns([]);
+				setDraft(null);
+				setViolationReport(null);
+				setError('Term setup is required before the timetable can be loaded.');
+				setLoading(false);
+				return;
+			}
 			await runTimetableLoad({
 				readResolvedSchoolId: () => resolvedSchoolIdRef.current,
 				currentSchoolId: schoolId,
@@ -1539,6 +1594,8 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 		setDraft,
 		setViolationReport,
 		setSelectedRunId,
+		termFilter,
+		input.userOverrodeTermFilter,
 	]);
 
 	useEffect(() => {
