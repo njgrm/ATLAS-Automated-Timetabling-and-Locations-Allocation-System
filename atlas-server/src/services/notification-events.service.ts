@@ -45,6 +45,37 @@ let disposeBridges: Array<() => void> = [];
 const subscribers = new Set<Subscriber>();
 const buffer: NotificationEvent[] = [];
 
+type DurableNotificationListener = (event: NotificationEvent) => void | Promise<unknown>;
+const durableListeners = new Set<DurableNotificationListener>();
+
+/**
+ * NOTIFICATION-INBOX-C01 (D3) — durable listener hook. Registered listeners
+ * persist what the stream already carries. They run fire-and-forget after the
+ * buffer push with errors logged and swallowed, mirroring the RR-08 rule: a
+ * dead durable listener must never break the publish path (or the process).
+ */
+export function registerDurableNotificationListener(listener: DurableNotificationListener): () => void {
+	durableListeners.add(listener);
+	return () => {
+		durableListeners.delete(listener);
+	};
+}
+
+function notifyDurableListeners(event: NotificationEvent): void {
+	for (const listener of durableListeners) {
+		try {
+			const result = listener(event);
+			if (result != null && typeof (result as Promise<unknown>).catch === 'function') {
+				(result as Promise<unknown>).catch((error: unknown) => {
+					console.error('[notification-events] durable listener failed:', error);
+				});
+			}
+		} catch (error) {
+			console.error('[notification-events] durable listener failed:', error);
+		}
+	}
+}
+
 function canReceive(subscriber: Subscriber, event: NotificationEvent): boolean {
 	if (subscriber.schoolId !== event.schoolId) {
 		return false;
@@ -85,6 +116,7 @@ export function publishNotificationEvent(
 	if (buffer.length > MAX_BUFFER) {
 		buffer.splice(0, buffer.length - MAX_BUFFER);
 	}
+	notifyDurableListeners(resolved);
 	for (const subscriber of subscribers) {
 		if (!canReceive(subscriber, resolved)) {
 			continue;
@@ -264,6 +296,19 @@ export function initializeNotificationEventBridges(): void {
 			});
 		}),
 	];
+
+	// NOTIFICATION-INBOX-C01 (D3): persist every published event to the
+	// durable per-actor inbox. The listener's errors never break publishing
+	// (see notifyDurableListeners). Lazy import keeps the events module free
+	// of a static cycle with the inbox persistence module.
+	void import('./notification-inbox.service.js').then(
+		(inbox) => {
+			disposeBridges.push(registerDurableNotificationListener((event) => inbox.persistNotificationEvent(event)));
+		},
+		(error: unknown) => {
+			console.error('[notification-events] failed to attach the durable inbox listener:', error);
+		},
+	);
 }
 
 export function disposeNotificationEventBridges(): void {

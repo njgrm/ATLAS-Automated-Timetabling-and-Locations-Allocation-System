@@ -47,6 +47,8 @@ import {
 	useNotificationStream,
 	type NotificationStreamEvent,
 } from '@/hooks/useNotificationStream';
+import { notifyNotificationInboxInvalidated } from '@/hooks/useNotificationInbox';
+import { NotificationBell } from '@/components/app-shell/NotificationBell';
 
 import { AppSidebar } from './app-shell/AppSidebar';
 import { AppBreadcrumbs } from './app-shell/PageHeader';
@@ -202,6 +204,10 @@ export function AppShell() {
 
 	const handleNotification = useCallback((event: NotificationStreamEvent) => {
 		if (isRolloverCompletionEvent(event)) void verifyActiveSchoolYear('event');
+		// NOTIFICATION-INBOX-C01 (D5): the stream keeps its job — a stream
+		// event only invalidates the durable inbox query so the bell updates
+		// live. No polling, no stream replacement.
+		notifyNotificationInboxInvalidated();
 	}, [verifyActiveSchoolYear]);
 
 	useNotificationStream({
@@ -487,6 +493,7 @@ export function AppShell() {
 								<span className='sr-only'>Open navigation menu</span>
 							</Button>
 							<div className='flex-1 truncate text-center text-sm font-semibold'>{currentPageTitle}</div>
+							<NotificationBell />
 							<Badge
 								variant='outline'
 								className={`h-7 px-2 text-xs ${isOnline ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-amber-200 bg-amber-50 text-amber-800'}`}
@@ -502,6 +509,7 @@ export function AppShell() {
 						<AppBreadcrumbs breadcrumbs={routeChrome.breadcrumbs} />
 
 						<div className='ml-auto flex items-center gap-2'>
+								<NotificationBell />
 								<AccessibilityMenu fontSize={fontSize} setFontSize={setFontSize} />
 								{activeTermLabel && (
 									<Badge

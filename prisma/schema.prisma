@@ -41,6 +41,7 @@ model School {
   programScopeRules          ProgramScopeRule[]
   crossDepartmentPermissions CrossDepartmentPermission[]
   teacherProgramPresentationRevisions TeacherProgramPresentationRevision[]
+  notifications              Notification[]
 
   @@map("schools")
 }
@@ -325,6 +326,7 @@ model AtlasAuthAccount {
   school             School         @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   faculty            FacultyMirror? @relation(fields: [facultyId], references: [id], onDelete: SetNull)
   companionSsoCodes  CompanionSsoCode[]
+  notifications      Notification[]
 
   @@index([schoolId, role])
   @@index([facultyId])
@@ -1333,4 +1335,32 @@ model TeacherProgramPresentationRevision {
   @@unique([schoolId, schoolYearId, revision], map: "uq_teacher_program_presentation_revision")
   @@index([schoolId, schoolYearId, createdAt], map: "idx_teacher_program_presentation_scope")
   @@map("teacher_program_presentation_revisions")
+}
+
+/// NOTIFICATION-INBOX-C01: durable per-actor inbox. Rows are created only by
+/// persistNotificationEvent from the live NotificationEvent stream; reads and
+/// writes are always constrained by the resolved actor (actorId) and actor school.
+model Notification {
+  id           Int      @id @default(autoincrement())
+  actorId      Int      @map("actor_id")
+  schoolId     Int      @map("school_id")
+  schoolYearId Int?     @map("school_year_id")
+  type         String   @db.VarChar(64)
+  title        String   @db.VarChar(200)
+  body         String?
+  domain       String   @db.VarChar(32)
+  severity     String   @db.VarChar(16)
+  resourceType String?  @map("resource_type") @db.VarChar(48)
+  resourceId   String?  @map("resource_id") @db.VarChar(64)
+  data         Json?
+  dedupeKey    String   @unique @map("dedupe_key") @db.VarChar(255)
+  read         Boolean  @default(false)
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  actor  AtlasAuthAccount @relation(fields: [actorId], references: [id], onDelete: Cascade)
+  school School           @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  @@index([actorId, read, createdAt], map: "idx_notifications_actor_read_created")
+  @@index([actorId, createdAt], map: "idx_notifications_actor_created")
+  @@map("notifications")
 }
