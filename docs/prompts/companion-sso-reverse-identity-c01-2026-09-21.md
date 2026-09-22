@@ -98,3 +98,73 @@ Return one handoff and one evidence artifact
 the R1–R5 results with literal output (including the exact assertion body for the staff account and
 the fail-closed case), the suites re-run, the companion handoff path, and risks marked
 `BLOCKING`/`NON_BLOCKING`. No secrets, tokens or credential values anywhere.
+
+---
+
+## 5. r1 amendment (planner, 2026-09-22) — supersedes §1 R2/R3/R5 and §2 where noted
+
+Read against the **real** EnrollPro contract at its recorded pin and the **current** ATLAS source.
+Three corrections; the rest of the packet stands.
+
+### A. R2 is corrected: **omit** empty names, do **not** send `""`
+EnrollPro's reverse-response schema (`D:/EnrollPro` @ `7b6231ee`,
+`shared/src/schemas/companion-sso.schema.ts:62-76`) declares:
+
+```
+identity: z.object({
+  userId:    z.number().int().positive().optional(),
+  subject:   z.string().min(1).max(191).optional(),
+  employeeId:z.string().nullable().optional(),
+  firstName: z.string().min(1).optional(),
+  lastName:  z.string().min(1).optional(),
+  roles:     z.array(RoleEnum).optional(),
+})
+```
+
+`firstName`/`lastName` are **optional but `min(1)` when present**, so `firstName: ""` **fails**
+validation (EnrollPro answers `502 COMPANION_REVERSE_SSO_RESPONSE_INVALID`). This is why
+`docs/handoffs/companion-sso-live-prep-c02-evidence.md:260` records that a name-less account fails.
+SMART's `?? ""` only works because its users carry names. **ATLAS must include `firstName` /
+`lastName` only when non-empty and omit the key otherwise.** R2's intent ("make the name optional")
+is unchanged; its literal form is corrected.
+
+EnrollPro never compares the asserted name: `assertUserCanEnterEnrollPro`
+(`server/src/features/auth/companion-sso-reverse.service.ts:411-419`) checks only `user.isActive`.
+`resolveUserById` (`:421-434`) prefers `userId`, then falls back to `employeeId`. Omitting names is
+therefore safe, and `employeeId` is the key that must be present (R3).
+
+### B. R1 is **already satisfied** — verify, do not re-implement
+The reverse assertion has sent `subject: ATLAS_USER:<account.id>` and has **never** sent a local
+numeric `userId`: `CompanionSsoAssertion` (`companion-sso.service.ts:826-841`) declares `subject` and
+has no `userId` field, and `buildAssertion` (`:1027`) emits `subject`. `git log -S 'userId: account.role'`
+returns a single occurrence, in the **Flow A local session** (`sessionUser`, `:571`) — that is the
+local JWT's identity, not the cross-system assertion.
+
+**The click-through findings' "Defect B" was a misattribution of that line.** Treat R1 as a
+verification row (assert the emitted assertion contains `subject` and **no** `userId`), not a change.
+Record the correction in the evidence so the companion handoff is not written on a false premise.
+
+### C. R3 becomes the primary behavioural change
+Fail closed **before** building the assertion when the resolved `employeeId` is absent
+(`account.employeeId ?? account.faculty?.employeeId` is null/empty), with a typed code the exchange
+maps to a producer-side 403 (`COMPANION_SSO_ACCOUNT_UNAVAILABLE` already maps to 401 — add or reuse a
+403-mapped code such as `COMPANION_SSO_IDENTITY_INCOMPLETE`, and state which). Today the path emits
+`employeeId: null` and relies on the name gate to fail; with the name gate removed, a null
+`employeeId` would reach EnrollPro as a valid-looking assertion that can never resolve.
+
+### D. §2's named preservation suites are stale — the real suite is orphaned
+`companion-sso-reverse.test.ts` and `companion-sso.test.ts` **do not exist**. The real mounted suite
+is `atlas-server/src/__tests__/companion-sso-http.test.ts` (18 tests; Flow A proofs 1-5, Flow B
+proofs 5-8), and **no committed `package.json` script runs it** — it is an orphan, so it is not
+currently evidence. Add a committed script (e.g. `test:companion-sso`) that runs it, in the same
+commit, and keep it passing. Its proof 6 asserts non-empty names for a fixture account that **has**
+names — that assertion stays valid; add the nameless-account and missing-`employeeId` cases beside
+it.
+
+### E. R6's "normal" leg is Flow A and needs the same live proof
+"Normal" = **EnrollPro → ATLAS** (Flow A: EnrollPro redirect → `GET /api/v1/auth/enrollpro/callback`
+→ exchange → map onto an existing ATLAS account by `employeeId` then `accountName`). "Reverse" =
+**ATLAS → EnrollPro** (Flow B). Both must complete to an authenticated surface on the respective
+origin. The universal admin (account 46: `role=officer`, `employeeId=1234501`, `accountName=1234501`)
+is the subject for both.
+
