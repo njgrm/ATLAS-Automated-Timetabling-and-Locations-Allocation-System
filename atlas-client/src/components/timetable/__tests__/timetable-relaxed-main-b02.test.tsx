@@ -290,10 +290,15 @@ test('B3 dedupe: a second index → sub-page → index trip repeats no endpoint 
 		timetableQueryClient.clear();
 		resetTimetableWarmScope();
 		await roundTrip();
+		// Measured with `performance`-equivalent transport accounting (each
+		// `atlasApi.get` dispatch is recorded): the cold trip issues the runs
+		// list, the draft, the violations report, the draft board, subjects,
+		// faculty, buildings and the section summary — 8 dispatches, each exactly
+		// once (the run bundle's two reads and the reference pool's four reads
+		// are already issued in parallel, never repeated).
 		const firstTrip = calls.length;
-		assert.ok(firstTrip >= 4, `the cold trip must dispatch the scoped reads (observed ${firstTrip})`);
-		const uniqueEndpoints = new Set(calls).size;
-		assert.equal(uniqueEndpoints, firstTrip, 'the cold trip already issues each endpoint once, never twice');
+		assert.equal(firstTrip, 8, `the cold trip must issue 8 dispatches (observed ${firstTrip})`);
+		assert.equal(new Set(calls).size, firstTrip, 'the cold trip already issues each endpoint once, never twice');
 
 		calls.length = 0;
 		await roundTrip();
