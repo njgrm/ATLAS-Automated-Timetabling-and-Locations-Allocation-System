@@ -35,14 +35,21 @@ and AIMS.
 ## Live release
 
 - Tailnet: `https://njgrm.buru-degree.ts.net`
-- **Release SHA: `d92facfa14b1d33b6da04f0c169cd73f7221e713`** (current, deployed 2026-09-21/22;
-  supervisor 17828; `5001`->34964; `5174`->344; `D:` 31.33 GiB; served entry `index-DgF0ZSEz.js`,
-  456,064 B). Carries `TIMETABLE-UX-REHAUL-C01R` (client) and `ROLLOVER-YEAR-IDENTITY-C01` (server,
-  whose missing review was closed by the release's opening gate before any runtime action).
-  Post-action QA `ACCEPT_READY` **7/7**, U1–U6 **6/6**, blocked 0, unperformed 0; evidence
-  `docs/reviews/release-timetable-ux-rehaul-c01r-20260921/deployment-evidence.md`. Rollback
-  `ecff1d7e` startable at `D:\ATLAS-runtime-supervised-ecff1d7e-20260921`; **not executed**.
-- (superseded) Release SHA: `80acdc257cee613418eaa24db4607114b68c2d25`. Delta versus the previous release
+- **Release SHA: `d4c9f39139dcb34e1653d543586d4c76420ea8a5`** (current, deployed 2026-09-22;
+  supervisor 28104; `5001`->39064; `5174`->39392; `D:` 29.84 GiB; served entry `index-DgF0ZSEz.js`,
+  456,064 B — the client tree is unchanged, so the deploy is proven by the **server** service
+  artifacts). Carries `COMPANION-SSO-REVERSE-IDENTITY-C01`: the reverse assertion **omits** empty
+  `firstName`/`lastName` instead of sending `""` (EnrollPro's schema is `min(1).optional()`), and
+  fails closed typed-403 (`COMPANION_SSO_IDENTITY_EMPLOYEE_ID_UNAVAILABLE`) on a missing
+  `employeeId`. Pre-action review `ACCEPT_READY` 17/17/0/0; mounted suite 21/21.
+  **ATLAS -> EnrollPro (reverse) is confirmed working live.** **EnrollPro -> ATLAS (normal) is
+  `BLOCKED(COMPANION_CALLBACK_MISCONFIGURED)`**: EnrollPro's `ATLAS_SSO_CALLBACK_URL` points at
+  ATLAS's SPA *result* path (`/auth/sso/callback`) where the *callback* path belongs
+  (`/api/v1/auth/enrollpro/callback`), so the SPA never sees a token — companion-side, see
+  `docs/handoffs/companion-sso-reverse-identity-c01-enrollpro.md` §4. Evidence
+  `docs/reviews/companion-sso-reverse-identity-c01/evidence.md`. Rollback `d92facfa` startable at
+  `D:\ATLAS-runtime-supervised-d92facfa-20260921`; **not executed**.
+- (superseded) Release SHA: `d92facfa14b1d33b6da04f0c169cd73f7221e713`. Delta versus the previous release
   `a02884ff` is exactly the three `atlas-server` paths of `ACTOR-SCHOOL-MUTATIONS-C01`
   (**client delta empty**). This is the **first server-carrying release since `4c7c0bd9`**, so it
   also carries the `DUP-READ-CALLERS-C01R` client fix.
@@ -341,7 +348,20 @@ it complete `TEST-GATE-REACHABILITY-C01` (`f4462374`) and hand it over for integ
 
 ## Lane A — current lane (written only by Lane A)
 
-**Live release is `d92facfa`** (deployed 2026-09-21/22; supervisor 17828; `5001`->34964; `5174`->344;
+**Integrated and live: `COMPANION-SSO-REVERSE-IDENTITY-C01`** (release `d4c9f391`, 2026-09-22).
+ATLAS → EnrollPro (reverse) SSO now works end to end: the assertion sends `subject` + `employeeId`
+(never a local numeric `userId`) and **omits** empty names, which is what EnrollPro's schema
+requires; it fails closed typed-403 (`COMPANION_SSO_IDENTITY_EMPLOYEE_ID_UNAVAILABLE`) when
+`employeeId` is missing. Pre-action review `ACCEPT_READY` 17/17/0/0; mounted suite 21/21 on a
+disposable DB; zero-write proven by a whole-database post-cutover timestamp scan (only the disclosed
+auth rows). **EnrollPro → ATLAS (normal) is `BLOCKED(COMPANION_CALLBACK_MISCONFIGURED)`** —
+EnrollPro's `ATLAS_SSO_CALLBACK_URL` points at ATLAS's SPA *result* path instead of
+`/api/v1/auth/enrollpro/callback`; handoff
+`docs/handoffs/companion-sso-reverse-identity-c01-enrollpro.md` §4, evidence
+`docs/reviews/companion-sso-reverse-identity-c01/evidence.md`. The stream packet's "Defect B" was a
+**misattribution** — the reverse assertion has never sent a numeric `userId`.
+
+**(superseded) Live release was `d92facfa`** (deployed 2026-09-21/22; supervisor 17828; `5001`->34964; `5174`->344;
 entry `index-DgF0ZSEz.js`, 456,064 B; `D:` 31.33 GiB) and it is **ACCEPTED 7/7, U1–U6 6/6/0/0** by
 independent post-action QA. It carries **`TIMETABLE-UX-REHAUL-C01R`** — the relaxed Simple shell: a
 persistent sub-nav (so `/timetable/{setup,policies,runs,exports}` are reachable; they were URL-only),

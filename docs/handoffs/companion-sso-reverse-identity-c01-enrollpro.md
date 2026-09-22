@@ -63,3 +63,70 @@ Flow A line). Packet R1 was therefore verified, not re-implemented; this
 handoff's ask (a) stands on the general contract risk (any companion *could*
 send an arbitrary `userId` and EnrollPro would trust it), not on a current
 ATLAS defect.
+
+---
+
+## 4. ADDED 2026-09-22 — `ATLAS_SSO_CALLBACK_URL` points at ATLAS's **result** path, so EnrollPro → ATLAS cannot complete
+
+Found by the live click-through after ATLAS's reverse fix shipped. **This is now the blocking defect
+for the normal (EnrollPro → ATLAS) direction**; the reverse direction (ATLAS → EnrollPro) is
+confirmed working.
+
+### Observed
+
+From an authenticated EnrollPro session, EnrollPro's ATLAS entry issued
+`POST https://dev-jegs.buru-degree.ts.net/api/auth/companion-sso/atlas/launch → 201` and the client
+navigated to:
+
+```
+GET https://njgrm.buru-degree.ts.net/auth/sso/callback?code=-AcXi5ghJMH8J4N3Y5Vu_hrGLYFB8VxSrprVRlxnYpo  → 200
+```
+
+That path is ATLAS's **SPA result page**, which reads only the URL **fragment** `atlasToken` (and the
+query `ssoError`). It never handles a `code`, so it rendered *"No sign-in token was provided. Start
+again from EnrollPro."* and ATLAS was not authenticated. No ATLAS audit row or session was created.
+
+### Root cause
+
+EnrollPro's `${system}_SSO_CALLBACK_URL` is the URL it appends `?code=` to:
+
+- `server/src/features/auth/companion-sso.service.ts:63-69` —
+  `configurationNames(system)` → `callback: \`${system}_SSO_CALLBACK_URL\``.
+- `:91-112` — `readCompanionConfiguration` reads `process.env[names.callback]` (must be https).
+- `:353-354` — `const launchUrl = new URL(configuration.callbackUrl); launchUrl.searchParams.set("code", code);`
+
+ATLAS's Flow A contract is a **server** callback, not the SPA result page:
+
+- `atlas-server/src/routes/auth.router.ts:106` — `router.get('/enrollpro/callback', …)` (mounted at
+  `/api/v1/auth/enrollpro/callback`) validates the code, exchanges it server-to-server, and
+  302-redirects to the result page.
+- `:30` — `COMPANION_SSO_RESULT_PATH = '/auth/sso/callback'`; `:46-54` — `redirectToCompanionSsoResult`
+  sends `302 Location: /auth/sso/callback#atlasToken=<jwt>`.
+- `atlas-client/src/pages/SsoCallback.tsx` + `lib/companion-sso-client.ts:36-44` — the SPA consumes
+  **only** the fragment `atlasToken` / query `ssoError`.
+
+The live value is the *result* path (`…/auth/sso/callback`) where the *callback* path belongs — the
+two ATLAS paths differ by `/api/v1/auth/enrollpro/callback`.
+
+### Required contract
+
+```
+ATLAS_SSO_CALLBACK_URL = https://njgrm.buru-degree.ts.net/api/v1/auth/enrollpro/callback
+```
+
+(For symmetry: SMART's equivalent must likewise point at SMART's server callback; SMART is reported
+working, so it is the ATLAS value that is wrong.)
+
+### Acceptance tests
+
+1. From an authenticated EnrollPro session, opening the ATLAS handoff must make the browser request
+   **`/api/v1/auth/enrollpro/callback?code=…`** (the ATLAS server), which 302s to
+   `/auth/sso/callback#atlasToken=…`, and the SPA must land on an authenticated ATLAS surface
+   (`https://njgrm.buru-degree.ts.net`, `window.location.origin` asserted).
+2. A malformed/expired code must produce `/auth/sso/callback?ssoError=COMPANION_SSO_CODE_INVALID`
+   (or another typed `ssoError`), never the bare *"No sign-in token was provided."* message.
+3. Negative control: with the wrong (result-path) value, the flow must reproduce the observed
+   *"No sign-in token was provided"* dead end — proving the test discriminates.
+
+**Do not fix this on the ATLAS side.** ATLAS cannot serve `?code=` at its SPA path without colliding
+with the client route; the configuration value is EnrollPro's.

@@ -12,6 +12,14 @@ Last updated: 2026-09-22 (Lane A).
 
 ## Verdict
 
+**`COMPANION-SSO-REVERSE-IDENTITY-C01` is live: ATLAS → EnrollPro now works; EnrollPro → ATLAS is
+blocked on a companion config value.** Release **`d4c9f391`** ships the reverse-assertion fix (names
+omitted-when-empty, typed 403 when `employeeId` is missing) and the live click-through confirms an
+authenticated EnrollPro session. The **normal** direction fails because EnrollPro's
+`ATLAS_SSO_CALLBACK_URL` points at ATLAS's SPA *result* path (`/auth/sso/callback`) instead of the
+*callback* path (`/api/v1/auth/enrollpro/callback`) — companion-side, one env value; handoff
+`docs/handoffs/companion-sso-reverse-identity-c01-enrollpro.md` §4.
+
 **`TIMETABLE-UX-REHAUL-C01R` is delivered, live and accepted.** Release **`d92facfa`** carries the
 relaxed Simple Timetable shell — the operator's direct 2026-09-21 request — and passed the program's
 own bar on the live page: post-action QA `ACCEPT_READY` **7/7**, **U1–U6 6/6**, blocked 0,
@@ -31,16 +39,16 @@ file — hence `AGENTS.md` §15's dated-blocker rule. **Read the newest dated ha
 
 ## Live identity
 
-- Pin `d92facfa14b1d33b6da04f0c169cd73f7221e713` at
-  `D:\ATLAS-runtime-supervised-d92facfa-20260921` (registered detached worktree, not a clone).
-- Supervisor **17828**; server `5001`→**34964**; client `5174`→**344**; entry
-  `/assets/index-DgF0ZSEz.js` (456,064 B); Tailnet healthy; `D:` **31.33 GiB**.
-- Rollback: `ecff1d7e` **startable in place** at `D:\ATLAS-runtime-supervised-ecff1d7e-20260921`
-  (pre-mutation task XML captured, SHA-256 `67B900EB…`); behind it `80acdc25`, `a02884ff`,
-  `4c7c0bd9`. Never executed.
-- The release carries the relaxed Simple shell (persistent sub-nav, one status surface, one solid
-  primary per state, F-07 grade dedupe, one `h1` per surface) **and** the server rollover-year
-  identity guard, on top of everything accepted before it.
+- Pin `d4c9f39139dcb34e1653d543586d4c76420ea8a5` at
+  `D:\ATLAS-runtime-supervised-d4c9f391-20260921` (registered detached worktree, not a clone).
+- Supervisor **28104**; server `5001`→**39064**; client `5174`→**39392**; entry
+  `/assets/index-DgF0ZSEz.js` (456,064 B — unchanged client); Tailnet healthy; `D:` **29.84 GiB**.
+- Rollback: `d92facfa` **startable in place** at `D:\ATLAS-runtime-supervised-d92facfa-20260921`
+  (pre-mutation task XML captured, SHA-256 `53510853…`); behind it `ecff1d7e`, `80acdc25`,
+  `a02884ff`. Never executed.
+- The release carries the companion-SSO reverse-assertion fix (and everything accepted before it).
+  The client tree is unchanged since `d92facfa`, so the deploy is proven by the server service
+  artifacts, not the served chunk.
 
 ## Custody
 
@@ -127,10 +135,23 @@ file — hence `AGENTS.md` §15's dated-blocker rule. **Read the newest dated ha
 - Removal instruction for the stray clone `E:/ATLAS-worktrees/c01r-release-20260921` (~1 GiB).
 - Nothing else is blocked on the operator: the release queue is empty and the next action is ours.
 
-## Companion SSO — live click-through result (2026-09-21, operator-authorized, one login)
+## Companion SSO — live click-through result (2026-09-21; **resolved 2026-09-22**)
 
-**ATLAS → EnrollPro is fully wired and executes end-to-end, but ATLAS itself denies the identity
-assertion.** Browser evidence, all four hops: `dev-jegs /api/auth/companion-sso/atlas/reverse/start`
+**Status 2026-09-22: ATLAS → EnrollPro WORKS** (release `d4c9f391`). The reverse blocker was the name
+gate; the fix **omits** empty `firstName`/`lastName` (never `""`, which fails EnrollPro's
+`min(1).optional()` schema) and fails closed typed-403 when `employeeId` is missing. The live
+click-through lands on an authenticated EnrollPro `/dashboard` with the origin asserted.
+**EnrollPro → ATLAS is `BLOCKED(COMPANION_CALLBACK_MISCONFIGURED)`** — EnrollPro's
+`ATLAS_SSO_CALLBACK_URL` points at ATLAS's SPA *result* path instead of
+`/api/v1/auth/enrollpro/callback` (see Next action item 0 and the handoff §4).
+Two corrections to the 2026-09-21 diagnosis below: the "Defect B" it names (asserting a local
+`userId`) was a **misattribution** — the reverse assertion has always used `subject`; and the
+account-data framing was incomplete, because the name is now optional by omission and the
+reconciliation key is `employeeId`.
+
+**The 2026-09-21 diagnosis, for the record.** ATLAS → EnrollPro was fully wired and executed
+end-to-end, but ATLAS itself denied the identity assertion. Browser evidence, all four hops:
+`dev-jegs /api/auth/companion-sso/atlas/reverse/start`
 → **303**; `njgrm /auth/enrollpro/authorize?…&state=<signed>` → **200** (ATLAS minted a code);
 `dev-jegs …/atlas/reverse/callback?code=…&state=…` → **303**;
 `dev-jegs /personnel/login?ssoError=COMPANION_REVERSE_SSO_ACCESS_DENIED&source=ATLAS`.
@@ -196,17 +217,18 @@ D-5 (second login for the remaining inventory rows) — **still open**.
 
 ## Next action
 
-**The release queue is empty and `d92facfa` is accepted 7/7 (U1–U6 6/6) — pick the next real lane.**
-The Timetable rehaul the operator asked for on 2026-09-21 is delivered and live; do not re-open it.
-Ranked, from `docs/handoffs/planner-handoff-2026-09-20.md` §8 (reconcile it first — `AGENTS.md` §15):
+**The release queue is empty and `d4c9f391` is live; the one open item is a companion env value.**
+Ranked:
 
-0. **`COMPANION-SSO-REVERSE-IDENTITY-C01` — the demo-priority alternative the operator named.** The
-   packet is authored at `docs/prompts/companion-sso-reverse-identity-c01-2026-09-21.md`; the live
-   click-through (below) proves ATLAS → EnrollPro executes end to end and ATLAS itself denies the
-   assertion. **It is an account-data gap, not a code defect**: the officer demo account has no
-   two-token name, so `resolveReverseSsoNameParts` fail-closes and the exchange 403s. Fix by giving
-   the demo account a persisted first+last name, or use a named staff account. Check custody first —
-   `atlas-server/src/services/companion-sso.service.ts` belongs to the SSO lane.
+0. **`ENROLLPRO-ATLAS-SSO-CALLBACK-CONFIG` — one EnrollPro env value blocks the normal direction.**
+   Set `ATLAS_SSO_CALLBACK_URL=https://njgrm.buru-degree.ts.net/api/v1/auth/enrollpro/callback` on
+   `dev-jegs`. It currently points at ATLAS's SPA *result* path (`/auth/sso/callback`), so EnrollPro
+   appends `?code=` to a page that only reads a `#atlasToken` fragment and the user dead-ends at
+   *"No sign-in token was provided."* Evidence, exact source lines and three acceptance tests:
+   `docs/handoffs/companion-sso-reverse-identity-c01-enrollpro.md` §4. Companion-side and READ_ONLY
+   from ATLAS — it needs the operator / EnrollPro owner. After the change, re-run the normal leg and
+   record the typed result. **Do not add an ATLAS route at `/auth/sso/callback` to work around it** —
+   that path is the SPA route; the fix belongs in EnrollPro's configuration.
 
 **Verified fixed — do not spend a lane on it:** the public published-view ×3 term duplication. A
 live read-only probe on 2026-09-21 returns **920 entries for exactly one term** (never 2,760), and
