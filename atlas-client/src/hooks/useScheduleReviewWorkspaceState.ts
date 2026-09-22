@@ -12,6 +12,10 @@ import {
 	type ProgramFilter,
 } from '@/lib/schedule-review-helpers';
 import { decideAutoSavePlacement } from '@/lib/simple-timetable-state';
+import {
+	buildInlinePlacementPreviewData,
+	type InlinePlacementPreviewData,
+} from '@/lib/timetable-inline-placement';
 import { buildAcademicTermOptions, isVerifiedOrderedActiveTerm, repairTermFilter, type OrderedAcademicTerm } from '@/lib/academic-term';
 import { isTargetSlotOccupiedForTerm } from '@/lib/timetable-term-scope';
 import { formatTime } from '@/lib/utils';
@@ -346,6 +350,16 @@ export function useScheduleReviewWorkspaceState() {
 		endTime: string;
 		roomLabel: string;
 	} | null>(null);
+	/**
+	 * B1 — the inline preview-before-save for ordinary placement. A clean slot
+	 * no longer commits on its own; it becomes this pending state until the
+	 * operator presses the single Confirm (or Cancel).
+	 */
+	const [inlinePlacementPending, setInlinePlacementPending] = useState<{
+		proposal: ManualEditProposal;
+		preview: InlinePlacementPreviewData;
+	} | null>(null);
+	const [inlinePlacementSaving, setInlinePlacementSaving] = useState(false);
 	const pivotTransitionLoading = false;
 
 	/* -- Tutorial + Explainability -- */
@@ -1060,47 +1074,40 @@ export function useScheduleReviewWorkspaceState() {
 					? { allowed: preview.allowed, hardViolations: preview.hardViolations, softViolations: preview.softViolations }
 					: null,
 			});
-			if (decision.kind === 'auto-commit') {
-				const commitResult = await commitEditWithMeta(proposal, false);
-				if (commitResult) {
-			setLastAutoSaveUndo({
-				editId: commitResult.editId,
-				newVersion: commitResult.newVersion,
-				subjectLabel: subjectLabel ? subjectLabel(item.subjectId) : `Session ${item.session}`,
-				day,
-				startTime,
-				endTime,
-				roomLabel: defaultRoomId != null && roomMap.has(defaultRoomId)
-					? `${roomMap.get(defaultRoomId)!.name} - ${roomMap.get(defaultRoomId)!.buildingShortCode || roomMap.get(defaultRoomId)!.buildingName}`
-					: 'Room saved',
-			});
-					setInlineActionStatus({
-						tone: 'success',
-						message: `Saved ${subjectLabel ? subjectLabel(item.subjectId) : 'session'} to ${day} ${startTime}-${endTime}. Undo below.`,
-					});
-					return;
-				}
+			if (decision.kind === 'preview-confirm' || decision.kind === 'review-soft') {
+				// B1 — a clean slot no longer commits on its own. The consequence is
+				// stated in the inline preview and only the single Confirm commits it.
+				// A soft-warned slot uses the same inline path, so no modal opens per
+				// placement; the warning count is carried into the consequence.
 				setInlineActionStatus(null);
-			} else if (decision.kind === 'review-blocked') {
+				setInlinePlacementPending({
+					proposal,
+					preview: buildInlinePlacementPreviewData({
+						subjectLabel: subjectLabel ? subjectLabel(item.subjectId) : 'Session',
+						sectionLabel: sectionLabel ? sectionLabel(item.sectionId) : 'Section',
+						session: item.session,
+						day,
+						startTime,
+						endTime,
+						roomLabel: defaultRoomId != null && roomMap.has(defaultRoomId)
+							? `${roomMap.get(defaultRoomId)!.name} - ${roomMap.get(defaultRoomId)!.buildingShortCode || roomMap.get(defaultRoomId)!.buildingName}`
+							: null,
+						softCount: decision.softCount,
+						hardTitle: null,
+					}),
+				});
+				setDragItem(null);
+				return;
+			}
+			if (decision.kind === 'review-blocked') {
 				setInlineActionStatus({
 					tone: 'error',
 					message: preview?.humanConflicts.find((hc) => hc.severity === 'HARD')?.humanTitle ?? 'Placement blocked by hard conflicts.',
 				});
 				setDragItem(null);
 				return;
-			} else if (decision.kind === 'review-soft') {
-				setShowAssignmentPicker(true);
-				setAssignPickerTarget({ item, day, startTime, endTime });
-				setAssignPickerFacultyId(String(item.facultyId));
-				setAssignPickerRoomId(String(defaultRoomId));
-				setInlineActionStatus({
-					tone: 'warning',
-					message: `${decision.softCount} soft warning(s). Review before saving.`,
-				});
-				return;
-			} else {
-				setInlineActionStatus(null);
 			}
+			setInlineActionStatus(null);
 		}
 
 		captureReviewFocusReturn(timetableCellFocusSelector(day, startTime, endTime));
@@ -1132,9 +1139,53 @@ export function useScheduleReviewWorkspaceState() {
 		commitEdit,
 		commitEditWithMeta,
 		subjectLabel,
+		sectionLabel,
 		roomMap,
 		toast,
 	]);
+
+	/** B1 — the single Confirm that commits the inline pending placement. */
+	const confirmInlinePlacement = useCallback(async () => {
+		const pending = inlinePlacementPending;
+		if (!pending) return;
+		setInlinePlacementSaving(true);
+		try {
+			const commitResult = await commitEditWithMeta(
+				pending.proposal,
+				// A warned destination is confirmed with its soft warnings acknowledged.
+				pending.preview.softCount > 0,
+			);
+			if (!commitResult) {
+				setInlineActionStatus({ tone: 'error', message: 'Placement was not saved. Review the error and try again.' });
+				return;
+			}
+			const { preview } = pending;
+			setLastAutoSaveUndo({
+				editId: commitResult.editId,
+				newVersion: commitResult.newVersion,
+				subjectLabel: preview.subjectLabel,
+				day: preview.day,
+				startTime: preview.startTime,
+				endTime: preview.endTime,
+				roomLabel: preview.roomLabel ?? 'Room saved',
+			});
+			setInlineActionStatus({
+				tone: preview.softCount > 0 ? 'warning' : 'success',
+				message: preview.softCount > 0
+					? `Placed ${preview.subjectLabel} with ${preview.softCount} acknowledged warning${preview.softCount === 1 ? '' : 's'}. Undo below.`
+					: `Placed ${preview.subjectLabel} in ${preview.day} ${preview.startTime}-${preview.endTime}. Undo below.`,
+			});
+			setInlinePlacementPending(null);
+		} finally {
+			setInlinePlacementSaving(false);
+		}
+	}, [inlinePlacementPending, commitEditWithMeta, setInlineActionStatus, setLastAutoSaveUndo]);
+
+	/** B1 — discard the inline preview without saving anything. */
+	const cancelInlinePlacement = useCallback(() => {
+		setInlinePlacementPending(null);
+		setInlineActionStatus(null);
+	}, [setInlineActionStatus]);
 
 	const runGeneratedPlacementPreview = useCallback(async (
 		target = assignPickerTarget,
@@ -1667,7 +1718,7 @@ export function useScheduleReviewWorkspaceState() {
 		headerContext.curriculumReadiness = curriculumReadiness;
 		const dialogContext = buildDialogContext({ showUnassignConfirm, setShowUnassignConfirm, setPendingUnassignId, pendingUnassignId, unassignDraftPlacement, showGenerateConfirm, setShowGenerateConfirm, enforceShiftWindows, setEnforceShiftWindows, draftBoardSummary, followUps, confirmGenerate, activeSchoolYearLabel: schoolYearContext?.activeSchoolYearLabel ?? null, schoolYearSource: schoolYearContext?.source ?? null, showResetDraftDialog, setShowResetDraftDialog, openPreGenerationWorkspace, showLeavePreGenDialog, setShowLeavePreGenDialog, pendingCenterSwitch, setPendingCenterSwitch, requestPreview, requestPreviewLoading, setRequestPreview, setSelectedRequestId, setRequestAppeals, setAppealReason, requestPreviewHardConflicts, requestPreviewSoftWarnings, requestAppeals, appealsLoading, isPrivilegedUser, updateAppealStatus, appealReason, appealSubmitting, submitAppeal, requestReviewerNotes, setRequestReviewerNotes, requestReviewSaving, reviewRoomRequest, generating, generationElapsed, showPublishDialog, setShowPublishDialog, publishAcknowledged, setPublishAcknowledged, softCount, publishUnassignedCount: summary?.unassignedCount ?? 0, policy, handlePublishConfirm, captureReviewFocusReturn, restoreReviewFocus, showPreGenConfirm, setShowPreGenConfirm, setPreGenConfirmCtx, setConfirmPreview, setConfirmRawPreview, setConfirmPreviewError, setConfirmAllowSoftOverride, setConfirmAllowDailyOverride, preGenConfirmCtx, confirmFacultyId, setConfirmFacultyId, confirmPreview, confirmRoomId, setConfirmRoomId, facultyMap, roomMap, confirmPreviewLoading, confirmPreviewError, confirmDisplacedPlacement, toast, openSwapPrompt, confirmAllowDailyOverride, confirmSaving, commitConfirmPlacement, showSwapConfirm, setShowSwapConfirm, setSwapAction, swapAction, formatFacultyInitials, roomLabelShort, subjectLabel, sectionLabel, swapSaving, executeSwapAction, swapPreview, regularSwapPreview, regularSwapPending, setRegularSwapPending, regularSwapSaving, regularSwapStrategy, setRegularSwapStrategy, executeRegularSwap, showSoftConfirm, setShowSoftConfirm, softConfirmWarnings, commitLoading, formatConstraintMessage, setPendingCommitProposal, setPreviewResult, setSoftConfirmWarnings, setDragItem, pendingCommitProposal, commitEdit, showAssignmentPicker, setShowAssignmentPicker, setAssignPickerTarget, assignPickerTarget, assignPickerFacultyId, setAssignPickerFacultyId, assignPickerRoomId, setAssignPickerRoomId, assignPickerPreview, assignPickerPreviewLoading, assignPickerPreviewError, assignPickerSaving, confirmAssignmentPicker, showEditHistory, setShowEditHistory, editHistory, revertEditById, revertLoading, currentRunVersion: draft?.version ?? null });
 		const overlaysContext = buildOverlaysContext({ dialogContext, tutorial, userRole, blockerModalData, setBlockerModalData, showExplainDrawer, setDrawerViolation, setDrawerUnassigned, drawerViolation, drawerUnassigned, formatDrawerMessage: formatConstraintMessage });
-		return { leftRailContentContext, centerWorkspaceContext, rightPanelContext, headerContext, overlaysContext, dialogContext, lastAutoSaveUndo, setLastAutoSaveUndo, revertEditById, redoState, redoVersionStale, redoLastEdit, clearRedo, swapClassTimesMode, setSwapClassTimesMode, swapClassAEntryId, swapClassBEntryId, setSwapClassAEntryId, setSwapClassBEntryId };
+		return { leftRailContentContext, centerWorkspaceContext, rightPanelContext, headerContext, overlaysContext, dialogContext, lastAutoSaveUndo, setLastAutoSaveUndo, inlinePlacementPending, inlinePlacementSaving, confirmInlinePlacement, cancelInlinePlacement, revertEditById, redoState, redoVersionStale, redoLastEdit, clearRedo, swapClassTimesMode, setSwapClassTimesMode, swapClassAEntryId, swapClassBEntryId, setSwapClassAEntryId, setSwapClassBEntryId };
 	})();
 
 	const prevContextsRef = useRef<typeof rawWorkspaceContexts | null>(null);

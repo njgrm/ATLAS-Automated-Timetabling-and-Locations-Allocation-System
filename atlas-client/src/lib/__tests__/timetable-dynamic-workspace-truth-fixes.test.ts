@@ -93,10 +93,16 @@ test('R9/A-10 the error state routes to the real Year Setup surface', () => {
 	assert.match(workspace, /YEAR_SETUP_HREF/);
 });
 
-// --- R9 A-06 one-click clean placement discloses auto-commit ---
+// --- R9 A-06 clean placement now previews before saving (B1 contract change) ---
 
-test('R9/A-06 drawer copy discloses auto-commit before the click', () => {
+test('R9/A-06 drawer copy states the confirmation step before the click', () => {
+	// The contract changed in TIMETABLE-RELAXED-MAIN-C01 (B1): a clean slot no
+	// longer "saves immediately" — it shows an inline preview with one Confirm.
+	// The drawer copy must disclose the confirm-before-save step, not the old
+	// immediate-save behaviour.
 	const drawer = source('src/components/timetable/TimetableTaskDrawer.tsx');
-	assert.match(drawer, /saves immediately/);
+	assert.match(drawer, /shows the result before saving/);
+	assert.match(drawer, /confirm/);
 	assert.match(drawer, /Undo/);
+	assert.doesNotMatch(drawer, /saves immediately/);
 });

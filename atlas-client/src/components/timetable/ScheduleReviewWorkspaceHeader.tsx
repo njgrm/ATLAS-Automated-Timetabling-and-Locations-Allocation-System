@@ -25,7 +25,7 @@ import type { EntryKindFilter, ProgramFilter } from '@/lib/schedule-review-helpe
 import { onProfilerRender } from '@/components/timetable/ScheduleReviewWorkspace';
 import { isDraftPublishedStrict } from '@/components/timetable/timetableWorkspaceTruth';
 import { ScheduleReviewInputStateBanner } from '@/components/timetable/ScheduleReviewInputStateBanner';
-import { TimetableStatusLegend } from '@/components/timetable/TimetableStatusLegend';
+import { TimetableAdvancedHeaderHelp } from '@/components/timetable/TimetableAdvancedHeaderHelp';
 import { deriveTimetableCapabilities, YEAR_SETUP_HREF } from '@/lib/timetable-capabilities';
 import { summarizeGenerationReadiness } from '@/lib/timetable-generation-readiness';
 import { createSyncSetupInFlightGuard, runSyncSetup } from '@/lib/timetable-sync-setup';
@@ -348,9 +348,6 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 	const activeTask = taskModes.find((task) => task.active)
 		?? (unassignedCount > 0 ? taskModes[1] : requestPendingCount > 0 ? taskModes[4] : taskModes[0]);
 	const ActiveTaskIcon = activeTask.icon;
-	const foolproofHelp = isPreGenerationWorkspace
-		? 'Draft mode: choose a draft queue item, then tap or click a grid slot. Review draft placement opens before anything is saved. Switch: select one placed draft session, then another occupied slot.'
-		: 'Place: open Needs attention, choose Place session, then tap or click a grid slot. Switch: select one class, then another occupied class. The Swap class times review opens before saving. Draft: use Plan before generating for draft anchors.';
 	const sourceContext = context.schoolYearContext;
 	const activeTermContext = sourceContext?.activeTerm ?? null;
 	const verifiedOrderedTerm = activeTermContext?.verified === true
@@ -897,37 +894,15 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 						})}
 					</div>
 				</div>
-				<div
-					id="timetable-foolproof-help"
-					data-testid="timetable-foolproof-help"
-					className="sr-only"
-				>
-					<p className="min-w-0 truncate">
-						<span className="font-semibold text-foreground">No precision dragging required.</span>{' '}
-						<span className="hidden md:inline">{foolproofHelp}</span>
-						<span className="md:hidden">{activeTask.helper}</span>
-						<span className="sr-only">{foolproofHelp}</span>
-					</p>
-					<div className="flex shrink-0 items-center gap-2">
-						<TimetableStatusLegend />
-						{editHistoryCount > 0 && !isPreGenerationWorkspace && (
-						<Button
-							type="button"
-							variant="outline"
-							size="sm"
-							className="hidden h-8 gap-1.5 border-emerald-300 bg-white text-emerald-900 hover:bg-emerald-100 md:inline-flex"
-							onClick={revertLastEdit}
-							disabled={revertLoading}
-							data-testid="timetable-visible-undo"
-							aria-label="Undo last manual timetable change"
-						>
-							{revertLoading ? <Loader2 className="size-3.5 animate-spin" aria-hidden="true" /> : <Undo2 className="size-3.5" aria-hidden="true" />}
-							<span className="hidden sm:inline">Undo last change</span>
-							<span className="sm:hidden">Undo</span>
-						</Button>
-						)}
-					</div>
-				</div>
+				{/* B2 — the plain-language guidance is visible to sighted users here,
+				    not only to screen readers. See TimetableAdvancedHeaderHelp. */}
+				<TimetableAdvancedHeaderHelp
+					mode={isPreGenerationWorkspace ? 'draft' : 'schedule'}
+					activeTaskHelper={activeTask.helper}
+					editHistoryCount={editHistoryCount}
+					revertLoading={revertLoading}
+					onRevertLastEdit={revertLastEdit}
+				/>
 			</div>
 
 			{showInputStateBanner && (
