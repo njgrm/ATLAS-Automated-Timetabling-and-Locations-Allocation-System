@@ -35,17 +35,19 @@ and AIMS.
 ## Live release
 
 - Tailnet: `https://njgrm.buru-degree.ts.net`
-- **Release SHA: `7dbb3b90`** (current; `D:\ATLAS-runtime-supervised-7dbb3b90-20260922`;
-  supervisor-owned 5001/5174; supervisor 44476, server `5001`->9228, client `5174`->19892; served
-  entry `/assets/index-CnDObevR.js`; local health + health/ready (`database: ok`) + Tailnet
-  health/root all 200 — read-only verified 2026-09-23). It carries `57592dd7` +
-  `e794dee2` (`TIMETABLE-RELAXED-SUBPAGES-C01`, merged `6cc202b7`) on top of everything in
-  `714fadf7`. **That delta reached the runtime with no independent pass** (`AGENTS.md` §11
-  unreviewed-delta condition); it was reviewed post-hoc on 2026-09-23 and returned `ACCEPT_READY`
-  **20/20/0/0** — see the Lane A section. `as of 2026-09-23` nothing above this release touches
-  `atlas-client/**`. Rollback: `714fadf7` startable in place at
-  `D:\ATLAS-runtime-supervised-714fadf7-20260922`.
-- (superseded) **Release SHA: `714fadf7fb9194b46c7564ac377e23936af4f946`** (deployed by Lane A 2026-09-22
+- **Release SHA: `28f6f03f`** (current; `D:\ATLAS-runtime-supervised-28f6f03f-20260923`;
+  supervisor-owned 5001/5174; supervisor 47876-lineage, server `5001`->17548, client `5174`->39100;
+  served entry `/assets/index-Dy2kdrZW.js`; machine `ATLAS_RUNTIME_RELEASE_SHA` = `28f6f03f`; health +
+  health/ready + DB-backed `GET /api/v1/subjects?schoolId=1` + Tailnet all 200 — verified 2026-09-23).
+  It carries `TIMETABLE-RELAXED-MAIN-C01` — the relaxed main Class Schedule workspace (see the Lane A
+  section) — plus the `NOTIFICATION-INBOX-C01` source whose migration is **not** applied (its read
+  routes return 500). **Nothing above this release touches `atlas-client/**`.**
+  Rollback: `1fdab989` startable in place at `D:\ATLAS-runtime-supervised-1fdab989-20260923`;
+  deeper fallbacks `e78d4473`, `11e8778f`, and the original `7dbb3b90`.
+- (superseded) **Release SHA: `1fdab989`** — the placement-confirm correction, live ~06:00, superseded
+  by the draft-undo correction. Also superseded within this cycle: `e78d4473` (density correction) and
+  `11e8778f` (first relaxed-main release).
+- (superseded) **Release SHA: `7dbb3b90`** (deployed by Lane A 2026-09-22
   ~22:17 local; supervisor restarted; `5001`->45228; `5174`->48508; served entry
   `index-BxOX7te1.js`; health + DB-backed read + Tailnet 200). **This release ended the timetable
   outage properly.** It carries `TIMETABLE-TERM-GATE-C01` (the gate is now satisfiable: the timetable
@@ -370,6 +372,49 @@ Lane B owns this section. Current stream and state: see Lane B's own handoff fil
 it complete `TEST-GATE-REACHABILITY-C01` (`f4462374`) and hand it over for integration.
 
 ## Lane A — current lane (written only by Lane A)
+
+**`TIMETABLE-RELAXED-MAIN-C01` COMPLETE — the relaxed main Class Schedule workspace is live (2026-09-23).**
+Live release **`28f6f03f`** at `D:\ATLAS-runtime-supervised-28f6f03f-20260923` (supervisor-owned
+5001→17548 / 5174→39100; machine `ATLAS_RUNTIME_RELEASE_SHA` = `28f6f03f`; health/ready/DB-backed read
++ Tailnet 200; served entry `assets/index-Dy2kdrZW.js`, SHA-256 `612F7F5F…3454`, byte-identical to the
+release build). It carries 4 additive corrections over the candidate. Cycle shape: baseline read-only
+QA of the deployed `7dbb3b90` → Candidate A (density/term authority/labels/hygiene/scroll) → Candidate B
+(preview-before-save/guidance/first paint) → one batched pre-action reviewer (source range + packet
+lint) → 3 bounded corrections → re-deploy → post-deployment browser QA in 3 passes → `ACCEPT_READY`.
+**Measured wins at 1366×768 on `/timetable`:** grid top **332 → 180 px** (chrome 35 % → 23 %); status
+surfaces **8 → 1**; header bands **5 → 2**; controls 74 → 70; router element-less warnings **49 → 0**;
+mobile 390×844 first paint **0 controls at 8 s → 8 controls at 91 ms, grid at ~1.1 s**; SPA navigation
+refetch **17 → 1 call**; scroll position **now preserved**; `All terms` entries **now term-labelled**;
+`TERM TERM N` duplication removed; the contradictory `Run inputs are stale` + `Verified with EnrollPro`
+co-announcement is now structurally impossible; the **pre-generation draft surface renders** (baseline:
+never) and is reachable from the sub-nav; placement is **inline preview → exactly one Confirm → zero
+modals** with a **working Undo** (draft Undo now routes to `/pre-generation-drafts/undo`; the earlier
+release 409'd it against the run manual-edits revert). Term authority defaults to the **EnrollPro
+verified active term T2** (`source: enrollpro-verified`) and fails closed on unknown identity.
+**Two live defects were caught by review, not by tests:** (1) a clean draft slot opened a review modal
+with two Save buttons and registered no Undo; (2) the Undo it did register dispatched a draft-ledger id
+to the run manual-edits CAS endpoint (409 `UNDO_CONFLICT`). Both are fixed and re-verified live.
+**Open residue (disclosed, NON_BLOCKING):** the pre-generation draft holds **2 extra pinned placements**
+(id 24 Mon 06:00–06:45 §143 Aguinaldo subj 4; id 25 Tue 06:00–06:45) created by QA passes when the Undo
+defect made them un-undoable; the Undo mechanism is session-local and head-only, so they cannot be
+cleared by Undo and clearing them needs `DELETE /pre-generation-drafts/:id` — a destructive write
+outside the authorised class. Queue reads `1318 of 1318` (`counts.draft=2`) against the pre-QA
+`1320 of 1320`. The draft is unpublished and regenerable; clear the two ids or regenerate at the
+operator's discretion.
+**Not re-verified / open:** no published run exists (run #316 is Reviewing with 94 warnings), so the
+"published" leg of the lifecycle is unexercised; the draft-tray **swap** is a modal by design
+(`draft-swap-review-dialog`) while the Simple swap path is inline — the packet's "swap keeps its inline
+preview" is satisfied only for the Simple path; a one-off observation that the grid label read
+`Showing Section schedule: Luna` while armed with a §143 session was not adjudicated.
+**Disk:** `D:` 18.37 GiB free (below the §3 25 GiB warning, above the 15 GiB fail-closed) — four
+release trees now exist (`7dbb3b90`, `11e8778f`, `e78d4473`, `1fdab989`, `28f6f03f`); superseded
+intermediates were **not** retired (preservation class).
+
+**`NOTIFICATION-INBOX-C01` — deployed, migration NOT applied, live 500s.** The inbox source reached
+live with `28f6f03f` (it was integrated at `7df2ddcf`), but `prisma/migrations/0004_notification_inbox`
+is still **not applied**, so `GET /api/v1/notification-inbox/` and `/unread-count` return **500** on
+every page load. `as of 2026-09-23` the fix is the separate HIGH `NOTIFICATION-INBOX-LIVE` action
+(apply `0004` + restart), which is **not authorised** by the timetable cycle.
 
 **`NOTIFICATION-INBOX-C01` integrated — `ACCEPT_READY` 5/5/0/0 on the correction (2026-09-23).**
 The persisted, actor-scoped inbox is on `origin/main` at merge `7df2ddcf` (candidate

@@ -12,6 +12,35 @@ Last updated: 2026-09-23 (Lane A).
 
 ## Verdict
 
+**2026-09-23 (overnight) — the relaxed main Class Schedule workspace is LIVE at `28f6f03f`.**
+- **Live release `28f6f03f`** (`D:\ATLAS-runtime-supervised-28f6f03f-20260923`; 5001→17548 /
+  5174→39100; served entry `assets/index-Dy2kdrZW.js`; health/ready/DB-read/Tailnet 200; chunk
+  byte-identical to the release build). Rollback: `1fdab989` startable in place; deeper fallbacks
+  `e78d4473`, `11e8778f`, `7dbb3b90`.
+- **Cycle:** baseline read-only QA of the deployed `7dbb3b90` → Candidate A → Candidate B → one
+  batched pre-action reviewer (source range **and** packet lint) → 3 bounded corrections → re-deploy →
+  post-deployment browser QA in 3 passes → final `ACCEPT_READY` 3/3/0/0.
+- **Measured at 1366×768:** grid top **332 → 180 px**; status surfaces **8 → 1**; header bands
+  **5 → 2**; router element-less warnings **49 → 0**; mobile first paint **0 controls at 8 s → 8 at
+  91 ms**; SPA-nav refetch **17 → 1 call**; scroll now preserved; all-terms entries now term-labelled;
+  the `Run inputs are stale` + `Verified with EnrollPro` contradiction is structurally impossible; the
+  **draft surface renders** and is in the sub-nav; placement is inline preview → **one Confirm, zero
+  modals** with a **working Undo**; term defaults to the **EnrollPro verified active term T2** and
+  fails closed on unknown identity.
+- **Two live defects were found by review, not by tests:** a clean draft slot opened a review modal
+  with two Save buttons and registered no Undo; the Undo it did register sent a draft-ledger id to the
+  run manual-edits CAS endpoint (409 `UNDO_CONFLICT`). Both fixed and re-verified live.
+- **Open, disclosed:** the pre-generation **draft holds 2 extra pinned placements** (ids 24 and 25)
+  from QA passes made un-undoable by the second defect; the Undo path is session-local and head-only,
+  so clearing them needs `DELETE /pre-generation-drafts/:id` — outside the authorised write class.
+  Queue reads `1318 of 1318` vs the pre-QA `1320 of 1320`. The draft is unpublished and regenerable.
+- **Open:** no published run exists (run #316 is Reviewing, 94 warnings) so the "published" lifecycle
+  leg is unexercised; the draft-tray swap is a modal by design (Simple swap is inline).
+- **`NOTIFICATION-INBOX-C01` is now live with its migration unapplied**, so
+  `GET /api/v1/notification-inbox/` and `/unread-count` return **500** on every page load. The fix is
+  the separate HIGH `NOTIFICATION-INBOX-LIVE` action (apply `0004` + restart) — **not authorised**.
+- **Disk:** `D:` 18.37 GiB free (below the 25 GiB warning, above the 15 GiB fail-closed).
+
 **2026-09-23 — the live timetable delta is reviewed and accepted; live is `7dbb3b90`.**
 - **Live moved to `7dbb3b90`** (`D:\ATLAS-runtime-supervised-7dbb3b90-20260922`; supervisor 44476,
   `5001`->9228, `5174`->19892; served entry `/assets/index-CnDObevR.js`; health/ready + Tailnet 200
