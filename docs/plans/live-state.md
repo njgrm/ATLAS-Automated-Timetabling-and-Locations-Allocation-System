@@ -348,6 +348,32 @@ it complete `TEST-GATE-REACHABILITY-C01` (`f4462374`) and hand it over for integ
 
 ## Lane A — current lane (written only by Lane A)
 
+**Lane B state, observed by Lane A 2026-09-22** (their own section is theirs to write; this is a
+dated observation only). `docs/handoffs/lane-b.md` was last touched 2026-09-21 (`2f1ee14b`,
+ACTOR-SCHOOL-MUTATIONS-C01) and does **not** describe their recent work. Their actual recent streams —
+`ROLLOVER-YEAR-IDENTITY-C01` and `TIMETABLE-SCHEDULER-SIMPLICITY-C01` (+ lifecycle proof) — are all
+**merged into `main`**. Every Lane B worktree is merged; one dirty residual
+(`E:/ATLAS-worktrees/timetable-scheduler-simplicity-c01`, HEAD `5dfe7d59`) is left untouched. No
+in-flight Lane B stream is discoverable, so their server file boundary (`atlas-server/src/**`) is
+currently unowned; Lane A took it for `ZONE-IMBALANCE-PRECONDITION-C01` on the operator's direction
+and recorded the transfer.
+
+**Integrated: `ZONE-IMBALANCE-PRECONDITION-C01`** (`47081de3`, 2026-09-22) — MEDIUM, one fresh QA
+`ACCEPT_READY` **7/7/0/0**. The operator asked whether `ZONE_IMBALANCE_WARNING` should simply be
+deleted; the measurements said the **warning as written was a false positive, but the feature is
+real**. Live run 315 carried **3** rows, all `zone: UNSPECIFIED`, `percent 100`, `920 of 920` — and
+**0 of 103 rooms have a `building_zone_id`**, so every entry fell into one bucket and the warning
+merely restated an unset configuration field (its own action text, "rebalance rooms across configured
+zones", was impossible to follow). It is **not** dead code: `BuildingPanel.tsx` edits
+`buildingZoneId`. So the fix is a **precondition, not a deletion**: unzoned entries are excluded,
+**≥2 distinct configured zones** are required, the >50% threshold is computed over the **zoned**
+denominator, and the message states that denominator. QA proved it on the **real** run-315 data — old
+logic **3** warnings (matching the stored rows field-for-field), new builder **0** — and a ≥2-zone
+case built from the same real shapes fires exactly one warning at **66.67% (100 of 150 zoned)** with
+100 resolvable `entryIds`. The `UNSPECIFIED` suppression is **kept** so stored rows stay suppressed,
+and **no warning code was deleted** from any list. Gates: server-suite **283/283**, server-db
+**53/53**, client-suite **845/845**, both builds, `git diff --check`. No live/runtime/data action.
+
 **Integrated: `TEST-GATE-COVERAGE-C01R2`** (`95895430`, 2026-09-22) — LOW, test-only. The
 `test:server-db` flake is **root-caused and fixed**. It was never flaky assertions: each affected
 suite dropped its disposable database **once**, swallowed the refusal, and then failed its own

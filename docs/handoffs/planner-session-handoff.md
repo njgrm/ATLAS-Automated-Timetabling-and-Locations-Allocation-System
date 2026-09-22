@@ -251,9 +251,15 @@ the route rejects an ambiguous active year with `409 ACTIVE_SCHOOL_YEAR_AMBIGUOU
 (`docs/handoffs/lane-a-to-planner-b-rollover-2026-09-21.md` §4). Minor successor: an *absent* term
 selector defaults to term 1 while a *malformed* one is a typed 400.
 
-1. **False/incorrect warning categories** — `ZONE_IMBALANCE_WARNING` still fires in stored runs
-   (the *surface* now suppresses it, so this is the producer/data side); warning-count semantics.
-   Note it sits in the timetable-warning surface — agree a file boundary with Planner B first.
+1. **`ZONE_IMBALANCE_WARNING` — RESOLVED 2026-09-22** (`47081de3`). It was a false positive (0 of
+   103 rooms zoned → one trivially-100% `UNSPECIFIED` bucket), but the feature is real
+   (`BuildingPanel.tsx` edits `buildingZoneId`), so it was **gated, not deleted**: ≥2 configured zones
+   required, threshold over the zoned denominator. Live run 315 goes **3 → 0** through the real
+   builder (QA-proven). Do not re-open it; if the operator still wants the capability gone, deleting
+   it entirely is a small follow-up.
+2. **False/incorrect warning categories — what remains.** `FACULTY_FLOOR_TRANSITION`'s stored
+   message is still broken (`(14:30→14:30) with only 0 minutes gap`) — a regeneration/data concern,
+   not a formatter job. Warning-count semantics are otherwise settled by C07A/C07B.
 2. **New UX successors recorded from this release** (all NON_BLOCKING, in the live-state Lane A
    section): clean-load API GETs 20 vs 19 baseline; the Review-issues panel's uppercase
    `SOFT`/`HARD` badges; the status region still draws three visual lines; sub-nav links at 24 px;
