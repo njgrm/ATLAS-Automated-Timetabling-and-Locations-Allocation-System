@@ -37,6 +37,25 @@ Last updated: 2026-09-23 (Lane A).
   `docs/prompts/notification-inbox-c01-2026-09-22.md`. AIMS is the READ_ONLY reference
   (`D:\AIMS` @ `2332d92e`), pattern not domain.
 
+**2026-09-23 (later) — `NOTIFICATION-INBOX-C01` is integrated; the migration is NOT applied.**
+- Contract pinned at `docs/prompts/notification-inbox-c01-implementation-2026-09-23.md` (amended at
+  `0de1bf60` to pin the inbox actor id to `AtlasAuthAccount.id`). Candidate `fb27d48e` + correction
+  `47d0a80b`, integrated at merge **`7df2ddc`** on `origin/main`.
+- **The first review found a real `BLOCKING` defect** — the route resolved `req.user.userId`, which for
+  a faculty-shaped session is the `FacultyMirror.externalId` while rows are keyed on
+  `AtlasAuthAccount.id`, so teachers could not read their own notifications and a numeric collision
+  could cross-read/mutate another actor's rows. The committed DB test masked it by minting
+  `userId === accountId`. Corrected additively (accountId only, never `userId`) with a faculty-shaped
+  failing-first control (46/10 → 56/0); bounded re-review `ACCEPT_READY` 5/5/0/0.
+- Merged-tree gates: server 289/289, `test:server-db` 54 files / 0 fail / residue 0, client 859/859,
+  both builds, `git diff --check` clean; product tree byte-identical to the reviewed candidate.
+- **`as of 2026-09-23` the live release is still `7dbb3b90` and does not carry this work.** The
+  migration `0004_notification_inbox` is authored but **not applied**. The next step is the separate
+  HIGH `NOTIFICATION-INBOX-LIVE` action (apply `0004` + deploy) — **not authorized by the
+  integration**, and it needs its own fingerprinted packet, pre-action review and explicit approval.
+  Deploying the source before the apply is fail-closed (per-event persist logs errors; routes return
+  empty/404, never wrong data) but is not the intended order.
+
 **OPEN ITEMS HANDED FORWARD (2026-09-22 late) — read before picking work.**
 - **SMART teacher-side direction is DECIDED but BLOCKED on the system adviser.** SMART owns **submission
   only**; the **scheduler decides on the ATLAS admin side**. ATLAS's teacher-facing pages

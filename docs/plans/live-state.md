@@ -371,6 +371,30 @@ it complete `TEST-GATE-REACHABILITY-C01` (`f4462374`) and hand it over for integ
 
 ## Lane A — current lane (written only by Lane A)
 
+**`NOTIFICATION-INBOX-C01` integrated — `ACCEPT_READY` 5/5/0/0 on the correction (2026-09-23).**
+The persisted, actor-scoped inbox is on `origin/main` at merge `7df2ddcf` (candidate
+`fb27d48e` + correction `47d0a80b`; base `72348902`). It adds the `Notification` model and the
+**authored-but-not-applied** `prisma/migrations/0004_notification_inbox/migration.sql`, the
+actor-scoped fail-closed API at `/api/v1/notification-inbox` (list / unread-count / mark-read /
+mark-all-read), a content-stable dedupe key, recipient resolution with a 200-recipient cap, a durable
+listener that persists the events the SSE stream already carries (errors swallowed, publish signature
+unchanged), and the `AppShell` bell on `@/ui` `Popover`. **The first review returned
+`CORRECTION_REQUIRED` 11/9/0/0 with one `BLOCKING` defect:** the route resolved the actor as
+`req.user.userId`, which for a faculty-shaped session is the `FacultyMirror.externalId` while rows are
+keyed on `AtlasAuthAccount.id` — so a teacher could not read or acknowledge their own notifications
+and a numeric collision could read/mutate another actor's rows; the committed DB test masked it by
+minting `userId === accountId`. The bounded additive correction (`47d0a80b`, 2 paths) resolves
+`req.user.accountId` only, never falls back to `userId`, and adds a faculty-shaped failing-first
+control (pre-correction **46 pass / 10 fail** → corrected **56 pass / 0 fail**). The bounded re-review
+of the correction's blast radius returned `ACCEPT_READY` **5/5/0/0**; the prior accepted commit is the
+direct parent and all other reviewed paths retain their accepted blobs. Merged-tree gates: server
+suite **289/289**, `test:server-db` **54 files pass / 0 fail / 0 skipped-known-red, residue 0**,
+client suite **859/859**, server build + built-app load, client build with `VITE_ENROLLPRO_URL`,
+`git diff --check` clean; product tree byte-identical to the reviewed candidate. **Source only — the
+migration is NOT applied and nothing is deployed.** `as of 2026-09-23` the live release is still
+`7dbb3b90` and does not carry this work. Next: the separate HIGH `NOTIFICATION-INBOX-LIVE` action
+(apply `0004` + deploy), which is **not** authorized by this integration.
+
 **`TIMETABLE-RELAXED-SUBPAGES-C01` independently reviewed post-hoc — `ACCEPT_READY` 20/20/0/0 (2026-09-23).**
 `57592dd7` (relax scheduler chrome on subpages) + `e794dee2` (fixture-path correction), merged
 `6cc202b7`, reached the live release `7dbb3b90` under the `AGENTS.md` §11 unreviewed-delta condition.
