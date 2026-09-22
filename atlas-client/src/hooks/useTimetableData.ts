@@ -487,6 +487,10 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 
 	const selectedRunIdRef = useRef(selectedRunId);
 	const latestRunDataFetchSeqRef = useRef(0);
+	// A term change can start a new load while the prior authority/bootstrap
+	// read is still in flight. Only the newest load may clear or replace the
+	// workspace; an older pre-authority result must not restore the setup gate.
+	const loadSequenceRef = useRef(0);
 	const [schoolYearContext, setSchoolYearContext] = useState<ActiveSchoolYearContext | null>(null);
 	const termAuthorityReadyRef = useRef(false);
 	const [schoolId, setSchoolId] = useState<number | null>(null);
@@ -1511,6 +1515,9 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 	}, [draft, preGenMapContext, roomMap, setMapBuildingId, setMapRoomId, setViewMode, setEntityFilter, setPreGenMapContext, switchCenterViewWithGuard, setCenterView]);
 
 	const loadAll = useCallback(async (options?: { preserveRun?: boolean; force?: boolean } | boolean) => {
+		const loadSequence = loadSequenceRef.current + 1;
+		loadSequenceRef.current = loadSequence;
+		const isCurrentLoad = () => loadSequenceRef.current === loadSequence;
 		const preserveRun = typeof options === 'boolean' ? options : options?.preserveRun ?? false;
 		const force = typeof options === 'object' ? options?.force ?? false : false;
 
@@ -1518,6 +1525,7 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 		setError(null);
 		try {
 			const syId = await fetchSchoolYear();
+			if (!isCurrentLoad()) return;
 			if (!syId) {
 				setError('No active school year found.');
 				setLoading(false);
@@ -1563,7 +1571,9 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 				},
 				onRunSelected: (runId) => setSelectedRunId(runId),
 			}, syId);
+			if (!isCurrentLoad()) return;
 		} catch (e: unknown) {
+			if (!isCurrentLoad()) return;
 			const code = getTimetableApiErrorCode(e);
 			if (code === 'NO_ACTIVE_DRAFT' || code === 'STALE_RUN_DATA' || code === 'NO_RUNS') {
 				// Keep the workspace accessible for setup/pre-generation controls.
@@ -1575,7 +1585,7 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 				setError(msg);
 			}
 		} finally {
-			setLoading(false);
+			if (isCurrentLoad()) setLoading(false);
 		}
 	}, [
 		schoolYearId,

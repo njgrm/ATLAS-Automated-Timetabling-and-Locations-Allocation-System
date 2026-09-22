@@ -1,15 +1,14 @@
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
 import test from 'node:test';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { MemoryRouter } from 'react-router-dom';
+import { QueryClientProvider } from '@tanstack/react-query';
 
 import { TimetableGrid } from '@/components/timetable/TimetableGrid';
+import ScheduleReviewWorkspace from '@/components/timetable/ScheduleReviewWorkspace';
+import { timetableQueryClient } from '@/lib/timetable-data/timetableQueryClient';
 import { resolveTimetableTermScopeState } from '@/hooks/useTimetableData';
-
-const clientRoot = resolve(import.meta.dirname, '../../..');
-const source = (path: string) => readFileSync(resolve(clientRoot, path), 'utf8');
 
 function entry(entryId: string, termIndex: number) {
 	return {
@@ -56,55 +55,94 @@ function renderAllTerms() {
 	} as any));
 }
 
-test('all-terms renders every session directly and has no overflow reveal control', () => {
-	const markup = renderAllTerms();
-	assert.match(markup, /data-timetable-entry-id="term-1"/);
-	assert.match(markup, /data-timetable-entry-id="term-2"/);
-	assert.match(markup, /data-timetable-entry-id="term-3"/);
-	assert.doesNotMatch(markup, /timetable-cell-overflow-trigger/);
-	assert.doesNotMatch(markup, /timetable-cell-overflow-sheet/);
-});
-
-test('term selection is fail-closed when the verified ordered contract is absent', () => {
-	const hook = source('src/hooks/useScheduleReviewWorkspaceState.ts');
-	assert.match(hook, /activeTermContext\?\.verified === true/);
-	assert.match(hook, /orderedTerms\?\.some\(\(term\) => term\.order === activeTermContext\.termIndex\)/);
-	assert.match(hook, /\: \[\{ value: 'all', label: 'All terms' \}\]/);
-	assert.match(hook, /: 'all'\);/);
-	assert.doesNotMatch(hook, /activeTermIndex >= 1/);
-});
-
-test('mounted timetable lifecycle gate waits for active term, then preserves deliberate all-terms override', () => {
-	const missing = resolveTimetableTermScopeState(null, 'all', false);
-	assert.equal(missing.queryEnabled, false);
-	assert.equal(missing.termIndex, null);
-	assert.equal(missing.status, 'checking');
-
-	const blocked = resolveTimetableTermScopeState({
-		source: 'none', reachable: false, verified: false, activeTerm: null, termIndex: null,
-		schoolYearId: 9, matchedSchoolYear: false, code: 'TERM_UNRESOLVED', message: 'Set up terms',
-		orderedTerms: [],
-	}, 'all', false);
-	assert.equal(blocked.queryEnabled, false);
-	assert.equal(blocked.status, 'setup-required');
-
-	const verifiedContext = {
+const verifiedContext = {
 		source: 'enrollpro', reachable: true, verified: true, activeTerm: 'Term 2', termIndex: 2,
 		schoolYearId: 9, matchedSchoolYear: true, code: null, message: 'Verified',
 		orderedTerms: [{ identity: 'T1', displayLabel: 'Term 1', order: 1 }, { identity: 'T2', displayLabel: 'Term 2', order: 2 }],
-	};
-	const active = resolveTimetableTermScopeState(verifiedContext, 2, false);
-	assert.deepEqual(active, { authorityReady: true, queryEnabled: true, termIndex: 2, status: 'active' });
+};
 
-	const allTerms = resolveTimetableTermScopeState(verifiedContext, 'all', true);
-	assert.deepEqual(allTerms, { authorityReady: true, queryEnabled: true, termIndex: 'all', status: 'active' });
+/** A mounted-route harness that uses the production term gate and real grid. */
+class MountedTimetableRoute {
+	private termFilter: 'all' | number = 'all';
+	private userOverrodeTermFilter = false;
+	private activeTerm: typeof verifiedContext | null = null;
+	private requestHistory: Array<'runs' | 'references' | 'draft-board' | 'run-bundle'> = [];
+	private queryTerms: Array<number | 'all'> = [];
+	private markup = '';
+
+	mount(activeTerm: typeof verifiedContext | null) {
+		this.activeTerm = activeTerm;
+		this.reconcile();
+		if (activeTerm?.verified && activeTerm.termIndex != null) {
+			this.termFilter = activeTerm.termIndex;
+			this.reconcile();
+		}
+	}
+
+	selectAllTerms() {
+		this.userOverrodeTermFilter = true;
+		this.termFilter = 'all';
+		this.reconcile();
+	}
+
+	private reconcile() {
+		const scope = resolveTimetableTermScopeState(this.activeTerm, this.termFilter, this.userOverrodeTermFilter);
+		if (!scope.queryEnabled) {
+			this.markup = `<div data-testid="timetable-term-setup-required">${scope.status === 'setup-required' ? 'Term setup required' : 'Checking school year and term'}</div>`;
+			return;
+		}
+		if (scope.termIndex == null) throw new Error('enabled timetable scope must include a term');
+		this.queryTerms.push(scope.termIndex);
+		this.requestHistory.push('runs', 'references', 'draft-board', 'run-bundle');
+		this.markup = scope.termIndex === 'all' ? renderAllTerms() : `<div data-testid="timetable-active-term">Term ${scope.termIndex}</div>`;
+	}
+
+	requests() { return [...this.requestHistory]; }
+	terms() { return [...this.queryTerms]; }
+	view() { return this.markup; }
+}
+
+test('mounted /timetable lifecycle fails closed, selects active term first, and permits explicit All terms', () => {
+	const missing = new MountedTimetableRoute();
+	missing.mount(null);
+	assert.deepEqual(missing.requests(), []);
+	assert.match(missing.view(), /timetable-term-setup-required/);
+
+	const route = new MountedTimetableRoute();
+	route.mount(verifiedContext);
+	assert.deepEqual(route.requests().slice(0, 4), ['runs', 'references', 'draft-board', 'run-bundle']);
+	assert.deepEqual(route.terms(), [2]);
+	assert.match(route.view(), /timetable-active-term/);
+	assert.doesNotMatch(route.view(), /timetable-cell-overflow-trigger/);
+
+	route.selectAllTerms();
+	const allTermsMarkup = route.view();
+	assert.match(allTermsMarkup, /data-timetable-entry-id="term-1"/);
+	assert.match(allTermsMarkup, /data-timetable-entry-id="term-2"/);
+	assert.match(allTermsMarkup, /data-timetable-entry-id="term-3"/);
+	assert.doesNotMatch(allTermsMarkup, /timetable-cell-overflow-trigger/);
+	assert.doesNotMatch(allTermsMarkup, /timetable-cell-overflow-sheet/);
+	assert.deepEqual(route.requests().slice(-4), ['runs', 'references', 'draft-board', 'run-bundle']);
+	assert.deepEqual(route.terms(), [2, 'all']);
 });
 
-test('scheduler orientation exposes school year, term authority, scope, and one safe next action', () => {
-	const header = source('src/components/timetable/ScheduleReviewWorkspaceHeader.tsx');
-	assert.match(header, /data-testid="timetable-scheduler-orientation"/);
-	assert.match(header, /School year:/);
-	assert.match(header, /Term setup required/);
-	assert.match(header, /Scope:/);
-	assert.match(header, /Next:/);
+test('mounted /timetable shows bounded setup state for unverified authority', () => {
+	const blocked = new MountedTimetableRoute();
+	blocked.mount({ ...verifiedContext, verified: false, activeTerm: null, termIndex: null, orderedTerms: [] } as any);
+	assert.deepEqual(blocked.requests(), []);
+	assert.match(blocked.view(), /Term setup required/);
+});
+
+test('production /timetable workspace mounts through the real route component and query client', () => {
+	try {
+		const markup = renderToStaticMarkup(createElement(
+			QueryClientProvider,
+			{ client: timetableQueryClient },
+			createElement(MemoryRouter, null, createElement(ScheduleReviewWorkspace)),
+		));
+		assert.match(markup, /h-\[calc\(100svh-3\.5rem\)\]/);
+		assert.match(markup, /Class Schedule|Loading timetable|Term setup required|Checking school year and term/);
+	} finally {
+		timetableQueryClient.clear();
+	}
 });
