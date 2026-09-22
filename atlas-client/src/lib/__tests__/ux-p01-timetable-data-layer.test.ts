@@ -36,7 +36,7 @@ import {
 	resetTimetableWarmScope,
 } from '@/lib/timetable-data/timetableServerState';
 import { runTimetableLoad, type TimetableLoadPorts } from '@/lib/timetable-data/timetableLoadOrchestration';
-import { prefetchNavDestination, prefetchTimetableScopeData, resolveVerifiedActiveTermIndex } from '@/lib/timetable-data/timetablePrefetch';
+import { prefetchNavDestination, prefetchTimetableEntryPoint, prefetchTimetableScopeData, resolveVerifiedActiveTermIndex } from '@/lib/timetable-data/timetablePrefetch';
 
 // ─── storage shim (actor token epoch lives in session storage) ───
 
@@ -68,6 +68,18 @@ const roomRequestFixture = { counts: { pending: 1 }, requests: [] };
 const readinessFixture = { state: 'READY' };
 
 function respond(url: string): unknown {
+	if (url === '/auth/me') return { user: { schoolId: 1 } };
+	if (url === '/runtime/context') return {
+		activeSchoolYearId: 9,
+		activeSchoolYearLabel: '2030-2031',
+		schoolId: 1,
+		source: 'enrollpro-verified',
+		activeTerm: {
+			verified: true,
+			termIndex: 0,
+			orderedTerms: [{ identity: 'T0', displayLabel: 'Term 0', order: 0 }],
+		},
+	};
 	if (url.includes('/readiness/diagnostic')) return { readiness: readinessFixture };
 	if (url.includes('/runs/latest/draft')) return draftFixture;
 	if (url.includes('/runs/latest/violations')) return violationsFixture;
@@ -302,6 +314,7 @@ test('R3 authority gate: prefetch rejects all-terms and unresolved active-term s
 	assert.equal(resolveVerifiedActiveTermIndex(null), null);
 	assert.equal(resolveVerifiedActiveTermIndex({ verified: false, termIndex: 2, orderedTerms: [{ identity: 'T2', displayLabel: 'Term 2', order: 2 }] } as any), null);
 	assert.equal(resolveVerifiedActiveTermIndex({ verified: true, termIndex: 2, orderedTerms: [{ identity: 'T1', displayLabel: 'Term 1', order: 1 }] } as any), null);
+	assert.equal(resolveVerifiedActiveTermIndex({ verified: true, termIndex: 0, orderedTerms: [{ identity: 'T0', displayLabel: 'Term 0', order: 0 }] } as any), null);
 	assert.equal(resolveVerifiedActiveTermIndex({ verified: true, termIndex: 2, orderedTerms: [{ identity: 'T2', displayLabel: 'Term 2', order: 2 }] } as any), 2);
 
 	await withMockedApi(async (calls) => {
@@ -310,6 +323,20 @@ test('R3 authority gate: prefetch rejects all-terms and unresolved active-term s
 		await new Promise((resolve) => setTimeout(resolve, 10));
 		assert.equal(calls.length, 0, 'unscoped All terms prefetch must dispatch nothing');
 		assert.equal(timetableQueryClient.getQueryData(timetableRunsQueryKey({ ...scopeA, termIndex: 'all' })), undefined);
+	});
+
+	await withMockedApi(async (calls) => {
+		installStorageShim();
+		(sessionStorage as unknown as { setItem(k: string, v: string): void }).setItem('atlas_local_token', 'term-zero-entry-point');
+		timetableQueryClient.clear();
+		prefetchTimetableEntryPoint();
+		await new Promise((resolve) => setTimeout(resolve, 25));
+		assert.equal(
+			calls.filter((call) => call.url !== '/auth/me' && call.url !== '/runtime/context').length,
+			0,
+			'malformed Term 0 entry-point prefetch must dispatch zero timetable reads',
+		);
+		assert.equal(timetableQueryClient.getQueryData(timetableRunsQueryKey({ ...scopeA, termIndex: 0 })), undefined);
 	});
 });
 
