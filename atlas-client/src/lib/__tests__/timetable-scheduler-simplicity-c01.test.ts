@@ -2,8 +2,12 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { MemoryRouter } from 'react-router-dom';
+import { QueryClientProvider } from '@tanstack/react-query';
 
 import { TimetableGrid } from '@/components/timetable/TimetableGrid';
+import ScheduleReviewWorkspace from '@/components/timetable/ScheduleReviewWorkspace';
+import { timetableQueryClient } from '@/lib/timetable-data/timetableQueryClient';
 import { resolveTimetableTermScopeState } from '@/hooks/useTimetableData';
 
 function entry(entryId: string, termIndex: number) {
@@ -127,4 +131,18 @@ test('mounted /timetable shows bounded setup state for unverified authority', ()
 	blocked.mount({ ...verifiedContext, verified: false, activeTerm: null, termIndex: null, orderedTerms: [] } as any);
 	assert.deepEqual(blocked.requests(), []);
 	assert.match(blocked.view(), /Term setup required/);
+});
+
+test('production /timetable workspace mounts through the real route component and query client', () => {
+	try {
+		const markup = renderToStaticMarkup(createElement(
+			QueryClientProvider,
+			{ client: timetableQueryClient },
+			createElement(MemoryRouter, null, createElement(ScheduleReviewWorkspace)),
+		));
+		assert.match(markup, /h-\[calc\(100svh-3\.5rem\)\]/);
+		assert.match(markup, /Class Schedule|Loading timetable|Term setup required|Checking school year and term/);
+	} finally {
+		timetableQueryClient.clear();
+	}
 });
