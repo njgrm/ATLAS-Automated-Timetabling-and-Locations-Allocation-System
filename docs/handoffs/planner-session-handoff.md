@@ -224,8 +224,10 @@ Ranked:
    Set `ATLAS_SSO_CALLBACK_URL=https://njgrm.buru-degree.ts.net/api/v1/auth/enrollpro/callback` on
    `dev-jegs`. It currently points at ATLAS's SPA *result* path (`/auth/sso/callback`), so EnrollPro
    appends `?code=` to a page that only reads a `#atlasToken` fragment and the user dead-ends at
-   *"No sign-in token was provided."* Evidence, exact source lines and three acceptance tests:
-   `docs/handoffs/companion-sso-reverse-identity-c01-enrollpro.md` §4. Companion-side and READ_ONLY
+   *"No sign-in token was provided."* Evidence, exact source lines and three acceptance tests are in
+   the **send-ready handoff** `docs/handoffs/companion-sso-reverse-identity-c01-enrollpro.md` — it is
+   self-contained, so the EnrollPro developer needs nothing from this repo, and the fix is **one env
+   value plus a restart (no code change, no PR)**. Companion-side and READ_ONLY
    from ATLAS — it needs the operator / EnrollPro owner. After the change, re-run the normal leg and
    record the typed result. **Do not add an ATLAS route at `/auth/sso/callback` to work around it** —
    that path is the SPA route; the fix belongs in EnrollPro's configuration.

@@ -123,11 +123,21 @@ QA's login). Logout proven: tokens cleared from `localStorage` and `sessionStora
 `GET /api/v1/auth/me` → `401 {"code":"NO_TOKEN"}`. Browser context closed. Disposable databases
 (`atlas_sso_c01_test`, `atlas_qa_d4c9f391`) dropped; the live database is intact.
 
-## 8. Companion handoff
+## 8. Companion handoff (send-ready)
 
-`docs/handoffs/companion-sso-reverse-identity-c01-enrollpro.md` — §2 asks EnrollPro to prefer
-`employeeId` over a caller-supplied `userId` and to surface the companion's 403 code; §4 is the
-**Flow A callback misconfiguration** above. No companion repo was touched.
+`docs/handoffs/companion-sso-reverse-identity-c01-enrollpro.md` — rewritten 2026-09-22 as a
+**self-contained, send-ready document**: the EnrollPro developer needs nothing from this repository.
+It states the blocking `ATLAS_SSO_CALLBACK_URL` value and its acceptance tests, the two non-blocking
+hardening asks (prefer `employeeId` over a caller-supplied `userId`; surface the companion's 403
+code), and what ATLAS already changed on its side. The required change is **configuration only — no
+source change, no PR** (EnrollPro reads the value from `process.env` with no cache and no DB-backed
+equivalent, so it needs an env update plus a restart). No companion repo was touched.
+
+**Benign observation (not a defect).** ATLAS's `ATLAS_ENROLLPRO_SSO_CALLBACK_URL` is unset, so
+`GET /api/v1/auth/sso/enrollpro/start` returns typed `503 COMPANION_SSO_NOT_CONFIGURED`. That is the
+ATLAS-**initiated** direct-federation variant; the client never calls it (the Integrated Systems link
+uses EnrollPro's `…/reverse/start`), and the same 503 is the *expected* row for SMART/AIMS. No action
+recorded.
 
 ## 9. Findings
 

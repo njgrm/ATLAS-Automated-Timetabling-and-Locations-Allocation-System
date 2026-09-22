@@ -356,8 +356,9 @@ requires; it fails closed typed-403 (`COMPANION_SSO_IDENTITY_EMPLOYEE_ID_UNAVAIL
 disposable DB; zero-write proven by a whole-database post-cutover timestamp scan (only the disclosed
 auth rows). **EnrollPro → ATLAS (normal) is `BLOCKED(COMPANION_CALLBACK_MISCONFIGURED)`** —
 EnrollPro's `ATLAS_SSO_CALLBACK_URL` points at ATLAS's SPA *result* path instead of
-`/api/v1/auth/enrollpro/callback`; handoff
-`docs/handoffs/companion-sso-reverse-identity-c01-enrollpro.md` §4, evidence
+`/api/v1/auth/enrollpro/callback`; **send-ready** handoff
+`docs/handoffs/companion-sso-reverse-identity-c01-enrollpro.md` (self-contained — the EnrollPro
+developer needs nothing from this repo; the fix is one env value plus a restart, no PR), evidence
 `docs/reviews/companion-sso-reverse-identity-c01/evidence.md`. The stream packet's "Defect B" was a
 **misattribution** — the reverse assertion has never sent a numeric `userId`.
 

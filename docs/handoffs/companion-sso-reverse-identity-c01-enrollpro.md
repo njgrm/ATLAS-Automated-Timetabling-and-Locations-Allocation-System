@@ -1,132 +1,156 @@
-# Handoff: EnrollPro reverse-SSO — prefer `employeeId`, surface the companion's 403 code
+# EnrollPro ↔ ATLAS SSO — developer handoff
 
-To: EnrollPro owners. From: ATLAS stream `COMPANION-SSO-REVERSE-IDENTITY-C01`
-(executor handoff; ATLAS-side candidate unmerged at time of writing).
-Status: **developer-facing note only — no companion repo was touched** (EnrollPro/SMART/AIMS are READ_ONLY per ATLAS directive §4).
+**To:** the EnrollPro owner/developer with access to the `dev-jegs` deployment.
+**From:** ATLAS (stream `COMPANION-SSO-REVERSE-IDENTITY-C01`), 2026-09-22.
+**Purpose:** one blocking configuration defect, plus two non-blocking hardening items. Everything you
+need is inline — you do **not** need the ATLAS repository.
 
-## 1. Upstream pin and exact source paths (READ_ONLY references)
+**Pins (evidence is only valid at a recorded commit):**
+- EnrollPro `7b6231ee2d7a5c9801b68afd0343db2768950e42` (`D:/EnrollPro`, clean).
+- ATLAS `da4d289f7e854863e1f7f74ab210d61a607b934f` (release `d4c9f391`, live).
 
-- EnrollPro @ `7b6231ee`:
-  - `server/src/features/auth/companion-sso-reverse.service.ts:383` — a companion
-    exchange HTTP **403** becomes `COMPANION_REVERSE_SSO_ACCESS_DENIED`.
-  - `server/src/features/auth/companion-sso-reverse.service.ts:411-419` —
-    `assertUserCanEnterEnrollPro` checks only `user.isActive` (never the name).
-  - `server/src/features/auth/companion-sso-reverse.service.ts:421-434` —
-    `resolveUserById` prefers `userId`, falls back to `employeeId`.
-  - `shared/src/schemas/companion-sso.schema.ts:62-76` — reverse-response
-    `identity`: `userId` optional, `subject` `min(1).max(191)` optional,
-    `employeeId` nullable optional, **`firstName`/`lastName`
-    `z.string().min(1).optional()`** — a present-but-empty name FAILS
-    validation (`502 COMPANION_REVERSE_SSO_RESPONSE_INVALID`).
-- ATLAS (this lane): `atlas-server/src/services/companion-sso.service.ts`
-  (`buildAssertion`) now asserts `subject: ATLAS_USER:<id>` + `employeeId`,
-  never a numeric `userId`, and **omits** `firstName`/`lastName` when empty.
-
-## 2. Required contract (two asks)
-
-**(a) Prefer `employeeId` over a caller-supplied `userId`, or reject a `userId`
-that does not correspond to the asserted `employeeId`.** Today `resolveUserById`
-trusts any caller-supplied numeric `userId` first. A companion that asserts its
-own local account id (as ATLAS historically did for non-faculty roles) silently
-logs the user into an **unrelated EnrollPro account** when the id spaces
-coincide. SMART sidesteps this by never sending `userId`; EnrollPro should not
-rely on every companion doing so.
-
-Acceptance: an exchange response carrying `userId` of an unrelated EnrollPro
-user plus a valid `employeeId` resolves to the `employeeId` owner (or is
-rejected with a typed mismatch error) — never to the `userId` row.
-
-**(b) Surface the companion's distinct 403 code instead of collapsing to one
-opaque `ACCESS_DENIED`.** ATLAS now fails typed
-(`COMPANION_SSO_ROLE_UNMAPPABLE`,
-`COMPANION_SSO_IDENTITY_EMPLOYEE_ID_UNAVAILABLE`), but EnrollPro's
-`COMPANION_REVERSE_SSO_ACCESS_DENIED` hides which one fired; the cause is only
-findable in the companion's source. Forward the companion's `code` (e.g. as
-`ssoError` detail) so operators need not read ATLAS source to triage.
-
-Acceptance: a denied reverse login exposes the originating companion code
-alongside `COMPANION_REVERSE_SSO_ACCESS_DENIED`.
-
-## 3. §5 B correction (recorded as required by the packet)
-
-The click-through findings'
-(`docs/reviews/companion-sso-reverse-clickthrough-20260921/findings.md` §3)
-"Defect B" is a **misattribution**. Its cited line —
-`userId: role === 'faculty' && facultyExternalId ? facultyExternalId :
-account.id` — occurs once, in the **Flow A local session** (`sessionUser`,
-`companion-sso.service.ts:571`), which is the local JWT's identity, not the
-cross-system assertion. The reverse assertion has always used
-`subject: ATLAS_USER:<account.id>` (`CompanionSsoAssertion`,
-`companion-sso.service.ts:826-841`; emitted at `:1027`) and has **never** sent
-a local numeric `userId` (`git log -S 'userId: account.role'` returns only the
-Flow A line). Packet R1 was therefore verified, not re-implemented; this
-handoff's ask (a) stands on the general contract risk (any companion *could*
-send an arbitrary `userId` and EnrollPro would trust it), not on a current
-ATLAS defect.
+**Status:** ATLAS → EnrollPro (reverse) is **working live**. EnrollPro → ATLAS (normal) is
+**blocked** on §1.
 
 ---
 
-## 4. ADDED 2026-09-22 — `ATLAS_SSO_CALLBACK_URL` points at ATLAS's **result** path, so EnrollPro → ATLAS cannot complete
+## 1. BLOCKING — `ATLAS_SSO_CALLBACK_URL` points at ATLAS's result page, not its callback
 
-Found by the live click-through after ATLAS's reverse fix shipped. **This is now the blocking defect
-for the normal (EnrollPro → ATLAS) direction**; the reverse direction (ATLAS → EnrollPro) is
-confirmed working.
+### Symptom
 
-### Observed
-
-From an authenticated EnrollPro session, EnrollPro's ATLAS entry issued
-`POST https://dev-jegs.buru-degree.ts.net/api/auth/companion-sso/atlas/launch → 201` and the client
-navigated to:
+From an authenticated EnrollPro session, opening the ATLAS handoff produced:
 
 ```
-GET https://njgrm.buru-degree.ts.net/auth/sso/callback?code=-AcXi5ghJMH8J4N3Y5Vu_hrGLYFB8VxSrprVRlxnYpo  → 200
+POST https://dev-jegs.buru-degree.ts.net/api/auth/companion-sso/atlas/launch   → 201
+GET  https://njgrm.buru-degree.ts.net/auth/sso/callback?code=-AcXi5gh…        → 200
 ```
 
-That path is ATLAS's **SPA result page**, which reads only the URL **fragment** `atlasToken` (and the
-query `ssoError`). It never handles a `code`, so it rendered *"No sign-in token was provided. Start
-again from EnrollPro."* and ATLAS was not authenticated. No ATLAS audit row or session was created.
+and the user landed on ATLAS's SPA result page showing *"No sign-in token was provided. Start again
+from EnrollPro."* — not signed in. No ATLAS session was created.
 
 ### Root cause
 
-EnrollPro's `${system}_SSO_CALLBACK_URL` is the URL it appends `?code=` to:
+EnrollPro builds the browser handoff from its own env and appends `?code=`:
 
 - `server/src/features/auth/companion-sso.service.ts:63-69` —
-  `configurationNames(system)` → `callback: \`${system}_SSO_CALLBACK_URL\``.
-- `:91-112` — `readCompanionConfiguration` reads `process.env[names.callback]` (must be https).
+  `configurationNames(system)` returns `callback: \`${system}_SSO_CALLBACK_URL\``.
+- `:91-112` — `readCompanionConfiguration()` reads `process.env[names.callback]`; it requires a valid
+  **https** URL and rejects one with embedded username/password or a `#fragment` (otherwise it
+  returns `null` and the companion shows as *not configured*).
 - `:353-354` — `const launchUrl = new URL(configuration.callbackUrl); launchUrl.searchParams.set("code", code);`
 
-ATLAS's Flow A contract is a **server** callback, not the SPA result page:
+The live value is `https://njgrm.buru-degree.ts.net/auth/sso/callback`, which is ATLAS's **SPA result
+page**. That page reads **only** the URL fragment `#atlasToken=…` (or a `?ssoError=…` query) — it has
+no handling for a `code`, so the handoff dead-ends.
 
-- `atlas-server/src/routes/auth.router.ts:106` — `router.get('/enrollpro/callback', …)` (mounted at
-  `/api/v1/auth/enrollpro/callback`) validates the code, exchanges it server-to-server, and
-  302-redirects to the result page.
-- `:30` — `COMPANION_SSO_RESULT_PATH = '/auth/sso/callback'`; `:46-54` — `redirectToCompanionSsoResult`
-  sends `302 Location: /auth/sso/callback#atlasToken=<jwt>`.
-- `atlas-client/src/pages/SsoCallback.tsx` + `lib/companion-sso-client.ts:36-44` — the SPA consumes
-  **only** the fragment `atlasToken` / query `ssoError`.
+### The contract it must satisfy
 
-The live value is the *result* path (`…/auth/sso/callback`) where the *callback* path belongs — the
-two ATLAS paths differ by `/api/v1/auth/enrollpro/callback`.
+ATLAS's Flow A is a **server** callback:
 
-### Required contract
+1. EnrollPro sends the browser to **`GET /api/v1/auth/enrollpro/callback?code=…`** on the ATLAS host.
+2. The ATLAS server validates and exchanges the code server-to-server, maps it onto an existing ATLAS
+   account, then `302`s to `/auth/sso/callback#atlasToken=<jwt>`.
+3. The SPA consumes the fragment, strips it, and lands the user authenticated.
+
+The two ATLAS paths differ: the **callback** is `/api/v1/auth/enrollpro/callback`; the **result page**
+is `/auth/sso/callback`. The live config uses the result page where the callback belongs.
+
+### Required change — configuration only, no code, no PR
 
 ```
 ATLAS_SSO_CALLBACK_URL = https://njgrm.buru-degree.ts.net/api/v1/auth/enrollpro/callback
 ```
 
-(For symmetry: SMART's equivalent must likewise point at SMART's server callback; SMART is reported
-working, so it is the ATLAS value that is wrong.)
+- This is an environment value on the `dev-jegs` EnrollPro deployment. **No source change is needed.**
+- EnrollPro reads it from `process.env` at request time (`:227`, `:279`, `:380`) with **no module-level
+  cache and no DB-backed equivalent** (the only DB access in those files is the user lookup), so the
+  value must be present in the process environment — i.e. **restart EnrollPro after changing it**.
+- Keep it https with no credentials and no fragment, or `readCompanionConfiguration` returns `null`
+  and the ATLAS entry silently shows as unconfigured.
+- The companion entry is otherwise correctly configured: `POST …/atlas/launch` returned **201**, not
+  `503 COMPANION_SSO_NOT_CONFIGURED`, so `ATLAS_SSO_CLIENT_SECRET` is present, ≥ 32 characters and not
+  a placeholder. Only the callback URL is wrong.
 
 ### Acceptance tests
 
-1. From an authenticated EnrollPro session, opening the ATLAS handoff must make the browser request
-   **`/api/v1/auth/enrollpro/callback?code=…`** (the ATLAS server), which 302s to
-   `/auth/sso/callback#atlasToken=…`, and the SPA must land on an authenticated ATLAS surface
-   (`https://njgrm.buru-degree.ts.net`, `window.location.origin` asserted).
-2. A malformed/expired code must produce `/auth/sso/callback?ssoError=COMPANION_SSO_CODE_INVALID`
-   (or another typed `ssoError`), never the bare *"No sign-in token was provided."* message.
-3. Negative control: with the wrong (result-path) value, the flow must reproduce the observed
-   *"No sign-in token was provided"* dead end — proving the test discriminates.
+1. **Positive.** From an authenticated EnrollPro session, the ATLAS handoff makes the browser request
+   `GET /api/v1/auth/enrollpro/callback?code=…` (the ATLAS **server**), which `302`s to
+   `/auth/sso/callback#atlasToken=…`, and the user lands on an authenticated ATLAS surface
+   (`https://njgrm.buru-degree.ts.net`).
+2. **Negative — malformed/expired code.** The result must be `/auth/sso/callback?ssoError=<typed code>`
+   (e.g. `COMPANION_SSO_CODE_INVALID`), never the bare *"No sign-in token was provided."*
+3. **Negative control — discriminates.** With the current (result-page) value, the flow must reproduce
+   the dead end above. If both values behave the same, the test is not measuring the fix.
 
-**Do not fix this on the ATLAS side.** ATLAS cannot serve `?code=` at its SPA path without colliding
-with the client route; the configuration value is EnrollPro's.
+---
+
+## 2. Non-blocking hardening (not required for the demo)
+
+### 2a. Do not trust a caller-supplied numeric `userId`
+
+`server/src/features/auth/companion-sso-reverse.service.ts:421-434` — `resolveUserById` prefers
+`assertion.userId` and looks it up in EnrollPro's **own** user table, falling back to `employeeId`
+only when `userId` is absent. A companion that asserts its own local account id can therefore be
+signed into an **unrelated EnrollPro account** when the id spaces coincide — silently. ATLAS avoids
+this by never sending `userId` (it asserts `subject` + `employeeId`), but EnrollPro should not rely on
+every companion doing so.
+
+*Ask:* prefer `employeeId`; or, if `userId` is present, require that it resolves to the same user as
+the asserted `employeeId`, and reject a mismatch with a typed error.
+*Acceptance:* an exchange carrying an unrelated `userId` plus a valid `employeeId` resolves to the
+`employeeId` owner, or is rejected — never to the `userId` row.
+
+### 2b. Surface the companion's error code
+
+`server/src/features/auth/companion-sso-reverse.service.ts:383` collapses any companion HTTP 403 into
+one opaque `COMPANION_REVERSE_SSO_ACCESS_DENIED`. The companion emits several distinct typed codes
+(e.g. `COMPANION_SSO_ROLE_UNMAPPABLE`, `COMPANION_SSO_IDENTITY_EMPLOYEE_ID_UNAVAILABLE`), so the
+cause is only findable by reading the companion's source — this cost real triage time on 2026-09-21.
+
+*Ask:* forward the companion's `code` alongside `COMPANION_REVERSE_SSO_ACCESS_DENIED`.
+*Acceptance:* a denied reverse login exposes the originating companion code.
+
+---
+
+## 3. What ATLAS already changed (no action for you — context only)
+
+ATLAS's reverse assertion was failing because it required a two-token name. It now asserts:
+
+```json
+{
+  "success": true,
+  "issuer": "ATLAS",
+  "identity": {
+    "subject": "ATLAS_USER:<id>",
+    "employeeId": "<employeeId>",
+    "lrn": null, "middleName": null,
+    "roles": ["SYSTEM_ADMIN"],
+    "firstName": "…", "lastName": "…"
+  },
+  "activeSchoolYear": { "id": 10, "yearLabel": "2031-2032" },
+  "authenticatedAt": "…"
+}
+```
+
+- **No numeric `userId`** is sent (so your `employeeId` lookup is the one that resolves).
+- `firstName`/`lastName` are **omitted entirely when empty** — never `""`. Your
+  `companionSsoReverseExchangeResponseSchema` declares them `z.string().min(1).optional()`
+  (`shared/src/schemas/companion-sso.schema.ts:62-76`), so a present-but-empty name fails validation.
+- It fails closed with a typed 403 when the account has no `employeeId`.
+
+One correction for the record: an earlier ATLAS note claimed the reverse assertion asserted a local
+numeric `userId` as the cross-system id. That was a **misattribution** (the line in question is
+ATLAS's own local session identity); the reverse assertion has always sent `subject`. No change is
+required on your side for this.
+
+---
+
+## 4. After the change
+
+Ping ATLAS and we will re-run the normal leg end to end and record the result. If it then fails
+inside EnrollPro's own `employeeId` lookup (`COMPANION_REVERSE_SSO_USER_NOT_FOUND`), that is a
+companion **data** matter — the EnrollPro user must carry the `employeeId` that ATLAS asserts
+(currently `1234501`) — and we will report it as such rather than work around it.
+
+**Do not** try to make this work by pointing ATLAS at the SPA path or by adding an ATLAS route at
+`/auth/sso/callback`: that path is the SPA route, and the correct fix is this one configuration value.
