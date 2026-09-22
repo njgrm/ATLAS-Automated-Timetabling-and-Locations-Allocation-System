@@ -406,6 +406,53 @@ test('B4: nothing inside Timetable regresses below the 12px typography floor', (
 	}
 });
 
+/* B5: the 1000-physical-line component cap holds for every React component this range touched. */
+
+test('B5 cap guard: every React component this range touched stays inside the 1000-physical-line cap', () => {
+	// The range touched these component files; none may grow back over the
+	// mandatory cap (AGENTS.md section 8). This is the guard that previously only
+	// covered the header, which let `SchedulingPolicyPane.tsx` drift to 1009 lines.
+	const touchedComponents = [
+		'src/App.tsx',
+		'src/components/AppShell.tsx',
+		'src/components/CampusMap.tsx',
+		'src/components/SchedulingPolicyPane.tsx',
+		'src/components/timetable/CenterWorkspace.tsx',
+		'src/components/timetable/GridScrollMemory.tsx',
+		'src/components/timetable/InlinePlacementPreview.tsx',
+		'src/components/timetable/ScheduleReviewWorkspace.tsx',
+		'src/components/timetable/ScheduleReviewWorkspaceHeader.tsx',
+		'src/components/timetable/ScheduleReviewWorkspaceSummaryStats.tsx',
+		'src/components/timetable/ScheduleReviewWorkspaceTaskModes.tsx',
+		'src/components/timetable/TimetableAdvancedHeaderHelp.tsx',
+		'src/components/timetable/TimetableExportsPane.tsx',
+		'src/components/timetable/TimetableGrid.tsx',
+		'src/components/timetable/TimetableGridConflictBadge.tsx',
+		'src/components/timetable/TimetableSetupPane.tsx',
+		'src/components/timetable/TimetableSimpleHeader.tsx',
+		'src/components/timetable/TimetableSkeleton.tsx',
+		'src/components/timetable/TimetableStatusLegend.tsx',
+		'src/components/timetable/TimetableSubNav.tsx',
+		'src/components/timetable/TimetableTaskDrawer.tsx',
+		'src/components/timetable/simple/SimpleBeneficiaryControls.tsx',
+		'src/components/timetable/simple/SimpleDayOptions.tsx',
+		'src/components/timetable/simple/SimpleDriftBanner.tsx',
+		'src/components/timetable/simple/SimpleHeaderHelpers.tsx',
+		'src/components/timetable/simple/SimpleMoreMenuContent.tsx',
+	];
+	for (const path of touchedComponents) {
+		const text = source(path);
+		// Both counting methods must agree the file is inside the cap: the
+		// `[IO.File]::ReadAllLines` physical count, and the raw
+		// `readFileSync(...).split('\n').length` count (which treats the trailing
+		// newline as an extra element and is therefore the stricter of the two).
+		const physical = text.replace(/\r\n/g, '\n').replace(/\n$/, '').split('\n').length;
+		const rawSplit = text.split('\n').length;
+		assert.ok(physical <= 1000, `${path} is ${physical} physical lines by ReadAllLines (cap 1000; AGENTS.md section 8)`);
+		assert.ok(rawSplit <= 1000, `${path} is ${rawSplit} lines by split('\\n') (cap 1000; AGENTS.md section 8)`);
+	}
+});
+
 after(() => {
 	timetableQueryClient.clear();
 });

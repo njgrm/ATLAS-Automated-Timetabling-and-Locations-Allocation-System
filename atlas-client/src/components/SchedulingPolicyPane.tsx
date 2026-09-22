@@ -42,6 +42,13 @@ import {
 } from '@/components/scheduling-policy/SchedulingPolicyDialogs';
 import { ShiftSettingsEditor } from '@/components/scheduling-policy/ShiftSettingsEditor';
 import {
+	createInitialOverride,
+	DEFAULT_GRADE_WINDOWS,
+	getPresetWindowRange,
+	GRADE_LEVELS,
+	type LocalGradeWindow,
+} from '@/components/scheduling-policy/schedulingPolicyWindowModel';
+import {
 	ConstraintRow,
 	DEFAULT_CONSTRAINT_CONFIG,
 	MetricExplain,
@@ -95,41 +102,7 @@ interface LocalPolicy {
 	constraintConfig: Record<string, ConstraintOverride>;
 }
 
-type LocalGradeWindow = {
-	gradeLevel: number;
-	programType?: 'REGULAR' | 'STE' | 'SPS' | 'SPA' | 'SPJ' | 'SPFL' | 'SPTVE' | 'OTHER' | null;
-	startTime: string;
-	endTime: string;
-};
-
-const GRADE_LEVELS: number[] = [7, 8, 9, 10];
-
-const DEFAULT_GRADE_WINDOWS: LocalGradeWindow[] = [
-	{ gradeLevel: 7, programType: null, startTime: '07:30', endTime: '17:00' },
-	{ gradeLevel: 8, programType: null, startTime: '07:30', endTime: '17:00' },
-	{ gradeLevel: 9, programType: null, startTime: '07:30', endTime: '17:00' },
-	{ gradeLevel: 10, programType: null, startTime: '07:30', endTime: '17:00' },
-];
-
-function createInitialOverride(): LocalGradeWindow {
-	return {
-		gradeLevel: GRADE_LEVELS[0],
-		programType: null,
-		startTime: '07:30',
-		endTime: '17:00',
-	};
-}
-
-function getPresetWindowRange(mode: 'FULL_DAY' | 'HALF_DAY', gradeLevel: number): { startTime: string; endTime: string } {
-	if (mode === 'HALF_DAY') {
-		if (gradeLevel <= 8) {
-			return { startTime: '06:00', endTime: '12:00' };
-		}
-		return { startTime: '12:00', endTime: '18:00' };
-	}
-
-	return { startTime: '07:30', endTime: '17:00' };
-}
+/* Grade/shift-window model helpers now live in ./schedulingPolicyWindowModel. */
 
 function toProgramOptionsFromSections(summary: SectionSummaryResponse | null): ProgramWindowOption[] {
 	if (!summary) return DEFAULT_PROGRAM_WINDOW_OPTIONS;

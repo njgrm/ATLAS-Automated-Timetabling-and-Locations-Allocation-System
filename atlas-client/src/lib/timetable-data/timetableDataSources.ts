@@ -144,7 +144,8 @@ export async function fetchTimetableReferenceData(
 // These three reads were issued directly by `SchedulingPolicyPane` on every
 // mount. They are school/year-scoped and run/term-invariant, so they belong in
 // the shared scoped query cache: a revisit (or a sibling consumer) now hits the
-// cache instead of re-issuing HTTP. Transport shape is unchanged.
+// cache instead of re-issuing HTTP. The endpoint, params, and the 8 s client
+// timeout the pane used are preserved.
 
 export async function fetchTimetableGradeWindows(
 	schoolId: number,
@@ -152,6 +153,7 @@ export async function fetchTimetableGradeWindows(
 ): Promise<{ windows: GradeShiftWindow[] }> {
 	const { data } = await atlasApi.get<{ windows: GradeShiftWindow[] }>(
 		`/generation/${schoolId}/${schoolYearId}/grade-windows`,
+		{ timeout: 8_000 },
 	);
 	return data;
 }
@@ -162,6 +164,7 @@ export async function fetchTimetableSectionsSummary(
 ): Promise<SectionSummaryResponse> {
 	const { data } = await atlasApi.get<SectionSummaryResponse>(
 		`/sections/summary/${schoolYearId}?schoolId=${schoolId}`,
+		{ timeout: 8_000 },
 	);
 	return data;
 }
@@ -172,6 +175,7 @@ export async function fetchTimetablePolicySpecialEvents(
 ): Promise<{ events: PolicySpecialEvent[] }> {
 	const { data } = await atlasApi.get<{ events: PolicySpecialEvent[] }>(
 		`/policies/special-events/${schoolId}/${schoolYearId}`,
+		{ timeout: 8_000 },
 	);
 	return data;
 }
