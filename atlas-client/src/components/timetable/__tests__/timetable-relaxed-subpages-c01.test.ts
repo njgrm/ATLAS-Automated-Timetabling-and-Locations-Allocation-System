@@ -15,7 +15,7 @@ test('TIMETABLE-RELAXED-SUBPAGES-C01: only schedule and pre-generation retain sc
 test('TIMETABLE-RELAXED-SUBPAGES-C01: workspace gates full scheduler header and selection strip', async () => {
 	const { readFileSync } = await import('node:fs');
 	const { resolve } = await import('node:path');
-	const workspace = readFileSync(resolve(import.meta.dirname, '..', '..', 'ScheduleReviewWorkspace.tsx'), 'utf8');
+	const workspace = readFileSync(resolve(import.meta.dirname, '..', 'ScheduleReviewWorkspace.tsx'), 'utf8');
 
 	assert.match(workspace, /isTimetableSchedulerView\(state\.headerContext\.centerView\)/);
 	assert.match(workspace, /showSchedulerChrome && state\.selectedEntry && layoutMode === 'simple'/);
