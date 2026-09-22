@@ -7,6 +7,7 @@
  * the first render can read the cached snapshot instead of the network.
  */
 import { resolveActiveSchoolYearContext } from '@/lib/enrollpro-public-settings';
+import { isVerifiedOrderedActiveTerm } from '@/lib/academic-term';
 import { resolveActorSchoolId } from '@/lib/settings';
 import { TIMETABLE_STALE_MS, timetableQueryClient } from './timetableQueryClient';
 import {
@@ -45,11 +46,9 @@ const prefetchedRoutePaths = new Set<string>();
 export function resolveVerifiedActiveTermIndex(
 	activeTerm: Awaited<ReturnType<typeof resolveActiveSchoolYearContext>>['activeTerm'] | null | undefined,
 ): number | null {
-	return activeTerm?.verified === true
-		&& activeTerm.termIndex != null
-		&& activeTerm.orderedTerms?.some((term) => term.order === activeTerm.termIndex)
-		? activeTerm.termIndex
-		: null;
+	const termIndex = activeTerm?.termIndex;
+	if (!isVerifiedOrderedActiveTerm(activeTerm) || termIndex == null) return null;
+	return termIndex;
 }
 
 /** Prefetch the route-level chunk for a known navigation path. */

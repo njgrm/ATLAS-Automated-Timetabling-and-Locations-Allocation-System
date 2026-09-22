@@ -12,7 +12,7 @@ import {
 	type ProgramFilter,
 } from '@/lib/schedule-review-helpers';
 import { decideAutoSavePlacement } from '@/lib/simple-timetable-state';
-import { buildAcademicTermOptions, repairTermFilter, type OrderedAcademicTerm } from '@/lib/academic-term';
+import { buildAcademicTermOptions, isVerifiedOrderedActiveTerm, repairTermFilter, type OrderedAcademicTerm } from '@/lib/academic-term';
 import { isTargetSlotOccupiedForTerm } from '@/lib/timetable-term-scope';
 import { formatTime } from '@/lib/utils';
 import atlasApi from '@/lib/api';
@@ -71,7 +71,7 @@ import {
 	VIOLATION_LABELS,
 	type RoomInfo,
 } from '@/components/timetable/ScheduleReviewWorkspace.constants';
-import { useTimetableData } from '@/hooks/useTimetableData';
+import { resolveTimetableTermScopeState, useTimetableData } from '@/hooks/useTimetableData';
 import { useTimetableMutations } from '@/hooks/useTimetableMutations';
 import { useIsDesktop } from '@/hooks/useTimetableState';
 import {
@@ -543,15 +543,24 @@ export function useScheduleReviewWorkspaceState() {
 		gradeWindows,
 	});
 
+	// The verified ordered EnrollPro term contract drives every timetable read.
+	// A transient initial `all` filter is not an operator override: wait for the
+	// numeric active term to be reconciled before policy/window requests run.
+	const activeTermContext = schoolYearContext?.activeTerm ?? null;
+	const orderedTerms: OrderedAcademicTerm[] | null = activeTermContext?.orderedTerms ?? null;
+	const orderedTermsKey = orderedTerms?.map((term) => `${term.identity}:${term.displayLabel}:${term.order}`).join('|') ?? '';
+	const hasVerifiedTermAuthority = isVerifiedOrderedActiveTerm(activeTermContext);
+	const timetableTermScopeReady = resolveTimetableTermScopeState(
+		activeTermContext,
+		termFilter,
+		userOverrodeTermFilter,
+	).queryEnabled;
+
 	// Policy and grade-window reads use the same authenticated school scope as
 	// the timetable data. Missing scope leaves the page in its bounded error state.
 	// UX-R03c — this effect is the single owner of the scheduling-policy GET.
 	useEffect(() => {
-		const hasVerifiedTermAuthority = Boolean(
-			schoolYearContext?.activeTerm?.verified === true
-			&& schoolYearContext.activeTerm.termIndex != null,
-		);
-		if (!schoolId || !schoolYearId || !hasVerifiedTermAuthority) {
+		if (!schoolId || !schoolYearId || !timetableTermScopeReady) {
 			setPolicy(null);
 			setPolicyRecord(null);
 			setGradeWindows([]);
@@ -583,7 +592,7 @@ export function useScheduleReviewWorkspaceState() {
 			}
 		};
 		void fetchPolicyAndWindows();
-	}, [policyRefreshToken, schoolId, schoolYearContext?.activeTerm?.termIndex, schoolYearContext?.activeTerm?.verified, schoolYearId]);
+	}, [policyRefreshToken, schoolId, schoolYearId, timetableTermScopeReady]);
 
 	useEffect(() => {
 		if (!isPreGenerationWorkspace || !schoolYearId || roomMap.size > 0) return;
@@ -593,17 +602,6 @@ export function useScheduleReviewWorkspaceState() {
 		});
 	}, [fetchReferenceData, isPreGenerationWorkspace, roomMap.size, schoolYearId]);
 
-	// The verified ordered EnrollPro term contract drives the term filter. A
-	// missing or unverified contract is setup-required, not permission to guess
-	// Term 1 (or to expose fabricated term options).
-	const activeTermContext = schoolYearContext?.activeTerm ?? null;
-	const orderedTerms: OrderedAcademicTerm[] | null = activeTermContext?.orderedTerms ?? null;
-	const orderedTermsKey = orderedTerms?.map((term) => `${term.identity}:${term.displayLabel}:${term.order}`).join('|') ?? '';
-	const hasVerifiedTermAuthority = Boolean(
-		activeTermContext?.verified === true
-		&& activeTermContext.termIndex != null
-		&& orderedTerms?.some((term) => term.order === activeTermContext.termIndex),
-	);
 	const termOptions = useMemo(
 		() => hasVerifiedTermAuthority
 			? buildAcademicTermOptions(orderedTerms, activeTermContext?.termIndex ?? null)

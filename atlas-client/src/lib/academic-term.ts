@@ -18,6 +18,19 @@ export type OrderedAcademicTerm = {
 	order: number;
 };
 
+/** Only a verified active term present in the ordered upstream contract may
+ * authorize timetable-adjacent reads or be presented as the active term. */
+export function isVerifiedOrderedActiveTerm(
+	activeTerm: { verified?: boolean; termIndex?: number | null; orderedTerms?: ReadonlyArray<OrderedAcademicTerm> } | null | undefined,
+): boolean {
+	const termIndex = activeTerm?.termIndex;
+	return activeTerm?.verified === true
+		&& Number.isInteger(termIndex)
+		&& termIndex != null
+		&& termIndex > 0
+		&& Boolean(activeTerm.orderedTerms?.some((term) => term.order === termIndex));
+}
+
 export type AcademicTermOption = {
 	value: string;
 	label: string;

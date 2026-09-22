@@ -15,6 +15,7 @@ import {
 	academicTermDisplayLabel,
 	academicTermFallbackLabel,
 	buildAcademicTermOptions,
+	isVerifiedOrderedActiveTerm,
 	isTermIndexWithinTerms,
 	repairTermFilter,
 } from '@/lib/academic-term';
@@ -51,6 +52,12 @@ test('control 7c: an invalid selected term is repaired to all on a contract/scop
 	assert.equal(repairTermFilter(4, quarterTerms), 4);
 	assert.equal(repairTermFilter(4, quarterTerms.slice(0, 3)), 'all', 'a term absent from the new contract clears the filter');
 	assert.equal(repairTermFilter('all', quarterTerms), 'all');
+});
+
+test('control 7c1: zero or non-positive active-term orders never authorize timetable reads', () => {
+	assert.equal(isVerifiedOrderedActiveTerm({ verified: true, termIndex: 0, orderedTerms: [{ identity: 'T0', displayLabel: 'Invalid', order: 0 }] }), false);
+	assert.equal(isVerifiedOrderedActiveTerm({ verified: true, termIndex: -1, orderedTerms: [{ identity: 'T-1', displayLabel: 'Invalid', order: -1 }] }), false);
+	assert.equal(isVerifiedOrderedActiveTerm({ verified: true, termIndex: 2, orderedTerms: [{ identity: 'T2', displayLabel: 'Term 2', order: 2 }] }), true);
 });
 
 test('control 7d: no client academic-term surface retains a hard-coded three-term union/options list', () => {

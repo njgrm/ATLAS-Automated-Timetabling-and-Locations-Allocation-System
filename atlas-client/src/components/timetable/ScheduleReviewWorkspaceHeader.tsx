@@ -353,9 +353,7 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 		: 'Place: open Needs attention, choose Place session, then tap or click a grid slot. Switch: select one class, then another occupied class. The Swap class times review opens before saving. Draft: use Plan before generating for draft anchors.';
 	const sourceContext = context.schoolYearContext;
 	const activeTermContext = sourceContext?.activeTerm ?? null;
-	const verifiedOrderedTerm = activeTermContext?.verified === true
-		&& activeTermContext.termIndex != null
-		&& Boolean(activeTermContext.orderedTerms?.some((term) => term.order === activeTermContext.termIndex));
+	const verifiedOrderedTerm = isVerifiedOrderedActiveTerm(activeTermContext);
 	const activeTermLabel = verifiedOrderedTerm
 		? (activeTermContext?.orderedTerms?.find((term) => term.order === activeTermContext.termIndex)?.displayLabel ?? `Term ${activeTermContext?.termIndex}`)
 		: null;
