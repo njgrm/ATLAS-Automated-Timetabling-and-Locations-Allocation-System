@@ -154,3 +154,74 @@ companion **data** matter — the EnrollPro user must carry the `employeeId` tha
 
 **Do not** try to make this work by pointing ATLAS at the SPA path or by adding an ATLAS route at
 `/auth/sso/callback`: that path is the SPA route, and the correct fix is this one configuration value.
+
+---
+
+## 5. ADDED 2026-09-22 — the active term your **integration endpoint** reports disagrees with your **UI** (ATLAS is mirroring the endpoint, so ATLAS is showing T2 while your dashboard says TERM 1)
+
+**Observed on `dev-jegs`, 2026-09-22.** No ATLAS change is warranted for this one — ATLAS is faithfully
+mirroring the contract you publish. The disagreement is inside EnrollPro.
+
+### Evidence
+
+**(a) Your integration endpoint says T2.** `GET {ENROLLPRO_API}/integration/v1/active-term` with the
+integration key returns `200`:
+
+```json
+{"data":{"activeTerm":"T2","activeTermLabel":"TERM 2","termFormat":"TRIMESTER","schoolYearId":10}}
+```
+
+**(b) Your dashboard says TERM 1.** Logged into `https://dev-jegs.buru-degree.ts.net/dashboard` through
+the ATLAS↔EnrollPro SSO, the page renders **`TERM 1`** alongside **`2031-2032`** and *"EOSY Closing for
+S.Y. 2031-2032"*.
+
+**(c) The term dates you published make T2 the date-correct answer.** ATLAS's persisted copy of your
+verified ordered structure for school year 10:
+
+| identity | startDate | endDate |
+| --- | --- | --- |
+| T1 | 2026-04-02 | **2026-09-19** |
+| T2 | **2026-09-20** | 2026-10-22 |
+| T3 | 2026-10-30 | 2027-06-01 |
+
+Today (2026-09-22) falls in T2's window, so a **date-derived** active term yields T2 — which is what
+your endpoint returns. ATLAS's snapshot cached on 2026-09-18 recorded `activeTerm: T1`
+(*"EnrollPro active term T1 resolved within the verified ordered structure."*), consistent with the
+date then: **the term rolled over on 2026-09-20.**
+
+### The defect
+
+EnrollPro has two notions of "active term" that disagree: the **UI's** stored/selected term (TERM 1)
+and the **integration endpoint's** date-derived term (T2). Every downstream consumer — ATLAS included —
+can only see the integration endpoint, so ATLAS shows T2 and will keep doing so no matter how the page
+is refreshed. **This is not an ATLAS caching or resolution bug**: ATLAS calls your endpoint, gets T2,
+and reports T2.
+
+Related oddity in the same data, worth a look while you are in there: the school year is labelled
+**`2031-2032`** but its term dates are all **2026**, and the dashboard shows *"EOSY Closing"* (end of
+school year) while also showing `TERM 1` of a `TRIMESTER`.
+
+### Required contract
+
+Pick one and make both surfaces agree:
+
+- if the **dates** are authoritative — fix the UI to derive/display the same term the endpoint computes
+  (today: T2); or
+- if the **stored selection** is authoritative — correct the term **dates** so the date-derived result
+  equals the intended term, and have `/integration/v1/active-term` return the stored term rather than a
+  date-derived one.
+
+Whichever you choose, state which is authoritative in the contract, because ATLAS's fail-closed gates
+depend on it.
+
+### Acceptance tests
+
+1. `GET /integration/v1/active-term` and the dashboard's displayed term agree for the same school year
+   on the same day.
+2. Rollover day: set a term boundary so that "today" falls one day into the next term, and confirm both
+   surfaces move together.
+3. The ordered structure's `startDate`/`endDate` values are consistent with the school-year label they
+   belong to.
+4. With the dates corrected, `GET /integration/v1/active-term` returns the term the school actually
+   intends to be active.
+

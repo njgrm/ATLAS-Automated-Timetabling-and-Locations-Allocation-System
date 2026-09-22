@@ -375,6 +375,21 @@ in-flight Lane B stream is discoverable, so their server file boundary (`atlas-s
 currently unowned; Lane A took it for `ZONE-IMBALANCE-PRECONDITION-C01` on the operator's direction
 and recorded the transfer.
 
+**FINDING 2026-09-22 (EnrollPro-side, not ATLAS): the active term ATLAS shows is what EnrollPro's own
+integration endpoint publishes.** The operator reported ATLAS stuck on Term 2 while EnrollPro shows
+Term 1. Verified: `GET {ENROLLPRO_API}/integration/v1/active-term` returns
+`{"activeTerm":"T2","activeTermLabel":"TERM 2","termFormat":"TRIMESTER","schoolYearId":10}`, while
+EnrollPro's **dashboard** (reached through the ATLAS↔EnrollPro SSO) renders **`TERM 1`**. ATLAS is
+mirroring the endpoint faithfully — this is **not** an ATLAS cache or resolution bug. The published term
+dates make T2 date-correct for today: T1 ends **2026-09-19**, T2 starts **2026-09-20**, so the term
+rolled over on 2026-09-20 (ATLAS's snapshot cached on 2026-09-18 recorded `activeTerm: T1`, consistent
+then). EnrollPro therefore has two disagreeing notions of "active term" (UI selection vs date-derived
+endpoint), and the same data labels the year `2031-2032` while its term dates are all 2026. Written up
+for the EnrollPro owner in
+`docs/handoffs/companion-sso-reverse-identity-c01-enrollpro.md` **§5** with the evidence, the required
+contract and four acceptance tests. **No ATLAS change is warranted** until they say which notion is
+authoritative.
+
 **Integrated: `ZONING-CLARITY-C01`** (`10716aa1`, 2026-09-22) — LOW, copy-only. The same concept was
 called **"Zone / Annex"** where a scheduler configures it and **"Campus zone concentration"** in the
 warning, and nothing anywhere said what a campus zone is *for*. Now **one vocabulary ("Campus zone")**
