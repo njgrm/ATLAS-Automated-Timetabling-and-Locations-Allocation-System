@@ -42,6 +42,10 @@ export const VIOLATION_LABELS: Record<ViolationCode, string> = {
 	INCOMPLETE_MODULAR_GROUP: 'Incomplete Modular Group',
 	SPECIALIZED_ROOM_UNAVAILABLE: 'Specialized Room Needed',
 	UNASSIGNED_SECTION: 'Session Needs Placement',
+	// ZONE-WARNING-REMOVAL-C01: retained — this is a complete
+	// Record<ViolationCode, string> (like the retired travel entry above), so
+	// the key must stay for stored rows to render. The label is a neutral
+	// historical noun, not an action.
 	ZONE_IMBALANCE_WARNING: 'Campus Zone Imbalance',
 };
 

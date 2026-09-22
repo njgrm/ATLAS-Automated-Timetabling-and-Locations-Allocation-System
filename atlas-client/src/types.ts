@@ -1005,6 +1005,7 @@ export type ViolationCode =
 	| 'FACULTY_INSUFFICIENT_DAILY_VACANT'
 	| 'SPECIALIZED_ROOM_UNAVAILABLE'
 	| 'UNASSIGNED_SECTION'
+	/** @deprecated Retired zone warning — no producer; renders old persisted runs only. */
 	| 'ZONE_IMBALANCE_WARNING'
 	| 'SECTION_OVERCOMPRESSED'
 	| 'LACKING_FACULTY'

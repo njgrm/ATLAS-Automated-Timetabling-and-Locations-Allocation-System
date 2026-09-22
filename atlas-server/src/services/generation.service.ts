@@ -471,58 +471,14 @@ export function buildZoneDistributionByTerm(
 }
 
 /**
- * ZONE-IMBALANCE-PRECONDITION-C01 — the zone warning fires only when the data
- * can support the judgement.
- *
- * A room with no `buildingZoneId` resolves to `UNSPECIFIED`. Such an unzoned
- * bucket cannot be rebalanced, so it is excluded from the warning
- * distribution: the warning requires at least two distinct *configured* zones
- * among the zoned entries, keeps the >50% threshold computed over the *zoned*
- * denominator, and states that denominator truthfully in the message and
- * `meta` (`total` is the zoned denominator; `unzonedCount` records the
- * excluded entries). With zero or one configured zones nothing is emitted.
- *
- * The `zoneDistributionByTerm` diagnostic itself is unchanged — it keeps the
- * UNSPECIFIED bucket so the unzoned inventory stays visible.
+ * ZONE-WARNING-REMOVAL-C01 — the zone-imbalance warning producer lived here
+ * and was deleted: a school that cannot spread classes across campus cannot
+ * act on this warning, so no new generation may emit it. The
+ * `zoneDistributionByTerm` diagnostic above stays (the run rail renders it),
+ * the code stays in `VIOLATION_CODES` so stored rows render with historical
+ * wording, and the UNSPECIFIED suppression in `projectViolationIssues` stays
+ * so stored noise never resurfaces.
  */
-export function buildZoneImbalanceWarnings(
-	zoneDistributionByTerm: ZoneDistributionByTerm,
-	identity: { schoolId: number; schoolYearId: number; runId: number },
-): Violation[] {
-	return zoneDistributionByTerm.flatMap((termZone) => {
-		const zonedRows = Object.entries(termZone.byZone).filter(([zone]) => zone !== 'UNSPECIFIED');
-		if (zonedRows.length < 2) return [];
-		const zonedTotal = zonedRows.reduce((sum, [, data]) => sum + data.count, 0);
-		if (zonedTotal === 0) return [];
-		const unzonedCount = termZone.total - zonedTotal;
-		const [zone, data] = zonedRows.reduce((max, current) => (current[1].count > max[1].count ? current : max));
-		const percent = Math.round((data.count / zonedTotal) * 10000) / 100;
-		if (percent <= 50) return [];
-		// C07A: the warning carries resolvable entities so the review surface can
-		// act on it. Previously it emitted `entities: {}` with no way to locate
-		// the affected sessions.
-		const zoneEntryIds = [...data.entryIds].sort();
-		return [{
-			code: 'ZONE_IMBALANCE_WARNING',
-			severity: 'SOFT',
-			message: `Term ${termZone.termIndex} zone ${zone} has ${percent}% of zoned scheduled entries (${data.count} of ${zonedTotal} zoned; ${unzonedCount} ${unzonedCount === 1 ? 'entry has' : 'entries have'} no configured zone), exceeding the 50% balancing threshold.`,
-			schoolId: identity.schoolId,
-			schoolYearId: identity.schoolYearId,
-			runId: identity.runId,
-			entities: { entryIds: zoneEntryIds },
-			meta: {
-				termIndex: termZone.termIndex,
-				zone,
-				percent,
-				total: zonedTotal,
-				zoneEntryCount: data.count,
-				unzonedCount,
-				balancingThresholdPercent: 50,
-				nextAction: 'Rebalance rooms across configured zones for this ordered term, or accept the concentration explicitly.',
-			},
-		}];
-	});
-}
 
 /**
  * TT-OUTPUT-C03R3: a missing term identity is NEVER coerced to Term 1.
@@ -885,11 +841,10 @@ export async function triggerGenerationRun(
 			rooms.map((room) => [room.id, room.buildingZoneId ?? 'UNSPECIFIED']),
 		);
 		const zoneDistributionByTerm = buildZoneDistributionByTerm(entriesWithTerms, roomZoneByRoomId);
-		const zoneWarningViolations = buildZoneImbalanceWarnings(zoneDistributionByTerm, { schoolId, schoolYearId, runId: run.id });
 		// C07A: every injected violation obeys the same configured authority as the
 		// validator's own violations (disable-drop, allowlisted promotion, weight).
 		const injectedViolations = applyConstraintOverrides(
-			[...modularWarningViolations, ...unassignedViolations, ...zoneWarningViolations],
+			[...modularWarningViolations, ...unassignedViolations],
 			validatorCtx.constraintConfig,
 		);
 		const mergedViolationCounts = { ...validationResult.counts.byCode } as Record<string, number>;

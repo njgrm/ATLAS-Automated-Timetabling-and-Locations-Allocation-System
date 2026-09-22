@@ -104,7 +104,7 @@ export const VIOLATION_COPY: Record<ViolationCode, ViolationCopy> = {
 	FACULTY_INSUFFICIENT_DAILY_VACANT: { title: 'Too little preparation time', meaning: 'The teacher has fewer free periods in the day than the preparation target.', action: 'Move a class to another day or redistribute the load.' },
 	SPECIALIZED_ROOM_UNAVAILABLE: { title: 'Specialized room unavailable', meaning: 'No suitable specialized room was free for this session.', action: 'Free a suitable room, change the time, or review whether the specialization is required.' },
 	UNASSIGNED_SECTION: { title: 'Class session unassigned', meaning: 'A required class session could not be placed in the timetable.', action: 'Open the unassigned queue and resolve its teacher, room, or time blocker.' },
-	ZONE_IMBALANCE_WARNING: { title: 'Campus zone concentration', meaning: 'Too many classes are concentrated in one campus zone.', action: 'Spread rooms across zones or explicitly accept the concentration.' },
+	ZONE_IMBALANCE_WARNING: { title: 'Campus zone imbalance (retired)', meaning: 'An older run recorded a campus-zone concentration warning that current ATLAS no longer calculates.', action: 'Regenerate with the current policy before acting on this historical warning.' },
 	SECTION_OVERCOMPRESSED: { title: 'Class day is too compressed', meaning: 'The class has too many back-to-back periods without a sufficient break.', action: 'Spread the classes out or add a break.' },
 	LACKING_FACULTY: { title: 'No teacher available', meaning: 'A required session has no qualified teacher available.', action: 'Assign a qualified teacher in Teaching Load or free an authorized teacher.' },
 	INCOMPLETE_MODULAR_GROUP: { title: 'Rotating subject group incomplete', meaning: 'A rotating subject family is missing a required term-specific member or assignment.', action: 'Complete the subject, teacher, and room assignments for every term.' },
@@ -347,7 +347,7 @@ export function evaluateManualCandidateInvariants(input: TimetableCandidateInvar
  * C07A — one constraint-override contract for every emitted violation.
  *
  * The validator's own violations and the violations injected by the generation
- * service (unassigned sessions, modular-group warnings, zone balance) must obey
+ * service (unassigned sessions, modular-group warnings) must obey
  * the SAME configured authority: a disabled SOFT constraint is dropped, an
  * allowlisted `treatAsHard` promotes a SOFT constraint to HARD, and the
  * configured weight is attached. A non-allowlisted `treatAsHard` never promotes

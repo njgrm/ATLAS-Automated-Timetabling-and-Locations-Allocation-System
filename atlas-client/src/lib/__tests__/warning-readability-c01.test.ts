@@ -299,31 +299,25 @@ test('R2/run316: unit expansion never fires inside unrelated tokens (units-fix)'
 	);
 });
 
-// ZONING-CLARITY-C01 (D1/D3/D4): the zone warning names one vocabulary and
-// stays truthful — SOFT, selected-term, zoned classes only, with no invented
-// numbers. Fails against the old copy ("Campus zone concentration" title,
-// "Rebalance rooms across configured zones" action, "Zone / Annex" labels).
-test('ZONING-CLARITY-C01: zone copy uses one vocabulary and stays truthful', () => {
+// ZONE-WARNING-REMOVAL-C01: the zone warning has no producer. Stored rows
+// render as history (the FACULTY_EXCESSIVE_TRAVEL_DISTANCE precedent), the
+// complete rail record keeps its neutral label, and the actionable readiness
+// map drops the entry. Fails against the old actionable copy ("Most classes
+// are in one campus zone" + "Move some of this term's classes to rooms in
+// another campus zone") and against a readiness entry.
+test('ZONE-WARNING-REMOVAL-C01: the retired zone warning renders as history, not action', () => {
 	const copy = getViolationPresentation('ZONE_IMBALANCE_WARNING');
-	for (const field of [copy.title, copy.meaning, copy.action]) {
-		assert.match(field, /campus zone/i, 'every zone field names the concept consistently');
-	}
-	assert.equal(copy.title, 'Most classes are in one campus zone');
+	assert.match(copy.meaning, /older run recorded/i, 'meaning says an older run recorded it');
+	assert.match(copy.meaning, /no longer calculates/i, 'meaning says it is no longer calculated');
+	assert.match(copy.action, /before acting on this historical warning/i, 'action defers to regeneration, never to rebalancing');
 	assert.doesNotMatch(
 		`${copy.title} ${copy.meaning} ${copy.action}`,
-		/Zone \/ Annex/,
-		'the old config term must not survive in the warning',
+		/Move some of this term/,
+		'the old rebalancing action is gone',
 	);
-	assert.match(copy.meaning, /term/i, 'meaning stays scoped to the selected term');
-	assert.match(copy.meaning, /zoned/i, 'meaning counts zoned classes only');
-	assert.doesNotMatch(
-		`${copy.title} ${copy.meaning} ${copy.action}`,
-		/\d+\s*%|\d+ of \d+/,
-		'copy takes numbers from the violation meta, never invents them',
-	);
-	assert.match(RAIL_LABELS.ZONE_IMBALANCE_WARNING, /campus zone/i, 'rail label shares the vocabulary');
+	assert.match(RAIL_LABELS.ZONE_IMBALANCE_WARNING, /campus zone/i, 'the complete rail record keeps the neutral historical label');
 	const readinessSrc = readFileSync(resolve(clientRoot, 'src/components/timetable/simplePublishReadiness.ts'), 'utf8');
-	assert.match(readinessSrc, /ZONE_IMBALANCE_WARNING: 'Campus zone imbalance'/, 'readiness label shares the vocabulary');
+	assert.doesNotMatch(readinessSrc, /ZONE_IMBALANCE_WARNING/, 'the actionable readiness map drops the retired warning (travel precedent)');
 	const panelSrc = readFileSync(resolve(clientRoot, 'src/components/BuildingPanel.tsx'), 'utf8');
 	assert.doesNotMatch(panelSrc, /Zone \/ Annex/, 'no config surface keeps the old term');
 	assert.match(panelSrc, /groups rooms by part of campus/, 'the zone input carries its one-sentence help line');
