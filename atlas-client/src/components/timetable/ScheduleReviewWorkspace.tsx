@@ -6,7 +6,7 @@ import { TimetableSubNav } from '@/components/timetable/TimetableSubNav';
 import { ScheduleReviewWorkspaceBody } from '@/components/timetable/ScheduleReviewWorkspaceBody';
 import { ScheduleReviewWorkspaceOverlays } from '@/components/timetable/ScheduleReviewWorkspaceOverlays';
 import { TimetableSkeleton } from '@/components/timetable/TimetableSkeleton';
-import { TimetableRouteViewSync } from '@/components/timetable/TimetableRouteViewSync';
+import { isTimetableSchedulerView, TimetableRouteViewSync } from '@/components/timetable/TimetableRouteViewSync';
 import type { TimetableLayoutMode, TimetableSimpleTask } from '@/components/timetable/TimetableSimpleTypes';
 import type { RepairOrigin } from '@/components/timetable/TimetableTaskDrawer';
 import { Button } from '@/ui/button';
@@ -224,6 +224,7 @@ export default function ScheduleReviewWorkspace() {
 	if (!state.headerContext || !state.leftRailContentContext || !state.centerWorkspaceContext || !state.rightPanelContext || !state.overlaysContext) {
 		return <TimetableSkeleton />;
 	}
+	const showSchedulerChrome = isTimetableSchedulerView(state.headerContext.centerView);
 
 	const startMoveSelectedEntry = () => {
 		if (!state.selectedEntry) return;
@@ -378,7 +379,7 @@ export default function ScheduleReviewWorkspace() {
 			{/* A-13 — Simple owns the single selected-class strip. Advanced keeps the
 			    RightPanel selected-class surface, so the duplicate strip is collapsed
 			    there instead of rendering two divergent flows. */}
-			{state.selectedEntry && layoutMode === 'simple' ? (
+			{showSchedulerChrome && state.selectedEntry && layoutMode === 'simple' ? (
 				<div
 					role="status"
 					aria-live="polite"
@@ -459,7 +460,7 @@ export default function ScheduleReviewWorkspace() {
 				</div>
 			) : null}
 			<DndContext sensors={state.sensors} collisionDetection={pointerWithin} onDragStart={state.handleGlobalDragStart} onDragMove={state.handleGlobalDragMove} onDragOver={state.handleGlobalDragOver} onDragEnd={state.handleGlobalDragEnd} onDragCancel={state.handleGlobalDragCancel}>
-				{layoutMode === 'simple' ? (
+				{showSchedulerChrome ? (layoutMode === 'simple' ? (
 					<TimetableSimpleHeader
 						context={state.headerContext}
 						layoutMode={layoutMode}
@@ -512,7 +513,7 @@ export default function ScheduleReviewWorkspace() {
 							</div>
 						</div>
 					</div>
-				)}
+				)) : null}
 				<ScheduleReviewWorkspaceBody
 					layoutMode={layoutMode}
 					activeSimpleTask={activeSimpleTask}
