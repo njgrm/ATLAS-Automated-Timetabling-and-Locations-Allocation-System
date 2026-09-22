@@ -42,7 +42,7 @@ export const VIOLATION_LABELS: Record<ViolationCode, string> = {
 	INCOMPLETE_MODULAR_GROUP: 'Incomplete Modular Group',
 	SPECIALIZED_ROOM_UNAVAILABLE: 'Specialized Room Needed',
 	UNASSIGNED_SECTION: 'Session Needs Placement',
-	ZONE_IMBALANCE_WARNING: 'Campus Zone Balance',
+	ZONE_IMBALANCE_WARNING: 'Campus Zone Imbalance',
 };
 
 export const CONFLICT_CODES: Set<ViolationCode> = new Set([

@@ -8,6 +8,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { ExplainabilityDrawer } from '../../components/ExplainabilityDrawer';
 import { ViolationGroup } from '../../components/timetable/TimetableShared';
 import { resolveWarningPanelSizing } from '../../components/timetable/ViolationsSidebar';
+import { VIOLATION_LABELS as RAIL_LABELS } from '../../components/timetable/ScheduleReviewWorkspace.constants';
 import {
 	VIOLATION_PRESENTATION,
 	formatIdentityFallbackText,
@@ -296,4 +297,34 @@ test('R2/run316: unit expansion never fires inside unrelated tokens (units-fix)'
 		'teach 40 hours a week',
 		'digit-adjacent h still expands',
 	);
+});
+
+// ZONING-CLARITY-C01 (D1/D3/D4): the zone warning names one vocabulary and
+// stays truthful — SOFT, selected-term, zoned classes only, with no invented
+// numbers. Fails against the old copy ("Campus zone concentration" title,
+// "Rebalance rooms across configured zones" action, "Zone / Annex" labels).
+test('ZONING-CLARITY-C01: zone copy uses one vocabulary and stays truthful', () => {
+	const copy = getViolationPresentation('ZONE_IMBALANCE_WARNING');
+	for (const field of [copy.title, copy.meaning, copy.action]) {
+		assert.match(field, /campus zone/i, 'every zone field names the concept consistently');
+	}
+	assert.equal(copy.title, 'Most classes are in one campus zone');
+	assert.doesNotMatch(
+		`${copy.title} ${copy.meaning} ${copy.action}`,
+		/Zone \/ Annex/,
+		'the old config term must not survive in the warning',
+	);
+	assert.match(copy.meaning, /term/i, 'meaning stays scoped to the selected term');
+	assert.match(copy.meaning, /zoned/i, 'meaning counts zoned classes only');
+	assert.doesNotMatch(
+		`${copy.title} ${copy.meaning} ${copy.action}`,
+		/\d+\s*%|\d+ of \d+/,
+		'copy takes numbers from the violation meta, never invents them',
+	);
+	assert.match(RAIL_LABELS.ZONE_IMBALANCE_WARNING, /campus zone/i, 'rail label shares the vocabulary');
+	const readinessSrc = readFileSync(resolve(clientRoot, 'src/components/timetable/simplePublishReadiness.ts'), 'utf8');
+	assert.match(readinessSrc, /ZONE_IMBALANCE_WARNING: 'Campus zone imbalance'/, 'readiness label shares the vocabulary');
+	const panelSrc = readFileSync(resolve(clientRoot, 'src/components/BuildingPanel.tsx'), 'utf8');
+	assert.doesNotMatch(panelSrc, /Zone \/ Annex/, 'no config surface keeps the old term');
+	assert.match(panelSrc, /groups rooms by part of campus/, 'the zone input carries its one-sentence help line');
 });

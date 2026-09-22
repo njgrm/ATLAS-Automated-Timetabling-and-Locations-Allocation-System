@@ -570,7 +570,7 @@ export function BuildingPanel({
 									</Select>
 								</div>
 								<div>
-									<label className="text-[0.6rem] text-muted-foreground mb-1 block">Zone / Annex</label>
+									<label className="text-[0.6rem] text-muted-foreground mb-1 block">Campus zone</label>
 									<Input
 										placeholder="e.g. MAIN"
 										value={newRoomZone}
@@ -709,13 +709,14 @@ export function BuildingPanel({
 								</div>
 
 								<div className="space-y-2">
-									<Label htmlFor="edit-room-zone">Zone / Annex</Label>
+									<Label htmlFor="edit-room-zone">Campus zone</Label>
 									<Input
 										id="edit-room-zone"
 										value={editingRoom.buildingZoneId || ''}
 										placeholder="e.g. MAIN, ANNEX"
 										onChange={(e) => setEditingRoom({ ...editingRoom, buildingZoneId: e.target.value })}
 									/>
+									<p className="text-xs text-muted-foreground">A campus zone groups rooms by part of campus, and ATLAS warns when most of a term’s classes sit in one zone.</p>
 								</div>
 							</div>
 
@@ -855,9 +856,20 @@ function SortableRoomTile({
 						</span>
 					)}
 					{room.buildingZoneId && (
-						<Badge variant="outline" className="text-[0.6rem] px-1 py-0 bg-purple-50 text-purple-700 border-purple-100">
-							{room.buildingZoneId}
-						</Badge>
+						<TooltipProvider delayDuration={300}>
+							<Tooltip>
+								<TooltipTrigger asChild>
+									<span className="inline-flex">
+										<Badge variant="outline" className="text-[0.6rem] px-1 py-0 bg-purple-50 text-purple-700 border-purple-100">
+											{room.buildingZoneId}
+										</Badge>
+									</span>
+								</TooltipTrigger>
+								<TooltipContent side="top">
+									<p>Campus zone {room.buildingZoneId} — groups rooms by part of campus</p>
+								</TooltipContent>
+							</Tooltip>
+						</TooltipProvider>
 					)}
 					{!room.isTeachingSpace && (
 						<Badge className="bg-amber-100 text-amber-700 text-[0.55rem] px-1 py-0">
@@ -937,9 +949,20 @@ function RoomTileReadOnly({ room }: { room: Room }) {
 						</span>
 					)}
 					{room.buildingZoneId && (
-						<Badge variant="outline" className="text-[0.6rem] px-1 py-0 bg-purple-50 text-purple-700 border-purple-100">
-							{room.buildingZoneId}
-						</Badge>
+						<TooltipProvider delayDuration={300}>
+							<Tooltip>
+								<TooltipTrigger asChild>
+									<span className="inline-flex">
+										<Badge variant="outline" className="text-[0.6rem] px-1 py-0 bg-purple-50 text-purple-700 border-purple-100">
+											{room.buildingZoneId}
+										</Badge>
+									</span>
+								</TooltipTrigger>
+								<TooltipContent side="top">
+									<p>Campus zone {room.buildingZoneId} — groups rooms by part of campus</p>
+								</TooltipContent>
+							</Tooltip>
+						</TooltipProvider>
 					)}
 					{!room.isTeachingSpace && (
 						<Badge className="bg-amber-100 text-amber-700 text-[0.55rem] px-1 py-0">
