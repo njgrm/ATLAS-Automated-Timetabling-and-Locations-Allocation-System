@@ -16,12 +16,17 @@ type InboxCursor = { createdAt: string; id: number };
  * Authority: the actor and the actor school resolve ONLY from the
  * authenticated token. `actorId`/`schoolId` are never accepted from the body
  * or the query string. Every read and every write is constrained by
- * `actorId = <resolved actor>`, so another actor's or another school's row is
+ * `actorId = <resolved account id>`, so another actor's or another school's row is
  * never readable and never mutable. Unresolvable actor/school fails closed
  * with a typed 403 and writes nothing.
+ *
+ * The inbox actor id is `AtlasAuthAccount.id` (`req.user.accountId`) — never
+ * the session's `userId`. A faculty-shaped session carries the FacultyMirror
+ * `externalId` in `userId`, so resolving `userId` would read/mutate the wrong
+ * actor's rows on a numeric collision.
  */
 function resolveActorId(req: Request): number | null {
-	const raw = req.user?.userId ?? req.user?.accountId;
+	const raw = req.user?.accountId;
 	const actorId = Number(raw);
 	return Number.isInteger(actorId) && actorId > 0 ? actorId : null;
 }

@@ -18,6 +18,11 @@
  * Failing-first authority controls: the cross-actor 404 and the unresolved
  * actor 403 are asserted against the live route — under the old behaviour
  * (no actor binding) a foreign id would resolve or the request would proceed.
+ * The faculty-shaped identity section mints tokens whose `userId` (the
+ * FacultyMirror `externalId`) differs from `accountId` (the inbox actor):
+ * under the pre-correction `userId ?? accountId` resolution the own-row ack
+ * would 404 (wrong actor), the colliding foreign `userId` would read/mutate
+ * another actor's row (200/ok), and the userId-only token would list (200).
  *
  * Zero residue: every sandbox row is removed in `finally` and the suite proves
  * no rows remain; the database itself is dropped by the runner.
@@ -78,6 +83,21 @@ function tokenFor(accountId: number, role: string, schoolId?: number): string {
 	const payload: Record<string, unknown> = { userId: accountId, role, authSource: 'local', accountId };
 	if (schoolId != null) payload.schoolId = schoolId;
 	return jwt.sign(payload, process.env.JWT_SECRET!, { expiresIn: '1h' });
+}
+
+/**
+ * Faculty-shaped session: `userId` is the FacultyMirror `externalId`
+ * (local-auth.service.ts / companion-sso.service.ts), while the inbox actor
+ * is `AtlasAuthAccount.id` (`accountId`). `foreignUserId` deliberately
+ * differs from `accountId` so the suite can see the identity defect that a
+ * `userId === accountId` token masks.
+ */
+function facultyTokenFor(accountId: number, foreignUserId: number, schoolId: number): string {
+	return jwt.sign(
+		{ userId: foreignUserId, role: 'faculty', authSource: 'local', accountId, schoolId },
+		process.env.JWT_SECRET!,
+		{ expiresIn: '1h' },
+	);
 }
 
 async function seed() {
@@ -257,6 +277,79 @@ async function run() {
 		assertEqual(repeat.inserted, 0, 're-raising the same delta inserts zero rows');
 		const rowsAfter = await prisma.notification.count({ where: { actorId: actorA.id } });
 		assertEqual(rowsAfter, rowsBefore, 'actor row total unchanged after the repeat raise');
+
+		section('Faculty-shaped identity — actor is accountId, never userId');
+		const probe = await persistNotificationEvent({
+			id: 7005,
+			type: 'TIMETABLE_SETUP_SYNC_COMPLETED',
+			domain: 'integration',
+			severity: 'success',
+			audience: 'ALL',
+			timestamp: new Date().toISOString(),
+			schoolId: SAND_MAIN,
+			schoolYearId: YEAR,
+			facultyId: null,
+			message: 'Faculty identity probe for the sandbox year.',
+			metadata: { runId: 7788 },
+		});
+		assertEqual(probe.inserted, 2, 'identity probe inserts one row per sandbox actor');
+		const rowA = await prisma.notification.findFirst({
+			where: { actorId: actorA.id, resourceId: '7788' },
+			orderBy: { id: 'desc' },
+		});
+		assert(rowA != null, 'probe row for actor A exists');
+		// (a) A faculty-shaped token (userId = foreign externalId) reads + acks its own row.
+		const facultyA = facultyTokenFor(actorA.id, 42424242, SAND_MAIN);
+		const facultyList = await requestJson(baseUrl, '/notification-inbox/', { token: facultyA });
+		assertEqual(facultyList.status, 200, 'faculty-shaped token lists its own inbox → 200');
+		assert(
+			(facultyList.json?.items as any[]).some((entry) => entry?.id === rowA?.id),
+			'faculty-shaped token sees its own probe row',
+		);
+		const facultyCount = await requestJson(baseUrl, '/notification-inbox/unread-count', {
+			token: facultyA,
+		});
+		assert((facultyCount.json?.count as number) >= 1, 'faculty-shaped token unread count covers its own row');
+		const facultyAck = await requestJson(baseUrl, `/notification-inbox/${rowA?.id}/read`, {
+			token: facultyA,
+			method: 'POST',
+		});
+		assertEqual(facultyAck.status, 200, 'faculty-shaped token acknowledges its own row → 200');
+		assertEqual(facultyAck.json?.ok, true, 'faculty-shaped ack body');
+		// (b) A token carrying a colliding foreign userId (userId = A's account id,
+		// accountId = B) cannot read or mutate A's row — the old
+		// `userId ?? accountId` resolution would have let it through as actor A.
+		const colliding = facultyTokenFor(actorB.id, actorA.id, SAND_MAIN);
+		const collidingList = await requestJson(baseUrl, '/notification-inbox/', { token: colliding });
+		assertEqual(collidingList.status, 200, 'colliding token lists as its own account → 200');
+		assert(
+			!(collidingList.json?.items as any[]).some((entry) => entry?.id === rowA?.id),
+			'colliding foreign userId does not expose A’s row',
+		);
+		const collidingRead = await requestJson(baseUrl, `/notification-inbox/${rowA?.id}/read`, {
+			token: colliding,
+			method: 'POST',
+		});
+		assertEqual(collidingRead.status, 404, 'colliding foreign userId mutating A’s row → 404');
+		assertEqual(collidingRead.json?.code, 'NOTIFICATION_NOT_FOUND', 'colliding mutation typed code');
+		// A token with no accountId fails closed even when userId is present —
+		// the old `?? accountId` fallback would have resolved it via userId.
+		const userIdOnly = jwt.sign(
+			{ userId: actorA.id, role: 'faculty', authSource: 'local', schoolId: SAND_MAIN },
+			process.env.JWT_SECRET!,
+			{ expiresIn: '1h' },
+		);
+		const userIdOnlyList = await requestJson(baseUrl, '/notification-inbox/', { token: userIdOnly });
+		assertEqual(userIdOnlyList.status, 403, 'userId-only token (no accountId) → 403');
+		assertEqual(
+			userIdOnlyList.json?.code,
+			'NOTIFICATION_ACTOR_UNRESOLVED',
+			'userId-only rejection typed code',
+		);
+		const userIdOnlyCount = await requestJson(baseUrl, '/notification-inbox/unread-count', {
+			token: userIdOnly,
+		});
+		assertEqual(userIdOnlyCount.status, 403, 'userId-only unread-count → 403');
 
 		section('Keyset pagination holds newest-first');
 		const paged = await requestJson(baseUrl, '/notification-inbox/?limit=1', { token: tokenA });
