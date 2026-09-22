@@ -99,10 +99,26 @@ export function provisionDisposableDatabase(suffix: string): DisposableDatabase 
 		adminEnv,
 		source,
 		drop: () => {
-			try {
-				service('postgres', `DROP DATABASE ${name} WITH (FORCE)`);
-			} catch {
-				/* best effort */
+			// TEST-GATE-COVERAGE-C01R2: same race as the seven suites fixed in
+			// `helpers/drop-disposable-database.ts` - a single `DROP ... WITH (FORCE)`
+			// is occasionally refused while a connection is still closing. Retry with
+			// a bounded backoff instead of swallowing one failure, so the following
+			// `assertDropped()` reports genuine residue rather than a lost race.
+			for (let attempt = 0; attempt < 5; attempt += 1) {
+				try {
+					service('postgres', `DROP DATABASE ${name} WITH (FORCE)`);
+				} catch {
+					/* refused this attempt - back off and retry */
+				}
+				try {
+					const gone = service('postgres', `SELECT count(*) FROM pg_database WHERE datname = '${name}'`);
+					if (gone === '0') return;
+				} catch {
+					/* failed census is not proof of absence - retry */
+				}
+				if (attempt < 4) {
+					Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 300 * (attempt + 1));
+				}
 			}
 		},
 		assertDropped: () => {
