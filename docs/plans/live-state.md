@@ -348,6 +348,18 @@ it complete `TEST-GATE-REACHABILITY-C01` (`f4462374`) and hand it over for integ
 
 ## Lane A — current lane (written only by Lane A)
 
+**Integrated: `TEST-GATE-COVERAGE-C01R2`** (`95895430`, 2026-09-22) — LOW, test-only. The
+`test:server-db` flake is **root-caused and fixed**. It was never flaky assertions: each affected
+suite dropped its disposable database **once**, swallowed the refusal, and then failed its own
+**zero-residue assertion** (`AssertionError … the disposable database must be dropped (zero
+residue)`), so a file whose real assertions all passed was reported red. Fixed with one shared helper
+(`src/__tests__/helpers/drop-disposable-database.ts` — bounded retry with backoff, fail-closed name
+guards) used by **all seven** affected suites, plus the same retry in the second harness
+(`helpers/tt-source-freshness-db.ts`) that the executor surfaced as an out-of-scope twin. The
+zero-residue assertions are **intact** — genuine residue still fails loudly; only the race is removed.
+Verified: `test:server-db` **7 consecutive green runs** (53 pass / 0 fail / 0 skipped, exit 0, residue
+of own 0); `test:server-suite` **275/275**; guard 1/1; build exit 0. No product source changed.
+
 **Integrated: `TEST-GATE-COVERAGE-C01R`** (`1e3190cf`, 2026-09-22) — LOW. `test:server-db` now runs a
 committed **per-file isolation runner** (`atlas-server/scripts/run-db-suite.mjs`): one fresh
 `atlas_restore_drill_<yyyymmdd>_<suffix>` database per file (the repo convention several suites
