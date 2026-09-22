@@ -10,6 +10,7 @@ import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTr
 import { SearchableSelect } from '@/ui/searchable-select';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip';
 import type { TimetableCapabilities, TimetableLifecycleState } from '@/lib/timetable-capabilities';
+import type { SimpleLifecycleKind } from '@/lib/simple-timetable-state';
 import type { ScheduleReviewWorkspaceHeaderContext } from '@/components/timetable/buildScheduleReviewWorkspaceContexts';
 import type { TimetableSimpleTask } from '@/components/timetable/TimetableSimpleTypes';
 
@@ -713,6 +714,25 @@ export type PublishTaskDispatch = 'publish-task' | 'readiness-sheet';
 
 export function resolvePublishTaskDispatch(publicationEnabled: boolean): PublishTaskDispatch {
 	return publicationEnabled ? 'publish-task' : 'readiness-sheet';
+}
+
+/**
+ * C7 — does the header's single primary action already dispatch the
+ * review-issues task?
+ *
+ * The audit contract is one primary action and no action reachable from both
+ * the header primary and `More`. The primary dispatches `startTask('review-issues')`
+ * in exactly two states: an armed `review-issues` task, or the lifecycle
+ * `review-warnings` next step. In both, `More` must not offer the same action a
+ * second time. Every other state keeps the `More` entry, because there the
+ * primary owns a different action and removing it would strand the review.
+ */
+export function primaryDispatchesReviewIssues(input: {
+	activeTaskId: TimetableSimpleTask | null;
+	lifecycleKind: SimpleLifecycleKind;
+}): boolean {
+	if (input.activeTaskId != null) return input.activeTaskId === 'review-issues';
+	return input.lifecycleKind === 'review-warnings';
 }
 
 /* ------------------------------------------------------------------ *

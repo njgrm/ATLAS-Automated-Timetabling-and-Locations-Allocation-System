@@ -89,8 +89,10 @@ test('R02 production header exposes filters directly and More no longer duplicat
 	assert.doesNotMatch(menu, />Status key</);
 	assert.doesNotMatch(menu, /How this works/);
 	assert.doesNotMatch(controls, /<select\b/);
-	assert.equal((header.match(/data-testid="timetable-simple-task-prompt"/g) ?? []).length, 2);
-	assert.doesNotMatch(header, /data-testid="timetable-simple-task-prompt"[\s\S]{0,180}role="status"/);
+	// C5 — the two mutually exclusive NEXT STEP task-prompt blocks collapsed into
+	// the single lifecycle action control; no separate task-prompt band remains.
+	assert.equal((header.match(/data-testid="timetable-simple-task-prompt"/g) ?? []).length, 0);
+	assert.match(header, /data-testid="timetable-simple-primary-action"/);
 });
 
 test('R02 Simple timetable chrome does not use typography below the 12px floor', () => {

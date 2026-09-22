@@ -341,8 +341,9 @@ test('ALGORITHM_LIMIT/self-route repair renders a real in-place primary action, 
 		schoolYearId: 9,
 		curriculumReadiness: blockedReadiness('SEARCH_LIMIT_UNRESOLVED', 'ALGORITHM_LIMIT'),
 	});
-	// The empty state references the primary action, so it must exist.
-	assert.match(markup, /data-testid="timetable-simple-next-action"/);
+	// C5 — the empty state names its next step through the single primary action
+	// alone; the redundant NEXT STEP row no longer renders.
+	assert.doesNotMatch(markup, /data-testid="timetable-simple-next-action"/);
 	assert.match(markup, /data-testid="timetable-simple-primary-action"/);
 	// It must be a real in-place button (re-run readiness), not a dead self-link.
 	assert.match(markup, /<button[^>]*data-testid="timetable-simple-primary-action"/);
