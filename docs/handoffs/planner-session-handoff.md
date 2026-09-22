@@ -251,12 +251,22 @@ the route rejects an ambiguous active year with `409 ACTIVE_SCHOOL_YEAR_AMBIGUOU
 (`docs/handoffs/lane-a-to-planner-b-rollover-2026-09-21.md` §4). Minor successor: an *absent* term
 selector defaults to term 1 while a *malformed* one is a typed 400.
 
-1. **`ZONE_IMBALANCE_WARNING` — RESOLVED 2026-09-22** (`47081de3`). It was a false positive (0 of
-   103 rooms zoned → one trivially-100% `UNSPECIFIED` bucket), but the feature is real
-   (`BuildingPanel.tsx` edits `buildingZoneId`), so it was **gated, not deleted**: ≥2 configured zones
-   required, threshold over the zoned denominator. Live run 315 goes **3 → 0** through the real
-   builder (QA-proven). Do not re-open it; if the operator still wants the capability gone, deleting
-   it entirely is a small follow-up.
+1. **`TIMETABLE-TERM-GATE-C01` — the live outage's forward fix (highest priority).** `5a0a8788`'s gate
+   in `useTimetableData.ts` is **un-satisfiable**: it requires `activeTerm.verified === true`, but the
+   timetable path never sends `verifyUpstream`, so `/runtime/context` always answers
+   `atlas-unverified`. The gate is correct in intent and wrong in wiring. Fix by having the timetable
+   obtain a verified context (request `verifyUpstream`, or promote the `AppShell` verified cache) and
+   **re-run the load when it arrives**, instead of blocking on the first unverified read — and make it
+   degrade with a visible notice rather than dead-end if authority stays unresolved. Then re-release
+   `5a333c74`'s scheduler-simplicity work on top. **Live is rolled back to `d4c9f391` until then.**
+2. **`ZONE-WARNING-REMOVAL-C01` — remove `ZONE_IMBALANCE_WARNING` entirely** (operator, 2026-09-22):
+   *"schools don't have the luxuries to flesh out classes across a campus if they are in a tight
+   situation, that should not be a warning in any way."* This **reverses** `ZONE-IMBALANCE-PRECONDITION-C01`
+   (`47081de3`), which gated it instead of deleting it. Remove the producer, the code from
+   `VIOLATION_CODES`, and the presentation/label surfaces — but keep a **historical** presentation
+   entry for stored runs (the `FACULTY_EXCESSIVE_TRAVEL_DISTANCE` precedent), and keep the
+   `UNSPECIFIED` suppression for stored rows. Also revert/neutralise the `ZONING-CLARITY-C01` copy where
+   it only described this warning.
 2. **AIMS/SMART term-aware handoff — DELIVERED 2026-09-22.** The old doc was deleted at `4794bd9e`
    (`docs/*` ignored, `docs/guides/` not whitelisted) and the contract has since drifted. The new one is
    `docs/reference/aims-smart-term-aware-published-schedule-handoff-2026-09-22.md`, pinned to deployed

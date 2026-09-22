@@ -35,16 +35,24 @@ and AIMS.
 ## Live release
 
 - Tailnet: `https://njgrm.buru-degree.ts.net`
-- **Release SHA: `5a333c74de03df11e0d0bf9ec6839c1916798896`** (current, deployed 2026-09-22 ~18:47 local;
-  supervisor 13472; `5001`->46892; `5174`->49504; served entry `index-beBnmPMP.js`). **Lane A did not
-  perform this deploy** — it is Planner B's `TIMETABLE-SCHEDULER-SIMPLICITY-C01` lifecycle proof, and
-  Lane A found it live on 2026-09-22 while verifying an unrelated stream (the register said
-  `d4c9f391` until then). Verified coherent: release dir
-  `D:\ATLAS-runtime-supervised-5a333c74-20260922` HEAD = pin, its state file `releaseSha` = pin, the
-  task action and `Start In` point at it, and local health + a DB-backed subjects read + Tailnet
-  health are all 200. Rollback: `d4c9f391` at `D:\ATLAS-runtime-supervised-d4c9f391-20260921`
-  (startable in place).
-- (superseded) Release SHA: `d4c9f39139dcb34e1653d543586d4c76420ea8a5` (deployed 2026-09-22 ~11:37;
+- **Release SHA: `d4c9f39139dcb34e1653d543586d4c76420ea8a5`** — **restored by Lane A on 2026-09-22
+  ~21:17 local as an INCIDENT ROLLBACK** (supervisor restarted; `5001`->33284; `5174`->45640; served
+  entry `index-DgF0ZSEz.js`; health + Tailnet 200; the timetable page loads with no gate error).
+  **Why:** the previous live release `5a333c74` made the Timetable page unusable. Its commit
+  `5a0a8788 fix(timetable): gate reads on verified term scope` added a hard fail-closed gate in
+  `useTimetableData.ts` (`if (!termAuthorityReadyRef.current || …) → "Term setup is required before the
+  timetable can be loaded."`). `termAuthorityReadyRef` is set only from
+  `context.activeTerm.verified === true`, but **the timetable never requests upstream verification** —
+  `verifyUpstream: true` appears only in `AppShell.tsx:177`, so `/runtime/context` answers
+  `source: "atlas-unverified"`, `verified: false`, *"Active term verification not requested."*, and the
+  gate can **never** be satisfied. Proved live with a read-only authenticated probe:
+  `/runtime/context?schoolId=1` → `verified:false`; the same call **with** `verifyUpstream=true` →
+  `verified:true`, active term **T2**, *"ATLAS is aligned with EnrollPro active term T2."* So the
+  environment is healthy and the defect is entirely the un-satisfiable gate. The gate is **absent**
+  from `d4c9f391`, which is why the rollback restores service.
+  **Rollback basis:** `5a333c74` at `D:\ATLAS-runtime-supervised-5a333c74-20260922` (still startable).
+- (superseded) Release SHA: `5a333c74de03df11e0d0bf9ec6839c1916798896` (Planner B's scheduler-simplicity
+  lifecycle proof, deployed 2026-09-22 ~18:47 — **rolled back**, see above).
   supervisor 28104; `5001`->39064; `5174`->39392; `D:` 29.84 GiB; served entry `index-DgF0ZSEz.js`,
   456,064 B — the client tree is unchanged, so the deploy is proven by the **server** service
   artifacts). Carries `COMPANION-SSO-REVERSE-IDENTITY-C01`: the reverse assertion **omits** empty
