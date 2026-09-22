@@ -177,6 +177,7 @@ async function installLocalApi(page: Page, runtimeReady: Promise<void>, releaseR
 
 function protectedTimetableRead(request: RequestRecord): boolean {
 	return request.path.includes('/generation/')
+		|| request.path.includes('/policies/scheduling/')
 		|| request.path.includes('/subjects')
 		|| request.path.includes('/faculty')
 		|| request.path.includes('/buildings')
