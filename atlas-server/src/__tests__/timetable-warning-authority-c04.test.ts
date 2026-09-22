@@ -30,7 +30,8 @@ import {
 	upsertPolicy,
 } from '../services/scheduling-policy.service.js';
 import { countBlockingHardViolations } from '../services/publication-contract.service.js';
-import { buildViolationReport, buildZoneDistributionByTerm, buildZoneImbalanceWarnings } from '../services/generation.service.js';
+import { buildViolationReport, buildZoneDistributionByTerm } from '../services/generation.service.js';
+import * as generationService from '../services/generation.service.js';
 import { buildPreflightValidatorContext } from '../services/generation-preflight.service.js';
 import { buildPreGenerationValidatorContext } from '../services/pre-generation-draft.service.js';
 import {
@@ -837,14 +838,17 @@ test('R9 source control: the manual-edit predicate has no loose publishedAt/publ
 	assert.equal(/candidate\.publishedBy/.test(source), false, 'no loose publishedBy marker check may remain');
 });
 
-// ─── ZONE-IMBALANCE-PRECONDITION-C01 ─────────────────────────────────────────
-// The zone warning fires only when the data can support the judgement: unzoned
-// (UNSPECIFIED) entries are excluded, at least two distinct configured zones
-// are required, the >50% threshold runs over the zoned denominator, and the
-// message states that denominator truthfully. No existing test asserted the
-// old unconditional behaviour, so nothing below updates an old assertion —
-// these are all new-contract controls. Each silent-case also fails under the
-// old selection (single UNSPECIFIED/North bucket at 100%/67% > 50% → emitted).
+// ─── ZONE-WARNING-REMOVAL-C01 ─────────────────────────────────────────────────
+// Supersedes ZONE-IMBALANCE-PRECONDITION-C01: the warning asked a school to
+// spread classes across campus, which a school in a tight situation cannot
+// act on — so the producer is deleted instead of gated. The old Z1–Z7 tests
+// below pinned the removed firing behaviour (silent cases, >50% firing,
+// denominator truthfulness, per-term scoping, grammar) and are replaced by
+// the removal contract: the distribution diagnostic stays (the run rail
+// renders it), the code stays in VIOLATION_CODES so stored rows render,
+// stored UNSPECIFIED rows stay suppressed, and no new generation can emit
+// the code. Z8's historical-row half survives with a hand-built fixture
+// (the producer can no longer build it).
 
 function zoneEntry(entryId: string, roomId: number, termIndex: 1 | 2 | 3): ScheduledEntry {
 	return entry({ entryId, facultyId: 1, roomId, day: 'MONDAY', startTime: '08:00', endTime: '08:45', termIndex });
@@ -860,131 +864,48 @@ function zoneMap(rooms: Array<{ id: number; buildingZoneId: string | null }>): M
 
 const ZONE_IDENTITY = { schoolId: SCHOOL, schoolYearId: YEAR, runId: RUN };
 
-test('Z1: silent with zero configured zones — the live run-315 shape (all entries unzoned)', () => {
+test('Z1: the distribution diagnostic keeps the unzoned inventory — the live run-315 shape (all entries unzoned)', () => {
 	const entries = ['z1-a', 'z1-b', 'z1-c', 'z1-d', 'z1-e'].map((entryId) => zoneEntry(entryId, 10, 1));
 	const distribution = buildZoneDistributionByTerm(entries, zoneMap([{ id: 10, buildingZoneId: null }]));
 	assert.deepEqual(Object.keys(distribution[0].byZone), ['UNSPECIFIED'], 'the diagnostic keeps the unzoned inventory');
 	assert.equal(distribution[0].byZone.UNSPECIFIED.count, 5);
-	const warnings = buildZoneImbalanceWarnings(distribution, ZONE_IDENTITY);
-	assert.deepEqual(warnings, [], 'no configured zone means nothing to balance: silent (old code emitted UNSPECIFIED at 100%)');
 });
 
-test('Z2: silent with one configured zone even at total concentration', () => {
-	const entries = [
-		...['z2-a', 'z2-b', 'z2-c', 'z2-d'].map((entryId) => zoneEntry(entryId, 10, 1)),
-		...['z2-e', 'z2-f'].map((entryId) => zoneEntry(entryId, 11, 1)),
-	];
-	const distribution = buildZoneDistributionByTerm(
-		entries,
-		zoneMap([{ id: 10, buildingZoneId: 'North' }, { id: 11, buildingZoneId: null }]),
+test('ZR1: no new generation can emit ZONE_IMBALANCE_WARNING — the producer is removed', () => {
+	assert.equal(
+		'buildZoneImbalanceWarnings' in generationService,
+		false,
+		'the zone warning producer is deleted from the production module (control: fails while the export exists)',
 	);
-	const warnings = buildZoneImbalanceWarnings(distribution, ZONE_IDENTITY);
-	assert.deepEqual(warnings, [], 'one configured zone has nothing to balance against (old code emitted North at 67%)');
-});
-
-test('Z3: fires at two configured zones with >50% concentration and states the zoned denominator', () => {
-	const northIds = ['z3-a', 'z3-b', 'z3-c', 'z3-d', 'z3-e', 'z3-f'];
-	const entries = [
-		...northIds.map((entryId) => zoneEntry(entryId, 10, 1)),
-		...['z3-g', 'z3-h'].map((entryId) => zoneEntry(entryId, 11, 1)),
-		...['z3-i', 'z3-j'].map((entryId) => zoneEntry(entryId, 12, 1)),
-	];
-	const distribution = buildZoneDistributionByTerm(
-		entries,
-		zoneMap([{ id: 10, buildingZoneId: 'North' }, { id: 11, buildingZoneId: 'South' }, { id: 12, buildingZoneId: null }]),
+	const source = readFileSync(new URL('../services/generation.service.ts', import.meta.url), 'utf8');
+	assert.equal(/zoneWarningViolations/.test(source), false, 'no call site feeds zone violations into the override contract');
+	assert.equal(/code: 'ZONE_IMBALANCE_WARNING'/.test(source), false, 'the generation service emits no zone warning row');
+	assert.equal(
+		/buildZoneDistributionByTerm/.test(source),
+		true,
+		'the distribution diagnostic stays for the run rail — the edit removed only the producer',
 	);
-	const warnings = buildZoneImbalanceWarnings(distribution, ZONE_IDENTITY);
-	assert.equal(warnings.length, 1);
-	const [warning] = warnings;
-	assert.equal(warning.code, 'ZONE_IMBALANCE_WARNING');
-	assert.equal(warning.severity, 'SOFT');
-	assert.equal(warning.meta?.zone, 'North');
-	assert.equal(warning.meta?.percent, 75);
-	assert.equal(warning.meta?.total, 8, 'the denominator is the zoned total, not the 10 overall entries');
-	assert.equal(warning.meta?.zoneEntryCount, 6);
-	assert.equal(warning.meta?.unzonedCount, 2);
-	assert.equal(warning.meta?.balancingThresholdPercent, 50);
-	assert.match(warning.message, /75% of zoned scheduled entries/);
-	assert.match(warning.message, /\(6 of 8 zoned; 2 entries have no configured zone\)/);
-	assert.deepEqual([...(warning.entities?.entryIds ?? [])].sort(), [...northIds].sort(), 'every entity id resolves to a North entry');
-});
-
-test('Z4 denominator control: a zoned majority hidden inside an unzoned majority still fires', () => {
-	const entries = [
-		...['z4-a', 'z4-b', 'z4-c', 'z4-d', 'z4-e', 'z4-f'].map((entryId) => zoneEntry(entryId, 10, 1)),
-		...['z4-g', 'z4-h'].map((entryId) => zoneEntry(entryId, 11, 1)),
-		...Array.from({ length: 92 }, (_, index) => zoneEntry(`z4-u${index}`, 12, 1)),
-	];
-	const distribution = buildZoneDistributionByTerm(
-		entries,
-		zoneMap([{ id: 10, buildingZoneId: 'North' }, { id: 11, buildingZoneId: 'South' }, { id: 12, buildingZoneId: null }]),
-	);
-	const warnings = buildZoneImbalanceWarnings(distribution, ZONE_IDENTITY);
-	assert.equal(warnings.length, 1, 'North holds 75% of the 8 zoned entries (old code saw 6% of 100 and stayed silent)');
-	assert.match(warnings[0].message, /\(6 of 8 zoned; 92 entries have no configured zone\)/);
-	assert.equal(warnings[0].meta?.total, 8);
-});
-
-test('Z5: exactly 50% of the zoned denominator stays silent — the threshold is unchanged', () => {
-	const entries = [
-		...['z5-a', 'z5-b'].map((entryId) => zoneEntry(entryId, 10, 1)),
-		...['z5-c', 'z5-d'].map((entryId) => zoneEntry(entryId, 11, 1)),
-	];
-	const distribution = buildZoneDistributionByTerm(
-		entries,
-		zoneMap([{ id: 10, buildingZoneId: 'North' }, { id: 11, buildingZoneId: 'South' }]),
-	);
-	assert.deepEqual(buildZoneImbalanceWarnings(distribution, ZONE_IDENTITY), [], '50% does not exceed the >50% threshold');
-});
-
-test('Z6: the precondition applies per ordered term', () => {
-	const entries = [
-		...['z6-a', 'z6-b', 'z6-c'].map((entryId) => zoneEntry(entryId, 10, 1)),
-		zoneEntry('z6-d', 11, 1),
-		zoneEntry('z6-e', 10, 2),
-		zoneEntry('z6-f', 11, 2),
-	];
-	const distribution = buildZoneDistributionByTerm(
-		entries,
-		zoneMap([{ id: 10, buildingZoneId: 'North' }, { id: 11, buildingZoneId: 'South' }]),
-	);
-	const warnings = buildZoneImbalanceWarnings(distribution, ZONE_IDENTITY);
-	assert.equal(warnings.length, 1, 'term 1 concentrates at 75%; term 2 splits 50/50');
-	assert.equal(warnings[0].meta?.termIndex, 1);
-	assert.equal(warnings[0].meta?.zone, 'North');
-});
-
-test('Z7: a single unzoned entry reads grammatically in the message', () => {
-	const entries = [
-		...['z7-a', 'z7-b', 'z7-c'].map((entryId) => zoneEntry(entryId, 10, 1)),
-		zoneEntry('z7-d', 11, 1),
-		zoneEntry('z7-e', 12, 1),
-	];
-	const distribution = buildZoneDistributionByTerm(
-		entries,
-		zoneMap([{ id: 10, buildingZoneId: 'North' }, { id: 11, buildingZoneId: 'South' }, { id: 12, buildingZoneId: null }]),
-	);
-	const warnings = buildZoneImbalanceWarnings(distribution, ZONE_IDENTITY);
-	assert.equal(warnings.length, 1);
-	assert.match(warnings[0].message, /\(3 of 4 zoned; 1 entry has no configured zone\)/);
 });
 
 test('Z8: historical rows still render while stored UNSPECIFIED rows stay suppressed', () => {
 	assert.ok(
 		(VIOLATION_CODES as readonly string[]).includes('ZONE_IMBALANCE_WARNING'),
-		'the warning code is retained as a valid configurable warning — nothing was deleted',
+		'the warning code is retained for historical rendering — the union member was not deleted',
 	);
 	const northIds = ['z8-a', 'z8-b', 'z8-c', 'z8-d', 'z8-e', 'z8-f'];
 	const draftEntries = [
 		...northIds.map((entryId) => zoneEntry(entryId, 10, 1)),
 		...['z8-g', 'z8-h'].map((entryId) => zoneEntry(entryId, 11, 1)),
 	] as ScheduledEntry[];
-	const distribution = buildZoneDistributionByTerm(
-		draftEntries,
-		zoneMap([{ id: 10, buildingZoneId: 'North' }, { id: 11, buildingZoneId: 'South' }]),
-	);
-	const [persisted] = buildZoneImbalanceWarnings(distribution, ZONE_IDENTITY);
-	assert.ok(persisted, 'the new-shape zoned warning is the historical-row fixture');
+	const persisted = {
+		...ZONE_IDENTITY,
+		code: 'ZONE_IMBALANCE_WARNING' as const,
+		severity: 'SOFT' as const,
+		message: 'stored zoned row from an older run',
+		entities: { entryIds: [...northIds].sort() },
+		meta: { termIndex: 1, zone: 'North', percent: 75 },
+	};
+	assert.ok(persisted, 'the hand-built zoned warning is the historical-row fixture (the deleted producer can no longer build it)');
 	const legacy: typeof persisted = {
 		...ZONE_IDENTITY,
 		code: 'ZONE_IMBALANCE_WARNING',

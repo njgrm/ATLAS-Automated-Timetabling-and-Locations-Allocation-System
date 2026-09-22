@@ -72,6 +72,7 @@ import { useSimpleExportSurface } from '@/components/timetable/simple/useSimpleE
 import type { SimpleExportKind } from '@/components/timetable/simple/simpleExportRequests';
 import { SimpleDriftBanner } from '@/components/timetable/simple/SimpleDriftBanner';
 import { SimpleMoreMenuContent } from '@/components/timetable/simple/SimpleMoreMenuContent';
+import { resolveTermAuthorityNotice } from '@/hooks/useTimetableData';
 import { ExportPresentationSettingsDialog } from '@/components/timetable/simple/ExportPresentationSettingsDialog';
 import type { RolloverStatus } from '@/lib/settings';
 
@@ -214,6 +215,13 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 	const [rolloverStatus, setRolloverStatus] = useState<RolloverStatus | null>(null);
 	const [lastEntityByMode, setLastEntityByMode] = useState<Partial<Record<SimpleViewMode, string>>>({});
 	const visibleRunId = context.draft?.runId ?? null;
+	// TIMETABLE-TERM-GATE-C01 (D3) — same explicit-scope fallback notice as
+	// Advanced: an unverified authority with data on screen means the timetable
+	// loaded one explicit term instead of dead-ending.
+	const termAuthorityNotice = resolveTermAuthorityNotice(
+		context.schoolYearContext,
+		context.draft != null || (context.runs?.length ?? 0) > 0,
+	);
 	const visibleYearLabel = context.schoolYearContext?.activeSchoolYearLabel ?? (context.schoolYearId ? `SY #${context.schoolYearId}` : null);
 	const source = sourceLabel(context);
 	const setupState = describeSetupState(context.curriculumReadiness);
@@ -557,6 +565,29 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 					{visibleYearLabel ? <span className="hidden sm:inline">· {visibleYearLabel}</span> : null}
 					{visibleRunId ? <span className="hidden sm:inline">· Run #{visibleRunId}</span> : null}
 				</Badge>
+
+			{termAuthorityNotice && (
+				<TooltipProvider delayDuration={300}>
+					<Tooltip>
+						<TooltipTrigger asChild>
+							<Badge
+								variant="outline"
+								className={cn(
+									'h-6 min-w-0 max-w-[28vw] shrink gap-1.5 truncate px-2 text-xs font-semibold sm:max-w-[30rem]',
+									'border-amber-200 bg-amber-50 text-amber-900',
+								)}
+								data-testid="timetable-term-authority-unverified"
+							>
+								<AlertTriangle className="size-3.5 shrink-0" aria-hidden="true" />
+								<span className="truncate">{termAuthorityNotice}</span>
+							</Badge>
+						</TooltipTrigger>
+						<TooltipContent side="bottom" className="max-w-xs text-xs" data-testid="timetable-term-authority-unverified-disclosure">
+							{termAuthorityNotice}
+						</TooltipContent>
+					</Tooltip>
+				</TooltipProvider>
+			)}
 
 			{/* UX-R03e (setup) — one shared chip implementation with the `/timetable/setup` pane. */}
 			<SimpleReadinessChip

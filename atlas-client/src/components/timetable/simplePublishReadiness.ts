@@ -249,6 +249,8 @@ function humanizeCode(code: string): string {
  * The retired travel metric is deliberately absent (C07B/B7): it has no
  * producer. A legacy persisted travel warning still renders through the
  * humanised code fallback rather than pretending to be a live family.
+ * ZONE-WARNING-REMOVAL-C01: the retired zone warning is likewise absent — it
+ * has no producer, and a stored row renders through the same fallback.
  */
 const VIOLATION_WARNING_LABELS: Record<string, string> = {
 	FACULTY_TIME_CONFLICT: 'Teacher time conflict',
@@ -270,7 +272,6 @@ const VIOLATION_WARNING_LABELS: Record<string, string> = {
 	FACULTY_LATE_END_PREFERENCE: 'Late end time preference',
 	FACULTY_INSUFFICIENT_DAILY_VACANT: 'Insufficient daily vacant time',
 	SPECIALIZED_ROOM_UNAVAILABLE: 'Specialized room unavailable',
-	ZONE_IMBALANCE_WARNING: 'Campus zone imbalance',
 	SECTION_OVERCOMPRESSED: 'Section overcompressed',
 	LACKING_FACULTY: 'Missing faculty coverage',
 	INCOMPLETE_MODULAR_GROUP: 'Incomplete modular group',
