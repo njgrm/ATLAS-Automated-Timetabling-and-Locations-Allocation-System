@@ -196,6 +196,7 @@ type AssertionShape = {
 	success?: unknown;
 	issuer?: unknown;
 	identity?: {
+		userId?: unknown;
 		subject?: unknown;
 		employeeId?: unknown;
 		lrn?: unknown;
@@ -213,12 +214,13 @@ type ValidAssertion = {
 	success: true;
 	issuer: string;
 	identity: {
+		userId?: unknown;
 		subject: string;
 		employeeId: string | null;
 		lrn: string | null;
-		firstName: string;
+		firstName?: string;
 		middleName: string | null;
-		lastName: string;
+		lastName?: string;
 		roles: string[];
 	};
 	activeSchoolYear: { id: number; yearLabel: string };
@@ -231,9 +233,12 @@ function nonEmpty(value: unknown): value is string {
 
 /**
  * Local mirror of EnrollPro's `companionSsoReverseExchangeResponseSchema`
- * (`shared/src/schemas/companion-sso.schema.ts:63-80` at `5887d685`). Returns
+ * (`shared/src/schemas/companion-sso.schema.ts:62-76` at `7b6231ee`). Returns
  * every violation so the mounted proof validates the EXACT consumer contract
- * rather than one convenient field.
+ * rather than one convenient field. Names are `z.string().min(1).optional()`:
+ * each name key may be ABSENT, but when present it must be a non-empty string
+ * (a present-but-empty name fails EnrollPro validation). No local numeric
+ * `userId` may be asserted as the cross-system id.
  */
 function reverseExchangeViolations(raw: unknown): string[] {
 	const errors: string[] = [];
@@ -249,6 +254,9 @@ function reverseExchangeViolations(raw: unknown): string[] {
 	if (!identity || typeof identity !== 'object') {
 		errors.push('identity must be an object');
 	} else {
+		if ('userId' in identity) {
+			errors.push('identity must not assert a local numeric userId as the cross-system id');
+		}
 		if (typeof identity.subject !== 'string' || identity.subject.length < 1 || identity.subject.length > 191) {
 			errors.push('identity.subject must be a 1..191 character string');
 		}
@@ -258,11 +266,15 @@ function reverseExchangeViolations(raw: unknown): string[] {
 		if (identity.lrn !== null && !(typeof identity.lrn === 'string' && /^\d{12}$/.test(identity.lrn))) {
 			errors.push('identity.lrn must be a 12-digit string|null');
 		}
-		if (!nonEmpty(identity.firstName)) errors.push('identity.firstName must be a non-empty string');
+		if (identity.firstName !== undefined && !nonEmpty(identity.firstName)) {
+			errors.push('identity.firstName must be a non-empty string when present (omit empty names, never send "")');
+		}
 		if (identity.middleName !== null && typeof identity.middleName !== 'string') {
 			errors.push('identity.middleName must be string|null');
 		}
-		if (!nonEmpty(identity.lastName)) errors.push('identity.lastName must be a non-empty string');
+		if (identity.lastName !== undefined && !nonEmpty(identity.lastName)) {
+			errors.push('identity.lastName must be a non-empty string when present (omit empty names, never send "")');
+		}
 		if (!Array.isArray(identity.roles) || identity.roles.length < 1) {
 			errors.push('identity.roles must be a non-empty array');
 		} else if (!identity.roles.every((role) => typeof role === 'string' && (ENROLLPRO_ROLE_ENUM as readonly string[]).includes(role))) {
@@ -938,14 +950,21 @@ test('COMPANION-SSO proof 16: lowercase ATLAS roles map to the exact EnrollPro v
 	const facultyAssertion = await assertConsumerSchemaValid(facultyResponse, 'faculty');
 	assert.deepEqual(facultyAssertion.identity.roles, ['TEACHER']);
 
-	// No faculty row and no persisted accountName → typed 403, zero success audit.
+	// No faculty row and no persisted accountName, but a valid employeeId →
+	// 200 with BOTH name keys omitted (never ""). CHANGED by
+	// COMPANION-SSO-REVERSE-IDENTITY-C01 (§5 A): the name gate is removed
+	// because EnrollPro's names are `z.string().min(1).optional()` and
+	// EnrollPro never compares them; only `employeeId` is required (R3).
 	const unnamed = await createOfficerAccount({ role: 'officer', accountName: null });
 	const unnamedCode = await issueCode(unnamed.id);
 	const unnamedResponse = await callExchange({ code: unnamedCode.code, clientId: 'enrollpro', redirectUri: REDIRECT_URI });
-	assert.equal(unnamedResponse.status, 403);
-	const unnamedBody = await unnamedResponse.json() as { code?: string; success?: unknown };
-	assert.equal(unnamedBody.code, 'COMPANION_SSO_IDENTITY_NAME_UNAVAILABLE');
-	assert.equal(unnamedBody.success, undefined, 'a typed denial must never carry an assertion body');
+	assert.equal(unnamedResponse.status, 200);
+	const unnamedAssertion = await assertConsumerSchemaValid(unnamedResponse, 'unnamed');
+	assert.equal(unnamedAssertion.identity.subject, `ATLAS_USER:${unnamed.id}`);
+	assert.equal(unnamedAssertion.identity.employeeId, unnamed.employeeId);
+	assert.ok(!('userId' in unnamedAssertion.identity), 'the reverse assertion must never carry a local numeric userId');
+	assert.ok(!('firstName' in unnamedAssertion.identity), 'empty names must be omitted, never sent as ""');
+	assert.ok(!('lastName' in unnamedAssertion.identity), 'empty names must be omitted, never sent as ""');
 
 	// Unmappable local role → typed 403 with the code in the route body.
 	const learner = await createOfficerAccount({ role: 'learner' });
@@ -956,8 +975,88 @@ test('COMPANION-SSO proof 16: lowercase ATLAS roles map to the exact EnrollPro v
 	assert.equal(learnerBody.code, 'COMPANION_SSO_ROLE_UNMAPPABLE');
 	assert.equal(learnerBody.success, undefined, 'a typed denial must never carry an assertion body');
 
-	// Each code was consumed exactly once, but only the two representable
-	// identities may have written a COMPANION_SSO_CODE_CONSUMED success audit.
+	// Each code was consumed exactly once, but only representable identities
+	// (now including the nameless-but-keyed account) may have written a
+	// COMPANION_SSO_CODE_CONSUMED success audit; the unmappable role writes none.
 	assert.equal(await prisma.companionSsoCode.count({ where: { schoolId: SCHOOL_ID, consumedAt: { not: null } } }), 4);
-	assert.equal(await codeConsumedAuditCount(), 2, 'typed denials must write zero success-audit rows');
+	assert.equal(await codeConsumedAuditCount(), 3, 'typed denials must write zero success-audit rows');
+});
+
+/* ─── C01: single-token (Defect A) account asserts by omission ─────────────── */
+
+test('COMPANION-SSO proof 17: a single-token accountName with a valid employeeId asserts subject + employeeId with no userId and omitted names', async () => {
+	await resetSchoolState();
+	await createActiveMirror();
+	const auditsBefore = await codeConsumedAuditCount();
+
+	// The exact Defect A shape: the display name is its own numeric identifier
+	// (one token), so no name parts resolve — but employeeId is the key.
+	const employeeId = uniqueEmployeeId();
+	const account = await createOfficerAccount({ employeeId, accountName: '1234501' });
+	const { code } = await issueCode(account.id);
+	const response = await callExchange({ code, clientId: 'enrollpro', redirectUri: REDIRECT_URI });
+	assert.equal(response.status, 200);
+	const assertion = await assertConsumerSchemaValid(response, 'single-token');
+	assert.equal(assertion.success, true);
+	assert.equal(assertion.identity.subject, `ATLAS_USER:${account.id}`);
+	assert.equal(assertion.identity.employeeId, employeeId);
+	assert.ok(!('userId' in assertion.identity), 'the reverse assertion must never carry a local numeric userId');
+	assert.ok(!('firstName' in assertion.identity), 'empty names must be omitted, never sent as ""');
+	assert.ok(!('lastName' in assertion.identity), 'empty names must be omitted, never sent as ""');
+
+	assert.equal(await codeConsumedAuditCount(), auditsBefore + 1, 'the keyed nameless exchange audits exactly once');
+});
+
+/* ─── C01: missing employeeId fails closed before the assertion ────────────── */
+
+test('COMPANION-SSO proof 18: an account with no employeeId fails closed typed-403 with zero success audits; the faculty-mirror fallback still resolves', async () => {
+	await resetSchoolState();
+	await createActiveMirror();
+	const auditsBefore = await codeConsumedAuditCount();
+
+	// Named account, no employeeId anywhere: on the old path the name gate
+	// passed and this emitted `employeeId: null`. It must now fail typed.
+	const keyless = await createOfficerAccount({ employeeId: null, accountName: 'Has A Name' });
+	const keylessCode = await issueCode(keyless.id);
+	const denied = await callExchange({ code: keylessCode.code, clientId: 'enrollpro', redirectUri: REDIRECT_URI });
+	assert.equal(denied.status, 403);
+	const deniedBody = await denied.json() as { code?: string; success?: unknown };
+	assert.equal(deniedBody.code, 'COMPANION_SSO_IDENTITY_EMPLOYEE_ID_UNAVAILABLE');
+	assert.equal(deniedBody.success, undefined, 'a typed denial must never carry an assertion body');
+	assert.equal(await codeConsumedAuditCount(), auditsBefore, 'fail-closed must write zero success-audit rows');
+
+	// Null account employeeId with a faculty-mirror employeeId still resolves.
+	const facultyEmployeeId = uniqueEmployeeId();
+	const mirror = await prisma.facultyMirror.create({
+		data: {
+			schoolId: SCHOOL_ID,
+			externalId: 9_201_701,
+			employeeId: facultyEmployeeId,
+			firstName: 'Faculty',
+			lastName: 'Mirror',
+			isActiveForScheduling: true,
+			isStale: false,
+		},
+	});
+	const linked = await prisma.atlasAuthAccount.create({
+		data: {
+			schoolId: SCHOOL_ID,
+			email: `linked-${Date.now()}-${Math.random().toString(36).slice(2)}@deped.edu.ph`,
+			employeeId: null,
+			accountName: null,
+			role: 'officer',
+			facultyId: mirror.id,
+			passwordHash: 'not-a-real-hash',
+			isActive: true,
+		},
+	});
+	const linkedCode = await issueCode(linked.id);
+	const linkedResponse = await callExchange({ code: linkedCode.code, clientId: 'enrollpro', redirectUri: REDIRECT_URI });
+	assert.equal(linkedResponse.status, 200);
+	const linkedAssertion = await assertConsumerSchemaValid(linkedResponse, 'faculty-fallback');
+	assert.equal(linkedAssertion.identity.employeeId, facultyEmployeeId);
+	assert.equal(linkedAssertion.identity.firstName, 'Faculty');
+	assert.equal(linkedAssertion.identity.lastName, 'Mirror');
+
+	assert.equal(await codeConsumedAuditCount(), auditsBefore + 1, 'only the fallback success audits');
 });

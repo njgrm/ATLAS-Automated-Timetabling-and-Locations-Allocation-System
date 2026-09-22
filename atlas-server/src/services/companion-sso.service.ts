@@ -104,6 +104,7 @@ export type CompanionSsoErrorCode =
 	| 'COMPANION_SSO_CLIENT_INVALID'
 	| 'COMPANION_SSO_CODE_INVALID'
 	| 'COMPANION_SSO_IDENTITY_INCOMPLETE'
+	| 'COMPANION_SSO_IDENTITY_EMPLOYEE_ID_UNAVAILABLE'
 	| 'COMPANION_SSO_ACCOUNT_UNAVAILABLE'
 	| 'COMPANION_SSO_ROLE_DENIED'
 	| 'COMPANION_SSO_ROLE_UNMAPPABLE'
@@ -119,6 +120,7 @@ const ERROR_HTTP_STATUS: Record<CompanionSsoErrorCode, number> = {
 	COMPANION_SSO_CLIENT_INVALID: 401,
 	COMPANION_SSO_CODE_INVALID: 401,
 	COMPANION_SSO_IDENTITY_INCOMPLETE: 401,
+	COMPANION_SSO_IDENTITY_EMPLOYEE_ID_UNAVAILABLE: 403,
 	COMPANION_SSO_ACCOUNT_UNAVAILABLE: 401,
 	COMPANION_SSO_ROLE_DENIED: 403,
 	COMPANION_SSO_ROLE_UNMAPPABLE: 403,
@@ -149,6 +151,7 @@ export const COMPANION_SSO_INVALID_CODE_BODY = {
 const REVERSE_ASSERTION_TYPED_FAILURES: ReadonlySet<CompanionSsoErrorCode> = new Set<CompanionSsoErrorCode>([
 	'COMPANION_SSO_ROLE_UNMAPPABLE',
 	'COMPANION_SSO_IDENTITY_NAME_UNAVAILABLE',
+	'COMPANION_SSO_IDENTITY_EMPLOYEE_ID_UNAVAILABLE',
 ]);
 
 export class CompanionSsoError extends Error {
@@ -828,11 +831,11 @@ export type CompanionSsoAssertion = {
 	issuer: string;
 	identity: {
 		subject: string;
-		employeeId: string | null;
+		employeeId: string;
 		lrn: null;
-		firstName: string;
+		firstName?: string;
 		middleName: null;
-		lastName: string;
+		lastName?: string;
 		roles: string[];
 	};
 	activeSchoolYear: { id: number; yearLabel: string };
@@ -921,7 +924,7 @@ export async function exchangeCompanionSsoCode(params: ExchangeParams): Promise<
 		return { ok: true, assertion: assertion.assertion };
 	} catch (error) {
 		// The code is already consumed: never retry it. Producer-side conformance
-		// failures (unmappable role / unassertable name) propagate as a typed 403
+		// failures (unmappable role / missing employeeId) propagate as a typed 403
 		// so EnrollPro can deny clearly; every other assertion failure keeps the
 		// generic invalid-code body. No failure path writes a success audit.
 		if (error instanceof CompanionSsoError && REVERSE_ASSERTION_TYPED_FAILURES.has(error.code)) {
@@ -1005,19 +1008,30 @@ async function buildAssertion(claimed: {
 		);
 	}
 
-	// The assertion name must satisfy EnrollPro's `min(1)` schema and its
-	// linked-user name comparison, so it is resolved from persisted identity or
-	// the request fails typed — never fabricated and never an empty string.
+	// `employeeId` is the cross-system reconciliation key: EnrollPro's
+	// `resolveUserById` falls through to its `employeeId` lookup only when no
+	// `userId` is asserted (this assertion never sends one — R1 verified), so a
+	// null/empty `employeeId` can never resolve. Fail typed (producer-side 403)
+	// BEFORE building the assertion; with the name gate removed there is no
+	// remaining backstop for a null `employeeId`.
+	const employeeId = account.employeeId ?? account.faculty?.employeeId ?? null;
+	if (!employeeId || !employeeId.trim()) {
+		throw new CompanionSsoError(
+			'COMPANION_SSO_IDENTITY_EMPLOYEE_ID_UNAVAILABLE',
+			'The local account has no employeeId that EnrollPro can resolve.',
+		);
+	}
+
+	// Names are optional-by-omission: EnrollPro's reverse-response schema
+	// declares `firstName`/`lastName` as `z.string().min(1).optional()`, so a
+	// present-but-empty name fails validation. Include each part only when the
+	// resolved part is non-empty; otherwise omit the key entirely. EnrollPro
+	// never compares the asserted name (`assertUserCanEnterEnrollPro` checks
+	// only `isActive`), so omitting names is safe.
 	const nameParts = resolveReverseSsoNameParts({
 		faculty: account.faculty,
 		accountName: account.accountName,
 	});
-	if (!nameParts) {
-		throw new CompanionSsoError(
-			'COMPANION_SSO_IDENTITY_NAME_UNAVAILABLE',
-			'The local account has no persisted name that can be asserted.',
-		);
-	}
 
 	return {
 		assertion: {
@@ -1025,11 +1039,10 @@ async function buildAssertion(claimed: {
 			issuer: COMPANION_SSO_ISSUER,
 			identity: {
 				subject: `ATLAS_USER:${account.id}`,
-				employeeId: account.employeeId ?? account.faculty?.employeeId ?? null,
+				employeeId,
 				lrn: null,
-				firstName: nameParts.firstName,
+				...(nameParts ? { firstName: nameParts.firstName, lastName: nameParts.lastName } : {}),
 				middleName: null,
-				lastName: nameParts.lastName,
 				roles: [...roles],
 			},
 			activeSchoolYear: {
