@@ -4,6 +4,7 @@ import type { ImperativePanelHandle } from 'react-resizable-panels';
 
 import { resolveActiveSchoolYearContext, type ActiveSchoolYearContext } from '@/lib/enrollpro-public-settings';
 import { resolveActorSchoolId } from '@/lib/settings';
+import { isVerifiedOrderedActiveTerm } from '@/lib/academic-term';
 import { findGradeWindow, getProgramBadgeLabel, matchesEntryKindFilter, matchesProgramFilter, resolveSectionGradeNumber } from '@/lib/schedule-review-helpers';
 import {
 	buildViolationIndex,
@@ -299,9 +300,7 @@ export function resolveTimetableTermScopeState(
 	userOverrodeTermFilter: boolean,
 ): TimetableTermScopeState {
 	if (!activeTerm) return { authorityReady: false, queryEnabled: false, termIndex: null, status: 'checking' };
-	const authorityReady = activeTerm.verified === true
-		&& activeTerm.termIndex != null
-		&& Boolean(activeTerm.orderedTerms?.some((term) => term.order === activeTerm.termIndex));
+	const authorityReady = isVerifiedOrderedActiveTerm(activeTerm);
 	if (!authorityReady) return { authorityReady: false, queryEnabled: false, termIndex: null, status: 'setup-required' };
 	if (typeof termFilter === 'number') return { authorityReady: true, queryEnabled: true, termIndex: termFilter, status: 'active' };
 	if (userOverrodeTermFilter) return { authorityReady: true, queryEnabled: true, termIndex: 'all', status: 'active' };
@@ -1208,11 +1207,7 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 		if (resolvedSchoolIdRef.current !== actorSchoolId) return null;
 		setSchoolId(actorSchoolId);
 		setSchoolYearContext({ ...context, schoolId: actorSchoolId });
-		termAuthorityReadyRef.current = Boolean(
-			context.activeTerm?.verified === true
-			&& context.activeTerm.termIndex != null
-			&& context.activeTerm.orderedTerms?.some((term) => term.order === context.activeTerm?.termIndex),
-		);
+		termAuthorityReadyRef.current = isVerifiedOrderedActiveTerm(context.activeTerm);
 		if (context.activeSchoolYearId) setSchoolYearId(context.activeSchoolYearId);
 		if (context.source === 'cache' || context.stale) {
 			void resolveActiveSchoolYearContext({
@@ -1224,11 +1219,7 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 				// A fresh response for an obsolete actor school must never bind.
 				if (resolvedSchoolIdRef.current !== actorSchoolId) return;
 				setSchoolYearContext({ ...freshContext, schoolId: actorSchoolId });
-				termAuthorityReadyRef.current = Boolean(
-					freshContext.activeTerm?.verified === true
-					&& freshContext.activeTerm.termIndex != null
-					&& freshContext.activeTerm.orderedTerms?.some((term) => term.order === freshContext.activeTerm?.termIndex),
-				);
+				termAuthorityReadyRef.current = isVerifiedOrderedActiveTerm(freshContext.activeTerm);
 				if (freshContext.activeSchoolYearId) setSchoolYearId(freshContext.activeSchoolYearId);
 			}).catch(() => {
 				// Keep the visible cached/stale source state. The header will state that

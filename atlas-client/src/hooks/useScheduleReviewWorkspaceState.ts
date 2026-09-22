@@ -12,7 +12,7 @@ import {
 	type ProgramFilter,
 } from '@/lib/schedule-review-helpers';
 import { decideAutoSavePlacement } from '@/lib/simple-timetable-state';
-import { buildAcademicTermOptions, repairTermFilter, type OrderedAcademicTerm } from '@/lib/academic-term';
+import { buildAcademicTermOptions, isVerifiedOrderedActiveTerm, repairTermFilter, type OrderedAcademicTerm } from '@/lib/academic-term';
 import { isTargetSlotOccupiedForTerm } from '@/lib/timetable-term-scope';
 import { formatTime } from '@/lib/utils';
 import atlasApi from '@/lib/api';
@@ -549,11 +549,7 @@ export function useScheduleReviewWorkspaceState() {
 	const activeTermContext = schoolYearContext?.activeTerm ?? null;
 	const orderedTerms: OrderedAcademicTerm[] | null = activeTermContext?.orderedTerms ?? null;
 	const orderedTermsKey = orderedTerms?.map((term) => `${term.identity}:${term.displayLabel}:${term.order}`).join('|') ?? '';
-	const hasVerifiedTermAuthority = Boolean(
-		activeTermContext?.verified === true
-		&& activeTermContext.termIndex != null
-		&& orderedTerms?.some((term) => term.order === activeTermContext.termIndex),
-	);
+	const hasVerifiedTermAuthority = isVerifiedOrderedActiveTerm(activeTermContext);
 	const timetableTermScopeReady = resolveTimetableTermScopeState(
 		activeTermContext,
 		termFilter,

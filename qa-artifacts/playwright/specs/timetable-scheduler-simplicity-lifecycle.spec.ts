@@ -257,3 +257,20 @@ test('real /timetable treats an active-term response without its ordered contrac
 	expect(protectedReads, `Malformed active-term authority must not read timetable data: ${JSON.stringify(protectedReads)}`).toEqual([]);
 	expect(mutations, `Unexpected non-GET request(s): ${JSON.stringify(mutations)}`).toEqual([]);
 });
+
+test('real /timetable rejects a non-positive active term even when the response claims verified', async ({ page }) => {
+	const records: RequestRecord[] = [];
+	const mutations: RequestRecord[] = [];
+	let releaseRuntime!: () => void;
+	const runtimeGate = new Promise<void>((resolve) => { releaseRuntime = resolve; });
+	const invalidTerm = { ...activeTerm, activeTerm: 'Term 0', termIndex: 0, orderedTerms: [{ identity: 'T0', displayLabel: 'Term 0', order: 0 }] } as any;
+	await installLocalApi(page, runtimeGate, releaseRuntime, records, mutations, invalidTerm);
+	await page.goto('/timetable', { waitUntil: 'domcontentloaded' });
+	await page.waitForTimeout(250);
+	releaseRuntime();
+	await expect(page.getByText('Term setup is required before the timetable can be loaded.', { exact: true })).toBeVisible();
+	await page.waitForTimeout(500);
+	const protectedReads = records.filter(protectedTimetableRead);
+	expect(protectedReads, `Non-positive active-term authority must not read timetable data: ${JSON.stringify(protectedReads)}`).toEqual([]);
+	expect(mutations, `Unexpected non-GET request(s): ${JSON.stringify(mutations)}`).toEqual([]);
+});
