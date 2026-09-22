@@ -9,6 +9,12 @@ docs/reviews/** text eol=lf
 # record-approval (--packet-sha256); they must be checkout-stable too. The
 # committed blobs were already LF, so this rule is content-neutral.
 docs/prompts/** text eol=lf
+# Hash-pinned verification artifacts live under docs/verification and are pinned
+# by byte-SHA-256 sidecars (e.g. department-authority-apply-r4a.sha256). They were
+# outside the LF policy, so a Windows checkout materialised CRLF bytes (4811 vs
+# the 4621-byte LF blob) and the pinned LF SHA could not match on that platform.
+# Every blob in this directory is already LF, so this rule is content-neutral.
+docs/verification/** text eol=lf
 # Project agent prompts and plugins are read verbatim by OpenCode; keep them
 # LF-stable too (WF-C03 integration-owned portability correction, audit F1).
 .opencode/agents/** text eol=lf

@@ -112,10 +112,13 @@ async function main() {
       select: { id: true },
     });
     fixtureSubjectMath = (math as any).id as number;
+    // Section mirrors carry EnrollPro INTERNAL grade_level_ids (see
+    // teaching-load-reconciliation.test.ts B1): feed id 17 = Grade 7. The
+    // pre-correction fixture used 7 (now Grade 9) and derived zero demand.
     const sectionRow = await base.sectionMirror.create({
       data: {
         schoolId: fixtureSchoolId, schoolYearId: fixtureYearId, externalId: 101, name: 'Grade 7 - A',
-        gradeLevelId: 7, gradeLevelName: 'Grade 7', displayOrder: 7, programType: 'REGULAR', maxCapacity: 50, enrolledCount: 50,
+        gradeLevelId: 17, gradeLevelName: 'Grade 7', displayOrder: 7, programType: 'REGULAR', maxCapacity: 50, enrolledCount: 50,
         isActiveForScheduling: true, isStale: false,
       },
       select: { id: true },
