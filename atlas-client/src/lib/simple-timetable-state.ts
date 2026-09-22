@@ -274,3 +274,44 @@ export function decideAutoSavePlacement(input: AutoSaveEligibilityInput): AutoSa
 	if (input.preview.softViolations.length > 0) return { kind: 'review-soft', softCount: input.preview.softViolations.length };
 	return { kind: 'preview-confirm', softCount: 0 };
 }
+
+/**
+ * C8/C9 — where a pre-generation draft drop is confirmed.
+ *
+ * Baseline: `stagePreGenDrop` opened the `draft-placement-review-dialog`
+ * unconditionally, *before* the authoritative preview resolved. A clean slot then
+ * rendered the dialog's "Save placement" beside the inline pending bar's
+ * "Save placement" — two visible Confirms for one placement, and the dialog's
+ * commit captured no Undo target.
+ *
+ * The inline pending bar already states the consequence and the conflict check,
+ * so it is the single Confirm for every ordinary (clean or soft-warned) drop. The
+ * detailed dialog is reserved for the cases the bar cannot state: a slot with hard
+ * conflicts, or a drop with no resolved owner / room / preview. Every such case
+ * returns `review-dialog`, so nothing blocked can ever reach an inline Confirm.
+ */
+export type DraftPlacementReviewInput = {
+	hasFacultyOwner: boolean;
+	hasRoom: boolean;
+	/**
+	 * `undefined` — the authoritative preview has not been requested yet.
+	 * `null` — the preview was requested and is unavailable (transport or
+	 * validation failure). Both fail closed; only a resolved, clean preview
+	 * (`allowed` and no hard violations) confirms inline.
+	 */
+	preview?: { allowed: boolean; hardViolations: { length: number }; softViolations: { length: number } } | null;
+};
+
+export type DraftPlacementReviewDecision =
+	| { kind: 'pending' }
+	| { kind: 'inline-confirm'; softCount: number }
+	| { kind: 'review-dialog'; reason: 'no-owner' | 'no-room' | 'no-preview' | 'blocked' };
+
+export function decideDraftPlacementReview(input: DraftPlacementReviewInput): DraftPlacementReviewDecision {
+	if (!input.hasFacultyOwner) return { kind: 'review-dialog', reason: 'no-owner' };
+	if (!input.hasRoom) return { kind: 'review-dialog', reason: 'no-room' };
+	if (input.preview === undefined) return { kind: 'pending' };
+	if (input.preview === null) return { kind: 'review-dialog', reason: 'no-preview' };
+	if (!input.preview.allowed || input.preview.hardViolations.length > 0) return { kind: 'review-dialog', reason: 'blocked' };
+	return { kind: 'inline-confirm', softCount: input.preview.softViolations.length };
+}

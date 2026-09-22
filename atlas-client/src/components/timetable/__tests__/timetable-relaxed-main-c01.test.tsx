@@ -535,3 +535,97 @@ test('A8: the /map leaf meets the 12px typography floor', () => {
 		assert.ok(value >= 12, `CampusMap contains ${match[0]}, below the 12px floor`);
 	}
 });
+
+/* ── C8/C9 — one Confirm per draft placement; the dialog is not a per-drop modal ── */
+
+type DraftDropDecision =
+	| { kind: 'pending' }
+	| { kind: 'inline-confirm'; softCount: number }
+	| { kind: 'review-dialog'; reason: 'no-owner' | 'no-room' | 'no-preview' | 'blocked' };
+
+type DecideDraftDrop = (input: {
+	hasFacultyOwner: boolean;
+	hasRoom: boolean;
+	preview?: { allowed: boolean; hardViolations: { length: number }; softViolations: { length: number } } | null;
+}) => DraftDropDecision;
+
+/** The pre-generation drop body, bounded so source assertions cannot drift. */
+function stagePreGenDropSource(): string {
+	const hook = source('src/hooks/useTimetableMutations.ts');
+	const start = hook.indexOf('const stagePreGenDrop');
+	const end = hook.indexOf('const runConfirmPreview', start);
+	assert.ok(start > 0 && end > start, 'stagePreGenDrop must be locatable in the mutation hook');
+	return hook.slice(start, end);
+}
+
+test('C8/C9 control: a clean draft slot never opens the review dialog, so one placement never shows two Confirms', async () => {
+	const stage = stagePreGenDropSource();
+	// Failing-first (as shipped at `ed6b6f05`): `setShowPreGenConfirm(true)` ran
+	// unconditionally *before* the authoritative preview resolved, so a clean slot
+	// rendered the dialog's "Save placement" beside the inline pending bar's
+	// "Save placement" — two visible Confirms for one placement. The drop must now
+	// route every dialog open through the shared single-Confirm decision.
+	const decisionIndex = stage.indexOf('decideDraftPlacementReview(');
+	assert.ok(decisionIndex >= 0, 'the drop must consult the shared single-Confirm decision');
+	const firstDialogOpen = stage.indexOf('setShowPreGenConfirm(true)');
+	assert.ok(firstDialogOpen >= 0, 'the dialog stays reachable for a genuine blocked consequence');
+	assert.ok(decisionIndex < firstDialogOpen, 'the review dialog is only opened through the decision, never before it');
+	assert.match(
+		stage,
+		/kind === 'review-dialog'[\s\S]{0,80}?setShowPreGenConfirm\(true\)/,
+		'the dialog opens only for a review-dialog decision',
+	);
+	// C9 — whenever the dialog is used, the inline pending bar is cleared, so the
+	// two save controls can never co-render for one placement.
+	const dialogOpenings = stage.split('setShowPreGenConfirm(true)').slice(1);
+	assert.ok(dialogOpenings.length > 0, 'the dialog opening sites must be visible to this control');
+	for (const tail of dialogOpenings) {
+		assert.match(tail.slice(0, 400), /setPreGenPending\(null\)/, 'using the dialog hides the inline Confirm (exactly one save control)');
+	}
+
+	const mod = (await import('@/lib/simple-timetable-state')) as unknown as Record<string, unknown>;
+	const decide = mod.decideDraftPlacementReview as DecideDraftDrop | undefined;
+	assert.equal(typeof decide, 'function', 'the shared draft-drop decision must exist');
+	const clean = { allowed: true, hardViolations: [], softViolations: [] };
+	assert.deepEqual(decide!({ hasFacultyOwner: true, hasRoom: true, preview: clean }), { kind: 'inline-confirm', softCount: 0 }, 'a clean slot confirms inline — no dialog');
+	assert.deepEqual(
+		decide!({ hasFacultyOwner: true, hasRoom: true, preview: { allowed: true, hardViolations: [], softViolations: [{}, {}] } }),
+		{ kind: 'inline-confirm', softCount: 2 },
+		'a soft-warned slot keeps the inline single Confirm and carries its warning count',
+	);
+	assert.deepEqual(decide!({ hasFacultyOwner: true, hasRoom: true }), { kind: 'pending' }, 'before the preview resolves the drop is pending, never confirmable');
+	assert.deepEqual(decide!({ hasFacultyOwner: true, hasRoom: true, preview: null }), { kind: 'review-dialog', reason: 'no-preview' }, 'an unavailable preview never confirms');
+	assert.deepEqual(
+		decide!({ hasFacultyOwner: true, hasRoom: true, preview: { allowed: false, hardViolations: [{}], softViolations: [] } }),
+		{ kind: 'review-dialog', reason: 'blocked' },
+		'a blocked slot keeps the detailed review',
+	);
+	assert.deepEqual(
+		decide!({ hasFacultyOwner: true, hasRoom: true, preview: { allowed: true, hardViolations: [{}], softViolations: [] } }),
+		{ kind: 'review-dialog', reason: 'blocked' },
+		'a preview with hard conflicts never confirms inline',
+	);
+	assert.deepEqual(decide!({ hasFacultyOwner: false, hasRoom: true, preview: clean }), { kind: 'review-dialog', reason: 'no-owner' }, 'no owner never reaches a Confirm');
+	assert.deepEqual(decide!({ hasFacultyOwner: true, hasRoom: false, preview: clean }), { kind: 'review-dialog', reason: 'no-room' }, 'no room never reaches a Confirm');
+});
+
+/* ── C10 — every committing draft placement path can be undone ───────────── */
+
+test('C10: the review dialog commit returns its operation identity and registers the same Undo the inline anchor does', () => {
+	const hook = source('src/hooks/useTimetableMutations.ts');
+	const start = hook.indexOf('const commitConfirmPlacement');
+	const end = hook.indexOf('const executeSwapAction', start);
+	assert.ok(start > 0 && end > start, 'commitConfirmPlacement must be locatable');
+	const commit = hook.slice(start, end);
+	assert.match(commit, /Promise<DraftPlacementCommitResult \| null>/, 'the dialog commit exposes its operation identity');
+	assert.match(commit, /return data;/, 'the commit result reaches the caller so Undo can be registered');
+
+	const state = source('src/hooks/useScheduleReviewWorkspaceState.ts');
+	assert.match(state, /const wrappedCommitConfirmPlacement = useCallback/, 'the dialog commit is wrapped to register Undo');
+	assert.match(state, /commitConfirmPlacement: wrappedCommitConfirmPlacement/, 'the dialogs context receives the Undo-registering wrapper');
+	const wrapperStart = state.indexOf('const wrappedCommitConfirmPlacement');
+	const wrapper = state.slice(wrapperStart, state.indexOf('const handleEntryClick', wrapperStart));
+	assert.match(wrapper, /setLastAutoSaveUndo\(\{/, 'the dialog path registers an Undo target');
+	assert.match(wrapper, /editId: result\.operationId/, 'the Undo target is the commit operation');
+	assert.match(wrapper, /newVersion: result\.resultingVersion/, 'the Undo target pins the resulting version');
+});
