@@ -367,6 +367,16 @@ in-flight Lane B stream is discoverable, so their server file boundary (`atlas-s
 currently unowned; Lane A took it for `ZONE-IMBALANCE-PRECONDITION-C01` on the operator's direction
 and recorded the transfer.
 
+**Integrated: `ZONING-CLARITY-C01`** (`10716aa1`, 2026-09-22) — LOW, copy-only. The same concept was
+called **"Zone / Annex"** where a scheduler configures it and **"Campus zone concentration"** in the
+warning, and nothing anywhere said what a campus zone is *for*. Now **one vocabulary ("Campus zone")**
+across the room config label, the room-list badge tooltip, the section details sheet, the diagnostics
+heading, the warning title, the rail label and the publish-readiness label; the config input gained one
+plain-language help line; and the warning's title/meaning/action are decidable **without** reading the
+server message ("Most classes are in one campus zone" / "More than half of this term's zoned classes
+sit in the same campus zone." / a concrete move-or-accept step). No behaviour change, no server file.
+client-suite **846/846**, build exit 0. **Not deployed** — it rides the next release that carries it.
+
 **Integrated: `ZONE-IMBALANCE-PRECONDITION-C01`** (`47081de3`, 2026-09-22) — MEDIUM, one fresh QA
 `ACCEPT_READY` **7/7/0/0**. The operator asked whether `ZONE_IMBALANCE_WARNING` should simply be
 deleted; the measurements said the **warning as written was a false positive, but the feature is

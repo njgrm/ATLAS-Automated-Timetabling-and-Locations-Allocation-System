@@ -257,9 +257,14 @@ selector defaults to term 1 while a *malformed* one is a typed 400.
    required, threshold over the zoned denominator. Live run 315 goes **3 → 0** through the real
    builder (QA-proven). Do not re-open it; if the operator still wants the capability gone, deleting
    it entirely is a small follow-up.
-2. **False/incorrect warning categories — what remains.** `FACULTY_FLOOR_TRANSITION`'s stored
-   message is still broken (`(14:30→14:30) with only 0 minutes gap`) — a regeneration/data concern,
-   not a formatter job. Warning-count semantics are otherwise settled by C07A/C07B.
+2. **AIMS/SMART term-aware handoff — DELIVERED 2026-09-22.** The old doc was deleted at `4794bd9e`
+   (`docs/*` ignored, `docs/guides/` not whitelisted) and the contract has since drifted. The new one is
+   `docs/reference/aims-smart-term-aware-published-schedule-handoff-2026-09-22.md`, pinned to deployed
+   `5a333c74`, with the live payload, the typed errors and the migration warning. **Correction to the
+   earlier analysis:** the two "blocking" term-scope lanes are **client-only** (0 server paths each),
+   so they do **not** move the API contract — no need to wait for them.
+3. **`ZONING-CLARITY-C01` — delivered 2026-09-22** (`10716aa1`): one "Campus zone" vocabulary and an
+   at-a-glance warning. Copy-only, not yet deployed.
 2. **New UX successors recorded from this release** (all NON_BLOCKING, in the live-state Lane A
    section): clean-load API GETs 20 vs 19 baseline; the Review-issues panel's uppercase
    `SOFT`/`HARD` badges; the status region still draws three visual lines; sub-nav links at 24 px;
