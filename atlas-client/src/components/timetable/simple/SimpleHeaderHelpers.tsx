@@ -372,7 +372,7 @@ export function SimpleFiltersContent({ context }: { context: ScheduleReviewWorks
 	);
 }
 
-export function SimpleTutorialControl({ open, onOpenChange, lifecycle }: { open: boolean; onOpenChange: (open: boolean) => void; lifecycle?: TimetableLifecycleState }) {
+export function SimpleTutorialControl({ open, onOpenChange, lifecycle, triggerless = false }: { open: boolean; onOpenChange: (open: boolean) => void; lifecycle?: TimetableLifecycleState; triggerless?: boolean }) {
 	const [stepIndex, setStepIndex] = useState(0);
 	const [unavailableMessage, setUnavailableMessage] = useState<string | null>(null);
 	const steps = useMemo(() => simpleTutorialSteps(lifecycle), [lifecycle]);
@@ -407,19 +407,23 @@ export function SimpleTutorialControl({ open, onOpenChange, lifecycle }: { open:
 
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
-			<DialogTrigger asChild>
-				<Button
-					type="button"
-					variant="outline"
-					size="sm"
-					className="h-8 min-h-11 min-w-11 gap-1.5 px-1.5 text-xs sm:min-h-0 sm:min-w-0 sm:px-2.5"
-					aria-label="Open timetable tutorial"
-					data-testid="timetable-simple-tutorial-trigger"
-				>
-					<BookOpen className="size-3.5" aria-hidden="true" />
-					<span className="hidden sm:inline">Tutorial</span>
-				</Button>
-			</DialogTrigger>
+			{/* A3 — the tutorial trigger moved to More, so the dialog can render
+			    without an inline trigger while the More item owns the opening. */}
+			{triggerless ? null : (
+				<DialogTrigger asChild>
+					<Button
+						type="button"
+						variant="outline"
+						size="sm"
+						className="h-8 min-h-11 min-w-11 gap-1.5 px-1.5 text-xs sm:min-h-0 sm:min-w-0 sm:px-2.5"
+						aria-label="Open timetable tutorial"
+						data-testid="timetable-simple-tutorial-trigger"
+					>
+						<BookOpen className="size-3.5" aria-hidden="true" />
+						<span className="hidden sm:inline">Tutorial</span>
+					</Button>
+				</DialogTrigger>
+			)}
 			<DialogContent className="max-w-md" data-testid="timetable-simple-tutorial">
 				<DialogHeader>
 					<DialogTitle>Simple timetable tutorial</DialogTitle>

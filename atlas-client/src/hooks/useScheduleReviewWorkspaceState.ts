@@ -12,7 +12,7 @@ import {
 	type ProgramFilter,
 } from '@/lib/schedule-review-helpers';
 import { decideAutoSavePlacement } from '@/lib/simple-timetable-state';
-import { buildAcademicTermOptions, repairTermFilter, type OrderedAcademicTerm } from '@/lib/academic-term';
+import { buildAcademicTermOptions, isVerifiedOrderedActiveTerm, repairTermFilter, type OrderedAcademicTerm } from '@/lib/academic-term';
 import { isTargetSlotOccupiedForTerm } from '@/lib/timetable-term-scope';
 import { formatTime } from '@/lib/utils';
 import atlasApi from '@/lib/api';
@@ -423,6 +423,7 @@ export function useScheduleReviewWorkspaceState() {
 		violationIndex,
 		highlightedEntryIds,
 		filteredViolations,
+		reviewEntryIds,
 		violationsByCode,
 		hardViolationCount,
 		topBlockers,
@@ -543,14 +544,17 @@ export function useScheduleReviewWorkspaceState() {
 		gradeWindows,
 	});
 
+	// A1 — the verified ordered-term authority is one canonical predicate; the
+	// policy/grade-window reads and the term filter both consume it.
+	const activeTermContext = schoolYearContext?.activeTerm ?? null;
+	const orderedTerms: OrderedAcademicTerm[] | null = activeTermContext?.orderedTerms ?? null;
+	const orderedTermsKey = orderedTerms?.map((term) => `${term.identity}:${term.displayLabel}:${term.order}`).join('|') ?? '';
+	const hasVerifiedTermAuthority = isVerifiedOrderedActiveTerm(activeTermContext);
+
 	// Policy and grade-window reads use the same authenticated school scope as
 	// the timetable data. Missing scope leaves the page in its bounded error state.
 	// UX-R03c — this effect is the single owner of the scheduling-policy GET.
 	useEffect(() => {
-		const hasVerifiedTermAuthority = Boolean(
-			schoolYearContext?.activeTerm?.verified === true
-			&& schoolYearContext.activeTerm.termIndex != null,
-		);
 		if (!schoolId || !schoolYearId || !hasVerifiedTermAuthority) {
 			setPolicy(null);
 			setPolicyRecord(null);
@@ -583,7 +587,7 @@ export function useScheduleReviewWorkspaceState() {
 			}
 		};
 		void fetchPolicyAndWindows();
-	}, [policyRefreshToken, schoolId, schoolYearContext?.activeTerm?.termIndex, schoolYearContext?.activeTerm?.verified, schoolYearId]);
+	}, [policyRefreshToken, schoolId, schoolYearId, hasVerifiedTermAuthority, orderedTermsKey]);
 
 	useEffect(() => {
 		if (!isPreGenerationWorkspace || !schoolYearId || roomMap.size > 0) return;
@@ -596,14 +600,6 @@ export function useScheduleReviewWorkspaceState() {
 	// The verified ordered EnrollPro term contract drives the term filter. A
 	// missing or unverified contract is setup-required, not permission to guess
 	// Term 1 (or to expose fabricated term options).
-	const activeTermContext = schoolYearContext?.activeTerm ?? null;
-	const orderedTerms: OrderedAcademicTerm[] | null = activeTermContext?.orderedTerms ?? null;
-	const orderedTermsKey = orderedTerms?.map((term) => `${term.identity}:${term.displayLabel}:${term.order}`).join('|') ?? '';
-	const hasVerifiedTermAuthority = Boolean(
-		activeTermContext?.verified === true
-		&& activeTermContext.termIndex != null
-		&& orderedTerms?.some((term) => term.order === activeTermContext.termIndex),
-	);
 	const termOptions = useMemo(
 		() => hasVerifiedTermAuthority
 			? buildAcademicTermOptions(orderedTerms, activeTermContext?.termIndex ?? null)
@@ -1663,7 +1659,7 @@ export function useScheduleReviewWorkspaceState() {
 			? (termOptions.find((option) => String(option.value) === String(termFilter))?.label ?? `Term ${termFilter}`)
 			: 'All terms';
 		const leftRailContentContext = buildLeftRailContext({ schoolId, leftTab, isPreGenerationWorkspace, hardViolationCount, runWideBlockingHardCount: blockingHardCount, violationScopeLabel, topBlockers, violations, handleViolationSelect, setSeverityFilter, severityFilter, VIOLATION_LABELS, violationSearch, setViolationSearch, filteredViolations, violationsByCode, violationsGroupPage, setViolationsGroupPage, selectedViolation, setDrawerViolation, formatConstraintMessage, draftBoard, isDesktop, setDragItem, toast, summary, filteredUnassignedItems, programKindFilteredUnassignedItems, unassignedPageSize, setUnassignedPageSize, unassignedReasonFilter, setUnassignedReasonFilter, resolveEntryProgramType, resolveEntryProgramCode, sectionLabel, subjectLabel, kbSelectedSource, followUps, expandedUnassigned, setExpandedUnassigned, unassignedFixSuggestions, fixLoading, schoolYearId, runs, selectedRunId, setFixLoading, setUnassignedFixSuggestions, entryContextLabel, previewEdit, setDrawerUnassigned, setFollowUps, showSoftConfirm, unassignDropActive, setUnassignDropActive, pinnedRailDropActive, fetchDraftBoardSummary, preGenPending, pinsSearch, setPinsSearch, pinsGradeFilter, setPinsGradeFilter, pinsSectionFilter, setPinsSectionFilter, pinsSubjectFilter, setPinsSubjectFilter, getDraggedDraftPlacementId, setPendingUnassignId, setShowUnassignConfirm, pinsQueuePage, setPinsQueuePage, preGenKbSource, setPreGenKbSource, setKbSelectedSource, leftPanelRef, rightPanelRef, selectedEntry, setSelectedEntry, selectedUnassignedForRepair, setSelectedUnassignedForRepair, setSelectedViolation, preGenEntries, gradeForSection, formatFacultyInitials, roomLabelShort, roomMap, roomRequestSummary, requestSearch, setRequestSearch, requestStatusFilter, setRequestStatusFilter, requestDecisionFilter, setRequestDecisionFilter, roomRequestError, roomRequestLoading, filteredRoomRequests, selectedRequestId, focusRequestInGrid, openRequestPreview, isPrivilegedUser, focusPinnedPlacement, openTacticalSandbox, viewMode, setViewMode, entityFilter, setEntityFilter, focusSection });
-		const centerWorkspaceContext = buildCenterWorkspaceContext({ schoolId, centerView, selectedEntry, selectedUnassigned: selectedUnassignedForRepair, setSelectedUnassigned: setSelectedUnassignedForRepair, violationIndex, followUps, toggleFollowUp, exitPolicyView, handleRefresh, policyRecord, policyRefreshToken, refreshPolicy, exportTermFilter: termFilter, exportYearLabel: schoolYearContext?.activeSchoolYearLabel ?? null, exportRunId: draft?.runId ?? activeGeneratedRunId ?? null, exportViewMode: viewMode, exportEntityFilter: entityFilter, schoolYearId, pendingAction, roomMap, facultyMap, subjectMap, draft, previewEdit, commitEdit, previewTeachingLoadRepair, commitTeachingLoadRepair, previewLoading, commitLoading, subjectLabel, facultyLabel, sectionLabel, gradeForSection, roomLabel, isStaleRoom, timeSlots: displayTimeSlots, preGenOnboarding, setCenterView, buildings, mapBuildingId, setMapBuildingId, openBuildingWorkspace, selectedMapBuilding, selectedMapBuildingFloors, mapRoomId, openRoomGridWorkspace, presentationMode, draftBoard, runs, generating, newDraftLoading, handleStartNewPreGenerationDraft, handleTriggerGenerate, entityFilter, pivotLabel, viewMode, termFilter, setPreGenOnboarding, gridEntries, highlightedEntryIds, swapClassAEntryId, swapClassBEntryId, handleEntryClick, entryContextLabel, formatFacultyInitials, roomLabelShort, kbSelectedSource: gridKbSelectedSource, handleKbPlace, handleKbPlaceStart, getCellConflict, getLiveCellConflict, navToFaculty, navToSection, navToRoom, tacticalSandboxOpen, setTacticalSandboxOpen, preGenPending, preGenPreviewLoading, preGenPreviewError, preGenPreview, commitPreGenPending: wrappedCommitPreGenPending, preGenSaving, setPreGenPending, setPreGenPreview, setPreGenPreviewError, setPreGenAllowSoftOverride, runsSelectedId: selectedRunId, onRunsSelect: handleRunChange, formatRunTimestamp: formatTimestamp, formatRunDuration: formatDuration, setupInputs: { schoolId, schoolYearId, activeGeneratedRunId, draft, isPreGenerationWorkspace, loading, generating, onRefresh: handleRefresh, onRefreshSetupNames: refreshReferenceLabels, curriculumReadiness, hasSelectedEntry: !!selectedEntry, requestPendingCount: roomRequestSummary?.counts?.pending ?? 0, blockingHardCount, softCount, summary, violations, schoolYearContext, latestRunStatus: runs[0]?.status ?? null, setLeftTab, setPresentationMode: handlePresentationModeChange, setUnassignedReasonFilter, setSelectedViolation, setSeverityFilter } });
+		const centerWorkspaceContext = buildCenterWorkspaceContext({ schoolId, centerView, selectedEntry, selectedUnassigned: selectedUnassignedForRepair, setSelectedUnassigned: setSelectedUnassignedForRepair, violationIndex, followUps, toggleFollowUp, exitPolicyView, handleRefresh, policyRecord, policyRefreshToken, refreshPolicy, exportTermFilter: termFilter, exportYearLabel: schoolYearContext?.activeSchoolYearLabel ?? null, exportRunId: draft?.runId ?? activeGeneratedRunId ?? null, exportViewMode: viewMode, exportEntityFilter: entityFilter, schoolYearId, pendingAction, roomMap, facultyMap, subjectMap, draft, previewEdit, commitEdit, previewTeachingLoadRepair, commitTeachingLoadRepair, previewLoading, commitLoading, subjectLabel, facultyLabel, sectionLabel, gradeForSection, roomLabel, isStaleRoom, timeSlots: displayTimeSlots, preGenOnboarding, setCenterView, buildings, mapBuildingId, setMapBuildingId, openBuildingWorkspace, selectedMapBuilding, selectedMapBuildingFloors, mapRoomId, openRoomGridWorkspace, presentationMode, draftBoard, runs, generating, newDraftLoading, handleStartNewPreGenerationDraft, handleTriggerGenerate, entityFilter, pivotLabel, viewMode, termFilter, termOptions, reviewEntryIds, setPreGenOnboarding, gridEntries, highlightedEntryIds, swapClassAEntryId, swapClassBEntryId, handleEntryClick, entryContextLabel, formatFacultyInitials, roomLabelShort, kbSelectedSource: gridKbSelectedSource, handleKbPlace, handleKbPlaceStart, getCellConflict, getLiveCellConflict, navToFaculty, navToSection, navToRoom, tacticalSandboxOpen, setTacticalSandboxOpen, preGenPending, preGenPreviewLoading, preGenPreviewError, preGenPreview, commitPreGenPending: wrappedCommitPreGenPending, preGenSaving, setPreGenPending, setPreGenPreview, setPreGenPreviewError, setPreGenAllowSoftOverride, runsSelectedId: selectedRunId, onRunsSelect: handleRunChange, formatRunTimestamp: formatTimestamp, formatRunDuration: formatDuration, setupInputs: { schoolId, schoolYearId, activeGeneratedRunId, draft, isPreGenerationWorkspace, loading, generating, onRefresh: handleRefresh, onRefreshSetupNames: refreshReferenceLabels, curriculumReadiness, hasSelectedEntry: !!selectedEntry, requestPendingCount: roomRequestSummary?.counts?.pending ?? 0, blockingHardCount, softCount, summary, violations, schoolYearContext, latestRunStatus: runs[0]?.status ?? null, setLeftTab, setPresentationMode: handlePresentationModeChange, setUnassignedReasonFilter, setSelectedViolation, setSeverityFilter } });
 		const rightPanelContext = buildRightPanelContext({ rightPanelRef, setIsRightCollapsed, isRightCollapsed, isPreGenerationWorkspace, preGenKbSource, selectedEntry, setPreGenKbSource, setKbSelectedSource, initials, facultyMap, formatFacultyInitials, isDesktop, subjectLabel, toggleFollowUp, followUps, setSelectedEntry, gradeForSection, violationIndex, sectionLabel, facultyLabel, roomLabel, roomRequestSummary, previewResult, formatConstraintMessage, violationLabels: VIOLATION_LABELS, violationExplanations: VIOLATION_EXPLANATIONS, setSelectedViolation, toast, draftBoard, parseDraftPlacementId, deletingPlacementId, setPendingUnassignId, setShowUnassignConfirm, enterManualEditView, openTacticalSandbox });
 		const headerContext = buildHeaderContext({ isPreGenerationWorkspace, activeGeneratedRunId, leftTab, leftPanelRef, selectedRunId, handleRunChange, runs, schoolYearContext, schoolId, centerView, newDraftLoading, schoolYearId, handleStartNewPreGenerationDraft, draftPlacementCount: draftBoardSummary?.draft ?? 0, openPreGenerationWorkspace, returnToGeneratedRun, generating, loading, handleTriggerGenerate, draft, hardCount, blockingHardCount, setPublishAcknowledged, setShowPublishDialog, exitPolicyView, switchCenterViewWithGuard, enterPolicyView, openMapWorkspace, handleRefresh, refreshReferenceLabels, referenceLookupStatus, revertLoading, editHistoryCount: editHistory.length, revertLastEdit, setShowEditHistory, tutorial, summary, sectionLabel, subjectLabel, facultyLabel, setUnassignedReasonFilter, requestPendingCount: roomRequestSummary?.counts?.pending ?? 0, statusColor, formatDuration, formatTimestamp, viewMode, setViewMode, setEntityFilter, focusSection, sectionFocusId, hasSelectedEntry: !!selectedEntry, setSelectedEntry, setSelectedViolation, enterManualEditView, setPreGenKbSource, setKbSelectedSource, entityFilter, groupedPivotEntities, pivotLabel, programFilter, setProgramFilter, 			entryKindFilter, setEntryKindFilter, termFilter, onTermFilterChange: handleTermFilterChange,
 			termOptions,

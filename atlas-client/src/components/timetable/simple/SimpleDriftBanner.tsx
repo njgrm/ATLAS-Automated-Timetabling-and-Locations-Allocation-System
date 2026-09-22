@@ -47,6 +47,18 @@ type SimpleDriftBannerProps = {
 	 * the Simple header's single status region.
 	 */
 	layout?: 'strip' | 'inline';
+	/**
+	 * A3 — when false the banner renders only its plain-language message line.
+	 * The header uses this so the setup-input repairs (Fix rooms / Preview
+	 * impact / Sync with setup) live only on `/timetable/setup`, one click away,
+	 * instead of competing with the single primary action.
+	 */
+	showActions?: boolean;
+	/**
+	 * A3 — when false the rollover guidance card is not mounted here (it moves to
+	 * `/timetable/setup`). The caller then owns the rollover-status subscription.
+	 */
+	showRolloverGuidance?: boolean;
 };
 
 export function SimpleDriftBanner({
@@ -61,6 +73,8 @@ export function SimpleDriftBanner({
 	capabilities,
 	isPublished,
 	layout = 'strip',
+	showActions = true,
+	showRolloverGuidance = true,
 }: SimpleDriftBannerProps) {
 	const inputState = draft?.inputState ?? null;
 	const drift = useMemo(() => describeRunInputDrift(inputState), [inputState]);
@@ -124,16 +138,16 @@ export function SimpleDriftBanner({
 						{drift.status === 'STALE' ? 'Run inputs are stale' : 'Run inputs could not be compared'}
 					</span>
 					{/* Informational domain chips stay next to the actionable repair control. */}
-					{drift.domains.map((domain) => (
+					{showActions ? drift.domains.map((domain) => (
 						<Badge key={domain.domain} variant="outline" className="h-5 border-amber-300 bg-white/70 px-1.5 text-xs font-bold text-amber-800">
 							{domain.label}
 						</Badge>
-					))}
+					)) : null}
 					<span className="min-w-0 flex-1 truncate text-amber-800">
 						{drift.actionHint || drift.message}
 						{formatCheckedAtAge(drift.checkedAt) ? ` · ${formatCheckedAtAge(drift.checkedAt)}` : ''}
 					</span>
-					{isPublished ? (
+					{showActions ? (isPublished ? (
 						<span
 							className="shrink-0 rounded border border-amber-300 bg-white/70 px-2 py-0.5 font-semibold text-amber-900"
 							data-testid="timetable-simple-published-drift-guidance"
@@ -204,10 +218,12 @@ export function SimpleDriftBanner({
 						Sync with setup
 					</Button>
 					</>
-					)}
+					)) : null}
 				</div>
 			) : null}
-			<RolloverGuidanceCard compact schoolId={schoolId} onApplied={() => onRefresh()} onStatus={onRolloverStatus} />
+			{showRolloverGuidance ? (
+				<RolloverGuidanceCard compact schoolId={schoolId} onApplied={() => onRefresh()} onStatus={onRolloverStatus} />
+			) : null}
 			<SyncTimetableConfirmDialog
 				open={showSyncConfirm && !isPublished}
 				onOpenChange={setShowSyncConfirm}

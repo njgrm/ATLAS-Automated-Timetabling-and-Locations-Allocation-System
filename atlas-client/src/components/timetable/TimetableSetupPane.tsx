@@ -180,9 +180,9 @@ export function TimetableSetupPane({
 				<div className="mx-auto w-full max-w-2xl space-y-3 p-4">
 					<div className="flex items-center gap-2">
 						<Badge variant="outline" className="h-5 px-1.5 text-xs uppercase">Setup</Badge>
-						<p className="text-xs text-muted-foreground">
-							The same setup controls as the schedule header — sync, readiness, and names.
-						</p>
+					<p className="text-xs text-muted-foreground">
+						Check input freshness and publish readiness, then refresh the reference names for the active school year.
+					</p>
 					</div>
 					<section aria-label="Publish readiness" className="space-y-2 rounded-lg border border-border bg-card p-3">
 						<div className="flex min-w-0 flex-wrap items-center gap-2">

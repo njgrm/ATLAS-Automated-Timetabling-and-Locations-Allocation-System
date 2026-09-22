@@ -12,6 +12,7 @@ import { captureBridgeToken } from '@/lib/bridge';
 import { resolveEnrollProLogoutRedirect } from '@/lib/companion-config';
 import { applyEnrollProAccentTheme, fetchPublicSettings, verifySessionToken } from '@/lib/settings';
 import { invalidateActiveSchoolYearContext, resolveActiveSchoolYearContext } from '@/lib/enrollpro-public-settings';
+import { isVerifiedOrderedActiveTerm } from '@/lib/academic-term';
 import {
 	clearRolloverAwarenessNotice,
 	evaluateRolloverTransition,
@@ -184,7 +185,9 @@ export function AppShell() {
 			runtimeYearRef.current = { id: context.activeSchoolYearId, label: context.activeSchoolYearLabel ?? null };
 			setSelectedYearId(context.activeSchoolYearId);
 			setActiveYearLabel(context.activeSchoolYearLabel ?? `School year ${context.activeSchoolYearId}`);
-			setActiveTermLabel(context.activeTerm?.activeTerm ?? null);
+			setActiveTermLabel(isVerifiedOrderedActiveTerm(context.activeTerm)
+				? context.activeTerm?.activeTerm ?? null
+				: null);
 			const transition = evaluateRolloverTransition({
 				schoolId: actorSchoolId,
 				previous,

@@ -18,6 +18,30 @@ export type OrderedAcademicTerm = {
 	order: number;
 };
 
+/**
+ * The single ordered-term authority predicate (TIMETABLE-RELAXED-MAIN-C01 A1).
+ *
+ * A term may be presented as the active term, or authorize a timetable read,
+ * only when EnrollPro verified it *and* its index is a member of the ordered
+ * contract. An unverified, missing, or ambiguous identity is unresolved
+ * authority — it must never be silently replaced by Term 1 or by a cached
+ * school-year context alone.
+ */
+export function isVerifiedOrderedActiveTerm(
+	activeTerm: {
+		verified?: boolean;
+		termIndex?: number | null;
+		orderedTerms?: ReadonlyArray<OrderedAcademicTerm>;
+	} | null | undefined,
+): boolean {
+	const termIndex = activeTerm?.termIndex;
+	return activeTerm?.verified === true
+		&& typeof termIndex === 'number'
+		&& Number.isInteger(termIndex)
+		&& termIndex > 0
+		&& Boolean(activeTerm.orderedTerms?.some((term) => term.order === termIndex));
+}
+
 export type AcademicTermOption = {
 	value: string;
 	label: string;

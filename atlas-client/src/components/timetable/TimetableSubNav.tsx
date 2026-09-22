@@ -21,6 +21,9 @@ type TimetableSubNavItem = {
  */
 const SUB_NAV_ITEMS: TimetableSubNavItem[] = [
 	{ key: 'schedule', label: 'Schedule', to: '/timetable', end: true },
+	// A5 — the pre-generation draft surface gets a real sub-nav home instead of
+	// being reachable only by typing the URL.
+	{ key: 'draft', label: 'Draft', to: '/timetable/pre-generation' },
 	{ key: 'setup', label: 'Setup', to: '/timetable/setup' },
 	{ key: 'policies', label: 'Policies', to: '/timetable/policies' },
 	{ key: 'runs', label: 'Runs', to: '/timetable/runs' },

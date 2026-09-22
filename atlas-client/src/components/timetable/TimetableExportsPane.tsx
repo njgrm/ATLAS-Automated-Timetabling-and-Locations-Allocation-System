@@ -77,7 +77,7 @@ export function TimetableExportsPane({
 					{termFilter === 'all'
 						? 'Choose a single ordered term on the schedule surface first — official downloads are bound to exactly one term.'
 						: hasGeneratedRun
-							? 'The same official downloads as the schedule header, bound to the selected term.'
+							? 'Official beneficiary downloads, bound to the selected ordered term.'
 							: 'No timetable exists yet, so there is nothing to download.'}
 				</p>
 				{hasGeneratedRun ? (

@@ -17,12 +17,65 @@ export function SimpleDayOptions({
 	hiddenRowCount,
 	showFullDay,
 	onToggleFullDay,
+	inline = false,
 }: {
 	policyAlignmentWarning: string | null;
 	hiddenRowCount: number;
 	showFullDay: boolean;
 	onToggleFullDay: () => void;
+	/**
+	 * A3 — render the hidden-row controls directly (no Popover disclosure) so
+	 * the More menu can host them without nesting a second overlay inside the
+	 * dropdown. The trigger disclosure remains the default for other callers.
+	 */
+	inline?: boolean;
 }) {
+	const controls = (
+		<div className="flex flex-col gap-1.5" data-testid="timetable-hidden-row-controls">
+			{policyAlignmentWarning && (
+				<TooltipProvider delayDuration={300}>
+					<Tooltip>
+						<TooltipTrigger asChild>
+							<Badge
+								variant="outline"
+								tabIndex={0}
+								role="status"
+								aria-label={`${hiddenRowCount} earlier row${hiddenRowCount === 1 ? '' : 's'} hidden`}
+								className="h-5 w-fit shrink-0 cursor-default gap-1 border-amber-200 bg-amber-50 px-1.5 text-xs text-amber-800 sm:h-6"
+								data-testid="timetable-hidden-rows-chip"
+								onClick={(event) => { event.preventDefault(); event.stopPropagation(); }}
+							>
+								{hiddenRowCount} earlier row{hiddenRowCount === 1 ? '' : 's'} hidden
+							</Badge>
+						</TooltipTrigger>
+						<TooltipContent side="bottom" className="max-w-xs" data-testid="timetable-hidden-rows-explanation">
+							<p>{policyAlignmentWarning}</p>
+						</TooltipContent>
+					</Tooltip>
+				</TooltipProvider>
+			)}
+
+			{hiddenRowCount > 0 && (
+				<Button
+					type="button"
+					variant="outline"
+					size="sm"
+					className="h-6 w-fit shrink-0 gap-1 px-1.5 text-xs"
+					aria-pressed={showFullDay}
+					onClick={onToggleFullDay}
+					data-testid="timetable-show-full-day-toggle"
+				>
+					<Sun className="size-3" aria-hidden="true" />
+					<span>{showFullDay ? 'Full day' : 'Show full day'}</span>
+				</Button>
+			)}
+		</div>
+	);
+
+	if (inline) {
+		return <div className="flex items-center gap-1.5 py-0.5">{controls}</div>;
+	}
+
 	return (
 		<div className="flex items-center gap-1.5 py-0.5">
 			<Popover>
@@ -45,45 +98,7 @@ export function SimpleDayOptions({
 					</Button>
 				</PopoverTrigger>
 				<PopoverContent forceMount align="start" className="w-72 p-2" data-testid="timetable-day-options-panel">
-					<div className="flex flex-col gap-1.5" data-testid="timetable-hidden-row-controls">
-						{policyAlignmentWarning && (
-							<TooltipProvider delayDuration={300}>
-								<Tooltip>
-									<TooltipTrigger asChild>
-										<Badge
-											variant="outline"
-											tabIndex={0}
-											role="status"
-											aria-label={`${hiddenRowCount} earlier row${hiddenRowCount === 1 ? '' : 's'} hidden`}
-											className="h-5 w-fit shrink-0 cursor-default gap-1 border-amber-200 bg-amber-50 px-1.5 text-xs text-amber-800 sm:h-6"
-											data-testid="timetable-hidden-rows-chip"
-											onClick={(event) => { event.preventDefault(); event.stopPropagation(); }}
-										>
-											{hiddenRowCount} earlier row{hiddenRowCount === 1 ? '' : 's'} hidden
-										</Badge>
-									</TooltipTrigger>
-									<TooltipContent side="bottom" className="max-w-xs" data-testid="timetable-hidden-rows-explanation">
-										<p>{policyAlignmentWarning}</p>
-									</TooltipContent>
-								</Tooltip>
-							</TooltipProvider>
-						)}
-
-						{hiddenRowCount > 0 && (
-							<Button
-								type="button"
-								variant="outline"
-								size="sm"
-								className="h-6 w-fit shrink-0 gap-1 px-1.5 text-xs"
-								aria-pressed={showFullDay}
-								onClick={onToggleFullDay}
-								data-testid="timetable-show-full-day-toggle"
-							>
-								<Sun className="size-3" aria-hidden="true" />
-								<span>{showFullDay ? 'Full day' : 'Show full day'}</span>
-							</Button>
-						)}
-					</div>
+					{controls}
 				</PopoverContent>
 			</Popover>
 		</div>

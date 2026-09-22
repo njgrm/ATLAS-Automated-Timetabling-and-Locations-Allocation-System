@@ -26,6 +26,7 @@ import {
 	buildSubjectLabel,
 } from '@/lib/timetable-reference-labels';
 import { deriveGenerationReadinessState, type TimetableCurriculumReadinessState } from '@/lib/timetable-generation-readiness';
+import { isVerifiedOrderedActiveTerm } from '@/lib/academic-term';
 import {
 	isResolvedTimetableScope,
 	timetableRunBundleQueryKey,
@@ -70,6 +71,15 @@ import type {
 	ViolationReport,
 } from '@/types';
 import { VIOLATION_TITLES } from '@/lib/violation-presentation';
+
+/**
+ * A6 — a superseded/obsolete school-year resolution is not a missing school
+ * year. Returning this sentinel lets `loadAll` abandon the stale attempt
+ * without raising the hard "no active school year" error, which would
+ * contradict the active year the app shell is already showing.
+ */
+export const TIMETABLE_LOAD_SUPERSEDED = Symbol('timetable-load-superseded');
+export type TimetableLoadSchoolYear = number | null | typeof TIMETABLE_LOAD_SUPERSEDED;
 
 const DAYS = ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY'] as const;
 
@@ -298,9 +308,9 @@ export type TimetableTermScopeState = {
 export function isTermAuthorityVerified(
 	activeTerm: ActiveSchoolYearContext['activeTerm'] | null | undefined,
 ): boolean {
-	return activeTerm?.verified === true
-		&& activeTerm.termIndex != null
-		&& Boolean(activeTerm.orderedTerms?.some((term) => term.order === activeTerm.termIndex));
+	// A1 — one canonical predicate. The context's `activeTerm` is structurally
+	// compatible with the ordered-contract shape the helper consumes.
+	return isVerifiedOrderedActiveTerm(activeTerm);
 }
 
 /**
@@ -449,6 +459,8 @@ export type TimetableDataState = {
 	violationIndex: Map<string, Violation[]>;
 	highlightedEntryIds: Set<string>;
 	filteredViolations: Violation[];
+	/** A8 — entry ids carrying a violation in the active review set. */
+	reviewEntryIds: Set<string>;
 	violationsByCode: Map<ViolationCode, Violation[]>;
 	hardViolationCount: number;
 	topBlockers: Violation[];
@@ -475,7 +487,7 @@ export type TimetableDataState = {
 	navToRoom: (id: number) => void;
 	activeGeneratedRunId: number | null;
 	schoolYearContext: ActiveSchoolYearContext | null;
-	fetchSchoolYear: () => Promise<number | null>;
+	fetchSchoolYear: () => Promise<TimetableLoadSchoolYear>;
 	/** D3 — visible notice while the explicit fallback scope is in effect. */
 	termAuthorityNotice: string | null;
 	fetchRuns: (syId: number) => Promise<GenerationRun[]>;
@@ -691,6 +703,18 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 
 		return filtered;
 	}, [violations, severityFilter, violationSearch]);
+
+	// A8 — the grid's per-entry warning markers follow the ACTIVE REVIEW SET
+	// (the same filtered list the review rail renders), so a severity/attention
+	// filter actually prioritises the marked cells instead of flagging every
+	// violating cell identically.
+	const reviewEntryIds = useMemo(() => {
+		const ids = new Set<string>();
+		for (const violation of filteredViolations) {
+			for (const entryId of violation.entities.entryIds ?? []) ids.add(entryId);
+		}
+		return ids;
+	}, [filteredViolations]);
 
 	const violationsByCode = useMemo(() => {
 		const groups = new Map<ViolationCode, Violation[]>();
@@ -1337,7 +1361,7 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 		}
 	}, [entityFilter, pivotEntityIds, sectionFocusId, setEntityFilter, viewMode]);
 
-	const fetchSchoolYear = useCallback(async () => {
+	const fetchSchoolYear = useCallback(async (): Promise<TimetableLoadSchoolYear> => {
 		// ACTOR-SCOPE-C01: canonical actor-school resolution (token-epoch bound,
 		// fail-closed, late-response discard) — never a direct `/auth/me` read.
 		const actorSchoolId = await resolveActorSchoolId();
@@ -1353,17 +1377,44 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 		// TIMETABLE-TERM-GATE-C01 (D1) — fast cached read first, then exactly one
 		// verified call when authority is still unresolved. Late responses are
 		// discarded by actor school inside the resolver.
-		const resolution = await resolveTimetableTermAuthority(
-			actorSchoolId,
-			() => resolvedSchoolIdRef.current !== actorSchoolId,
-		);
-		// Discard a late response whose actor school changed while it was in flight.
-		if (!resolution || resolvedSchoolIdRef.current !== actorSchoolId) return null;
-		const context = resolution.context;
+		let resolution: Awaited<ReturnType<typeof resolveTimetableTermAuthority>> = null;
+		try {
+			resolution = await resolveTimetableTermAuthority(
+				actorSchoolId,
+				() => resolvedSchoolIdRef.current !== actorSchoolId,
+			);
+		} catch {
+			// A transient upstream failure is not a missing school year; fall
+			// through to the shell-authority fallback below.
+			resolution = null;
+		}
+		// A6 — a late response whose actor school changed while it was in flight
+		// is superseded, not a missing year. Abandon it without a hard error so
+		// the page never contradicts the active year the app shell shows.
+		if (!resolution || resolvedSchoolIdRef.current !== actorSchoolId) {
+			return TIMETABLE_LOAD_SUPERSEDED;
+		}
+		let context = resolution.context;
+		if (!context.activeSchoolYearId) {
+			// A6 — the strict ATLAS-runtime read resolved no year while the app
+			// shell (which allows the EnrollPro settings fallback) can still show
+			// one. Consult the same shell authority once before declaring the year
+			// missing; the D3 explicit-term scope + notice still carries whatever
+			// term identity the fallback context lacks.
+			const shellFallback = await resolveActiveSchoolYearContext({
+				schoolId: actorSchoolId,
+				preferCache: true,
+				backgroundRefresh: true,
+				allowStaleOnError: true,
+				allowEnrollProFallback: true,
+			}).catch(() => null);
+			if (resolvedSchoolIdRef.current !== actorSchoolId) return TIMETABLE_LOAD_SUPERSEDED;
+			if (shellFallback?.activeSchoolYearId) context = shellFallback;
+		}
 		setSchoolId(actorSchoolId);
 		setSchoolYearContext({ ...context, schoolId: actorSchoolId });
 		latestContextRef.current = { ...context, schoolId: actorSchoolId };
-		termAuthorityReadyRef.current = resolution.authorityReady;
+		termAuthorityReadyRef.current = isTermAuthorityVerified(context.activeTerm);
 		if (context.activeSchoolYearId) setSchoolYearId(context.activeSchoolYearId);
 		if (!resolution.authorityReady && (context.source === 'cache' || context.stale)) {
 			void resolveActiveSchoolYearContext({
@@ -1678,8 +1729,14 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 		try {
 			const syId = await fetchSchoolYear();
 			if (!isCurrentLoad()) return;
-			if (!syId) {
-				setError('No active school year found.');
+			// A6 — a superseded resolution owns no state: abandon quietly instead
+			// of claiming the school year is missing.
+			if (syId === TIMETABLE_LOAD_SUPERSEDED) return;
+			if (syId == null) {
+				// A6 — never claim "No active school year found" as an absolute when
+				// the year simply could not be confirmed; name the honest typed state
+				// and the real repair.
+				setError('ATLAS could not confirm the active school year for this school yet. Refresh, or open Year Setup to check the active year.');
 				setLoading(false);
 				return;
 			}
@@ -1893,6 +1950,7 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 		violationIndex,
 		highlightedEntryIds,
 		filteredViolations,
+		reviewEntryIds,
 		violationsByCode,
 		hardViolationCount,
 		topBlockers,

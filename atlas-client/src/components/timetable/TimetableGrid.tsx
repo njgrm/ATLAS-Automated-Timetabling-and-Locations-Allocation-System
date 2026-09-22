@@ -148,6 +148,14 @@ interface GridCellProps {
 	viewMode: 'section' | 'faculty' | 'room';
 	/** Selected ordered-term scope. Resolves the teacher from the entry in that term. */
 	termFilter?: 'all' | number;
+	/**
+	 * A2 — resolves the visible ordered-term label for an entry. Only consulted
+	 * under the `All terms` comparison scope, where stacked entries from
+	 * different terms must be distinguishable.
+	 */
+	termLabelFor?: (termIndex: number | null | undefined) => string | null;
+	/** A8 — only entries in the active review set carry a warning marker. */
+	reviewEntryIds?: ReadonlySet<string>;
 	showTeacherDetails?: boolean;
 	pivotLabel: (id: number) => string;
 	roomLabelShort: (roomId: number) => string;
@@ -235,6 +243,8 @@ const GridCell = memo(function GridCell({
 	facultyLabel,
 	viewMode,
 	termFilter = 'all',
+	termLabelFor,
+	reviewEntryIds,
 	showTeacherDetails = true,
 	pivotLabel,
 	roomLabelShort,
@@ -452,7 +462,14 @@ const GridCell = memo(function GridCell({
 			)}
 			<div className="space-y-0.5 min-h-6 overflow-hidden">
 				{visibleEntries.map((entry) => {
-					const severity = getEntrySeverity(entry.entryId, violationIndex);
+					const rawSeverity = getEntrySeverity(entry.entryId, violationIndex);
+					// A8 — prioritise: only cells in the active review set carry a
+					// marker, so an attention filter narrows the flagged set instead
+					// of flagging every violating cell identically. Severity stays
+					// differentiated (HARD ring+icon vs SOFT border+icon).
+					const severity = rawSeverity && (reviewEntryIds == null || reviewEntryIds.has(entry.entryId))
+						? rawSeverity
+						: null;
 					const isHighlighted = highlightedEntryIds.has(entry.entryId);
 					const isTeacherDepartureAffected = teacherDepartureEntryIds?.has(entry.entryId) ?? false;
 					const isSandboxChanged = localSandboxChangedEntryIds?.has(entry.entryId) ?? false;
@@ -460,6 +477,10 @@ const GridCell = memo(function GridCell({
 					const isSelected = selectedEntry?.entryId === entry.entryId;
 					const isFollowUp = followUps.has(entry.entryId);
 					const grade = gradeForSection(entry.sectionId);
+					// A2 — under the `All terms` comparison scope every stacked
+					// entry must name its ordered term, otherwise identical rows
+					// from different terms are indistinguishable.
+					const entryTermLabel = termFilter === 'all' ? (termLabelFor?.(entry.termIndex) ?? null) : null;
 
 					let cellClass = 'border-transparent text-foreground';
 					if (grade === 7) cellClass = 'bg-green-50 border-green-200';
@@ -530,6 +551,15 @@ const GridCell = memo(function GridCell({
 							<div className="font-semibold text-xs truncate flex items-center gap-1">
 								<GripVertical className="size-2.5 text-muted-foreground/40 shrink-0" />
 								<span className="min-w-0 flex-1 truncate">{entrySubjectLabel}</span>
+								{entryTermLabel ? (
+									<span
+										className="shrink-0 rounded bg-muted px-1 py-0.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground"
+										data-testid="timetable-entry-term-label"
+										data-term-index={entry.termIndex ?? ''}
+									>
+										{entryTermLabel}
+									</span>
+								) : null}
 								{severity === 'HARD' && (
 									<AlertCircle className="size-3.5 shrink-0 text-red-500" />
 								)}
@@ -666,6 +696,10 @@ interface TimetableGridProps {
 	viewMode: 'section' | 'faculty' | 'room';
 	/** Selected ordered-term scope. Resolves the teacher from the entry in that term. */
 	termFilter?: 'all' | number;
+	/** A2 — the configured ordered-term options, used to label stacked entries. */
+	termOptions?: ReadonlyArray<{ value: string; label: string }>;
+	/** A8 — only entries in the active review set carry a warning marker. */
+	reviewEntryIds?: ReadonlySet<string>;
 	showTeacherDetails?: boolean;
 	pivotLabel: (id: number) => string;
 	roomLabelShort: (roomId: number) => string;
@@ -707,6 +741,8 @@ export const TimetableGrid = memo(function TimetableGrid({
 	facultyLabel,
 	viewMode,
 	termFilter = 'all',
+	termOptions = [],
+	reviewEntryIds,
 	showTeacherDetails = true,
 	pivotLabel,
 	roomLabelShort,
@@ -889,6 +925,16 @@ export const TimetableGrid = memo(function TimetableGrid({
 	}, [entries]);
 
 	const hasKbSource = kbSelectedSource !== null;
+	// A2 — one ordered-term label resolver for the `All terms` scope. Falls back
+	// to plain "Term N" language rather than an enum code when the option is absent.
+	const termLabelFor = useMemo(() => {
+		const byValue = new Map<string, string>();
+		for (const option of termOptions) byValue.set(option.value, option.label);
+		return (index: number | null | undefined): string | null => {
+			if (index == null) return null;
+			return byValue.get(String(index)) ?? `Term ${index}`;
+		};
+	}, [termOptions]);
 	const activePreviewSource = kbSelectedSource;
 	const fullPreviewByCell = useMemo(() => {
 		if (!activePreviewSource) return null;
@@ -964,6 +1010,8 @@ export const TimetableGrid = memo(function TimetableGrid({
 												facultyLabel={facultyLabel}
 												viewMode={viewMode}
 												termFilter={termFilter}
+												termLabelFor={termLabelFor}
+												reviewEntryIds={reviewEntryIds}
 												showTeacherDetails={showTeacherDetails}
 												pivotLabel={pivotLabel}
 												roomLabelShort={roomLabelShort}
