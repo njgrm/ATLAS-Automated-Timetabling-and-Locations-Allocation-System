@@ -4,7 +4,7 @@ Current operational truth only. Git history and handoff documents retain older
 evidence. Update this file when a live fact, blocking decision, or next action
 changes.
 
-Last reconciled: 2026-09-21 (Lane A).
+Last reconciled: 2026-09-23 (Lane A).
 
 ## Writing protocol — two planner lanes share this file
 
@@ -35,9 +35,19 @@ and AIMS.
 ## Live release
 
 - Tailnet: `https://njgrm.buru-degree.ts.net`
-- **Release SHA: `714fadf7fb9194b46c7564ac377e23936af4f946`** (current, deployed by Lane A 2026-09-22
+- **Release SHA: `7dbb3b90`** (current; `D:\ATLAS-runtime-supervised-7dbb3b90-20260922`;
+  supervisor-owned 5001/5174; supervisor 44476, server `5001`->9228, client `5174`->19892; served
+  entry `/assets/index-CnDObevR.js`; local health + health/ready (`database: ok`) + Tailnet
+  health/root all 200 — read-only verified 2026-09-23). It carries `57592dd7` +
+  `e794dee2` (`TIMETABLE-RELAXED-SUBPAGES-C01`, merged `6cc202b7`) on top of everything in
+  `714fadf7`. **That delta reached the runtime with no independent pass** (`AGENTS.md` §11
+  unreviewed-delta condition); it was reviewed post-hoc on 2026-09-23 and returned `ACCEPT_READY`
+  **20/20/0/0** — see the Lane A section. `as of 2026-09-23` nothing above this release touches
+  `atlas-client/**`. Rollback: `714fadf7` startable in place at
+  `D:\ATLAS-runtime-supervised-714fadf7-20260922`.
+- (superseded) **Release SHA: `714fadf7fb9194b46c7564ac377e23936af4f946`** (deployed by Lane A 2026-09-22
   ~22:17 local; supervisor restarted; `5001`->45228; `5174`->48508; served entry
-  `index-BxOX7te1.js`; health + DB-backed read + Tailnet 200). **This release ends the timetable
+  `index-BxOX7te1.js`; health + DB-backed read + Tailnet 200). **This release ended the timetable
   outage properly.** It carries `TIMETABLE-TERM-GATE-C01` (the gate is now satisfiable: the timetable
   issues one `verifyUpstream:true` call when the fast read is unverified, re-runs the load when
   verification lands, and loads an explicit term with a visible notice rather than dead-ending),
@@ -360,6 +370,48 @@ Lane B owns this section. Current stream and state: see Lane B's own handoff fil
 it complete `TEST-GATE-REACHABILITY-C01` (`f4462374`) and hand it over for integration.
 
 ## Lane A — current lane (written only by Lane A)
+
+**`TIMETABLE-RELAXED-SUBPAGES-C01` independently reviewed post-hoc — `ACCEPT_READY` 20/20/0/0 (2026-09-23).**
+`57592dd7` (relax scheduler chrome on subpages) + `e794dee2` (fixture-path correction), merged
+`6cc202b7`, reached the live release `7dbb3b90` under the `AGENTS.md` §11 unreviewed-delta condition.
+One fresh independent reviewer (task `ses_f35fd1dfaffeh6KPQu8Od2twsa`) over the frozen range
+`714fadf7..7dbb3b90` returned `ACCEPT_READY` **20/20/0/0**, blocked 0, unperformed 0. Product delta is
+exactly four `atlas-client` paths; the gate is confined to `ScheduleReviewWorkspace.tsx:382/:463`;
+`TimetableRouteViewSync.tsx` is additive (+10 lines, pre-existing exports byte-unchanged) and
+behaviourally unchanged. The rehaul bar holds **live** at 1366×768 on
+`https://njgrm.buru-degree.ts.net`: **U3** sub-nav present on all nine `/timetable*` routes checked and
+a DOM marker survived four sub-pages and back with **no grid refetch and no remount**; **U2** exactly
+one solid primary (`Review warnings`) + one status region; **U6**
+`scrollHeight == clientHeight == 768`; **U1/U5** no raw code tokens and the
+`…180 consecutive teaching minutes…` warning copy intact. `test:client-suite` **854/854** exit 0; the
+built entry chunk SHA-256 `43BA4754…DD72` (455,186 B) is byte-identical to the live served
+`/assets/index-CnDObevR.js`, so the reviewed source bytes are the deployed bytes. The test change is
+additive (one-line fixture path, no assertion removed) and the fixture now resolves to the real
+tracked `ScheduleReviewWorkspace.tsx` (the pre-fix `../..` path was nonexistent). **No correction
+required and no new release** — the live delta is accepted. One authorized login this pass
+(~2026-09-22T16:50Z), logout proven (`GET /api/v1/auth/me` -> 401 `NO_TOKEN`); the exact
+`audit_logs` row id was **not** read (no safe read-only DB path surfaced) — recorded limitation.
+Non-blocking successors: (a) `test:client-suite` does **not** enumerate the new file (93 files), so
+the new regression runs only via `test:timetable-relaxed-subpages` (reachability is still enforced by
+`gate-reachability.test.ts` inside the suite); (b) the second test case is a source-text regex, not a
+rendered assertion, so a semantics-preserving refactor can false-fail and a regression that keeps the
+matched substrings can false-pass; (c) in advanced layout the sub-pages also lose the Simple-view
+toggle and Undo/Redo, both reachable by returning to `/timetable` via the persistent sub-nav;
+(d) pre-existing and outside the range: 502s on `runs/316/manual-edits` + `rollover-status`,
+element-less-leaf-route console warnings, and a stale `atlas:session-user:v1` localStorage shell
+rendering after logout while `/auth/me` is 401.
+
+**Reconciliation finding 2026-09-23 — an unreviewed, undeployed timetable candidate exists.**
+`work/timetable-live-term-authority-c01` (HEAD `b8e2e48e`, worktree clean) and its integration branch
+`integration/timetable-live-term-authority-c01` (HEAD `38a94bb0`) hold **5 unreviewed, unintegrated,
+undeployed** commits dated 2026-09-22, touching `atlas-client/package.json`,
+`src/hooks/useTimetableData.ts`, `src/lib/academic-term.ts`,
+`src/lib/timetable-data/timetablePrefetch.ts`, `src/hooks/useScheduleReviewWorkspaceState.ts`,
+`src/components/AppShell.tsx` and `src/components/timetable/ScheduleReviewWorkspaceHeader.tsx`, plus a
+`qa-artifacts/` spec. There is **no packet and no committed review verdict**. `as of 2026-09-23` it is
+not in `origin/main` and not deployed. It was deliberately **not** folded into the QA above; it needs
+its own cycle, and it overlaps `atlas-client/package.json` with the accepted delta. Branch and
+worktree preserved (`PRESERVE_FOR_DECISION`) — not retired, not rewritten, not reviewed here.
 
 **Lane B state, observed by Lane A 2026-09-22** (their own section is theirs to write; this is a
 dated observation only). `docs/handoffs/lane-b.md` was last touched 2026-09-21 (`2f1ee14b`,

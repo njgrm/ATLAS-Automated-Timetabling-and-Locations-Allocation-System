@@ -8,9 +8,34 @@ A fresh session pays for every line of this file before it does any work.
 > Read `docs/handoffs/planner-session-handoff.md` on `origin/main` and resume as the ATLAS
 > primary planner (Lane A). It is self-contained; then follow its read order.
 
-Last updated: 2026-09-22 (Lane A).
+Last updated: 2026-09-23 (Lane A).
 
 ## Verdict
+
+**2026-09-23 — the live timetable delta is reviewed and accepted; live is `7dbb3b90`.**
+- **Live moved to `7dbb3b90`** (`D:\ATLAS-runtime-supervised-7dbb3b90-20260922`; supervisor 44476,
+  `5001`->9228, `5174`->19892; served entry `/assets/index-CnDObevR.js`; health/ready + Tailnet 200
+  read-only verified 2026-09-23). It carried `57592dd7` (relax scheduler chrome on subpages) +
+  `e794dee2` (fixture-path correction), merged `6cc202b7`, **with no independent pass** — the §11
+  unreviewed-delta condition.
+- **That delta is now reviewed post-hoc: `ACCEPT_READY` 20/20/0/0** (task
+  `ses_f35fd1dfaffeh6KPQu8Od2twsa`) over the frozen range `714fadf7..7dbb3b90`. Product delta is
+  exactly four `atlas-client` paths; the gate is confined to `ScheduleReviewWorkspace.tsx:382/:463`;
+  `TimetableRouteViewSync.tsx` is additive and behaviourally unchanged. The rehaul bar holds live at
+  1366×768 (U3 sub-nav on all nine `/timetable*` routes, marker survives four sub-pages and back with
+  no grid refetch/remount; U2 one solid primary + one status region; U6 no global scrollbar; U1/U5
+  warning copy intact). `test:client-suite` 854/854 exit 0; the built entry chunk is byte-identical to
+  the live served `/assets/index-CnDObevR.js`. **No correction and no new release** — the release queue
+  is empty again. Full record in the `Lane A — current lane` section of `docs/plans/live-state.md`.
+- **Reconciliation, 2026-09-23:** nothing above `7dbb3b90` on `origin/main` touches `atlas-client/**`
+  (only `ops/runtime/**` + docs). **But an unreviewed, undeployed candidate exists:**
+  `work/timetable-live-term-authority-c01` (`b8e2e48e`) / `integration/timetable-live-term-authority-c01`
+  (`38a94bb0`) — 5 commits dated 2026-09-22 touching client timetable/term-authority paths, with no
+  packet and no review verdict, and an `atlas-client/package.json` overlap. It needs its own cycle;
+  preserve the branch and worktree, do not fold it into a release.
+- **Next program (dispatched after this closure): `NOTIFICATION-INBOX-C01`** —
+  `docs/prompts/notification-inbox-c01-2026-09-22.md`. AIMS is the READ_ONLY reference
+  (`D:\AIMS` @ `2332d92e`), pattern not domain.
 
 **OPEN ITEMS HANDED FORWARD (2026-09-22 late) — read before picking work.**
 - **SMART teacher-side direction is DECIDED but BLOCKED on the system adviser.** SMART owns **submission
