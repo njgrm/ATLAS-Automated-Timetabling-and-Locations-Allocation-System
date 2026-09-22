@@ -12,6 +12,28 @@ Last updated: 2026-09-22 (Lane A).
 
 ## Verdict
 
+**LATE 2026-09-22 — live incident fixed, both SSO directions working, and two new third-party handoffs.**
+Read this block first; the sections below are still accurate but predate it.
+- **Timetable outage (fixed).** `5a333c74` shipped an **un-satisfiable** term gate (`5a0a8788`) — the
+  timetable never sent `verifyUpstream`, so `/runtime/context` always answered `atlas-unverified` and
+  the page dead-ended. Rolled back to `d4c9f391`, then fixed properly: `TIMETABLE-TERM-GATE-C01`
+  (verify → recover → degrade with an explicit term + notice) and `ZONE-WARNING-REMOVAL-C01` (the zone
+  warning is gone; stored rows render as history). Both QA `ACCEPT_READY` 8/8 and 11/11. **Live is
+  `714fadf7`** and the page is verified loading, authenticated.
+- **EnrollPro → ATLAS SSO (fixed).** The outbound exchange URL was missing `/api`
+  (`ENROLLPRO_BASE_URL` has no `/api`, `ENROLLPRO_SSO_EXCHANGE_URL` was unset) → ATLAS POSTed to a
+  **404**. Fixed with a **machine-scope** `ENROLLPRO_SSO_EXCHANGE_URL` override (the runtime env file
+  is ACL read-only for everyone, so it was not edited) + restart. **Both SSO directions now work**;
+  ATLAS `audit_logs` 888 `COMPANION_SSO_SESSION_CREATED` is the proof for the previously-broken one.
+- **Two third-party handoffs authored:** `docs/handoffs/smart-teacher-preferences-and-room-requests-2026-09-22.md`
+  and `docs/handoffs/companion-sso-reverse-identity-c01-enrollpro.md` (§5 = the active-term mismatch,
+  still theirs). The SMART one needs **one decision** — do they own submission only, or the whole
+  review/appeal lifecycle? — which blocks `docs/prompts/teacher-input-simple-surface-c01-2026-09-22.md`
+  (`BLOCKED(EXTERNAL_DECISION)`).
+- **Still open:** the EnrollPro active-term reconciliation (their UI says TERM 1, their integration
+  endpoint says T2, and ATLAS correctly mirrors the endpoint); the EnrollPro callback config item is now
+  **closed** by their own fix + ours.
+
 **`TEST-GATE-COVERAGE-C01` is integrated and now green — no release needed.** Client half `1ce9f4ad`
 (all 92 client test files gated + inverse guard; orphans 55 → 0; suite 846/846). Server half
 `f9c0f3cb` + `1e3190cf` + `95895430` (orphans 80 → 0; `test:server-suite` **275/275**; `test:server-db`
