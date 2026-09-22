@@ -76,6 +76,15 @@ test('Windows PowerShell 5.1 accepts rooted paths and rejects relative paths bef
 	assert.doesNotMatch(validOutput, /IsPathFullyQualified/);
 	assert.match(validOutput, /DEPLOY_RUNNER_STOP:|git failed with exit code/);
 
+	const validUnc = valid.replace("-TargetSourceDir 'C:\\valid-target'", "-TargetSourceDir '\\\\server\\share'");
+	const validUncResult = spawnSync('powershell.exe', [
+		'-NoProfile', '-NonInteractive', '-Command', validUnc,
+	], { encoding: 'utf8' });
+	const validUncOutput = `${validUncResult.stdout}\n${validUncResult.stderr}`;
+	assert.notEqual(validUncResult.status, 0);
+	assert.doesNotMatch(validUncOutput, /IsPathFullyQualified/);
+	assert.match(validUncOutput, /DEPLOY_RUNNER_STOP:|git failed with exit code/);
+
 	const relative = valid.replace("-TargetSourceDir 'C:\\valid-target'", "-TargetSourceDir 'relative-target'");
 	const relativeResult = spawnSync('powershell.exe', [
 		'-NoProfile', '-NonInteractive', '-Command', relative,
@@ -84,4 +93,13 @@ test('Windows PowerShell 5.1 accepts rooted paths and rejects relative paths bef
 	assert.notEqual(relativeResult.status, 0);
 	assert.match(relativeOutput, /Cannot validate argument|parameter.*TargetSourceDir/i);
 	assert.doesNotMatch(relativeOutput, /DEPLOY_RUNNER_STOP:/);
+
+	const bareUnc = valid.replace("-TargetSourceDir 'C:\\valid-target'", "-TargetSourceDir '\\\\'");
+	const bareUncResult = spawnSync('powershell.exe', [
+		'-NoProfile', '-NonInteractive', '-Command', bareUnc,
+	], { encoding: 'utf8' });
+	const bareUncOutput = `${bareUncResult.stdout}\n${bareUncResult.stderr}`;
+	assert.notEqual(bareUncResult.status, 0);
+	assert.match(bareUncOutput, /Cannot validate argument|parameter.*TargetSourceDir/i);
+	assert.doesNotMatch(bareUncOutput, /DEPLOY_RUNNER_STOP:/);
 });

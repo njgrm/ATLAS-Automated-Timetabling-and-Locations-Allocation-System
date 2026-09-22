@@ -6,7 +6,7 @@ param(
     [ValidateScript({
         $path = [string]$_
         -not [string]::IsNullOrWhiteSpace($path) -and
-        ($path -match '^(?:[A-Za-z]:[\\/]|\\\\)')
+        ($path -match '^(?:[A-Za-z]:[\\/]|\\\\[^\\/]+[\\/][^\\/]+(?:[\\/]|$))')
     })]
     [string] $TargetSourceDir,
 
@@ -16,14 +16,14 @@ param(
     [ValidateScript({
         $path = [string]$_
         -not [string]::IsNullOrWhiteSpace($path) -and
-        ($path -match '^(?:[A-Za-z]:[\\/]|\\\\)')
+        ($path -match '^(?:[A-Za-z]:[\\/]|\\\\[^\\/]+[\\/][^\\/]+(?:[\\/]|$))')
     })]
     [string] $IncumbentSourceDir,
 
     [ValidateScript({
         $path = [string]$_
         -not [string]::IsNullOrWhiteSpace($path) -and
-        ($path -match '^(?:[A-Za-z]:[\\/]|\\\\)')
+        ($path -match '^(?:[A-Za-z]:[\\/]|\\\\[^\\/]+[\\/][^\\/]+(?:[\\/]|$))')
     })]
     [string] $EnvFile,
 
