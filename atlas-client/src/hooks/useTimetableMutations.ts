@@ -20,6 +20,7 @@ import type {
 	DraftPlacementSwapResult,
 	DraftQueueItem,
 	DraftReport,
+	DraftUndoResult,
 	ManualEditBatchPreviewResult,
 	ManualEditProposal,
 	ManualEditRecord,
@@ -277,6 +278,8 @@ export type TimetableMutationState = {
 	commitTeachingLoadRepair: (changes: TeachingLoadRepairChange[], allowSoftOverride?: boolean, placementProposal?: ManualEditProposal) => Promise<CommitResult | null>;
 	revertLastEdit: () => Promise<void>;
 	revertEditById: (operationId: number, expectedVersion: number) => Promise<boolean>;
+	/** C11 — operation-bound draft-ledger undo for a pre-generation placement. */
+	revertDraftEditById: (operationId: number, expectedVersion: number) => Promise<boolean>;
 	/** R4 — bounded authoritative Redo target; null when no eligible redo exists. */
 	redoState: { operationId: number; expectedVersion: number; label: string } | null;
 	/** R4 — the last redo attempt hit a stale CAS; nothing was dispatched. */
@@ -995,6 +998,41 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 		});
 		return result != null;
 	}, [runAuthoritativeRevert]);
+
+	// C11 — a pre-generation draft placement lives in the draft ledger
+	// (`lockedSessionAction`), not the run manual-edit ledger. Its commit returns
+	// the draft-ledger action id as both `operationId` and `resultingVersion`, so
+	// sending that id to the run revert CASes against `run.version` and always
+	// 409s (`UNDO_CONFLICT`). A draft Undo dispatches this draft-ledger endpoint,
+	// which CASes the same `expectedVersion` against the draft head. Redo is armed
+	// only by the run revert, so a draft Undo never arms a run redo target.
+	const revertDraftEditById = useCallback(async (operationId: number, expectedVersion: number): Promise<boolean> => {
+		if (!schoolYearId) return false;
+		setRevertLoading(true);
+		try {
+			const { data } = await atlasApi.post<DraftUndoResult>(`/generation/${schoolId}/${schoolYearId}/pre-generation-drafts/undo`, {
+				operationId,
+				expectedVersion,
+			});
+			setDraftBoard(data.board);
+			setDraftBoardSummary(data.board.counts);
+			setSelectedEntry(null);
+			setPreGenKbSource(null);
+			setKbSelectedSource(null);
+			toast.success('Draft placement reverted.');
+			return true;
+		} catch (e: unknown) {
+			const payload = (e as { response?: { data?: { code?: string; message?: string } } })?.response?.data;
+			if (payload?.code === 'UNDO_CONFLICT') {
+				toast.error('Schedule changed—review latest');
+			} else {
+				toast.error(payload?.message ?? (e instanceof Error ? e.message : 'Revert failed.'));
+			}
+			return false;
+		} finally {
+			setRevertLoading(false);
+		}
+	}, [schoolId, schoolYearId, setRevertLoading, setDraftBoard, setDraftBoardSummary, setSelectedEntry, setPreGenKbSource, setKbSelectedSource]);
 
 	// R4 — bounded, authoritative Redo. Consumes its single redo target before
 	// dispatch so a stale CAS can never replay. Never a client-only re-apply.
@@ -1809,6 +1847,7 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 		commitTeachingLoadRepair,
 		revertLastEdit,
 		revertEditById,
+		revertDraftEditById,
 		redoState,
 		redoVersionStale,
 		redoLastEdit,

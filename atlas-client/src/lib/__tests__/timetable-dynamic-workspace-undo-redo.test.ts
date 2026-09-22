@@ -84,6 +84,11 @@ test('R4 pre-generation placement undo arms the same operation-bound route', () 
 	assert.match(state, /setLastAutoSaveUndo\(\{/);
 	assert.match(state, /editId: result\.operationId/);
 	assert.match(state, /newVersion: result\.resultingVersion/);
-	// The shared strip reverts that exact operation with its CAS version.
-	assert.match(workspace, /revertEditById\(state\.lastAutoSaveUndo!\.editId, state\.lastAutoSaveUndo!\.newVersion\)/);
+	// The shared strip reverts that exact operation with its CAS version, routed to
+	// the ledger that owns it: C11 sends a pre-generation draft placement to the
+	// draft-ledger revert and keeps genuine run manual edits on the run revert.
+	assert.match(workspace, /const target = state\.lastAutoSaveUndo!;/);
+	assert.match(workspace, /dispatchUndoByLedger\(target,/);
+	assert.match(workspace, /revertDraftEdit: state\.revertDraftEditById/);
+	assert.match(workspace, /revertRunEdit: state\.revertEditById/);
 });

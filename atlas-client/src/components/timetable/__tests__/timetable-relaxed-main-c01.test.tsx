@@ -629,3 +629,62 @@ test('C10: the review dialog commit returns its operation identity and registers
 	assert.match(wrapper, /editId: result\.operationId/, 'the Undo target is the commit operation');
 	assert.match(wrapper, /newVersion: result\.resultingVersion/, 'the Undo target pins the resulting version');
 });
+
+/* ── C11 — a draft placement's Undo reverts the draft ledger, not the run ── */
+
+test('C11: a pre-generation draft Undo dispatches the draft-ledger revert, never the run manual-edits revert', async () => {
+	// Behavioural control of the routing decision itself. A pre-generation draft
+	// commit returns the draft-ledger action id as both operationId and
+	// resultingVersion; dispatching that id to the run manual-edits revert always
+	// 409s (UNDO_CONFLICT). The strip must therefore route by ledger.
+	const { dispatchUndoByLedger } = await import('@/components/timetable/timetableUndoRedoState');
+	assert.equal(typeof dispatchUndoByLedger, 'function', 'the ledger-routed Undo dispatch must exist (C11)');
+
+	const dispatched: string[] = [];
+	const handlers = {
+		revertRunEdit: async (operationId: number, expectedVersion: number) => {
+			dispatched.push(`run:${operationId}:${expectedVersion}`);
+			return false;
+		},
+		revertDraftEdit: async (operationId: number, expectedVersion: number) => {
+			dispatched.push(`draft:${operationId}:${expectedVersion}`);
+			return true;
+		},
+	};
+
+	const draftOk = await dispatchUndoByLedger({ ledger: 'draft', editId: 25, newVersion: 25 }, handlers);
+	assert.deepEqual(dispatched, ['draft:25:25'], 'a draft Undo target dispatches the draft-ledger revert and zero run reverts');
+	assert.equal(draftOk, true, 'a successful draft revert is reported to the caller');
+
+	dispatched.length = 0;
+	const runOk = await dispatchUndoByLedger({ ledger: 'run', editId: 912, newVersion: 44 }, handlers);
+	assert.deepEqual(dispatched, ['run:912:44'], 'a genuine run manual edit keeps the run revert');
+	assert.equal(runOk, false, 'the handler result is returned unchanged');
+
+	// A target predating the ledger field is a run edit (the only ledger before C11).
+	dispatched.length = 0;
+	await dispatchUndoByLedger({ editId: 7, newVersion: 3 }, handlers);
+	assert.deepEqual(dispatched, ['run:7:3'], 'a target with no ledger keeps the run revert path');
+
+	// Production wiring — the strip routes by ledger and both draft commit paths
+	// register a draft-ledger target.
+	const workspace = source('src/components/timetable/ScheduleReviewWorkspace.tsx');
+	assert.match(workspace, /dispatchUndoByLedger\(target,/, 'the Undo strip routes through the ledger dispatch');
+	assert.match(workspace, /revertDraftEdit: state\.revertDraftEditById/, 'a draft target dispatches the draft-ledger revert');
+	assert.match(workspace, /revertRunEdit: state\.revertEditById/, 'a run target keeps the run manual-edits revert');
+
+	const state = source('src/hooks/useScheduleReviewWorkspaceState.ts');
+	const preGenWrapper = state.slice(state.indexOf('const wrappedCommitPreGenPending'), state.indexOf('const wrappedCommitConfirmPlacement'));
+	assert.match(preGenWrapper, /ledger: 'draft'/, 'the inline pre-generation draft commit registers a draft-ledger Undo target');
+	const dialogStart = state.indexOf('const wrappedCommitConfirmPlacement');
+	const dialogWrapper = state.slice(dialogStart, state.indexOf('const handleEntryClick', dialogStart));
+	assert.match(dialogWrapper, /ledger: 'draft'/, 'the review-dialog draft commit registers a draft-ledger Undo target');
+
+	const hook = source('src/hooks/useTimetableMutations.ts');
+	const draftRevertStart = hook.indexOf('const revertDraftEditById');
+	assert.ok(draftRevertStart > 0, 'the draft-ledger revert must exist in the mutation hook');
+	const draftRevert = hook.slice(draftRevertStart, hook.indexOf('const redoLastEdit', draftRevertStart));
+	assert.match(draftRevert, /pre-generation-drafts\/undo/, 'the draft revert posts to the draft-ledger undo endpoint');
+	assert.match(draftRevert, /operationId,[\s\S]{0,40}expectedVersion,/, 'the draft revert sends the operation CAS (operationId + expectedVersion)');
+	assert.equal(draftRevert.includes('${apiBase}/revert'), false, 'the draft revert never uses the run manual-edits revert');
+});
