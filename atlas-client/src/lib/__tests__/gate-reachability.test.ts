@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
@@ -53,5 +53,48 @@ test('every file named in a test:* script exists', () => {
 		[],
 		`test:* scripts name files that do not exist (a missing file is silently skipped, so the ` +
 			`gate would still report green):\n  ${missing.join('\n  ')}`,
+	);
+});
+
+test('every client test file is named by at least one test:* script', () => {
+	const pkg = JSON.parse(readFileSync(packageJsonPath, 'utf8')) as {
+		scripts?: Record<string, string>;
+	};
+	const scripts = pkg.scripts ?? {};
+
+	const named = new Set<string>();
+	for (const [name, command] of Object.entries(scripts)) {
+		if (!name.startsWith('test:')) continue;
+		const paths = command.match(/src\/[\w./-]+\.tsx?/g) ?? [];
+		for (const relative of paths) named.add(relative);
+	}
+
+	assert.ok(named.size > 0, 'expected at least one test:* script naming a src/**/*.ts file');
+
+	const clientRoot = dirname(packageJsonPath);
+	const srcRoot = join(clientRoot, 'src');
+	const onDisk: string[] = [];
+	const walk = (dir: string): void => {
+		for (const entry of readdirSync(dir, { withFileTypes: true })) {
+			const absolute = join(dir, entry.name);
+			if (entry.isDirectory()) {
+				walk(absolute);
+			} else if (/\.test\.tsx?$/.test(entry.name)) {
+				onDisk.push(absolute.slice(clientRoot.length + 1).replace(/\\/g, '/'));
+			}
+		}
+	};
+	walk(srcRoot);
+	onDisk.sort();
+
+	assert.ok(onDisk.length > 0, 'expected at least one src/**/*.test.ts(x) file on disk');
+
+	const unreachable = onDisk.filter((relative) => !named.has(relative));
+
+	assert.deepEqual(
+		unreachable,
+		[],
+		`client test files exist that no test:* script runs (a test no gate runs is not evidence — ` +
+			`add them to a gate):\n  ${unreachable.join('\n  ')}`,
 	);
 });
