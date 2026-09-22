@@ -22,6 +22,7 @@
     "runtime:install-preview": "node ops/runtime/cli.mjs install-preview",
     "runtime:uninstall-preview": "node ops/runtime/cli.mjs uninstall-preview",
     "runtime:inventory": "node ops/runtime/cli.mjs inventory",
+    "release:runner:test": "node --test ops/release/elevated-release-runner.test.mjs",
     "workflow:test": "node --test \"ops/workflow/__tests__/*.test.mjs\"",
     "workflow:verify": "node ops/workflow/verify-cycle.mjs --state docs/plans/atlas-delivery-cycles.json",
     "workflow:render": "node ops/workflow/render-register.mjs --state docs/plans/atlas-delivery-cycles.json --output docs/plans/atlas-active-delivery-streams.generated.md",
