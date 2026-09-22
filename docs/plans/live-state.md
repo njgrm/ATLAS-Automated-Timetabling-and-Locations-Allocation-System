@@ -348,6 +348,22 @@ it complete `TEST-GATE-REACHABILITY-C01` (`f4462374`) and hand it over for integ
 
 ## Lane A — current lane (written only by Lane A)
 
+**Integrated: `TEST-GATE-COVERAGE-C01R`** (`1e3190cf`, 2026-09-22) — LOW. `test:server-db` now runs a
+committed **per-file isolation runner** (`atlas-server/scripts/run-db-suite.mjs`): one fresh
+`atlas_restore_drill_<yyyymmdd>_<suffix>` database per file (the repo convention several suites
+assert), built from a `migrate deploy` template, dropped in `finally` with a bounded retry, with
+zero-residue proof and a dated `KNOWN_RED` rule (currently empty). Root causes fixed: cross-suite
+interference (the suites were written for their own database), the database-name guard, missing seed
+rows, and one **docs-side** defect — `docs/verification/**` was outside the `.gitattributes` LF
+policy, so a Windows checkout materialised CRLF bytes (4811) while the sidecar pinned the LF bytes
+(4621, SHA `d1d8e74e…`); the artifact now materialises at its pinned bytes and E9 passes **82/82**.
+Verified at review: `test:server-db` **53 pass / 0 fail / 0 skipped, exit 0**; `test:server-suite`
+**275/275**; guard 1/1; no product source changed. **Caveat — the full DB run is intermittently
+flaky:** three earlier full runs showed 1–2 failures in a *varying* small set
+(`term-cache-catchup-rrtc01`, `tt-source-freshness-generation-c04`, `curriculum-decision-candidates`),
+each of which passes alone through the same runner. Follow-up `TEST-GATE-COVERAGE-C01R2` must
+root-cause that intermittency — **do not mask it with retries**.
+
 **Integrated: `TEST-GATE-COVERAGE-C01` (server half)** (`f9c0f3cb`, 2026-09-22) — LOW, planner-reviewed;
 **custody transfer recorded** (Lane A took `atlas-server/package.json` for this stream while Planner B
 was on QA; Planner B remains its owner afterwards). Server orphans **80 → 0**: `test:server-suite`

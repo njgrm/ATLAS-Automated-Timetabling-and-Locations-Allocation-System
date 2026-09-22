@@ -13,11 +13,13 @@ Last updated: 2026-09-22 (Lane A).
 ## Verdict
 
 **`TEST-GATE-COVERAGE-C01` is integrated — no release needed.** Client half `1ce9f4ad` (all 92 client
-test files gated + inverse guard; orphans 55 → 0; suite 846/846). Server half `f9c0f3cb` (orphans
-80 → 0; `test:server-suite` 28 files **275/275**; `test:server-db` 53 files; inverse guard mirrored;
-one rotten suite fixed test-only). **`test:server-db` is gated but RED — 10 failures, real rot, not
-interference** — follow-up `TEST-GATE-COVERAGE-C01R` (characterise prerequisites and/or isolate each
-file on its own fresh database). Both halves are the **inverse** of Planner B's
+test files gated + inverse guard; orphans 55 → 0; suite 846/846). Server half `f9c0f3cb` + `1e3190cf`
+(orphans 80 → 0; `test:server-suite` **275/275**; `test:server-db` now a per-file isolation runner —
+**53 pass / 0 fail / 0 skipped, exit 0**; inverse guard mirrored; one rotten suite fixed test-only;
+one **docs-side** defect fixed — `docs/verification/**` was outside the `.gitattributes` LF policy, so
+a Windows checkout broke the E9 sidecar byte-SHA until it was pinned to LF). **Caveat: the full DB run
+is intermittently flaky** — earlier runs showed 1–2 failures in a varying small set, each passing
+alone. Follow-up `TEST-GATE-COVERAGE-C01R2` owns that. Both halves are the **inverse** of Planner B's
 `TEST-GATE-REACHABILITY-C01` (scripts → absent files). Custody: Lane A took
 `atlas-server/package.json` for the server half while Planner B was on QA; it returns to Planner B
 afterwards.
@@ -248,14 +250,13 @@ the route rejects an ambiguous active year with `409 ACTIVE_SCHOOL_YEAR_AMBIGUOU
 (`docs/handoffs/lane-a-to-planner-b-rollover-2026-09-21.md` §4). Minor successor: an *absent* term
 selector defaults to term 1 while a *malformed* one is a typed 400.
 
-1. **`TEST-GATE-COVERAGE-C01R` — make `test:server-db` green.** The 53 DB-backed server suites are now
-   named by a committed gate, but it is **red**: 250 tests, 239 pass, **10 fail** with the full runtime
-   env against a fresh disposable database, and at least one suite fails **alone**
-   (`teaching-load-reconciliation.test.ts` → `TypeError … 'facultyId'` at `:1032`). Characterise the
-   prerequisites and/or run each file against its **own** fresh database (the likely design these
-   suites were written for), then fix or retire each failure. Start from
-   `docs/handoffs/test-gate-coverage-c01-server-half.md` and the review numbers in the live-state
-   Lane A section. Do not "fix" it by dropping files from the gate.
+1. **`TEST-GATE-COVERAGE-C01R2` — the DB gate is intermittently flaky.** `test:server-db` is green
+   (53/0/0) but three earlier full runs each showed 1–2 failures in a **varying** small set
+   (`term-cache-catchup-rrtc01`, `tt-source-freshness-generation-c04`, `curriculum-decision-candidates`),
+   and every one of those passes alone through the same runner. The runner is sequential, so this is
+   suite-level timing/state, not runner parallelism. Root-cause it — **do not mask it with retries or
+   an allowlist**. Evidence and the runner design are in the live-state Lane A section and
+   `docs/prompts/test-gate-coverage-c01r-server-db-green-2026-09-22.md`.
 2. **False/incorrect warning categories** — `ZONE_IMBALANCE_WARNING` still fires in stored runs
    (the *surface* now suppresses it, so this is the producer/data side); warning-count semantics.
 2. **New UX successors recorded from this release** (all NON_BLOCKING, in the live-state Lane A
