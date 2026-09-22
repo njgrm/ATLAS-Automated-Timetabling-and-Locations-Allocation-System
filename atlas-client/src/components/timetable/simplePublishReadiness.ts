@@ -270,7 +270,7 @@ const VIOLATION_WARNING_LABELS: Record<string, string> = {
 	FACULTY_LATE_END_PREFERENCE: 'Late end time preference',
 	FACULTY_INSUFFICIENT_DAILY_VACANT: 'Insufficient daily vacant time',
 	SPECIALIZED_ROOM_UNAVAILABLE: 'Specialized room unavailable',
-	ZONE_IMBALANCE_WARNING: 'Zone imbalance',
+	ZONE_IMBALANCE_WARNING: 'Campus zone imbalance',
 	SECTION_OVERCOMPRESSED: 'Section overcompressed',
 	LACKING_FACULTY: 'Missing faculty coverage',
 	INCOMPLETE_MODULAR_GROUP: 'Incomplete modular group',
