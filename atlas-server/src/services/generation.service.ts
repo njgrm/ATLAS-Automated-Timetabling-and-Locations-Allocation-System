@@ -428,10 +428,16 @@ export function resolveUnassignedViolationCode(item: Pick<UnassignedItem, 'reaso
 	return { code: 'UNASSIGNED_SECTION', severity: 'HARD' };
 }
 
-function buildZoneDistributionByTerm(
+export type ZoneDistributionByTerm = Array<{
+	termIndex: 1 | 2 | 3 | 4;
+	total: number;
+	byZone: Record<string, { count: number; percent: number; entryIds: string[] }>;
+}>;
+
+export function buildZoneDistributionByTerm(
 	entries: ScheduledEntry[],
 	roomZoneByRoomId: Map<number, string>,
-): Array<{ termIndex: 1 | 2 | 3 | 4; total: number; byZone: Record<string, { count: number; percent: number; entryIds: string[] }> }> {
+): ZoneDistributionByTerm {
 	const termAgg = new Map<1 | 2 | 3 | 4, Map<string, { count: number; entryIds: string[] }>>();
 	for (const entry of entries) {
 		const termIndex = normalizeTermIndex((entry as ScheduledEntry & { termIndex?: unknown }).termIndex);
@@ -461,6 +467,60 @@ function buildZoneDistributionByTerm(
 			};
 		}
 		return { termIndex, total, byZone };
+	});
+}
+
+/**
+ * ZONE-IMBALANCE-PRECONDITION-C01 — the zone warning fires only when the data
+ * can support the judgement.
+ *
+ * A room with no `buildingZoneId` resolves to `UNSPECIFIED`. Such an unzoned
+ * bucket cannot be rebalanced, so it is excluded from the warning
+ * distribution: the warning requires at least two distinct *configured* zones
+ * among the zoned entries, keeps the >50% threshold computed over the *zoned*
+ * denominator, and states that denominator truthfully in the message and
+ * `meta` (`total` is the zoned denominator; `unzonedCount` records the
+ * excluded entries). With zero or one configured zones nothing is emitted.
+ *
+ * The `zoneDistributionByTerm` diagnostic itself is unchanged — it keeps the
+ * UNSPECIFIED bucket so the unzoned inventory stays visible.
+ */
+export function buildZoneImbalanceWarnings(
+	zoneDistributionByTerm: ZoneDistributionByTerm,
+	identity: { schoolId: number; schoolYearId: number; runId: number },
+): Violation[] {
+	return zoneDistributionByTerm.flatMap((termZone) => {
+		const zonedRows = Object.entries(termZone.byZone).filter(([zone]) => zone !== 'UNSPECIFIED');
+		if (zonedRows.length < 2) return [];
+		const zonedTotal = zonedRows.reduce((sum, [, data]) => sum + data.count, 0);
+		if (zonedTotal === 0) return [];
+		const unzonedCount = termZone.total - zonedTotal;
+		const [zone, data] = zonedRows.reduce((max, current) => (current[1].count > max[1].count ? current : max));
+		const percent = Math.round((data.count / zonedTotal) * 10000) / 100;
+		if (percent <= 50) return [];
+		// C07A: the warning carries resolvable entities so the review surface can
+		// act on it. Previously it emitted `entities: {}` with no way to locate
+		// the affected sessions.
+		const zoneEntryIds = [...data.entryIds].sort();
+		return [{
+			code: 'ZONE_IMBALANCE_WARNING',
+			severity: 'SOFT',
+			message: `Term ${termZone.termIndex} zone ${zone} has ${percent}% of zoned scheduled entries (${data.count} of ${zonedTotal} zoned; ${unzonedCount} ${unzonedCount === 1 ? 'entry has' : 'entries have'} no configured zone), exceeding the 50% balancing threshold.`,
+			schoolId: identity.schoolId,
+			schoolYearId: identity.schoolYearId,
+			runId: identity.runId,
+			entities: { entryIds: zoneEntryIds },
+			meta: {
+				termIndex: termZone.termIndex,
+				zone,
+				percent,
+				total: zonedTotal,
+				zoneEntryCount: data.count,
+				unzonedCount,
+				balancingThresholdPercent: 50,
+				nextAction: 'Rebalance rooms across configured zones for this ordered term, or accept the concentration explicitly.',
+			},
+		}];
 	});
 }
 
@@ -825,34 +885,7 @@ export async function triggerGenerationRun(
 			rooms.map((room) => [room.id, room.buildingZoneId ?? 'UNSPECIFIED']),
 		);
 		const zoneDistributionByTerm = buildZoneDistributionByTerm(entriesWithTerms, roomZoneByRoomId);
-		const zoneWarningViolations: Violation[] = zoneDistributionByTerm.flatMap((termZone) => {
-			const zoneRows = Object.entries(termZone.byZone);
-			if (zoneRows.length === 0 || termZone.total === 0) return [];
-			const [zone, data] = zoneRows.reduce((max, current) => (current[1].percent > max[1].percent ? current : max));
-			if (data.percent <= 50) return [];
-			// C07A: the warning carries resolvable entities so the review surface can
-			// act on it. Previously it emitted `entities: {}` with no way to locate
-			// the affected sessions.
-			const zoneEntryIds = data.entryIds;
-			return [{
-				code: 'ZONE_IMBALANCE_WARNING',
-				severity: 'SOFT',
-				message: `Term ${termZone.termIndex} zone ${zone} has ${data.percent}% of scheduled entries (${zoneEntryIds.length} of ${termZone.total}), exceeding the 50% balancing threshold.`,
-				schoolId,
-				schoolYearId,
-				runId: run.id,
-				entities: { entryIds: [...zoneEntryIds] },
-				meta: {
-					termIndex: termZone.termIndex,
-					zone,
-					percent: data.percent,
-					total: termZone.total,
-					zoneEntryCount: data.count,
-					balancingThresholdPercent: 50,
-					nextAction: 'Rebalance the named sessions across campus zones for this ordered term, or accept the concentration explicitly.',
-				},
-			}];
-		});
+		const zoneWarningViolations = buildZoneImbalanceWarnings(zoneDistributionByTerm, { schoolId, schoolYearId, runId: run.id });
 		// C07A: every injected violation obeys the same configured authority as the
 		// validator's own violations (disable-drop, allowlisted promotion, weight).
 		const injectedViolations = applyConstraintOverrides(
@@ -1567,7 +1600,14 @@ function mergePresentedViolations(primary: Violation, supporting: Violation): Vi
  * rows remain untouched for audit/publication acknowledgement. This projection
  * removes exact duplicate instances within one ordered term, combines the two
  * overlapping faculty-day pressure labels, and omits the meaningless
- * UNSPECIFIED-zone warning emitted by historical runs without zone authority.
+ * UNSPECIFIED-zone warning stored by historical runs without zone authority.
+ *
+ * ZONE-IMBALANCE-PRECONDITION-C01: the producer can no longer emit an
+ * UNSPECIFIED zone (unzoned entries are excluded before the warning is
+ * considered), so this suppression hides no live path. It is kept because
+ * historical persisted rows — e.g. run 315's three UNSPECIFIED warnings —
+ * still carry `meta.zone === 'UNSPECIFIED'` and must keep projecting to
+ * nothing rather than resurfacing as operator noise.
  */
 export function projectViolationIssues(
 	violations: Violation[],
@@ -1578,6 +1618,8 @@ export function projectViolationIssues(
 	const exactIndex = new Map<string, number>();
 
 	for (const raw of violations) {
+		// Kept (not unreachable cleanup): historical runs stored UNSPECIFIED-zone
+		// warnings that must stay suppressed; new generations cannot produce them.
 		if (raw.code === 'ZONE_IMBALANCE_WARNING' && raw.meta?.zone === 'UNSPECIFIED') continue;
 		const termIndex = violationTermIndex(raw, entryTermById);
 		const violation: Violation = {
