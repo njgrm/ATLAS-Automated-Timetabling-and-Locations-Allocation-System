@@ -29,6 +29,7 @@ import { TimetableStatusLegend } from '@/components/timetable/TimetableStatusLeg
 import { deriveTimetableCapabilities, YEAR_SETUP_HREF } from '@/lib/timetable-capabilities';
 import { summarizeGenerationReadiness } from '@/lib/timetable-generation-readiness';
 import { createSyncSetupInFlightGuard, runSyncSetup } from '@/lib/timetable-sync-setup';
+import { resolveTermAuthorityNotice } from '@/hooks/useTimetableData';
 
 type ScheduleReviewWorkspaceHeaderProps = {
 	context: ScheduleReviewWorkspaceHeaderContext;
@@ -380,6 +381,14 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 			? `Grid uses completed run #${draft.runId}; newer run #${latestRunCandidate.id} is ${latestRunCandidate.status ?? 'not completed'}.`
 			: null;
 	const showSourceTruthNotice = Boolean(newerFailedRunNotice || sourceContext?.stale || sourceContext?.source === 'cache' || sourceContext?.source === 'atlas-persisted');
+	// TIMETABLE-TERM-GATE-C01 (D3) — the explicit-scope fallback is visible: an
+	// unverified authority with data on screen means the timetable loaded one
+	// explicit term instead of dead-ending. A blocked page (no data) keeps the
+	// setup message instead.
+	const termAuthorityNotice = resolveTermAuthorityNotice(
+		sourceContext,
+		context.draft != null || context.runs.length > 0,
+	);
 	const nextActionLabel = isPreGenerationWorkspace
 		? 'Review the draft before generating'
 		: blockingHardCount > 0
@@ -427,6 +436,28 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 							</TooltipTrigger>
 							<TooltipContent side="bottom" className="max-w-xs text-xs" data-testid="timetable-run-source-disclosure">
 								{newerFailedRunNotice ?? 'Live EnrollPro verification is not confirmed. Review this as saved ATLAS data until source is refreshed.'}
+							</TooltipContent>
+						</Tooltip>
+					</TooltipProvider>
+				)}
+
+				{termAuthorityNotice && (
+					<TooltipProvider delayDuration={300}>
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<Badge
+									variant="outline"
+									data-testid="timetable-term-authority-unverified"
+									className={cn('h-7 max-w-[34vw] shrink-0 gap-1.5 px-2 text-xs font-semibold', 'border-amber-200 bg-amber-50 text-amber-950')}
+								>
+									<AlertTriangle className="size-3.5 shrink-0" aria-hidden="true" />
+									<span className="truncate">
+										{termAuthorityNotice}
+									</span>
+								</Badge>
+							</TooltipTrigger>
+							<TooltipContent side="bottom" className="max-w-xs text-xs" data-testid="timetable-term-authority-unverified-disclosure">
+								{termAuthorityNotice}
 							</TooltipContent>
 						</Tooltip>
 					</TooltipProvider>

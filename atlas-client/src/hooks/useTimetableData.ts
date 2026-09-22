@@ -290,6 +290,142 @@ export type TimetableTermScopeState = {
 };
 
 /**
+ * TIMETABLE-TERM-GATE-C01 — the single term-authority predicate. Authority is
+ * ready only when the context carries a verified active term whose index is a
+ * member of the ordered contract. Everything else (unverified, missing,
+ * drifted) is unresolved and must never authorize an implicit all-term fetch.
+ */
+export function isTermAuthorityVerified(
+	activeTerm: ActiveSchoolYearContext['activeTerm'] | null | undefined,
+): boolean {
+	return activeTerm?.verified === true
+		&& activeTerm.termIndex != null
+		&& Boolean(activeTerm.orderedTerms?.some((term) => term.order === activeTerm.termIndex));
+}
+
+/**
+ * D3 — explicit fallback scope when term authority can never be verified. The
+ * persisted active term wins when the context carries one; otherwise Term 1.
+ * The result is always an explicit numeric term — never an implicit all-term
+ * scope — so the implicit-scope protection is preserved by construction.
+ */
+export function resolveTimetableFallbackTermIndex(
+	activeTerm: ActiveSchoolYearContext['activeTerm'] | null | undefined,
+): number {
+	const persisted = activeTerm?.termIndex;
+	if (typeof persisted === 'number' && Number.isInteger(persisted) && persisted > 0) return persisted;
+	return 1;
+}
+
+/** D3 — the visible notice carried while the fallback scope is in effect. */
+export function buildTermAuthorityUnverifiedNotice(termIndex: number): string {
+	return `Showing Term ${termIndex} with an explicit scope — term authority unverified. Term setup verification was unavailable, so the timetable loaded one explicit term instead of all terms.`;
+}
+
+/**
+ * Header-surface derivation (no new plumbing): the notice is visible exactly
+ * when authority is unresolved yet timetable data is already on screen — i.e.
+ * the D3 fallback loaded. A blocked page (no data) keeps the setup message
+ * instead, and a null context (still checking) shows nothing.
+ */
+export function resolveTermAuthorityNotice(
+	schoolYearContext: ActiveSchoolYearContext | null | undefined,
+	hasTimetableData: boolean,
+): string | null {
+	if (!schoolYearContext || hasTimetableData === false) return null;
+	if (isTermAuthorityVerified(schoolYearContext.activeTerm)) return null;
+	return buildTermAuthorityUnverifiedNotice(resolveTimetableFallbackTermIndex(schoolYearContext.activeTerm));
+}
+
+export type TimetableLoadGateDecision =
+	| { kind: 'load'; termIndex: number | 'all'; fallback: boolean }
+	| { kind: 'blocked-setup' };
+
+/**
+ * D2/D3 — the production load gate, extracted pure so the three branches are
+ * directly testable. Verified authority with an explicit choice (a numeric
+ * term or an explicit All terms override) loads that scope. Unresolved
+ * authority never dead-ends and never returns an implicit all-term scope: it
+ * loads one explicit term (the user's numeric choice when present, else the
+ * persisted active term, else Term 1). Verified authority with no explicit
+ * choice yet stays blocked on the setup message until the workspace selects
+ * the active term.
+ */
+export function resolveTimetableLoadGate(args: {
+	authorityReady: boolean;
+	termFilter: 'all' | number;
+	userOverrodeTermFilter: boolean;
+	fallbackTermIndex: number;
+}): TimetableLoadGateDecision {
+	if (args.authorityReady && (typeof args.termFilter === 'number' || args.userOverrodeTermFilter)) {
+		return { kind: 'load', termIndex: args.termFilter, fallback: false };
+	}
+	if (!args.authorityReady) {
+		const explicitTerm = typeof args.termFilter === 'number' ? args.termFilter : args.fallbackTermIndex;
+		return { kind: 'load', termIndex: explicitTerm, fallback: true };
+	}
+	return { kind: 'blocked-setup' };
+}
+
+export type TimetableTermAuthorityResolution = {
+	context: ActiveSchoolYearContext;
+	authorityReady: boolean;
+	verifyUpstreamRequested: boolean;
+};
+
+/**
+ * D1 — resolve term authority for the timetable bootstrap. The fast cached
+ * read stays the first step so navigation never blocks on upstream
+ * verification; when it leaves authority unresolved, exactly one
+ * `verifyUpstream: true` call follows (deduped by request profile inside
+ * `resolveActiveSchoolYearContext`). Returns null when the actor school moved
+ * on while a read was in flight (late-response discard). A failed verification
+ * keeps the fast-read state so the caller can fall back to an explicit scope.
+ */
+export async function resolveTimetableTermAuthority(
+	actorSchoolId: number,
+	isObsolete: () => boolean,
+): Promise<TimetableTermAuthorityResolution | null> {
+	const context = await resolveActiveSchoolYearContext({
+		schoolId: actorSchoolId,
+		// Prefer cached school-year immediately so timetable bootstrap doesn't
+		// block waiting on a forced upstream verification on every navigation.
+		preferCache: true,
+		backgroundRefresh: true,
+		allowStaleOnError: true,
+		allowEnrollProFallback: false,
+	});
+	// Discard a late response whose actor school changed while it was in flight.
+	if (isObsolete()) return null;
+	let current = context;
+	let authorityReady = isTermAuthorityVerified(current.activeTerm);
+	let verifyUpstreamRequested = false;
+	if (!authorityReady) {
+		try {
+			verifyUpstreamRequested = true;
+			// forceRefresh bypasses the fresh-cache short-circuit: a fresh but
+			// unverified cache entry would otherwise satisfy this call without
+			// ever dispatching, and the gate would stay unsatisfiable. The
+			// request still dedupes by profile, so this is exactly one call.
+			const verified = await resolveActiveSchoolYearContext({
+				schoolId: actorSchoolId,
+				forceRefresh: true,
+				verifyUpstream: true,
+				allowStaleOnError: true,
+				allowEnrollProFallback: false,
+			});
+			if (isObsolete()) return null;
+			current = verified;
+			authorityReady = isTermAuthorityVerified(current.activeTerm);
+		} catch {
+			// Keep the fast-read state. The load gate falls back to an explicit
+			// term scope (D3) instead of dead-ending.
+		}
+	}
+	return { context: current, authorityReady, verifyUpstreamRequested };
+}
+
+/**
  * Resolve the route's term gate before any run query is enabled. The initial
  * unscoped state is deliberately distinct from a deliberate All terms choice.
  */
@@ -299,9 +435,7 @@ export function resolveTimetableTermScopeState(
 	userOverrodeTermFilter: boolean,
 ): TimetableTermScopeState {
 	if (!activeTerm) return { authorityReady: false, queryEnabled: false, termIndex: null, status: 'checking' };
-	const authorityReady = activeTerm.verified === true
-		&& activeTerm.termIndex != null
-		&& Boolean(activeTerm.orderedTerms?.some((term) => term.order === activeTerm.termIndex));
+	const authorityReady = isTermAuthorityVerified(activeTerm);
 	if (!authorityReady) return { authorityReady: false, queryEnabled: false, termIndex: null, status: 'setup-required' };
 	if (typeof termFilter === 'number') return { authorityReady: true, queryEnabled: true, termIndex: termFilter, status: 'active' };
 	if (userOverrodeTermFilter) return { authorityReady: true, queryEnabled: true, termIndex: 'all', status: 'active' };
@@ -342,6 +476,8 @@ export type TimetableDataState = {
 	activeGeneratedRunId: number | null;
 	schoolYearContext: ActiveSchoolYearContext | null;
 	fetchSchoolYear: () => Promise<number | null>;
+	/** D3 — visible notice while the explicit fallback scope is in effect. */
+	termAuthorityNotice: string | null;
 	fetchRuns: (syId: number) => Promise<GenerationRun[]>;
 	fetchRunData: (syId: number, runId: string) => Promise<void>;
 	fetchDraftBoardSummary: (syId: number) => Promise<DraftBoardState['counts'] | null>;
@@ -493,6 +629,18 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 	const loadSequenceRef = useRef(0);
 	const [schoolYearContext, setSchoolYearContext] = useState<ActiveSchoolYearContext | null>(null);
 	const termAuthorityReadyRef = useRef(false);
+	// TIMETABLE-TERM-GATE-C01 (D3) — the explicit fallback scope in effect while
+	// term authority is unresolved. The ref drives the imperative fetch scopes
+	// (stable callback identity); the state re-renders the grid/query gate.
+	const fallbackTermRef = useRef<number | null>(null);
+	const [fallbackTermIndex, setFallbackTermIndex] = useState<number | null>(null);
+	const [termAuthorityNotice, setTermAuthorityNotice] = useState<string | null>(null);
+	// D2 — set when the load gate blocks so the verified-landing effect can
+	// re-run the load instead of leaving a dead page.
+	const gateBlockedRef = useRef(false);
+	// Latest context independent of the render closure, so the load gate can
+	// derive the D3 fallback from the context that just landed.
+	const latestContextRef = useRef<ActiveSchoolYearContext | null>(null);
 	const [schoolId, setSchoolId] = useState<number | null>(null);
 	const resolvedSchoolIdRef = useRef<number | null>(null);
 	const generationReadinessSeqRef = useRef(0);
@@ -611,7 +759,14 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 		|| (centerView === 'map' && (preGenOnboarding || preGenMapContext))
 		|| (centerView === 'building' && preGenMapContext);
 
-	const termScope = resolveTimetableTermScopeState(schoolYearContext?.activeTerm, termFilter, input.userOverrodeTermFilter);
+	const termScopeBase = resolveTimetableTermScopeState(schoolYearContext?.activeTerm, termFilter, input.userOverrodeTermFilter);
+	// D3 — while term authority is unresolved, the explicit fallback scope (one
+	// numeric term, never an implicit all-term fetch) keeps the grid and the
+	// run-bundle query enabled. Verified state always wins over the fallback.
+	const termAuthorityUnresolved = !isTermAuthorityVerified(schoolYearContext?.activeTerm);
+	const termScope: TimetableTermScopeState = termScopeBase.queryEnabled || termAuthorityUnresolved === false || fallbackTermIndex == null
+		? termScopeBase
+		: { authorityReady: false, queryEnabled: true, termIndex: fallbackTermIndex, status: 'active' };
 	const termScopeReady = termScope.queryEnabled;
 	const activeGridEntriesBase = useMemo(
 		() => !termScopeReady ? [] : (isPreGenerationWorkspace ? preGenEntries : (draft?.entries ?? [])),
@@ -1195,26 +1350,22 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 			return null;
 		}
 		resolvedSchoolIdRef.current = actorSchoolId;
-		const context = await resolveActiveSchoolYearContext({
-			schoolId: actorSchoolId,
-			// Prefer cached school-year immediately so timetable bootstrap doesn't
-			// block waiting on a forced upstream verification on every navigation.
-			preferCache: true,
-			backgroundRefresh: true,
-			allowStaleOnError: true,
-			allowEnrollProFallback: false,
-		});
+		// TIMETABLE-TERM-GATE-C01 (D1) — fast cached read first, then exactly one
+		// verified call when authority is still unresolved. Late responses are
+		// discarded by actor school inside the resolver.
+		const resolution = await resolveTimetableTermAuthority(
+			actorSchoolId,
+			() => resolvedSchoolIdRef.current !== actorSchoolId,
+		);
 		// Discard a late response whose actor school changed while it was in flight.
-		if (resolvedSchoolIdRef.current !== actorSchoolId) return null;
+		if (!resolution || resolvedSchoolIdRef.current !== actorSchoolId) return null;
+		const context = resolution.context;
 		setSchoolId(actorSchoolId);
 		setSchoolYearContext({ ...context, schoolId: actorSchoolId });
-		termAuthorityReadyRef.current = Boolean(
-			context.activeTerm?.verified === true
-			&& context.activeTerm.termIndex != null
-			&& context.activeTerm.orderedTerms?.some((term) => term.order === context.activeTerm?.termIndex),
-		);
+		latestContextRef.current = { ...context, schoolId: actorSchoolId };
+		termAuthorityReadyRef.current = resolution.authorityReady;
 		if (context.activeSchoolYearId) setSchoolYearId(context.activeSchoolYearId);
-		if (context.source === 'cache' || context.stale) {
+		if (!resolution.authorityReady && (context.source === 'cache' || context.stale)) {
 			void resolveActiveSchoolYearContext({
 				schoolId: actorSchoolId,
 				forceRefresh: true,
@@ -1224,11 +1375,8 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 				// A fresh response for an obsolete actor school must never bind.
 				if (resolvedSchoolIdRef.current !== actorSchoolId) return;
 				setSchoolYearContext({ ...freshContext, schoolId: actorSchoolId });
-				termAuthorityReadyRef.current = Boolean(
-					freshContext.activeTerm?.verified === true
-					&& freshContext.activeTerm.termIndex != null
-					&& freshContext.activeTerm.orderedTerms?.some((term) => term.order === freshContext.activeTerm?.termIndex),
-				);
+				latestContextRef.current = { ...freshContext, schoolId: actorSchoolId };
+				termAuthorityReadyRef.current = isTermAuthorityVerified(freshContext.activeTerm);
 				if (freshContext.activeSchoolYearId) setSchoolYearId(freshContext.activeSchoolYearId);
 			}).catch(() => {
 				// Keep the visible cached/stale source state. The header will state that
@@ -1242,7 +1390,9 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 		schoolId,
 		schoolYearId: syId,
 		runId,
-		termIndex: termFilter,
+		// D3 — while the fallback is in effect the imperative reads fetch the
+		// same explicit term the grid renders, never the still-'all' filter.
+		termIndex: fallbackTermRef.current ?? termFilter,
 	}), [schoolId, termFilter]);
 
 	const fetchRuns = useCallback(async (syId: number, options?: FetchOptions) => {
@@ -1435,8 +1585,10 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 		schoolId,
 		schoolYearId,
 		runId: selectedRunId,
-		termIndex: termFilter,
-	}), [schoolId, schoolYearId, selectedRunId, termFilter]);
+		// D3 — the reactive bundle query follows the same explicit scope the
+		// imperative load fetches while the fallback is in effect.
+		termIndex: termScope.queryEnabled && termScope.termIndex != null ? termScope.termIndex : termFilter,
+	}), [schoolId, schoolYearId, selectedRunId, termFilter, termScope]);
 
 	const runBundleQuery = useQuery({
 		queryKey: timetableRunBundleQueryKey(currentScope),
@@ -1531,17 +1683,39 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 				setLoading(false);
 				return;
 			}
-			// Do not fetch runs, references, or a bundle with an implicit all-term
+		// Do not fetch runs, references, or a bundle with an implicit all-term
 			// scope while EnrollPro term authority is unresolved. The first enabled
 			// timetable request after authority resolves is the verified active term;
 			// an explicit All terms choice is only allowed after that point.
-			if (!termAuthorityReadyRef.current || (typeof termFilter !== 'number' && !input.userOverrodeTermFilter)) {
+			// TIMETABLE-TERM-GATE-C01 — the gate is satisfiable now (D1 verifies),
+			// and it never dead-ends: unresolved authority falls back to one
+			// explicit term scope (D3) instead of blocking the whole page.
+			const gate = resolveTimetableLoadGate({
+				authorityReady: termAuthorityReadyRef.current,
+				termFilter,
+				userOverrodeTermFilter: input.userOverrodeTermFilter,
+				fallbackTermIndex: resolveTimetableFallbackTermIndex(latestContextRef.current?.activeTerm),
+			});
+			if (gate.kind === 'blocked-setup') {
 				setRuns([]);
 				setDraft(null);
 				setViolationReport(null);
 				setError('Term setup is required before the timetable can be loaded.');
 				setLoading(false);
+				// D2 — remember the block so the verified-landing effect re-runs.
+				gateBlockedRef.current = true;
 				return;
+			}
+			if (gate.fallback) {
+				const explicitTerm = gate.termIndex as number;
+				fallbackTermRef.current = explicitTerm;
+				setFallbackTermIndex(explicitTerm);
+				setTermAuthorityNotice(buildTermAuthorityUnverifiedNotice(explicitTerm));
+			} else {
+				gateBlockedRef.current = false;
+				fallbackTermRef.current = null;
+				setFallbackTermIndex(null);
+				setTermAuthorityNotice(null);
 			}
 			await runTimetableLoad({
 				readResolvedSchoolId: () => resolvedSchoolIdRef.current,
@@ -1611,6 +1785,23 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 	useEffect(() => {
 		void loadAll();
 	}, [loadAll]);
+
+	// D2 — a blocked page must self-heal. When verified term authority lands
+	// after the gate blocked (or while the D3 fallback is showing), drop the
+	// fallback and re-run the load so the authoritative scope takes over. The
+	// re-run is skipped until an explicit scope exists; the workspace selects
+	// the active term on its own and its change re-runs the load.
+	useEffect(() => {
+		if (!isTermAuthorityVerified(schoolYearContext?.activeTerm)) return;
+		if (!gateBlockedRef.current && fallbackTermIndex == null && fallbackTermRef.current == null) return;
+		gateBlockedRef.current = false;
+		fallbackTermRef.current = null;
+		setFallbackTermIndex(null);
+		setTermAuthorityNotice(null);
+		if (typeof termFilter === 'number' || input.userOverrodeTermFilter) {
+			void loadAll({ preserveRun: true });
+		}
+	}, [schoolYearContext, fallbackTermIndex, loadAll, termFilter, input.userOverrodeTermFilter]);
 
 	useEffect(() => {
 		if (runs.length === 0) setLeftTab('pinned');
@@ -1728,6 +1919,7 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 		navToRoom,
 		activeGeneratedRunId,
 		fetchSchoolYear,
+		termAuthorityNotice,
 		fetchRuns,
 		fetchRunData,
 		fetchDraftBoardSummary,
