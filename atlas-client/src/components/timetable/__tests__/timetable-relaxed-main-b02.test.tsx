@@ -132,14 +132,16 @@ test('B1: a warned destination states the warning count; a blocked one disables 
 
 /* ── B1 — the rendered inline preview is one Confirm and never a modal ───── */
 
-function renderPreview(input: InlinePlacementInput): string {
+function renderPreview(input: InlinePlacementInput, extra: Record<string, unknown> = {}): string {
 	const pending = buildInlinePlacementPreviewData(input);
 	return renderToStaticMarkup(
 		createElement(InlinePlacementPreview, {
 			pending,
+			roomId: 103,
 			saving: false,
 			onConfirm: () => {},
 			onCancel: () => {},
+			...extra,
 		}),
 	);
 }
@@ -170,6 +172,33 @@ test('B1: the inline preview panel is a status region, never a focus trap', () =
 	const panel = source('src/components/timetable/InlinePlacementPreview.tsx');
 	assert.match(panel, /role="status"/);
 	assert.doesNotMatch(panel, /Dialog|SheetContent|focus-trap/, 'the preview must not become a modal primitive');
+});
+
+test('B1: the room stays choosable inline, so no modal is needed to change it', () => {
+	const markup = renderPreview(cleanPlacementInput(), {
+		roomOptions: [
+			{ value: '103', label: 'Room 103 - G7 Main' },
+			{ value: '201', label: 'Room 201 - G7 Main' },
+		],
+		onRoomChange: () => {},
+	});
+	assert.match(markup, /data-testid="inline-placement-room-picker"/, 'the room chooser renders inline');
+	assert.match(markup, /role="combobox"/, 'the chooser is an inline combobox, not a native select');
+	assert.doesNotMatch(markup, /role="dialog"/, 'changing the room opens no modal');
+	// A single option is not worth a control: the panel stays short.
+	const single = renderPreview(cleanPlacementInput(), {
+		roomOptions: [{ value: '103', label: 'Room 103 - G7 Main' }],
+		onRoomChange: () => {},
+	});
+	assert.doesNotMatch(single, /data-testid="inline-placement-room-picker"/);
+});
+
+test('B1 source contract: choosing a room re-runs the authoritative preview before the confirm', () => {
+	const hook = source('src/hooks/useScheduleReviewWorkspaceState.ts');
+	assert.match(hook, /const changeInlinePlacementRoom = useCallback/);
+	assert.match(hook, /const preview = await previewEdit\(nextProposal\)/);
+	assert.match(hook, /hardTitle: blockedTitle/, 'a room that blocks the placement disables the confirm');
+	assert.match(hook, /roomId: null,[\s\S]{0,200}roomLabel: null/, 'an unresolved room opens the inline chooser, not a dialog');
 });
 
 test('B1 source contract: the placement hook routes the confirm decisions inline', () => {

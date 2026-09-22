@@ -353,13 +353,16 @@ export function useScheduleReviewWorkspaceState() {
 	/**
 	 * B1 — the inline preview-before-save for ordinary placement. A clean slot
 	 * no longer commits on its own; it becomes this pending state until the
-	 * operator presses the single Confirm (or Cancel).
+	 * operator presses the single Confirm (or Cancel). The room stays choosable
+	 * inline, so no modal is needed to change it.
 	 */
 	const [inlinePlacementPending, setInlinePlacementPending] = useState<{
 		proposal: ManualEditProposal;
+		roomId: number | null;
 		preview: InlinePlacementPreviewData;
 	} | null>(null);
 	const [inlinePlacementSaving, setInlinePlacementSaving] = useState(false);
+	const [inlinePlacementRoomChanging, setInlinePlacementRoomChanging] = useState(false);
 	const pivotTransitionLoading = false;
 
 	/* -- Tutorial + Explainability -- */
@@ -919,6 +922,29 @@ export function useScheduleReviewWorkspaceState() {
 		return null;
 	}, [draft?.entries, entityFilter, roomMap, sectionMap, viewMode]);
 
+	/** B1 — the inline room chooser's options (teaching spaces, grouped by building). */
+	const inlinePlacementRoomOptions = useMemo(() => (
+		Array.from(roomMap.values())
+			.filter((room) => room.isTeachingSpace)
+			.sort((a, b) => {
+				const buildingCompare = (a.buildingShortCode || a.buildingName || '').localeCompare(b.buildingShortCode || b.buildingName || '');
+				if (buildingCompare !== 0) return buildingCompare;
+				return a.name.localeCompare(b.name);
+			})
+			.map((room) => ({
+				value: String(room.id),
+				label: `${room.name} - ${room.buildingShortCode || room.buildingName}`,
+			}))
+	), [roomMap]);
+
+	/** B1 — one plain-language room label shared by the consequence and the chooser. */
+	const roomDisplayLabel = useCallback((roomId: number | null): string | null => {
+		if (roomId == null) return null;
+		const room = roomMap.get(roomId);
+		if (!room) return null;
+		return `${room.name} - ${room.buildingShortCode || room.buildingName}`;
+	}, [roomMap]);
+
 	/** TT-C04: clear generated-run-scoped UI whenever the actor school, school
 	 * year, or selected run changes. Collaboration resubscribes through its own
 	 * schoolId/schoolYearId/runId keys; everything here is reset explicitly so
@@ -1042,25 +1068,50 @@ export function useScheduleReviewWorkspaceState() {
 			termIndex: item.termIndex ?? null,
 		});
 
-		// Fast path: owner + room are unambiguous, slot is empty, and the authoritative
-		// preview is clean (zero hard, zero soft). Skip the review dialog and commit.
-		if (defaultRoomId != null && !targetSlotOccupied) {
-			const proposal: ManualEditProposal = {
-				editType: 'PLACE_UNASSIGNED',
-				sectionId: item.sectionId,
-				subjectId: item.subjectId,
-				session: item.session,
-				// TT-OUTPUT-C03R3: keep the placement in the item's ordered term.
-				termIndex: item.termIndex,
-				entryKind: item.entryKind,
-				cohortCode: item.cohortCode,
-				targetDay: day,
-				targetStartTime: startTime,
-				targetEndTime: endTime,
-				targetFacultyId: item.facultyId,
-				targetRoomId: defaultRoomId,
-			};
+		// B1 — every ordinary placement (clean, warned, or still needing a room)
+		// now previews inline with one Confirm. Only a failed authoritative check
+		// or an occupied slot falls through to the source-resolution dialog.
+		const proposal: ManualEditProposal = {
+			editType: 'PLACE_UNASSIGNED',
+			sectionId: item.sectionId,
+			subjectId: item.subjectId,
+			session: item.session,
+			// TT-OUTPUT-C03R3: keep the placement in the item's ordered term.
+			termIndex: item.termIndex,
+			entryKind: item.entryKind,
+			cohortCode: item.cohortCode,
+			targetDay: day,
+			targetStartTime: startTime,
+			targetEndTime: endTime,
+			targetFacultyId: item.facultyId,
+			targetRoomId: defaultRoomId ?? undefined,
+		};
+		const basePreviewInput = {
+			subjectLabel: subjectLabel ? subjectLabel(item.subjectId) : 'Session',
+			sectionLabel: sectionLabel ? sectionLabel(item.sectionId) : 'Section',
+			session: item.session,
+			day,
+			startTime,
+			endTime,
+		};
+		if (!targetSlotOccupied) {
 			setDragItem(null);
+			if (defaultRoomId == null) {
+				// No room resolved: the inline chooser carries the honest consequence
+				// and picking a room re-runs the authoritative preview below.
+				setInlineActionStatus(null);
+				setInlinePlacementPending({
+					proposal,
+					roomId: null,
+					preview: buildInlinePlacementPreviewData({
+						...basePreviewInput,
+						roomLabel: null,
+						softCount: 0,
+						hardTitle: null,
+					}),
+				});
+				return;
+			}
 			setInlineActionStatus({
 				tone: 'loading',
 				message: 'Checking placement before saving…',
@@ -1082,21 +1133,14 @@ export function useScheduleReviewWorkspaceState() {
 				setInlineActionStatus(null);
 				setInlinePlacementPending({
 					proposal,
+					roomId: defaultRoomId,
 					preview: buildInlinePlacementPreviewData({
-						subjectLabel: subjectLabel ? subjectLabel(item.subjectId) : 'Session',
-						sectionLabel: sectionLabel ? sectionLabel(item.sectionId) : 'Section',
-						session: item.session,
-						day,
-						startTime,
-						endTime,
-						roomLabel: defaultRoomId != null && roomMap.has(defaultRoomId)
-							? `${roomMap.get(defaultRoomId)!.name} - ${roomMap.get(defaultRoomId)!.buildingShortCode || roomMap.get(defaultRoomId)!.buildingName}`
-							: null,
+						...basePreviewInput,
+						roomLabel: roomDisplayLabel(defaultRoomId),
 						softCount: decision.softCount,
 						hardTitle: null,
 					}),
 				});
-				setDragItem(null);
 				return;
 			}
 			if (decision.kind === 'review-blocked') {
@@ -1104,7 +1148,6 @@ export function useScheduleReviewWorkspaceState() {
 					tone: 'error',
 					message: preview?.humanConflicts.find((hc) => hc.severity === 'HARD')?.humanTitle ?? 'Placement blocked by hard conflicts.',
 				});
-				setDragItem(null);
 				return;
 			}
 			setInlineActionStatus(null);
@@ -1140,6 +1183,7 @@ export function useScheduleReviewWorkspaceState() {
 		commitEditWithMeta,
 		subjectLabel,
 		sectionLabel,
+		roomDisplayLabel,
 		roomMap,
 		toast,
 	]);
@@ -1186,6 +1230,59 @@ export function useScheduleReviewWorkspaceState() {
 		setInlinePlacementPending(null);
 		setInlineActionStatus(null);
 	}, [setInlineActionStatus]);
+
+	/**
+	 * B1 — choose a different room without a modal. The authoritative preview is
+	 * re-run for the new room before the Confirm stays enabled, so the stated
+	 * consequence always matches the room that would actually be saved.
+	 */
+	const changeInlinePlacementRoom = useCallback(async (roomIdValue: string) => {
+		const pending = inlinePlacementPending;
+		const roomId = Number(roomIdValue);
+		if (!pending || !Number.isFinite(roomId) || roomId <= 0) return;
+		const nextProposal: ManualEditProposal = { ...pending.proposal, targetRoomId: roomId };
+		setInlinePlacementRoomChanging(true);
+		setInlineActionStatus(null);
+		try {
+			const preview = await previewEdit(nextProposal);
+			const roomLabel = roomDisplayLabel(roomId);
+			const nextInput = {
+				subjectLabel: pending.preview.subjectLabel,
+				sectionLabel: pending.preview.sectionLabel,
+				session: pending.preview.session,
+				day: pending.preview.day,
+				startTime: pending.preview.startTime,
+				endTime: pending.preview.endTime,
+				roomLabel,
+			};
+			if (!preview) {
+				setInlinePlacementPending({
+					proposal: nextProposal,
+					roomId,
+					preview: buildInlinePlacementPreviewData({
+						...nextInput,
+						softCount: 0,
+						hardTitle: 'ATLAS could not check this room yet. Try again or pick another room.',
+					}),
+				});
+				return;
+			}
+			const blockedTitle = preview.allowed
+				? null
+				: preview.humanConflicts.find((conflict) => conflict.severity === 'HARD')?.humanTitle ?? 'This room blocks the placement.';
+			setInlinePlacementPending({
+				proposal: nextProposal,
+				roomId,
+				preview: buildInlinePlacementPreviewData({
+					...nextInput,
+					softCount: blockedTitle ? 0 : preview.softViolations.length,
+					hardTitle: blockedTitle,
+				}),
+			});
+		} finally {
+			setInlinePlacementRoomChanging(false);
+		}
+	}, [inlinePlacementPending, previewEdit, roomDisplayLabel, setInlineActionStatus]);
 
 	const runGeneratedPlacementPreview = useCallback(async (
 		target = assignPickerTarget,
@@ -1718,7 +1815,7 @@ export function useScheduleReviewWorkspaceState() {
 		headerContext.curriculumReadiness = curriculumReadiness;
 		const dialogContext = buildDialogContext({ showUnassignConfirm, setShowUnassignConfirm, setPendingUnassignId, pendingUnassignId, unassignDraftPlacement, showGenerateConfirm, setShowGenerateConfirm, enforceShiftWindows, setEnforceShiftWindows, draftBoardSummary, followUps, confirmGenerate, activeSchoolYearLabel: schoolYearContext?.activeSchoolYearLabel ?? null, schoolYearSource: schoolYearContext?.source ?? null, showResetDraftDialog, setShowResetDraftDialog, openPreGenerationWorkspace, showLeavePreGenDialog, setShowLeavePreGenDialog, pendingCenterSwitch, setPendingCenterSwitch, requestPreview, requestPreviewLoading, setRequestPreview, setSelectedRequestId, setRequestAppeals, setAppealReason, requestPreviewHardConflicts, requestPreviewSoftWarnings, requestAppeals, appealsLoading, isPrivilegedUser, updateAppealStatus, appealReason, appealSubmitting, submitAppeal, requestReviewerNotes, setRequestReviewerNotes, requestReviewSaving, reviewRoomRequest, generating, generationElapsed, showPublishDialog, setShowPublishDialog, publishAcknowledged, setPublishAcknowledged, softCount, publishUnassignedCount: summary?.unassignedCount ?? 0, policy, handlePublishConfirm, captureReviewFocusReturn, restoreReviewFocus, showPreGenConfirm, setShowPreGenConfirm, setPreGenConfirmCtx, setConfirmPreview, setConfirmRawPreview, setConfirmPreviewError, setConfirmAllowSoftOverride, setConfirmAllowDailyOverride, preGenConfirmCtx, confirmFacultyId, setConfirmFacultyId, confirmPreview, confirmRoomId, setConfirmRoomId, facultyMap, roomMap, confirmPreviewLoading, confirmPreviewError, confirmDisplacedPlacement, toast, openSwapPrompt, confirmAllowDailyOverride, confirmSaving, commitConfirmPlacement, showSwapConfirm, setShowSwapConfirm, setSwapAction, swapAction, formatFacultyInitials, roomLabelShort, subjectLabel, sectionLabel, swapSaving, executeSwapAction, swapPreview, regularSwapPreview, regularSwapPending, setRegularSwapPending, regularSwapSaving, regularSwapStrategy, setRegularSwapStrategy, executeRegularSwap, showSoftConfirm, setShowSoftConfirm, softConfirmWarnings, commitLoading, formatConstraintMessage, setPendingCommitProposal, setPreviewResult, setSoftConfirmWarnings, setDragItem, pendingCommitProposal, commitEdit, showAssignmentPicker, setShowAssignmentPicker, setAssignPickerTarget, assignPickerTarget, assignPickerFacultyId, setAssignPickerFacultyId, assignPickerRoomId, setAssignPickerRoomId, assignPickerPreview, assignPickerPreviewLoading, assignPickerPreviewError, assignPickerSaving, confirmAssignmentPicker, showEditHistory, setShowEditHistory, editHistory, revertEditById, revertLoading, currentRunVersion: draft?.version ?? null });
 		const overlaysContext = buildOverlaysContext({ dialogContext, tutorial, userRole, blockerModalData, setBlockerModalData, showExplainDrawer, setDrawerViolation, setDrawerUnassigned, drawerViolation, drawerUnassigned, formatDrawerMessage: formatConstraintMessage });
-		return { leftRailContentContext, centerWorkspaceContext, rightPanelContext, headerContext, overlaysContext, dialogContext, lastAutoSaveUndo, setLastAutoSaveUndo, inlinePlacementPending, inlinePlacementSaving, confirmInlinePlacement, cancelInlinePlacement, revertEditById, redoState, redoVersionStale, redoLastEdit, clearRedo, swapClassTimesMode, setSwapClassTimesMode, swapClassAEntryId, swapClassBEntryId, setSwapClassAEntryId, setSwapClassBEntryId };
+		return { leftRailContentContext, centerWorkspaceContext, rightPanelContext, headerContext, overlaysContext, dialogContext, lastAutoSaveUndo, setLastAutoSaveUndo, inlinePlacementPending, inlinePlacementSaving, inlinePlacementRoomChanging, inlinePlacementRoomOptions, confirmInlinePlacement, changeInlinePlacementRoom, cancelInlinePlacement, revertEditById, redoState, redoVersionStale, redoLastEdit, clearRedo, swapClassTimesMode, setSwapClassTimesMode, swapClassAEntryId, swapClassBEntryId, setSwapClassAEntryId, setSwapClassBEntryId };
 	})();
 
 	const prevContextsRef = useRef<typeof rawWorkspaceContexts | null>(null);

@@ -352,7 +352,11 @@ export default function ScheduleReviewWorkspace() {
 			{state.inlinePlacementPending ? (
 				<InlinePlacementPreview
 					pending={state.inlinePlacementPending.preview}
+					roomId={state.inlinePlacementPending.roomId}
+					roomOptions={state.inlinePlacementRoomOptions}
 					saving={state.inlinePlacementSaving}
+					roomChanging={state.inlinePlacementRoomChanging}
+					onRoomChange={(value) => void state.changeInlinePlacementRoom(value)}
 					onConfirm={() => void state.confirmInlinePlacement()}
 					onCancel={state.cancelInlinePlacement}
 				/>
