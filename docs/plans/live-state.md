@@ -35,7 +35,16 @@ and AIMS.
 ## Live release
 
 - Tailnet: `https://njgrm.buru-degree.ts.net`
-- **Release SHA: `d4c9f39139dcb34e1653d543586d4c76420ea8a5`** (current, deployed 2026-09-22;
+- **Release SHA: `5a333c74de03df11e0d0bf9ec6839c1916798896`** (current, deployed 2026-09-22 ~18:47 local;
+  supervisor 13472; `5001`->46892; `5174`->49504; served entry `index-beBnmPMP.js`). **Lane A did not
+  perform this deploy** — it is Planner B's `TIMETABLE-SCHEDULER-SIMPLICITY-C01` lifecycle proof, and
+  Lane A found it live on 2026-09-22 while verifying an unrelated stream (the register said
+  `d4c9f391` until then). Verified coherent: release dir
+  `D:\ATLAS-runtime-supervised-5a333c74-20260922` HEAD = pin, its state file `releaseSha` = pin, the
+  task action and `Start In` point at it, and local health + a DB-backed subjects read + Tailnet
+  health are all 200. Rollback: `d4c9f391` at `D:\ATLAS-runtime-supervised-d4c9f391-20260921`
+  (startable in place).
+- (superseded) Release SHA: `d4c9f39139dcb34e1653d543586d4c76420ea8a5` (deployed 2026-09-22 ~11:37;
   supervisor 28104; `5001`->39064; `5174`->39392; `D:` 29.84 GiB; served entry `index-DgF0ZSEz.js`,
   456,064 B — the client tree is unchanged, so the deploy is proven by the **server** service
   artifacts). Carries `COMPANION-SSO-REVERSE-IDENTITY-C01`: the reverse assertion **omits** empty
