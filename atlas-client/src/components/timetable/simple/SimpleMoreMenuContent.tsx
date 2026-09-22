@@ -35,6 +35,13 @@ export type SimpleMoreMenuContentProps = {
 	context: ScheduleReviewWorkspaceHeaderContext;
 	runToolsAvailable: boolean;
 	canPlanOrGenerate: boolean;
+	/**
+	 * C7 — when the header's single primary action already dispatches the
+	 * review-issues task (the lifecycle `review-warnings` step, or an armed
+	 * review task), this entry is a duplicate of that action and must not
+	 * render. Every other state keeps it, so the review is never stranded.
+	 */
+	hideReviewIssues?: boolean;
 	onClose: () => void;
 	onStartTask: (task: TimetableSimpleTask) => void;
 	onOpenTeacherDeparture: () => void;
@@ -48,6 +55,7 @@ export function SimpleMoreMenuContent({
 	context,
 	runToolsAvailable,
 	canPlanOrGenerate,
+	hideReviewIssues = false,
 	onClose,
 	onStartTask,
 	onOpenTeacherDeparture,
@@ -96,11 +104,13 @@ export function SimpleMoreMenuContent({
 			</div>
 			<div className="space-y-1 rounded-md border border-border bg-muted/20 p-2" data-testid="timetable-simple-more-expert-tools">
 				<DropdownMenuLabel className="px-0 py-0 text-xs">Expert tools</DropdownMenuLabel>
-				<DropdownMenuItem className="h-9 gap-2 text-xs" disabled={!runToolsAvailable} data-testid="timetable-more-review-issues" onSelect={(event) => { event.preventDefault(); onClose(); void onStartTask('review-issues'); }}>
-					<ListChecks className="size-3.5" aria-hidden="true" />
-					Review issues
-					{!runToolsAvailable && <span className="sr-only"> Unavailable: no generated run yet.</span>}
-				</DropdownMenuItem>
+				{hideReviewIssues ? null : (
+					<DropdownMenuItem className="h-9 gap-2 text-xs" disabled={!runToolsAvailable} data-testid="timetable-more-review-issues" onSelect={(event) => { event.preventDefault(); onClose(); void onStartTask('review-issues'); }}>
+						<ListChecks className="size-3.5" aria-hidden="true" />
+						Review issues
+						{!runToolsAvailable && <span className="sr-only"> Unavailable: no generated run yet.</span>}
+					</DropdownMenuItem>
+				)}
 				<DropdownMenuItem
 					className="h-9 gap-2 text-xs"
 					disabled={context.editHistoryCount === 0}

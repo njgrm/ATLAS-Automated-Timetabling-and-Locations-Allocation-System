@@ -34,6 +34,7 @@ import {
 	chooseRecommendedTask,
 	hasPivotValue,
 	firstPivotValue,
+	primaryDispatchesReviewIssues,
 	resolvePublishTaskDispatch,
 	resolveSimpleGenerateActionState,
 	resolveSimplePublishActionState,
@@ -290,7 +291,6 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 	const tasks = useSimpleTasks(context, capabilities.gates);
 	const recommendedTask = chooseRecommendedTask(tasks, context);
 	const activeTaskDefinition = tasks.find((task) => task.id === activeTask) ?? recommendedTask;
-	const ActiveIcon = activeTaskDefinition.icon;
 	const currentEntityIsValid = hasPivotValue(context, context.entityFilter);
 
 	useEffect(() => {
@@ -369,6 +369,13 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 		? (activeTaskDefinition.id === 'publish' && isRunPublished)
 		: lifecycleAction.kind === 'published';
 	const suppressPrimaryAction = primaryRendersPublish || primaryIsPublished;
+	// C7 — one action is never reachable from both the header primary and More.
+	// The primary owns the review-issues dispatch in the review-warnings state
+	// (and while a review task is armed); More drops its duplicate entry then.
+	const moreHidesReviewIssues = primaryDispatchesReviewIssues({
+		activeTaskId: activeTask,
+		lifecycleKind: lifecycleAction.kind,
+	});
 
 	const handlePublishClick = () => {
 		if (isRunPublished) return;
@@ -531,35 +538,24 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 
 	return (
 		<header className="shrink-0 border-b border-border bg-background" data-testid="timetable-simple-header">
-			{/* A3 — ONE status region. A4 — ONE coherent authority state: the
+			{/* A3/C5 — ONE status region, rendered as a compact single-line
+			    strip: the readiness chip, the single coherent authority state,
+			    and the one labelled way to the setup repairs. A4 — the
 			    ordered-term notice, the run-input drift message, or the source
-			    authority line renders here, never two at once. The setup-input
-			    repairs (Fix rooms / Preview impact / Sync with setup) and the
-			    rollover guidance live on `/timetable/setup`, one click away. */}
-			<section data-testid="timetable-simple-status-region" role="region" aria-label="Timetable status" className="mx-3 mb-1 mt-1 min-w-0 rounded-lg border border-border bg-muted/20 px-2 py-1 shadow-sm sm:px-3">
+			    authority line renders here, never two at once. C5 — the region
+			    no longer carries its own bordered band (margins + vertical
+			    padding) and the redundant `Next step:` line is gone: the single
+			    primary action already names the next step, so the header keeps
+			    exactly one status region and one visually dominant primary. The
+			    setup-input repairs (Fix rooms / Preview impact / Sync with
+			    setup) and the rollover guidance live on `/timetable/setup`. */}
+			<section data-testid="timetable-simple-status-region" role="region" aria-label="Timetable status" className="min-w-0 px-3">
 			<div className="flex min-w-0 flex-wrap items-center gap-1.5">
 				<SimpleReadinessChip
 					readiness={readiness}
 					publishBlocked={publishBlocked}
 					blockingHardCount={context.blockingHardCount}
 				/>
-				{/* A3 — the NEXT STEP names the same action as the primary. */}
-				{!hasGeneratedRun && !context.isPreGenerationWorkspace ? (
-					<div className="flex min-w-0 items-center gap-1.5" data-testid="timetable-simple-task-prompt" aria-label="Timetable next step">
-						<CalendarClock className="size-3.5 shrink-0 text-primary" aria-hidden="true" />
-						<p className="min-w-0 truncate text-xs text-muted-foreground" data-testid="timetable-simple-next-action">
-							Next step: <span className="font-semibold text-foreground">{lifecycleAction.label}</span>
-							{visibleYearLabel ? ` · No ${visibleYearLabel} timetable yet` : ''}
-						</p>
-					</div>
-				) : (
-					<div className="flex min-w-0 items-center gap-1.5" data-testid="timetable-simple-task-prompt" aria-label="Timetable next step">
-						<ActiveIcon className="size-3.5 shrink-0 text-primary" aria-hidden="true" />
-						<p className="min-w-0 truncate text-xs text-muted-foreground" data-testid="timetable-simple-next-action">
-							Next step: <span className="font-semibold text-foreground">{activeTask ? activeTaskDefinition.primaryLabel : lifecycleAction.label}</span>
-						</p>
-					</div>
-				)}
 				{/* A4 — exactly ONE authority state renders here: the run-input
 				    drift message, else the ordered-term notice, else the source
 				    line. "Run inputs are stale" and "Verified with EnrollPro" can
@@ -612,7 +608,7 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 					</TooltipProvider>
 				) : null}
 				{/* A3 — one labelled way to the setup repairs. */}
-				<Button asChild type="button" variant="outline" size="sm" className="h-7 shrink-0 gap-1 px-2 text-xs" data-testid="timetable-simple-review-setup">
+				<Button asChild type="button" variant="outline" size="sm" className="h-6 shrink-0 gap-1 px-2 text-xs" data-testid="timetable-simple-review-setup">
 					<Link to="/timetable/setup">
 						<Settings2 className="size-3" aria-hidden="true" />
 						Review setup
@@ -621,9 +617,12 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 			</div>
 			</section>
 
-			{/* A3 — ONE action row: term, schedule, filters, downloads, and the
-			    single primary action. Everything else is one click away in More. */}
-			<div className="flex min-w-0 flex-wrap items-center gap-1.5 px-3 pb-1.5">
+			{/* A3/C5 — ONE action row: term, schedule, filters, downloads, and the
+			    single primary action. Everything else is one click away in More.
+			    C5 — the row no longer adds its own bottom band padding, so the
+			    header is one compact block (status strip + control row) instead
+			    of two padded bands. */}
+			<div className="flex min-w-0 flex-wrap items-center gap-1.5 px-3">
 				<SimpleTermSwitcher context={context} />
 
 				<div className="hidden min-w-0 flex-1 lg:flex lg:shrink-0 lg:min-w-[24rem]">
@@ -655,8 +654,10 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 					/>
 				) : null}
 
-				{/* A3 — the single action cluster: one lifecycle-derived primary,
-				    the secondary Generate, and the More disclosure. */}
+				{/* A3/C6 — the single action cluster: one lifecycle-derived primary,
+				    the secondary Generate, and the More disclosure. C6 — on the
+				    narrow scrollable strip the primary leads (order-first) so it is
+				    visible without scrolling; at lg it returns to its inline order. */}
 				<div className="order-last flex w-full min-w-0 shrink-0 items-center justify-start gap-1.5 overflow-x-auto lg:order-none lg:ml-auto lg:w-auto lg:max-w-[48vw] lg:justify-end">
 					<SimpleGenerateAction
 						disabled={generateActionState.disabled}
@@ -691,7 +692,7 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 						<Button
 							type="button"
 							size="sm"
-							className="h-11 gap-1.5 px-3 text-sm"
+							className="order-first h-11 gap-1.5 px-3 text-sm lg:order-none"
 							disabled={lifecycleAction.disabled || context.loading}
 							onClick={() => context.handleRefresh()}
 							data-testid="timetable-simple-primary-action"
@@ -700,7 +701,7 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 							<span>{setupRepair.label ?? lifecycleAction.label}</span>
 						</Button>
 					) : lifecycleAction.kind === 'fix-setup' && setupRepair.kind === 'navigate' ? (
-						<Button asChild type="button" size="sm" className="h-11 gap-1.5 px-3 text-sm" data-testid="timetable-simple-primary-action">
+						<Button asChild type="button" size="sm" className="order-first h-11 gap-1.5 px-3 text-sm lg:order-none" data-testid="timetable-simple-primary-action">
 							<Link to={setupRepair.href ?? YEAR_SETUP_HREF}>
 								<BookOpen className="size-3.5" aria-hidden="true" />
 								{setupRepair.label ?? lifecycleAction.label}
@@ -710,7 +711,7 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 						<Button
 							asChild
 							size="sm"
-							className="h-11 min-w-28 gap-1.5 px-3 text-sm"
+							className="order-first h-11 min-w-28 gap-1.5 px-3 text-sm lg:order-none"
 							disabled={activeTaskDefinition.disabled}
 							data-testid="timetable-simple-primary-action"
 						>
@@ -722,7 +723,7 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 						<Button
 							type="button"
 							size="sm"
-							className="h-11 min-w-28 gap-1.5 px-3 text-sm"
+							className="order-first h-11 min-w-28 gap-1.5 px-3 text-sm lg:order-none"
 							disabled={activeTask ? activeTaskDefinition.disabled : lifecycleAction.disabled}
 							onClick={() => activeTask ? void startTask(activeTaskDefinition.id) : handleLifecycleAction()}
 							data-testid="timetable-simple-primary-action"
@@ -755,6 +756,7 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 								context={context}
 								runToolsAvailable={runToolsAvailable}
 								canPlanOrGenerate={canPlanOrGenerate}
+								hideReviewIssues={moreHidesReviewIssues}
 								onClose={() => setMoreOpen(false)}
 								onStartTask={startTask}
 								onOpenTeacherDeparture={openTeacherDeparture}

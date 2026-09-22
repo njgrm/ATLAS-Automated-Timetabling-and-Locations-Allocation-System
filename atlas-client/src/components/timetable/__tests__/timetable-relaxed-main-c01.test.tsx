@@ -22,6 +22,7 @@ import { MemoryRouter } from 'react-router-dom';
 
 import { isVerifiedOrderedActiveTerm, type OrderedAcademicTerm } from '@/lib/academic-term';
 import { TimetableSimpleHeader } from '../TimetableSimpleHeader';
+import { primaryDispatchesReviewIssues } from '../simple/SimpleHeaderHelpers';
 import { TimetableGrid } from '../TimetableGrid';
 import { TimetableSubNav } from '../TimetableSubNav';
 import type { ScheduleReviewWorkspaceHeaderContext } from '../buildScheduleReviewWorkspaceContexts';
@@ -332,7 +333,7 @@ test('A4: a fresh-input state renders exactly one source authority line', () => 
 	assert.doesNotMatch(markup, /timetable-term-authority-unverified/, 'no term-authority notice renders for a verified contract');
 });
 
-test('A3: the header renders one status region and one action row, and the NEXT STEP names the primary', () => {
+test('A3/C5: the header renders one compact status region and one primary, with the redundant NEXT STEP line gone', () => {
 	const markup = renderHeader({
 		draft: draftWithSummary({ runId: 42, hardViolationCount: 1, softViolationCount: 0, unassignedCount: 0, isPublished: false }),
 		hardCount: 1,
@@ -340,16 +341,21 @@ test('A3: the header renders one status region and one action row, and the NEXT 
 		summary: { assignedCount: 5, classesProcessed: 5, hardViolationCount: 1, unassignedCount: 0 },
 	});
 	assert.equal((markup.match(/data-testid="timetable-simple-status-region"/g) ?? []).length, 1, 'exactly one status region');
-	// A3 — one primary action; the NEXT STEP names that same action.
-	// A3 — one primary action; the NEXT STEP names that same action. The primary
+	// C5 — the status region carries the chip, the one authority state and the
+	// setup entry point; it no longer carries a redundant `Next step:` line that
+	// duplicates the primary action's own label.
+	assert.match(markup, /data-testid="timetable-simple-readiness-chip"/, 'the one status chip renders inside the region');
+	assert.doesNotMatch(markup, /Next step:/, 'the duplicated next-step copy is removed');
+	assert.doesNotMatch(markup, /data-testid="timetable-simple-next-action"/, 'the redundant NEXT STEP row is gone');
+	assert.doesNotMatch(markup, /data-testid="timetable-simple-task-prompt"/, 'no separate task-prompt band remains');
+	// A3 — the single primary action names the lifecycle next step itself. The
 	// control renders either a bare label (link variant) or a `<span>` label, so
 	// read the text that follows its leading icon.
 	const primaryIdx = markup.indexOf('timetable-simple-primary-action');
 	assert.ok(primaryIdx >= 0, 'the lifecycle primary renders in the issue state');
 	const primaryLabel = markup.slice(primaryIdx).match(/<\/svg>(?:<span>)?([^<]*)/)?.[1];
-	const nextStep = markup.match(/data-testid="timetable-simple-next-action"[^>]*>Next step: <span[^>]*>([^<]*)<\/span>/)?.[1];
 	assert.ok(primaryLabel, 'the primary control carries a visible label');
-	assert.equal(nextStep, primaryLabel, 'the NEXT STEP names the same action as the primary');
+	assert.equal(primaryLabel, 'Fix blockers', 'the primary names the lifecycle next step');
 	assert.equal((markup.match(/data-testid="timetable-simple-primary-action"/g) ?? []).length, 1, 'exactly one primary action control');
 	// A3 — the setup repairs are relocated to the setup sub-page, not the header.
 	assert.doesNotMatch(markup, /timetable-simple-sync-setup/, 'Sync with setup is not a header control');
@@ -359,6 +365,79 @@ test('A3: the header renders one status region and one action row, and the NEXT 
 	assert.doesNotMatch(markup, /data-testid="timetable-status-legend"/, 'Status key left the header row');
 	assert.doesNotMatch(markup, /data-testid="timetable-simple-tutorial-trigger"/, 'Tutorial left the header row');
 	assert.doesNotMatch(markup, /data-testid="timetable-day-options-trigger"/, 'Day options left the header row');
+});
+
+test('C5: the status band carries no band chrome and the action row adds no bottom band padding', () => {
+	// Failing-first control for the density correction: the pre-correction header
+	// rendered the status region as its own bordered, padded card band
+	// (`mt-1 mb-1 ... py-1`, so a full extra band of vertical chrome) and gave the
+	// action row its own `pb-1.5` bottom band. Both are the vertical chrome that
+	// pushed the grid top past the target.
+	const header = source('src/components/timetable/TimetableSimpleHeader.tsx');
+	const regionTag = header.match(/<section[^>]*data-testid="timetable-simple-status-region"[^>]*>/)?.[0];
+	assert.ok(regionTag, 'the status region still renders');
+	assert.doesNotMatch(regionTag, /mt-1|mb-1|py-1|rounded-lg border|shadow-sm/, 'the status region no longer renders its own bordered/padded band');
+	// The action row keeps its horizontal padding and drops the vertical band.
+	const actionRow = header.match(/<div className="flex min-w-0 flex-wrap items-center gap-1\.5 px-3[^"]*">/)?.[0];
+	assert.ok(actionRow, 'the single action row still renders');
+	assert.doesNotMatch(actionRow, /pb-1\.5|py-/, 'the action row adds no bottom band padding');
+	// Exactly one status region element exists in the whole header source.
+	assert.equal((header.match(/data-testid="timetable-simple-status-region"/g) ?? []).length, 1, 'exactly one status region element');
+});
+
+test('C6: the primary action leads the narrow action strip and returns inline at lg', () => {
+	const markup = renderHeader({
+		draft: draftWithSummary({ runId: 42, hardViolationCount: 1, softViolationCount: 0, unassignedCount: 0, isPublished: false }),
+		hardCount: 1,
+		blockingHardCount: 1,
+		summary: { assignedCount: 5, classesProcessed: 5, hardViolationCount: 1, unassignedCount: 0 },
+	});
+	// The action strip is the sanctioned horizontally scrollable region, so the
+	// primary must lead it (visible without scrolling) on narrow viewports and
+	// return to its inline order at lg — never clipped unreachably.
+	const header = source('src/components/timetable/TimetableSimpleHeader.tsx');
+	const primaryTags = header.match(/<[^>]*data-testid="timetable-simple-primary-action"[^>]*>/g) ?? [];
+	assert.ok(primaryTags.length >= 1, 'the primary action control renders');
+	for (const tag of primaryTags) {
+		assert.match(tag, /order-first/, `every primary variant leads the mobile strip: ${tag}`);
+		assert.match(tag, /lg:order-none/, `every primary variant returns inline at lg: ${tag}`);
+	}
+	// Rendered proof: the control that actually renders carries the mobile order.
+	const renderedTag = markup.match(/<[^>]*data-testid="timetable-simple-primary-action"[^>]*>/)?.[0];
+	assert.ok(renderedTag, 'the rendered primary action element exists');
+	assert.match(renderedTag, /order-first/, 'the rendered primary leads the scrollable strip');
+});
+
+test('C7: the header primary and More never both dispatch the review-issues action', () => {
+	// Behavioural decision (the shared helper the header reads).
+	assert.equal(
+		primaryDispatchesReviewIssues({ activeTaskId: null, lifecycleKind: 'review-warnings' }),
+		true,
+		'the review-warnings primary owns review-issues',
+	);
+	assert.equal(
+		primaryDispatchesReviewIssues({ activeTaskId: 'review-issues', lifecycleKind: 'publish' }),
+		true,
+		'an armed review task owns review-issues',
+	);
+	// Every other state keeps the More entry, so the review is never stranded.
+	assert.equal(primaryDispatchesReviewIssues({ activeTaskId: null, lifecycleKind: 'fix-blockers' }), false);
+	assert.equal(primaryDispatchesReviewIssues({ activeTaskId: null, lifecycleKind: 'publish' }), false);
+	assert.equal(primaryDispatchesReviewIssues({ activeTaskId: null, lifecycleKind: 'review-follow-ups' }), false);
+	assert.equal(primaryDispatchesReviewIssues({ activeTaskId: 'swap-sessions', lifecycleKind: 'review-warnings' }), false);
+
+	// Wiring: the header threads the decision into More, and More gates the
+	// duplicate entry on it (the dropdown content is portal-mounted and cannot
+	// render in SSR, so the runtime condition is this decision + this gate).
+	const header = source('src/components/timetable/TimetableSimpleHeader.tsx');
+	assert.match(header, /hideReviewIssues=\{moreHidesReviewIssues\}/, 'the header passes the C7 decision');
+	assert.match(header, /const moreHidesReviewIssues = primaryDispatchesReviewIssues\(\{/, 'the decision is the shared helper');
+	const menu = source('src/components/timetable/simple/SimpleMoreMenuContent.tsx');
+	assert.match(
+		menu,
+		/\{hideReviewIssues \? null : \(\s*\n\s*<DropdownMenuItem[^>]*data-testid="timetable-more-review-issues"/,
+		'the More entry renders only when the primary does not own it',
+	);
 });
 
 test('A3: the relocated header controls remain reachable from the More menu (source contract)', () => {

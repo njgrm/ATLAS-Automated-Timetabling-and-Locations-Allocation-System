@@ -280,8 +280,10 @@ test('C01R C3 the header renders one status surface owning drift, day options, a
 	);
 	assert.doesNotMatch(withoutRegion, /timetable-simple-input-drift/, 'no sibling drift strip may remain');
 	assert.doesNotMatch(withoutRegion, /timetable-hidden-row-controls/, 'no sibling hidden-row strip may remain');
-	// Both mutually exclusive NEXT STEP states are still the region's two blocks.
-	assert.equal((header.match(/data-testid="timetable-simple-task-prompt"/g) ?? []).length, 2, 'the two task-prompt states must be kept, not collapsed');
+	// C5 — the two mutually exclusive NEXT STEP task-prompt blocks collapsed into
+	// the single lifecycle action control (this state's publish-slot primary).
+	assert.equal((header.match(/data-testid="timetable-simple-task-prompt"/g) ?? []).length, 0, 'the NEXT STEP band collapses into the one action control');
+	assert.match(markup, /data-testid="timetable-simple-publish-action"/, 'the one next-step action control still renders');
 	// A3 — the setup-input repairs are relocated to the setup sub-page; the
 	// header keeps one labelled way there.
 	assert.match(markup, /data-testid="timetable-simple-review-setup"/, 'one labelled setup entry point remains');
