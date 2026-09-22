@@ -501,6 +501,7 @@ export function useScheduleReviewWorkspaceState() {
 		programFilter,
 		entryKindFilter,
 		termFilter,
+		userOverrodeTermFilter,
 		leftTab,
 		setLeftTab,
 		unassignedReasonFilter,

@@ -6,6 +6,7 @@ import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 
 import { TimetableGrid } from '@/components/timetable/TimetableGrid';
+import { resolveTimetableTermScopeState } from '@/hooks/useTimetableData';
 
 const clientRoot = resolve(import.meta.dirname, '../../..');
 const source = (path: string) => readFileSync(resolve(clientRoot, path), 'utf8');
@@ -71,6 +72,32 @@ test('term selection is fail-closed when the verified ordered contract is absent
 	assert.match(hook, /\: \[\{ value: 'all', label: 'All terms' \}\]/);
 	assert.match(hook, /: 'all'\);/);
 	assert.doesNotMatch(hook, /activeTermIndex >= 1/);
+});
+
+test('mounted timetable lifecycle gate waits for active term, then preserves deliberate all-terms override', () => {
+	const missing = resolveTimetableTermScopeState(null, 'all', false);
+	assert.equal(missing.queryEnabled, false);
+	assert.equal(missing.termIndex, null);
+	assert.equal(missing.status, 'checking');
+
+	const blocked = resolveTimetableTermScopeState({
+		source: 'none', reachable: false, verified: false, activeTerm: null, termIndex: null,
+		schoolYearId: 9, matchedSchoolYear: false, code: 'TERM_UNRESOLVED', message: 'Set up terms',
+		orderedTerms: [],
+	}, 'all', false);
+	assert.equal(blocked.queryEnabled, false);
+	assert.equal(blocked.status, 'setup-required');
+
+	const verifiedContext = {
+		source: 'enrollpro', reachable: true, verified: true, activeTerm: 'Term 2', termIndex: 2,
+		schoolYearId: 9, matchedSchoolYear: true, code: null, message: 'Verified',
+		orderedTerms: [{ identity: 'T1', displayLabel: 'Term 1', order: 1 }, { identity: 'T2', displayLabel: 'Term 2', order: 2 }],
+	};
+	const active = resolveTimetableTermScopeState(verifiedContext, 2, false);
+	assert.deepEqual(active, { authorityReady: true, queryEnabled: true, termIndex: 2, status: 'active' });
+
+	const allTerms = resolveTimetableTermScopeState(verifiedContext, 'all', true);
+	assert.deepEqual(allTerms, { authorityReady: true, queryEnabled: true, termIndex: 'all', status: 'active' });
 });
 
 test('scheduler orientation exposes school year, term authority, scope, and one safe next action', () => {
