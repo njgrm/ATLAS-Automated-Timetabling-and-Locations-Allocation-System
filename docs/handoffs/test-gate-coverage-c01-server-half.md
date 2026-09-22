@@ -1,7 +1,26 @@
 # TEST-GATE-COVERAGE-C01 — server half (for the owner of `atlas-server/package.json`)
 
 **From:** Lane A, 2026-09-22. **For:** Planner B (owner of `atlas-server/package.json`).
-**Status:** scoped follow-up — **not started by Lane A**, because the file is yours.
+**Status: DELIVERED by Lane A as `f9c0f3cb`** (the operator authorised the custody transfer while
+Planner B was on QA; the file returns to Planner B afterwards). Read the outcome in §"Outcome" below
+before acting on the plan sections.
+
+## Outcome (2026-09-22) — what shipped and what is still red
+
+- **Orphans 80 → 0.** `test:server-suite` (28 files = the 27 hermetic + the new guard) and
+  `test:server-db` (53 DB-backed). An inverse reachability guard now covers `atlas-server`.
+- **`test:server-suite` is GREEN: 275/275.** The one rotten suite
+  (`derived-demand-correction-c01r.test.ts`, controls 5/7/10) was fixed **test-only** — 3 added mock
+  lines, zero assertion changes, zero product bytes.
+- **`test:server-db` is RED — do not treat it as green.** Measured at review with the full runtime
+  env against a fresh disposable database: **250 tests, 239 pass, 10 fail**. The failures are **real
+  rot, not cross-suite interference**: `teaching-load-reconciliation.test.ts` fails **alone** against
+  a fresh DB with `TypeError: Cannot read properties of undefined (reading 'facultyId')` at `:1032`.
+- **Follow-up `TEST-GATE-COVERAGE-C01R`** owns making it green: characterise the prerequisites and/or
+  run each file against its **own** fresh database (the likely design these suites were written for),
+  then fix or retire each failure. Do **not** fix it by dropping files from the gate.
+
+The plan sections below remain the recommended approach; they are kept for that follow-up.
 
 ## Why this exists
 

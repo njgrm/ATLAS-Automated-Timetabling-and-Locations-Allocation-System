@@ -348,6 +348,21 @@ it complete `TEST-GATE-REACHABILITY-C01` (`f4462374`) and hand it over for integ
 
 ## Lane A — current lane (written only by Lane A)
 
+**Integrated: `TEST-GATE-COVERAGE-C01` (server half)** (`f9c0f3cb`, 2026-09-22) — LOW, planner-reviewed;
+**custody transfer recorded** (Lane A took `atlas-server/package.json` for this stream while Planner B
+was on QA; Planner B remains its owner afterwards). Server orphans **80 → 0**: `test:server-suite`
+(28 files — the 27 hermetic plus the new guard) and `test:server-db` (53 DB-backed). An **inverse**
+reachability guard now covers `atlas-server`, mirroring the client one, so a new server test file no
+script runs fails. The one rotten suite (`derived-demand-correction-c01r.test.ts`, controls 5/7/10 —
+stale hand-built prisma mock) was fixed **test-only** (3 mock lines, zero assertion changes, no product
+bytes) and `test:server-suite` is **275/275**. **`test:server-db` is gated but RED — never treat it as
+green.** Measured at review with the full runtime env against a fresh disposable database: 250 tests,
+239 pass, **10 fail**; the failures are real rot, not cross-suite interference
+(`teaching-load-reconciliation.test.ts` fails **alone** against a fresh DB:
+`TypeError: Cannot read properties of undefined (reading 'facultyId')` at `:1032`). Follow-up
+`TEST-GATE-COVERAGE-C01R`: characterise the prerequisites and/or run each file against its **own**
+fresh database, then fix or retire the failures. No product source changed.
+
 **Integrated: `TEST-GATE-COVERAGE-C01` (client half)** (`1ce9f4ad`, 2026-09-22) — LOW, planner-reviewed,
 **no release needed** (test-only + a `package.json` script entry; the live release stays `d4c9f391`).
 Adds `test:client-suite` naming all **92** client test files (was 37) and an **inverse** reachability
