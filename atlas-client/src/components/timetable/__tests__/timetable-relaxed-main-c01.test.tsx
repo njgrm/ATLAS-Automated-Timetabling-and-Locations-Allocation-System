@@ -178,7 +178,7 @@ test('A1 control: an unknown or ambiguous active-term identity is never treated 
 	assert.equal(isVerifiedOrderedActiveTerm({ verified: false, termIndex: 2, orderedTerms: ORDERED_TERMS }), false, 'unverified is unresolved');
 	assert.equal(isVerifiedOrderedActiveTerm({ verified: true, termIndex: null, orderedTerms: ORDERED_TERMS }), false, 'a missing index is unresolved');
 	assert.equal(isVerifiedOrderedActiveTerm({ verified: true, termIndex: 4, orderedTerms: ORDERED_TERMS }), false, 'an index outside the ordered contract is unresolved');
-	assert.equal(isVerifiedOrderedActiveTerm({ verified: true, termIndex: 2, orderedTerms: null }), false, 'no ordered contract is unresolved');
+	assert.equal(isVerifiedOrderedActiveTerm({ verified: true, termIndex: 2 }), false, 'no ordered contract is unresolved');
 	assert.equal(isVerifiedOrderedActiveTerm({ verified: true, termIndex: 2.5, orderedTerms: ORDERED_TERMS }), false, 'a non-integer index is unresolved');
 	assert.equal(isVerifiedOrderedActiveTerm({ verified: true, termIndex: 0, orderedTerms: [{ identity: 'T0', displayLabel: 'TERM 0', order: 0 }] }), false, 'a non-positive index is unresolved');
 	// The verified, in-contract shape is the only one that authorizes.
@@ -341,9 +341,14 @@ test('A3: the header renders one status region and one action row, and the NEXT 
 	});
 	assert.equal((markup.match(/data-testid="timetable-simple-status-region"/g) ?? []).length, 1, 'exactly one status region');
 	// A3 — one primary action; the NEXT STEP names that same action.
-	const primaryLabel = markup.match(/data-testid="timetable-simple-primary-action"[\s\S]{0,400}?<span>([^<]*)<\/span>/)?.[1];
-	assert.ok(primaryLabel, 'the lifecycle primary renders in the issue state');
+	// A3 — one primary action; the NEXT STEP names that same action. The primary
+	// control renders either a bare label (link variant) or a `<span>` label, so
+	// read the text that follows its leading icon.
+	const primaryIdx = markup.indexOf('timetable-simple-primary-action');
+	assert.ok(primaryIdx >= 0, 'the lifecycle primary renders in the issue state');
+	const primaryLabel = markup.slice(primaryIdx).match(/<\/svg>(?:<span>)?([^<]*)/)?.[1];
 	const nextStep = markup.match(/data-testid="timetable-simple-next-action"[^>]*>Next step: <span[^>]*>([^<]*)<\/span>/)?.[1];
+	assert.ok(primaryLabel, 'the primary control carries a visible label');
 	assert.equal(nextStep, primaryLabel, 'the NEXT STEP names the same action as the primary');
 	assert.equal((markup.match(/data-testid="timetable-simple-primary-action"/g) ?? []).length, 1, 'exactly one primary action control');
 	// A3 — the setup repairs are relocated to the setup sub-page, not the header.

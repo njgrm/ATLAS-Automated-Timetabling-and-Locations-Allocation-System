@@ -29,18 +29,20 @@ function timetableRouteBlock(): string {
 
 // --- Row 1: the four routes render the same mounted shell with their own view ---
 
-test('UX-R03b row 1: the four remaining center views are element-less nested children', () => {
+test('UX-R03b row 1: the four remaining center views are null-element nested children', () => {
 	const block = timetableRouteBlock();
 	assert.match(block, /element: <ScheduleReview \/>/);
 	for (const child of ['pre-generation', 'map', 'manual-edit', 'building']) {
-		assert.match(block, new RegExp(`\\{ path: '${child}' \\}`), `nested child '${child}' must exist`);
-		assert.doesNotMatch(block, new RegExp(`path: '${child}', element:`), `child '${child}' must render nothing (shell stays mounted)`);
+		assert.match(block, new RegExp(`\\{ path: '${child}', element: null \\}`), `nested child '${child}' must exist`);
 	}
 	// The R03a contract is intact: index + policies keep working as before.
-	assert.match(block, /\{ index: true \}/);
-	assert.match(block, /\{ path: 'policies' \}/);
-	assert.doesNotMatch(block, /\{ index: true, element:/);
-	assert.doesNotMatch(block, /path: 'policies', element:/);
+	// Every child renders an explicit `null` element (nothing into the Outlet),
+	// so the mounted shell is never replaced; the explicit null also clears the
+	// router's element-less leaf warning for the nine /timetable* routes.
+	assert.match(block, /\{ index: true, element: null \}/);
+	assert.match(block, /\{ path: 'policies', element: null \}/);
+	assert.doesNotMatch(block, /\{ index: true \},/);
+	assert.doesNotMatch(block, /path: 'policies' \},/);
 	assert.match(block, /\{ path: '\*', element: <Navigate to="\/timetable" replace \/> \}/);
 });
 
@@ -207,7 +209,7 @@ test('UX-R03b row 5: child navigations cannot unmount the shell or issue data re
 
 test('UX-R03b row 6: the timetable map has its route and the standalone editor is untouched', () => {
 	const block = timetableRouteBlock();
-	assert.match(block, /\{ path: 'map' \}/);
+	assert.match(block, /\{ path: 'map', element: null \}/);
 	const app = source('src/App.tsx');
 	// The standalone campus editor page stays where it is: same import, same route.
 	assert.match(app, /const MapEditor = lazy\(\(\) => import\('\.\/pages\/MapEditor'\)\);/);
