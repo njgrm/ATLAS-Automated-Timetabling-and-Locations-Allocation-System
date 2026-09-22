@@ -45,6 +45,8 @@ import {
 } from '../services/teaching-load-suggestion-proposal.service.js';
 import { buildDerivedDemand } from '../services/derived-demand.service.js';
 
+import { dropDisposableDatabaseWithRetry } from './helpers/drop-disposable-database.js';
+
 const now = new Date('2026-09-13T00:00:00.000Z');
 const SCHOOL = 1;
 const YEAR = 9;
@@ -1434,12 +1436,8 @@ async function testDisposablePostgresApply(): Promise<void> {
 	} finally {
 		if (prisma) { try { await prisma.$disconnect(); } catch { /* ignore */ } }
 		if (disposableCreated) {
-			try {
-				psql(['-h', source.hostname, '-p', source.port || '5432', '-U', decodeURIComponent(source.username), '-d', 'postgres', '-tAc', `DROP DATABASE ${disposableName} WITH (FORCE)`], adminEnv);
-				check(true, 'disposable database dropped with zero residue');
-			} catch (error) {
-				check(false, `disposable database cleanup failed: ${String(error)}`);
-			}
+			const dropped = await dropDisposableDatabaseWithRetry({ source, adminEnv, name: disposableName });
+			check(dropped, 'disposable database dropped with zero residue');
 		}
 	}
 }

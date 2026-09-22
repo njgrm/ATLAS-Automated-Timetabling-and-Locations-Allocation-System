@@ -22,6 +22,8 @@ import { randomBytes } from 'node:crypto';
 import express from 'express';
 import jwt from 'jsonwebtoken';
 
+import { dropDisposableDatabaseWithRetry } from './helpers/drop-disposable-database.js';
+
 const WORKDIR = process.cwd();
 const PSQL = 'D:/PostgreSQL/18/bin/psql.exe';
 
@@ -181,7 +183,7 @@ test('C2. mounted readiness diagnostic is zero-write against a disposable Postgr
 		if (server) await new Promise<void>((resolve) => server!.close(() => resolve()));
 		if (prisma) await prisma.$disconnect().catch(() => undefined);
 		if (disposableCreated) {
-			try { psql(['-h', source.hostname, '-p', source.port || '5432', '-U', decodeURIComponent(source.username), '-d', 'postgres', '-tAc', `DROP DATABASE ${disposableName} WITH (FORCE)`], adminEnv); } catch { /* best effort */ }
+			await dropDisposableDatabaseWithRetry({ source, adminEnv, name: disposableName });
 			assert.equal(psql(['-h', source.hostname, '-p', source.port || '5432', '-U', decodeURIComponent(source.username), '-d', 'postgres', '-tAc', `SELECT count(*) FROM pg_database WHERE datname = '${disposableName}'`], adminEnv), '0', 'the disposable database must be dropped (zero residue)');
 		}
 	}

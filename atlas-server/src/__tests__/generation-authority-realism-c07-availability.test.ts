@@ -27,6 +27,8 @@ import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { randomBytes } from 'node:crypto';
 
+import { dropDisposableDatabaseWithRetry } from './helpers/drop-disposable-database.js';
+
 const WORKDIR = process.cwd();
 const PSQL = 'D:/PostgreSQL/18/bin/psql.exe';
 
@@ -146,11 +148,7 @@ test('C07-S11. the availability freshness domain binds real faculty_preferences/
 			try { await prisma.$disconnect(); } catch { /* ignore */ }
 		}
 		if (disposableCreated) {
-			try {
-				psql(['-h', source.hostname, '-p', source.port || '5432', '-U', decodeURIComponent(source.username), '-d', 'postgres', '-tAc', `DROP DATABASE ${disposableName} WITH (FORCE)`], adminEnv);
-			} catch (error) {
-				throw new Error(`C07-S11 cleanup failed for ${disposableName}: ${String(error)}`);
-			}
+			await dropDisposableDatabaseWithRetry({ source, adminEnv, name: disposableName });
 			const residue = psql(['-h', source.hostname, '-p', source.port || '5432', '-U', decodeURIComponent(source.username), '-d', 'postgres', '-tAc', `SELECT count(*) FROM pg_database WHERE datname = '${disposableName}'`], adminEnv);
 			assert.equal(residue, '0', 'the disposable database must leave zero residue');
 		}

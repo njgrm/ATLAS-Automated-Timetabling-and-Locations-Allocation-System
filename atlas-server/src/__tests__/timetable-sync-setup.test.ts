@@ -42,6 +42,8 @@ import jwt from 'jsonwebtoken';
 
 import { assertResolvedPerTermParity } from '../services/per-term-schedule-resolution.service.js';
 
+import { dropDisposableDatabaseWithRetry } from './helpers/drop-disposable-database.js';
+
 const WORKDIR = process.cwd();
 const PSQL = 'D:/PostgreSQL/18/bin/psql.exe';
 const JWT_SECRET = 'tt-sync-term-c03r4-disposable-proof-secret';
@@ -462,7 +464,7 @@ after(async () => {
 	if (appServer) await new Promise<void>((resolve) => appServer!.close(() => resolve()));
 	if (prisma) await prisma.$disconnect();
 	if (disposableCreated) {
-		try { psql(['-h', source.hostname, '-p', source.port || '5432', '-U', decodeURIComponent(source.username), '-d', 'postgres', '-tAc', `DROP DATABASE ${disposableName} WITH (FORCE)`], adminEnv); } catch { /* best effort */ }
+		await dropDisposableDatabaseWithRetry({ source, adminEnv, name: disposableName });
 		assert.equal(
 			psql(['-h', source.hostname, '-p', source.port || '5432', '-U', decodeURIComponent(source.username), '-d', 'postgres', '-tAc', `SELECT count(*) FROM pg_database WHERE datname = '${disposableName}'`], adminEnv),
 			'0',

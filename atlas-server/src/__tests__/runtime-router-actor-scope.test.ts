@@ -25,6 +25,8 @@ import { randomBytes } from 'node:crypto';
 import express from 'express';
 import jwt from 'jsonwebtoken';
 
+import { dropDisposableDatabaseWithRetry } from './helpers/drop-disposable-database.js';
+
 const WORKDIR = process.cwd();
 const PSQL = 'D:/PostgreSQL/18/bin/psql.exe';
 const JWT_SECRET = 'actor-scope-c01-disposable-proof-secret';
@@ -137,7 +139,7 @@ test('runtime read routes accept valid same-school scope (disposable PostgreSQL)
 		if (appServer) await new Promise<void>((resolve) => appServer!.close(() => resolve()));
 		if (enrollProServer) await new Promise<void>((resolve) => enrollProServer!.close(() => resolve()));
 		if (disposableCreated) {
-			try { psql(['-h', source.hostname, '-p', source.port || '5432', '-U', decodeURIComponent(source.username), '-d', 'postgres', '-tAc', `DROP DATABASE ${disposableName} WITH (FORCE)`]); } catch { /* best effort */ }
+			await dropDisposableDatabaseWithRetry({ source, adminEnv, name: disposableName });
 			assert.equal(psql(['-h', source.hostname, '-p', source.port || '5432', '-U', decodeURIComponent(source.username), '-d', 'postgres', '-tAc', `SELECT count(*) FROM pg_database WHERE datname = '${disposableName}'`]), '0', 'disposable database dropped (zero residue)');
 		}
 	}
