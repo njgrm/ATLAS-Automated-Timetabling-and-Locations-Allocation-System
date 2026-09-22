@@ -42,6 +42,16 @@ const lazyRouteLoaders: Record<string, () => Promise<unknown>> = {
 
 const prefetchedRoutePaths = new Set<string>();
 
+export function resolveVerifiedActiveTermIndex(
+	activeTerm: Awaited<ReturnType<typeof resolveActiveSchoolYearContext>>['activeTerm'] | null | undefined,
+): number | null {
+	return activeTerm?.verified === true
+		&& activeTerm.termIndex != null
+		&& activeTerm.orderedTerms?.some((term) => term.order === activeTerm.termIndex)
+		? activeTerm.termIndex
+		: null;
+}
+
 /** Prefetch the route-level chunk for a known navigation path. */
 export function prefetchLazyRouteChunk(path: string): void {
 	if (prefetchedRoutePaths.has(path)) return;
@@ -69,7 +79,10 @@ export function prefetchTimetableRoute(): void {
 
 /** Prefetch the school/year-scoped reads for an already-resolved scope. */
 export function prefetchTimetableScopeData(scope: TimetableScope, runId?: string | number): void {
-	if (!isResolvedTimetableScope(scope)) return;
+	// Prefetch must never invent an all-term scope. The mounted route may opt
+	// into All terms after authority resolves, but hover/focus prefetch always
+	// warms the verified active numeric term only.
+	if (!isResolvedTimetableScope(scope) || typeof scope.termIndex !== 'number') return;
 	const resolved = { ...scope, runId: runId ?? scope.runId ?? 'latest' };
 	void timetableQueryClient.prefetchQuery({
 		queryKey: timetableRunsQueryKey(resolved),
@@ -102,13 +115,9 @@ export function prefetchTimetableScopeData(scope: TimetableScope, runId?: string
 export function prefetchTimetableEntryPoint(): void {
 	prefetchTimetableRoute();
 	const warmScope = readTimetableWarmScope();
-	if (warmScope) {
-		prefetchTimetableScopeData(warmScope);
-		return;
-	}
 	void (async () => {
 		try {
-			const schoolId = await resolveActorSchoolId();
+			const schoolId = warmScope?.schoolId ?? await resolveActorSchoolId();
 			if (!schoolId) return;
 			const context = await resolveActiveSchoolYearContext({
 				schoolId,
@@ -117,12 +126,13 @@ export function prefetchTimetableEntryPoint(): void {
 				allowStaleOnError: true,
 				allowEnrollProFallback: false,
 			});
-			if (!context.activeSchoolYearId) return;
+			const verifiedActiveTerm = resolveVerifiedActiveTermIndex(context.activeTerm);
+			if (!context.activeSchoolYearId || verifiedActiveTerm == null) return;
 			prefetchTimetableScopeData({
 				schoolId,
 				schoolYearId: context.activeSchoolYearId,
 				runId: 'latest',
-				termIndex: 'all',
+				termIndex: verifiedActiveTerm,
 			});
 		} catch {
 			// Prefetch is best-effort and must never surface an error to the user.

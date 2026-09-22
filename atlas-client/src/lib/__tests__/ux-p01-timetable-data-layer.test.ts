@@ -36,7 +36,7 @@ import {
 	resetTimetableWarmScope,
 } from '@/lib/timetable-data/timetableServerState';
 import { runTimetableLoad, type TimetableLoadPorts } from '@/lib/timetable-data/timetableLoadOrchestration';
-import { prefetchNavDestination, prefetchTimetableScopeData } from '@/lib/timetable-data/timetablePrefetch';
+import { prefetchNavDestination, prefetchTimetableScopeData, resolveVerifiedActiveTermIndex } from '@/lib/timetable-data/timetablePrefetch';
 
 // ─── storage shim (actor token epoch lives in session storage) ───
 
@@ -287,13 +287,29 @@ test('R1: unresolved actor scope dispatches nothing (zero-dispatch authority con
 test('R3: prefetch warms the scoped query cache and nav routing is safe', async () => {
 	await withMockedApi(async () => {
 		timetableQueryClient.clear();
-		prefetchTimetableScopeData(scopeA);
+		const verifiedScope = { ...scopeA, termIndex: 2 as const };
+		prefetchTimetableScopeData(verifiedScope);
 		await new Promise((resolve) => setTimeout(resolve, 10));
-		assert.ok(timetableQueryClient.getQueryData(timetableRunsQueryKey(scopeA)), 'runs prefetch populated the cache');
-		assert.ok(timetableQueryClient.getQueryData(timetableRunBundleBaseQueryKey(scopeA)), 'run bundle prefetch populated the cache');
+		assert.ok(timetableQueryClient.getQueryData(timetableRunsQueryKey(verifiedScope)), 'runs prefetch populated the cache');
+		assert.ok(timetableQueryClient.getQueryData(timetableRunBundleBaseQueryKey(verifiedScope)), 'run bundle prefetch populated the cache');
 		prefetchNavDestination('/timetable');
 		prefetchNavDestination('/subjects');
 		prefetchNavDestination('/unknown-route');
+	});
+});
+
+test('R3 authority gate: prefetch rejects all-terms and unresolved active-term scopes', async () => {
+	assert.equal(resolveVerifiedActiveTermIndex(null), null);
+	assert.equal(resolveVerifiedActiveTermIndex({ verified: false, termIndex: 2, orderedTerms: [{ identity: 'T2', displayLabel: 'Term 2', order: 2 }] } as any), null);
+	assert.equal(resolveVerifiedActiveTermIndex({ verified: true, termIndex: 2, orderedTerms: [{ identity: 'T1', displayLabel: 'Term 1', order: 1 }] } as any), null);
+	assert.equal(resolveVerifiedActiveTermIndex({ verified: true, termIndex: 2, orderedTerms: [{ identity: 'T2', displayLabel: 'Term 2', order: 2 }] } as any), 2);
+
+	await withMockedApi(async (calls) => {
+		timetableQueryClient.clear();
+		prefetchTimetableScopeData({ ...scopeA, termIndex: 'all' });
+		await new Promise((resolve) => setTimeout(resolve, 10));
+		assert.equal(calls.length, 0, 'unscoped All terms prefetch must dispatch nothing');
+		assert.equal(timetableQueryClient.getQueryData(timetableRunsQueryKey({ ...scopeA, termIndex: 'all' })), undefined);
 	});
 });
 
