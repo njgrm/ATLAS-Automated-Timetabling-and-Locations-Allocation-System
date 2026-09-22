@@ -12,6 +12,30 @@ Last updated: 2026-09-22 (Lane A).
 
 ## Verdict
 
+**OPEN ITEMS HANDED FORWARD (2026-09-22 late) — read before picking work.**
+- **SMART teacher-side direction is DECIDED but BLOCKED on the system adviser.** SMART owns **submission
+  only**; the **scheduler decides on the ATLAS admin side**. ATLAS's teacher-facing pages
+  (`/my/preferences`, `/my/room-preferences`) are to be **retired**. **Do not start the retirement or
+  `TEACHER-INPUT-SIMPLE-SURFACE-C01` until the adviser confirms.** Update
+  `docs/handoffs/smart-teacher-preferences-and-room-requests-2026-09-22.md` §5 to record "(a)
+  submission only" when confirming with them.
+- **Freshness concern — ANSWERED, and it is by design, not a bug.** The teacher/section pages showing
+  *"Working from saved data"* while EnrollPro is up is **honest**: the EnrollPro→ATLAS rollover/term
+  sync is **deliberately disabled** by the runtime contract's invariant env —
+  `ops/runtime/runtime-contract.json` sets `"invariants": { "ROLLOVER_AUTO_SYNC_ENABLED": "false" }`,
+  and `cli.mjs` injects it into every supervised child (`resolveInvariantEnv`). The live server log
+  confirms it: `[rollover-automation] Disabled via ROLLOVER_AUTO_SYNC_ENABLED=false`. So ATLAS's
+  EnrollPro-derived data is a **snapshot**, refreshed only when someone syncs manually — and the UI
+  correctly says so. **This is the same cause as the manual-fetch concern:** the fetch IS manual, by
+  design, and Teaching Load can be computed from a stale mirror.
+  **Do not "fix" this by deleting the invariant without a decision** — it exists so a supervised
+  production deploy never auto-mutates rollover/term-cache data. The real choices are: (a) accept manual
+  sync and make the UI distinguish *persisted-but-current* from *stale*; (b) add a bounded, auditable
+  scheduled sync with an explicit approval; or (c) leave as is. **Surface this to the operator as a
+  product decision, not as a defect.**
+- **Related, still theirs:** the EnrollPro active-term mismatch (their UI says TERM 1, their integration
+  endpoint says T2, ATLAS correctly mirrors the endpoint).
+
 **LATE 2026-09-22 — live incident fixed, both SSO directions working, and two new third-party handoffs.**
 Read this block first; the sections below are still accurate but predate it.
 - **Timetable outage (fixed).** `5a333c74` shipped an **un-satisfiable** term gate (`5a0a8788`) — the
