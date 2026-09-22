@@ -122,3 +122,27 @@ export function timetableRunBundleQueryKey(scope: TimetableScope): Array<string 
 export function timetableFollowUpsQueryKey(scope: TimetableScope): Array<string | number> {
 	return [...baseScopeKey(scope), 'run', scopeRunPart(scope.runId), 'follow-ups'];
 }
+
+/**
+ * C2 (TIMETABLE-RELAXED-MAIN-C01) — the sub-page pane's policy reads.
+ *
+ * These payloads are school/year-scoped and run/term-invariant, but the key
+ * embeds {@link buildTimetableScopeKey}, so the complete four-part identity
+ * (school, year, run, term) is carried and any scope change invalidates. An
+ * unresolved scope never derives a key: the loader fails closed first.
+ */
+function policyAuxiliaryQueryKey(scope: TimetableScope, endpoint: string): Array<string | number> {
+	return [TIMETABLE_QUERY_ROOT, 'policy', endpoint, buildTimetableScopeKey(scope)];
+}
+
+export function timetableGradeWindowsQueryKey(scope: TimetableScope): Array<string | number> {
+	return policyAuxiliaryQueryKey(scope, 'grade-windows');
+}
+
+export function timetableSectionsSummaryQueryKey(scope: TimetableScope): Array<string | number> {
+	return policyAuxiliaryQueryKey(scope, 'sections-summary');
+}
+
+export function timetablePolicySpecialEventsQueryKey(scope: TimetableScope): Array<string | number> {
+	return policyAuxiliaryQueryKey(scope, 'special-events');
+}

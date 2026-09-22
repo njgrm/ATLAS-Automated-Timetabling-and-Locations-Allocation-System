@@ -16,6 +16,8 @@ import type {
 	ExternalSection,
 	FacultyMirror,
 	GenerationRun,
+	GradeShiftWindow,
+	PolicySpecialEvent,
 	RoomPreferenceDecisionStatus,
 	RoomPreferenceStatus,
 	RoomPreferenceSummaryResponse,
@@ -136,4 +138,40 @@ export async function fetchTimetableReferenceData(
 		sections: sectionsRes.data.sections,
 		sectionSummary: sectionsRes.data as SectionSummaryResponse,
 	};
+}
+
+// ─── C2 (TIMETABLE-RELAXED-MAIN-C01) — sub-page pane policy reads ─────────────
+// These three reads were issued directly by `SchedulingPolicyPane` on every
+// mount. They are school/year-scoped and run/term-invariant, so they belong in
+// the shared scoped query cache: a revisit (or a sibling consumer) now hits the
+// cache instead of re-issuing HTTP. Transport shape is unchanged.
+
+export async function fetchTimetableGradeWindows(
+	schoolId: number,
+	schoolYearId: number,
+): Promise<{ windows: GradeShiftWindow[] }> {
+	const { data } = await atlasApi.get<{ windows: GradeShiftWindow[] }>(
+		`/generation/${schoolId}/${schoolYearId}/grade-windows`,
+	);
+	return data;
+}
+
+export async function fetchTimetableSectionsSummary(
+	schoolId: number,
+	schoolYearId: number,
+): Promise<SectionSummaryResponse> {
+	const { data } = await atlasApi.get<SectionSummaryResponse>(
+		`/sections/summary/${schoolYearId}?schoolId=${schoolId}`,
+	);
+	return data;
+}
+
+export async function fetchTimetablePolicySpecialEvents(
+	schoolId: number,
+	schoolYearId: number,
+): Promise<{ events: PolicySpecialEvent[] }> {
+	const { data } = await atlasApi.get<{ events: PolicySpecialEvent[] }>(
+		`/policies/special-events/${schoolId}/${schoolYearId}`,
+	);
+	return data;
 }

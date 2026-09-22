@@ -52,6 +52,7 @@ import {
 	WarningFamilyFields,
 } from '@/components/scheduling-policy/PolicyPanePrimitives';
 import { isPublicationBlockingCode } from '@/components/timetable/simplePublishReadiness';
+import { ensureTimetablePolicyAuxiliary } from '@/lib/timetable-data/timetableServerState';
 import { Badge } from '@/ui/badge';
 
 /* G��G��G�� Types G��G��G�� */
@@ -241,6 +242,8 @@ function deepEqual(a: unknown, b: unknown) {
 export default function SchedulingPolicyPane({
 	schoolId,
 	schoolYearId,
+	scopeRunId,
+	scopeTermIndex,
 	onBack,
 	onPolicySaved,
 	policyRecord,
@@ -249,6 +252,10 @@ export default function SchedulingPolicyPane({
 }: {
 	schoolId: number;
 	schoolYearId: number | null;
+	/** C2 — the workspace's selected run identity; part of the scoped cache key. */
+	scopeRunId?: string | number | null;
+	/** C2 — the workspace's selected ordered-term identity; part of the scoped cache key. */
+	scopeTermIndex?: 'all' | number;
 	onBack: () => void;
 	onPolicySaved?: () => void;
 	policyRecord?: SchedulingPolicy | null;
@@ -284,26 +291,29 @@ export default function SchedulingPolicyPane({
 	}, [persisted, local, persistedShiftWindows, shiftWindows]);
 
 	// UX-R03c — the workspace owns the policy GET; the pane keeps its grade-windows / section-summary / special-events reads only.
+	// C2 (TIMETABLE-RELAXED-MAIN-C01) — those three reads resolve through the shared scoped cache, so an
+	// index → sub-page → index revisit repeats no endpoint already resolved for the same scope.
 	const fetchAuxiliary = useCallback(async () => {
 		if (!schoolYearId) return;
 		setLoading(true);
 		try {
-			const [windowsRes, summaryRes, specialEventsRes] = await Promise.all([
-				atlasApi.get<{ windows: GradeShiftWindow[] }>(`/generation/${schoolId}/${schoolYearId}/grade-windows`, { timeout: 8_000 }).catch(() => null),
-				atlasApi.get<SectionSummaryResponse>(`/sections/summary/${schoolYearId}?schoolId=${schoolId}`, { timeout: 8_000 }).catch(() => null),
-				atlasApi.get<{ events: PolicySpecialEvent[] }>(`/policies/special-events/${schoolId}/${schoolYearId}`, { timeout: 8_000 }).catch(() => null),
-			]);
-			const localWindows = toLocalGradeWindows(windowsRes?.data.windows ?? []);
+			const auxiliary = await ensureTimetablePolicyAuxiliary({
+				schoolId,
+				schoolYearId,
+				runId: scopeRunId ?? null,
+				termIndex: scopeTermIndex ?? 'all',
+			});
+			const localWindows = toLocalGradeWindows(auxiliary.gradeWindows);
 			setPersistedShiftWindows(localWindows);
 			setShiftWindows(localWindows);
-			setSpecialEvents(specialEventsRes?.data.events ?? []);
-			setPersistedSpecialEvents(specialEventsRes?.data.events ?? []);
-			setProgramOptions(toProgramOptionsFromSections(summaryRes?.data ?? null));
-			setProgramContextNote(buildProgramContextNote(summaryRes?.data ?? null));
+			setSpecialEvents(auxiliary.specialEvents);
+			setPersistedSpecialEvents(auxiliary.specialEvents);
+			setProgramOptions(toProgramOptionsFromSections(auxiliary.sectionsSummary));
+			setProgramContextNote(buildProgramContextNote(auxiliary.sectionsSummary));
 		} finally {
 			setLoading(false);
 		}
-	}, [schoolId, schoolYearId]);
+	}, [schoolId, schoolYearId, scopeRunId, scopeTermIndex]);
 
 	useEffect(() => {
 		void fetchAuxiliary();

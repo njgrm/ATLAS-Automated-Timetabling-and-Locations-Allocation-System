@@ -453,6 +453,8 @@ export const CenterWorkspace = memo(function CenterWorkspace(props: CenterWorksp
 							<SchedulingPolicyPane
 								schoolId={defaultSchoolId}
 								schoolYearId={schoolYearId}
+								scopeRunId={draft?.runId ?? null}
+								scopeTermIndex={termFilter}
 								onBack={exitPolicyView}
 								onPolicySaved={handleRefresh}
 								policyRecord={policyRecord}
