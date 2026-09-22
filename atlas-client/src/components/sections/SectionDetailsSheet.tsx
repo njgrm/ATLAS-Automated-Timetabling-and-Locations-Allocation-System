@@ -202,7 +202,7 @@ export function SectionDetailsSheet({
 											Building context
 										</div>
 										<p className="mt-1 text-sm font-bold text-slate-900">{homeRoom?.buildingName ?? 'No building selected'}</p>
-										<p className="text-xs font-medium text-slate-500">{section?.buildingZoneId ? `Zone ${section.buildingZoneId}` : 'Building is based on the selected home room.'}</p>
+										<p className="text-xs font-medium text-slate-500">{section?.buildingZoneId ? `Campus zone ${section.buildingZoneId}` : 'Building is based on the selected home room.'}</p>
 									</div>
 								</div>
 							</div>

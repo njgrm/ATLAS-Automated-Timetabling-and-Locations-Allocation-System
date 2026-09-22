@@ -513,7 +513,7 @@ function GeneratedResourceDiagnostics({ summary }: { summary: GeneratedSummary }
 			)}
 			{summary.resourceDiagnostics.zoneDistributionByTerm?.[0] && (
 				<div className="space-y-1">
-					<div className="font-medium">Zone distribution (Term {summary.resourceDiagnostics.zoneDistributionByTerm[0].termIndex})</div>
+					<div className="font-medium">Campus zone distribution (Term {summary.resourceDiagnostics.zoneDistributionByTerm[0].termIndex})</div>
 					{Object.entries(summary.resourceDiagnostics.zoneDistributionByTerm[0].byZone).slice(0, 3).map(([zone, data]) => (
 						<div key={`zone-${zone}`} className="flex items-center justify-between text-muted-foreground">
 							<span>{zone}</span>
