@@ -26,6 +26,7 @@
     "test:warning-readability": "tsx src/__tests__/warning-readability-c01.test.ts",
     "test:section-route-authority": "tsx src/__tests__/section-route-authority-c01.test.ts",
     "test:section-route-authority-c02": "tsx src/__tests__/section-route-authority-c02.test.ts",
+    "test:companion-sso": "tsx --test src/__tests__/companion-sso-http.test.ts",
     "diag:faculty-assignment-baseline": "tsx src/scripts/diagnose-faculty-assignment-baseline.ts",
     "repair:faculty-assignments": "tsx src/scripts/repair-faculty-assignment-conflicts.ts",
     "repair:faculty-assignments:apply": "tsx src/scripts/repair-faculty-assignment-conflicts.ts --apply",

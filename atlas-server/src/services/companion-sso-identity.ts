@@ -3,13 +3,19 @@
  * identity assertion produced by `POST /api/v1/auth/sso/exchange`.
  *
  * EnrollPro's `companionSsoReverseExchangeResponseSchema`
- * (`shared/src/schemas/companion-sso.schema.ts:63-80` at `5887d685`) requires:
+ * (`shared/src/schemas/companion-sso.schema.ts:62-76` at `7b6231ee`) requires:
  *   - `identity.roles` to be a non-empty array drawn from `RoleEnum`
  *     (`shared/src/constants/index.ts:4-11`), and
- *   - `identity.firstName` / `identity.lastName` to be non-empty strings that
- *     uppercase/whitespace-normalize to the linked EnrollPro user in
- *     `assertIdentityMatchesUser`
- *     (`server/src/features/auth/companion-sso-reverse.service.ts:373-389`).
+ *   - `identity.firstName` / `identity.lastName`, WHEN PRESENT, to be
+ *     non-empty strings (`z.string().min(1).optional()`): a present-but-empty
+ *     name fails validation, so empty names must be OMITTED, not sent as `""`.
+ *
+ * EnrollPro never compares the asserted name: `assertUserCanEnterEnrollPro`
+ * (`server/src/features/auth/companion-sso-reverse.service.ts:411-419`)
+ * checks only `isActive`, and `resolveUserById` (`:421-434`) prefers `userId`
+ * then falls back to `employeeId`. The reverse assertion therefore sends
+ * `subject` + `employeeId` (never a local numeric `userId`) and omits empty
+ * names; `employeeId` is the reconciliation key the producer fails closed on.
  *
  * Local `atlas_auth_accounts.role` values are stored lowercase (`officer`,
  * `faculty`, `admin`, plus the legacy uppercase `SYSTEM_ADMIN`), so the raw
@@ -65,10 +71,10 @@ export type ReverseSsoNameParts = { firstName: string; lastName: string };
  *   2. otherwise a persisted `accountName` split on whitespace (first token →
  *      `firstName`, remaining tokens joined by one space → `lastName`), when
  *      both resulting parts are non-empty;
- *   3. otherwise `null` — a typed failure the producer surfaces as a 403.
+ *   3. otherwise `null` — the producer OMITS both name keys (never `""`, never
+ *      fabricated) so EnrollPro's `min(1).optional()` schema stays satisfiable.
  *
- * It never fabricates a name and never returns an empty string, so EnrollPro's
- * `min(1)` schema and its linked-user name comparison are always satisfiable.
+ * It never fabricates a name and never returns an empty string.
  */
 export function resolveReverseSsoNameParts(input: {
 	faculty: { firstName: string | null; lastName: string | null } | null;
