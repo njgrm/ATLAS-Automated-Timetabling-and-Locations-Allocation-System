@@ -371,6 +371,23 @@ in-flight Lane B stream is discoverable, so their server file boundary (`atlas-s
 currently unowned; Lane A took it for `ZONE-IMBALANCE-PRECONDITION-C01` on the operator's direction
 and recorded the transfer.
 
+**FIXED 2026-09-22 (EnrollPro → ATLAS SSO now works): the outbound exchange URL was missing `/api`.**
+EnrollPro corrected their callback config and reported the remaining failure as ATLAS-side: codes 165/166
+were created but **never consumed**, with no exchange attempt recorded. Root cause proved: ATLAS builds
+its exchange URL from `ENROLLPRO_BASE_URL` (`https://dev-jegs.buru-degree.ts.net/`, no `/api`) plus
+`/auth/companion-sso/<companion>/exchange`, and `ENROLLPRO_SSO_EXCHANGE_URL` was unset — so the callback
+POSTed to `…/auth/companion-sso/atlas/exchange` (**404**) instead of the canonical
+`…/api/auth/companion-sso/atlas/exchange` (**400** for a bad code — route exists). The code was therefore
+never exchanged, and the callback redirected to the SPA with a typed error. **Fix:** set the machine-scope
+override `ENROLLPRO_SSO_EXCHANGE_URL=https://dev-jegs.buru-degree.ts.net/api/auth/companion-sso/atlas/exchange`
+and restart the supervisor. The runtime env file `D:\ATLAS-runtime-config\atlas-server.env` is **ACL
+read-only for everyone including Administrators**, so the key was set at machine scope instead of editing
+the locked file — and because the key is absent from that file, nothing overrides it. **Verified end to
+end** (authenticated, via the SSO): clicking ATLAS in EnrollPro's Integrated Systems now lands on an
+authenticated ATLAS session with **no** "expired or already used" error and no second login form; ATLAS
+`audit_logs` records `886` login, `887` reverse-SSO code consumed, **`888 COMPANION_SSO_SESSION_CREATED`**
+(the previously-broken direction). **Reversible:** remove the machine-scope variable and restart.
+
 **FINDING 2026-09-22 (EnrollPro-side, not ATLAS): the active term ATLAS shows is what EnrollPro's own
 integration endpoint publishes.** The operator reported ATLAS stuck on Term 2 while EnrollPro shows
 Term 1. Verified: `GET {ENROLLPRO_API}/integration/v1/active-term` returns
