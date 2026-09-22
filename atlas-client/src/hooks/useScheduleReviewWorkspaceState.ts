@@ -547,7 +547,16 @@ export function useScheduleReviewWorkspaceState() {
 	// the timetable data. Missing scope leaves the page in its bounded error state.
 	// UX-R03c — this effect is the single owner of the scheduling-policy GET.
 	useEffect(() => {
-		if (!schoolId || !schoolYearId) { setPolicy(null); setPolicyRecord(null); return; }
+		const hasVerifiedTermAuthority = Boolean(
+			schoolYearContext?.activeTerm?.verified === true
+			&& schoolYearContext.activeTerm.termIndex != null,
+		);
+		if (!schoolId || !schoolYearId || !hasVerifiedTermAuthority) {
+			setPolicy(null);
+			setPolicyRecord(null);
+			setGradeWindows([]);
+			return;
+		}
 		// A-16: clear the previous scope's policy before refetch so a failed read
 		// can never leave stale or permissive policy across school/year changes.
 		// UX-R03c: the workspace-owned full record clears with the narrow value.
@@ -574,7 +583,7 @@ export function useScheduleReviewWorkspaceState() {
 			}
 		};
 		void fetchPolicyAndWindows();
-	}, [schoolId, schoolYearId, policyRefreshToken]);
+	}, [policyRefreshToken, schoolId, schoolYearContext?.activeTerm?.termIndex, schoolYearContext?.activeTerm?.verified, schoolYearId]);
 
 	useEffect(() => {
 		if (!isPreGenerationWorkspace || !schoolYearId || roomMap.size > 0) return;

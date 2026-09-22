@@ -98,7 +98,7 @@ function json(route: Route, body: unknown, status = 200): Promise<void> {
 	return route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
 }
 
-async function installLocalApi(page: Page, runtimeReady: Promise<void>, releaseRuntime: () => void, records: RequestRecord[], mutations: RequestRecord[]): Promise<void> {
+async function installLocalApi(page: Page, runtimeReady: Promise<void>, releaseRuntime: () => void, records: RequestRecord[], mutations: RequestRecord[], term: typeof activeTerm | null = activeTerm): Promise<void> {
 	await page.addInitScript(() => {
 		window.sessionStorage.setItem('atlas_local_token', 'qa-local-token');
 		window.localStorage.removeItem('atlas:active-school-year-context:v3:7');
@@ -125,7 +125,7 @@ async function installLocalApi(page: Page, runtimeReady: Promise<void>, releaseR
 		}
 		if (url.pathname === '/api/v1/runtime/context') {
 			await runtimeReady;
-			await json(route, runtimeContext(activeTerm));
+			await json(route, runtimeContext(term));
 			releaseRuntime();
 			return;
 		}
@@ -175,6 +175,18 @@ async function installLocalApi(page: Page, runtimeReady: Promise<void>, releaseR
 	});
 }
 
+function protectedTimetableRead(request: RequestRecord): boolean {
+	return request.path.includes('/generation/')
+		|| request.path.includes('/subjects')
+		|| request.path.includes('/faculty')
+		|| request.path.includes('/buildings')
+		|| request.path.includes('/sections')
+		|| request.path.includes('/room-preferences')
+		|| request.path.includes('/pre-generation-drafts')
+		|| request.path.includes('/follow-up-flags')
+		|| request.path.includes('/manual-edits');
+}
+
 test('real timetable lifecycle waits for verified term, defaults to Term 2, and expands All Terms without writes', async ({ page }) => {
 	const records: RequestRecord[] = [];
 	const mutations: RequestRecord[] = [];
@@ -183,7 +195,7 @@ test('real timetable lifecycle waits for verified term, defaults to Term 2, and 
 	await installLocalApi(page, runtimeGate, releaseRuntime, records, mutations);
 	await page.goto('/timetable', { waitUntil: 'domcontentloaded' });
 	await page.waitForTimeout(250);
-	const earlyTimetableReads = records.filter((request) => request.path.includes('/generation/') || request.path.includes('/subjects') || request.path.includes('/faculty'));
+	const earlyTimetableReads = records.filter(protectedTimetableRead);
 	expect(earlyTimetableReads, 'No timetable/reference reads may occur before term authority resolves').toEqual([]);
 	releaseRuntime();
 	await expect(page.getByTestId('timetable-simple-term-filter')).toHaveAttribute('data-term-filter', '2');
@@ -208,5 +220,22 @@ test('real timetable lifecycle waits for verified term, defaults to Term 2, and 
 	await expect(page.locator('[data-timetable-entry-id="term-2"]')).toBeVisible();
 	await expect(page.locator('[data-timetable-entry-id="term-3"]')).toBeVisible();
 	await expect(page.getByTestId('timetable-cell-overflow-trigger')).toHaveCount(0);
+	expect(mutations, `Unexpected non-GET request(s): ${JSON.stringify(mutations)}`).toEqual([]);
+});
+
+test('real /timetable blocks missing EnrollPro term authority with bounded guidance and zero timetable reads', async ({ page }) => {
+	const records: RequestRecord[] = [];
+	const mutations: RequestRecord[] = [];
+	let releaseRuntime!: () => void;
+	const runtimeGate = new Promise<void>((resolve) => { releaseRuntime = resolve; });
+	await installLocalApi(page, runtimeGate, releaseRuntime, records, mutations, null);
+	await page.goto('/timetable', { waitUntil: 'domcontentloaded' });
+	await page.waitForTimeout(250);
+	// The authority response is deliberately held first, then resolves without an active term.
+	releaseRuntime();
+	await expect(page.getByText('Term setup is required before the timetable can be loaded.', { exact: true })).toBeVisible();
+	await page.waitForTimeout(500);
+	const protectedReads = records.filter(protectedTimetableRead);
+	expect(protectedReads, `Missing/unverified term authority must not read timetable data: ${JSON.stringify(protectedReads)}`).toEqual([]);
 	expect(mutations, `Unexpected non-GET request(s): ${JSON.stringify(mutations)}`).toEqual([]);
 });
