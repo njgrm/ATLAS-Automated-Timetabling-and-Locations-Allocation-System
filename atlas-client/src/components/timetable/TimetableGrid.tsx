@@ -328,8 +328,11 @@ const GridCell = memo(function GridCell({
 			? { text: 'Swap', className: 'bg-amber-100 text-amber-800', Icon: ArrowRightLeft }
 			: { text: 'Place', className: 'bg-emerald-100 text-emerald-700', Icon: Plus })
 		: null;
-	const visibleEntries = cellEntries.slice(0, 2);
-	const hiddenEntries = cellEntries.slice(2);
+	// All-terms is an explicit comparison scope: every session stays visible in
+	// the cell so a scheduler never has to discover term-specific work through a
+	// secondary sheet. Concrete-term views retain the compact overflow affordance.
+	const visibleEntries = termFilter === 'all' ? cellEntries : cellEntries.slice(0, 2);
+	const hiddenEntries = termFilter === 'all' ? [] : cellEntries.slice(2);
 	const hiddenAffectedCount = hiddenEntries.filter((entry) => teacherDepartureEntryIds?.has(entry.entryId)).length;
 	const overflowEntryIds = hiddenEntries.map((entry) => entry.entryId).join(' ');
 
@@ -593,7 +596,7 @@ const GridCell = memo(function GridCell({
 						</DraggableEntry>
 					);
 				})}
-				{cellEntries.length > 2 && (
+				{termFilter !== 'all' && cellEntries.length > 2 && (
 					<Button
 						type="button"
 						variant="ghost"
@@ -619,7 +622,7 @@ const GridCell = memo(function GridCell({
 					</Button>
 				)}
 			</div>
-			{cellEntries.length > 2 ? (
+			{termFilter !== 'all' && cellEntries.length > 2 ? (
 				<TimetableCellOverflowSheet
 					open={overflowOpen}
 					onOpenChange={setOverflowOpen}

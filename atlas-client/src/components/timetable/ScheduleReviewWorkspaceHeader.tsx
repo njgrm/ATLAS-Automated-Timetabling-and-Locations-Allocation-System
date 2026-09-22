@@ -351,15 +351,22 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 		? 'Draft mode: choose a draft queue item, then tap or click a grid slot. Review draft placement opens before anything is saved. Switch: select one placed draft session, then another occupied slot.'
 		: 'Place: open Needs attention, choose Place session, then tap or click a grid slot. Switch: select one class, then another occupied class. The Swap class times review opens before saving. Draft: use Plan before generating for draft anchors.';
 	const sourceContext = context.schoolYearContext;
+	const activeTermContext = sourceContext?.activeTerm ?? null;
+	const verifiedOrderedTerm = activeTermContext?.verified === true
+		&& activeTermContext.termIndex != null
+		&& Boolean(activeTermContext.orderedTerms?.some((term) => term.order === activeTermContext.termIndex));
+	const activeTermLabel = verifiedOrderedTerm
+		? (activeTermContext?.orderedTerms?.find((term) => term.order === activeTermContext.termIndex)?.displayLabel ?? `Term ${activeTermContext?.termIndex}`)
+		: null;
 	const sourceLabel = !sourceContext
-		? 'Checking source'
+		? 'Checking school year and term'
 		: sourceContext.source === 'enrollpro-verified'
-			? 'Verified with EnrollPro'
+			? 'Term verified'
 			: sourceContext.source === 'enrollpro'
-				? 'Using EnrollPro settings'
+				? 'Term settings loaded'
 				: sourceContext.source === 'cache'
-					? 'Using cached school year'
-					: 'Using saved ATLAS data';
+					? 'Using saved term settings'
+					: 'Using saved schedule settings';
 	const sourceTone = !sourceContext || sourceContext.source === 'enrollpro-verified' || sourceContext.source === 'enrollpro'
 		? 'border-emerald-200 bg-emerald-50 text-emerald-900'
 		: 'border-amber-200 bg-amber-50 text-amber-950';
@@ -373,10 +380,23 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 			? `Grid uses completed run #${draft.runId}; newer run #${latestRunCandidate.id} is ${latestRunCandidate.status ?? 'not completed'}.`
 			: null;
 	const showSourceTruthNotice = Boolean(newerFailedRunNotice || sourceContext?.stale || sourceContext?.source === 'cache' || sourceContext?.source === 'atlas-persisted');
+	const nextActionLabel = isPreGenerationWorkspace
+		? 'Review the draft before generating'
+		: blockingHardCount > 0
+			? 'Resolve the highlighted blockers'
+			: unassignedCount > 0
+				? 'Place the sessions needing attention'
+				: 'Review the schedule, then publish when ready';
 
 	return (
 		<Profiler id="Header" onRender={onProfilerRender}>
 			<div className="shrink-0 border-b border-border bg-background">
+			<div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-b border-border/60 bg-muted/20 px-4 py-1.5 text-xs text-muted-foreground" data-testid="timetable-scheduler-orientation">
+				<span><span className="font-semibold text-foreground">School year:</span> {sourceContext?.activeSchoolYearLabel ?? (schoolYearId ? `#${schoolYearId}` : 'Not selected')}</span>
+				<span><span className="font-semibold text-foreground">Term:</span> {activeTermLabel ?? 'Term setup required'}</span>
+				<span><span className="font-semibold text-foreground">Scope:</span> {termFilter === 'all' ? 'All terms' : (termOptions.find((option) => option.value === String(termFilter))?.label ?? 'Selected term')}</span>
+				<span><span className="font-semibold text-foreground">Next:</span> {nextActionLabel}</span>
+			</div>
 			<div className="flex items-center gap-2 overflow-x-auto px-4 pt-2 pb-1.5 [@media(max-height:500px)]:pt-1 [@media(max-height:500px)]:pb-1">
 				<Badge
 					variant={isPreGenerationWorkspace ? 'secondary' : 'default'}
