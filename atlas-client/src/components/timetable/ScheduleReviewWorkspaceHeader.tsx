@@ -1,5 +1,5 @@
-import { memo, Profiler, useRef, useState, type ReactNode } from 'react';
-import { AlertTriangle, ArrowRightLeft, CalendarClock, Check, Clock, ClipboardCheck, ClipboardList, Crosshair, GraduationCap, History, Info, Lightbulb, ListChecks, Loader2, MoreHorizontal, Play, RefreshCw, RotateCw, SearchCheck, Send, Settings2, ShieldAlert, Undo2, Wrench, type LucideIcon } from 'lucide-react';
+import { memo, Profiler, useRef, useState } from 'react';
+import { AlertTriangle, ArrowRightLeft, CalendarClock, ClipboardCheck, ClipboardList, Crosshair, GraduationCap, History, Info, Lightbulb, ListChecks, Loader2, MoreHorizontal, Play, RefreshCw, RotateCw, SearchCheck, Send, Settings2, Undo2, Wrench } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
 import atlasApi from '@/lib/api';
@@ -17,7 +17,12 @@ import {
 	SetupImpactDialog,
 	SyncTimetableConfirmDialog,
 } from '@/components/timetable/ScheduleReviewWorkspaceDialogs';
-import { FilterChip, StatItem } from '@/components/timetable/TimetableShared';
+import { FilterChip } from '@/components/timetable/TimetableShared';
+import { ScheduleReviewWorkspaceSummaryStats } from '@/components/timetable/ScheduleReviewWorkspaceSummaryStats';
+import {
+	ScheduleReviewWorkspaceTaskModes,
+	type TimetableTaskMode,
+} from '@/components/timetable/ScheduleReviewWorkspaceTaskModes';
 import { TimetableToolbar } from '@/components/timetable/TimetableToolbar';
 import { RolloverGuidanceCard } from '@/components/runtime/RolloverGuidanceCard';
 import type { ScheduleReviewWorkspaceHeaderContext } from '@/components/timetable/buildScheduleReviewWorkspaceContexts';
@@ -33,17 +38,6 @@ import { resolveTermAuthorityNotice } from '@/hooks/useTimetableData';
 
 type ScheduleReviewWorkspaceHeaderProps = {
 	context: ScheduleReviewWorkspaceHeaderContext;
-};
-
-type TimetableTaskMode = {
-	id: 'review' | 'place' | 'switch' | 'plan' | 'requests';
-	label: string;
-	helper: string;
-	icon: LucideIcon;
-	active: boolean;
-	disabled?: boolean;
-	onClick: () => void;
-	badge?: ReactNode;
 };
 
 function formatTaskCount(count: number, label: string): string {
@@ -393,6 +387,9 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 			: unassignedCount > 0
 				? 'Place the sessions needing attention'
 				: 'Review the schedule, then publish when ready';
+	const selectedDurationMs = draft
+		? runOptions.find((r) => String(r.id) === selectedRunId || (selectedRunId === 'latest' && r.id === runOptions[0]?.id))?.durationMs ?? null
+		: null;
 
 	return (
 		<Profiler id="Header" onRender={onProfilerRender}>
@@ -752,60 +749,14 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 				</DropdownMenu>
 
 				{summary && (
-					<div className="ml-auto flex shrink-0 items-center gap-3 text-xs text-muted-foreground">
-						{/* Active Collaborators */}
-						{context.presence && context.presence.length > 0 && (
-							<div className="flex items-center gap-1.5 mr-1 select-none print:hidden">
-								<span className="text-xs font-bold uppercase text-muted-foreground/80">Online:</span>
-								<div className="flex -space-x-1.5 overflow-hidden">
-									{context.presence.map((user) => {
-										const initials = (user.email || 'U').substring(0, 2).toUpperCase();
-										return (
-											<TooltipProvider key={user.connectionId}>
-												<Tooltip>
-													<TooltipTrigger asChild>
-												<div className="inline-flex size-7 items-center justify-center rounded-full border border-background bg-indigo-600 text-xs font-bold text-white shadow-sm ring-1 ring-black/5">
-															{initials}
-														</div>
-													</TooltipTrigger>
-													<TooltipContent className="p-2 text-xs">
-														<p className="font-semibold text-foreground">{user.email}</p>
-													<p className="text-xs capitalize text-muted-foreground">{user.role?.toLowerCase()} &middot; Active</p>
-													</TooltipContent>
-												</Tooltip>
-											</TooltipProvider>
-										);
-									})}
-								</div>
-							</div>
-						)}
-						<Badge variant="outline" className={`h-5 px-1.5 text-xs font-bold ${statusColor(draft?.status ?? '')}`}>
-							{draft?.status ?? '—'}
-						</Badge>
-						<StatItem
-							icon={Check}
-							label="Assigned"
-							value={`${summary.assignedCount}/${summary.classesProcessed}`}
-							explanation="Classes successfully placed vs total classes the algorithm attempted to schedule."
-						/>
-						<StatItem
-							icon={ShieldAlert}
-							label="Hard"
-							value={String(summary.hardViolationCount)}
-							className={summary.hardViolationCount > 0 ? 'text-red-600 font-semibold' : ''}
-							explanation="Critical policy violations. A schedule with any Hard Violations cannot be published."
-						/>
-						<StatItem
-							icon={Clock}
-							label="Duration"
-							value={formatDuration(
-								draft
-									? runOptions.find((r) => String(r.id) === selectedRunId || (selectedRunId === 'latest' && r.id === runOptions[0]?.id))?.durationMs ?? null
-									: null,
-							)}
-							explanation="Real-world computing time it took to generate this draft."
-						/>
-					</div>
+					<ScheduleReviewWorkspaceSummaryStats
+						summary={summary}
+						presence={context.presence}
+						statusColor={statusColor}
+						draftStatus={draft?.status ?? '—'}
+						durationMs={selectedDurationMs}
+						formatDuration={formatDuration}
+					/>
 				)}
 			</div>
 
@@ -852,47 +803,7 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 						</div>
 					</div>
 
-					<div
-						role="group"
-						aria-label="Timetable task modes"
-						className="flex min-w-0 gap-1 overflow-x-auto pb-0.5 sm:flex-1 [@media(max-height:500px)]:pb-0"
-					>
-						{taskModes.map((task) => {
-							const Icon = task.icon;
-							return (
-								<TooltipProvider key={task.id}>
-									<Tooltip>
-										<TooltipTrigger asChild>
-											<Button
-												type="button"
-												variant={task.active ? 'default' : 'outline'}
-												size="sm"
-												className="h-11 shrink-0 gap-1.5 px-3 text-xs"
-												disabled={task.disabled}
-												onClick={task.onClick}
-												data-testid={`timetable-task-${task.id}`}
-												aria-describedby="timetable-foolproof-help"
-											>
-												<Icon className="size-3.5" aria-hidden="true" />
-												<span>{task.label}</span>
-												{task.badge !== undefined && (
-													<Badge
-														variant={task.active ? 'secondary' : 'outline'}
-														className="ml-0.5 h-5 min-w-5 justify-center px-1.5 text-[0.65rem]"
-													>
-														{task.badge}
-													</Badge>
-												)}
-											</Button>
-										</TooltipTrigger>
-										<TooltipContent side="bottom" className="max-w-xs text-xs">
-											{task.helper}
-										</TooltipContent>
-									</Tooltip>
-								</TooltipProvider>
-							);
-						})}
-					</div>
+					<ScheduleReviewWorkspaceTaskModes taskModes={taskModes} />
 				</div>
 				{/* B2 — the plain-language guidance is visible to sighted users here,
 				    not only to screen readers. See TimetableAdvancedHeaderHelp. */}

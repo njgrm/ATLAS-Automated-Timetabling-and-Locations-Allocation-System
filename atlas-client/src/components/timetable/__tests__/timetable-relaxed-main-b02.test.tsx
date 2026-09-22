@@ -248,7 +248,7 @@ test('B2 source contract: the Advanced header renders the visible help and is sh
 	assert.match(header, /<TimetableAdvancedHeaderHelp/);
 	// The old block wrapped the guidance in `sr-only` on the same id.
 	assert.doesNotMatch(header, /data-testid="timetable-foolproof-help"[^>]*sr-only/);
-	assert.ok(header.split('\n').length < 1069, 'extraction must not grow the over-cap header further');
+	assert.ok(header.split('\n').length <= 1000, 'the header must stay inside the 1000-physical-line component cap (AGENTS.md §8)');
 });
 
 /* ── B3 — progressive first paint: shell + sub-nav + skeleton immediately ── */
