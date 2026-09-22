@@ -135,12 +135,21 @@ and the scope-clear hygiene in `ScheduleReviewWorkspace.tsx`.
 ### B3 — Request waterfall and first paint
 - Deduplicate the per-sub-page fetches (baseline: setup 17, policies 16, runs 16, building 15,
   manual-edit 14, exports 12, pre-generation 11) so navigating index → sub-page → index does **not**
-  repeat an endpoint already resolved in the same session.
+  repeat an endpoint already resolved in the same scope.
 - Make the first paint **progressive**: shell + sub-nav + a skeleton render immediately; the grid
   fills when the latest run resolves. The baseline blocked at 390×844 with 0 visible controls for
   **> 8 s**.
 - **Record the measured before/after numbers and the literal method.** Treat an upstream 502 as an
   environmental factor, not a defect to chase; state upstream reachability at the moment you measure.
+- *(Amended 2026-09-23 after the pre-action review.)* The review found that **Candidate B changed no
+  fetch-layer code**: the navigation-repeat dedupe it claimed is delivered by the scoped query cache
+  committed **before this range's base** (`4a4ea235`/`d2a94491`), so its committed "8 cold / 0 warm"
+  proof pins pre-existing behaviour and is not a failing-first control for this candidate. Sub-page
+  panes still fetch directly (`SchedulingPolicyPane.tsx` issues three reads per mount). Therefore:
+  the **navigation-repeat dedupe counts as already delivered** and must be recorded as such, not
+  re-claimed; the **remaining B3 requirement is a real source change** that stops a sub-page pane
+  re-issuing reads already resolved for the same scope, with a failing-first control; and the
+  **live per-route counts are a post-deployment browser row**, not a hermetic count.
 
 ### B4 — Both viewports re-verified
 - Re-measure 1366×768 and 390×844: no global scrollbar, no horizontal clipping, readable controls,
@@ -181,7 +190,14 @@ and the scope-clear hygiene in `ScheduleReviewWorkspace.tsx`.
 Labelled **browser rows**, decided on the **deployed** release at
 `https://njgrm.buru-degree.ts.net`, asserting `window.location.origin`, at **1366×768 and 390×844**:
 
-1. Main workspace: one status region, one primary action, grid top ≤ ~180 px, header controls ≤ 5.
+1. Main workspace: **one status region and exactly one visually dominant primary action**, no action
+   duplicated between the header and `More`, the header does not wrap at 1366×768, and the grid top is
+   **≤ ~180 px** of the 768 px viewport. *(Amended 2026-09-23 after the pre-action review: the original
+   "header controls ≤ 5" was unsatisfiable against two unchanged committed contracts —
+   `ux-quickfix-c01-header-actions.test.ts` requires the Generate and Publish actions in the
+   `TimetableSimpleHeader` render and `timetable-simple-term-export-c03r2.test.ts` requires the
+   term-bound export trigger there. The desktop floor is therefore ~9 controls, and the operator's
+   requirement is an **outcome** — at-a-glance legibility — not a count.)*
 2. Term: verified active term selected on load; unknown/ambiguous identity never silently becomes
    Term 1; `All terms` shows every term session immediately **and labelled**; no "TERM TERM N".
 3. No contradictory authority banners; no jargon or raw codes on any of the nine routes.
@@ -193,8 +209,38 @@ Labelled **browser rows**, decided on the **deployed** release at
 8. 1366×768 and 390×844: no global scrollbar, no clipping, readable controls, no overflow.
 9. Console: zero router element-less warnings; zero new errors.
 10. **Older-scheduler lifecycle pass**: draft → repair → review → published, read-only except
-    authorised draft placement/undo. No Generate, Publish, Sync, Apply, Delete, capability override,
-    or published-revision mutation.
+    **exactly one authorised draft placement plus its in-row Undo**. The authorised write boundary is:
+    one placement into the pre-generation **draft** and its immediate Undo, with before/after row-count
+    signatures recorded. **Not** authorised: Generate, Publish, Sync with setup, Apply, Delete, any
+    capability override, and any mutation of a published revision. The in-row Undo is the rollback for
+    this row.
+
+## 5a. Deployment (HIGH — executed under the operator's standing authorization, §13)
+
+*(Added 2026-09-23 to close the pre-action review's P16(b)/(c) findings: `AGENTS.md` §13 requires the
+exact target, expected delta, rollback and verification to be named before a HIGH action.)*
+
+- **Target:** the candidate tip of `work/timetable-relaxed-main-c01` after the bounded correction,
+  built into a new supervised release directory under `D:\ATLAS-runtime-supervised-<sha>-20260923`
+  and served on the supervisor-owned **5001** (server) and **5174** (production client host).
+- **Incumbent / live now:** release `7dbb3b90` at `D:\ATLAS-runtime-supervised-7dbb3b90-20260922`
+  (verified this session: supervisor-owned 5001/5174, health + health/ready + DB-backed
+  `GET /api/v1/subjects?schoolId=1` all 200, Tailnet 200).
+- **Expected delta:** **client bundle only** — the timetable surfaces in `atlas-client/**`. **No server
+  bundle change, no schema change, no migration, no seed, no live-data mutation** (the one authorised
+  draft placement is a browser-acceptance row, not a deploy step).
+- **Rollback:** supervised reset to `7dbb3b90` at `D:\ATLAS-runtime-supervised-7dbb3b90-20260922`
+  (retained and startable in place). No other release directory is modified.
+- **Verification:** the served entry chunk must **differ** from the incumbent and byte-match the new
+  build (`index-*.js` hash equality); local `/api/v1/health` and `/api/v1/health/ready` 200;
+  DB-backed `GET /api/v1/subjects?schoolId=1` 200; Tailnet HTML 200. A healthy `/api/v1/health` alone
+  proves nothing — a chunk that exists only in the new build is the deploy proof.
+- **Preconditions:** the pre-action review must have accepted the corrected range; the release build
+  must export `VITE_ENROLLPRO_URL=https://dev-jegs.buru-degree.ts.net` (the fail-closed guard emits no
+  bundle without it); `docs/reference/agent-runtime-deploy-facts.md` governs the execution.
+- **Sequencing:** deployment and acceptance are **separate outcomes**. A healthy deployed process is
+  `DEPLOYED`; the cycle is not complete until the post-deployment browser QA returns
+  `passed == total`, `blocked: 0`, `unperformed: 0`.
 
 ## 6. Evidence to return (one page per candidate)
 
