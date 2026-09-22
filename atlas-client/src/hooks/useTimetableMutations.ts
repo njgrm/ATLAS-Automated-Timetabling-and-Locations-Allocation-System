@@ -8,6 +8,7 @@ import { parseDraftPlacementId, scopePreviewToCandidate } from '@/lib/timetable-
 import { isSameTimetableSlot, resolvePreGenSlotDisplacement } from '@/lib/timetable-swap-routing';
 import { deriveRunWideReadiness } from '@/components/timetable/timetableWorkspaceTruth';
 import { deriveRedoAfterRevert, dispatchRedo } from '@/components/timetable/timetableUndoRedoState';
+import { decideDraftPlacementReview, type DraftPlacementReviewDecision } from '@/lib/simple-timetable-state';
 import type { PendingSwapAction } from '@/components/timetable/ScheduleReviewWorkspace.constants';
 import type { ActiveSchoolYearContext } from '@/lib/enrollpro-public-settings';
 import type {
@@ -307,7 +308,8 @@ export type TimetableMutationState = {
 		options?: { suppressConfirm?: boolean },
 	) => Promise<void>;
 	runConfirmPreview: () => Promise<void>;
-	commitConfirmPlacement: () => Promise<void>;
+	/** C10 — returns the commit's operation identity so the caller can register Undo. */
+	commitConfirmPlacement: () => Promise<DraftPlacementCommitResult | null>;
 	executeSwapAction: () => Promise<void>;
 	executeRegularSwap: () => Promise<void>;
 	regularSwapStrategy: 'DIRECT_SWAP' | 'AUTO_FIX_MOVE_BLOCKING' | 'AUTO_FIX_MOVE_SOURCE' | null;
@@ -1382,9 +1384,15 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 		setConfirmPreviewError(null);
 		setConfirmAllowSoftOverride(false);
 		setConfirmAllowDailyOverride(false);
-		setShowPreGenConfirm(true);
 
-		if (!candidateFacultyId || !candidateRoomId) {
+		// C8 — no owner / no room is a review reason, never an inline Confirm: the
+		// fail-closed dialog explains the missing prerequisite.
+		const prerequisite = decideDraftPlacementReview({
+			hasFacultyOwner: Boolean(candidateFacultyId),
+			hasRoom: Boolean(candidateRoomId),
+		});
+		if (prerequisite.kind === 'review-dialog') {
+			setShowPreGenConfirm(true);
 			setPreGenPending(null);
 			setPreGenPreview(null);
 			setPreGenPreviewError(null);
@@ -1399,6 +1407,9 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 		setPreGenPreviewError(null);
 		setPreGenAllowSoftOverride(false);
 		setPreGenPreviewLoading(true);
+		// C8 — the drop only confirms inline once the authoritative preview has
+		// resolved clean; anything else is routed to the detailed review dialog.
+		let reviewDecision: DraftPlacementReviewDecision = { kind: 'pending' };
 		try {
 			const { data: previewRaw } = await atlasApi.post<PreviewResult>(
 				`/generation/${schoolId}/${schoolYearId}/pre-generation-drafts/preview`,
@@ -1408,19 +1419,25 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 			setPreGenPreview(preview);
 			setConfirmRawPreview(previewRaw);
 			setConfirmPreview(preview);
-			if (!preview.allowed) {
+			reviewDecision = decideDraftPlacementReview({ hasFacultyOwner: true, hasRoom: true, preview });
+			if (reviewDecision.kind === 'review-dialog') {
 				const blockedMessage = 'This placement has hard conflicts. Resolve conflicts or use a different slot.';
 				setPreGenPreviewError(blockedMessage);
 				setConfirmPreviewError(blockedMessage);
-				return;
 			}
-			toast.info('Placement review opened. Confirm the owner, room source, slot, and conflict check before saving.');
 		} catch (err) {
 			const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+			reviewDecision = decideDraftPlacementReview({ hasFacultyOwner: true, hasRoom: true, preview: null });
 			setPreGenPreviewError(message ?? 'Unable to preview this placement. Try another slot or repair the source data first.');
 			setConfirmPreviewError(message ?? 'Unable to preview this placement. Try another slot or repair the source data first.');
 		} finally {
 			setPreGenPreviewLoading(false);
+		}
+		if (reviewDecision.kind === 'review-dialog') {
+			// C9 — the dialog owns this placement's single save control, so the
+			// inline pending bar is cleared and the two can never co-render.
+			setShowPreGenConfirm(true);
+			setPreGenPending(null);
 		}
 	}, [
 		schoolYearId,
@@ -1495,13 +1512,13 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 		};
 	}, [confirmFacultyId, confirmRoomId, preGenConfirmCtx, runConfirmPreview, autoPreviewRef, setConfirmPreview, setConfirmPreviewError]);
 
-	const commitConfirmPlacement = useCallback(async () => {
-		if (!schoolYearId || !preGenConfirmCtx) return;
+	const commitConfirmPlacement = useCallback(async (): Promise<DraftPlacementCommitResult | null> => {
+		if (!schoolYearId || !preGenConfirmCtx) return null;
 		const fId = Number(confirmFacultyId);
 		const rId = Number(confirmRoomId);
 		if (!fId || !rId) {
 			toast.error('Fix the Teaching Load owner or room setup first.');
-			return;
+			return null;
 		}
 		setConfirmSaving(true);
 		const { source, day, startTime, endTime } = preGenConfirmCtx;
@@ -1530,9 +1547,13 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 					: 'Draft placement saved. The draft queue and grid were updated.',
 			});
 			toast.success('Draft placement saved.');
+			// C10 — the operation identity reaches the workspace so the dialog path
+			// registers the same contextual Undo the inline anchor registers.
+			return data;
 		} catch (err) {
 			const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
 			toast.error(message ?? 'Failed to save placement.');
+			return null;
 		} finally {
 			setConfirmSaving(false);
 		}
