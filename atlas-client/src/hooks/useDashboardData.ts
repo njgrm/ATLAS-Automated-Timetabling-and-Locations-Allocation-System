@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { isVerifiedOrderedActiveTerm } from '@/lib/academic-term';
 
 import atlasApi from '@/lib/api';
 import { expireAtlasSession, getAtlasTokenEpochVersion, getPreferredAccessToken, subscribeAtlasTokenEpoch } from '@/lib/auth';
@@ -247,6 +248,7 @@ type DashboardReadinessSummary = {
 		matchedSchoolYear: boolean | null;
 		code: string | null;
 		message: string;
+		orderedTerms?: Array<{ identity: string; displayLabel: string; order: number }>;
 	} | null;
 	campus: {
 		available: boolean;
@@ -314,7 +316,7 @@ export type DashboardData = {
 	dataSource: 'live' | 'cached' | 'none';
 	activeSchoolYearId: number | null;
 	activeSchoolYearLabel: string | null;
-	activeTerm: { activeTerm: string | null; termIndex: number | null } | null;
+	activeTerm: DashboardReadinessSummary['activeTerm'];
 	activeTermPublished: boolean | null;
 	activeTermUnassignedCount: number | null;
 	/** DASHBOARD-TRUTH-C01 — run-wide HARD blockers from the latest violation report; null = unavailable. */
@@ -365,7 +367,7 @@ export function useDashboardData(): DashboardData {
 	const [dataSource, setDataSource] = useState<'live' | 'cached' | 'none'>('none');
 	const [activeSchoolYearId, setActiveSchoolYearId] = useState<number | null>(null);
 	const [activeSchoolYearLabel, setActiveSchoolYearLabel] = useState<string | null>(null);
-	const [activeTerm, setActiveTerm] = useState<{ activeTerm: string | null; termIndex: number | null } | null>(null);
+	const [activeTerm, setActiveTerm] = useState<DashboardReadinessSummary['activeTerm']>(null);
 	const [activeTermPublished, setActiveTermPublished] = useState<boolean | null>(null);
 	const [activeTermUnassignedCount, setActiveTermUnassignedCount] = useState<number | null>(null);
 	const [runWideHardViolationCount, setRunWideHardViolationCount] = useState<number | null>(null);
@@ -547,11 +549,11 @@ export function useDashboardData(): DashboardData {
 				setReadinessSourceMessage(summary.sourceMessage);
 				setReadinessResolvedAt(summary.resolvedAt);
 				setDomainAvailability(availabilityFromSummary(summary));
-				setActiveTerm(
-					summary.activeTerm && summary.activeTerm.activeTerm
-						? { activeTerm: summary.activeTerm.activeTerm, termIndex: summary.activeTerm.termIndex }
-						: null,
-				);
+				const verifiedActiveTerm = isVerifiedOrderedActiveTerm(summary.activeTerm)
+					&& summary.activeTerm?.activeTerm
+					? summary.activeTerm
+					: null;
+				setActiveTerm(verifiedActiveTerm);
 				setLoading(false);
 
 				// Actor-scoped, non-authoritative enrichment. Failures keep the
@@ -567,7 +569,7 @@ export function useDashboardData(): DashboardData {
 						.catch(() => { /* keep the summary value */ });
 				}
 
-				const termIndex = summary.activeTerm?.termIndex ?? null;
+				const termIndex = verifiedActiveTerm?.termIndex ?? null;
 				const syIdForTerm = summary.activeSchoolYearId;
 				if (termIndex && syIdForTerm) {
 					atlasApi.get<{ source?: { termScope?: string } }>(`/schools/${schoolId}/schedules/published`, { params: { termIndex } })

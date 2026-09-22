@@ -240,3 +240,20 @@ test('real /timetable blocks missing EnrollPro term authority with bounded guida
 	expect(protectedReads, `Missing/unverified term authority must not read timetable data: ${JSON.stringify(protectedReads)}`).toEqual([]);
 	expect(mutations, `Unexpected non-GET request(s): ${JSON.stringify(mutations)}`).toEqual([]);
 });
+
+test('real /timetable treats an active-term response without its ordered contract as setup-required', async ({ page }) => {
+	const records: RequestRecord[] = [];
+	const mutations: RequestRecord[] = [];
+	let releaseRuntime!: () => void;
+	const runtimeGate = new Promise<void>((resolve) => { releaseRuntime = resolve; });
+	const malformedTerm = { ...activeTerm, orderedTerms: undefined } as any;
+	await installLocalApi(page, runtimeGate, releaseRuntime, records, mutations, malformedTerm);
+	await page.goto('/timetable', { waitUntil: 'domcontentloaded' });
+	await page.waitForTimeout(250);
+	releaseRuntime();
+	await expect(page.getByText('Term setup is required before the timetable can be loaded.', { exact: true })).toBeVisible();
+	await page.waitForTimeout(500);
+	const protectedReads = records.filter(protectedTimetableRead);
+	expect(protectedReads, `Malformed active-term authority must not read timetable data: ${JSON.stringify(protectedReads)}`).toEqual([]);
+	expect(mutations, `Unexpected non-GET request(s): ${JSON.stringify(mutations)}`).toEqual([]);
+});
