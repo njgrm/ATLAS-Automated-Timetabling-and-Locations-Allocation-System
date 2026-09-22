@@ -394,17 +394,20 @@ verified active term T2** (`source: enrollpro-verified`) and fails closed on unk
 **Two live defects were caught by review, not by tests:** (1) a clean draft slot opened a review modal
 with two Save buttons and registered no Undo; (2) the Undo it did register dispatched a draft-ledger id
 to the run manual-edits CAS endpoint (409 `UNDO_CONFLICT`). Both are fixed and re-verified live.
-**Open residue (disclosed, NON_BLOCKING):** the pre-generation draft holds **2 extra pinned placements**
-(id 24 Mon 06:00–06:45 §143 Aguinaldo subj 4; id 25 Tue 06:00–06:45) created by QA passes when the Undo
-defect made them un-undoable; the Undo mechanism is session-local and head-only, so they cannot be
-cleared by Undo and clearing them needs `DELETE /pre-generation-drafts/:id` — a destructive write
-outside the authorised class. Queue reads `1318 of 1318` (`counts.draft=2`) against the pre-QA
-`1320 of 1320`. The draft is unpublished and regenerable; clear the two ids or regenerate at the
-operator's discretion.
-**Not re-verified / open:** no published run exists (run #316 is Reviewing with 94 warnings), so the
-"published" leg of the lifecycle is unexercised; the draft-tray **swap** is a modal by design
+**Open residue — CLEARED 2026-09-23.** The two extra pinned draft placements (ids 24, 25) left by QA
+passes while the Undo defect made them un-undoable were removed surgically with
+`DELETE /api/v1/generation/1/10/pre-generation-drafts/:placementId` (privileged, `removeSinglePlacement`),
+one authenticated pass, credentials read inside the process and never printed. Board
+`counts {draft:2, lockedForRun:4, archived:1, unscheduled:1318}` → **`{draft:0, lockedForRun:4,
+archived:3, unscheduled:1320}`** — exactly the pre-cycle state; the removals are archived, not
+destroyed, and the four legitimate `lockedForRun` placements (ids 20–23) were not touched. One login
+consumed (token dropped with the process; ATLAS has no server-side logout route).
+**Still open:** no published run exists — `GET …/runs/316/published-revisions` returns **422
+`PUBLISHED_SOURCE_REQUIRED`** (run #316 is `COMPLETED`, not published) — so the "published" leg of the
+operator's lifecycle acceptance cannot be exercised without Generate + Publish, which are separate HIGH
+streams with their own fingerprinted previews. The draft-tray **swap** is a modal by design
 (`draft-swap-review-dialog`) while the Simple swap path is inline — the packet's "swap keeps its inline
-preview" is satisfied only for the Simple path; a one-off observation that the grid label read
+preview" is satisfied only for the Simple path. A one-off observation that the grid label read
 `Showing Section schedule: Luna` while armed with a §143 session was not adjudicated.
 **Disk:** `D:` 18.37 GiB free (below the §3 25 GiB warning, above the 15 GiB fail-closed) — four
 release trees now exist (`7dbb3b90`, `11e8778f`, `e78d4473`, `1fdab989`, `28f6f03f`); superseded
