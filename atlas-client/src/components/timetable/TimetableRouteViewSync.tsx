@@ -32,6 +32,16 @@ export type TimetableRoutedView =
 	| 'setup';
 
 /**
+ * The schedule and pre-generation views are the only center surfaces that
+ * need the full scheduler header, task controls, and selection strip. Routed
+ * operator sub-pages keep their own focused pane and must not inherit that
+ * chrome just because the parent workspace remains mounted.
+ */
+export function isTimetableSchedulerView(view: string): boolean {
+	return view === 'schedule' || view === 'pre-generation';
+}
+
+/**
  * UX-R03a — pure route→view mapping for the two routed center views.
  * `/timetable/policies` renders the existing policy pane; every other
  * `/timetable*` pathname renders the index (schedule) surface.
