@@ -82,6 +82,22 @@ node ops/runtime/cli.mjs uninstall-preview  # print the reversal steps (never ex
 node ops/runtime/cli.mjs inventory          # read-only schtasks query of the legacy task
 ```
 
+## Reviewed release cutover runner
+
+`deploy-runner.ps1` replaces hand-authored release cutover blocks. It requires the
+target and incumbent identities explicitly, verifies a clean target and the exact
+supervisor listener lineage, captures the scheduled-task XML as bytes, and writes a
+redacted plan under the audit directory. It is dry-run by default; `-Execute` is the
+only mode that registers the preserved task XML, updates the two machine runtime
+variables, quiesces the resolved supervisor PID tree, and starts the restored task.
+
+The runner never builds, installs, migrates, connects to the database, prints env-file
+contents, or kills by image name. If execution fails after cutover begins, rollback
+restores only the captured task XML and the two captured machine variables. The task
+XML is replaced byte-for-byte at the path references; its encoding declaration is
+never rewritten because this host's `schtasks` output is accepted unmodified despite
+declaring UTF-16.
+
 Equivalent npm scripts exist under `runtime:*`.
 
 ## Guarantees
