@@ -97,13 +97,25 @@ New file `atlas-server/src/routes/notification-inbox.router.ts`, mounted at
 | `POST /read-all` | `{ marked: number }` |
 
 **Authority — fail closed, no client-supplied identity.** Resolve the actor and the actor school
-**only** from the authenticated token (reuse the existing `authenticate` middleware and the same
-actor-school resolution the other actor-scoped routers use; `hasPrivilegedRole` lives in
-`atlas-server/src/middleware/authorize.ts` — import it, never re-declare the role set). If the actor
-or the actor school cannot be resolved, return a typed **403** (`NOTIFICATION_ACTOR_UNRESOLVED`) and
-write nothing. **Never** accept `actorId` or `schoolId` from the body or the query string. Every
-read and every write is constrained by `actorId = <resolved actor>`, so another actor's or another
-school's row is never readable and never mutable.
+**only** from the authenticated token. `hasPrivilegedRole` lives in
+`atlas-server/src/middleware/authorize.ts` — import it, never re-declare the role set.
+
+**The inbox actor id is `AtlasAuthAccount.id` — never the session's `userId`.** This is load-bearing
+and was the first review's single blocking defect: a faculty-shaped session puts the **`FacultyMirror`
+`externalId`** in `req.user.userId` (`local-auth.service.ts` sets `userId = canonicalFaculty.faculty.externalId`
+when `role === 'faculty'`, with the account id separately at `accountId`;
+`companion-sso.service.ts` does the same), while persisted rows are keyed on `AtlasAuthAccount.id`.
+Resolving `userId` therefore makes a teacher unable to read or acknowledge their own notifications,
+and a numeric collision can expose or mutate **another** actor's rows. The route must resolve the
+actor as the **account id** (`req.user.accountId`) and must never fall back to `userId`. The actor
+**school** is resolved the way the other actor-scoped routers do it; only the identity field is
+different.
+
+If the actor or the actor school cannot be resolved, return a typed **403**
+(`NOTIFICATION_ACTOR_UNRESOLVED`) and write nothing. **Never** accept `actorId` or `schoolId` from the
+body or the query string. Every read and every write is constrained by
+`actorId = <resolved account id>`, so another actor's or another school's row is never readable and
+never mutable.
 
 ### D3 — the first real producer (persist what the stream already carries)
 
@@ -196,6 +208,10 @@ Run from `E:\ATLAS-worktrees\notification-inbox-c01`.
   not visible to a different actor **or** a different school; (4) the same delta raised twice produces
   **one** row; (5) the item carries `resourceType`/`resourceId` for the client route.
   **Zero residue**: the suite must prove it left no rows behind and must not leak its database.
+  **It must mint at least one faculty-shaped token whose `userId !== accountId`** and prove that
+  actor can read and acknowledge its own row while a token carrying a *colliding* foreign `userId`
+  cannot. A suite whose tokens always set `userId === accountId` cannot see the identity defect above
+  — that masking is exactly what the first review found.
 - `atlas-client/src/__tests__/notification-inbox.test.ts` — add a committed
   `test:notification-inbox` script to `atlas-client/package.json` and name the file there. Cover the
   unread-count badge, mark-read / mark-all, the resource routing target, and the no-global-scrollbar
