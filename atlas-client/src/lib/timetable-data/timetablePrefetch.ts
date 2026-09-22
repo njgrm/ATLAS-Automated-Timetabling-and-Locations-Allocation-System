@@ -46,8 +46,9 @@ const prefetchedRoutePaths = new Set<string>();
 export function resolveVerifiedActiveTermIndex(
 	activeTerm: Awaited<ReturnType<typeof resolveActiveSchoolYearContext>>['activeTerm'] | null | undefined,
 ): number | null {
-	if (!isVerifiedOrderedActiveTerm(activeTerm) || activeTerm.termIndex == null) return null;
-	return activeTerm.termIndex;
+	const termIndex = activeTerm?.termIndex;
+	if (!isVerifiedOrderedActiveTerm(activeTerm) || termIndex == null) return null;
+	return termIndex;
 }
 
 /** Prefetch the route-level chunk for a known navigation path. */
