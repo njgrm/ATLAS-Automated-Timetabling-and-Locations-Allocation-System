@@ -8,7 +8,7 @@ import { parseDraftPlacementId, scopePreviewToCandidate } from '@/lib/timetable-
 import { isSameTimetableSlot, resolvePreGenSlotDisplacement } from '@/lib/timetable-swap-routing';
 import { deriveRunWideReadiness } from '@/components/timetable/timetableWorkspaceTruth';
 import { deriveRedoAfterRevert, dispatchRedo } from '@/components/timetable/timetableUndoRedoState';
-import { resolveTimetableEntryPivot } from '@/lib/timetable-entry-pivot';
+import { requiresFacultyIssueConfirmation, resolveTimetableEntryPivot, type TimetableEntryContext } from '@/lib/timetable-entry-pivot';
 import { decideDraftPlacementReview, type DraftPlacementReviewDecision } from '@/lib/simple-timetable-state';
 import type { PendingSwapAction } from '@/components/timetable/ScheduleReviewWorkspace.constants';
 import type { ActiveSchoolYearContext } from '@/lib/enrollpro-public-settings';
@@ -266,6 +266,7 @@ export type TimetableMutationState = {
 	requestPreviewHardConflicts: NonNullable<RoomPreferencePreviewResponse['preview']>['humanConflicts'];
 	requestPreviewSoftWarnings: NonNullable<RoomPreferencePreviewResponse['preview']>['humanConflicts'];
 	handleViolationSelect: (v: Violation) => void;
+	handleSessionContextPivot: (session: TimetableEntryContext) => void;
 	handleEntryClick: (entry: ScheduledEntry) => void;
 	toggleFollowUp: (entryId: string) => Promise<void>;
 	triggerGeneration: () => Promise<void>;
@@ -617,8 +618,12 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 		const affectedEntryId = v.entities.entryIds?.[0];
 		const affectedEntry = affectedEntryId ? draft?.entries.find((entry) => entry.entryId === affectedEntryId) : null;
 		const canonicalFaculty = affectedEntry?.facultyId != null ? facultyMap.get(affectedEntry.facultyId) : null;
-		if (viewMode === 'faculty' && affectedEntry?.facultyId != null && canonicalFaculty
-			&& String(affectedEntry.facultyId) !== entityFilter) {
+		if (affectedEntry?.facultyId != null && canonicalFaculty && requiresFacultyIssueConfirmation({
+			viewMode,
+			entityFilter,
+			facultyId: affectedEntry.facultyId,
+			canonicalFacultyExists: true,
+		})) {
 			setPendingFacultyIssuePivot({
 				facultyId: affectedEntry.facultyId,
 				teacherLabel: `${canonicalFaculty.lastName}, ${canonicalFaculty.firstName}`.trim().replace(/^,\s*/, ''),
@@ -637,25 +642,29 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 		}
 	}, [draft?.entries, entityFilter, facultyMap, setKbSelectedSource, setPendingFacultyIssuePivot, setPreGenKbSource, setSelectedViolation, setSelectedEntry, viewMode]);
 
-	const handleEntryClick = useCallback((entry: ScheduledEntry) => {
-		setSelectedViolation(null);
-		setKbSelectedSource(null);
-		setPreGenKbSource(null);
+	const handleSessionContextPivot = useCallback((session: TimetableEntryContext) => {
 		const pivot = resolveTimetableEntryPivot({
 			viewMode,
-			entry,
+			entry: session,
 			sections: sectionMap,
 			facultyIds: new Set(facultyMap.keys()),
 			roomIds: new Set(roomMap.keys()),
 		});
 		if (pivot.entityId != null) setEntityFilter(String(pivot.entityId));
 		else if (pivot.guidance) toast.info(pivot.guidance);
+	}, [viewMode, sectionMap, facultyMap, roomMap, setEntityFilter]);
+
+	const handleEntryClick = useCallback((entry: ScheduledEntry) => {
+		setSelectedViolation(null);
+		setKbSelectedSource(null);
+		setPreGenKbSource(null);
+		handleSessionContextPivot(entry);
 		setSelectedEntry((prev) => {
 			const next = prev?.entryId === entry.entryId ? null : entry;
 			if (next && isDesktop) rightPanelRef.current?.expand();
 			return next;
 		});
-	}, [setSelectedViolation, setKbSelectedSource, setPreGenKbSource, setSelectedEntry, rightPanelRef, isDesktop, viewMode, sectionMap, facultyMap, roomMap, setEntityFilter]);
+	}, [setSelectedViolation, setKbSelectedSource, setPreGenKbSource, setSelectedEntry, rightPanelRef, isDesktop, handleSessionContextPivot]);
 
 	const toggleFollowUp = useCallback(async (entryId: string) => {
 		if (!draft || !schoolYearId) return;
@@ -1859,6 +1868,7 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 		requestPreviewHardConflicts,
 		requestPreviewSoftWarnings,
 		handleViolationSelect,
+		handleSessionContextPivot,
 		handleEntryClick,
 		toggleFollowUp,
 		triggerGeneration,

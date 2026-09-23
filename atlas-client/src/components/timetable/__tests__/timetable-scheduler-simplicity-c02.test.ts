@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { QueryClient } from '@tanstack/react-query';
 
 import { buildSectionLabel } from '@/lib/timetable-reference-labels';
-import { resolveTimetableEntryPivot } from '@/lib/timetable-entry-pivot';
+import { requiresFacultyIssueConfirmation, resolveTimetableEntryPivot } from '@/lib/timetable-entry-pivot';
 import { timetableRunBundleQueryKey, timetableRunsQueryKey, timetableReferenceQueryKey, timetableRoomRequestQueryKey } from '@/lib/timetable-data/timetableQueryKeys';
 
 const clientRoot = fileURLToPath(new URL('../../../..', import.meta.url));
@@ -47,11 +47,12 @@ test('mouse selection pivots only to canonical section, teacher, room, or homero
 test('scheduled and unassigned session drag starts share canonical context pivot without changing view mode', () => {
 	const drag = source('src/hooks/useTimetableDragDrop.ts');
 	const state = source('src/hooks/useScheduleReviewWorkspaceState.ts');
+	const mutations = source('src/hooks/useTimetableMutations.ts');
 	assert.match(drag, /onSessionContextPivot\?\.\(data\.entry\)/);
-	assert.match(drag, /onSessionContextPivot\?\.\(\{ sectionId: data\.item\.sectionId, facultyId: data\.item\.facultyId \}\)/);
+	assert.match(drag, /onSessionContextPivot\?\.\(\{ sectionId: item\.sectionId, facultyId: item\.facultyId \?\? null, roomId: null \}\)/);
 	assert.match(state, /onSessionContextPivot:\s*handleSessionContextPivot/);
-	assert.match(state, /const handleSessionContextPivot[\s\S]+resolveTimetableEntryPivot[\s\S]+setEntityFilter/);
-	assert.doesNotMatch(state, /handleSessionContextPivot[\s\S]{0,500}setViewMode/);
+	assert.match(mutations, /const handleSessionContextPivot[\s\S]+resolveTimetableEntryPivot[\s\S]+setEntityFilter/);
+	assert.doesNotMatch(mutations, /handleSessionContextPivot[\s\S]{0,500}setViewMode/);
 });
 
 test('the ordinary Simple header hides provenance while retaining actionable drift warnings', () => {
@@ -100,7 +101,12 @@ test('cross-faculty issue selection asks before changing teacher and confirm sel
 	const mutations = source('src/hooks/useTimetableMutations.ts');
 	const workspace = source('src/components/timetable/ScheduleReviewWorkspace.tsx');
 	assert.match(mutations, /canonicalFaculty[\s\S]+setPendingFacultyIssuePivot/);
-	assert.match(mutations, /viewMode !== 'faculty' \|\| String\(affectedEntry\.facultyId\) !== entityFilter/);
+	assert.match(mutations, /requiresFacultyIssueConfirmation\(/);
+	assert.equal(requiresFacultyIssueConfirmation({ viewMode: 'section', entityFilter: '7', facultyId: 12, canonicalFacultyExists: true }), true);
+	assert.equal(requiresFacultyIssueConfirmation({ viewMode: 'room', entityFilter: '41', facultyId: 12, canonicalFacultyExists: true }), true);
+	assert.equal(requiresFacultyIssueConfirmation({ viewMode: 'faculty', entityFilter: '12', facultyId: 12, canonicalFacultyExists: true }), false);
+	assert.equal(requiresFacultyIssueConfirmation({ viewMode: 'faculty', entityFilter: '9', facultyId: 12, canonicalFacultyExists: true }), true);
+	assert.equal(requiresFacultyIssueConfirmation({ viewMode: 'section', entityFilter: '7', facultyId: 12, canonicalFacultyExists: false }), false);
 	assert.match(workspace, /Open \{state\.pendingFacultyIssuePivot\?\.teacherLabel\}/);
 	assert.match(workspace, /Button type="button" variant="outline" onClick=\{\(\) => state\.setPendingFacultyIssuePivot\(null\)\}>Cancel/);
 	assert.match(workspace, /Button type="button" onClick=\{state\.confirmFacultyIssuePivot\}>Open teacher timetable/);

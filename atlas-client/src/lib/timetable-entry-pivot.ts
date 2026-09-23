@@ -1,10 +1,21 @@
-import type { ExternalSection, ScheduledEntry } from '@/types';
+import type { ExternalSection } from '@/types';
 
 export type TimetablePivotMode = 'section' | 'faculty' | 'room';
+export type TimetableEntryContext = { sectionId: number; facultyId: number | null; roomId: number | null };
+
+export function requiresFacultyIssueConfirmation(input: {
+	viewMode: TimetablePivotMode;
+	entityFilter: string;
+	facultyId: number;
+	canonicalFacultyExists: boolean;
+}): boolean {
+	return input.canonicalFacultyExists
+		&& !(input.viewMode === 'faculty' && input.entityFilter === String(input.facultyId));
+}
 
 export function resolveTimetableEntryPivot(input: {
 	viewMode: TimetablePivotMode;
-	entry: ScheduledEntry;
+	entry: TimetableEntryContext;
 	sections: ReadonlyMap<number, Pick<ExternalSection, 'homeRoomId'>>;
 	facultyIds: ReadonlySet<number>;
 	roomIds: ReadonlySet<number>;
@@ -20,7 +31,8 @@ export function resolveTimetableEntryPivot(input: {
 			? { entityId: entry.facultyId, guidance: null }
 			: { entityId: null, guidance: 'This session has no confirmed teacher, so the current schedule view was kept.' };
 	}
-	const roomId = entry.roomId ?? input.sections.get(entry.sectionId)?.homeRoomId ?? null;
+	const configuredHomeRoomId = input.sections.get(entry.sectionId)?.homeRoomId ?? null;
+	const roomId = configuredHomeRoomId ?? entry.roomId ?? null;
 	return roomId != null && input.roomIds.has(roomId)
 		? { entityId: roomId, guidance: null }
 		: { entityId: null, guidance: 'This session has no confirmed room or configured homeroom, so the current schedule view was kept.' };

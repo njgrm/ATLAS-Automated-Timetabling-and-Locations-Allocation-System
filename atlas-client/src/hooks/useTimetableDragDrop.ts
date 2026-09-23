@@ -4,6 +4,7 @@ import type { ImperativePanelHandle } from 'react-resizable-panels';
 import { toast } from 'sonner';
 
 import { parseDraftPlacementId } from '@/lib/timetable-utils';
+import type { TimetableEntryContext } from '@/lib/timetable-entry-pivot';
 import { isSameTimetableSlot, resolveDraftPlacementFromEntry, resolveTimetableDropTarget, type TimetableDropTarget } from '@/lib/timetable-swap-routing';
 import type { DraftPlacement, DraftQueueItem, ScheduledEntry, UnassignedItem, Violation } from '@/types';
 import type { CenterViewMode, DragSource, PreGenDragSource } from '@/components/timetable/ScheduleReviewWorkspace.constants';
@@ -24,6 +25,7 @@ type DragDropOptions = {
 	draftPlacements: DraftPlacement[];
 	preGenEntries: ScheduledEntry[];
 	handleCellDrop: (day: string, startTime: string, endTime: string, source?: DragSource) => void;
+	onSessionContextPivot?: (session: TimetableEntryContext) => void;
 	navToFaculty: (id: number) => void;
 	navToSection: (id: number) => void;
 	navToRoom: (id: number) => void;
@@ -48,6 +50,7 @@ export function useTimetableDragDrop(options: DragDropOptions) {
 		draftPlacements,
 		preGenEntries,
 		handleCellDrop,
+		onSessionContextPivot,
 		navToFaculty,
 		navToSection,
 		navToRoom,
@@ -158,14 +161,20 @@ export function useTimetableDragDrop(options: DragDropOptions) {
 		if (data.type === 'draftPlacement') {
 			const placement = data.placement ?? draftPlacements.find((candidate) => candidate.id === data.placementId) ?? null;
 			if (placement) dragItemRef.current = { type: 'draftPlacement', placement };
-			else if (data.entry) dragItemRef.current = { type: 'entry', entry: data.entry };
+			else if (data.entry) {
+				dragItemRef.current = { type: 'entry', entry: data.entry };
+				onSessionContextPivot?.(data.entry);
+			}
 		} else if (data.type === 'entry' && data.entry) {
+			onSessionContextPivot?.(data.entry);
 			const placement = centerView === 'pre-generation'
 				? resolveDraftPlacementFromEntry(data.entry, draftPlacements)
 				: null;
 			dragItemRef.current = placement ? { type: 'draftPlacement', placement } : { type: 'entry', entry: data.entry };
 		} else if (data.type === 'unassigned' && data.item) {
-			dragItemRef.current = { type: 'unassigned', item: data.item as UnassignedItem };
+			const item = data.item as UnassignedItem;
+			dragItemRef.current = { type: 'unassigned', item };
+			onSessionContextPivot?.({ sectionId: item.sectionId, facultyId: item.facultyId ?? null, roomId: null });
 		} else if (data.type === 'draftQueue' && data.item) {
 			dragItemRef.current = { type: 'draftQueue', item: data.item as DraftQueueItem };
 		}
@@ -175,7 +184,7 @@ export function useTimetableDragDrop(options: DragDropOptions) {
 			window.dispatchEvent(new CustomEvent('atlas:timetable-drag-source', { detail: { source: null } }));
 			setDragActive(false);
 		}
-	}, [centerView, draftPlacements, handleWindowPointerMove, handleWindowPointerUp, setDragActive]);
+	}, [centerView, draftPlacements, handleWindowPointerMove, handleWindowPointerUp, onSessionContextPivot, setDragActive]);
 
 	const handleGlobalDragOver = useCallback((event: DragOverEvent) => {
 		const key = event.over?.id ? String(event.over.id) : null;
