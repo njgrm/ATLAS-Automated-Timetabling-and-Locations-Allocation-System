@@ -38,6 +38,7 @@ After every output that changes code or files, suggest a conventional commit mes
 
 - **Before creating, retiring, or cleaning up any worktree, release directory, or dependency tree, read `docs/reference/agent-worktree-lifecycle.md`** — it holds the record-before-retiring list, the retirement command and its prohibitions, the do-not-retire set, and the `node_modules` junction rules that have already taken the live runtime down once.
 - Before creating a worktree, installing dependencies, or starting a heavy build, record the target volume's free space. On `D:`, **warn below 25 GiB, fail closed below 15 GiB** — PostgreSQL lives on `D:`, so database headroom is part of this gate.
+- **When `D:` crosses the 25 GiB warning, run the release-directory retention reclaim before the next release build.** Do not wait for the fail-closed line, and do not wait for an operator to notice. The policy and its bounded cycle are in `docs/reference/agent-worktree-lifecycle.md`. Observed 2026-09-23: ~46 GiB accumulated in six days because nothing defined a reclaim trigger, and the reclaim then needed a one-off operator exception.
 - Keep at most **12 active task worktrees** across both roots. Integration worktrees count and must not persist as historical evidence.
 - Every handoff states a worktree disposition: `KEEP_ACTIVE`, `RETIRE_AFTER_INTEGRATION`, or `PRESERVE_FOR_DECISION`. Retire a candidate's clean inactive worktrees in the same closure that integrates and pushes it.
 - **Preserve every dirty worktree, unintegrated candidate, active stream, and uncertain owner.**
@@ -166,7 +167,7 @@ For MEDIUM and HIGH work, read `docs/reference/agent-verification-gates.md` and 
 
 ## 12. Live Browser QA
 
-Before any browser, UX/UI, responsive, authenticated, or cross-app evidence task, read `docs/reference/agent-live-browser-qa.md`. Browser work is serialized through one profile controller, read-only by default, on the named Tailnet origin. A fresh login is a mutation and needs explicit authorization for its audit delta. Never persist credentials, and never use live Tailnet evidence to prove undeployed source bytes.
+Before any browser, UX/UI, responsive, authenticated, or cross-app evidence task, read `docs/reference/agent-live-browser-qa.md`. Browser work is serialized through one profile controller, read-only by default, on the named Tailnet origin. A fresh login is a mutation and needs explicit authorization for its audit delta. Never persist credentials, and never use live Tailnet evidence to prove undeployed source bytes. **Never echo a credential value** — read it inside a process and inject the result; never print it, never paste it into a prompt, a log, or a browser field. Observed 2026-09-23: the live QA credential was found in 8 plaintext files across earlier sessions plus an agent transcript, because the credential file wraps values in markdown backticks and a naive parse submitted them literally.
 
 ---
 

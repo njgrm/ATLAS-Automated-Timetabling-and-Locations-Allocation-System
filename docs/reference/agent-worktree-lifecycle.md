@@ -82,6 +82,13 @@ post-action audit:**
    raw recursive deletion covers *worktrees and junctions*; it never licenses a glob, a computed
    path, or an unrecorded target.
 
+**Scope a removal-closure proof to every root a dependent could live in — never to the target's own
+root.** Observed 2026-09-23, twice in one session: scans scoped to `D:\ATLAS-runtime-*` missed a
+borrower under `E:\ATLAS-worktrees`, and an ancestry check run *inside a clone* — where the tip object
+did not exist — produced a false "not integrated" class. Before removing anything, scan **every**
+worktree root and runtime root for dependents, and run Git ancestry checks in the **shared**
+repository, never in the target.
+
 ## Never retire or modify
 
 `D:/ATLAS`, Codex-managed worktrees, `D:/ATLAS-runtime-config`, PostgreSQL storage, companion

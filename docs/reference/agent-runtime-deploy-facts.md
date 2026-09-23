@@ -71,3 +71,13 @@ holds the detail so the directive stays short.
   junction. See `docs/reference/agent-worktree-lifecycle.md`.
 - Build dependencies are isolated inside the release directory. A dependency junction into
   a shared tree makes one retired release break every consumer at once.
+
+## A deployment is not complete until the register says so
+
+- **Update `docs/plans/live-state.md` — the new release SHA, its directory, its listeners and its
+  rollback basis — in the same action as the cutover.** Observed 2026-09-23: the live release moved
+  **twice in one session** (`7ac28124` → `89012430` → `0232bf9c`) while the register still named the
+  previous one. That stale premise cost a review cycle and would mislead any next session — the
+  register's own protocol calls an undated pending line "a premise error waiting to happen".
+- Record the **rollback basis** at the same time, and drop it when a later accepted release displaces
+  it under the retention policy in `docs/reference/agent-worktree-lifecycle.md`.
