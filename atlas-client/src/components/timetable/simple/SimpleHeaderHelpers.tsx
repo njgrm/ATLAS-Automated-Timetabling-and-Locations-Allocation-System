@@ -297,8 +297,13 @@ export function SimpleScheduleSheet({
 					   from lg). At >=1366px the header collapses to one row, so the
 					   inline switcher yields and this trigger returns to carry the
 					   chosen schedule — the full Section/Teacher/Room chooser is
-					   unchanged inside the sheet, exactly one click away. */
-					className="h-8 min-h-11 min-w-11 max-w-[28vw] gap-1.5 px-1.5 text-xs sm:px-2 lg:hidden min-[1366px]:inline-flex"
+					   unchanged inside the sheet, exactly one click away.
+					   C1 correction — `wide:` is the NAMED 1366px breakpoint from
+					   `src/index.css`; it is emitted after `lg:hidden`, so
+					   `wide:inline-flex` actually takes the slot at >=1366px. The
+					   original `min-[1366px]:` variant was emitted before `lg:` and
+					   lost the equal-specificity tie, leaving this trigger hidden. */
+					className="h-8 min-h-11 min-w-11 max-w-[28vw] gap-1.5 px-1.5 text-xs sm:px-2 lg:hidden wide:inline-flex"
 					data-testid="timetable-simple-schedule-sheet-trigger"
 					aria-label={`Showing ${context.VIEW_MODE_LABELS[context.viewMode]} schedule: ${selectedLabel}`}
 				>

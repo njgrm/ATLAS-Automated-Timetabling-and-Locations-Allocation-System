@@ -10,8 +10,18 @@
  * structural facts that make a one-row header possible are asserted:
  *   - exactly one status region and exactly one action cluster,
  *   - exactly one header row band, whose ≥1366 px declarations build a single
- *     non-wrapping flex row (`min-[1366px]:flex-row` + `min-[1366px]:flex-nowrap`),
+ *     non-wrapping flex row (`wide:flex-row` + `wide:flex-nowrap`),
  *   - exactly one filled (bg-primary) primary, which is never `Generate`.
+ *
+ * C1/C2 — the ≥1366 px declarations are proven against the BUILT CSS, not the
+ * JSX source. The reviewed defect was that `min-[1366px]:*` arbitrary variants
+ * were emitted BEFORE the `lg:` block, so at ≥1366 px `lg:flex`/`lg:hidden` won
+ * the equal-specificity tie by source order and the collapse was inverted. This
+ * suite now runs the same Tailwind pipeline the production build runs
+ * (`@tailwindcss/node` compile → build → optimize) over the real
+ * `src/index.css` theme, using the class tokens read from the RENDERED markup,
+ * and asserts the emitted rule order and effective declaration. A source-string
+ * match could not see the cascade and certified the opposite of the defect.
  *
  * Failing-first (D2/D3) — the control this file exists for. On the base commit:
  *   · a published run renders the outline `Generate` at `h-11` (44 px) beside a
@@ -28,6 +38,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import test from 'node:test';
+import { compile, optimize } from '@tailwindcss/node';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { MemoryRouter } from 'react-router-dom';
@@ -174,6 +185,167 @@ function classOf(tag: string): string {
 	return tag.match(/class="([^"]*)"/)?.[1] ?? '';
 }
 
+/* ── C1/C2 — the built-CSS cascade proof ─────────────────────────────────────
+ *
+ * These helpers run the SAME Tailwind pipeline the production build runs
+ * (`@tailwindcss/node`: compile the real `src/index.css` theme → build the
+ * candidate classes → `optimize` via lightningcss, exactly what the Vite plugin
+ * does) and then evaluate the emitted utilities layer. This is deliberately not
+ * a JSX source-string match: the reviewed defect lived in the emitted CSS order,
+ * which source text cannot see.
+ */
+
+/** One emitted style rule inside the utilities layer. */
+interface EmittedRule {
+	/** The rule's selector list, e.g. `.wide\:hidden`. */
+	selector: string;
+	/** The enclosing media condition without the `@media` keyword, e.g. `(min-width:85.375rem)`. */
+	media: string | null;
+	/** The rule's declaration block, e.g. `display:none`. */
+	body: string;
+	/** Character offset of the rule's `{` — source order is the cascade tie-breaker. */
+	offset: number;
+}
+
+/**
+ * Parse the emitted utilities layer into ordered rules with their media guard.
+ * The layer is the only place these display utilities can live, and the scanner
+ * only needs enough structure to recover `selector → media guard → offset`.
+ */
+function emittedUtilityRules(css: string): EmittedRule[] {
+	const layerStart = css.indexOf('@layer utilities{');
+	assert.ok(layerStart >= 0, 'the emitted CSS must contain an @layer utilities block');
+	const rules: EmittedRule[] = [];
+	const stack: Array<{ style: boolean; media: string | null }> = [];
+	let buffer = '';
+	let current: EmittedRule | null = null;
+	let index = layerStart + '@layer utilities{'.length;
+	while (index < css.length) {
+		const char = css[index];
+		if (char === '{') {
+			const head = buffer.trim();
+			buffer = '';
+			if (head.startsWith('@')) {
+				// At-rule frame (media, supports, keyframes, layer, property …).
+				const enclosing = stack.length > 0 ? stack[stack.length - 1].media : null;
+				const media = head.startsWith('@media')
+					? `${enclosing ? `${enclosing} and ` : ''}${head.slice('@media'.length).trim()}`
+					: enclosing;
+				stack.push({ style: false, media });
+				current = null;
+			} else {
+				current = {
+					selector: head,
+					media: stack.length > 0 ? stack[stack.length - 1].media : null,
+					body: '',
+					offset: index,
+				};
+				rules.push(current);
+				stack.push({ style: true, media: current.media });
+			}
+			index += 1;
+			continue;
+		}
+		if (char === '}') {
+			const frame = stack.pop();
+			// Minified output drops the final `;`, so flush the declaration block.
+			if (frame?.style && current) current.body += buffer;
+			current = null;
+			buffer = '';
+			index += 1;
+			continue;
+		}
+		if (char === ';') {
+			if (current) current.body += buffer;
+			buffer = '';
+			index += 1;
+			continue;
+		}
+		buffer += char;
+		index += 1;
+	}
+	return rules;
+}
+
+/** `wide:hidden` → `.wide\:hidden` (Tailwind's CSS selector escaping). */
+function escapedSelector(candidate: string): string {
+	return `.${candidate.replace(/[:.[\]%/]/g, (char) => `\\${char}`)}`;
+}
+
+/** The single emitted rule for a candidate class, or null. */
+function emittedRuleFor(rules: EmittedRule[], candidate: string): EmittedRule | null {
+	const selector = escapedSelector(candidate);
+	return rules.find((rule) => rule.selector === selector) ?? null;
+}
+
+/** Resolve a media-feature length to px (in a media query `rem`/`em` use the initial 16px root). */
+function lengthPx(raw: string): number | null {
+	const match = raw.trim().match(/^(-?[\d.]+)(px|rem|em)?$/);
+	if (!match) return null;
+	const value = Number(match[1]);
+	return (match[2] ?? 'px') === 'px' ? value : value * 16;
+}
+
+/** The min-width (px) of a `(min-width:…)` guard, or null when the rule is unconditional. */
+function minWidthPx(media: string | null): number | null {
+	if (!media) return 0;
+	const match = media.match(/min-width\s*:\s*([\d.]+(?:px|rem|em)?)/);
+	if (!match) return null;
+	return lengthPx(match[1]);
+}
+
+/**
+ * The effective `display` for one candidate at a viewport width, evaluated the
+ * way the cascade actually decides it: a rule applies when its media guard
+ * matches, the selectors are single-class (equal specificity), so the LAST
+ * applying declaration in source order wins. Returns null when no display
+ * declaration applies.
+ */
+function effectiveDisplay(rules: EmittedRule[], candidate: string, widthPx: number): string | null {
+	const selector = escapedSelector(candidate);
+	let winner: string | null = null;
+	for (const rule of rules) {
+		if (rule.selector !== selector) continue;
+		const min = minWidthPx(rule.media);
+		if (min === null || widthPx < min) continue;
+		const declared = rule.body.match(/display\s*:\s*([^;]+)/);
+		if (declared) winner = declared[1].trim();
+	}
+	return winner;
+}
+
+const builtCssCache = new Map<string, string>();
+
+/**
+ * Compile the real theme with the real candidate classes and return the
+ * optimized (production-shape) CSS. The candidate list is derived from the
+ * RENDERED class attributes, so the proof tracks the component output rather
+ * than a hand-maintained copy of it.
+ */
+async function builtUtilitiesCss(candidates: string[]): Promise<string> {
+	const key = [...candidates].sort().join(' ');
+	const cached = builtCssCache.get(key);
+	if (cached) return cached;
+	const themeCss = readFileSync(resolve(clientRoot, 'src/index.css'), 'utf8');
+	const compiled = await compile(themeCss, { base: clientRoot, onDependency: () => {} });
+	const css = optimize(compiled.build(candidates), { minify: true }).code;
+	builtCssCache.set(key, css);
+	return css;
+}
+
+/** The class tokens of the elements whose cascade decides the one-row header. */
+function headerCascadeCandidates(markup: string): string[] {
+	const switcher = markup.match(/class="(hidden min-w-0 flex-1 lg:flex[^"]*)"/)?.[1];
+	assert.ok(switcher, 'the inline schedule switcher class list must render');
+	const sources = [
+		classOf(tagFor(markup, 'timetable-simple-header-row')),
+		classOf(tagFor(markup, 'timetable-simple-status-region')),
+		switcher,
+		classOf(tagFor(markup, 'timetable-simple-schedule-sheet-trigger')),
+	];
+	return sources.flatMap((list) => list.split(/\s+/).filter(Boolean));
+}
+
 /**
  * The effective rendered height, read from the element's own `h-*` utility
  * (Tailwind spacing = n × 4 px). `cn`/twMerge has already resolved the
@@ -268,43 +440,85 @@ test('D1 the header renders exactly one row band holding the one status region a
 	assert.ok(regionAt < actionAt, 'the status region and the action controls share the one row band');
 });
 
-test('D1 at ≥1366px the one band is an explicitly non-wrapping row', () => {
-	const header = source('src/components/timetable/TimetableSimpleHeader.tsx');
-	const rowTag = header.match(/<div[^>]*data-testid="timetable-simple-header-row"[^>]*>/)?.[0];
-	assert.ok(rowTag, 'the row band must exist in the header source');
-	assert.match(rowTag, /min-\[1366px\]:flex-row/, 'the band becomes one row at ≥1366px');
-	assert.match(rowTag, /min-\[1366px\]:flex-nowrap/, 'the row cannot wrap at ≥1366px');
-	assert.doesNotMatch(rowTag, /(^|\s)flex-wrap(\s|$)/, 'the base stack must not wrap the row itself');
-
-	// The action row is the committed single action row; it must not wrap inside
-	// the one-row band either.
-	const actionRow = header.match(/<div className="flex min-w-0 flex-wrap items-center gap-1\.5 px-3[^"]*">/)?.[0];
-	assert.ok(actionRow, 'the single action row must still render');
-	assert.match(actionRow, /min-\[1366px\]:flex-nowrap/, 'the action row cannot wrap at ≥1366px');
-
-	// The rendered markup carries the same declarations (the proof is the
-	// rendered class, not just the source text).
+test('D1 at ≥1366px the one band is an explicitly non-wrapping row (rendered contract)', () => {
 	const markup = renderHeader(CLEAN_UNPUBLISHED);
-	const renderedRow = tagFor(markup, 'timetable-simple-header-row');
-	assert.match(classOf(renderedRow), /min-\[1366px\]:flex-row/);
-	assert.match(classOf(renderedRow), /min-\[1366px\]:flex-nowrap/);
+
+	// The rendered row band stacks by default and becomes a non-wrapping flex
+	// row at the one-row breakpoint. These are the RENDERED classes; whether
+	// they actually win the cascade is proven by the C1 test below.
+	const rowClasses = classOf(tagFor(markup, 'timetable-simple-header-row'));
+	assert.match(rowClasses, /(?:^|\s)flex-col(?:\s|$)/, 'the band stacks below the breakpoint');
+	assert.match(rowClasses, /wide:flex-row/, 'the band becomes one row at ≥1366px');
+	assert.match(rowClasses, /wide:flex-nowrap/, 'the row cannot wrap at ≥1366px');
+	assert.doesNotMatch(rowClasses, /(?:^|\s)flex-wrap(?:\s|$)/, 'the base stack must not wrap the row itself');
+	// C3 — the one-row band is the no-document-scrollbar fallback: a nowrap row
+	// that scrolls INTERNALLY (overflow-x-auto) rather than widening the page.
+	// Whether the ≥1366px row actually fits without using it is a post-deployment
+	// browser row; this only pins the fallback in place.
+	assert.match(rowClasses, /wide:overflow-x-auto/, 'the one-row band scrolls internally, never the document');
+
+	// The status region takes the free space, and the committed single action row
+	// must not wrap inside the one-row band either.
+	assert.match(classOf(tagFor(markup, 'timetable-simple-status-region')), /wide:flex-1/);
+	assert.match(
+		markup,
+		/class="flex min-w-0 flex-wrap items-center gap-1\.5 px-3 wide:flex-nowrap wide:shrink-0"/,
+		'the single action row cannot wrap at ≥1366px',
+	);
+});
+
+test('C1 the built CSS emits the ≥1366px collapse rules AFTER lg:, so they win the equal-specificity tie', async () => {
+	const markup = renderHeader(CLEAN_UNPUBLISHED);
+	const rules = emittedUtilityRules(await builtUtilitiesCss(headerCascadeCandidates(markup)));
+
+	// The reviewed defect: `min-[1366px]:*` used to be emitted BEFORE the `lg:`
+	// block, so at ≥1366px — where both queries match and the selectors have
+	// equal specificity — `lg:` won by source order. The `wide:` named
+	// breakpoint must be emitted after `lg:` instead.
+	const lgFlex = emittedRuleFor(rules, 'lg:flex');
+	const wideHidden = emittedRuleFor(rules, 'wide:hidden');
+	const lgHidden = emittedRuleFor(rules, 'lg:hidden');
+	const wideInlineFlex = emittedRuleFor(rules, 'wide:inline-flex');
+	assert.ok(lgFlex && wideHidden && lgHidden && wideInlineFlex, 'all four competing rules must be emitted');
+
+	assert.equal(lgFlex.media, '(min-width:64rem)', 'lg: resolves to the 64rem media query');
+	assert.equal(wideHidden.media, '(min-width:85.375rem)', 'wide: resolves to the 85.375rem (1366px) media query');
+
+	// Emitted order is the cascade tie-breaker for equal-specificity rules.
+	assert.ok(
+		lgFlex.offset < wideHidden.offset,
+		'wide:hidden must be emitted after lg:flex, or the inline switcher keeps display:flex at ≥1366px',
+	);
+	assert.ok(
+		lgHidden.offset < wideInlineFlex.offset,
+		'wide:inline-flex must be emitted after lg:hidden, or the sheet trigger stays display:none at ≥1366px',
+	);
+
+	// The effective declaration at a 1366px viewport, evaluated with the real
+	// cascade rule (both queries match; last applying declaration wins).
+	assert.equal(effectiveDisplay(rules, 'wide:hidden', 1366), 'none', 'the inline switcher yields at 1366px');
+	assert.equal(effectiveDisplay(rules, 'wide:inline-flex', 1366), 'inline-flex', 'the sheet trigger returns at 1366px');
+	// Below the breakpoint the settlement inverts back.
+	assert.equal(effectiveDisplay(rules, 'lg:flex', 1280), 'flex', 'the inline switcher shows between lg and 1366px');
+	assert.equal(effectiveDisplay(rules, 'lg:hidden', 1280), 'none', 'the sheet trigger is hidden between lg and 1366px');
 });
 
 test('D1 the inline schedule switcher yields to its one-click sheet at ≥1366px (nothing becomes unreachable)', () => {
-	const header = source('src/components/timetable/TimetableSimpleHeader.tsx');
+	const markup = renderHeader(CLEAN_UNPUBLISHED);
+
+	// The inline switcher and its sheet fallback both render, carrying the
+	// breakpoint declarations the C1 test proves in the built CSS.
+	const switcher = markup.match(/class="(hidden min-w-0 flex-1 lg:flex[^"]*)"/)?.[1];
+	assert.ok(switcher, 'the inline switcher must render');
+	assert.match(switcher, /lg:flex/, 'the inline switcher shows from lg');
+	assert.match(switcher, /wide:hidden/, 'the inline switcher yields at ≥1366px');
+	const trigger = classOf(tagFor(markup, 'timetable-simple-schedule-sheet-trigger'));
+	assert.match(trigger, /lg:hidden/, 'the sheet trigger is compact below lg');
+	assert.match(trigger, /wide:inline-flex/, 'the sheet trigger returns at ≥1366px');
+
+	// The sheet's content is the unchanged shared chooser, so the full
+	// Section/Teacher/Room chooser stays exactly one click away.
 	const helpers = source('src/components/timetable/simple/SimpleHeaderHelpers.tsx');
-	// The full Section/Teacher/Room chooser stays mounted below 1366px and is
-	// already the sheet's content; at ≥1366px the compact trigger takes the row
-	// slot so the section/entity chooser is still exactly one click away.
-	assert.match(
-		header,
-		/hidden min-w-0 flex-1 lg:flex lg:shrink-0 lg:min-w-\[24rem\] min-\[1366px\]:hidden/,
-		'the inline switcher yields at ≥1366px',
-	);
-	const sheetTrigger = helpers.match(/<Button[\s\S]*?data-testid="timetable-simple-schedule-sheet-trigger"/)?.[0];
-	assert.ok(sheetTrigger, 'the schedule sheet trigger must exist');
-	assert.match(sheetTrigger, /min-\[1366px\]:inline-flex/, 'the sheet trigger is visible at ≥1366px');
-	// The sheet's content is the unchanged shared chooser.
 	assert.match(helpers, /<SimpleScheduleControls/);
 });
 
