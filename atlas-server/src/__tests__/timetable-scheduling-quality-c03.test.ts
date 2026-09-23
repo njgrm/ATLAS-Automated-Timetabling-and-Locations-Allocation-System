@@ -7,20 +7,50 @@ import jwt from 'jsonwebtoken';
 import { withDataContext } from '../lib/data-context.js';
 import { getViolationRepairOptions, parseViolationRepairLocator, type ViolationRepairLocator } from '../services/violation-repair-options.service.js';
 import { getFixSuggestions } from '../services/fix-suggestions.service.js';
-import type { Violation, ViolationCode } from '../services/constraint-validator.js';
+import { validateHardConstraints, type ScheduledEntry, type Violation, type ViolationCode } from '../services/constraint-validator.js';
+import { buildValidatorCtx, previewManualEdit } from '../services/manual-edit.service.js';
 
 const SECRET = 'timetable-scheduling-quality-c03-secret';
 const RUN_PATH = '/api/v1/generation/1/10/runs/316/violation-repair-options';
 
-async function withRepairServer<T>(fn: (request: (body: unknown, actor?: Record<string, unknown>) => Promise<Response>, dispatches: () => number, writes: () => number) => Promise<T>, runValue: unknown = null, path = RUN_PATH): Promise<T> {
+async function withRepairServer<T>(fn: (request: (body: unknown, actor?: Record<string, unknown>) => Promise<Response>, dispatches: () => number, writes: () => number) => Promise<T>, runValue: unknown = null, path = RUN_PATH, referenceData?: Record<string, any>): Promise<T> {
 	process.env.JWT_SECRET = SECRET;
 	let dbDispatches = 0;
 	let writeAttempts = 0;
-	const read = async () => { dbDispatches += 1; return runValue; };
+	const read = async () => runValue;
 	const write = async () => { writeAttempts += 1; throw new Error('read-only repair route attempted a write'); };
-	const client = {
-		generationRun: { findFirst: read, findMany: read, findUnique: read, update: write, updateMany: write, create: write, delete: write, deleteMany: write },
-	};
+	const readMethods = new Set(['findFirst', 'findMany', 'findUnique', 'findUniqueOrThrow', 'findFirstOrThrow', 'count', 'aggregate', 'groupBy']);
+	const writeMethods = new Set(['create', 'createMany', 'update', 'updateMany', 'upsert', 'delete', 'deleteMany']);
+	const instrumentDelegate = (source: Record<string, unknown>) => new Proxy(source, {
+		get(target, key: string) {
+			if (writeMethods.has(key)) return write;
+			const existing = Reflect.get(target, key);
+			if (typeof existing === 'function') return async (...args: unknown[]) => { dbDispatches += 1; return existing(...args); };
+			if (readMethods.has(key)) return async () => { dbDispatches += 1; return []; };
+			return existing;
+		},
+	});
+	const model = (overrides: Record<string, unknown> = {}) => instrumentDelegate(overrides);
+	const client = new Proxy({
+		generationRun: model({ findFirst: read, findMany: read, findUnique: read }),
+		facultyMirror: model({ findMany: async () => (referenceData?.faculty ?? []).map((faculty: any) => ({ firstName: 'Teacher', lastName: 'Twelve', ...faculty })) }),
+		facultySubject: model({ findMany: async () => referenceData?.facultySubjects ?? [] }),
+		room: model({ findMany: async () => referenceData?.rooms ?? [] }),
+		subject: model({ findMany: async () => referenceData?.subjects ?? [] }),
+		building: model({ findMany: async () => referenceData?.buildings ?? [] }),
+		sectionSnapshot: model({ findUnique: async () => ({ payload: [{ displayOrder: 7, sections: [{ id: 7, name: '7-Cedar', enrolledCount: 20 }, { id: 8, name: '8-Ash', enrolledCount: 20 }] }] }) }),
+		policySpecialEvent: model({ findMany: async () => [] }),
+		gradeShiftWindow: model({ findMany: async () => [] }),
+		classProgramSlot: model({ findMany: async () => [] }),
+		schedulingPolicy: model({ findUnique: async () => referenceData?.policyRecord ?? null }),
+	}, {
+		get(target, key: string) {
+			if (key === '$transaction' || key === '$executeRaw' || key === '$executeRawUnsafe') return write;
+			if (key === '$queryRaw' || key === '$queryRawUnsafe') return async () => { dbDispatches += 1; return []; };
+			const existing = Reflect.get(target, key);
+			return existing ?? model();
+		},
+	});
 	const generationRouter = (await import('../routes/generation.router.js')).default;
 	const app = express();
 	app.use(express.json());
@@ -58,6 +88,36 @@ const locator = {
 	startTime: '08:00',
 	endTime: '08:45',
 };
+
+function canonicalConflictFixture() {
+	const entries: ScheduledEntry[] = [
+		{ entryId: 'entry-a', facultyId: 12, roomId: 30, subjectId: 4, sectionId: 7, day: 'MONDAY', startTime: '08:00', endTime: '08:45', durationMinutes: 45, termIndex: 1 },
+		{ entryId: 'entry-b', facultyId: 12, roomId: 31, subjectId: 5, sectionId: 8, day: 'MONDAY', startTime: '08:00', endTime: '08:45', durationMinutes: 45, termIndex: 1 },
+	];
+	const rooms = [30, 31].map((id) => ({ id, name: `Room ${id}`, type: 'CLASSROOM', isTeachingSpace: true, isSharedFacility: false, capacity: 40, features: [], floor: 0, buildingId: 1, buildingGradeScope: [7, 8], building: { gradeScope: [7, 8], name: 'Main', shortCode: 'M' } }));
+	const subjects = [4, 5].map((id) => ({ id, code: `SUB${id}`, name: `Subject ${id}`, minMinutesPerWeek: 45, preferredRoomType: 'CLASSROOM', requiredFeatures: [], gradeLevels: [7, 8] }));
+	const policyRecord = {
+		maxConsecutiveTeachingMinutesBeforeBreak: 135, periodLengthMinutes: 45, minBreakMinutesAfterConsecutiveBlock: 15,
+		maxTeachingMinutesPerDay: 480, earliestStartTime: '07:00', latestEndTime: '17:00', enforceConsecutiveBreakAsHard: false,
+		maxBuildingTransitionsPerDay: 10, maxBackToBackTransitionsWithoutBuffer: 10, maxIdleGapMinutesPerDay: 480,
+		avoidEarlyFirstPeriod: false, avoidLateLastPeriod: false, enableVacantAwareConstraints: false,
+		targetFacultyDailyVacantMinutes: 0, targetSectionDailyVacantPeriods: 0, maxCompressedTeachingMinutesPerDay: 480,
+		constraintConfig: {},
+	};
+	const refData = {
+		run: { id: 316, schoolId: 1, schoolYearId: 10, status: 'COMPLETED', summary: { isPublished: false }, draftEntries: entries, unassignedItems: [], violations: [] },
+		entries, unassignedItems: [], faculty: [{ id: 12, maxHoursPerWeek: 40, ancillaryMinutesPerWeek: 0 }],
+		facultySubjects: [4, 5].map((subjectId, index) => ({ facultyId: 12, subjectId, gradeLevels: [7, 8], sectionIds: [7 + index] })),
+		rooms, subjects, policyRecord, buildings: [{ id: 1, x: 0, y: 0 }],
+		facultyNameMap: new Map([[12, 'Teacher Twelve']]), roomNameMap: new Map([[30, 'Room 30 · Main'], [31, 'Room 31 · Main']]),
+		subjectNameMap: new Map([[4, 'SUB4'], [5, 'SUB5']]), subjectNameDetailMap: new Map([[4, 'Subject 4'], [5, 'Subject 5']]),
+		sectionEnrollment: new Map([[7, 20], [8, 20]]), sectionGradeLevel: new Map([[7, 7], [8, 8]]),
+		windowAuthority: { breakWindows: [], shiftWindows: [], sectionScope: new Map() },
+	};
+	const violations = validateHardConstraints(buildValidatorCtx(1, 10, 316, entries, refData as never)).violations;
+	const run = { ...refData.run, violations };
+	return { refData: { ...refData, run }, run, violations };
+}
 
 test('C03 route rejects malformed/coerced locator identities and cross-school actors before dispatch', async () => {
 	await withRepairServer(async (request, dispatches) => {
@@ -184,6 +244,32 @@ test('C03 repairable previews remove the selected issue and reject any newly int
 	} as never);
 	assert.notEqual(unsafe.status, 'REPAIRABLE');
 	assert.equal(unsafe.options.length, 0);
+});
+
+test('C03 real validator conflict reaches real manual-edit preview and the mounted repair route', async () => {
+	const fixture = canonicalConflictFixture();
+	const target = fixture.violations.find((violation) => violation.code === 'FACULTY_TIME_CONFLICT');
+	assert.ok(target, 'the production constraint validator must create the canonical issue');
+	const proposal = { editType: 'CHANGE_TIMESLOT' as const, entryId: 'entry-a', targetDay: 'TUESDAY', targetStartTime: '08:00', targetEndTime: '08:45' };
+	const preview = await previewManualEdit(316, 1, 10, proposal, { loadRunContext: async () => fixture.refData as never });
+	assert.equal(preview.violationDelta.hardAfter, 0);
+	assert.ok(!preview.hardViolations.some((violation) => violation.code === 'FACULTY_TIME_CONFLICT'));
+	assert.equal(preview.hardViolations.some((violation) => violation.code !== target.code), false);
+	const requestBody = {
+		code: target.code, termIndex: 1, entryIds: target.entities.entryIds,
+		facultyId: target.entities.facultyId, day: target.entities.day,
+		startTime: target.entities.startTime, endTime: target.entities.endTime,
+	};
+	await withRepairServer(async (request, dispatches, writes) => {
+		const response = await request(requestBody);
+		assert.equal(response.status, 200, 'route must match the actual validator issue and invoke its real preview path');
+		const body = await response.json() as { status: string; options: Array<{ proposal: { editType: string }; projectedDelta: { hardAfter: number; hardBefore: number } }> };
+		assert.equal(body.status, 'REPAIRABLE');
+		assert.ok(body.options.length > 0);
+		assert.ok(body.options.every((option) => option.proposal.editType === 'CHANGE_TIMESLOT' && option.projectedDelta.hardAfter <= option.projectedDelta.hardBefore));
+		assert.ok(dispatches() > 0);
+		assert.equal(writes(), 0, 'route, real loader, and real preview must use no model/raw/transaction writes');
+	}, fixture.run, RUN_PATH, fixture.refData);
 });
 
 test('C03 every persisted violation family fails closed without an entry-backed verified preview', async () => {
