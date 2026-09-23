@@ -47,7 +47,8 @@ and AIMS.
   (lifecycle mount 1/1, route preservation 57/57, controls/session 3/3, production client build passed;
   NON_BLOCKING: three unchanged tests missing Playwright declarations). **Rollback basis:
   `014b4b4c6ef1112f544589f7245e5b662103d9a1`** at `E:\ATLAS-runtime-supervised-014b4b4c-20260924`
-  (startable in place). Pre-deploy record committed first; post-cutover acceptance at
+  (startable in place; its `git status --short` carries an untracked `ops/runtime/logs/` state JSON, which
+  does not affect startability). Pre-deploy record committed first; post-cutover acceptance at
   `docs/handoffs/deploy-acceptance-22d1f5a8-20260924.md`. **Deployment and acceptance are separate
   outcomes.**)
 - **Release SHA: `014b4b4c`** (current live serving release; `E:\ATLAS-runtime-supervised-014b4b4c-20260924`;

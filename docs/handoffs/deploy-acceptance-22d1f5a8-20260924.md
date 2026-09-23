@@ -11,7 +11,7 @@ no publication.** Deployment and acceptance are recorded as separate outcomes.
 | Target | `22d1f5a8a341bf426a91df5a7ea6c01acd4862d2` |
 | Incumbent / rollback basis | `014b4b4c6ef1112f544589f7245e5b662103d9a1` (`E:\ATLAS-runtime-supervised-014b4b4c-20260924`, startable in place) |
 | Target source | `E:\ATLAS-runtime-supervised-22d1f5a8-20260924` (detached worktree at the target) |
-| Env | `D:\ATLAS-runtime-config\atlas-server.env` (17 keys; `ROLLOVER_AUTO_SYNC_ENABLED=false`) |
+| Env | `D:\ATLAS-runtime-config\atlas-server.env` (17 keys; no `ROLLOVER_AUTO_SYNC_ENABLED` key — the operative control is `ops/runtime/runtime-contract.json` `invariants.ROLLOVER_AUTO_SYNC_ENABLED="false"`, passed through by the supervisor; live log confirms `[rollover-automation] Disabled via ROLLOVER_AUTO_SYNC_ENABLED=false`) |
 | Pre-deploy record | `docs/plans/live-state.md` `## Live release` naming target + rollback, committed `4e2e5909` and pushed **before** cutover |
 | Runner | `ops/runtime/deploy-runner.ps1` — dry run clean (`mutates:false`, supervisor 25496, listeners 52200/62352), then `-Execute` → `CUTOVER_STARTED`, audit `C:\ProgramData\ATLAS\release-audit\22d1f5a8-20260924-041929` |
 
@@ -28,7 +28,7 @@ production build. Pre-build gates all green: `test:timetable-lifecycle-loading` 
 - `GET /api/v1/health/ready` → 200 `{"status":"ready","checks":{"database":"ok"}}`;
   `GET /api/v1/subjects?schoolId=1` → 200 (19,440 B).
 - **New bundle served from the Tailnet origin:** entry `assets/index-PWY0v5TC.js` (was `index-BloZtbDr.js`)
-  and `assets/ScheduleReviewWorkspace-M15pvQpf.js` → 200 (418,316 B).
+  and `assets/ScheduleReviewWorkspace-M15pvQpf.js` → 200 (418,480 B).
 - Export matrix (run #317, termIndex 2) all 200: `class-program.xlsx` 20,389 B, `section-program.docx`
   9,873 B, `summary-teacher-schedule.xlsx` 54,081 B, `room-program.xlsx` 34,950 B.
 
@@ -51,15 +51,21 @@ then resolves to the correct view, with no error boundary and no global scrollba
 | `/timetable/runs` | Generation history | Generation history |
 | `/timetable/exports` | Exports | Exports |
 
-**Console:** the current page reports **0 errors / 0 warnings**. The session's historical error log
-contains only the pre-existing intermittent host/proxy 502s and the pre-fix 503 export errors from
-earlier in the session — none on the new release's current page.
+**Console:** the current page reported **0 errors / 0 warnings** at the moment of the acceptance pass.
+The session's historical error log contains only the pre-existing intermittent host/proxy 502s and the
+pre-fix 503 export errors from earlier in the session. The 502s are intermittent and can still appear on
+a fresh load (a later independent load produced three transient 502s to `runtime/rollover-status`,
+`room-preferences/collaboration/ticket`, and `runs/317/manual-edits`, each of which returns 200 on a
+direct retry) — this is the pre-existing, unowned 502 residual, not a defect of this release.
 
 ## Rollback
 
 If post-cutover verification had failed: re-run the runner with target/incumbent swapped
-(target `014b4b4c`, incumbent `22d1f5a8`) after confirming the `014b4b4c` directory is clean and
-startable. Not needed — verification passed.
+(target `014b4b4c`, incumbent `22d1f5a8`) after confirming the `014b4b4c` directory is startable.
+Not needed — verification passed. The `014b4b4c` directory is **startable in place** (HEAD `014b4b4c…`,
+`atlas-server/dist/server.js` + `atlas-client/dist/index.html` present); its `git status --short` is not
+empty — it carries an untracked `ops/runtime/logs/` (the supervisor state JSON, which `.gitignore` does
+not cover) — which does not affect startability.
 
 ## Residuals
 
