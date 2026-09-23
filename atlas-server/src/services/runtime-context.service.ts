@@ -233,6 +233,53 @@ function buildActiveYearDrift(input: {
 	};
 }
 
+/**
+ * Normalize a persisted term boundary (an ISO-ish date string) or a `Date` to a
+ * `YYYY-MM-DD` stamp so term ranges can be compared lexicographically. A `Date`
+ * uses its local calendar date; a string is normalized through `Date.parse` and
+ * falls back to its first 10 characters when unparseable.
+ */
+function dayStamp(value: string | Date): string {
+	if (value instanceof Date) {
+		return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, '0')}-${String(value.getDate()).padStart(2, '0')}`;
+	}
+	const parsed = Date.parse(value);
+	return Number.isFinite(parsed) ? new Date(parsed).toISOString().slice(0, 10) : value.slice(0, 10);
+}
+
+export type PersistedTermBoundary = {
+	identity: string;
+	order: number;
+	startDate?: string | null;
+	endDate?: string | null;
+};
+
+/**
+ * RR-TERM-CACHE offline resilience: choose the persisted contract's active term
+ * when the live EnrollPro active-term endpoint is unreachable. The persisted
+ * `activeTerm` snapshot can be stale — it is only rewritten when the contract's
+ * semantic revision changes — so after a term rollover it can still name the
+ * previous term. When every persisted term carries verified date boundaries,
+ * prefer the term whose range contains `now`, then the latest term that has
+ * already started (covers a gap between two terms), and only then the snapshot.
+ * A term missing either boundary falls back to the snapshot.
+ */
+export function derivePersistedActiveTerm(
+	terms: readonly PersistedTermBoundary[],
+	snapshotOrder: number | null,
+	now: Date,
+): { identity: string; termIndex: number } | null {
+	const snapshotEntry = snapshotOrder != null ? terms.find((term) => term.order === snapshotOrder) : undefined;
+	const today = dayStamp(now);
+	const dated = terms.length > 0 && terms.every((term) => term.startDate && term.endDate);
+	const dateEntry = dated
+		? (terms.find((term) => dayStamp(term.startDate!) <= today && today <= dayStamp(term.endDate!))
+			?? terms.filter((term) => dayStamp(term.startDate!) <= today).pop())
+		: undefined;
+	const chosen = dateEntry ?? snapshotEntry;
+	return chosen ? { identity: chosen.identity, termIndex: chosen.order } : null;
+}
+
 export async function resolveRuntimeContext(
 	schoolId: number,
 	authToken?: string,
@@ -397,10 +444,7 @@ export async function resolveRuntimeContext(
 				persistedOrderedIdentities = persisted.structure.terms.map((term) => term.identity);
 				const rawActive = (schoolYearMirror.termContractCache as { activeTerm?: { order?: unknown } }).activeTerm;
 				const activeOrder = rawActive && Number.isInteger(rawActive.order) ? Number(rawActive.order) : null;
-				const activeEntry = activeOrder != null
-					? persisted.structure.terms.find((term) => term.order === activeOrder)
-					: undefined;
-				if (activeEntry) persistedActiveTerm = { identity: activeEntry.identity, termIndex: activeEntry.order };
+				persistedActiveTerm = derivePersistedActiveTerm(persisted.structure.terms, activeOrder, new Date());
 			}
 		}
 
