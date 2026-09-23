@@ -35,7 +35,10 @@ and AIMS.
 ## Live release
 
 - Tailnet: `https://njgrm.buru-degree.ts.net`
-- **Release SHA: `22d1f5a8`** (deploy target; `E:\ATLAS-runtime-supervised-22d1f5a8-20260924`; carries the
+- **Release SHA: `22d1f5a8`** (**LIVE** since 2026-09-24; `E:\ATLAS-runtime-supervised-22d1f5a8-20260924`;
+  supervisor → server `5001`→61128 / host `5174`→9212; health/ready (`database:"ok"`) 200; served entry
+  `assets/index-PWY0v5TC.js` + `assets/ScheduleReviewWorkspace-M15pvQpf.js`; machine
+  `ATLAS_RUNTIME_SOURCE_DIR` / `RELEASE_SHA` = the target; supervisor log "All targets healthy". Carries the
   client-only `TIMETABLE-LIFECYCLE-CONTROLS-C03` lane on top of `014b4b4c`: session-verification
   truthfulness (no false "Guest" flash while the actor session resolves), per-route bounded loading copy
   for the five direct lifecycle routes (Drafting/Setup/Policies/Runs/Exports), and header grid-control
@@ -44,7 +47,8 @@ and AIMS.
   (lifecycle mount 1/1, route preservation 57/57, controls/session 3/3, production client build passed;
   NON_BLOCKING: three unchanged tests missing Playwright declarations). **Rollback basis:
   `014b4b4c6ef1112f544589f7245e5b662103d9a1`** at `E:\ATLAS-runtime-supervised-014b4b4c-20260924`
-  (startable in place). Pre-deploy record committed first. **Deployment and acceptance are separate
+  (startable in place). Pre-deploy record committed first; post-cutover acceptance at
+  `docs/handoffs/deploy-acceptance-22d1f5a8-20260924.md`. **Deployment and acceptance are separate
   outcomes.**)
 - **Release SHA: `014b4b4c`** (current live serving release; `E:\ATLAS-runtime-supervised-014b4b4c-20260924`;
   supervisor → server `5001`→52200 / host `5174`→62352; health/ready (`database:"ok"`) 200; machine
