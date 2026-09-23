@@ -15,7 +15,7 @@ Base `origin/main` = `be0bd0df` (unchanged at start and end of cycle). Live rele
 
 **Drift (independently read from DB + live EnrollPro feed before the action):**
 
-| section | mirror `enrolled_count` | live EnrollPro feed | 
+| section | mirror `enrolled_count` | live EnrollPro feed |
 |---|---|---|
 | 143 Aguinaldo | 4 | 5 |
 | 146 Matapat | 1 | 2 |
