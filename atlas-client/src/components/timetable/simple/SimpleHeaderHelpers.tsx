@@ -71,8 +71,8 @@ const NO_RUN_STEPS: readonly SimpleTutorialStep[] = [
 	},
 	{
 		title: 'Use Advanced only for expert repair',
-		body: 'Advanced view is for expert tools like policy, map, diagnostics, and full manual-edit panels. Simple mode covers daily scheduling once a run exists.',
-		target: 'Advanced view',
+		body: 'Expert view is for tools like policy, map, diagnostics, and full manual-edit panels. Simple mode covers daily scheduling once a run exists.',
+		target: 'Expert view',
 		targetTestId: 'timetable-layout-toggle',
 		icon: Settings2,
 	},
@@ -142,8 +142,8 @@ const PUBLISHED_STEPS: readonly SimpleTutorialStep[] = [
 	},
 	{
 		title: 'Use Advanced only for expert repair',
-		body: 'Advanced view is for expert tools like policy, map, diagnostics, and full manual-edit panels.',
-		target: 'Advanced view',
+		body: 'Expert view is for tools like policy, map, diagnostics, and full manual-edit panels.',
+		target: 'Expert view',
 		targetTestId: 'timetable-layout-toggle',
 		icon: Settings2,
 	},
@@ -332,7 +332,7 @@ export function SimpleScheduleSheet({
 				<SheetHeader>
 					<SheetTitle className="text-base">Choose schedule view</SheetTitle>
 					<SheetDescription>
-						Switch between section, teacher, and room schedules without opening Advanced view.
+						Switch between section, teacher, and room schedules without opening Expert view.
 					</SheetDescription>
 				</SheetHeader>
 				<SimpleScheduleControls
@@ -391,7 +391,7 @@ export function SimpleFiltersContent({ context }: { context: ScheduleReviewWorks
 				</Select>
 			</div>
 			<p className="text-xs text-muted-foreground">
-				These filters keep you in Simple view. Use Advanced view only for expert repair panels.
+				These filters keep you in Simple view. Use Expert view for full repair panels.
 			</p>
 		</div>
 	);

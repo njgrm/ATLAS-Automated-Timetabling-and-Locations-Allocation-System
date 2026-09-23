@@ -140,10 +140,7 @@ export function AppShell() {
 	const suspenseFallback = isTimetableRoute
 		? <TimetableSkeleton />
 		: <div className="p-6"><Skeleton className="h-100 w-full rounded-lg" /></div>;
-	const [sidebarOpen, setSidebarOpen] = useState(() => (
-		window.location.pathname.startsWith('/timetable') ? false : readSidebarOpenPreference()
-	));
-	const previousPathnameRef = useRef(location.pathname);
+	const [sidebarOpen, setSidebarOpen] = useState(readSidebarOpenPreference);
 	const [schoolName, setSchoolName] = useState(() => readShellBrandingCache()?.schoolName ?? DEFAULT_SHELL_SCHOOL_NAME);
 	const [logoUrl, setLogoUrl] = useState<string | null>(() => readShellBrandingCache()?.logoUrl ?? null);
 	const [activeYearLabel, setActiveYearLabel] = useState<string | null>(null);
@@ -284,13 +281,6 @@ export function AppShell() {
 	useEffect(() => { setMobileNavOpen(false); }, [location.pathname]);
 
 	useLayoutEffect(() => { captureBridgeToken(); }, []);
-
-	useLayoutEffect(() => {
-		const wasTimetableRoute = previousPathnameRef.current.startsWith('/timetable');
-		if (isTimetableRoute && !wasTimetableRoute) setSidebarOpen(false);
-		if (!isTimetableRoute && wasTimetableRoute) setSidebarOpen(readSidebarOpenPreference());
-		previousPathnameRef.current = location.pathname;
-	}, [isTimetableRoute, location.pathname]);
 
 	useEffect(() => {
 		if (!actorSchoolId) {

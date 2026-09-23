@@ -85,8 +85,9 @@ export function useTimetableViewNavigation(options: ViewNavigationOptions) {
 		action();
 	}, [centerView, draftPlacementCount, preGenPending, setPendingCenterSwitch, setShowLeavePreGenDialog]);
 
-	const returnToGeneratedRun = useCallback(() => {
+	const returnToGeneratedRun = useCallback((beforeReturn?: () => void) => {
 		switchCenterViewWithGuard(() => {
+			beforeReturn?.();
 			setCenterView('schedule');
 			setPreGenOnboarding(false);
 			try { localStorage.removeItem('atlas_pregen_active'); } catch { /* storage may be unavailable */ }

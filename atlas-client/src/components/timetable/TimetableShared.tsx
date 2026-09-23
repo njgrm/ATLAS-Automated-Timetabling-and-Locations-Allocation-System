@@ -179,7 +179,7 @@ export function ViolationGroup({
 														onClick={() => onSelect(v)}
 														className="h-auto min-h-9 min-w-0 flex-[1_1_13rem] justify-start rounded-none px-3 py-2 text-left text-xs leading-tight transition-colors hover:bg-transparent"
 													>
-												<span className="min-w-0 whitespace-normal break-words text-left underline decoration-dashed decoration-muted-foreground/50 underline-offset-2">
+								<span className="min-w-0 whitespace-normal break-words text-left">
 													<span className="line-clamp-2">{formattedMessage}</span>
 													{relatedCodes.length > 1 ? (
 														<span className="mt-1 block text-xs font-medium text-amber-700 no-underline">
@@ -190,8 +190,8 @@ export function ViolationGroup({
 												</span>
 													</Button>
 												</TooltipTrigger>
-												<TooltipContent className="max-w-[min(18rem,calc(100vw-2rem))] whitespace-normal break-words text-xs font-normal leading-relaxed space-y-1 py-2 px-3 border-amber-200 bg-amber-50 text-amber-900" side="right">
-													<div className="font-semibold text-amber-700 pb-1 mb-1 border-b border-amber-200/60">Constraint Context</div>
+								<TooltipContent className="z-[100] max-w-[min(18rem,calc(100vw-2rem))] whitespace-normal break-words text-xs font-normal leading-relaxed space-y-1 py-2 px-3 border-amber-200 bg-amber-50 text-amber-900" side="right">
+									<div className="font-semibold text-amber-700 pb-1 mb-1 border-b border-amber-200/60">Details</div>
 													{v.meta.consecutiveMinutes != null && v.meta.maxConsecutive != null && (
 														<div>Observed: {String(v.meta.consecutiveMinutes)} minutes · Limit: {String(v.meta.maxConsecutive)} minutes · <span className="font-semibold">Δ +{Number(v.meta.consecutiveMinutes) - Number(v.meta.maxConsecutive)} minutes</span></div>
 													)}

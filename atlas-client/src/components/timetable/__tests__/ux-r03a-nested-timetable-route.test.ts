@@ -160,7 +160,7 @@ test('UX-R03a row 4: the policy item block is a link, not a state dispatch', () 
 	assert.match(block, /asChild/);
 	assert.match(block, /<Link/);
 	assert.match(block, /to="\/timetable\/policies"/);
-	assert.match(block, /Scheduling policy \(Advanced\)/);
+	assert.match(block, /Scheduling policy \(Expert\)/);
 	assert.doesNotMatch(block, /onSelect/);
 	assert.doesNotMatch(block, /preventDefault/);
 	assert.doesNotMatch(block, /requestAnimationFrame/);
@@ -210,7 +210,7 @@ test('UX-R03a row 7: the four unrouted views stay reachable with unchanged behav
 	for (const view of ['pre-generation', 'manual-edit', 'map', 'building']) {
 		assert.ok(center.includes(`'${view}'`), `center view '${view}' must remain`);
 	}
-	// The Advanced header policy entry keeps its guarded in-place transition.
+	// The Expert header policy entry keeps its guarded in-place transition.
 	const header = source('src/components/timetable/ScheduleReviewWorkspaceHeader.tsx');
 	assert.match(header, /switchCenterViewWithGuard\(enterPolicyView\)/);
 	// Generate / Publish / Preview impact / Sync with setup handlers are untouched.

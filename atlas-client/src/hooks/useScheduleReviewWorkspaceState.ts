@@ -94,6 +94,7 @@ import { useTimetableCollaboration } from '@/hooks/useTimetableCollaboration';
 import { useTimetableLookupHelpers } from '@/hooks/useTimetableLookupHelpers';
 import { useTimetableDragDrop } from '@/hooks/useTimetableDragDrop';
 import { useTimetableViewNavigation } from '@/hooks/useTimetableViewNavigation';
+import { isDraftPublishedStrict } from '@/components/timetable/timetableWorkspaceTruth';
 import { deriveRunWideReadiness } from '@/components/timetable/timetableWorkspaceTruth';
 import { getPreferredAccessToken } from '@/lib/auth';
 import { decodeJwtPayload } from '@/lib/jwt-payload';
@@ -155,6 +156,12 @@ export function useScheduleReviewWorkspaceState() {
 	const [severityFilter, setSeverityFilter] = useState<SeverityFilter>('all');
 	const [violationSearch, setViolationSearch] = useState('');
 	const [selectedViolation, setSelectedViolation] = useState<Violation | null>(null);
+	const [pendingFacultyIssuePivot, setPendingFacultyIssuePivot] = useState<{
+		facultyId: number;
+		teacherLabel: string;
+		violation: Violation;
+		entry: ScheduledEntry;
+	} | null>(null);
 	const [selectedEntry, setSelectedEntry] = useState<ScheduledEntry | null>(null);
 	const [selectedUnassignedForRepair, setSelectedUnassignedForRepair] = useState<UnassignedItem | null>(null);
 	const [swapClassTimesMode, setSwapClassTimesMode] = useState<'select-first' | 'select-second' | null>(null);
@@ -167,6 +174,7 @@ export function useScheduleReviewWorkspaceState() {
 	const [programFilter, setProgramFilter] = useState<ProgramFilter>('all');
 	const [entryKindFilter, setEntryKindFilter] = useState<EntryKindFilter>('all');
 	const [termFilter, setTermFilter] = useState<'all' | number>('all');
+	const publishedReturnStateRef = useRef<{ runId: string; termFilter: 'all' | number; viewMode: 'section' | 'faculty' | 'room'; entityFilter: string } | null>(null);
 	const [userOverrodeTermFilter, setUserOverrodeTermFilter] = useState(false);
 	const [presentationMode, setPresentationMode] = useState<'workflow' | 'matrix'>('workflow');
 	const [leftTab, setLeftTab] = useState<'violations' | 'unassigned' | 'pinned' | 'requests'>('violations');
@@ -417,7 +425,7 @@ export function useScheduleReviewWorkspaceState() {
 		enterManualEditView,
 		exitManualEditView,
 		switchCenterViewWithGuard,
-		returnToGeneratedRun,
+		returnToGeneratedRun: returnToGeneratedRunBase,
 		handlePresentationModeChange,
 	} = useTimetableViewNavigation({
 		centerView,
@@ -685,13 +693,13 @@ export function useScheduleReviewWorkspaceState() {
 		requestPreviewHardConflicts,
 		requestPreviewSoftWarnings,
 		handleViolationSelect,
+		handleSessionContextPivot,
 		handleEntryClick: handleEntrySelect,
 		toggleFollowUp,
 		triggerGeneration,
 		handleTriggerGenerate: handleTriggerGenerateUnsafe,
 		confirmGenerate,
-		openPreGenerationWorkspace,
-		handleStartNewPreGenerationDraft,
+		openPreGenerationWorkspace: openPreGenerationWorkspaceBase,
 		handlePublishConfirm,
 		runIdNumeric,
 		runVersion,
@@ -826,7 +834,41 @@ export function useScheduleReviewWorkspaceState() {
 		entityFilter,
 		facultyMap,
 		roomMap,
+		sectionMap,
+		setPendingFacultyIssuePivot,
 	});
+	const openPreGenerationWorkspace = useCallback(async (resetExisting: boolean) => {
+		if (draft && isDraftPublishedStrict(draft)) {
+			publishedReturnStateRef.current = { runId: selectedRunId, termFilter, viewMode, entityFilter };
+		}
+		await openPreGenerationWorkspaceBase(resetExisting);
+	}, [draft, selectedRunId, termFilter, viewMode, entityFilter, openPreGenerationWorkspaceBase]);
+	const handleStartNewPreGenerationDraft = useCallback(async () => {
+		if (!schoolYearId) return;
+		await openPreGenerationWorkspace(false);
+	}, [schoolYearId, openPreGenerationWorkspace]);
+	const returnToGeneratedRun = useCallback(() => {
+		returnToGeneratedRunBase(() => {
+			const previous = publishedReturnStateRef.current;
+			if (!previous) return;
+			setSelectedRunId(previous.runId);
+			setTermFilter(previous.termFilter);
+			setViewMode(previous.viewMode);
+			setEntityFilter(previous.entityFilter);
+			publishedReturnStateRef.current = null;
+		});
+	}, [returnToGeneratedRunBase, setViewMode, setEntityFilter]);
+	const confirmFacultyIssuePivot = useCallback(() => {
+		const pending = pendingFacultyIssuePivot;
+		if (!pending) return;
+		setViewMode('faculty');
+		setEntityFilter(String(pending.facultyId));
+		setSelectedViolation(pending.violation);
+		setSelectedEntry(pending.entry);
+		setKbSelectedSource(null);
+		setPreGenKbSource(null);
+		setPendingFacultyIssuePivot(null);
+	}, [pendingFacultyIssuePivot, setViewMode, setEntityFilter, setSelectedViolation, setSelectedEntry, setKbSelectedSource, setPreGenKbSource]);
 
 	const handleTriggerGenerate = useCallback(() => {
 		if (curriculumReadiness.state !== 'ready') {
@@ -1764,6 +1806,7 @@ export function useScheduleReviewWorkspaceState() {
 		draftPlacements: draftBoard?.placements ?? emptyDraftPlacements,
 		preGenEntries,
 		handleCellDrop,
+		onSessionContextPivot: handleSessionContextPivot,
 		navToFaculty,
 		navToSection,
 		navToRoom,
@@ -1915,6 +1958,9 @@ export function useScheduleReviewWorkspaceState() {
 		|| pivotTransitionLoading;
 
 	return {
+		pendingFacultyIssuePivot,
+		setPendingFacultyIssuePivot,
+		confirmFacultyIssuePivot,
 		loading,
 		draft,
 		error,
