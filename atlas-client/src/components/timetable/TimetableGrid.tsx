@@ -205,8 +205,16 @@ const GridCell = memo(function GridCell({
 	const eventAppliesToDay = isSpecialEvent
 		? (!eventDayOfWeek || eventDayOfWeek === day)
 		: dayScopedOverlay && eventDayOfWeek === day;
+	// A day-scoped overlay that sits on a period the section actually attends is
+	// an annotation ON the class, never a replacement for it: the ceremony must
+	// not hide the registered subject or its teacher. Every SY 2026-2027
+	// stakeholder class program prints the ceremony in the Monday cell of a row
+	// whose Tue–Fri cells are ordinary subjects and whose Teacher column names
+	// the displaced subject's teacher, so hiding the class here would make a
+	// scheduler conclude no class is registered in the ceremony period.
+	const ceremonyOverlayWithClass = dayScopedOverlay && eventAppliesToDay && cellEntries.length > 0;
 
-	if (eventAppliesToDay) {
+	if (eventAppliesToDay && !ceremonyOverlayWithClass) {
 		if (hasKbSource) {
 			return (
 				<td
@@ -354,6 +362,15 @@ const GridCell = memo(function GridCell({
 				}
 			}}
 		>
+			{ceremonyOverlayWithClass && (
+				<div
+					className="mb-0.5 flex items-center gap-1 rounded-sm bg-amber-100 px-1 py-0.5 text-[0.6rem] font-semibold leading-none text-amber-800"
+					data-testid="timetable-ceremony-overlay-label"
+				>
+					<Flag className="size-2.5 shrink-0" aria-hidden="true" />
+					<span className="min-w-0 truncate">{eventName ?? 'Special Event'}</span>
+				</div>
+			)}
 			{isActive && activeInfo && (activeInfo.kind === 'hard' || activeInfo.kind === 'soft') && (info !== null || kbConflictInfo !== null) && (
 				<ConflictBadgeWithTooltip
 					info={activeInfo}

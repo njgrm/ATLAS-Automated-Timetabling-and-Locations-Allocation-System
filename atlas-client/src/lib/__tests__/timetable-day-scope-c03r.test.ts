@@ -105,3 +105,44 @@ test('main TimetableGrid renders the Monday-only event once and keeps the Tuesda
 	assert.ok(markup.includes('Mathematics'), 'the Tuesday class still renders in the main workspace');
 	assert.match(markup, /data-day="MONDAY" data-start-time="06:00" data-end-time="06:45"[^>]*>FLAG CEREMONY/);
 });
+
+test('main TimetableGrid keeps the class visible under a Monday-only ceremony overlay (ceremony-over-class)', () => {
+	// The producer merges a day-scoped overlay into its containing period row:
+	// one row per (startTime, endTime) whose Monday cell is the ceremony and whose
+	// Tue–Fri cells are the class (`buildGridRows`). The ceremony must annotate
+	// that class, never hide it — the stakeholder class program prints the
+	// displaced subject's teacher on the ceremony row.
+	const mondayClass: ScheduledEntry = { ...TUESDAY_CLASS, entryId: 'mon-math', day: 'MONDAY' };
+	const timeSlots = [
+		{ startTime: '06:00', endTime: '06:45', eventName: 'FLAG CEREMONY', dayOfWeek: 'MONDAY' },
+	];
+	const markup = renderToStaticMarkup(createElement(TimetableGrid, {
+		entries: [mondayClass],
+		timeSlots,
+		violationIndex: new Map(),
+		highlightedEntryIds: new Set<string>(),
+		selectedEntry: null,
+		followUps: new Set<string>(),
+		onEntryClick: () => {},
+		subjectLabel: (id: number) => (id === 11 ? 'Mathematics' : `Subject ${id}`),
+		sectionLabel: (id: number) => `Section ${id}`,
+		gradeForSection: () => 7,
+		entryContextLabel: () => '',
+		formatFacultyInitials: () => 'JD',
+		facultyLabel: () => 'Dela Cruz',
+		viewMode: 'section',
+		pivotLabel: () => '',
+		roomLabelShort: () => 'Room 101',
+		kbSelectedSource: null,
+		onKbPlace: () => {},
+		getCellConflict: () => null,
+		getLiveCellConflict: () => null,
+		onNavToFaculty: () => {},
+		onNavToSection: () => {},
+		onNavToRoom: () => {},
+	}));
+	assert.equal(markup.split('FLAG CEREMONY').length - 1, 1, 'the ceremony overlay renders exactly once');
+	assert.ok(markup.includes('timetable-ceremony-overlay-label'), 'the ceremony renders as an overlay annotation');
+	assert.ok(markup.includes('Mathematics'), 'the Monday class subject stays visible under the ceremony overlay');
+	assert.ok(markup.includes('JD'), 'the displaced subject teacher (initials) stays visible under the ceremony overlay');
+});

@@ -178,7 +178,7 @@ conflict-authority change.
 | # | Claim | Harness | Owner |
 |---|---|---|---|
 | P1 | The ceremony day cell renders the ceremony **and** the underlying subject/teacher; the non-ceremony weekdays are unchanged; the ceremony still renders exactly once | `cd atlas-client; npx tsx --test src/lib/__tests__/timetable-day-scope-c03r.test.ts src/lib/__tests__/timetable-grid-shape-authority.test.ts` (amended contract; failing-first on base) | executor + fresh QA |
-| P2 | The overlay day cell is classified as "ceremony overlay over a class" (class present), not a bare `hard/blocked`; the interval stays usable for the existing class; other weekdays stay `clean` | `cd atlas-client; npx tsx --test src/lib/__tests__/timetable-day-scope-c03r.test.ts` (live-conflict rows) | executor + fresh QA |
+| P2 | The overlay day cell still renders the class (not replaced by the event); the non-overlay weekdays stay `clean`; the live-conflict placement guard is **intentionally retained** (a *second* session into the ceremony interval is still blocked) | `cd atlas-client; npx tsx --test src/lib/__tests__/timetable-day-scope-c03r.test.ts` | executor + fresh QA |
 | P3 | Client type-checks and builds | `cd atlas-client; npm run typecheck; npm run build` | executor |
 | P4 | Server authority is untouched — overlay is not a capacity block, containment fail-closed holds, shift grids unchanged | `cd atlas-server; npm run test:server-suite` (covers `generation-authority-realism-c07`, `generation-stakeholder-shape-genc02r`, `timetable-shape-diagnostic-c02`) | fresh QA |
 | P5 | Deployed Monday cell shows the ceremony **and** the teacher; Tue–Fri show the class; no global scrollbar | live browser, named Tailnet origin, 1366×768 + 390×844 | **not this lane** — elevated OpenCode (browser/runtime custodian) |
@@ -209,3 +209,29 @@ conflict-authority change.
   (no overlap with this packet).
 
 No live mutation, no browser, no deployment, no runtime/listener action occurred.
+
+## 8. Implementation status (2026-09-23, Planner A / elevated OpenCode)
+
+P1/P3/P4 are implemented and green on `work/ceremony-class-coexistence-c01`:
+
+- **Change (2 product paths):** `atlas-client/src/components/timetable/TimetableGrid.tsx` — a
+  day-scoped overlay that sits on a period the section attends is now rendered as an annotation
+  (`data-testid="timetable-ceremony-overlay-label"`) **above** the class entry, instead of replacing
+  the cell. Pure special events (breaks) and empty overlay cells keep the blocked rendering. No
+  `atlas-server/src`, `prisma/`, or `types.ts` change.
+- **P1 failing-first proof:** with the source change reverted, the new test
+  `main TimetableGrid keeps the class visible under a Monday-only ceremony overlay` fails
+  (`pass 4 / fail 1`); with the change it passes (`5/5`).
+- **P3:** `atlas-client` `npm run typecheck` clean; `npm run build` succeeds with
+  `VITE_ENROLLPRO_URL` set (fail-closed guard).
+- **Client preservation:** `npm run test:client-suite` → 913 tests, 911 pass, **2 pre-existing
+  failures** (`timetable-cell-info.test.ts:53`, `timetable-term-export-c03r2.test.ts:156`) that
+  reproduce identically on the base with all changes reverted → zero regressions.
+- **P4:** `atlas-server` `npm run test:server-suite` → 289/289 pass (Prisma client generated from the
+  root schema per the directive). No server path changed.
+- **P2 (narrowed):** the display fix makes the class visible; the live-conflict placement guard is
+  deliberately **kept** — allowing a *second* session into the ceremony interval would permit
+  double-booking. This is a deliberate narrowing of the packet's original P2 wording.
+- **P5/P6 (not executed):** deployment + live browser acceptance and the live policy-window
+  alignment remain outstanding and are **gated on Planner B's deployment handoff** and a separate
+  HIGH approval respectively.
