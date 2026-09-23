@@ -17,10 +17,11 @@ import { buildValidatorCtx, previewManualEdit } from '../services/manual-edit.se
 const SECRET = 'timetable-scheduling-quality-c03-secret';
 const RUN_PATH = '/api/v1/generation/1/10/runs/316/violation-repair-options';
 
-async function withRepairServer<T>(fn: (request: (body: unknown, actor?: Record<string, unknown>) => Promise<Response>, dispatches: () => number, writes: () => number) => Promise<T>, runValue: unknown = null, path = RUN_PATH, referenceData?: Record<string, any>): Promise<T> {
+async function withRepairServer<T>(fn: (request: (body: unknown, actor?: Record<string, unknown>) => Promise<Response>, dispatches: () => number, writes: () => number, previewDispatches: () => number) => Promise<T>, runValue: unknown = null, path = RUN_PATH, referenceData?: Record<string, any>): Promise<T> {
 	process.env.JWT_SECRET = SECRET;
 	let dbDispatches = 0;
 	let writeAttempts = 0;
+	let previewDispatchCount = 0;
 	const read = async () => runValue;
 	const write = async () => { writeAttempts += 1; throw new Error('read-only repair route attempted a write'); };
 	const readMethods = new Set(['findFirst', 'findMany', 'findUnique', 'findUniqueOrThrow', 'findFirstOrThrow', 'count', 'aggregate', 'groupBy']);
@@ -46,7 +47,7 @@ async function withRepairServer<T>(fn: (request: (body: unknown, actor?: Record<
 		policySpecialEvent: model({ findMany: async () => [] }),
 		gradeShiftWindow: model({ findMany: async () => [] }),
 		classProgramSlot: model({ findMany: async () => [] }),
-		schedulingPolicy: model({ findUnique: async () => referenceData?.policyRecord ?? null }),
+		schedulingPolicy: model({ findUnique: async () => { previewDispatchCount += 1; return referenceData?.policyRecord ?? null; } }),
 	}, {
 		get(target, key: string) {
 			if (key === '$transaction' || key === '$executeRaw' || key === '$executeRawUnsafe') return write;
@@ -77,7 +78,7 @@ async function withRepairServer<T>(fn: (request: (body: unknown, actor?: Record<
 			},
 			body: JSON.stringify(body),
 		});
-		return await fn(request, () => dbDispatches, () => writeAttempts);
+		return await fn(request, () => dbDispatches, () => writeAttempts, () => previewDispatchCount);
 	} finally {
 		await new Promise<void>((resolve) => server.close(() => resolve()));
 	}
@@ -245,6 +246,37 @@ test('C05 repair route resolves the exact persisted issue represented by an aggr
 		});
 		assert.equal(stale.status, 404, 'a stale false aggregate locator remains not found');
 		assert.equal(writes(), 0);
+	}, run);
+});
+
+test('C05 grouped repair route rejects duplicate canonical primaries as ambiguous before preview or writes', async () => {
+	const entries: ScheduledEntry[] = ['entry-a', 'entry-b', 'entry-c'].map((entryId, index) => ({
+		entryId, facultyId: 12, roomId: 30, subjectId: 4, sectionId: 7 + index, day: 'MONDAY',
+		startTime: `${String(8 + index).padStart(2, '0')}:00`, endTime: `${String(8 + index).padStart(2, '0')}:45`, durationMinutes: 45, termIndex: 1,
+	}));
+	const makeIssue = (code: ViolationCode, entryIds: string[]): Violation => ({
+		code, severity: 'SOFT', message: `${code} verified evidence`, schoolId: 1, schoolYearId: 10, runId: 316,
+		entities: { facultyId: 12, day: 'MONDAY', entryIds }, meta: { termIndex: 1 },
+	});
+	const canonical = [
+		makeIssue('FACULTY_CONSECUTIVE_LIMIT_EXCEEDED', ['entry-a', 'entry-b']),
+		makeIssue('FACULTY_CONSECUTIVE_LIMIT_EXCEEDED', ['entry-a', 'entry-b']),
+		makeIssue('FACULTY_INSUFFICIENT_TRANSITION_BUFFER', ['entry-b', 'entry-c']),
+	];
+	const [displayed] = projectViolationIssues(canonical, entries);
+	const run = { id: 316, schoolYearId: 10, status: 'COMPLETED', violations: canonical, draftEntries: entries, summary: {} };
+	await withRepairServer(async (request, _dispatches, writes, previewDispatches) => {
+		const response = await request({
+			code: displayed.code,
+			termIndex: displayed.meta?.termIndex,
+			entryIds: displayed.entities?.entryIds,
+			facultyId: displayed.entities?.facultyId,
+			day: displayed.entities?.day,
+		});
+		assert.equal(response.status, 409, await response.clone().text());
+		assert.equal((await response.json() as { code: string }).code, 'AMBIGUOUS_VIOLATION');
+		assert.equal(previewDispatches(), 0, 'ambiguous canonical selection never enters manual preview');
+		assert.equal(writes(), 0, 'the mounted guidance route remains zero-write');
 	}, run);
 });
 
