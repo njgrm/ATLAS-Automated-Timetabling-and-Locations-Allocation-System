@@ -35,6 +35,13 @@ and AIMS.
 ## Live release
 
 - Tailnet: `https://njgrm.buru-degree.ts.net`
+- **Retention policy (2026-09-23):** `RUNTIME-DIR-RETENTION-C01` retired 14 release directories
+  (`1fdab989`, `e78d4473`, `11e8778f`, `7dbb3b90`, `d4c9f391`, `d92facfa`, `ecff1d7e`, `a02884ff`,
+  `5f5c6c4f`, `20f07f59`, `405e5b18`, `4ce73d157f9a`, `78be1b760e40`, `8eb0511baa53`). **Any earlier line
+  in this file that calls one of them live, startable, available, retained or "leave as-is" is
+  superseded.** Rollback depth is now `d9a6aa53` + `28f6f03f` + the two last-resort artifacts
+  (`20260912`/`9d293879`, `fallback-d44-20260912`/`d44f29e0`); deeper rollback is a **rebuild**.
+  `0eb3b67fe94c` is retained — `E:\ATLAS-worktrees\warning-readability-c01` borrows its server tree.
 - **Release SHA: `0232bf9c`** (current live serving release; `E:\ATLAS-runtime-supervised-0232bf9c-20260923`;
   task action + Start-In + machine `ATLAS_RUNTIME_SOURCE_DIR`/`RELEASE_SHA`; listeners `5001`->56812 /
   `5174`->59604; authoritative state `releaseSha=0232bf9c`, `state=running`; health + health/ready
@@ -646,8 +653,9 @@ direct parent and all other reviewed paths retain their accepted blobs. Merged-t
 suite **289/289**, `test:server-db` **54 files pass / 0 fail / 0 skipped-known-red, residue 0**,
 client suite **859/859**, server build + built-app load, client build with `VITE_ENROLLPRO_URL`,
 `git diff --check` clean; product tree byte-identical to the reviewed candidate. **Source only — the
-migration is NOT applied and nothing is deployed.** `as of 2026-09-23` the live release is still
-`7dbb3b90` and does not carry this work. Next: the separate HIGH `NOTIFICATION-INBOX-LIVE` action
+migration is NOT applied and nothing is deployed.** `as of 2026-09-23` the live release was `7dbb3b90`
+and does not carry this work (**superseded: the live release is `0232bf9c`, and `7dbb3b90`'s directory was
+retired under `RUNTIME-DIR-RETENTION-C01`**). Next: the separate HIGH `NOTIFICATION-INBOX-LIVE` action
 (apply `0004` + deploy), which is **not** authorized by this integration.
 
 **`TIMETABLE-RELAXED-SUBPAGES-C01` independently reviewed post-hoc — `ACCEPT_READY` 20/20/0/0 (2026-09-23).**

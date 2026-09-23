@@ -12,7 +12,7 @@ Last updated: 2026-09-23 (Lane A).
 
 ## Verdict
 
-**2026-09-23 — truthfulness release `7ac28124` is LIVE and accepted 11/11; the relaxed timetable is shipped; one operator decision is open.**
+**2026-09-23 — live release `0232bf9c`; truthfulness release `7ac28124` accepted 11/11; the relaxed timetable is shipped; the release-directory retention policy is landed; one operator decision is open.**
 
 - **Custody: the simplified-timetable stream is handed to Planner B** —
   `docs/handoffs/simplified-timetable-handoff-to-lane-b-2026-09-23.md`. It lists the residuals that are
@@ -21,7 +21,15 @@ Last updated: 2026-09-23 (Lane A).
   `work/timetable-live-term-authority-c01` candidate). Lane A keeps deployment, the browser controller,
   and the continuity docs.
 
-- **Live release `7ac28124`** (`E:\ATLAS-runtime-supervised-7ac28124-20260923`; supervisor-owned
+- **Superseded (2026-09-23):** `RUNTIME-DIR-RETENTION-C01` retired 14 release directories
+  (`1fdab989`, `e78d4473`, `11e8778f`, `7dbb3b90`, `d4c9f391`, `d92facfa`, `ecff1d7e`, `a02884ff`,
+  `5f5c6c4f`, `20f07f59`, `405e5b18`, `4ce73d157f9a`, `78be1b760e40`, `8eb0511baa53`). **Any earlier
+  block below that calls one of them live, startable, available or retained is superseded.** The live
+  release is `0232bf9c`; deeper rollback is a rebuild.
+- **Live release `0232bf9c`** (`E:\ATLAS-runtime-supervised-0232bf9c-20260923`; listeners `5001`->56812 /
+  `5174`->59604; health/ready + DB-backed read + Tailnet 200). `D:` free is now **37.83 GiB** (above the
+  25 GiB warning line).
+- (superseded) **Release SHA: `7ac28124`** (`E:\ATLAS-runtime-supervised-7ac28124-20260923`; supervisor-owned
   5001→37608 / 5174→9948; served entry `assets/index-BbufnI_M.js`, SHA-256 `49838BFE…5CB6` byte-identical
   to the build; health/ready + DB-backed read + Tailnet 200; supervisor `state=running`). Carries, in order:
   `TIMETABLE-RELAXED-SUBPAGES-C01` → `TIMETABLE-RELAXED-MAIN-C01` (grid top 332→180 px, status surfaces
@@ -121,6 +129,9 @@ Last updated: 2026-09-23 (Lane A).
 - **Disk:** `D:` 18.37 GiB free (below the 25 GiB warning, above the 15 GiB fail-closed).
 
 **2026-09-23 — the live timetable delta is reviewed and accepted; live is `7dbb3b90`.**
+*Historical block — **superseded**: the live release is `0232bf9c`, and `7dbb3b90`'s directory was retired
+under `RUNTIME-DIR-RETENTION-C01`. Any earlier block below that calls a retired release live, startable or
+retained is superseded by the same cycle.*
 - **Live moved to `7dbb3b90`** (`D:\ATLAS-runtime-supervised-7dbb3b90-20260922`; supervisor 44476,
   `5001`->9228, `5174`->19892; served entry `/assets/index-CnDObevR.js`; health/ready + Tailnet 200
   read-only verified 2026-09-23). It carried `57592dd7` (relax scheduler chrome on subpages) +

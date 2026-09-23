@@ -17,8 +17,8 @@ file holds the mechanics so the directive stays short.
   and must not persist as historical evidence.
 - **The cap is on *active* worktrees — never on the registered total.** `git worktree list`
   necessarily includes trees that must be preserved by rule: dirty worktrees, unmerged
-  candidates, `node_modules` junction anchors, the never-retire `D:\ATLAS-runtime-*` release
-  trees, Codex-managed worktrees, and `D:/ATLAS` itself. A registry count above 12 is therefore
+  candidates, `node_modules` junction anchors, the `D:\ATLAS-runtime-*` release trees retained
+  under the retention policy above, Codex-managed worktrees, and `D:/ATLAS` itself. A registry count above 12 is therefore
   **not** a blocker and is never a reason to retire something uncertain. Observed 2026-09-21:
   exactly this misreading — reading the cap as a registry total — stalled Lane B's integration
   when the correct reading would have let it proceed immediately. If capacity genuinely

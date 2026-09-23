@@ -8,7 +8,7 @@
   "coordination": {
     "mode": "CYCLE_ACTIVE",
     "activeCycleId": "DATA-CORRECTION-C01",
-    "globalNextAction": "DATA-CORRECTION-C01 is the active cycle: the HIGH persisted-configuration write that reconciles the G9/G10 classProgramSlot rows to the corrected canonical grids and moves the cap-exceeding section-subject ownership pairs to qualified peers, clearing CANONICAL_TEMPLATE_INCOMPLETE so generation can proceed. Its sequencing preconditions are satisfied: G9G10-FLAG-SOURCE-LANE is COMPLETE and the live release 78be1b760e4059a4c0d0ea227579eaeb731cdf6d contains it. Next: one fresh independent pre-action review of docs/prompts/data-correction-c01-2026-09-17.md, then the operator exact approval sentence, which is NOT granted. No generation, publication, runtime, task, env, migration, term-cache or Teaching Load apply is approved."
+    "globalNextAction": "Register superseded as a live pointer on 2026-09-23: coordination runs through `docs/plans/live-state.md` and the lane handoffs, and this register's cycle records are historical (last updated 2026-09-17). THE LIVE RELEASE IS `0232bf9c` (`E:\\ATLAS-runtime-supervised-0232bf9c-20260923`) — not the `78be1b760e40` / `8eb0511baa53` releases named in the 2026-09-17 records below, whose directories were retired on 2026-09-23 under RUNTIME-DIR-RETENTION-C01 (release-directory retention policy; deeper rollback is now a rebuild). No generation, publication, runtime, task, env, migration, term-cache or Teaching Load apply is approved."
   },
   "streams": [
     {
@@ -6777,7 +6777,7 @@
       "riskTier": "HIGH",
       "state": "COMPLETE",
       "stateUpdatedAt": "2026-09-17T17:57:19.337Z",
-      "nextAction": "Closed COMPLETE; PIN40 8eb0511baa537d4212f24a007ac40e2dded38c0e serves the supervised runtime on 5001/5174. Generation, publication, the term-cache and Teaching Load applies, and every successor HIGH action remain locked and separately gated.",
+      "nextAction": "Closed COMPLETE; PIN40 8eb0511baa537d4212f24a007ac40e2dded38c0e served the supervised runtime on 5001/5174 at the time of this record. SUPERSEDED 2026-09-23: that release directory was retired under RUNTIME-DIR-RETENTION-C01; the live release is now 0232bf9c. Generation, publication, the term-cache and Teaching Load applies, and every successor HIGH action remain locked and separately gated.",
       "awaited": [],
       "running": [],
       "git": {
@@ -7303,7 +7303,7 @@
       "riskTier": "HIGH",
       "state": "COMPLETE",
       "stateUpdatedAt": "2026-09-17T21:50:39.988Z",
-      "nextAction": "Closed COMPLETE: release 78be1b760e4059a4c0d0ea227579eaeb731cdf6d serves the supervised runtime on 5001/5174 and the live React #310 crash is gone (30-route crawl clean). Rollback to 8eb0511baa537d4212f24a007ac40e2dded38c0e is retained. Generation, publication, the term-cache and Teaching Load applies, SSO activation, and the grid reseed remain separately gated.",
+      "nextAction": "Closed COMPLETE: release 78be1b760e4059a4c0d0ea227579eaeb731cdf6d served the supervised runtime on 5001/5174 and the live React #310 crash is gone (30-route crawl clean). SUPERSEDED 2026-09-23: that release directory and its 8eb0511baa537d4212f24a007ac40e2dded38c0e rollback target were retired under RUNTIME-DIR-RETENTION-C01; the live release is now 0232bf9c. Generation, publication, the term-cache and Teaching Load applies, SSO activation, and the grid reseed remain separately gated.",
       "awaited": [],
       "running": [],
       "git": {
@@ -7471,7 +7471,7 @@
       "riskTier": "HIGH",
       "state": "PLANNED",
       "stateUpdatedAt": "2026-09-17T21:52:52.965Z",
-      "nextAction": "Both sequencing preconditions are now SATISFIED: G9G10-FLAG-SOURCE-LANE is COMPLETE, and the live release 8eb0511baa537d4212f24a007ac40e2dded38c0e contains it and is serving 5001/5174. The day_of_week question is also settled: class_program_slots.day_of_week NULL is correct because the canonical catalogSlot(start,end,kind,label,note) is day-agnostic and validation keys are `${startTime}-${endTime}-${rowKind}`, so no day backfill is in scope. Register by CAS, commission one fresh independent pre-action review of docs/prompts/data-correction-c01-2026-09-17.md, return its exact approval sentence, then execute the fingerprinted write and the 8-row acceptance matrix.",
+      "nextAction": "Both sequencing preconditions were SATISFIED at the time of this record: G9G10-FLAG-SOURCE-LANE is COMPLETE, and the then-live release 8eb0511baa537d4212f24a007ac40e2dded38c0e contained it and served 5001/5174. SUPERSEDED 2026-09-23: that release directory was retired under RUNTIME-DIR-RETENTION-C01; the live release is now 0232bf9c. The day_of_week question is also settled: class_program_slots.day_of_week NULL is correct because the canonical catalogSlot(start,end,kind,label,note) is day-agnostic and validation keys are `${startTime}-${endTime}-${rowKind}`, so no day backfill is in scope. Register by CAS, commission one fresh independent pre-action review of docs/prompts/data-correction-c01-2026-09-17.md, return its exact approval sentence, then execute the fingerprinted write and the 8-row acceptance matrix.",
       "awaited": [
         "one fresh independent pre-action review of docs/prompts/data-correction-c01-2026-09-17.md",
         "the operator's exact approval sentence (returned only after the pre-action review passes)"
