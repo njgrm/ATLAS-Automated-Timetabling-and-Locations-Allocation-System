@@ -478,7 +478,7 @@ it complete `TEST-GATE-REACHABILITY-C01` (`f4462374`) and hand it over for integ
 
 **`POSTDEPLOY-CLOSURE-20260924` COMPLETE — 014b4b4c accepted read-only; three stale blocker lines corrected (2026-09-24).**
 Artifact `docs/handoffs/post-deploy-acceptance-014b4b4c-20260924.md`; base/end `origin/main` `48356ee2`; no
-source/deploy/login/live-data action. **Acceptance:** 12 demo routes render with no error boundary and no
+source/deploy/login/live-data action. **Acceptance:** 13 demo routes render with no error boundary and no
 global scrollbar; key APIs 200; `class-program.xlsx` deep-verified (4 grade worksheets G7–G10, 20/20 section
 names, M/F/Total columns); public surface run **317 / revision 43** / FROZEN / 920 entries; the 502
 host/proxy layer is **not reproducible** (100/100 burst requests 200) so no speculative fix. **Corrected

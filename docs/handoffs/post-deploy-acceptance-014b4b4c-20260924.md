@@ -84,12 +84,14 @@ the operator") is **the app's own canonical readiness diagnostic**, not an exter
 - `GET /api/v1/generation/:schoolId/:schoolYearId/readiness/diagnostic` calls
   `buildGenerationReadiness` (`generation-readiness.service.ts:179`), which runs the **full
   `runHybridScheduler`** and logs one `[hybrid-scheduler] profile=…` line per candidate profile plus
-  `Selected profile` and `Ejection repair`. The client fetches it (`timetableDataSources.ts:58`) with
-  `force: true` ("readiness gates generation, so it is always re-verified"), so **each page
-  mount/refetch runs a ≈7.4 s scheduler**.
+  `Selected profile` and `Ejection repair`. The client fetches it (`timetableDataSources.ts:58`,
+  `fetchTimetableReadiness`) with `force: true` from its caller (`useTimetableData.ts:1479-1481`,
+  "readiness gates generation, so it is always re-verified"), so **each page mount/refetch runs a
+  ≈7.4 s scheduler**.
 - Observed `[hybrid-scheduler]` bursts in the supervisor log (UTC):
   `19:02:04–19:02:11`, `19:15:02–19:17:25`, `19:35:03–19:36:11`, `19:44:51–19:45:05`,
-  `19:52:56–19:53:02` — discrete bursts, **not continuous**; **no generation run persisted** (latest
+  `19:52:56–19:53:02` (list non-exhaustive; later invocations continue to `19:53:34Z`) — discrete bursts,
+  **not continuous**; **no generation run persisted** (latest
   remains #317). Triggering one call myself reproduced the exact burst (`19:52:56–19:53:02`,
   `runtimeMs 7417`, `assigned 920 / unassigned 0 / profile SUBJECT_DESC_SECTION_ASC`).
 - **Impact (measured):** one readiness call blocks the single-threaded server for ≈7.4 s; 12
