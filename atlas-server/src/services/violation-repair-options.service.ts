@@ -62,6 +62,40 @@ function violationEntryIds(violation: Violation): string[] {
 	return [...(violation.entities?.entryIds ?? [])].sort();
 }
 
+// Keep this allowlist deliberately smaller than VIOLATION_CODES. A timeslot
+// move is proven only for canonical resource/section overlap violations; policy,
+// qualification, preference, and room-resource problems need dedicated plans.
+const SAFE_TIMESLOT_REPAIR_CODES = new Set<ViolationCode>([
+	'FACULTY_TIME_CONFLICT',
+	'ROOM_TIME_CONFLICT',
+	'SECTION_TIME_CONFLICT',
+]);
+
+function supportsSafeConflictMove(violation: Violation, locator: ViolationRepairLocator, entries: Array<Record<string, unknown>>): boolean {
+	if (!SAFE_TIMESLOT_REPAIR_CODES.has(violation.code)) return false;
+	const identityKey = violation.code === 'FACULTY_TIME_CONFLICT' ? 'facultyId'
+		: violation.code === 'ROOM_TIME_CONFLICT' ? 'roomId' : 'sectionId';
+	const affected = locator.entryIds.map((id) => entries.find((entry) => entry.entryId === id));
+	if (affected.length < 2 || affected.some((entry) => !entry || entry.termIndex !== locator.termIndex || !positiveIdentity(entry[identityKey]))) return false;
+	const identities = new Set(affected.map((entry) => entry![identityKey]));
+	if (identities.size !== 1) return false;
+	const toMinutes = (time: unknown) => typeof time === 'string' && /^\d{2}:\d{2}$/.test(time)
+		? Number(time.slice(0, 2)) * 60 + Number(time.slice(3, 5)) : NaN;
+	for (let left = 0; left < affected.length; left++) {
+		for (let right = left + 1; right < affected.length; right++) {
+			const a = affected[left]!;
+			const b = affected[right]!;
+			if (a.day !== b.day || typeof a.day !== 'string') return false;
+			const aStart = toMinutes(a.startTime);
+			const aEnd = toMinutes(a.endTime);
+			const bStart = toMinutes(b.startTime);
+			const bEnd = toMinutes(b.endTime);
+			if (![aStart, aEnd, bStart, bEnd].every(Number.isFinite) || aStart >= bEnd || bStart >= aEnd) return false;
+		}
+	}
+	return true;
+}
+
 function canonicalTermIndex(violation: Violation, entries: Array<Record<string, unknown>>): number | undefined {
 	if (typeof violation.meta?.termIndex === 'number' && Number.isInteger(violation.meta.termIndex)) return violation.meta.termIndex;
 	const ids = new Set(violationEntryIds(violation));
@@ -174,6 +208,17 @@ export async function getViolationRepairOptions(
 	}> : [];
 	const affectedEntries = draftEntries.filter((entry) => locator.entryIds.includes(entry.entryId));
 	const copy = VIOLATION_COPY[violation.code];
+	const evidence = affectedEntries.map(({ entryId, sectionId, subjectId, facultyId, roomId, day, startTime, endTime, termIndex }) => ({ entryId, sectionId, subjectId, facultyId, roomId, day, startTime, endTime, termIndex }));
+	if (!supportsSafeConflictMove(violation, locator, entries)) {
+		return {
+			violation: { code: violation.code, severity: violation.severity, message: violation.message, entities: violation.entities, meta: violation.meta },
+			evidence,
+			status: isPolicyFamily(violation.code) ? 'POLICY_CHANGE_REQUIRED' as const : 'NO_SAFE_REPAIR' as const,
+			verifiedAt: dependencies.now().toISOString(),
+			options: [],
+			blockers: [copy.action || copy.meaning],
+		};
+	}
 	const slots = getTimeSlots(run);
 	const days = ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY'];
 	const proposals: ManualEditProposal[] = [];
@@ -230,7 +275,7 @@ export async function getViolationRepairOptions(
 	const ranked = options.slice(0, 3);
 	return {
 		violation: { code: violation.code, severity: violation.severity, message: violation.message, entities: violation.entities, meta: violation.meta },
-		evidence: affectedEntries.map(({ entryId, sectionId, subjectId, facultyId, roomId, day, startTime, endTime, termIndex }) => ({ entryId, sectionId, subjectId, facultyId, roomId, day, startTime, endTime, termIndex })),
+		evidence,
 		status: ranked.length ? 'REPAIRABLE' as const : isPolicyFamily(violation.code) ? 'POLICY_CHANGE_REQUIRED' as const : 'NO_SAFE_REPAIR' as const,
 		verifiedAt: dependencies.now().toISOString(),
 		options: ranked,

@@ -8,6 +8,8 @@ import { withDataContext } from '../lib/data-context.js';
 import { getViolationRepairOptions, parseViolationRepairLocator, type ViolationRepairLocator } from '../services/violation-repair-options.service.js';
 import { getFixSuggestions } from '../services/fix-suggestions.service.js';
 import { solveQuickPlace } from '../services/timetable-quick-place.service.js';
+import { resolveUnassignedViolationCode } from '../services/generation.service.js';
+import { constructBaseline, type ConstructorInput } from '../services/schedule-constructor.js';
 import { validateHardConstraints, type ScheduledEntry, type Violation, type ViolationCode } from '../services/constraint-validator.js';
 import { buildValidatorCtx, previewManualEdit } from '../services/manual-edit.service.js';
 
@@ -335,6 +337,188 @@ test('C03 production validator fixtures verify overlap repairs and reject unreso
 		assert.notEqual(response.status, 'REPAIRABLE', `${code} may not be cleared by an unverified proposal`);
 		assert.deepEqual(response.options, []);
 		assert.equal(previewContextReads, 0, `${code} must be rejected before entering the timeslot proposal loop`);
+	}
+});
+
+test('C03 production faculty, transition, preference, and compression warnings never enter timeslot repair', async () => {
+	const base = canonicalConflictFixture();
+	const formatTime = (minutes: number) => `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`;
+	const entries: ScheduledEntry[] = Array.from({ length: 9 }, (_, index) => {
+		const start = 7 * 60 + index * 50;
+		return {
+			entryId: `policy-entry-${index}`, facultyId: 12, roomId: index % 2 === 0 ? 30 : 31,
+			subjectId: index % 2 === 0 ? 4 : 5, sectionId: 7, day: 'MONDAY',
+			startTime: formatTime(start), endTime: formatTime(start + 45), durationMinutes: 45, termIndex: 1,
+		};
+	});
+	const policyRecord = {
+		...base.refData.policyRecord, maxConsecutiveTeachingMinutesBeforeBreak: 45, minBreakMinutesAfterConsecutiveBlock: 15,
+		maxTeachingMinutesPerDay: 480, earliestStartTime: '07:15', latestEndTime: '14:00', maxHoursPerWeek: 3,
+		avoidEarlyFirstPeriod: true, avoidLateLastPeriod: true,
+		maxBuildingTransitionsPerDay: 0, maxBackToBackTransitionsWithoutBuffer: 0, maxIdleGapMinutesPerDay: 10,
+		enableVacantAwareConstraints: true, targetFacultyDailyVacantMinutes: 120,
+		targetSectionDailyVacantPeriods: 0, maxCompressedTeachingMinutesPerDay: 180,
+		constraintConfig: Object.fromEntries([
+			'FACULTY_EARLY_START_PREFERENCE', 'FACULTY_LATE_END_PREFERENCE', 'FACULTY_EXCESSIVE_IDLE_GAP',
+			'FACULTY_INSUFFICIENT_DAILY_VACANT', 'SECTION_OVERCOMPRESSED',
+		].map((code) => [code, { enabled: true, weight: 1, treatAsHard: false }])),
+	};
+	const refData = {
+		...base.refData, entries, faculty: [{ id: 12, maxHoursPerWeek: 3, ancillaryMinutesPerWeek: 0 }],
+		facultySubjects: [
+			{ facultyId: 12, subjectId: 4, gradeLevels: [7], sectionIds: [7] },
+			{ facultyId: 12, subjectId: 5, gradeLevels: [7], sectionIds: [7] },
+		],
+		rooms: [
+			{ ...base.refData.rooms[0], buildingId: 1, floor: 0 },
+			{ ...base.refData.rooms[1], buildingId: 2, floor: 4 },
+		],
+		buildings: [{ id: 1, x: 0, y: 0 }, { id: 2, x: 10, y: 0 }], policyRecord,
+		sectionEnrollment: new Map([[7, 20]]),
+	};
+	const violations = validateHardConstraints(buildValidatorCtx(1, 10, 316, entries, refData as never)).violations;
+	const producedCodes: ViolationCode[] = [
+		'FACULTY_OVERLOAD', 'FACULTY_CONSECUTIVE_LIMIT_EXCEEDED', 'FACULTY_BREAK_REQUIREMENT_VIOLATED',
+		'FACULTY_DAILY_STANDARD_EXCEEDED', 'FACULTY_EXCESSIVE_BUILDING_TRANSITIONS',
+		'FACULTY_INSUFFICIENT_TRANSITION_BUFFER', 'FACULTY_EXCESSIVE_IDLE_GAP',
+		'FACULTY_EARLY_START_PREFERENCE', 'FACULTY_LATE_END_PREFERENCE',
+		'FACULTY_INSUFFICIENT_DAILY_VACANT', 'SECTION_OVERCOMPRESSED',
+	];
+	for (const code of producedCodes) {
+		const target = violations.find((violation) => violation.code === code);
+		assert.ok(target, `the production validator fixture must emit ${code}`);
+		const run = { ...base.run, draftEntries: entries, violations };
+		let previewReads = 0;
+		const response = await getViolationRepairOptions(1, 10, 316, {
+			code, termIndex: 1, entryIds: [...(target.entities?.entryIds ?? [])].sort(),
+			...(target.entities?.facultyId ? { facultyId: target.entities.facultyId } : {}),
+			...(target.entities?.sectionId ? { sectionId: target.entities.sectionId } : {}),
+		}, {
+			loadRun: async () => run as never,
+			loadManualEditContext: async () => { previewReads++; return { ...refData, run } as never; },
+			now: () => new Date('2030-01-02T03:04:05.000Z'),
+		});
+		assert.notEqual(response.status, 'REPAIRABLE', `${code} must require policy review or remain unsupported`);
+		assert.deepEqual(response.options, []);
+		assert.equal(previewReads, 0, `${code} must fail closed before a generic time move is previewed`);
+	}
+
+	const hardDailyEntries: ScheduledEntry[] = Array.from({ length: 11 }, (_, index) => ({
+		...entries[index % entries.length], entryId: `hard-daily-${index}`,
+		startTime: formatTime(7 * 60 + index * 50), endTime: formatTime(7 * 60 + index * 50 + 45),
+	}));
+	const hardDailyRef = { ...refData, entries: hardDailyEntries, policyRecord: { ...policyRecord, maxTeachingMinutesPerDay: 480 } };
+	const hardDailyViolations = validateHardConstraints(buildValidatorCtx(1, 10, 316, hardDailyEntries, hardDailyRef as never)).violations;
+	assert.ok(hardDailyViolations.some((violation) => violation.code === 'FACULTY_DAILY_MAX_EXCEEDED'), 'the real validator must produce the hard daily family too');
+	const hardDailyTarget = hardDailyViolations.find((violation) => violation.code === 'FACULTY_DAILY_MAX_EXCEEDED')!;
+	let hardDailyPreviewReads = 0;
+	const hardDailyResponse = await getViolationRepairOptions(1, 10, 316, {
+		code: hardDailyTarget.code, termIndex: 1, entryIds: [...(hardDailyTarget.entities?.entryIds ?? [])].sort(),
+		facultyId: hardDailyTarget.entities?.facultyId,
+	}, {
+		loadRun: async () => ({ ...base.run, draftEntries: hardDailyEntries, violations: hardDailyViolations }) as never,
+		loadManualEditContext: async () => { hardDailyPreviewReads++; return { ...hardDailyRef, run: base.run } as never; },
+		now: () => new Date('2030-01-02T03:04:05.000Z'),
+	});
+	assert.notEqual(hardDailyResponse.status, 'REPAIRABLE');
+	assert.equal(hardDailyPreviewReads, 0);
+});
+
+test('C03 canonical unassigned producer outputs for faculty, specialized-room, and ordinary blockers fail closed', async () => {
+	const base = canonicalConflictFixture();
+	const outcomes = [
+		{ item: { reason: 'NO_QUALIFIED_FACULTY', roomAssignmentReason: 'NO_QUALIFIED_FACULTY' }, sectionId: 7, subjectId: 4 },
+		{ item: { reason: 'NO_COMPATIBLE_ROOM', roomAssignmentReason: 'SPECIALIZED_ROOM_UNAVAILABLE' }, sectionId: 7, subjectId: 4 },
+		{ item: { reason: 'NO_AVAILABLE_SLOT', roomAssignmentReason: 'ROOM_PATH_EXHAUSTED' }, sectionId: 8, subjectId: 5 },
+	] as const;
+	for (const { item, sectionId, subjectId } of outcomes) {
+		const verdict = resolveUnassignedViolationCode(item as never);
+		const violation: Violation = {
+			code: verdict.code, severity: verdict.severity, message: 'Canonical generation blocker.', schoolId: 1, schoolYearId: 10, runId: 316,
+			entities: { sectionId, subjectId }, meta: { ...item, termIndex: 1, session: 1 },
+		};
+		const run = { ...base.run, draftEntries: base.refData.entries, violations: [violation] };
+		let previewReads = 0;
+		const response = await getViolationRepairOptions(1, 10, 316, {
+			code: verdict.code, termIndex: 1, entryIds: [], sectionId, subjectId,
+		}, {
+			loadRun: async () => run as never,
+			loadManualEditContext: async () => { previewReads++; return { ...base.refData, run } as never; },
+			now: () => new Date('2030-01-02T03:04:05.000Z'),
+		});
+		assert.notEqual(response.status, 'REPAIRABLE', `${verdict.code} must not receive a generic entry move`);
+		assert.deepEqual(response.options, []);
+		assert.equal(previewReads, 0);
+	}
+});
+
+test('C03 constructor modular warning output is never treated as a timeslot repair', async () => {
+	const input = {
+		schoolId: 1, schoolYearId: 10,
+		sectionsByGrade: [{ displayOrder: 7, sections: [{ id: 7, name: '7-Cedar', enrolledCount: 20, programType: 'REGULAR', homeRoomId: 30 }] }],
+		subjects: [{ id: 4, code: 'SCI_BIO', minMinutesPerWeek: 45, preferredRoomType: 'CLASSROOM', gradeLevels: [7], requiredFeatures: [], programScopes: ['REGULAR'], modularGroupId: 'SCIENCE', modularOrder: 1 }],
+		faculty: [], facultySubjects: [], rooms: [], preferences: [],
+		policy: { maxConsecutiveTeachingMinutesBeforeBreak: 135, minBreakMinutesAfterConsecutiveBlock: 15, maxTeachingMinutesPerDay: 480, earliestStartTime: '06:00', latestEndTime: '17:00', periodLengthMinutes: 45, periodsPerDay: 8, enableRecess: false, enableLunchWindow: false, enableFlagCeremony: false, showSpecialEventsInGrid: false },
+		demandOverride: [{
+			sectionId: 7, subjectId: 4, subjectCode: 'SCI_BIO', gradeLevel: 7, sessionsPerWeek: 1, durationPerSession: 45,
+			enrolledCount: 20, entryKind: 'SECTION', modularGroupId: 'SCIENCE', modularExpectedCount: 3,
+			modularSubjects: [{ subjectId: 4, subjectCode: 'SCI_BIO', modularOrder: 1, minMinutesPerWeek: 45 }],
+		}],
+	} as unknown as ConstructorInput;
+	const constructorOutput = constructBaseline(input);
+	const modularWarning = constructorOutput.modularWarnings?.find((warning) => warning.code === 'INCOMPLETE_MODULAR_GROUP');
+	assert.ok(modularWarning, 'the real constructor must emit its incomplete modular-family warning');
+	const base = canonicalConflictFixture();
+	const violation: Violation = {
+		code: modularWarning.code, severity: 'SOFT', message: modularWarning.message, schoolId: 1, schoolYearId: 10, runId: 316,
+		entities: { sectionId: modularWarning.sectionId, subjectId: modularWarning.subjectId }, meta: { ...modularWarning.meta, termIndex: 1 },
+	};
+	let previewReads = 0;
+	const response = await getViolationRepairOptions(1, 10, 316, { code: violation.code, termIndex: 1, entryIds: [], sectionId: 7, subjectId: 4 }, {
+		loadRun: async () => ({ ...base.run, violations: [violation] }) as never,
+		loadManualEditContext: async () => { previewReads++; return base.refData as never; },
+		now: () => new Date('2030-01-02T03:04:05.000Z'),
+	});
+	assert.notEqual(response.status, 'REPAIRABLE');
+	assert.equal(previewReads, 0);
+});
+
+test('C03 floor-transition and legacy zone issues remain outside the proven conflict allowlist', async () => {
+	const base = canonicalConflictFixture();
+	const entries: ScheduledEntry[] = [
+		{ entryId: 'floor-a', facultyId: 12, roomId: 30, subjectId: 4, sectionId: 7, day: 'MONDAY', startTime: '08:00', endTime: '08:45', durationMinutes: 45, termIndex: 1 },
+		{ entryId: 'floor-b', facultyId: 12, roomId: 31, subjectId: 5, sectionId: 8, day: 'MONDAY', startTime: '08:45', endTime: '09:30', durationMinutes: 45, termIndex: 1 },
+	];
+	const refData = {
+		...base.refData, entries, rooms: [
+			{ ...base.refData.rooms[0], buildingId: 1, floor: 0 }, { ...base.refData.rooms[1], buildingId: 1, floor: 4 },
+		],
+		buildings: [{ id: 1, x: 0, y: 0 }],
+		faculty: [{ id: 12, maxHoursPerWeek: 40, ancillaryMinutesPerWeek: 0 }],
+	};
+	const violations = validateHardConstraints(buildValidatorCtx(1, 10, 316, entries, refData as never)).violations;
+	const floorIssue = violations.find((violation) => violation.code === 'FACULTY_FLOOR_TRANSITION');
+	assert.ok(floorIssue, 'the real validator must emit a canonical cross-floor transition issue');
+	const historical: Violation = {
+		code: 'ZONE_IMBALANCE_WARNING', severity: 'SOFT', message: 'Historical campus zone warning.', schoolId: 1, schoolYearId: 10, runId: 316,
+		entities: { sectionId: 7, subjectId: 4 }, meta: { termIndex: 1 },
+	};
+	for (const violation of [floorIssue, historical]) {
+		const run = { ...base.run, draftEntries: entries, violations: [violation] };
+		let previewReads = 0;
+		const response = await getViolationRepairOptions(1, 10, 316, {
+			code: violation.code, termIndex: 1, entryIds: [...(violation.entities?.entryIds ?? [])].sort(),
+			...(violation.entities?.facultyId ? { facultyId: violation.entities.facultyId } : {}),
+			...(violation.entities?.sectionId ? { sectionId: violation.entities.sectionId } : {}),
+			...(violation.entities?.subjectId ? { subjectId: violation.entities.subjectId } : {}),
+		}, {
+			loadRun: async () => run as never,
+			loadManualEditContext: async () => { previewReads++; return { ...refData, run } as never; },
+			now: () => new Date('2030-01-02T03:04:05.000Z'),
+		});
+		assert.notEqual(response.status, 'REPAIRABLE');
+		assert.deepEqual(response.options, []);
+		assert.equal(previewReads, 0);
 	}
 });
 
