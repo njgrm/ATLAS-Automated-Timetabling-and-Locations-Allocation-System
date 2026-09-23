@@ -52,7 +52,7 @@ test('cross-school scheduler requests stop before every scoped workspace service
 			fetch(`${origin}/publication-approval/8/1/runs/1/requests`, { method: 'POST', headers, body: '{}' }),
 		]);
 		assert.deepEqual(responses.map((response) => response.status), Array(responses.length).fill(403));
-		for (const response of responses.slice(0, -1)) assert.equal((await response.json() as { code: string }).code, 'SCHOOL_SCOPE_DENIED');
+		for (const response of responses.slice(0, -1)) assert.equal((await response.json() as { code: string }).code, 'CROSS_SCHOOL_DENIED');
 		assert.equal((await responses[responses.length - 1].json() as { code: string }).code, 'APPROVAL_SCOPE_MISMATCH');
 	} finally {
 		await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
