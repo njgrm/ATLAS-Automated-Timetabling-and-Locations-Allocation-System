@@ -69,7 +69,7 @@ The ±1-byte deltas are embedded document metadata/timestamps, not content chang
   `wss://…/api/v1/room-preferences/collaboration/ws?ticket=…&schoolId=1&schoolYearId=10&runId=317`
   → **`open`**. On `/timetable` the page itself issues the ticket POST (201s observed). On
   `/faculty/room-preferences` the page mounts the socket only when a summary `runId` exists
-  (`OfficerRoomPreferences.tsx:148` guard); currently no room requests → no `runId` → no socket mounted
+  (`OfficerRoomPreferences.tsx:150` guard); currently no room requests → no `runId` → no socket mounted
   (data-conditional, not a defect).
 
 ## 3. Deployment confirmation — no re-deploy
@@ -89,5 +89,12 @@ The ±1-byte deltas are embedded document metadata/timestamps, not content chang
 
 - Source changes: **none** (docs-only artifact + live-state update). No fresh QA of a source range is
   required; the HIGH live-data action's evidence is independently re-verifiable from the DB + live feed.
+- **Fresh independent QA (`ses_f3048d40bffeuOno9I9wNMi2UJ`): `ACCEPT_READY` 7/7/0/0** (blocked 0,
+  unperformed 0). It independently reproduced the export matrix (all four 200; negative control
+  `termIndex=9` → 400), the DB state (143=5, 146=2, 20 rows, sum 92), the **guard's actual input** — the
+  per-section learner feed for all 20 sections matches the mirrors 20/20 — and confirmed the guard blob is
+  byte-identical to `origin/main`. Only NON_BLOCKING residuals: planner-held mutating POST/WS-open
+  corroborated but not re-run; one artifact line-number cite corrected (148→150); ±1-byte export deltas
+  (disclosed).
 - No `D:\ATLAS`, Codex worktree, runtime/fallback dir, companion repo, migration, generation,
   publication, or login action was touched.
