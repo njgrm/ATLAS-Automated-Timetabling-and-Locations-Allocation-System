@@ -426,6 +426,21 @@ test('M22: real builders produce DOCX/XLSX artifacts with exact bidirectional va
 	void docxText;
 });
 
+test('room-program break rows keep five independently labelled weekday cells without merges', { skip: exceljsSkip }, async () => {
+	const buffer = await withDataContext(CLIENT, () => exportRoomProgramWorkbook({ ...buildOptions(1), roomId: 601 }));
+	const sheet = (await readWorkbook(buffer)).worksheets[0];
+	const breakRow: any[] = [];
+	sheet.eachRow((row: any) => {
+		if ([3, 4, 5, 6, 7].every((column) => row.getCell(column).value === 'Health Break')) breakRow.push(row);
+	});
+	assert.equal(breakRow.length, 1, 'the canonical break interval appears once');
+	for (const column of [3, 4, 5, 6, 7]) {
+		const cell = breakRow[0].getCell(column);
+		assert.equal(cell.value, 'Health Break', `weekday column ${column} carries its own label`);
+		assert.equal(cell.isMerged, false, `weekday column ${column} is not part of a merged break band`);
+	}
+});
+
 // ─── M15/T8/G11 — the room read resolves policy passively (zero writes) ───
 
 test('M15/T8: the room-read policy resolver performs zero writes and the room view never calls the creating path', async () => {

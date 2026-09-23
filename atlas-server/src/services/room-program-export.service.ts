@@ -177,8 +177,8 @@ export async function exportRoomProgramWorkbook(options: RoomProgramOptions): Pr
 					const dayIndex = (WEEKDAYS as readonly string[]).indexOf(eventDay);
 					if (dayIndex >= 0) row.getCell(dayIndex + 3).value = item.slot.eventName ?? 'Break';
 				} else {
-					row.getCell(3).value = item.slot.eventName ?? 'Break';
-					sheet.mergeCells(rowCursor, 3, rowCursor, 7);
+					const label = item.slot.eventName ?? 'Break';
+					WEEKDAYS.forEach((_, dayIndex) => { row.getCell(dayIndex + 3).value = label; });
 				}
 			} else {
 				const intervalMinutes = Math.max(0, toMinutes(endTime) - toMinutes(startTime));
