@@ -46,11 +46,14 @@ and AIMS.
   under the operator's standing authorization (audit `C:\ProgramData\ATLAS\release-audit\6e9c87e7-20260924-002236`);
   the pre-deploy record was committed first (`14ea7f31`) so the record led the cutover. **Rollback basis:
   `4893cbdec2758fa9965a117a1988dee517718afb`** at `E:\ATLAS-runtime-supervised-4893cbde-20260923` (startable
-  in place; deeper `0232bf9c`). **Post-deploy browser acceptance PASSED (read-only; existing authenticated
-  session, no fresh login):** Tailnet origin asserted; `/timetable` renders with the grid present and no global
-  scrollbar at `1366×768` and `390×844`; the Monday ceremony cell renders `Flag Ceremony / Homeroom Guidance`
-  **above** the class entry (`SCIENCE · R. Santos · Room 103 · G7AW`) — the ceremony-over-class fix is live;
-  four first-paint 502s are the known transient host-side layer (three recovered to 200 on re-probe).)
+  in place; deeper `0232bf9c`). **Post-deploy browser acceptance PASSED — full route matrix** (read-only;
+  existing authenticated session, no fresh login; `1366×768` + `390×844`; evidence
+  `docs/reviews/runtime-acceptance-6e9c87e7-20260924/acceptance-matrix.md`): 17 routes render with no
+  global scrollbar and no app-level console error; the Monday ceremony cell renders the ceremony **above**
+  the class entry (`SCIENCE · R. Santos · Room 103 · G7AW`); the collaboration WebSocket opens on
+  `/timetable` and `/faculty/room-preferences`. Residuals: the host/proxy 502 + HTTP/2 layer (server proven
+  healthy — direct `localhost:5001` probes return `401`) and the scheduler-role publication-approval surface
+  (unexercised). **Independent post-action QA: pending.**)
 - **Retention policy (2026-09-23):** `RUNTIME-DIR-RETENTION-C01` retired 14 release directories
   (`1fdab989`, `e78d4473`, `11e8778f`, `7dbb3b90`, `d4c9f391`, `d92facfa`, `ecff1d7e`, `a02884ff`,
   `5f5c6c4f`, `20f07f59`, `405e5b18`, `4ce73d157f9a`, `78be1b760e40`, `8eb0511baa53`). **Any earlier line
