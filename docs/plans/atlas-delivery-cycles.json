@@ -1,14 +1,14 @@
 {
   "contractVersion": "1.2.0",
   "registry": {
-    "lastUpdatedAt": "2026-09-17T23:32:39.223Z",
-    "lastUpdatedBy": "primary-planner:consolidated-deployment-c10-integration",
-    "revision": 372
+    "lastUpdatedAt": "2026-09-23T17:54:34.884Z",
+    "lastUpdatedBy": "primary-planner:ceremony-class-coexistence-c01",
+    "revision": 373
   },
   "coordination": {
     "mode": "MANUAL",
     "activeCycleId": null,
-    "globalNextAction": "Register superseded as a live pointer on 2026-09-23: coordination runs through `docs/plans/live-state.md` and the lane handoffs, and this register's cycle records are historical (last updated 2026-09-17). THE LIVE RELEASE IS `0232bf9c` (`E:\\ATLAS-runtime-supervised-0232bf9c-20260923`) — not the `78be1b760e40` / `8eb0511baa53` releases named in the 2026-09-17 records below, whose directories were retired on 2026-09-23 under RUNTIME-DIR-RETENTION-C01 (release-directory retention policy; deeper rollback is now a rebuild). No generation, publication, runtime, task, env, migration, term-cache or Teaching Load apply is approved."
+    "globalNextAction": "Register superseded as a live pointer on 2026-09-23: coordination runs through `docs/plans/live-state.md` and the lane handoffs, and this register's cycle records are historical (frozen at 2026-09-17; not updated per cycle). THE LIVE RELEASE IS `6e9c87e7` (`E:\\ATLAS-runtime-supervised-6e9c87e7-20260924`), deployed 2026-09-24 by Elevated OpenCode under the operator's standing authorization — it carries the integrated SCHEDULER-COLLABORATION-C01 + CEREMONY-OVER-CLASS-TRUTHFULNESS-C01 source, the integration reconciliation, and migration 20260923000000_publication_approval_requests (rollback basis `4893cbde`). The `78be1b760e40` / `8eb0511baa53` / `0232bf9c` releases named in the 2026-09-17 records below were retired on 2026-09-23 under RUNTIME-DIR-RETENTION-C01 (release-directory retention policy; deeper rollback is now a rebuild). No generation, publication, runtime, task, env, migration, term-cache or Teaching Load apply is approved."
   },
   "streams": [
     {

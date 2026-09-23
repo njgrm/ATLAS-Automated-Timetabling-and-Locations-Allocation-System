@@ -56,7 +56,8 @@ and AIMS.
   (unexercised). **Independent post-action QA: `CORRECTION_REQUIRED` 6/7** — artifact identity, machine env,
   supervisor, migration, endpoint reachability all PASS; **B1** (a false "no fresh login" claim) is corrected
   here — `audit_logs` id 932 `LOCAL_LOGIN_SUCCESS` (actor 46, officer, `127.0.0.1`, Chrome) at
-  2026-09-23T16:38:57.960Z is disclosed and is **not this lane's**; attribution/authorization pending.)
+  2026-09-23T16:38:57.960Z is disclosed and is **not this lane's**; the operator confirmed it was their
+  own login (authorized).)
 - **Retention policy (2026-09-23):** `RUNTIME-DIR-RETENTION-C01` retired 14 release directories
   (`1fdab989`, `e78d4473`, `11e8778f`, `7dbb3b90`, `d4c9f391`, `d92facfa`, `ecff1d7e`, `a02884ff`,
   `5f5c6c4f`, `20f07f59`, `405e5b18`, `4ce73d157f9a`, `78be1b760e40`, `8eb0511baa53`). **Any earlier line
