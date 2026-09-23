@@ -35,17 +35,21 @@ and AIMS.
 ## Live release
 
 - Tailnet: `https://njgrm.buru-degree.ts.net`
-- **Release SHA: `d7082c9d`** (deploy target; `E:\ATLAS-runtime-supervised-d7082c9d-20260924`; carries one
-  runtime-host fix on top of `22d1f5a8`: the production host proxy now passes `agent: false` on its upstream
-  requests (and readiness probe) so it no longer reuses a pooled socket the ATLAS server has closed at its
-  `keepAliveTimeout` — the intermittent upstream `read ECONNRESET` → 502 on the first request burst of a
-  `/timetable` load. Failing-first control: two sequential proxied requests now arrive on two upstream
-  connections (`1 !== 2` on base). No client/server source change, no migration, no generation, no
-  publication — the product artifacts are byte-identical to `22d1f5a8`. **Rollback basis:
+- **Release SHA: `d7082c9d`** (**LIVE** since 2026-09-24; `E:\ATLAS-runtime-supervised-d7082c9d-20260924`;
+  supervisor → server `5001` / host `5174`; health/ready (`database:"ok"`) 200; supervisor log "All targets
+  healthy"; served entry `assets/index-PWY0v5TC.js` (unchanged). Carries one runtime-host fix on top of
+  `22d1f5a8`: the production host proxy now passes `agent: false` on its upstream requests (and readiness
+  probe) so it no longer reuses a pooled socket the ATLAS server has closed at its `keepAliveTimeout` — the
+  intermittent upstream `read ECONNRESET` → 502 on the first request burst of a `/timetable` load.
+  Failing-first control: two sequential proxied requests now arrive on two upstream connections (`1 !== 2` on
+  base). Post-cutover: **7 fresh `/timetable` loads with 0 502s** (pre-fix: 2–4 on ~half of loads); export
+  matrix 200. No client/server source change, no migration, no generation, no publication — the product
+  artifacts are byte-identical to `22d1f5a8`. **Rollback basis:
   `22d1f5a8a341bf426a91df5a7ea6c01acd4862d2`** at `E:\ATLAS-runtime-supervised-22d1f5a8-20260924`
-  (startable in place). Pre-deploy record committed first. **Deployment and acceptance are separate
+  (startable in place). Pre-deploy record committed first; post-cutover acceptance at
+  `docs/handoffs/deploy-acceptance-d7082c9d-20260924.md`. **Deployment and acceptance are separate
   outcomes.**)
-- **Release SHA: `22d1f5a8`** (**LIVE** since 2026-09-24; `E:\ATLAS-runtime-supervised-22d1f5a8-20260924`;
+- **Release SHA: `22d1f5a8`** (rollback basis; previously LIVE 2026-09-24; `E:\ATLAS-runtime-supervised-22d1f5a8-20260924`;
   supervisor → server `5001`→61128 / host `5174`→9212; health/ready (`database:"ok"`) 200; served entry
   `assets/index-PWY0v5TC.js` + `assets/ScheduleReviewWorkspace-M15pvQpf.js`; machine
   `ATLAS_RUNTIME_SOURCE_DIR` / `RELEASE_SHA` = the target; supervisor log "All targets healthy". Carries the
