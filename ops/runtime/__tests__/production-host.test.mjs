@@ -324,3 +324,37 @@ test('static path traversal escapes are rejected', () => {
 		rmSync(staticRoot, { recursive: true, force: true });
 	}
 });
+
+// Regression control for the intermittent `read ECONNRESET` 502: the proxy must
+// not reuse a pooled upstream socket. Node's default global agent keeps sockets
+// alive (Node >=19), so a request after an idle period can reuse a socket the
+// server already closed at its keepAliveTimeout. Two sequential proxied requests
+// must therefore arrive on two distinct upstream connections.
+test('production host opens a fresh upstream connection per proxied request (no keep-alive reuse)', async () => {
+	const staticRoot = makeStaticRoot();
+	const api = startFakeApi();
+	let upstreamConnections = 0;
+	api.server.on('connection', () => { upstreamConnections += 1; });
+	const apiPort = await listen(api.server);
+	const host = createProductionHost({
+		staticRoot,
+		apiTarget: `http://127.0.0.1:${apiPort}`,
+		enrollProTarget: `http://127.0.0.1:${apiPort}`,
+		probeApiReadiness: async () => ({ ok: true, status: 200 }),
+	});
+	const hostPort = await listen(host.server);
+	try {
+		assert.equal((await fetch(`http://127.0.0.1:${hostPort}/api/v1/first`)).status, 200);
+		assert.equal((await fetch(`http://127.0.0.1:${hostPort}/api/v1/second`)).status, 200);
+		assert.equal(api.seen.length, 2, 'both proxied requests must reach the upstream');
+		assert.equal(
+			upstreamConnections,
+			2,
+			'each proxied request must open its own upstream connection; a reused pooled socket can 502 with read ECONNRESET',
+		);
+	} finally {
+		await host.close();
+		api.server.close();
+		rmSync(staticRoot, { recursive: true, force: true });
+	}
+});

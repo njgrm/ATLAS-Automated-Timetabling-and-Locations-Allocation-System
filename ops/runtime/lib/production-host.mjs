@@ -134,6 +134,9 @@ export function defaultProbeApiReadiness(options) {
 				port: target.port || (target.protocol === 'https:' ? 443 : 80),
 				path: readinessPath,
 				timeout: timeoutMs,
+				// Fresh connection per probe (no global-agent socket reuse), so a
+				// stale pooled socket can never be mistaken for an unhealthy server.
+				agent: false,
 			},
 			(response) => {
 				response.resume();
@@ -172,6 +175,15 @@ function proxyHttpRequest(req, res, route) {
 			method: req.method,
 			path: rewritten,
 			headers: forwardedHeaders(req, target),
+			// No upstream connection pooling. Node's default global agent keeps
+			// sockets alive (keepAlive: true since Node 19), so a proxied request
+			// that follows an idle period can reuse a socket the ATLAS server has
+			// already closed at its keepAliveTimeout; the reuse surfaces as an
+			// intermittent upstream `read ECONNRESET` -> 502 on the first request
+			// burst of a page load. A fresh connection per proxied request removes
+			// that reuse race. `agent: false` uses a fresh default (non-keep-alive)
+			// agent for this request only.
+			agent: false,
 		},
 		(upstreamRes) => {
 			const isSse = String(upstreamRes.headers['content-type'] ?? '').includes('text/event-stream');
