@@ -8,6 +8,7 @@ import { parseDraftPlacementId, scopePreviewToCandidate } from '@/lib/timetable-
 import { isSameTimetableSlot, resolvePreGenSlotDisplacement } from '@/lib/timetable-swap-routing';
 import { deriveRunWideReadiness } from '@/components/timetable/timetableWorkspaceTruth';
 import { deriveRedoAfterRevert, dispatchRedo } from '@/components/timetable/timetableUndoRedoState';
+import { resolveTimetableEntryPivot } from '@/lib/timetable-entry-pivot';
 import { decideDraftPlacementReview, type DraftPlacementReviewDecision } from '@/lib/simple-timetable-state';
 import type { PendingSwapAction } from '@/components/timetable/ScheduleReviewWorkspace.constants';
 import type { ActiveSchoolYearContext } from '@/lib/enrollpro-public-settings';
@@ -40,6 +41,7 @@ import type {
 	HumanConflict,
 	Violation,
 	ViolationReport,
+	ExternalSection,
 } from '@/types';
 
 type RoomInfo = {
@@ -242,8 +244,15 @@ type UseTimetableMutationsInput = {
 
 	viewMode: 'section' | 'faculty' | 'room';
 	entityFilter: string;
-	facultyMap: Map<number, { id: number; version?: number }>;
+	facultyMap: Map<number, { id: number; version?: number; firstName?: string; lastName?: string }>;
 	roomMap: Map<number, RoomInfo>;
+	sectionMap: Map<number, ExternalSection>;
+	setPendingFacultyIssuePivot: React.Dispatch<React.SetStateAction<{
+		facultyId: number;
+		teacherLabel: string;
+		violation: Violation;
+		entry: ScheduledEntry;
+	} | null>>;
 };
 
 export type TimetableMutationState = {
@@ -425,6 +434,8 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 		entityFilter,
 		facultyMap,
 		roomMap,
+		sectionMap,
+	setPendingFacultyIssuePivot,
 	} = input;
 	const schoolId = schoolYearContext?.schoolId ?? null;
 	const atlasApi = useMemo(() => createTimetableScopedClient(schoolId, atlasApiClient), [schoolId]);
@@ -603,6 +614,19 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 	const requestPreviewSoftWarnings = useMemo(() => requestPreviewConflicts.filter((conflict) => conflict.severity === 'SOFT'), [requestPreviewConflicts]);
 
 	const handleViolationSelect = useCallback((v: Violation) => {
+		const affectedEntryId = v.entities.entryIds?.[0];
+		const affectedEntry = affectedEntryId ? draft?.entries.find((entry) => entry.entryId === affectedEntryId) : null;
+		const canonicalFaculty = affectedEntry?.facultyId != null ? facultyMap.get(affectedEntry.facultyId) : null;
+		if (viewMode === 'faculty' && affectedEntry?.facultyId != null && canonicalFaculty
+			&& String(affectedEntry.facultyId) !== entityFilter) {
+			setPendingFacultyIssuePivot({
+				facultyId: affectedEntry.facultyId,
+				teacherLabel: `${canonicalFaculty.lastName}, ${canonicalFaculty.firstName}`.trim().replace(/^,\s*/, ''),
+				violation: v,
+				entry: affectedEntry,
+			});
+			return;
+		}
 		setKbSelectedSource(null);
 		setPreGenKbSource(null);
 		setSelectedViolation((prev) => (prev === v ? null : v));
@@ -611,18 +635,27 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 			const entry = draft.entries.find((e) => e.entryId === firstId);
 			if (entry) setSelectedEntry(entry);
 		}
-	}, [draft?.entries, setKbSelectedSource, setPreGenKbSource, setSelectedViolation, setSelectedEntry]);
+	}, [draft?.entries, entityFilter, facultyMap, setKbSelectedSource, setPendingFacultyIssuePivot, setPreGenKbSource, setSelectedViolation, setSelectedEntry, viewMode]);
 
 	const handleEntryClick = useCallback((entry: ScheduledEntry) => {
 		setSelectedViolation(null);
 		setKbSelectedSource(null);
 		setPreGenKbSource(null);
+		const pivot = resolveTimetableEntryPivot({
+			viewMode,
+			entry,
+			sections: sectionMap,
+			facultyIds: new Set(facultyMap.keys()),
+			roomIds: new Set(roomMap.keys()),
+		});
+		if (pivot.entityId != null) setEntityFilter(String(pivot.entityId));
+		else if (pivot.guidance) toast.info(pivot.guidance);
 		setSelectedEntry((prev) => {
 			const next = prev?.entryId === entry.entryId ? null : entry;
 			if (next && isDesktop) rightPanelRef.current?.expand();
 			return next;
 		});
-	}, [setSelectedViolation, setKbSelectedSource, setPreGenKbSource, setSelectedEntry, rightPanelRef, isDesktop]);
+	}, [setSelectedViolation, setKbSelectedSource, setPreGenKbSource, setSelectedEntry, rightPanelRef, isDesktop, viewMode, sectionMap, facultyMap, roomMap, setEntityFilter]);
 
 	const toggleFollowUp = useCallback(async (entryId: string) => {
 		if (!draft || !schoolYearId) return;

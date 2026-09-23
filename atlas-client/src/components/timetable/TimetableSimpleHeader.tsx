@@ -46,7 +46,6 @@ import {
 	SimpleScheduleControls,
 	SimpleScheduleSheet,
 	SimpleTutorialControl,
-	sourceLabel,
 	useSimpleTasks,
 } from '@/components/timetable/simple/SimpleHeaderHelpers';
 import {
@@ -230,8 +229,6 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 		[context.draft?.inputState],
 	);
 	const showDriftState = !context.isPreGenerationWorkspace && context.draft != null && driftSummary.status !== 'FRESH';
-	const visibleYearLabel = context.schoolYearContext?.activeSchoolYearLabel ?? (context.schoolYearId ? `SY #${context.schoolYearId}` : null);
-	const source = sourceLabel(context);
 	const setupState = describeSetupState(context.curriculumReadiness);
 	const scopeResolved = Number.isInteger(context.schoolId) && context.schoolId > 0
 		&& Number.isInteger(context.schoolYearId) && (context.schoolYearId ?? 0) > 0;
@@ -577,10 +574,8 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 					publishBlocked={publishBlocked}
 					blockingHardCount={context.blockingHardCount}
 				/>
-				{/* A4 — exactly ONE authority state renders here: the run-input
-				    drift message, else the ordered-term notice, else the source
-				    line. "Run inputs are stale" and "Verified with EnrollPro" can
-				    never appear together. */}
+				{/* Only actionable drift and unresolved-term states belong in the
+				    ordinary header. Routine provenance remains in Expert diagnostics. */}
 				{showDriftState ? (
 					<SimpleDriftBanner
 						schoolId={context.schoolId}
@@ -599,11 +594,7 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 					/>
 				) : termAuthorityNotice ? (
 					<p className="min-w-0 flex-1 truncate text-xs font-medium text-amber-800" data-testid="timetable-term-authority-unverified">{termAuthorityNotice}</p>
-				) : (
-					<p className="min-w-0 flex-1 truncate text-xs text-muted-foreground" data-testid="timetable-simple-authority">
-						{source}{visibleYearLabel ? ` · ${visibleYearLabel}` : ''}{visibleRunId ? ` · Run #${visibleRunId}` : ''}
-					</p>
-				)}
+				) : null}
 				{latestRunFailed ? (
 					<p className="min-w-0 text-xs font-medium text-red-700" data-testid="timetable-last-generation-failed-message">
 						The last generation run failed. Review setup, then try generating again.

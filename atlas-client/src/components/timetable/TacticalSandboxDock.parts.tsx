@@ -253,7 +253,7 @@ export function QualificationAuthorityModule({
 					</div>
 					{preview?.confirmationText ? (
 						<p className="rounded-md border border-border bg-muted/20 px-2 py-1.5 text-muted-foreground" data-testid="timetable-qualification-issued-confirmation">
-							Server-issued confirmation. Type it exactly to apply: <span className="font-mono font-semibold text-foreground">{preview.confirmationText}</span>
+							Confirmation required. Enter this phrase exactly to continue: <span className="font-mono font-semibold text-foreground">{preview.confirmationText}</span>
 						</p>
 					) : null}
 					<Textarea
@@ -268,11 +268,11 @@ export function QualificationAuthorityModule({
 					/>
 					{preview ? (
 						<p className="text-muted-foreground" data-testid="timetable-qualification-fingerprint">
-							Server fingerprint issued: {preview.creates} create · {preview.conflicts} conflict. Apply is authorized by this preview only.
+							Preview ready: {preview.creates} changes · {preview.conflicts} conflicts. Confirm to continue.
 						</p>
 					) : (
 						<p className="text-amber-800" data-testid="timetable-qualification-preview-required">
-							Preview is read-only and issues the fingerprint that apply requires. Nothing is written by preview.
+							Preview checks these changes before anything is saved.
 						</p>
 					)}
 					{error ? (
@@ -449,7 +449,7 @@ export function CapabilityOverrideModule({
 					<p className="text-muted-foreground" data-testid="timetable-capability-effect">{describeCapabilityOverrideEffect(preview)}</p>
 					{preview?.confirmationText ? (
 						<p className="rounded-md border border-border bg-muted/20 px-2 py-1.5 text-muted-foreground" data-testid="timetable-capability-issued-confirmation">
-							Server-issued confirmation. Type it exactly to apply: <span className="font-mono font-semibold text-foreground">{preview.confirmationText}</span>
+							Confirmation required. Enter this phrase exactly to continue: <span className="font-mono font-semibold text-foreground">{preview.confirmationText}</span>
 						</p>
 					) : null}
 					<Textarea

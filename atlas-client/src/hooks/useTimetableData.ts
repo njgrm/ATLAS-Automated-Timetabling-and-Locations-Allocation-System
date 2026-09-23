@@ -1845,9 +1845,8 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 
 	// D2 — a blocked page must self-heal. When verified term authority lands
 	// after the gate blocked (or while the D3 fallback is showing), drop the
-	// fallback and re-run the load so the authoritative scope takes over. The
-	// re-run is skipped until an explicit scope exists; the workspace selects
-	// the active term on its own and its change re-runs the load.
+	// fallback and re-run the bootstrap so the authoritative scope takes over.
+	// Normal term navigation is served by the term-scoped run-bundle query below.
 	useEffect(() => {
 		if (!isTermAuthorityVerified(schoolYearContext?.activeTerm)) return;
 		if (!gateBlockedRef.current && fallbackTermIndex == null && fallbackTermRef.current == null) return;
@@ -1855,7 +1854,7 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 		fallbackTermRef.current = null;
 		setFallbackTermIndex(null);
 		setTermAuthorityNotice(null);
-		if (typeof termFilter === 'number' || input.userOverrodeTermFilter) {
+		if (gateBlockedRef.current || fallbackTermIndex != null || fallbackTermRef.current != null) {
 			void loadAll({ preserveRun: true });
 		}
 	}, [schoolYearContext, fallbackTermIndex, loadAll, termFilter, input.userOverrodeTermFilter]);

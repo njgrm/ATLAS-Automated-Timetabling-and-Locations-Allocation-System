@@ -132,7 +132,7 @@ export function SimpleMoreMenuContent({
 					onClick={() => { onClose(); onLayoutModeChange('advanced'); }}
 				>
 					<Settings2 className="size-3.5" aria-hidden="true" />
-					Scheduling policy (Advanced)
+					Scheduling policy (Expert)
 				</Link>
 			</DropdownMenuItem>
 				<DropdownMenuItem
@@ -141,7 +141,7 @@ export function SimpleMoreMenuContent({
 					data-testid="timetable-layout-toggle"
 				>
 					<Settings2 className="size-3.5" aria-hidden="true" />
-					Advanced view
+					Expert view
 				</DropdownMenuItem>
 			</div>
 			{/* A3 — Status key, Tutorial and Day options move out of the main header

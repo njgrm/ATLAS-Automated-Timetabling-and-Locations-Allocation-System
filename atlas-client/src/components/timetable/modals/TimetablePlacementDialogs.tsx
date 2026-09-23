@@ -255,7 +255,6 @@ export function TimetablePlacementDialogs({ context }: { context: ScheduleReview
 
 	const generatedPlacementCancelRef = useRef<HTMLButtonElement>(null);
 	const draftPlacementCancelRef = useRef<HTMLButtonElement>(null);
-	const draftSwapCancelRef = useRef<HTMLButtonElement>(null);
 	const generatedSwapCancelRef = useRef<HTMLButtonElement>(null);
 
 	const closePlacement = () => {
@@ -604,110 +603,31 @@ export function TimetablePlacementDialogs({ context }: { context: ScheduleReview
 				</DialogContent>
 			</Dialog>
 
-			<Dialog open={showSwapConfirm} onOpenChange={(open) => { if (!open) closeDraftSwap(); }}>
-				<DialogContent
-					className="w-[calc(100vw-2rem)] max-w-xl flex flex-col gap-0 overflow-hidden p-0 max-h-[90vh]"
-					data-testid="draft-swap-review-dialog"
-					onOpenAutoFocus={focusCancelButton(draftSwapCancelRef)}
-				>
-					<DialogHeader className="border-b border-border px-4 py-3">
-						<DialogTitle>Review visual switch</DialogTitle>
-						<DialogDescription>Confirm both outcomes before saving. Ownership stays from Teaching Load.</DialogDescription>
-					</DialogHeader>
-					<div role="status" aria-live="polite" data-testid="draft-swap-preview-status" className="sr-only">
-						{swapPreview?.loading
-							? 'Checking draft switch.'
-							: swapPreview?.error
-								? `Draft switch preview error: ${swapPreview.error}`
-								: swapPreview
-									? 'Draft switch preview is ready.'
-									: 'Draft switch review opened.'}
-					</div>
-					<div className="flex-1 min-h-0 overflow-auto px-4 py-3">
-						<ReviewActionSheet type="draft-swap">
-							<ReviewActionSection title="What changes" description="The selected draft session and occupied slot are resolved as one reviewed switch.">
-						{swapPreview?.loading && (
-							<p className="flex items-center gap-2 text-xs text-muted-foreground">
-								<Loader2 className="size-4 animate-spin" />Checking both placements...
-							</p>
-						)}
-						{swapPreview?.error && (
-							<p className="rounded-md border border-red-200 bg-red-50 p-2 text-xs text-red-800">{swapPreview.error}</p>
-						)}
-						{swapAction && (
-							<div className="grid gap-2 sm:grid-cols-2">
-								<div className="flex items-start gap-2 rounded-md border border-primary/20 bg-primary/5 p-2.5">
-									<ArrowRight className="mt-0.5 size-4 shrink-0 text-primary" />
-									<div>
-										<p className="text-sm font-semibold">{swapSourceLabel}</p>
-										<p className="text-xs text-muted-foreground">{swapTargetLabel}</p>
-										<p className="text-xs text-muted-foreground">Owner {formatFacultyInitials(swapAction.target.facultyId)} &middot; Room {roomLabelShort(swapAction.target.roomId)}</p>
-									</div>
-								</div>
-								<div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 p-2.5">
-									<ArrowRight className="mt-0.5 size-4 shrink-0 text-amber-600" />
-									<div>
-										<p className="text-sm font-semibold">{displacedLabel}</p>
-										<p className="text-xs text-muted-foreground">{displacedNextLabel}</p>
-										<p className="text-xs text-muted-foreground">No owner selection in this switch.</p>
-									</div>
-								</div>
-							</div>
-						)}
-							</ReviewActionSection>
-							{(() => {
-								const sourceHard = swapPreview?.sourcePreview?.hardViolations.length ?? 0;
-								const sourceSoft = swapPreview?.sourcePreview?.softViolations.length ?? 0;
-								const displacedHard = swapPreview?.displacedPreview?.hardViolations.length ?? 0;
-								const displacedSoft = swapPreview?.displacedPreview?.softViolations.length ?? 0;
-								const totalHard = sourceHard + displacedHard;
-								const totalSoft = sourceSoft + displacedSoft;
-								const statusTone = swapPreview?.error ? 'bad' : totalHard > 0 ? 'bad' : totalSoft > 0 ? 'warn' : 'good';
-								return (
-									<ReviewActionSection title="Switch status" tone={statusTone}>
-										<div className="grid grid-cols-2 gap-2">
-											<FigureCard label="Blocking" value={swapPreview?.loading ? '...' : totalHard} tone={totalHard > 0 ? 'bad' : 'good'} />
-											<FigureCard label="Warnings" value={swapPreview?.loading ? '...' : totalSoft} tone={totalSoft > 0 ? 'warn' : 'good'} />
-										</div>
-										{!swapPreview?.loading && !swapPreview?.error && totalHard === 0 && (
-											<p className="mt-2 flex items-center gap-1.5 text-xs text-emerald-700">
-												<CheckCircle2 className="size-3.5 shrink-0" />No blocking conflicts for this switch.
-											</p>
-										)}
-										<ConflictDetails items={draftSwapHardViolations} tone="bad" heading="Blocking conflicts" />
-										<ConflictDetails items={draftSwapSoftViolations} tone="warn" heading="Warnings to review" />
-									</ReviewActionSection>
-								);
-							})()}
-						</ReviewActionSheet>
-					</div>
-					<DialogFooter className="shrink-0 flex-col items-stretch gap-2 border-t border-border px-4 py-3 sm:flex-row sm:items-center">
-						<p
-							className={`min-w-0 flex-1 rounded-md border px-2.5 py-2 text-xs ${feedbackClass(
-								swapSaving || swapPreview?.loading ? 'neutral' : swapPreview?.error || draftSwapHardViolations.length > 0 ? 'bad' : 'good',
-							)}`}
-							data-testid="swap-review-feedback"
-							role="status"
-							aria-live="polite"
-						>
-							{swapSaving
-								? 'Saving the switch now.'
-								: swapPreview?.loading
-									? 'Checking whether the switch is safe.'
-									: swapPreview?.error
-										? draftSwapErrorGuidance(swapPreview.error)
-										: draftSwapHardViolations.length > 0
-											? 'This switch is blocked. Fix the listed conflicts or cancel.'
-											: 'Ready to review. ATLAS will switch sessions only after you confirm.'}
+			{showSwapConfirm && (
+				<section className="fixed inset-x-3 bottom-3 z-50 mx-auto flex max-h-[min(46svh,24rem)] max-w-2xl flex-col overflow-hidden rounded-xl border border-border bg-background/95 shadow-2xl backdrop-blur" data-testid="draft-swap-inline-preview" aria-label="Review draft session switch">
+					<header className="flex items-center justify-between gap-3 border-b border-border px-3 py-2">
+						<div className="min-w-0">
+							<p className="text-sm font-semibold">Review session switch</p>
+							<p className="truncate text-xs text-muted-foreground">{swapSourceLabel} · {swapTargetLabel} · displaced: {displacedLabel}</p>
+						</div>
+						<p role="status" aria-live="polite" data-testid="draft-swap-preview-status" className="shrink-0 text-xs text-muted-foreground">
+							{swapPreview?.loading ? 'Checking…' : swapPreview?.error ? draftSwapErrorGuidance(swapPreview.error) : draftSwapHardViolations.length ? `${draftSwapHardViolations.length} blocking conflicts` : `${draftSwapSoftViolations.length} warnings`}
 						</p>
-						<Button ref={draftSwapCancelRef} variant="outline" onClick={closeDraftSwap}>Cancel</Button>
+					</header>
+					<div className="min-h-0 overflow-auto px-3 py-2">
+						{swapPreview?.error ? <p className="text-xs text-destructive">{swapPreview.error}</p> : null}
+						{swapAction ? <p className="text-xs text-muted-foreground">Teacher {formatFacultyInitials(swapAction.target.facultyId)} · Room {roomLabelShort(swapAction.target.roomId)} · the displaced session returns to its original slot.</p> : null}
+						<ConflictDetails items={draftSwapHardViolations} tone="bad" heading="Blocking conflicts" />
+						<ConflictDetails items={draftSwapSoftViolations} tone="warn" heading="Warnings to review" />
+					</div>
+					<footer className="flex items-center justify-end gap-2 border-t border-border px-3 py-2">
+						<Button variant="outline" onClick={closeDraftSwap}>Cancel</Button>
 						<Button disabled={draftSwapBlocked} onClick={() => void executeSwapAction()} data-testid="draft-swap-commit">
-							{swapSaving ? <Loader2 className="size-4 animate-spin" /> : null}
-							Swap sessions
+							{swapSaving ? <Loader2 className="size-4 animate-spin" /> : null}Confirm switch
 						</Button>
-					</DialogFooter>
-				</DialogContent>
-			</Dialog>
+					</footer>
+				</section>
+			)}
 
 			<Dialog open={Boolean(regularSwapPending)} onOpenChange={(open) => { if (!open) closeGeneratedSwap(); }}>
 				<DialogContent

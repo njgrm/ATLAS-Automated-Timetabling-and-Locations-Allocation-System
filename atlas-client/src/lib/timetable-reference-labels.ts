@@ -67,7 +67,9 @@ export function buildSectionLabel(
 		const programLabel = section.programType && section.programType !== 'REGULAR'
 			? ` · ${programBadgeLabel(section.programType, section.programCode)}`
 			: '';
-		return `${section.name}${programLabel}`;
+		const grade = section.gradeLevelName?.match(/\d+/)?.[0];
+		const gradeLabel = grade ? `GR${grade} - ` : '';
+		return `${gradeLabel}${section.name}${programLabel}`;
 	};
 }
 

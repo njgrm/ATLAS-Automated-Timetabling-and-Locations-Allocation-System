@@ -11,6 +11,7 @@ import { isTimetableSchedulerView, TimetableRouteViewSync } from '@/components/t
 import type { TimetableLayoutMode, TimetableSimpleTask } from '@/components/timetable/TimetableSimpleTypes';
 import type { RepairOrigin } from '@/components/timetable/TimetableTaskDrawer';
 import { Button } from '@/ui/button';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/ui/dialog';
 import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from '@/ui/sheet';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/ui/dropdown-menu';
 import { AlertCircle, ArrowRight, ArrowRightLeft, BookOpen, Clock, DoorOpen, GraduationCap, MoreHorizontal, Move, Redo2, RefreshCw, Undo2, UserRoundX } from 'lucide-react';
@@ -478,7 +479,7 @@ export default function ScheduleReviewWorkspace() {
 									window.requestAnimationFrame(() => state.rightPanelContext?.rightPanelRef?.current?.expand());
 								}}>
 									<GraduationCap className="mr-2 size-3.5" aria-hidden="true" />
-									Advanced details
+									Expert details
 								</DropdownMenuItem>
 							</DropdownMenuContent>
 						</DropdownMenu>
@@ -755,13 +756,30 @@ export default function ScheduleReviewWorkspace() {
 									}}
 								>
 									<GraduationCap className="mr-1.5 size-3.5" aria-hidden="true" />
-									Advanced details
+									Expert details
 								</Button>
 							</SheetFooter>
 						</div>
 					) : null}
 				</SheetContent>
 			</Sheet>
+			<Dialog
+				open={state.pendingFacultyIssuePivot != null}
+				onOpenChange={(open) => { if (!open) state.setPendingFacultyIssuePivot(null); }}
+			>
+				<DialogContent>
+					<DialogHeader>
+						<DialogTitle>Open {state.pendingFacultyIssuePivot?.teacherLabel}&apos;s timetable?</DialogTitle>
+						<DialogDescription>
+							This issue belongs to {state.pendingFacultyIssuePivot?.teacherLabel}. Switch to that teacher&apos;s timetable and highlight the affected session?
+						</DialogDescription>
+					</DialogHeader>
+					<DialogFooter>
+						<Button type="button" variant="outline" onClick={() => state.setPendingFacultyIssuePivot(null)}>Cancel</Button>
+						<Button type="button" onClick={state.confirmFacultyIssuePivot}>Open teacher timetable</Button>
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
 			<ScheduleReviewWorkspaceOverlays context={state.overlaysContext} />
 		</div>
 	);

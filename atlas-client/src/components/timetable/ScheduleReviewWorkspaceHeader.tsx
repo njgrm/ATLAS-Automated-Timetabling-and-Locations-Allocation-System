@@ -548,6 +548,18 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 						Continue draft
 					</Button>
 				)}
+				{isPreGenerationWorkspace && isRunPublished && activeGeneratedRunId != null && (
+					<Button
+						variant="outline"
+						size="sm"
+						className="h-8 shrink-0 gap-1.5"
+						onClick={returnToGeneratedRun}
+						data-testid="timetable-return-to-published"
+					>
+						<Undo2 className="size-3.5" />
+						Return to published schedule
+					</Button>
+				)}
 
 					<DropdownMenu open={moreOpen} onOpenChange={setMoreOpen}>
 					<DropdownMenuTrigger asChild>
@@ -558,18 +570,6 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 					</DropdownMenuTrigger>
 					<DropdownMenuContent align="start" className="w-72 p-2">
 						<div className="grid gap-1" onClick={() => setMoreOpen(false)}>
-				{isPreGenerationWorkspace && activeGeneratedRunId != null && (
-					<Button
-						variant="outline"
-						size="sm"
-						className="h-8 gap-1.5"
-						onClick={returnToGeneratedRun}
-					>
-						<Undo2 className="size-3.5" />
-						Back to Generated Run
-					</Button>
-				)}
-
 				<TooltipProvider>
 					<Tooltip>
 						<TooltipTrigger asChild>
