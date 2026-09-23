@@ -9,6 +9,8 @@ import { TimetableFacultyIssuePivotDialog } from '@/components/timetable/Timetab
 import { TimetableSkeleton } from '@/components/timetable/TimetableSkeleton';
 import { InlinePlacementPreview } from '@/components/timetable/InlinePlacementPreview';
 import { isTimetableSchedulerView, TimetableRouteViewSync } from '@/components/timetable/TimetableRouteViewSync';
+import { TimetableRouteLoadingState } from '@/components/timetable/TimetableRouteLoadingState';
+import { resolveTimetableLoadingIntent } from '@/components/timetable/timetable-route-loading-intent';
 import type { TimetableLayoutMode, TimetableSimpleTask } from '@/components/timetable/TimetableSimpleTypes';
 import type { RepairOrigin } from '@/components/timetable/TimetableTaskDrawer';
 import { Button } from '@/ui/button';
@@ -17,7 +19,7 @@ import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetT
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/ui/dropdown-menu';
 import { AlertCircle, ArrowRight, ArrowRightLeft, BookOpen, Clock, DoorOpen, GraduationCap, MoreHorizontal, Move, Redo2, RefreshCw, Undo2, UserRoundX } from 'lucide-react';
 import { lazy, Profiler, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import type { ScheduledEntry } from '@/types';
 import { isDraftPublishedStrict } from '@/components/timetable/timetableWorkspaceTruth';
 import { TimetableUndoRedoControl } from '@/components/timetable/TimetableUndoRedoControl';
@@ -65,6 +67,7 @@ function TimetableDragOverlay({
 
 export default function ScheduleReviewWorkspace() {
 	const state = useScheduleReviewWorkspaceState();
+	const location = useLocation();
 	const navigate = useNavigate();
 	const [layoutMode, setLayoutModeState] = useState<TimetableLayoutMode>(() => {
 		if (typeof window === 'undefined') return 'simple';
@@ -199,10 +202,35 @@ export default function ScheduleReviewWorkspace() {
 		})();
 	}, [state.setSwapClassTimesMode, state.setSwapClassAEntryId, state.setSwapClassBEntryId, state.setInlineActionStatus]);
 
+	// Keep route intent synchronization mounted across the no-draft loading
+	// return. It is intentionally unavailable until the guarded view contexts
+	// exist; resolving a URL never bypasses actor/year/term data-dispatch gates.
+	const routeViewSync = state.headerContext && state.centerWorkspaceContext && state.dialogContext ? (
+		<TimetableRouteViewSync
+			centerView={state.headerContext.centerView}
+			switchCenterViewWithGuard={state.headerContext.switchCenterViewWithGuard}
+			enterPolicyView={state.headerContext.enterPolicyView}
+			exitPolicyView={state.headerContext.exitPolicyView}
+			enterPreGenerationView={() => {
+				state.setLeftTab('unassigned');
+				state.centerWorkspaceContext.setCenterView('pre-generation');
+			}}
+			enterMapView={() => state.centerWorkspaceContext.setCenterView('map')}
+			enterManualEditView={() => state.centerWorkspaceContext.setCenterView('manual-edit')}
+			enterBuildingView={() => state.centerWorkspaceContext.setCenterView('building')}
+			enterExportsView={() => state.centerWorkspaceContext.setCenterView('exports')}
+			enterRunsView={() => state.centerWorkspaceContext.setCenterView('runs')}
+			enterSetupView={() => state.centerWorkspaceContext.setCenterView('setup')}
+			leaveDialogOpen={state.dialogContext.showLeavePreGenDialog}
+		/>
+	) : null;
+
 	const isDraftPublished = isDraftPublishedStrict(state.draft);
 
 	if (state.loading && !state.draft) {
-		return <TimetableSkeleton />;
+		const routeIntent = resolveTimetableLoadingIntent(location.pathname);
+		if (routeIntent) return <>{routeViewSync}<TimetableRouteLoadingState intent={routeIntent} /></>;
+		return <>{routeViewSync}<TimetableSkeleton /></>;
 	}
 
 	if (state.error) {

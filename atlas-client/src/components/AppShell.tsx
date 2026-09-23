@@ -151,6 +151,7 @@ export function AppShell() {
 	const [routeEpoch, setRouteEpoch] = useState(0);
 	const [rolloverNotice, setRolloverNotice] = useState<RolloverAwarenessNotice | null>(null);
 	const [bridgeUser, setBridgeUser] = useState<BridgeUser | null>(null);
+	const [sessionVerificationState, setSessionVerificationState] = useState<'verifying' | 'authenticated' | 'unauthenticated'>('verifying');
 	const [authSource, setAuthSource] = useState<'bridge' | 'local' | null>(null);
 	const [isMobile, setIsMobile] = useState(() => window.matchMedia('(max-width: 1023px)').matches);
 	const [mobileNavOpen, setMobileNavOpen] = useState(false);
@@ -334,12 +335,14 @@ export function AppShell() {
 
 	const verifyActorSession = useCallback(() => {
 		if (!hasAnyAuthToken()) {
+			setSessionVerificationState('unauthenticated');
 			setBridgeUser(null);
 			setAuthSource(null);
 			clearUserRoleCache();
 			navigate('/login', { replace: true });
 			return;
 		}
+		setSessionVerificationState('verifying');
 
 		authCheckSeqRef.current += 1;
 		const checkSeq = authCheckSeqRef.current;
@@ -348,6 +351,7 @@ export function AppShell() {
 			if (checkSeq !== authCheckSeqRef.current) return;
 
 			if (!u) {
+				setSessionVerificationState('unauthenticated');
 				setBridgeUser(null);
 				setAuthSource(null);
 				clearAtlasAuthStorage();
@@ -356,12 +360,20 @@ export function AppShell() {
 			}
 
 			setBridgeUser(u);
+			setSessionVerificationState('authenticated');
 			setAuthSource(u.authSource ?? 'bridge');
 			localStorage.setItem('userRole', u.role);
 
 			if (u.role === 'faculty' && !isFacultyPortalRoute(location.pathname)) {
 				navigate('/my', { replace: true });
 			}
+		}).catch(() => {
+			if (checkSeq !== authCheckSeqRef.current) return;
+			setSessionVerificationState('unauthenticated');
+			setBridgeUser(null);
+			setAuthSource(null);
+			clearAtlasAuthStorage();
+			navigate('/login', { replace: true });
 		});
 	}, [navigate]);
 
@@ -376,6 +388,7 @@ export function AppShell() {
 	// resolves, so no scoped request is dispatched from stale scope.
 	useEffect(() => {
 		return subscribeAtlasTokenEpoch(() => {
+			setSessionVerificationState('verifying');
 			setBridgeUser(null);
 			setAuthSource(null);
 			runtimeYearRef.current = { id: null, label: null };
@@ -398,6 +411,7 @@ export function AppShell() {
 	// business values are rendered from an unauthorized read.
 	useEffect(() => {
 		const handleExpiredSession = () => {
+			setSessionVerificationState('unauthenticated');
 			setBridgeUser(null);
 			setAuthSource(null);
 			clearAtlasAuthStorage();
@@ -408,6 +422,7 @@ export function AppShell() {
 	}, [navigate]);
 
 	const handleLogout = () => {
+		setSessionVerificationState('unauthenticated');
 		if (authSource === 'bridge') {
 			clearBridgeToken();
 			clearUserRoleCache();
@@ -460,6 +475,7 @@ export function AppShell() {
 					logoUrl={logoUrl}
 					activeYearLabel={activeYearLabel}
 					bridgeUser={bridgeUser}
+					sessionVerificationState={sessionVerificationState}
 					pathname={location.pathname}
 					onLogout={handleLogout}
 				/>
