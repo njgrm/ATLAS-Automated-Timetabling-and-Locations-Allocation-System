@@ -44,9 +44,9 @@ test('C04 user-facing schedule help says Expert and keeps stored layout identity
 });
 
 test('C04 the Simple draft header exposes Return to published when a published context is saved', () => {
-	const header = source('src/components/timetable/TimetableSimpleHeader.tsx');
-	assert.match(header, /data-testid="timetable-return-to-published"/);
-	assert.match(header, /Return to published/);
+	const action = source('src/components/timetable/TimetablePublishedReturnAction.tsx');
+	assert.match(action, /data-testid="timetable-return-to-published"/);
+	assert.match(action, /Return to published/);
 });
 
 test('C04 term scope and control fail closed together and term navigation avoids a full bootstrap', () => {
