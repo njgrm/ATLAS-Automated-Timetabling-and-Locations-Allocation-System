@@ -9,7 +9,7 @@ no generation, no publication.** Deployment and acceptance recorded as separate 
 |---|---|
 | Target | `d7082c9db134f26e0f3f1e5fa01d470cb9b34093` |
 | Incumbent / rollback basis | `22d1f5a8a341bf426a91df5a7ea6c01acd4862d2` (`E:\ATLAS-runtime-supervised-22d1f5a8-20260924`, startable in place) |
-| Target source | `E:\ATLAS-runtime-supervised-d7082c9d-20260924` (detached worktree at the target; product artifacts byte-identical to `22d1f5a8` — only `ops/` changed) |
+| Target source | `E:\ATLAS-runtime-supervised-d7082c9d-20260924` (detached worktree at the target; product artifacts byte-identical to `22d1f5a8` — only `ops/` and docs changed) |
 | Env | `D:\ATLAS-runtime-config\atlas-server.env` |
 | Pre-deploy record | `docs/plans/live-state.md` `## Live release` naming target + rollback, committed `395d2d25` and pushed **before** cutover |
 | Runner | dry run clean (`mutates:false`, supervisor 50864, listeners 61128/9212) → `-Execute` → `CUTOVER_STARTED`, audit `C:\ProgramData\ATLAS\release-audit\d7082c9d-20260924-050922` |
@@ -28,7 +28,8 @@ clean `origin/main`.
   `GET /api/v1/health/ready` → 200 `{"status":"ready","checks":{"database":"ok"}}`.
 - Served entry `assets/index-PWY0v5TC.js` (unchanged — product artifacts identical to `22d1f5a8`).
 - Export matrix (run #317, termIndex 2) all 200: `class-program.xlsx` 20,388 B, `section-program.docx`
-  9,872 B, `summary-teacher-schedule.xlsx` 54,080 B, `room-program.xlsx` 34,949 B.
+  9,872 B, `summary-teacher-schedule.xlsx` 54,080 B, `room-program.xlsx` 34,949 B. (Byte counts vary ±1 B
+  between builds/downloads due to archive metadata; the status-200 claim is the material one.)
 - Core APIs 200: `runtime/context`, `dashboard/readiness-summary`, `generation/1/10/runs`,
   `notification-inbox/unread-count`.
 
