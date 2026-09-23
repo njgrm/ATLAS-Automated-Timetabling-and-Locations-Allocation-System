@@ -538,9 +538,18 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 
 	return (
 		<header className="shrink-0 border-b border-border bg-background" data-testid="timetable-simple-header">
-			{/* A3/C5 — ONE status region, rendered as a compact single-line
-			    strip: the readiness chip, the single coherent authority state,
-			    and the one labelled way to the setup repairs. A4 — the
+			{/* TIMETABLE-HEADER-COLLAPSE-C01 (D1) — ONE row band. The single status
+			    region and the single action row are the two children of this one
+			    band: at >=1366px the band becomes an explicitly non-wrapping flex
+			    row (`min-[1366px]:flex-row` + `min-[1366px]:flex-nowrap`), so the
+			    header renders one row instead of two stacked bands; below 1366px
+			    the band stacks them exactly as before. This is the header's only
+			    content band — the conditional export/swap banners stay outside it
+			    so they remain full-width strips. The band's children keep their
+			    original indentation deliberately: the diff stays surgical.
+			    A3/C5 — the region is still ONE status region, rendered as a compact
+			    single-line strip: the readiness chip, the single coherent authority
+			    state, and the one labelled way to the setup repairs. A4 — the
 			    ordered-term notice, the run-input drift message, or the source
 			    authority line renders here, never two at once. C5 — the region
 			    no longer carries its own bordered band (margins + vertical
@@ -549,8 +558,12 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 			    exactly one status region and one visually dominant primary. The
 			    setup-input repairs (Fix rooms / Preview impact / Sync with
 			    setup) and the rollover guidance live on `/timetable/setup`. */}
-			<section data-testid="timetable-simple-status-region" role="region" aria-label="Timetable status" className="min-w-0 px-3">
-			<div className="flex min-w-0 flex-wrap items-center gap-1.5">
+			<div
+				className="flex min-w-0 flex-col min-[1366px]:flex-row min-[1366px]:flex-nowrap min-[1366px]:items-center min-[1366px]:gap-3 min-[1366px]:overflow-x-auto"
+				data-testid="timetable-simple-header-row"
+			>
+			<section data-testid="timetable-simple-status-region" role="region" aria-label="Timetable status" className="min-w-0 px-3 min-[1366px]:flex-1">
+			<div className="flex min-w-0 flex-wrap items-center gap-1.5 min-[1366px]:flex-nowrap">
 				<SimpleReadinessChip
 					readiness={readiness}
 					publishBlocked={publishBlocked}
@@ -622,10 +635,10 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 			    C5 — the row no longer adds its own bottom band padding, so the
 			    header is one compact block (status strip + control row) instead
 			    of two padded bands. */}
-			<div className="flex min-w-0 flex-wrap items-center gap-1.5 px-3">
+			<div className="flex min-w-0 flex-wrap items-center gap-1.5 px-3 min-[1366px]:flex-nowrap min-[1366px]:shrink-0">
 				<SimpleTermSwitcher context={context} />
 
-				<div className="hidden min-w-0 flex-1 lg:flex lg:shrink-0 lg:min-w-[24rem]">
+				<div className="hidden min-w-0 flex-1 lg:flex lg:shrink-0 lg:min-w-[24rem] min-[1366px]:hidden">
 					<SimpleScheduleControls
 						context={context}
 						lastEntityByMode={lastEntityByMode}
@@ -769,6 +782,8 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 				</div>
 				<SimpleActiveFilterChips context={context} />
 			</div>
+			</div>
+			{/* ── end of the one row band (TIMETABLE-HEADER-COLLAPSE-C01 D1) ── */}
 
 			<SimpleExportErrorBanner
 				error={exportError}

@@ -292,9 +292,15 @@ export function SimpleScheduleSheet({
 					type="button"
 					variant="outline"
 					size="sm"
-					className="h-8 min-h-11 min-w-11 max-w-[28vw] gap-1.5 px-1.5 text-xs sm:px-2 lg:hidden"
-					aria-label={`Showing ${context.VIEW_MODE_LABELS[context.viewMode]} schedule: ${selectedLabel}`}
+					/* TIMETABLE-HEADER-COLLAPSE-C01 (D1): below 1366px this trigger is
+					   the compact chooser for <1024px only (the inline switcher shows
+					   from lg). At >=1366px the header collapses to one row, so the
+					   inline switcher yields and this trigger returns to carry the
+					   chosen schedule — the full Section/Teacher/Room chooser is
+					   unchanged inside the sheet, exactly one click away. */
+					className="h-8 min-h-11 min-w-11 max-w-[28vw] gap-1.5 px-1.5 text-xs sm:px-2 lg:hidden min-[1366px]:inline-flex"
 					data-testid="timetable-simple-schedule-sheet-trigger"
+					aria-label={`Showing ${context.VIEW_MODE_LABELS[context.viewMode]} schedule: ${selectedLabel}`}
 				>
 					<span className="hidden min-[420px]:inline truncate max-w-[20vw] sm:max-w-none">{selectedLabel}</span>
 					<ChevronDown className="size-3.5 shrink-0" aria-hidden="true" />
@@ -524,6 +530,19 @@ function GatedAction({ disabled, reason, children }: { disabled: boolean; reason
 	);
 }
 
+/**
+ * TIMETABLE-HEADER-COLLAPSE-C01 (D3) — the visible Generate control, demoted.
+ *
+ * UX-QUICKFIX-C01 introduced Generate as a first-class header control; the
+ * published-state review then found it rendered at the same `h-11 / text-sm`
+ * size as the lifecycle primary, so it competed for dominance even when it was
+ * not the next action. The row owns exactly one dominant control — the
+ * lifecycle primary, or the published status surface — so Generate is now a
+ * compact secondary control (`h-8 / text-xs`) in EVERY state. It stays present
+ * in the header render (two committed contracts require it), keeps its label,
+ * its gate-derived disabled state, its truthful aria-label, and the
+ * `shouldDispatchSimpleGenerate` guard ahead of dispatch.
+ */
 export function SimpleGenerateAction({
 	disabled,
 	disabledReason,
@@ -540,7 +559,7 @@ export function SimpleGenerateAction({
 				type="button"
 				variant="outline"
 				size="sm"
-				className="h-11 gap-1.5 px-3 text-sm"
+				className="h-8 gap-1.5 px-2.5 text-xs"
 				disabled={disabled}
 				aria-label={reason ? `Generate schedule — ${reason}` : 'Generate schedule'}
 				onClick={onClick}
@@ -588,9 +607,23 @@ export function SimplePublishAction({
 }
 
 /**
- * The honest published state. A published run has no publish action; showing a
- * disabled "Publish schedule" as the primary control read as a dead end. The
- * adjacent Generate control is the real next step (re-generate from new data).
+ * TIMETABLE-HEADER-COLLAPSE-C01 (D2) — the published run's dominant lifecycle
+ * surface.
+ *
+ * A published schedule is read-only history, so the published state *is* the
+ * lifecycle primary for that state: it sits where the primary sits, and it must
+ * out-rank the adjacent controls. Before this correction it was a light
+ * `border-emerald-200 / bg-emerald-50` chip the same height as the full-size
+ * outline Generate beside it, so Generate read as the largest control on the
+ * row. It now keeps the `h-11 / text-sm font-semibold` lifecycle sizing, with a
+ * strengthened emerald outline, so it is the one dominant element while
+ * Generate is demoted below it.
+ *
+ * It stays a status surface, never an action: the committed "a published run
+ * renders no solid action" contract holds (no `<button>`, no `bg-primary`), and
+ * the copy is unchanged and honest (`read only`, or the follow-up count). The
+ * published run offers no publish affordance, and re-generating remains the
+ * adjacent Generate control.
  */
 export function SimplePublishedState({ followUpCount }: { followUpCount: number }) {
 	const label = followUpCount > 0
@@ -598,7 +631,7 @@ export function SimplePublishedState({ followUpCount }: { followUpCount: number 
 		: 'Published — read only';
 	return (
 		<div
-			className="flex h-11 min-w-28 items-center gap-1.5 rounded-md border border-emerald-200 bg-emerald-50 px-3 text-sm font-semibold text-emerald-800"
+			className="flex h-11 min-w-28 shrink-0 items-center gap-1.5 rounded-lg border border-emerald-600 bg-emerald-50 px-3 text-sm font-semibold text-emerald-900"
 			data-testid="timetable-simple-published-state"
 			data-published-follow-ups={followUpCount}
 			role="status"
