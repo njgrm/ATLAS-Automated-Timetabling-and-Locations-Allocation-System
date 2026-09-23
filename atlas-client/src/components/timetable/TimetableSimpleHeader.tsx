@@ -645,7 +645,7 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 			<div className="flex min-w-0 flex-wrap items-center gap-1.5 px-3 wide:flex-nowrap wide:shrink-0">
 				<SimpleTermSwitcher context={context} />
 
-				<div className="hidden min-w-0 flex-1 lg:flex lg:shrink-0 lg:min-w-[24rem] wide:hidden">
+				<div className="hidden min-w-0 flex-1 lg:flex lg:shrink-0 lg:min-w-[24rem]">
 					<SimpleScheduleControls
 						context={context}
 						lastEntityByMode={lastEntityByMode}

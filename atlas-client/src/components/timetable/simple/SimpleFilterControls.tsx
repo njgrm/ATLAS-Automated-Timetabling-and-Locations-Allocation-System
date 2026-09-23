@@ -4,7 +4,8 @@ import type { ScheduleReviewWorkspaceHeaderContext } from '@/components/timetabl
 import { SimpleFiltersContent } from '@/components/timetable/simple/SimpleHeaderHelpers';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
-import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/ui/dialog';
+import { Popover, PopoverClose, PopoverContent, PopoverTrigger } from '@/ui/popover';
+import { Sheet, SheetClose, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle, SheetTrigger } from '@/ui/sheet';
 
 type SimpleFilterKey = 'program' | 'entry-kind' | 'attention';
 
@@ -119,43 +120,71 @@ export function SimpleFilterControls({ context, renderActiveFilters = true }: { 
 
 	return (
 		<>
-			<Dialog>
-				<DialogTrigger asChild>
+			<Popover>
+				<PopoverTrigger asChild>
 					<Button
 						type="button"
 						variant="outline"
 						size="sm"
-						className="h-8 min-h-11 shrink-0 gap-1.5 px-2.5 text-xs sm:min-h-0"
+						className="hidden h-8 shrink-0 gap-1.5 px-2.5 text-xs lg:inline-flex"
 						data-testid="timetable-filters-trigger"
-						aria-label={activeFilters.length > 0 ? `Filters, ${activeFilters.length} active` : 'Filters'}
+						aria-label={activeFilters.length > 0 ? `Refine grid, ${activeFilters.length} active` : 'Refine grid'}
 					>
 						<SlidersHorizontal className="size-3.5" aria-hidden="true" />
-						<span>Filters</span>
+						<span>Refine</span>
 						{activeFilters.length > 0 ? (
 							<Badge className="h-5 min-w-5 justify-center px-1 text-xs" data-testid="timetable-active-filter-count">
 								{activeFilters.length}
 							</Badge>
 						) : null}
 					</Button>
-				</DialogTrigger>
-				<DialogContent className="max-w-sm">
-					<DialogHeader>
-						<DialogTitle>Filter timetable</DialogTitle>
-						<DialogDescription>
-							Choose which classes and issues appear on the current grid.
-						</DialogDescription>
-					</DialogHeader>
+				</PopoverTrigger>
+				<PopoverContent align="end" sideOffset={8} className="w-[min(22rem,calc(100vw-2rem))] p-4" data-testid="timetable-simple-filters-popover-content">
+					<div className="mb-4 border-b border-border pb-3">
+						<h2 className="text-sm font-semibold">Refine this grid</h2>
+						<p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+							Narrow what is visible. These choices do not change timetable assignments.
+						</p>
+					</div>
 					<SimpleFiltersContent context={context} />
-					<DialogFooter>
+					<div className="mt-4 flex items-center justify-between border-t border-border pt-3">
 						{activeFilters.length > 0 ? (
 							<Button type="button" variant="ghost" onClick={clearAll}>Clear all</Button>
-						) : null}
-						<DialogClose asChild>
-							<Button type="button">Done</Button>
-						</DialogClose>
-					</DialogFooter>
-				</DialogContent>
-			</Dialog>
+						) : <span className="text-xs text-muted-foreground">No refinements applied</span>}
+						<PopoverClose asChild>
+							<Button type="button" size="sm" className="h-8">Done</Button>
+						</PopoverClose>
+					</div>
+				</PopoverContent>
+			</Popover>
+
+			<Sheet>
+				<SheetTrigger asChild>
+					<Button
+						type="button"
+						variant="outline"
+						size="sm"
+						className="h-11 min-w-11 shrink-0 gap-1.5 px-2.5 text-xs lg:hidden"
+						data-testid="timetable-filters-mobile-trigger"
+						aria-label={activeFilters.length > 0 ? `Filters, ${activeFilters.length} active` : 'Filters'}
+					>
+						<SlidersHorizontal className="size-3.5" aria-hidden="true" />
+						<span>Filters</span>
+						{activeFilters.length > 0 ? <Badge className="h-5 min-w-5 justify-center px-1 text-xs">{activeFilters.length}</Badge> : null}
+					</Button>
+				</SheetTrigger>
+				<SheetContent side="bottom" className="flex max-h-[82svh] flex-col gap-3 rounded-t-2xl p-4">
+					<SheetHeader>
+						<SheetTitle>Refine this grid</SheetTitle>
+						<SheetDescription>Narrow what is visible. These choices do not change timetable assignments.</SheetDescription>
+					</SheetHeader>
+					<SimpleFiltersContent context={context} />
+					<SheetFooter className="mt-2 gap-2 border-t border-border pt-3">
+						{activeFilters.length > 0 ? <Button type="button" variant="ghost" onClick={clearAll}>Clear all</Button> : null}
+						<SheetClose asChild><Button type="button">Done</Button></SheetClose>
+					</SheetFooter>
+				</SheetContent>
+			</Sheet>
 
 			{renderActiveFilters && activeFilters.length > 0 ? (
 				<div

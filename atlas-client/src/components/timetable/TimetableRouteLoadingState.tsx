@@ -1,6 +1,6 @@
 import { LoaderCircle } from 'lucide-react';
 
-import type { TimetableLoadingIntent } from '@/components/timetable/TimetableRouteViewSync';
+import type { TimetableLoadingIntent } from '@/components/timetable/timetable-route-loading-intent';
 
 export function TimetableRouteLoadingState({ intent }: { intent: TimetableLoadingIntent }) {
 	return (
@@ -15,7 +15,7 @@ export function TimetableRouteLoadingState({ intent }: { intent: TimetableLoadin
 				<p className="mt-2 text-sm leading-relaxed text-muted-foreground">{intent.message}</p>
 				<div className="mt-5 inline-flex items-center gap-2 text-sm font-medium text-primary" role="status">
 					<LoaderCircle className="size-4 animate-spin" aria-hidden="true" />
-					<span>Verifying timetable scope…</span>
+					<span>Loading this view…</span>
 				</div>
 			</div>
 		</section>

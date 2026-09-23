@@ -3,11 +3,14 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import test from 'node:test';
 
+import { resolveTimetableLoadingIntent } from '../timetable-route-loading-intent';
+
 const root = resolve(import.meta.dirname, '../../../');
 const source = (path: string) => readFileSync(resolve(root, path), 'utf8');
 
 test('direct timetable lifecycle routes retain route-specific intent while the latest run is loading', () => {
 	const workspace = source('components/timetable/ScheduleReviewWorkspace.tsx');
+	const loadingSurface = source('components/timetable/TimetableRouteLoadingState.tsx');
 	const loadingGate = workspace.match(/if \(state\.loading && !state\.draft\) \{[\s\S]*?\n\t\}/)?.[0] ?? '';
 	assert.ok(loadingGate, 'the no-draft loading gate must remain explicit');
 	assert.match(loadingGate, /resolveTimetableLoadingIntent\(location\.pathname\)/);
@@ -26,8 +29,17 @@ test('direct timetable lifecycle routes retain route-specific intent while the l
 		assert.match(routeSync, new RegExp(`case '${view}':[\\s\\S]*?guarded\\(enter`));
 		assert.ok(routeSync.includes(path), `${path} must retain a route-specific loading surface`);
 	}
+	assert.equal(resolveTimetableLoadingIntent('/timetable/pre-generation')?.title, 'Draft queue');
+	assert.equal(resolveTimetableLoadingIntent('/timetable/setup')?.title, 'Review setup');
+	assert.equal(resolveTimetableLoadingIntent('/timetable/policies')?.title, 'Scheduling policies');
+	assert.equal(resolveTimetableLoadingIntent('/timetable/runs')?.title, 'Generation history');
+	assert.equal(resolveTimetableLoadingIntent('/timetable/exports')?.title, 'Exports');
+	assert.equal(resolveTimetableLoadingIntent('/timetable'), null, 'the generic schedule keeps the standard skeleton');
 	assert.doesNotMatch(loadingGate, /loadAll\(|fetch\(|atlasApi/,
 		'route-specific loading feedback must not bypass actor/year/term dispatch gates');
+	assert.match(loadingSurface, /h-\[calc\(100svh-3\.5rem\)\]/);
+	assert.match(loadingSurface, /aria-live="polite"/);
+	assert.doesNotMatch(loadingSurface, /overflow-auto|<button\b|<select\b|title="|<details\b/);
 });
 
 test('pending session verification uses neutral shell identity instead of Guest', () => {
@@ -47,7 +59,7 @@ test('desktop timetable controls keep view and searchable entity in the header w
 	const header = source('components/timetable/TimetableSimpleHeader.tsx');
 	assert.match(controls, /from ['"]@\/ui\/popover['"]/);
 	assert.match(controls, /<PopoverTrigger asChild>/);
-	assert.match(controls, /<PopoverContent[^>]+data-testid="timetable-simple-filters-popover"/);
+	assert.match(controls, /<PopoverContent[^>]+data-testid="timetable-simple-filters-popover-content"/);
 	assert.match(controls, /<SheetTrigger asChild>/);
 	assert.match(controls, /data-testid="timetable-filters-mobile-trigger"/);
 	assert.doesNotMatch(controls, /@\/ui\/dialog/);

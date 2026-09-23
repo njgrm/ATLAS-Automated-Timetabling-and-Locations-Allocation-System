@@ -246,16 +246,18 @@ export function SimpleScheduleControls({
 		<div
 			className="flex shrink-0 items-center gap-1.5 rounded-lg border border-border bg-muted/20 px-2 py-1 lg:min-w-[24rem]"
 			data-testid="timetable-simple-schedule-switcher"
+			role="group"
+			aria-label="Choose timetable view and entity"
 			data-view-mode={context.viewMode}
 			data-entity-filter={context.entityFilter}
 		>
-			<span className="hidden shrink-0 text-xs font-bold uppercase tracking-wide text-muted-foreground xl:inline">
-				Showing
+			<span className="shrink-0 text-xs font-semibold text-muted-foreground">
+				View type
 			</span>
 			<Select value={context.viewMode} onValueChange={onViewModeChange}>
 				<SelectTrigger
 					className="h-8 w-[7.25rem] shrink-0 text-xs"
-					aria-label="View schedule by"
+					aria-label="View type"
 					data-testid="timetable-simple-view-mode-select"
 				>
 					<SelectValue placeholder="View by" />
@@ -305,18 +307,10 @@ export function SimpleScheduleSheet({
 					type="button"
 					variant="outline"
 					size="sm"
-					/* TIMETABLE-HEADER-COLLAPSE-C01 (D1): below 1366px this trigger is
-					   the compact chooser for <1024px only (the inline switcher shows
-					   from lg). At >=1366px the header collapses to one row, so the
-					   inline switcher yields and this trigger returns to carry the
-					   chosen schedule — the full Section/Teacher/Room chooser is
-					   unchanged inside the sheet, exactly one click away.
-					   C1 correction — `wide:` is the NAMED 1366px breakpoint from
-					   `src/index.css`; it is emitted after `lg:hidden`, so
-					   `wide:inline-flex` actually takes the slot at >=1366px. The
-					   original `min-[1366px]:` variant was emitted before `lg:` and
-					   lost the equal-specificity tie, leaving this trigger hidden. */
-					className="h-8 min-h-11 min-w-11 max-w-[28vw] gap-1.5 px-1.5 text-xs sm:px-2 lg:hidden wide:inline-flex"
+					/* The compact sheet is reserved for touch-sized layouts. Desktop
+					   keeps the view-type and searchable entity chooser visible in the
+					   header at every desktop breakpoint. */
+					className="h-8 min-h-11 min-w-11 max-w-[28vw] gap-1.5 px-1.5 text-xs sm:px-2 lg:hidden"
 					data-testid="timetable-simple-schedule-sheet-trigger"
 					aria-label={`Showing ${context.VIEW_MODE_LABELS[context.viewMode]} schedule: ${selectedLabel}`}
 				>
@@ -390,8 +384,8 @@ export function SimpleFiltersContent({ context }: { context: ScheduleReviewWorks
 					</SelectContent>
 				</Select>
 			</div>
-			<p className="text-xs text-muted-foreground">
-				These filters keep you in Simple view. Use Expert view for full repair panels.
+			<p className="text-xs leading-relaxed text-muted-foreground">
+				These refinements only affect what appears in the grid. Timetable assignments and publish readiness stay unchanged.
 			</p>
 		</div>
 	);

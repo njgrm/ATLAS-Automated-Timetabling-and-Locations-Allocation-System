@@ -8,8 +8,9 @@ import { ScheduleReviewWorkspaceOverlays } from '@/components/timetable/Schedule
 import { TimetableFacultyIssuePivotDialog } from '@/components/timetable/TimetableFacultyIssuePivotDialog';
 import { TimetableSkeleton } from '@/components/timetable/TimetableSkeleton';
 import { InlinePlacementPreview } from '@/components/timetable/InlinePlacementPreview';
-import { isTimetableSchedulerView, resolveTimetableLoadingIntent, TimetableRouteViewSync } from '@/components/timetable/TimetableRouteViewSync';
+import { isTimetableSchedulerView, TimetableRouteViewSync } from '@/components/timetable/TimetableRouteViewSync';
 import { TimetableRouteLoadingState } from '@/components/timetable/TimetableRouteLoadingState';
+import { resolveTimetableLoadingIntent } from '@/components/timetable/timetable-route-loading-intent';
 import type { TimetableLayoutMode, TimetableSimpleTask } from '@/components/timetable/TimetableSimpleTypes';
 import type { RepairOrigin } from '@/components/timetable/TimetableTaskDrawer';
 import { Button } from '@/ui/button';
