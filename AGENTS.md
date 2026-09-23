@@ -27,7 +27,7 @@ After every output that changes code or files, suggest a conventional commit mes
 ## 2. Direct Editing Rule
 
 - Edit repository source files directly.
-- Do **not** create temporary Python/Node/shell helper scripts whose only purpose is bulk text replacement. If a scripted transformation is genuinely required, ask first and remove the helper immediately after.
+- Do **not** create temporary Python/Node/shell helper scripts whose only purpose is bulk text replacement. If a scripted transformation is genuinely required, remove the helper immediately after — never leave it in the repository or a worktree.
 - Never use `Get-Content | Set-Content` round-trips on repository files under PowerShell 5.1 — it silently corrupts non-ASCII characters and has already destroyed 26 em dashes once.
 
 ---
