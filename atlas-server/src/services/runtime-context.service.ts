@@ -382,13 +382,26 @@ export async function resolveRuntimeContext(
 		// Resolve the persisted ordered identities first so the live active-term
 		// index is resolved against the exact contract rather than a T# guess.
 		let persistedOrderedIdentities: string[] | undefined;
+		// RR-TERM-CACHE offline resilience: the persisted verified contract carries
+		// its own active term. It is the fallback when the live active-term endpoint
+		// is unreachable, so the timetable still resolves one ordered term instead of
+		// dead-ending on "Term setup is required".
+		let persistedActiveTerm: { identity: string; termIndex: number } | null = null;
 		if (schoolYearMirror?.termContractCache) {
 			const persisted = normalizePersistedTermStructure(
 				schoolYearMirror.termContractCache,
 				schoolId,
 				schoolYearMirror.enrollProSchoolYearId,
 			);
-			if (persisted.ok) persistedOrderedIdentities = persisted.structure.terms.map((term) => term.identity);
+			if (persisted.ok) {
+				persistedOrderedIdentities = persisted.structure.terms.map((term) => term.identity);
+				const rawActive = (schoolYearMirror.termContractCache as { activeTerm?: { order?: unknown } }).activeTerm;
+				const activeOrder = rawActive && Number.isInteger(rawActive.order) ? Number(rawActive.order) : null;
+				const activeEntry = activeOrder != null
+					? persisted.structure.terms.find((term) => term.order === activeOrder)
+					: undefined;
+				if (activeEntry) persistedActiveTerm = { identity: activeEntry.identity, termIndex: activeEntry.order };
+			}
 		}
 
 		// Fetch school year and active term in parallel — each is independent
@@ -400,6 +413,21 @@ export async function resolveRuntimeContext(
 		// Process active term result (independent of school year)
 		if (activeTermResponse) {
 			activeTermResult = activeTermResponse;
+		} else if (persistedActiveTerm) {
+			// EnrollPro is unreachable, but the persisted verified ordered contract
+			// carries a resolved active term. Surface it as verified so the client's
+			// D3 fallback loads one explicit ordered term instead of blocking.
+			activeTermResult = {
+				source: 'enrollpro-unreachable',
+				reachable: false,
+				verified: true,
+				activeTerm: persistedActiveTerm.identity,
+				termIndex: persistedActiveTerm.termIndex,
+				schoolYearId: schoolYearMirror?.enrollProSchoolYearId ?? null,
+				matchedSchoolYear: null,
+				code: null,
+				message: 'EnrollPro active-term endpoint is unreachable; using the persisted verified ordered term contract.',
+			};
 		} else {
 			activeTermResult = {
 				source: 'enrollpro-unreachable',
