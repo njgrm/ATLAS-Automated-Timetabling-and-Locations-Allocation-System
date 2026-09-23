@@ -9,6 +9,7 @@ import { getViolationRepairOptions, parseViolationRepairLocator, type ViolationR
 import { getFixSuggestions } from '../services/fix-suggestions.service.js';
 import { solveQuickPlace } from '../services/timetable-quick-place.service.js';
 import { resolveUnassignedViolationCode } from '../services/generation.service.js';
+import { projectViolationIssues } from '../services/generation.service.js';
 import { constructBaseline, type ConstructorInput } from '../services/schedule-constructor.js';
 import { validateHardConstraints, type ScheduledEntry, type Violation, type ViolationCode } from '../services/constraint-validator.js';
 import { buildValidatorCtx, previewManualEdit } from '../services/manual-edit.service.js';
@@ -199,6 +200,40 @@ test('C03 route returns canonical issue identity and does not trust client sever
 		assert.equal(body.violation.message, canonical.message);
 		assert.deepEqual(body.options, []);
 		assert.ok(body.blockers.length > 0);
+		assert.ok(dispatches() > 0);
+		assert.equal(writes(), 0);
+	}, run);
+});
+
+test('C05 repair route resolves the exact persisted issue represented by an aggregated displayed warning', async () => {
+	const entries: ScheduledEntry[] = ['entry-a', 'entry-b', 'entry-c'].map((entryId, index) => ({
+		entryId, facultyId: 12, roomId: 30, subjectId: 4, sectionId: 7 + index, day: 'MONDAY',
+		startTime: `${String(8 + index).padStart(2, '0')}:00`, endTime: `${String(8 + index).padStart(2, '0')}:45`, durationMinutes: 45, termIndex: 1,
+	}));
+	const makeIssue = (code: ViolationCode, entryIds: string[]): Violation => ({
+		code, severity: 'SOFT', message: `${code} verified evidence`, schoolId: 1, schoolYearId: 10, runId: 316,
+		entities: { facultyId: 12, day: 'MONDAY', entryIds }, meta: { termIndex: 1 },
+	});
+	const canonical = [
+		makeIssue('FACULTY_CONSECUTIVE_LIMIT_EXCEEDED', ['entry-a', 'entry-b']),
+		makeIssue('FACULTY_INSUFFICIENT_TRANSITION_BUFFER', ['entry-b', 'entry-c']),
+	];
+	const [displayed] = projectViolationIssues(canonical, entries);
+	assert.deepEqual(displayed.entities?.entryIds, ['entry-a', 'entry-b', 'entry-c'], 'the selected row has the real projected/grouped locator shape');
+	const run = { id: 316, schoolYearId: 10, status: 'COMPLETED', violations: canonical, draftEntries: entries, summary: {} };
+	await withRepairServer(async (request, dispatches, writes) => {
+		const response = await request({
+			code: displayed.code,
+			termIndex: displayed.meta?.termIndex,
+			entryIds: displayed.entities?.entryIds,
+			facultyId: displayed.entities?.facultyId,
+			day: displayed.entities?.day,
+		});
+		assert.equal(response.status, 200, await response.clone().text());
+		const result = await response.json() as { status: string; violation: Violation; options: unknown[] };
+		assert.equal(result.status, 'POLICY_CHANGE_REQUIRED');
+		assert.equal(result.violation.code, 'FACULTY_CONSECUTIVE_LIMIT_EXCEEDED', 'the response points at the selected primary canonical issue');
+		assert.deepEqual(result.options, []);
 		assert.ok(dispatches() > 0);
 		assert.equal(writes(), 0);
 	}, run);
