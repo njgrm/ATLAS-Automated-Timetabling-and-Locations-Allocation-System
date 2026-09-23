@@ -35,17 +35,19 @@ and AIMS.
 ## Live release
 
 - Tailnet: `https://njgrm.buru-degree.ts.net`
-- **Release SHA: `426b6ac8`** (deploy target; `E:\ATLAS-runtime-supervised-426b6ac8-20260924`; carries one
-  server fix on top of `d7082c9d`: the RR-TERM-CACHE offline fallback now derives the active term from the
-  persisted contract's verified term dates (containment → latest-started → snapshot) instead of surfacing a
-  stale `term_contract_cache.activeTerm` snapshot, so an EnrollPro outage resolves the current term (school
-  1 / year 10: snapshot `T1` vs live `T2`). Client bundle unchanged; no migration, no generation, no
-  publication. Accepted per its handoff (failing-first pure unit test: 6/6, mutant returns the stale `T1` /
-  `null`; server `tsc` clean; hermetic preservation 11/11). **Rollback basis:
-  `d7082c9db134f26e0f3f1e5fa01d470cb9b34093`** at `E:\ATLAS-runtime-supervised-d7082c9d-20260924`
-  (startable in place). Pre-deploy record committed first. **Deployment and acceptance are separate
-  outcomes.**)
-- **Release SHA: `d7082c9d`** (**LIVE** since 2026-09-24; `E:\ATLAS-runtime-supervised-d7082c9d-20260924`;
+- **Release SHA: `426b6ac8`** (**LIVE** since 2026-09-24; `E:\ATLAS-runtime-supervised-426b6ac8-20260924`;
+  health/ready (`database:"ok"`) 200; runtime context `enrollpro-verified` `T2`. Carries one server fix on top
+  of `d7082c9d`: the RR-TERM-CACHE offline fallback now derives the active term from the persisted contract's
+  verified term dates (containment → latest-started → snapshot) instead of surfacing a stale
+  `term_contract_cache.activeTerm` snapshot, so an EnrollPro outage resolves the current term (school 1 /
+  year 10: snapshot `T1` vs live `T2`). Client bundle unchanged; no migration, no generation, no publication.
+  Accepted per its handoff (failing-first pure unit test: 6/6, mutant returns the stale `T1` / `null`; server
+  `tsc` clean; hermetic preservation 11/11). Post-cutover: exports 200, 4 fresh `/timetable` loads 0×502.
+  **Rollback basis: `d7082c9db134f26e0f3f1e5fa01d470cb9b34093`** at
+  `E:\ATLAS-runtime-supervised-d7082c9d-20260924` (startable in place). Pre-deploy record committed first;
+  post-cutover acceptance at `docs/handoffs/deploy-acceptance-426b6ac8-20260924.md`. **Deployment and
+  acceptance are separate outcomes.**)
+- **Release SHA: `d7082c9d`** (rollback basis; previously LIVE 2026-09-24; `E:\ATLAS-runtime-supervised-d7082c9d-20260924`;
   supervisor → server `5001` / host `5174`; health/ready (`database:"ok"`) 200; supervisor log "All targets
   healthy"; served entry `assets/index-PWY0v5TC.js` (unchanged). Carries one runtime-host fix on top of
   `22d1f5a8`: the production host proxy now passes `agent: false` on its upstream requests (and readiness
