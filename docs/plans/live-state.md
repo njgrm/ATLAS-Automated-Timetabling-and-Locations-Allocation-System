@@ -35,17 +35,25 @@ and AIMS.
 ## Live release
 
 - Tailnet: `https://njgrm.buru-degree.ts.net`
-- **Release SHA: `014b4b4c`** (deploy target; `E:\ATLAS-runtime-supervised-014b4b4c-20260924`;
-  carries two production fixes on top of `09b898e6`: (1) the export learner-count reconciliation now
-  matches EnrollPro's real section-learner shape (`data.learners`, `MALE`/`FEMALE`), so class-program and
-  section-program exports stop failing `503 LEARNER_RECONCILIATION_FAILED`; (2) `resolveRuntimeContext`
-  falls back to the persisted verified ordered term contract's active term when the EnrollPro active-term
-  endpoint is unreachable, so the timetable no longer dead-ends on "Term setup is required" during an
-  EnrollPro outage. Also merges the scheduler-ancillary-authority C01 lane and wires its test. No new
-  migration. **Rollback basis: `09b898e6b7550528ee450abd4d9925fb422a240e`** at
-  `E:\ATLAS-runtime-supervised-09b898e6-20260924` (startable in place; deeper `6e9c87e7`). Pre-deploy
-  record committed first. **Deployment and acceptance are separate outcomes.**)
-- **Release SHA: `09b898e6`** (current live serving release; `E:\ATLAS-runtime-supervised-09b898e6-20260924`;
+- **Release SHA: `014b4b4c`** (current live serving release; `E:\ATLAS-runtime-supervised-014b4b4c-20260924`;
+  supervisor → server `5001`→52200 / host `5174`→62352; health/ready (`database:"ok"`) 200; machine
+  `ATLAS_RUNTIME_SOURCE_DIR` / `RELEASE_SHA` = the target; supervisor log "All targets healthy"; the client
+  bundle is unchanged from `09b898e6` (both fixes are server-only). Carries two production fixes on top of
+  `09b898e6`: (1) the export learner-count reconciliation now matches EnrollPro's real section-learner shape
+  (`data.learners`, `MALE`/`FEMALE`) — **verified live**: per-section exports now succeed
+  (`section-program.docx?sectionId=141` 200, `summary-teacher-schedule.xlsx` 200, `room-program.xlsx` 200);
+  (2) `resolveRuntimeContext` falls back to the persisted verified ordered term contract's active term when
+  the EnrollPro active-term endpoint is unreachable, so the timetable no longer dead-ends on "Term setup is
+  required" during an EnrollPro outage (independently QA-verified `ACCEPT_READY` 3/3 with a harness; live
+  outage not reproducible). Also merges the scheduler-ancillary-authority C01 lane and wires its test. No new
+  migration. Deployed 2026-09-24 by Elevated OpenCode (audit `…\release-audit\014b4b4c-20260924-030100`).
+  **Rollback basis: `09b898e6b7550528ee450abd4d9925fb422a240e`** at
+  `E:\ATLAS-runtime-supervised-09b898e6-20260924` (startable in place; deeper `6e9c87e7`). **Residual
+  (BLOCKING for the all-sections class-program export):** the all-sections export still fails
+  `503 LEARNER_RECONCILIATION_FAILED` because **2 of 20 section mirrors are stale** — section `143`
+  (mirror `enrolled_count` 4 vs live feed 5) and section `146` (1 vs 2). The guard fails closed correctly;
+  the remedy is a **section re-sync**, not a code change. Per-section exports are unaffected.)
+- **Release SHA: `09b898e6`** (previous release; `E:\ATLAS-runtime-supervised-09b898e6-20260924`;
   supervisor → server `5001`→50548 / host `5174`→49996; served entry `/assets/index-BloZtbDr.js`,
   **byte-identical to the target build**; machine `ATLAS_RUNTIME_SOURCE_DIR` / `RELEASE_SHA` = the target;
   health + health/ready (`database:"ok"`) + Tailnet 200; supervisor log "All targets healthy", rollover
