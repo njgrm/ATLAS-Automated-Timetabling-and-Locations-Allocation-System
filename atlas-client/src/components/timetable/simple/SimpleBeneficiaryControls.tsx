@@ -64,6 +64,7 @@ type SimpleExportMenuProps = {
 	onExport: (kind: SimpleExportKind) => void;
 	/** C05R1 — opens the editable teacher-program signatory settings editor. */
 	onOpenPresentationSettings?: () => void;
+	onOpenExportCenter?: () => void;
 };
 
 function ExportIcon({ spinning }: { spinning: boolean }) {
@@ -81,6 +82,7 @@ export function SimpleExportMenu({
 	exportingKind,
 	onExport,
 	onOpenPresentationSettings,
+	onOpenExportCenter,
 }: SimpleExportMenuProps) {
 	const exporting = exportingKind !== null;
 	return (
@@ -109,6 +111,14 @@ export function SimpleExportMenu({
 				</DropdownMenuTrigger>
 				<DropdownMenuContent align="end" className="w-72">
 					<DropdownMenuLabel className="text-xs">Beneficiary downloads</DropdownMenuLabel>
+					<DropdownMenuItem
+						className="h-9 gap-2 text-xs"
+						data-testid="timetable-open-export-center"
+						onSelect={(event) => { event.preventDefault(); onOpenExportCenter?.(); }}
+					>
+						<Download className="size-3.5" aria-hidden="true" />
+						Open Export Center…
+					</DropdownMenuItem>
 					{needsTerm ? (
 						<p
 							className="px-2 pb-1 text-xs font-medium text-amber-700"

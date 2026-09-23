@@ -28,6 +28,8 @@ import { ScheduleTimetableGrid } from '@/components/room-schedules/ScheduleTimet
 import { ScheduleMobileCards } from '@/components/room-schedules/ScheduleMobileCards';
 import { exportScheduleToCsv, resolveRoomProgramExportRequest } from '@/components/room-schedules/schedule-export';
 import { dispatchSimpleExport } from '@/components/timetable/simple/simpleExportRequests';
+import { SchedulerExportCenterDialog } from '@/components/timetable/simple/SchedulerExportCenterDialog';
+import type { SchedulerExportSelection } from '@/components/timetable/simple/schedulerExportCenterRequests';
 import { MAX_ACADEMIC_TERM_INDEX } from '@/lib/academic-term';
 import { SmartHelpTrigger, SmartSourceStatusChip } from '@/components/smart/SmartPageShell';
 import type { Building, Room, Subject, FacultyMirror, RoomScheduleView, SectionSummaryResponse, DraftReport } from '@/types';
@@ -93,6 +95,7 @@ export default function RoomSchedules() {
 	// C05 T7/M11 — official room program download term selection. `all` is
 	// unresolved and keeps the official control disabled with zero dispatch.
 	const [exportTerm, setExportTerm] = useState<string>('all');
+	const [exportCenterOpen, setExportCenterOpen] = useState(false);
 	const [exportingRoomProgram, setExportingRoomProgram] = useState(false);
 	const [roomProgramError, setRoomProgramError] = useState<string | null>(null);
 
@@ -360,6 +363,11 @@ export default function RoomSchedules() {
 		const s = sectionList.find((x) => String(x.id) === selectedEntityId);
 		return s?.name ?? 'section';
 	}, [viewMode, selectedEntityId, rooms, facultyList, sectionList]);
+	const exportCenterSelection: SchedulerExportSelection = viewMode === 'rooms' && selectedRoomId
+		? { kind: 'room', id: Number(selectedRoomId), label: rooms.find((room) => String(room.id) === selectedRoomId)?.name ?? 'Selected room' }
+		: viewMode === 'sections' && selectedSectionId
+			? { kind: 'section', id: Number(selectedSectionId), label: sectionList.find((section) => String(section.id) === selectedSectionId)?.name ?? 'Selected section' }
+			: null;
 
 	const handleExport = useCallback(() => {
 		if (state.status !== 'ok') return;
@@ -514,6 +522,9 @@ export default function RoomSchedules() {
 					</div>
 
 					<div className="flex items-center gap-1.5 shrink-0">
+						<Button type="button" variant="outline" size="sm" onClick={() => setExportCenterOpen(true)} className="h-10 shrink-0 shadow-sm text-xs" data-testid="schedules-export-center-open">
+							Export Center
+						</Button>
 						{viewMode === 'rooms' && (
 							<Button
 								variant={presentationMode === 'occupancy' ? 'default' : 'outline'}
@@ -610,6 +621,16 @@ export default function RoomSchedules() {
 					</div>
 				</div>
 			)}
+			<SchedulerExportCenterDialog
+				open={exportCenterOpen}
+				onOpenChange={setExportCenterOpen}
+				schoolId={actorSchoolId ?? 0}
+				schoolYearId={schoolYearId}
+				runId={state.status === 'ok' ? state.data.source.runId : null}
+				termIndex={exportTerm === 'all' ? 'all' : Number(exportTerm)}
+				yearLabel={schoolYearLabel}
+				selection={exportCenterSelection}
+			/>
 
 			{viewMode === 'rooms' && presentationMode === 'occupancy' && (
 				<div className="shrink-0 px-3 lg:px-5 pb-1">

@@ -21,7 +21,7 @@ const SCHOOL_YEAR_ID = 11;
 const RUN_ID = 42;
 
 const SECTIONS = [
-	{ id: 1, externalId: 701, name: '7-Rizal', gradeLevelId: 7, gradeLevelName: 'Grade 7', programType: 'REGULAR', isActiveForScheduling: true, isStale: false },
+	{ id: 1, externalId: 701, name: '7-Rizal', gradeLevelId: 7, gradeLevelName: 'Grade 7', programType: 'REGULAR', enrolledCount: 2, isActiveForScheduling: true, isStale: false },
 ];
 const FACULTY = [
 	{
@@ -169,6 +169,8 @@ let harnessReady = false;
 let app: any = null;
 let server: any = null;
 let baseUrl = '';
+const nativeFetch = globalThis.fetch;
+const priorEnrollProToken = process.env.ENROLLPRO_SERVICE_TOKEN;
 let jwt: any = null;
 let prismaRef: any = null;
 const fakeModels = buildFakeModels();
@@ -203,12 +205,19 @@ try {
 	exceljsUsable = false;
 }
 
-function authToken(schoolId: number) {
-	return jwt.sign({ userId: 1, role: 'admin', authSource: 'local', schoolId }, process.env.JWT_SECRET!, { expiresIn: '5m' });
+function authToken(schoolId: number, role = 'admin') {
+	return jwt.sign({ userId: 1, role, authSource: 'local', schoolId }, process.env.JWT_SECRET!, { expiresIn: '5m' });
 }
 
 test.before(async () => {
 	if (!harnessReady) return;
+	process.env.ENROLLPRO_SERVICE_TOKEN = 'test-only-service-token';
+	globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+		if (String(input).includes('/integration/v1/sections/701/learners')) {
+			return new Response(JSON.stringify({ data: [{ learner: { sex: 'M' } }, { learner: { sex: 'F' } }], meta: { total: 2, totalPages: 1 } }), { status: 200 });
+		}
+		return nativeFetch(input, init);
+	}) as typeof fetch;
 	server = createServer(app);
 	await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
 	const address = server.address();
@@ -219,6 +228,9 @@ test.before(async () => {
 test.after(async () => {
 	if (!harnessReady) return;
 	await new Promise<void>((resolve, reject) => server.close((error: Error | null) => error ? reject(error) : resolve()));
+	globalThis.fetch = nativeFetch;
+	if (priorEnrollProToken === undefined) delete process.env.ENROLLPRO_SERVICE_TOKEN;
+	else process.env.ENROLLPRO_SERVICE_TOKEN = priorEnrollProToken;
 	for (const model of Object.keys(fakeModels)) {
 		delete prismaRef[model];
 	}
@@ -309,6 +321,45 @@ test('mounted class-program.xlsx route returns a real weekday workbook', {
 	assert.equal(calls.some((call) => WRITE_METHODS.has(call.method)), false, 'route must perform zero writes');
 });
 
+test('scheduler may read same-school exports and receives reconciled M/F/T totals; ordinary teacher is denied', { skip: harnessSkip || !exceljsUsable }, async () => {
+	calls.length = 0;
+	const originalFetch = globalThis.fetch;
+	const previousToken = process.env.ENROLLPRO_SERVICE_TOKEN;
+	process.env.ENROLLPRO_SERVICE_TOKEN = 'test-only-service-token';
+	globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+		if (String(input).includes('/integration/v1/sections/701/learners')) {
+			assert.match(String(new Headers(init?.headers).get('authorization')), /^Bearer test-only-service-token$/);
+			return new Response(JSON.stringify({ data: [{ learner: { sex: 'M' } }, { learner: { sex: 'F' } }], meta: { total: 2, totalPages: 1 } }), { status: 200 });
+		}
+		return originalFetch(input, init);
+	}) as typeof fetch;
+	try {
+		const response = await originalFetch(`${baseUrl}/api/v1/generation/${SCHOOL_ID}/${SCHOOL_YEAR_ID}/runs/${RUN_ID}/export/class-program.xlsx?termIndex=1`, {
+			headers: { Authorization: `Bearer ${authToken(SCHOOL_ID, 'scheduler')}` },
+		});
+		assert.equal(response.status, 200);
+		const ExcelJS = (await import('exceljs')).default as any;
+		const workbook = new ExcelJS.Workbook();
+		await workbook.xlsx.load(Buffer.from(await response.arrayBuffer()));
+		const identity = workbook.getWorksheet('Grade 7').getRow(8);
+		assert.equal(identity.getCell(4).value, 1);
+		assert.equal(identity.getCell(6).value, 1);
+		assert.equal(identity.getCell(8).value, 2);
+		assert.equal(calls.some((call) => WRITE_METHODS.has(call.method)), false);
+		calls.length = 0;
+		const denied = await originalFetch(`${baseUrl}/api/v1/generation/${SCHOOL_ID}/${SCHOOL_YEAR_ID}/runs/${RUN_ID}/export/summary-teacher-schedule.xlsx?termIndex=1`, {
+			headers: { Authorization: `Bearer ${authToken(SCHOOL_ID, 'faculty')}` },
+		});
+		assert.equal(denied.status, 403);
+		assert.equal((await denied.json() as any).code, 'FORBIDDEN');
+		assert.equal(calls.length, 0, 'ordinary teacher rejection occurs before data dispatch');
+	} finally {
+		globalThis.fetch = originalFetch;
+		if (previousToken === undefined) delete process.env.ENROLLPRO_SERVICE_TOKEN;
+		else process.env.ENROLLPRO_SERVICE_TOKEN = previousToken;
+	}
+});
+
 // ─── C05 M1 — official exports require a resolved selected term ───
 
 test('every official export route rejects an absent termIndex with a typed 4xx and zero bytes', { skip: harnessSkip }, async () => {
@@ -322,6 +373,8 @@ test('every official export route rejects an absent termIndex with a typed 4xx a
 		`${baseUrl}/api/v1/generation/${SCHOOL_ID}/${SCHOOL_YEAR_ID}/runs/${RUN_ID}/export/class-program.xlsx`,
 		`${baseUrl}/api/v1/generation/${SCHOOL_ID}/${SCHOOL_YEAR_ID}/runs/${RUN_ID}/export/teacher-program.docx?facultyId=501`,
 		`${baseUrl}/api/v1/generation/${SCHOOL_ID}/${SCHOOL_YEAR_ID}/runs/${RUN_ID}/export/room-program.xlsx`,
+		`${baseUrl}/api/v1/generation/${SCHOOL_ID}/${SCHOOL_YEAR_ID}/runs/${RUN_ID}/export/room-program.docx`,
+		`${baseUrl}/api/v1/generation/${SCHOOL_ID}/${SCHOOL_YEAR_ID}/runs/${RUN_ID}/export/section-program.docx`,
 		`${baseUrl}/api/v1/generation/${SCHOOL_ID}/${SCHOOL_YEAR_ID}/class-program-matrix?gradeLevel=7&runId=${RUN_ID}`,
 	];
 	for (const url of targets) {

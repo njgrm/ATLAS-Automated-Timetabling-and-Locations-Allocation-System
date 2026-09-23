@@ -62,6 +62,7 @@ import { describeRunInputDrift } from '@/components/timetable/timetableDriftRout
 import { SimpleMoreMenuContent } from '@/components/timetable/simple/SimpleMoreMenuContent';
 import { resolveTermAuthorityNotice } from '@/hooks/useTimetableData';
 import { ExportPresentationSettingsDialog } from '@/components/timetable/simple/ExportPresentationSettingsDialog';
+import { SchedulerExportCenterDialog } from '@/components/timetable/simple/SchedulerExportCenterDialog';
 import { TimetablePublishedReturnAction } from '@/components/timetable/TimetablePublishedReturnAction';
 import { fetchRolloverStatus, type RolloverStatus } from '@/lib/settings';
 
@@ -195,6 +196,7 @@ function TimetableSimpleHeaderImpl({
 	const [tutorialOpen, setTutorialOpen] = useState(false);
 	const [readinessSheetOpenLocal, setReadinessSheetOpenLocal] = useState(false);
 	const [presentationSettingsOpen, setPresentationSettingsOpen] = useState(false);
+	const [exportCenterOpen, setExportCenterOpen] = useState(false);
 	const readinessSheetOpen = readinessSheetOpenProp ?? readinessSheetOpenLocal;
 	const setReadinessSheetOpen = onReadinessSheetOpenChange ?? setReadinessSheetOpenLocal;
 	const [blockerReasonFilter, setBlockerReasonFilter] = useState<string | null>(null);
@@ -452,6 +454,11 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 		facultyId: exportFacultyId,
 		yearLabel: exportYearLabel,
 	});
+	const exportCenterSelection = (context.viewMode === 'section' || context.viewMode === 'room')
+		&& /^\d+$/.test(context.entityFilter)
+		&& Number(context.entityFilter) > 0
+		? { kind: context.viewMode, id: Number(context.entityFilter), label: context.pivotLabel(Number(context.entityFilter)) }
+		: null;
 
 	const handleSimpleExport = (kind: SimpleExportKind) => {
 		// M17 pins this re-entry gate in the header source; the shared surface
@@ -664,6 +671,7 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 						exportingKind={exportingKind}
 						onExport={(kind) => { void handleSimpleExport(kind); }}
 						onOpenPresentationSettings={() => setPresentationSettingsOpen(true)}
+						onOpenExportCenter={() => setExportCenterOpen(true)}
 					/>
 				) : null}
 
@@ -794,6 +802,19 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 				onRetry={(kind) => { void handleSimpleExport(kind); }}
 				onDismiss={() => setExportError(null)}
 			/>
+
+			{hasGeneratedRun ? (
+				<SchedulerExportCenterDialog
+					open={exportCenterOpen}
+					onOpenChange={setExportCenterOpen}
+					schoolId={context.schoolId}
+					schoolYearId={context.schoolYearId}
+					runId={exportRunId}
+					termIndex={context.termFilter}
+					yearLabel={exportYearLabel}
+					selection={exportCenterSelection}
+				/>
+			) : null}
 
 			{hasGeneratedRun ? (
 				<ExportPresentationSettingsDialog
