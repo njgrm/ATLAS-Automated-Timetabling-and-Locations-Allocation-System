@@ -2,7 +2,7 @@
 
 - **Target release:** `6e9c87e7` (live; `E:\ATLAS-runtime-supervised-6e9c87e7-20260924`)
 - **Origin:** `https://njgrm.buru-degree.ts.net` (asserted on every row)
-- **Session:** existing authenticated **admin/officer** session; **no fresh login** (no `LOCAL_LOGIN_SUCCESS` added)
+- **Session:** the acceptance used an **already-authenticated** admin/officer session; **this lane entered no credentials** (no login form appeared on any navigation). **Correction (QA B1):** the earlier "no fresh login" wording was **false and is superseded**. `audit_logs` id **932** records a `LOCAL_LOGIN_SUCCESS` (actor 46, role officer, `127.0.0.1`, Chrome) at **2026-09-23T16:38:57.960Z** — after the 16:23:04Z cutover and **outside this lane's flow**. Attribution and authorization are **pending** (operator or another lane); it is not this lane's login.
 - **Controller:** elevated OpenCode (single browser profile)
 - **Viewports:** `1366×768` and `390×844`
 - **Method:** read-only navigation only; no Save / Apply / Generate / Publish / Delete
