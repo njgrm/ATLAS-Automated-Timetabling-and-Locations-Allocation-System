@@ -35,17 +35,19 @@ and AIMS.
 ## Live release
 
 - Tailnet: `https://njgrm.buru-degree.ts.net`
-- **Release SHA: `514be157`** (deploy target; `E:\ATLAS-runtime-supervised-514be157-20260924`; carries one
-  deploy-runner fix on top of `426b6ac8`: `Invoke-Native` no longer promotes native stderr to a terminating
-  error under `$ErrorActionPreference='Stop'`, so a git/scheduled-task/process stderr line can no longer
-  abort the runner with a raw message before its fail-closed check — a bad target now yields
-  `DEPLOY_RUNNER_STOP: git failed with exit code N`. Also an encoding-robust BOM task-export test. Runtime
-  suite now 67/67 (was 65/67). No runtime behavior, migration, generation, or publication change; product
-  artifacts byte-identical to `426b6ac8`. **Rollback basis:
-  `426b6ac8358bbdf10cc4289fdd34067ff88d0c81`** at `E:\ATLAS-runtime-supervised-426b6ac8-20260924`
-  (startable in place). Pre-deploy record committed first. **Deployment and acceptance are separate
-  outcomes.**)
-- **Release SHA: `426b6ac8`** (**LIVE** since 2026-09-24; `E:\ATLAS-runtime-supervised-426b6ac8-20260924`;
+- **Release SHA: `514be157`** (**LIVE** since 2026-09-24; `E:\ATLAS-runtime-supervised-514be157-20260924`;
+  health/ready (`database:"ok"`) 200; subjects 200. Carries one deploy-runner fix on top of `426b6ac8`:
+  `Invoke-Native` no longer promotes native stderr to a terminating error under `$ErrorActionPreference='Stop'`,
+  so a git/scheduled-task/process stderr line can no longer abort the runner with a raw message before its
+  fail-closed check — a bad target now yields `DEPLOY_RUNNER_STOP: git failed with exit code N`. Also an
+  encoding-robust BOM task-export test. Runtime suite 67/67 (was 65/67). No runtime behavior, migration,
+  generation, or publication change; product artifacts byte-identical to `426b6ac8`. Accepted per its handoff
+  (independent QA 5/5/0/0; failing-first: the base runner leaks the raw `fatal: cannot change to …`, the fix
+  emits `DEPLOY_RUNNER_STOP`). **Rollback basis: `426b6ac8358bbdf10cc4289fdd34067ff88d0c81`** at
+  `E:\ATLAS-runtime-supervised-426b6ac8-20260924` (startable in place). Pre-deploy record committed first;
+  post-cutover acceptance at `docs/handoffs/deploy-acceptance-514be157-20260924.md`. **Deployment and
+  acceptance are separate outcomes.**)
+- **Release SHA: `426b6ac8`** (rollback basis; previously LIVE 2026-09-24; `E:\ATLAS-runtime-supervised-426b6ac8-20260924`;
   health/ready (`database:"ok"`) 200; runtime context `enrollpro-verified` `T2`. Carries one server fix on top
   of `d7082c9d`: the RR-TERM-CACHE offline fallback now derives the active term from the persisted contract's
   verified term dates (containment → latest-started → snapshot) instead of surfacing a stale
