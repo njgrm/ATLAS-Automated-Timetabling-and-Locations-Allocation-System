@@ -46,7 +46,8 @@ Consequence: the pre-action audit must re-derive every row independently rather 
 
 - 37 entries match `D:\ATLAS-runtime-*`: **36 release directories + `ATLAS-runtime-config`**, totalling
   **45.99 GiB**. `D:` free at measurement: **16.82 GiB** (1.82 GiB above the §3 fail-closed line).
-- Classes: **26 registered detached worktrees**, **10 standalone clones**, 1 config directory.
+- Classes: **27 registered detached worktrees**, **9 standalone clones**, 1 config directory. (Corrected
+  after the pre-action audit; the earlier 26/10 split was a B2-class error.)
 - Dirty content: exactly `?? ops/runtime/logs/` for every worktree sampled and every reclaim candidate
   (`LOGS-ONLY`); `6cc202b7-20260922` is clean.
 - No release directory has an active process (`node.exe` command lines matched none of the 37 paths).
@@ -88,10 +89,16 @@ f0d65a531e34 ──▶ { E:/ATLAS-worktrees/ux-quickfix-c01 , 4ce73d157f9a }
   Their links are removed with `rmdir` (link only) **before** the directory is touched, and each target is
   re-verified to exist immediately afterwards.
 
-## 6. Reclaim set — 12 directories + 1 stray clone (~15.6 GiB)
+## 6. Reclaim set — 5 worktrees + 1 mislabeled clone + 1 stray clone (~4.9 GiB)
+
+**Corrected after the pre-action audit (`CORRECTION_REQUIRED`, 5/9).** Six rows were removed from the
+frozen set — `5a333c74`, `434b2a81`, `4c7c0bd9`, `74999168`, `d50dde64`, `c93dd2ee` — because they are
+named in `live-state` or in evidence documents as available/startable rollback bases or deployed releases.
+The original §6 gate was falsified for them; they now sit in §8. **Nothing was added to the set**, and the
+audit independently cleared the seven rows below as mechanically safe.
 
 Every row: integrated (§4), inactive, not a junction target, not named as a live/rollback/fallback anchor
-in `docs/plans/live-state.md`, and `LOGS-ONLY` (or clean).
+anywhere under `docs/`, and `LOGS-ONLY` (or clean).
 
 | # | Exact path | Class | HEAD | GiB | Junction role |
 |---|---|---|---|---|---|
@@ -100,17 +107,12 @@ in `docs/plans/live-state.md`, and `LOGS-ONLY` (or clean).
 | 3 | `D:\ATLAS-runtime-supervised-74c1f12a5c06-20260918` | worktree | `74c1f12a` | 0.58 | bearer → E: worktree, `0eb3b67fe94c` |
 | 4 | `D:\ATLAS-runtime-supervised-798cd78356ef-20260918` | worktree | `798cd783` | 0.58 | bearer → E: worktree, `0eb3b67fe94c` |
 | 5 | `D:\ATLAS-runtime-supervised-f0d65a531e34-20260918` | worktree | `f0d65a53` | 0.58 | bearer → E: worktree, `4ce73d157f9a` |
-| 6 | `D:\ATLAS-runtime-supervised-5a333c74-20260922` | worktree | `5a333c74` | 1.41 | none |
-| 7 | `D:\ATLAS-runtime-supervised-6cc202b7-20260922` | clone | `7dbb3b90` | 0.97 | none |
-| 8 | `D:\ATLAS-runtime-supervised-434b2a81-20260921` | clone | `434b2a81` | 1.86 | none |
-| 9 | `D:\ATLAS-runtime-supervised-4c7c0bd9-20260921` | clone | `4c7c0bd9` | 1.86 | none |
-| 10 | `D:\ATLAS-runtime-supervised-74999168-20260920` | clone | `74999168` | 1.86 | none |
-| 11 | `D:\ATLAS-runtime-supervised-d50dde64-20260920` | clone | `d50dde64` | 1.86 | none |
-| 12 | `D:\ATLAS-runtime-supervised-c93dd2ee-20260920` | clone | `c93dd2ee` | 1.86 | none |
-| 13 | `E:\ATLAS-worktrees\c01r-release-20260921` | stray clone (not a worktree) | `beedb104` | ~1.0 | none |
+| 6 | `D:\ATLAS-runtime-supervised-6cc202b7-20260922` | clone | `7dbb3b90` | 0.97 | none |
+| 7 | `E:\ATLAS-worktrees\c01r-release-20260921` | stray clone (not a worktree) | `beedb104` | ~1.0 | none |
 
-Row 7 carries identity drift (the directory name says `6cc202b7`, HEAD is `7dbb3b90`); its content is
+Row 6 carries identity drift (the directory name says `6cc202b7`, HEAD is `7dbb3b90`); its content is
 already present at the named fallback `D:\ATLAS-runtime-supervised-7dbb3b90-20260922`, which is preserved.
+Expected yield: **≈3.89 GiB on `D:` (16.82 → ≈20.7 GiB) and ≈1.00 GiB on `E:`**.
 
 ## 7. Removal procedure (guarded)
 
@@ -125,9 +127,12 @@ already present at the named fallback `D:\ATLAS-runtime-supervised-7dbb3b90-2026
    record it; never escalate to `--force`.
 4. `git worktree prune` once at the end.
 
-**Clones (rows 7–13):** `git worktree remove` does not apply. Removal is
+**Clones (rows 6–7):** `git worktree remove` does not apply. Removal is
 `Remove-Item -LiteralPath "<exact path>" -Recurse -Force` on the exact literal path — no globs, no
-computed paths, one row at a time, with the §4 recovery statement recorded first.
+computed paths, one row at a time, with the §4 recovery statement recorded first. **Before each clone
+removal**, require `cmd /c "dir /s /b /al <exact path>"` to return **empty** — PowerShell 5.1 recursion can
+follow a reparse point (audit N4). Abort that row if it does not. Re-verify every §5 target after each
+clone removal.
 
 **No branch is deleted by this cycle.** Every branch ref is left untouched.
 
@@ -136,26 +141,31 @@ computed paths, one row at a time, with the §4 recovery statement recorded firs
 | Group | Directories | Reason |
 |---|---|---|
 | Named rollback/fallback anchors | `d9a6aa53`, `28f6f03f`, `1fdab989`, `e78d4473`, `11e8778f`, `7dbb3b90`, `d4c9f391`, `d92facfa`, `ecff1d7e`, `a02884ff`, `5f5c6c4f`, `20260912` (`9d293879`), `fallback-d44-20260912` (`d44f29e0`) | The fast rollback path named in `live-state` |
+| Anchors found by the pre-action audit (moved out of §6) | `434b2a81`, `4c7c0bd9` (`live-state:105`), `74999168` (deployed; post-action QA 8/8 — `live-state:143,301`), `d50dde64` (`ux-r03c-one-shot/evidence.md:6` rollback basis), `c93dd2ee` (`live-state:142`), `5a333c74` (deployed release whose directory is cited by `aims-smart-term-aware-published-schedule-handoff-2026-09-22.md`) | Named as available/startable rollback bases or deployed releases |
 | Junction **targets** | `8eb0511baa53`, `78be1b760e40`, `20f07f59`, `405e5b18`, `0eb3b67fe94c`, `4ce73d157f9a` | Deleting one breaks a dependent's `@prisma/client` |
-| Prepared HIGH artifact | `54dce67b` | Bound by the pending `ENROLLPRO-PROXY-RECOVERY-LIVE` packet |
+| Retained build artifact | `54dce67b` | Its `ENROLLPRO-PROXY-RECOVERY-LIVE` packet is **SUPERSEDED** (audit N2); retained conservatively as a build artifact |
 | Historical live releases with acceptance evidence | `3d916b26`, `80acdc25`, `714fadf7`, `d3e9dfef` | Deploy lineage referenced by acceptance records |
 | Never touch | `ATLAS-runtime-config` | `AGENTS.md` §3 |
-| Out of scope, preserved | `E:\ATLAS-runtime-supervised-7ac28124-20260923` (live), `E:\ATLAS-runtime-supervised-89012430-20260923` (uncertain owner — not created by this lane) | Live release / custody |
+| Out of scope, preserved | `E:\ATLAS-runtime-supervised-89012430-20260923` (**live serving release** — task action/workdir, machine env, listeners 5001→57424 / 5174→57980, authoritative state `releaseSha=89012430…`), `E:\ATLAS-runtime-supervised-7ac28124-20260923` (prior release; its state file is a stale `running` record whose PIDs no longer listen) | Live release / custody |
 
 Also untouched: `D:\ATLAS`, PostgreSQL storage, companion repositories, `stakeholderFiles`, and every
 preservation/backup directory.
 
 ## 9. Verification plan (post-action)
 
-1. `git worktree list` shows exactly 6 fewer registrations; `git worktree prune` reports no dangling entry.
-2. Every §5 target still exists — explicit `Test-Path` on all 7, including the E: worktree.
-3. `D:` free space increases by ≈ 14.6 GiB (expected 16.82 → ≈ 31.4 GiB); `E:` increases by ≈ 1 GiB.
-4. **Live runtime untouched:** listeners 5001/5174 unchanged PIDs, `/api/v1/health` +
-   `/api/v1/health/ready` (`database:"ok"`) + DB-backed `GET /api/v1/subjects?schoolId=1` + Tailnet 200,
-   and the served entry chunk still byte-identical to the live release build.
-5. Branch count unchanged (before/after), and the 13 preserved anchors still startable in place.
-6. No remaining reference to any reclaimed path in `live-state`; the reclaim is recorded there and in the
-   post-action report.
+1. `git worktree list` shows exactly **5** fewer registrations (27 → 22), `git worktree prune` reports no
+   dangling entry, and no `.git/worktrees/<name>` entry remains for a reclaimed row.
+2. Every §5 target still exists — explicit `Test-Path` on all 7, including the E: worktree — and a
+   post-action reparse re-scan of all remaining release directories finds no link into a reclaimed row.
+3. `D:` free space increases by ≈ **3.89 GiB** (expected 16.82 → ≈ 20.7 GiB); `E:` by ≈ 1.00 GiB.
+4. **Live runtime untouched:** the live serving release `89012430` keeps its listeners, its
+   `ATLAS_RUNTIME_SOURCE_DIR` / `ATLAS_RUNTIME_RELEASE_SHA`, and its supervisor task action/workdir
+   unchanged; `/api/v1/health` + `/api/v1/health/ready` (`database:"ok"`) + DB-backed
+   `GET /api/v1/subjects?schoolId=1` + Tailnet 200; and the served entry chunk still byte-identical to that
+   release's own `atlas-client/dist` build.
+5. Branch count unchanged (before/after), and the preserved anchors still startable in place.
+6. No remaining reference to any reclaimed path anywhere under `docs/` (not only `live-state`); the
+   reclaim is recorded in `live-state` and in the post-action report.
 
 ## 10. Out of scope / successors
 
