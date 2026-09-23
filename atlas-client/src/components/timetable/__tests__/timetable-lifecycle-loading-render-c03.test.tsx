@@ -91,16 +91,18 @@ test('loading production workspace reconciles guarded direct route intent and ke
 		'the route-specific loading surface must retain its bounded viewport shell');
 	assert.equal(container.querySelector('[data-testid="actual-center-view"]')?.textContent, 'pre-generation');
 
-	for (const [path, view] of [
-		['/timetable/setup', 'setup'],
-		['/timetable/policies', 'policy'],
-		['/timetable/runs', 'runs'],
-		['/timetable/exports', 'exports'],
+	for (const [path, view, title] of [
+		['/timetable/setup', 'setup', 'Review setup'],
+		['/timetable/policies', 'policy', 'Scheduling policies'],
+		['/timetable/runs', 'runs', 'Generation history'],
+		['/timetable/exports', 'exports', 'Exports'],
 	] as const) {
 		assert.ok(navigateRoute);
 		await act(async () => { navigateRoute?.(path); });
 		assert.equal(centerView, view, `${path} must reconcile while draft is null and loading is true`);
 		assert.equal(container.querySelector('[data-testid="actual-center-view"]')?.textContent, view);
+		assert.ok(container.querySelector('[data-testid="timetable-route-loading-state"]')?.textContent?.includes(title));
 		assert.match(container.textContent ?? '', /Loading this view…/);
 	}
+	assert.equal(guardedTransitions, 5, 'every direct route transition must use the guard exactly once');
 });

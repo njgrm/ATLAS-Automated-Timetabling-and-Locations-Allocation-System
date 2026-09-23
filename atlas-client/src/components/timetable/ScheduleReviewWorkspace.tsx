@@ -202,12 +202,35 @@ export default function ScheduleReviewWorkspace() {
 		})();
 	}, [state.setSwapClassTimesMode, state.setSwapClassAEntryId, state.setSwapClassBEntryId, state.setInlineActionStatus]);
 
+	// Keep route intent synchronization mounted across the no-draft loading
+	// return. It is intentionally unavailable until the guarded view contexts
+	// exist; resolving a URL never bypasses actor/year/term data-dispatch gates.
+	const routeViewSync = state.headerContext && state.centerWorkspaceContext && state.dialogContext ? (
+		<TimetableRouteViewSync
+			centerView={state.headerContext.centerView}
+			switchCenterViewWithGuard={state.headerContext.switchCenterViewWithGuard}
+			enterPolicyView={state.headerContext.enterPolicyView}
+			exitPolicyView={state.headerContext.exitPolicyView}
+			enterPreGenerationView={() => {
+				state.setLeftTab('unassigned');
+				state.centerWorkspaceContext.setCenterView('pre-generation');
+			}}
+			enterMapView={() => state.centerWorkspaceContext.setCenterView('map')}
+			enterManualEditView={() => state.centerWorkspaceContext.setCenterView('manual-edit')}
+			enterBuildingView={() => state.centerWorkspaceContext.setCenterView('building')}
+			enterExportsView={() => state.centerWorkspaceContext.setCenterView('exports')}
+			enterRunsView={() => state.centerWorkspaceContext.setCenterView('runs')}
+			enterSetupView={() => state.centerWorkspaceContext.setCenterView('setup')}
+			leaveDialogOpen={state.dialogContext.showLeavePreGenDialog}
+		/>
+	) : null;
+
 	const isDraftPublished = isDraftPublishedStrict(state.draft);
 
 	if (state.loading && !state.draft) {
 		const routeIntent = resolveTimetableLoadingIntent(location.pathname);
-		if (routeIntent) return <TimetableRouteLoadingState intent={routeIntent} />;
-		return <TimetableSkeleton />;
+		if (routeIntent) return <>{routeViewSync}<TimetableRouteLoadingState intent={routeIntent} /></>;
+		return <>{routeViewSync}<TimetableSkeleton /></>;
 	}
 
 	if (state.error) {
