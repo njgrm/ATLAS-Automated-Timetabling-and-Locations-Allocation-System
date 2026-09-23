@@ -32,6 +32,7 @@ import { ViolationGroup } from '@/components/timetable/TimetableShared';
 import { DraggableUnassignedPin } from '@/components/timetable/DraggablePinWrappers';
 import type { LeftRailContentContext } from '@/components/timetable/timetableContexts.types';
 import { VirtualizedRailList } from '@/components/timetable/VirtualizedRailList';
+import { TimetableIssueRepairGuide } from '@/components/timetable/TimetableIssueRepairGuide';
 
 type GeneratedSummary = NonNullable<LeftRailContentContext['summary']> & {
 	homeRoomSuccessRate?: number;
@@ -298,6 +299,7 @@ export function GeneratedViolationsPanel({
 					)}
 				</div>
 			</ScrollArea>
+			<TimetableIssueRepairGuide context={context} violation={selectedViolation} />
 		</div>
 	);
 }
@@ -861,6 +863,7 @@ function UnassignedFixSuggestions({
 								subjectId: item.subjectId,
 								gradeLevel: item.gradeLevel,
 								session: item.session,
+								termIndex: item.termIndex,
 								reason: item.reason,
 								entryKind: item.entryKind,
 								programType: item.programType,
