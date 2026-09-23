@@ -14,16 +14,23 @@ basis.* That rule is prose, and it failed **twice in one session** on 2026-09-23
 `7ac28124` → `89012430` → `0232bf9c` while the register still named the previous one. A stale premise cost
 a full review cycle and would have misled any next session.
 
-This packet converts the rule into a gate: **the runner refuses to perform a cutover while the currently
-live release is unrecorded.**
+This packet converts the rule into a gate: **the runner refuses a cutover unless the release being
+deployed is already recorded.**
+
+**Amendment (2026-09-23, after independent review).** The gate was first written to key on the
+**incumbent**. An independent review walked the real timeline and showed that formulation would **pass**
+at 19:42 — the register then named the incumbent `89012430` while the release being deployed was
+`0232bf9c` — so it only bounded the lag to one step instead of closing it. **The gate now keys on the
+target release SHA.** The record must lead the cutover, not trail it.
 
 ## Contract
 
 Add a **fail-closed pre-mutation gate** to `ops/runtime/deploy-runner.ps1`:
 
-1. **Pure predicate (unit-testable, no I/O).** A function that takes the live-state **text** and the
-   incumbent release SHA and throws `DEPLOY_RUNNER_STOP` (the runner's existing `Fail` form) when the
-   **Live release section** does not name that release. The section is the text between the
+1. **Pure predicate (unit-testable, no I/O).** A function that takes the live-state **text**, the
+   **target** release SHA (the release being deployed) and the incumbent SHA (used only to name the
+   rollback basis in the refusal guidance), and throws `DEPLOY_RUNNER_STOP` (the runner's existing `Fail`
+   form) when the **Live release section** does not name the **target**. The section is the text between the
    `## Live release` heading and the next `## ` heading. Matching is on the **8-character SHA prefix**
    (e.g. `0232bf9c`) appearing inside that section. The error message must name the missing prefix, the
    file, and the ref checked. A SHA that appears only *outside* the Live release section must **not**
@@ -46,9 +53,11 @@ Add a **fail-closed pre-mutation gate** to `ops/runtime/deploy-runner.ps1`:
 
 | # | Row | Harness |
 |---|---|---|
-| A1 | The predicate passes when the 8-char incumbent prefix appears in the Live release section | unit test via dot-sourced PowerShell invocation |
-| A2 | The predicate throws `DEPLOY_RUNNER_STOP` naming the missing prefix when the section omits it | unit test |
-| A3 | The predicate throws when the prefix appears **only outside** the Live release section | unit test (failing-first control — this must fail against a naive whole-file `-match` implementation) |
+| A1 | The predicate passes when the 8-char **target** prefix appears in the Live release section | unit test via dot-sourced PowerShell invocation |
+| A2 | The predicate throws `DEPLOY_RUNNER_STOP` naming the missing target prefix when the section omits it | unit test |
+| A3 | The predicate throws when the target prefix appears **only outside** the Live release section | unit test (failing-first control — must fail against a naive whole-file `-match` implementation) |
+| A8 | **The decisive control:** a section naming only the incumbent (`89012430`) while the target is `0232bf9c` throws — the real 2026-09-23 timeline | unit test, failing-first against the incumbent-keyed implementation |
+| A9 | The call site passes the **target** into the target parameter (guards the mis-bound-argument defect found in correction round 1) | source-regex test on the exact call-site string |
 | A4 | The gate is invoked before the mutation block and before the dry-run return | source-regex test on the runner, asserting ordering against the `if (-not $Execute)` and `taskkill` markers |
 | A5 | A missing live-state file or unresolvable ref fails closed (never passes) | source-regex test **plus** a real invocation against a non-existent ref |
 | A6 | The existing suite still passes unchanged, including the "cannot become a build/install/migration/database operation" test and the rooted-path/relative-path validation tests | `npm run runtime:test` |
