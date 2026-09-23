@@ -9,7 +9,7 @@ behavior, migration, generation, or publication change.** Deployment and accepta
 |---|---|
 | Target | `514be157632786e7cc66b0a4adf117826135a0ed` |
 | Incumbent / rollback basis | `426b6ac8358bbdf10cc4289fdd34067ff88d0c81` (`E:\ATLAS-runtime-supervised-426b6ac8-20260924`, startable in place) |
-| Target source | `E:\ATLAS-runtime-supervised-514be157-20260924` (detached worktree; product artifacts byte-identical to `426b6ac8` — only `ops/` changed) |
+| Target source | `E:\ATLAS-runtime-supervised-514be157-20260924` (detached worktree; product artifacts byte-identical to `426b6ac8` — only `ops/` and docs changed) |
 | Env | `D:\ATLAS-runtime-config\atlas-server.env` |
 | Pre-deploy record | `docs/plans/live-state.md` naming target + rollback, committed `161fdcfd` and pushed **before** cutover |
 | Runner | dry run clean (`mutates:false`) → `-Execute` → `CUTOVER_STARTED`, audit `…\release-audit\514be157-20260924-055138` |
@@ -27,7 +27,9 @@ instead of `DEPLOY_RUNNER_STOP`). The preference is now relaxed for the duration
   `{"status":"ready","checks":{"database":"ok"}}`; `GET /api/v1/subjects?schoolId=1` → 200.
 - The fixed `Invoke-Native` (`previousPreference`) is present in the live release's
   `ops/runtime/deploy-runner.ps1`.
-- Runtime suite 67/67 (was 65/67); the two prior failures are resolved.
+- Runtime suite **93/93** for the full suite (`npm run runtime:test`, 12 files); base `426b6ac8` 91/93.
+  (An earlier draft reported 67/67 — that was a 6-file subset, not the full suite.) The two prior
+  `deploy-runner` failures are resolved.
 
 ## Rollback
 
