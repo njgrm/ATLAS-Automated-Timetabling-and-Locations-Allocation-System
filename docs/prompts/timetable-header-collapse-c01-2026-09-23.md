@@ -73,6 +73,30 @@ reviewed the result and named three remaining gaps. All three are measured facts
 8. **Fixtures from the real surface.** Prove the outcome, not the wiring — exercise the real header
    entry path and assert the resulting state.
 
+## 3a. Deployment (HIGH — standing authorization, §13)
+
+*(Added 2026-09-23 to close the pre-action review's R10 ambiguity: `AGENTS.md` §13 requires the exact
+target, expected delta, rollback and verification to be named before a HIGH action.)*
+
+- **Target:** the accepted candidate tip, built into a new supervised release directory under
+  `D:\ATLAS-runtime-supervised-<sha>-20260923` and served on the supervisor-owned **5001**/**5174**.
+- **Incumbent:** release `28f6f03f` at `D:\ATLAS-runtime-supervised-28f6f03f-20260923` (the accepted
+  relaxed-main release, still startable in place).
+- **Expected delta:** **client bundle only** (`atlas-client/**`). No server bundle change, no schema
+  change, no migration, no seed, no live-data mutation. Publication state (run 317 / revision 43) is
+  untouched.
+- **Rollback:** supervised reset to `28f6f03f`; deeper fallbacks `1fdab989`, `e78d4473`, `11e8778f`,
+  `7dbb3b90` all retained.
+- **Verification:** the served entry chunk must **differ** from the incumbent and byte-match the new
+  build; local `/api/v1/health` + `/api/v1/health/ready` 200; DB-backed
+  `GET /api/v1/subjects?schoolId=1` 200; Tailnet 200. A healthy health endpoint alone proves nothing.
+- **Preconditions:** the pre-action review accepted the corrected range; the build exports
+  `VITE_ENROLLPRO_URL=https://dev-jegs.buru-degree.ts.net`; `docs/reference/agent-runtime-deploy-facts.md`
+  governs execution.
+- **Post-deployment browser rows (the only place the pixel claim can be decided):** grid top
+  **≤ ~140 px** at 1366×768, one row, **no wrap**, no global scrollbar at 1366×768 **and** 390×844, one
+  status region, one dominant primary, and the published state's dominant element is **not** `Generate`.
+
 ## 4. Evidence to return (one page)
 
 Base SHA · candidate SHA · exact changed paths · what changed per D1–D3 · the literal command and
