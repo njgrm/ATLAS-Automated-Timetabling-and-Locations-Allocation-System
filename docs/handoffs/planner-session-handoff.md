@@ -273,7 +273,7 @@ file — hence `AGENTS.md` §15's dated-blocker rule. **Read the newest dated ha
 - **Worktrees.** `E:/ATLAS-worktrees/planner-worktree-reclaim-20260921` is this lane's docs
   worktree (`KEEP_ACTIVE`) and pushes go from it. Retired 2026-09-21 (non-forced, branches kept):
   `dashboard-truth-c01`, `dup-read-callers-c01r`, `release-actor-school-mutations-c01-20260921`.
-  **`PRESERVE_FOR_DECISION`:** `E:/ATLAS-worktrees/c01r-release-20260921` — a stray *clone*
+  **EXECUTED 2026-09-23:** `E:/ATLAS-worktrees/c01r-release-20260921` — a stray *clone*
   (`origin` = stale `D:\ATLAS`), clean, no unique commits, ~1 GiB; removal needs an operator
   instruction because a raw recursive delete is not permitted for a non-worktree.
   **Do not touch:** Lane B's `actor-school-mutations-c01`, the two uncertain-owner planner
@@ -340,7 +340,8 @@ file — hence `AGENTS.md` §15's dated-blocker rule. **Read the newest dated ha
 
 ## Decisions awaited
 
-- Removal instruction for the stray clone `E:/ATLAS-worktrees/c01r-release-20260921` (~1 GiB).
+- **Resolved 2026-09-23:** the stray clone `E:/ATLAS-worktrees/c01r-release-20260921` was removed by
+  `RUNTIME-DIR-RECLAIM-C01` under the operator exception.
 - Nothing else is blocked on the operator: the release queue is empty and the next action is ours.
 
 ## Companion SSO — live click-through result (2026-09-21; **resolved 2026-09-22**)

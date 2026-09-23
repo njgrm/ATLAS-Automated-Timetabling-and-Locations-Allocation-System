@@ -136,7 +136,7 @@ clone removal.
 
 **No branch is deleted by this cycle.** Every branch ref is left untouched.
 
-## 8. Preserve set (24 directories + config) — do not touch
+## 8. Preserve set (30 release directories + `ATLAS-runtime-config`) — do not touch
 
 | Group | Directories | Reason |
 |---|---|---|

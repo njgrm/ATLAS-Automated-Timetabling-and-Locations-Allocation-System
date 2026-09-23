@@ -35,7 +35,13 @@ and AIMS.
 ## Live release
 
 - Tailnet: `https://njgrm.buru-degree.ts.net`
-- **Release SHA: `7ac28124`** (current; `E:\ATLAS-runtime-supervised-7ac28124-20260923`;
+- **Release SHA: `89012430`** (current live serving release; `E:\ATLAS-runtime-supervised-89012430-20260923`;
+  task action + Start-In + machine `ATLAS_RUNTIME_SOURCE_DIR`/`RELEASE_SHA`; listeners `5001`->57424 /
+  `5174`->57980; authoritative state `releaseSha=89012430`, `state=running`; health + health/ready
+  (`database:"ok"`) + DB-backed read + Tailnet 200 — verified 2026-09-23 by the `RUNTIME-DIR-RECLAIM-C01`
+  post-action audit). **Deployed by another lane after `7ac28124`; its rollback basis is not recorded here —
+  verify before relying on it.**
+- (superseded) **Release SHA: `7ac28124`** (`E:\ATLAS-runtime-supervised-7ac28124-20260923`;
   supervisor-owned 5001/5174; server `5001`->37608, client `5174`->9948; served entry
   `/assets/index-BbufnI_M.js`, SHA-256 `49838BFE…5CB6`, byte-identical to the build; machine
   `ATLAS_RUNTIME_RELEASE_SHA` = `7ac28124`; health + health/ready (`database:"ok"`) + DB-backed
@@ -226,11 +232,10 @@ and AIMS.
   no commits beyond `main`). The operator authorized that writer and told them to stay out of
   Lane A's lane, so the two run in **parallel**: preserve their worktree, and re-read
   `docs/handoffs/lane-b.md` plus their handoff before the next `:main` push (`AGENTS.md` §14).
-- **Awaiting a decision — the stray clone.** `E:\ATLAS-worktrees\c01r-release-20260921` is a
-  standalone clone, not a worktree (`origin` = the stale `D:\ATLAS`), created by the executor
-  against the new `AGENTS.md` §10.12. It is clean, its only branch is integrated, and it holds no
-  unique commits (~1 GiB). `git worktree remove` does not apply and a raw recursive delete is not
-  permitted, so removal needs an operator instruction. The live release directory
+- **RESOLVED 2026-09-23 — the stray clone.** `E:\ATLAS-worktrees\c01r-release-20260921` was removed by
+  `RUNTIME-DIR-RECLAIM-C01` under the operator exception (empty reparse scan; branch refs untouched; no
+  unique commits). It had been a standalone clone, not a worktree (`origin` = the stale `D:\ATLAS`),
+  created by the executor against `AGENTS.md` §10.12. The live release directory
   `D:\ATLAS-runtime-supervised-a02884ff-20260921` carries the same clone-not-worktree deviation;
   it is verified and live, so leave it as-is.
 - **The 502 layer is now identified (observation O1, 2026-09-21).** A captured failing response
@@ -366,8 +371,8 @@ and AIMS.
 
 ## Decisions awaited (operator-facing)
 
-- Removal instruction for the stray clone `E:/ATLAS-worktrees/c01r-release-20260921` (~1 GiB, no
-  unique commits) — a raw recursive delete is not permitted for a non-worktree.
+- **Resolved 2026-09-23:** the stray clone `E:/ATLAS-worktrees/c01r-release-20260921` was removed by
+  `RUNTIME-DIR-RECLAIM-C01` under the operator exception (empty reparse scan; branch refs untouched).
 - Confirm the two-lane naming used here (Lane A = the primary planner; Lane B = the
   operator-authorized parallel planner), and whether the earlier ChatGPT-harness agent's stream
   (`docs/handoffs/lane-b.md`) is still active.
@@ -378,6 +383,22 @@ Lane B owns this section. Current stream and state: see Lane B's own handoff fil
 it complete `TEST-GATE-REACHABILITY-C01` (`f4462374`) and hand it over for integration.
 
 ## Lane A — current lane (written only by Lane A)
+
+**`RUNTIME-DIR-RECLAIM-C01` COMPLETE — 7 rows / ~4.9 GiB reclaimed under the operator exception (2026-09-23).**
+Frozen manifest `docs/reviews/runtime-reclaim-20260923/manifest.md` (`d5c73fc0`, corrected `4f911381`);
+post-action report beside it. Pre-action audit `CORRECTION_REQUIRED` 5/9 — it falsified the "not an anchor"
+gate for six rows, which were moved to the preserve set, and it corrected the live-release identity
+(`89012430`, not `7ac28124`). The correction was strictly subtractive. Removed: five 2026-09-18 worktrees
+(`131baab7`, `3c4cc3cd8d7d`, `74c1f12a5c06`, `798cd78356ef`, `f0d65a531e34`) after logs-clearing and
+junction unlinking, plus two clones (`6cc202b7`, and the stray `E:\ATLAS-worktrees\c01r-release-20260921`)
+gated on an empty reparse scan. **Post-action audit: zero blocking findings, 8/8.** Worktrees 83 → 78;
+**branches unchanged at 347**; `D:` 16.82 → **20.37 GiB**; `E:` +1.02 GiB; all 7 junction targets and their
+dependency trees intact; live release `89012430` untouched and serving. **Disclosed (audit C3):** three of
+the removed worktrees were formerly deployed releases cited in historical handoffs — `NON_BLOCKING`, since
+none is a current anchor, no pending packet depends on them, and every HEAD is an ancestor of `origin/main`
+(rebuild path recorded). **Successors:** the five-deep junction chain rooted at `8eb0511baa53` (whose
+client-side target is an **empty** directory — pre-existing, flagged), and the remaining ~26 GiB, which
+would cost rollback capability and needs its own operator decision.
 
 **Custody transfer (2026-09-23):** the simplified-timetable source stream is handed to Planner B — see
 `docs/handoffs/simplified-timetable-handoff-to-lane-b-2026-09-23.md`. Lane A keeps deployment, the single
