@@ -492,7 +492,25 @@ it complete `TEST-GATE-REACHABILITY-C01` (`f4462374`) and hand it over for integ
 
 ## Lane A — current lane (written only by Lane A)
 
+**`DEMO-READINESS-ACCEPTANCE-20260924` — live `22d1f5a8` fully verified demo-ready; nothing to deploy (2026-09-24).**
+Read-only; no source/deploy/login/live-data action. `origin/main` `030861d6` has **no undeployed product
+delta** (its product tree == live `22d1f5a8`; all other branches merged). **Comprehensive route acceptance at
+1366×768 and 390×844** (15 routes: `/`, `/subjects`, `/teachers`, `/teaching-load`, `/timetable`,
+`/timetable/{pre-generation,setup,policies,runs,exports}`, `/sections`, `/schedules`, `/audit`, `/map`,
+`/public/schedules`) — every route renders with **0 console errors, no error boundary, no global document
+scrollbar**. Export matrix 200 (`class-program.xlsx` 20,389 B + section-program.docx + summary-teacher-schedule
++ room-program). Public surface run 317 / revision 43 / FROZEN / 920 entries. **Authority check:** the officer
+session holds the backend `timetable:approve-publication` capability (`GET /publication-approvals/1/10/requests`
+→ 200) while the client gates the inbox to `role === 'scheduler'` — a conservative UI gate, not a security gap;
+the service enforces separation of duties (`requesterId: { not: actorId }`). The scheduler-role UI row stays
+unexercised (no scheduler credential; no browser login). **Residuals (no action):** the intermittent host/proxy
+502 layer was **not reproduced** (4 fresh `/timetable` loads + a 48-request burst all 200/201); the readiness
+diagnostic runs the full scheduler (~7.4 s) on every timetable mount (`force: true`, by design; 14 invocations
+since boot) — a latency observation, not a defect; school-1 QA/admin credential rotation outstanding.
+**No deployment** — there is nothing new to ship.
+
 **`DEMO-READINESS-20260924` — live `014b4b4c` verified demo-ready; lifecycle polish merged but undeployed (2026-09-24).**
+*(Superseded: the lifecycle polish was subsequently deployed as `22d1f5a8` — see the entry above.)*
 Read-only; no source/deploy/login/live-data action. Live `014b4b4c` healthy and unchanged (machine
 `ATLAS_RUNTIME_RELEASE_SHA`/`SOURCE_DIR` = target; health/ready `database:"ok"` 200). Demo-readiness
 re-verified: 13 routes render (no error boundary / no global scrollbar), `Teaching Load` renders (37 rows),
