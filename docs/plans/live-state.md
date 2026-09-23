@@ -42,12 +42,21 @@ and AIMS.
   superseded.** Rollback depth is now `d9a6aa53` + `28f6f03f` + the two last-resort artifacts
   (`20260912`/`9d293879`, `fallback-d44-20260912`/`d44f29e0`); deeper rollback is a **rebuild**.
   `0eb3b67fe94c` is retained — `E:\ATLAS-worktrees\warning-readability-c01` borrows its server tree.
-- **CUTOVER IN PROGRESS (2026-09-23):** deploying `4893cbde` (`E:\ATLAS-runtime-supervised-4893cbde-20260923`)
-  over the incumbent `0232bf9c`. This is the **pre-deploy record** required by the `deploy-runner` live-state
-  gate — the record must lead the cutover. It is replaced by the confirmed live release once the cutover is
-  verified, and reverted if the cutover is rolled back. Elevated OpenCode owns this deployment and the single
-  authenticated browser; source custody is released.
-- **Release SHA: `0232bf9c`** (current live serving release; `E:\ATLAS-runtime-supervised-0232bf9c-20260923`;
+- **Release SHA: `4893cbde`** (current live serving release; `E:\ATLAS-runtime-supervised-4893cbde-20260923`;
+  supervisor PID 56336 -> server `5001`->15672 / host `5174`->50852; served entry `/assets/index-CO9LQ3Su.js`,
+  SHA-256 `F309A458…F9BB`, **byte-identical to the target build**; machine `ATLAS_RUNTIME_SOURCE_DIR` /
+  `RELEASE_SHA` = the target; health + health/ready (`database:"ok"`) + DB-backed read (19,440 B) + Tailnet 200
+  — the readiness gate cleared at **t+6s**; supervisor log "All targets healthy", rollover automation disabled).
+  Carries the accepted timetable C05 source. **Deployed by Elevated OpenCode** under the operator's handoff
+  (audit `C:\ProgramData\ATLAS\release-audit\4893cbde-20260923-215632`); the pre-deploy record was committed
+  first (`e9d89acb`) so the record led the cutover. **Rollback basis: `0232bf9c`** at
+  `E:\ATLAS-runtime-supervised-0232bf9c-20260923` (startable in place). **Post-deploy browser acceptance is
+  PENDING — deployment and acceptance are separate outcomes.**
+  *Follow-up (gate defect):* the `deploy-runner` live-state gate resolves the shared repo from the target; a
+  **clone** target has no `origin/main`, so it fails closed with a raw `fatal: invalid object name` instead of
+  a clear "target must be a registered worktree" refusal. This cutover therefore used the handoff's pristine
+  base runner (`38090BB1…`). Either sharpen the message or add a `-LiveStateRepo` override.
+- (superseded) **Release SHA: `0232bf9c`** (`E:\ATLAS-runtime-supervised-0232bf9c-20260923`;
   task action + Start-In + machine `ATLAS_RUNTIME_SOURCE_DIR`/`RELEASE_SHA`; listeners `5001`->56812 /
   `5174`->59604; authoritative state `releaseSha=0232bf9c`, `state=running`; health + health/ready
   (`database:"ok"`) + DB-backed read + Tailnet 200 — verified 2026-09-23). **Deployed by another lane; the
