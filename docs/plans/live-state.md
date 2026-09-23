@@ -379,7 +379,7 @@ it complete `TEST-GATE-REACHABILITY-C01` (`f4462374`) and hand it over for integ
 
 ## Lane A — current lane (written only by Lane A)
 
-**`TIMETABLE-TRUTHFULNESS-C01` DEPLOYED at `7ac28124` — post-deployment browser QA in flight (2026-09-23).**
+**`TIMETABLE-TRUTHFULNESS-C01` COMPLETE — deployed at `7ac28124`, post-deployment QA `ACCEPT_READY` 11/11/0/0 (2026-09-23).**
 Candidate `fb58a0d5` + one bounded correction `adfbf9f9` on `work/timetable-truthfulness-c01` (base
 `5ff8d80f`, 3 commits, clean). One batched pre-action reviewer closed the source range **and** the packet
 lint in one dispatch and returned `PLANNER_DECISION_REQUIRED` 7/9: **no product defect in D1/D2/D3**
@@ -399,6 +399,27 @@ generation, publication or live-data action. **Junction hazard closed:** the can
 taint-free (single hop, no source byte resolved through them, lockfiles + schema byte-identical, values
 independently re-derived by the reviewer) and the release was built with its **own** dependency tree; the
 junctions must be removed before that worktree is retired and `e78d4473` must not be reclaimed.
+
+**Post-deployment acceptance (fresh independent QA, 2026-09-23) — `ACCEPT_READY` 11/11/0/0**, blocked 0,
+unperformed 0. Deployment identity independently re-derived (release HEAD, machine scope, task action,
+single listener lineage under supervisor 26208, authoritative `supervisor-state.json` `state=running`).
+**D2:** authenticated `GET /api/v1/dashboard/readiness-summary` → `generation.blockingHardCount 0`,
+`softViolationCount 289` (soft-labelled), `violationCount` **absent**. **D4:** the live Simple header renders
+`School year from ATLAS, checked 9s ago · 2031-2032 · Run #317`; the deployed bundle contains **zero**
+occurrences of `Using cached school year`, so the stale-reading state is unreachable. **D1:** runs list
+returns `activePublishedRunId 317` with per-run `summary.isPublished` (317 true; 316/315 false).
+**Preservation:** one header row; grid top **140 px** at 1366×768; one status region; published surface
+ahead of `Generate`; no document scrollbar at 1366×768 or 390×844; all nine `/timetable*` routes keep the
+6-link sub-nav; 0 console errors on clean loads. **Login delta:** audit 928 `LOCAL_LOGIN_SUCCESS` (actor 46,
+school 1) plus a disclosed probe artifact 927 `LOCAL_LOGIN_FAILED`; token drop proven (`/auth/me` 401).
+Non-blocking: N1 the release worktree shows the supervisor's untracked `ops/runtime/logs/` (same as the
+incumbent — runtime state, tracked tree clean); N2 transient first-load 502s on three unrelated endpoints
+(all 200 on re-issue; pre-existing); N4 the 390 px source line truncates rather than wraps; N5 an
+unattributed `hybrid-scheduler` benchmark profile ran at 05:28–05:30Z with **no** new persisted run.
+**Closure:** candidate worktree junctions removed with `rmdir` (link only — `e78d4473` verified intact,
+125 entries + generated client), then both cycle worktrees retired non-forced (`work/` and `integration/`
+branches preserved); `D:` unchanged at 16.82 GiB. No schema, migration, generation, publication or
+live-data mutation occurred.
 
 **`TIMETABLE-HEADER-COLLAPSE-C01` COMPLETE — the three declutter gaps are closed (2026-09-23).**
 Live release **`d9a6aa53`** at `D:\ATLAS-runtime-supervised-d9a6aa53-20260923` (5001→19296 /

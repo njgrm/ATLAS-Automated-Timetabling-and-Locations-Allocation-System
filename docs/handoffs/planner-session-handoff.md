@@ -12,17 +12,20 @@ Last updated: 2026-09-23 (Lane A).
 
 ## Verdict
 
-**2026-09-23 — relaxed timetable is LIVE at `d9a6aa53`; one candidate is staged for review; one operator decision is open.**
+**2026-09-23 — truthfulness release `7ac28124` is LIVE and accepted 11/11; the relaxed timetable is shipped; one operator decision is open.**
 
-- **Live release `d9a6aa53`** (`D:\ATLAS-runtime-supervised-d9a6aa53-20260923`; supervisor-owned
-  5001→19296 / 5174→41948; served entry `assets/index-BKcGq9ln.js`; health/ready + DB-backed read +
-  Tailnet 200). Carries, in order: `TIMETABLE-RELAXED-SUBPAGES-C01` → `TIMETABLE-RELAXED-MAIN-C01`
-  (grid top 332→180 px, status surfaces 8→1, router warnings 49→0, mobile paint 8 s→91 ms, SPA refetch
-  17→1, scroll preserved, inline placement with working Undo) → `TIMETABLE-HEADER-COLLAPSE-C01`
-  (header 2 bands→**1 row**, grid top **139.6 px**, published surface out-ranks `Generate`). Rollback:
-  `28f6f03f` startable in place; deeper fallbacks `1fdab989`, `e78d4473`, `11e8778f`, `7dbb3b90`.
-- **`origin/main` = `7ac28124`.**
-- **`TIMETABLE-TRUTHFULNESS-C01` is DEPLOYED; the post-deployment browser QA is the only open item.** The
+- **Live release `7ac28124`** (`E:\ATLAS-runtime-supervised-7ac28124-20260923`; supervisor-owned
+  5001→37608 / 5174→9948; served entry `assets/index-BbufnI_M.js`, SHA-256 `49838BFE…5CB6` byte-identical
+  to the build; health/ready + DB-backed read + Tailnet 200; supervisor `state=running`). Carries, in order:
+  `TIMETABLE-RELAXED-SUBPAGES-C01` → `TIMETABLE-RELAXED-MAIN-C01` (grid top 332→180 px, status surfaces
+  8→1, router warnings 49→0, mobile paint 8 s→91 ms, SPA refetch 17→1, scroll preserved, inline placement
+  with working Undo) → `TIMETABLE-HEADER-COLLAPSE-C01` (header 2 bands→**1 row**, grid top **139.6 px**,
+  published surface out-ranks `Generate`) → `TIMETABLE-TRUTHFULNESS-C01` (D1–D4). **Release root is `E:`**
+  (deliberate — `D:` was 16.83 GiB, 1.83 GiB above the §3 fail-closed line; `D:` finished unchanged at
+  16.82 GiB). **Rollback: `d9a6aa53` startable in place at `D:\ATLAS-runtime-supervised-d9a6aa53-20260923`**;
+  deeper fallbacks `28f6f03f`, `1fdab989`, `e78d4473`, `11e8778f`, `7dbb3b90`.
+- **`origin/main` = `1656da6d`** (docs-only above the deployed `7ac28124`).
+- **`TIMETABLE-TRUTHFULNESS-C01` COMPLETE — deployed at `7ac28124`, accepted `ACCEPT_READY` 11/11/0/0.** The
   candidate `fb58a0d5` (+ bounded correction `adfbf9f9`) passed a single batched pre-action review that
   closed the source range **and** the packet lint in one dispatch (`PLANNER_DECISION_REQUIRED` 7/9 — **no
   product defect in D1/D2/D3**, independently reproduced failing-first 0/4→4/4 on real base bytes; both
