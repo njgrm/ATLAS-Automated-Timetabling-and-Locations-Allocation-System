@@ -1,4 +1,12 @@
-# RUNTIME-DIR-RETENTION-C01 — frozen pre-action manifest (revision 2, post-audit)
+# RUNTIME-DIR-RETENTION-C01 — frozen pre-action manifest (revision 3, post-audit)
+
+**Revision 3 corrections** (from the revision-2 re-audit, 4/8, all deterministic):
+B1 §7.1 count 12 → **11**; B2 live release is **`0232bf9c`** (moved again at 19:59, after `89012430`) —
+§4/§7.4 retargeted; B3 **all 14 removals are gated on §5.3 landing first** (the `## Retiring` "never raw
+recursive deletion" prohibition in `agent-worktree-lifecycle.md:68–71` is now in §5.3's replacement scope;
+if §5.3 does not land, rows 4/8/9 are excluded); B4 §5.2 extended to handoff lines **120–121** and **157**;
+§5.1 extended to `live-state` lines **38–40, 55–56, 72–73, 87–88, 109–111, 146–147**; §6 records the
+expected pre-action per-row status.
 
 **Cycle:** runtime release-directory **retention policy** reclaim (demo-safe depth). **Author:** Lane A.
 **Date:** 2026-09-23. **Base:** `origin/main` = `d38fe0d5d81c9a08d67dc5c58a4d60e66f8d605e`.
@@ -16,7 +24,7 @@ historical live releases until after the demo. A deep rollback becomes a **rebui
 
 | Finding | Correction |
 |---|---|
-| **F1** 3 rows are standalone clones, not worktrees | Reclassified: **12 registered detached worktrees + 3 standalone clones** (`7dbb3b90` — on branch `main`, not detached; `a02884ff`; `5f5c6c4f`). `git worktree remove` applies only to the 12. |
+| **F1** 3 rows are standalone clones, not worktrees | Reclassified: **11 registered detached worktrees + 3 standalone clones** (`7dbb3b90` — on branch `main`, not detached; `a02884ff`; `5f5c6c4f`). `git worktree remove` applies only to the 11. |
 | **F2** an external borrower was missed | **Row 10 `0eb3b67fe94c` is DROPPED from the set.** `E:\ATLAS-worktrees\warning-readability-c01\atlas-server\node_modules` → `0eb3b67fe94c\atlas-server\node_modules`, and `warning-readability-c01` is an **open lane ("packet ready, no owner")**. Re-scan across **all** worktree roots (`E:\ATLAS-worktrees`, `D:\ATLAS-worktrees`, `C:\Users\njgro\.codex\worktrees`, `D:\ATLAS`) found **exactly one** external borrower — this one. |
 | **F3/F5** live references not cleared | §5 expanded: the living handoff, `live-state` lines 150–151 / 239–240 / 259 / 442, and the register's **current-state pointers** all name rows or claims this cycle changes. |
 | **F4** §5.2 targeted a non-existent line | Retargeted: the absolute never-retire text now lives in `docs/reference/agent-worktree-lifecycle.md`; `AGENTS.md` §3 only delegates to it. |
@@ -75,7 +83,7 @@ documentation in the same cycle.
 
 | Group | Directories |
 |---|---|
-| Live + prior (`E:`) | `89012430` (live), `7ac28124`, `0232bf9c` (new; added per N2) |
+| Live + prior (`E:`) | **`0232bf9c` (live** — releaseSha `0232bf9cd152…`, `state running`, ownedPids 56812/59604, task action/Start-In + machine env), `89012430` (prior; its state file is a stale artifact whose PIDs hold no port), `7ac28124` |
 | Two most recent accepted (`D:`) | `d9a6aa53`, `28f6f03f` |
 | Last-resort artifacts | `20260912` (`9d293879`), `fallback-d44-20260912` (`d44f29e0`) |
 | Register rollback target | `54dce67b` |
@@ -88,15 +96,20 @@ documentation in the same cycle.
 ## 5. Required documentation changes in this cycle
 
 1. **`live-state`:** rewrite the rollback list to the new depth and record that deeper rollback is a
-   **rebuild**. Also correct lines **150–151** ("retained do-not-retire trees": `0eb3b67f`, `8eb0511baa53`),
-   **239–240** ("`a02884ff` … verified and live, leave it as-is"), **259** ("`D:\ATLAS-runtime-*` release
-   trees remain on the never-retire list") and **442** ("`e78d4473` must not be reclaimed").
-2. **`docs/handoffs/planner-session-handoff.md`** — a **living** resume document; lines **33**, **94–95**
-   and **254–256** name removed rows as current rollback bases.
+   **rebuild**. Also correct lines **38–40** (the stale "Live release" block), **55–56**, **72–73**,
+   **87–88**, **109–111**, **146–147** (superseded entries presenting reclaim rows as available fallbacks),
+   **150–151** ("retained do-not-retire trees": `0eb3b67f`, `8eb0511baa53`), **239–240** ("`a02884ff` …
+   verified and live, leave it as-is"), **259** ("`D:\ATLAS-runtime-*` release trees remain on the
+   never-retire list") and **442** ("`e78d4473` must not be reclaimed").
+2. **`docs/handoffs/planner-session-handoff.md`** — a **living** resume document; lines **33**, **94–95**,
+   **120–121**, **157** and **254–256** name removed rows as current rollback bases or as *the current live
+   release* (`7dbb3b90`).
 3. **`docs/reference/agent-worktree-lifecycle.md`** — replace the absolute *"## Never retire or modify …
-   `D:/ATLAS-runtime-*`"* block, the do-not-retire set in the capacity bullet, and *"A release that is a
-   rollback basis is a do-not-retire dependency"* with the retention policy. (`AGENTS.md` §3 needs no edit —
-   it delegates to this file.)
+   `D:/ATLAS-runtime-*`"* block (lines 73–77), the do-not-retire set in the capacity bullet (line 20), the
+   *"A release that is a rollback basis is a do-not-retire dependency"* sentence (line 101), **and the
+   `## Retiring` prohibition "never raw recursive deletion" (lines 68–71)** with the retention policy.
+   (`AGENTS.md` §3 needs no edit — it delegates to this file.) **This amendment is a precondition: it must
+   land before ANY of the 14 removals.** If it does not, rows 4/8/9 (the clones) are excluded unconditionally.
 4. **Register (`docs/plans/atlas-delivery-cycles.json` + its generated mirror):** correct the **current-state
    pointers** that name superseded releases as live — `globalNextAction` (line 11) and the
    `CONSOLIDATED-DEPLOYMENT-C10` (:6780), `CLIENT-QUALITY-RELEASE-SWAP-01` (:7306) and
@@ -127,15 +140,17 @@ Execution owner: Lane A (the planner), which holds an elevated shell and has alr
 
 ## 7. Verification plan (post-action)
 
-1. `git worktree list` drops by **12**; **3** clone directories are gone by literal path; `git worktree
+1. `git worktree list` drops by **11**; **3** clone directories are gone by literal path; `git worktree
    prune` leaves no dangling entry; no `.git/worktrees/<name>` remains for a removed row.
 2. `E:\ATLAS-worktrees\ux-quickfix-c01\atlas-client\node_modules` still has 124 entries; **and**
    `E:\ATLAS-worktrees\warning-readability-c01\atlas-server\node_modules` still resolves into the preserved
    `0eb3b67fe94c` with a non-empty tree and its generated Prisma client.
 3. `D:` free rises by ≈ 17.62 GiB (20.37 → ≈ 38.0 GiB).
-4. Live runtime untouched: release `89012430`, listeners, machine env, task action/workdir unchanged; health,
-   health/ready (`database:"ok"`), DB-backed `GET /api/v1/subjects?schoolId=1`, Tailnet 200; served entry
-   chunk byte-identical to that release's own `dist`.
+4. Live runtime untouched: verify **release `0232bf9c`** (equal to machine
+   `ATLAS_RUNTIME_SOURCE_DIR`/`RELEASE_SHA` and to the task action/Start-In) — listeners, machine env, task
+   action/workdir unchanged; health, health/ready (`database:"ok"`), DB-backed
+   `GET /api/v1/subjects?schoolId=1`, Tailnet 200; served entry chunk byte-identical to that release's own
+   `dist`. (`89012430` is preserved but is **not** the live release.)
 5. Branch count compared against the count **captured at execution** (349 at authoring), not a hard-coded
    number; every preserved dir still startable in place.
 6. No **live** reference to a removed path anywhere under `docs/`; §5's changes landed; the register's

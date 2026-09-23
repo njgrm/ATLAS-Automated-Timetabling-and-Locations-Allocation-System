@@ -70,11 +70,32 @@ owner.**
 Never `--force`, never raw recursive deletion, never a glob or a computed path. Retirement
 never authorises branch deletion.
 
+**Two bounded exceptions, each requiring a frozen manifest + independent pre-action audit +
+post-action audit:**
+
+1. **Runtime release directories are subject to the retention policy below** — they are not
+   absolutely retained.
+2. **A release directory created as a standalone clone is not a registered worktree**, so
+   `git worktree remove` does not apply. Its removal is
+   `Remove-Item -LiteralPath "<exact validated path>" -Recurse -Force`, one row at a time, gated on
+   an empty per-row reparse scan and the recorded "before retiring" fields above. The prohibition on
+   raw recursive deletion covers *worktrees and junctions*; it never licenses a glob, a computed
+   path, or an unrecorded target.
+
 ## Never retire or modify
 
-`D:/ATLAS`, Codex-managed worktrees, `D:/ATLAS-runtime-*`, `D:/ATLAS-runtime-config`,
-PostgreSQL storage, companion repositories, `stakeholderFiles`, or preservation/backup
-directories.
+`D:/ATLAS`, Codex-managed worktrees, `D:/ATLAS-runtime-config`, PostgreSQL storage, companion
+repositories, `stakeholderFiles`, or preservation/backup directories.
+
+**Retention policy for `D:/ATLAS-runtime-*` (operator decision 2026-09-23).** These are **not**
+absolutely retained: they accumulated to ~46 GiB because no rule defined the required rollback
+depth, and routine hygiene ended up needing a one-off operator exception. **Keep** the live release,
+the two most recent accepted releases, the two named last-resort artifacts (the supervisor reset
+baseline and the manual fallback), and one real dependency source. **Retire** rollback depth beyond
+that, plus junction pass-through directories whose dependents no longer exist. A deep rollback is a
+**rebuild** (`git worktree add --detach <sha>` → install → `prisma generate` → builds), not an
+instant re-point. Any reclaim under this policy still requires the frozen-manifest + pre-action-audit
++ post-action-audit cycle.
 
 ## Dependency trees
 
@@ -98,5 +119,15 @@ directories.
   or junctions to one that will not be retired.
 - Never run an install through a shared junction, and never count or delete its target
   during cleanup.
-- A release that is a rollback basis is a do-not-retire dependency: record it in
-  `docs/plans/live-state.md` when a deployment makes it one.
+- A release that is a rollback basis is a do-not-retire dependency **within the retention policy
+  above** (live + the two most recent accepted): record it in `docs/plans/live-state.md` when a
+  deployment makes it one, and drop it from that list when a later accepted release displaces it.
+- **A deployment is not complete until `docs/plans/live-state.md` names the new release and its
+  rollback basis.** Observed 2026-09-23: the live release moved **twice in one session**
+  (`7ac28124` → `89012430` → `0232bf9c`) while the register still named the previous one. That stale
+  premise cost a review cycle and would mislead any next session — the register's own protocol calls
+  an undated pending line "a premise error waiting to happen".
+- **Never echo a credential value.** Read it inside a process and inject the result; never print it,
+  never paste it into a prompt, a log, or a browser field. Observed 2026-09-23: the live QA credential
+  was found in **8 plaintext files across earlier sessions** plus an agent transcript, because the
+  credential file wraps values in markdown backticks and a naive parse submitted them literally.
