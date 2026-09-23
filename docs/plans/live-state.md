@@ -373,26 +373,44 @@ it complete `TEST-GATE-REACHABILITY-C01` (`f4462374`) and hand it over for integ
 
 ## Lane A — current lane (written only by Lane A)
 
-**`TIMETABLE-PUBLICATION-C01` COMPLETE — school 1 / year 10 now has its FIRST published schedule (2026-09-23).**
-Under the operator's explicit authorization ("you are authorized") and with every gate retained: the
-read-only readiness diagnostic returned `status READY`, `generateAllowed true`,
+**`TIMETABLE-PUBLICATION-C01` COMPLETE — school 1 / year 10 now serves a newly published schedule (revision 43, run #317, 2026-09-23).**
+This is the **third** publication for year 10, **not the first**: revision 41 (run 314, effective
+`2026-09-18T02:28:07.874Z`, audit 823) and revision 42 (run 315, effective `2026-09-18T05:38:27.923Z`,
+audit 831) were already published. Publishing run 317 **superseded the live run 315** — run 315 now
+carries `isPublished:false`, `publicationSupersededAt:2026-09-22T23:22:04.198Z`,
+`publicationSupersededByRunId:317` — and the public surface now serves run 317 / revision 43.
+`INITIAL_PUBLICATION` is run 317's **base-revision label** (`sourceRevisionId null`,
+`publicationBase true`), **not** a claim about the school year. **Root cause of the earlier false
+claim:** the `GET …/runs` list projection omits `summary.isPublished`, so `#317/#316/#315/#314` all
+render without a published marker and "all COMPLETED" was mis-read as "none published"; the 422
+`PUBLISHED_SOURCE_REQUIRED` on run 316 only means run 316 is not itself a published source. **Backlog:
+the runs-list projection should expose `isPublished` — this omission produced a false continuity claim
+and a mis-stated live-state change.**
+Under the operator's explicit authorization and with every gate retained: the read-only readiness
+diagnostic returned `status READY`, `generateAllowed true`,
 `derivedDemandBlockers []`, teaching-load coverage **264/264 owned, 0 missing**, grade windows 20/0,
-term structure `TRIMESTER T1/T2/T3`, and `runs/gate {blocked:false, openCount:0}`. Run **#317** was
-generated (`POST …/generation/1/10/runs`, COMPLETED in 9.9 s, T1/T2/T3 = 920/920/920) and **published**
+term structure `TRIMESTER T1/T2/T3`, `derivedDemandRevision 096CA3E7…`, and
+`runs/gate {blocked:false, openCount:0}`. Run **#317** was generated (`POST …/generation/1/10/runs`,
+COMPLETED in 9.9 s, T1/T2/T3 = 920/920/920) and **published**
 (`POST …/runs/317/publish`, `acknowledgeSoftViolations:true`) → `isPublished:true`,
-**revision 43**, **audit 918**, `reason INITIAL_PUBLICATION`, `publicationBase:true`,
-`inputFingerprint cd220cdf…`. Fresh independent QA of the published leg returned **`ACCEPT_READY`
-5/5/0/0**: `/timetable` now shows the plain-language **"Published — read only"** state for run #317 with
-**zero** "Run inputs are stale" matches; the **public** surface renders real content
+**revision 43**, **audit 918**, `inputFingerprint cd220cdf…`, `publishedBy 46`. Fresh independent QA of
+the published leg returned **`ACCEPT_READY` 5/5/0/0**; a fresh Wave Completion Auditor returned
+**`CORRECTION_REQUIRED` 7/6/0/0** — the publication action cleared areas 1–6 (integrity, HARD gate,
+readiness, authority, **zero-other-write now DECIDED**, consumer blast radius) and failed only this
+record's accuracy, which is corrected above. **The publish write set is wider than first stated:**
+1 revision + 1 publication audit row + **2 `generation_runs` updates** (publish + supersede) +
+**45 `notifications` rows** (`SCHEDULE_PUBLISHED`, resource 317 — the `notificationDelivery` fan-out);
+a timestamped-table scan over the publication instant found no other write.
+`/timetable` shows the plain-language **"Published — read only"** state for run #317 with zero
+"Run inputs are stale" matches; the **public** surface renders real content
 (`/api/v1/schools/1/schedules/published` → runId 317, `activeRevisionId 43`, `snapshotState FROZEN`,
-920 entries / 20 sections / 42 faculty / 20 rooms); HARD **0**; workspace density still holds (grid top
-**180 px**, one status region, one dominant primary, no global scrollbar). **The operator's last open
-checklist row (draft → repair → review → published) is now exercised.** `as of 2026-09-23` the 289 soft
-violations are **not** a regression: run #316 has 284 raw soft (the UI's "94" is run 316's
-**T2-filtered** count). Non-blocking: `summary.publishedSoftViolationCount` (334/335) disagrees with the
-canonical list (289/284) in both runs (pre-existing, HARD unaffected); the header's "Using cached school
-year" wording can read as staleness; the public route needs `termIndex` (400 `TERM_SELECTION_REQUIRED`,
-fail-closed by design); audit row 918's write-count could not be independently verified read-only.
+920 entries / 20 sections / 42 faculty / 20 rooms); HARD **0**; workspace density holds (grid top
+180 px). `as of 2026-09-23` the 289 soft violations are **not** a regression: run #316's **canonical**
+soft count is 284 (its **raw stored** count is 335; run 317 raw 334 → canonical 289). Non-blocking:
+`summary.publishedSoftViolationCount` (334/335) disagrees with the canonical list (289/284) in both runs
+(pre-existing, HARD unaffected); the dashboard readiness summary presents the raw 334 soft count as
+blockers; the header's "Using cached school year" wording can read as staleness; the public route needs
+`termIndex` (400 `TERM_SELECTION_REQUIRED`, fail-closed by design).
 
 **`NOTIFICATION-INBOX-LIVE` COMPLETE — migration applied, live 500s cleared (2026-09-23).**
 Recorded before the schema command: host `localhost:5432`, database
@@ -445,12 +463,14 @@ one authenticated pass, credentials read inside the process and never printed. B
 archived:3, unscheduled:1320}`** — exactly the pre-cycle state; the removals are archived, not
 destroyed, and the four legitimate `lockedForRun` placements (ids 20–23) were not touched. One login
 consumed (token dropped with the process; ATLAS has no server-side logout route).
-**Still open:** no published run exists — `GET …/runs/316/published-revisions` returns **422
-`PUBLISHED_SOURCE_REQUIRED`** (run #316 is `COMPLETED`, not published) — so the "published" leg of the
-operator's lifecycle acceptance cannot be exercised without Generate + Publish, which are separate HIGH
-streams with their own fingerprinted previews. The draft-tray **swap** is a modal by design
-(`draft-swap-review-dialog`) while the Simple swap path is inline — the packet's "swap keeps its inline
-preview" is satisfied only for the Simple path. A one-off observation that the grid label read
+**Corrected 2026-09-23 — the "published" leg was NOT unreachable, and no publication was missing.**
+The earlier claim here ("no published run exists") was **false**: year 10 already had revisions 41
+(run 314) and 42 (run 315) published since 2026-09-18, and the public surface was serving run 315 until
+run 317 superseded it. `GET …/runs/316/published-revisions` → **422 `PUBLISHED_SOURCE_REQUIRED`** only
+means run 316 is not itself a published source. The root cause was the `GET …/runs` list projection
+omitting `summary.isPublished` (see the publication entry above). The draft-tray **swap** is a modal by
+design (`draft-swap-review-dialog`) while the Simple swap path is inline — the packet's "swap keeps its
+inline preview" is satisfied only for the Simple path. A one-off observation that the grid label read
 `Showing Section schedule: Luna` while armed with a §143 session was not adjudicated.
 **Disk:** `D:` 18.37 GiB free (below the §3 25 GiB warning, above the 15 GiB fail-closed) — four
 release trees now exist (`7dbb3b90`, `11e8778f`, `e78d4473`, `1fdab989`, `28f6f03f`); superseded
