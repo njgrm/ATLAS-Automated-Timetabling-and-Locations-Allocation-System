@@ -8,6 +8,7 @@
 
 import { prisma } from '../lib/prisma.js';
 import { solveQuickPlace, type PlacedSessionResult } from './timetable-quick-place.service.js';
+import { loadRunContext } from './manual-edit.service.js';
 
 /* ─── Types ─── */
 
@@ -141,7 +142,7 @@ export async function getFixSuggestions(
 	schoolYearId: number,
 	runId: number,
 	item: UnassignedItemInput,
-	dependencies: { solve: typeof solveQuickPlace } = { solve: solveQuickPlace },
+	dependencies: { quickPlaceDependencies?: Parameters<typeof solveQuickPlace>[3] } = {},
 ): Promise<{ item: UnassignedItemInput; explanation: UnassignedExplanation }> {
 	const info = buildReasonInfo(item);
 	const suggestions: FixSuggestion[] = [];
@@ -149,10 +150,28 @@ export async function getFixSuggestions(
 	let verifiedPlacement: PlacedSessionResult | undefined;
 	if (item.termIndex) {
 		try {
-			const solved = await dependencies.solve(runId, schoolId, schoolYearId);
+			const loadCanonicalContext = dependencies.quickPlaceDependencies?.loadRunContext ?? loadRunContext;
+			let canonicalContext: Awaited<ReturnType<typeof loadRunContext>> | undefined;
+			const solverDependencies = {
+				...dependencies.quickPlaceDependencies,
+				prisma: dependencies.quickPlaceDependencies?.prisma ?? prisma,
+				loadRunContext: async (...args: Parameters<typeof loadRunContext>) => {
+					canonicalContext = await loadCanonicalContext(...args);
+					return canonicalContext;
+				},
+			};
+			const solved = await solveQuickPlace(runId, schoolId, schoolYearId, solverDependencies);
 			verifiedPlacement = solved.placed.find((placed) => placed.sectionId === item.sectionId
 				&& placed.subjectId === item.subjectId && placed.session === item.session && placed.termIndex === item.termIndex);
 			if (verifiedPlacement) {
+				const room = canonicalContext?.rooms.find((candidate) => candidate.id === verifiedPlacement!.roomId);
+				const subject = canonicalContext?.subjects.find((candidate) => candidate.id === item.subjectId);
+				const enrollment = canonicalContext?.sectionEnrollment.get(item.sectionId) ?? item.cohortExpectedEnrollment ?? 0;
+				const requiredFeatures = subject?.requiredFeatures ?? [];
+				const roomIsVerified = !!room
+					&& (!subject?.preferredRoomType || room.type === subject.preferredRoomType)
+					&& room.capacity != null && room.capacity >= enrollment
+					&& requiredFeatures.every((feature) => room.features.includes(feature));
 				const placedEntry = solved.newEntries.find((entry) => entry.sectionId === verifiedPlacement!.sectionId
 					&& entry.subjectId === verifiedPlacement!.subjectId && entry.day === verifiedPlacement!.day
 					&& entry.startTime === verifiedPlacement!.startTime && entry.termIndex === verifiedPlacement!.termIndex);
@@ -160,7 +179,7 @@ export async function getFixSuggestions(
 					&& (violation.entities?.entryIds?.includes(placedEntry?.entryId ?? '')
 						|| (violation.entities?.sectionId === item.sectionId && violation.entities?.subjectId === item.subjectId
 							&& violation.meta?.termIndex === item.termIndex)));
-				if (unsafeRoomIssue) verifiedPlacement = undefined;
+				if (unsafeRoomIssue || !roomIsVerified) verifiedPlacement = undefined;
 			}
 		} catch {
 			// The candidate remains guidance-only if the full canonical solver cannot verify it.

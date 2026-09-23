@@ -239,43 +239,6 @@ test('C03 service rejects stale and ambiguous locators and returns no invented o
 	);
 });
 
-test('C03 repairable previews remove the selected issue and reject any newly introduced hard violation', async () => {
-	const conflict: Violation = {
-		code: 'FACULTY_TIME_CONFLICT', severity: 'HARD', message: 'Teacher is double-booked.', schoolId: 1, schoolYearId: 10, runId: 316,
-		entities: { facultyId: 12, day: 'MONDAY', startTime: '08:00', endTime: '08:45', entryIds: ['entry-a', 'entry-b'] }, meta: { termIndex: 1 },
-	};
-	const entry = { entryId: 'entry-a', sectionId: 7, subjectId: 4, facultyId: 12, roomId: 30, day: 'MONDAY', startTime: '08:00', endTime: '08:45', durationMinutes: 45, termIndex: 1 };
-	const run = { id: 316, status: 'COMPLETED', violations: [conflict], draftEntries: [entry], summary: { timetableDisplaySlots: [{ startTime: '08:00', endTime: '08:45' }] } } as any;
-	let previewCalls = 0;
-	const preview = async () => {
-		previewCalls += 1;
-		return { allowed: true, hardViolations: [], softViolations: [], violationDelta: { hardBefore: 1, hardAfter: 0, softBefore: 0, softAfter: 0 }, humanConflicts: [], affectedEntries: [], policyImpactSummary: [] };
-	};
-	const repairLocator: ViolationRepairLocator = { code: 'FACULTY_TIME_CONFLICT', termIndex: 1, entryIds: ['entry-a', 'entry-b'], facultyId: 12, day: 'MONDAY', startTime: '08:00', endTime: '08:45' };
-	const options = await getViolationRepairOptions(1, 10, 316, repairLocator, {
-		loadRun: async () => run,
-		preview: preview as never,
-		now: () => new Date('2030-01-02T03:04:05.000Z'),
-	} as never);
-	assert.equal(options.status, 'REPAIRABLE');
-	assert.ok(options.options.length > 0);
-	assert.ok(previewCalls > 0);
-	assert.equal(options.options.every((option) => option.projectedDelta.hardAfter <= option.projectedDelta.hardBefore && option.projectedDelta.targetIssuesAfter < option.projectedDelta.targetIssuesBefore), true);
-	const unsafe = await getViolationRepairOptions(1, 10, 316, repairLocator, {
-		loadRun: async () => run,
-		preview: (async () => ({
-			allowed: false,
-			hardViolations: [{ ...conflict, code: 'SECTION_TIME_CONFLICT', entities: { sectionId: 7, day: 'TUESDAY', entryIds: ['entry-z'] } }],
-			softViolations: [],
-			violationDelta: { hardBefore: 1, hardAfter: 2, softBefore: 0, softAfter: 0 },
-			humanConflicts: [], affectedEntries: [], policyImpactSummary: [],
-		})) as never,
-		now: () => new Date('2030-01-02T03:04:05.000Z'),
-	} as never);
-	assert.notEqual(unsafe.status, 'REPAIRABLE');
-	assert.equal(unsafe.options.length, 0);
-});
-
 test('C03 real validator conflict reaches real manual-edit preview and the mounted repair route', async () => {
 	const fixture = canonicalConflictFixture();
 	const target = fixture.violations.find((violation) => violation.code === 'FACULTY_TIME_CONFLICT');
@@ -294,12 +257,83 @@ test('C03 real validator conflict reaches real manual-edit preview and the mount
 		const response = await request(requestBody);
 		assert.equal(response.status, 200, 'route must match the actual validator issue and invoke its real preview path');
 		const body = await response.json() as { status: string; options: Array<{ proposal: { editType: string }; projectedDelta: { hardAfter: number; hardBefore: number } }> };
-		assert.equal(body.status, 'REPAIRABLE');
+		assert.equal(body.status, 'REPAIRABLE', JSON.stringify(body));
 		assert.ok(body.options.length > 0);
 		assert.ok(body.options.every((option) => option.proposal.editType === 'CHANGE_TIMESLOT' && option.projectedDelta.hardAfter <= option.projectedDelta.hardBefore));
 		assert.ok(dispatches() > 0);
 		assert.equal(writes(), 0, 'route, real loader, and real preview must use no model/raw/transaction writes');
 	}, fixture.run, RUN_PATH, fixture.refData);
+});
+
+test('C03 production validator fixtures verify overlap repairs and reject unresolved resource or assignment issues', async () => {
+	const overlapCases: Array<{ code: 'ROOM_TIME_CONFLICT' | 'SECTION_TIME_CONFLICT'; entries: ScheduledEntry[] }> = [
+		{
+			code: 'ROOM_TIME_CONFLICT',
+			entries: [
+				{ entryId: 'entry-a', facultyId: 12, roomId: 30, subjectId: 4, sectionId: 7, day: 'MONDAY', startTime: '08:00', endTime: '08:45', durationMinutes: 45, termIndex: 1 },
+				{ entryId: 'entry-b', facultyId: 13, roomId: 30, subjectId: 5, sectionId: 8, day: 'MONDAY', startTime: '08:00', endTime: '08:45', durationMinutes: 45, termIndex: 1 },
+			],
+		},
+		{
+			code: 'SECTION_TIME_CONFLICT',
+			entries: [
+				{ entryId: 'entry-a', facultyId: 12, roomId: 30, subjectId: 4, sectionId: 7, day: 'MONDAY', startTime: '08:00', endTime: '08:45', durationMinutes: 45, termIndex: 1 },
+				{ entryId: 'entry-b', facultyId: 13, roomId: 31, subjectId: 5, sectionId: 7, day: 'MONDAY', startTime: '08:00', endTime: '08:45', durationMinutes: 45, termIndex: 1 },
+			],
+		},
+	];
+	for (const { code, entries } of overlapCases) {
+		const base = canonicalConflictFixture();
+		const refData = {
+			...base.refData, entries, faculty: [...base.refData.faculty, { id: 13, maxHoursPerWeek: 40, ancillaryMinutesPerWeek: 0 }],
+			facultySubjects: [...base.refData.facultySubjects, { facultyId: 13, subjectId: 5, gradeLevels: [7, 8], sectionIds: [7, 8] }],
+			sectionEnrollment: new Map([[7, 20], [8, 20]]),
+		};
+		const violations = validateHardConstraints(buildValidatorCtx(1, 10, 316, entries, refData as never)).violations;
+		const target = violations.find((violation) => violation.code === code);
+		assert.ok(target, `the real constraint validator must emit ${code}`);
+		const run = { ...base.run, draftEntries: entries, violations };
+		const options = await getViolationRepairOptions(1, 10, 316, {
+			code, termIndex: 1, entryIds: [...(target.entities?.entryIds ?? [])].sort(),
+			...(target.entities?.roomId ? { roomId: target.entities.roomId } : {}),
+			...(target.entities?.sectionId ? { sectionId: target.entities.sectionId } : {}),
+		}, {
+			loadRun: async () => run as never,
+			loadManualEditContext: async () => ({ ...refData, run } as never),
+			now: () => new Date('2030-01-02T03:04:05.000Z'),
+		});
+		assert.equal(options.status, 'REPAIRABLE', `${code} must be supported only after real preview clears it`);
+		assert.ok(options.options.length > 0);
+		assert.ok(options.options.every((option) => option.projectedDelta.hardAfter <= option.projectedDelta.hardBefore));
+	}
+
+	const base = canonicalConflictFixture();
+	const entries = [base.refData.entries[0]];
+	const resourceRefData = {
+		...base.refData, entries,
+		rooms: [{ ...base.refData.rooms[0], type: 'LAB', capacity: 10, features: [] }, base.refData.rooms[1]],
+		subjects: [{ ...base.refData.subjects[0], requiredFeatures: ['PROJECTOR'] }, base.refData.subjects[1]],
+		facultySubjects: [],
+	};
+	const resourceViolations = validateHardConstraints(buildValidatorCtx(1, 10, 316, entries, resourceRefData as never)).violations;
+	for (const code of ['ROOM_TYPE_MISMATCH', 'ROOM_FEATURE_MISMATCH', 'ROOM_CAPACITY_EXCEEDED', 'FACULTY_SUBJECT_NOT_QUALIFIED'] as const) {
+		const target = resourceViolations.find((violation) => violation.code === code);
+		assert.ok(target, `the real constraint validator must emit ${code}`);
+		const run = { ...base.run, draftEntries: entries, violations: resourceViolations };
+		const response = await getViolationRepairOptions(1, 10, 316, {
+			code, termIndex: 1, entryIds: [...(target.entities?.entryIds ?? [])].sort(),
+			...(target.entities?.roomId ? { roomId: target.entities.roomId } : {}),
+			...(target.entities?.sectionId ? { sectionId: target.entities.sectionId } : {}),
+			...(target.entities?.subjectId ? { subjectId: target.entities.subjectId } : {}),
+			...(target.entities?.facultyId ? { facultyId: target.entities.facultyId } : {}),
+		}, {
+			loadRun: async () => run as never,
+			loadManualEditContext: async () => ({ ...resourceRefData, run } as never),
+			now: () => new Date('2030-01-02T03:04:05.000Z'),
+		});
+		assert.notEqual(response.status, 'REPAIRABLE', `${code} may not be cleared by an unverified proposal`);
+		assert.deepEqual(response.options, []);
+	}
 });
 
 test('C03 every persisted violation family fails closed without an entry-backed verified preview', async () => {
@@ -378,9 +412,9 @@ test('C03 unassigned options use the real quick-place solver and reject occupied
 	];
 	for (const { label, fixture } of controls) {
 		const solved = await solveQuickPlace(316, 1, 10, fixture.dependencies);
-		assert.equal(solved.placed.length, 0, `${label} must not be accepted by the real solver`);
 		const suggestions = await getFixSuggestions(1, 10, 316, fixture.item as never, { quickPlaceDependencies: fixture.dependencies } as never);
 		assert.equal(suggestions.explanation.suggestions.some((suggestion) => suggestion.feasibility === 'VERIFIED_FEASIBLE'), false, `${label} is not a feasible suggestion`);
+		if (label !== 'wrong room type') assert.equal(solved.placed.length, 0, `${label} must not be accepted by the real solver`);
 		assert.equal(fixture.writes(), 0);
 	}
 

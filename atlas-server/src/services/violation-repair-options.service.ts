@@ -1,6 +1,10 @@
 import { VIOLATION_CODES, VIOLATION_COPY, type Violation, type ViolationCode } from './constraint-validator.js';
 import { getRunById } from './generation.service.js';
-import { previewManualEdit, type ManualEditProposal, type PreviewResult } from './manual-edit.service.js';
+import { getDataContext } from '../lib/data-context.js';
+import { loadRunContext, previewManualEdit, type ManualEditProposal, type PreviewResult } from './manual-edit.service.js';
+
+const loadManualEditContext: typeof loadRunContext = (runId, schoolId, schoolYearId) =>
+	loadRunContext(runId, schoolId, schoolYearId, getDataContext() as never);
 
 export type ViolationRepairLocator = {
 	code: ViolationCode;
@@ -58,8 +62,25 @@ function violationEntryIds(violation: Violation): string[] {
 	return [...(violation.entities?.entryIds ?? [])].sort();
 }
 
-function matchesCanonicalLocator(violation: Violation, locator: ViolationRepairLocator): boolean {
-	if (violation.code !== locator.code || violation.meta?.termIndex !== locator.termIndex) return false;
+function canonicalTermIndex(violation: Violation, entries: Array<Record<string, unknown>>): number | undefined {
+	if (typeof violation.meta?.termIndex === 'number' && Number.isInteger(violation.meta.termIndex)) return violation.meta.termIndex;
+	const ids = new Set(violationEntryIds(violation));
+	const matches = entries.filter((entry) => {
+		if (ids.size > 0) return typeof entry.entryId === 'string' && ids.has(entry.entryId);
+		const identity = violation.entities ?? {};
+		return (identity.facultyId === undefined || entry.facultyId === identity.facultyId)
+			&& (identity.roomId === undefined || entry.roomId === identity.roomId)
+			&& (identity.sectionId === undefined || entry.sectionId === identity.sectionId)
+			&& (identity.subjectId === undefined || entry.subjectId === identity.subjectId)
+			&& (identity.day === undefined || entry.day === identity.day)
+			&& (identity.startTime === undefined || entry.startTime === identity.startTime);
+	});
+	const terms = [...new Set(matches.map((entry) => entry.termIndex).filter((term): term is number => typeof term === 'number' && Number.isInteger(term) && term >= 1 && term <= 4))];
+	return terms.length === 1 ? terms[0] : undefined;
+}
+
+function matchesCanonicalLocator(violation: Violation, locator: ViolationRepairLocator, entries: Array<Record<string, unknown>>): boolean {
+	if (violation.code !== locator.code || canonicalTermIndex(violation, entries) !== locator.termIndex) return false;
 	const canonicalIds = violationEntryIds(violation);
 	if (canonicalIds.length !== locator.entryIds.length || canonicalIds.some((id, index) => id !== locator.entryIds[index])) return false;
 	for (const key of ['facultyId', 'roomId', 'sectionId', 'subjectId', 'day', 'startTime', 'endTime'] as const) {
@@ -136,21 +157,22 @@ export async function getViolationRepairOptions(
 	locator: ViolationRepairLocator,
 	dependencies: {
 		loadRun: typeof getRunById;
-		preview: typeof previewManualEdit;
+		loadManualEditContext: typeof loadRunContext;
 		now: () => Date;
-	} = { loadRun: getRunById, preview: previewManualEdit, now: () => new Date() },
+	} = { loadRun: getRunById, loadManualEditContext, now: () => new Date() },
 ) {
 	const run = await dependencies.loadRun(runId, schoolId, schoolYearId);
 	if (run.status !== 'COMPLETED') throw repairError(422, 'RUN_NOT_COMPLETED', 'Repair guidance is available only for a completed schedule.');
 	const canonicalViolations = Array.isArray(run.violations) ? run.violations as unknown as Violation[] : [];
-	const matches = canonicalViolations.filter((violation) => matchesCanonicalLocator(violation, locator));
+	const entries = Array.isArray(run.draftEntries) ? run.draftEntries as Array<Record<string, unknown>> : [];
+	const matches = canonicalViolations.filter((violation) => matchesCanonicalLocator(violation, locator, entries));
 	if (matches.length === 0) throw repairError(404, 'VIOLATION_NOT_FOUND', 'That issue is no longer present in this schedule. Refresh the issue list and try again.');
 	if (matches.length > 1) throw repairError(409, 'AMBIGUOUS_VIOLATION', 'More than one saved issue matches this selection. Refresh the issue list before continuing.');
 	const violation = matches[0];
-	const entries = Array.isArray(run.draftEntries) ? run.draftEntries as Array<{
+	const draftEntries = Array.isArray(run.draftEntries) ? run.draftEntries as Array<{
 		entryId: string; sectionId: number; subjectId: number; facultyId: number | null; roomId: number; day: string; startTime: string; endTime: string; durationMinutes: number; termIndex?: number;
 	}> : [];
-	const affectedEntries = entries.filter((entry) => locator.entryIds.includes(entry.entryId));
+	const affectedEntries = draftEntries.filter((entry) => locator.entryIds.includes(entry.entryId));
 	const copy = VIOLATION_COPY[violation.code];
 	const slots = getTimeSlots(run);
 	const days = ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY'];
@@ -174,7 +196,7 @@ export async function getViolationRepairOptions(
 	for (const proposal of proposals) {
 		let preview: PreviewResult;
 		try {
-			preview = await dependencies.preview(runId, schoolId, schoolYearId, proposal);
+			preview = await previewManualEdit(runId, schoolId, schoolYearId, proposal, { loadRunContext: dependencies.loadManualEditContext });
 		} catch (error) {
 			blockers.add(error instanceof Error ? error.message : 'The saved schedule could not validate this option.');
 			continue;
