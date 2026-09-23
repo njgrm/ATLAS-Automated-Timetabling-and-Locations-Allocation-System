@@ -5,11 +5,14 @@ import express from 'express';
 import jwt from 'jsonwebtoken';
 
 import { withDataContext } from '../lib/data-context.js';
+import { getViolationRepairOptions, parseViolationRepairLocator, type ViolationRepairLocator } from '../services/violation-repair-options.service.js';
+import { getFixSuggestions } from '../services/fix-suggestions.service.js';
+import type { Violation, ViolationCode } from '../services/constraint-validator.js';
 
 const SECRET = 'timetable-scheduling-quality-c03-secret';
 const RUN_PATH = '/api/v1/generation/1/10/runs/316/violation-repair-options';
 
-async function withRepairServer<T>(fn: (request: (body: unknown, actor?: Record<string, unknown>) => Promise<Response>, dispatches: () => number, writes: () => number) => Promise<T>, runValue: unknown = null): Promise<T> {
+async function withRepairServer<T>(fn: (request: (body: unknown, actor?: Record<string, unknown>) => Promise<Response>, dispatches: () => number, writes: () => number) => Promise<T>, runValue: unknown = null, path = RUN_PATH): Promise<T> {
 	process.env.JWT_SECRET = SECRET;
 	let dbDispatches = 0;
 	let writeAttempts = 0;
@@ -23,12 +26,15 @@ async function withRepairServer<T>(fn: (request: (body: unknown, actor?: Record<
 	app.use(express.json());
 	app.use((_req, _res, next) => { void withDataContext(client as never, async () => next()); });
 	app.use('/api/v1/generation', generationRouter);
+	app.use((error: { statusCode?: number; code?: string; message?: string }, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+		res.status(error.statusCode ?? 400).json({ code: error.code ?? 'TEST_ERROR', message: error.message ?? 'Request failed.' });
+	});
 	const server = http.createServer(app);
 	await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
 	try {
 		const address = server.address();
 		assert.ok(address && typeof address === 'object');
-		const baseUrl = `http://127.0.0.1:${address.port}${RUN_PATH}`;
+		const baseUrl = `http://127.0.0.1:${address.port}${path}`;
 		const request = (body: unknown, actor: Record<string, unknown> = { userId: 46, role: 'officer', schoolId: 1 }) => fetch(baseUrl, {
 			method: 'POST',
 			headers: {
@@ -65,6 +71,16 @@ test('C03 route rejects malformed/coerced locator identities and cross-school ac
 		assert.equal(missingSchool.status, 403);
 		assert.equal(dispatches(), 0, 'invalid body and actor scope must dispatch no database work');
 	}, null);
+	await withRepairServer(async (request, dispatches, writes) => {
+		assert.equal((await request(locator, { userId: 46, role: 'officer', schoolId: '1' })).status, 403);
+		assert.equal(dispatches(), 0);
+		assert.equal(writes(), 0);
+	}, null);
+	await withRepairServer(async (request, dispatches, writes) => {
+		assert.equal((await request(locator)).status, 400);
+		assert.equal(dispatches(), 0);
+		assert.equal(writes(), 0);
+	}, null, '/api/v1/generation/01/10/runs/316/violation-repair-options');
 });
 
 test('C03 route reloads canonical run state and rejects a missing run without writes', async () => {
@@ -74,4 +90,165 @@ test('C03 route reloads canonical run state and rejects a missing run without wr
 		assert.ok(dispatches() > 0, 'a scoped canonical run lookup is required');
 		assert.equal(writes(), 0);
 	}, null);
+});
+
+test('C03 route returns canonical issue identity and does not trust client severity/message', async () => {
+	const canonical: Violation = {
+		code: 'ZONE_IMBALANCE_WARNING', severity: 'SOFT', message: 'Saved historical warning.', schoolId: 1, schoolYearId: 10, runId: 316,
+		entities: { sectionId: 7, day: 'MONDAY', entryIds: [] }, meta: { termIndex: 1 },
+	};
+	const run = { id: 316, schoolYearId: 10, status: 'COMPLETED', violations: [canonical], draftEntries: [], summary: {} };
+	await withRepairServer(async (request, dispatches, writes) => {
+		const response = await request({ code: 'ZONE_IMBALANCE_WARNING', termIndex: 1, entryIds: [], sectionId: 7, severity: 'HARD', message: 'client supplied text' });
+		assert.equal(response.status, 200);
+		const body = await response.json() as { status: string; violation: Violation; options: unknown[]; blockers: string[] };
+		assert.equal(body.status, 'NO_SAFE_REPAIR');
+		assert.equal(body.violation.severity, 'SOFT');
+		assert.equal(body.violation.message, canonical.message);
+		assert.deepEqual(body.options, []);
+		assert.ok(body.blockers.length > 0);
+		assert.ok(dispatches() > 0);
+		assert.equal(writes(), 0);
+	}, run);
+});
+
+test('C03 locator parser accepts only a strict object and exact numeric/string identities', () => {
+	assert.equal(parseViolationRepairLocator({ ...locator, severity: 'SOFT', message: 'client text' })?.code, 'FACULTY_TIME_CONFLICT');
+	for (const value of [null, [], 'issue', { ...locator, termIndex: '1' }, { ...locator, facultyId: '12' }, { ...locator, entryIds: [12] }, { ...locator, entryIds: ['entry-a', 'entry-a'] }, { code: 'MADE_UP', termIndex: 1, entryIds: ['entry-a'] }]) {
+		assert.equal(parseViolationRepairLocator(value), null, `invalid locator ${JSON.stringify(value)}`);
+	}
+});
+
+test('C03 service rejects stale and ambiguous locators and returns no invented option for legacy issues', async () => {
+	const baseIssue: Violation = {
+		code: 'ZONE_IMBALANCE_WARNING', severity: 'SOFT', message: 'Older saved warning.', schoolId: 1, schoolYearId: 10, runId: 316,
+		entities: { sectionId: 7, day: 'MONDAY', entryIds: [] }, meta: { termIndex: 1 },
+	};
+	const run = { id: 316, status: 'COMPLETED', violations: [baseIssue], draftEntries: [], summary: {} } as any;
+	const dependencies = {
+		loadRun: async () => run,
+		preview: async () => { throw new Error('no entry-based proposal is expected'); },
+		now: () => new Date('2030-01-02T03:04:05.000Z'),
+	};
+	const legacyLocator: ViolationRepairLocator = { code: 'ZONE_IMBALANCE_WARNING', termIndex: 1, entryIds: [], sectionId: 7 };
+	const noSafe = await getViolationRepairOptions(1, 10, 316, legacyLocator, dependencies as never);
+	assert.equal(noSafe.status, 'NO_SAFE_REPAIR');
+	assert.equal(noSafe.options.length, 0);
+	assert.equal(noSafe.verifiedAt, '2030-01-02T03:04:05.000Z');
+	assert.ok(noSafe.blockers.length > 0);
+	await assert.rejects(
+		getViolationRepairOptions(1, 10, 316, { ...legacyLocator, sectionId: 9 }, dependencies as never),
+		(error: unknown) => (error as { code?: string }).code === 'VIOLATION_NOT_FOUND',
+	);
+	await assert.rejects(
+		getViolationRepairOptions(1, 10, 316, legacyLocator, {
+			...dependencies,
+			loadRun: async () => ({ ...run, violations: [baseIssue, baseIssue] }) as never,
+		} as never),
+		(error: unknown) => (error as { code?: string }).code === 'AMBIGUOUS_VIOLATION',
+	);
+});
+
+test('C03 repairable previews remove the selected issue and reject any newly introduced hard violation', async () => {
+	const conflict: Violation = {
+		code: 'FACULTY_TIME_CONFLICT', severity: 'HARD', message: 'Teacher is double-booked.', schoolId: 1, schoolYearId: 10, runId: 316,
+		entities: { facultyId: 12, day: 'MONDAY', startTime: '08:00', endTime: '08:45', entryIds: ['entry-a', 'entry-b'] }, meta: { termIndex: 1 },
+	};
+	const entry = { entryId: 'entry-a', sectionId: 7, subjectId: 4, facultyId: 12, roomId: 30, day: 'MONDAY', startTime: '08:00', endTime: '08:45', durationMinutes: 45, termIndex: 1 };
+	const run = { id: 316, status: 'COMPLETED', violations: [conflict], draftEntries: [entry], summary: { timetableDisplaySlots: [{ startTime: '08:00', endTime: '08:45' }] } } as any;
+	let previewCalls = 0;
+	const preview = async () => {
+		previewCalls += 1;
+		return { allowed: true, hardViolations: [], softViolations: [], violationDelta: { hardBefore: 1, hardAfter: 0, softBefore: 0, softAfter: 0 }, humanConflicts: [], affectedEntries: [], policyImpactSummary: [] };
+	};
+	const repairLocator: ViolationRepairLocator = { code: 'FACULTY_TIME_CONFLICT', termIndex: 1, entryIds: ['entry-a', 'entry-b'], facultyId: 12, day: 'MONDAY', startTime: '08:00', endTime: '08:45' };
+	const options = await getViolationRepairOptions(1, 10, 316, repairLocator, {
+		loadRun: async () => run,
+		preview: preview as never,
+		now: () => new Date('2030-01-02T03:04:05.000Z'),
+	} as never);
+	assert.equal(options.status, 'REPAIRABLE');
+	assert.ok(options.options.length > 0);
+	assert.ok(previewCalls > 0);
+	assert.equal(options.options.every((option) => option.projectedDelta.hardAfter <= option.projectedDelta.hardBefore && option.projectedDelta.targetIssuesAfter < option.projectedDelta.targetIssuesBefore), true);
+	const unsafe = await getViolationRepairOptions(1, 10, 316, repairLocator, {
+		loadRun: async () => run,
+		preview: (async () => ({
+			allowed: false,
+			hardViolations: [{ ...conflict, code: 'SECTION_TIME_CONFLICT', entities: { sectionId: 7, day: 'TUESDAY', entryIds: ['entry-z'] } }],
+			softViolations: [],
+			violationDelta: { hardBefore: 1, hardAfter: 2, softBefore: 0, softAfter: 0 },
+			humanConflicts: [], affectedEntries: [], policyImpactSummary: [],
+		})) as never,
+		now: () => new Date('2030-01-02T03:04:05.000Z'),
+	} as never);
+	assert.notEqual(unsafe.status, 'REPAIRABLE');
+	assert.equal(unsafe.options.length, 0);
+});
+
+test('C03 every persisted violation family fails closed without an entry-backed verified preview', async () => {
+	const codes: ViolationCode[] = [
+		'FACULTY_TIME_CONFLICT', 'ROOM_TIME_CONFLICT', 'SECTION_TIME_CONFLICT', 'FACULTY_OVERLOAD',
+		'ROOM_TYPE_MISMATCH', 'ROOM_FEATURE_MISMATCH', 'ROOM_CAPACITY_EXCEEDED', 'FACULTY_SUBJECT_NOT_QUALIFIED',
+		'FACULTY_CONSECUTIVE_LIMIT_EXCEEDED', 'FACULTY_BREAK_REQUIREMENT_VIOLATED', 'FACULTY_DAILY_STANDARD_EXCEEDED',
+		'FACULTY_DAILY_MAX_EXCEEDED', 'FACULTY_FLOOR_TRANSITION', 'FACULTY_EXCESSIVE_BUILDING_TRANSITIONS',
+		'FACULTY_INSUFFICIENT_TRANSITION_BUFFER', 'FACULTY_EXCESSIVE_IDLE_GAP', 'FACULTY_EARLY_START_PREFERENCE',
+		'FACULTY_LATE_END_PREFERENCE', 'FACULTY_INSUFFICIENT_DAILY_VACANT', 'SPECIALIZED_ROOM_UNAVAILABLE',
+		'UNASSIGNED_SECTION', 'ZONE_IMBALANCE_WARNING', 'SECTION_OVERCOMPRESSED', 'LACKING_FACULTY', 'INCOMPLETE_MODULAR_GROUP',
+	];
+	for (const code of codes) {
+		const violation: Violation = {
+			code, severity: 'HARD', message: 'Saved canonical issue.', schoolId: 1, schoolYearId: 10, runId: 316,
+			entities: { sectionId: 7, entryIds: [] }, meta: { termIndex: 1 },
+		};
+		const response = await getViolationRepairOptions(1, 10, 316, { code, termIndex: 1, entryIds: [], sectionId: 7 }, {
+			loadRun: async () => ({ id: 316, status: 'COMPLETED', violations: [violation], draftEntries: [], summary: {} }) as never,
+			preview: async () => { throw new Error('without affected canonical entries, no repair proposal is allowed'); },
+			now: () => new Date('2030-01-02T03:04:05.000Z'),
+		} as never);
+		assert.notEqual(response.status, 'REPAIRABLE', `${code} must not produce an unverified option`);
+		assert.deepEqual(response.options, [], `${code} has no affected entry for a valid preview`);
+		assert.ok(response.blockers.length > 0, `${code} must explain its limitation`);
+	}
+});
+
+test('C03 unassigned guidance is actor-school scoped and matches a canonical ordered-term item', async () => {
+	const item = { sectionId: 7, subjectId: 4, gradeLevel: 7, session: 2, termIndex: 2, reason: 'ROOM_CAPACITY_EXCEEDED', entryKind: 'SECTION' };
+	const run = { id: 316, status: 'COMPLETED', schoolYearId: 10, unassignedItems: [item], draftEntries: [], summary: {}, violations: [] };
+	const path = '/api/v1/generation/1/10/runs/316/fix-suggestions';
+	await withRepairServer(async (request, dispatches, writes) => {
+		for (const body of [{ ...item, termIndex: '2' }, { ...item, sectionId: '7' }]) {
+			assert.equal((await request(body)).status, 400);
+		}
+		assert.equal(dispatches(), 0, 'coerced request identities must not load the run');
+		const stale = await request({ ...item, termIndex: 1 });
+		assert.equal(stale.status, 404);
+		const valid = await request(item);
+		assert.equal(valid.status, 200);
+		const body = await valid.json() as { item: typeof item; explanation: { suggestions: Array<{ feasibility?: string }> } };
+		assert.equal(body.item.termIndex, 2);
+		assert.ok(body.explanation.suggestions.every((suggestion) => suggestion.feasibility === 'GUIDANCE_ONLY'));
+		assert.ok(dispatches() > 0);
+		assert.equal(writes(), 0);
+	}, run, path);
+});
+
+test('C03 unassigned options are marked feasible only after the canonical solver verifies ordered-term placement and room safety', async () => {
+	const item = { sectionId: 7, subjectId: 4, gradeLevel: 7, session: 2, termIndex: 2 as const, reason: 'ROOM_CAPACITY_EXCEEDED' as const };
+	const placed = { sectionId: 7, subjectId: 4, session: 2, termIndex: 2 as const, day: 'WEDNESDAY', startTime: '09:00', endTime: '09:45', roomId: 30, roomName: 'R30', facultyId: 12, facultyName: 'Teacher' };
+	const safe = await getFixSuggestions(1, 10, 316, item, {
+		solve: (async () => ({ placed: [placed], newEntries: [{ ...placed, entryId: 'verified-entry' }], violations: [] })) as never,
+	});
+	const verified = safe.explanation.suggestions.find((suggestion) => suggestion.feasibility === 'VERIFIED_FEASIBLE');
+	assert.ok(verified);
+	assert.equal(verified.proposal?.termIndex, 2);
+	assert.equal(verified.proposal?.targetRoomId, 30);
+	const unsafe = await getFixSuggestions(1, 10, 316, item, {
+		solve: (async () => ({ placed: [placed], newEntries: [{ ...placed, entryId: 'verified-entry' }], violations: [{
+			code: 'ROOM_CAPACITY_EXCEEDED', severity: 'HARD', message: 'Room is too small.', schoolId: 1, schoolYearId: 10, runId: 316,
+			entities: { sectionId: 7, subjectId: 4, entryIds: ['verified-entry'] }, meta: { termIndex: 2 },
+		}] })) as never,
+	});
+	assert.equal(unsafe.explanation.suggestions.some((suggestion) => suggestion.feasibility === 'VERIFIED_FEASIBLE'), false);
+	assert.ok(unsafe.explanation.suggestions.every((suggestion) => suggestion.feasibility === 'GUIDANCE_ONLY'));
 });

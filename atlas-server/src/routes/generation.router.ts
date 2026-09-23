@@ -7,6 +7,8 @@ import { buildGenerationReadiness } from '../services/generation-readiness.servi
 import { resolveRequestedTermIndex, parseSupportedTermIndex, MAX_ACADEMIC_TERM_INDEX } from '../services/academic-term.service.js';
 import { resolvePublishedRunTermIndex } from '../services/published-schedule.service.js';
 import { getFixSuggestions } from '../services/fix-suggestions.service.js';
+import { getRunById } from '../services/generation.service.js';
+import { getViolationRepairOptions, parseViolationRepairLocator } from '../services/violation-repair-options.service.js';
 import { exportSummaryWorkbook, exportClassProgramWorkbook, resolveExportSchoolYearLabel } from '../services/workbook-export.service.js';
 import { exportRoomProgramWorkbook } from '../services/room-program-export.service.js';
 import { buildTeacherProgramExportShape } from '../services/teacher-program-export.service.js';
@@ -562,6 +564,49 @@ router.get(
 	},
 );
 
+// ─── POST /:schoolId/:schoolYearId/runs/:runId/violation-repair-options — verified issue guidance only ───
+
+router.post(
+	'/:schoolId/:schoolYearId/runs/:runId/violation-repair-options',
+	authenticate,
+	async (req: Request, res: Response, next: NextFunction) => {
+		try {
+			const role = req.user?.role;
+			if (!role || !PRIVILEGED_ROLES.has(role)) {
+				res.status(403).json({ code: 'FORBIDDEN', message: 'Only admin, officer, or SYSTEM_ADMIN can request issue repair guidance.' });
+				return;
+			}
+			const strictPathId = (raw: unknown): number | null => {
+				if (typeof raw !== 'string' || !/^[1-9]\d*$/.test(raw)) return null;
+				const parsed = Number(raw);
+				return Number.isSafeInteger(parsed) ? parsed : null;
+			};
+			const schoolId = strictPathId(req.params.schoolId);
+			const schoolYearId = strictPathId(req.params.schoolYearId);
+			const runId = strictPathId(req.params.runId);
+			if (schoolId === null || schoolYearId === null || runId === null) {
+				res.status(400).json({ code: 'INVALID_PARAM', message: 'School, school year, and run IDs must be canonical positive integer path values.' }); return;
+			}
+			const actorSchool = req.user?.schoolId;
+			if (typeof actorSchool !== 'number' || !Number.isSafeInteger(actorSchool) || actorSchool < 1) {
+				res.status(403).json({ code: 'SCHOOL_SCOPE_REQUIRED', message: 'Authenticated school scope is required for repair guidance.' });
+				return;
+			}
+			if (actorSchool !== schoolId) {
+				res.status(403).json({ code: 'CROSS_SCHOOL_DENIED', message: 'Cannot request repair guidance for another school.' });
+				return;
+			}
+			const locator = parseViolationRepairLocator(req.body);
+			if (!locator) {
+				res.status(400).json({ code: 'INVALID_BODY', message: 'Provide the selected issue identity using numeric ordered term, entry IDs, and canonical entity or interval fields.' });
+				return;
+			}
+			const result = await getViolationRepairOptions(schoolId, schoolYearId, runId, locator);
+			res.json(result);
+		} catch (e) { next(e); }
+	},
+);
+
 // ─── POST /:schoolId/:schoolYearId/runs/:runId/fix-suggestions — get fix suggestions for an unassigned item ───
 
 router.post(
@@ -575,55 +620,43 @@ router.post(
 				return;
 			}
 
-			const schoolId = positiveInt(req.params.schoolId, 'schoolId');
-			if (typeof schoolId === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: schoolId }); return; }
-			const schoolYearId = positiveInt(req.params.schoolYearId, 'schoolYearId');
-			if (typeof schoolYearId === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: schoolYearId }); return; }
-			const runId = positiveInt(req.params.runId, 'runId');
-			if (typeof runId === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: runId }); return; }
-
-			const {
-				sectionId,
-				subjectId,
-				gradeLevel,
-				session,
-				reason,
-				entryKind,
-				programType,
-				programCode,
-				programName,
-				cohortCode,
-				cohortName,
-				cohortMemberSectionIds,
-				cohortExpectedEnrollment,
-				adviserId,
-				adviserName,
-			} = req.body;
-			const validReasons = ['NO_QUALIFIED_FACULTY', 'FACULTY_OVERLOADED', 'NO_AVAILABLE_SLOT', 'NO_COMPATIBLE_ROOM'];
-			if (!sectionId || !subjectId || !reason || !validReasons.includes(reason)) {
-				res.status(400).json({ code: 'INVALID_BODY', message: 'sectionId, subjectId, session, gradeLevel, and a valid reason are required.' });
-				return;
+			const strictPathId = (raw: unknown): number | null => {
+				if (typeof raw !== 'string' || !/^[1-9]\d*$/.test(raw)) return null;
+				const parsed = Number(raw);
+				return Number.isSafeInteger(parsed) ? parsed : null;
+			};
+			const schoolId = strictPathId(req.params.schoolId);
+			const schoolYearId = strictPathId(req.params.schoolYearId);
+			const runId = strictPathId(req.params.runId);
+			if (schoolId === null || schoolYearId === null || runId === null) {
+				res.status(400).json({ code: 'INVALID_PARAM', message: 'School, school year, and run IDs must be canonical positive integer path values.' }); return;
+			}
+			const actorSchoolId = req.user?.schoolId;
+			if (typeof actorSchoolId !== 'number' || !Number.isSafeInteger(actorSchoolId) || actorSchoolId !== schoolId) {
+				res.status(403).json({ code: 'CROSS_SCHOOL_DENIED', message: 'A matching authenticated school scope is required.' }); return;
 			}
 
-			const result = await getFixSuggestions(schoolId, schoolYearId, runId, {
-				sectionId: Number(sectionId),
-				subjectId: Number(subjectId),
-				gradeLevel: Number(gradeLevel) || 0,
-				session: Number(session) || 1,
-				reason,
-				entryKind: entryKind === 'COHORT' ? 'COHORT' : 'SECTION',
-				programType: typeof programType === 'string' ? programType : null,
-				programCode: typeof programCode === 'string' ? programCode : null,
-				programName: typeof programName === 'string' ? programName : null,
-				cohortCode: typeof cohortCode === 'string' ? cohortCode : null,
-				cohortName: typeof cohortName === 'string' ? cohortName : null,
-				cohortMemberSectionIds: Array.isArray(cohortMemberSectionIds)
-					? cohortMemberSectionIds.map((value) => Number(value)).filter((value) => Number.isInteger(value) && value > 0)
-					: undefined,
-				cohortExpectedEnrollment: Number.isFinite(Number(cohortExpectedEnrollment)) ? Number(cohortExpectedEnrollment) : null,
-				adviserId: Number.isFinite(Number(adviserId)) ? Number(adviserId) : null,
-				adviserName: typeof adviserName === 'string' ? adviserName : null,
-			});
+			const body = req.body;
+			const validReasons = ['NO_QUALIFIED_FACULTY', 'FACULTY_OVERLOADED', 'NO_AVAILABLE_SLOT', 'NO_COMPATIBLE_ROOM', 'ROOM_CAPACITY_EXCEEDED'];
+			if (!body || typeof body !== 'object' || Array.isArray(body)
+				|| typeof body.sectionId !== 'number' || !Number.isSafeInteger(body.sectionId) || body.sectionId < 1
+				|| typeof body.subjectId !== 'number' || !Number.isSafeInteger(body.subjectId) || body.subjectId < 1
+				|| typeof body.gradeLevel !== 'number' || !Number.isInteger(body.gradeLevel) || body.gradeLevel < 1
+				|| typeof body.session !== 'number' || !Number.isInteger(body.session) || body.session < 1
+				|| typeof body.termIndex !== 'number' || !Number.isInteger(body.termIndex) || body.termIndex < 1 || body.termIndex > 4
+				|| typeof body.reason !== 'string' || !validReasons.includes(body.reason)) {
+				res.status(400).json({ code: 'INVALID_BODY', message: 'A canonical section, subject, grade, session, ordered term, and reason are required.' });
+				return;
+			}
+			const run = await getRunById(runId, schoolId, schoolYearId);
+			const unassigned = Array.isArray(run.unassignedItems) ? run.unassignedItems as Array<Record<string, unknown>> : [];
+			const matches = unassigned.filter((item) => item.sectionId === body.sectionId && item.subjectId === body.subjectId
+				&& item.gradeLevel === body.gradeLevel && item.session === body.session && item.termIndex === body.termIndex && item.reason === body.reason);
+			if (matches.length === 0) { res.status(404).json({ code: 'UNASSIGNED_ITEM_NOT_FOUND', message: 'That unassigned session is no longer present in this schedule.' }); return; }
+			if (matches.length > 1) { res.status(409).json({ code: 'AMBIGUOUS_UNASSIGNED_ITEM', message: 'More than one unassigned session matches. Refresh the schedule before continuing.' }); return; }
+			const item = matches[0];
+
+			const result = await getFixSuggestions(schoolId, schoolYearId, runId, item as never);
 
 			res.json(result);
 		} catch (e) { next(e); }

@@ -520,6 +520,7 @@ function UnassignedFixSuggestions({
 								subjectId: item.subjectId,
 								gradeLevel: item.gradeLevel,
 								session: item.session,
+								termIndex: item.termIndex,
 								reason: item.reason,
 								entryKind: item.entryKind,
 								programType: item.programType,
@@ -576,6 +577,9 @@ function UnassignedFixSuggestions({
 					<div key={index} className="rounded border border-border bg-background px-2.5 py-1.5 space-y-1">
 						<div className="flex items-center gap-1">
 							<span className="text-xs font-semibold text-foreground">{index + 1}. {suggestion.label}</span>
+							<span className={`rounded px-1 text-[10px] font-medium ${suggestion.feasibility === 'VERIFIED_FEASIBLE' ? 'bg-emerald-50 text-emerald-700' : 'bg-muted text-muted-foreground'}`}>
+								{suggestion.feasibility === 'VERIFIED_FEASIBLE' ? 'Verified' : 'Guidance'}
+							</span>
 						</div>
 						<p className="text-xs text-muted-foreground leading-relaxed">{suggestion.description}</p>
 						{suggestion.proposal && (
@@ -588,8 +592,8 @@ function UnassignedFixSuggestions({
 									if (suggestion.proposal) void previewEdit(suggestion.proposal);
 								}}
 							>
-								<Zap className="size-2.5" />
-								Preview & Apply
+											<Zap className="size-2.5" />
+											Preview
 							</Button>
 						)}
 						{suggestion.policyHint && (

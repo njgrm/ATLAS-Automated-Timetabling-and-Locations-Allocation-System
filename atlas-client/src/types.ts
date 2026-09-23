@@ -1885,7 +1885,7 @@ export interface PolicySpecialEvent {
 
 /* ─── Fix Suggestion types ─── */
 
-export type UnassignedReason = 'NO_QUALIFIED_FACULTY' | 'FACULTY_OVERLOADED' | 'NO_AVAILABLE_SLOT' | 'NO_COMPATIBLE_ROOM';
+export type UnassignedReason = 'NO_QUALIFIED_FACULTY' | 'FACULTY_OVERLOADED' | 'NO_AVAILABLE_SLOT' | 'NO_COMPATIBLE_ROOM' | 'ROOM_CAPACITY_EXCEEDED';
 
 export type FixActionType =
 	| 'ASSIGN_CANDIDATE_FACULTY'
@@ -1898,6 +1898,7 @@ export interface FixSuggestion {
 	action: FixActionType;
 	label: string;
 	description: string;
+	feasibility?: 'VERIFIED_FEASIBLE' | 'GUIDANCE_ONLY';
 	proposal?: ManualEditProposal;
 	policyHint?: string;
 }
@@ -1913,6 +1914,39 @@ export interface UnassignedExplanation {
 export interface FixSuggestionsResponse {
 	item: UnassignedItem;
 	explanation: UnassignedExplanation;
+}
+
+export interface ViolationRepairOptionsResponse {
+	violation: Violation;
+	evidence: Array<{
+		entryId: string;
+		sectionId: number;
+		subjectId: number;
+		facultyId: number | null;
+		roomId: number;
+		day: string;
+		startTime: string;
+		endTime: string;
+		termIndex?: number;
+	}>;
+	status: 'REPAIRABLE' | 'POLICY_CHANGE_REQUIRED' | 'NO_SAFE_REPAIR';
+	verifiedAt: string;
+	options: Array<{
+		id: string;
+		label: string;
+		explanation: string;
+		affectedEntryIds: string[];
+		proposal: ManualEditProposal;
+		projectedDelta: {
+			targetIssuesBefore: number;
+			targetIssuesAfter: number;
+			hardBefore: number;
+			hardAfter: number;
+			softBefore: number;
+			softAfter: number;
+		};
+	}>;
+	blockers: string[];
 }
 
 /* ─── Tutorial step type ─── */

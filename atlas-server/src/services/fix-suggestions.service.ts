@@ -7,10 +7,11 @@
  */
 
 import { prisma } from '../lib/prisma.js';
+import { solveQuickPlace, type PlacedSessionResult } from './timetable-quick-place.service.js';
 
 /* ─── Types ─── */
 
-type UnassignedReason = 'NO_QUALIFIED_FACULTY' | 'FACULTY_OVERLOADED' | 'NO_AVAILABLE_SLOT' | 'NO_COMPATIBLE_ROOM';
+type UnassignedReason = 'NO_QUALIFIED_FACULTY' | 'FACULTY_OVERLOADED' | 'NO_AVAILABLE_SLOT' | 'NO_COMPATIBLE_ROOM' | 'ROOM_CAPACITY_EXCEEDED';
 type EntryKind = 'SECTION' | 'COHORT';
 
 type FixActionType =
@@ -24,6 +25,7 @@ interface FixSuggestion {
 	action: FixActionType;
 	label: string;
 	description: string;
+	feasibility?: 'VERIFIED_FEASIBLE' | 'GUIDANCE_ONLY';
 	proposal?: Record<string, unknown>;
 	policyHint?: string;
 }
@@ -41,6 +43,7 @@ interface UnassignedItemInput {
 	subjectId: number;
 	gradeLevel: number;
 	session: number;
+	termIndex?: 1 | 2 | 3 | 4;
 	reason: UnassignedReason;
 	entryKind?: EntryKind;
 	programType?: string | null;
@@ -72,6 +75,10 @@ const REASON_INFO: Record<UnassignedReason, { label: string; detail: string }> =
 	NO_COMPATIBLE_ROOM: {
 		label: 'No Compatible Room',
 		detail: 'The subject requires a specific room type, but no room of that type is available at any possible time.',
+	},
+	ROOM_CAPACITY_EXCEEDED: {
+		label: 'Room Capacity Needs Review',
+		detail: 'The available room assignments do not yet provide verified capacity for this session.',
 	},
 };
 
@@ -134,10 +141,44 @@ export async function getFixSuggestions(
 	schoolYearId: number,
 	runId: number,
 	item: UnassignedItemInput,
+	dependencies: { solve: typeof solveQuickPlace } = { solve: solveQuickPlace },
 ): Promise<{ item: UnassignedItemInput; explanation: UnassignedExplanation }> {
 	const info = buildReasonInfo(item);
 	const suggestions: FixSuggestion[] = [];
 	const placementScope = describePlacementScope(item);
+	let verifiedPlacement: PlacedSessionResult | undefined;
+	if (item.termIndex) {
+		try {
+			const solved = await dependencies.solve(runId, schoolId, schoolYearId);
+			verifiedPlacement = solved.placed.find((placed) => placed.sectionId === item.sectionId
+				&& placed.subjectId === item.subjectId && placed.session === item.session && placed.termIndex === item.termIndex);
+			if (verifiedPlacement) {
+				const placedEntry = solved.newEntries.find((entry) => entry.sectionId === verifiedPlacement!.sectionId
+					&& entry.subjectId === verifiedPlacement!.subjectId && entry.day === verifiedPlacement!.day
+					&& entry.startTime === verifiedPlacement!.startTime && entry.termIndex === verifiedPlacement!.termIndex);
+				const unsafeRoomIssue = solved.violations.some((violation) => ['ROOM_TYPE_MISMATCH', 'ROOM_FEATURE_MISMATCH', 'ROOM_CAPACITY_EXCEEDED'].includes(violation.code)
+					&& (violation.entities?.entryIds?.includes(placedEntry?.entryId ?? '')
+						|| (violation.entities?.sectionId === item.sectionId && violation.entities?.subjectId === item.subjectId
+							&& violation.meta?.termIndex === item.termIndex)));
+				if (unsafeRoomIssue) verifiedPlacement = undefined;
+			}
+		} catch {
+			// The candidate remains guidance-only if the full canonical solver cannot verify it.
+		}
+	}
+	if (verifiedPlacement) {
+		suggestions.push({
+			action: 'PLACE_NEXT_BEST_SLOT',
+			label: `Verified move to ${verifiedPlacement.day.toLowerCase()} ${verifiedPlacement.startTime}`,
+			description: 'The canonical schedule check found an available teacher, room, and time in this ordered term. Preview this move before applying it.',
+			feasibility: 'VERIFIED_FEASIBLE',
+			proposal: {
+				editType: 'PLACE_UNASSIGNED', sectionId: item.sectionId, subjectId: item.subjectId, session: item.session,
+				termIndex: item.termIndex, targetFacultyId: verifiedPlacement.facultyId, targetRoomId: verifiedPlacement.roomId,
+				targetDay: verifiedPlacement.day, targetStartTime: verifiedPlacement.startTime, targetEndTime: verifiedPlacement.endTime,
+			},
+		});
+	}
 
 	switch (item.reason) {
 		case 'NO_QUALIFIED_FACULTY': {
@@ -289,6 +330,11 @@ export async function getFixSuggestions(
 			});
 			break;
 		}
+
+		case 'ROOM_CAPACITY_EXCEEDED': {
+			suggestions.push({ action: 'OPEN_POLICY_SUGGESTION', label: 'Review Room Capacity', feasibility: 'GUIDANCE_ONLY', description: 'Choose a room with enough capacity or revise the section/resource assignment.', policyHint: 'Review room capacity and section enrollment in Map and Setup.' });
+			break;
+		}
 	}
 
 	// Always offer follow-up conversion as last resort
@@ -297,6 +343,7 @@ export async function getFixSuggestions(
 		label: 'Convert to Follow-up',
 		description: 'Flag this item for manual follow-up later. It will remain unassigned but tracked.',
 	});
+	for (const suggestion of suggestions) suggestion.feasibility ??= 'GUIDANCE_ONLY';
 
 	return {
 		item,
