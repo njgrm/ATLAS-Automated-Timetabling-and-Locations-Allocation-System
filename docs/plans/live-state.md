@@ -476,6 +476,19 @@ it complete `TEST-GATE-REACHABILITY-C01` (`f4462374`) and hand it over for integ
 
 ## Lane A — current lane (written only by Lane A)
 
+**`DEMO-READINESS-20260924` — live `014b4b4c` verified demo-ready; lifecycle polish merged but undeployed (2026-09-24).**
+Read-only; no source/deploy/login/live-data action. Live `014b4b4c` healthy and unchanged (machine
+`ATLAS_RUNTIME_RELEASE_SHA`/`SOURCE_DIR` = target; health/ready `database:"ok"` 200). Demo-readiness
+re-verified: 13 routes render (no error boundary / no global scrollbar), `Teaching Load` renders (37 rows),
+export matrix 200 (`class-program.xlsx` + 3), public surface run 317 / revision 43 / FROZEN / 920 entries,
+0 HARD violations. **Undeployed product delta on `origin/main` `d22b50a5`:** `TIMETABLE-LIFECYCLE-CONTROLS-C03`
+— client-only (session-verify truthfulness, per-route loading copy, header grid-control refinement
+Dialog→Popover/Sheet, `jsdom` devDep + tests); complete (integration tip == main) and accepted per the
+operator handoff (Terra `ACCEPT_READY`; integrated checks lifecycle mount 1/1, route preservation 57/57,
+controls/session 3/3, production client build passed; non-blocking gap: 3 unchanged tests missing Playwright
+declarations). An operator elevated-deployment handoff exists (target `22d1f5a8`, rollback `014b4b4c`); it was
+**not executed** this session. No blocker for the demo.
+
 **`POSTDEPLOY-CLOSURE-20260924` COMPLETE — 014b4b4c accepted read-only; three stale blocker lines corrected (2026-09-24).**
 Artifact `docs/handoffs/post-deploy-acceptance-014b4b4c-20260924.md`; base/end `origin/main` `48356ee2`; no
 source/deploy/login/live-data action. **Acceptance:** 13 demo routes render with no error boundary and no
