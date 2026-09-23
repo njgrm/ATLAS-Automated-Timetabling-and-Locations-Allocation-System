@@ -35,14 +35,19 @@ and AIMS.
 ## Live release
 
 - Tailnet: `https://njgrm.buru-degree.ts.net`
-- **Release SHA: `6e9c87e7`** (deploy target; `E:\ATLAS-runtime-supervised-6e9c87e7-20260924`;
-  carries the integrated `SCHEDULER-COLLABORATION-C01` + `CEREMONY-OVER-CLASS-TRUTHFULNESS-C01` source
-  and the integration reconciliation; migration `20260923000000_publication_approval_requests` applied
-  via the guarded wrapper — backup `351e8d21…`, 497 restore-list entries, 5→6 migrations).
-  **Rollback basis: `4893cbdec2758fa9965a117a1988dee517718afb`** at
-  `E:\ATLAS-runtime-supervised-4893cbde-20260923` (startable in place; deeper `0232bf9c`). Pre-deploy
-  record committed first so the record leads the cutover. **Deployment and acceptance are separate
-  outcomes.**)
+- **Release SHA: `6e9c87e7`** (current live serving release; `E:\ATLAS-runtime-supervised-6e9c87e7-20260924`;
+  supervisor → server `5001`→39836 / host `5174`→54244; served entry `/assets/index--ZHwcC0J.js`,
+  SHA-256 `917E98F0…830A`, **byte-identical to the target build**; machine `ATLAS_RUNTIME_SOURCE_DIR` /
+  `RELEASE_SHA` = the target; health + health/ready (`database:"ok"`) + DB-backed read (19,440 B) + Tailnet 200;
+  supervisor log "All targets healthy", rollover automation disabled. Carries the integrated
+  `SCHEDULER-COLLABORATION-C01` + `CEREMONY-OVER-CLASS-TRUTHFULNESS-C01` source and the integration
+  reconciliation; migration `20260923000000_publication_approval_requests` applied via the guarded wrapper
+  — backup `351e8d21…`, 497 restore-list entries, 5→6 migrations. Deployed 2026-09-24 by Elevated OpenCode
+  under the operator's standing authorization (audit `C:\ProgramData\ATLAS\release-audit\6e9c87e7-20260924-002236`);
+  the pre-deploy record was committed first (`14ea7f31`) so the record led the cutover. **Rollback basis:
+  `4893cbdec2758fa9965a117a1988dee517718afb`** at `E:\ATLAS-runtime-supervised-4893cbde-20260923` (startable
+  in place; deeper `0232bf9c`). **Post-deploy browser acceptance is PENDING — deployment and acceptance are
+  separate outcomes.**)
 - **Retention policy (2026-09-23):** `RUNTIME-DIR-RETENTION-C01` retired 14 release directories
   (`1fdab989`, `e78d4473`, `11e8778f`, `7dbb3b90`, `d4c9f391`, `d92facfa`, `ecff1d7e`, `a02884ff`,
   `5f5c6c4f`, `20f07f59`, `405e5b18`, `4ce73d157f9a`, `78be1b760e40`, `8eb0511baa53`). **Any earlier line
