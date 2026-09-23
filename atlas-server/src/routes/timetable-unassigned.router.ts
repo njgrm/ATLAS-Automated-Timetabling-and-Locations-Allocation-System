@@ -2,13 +2,13 @@ import { Router } from 'express';
 import type { Request, Response, NextFunction } from 'express';
 
 import { authenticate } from '../middleware/authenticate.js';
+import { assertRequestSchoolScope, requestHasCapability } from '../middleware/authorize.js';
 import {
   summarizeUnassignedInsertionReadiness,
   previewUnassignedInsertion,
 } from '../services/timetable-insertion.service.js';
 
 const router = Router();
-const PRIVILEGED_ROLES: Set<string> = new Set(['admin', 'officer', 'SYSTEM_ADMIN']);
 
 function positiveInt(raw: unknown, name: string): number | string {
   const n = Number(raw);
@@ -24,27 +24,12 @@ function parseScope(params: Record<string, string>): { schoolId: number; schoolY
   return { schoolId, schoolYearId };
 }
 
-function actorSchoolId(req: Request): number | null {
-  const schoolId = Number(req.user?.schoolId);
-  return Number.isInteger(schoolId) && schoolId > 0 ? schoolId : null;
-}
-
 function assertPrivilegedAndScoped(req: Request, res: Response, schoolId: number): boolean {
-  const role = req.user?.role;
-  if (!role || !PRIVILEGED_ROLES.has(role)) {
-    res.status(403).json({ code: 'FORBIDDEN', message: 'Only admin, officer, or SYSTEM_ADMIN can view unassigned insertion readiness.' });
+	if (!requestHasCapability(req, 'timetable:review')) {
+		res.status(403).json({ code: 'FORBIDDEN', message: 'Timetable review capability is required.' });
     return false;
   }
-  const actorSchool = actorSchoolId(req);
-  if (actorSchool === null) {
-    res.status(403).json({ code: 'SCHOOL_SCOPE_REQUIRED', message: 'Authenticated school scope is required.' });
-    return false;
-  }
-  if (actorSchool !== schoolId) {
-    res.status(403).json({ code: 'CROSS_SCHOOL_DENIED', message: 'Cannot read another school\u2019s unassigned insertion state.' });
-    return false;
-  }
-  return true;
+	return assertRequestSchoolScope(req, res, schoolId);
 }
 
 router.get(

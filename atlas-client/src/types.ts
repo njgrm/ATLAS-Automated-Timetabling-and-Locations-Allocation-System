@@ -45,6 +45,7 @@ export type BridgeUser = {
 	authSource?: 'bridge' | 'local';
 	schoolId?: number;
 	accountId?: number;
+	capabilities?: string[];
 };
 
 export type Subject = {
@@ -850,7 +851,7 @@ export type CollaborationPresence = {
 	connectionId: string;
 	userId: number;
 	role: string;
-	email: string | null;
+	displayName: string | null;
 	schoolId: number;
 	schoolYearId: number;
 	runId: number;

@@ -153,6 +153,7 @@ export default function OfficerRoomPreferences() {
 
 		const socket = createRoomPreferenceCollaborationSocket({
 			accessToken: token,
+			scope: { schoolId: actorSchoolId, schoolYearId: activeSchoolYearId, runId: summary.runId },
 			onEvent: (event) => {
 				if (event.type === 'connected') {
 					selfConnectionIdRef.current = event.payload.connectionId;
@@ -257,7 +258,7 @@ export default function OfficerRoomPreferences() {
 		const details = new Map<string, string[]>();
 		for (const [connectionId, selection] of Object.entries(remoteSelections)) {
 			if (!selection.entryId) continue;
-			const actor = presenceByConnection.get(connectionId)?.email ?? `User ${connectionId.slice(-4)}`;
+			const actor = presenceByConnection.get(connectionId)?.displayName ?? `User ${connectionId.slice(-4)}`;
 			const actors = details.get(selection.entryId) ?? [];
 			if (!actors.includes(actor)) {
 				actors.push(actor);
@@ -419,7 +420,7 @@ export default function OfficerRoomPreferences() {
 							<span className='text-border/60'>•</span>
 							<div className='flex items-center gap-1'>
 								{compactPresence.visible.map((person) => {
-									const label = person.email ?? `${person.role} #${person.userId}`;
+													const label = person.displayName ?? `${person.role} #${person.userId}`;
 									const initials = label.slice(0, 2).toUpperCase();
 									return (
 										<Badge key={person.connectionId} variant='outline' className='gap-1'>

@@ -174,6 +174,11 @@ export type ScheduleReviewDialogsContext = {
 	requestAppeals: RoomRequestAppeal[];
 	appealsLoading: boolean;
 	isPrivilegedUser: boolean;
+	canRequestPublication?: boolean;
+	canApprovePublication?: boolean;
+	approvalSchoolId?: number | null;
+	approvalSchoolYearId?: number | null;
+	approvalActorId?: number | null;
 	updateAppealStatus: (appealId: number, status: 'OPEN' | 'UNDER_REVIEW' | 'UPHELD' | 'DENIED') => Promise<void>;
 	appealReason: string;
 	appealSubmitting: boolean;

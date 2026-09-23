@@ -1,6 +1,8 @@
 import { Router } from 'express';
 import type { Request, Response, NextFunction } from 'express';
 import { authenticate } from '../middleware/authenticate.js';
+import { assertRequestSchoolScope, requestHasCapability } from '../middleware/authorize.js';
+import type { AtlasCapability } from '../services/scheduler-capabilities.js';
 import { getUpstreamAuthToken } from '../middleware/upstream-auth.js';
 import * as genService from '../services/generation.service.js';
 import { buildGenerationReadiness } from '../services/generation-readiness.service.js';
@@ -25,15 +27,23 @@ const router = Router();
 
 const PRIVILEGED_ROLES: Set<string> = new Set(['admin', 'officer', 'SYSTEM_ADMIN']);
 
+function hasWorkspaceCapability(req: Request, res: Response, capability: AtlasCapability): boolean {
+	if (!requestHasCapability(req, capability)) {
+		res.status(403).json({ code: 'FORBIDDEN', message: `This generation action requires the ${capability} capability.` });
+		return false;
+	}
+	const schoolId = positiveInt(req.params.schoolId, 'schoolId');
+	if (typeof schoolId === 'string') {
+		res.status(400).json({ code: 'INVALID_PARAM', message: schoolId });
+		return false;
+	}
+	return assertRequestSchoolScope(req, res, schoolId);
+}
+
 function positiveInt(raw: unknown, name: string): number | string {
 	const n = Number(raw);
 	if (!Number.isInteger(n) || n < 1) return `${name} must be a positive integer.`;
 	return n;
-}
-
-function actorSchoolId(req: Request): number | null {
-	const schoolId = Number(req.user?.schoolId);
-	return Number.isInteger(schoolId) && schoolId > 0 ? schoolId : null;
 }
 
 /**
@@ -44,16 +54,7 @@ function actorSchoolId(req: Request): number | null {
  * invocation (zero reads/writes/service calls for rejected scope).
  */
 function assertActorSchoolScope(req: Request, res: Response, schoolId: number): boolean {
-	const actorSchool = actorSchoolId(req);
-	if (actorSchool === null) {
-		res.status(403).json({ code: 'SCHOOL_SCOPE_REQUIRED', message: 'Authenticated school scope is required for generation actions.' });
-		return false;
-	}
-	if (actorSchool !== schoolId) {
-		res.status(403).json({ code: 'CROSS_SCHOOL_DENIED', message: 'Cannot run generation actions for another school.' });
-		return false;
-	}
-	return true;
+	return assertRequestSchoolScope(req, res, schoolId);
 }
 
 type RequiredTermParse =
@@ -104,11 +105,7 @@ router.post(
 	authenticate,
 	async (req: Request, res: Response, next: NextFunction) => {
 		try {
-			const role = req.user?.role;
-			if (!role || !PRIVILEGED_ROLES.has(role)) {
-				res.status(403).json({ code: 'FORBIDDEN', message: 'Only admin, officer, or SYSTEM_ADMIN can trigger generation runs.' });
-				return;
-			}
+			if (!hasWorkspaceCapability(req, res, 'timetable:generate')) return;
 
 			const schoolId = positiveInt(req.params.schoolId, 'schoolId');
 			if (typeof schoolId === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: schoolId }); return; }
@@ -145,11 +142,7 @@ router.get(
 	authenticate,
 	async (req: Request, res: Response, next: NextFunction) => {
 		try {
-			const role = req.user?.role;
-			if (!role || !PRIVILEGED_ROLES.has(role)) {
-				res.status(403).json({ code: 'FORBIDDEN', message: 'Only admin, officer, or SYSTEM_ADMIN can run the generation readiness diagnostic.' });
-				return;
-			}
+			if (!hasWorkspaceCapability(req, res, 'timetable:generate')) return;
 
 			const schoolId = positiveInt(req.params.schoolId, 'schoolId');
 			if (typeof schoolId === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: schoolId }); return; }
@@ -286,11 +279,7 @@ router.get(
 	authenticate,
 	async (req: Request, res: Response, next: NextFunction) => {
 		try {
-			const role = req.user?.role;
-			if (!role || !PRIVILEGED_ROLES.has(role)) {
-				res.status(403).json({ code: 'FORBIDDEN', message: 'Only admin, officer, or SYSTEM_ADMIN can view generation gate status.' });
-				return;
-			}
+			if (!hasWorkspaceCapability(req, res, 'timetable:read')) return;
 
 			const schoolId = positiveInt(req.params.schoolId, 'schoolId');
 			if (typeof schoolId === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: schoolId }); return; }
@@ -310,11 +299,7 @@ router.get(
 	authenticate,
 	async (req: Request, res: Response, next: NextFunction) => {
 		try {
-			const role = req.user?.role;
-			if (!role || !PRIVILEGED_ROLES.has(role)) {
-				res.status(403).json({ code: 'FORBIDDEN', message: 'Only admin, officer, or SYSTEM_ADMIN can view generation runs.' });
-				return;
-			}
+			if (!hasWorkspaceCapability(req, res, 'timetable:read')) return;
 
 			const schoolId = positiveInt(req.params.schoolId, 'schoolId');
 			if (typeof schoolId === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: schoolId }); return; }
@@ -334,11 +319,7 @@ router.get(
 	authenticate,
 	async (req: Request, res: Response, next: NextFunction) => {
 		try {
-			const role = req.user?.role;
-			if (!role || !PRIVILEGED_ROLES.has(role)) {
-				res.status(403).json({ code: 'FORBIDDEN', message: 'Only admin, officer, or SYSTEM_ADMIN can view violation reports.' });
-				return;
-			}
+			if (!hasWorkspaceCapability(req, res, 'timetable:review')) return;
 
 			const schoolId = positiveInt(req.params.schoolId, 'schoolId');
 			if (typeof schoolId === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: schoolId }); return; }
@@ -369,11 +350,7 @@ router.get(
 	authenticate,
 	async (req: Request, res: Response, next: NextFunction) => {
 		try {
-			const role = req.user?.role;
-			if (!role || !PRIVILEGED_ROLES.has(role)) {
-				res.status(403).json({ code: 'FORBIDDEN', message: 'Only admin, officer, or SYSTEM_ADMIN can view draft entries.' });
-				return;
-			}
+			if (!hasWorkspaceCapability(req, res, 'timetable:read')) return;
 
 			const schoolId = positiveInt(req.params.schoolId, 'schoolId');
 			if (typeof schoolId === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: schoolId }); return; }
@@ -393,11 +370,7 @@ router.get(
 	authenticate,
 	async (req: Request, res: Response, next: NextFunction) => {
 		try {
-			const role = req.user?.role;
-			if (!role || !PRIVILEGED_ROLES.has(role)) {
-				res.status(403).json({ code: 'FORBIDDEN', message: 'Only admin, officer, or SYSTEM_ADMIN can view timetable entries.' });
-				return;
-			}
+			if (!hasWorkspaceCapability(req, res, 'timetable:read')) return;
 
 			const schoolId = positiveInt(req.params.schoolId, 'schoolId');
 			if (typeof schoolId === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: schoolId }); return; }
@@ -417,11 +390,7 @@ router.get(
 	authenticate,
 	async (req: Request, res: Response, next: NextFunction) => {
 		try {
-			const role = req.user?.role;
-			if (!role || !PRIVILEGED_ROLES.has(role)) {
-				res.status(403).json({ code: 'FORBIDDEN', message: 'Only admin, officer, or SYSTEM_ADMIN can view generation runs.' });
-				return;
-			}
+			if (!hasWorkspaceCapability(req, res, 'timetable:read')) return;
 
 			const schoolId = positiveInt(req.params.schoolId, 'schoolId');
 			if (typeof schoolId === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: schoolId }); return; }
@@ -443,11 +412,7 @@ router.get(
 	authenticate,
 	async (req: Request, res: Response, next: NextFunction) => {
 		try {
-			const role = req.user?.role;
-			if (!role || !PRIVILEGED_ROLES.has(role)) {
-				res.status(403).json({ code: 'FORBIDDEN', message: 'Only admin, officer, or SYSTEM_ADMIN can view violation reports.' });
-				return;
-			}
+			if (!hasWorkspaceCapability(req, res, 'timetable:review')) return;
 
 			const schoolId = positiveInt(req.params.schoolId, 'schoolId');
 			if (typeof schoolId === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: schoolId }); return; }
@@ -480,11 +445,7 @@ router.get(
 	authenticate,
 	async (req: Request, res: Response, next: NextFunction) => {
 		try {
-			const role = req.user?.role;
-			if (!role || !PRIVILEGED_ROLES.has(role)) {
-				res.status(403).json({ code: 'FORBIDDEN', message: 'Only admin, officer, or SYSTEM_ADMIN can view draft entries.' });
-				return;
-			}
+			if (!hasWorkspaceCapability(req, res, 'timetable:read')) return;
 
 			const schoolId = positiveInt(req.params.schoolId, 'schoolId');
 			if (typeof schoolId === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: schoolId }); return; }
@@ -506,11 +467,7 @@ router.get(
 	authenticate,
 	async (req: Request, res: Response, next: NextFunction) => {
 		try {
-			const role = req.user?.role;
-			if (!role || !PRIVILEGED_ROLES.has(role)) {
-				res.status(403).json({ code: 'FORBIDDEN', message: 'Only admin, officer, or SYSTEM_ADMIN can view timetable entries.' });
-				return;
-			}
+			if (!hasWorkspaceCapability(req, res, 'timetable:read')) return;
 
 			const schoolId = positiveInt(req.params.schoolId, 'schoolId');
 			if (typeof schoolId === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: schoolId }); return; }
@@ -532,11 +489,7 @@ router.get(
 	authenticate,
 	async (req: Request, res: Response, next: NextFunction) => {
 		try {
-			const role = req.user?.role;
-			if (!role || !PRIVILEGED_ROLES.has(role)) {
-				res.status(403).json({ code: 'FORBIDDEN', message: 'Only admin, officer, or SYSTEM_ADMIN can view generation runs.' });
-				return;
-			}
+			if (!hasWorkspaceCapability(req, res, 'timetable:read')) return;
 
 			const schoolId = positiveInt(req.params.schoolId, 'schoolId');
 			if (typeof schoolId === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: schoolId }); return; }
@@ -571,11 +524,7 @@ router.post(
 	authenticate,
 	async (req: Request, res: Response, next: NextFunction) => {
 		try {
-			const role = req.user?.role;
-			if (!role || !PRIVILEGED_ROLES.has(role)) {
-				res.status(403).json({ code: 'FORBIDDEN', message: 'Only admin, officer, or SYSTEM_ADMIN can request issue repair guidance.' });
-				return;
-			}
+			if (!hasWorkspaceCapability(req, res, 'timetable:review')) return;
 			const strictPathId = (raw: unknown): number | null => {
 				if (typeof raw !== 'string' || !/^[1-9]\d*$/.test(raw)) return null;
 				const parsed = Number(raw);
@@ -614,11 +563,7 @@ router.post(
 	authenticate,
 	async (req: Request, res: Response, next: NextFunction) => {
 		try {
-			const role = req.user?.role;
-			if (!role || !PRIVILEGED_ROLES.has(role)) {
-				res.status(403).json({ code: 'FORBIDDEN', message: 'Only admin, officer, or SYSTEM_ADMIN can request fix suggestions.' });
-				return;
-			}
+			if (!hasWorkspaceCapability(req, res, 'timetable:review')) return;
 
 			const strictPathId = (raw: unknown): number | null => {
 				if (typeof raw !== 'string' || !/^[1-9]\d*$/.test(raw)) return null;
@@ -670,11 +615,7 @@ router.get(
 	authenticate,
 	async (req: Request, res: Response, next: NextFunction) => {
 		try {
-			const role = req.user?.role;
-			if (!role || !PRIVILEGED_ROLES.has(role)) {
-				res.status(403).json({ code: 'FORBIDDEN', message: 'Only admin, officer, or SYSTEM_ADMIN can export workbooks.' });
-				return;
-			}
+			if (!hasWorkspaceCapability(req, res, 'timetable:read')) return;
 
 			const schoolId = positiveInt(req.params.schoolId, 'schoolId');
 			if (typeof schoolId === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: schoolId }); return; }
@@ -737,11 +678,7 @@ router.get(
 	authenticate,
 	async (req: Request, res: Response, next: NextFunction) => {
 		try {
-			const role = req.user?.role;
-			if (!role || !PRIVILEGED_ROLES.has(role)) {
-				res.status(403).json({ code: 'FORBIDDEN', message: 'Only admin, officer, or SYSTEM_ADMIN can export workbooks.' });
-				return;
-			}
+			if (!hasWorkspaceCapability(req, res, 'timetable:read')) return;
 
 			const schoolId = positiveInt(req.params.schoolId, 'schoolId');
 			if (typeof schoolId === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: schoolId }); return; }
@@ -816,11 +753,7 @@ router.get(
 	authenticate,
 	async (req: Request, res: Response, next: NextFunction) => {
 		try {
-			const role = req.user?.role;
-			if (!role || !PRIVILEGED_ROLES.has(role)) {
-				res.status(403).json({ code: 'FORBIDDEN', message: 'Only admin, officer, or SYSTEM_ADMIN can export teacher programs.' });
-				return;
-			}
+			if (!hasWorkspaceCapability(req, res, 'timetable:read')) return;
 
 			const schoolId = positiveInt(req.params.schoolId, 'schoolId');
 			if (typeof schoolId === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: schoolId }); return; }
@@ -917,11 +850,7 @@ router.get(
 	authenticate,
 	async (req: Request, res: Response, next: NextFunction) => {
 		try {
-			const role = req.user?.role;
-			if (!role || !PRIVILEGED_ROLES.has(role)) {
-				res.status(403).json({ code: 'FORBIDDEN', message: 'Only admin, officer, or SYSTEM_ADMIN can export room programs.' });
-				return;
-			}
+			if (!hasWorkspaceCapability(req, res, 'timetable:read')) return;
 
 			const schoolId = positiveInt(req.params.schoolId, 'schoolId');
 			if (typeof schoolId === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: schoolId }); return; }
@@ -999,11 +928,7 @@ router.get(
 	authenticate,
 	async (req: Request, res: Response, next: NextFunction) => {
 		try {
-			const role = req.user?.role;
-			if (!role || !PRIVILEGED_ROLES.has(role)) {
-				res.status(403).json({ code: 'FORBIDDEN', message: 'Only admin, officer, or SYSTEM_ADMIN can access class-program matrix.' });
-				return;
-			}
+			if (!hasWorkspaceCapability(req, res, 'timetable:read')) return;
 
 			const schoolId = positiveInt(req.params.schoolId, 'schoolId');
 			if (typeof schoolId === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: schoolId }); return; }

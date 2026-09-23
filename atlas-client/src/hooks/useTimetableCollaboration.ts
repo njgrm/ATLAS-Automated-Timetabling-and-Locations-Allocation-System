@@ -67,6 +67,7 @@ export function createTimetableCollaborationConnection({
 	let socket: CollaborationSocket;
 	socket = createSocket({
 		accessToken,
+		scope: { schoolId: resolvedSchoolId, schoolYearId, runId },
 		onEvent: (event) => {
 			if (!isActive) return;
 			if (event.type === 'open') {
@@ -187,7 +188,20 @@ export function useTimetableCollaboration({
 					setLastError(event.payload.message);
 					return;
 				}
-				if (event.type === 'close') setConnected(false);
+				if (event.type === 'close') {
+					setConnected(false);
+					setPresence([]);
+					setRemoteSelections({});
+					setLastError(null);
+					selfConnectionIdRef.current = null;
+					lastSelectionSentAtRef.current = 0;
+					connectionRef.current = null;
+					socketRef.current = null;
+					if (pendingSelectionTimerRef.current) {
+						clearTimeout(pendingSelectionTimerRef.current);
+						pendingSelectionTimerRef.current = null;
+					}
+				}
 			},
 			onReset: () => {
 				setConnected(false);

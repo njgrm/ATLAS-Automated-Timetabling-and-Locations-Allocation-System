@@ -7,6 +7,7 @@ import { createTimetableScopedClient } from '@/components/timetable/timetableSch
 import { parseDraftPlacementId, scopePreviewToCandidate } from '@/lib/timetable-utils';
 import { isSameTimetableSlot, resolvePreGenSlotDisplacement } from '@/lib/timetable-swap-routing';
 import { deriveRunWideReadiness } from '@/components/timetable/timetableWorkspaceTruth';
+import { resolvePublicationActionIntent } from '@/lib/publication-approval-action';
 import { deriveRedoAfterRevert, dispatchRedo } from '@/components/timetable/timetableUndoRedoState';
 import { requiresFacultyIssueConfirmation, resolveTimetableEntryPivot, resolveViolationFacultyTarget, type TimetableEntryContext } from '@/lib/timetable-entry-pivot';
 import { decideDraftPlacementReview, type DraftPlacementReviewDecision } from '@/lib/simple-timetable-state';
@@ -129,6 +130,7 @@ export type PreGenPendingPlacement = {
 };
 
 type UseTimetableMutationsInput = {
+	actorRole: string | null;
 	schoolYearId: number | null;
 	schoolYearContext: ActiveSchoolYearContext | null;
 	roomRequestSummary: RoomPreferenceSummaryResponse | null;
@@ -338,6 +340,7 @@ export type TimetableMutationState = {
 
 export function useTimetableMutations(input: UseTimetableMutationsInput): TimetableMutationState {
 	const {
+		actorRole,
 		schoolYearId,
 		schoolYearContext,
 		roomRequestSummary,
@@ -828,6 +831,16 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 		}
 
 		try {
+			if (resolvePublicationActionIntent(actorRole) === 'request-approval') {
+				await atlasApi.post(`/publication-approvals/${schoolId}/${schoolYearId}/runs/${draft.runId}/requests`, {
+					acknowledgeSoftViolations: softViolationCount > 0 && publishAcknowledged,
+				});
+				setPublishAcknowledged(false);
+				setShowPublishDialog(false);
+				toast.success('Publication request submitted. A different scheduler must approve it before the schedule goes live.');
+				await loadAll(false);
+				return;
+			}
 			const { data } = await atlasApi.post<{ run: import('@/types').GenerationRun; replayed?: boolean }>(
 				`/generation/${schoolId}/${schoolYearId}/runs/${draft.runId}/publish`,
 				{
@@ -879,7 +892,7 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 			const msg = axiosErr?.response?.data?.message ?? (e instanceof Error ? e.message : 'Publish request failed.');
 			toast.error(msg);
 		}
-	}, [schoolYearId, draft?.runId, violations, publishAcknowledged, setPublishAcknowledged, setShowPublishDialog, loadAll]);
+	}, [actorRole, schoolId, schoolYearId, draft?.runId, violations, publishAcknowledged, setPublishAcknowledged, setShowPublishDialog, loadAll]);
 
 	const runIdNumeric = draft?.runId ?? null;
 	const runVersion = draft?.version ?? 0;

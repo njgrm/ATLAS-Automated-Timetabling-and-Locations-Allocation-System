@@ -2,6 +2,7 @@ import { Router } from 'express';
 import type { Request, Response, NextFunction } from 'express';
 
 import { authenticate } from '../middleware/authenticate.js';
+import { assertRequestSchoolScope, requestHasCapability } from '../middleware/authorize.js';
 import { prisma } from '../lib/prisma.js';
 import { assertTeachingLoadWriteAuthority } from '../services/faculty-assignment.service.js';
 import {
@@ -34,9 +35,8 @@ function parseScope(params: Record<string, string>): { schoolId: number; schoolY
 }
 
 function assertPrivileged(req: Request, res: Response): boolean {
-	const role = req.user?.role;
-	if (!role || !PRIVILEGED_ROLES.has(role)) {
-		res.status(403).json({ code: 'FORBIDDEN', message: 'Only admin, officer, or SYSTEM_ADMIN can trigger quick place auto-allocation.' });
+	if (!requestHasCapability(req, 'timetable:edit')) {
+		res.status(403).json({ code: 'FORBIDDEN', message: 'Timetable edit capability is required for quick place.' });
 		return false;
 	}
 	return true;
@@ -83,6 +83,7 @@ router.post(
 			if (!assertPrivileged(req, res)) return;
 			const scope = parseScope(req.params as Record<string, string>);
 			if (typeof scope === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: scope }); return; }
+			if (!assertRequestSchoolScope(req, res, scope.schoolId)) return;
 			if (!(await assertQuickPlaceScope(req, res, scope.schoolId, scope.schoolYearId, scope.runId))) return;
 			
 			const result = await solveQuickPlace(scope.runId, scope.schoolId, scope.schoolYearId);
@@ -99,6 +100,7 @@ router.post(
 			if (!assertPrivileged(req, res)) return;
 			const scope = parseScope(req.params as Record<string, string>);
 			if (typeof scope === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: scope }); return; }
+			if (!assertRequestSchoolScope(req, res, scope.schoolId)) return;
 			
 			const actorId = req.user?.userId;
 			if (!actorId) { res.status(401).json({ code: 'NO_USER', message: 'Authenticated user required.' }); return; }

@@ -16,6 +16,7 @@ import {
 	buildPublishedIdentitySnapshot,
 	type PublishedIdentitySnapshot,
 } from './published-identity-snapshot.service.js';
+import { assertPublicationApprovalAllowed, hashPublicationRunSnapshot, publicationApprovalError } from './publication-approval-contract.service.js';
 
 type ServiceError = Error & {
 	statusCode: number;
@@ -33,6 +34,7 @@ export type PublishScheduleInput = {
 	actorId: number;
 	actorSchoolId: number;
 	acknowledgeSoftViolations?: boolean;
+	approvalRequestId?: number;
 };
 
 export type PublishScheduleResult = {
@@ -44,6 +46,7 @@ export type PublishScheduleResult = {
 };
 
 type PublicationDependencies = {
+	client?: PrismaClient;
 	now?: () => Date;
 	publishEvent?: (event: PublishEvent) => unknown;
 	computeInputSnapshot?: (
@@ -167,7 +170,7 @@ export async function publishSchedule(
 	dependencies: PublicationDependencies = {},
 ): Promise<PublishScheduleResult> {
 	validateInput(input);
-	const client = getDataContext<PrismaClient>();
+	const client = dependencies.client ?? getDataContext<PrismaClient>();
 	const now = dependencies.now ?? (() => new Date());
 	const computeSnapshot = dependencies.computeInputSnapshot ?? computeGenerationInputSnapshot;
 	const buildIdentitySnapshot = dependencies.buildIdentitySnapshot ?? buildPublishedIdentitySnapshot;
@@ -227,6 +230,34 @@ export async function publishSchedule(
 		if (!run) throw fail(404, 'RUN_NOT_FOUND', 'Generation run not found in the authenticated school/year scope.');
 		if (run.status !== 'COMPLETED') throw fail(422, 'RUN_NOT_COMPLETED', 'Only completed generation runs can be published.');
 		if (run.runType !== 'FULL') throw fail(422, 'RUN_NOT_OFFICIAL', 'Preview, diagnostic, and performance-fixture runs cannot be published.');
+
+		let approvalRequest: { id: number; requesterId: number; sourceRevisionId: number | null } | null = null;
+		if (input.approvalRequestId !== undefined) {
+			if (!Number.isSafeInteger(input.approvalRequestId) || input.approvalRequestId < 1) {
+				throw publicationApprovalError('APPROVAL_SCOPE_MISMATCH', 'A valid approval request id is required.');
+			}
+			const request = await (tx as unknown as { publicationApprovalRequest: { findFirst(args: unknown): Promise<Record<string, unknown> | null> } }).publicationApprovalRequest.findFirst({
+				where: { id: input.approvalRequestId, schoolId: input.schoolId, schoolYearId: input.schoolYearId, runId: run.id },
+				select: { id: true, schoolId: true, schoolYearId: true, runId: true, runVersion: true, snapshotHash: true, sourceRevisionId: true, requesterId: true, status: true },
+			});
+			if (!request) throw publicationApprovalError('APPROVAL_NOT_FOUND', 'Publication approval request was not found in this scope.');
+			assertPublicationApprovalAllowed(request as never, input.actorId, {
+				schoolId: input.schoolId,
+				schoolYearId: input.schoolYearId,
+				runId: run.id,
+				runVersion: run.version,
+				snapshotHash: hashPublicationRunSnapshot(run as unknown as Record<string, unknown>),
+			});
+			const priorRevision = await tx.publishedScheduleRevision.findFirst({
+				where: { schoolId: input.schoolId, schoolYearId: input.schoolYearId },
+				orderBy: [{ effectiveDate: 'desc' }, { id: 'desc' }],
+				select: { id: true },
+			});
+			if ((request.sourceRevisionId ?? null) !== (priorRevision?.id ?? null)) {
+				throw publicationApprovalError('APPROVAL_STALE', 'The published revision changed after this request was submitted. Submit a new request.');
+			}
+			approvalRequest = { id: Number(request.id), requesterId: Number(request.requesterId), sourceRevisionId: request.sourceRevisionId as number | null };
+		}
 
 		const existingPublication = publicationMetadata(run.summary);
 		if (!isPublished(run.summary) && existingPublication) {
@@ -326,6 +357,28 @@ export async function publishSchedule(
 				: undefined,
 		});
 
+		// Claim the approval before publication writes. Both the claim/audit and
+		// publication records share this serializable transaction, so any later
+		// failure rolls the approval back to PENDING.
+		if (approvalRequest) {
+			const approvalModel = (tx as unknown as { publicationApprovalRequest: { updateMany(args: unknown): Promise<{ count: number }> } }).publicationApprovalRequest;
+			const claim = await approvalModel.updateMany({
+				where: { id: approvalRequest.id, schoolId: input.schoolId, schoolYearId: input.schoolYearId, runId: run.id, runVersion: run.version, status: 'PENDING', requesterId: { not: input.actorId }, sourceRevisionId: approvalRequest.sourceRevisionId },
+				data: { status: 'APPROVED', approverId: input.actorId, approvedAt: publishedAt },
+			});
+			if (claim.count !== 1) throw publicationApprovalError('APPROVAL_NOT_PENDING', 'Publication approval request was already handled or changed.');
+			await tx.auditLog.create({
+				data: {
+					schoolId: input.schoolId,
+					schoolYearId: input.schoolYearId,
+					action: 'PUBLICATION_APPROVAL_GRANTED',
+					actorId: input.actorId,
+					targetIds: [approvalRequest.id, run.id],
+					metadata: { requestId: approvalRequest.id, requesterId: approvalRequest.requesterId, approverId: input.actorId, approvedAt: publishedAt.toISOString(), runVersion: run.version },
+				},
+			});
+		}
+
 		const priorPublishedRuns = await tx.generationRun.findMany({
 			where: {
 				schoolId: input.schoolId,
@@ -375,6 +428,13 @@ export async function publishSchedule(
 				} as Prisma.InputJsonValue,
 			},
 		});
+		if (approvalRequest) {
+			const linked = await (tx as unknown as { publicationApprovalRequest: { updateMany(args: unknown): Promise<{ count: number }> } }).publicationApprovalRequest.updateMany({
+				where: { id: approvalRequest.id, status: 'APPROVED', approverId: input.actorId },
+				data: { publishedRevisionId: revision.id },
+			});
+			if (linked.count !== 1) throw publicationApprovalError('APPROVAL_NOT_PENDING', 'Approved publication request could not be linked to its revision.');
+		}
 
 		const audit = await tx.auditLog.create({
 			data: {

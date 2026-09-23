@@ -14,7 +14,7 @@ import { StatItem } from '@/components/timetable/TimetableShared';
 
 type PresenceUser = {
 	connectionId: string;
-	email?: string | null;
+	displayName?: string | null;
 	role?: string | null;
 };
 
@@ -41,7 +41,8 @@ export function ScheduleReviewWorkspaceSummaryStats({
 					<span className="text-xs font-bold uppercase text-muted-foreground/80">Online:</span>
 					<div className="flex -space-x-1.5 overflow-hidden">
 						{presence.map((user) => {
-							const initials = (user.email || 'U').substring(0, 2).toUpperCase();
+							const label = user.displayName || 'Collaborator';
+							const initials = label.substring(0, 2).toUpperCase();
 							return (
 								<TooltipProvider key={user.connectionId}>
 									<Tooltip>
@@ -51,7 +52,7 @@ export function ScheduleReviewWorkspaceSummaryStats({
 											</div>
 										</TooltipTrigger>
 										<TooltipContent className="p-2 text-xs">
-											<p className="font-semibold text-foreground">{user.email}</p>
+											<p className="font-semibold text-foreground">{label}</p>
 											<p className="text-xs capitalize text-muted-foreground">{user.role?.toLowerCase()} &middot; Active</p>
 										</TooltipContent>
 									</Tooltip>

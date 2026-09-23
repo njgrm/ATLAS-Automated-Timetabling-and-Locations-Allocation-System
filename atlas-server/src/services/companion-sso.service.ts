@@ -9,6 +9,7 @@ import {
 	type LocalAuthUser,
 } from './local-auth.service.js';
 import { resolveCanonicalFacultyMirror } from './faculty-identity.service.js';
+import { capabilitiesForRole, mapEnrollProRoles } from './scheduler-capabilities.js';
 import { mapLocalRoleToEnrollProRoles, resolveReverseSsoNameParts } from './companion-sso-identity.js';
 
 /**
@@ -89,13 +90,6 @@ export function resolveCompanionPeer(value: unknown): CompanionPeerConfig | null
 	const id = value.trim().toLowerCase() as CompanionPeerId;
 	return Object.prototype.hasOwnProperty.call(COMPANION_PEERS, id) ? COMPANION_PEERS[id] : null;
 }
-
-/**
- * The ATLAS local roles that may create a companion SSO session. The local
- * `faculty` role maps to EnrollPro's `TEACHER`; officer/admin roles map to the
- * EnrollPro staff roles.
- */
-const ALLOWED_ATLAS_ROLES = new Set(['SYSTEM_ADMIN', 'HEAD_REGISTRAR', 'CLASS_ADVISER', 'TEACHER', 'FACULTY', 'OFFICER', 'ADMIN']);
 
 /** Stable error codes (guide §8 + the school-year semantics it references). */
 export type CompanionSsoErrorCode =
@@ -380,7 +374,7 @@ type CompanionSsoUpstreamIdentity = {
  * outside this set (MRF, LEARNER, GUEST, UNKNOWN, …) is denied before any
  * account lookup or write.
  */
-const UPSTREAM_ALLOWED_ROLES = new Set(['SYSTEM_ADMIN', 'HEAD_REGISTRAR', 'CLASS_ADVISER', 'TEACHER']);
+const UPSTREAM_ALLOWED_ROLES = new Set(['SYSTEM_ADMIN', 'HEAD_REGISTRAR', 'GRADE_LEVEL_COORDINATOR', 'CLASS_ADVISER', 'TEACHER']);
 
 type CompanionSsoUpstreamResponse = {
 	success?: unknown;
@@ -540,19 +534,18 @@ async function performUpstreamExchange(peer: CompanionPeerId, code: string, acco
 
 async function createSessionForExistingAccount(identity: ValidatedCompanionIdentity): Promise<CompanionSsoCallbackOutcome> {
 	const account = await findExistingAccount(identity);
+	const currentAuthority = mapEnrollProRoles(identity.roles);
+	if (!currentAuthority.role) throw new CompanionSsoError('COMPANION_SSO_ROLE_DENIED');
+	const effectiveRole = currentAuthority.role;
 
 	if (!account.isActive) {
 		throw new CompanionSsoError('COMPANION_SSO_ACCOUNT_UNAVAILABLE');
 	}
-	if (!ALLOWED_ATLAS_ROLES.has(account.role.toUpperCase())) {
-		throw new CompanionSsoError('COMPANION_SSO_ROLE_DENIED');
-	}
-
 	const mirror = await resolveActiveSchoolYearMirror(account.schoolId, identity.activeSchoolYearId, identity.activeSchoolYearLabel);
 
 	let facultyExternalId: number | null = null;
 	let canonicalFacultyId: number | null = account.facultyId ?? null;
-	if (account.role === 'faculty') {
+	if (effectiveRole === 'faculty' || (effectiveRole === 'scheduler' && currentAuthority.capabilities.includes('faculty:self-service'))) {
 		const resolution = await resolveCanonicalFacultyMirror({
 			schoolId: account.schoolId,
 			schoolYearId: mirror.enrollProSchoolYearId,
@@ -571,8 +564,8 @@ async function createSessionForExistingAccount(identity: ValidatedCompanionIdent
 	}
 
 	const sessionUser: LocalAuthUser = {
-		userId: account.role === 'faculty' && facultyExternalId ? facultyExternalId : account.id,
-		role: account.role,
+		userId: (effectiveRole === 'faculty' || effectiveRole === 'scheduler') && facultyExternalId ? facultyExternalId : account.id,
+				role: effectiveRole,
 		mustChangePassword: account.mustChangePassword,
 		authSource: 'local',
 		schoolId: account.schoolId,
@@ -581,6 +574,7 @@ async function createSessionForExistingAccount(identity: ValidatedCompanionIdent
 		email: account.email,
 		employeeId: account.employeeId,
 		accountName: account.accountName,
+		capabilities: capabilitiesForRole(effectiveRole, currentAuthority.capabilities.includes('faculty:self-service') && canonicalFacultyId !== null ? ['faculty:self-service'] : []),
 	};
 
 	const token = issueCompanionSsoToken(sessionUser);
@@ -590,7 +584,7 @@ async function createSessionForExistingAccount(identity: ValidatedCompanionIdent
 
 	await prisma.atlasAuthAccount.update({
 		where: { id: account.id },
-		data: { facultyId: canonicalFacultyId, lastLoginAt: new Date() },
+		data: { facultyId: canonicalFacultyId, role: effectiveRole, lastLoginAt: new Date() },
 	});
 
 	await writeCompanionSsoAudit({
@@ -600,13 +594,13 @@ async function createSessionForExistingAccount(identity: ValidatedCompanionIdent
 		targetIds: [account.id],
 		metadata: {
 			accountId: account.id,
-			role: account.role,
+			role: effectiveRole,
 			authSource: 'local',
 			activeSchoolYearId: mirror.enrollProSchoolYearId,
 		},
 	});
 
-	return { ok: true, token, role: account.role };
+	return { ok: true, token, role: effectiveRole };
 }
 
 function mapFacultyEligibilityCode(code: string): CompanionSsoErrorCode {
