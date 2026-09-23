@@ -41,6 +41,23 @@ export function isTimetableSchedulerView(view: string): boolean {
 	return view === 'schedule' || view === 'pre-generation';
 }
 
+export type TimetableLoadingIntent = { title: string; message: string };
+
+/** Keep direct links legible while run data is unresolved; this is presentation only. */
+export function resolveTimetableLoadingIntent(pathname: string): TimetableLoadingIntent | null {
+	const copy: Partial<Record<TimetableRoutedView, TimetableLoadingIntent>> = {
+		'pre-generation': { title: 'Draft queue', message: 'Loading the selected school year and term before showing sessions to place.' },
+		policy: { title: 'Scheduling policies', message: 'Loading the current school-year policy.' },
+		manual-edit: { title: 'Manual edit', message: 'Loading the selected timetable before opening edit tools.' },
+		map: { title: 'Rooms and map', message: 'Loading room and timetable context.' },
+		building: { title: 'Building', message: 'Loading the selected room context.' },
+		exports: { title: 'Exports', message: 'Loading the source timetable and export options.' },
+		runs: { title: 'Generation history', message: 'Loading generation runs for the verified school year.' },
+		setup: { title: 'Review setup', message: 'Loading the verified school-year setup and readiness.' },
+	};
+	return copy[resolveTimetableRouteView(pathname)] ?? null;
+}
+
 /**
  * UX-R03a — pure route→view mapping for the two routed center views.
  * `/timetable/policies` renders the existing policy pane; every other

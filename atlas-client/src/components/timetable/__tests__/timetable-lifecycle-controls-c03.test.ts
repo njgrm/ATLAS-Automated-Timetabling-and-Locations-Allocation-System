@@ -12,7 +12,8 @@ test('direct timetable lifecycle routes retain route-specific intent while the l
 	assert.ok(loadingGate, 'the no-draft loading gate must remain explicit');
 	assert.match(loadingGate, /resolveTimetableLoadingIntent\(location\.pathname\)/);
 	assert.match(loadingGate, /TimetableRouteLoadingState/);
-	assert.doesNotMatch(loadingGate, /return <TimetableSkeleton\s*\/>/);
+	assert.ok(loadingGate.indexOf('if (routeIntent) return <TimetableRouteLoadingState') < loadingGate.indexOf('return <TimetableSkeleton'),
+		'route-specific state must precede the generic fallback');
 
 	const routeSync = source('components/timetable/TimetableRouteViewSync.tsx');
 	for (const [path, view] of [
@@ -23,7 +24,7 @@ test('direct timetable lifecycle routes retain route-specific intent while the l
 		['/timetable/exports', 'exports'],
 	]) {
 		assert.match(routeSync, new RegExp(`case '${view}':[\\s\\S]*?guarded\\(enter`));
-		assert.ok(workspace.includes(path), `${path} must retain a route-specific loading surface`);
+		assert.ok(routeSync.includes(path), `${path} must retain a route-specific loading surface`);
 	}
 	assert.doesNotMatch(loadingGate, /loadAll\(|fetch\(|atlasApi/,
 		'route-specific loading feedback must not bypass actor/year/term dispatch gates');

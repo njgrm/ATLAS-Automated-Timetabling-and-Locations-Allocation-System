@@ -113,6 +113,7 @@ export type AppSidebarProps = {
 	logoUrl: string | null;
 	activeYearLabel: string | null;
 	bridgeUser: BridgeUser | null;
+	sessionVerificationState?: 'verifying' | 'authenticated' | 'unauthenticated';
 	pathname: string;
 	onLogout: () => void;
 	className?: string;
@@ -123,6 +124,7 @@ export function AppSidebar({
 	logoUrl,
 	activeYearLabel,
 	bridgeUser,
+	sessionVerificationState = 'unauthenticated',
 	pathname,
 	onLogout,
 	className,
@@ -251,11 +253,11 @@ export function AppSidebar({
 										<div className='flex w-full items-center gap-2 transition-all duration-200 opacity-100 group-data-[collapsible=icon]:opacity-0 group-data-[collapsible=icon]:scale-95 group-data-[collapsible=icon]:pointer-events-none'>
 											<div className='flex aspect-square size-8 shrink-0 items-center justify-center rounded-lg bg-muted text-foreground overflow-hidden'>
 												<span className='text-xs font-semibold'>
-													{bridgeUser?.role ? bridgeUser.role.charAt(0).toUpperCase() : 'G'}
+										{sessionVerificationState === 'verifying' ? '…' : bridgeUser?.role ? bridgeUser.role.charAt(0).toUpperCase() : 'G'}
 												</span>
 											</div>
 											<div className='grid flex-1 text-left text-sm leading-tight overflow-hidden'>
-												<span className='truncate font-semibold'>{bridgeUser?.role ?? 'Guest'}</span>
+											<span className='truncate font-semibold'>{sessionVerificationState === 'verifying' ? 'Verifying session…' : bridgeUser?.role ?? 'Guest'}</span>
 												{isAdmin && (
 																	<Badge variant='outline' className='mt-0.5 min-h-5 w-fit border-purple-200 bg-purple-50 px-1 text-xs font-bold text-purple-700'>
 														Admin
@@ -264,7 +266,9 @@ export function AppSidebar({
 												{isFaculty && (
 																	<span className='truncate text-xs text-muted-foreground'>Teacher</span>
 												)}
-												{!isAdmin && !isFaculty && (
+												{sessionVerificationState === 'verifying' ? (
+													<span className='truncate text-xs text-muted-foreground'>Checking your sign-in</span>
+												) : !isAdmin && !isFaculty && (
 																	<span className='truncate text-xs text-muted-foreground'>Portal access</span>
 												)}
 											</div>

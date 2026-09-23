@@ -8,7 +8,8 @@ import { ScheduleReviewWorkspaceOverlays } from '@/components/timetable/Schedule
 import { TimetableFacultyIssuePivotDialog } from '@/components/timetable/TimetableFacultyIssuePivotDialog';
 import { TimetableSkeleton } from '@/components/timetable/TimetableSkeleton';
 import { InlinePlacementPreview } from '@/components/timetable/InlinePlacementPreview';
-import { isTimetableSchedulerView, TimetableRouteViewSync } from '@/components/timetable/TimetableRouteViewSync';
+import { isTimetableSchedulerView, resolveTimetableLoadingIntent, TimetableRouteViewSync } from '@/components/timetable/TimetableRouteViewSync';
+import { TimetableRouteLoadingState } from '@/components/timetable/TimetableRouteLoadingState';
 import type { TimetableLayoutMode, TimetableSimpleTask } from '@/components/timetable/TimetableSimpleTypes';
 import type { RepairOrigin } from '@/components/timetable/TimetableTaskDrawer';
 import { Button } from '@/ui/button';
@@ -17,7 +18,7 @@ import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetT
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/ui/dropdown-menu';
 import { AlertCircle, ArrowRight, ArrowRightLeft, BookOpen, Clock, DoorOpen, GraduationCap, MoreHorizontal, Move, Redo2, RefreshCw, Undo2, UserRoundX } from 'lucide-react';
 import { lazy, Profiler, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import type { ScheduledEntry } from '@/types';
 import { isDraftPublishedStrict } from '@/components/timetable/timetableWorkspaceTruth';
 import { TimetableUndoRedoControl } from '@/components/timetable/TimetableUndoRedoControl';
@@ -65,6 +66,7 @@ function TimetableDragOverlay({
 
 export default function ScheduleReviewWorkspace() {
 	const state = useScheduleReviewWorkspaceState();
+	const location = useLocation();
 	const navigate = useNavigate();
 	const [layoutMode, setLayoutModeState] = useState<TimetableLayoutMode>(() => {
 		if (typeof window === 'undefined') return 'simple';
@@ -202,6 +204,8 @@ export default function ScheduleReviewWorkspace() {
 	const isDraftPublished = isDraftPublishedStrict(state.draft);
 
 	if (state.loading && !state.draft) {
+		const routeIntent = resolveTimetableLoadingIntent(location.pathname);
+		if (routeIntent) return <TimetableRouteLoadingState intent={routeIntent} />;
 		return <TimetableSkeleton />;
 	}
 
