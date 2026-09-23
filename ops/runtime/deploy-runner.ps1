@@ -182,20 +182,24 @@ function Get-LiveReleaseSection([string] $LiveStateText) {
     return (($lines[($start + 1)..($end - 1)]) -join "`n")
 }
 
-function Assert-LiveReleaseRecorded([string] $LiveStateText, [string] $IncumbentSha, [string] $Ref = 'origin/main') {
-    # Fail-closed pre-mutation gate: the currently live (incumbent) release must be named
-    # in the Live release section of docs/plans/live-state.md before any cutover begins.
+function Assert-LiveReleaseRecorded([string] $LiveStateText, [string] $TargetSha, [string] $IncumbentSha, [string] $Ref = 'origin/main') {
+    # Fail-closed pre-mutation gate: the release being deployed (the target) must be named in
+    # the Live release section of docs/plans/live-state.md before any cutover begins, so the
+    # record leads the cutover instead of lagging it by one release. The incumbent is the
+    # rollback basis and is named in the refusal guidance, but it never satisfies the gate.
     # A prefix that appears only outside that section must not satisfy the gate.
-    if ([string]::IsNullOrWhiteSpace($IncumbentSha) -or $IncumbentSha.Length -lt 8) {
-        Fail "Incumbent release SHA '$IncumbentSha' cannot yield an 8-character prefix."
+    if ([string]::IsNullOrWhiteSpace($TargetSha) -or $TargetSha.Length -lt 8) {
+        Fail "Target release SHA '$TargetSha' cannot yield an 8-character prefix."
     }
-    $prefix = $IncumbentSha.Substring(0, 8)
+    $prefix = $TargetSha.Substring(0, 8)
+    $rollback = if ([string]::IsNullOrWhiteSpace($IncumbentSha)) { '(incumbent unresolved)' } else { $IncumbentSha }
+    $guidance = "Record the target release '$prefix' with its rollback basis '$rollback' in the '## Live release' section of docs/plans/live-state.md, commit and push it, then re-run."
     $section = Get-LiveReleaseSection $LiveStateText
     if ($null -eq $section) {
-        Fail "docs/plans/live-state.md at ref '$Ref' has no '## Live release' section naming incumbent release prefix '$prefix'."
+        Fail "docs/plans/live-state.md at ref '$Ref' has no '## Live release' section naming target release prefix '$prefix'. $guidance"
     }
     if ($section -notmatch [regex]::Escape($prefix)) {
-        Fail "docs/plans/live-state.md at ref '$Ref' does not name incumbent release prefix '$prefix' in its '## Live release' section."
+        Fail "docs/plans/live-state.md at ref '$Ref' does not name target release prefix '$prefix' in its '## Live release' section. $guidance"
     }
 }
 
@@ -245,7 +249,7 @@ Assert-Administrator
 $target = Get-GitIdentity $TargetSourceDir $TargetSha
 $machine = Get-MachineIdentity $IncumbentSourceDir $IncumbentSha $EnvFile
 $liveStateText = Get-LiveStateText $TargetSourceDir $LiveStateRef
-Assert-LiveReleaseRecorded $liveStateText $IncumbentSha $LiveStateRef
+Assert-LiveReleaseRecorded $liveStateText $TargetSha $IncumbentSha $LiveStateRef
 $audit = Join-Path $AuditRoot "$($TargetSha.Substring(0, 8))-$(Get-Date -Format yyyyMMdd-HHmmss)"
 New-Item -ItemType Directory -Force -Path $audit | Out-Null
 $xmlPath = Join-Path $audit 'task-before.xml'
