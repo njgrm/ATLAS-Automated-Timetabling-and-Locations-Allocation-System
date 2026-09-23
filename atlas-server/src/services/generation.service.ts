@@ -102,14 +102,21 @@ function hasPublishedMarkers(summary: unknown): boolean {
 
 /**
  * TIMETABLE-TRUTHFULNESS-C01 (D1) — the publication marker exposed by the run
- * list. Mirrors the canonical strict predicate every workspace consumer uses
+ * list, read as a JSON sub-path (`summary.isPublished`) so the heavy summary
+ * payload is never loaded (UX-R03e runs row 1 keeps the list selection lean).
+ * Mirrors the canonical strict predicate every workspace consumer uses
  * (`atlas-client/src/components/timetable/timetableWorkspaceTruth.ts`
- * `isRunPublishedStrict`: `summary.isPublished === true`) so the list and the
+ * `isRunPublishedStrict`: `summary.isPublished === true`), so the list and the
  * workspace can never disagree. A superseded run keeps `isPublished:false` and
  * therefore never reads as live even though it retains its old publish markers.
  */
-function isRunPublishedForList(summary: unknown): boolean {
-	return asSummaryRecord(summary).isPublished === true;
+async function resolvePublishedRunIds(runIds: number[]): Promise<Set<number>> {
+	if (runIds.length === 0) return new Set();
+	const rows = await db().generationRun.findMany({
+		where: { id: { in: runIds }, summary: { path: ['isPublished'], equals: true } },
+		select: { id: true },
+	});
+	return new Set(rows.map((row) => row.id));
 }
 
 function buildUnpublishedSummary(
@@ -1215,23 +1222,21 @@ export async function listRuns(schoolId: number, schoolYearId: number, limit: nu
 				version: true,
 				createdAt: true,
 				updatedAt: true,
-				// D1 — the list previously omitted every publication marker, so a
-				// consumer could not tell a published run from an unpublished one
-				// from the list alone ("all COMPLETED" was mis-read as "none
-				// published" while two revisions were live). Only the publication
-				// flag is projected out of `summary`; no other summary payload is
-				// returned (heavy inputSnapshot/resourceDiagnostics stay unloaded
-				// from the response).
-				summary: true,
 			},
 		}),
 		resolveActivePublishedRunId(schoolId, schoolYearId),
 	]);
+	// D1 — the list previously omitted every publication marker, so a consumer
+	// could not tell a published run from an unpublished one from the list alone
+	// ("all COMPLETED" was mis-read as "none published" while two revisions were
+	// live). The flag is read as a JSON sub-path in a second id-only query, so
+	// the heavy `summary` payload is never selected or returned.
+	const publishedRunIds = await resolvePublishedRunIds(runs.map((run) => run.id));
 	return {
 		activePublishedRunId,
-		runs: runs.map(({ summary, ...run }) => ({
+		runs: runs.map((run) => ({
 			...run,
-			summary: { isPublished: isRunPublishedForList(summary) },
+			summary: { isPublished: publishedRunIds.has(run.id) },
 		})),
 	};
 }
