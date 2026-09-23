@@ -35,15 +35,23 @@ and AIMS.
 ## Live release
 
 - Tailnet: `https://njgrm.buru-degree.ts.net`
-- **Release SHA: `d9a6aa53`** (current; `D:\ATLAS-runtime-supervised-d9a6aa53-20260923`;
-  supervisor-owned 5001/5174; server `5001`->19296, client `5174`->41948; served entry
-  `/assets/index-BKcGq9ln.js`; machine `ATLAS_RUNTIME_RELEASE_SHA` = `d9a6aa53`; health + health/ready +
-  DB-backed `GET /api/v1/subjects?schoolId=1` + Tailnet all 200 — verified 2026-09-23). Carries
-  `TIMETABLE-HEADER-COLLAPSE-C01` (grid top 180 -> 139.6 px, one header row), the accepted
-  `TIMETABLE-RELAXED-MAIN-C01`, the `NOTIFICATION-INBOX` source (migration `0004` applied), and the
-  published run #317 / revision 43. **Nothing above this release touches `atlas-client/**`.**
-  Rollback: `28f6f03f` startable in place at `D:\ATLAS-runtime-supervised-28f6f03f-20260923`; deeper
-  fallbacks `1fdab989`, `e78d4473`, `11e8778f`, `7dbb3b90`.
+- **Release SHA: `7ac28124`** (current; `E:\ATLAS-runtime-supervised-7ac28124-20260923`;
+  supervisor-owned 5001/5174; server `5001`->37608, client `5174`->9948; served entry
+  `/assets/index-BbufnI_M.js`, SHA-256 `49838BFE…5CB6`, byte-identical to the build; machine
+  `ATLAS_RUNTIME_RELEASE_SHA` = `7ac28124`; health + health/ready (`database:"ok"`) + DB-backed
+  `GET /api/v1/subjects?schoolId=1` + Tailnet all 200 — verified 2026-09-23). Carries
+  `TIMETABLE-TRUTHFULNESS-C01` (D1–D4; see the Lane A section) over the accepted
+  `TIMETABLE-HEADER-COLLAPSE-C01` / `TIMETABLE-RELAXED-MAIN-C01` / `NOTIFICATION-INBOX` source and the
+  published run #317 / revision 43. **Release root moved to `E:` deliberately** — `D:` was 16.83 GiB,
+  1.83 GiB above the §3 15 GiB fail-closed line, and PostgreSQL lives on `D:`; `D:` finished the
+  deployment **unchanged at 16.82 GiB**. The release owns its own dependency tree.
+  **Rollback: `d9a6aa53` startable in place at `D:\ATLAS-runtime-supervised-d9a6aa53-20260923`**
+  (supervisor 44116; 5001->19296 / 5174->41948); deeper fallbacks `28f6f03f`, `1fdab989`, `e78d4473`,
+  `11e8778f`, `7dbb3b90`.
+- (superseded) **Release SHA: `d9a6aa53`** — `D:\ATLAS-runtime-supervised-d9a6aa53-20260923`;
+  5001->19296 / 5174->41948; served `/assets/index-BKcGq9ln.js`. Carried
+  `TIMETABLE-HEADER-COLLAPSE-C01`, the accepted `TIMETABLE-RELAXED-MAIN-C01`, the `NOTIFICATION-INBOX`
+  source (migration `0004` applied) and run #317 / revision 43. **Now the rollback basis.**
 - (superseded) **Release SHA: `28f6f03f`** — the accepted relaxed main workspace, live ~06:20-10:11.
 - (superseded) **Release SHA: `7dbb3b90`** (deployed by Lane A 2026-09-22
   ~22:17 local; supervisor restarted; `5001`->45228; `5174`->48508; served entry
@@ -370,6 +378,27 @@ Lane B owns this section. Current stream and state: see Lane B's own handoff fil
 it complete `TEST-GATE-REACHABILITY-C01` (`f4462374`) and hand it over for integration.
 
 ## Lane A — current lane (written only by Lane A)
+
+**`TIMETABLE-TRUTHFULNESS-C01` DEPLOYED at `7ac28124` — post-deployment browser QA in flight (2026-09-23).**
+Candidate `fb58a0d5` + one bounded correction `adfbf9f9` on `work/timetable-truthfulness-c01` (base
+`5ff8d80f`, 3 commits, clean). One batched pre-action reviewer closed the source range **and** the packet
+lint in one dispatch and returned `PLANNER_DECISION_REQUIRED` 7/9: **no product defect in D1/D2/D3**
+(independent failing-first reproduced 0/4→4/4 against real base bytes; real-route controls; consumer parity
+for the removed `generation.violationCount`; the accepted UX-R03e lean-selection guard reproduced failing
+on the pre-correction shape), with two **planner-owned** blockers — D4 under-delivered the packet's "when
+it was verified" clause, and the D2 live row would have been decided by the wrong artifact. Both resolved:
+D4 now renders `School year from ATLAS, checked <age>` from the real `cachedAt` via `formatCheckedAtAge`
+(correction `adfbf9f9`; blast radius exactly 2 paths, all other 12 reviewed paths byte-identical, additive
+assertions), and D2/D4 are re-targeted as labelled deployment-acceptance rows (packet §7). Integrated at
+merge **`7ac28124`** (product tree byte-identical to the reviewed candidate) and deployed via the reviewed
+`ops/runtime/deploy-runner.ps1` to `E:\ATLAS-runtime-supervised-7ac28124-20260923` (audit
+`C:\ProgramData\ATLAS\release-audit\7ac28124-20260923-132431`); served chunk byte-identical to the build;
+incumbent chunk 404; Tailnet 200. **Rollback basis `d9a6aa53` startable in place.** No schema, migration,
+generation, publication or live-data action. **Junction hazard closed:** the candidate worktree's
+`atlas-client/node_modules` and `atlas-server/node_modules` junctions into `e78d4473` were confirmed
+taint-free (single hop, no source byte resolved through them, lockfiles + schema byte-identical, values
+independently re-derived by the reviewer) and the release was built with its **own** dependency tree; the
+junctions must be removed before that worktree is retired and `e78d4473` must not be reclaimed.
 
 **`TIMETABLE-HEADER-COLLAPSE-C01` COMPLETE — the three declutter gaps are closed (2026-09-23).**
 Live release **`d9a6aa53`** at `D:\ATLAS-runtime-supervised-d9a6aa53-20260923` (5001→19296 /

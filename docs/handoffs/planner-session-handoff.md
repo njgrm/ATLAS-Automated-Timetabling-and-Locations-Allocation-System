@@ -21,25 +21,30 @@ Last updated: 2026-09-23 (Lane A).
   17→1, scroll preserved, inline placement with working Undo) → `TIMETABLE-HEADER-COLLAPSE-C01`
   (header 2 bands→**1 row**, grid top **139.6 px**, published surface out-ranks `Generate`). Rollback:
   `28f6f03f` startable in place; deeper fallbacks `1fdab989`, `e78d4473`, `11e8778f`, `7dbb3b90`.
-- **`origin/main` = `ec2ec168`.**
-- **IMMEDIATE NEXT ACTION — pre-action review of `fb58a0d5`** (branch
-  `work/timetable-truthfulness-c01`, worktree `E:\ATLAS-worktrees\timetable-truthfulness-c01`, base
-  `5ff8d80f`, 2 commits, clean). Packet: `docs/prompts/timetable-truthfulness-c01-2026-09-23.md`
-  (committed `ec2ec168`). It closes the recorded truthfulness residuals: **D1** runs-list
-  `summary.isPublished` projection (the omission that caused a false "first publication" claim),
-  **D2** dashboard presenting raw 334 soft as blockers → `blockingHardCount`/`softViolationCount`,
-  **D3** `publishedSoftViolationCount` renamed `publishedRawSoftViolationCount` (raw acknowledged count
-  vs canonical 289 — deliberately *not* resynced), **D4** "Using cached school year" → honest wording.
-  Executor gates all green: server 289/289, `test:server-db` 55 files/0 fail/residue 0, client 912/912,
-  focused 56/56, built-server proof on port 5099; failing-first 0/4→4/4 (server) and 1/2→3/3 (client).
-  Then: integrate → deploy → post-deployment browser QA of D2/D4 on the live surface.
-- **⚠ DEPENDENCY HAZARD on that candidate.** Its `atlas-client/node_modules` and
-  `atlas-server/node_modules` are **junctions to the superseded release dir
-  `D:\ATLAS-runtime-supervised-e78d4473-20260923`**. The executor's tool policy denies `npm ci` and the
-  planner failed to pre-provision dependencies (planner error). Lockfile + schema are byte-identical by
-  SHA-256, so correctness is mitigated, but: **remove both junctions before retiring that worktree**,
-  **do not reclaim `e78d4473` while it exists**, and have the reviewer confirm the junctioned tree does
-  not taint the gate evidence. Live runtime verified untouched (`d9a6aa53`, health 200).
+- **`origin/main` = `7ac28124`.**
+- **`TIMETABLE-TRUTHFULNESS-C01` is DEPLOYED; the post-deployment browser QA is the only open item.** The
+  candidate `fb58a0d5` (+ bounded correction `adfbf9f9`) passed a single batched pre-action review that
+  closed the source range **and** the packet lint in one dispatch (`PLANNER_DECISION_REQUIRED` 7/9 — **no
+  product defect in D1/D2/D3**, independently reproduced failing-first 0/4→4/4 on real base bytes; both
+  blockers were planner-owned and are now resolved: D4 states **when** the value was verified from the
+  real `cachedAt`, and D2/D4 are re-targeted as labelled deployment rows in packet §7). Integrated at merge
+  `7ac28124` and deployed via the reviewed `ops/runtime/deploy-runner.ps1` to
+  `E:\ATLAS-runtime-supervised-7ac28124-20260923` — served entry `/assets/index-BbufnI_M.js`, SHA-256
+  `49838BFE…5CB6`, byte-identical to the build; the incumbent chunk is now 404; Tailnet 200; supervisor
+  `state=running`. **Rollback basis: `d9a6aa53` at `D:\ATLAS-runtime-supervised-d9a6aa53-20260923`,
+  startable in place.** Deployment and acceptance stay separate outcomes — the cycle closes only when the
+  fresh post-deployment QA returns `passed == total`, `blocked: 0`, `unperformed: 0`.
+- **Correction to the previous executor tally (reviewer-verified):** `test:server-db` is **54/55 with one
+  base-identical pre-existing red** (`enrollpro-rollover-automation.test.ts`, `expected 10, got 910101`,
+  reproduced identically at base `5ff8d80f`), not the handoff's "55 files/0 fail". Not candidate-attributable.
+- **DEPENDENCY HAZARD — CONFIRMED TAINT-FREE; cleanup still owed.** The candidate's
+  `atlas-client/node_modules` and `atlas-server/node_modules` were junctions to
+  `D:\ATLAS-runtime-supervised-e78d4473-20260923` (the planner failed to pre-provision; the executor's
+  policy denies `npm ci`). The reviewer independently re-derived the lockfile + Prisma-schema SHA-256 as
+  byte-identical, confirmed the junction is a **single hop**, and confirmed **no source byte resolves
+  through it**, so no gate evidence is tainted. The release was built with its **own** dependency tree.
+  Still owed: **remove both junctions before retiring the candidate worktree**, and **do not reclaim
+  `e78d4473`** while they exist.
 - **OPEN OPERATOR DECISION — the runtime-dir reclaim.** 35 `D:\ATLAS-runtime-supervised-*` dirs total
   **44.51 GiB**. Not reclaimable under current rules: **every** dir carries the runtime's untracked
   `ops/runtime/logs/` (so non-forced `git worktree remove` refuses and `--force`/raw recursive deletion
@@ -48,6 +53,8 @@ Last updated: 2026-09-23 (Lane A).
   (name says `6cc202b7`, HEAD is `7dbb3b90`). Needs an explicit operator exception (no-`--force` and/or
   a sanctioned logs-clearing step) plus a junction target-vs-contained analysis, run as a bounded
   reclaim cycle (frozen manifest → pre-action audit → guarded removal → post-action audit).
+  **2026-09-23: still 35 dirs on `D:` and `D:` is unchanged at 16.82 GiB, because this cycle built its
+  release on `E:` for exactly this reason (see the Live release block). No dir was reclaimed.**
 - **Closed this cycle:** `NOTIFICATION-INBOX-LIVE` (migration `0004` applied via the guarded wrapper
   after a fresh verified backup; live inbox routes now 200, were 500 on every page load);
   `TIMETABLE-PUBLICATION-C01` (run #317 / revision 43 / audit 918 published; completion audit

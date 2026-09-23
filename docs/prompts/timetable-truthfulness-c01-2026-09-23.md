@@ -83,3 +83,51 @@ its rationale · each failing-first control with its literal before/after · the
 the server and client tallies · known risks each marked `BLOCKING`/`NON_BLOCKING` · verdict
 `REVIEW_REQUIRED`. Additive commits only — never amend, rebase or push. Checkpoint early; do not leave
 the worktree dirty.
+
+## 6. Deployment (HIGH — executed 2026-09-23 under the operator's standing authorization, §13)
+
+- **Target:** integrated `origin/main` = `7ac2812449984f7a21c5effb4b6e77c6dcedb2eb` (merge of
+  `work/timetable-truthfulness-c01` tip `adfbf9f9`), built into a supervised release directory.
+- **Release-root deviation (recorded, deliberate):** the release directory is
+  `E:\ATLAS-runtime-supervised-7ac28124-20260923`, not a new `D:\ATLAS-runtime-supervised-*`, because `D:`
+  was at **16.83 GiB** — 1.83 GiB above the §3 15 GiB fail-closed line — while §3 makes `E:` the root for
+  every new worktree and PostgreSQL lives on `D:`. `E:` is a local fixed NTFS volume; `D:` finished the
+  deployment **unchanged at 16.82 GiB**. The release owns its own dependency tree (no junctions).
+- **Incumbent / rollback basis:** `d9a6aa53` at `D:\ATLAS-runtime-supervised-d9a6aa53-20260923`
+  (supervisor 44116; 5001->19296 / 5174->41948), retained and startable in place.
+- **Expected delta:** client bundle + server bundle. Client entry chunk changed
+  `index-BKcGq9ln.js` -> `index-BbufnI_M.js`; server `dist` carries `activePublishedRunId`,
+  `blockingHardCount`, `publishedRawSoftViolationCount`. **No schema change, no migration, no seed, no
+  live-data mutation, no generation, no publication.**
+- **Verification (recorded):** served chunk SHA-256
+  `49838BFE0F230EA18D78A3A870931C3FE79EB4571F875904D72DA556BFAB5CB6` byte-identical to the release build;
+  the incumbent chunk now **404**; local `/api/v1/health` + `/api/v1/health/ready` (`database:"ok"`) +
+  DB-backed `GET /api/v1/subjects?schoolId=1` all 200; Tailnet root and new chunk 200; supervisor log
+  `releaseSha=7ac28124` / `sourceDir=E:\...` / "All targets healthy"; authoritative
+  `supervisor-state.json` `state=running`, `releaseSha=7ac28124`.
+- **Execution:** the reviewed `ops/runtime/deploy-runner.ps1` (dry-run, then `-Execute`), audit
+  `C:\ProgramData\ATLAS\release-audit\7ac28124-20260923-132431`. No hand-authored cutover block.
+- **Rollback:** re-point the task XML and the two machine runtime variables to `d9a6aa53`; the runner's
+  captured task XML and machine values are in the audit directory.
+
+## 7. Browser acceptance (post-deployment, fresh QA, both viewports)
+
+Labelled **browser rows**, decided on the **deployed** release at `https://njgrm.buru-degree.ts.net`,
+asserting `window.location.origin`, at **1366×768 and 390×844**. Rows D2 and D4 were **re-targeted** after
+the pre-action review falsified the original D2 row (it would have been decided by the dashboard's
+`runWide*` tile from `GET …/runs/latest/violations`, not by the changed artifact).
+
+1. **D2 (network row).** Authenticated `GET /api/v1/dashboard/readiness-summary` for school 1 / active
+   year returns `generation.blockingHardCount === 0` with a soft-labelled `softViolationCount`, and
+   `generation.violationCount` is **absent**. *(Decided by the payload; the rendered tile is a
+   corroborating observation only, not the row.)*
+2. **D4 (header row).** The Simple header source line is one of the honest states — `Verified with
+   EnrollPro`, or `School year from ATLAS, checked <age>`, or the `up to date` fallback — and never
+   `Using cached school year`; it does not wrap or overflow, and the header stays one row at both
+   viewports.
+3. **Preservation.** One header row; grid top ≤ ~140 px at 1366×768; one status region; the published
+   surface out-ranks `Generate`; no document scrollbar at either viewport; the nine `/timetable*` routes
+   keep the sub-nav; zero new console errors.
+4. **D1 (corroborating).** Authenticated `GET /api/v1/generation/1/10/runs` returns per-run
+   `summary.isPublished` and `activePublishedRunId` = the active published run (317), so the list alone
+   distinguishes published from unpublished.
