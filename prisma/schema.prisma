@@ -42,6 +42,7 @@ model School {
   crossDepartmentPermissions CrossDepartmentPermission[]
   teacherProgramPresentationRevisions TeacherProgramPresentationRevision[]
   notifications              Notification[]
+  publicationApprovalRequests PublicationApprovalRequest[]
 
   @@map("schools")
 }
@@ -327,6 +328,8 @@ model AtlasAuthAccount {
   faculty            FacultyMirror? @relation(fields: [facultyId], references: [id], onDelete: SetNull)
   companionSsoCodes  CompanionSsoCode[]
   notifications      Notification[]
+  publicationApprovalRequestsRequested PublicationApprovalRequest[] @relation("PublicationApprovalRequester")
+  publicationApprovalRequestsApproved  PublicationApprovalRequest[] @relation("PublicationApprovalApprover")
 
   @@index([schoolId, role])
   @@index([facultyId])
@@ -798,10 +801,47 @@ model GenerationRun {
   manualEdits                ManualScheduleEdit[]
   roomPreferences            FacultyRoomPreference[]
   publishedScheduleRevisions PublishedScheduleRevision[] @relation("PublishedRevisionSourceRun")
+  publicationApprovalRequests PublicationApprovalRequest[]
 
+  @@unique([id, schoolId, schoolYearId], map: "generation_runs_id_school_scope_key")
   @@index([schoolId, schoolYearId, createdAt])
   @@index([status])
   @@map("generation_runs")
+}
+
+enum PublicationApprovalStatus {
+  PENDING
+  APPROVED
+
+  @@map("publication_approval_status")
+}
+
+model PublicationApprovalRequest {
+  id                         Int                       @id @default(autoincrement())
+  schoolId                   Int                       @map("school_id")
+  schoolYearId               Int                       @map("school_year_id")
+  runId                      Int                       @map("run_id")
+  runVersion                 Int                       @map("run_version")
+  snapshotHash               String                    @map("snapshot_hash") @db.Char(64)
+  sourceRevisionId           Int?                      @map("source_revision_id")
+  requesterId                Int                       @map("requester_id")
+  requesterAcknowledgedSoftViolations Boolean            @default(false) @map("requester_acknowledged_soft_violations")
+  approverId                 Int?                      @map("approver_id")
+  status                     PublicationApprovalStatus @default(PENDING)
+  requestedAt                DateTime                  @default(now()) @map("requested_at")
+  approvedAt                 DateTime?                 @map("approved_at")
+  publishedRevisionId        Int?                      @map("published_revision_id")
+
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade, map: "publication_approval_requests_school_id_fkey")
+  requester AtlasAuthAccount @relation("PublicationApprovalRequester", fields: [requesterId], references: [id], onDelete: Restrict, map: "publication_approval_requests_requester_id_fkey")
+  approver AtlasAuthAccount? @relation("PublicationApprovalApprover", fields: [approverId], references: [id], onDelete: SetNull, map: "publication_approval_requests_approver_id_fkey")
+  run GenerationRun @relation(fields: [runId, schoolId, schoolYearId], references: [id, schoolId, schoolYearId], onDelete: Cascade, map: "publication_approval_requests_run_scope_fkey")
+  sourceRevision PublishedScheduleRevision? @relation("PublicationApprovalSourceRevision", fields: [sourceRevisionId], references: [id], onDelete: Restrict)
+  publishedRevision PublishedScheduleRevision? @relation("PublicationApprovalPublishedRevision", fields: [publishedRevisionId], references: [id], onDelete: Restrict)
+
+  @@unique([schoolId, schoolYearId, runId, runVersion], map: "publication_approval_requests_scope_run_version_key")
+  @@index([schoolId, schoolYearId, status, requestedAt])
+  @@map("publication_approval_requests")
 }
 
 // ─── Manual Schedule Edit ───
@@ -869,6 +909,8 @@ model PublishedScheduleRevision {
   sourceRun            GenerationRun               @relation("PublishedRevisionSourceRun", fields: [sourceRunId], references: [id], onDelete: Restrict)
   sourceRevision       PublishedScheduleRevision?  @relation("PublishedRevisionChain", fields: [sourceRevisionId], references: [id], onDelete: SetNull)
   supersedingRevisions PublishedScheduleRevision[] @relation("PublishedRevisionChain")
+  publicationApprovalSources PublicationApprovalRequest[] @relation("PublicationApprovalSourceRevision")
+  approvedPublicationRequests PublicationApprovalRequest[] @relation("PublicationApprovalPublishedRevision")
 
   @@index([schoolId, schoolYearId, effectiveDate])
   @@index([sourceRunId, effectiveDate])

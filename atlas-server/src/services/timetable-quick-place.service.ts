@@ -447,9 +447,12 @@ export async function applyQuickPlace(
 	if (isPublishedSummary(run.summary)) {
 		throw err(409, 'RUN_ALREADY_PUBLISHED', 'This schedule is already published.');
 	}
-	if (run.version !== expectedVersion) {
-		throw err(409, 'VERSION_CONFLICT', 'Timetable was modified by another user. Reload and try again.');
+	if (expectedVersion > run.version) {
+		throw err(409, 'VERSION_CONFLICT', 'The expected timetable version is newer than the current run. Reload and try again.');
 	}
+	// Stale bases are handled at the atomic manual-edit commit after the solver
+	// output is revalidated against the latest run; that boundary rejects semantic
+	// overlap and retries a CAS race only when every intervening edit is disjoint.
 
 	// SOURCE-FRESHNESS B-04: capture ONE source snapshot BEFORE the solver and
 	// diagnostics run. The commit transaction recomputes the complete fingerprint

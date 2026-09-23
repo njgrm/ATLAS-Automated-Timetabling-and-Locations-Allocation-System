@@ -1,13 +1,14 @@
 import type { CollaborationPresence, CollaborationSelection, RoomPreferenceEvent } from '@/types';
 
 const WS_PATH = '/room-preferences/collaboration/ws';
+const runtimeEnv = (import.meta as ImportMeta & { env?: Record<string, string | undefined> }).env;
 
 export type CollaborationConnectedPayload = {
 	connectionId: string;
 	user: {
 		userId: number;
 		role: string;
-		email: string | null;
+		displayName: string | null;
 		authSource: 'local' | 'bridge';
 	};
 };
@@ -23,7 +24,7 @@ export type CollaborationSnapshotPayload = {
 
 export type CollaborationSelectionPayload = {
 	selection: CollaborationSelection;
-	presence: Pick<CollaborationPresence, 'connectionId' | 'userId' | 'role' | 'email' | 'viewMode' | 'lastActive'>;
+	presence: Pick<CollaborationPresence, 'connectionId' | 'userId' | 'role' | 'displayName' | 'viewMode' | 'lastActive'>;
 };
 
 export type CollaborationEvent =
@@ -45,8 +46,27 @@ export type CollaborationSocket = {
 	close: () => void;
 };
 
+type CollaborationScope = { schoolId: number; schoolYearId: number; runId: number };
+
+async function requestCollaborationTicket(accessToken: string, scope: CollaborationScope): Promise<string | null> {
+	const apiBase = runtimeEnv?.VITE_ATLAS_API ?? '/api/v1';
+	const url = `${apiBase.replace(/\/$/, '')}/room-preferences/collaboration/ticket`;
+	try {
+		const response = await fetch(url, {
+			method: 'POST',
+			headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+			body: JSON.stringify(scope),
+		});
+		if (!response.ok) return null;
+		const body = await response.json() as { ticket?: unknown };
+		return typeof body.ticket === 'string' ? body.ticket : null;
+	} catch {
+		return null;
+	}
+}
+
 function resolveWsBaseUrl(): string {
-	const envBase = import.meta.env.VITE_ATLAS_API as string | undefined;
+	const envBase = runtimeEnv?.VITE_ATLAS_API;
 	if (envBase && /^https?:\/\//i.test(envBase)) {
 		const httpUrl = new URL(envBase);
 		httpUrl.protocol = httpUrl.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -64,31 +84,22 @@ function resolveWsBaseUrl(): string {
 
 export function createRoomPreferenceCollaborationSocket(params: {
 	accessToken: string;
+	scope: CollaborationScope;
 	onEvent: (event: CollaborationEvent) => void;
 }): CollaborationSocket {
-	const wsUrl = new URL(resolveWsBaseUrl());
-	wsUrl.searchParams.set('accessToken', params.accessToken);
-
-	const socket = new WebSocket(wsUrl.toString());
+	let socket: WebSocket | null = null;
+	let closed = false;
 	let heartbeatInterval: number | null = null;
 	let selectionThrottleTimer: number | null = null;
 	let pendingSelection: CollaborationSelection | null = null;
 
 	const flushSelection = () => {
-		if (!pendingSelection || socket.readyState !== WebSocket.OPEN) return;
+		if (!pendingSelection || socket?.readyState !== WebSocket.OPEN) return;
 		socket.send(JSON.stringify({ type: 'collab.selection', selection: pendingSelection }));
 		pendingSelection = null;
 	};
 
-	socket.addEventListener('open', () => {
-		params.onEvent({ type: 'open' });
-		heartbeatInterval = window.setInterval(() => {
-			if (socket.readyState !== WebSocket.OPEN) return;
-			socket.send(JSON.stringify({ type: 'collab.heartbeat' }));
-		}, 10000);
-	});
-
-	socket.addEventListener('close', () => {
+	const onSocketClose = () => {
 		if (heartbeatInterval != null) {
 			window.clearInterval(heartbeatInterval);
 			heartbeatInterval = null;
@@ -98,9 +109,20 @@ export function createRoomPreferenceCollaborationSocket(params: {
 			selectionThrottleTimer = null;
 		}
 		params.onEvent({ type: 'close' });
-	});
+	};
 
-	socket.addEventListener('message', (raw) => {
+	const attachSocket = (createdSocket: WebSocket) => {
+		socket = createdSocket;
+		socket.addEventListener('open', () => {
+			if (closed) { socket?.close(); return; }
+			params.onEvent({ type: 'open' });
+			heartbeatInterval = window.setInterval(() => {
+				if (socket?.readyState !== WebSocket.OPEN) return;
+				socket.send(JSON.stringify({ type: 'collab.heartbeat' }));
+			}, 10000);
+		});
+		socket.addEventListener('close', onSocketClose);
+		socket.addEventListener('message', (raw) => {
 		try {
 			const payload = JSON.parse(String(raw.data)) as { type?: string; [key: string]: unknown };
 			switch (payload.type) {
@@ -134,11 +156,25 @@ export function createRoomPreferenceCollaborationSocket(params: {
 		} catch {
 			// Ignore malformed websocket payloads.
 		}
+		});
+	};
+
+	void requestCollaborationTicket(params.accessToken, params.scope).then((ticket) => {
+		if (!ticket || closed) {
+			if (!closed) params.onEvent({ type: 'error', payload: { code: 'TICKET_ISSUE_FAILED', message: 'Unable to open timetable collaboration right now.' } });
+			return;
+		}
+		const wsUrl = new URL(resolveWsBaseUrl());
+		wsUrl.searchParams.set('ticket', ticket);
+		wsUrl.searchParams.set('schoolId', String(params.scope.schoolId));
+		wsUrl.searchParams.set('schoolYearId', String(params.scope.schoolYearId));
+		wsUrl.searchParams.set('runId', String(params.scope.runId));
+		attachSocket(new WebSocket(wsUrl.toString()));
 	});
 
 	return {
 		join: (scope) => {
-			if (socket.readyState !== WebSocket.OPEN) return;
+			if (!socket || socket.readyState !== WebSocket.OPEN) return;
 			socket.send(JSON.stringify({ type: 'collab.join', ...scope }));
 		},
 		sendSelection: (selection) => {
@@ -152,7 +188,7 @@ export function createRoomPreferenceCollaborationSocket(params: {
 			}, 120);
 		},
 		updateViewMode: (viewMode) => {
-			if (socket.readyState !== WebSocket.OPEN) return;
+		if (!socket || socket.readyState !== WebSocket.OPEN) return;
 			socket.send(JSON.stringify({ type: 'collab.view-mode', viewMode }));
 		},
 		close: () => {
@@ -164,7 +200,8 @@ export function createRoomPreferenceCollaborationSocket(params: {
 				window.clearTimeout(selectionThrottleTimer);
 				selectionThrottleTimer = null;
 			}
-			socket.close();
+			closed = true;
+			socket?.close();
 		},
 	};
 }
