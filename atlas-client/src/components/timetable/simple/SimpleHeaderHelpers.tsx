@@ -164,7 +164,17 @@ export function sourceLabel(context: ScheduleReviewWorkspaceHeaderContext) {
 	if (!sourceContext) return 'Checking source';
 	if (sourceContext.source === 'enrollpro-verified') return 'Verified with EnrollPro';
 	if (sourceContext.source === 'enrollpro') return 'Using EnrollPro settings';
-	if (sourceContext.source === 'cache') return 'Using cached school year';
+	if (sourceContext.source === 'cache') {
+		// D4 (TIMETABLE-TRUTHFULNESS-C01) — the Simple header used to say
+		// "Using cached school year", which reads as staleness even when the
+		// school year on screen is fresh (`stale:false`) and was confirmed
+		// upstream. Name the authority and the freshness state instead of the
+		// storage mechanism, and say plainly when the copy is older and a
+		// background recheck is in flight.
+		return sourceContext.stale
+			? 'School year from ATLAS, rechecking'
+			: 'School year from ATLAS, up to date';
+	}
 	return 'Using saved ATLAS data';
 }
 

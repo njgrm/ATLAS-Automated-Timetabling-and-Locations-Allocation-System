@@ -180,7 +180,7 @@ function aggregateInput(overrides: Partial<DashboardReadinessAggregateInput> = {
 		subjectResult: { ok: true, data: { subjectCount: 22, unassignedSubjectCount: 0 } },
 		facultyResult: { ok: true, data: { facultyCount: 42, lastSyncedAt: null } },
 		sectionResult: { ok: true, data: { sectionCount: 20, lastSyncedAt: null } },
-		generationResult: { ok: true, data: { latestRunStatus: 'NONE', latestRunId: null, violationCount: null, createdAt: null, finishedAt: null } },
+		generationResult: { ok: true, data: { latestRunStatus: 'NONE', latestRunId: null, blockingHardCount: null, softViolationCount: null, createdAt: null, finishedAt: null } },
 		publicationResult: { ok: true, data: { isPublished: false, publishedRunId: null } },
 		derivedDemandResult: {
 			ok: true,

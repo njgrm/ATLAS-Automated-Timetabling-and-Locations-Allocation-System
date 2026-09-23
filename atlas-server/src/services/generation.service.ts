@@ -100,6 +100,18 @@ function hasPublishedMarkers(summary: unknown): boolean {
 	return typeof candidate.publishedBy === 'number';
 }
 
+/**
+ * TIMETABLE-TRUTHFULNESS-C01 (D1) — the publication marker exposed by the run
+ * list. Mirrors the canonical strict predicate every workspace consumer uses
+ * (`atlas-client/src/components/timetable/timetableWorkspaceTruth.ts`
+ * `isRunPublishedStrict`: `summary.isPublished === true`) so the list and the
+ * workspace can never disagree. A superseded run keeps `isPublished:false` and
+ * therefore never reads as live even though it retains its old publish markers.
+ */
+function isRunPublishedForList(summary: unknown): boolean {
+	return asSummaryRecord(summary).isPublished === true;
+}
+
 function buildUnpublishedSummary(
 	summary: unknown,
 	context: {
@@ -1158,29 +1170,70 @@ export async function assertLatestRunIsCurrent(schoolId: number, schoolYearId: n
 	return getRunById(runId, schoolId, schoolYearId);
 }
 
+/**
+ * TIMETABLE-TRUTHFULNESS-C01 (D1) — the one runtime-active publication for the
+ * exact school/year, resolved in SQL with the same strict predicate the
+ * Dashboard publication path uses (`status = COMPLETED` AND
+ * `summary.isPublished = true`) and the same deterministic
+ * newest-first ordering. Cheap: a single indexed id-only read, independent of
+ * the requested list window, so a publication older than the window is still
+ * named instead of silently reading as "none published".
+ */
+export async function resolveActivePublishedRunId(schoolId: number, schoolYearId: number): Promise<number | null> {
+	const row = await db().generationRun.findFirst({
+		where: {
+			schoolId,
+			schoolYearId,
+			status: 'COMPLETED',
+			summary: { path: ['isPublished'], equals: true },
+		},
+		orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+		select: { id: true },
+	});
+	return row?.id ?? null;
+}
+
 export async function listRuns(schoolId: number, schoolYearId: number, limit: number = 20) {
 	const normalizedLimit = Number.isFinite(limit) ? Math.trunc(limit) : 20;
 	const safeLimit = Math.min(Math.max(normalizedLimit, 1), 100);
-	return db().generationRun.findMany({
-		where: { schoolId, schoolYearId },
-		orderBy: { createdAt: 'desc' },
-		take: safeLimit,
-		select: {
-			id: true,
-			schoolId: true,
-			schoolYearId: true,
-			status: true,
-			runType: true,
-			triggeredBy: true,
-			startedAt: true,
-			finishedAt: true,
-			durationMs: true,
-			error: true,
-			version: true,
-			createdAt: true,
-			updatedAt: true,
-		},
-	});
+	const [runs, activePublishedRunId] = await Promise.all([
+		db().generationRun.findMany({
+			where: { schoolId, schoolYearId },
+			orderBy: { createdAt: 'desc' },
+			take: safeLimit,
+			select: {
+				id: true,
+				schoolId: true,
+				schoolYearId: true,
+				status: true,
+				runType: true,
+				triggeredBy: true,
+				startedAt: true,
+				finishedAt: true,
+				durationMs: true,
+				error: true,
+				version: true,
+				createdAt: true,
+				updatedAt: true,
+				// D1 — the list previously omitted every publication marker, so a
+				// consumer could not tell a published run from an unpublished one
+				// from the list alone ("all COMPLETED" was mis-read as "none
+				// published" while two revisions were live). Only the publication
+				// flag is projected out of `summary`; no other summary payload is
+				// returned (heavy inputSnapshot/resourceDiagnostics stay unloaded
+				// from the response).
+				summary: true,
+			},
+		}),
+		resolveActivePublishedRunId(schoolId, schoolYearId),
+	]);
+	return {
+		activePublishedRunId,
+		runs: runs.map(({ summary, ...run }) => ({
+			...run,
+			summary: { isPublished: isRunPublishedForList(summary) },
+		})),
+	};
 }
 
 /** Select a safe fixture source without loading any timetable JSON payloads. */

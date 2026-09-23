@@ -552,8 +552,12 @@ router.get(
 				limit = parsed;
 			}
 
-			const runs = await genService.listRuns(schoolId, schoolYearId, limit);
-			res.json({ runs, count: runs.length });
+			const { runs, activePublishedRunId } = await genService.listRuns(schoolId, schoolYearId, limit);
+			// TIMETABLE-TRUTHFULNESS-C01 (D1) — each run now carries
+			// `summary.isPublished`, and the response names the runtime-active
+			// publication (`activePublishedRunId`) so a consumer can tell a
+			// published run from an unpublished one from the list alone.
+			res.json({ runs, count: runs.length, activePublishedRunId });
 		} catch (e) { next(e); }
 	},
 );
