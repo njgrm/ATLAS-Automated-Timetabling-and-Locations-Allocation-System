@@ -35,6 +35,13 @@ and AIMS.
 ## Live release
 
 - Tailnet: `https://njgrm.buru-degree.ts.net`
+- **Release SHA: `09b898e6`** (deploy target; `E:\ATLAS-runtime-supervised-09b898e6-20260924`;
+  carries the integrated `SCHEDULER-EXPORT-CENTER-C01` (paste-ready scheduler exports: class/room grids,
+  verified learner M/F/T totals, XLSX/DOCX room and section exports, Export Center shortcuts) plus the
+  `test:export-center` gate wiring, on top of `6e9c87e7`. No new migration. **Rollback basis:
+  `6e9c87e7360960b3820849dfd8a07b0dac47cfc8`** at `E:\ATLAS-runtime-supervised-6e9c87e7-20260924`
+  (startable in place; deeper `4893cbde`). Pre-deploy record committed first. **Deployment and acceptance
+  are separate outcomes.**)
 - **Release SHA: `6e9c87e7`** (current live serving release; `E:\ATLAS-runtime-supervised-6e9c87e7-20260924`;
   supervisor → server `5001`→39836 / host `5174`→54244; served entry `/assets/index--ZHwcC0J.js`,
   SHA-256 `917E98F0…830A`, **byte-identical to the target build**; machine `ATLAS_RUNTIME_SOURCE_DIR` /
