@@ -153,7 +153,7 @@ test('all-term review keeps every term and never treats an unscoped entry as a t
 test('the production grid and Simple header consume these exact term/export controls', () => {
 	const hook = source('src/hooks/useTimetableData.ts');
 	assert.match(hook, /import \{ matchesTermScope \} from '@\/lib\/timetable-term-scope'/);
-	assert.match(hook, /matchesTermScope\(entry, termFilter\)/);
+	assert.match(hook, /matchesTermScope\(entry, effectiveTermFilter\)/);
 
 	const header = source('src/components/timetable/TimetableSimpleHeader.tsx');
 	assert.match(header, /resolveSimpleExportRequest\('summary-teacher-schedule'/);

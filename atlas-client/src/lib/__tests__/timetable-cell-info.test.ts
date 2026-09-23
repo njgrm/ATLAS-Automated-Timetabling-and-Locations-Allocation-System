@@ -50,7 +50,7 @@ test('reference ids resolve by numeric primary key, including id 1 (no falsy/def
 	assert.equal(buildSubjectLabel(SUBJECT_MAP)(11), 'TLE');
 	assert.equal(buildFacultyLabel(FACULTY_MAP)(1), 'Aguilar, Carlos');
 	assert.equal(buildFacultyInitials(FACULTY_MAP)(9), 'C. Aguilar');
-	assert.equal(buildSectionLabel(SECTION_MAP, () => 'Regular')(1), 'G7AW');
+	assert.equal(buildSectionLabel(SECTION_MAP, () => 'Regular')(1), 'GR7 - G7AW');
 	assert.equal(buildRoomLabel(ROOM_MAP)(1), 'G7 Room 101 · G7 (Floor 1)');
 	assert.equal(buildRoomLabelShort(ROOM_MAP)(1), 'G7 Room 101 · G7');
 });
