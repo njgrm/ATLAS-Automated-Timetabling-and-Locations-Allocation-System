@@ -74,7 +74,7 @@ test('school 1 to null closes and clears production hook state and prevents stal
 	const harness = createHookHarness();
 	harness.render(1);
 	harness.sockets[0].emit({ type: 'open' });
-	harness.sockets[0].emit({ type: 'connected', payload: { connectionId: 'self-school-1', user: { userId: 1, role: 'officer', email: null, authSource: 'local' } } });
+	harness.sockets[0].emit({ type: 'connected', payload: { connectionId: 'self-school-1', user: { userId: 1, role: 'officer', displayName: 'Officer', authSource: 'local' } } });
 	harness.sockets[0].emit({ type: 'error', payload: { code: 'OLD_SCOPE', message: 'old school error' } });
 	harness.sockets[0].emit({ type: 'snapshot', payload: { channel: { schoolId: 1, schoolYearId: 8, runId: 41 }, presence: [{ connectionId: 'peer', userId: 2 } as CollaborationPresence] } });
 	harness.render(1, entry('first'));
@@ -97,7 +97,7 @@ test('school 1 to null closes and clears production hook state and prevents stal
 test('school 1 to school 2 clears old identity and throttle state before joining and sending new scope', () => {
 	const harness = createHookHarness();
 	harness.render(1); harness.sockets[0].emit({ type: 'open' });
-	harness.sockets[0].emit({ type: 'connected', payload: { connectionId: 'old-self', user: { userId: 1, role: 'officer', email: null, authSource: 'local' } } });
+	harness.sockets[0].emit({ type: 'connected', payload: { connectionId: 'old-self', user: { userId: 1, role: 'officer', displayName: 'Officer', authSource: 'local' } } });
 	harness.render(1, entry('school-1-entry'));
 	harness.render(2); harness.sockets[1].emit({ type: 'open' });
 	harness.sockets[1].emit({ type: 'snapshot', payload: { channel: { schoolId: 2, schoolYearId: 8, runId: 41 }, presence: [{ connectionId: 'old-self', userId: 1 } as CollaborationPresence, { connectionId: 'new-peer', userId: 2 } as CollaborationPresence] } });
@@ -122,6 +122,41 @@ test('authentication loss closes the active scope and clears collaboration state
 	assert.equal(result.lastError, null);
 	assert.equal(harness.refs[0].current, null);
 	assert.equal(harness.refs[1].current, null);
+});
+
+test('same-scope token replacement closes old socket and resets identity before reconnect', () => {
+	const harness = createHookHarness();
+	harness.render(1);
+	harness.sockets[0].emit({ type: 'open' });
+	harness.sockets[0].emit({ type: 'connected', payload: { connectionId: 'old-self', user: { userId: 1, role: 'officer', displayName: 'Old Actor', authSource: 'local' } } });
+	harness.sockets[0].emit({ type: 'error', payload: { code: 'OLD', message: 'old actor state' } });
+	harness.setAccessToken('replacement-token');
+	harness.render(1);
+	const result = harness.render(1);
+	assert.equal(harness.sockets[0].closed, 1);
+	assert.equal(harness.sockets.length, 2);
+	assert.equal(result.connected, false);
+	assert.deepEqual(result.presence, []);
+	assert.deepEqual(result.remoteSelections, {});
+	assert.equal(result.lastError, null);
+	assert.equal(harness.refs[2].current, null, 'self connection identity is cleared');
+});
+
+test('unexpected socket close clears collaborator identity, selections, and connection refs', () => {
+	const harness = createHookHarness();
+	harness.render(1);
+	harness.sockets[0].emit({ type: 'open' });
+	harness.sockets[0].emit({ type: 'connected', payload: { connectionId: 'self', user: { userId: 1, role: 'officer', displayName: 'Scheduler', authSource: 'local' } } });
+	harness.sockets[0].emit({ type: 'snapshot', payload: { channel: { schoolId: 1, schoolYearId: 8, runId: 41 }, presence: [{ connectionId: 'peer', userId: 2 } as CollaborationPresence] } });
+	harness.sockets[0].emit({ type: 'selection', payload: { selection: { schoolId: 1, schoolYearId: 8, runId: 41, entryId: 'entry-1' }, presence: { connectionId: 'peer', userId: 2, role: 'scheduler', displayName: 'Peer', viewMode: 'SCHEDULER_REVIEW', lastActive: 'now' } } });
+	harness.sockets[0].emit({ type: 'close' });
+	const result = harness.render(1);
+	assert.equal(result.connected, false);
+	assert.deepEqual(result.presence, []);
+	assert.deepEqual(result.remoteSelections, {});
+	assert.equal(harness.refs[0].current, null);
+	assert.equal(harness.refs[1].current, null);
+	assert.equal(harness.refs[2].current, null);
 });
 
 test('negative control fails when an unsafe mutant constructs a socket without the school guard', () => {

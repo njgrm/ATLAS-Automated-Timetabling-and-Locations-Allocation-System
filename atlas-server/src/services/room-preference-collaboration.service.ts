@@ -1,12 +1,11 @@
-import type { IncomingMessage } from 'node:http';
 import type { Server as HttpServer } from 'node:http';
 import { URL } from 'node:url';
 
-import jwt from 'jsonwebtoken';
 import { WebSocketServer, WebSocket } from 'ws';
 
 import { prisma } from '../lib/prisma.js';
 import type { AuthPayload } from '../middleware/authenticate.js';
+import { consumeCollaborationTicket, type CollaborationScope } from './timetable-collaboration-ticket.service.js';
 import { resolveCanonicalFacultyMirror } from './faculty-identity.service.js';
 import { onRoomPreferenceEvent } from './room-preference-events.service.js';
 import { onTimetableEvent } from './timetable-events.service.js';
@@ -28,7 +27,7 @@ export type CollaborationPresence = {
 	connectionId: string;
 	userId: number;
 	role: string;
-	email: string | null;
+	displayName: string | null;
 	schoolId: number;
 	schoolYearId: number;
 	runId: number;
@@ -65,7 +64,9 @@ type SocketState = {
 	ws: WebSocket;
 	auth: AuthPayload;
 	joined: CollaborationPresence | null;
+	allowedScope: CollaborationScope;
 	lastHeartbeatAt: number;
+	lastSelectionAt: number;
 };
 
 type CollaborationOptions = {
@@ -79,35 +80,31 @@ const DEFAULT_HEARTBEAT_TIMEOUT_MS = 30000;
 const DEFAULT_PRUNE_INTERVAL_MS = 5000;
 
 const VIEW_MODES: Set<CollaborationViewMode> = new Set(['FACULTY_ACTIVE_DRAFT', 'SCHEDULER_REVIEW', 'SCHEDULER_QUEUE']);
+const DAYS = new Set(['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY']);
 
-function normalizeAuthPayload(decoded: AuthPayload): AuthPayload {
-	return {
-		...decoded,
-		authSource: decoded.authSource === 'local' ? 'local' : 'bridge',
+function parseTicketFromRequest(requestUrl: string | undefined) {
+	const parsedUrl = new URL(requestUrl ?? '/', 'http://localhost');
+	const ticket = parsedUrl.searchParams.get('ticket');
+	const schoolId = Number(parsedUrl.searchParams.get('schoolId'));
+	const schoolYearId = Number(parsedUrl.searchParams.get('schoolYearId'));
+	const runId = Number(parsedUrl.searchParams.get('runId'));
+	if (!ticket || ![schoolId, schoolYearId, runId].every((value) => Number.isSafeInteger(value) && value > 0)) return null;
+	const scope = { schoolId, schoolYearId, runId };
+	const consumed = consumeCollaborationTicket(ticket, scope);
+	if (!consumed) return null;
+	const actor = consumed.actor;
+	const auth: AuthPayload = {
+		userId: actor.userId,
+		role: actor.role,
+		schoolId: actor.schoolId,
+		accountName: cleanDisplayName(actor.displayName) ?? undefined,
+		capabilities: actor.capabilities,
 	};
-}
-
-function parseAuthFromRequest(req: IncomingMessage): AuthPayload | null {
-	const secret = process.env.JWT_SECRET;
-	if (!secret) return null;
-
-	const parsedUrl = new URL(req.url ?? '/', 'http://localhost');
-	const queryToken = parsedUrl.searchParams.get('accessToken');
-	const authHeader = typeof req.headers.authorization === 'string' ? req.headers.authorization : '';
-	const headerToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
-	const token = headerToken ?? queryToken;
-	if (!token) return null;
-
-	try {
-		const decoded = jwt.verify(token, secret) as AuthPayload;
-		if (!decoded?.userId || !decoded?.role) return null;
-		return normalizeAuthPayload(decoded);
-	} catch {
-		return null;
-	}
+	return { auth, scope };
 }
 
 function parseClientMessage(raw: string): ClientMessage | null {
+	if (raw.length > 4096) return null;
 	try {
 		const parsed = JSON.parse(raw) as ClientMessage;
 		if (!parsed || typeof parsed !== 'object' || typeof (parsed as { type?: unknown }).type !== 'string') {
@@ -117,6 +114,37 @@ function parseClientMessage(raw: string): ClientMessage | null {
 	} catch {
 		return null;
 	}
+}
+
+function cleanDisplayName(input: string | null | undefined): string | null {
+	if (!input || typeof input !== 'string') return null;
+	const cleaned = input.replace(/[\u0000-\u001f\u007f]/g, '').trim().slice(0, 80);
+	return cleaned || null;
+}
+
+function sanitizeSelection(input: unknown, channel: CollaborationScope): CollaborationSelection | null {
+	if (!input || typeof input !== 'object' || Array.isArray(input)) return null;
+	const value = input as Record<string, unknown>;
+	if (value.schoolId !== channel.schoolId || value.schoolYearId !== channel.schoolYearId || value.runId !== channel.runId) return null;
+	const selection: CollaborationSelection = { schoolId: channel.schoolId, schoolYearId: channel.schoolYearId, runId: channel.runId };
+	if (value.day !== undefined) {
+		if (typeof value.day !== 'string' || !DAYS.has(value.day)) return null;
+		selection.day = value.day;
+	}
+	for (const field of ['startTime', 'endTime'] as const) {
+		if (value[field] === undefined) continue;
+		if (typeof value[field] !== 'string' || !/^([01]\d|2[0-3]):[0-5]\d$/.test(value[field] as string)) return null;
+		selection[field] = value[field] as string;
+	}
+	if (value.entryId !== undefined) {
+		if (typeof value.entryId !== 'string' || value.entryId.length > 128 || /[\u0000-\u001f\u007f]/.test(value.entryId)) return null;
+		selection.entryId = value.entryId;
+	}
+	if (value.source !== undefined) {
+		if (value.source !== 'GRID_CELL' && value.source !== 'REQUEST_CARD' && value.source !== 'SESSION') return null;
+		selection.source = value.source;
+	}
+	return selection;
 }
 
 function safeSend(ws: WebSocket, payload: unknown) {
@@ -143,7 +171,7 @@ export function registerRoomPreferenceCollaborationSocket(server: HttpServer, op
 	const heartbeatTimeoutMs = options?.heartbeatTimeoutMs ?? DEFAULT_HEARTBEAT_TIMEOUT_MS;
 	const pruneIntervalMs = options?.pruneIntervalMs ?? DEFAULT_PRUNE_INTERVAL_MS;
 
-	const wss = new WebSocketServer({ server, path: wsPath });
+	const wss = new WebSocketServer({ server, path: wsPath, maxPayload: 4096 });
 	const sockets = new Map<string, SocketState>();
 
 	function snapshotForChannel(channel: { schoolId: number; schoolYearId: number; runId: number }) {
@@ -190,7 +218,7 @@ export function registerRoomPreferenceCollaborationSocket(server: HttpServer, op
 			return { ok: false, code: 'RUN_NOT_FOUND', message: 'Run was not found in this school scope.' } as const;
 		}
 
-		if (auth.role === 'admin' || auth.role === 'officer' || auth.role === 'SYSTEM_ADMIN') {
+	if (auth.role === 'admin' || auth.role === 'officer' || auth.role === 'SYSTEM_ADMIN' || auth.capabilities?.includes('timetable:read')) {
 			return { ok: true, facultyId: null } as const;
 		}
 
@@ -242,12 +270,13 @@ export function registerRoomPreferenceCollaborationSocket(server: HttpServer, op
 	}, pruneIntervalMs);
 
 	wss.on('connection', (ws, req) => {
-		const auth = parseAuthFromRequest(req);
-		if (!auth) {
-			safeSend(ws, { type: 'collab.error', code: 'UNAUTHORIZED', message: 'Invalid or missing access token.' });
+		const parsedTicket = parseTicketFromRequest(req.url);
+		if (!parsedTicket) {
+			safeSend(ws, { type: 'collab.error', code: 'UNAUTHORIZED', message: 'A valid collaboration ticket is required.' });
 			ws.close();
 			return;
 		}
+		const { auth, scope: allowedScope } = parsedTicket;
 
 		const connectionId = `ws-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 		const state: SocketState = {
@@ -255,7 +284,9 @@ export function registerRoomPreferenceCollaborationSocket(server: HttpServer, op
 			ws,
 			auth,
 			joined: null,
+			allowedScope,
 			lastHeartbeatAt: Date.now(),
+			lastSelectionAt: 0,
 		};
 		sockets.set(connectionId, state);
 
@@ -265,7 +296,7 @@ export function registerRoomPreferenceCollaborationSocket(server: HttpServer, op
 			user: {
 				userId: auth.userId,
 				role: auth.role,
-				email: auth.email ?? null,
+				displayName: cleanDisplayName(auth.accountName),
 				authSource: auth.authSource ?? 'bridge',
 			},
 		});
@@ -287,12 +318,16 @@ export function registerRoomPreferenceCollaborationSocket(server: HttpServer, op
 				const schoolId = Number(message.schoolId);
 				const schoolYearId = Number(message.schoolYearId);
 				const runId = Number(message.runId);
-				if (!Number.isInteger(schoolId) || !Number.isInteger(schoolYearId) || !Number.isInteger(runId)) {
+				if (![schoolId, schoolYearId, runId].every((value) => Number.isSafeInteger(value) && value > 0)) {
 					safeSend(ws, { type: 'collab.error', code: 'INVALID_SCOPE', message: 'Join scope must include valid school, year, and run ids.' });
 					return;
 				}
 
 				const channel = { schoolId, schoolYearId, runId };
+				if (channel.schoolId !== state.allowedScope.schoolId || channel.schoolYearId !== state.allowedScope.schoolYearId || channel.runId !== state.allowedScope.runId) {
+					safeSend(ws, { type: 'collab.error', code: 'TICKET_SCOPE_MISMATCH', message: 'Join scope must match the issued collaboration ticket.' });
+					return;
+				}
 				const permission = await canJoinChannel(state.auth, channel);
 				if (!permission.ok) {
 					safeSend(ws, { type: 'collab.error', code: permission.code, message: permission.message });
@@ -303,7 +338,7 @@ export function registerRoomPreferenceCollaborationSocket(server: HttpServer, op
 					connectionId: state.connectionId,
 					userId: state.auth.userId,
 					role: state.auth.role,
-					email: state.auth.email ?? null,
+					displayName: cleanDisplayName(state.auth.accountName),
 					schoolId,
 					schoolYearId,
 					runId,
@@ -331,11 +366,16 @@ export function registerRoomPreferenceCollaborationSocket(server: HttpServer, op
 			}
 
 			if (message.type === 'collab.selection') {
-				const selection = message.selection;
-				if (!selection || selection.runId !== state.joined.runId || selection.schoolId !== state.joined.schoolId || selection.schoolYearId !== state.joined.schoolYearId) {
+				const selection = sanitizeSelection(message.selection, state.joined);
+				if (!selection) {
 					safeSend(ws, { type: 'collab.error', code: 'SELECTION_SCOPE_MISMATCH', message: 'Selection scope must match joined channel.' });
 					return;
 				}
+				if (Date.now() - state.lastSelectionAt < 50) {
+					safeSend(ws, { type: 'collab.error', code: 'SELECTION_RATE_LIMITED', message: 'Selection updates are being sent too quickly.' });
+					return;
+				}
+				state.lastSelectionAt = Date.now();
 
 				state.joined.lastActive = nowIso();
 				broadcastToChannel(state.joined, {
@@ -345,7 +385,7 @@ export function registerRoomPreferenceCollaborationSocket(server: HttpServer, op
 						connectionId: state.joined.connectionId,
 						userId: state.joined.userId,
 						role: state.joined.role,
-						email: state.joined.email,
+						displayName: state.joined.displayName,
 						viewMode: state.joined.viewMode,
 						lastActive: state.joined.lastActive,
 					},

@@ -452,6 +452,7 @@ export default function FacultyRoomPreferences() {
 
 		const socket = createRoomPreferenceCollaborationSocket({
 			accessToken: token,
+			scope: { schoolId: actorSchoolId, schoolYearId: activeSchoolYearId, runId },
 			onEvent: (event) => {
 				if (event.type === 'connected') {
 					selfConnectionIdRef.current = event.payload.connectionId;
@@ -592,7 +593,7 @@ export default function FacultyRoomPreferences() {
 		};
 	}, [presence]);
 	const presenceLabelByConnection = useMemo(() => {
-		return new Map(presence.map((item) => [item.connectionId, item.email ?? item.role ?? 'Another user']));
+		return new Map(presence.map((item) => [item.connectionId, item.displayName ?? item.role ?? 'Another user']));
 	}, [presence]);
 	const slotSelectionDetails = useMemo(() => {
 		const details = new Map<string, { count: number; actors: string[] }>();
