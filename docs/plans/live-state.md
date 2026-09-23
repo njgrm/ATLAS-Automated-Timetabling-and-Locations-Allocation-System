@@ -42,6 +42,11 @@ and AIMS.
   superseded.** Rollback depth is now `d9a6aa53` + `28f6f03f` + the two last-resort artifacts
   (`20260912`/`9d293879`, `fallback-d44-20260912`/`d44f29e0`); deeper rollback is a **rebuild**.
   `0eb3b67fe94c` is retained — `E:\ATLAS-worktrees\warning-readability-c01` borrows its server tree.
+- **CUTOVER IN PROGRESS (2026-09-23):** deploying `4893cbde` (`E:\ATLAS-runtime-supervised-4893cbde-20260923`)
+  over the incumbent `0232bf9c`. This is the **pre-deploy record** required by the `deploy-runner` live-state
+  gate — the record must lead the cutover. It is replaced by the confirmed live release once the cutover is
+  verified, and reverted if the cutover is rolled back. Elevated OpenCode owns this deployment and the single
+  authenticated browser; source custody is released.
 - **Release SHA: `0232bf9c`** (current live serving release; `E:\ATLAS-runtime-supervised-0232bf9c-20260923`;
   task action + Start-In + machine `ATLAS_RUNTIME_SOURCE_DIR`/`RELEASE_SHA`; listeners `5001`->56812 /
   `5174`->59604; authoritative state `releaseSha=0232bf9c`, `state=running`; health + health/ready
