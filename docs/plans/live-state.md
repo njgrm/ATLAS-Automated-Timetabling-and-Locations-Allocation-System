@@ -40,8 +40,8 @@ and AIMS.
   `Invoke-Native` no longer promotes native stderr to a terminating error under `$ErrorActionPreference='Stop'`,
   so a git/scheduled-task/process stderr line can no longer abort the runner with a raw message before its
   fail-closed check — a bad target now yields `DEPLOY_RUNNER_STOP: git failed with exit code N`. Also an
-  encoding-robust BOM task-export test. Full runtime suite (`npm run runtime:test`, 12 files) 93/93 (base
-  `426b6ac8`: 91/93). No runtime behavior, migration,
+  encoding-robust BOM task-export test. Full runtime suite (`npm run runtime:test`, 12 files) 93 tests / 0
+  failures (93/93 built; 2 build-gated skips without a build); base `426b6ac8`: 91/93. No runtime behavior, migration,
   generation, or publication change; product artifacts byte-identical to `426b6ac8`. Accepted per its handoff
   (independent QA 5/5/0/0; failing-first: the base runner leaks the raw `fatal: cannot change to …`, the fix
   emits `DEPLOY_RUNNER_STOP`). **Rollback basis: `426b6ac8358bbdf10cc4289fdd34067ff88d0c81`** at

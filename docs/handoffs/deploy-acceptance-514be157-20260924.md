@@ -27,9 +27,10 @@ instead of `DEPLOY_RUNNER_STOP`). The preference is now relaxed for the duration
   `{"status":"ready","checks":{"database":"ok"}}`; `GET /api/v1/subjects?schoolId=1` → 200.
 - The fixed `Invoke-Native` (`previousPreference`) is present in the live release's
   `ops/runtime/deploy-runner.ps1`.
-- Runtime suite **93/93** for the full suite (`npm run runtime:test`, 12 files); base `426b6ac8` 91/93.
-  (An earlier draft reported 67/67 — that was a 6-file subset, not the full suite.) The two prior
-  `deploy-runner` failures are resolved.
+- Runtime suite **93 tests, 0 failures** for the full suite (`npm run runtime:test`, 12 files) — 93/93 in a
+  built tree (the 2 `crash-policy` build-gated tests skip without a build). Base `426b6ac8`: 91/93 (the two
+  prior `deploy-runner` failures). An earlier draft reported 67/67 — that was a 6-file subset, not the full
+  suite.
 
 ## Rollback
 
