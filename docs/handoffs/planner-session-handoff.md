@@ -14,6 +14,13 @@ Last updated: 2026-09-23 (Lane A).
 
 **2026-09-23 — truthfulness release `7ac28124` is LIVE and accepted 11/11; the relaxed timetable is shipped; one operator decision is open.**
 
+- **Custody: the simplified-timetable stream is handed to Planner B** —
+  `docs/handoffs/simplified-timetable-handoff-to-lane-b-2026-09-23.md`. It lists the residuals that are
+  already **closed** (over-cap components, `test:ux-guardrails`, the two previously-untested sources) and
+  what is actually still open (`UX-R04`, `UX-R05`, the draft-tray swap decision, disposal of the stale
+  `work/timetable-live-term-authority-c01` candidate). Lane A keeps deployment, the browser controller,
+  and the continuity docs.
+
 - **Live release `7ac28124`** (`E:\ATLAS-runtime-supervised-7ac28124-20260923`; supervisor-owned
   5001→37608 / 5174→9948; served entry `assets/index-BbufnI_M.js`, SHA-256 `49838BFE…5CB6` byte-identical
   to the build; health/ready + DB-backed read + Tailnet 200; supervisor `state=running`). Carries, in order:

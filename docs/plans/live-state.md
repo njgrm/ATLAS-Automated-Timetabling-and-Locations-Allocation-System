@@ -379,6 +379,13 @@ it complete `TEST-GATE-REACHABILITY-C01` (`f4462374`) and hand it over for integ
 
 ## Lane A — current lane (written only by Lane A)
 
+**Custody transfer (2026-09-23):** the simplified-timetable source stream is handed to Planner B — see
+`docs/handoffs/simplified-timetable-handoff-to-lane-b-2026-09-23.md`. Lane A keeps deployment, the single
+browser controller, and this continuity file. That handoff records which recorded residuals are **already
+closed** (over-cap components, `test:ux-guardrails`, the two previously-untested sources) and what is
+actually still open (`UX-R04`, `UX-R05`, the draft-tray swap decision, disposal of the stale
+`work/timetable-live-term-authority-c01` candidate).
+
 **`TIMETABLE-TRUTHFULNESS-C01` COMPLETE — deployed at `7ac28124`, post-deployment QA `ACCEPT_READY` 11/11/0/0 (2026-09-23).**
 Candidate `fb58a0d5` + one bounded correction `adfbf9f9` on `work/timetable-truthfulness-c01` (base
 `5ff8d80f`, 3 commits, clean). One batched pre-action reviewer closed the source range **and** the packet
