@@ -2,6 +2,7 @@ import { Router } from 'express';
 import type { Request, Response, NextFunction } from 'express';
 
 import { authenticate } from '../middleware/authenticate.js';
+import { requestHasCapability } from '../middleware/authorize.js';
 import { prisma } from '../lib/prisma.js';
 import { assertTeachingLoadWriteAuthority } from '../services/faculty-assignment.service.js';
 import {
@@ -34,9 +35,8 @@ function parseScope(params: Record<string, string>): { schoolId: number; schoolY
 }
 
 function assertPrivileged(req: Request, res: Response): boolean {
-	const role = req.user?.role;
-	if (!role || !PRIVILEGED_ROLES.has(role)) {
-		res.status(403).json({ code: 'FORBIDDEN', message: 'Only admin, officer, or SYSTEM_ADMIN can trigger quick place auto-allocation.' });
+	if (!requestHasCapability(req, 'timetable:edit')) {
+		res.status(403).json({ code: 'FORBIDDEN', message: 'Timetable edit capability is required for quick place.' });
 		return false;
 	}
 	return true;

@@ -1,11 +1,16 @@
 import { Router } from 'express';
 import type { Request, Response, NextFunction } from 'express';
 import { authenticate } from '../middleware/authenticate.js';
+import { requestHasCapability } from '../middleware/authorize.js';
 import * as lockService from '../services/locked-session.service.js';
 
 const router = Router();
 
-const PRIVILEGED_ROLES: Set<string> = new Set(['admin', 'officer', 'SYSTEM_ADMIN']);
+function assertTimetableCapability(req: Request, res: Response, capability: 'timetable:edit' | 'timetable:read'): boolean {
+	if (requestHasCapability(req, capability)) return true;
+	res.status(403).json({ code: 'FORBIDDEN', message: `The ${capability} capability is required.` });
+	return false;
+}
 
 function positiveInt(raw: unknown, name: string): number | string {
 	const n = Number(raw);
@@ -20,11 +25,7 @@ router.get(
 	authenticate,
 	async (req: Request, res: Response, next: NextFunction) => {
 		try {
-			const role = req.user?.role;
-			if (!role || !PRIVILEGED_ROLES.has(role)) {
-				res.status(403).json({ code: 'FORBIDDEN', message: 'Only admin, officer, or SYSTEM_ADMIN can view locks.' });
-				return;
-			}
+			if (!assertTimetableCapability(req, res, 'timetable:read')) return;
 
 			const schoolId = positiveInt(req.params.schoolId, 'schoolId');
 			if (typeof schoolId === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: schoolId }); return; }
@@ -44,11 +45,7 @@ router.post(
 	authenticate,
 	async (req: Request, res: Response, next: NextFunction) => {
 		try {
-			const role = req.user?.role;
-			if (!role || !PRIVILEGED_ROLES.has(role)) {
-				res.status(403).json({ code: 'FORBIDDEN', message: 'Only admin, officer, or SYSTEM_ADMIN can create locks.' });
-				return;
-			}
+			if (!assertTimetableCapability(req, res, 'timetable:edit')) return;
 
 			const schoolId = positiveInt(req.params.schoolId, 'schoolId');
 			if (typeof schoolId === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: schoolId }); return; }
@@ -71,11 +68,7 @@ router.delete(
 	authenticate,
 	async (req: Request, res: Response, next: NextFunction) => {
 		try {
-			const role = req.user?.role;
-			if (!role || !PRIVILEGED_ROLES.has(role)) {
-				res.status(403).json({ code: 'FORBIDDEN', message: 'Only admin, officer, or SYSTEM_ADMIN can delete locks.' });
-				return;
-			}
+			if (!assertTimetableCapability(req, res, 'timetable:edit')) return;
 
 			const schoolId = positiveInt(req.params.schoolId, 'schoolId');
 			if (typeof schoolId === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: schoolId }); return; }
@@ -97,11 +90,7 @@ router.get(
 	authenticate,
 	async (req: Request, res: Response, next: NextFunction) => {
 		try {
-			const role = req.user?.role;
-			if (!role || !PRIVILEGED_ROLES.has(role)) {
-				res.status(403).json({ code: 'FORBIDDEN', message: 'Only admin, officer, or SYSTEM_ADMIN can view period slots.' });
-				return;
-			}
+			if (!assertTimetableCapability(req, res, 'timetable:read')) return;
 
 			const schoolId = positiveInt(req.params.schoolId, 'schoolId');
 			if (typeof schoolId === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: schoolId }); return; }

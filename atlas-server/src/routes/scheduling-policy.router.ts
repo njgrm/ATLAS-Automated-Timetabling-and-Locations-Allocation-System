@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import type { Request, Response, NextFunction } from 'express';
 import { authenticate } from '../middleware/authenticate.js';
+import { requestHasCapability } from '../middleware/authorize.js';
 import * as policyService from '../services/scheduling-policy.service.js';
 
 const router = Router();
@@ -22,9 +23,8 @@ router.get(
 	authenticate,
 	async (req: Request, res: Response, next: NextFunction) => {
 		try {
-			const role = req.user?.role;
-			if (!role || !PRIVILEGED_ROLES.has(role)) {
-				res.status(403).json({ code: 'FORBIDDEN', message: 'Only admin, officer, or SYSTEM_ADMIN can view scheduling policy.' });
+			if (!requestHasCapability(req, 'scheduling-policy:manage')) {
+				res.status(403).json({ code: 'FORBIDDEN', message: 'Scheduling policy access is restricted.' });
 				return;
 			}
 
@@ -46,9 +46,8 @@ router.put(
 	authenticate,
 	async (req: Request, res: Response, next: NextFunction) => {
 		try {
-			const role = req.user?.role;
-			if (!role || !PRIVILEGED_ROLES.has(role)) {
-				res.status(403).json({ code: 'FORBIDDEN', message: 'Only admin, officer, or SYSTEM_ADMIN can update scheduling policy.' });
+			if (!requestHasCapability(req, 'scheduling-policy:manage')) {
+				res.status(403).json({ code: 'FORBIDDEN', message: 'Scheduling policy access is restricted.' });
 				return;
 			}
 

@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import type { Request, Response, NextFunction } from 'express';
 import { authenticate } from '../middleware/authenticate.js';
+import { requestHasCapability } from '../middleware/authorize.js';
 import * as manualEditService from '../services/manual-edit.service.js';
 
 const router = Router();
@@ -8,6 +9,12 @@ const router = Router();
 // ─── Helpers ───
 
 const PRIVILEGED_ROLES: Set<string> = new Set(['admin', 'officer', 'SYSTEM_ADMIN']);
+
+function assertTimetableCapability(req: Request, res: Response, capability: 'timetable:edit' | 'timetable:read'): boolean {
+	if (requestHasCapability(req, capability)) return true;
+	res.status(403).json({ code: 'FORBIDDEN', message: `The ${capability} capability is required.` });
+	return false;
+}
 
 function positiveInt(raw: unknown, name: string): number | string {
 	const n = Number(raw);
@@ -32,11 +39,7 @@ router.post(
 	authenticate,
 	async (req: Request, res: Response, next: NextFunction) => {
 		try {
-			const role = req.user?.role;
-			if (!role || !PRIVILEGED_ROLES.has(role)) {
-				res.status(403).json({ code: 'FORBIDDEN', message: 'Only admin, officer, or SYSTEM_ADMIN can preview manual edits.' });
-				return;
-			}
+			if (!assertTimetableCapability(req, res, 'timetable:edit')) return;
 
 			const scope = parseScope(req.params as Record<string, string>);
 			if (typeof scope === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: scope }); return; }
@@ -62,11 +65,7 @@ router.post(
 	authenticate,
 	async (req: Request, res: Response, next: NextFunction) => {
 		try {
-			const role = req.user?.role;
-			if (!role || !PRIVILEGED_ROLES.has(role)) {
-				res.status(403).json({ code: 'FORBIDDEN', message: 'Only admin, officer, or SYSTEM_ADMIN can commit manual edits.' });
-				return;
-			}
+			if (!assertTimetableCapability(req, res, 'timetable:edit')) return;
 
 			const scope = parseScope(req.params as Record<string, string>);
 			if (typeof scope === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: scope }); return; }
@@ -99,11 +98,7 @@ router.post(
 	authenticate,
 	async (req: Request, res: Response, next: NextFunction) => {
 		try {
-			const role = req.user?.role;
-			if (!role || !PRIVILEGED_ROLES.has(role)) {
-				res.status(403).json({ code: 'FORBIDDEN', message: 'Only admin, officer, or SYSTEM_ADMIN can preview manual edit batches.' });
-				return;
-			}
+			if (!assertTimetableCapability(req, res, 'timetable:edit')) return;
 
 			const scope = parseScope(req.params as Record<string, string>);
 			if (typeof scope === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: scope }); return; }
@@ -129,11 +124,7 @@ router.post(
 	authenticate,
 	async (req: Request, res: Response, next: NextFunction) => {
 		try {
-			const role = req.user?.role;
-			if (!role || !PRIVILEGED_ROLES.has(role)) {
-				res.status(403).json({ code: 'FORBIDDEN', message: 'Only admin, officer, or SYSTEM_ADMIN can commit manual edit batches.' });
-				return;
-			}
+			if (!assertTimetableCapability(req, res, 'timetable:edit')) return;
 
 			const scope = parseScope(req.params as Record<string, string>);
 			if (typeof scope === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: scope }); return; }
@@ -172,11 +163,7 @@ router.post(
 	authenticate,
 	async (req: Request, res: Response, next: NextFunction) => {
 		try {
-			const role = req.user?.role;
-			if (!role || !PRIVILEGED_ROLES.has(role)) {
-				res.status(403).json({ code: 'FORBIDDEN', message: 'Only admin, officer, or SYSTEM_ADMIN can revert manual edits.' });
-				return;
-			}
+			if (!assertTimetableCapability(req, res, 'timetable:edit')) return;
 
 			const scope = parseScope(req.params as Record<string, string>);
 			if (typeof scope === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: scope }); return; }
@@ -205,11 +192,7 @@ router.get(
 	authenticate,
 	async (req: Request, res: Response, next: NextFunction) => {
 		try {
-			const role = req.user?.role;
-			if (!role || !PRIVILEGED_ROLES.has(role)) {
-				res.status(403).json({ code: 'FORBIDDEN', message: 'Only admin, officer, or SYSTEM_ADMIN can view manual edit history.' });
-				return;
-			}
+			if (!assertTimetableCapability(req, res, 'timetable:read')) return;
 
 			const scope = parseScope(req.params as Record<string, string>);
 			if (typeof scope === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: scope }); return; }
@@ -229,11 +212,7 @@ router.post(
 	authenticate,
 	async (req: Request, res: Response, next: NextFunction) => {
 		try {
-			const role = req.user?.role;
-			if (!role || !PRIVILEGED_ROLES.has(role)) {
-				res.status(403).json({ code: 'FORBIDDEN', message: 'Only admin, officer, or SYSTEM_ADMIN can preview swaps.' });
-				return;
-			}
+			if (!assertTimetableCapability(req, res, 'timetable:edit')) return;
 			const scope = parseScope(req.params as Record<string, string>);
 			if (typeof scope === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: scope }); return; }
 			const { entryIdA, entryIdB } = req.body ?? {};
@@ -254,11 +233,7 @@ router.post(
 	authenticate,
 	async (req: Request, res: Response, next: NextFunction) => {
 		try {
-			const role = req.user?.role;
-			if (!role || !PRIVILEGED_ROLES.has(role)) {
-				res.status(403).json({ code: 'FORBIDDEN', message: 'Only admin, officer, or SYSTEM_ADMIN can swap entries.' });
-				return;
-			}
+			if (!assertTimetableCapability(req, res, 'timetable:edit')) return;
 			const scope = parseScope(req.params as Record<string, string>);
 			if (typeof scope === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: scope }); return; }
 			const actorId = req.user?.userId;

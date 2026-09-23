@@ -1,12 +1,12 @@
 import { Router } from 'express';
 import type { NextFunction, Request, Response } from 'express';
 import { authenticate } from '../middleware/authenticate.js';
+import { requestHasCapability } from '../middleware/authorize.js';
 import { getUpstreamAuthToken } from '../middleware/upstream-auth.js';
 import * as draftService from '../services/pre-generation-draft.service.js';
 
 const router = Router();
 
-const PRIVILEGED_ROLES: Set<string> = new Set(['admin', 'officer', 'SYSTEM_ADMIN']);
 
 function positiveInt(raw: unknown, name: string): number | string {
 	const value = Number(raw);
@@ -14,10 +14,9 @@ function positiveInt(raw: unknown, name: string): number | string {
 	return value;
 }
 
-function requirePrivileged(req: Request, res: Response) {
-	const role = req.user?.role;
-	if (!role || !PRIVILEGED_ROLES.has(role)) {
-		res.status(403).json({ code: 'FORBIDDEN', message: 'Only admin, officer, or SYSTEM_ADMIN can manage pre-generation draft placements.' });
+function requirePrivileged(req: Request, res: Response, capability: 'timetable:read' | 'timetable:edit' = 'timetable:edit') {
+	if (!requestHasCapability(req, capability)) {
+		res.status(403).json({ code: 'FORBIDDEN', message: `The ${capability} capability is required for pre-generation draft placements.` });
 		return false;
 	}
 	if (!req.user?.userId) {
@@ -106,7 +105,7 @@ router.get(
 	authenticate,
 	async (req: Request, res: Response, next: NextFunction) => {
 		try {
-			if (!requirePrivileged(req, res)) return;
+			if (!requirePrivileged(req, res, 'timetable:read')) return;
 			const scope = parseScope(req, res);
 			if (!scope) return;
 			const board = await draftService.listDraftBoardState(scope.schoolId, scope.schoolYearId, getUpstreamAuthToken(req), {

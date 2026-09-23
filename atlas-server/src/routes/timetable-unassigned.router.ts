@@ -2,13 +2,13 @@ import { Router } from 'express';
 import type { Request, Response, NextFunction } from 'express';
 
 import { authenticate } from '../middleware/authenticate.js';
+import { requestHasCapability } from '../middleware/authorize.js';
 import {
   summarizeUnassignedInsertionReadiness,
   previewUnassignedInsertion,
 } from '../services/timetable-insertion.service.js';
 
 const router = Router();
-const PRIVILEGED_ROLES: Set<string> = new Set(['admin', 'officer', 'SYSTEM_ADMIN']);
 
 function positiveInt(raw: unknown, name: string): number | string {
   const n = Number(raw);
@@ -30,9 +30,8 @@ function actorSchoolId(req: Request): number | null {
 }
 
 function assertPrivilegedAndScoped(req: Request, res: Response, schoolId: number): boolean {
-  const role = req.user?.role;
-  if (!role || !PRIVILEGED_ROLES.has(role)) {
-    res.status(403).json({ code: 'FORBIDDEN', message: 'Only admin, officer, or SYSTEM_ADMIN can view unassigned insertion readiness.' });
+	if (!requestHasCapability(req, 'timetable:review')) {
+		res.status(403).json({ code: 'FORBIDDEN', message: 'Timetable review capability is required.' });
     return false;
   }
   const actorSchool = actorSchoolId(req);

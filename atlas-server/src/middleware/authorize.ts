@@ -19,10 +19,14 @@ export function requirePrivilegedRole(req: Request, res: Response, next: NextFun
 	});
 }
 
+export function requestHasCapability(req: Request, required: AtlasCapability): boolean {
+	const capabilities = capabilitiesForRole(req.user?.role, req.user?.capabilities);
+	return hasCapability(capabilities, required);
+}
+
 export function requireCapability(required: AtlasCapability) {
 	return (req: Request, res: Response, next: NextFunction): void => {
-		const capabilities = capabilitiesForRole(req.user?.role, req.user?.capabilities);
-		if (hasCapability(capabilities, required)) {
+		if (requestHasCapability(req, required)) {
 			next();
 			return;
 		}
