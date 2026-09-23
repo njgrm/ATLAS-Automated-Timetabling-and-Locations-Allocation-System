@@ -7,6 +7,8 @@ export type AtlasCapability =
 	| 'timetable:review'
 	| 'timetable:generate'
 	| 'timetable:publish'
+	| 'timetable:request-publication'
+	| 'timetable:approve-publication'
 	| 'users:admin'
 	| 'system:admin';
 
@@ -17,6 +19,11 @@ export const SCHEDULING_CAPABILITIES: readonly AtlasCapability[] = [
 	'timetable:edit',
 	'timetable:review',
 	'timetable:generate',
+];
+
+export const SCHEDULER_PUBLICATION_CAPABILITIES: readonly AtlasCapability[] = [
+	'timetable:request-publication',
+	'timetable:approve-publication',
 ];
 
 export type EnrollProRoleMapping = {
@@ -48,6 +55,7 @@ export function mapEnrollProRoles(roles: readonly string[]): EnrollProRoleMappin
 			capabilities: [
 				...(hasFaculty ? ['faculty:self-service' as const] : []),
 				...SCHEDULING_CAPABILITIES,
+				...SCHEDULER_PUBLICATION_CAPABILITIES,
 			],
 		};
 	}
@@ -57,9 +65,9 @@ export function mapEnrollProRoles(roles: readonly string[]): EnrollProRoleMappin
 
 export function capabilitiesForRole(role: string | undefined, persisted: unknown): string[] {
 	if (role === 'admin' || role === 'officer' || role === 'SYSTEM_ADMIN') {
-		return ['users:admin', 'system:admin', 'timetable:publish', ...SCHEDULING_CAPABILITIES];
+		return ['users:admin', 'system:admin', 'timetable:publish', ...SCHEDULING_CAPABILITIES, ...SCHEDULER_PUBLICATION_CAPABILITIES];
 	}
-	if (role === 'scheduler') return [...SCHEDULING_CAPABILITIES];
+	if (role === 'scheduler') return [...SCHEDULING_CAPABILITIES, ...SCHEDULER_PUBLICATION_CAPABILITIES];
 	if (role === 'faculty') return ['faculty:self-service'];
 	return Array.isArray(persisted) ? persisted.filter((value): value is string => typeof value === 'string') : [];
 }

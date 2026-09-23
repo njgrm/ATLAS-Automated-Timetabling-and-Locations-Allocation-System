@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/ui/sheet';
 import { Skeleton } from '@/ui/skeleton';
 import { Textarea } from '@/ui/textarea';
+import { PublicationApprovalInbox } from '@/components/timetable/PublicationApprovalInbox';
 
 export function TimetableWorkflowDialogs({ context }: { context: ScheduleReviewDialogsContext }) {
 	const {
@@ -20,7 +21,8 @@ export function TimetableWorkflowDialogs({ context }: { context: ScheduleReviewD
 		requestPreviewHardConflicts, requestPreviewSoftWarnings, requestAppeals, appealsLoading, isPrivilegedUser,
 		updateAppealStatus, appealReason, appealSubmitting, submitAppeal, requestReviewerNotes, setRequestReviewerNotes,
 		requestReviewSaving, reviewRoomRequest, generating, generationElapsed,
-		showPublishDialog, setShowPublishDialog, publishAcknowledged, setPublishAcknowledged, softCount, publishUnassignedCount, handlePublishConfirm,
+		showPublishDialog, setShowPublishDialog, publishAcknowledged, setPublishAcknowledged, softCount, publishUnassignedCount, handlePublishConfirm, canRequestPublication,
+		canApprovePublication, approvalSchoolId, approvalSchoolYearId, approvalActorId,
 	} = context;
 	const closeRequest = () => {
 		setRequestPreview(null);
@@ -106,7 +108,26 @@ export function TimetableWorkflowDialogs({ context }: { context: ScheduleReviewD
 		<Dialog open={generating} modal><DialogContent className="sm:max-w-sm" hideClose onPointerDownOutside={(event) => event.preventDefault()}><div className="flex flex-col items-center gap-3 py-4"><Loader2 className="size-10 animate-spin text-primary" /><h3 className="font-semibold">Generating schedule</h3><p className="text-sm text-muted-foreground">Checking placements and scheduling rules.</p><span className="flex items-center gap-1 text-xs text-muted-foreground"><Clock className="size-3" />Elapsed: {generationElapsed}s</span></div></DialogContent></Dialog>
 
 		<Dialog open={showPublishDialog} onOpenChange={(open) => { setShowPublishDialog(open); if (!open) setPublishAcknowledged(false); }}>
-			<DialogContent className="sm:max-w-md"><DialogHeader><DialogTitle>Publish schedule</DialogTitle><DialogDescription>{(publishUnassignedCount ?? 0) > 0 ? `${publishUnassignedCount} session${publishUnassignedCount === 1 ? '' : 's'} still need placing before this schedule can be published.` : softCount > 0 ? `${softCount} warning${softCount === 1 ? '' : 's'} must be acknowledged before publish.` : 'The generated schedule has no blockers or unresolved sessions.'}</DialogDescription></DialogHeader>{softCount > 0 && <label className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900"><Checkbox checked={publishAcknowledged} onCheckedChange={(value) => setPublishAcknowledged(value === true)} /><span>I reviewed the remaining warnings.</span></label>}<DialogFooter><Button variant="outline" onClick={() => setShowPublishDialog(false)}>Cancel</Button><Button disabled={(publishUnassignedCount ?? 0) > 0 || (softCount > 0 && !publishAcknowledged)} onClick={handlePublishConfirm}><Send className="size-4" />Publish</Button></DialogFooter></DialogContent>
+			<DialogContent className="sm:max-w-md">
+				<DialogHeader>
+					<DialogTitle>{canRequestPublication ? 'Request schedule publication' : 'Publish schedule'}</DialogTitle>
+					<DialogDescription>
+						{(publishUnassignedCount ?? 0) > 0
+							? `${publishUnassignedCount} session${publishUnassignedCount === 1 ? '' : 's'} still need placing before this schedule can be published.`
+							: softCount > 0
+								? `${softCount} warning${softCount === 1 ? '' : 's'} must be acknowledged before ${canRequestPublication ? 'requesting approval' : 'publishing'}.`
+								: canRequestPublication
+									? 'Submit this reviewed schedule for another scheduler to approve. It will not go live until that approval succeeds.'
+									: 'The generated schedule has no blockers or unresolved sessions.'}
+					</DialogDescription>
+				</DialogHeader>
+				{softCount > 0 && <label className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900"><Checkbox checked={publishAcknowledged} onCheckedChange={(value) => setPublishAcknowledged(value === true)} /><span>I reviewed the remaining warnings.</span></label>}
+				<DialogFooter>
+					<Button variant="outline" onClick={() => setShowPublishDialog(false)}>Cancel</Button>
+					<Button disabled={(publishUnassignedCount ?? 0) > 0 || (softCount > 0 && !publishAcknowledged)} onClick={handlePublishConfirm}><Send className="size-4" />{canRequestPublication ? 'Request approval' : 'Publish'}</Button>
+				</DialogFooter>
+			</DialogContent>
 		</Dialog>
+		<PublicationApprovalInbox schoolId={approvalSchoolId} schoolYearId={approvalSchoolYearId} actorId={approvalActorId} visible={canApprovePublication === true} />
 	</>;
 }

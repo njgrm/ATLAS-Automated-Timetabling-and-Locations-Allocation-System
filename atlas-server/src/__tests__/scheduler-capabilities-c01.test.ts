@@ -5,6 +5,7 @@ import {
 	mapEnrollProRoles,
 	capabilitiesForRole,
 	SCHEDULING_CAPABILITIES,
+	SCHEDULER_PUBLICATION_CAPABILITIES,
 	hasCapability,
 } from '../services/scheduler-capabilities.js';
 import { requireCapability } from '../middleware/authorize.js';
@@ -23,7 +24,7 @@ test('coordinator eligibility comes only from the upstream role claim', () => {
 		capabilities: ['faculty:self-service'],
 	});
 	assert.equal(mapEnrollProRoles(['GRADE_LEVEL_COORDINATOR']).role, 'scheduler');
-	assert.deepEqual(mapEnrollProRoles(['GRADE_LEVEL_COORDINATOR']).capabilities, [...SCHEDULING_CAPABILITIES]);
+	assert.deepEqual(mapEnrollProRoles(['GRADE_LEVEL_COORDINATOR']).capabilities, [...SCHEDULING_CAPABILITIES, ...SCHEDULER_PUBLICATION_CAPABILITIES]);
 	assert.equal(mapEnrollProRoles(['SCHEDULER', 'IT_ADMIN']).role, null);
 });
 
@@ -33,6 +34,11 @@ test('scheduler has workspace capabilities but no administration or direct publi
 	assert.equal(hasCapability(scheduler, 'system:admin'), false);
 	assert.equal(hasCapability(scheduler, 'users:admin'), false);
 	assert.equal(hasCapability(scheduler, 'timetable:publish'), false);
+	assert.equal(hasCapability(scheduler, 'timetable:request-publication'), true);
+	assert.equal(hasCapability(scheduler, 'timetable:approve-publication'), true);
+	for (const role of ['admin', 'officer', 'SYSTEM_ADMIN']) {
+		assert.equal(hasCapability(capabilitiesForRole(role, []), 'timetable:publish'), true, `${role} retains direct publication`);
+	}
 	assert.equal(hasCapability(['admin:*'], 'system:admin'), true);
 });
 

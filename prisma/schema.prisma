@@ -798,10 +798,43 @@ model GenerationRun {
   manualEdits                ManualScheduleEdit[]
   roomPreferences            FacultyRoomPreference[]
   publishedScheduleRevisions PublishedScheduleRevision[] @relation("PublishedRevisionSourceRun")
+  publicationApprovalRequests PublicationApprovalRequest[]
 
   @@index([schoolId, schoolYearId, createdAt])
   @@index([status])
   @@map("generation_runs")
+}
+
+enum PublicationApprovalStatus {
+  PENDING
+  APPROVED
+
+  @@map("publication_approval_status")
+}
+
+model PublicationApprovalRequest {
+  id                         Int                       @id @default(autoincrement())
+  schoolId                   Int                       @map("school_id")
+  schoolYearId               Int                       @map("school_year_id")
+  runId                      Int                       @map("run_id")
+  runVersion                 Int                       @map("run_version")
+  snapshotHash               String                    @map("snapshot_hash") @db.Char(64)
+  sourceRevisionId           Int?                      @map("source_revision_id")
+  requesterId                Int                       @map("requester_id")
+  requesterAcknowledgedSoftViolations Boolean            @default(false) @map("requester_acknowledged_soft_violations")
+  approverId                 Int?                      @map("approver_id")
+  status                     PublicationApprovalStatus @default(PENDING)
+  requestedAt                DateTime                  @default(now()) @map("requested_at")
+  approvedAt                 DateTime?                 @map("approved_at")
+  publishedRevisionId        Int?                      @map("published_revision_id")
+
+  run GenerationRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+  sourceRevision PublishedScheduleRevision? @relation("PublicationApprovalSourceRevision", fields: [sourceRevisionId], references: [id], onDelete: Restrict)
+  publishedRevision PublishedScheduleRevision? @relation("PublicationApprovalPublishedRevision", fields: [publishedRevisionId], references: [id], onDelete: Restrict)
+
+  @@unique([schoolId, schoolYearId, runId, runVersion], map: "publication_approval_requests_scope_run_version_key")
+  @@index([schoolId, schoolYearId, status, requestedAt])
+  @@map("publication_approval_requests")
 }
 
 // ─── Manual Schedule Edit ───
@@ -869,6 +902,8 @@ model PublishedScheduleRevision {
   sourceRun            GenerationRun               @relation("PublishedRevisionSourceRun", fields: [sourceRunId], references: [id], onDelete: Restrict)
   sourceRevision       PublishedScheduleRevision?  @relation("PublishedRevisionChain", fields: [sourceRevisionId], references: [id], onDelete: SetNull)
   supersedingRevisions PublishedScheduleRevision[] @relation("PublishedRevisionChain")
+  publicationApprovalSources PublicationApprovalRequest[] @relation("PublicationApprovalSourceRevision")
+  approvedPublicationRequests PublicationApprovalRequest[] @relation("PublicationApprovalPublishedRevision")
 
   @@index([schoolId, schoolYearId, effectiveDate])
   @@index([sourceRunId, effectiveDate])
