@@ -35,18 +35,16 @@ and AIMS.
 ## Live release
 
 - Tailnet: `https://njgrm.buru-degree.ts.net`
-- **Release SHA: `28f6f03f`** (current; `D:\ATLAS-runtime-supervised-28f6f03f-20260923`;
-  supervisor-owned 5001/5174; supervisor 47876-lineage, server `5001`->17548, client `5174`->39100;
-  served entry `/assets/index-Dy2kdrZW.js`; machine `ATLAS_RUNTIME_RELEASE_SHA` = `28f6f03f`; health +
-  health/ready + DB-backed `GET /api/v1/subjects?schoolId=1` + Tailnet all 200 — verified 2026-09-23).
-  It carries `TIMETABLE-RELAXED-MAIN-C01` — the relaxed main Class Schedule workspace (see the Lane A
-  section) — plus the `NOTIFICATION-INBOX-C01` source whose migration is **not** applied (its read
-  routes return 500). **Nothing above this release touches `atlas-client/**`.**
-  Rollback: `1fdab989` startable in place at `D:\ATLAS-runtime-supervised-1fdab989-20260923`;
-  deeper fallbacks `e78d4473`, `11e8778f`, and the original `7dbb3b90`.
-- (superseded) **Release SHA: `1fdab989`** — the placement-confirm correction, live ~06:00, superseded
-  by the draft-undo correction. Also superseded within this cycle: `e78d4473` (density correction) and
-  `11e8778f` (first relaxed-main release).
+- **Release SHA: `d9a6aa53`** (current; `D:\ATLAS-runtime-supervised-d9a6aa53-20260923`;
+  supervisor-owned 5001/5174; server `5001`->19296, client `5174`->41948; served entry
+  `/assets/index-BKcGq9ln.js`; machine `ATLAS_RUNTIME_RELEASE_SHA` = `d9a6aa53`; health + health/ready +
+  DB-backed `GET /api/v1/subjects?schoolId=1` + Tailnet all 200 — verified 2026-09-23). Carries
+  `TIMETABLE-HEADER-COLLAPSE-C01` (grid top 180 -> 139.6 px, one header row), the accepted
+  `TIMETABLE-RELAXED-MAIN-C01`, the `NOTIFICATION-INBOX` source (migration `0004` applied), and the
+  published run #317 / revision 43. **Nothing above this release touches `atlas-client/**`.**
+  Rollback: `28f6f03f` startable in place at `D:\ATLAS-runtime-supervised-28f6f03f-20260923`; deeper
+  fallbacks `1fdab989`, `e78d4473`, `11e8778f`, `7dbb3b90`.
+- (superseded) **Release SHA: `28f6f03f`** — the accepted relaxed main workspace, live ~06:20-10:11.
 - (superseded) **Release SHA: `7dbb3b90`** (deployed by Lane A 2026-09-22
   ~22:17 local; supervisor restarted; `5001`->45228; `5174`->48508; served entry
   `index-BxOX7te1.js`; health + DB-backed read + Tailnet 200). **This release ended the timetable
@@ -372,6 +370,35 @@ Lane B owns this section. Current stream and state: see Lane B's own handoff fil
 it complete `TEST-GATE-REACHABILITY-C01` (`f4462374`) and hand it over for integration.
 
 ## Lane A — current lane (written only by Lane A)
+
+**`TIMETABLE-HEADER-COLLAPSE-C01` COMPLETE — the three declutter gaps are closed (2026-09-23).**
+Live release **`d9a6aa53`** at `D:\ATLAS-runtime-supervised-d9a6aa53-20260923` (5001→19296 /
+5174→41948; machine `ATLAS_RUNTIME_RELEASE_SHA` = `d9a6aa53`; health/ready + DB-backed read + Tailnet
+200; served entry `assets/index-BKcGq9ln.js`, byte-identical to the build). Cycle: candidate
+`daca0fb9` → one batched pre-action reviewer (**`CORRECTION_REQUIRED` 11/10/1/0**) → bounded correction
+`dd601d17` → planner-verified mechanically → integrated `d9a6aa53` → post-deployment QA
+**`ACCEPT_READY` 6/6/0/0`**. **Measured live at 1366×768:** grid top **180 → 139.6 px** (target ≤ ~140);
+header bands **2 → 1** (single `timetable-simple-header-row`, no wrap, `flex-nowrap`); exactly **1**
+status region; the published surface (**195.41×44**) now out-ranks `Generate` (**94.31×32**) with **zero**
+brand-filled action buttons; no document scrollbar at **1366×768 or 390×844**; band does not scroll
+horizontally (`scrollWidth == clientWidth`); all nine `/timetable*` routes keep the 6-link sub-nav at a
+12 px floor with **0** router element-less warnings; run #317 / revision 43 intact with no stale banner.
+**The defect the review caught, and why it mattered:** the candidate used arbitrary `min-[1366px]:*`
+variants, which Tailwind emits **before** the `lg:` block — equal specificity, so source order decided
+and `lg:` won, making the ≥1366 behaviour the **exact inverse** of the design (the inline switcher never
+yielded, the compact trigger never returned). The candidate's own test certified the opposite because it
+**regex-matched source strings only** — "wiring, not outcome". The correction replaced the variants with
+a **named `--breakpoint-wide: 85.375rem`** breakpoint (it must be `rem`, not `px`: Tailwind orders
+breakpoints by **unit string before magnitude**, so `1366px` sorts before `sm` — the same defect), and
+replaced the proof with one that runs the **real Tailwind pipeline over the real `src/index.css`** and
+asserts the emitted order plus the effective display at 1366/1280, with a negative control that fails on
+the old defect. Verified live: at 1366 the switcher yields and the sheet trigger returns; at 1280 the
+inverse. **Residual (NON_BLOCKING):** the 139.6 px margin is 0.4 px — read it with its definition
+(header bottom), not the padded grid-container top (155.6 px); a transient, self-recovering 502 pair on
+first paint (`runtime/rollover-status`, `runs/317/manual-edits`) both returned 200 on immediate re-probe
+and is not attributable to this client-only delta. **Disk: `D:` 16.83 GiB** — close to the §3 15 GiB
+fail-closed line; six `D:\ATLAS-runtime-supervised-*` release trees now exist and the lifecycle rule
+forbids retiring them, so the next release or any further heavy build needs a capacity decision.
 
 **`TIMETABLE-PUBLICATION-C01` COMPLETE — school 1 / year 10 now serves a newly published schedule (revision 43, run #317, 2026-09-23).**
 This is the **third** publication for year 10, **not the first**: revision 41 (run 314, effective
