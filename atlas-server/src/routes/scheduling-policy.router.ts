@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import type { Request, Response, NextFunction } from 'express';
 import { authenticate } from '../middleware/authenticate.js';
-import { requestHasCapability } from '../middleware/authorize.js';
+import { assertRequestSchoolScope, requestHasCapability } from '../middleware/authorize.js';
 import * as policyService from '../services/scheduling-policy.service.js';
 
 const router = Router();
@@ -32,6 +32,7 @@ router.get(
 			if (typeof schoolId === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: schoolId }); return; }
 			const schoolYearId = positiveInt(req.params.schoolYearId, 'schoolYearId');
 			if (typeof schoolYearId === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: schoolYearId }); return; }
+			if (!assertRequestSchoolScope(req, res, schoolId)) return;
 
 			const policy = await policyService.getOrCreatePolicy(schoolId, schoolYearId);
 			res.json({ policy });
@@ -55,6 +56,7 @@ router.put(
 			if (typeof schoolId === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: schoolId }); return; }
 			const schoolYearId = positiveInt(req.params.schoolYearId, 'schoolYearId');
 			if (typeof schoolYearId === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: schoolYearId }); return; }
+			if (!assertRequestSchoolScope(req, res, schoolId)) return;
 
 			const policy = await policyService.upsertPolicy(schoolId, schoolYearId, req.body);
 			res.json({ policy });

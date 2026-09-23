@@ -31,6 +31,16 @@ export type EnrollProRoleMapping = {
 	capabilities: AtlasCapability[];
 };
 
+/** Resolve roles for a local login from the current upstream assertion. A persisted
+ * scheduler row is never sufficient to retain scheduler authority. */
+export function resolveCurrentSchedulerAuthority(
+	persistedRole: string,
+	currentEnrollProRoles: readonly string[] | null,
+): EnrollProRoleMapping {
+	if (currentEnrollProRoles === null) return { role: null, capabilities: [] };
+	return mapEnrollProRoles(currentEnrollProRoles);
+}
+
 const KNOWN_ENROLLPRO_ROLES = new Set([
 	'SYSTEM_ADMIN',
 	'HEAD_REGISTRAR',

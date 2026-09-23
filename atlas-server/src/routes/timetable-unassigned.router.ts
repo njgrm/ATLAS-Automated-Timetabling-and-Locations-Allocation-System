@@ -2,7 +2,7 @@ import { Router } from 'express';
 import type { Request, Response, NextFunction } from 'express';
 
 import { authenticate } from '../middleware/authenticate.js';
-import { requestHasCapability } from '../middleware/authorize.js';
+import { assertRequestSchoolScope, requestHasCapability } from '../middleware/authorize.js';
 import {
   summarizeUnassignedInsertionReadiness,
   previewUnassignedInsertion,
@@ -24,26 +24,12 @@ function parseScope(params: Record<string, string>): { schoolId: number; schoolY
   return { schoolId, schoolYearId };
 }
 
-function actorSchoolId(req: Request): number | null {
-  const schoolId = Number(req.user?.schoolId);
-  return Number.isInteger(schoolId) && schoolId > 0 ? schoolId : null;
-}
-
 function assertPrivilegedAndScoped(req: Request, res: Response, schoolId: number): boolean {
 	if (!requestHasCapability(req, 'timetable:review')) {
 		res.status(403).json({ code: 'FORBIDDEN', message: 'Timetable review capability is required.' });
     return false;
   }
-  const actorSchool = actorSchoolId(req);
-  if (actorSchool === null) {
-    res.status(403).json({ code: 'SCHOOL_SCOPE_REQUIRED', message: 'Authenticated school scope is required.' });
-    return false;
-  }
-  if (actorSchool !== schoolId) {
-    res.status(403).json({ code: 'CROSS_SCHOOL_DENIED', message: 'Cannot read another school\u2019s unassigned insertion state.' });
-    return false;
-  }
-  return true;
+	return assertRequestSchoolScope(req, res, schoolId);
 }
 
 router.get(

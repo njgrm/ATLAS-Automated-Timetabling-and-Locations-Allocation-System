@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import type { Request, Response, NextFunction } from 'express';
 import { authenticate } from '../middleware/authenticate.js';
-import { requestHasCapability } from '../middleware/authorize.js';
+import { assertRequestSchoolScope, requestHasCapability } from '../middleware/authorize.js';
 import * as manualEditService from '../services/manual-edit.service.js';
 
 const router = Router();
@@ -43,6 +43,7 @@ router.post(
 
 			const scope = parseScope(req.params as Record<string, string>);
 			if (typeof scope === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: scope }); return; }
+			if (!assertRequestSchoolScope(req, res, scope.schoolId)) return;
 
 			const proposal = req.body;
 			if (!proposal || !proposal.editType) {
@@ -69,6 +70,7 @@ router.post(
 
 			const scope = parseScope(req.params as Record<string, string>);
 			if (typeof scope === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: scope }); return; }
+			if (!assertRequestSchoolScope(req, res, scope.schoolId)) return;
 
 			const actorId = req.user?.userId;
 			if (!actorId) { res.status(401).json({ code: 'NO_USER', message: 'Authenticated user required.' }); return; }
@@ -102,6 +104,7 @@ router.post(
 
 			const scope = parseScope(req.params as Record<string, string>);
 			if (typeof scope === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: scope }); return; }
+			if (!assertRequestSchoolScope(req, res, scope.schoolId)) return;
 
 			const { proposals } = req.body ?? {};
 			if (!Array.isArray(proposals) || proposals.length === 0) {
@@ -128,6 +131,7 @@ router.post(
 
 			const scope = parseScope(req.params as Record<string, string>);
 			if (typeof scope === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: scope }); return; }
+			if (!assertRequestSchoolScope(req, res, scope.schoolId)) return;
 
 			const actorId = req.user?.userId;
 			if (!actorId) { res.status(401).json({ code: 'NO_USER', message: 'Authenticated user required.' }); return; }
@@ -167,6 +171,7 @@ router.post(
 
 			const scope = parseScope(req.params as Record<string, string>);
 			if (typeof scope === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: scope }); return; }
+			if (!assertRequestSchoolScope(req, res, scope.schoolId)) return;
 
 			const actorId = req.user?.userId;
 			if (!actorId) { res.status(401).json({ code: 'NO_USER', message: 'Authenticated user required.' }); return; }
@@ -196,6 +201,7 @@ router.get(
 
 			const scope = parseScope(req.params as Record<string, string>);
 			if (typeof scope === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: scope }); return; }
+			if (!assertRequestSchoolScope(req, res, scope.schoolId)) return;
 
 			const edits = await manualEditService.listManualEdits(
 				scope.runId, scope.schoolId, scope.schoolYearId,
@@ -215,6 +221,7 @@ router.post(
 			if (!assertTimetableCapability(req, res, 'timetable:edit')) return;
 			const scope = parseScope(req.params as Record<string, string>);
 			if (typeof scope === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: scope }); return; }
+			if (!assertRequestSchoolScope(req, res, scope.schoolId)) return;
 			const { entryIdA, entryIdB } = req.body ?? {};
 			if (!entryIdA || !entryIdB) {
 				res.status(400).json({ code: 'INVALID_BODY', message: 'entryIdA and entryIdB are required.' });
@@ -236,6 +243,7 @@ router.post(
 			if (!assertTimetableCapability(req, res, 'timetable:edit')) return;
 			const scope = parseScope(req.params as Record<string, string>);
 			if (typeof scope === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: scope }); return; }
+			if (!assertRequestSchoolScope(req, res, scope.schoolId)) return;
 			const actorId = req.user?.userId;
 			if (!actorId) { res.status(401).json({ code: 'NO_USER', message: 'Authenticated user required.' }); return; }
 			const { entryIdA, entryIdB, expectedVersion, strategy, autoFixTarget } = req.body ?? {};

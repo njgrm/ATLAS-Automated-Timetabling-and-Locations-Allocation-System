@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import type { Request, Response, NextFunction } from 'express';
 import { authenticate } from '../middleware/authenticate.js';
-import { requestHasCapability } from '../middleware/authorize.js';
+import { assertRequestSchoolScope, requestHasCapability } from '../middleware/authorize.js';
 import type { AtlasCapability } from '../services/scheduler-capabilities.js';
 import { getUpstreamAuthToken } from '../middleware/upstream-auth.js';
 import * as genService from '../services/generation.service.js';
@@ -28,20 +28,22 @@ const router = Router();
 const PRIVILEGED_ROLES: Set<string> = new Set(['admin', 'officer', 'SYSTEM_ADMIN']);
 
 function hasWorkspaceCapability(req: Request, res: Response, capability: AtlasCapability): boolean {
-	if (requestHasCapability(req, capability)) return true;
-	res.status(403).json({ code: 'FORBIDDEN', message: `This generation action requires the ${capability} capability.` });
-	return false;
+	if (!requestHasCapability(req, capability)) {
+		res.status(403).json({ code: 'FORBIDDEN', message: `This generation action requires the ${capability} capability.` });
+		return false;
+	}
+	const schoolId = positiveInt(req.params.schoolId, 'schoolId');
+	if (typeof schoolId === 'string') {
+		res.status(400).json({ code: 'INVALID_PARAM', message: schoolId });
+		return false;
+	}
+	return assertRequestSchoolScope(req, res, schoolId);
 }
 
 function positiveInt(raw: unknown, name: string): number | string {
 	const n = Number(raw);
 	if (!Number.isInteger(n) || n < 1) return `${name} must be a positive integer.`;
 	return n;
-}
-
-function actorSchoolId(req: Request): number | null {
-	const schoolId = Number(req.user?.schoolId);
-	return Number.isInteger(schoolId) && schoolId > 0 ? schoolId : null;
 }
 
 /**
@@ -52,16 +54,7 @@ function actorSchoolId(req: Request): number | null {
  * invocation (zero reads/writes/service calls for rejected scope).
  */
 function assertActorSchoolScope(req: Request, res: Response, schoolId: number): boolean {
-	const actorSchool = actorSchoolId(req);
-	if (actorSchool === null) {
-		res.status(403).json({ code: 'SCHOOL_SCOPE_REQUIRED', message: 'Authenticated school scope is required for generation actions.' });
-		return false;
-	}
-	if (actorSchool !== schoolId) {
-		res.status(403).json({ code: 'CROSS_SCHOOL_DENIED', message: 'Cannot run generation actions for another school.' });
-		return false;
-	}
-	return true;
+	return assertRequestSchoolScope(req, res, schoolId);
 }
 
 type RequiredTermParse =

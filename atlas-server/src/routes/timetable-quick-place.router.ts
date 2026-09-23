@@ -2,7 +2,7 @@ import { Router } from 'express';
 import type { Request, Response, NextFunction } from 'express';
 
 import { authenticate } from '../middleware/authenticate.js';
-import { requestHasCapability } from '../middleware/authorize.js';
+import { assertRequestSchoolScope, requestHasCapability } from '../middleware/authorize.js';
 import { prisma } from '../lib/prisma.js';
 import { assertTeachingLoadWriteAuthority } from '../services/faculty-assignment.service.js';
 import {
@@ -83,6 +83,7 @@ router.post(
 			if (!assertPrivileged(req, res)) return;
 			const scope = parseScope(req.params as Record<string, string>);
 			if (typeof scope === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: scope }); return; }
+			if (!assertRequestSchoolScope(req, res, scope.schoolId)) return;
 			if (!(await assertQuickPlaceScope(req, res, scope.schoolId, scope.schoolYearId, scope.runId))) return;
 			
 			const result = await solveQuickPlace(scope.runId, scope.schoolId, scope.schoolYearId);
@@ -99,6 +100,7 @@ router.post(
 			if (!assertPrivileged(req, res)) return;
 			const scope = parseScope(req.params as Record<string, string>);
 			if (typeof scope === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: scope }); return; }
+			if (!assertRequestSchoolScope(req, res, scope.schoolId)) return;
 			
 			const actorId = req.user?.userId;
 			if (!actorId) { res.status(401).json({ code: 'NO_USER', message: 'Authenticated user required.' }); return; }

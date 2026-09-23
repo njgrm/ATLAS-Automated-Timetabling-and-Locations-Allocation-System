@@ -4,7 +4,7 @@ import type { Prisma } from '@prisma/client';
 
 import { prisma } from '../lib/prisma.js';
 import { resolveCanonicalFacultyMirror, type CanonicalFacultyResolution } from './faculty-identity.service.js';
-import { capabilitiesForRole, mapEnrollProRoles, type EnrollProRoleMapping } from './scheduler-capabilities.js';
+import { capabilitiesForRole, mapEnrollProRoles, resolveCurrentSchedulerAuthority, type EnrollProRoleMapping } from './scheduler-capabilities.js';
 
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN ?? '8h';
 const MAX_FAILED_ATTEMPTS = Number(process.env.ATLAS_AUTH_MAX_FAILED_ATTEMPTS ?? 5);
@@ -924,9 +924,43 @@ export async function login(params: {
 		};
 	}
 
-	const accountCapabilities = capabilitiesForRole(account.role, account.role === 'scheduler' && account.facultyId !== null ? ['faculty:self-service'] : []);
+	let effectiveRole = account.role;
+	let accountCapabilities = capabilitiesForRole(account.role, account.role === 'scheduler' && account.facultyId !== null ? ['faculty:self-service'] : []);
+	if (account.role === 'scheduler' || account.role === 'faculty') {
+		const upstream = await tryEnrollProVerify(identifier, params.password);
+		if (!upstream) {
+			if (account.role !== 'scheduler') {
+				// Ordinary faculty keeps the established local self-service login;
+				// without an upstream assertion it receives no scheduler authority.
+			} else {
+				return {
+					ok: false,
+					status: 503,
+					code: 'AUTH_SCHEDULER_VERIFICATION_REQUIRED',
+					message: 'Scheduler access requires current EnrollPro role verification. Please retry when EnrollPro is available.',
+				};
+			}
+		} else {
+			const upstreamRoles = upstream.user.roles?.length ? upstream.user.roles : upstream.user.role ? [upstream.user.role] : [];
+			const authority = resolveCurrentSchedulerAuthority(account.role, upstreamRoles);
+			if (!authority.role) {
+				if (account.role === 'scheduler') {
+					return {
+						ok: false,
+						status: 403,
+						code: 'AUTH_INVALID_ROLE',
+						message: 'Your current EnrollPro roles do not grant ATLAS scheduler access.',
+					};
+				}
+			} else {
+				effectiveRole = authority.role;
+				accountCapabilities = authority.capabilities;
+				await prisma.atlasAuthAccount.update({ where: { id: account.id }, data: { role: effectiveRole } });
+			}
+		}
+	}
 	const hasFacultySelfService = accountCapabilities.includes('faculty:self-service');
-	let sessionRole = account.role;
+	let sessionRole = effectiveRole;
 	let sessionCapabilities = accountCapabilities;
 	let canonicalFaculty = hasFacultySelfService
 		? await resolveCanonicalFacultyMirror({

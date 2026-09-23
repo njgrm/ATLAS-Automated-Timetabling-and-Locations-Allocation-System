@@ -1,5 +1,8 @@
 CREATE TYPE publication_approval_status AS ENUM ('PENDING', 'APPROVED');
 
+CREATE UNIQUE INDEX generation_runs_id_school_scope_key
+    ON generation_runs(id, school_id, school_year_id);
+
 CREATE TABLE publication_approval_requests (
     id SERIAL PRIMARY KEY,
     school_id INTEGER NOT NULL,
@@ -15,8 +18,15 @@ CREATE TABLE publication_approval_requests (
     requested_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     approved_at TIMESTAMP(3),
     published_revision_id INTEGER,
-    CONSTRAINT publication_approval_requests_run_id_fkey
-        FOREIGN KEY (run_id) REFERENCES generation_runs(id) ON DELETE CASCADE ON UPDATE CASCADE,
+    CONSTRAINT publication_approval_requests_run_scope_fkey
+        FOREIGN KEY (run_id, school_id, school_year_id)
+        REFERENCES generation_runs(id, school_id, school_year_id) ON DELETE CASCADE ON UPDATE CASCADE,
+    CONSTRAINT publication_approval_requests_school_id_fkey
+        FOREIGN KEY (school_id) REFERENCES schools(id) ON DELETE CASCADE ON UPDATE CASCADE,
+    CONSTRAINT publication_approval_requests_requester_id_fkey
+        FOREIGN KEY (requester_id) REFERENCES atlas_auth_accounts(id) ON DELETE RESTRICT ON UPDATE CASCADE,
+    CONSTRAINT publication_approval_requests_approver_id_fkey
+        FOREIGN KEY (approver_id) REFERENCES atlas_auth_accounts(id) ON DELETE SET NULL ON UPDATE CASCADE,
     CONSTRAINT publication_approval_requests_source_revision_id_fkey
         FOREIGN KEY (source_revision_id) REFERENCES published_schedule_revisions(id) ON DELETE RESTRICT ON UPDATE CASCADE,
     CONSTRAINT publication_approval_requests_published_revision_id_fkey

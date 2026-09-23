@@ -16,8 +16,8 @@ function scopeFrom(req: Request) {
 	const schoolYearId = positiveId(req.params.schoolYearId);
 	const runId = positiveId(req.params.runId);
 	const actorId = positiveId(req.user?.userId);
-	const actorSchoolId = positiveId(req.user?.schoolId);
-	if (schoolId === null || schoolYearId === null || runId === null || actorId === null || actorSchoolId === null || schoolId !== actorSchoolId) return null;
+	const actorSchoolId = req.user?.schoolId;
+	if (schoolId === null || schoolYearId === null || runId === null || actorId === null || !Number.isSafeInteger(actorSchoolId) || actorSchoolId! < 1 || schoolId !== actorSchoolId) return null;
 	return { schoolId, schoolYearId, runId, actorId, actorSchoolId };
 }
 
@@ -28,8 +28,8 @@ router.get('/:schoolId/:schoolYearId/requests', authenticate, async (req: Reques
 	}
 	const schoolId = positiveId(req.params.schoolId);
 	const schoolYearId = positiveId(req.params.schoolYearId);
-	const actorSchoolId = positiveId(req.user?.schoolId);
-	if (schoolId === null || schoolYearId === null || actorSchoolId !== schoolId) {
+	const actorSchoolId = req.user?.schoolId;
+	if (schoolId === null || schoolYearId === null || !Number.isSafeInteger(actorSchoolId) || actorSchoolId! < 1 || actorSchoolId !== schoolId) {
 		res.status(403).json({ code: 'APPROVAL_SCOPE_MISMATCH', message: 'Pending approvals must be within the authenticated school scope.' });
 		return;
 	}

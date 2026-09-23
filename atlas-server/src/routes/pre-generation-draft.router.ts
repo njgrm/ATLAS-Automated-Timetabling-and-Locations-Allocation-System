@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import type { NextFunction, Request, Response } from 'express';
 import { authenticate } from '../middleware/authenticate.js';
-import { requestHasCapability } from '../middleware/authorize.js';
+import { assertRequestSchoolScope, requestHasCapability } from '../middleware/authorize.js';
 import { getUpstreamAuthToken } from '../middleware/upstream-auth.js';
 import * as draftService from '../services/pre-generation-draft.service.js';
 
@@ -37,6 +37,7 @@ function parseScope(req: Request, res: Response) {
 		res.status(400).json({ code: 'INVALID_PARAM', message: schoolYearId });
 		return null;
 	}
+	if (!assertRequestSchoolScope(req, res, schoolId)) return null;
 	return { schoolId, schoolYearId };
 }
 

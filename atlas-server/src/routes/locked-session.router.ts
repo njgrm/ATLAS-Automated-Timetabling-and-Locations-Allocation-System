@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import type { Request, Response, NextFunction } from 'express';
 import { authenticate } from '../middleware/authenticate.js';
-import { requestHasCapability } from '../middleware/authorize.js';
+import { assertRequestSchoolScope, requestHasCapability } from '../middleware/authorize.js';
 import * as lockService from '../services/locked-session.service.js';
 
 const router = Router();
@@ -31,6 +31,7 @@ router.get(
 			if (typeof schoolId === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: schoolId }); return; }
 			const schoolYearId = positiveInt(req.params.schoolYearId, 'schoolYearId');
 			if (typeof schoolYearId === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: schoolYearId }); return; }
+			if (!assertRequestSchoolScope(req, res, schoolId)) return;
 
 			const locks = await lockService.listLocks(schoolId, schoolYearId);
 			res.json({ locks });
@@ -51,6 +52,7 @@ router.post(
 			if (typeof schoolId === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: schoolId }); return; }
 			const schoolYearId = positiveInt(req.params.schoolYearId, 'schoolYearId');
 			if (typeof schoolYearId === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: schoolYearId }); return; }
+			if (!assertRequestSchoolScope(req, res, schoolId)) return;
 
 			const actorId = req.user?.userId;
 			if (!actorId) { res.status(401).json({ code: 'NO_USER', message: 'Authenticated user required.' }); return; }
@@ -74,6 +76,7 @@ router.delete(
 			if (typeof schoolId === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: schoolId }); return; }
 			const schoolYearId = positiveInt(req.params.schoolYearId, 'schoolYearId');
 			if (typeof schoolYearId === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: schoolYearId }); return; }
+			if (!assertRequestSchoolScope(req, res, schoolId)) return;
 			const lockId = positiveInt(req.params.lockId, 'lockId');
 			if (typeof lockId === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: lockId }); return; }
 
@@ -96,6 +99,7 @@ router.get(
 			if (typeof schoolId === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: schoolId }); return; }
 			const schoolYearId = positiveInt(req.params.schoolYearId, 'schoolYearId');
 			if (typeof schoolYearId === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: schoolYearId }); return; }
+			if (!assertRequestSchoolScope(req, res, schoolId)) return;
 
 			const slots = await lockService.getEffectivePeriodSlots(schoolId, schoolYearId);
 			res.json({ slots });
