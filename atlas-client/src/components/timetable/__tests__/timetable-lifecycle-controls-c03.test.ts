@@ -40,3 +40,23 @@ test('pending session verification uses neutral shell identity instead of Guest'
 	assert.match(shell, /setSessionVerificationState\('authenticated'\)/);
 	assert.match(shell, /setSessionVerificationState\('unauthenticated'\)/);
 });
+
+test('desktop timetable controls keep view and searchable entity in the header with refinements anchored nearby', () => {
+	const controls = source('components/timetable/simple/SimpleFilterControls.tsx');
+	const schedule = source('components/timetable/simple/SimpleHeaderHelpers.tsx');
+	const header = source('components/timetable/TimetableSimpleHeader.tsx');
+	assert.match(controls, /from ['"]@\/ui\/popover['"]/);
+	assert.match(controls, /<PopoverTrigger asChild>/);
+	assert.match(controls, /<PopoverContent[^>]+data-testid="timetable-simple-filters-popover"/);
+	assert.match(controls, /<SheetTrigger asChild>/);
+	assert.match(controls, /data-testid="timetable-filters-mobile-trigger"/);
+	assert.doesNotMatch(controls, /@\/ui\/dialog/);
+	assert.match(controls, /timetable-active-filter-count/);
+	assert.match(controls, /Remove \$\{filter\.label\} filter/);
+	assert.match(schedule, /data-testid="timetable-simple-view-mode-select"/);
+	assert.match(schedule, /<SearchableSelect/);
+	assert.match(schedule, /View type/);
+	assert.match(schedule, /className="[^"]*lg:hidden"/);
+	assert.match(header, /hidden min-w-0 flex-1 lg:flex[^\"]*/);
+	assert.doesNotMatch(header, /wide:hidden/);
+});
