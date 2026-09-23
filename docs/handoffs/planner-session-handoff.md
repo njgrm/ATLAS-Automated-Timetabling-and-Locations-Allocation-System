@@ -12,6 +12,65 @@ Last updated: 2026-09-23 (Lane A).
 
 ## Verdict
 
+**2026-09-23 — relaxed timetable is LIVE at `d9a6aa53`; one candidate is staged for review; one operator decision is open.**
+
+- **Live release `d9a6aa53`** (`D:\ATLAS-runtime-supervised-d9a6aa53-20260923`; supervisor-owned
+  5001→19296 / 5174→41948; served entry `assets/index-BKcGq9ln.js`; health/ready + DB-backed read +
+  Tailnet 200). Carries, in order: `TIMETABLE-RELAXED-SUBPAGES-C01` → `TIMETABLE-RELAXED-MAIN-C01`
+  (grid top 332→180 px, status surfaces 8→1, router warnings 49→0, mobile paint 8 s→91 ms, SPA refetch
+  17→1, scroll preserved, inline placement with working Undo) → `TIMETABLE-HEADER-COLLAPSE-C01`
+  (header 2 bands→**1 row**, grid top **139.6 px**, published surface out-ranks `Generate`). Rollback:
+  `28f6f03f` startable in place; deeper fallbacks `1fdab989`, `e78d4473`, `11e8778f`, `7dbb3b90`.
+- **`origin/main` = `ec2ec168`.**
+- **IMMEDIATE NEXT ACTION — pre-action review of `fb58a0d5`** (branch
+  `work/timetable-truthfulness-c01`, worktree `E:\ATLAS-worktrees\timetable-truthfulness-c01`, base
+  `5ff8d80f`, 2 commits, clean). Packet: `docs/prompts/timetable-truthfulness-c01-2026-09-23.md`
+  (committed `ec2ec168`). It closes the recorded truthfulness residuals: **D1** runs-list
+  `summary.isPublished` projection (the omission that caused a false "first publication" claim),
+  **D2** dashboard presenting raw 334 soft as blockers → `blockingHardCount`/`softViolationCount`,
+  **D3** `publishedSoftViolationCount` renamed `publishedRawSoftViolationCount` (raw acknowledged count
+  vs canonical 289 — deliberately *not* resynced), **D4** "Using cached school year" → honest wording.
+  Executor gates all green: server 289/289, `test:server-db` 55 files/0 fail/residue 0, client 912/912,
+  focused 56/56, built-server proof on port 5099; failing-first 0/4→4/4 (server) and 1/2→3/3 (client).
+  Then: integrate → deploy → post-deployment browser QA of D2/D4 on the live surface.
+- **⚠ DEPENDENCY HAZARD on that candidate.** Its `atlas-client/node_modules` and
+  `atlas-server/node_modules` are **junctions to the superseded release dir
+  `D:\ATLAS-runtime-supervised-e78d4473-20260923`**. The executor's tool policy denies `npm ci` and the
+  planner failed to pre-provision dependencies (planner error). Lockfile + schema are byte-identical by
+  SHA-256, so correctness is mitigated, but: **remove both junctions before retiring that worktree**,
+  **do not reclaim `e78d4473` while it exists**, and have the reviewer confirm the junctioned tree does
+  not taint the gate evidence. Live runtime verified untouched (`d9a6aa53`, health 200).
+- **OPEN OPERATOR DECISION — the runtime-dir reclaim.** 35 `D:\ATLAS-runtime-supervised-*` dirs total
+  **44.51 GiB**. Not reclaimable under current rules: **every** dir carries the runtime's untracked
+  `ops/runtime/logs/` (so non-forced `git worktree remove` refuses and `--force`/raw recursive deletion
+  is forbidden), **10 are junction-bearing**, **9 are named fallbacks** in live-state. Strict criteria
+  yield exactly **one** dir: `6cc202b7-20260922` (**0.97 GiB**) — which also has **identity drift**
+  (name says `6cc202b7`, HEAD is `7dbb3b90`). Needs an explicit operator exception (no-`--force` and/or
+  a sanctioned logs-clearing step) plus a junction target-vs-contained analysis, run as a bounded
+  reclaim cycle (frozen manifest → pre-action audit → guarded removal → post-action audit).
+- **Closed this cycle:** `NOTIFICATION-INBOX-LIVE` (migration `0004` applied via the guarded wrapper
+  after a fresh verified backup; live inbox routes now 200, were 500 on every page load);
+  `TIMETABLE-PUBLICATION-C01` (run #317 / revision 43 / audit 918 published; completion audit
+  `CORRECTION_REQUIRED` 7/6/0/0 with the publication action clearing areas 1–6 and only the continuity
+  record failing — **now corrected**: year 10 already had revisions 41 (run 314) and 42 (run 315), and
+  run 317 **superseded the live run 315**; `INITIAL_PUBLICATION` is run 317's base-revision label, not a
+  year-level first).
+- **Residual list (recorded, non-blocking):** `TacticalSandboxDock` jargon (Advanced-only, audit-deferred
+  UX-R04); the draft-tray swap is a modal by design (Simple swap is inline); the dashboard raw-soft
+  wording (being closed by `fb58a0d5`); `publishedSoftViolationCount` disagreement (closed by D3);
+  two over-cap components (`ManualEditPanel.tsx` 1012, `FacultyRoomPreferences.tsx` 1007); the 289 soft
+  advisory violations themselves are **scheduling quality, not UI**, and need their own cycle.
+- **Disk:** `D:` **16.83 GiB** (above the 15 GiB fail-closed, below the 25 GiB warning). Six
+  `D:\ATLAS-runtime-supervised-*` release trees plus `e78d4473` junction dependency.
+- **Custody:** Lane A owns `atlas-client/**`, `docs/plans/live-state.md`, `AGENTS.md`, the register,
+  `CHANGELOG.md`, deployment, and the single browser controller. GPT's timetable streams are integrated;
+  `work/timetable-live-term-authority-c01` (`b8e2e48e`) remains an **unreviewed, undeployed** candidate
+  (preserved, not folded in). SMART teacher-side retirement is adviser-blocked — do not start it.
+- **Credential hygiene:** the QA/admin credential has been leaking into plaintext temp files across
+  sessions (8 found, all deleted, scan now 0). **Rotate it and strip the backtick wrapping from
+  `%USERPROFILE%/.config/opencode/atlas-qa-credentials.local.md`.** Browser logins must read the file
+  inside a process and never type the password into a prompt or browser field.
+
 **2026-09-23 (overnight) — the relaxed main Class Schedule workspace is LIVE at `28f6f03f`.**
 - **Live release `28f6f03f`** (`D:\ATLAS-runtime-supervised-28f6f03f-20260923`; 5001→17548 /
   5174→39100; served entry `assets/index-Dy2kdrZW.js`; health/ready/DB-read/Tailnet 200; chunk
