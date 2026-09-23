@@ -37,11 +37,14 @@ test('task path replacement supports a BOM-marked UTF-16LE task export', () => {
 		`$encoding = [Text.UnicodeEncoding]::new($false, $true)`,
 		`$bytes = $encoding.GetPreamble() + $encoding.GetBytes($xml)`,
 		`$out = Replace-TaskSourceBytes $bytes 'C:/old/pathxx' 'C:/new/pathxx'`,
-		`([BitConverter]::ToString($out[0..1]) + '|' + [Text.UnicodeEncoding]::new($false, $true).GetString($out))`,
+		// Assert the BOM bytes and decode the payload past them: the console
+		// cannot reliably round-trip a leading U+FEFF through stdout, so the
+		// previous whole-string comparison was encoding-dependent.
+		`([BitConverter]::ToString($out[0..1]) + '|' + [Text.Encoding]::Unicode.GetString($out, 2, $out.Length - 2))`,
 	].join('; ');
 	const result = spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', command], { encoding: 'utf8' });
 	assert.equal(result.status, 0, result.stderr || result.stdout);
-	assert.equal(result.stdout.trim(), 'FF-FE|\ufeff<?xml version="1.0" encoding="UTF-16"?><A>C:/new/pathxx C:/new/pathxx</A>');
+	assert.equal(result.stdout.trim(), 'FF-FE|<?xml version="1.0" encoding="UTF-16"?><A>C:/new/pathxx C:/new/pathxx</A>');
 });
 
 test('runner narrows process termination to the resolved supervisor PID tree', () => {

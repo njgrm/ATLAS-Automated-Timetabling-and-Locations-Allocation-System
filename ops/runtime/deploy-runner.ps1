@@ -43,7 +43,20 @@ Set-StrictMode -Version Latest
 function Fail([string] $Message) { throw "DEPLOY_RUNNER_STOP: $Message" }
 
 function Invoke-Native([string] $File, [string[]] $Arguments) {
-    $output = & $File @Arguments 2>&1
+    # Capture native stderr as data. Under `$ErrorActionPreference = 'Stop'` a
+    # native command's redirected stderr (2>&1) is promoted to a terminating
+    # error, which would abort the runner with a raw message before the exit-code
+    # check below — e.g. a git command against a bad path, or a stderr warning
+    # from a scheduled-task or process-management command. Relax the preference
+    # for the duration of the call so the intended `DEPLOY_RUNNER_STOP`
+    # fail-closed path always runs.
+    $previousPreference = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try {
+        $output = & $File @Arguments 2>&1
+    } finally {
+        $ErrorActionPreference = $previousPreference
+    }
     if ($LASTEXITCODE -ne 0) { Fail "$File failed with exit code $LASTEXITCODE." }
     return ($output -join "`n")
 }
