@@ -35,16 +35,19 @@ and AIMS.
 ## Live release
 
 - Tailnet: `https://njgrm.buru-degree.ts.net`
-- **Release SHA: `c7fc0c95`** (deploy target; `E:\ATLAS-runtime-supervised-c7fc0c95-20260924`; carries one
-  client fix on top of `514be157`: the faculty `/my/schedule` page now sends the resolved ordered term to the
-  published-faculty-schedule endpoint, which had been failing closed with `TERM_SELECTION_REQUIRED` (400) and
-  rendering no schedule; an unresolved term now shows a message and never defaults to Term 1. Client bundle
-  changes (entry `index-C7SskN0k.js`); no server/migration/generation/publication change. Accepted per its
-  handoff (independent QA 6/6/0/0; test 5/5 with a load-bearing mutant; live 400→200 reproduced).
-  **Rollback basis: `514be157632786e7cc66b0a4adf117826135a0ed`** at
-  `E:\ATLAS-runtime-supervised-514be157-20260924` (startable in place). Pre-deploy record committed first.
-  **Deployment and acceptance are separate outcomes.**)
-- **Release SHA: `514be157`** (**LIVE** since 2026-09-24; `E:\ATLAS-runtime-supervised-514be157-20260924`;
+- **Release SHA: `c7fc0c95`** (**LIVE** since 2026-09-24; `E:\ATLAS-runtime-supervised-c7fc0c95-20260924`;
+  health/ready 200; served entry `assets/index-C7SskN0k.js`. Carries one client fix on top of `514be157`: the
+  faculty `/my/schedule` page now sends the resolved ordered term to the published-faculty-schedule endpoint,
+  which had been failing closed with `TERM_SELECTION_REQUIRED` (400) and rendering no schedule; an unresolved
+  term now shows a message and never defaults to Term 1. No server/migration/generation/publication change.
+  Accepted per its handoff (independent QA 6/6/0/0; test 5/5 with a load-bearing mutant; live 400→200
+  reproduced pre-deploy). **Live end-to-end browser confirmation is PENDING** — the persistent browser session
+  expired mid-cycle (redirect to `/login`, `auth/me` 401); no login was performed. **Rollback basis:
+  `514be157632786e7cc66b0a4adf117826135a0ed`** at `E:\ATLAS-runtime-supervised-514be157-20260924`
+  (startable in place). Pre-deploy record committed first; post-cutover acceptance at
+  `docs/handoffs/deploy-acceptance-c7fc0c95-20260924.md`. **Deployment and acceptance are separate
+  outcomes.**)
+- **Release SHA: `514be157`** (rollback basis; previously LIVE 2026-09-24; `E:\ATLAS-runtime-supervised-514be157-20260924`;
   health/ready (`database:"ok"`) 200; subjects 200. Carries one deploy-runner fix on top of `426b6ac8`:
   `Invoke-Native` no longer promotes native stderr to a terminating error under `$ErrorActionPreference='Stop'`,
   so a git/scheduled-task/process stderr line can no longer abort the runner with a raw message before its
