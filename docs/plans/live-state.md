@@ -492,6 +492,25 @@ it complete `TEST-GATE-REACHABILITY-C01` (`f4462374`) and hand it over for integ
 
 ## Lane A — current lane (written only by Lane A)
 
+**`HOST-PROXY-502-REPRO-20260924` — the intermittent host/proxy 502s reproduce on `/timetable` load (2026-09-24).**
+Read-only; no source/deploy/login/live-data action; live `22d1f5a8` unchanged. **Correction of the earlier
+"not reproduced" claim:** a fresh authenticated `/timetable` load reproduces **2–4 transient 502s** on a
+consistent first-burst endpoint set — `runtime/rollover-status?schoolId=1&includeCounts=false`,
+`generation/1/10/runs/317/manual-edits`, `follow-up-flags/1/10/runs/317/flags`,
+`room-preferences/collaboration/ticket` — on roughly half of loads (others show 0), plus occasional
+`net::ERR_HTTP2_PROTOCOL_ERROR` on the notification SSE. **Two failure modes:** host.mjs's typed
+`502 {"code":"UPSTREAM_UNREACHABLE","message":"read ECONNRESET"}` (host.mjs → `localhost:5001`) and the
+browser-side HTTP/2 error (browser → Tailscale front). **Not reproduced** by direct bursts (48 requests all
+200/201) or by a readiness-diagnostic block with the same four endpoints (4 rounds all 200/201) — so the
+trigger is specific to the page-load connection pattern, not raw concurrency. **Impact:** transient; the SPA
+recovers (retries/degrades) and no route fails to render. **Most likely mechanism:** the host proxy's upstream
+`http.request` uses Node's default global agent (`keepAlive: true` on Node ≥19), so a first request after an
+idle period can reuse a socket the server closed at its 5 s `keepAliveTimeout` → upstream ECONNRESET → 502.
+**Candidate hardening (NOT applied):** pass `agent: false` (or a dedicated non-keep-alive agent) to the
+upstream request in `ops/runtime/lib/production-host.mjs` `proxyHttpRequest` — provably safe, but unproven
+(no reliable failing-first control) and the HTTP/2 half may be Tailscale-layer, so it is not shipped the night
+before a demo. The 502 layer remains unowned.
+
 **`OFFLINE-FALLBACK-STALENESS-20260924` — the offline term fallback would resolve a STALE term (finding, not fixed) (2026-09-24).**
 Read-only; no source/deploy/login/live-data action; live `22d1f5a8` unchanged. **Finding:** the
 RR-TERM-CACHE offline fallback (`atlas-server/src/services/runtime-context.service.ts` ~L418) surfaces the
@@ -525,7 +544,8 @@ unexercised (no scheduler credential; no browser login). **Residuals (no action)
 502 layer was **not reproduced** (4 fresh `/timetable` loads + a 48-request burst all 200/201); the readiness
 diagnostic runs the full scheduler (~7.4 s) on every timetable mount (`force: true`, by design; 14 invocations
 since boot) — a latency observation, not a defect; school-1 QA/admin credential rotation outstanding.
-**No deployment** — there is nothing new to ship.
+**No deployment** — there is nothing new to ship. *(Superseded re 502: it DOES reproduce on `/timetable`
+loads — see the entry above.)*
 
 **`DEMO-READINESS-20260924` — live `014b4b4c` verified demo-ready; lifecycle polish merged but undeployed (2026-09-24).**
 *(Superseded: the lifecycle polish was subsequently deployed as `22d1f5a8` — see the entry above.)*
