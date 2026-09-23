@@ -387,7 +387,7 @@ export async function resolveRuntimeContext(
 		// is unreachable, so the timetable still resolves one ordered term instead of
 		// dead-ending on "Term setup is required".
 		let persistedActiveTerm: { identity: string; termIndex: number } | null = null;
-		if (schoolYearMirror?.termContractCache) {
+		if (schoolYearMirror?.termContractCache && schoolYearMirror.termContractCachedAt) {
 			const persisted = normalizePersistedTermStructure(
 				schoolYearMirror.termContractCache,
 				schoolId,
@@ -411,7 +411,11 @@ export async function resolveRuntimeContext(
 		]);
 
 		// Process active term result (independent of school year)
-		if (activeTermResponse) {
+		// `fetchEnrollProActiveTerm` always resolves an object (it catches its own
+		// failures), so the trigger is the typed source, not a nullish return.
+		// A reachable typed result (verified / unresolved / contract-drift) is
+		// authoritative and is never overridden by the persisted cache.
+		if (activeTermResponse && activeTermResponse.source !== 'enrollpro-unreachable') {
 			activeTermResult = activeTermResponse;
 		} else if (persistedActiveTerm) {
 			// EnrollPro is unreachable, but the persisted verified ordered contract
@@ -428,6 +432,8 @@ export async function resolveRuntimeContext(
 				code: null,
 				message: 'EnrollPro active-term endpoint is unreachable; using the persisted verified ordered term contract.',
 			};
+		} else if (activeTermResponse) {
+			activeTermResult = activeTermResponse;
 		} else {
 			activeTermResult = {
 				source: 'enrollpro-unreachable',
