@@ -386,6 +386,19 @@ closed** (over-cap components, `test:ux-guardrails`, the two previously-untested
 actually still open (`UX-R04`, `UX-R05`, the draft-tray swap decision, disposal of the stale
 `work/timetable-live-term-authority-c01` candidate).
 
+**SMART teacher-side boundary — RESOLVED (2026-09-23):** SMART owns the teacher-facing submission side and
+holds the **teacher login**; ATLAS holds the **scheduler login** and owns review, appeal and every
+scheduling consequence (SMART handoff §5, **option (a)**). Consequences recorded so they are not reopened:
+ATLAS's `/my/preferences` and `/my/room-preferences` submission pages are **unreachable by design** and
+retire — **adviser-gated**, so frozen rather than deleted, and they are the cheapest fallback if SMART
+slips before a demo; the `/faculty/*` review surface **stays** and its audience is now the scheduler, so it
+belongs in the scheduler's navigation rather than a faculty-named path; the submission channel must be an
+**authenticated machine-to-machine call**, never an open write endpoint, matching the teacher on a stable
+external id and **failing closed** when it cannot. `/public/schedules` is unaffected (public by contract).
+**Main is ahead of live:** `TIMETABLE-SIMPLICITY-C02` is integrated at `8e9acf28` but **undeployed** (live
+`7ac28124`); its `SimpleHeaderHelpers.tsx` edits rename "Advanced view" → "Expert view" and leave the
+accepted D4 `checked <age>` wording intact.
+
 **`TIMETABLE-TRUTHFULNESS-C01` COMPLETE — deployed at `7ac28124`, post-deployment QA `ACCEPT_READY` 11/11/0/0 (2026-09-23).**
 Candidate `fb58a0d5` + one bounded correction `adfbf9f9` on `work/timetable-truthfulness-c01` (base
 `5ff8d80f`, 3 commits, clean). One batched pre-action reviewer closed the source range **and** the packet

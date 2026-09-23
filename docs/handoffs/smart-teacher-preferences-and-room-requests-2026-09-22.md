@@ -1,7 +1,9 @@
 # SMART handoff — teacher preferences and room requests (ATLAS consumes; SMART owns the teacher side)
 
-**To:** the SMART owner. **From:** ATLAS (Lane A), 2026-09-22.
-**Status:** direction agreed with the ATLAS operator; **one contract decision needed from you** (§5).
+**To:** the SMART owner. **From:** ATLAS (Lane A), 2026-09-22. **Updated:** 2026-09-23.
+**Status:** direction agreed with the ATLAS operator, and the §5 contract decision is now **RESOLVED —
+option (a)**: SMART owns submission only; ATLAS owns review, appeal and every scheduling consequence. The
+login split confirms it — **the teacher login lives in SMART; the scheduler login lives in ATLAS.**
 
 ---
 
@@ -89,20 +91,38 @@ A teacher-facing surface that captures the **same substance** and publishes it t
   Timetable workspace shows them where a scheduler acts on them.
 - The **run/entry binding** (`runId` + `entryId` + `termIndex`): a room request is meaningless without
   the exact session, and that identity lives in ATLAS.
-- The **officer-side review** if you do not want it (§5).
+- The **officer-side review, appeal and resolution** — confirmed ATLAS-owned (§5, resolved).
 
-## 5. The one decision we need from you
+## 5. The decision — RESOLVED 2026-09-23: option (a)
 
-**Who owns review and appeal?**
+**ATLAS owns review and appeal; SMART owns submission only.** The split follows the logins:
 
-- **(a) SMART owns submission only.** ATLAS keeps the officer review + appeal workflow and its
-  `/faculty/preferences` review page, fed by your submissions. *This is the smaller change for you.*
-- **(b) SMART owns the whole lifecycle** — submission, review, appeal, resolution. ATLAS then consumes
-  only **decided** outcomes and retires its review surface. *This needs a decision-status contract and
-  an audit trail from you.*
+| | SMART | ATLAS |
+| --- | --- | --- |
+| **Login** | teacher | scheduler / privileged staff |
+| **Owns** | the teacher-facing forms and the data they produce — well-being toggles, notes, per-slot `PREFERRED`/`AVAILABLE`/`UNAVAILABLE`, room-change requests, and appeals raised by the teacher | consuming those submissions, officer review, appeal adjudication and resolution, and every scheduling consequence |
 
-Either works. **Please state which**, because it determines whether ATLAS keeps or retires its review
-page and what your contract must carry.
+ATLAS-side consequences, recorded so nobody reopens them:
+
+1. **ATLAS keeps and develops its review surface** (`/faculty/preferences`, `/faculty/room-preferences`).
+   Its audience is now the **scheduler**, not faculty, so it should be reached from the scheduler's own
+   navigation rather than a faculty-named path.
+2. **ATLAS's teacher-facing submission pages (`/my/preferences`, `/my/room-preferences`) retire.** With the
+   teacher login in SMART, a teacher no longer reaches ATLAS by design, so these are unreachable rather
+   than merely superseded — as is any ATLAS surface that assumed a signed-in teacher. Retirement is
+   **gated on the adviser**: do not delete them yet. They stay frozen, and they are the cheapest fallback
+   if SMART slips before a demo.
+3. **The submission channel is machine-to-machine and must be authenticated.** ATLAS must never expose an
+   open write endpoint for preferences or room requests — without an authenticated companion caller,
+   anyone could post preferences as any teacher. Use the existing system-caller pattern (service token or
+   a verified companion identity). ATLAS still matches the submitting teacher on a stable external
+   identifier and **fails closed with a typed error** when it cannot, never attaching a submission to a
+   guessed teacher.
+4. **The public published schedule is unaffected** — `/public/schedules` is public by contract and needs no
+   login.
+
+What we still need from you is otherwise unchanged (§3.1–§3.4): the forms, the appeal path, the stable
+submission identity, and the published contract ATLAS can read.
 
 ## 6. Acceptance tests
 
