@@ -64,7 +64,7 @@ import {
 	teachersAndRoomsNav,
 	timetableNav,
 	resolveRouteChrome,
-	type NavItemDef,
+	getVisibleNavigation,
 } from './app-shell/navigation';
 
 /* ─── Constants ─── */
@@ -159,7 +159,7 @@ export function AppShell() {
 	const authCheckSeqRef = useRef(0);
 
 	const isAdmin = bridgeUser?.role === 'admin' || bridgeUser?.role === 'SYSTEM_ADMIN' || bridgeUser?.role === 'officer';
-	const isFaculty = bridgeUser?.role === 'faculty';
+	const isFaculty = bridgeUser?.role === 'faculty' || bridgeUser?.capabilities?.includes('faculty:self-service') === true;
 	const actorSchoolId = typeof bridgeUser?.schoolId === 'number'
 		&& Number.isInteger(bridgeUser.schoolId)
 		&& bridgeUser.schoolId > 0
@@ -219,21 +219,9 @@ export function AppShell() {
 	});
 
 	const mobileNavItems = useMemo(() => {
-		if (isFaculty) return facultyNav;
-		const aggregated = [
-			...navigationNav,
-			...setupNav,
-			...teachersAndRoomsNav,
-			...timetableNav,
-			...reviewPublishNav,
-			...auditNav,
-		]
-			.filter((item) => !item.disabled)
-			.filter((item) => !item.adminOnly || isAdmin);
-		const deduped = new Map<string, NavItemDef>();
-		for (const item of aggregated) deduped.set(item.to, item);
-		return [...deduped.values()];
-	}, [isAdmin, isFaculty]);
+		if (!bridgeUser) return [];
+		return getVisibleNavigation(bridgeUser);
+	}, [bridgeUser]);
 
 	useEffect(() => {
 		const media = window.matchMedia('(max-width: 1023px)');

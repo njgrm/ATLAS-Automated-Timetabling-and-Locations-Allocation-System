@@ -41,6 +41,7 @@ import {
 	setupNav,
 	teachersAndRoomsNav,
 	timetableNav,
+	canSeeNavItem,
 	type NavItemDef,
 } from './navigation';
 import { BackToEnrollProLink } from './BackToEnrollProLink';
@@ -91,11 +92,11 @@ function NavItem({
 
 function renderNavGroup(
 	items: NavItemDef[],
-	isAdmin: boolean,
+	actor: BridgeUser | null,
 	pathname: string,
 ) {
 	return items
-		.filter((item) => !item.adminOnly || isAdmin)
+		.filter((item) => actor != null && canSeeNavItem(actor, item))
 		.map((item) => (
 			<NavItem
 				key={item.to}
@@ -127,8 +128,9 @@ export function AppSidebar({
 	className,
 }: AppSidebarProps) {
 	const isAdmin = bridgeUser?.role === 'admin' || bridgeUser?.role === 'SYSTEM_ADMIN' || bridgeUser?.role === 'officer';
-	const isFaculty = bridgeUser?.role === 'faculty';
-	const topNavigation = isFaculty ? [] : navigationNav;
+	const isFaculty = bridgeUser?.role === 'faculty' || bridgeUser?.capabilities?.includes('faculty:self-service') === true;
+	const isScheduler = bridgeUser?.capabilities?.includes('timetable:read') === true;
+	const topNavigation = isFaculty && !isScheduler && !isAdmin ? [] : navigationNav;
 	const backHref = getBackHref();
 	const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 	const [failedLogoUrl, setFailedLogoUrl] = useState<string | null>(null);
@@ -200,20 +202,15 @@ export function AppSidebar({
 						<SidebarGroupContent>
 							<SidebarMenu>
 								<NavDivider label='Navigation' />
-								{renderNavGroup(topNavigation, isAdmin, pathname)}
+								{renderNavGroup(topNavigation, bridgeUser, pathname)}
 
-								{!isFaculty && (
+								{(!isFaculty || isScheduler || isAdmin) && (
 									<>
-										<NavDivider label='School Setup' />
-										{renderNavGroup(setupNav, isAdmin, pathname)}
-										<NavDivider label='Teachers and Rooms' />
-										{renderNavGroup(teachersAndRoomsNav, isAdmin, pathname)}
-										<NavDivider label='Class Schedule' />
-										{renderNavGroup(timetableNav, isAdmin, pathname)}
-										<NavDivider label='Review and Publish' />
-										{renderNavGroup(reviewPublishNav, isAdmin, pathname)}
-										<NavDivider label='Audit' />
-										{renderNavGroup(auditNav, isAdmin, pathname)}
+										{isAdmin && <><NavDivider label='School Setup' />{renderNavGroup(setupNav, bridgeUser, pathname)}</>}
+										{(isAdmin || isScheduler) && <><NavDivider label='Teachers and Rooms' />{renderNavGroup(teachersAndRoomsNav, bridgeUser, pathname)}</>}
+										{(isAdmin || isScheduler) && <><NavDivider label='Class Schedule' />{renderNavGroup(timetableNav, bridgeUser, pathname)}</>}
+										{(isAdmin || isScheduler) && <><NavDivider label='Review and Publish' />{renderNavGroup(reviewPublishNav, bridgeUser, pathname)}</>}
+										{isAdmin && <><NavDivider label='Audit' />{renderNavGroup(auditNav, bridgeUser, pathname)}</>}
 									</>
 								)}
 
@@ -226,7 +223,7 @@ export function AppSidebar({
 									</>
 								)}
 
-								{!isFaculty && (
+								{!isFaculty && !isScheduler && (
 									<>
 										<NavDivider label='Integrated Systems' />
 										<IntegratedSystems privilegedStaff={isAdmin} className='px-1' />

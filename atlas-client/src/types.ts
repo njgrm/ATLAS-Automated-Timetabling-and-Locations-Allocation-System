@@ -45,6 +45,7 @@ export type BridgeUser = {
 	authSource?: 'bridge' | 'local';
 	schoolId?: number;
 	accountId?: number;
+	capabilities?: string[];
 };
 
 export type Subject = {

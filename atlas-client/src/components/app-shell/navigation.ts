@@ -16,6 +16,7 @@ export type NavItemDef = {
 	icon: typeof LayoutDashboard;
 	adminOnly?: boolean;
 	facultyOnly?: boolean;
+	schedulerAccess?: boolean;
 	disabled?: boolean;
 };
 
@@ -30,16 +31,16 @@ export const setupNav: NavItemDef[] = [
 
 export const teachersAndRoomsNav: NavItemDef[] = [
 	{ label: 'Teachers', to: '/teachers', icon: Users, adminOnly: true },
-	{ label: 'Teaching Load', to: '/teaching-load', icon: ClipboardList, adminOnly: true },
+	{ label: 'Teaching Load', to: '/teaching-load', icon: ClipboardList, adminOnly: true, schedulerAccess: true },
 	{ label: 'Campus & Rooms', to: '/map', icon: MapPinned, adminOnly: true },
 ];
 
 export const timetableNav: NavItemDef[] = [
-	{ label: 'Class Schedule', to: '/timetable', icon: CalendarClock, adminOnly: true },
+	{ label: 'Class Schedule', to: '/timetable', icon: CalendarClock, adminOnly: true, schedulerAccess: true },
 ];
 
 export const reviewPublishNav: NavItemDef[] = [
-	{ label: 'Room Schedules', to: '/schedules', icon: CalendarDays, adminOnly: true },
+	{ label: 'Room Schedules', to: '/schedules', icon: CalendarDays, adminOnly: true, schedulerAccess: true },
 ];
 
 export const auditNav: NavItemDef[] = [
@@ -62,6 +63,23 @@ export const breadcrumbGroups: { label: string; items: NavItemDef[] }[] = [
 	{ label: 'Audit', items: auditNav },
 	{ label: 'My Portal', items: facultyNav },
 ];
+
+export type NavigationActor = { role: string; capabilities?: string[] };
+
+export function canSeeNavItem(actor: NavigationActor, item: NavItemDef): boolean {
+	const isAdmin = actor.role === 'admin' || actor.role === 'SYSTEM_ADMIN' || actor.role === 'officer';
+	const canSchedule = actor.capabilities?.includes('timetable:read') === true;
+	const canSelfServe = actor.capabilities?.includes('faculty:self-service') === true || actor.role === 'faculty';
+	if (item.disabled) return false;
+	if (item.to === '/' && canSelfServe && !canSchedule && !isAdmin) return false;
+	if (item.facultyOnly) return canSelfServe;
+	if (!item.adminOnly) return true;
+	return isAdmin || (item.schedulerAccess === true && canSchedule);
+}
+
+export function getVisibleNavigation(actor: NavigationActor): NavItemDef[] {
+	return breadcrumbGroups.flatMap((group) => group.items.filter((item) => canSeeNavItem(actor, item)));
+}
 
 export type RouteChrome = {
 	title: string;
