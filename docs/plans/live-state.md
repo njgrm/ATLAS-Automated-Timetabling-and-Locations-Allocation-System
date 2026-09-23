@@ -282,8 +282,10 @@ and AIMS.
   zero cross-grade leakage. Existing section home rooms were unchanged.
 - Grade-scope rollback: restore buildings 1-4 to empty integer arrays, then
   rerun the same preview.
-- Published run 315 / revision 42: zero HARD violations, 335 acknowledged SOFT
-  warning rows. Latest run 316 is not published.
+- Published run **317 / revision 43** (corrected 2026-09-24; the previous line named run 315/revision 42,
+  which was superseded): zero HARD violations, 289 acknowledged SOFT warning rows; `summary.isPublished=true`,
+  public surface `source.runId=317`, `activeRevisionId=43`, `snapshotState=FROZEN`, 920 entries. Runs
+  316/315/314 are not published. Run 317 was generated and published 2026-09-22/23 under its own approval.
 - Regeneration and publication have not been authorized or executed after the
   grade-scope correction.
 
@@ -305,6 +307,10 @@ and AIMS.
   new non-string/non-number guard (`true → 1`, `[1] → 1` — not cross-tenant, those routes are
   actor-matched); and the harness does not cover body-vs-query precedence or
   hex/exponent/padded-string inputs.
+  **RESOLVED 2026-09-24** (verified live by `POSTDEPLOY-CLOSURE-20260924`): `runtime.router.ts` now
+  routes every runtime read/mutation through `authorizeRuntimeRead` / `authorizeRuntimeMutation`
+  using `caller.schoolId`, and `parseStrictTermAuthoritySchoolId` exists as a strict parser. The
+  successors above are **superseded**.
 - **Deploy fact earned this cycle:** an agent shell inherits a **stale process-scope**
   `ATLAS_RUNTIME_SOURCE_DIR` / `ATLAS_RUNTIME_RELEASE_SHA` (measured `c93dd2ee-20260920`) that
   shadows machine scope, so an unqualified `node ops/runtime/cli.mjs stop` targets the wrong
@@ -415,6 +421,9 @@ and AIMS.
   a published run with zero HARD violations — the acknowledged SOFT warning total is
   presented as blockers. This is the operator's warning-count complaint in a second
   surface and is an open page-level follow-up.
+  **RESOLVED 2026-09-24** (verified live by `POSTDEPLOY-CLOSURE-20260924`): the Dashboard renders
+  `No hard violations · 289 warnings acknowledged`, and `readiness-summary` returns the canonical
+  `blockingHardCount:0` / `softViolationCount:289` (not the raw 334/335).
 - Pre-existing double policy fetch, surfaced by the new route: both
   `SchedulingPolicyPane.tsx:285` and `useScheduleReviewWorkspaceState.ts:541` GET
   `/policies/scheduling/{schoolId}/{schoolYearId}`, and on a clean load of
@@ -466,6 +475,22 @@ Lane B owns this section. Current stream and state: see Lane B's own handoff fil
 it complete `TEST-GATE-REACHABILITY-C01` (`f4462374`) and hand it over for integration.
 
 ## Lane A — current lane (written only by Lane A)
+
+**`POSTDEPLOY-CLOSURE-20260924` COMPLETE — 014b4b4c accepted read-only; three stale blocker lines corrected (2026-09-24).**
+Artifact `docs/handoffs/post-deploy-acceptance-014b4b4c-20260924.md`; base/end `origin/main` `48356ee2`; no
+source/deploy/login/live-data action. **Acceptance:** 12 demo routes render with no error boundary and no
+global scrollbar; key APIs 200; `class-program.xlsx` deep-verified (4 grade worksheets G7–G10, 20/20 section
+names, M/F/Total columns); public surface run **317 / revision 43** / FROZEN / 920 entries; the 502
+host/proxy layer is **not reproducible** (100/100 burst requests 200) so no speculative fix. **Corrected
+stale lines (each re-verified live, marked RESOLVED in place):** runs-list `summary.isPublished` (fixed by
+`TIMETABLE-TRUTHFULNESS-C01` D1); Dashboard "335 review blockers" (now `289 warnings acknowledged`);
+`runtime.router.ts` `rollover-recovery/preview` school-1 default + strict school-id parser (now
+`authorizeRuntimeRead/Mutation`); the `Live data` published-run fact (315/42 → 317/43). **Anomaly flagged,
+not mine:** a 15-min `[hybrid-scheduler]` benchmark ran `19:02:04Z–19:17:25Z` with **no persisted run**,
+and two `LOCAL_LOGIN_SUCCESS` rows **933** (`19:10:51Z`) / **934** (`19:14:04Z`, actor 46, school 1,
+127.0.0.1, Chrome) were not performed by any planner cycle — the operator should attribute them. The
+`014b4b4c` supervisor start at `19:01:28Z` is the deployment itself (audit `014b4b4c-20260924-030100`).
+Scheduler-surface acceptance remains `EXTERNALLY_BLOCKED(AUTH_SESSION_REQUIRED)`.
 
 **`EXPORT-CENTER-ACCEPTANCE-20260924` COMPLETE — all-sections class-program export unblocked by a section re-sync (2026-09-24).**
 Cycle artifact `docs/handoffs/export-center-acceptance-20260924.md`; base/end `origin/main` `be0bd0df`; live
