@@ -98,6 +98,7 @@ test('C04 teacher issue confirmation blocks the grid, cancel is inert, and confi
 		browser = await chromium.launch({ headless: true });
 		const page = await browser.newPage();
 		await page.goto(`${origin}/src/components/timetable/__tests__/timetable-post-deploy-c04.harness.html`);
+		await page.getByRole('button', { name: 'Select Fernandez issue' }).click();
 		await page.getByRole('heading', { name: "Open Fernandez, Luz's timetable?" }).waitFor();
 		const underlying = await page.locator('main > button').first().boundingBox();
 		assert.ok(underlying);
@@ -109,11 +110,11 @@ test('C04 teacher issue confirmation blocks the grid, cancel is inert, and confi
 		}
 		state = await page.evaluate(() => window.__c04State);
 		assert.deepEqual(state, { viewMode: 'section', entityFilter: '7', selectedEntry: 'existing', selectedViolation: 'existing-issue', confirmCount: 0 }, 'cancel leaves current context and selection unchanged');
-		await page.getByRole('button', { name: 'Select faculty issue' }).click();
+		await page.getByRole('button', { name: 'Select Fernandez issue' }).click();
 		await page.getByRole('heading', { name: "Open Fernandez, Luz's timetable?" }).waitFor();
 		await page.getByRole('button', { name: 'Open teacher timetable' }).click();
 		state = await page.evaluate(() => window.__c04State);
-		assert.deepEqual(state, { viewMode: 'faculty', entityFilter: '12', selectedEntry: 'affected-session', selectedViolation: 'consecutive-minutes', confirmCount: 1 }, 'confirm pivots only after consent and selects/highlights the affected session');
+		assert.deepEqual(state, { viewMode: 'faculty', entityFilter: '12', selectedEntry: 'affected-second', selectedViolation: 'FACULTY_CONSECUTIVE_MINUTES', confirmCount: 1 }, 'confirm pivots only after consent and selects/highlights the canonical teacher’s affected session');
 	} finally {
 		await browser?.close();
 		vite.kill();
