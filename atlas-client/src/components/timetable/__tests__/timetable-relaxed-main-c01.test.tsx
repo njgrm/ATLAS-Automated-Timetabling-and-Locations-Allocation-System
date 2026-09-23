@@ -318,7 +318,7 @@ test('A4: the stale-input state never renders beside the verified-source authori
 	assert.doesNotMatch(markup, /Verified with EnrollPro/, 'the verified-source claim is suppressed while inputs are stale');
 });
 
-test('A4: a fresh-input state renders exactly one source authority line', () => {
+test('A4: a fresh-input state hides routine source provenance while retaining the clean-input state', () => {
 	const markup = renderHeader({
 		draft: draftWithSummary({ runId: 42, hardViolationCount: 0, softViolationCount: 0, unassignedCount: 0, isPublished: false }),
 		schoolYearContext: {
@@ -327,8 +327,8 @@ test('A4: a fresh-input state renders exactly one source authority line', () => 
 			activeTerm: { source: 'enrollpro', verified: true, activeTerm: 'T2', termIndex: 2, orderedTerms: ORDERED_TERMS },
 		},
 	});
-	assert.match(markup, /timetable-simple-authority/, 'the authority line renders');
-	assert.match(markup, /Verified with EnrollPro/, 'the verified source is named');
+	assert.doesNotMatch(markup, /timetable-simple-authority/, 'routine source provenance stays out of the ordinary schedule header');
+	assert.doesNotMatch(markup, /Verified with EnrollPro/, 'the verified source is not repeated in routine schedule chrome');
 	assert.doesNotMatch(markup, /timetable-simple-input-drift/, 'no drift line renders when inputs are fresh');
 	assert.doesNotMatch(markup, /timetable-term-authority-unverified/, 'no term-authority notice renders for a verified contract');
 });
