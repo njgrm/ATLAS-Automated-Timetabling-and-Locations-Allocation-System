@@ -236,6 +236,15 @@ test('C05 repair route resolves the exact persisted issue represented by an aggr
 		assert.deepEqual(result.options, []);
 		assert.ok(dispatches() > 0);
 		assert.equal(writes(), 0);
+		const stale = await request({
+			code: displayed.code,
+			termIndex: displayed.meta?.termIndex,
+			entryIds: displayed.entities?.entryIds,
+			facultyId: displayed.entities?.facultyId,
+			day: 'TUESDAY',
+		});
+		assert.equal(stale.status, 404, 'a stale false aggregate locator remains not found');
+		assert.equal(writes(), 0);
 	}, run);
 });
 

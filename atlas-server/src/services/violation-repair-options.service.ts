@@ -1,7 +1,8 @@
 import { VIOLATION_CODES, VIOLATION_COPY, type Violation, type ViolationCode } from './constraint-validator.js';
-import { getRunById } from './generation.service.js';
+import { getRunById, projectViolationIssues } from './generation.service.js';
 import { getDataContext } from '../lib/data-context.js';
 import { loadRunContext, previewManualEdit, type ManualEditProposal, type PreviewResult } from './manual-edit.service.js';
+import type { ScheduledEntry } from './constraint-validator.js';
 
 const loadManualEditContext: typeof loadRunContext = (runId, schoolId, schoolYearId) =>
 	loadRunContext(runId, schoolId, schoolYearId, getDataContext() as never);
@@ -123,6 +124,14 @@ function matchesCanonicalLocator(violation: Violation, locator: ViolationRepairL
 	return true;
 }
 
+function samePresentedIdentity(left: Violation, right: Violation, entries: Array<Record<string, unknown>>): boolean {
+	if (left.code !== right.code || canonicalTermIndex(left, entries) !== canonicalTermIndex(right, entries)) return false;
+	for (const key of ['facultyId', 'roomId', 'sectionId', 'subjectId', 'day', 'startTime', 'endTime'] as const) {
+		if (left.entities?.[key] !== right.entities?.[key]) return false;
+	}
+	return true;
+}
+
 function candidateStillHasTarget(violation: Violation, locator: ViolationRepairLocator): boolean {
 	if (violation.code !== locator.code) return false;
 	for (const key of ['facultyId', 'roomId', 'sectionId', 'subjectId', 'day', 'startTime', 'endTime'] as const) {
@@ -199,7 +208,22 @@ export async function getViolationRepairOptions(
 	if (run.status !== 'COMPLETED') throw repairError(422, 'RUN_NOT_COMPLETED', 'Repair guidance is available only for a completed schedule.');
 	const canonicalViolations = Array.isArray(run.violations) ? run.violations as unknown as Violation[] : [];
 	const entries = Array.isArray(run.draftEntries) ? run.draftEntries as Array<Record<string, unknown>> : [];
-	const matches = canonicalViolations.filter((violation) => matchesCanonicalLocator(violation, locator, entries));
+	let matches = canonicalViolations.filter((violation) => matchesCanonicalLocator(violation, locator, entries));
+	if (matches.length === 0) {
+		const displayedMatches = projectViolationIssues(canonicalViolations, entries as unknown as ScheduledEntry[])
+			.filter((violation) => matchesCanonicalLocator(violation, locator, entries));
+		if (displayedMatches.length === 1) {
+			const displayed = displayedMatches[0];
+			const displayedEntryIds = new Set(violationEntryIds(displayed));
+			const primary = canonicalViolations.find((violation) =>
+				samePresentedIdentity(violation, displayed, entries)
+				&& violationEntryIds(violation).every((entryId) => displayedEntryIds.has(entryId)),
+			);
+			matches = primary ? [primary] : [];
+		} else if (displayedMatches.length > 1) {
+			throw repairError(409, 'AMBIGUOUS_VIOLATION', 'More than one saved issue matches this selection. Refresh the issue list before continuing.');
+		}
+	}
 	if (matches.length === 0) throw repairError(404, 'VIOLATION_NOT_FOUND', 'That issue is no longer present in this schedule. Refresh the issue list and try again.');
 	if (matches.length > 1) throw repairError(409, 'AMBIGUOUS_VIOLATION', 'More than one saved issue matches this selection. Refresh the issue list before continuing.');
 	const violation = matches[0];

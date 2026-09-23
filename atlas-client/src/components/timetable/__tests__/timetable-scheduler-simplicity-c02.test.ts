@@ -119,7 +119,10 @@ test('published return is visible and restores run, term, view, and entity after
 	const header = source('src/components/timetable/ScheduleReviewWorkspaceHeader.tsx');
 	const state = source('src/hooks/useScheduleReviewWorkspaceState.ts');
 	assert.match(header, /Return to published schedule/);
-	assert.match(state, /publishedReturnStateRef\.current = \{ runId: selectedRunId, termFilter, viewMode, entityFilter \}/);
+	assert.match(state, /publishedReturnStateRef\.current = capturePublishedReturnState\(publishedReturnStateRef\.current/,
+		'the published context is captured by the shared route-independent state helper');
+	assert.match(state, /runId: draft\.runId != null \? String\(draft\.runId\) : selectedRunId/,
+		'the return target stores a concrete published run id even when the selector is set to latest');
 	assert.match(state, /setSelectedRunId\(previous\.runId\)[\s\S]+setTermFilter\(previous\.termFilter\)[\s\S]+setViewMode\(previous\.viewMode\)[\s\S]+setEntityFilter\(previous\.entityFilter\)/);
 });
 

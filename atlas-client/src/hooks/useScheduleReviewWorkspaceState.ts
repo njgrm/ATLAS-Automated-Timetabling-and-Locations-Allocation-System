@@ -96,6 +96,7 @@ import { useTimetableDragDrop } from '@/hooks/useTimetableDragDrop';
 import { useTimetableViewNavigation } from '@/hooks/useTimetableViewNavigation';
 import { isDraftPublishedStrict } from '@/components/timetable/timetableWorkspaceTruth';
 import { deriveRunWideReadiness } from '@/components/timetable/timetableWorkspaceTruth';
+import { capturePublishedReturnState, type PublishedTimetableReturnState } from '@/lib/timetable-published-return';
 import { getPreferredAccessToken } from '@/lib/auth';
 import { decodeJwtPayload } from '@/lib/jwt-payload';
 
@@ -174,7 +175,7 @@ export function useScheduleReviewWorkspaceState() {
 	const [programFilter, setProgramFilter] = useState<ProgramFilter>('all');
 	const [entryKindFilter, setEntryKindFilter] = useState<EntryKindFilter>('all');
 	const [termFilter, setTermFilter] = useState<'all' | number>('all');
-	const publishedReturnStateRef = useRef<{ runId: string; termFilter: 'all' | number; viewMode: 'section' | 'faculty' | 'room'; entityFilter: string } | null>(null);
+	const publishedReturnStateRef = useRef<PublishedTimetableReturnState | null>(null);
 	const [userOverrodeTermFilter, setUserOverrodeTermFilter] = useState(false);
 	const [presentationMode, setPresentationMode] = useState<'workflow' | 'matrix'>('workflow');
 	const [leftTab, setLeftTab] = useState<'violations' | 'unassigned' | 'pinned' | 'requests'>('violations');
@@ -230,6 +231,16 @@ export function useScheduleReviewWorkspaceState() {
 	const [isLeftCollapsed, setIsLeftCollapsed] = useState(() => !isDesktop);
 	const [isRightCollapsed, setIsRightCollapsed] = useState(true);
 	const [centerView, setCenterView] = useState<CenterViewMode>('schedule');
+	useEffect(() => {
+		publishedReturnStateRef.current = capturePublishedReturnState(publishedReturnStateRef.current, {
+			centerView,
+			isPublished: isDraftPublishedStrict(draft),
+			runId: draft?.runId != null ? String(draft.runId) : selectedRunId,
+			termFilter,
+			viewMode,
+			entityFilter,
+		});
+	}, [centerView, draft, entityFilter, selectedRunId, termFilter, viewMode]);
 	// Panel refs for imperative collapse/expand
 	const leftPanelRef = useRef<ImperativePanelHandle>(null);
 	const rightPanelRef = useRef<ImperativePanelHandle>(null);
@@ -845,7 +856,14 @@ export function useScheduleReviewWorkspaceState() {
 	});
 	const openPreGenerationWorkspace = useCallback(async (resetExisting: boolean) => {
 		if (draft && isDraftPublishedStrict(draft)) {
-			publishedReturnStateRef.current = { runId: selectedRunId, termFilter, viewMode, entityFilter };
+			publishedReturnStateRef.current = capturePublishedReturnState(publishedReturnStateRef.current, {
+				centerView: 'schedule',
+				isPublished: true,
+				runId: draft.runId != null ? String(draft.runId) : selectedRunId,
+				termFilter,
+				viewMode,
+				entityFilter,
+			});
 		}
 		await openPreGenerationWorkspaceBase(resetExisting);
 	}, [draft, selectedRunId, termFilter, viewMode, entityFilter, openPreGenerationWorkspaceBase]);
