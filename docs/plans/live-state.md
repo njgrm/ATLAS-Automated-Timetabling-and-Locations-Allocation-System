@@ -485,9 +485,13 @@ host/proxy layer is **not reproducible** (100/100 burst requests 200) so no spec
 stale lines (each re-verified live, marked RESOLVED in place):** runs-list `summary.isPublished` (fixed by
 `TIMETABLE-TRUTHFULNESS-C01` D1); Dashboard "335 review blockers" (now `289 warnings acknowledged`);
 `runtime.router.ts` `rollover-recovery/preview` school-1 default + strict school-id parser (now
-`authorizeRuntimeRead/Mutation`); the `Live data` published-run fact (315/42 → 317/43). **Anomaly flagged,
-not mine:** a 15-min `[hybrid-scheduler]` benchmark ran `19:02:04Z–19:17:25Z` with **no persisted run**,
-and two `LOCAL_LOGIN_SUCCESS` rows **933** (`19:10:51Z`) / **934** (`19:14:04Z`, actor 46, school 1,
+`authorizeRuntimeRead/Mutation`); the `Live data` published-run fact (315/42 → 317/43). **Long-standing
+"unattributed `hybrid-scheduler` runs" debt RESOLVED:** they are the app's own canonical readiness
+diagnostic (`GET /generation/:s/:y/readiness/diagnostic` → full `runHybridScheduler`, ≈7.4 s per call),
+triggered by client page mounts — bursts observed `19:02:04–19:02:11`, `19:15:02–19:17:25`,
+`19:35:03–19:36:11`, `19:44:51–19:45:05`, `19:52:56–19:53:02Z`, no persisted run; a reproduced call blocked
+concurrent requests (12/12 200 but delayed to ≈7.6 s) — a latency observation, not a defect. **Anomaly still
+open:** two `LOCAL_LOGIN_SUCCESS` rows **933** (`19:10:51Z`) / **934** (`19:14:04Z`, actor 46, school 1,
 127.0.0.1, Chrome) were not performed by any planner cycle — the operator should attribute them. The
 `014b4b4c` supervisor start at `19:01:28Z` is the deployment itself (audit `014b4b4c-20260924-030100`).
 Scheduler-surface acceptance remains `EXTERNALLY_BLOCKED(AUTH_SESSION_REQUIRED)`.

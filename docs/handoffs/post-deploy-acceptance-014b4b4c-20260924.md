@@ -17,7 +17,7 @@ Base/end `origin/main` = `48356ee2` (cycle entry) → see the closure commit.
 
 ## Read-only demo route matrix (live, authenticated officer session, 1366×768)
 
-12 routes navigated; each renders a real surface, **no error boundary**, **no global document
+13 routes navigated; each renders a real surface, **no error boundary**, **no global document
 scrollbar** (`scrollHeight == clientHeight == 768`):
 
 | route | h1 |
@@ -44,7 +44,7 @@ notification bell shows **1 unread**.
 | export | status | bytes |
 |---|---|---|
 | `class-program.xlsx?termIndex=2` | **200** | 20,389 |
-| `section-program.docx?sectionId=141&termIndex=2` | **200** | 9,873 |
+| `section-program.docx?sectionId=141&termIndex=2` | **200** | 9,873–9,874 (docx metadata varies ±1 B) |
 | `summary-teacher-schedule.xlsx?termIndex=2` | **200** | 54,082 |
 | `room-program.xlsx?termIndex=2` | **200** | 34,951 |
 
@@ -76,21 +76,34 @@ re-verified live and is superseded in `docs/plans/live-state.md`:
   using `caller.schoolId`, and `parseStrictTermAuthoritySchoolId` exists as a strict parser.
 - **`Live data` published-run fact** — corrected from run 315 / revision 42 to run **317 / revision 43**.
 
-## Anomaly — unattributed benchmark + two logins (flagged, not my cycle)
+## The "unattributed `hybrid-scheduler` runs" debt — RESOLVED: it is the readiness diagnostic
 
-Discovered while reconciling the runtime, **not attributable to this or the prior planner cycle**:
+The long-standing live-state debt ("unattributed `hybrid-scheduler` benchmark runs … identify if not
+the operator") is **the app's own canonical readiness diagnostic**, not an external benchmark:
 
-- A continuous `[hybrid-scheduler]` profile benchmark ran **2026-09-23T19:02:04Z – 19:17:25Z**
-  (≈15 min, cycling 7 profiles, `Ejection repair` each pass) with **no persisted generation run**
-  (latest run remains #317, 2026-09-22). The server restarted at 19:01:28Z as part of the
-  `014b4b4c` deploy, so the benchmark started ≈15 s after boot.
+- `GET /api/v1/generation/:schoolId/:schoolYearId/readiness/diagnostic` calls
+  `buildGenerationReadiness` (`generation-readiness.service.ts:179`), which runs the **full
+  `runHybridScheduler`** and logs one `[hybrid-scheduler] profile=…` line per candidate profile plus
+  `Selected profile` and `Ejection repair`. The client fetches it (`timetableDataSources.ts:58`) with
+  `force: true` ("readiness gates generation, so it is always re-verified"), so **each page
+  mount/refetch runs a ≈7.4 s scheduler**.
+- Observed `[hybrid-scheduler]` bursts in the supervisor log (UTC):
+  `19:02:04–19:02:11`, `19:15:02–19:17:25`, `19:35:03–19:36:11`, `19:44:51–19:45:05`,
+  `19:52:56–19:53:02` — discrete bursts, **not continuous**; **no generation run persisted** (latest
+  remains #317). Triggering one call myself reproduced the exact burst (`19:52:56–19:53:02`,
+  `runtimeMs 7417`, `assigned 920 / unassigned 0 / profile SUBJECT_DESC_SECTION_ASC`).
+- **Impact (measured):** one readiness call blocks the single-threaded server for ≈7.4 s; 12
+  concurrent requests issued during it all returned **200 but were delayed to ≈7.6 s**. It did **not**
+  reproduce the intermittent 502s. This is a real **latency** cost (a page load during a diagnostic
+  waits), not a correctness defect — recorded as an observation, no change made.
+
+## Anomaly — two undisclosed officer logins (flagged, not my cycle)
+
 - Two `audit_logs` rows **933** (`2026-09-23T19:10:51.488Z`) and **934**
   (`2026-09-23T19:14:04.354Z`): `LOCAL_LOGIN_SUCCESS`, actor 46, school 1, `127.0.0.1`, Chrome —
   **not performed by this cycle** (it used the existing session) and not disclosed in the
   handoff/live-state. Row 932 was previously disclosed as the operator's own.
-- **Action taken: none** (cannot attribute; not this lane's authority to terminate another
-  session's work). **Recommended:** the operator attribute the benchmark and rows 933/934, and
-  confirm whether a second agent/session is running benchmarks against the live runtime.
+- **Action taken: none.** **Recommended:** the operator attribute rows 933/934.
 
 ## Scheduler-surface acceptance — still `EXTERNALLY_BLOCKED(AUTH_SESSION_REQUIRED)`
 
@@ -102,8 +115,10 @@ mutation) or a scheduler credential.
 
 ## Recommended next actions (operator-facing)
 
-1. Attribute the 19:02–19:17Z `hybrid-scheduler` benchmark and logins 933/934; confirm no second
-   agent is benchmarking the live runtime.
-2. Grant/deny the scheduler-role login for the publication-approval acceptance row.
-3. Decide on the outstanding school-1 QA/admin **credential rotation** (long-standing security debt).
-4. Decide ownership of the intermittent host/proxy 502 layer (unreproducible this cycle).
+1. Attribute `audit_logs` rows 933/934 (undisclosed officer logins).
+2. Consider whether the readiness diagnostic should run the **full** scheduler on every client mount
+   (≈7.4 s CPU, blocks other requests) or serve a cheaper cached/precomputed readiness — a design
+   decision, not a defect.
+3. Grant/deny the scheduler-role login for the publication-approval acceptance row.
+4. Decide on the outstanding school-1 QA/admin **credential rotation** (long-standing security debt).
+5. Decide ownership of the intermittent host/proxy 502 layer (unreproducible this cycle).
