@@ -111,12 +111,16 @@ export async function loadMyScheduleScoped(
 	schoolYearId: number,
 	facultyId: number,
 	requestDate: string,
+	termIndex: number,
 ): Promise<PublishedFacultySchedulePayload | null> {
 	const result = await runActorScoped(async (resolvedSchoolId) => {
 		if (resolvedSchoolId !== schoolId) return null;
 		const { data } = await atlasApi.get<PublishedFacultySchedulePayload>(
 			`/schools/${schoolId}/school-years/${schoolYearId}/schedules/published/faculty/${facultyId}`,
-			{ params: { date: requestDate } },
+			// The published-schedule endpoint fails closed with
+			// `TERM_SELECTION_REQUIRED` when no ordered term is supplied; a missing
+			// term must never be defaulted to Term 1.
+			{ params: { date: requestDate, termIndex } },
 		);
 		return data;
 	});
@@ -158,6 +162,14 @@ export default function MySchedule() {
 			if (stale() || !isCurrent()) return;
 			const schoolYearId = schoolYearContext.activeSchoolYearId;
 			setSchoolYearNotice(describeSchoolYearSource(schoolYearContext));
+			// The published-schedule read is ordered-term scoped and fails closed
+			// without one; never default a missing term to Term 1.
+			const activeTermIndex = schoolYearContext.activeTerm?.termIndex ?? null;
+			if (activeTermIndex == null) {
+				setError('Choose a term before your published schedule can be shown.');
+				setSchedule(null);
+				return;
+			}
 
 			let resolvedFacultyId: number;
 			try {
@@ -182,14 +194,14 @@ export default function MySchedule() {
 			}
 
 			const requestDate = resolvePublishedScheduleRequestDate();
-			const cachePrefix = buildFacultyCacheKey('published-schedule', scopedSchoolId, schoolYearId, resolvedFacultyId, 'date', requestDate);
+			const cachePrefix = buildFacultyCacheKey('published-schedule', scopedSchoolId, schoolYearId, resolvedFacultyId, 'term', activeTermIndex, 'date', requestDate);
 			const cachedSnapshot = readLatestFacultySnapshotByPrefix<PublishedScheduleSnapshot>(cachePrefix, {
 				maxAgeMs: SCHEDULE_CACHE_MAX_AGE_MS,
 				validate: isPublishedScheduleSnapshot,
 			});
 
 			try {
-				const data = await loadMyScheduleScoped(scopedSchoolId, schoolYearId, resolvedFacultyId, requestDate);
+				const data = await loadMyScheduleScoped(scopedSchoolId, schoolYearId, resolvedFacultyId, requestDate, activeTermIndex);
 				if (stale() || !isCurrent()) return;
 				// A discarded (superseded/unresolved) response must never overwrite state.
 				if (data == null) return;

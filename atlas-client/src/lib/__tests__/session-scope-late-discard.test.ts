@@ -130,7 +130,7 @@ test('MySchedule: late A response is discarded in ordering (a) A lands after B i
 	scheduleResponder = () => deferredA.promise;
 	setLocalToken('ms-a');
 	authMeResponder = authMe(1);
-	const pendingA = loadMyScheduleScoped(1, 7001, 55, '2026-09-12');
+	const pendingA = loadMyScheduleScoped(1, 7001, 55, '2026-09-12', 2);
 	await waitFor((c) => c.url.includes('/schedules/published/faculty/'));
 
 	setLocalToken('ms-b');
@@ -147,7 +147,7 @@ test('MySchedule: late A response is discarded in ordering (b) A lands while B i
 	scheduleResponder = () => deferredA.promise;
 	setLocalToken('ms-a2');
 	authMeResponder = authMe(1);
-	const pendingA = loadMyScheduleScoped(1, 7001, 55, '2026-09-12');
+	const pendingA = loadMyScheduleScoped(1, 7001, 55, '2026-09-12', 2);
 	await waitFor((c) => c.url.includes('/schedules/published/faculty/'));
 
 	setLocalToken('ms-b2');
@@ -170,6 +170,12 @@ test('sanity: a current-session dashboard/schedule response is returned (not dis
 	clearAtlasAuthStorage();
 	setLocalToken('ms-current');
 	authMeResponder = authMe(5);
-	const schedule = await loadMyScheduleScoped(5, 7001, 55, '2026-09-12');
+	const schedule = await loadMyScheduleScoped(5, 7001, 55, '2026-09-12', 2);
 	assert.ok(schedule != null, 'current-session schedule loads');
+	const facultyCall = recorded.find((call) => call.url.includes('/schedules/published/faculty/'));
+	assert.equal(
+		(facultyCall?.params as { termIndex?: number } | undefined)?.termIndex,
+		2,
+		'the ordered term must be sent; the published endpoint fails closed with TERM_SELECTION_REQUIRED without it',
+	);
 });
