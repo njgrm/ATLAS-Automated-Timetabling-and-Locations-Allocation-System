@@ -34,6 +34,7 @@ test('incomplete history, swaps, and destructive operations fail closed', () => 
 	assert.equal(canRebaseManualEdits([move('entry-a')], [record('entry-b')], 2), false);
 	assert.equal(canRebaseManualEdits([{ editType: 'REVERT', entryId: 'entry-a' }], [record('entry-b')], 1), false);
 	assert.equal(canRebaseManualEdits([{ editType: 'SWAP_ENTRIES', metadata: { entryIdA: 'entry-a', entryIdB: 'entry-b' } }], [record('entry-c')], 1), false);
+	assert.equal(canRebaseManualEdits([move('entry-z')], [record('entry-a', 2, 0), record('entry-b', 2, 2)], 1), false);
 });
 
 test('overlapping semantic conflicts dispatch no ORM, raw, or transaction writes', () => {

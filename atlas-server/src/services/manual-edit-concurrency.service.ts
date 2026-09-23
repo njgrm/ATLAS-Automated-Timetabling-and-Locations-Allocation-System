@@ -104,7 +104,7 @@ export function canRebaseManualEdits(
 				if (batch?.batchSize !== size || !Number.isInteger(batch.batchIndex)) return false;
 				indexes.add(batch.batchIndex as number);
 			}
-			if (indexes.size !== size) return false;
+			if (indexes.size !== size || Array.from({ length: size }, (_, batchIndex) => batchIndex).some((batchIndex) => !indexes.has(batchIndex))) return false;
 		}
 		for (const edit of group) {
 			const keys = editKeys(edit);
