@@ -35,7 +35,7 @@
     "backfill:section-ownership:apply": "tsx src/scripts/backfill-subject-section-ownership.ts --apply",
     "test:wave4-precision": "tsx ../qa-artifacts/wave4-teaching-load-precision.test.ts",
     "test:hybrid-scheduler": "tsx src/__tests__/hybrid-scheduler.test.ts",
-    "test:scheduler-collaboration": "tsx --test src/__tests__/manual-edit-concurrency-c01.test.ts src/__tests__/publication-approval-c01.test.ts src/__tests__/scheduler-c01-actor-school-http.test.ts src/__tests__/scheduler-c01-qa-corrections.test.ts src/__tests__/scheduler-capabilities-c01.test.ts src/__tests__/scheduler-route-authority-c01.test.ts src/__tests__/timetable-collaboration-ticket-c01.test.ts src/__tests__/timetable-collaboration-websocket-c01.test.ts",
+    "test:scheduler-collaboration": "tsx --test src/__tests__/manual-edit-concurrency-c01.test.ts src/__tests__/publication-approval-c01.test.ts src/__tests__/scheduler-c01-actor-school-http.test.ts src/__tests__/scheduler-c01-qa-corrections.test.ts src/__tests__/scheduler-capabilities-c01.test.ts src/__tests__/scheduler-route-authority-c01.test.ts src/__tests__/scheduler-ancillary-authority-c01.test.ts src/__tests__/timetable-collaboration-ticket-c01.test.ts src/__tests__/timetable-collaboration-websocket-c01.test.ts",
     "test:export-center": "tsx --test src/__tests__/export-learner-count.test.ts src/__tests__/schedule-workbook-docx.test.ts",
     "test:timetable-sync-setup": "tsx src/__tests__/timetable-sync-setup.test.ts",
     "test:derived-setup-readiness": "tsx src/__tests__/uxc01-derived-setup-readiness.test.ts",
