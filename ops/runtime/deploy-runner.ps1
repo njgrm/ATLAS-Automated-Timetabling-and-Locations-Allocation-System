@@ -29,6 +29,11 @@ param(
 
     [string] $TaskName = 'ATLAS-Runtime-Supervisor',
     [string] $AuditRoot = 'C:\ProgramData\ATLAS\release-audit',
+
+    # -LiveStateRef: committed ref (default origin/main) from which the gate reads docs/plans/live-state.md.
+    # Reading a committed ref keeps the pre-mutation check independent of any working tree.
+    [string] $LiveStateRef = 'origin/main',
+
     [switch] $Execute
 )
 
@@ -128,6 +133,72 @@ function Get-MachineIdentity([string] $ExpectedSource, [string] $ExpectedSha, [s
     }
 }
 
+function Get-SharedRepositoryRoot([string] $WorktreeDir) {
+    # The target is a registered worktree; its common git directory names the shared
+    # repository whose committed refs carry the live-state file.
+    $commonGitDir = (Invoke-Native 'git' @('-C', $WorktreeDir, 'rev-parse', '--git-common-dir')).Trim()
+    if ([string]::IsNullOrWhiteSpace($commonGitDir)) {
+        Fail "Unable to resolve the shared repository for target '$WorktreeDir'."
+    }
+    if (-not [IO.Path]::IsPathRooted($commonGitDir)) {
+        $commonGitDir = Join-Path $WorktreeDir $commonGitDir
+    }
+    $root = Split-Path -Parent ([IO.Path]::GetFullPath($commonGitDir))
+    if ([string]::IsNullOrWhiteSpace($root)) {
+        Fail "Unable to resolve the shared repository root for target '$WorktreeDir'."
+    }
+    return $root
+}
+
+function Get-LiveStateText([string] $TargetSourceDir, [string] $Ref) {
+    # Read the live-state file from a committed ref so the gate does not depend on any
+    # working tree being clean or current. A missing ref, a missing file, or an empty
+    # read is a hard failure, never a pass.
+    $sharedRoot = Get-SharedRepositoryRoot $TargetSourceDir
+    $text = Invoke-Native 'git' @('-C', $sharedRoot, 'show', "$($Ref):docs/plans/live-state.md")
+    if ([string]::IsNullOrWhiteSpace($text)) {
+        Fail "docs/plans/live-state.md is empty at ref '$Ref'."
+    }
+    return $text
+}
+
+function Get-LiveReleaseSection([string] $LiveStateText) {
+    # The Live release section is the text between the '## Live release' heading and the
+    # next '## ' heading. A missing heading yields no section, so the gate fails closed.
+    if ([string]::IsNullOrEmpty($LiveStateText)) { return $null }
+    $lines = $LiveStateText -split "\r?\n"
+    $start = -1
+    $end = $lines.Length
+    for ($i = 0; $i -lt $lines.Length; $i++) {
+        if ($start -lt 0) {
+            if ($lines[$i] -match '^##\s+Live release\s*$') { $start = $i }
+        } elseif ($lines[$i] -match '^##\s') {
+            $end = $i
+            break
+        }
+    }
+    if ($start -lt 0) { return $null }
+    if ($end -le ($start + 1)) { return '' }
+    return (($lines[($start + 1)..($end - 1)]) -join "`n")
+}
+
+function Assert-LiveReleaseRecorded([string] $LiveStateText, [string] $IncumbentSha, [string] $Ref = 'origin/main') {
+    # Fail-closed pre-mutation gate: the currently live (incumbent) release must be named
+    # in the Live release section of docs/plans/live-state.md before any cutover begins.
+    # A prefix that appears only outside that section must not satisfy the gate.
+    if ([string]::IsNullOrWhiteSpace($IncumbentSha) -or $IncumbentSha.Length -lt 8) {
+        Fail "Incumbent release SHA '$IncumbentSha' cannot yield an 8-character prefix."
+    }
+    $prefix = $IncumbentSha.Substring(0, 8)
+    $section = Get-LiveReleaseSection $LiveStateText
+    if ($null -eq $section) {
+        Fail "docs/plans/live-state.md at ref '$Ref' has no '## Live release' section naming incumbent release prefix '$prefix'."
+    }
+    if ($section -notmatch [regex]::Escape($prefix)) {
+        Fail "docs/plans/live-state.md at ref '$Ref' does not name incumbent release prefix '$prefix' in its '## Live release' section."
+    }
+}
+
 function Get-SupervisorLineage([int[]] $Ports, [string] $Incumbent) {
     $listeners = foreach ($port in $Ports) { @(Get-NetTCPConnection -State Listen -LocalPort $port) }
     if ($listeners.Count -ne $Ports.Count) { Fail 'Expected exactly one listener for each supervised port.' }
@@ -173,6 +244,8 @@ if ([string]::IsNullOrWhiteSpace($TargetSha) -or
 Assert-Administrator
 $target = Get-GitIdentity $TargetSourceDir $TargetSha
 $machine = Get-MachineIdentity $IncumbentSourceDir $IncumbentSha $EnvFile
+$liveStateText = Get-LiveStateText $TargetSourceDir $LiveStateRef
+Assert-LiveReleaseRecorded $liveStateText $IncumbentSha $LiveStateRef
 $audit = Join-Path $AuditRoot "$($TargetSha.Substring(0, 8))-$(Get-Date -Format yyyyMMdd-HHmmss)"
 New-Item -ItemType Directory -Force -Path $audit | Out-Null
 $xmlPath = Join-Path $audit 'task-before.xml'
