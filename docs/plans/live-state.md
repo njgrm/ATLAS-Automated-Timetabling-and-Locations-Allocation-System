@@ -4,7 +4,7 @@ Current operational truth only. Git history and handoff documents retain older
 evidence. Update this file when a live fact, blocking decision, or next action
 changes.
 
-Last reconciled: 2026-09-23 (Lane A).
+Last reconciled: 2026-09-24 (Lane A).
 
 ## Writing protocol — two planner lanes share this file
 
@@ -48,11 +48,12 @@ and AIMS.
   outage not reproducible). Also merges the scheduler-ancillary-authority C01 lane and wires its test. No new
   migration. Deployed 2026-09-24 by Elevated OpenCode (audit `…\release-audit\014b4b4c-20260924-030100`).
   **Rollback basis: `09b898e6b7550528ee450abd4d9925fb422a240e`** at
-  `E:\ATLAS-runtime-supervised-09b898e6-20260924` (startable in place; deeper `6e9c87e7`). **Residual
-  (BLOCKING for the all-sections class-program export):** the all-sections export still fails
-  `503 LEARNER_RECONCILIATION_FAILED` because **2 of 20 section mirrors are stale** — section `143`
-  (mirror `enrolled_count` 4 vs live feed 5) and section `146` (1 vs 2). The guard fails closed correctly;
-  the remedy is a **section re-sync**, not a code change. Per-section exports are unaffected.)
+  `E:\ATLAS-runtime-supervised-09b898e6-20260924` (startable in place; deeper `6e9c87e7`).   **Residual
+  (RESOLVED 2026-09-24, `EXPORT-CENTER-ACCEPTANCE-20260924`):** the all-sections export had failed
+  `503 LEARNER_RECONCILIATION_FAILED` because 2 of 20 section mirrors were stale — section `143`
+  (mirror `enrolled_count` 4 vs live feed 5) and section `146` (1 vs 2). A narrow
+  `POST /api/v1/sections/sync {schoolId:1, schoolYearId:10}` refreshed the mirrors (guard untouched);
+  `class-program.xlsx` now returns **200** and the per-section exports still 200. See the Lane A entry.)
 - **Release SHA: `09b898e6`** (previous release; `E:\ATLAS-runtime-supervised-09b898e6-20260924`;
   supervisor → server `5001`→50548 / host `5174`→49996; served entry `/assets/index-BloZtbDr.js`,
   **byte-identical to the target build**; machine `ATLAS_RUNTIME_SOURCE_DIR` / `RELEASE_SHA` = the target;
@@ -465,6 +466,26 @@ Lane B owns this section. Current stream and state: see Lane B's own handoff fil
 it complete `TEST-GATE-REACHABILITY-C01` (`f4462374`) and hand it over for integration.
 
 ## Lane A — current lane (written only by Lane A)
+
+**`EXPORT-CENTER-ACCEPTANCE-20260924` COMPLETE — all-sections class-program export unblocked by a section re-sync (2026-09-24).**
+Cycle artifact `docs/handoffs/export-center-acceptance-20260924.md`; base/end `origin/main` `be0bd0df`; live
+`014b4b4c` untouched. **Objective 1 (BLOCKING) RESOLVED:** the all-sections
+`class-program.xlsx?termIndex=2` was `503 LEARNER_RECONCILIATION_FAILED` because 2 of 20 `section_mirrors`
+for school 1 / year 10 were stale — section **143** (mirror 4 vs live feed 5) and **146** (1 vs 2). Under the
+operator's explicit go, the narrow `POST /api/v1/sections/sync {schoolId:1, schoolYearId:10}` ran on the live
+runtime (200: 20 synced, 0 removed, 0 skipped; `fetchedAt 2026-09-23T19:17:40.410Z`); the reconciliation
+guard was **not** weakened. Post-action DB: 143=5, 146=2, 20 rows, sum 92. **Re-verified export matrix**
+(run #317, termIndex=2): `class-program.xlsx` **200** (20,389 B), `section-program.docx?sectionId=141` 200
+(9,873 B), `summary-teacher-schedule.xlsx` 200 (54,082 B), `room-program.xlsx` 200 (34,951 B). Rollback
+basis = pre-action mirror snapshot (143=4, 146=1) in `%TEMP%`. **Objective 2:** the scheduler-only
+publication-approval surface is correctly hidden for the persistent **officer** session
+(`canApprovePublication = userRole === 'scheduler'`, `useScheduleReviewWorkspaceState.ts:1923`;
+live `/timetable` shows no "Review publication requests"); exercising it needs a scheduler-role login —
+reported `EXTERNALLY_BLOCKED(AUTH_SESSION_REQUIRED)` (not pre-authorized; no login performed). The
+collaboration WebSocket is independently re-verified **open** (authenticated ticket 201 + `ws…/collaboration/ws`
+`open`). **Objective 3:** `35518455` is an ancestor of the live `014b4b4c` and
+`scheduler-ancillary-authority.service.js` is in the release — **no re-deploy** (it would downgrade).
+No source change, deployment, generation, publication, migration, or login.
 
 **`RUNTIME-DIR-RETENTION-C01` COMPLETE — retention policy landed, 14 rows / 17.46 GiB reclaimed (2026-09-23).**
 The operator chose the **demo-safe** depth after `RUNTIME-DIR-RECLAIM-C01` proved that ~46 GiB had
