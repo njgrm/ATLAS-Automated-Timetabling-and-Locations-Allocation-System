@@ -10,21 +10,18 @@ import {
 } from '../services/scheduler-capabilities.js';
 import { requireCapability } from '../middleware/authorize.js';
 
-test('coordinator plus teacher maps to least-privilege scheduler with teacher self-service', () => {
+test('application role claims establish faculty identity but never scheduler authority', () => {
 	const identity = mapEnrollProRoles(['TEACHER', 'GRADE_LEVEL_COORDINATOR']);
-	assert.equal(identity.role, 'scheduler');
-	assert.ok(identity.capabilities.includes('faculty:self-service'));
-	for (const capability of SCHEDULING_CAPABILITIES) assert.ok(identity.capabilities.includes(capability), capability);
-	assert.equal(identity.capabilities.includes('timetable:publish'), false);
+	assert.equal(identity.role, 'faculty');
+	assert.deepEqual(identity.capabilities, ['faculty:self-service']);
 });
 
-test('coordinator eligibility comes only from the upstream role claim', () => {
+test('coordinator application-role claim alone never grants scheduler', () => {
 	assert.deepEqual(mapEnrollProRoles(['TEACHER']), {
 		role: 'faculty',
 		capabilities: ['faculty:self-service'],
 	});
-	assert.equal(mapEnrollProRoles(['GRADE_LEVEL_COORDINATOR']).role, 'scheduler');
-	assert.deepEqual(mapEnrollProRoles(['GRADE_LEVEL_COORDINATOR']).capabilities, [...SCHEDULING_CAPABILITIES, ...SCHEDULER_PUBLICATION_CAPABILITIES]);
+	assert.deepEqual(mapEnrollProRoles(['GRADE_LEVEL_COORDINATOR']), { role: null, capabilities: [] });
 	assert.equal(mapEnrollProRoles(['SCHEDULER', 'IT_ADMIN']).role, null);
 });
 

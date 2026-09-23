@@ -4,7 +4,8 @@ import type { Prisma } from '@prisma/client';
 
 import { prisma } from '../lib/prisma.js';
 import { resolveCanonicalFacultyMirror, type CanonicalFacultyResolution } from './faculty-identity.service.js';
-import { capabilitiesForRole, mapEnrollProRoles, resolveCurrentSchedulerAuthority, type EnrollProRoleMapping } from './scheduler-capabilities.js';
+import { capabilitiesForRole, mapEnrollProRoles, resolveEnrollProSessionAuthority, type EnrollProRoleMapping } from './scheduler-capabilities.js';
+import { resolveSchedulerAncillaryAuthority } from './scheduler-ancillary-authority.service.js';
 
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN ?? '8h';
 const MAX_FAILED_ATTEMPTS = Number(process.env.ATLAS_AUTH_MAX_FAILED_ATTEMPTS ?? 5);
@@ -178,14 +179,14 @@ type EnrollProFacultyFeedRow = {
 	isActive?: boolean;
 };
 
-function resolveEnrollProRole(user: EnrollProVerifiedUser): EnrollProRoleMapping {
-	if (Array.isArray(user.roles) && user.roles.length > 0) {
-		return mapEnrollProRoles(user.roles);
-	}
-	if (user.role) {
-		return mapEnrollProRoles([user.role]);
-	}
-	return { role: null, capabilities: [] };
+async function resolveEnrollProSessionRole(user: EnrollProVerifiedUser): Promise<EnrollProRoleMapping> {
+	const roles = Array.isArray(user.roles) && user.roles.length > 0
+		? user.roles
+		: user.role ? [user.role] : [];
+	const identityRole = mapEnrollProRoles(roles);
+	if (identityRole.role === 'officer') return identityRole;
+	const ancillary = await resolveSchedulerAncillaryAuthority(user.employeeId);
+	return resolveEnrollProSessionAuthority(roles, ancillary.verified && ancillary.eligible);
 }
 
 /**
@@ -698,7 +699,7 @@ export async function login(params: {
 	if (!account) {
 		const enrollProResult = await tryEnrollProVerify(identifier, params.password);
 		if (enrollProResult) {
-			const resolvedRole = resolveEnrollProRole(enrollProResult.user);
+			const resolvedRole = await resolveEnrollProSessionRole(enrollProResult.user);
 			if (!resolvedRole.role) {
 				return {
 					ok: false,
@@ -809,7 +810,7 @@ export async function login(params: {
 		// their EnrollPro password or Employee ID since the last sync).
 		const enrollProResult = await tryEnrollProVerify(identifier, params.password);
 		if (enrollProResult) {
-			const resolvedRole = resolveEnrollProRole(enrollProResult.user);
+			const resolvedRole = await resolveEnrollProSessionRole(enrollProResult.user);
 			if (!resolvedRole.role) {
 				registerMemoryFailure(identifier, params.ipAddress, now);
 				return {
@@ -941,8 +942,7 @@ export async function login(params: {
 				};
 			}
 		} else {
-			const upstreamRoles = upstream.user.roles?.length ? upstream.user.roles : upstream.user.role ? [upstream.user.role] : [];
-			const authority = resolveCurrentSchedulerAuthority(account.role, upstreamRoles);
+			const authority = await resolveEnrollProSessionRole(upstream.user);
 			if (!authority.role) {
 				if (account.role === 'scheduler') {
 					return {
@@ -951,6 +951,9 @@ export async function login(params: {
 						code: 'AUTH_INVALID_ROLE',
 						message: 'Your current EnrollPro roles do not grant ATLAS scheduler access.',
 					};
+				} else {
+					effectiveRole = 'faculty';
+					accountCapabilities = ['faculty:self-service'];
 				}
 			} else {
 				effectiveRole = authority.role;
@@ -994,7 +997,7 @@ export async function login(params: {
 
 		const enrollProResult = canonicalFaculty ? null : await tryEnrollProVerify(identifier, params.password);
 		if (!canonicalFaculty && enrollProResult) {
-			const resolvedRole = resolveEnrollProRole(enrollProResult.user);
+			const resolvedRole = await resolveEnrollProSessionRole(enrollProResult.user);
 			if (!resolvedRole.role) {
 				registerMemoryFailure(identifier, params.ipAddress, now);
 				return {

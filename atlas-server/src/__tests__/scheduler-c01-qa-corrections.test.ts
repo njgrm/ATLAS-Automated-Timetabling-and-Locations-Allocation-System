@@ -3,14 +3,13 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import test from 'node:test';
 
-import { capabilitiesForRole, resolveCurrentSchedulerAuthority } from '../services/scheduler-capabilities.js';
+import { capabilitiesForRole, resolveEnrollProSessionAuthority } from '../services/scheduler-capabilities.js';
 import { assertRequestSchoolScope } from '../middleware/authorize.js';
 
-test('persisted scheduler role cannot grant authority without a fresh exact coordinator claim', () => {
-	assert.equal(resolveCurrentSchedulerAuthority('scheduler', null).role, null);
-	assert.equal(resolveCurrentSchedulerAuthority('scheduler', ['TEACHER']).role, 'faculty');
-	assert.equal(resolveCurrentSchedulerAuthority('scheduler', ['TEACHER', 'GRADE_LEVEL_COORDINATOR']).role, 'scheduler');
-	assert.equal(resolveCurrentSchedulerAuthority('faculty', ['TEACHER', 'GRADE_LEVEL_COORDINATOR']).role, 'scheduler');
+test('application role claims cannot grant scheduler capability without a verified ancillary grant', () => {
+	assert.equal(resolveEnrollProSessionAuthority(['TEACHER', 'GRADE_LEVEL_COORDINATOR'], false).role, 'faculty');
+	assert.equal(resolveEnrollProSessionAuthority(['TEACHER', 'GRADE_LEVEL_COORDINATOR'], true).role, 'scheduler');
+	assert.equal(resolveEnrollProSessionAuthority(['GRADE_LEVEL_COORDINATOR'], false).role, null);
 	assert.ok(capabilitiesForRole('admin', []).includes('system:admin'), 'local admin capability behavior remains unchanged');
 });
 
@@ -58,14 +57,18 @@ test('scheduler-admitted routes check actor school before service dispatch', () 
 	}
 });
 
-test('local and companion SSO scheduler authority is derived from current EnrollPro roles', () => {
+test('local and companion SSO resolve scheduler authority from the current active-year ancillary feed', () => {
 	const root = resolve(import.meta.dirname, '../../../');
 	const local = readFileSync(resolve(root, 'atlas-server/src/services/local-auth.service.ts'), 'utf8');
 	const companion = readFileSync(resolve(root, 'atlas-server/src/services/companion-sso.service.ts'), 'utf8');
 	assert.match(local, /tryEnrollProVerify\(identifier, params\.password\)/);
-	assert.match(local, /resolveCurrentSchedulerAuthority\(account\.role, upstreamRoles\)/);
+	assert.match(local, /resolveSchedulerAncillaryAuthority\(user\.employeeId\)/);
+	assert.match(local, /resolveEnrollProSessionAuthority\(roles, ancillary\.verified && ancillary\.eligible\)/);
 	assert.match(local, /data:\s*\{ role: effectiveRole \}/);
-	assert.match(companion, /GRADE_LEVEL_COORDINATOR/);
-	assert.match(companion, /mapEnrollProRoles\(identity\.roles\)/);
+	assert.match(local, /AUTH_SCHEDULER_VERIFICATION_REQUIRED/);
+	assert.match(local, /Your current EnrollPro roles do not grant ATLAS scheduler access\./);
+	assert.match(companion, /resolveSchedulerAncillaryAuthority\(identity\.employeeId, \{\}, identity\.activeSchoolYearId\)/);
+	assert.match(companion, /resolveEnrollProSessionAuthority\(identity\.roles, ancillary\?\.verified === true && ancillary\.eligible\)/);
 	assert.match(companion, /data:\s*\{ facultyId: canonicalFacultyId, role: effectiveRole/);
+	assert.match(companion, /COMPANION_SSO_ROLE_DENIED/);
 });
