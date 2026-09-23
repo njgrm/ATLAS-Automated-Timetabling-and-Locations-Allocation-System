@@ -68,20 +68,42 @@ the login form** — that is how the value ended up in 8 plaintext files (includ
 `officer`); its `LOCAL_LOGIN_SUCCESS` row is the disclosed delta. **Credential rotation is still
 outstanding** — the leaked value remains valid.
 
-## 4. Open question for this cycle — flag ceremony vs class, and shifts
+## 4. CONFIRMED REQUIREMENT — a ceremony and a class must coexist in one slot
 
-**Operator evidence:** `D:\ATLAS\stakeholderFiles\` — images added 2026-09-23 22:49–22:51:
-`GRADE7_STE.jpg`, `GRADE7_STE_EVIDENCE.jpg`, `GRADE8_STE.jpg`, `GRADE8-STE2.jpg`, `GRADE8_REGULAR.jpg`.
-**Not yet examined** (deferred for context). The claim: *"the day shifts don't have displaced classes"*.
+**Evidence examined** (2026-09-23): `D:\ATLAS\stakeholderFiles\GRADE7_STE_EVIDENCE.jpg` and `GRADE7_STE.jpg`.
+Also present, **not yet examined**: `GRADE8_STE.jpg`, `GRADE8-STE2.jpg`, `GRADE8_REGULAR.jpg`.
 
-**What is already known:** `ClassProgramSlot` is uniquely keyed on
-`[schoolId, schoolYearId, gradeLevel, programType, dayOfWeek, startTime, rowKind]` — **`rowKind` is part of
-the key**, so a class and a ceremony can coexist at the same day+start as different kinds. The server
-already filters `rowKind === 'CLASS'` in several places, and the live grid renders the ceremony as its own row.
+**They are two different output types.** `GRADE7_STE.jpg` is the official **DepEd "Class Program"** template —
+letterhead (Department of Education / Negros Island Region / Schools Division of Negros Occidental),
+`STE-RAYMUNDO SANTIAGO`, learner counts (13 M / 22 F / 35), a single **Teacher** column, and the full signature
+block (Adviser, Principal, CID-Chief, PSDS, Asst. Schools Division Superintendent).
+`GRADE7_STE_EVIDENCE.jpg` — "GRADE 7 – TANDANG SORA" — is a **plain section schedule**: no letterhead, no
+learner counts, no signatures, teacher names **inside each cell**, and the footnote
+**"Inclusive of HGP and PEACE Campaign"**.
 
-**The open questions:** can a `CLASS` row be scheduled concurrently with a non-`CLASS` ceremony row at the
-same start time without a HARD conflict? Are morning/afternoon **shifts** modelled at all? Read the five
-images first, then decide whether this is a data-model gap, a conflict-detector gap, or already supported.
+**The requirement, evidenced independently by both templates:**
+
+| Template | 6:00–6:45 Monday | 6:00–6:45 Tue–Fri | Teacher on that row |
+|---|---|---|---|
+| `GRADE7_STE` | **Flag Ceremony / HGP** | Science | **JOHN PAUL FARIS** (Science teacher) |
+| `GRADE7_STE_EVIDENCE` | **HGP / PEACE CAMPAIGN** | **TLE** | **MS. PINEDA** (TLE teacher) |
+
+The ceremony cell carries the **subject teacher's name**; the daily total is **450 mins** and is explicitly
+**inclusive** of the ceremony. So the ceremony is layered **on top of** a real class — it does not displace a
+period. **A scheduler that reads Monday 6:00–6:45 as only "HGP/PEACE CAMPAIGN" will conclude no class is
+registered there** and will either flag a gap or relocate the subject.
+
+**Already supported:** `ClassProgramSlot` is uniquely keyed on
+`[schoolId, schoolYearId, gradeLevel, programType, dayOfWeek, startTime, rowKind]` — **`rowKind` is part of the
+key**, so a class and a ceremony can coexist at the same day+start as different kinds; the server already
+filters `rowKind === 'CLASS'` in several places and the live grid renders the ceremony as its own row.
+
+**Open questions to resolve next:** (a) does the conflict detector permit a `CLASS` concurrent with a non-`CLASS`
+ceremony row at the same start without a HARD violation; (b) does the *generator* treat the ceremony slot as
+unavailable, and would it therefore relocate the displaced subject; (c) is the ceremony currently modelled as a
+per-day row (as the grid shows) or per-section; (d) are morning/afternoon **shifts** modelled at all — the
+operator's phrase was *"the day shifts don't have displaced classes"*. Examine the three unread Grade-8 images
+before deciding whether this is a data-model, generator, or conflict-detector gap.
 
 ## 5. Open technical debts (all recorded in `live-state`)
 
