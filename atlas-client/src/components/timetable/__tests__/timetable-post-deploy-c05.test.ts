@@ -16,7 +16,7 @@ test('C05 direct Draft route preserves the prior published run, term, view, and 
 	assert.deepEqual(captured, published);
 	assert.deepEqual(capturePublishedReturnState(captured, { centerView: 'pre-generation', isPublished: true, ...published }), published,
 		'direct route entry retains the state-only snapshot while the published schedule is hidden');
-	assert.match(source('hooks/useScheduleReviewWorkspaceState.ts'), /capturePublishedReturnState/,
+	assert.match(source('hooks/useScheduleReviewWorkspaceState.ts'), /usePublishedTimetableReturnState\(/,
 		'the workspace captures published context independently of the Draft button callback');
 });
 

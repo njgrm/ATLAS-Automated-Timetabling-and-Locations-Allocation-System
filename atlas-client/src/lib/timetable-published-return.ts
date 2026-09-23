@@ -5,6 +5,25 @@ export type PublishedTimetableReturnState = {
 	entityFilter: string;
 };
 
+export type PublishedTimetableReturnSetters = {
+	setRunId: (runId: string) => void;
+	setTermFilter: (termFilter: 'all' | number) => void;
+	setViewMode: (viewMode: 'section' | 'faculty' | 'room') => void;
+	setEntityFilter: (entityFilter: string) => void;
+};
+
+export function restorePublishedTimetableContext(
+	snapshot: PublishedTimetableReturnState | null,
+	setters: PublishedTimetableReturnSetters,
+): boolean {
+	if (!snapshot) return false;
+	setters.setRunId(snapshot.runId);
+	setters.setTermFilter(snapshot.termFilter);
+	setters.setViewMode(snapshot.viewMode);
+	setters.setEntityFilter(snapshot.entityFilter);
+	return true;
+}
+
 type PublishedReturnContext = PublishedTimetableReturnState & {
 	centerView: string;
 	isPublished: boolean;

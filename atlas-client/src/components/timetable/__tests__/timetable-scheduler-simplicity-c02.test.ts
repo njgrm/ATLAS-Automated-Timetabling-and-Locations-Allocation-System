@@ -119,11 +119,16 @@ test('published return is visible and restores run, term, view, and entity after
 	const header = source('src/components/timetable/ScheduleReviewWorkspaceHeader.tsx');
 	const state = source('src/hooks/useScheduleReviewWorkspaceState.ts');
 	assert.match(header, /Return to published schedule/);
-	assert.match(state, /publishedReturnStateRef\.current = capturePublishedReturnState\(publishedReturnStateRef\.current/,
-		'the published context is captured by the shared route-independent state helper');
-	assert.match(state, /runId: draft\.runId != null \? String\(draft\.runId\) : selectedRunId/,
-		'the return target stores a concrete published run id even when the selector is set to latest');
-	assert.match(state, /setSelectedRunId\(previous\.runId\)[\s\S]+setTermFilter\(previous\.termFilter\)[\s\S]+setViewMode\(previous\.viewMode\)[\s\S]+setEntityFilter\(previous\.entityFilter\)/);
+	assert.match(state, /usePublishedTimetableReturnState\(/,
+		'the workspace tracks a return target from route state as well as the Draft button callback');
+	assert.match(state, /publishedReturnState\.capture\('schedule'\)/,
+		'the in-app Draft action snapshots the current published context before changing view');
+	assert.match(state, /restorePublishedTimetableContext\(publishedReturnState\.snapshot/,
+		'the return action restores the saved published run, term, view, and entity');
+	assert.match(source('src/lib/timetable-published-return.ts'), /setRunId\(snapshot\.runId\)[\s\S]+setTermFilter\(snapshot\.termFilter\)[\s\S]+setViewMode\(snapshot\.viewMode\)[\s\S]+setEntityFilter\(snapshot\.entityFilter\)/,
+		'the shared production restore helper reapplies every captured published context field');
+	assert.match(state, /publishedReturnState\.clear\(\)[\s\S]+navigate\('\/timetable'\)/,
+		'after restore, the mouse action returns to the published timetable route');
 });
 
 test('draft tray switch review is inline with one Confirm action', () => {

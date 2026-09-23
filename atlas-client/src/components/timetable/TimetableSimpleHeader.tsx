@@ -6,7 +6,6 @@ import {
 	MoreHorizontal,
 	RefreshCw,
 	Settings2,
-	Undo2,
 	type LucideIcon,
 } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
@@ -63,6 +62,7 @@ import { describeRunInputDrift } from '@/components/timetable/timetableDriftRout
 import { SimpleMoreMenuContent } from '@/components/timetable/simple/SimpleMoreMenuContent';
 import { resolveTermAuthorityNotice } from '@/hooks/useTimetableData';
 import { ExportPresentationSettingsDialog } from '@/components/timetable/simple/ExportPresentationSettingsDialog';
+import { TimetablePublishedReturnAction } from '@/components/timetable/TimetablePublishedReturnAction';
 import { fetchRolloverStatus, type RolloverStatus } from '@/lib/settings';
 
 type TimetableSimpleHeaderProps = {
@@ -672,19 +672,10 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 				    narrow scrollable strip the primary leads (order-first) so it is
 				    visible without scrolling; at lg it returns to its inline order. */}
 				<div className="order-last flex w-full min-w-0 shrink-0 items-center justify-start gap-1.5 overflow-x-auto lg:order-none lg:ml-auto lg:w-auto lg:max-w-[48vw] lg:justify-end">
-					{context.isPreGenerationWorkspace && context.hasPublishedReturnState ? (
-						<Button
-							type="button"
-							variant="outline"
-							size="sm"
-							className="h-11 shrink-0 gap-1.5 px-3 text-sm"
-							onClick={context.returnToGeneratedRun}
-							data-testid="timetable-return-to-published"
-						>
-							<Undo2 className="size-3.5" aria-hidden="true" />
-							Return to published
-						</Button>
-					) : null}
+					<TimetablePublishedReturnAction
+						visible={context.isPreGenerationWorkspace && Boolean(context.hasPublishedReturnState)}
+						onReturn={context.returnToGeneratedRun}
+					/>
 					<SimpleGenerateAction
 						disabled={generateActionState.disabled}
 						disabledReason={generateActionState.reason}

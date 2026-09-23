@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { flushSync } from 'react-dom';
 import type { ImperativePanelHandle } from 'react-resizable-panels';
 import { toast } from 'sonner';
@@ -96,7 +97,8 @@ import { useTimetableDragDrop } from '@/hooks/useTimetableDragDrop';
 import { useTimetableViewNavigation } from '@/hooks/useTimetableViewNavigation';
 import { isDraftPublishedStrict } from '@/components/timetable/timetableWorkspaceTruth';
 import { deriveRunWideReadiness } from '@/components/timetable/timetableWorkspaceTruth';
-import { capturePublishedReturnState, type PublishedTimetableReturnState } from '@/lib/timetable-published-return';
+import { restorePublishedTimetableContext } from '@/lib/timetable-published-return';
+import { usePublishedTimetableReturnState } from '@/hooks/usePublishedTimetableReturnState';
 import { getPreferredAccessToken } from '@/lib/auth';
 import { decodeJwtPayload } from '@/lib/jwt-payload';
 
@@ -117,6 +119,7 @@ function isFocusableElement(element: HTMLElement): boolean {
 }
 
 export function useScheduleReviewWorkspaceState() {
+	const navigate = useNavigate();
 	/* -- Data state -- */
 	const [tacticalSandboxOpen, setTacticalSandboxOpen] = useState(false);
 	const [schoolYearId, setSchoolYearId] = useState<number | null>(null);
@@ -175,7 +178,6 @@ export function useScheduleReviewWorkspaceState() {
 	const [programFilter, setProgramFilter] = useState<ProgramFilter>('all');
 	const [entryKindFilter, setEntryKindFilter] = useState<EntryKindFilter>('all');
 	const [termFilter, setTermFilter] = useState<'all' | number>('all');
-	const publishedReturnStateRef = useRef<PublishedTimetableReturnState | null>(null);
 	const [userOverrodeTermFilter, setUserOverrodeTermFilter] = useState(false);
 	const [presentationMode, setPresentationMode] = useState<'workflow' | 'matrix'>('workflow');
 	const [leftTab, setLeftTab] = useState<'violations' | 'unassigned' | 'pinned' | 'requests'>('violations');
@@ -231,16 +233,14 @@ export function useScheduleReviewWorkspaceState() {
 	const [isLeftCollapsed, setIsLeftCollapsed] = useState(() => !isDesktop);
 	const [isRightCollapsed, setIsRightCollapsed] = useState(true);
 	const [centerView, setCenterView] = useState<CenterViewMode>('schedule');
-	useEffect(() => {
-		publishedReturnStateRef.current = capturePublishedReturnState(publishedReturnStateRef.current, {
+	const publishedReturnState = usePublishedTimetableReturnState({
 			centerView,
 			isPublished: isDraftPublishedStrict(draft),
 			runId: draft?.runId != null ? String(draft.runId) : selectedRunId,
 			termFilter,
 			viewMode,
 			entityFilter,
-		});
-	}, [centerView, draft, entityFilter, selectedRunId, termFilter, viewMode]);
+	});
 	// Panel refs for imperative collapse/expand
 	const leftPanelRef = useRef<ImperativePanelHandle>(null);
 	const rightPanelRef = useRef<ImperativePanelHandle>(null);
@@ -855,33 +855,26 @@ export function useScheduleReviewWorkspaceState() {
 		setPendingFacultyIssuePivot,
 	});
 	const openPreGenerationWorkspace = useCallback(async (resetExisting: boolean) => {
-		if (draft && isDraftPublishedStrict(draft)) {
-			publishedReturnStateRef.current = capturePublishedReturnState(publishedReturnStateRef.current, {
-				centerView: 'schedule',
-				isPublished: true,
-				runId: draft.runId != null ? String(draft.runId) : selectedRunId,
-				termFilter,
-				viewMode,
-				entityFilter,
-			});
-		}
+		if (draft && isDraftPublishedStrict(draft)) publishedReturnState.capture('schedule');
 		await openPreGenerationWorkspaceBase(resetExisting);
-	}, [draft, selectedRunId, termFilter, viewMode, entityFilter, openPreGenerationWorkspaceBase]);
+	}, [draft, publishedReturnState.capture, openPreGenerationWorkspaceBase]);
 	const handleStartNewPreGenerationDraft = useCallback(async () => {
 		if (!schoolYearId) return;
 		await openPreGenerationWorkspace(false);
 	}, [schoolYearId, openPreGenerationWorkspace]);
 	const returnToGeneratedRun = useCallback(() => {
 		returnToGeneratedRunBase(() => {
-			const previous = publishedReturnStateRef.current;
-			if (!previous) return;
-			setSelectedRunId(previous.runId);
-			setTermFilter(previous.termFilter);
-			setViewMode(previous.viewMode);
-			setEntityFilter(previous.entityFilter);
-			publishedReturnStateRef.current = null;
+			const restored = restorePublishedTimetableContext(publishedReturnState.snapshot, {
+				setRunId: setSelectedRunId,
+				setTermFilter,
+				setViewMode,
+				setEntityFilter,
+			});
+			if (!restored) return;
+			publishedReturnState.clear();
+			navigate('/timetable');
 		});
-	}, [returnToGeneratedRunBase, setViewMode, setEntityFilter]);
+	}, [returnToGeneratedRunBase, publishedReturnState.snapshot, publishedReturnState.clear, setViewMode, setEntityFilter, navigate]);
 	const confirmFacultyIssuePivot = useCallback(() => {
 		const pending = pendingFacultyIssuePivot;
 		if (!pending) return;
@@ -1922,7 +1915,7 @@ export function useScheduleReviewWorkspaceState() {
 			termOptions,
 			activeTermIndex: schoolYearContext?.activeTerm?.termIndex ?? null, violations, severityFilter, setSeverityFilter, setLeftTab, softCount, presentationMode, setPresentationMode: handlePresentationModeChange, policy, policyAlignmentWarning, showFullDay, setShowFullDay, hiddenRowCount, collaborationConnected, presence, remoteSelections });
 		headerContext.termFilter = effectiveTermFilter;
-		headerContext.hasPublishedReturnState = publishedReturnStateRef.current != null;
+		headerContext.hasPublishedReturnState = publishedReturnState.snapshot != null;
 		headerContext.curriculumReadiness = curriculumReadiness;
 		const dialogContext = buildDialogContext({ showUnassignConfirm, setShowUnassignConfirm, setPendingUnassignId, pendingUnassignId, unassignDraftPlacement, showGenerateConfirm, setShowGenerateConfirm, enforceShiftWindows, setEnforceShiftWindows, draftBoardSummary, followUps, confirmGenerate, activeSchoolYearLabel: schoolYearContext?.activeSchoolYearLabel ?? null, schoolYearSource: schoolYearContext?.source ?? null, showResetDraftDialog, setShowResetDraftDialog, openPreGenerationWorkspace, showLeavePreGenDialog, setShowLeavePreGenDialog, pendingCenterSwitch, setPendingCenterSwitch, requestPreview, requestPreviewLoading, setRequestPreview, setSelectedRequestId, setRequestAppeals, setAppealReason, requestPreviewHardConflicts, requestPreviewSoftWarnings, requestAppeals, appealsLoading, isPrivilegedUser, updateAppealStatus, appealReason, appealSubmitting, submitAppeal, requestReviewerNotes, setRequestReviewerNotes, requestReviewSaving, reviewRoomRequest, generating, generationElapsed, showPublishDialog, setShowPublishDialog, publishAcknowledged, setPublishAcknowledged, softCount, publishUnassignedCount: summary?.unassignedCount ?? 0, policy, handlePublishConfirm, captureReviewFocusReturn, restoreReviewFocus, showPreGenConfirm, setShowPreGenConfirm, setPreGenConfirmCtx, setConfirmPreview, setConfirmRawPreview, setConfirmPreviewError, setConfirmAllowSoftOverride, setConfirmAllowDailyOverride, preGenConfirmCtx, confirmFacultyId, setConfirmFacultyId, confirmPreview, confirmRoomId, setConfirmRoomId, facultyMap, roomMap, confirmPreviewLoading, confirmPreviewError, confirmDisplacedPlacement, toast, openSwapPrompt, confirmAllowDailyOverride, confirmSaving, commitConfirmPlacement: wrappedCommitConfirmPlacement, showSwapConfirm, setShowSwapConfirm, setSwapAction, swapAction, formatFacultyInitials, roomLabelShort, subjectLabel, sectionLabel, swapSaving, executeSwapAction, swapPreview, regularSwapPreview, regularSwapPending, setRegularSwapPending, regularSwapSaving, regularSwapStrategy, setRegularSwapStrategy, executeRegularSwap, showSoftConfirm, setShowSoftConfirm, softConfirmWarnings, commitLoading, formatConstraintMessage, setPendingCommitProposal, setPreviewResult, setSoftConfirmWarnings, setDragItem, pendingCommitProposal, commitEdit, showAssignmentPicker, setShowAssignmentPicker, setAssignPickerTarget, assignPickerTarget, assignPickerFacultyId, setAssignPickerFacultyId, assignPickerRoomId, setAssignPickerRoomId, assignPickerPreview, assignPickerPreviewLoading, assignPickerPreviewError, assignPickerSaving, confirmAssignmentPicker, showEditHistory, setShowEditHistory, editHistory, revertEditById, revertLoading, currentRunVersion: draft?.version ?? null });
 		const overlaysContext = buildOverlaysContext({ dialogContext, tutorial, userRole, blockerModalData, setBlockerModalData, showExplainDrawer, setDrawerViolation, setDrawerUnassigned, drawerViolation, drawerUnassigned, formatDrawerMessage: formatConstraintMessage });

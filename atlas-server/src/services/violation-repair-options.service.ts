@@ -215,11 +215,14 @@ export async function getViolationRepairOptions(
 		if (displayedMatches.length === 1) {
 			const displayed = displayedMatches[0];
 			const displayedEntryIds = new Set(violationEntryIds(displayed));
-			const primary = canonicalViolations.find((violation) =>
+			const primaryMatches = canonicalViolations.filter((violation) =>
 				samePresentedIdentity(violation, displayed, entries)
 				&& violationEntryIds(violation).every((entryId) => displayedEntryIds.has(entryId)),
 			);
-			matches = primary ? [primary] : [];
+			if (primaryMatches.length > 1) {
+				throw repairError(409, 'AMBIGUOUS_VIOLATION', 'More than one saved issue matches this selection. Refresh the issue list before continuing.');
+			}
+			matches = primaryMatches;
 		} else if (displayedMatches.length > 1) {
 			throw repairError(409, 'AMBIGUOUS_VIOLATION', 'More than one saved issue matches this selection. Refresh the issue list before continuing.');
 		}
