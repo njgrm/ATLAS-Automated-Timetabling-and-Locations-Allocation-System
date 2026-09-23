@@ -12,6 +12,30 @@
 	--font-sans: 'Inter Variable', ui-sans-serif, system-ui, sans-serif;
 	--font-heading: 'Poppins', 'Inter Variable', ui-sans-serif, system-ui, sans-serif;
 
+	/* TIMETABLE-HEADER-COLLAPSE-C01 (C1) — the header's one-row breakpoint, as a
+	   NAMED breakpoint rather than an arbitrary `min-[1366px]:` variant.
+
+	   Tailwind emits arbitrary-value media variants in their own sort slot, BEFORE
+	   the named min-width breakpoints (sm/md/lg/xl/2xl). A `min-[1366px]:hidden`
+	   therefore lands earlier in the utilities layer than `lg:flex`; at >=1366px
+	   both queries match, the selectors have equal specificity, and source order
+	   handed the cascade to `lg:` — the exact inverse of the intended collapse.
+
+	   The breakpoint must be 85.375rem, NOT 1366px: Tailwind's breakpoint
+	   comparator (tailwindcss `Ve`) orders by the value's UNIT STRING before it
+	   compares magnitudes, and `px` sorts before `rem` lexicographically — a
+	   `1366px` breakpoint would be emitted before `sm`. `85.375rem` shares the
+	   `rem` unit with lg/xl/2xl, so it is ordered by magnitude: after `lg`
+	   (64rem) and `xl` (80rem), before `2xl` (96rem). In a media query `rem` is
+	   resolved against the initial root font size (16px), so 85.375rem == 1366px
+	   regardless of any page-level `html { font-size }` override.
+
+	   `timetable-header-collapse-c01.test.tsx` asserts the emitted ORDER of the
+	   `wide` and `lg` declarations from a real Tailwind compile, so a Tailwind
+	   upgrade that changes this ordering fails loudly instead of silently
+	   inverting the header collapse. */
+	--breakpoint-wide: 85.375rem;
+
 	--animate-modal-in: modal-in 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 	--animate-modal-out: modal-out 0.15s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 	--animate-in: fade-in 0.2s ease-out forwards;
