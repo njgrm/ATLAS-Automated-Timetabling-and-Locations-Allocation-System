@@ -100,6 +100,25 @@ function hasPublishedMarkers(summary: unknown): boolean {
 	return typeof candidate.publishedBy === 'number';
 }
 
+/**
+ * TIMETABLE-TRUTHFULNESS-C01 (D1) — the publication marker exposed by the run
+ * list, read as a JSON sub-path (`summary.isPublished`) so the heavy summary
+ * payload is never loaded (UX-R03e runs row 1 keeps the list selection lean).
+ * Mirrors the canonical strict predicate every workspace consumer uses
+ * (`atlas-client/src/components/timetable/timetableWorkspaceTruth.ts`
+ * `isRunPublishedStrict`: `summary.isPublished === true`), so the list and the
+ * workspace can never disagree. A superseded run keeps `isPublished:false` and
+ * therefore never reads as live even though it retains its old publish markers.
+ */
+async function resolvePublishedRunIds(runIds: number[]): Promise<Set<number>> {
+	if (runIds.length === 0) return new Set();
+	const rows = await db().generationRun.findMany({
+		where: { id: { in: runIds }, summary: { path: ['isPublished'], equals: true } },
+		select: { id: true },
+	});
+	return new Set(rows.map((row) => row.id));
+}
+
 function buildUnpublishedSummary(
 	summary: unknown,
 	context: {
@@ -1158,29 +1177,68 @@ export async function assertLatestRunIsCurrent(schoolId: number, schoolYearId: n
 	return getRunById(runId, schoolId, schoolYearId);
 }
 
+/**
+ * TIMETABLE-TRUTHFULNESS-C01 (D1) — the one runtime-active publication for the
+ * exact school/year, resolved in SQL with the same strict predicate the
+ * Dashboard publication path uses (`status = COMPLETED` AND
+ * `summary.isPublished = true`) and the same deterministic
+ * newest-first ordering. Cheap: a single indexed id-only read, independent of
+ * the requested list window, so a publication older than the window is still
+ * named instead of silently reading as "none published".
+ */
+export async function resolveActivePublishedRunId(schoolId: number, schoolYearId: number): Promise<number | null> {
+	const row = await db().generationRun.findFirst({
+		where: {
+			schoolId,
+			schoolYearId,
+			status: 'COMPLETED',
+			summary: { path: ['isPublished'], equals: true },
+		},
+		orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+		select: { id: true },
+	});
+	return row?.id ?? null;
+}
+
 export async function listRuns(schoolId: number, schoolYearId: number, limit: number = 20) {
 	const normalizedLimit = Number.isFinite(limit) ? Math.trunc(limit) : 20;
 	const safeLimit = Math.min(Math.max(normalizedLimit, 1), 100);
-	return db().generationRun.findMany({
-		where: { schoolId, schoolYearId },
-		orderBy: { createdAt: 'desc' },
-		take: safeLimit,
-		select: {
-			id: true,
-			schoolId: true,
-			schoolYearId: true,
-			status: true,
-			runType: true,
-			triggeredBy: true,
-			startedAt: true,
-			finishedAt: true,
-			durationMs: true,
-			error: true,
-			version: true,
-			createdAt: true,
-			updatedAt: true,
-		},
-	});
+	const [runs, activePublishedRunId] = await Promise.all([
+		db().generationRun.findMany({
+			where: { schoolId, schoolYearId },
+			orderBy: { createdAt: 'desc' },
+			take: safeLimit,
+			select: {
+				id: true,
+				schoolId: true,
+				schoolYearId: true,
+				status: true,
+				runType: true,
+				triggeredBy: true,
+				startedAt: true,
+				finishedAt: true,
+				durationMs: true,
+				error: true,
+				version: true,
+				createdAt: true,
+				updatedAt: true,
+			},
+		}),
+		resolveActivePublishedRunId(schoolId, schoolYearId),
+	]);
+	// D1 — the list previously omitted every publication marker, so a consumer
+	// could not tell a published run from an unpublished one from the list alone
+	// ("all COMPLETED" was mis-read as "none published" while two revisions were
+	// live). The flag is read as a JSON sub-path in a second id-only query, so
+	// the heavy `summary` payload is never selected or returned.
+	const publishedRunIds = await resolvePublishedRunIds(runs.map((run) => run.id));
+	return {
+		activePublishedRunId,
+		runs: runs.map((run) => ({
+			...run,
+			summary: { isPublished: publishedRunIds.has(run.id) },
+		})),
+	};
 }
 
 /** Select a safe fixture source without loading any timetable JSON payloads. */

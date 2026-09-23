@@ -11,6 +11,7 @@ import { SearchableSelect } from '@/ui/searchable-select';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip';
 import type { TimetableCapabilities, TimetableLifecycleState } from '@/lib/timetable-capabilities';
 import type { SimpleLifecycleKind } from '@/lib/simple-timetable-state';
+import { formatCheckedAtAge } from '@/components/timetable/timetableWorkspaceTruth';
 import type { ScheduleReviewWorkspaceHeaderContext } from '@/components/timetable/buildScheduleReviewWorkspaceContexts';
 import type { TimetableSimpleTask } from '@/components/timetable/TimetableSimpleTypes';
 
@@ -164,7 +165,19 @@ export function sourceLabel(context: ScheduleReviewWorkspaceHeaderContext) {
 	if (!sourceContext) return 'Checking source';
 	if (sourceContext.source === 'enrollpro-verified') return 'Verified with EnrollPro';
 	if (sourceContext.source === 'enrollpro') return 'Using EnrollPro settings';
-	if (sourceContext.source === 'cache') return 'Using cached school year';
+	if (sourceContext.source === 'cache') {
+		// D4 (TIMETABLE-TRUTHFULNESS-C01) — the Simple header used to describe
+		// the school year by its storage mechanism, which reads as staleness
+		// even when the value on screen is fresh (`stale:false`) and was
+		// confirmed upstream. Name the authority, what the value is, and when
+		// it was last checked instead of the storage mechanism; when the copy
+		// is older and a background recheck is in flight, say that plainly.
+		if (sourceContext.stale) return 'School year from ATLAS, rechecking';
+		const checkedAge = formatCheckedAtAge(sourceContext.cachedAt);
+		return checkedAge
+			? `School year from ATLAS, ${checkedAge}`
+			: 'School year from ATLAS, up to date';
+	}
 	return 'Using saved ATLAS data';
 }
 

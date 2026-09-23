@@ -142,7 +142,7 @@ export function initialDashboardDomainState() {
 		missingCoverageSubjectIds: null as number[] | null,
 		latestRunStatus: null as LatestRunStatus | null,
 		latestRunId: null as number | null,
-		violationCount: null as number | null,
+		blockingHardCount: null as number | null,
 		assignedCount: null as number | null,
 		unassignedCount: null as number | null,
 		hardViolationCount: null as number | null,
@@ -276,7 +276,10 @@ type DashboardReadinessSummary = {
 		latestRunStatus: LatestRunStatus | null;
 		latestRunId: number | null;
 		publishedRunId: number | null;
-		violationCount: number | null;
+		/** D2 — canonical publication-allowlist HARD count (the gate), never a combined total. */
+		blockingHardCount: number | null;
+		/** D2 — canonical run-wide SOFT advisory count (warnings, not blockers). */
+		softViolationCount: number | null;
 		isPublished: boolean;
 		createdAt: string | null;
 		finishedAt: string | null;
@@ -323,7 +326,12 @@ export type DashboardData = {
 	runWideSoftViolationCount: number | null;
 	latestRunStatus: LatestRunStatus | null;
 	latestRunId: number | null;
-	violationCount: number | null;
+	/**
+	 * D2 — the canonical publication-allowlist HARD count from the readiness
+	 * summary. Renamed from the old combined `violationCount`: that raw total
+	 * (334) was never a blocker count, and the canonical gate count is 0 HARD.
+	 */
+	blockingHardCount: number | null;
 	assignedCount: number | null;
 	unassignedCount: number | null;
 	hardViolationCount: number | null;
@@ -372,7 +380,7 @@ export function useDashboardData(): DashboardData {
 	const [runWideSoftViolationCount, setRunWideSoftViolationCount] = useState<number | null>(null);
 	const [latestRunStatus, setLatestRunStatus] = useState<LatestRunStatus | null>(null);
 	const [latestRunId, setLatestRunId] = useState<number | null>(null);
-	const [violationCount, setViolationCount] = useState<number | null>(null);
+	const [blockingHardCount, setBlockingHardCount] = useState<number | null>(null);
 	const [assignedCount, setAssignedCount] = useState<number | null>(null);
 	const [unassignedCount, setUnassignedCount] = useState<number | null>(null);
 	const [hardViolationCount, setHardViolationCount] = useState<number | null>(null);
@@ -400,7 +408,7 @@ export function useDashboardData(): DashboardData {
 		setMissingCoverageSubjectIds(cleared.missingCoverageSubjectIds);
 		setLatestRunStatus(cleared.latestRunStatus);
 		setLatestRunId(cleared.latestRunId);
-		setViolationCount(cleared.violationCount);
+		setBlockingHardCount(cleared.blockingHardCount);
 		setAssignedCount(cleared.assignedCount);
 		setUnassignedCount(cleared.unassignedCount);
 		setHardViolationCount(cleared.hardViolationCount);
@@ -538,7 +546,7 @@ export function useDashboardData(): DashboardData {
 				setDerivedDemand(summary.derivedDemand ?? null);
 				setLatestRunStatus(summary.generation.latestRunStatus);
 				setLatestRunId(summary.generation.latestRunId);
-				setViolationCount(summary.generation.violationCount);
+				setBlockingHardCount(summary.generation.blockingHardCount);
 				setSummaryTeachingRoomCount(summary.campus.teachingRoomCount);
 				setSummaryTotalRoomCount(summary.campus.totalRoomCount);
 				setSummaryBuildingSetupStatus(summary.campus.buildingSetupStatus);
@@ -728,7 +736,7 @@ export function useDashboardData(): DashboardData {
 		runWideSoftViolationCount,
 		latestRunStatus,
 		latestRunId,
-		violationCount,
+		blockingHardCount,
 		assignedCount,
 		unassignedCount,
 		hardViolationCount,

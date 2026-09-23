@@ -801,6 +801,12 @@ export function mergePreservedSummaryFields(existingSummary: unknown, newSummary
 		'isPublished',
 		'publishedAt',
 		'publishedBy',
+		// TIMETABLE-TRUTHFULNESS-C01 (D3) — the raw persisted SOFT count is now
+		// written as `publishedRawSoftViolationCount`. The legacy
+		// `publishedSoftViolationCount` key is retained in this preserve list so a
+		// manual edit to an already-superseded run can never silently drop the
+		// historical value (no migration rewrites stored bytes).
+		'publishedRawSoftViolationCount',
 		'publishedSoftViolationCount',
 		'softViolationsAcknowledged',
 		'publicationIntegrity',

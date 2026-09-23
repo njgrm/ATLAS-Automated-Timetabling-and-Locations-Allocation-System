@@ -51,7 +51,9 @@ test('cleared domain state carries no stale run, publication, or year identity',
 	// DASH-RESILIENCE-C01: unknown is null, never a synthetic NONE.
 	assert.equal(cleared.latestRunStatus, null);
 	assert.equal(cleared.latestRunId, null);
-	assert.equal(cleared.violationCount, null);
+	// D2 — the renamed canonical gate count; the old combined `violationCount`
+	// is gone so it can never be read as a blocker total.
+	assert.equal(cleared.blockingHardCount, null);
 	assert.equal(cleared.assignedCount, null);
 	assert.equal(cleared.unassignedCount, null);
 	assert.equal(cleared.hardViolationCount, null);

@@ -397,12 +397,21 @@ export async function publishSchedule(
 			},
 		});
 
+		// TIMETABLE-TRUTHFULNESS-C01 (D3) — the stored count is the RAW persisted
+		// SOFT row count the operator acknowledged (`countViolations(run.violations,
+		// 'SOFT')`, the publication gate's own count). It is NOT the canonical
+		// operator-facing count (`buildViolationReport(...).counts.runWide.soft`,
+		// which projects exact per-term duplicates and retired rows; run 317 stores
+		// 334 raw vs 289 canonical). Stored under an explicitly raw name so no
+		// consumer can read it as the canonical count. The legacy
+		// `publishedSoftViolationCount` key is deliberately no longer written;
+		// already-persisted historical values are left untouched (no migration).
 		const nextSummary = {
 			...summary,
 			isPublished: true,
 			publishedAt: publishedAt.toISOString(),
 			publishedBy: input.actorId,
-			publishedSoftViolationCount: softViolationCount,
+			publishedRawSoftViolationCount: softViolationCount,
 			softViolationsAcknowledged: softViolationCount > 0,
 			publication: {
 				contractVersion: 1,

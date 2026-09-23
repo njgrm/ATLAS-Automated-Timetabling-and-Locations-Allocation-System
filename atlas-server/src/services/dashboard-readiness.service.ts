@@ -1,6 +1,7 @@
 import { prisma } from '../lib/prisma.js';
 import { resolveRuntimeContext, type RuntimeContextResult } from './runtime-context.service.js';
 import { buildDerivedDemand, type DerivedDemandBlocker, type DerivedDemandResult } from './derived-demand.service.js';
+import { buildViolationReport } from './generation.service.js';
 
 export type DashboardReadinessSourceState =
 	| 'verified_live'
@@ -93,7 +94,17 @@ type LatestRunReadinessData = {
 	/** null means generation status is unavailable, distinct from a real NONE. */
 	latestRunStatus: DashboardLatestRunStatus | null;
 	latestRunId: number | null;
-	violationCount: number | null;
+	/**
+	 * TIMETABLE-TRUTHFULNESS-C01 (D2) — publication-allowlist HARD count (the
+	 * real publication gate). Never a combined total, so it can never be read as
+	 * a blocker count that includes soft warnings.
+	 */
+	blockingHardCount: number | null;
+	/**
+	 * TIMETABLE-TRUTHFULNESS-C01 (D2) — canonical run-wide SOFT advisory count.
+	 * These are warnings that require acknowledgement, never blockers.
+	 */
+	softViolationCount: number | null;
 	isPublished: boolean;
 	publishedRunId: number | null;
 	createdAt: string | null;
@@ -110,7 +121,10 @@ type CampusReadData = {
 type GenerationReadData = {
 	latestRunStatus: DashboardLatestRunStatus;
 	latestRunId: number | null;
-	violationCount: number | null;
+	/** D2 — canonical publication-allowlist HARD count (the gate), never a combined total. */
+	blockingHardCount: number | null;
+	/** D2 — canonical run-wide SOFT advisory count (warnings, not blockers). */
+	softViolationCount: number | null;
 	createdAt: string | null;
 	finishedAt: string | null;
 };
@@ -381,7 +395,8 @@ function unavailableGeneration(): LatestRunReadinessData {
 		available: false,
 		latestRunStatus: null,
 		latestRunId: null,
-		violationCount: null,
+		blockingHardCount: null,
+		softViolationCount: null,
 		isPublished: false,
 		publishedRunId: null,
 		createdAt: null,
@@ -407,32 +422,43 @@ function mapRunStatus(status: string | null | undefined): DashboardLatestRunStat
 	}
 }
 
-function readNumber(value: unknown): number | null {
-	const numeric = Number(value);
-	return Number.isFinite(numeric) ? numeric : null;
-}
-
-function countViolations(summary: unknown, violations: unknown): number | null {
-	if (Array.isArray(violations)) return violations.length;
-	if (!isRecord(summary)) return null;
-
-	const direct = readNumber(summary.violationCount ?? summary.totalViolationCount);
-	if (direct !== null) return direct;
-
-	const hard = readNumber(summary.hardViolationCount);
-	const soft = readNumber(summary.softViolationCount);
-	if (hard !== null || soft !== null) {
-		return (hard ?? 0) + (soft ?? 0);
-	}
-
-	if (isRecord(summary.violationCounts)) {
-		return Object.values(summary.violationCounts).reduce<number>((total, value) => {
-			const numeric = readNumber(value);
-			return total + (numeric ?? 0);
-		}, 0);
-	}
-
-	return null;
+/**
+ * TIMETABLE-TRUTHFULNESS-C01 (D2) — canonical run-wide violation counts.
+ *
+ * The readiness summary used to expose `violationCount` = the raw persisted
+ * violation-array length (334 for run 317) in a field consumers read as
+ * blockers, while the canonical report for the SAME run is 289 SOFT / 0 HARD.
+ * The raw length is not a blocker count at all: it includes exact per-term
+ * duplicates, the combined faculty-pressure labels, and (on historical runs)
+ * the retired UNSPECIFIED-zone warning.
+ *
+ * Delegate to the SAME projection the operator-facing violation report uses
+ * (`buildViolationReport` → `projectViolationIssues`) and expose only the two
+ * named counts: `blockingHardCount` (publication-allowlist HARD — the real gate)
+ * and `softViolationCount` (advisory). There is deliberately no combined
+ * `violationCount`/`total`, so no consumer can read soft warnings as blockers.
+ */
+function canonicalRunViolationCounts(run: {
+	id: number;
+	status: string;
+	summary: unknown;
+	violations: unknown;
+	draftEntries: unknown;
+}): { blockingHardCount: number; softViolationCount: number } {
+	const report = buildViolationReport(
+		{
+			id: run.id,
+			status: run.status,
+			summary: run.summary,
+			violations: run.violations,
+			draftEntries: run.draftEntries,
+		},
+		undefined,
+	);
+	return {
+		blockingHardCount: report.counts.runWide.blockingHard,
+		softViolationCount: report.counts.runWide.soft,
+	};
 }
 
 /**
@@ -692,7 +718,8 @@ export async function getDashboardReadinessSummary(input: DashboardSummaryInput)
 				return {
 					latestRunStatus: 'NONE' as const,
 					latestRunId: null,
-					violationCount: null,
+					blockingHardCount: null,
+					softViolationCount: null,
 					createdAt: null,
 					finishedAt: null,
 				};
@@ -707,6 +734,10 @@ export async function getDashboardReadinessSummary(input: DashboardSummaryInput)
 					status: true,
 					summary: true,
 					violations: true,
+					// D2 — the canonical projection needs the run's entries to
+					// resolve per-term identity (`projectViolationIssues`), which is
+					// what makes this count agree with the operator-facing report.
+					draftEntries: true,
 					createdAt: true,
 					finishedAt: true,
 				},
@@ -715,15 +746,24 @@ export async function getDashboardReadinessSummary(input: DashboardSummaryInput)
 				return {
 					latestRunStatus: 'NONE' as const,
 					latestRunId: null,
-					violationCount: null,
+					blockingHardCount: null,
+					softViolationCount: null,
 					createdAt: null,
 					finishedAt: null,
 				};
 			}
+			const canonicalCounts = canonicalRunViolationCounts({
+				id: run.id,
+				status: String(run.status),
+				summary: run.summary,
+				violations: run.violations,
+				draftEntries: run.draftEntries,
+			});
 			return {
 				latestRunStatus: mapRunStatus(String(run.status)),
 				latestRunId: run.id,
-				violationCount: countViolations(run.summary, run.violations),
+				blockingHardCount: canonicalCounts.blockingHardCount,
+				softViolationCount: canonicalCounts.softViolationCount,
 				createdAt: run.createdAt.toISOString(),
 				finishedAt: iso(run.finishedAt),
 			};
@@ -870,7 +910,8 @@ export function aggregateDashboardSummary(input: DashboardReadinessAggregateInpu
 		available: latestRun.available,
 		latestRunStatus: latestRun.latestRunStatus,
 		latestRunId: latestRun.latestRunId,
-		violationCount: latestRun.violationCount,
+		blockingHardCount: latestRun.blockingHardCount,
+		softViolationCount: latestRun.softViolationCount,
 		isPublished: lifecycle.isPublished,
 		publishedRunId: lifecycle.isPublished ? publication.publishedRunId : null,
 		createdAt: latestRun.createdAt,
