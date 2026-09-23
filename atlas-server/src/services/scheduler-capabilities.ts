@@ -31,20 +31,9 @@ export type EnrollProRoleMapping = {
 	capabilities: AtlasCapability[];
 };
 
-/** Resolve roles for a local login from the current upstream assertion. A persisted
- * scheduler row is never sufficient to retain scheduler authority. */
-export function resolveCurrentSchedulerAuthority(
-	persistedRole: string,
-	currentEnrollProRoles: readonly string[] | null,
-): EnrollProRoleMapping {
-	if (currentEnrollProRoles === null) return { role: null, capabilities: [] };
-	return mapEnrollProRoles(currentEnrollProRoles);
-}
-
 const KNOWN_ENROLLPRO_ROLES = new Set([
 	'SYSTEM_ADMIN',
 	'HEAD_REGISTRAR',
-	'GRADE_LEVEL_COORDINATOR',
 	'CLASS_ADVISER',
 	'TEACHER',
 ]);
@@ -56,21 +45,32 @@ export function mapEnrollProRoles(roles: readonly string[]): EnrollProRoleMappin
 		.filter((role) => KNOWN_ENROLLPRO_ROLES.has(role));
 	const hasFaculty = normalized.some((role) => role === 'TEACHER' || role === 'CLASS_ADVISER');
 	const hasSystemOfficer = normalized.some((role) => role === 'SYSTEM_ADMIN' || role === 'HEAD_REGISTRAR');
-	const hasCoordinator = normalized.includes('GRADE_LEVEL_COORDINATOR');
 
 	if (hasSystemOfficer) return { role: 'officer', capabilities: ['users:admin', 'system:admin', 'timetable:publish'] };
-	if (hasCoordinator) {
+	if (hasFaculty) {
 		return {
-			role: 'scheduler',
-			capabilities: [
-				...(hasFaculty ? ['faculty:self-service' as const] : []),
-				...SCHEDULING_CAPABILITIES,
-				...SCHEDULER_PUBLICATION_CAPABILITIES,
-			],
+			role: 'faculty',
+			capabilities: ['faculty:self-service'],
 		};
 	}
-	if (hasFaculty) return { role: 'faculty', capabilities: ['faculty:self-service'] };
 	return { role: null, capabilities: [] };
+}
+
+/** Upgrade authenticated EnrollPro identity only when the separately verified active-year feed grants it. */
+export function resolveEnrollProSessionAuthority(
+	roles: readonly string[],
+	schedulerAncillaryEligible: boolean,
+): EnrollProRoleMapping {
+	const identity = mapEnrollProRoles(roles);
+	if (identity.role === 'officer' || !schedulerAncillaryEligible) return identity;
+	return {
+		role: 'scheduler',
+		capabilities: [
+			...(identity.role === 'faculty' ? ['faculty:self-service' as const] : []),
+			...SCHEDULING_CAPABILITIES,
+			...SCHEDULER_PUBLICATION_CAPABILITIES,
+		],
+	};
 }
 
 export function capabilitiesForRole(role: string | undefined, persisted: unknown): string[] {

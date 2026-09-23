@@ -16,7 +16,7 @@ test('application role claims establish faculty identity but never scheduler aut
 	assert.deepEqual(identity.capabilities, ['faculty:self-service']);
 });
 
-test('coordinator eligibility comes only from the upstream role claim', () => {
+test('coordinator application-role claim alone never grants scheduler', () => {
 	assert.deepEqual(mapEnrollProRoles(['TEACHER']), {
 		role: 'faculty',
 		capabilities: ['faculty:self-service'],

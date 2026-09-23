@@ -9,7 +9,8 @@ import {
 	type LocalAuthUser,
 } from './local-auth.service.js';
 import { resolveCanonicalFacultyMirror } from './faculty-identity.service.js';
-import { capabilitiesForRole, mapEnrollProRoles } from './scheduler-capabilities.js';
+import { mapEnrollProRoles, resolveEnrollProSessionAuthority } from './scheduler-capabilities.js';
+import { resolveSchedulerAncillaryAuthority } from './scheduler-ancillary-authority.service.js';
 import { mapLocalRoleToEnrollProRoles, resolveReverseSsoNameParts } from './companion-sso-identity.js';
 
 /**
@@ -440,11 +441,7 @@ export function validateCompanionSsoIdentity(payload: CompanionSsoUpstreamRespon
 	if (!employeeId && !upstreamAccountName) {
 		throw new CompanionSsoError('COMPANION_SSO_IDENTITY_INCOMPLETE');
 	}
-	// Enforce the allowed EnrollPro role set BEFORE any account lookup or write.
 	const roles = normalizeAllowedRoles(identity.roles).filter((role) => UPSTREAM_ALLOWED_ROLES.has(role));
-	if (roles.length === 0) {
-		throw new CompanionSsoError('COMPANION_SSO_ROLE_DENIED');
-	}
 	const yearId = payload.activeSchoolYear?.id;
 	const yearLabel = payload.activeSchoolYear?.yearLabel;
 	if (!Number.isInteger(yearId) || (yearId as number) <= 0 || typeof yearLabel !== 'string' || !yearLabel.trim()) {
@@ -534,7 +531,11 @@ async function performUpstreamExchange(peer: CompanionPeerId, code: string, acco
 
 async function createSessionForExistingAccount(identity: ValidatedCompanionIdentity): Promise<CompanionSsoCallbackOutcome> {
 	const account = await findExistingAccount(identity);
-	const currentAuthority = mapEnrollProRoles(identity.roles);
+	const identityAuthority = mapEnrollProRoles(identity.roles);
+	const ancillary = identityAuthority.role === 'officer'
+		? null
+		: await resolveSchedulerAncillaryAuthority(identity.employeeId, {}, identity.activeSchoolYearId);
+	const currentAuthority = resolveEnrollProSessionAuthority(identity.roles, ancillary?.verified === true && ancillary.eligible);
 	if (!currentAuthority.role) throw new CompanionSsoError('COMPANION_SSO_ROLE_DENIED');
 	const effectiveRole = currentAuthority.role;
 
@@ -544,7 +545,7 @@ async function createSessionForExistingAccount(identity: ValidatedCompanionIdent
 	const mirror = await resolveActiveSchoolYearMirror(account.schoolId, identity.activeSchoolYearId, identity.activeSchoolYearLabel);
 
 	let facultyExternalId: number | null = null;
-	let canonicalFacultyId: number | null = account.facultyId ?? null;
+	let canonicalFacultyId: number | null = currentAuthority.capabilities.includes('faculty:self-service') ? account.facultyId : null;
 	if (effectiveRole === 'faculty' || (effectiveRole === 'scheduler' && currentAuthority.capabilities.includes('faculty:self-service'))) {
 		const resolution = await resolveCanonicalFacultyMirror({
 			schoolId: account.schoolId,
@@ -574,7 +575,7 @@ async function createSessionForExistingAccount(identity: ValidatedCompanionIdent
 		email: account.email,
 		employeeId: account.employeeId,
 		accountName: account.accountName,
-		capabilities: capabilitiesForRole(effectiveRole, currentAuthority.capabilities.includes('faculty:self-service') && canonicalFacultyId !== null ? ['faculty:self-service'] : []),
+		capabilities: currentAuthority.capabilities,
 	};
 
 	const token = issueCompanionSsoToken(sessionUser);

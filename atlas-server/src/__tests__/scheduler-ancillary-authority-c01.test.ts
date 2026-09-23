@@ -7,7 +7,7 @@ import {
 	resolveSchedulerAncillaryAuthority,
 } from '../services/scheduler-ancillary-authority.service.js';
 
-import { mapEnrollProRoles } from '../services/scheduler-capabilities.js';
+import { mapEnrollProRoles, resolveEnrollProSessionAuthority } from '../services/scheduler-capabilities.js';
 
 const NOW = Date.parse('2026-09-24T04:00:00.000Z');
 const YEAR_ID = 12;
@@ -53,6 +53,10 @@ test('only one active, well-formed employee match in the current fresh feed can 
 		valid: true, eligible: true, schoolYearId: YEAR_ID,
 	});
 	assert.equal(validateSchedulerAncillaryFeed(feed({ data: [] }), EMPLOYEE_ID, YEAR_ID, NOW).eligible, false);
+	assert.equal(validateSchedulerAncillaryFeed(feed({ data: [{
+		teacherId: 6, employeeId: EMPLOYEE_ID, isActive: true, ancillaryRoles: [],
+		firstName: 'GRADE 7 COORDINATOR', designationTitle: 'GRADE 7 COORDINATOR',
+	}] }), EMPLOYEE_ID, YEAR_ID, NOW).eligible, false, 'names and designation text never grant');
 	assert.equal(validateSchedulerAncillaryFeed(feed({ data: [
 		{ teacherId: 6, employeeId: EMPLOYEE_ID, isActive: true, ancillaryRoles: ['GRADE 7 COORDINATOR'] },
 		{ teacherId: 7, employeeId: EMPLOYEE_ID, isActive: true, ancillaryRoles: [] },
@@ -65,7 +69,7 @@ test('only one active, well-formed employee match in the current fresh feed can 
 	}] }), EMPLOYEE_ID, YEAR_ID, NOW).valid, false);
 	assert.equal(validateSchedulerAncillaryFeed(feed({ meta: { ...feed().meta, scopeSchoolYearId: YEAR_ID + 1 } }), EMPLOYEE_ID, YEAR_ID, NOW).valid, false);
 	assert.equal(validateSchedulerAncillaryFeed(feed({ meta: { ...feed().meta, generatedAt: new Date(NOW - 6 * 60_000).toISOString() } }), EMPLOYEE_ID, YEAR_ID, NOW).valid, false);
-	assert.equal(validateSchedulerAncillaryFeed(feed({ meta: { ...feed().meta, generatedAt: new Date(NOW + 60_000).toISOString() } }), EMPLOYEE_ID, YEAR_ID, NOW).valid, false);
+	assert.equal(validateSchedulerAncillaryFeed(feed({ meta: { ...feed().meta, generatedAt: new Date(NOW + 2 * 60_000).toISOString() } }), EMPLOYEE_ID, YEAR_ID, NOW).valid, false);
 	assert.equal(validateSchedulerAncillaryFeed(feed({ meta: { ...feed().meta, totalRows: 2 } }), EMPLOYEE_ID, YEAR_ID, NOW).valid, false);
 });
 
@@ -74,9 +78,13 @@ test('upstream application roles never grant scheduler; teacher identity remains
 		role: 'faculty', capabilities: ['faculty:self-service'],
 	});
 	assert.deepEqual(mapEnrollProRoles(['GRADE_LEVEL_COORDINATOR']), { role: null, capabilities: [] });
+	assert.equal(resolveEnrollProSessionAuthority(['TEACHER', 'GRADE_LEVEL_COORDINATOR'], false).role, 'faculty');
+	assert.equal(resolveEnrollProSessionAuthority(['TEACHER', 'GRADE_LEVEL_COORDINATOR'], true).role, 'scheduler');
+	assert.equal(resolveEnrollProSessionAuthority(['GRADE_LEVEL_COORDINATOR'], true).role, 'scheduler');
+	assert.equal(resolveEnrollProSessionAuthority(['SYSTEM_ADMIN'], true).role, 'officer');
 });
 
-test('active-year endpoint and faculty ancillary feed are fetched server-side with strict scope and no logging', async () => {
+test('active-year endpoint and faculty ancillary feed are fetched server-side with strict scope', async () => {
 	const calls: Array<{ url: string; headers?: HeadersInit }> = [];
 	const fetchImpl: typeof fetch = async (input, init) => {
 		const url = String(input);
@@ -100,3 +108,20 @@ test('active-year endpoint and faculty ancillary feed are fetched server-side wi
 	assert.ok(calls.every(({ headers }) => new Headers(headers).get('Authorization') === 'Bearer test-only-secret'));
 });
 
+test('missing server token and active-year drift fail closed before the faculty feed call', async () => {
+	let calls = 0;
+	const fetchImpl: typeof fetch = async () => {
+		calls += 1;
+		return new Response(JSON.stringify({ data: { id: YEAR_ID, yearLabel: '2030-2031' } }), { status: 200 });
+	};
+	const missingKey = await resolveSchedulerAncillaryAuthority(EMPLOYEE_ID, {
+		baseUrl: 'https://enrollpro.test/api', serviceToken: '', fetchImpl, now: () => NOW,
+	});
+	assert.deepEqual(missingKey, { verified: false, eligible: false, code: 'ENROLLPRO_SERVICE_TOKEN_UNAVAILABLE' });
+	assert.equal(calls, 0);
+	const changedYear = await resolveSchedulerAncillaryAuthority(EMPLOYEE_ID, {
+		baseUrl: 'https://enrollpro.test/api', serviceToken: 'test-only-secret', fetchImpl, now: () => NOW,
+	}, YEAR_ID + 1);
+	assert.deepEqual(changedYear, { verified: false, eligible: false, code: 'ACTIVE_SCHOOL_YEAR_CHANGED' });
+	assert.equal(calls, 1, 'the mismatched year prevents reading role rows for a different year');
+});
