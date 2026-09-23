@@ -7,6 +7,7 @@ import jwt from 'jsonwebtoken';
 import { withDataContext } from '../lib/data-context.js';
 import { getViolationRepairOptions, parseViolationRepairLocator, type ViolationRepairLocator } from '../services/violation-repair-options.service.js';
 import { getFixSuggestions } from '../services/fix-suggestions.service.js';
+import { solveQuickPlace } from '../services/timetable-quick-place.service.js';
 import { validateHardConstraints, type ScheduledEntry, type Violation, type ViolationCode } from '../services/constraint-validator.js';
 import { buildValidatorCtx, previewManualEdit } from '../services/manual-edit.service.js';
 
@@ -117,6 +118,35 @@ function canonicalConflictFixture() {
 	const violations = validateHardConstraints(buildValidatorCtx(1, 10, 316, entries, refData as never)).violations;
 	const run = { ...refData.run, violations };
 	return { refData: { ...refData, run }, run, violations };
+}
+
+function quickPlacementFixture(overrides: { item?: Record<string, unknown>; entries?: ScheduledEntry[]; rooms?: any[]; subjects?: any[]; faculty?: any[]; sectionEnrollment?: Map<number, number> } = {}) {
+	const item = { sectionId: 7, subjectId: 4, gradeLevel: 7, session: 2, termIndex: 2, reason: 'ROOM_CAPACITY_EXCEEDED', entryKind: 'SECTION', facultyId: 12, homeRoomId: 30, ...overrides.item };
+	const base = canonicalConflictFixture().refData;
+	const entries = overrides.entries ?? [];
+	const run = {
+		id: 316, schoolId: 1, schoolYearId: 10, status: 'COMPLETED', version: 1,
+		summary: { isPublished: false, timetableDisplaySlots: [{ startTime: '08:00', endTime: '08:45' }] },
+		draftEntries: entries, unassignedItems: [item], violations: [],
+	};
+	const refData = {
+		...base,
+		run,
+		entries,
+		unassignedItems: [item],
+		rooms: overrides.rooms ?? base.rooms,
+		subjects: overrides.subjects ?? base.subjects,
+		faculty: overrides.faculty ?? base.faculty,
+		sectionEnrollment: overrides.sectionEnrollment ?? new Map([[7, 20], [8, 20]]),
+	};
+	let writes = 0;
+	const write = () => { writes += 1; throw new Error('quick-place must never write'); };
+	const dataAccess = {
+		subjectSectionOwnership: { findMany: async () => [], create: write, createMany: write, update: write, updateMany: write, upsert: write, delete: write, deleteMany: write },
+		sectionSnapshot: { findUnique: async () => ({ payload: [{ displayOrder: 7, sections: [{ id: 7, name: '7-Cedar' }, { id: 8, name: '8-Ash' }] }] }), create: write, update: write, delete: write },
+	};
+	const dependencies = { loadRunContext: async () => refData as never, prisma: dataAccess as never };
+	return { item, run, refData, dependencies, writes: () => writes };
 }
 
 test('C03 route rejects malformed/coerced locator identities and cross-school actors before dispatch', async () => {
@@ -319,22 +349,46 @@ test('C03 unassigned guidance is actor-school scoped and matches a canonical ord
 	}, run, path);
 });
 
-test('C03 unassigned options are marked feasible only after the canonical solver verifies ordered-term placement and room safety', async () => {
-	const item = { sectionId: 7, subjectId: 4, gradeLevel: 7, session: 2, termIndex: 2 as const, reason: 'ROOM_CAPACITY_EXCEEDED' as const };
-	const placed = { sectionId: 7, subjectId: 4, session: 2, termIndex: 2 as const, day: 'WEDNESDAY', startTime: '09:00', endTime: '09:45', roomId: 30, roomName: 'R30', facultyId: 12, facultyName: 'Teacher' };
-	const safe = await getFixSuggestions(1, 10, 316, item, {
-		solve: (async () => ({ placed: [placed], newEntries: [{ ...placed, entryId: 'verified-entry' }], violations: [] })) as never,
-	});
+test('C03 unassigned options use the real quick-place solver and reject occupied, overloaded, undersized, wrong-type, featureless, section-overlap, and wrong-term shortcuts', async () => {
+	const safeFixture = quickPlacementFixture();
+	const safeResult = await solveQuickPlace(316, 1, 10, safeFixture.dependencies);
+	assert.equal(safeResult.placed.length, 1);
+	assert.equal(safeResult.placed[0].termIndex, 2);
+	const safe = await getFixSuggestions(1, 10, 316, safeFixture.item as never, { quickPlaceDependencies: safeFixture.dependencies } as never);
 	const verified = safe.explanation.suggestions.find((suggestion) => suggestion.feasibility === 'VERIFIED_FEASIBLE');
-	assert.ok(verified);
+	assert.ok(verified, 'only a real canonical solver placement may be marked verified');
 	assert.equal(verified.proposal?.termIndex, 2);
-	assert.equal(verified.proposal?.targetRoomId, 30);
-	const unsafe = await getFixSuggestions(1, 10, 316, item, {
-		solve: (async () => ({ placed: [placed], newEntries: [{ ...placed, entryId: 'verified-entry' }], violations: [{
-			code: 'ROOM_CAPACITY_EXCEEDED', severity: 'HARD', message: 'Room is too small.', schoolId: 1, schoolYearId: 10, runId: 316,
-			entities: { sectionId: 7, subjectId: 4, entryIds: ['verified-entry'] }, meta: { termIndex: 2 },
-		}] })) as never,
-	});
-	assert.equal(unsafe.explanation.suggestions.some((suggestion) => suggestion.feasibility === 'VERIFIED_FEASIBLE'), false);
-	assert.ok(unsafe.explanation.suggestions.every((suggestion) => suggestion.feasibility === 'GUIDANCE_ONLY'));
+	assert.equal(verified.proposal?.targetRoomId, safeResult.placed[0].roomId);
+	assert.equal(safeFixture.writes(), 0);
+
+	const weekdays = ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY'];
+	const occupiedEntries = (kind: 'faculty' | 'room' | 'section'): ScheduledEntry[] => weekdays.map((day, index) => ({
+		entryId: `blocking-${kind}-${index}`, facultyId: 12, roomId: kind === 'room' ? 30 : 31,
+		subjectId: 5, sectionId: kind === 'section' ? 7 : 8, day, startTime: '08:00', endTime: '08:45', durationMinutes: 45,
+		termIndex: 2,
+	}));
+	const controls = [
+		{ label: 'teacher unavailable', fixture: quickPlacementFixture({ entries: occupiedEntries('faculty') }) },
+		{ label: 'weekly load exceeded', fixture: quickPlacementFixture({ faculty: [{ id: 12, maxHoursPerWeek: 0, ancillaryMinutesPerWeek: 0 }] }) },
+		{ label: 'room occupied', fixture: quickPlacementFixture({ entries: occupiedEntries('room') }) },
+		{ label: 'undersized room', fixture: quickPlacementFixture({ rooms: [{ ...safeFixture.refData.rooms[0], capacity: 10 }] }) },
+		{ label: 'wrong room type', fixture: quickPlacementFixture({ rooms: [{ ...safeFixture.refData.rooms[0], type: 'LAB' }] }) },
+		{ label: 'room lacks required feature', fixture: quickPlacementFixture({ rooms: [{ ...safeFixture.refData.rooms[0], features: [] }], subjects: [{ ...safeFixture.refData.subjects[0], requiredFeatures: ['PROJECTOR'] }] }) },
+		{ label: 'section already occupied', fixture: quickPlacementFixture({ entries: occupiedEntries('section') }) },
+	];
+	for (const { label, fixture } of controls) {
+		const solved = await solveQuickPlace(316, 1, 10, fixture.dependencies);
+		assert.equal(solved.placed.length, 0, `${label} must not be accepted by the real solver`);
+		const suggestions = await getFixSuggestions(1, 10, 316, fixture.item as never, { quickPlaceDependencies: fixture.dependencies } as never);
+		assert.equal(suggestions.explanation.suggestions.some((suggestion) => suggestion.feasibility === 'VERIFIED_FEASIBLE'), false, `${label} is not a feasible suggestion`);
+		assert.equal(fixture.writes(), 0);
+	}
+
+	const wrongTermEntry: ScheduledEntry = { entryId: 'term-one-only', facultyId: 12, roomId: 30, subjectId: 4, sectionId: 7, day: 'MONDAY', startTime: '08:00', endTime: '08:45', durationMinutes: 45, termIndex: 1 };
+	const termFixture = quickPlacementFixture({ entries: [wrongTermEntry] });
+	const termResult = await solveQuickPlace(316, 1, 10, termFixture.dependencies);
+	assert.equal(termResult.placed.length, 1, 'term-1 occupancy must not erase a valid term-2 placement');
+	assert.equal(termResult.placed[0].termIndex, 2, 'verified suggestions preserve the canonical unassigned ordered term');
+	const termSuggestions = await getFixSuggestions(1, 10, 316, termFixture.item as never, { quickPlaceDependencies: termFixture.dependencies } as never);
+	assert.equal(termSuggestions.explanation.suggestions.find((suggestion) => suggestion.feasibility === 'VERIFIED_FEASIBLE')?.proposal?.termIndex, 2);
 });
