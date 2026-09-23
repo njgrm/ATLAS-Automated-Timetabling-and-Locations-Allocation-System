@@ -29,8 +29,11 @@ Last updated: 2026-09-23 (Lane A).
   with working Undo) → `TIMETABLE-HEADER-COLLAPSE-C01` (header 2 bands→**1 row**, grid top **139.6 px**,
   published surface out-ranks `Generate`) → `TIMETABLE-TRUTHFULNESS-C01` (D1–D4). **Release root is `E:`**
   (deliberate — `D:` was 16.83 GiB, 1.83 GiB above the §3 fail-closed line; `D:` finished unchanged at
-  16.82 GiB). **Rollback: `d9a6aa53` startable in place at `D:\ATLAS-runtime-supervised-d9a6aa53-20260923`**;
-  deeper fallbacks `28f6f03f`, `1fdab989`, `e78d4473`, `11e8778f`, `7dbb3b90`.
+  16.82 GiB). **Rollback (retention policy, 2026-09-23): `d9a6aa53` + `28f6f03f` startable in place, plus
+  the two last-resort artifacts (`20260912` = `9d293879`, `fallback-d44-20260912` = `d44f29e0`). Deeper
+  rollback is now a REBUILD.** `RUNTIME-DIR-RETENTION-C01` retired the deeper depth and the junction
+  pass-through cluster; `D:` 20.37 → **37.83 GiB**. Live has moved twice today
+  (`7ac28124` → `89012430` → **`0232bf9c`**), deployed by another lane without a register update.
 - **`origin/main` = `1656da6d`** (docs-only above the deployed `7ac28124`).
 - **`TIMETABLE-TRUTHFULNESS-C01` COMPLETE — deployed at `7ac28124`, accepted `ACCEPT_READY` 11/11/0/0.** The
   candidate `fb58a0d5` (+ bounded correction `adfbf9f9`) passed a single batched pre-action review that

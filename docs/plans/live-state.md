@@ -35,12 +35,14 @@ and AIMS.
 ## Live release
 
 - Tailnet: `https://njgrm.buru-degree.ts.net`
-- **Release SHA: `89012430`** (current live serving release; `E:\ATLAS-runtime-supervised-89012430-20260923`;
-  task action + Start-In + machine `ATLAS_RUNTIME_SOURCE_DIR`/`RELEASE_SHA`; listeners `5001`->57424 /
-  `5174`->57980; authoritative state `releaseSha=89012430`, `state=running`; health + health/ready
-  (`database:"ok"`) + DB-backed read + Tailnet 200 — verified 2026-09-23 by the `RUNTIME-DIR-RECLAIM-C01`
-  post-action audit). **Deployed by another lane after `7ac28124`; its rollback basis is not recorded here —
-  verify before relying on it.**
+- **Release SHA: `0232bf9c`** (current live serving release; `E:\ATLAS-runtime-supervised-0232bf9c-20260923`;
+  task action + Start-In + machine `ATLAS_RUNTIME_SOURCE_DIR`/`RELEASE_SHA`; listeners `5001`->56812 /
+  `5174`->59604; authoritative state `releaseSha=0232bf9c`, `state=running`; health + health/ready
+  (`database:"ok"`) + DB-backed read + Tailnet 200 — verified 2026-09-23). **Deployed by another lane; the
+  live release has now moved twice in one session (`7ac28124` → `89012430` → `0232bf9c`) and its rollback
+  basis is not recorded here — verify before relying on it.**
+- (superseded) **Release SHA: `89012430`** — `E:\ATLAS-runtime-supervised-89012430-20260923`; its
+  `supervisor-state.json` is a stale artifact whose PIDs hold no port. Retained.
 - (superseded) **Release SHA: `7ac28124`** (`E:\ATLAS-runtime-supervised-7ac28124-20260923`;
   supervisor-owned 5001/5174; server `5001`->37608, client `5174`->9948; served entry
   `/assets/index-BbufnI_M.js`, SHA-256 `49838BFE…5CB6`, byte-identical to the build; machine
@@ -51,9 +53,15 @@ and AIMS.
   published run #317 / revision 43. **Release root moved to `E:` deliberately** — `D:` was 16.83 GiB,
   1.83 GiB above the §3 15 GiB fail-closed line, and PostgreSQL lives on `D:`; `D:` finished the
   deployment **unchanged at 16.82 GiB**. The release owns its own dependency tree.
-  **Rollback: `d9a6aa53` startable in place at `D:\ATLAS-runtime-supervised-d9a6aa53-20260923`**
-  (supervisor 44116; 5001->19296 / 5174->41948); deeper fallbacks `28f6f03f`, `1fdab989`, `e78d4473`,
-  `11e8778f`, `7dbb3b90`.
+  **Rollback (retention policy, 2026-09-23): `d9a6aa53` and `28f6f03f` startable in place, plus the two
+  last-resort artifacts `D:\ATLAS-runtime-supervised-20260912` (`9d293879`) and
+  `D:\ATLAS-runtime-supervised-fallback-d44-20260912` (`d44f29e0`). Deeper rollback is now a REBUILD, not
+  a re-point** — `git worktree add --detach <sha>` → install → `prisma generate` → builds.
+  `RUNTIME-DIR-RETENTION-C01` retired the depth beyond this (`1fdab989`, `e78d4473`, `11e8778f`,
+  `7dbb3b90`, `d4c9f391`, `d92facfa`, `ecff1d7e`, `a02884ff`, `5f5c6c4f`) and the 2026-09-17/18 junction
+  pass-through cluster (`20f07f59`, `405e5b18`, `4ce73d157f9a`, `78be1b760e40`, `8eb0511baa53`);
+  `D:` 20.37 → **37.83 GiB**. `0eb3b67fe94c` was **kept** — `E:\ATLAS-worktrees\warning-readability-c01`
+  (an open, unowned lane) borrows its server tree.
 - (superseded) **Release SHA: `d9a6aa53`** — `D:\ATLAS-runtime-supervised-d9a6aa53-20260923`;
   5001->19296 / 5174->41948; served `/assets/index-BKcGq9ln.js`. Carried
   `TIMETABLE-HEADER-COLLAPSE-C01`, the accepted `TIMETABLE-RELAXED-MAIN-C01`, the `NOTIFICATION-INBOX`
@@ -383,6 +391,24 @@ Lane B owns this section. Current stream and state: see Lane B's own handoff fil
 it complete `TEST-GATE-REACHABILITY-C01` (`f4462374`) and hand it over for integration.
 
 ## Lane A — current lane (written only by Lane A)
+
+**`RUNTIME-DIR-RETENTION-C01` COMPLETE — retention policy landed, 14 rows / 17.46 GiB reclaimed (2026-09-23).**
+The operator chose the **demo-safe** depth after `RUNTIME-DIR-RECLAIM-C01` proved that ~46 GiB had
+accumulated because **no rule defined the required rollback depth**. Policy (now in
+`docs/reference/agent-worktree-lifecycle.md`): keep the live release + the two most recent accepted + the
+two last-resort artifacts; deeper rollback is a **rebuild**. Manifest
+`docs/reviews/runtime-dir-retention-c01/manifest.md` (rev 1 `d38fe0d5` → rev 3 `ae33d03a`); **two
+pre-action audits each returned `CORRECTION_REQUIRED`** and both were right — they caught that 3 rows were
+standalone clones (not worktrees), that `E:\ATLAS-worktrees\warning-readability-c01` borrows from
+`0eb3b67fe94c` (row dropped, lane preserved), and that the live release had moved to `0232bf9c`. Removed:
+9 rollback-depth rows + 5 junction pass-through rows (11 worktrees removed non-forced after logs-clearing
+and full link-unlinking; 3 clones removed by literal path after a reparse-free gate). **`D:` 20.37 →
+37.83 GiB; worktrees 79 → 68; no branch deleted.** All preserved dependency trees verified intact
+(`warning-readability-c01` server tree 206 entries; `ux-quickfix-c01` client tree 124). Live release
+`0232bf9c` untouched. **Not reclaimed:** the 6 next-tranche anchors (~11.2 GiB) and the four historical
+live releases, both kept by operator choice until after the demo. **Remaining reconciliation:** the
+register's current-state pointers (`globalNextAction` + 3 cycle `nextAction` strings) still name superseded
+releases as live — a pre-existing drift, flagged for the next docs pass.
 
 **`RUNTIME-DIR-RECLAIM-C01` COMPLETE — 7 rows / ~4.9 GiB reclaimed under the operator exception (2026-09-23).**
 Frozen manifest `docs/reviews/runtime-reclaim-20260923/manifest.md` (`d5c73fc0`, corrected `4f911381`);
