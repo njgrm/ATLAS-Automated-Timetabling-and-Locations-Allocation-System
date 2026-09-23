@@ -129,6 +129,7 @@ function makeFakeWorkbook() {
 			const rows = new Map<number, any>();
 			const sheet: any = {
 				name,
+				properties: {},
 				columns: [] as any[],
 				pageSetup: undefined as any,
 				getRow: (index: number) => {
@@ -185,7 +186,7 @@ test('buildEntryGrid separates same-interval Monday and Tuesday sessions and ret
 const HEADER_ROW = EXPORT_FIRST_BLOCK_ROW + 2;
 const FIRST_DATA_ROW = HEADER_ROW + 1;
 
-async function renderClassProgram(entries: Entry[], opts: { termIndex?: number; summary?: Record<string, unknown> } = {}) {
+async function renderClassProgram(entries: Entry[], opts: { termIndex?: number; summary?: Record<string, unknown>; learnerCounts?: Map<number, { male: number; female: number; total: number }> } = {}) {
 	const client = makeClient(entries, opts);
 	const { workbook, sheets } = makeFakeWorkbook();
 	await withDataContext(client, () => exportClassProgramWorkbook({
@@ -195,6 +196,7 @@ async function renderClassProgram(entries: Entry[], opts: { termIndex?: number; 
 		termIndex: opts.termIndex,
 		client,
 		workbookFactory: () => workbook,
+		resolveLearnerCounts: opts.learnerCounts ? async () => opts.learnerCounts! : undefined,
 	}));
 	return sheets.get('Grade 7');
 }
@@ -352,7 +354,7 @@ test('class-program workbook excludes HG and ARAL cells while keeping AP', { ski
 
 // ─── 2c. Class-program T4/M9 layout contract ───
 
-test('class-program layout emits the learner row, merged break bands, daily totals and approval block', async () => {
+test('class-program layout emits reconciled learner totals, unmerged break cells, daily totals and approval block', async () => {
 	const sheet = await renderClassProgram(
 		[
 			{ entryId: 'mon-math', sectionId: 701, subjectId: 11, facultyId: 501, roomId: 601, day: 'MONDAY', startTime: '06:00', endTime: '06:45', durationMinutes: 45 },
@@ -363,25 +365,24 @@ test('class-program layout emits the learner row, merged break bands, daily tota
 			{ startTime: '06:45', endTime: '07:30' },
 			{ startTime: '07:30', endTime: '08:15' },
 			{ startTime: '09:00', endTime: '09:15', isSpecialEvent: true, eventName: 'Health Break' },
-		] } },
+		] }, learnerCounts: new Map([[701, { male: 18, female: 17, total: 35 }]]) },
 	);
-	// Learner/identity row: Grade + Section labels present, learner counts blank.
+	// Learner counts are current transient M/F/T aggregates reconciled server-side.
 	const identityRow = EXPORT_FIRST_BLOCK_ROW;
 	assert.match(cellText(sheet, identityRow, 1), /^GRADE 7 — SECTION: 7-Rizal$/);
 	assert.equal(cellText(sheet, identityRow, 3), 'No. of Learners — MALE:');
-	assert.equal(cellText(sheet, identityRow, 4), '', 'Male count stays blank (no authoritative source)');
+	assert.equal(sheet.getRow(identityRow).getCell(4).value, 18);
 	assert.equal(cellText(sheet, identityRow, 5), 'FEMALE:');
-	assert.equal(cellText(sheet, identityRow, 6), '', 'Female count stays blank');
+	assert.equal(sheet.getRow(identityRow).getCell(6).value, 17);
 	assert.equal(cellText(sheet, identityRow, 7), 'TOTAL:');
-	assert.equal(cellText(sheet, identityRow, 8), '', 'Total count stays blank');
+	assert.equal(sheet.getRow(identityRow).getCell(8).value, 35);
 
 	// Adviser/room/term identity row.
 	assert.equal(cellText(sheet, identityRow + 1, 1), 'ADVISER: Dela Cruz');
 
-	// Break row: the 09:00-09:15 Health Break band is merged across Mon–Fri
-	// (rows: identity 8, adviser 9, header 10, class rows 11-13, break 14).
+	// Break cells repeat the label instead of merging, so the grid pastes cleanly.
 	const breakRow = FIRST_DATA_ROW + 3;
-	assert.equal(cellText(sheet, breakRow, 3), 'HEALTH BREAK');
+	assert.deepEqual([3, 4, 5, 6, 7].map((col) => cellText(sheet, breakRow, col)), Array(5).fill('HEALTH BREAK'));
 
 	// Daily totals row: 3 class periods × 45 minutes reconcile exactly.
 	const totalsRow = breakRow + 1;
@@ -399,7 +400,7 @@ test('class-program layout emits the learner row, merged break bands, daily tota
 	assert.equal(cellText(sheet, approvalRow + 5, 1), 'Adviser:');
 });
 
-test('class-program layout merges weekday-agnostic break bands across Mon–Fri', async () => {
+test('class-program workbook stays unmerged and includes grade-color and print setup', async () => {
 	// C05 M16 — the export now fails closed on an empty selected-term renderable
 	// set, so this geometry control carries one real entry (rows are driven by the
 	// canonical slot structure, not by the entry count).
@@ -414,7 +415,10 @@ test('class-program layout merges weekday-agnostic break bands across Mon–Fri'
 		schoolId: SCHOOL_ID, schoolYearId: SCHOOL_YEAR_ID, runId: RUN_ID, client, workbookFactory: () => workbook,
 	}));
 	assert.ok(sheets.get('Grade 7'), 'Grade 7 sheet exists');
-	assert.deepEqual(merges, [[14, 3, 14, 7]], 'the break band merges the five weekday columns');
+	assert.deepEqual(merges, [], 'paste-ready schedule cells are never merged');
+	assert.equal(sheets.get('Grade 7').properties.tabColor.argb, '70AD47');
+	assert.equal(sheets.get('Grade 7').pageSetup.orientation, 'landscape');
+	assert.match(sheets.get('Grade 7').pageSetup.printArea, /^A1:H/);
 });
 
 // ─── 6. Flag/HGP is an IN-PERIOD overlay, never a capacity block ───

@@ -17,6 +17,8 @@ export type ExportOptions = {
 	publishedRunResolver?: (schoolId: number, schoolYearId: number) => Promise<{ source: { runId: number }; entries: ScheduledEntry[]; summary: Record<string, unknown> | null; snapshot?: PublishedIdentitySnapshot | null }>;
 	/** Disposable workbook factory for layout contract tests (no XLSX dependency). */
 	workbookFactory?: () => ExcelJS.Workbook | Promise<ExcelJS.Workbook>;
+	/** Server-only, transient learner totals for the class-program paste-ready grid. */
+	resolveLearnerCounts?: (sectionIds: number[]) => Promise<Map<number, { male: number; female: number; total: number }>>;
 };
 
 type TimeSlot = {
@@ -619,7 +621,6 @@ export async function exportSummaryWorkbook(options: ExportOptions): Promise<Buf
 		if (a.gradeLevelId !== b.gradeLevelId) return a.gradeLevelId - b.gradeLevelId;
 		return a.name.localeCompare(b.name);
 	});
-
 	const entryGrid = buildEntryGrid(ctx.entries, ctx.subjectMap, ctx.facultyMap, ctx.roomMap);
 
 	const workbook = await createWorkbook(options);
@@ -823,6 +824,9 @@ export async function exportClassProgramWorkbook(options: ExportOptions): Promis
 		if (gradeA !== gradeB) return gradeA - gradeB;
 		return a.name.localeCompare(b.name);
 	});
+	const learnerCounts = options.resolveLearnerCounts
+		? await options.resolveLearnerCounts(sortedSections.map((section) => section.externalId))
+		: new Map<number, { male: number; female: number; total: number }>();
 
 	const entryGrid = buildEntryGrid(ctx.entries, ctx.subjectMap, ctx.facultyMap, ctx.roomMap);
 
@@ -900,20 +904,26 @@ export async function exportClassProgramWorkbook(options: ExportOptions): Promis
 
 		const sheetName = `Grade ${gradeLevel}`;
 		const sheet = workbook.addWorksheet(sheetName);
+		const gradeFill: Record<number, string> = { 7: 'FFE2F0D9', 8: 'FFFFF2CC', 9: 'FFF4CCCC', 10: 'FFD9EAF7' };
+		const gradeColor: Record<number, string> = { 7: '70AD47', 8: 'FFC000', 9: 'C00000', 10: '4472C4' };
+		const fillArgb = gradeFill[gradeLevel];
+		if (gradeColor[gradeLevel]) sheet.properties.tabColor = { argb: gradeColor[gradeLevel] };
 		addReportHeader(sheet, ctx, `CLASS PROGRAM - Grade ${gradeLevel}`);
 		sheet.columns.forEach((col) => { col.width = 16; });
+		sheet.views = [{ state: 'frozen', ySplit: EXPORT_FIRST_BLOCK_ROW + 2 }];
 
 		let rowCursor = EXPORT_FIRST_BLOCK_ROW;
 		for (const section of gradeSections) {
-			// C05 T4/M9 — learner/identity row. Male/Female/Total values stay blank:
-			// ATLAS has no authoritative learner-count source (D-E), and blank
-			// fields are never replaced with invented numbers.
 			const sectionRow = sheet.getRow(rowCursor);
 			sectionRow.getCell(1).value = `GRADE ${gradeLevel} — SECTION: ${section.name}`;
 			sectionRow.getCell(1).font = { bold: true, size: 12 };
+			if (fillArgb) sectionRow.getCell(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: fillArgb } };
 			sectionRow.getCell(3).value = 'No. of Learners — MALE:';
+			sectionRow.getCell(4).value = learnerCounts.get(section.externalId)?.male ?? '';
 			sectionRow.getCell(5).value = 'FEMALE:';
+			sectionRow.getCell(6).value = learnerCounts.get(section.externalId)?.female ?? '';
 			sectionRow.getCell(7).value = 'TOTAL:';
+			sectionRow.getCell(8).value = learnerCounts.get(section.externalId)?.total ?? '';
 			rowCursor++;
 
 			const identityRow = sheet.getRow(rowCursor);
@@ -929,6 +939,11 @@ export async function exportClassProgramWorkbook(options: ExportOptions): Promis
 			// C05 T4/M9 — unambiguous per-period teacher attribution column.
 			headerRow.getCell(8).value = 'TEACHER';
 			headerRow.font = { bold: true };
+			if (fillArgb) {
+				for (let column = 1; column <= 8; column += 1) {
+					headerRow.getCell(column).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: fillArgb } };
+				}
+			}
 			rowCursor++;
 
 			let dailyTotalMinutes = 0;
@@ -952,9 +967,10 @@ export async function exportClassProgramWorkbook(options: ExportOptions): Promis
 						const dayIndex = (WEEKDAYS as readonly string[]).indexOf(eventDay);
 						if (dayIndex >= 0) row.getCell(dayIndex + 3).value = getBreakLabel(item.slot.eventName);
 					} else {
-						// Week-spanning break band: one merged band across Mon–Fri.
-						row.getCell(3).value = getBreakLabel(item.slot.eventName);
-						sheet.mergeCells(rowCursor, 3, rowCursor, 7);
+						// Keep the five weekday cells unmerged for reliable copy/paste.
+						for (let dayIndex = 0; dayIndex < WEEKDAYS.length; dayIndex += 1) {
+							row.getCell(dayIndex + 3).value = getBreakLabel(item.slot.eventName);
+						}
 					}
 				} else {
 					dailyTotalMinutes += Math.max(0, toMinutes(endTime) - toMinutes(startTime));
@@ -1015,6 +1031,9 @@ export async function exportClassProgramWorkbook(options: ExportOptions): Promis
 			.join(', ') || '________________________';
 
 		applyLandscapePrintSetup(sheet);
+		sheet.pageSetup.printArea = `A1:H${rowCursor + 7}`;
+		sheet.pageSetup.printTitlesRow = `1:${EXPORT_HEADER_LAST_ROW}`;
+		sheet.pageMargins = { left: 0.2, right: 0.2, top: 0.35, bottom: 0.35, header: 0.15, footer: 0.15 };
 	}
 
 	const buffer = await workbook.xlsx.writeBuffer();

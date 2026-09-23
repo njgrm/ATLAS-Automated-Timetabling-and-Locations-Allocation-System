@@ -13,6 +13,7 @@ import { getRunById } from '../services/generation.service.js';
 import { getViolationRepairOptions, parseViolationRepairLocator } from '../services/violation-repair-options.service.js';
 import { exportSummaryWorkbook, exportClassProgramWorkbook, resolveExportSchoolYearLabel } from '../services/workbook-export.service.js';
 import { exportRoomProgramWorkbook } from '../services/room-program-export.service.js';
+import { aggregateSectionLearnerCounts } from '../services/export-learner-count.service.js';
 import { buildTeacherProgramExportShape } from '../services/teacher-program-export.service.js';
 import {
 	EXPORT_PRESENTATION_SCHEMA_UNAVAILABLE_CODE,
@@ -709,7 +710,19 @@ router.get(
 				}
 			}
 
-			const buffer = await exportClassProgramWorkbook({ schoolId, schoolYearId, runId, termIndex, specializationVisibility });
+			const buffer = await exportClassProgramWorkbook({
+				schoolId,
+				schoolYearId,
+				runId,
+				termIndex,
+				specializationVisibility,
+				resolveLearnerCounts: (sectionIds) => aggregateSectionLearnerCounts({
+					schoolId,
+					schoolYearId,
+					sectionIds,
+					authToken: getUpstreamAuthToken(req),
+				}),
+			});
 			const resolvedTerm = termIndex as number;
 			const yearLabel = await resolveExportSchoolYearLabel(schoolId, schoolYearId);
 			res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
