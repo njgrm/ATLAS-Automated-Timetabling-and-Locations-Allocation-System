@@ -14,6 +14,7 @@ import { getViolationRepairOptions, parseViolationRepairLocator } from '../servi
 import { exportSummaryWorkbook, exportClassProgramWorkbook, resolveExportSchoolYearLabel } from '../services/workbook-export.service.js';
 import { exportRoomProgramWorkbook } from '../services/room-program-export.service.js';
 import { aggregateSectionLearnerCounts } from '../services/export-learner-count.service.js';
+import { scheduleWorkbookToDocx } from '../services/schedule-workbook-docx.service.js';
 import { buildTeacherProgramExportShape } from '../services/teacher-program-export.service.js';
 import {
 	EXPORT_PRESENTATION_SCHEMA_UNAVAILABLE_CODE,
@@ -687,6 +688,12 @@ router.get(
 			if (typeof schoolYearId === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: schoolYearId }); return; }
 			const runId = positiveInt(req.params.runId, 'runId');
 			if (typeof runId === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: runId }); return; }
+			let sectionId: number | undefined;
+			if (req.query.sectionId != null && String(req.query.sectionId).trim() !== '') {
+				const parsedSectionId = positiveInt(req.query.sectionId, 'sectionId');
+				if (typeof parsedSectionId === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: parsedSectionId }); return; }
+				sectionId = parsedSectionId;
+			}
 			if (!assertActorSchoolScope(req, res, schoolId)) return;
 
 			const termParse = parseRequiredTermQuery(req.query.termIndex);
@@ -715,6 +722,7 @@ router.get(
 				schoolYearId,
 				runId,
 				termIndex,
+				sectionId,
 				specializationVisibility,
 				resolveLearnerCounts: (sectionIds) => aggregateSectionLearnerCounts({
 					schoolId,
@@ -726,7 +734,9 @@ router.get(
 			const resolvedTerm = termIndex as number;
 			const yearLabel = await resolveExportSchoolYearLabel(schoolId, schoolYearId);
 			res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-			res.setHeader('Content-Disposition', `attachment; filename="${exportFileStem('class-program', null, yearLabel, resolvedTerm)}.xlsx"`);
+			const exportKind = sectionId == null ? 'class-program' : 'section-program';
+			const entity = sectionId == null ? null : String(sectionId);
+			res.setHeader('Content-Disposition', `attachment; filename="${exportFileStem(exportKind, entity, yearLabel, resolvedTerm)}.xlsx"`);
 			res.send(buffer);
 		} catch (e: any) {
 			if (e?.message === 'RUN_NOT_FOUND') {
@@ -735,6 +745,10 @@ router.get(
 			}
 			if (e?.message === 'RUN_NOT_COMPLETED') {
 				res.status(422).json({ code: 'RUN_NOT_COMPLETED', message: 'Only completed or published runs can be exported.' });
+				return;
+			}
+			if (e?.message === 'SECTION_NOT_FOUND') {
+				res.status(404).json({ code: 'SECTION_NOT_FOUND', message: 'Section not found for this school year.' });
 				return;
 			}
 			// C05 M16 — an empty selected-term renderable set never emits a
@@ -930,6 +944,90 @@ router.get(
 				return;
 			}
 			next(e);
+		}
+	},
+);
+
+// Scheduler export center DOCX variants reuse the exact selected-term XLSX projection.
+router.get(
+	'/:schoolId/:schoolYearId/runs/:runId/export/room-program.docx',
+	authenticate,
+	async (req: Request, res: Response, next: NextFunction) => {
+		try {
+			if (!req.user?.role || !EXPORT_ROLES.has(req.user.role)) {
+				res.status(403).json({ code: 'FORBIDDEN', message: 'Only schedulers and administrators can export room programs.' });
+				return;
+			}
+			const schoolId = positiveInt(req.params.schoolId, 'schoolId');
+			const schoolYearId = positiveInt(req.params.schoolYearId, 'schoolYearId');
+			const runId = positiveInt(req.params.runId, 'runId');
+			if (typeof schoolId === 'string' || typeof schoolYearId === 'string' || typeof runId === 'string') {
+				res.status(400).json({ code: 'INVALID_PARAM', message: 'schoolId, schoolYearId and runId must be positive integers.' }); return;
+			}
+			if (!assertActorSchoolScope(req, res, schoolId)) return;
+			const termParse = parseRequiredTermQuery(req.query.termIndex);
+			if (!termParse.ok) { res.status(400).json({ code: termParse.code, message: termParse.message }); return; }
+			const termIndex = await resolvePublishedRunTermIndex(schoolId, schoolYearId, runId, termParse.requested);
+			let roomId: number | undefined;
+			if (req.query.roomId != null && String(req.query.roomId).trim() !== '') {
+				const parsed = positiveInt(req.query.roomId, 'roomId');
+				if (typeof parsed === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: parsed }); return; }
+				roomId = parsed;
+			}
+			const xlsx = await exportRoomProgramWorkbook({ schoolId, schoolYearId, runId, termIndex, roomId });
+			const docx = await scheduleWorkbookToDocx(xlsx);
+			const yearLabel = await resolveExportSchoolYearLabel(schoolId, schoolYearId);
+			res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+			res.setHeader('Content-Disposition', `attachment; filename="${exportFileStem('room-program', roomId == null ? 'ALL' : String(roomId), yearLabel, termIndex as number)}.docx"`);
+			res.send(docx);
+		} catch (error: any) {
+			if (error?.message === 'ROOM_NOT_FOUND') { res.status(404).json({ code: 'ROOM_NOT_FOUND', message: 'Room not found for this school.' }); return; }
+			if (error?.message === 'EMPTY_ROOM_SCHEDULE') { res.status(422).json({ code: 'EMPTY_ROOM_SCHEDULE', message: 'The requested room has no entries in the selected term.' }); return; }
+			if (typeof error?.statusCode === 'number' && typeof error?.code === 'string') { res.status(error.statusCode).json({ code: error.code, message: error.message }); return; }
+			next(error);
+		}
+	},
+);
+
+router.get(
+	'/:schoolId/:schoolYearId/runs/:runId/export/section-program.docx',
+	authenticate,
+	async (req: Request, res: Response, next: NextFunction) => {
+		try {
+			if (!req.user?.role || !EXPORT_ROLES.has(req.user.role)) {
+				res.status(403).json({ code: 'FORBIDDEN', message: 'Only schedulers and administrators can export section programs.' });
+				return;
+			}
+			const schoolId = positiveInt(req.params.schoolId, 'schoolId');
+			const schoolYearId = positiveInt(req.params.schoolYearId, 'schoolYearId');
+			const runId = positiveInt(req.params.runId, 'runId');
+			if (typeof schoolId === 'string' || typeof schoolYearId === 'string' || typeof runId === 'string') {
+				res.status(400).json({ code: 'INVALID_PARAM', message: 'schoolId, schoolYearId and runId must be positive integers.' }); return;
+			}
+			if (!assertActorSchoolScope(req, res, schoolId)) return;
+			const termParse = parseRequiredTermQuery(req.query.termIndex);
+			if (!termParse.ok) { res.status(400).json({ code: termParse.code, message: termParse.message }); return; }
+			const termIndex = await resolvePublishedRunTermIndex(schoolId, schoolYearId, runId, termParse.requested);
+			let sectionId: number | undefined;
+			if (req.query.sectionId != null && String(req.query.sectionId).trim() !== '') {
+				const parsed = positiveInt(req.query.sectionId, 'sectionId');
+				if (typeof parsed === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: parsed }); return; }
+				sectionId = parsed;
+			}
+			const xlsx = await exportClassProgramWorkbook({
+				schoolId, schoolYearId, runId, termIndex, sectionId,
+				resolveLearnerCounts: (sectionIds) => aggregateSectionLearnerCounts({ schoolId, schoolYearId, sectionIds, authToken: getUpstreamAuthToken(req) }),
+			});
+			const docx = await scheduleWorkbookToDocx(xlsx);
+			const yearLabel = await resolveExportSchoolYearLabel(schoolId, schoolYearId);
+			res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+			res.setHeader('Content-Disposition', `attachment; filename="${exportFileStem('section-program', sectionId == null ? 'ALL' : String(sectionId), yearLabel, termIndex as number)}.docx"`);
+			res.send(docx);
+		} catch (error: any) {
+			if (error?.message === 'SECTION_NOT_FOUND') { res.status(404).json({ code: 'SECTION_NOT_FOUND', message: 'Section not found for this school year.' }); return; }
+			if (error?.code === 'EMPTY_SELECTED_TERM' || error?.message === 'EMPTY_SELECTED_TERM') { res.status(422).json({ code: 'EMPTY_SELECTED_TERM', message: 'The selected term has no renderable entries for this run; no official file was produced.' }); return; }
+			if (typeof error?.statusCode === 'number' && typeof error?.code === 'string') { res.status(error.statusCode).json({ code: error.code, message: error.message }); return; }
+			next(error);
 		}
 	},
 );

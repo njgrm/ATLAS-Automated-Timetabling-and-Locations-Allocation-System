@@ -8,6 +8,8 @@ export type ExportOptions = {
 	schoolId: number;
 	schoolYearId: number;
 	runId: number;
+	/** Optional external EnrollPro section id for a single-section program. */
+	sectionId?: number;
 	/** Resolved numeric term index from the verified ordered-term authority (1..termCount). */
 	termIndex?: number;
 	specializationVisibility?: 'hidden' | 'visible';
@@ -824,8 +826,14 @@ export async function exportClassProgramWorkbook(options: ExportOptions): Promis
 		if (gradeA !== gradeB) return gradeA - gradeB;
 		return a.name.localeCompare(b.name);
 	});
+	if (options.sectionId != null) {
+		if (!sortedSections.some((section) => section.externalId === options.sectionId)) throw new Error('SECTION_NOT_FOUND');
+	}
+	const outputSections = options.sectionId == null
+		? sortedSections
+		: sortedSections.filter((section) => section.externalId === options.sectionId);
 	const learnerCounts = options.resolveLearnerCounts
-		? await options.resolveLearnerCounts(sortedSections.map((section) => section.externalId))
+		? await options.resolveLearnerCounts(outputSections.map((section) => section.externalId))
 		: new Map<number, { male: number; female: number; total: number }>();
 
 	const entryGrid = buildEntryGrid(ctx.entries, ctx.subjectMap, ctx.facultyMap, ctx.roomMap);
@@ -856,7 +864,7 @@ export async function exportClassProgramWorkbook(options: ExportOptions): Promis
 
 	// Group sections by grade level for per-grade canonical slot rendering
 	const gradeGroups = new Map<number, typeof sortedSections>();
-	for (const sec of sortedSections) {
+	for (const sec of outputSections) {
 		const actualGrade = resolveSectionGradeLevel(sec);
 		const arr = gradeGroups.get(actualGrade) ?? [];
 		arr.push(sec);
@@ -1033,7 +1041,7 @@ export async function exportClassProgramWorkbook(options: ExportOptions): Promis
 		applyLandscapePrintSetup(sheet);
 		sheet.pageSetup.printArea = `A1:H${rowCursor + 7}`;
 		sheet.pageSetup.printTitlesRow = `1:${EXPORT_HEADER_LAST_ROW}`;
-		sheet.pageMargins = { left: 0.2, right: 0.2, top: 0.35, bottom: 0.35, header: 0.15, footer: 0.15 };
+		sheet.pageSetup.margins = { left: 0.2, right: 0.2, top: 0.35, bottom: 0.35, header: 0.15, footer: 0.15 };
 	}
 
 	const buffer = await workbook.xlsx.writeBuffer();
