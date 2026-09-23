@@ -1,0 +1,73 @@
+export type AtlasCapability =
+	| 'faculty:self-service'
+	| 'teaching-load:manage'
+	| 'scheduling-policy:manage'
+	| 'timetable:read'
+	| 'timetable:edit'
+	| 'timetable:review'
+	| 'timetable:generate'
+	| 'timetable:publish'
+	| 'users:admin'
+	| 'system:admin';
+
+export const SCHEDULING_CAPABILITIES: readonly AtlasCapability[] = [
+	'teaching-load:manage',
+	'scheduling-policy:manage',
+	'timetable:read',
+	'timetable:edit',
+	'timetable:review',
+	'timetable:generate',
+];
+
+export type EnrollProRoleMapping = {
+	role: 'faculty' | 'scheduler' | 'officer' | null;
+	capabilities: AtlasCapability[];
+};
+
+const KNOWN_ENROLLPRO_ROLES = new Set([
+	'SYSTEM_ADMIN',
+	'HEAD_REGISTRAR',
+	'GRADE_LEVEL_COORDINATOR',
+	'CLASS_ADVISER',
+	'TEACHER',
+]);
+
+export function mapEnrollProRoles(roles: readonly string[]): EnrollProRoleMapping {
+	const normalized = roles
+		.filter((role): role is string => typeof role === 'string')
+		.map((role) => role.trim().toUpperCase())
+		.filter((role) => KNOWN_ENROLLPRO_ROLES.has(role));
+	const hasFaculty = normalized.some((role) => role === 'TEACHER' || role === 'CLASS_ADVISER');
+	const hasSystemOfficer = normalized.some((role) => role === 'SYSTEM_ADMIN' || role === 'HEAD_REGISTRAR');
+	const hasCoordinator = normalized.includes('GRADE_LEVEL_COORDINATOR');
+
+	if (hasSystemOfficer) return { role: 'officer', capabilities: ['users:admin', 'system:admin', 'timetable:publish'] };
+	if (hasCoordinator) {
+		return {
+			role: 'scheduler',
+			capabilities: [
+				...(hasFaculty ? ['faculty:self-service' as const] : []),
+				...SCHEDULING_CAPABILITIES,
+			],
+		};
+	}
+	if (hasFaculty) return { role: 'faculty', capabilities: ['faculty:self-service'] };
+	return { role: null, capabilities: [] };
+}
+
+export function capabilitiesForRole(role: string | undefined, persisted: unknown): string[] {
+	if (role === 'admin' || role === 'officer' || role === 'SYSTEM_ADMIN') {
+		return ['users:admin', 'system:admin', 'timetable:publish', ...SCHEDULING_CAPABILITIES];
+	}
+	if (role === 'scheduler') return [...SCHEDULING_CAPABILITIES];
+	if (role === 'faculty') return ['faculty:self-service'];
+	return Array.isArray(persisted) ? persisted.filter((value): value is string => typeof value === 'string') : [];
+}
+
+export function hasCapability(capabilities: readonly string[], required: AtlasCapability): boolean {
+	return capabilities.includes(required)
+		|| capabilities.includes('*')
+		|| capabilities.includes('admin:*')
+		|| (capabilities.includes('system:admin') && required !== 'faculty:self-service')
+		|| (capabilities.includes('users:admin') && required === 'users:admin');
+}

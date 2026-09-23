@@ -4,6 +4,7 @@ import type { Prisma } from '@prisma/client';
 
 import { prisma } from '../lib/prisma.js';
 import { resolveCanonicalFacultyMirror, type CanonicalFacultyResolution } from './faculty-identity.service.js';
+import { capabilitiesForRole, mapEnrollProRoles, type EnrollProRoleMapping } from './scheduler-capabilities.js';
 
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN ?? '8h';
 const MAX_FAILED_ATTEMPTS = Number(process.env.ATLAS_AUTH_MAX_FAILED_ATTEMPTS ?? 5);
@@ -32,6 +33,7 @@ export type LocalAuthUser = {
 	email: string;
 	employeeId?: string | null;
 	accountName?: string | null;
+	capabilities?: string[];
 };
 
 export type LocalLoginResult =
@@ -145,7 +147,7 @@ export async function writeCompanionSsoAudit(params: {
 
 // ─── EnrollPro credential delegation ──────────────────────────────────────────
 
-type EnrollProRole = 'SYSTEM_ADMIN' | 'HEAD_REGISTRAR' | 'GRADE_LEVEL_COORDINATOR' | 'CLASS_ADVISER' | 'TEACHER' | string;
+type EnrollProRole = string;
 
 type EnrollProVerifiedUser = {
 	id: number;
@@ -176,27 +178,14 @@ type EnrollProFacultyFeedRow = {
 	isActive?: boolean;
 };
 
-const ALLOWED_ENROLLPRO_ROLES = new Set(['SYSTEM_ADMIN', 'HEAD_REGISTRAR', 'GRADE_LEVEL_COORDINATOR', 'CLASS_ADVISER', 'TEACHER']);
-
-function mapEnrollProRoles(roles: EnrollProRole[]): 'officer' | 'faculty' | null {
-	const normalized = roles.map(r => r.trim().toUpperCase()).filter(r => ALLOWED_ENROLLPRO_ROLES.has(r));
-	if (normalized.length === 0) return null;
-	const hasFaculty = normalized.some(r => r === 'TEACHER' || r === 'CLASS_ADVISER');
-	const hasOfficer = normalized.some(r => r === 'SYSTEM_ADMIN' || r === 'HEAD_REGISTRAR' || r === 'GRADE_LEVEL_COORDINATOR');
-	if (hasFaculty && hasOfficer) return 'officer';
-	if (hasFaculty) return 'faculty';
-	if (hasOfficer) return 'officer';
-	return null;
-}
-
-function resolveEnrollProRole(user: EnrollProVerifiedUser): 'officer' | 'faculty' | null {
+function resolveEnrollProRole(user: EnrollProVerifiedUser): EnrollProRoleMapping {
 	if (Array.isArray(user.roles) && user.roles.length > 0) {
 		return mapEnrollProRoles(user.roles);
 	}
 	if (user.role) {
 		return mapEnrollProRoles([user.role]);
 	}
-	return null;
+	return { role: null, capabilities: [] };
 }
 
 /**
@@ -405,12 +394,13 @@ async function hydrateFacultyMirrorFromEnrollProFeed(params: {
 
 async function findLinkedFacultyMirror(params: {
 	schoolId: number;
-	role: 'officer' | 'faculty';
+	role: 'officer' | 'faculty' | 'scheduler';
+	includeFacultySelfService: boolean;
 	email: string;
 	employeeId: string | null;
 	enrollProUser: EnrollProVerifiedUser;
 }): Promise<{ id: number; externalId: number } | null> {
-	if (params.role !== 'faculty') {
+	if (!params.includeFacultySelfService) {
 		return null;
 	}
 
@@ -438,9 +428,9 @@ async function provisionFromEnrollPro(params: {
 	enrollProUser: EnrollProVerifiedUser;
 	password: string;
 	schoolId: number;
-	resolvedRole: 'officer' | 'faculty';
-}): Promise<{ account: { id: number; role: string; schoolId: number; facultyId: number | null; facultyExternalId: number | null; mustChangePassword: boolean; email: string; employeeId: string | null; accountName: string | null } }> {
-	const role = params.resolvedRole;
+    resolvedRole: EnrollProRoleMapping & { role: 'officer' | 'faculty' | 'scheduler' };
+}): Promise<{ account: { id: number; role: string; schoolId: number; facultyId: number | null; facultyExternalId: number | null; mustChangePassword: boolean; email: string; employeeId: string | null; accountName: string | null; capabilities: string[] } }> {
+	const role = params.resolvedRole.role;
 	const hash = await bcrypt.hash(params.password, 12);
 	const email = resolveEnrollProAccountEmail(params.enrollProUser);
 	const { employeeId, accountName } = buildEnrollProIdentityFields(params.enrollProUser);
@@ -448,6 +438,7 @@ async function provisionFromEnrollPro(params: {
 	const linkedMirror = await findLinkedFacultyMirror({
 		schoolId: params.schoolId,
 		role,
+		includeFacultySelfService: params.resolvedRole.capabilities.includes('faculty:self-service'),
 		email,
 		employeeId,
 		enrollProUser: params.enrollProUser,
@@ -483,7 +474,7 @@ async function provisionFromEnrollPro(params: {
 				lockedUntil: null,
 			},
 		});
-		return { account: { id: updated.id, role: updated.role, schoolId: updated.schoolId, facultyId: updated.facultyId, facultyExternalId, mustChangePassword: updated.mustChangePassword, email: updated.email, employeeId: updated.employeeId, accountName: updated.accountName } };
+		return { account: { id: updated.id, role: updated.role, schoolId: updated.schoolId, facultyId: updated.facultyId, facultyExternalId, mustChangePassword: updated.mustChangePassword, email: updated.email, employeeId: updated.employeeId, accountName: updated.accountName, capabilities: params.resolvedRole.capabilities } };
 	}
 
 	const created = await prisma.atlasAuthAccount.create({
@@ -499,7 +490,7 @@ async function provisionFromEnrollPro(params: {
 			mustChangePassword: params.enrollProUser.mustChangePassword,
 		},
 	});
-	return { account: { id: created.id, role: created.role, schoolId: created.schoolId, facultyId: created.facultyId, facultyExternalId, mustChangePassword: created.mustChangePassword, email: created.email, employeeId: created.employeeId, accountName: created.accountName } };
+	return { account: { id: created.id, role: created.role, schoolId: created.schoolId, facultyId: created.facultyId, facultyExternalId, mustChangePassword: created.mustChangePassword, email: created.email, employeeId: created.employeeId, accountName: created.accountName, capabilities: params.resolvedRole.capabilities } };
 }
 
 // ─── Mirror-mediated identifier resolution (Prompt 06, DBR-06.11) ────────────
@@ -708,7 +699,7 @@ export async function login(params: {
 		const enrollProResult = await tryEnrollProVerify(identifier, params.password);
 		if (enrollProResult) {
 			const resolvedRole = resolveEnrollProRole(enrollProResult.user);
-			if (!resolvedRole) {
+			if (!resolvedRole.role) {
 				return {
 					ok: false,
 					status: 403,
@@ -731,13 +722,13 @@ export async function login(params: {
 				enrollProUser: enrollProResult.user,
 				password: params.password,
 				schoolId: resolvedSchool.id,
-				resolvedRole,
+				resolvedRole: { role: resolvedRole.role, capabilities: resolvedRole.capabilities },
 			});
 
 			// F-06-03 fail-closed: a newly provisioned faculty account receives
 			// a token only for exactly one school-scoped active non-stale
 			// canonical mirror. No token, no success audit on rejection.
-			if (provisioned.role === 'faculty') {
+			if (provisioned.role === 'faculty' || (provisioned.role === 'scheduler' && provisioned.capabilities.includes('faculty:self-service'))) {
 				const provisionedCanonical = await resolveCanonicalFacultyMirror({
 					schoolId: provisioned.schoolId,
 					accountId: provisioned.id,
@@ -758,7 +749,7 @@ export async function login(params: {
 				}
 			}
 			const linkedFacultyMirrorExternalId = provisioned.facultyExternalId;
-			const userId = provisioned.role === 'faculty' && linkedFacultyMirrorExternalId
+			const userId = provisioned.capabilities.includes('faculty:self-service') && linkedFacultyMirrorExternalId
 				? linkedFacultyMirrorExternalId
 				: provisioned.id;
 			
@@ -773,6 +764,7 @@ export async function login(params: {
 				email: provisioned.email,
 				employeeId: provisioned.employeeId,
 				accountName: provisioned.accountName,
+				capabilities: provisioned.capabilities,
 			};
 			
 			const token = createToken(user);
@@ -818,7 +810,7 @@ export async function login(params: {
 		const enrollProResult = await tryEnrollProVerify(identifier, params.password);
 		if (enrollProResult) {
 			const resolvedRole = resolveEnrollProRole(enrollProResult.user);
-			if (!resolvedRole) {
+			if (!resolvedRole.role) {
 				registerMemoryFailure(identifier, params.ipAddress, now);
 				return {
 					ok: false,
@@ -831,11 +823,11 @@ export async function login(params: {
 				enrollProUser: enrollProResult.user,
 				password: params.password,
 				schoolId: account.schoolId,
-				resolvedRole,
+				resolvedRole: { role: resolvedRole.role, capabilities: resolvedRole.capabilities },
 			});
 			// F-06-03 fail-closed: delegation success for faculty still requires
 			// exactly one school-scoped active non-stale canonical mirror.
-			if (provisioned.role === 'faculty') {
+			if (provisioned.role === 'faculty' || (provisioned.role === 'scheduler' && provisioned.capabilities.includes('faculty:self-service'))) {
 				const delegatedCanonical = await resolveCanonicalFacultyMirror({
 					schoolId: provisioned.schoolId,
 					accountId: provisioned.id,
@@ -856,7 +848,7 @@ export async function login(params: {
 				}
 			}
 			const linkedFacultyMirrorExternalId = provisioned.facultyExternalId ?? account.faculty?.externalId ?? null;
-			const userId = provisioned.role === 'faculty' && linkedFacultyMirrorExternalId
+			const userId = provisioned.capabilities.includes('faculty:self-service') && linkedFacultyMirrorExternalId
 				? linkedFacultyMirrorExternalId
 				: provisioned.id;
 			
@@ -871,6 +863,7 @@ export async function login(params: {
 				email: provisioned.email,
 				employeeId: provisioned.employeeId,
 				accountName: provisioned.accountName,
+				capabilities: provisioned.capabilities,
 			};
 			const token = createToken(user);
 			if (!token) {
@@ -931,7 +924,11 @@ export async function login(params: {
 		};
 	}
 
-	let canonicalFaculty = account.role === 'faculty'
+	const accountCapabilities = capabilitiesForRole(account.role, account.role === 'scheduler' && account.facultyId !== null ? ['faculty:self-service'] : []);
+	const hasFacultySelfService = accountCapabilities.includes('faculty:self-service');
+	let sessionRole = account.role;
+	let sessionCapabilities = accountCapabilities;
+	let canonicalFaculty = hasFacultySelfService
 		? await resolveCanonicalFacultyMirror({
 			schoolId: account.schoolId,
 			accountId: account.id,
@@ -943,7 +940,7 @@ export async function login(params: {
 		})
 		: null;
 
-	if (account.role === 'faculty' && !canonicalFaculty) {
+	if (hasFacultySelfService && !canonicalFaculty) {
 		const hydratedMirror = await hydrateFacultyMirrorFromEnrollProFeed({
 			schoolId: account.schoolId,
 			employeeId: account.employeeId,
@@ -964,7 +961,7 @@ export async function login(params: {
 		const enrollProResult = canonicalFaculty ? null : await tryEnrollProVerify(identifier, params.password);
 		if (!canonicalFaculty && enrollProResult) {
 			const resolvedRole = resolveEnrollProRole(enrollProResult.user);
-			if (!resolvedRole) {
+			if (!resolvedRole.role) {
 				registerMemoryFailure(identifier, params.ipAddress, now);
 				return {
 					ok: false,
@@ -977,8 +974,10 @@ export async function login(params: {
 				enrollProUser: enrollProResult.user,
 				password: params.password,
 				schoolId: account.schoolId,
-				resolvedRole,
+				resolvedRole: { role: resolvedRole.role, capabilities: resolvedRole.capabilities },
 			});
+			sessionRole = reprovisioned.role;
+			sessionCapabilities = reprovisioned.capabilities;
 			canonicalFaculty = await resolveCanonicalFacultyMirror({
 				schoolId: reprovisioned.schoolId,
 				accountId: reprovisioned.id,
@@ -990,7 +989,7 @@ export async function login(params: {
 			});
 		}
 	}
-	if (account.role === 'faculty') {
+	if (hasFacultySelfService) {
 		// F-06-03 fail-closed: a directly matched faculty account (email,
 		// employee ID, or account name) must not bypass canonical mirror
 		// eligibility. A token is issued only for exactly one school-scoped
@@ -1021,16 +1020,16 @@ export async function login(params: {
 			};
 		}
 	}
-	const userId = account.role === 'faculty' && canonicalFaculty
+	const userId = hasFacultySelfService && canonicalFaculty
 		? canonicalFaculty.faculty.externalId
 		: account.id;
-	const facultyId = account.role === 'faculty'
+	const facultyId = hasFacultySelfService
 		? canonicalFaculty?.faculty.id ?? account.facultyId ?? null
 		: null;
 
 	const user: LocalAuthUser = {
 		userId,
-		role: account.role,
+		role: sessionRole,
 		mustChangePassword: account.mustChangePassword,
 		authSource: 'local',
 		schoolId: account.schoolId,
@@ -1039,6 +1038,7 @@ export async function login(params: {
 		email: account.email,
 		employeeId: account.employeeId,
 		accountName: account.accountName,
+		capabilities: sessionCapabilities,
 	};
 
 	const token = createToken(user);

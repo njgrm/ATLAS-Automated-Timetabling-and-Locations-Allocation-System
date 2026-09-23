@@ -13,6 +13,7 @@ export interface AuthPayload {
 	email?: string;
 	employeeId?: string | null;
 	accountName?: string | null;
+	capabilities?: string[];
 }
 
 declare global {

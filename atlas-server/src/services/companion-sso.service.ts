@@ -9,6 +9,7 @@ import {
 	type LocalAuthUser,
 } from './local-auth.service.js';
 import { resolveCanonicalFacultyMirror } from './faculty-identity.service.js';
+import { capabilitiesForRole } from './scheduler-capabilities.js';
 import { mapLocalRoleToEnrollProRoles, resolveReverseSsoNameParts } from './companion-sso-identity.js';
 
 /**
@@ -552,7 +553,7 @@ async function createSessionForExistingAccount(identity: ValidatedCompanionIdent
 
 	let facultyExternalId: number | null = null;
 	let canonicalFacultyId: number | null = account.facultyId ?? null;
-	if (account.role === 'faculty') {
+	if (account.role === 'faculty' || (account.role === 'scheduler' && account.facultyId !== null)) {
 		const resolution = await resolveCanonicalFacultyMirror({
 			schoolId: account.schoolId,
 			schoolYearId: mirror.enrollProSchoolYearId,
@@ -571,7 +572,7 @@ async function createSessionForExistingAccount(identity: ValidatedCompanionIdent
 	}
 
 	const sessionUser: LocalAuthUser = {
-		userId: account.role === 'faculty' && facultyExternalId ? facultyExternalId : account.id,
+		userId: (account.role === 'faculty' || account.role === 'scheduler') && facultyExternalId ? facultyExternalId : account.id,
 		role: account.role,
 		mustChangePassword: account.mustChangePassword,
 		authSource: 'local',
@@ -581,6 +582,7 @@ async function createSessionForExistingAccount(identity: ValidatedCompanionIdent
 		email: account.email,
 		employeeId: account.employeeId,
 		accountName: account.accountName,
+		capabilities: capabilitiesForRole(account.role, account.role === 'scheduler' && canonicalFacultyId !== null ? ['faculty:self-service'] : []),
 	};
 
 	const token = issueCompanionSsoToken(sessionUser);

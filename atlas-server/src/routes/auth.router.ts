@@ -85,6 +85,7 @@ router.post('/login', async (req: Request, res: Response, next: NextFunction) =>
 			user: {
 				userId: result.user.userId,
 				role: result.user.role,
+				capabilities: result.user.capabilities ?? [],
 				mustChangePassword: result.user.mustChangePassword,
 				authSource: result.user.authSource,
 			},
@@ -276,6 +277,7 @@ router.get('/me', authenticate, (req: Request, res: Response) => {
 		user: {
 			userId: req.user!.userId,
 			role: req.user!.role,
+			capabilities: req.user!.capabilities ?? [],
 			mustChangePassword: req.user!.mustChangePassword ?? false,
 			authSource: req.user!.authSource ?? 'bridge',
 			schoolId: req.user!.schoolId,
