@@ -954,10 +954,7 @@ router.get(
 	authenticate,
 	async (req: Request, res: Response, next: NextFunction) => {
 		try {
-			if (!req.user?.role || !EXPORT_ROLES.has(req.user.role)) {
-				res.status(403).json({ code: 'FORBIDDEN', message: 'Only schedulers and administrators can export room programs.' });
-				return;
-			}
+			if (!hasWorkspaceCapability(req, res, 'timetable:read')) return;
 			const schoolId = positiveInt(req.params.schoolId, 'schoolId');
 			const schoolYearId = positiveInt(req.params.schoolYearId, 'schoolYearId');
 			const runId = positiveInt(req.params.runId, 'runId');
@@ -994,10 +991,7 @@ router.get(
 	authenticate,
 	async (req: Request, res: Response, next: NextFunction) => {
 		try {
-			if (!req.user?.role || !EXPORT_ROLES.has(req.user.role)) {
-				res.status(403).json({ code: 'FORBIDDEN', message: 'Only schedulers and administrators can export section programs.' });
-				return;
-			}
+			if (!hasWorkspaceCapability(req, res, 'timetable:read')) return;
 			const schoolId = positiveInt(req.params.schoolId, 'schoolId');
 			const schoolYearId = positiveInt(req.params.schoolYearId, 'schoolYearId');
 			const runId = positiveInt(req.params.runId, 'runId');
