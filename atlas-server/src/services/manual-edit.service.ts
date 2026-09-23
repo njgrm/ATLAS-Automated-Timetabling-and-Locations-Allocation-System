@@ -23,6 +23,7 @@ import type { UnassignedItem } from './schedule-constructor.js';
 import type { SectionsByGrade } from './section-adapter.js';
 import { assertUndoHead } from './timetable-undo-contract.js';
 import { evaluateCandidateInvariants, type CandidateInvariantReason } from './timetable-candidate-domain.js';
+import { canRebaseManualEdits, type ConcurrentManualEdit } from './manual-edit-concurrency.service.js';
 
 // ─── Helpers ───
 
@@ -85,6 +86,32 @@ export interface ManualEditProposal {
 	targetRoomId?: number;
 	targetFacultyId?: number;
 	metadata?: Record<string, any>;
+}
+
+async function assertManualEditVersionCanRebase(
+	run: { id: number; version: number },
+	schoolId: number,
+	schoolYearId: number,
+	expectedVersion: number,
+	proposals: ManualEditProposal[],
+): Promise<void> {
+	if (run.version === expectedVersion) return;
+	const versionsBehind = run.version - expectedVersion;
+	if (versionsBehind < 1 || versionsBehind > 10) {
+		throw err(409, 'VERSION_CONFLICT', `Run version conflict: expected ${expectedVersion}, actual ${run.version}. Please reload and retry.`);
+	}
+	const interveningEdits = await prisma.manualScheduleEdit.findMany({
+		where: { runId: run.id, schoolId, schoolYearId },
+		orderBy: { id: 'desc' },
+		take: 500,
+	}) as ConcurrentManualEdit[];
+	if (!canRebaseManualEdits(proposals, interveningEdits, versionsBehind)) {
+		throw err(409, 'SEMANTIC_CONFLICT', 'This edit overlaps a change made since the selected run version. Reload and review the affected session.');
+	}
+}
+
+function isRunVersionRace(error: unknown): boolean {
+	return !!error && typeof error === 'object' && (error as { code?: unknown }).code === 'P2025';
 }
 
 
@@ -1236,19 +1263,17 @@ export async function commitManualEdit(
 	proposal: ManualEditProposal,
 	expectedVersion: number,
 	allowSoftOverride = false,
+	internalRetry = 0,
 ): Promise<CommitResult> {
 	const refData = await loadRunContext(runId, schoolId, schoolYearId);
 	const { run, entries, unassignedItems } = refData;
 
-	// Optimistic concurrency check
-	if (run.version !== expectedVersion) {
-		throw err(409, 'VERSION_CONFLICT', `Run version conflict: expected ${expectedVersion}, actual ${run.version}. Please reload and retry.`);
-	}
+	await assertManualEditVersionCanRebase(run, schoolId, schoolYearId, expectedVersion, [proposal]);
 	const fixtureNoopEntry = isPerformanceFixtureRun(run) ? isExactNoopEdit(entries, proposal) : null;
 	if (fixtureNoopEntry) {
 		const newVersion = run.version + 1;
 		const [updatedRun, editRecord] = await prisma.$transaction([
-			prisma.generationRun.update({ where: { id: runId, version: expectedVersion }, data: { version: newVersion } }),
+			prisma.generationRun.update({ where: { id: runId, version: run.version }, data: { version: newVersion } }),
 			prisma.manualScheduleEdit.create({
 				data: {
 					runId,
@@ -1327,9 +1352,12 @@ export async function commitManualEdit(
 	const newVersion = run.version + 1;
 
 	// Persist atomically: update run + create edit record
-	const [updatedRun, editRecord] = await prisma.$transaction([
+	let updatedRun: Awaited<ReturnType<typeof prisma.generationRun.update>>;
+	let editRecord: Awaited<ReturnType<typeof prisma.manualScheduleEdit.create>>;
+	try {
+		[updatedRun, editRecord] = await prisma.$transaction([
 		prisma.generationRun.update({
-			where: { id: runId, version: expectedVersion },
+			where: { id: runId, version: run.version },
 			data: {
 				draftEntries: newEntries as unknown as object[],
 				unassignedItems: newUnassigned as unknown as object[],
@@ -1355,7 +1383,14 @@ export async function commitManualEdit(
 				} as object,
 			},
 		}),
-	]);
+		]);
+	} catch (error) {
+		if (isRunVersionRace(error) && internalRetry < 2) {
+			return commitManualEdit(runId, schoolId, schoolYearId, actorId, proposal, expectedVersion, allowSoftOverride, internalRetry + 1);
+		}
+		if (isRunVersionRace(error)) throw err(409, 'VERSION_CONFLICT', 'The run changed while this edit was being committed. Retry after review.');
+		throw error;
+	}
 
 	// Audit log
 	await prisma.auditLog.create({
@@ -1418,6 +1453,7 @@ export async function commitManualEditBatch(
 	allowSoftOverride = false,
 	customSummaryOverrides?: Record<string, any>,
 	sourceSnapshot?: { expectedFingerprint: string; serviceLabel?: string },
+	internalRetry = 0,
 ): Promise<CommitResult> {
 	if (!Array.isArray(proposals) || proposals.length === 0) {
 		throw err(400, 'EMPTY_BATCH', 'At least one manual edit proposal is required.');
@@ -1426,9 +1462,7 @@ export async function commitManualEditBatch(
 	const refData = await loadRunContext(runId, schoolId, schoolYearId);
 	const { run, entries, unassignedItems } = refData;
 
-	if (run.version !== expectedVersion) {
-		throw err(409, 'VERSION_CONFLICT', `Run version conflict: expected ${expectedVersion}, actual ${run.version}. Please reload and retry.`);
-	}
+	await assertManualEditVersionCanRebase(run, schoolId, schoolYearId, expectedVersion, proposals);
 
 	const currentCtx = buildValidatorCtx(schoolId, schoolYearId, runId, entries, refData);
 	const currentValidation = validateHardConstraints(currentCtx);
@@ -1495,7 +1529,9 @@ export async function commitManualEditBatch(
 	// tx-verified snapshot, never a value captured from a different source state.
 	let committedSummary: typeof finalSummary = finalSummary;
 
-	const { updatedRun, editRecords } = await prisma.$transaction(async (tx) => {
+	let transactionResult: { updatedRun: Awaited<ReturnType<typeof prisma.generationRun.update>>; editRecords: Awaited<ReturnType<typeof prisma.manualScheduleEdit.create>>[] };
+	try {
+		transactionResult = await prisma.$transaction(async (tx) => {
 		if (sourceSnapshot) {
 			const { computeGenerationInputSnapshot } = await import('./generation-input-snapshot.service.js');
 			const txInputSnapshot = await computeGenerationInputSnapshot(schoolId, schoolYearId, tx);
@@ -1509,7 +1545,7 @@ export async function commitManualEditBatch(
 			committedSummary = { ...finalSummary, inputSnapshot: txInputSnapshot };
 		}
 		const updated = await tx.generationRun.update({
-			where: { id: runId, version: expectedVersion },
+			where: { id: runId, version: run.version },
 			data: {
 				draftEntries: newEntries as unknown as object[],
 				unassignedItems: newUnassigned as unknown as object[],
@@ -1558,7 +1594,15 @@ export async function commitManualEditBatch(
 		});
 
 		return { updatedRun: updated, editRecords: created };
-	});
+		});
+	} catch (error) {
+		if (isRunVersionRace(error) && internalRetry < 2) {
+			return commitManualEditBatch(runId, schoolId, schoolYearId, actorId, proposals, expectedVersion, allowSoftOverride, customSummaryOverrides, sourceSnapshot, internalRetry + 1);
+		}
+		if (isRunVersionRace(error)) throw err(409, 'VERSION_CONFLICT', 'The run changed while these edits were being committed. Retry after review.');
+		throw error;
+	}
+	const { updatedRun, editRecords } = transactionResult;
 
 	publishTimetableEvent({
 		type: 'TIMETABLE_EDIT_COMMITTED',
