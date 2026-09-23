@@ -5,6 +5,7 @@ import { TimetableSimpleHeader } from '@/components/timetable/TimetableSimpleHea
 import { TimetableSubNav } from '@/components/timetable/TimetableSubNav';
 import { ScheduleReviewWorkspaceBody } from '@/components/timetable/ScheduleReviewWorkspaceBody';
 import { ScheduleReviewWorkspaceOverlays } from '@/components/timetable/ScheduleReviewWorkspaceOverlays';
+import { TimetableFacultyIssuePivotDialog } from '@/components/timetable/TimetableFacultyIssuePivotDialog';
 import { TimetableSkeleton } from '@/components/timetable/TimetableSkeleton';
 import { InlinePlacementPreview } from '@/components/timetable/InlinePlacementPreview';
 import { isTimetableSchedulerView, TimetableRouteViewSync } from '@/components/timetable/TimetableRouteViewSync';
@@ -763,23 +764,13 @@ export default function ScheduleReviewWorkspace() {
 					) : null}
 				</SheetContent>
 			</Sheet>
-			<Dialog
+			<TimetableFacultyIssuePivotDialog
 				open={state.pendingFacultyIssuePivot != null}
+				teacherLabel={state.pendingFacultyIssuePivot?.teacherLabel ?? null}
 				onOpenChange={(open) => { if (!open) state.setPendingFacultyIssuePivot(null); }}
-			>
-				<DialogContent>
-					<DialogHeader>
-						<DialogTitle>Open {state.pendingFacultyIssuePivot?.teacherLabel}&apos;s timetable?</DialogTitle>
-						<DialogDescription>
-							This issue belongs to {state.pendingFacultyIssuePivot?.teacherLabel}. Switch to that teacher&apos;s timetable and highlight the affected session?
-						</DialogDescription>
-					</DialogHeader>
-					<DialogFooter>
-						<Button type="button" variant="outline" onClick={() => state.setPendingFacultyIssuePivot(null)}>Cancel</Button>
-						<Button type="button" onClick={state.confirmFacultyIssuePivot}>Open teacher timetable</Button>
-					</DialogFooter>
-				</DialogContent>
-			</Dialog>
+				onCancel={() => state.setPendingFacultyIssuePivot(null)}
+				onConfirm={state.confirmFacultyIssuePivot}
+			/>
 			<ScheduleReviewWorkspaceOverlays context={state.overlaysContext} />
 		</div>
 	);

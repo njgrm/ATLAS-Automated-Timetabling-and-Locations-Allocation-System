@@ -251,28 +251,28 @@ test('D2 an unresolved-then-verified gate loads the fallback first and the autho
 	assert.deepEqual(recovered, { kind: 'load', termIndex: 2, fallback: false });
 });
 
-test('D2 the unverified notice shows with data on screen and clears once authority verifies', () => {
+test('D2 the unverified notice stays honest when no explicit term is available and clears once authority verifies', () => {
 	const unverified = unverifiedContextPayload().activeTerm as never;
 	const verified = verifiedContextPayload().activeTerm as never;
 
 	const notice = resolveTermAuthorityNotice({ activeTerm: unverified } as never, true);
 	assert.ok(notice, 'fallback state carries a visible notice');
-	assert.match(notice!, /term authority unverified/, 'notice names the unverified authority');
-	assert.match(notice!, /Term 1/, 'notice names the explicit fallback scope');
+	assert.match(notice!, /term setup is unverified/i, 'notice names the unverified authority');
+	assert.match(notice!, /not loaded/, 'missing term identity fails closed instead of inventing a fallback');
 
 	assert.equal(resolveTermAuthorityNotice({ activeTerm: verified } as never, true), null, 'notice clears on recovery');
 	assert.equal(resolveTermAuthorityNotice({ activeTerm: unverified } as never, false), null, 'blocked page keeps the setup message, not the notice');
 	assert.equal(resolveTermAuthorityNotice(null, true), null, 'checking state shows no notice');
 });
 
-// ── D3: never-verifiable authority still loads ───────────────────────────────
+// ── D3: never-verifiable authority with no term identity fails closed ─────────
 
-test('D3 never-verifiable authority loads with an explicit scope plus the notice', () => {
+test('D3 never-verifiable authority without an explicit term is blocked with honest guidance', () => {
 	const fallback = resolveTimetableFallbackTermIndex(null);
-	assert.equal(fallback, 1, 'no persisted term falls back to Term 1');
+	assert.equal(fallback, null, 'unknown authority does not fabricate Term 1');
 
 	const persisted = resolveTimetableFallbackTermIndex({ termIndex: 2 } as never);
-	assert.equal(persisted, 2, 'a persisted active term wins over Term 1');
+	assert.equal(persisted, 2, 'a persisted explicit active term is retained');
 
 	const gate = resolveTimetableLoadGate({
 		authorityReady: false,
@@ -280,13 +280,11 @@ test('D3 never-verifiable authority loads with an explicit scope plus the notice
 		userOverrodeTermFilter: false,
 		fallbackTermIndex: fallback,
 	});
-	assert.equal(gate.kind, 'load', 'the page loads instead of dead-ending');
-	assert.equal(gate.kind === 'load' && gate.termIndex, 1, 'the scope is explicit Term 1');
-	assert.equal(gate.kind === 'load' && gate.fallback, true, 'the load is marked as fallback scope');
+	assert.deepEqual(gate, { kind: 'blocked-setup' }, 'the page does not load with a guessed term');
 
-	const notice = buildTermAuthorityUnverifiedNotice(1);
-	assert.match(notice, /term authority unverified/);
-	assert.match(notice, /Term 1/);
+	const notice = buildTermAuthorityUnverifiedNotice(null);
+	assert.match(notice, /term setup is unverified/i);
+	assert.match(notice, /not loaded/);
 });
 
 // ── D4: the implicit-scope protection still holds ────────────────────────────
@@ -309,14 +307,14 @@ test('D4 no unresolved state can authorize an implicit all-term fetch', () => {
 	});
 	assert.deepEqual(explicitAll, { kind: 'load', termIndex: 1, fallback: true });
 
-	// An explicit numeric choice is honored while unresolved (explicit scope).
+	// A stale numeric UI value cannot override the canonical explicit fallback.
 	const explicitTerm = resolveTimetableLoadGate({
 		authorityReady: false,
 		termFilter: 3,
 		userOverrodeTermFilter: false,
 		fallbackTermIndex: 1,
 	});
-	assert.deepEqual(explicitTerm, { kind: 'load', termIndex: 3, fallback: true });
+	assert.deepEqual(explicitTerm, { kind: 'load', termIndex: 1, fallback: true });
 
 	// Verified authority with no explicit choice still waits for selection.
 	const unpicked = resolveTimetableLoadGate({

@@ -1,4 +1,5 @@
 import type { ExternalSection } from '@/types';
+import type { ScheduledEntry, Violation } from '@/types';
 
 export type TimetablePivotMode = 'section' | 'faculty' | 'room';
 export type TimetableEntryContext = { sectionId: number; facultyId: number | null; roomId: number | null };
@@ -11,6 +12,23 @@ export function requiresFacultyIssueConfirmation(input: {
 }): boolean {
 	return input.canonicalFacultyExists
 		&& !(input.viewMode === 'faculty' && input.entityFilter === String(input.facultyId));
+}
+
+export function resolveViolationFacultyTarget(input: {
+	violation: Violation;
+	entries: readonly ScheduledEntry[];
+	facultyIds: ReadonlySet<number>;
+}): { facultyId: number | null; entry: ScheduledEntry | null } {
+	const entryIds = new Set(input.violation.entities.entryIds ?? []);
+	const affectedEntries = input.entries.filter((entry) => entryIds.has(entry.entryId));
+	const canonicalFacultyId = input.violation.entities.facultyId;
+	const inferredFacultyIds = new Set(affectedEntries.flatMap((entry) => entry.facultyId == null ? [] : [entry.facultyId]));
+	const facultyId = typeof canonicalFacultyId === 'number'
+		? canonicalFacultyId
+		: (inferredFacultyIds.size === 1 ? [...inferredFacultyIds][0] : null);
+	if (facultyId == null || !input.facultyIds.has(facultyId)) return { facultyId: null, entry: null };
+	const entry = affectedEntries.find((candidate) => candidate.facultyId === facultyId) ?? null;
+	return { facultyId, entry };
 }
 
 export function resolveTimetableEntryPivot(input: {

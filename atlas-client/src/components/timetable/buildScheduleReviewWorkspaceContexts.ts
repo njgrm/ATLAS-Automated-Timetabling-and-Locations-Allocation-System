@@ -65,6 +65,7 @@ export type ScheduleReviewWorkspaceHeaderContext = {
 	draftPlacementCount: number;
 	openPreGenerationWorkspace: (showConfirm: boolean) => Promise<void>;
 	returnToGeneratedRun: () => void;
+	hasPublishedReturnState?: boolean;
 	generating: boolean;
 	loading: boolean;
 	handleTriggerGenerate: () => void;

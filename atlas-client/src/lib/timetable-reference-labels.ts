@@ -15,6 +15,7 @@
  */
 
 import type { ExternalSection, FacultyMirror, Subject } from '@/types';
+import { resolveSectionGradeNumber } from '@/lib/schedule-review-helpers';
 
 export type RoomLabelSource = {
 	id: number;
@@ -67,8 +68,8 @@ export function buildSectionLabel(
 		const programLabel = section.programType && section.programType !== 'REGULAR'
 			? ` · ${programBadgeLabel(section.programType, section.programCode)}`
 			: '';
-		const grade = section.gradeLevelName?.match(/\d+/)?.[0];
-		const gradeLabel = grade ? `GR${grade} - ` : '';
+		const grade = resolveSectionGradeNumber(section);
+		const gradeLabel = grade != null ? `GR${grade} - ` : '';
 		return `${gradeLabel}${section.name}${programLabel}`;
 	};
 }

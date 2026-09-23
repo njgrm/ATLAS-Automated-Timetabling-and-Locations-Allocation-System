@@ -201,7 +201,7 @@ test('A1: an unverified term authority exposes no fabricated term option and say
 	const trigger = markup.match(/<[^>]*data-testid="timetable-simple-term-filter"[^>]*>/)?.[0] ?? '';
 	assert.ok(trigger, 'the term switcher must render');
 	assert.equal((trigger.match(/data-term-options="([^"]*)"/)?.[1] ?? ''), 'all', 'no numeric term is offered while authority is unverified');
-	assert.match(markup, /term authority unverified/, 'the surface names the unresolved term authority in plain language');
+	assert.match(markup, /term setup is unverified/i, 'the surface names the unresolved term authority in plain language');
 });
 
 /* ── A2 — one clean term label + visible term labels under All terms ────── */
