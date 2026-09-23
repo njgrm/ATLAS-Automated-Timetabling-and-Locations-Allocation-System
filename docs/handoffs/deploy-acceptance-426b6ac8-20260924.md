@@ -26,7 +26,8 @@ snapshot `T1` vs live `T2`). Independent QA `ACCEPT_READY` 6/6/0/0, with a faili
   `E:\ATLAS-runtime-supervised-426b6ac8-20260924`; `GET /api/v1/health/ready` → 200
   `{"status":"ready","checks":{"database":"ok"}}`.
 - `GET /api/v1/runtime/context?schoolId=1&verifyUpstream=true` → 200, `source:"enrollpro-verified"`,
-  `activeTerm:"T2"`, `termIndex:2` (the live path is unchanged; the fix affects only the unreachable path).
+  `activeTerm.activeTerm:"T2"`, `activeTerm.termIndex:2` (the live path is unchanged; the fix affects only the
+  unreachable path).
 - Export matrix (run #317, termIndex 2) all 200: `class-program.xlsx` 20,389 B, `section-program.docx`
   9,873 B, `summary-teacher-schedule.xlsx` 54,080 B, `room-program.xlsx` 34,949 B.
 - 4 fresh `/timetable` loads with ~8 s idle gaps → **0 502s / 0 HTTP-2 errors** (the 502s seen immediately
