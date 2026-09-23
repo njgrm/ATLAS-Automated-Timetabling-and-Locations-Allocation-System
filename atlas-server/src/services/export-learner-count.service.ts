@@ -13,7 +13,7 @@ export class LearnerReconciliationError extends Error {
 }
 
 type LearnerPage = {
-	data?: unknown[];
+	data?: unknown;
 	meta?: { total?: number; totalPages?: number };
 };
 
@@ -61,7 +61,15 @@ export async function aggregateSectionLearnerCounts(input: {
 			});
 			if (!response.ok) throw new LearnerReconciliationError();
 			const payload = await response.json() as LearnerPage;
-			if (!Array.isArray(payload.data)) throw new LearnerReconciliationError();
+			// EnrollPro returns `{ data: { section, learners: [...] }, meta }` for
+			// the section-learner feed; tolerate a bare array too.
+			const dataContainer = payload.data;
+			const learners = Array.isArray(dataContainer)
+				? dataContainer
+				: Array.isArray((dataContainer as { learners?: unknown } | null)?.learners)
+					? (dataContainer as { learners: unknown[] }).learners
+					: null;
+			if (!learners) throw new LearnerReconciliationError();
 			const pageTotal = Number(payload.meta?.total);
 			const pageCount = Number(payload.meta?.totalPages);
 			if (!Number.isInteger(pageTotal) || pageTotal < 0 || !Number.isInteger(pageCount) || pageCount < 0) {
@@ -71,10 +79,12 @@ export async function aggregateSectionLearnerCounts(input: {
 			if (totalPages !== null && totalPages !== pageCount) throw new LearnerReconciliationError();
 			reportedTotal = pageTotal;
 			totalPages = pageCount;
-			for (const item of payload.data) {
-				const sex = (item as { learner?: { sex?: unknown } } | null)?.learner?.sex;
-				if (sex === 'M') male += 1;
-				else if (sex === 'F') female += 1;
+			for (const item of learners) {
+				const rawSex = (item as { learner?: { sex?: unknown } } | null)?.learner?.sex;
+				// EnrollPro's `Sex` enum is MALE/FEMALE; accept the short forms too.
+				const sex = typeof rawSex === 'string' ? rawSex.toUpperCase() : '';
+				if (sex === 'M' || sex === 'MALE') male += 1;
+				else if (sex === 'F' || sex === 'FEMALE') female += 1;
 				else throw new LearnerReconciliationError();
 				seen += 1;
 			}

@@ -11,8 +11,8 @@ function client(rows = mirrors) {
 	return { sectionMirror: { findMany: async () => rows } };
 }
 
-function response(data: unknown[], total: number, totalPages: number): Response {
-	return new Response(JSON.stringify({ data, meta: { total, totalPages } }), { status: 200 });
+function response(learners: unknown[], total: number, totalPages: number): Response {
+	return new Response(JSON.stringify({ data: { section: { id: 1 }, learners }, meta: { total, totalPages } }), { status: 200 });
 }
 
 test('aggregates paginated M/F counts transiently and reconciles to the mirror totals', async () => {
@@ -22,10 +22,10 @@ test('aggregates paginated M/F counts transiently and reconciles to the mirror t
 		calls.push(url);
 		if (url.includes('/701/learners')) {
 			return url.includes('page=1')
-				? response([{ learner: { sex: 'M' } }, { learner: { sex: 'F' } }], 3, 2)
-				: response([{ learner: { sex: 'M' } }], 3, 2);
+				? response([{ learner: { sex: 'MALE' } }, { learner: { sex: 'FEMALE' } }], 3, 2)
+				: response([{ learner: { sex: 'MALE' } }], 3, 2);
 		}
-		return response([{ learner: { sex: 'F' } }], 1, 1);
+		return response([{ learner: { sex: 'FEMALE' } }], 1, 1);
 	};
 	const result = await aggregateSectionLearnerCounts({
 		schoolId: 9, schoolYearId: 12, sectionIds: [701, 702, 701], authToken: 'test-only', client: client(), fetchImpl,
@@ -39,8 +39,8 @@ test('aggregates paginated M/F counts transiently and reconciles to the mirror t
 test('fails closed on unknown sex, pagination drift, and M/F/T mismatch', async () => {
 	const cases: Array<{ name: string; fetchImpl: typeof fetch }> = [
 		{ name: 'unknown sex', fetchImpl: async () => response([{ learner: { sex: 'X' } }], 1, 1) },
-		{ name: 'unreconciled mirror total', fetchImpl: async () => response([{ learner: { sex: 'M' } }], 1, 1) },
-		{ name: 'missing pagination metadata', fetchImpl: async () => new Response(JSON.stringify({ data: [{ learner: { sex: 'M' } }] }), { status: 200 }) },
+		{ name: 'unreconciled mirror total', fetchImpl: async () => response([{ learner: { sex: 'MALE' } }], 1, 1) },
+		{ name: 'missing pagination metadata', fetchImpl: async () => new Response(JSON.stringify({ data: { section: { id: 1 }, learners: [{ learner: { sex: 'MALE' } }] } }), { status: 200 }) },
 	];
 	for (const item of cases) {
 		await assert.rejects(
