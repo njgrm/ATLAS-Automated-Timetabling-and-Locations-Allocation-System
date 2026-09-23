@@ -131,6 +131,8 @@ export function AppSidebar({
 	const topNavigation = isFaculty ? [] : navigationNav;
 	const backHref = getBackHref();
 	const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+	const [failedLogoUrl, setFailedLogoUrl] = useState<string | null>(null);
+	const visibleLogoUrl = logoUrl && failedLogoUrl !== logoUrl ? enrollProAsset(logoUrl) : null;
 
 	return (
 		<>
@@ -143,9 +145,9 @@ export function AppSidebar({
 								className='data-[state=open]:bg-sidebar-accent cursor-default'
 								tooltip={schoolName}
 							>
-								{logoUrl ? (
+								{visibleLogoUrl ? (
 									<div className='flex aspect-square size-8 items-center justify-center rounded-lg overflow-hidden shrink-0'>
-										<img src={enrollProAsset(logoUrl)} alt='Logo' className='size-8 object-contain' />
+										<img src={visibleLogoUrl} alt='Logo' className='size-8 object-contain' onError={() => setFailedLogoUrl(logoUrl)} />
 									</div>
 								) : (
 									<div className='flex aspect-square size-8 items-center justify-center rounded-lg bg-muted shrink-0'>

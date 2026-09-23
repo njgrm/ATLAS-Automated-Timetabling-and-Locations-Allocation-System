@@ -100,6 +100,7 @@ test('ordinary schedule repair keeps issue summary separate from technical detai
 test('cross-faculty issue selection asks before changing teacher and confirm selects the affected session', () => {
 	const mutations = source('src/hooks/useTimetableMutations.ts');
 	const workspace = source('src/components/timetable/ScheduleReviewWorkspace.tsx');
+	const confirmation = source('src/components/timetable/TimetableFacultyIssuePivotDialog.tsx');
 	assert.match(mutations, /canonicalFaculty[\s\S]+setPendingFacultyIssuePivot/);
 	assert.match(mutations, /requiresFacultyIssueConfirmation\(/);
 	assert.equal(requiresFacultyIssueConfirmation({ viewMode: 'section', entityFilter: '7', facultyId: 12, canonicalFacultyExists: true }), true);
@@ -107,9 +108,10 @@ test('cross-faculty issue selection asks before changing teacher and confirm sel
 	assert.equal(requiresFacultyIssueConfirmation({ viewMode: 'faculty', entityFilter: '12', facultyId: 12, canonicalFacultyExists: true }), false);
 	assert.equal(requiresFacultyIssueConfirmation({ viewMode: 'faculty', entityFilter: '9', facultyId: 12, canonicalFacultyExists: true }), true);
 	assert.equal(requiresFacultyIssueConfirmation({ viewMode: 'section', entityFilter: '7', facultyId: 12, canonicalFacultyExists: false }), false);
-	assert.match(workspace, /Open \{state\.pendingFacultyIssuePivot\?\.teacherLabel\}/);
-	assert.match(workspace, /Button type="button" variant="outline" onClick=\{\(\) => state\.setPendingFacultyIssuePivot\(null\)\}>Cancel/);
-	assert.match(workspace, /Button type="button" onClick=\{state\.confirmFacultyIssuePivot\}>Open teacher timetable/);
+	assert.match(workspace, /<TimetableFacultyIssuePivotDialog/);
+	assert.match(confirmation, /Open \{teacherLabel\}&apos;s timetable\?/);
+	assert.match(confirmation, /onCancel\}>Cancel/);
+	assert.match(confirmation, /onConfirm\}>Open teacher timetable/);
 	assert.match(source('src/hooks/useScheduleReviewWorkspaceState.ts'), /setSelectedViolation\(pending\.violation\)[\s\S]+setSelectedEntry\(pending\.entry\)/);
 });
 

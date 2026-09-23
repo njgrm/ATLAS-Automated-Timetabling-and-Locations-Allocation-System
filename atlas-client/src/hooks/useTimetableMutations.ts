@@ -8,7 +8,7 @@ import { parseDraftPlacementId, scopePreviewToCandidate } from '@/lib/timetable-
 import { isSameTimetableSlot, resolvePreGenSlotDisplacement } from '@/lib/timetable-swap-routing';
 import { deriveRunWideReadiness } from '@/components/timetable/timetableWorkspaceTruth';
 import { deriveRedoAfterRevert, dispatchRedo } from '@/components/timetable/timetableUndoRedoState';
-import { requiresFacultyIssueConfirmation, resolveTimetableEntryPivot, type TimetableEntryContext } from '@/lib/timetable-entry-pivot';
+import { requiresFacultyIssueConfirmation, resolveTimetableEntryPivot, resolveViolationFacultyTarget, type TimetableEntryContext } from '@/lib/timetable-entry-pivot';
 import { decideDraftPlacementReview, type DraftPlacementReviewDecision } from '@/lib/simple-timetable-state';
 import type { PendingSwapAction } from '@/components/timetable/ScheduleReviewWorkspace.constants';
 import type { ActiveSchoolYearContext } from '@/lib/enrollpro-public-settings';
@@ -251,7 +251,7 @@ type UseTimetableMutationsInput = {
 		facultyId: number;
 		teacherLabel: string;
 		violation: Violation;
-		entry: ScheduledEntry;
+		entry: ScheduledEntry | null;
 	} | null>>;
 };
 
@@ -615,31 +615,30 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 	const requestPreviewSoftWarnings = useMemo(() => requestPreviewConflicts.filter((conflict) => conflict.severity === 'SOFT'), [requestPreviewConflicts]);
 
 	const handleViolationSelect = useCallback((v: Violation) => {
-		const affectedEntryId = v.entities.entryIds?.[0];
-		const affectedEntry = affectedEntryId ? draft?.entries.find((entry) => entry.entryId === affectedEntryId) : null;
-		const canonicalFaculty = affectedEntry?.facultyId != null ? facultyMap.get(affectedEntry.facultyId) : null;
-		if (affectedEntry?.facultyId != null && canonicalFaculty && requiresFacultyIssueConfirmation({
+		const target = resolveViolationFacultyTarget({
+			violation: v,
+			entries: draft?.entries ?? [],
+			facultyIds: new Set(facultyMap.keys()),
+		});
+		const canonicalFaculty = target.facultyId != null ? facultyMap.get(target.facultyId) : null;
+		if (target.facultyId != null && canonicalFaculty && requiresFacultyIssueConfirmation({
 			viewMode,
 			entityFilter,
-			facultyId: affectedEntry.facultyId,
+			facultyId: target.facultyId,
 			canonicalFacultyExists: true,
 		})) {
 			setPendingFacultyIssuePivot({
-				facultyId: affectedEntry.facultyId,
+				facultyId: target.facultyId,
 				teacherLabel: `${canonicalFaculty.lastName}, ${canonicalFaculty.firstName}`.trim().replace(/^,\s*/, ''),
 				violation: v,
-				entry: affectedEntry,
+				entry: target.entry,
 			});
 			return;
 		}
 		setKbSelectedSource(null);
 		setPreGenKbSource(null);
 		setSelectedViolation((prev) => (prev === v ? null : v));
-		const firstId = v.entities.entryIds?.[0];
-		if (firstId && draft?.entries) {
-			const entry = draft.entries.find((e) => e.entryId === firstId);
-			if (entry) setSelectedEntry(entry);
-		}
+		if (target.entry) setSelectedEntry(target.entry);
 	}, [draft?.entries, entityFilter, facultyMap, setKbSelectedSource, setPendingFacultyIssuePivot, setPreGenKbSource, setSelectedViolation, setSelectedEntry, viewMode]);
 
 	const handleSessionContextPivot = useCallback((session: TimetableEntryContext) => {

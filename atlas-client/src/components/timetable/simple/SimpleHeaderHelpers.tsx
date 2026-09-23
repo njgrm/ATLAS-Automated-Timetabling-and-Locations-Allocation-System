@@ -70,7 +70,7 @@ const NO_RUN_STEPS: readonly SimpleTutorialStep[] = [
 		icon: ClipboardCheck,
 	},
 	{
-		title: 'Use Advanced only for expert repair',
+		title: 'Use Expert tools for specialist repair',
 		body: 'Expert view is for tools like policy, map, diagnostics, and full manual-edit panels. Simple mode covers daily scheduling once a run exists.',
 		target: 'Expert view',
 		targetTestId: 'timetable-layout-toggle',
@@ -141,7 +141,7 @@ const PUBLISHED_STEPS: readonly SimpleTutorialStep[] = [
 		icon: Download,
 	},
 	{
-		title: 'Use Advanced only for expert repair',
+		title: 'Use Expert tools for specialist repair',
 		body: 'Expert view is for tools like policy, map, diagnostics, and full manual-edit panels.',
 		target: 'Expert view',
 		targetTestId: 'timetable-layout-toggle',

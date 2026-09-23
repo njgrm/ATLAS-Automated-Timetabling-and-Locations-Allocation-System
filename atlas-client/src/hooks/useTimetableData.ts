@@ -314,21 +314,20 @@ export function isTermAuthorityVerified(
 }
 
 /**
- * D3 — explicit fallback scope when term authority can never be verified. The
- * persisted active term wins when the context carries one; otherwise Term 1.
- * The result is always an explicit numeric term — never an implicit all-term
- * scope — so the implicit-scope protection is preserved by construction.
+ * D3 — explicit fallback scope only when the persisted context carries a
+ * positive term identity. Missing identity stays null and must fail closed.
  */
 export function resolveTimetableFallbackTermIndex(
 	activeTerm: ActiveSchoolYearContext['activeTerm'] | null | undefined,
-): number {
+): number | null {
 	const persisted = activeTerm?.termIndex;
 	if (typeof persisted === 'number' && Number.isInteger(persisted) && persisted > 0) return persisted;
-	return 1;
+	return null;
 }
 
 /** D3 — the visible notice carried while the fallback scope is in effect. */
-export function buildTermAuthorityUnverifiedNotice(termIndex: number): string {
+export function buildTermAuthorityUnverifiedNotice(termIndex: number | null): string {
+	if (termIndex == null) return 'Term setup is unverified. Without an explicit term, the timetable is not loaded.';
 	return `Showing Term ${termIndex} with an explicit scope — term authority unverified. Term setup verification was unavailable, so the timetable loaded one explicit term instead of all terms.`;
 }
 
@@ -355,9 +354,8 @@ export type TimetableLoadGateDecision =
  * D2/D3 — the production load gate, extracted pure so the three branches are
  * directly testable. Verified authority with an explicit choice (a numeric
  * term or an explicit All terms override) loads that scope. Unresolved
- * authority never dead-ends and never returns an implicit all-term scope: it
- * loads one explicit term (the user's numeric choice when present, else the
- * persisted active term, else Term 1). Verified authority with no explicit
+ * authority never loads an implicit or user-guessed term: it loads the
+ * persisted explicit term when one exists, otherwise stays blocked. Verified authority with no explicit
  * choice yet stays blocked on the setup message until the workspace selects
  * the active term.
  */
@@ -365,13 +363,14 @@ export function resolveTimetableLoadGate(args: {
 	authorityReady: boolean;
 	termFilter: 'all' | number;
 	userOverrodeTermFilter: boolean;
-	fallbackTermIndex: number;
+	fallbackTermIndex: number | null;
 }): TimetableLoadGateDecision {
 	if (args.authorityReady && (typeof args.termFilter === 'number' || args.userOverrodeTermFilter)) {
 		return { kind: 'load', termIndex: args.termFilter, fallback: false };
 	}
 	if (!args.authorityReady) {
-		const explicitTerm = typeof args.termFilter === 'number' ? args.termFilter : args.fallbackTermIndex;
+		const explicitTerm = args.fallbackTermIndex;
+		if (explicitTerm == null) return { kind: 'blocked-setup' };
 		return { kind: 'load', termIndex: explicitTerm, fallback: true };
 	}
 	return { kind: 'blocked-setup' };
@@ -454,6 +453,7 @@ export function resolveTimetableTermScopeState(
 
 export type TimetableDataState = {
 	schoolId: number | null;
+	effectiveTermFilter: 'all' | number;
 	curriculumReadiness: TimetableCurriculumReadinessState;
 	violations: Violation[];
 	violationIndex: Map<string, Violation[]>;
@@ -634,6 +634,10 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 	}, []);
 
 	const selectedRunIdRef = useRef(selectedRunId);
+	const termFilterRef = useRef(termFilter);
+	termFilterRef.current = termFilter;
+	const userOverrodeTermFilterRef = useRef(input.userOverrodeTermFilter);
+	userOverrodeTermFilterRef.current = input.userOverrodeTermFilter;
 	const latestRunDataFetchSeqRef = useRef(0);
 	// A term change can start a new load while the prior authority/bootstrap
 	// read is still in flight. Only the newest load may clear or replace the
@@ -647,6 +651,10 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 	const fallbackTermRef = useRef<number | null>(null);
 	const [fallbackTermIndex, setFallbackTermIndex] = useState<number | null>(null);
 	const [termAuthorityNotice, setTermAuthorityNotice] = useState<string | null>(null);
+	const termAuthorityUnresolved = !isTermAuthorityVerified(schoolYearContext?.activeTerm);
+	const effectiveTermFilter: 'all' | number = termAuthorityUnresolved && fallbackTermIndex != null
+		? fallbackTermIndex
+		: termFilter;
 	// D2 — set when the load gate blocks so the verified-landing effect can
 	// re-run the load instead of leaving a dead page.
 	const gateBlockedRef = useRef(false);
@@ -672,16 +680,16 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 	// remain visible for every term.
 	const violations = useMemo(() => {
 		const all = violationReport?.violations ?? [];
-		if (typeof termFilter !== 'number') return all;
+		if (typeof effectiveTermFilter !== 'number') return all;
 		const termByEntryId = new Map((draft?.entries ?? []).map((entry) => [entry.entryId, entry.termIndex]));
 		return all.filter((violation) => {
 			const metaTerm = (violation.meta as { termIndex?: unknown } | undefined)?.termIndex;
-			if (typeof metaTerm === 'number') return metaTerm === termFilter;
+			if (typeof metaTerm === 'number') return metaTerm === effectiveTermFilter;
 			const entryIds = violation.entities?.entryIds ?? [];
 			if (entryIds.length === 0) return true;
-			return entryIds.some((entryId) => termByEntryId.get(entryId) === termFilter);
+			return entryIds.some((entryId) => termByEntryId.get(entryId) === effectiveTermFilter);
 		});
-	}, [violationReport, termFilter, draft]);
+	}, [violationReport, effectiveTermFilter, draft]);
 	const violationIndex = useMemo(() => buildViolationIndex(violations), [violations]);
 
 	const highlightedEntryIds = useMemo(() => {
@@ -787,7 +795,6 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 	// D3 — while term authority is unresolved, the explicit fallback scope (one
 	// numeric term, never an implicit all-term fetch) keeps the grid and the
 	// run-bundle query enabled. Verified state always wins over the fallback.
-	const termAuthorityUnresolved = !isTermAuthorityVerified(schoolYearContext?.activeTerm);
 	const termScope: TimetableTermScopeState = termScopeBase.queryEnabled || termAuthorityUnresolved === false || fallbackTermIndex == null
 		? termScopeBase
 		: { authorityReady: false, queryEnabled: true, termIndex: fallbackTermIndex, status: 'active' };
@@ -941,7 +948,7 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 		let roomId: number | undefined;
 		let sourceEntryId: string | undefined;
 		// TT-OUTPUT-C03R3: the edited term scope; conflict identity is term-aware.
-		let termIndex: number | undefined = typeof termFilter === 'number' ? termFilter : undefined;
+		let termIndex: number | undefined = typeof effectiveTermFilter === 'number' ? effectiveTermFilter : undefined;
 
 		if (dragItem) {
 			if (dragItem.type === 'entry') {
@@ -995,7 +1002,7 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 
 		if (!sectionId) return null;
 		return { sectionId, facultyId, allFacultyOptions, roomId, sourceEntryId, termIndex };
-	}, [dragItem, kbSelectedSource, preGenKbSource, termFilter]);
+	}, [dragItem, kbSelectedSource, preGenKbSource, effectiveTermFilter]);
 
 	const legacyCellConflictMap = useMemo<Map<string, import('@/types').CellConflictInfo> | null>(() => {
 		if (!conflictContext) return null;
@@ -1195,7 +1202,7 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 		const cached = liveDragConflictRef.current;
 		if (!cached || cached.source !== source || cached.entries !== activeGridEntriesBase) {
 			let context: import('@/lib/timetable-live-conflict').TimetableConflictContext | null = null;
-			const activeTerm = typeof termFilter === 'number' ? termFilter : undefined;
+			const activeTerm = typeof effectiveTermFilter === 'number' ? effectiveTermFilter : undefined;
 			if (source.type === 'entry') {
 				context = { sectionId: source.entry.sectionId, facultyId: source.entry.facultyId, roomId: source.entry.roomId, sourceEntryId: source.entry.entryId, termIndex: source.entry.termIndex ?? activeTerm };
 			} else if (source.type === 'draftQueue') {
@@ -1225,7 +1232,7 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 		}
 		const activeLookup = liveDragConflictRef.current?.lookup;
 		return activeLookup?.(cellId) ?? null;
-	}, [activeGridEntriesBase, facultyMap, getCellConflict, liveConflictIndex, roomMap, sectionMap, subjectMap, termFilter, timeSlots]);
+	}, [activeGridEntriesBase, facultyMap, getCellConflict, liveConflictIndex, roomMap, sectionMap, subjectMap, effectiveTermFilter, timeSlots]);
 
 	const filteredDraftEntries = useMemo(() => {
 		return activeGridEntriesBase.filter((entry) => {
@@ -1234,13 +1241,13 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 			if (!matchesEntryKindFilter(entry.entryKind, entryKindFilter)) return false;
 			// Term is the authoritative schedule scope: an entry belongs to exactly
 			// one numeric term; entries without a termIndex stay all-term-only.
-			if (!matchesTermScope(entry, termFilter)) return false;
+			if (!matchesTermScope(entry, effectiveTermFilter)) return false;
 			return true;
 		});
-	}, [activeGridEntriesBase, entryKindFilter, programFilter, termFilter, sectionMap]);
+	}, [activeGridEntriesBase, entryKindFilter, programFilter, effectiveTermFilter, sectionMap]);
 
 	const programKindFilteredUnassignedItems = useMemo(() => {
-		const unassignedTerm = typeof termFilter === 'number' ? termFilter : null;
+		const unassignedTerm = typeof effectiveTermFilter === 'number' ? effectiveTermFilter : null;
 		return (draft?.unassignedItems ?? []).filter((item) => {
 			const programType = item.programType ?? sectionMap.get(item.sectionId)?.programType ?? null;
 			if (!matchesProgramFilter(programType, programFilter)) return false;
@@ -1253,7 +1260,7 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 			}
 			return true;
 		});
-	}, [draft, entryKindFilter, programFilter, sectionMap, termFilter]);
+	}, [draft, entryKindFilter, programFilter, sectionMap, effectiveTermFilter]);
 
 	const filteredUnassignedItems = useMemo(() => {
 		return programKindFilteredUnassignedItems.filter((item) => {
@@ -1443,8 +1450,8 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 		runId,
 		// D3 — while the fallback is in effect the imperative reads fetch the
 		// same explicit term the grid renders, never the still-'all' filter.
-		termIndex: fallbackTermRef.current ?? termFilter,
-	}), [schoolId, termFilter]);
+		termIndex: fallbackTermRef.current ?? termFilterRef.current,
+	}), [schoolId]);
 
 	const fetchRuns = useCallback(async (syId: number, options?: FetchOptions) => {
 		if (!schoolId) throw new Error('Authenticated school scope is unavailable.');
@@ -1638,8 +1645,8 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 		runId: selectedRunId,
 		// D3 — the reactive bundle query follows the same explicit scope the
 		// imperative load fetches while the fallback is in effect.
-		termIndex: termScope.queryEnabled && termScope.termIndex != null ? termScope.termIndex : termFilter,
-	}), [schoolId, schoolYearId, selectedRunId, termFilter, termScope]);
+		termIndex: termScope.queryEnabled && termScope.termIndex != null ? termScope.termIndex : effectiveTermFilter,
+	}), [schoolId, schoolYearId, selectedRunId, effectiveTermFilter, termScope]);
 
 	const runBundleQuery = useQuery({
 		queryKey: timetableRunBundleQueryKey(currentScope),
@@ -1749,8 +1756,8 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 			// explicit term scope (D3) instead of blocking the whole page.
 			const gate = resolveTimetableLoadGate({
 				authorityReady: termAuthorityReadyRef.current,
-				termFilter,
-				userOverrodeTermFilter: input.userOverrodeTermFilter,
+				termFilter: termFilterRef.current,
+				userOverrodeTermFilter: userOverrodeTermFilterRef.current,
 				fallbackTermIndex: resolveTimetableFallbackTermIndex(latestContextRef.current?.activeTerm),
 			});
 			if (gate.kind === 'blocked-setup') {
@@ -1835,8 +1842,6 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 		setDraft,
 		setViolationReport,
 		setSelectedRunId,
-		termFilter,
-		input.userOverrodeTermFilter,
 	]);
 
 	useEffect(() => {
@@ -1850,14 +1855,15 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 	useEffect(() => {
 		if (!isTermAuthorityVerified(schoolYearContext?.activeTerm)) return;
 		if (!gateBlockedRef.current && fallbackTermIndex == null && fallbackTermRef.current == null) return;
+		const needsVerifiedReload = gateBlockedRef.current || fallbackTermIndex != null || fallbackTermRef.current != null;
 		gateBlockedRef.current = false;
 		fallbackTermRef.current = null;
 		setFallbackTermIndex(null);
 		setTermAuthorityNotice(null);
-		if (gateBlockedRef.current || fallbackTermIndex != null || fallbackTermRef.current != null) {
+		if (needsVerifiedReload) {
 			void loadAll({ preserveRun: true });
 		}
-	}, [schoolYearContext, fallbackTermIndex, loadAll, termFilter, input.userOverrodeTermFilter]);
+	}, [schoolYearContext, fallbackTermIndex, loadAll]);
 
 	useEffect(() => {
 		if (runs.length === 0) setLeftTab('pinned');
@@ -1977,6 +1983,7 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 		activeGeneratedRunId,
 		fetchSchoolYear,
 		termAuthorityNotice,
+		effectiveTermFilter,
 		fetchRuns,
 		fetchRunData,
 		fetchDraftBoardSummary,

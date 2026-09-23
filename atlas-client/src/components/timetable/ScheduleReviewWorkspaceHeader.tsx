@@ -1,5 +1,5 @@
 import { memo, Profiler, useRef, useState } from 'react';
-import { AlertTriangle, ArrowRightLeft, CalendarClock, ClipboardCheck, ClipboardList, Crosshair, GraduationCap, History, Info, Lightbulb, ListChecks, Loader2, MoreHorizontal, Play, RefreshCw, RotateCw, SearchCheck, Send, Settings2, Undo2, Wrench } from 'lucide-react';
+import { AlertTriangle, ArrowRightLeft, CalendarClock, ClipboardCheck, ClipboardList, Crosshair, GraduationCap, History, Lightbulb, ListChecks, Loader2, MoreHorizontal, Play, RefreshCw, RotateCw, SearchCheck, Send, Settings2, Undo2, Wrench } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
 import atlasApi from '@/lib/api';
@@ -350,20 +350,7 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 	const activeTermLabel = verifiedOrderedTerm
 		? (activeTermContext?.orderedTerms?.find((term) => term.order === activeTermContext.termIndex)?.displayLabel ?? `Term ${activeTermContext?.termIndex}`)
 		: null;
-	const sourceLabel = !sourceContext
-		? 'Checking school year and term'
-		: sourceContext.source === 'enrollpro-verified'
-			? 'Term verified'
-			: sourceContext.source === 'enrollpro'
-				? 'Term settings loaded'
-				: sourceContext.source === 'cache'
-					? 'Using saved term settings'
-					: 'Using saved schedule settings';
-	const sourceTone = !sourceContext || sourceContext.source === 'enrollpro-verified' || sourceContext.source === 'enrollpro'
-		? 'border-emerald-200 bg-emerald-50 text-emerald-900'
-		: 'border-amber-200 bg-amber-50 text-amber-950';
 	const latestRunCandidate = runOptions[0] ?? null;
-	const visibleRunId = draft?.runId ?? activeGeneratedRunId;
 	const newerFailedRunNotice = selectedRunId === 'latest'
 		&& draft?.runId != null
 		&& latestRunCandidate?.id != null
@@ -371,7 +358,6 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 		&& latestRunCandidate.status !== 'COMPLETED'
 			? `Grid uses completed run #${draft.runId}; newer run #${latestRunCandidate.id} is ${latestRunCandidate.status ?? 'not completed'}.`
 			: null;
-	const showSourceTruthNotice = Boolean(newerFailedRunNotice || sourceContext?.stale || sourceContext?.source === 'cache' || sourceContext?.source === 'atlas-persisted');
 	// TIMETABLE-TERM-GATE-C01 (D3) — the explicit-scope fallback is visible: an
 	// unverified authority with data on screen means the timetable loaded one
 	// explicit term instead of dead-ending. A blocked page (no data) keeps the
@@ -395,7 +381,6 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 		<Profiler id="Header" onRender={onProfilerRender}>
 			<div className="shrink-0 border-b border-border bg-background">
 			<div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-b border-border/60 bg-muted/20 px-4 py-1.5 text-xs text-muted-foreground" data-testid="timetable-scheduler-orientation">
-				<span><span className="font-semibold text-foreground">School year:</span> {sourceContext?.activeSchoolYearLabel ?? (schoolYearId ? `#${schoolYearId}` : 'Not selected')}</span>
 				<span><span className="font-semibold text-foreground">Term:</span> {activeTermLabel ?? 'Term setup required'}</span>
 				<span><span className="font-semibold text-foreground">Scope:</span> {termFilter === 'all' ? 'All terms' : (termOptions.find((option) => option.value === String(termFilter))?.label ?? 'Selected term')}</span>
 				<span><span className="font-semibold text-foreground">Next:</span> {nextActionLabel}</span>
@@ -405,34 +390,13 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 					variant={isPreGenerationWorkspace ? 'secondary' : 'default'}
 					className={cn('h-7 shrink-0 px-2.5 text-xs font-semibold uppercase', isPreGenerationWorkspace ? 'border border-border bg-muted text-muted-foreground' : 'bg-primary text-primary-foreground')}
 				>
-					{isPreGenerationWorkspace ? 'Pre-Generation Draft' : activeGeneratedRunId != null ? `Generated Run #${activeGeneratedRunId}` : 'No generated run yet'}
+					{isPreGenerationWorkspace ? 'Planning draft' : activeGeneratedRunId != null ? 'Generated timetable' : 'No generated run yet'}
 				</Badge>
 
-				{showSourceTruthNotice && (
-					<TooltipProvider delayDuration={300}>
-						<Tooltip>
-							<TooltipTrigger asChild>
-								<Badge
-									variant="outline"
-									data-testid="timetable-source-truth"
-									className={cn('h-7 max-w-[34vw] shrink-0 gap-1.5 px-2 text-xs font-semibold', sourceTone)}
-								>
-									<Info className="size-3.5 shrink-0" aria-hidden="true" />
-									<span className="truncate">
-										{sourceLabel}
-										{schoolYearId ? ` · School year #${schoolYearId}` : ''}
-										{visibleRunId ? ` · Run #${visibleRunId}` : ''}
-									</span>
-									<span className="sr-only" data-testid="timetable-run-source-note">
-										{newerFailedRunNotice ?? 'Live EnrollPro verification is not confirmed. Review this as saved ATLAS data until source is refreshed.'}
-									</span>
-								</Badge>
-							</TooltipTrigger>
-							<TooltipContent side="bottom" className="max-w-xs text-xs" data-testid="timetable-run-source-disclosure">
-								{newerFailedRunNotice ?? 'Live EnrollPro verification is not confirmed. Review this as saved ATLAS data until source is refreshed.'}
-							</TooltipContent>
-						</Tooltip>
-					</TooltipProvider>
+				{newerFailedRunNotice && (
+					<Badge variant="outline" data-testid="timetable-newer-run-failed" className="h-7 shrink-0 px-2 text-xs font-semibold border-amber-200 bg-amber-50 text-amber-950">
+						A newer run failed; showing the last completed schedule.
+					</Badge>
 				)}
 
 				{termAuthorityNotice && (
@@ -548,7 +512,7 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 						Continue draft
 					</Button>
 				)}
-				{isPreGenerationWorkspace && isRunPublished && activeGeneratedRunId != null && (
+				{isPreGenerationWorkspace && context.hasPublishedReturnState && (
 					<Button
 						variant="outline"
 						size="sm"
@@ -765,28 +729,6 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 					<RolloverGuidanceCard compact schoolId={schoolId} onStatus={setRolloverStatus} onApplied={() => handleRefresh()} />
 				) : null}
 			</div>
-
-			{false && showSourceTruthNotice && (
-				<div
-					data-testid="timetable-source-truth-detail"
-					className={cn(
-						'mx-2 mb-1 flex flex-nowrap items-center justify-between gap-2 rounded-lg border px-2 py-1 text-xs shadow-sm sm:mx-4 sm:flex-wrap sm:px-3 sm:py-1.5',
-						sourceTone,
-					)}
-				>
-					<div className="flex min-w-0 items-center gap-2">
-						<Info className="size-3.5 shrink-0" aria-hidden="true" />
-						<p className="min-w-0 truncate font-semibold">
-							{sourceLabel}
-							{schoolYearId ? ` · School year #${schoolYearId}` : ''}
-							{visibleRunId ? ` · Run #${visibleRunId}` : ''}
-						</p>
-					</div>
-					<p className="sr-only" data-testid="timetable-run-source-note">
-						{newerFailedRunNotice ?? 'Live EnrollPro verification is not confirmed. Review this as saved ATLAS data until source is refreshed.'}
-					</p>
-				</div>
-			)}
 
 			<div
 				data-testid="timetable-task-guide"
