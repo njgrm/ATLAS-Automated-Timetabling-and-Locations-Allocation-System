@@ -492,6 +492,24 @@ it complete `TEST-GATE-REACHABILITY-C01` (`f4462374`) and hand it over for integ
 
 ## Lane A — current lane (written only by Lane A)
 
+**`OFFLINE-FALLBACK-STALENESS-20260924` — the offline term fallback would resolve a STALE term (finding, not fixed) (2026-09-24).**
+Read-only; no source/deploy/login/live-data action; live `22d1f5a8` unchanged. **Finding:** the
+RR-TERM-CACHE offline fallback (`atlas-server/src/services/runtime-context.service.ts` ~L418) surfaces the
+**persisted** `term_contract_cache.activeTerm` as `verified: true` when the EnrollPro active-term endpoint is
+unreachable. For school 1 / year 10 the persisted contract (`enrollpro_school_year_mirrors` id 551, active,
+cached 2026-09-18) carries `activeTerm = T1`, but the **live** EnrollPro active term is **T2** — so during an
+EnrollPro outage the timetable would resolve **T1 (stale)** instead of the current T2. **Root cause:** the
+writer (`enrollpro-term-contract.service.ts:584`) only rewrites the cache when `semanticRevision` changes, and
+the active term is not part of that revision — so the snapshot never refreshes while the ordered terms are
+unchanged; even a term-cache sync reports `ALREADY_CURRENT` and would not fix it. **Impact:** outage-only; a
+wrong default term (the user can still switch terms). **Not demo-affecting** — EnrollPro is reachable, so the
+live path resolves T2 (`dashboard/readiness-summary` → `source:"enrollpro-verified"`, `activeTerm:"T2"`).
+**Recommended fix (NOT applied — semantics change on an unverifiable outage path, the night before a demo):**
+derive the fallback active term from the persisted contract's term dates (needs a defined policy for the
+2026-10-23…2026-10-29 gap between T2 and T3), or include the active term in the `semanticRevision` so a sync
+refreshes it. The RR-TERM-CACHE offline fallback therefore remains **verified by the QA harness only, not
+live**.
+
 **`DEMO-READINESS-ACCEPTANCE-20260924` — live `22d1f5a8` fully verified demo-ready; nothing to deploy (2026-09-24).**
 Read-only; no source/deploy/login/live-data action. `origin/main` `030861d6` has **no undeployed product
 delta** (its product tree == live `22d1f5a8`; all other branches merged). **Comprehensive route acceptance at
