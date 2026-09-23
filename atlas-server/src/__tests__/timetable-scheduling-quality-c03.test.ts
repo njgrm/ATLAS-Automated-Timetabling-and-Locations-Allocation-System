@@ -320,6 +320,7 @@ test('C03 production validator fixtures verify overlap repairs and reject unreso
 		const target = resourceViolations.find((violation) => violation.code === code);
 		assert.ok(target, `the real constraint validator must emit ${code}`);
 		const run = { ...base.run, draftEntries: entries, violations: resourceViolations };
+		let previewContextReads = 0;
 		const response = await getViolationRepairOptions(1, 10, 316, {
 			code, termIndex: 1, entryIds: [...(target.entities?.entryIds ?? [])].sort(),
 			...(target.entities?.roomId ? { roomId: target.entities.roomId } : {}),
@@ -328,11 +329,12 @@ test('C03 production validator fixtures verify overlap repairs and reject unreso
 			...(target.entities?.facultyId ? { facultyId: target.entities.facultyId } : {}),
 		}, {
 			loadRun: async () => run as never,
-			loadManualEditContext: async () => ({ ...resourceRefData, run } as never),
+			loadManualEditContext: async () => { previewContextReads += 1; return { ...resourceRefData, run } as never; },
 			now: () => new Date('2030-01-02T03:04:05.000Z'),
 		});
 		assert.notEqual(response.status, 'REPAIRABLE', `${code} may not be cleared by an unverified proposal`);
 		assert.deepEqual(response.options, []);
+		assert.equal(previewContextReads, 0, `${code} must be rejected before entering the timeslot proposal loop`);
 	}
 });
 
