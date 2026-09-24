@@ -1,6 +1,6 @@
 import { createServer } from 'node:http';
 
-import app from './app.js';
+import app, { requestTiming } from './app.js';
 import { prisma } from './lib/prisma.js';
 import { registerProcessCrashHandlers } from './services/crash-handler.service.js';
 import { registerRoomPreferenceCollaborationSocket } from './services/room-preference-collaboration.service.js';
@@ -57,6 +57,7 @@ async function checkPolicySchema() {
 
 server.listen(PORT,'0.0.0.0', async () => {
 	console.log(`[ATLAS] Server listening on http://localhost:${PORT}`);
+	requestTiming.start();
 	// Startup connectivity check
 	try {
 		const count = await prisma.school.count();
@@ -72,5 +73,6 @@ server.listen(PORT,'0.0.0.0', async () => {
 });
 
 server.on('close', () => {
+	requestTiming.stop();
 	stopRolloverAutomation();
 });
