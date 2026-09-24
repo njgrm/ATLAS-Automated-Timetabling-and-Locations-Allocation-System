@@ -39,32 +39,39 @@ resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs
 ## Live release
 
 - Tailnet: `https://njgrm.buru-degree.ts.net`
-- **Target release SHA: `066da7a7`** (**deployment-pending** 2026-09-25; release dir
-  `E:\ATLAS-runtime-supervised-066da7a7-20260925`; program `TEACHER-CONCERN-AUTHORITY-PROGRAM-20260924`
-  C5+C6 product; rollback basis `37e0c85b`; adds `20260925000002_faculty_availability`). Recorded before
-  cutover per the `deploy-runner.ps1` gate; the incumbent bullet below remains the LIVE release until the
-  cutover completes. Browser acceptance deferred to **Lane B (Codex)**. Packet:
+- **Release SHA: `066da7a7`** (**LIVE** since 2026-09-25; `E:\ATLAS-runtime-supervised-066da7a7-20260925`;
+  supervisor-owned 5001→78160 / 5174→74512; health/ready (`database:"ok"`) + DB-backed read
+  (`GET /api/v1/subjects?schoolId=1` → 200 with data) + Tailnet 200; served entry
+  `assets/index-D90Rg0kl.js` (SHA-256 `6C057F4C…B8EC44C`, byte-identical to the build) and new-build-only
+  chunk `assets/TeacherConcerns-B1glPilv.js` (SHA-256 `834649FF…8BD41AEA`, byte-identical); machine
+  `ATLAS_RUNTIME_SOURCE_DIR` / `RELEASE_SHA` = the target). Program
+  `TEACHER-CONCERN-AUTHORITY-PROGRAM-20260924` C5+C6 product. **Migration APPLIED** 2026-09-25 via the
+  guarded runner to `atlas_recovery_clean_rebuild_20260905`:
+  `20260925000002_faculty_availability` (`MIGRATE_GATE_OK`, backup
+  `atlas-backup-atlas_recovery_clean_rebuild_20260905-20260924-204504.dump`, sha256 `1e6343c7…`;
+  applied count 10 → 11; tables/FKs/unique index/enum probed present). Cut over by
+  `ops/runtime/deploy-runner.ps1` (dry-run audit `C:\ProgramData\ATLAS\release-audit\066da7a7-20260925-044557`;
+  execute audit `C:\ProgramData\ATLAS\release-audit\066da7a7-20260925-044622`). **Deployment verified by
+  executor (2026-09-25)** per the evidence above. **Acceptance PARTIAL** — authenticated/browser rows
+  `EXTERNALLY_BLOCKED(AUTH_SESSION_REQUIRED)`; fresh independent post-action QA pending (executor returned
+  `REVIEW_REQUIRED`). **Acceptance owner: Lane B (Codex)** — browser custody; needs an operator-provided
+  session (one `LOCAL_LOGIN_SUCCESS` + `last_login_at`). Packet:
   `docs/prompts/c7-teacher-concern-deploy-2026-09-25.md`.
-- **Release SHA: `37e0c85b`** (**LIVE** since 2026-09-25; `E:\ATLAS-runtime-supervised-37e0c85b-20260925`;
-  supervisor-owned 5001→63452 / 5174→26084; health/ready (`database:"ok"`) + DB-backed read + Tailnet 200;
-  served entry `assets/index-qbOXyMnr.js` (SHA-256 `8372C342…D43B60`, byte-identical to the build); machine
-  `ATLAS_RUNTIME_SOURCE_DIR` / `RELEASE_SHA` = the target). Carries the global native-scrollbar token policy
-  and the S8 shift-coherence guard (D11). **Migration APPLIED** 2026-09-25 via the guarded runner to
-  `atlas_recovery_clean_rebuild_20260905`: `20260925000001_shift_coherence` (`MIGRATE_GATE_OK`, backup
-  `atlas-backup-atlas_recovery_clean_rebuild_20260905-20260924-181614.dump`, sha256 `5676cde9…`). Cut over by
-  `ops/runtime/deploy-runner.ps1` (audit `C:\ProgramData\ATLAS\release-audit\37e0c85b-20260925-021830`).
-  **Deployment verified:** fresh QA `ACCEPT_READY` 18/18/0/0. **Acceptance PARTIAL** — authenticated browser
-  rows `EXTERNALLY_BLOCKED(AUTH_SESSION_REQUIRED)`. **Acceptance owner: Lane B (Codex)** — assigned by
-  Lane A 2026-09-25; needs an operator-provided session (one `LOCAL_LOGIN_SUCCESS` + `last_login_at`).
+- **Rollback basis: `37e0c85b`** at `E:\ATLAS-runtime-supervised-37e0c85b-20260925` (startable in place;
+  supervisor-owned ports reclaimed on restart; carries the global native-scrollbar token policy and the S8
+  shift-coherence guard (D11); applied `20260925000001_shift_coherence`; compatible with the additive
+  `20260925000002_faculty_availability`). Its cutover audit was
+  `C:\ProgramData\ATLAS\release-audit\37e0c85b-20260925-021830`; fresh QA was `ACCEPT_READY` 18/18/0/0 with
+  authenticated browser rows `PARTIAL`.
 - **Rollback depth** (retention policy: live + two most recent accepted):
-  1. `a5f7384e61a24059cdeaadbfa279969877838e0f` at `E:\ATLAS-runtime-supervised-a5f7384e-20260925` — the
-     rollback basis; compatible with the additive `37e0c85b` migration.
+  1. `a5f7384e61a24059cdeaadbfa279969877838e0f` at `E:\ATLAS-runtime-supervised-a5f7384e-20260925` —
+     compatible with the additive migrations.
   2. `002c88793212709468843c10fc69aa09eef0eb46` at `E:\ATLAS-runtime-supervised-002c8879-20260924` —
-     compatible (the `a5f7384e` migrations are additive with safe defaults).
+     retained beyond immediate depth; compatible.
   Every other `*/ATLAS-runtime-*` directory is beyond rollback depth: a retention-reclaim candidate, except
   the named last-resort artifacts (`docs/reference/agent-worktree-lifecycle.md`).
-- **Acceptance debt (as of 2026-09-25):** `37e0c85b`, `a5f7384e` and `002c8879` each shipped with
-  authenticated browser acceptance `PARTIAL (AUTH_SESSION_REQUIRED)`.
+- **Acceptance debt (as of 2026-09-25):** `066da7a7`, `37e0c85b`, `a5f7384e` and `002c8879` each shipped
+  with authenticated browser acceptance `PARTIAL (AUTH_SESSION_REQUIRED)`.
 
 ## Live data
 
