@@ -129,7 +129,7 @@ hand teacher concerns to SMART.
 | C4b | **S8** shift coherence (owns `teaching-load-automation.service.ts`; must follow S7) | **DONE** — candidate `ae79b45f`, merge `f37b8ea4`; QA `ACCEPT_READY` 19/19/0/0; migration `20260925000001_shift_coherence` unapplied |
 | C5 | **S1** availability authority ∥ **S4-server** post-publish identity deltas | **DONE** — S1 `af3a24c5` + S4-server `d51a8f16` merged at `4e9acbf5`; QA `ACCEPT_READY` 16/16/0/0 and 9/9/0/0; migrations `20260925000002_faculty_availability` unapplied |
 | C6 | **S2** scheduler concern workspace (client) ∥ **S4-client** drift/revision UX + D4 read-back | **DONE** — S2 `c403e743` + S4-client `ffbda016` merged together; QA `ACCEPT_READY` 12/12/0/0 and 9/9/0/0 |
-| C7 | integration → deployment → two-viewport browser acceptance | **NEXT** (must apply `20260925000001_shift_coherence` + `20260925000002_faculty_availability` via the guarded runner after a fresh revalidated backup) |
+| C7 | integration → deployment → two-viewport browser acceptance | **DONE** (deploy) — `066da7a7` LIVE 2026-09-25; `20260925000002_faculty_availability` applied (`MIGRATE_GATE_OK`, 10→11); post-action QA `ACCEPT_READY` 8/8/0/0; **browser acceptance deferred to Lane B (Codex)** |
 
 Rules: one writer per lane, separate `E:` worktrees, disjoint files. `S7`/`S8` share
 `teaching-load-automation.service.ts` → **sequenced**. D6 (teacher-portal removal) lands with **S2**,

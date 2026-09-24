@@ -51,11 +51,13 @@ resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs
   `atlas-backup-atlas_recovery_clean_rebuild_20260905-20260924-204504.dump`, sha256 `1e6343c7…`;
   applied count 10 → 11; tables/FKs/unique index/enum probed present). Cut over by
   `ops/runtime/deploy-runner.ps1` (dry-run audit `C:\ProgramData\ATLAS\release-audit\066da7a7-20260925-044557`;
-  execute audit `C:\ProgramData\ATLAS\release-audit\066da7a7-20260925-044622`). **Deployment verified by
-  executor (2026-09-25)** per the evidence above. **Acceptance PARTIAL** — authenticated/browser rows
-  `EXTERNALLY_BLOCKED(AUTH_SESSION_REQUIRED)`; fresh independent post-action QA pending (executor returned
-  `REVIEW_REQUIRED`). **Acceptance owner: Lane B (Codex)** — browser custody; needs an operator-provided
-  session (one `LOCAL_LOGIN_SUCCESS` + `last_login_at`). Packet:
+  execute audit `C:\ProgramData\ATLAS\release-audit\066da7a7-20260925-044622`). **Deployment verified:** fresh
+  independent post-action QA `ACCEPT_READY` **8/8/0/0** (blocked 0, unperformed 0). **Acceptance PARTIAL** —
+  authenticated/browser rows `EXTERNALLY_BLOCKED(AUTH_SESSION_REQUIRED)`. **Acceptance owner: Lane B (Codex)**
+  — browser custody; needs an operator-provided session (one `LOCAL_LOGIN_SUCCESS` + `last_login_at`).
+  Disclosure (QA F1): a post-cutover authentication footprint (audit rows 952 FAILED / 953 SUCCESS at
+  ~20:49–20:50Z plus one account `last_login_at`) was observed and is **not** attributable to the deployment
+  executor (it performed no login) — the operator should attribute it. Packet:
   `docs/prompts/c7-teacher-concern-deploy-2026-09-25.md`.
 - **Rollback basis: `37e0c85b`** at `E:\ATLAS-runtime-supervised-37e0c85b-20260925` (startable in place;
   supervisor-owned ports reclaimed on restart; carries the global native-scrollbar token policy and the S8
@@ -153,26 +155,23 @@ exception applies; untouched.
 
 ## Lane A — current lane (written only by Lane A)
 
-**Stream: `TEACHER-CONCERN-AUTHORITY-PROGRAM-20260924` (D1–D11 locked).** The scheduler is the single
-place that accommodates teacher preferences/availability (draft and post-publish); SMART holds a
-teacher-scoped opt-in draft read; the ATLAS teacher portal is removed. Plan + cycle queue:
-`docs/plans/teacher-concern-authority-plan-2026-09-24.md`. **Source C1–C6 is DONE on `main`;**
-`origin/main` = `178c2929`. Full cycle narrative moved to `docs/handoffs/planner-session-handoff.md`
-(2026-09-25).
+**Stream: `TEACHER-CONCERN-AUTHORITY-PROGRAM-20260924` (D1–D11 locked) — C1–C7 COMPLETE; release
+`066da7a7` LIVE 2026-09-25.** The scheduler is the single place that accommodates teacher
+preferences/availability (draft and post-publish); SMART holds a teacher-scoped opt-in draft read; the
+ATLAS teacher portal is removed. Plan + cycle queue:
+`docs/plans/teacher-concern-authority-plan-2026-09-24.md`. Full cycle narrative:
+`docs/handoffs/planner-session-handoff.md` (2026-09-25).
 
-**Next action — C7 (HIGH, not started):** deploy `178c2929` (or its successor) and run the two-viewport
-browser acceptance. Preconditions: apply `20260925000001_shift_coherence` and
-`20260925000002_faculty_availability` with the guarded runner (`npx tsx src/scripts/atlas-migrate.ts`
-from `atlas-server`, runtime env loaded — never bare Prisma) after a fresh revalidated backup, then
-`ops/runtime/deploy-runner.ps1`. **Acceptance owner for the deferred browser rows: Lane B (Codex)**,
-which holds browser custody — hand it the release SHA and the acceptance rows; it records the result in
-the Live release block. Rollback: the incumbent live release, startable in place (both migrations are
-additive with safe defaults). The acceptance needs one scheduler login (`LOCAL_LOGIN_SUCCESS` +
-`last_login_at` audit delta) — disclose it, never print credentials.
+**Next action — browser acceptance only:** the deferred authenticated/two-viewport rows for `066da7a7`
+belong to the named acceptance owner **Lane B (Codex)** (browser custody); hand it the release SHA and the
+packet's rows (a)–(d); it records the result in the Live release block. Needs one operator-provided
+session (`LOCAL_LOGIN_SUCCESS` + `last_login_at`). Deployment rollback basis: `37e0c85b` (startable in
+place; additive migration). Nothing else remains in this stream.
 
 **Dated blockers / open residuals (verify before acting):**
-- C7 migration + deploy HIGH gate not yet executed (2026-09-25); nothing above the concurrent lane's
-  live release is deployed.
+- C7 DEPLOYED 2026-09-25 (`066da7a7` LIVE; migration `20260925000002_faculty_availability` applied
+  `MIGRATE_GATE_OK`, count 10→11; fresh post-action QA `ACCEPT_READY` 8/8/0/0). **Acceptance PARTIAL** —
+  authenticated/browser rows deferred to the named owner **Lane B (Codex)** (2026-09-25).
 - `resolvePublishedRunTermIndex` resolves official export terms from the base snapshot, not the
   effective identity override (F1) — close before any `orderedTermContract` override is applied live
   (2026-09-25).
@@ -189,3 +188,8 @@ non-forced after unlinking their `node_modules` junctions; branches retained (`p
 confirmed on origin). `timetable-scheduler-simplicity-c01` is **preserved** — it is dirty
 (`package-lock.json`, `package.json`, its test, `roomPreferenceCollaboration.ts`, untracked
 `test.out`/`test.err`).
+
+**C7 deployment artifacts (2026-09-25):** release dir `E:\ATLAS-runtime-supervised-066da7a7-20260925`
+(live); this docs worktree `E:\ATLAS-worktrees\c7-teacher-concern-deploy` (branch
+`docs/c7-teacher-concern-deploy`) is `RETIRE_AFTER_INTEGRATION`; the retired S8/C5/C6 worktrees' branches
+are retained. `E:` 57.9 GiB free.
