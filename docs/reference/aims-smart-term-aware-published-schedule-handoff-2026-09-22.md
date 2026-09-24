@@ -2,7 +2,7 @@
 
 **To:** the AIMS and SMART owners. **From:** ATLAS (Lane A); first issued 2026-09-22,
 **re-pinned 2026-09-24**.
-**Pinned to deployed ATLAS release:** `70a5160819349f5ea0742b839c11606e8408185d`
+**Contract authored and verified at release:** `70a5160819349f5ea0742b839c11606e8408185d`
 (short `70a51608`; release dir `E:\ATLAS-runtime-supervised-70a51608-20260924`; served on
 `https://njgrm.buru-degree.ts.net`). The previous pin was the superseded
 `5a333c74de03df11e0d0bf9ec6839c1916798896`. The **published read contract is unchanged**
@@ -229,7 +229,7 @@ a given entry/grade:
 4. Use `scope.shift` when non-null; when it is `null`, fall back to the `source.shiftWindows[]` lookup
    for the entry's grade.
 5. Treat a window with `scope.note === "SCOPE_NOT_DERIVABLE"` (or a payload that predates `scope`
-   entirely — see the deployed `70a51608` pin) as the legacy school-wide union: **do not assume a
+   entirely — see the `70a51608`/pre-D8 pin) as the legacy school-wide union: **do not assume a
    grade/shift attribution.** (This is the resolved outcome of the SMART-DRAFT-READ-S3 Deliverable-2
    investigation and its successor SPECIAL-EVENT-SCOPE-C01; the in-source note is at
    `atlas-server/src/services/published-schedule.service.ts` `buildSpecialEventsPayload`.)
@@ -241,9 +241,12 @@ every entry `termIndex: 1`, run **317** / revision **43**, `snapshotState: FROZE
 non-empty; `specialEvents` count 5 (two `Lunch Break`, two `Health Break`, one flag ceremony) as
 described in §4.4.
 
-**Live pin restated.** The deployed release remains
-`70a5160819349f5ea0742b839c11606e8408185d` (short `70a51608`; release dir
-`E:\ATLAS-runtime-supervised-70a51608-20260924`; served on `https://njgrm.buru-degree.ts.net`). That
+**Live pin restated.** The current live release is
+`002c88793212709468843c10fc69aa09eef0eb46` (short `002c8879`; deployed 2026-09-24; release dir
+`E:\ATLAS-runtime-supervised-002c8879-20260924`), and `70a51608` is now the **rollback basis**. This
+contract was authored and verified at `70a51608` (release dir
+`E:\ATLAS-runtime-supervised-70a51608-20260924`; served on `https://njgrm.buru-degree.ts.net`).
+Neither
 pin's `specialEvents[]` rows carry the legacy fields only — **no `scope`, and no
 `source.shiftWindows[]`**. Those two fields are the additive SPECIAL-EVENT-SCOPE-C01 (D8) contract,
 authored on repository base `25fc402e` and **not yet deployed**; the counts above are unchanged by
@@ -438,7 +441,7 @@ SMART-facing summary: `docs/handoffs/smart-draft-read-s3-2026-09-24.md`.
 - **Break-window scope is now exposed additively (§4.4).** `SPECIAL-EVENT-SCOPE-C01` (D8) landed the
   additive `specialEvents[].scope` set plus `source.shiftWindows[]` on repository base `25fc402e`. It is
   **cardinality-neutral**: the union still collapses to one row per distinct window, and the scope is
-  accumulated as a SET while collapsing (never one row per grade). The deployed `70a51608` pin predates
+  accumulated as a SET while collapsing (never one row per grade). The `70a51608` pin predates
   the fields; the only remaining ambiguity is a window whose scope genuinely cannot be derived, which
   reports `appliesToAll:false` + empty arrays + `note: "SCOPE_NOT_DERIVABLE"` — for that case (and for
   any pre-`25fc402e` payload) keep treating `specialEvents[]` as the school-wide union and derive any

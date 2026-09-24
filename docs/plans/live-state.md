@@ -587,9 +587,12 @@ levels** (ATLAS-owned `(schoolId, facultyId)`; **no rollover reset**; advisory a
 **Done:** C1 S0 freeze (`530e3b19`); **C2 `S3` SMART draft read integrated at `e7ecd886`** — fresh QA
 `ACCEPT_READY` 8/8/0/0, whole-run route removed for D3, contract re-pinned off `5a333c74`, rooms + breaks
 corrections, successors `SPECIAL-EVENT-SCOPE-C01` / `TEACHER-PROGRAM-LUNCH-BREAK-C01` recorded.
-**Next action:** C3 — dispatch **S5** `SPECIAL-EVENT-SCOPE-C01` ∥ **S6** `TEACHER-LUNCH-POLICY-C01` as two
-parallel lanes on `E:` worktrees (disjoint files). Then C4 S7→S8 (sequenced), C5 S1 ∥ S4-server, C6 S2 ∥
-S4-client, C7 integration/deploy/acceptance. No deployment, login, or live-data action was taken.
+**Next action:** C4 — dispatch **S7** `FACULTY-GRADE-PREFERENCE-C01` then **S8** `SHIFT-COHERENCE-C01`
+(sequenced: both own `teaching-load-automation.service.ts`), then C5 S1 ∥ S4-server, C6 S2 ∥ S4-client,
+C7 integration/deploy/acceptance. **C3 `DONE`** — `SPECIAL-EVENT-SCOPE-C01` + `TEACHER-LUNCH-POLICY-C01`
+integrated (`85ed33b6`+ over `ac151be2`), QA `ACCEPT_READY` 6/6/0/0; 5 previously-ungated suites now
+registered (gate-reachability 115/115); the Teacher-Program lunch defect is fixed. No deployment, login,
+or live-data action was taken.
 
 **`MYSCHEDULE-TERM-SELECTION-20260924` — faculty `/my/schedule` fails closed with `TERM_SELECTION_REQUIRED` (finding, not fixed) (2026-09-24).**
 Read-only; no source/deploy/login/live-data action; live `514be157` unchanged. **Finding:** `GET /api/v1/schools/1/school-years/10/schedules/published/faculty/<id>?date=2026-09-24` returns **400 `TERM_SELECTION_REQUIRED`** ("Choose one ordered term before reading a published schedule") because `loadMyScheduleScoped` (`atlas-client/src/pages/MySchedule.tsx` ~L118) passes only `{ date }` — no `termIndex`. Adding `termIndex=2` returns **200** with the `{ source, timeSlots, specialEvents, entries }` payload, so the faculty "My Schedule" page (`/my/schedule`) renders no schedule. **Scope:** a full two-viewport route sweep found every other route clean (0 errors); this is the only failing surface. **Not demo-affecting for the officer session** (the presenter is an officer; `/my/schedule` is the faculty view), but it is a real user-facing defect and likely a **regression** from the fail-closed term-selection work that hardened the published-schedule endpoint. **Recommended fix:** pass the resolved ordered term (the active `termIndex`) in `loadMyScheduleScoped`, with the same ordered-term discipline the other published-schedule consumers use; unit-test the 400→200 path. Not applied this pass (a client build + deploy is out of budget). **RESOLVED 2026-09-24** by the `c7fc0c95` client fix (the page now sends the resolved ordered term), now live in `70a51608`; the page itself is slated for removal under D6.

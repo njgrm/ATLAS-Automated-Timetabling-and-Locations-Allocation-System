@@ -124,8 +124,8 @@ hand teacher concerns to SMART.
 |---|---|---|
 | C1 (S0) | interface freeze + decisions | **DONE** (`530e3b19`) |
 | C2 | **S3** SMART draft read + contract corrections | **DONE** — integrated `e7ecd886`; QA `ACCEPT_READY` 8/8/0/0 |
-| C3 | **S5** special-event scope ∥ **S6** teacher-lunch policy + export | **NEXT** |
-| C4 | **S7** faculty grade preference, **then** **S8** shift coherence (same `autoFill` file — not parallel) | queued |
+| C3 | **S5** special-event scope ∥ **S6** teacher-lunch policy + export | **DONE** — integrated (`85ed33b6`+); QA `ACCEPT_READY` 6/6/0/0 after correcting the grade-ID recipe and gating 5 suites |
+| C4 | **S7** faculty grade preference, **then** **S8** shift coherence (same `autoFill` file — not parallel) | **NEXT** |
 | C5 | **S1** availability authority ∥ **S4-server** post-publish identity deltas | queued |
 | C6 | **S2** scheduler concern workspace (client) ∥ **S4-client** drift/revision UX | queued |
 | C7 | integration → deployment → two-viewport browser acceptance | queued |
