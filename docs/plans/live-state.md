@@ -6,12 +6,12 @@ changes.
 
 Last reconciled: 2026-09-24 (Lane A).
 
-## Writing protocol — two planner lanes share this file
+## Writing protocol — three planner lanes share this file
 
-This file is co-maintained so two planners can work in parallel without a custody defect. The
+This file is co-maintained so three planners can work in parallel without a custody defect. The
 rules are what make that safe:
 
-1. **Each lane edits only its own section** — `Lane A — current lane` or `Lane B — current lane` —
+1. **Each lane edits only its own section** — `Lane A`, `Lane B` or `Lane C — current lane` —
    plus the `Live release` block **when it deployed**. Never rewrite another lane's section. If a
    merge conflicts inside another lane's section, **take theirs** and move on.
 2. **Every blocker or "not done" line carries `as of <date>` and what proves it.** An undated
@@ -22,7 +22,8 @@ rules are what make that safe:
 3. **Keep it short.** No narrative, no history, no per-transition register. Packets, evidence,
    handoffs and Git hold the detail.
 4. Per-lane detail lives in each lane's own handoff: Lane A in
-   `docs/handoffs/planner-session-handoff.md`, Lane B in its own handoff file.
+   `docs/handoffs/planner-session-handoff.md`, Lane B in its own handoff file, Lane C in its
+   section below until a stream needs a handoff.
 
 ## Objective
 
@@ -613,6 +614,45 @@ and AIMS.
 
 Lane B owns this section. Current stream and state: see Lane B's own handoff file. Lane A last saw
 it complete `TEST-GATE-REACHABILITY-C01` (`f4462374`) and hand it over for integration.
+
+## Lane C — current lane (written only by Lane C)
+
+Opened 2026-09-25 by operator instruction (third parallel planner). Branches `docs/lane-c-*`,
+worktrees under `E:/ATLAS-worktrees/lane-c-*`. Lane C does not write to Lane A's C5 streams
+(`teacher-availability-s1`, `publish-identity-s4-server`) or to any Lane B stream.
+
+**The 2026-09-20 "what actually remains" queue in Lane A's section is closed (verified 2026-09-25
+on `origin/main` `5b3f2643`)** — do not dispatch from it:
+
+1. `warning-readability-c01` — integrated `fac959c0` (2026-09-21); ancestor of live `37e0c85b`.
+2. Public published-view term merge — **still open, as of 2026-09-25:**
+   `work/public-published-view-term-merge-c01` (`64687444`, worktree clean) is not an ancestor of
+   `origin/main`. Owned by another planner; Lane C will not take it without a release.
+3. False warning categories — `ZONE_IMBALANCE_WARNING` producer retired (`024b8643`);
+   `FACULTY_FLOOR_TRANSITION` copy reworked (`b6b4033f`, then `d7a0f3da`/`d68fc7d6`).
+4. `test:ux-guardrails` — no longer vacuous; it runs four existing suites.
+5. SMART/AIMS companion handoffs — owned by those repositories (unchanged).
+6. Actor-school residuals — `/rollover-recovery/preview` scopes to the caller's school and
+   `parseStrictTermAuthoritySchoolId` rejects non-string/non-number input;
+   `work/actor-school-mutations-c01` (`2f1ee14b`) is merged.
+
+**`WORKTREE-RECLAIM-C02` DONE (2026-09-25).** Retired non-forced, one exact path at a time, then
+pruned: eight `D:/ATLAS-worktrees` task trees — `planner-tt-tl-modules-c04r1`,
+`integration-tt-tl-c03-cycle-20260913`, `tt-shape-diagnostic-c02`, `integration-tlrr01r-20260911`,
+`actor-scope-c01`, `w1-runtime-deploy`, `teaching-load-dept-apply`, `timetable-ttc04`. Each had an
+empty `git status --short`, a HEAD that is an ancestor of `origin/main` `5b3f2643`, an empty
+recursive reparse scan, no inbound junction from any worktree/runtime/Codex root, and no process
+referencing it. No branch deleted. `D:` free 37.8 → 47 GiB; registered worktrees 66 → 58.
+Preserved on purpose: `integration-rrtc01r-20260912` (junction anchor for the dirty
+`tl-authority-diagnostic-c02` `atlas-server/node_modules`), every dirty or unmerged tree, all
+runtime release directories, Codex worktrees, and Lane A's 2-hour-old S8 pair
+(`shift-coherence-s8`, `integration-shift-coherence-s8` — Lane A's closure to retire).
+
+**Awaiting operator decision (as of 2026-09-25):** 19 clean-but-unmerged task worktrees
+(excluding the two active C5 streams) and 9 dirty ones remain. They need owner confirmation or
+tree-equivalence proof before any retirement.
+
+**Next action:** none dispatched; awaiting the operator's next Lane C assignment.
 
 ## Lane A — current lane (written only by Lane A)
 
