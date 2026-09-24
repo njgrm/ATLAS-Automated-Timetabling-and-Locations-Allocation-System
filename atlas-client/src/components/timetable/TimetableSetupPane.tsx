@@ -49,6 +49,7 @@ export type TimetableSetupPaneInputs = {
 	schoolId: number;
 	schoolYearId: number | null;
 	activeGeneratedRunId: number | null;
+	onStartRevision: () => void;
 	draft: DraftReport | null;
 	isPreGenerationWorkspace: boolean;
 	loading: boolean;
@@ -191,6 +192,7 @@ export function TimetableSetupPane({
 				onRolloverStatus={setRolloverStatus}
 				capabilities={capabilities}
 				isPublished={isRunPublished}
+				onStartRevision={inputs?.onStartRevision}
 			/>
 			<ScrollArea className="min-h-0 flex-1">
 				<div className="mx-auto w-full max-w-2xl space-y-3 p-4">

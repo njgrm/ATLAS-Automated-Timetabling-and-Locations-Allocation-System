@@ -80,7 +80,7 @@ export function SimpleMoreMenuContent({
 				</DropdownMenuItem>
 				<DropdownMenuItem className="h-9 gap-2 text-xs" disabled={!canPlanOrGenerate} onSelect={(event) => { event.preventDefault(); onClose(); void onStartTask('plan-draft'); }}>
 					<CalendarClock className="size-3.5" aria-hidden="true" />
-					Plan draft
+					Prepare
 				</DropdownMenuItem>
 				<DropdownMenuItem
 					className="h-9 gap-2 text-xs"
@@ -118,7 +118,7 @@ export function SimpleMoreMenuContent({
 					onSelect={(event) => { event.preventDefault(); onClose(); context.setShowEditHistory(true); }}
 				>
 					<History className="size-3.5" aria-hidden="true" />
-					Edit history
+					Schedule history
 				</DropdownMenuItem>
 			{/* UX-R03a — policy editing stays Advanced; Simple links to the nested
 			    policy route. The route→view sync drives the existing guarded
@@ -133,7 +133,7 @@ export function SimpleMoreMenuContent({
 					onClick={() => { onClose(); onLayoutModeChange('advanced'); }}
 				>
 					<Settings2 className="size-3.5" aria-hidden="true" />
-					Scheduling policy (Expert)
+					Advanced rules
 				</Link>
 			</DropdownMenuItem>
 				<DropdownMenuItem

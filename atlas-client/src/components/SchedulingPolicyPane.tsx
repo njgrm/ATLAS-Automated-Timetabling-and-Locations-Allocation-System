@@ -155,6 +155,7 @@ export default function SchedulingPolicyPane({
 	const [saving, setSaving] = useState(false);
 	const [policyStatus, setPolicyStatus] = useState<'loading' | 'loaded' | 'saved' | 'unavailable'>('loading');
 	const [activeTab, setActiveTab] = useState<'policy' | 'shift-settings'>('policy');
+	const [showAdvancedRules, setShowAdvancedRules] = useState(false);
 	const [persisted, setPersisted] = useState<LocalPolicy | null>(null);
 	const [local, setLocal] = useState<LocalPolicy | null>(null);
 	const [persistedShiftWindows, setPersistedShiftWindows] = useState<LocalGradeWindow[]>(DEFAULT_GRADE_WINDOWS);
@@ -497,7 +498,7 @@ export default function SchedulingPolicyPane({
 				</div>
 				<div className="flex min-w-0 items-center gap-1.5 text-sm font-medium">
 					<Shield className="size-3.5 text-primary" />
-					<span className="truncate">Scheduling Settings</span>
+					<span className="truncate">Advanced rules</span>
 				</div>
 
 				<Badge
@@ -528,6 +529,9 @@ export default function SchedulingPolicyPane({
 				</Tabs>
 
 				<div className="flex-1" />
+				{showAdvancedRules ? (
+					<Button variant="outline" size="sm" className="h-8" onClick={() => setShowAdvancedRules(false)}>Advanced rules summary</Button>
+				) : null}
 
 				{isDirty && (
 					<span className="flex items-center gap-1 text-xs text-amber-600">
@@ -556,15 +560,27 @@ export default function SchedulingPolicyPane({
 				<div className="flex-1 flex items-center justify-center text-sm text-muted-foreground">
 					No policy data available.
 				</div>
+			) : !showAdvancedRules ? (
+				<section className="flex-1 min-h-0 overflow-auto p-6" aria-labelledby="advanced-rules-summary-title" data-testid="advanced-rules-guided-summary">
+					<div className="mx-auto max-w-2xl space-y-4 rounded-xl border border-border bg-background p-6">
+						<h2 id="advanced-rules-summary-title" className="text-lg font-semibold">Advanced rules</h2>
+						<p className="text-sm text-muted-foreground">These settings guide future schedules and revisions. They never silently rewrite a published schedule.</p>
+						<ul className="list-disc space-y-2 pl-5 text-sm text-foreground">
+							<li>Required rules can block a schedule or leave a class for review when no safe fit is available.</li>
+							<li>Preferred rules help ATLAS choose a better fit; they do not silently change an assignment.</li>
+							<li>Shift settings define when each grade or program may be scheduled.</li>
+						</ul>
+						<Button type="button" onClick={() => setShowAdvancedRules(true)} data-testid="edit-advanced-rules">Edit advanced rules</Button>
+					</div>
+				</section>
 			) : (
-				/* Outer container does NOT scroll G�� each column card scrolls independently */
 				activeTab === 'policy' ? (
 					<div className="flex-1 min-h-0 overflow-hidden p-4 grid grid-cols-1 xl:grid-cols-2 2xl:grid-cols-3 gap-4">
 
 					<div className="col-span-full rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-sky-900" data-testid="policy-impact-summary">
 						<p className="font-semibold">Policy impact</p>
 						<p className="mt-0.5 leading-relaxed">
-							Affects next generation after you save and generate again. Preview, placement, and swap checks use the current saved policy immediately.
+							Affects future schedules after you save and generate again. Preview, placement, and swap checks use the current saved policy immediately. Published schedules stay unchanged.
 						</p>
 					</div>
 
@@ -591,7 +607,7 @@ export default function SchedulingPolicyPane({
 						/>
 						<PolicyNumberField
 							label="Max Teaching Per Day (min)"
-							explanation="Daily ceiling on total teaching minutes per teacher. Exceeding this is always a HARD violation."
+							explanation="Daily ceiling on total teaching minutes per teacher. Exceeding this blocks a schedule."
 							value={local.maxTeachingMinutesPerDay}
 							onChange={(v) => update('maxTeachingMinutesPerDay', v)}
 							min={60}
@@ -624,8 +640,8 @@ export default function SchedulingPolicyPane({
 							</div>
 						</div>
 						<PolicySwitch
-							label="Enforce Consecutive Break as Hard"
-							explanation="When ON, consecutive teaching limit and break violations become HARD constraints that block publish."
+							label="Require a break after long teaching blocks"
+							explanation="When enabled, a schedule must leave the required break after a long teaching block."
 							checked={local.enforceConsecutiveBreakAsHard}
 							onCheckedChange={(v) => update('enforceConsecutiveBreakAsHard', v)}
 							warning
@@ -733,7 +749,7 @@ export default function SchedulingPolicyPane({
 								<>
 									<PolicySwitch
 										label="Block Publication on Teacher Lunch Violation"
-										explanation="When ON, a teacher assigned across their lunch window is a HARD constraint that blocks publishing. When OFF, it is a SOFT warning that does not block publication."
+									explanation="When enabled, a teacher must have a free lunch block before the schedule can be published. Otherwise, ATLAS reports this as a warning."
 										checked={local.enforceTeacherLunchWindow}
 										onCheckedChange={(v) => update('enforceTeacherLunchWindow', v)}
 										warning
@@ -741,16 +757,16 @@ export default function SchedulingPolicyPane({
 									<div className="flex items-start gap-1.5 rounded-md border border-border/60 bg-muted/30 px-2.5 py-1.5 text-[0.6875rem] text-muted-foreground">
 										<Shield className="size-3 mt-0.5 shrink-0" />
 										{local.enforceTeacherLunchWindow
-											? 'Hard: publishing is blocked until every teacher has a free lunch block.'
-											: 'Soft: a teacher who teaches through lunch is reported as a warning and does not block publishing.'}
+											? 'Required: every teacher must have a free lunch block before publishing.'
+											: 'Preferred: ATLAS reports a teacher assigned through lunch as a warning.'}
 									</div>
 								</>
 							)}
 
 							{/* D11 — Shift Coherence Guard */}
 							<PolicySwitch
-								label="Shift Coherence Guard"
-								explanation="When ON, auto-fill flags a teacher being assigned into both the morning and afternoon shift windows (a 06:00-18:30 duty day that exceeds the DepEd 8-hour service day)."
+								label="Keep each class in one school-day shift"
+								explanation="Keeps one teacher's classes within the morning schedule or the afternoon schedule instead of spanning both."
 								checked={local.enableShiftCoherenceGuard}
 								onCheckedChange={(v) => {
 									update('enableShiftCoherenceGuard', v);
@@ -760,8 +776,8 @@ export default function SchedulingPolicyPane({
 							{local.enableShiftCoherenceGuard && (
 								<>
 									<PolicySwitch
-										label="Enforce Shift Coherence in Auto-Fill"
-										explanation="When OFF (SOFT, default), the conflict is a warning and coverage is unchanged. When ON (HARD), auto-fill will not select a spanning teacher while a non-spanning candidate remains, and a row with no coherent candidate is left unresolved instead of blocking."
+										label="Require one shift during auto-fill"
+										explanation="When enabled, auto-fill prefers teachers whose classes stay in one shift and leaves a class for review if none fit."
 										checked={local.enforceShiftCoherenceGuard}
 										onCheckedChange={(v) => update('enforceShiftCoherenceGuard', v)}
 										warning
@@ -769,8 +785,8 @@ export default function SchedulingPolicyPane({
 									<div className="flex items-start gap-1.5 rounded-md border border-border/60 bg-muted/30 px-2.5 py-1.5 text-[0.6875rem] text-muted-foreground">
 										<Shield className="size-3 mt-0.5 shrink-0" />
 										{local.enforceShiftCoherenceGuard
-											? 'HARD: auto-fill filters spanning teachers and leaves a row unresolved when no coherent candidate exists. This blocks publication-relevant outcomes. Manual assignment always overrides the guard.'
-											: 'SOFT (default): a teacher who would span both shift windows is reported as a warning and coverage is unchanged. Manual assignment always overrides the guard.'}
+											? 'Auto-fill will leave a class for review if no teacher fits within one shift. Manual assignment remains available.'
+											: 'ATLAS will flag a teacher whose classes span both shifts. This does not change coverage.'}
 									</div>
 								</>
 							)}

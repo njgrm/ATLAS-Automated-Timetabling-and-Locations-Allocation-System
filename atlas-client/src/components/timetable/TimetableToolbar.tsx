@@ -54,7 +54,6 @@ export function TimetableToolbar({
 	termFilter,
 	onTermFilterChange,
 	termOptions,
-	activeTermIndex,
 	children,
 }: TimetableToolbarProps) {
 	return (
@@ -83,6 +82,7 @@ export function TimetableToolbar({
 				}))}
 			/>
 
+			<span className="shrink-0 text-xs font-medium text-foreground">Term</span>
 			<Select value={String(termFilter)} onValueChange={(v) => onTermFilterChange(v === 'all' ? 'all' : Number(v))}>
 				<SelectTrigger className="h-7 w-28 shrink-0 text-xs" data-testid="timetable-term-filter">
 					<SelectValue placeholder="Term" />
@@ -90,10 +90,7 @@ export function TimetableToolbar({
 				<SelectContent>
 					{termOptions.map((option) => (
 						<SelectItem key={option.value} value={option.value}>
-							{option.label}
-							{activeTermIndex !== null && option.value === String(activeTermIndex) && (
-								<span className="ml-1 text-[0.6rem] text-muted-foreground">(active)</span>
-							)}
+							{option.value === 'all' ? 'All terms' : `Term ${option.value}`}
 						</SelectItem>
 					))}
 				</SelectContent>

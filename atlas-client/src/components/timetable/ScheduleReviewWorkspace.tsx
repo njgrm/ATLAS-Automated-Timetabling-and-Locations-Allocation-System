@@ -299,18 +299,18 @@ export default function ScheduleReviewWorkspace() {
 
 	const selectedPrimaryAction = activeSimpleTask === 'swap-sessions'
 		? {
-			label: 'Swap',
+			label: 'Swap with another class',
 			icon: ArrowRightLeft,
 			onClick: armSwapSessions,
 		}
 		: activeSimpleTask === 'place-unresolved'
 			? {
-				label: 'Move',
+				label: 'Choose a new time',
 				icon: Move,
 				onClick: startMoveSelectedEntry,
 			}
 			: {
-				label: 'Move',
+				label: 'Choose a new time',
 				icon: Move,
 				onClick: startMoveSelectedEntry,
 			};
@@ -442,10 +442,10 @@ export default function ScheduleReviewWorkspace() {
 				>
 					<div className="min-w-0 flex-1">
 						<p className="truncate font-semibold text-foreground">
-							Selected {state.subjectLabel(state.selectedEntry.subjectId)} - {state.sectionLabel(state.selectedEntry.sectionId)}
+							Selected: {state.subjectLabel(state.selectedEntry.subjectId)} · {state.sectionLabel(state.selectedEntry.sectionId)}
 						</p>
 						<p className="truncate text-muted-foreground [@media(max-height:500px)]:hidden">
-							{state.entryContextLabel(state.selectedEntry)}. Choose another occupied slot to review a swap.
+							Review the change before saving. Nothing changes until you confirm.
 						</p>
 					</div>
 					<div className="flex shrink-0 items-center justify-end gap-2">
@@ -455,7 +455,7 @@ export default function ScheduleReviewWorkspace() {
 							size="sm"
 							className="h-8 text-xs"
 							data-testid="simple-selected-primary-action"
-							aria-label={selectedPrimaryAction.label === 'Move' ? 'Move timeslot' : `${selectedPrimaryAction.label} selected class`}
+							aria-label={`${selectedPrimaryAction.label} for selected class`}
 							onClick={selectedPrimaryAction.onClick}
 						>
 							<SelectedPrimaryIcon className="mr-1.5 size-3.5" aria-hidden="true" />
@@ -469,9 +469,12 @@ export default function ScheduleReviewWorkspace() {
 								</Button>
 							</DropdownMenuTrigger>
 							<DropdownMenuContent align="end" className="w-64">
+								<DropdownMenuItem onSelect={(event) => { event.preventDefault(); state.headerContext.setSelectedEntry(null); }} data-testid="timetable-simple-dismiss-selection">
+									Dismiss selection
+								</DropdownMenuItem>
 								<DropdownMenuItem onSelect={(event) => { event.preventDefault(); startMoveSelectedEntry(); }}>
 									<Move className="mr-2 size-3.5" aria-hidden="true" />
-									Move time
+									Choose a new time
 								</DropdownMenuItem>
 								<DropdownMenuItem onSelect={(event) => { event.preventDefault(); openSelectedChangeRoom(); }} data-testid="timetable-simple-selected-change-room-action">
 									<DoorOpen className="mr-2 size-3.5" aria-hidden="true" />
@@ -479,7 +482,7 @@ export default function ScheduleReviewWorkspace() {
 								</DropdownMenuItem>
 								<DropdownMenuItem onSelect={(event) => { event.preventDefault(); armSwapSessions(); }} data-testid="timetable-simple-selected-swap-action">
 									<ArrowRightLeft className="mr-2 size-3.5" aria-hidden="true" />
-									Swap sessions
+									Swap with another class
 								</DropdownMenuItem>
 								<DropdownMenuItem onSelect={(event) => { event.preventDefault(); openSimpleSelectedDetails(); }} data-testid="timetable-simple-selected-details-action">
 									<BookOpen className="mr-2 size-3.5" aria-hidden="true" />

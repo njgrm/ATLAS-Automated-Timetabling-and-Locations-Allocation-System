@@ -17,17 +17,13 @@ export function SimpleTermSwitcher({ context }: { context: ScheduleReviewWorkspa
 
 	return (
 		<div
-			className="flex min-w-0 shrink-0 items-center gap-1.5 rounded-lg border border-border bg-muted/20 px-2 py-1"
+			className="flex shrink-0 items-center gap-2"
 			data-testid="timetable-simple-term-switcher"
 		>
-			{/* A2 — the ordered-term labels already read "TERM N", so a separate
-			    visible "Term" field label rendered the literal duplicated trigger
-			    text "TERM TERM 2". The trigger keeps its `aria-label="Term"` and
-			    the screen-reader option list below; only the duplicated visible
-			    prefix is removed. */}
+			<span className="text-sm font-medium text-foreground">Term</span>
 			<Select value={value} onValueChange={(next) => context.onTermFilterChange(next === 'all' ? 'all' : Number(next))}>
 				<SelectTrigger
-					className="h-8 w-[8.5rem] shrink-0 text-xs"
+					className="h-9 w-[8.5rem] shrink-0 text-sm"
 					aria-label="Term"
 					data-testid="timetable-simple-term-filter"
 					data-term-filter={value}
@@ -38,10 +34,7 @@ export function SimpleTermSwitcher({ context }: { context: ScheduleReviewWorkspa
 				<SelectContent>
 					{context.termOptions.map((option) => (
 						<SelectItem key={option.value} value={option.value}>
-							{option.label}
-							{context.activeTermIndex !== null && option.value === String(context.activeTermIndex) ? (
-								<span className="ml-1 text-xs text-muted-foreground">(active)</span>
-							) : null}
+							{option.value === 'all' ? 'All terms' : `Term ${option.value}`}
 						</SelectItem>
 					))}
 				</SelectContent>

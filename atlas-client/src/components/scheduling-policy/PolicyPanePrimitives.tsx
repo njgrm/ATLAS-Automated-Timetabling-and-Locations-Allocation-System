@@ -1,9 +1,11 @@
 import type { ReactNode } from 'react';
+import { useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Switch } from '@/ui/switch';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip';
 import { Input } from '@/ui/input';
 import { Label } from '@/ui/label';
+import { Button } from '@/ui/button';
 import { Slider } from '@/ui/slider';
 import { ScrollArea } from '@/ui/scroll-area';
 import type { ConstraintOverride, ViolationCode } from '@/types';
@@ -49,11 +51,11 @@ export const SOFT_CONSTRAINT_LABELS: Record<string, { label: string; explanation
 	},
 	FACULTY_EARLY_START_PREFERENCE: {
 		label: 'Avoid Early First Period',
-		explanation: 'Soft preference to avoid scheduling teachers in the very first period of the day.',
+		explanation: 'Preferred: avoid scheduling teachers in the very first period of the day.',
 	},
 	FACULTY_LATE_END_PREFERENCE: {
 		label: 'Avoid Late Last Period',
-		explanation: 'Soft preference to avoid scheduling teachers in the very last period of the day.',
+		explanation: 'Preferred: avoid scheduling teachers in the very last period of the day.',
 	},
 	FACULTY_INSUFFICIENT_DAILY_VACANT: {
 		label: 'Insufficient Daily Vacant Time',
@@ -166,6 +168,7 @@ export function ConstraintRow({
 	onWeightChange: (v: number) => void;
 	onToggleTreatAsHard: (v: boolean) => void;
 }) {
+	const [showTechnicalDetails, setShowTechnicalDetails] = useState(false);
 	return (
 		<div
 			className={`rounded-md border p-3 space-y-2 transition-opacity ${
@@ -187,9 +190,10 @@ export function ConstraintRow({
 						className="overflow-hidden space-y-2"
 					>
 						<div className="space-y-1">
+							<p className="text-xs text-muted-foreground">Low is a gentle preference; Standard is balanced; High gives the rule more influence.</p>
 							<div className="flex items-center justify-between">
-								<Label className="text-[0.625rem] text-muted-foreground">Weight</Label>
-								<span className="text-[0.625rem] font-mono text-muted-foreground">{config.weight}/10</span>
+								<Label className="text-xs text-foreground">Priority strength</Label>
+								<span className="text-[0.625rem] text-muted-foreground">{config.weight <= 3 ? 'Low' : config.weight >= 8 ? 'High' : 'Standard'}</span>
 							</div>
 							<Slider
 								value={[config.weight]}
@@ -197,12 +201,12 @@ export function ConstraintRow({
 								max={10}
 								step={1}
 								onValueChange={([v]) => onWeightChange(v)}
-								aria-label={`${label} weight`}
+				aria-label={`${label} priority strength`}
 							/>
 						</div>
 						{promotable ? (
 							<div className="flex items-center justify-between gap-2">
-								<span className="text-[0.625rem] text-muted-foreground">Treat as Hard</span>
+				<span className="text-[0.6875rem] text-foreground">{config.treatAsHard ? 'Required' : 'Preferred'}</span>
 								<div className="flex items-center gap-1.5">
 									{config.treatAsHard && (
 										<span className="text-[0.5625rem] text-red-600 font-medium">Blocks publish</span>
@@ -211,7 +215,7 @@ export function ConstraintRow({
 										checked={config.treatAsHard}
 										onCheckedChange={onToggleTreatAsHard}
 										className={config.treatAsHard ? 'data-[state=checked]:bg-red-500' : undefined}
-										aria-label={`Treat ${label} as hard`}
+										aria-label={`${config.treatAsHard ? 'Required' : 'Preferred'}: ${label}`}
 										data-testid="constraint-treat-as-hard"
 									/>
 								</div>
@@ -226,6 +230,14 @@ export function ConstraintRow({
 					</motion.div>
 				)}
 			</AnimatePresence>
+			<Button type="button" variant="link" size="sm" className="h-7 px-0 text-xs" aria-expanded={showTechnicalDetails} onClick={() => setShowTechnicalDetails((open) => !open)}>
+				{showTechnicalDetails ? 'Hide advanced details' : 'Advanced details'}
+			</Button>
+			{showTechnicalDetails ? (
+				<p className="text-xs text-muted-foreground" data-testid="constraint-technical-details">
+					Stored values: weight {config.weight}/10; {config.treatAsHard ? 'Hard' : 'Soft'} rule.
+				</p>
+			) : null}
 		</div>
 	);
 }
