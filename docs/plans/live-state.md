@@ -597,7 +597,7 @@ it complete `TEST-GATE-REACHABILITY-C01` (`f4462374`) and hand it over for integ
 
 ## Lane A — current lane (written only by Lane A)
 
-**`TEACHER-CONCERN-AUTHORITY-PROGRAM-20260924` — S3 integrated; D1–D11 locked; cycle queue current (2026-09-24).**
+**`TEACHER-CONCERN-AUTHORITY-PROGRAM-20260924` — S8 integrated; D1–D11 locked; cycle queue current (2026-09-25).**
 Plan `docs/plans/teacher-concern-authority-plan-2026-09-24.md` is the continuity index (its **Cycle queue**
 table + streams S0–S8). Objective: the **scheduler** becomes the single place that accommodates a teacher's
 preferences/availability **in draft and post-publish**; those inputs must genuinely affect generation rows;
@@ -614,18 +614,29 @@ levels** (ATLAS-owned `(schoolId, facultyId)`; **no rollover reset**; advisory a
 **Done:** C1 S0 freeze (`530e3b19`); **C2 `S3` SMART draft read integrated at `e7ecd886`** — fresh QA
 `ACCEPT_READY` 8/8/0/0, whole-run route removed for D3, contract re-pinned off `5a333c74`, rooms + breaks
 corrections, successors `SPECIAL-EVENT-SCOPE-C01` / `TEACHER-PROGRAM-LUNCH-BREAK-C01` recorded.
-**Next action:** **C4b — dispatch `S8` `SHIFT-COHERENCE-C01`** (policy-switched guard against a teacher
-being assigned into both the morning and the afternoon shift window; **default SOFT**, HARD switchable,
-always overridable; diagnostics name who spans and why). It owns
-`teaching-load-automation.service.ts` and must run **after** S7, which is integrated. Then C5 S1 ∥
-S4-server, C6 S2 ∥ S4-client, C7 integration/deploy/acceptance. **C4a `DONE`** —
-`FACULTY-GRADE-PREFERENCE-C01` integrated at `885c9792`, QA `ACCEPT_READY` 8/8/0/0: year-independent
-`(schoolId, facultyId)` preference off the EnrollPro-synced `FacultyMirror`, soft-only ranking tier,
-advisory override, narrow scheduler edit surface. Residuals (NON_BLOCKING): the advisory tier is
-unconditional (intended per D10 but the "empty preference reproduces base" wording holds only without an
-adviser candidate), `preferenceNotices` is not yet surfaced in the client, and the **client**
-`gate-reachability` has two pre-existing orphan suites (`timetable-lifecycle-controls-c03`,
-`scheduler-print-requests`) not caused by this range. No deployment, login, or live-data action was taken.
+**Next action:** **C5 — dispatch `S1` `TEACHER-AVAILABILITY-AUTHORITY` ∥ `S4-server` post-publish
+mid-year identity deltas** (two parallel lanes, disjoint files; D1/D2 and D4). Then C6 S2 ∥ S4-client,
+C7 integration/deploy/acceptance. **C4b `DONE` (2026-09-25)** — `SHIFT-COHERENCE-C01` (D11) candidate
+`ae79b45f` (base `63efb62e`, packet `fe0442b7`) integrated at merge `f37b8ea4` over `origin/main`
+`16551c92`; fresh QA `ACCEPT_READY` **19/19/0/0** after one bounded correction (the first candidate
+`5a47d114` broke the §8 1000-line cap in `SchedulingPolicyPane.tsx`; corrected to 893 plus client
+reason parity and a real mounted-route disposable-PostgreSQL row). Adds `enableShiftCoherenceGuard`
+(default true, SOFT) / `enforceShiftCoherenceGuard` (default false) and the additive migration
+`20260925000001_shift_coherence` (**UNAPPLIED**; `prisma validate` only). Merged-tree gates:
+shift-coherence 19/19, faculty-grade-preference 12/12, server-suite 313/317 (the 4 pre-existing
+`tt-output-c03r` failures, independently reproduced at `885c9792`), disposable-PG c03 row pass / 0 fail
+/ 0 residue, server build + client typecheck/build + `git diff --check` clean; every S8 path is
+byte-identical to the reviewed candidate (`package.json` unioned: `test:shift-coherence` + the
+concurrent lane's `archiver`). Residuals (NON_BLOCKING): `shiftCoherenceNotices` stays server-only
+(mirrors the S7 `preferenceNotices` residual); the guard is autoFill-only and inert until its migration
+is applied (a deployment prerequisite). **C4a `DONE`** — `FACULTY-GRADE-PREFERENCE-C01` integrated at
+`885c9792`, QA `ACCEPT_READY` 8/8/0/0: year-independent `(schoolId, facultyId)` preference off the
+EnrollPro-synced `FacultyMirror`, soft-only ranking tier, advisory override, narrow scheduler edit
+surface. Residuals (NON_BLOCKING): the advisory tier is unconditional (intended per D10 but the "empty
+preference reproduces base" wording holds only without an adviser candidate), `preferenceNotices` is not
+yet surfaced in the client, and the **client** `gate-reachability` has two pre-existing orphan suites
+(`timetable-lifecycle-controls-c03`, `scheduler-print-requests`) not caused by this range. No
+deployment, login, migration apply, or live-data action was taken.
 
 **`MYSCHEDULE-TERM-SELECTION-20260924` — faculty `/my/schedule` fails closed with `TERM_SELECTION_REQUIRED` (finding, not fixed) (2026-09-24).**
 Read-only; no source/deploy/login/live-data action; live `514be157` unchanged. **Finding:** `GET /api/v1/schools/1/school-years/10/schedules/published/faculty/<id>?date=2026-09-24` returns **400 `TERM_SELECTION_REQUIRED`** ("Choose one ordered term before reading a published schedule") because `loadMyScheduleScoped` (`atlas-client/src/pages/MySchedule.tsx` ~L118) passes only `{ date }` — no `termIndex`. Adding `termIndex=2` returns **200** with the `{ source, timeSlots, specialEvents, entries }` payload, so the faculty "My Schedule" page (`/my/schedule`) renders no schedule. **Scope:** a full two-viewport route sweep found every other route clean (0 errors); this is the only failing surface. **Not demo-affecting for the officer session** (the presenter is an officer; `/my/schedule` is the faculty view), but it is a real user-facing defect and likely a **regression** from the fail-closed term-selection work that hardened the published-schedule endpoint. **Recommended fix:** pass the resolved ordered term (the active `termIndex`) in `loadMyScheduleScoped`, with the same ordered-term discipline the other published-schedule consumers use; unit-test the 400→200 path. Not applied this pass (a client build + deploy is out of budget). **RESOLVED 2026-09-24** by the `c7fc0c95` client fix (the page now sends the resolved ordered term), now live in `70a51608`; the page itself is slated for removal under D6.

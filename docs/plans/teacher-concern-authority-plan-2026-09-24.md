@@ -126,8 +126,8 @@ hand teacher concerns to SMART.
 | C2 | **S3** SMART draft read + contract corrections | **DONE** — integrated `e7ecd886`; QA `ACCEPT_READY` 8/8/0/0 |
 | C3 | **S5** special-event scope ∥ **S6** teacher-lunch policy + export | **DONE** — integrated (`85ed33b6`+); QA `ACCEPT_READY` 6/6/0/0 after correcting the grade-ID recipe and gating 5 suites |
 | C4a | **S7** faculty grade preference | **DONE** — integrated `885c9792`; QA `ACCEPT_READY` 8/8/0/0 |
-| C4b | **S8** shift coherence (owns `teaching-load-automation.service.ts`; must follow S7) | **NEXT** |
-| C5 | **S1** availability authority ∥ **S4-server** post-publish identity deltas | queued |
+| C4b | **S8** shift coherence (owns `teaching-load-automation.service.ts`; must follow S7) | **DONE** — candidate `ae79b45f`, merge `f37b8ea4`; QA `ACCEPT_READY` 19/19/0/0; migration `20260925000001_shift_coherence` unapplied |
+| C5 | **S1** availability authority ∥ **S4-server** post-publish identity deltas | **NEXT** (two parallel lanes, disjoint files) |
 | C6 | **S2** scheduler concern workspace (client) ∥ **S4-client** drift/revision UX | queued |
 | C7 | integration → deployment → two-viewport browser acceptance | queued |
 
