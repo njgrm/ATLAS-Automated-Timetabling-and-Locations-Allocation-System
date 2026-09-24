@@ -136,6 +136,6 @@ instant re-point. Any reclaim under this policy still requires the frozen-manife
   premise cost a review cycle and would mislead any next session — the register's own protocol calls
   an undated pending line "a premise error waiting to happen".
 - **Never echo a credential value.** Read it inside a process and inject the result; never print it,
-  never paste it into a prompt, a log, or a browser field. Observed 2026-09-23: the live QA credential
+  never paste it into a prompt, a log, a doc or a transcript (login rules: `AGENTS.md` §12). Observed 2026-09-23: the live QA credential
   was found in **8 plaintext files across earlier sessions** plus an agent transcript, because the
   credential file wraps values in markdown backticks and a naive parse submitted them literally.
