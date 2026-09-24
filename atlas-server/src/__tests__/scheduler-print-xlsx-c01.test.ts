@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { mkdir, readdir, writeFile } from 'node:fs/promises';
+import { isAbsolute, join } from 'node:path';
 import ExcelJS from 'exceljs';
 import JSZip from 'jszip';
 import { exportPrintableProgramWorkbook } from '../services/workbook-export.service.js';
@@ -34,6 +36,14 @@ const client = {
 	delete: async () => { writes += 1; throw new Error('export must not write'); },
 };
 const base = { schoolId: 71, schoolYearId: 11, runId: 42, termIndex: 2, client };
+
+async function saveFixtureForVisualQA(filename: string, bytes: Buffer) {
+	const renderDir = process.env.ATLAS_EXPORT_RENDER_DIR;
+	if (!renderDir) return;
+	if (!isAbsolute(renderDir)) throw new Error('ATLAS_EXPORT_RENDER_DIR must be an absolute directory path.');
+	await mkdir(renderDir, { recursive: true });
+	await writeFile(join(renderDir, filename), bytes);
+}
 
 test('editable grade workbook pages contain at most four section columns and one selected-term grade', async () => {
 	const bytes = await exportPrintableProgramWorkbook(base, 'grade', 7);
@@ -88,4 +98,21 @@ test('multi-file Excel ZIP names the editable workbook files and invalid scopes 
 	await assert.rejects(() => renderSchedulerPrintFiles(invalid, 'room', [601, 999], 'xlsx'), /PRINT_ENTITY_NOT_FOUND/);
 	await assert.rejects(() => renderSchedulerPrintFiles(invalid, 'room', [601, 601], 'xlsx'), /DUPLICATE_PRINT_ENTITY/);
 	assert.equal(writes, 0, 'render validation and package generation dispatch no writes');
+});
+
+test('explicit fixture render hook emits all four deterministic production-service workbooks', async () => {
+	const fixtures = [
+		['grade-g7-5-sections.xlsx', await exportPrintableProgramWorkbook(base, 'grade', 7)],
+		['section-701.xlsx', await exportPrintableProgramWorkbook(base, 'section', 701)],
+		['teacher-501.xlsx', await exportPrintableProgramWorkbook(base, 'teacher', 501)],
+		['room-601.xlsx', await exportPrintableProgramWorkbook(base, 'room', 601)],
+	] as const;
+	for (const [filename, bytes] of fixtures) await saveFixtureForVisualQA(filename, bytes);
+
+	const renderDir = process.env.ATLAS_EXPORT_RENDER_DIR;
+	if (renderDir) {
+		assert.ok(isAbsolute(renderDir), 'visual QA output directory is explicit and absolute');
+		const filenames = await readdir(renderDir);
+		for (const [filename] of fixtures) assert.ok(filenames.includes(filename), `render hook emits ${filename}`);
+	}
 });
