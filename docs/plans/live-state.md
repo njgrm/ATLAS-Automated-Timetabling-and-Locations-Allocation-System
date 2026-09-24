@@ -44,8 +44,8 @@ resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs
   `b6687fee`; **no migration**). `SERVER-TIMING-C01` request timing / event-loop-stall diagnostics + the S6 E1
   test-only copy fix; client bytes unchanged from `b6687fee`. **Stall-diagnostics owner: Lane C** (reads the
   `[slow-request]`/`[event-loop-stall]` lines left in the supervisor log); **browser-copy acceptance owner:
-  Lane B (Codex)** — scheduler copy/term/control contrast rows, separate and not yet run. Cutover audit
-  (execute): `C:\ProgramData\ATLAS\release-audit\89295c27-20260925-055126`.
+  Lane B (Codex)** — scheduler copy/term/control contrast rows, separate and not yet run. Detail + cutover
+  audits: `docs/handoffs/deploy-b6687fee-2026-09-25.md`.
 - **Rollback basis: `b6687fee`** at `E:\ATLAS-runtime-supervised-b6687fee-20260925` (previous LIVE 2026-09-25;
   supervisor-owned ports reclaimed on restart; scheduler-clarity client release; **no migration**). Its Lane B
   browser rows (scheduler copy/term/control contrast at 1366×768 and 390×844) were separate and not yet run.
@@ -59,9 +59,7 @@ resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs
 - **Rollback depth: `37e0c85b`** at `E:\ATLAS-runtime-supervised-37e0c85b-20260925` (startable in place;
   supervisor-owned ports reclaimed on restart; carries the global native-scrollbar token policy and the S8
   shift-coherence guard (D11); applied `20260925000001_shift_coherence`; compatible with the additive
-  `20260925000002_faculty_availability`). Its cutover audit was
-  `C:\ProgramData\ATLAS\release-audit\37e0c85b-20260925-021830`; fresh QA was `ACCEPT_READY` 18/18/0/0 with
-  authenticated browser rows `PARTIAL`.
+  `20260925000002_faculty_availability`). Detail: `docs/handoffs/deploy-b6687fee-2026-09-25.md`.
 - **Rollback depth** (retention policy: live + two most recent accepted):
   1. `a5f7384e61a24059cdeaadbfa279969877838e0f` at `E:\ATLAS-runtime-supervised-a5f7384e-20260925` —
      compatible with the additive migrations.
