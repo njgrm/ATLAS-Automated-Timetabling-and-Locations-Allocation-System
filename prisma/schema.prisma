@@ -757,6 +757,12 @@ model SchedulingPolicy {
   /// is on, when a violation blocks publication.
   enableTeacherLunchWindow                 Boolean  @default(true) @map("enable_teacher_lunch_window")
   enforceTeacherLunchWindow                Boolean  @default(false) @map("enforce_teacher_lunch_window")
+  /// D11: policy-switched shift-coherence guard. A teacher assigned into both
+  /// the morning and afternoon `grade_shift_windows` windows spans a duty day
+  /// that exceeds the DepEd 8-hour service day. SOFT (advisory) by default;
+  /// HARD switchable; always overridable by manual assignment.
+  enableShiftCoherenceGuard                Boolean  @default(true) @map("enable_shift_coherence_guard")
+  enforceShiftCoherenceGuard               Boolean  @default(false) @map("enforce_shift_coherence_guard")
   enableTleTwoPassPriority                 Boolean  @default(true) @map("enable_tle_two_pass_priority")
   allowFlexibleSubjectAssignment           Boolean  @default(false) @map("allow_flexible_subject_assignment")
   allowConsecutiveLabSessions              Boolean  @default(false) @map("allow_consecutive_lab_sessions")

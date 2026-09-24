@@ -98,6 +98,8 @@ interface LocalPolicy {
 	enableLunchWindow: boolean;
 	enableTeacherLunchWindow: boolean;
 	enforceTeacherLunchWindow: boolean;
+	enableShiftCoherenceGuard: boolean;
+	enforceShiftCoherenceGuard: boolean;
 	enableTleTwoPassPriority: boolean;
 	allowFlexibleSubjectAssignment: boolean;
 	allowConsecutiveLabSessions: boolean;
@@ -174,6 +176,13 @@ function policyToLocal(p: SchedulingPolicy): LocalPolicy {
 		enableTeacherLunchWindow?: boolean | null;
 		enforceTeacherLunchWindow?: boolean | null;
 	};
+	// D11 — the two shift-coherence switches are additive policy columns. Read
+	// them through the same narrow local augmentation rather than widening the
+	// shared `SchedulingPolicy` client type.
+	const shiftCoherence = p as SchedulingPolicy & {
+		enableShiftCoherenceGuard?: boolean | null;
+		enforceShiftCoherenceGuard?: boolean | null;
+	};
 	return {
 		teacherMoveEnabled: p.teacherMoveEnabled ?? true,
 		periodLengthMinutes: p.periodLengthMinutes ?? 45,
@@ -208,6 +217,8 @@ function policyToLocal(p: SchedulingPolicy): LocalPolicy {
 		enableLunchWindow: p.enableLunchWindow ?? p.enforceLunchWindow,
 		enableTeacherLunchWindow: teacherLunch.enableTeacherLunchWindow ?? true,
 		enforceTeacherLunchWindow: teacherLunch.enforceTeacherLunchWindow ?? false,
+		enableShiftCoherenceGuard: shiftCoherence.enableShiftCoherenceGuard ?? true,
+		enforceShiftCoherenceGuard: shiftCoherence.enforceShiftCoherenceGuard ?? false,
 		enableTleTwoPassPriority: p.enableTleTwoPassPriority ?? true,
 		allowFlexibleSubjectAssignment: p.allowFlexibleSubjectAssignment ?? false,
 		allowConsecutiveLabSessions: p.allowConsecutiveLabSessions ?? false,
@@ -876,6 +887,34 @@ export default function SchedulingPolicyPane({
 										{local.enforceTeacherLunchWindow
 											? 'Hard: publishing is blocked until every teacher has a free lunch block.'
 											: 'Soft: a teacher who teaches through lunch is reported as a warning and does not block publishing.'}
+									</div>
+								</>
+							)}
+
+							{/* D11 — Shift Coherence Guard */}
+							<PolicySwitch
+								label="Shift Coherence Guard"
+								explanation="When ON, auto-fill flags a teacher being assigned into both the morning and afternoon shift windows (a 06:00-18:30 duty day that exceeds the DepEd 8-hour service day)."
+								checked={local.enableShiftCoherenceGuard}
+								onCheckedChange={(v) => {
+									update('enableShiftCoherenceGuard', v);
+									if (!v) update('enforceShiftCoherenceGuard', false);
+								}}
+							/>
+							{local.enableShiftCoherenceGuard && (
+								<>
+									<PolicySwitch
+										label="Enforce Shift Coherence in Auto-Fill"
+										explanation="When OFF (SOFT, default), the conflict is a warning and coverage is unchanged. When ON (HARD), auto-fill will not select a spanning teacher while a non-spanning candidate remains, and a row with no coherent candidate is left unresolved instead of blocking."
+										checked={local.enforceShiftCoherenceGuard}
+										onCheckedChange={(v) => update('enforceShiftCoherenceGuard', v)}
+										warning
+									/>
+									<div className="flex items-start gap-1.5 rounded-md border border-border/60 bg-muted/30 px-2.5 py-1.5 text-[0.6875rem] text-muted-foreground">
+										<Shield className="size-3 mt-0.5 shrink-0" />
+										{local.enforceShiftCoherenceGuard
+											? 'HARD: auto-fill filters spanning teachers and leaves a row unresolved when no coherent candidate exists. This blocks publication-relevant outcomes. Manual assignment always overrides the guard.'
+											: 'SOFT (default): a teacher who would span both shift windows is reported as a warning and coverage is unchanged. Manual assignment always overrides the guard.'}
 									</div>
 								</>
 							)}

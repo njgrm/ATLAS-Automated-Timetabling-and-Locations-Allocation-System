@@ -47,7 +47,12 @@ import {
 	type DerivedTeachingLoadPair,
 } from './derived-demand.service.js';
 import { WORKLOAD_DEFAULTS, workloadPolicyRevision, type WorkloadPolicy } from './workload-policy.service.js';
-import { getEffectiveWorkloadPolicyFromClient, type EffectiveWorkloadPolicy } from './scheduling-policy.service.js';
+import {
+	POLICY_DEFAULTS as SCHEDULING_POLICY_DEFAULTS,
+	getEffectiveWorkloadPolicyFromClient,
+	resolveSchedulingPolicyForRead,
+	type EffectiveWorkloadPolicy,
+} from './scheduling-policy.service.js';
 import {
 	buildQualificationPolicySnapshot,
 	evaluateQualificationWithPolicy,
@@ -170,7 +175,14 @@ export type TeachingLoadCandidateRejectionReason =
 	| 'CURRENT_OWNER'
 	| 'PLACEHOLDER_FACULTY'
 	/** Ownership outside canonical derived demand is never an ordinary move target. */
-	| 'OUTSIDE_CANONICAL_DEMAND';
+	| 'OUTSIDE_CANONICAL_DEMAND'
+	/**
+	 * SHIFT-COHERENCE-C01 (D11): the candidate's acceptance would place the
+	 * teacher into both shift windows (a duty day exceeding the 8-hour service
+	 * day). Emitted only under the HARD policy switch; always overridable by a
+	 * manual assignment.
+	 */
+	| 'SHIFT_COHERENCE_CONFLICT';
 
 export interface TeachingLoadCandidateRejection {
 	subjectId: number;
@@ -180,6 +192,13 @@ export interface TeachingLoadCandidateRejection {
 	facultyId: number;
 	facultyName: string;
 	reason: TeachingLoadCandidateRejectionReason;
+	/**
+	 * SHIFT-COHERENCE-C01 (D11): present only on a `SHIFT_COHERENCE_CONFLICT`
+	 * rejection so the operator sees the exact windows that make the teacher
+	 * span and the sections responsible — never an aggregate-only count.
+	 */
+	spanningWindows?: ShiftCoherenceWindow[];
+	sections?: ShiftCoherenceSection[];
 }
 
 /**
@@ -204,6 +223,52 @@ export interface TeachingLoadPreferenceNotice {
 	/** The teacher's persisted preference. Empty means no preference. */
 	preferredGradeLevels: number[];
 	reason: TeachingLoadPreferenceNoticeReason;
+}
+
+/**
+ * SHIFT-COHERENCE-C01 (decision D11) — a resolved grade shift window.
+ *
+ * Windows come from `grade_shift_windows` for `(schoolId, schoolYearId)`. The
+ * numeric grade is the section's `displayOrder`, never an EnrollPro
+ * `gradeLevelId`. A section with no matching row (exact programType, else
+ * programType = null) has NO shift authority and contributes no window.
+ */
+export interface ShiftCoherenceWindow {
+	gradeLevel: number;
+	programType: string | null;
+	startTime: string;
+	endTime: string;
+}
+
+/** A section the teacher already holds (or is being considered for). */
+export interface ShiftCoherenceSection {
+	id: number;
+	name: string;
+	gradeLevel: number;
+}
+
+/**
+ * SHIFT-COHERENCE-C01 (D11): a SOFT advisory naming WHO spans and WHY. Emitted
+ * under the default SOFT switch; the HARD switch emits the typed
+ * `SHIFT_COHERENCE_CONFLICT` rejection instead.
+ *
+ * The guard gates `autoFill` candidate selection ONLY. Manual assignment and the
+ * reviewed proposal-apply path are deliberately NOT gated: a scheduler can
+ * always place a spanning teacher by hand, and the guard never throws or blocks
+ * generation — a row with no coherent candidate is simply left unresolved.
+ */
+export interface TeachingLoadShiftCoherenceNotice {
+	subjectId: number;
+	subjectCode: string;
+	sectionId: number;
+	sectionName: string;
+	facultyId: number;
+	facultyName: string;
+	reason: 'SHIFT_COHERENCE_CONFLICT';
+	/** The distinct resolved windows that make the teacher span. */
+	spanningWindows: ShiftCoherenceWindow[];
+	/** The sections responsible for the span (already assigned + candidate). */
+	sections: ShiftCoherenceSection[];
 }
 
 const MAX_CANDIDATE_REJECTIONS = 100;
@@ -311,6 +376,12 @@ export interface AutoFillResult {
 	 * block an assignment and never reduce coverage.
 	 */
 	preferenceNotices?: TeachingLoadPreferenceNotice[];
+	/**
+	 * SHIFT-COHERENCE-C01 (D11): bounded SOFT advisories naming a chosen
+	 * assignment that places the teacher into both shift windows. Emitted only
+	 * under the SOFT switch; HARD surfaces the typed rejection instead.
+	 */
+	shiftCoherenceNotices?: TeachingLoadShiftCoherenceNotice[];
 	/** Coverage + distribution plan. Never report full success from coverage alone. */
 	distribution?: TeachingLoadDistributionPlan;
 	/** Moves actually persisted by an apply call. */
@@ -553,6 +624,7 @@ interface CoverageSimulationResult {
 	staffingReport: StaffingReport;
 	candidateRejections: TeachingLoadCandidateRejection[];
 	preferenceNotices: TeachingLoadPreferenceNotice[];
+	shiftCoherenceNotices: TeachingLoadShiftCoherenceNotice[];
 }
 
 interface StaffingShortageBucket {
@@ -1409,6 +1481,13 @@ type CoverageCandidateRankSnapshot = {
 	 */
 	advisoryMatch?: boolean;
 	preferredGradeMatch?: boolean;
+	/**
+	 * SHIFT-COHERENCE-C01 (D11) soft signal. `false` marks a candidate whose
+	 * acceptance would make the teacher span both shift windows. Neutral when
+	 * absent, so a snapshot with the guard off reproduces the base ordering
+	 * exactly.
+	 */
+	shiftCoherent?: boolean;
 };
 
 function compareCoverageCandidateRank(
@@ -1427,6 +1506,13 @@ function compareCoverageCandidateRank(
 	const leftPreferred = left.preferredGradeMatch === true;
 	const rightPreferred = right.preferredGradeMatch === true;
 	if (leftPreferred !== rightPreferred) return leftPreferred ? -1 : 1;
+	// Shift-coherence soft tier (D11): when the guard is enabled, prefer a
+	// candidate whose acceptance does not span both shift windows. Neutral when
+	// both snapshots are undefined, so S7/D10 ordering is byte-identical when the
+	// guard is off. This only reorders; HARD filtering happens before ranking.
+	if (left.shiftCoherent !== right.shiftCoherent) {
+		return (left.shiftCoherent ?? true) ? -1 : 1;
+	}
 	if (left.subjectAssignedCount !== right.subjectAssignedCount) {
 		return left.subjectAssignedCount - right.subjectAssignedCount;
 	}
@@ -1495,6 +1581,156 @@ export function evaluateGradePreferenceMatch(input: {
 	};
 }
 
+// ─── SHIFT-COHERENCE-C01 (D11) pure helpers ─────────────────────────────────
+
+function shiftWindowMinutes(value: string): number {
+	const [hours, minutes] = value.split(':').map(Number);
+	return (Number.isFinite(hours) ? hours : 0) * 60 + (Number.isFinite(minutes) ? minutes : 0);
+}
+
+function shiftWindowKey(window: ShiftCoherenceWindow): string {
+	return `${window.startTime}|${window.endTime}`;
+}
+
+/**
+ * Resolve a section's shift window from the `grade_shift_windows` authority.
+ *
+ * The numeric grade is the section `displayOrder`. The exact
+ * `(gradeLevel, programType)` row wins; otherwise the `(gradeLevel, null)` row is
+ * used. When neither exists the section has NO shift authority and returns null
+ * — a window is never fabricated.
+ */
+export function resolveSectionShiftWindow(input: {
+	gradeLevel: number | null | undefined;
+	programType: string | null | undefined;
+	windows: ReadonlyArray<ShiftCoherenceWindow>;
+}): ShiftCoherenceWindow | null {
+	if (!Number.isInteger(input.gradeLevel)) return null;
+	const grade = input.gradeLevel as number;
+	const programType = input.programType ?? null;
+	if (programType != null) {
+		const exact = input.windows.find((window) => window.gradeLevel === grade && window.programType === programType);
+		if (exact) return { ...exact };
+	}
+	const fallback = input.windows.find((window) => window.gradeLevel === grade && (window.programType ?? null) === null);
+	return fallback ? { ...fallback } : null;
+}
+
+export interface ShiftCoherenceSpanEvaluation {
+	/** True when the union extent `[min start, max end]` is not itself a window. */
+	spans: boolean;
+	/** Distinct resolved windows in `W` (deduped by start/end). */
+	windows: ShiftCoherenceWindow[];
+	minStartMinutes: number | null;
+	maxEndMinutes: number | null;
+}
+
+/**
+ * The deterministic span rule. For a teacher, let `W` be the distinct resolved
+ * windows across their sections (already assigned plus the candidate under
+ * consideration). The teacher spans iff `W.length >= 2` AND no single window in
+ * `W` has both the minimum start and the maximum end of `W`.
+ *
+ * This flags `06:00-15:30` + `09:45-18:30` (union `06:00-18:30`) and does NOT
+ * flag G7 + G8 (identical windows).
+ */
+export function evaluateShiftCoherenceSpan(
+	windows: ReadonlyArray<ShiftCoherenceWindow>,
+): ShiftCoherenceSpanEvaluation {
+	const byKey = new Map<string, ShiftCoherenceWindow>();
+	for (const window of windows) {
+		const key = shiftWindowKey(window);
+		if (!byKey.has(key)) byKey.set(key, window);
+	}
+	const distinct = [...byKey.values()];
+	if (distinct.length === 0) {
+		return { spans: false, windows: distinct, minStartMinutes: null, maxEndMinutes: null };
+	}
+	let minStartMinutes = Number.POSITIVE_INFINITY;
+	let maxEndMinutes = Number.NEGATIVE_INFINITY;
+	for (const window of distinct) {
+		const start = shiftWindowMinutes(window.startTime);
+		const end = shiftWindowMinutes(window.endTime);
+		if (start < minStartMinutes) minStartMinutes = start;
+		if (end > maxEndMinutes) maxEndMinutes = end;
+	}
+	if (distinct.length < 2) {
+		return { spans: false, windows: distinct, minStartMinutes, maxEndMinutes };
+	}
+	const coveredByOneWindow = distinct.some(
+		(window) => shiftWindowMinutes(window.startTime) === minStartMinutes
+			&& shiftWindowMinutes(window.endTime) === maxEndMinutes,
+	);
+	return { spans: !coveredByOneWindow, windows: distinct, minStartMinutes, maxEndMinutes };
+}
+
+/** One section a teacher is assigned to, with its resolved shift window. */
+interface FacultyShiftSection {
+	sectionId: number;
+	sectionName: string;
+	gradeLevel: number;
+	window: ShiftCoherenceWindow;
+}
+
+/** Per-candidate selection context for the shift-coherence guard. */
+interface ShiftCoherenceSelectionContext {
+	enabled: boolean;
+	enforce: boolean;
+	/** Window resolved for the candidate section (null = no shift authority). */
+	sectionWindow: ShiftCoherenceWindow | null;
+	/** Current sections/windows already held by each faculty. */
+	assignmentsByFacultyId: ReadonlyMap<number, FacultyShiftSection[]>;
+}
+
+function cloneShiftAssignments(
+	source: ReadonlyMap<number, FacultyShiftSection[]> | undefined,
+): Map<number, FacultyShiftSection[]> {
+	const cloned = new Map<number, FacultyShiftSection[]>();
+	for (const [facultyId, rows] of (source ?? new Map()).entries()) {
+		cloned.set(facultyId, [...rows]);
+	}
+	return cloned;
+}
+
+function dedupeShiftSections(entries: ReadonlyArray<FacultyShiftSection>): ShiftCoherenceSection[] {
+	const seen = new Set<number>();
+	const sections: ShiftCoherenceSection[] = [];
+	for (const entry of entries) {
+		if (seen.has(entry.sectionId)) continue;
+		seen.add(entry.sectionId);
+		sections.push({ id: entry.sectionId, name: entry.sectionName, gradeLevel: entry.gradeLevel });
+	}
+	return sections;
+}
+
+function describeShiftWindow(window: ShiftCoherenceWindow): string {
+	const program = window.programType ? ` ${window.programType}` : '';
+	return `G${window.gradeLevel}${program} ${window.startTime}-${window.endTime}`;
+}
+
+function buildShiftCoherenceWarningLine(notice: TeachingLoadShiftCoherenceNotice): string {
+	const windows = notice.spanningWindows.map(describeShiftWindow).join(' + ');
+	const sections = notice.sections.map((section) => `${section.name} (G${section.gradeLevel})`).join(', ');
+	return `Shift coherence (SOFT): ${notice.facultyName} would span ${windows} across ${sections}. Manual assignment can override this.`;
+}
+
+function appendShiftCoherenceWarnings(
+	warnings: string[],
+	notices: ReadonlyArray<TeachingLoadShiftCoherenceNotice>,
+	rejections: ReadonlyArray<TeachingLoadCandidateRejection>,
+): void {
+	for (const notice of notices.slice(0, MAX_CANDIDATE_REJECTIONS)) {
+		warnings.push(buildShiftCoherenceWarningLine(notice));
+	}
+	const rejected = rejections.filter((row) => row.reason === 'SHIFT_COHERENCE_CONFLICT');
+	if (rejected.length > 0) {
+		const names = [...new Set(rejected.map((row) => row.facultyName))].slice(0, 5).join(', ');
+		warnings.push(
+			`Shift coherence (HARD): auto-fill rejected ${rejected.length} candidate assignment${rejected.length === 1 ? '' : 's'} that would span both shift windows (${names}). Rows with no coherent candidate are left unresolved; manual assignment can override this.`,
+		);
+	}
+}
+
 function findBestCandidateForMode(
 	subjectRow: SubjectRow,
 	sectionId: number,
@@ -1511,7 +1747,13 @@ function findBestCandidateForMode(
 	nonTeachingMinutesByFaculty?: Map<number, number>,
 	sectionGradeLevel?: number,
 	preferredGradeLevelsByFacultyId?: ReadonlyMap<number, number[]>,
-): { faculty: FacultyRow | null; rejections: TeachingLoadCandidateRejection[]; preferenceNotice: TeachingLoadPreferenceNotice | null } {
+	shiftCoherence?: ShiftCoherenceSelectionContext,
+): {
+	faculty: FacultyRow | null;
+	rejections: TeachingLoadCandidateRejection[];
+	preferenceNotice: TeachingLoadPreferenceNotice | null;
+	shiftCoherenceNotice: TeachingLoadShiftCoherenceNotice | null;
+} {
 	const candidates: Array<{
 		faculty: FacultyRow;
 		tier: number;
@@ -1523,8 +1765,13 @@ function findBestCandidateForMode(
 		advisoryMatch: boolean;
 		preferredGradeMatch: boolean;
 		outsidePreferredGrade: boolean;
+		shiftSpans: boolean;
+		spanningWindows: ShiftCoherenceWindow[];
+		spanningSections: ShiftCoherenceSection[];
 	}> = [];
 	const rejections: TeachingLoadCandidateRejection[] = [];
+	const guardEnabled = shiftCoherence?.enabled === true;
+	const guardEnforce = guardEnabled && shiftCoherence?.enforce === true;
 	const realCoverageMode = resolveRealCoverageMode(coverageMode);
 	const subjectMinutes = Math.max(0, Number(subjectRow.minMinutesPerWeek) || 0);
 	const laneKey = buildCapacityLaneKey({
@@ -1590,6 +1837,46 @@ function findBestCandidateForMode(
 		const preferredGradeMatch = preferenceEvaluation.preferredGradeMatch;
 		const outsidePreferredGrade = preferenceEvaluation.outsidePreferredGrade;
 
+		// SHIFT-COHERENCE-C01 (D11). The guard gates autoFill candidate
+		// selection ONLY — it never blocks generation and manual assignment is
+		// never gated. `W` is the distinct resolved windows across the teacher's
+		// already-held sections plus this candidate section. A null candidate
+		// window (no shift authority) adds nothing and can never create a span.
+		const existingShiftSections = guardEnabled
+			? (shiftCoherence?.assignmentsByFacultyId.get(member.id) ?? [])
+			: [];
+		const candidateWindow = guardEnabled ? shiftCoherence?.sectionWindow ?? null : null;
+		const candidateShiftSections: FacultyShiftSection[] = candidateWindow
+			? [...existingShiftSections, {
+				sectionId,
+				sectionName,
+				gradeLevel: Number.isInteger(sectionGradeLevel) ? (sectionGradeLevel as number) : 0,
+				window: candidateWindow,
+			}]
+			: [...existingShiftSections];
+		const spanEvaluation = guardEnabled
+			? evaluateShiftCoherenceSpan(candidateShiftSections.map((entry) => entry.window))
+			: { spans: false, windows: [] as ShiftCoherenceWindow[], minStartMinutes: null, maxEndMinutes: null };
+		const shiftSpans = spanEvaluation.spans;
+		const spanningWindows = spanEvaluation.windows;
+		const spanningSections = dedupeShiftSections(candidateShiftSections);
+
+		// HARD only: a spanning candidate is rejected with the typed reason. SOFT
+		// never rejects — it emits an advisory for the chosen assignment instead.
+		if (guardEnforce && shiftSpans) {
+			rejections.push({
+				subjectId: subjectRow.id,
+				subjectCode: subjectRow.code,
+				sectionId,
+				sectionName,
+				facultyId: member.id,
+				facultyName: `${member.lastName}, ${member.firstName}`,
+				reason: 'SHIFT_COHERENCE_CONFLICT',
+				spanningWindows,
+				sections: spanningSections,
+			});
+		}
+
 		candidates.push({
 				faculty: member,
 				tier: qualification.tier,
@@ -1601,12 +1888,26 @@ function findBestCandidateForMode(
 				advisoryMatch,
 				preferredGradeMatch,
 				outsidePreferredGrade,
+				shiftSpans,
+				spanningWindows,
+				spanningSections,
 			});
 	}
 
-	if (candidates.length === 0) return { faculty: null, rejections, preferenceNotice: null };
+	if (candidates.length === 0) {
+		return { faculty: null, rejections, preferenceNotice: null, shiftCoherenceNotice: null };
+	}
 
-	candidates.sort((a, b) => compareCoverageCandidateRank({
+	// HARD removes every spanning candidate from selection. When none remain the
+	// row goes unresolved (the caller reports it) — never a thrown/blocking error.
+	const selectable = guardEnforce
+		? candidates.filter((candidate) => !candidate.shiftSpans)
+		: candidates;
+	if (selectable.length === 0) {
+		return { faculty: null, rejections, preferenceNotice: null, shiftCoherenceNotice: null };
+	}
+
+	selectable.sort((a, b) => compareCoverageCandidateRank({
 		facultyId: a.faculty.id,
 		tier: a.tier,
 		subjectAssignedCount: a.subjectAssignedCount,
@@ -1616,6 +1917,7 @@ function findBestCandidateForMode(
 		projectedUsedMinutes: a.projectedUsedMinutes,
 		advisoryMatch: a.advisoryMatch,
 		preferredGradeMatch: a.preferredGradeMatch,
+		shiftCoherent: guardEnabled ? !a.shiftSpans : undefined,
 	}, {
 		facultyId: b.faculty.id,
 		tier: b.tier,
@@ -1626,9 +1928,10 @@ function findBestCandidateForMode(
 		projectedUsedMinutes: b.projectedUsedMinutes,
 		advisoryMatch: b.advisoryMatch,
 		preferredGradeMatch: b.preferredGradeMatch,
+		shiftCoherent: guardEnabled ? !b.shiftSpans : undefined,
 	}));
 
-	const selected = candidates[0];
+	const selected = selectable[0];
 	const preferenceNotice: TeachingLoadPreferenceNotice | null =
 		selected.outsidePreferredGrade && Number.isInteger(sectionGradeLevel)
 			? {
@@ -1644,7 +1947,23 @@ function findBestCandidateForMode(
 			}
 			: null;
 
-	return { faculty: selected.faculty, rejections, preferenceNotice };
+	// SOFT: name who spans and why for the chosen assignment.
+	const shiftCoherenceNotice: TeachingLoadShiftCoherenceNotice | null =
+		guardEnabled && !guardEnforce && selected.shiftSpans
+			? {
+				subjectId: subjectRow.id,
+				subjectCode: subjectRow.code,
+				sectionId,
+				sectionName,
+				facultyId: selected.faculty.id,
+				facultyName: `${selected.faculty.lastName}, ${selected.faculty.firstName}`,
+				reason: 'SHIFT_COHERENCE_CONFLICT',
+				spanningWindows: selected.spanningWindows,
+				sections: selected.spanningSections,
+			}
+			: null;
+
+	return { faculty: selected.faculty, rejections, preferenceNotice, shiftCoherenceNotice };
 }
 
 function simulateRealFacultyCoverage(input: {
@@ -1656,12 +1975,20 @@ function simulateRealFacultyCoverage(input: {
 	nonTeachingMinutesByFaculty?: Map<number, number>;
 	sectionGradeLevelBySectionId?: ReadonlyMap<number, number>;
 	preferredGradeLevelsByFacultyId?: ReadonlyMap<number, number[]>;
+	/** SHIFT-COHERENCE-C01 (D11): policy switches, per-section windows, seeded assignments. */
+	shiftCoherence?: {
+		enabled: boolean;
+		enforce: boolean;
+		sectionWindowBySectionId: ReadonlyMap<number, ShiftCoherenceWindow | null>;
+		assignmentsByFacultyId: ReadonlyMap<number, FacultyShiftSection[]>;
+	};
 }): CoverageSimulationResult {
 	const capacityLedgersByFaculty = cloneCapacityLedgers(input.baseCapacityLedgersByFaculty);
 	const capacityUsed = new Map<number, number>();
 	for (const [facultyId, ledger] of capacityLedgersByFaculty.entries()) {
 		capacityUsed.set(facultyId, ledger.creditedMinutes);
 	}
+	const shiftAssignmentsByFacultyId = cloneShiftAssignments(input.shiftCoherence?.assignmentsByFacultyId);
 
 	const bySubjectId = new Map<number, UnresolvedPair[]>();
 	for (const pair of input.candidatePairs) {
@@ -1681,6 +2008,7 @@ function simulateRealFacultyCoverage(input: {
 	const unresolvedPairs: UnresolvedPair[] = [];
 	const candidateRejections: TeachingLoadCandidateRejection[] = [];
 	const preferenceNotices: TeachingLoadPreferenceNotice[] = [];
+	const shiftCoherenceNotices: TeachingLoadShiftCoherenceNotice[] = [];
 	let rowsClosedByRealFaculty = 0;
 	const rotationFamilyAssignmentCountsByFamily = new Map<string, Map<number, number>>();
 
@@ -1731,6 +2059,9 @@ function simulateRealFacultyCoverage(input: {
 			: undefined;
 
 		for (const pair of pairs) {
+			const candidateShiftWindow = input.shiftCoherence?.enabled === true
+				? (input.shiftCoherence.sectionWindowBySectionId.get(pair.sectionId) ?? null)
+				: null;
 			const selection = findBestCandidateForMode(
 				subjectRow,
 				pair.sectionId,
@@ -1747,10 +2078,21 @@ function simulateRealFacultyCoverage(input: {
 				input.nonTeachingMinutesByFaculty,
 				input.sectionGradeLevelBySectionId?.get(pair.sectionId) ?? 0,
 				input.preferredGradeLevelsByFacultyId,
+				input.shiftCoherence
+					? {
+						enabled: input.shiftCoherence.enabled,
+						enforce: input.shiftCoherence.enforce,
+						sectionWindow: candidateShiftWindow,
+						assignmentsByFacultyId: shiftAssignmentsByFacultyId,
+					}
+					: undefined,
 			);
 			appendBoundedCandidateRejections(candidateRejections, selection.rejections);
 			if (selection.preferenceNotice && preferenceNotices.length < MAX_CANDIDATE_REJECTIONS) {
 				preferenceNotices.push(selection.preferenceNotice);
+			}
+			if (selection.shiftCoherenceNotice && shiftCoherenceNotices.length < MAX_CANDIDATE_REJECTIONS) {
+				shiftCoherenceNotices.push(selection.shiftCoherenceNotice);
 			}
 			const candidate = selection.faculty;
 			if (!candidate) {
@@ -1760,6 +2102,16 @@ function simulateRealFacultyCoverage(input: {
 
 			rowsClosedByRealFaculty += 1;
 			applyCapacityLane(candidate.id, subjectRow, pair.sectionId);
+			if (candidateShiftWindow) {
+				const list = shiftAssignmentsByFacultyId.get(candidate.id) ?? [];
+				list.push({
+					sectionId: pair.sectionId,
+					sectionName: pair.sectionName,
+					gradeLevel: input.sectionGradeLevelBySectionId?.get(pair.sectionId) ?? 0,
+					window: candidateShiftWindow,
+				});
+				shiftAssignmentsByFacultyId.set(candidate.id, list);
+			}
 			subjectAssignmentCountByFacultyId.set(candidate.id, (subjectAssignmentCountByFacultyId.get(candidate.id) ?? 0) + 1);
 			if (rotationLaneDistributionKey) {
 				rotationLaneAssignmentCountByFacultyId.set(
@@ -1784,6 +2136,7 @@ function simulateRealFacultyCoverage(input: {
 		staffingReport: buildStaffingReport(unresolvedPairs, input.realFaculty, capacityUsed, input.coverageMode, input.nonTeachingMinutesByFaculty),
 		candidateRejections,
 		preferenceNotices,
+		shiftCoherenceNotices,
 	};
 }
 
@@ -2100,7 +2453,7 @@ export async function autoFill(
 		warnings.push(sectionSourceWarning);
 	}
 	const sectionGradeLevel = new Map<number, number>();
-	const sectionMeta = new Map<number, { sectionName: string; programType: string }>();
+	const sectionMeta = new Map<number, { sectionName: string; programType: string; programTypeRaw: string | null }>();
 	for (const grade of sectionResult.gradeLevels) {
 		for (const section of grade.sections) {
 			if (section.id > 0) {
@@ -2108,9 +2461,59 @@ export async function autoFill(
 				sectionMeta.set(section.id, {
 					sectionName: section.name,
 					programType: section.programType ?? 'REGULAR',
+					programTypeRaw: section.programType ?? null,
 				});
 			}
 		}
+	}
+
+	// ─── SHIFT-COHERENCE-C01 (D11) authority ────────────────────────────────
+	// Resolve the policy switches and the grade shift windows from the same read
+	// client used by the rest of the preview. The guard gates `autoFill`
+	// candidate selection only; manual assignment and the reviewed proposal-apply
+	// path are never gated. A section with no shift authority contributes no
+	// window and can never create a span.
+	const schedulingPolicy = await resolveSchedulingPolicyForRead(
+		schoolId,
+		schoolYearId,
+		(options?.client as never) ?? null,
+	);
+	const enableShiftCoherenceGuard = typeof (schedulingPolicy as { enableShiftCoherenceGuard?: unknown })?.enableShiftCoherenceGuard === 'boolean'
+		? (schedulingPolicy as { enableShiftCoherenceGuard: boolean }).enableShiftCoherenceGuard
+		: SCHEDULING_POLICY_DEFAULTS.enableShiftCoherenceGuard;
+	const enforceShiftCoherenceGuard = enableShiftCoherenceGuard
+		&& (typeof (schedulingPolicy as { enforceShiftCoherenceGuard?: unknown })?.enforceShiftCoherenceGuard === 'boolean'
+			? (schedulingPolicy as { enforceShiftCoherenceGuard: boolean }).enforceShiftCoherenceGuard
+			: SCHEDULING_POLICY_DEFAULTS.enforceShiftCoherenceGuard);
+
+	// The real Prisma client always exposes `gradeShiftWindow`; a narrow test
+	// double that does not is treated as having no window authority (the guard is
+	// additive and SOFT by default, so it never throws and never blocks).
+	const shiftWindowReader = ((options?.client as { gradeShiftWindow?: { findMany: (args: unknown) => Promise<unknown[]> } }) ?? db());
+	const shiftWindowRows = enableShiftCoherenceGuard && shiftWindowReader.gradeShiftWindow
+		? await shiftWindowReader.gradeShiftWindow.findMany({
+			where: { schoolId, schoolYearId },
+			select: { gradeLevel: true, programType: true, startTime: true, endTime: true },
+		})
+		: [];
+	const shiftWindows: ShiftCoherenceWindow[] = (shiftWindowRows as Array<{
+		gradeLevel: number;
+		programType: string | null;
+		startTime: string;
+		endTime: string;
+	}>).map((row) => ({
+		gradeLevel: row.gradeLevel,
+		programType: row.programType ?? null,
+		startTime: row.startTime,
+		endTime: row.endTime,
+	}));
+	const sectionShiftWindowBySectionId = new Map<number, ShiftCoherenceWindow | null>();
+	for (const [sectionId, grade] of sectionGradeLevel.entries()) {
+		sectionShiftWindowBySectionId.set(sectionId, resolveSectionShiftWindow({
+			gradeLevel: grade,
+			programType: sectionMeta.get(sectionId)?.programTypeRaw ?? null,
+			windows: shiftWindows,
+		}));
 	}
 
 	const allSectionIds = Array.from(sectionGradeLevel.keys());
@@ -2160,6 +2563,7 @@ export async function autoFill(
 			staffingTruth: emptyTruth,
 			distribution: emptyDistributionPlan(),
 			preferenceNotices: [],
+			shiftCoherenceNotices: [],
 			derivedDemandRevision: derivedDemand.revision,
 			canonicalDemandPairCount: derivedDemand.totalPairs,
 			outsideDemandOwnershipCount: 0,
@@ -2308,6 +2712,26 @@ export async function autoFill(
 	const resolvedPairs = new Set<string>(canonicalOwnershipRows.map((o) => `${o.subjectId}:${o.sectionId}`));
 	const preserved = resolvedPairs.size;
 
+	// SHIFT-COHERENCE-C01 (D11): seed each real teacher's already-held shift
+	// windows from their canonical current-year ownerships. A section with no
+	// resolved window contributes nothing (never a fabricated window).
+	const baseShiftAssignmentsByFacultyId = new Map<number, FacultyShiftSection[]>();
+	if (enableShiftCoherenceGuard) {
+		for (const ownership of canonicalOwnershipRows) {
+			const window = sectionShiftWindowBySectionId.get(ownership.sectionId) ?? null;
+			if (!window) continue;
+			const meta = sectionMeta.get(ownership.sectionId);
+			const list = baseShiftAssignmentsByFacultyId.get(ownership.facultyId) ?? [];
+			list.push({
+				sectionId: ownership.sectionId,
+				sectionName: meta?.sectionName ?? `Section ${ownership.sectionId}`,
+				gradeLevel: sectionGradeLevel.get(ownership.sectionId) ?? 0,
+				window,
+			});
+			baseShiftAssignmentsByFacultyId.set(ownership.facultyId, list);
+		}
+	}
+
 	// HG is covered by the adviser's advisory credit (advisoryEquivalentHours)
 	// and ARAL Program is an excluded beneficiary program. Neither may consume
 	// teaching-capacity budget — exclude both from the capacity ledgers.
@@ -2400,6 +2824,7 @@ export async function autoFill(
 	const unresolvedPairs: UnresolvedPair[] = [];
 	const autoFillCandidateRejections: TeachingLoadCandidateRejection[] = [];
 	const autoFillPreferenceNotices: TeachingLoadPreferenceNotice[] = [];
+	const autoFillShiftCoherenceNotices: TeachingLoadShiftCoherenceNotice[] = [];
 	const allTeachablePairs: UnresolvedPair[] = [];
 	const teachablePairKeySet = new Set<string>();
 	for (const pair of canonicalPairs) {
@@ -2456,6 +2881,12 @@ export async function autoFill(
 		nonTeachingMinutesByFaculty,
 		sectionGradeLevelBySectionId: sectionGradeLevel,
 		preferredGradeLevelsByFacultyId,
+		shiftCoherence: {
+			enabled: enableShiftCoherenceGuard,
+			enforce: enforceShiftCoherenceGuard,
+			sectionWindowBySectionId: sectionShiftWindowBySectionId,
+			assignmentsByFacultyId: baseShiftAssignmentsByFacultyId,
+		},
 	});
 	const hardCapSimulation = simulateRealFacultyCoverage({
 		coverageMode: REAL_ONLY_HARD_CAP_MODE,
@@ -2466,6 +2897,12 @@ export async function autoFill(
 		nonTeachingMinutesByFaculty,
 		sectionGradeLevelBySectionId: sectionGradeLevel,
 		preferredGradeLevelsByFacultyId,
+		shiftCoherence: {
+			enabled: enableShiftCoherenceGuard,
+			enforce: enforceShiftCoherenceGuard,
+			sectionWindowBySectionId: sectionShiftWindowBySectionId,
+			assignmentsByFacultyId: baseShiftAssignmentsByFacultyId,
+		},
 	});
 
 	const staffingTruth = buildStaffingTruthComparison({
@@ -2488,6 +2925,7 @@ export async function autoFill(
 		: selectedSimulation.unresolvedPairs.length;
 
 	if (staffingOnly) {
+		appendShiftCoherenceWarnings(warnings, selectedSimulation.shiftCoherenceNotices, selectedSimulation.candidateRejections);
 		return {
 			preserved,
 			created: 0,
@@ -2502,6 +2940,7 @@ export async function autoFill(
 			staffingTruth,
 			candidateRejections: selectedSimulation.candidateRejections,
 			preferenceNotices: selectedSimulation.preferenceNotices,
+			shiftCoherenceNotices: selectedSimulation.shiftCoherenceNotices,
 			derivedDemandRevision: derivedDemand.revision,
 			canonicalDemandPairCount: canonicalPairs.length,
 			outsideDemandOwnershipCount: outsideDemandOwnershipRows.length,
@@ -2558,6 +2997,11 @@ export async function autoFill(
 		capacityUsed.set(facultyId, ledger.creditedMinutes);
 	}
 
+	// SHIFT-COHERENCE-C01 (D11): the real assignment loop accumulates windows
+	// exactly as the simulation does, so a second assignment that would span both
+	// shift windows is evaluated against the first.
+	const shiftAssignmentsByFacultyId = cloneShiftAssignments(baseShiftAssignmentsByFacultyId);
+
 	for (const subjectId of orderedSubjectIds) {
 		const pairs = bySubjectId.get(subjectId)!;
 		const subjectRow = subjectMap.get(subjectId)!;
@@ -2581,6 +3025,9 @@ export async function autoFill(
 			: null;
 
 		for (const pair of pairs) {
+			const candidateShiftWindow = enableShiftCoherenceGuard
+				? (sectionShiftWindowBySectionId.get(pair.sectionId) ?? null)
+				: null;
 			const selection = findBestCandidateForMode(
 				subjectRow,
 				pair.sectionId,
@@ -2597,10 +3044,19 @@ export async function autoFill(
 				nonTeachingMinutesByFaculty,
 				sectionGradeLevel.get(pair.sectionId) ?? 0,
 				preferredGradeLevelsByFacultyId,
+				{
+					enabled: enableShiftCoherenceGuard,
+					enforce: enforceShiftCoherenceGuard,
+					sectionWindow: candidateShiftWindow,
+					assignmentsByFacultyId: shiftAssignmentsByFacultyId,
+				},
 			);
 			appendBoundedCandidateRejections(autoFillCandidateRejections, selection.rejections);
 			if (selection.preferenceNotice && autoFillPreferenceNotices.length < MAX_CANDIDATE_REJECTIONS) {
 				autoFillPreferenceNotices.push(selection.preferenceNotice);
+			}
+			if (selection.shiftCoherenceNotice && autoFillShiftCoherenceNotices.length < MAX_CANDIDATE_REJECTIONS) {
+				autoFillShiftCoherenceNotices.push(selection.shiftCoherenceNotice);
 			}
 			const candidate = selection.faculty;
 			if (!candidate) {
@@ -2608,6 +3064,16 @@ export async function autoFill(
 				unresolvedPairs.push(pair);
 			} else {
 				addPending(candidate.id, pair.subjectId, pair.sectionId);
+				if (candidateShiftWindow) {
+					const list = shiftAssignmentsByFacultyId.get(candidate.id) ?? [];
+					list.push({
+						sectionId: pair.sectionId,
+						sectionName: pair.sectionName,
+						gradeLevel: sectionGradeLevel.get(pair.sectionId) ?? 0,
+						window: candidateShiftWindow,
+					});
+					shiftAssignmentsByFacultyId.set(candidate.id, list);
+				}
 				subjectAssignmentCountByFacultyId.set(candidate.id, (subjectAssignmentCountByFacultyId.get(candidate.id) ?? 0) + 1);
 				if (rotationLaneDistributionKey) {
 					rotationLaneAssignmentCountByFacultyId.set(
@@ -2618,6 +3084,9 @@ export async function autoFill(
 			}
 		}
 	}
+
+	// SHIFT-COHERENCE-C01 (D11): name who spans and why for the actual plan.
+	appendShiftCoherenceWarnings(warnings, autoFillShiftCoherenceNotices, autoFillCandidateRejections);
 
 	// ─── Step 7: Persist new assignments ──────────────────────────────────────
 	let created = 0;
@@ -2772,6 +3241,7 @@ export async function autoFill(
 		suggestedRows,
 		candidateRejections: autoFillCandidateRejections,
 		preferenceNotices: autoFillPreferenceNotices,
+		shiftCoherenceNotices: autoFillShiftCoherenceNotices,
 		distribution,
 		derivedDemandRevision: derivedDemand.revision,
 		canonicalDemandPairCount: canonicalPairs.length,
