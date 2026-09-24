@@ -179,6 +179,7 @@ export function dispatchSimpleReadinessRepair(context: SimpleReadinessRepairDeps
 
 function TimetableSimpleHeaderImpl({
 	context,
+	layoutMode,
 	onLayoutModeChange,
 	activeTask,
 	onTaskChange,
@@ -217,8 +218,11 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 	}, [context.schoolId]);
 	const [lastEntityByMode, setLastEntityByMode] = useState<Partial<Record<SimpleViewMode, string>>>({});
 	useEffect(() => {
-		resetSimpleWorkspaceFilters(context);
-	}, [context.programFilter, context.entryKindFilter, context.severityFilter, context.setProgramFilter, context.setEntryKindFilter, context.setSeverityFilter]);
+		if (layoutMode === 'simple') resetSimpleWorkspaceFilters(context);
+	// Clear stale filters when entering Simple, not on every filter state update:
+	// readiness repairs intentionally set the severity filter to `hard`.
+	// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [layoutMode]);
 	const visibleRunId = context.draft?.runId ?? null;
 	// TIMETABLE-TERM-GATE-C01 (D3) — same explicit-scope fallback notice as
 	// Advanced: an unverified authority with data on screen means the timetable
