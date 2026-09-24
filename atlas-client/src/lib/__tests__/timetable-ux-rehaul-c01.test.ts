@@ -289,8 +289,8 @@ test('C01R C3 the header renders one status surface owning drift, day options, a
 	assert.match(markup, /data-testid="timetable-simple-review-setup"/, 'one labelled setup entry point remains');
 	assert.doesNotMatch(markup, /timetable-simple-sync-setup/, 'Sync with setup is not a header control');
 	assert.doesNotMatch(markup, /timetable-simple-impact-preview/, 'Preview impact is not a header control');
-	// The single required filter/readiness controls survive the consolidation.
-	assert.match(markup, /data-testid="timetable-filters-trigger"/);
+	// Simple keeps the status and schedule chooser, without grid-refinement controls.
+	assert.doesNotMatch(markup, /timetable-filters-trigger|timetable-active-filters/);
 	assert.match(markup, /data-testid="timetable-simple-readiness-chip"/);
 });
 
@@ -490,8 +490,8 @@ test('C01R boundaries: scope hygiene, term identity, actor scope, and the strict
 	assert.match(header, /isRunPublishedStrict/, 'the strict publication predicate survives');
 	assert.match(header, /<SimpleGenerateAction/);
 	assert.match(header, /<SimplePublishedState|<SimplePublishAction/);
-	assert.match(header, /<SimpleFilterControls context=\{context\} renderActiveFilters=\{false\} \/>/);
-	assert.match(header, /<SimpleActiveFilterChips context=\{context\} \/>/);
+	assert.doesNotMatch(header, /SimpleFilterControls|SimpleActiveFilterChips/);
+	assert.match(header, /resetSimpleWorkspaceFilters\(context\)/);
 	assert.match(header, /<SimpleReadinessChip/);
 	// A3 — the status key left the header row; one STATUS_ITEMS source now feeds
 	// the More menu.

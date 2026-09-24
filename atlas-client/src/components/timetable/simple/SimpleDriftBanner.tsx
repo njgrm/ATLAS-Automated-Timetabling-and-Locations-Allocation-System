@@ -135,7 +135,7 @@ export function SimpleDriftBanner({
 						: 'flex min-h-8 flex-wrap items-center gap-1.5 border-b border-amber-200 bg-amber-50 px-3 py-1 text-xs text-amber-900'}
 				>
 					<span className="shrink-0 font-semibold">
-						{drift.status === 'STALE' ? 'Run inputs are stale' : 'Run inputs could not be compared'}
+						{drift.status === 'STALE' ? 'Schedule information changed' : 'Schedule information could not be checked'}
 					</span>
 					{/* Informational domain chips stay next to the actionable repair control. */}
 					{showActions ? drift.domains.map((domain) => (
@@ -143,15 +143,17 @@ export function SimpleDriftBanner({
 							{domain.label}
 						</Badge>
 					)) : null}
-					<span className="min-w-0 flex-1 truncate text-amber-800">
-						{drift.actionHint || drift.message}
+					<span className="min-w-0 flex-1 break-words whitespace-normal text-amber-800">
+						{drift.status === 'STALE'
+							? 'This schedule no longer matches the latest school information. Refresh before publishing.'
+							: 'ATLAS could not check whether this schedule matches current school information. Refresh before publishing.'}
 						{formatCheckedAtAge(drift.checkedAt) ? ` · ${formatCheckedAtAge(drift.checkedAt)}` : ''}
 					</span>
 					{showActions ? (isPublished ? (
 						<span
 							className="shrink-0 rounded border border-amber-300 bg-white/70 px-2 py-0.5 font-semibold text-amber-900"
 							data-testid="timetable-simple-published-drift-guidance"
-						>Published snapshot: create an effective-dated revision from the published run. Direct sync is disabled.</span>
+						>Published schedule: make a new revision before applying setup changes. Direct sync is not available.</span>
 					) : (
 					<>
 					{/* Per-domain routed repairs. Disabled (never dead) when the shared

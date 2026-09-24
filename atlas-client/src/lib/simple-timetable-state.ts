@@ -94,10 +94,10 @@ export function deriveSimpleLifecycleAction(input: SimpleLifecycleInput): Simple
 		return { kind: 'generating', label: 'Generating…', disabled: true, interactive: false };
 	}
 	if (input.curriculumState === 'loading') {
-		return { kind: 'retry-readiness', label: 'Checking setup…', disabled: true, interactive: false };
+		return { kind: 'retry-readiness', label: 'Checking schedule information…', disabled: true, interactive: false };
 	}
 	if (input.curriculumState === 'unavailable' || input.curriculumState === 'failed') {
-		return { kind: 'retry-readiness', label: 'Retry setup check', disabled: false, interactive: true };
+		return { kind: 'retry-readiness', label: 'Retry schedule check', disabled: false, interactive: true };
 	}
 	// Setup inputs blocked: the single next action is repairing setup on the
 	// Year Setup surface, never generation or publish.

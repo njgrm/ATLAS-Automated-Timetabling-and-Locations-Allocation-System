@@ -10,7 +10,7 @@ const source = (path: string) => readFileSync(resolve(root, path), 'utf8');
 
 test('direct timetable lifecycle routes resolve their bounded loading copy', () => {
 	assert.equal(resolveTimetableLoadingIntent('/timetable/pre-generation')?.title, 'Draft queue');
-	assert.equal(resolveTimetableLoadingIntent('/timetable/setup')?.title, 'Review setup');
+	assert.equal(resolveTimetableLoadingIntent('/timetable/setup')?.title, 'Check schedule information');
 	assert.equal(resolveTimetableLoadingIntent('/timetable/policies')?.title, 'Scheduling policies');
 	assert.equal(resolveTimetableLoadingIntent('/timetable/runs')?.title, 'Generation history');
 	assert.equal(resolveTimetableLoadingIntent('/timetable/exports')?.title, 'Exports');

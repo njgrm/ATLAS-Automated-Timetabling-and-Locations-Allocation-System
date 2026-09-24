@@ -258,12 +258,12 @@
 		animation: fade-in 0.3s ease-out forwards;
 	}
 	.scrollbar-thin {
-		scrollbar-width: auto;
+		scrollbar-width: thin;
 		scrollbar-color: hsl(var(--primary)) hsl(var(--muted));
 	}
 	.scrollbar-thin::-webkit-scrollbar {
-		height: 10px;
-		width: 10px;
+		height: 6px;
+		width: 6px;
 		display: block !important;
 	}
 	.scrollbar-thin::-webkit-scrollbar-track {

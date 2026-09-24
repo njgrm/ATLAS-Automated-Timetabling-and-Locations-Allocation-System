@@ -352,7 +352,7 @@ export default function ScheduleReviewWorkspace() {
 				<div className="absolute inset-0 z-50 flex items-center justify-center bg-background/50 backdrop-blur-[2px] transition-all duration-150">
 					<div className="flex flex-col items-center gap-3 rounded-lg border bg-card p-6 shadow-lg">
 						<RefreshCw className="size-8 animate-spin text-primary" />
-						<div className="text-sm font-medium text-muted-foreground">Loading run data...</div>
+						<div className="text-sm font-medium text-muted-foreground">Checking schedule information…</div>
 					</div>
 				</div>
 			)}
