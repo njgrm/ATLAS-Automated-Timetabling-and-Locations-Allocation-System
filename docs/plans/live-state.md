@@ -35,15 +35,21 @@ and AIMS.
 ## Live release
 
 - Tailnet: `https://njgrm.buru-degree.ts.net`
-- **Pending release SHA: `70a51608`** (**NOT LIVE** as of 2026-09-24; source accepted and pushed).
-  Carries `2c4a6c80` scheduler-control clarity plus official printable timetable exports: grade-wide
-  Class Program DOCX matrices, section/room/teacher DOCX forms, readable companion XLSX workbooks, and
-  school-year export identity fields. The additive migration
-  `20260924000000_unified_official_export_profile` is pending; no live database, runtime, generation,
-  or publication action has occurred. **Rollback basis: `c7fc0c955253b924fd880f346c23d428166437c6`**
-  at `E:\ATLAS-runtime-supervised-c7fc0c95-20260924`. **Next action:** elevated operator runs the
-  SHA-pinned deployment packet and performs fresh authenticated browser/document acceptance.
-- **Release SHA: `c7fc0c95`** (**LIVE** since 2026-09-24; `E:\ATLAS-runtime-supervised-c7fc0c95-20260924`;
+- **Release SHA: `70a51608`** (**LIVE** since 2026-09-24; `E:\ATLAS-runtime-supervised-70a51608-20260924`;
+  health/ready (`database:"ok"`) + DB-backed read + Tailnet 200; served entry `assets/index-DBNdrVle.js`
+  (SHA-256 `E080F7F5…F4EE60`, byte-identical to the build); machine `ATLAS_RUNTIME_RELEASE_SHA` = `70a51608`).
+  Carries `2c4a6c80` scheduler-control clarity plus official printable timetable exports: one landscape
+  Grade-level Class Program DOCX matrix across all sections, Section/Room/Teacher official DOCX, readable
+  companion XLSX workbooks, and additive school-year export identity. The additive migration
+  `20260924000000_unified_official_export_profile` was applied via the guarded runner (6 → 7 applied; fresh
+  revalidated backup). No generation or publication occurred. **Acceptance `PARTIAL`:** deployment verified
+  (fresh independent QA `ACCEPT_READY` 8/8/0/0); authenticated browser rows are
+  `EXTERNALLY_BLOCKED(AUTH_SESSION_REQUIRED)` (session expired, `auth/me` 401, no login authorized).
+  **Rollback basis: `c7fc0c955253b924fd880f346c23d428166437c6`** at
+  `E:\ATLAS-runtime-supervised-c7fc0c95-20260924` (startable in place). Acceptance artifact
+  `docs/handoffs/deploy-acceptance-70a51608-20260924.md`. **Next action:** grant one authorized login and run
+  the Export Center / Grade DOCX matrix / Section-Room-Teacher DOCX / XLSX browser acceptance.
+- **Release SHA: `c7fc0c95`** (rollback basis; previously LIVE 2026-09-24; `E:\ATLAS-runtime-supervised-c7fc0c95-20260924`;
   health/ready 200; served entry `assets/index-C7SskN0k.js`. Carries one client fix on top of `514be157`: the
   faculty `/my/schedule` page now sends the resolved ordered term to the published-faculty-schedule endpoint,
   which had been failing closed with `TERM_SELECTION_REQUIRED` (400) and rendering no schedule; an unresolved
