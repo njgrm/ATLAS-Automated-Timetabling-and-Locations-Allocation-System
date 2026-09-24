@@ -169,7 +169,13 @@ For MEDIUM and HIGH work, read `docs/reference/agent-verification-gates.md` and 
 
 ## 12. Live Browser QA
 
-Before any browser, UX/UI, responsive, authenticated, or cross-app evidence task, read `docs/reference/agent-live-browser-qa.md`. Browser work is serialized through one profile controller, read-only by default, on the named Tailnet origin. A fresh login is a mutation and needs explicit authorization for its audit delta. Never persist credentials, and never use live Tailnet evidence to prove undeployed source bytes. **Never echo a credential value** — read it inside a process and inject the result; never print it, never paste it into a prompt, a log, or a browser field. Observed 2026-09-23: the live QA credential was found in 8 plaintext files across earlier sessions plus an agent transcript, because the credential file wraps values in markdown backticks and a naive parse submitted them literally.
+Before any browser, UX/UI, responsive, authenticated, or cross-app evidence task, load `atlas-live-browser-qa` (source: `docs/reference/agent-live-browser-qa.md`). The live database is **test data** (operator, 2026-09-25); QA exists to produce acceptance, not to avoid touching the app.
+
+- **Sessions are seeded, not typed.** Each agent's browser profile holds a "remember me" session (30-day cookie) that the operator seeds by logging in once per profile. Agents reuse it; QA-account login audit rows are expected and need no authorization. With no valid session, report `NEEDS_SESSION(<agent>/<profile>)` in one line and continue with the other rows — the operator re-seeds in about a minute. An agent whose own tool rules allow it may log in with the QA account; one whose rules forbid entering passwords relies on the seeded session.
+- **Ordinary UI mutations are allowed** when an acceptance row needs them (save, apply, toggle, upload, download). Generation, publication, deletion, anything that changes the published run, and account/SSO/role changes stay HIGH under §13 (the standing authorization covers them with its gates).
+- One agent per browser profile at a time; separate profiles per agent may run in parallel. Live Tailnet evidence never proves undeployed source bytes.
+- **Never echo a credential value** into a prompt, log, doc, commit, screenshot or transcript. Observed 2026-09-23: the QA credential was found in 8 plaintext files plus an agent transcript, because the credential file wraps values in markdown backticks and a naive parse submitted them literally.
+- Observed 2026-09-25: three consecutive releases shipped `PARTIAL (AUTH_SESSION_REQUIRED)` because this section required an authorized login while also forbidding a credential "in a browser field". Operator-approved relaxation, 2026-09-25.
 
 ---
 
