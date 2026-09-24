@@ -33,582 +33,78 @@ realistic official exports, zero HARD publication blockers, SMART-family visual
 cohesion across the whole site, and direct two-way SSO with EnrollPro, SMART,
 and AIMS.
 
+Shared sections trimmed by Lane C on 2026-09-25 (operator instruction). Superseded release blocks,
+resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs/plans/live-state.md`.
+
 ## Live release
 
 - Tailnet: `https://njgrm.buru-degree.ts.net`
 - **Release SHA: `37e0c85b`** (**LIVE** since 2026-09-25; `E:\ATLAS-runtime-supervised-37e0c85b-20260925`;
   supervisor-owned 5001→63452 / 5174→26084; health/ready (`database:"ok"`) + DB-backed read + Tailnet 200;
-  served entry `assets/index-qbOXyMnr.js` (SHA-256 `8372C342…D43B60`, byte-identical to the build) with served
-  CSS `assets/index-BpfEFmMU.css` carrying the token scrollbar policy; machine `ATLAS_RUNTIME_SOURCE_DIR` /
-  `RELEASE_SHA` = the target). Carries the global native-scrollbar token policy (app shell, pages, drawers,
-  dialogs, tables, timetable — thin 6px rails, primary-token thumb, muted track; Radix scroll areas and
-  intentional hidden-scroll utilities preserved) plus the S8 shift-coherence guard (D11, policy-switched
-  SOFT/HARD, additive `scheduling_policies` switches). **Schema migration APPLIED** via the guarded runner to
-  `atlas_recovery_clean_rebuild_20260905` on 2026-09-25 — `20260925000001_shift_coherence` (two additive
-  `scheduling_policies` columns): `MIGRATE_GATE_OK` after a fresh verified backup
-  (`atlas-backup-atlas_recovery_clean_rebuild_20260905-20260924-181614.dump`, 631,219 B, sha256 `5676cde9…`,
-  525 `pg_restore --list` entries); post-apply status "Database schema is up to date!" and an existence probe
-  (both columns) passed. Cut over by the SHA-pinned `ops/runtime/deploy-runner.ps1` (audit
-  `C:\ProgramData\ATLAS\release-audit\37e0c85b-20260925-021830`). **Deployment verified:** fresh independent QA
-  `ACCEPT_READY` 18/18/0/0 (blocked 0, unperformed 0). **Rollback basis:
-  `a5f7384e61a24059cdeaadbfa279969877838e0f`** at `E:\ATLAS-runtime-supervised-a5f7384e-20260925` (the migration
-  is additive with safe defaults, so the `a5f7384e` application remains compatible). **Acceptance PARTIAL:** the
-  authenticated in-browser scrollbar / shift-coherence acceptance remains
-  `EXTERNALLY_BLOCKED(AUTH_SESSION_REQUIRED)`.
-- **Release SHA: `a5f7384e`** (rollback basis; previously LIVE 2026-09-24; `E:\ATLAS-runtime-supervised-a5f7384e-20260925`;
-  supervisor-owned 5001→67696 / 5174→69560; health/ready (`database:"ok"`) + DB-backed read + Tailnet 200;
-  served entry `assets/index-DWJSV9dX.js` (SHA-256 `FBD1E493…D6F1CE`, byte-identical to the build); machine
-  `ATLAS_RUNTIME_SOURCE_DIR` / `RELEASE_SHA` = the target). Carries the C3 authority work (S5 break-window
-  scope, S6 teacher-lunch policy), S7 persistent faculty grade preference, and S8 unified Word/Excel schedule
-  downloads. **Schema migration APPLIED** via the guarded runner to `atlas_recovery_clean_rebuild_20260905`
-  on 2026-09-24 — `20260924000001_teacher_lunch_window` (two additive `scheduling_policies` columns) and
-  `20260925000000_faculty_grade_preference` (new `faculty_grade_preferences` table): `MIGRATE_GATE_OK` after a
-  fresh verified backup (`atlas-backup-atlas_recovery_clean_rebuild_20260905-20260924-164253.dump`, 626,413 B,
-  sha256 `fe3dc560…`, 514 `pg_restore --list` entries); post-apply status "Database schema is up to date!" and
-  an existence probe (both columns, the table, its FKs) passed. Cut over by the SHA-pinned
-  `ops/runtime/deploy-runner.ps1` (audit `C:\ProgramData\ATLAS\release-audit\a5f7384e-20260925-004740`).
-  **Deployment verified:** fresh independent QA `ACCEPT_READY` 6/6/0/0 (blocked 0, unperformed 0).
-  **Rollback basis: `002c88793212709468843c10fc69aa09eef0eb46`** at
-  `E:\ATLAS-runtime-supervised-002c8879-20260924` (the migrations are additive with safe defaults, so the
-  `002c8879` application remains compatible). **Acceptance PARTIAL:** the authenticated in-browser C3/S7/S8
-  acceptance remains `EXTERNALLY_BLOCKED(AUTH_SESSION_REQUIRED)`.
-- **Release SHA: `002c8879`** (rollback basis; previously LIVE 2026-09-24; `E:\ATLAS-runtime-supervised-002c8879-20260924`;
-  supervisor-owned 5001→56236 / 5174→54932 under the target supervisor; health/ready (`database:"ok"`) +
-  DB-backed read + Tailnet 200; served entry `assets/index-D_VODkDf.js` (SHA-256 `AA9AE7FD…E2C2`,
-  byte-identical to the build); machine `ATLAS_RUNTIME_SOURCE_DIR` / `RELEASE_SHA` = the target). Carries the
-  scheduler print center: the legacy timetable exports pane is replaced by a Print schedules panel — single
-  official Word (DOCX) downloads and selected/all ZIP packages — legacy export links redirect into the panel,
-  and Excel stays clearly labelled as editable working data. Adds the `archiver` server dependency; **no
-  schema migration**. Deployed by the SHA-pinned `ops/runtime/deploy-runner.ps1` (audit
-  `C:\ProgramData\ATLAS\release-audit\002c8879-20260924-213603`). **Deployment verified:** fresh independent
-  QA `ACCEPT_READY` 6/6/0/0 (blocked 0, unperformed 0). **Rollback basis:
-  `70a5160819349f5ea0742b839c11606e8408185d`** at `E:\ATLAS-runtime-supervised-70a51608-20260924`
-  (startable in place). **Acceptance PARTIAL:** the authenticated in-browser DOCX/ZIP download acceptance is
-  `EXTERNALLY_BLOCKED(AUTH_SESSION_REQUIRED)` — needs an authorized scheduler-session login.
-- **Release SHA: `70a51608`** (rollback basis; previously LIVE 2026-09-24; `E:\ATLAS-runtime-supervised-70a51608-20260924`;
-  health/ready (`database:"ok"`) + DB-backed read + Tailnet 200; served entry `assets/index-DBNdrVle.js`
-  (SHA-256 `E080F7F5…F4EE60`, byte-identical to the build); machine `ATLAS_RUNTIME_RELEASE_SHA` = `70a51608`).
-  Carries `2c4a6c80` scheduler-control clarity plus official printable timetable exports: one landscape
-  Grade-level Class Program DOCX matrix across all sections, Section/Room/Teacher official DOCX, readable
-  companion XLSX workbooks, and additive school-year export identity. The additive migration
-  `20260924000000_unified_official_export_profile` was applied via the guarded runner (6 → 7 applied; fresh
-  revalidated backup). No generation or publication occurred. **Acceptance `ACCEPTED`:** deployment verified
-  (fresh independent QA `ACCEPT_READY` 8/8/0/0); live Export Center controls and the official Grade/Section/Room
-  DOCX + Teacher XLSX content, the no-regression sweep and the 390×844 pass all completed under two authorized
-  logins (audit 943, 944); the Room DOCX was rendered from the deployed service against live run #317.
-  **Rollback basis: `c7fc0c955253b924fd880f346c23d428166437c6`** at
-  `E:\ATLAS-runtime-supervised-c7fc0c95-20260924` (startable in place). Acceptance artifact
-  `docs/handoffs/deploy-acceptance-70a51608-20260924.md`.
-- **Release SHA: `c7fc0c95`** (rollback basis; previously LIVE 2026-09-24; `E:\ATLAS-runtime-supervised-c7fc0c95-20260924`;
-  health/ready 200; served entry `assets/index-C7SskN0k.js`. Carries one client fix on top of `514be157`: the
-  faculty `/my/schedule` page now sends the resolved ordered term to the published-faculty-schedule endpoint,
-  which had been failing closed with `TERM_SELECTION_REQUIRED` (400) and rendering no schedule; an unresolved
-  term now shows a message and never defaults to Term 1. No server/migration/generation/publication change.
-  Accepted per its handoff (independent QA 6/6/0/0; test 5/5 with a load-bearing mutant; live 400→200
-  reproduced pre-deploy). **Live end-to-end browser confirmation is PENDING** — the persistent browser session
-  expired mid-cycle (redirect to `/login`, `auth/me` 401); no login was performed. **Rollback basis:
-  `514be157632786e7cc66b0a4adf117826135a0ed`** at `E:\ATLAS-runtime-supervised-514be157-20260924`
-  (startable in place). Pre-deploy record committed first; post-cutover acceptance at
-  `docs/handoffs/deploy-acceptance-c7fc0c95-20260924.md`. **Deployment and acceptance are separate
-  outcomes.**)
-- **Release SHA: `514be157`** (rollback basis; previously LIVE 2026-09-24; `E:\ATLAS-runtime-supervised-514be157-20260924`;
-  health/ready (`database:"ok"`) 200; subjects 200. Carries one deploy-runner fix on top of `426b6ac8`:
-  `Invoke-Native` no longer promotes native stderr to a terminating error under `$ErrorActionPreference='Stop'`,
-  so a git/scheduled-task/process stderr line can no longer abort the runner with a raw message before its
-  fail-closed check — a bad target now yields `DEPLOY_RUNNER_STOP: git failed with exit code N`. Also an
-  encoding-robust BOM task-export test. Full runtime suite (`npm run runtime:test`, 12 files) 93 tests / 0
-  failures (93/93 built; 2 build-gated skips without a build); base `426b6ac8`: 91/93. No runtime behavior, migration,
-  generation, or publication change; product artifacts byte-identical to `426b6ac8`. Accepted per its handoff
-  (independent QA 5/5/0/0; failing-first: the base runner leaks the raw `fatal: cannot change to …`, the fix
-  emits `DEPLOY_RUNNER_STOP`). **Rollback basis: `426b6ac8358bbdf10cc4289fdd34067ff88d0c81`** at
-  `E:\ATLAS-runtime-supervised-426b6ac8-20260924` (startable in place). Pre-deploy record committed first;
-  post-cutover acceptance at `docs/handoffs/deploy-acceptance-514be157-20260924.md`. **Deployment and
-  acceptance are separate outcomes.**)
-- **Release SHA: `426b6ac8`** (rollback basis; previously LIVE 2026-09-24; `E:\ATLAS-runtime-supervised-426b6ac8-20260924`;
-  health/ready (`database:"ok"`) 200; runtime context `enrollpro-verified` `T2`. Carries one server fix on top
-  of `d7082c9d`: the RR-TERM-CACHE offline fallback now derives the active term from the persisted contract's
-  verified term dates (containment → latest-started → snapshot) instead of surfacing a stale
-  `term_contract_cache.activeTerm` snapshot, so an EnrollPro outage resolves the current term (school 1 /
-  year 10: snapshot `T1` vs live `T2`). Client bundle unchanged; no migration, no generation, no publication.
-  Accepted per its handoff (failing-first pure unit test: 6/6, mutant returns the stale `T1` / `null`; server
-  `tsc` clean; hermetic preservation 11/11). Post-cutover: exports 200, 4 fresh `/timetable` loads 0×502.
-  **Rollback basis: `d7082c9db134f26e0f3f1e5fa01d470cb9b34093`** at
-  `E:\ATLAS-runtime-supervised-d7082c9d-20260924` (startable in place). Pre-deploy record committed first;
-  post-cutover acceptance at `docs/handoffs/deploy-acceptance-426b6ac8-20260924.md`. **Deployment and
-  acceptance are separate outcomes.**)
-- **Release SHA: `d7082c9d`** (rollback basis; previously LIVE 2026-09-24; `E:\ATLAS-runtime-supervised-d7082c9d-20260924`;
-  supervisor → server `5001` / host `5174`; health/ready (`database:"ok"`) 200; supervisor log "All targets
-  healthy"; served entry `assets/index-PWY0v5TC.js` (unchanged). Carries one runtime-host fix on top of
-  `22d1f5a8`: the production host proxy now passes `agent: false` on its upstream requests (and readiness
-  probe) so it no longer reuses a pooled socket the ATLAS server has closed at its `keepAliveTimeout` — the
-  intermittent upstream `read ECONNRESET` → 502 on the first request burst of a `/timetable` load.
-  Failing-first control: two sequential proxied requests now arrive on two upstream connections (`1 !== 2` on
-  base). Post-cutover: **7 fresh `/timetable` loads with 0 502s** (pre-fix: 2–4 on ~half of loads); export
-  matrix 200. No client/server source change, no migration, no generation, no publication — the product
-  artifacts are byte-identical to `22d1f5a8`. **Rollback basis:
-  `22d1f5a8a341bf426a91df5a7ea6c01acd4862d2`** at `E:\ATLAS-runtime-supervised-22d1f5a8-20260924`
-  (startable in place). Pre-deploy record committed first; post-cutover acceptance at
-  `docs/handoffs/deploy-acceptance-d7082c9d-20260924.md`. **Deployment and acceptance are separate
-  outcomes.**)
-- **Release SHA: `22d1f5a8`** (rollback basis; previously LIVE 2026-09-24; `E:\ATLAS-runtime-supervised-22d1f5a8-20260924`;
-  supervisor → server `5001`→61128 / host `5174`→9212; health/ready (`database:"ok"`) 200; served entry
-  `assets/index-PWY0v5TC.js` + `assets/ScheduleReviewWorkspace-M15pvQpf.js`; machine
-  `ATLAS_RUNTIME_SOURCE_DIR` / `RELEASE_SHA` = the target; supervisor log "All targets healthy". Carries the
-  client-only `TIMETABLE-LIFECYCLE-CONTROLS-C03` lane on top of `014b4b4c`: session-verification
-  truthfulness (no false "Guest" flash while the actor session resolves), per-route bounded loading copy
-  for the five direct lifecycle routes (Drafting/Setup/Policies/Runs/Exports), and header grid-control
-  refinement (filters Dialog→Popover on desktop / Sheet on mobile; View type + searchable entity in the
-  header). No server change, no migration, no generation, no publication. Accepted per its handoff
-  (lifecycle mount 1/1, route preservation 57/57, controls/session 3/3, production client build passed;
-  NON_BLOCKING: three unchanged tests missing Playwright declarations). **Rollback basis:
-  `014b4b4c6ef1112f544589f7245e5b662103d9a1`** at `E:\ATLAS-runtime-supervised-014b4b4c-20260924`
-  (startable in place; its `git status --short` carries an untracked `ops/runtime/logs/` state JSON, which
-  does not affect startability). Pre-deploy record committed first; post-cutover acceptance at
-  `docs/handoffs/deploy-acceptance-22d1f5a8-20260924.md`. **Deployment and acceptance are separate
-  outcomes.**)
-- **Release SHA: `014b4b4c`** (current live serving release; `E:\ATLAS-runtime-supervised-014b4b4c-20260924`;
-  supervisor → server `5001`→52200 / host `5174`→62352; health/ready (`database:"ok"`) 200; machine
-  `ATLAS_RUNTIME_SOURCE_DIR` / `RELEASE_SHA` = the target; supervisor log "All targets healthy"; the client
-  bundle is unchanged from `09b898e6` (both fixes are server-only). Carries two production fixes on top of
-  `09b898e6`: (1) the export learner-count reconciliation now matches EnrollPro's real section-learner shape
-  (`data.learners`, `MALE`/`FEMALE`) — **verified live**: per-section exports now succeed
-  (`section-program.docx?sectionId=141` 200, `summary-teacher-schedule.xlsx` 200, `room-program.xlsx` 200);
-  (2) `resolveRuntimeContext` falls back to the persisted verified ordered term contract's active term when
-  the EnrollPro active-term endpoint is unreachable, so the timetable no longer dead-ends on "Term setup is
-  required" during an EnrollPro outage (independently QA-verified `ACCEPT_READY` 3/3 with a harness; live
-  outage not reproducible). Also merges the scheduler-ancillary-authority C01 lane and wires its test. No new
-  migration. Deployed 2026-09-24 by Elevated OpenCode (audit `…\release-audit\014b4b4c-20260924-030100`).
-  **Rollback basis: `09b898e6b7550528ee450abd4d9925fb422a240e`** at
-  `E:\ATLAS-runtime-supervised-09b898e6-20260924` (startable in place; deeper `6e9c87e7`).   **Residual
-  (RESOLVED 2026-09-24, `EXPORT-CENTER-ACCEPTANCE-20260924`):** the all-sections export had failed
-  `503 LEARNER_RECONCILIATION_FAILED` because 2 of 20 section mirrors were stale — section `143`
-  (mirror `enrolled_count` 4 vs live feed 5) and section `146` (1 vs 2). A narrow
-  `POST /api/v1/sections/sync {schoolId:1, schoolYearId:10}` refreshed the mirrors (guard untouched);
-  `class-program.xlsx` now returns **200** and the per-section exports still 200. See the Lane A entry.)
-- **Release SHA: `09b898e6`** (previous release; `E:\ATLAS-runtime-supervised-09b898e6-20260924`;
-  supervisor → server `5001`→50548 / host `5174`→49996; served entry `/assets/index-BloZtbDr.js`,
-  **byte-identical to the target build**; machine `ATLAS_RUNTIME_SOURCE_DIR` / `RELEASE_SHA` = the target;
-  health + health/ready (`database:"ok"`) + Tailnet 200; supervisor log "All targets healthy", rollover
-  automation disabled. Carries the integrated `SCHEDULER-EXPORT-CENTER-C01` (paste-ready scheduler exports:
-  class/room grids, verified learner M/F/T totals, XLSX/DOCX room and section exports, Export Center
-  shortcuts) plus the `test:export-center` gate wiring, on top of `6e9c87e7`. No new migration. Deployed
-  2026-09-24 by Elevated OpenCode under the operator's standing authorization (audit
-  `C:\ProgramData\ATLAS\release-audit\09b898e6-20260924-022743`); the pre-deploy record was committed first
-  (`3c0b080a`). **Rollback basis: `6e9c87e7360960b3820849dfd8a07b0dac47cfc8`** at
-  `E:\ATLAS-runtime-supervised-6e9c87e7-20260924` (startable in place; deeper `4893cbde`). **Post-deploy
-  browser acceptance is PENDING.**)
-- **Release SHA: `6e9c87e7`** (previous release; `E:\ATLAS-runtime-supervised-6e9c87e7-20260924`;
-  supervisor → server `5001`→39836 / host `5174`→54244; served entry `/assets/index--ZHwcC0J.js`,
-  SHA-256 `917E98F0…830A`, **byte-identical to the target build**; machine `ATLAS_RUNTIME_SOURCE_DIR` /
-  `RELEASE_SHA` = the target; health + health/ready (`database:"ok"`) + DB-backed read (19,440 B) + Tailnet 200;
-  supervisor log "All targets healthy", rollover automation disabled. Carries the integrated
-  `SCHEDULER-COLLABORATION-C01` + `CEREMONY-OVER-CLASS-TRUTHFULNESS-C01` source and the integration
-  reconciliation; migration `20260923000000_publication_approval_requests` applied via the guarded wrapper
-  — backup `351e8d21…`, 497 restore-list entries, 5→6 migrations. Deployed 2026-09-24 by Elevated OpenCode
-  under the operator's standing authorization (audit `C:\ProgramData\ATLAS\release-audit\6e9c87e7-20260924-002236`);
-  the pre-deploy record was committed first (`14ea7f31`) so the record led the cutover. **Rollback basis:
-  `4893cbdec2758fa9965a117a1988dee517718afb`** at `E:\ATLAS-runtime-supervised-4893cbde-20260923` (startable
-  in place; deeper `0232bf9c`). **Post-deploy browser acceptance PASSED — full route matrix** (read-only;
-  already-authenticated session — this lane entered no credentials; `1366×768` + `390×844`; evidence
-  `docs/reviews/runtime-acceptance-6e9c87e7-20260924/acceptance-matrix.md`): 17 routes render with no
-  global scrollbar and no app-level console error; the Monday ceremony cell renders the ceremony **above**
-  the class entry (`SCIENCE · R. Santos · Room 103 · G7AW`); the collaboration WebSocket opens on
-  `/timetable` and `/faculty/room-preferences`. Residuals: the host/proxy 502 + HTTP/2 layer (server proven
-  healthy — direct `localhost:5001` probes return `401`) and the scheduler-role publication-approval surface
-  (unexercised). **Independent post-action QA: `CORRECTION_REQUIRED` 6/7** — artifact identity, machine env,
-  supervisor, migration, endpoint reachability all PASS; **B1** (a false "no fresh login" claim) is corrected
-  here — `audit_logs` id 932 `LOCAL_LOGIN_SUCCESS` (actor 46, officer, `127.0.0.1`, Chrome) at
-  2026-09-23T16:38:57.960Z is disclosed and is **not this lane's**; the operator confirmed it was their
-  own login (authorized).)
-- **Retention policy (2026-09-23):** `RUNTIME-DIR-RETENTION-C01` retired 14 release directories
-  (`1fdab989`, `e78d4473`, `11e8778f`, `7dbb3b90`, `d4c9f391`, `d92facfa`, `ecff1d7e`, `a02884ff`,
-  `5f5c6c4f`, `20f07f59`, `405e5b18`, `4ce73d157f9a`, `78be1b760e40`, `8eb0511baa53`). **Any earlier line
-  in this file that calls one of them live, startable, available, retained or "leave as-is" is
-  superseded.** Rollback depth is now `d9a6aa53` + `28f6f03f` + the two last-resort artifacts
-  (`20260912`/`9d293879`, `fallback-d44-20260912`/`d44f29e0`); deeper rollback is a **rebuild**.
-  `0eb3b67fe94c` is retained — `E:\ATLAS-worktrees\warning-readability-c01` borrows its server tree.
-- **Release SHA: `4893cbde`** (current live serving release; `E:\ATLAS-runtime-supervised-4893cbde-20260923`;
-  supervisor PID 56336 -> server `5001`->15672 / host `5174`->50852; served entry `/assets/index-CO9LQ3Su.js`,
-  SHA-256 `F309A458…F9BB`, **byte-identical to the target build**; machine `ATLAS_RUNTIME_SOURCE_DIR` /
-  `RELEASE_SHA` = the target; health + health/ready (`database:"ok"`) + DB-backed read (19,440 B) + Tailnet 200
-  — the readiness gate cleared at **t+6s**; supervisor log "All targets healthy", rollover automation disabled).
-  Carries the accepted timetable C05 source. **Deployed by Elevated OpenCode** under the operator's handoff
-  (audit `C:\ProgramData\ATLAS\release-audit\4893cbde-20260923-215632`); the pre-deploy record was committed
-  first (`e9d89acb`) so the record led the cutover. **Rollback basis: `0232bf9c`** at
-  `E:\ATLAS-runtime-supervised-0232bf9c-20260923` (startable in place). **Post-deploy browser acceptance is
-  PENDING — deployment and acceptance are separate outcomes.**
-  *Follow-up (gate defect):* the `deploy-runner` live-state gate resolves the shared repo from the target; a
-  **clone** target has no `origin/main`, so it fails closed with a raw `fatal: invalid object name` instead of
-  a clear "target must be a registered worktree" refusal. This cutover therefore used the handoff's pristine
-  base runner (`38090BB1…`). Either sharpen the message or add a `-LiveStateRepo` override.
-- (superseded) **Release SHA: `0232bf9c`** (`E:\ATLAS-runtime-supervised-0232bf9c-20260923`;
-  task action + Start-In + machine `ATLAS_RUNTIME_SOURCE_DIR`/`RELEASE_SHA`; listeners `5001`->56812 /
-  `5174`->59604; authoritative state `releaseSha=0232bf9c`, `state=running`; health + health/ready
-  (`database:"ok"`) + DB-backed read + Tailnet 200 — verified 2026-09-23). **Deployed by another lane; the
-  live release has now moved twice in one session (`7ac28124` → `89012430` → `0232bf9c`) and its rollback
-  basis is not recorded here — verify before relying on it.**
-- (superseded) **Release SHA: `89012430`** — `E:\ATLAS-runtime-supervised-89012430-20260923`; its
-  `supervisor-state.json` is a stale artifact whose PIDs hold no port. Retained.
-- (superseded) **Release SHA: `7ac28124`** (`E:\ATLAS-runtime-supervised-7ac28124-20260923`;
-  supervisor-owned 5001/5174; server `5001`->37608, client `5174`->9948; served entry
-  `/assets/index-BbufnI_M.js`, SHA-256 `49838BFE…5CB6`, byte-identical to the build; machine
-  `ATLAS_RUNTIME_RELEASE_SHA` = `7ac28124`; health + health/ready (`database:"ok"`) + DB-backed
-  `GET /api/v1/subjects?schoolId=1` + Tailnet all 200 — verified 2026-09-23). Carries
-  `TIMETABLE-TRUTHFULNESS-C01` (D1–D4; see the Lane A section) over the accepted
-  `TIMETABLE-HEADER-COLLAPSE-C01` / `TIMETABLE-RELAXED-MAIN-C01` / `NOTIFICATION-INBOX` source and the
-  published run #317 / revision 43. **Release root moved to `E:` deliberately** — `D:` was 16.83 GiB,
-  1.83 GiB above the §3 15 GiB fail-closed line, and PostgreSQL lives on `D:`; `D:` finished the
-  deployment **unchanged at 16.82 GiB**. The release owns its own dependency tree.
-  **Rollback (retention policy, 2026-09-23): `d9a6aa53` and `28f6f03f` startable in place, plus the two
-  last-resort artifacts `D:\ATLAS-runtime-supervised-20260912` (`9d293879`) and
-  `D:\ATLAS-runtime-supervised-fallback-d44-20260912` (`d44f29e0`). Deeper rollback is now a REBUILD, not
-  a re-point** — `git worktree add --detach <sha>` → install → `prisma generate` → builds.
-  `RUNTIME-DIR-RETENTION-C01` retired the depth beyond this (`1fdab989`, `e78d4473`, `11e8778f`,
-  `7dbb3b90`, `d4c9f391`, `d92facfa`, `ecff1d7e`, `a02884ff`, `5f5c6c4f`) and the 2026-09-17/18 junction
-  pass-through cluster (`20f07f59`, `405e5b18`, `4ce73d157f9a`, `78be1b760e40`, `8eb0511baa53`);
-  `D:` 20.37 → **37.83 GiB**. `0eb3b67fe94c` was **kept** — `E:\ATLAS-worktrees\warning-readability-c01`
-  (an open, unowned lane) borrows its server tree.
-- (superseded) **Release SHA: `d9a6aa53`** — `D:\ATLAS-runtime-supervised-d9a6aa53-20260923`;
-  5001->19296 / 5174->41948; served `/assets/index-BKcGq9ln.js`. Carried
-  `TIMETABLE-HEADER-COLLAPSE-C01`, the accepted `TIMETABLE-RELAXED-MAIN-C01`, the `NOTIFICATION-INBOX`
-  source (migration `0004` applied) and run #317 / revision 43. **Now the rollback basis.**
-- (superseded) **Release SHA: `28f6f03f`** — the accepted relaxed main workspace, live ~06:20-10:11.
-- (superseded) **Release SHA: `7dbb3b90`** (deployed by Lane A 2026-09-22
-  ~22:17 local; supervisor restarted; `5001`->45228; `5174`->48508; served entry
-  `index-BxOX7te1.js`; health + DB-backed read + Tailnet 200). **This release ended the timetable
-  outage properly.** It carries `TIMETABLE-TERM-GATE-C01` (the gate is now satisfiable: the timetable
-  issues one `verifyUpstream:true` call when the fast read is unverified, re-runs the load when
-  verification lands, and loads an explicit term with a visible notice rather than dead-ending),
-  `ZONE-WARNING-REMOVAL-C01` (the zone warning no longer exists), and re-releases Planner B's
-  `TIMETABLE-SCHEDULER-SIMPLICITY-C01` work that the rollback had removed. **Verified on the live page:**
-  authenticated load shows no gate error, Class Schedule present, terms rendering, zero console errors,
-  and no "unverified" notice (authority resolved to T2). Both ranges passed one fresh independent QA
-  `ACCEPT_READY` **8/8** and **11/11**, blocked 0, unperformed 0. Rollback: `d4c9f391` at
-  `D:\ATLAS-runtime-supervised-d4c9f391-20260921` (startable in place).
-- (superseded) Release SHA: `d4c9f39139dcb34e1653d543586d4c76420ea8a5` — was restored as an incident
-  rollback at ~21:17 and superseded by the fix at ~22:17.
-  supervisor 28104; `5001`->39064; `5174`->39392; `D:` 29.84 GiB; served entry `index-DgF0ZSEz.js`,
-  456,064 B — the client tree is unchanged, so the deploy is proven by the **server** service
-  artifacts). Carries `COMPANION-SSO-REVERSE-IDENTITY-C01`: the reverse assertion **omits** empty
-  `firstName`/`lastName` instead of sending `""` (EnrollPro's schema is `min(1).optional()`), and
-  fails closed typed-403 (`COMPANION_SSO_IDENTITY_EMPLOYEE_ID_UNAVAILABLE`) on a missing
-  `employeeId`. Pre-action review `ACCEPT_READY` 17/17/0/0; mounted suite 21/21.
-  **ATLAS -> EnrollPro (reverse) is confirmed working live.** **EnrollPro -> ATLAS (normal) is
-  `BLOCKED(COMPANION_CALLBACK_MISCONFIGURED)`**: EnrollPro's `ATLAS_SSO_CALLBACK_URL` points at
-  ATLAS's SPA *result* path (`/auth/sso/callback`) where the *callback* path belongs
-  (`/api/v1/auth/enrollpro/callback`), so the SPA never sees a token — companion-side, see
-  `docs/handoffs/companion-sso-reverse-identity-c01-enrollpro.md` §4. Evidence
-  `docs/reviews/companion-sso-reverse-identity-c01/evidence.md`. Rollback `d92facfa` startable at
-  `D:\ATLAS-runtime-supervised-d92facfa-20260921`; **not executed**.
-- (superseded) Release SHA: `d92facfa14b1d33b6da04f0c169cd73f7221e713`. Delta versus the previous release
-  `a02884ff` is exactly the three `atlas-server` paths of `ACTOR-SCHOOL-MUTATIONS-C01`
-  (**client delta empty**). This is the **first server-carrying release since `4c7c0bd9`**, so it
-  also carries the `DUP-READ-CALLERS-C01R` client fix.
-- Supervisor: PID 96476; server `5001 -> 103700`; client `5174 -> 96612`
-- Active directory: `D:\ATLAS-runtime-supervised-80acdc25-20260921` (a registered detached
-  worktree — the clone shape used by the two previous releases is not repeated, `AGENTS.md` §10.12)
-- Served client entry chunk: `/assets/index-C6LTCXSf.js`, byte-identical to the previous release's
-  (unchanged client tree rebuilds deterministically)
-- Deployed 2026-09-21 by the `ACTOR-SCHOOL-MUTATIONS-C01` release cycle. The eight defaulting
-  runtime mutation `POST` routes now reject a missing/malformed/foreign target school **before**
-  any service, lock, upstream, database or notification dispatch; a system token may still act on
-  an explicit valid target, and a JWT actor must be privileged with a matching positive actor
-  school. Independent source review: **9/9**, including an independently reproduced failing-first
-  control. Post-action QA: **`ACCEPT_READY` 5/5/0/0** with an independently re-derived signature
-  map — `EE03F1D0…65521B`, 46 tables, pre == post, pinned in-transaction — plus a whole-database
-  timestamp scan showing **zero post-cutover writes and no login**. The eight live mutation routes
-  were deliberately **not** probed (a live `POST` can write); the server claim rests on artifact
-  identity plus the committed harness, and that limitation is stated, not papered over.
-  `D:` free 37.32 → **35.82 GiB**.
-- Rollback: incumbent `a02884ff` is startable in place at
-  `D:\ATLAS-runtime-supervised-a02884ff-20260921` (task XML captured pre-mutation,
-  `B0EF4152…`); `4c7c0bd9` and the `5f5c6c4f` / `434b2a81` bases remain available behind it.
-  Rollback was **not** executed.
-- Deployed 2026-09-21 by the `UX-R03e` one-shot, which added the last two operator
-  sub-pages: `/timetable/runs` (a read-only run history composed from the existing
-  `GET /api/v1/generation/:schoolId/:schoolYearId/runs` endpoint, selecting through the
-  workspace's existing run selection) and `/timetable/setup` (composed from the existing
-  drift/sync, room-repair, refresh-names and readiness surfaces, with the readiness chip and
-  refresh item extracted so header and pane share one implementation). Independent QA:
-  `ACCEPT_READY` 13/13, blocked 0, unperformed 0 — source, deployment and all five browser
-  rows, including the viewport check across the nine `/timetable*` routes and the in-subtree
-  identity check.
-- **Prior correction retained:** the `UX-R03d` outlet-keying fix means the workspace no
-  longer remounts inside the `/timetable` subtree. QA confirmed the same element instances
-  and zero new requests for pure route moves; entering the **advanced** policy surface via
-  the More menu still switches layout and refetches its own data, which is pre-existing
-  advanced-surface behaviour, not an outlet remount.
-- **Evidence-hygiene defect found and fixed on 2026-09-20.** Independent QA applied the
-  `AGENTS.md` §11 rule and found the route test files were reachable from **no** committed
-  `package.json` script — the whole `components/__tests__` tree sat outside every gate, so
-  earlier tallies came from manually-run commands. `test:timetable-route-keys` now runs them
-  (57/57 at `R03e`).
-- Open provenance limitation: the deployment signature map is deterministic (46 tables) but
-  its serialization was not pinned tightly enough for QA to re-derive the executor's
-  recorded pre hash independently. Byte-identity across each action was proven by the
-  executor and, at `R03e`, recomputed by QA to the same value.
-- **Open 502 lead (report-only, not fixed).** QA observed 502s on clean loads of
-  `/api/v1/generation/1/10/runs/316/manual-edits` and
-  `/api/v1/follow-up-flags/1/10/runs/316/flags`, and concurrent duplicate identical GETs on
-  `runtime/context?schoolId=1` (×4), `rollover-status` (×2-3) and `auth/me` (×2). In this
-  sample the duplicates did **not** correlate with the 502s. Coalescing duplicate reads in
-  `atlasApi` would touch every call, so it stays a separate reviewed stream.
-- Authorized logins: `audit_logs` rows 853 (C02 pass), 854 (R03c QA), 855 (R03d QA), 856
-  (R03e QA), actor 46.
-- Served client entry chunk: `assets/index-BMgoX99N.js`; served HTML and all 34 referenced
-  assets byte-match the built dist manifest.
-- Rollback basis: `5f5c6c4f02caf91b1ad948ebfcb6dde409073ad6` at
-  `D:\ATLAS-runtime-supervised-5f5c6c4f-20260920` — startable, junction-free, with its
-  task-XML capture retained. Rollback was not executed. The older `c93dd2ee`, `d50dde64`
-  and `74999168` releases are still present and startable.
-- Retained do-not-retire trees: `0eb3b67f` (repaired shared client),
-  `8eb0511baa53` (client graft source), and `E:\ATLAS-worktrees\ux-quickfix-c01`.
-- Local/Tailnet health, readiness, client and DB-backed probes are 200; public
-  published-schedule reads are term-scoped with typed `400 INVALID_TERM_INDEX` on
-  malformed input; unauthenticated violation-report routes return 401; SMART and
-  AIMS SSO return typed `503 COMPANION_SSO_NOT_CONFIGURED` (intentionally inactive,
-  no keys installed); EnrollPro is configured in the bundle.
-- Rollover automation remains disabled.
-- `cli.mjs status` incorrectly reports child `live:false`; listener ownership,
-  supervisor state and HTTP probes are authoritative until that bug is corrected.
-- Supervisor metadata still names historical `productPin=d44f29e0`; read
-  `releaseSha`, not that field.
-- Zero-write evidence: the schema-wide signature map (`222718C7…C3E3`, 46 tables)
-  is unchanged across the deployment; its exact SQL and serialization are in
-  `docs/reviews/current-source-live-deploy-c01/evidence.md` — pin `SET TIME ZONE`
-  when reproducing, because `row_to_json` of `timestamptz` is session-dependent.
-- Worktree hygiene 2026-09-20: retired `published-revision-authority-c12`
-  (`c01b171f`), `section-route-authority-c02` (`af1ed0bb`), and
-  `section-route-authority-c03` (`6f1abc2b`) after proving each clean and an
-  ancestor of `origin/main`; non-forced removal, no branch deleted.
-  `E:/ATLAS-worktrees/c02-muse` (`211dea0c`) is preserved as an unintegrated
-  alternate candidate. `stash@{0}` (`3c014d8b`) preserved.
-
-## Live acceptance (browser, 2026-09-20)
-
-- One authorized admin login for this pass: audit row **852** `LOCAL_LOGIN_SUCCESS`,
-  actor 46. Rows 850/851 are pre-existing and not from this pass. Read-only: no
-  Save/Apply/Generate/Publish/Delete was invoked and no timetable cell was clicked.
-- `/` renders, `window.location.origin` asserted, no global scrollbar. INTEGRATED
-  SYSTEMS now lists **EnrollPro** with its reverse-SSO start link; AIMS and SMART
-  correctly report "not configured".
-- `/timetable`: the Simple workspace renders (`timetable-simple-body`), no global
-  scrollbar. Selection-driven controls (primary action, visible undo, source truth)
-  were deliberately not exercised, because selecting a slot on this page can place
-  a session.
-- `/public/schedules?termIndex=1`: resolves a single term (`TERM 1`) and shows 40
-  published classes for the default section — the 3x term duplication is gone.
-- `/teaching-load`: renders with no error boundary and no global scrollbar.
-- Console errors are only EnrollPro-proxy 502s (see the blocker below).
-- Screenshot, not committed:
-  `%TEMP%\opencode\pw-mcp-output\atlas-timetable-simple-1366x768.png`.
+  served entry `assets/index-qbOXyMnr.js` (SHA-256 `8372C342…D43B60`, byte-identical to the build); machine
+  `ATLAS_RUNTIME_SOURCE_DIR` / `RELEASE_SHA` = the target). Carries the global native-scrollbar token policy
+  and the S8 shift-coherence guard (D11). **Migration APPLIED** 2026-09-25 via the guarded runner to
+  `atlas_recovery_clean_rebuild_20260905`: `20260925000001_shift_coherence` (`MIGRATE_GATE_OK`, backup
+  `atlas-backup-atlas_recovery_clean_rebuild_20260905-20260924-181614.dump`, sha256 `5676cde9…`). Cut over by
+  `ops/runtime/deploy-runner.ps1` (audit `C:\ProgramData\ATLAS\release-audit\37e0c85b-20260925-021830`).
+  **Deployment verified:** fresh QA `ACCEPT_READY` 18/18/0/0. **Acceptance PARTIAL** — authenticated browser
+  rows `EXTERNALLY_BLOCKED(AUTH_SESSION_REQUIRED)`. **Acceptance owner: unassigned (as of 2026-09-25).**
+- **Rollback depth** (retention policy: live + two most recent accepted):
+  1. `a5f7384e61a24059cdeaadbfa279969877838e0f` at `E:\ATLAS-runtime-supervised-a5f7384e-20260925` — the
+     rollback basis; compatible with the additive `37e0c85b` migration.
+  2. `002c88793212709468843c10fc69aa09eef0eb46` at `E:\ATLAS-runtime-supervised-002c8879-20260924` —
+     compatible (the `a5f7384e` migrations are additive with safe defaults).
+  Every other `*/ATLAS-runtime-*` directory is beyond rollback depth: a retention-reclaim candidate, except
+  the named last-resort artifacts (`docs/reference/agent-worktree-lifecycle.md`).
+- **Acceptance debt (as of 2026-09-25):** `37e0c85b`, `a5f7384e` and `002c8879` each shipped with
+  authenticated browser acceptance `PARTIAL (AUTH_SESSION_REQUIRED)`.
 
 ## Live data
 
-- Database: `atlas_recovery_clean_rebuild_20260905` on localhost:5432.
-- Active upstream year: 10; mirror row: 551.
-- Building `gradeScope` HIGH apply completed and independently accepted:
-  building 1 `[7]`, building 2 `[8]`, building 3 `[9]`, building 4 `[10]`.
-  Deployed preview is zero-write with 20/20 correct grade-wing placements and
-  zero cross-grade leakage. Existing section home rooms were unchanged.
-- Grade-scope rollback: restore buildings 1-4 to empty integer arrays, then
-  rerun the same preview.
-- Published run **317 / revision 43** (corrected 2026-09-24; the previous line named run 315/revision 42,
-  which was superseded): zero HARD violations, 289 acknowledged SOFT warning rows; `summary.isPublished=true`,
-  public surface `source.runId=317`, `activeRevisionId=43`, `snapshotState=FROZEN`, 920 entries. Runs
-  316/315/314 are not published. Run 317 was generated and published 2026-09-22/23 under its own approval.
-- Regeneration and publication have not been authorized or executed after the
-  grade-scope correction.
+- Database: `atlas_recovery_clean_rebuild_20260905` on localhost:5432. Active upstream year: 10; mirror row 551.
+- Published run **317 / revision 43** (as of 2026-09-24): zero HARD, 289 acknowledged SOFT warnings;
+  public surface `source.runId=317`, `activeRevisionId=43`, `snapshotState=FROZEN`, 920 entries.
+- Building `gradeScope`: buildings 1–4 = `[7]`, `[8]`, `[9]`, `[10]` (HIGH apply accepted). Rollback: restore
+  buildings 1–4 to empty integer arrays, then rerun the same preview.
+- Regeneration and publication have not been authorized or executed since the grade-scope correction.
 
-## Current blockers and accepted source
+## Open items carried forward (unverified since the date shown — verify or delete before acting)
 
-- **BLOCKED — `cca84c6b` deployment: the handoff's "no migration required" is false** (as of 2026-09-24;
-  proven by `prisma migrate status` against `atlas_recovery_clean_rebuild_20260905`). The range
-  `002c8879..cca84c6b` adds two **unapplied** migrations — `20260924000001_teacher_lunch_window` (two
-  additive `scheduling_policies` columns) and `20260925000000_faculty_grade_preference` (new
-  `faculty_grade_preferences` table) — and the server reads both (`schedulingPolicy.*` selects all
-  scalars; `facultyGradePreference.*`). Deploying without applying them would break policy reads and
-  the new faculty-grade-preference routes. **Next:** a separately approved HIGH apply of exactly those
-  two migrations (guarded runner, fresh verified backup), then redeploy. No cutover occurred; the
-  unbuilt target worktree was retired. (The `## Live release` block deliberately does **not** name
-  `cca84c6b`, so the deploy-runner gate stays closed until the migration is applied.)
-- `DUP-READ-CALLERS-C01` / `-C01R` are **integrated, deployed and independently accepted**
-  2026-09-21. `C01` closed the three named duplicate-read callers: one in-flight `/auth/me` per
-  token epoch across **both** `resolveActorSchoolId` and `verifySessionToken`; the
-  `runtime/context` in-flight registry keyed by the full request profile
-  (`schoolId:verifyUpstream:allowEnrollProFallback:allowStaleOnError`, normalized to effective
-  defaults); and `rollover-status` keyed by `(schoolId, includeCounts)`. `C01R` added the
-  per-token-epoch **resolved-value memo** that closes the *serial* duplicate the in-flight map
-  cannot, and is live in `a02884ff`. Both passed their source rows (5/5 each; C01R carried into
-  the release on proven blob identity).
-- **Lane B `ACTOR-SCHOOL-MUTATIONS-C01` is LIVE** in release `80acdc25`. Its recorded successors
-  are **not** part of it and remain open: `GET /rollover-recovery/preview`
-  (`runtime.router.ts:244`) still defaults to school 1 and needs the same treatment
-  `ACTOR-SCOPE-C01` gave the read routes; `parseStrictTermAuthoritySchoolId` (`:424`) lacks the
-  new non-string/non-number guard (`true → 1`, `[1] → 1` — not cross-tenant, those routes are
-  actor-matched); and the harness does not cover body-vs-query precedence or
-  hex/exponent/padded-string inputs.
-  **RESOLVED 2026-09-24** (verified live by `POSTDEPLOY-CLOSURE-20260924`): `runtime.router.ts` now
-  routes every runtime read/mutation through `authorizeRuntimeRead` / `authorizeRuntimeMutation`
-  using `caller.schoolId`, and `parseStrictTermAuthoritySchoolId` exists as a strict parser. The
-  successors above are **superseded**.
-- **Deploy fact earned this cycle:** an agent shell inherits a **stale process-scope**
-  `ATLAS_RUNTIME_SOURCE_DIR` / `ATLAS_RUNTIME_RELEASE_SHA` (measured `c93dd2ee-20260920`) that
-  shadows machine scope, so an unqualified `node ops/runtime/cli.mjs stop` targets the wrong
-  (orphan) state file. Pass explicit env overrides; the registry values are correct. Recorded in
-  `docs/reference/agent-runtime-deploy-facts.md`.
-- **A parallel planner is authorized (operator, 2026-09-21).** `E:\ATLAS-worktrees\test-gate-reachability-c01`
-  (branch `work/test-gate-reachability-c01`, HEAD `c6692bad`, dirty `M atlas-server/package.json`,
-  no commits beyond `main`). The operator authorized that writer and told them to stay out of
-  Lane A's lane, so the two run in **parallel**: preserve their worktree, and re-read
-  `docs/handoffs/lane-b.md` plus their handoff before the next `:main` push (`AGENTS.md` §14).
-- **RESOLVED 2026-09-23 — the stray clone.** `E:\ATLAS-worktrees\c01r-release-20260921` was removed by
-  `RUNTIME-DIR-RECLAIM-C01` under the operator exception (empty reparse scan; branch refs untouched; no
-  unique commits). It had been a standalone clone, not a worktree (`origin` = the stale `D:\ATLAS`),
-  created by the executor against `AGENTS.md` §10.12. The live release directory
-  `D:\ATLAS-runtime-supervised-a02884ff-20260921` carries the same clone-not-worktree deviation;
-  it is verified and live, so leave it as-is.
-- **The 502 layer is now identified (observation O1, 2026-09-21).** A captured failing response
-  was a host-proxy typed 502 — `{"code":"UPSTREAM_UNREACHABLE","message":"read ECONNRESET"}` on
-  `GET /generation/1/10/runs/316/manual-edits` (also `follow-up-flags` once). Per the
-  diagnosis's inference table that is a **host-side** connection blip to the server, not a
-  server- or route-emitted 502, so the fix is **not** in the routes. No fix attempted; the
-  server-side cause is uninvestigated.
-- **`/auth/me` serial duplication is FIXED on the live `a02884ff`.** QA measured a clean
-  `/timetable` load issuing `/auth/me` **×1** (single token epoch), `runtime/context` **×2**, and
-  `rollover-status` **×1** — the B2 row that failed on `4c7c0bd9` now passes. The packet's
-  "two cards asserted mounted" sub-clause remains **not exercisable**: 0 `rollover-guidance-card`
-  elements mount on `/timetable`, `/` or `/teaching-load`, and no live state mounts two
-  (creating drift is not authorized). The primary count assertion is unweakened.
-- **`D:` capacity blocker RESOLVED 2026-09-21 by the worktree reclaim.** 56 clean, contained,
-  unanchored, inactive worktrees were retired across `D:/ATLAS-worktrees` and
-  `E:/ATLAS-worktrees`: `D:` free 15.81 → **40.76 GiB**, `E:` 55.7 → **66.13 GiB** (~35.4 GiB
-  total); registered worktrees 112 → 57; every shared junction target verified intact; no
-  branch deleted; the two named startable fallbacks preserved. Evidence
-  `docs/reviews/worktree-reclaim-20260921/{manifest.md,post-action-report.md}`. Release builds
-  are unblocked. `D:\ATLAS-runtime-*` release trees remain on the never-retire list.
-- The deployed release `74999168` now carries the accepted source, including
-  `UX-R02` Simple-workspace simplification, `SECTION-ROUTE-AUTHORITY-C01..C03`,
-  `PUBLISHED-REVISION-AUTHORITY-C12`, `PUBLIC-SCHEDULE-TERM-SCOPE-C01`,
-  `WARNING-READABILITY-C01`, `UX-R01-SHARED-CHROME-C01`,
-  `COMPANION-DIRECT-FEDERATION-C04`, `HOME-ROOM-AUTO-ASSIGN-C01`, `UX-R06`,
-  `UX-P01` and `SSO-CLIENT-CONFIG-C01`. Every `origin/main` commit above the pin is
-  docs-only, so the deployed product equals current source.
-- `UX-R01-SHARED-CHROME-C01` is foundational: it does not complete the page-level
-  `UX-R02`-`UX-R05` work, which remains open.
-- `UX-R03a` is **integrated and independently accepted** 2026-09-20 (QA `ACCEPT_READY`
-  8/8/0/0): `/timetable` is now a persistent parent route with element-less
-  `index`/`policies` children, so the review workspace, query cache and scope state
-  stay mounted and no request is issued on a round trip; `/timetable/policies` is the
-  first real sub-page; the More-menu policy item is a real link; cancelling the
-  unsaved-change guard restores the shown view's URL. Not deployed. Open items: the
-  empirical DOM/request-count and `1366x768` viewport clauses, plus the live guard
-  dialog and anchor click, are **deployment-acceptance items** for the next release;
-  QA's NON_BLOCKING finding that cancelling from `pre-generation` can raise the guard
-  dialog twice is a bounded successor for `UX-R03b`.
-- `UX-R03b` is **integrated and independently accepted** 2026-09-20 (QA `ACCEPT_READY`
-  8/8/0/0): the four remaining existing center views are routed under the same mounted
-  shell (`/timetable/pre-generation`, `/map`, `/manual-edit`, `/building`), the two
-  selection-dependent panes show truthful empty states and never fabricate a selection,
-  the `/map` duplication is resolved by routing without deleting the standalone campus
-  editor, and the `UX-R03a` double-guard-dialog residual is closed. A QA-found blocking
-  defect — a URL entry to `/timetable/pre-generation` showing the Room Requests panel
-  instead of the Draft queue — was fixed additively inside the same cycle. Not deployed.
-  The new routes fall back to generic shell chrome because `navigation.ts` was outside
-  the packet's authorized paths.
-- `UX-R03c` is the successor: new `/timetable/runs`, `/setup` and `/exports` sub-pages
-  (those panes do not exist as components yet, so they are a design task, not routing),
-  plus chrome overrides for the routes added in `UX-R03a`/`UX-R03b`.
-- Pre-existing red test, **unrelated to today's lanes**: `uxc01-derived-setup-surface.test.ts`
-  fails 1 of 4 because `navigation.ts` carries a legitimate `/subjects/requirements`
-  route override while the assertion forbids the substring `/requirements/i` anywhere in
-  that file. Reproduced present at `19e9481f`, i.e. before `UX-R03a` was integrated. A
-  bounded LOW test-contract correction is queued.
-- `COMPANION-DIRECT-FEDERATION-C04` is integrated and independently accepted.
-  The deployed runtime still supports EnrollPro only. SMART/AIMS activation
-  remains blocked on their companion-side implementations, directional key
-  installation, deployment, and serialized live browser acceptance.
-- Direct SMART and AIMS federation requires two independent secrets per peer
-  pair. Companion repositories remain read-only from ATLAS work.
-- The SMART and AIMS mirrors remain at the handoff baselines and do not yet
-  implement their ATLAS peer routes. Generate/install no directional keys yet.
-- `CURRENT-SOURCE-LIVE-DEPLOY-C01` is **EXECUTED and independently accepted**
-  2026-09-20: pin `7499916886707c35ea708a17ef7a87e791a6bade` deployed at
-  `D:\ATLAS-runtime-supervised-74999168-20260920`, post-action QA `ACCEPT_READY`
-  8/8 (blocked 0, unperformed 0; evidence
-  `docs/reviews/current-source-live-deploy-c01/evidence.md`). The review path was
-  pre-action `ba9771a8` for pin `134bcf28`, repin to the tip, `CORRECTION_REQUIRED`
-  on the repinned boundary for the missing rollback basis, then r3 cleared after
-  `PRISMA-CLIENT-REPAIR-C01`. Residual for the next packet revision: precondition
-  8's literal `row_to_json(t)` form must pin the exact quoting and serialization,
-  as recorded in the evidence addendum.
-- **EnrollPro proxy 502 is an upstream outage, not an ATLAS defect.** The durable
-  env already declares `ENROLLPRO_PROXY_ORIGIN`, the deployed runtime already
-  resolves it, and the live proxy truthfully returns
-  `502 {"code":"UPSTREAM_UNREACHABLE","message":"connect ETIMEDOUT 100.120.169.123:443"}`.
-  The tailnet peer `dev-jegs` (`100.120.169.123`) is **offline** (tailscale reports
-  offline, last seen 10h; TCP 443 fails; direct probes fail; ATLAS's own tailnet
-  origin returns 200). `ENROLLPRO-PROXY-RECOVERY-LIVE` is **SUPERSEDED — do not
-  execute**: its env premise is false and its release binding would downgrade the
-  runtime. Handoff:
-  `docs/handoffs/enrollpro-dev-jegs-unreachable-2026-09-20.md`.
-- **EnrollPro resolved 2026-09-20 without ATLAS action.** The peer came back online on its
-  own (`tailscale status`: active, direct connection) and the proxy is healthy again:
-  `https://njgrm.buru-degree.ts.net/enrollpro-api/settings/public` → 200 and
-  `https://dev-jegs.buru-degree.ts.net/api/integration/v1/health` → 200. This confirms the
-  superseded `ENROLLPRO-PROXY-RECOVERY-LIVE` packet was correctly not executed — the fault
-  was always the companion's availability, never ATLAS configuration.
-- Dashboard tile wording: the Scheduling Dashboard reports "335 review blockers" on
-  a published run with zero HARD violations — the acknowledged SOFT warning total is
-  presented as blockers. This is the operator's warning-count complaint in a second
-  surface and is an open page-level follow-up.
-  **RESOLVED 2026-09-24** (verified live by `POSTDEPLOY-CLOSURE-20260924`): the Dashboard renders
-  `No hard violations · 289 warnings acknowledged`, and `readiness-summary` returns the canonical
-  `blockingHardCount:0` / `softViolationCount:289` (not the raw 334/335).
-- Pre-existing double policy fetch, surfaced by the new route: both
-  `SchedulingPolicyPane.tsx:285` and `useScheduleReviewWorkspaceState.ts:541` GET
-  `/policies/scheduling/{schoolId}/{schoolYearId}`, and on a clean load of
-  `/timetable/policies` the second response intermittently returns 502 (the same
-  endpoint unauthenticated correctly returns 401, and the pane fails closed to saved
-  data). Neither file is in the C02 changed set and the deployment is client-only, so
-  this is pre-existing duplication that the route made reachable — `NON_BLOCKING`,
-  bounded successor: give the policy fetch one owner.
+- SMART/AIMS direct federation (as of 2026-09-20): the runtime supports EnrollPro only; SMART/AIMS activation
+  waits on companion-side routes, directional keys, deployment and live browser acceptance. Companion repos
+  stay read-only; generate/install no directional keys until both sides consume the agreed names.
+- Page-level UX (as of 2026-09-20): `UX-R02`–`UX-R05` open; `UX-R03c` (`/timetable/runs`, `/setup`,
+  `/exports` sub-pages and chrome overrides) is the named successor.
+- Double policy fetch (as of 2026-09-20, NON_BLOCKING): `SchedulingPolicyPane.tsx` and
+  `useScheduleReviewWorkspaceState.ts` both GET `/policies/scheduling/{schoolId}/{schoolYearId}`; give it one owner.
+- Host-proxy 502 `UPSTREAM_UNREACHABLE` / `read ECONNRESET` (observation O1, 2026-09-21): host-side, server-side
+  cause uninvestigated. Findings: `docs/reviews/dup-read-diagnosis-c01/findings.md`.
+- `uxc01-derived-setup-surface.test.ts` 1-of-4 red on a `navigation.ts` substring assertion (as of 2026-09-20);
+  a LOW test-contract correction was queued.
 
 ## Operator decisions
 
-- Whole-site UX shall converge on SMART's calm task-first identity while ATLAS
-  retains its complex Teaching Load and Timetable workflows.
-- Direct two-way SSO is required for EnrollPro, SMART, and AIMS. No account or
-  role may be auto-provisioned or elevated through SSO.
-- The operator authorizes generation of the SMART/AIMS directional keys and
-  ATLAS durable-env edits after reviewed source consumes the agreed names.
-- Generation/publication require zero HARD violations. SOFT warnings remain
-  explicit and auditable.
-- Laboratory scheduling is optional for future beneficiaries and disabled for
-  the current pilot.
-- **Standing authorization (2026-09-20):** for this program the operator authorizes
-  HIGH actions, deployment, and browser acceptance without a per-action approval
-  round-trip, provided every existing gate and test is retained — independent
-  pre-action review, one executor, one fresh independent post-action QA, browser rows
-  labelled as such, and a real `passed/blocked/unperformed` tally. **Packets from here
-  bundle source, deployment, and browser acceptance into one cycle** (see `AGENTS.md`
-  §13). Standing authorization removes waiting, never evidence.
-- **Two agents work this repository concurrently.** Lane A (this lane) owns the client
-  timetable surface, the continuity documents, deployment and the single browser controller.
-  Lane B (a second agent, ChatGPT harness) owns `atlas-server/src/**` and its own docs, on
-  stream `ACTOR-SCHOOL-MUTATIONS-C01`; its charter is
-  `docs/handoffs/lane-b-charter-2026-09-21.md` and its review status lives in
-  `docs/handoffs/lane-a-to-lane-b.md`. Disjoint file ownership, one runtime, one browser
-  controller, no deploy from Lane B. Current handoff for a fresh session:
-  `docs/handoffs/planner-session-handoff.md`.
+- Whole-site UX converges on SMART's calm task-first identity while ATLAS keeps its complex Teaching Load and
+  Timetable workflows.
+- Direct two-way SSO is required for EnrollPro, SMART and AIMS. No account or role may be auto-provisioned or
+  elevated through SSO. The operator authorizes generating the SMART/AIMS directional keys and ATLAS
+  durable-env edits after reviewed source consumes the agreed names.
+- Generation/publication require zero HARD violations; SOFT warnings stay explicit and auditable.
+- Laboratory scheduling is optional for future beneficiaries and disabled for the current pilot.
+- **Standing authorization (2026-09-20):** for this program the operator authorizes HIGH actions, deployment
+  and browser acceptance without a per-action approval round-trip, provided every gate and test is retained
+  (pre-action review, one executor, one fresh post-action QA, browser rows labelled, a real
+  `passed/blocked/unperformed` tally). Standing authorization removes waiting, never evidence (`AGENTS.md` §13).
+- **Three planner lanes (operator, 2026-09-25):** Lane A = opencode (primary; client timetable surface,
+  deployment); Lane B = Codex (server lane; the browser agent acceptance is usually deferred to); Lane C =
+  Claude Code. Disjoint file ownership, one runtime swapper at a time, one browser controller at a time.
 
-## Decisions awaited (operator-facing)
+## Decisions awaited (operator-facing, as of 2026-09-25)
 
-- **Resolved 2026-09-23:** the stray clone `E:/ATLAS-worktrees/c01r-release-20260921` was removed by
-  `RUNTIME-DIR-RECLAIM-C01` under the operator exception (empty reparse scan; branch refs untouched).
-- Confirm the two-lane naming used here (Lane A = the primary planner; Lane B = the
-  operator-authorized parallel planner), and whether the earlier ChatGPT-harness agent's stream
-  (`docs/handoffs/lane-b.md`) is still active.
+- Name the acceptance owner for `37e0c85b` and give it an authenticated session (see `AGENTS.md` §12).
+- `E:` is under its 50 GiB warning: authorize the release-directory retention reclaim before the next build.
+- Keep or delete two unlanded code branches (both pushed): `work/public-published-view-term-merge-c01`,
+  `work/timetable-live-term-authority-c01`.
 
 ## Lane B — current lane (written only by Planner B)
 
@@ -617,60 +113,29 @@ it complete `TEST-GATE-REACHABILITY-C01` (`f4462374`) and hand it over for integ
 
 ## Lane C — current lane (written only by Lane C)
 
-Opened 2026-09-25 by operator instruction (third parallel planner). Branches `docs/lane-c-*`,
-worktrees under `E:/ATLAS-worktrees/lane-c-*`. Lane C does not write to Lane A's C5 streams
-(`teacher-availability-s1`, `publish-identity-s4-server`) or to any Lane B stream.
+Opened 2026-09-25 (operator). Branches `docs/lane-c-*`, worktrees `E:/ATLAS-worktrees/lane-c-*`. Does not
+write to Lane A's C5/C6 streams or any Lane B stream. Detail lives in Git history of this section.
 
-**The 2026-09-20 "what actually remains" queue in Lane A's section is closed (verified 2026-09-25
-on `origin/main` `5b3f2643`)** — do not dispatch from it:
+**Done (2026-09-25):**
+- Closed the undated 2026-09-20 "what remains" queue: every item is integrated or superseded on `main`
+  except `work/public-published-view-term-merge-c01` (see Decisions awaited).
+- Six cross-agent skills in `.agents/skills/` (+ `.claude/skills/` stubs); user-level `~/.agents/skills`
+  cut from 188 to 5 (archive `~/.agents/skills-archive-20260925`).
+- `D:/ATLAS` reset to `origin/main` after committing its only unique content (`72042911`); operator
+  reference files moved to `stakeholderFiles/root-reference/`.
+- Worktree reclaim C02 + C03: 37 task worktrees retired non-forced after per-tree evidence; dirty state
+  saved on `preserve/<name>-20260925` branches; 26 unlanded/preserve refs pushed to origin; no branch
+  deleted. `D:` 37.8 → 61 GiB, `E:` 36 → 48 GiB free.
+- Shared sections of this file trimmed (1,414 → about 400 lines).
 
-1. `warning-readability-c01` — integrated `fac959c0` (2026-09-21); ancestor of live `37e0c85b`.
-2. Public published-view term merge — **still open, as of 2026-09-25:**
-   `work/public-published-view-term-merge-c01` (`64687444`, worktree clean) is not an ancestor of
-   `origin/main`. Owned by another planner; Lane C will not take it without a release.
-3. False warning categories — `ZONE_IMBALANCE_WARNING` producer retired (`024b8643`);
-   `FACULTY_FLOOR_TRANSITION` copy reworked (`b6b4033f`, then `d7a0f3da`/`d68fc7d6`).
-4. `test:ux-guardrails` — no longer vacuous; it runs four existing suites.
-5. SMART/AIMS companion handoffs — owned by those repositories (unchanged).
-6. Actor-school residuals — `/rollover-recovery/preview` scopes to the caller's school and
-   `parseStrictTermAuthoritySchoolId` rejects non-string/non-number input;
-   `work/actor-school-mutations-c01` (`2f1ee14b`) is merged.
+**Remaining worktrees (as of 2026-09-25):** Lane A's C5 set and C6 pair, plus two junction anchors they
+depend on — `timetable-scheduler-simplicity-c01` (← `publish-drift-s4-client`) and
+`g9g10-grid-delta-probe` (← `teacher-availability-s1`). Lane A retires all of them at its closure.
+Three unregistered directories in `E:/ATLAS-worktrees` (`flag-window-per-scope-c01`,
+`rollover-year-identity-c01`, `warning-readability-c01`) are clones or leftovers — the clone-removal
+exception applies; untouched.
 
-**`WORKTREE-RECLAIM-C02` DONE (2026-09-25).** Retired non-forced, one exact path at a time, then
-pruned: eight `D:/ATLAS-worktrees` task trees — `planner-tt-tl-modules-c04r1`,
-`integration-tt-tl-c03-cycle-20260913`, `tt-shape-diagnostic-c02`, `integration-tlrr01r-20260911`,
-`actor-scope-c01`, `w1-runtime-deploy`, `teaching-load-dept-apply`, `timetable-ttc04`. Each had an
-empty `git status --short`, a HEAD that is an ancestor of `origin/main` `5b3f2643`, an empty
-recursive reparse scan, no inbound junction from any worktree/runtime/Codex root, and no process
-referencing it. No branch deleted. `D:` free 37.8 → 47 GiB; registered worktrees 66 → 58.
-Preserved on purpose: `integration-rrtc01r-20260912` (junction anchor for the dirty
-`tl-authority-diagnostic-c02` `atlas-server/node_modules`), every dirty or unmerged tree, all
-runtime release directories, Codex worktrees, and Lane A's 2-hour-old S8 pair
-(`shift-coherence-s8`, `integration-shift-coherence-s8` — Lane A's closure to retire).
-
-**`WORKTREE-RECLAIM-C03` — ownership transferred to Lane C by the operator (2026-09-25).**
-29 task worktrees judged retirable; their `git worktree remove` is **pending operator execution**
-(the agent harness blocked the bulk removal). Done so far: every dirty tree's uncommitted state is
-committed on its own `preserve/<name>-20260925` branch (8; original branch refs untouched), and
-those plus all 18 branches whose work is not on `main` are **pushed to origin** (26 refs), so
-retiring the checkouts loses nothing. `node_modules` junction links inside 10 of them were unlinked
-(link only; targets verified intact). **Kept:** Lane A's C6 pair (`scheduler-concern-s2`,
-`publish-drift-s4-client`) and C5 set (`integration-c5-teacher-concern`, `teacher-availability-s1`,
-`publish-identity-s4-server`) for Lane A's closure, plus two junction anchors those depend on:
-`timetable-scheduler-simplicity-c01` (← `publish-drift-s4-client`) and `g9g10-grid-delta-probe`
-(← `teacher-availability-s1`). Unlanded code branches worth a look before any branch deletion:
-`work/public-published-view-term-merge-c01` (public 3× term render — queue item 2) and
-`work/timetable-live-term-authority-c01` (09-22 term-authority gating); the rest are 3–15 days
-old and superseded by later work on `main`, or docs-only probes/audits.
-
-**`D:/ATLAS` reset to `origin/main` (2026-09-25, operator-authorized).** It was 1,065 commits
-behind with 203 dirty entries; all but three matched committed blobs. Those three (the planner's
-bench-subagent task allow-list and two handoff drafts) were committed first (`72042911`), root
-reference files moved into `stakeholderFiles/root-reference/`, then `git reset --hard
-origin/main`. It is now a clean, fast-forwardable reference checkout (`git pull --ff-only`);
-per `AGENTS.md` §14 agents read from `origin/main` and work in worktrees.
-
-**Next action:** none dispatched; awaiting the operator's next Lane C assignment.
+**Next action:** none dispatched; awaiting the operator.
 
 ## Lane A — current lane (written only by Lane A)
 
