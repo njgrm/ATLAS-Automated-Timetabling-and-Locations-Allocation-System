@@ -557,8 +557,23 @@ it complete `TEST-GATE-REACHABILITY-C01` (`f4462374`) and hand it over for integ
 
 ## Lane A — current lane (written only by Lane A)
 
+**`TEACHER-CONCERN-AUTHORITY-PROGRAM-20260924` — Cycle 1 (S0) closed; plan committed, D1–D6 locked as recommended (2026-09-24).**
+Plan `docs/plans/teacher-concern-authority-plan-2026-09-24.md`. Objective: the **scheduler** becomes the
+single place that accommodates a teacher's preferences/availability **in draft and post-publish**; those
+inputs must genuinely affect generation rows; **SMART** gains a teacher-scoped **draft**-schedule read; the
+ATLAS teacher portal (`/my/schedule`, `/my/preferences`, `/my/room-preferences`) is removed. Locked:
+D1 both (UNAVAILABLE hard + PREFERRED ranked soft), D2 new term-scoped/reviewed/versioned availability
+authority (do **not** flip `ATLAS_ENABLE_LEGACY_TIME_PREFERENCES`), D3 teacher-scoped authenticated
+**opt-in** draft exposure, D4 effective-dated **identity deltas** on revisions + bounded audited withdraw,
+D5 freshness-only + explicit regenerate (no auto-regenerate), D6 portal removal (S3 is its prerequisite).
+Streams: **S1** availability authority (MEDIUM source / HIGH generation), **S2** scheduler concern
+workspace UI (MEDIUM), **S3** SMART draft read (MEDIUM, new auth boundary), **S4** post-publish
+identity-delta revisions (MEDIUM-HIGH). No source, deployment, login, or live-data action was taken in
+Cycle 1. **Next action:** open Cycle 2 — dispatch **S1 ∥ S3 ∥ S4-server** as three parallel lanes on `E:`
+worktrees (one writer each, disjoint files).
+
 **`MYSCHEDULE-TERM-SELECTION-20260924` — faculty `/my/schedule` fails closed with `TERM_SELECTION_REQUIRED` (finding, not fixed) (2026-09-24).**
-Read-only; no source/deploy/login/live-data action; live `514be157` unchanged. **Finding:** `GET /api/v1/schools/1/school-years/10/schedules/published/faculty/<id>?date=2026-09-24` returns **400 `TERM_SELECTION_REQUIRED`** ("Choose one ordered term before reading a published schedule") because `loadMyScheduleScoped` (`atlas-client/src/pages/MySchedule.tsx` ~L118) passes only `{ date }` — no `termIndex`. Adding `termIndex=2` returns **200** with the `{ source, timeSlots, specialEvents, entries }` payload, so the faculty "My Schedule" page (`/my/schedule`) renders no schedule. **Scope:** a full two-viewport route sweep found every other route clean (0 errors); this is the only failing surface. **Not demo-affecting for the officer session** (the presenter is an officer; `/my/schedule` is the faculty view), but it is a real user-facing defect and likely a **regression** from the fail-closed term-selection work that hardened the published-schedule endpoint. **Recommended fix:** pass the resolved ordered term (the active `termIndex`) in `loadMyScheduleScoped`, with the same ordered-term discipline the other published-schedule consumers use; unit-test the 400→200 path. Not applied this pass (a client build + deploy is out of budget).
+Read-only; no source/deploy/login/live-data action; live `514be157` unchanged. **Finding:** `GET /api/v1/schools/1/school-years/10/schedules/published/faculty/<id>?date=2026-09-24` returns **400 `TERM_SELECTION_REQUIRED`** ("Choose one ordered term before reading a published schedule") because `loadMyScheduleScoped` (`atlas-client/src/pages/MySchedule.tsx` ~L118) passes only `{ date }` — no `termIndex`. Adding `termIndex=2` returns **200** with the `{ source, timeSlots, specialEvents, entries }` payload, so the faculty "My Schedule" page (`/my/schedule`) renders no schedule. **Scope:** a full two-viewport route sweep found every other route clean (0 errors); this is the only failing surface. **Not demo-affecting for the officer session** (the presenter is an officer; `/my/schedule` is the faculty view), but it is a real user-facing defect and likely a **regression** from the fail-closed term-selection work that hardened the published-schedule endpoint. **Recommended fix:** pass the resolved ordered term (the active `termIndex`) in `loadMyScheduleScoped`, with the same ordered-term discipline the other published-schedule consumers use; unit-test the 400→200 path. Not applied this pass (a client build + deploy is out of budget). **RESOLVED 2026-09-24** by the `c7fc0c95` client fix (the page now sends the resolved ordered term), now live in `70a51608`; the page itself is slated for removal under D6.
 
 **`HOST-PROXY-502-REPRO-20260924` — the intermittent host/proxy 502s reproduce on `/timetable` load (2026-09-24).**
 Read-only; no source/deploy/login/live-data action; live `22d1f5a8` unchanged. **Correction of the earlier
