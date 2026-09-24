@@ -23,6 +23,7 @@ const RUN_ID = 42;
 const SECTIONS = [
 	{ id: 1, externalId: 701, name: '7-Rizal', gradeLevelId: 7, gradeLevelName: 'Grade 7', programType: 'REGULAR', enrolledCount: 2, isActiveForScheduling: true, isStale: false },
 ];
+let activeExportSections: typeof SECTIONS = SECTIONS;
 const FACULTY = [
 	{
 		id: 501, firstName: 'Juan', lastName: 'Dela Cruz', advisedSectionId: 701, employeeId: 'E-501',
@@ -37,6 +38,7 @@ const FACULTY = [
 		isClassAdviser: false, advisedSectionName: null, isStale: false,
 	},
 ];
+let activeExportFaculty: typeof FACULTY = FACULTY;
 const SUBJECTS = [
 	{ id: 11, name: 'Mathematics', code: 'MATH' },
 	{ id: 12, name: 'Science', code: 'SCI' },
@@ -122,13 +124,13 @@ function buildFakeModels(): Record<string, Record<string, unknown>> {
 				termContractCachedAt: new Date('2026-09-14T00:00:00Z'),
 			}),
 		}),
-		sectionMirror: readModel('sectionMirror', { findMany: async () => SECTIONS }),
+		sectionMirror: readModel('sectionMirror', { findMany: async () => activeExportSections }),
 		facultyMirror: readModel('facultyMirror', {
 			findFirst: async (args: any) => {
 				const id = args?.where?.id;
-				return FACULTY.find((f) => id == null || f.id === id) ?? null;
+				return activeExportFaculty.find((f) => id == null || f.id === id) ?? null;
 			},
-			findMany: async () => FACULTY,
+			findMany: async () => activeExportFaculty,
 		}),
 		subject: readModel('subject', { findMany: async () => SUBJECTS }),
 		room: readModel('room', { findMany: async () => ROOMS }),
@@ -434,6 +436,44 @@ test('mounted grade-specific class-program.docx requires a grade and renders the
 	assert.match(xml, /Mathematics/);
 	assert.doesNotMatch(xml, /Homeroom Guidance|ARAL Program/);
 	assert.equal(calls.some((call) => WRITE_METHODS.has(call.method)), false, 'official export reads must perform zero writes');
+});
+
+test('grade DOCX is one whole-grade matrix with every selected-grade section and teacher band', { skip: harnessSkip }, async () => {
+	const originalSections = activeExportSections;
+	const originalFaculty = activeExportFaculty;
+	const originalEntries = activeExportEntries;
+	activeExportSections = [
+		...SECTIONS,
+		{ ...SECTIONS[0], id: 2, externalId: 702, name: '7-Bonifacio' },
+	];
+	activeExportFaculty = [
+		...FACULTY,
+		{ ...FACULTY[0], id: 503, firstName: 'Ana', lastName: 'Reyes', advisedSectionId: 702, advisedSectionName: '7-Bonifacio' },
+	];
+	activeExportEntries = [
+		...ENTRIES,
+		{ entryId: 'bonifacio-mon', sectionId: 702, subjectId: 12, facultyId: 502, roomId: 602, day: 'MONDAY', startTime: '06:00', endTime: '06:45', durationMinutes: 45, termIndex: 1 },
+	];
+	calls.length = 0;
+	try {
+		const response = await fetch(`${baseUrl}/api/v1/generation/${SCHOOL_ID}/${SCHOOL_YEAR_ID}/runs/${RUN_ID}/export/class-program.docx?termIndex=1&gradeLevel=7`, {
+			headers: { Authorization: `Bearer ${authToken(SCHOOL_ID)}` },
+		});
+		assert.equal(response.status, 200);
+		const { default: JSZip } = await import('jszip');
+		const zip = await (JSZip as any).loadAsync(Buffer.from(await response.arrayBuffer()));
+		const xml = await zip.file('word/document.xml')?.async('string') as string;
+		assert.equal((xml.match(/<w:tbl>/g) ?? []).length, 1, 'all sections share one grade matrix');
+		assert.doesNotMatch(xml, /<w:br w:type="page"/, 'sections are columns, not per-section pages');
+		for (const value of ['7-Rizal', '7-Bonifacio', 'ADVISER', 'BLDG/ROOM NO.', 'Dela Cruz, Juan', 'Santos, Maria']) {
+			assert.ok(xml.includes(value), `whole-grade matrix includes ${value}`);
+		}
+		assert.equal(calls.some((call) => WRITE_METHODS.has(call.method)), false, 'official export reads must perform zero writes');
+	} finally {
+		activeExportSections = originalSections;
+		activeExportFaculty = originalFaculty;
+		activeExportEntries = originalEntries;
+	}
 });
 
 test('section and room DOCX endpoints render direct entity forms from the selected run', { skip: harnessSkip }, async () => {
