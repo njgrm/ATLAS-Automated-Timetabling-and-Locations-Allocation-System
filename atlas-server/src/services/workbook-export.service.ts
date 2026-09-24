@@ -1209,7 +1209,12 @@ export async function exportPrintableProgramWorkbook(
 				row.getCell(col + 2).alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
 				row.getCell(col + 2).border = { top: { style: 'thin' }, bottom: { style: 'thin' }, left: { style: 'thin' }, right: { style: 'thin' } };
 			}
-			row.height = 36;
+			const visibleLines = Array.from({ length: dayColumnCount + 1 }, (_, index) => {
+				const value = String(row.getCell(index + 1).value ?? '');
+				const maxCharsPerLine = index === 0 ? 21 : (program === 'grade' ? 27 : 25);
+				return value.split('\n').reduce((count, line) => count + Math.max(1, Math.ceil(line.length / maxCharsPerLine)), 0);
+			});
+			row.height = Math.max(36, Math.max(...visibleLines) * 16);
 		}
 		for (let col = 1; col <= dayColumnCount + 1; col++) {
 			header.getCell(col).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: gradeColors[program === 'grade' ? entityId : resolveSectionGradeLevel(group[0] ?? { gradeLevelId: 7 })] ?? 'FFD9EAF7' } };
@@ -1219,7 +1224,7 @@ export async function exportPrintableProgramWorkbook(
 		const signatureStart = rowIndex + 1;
 		const finalApprover = profile.asds.name ? profile.asds : profile.schoolHead;
 		const signatureRows = [
-			`Prepared by: _________________________________________________`,
+			`Prepared by: __________________________`,
 			`${profile.psds.title}: __________________________ ${profile.psds.name ?? ''}`,
 			`${profile.cidChief.title}: __________________________ ${profile.cidChief.name ?? ''}`,
 			`${finalApprover.title}: __________________________ ${finalApprover.name ?? ''}`,
@@ -1229,14 +1234,16 @@ export async function exportPrintableProgramWorkbook(
 			row.getCell(1).value = label;
 			row.getCell(1).font = { bold: true };
 			row.getCell(1).alignment = { vertical: 'middle', wrapText: true };
-			row.height = 26;
+			const mergedWidth = program === 'grade' ? 21 + group.length * 27 : 21 + WEEKDAYS.length * 25;
+			const wrappedLines = Math.ceil(label.length / mergedWidth);
+			row.height = Math.max(program === 'grade' && group.length === 1 ? 42 : 26, wrappedLines * 16);
 			sheet.mergeCells(signatureStart + index, 1, signatureStart + index, dayColumnCount + 1);
 		});
 		if (profile.footerText) sheet.headerFooter.oddFooter = `&C${profile.footerText}`;
 		applyLandscapePrintSetup(sheet);
 		sheet.views = [{ state: 'frozen', ySplit: EXPORT_FIRST_BLOCK_ROW + 2 }];
 		sheet.pageSetup.printArea = `A1:${String.fromCharCode(64 + dayColumnCount + 1)}${signatureStart + signatureRows.length}`;
-		sheet.pageSetup.printTitlesRow = `1:${EXPORT_FIRST_BLOCK_ROW + 1}`;
+		sheet.pageSetup.printTitlesRow = `${EXPORT_FIRST_BLOCK_ROW}:${EXPORT_FIRST_BLOCK_ROW + 1}`;
 		sheet.pageSetup.margins = { left: 0.2, right: 0.2, top: 0.35, bottom: 0.35, header: 0.15, footer: 0.15 };
 	}
 	return Buffer.from(await workbook.xlsx.writeBuffer());
