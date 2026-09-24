@@ -5,7 +5,9 @@ import {
 	createPublishedScheduleRevision,
 	createPublishedSwapRevision,
 	listPublishedScheduleRevisions,
+	resolveEffectivePublishedIdentitySnapshot,
 	resolveLatestPublishedSourceRevision,
+	withdrawPublishedScheduleRevision,
 } from '../services/published-revision.service.js';
 
 const router = Router();
@@ -160,6 +162,71 @@ router.post(
 			});
 
 			res.status(201).json(result);
+		} catch (e) { next(e); }
+	},
+);
+
+/**
+ * D4 — the effective-dated identity read. Resolves the frozen base publication
+ * snapshot and applies every already-effective scheduled revision
+ * `identityOverrides` in effective-date order at `asOf`. Read-only; the base
+ * revision bytes are never mutated. Same privileged + actor-school gates as the
+ * revision write family.
+ */
+router.get(
+	'/:schoolId/:schoolYearId/runs/:runId/published-revisions/effective-identity',
+	authenticate,
+	async (req: Request, res: Response, next: NextFunction) => {
+		try {
+			if (!assertPrivileged(req, res)) return;
+
+			const scope = parseScope(req.params as Record<string, string>);
+			if (typeof scope === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: scope }); return; }
+			if (!assertActorSchool(req, res, scope.schoolId)) return;
+
+			const asOf = typeof req.query.asOf === 'string' && req.query.asOf.length > 0 ? req.query.asOf : null;
+			const result = await resolveEffectivePublishedIdentitySnapshot({
+				schoolId: scope.schoolId,
+				schoolYearId: scope.schoolYearId,
+				sourceRunId: scope.runId,
+				asOf,
+			});
+			res.json(result);
+		} catch (e) { next(e); }
+	},
+);
+
+/**
+ * D4 — bounded, audited, reason-required withdraw/supersede of a scheduled
+ * published revision. The immutable base revision can never be withdrawn. Same
+ * privileged + actor-school gates as the revision create/swap paths.
+ */
+router.post(
+	'/:schoolId/:schoolYearId/runs/:runId/published-revisions/:revisionId/withdraw',
+	authenticate,
+	async (req: Request, res: Response, next: NextFunction) => {
+		try {
+			if (!assertPrivileged(req, res)) return;
+
+			const scope = parseScope(req.params as Record<string, string>);
+			if (typeof scope === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: scope }); return; }
+			if (!assertActorSchool(req, res, scope.schoolId)) return;
+
+			const actorId = req.user?.userId;
+			if (!actorId) { res.status(401).json({ code: 'NO_USER', message: 'Authenticated user required.' }); return; }
+
+			const revisionId = positiveInt((req.params as Record<string, string>).revisionId, 'revisionId');
+			if (typeof revisionId === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: revisionId }); return; }
+
+			const result = await withdrawPublishedScheduleRevision({
+				schoolId: scope.schoolId,
+				schoolYearId: scope.schoolYearId,
+				sourceRunId: scope.runId,
+				revisionId,
+				actorId,
+				reason: req.body?.reason,
+			});
+			res.json(result);
 		} catch (e) { next(e); }
 	},
 );
