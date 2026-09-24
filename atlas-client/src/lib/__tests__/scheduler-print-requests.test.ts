@@ -44,6 +44,29 @@ test('multiple or all official print selections resolve to one run-and-term-boun
 	});
 });
 
+test('print request model supports same-run editable Excel forms and packages them as Excel files', () => {
+	const cases = [
+		['grade', 8, 'grade-program-G8-SY2026-2027-term2.xlsx'],
+		['section', 201, 'section-program-201-SY2026-2027-term2.xlsx'],
+		['teacher', 502, 'teacher-program-502-SY2026-2027-term2.xlsx'],
+		['room', 601, 'room-program-601-SY2026-2027-term2.xlsx'],
+	] as const;
+	for (const [program, id, filename] of cases) {
+		assert.deepEqual(resolveSchedulerPrintRequest({ ...base, program, format: 'xlsx', ids: [id] } as any), {
+			method: 'GET',
+			url: `/api/v1/generation/7/9/runs/42/export/print-program.xlsx?termIndex=2&program=${program}&id=${id}`,
+			filename,
+		});
+	}
+	assert.deepEqual(resolveSchedulerPrintRequest({ ...base, program: 'grade', format: 'xlsx', ids: [7, 8] } as any), {
+		method: 'POST',
+		url: '/api/v1/generation/7/9/runs/42/print-schedules.zip',
+		body: { termIndex: 2, program: 'grade', format: 'xlsx', ids: [7, 8] },
+		filename: 'grade-programs-SY2026-2027-term2.zip',
+	});
+	assert.equal(resolveSchedulerPrintRequest({ ...base, program: 'teacher', format: 'csv' as any, ids: [502] } as any), null);
+});
+
 test('unresolved scope/term and invalid entity sets produce no print request', () => {
 	assert.equal(resolveSchedulerPrintRequest({ ...base, termIndex: 'all', program: 'room', ids: [601] }), null);
 	assert.equal(resolveSchedulerPrintRequest({ ...base, runId: null, program: 'room', ids: [601] }), null);

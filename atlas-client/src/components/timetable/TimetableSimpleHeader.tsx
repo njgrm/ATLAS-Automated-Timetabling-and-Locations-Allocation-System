@@ -60,7 +60,6 @@ import { describeRunInputDrift } from '@/components/timetable/timetableDriftRout
 import { SimpleMoreMenuContent } from '@/components/timetable/simple/SimpleMoreMenuContent';
 import { resolveTermAuthorityNotice } from '@/hooks/useTimetableData';
 import { ExportPresentationSettingsDialog } from '@/components/timetable/simple/ExportPresentationSettingsDialog';
-import { SchedulerExportCenterDialog } from '@/components/timetable/simple/SchedulerExportCenterDialog';
 import { SchedulerPrintDialog } from '@/components/timetable/simple/SchedulerPrintDialog';
 import { TimetablePublishedReturnAction } from '@/components/timetable/TimetablePublishedReturnAction';
 import { fetchRolloverStatus, type RolloverStatus } from '@/lib/settings';
@@ -196,7 +195,6 @@ function TimetableSimpleHeaderImpl({
 	const [tutorialOpen, setTutorialOpen] = useState(false);
 	const [readinessSheetOpenLocal, setReadinessSheetOpenLocal] = useState(false);
 	const [presentationSettingsOpen, setPresentationSettingsOpen] = useState(false);
-	const [exportCenterOpen, setExportCenterOpen] = useState(false);
 	const printPanelOpen = new URLSearchParams(location.search).get('print') === '1';
 	const setPrintPanelOpen = (open: boolean) => {
 		const params = new URLSearchParams(location.search);
@@ -440,16 +438,6 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 
 	const exportRunId = context.draft?.runId ?? context.activeGeneratedRunId ?? null;
 	const exportYearLabel = context.schoolYearContext?.activeSchoolYearLabel ?? null;
-	const exportCenterSelection = (context.viewMode === 'section' || context.viewMode === 'room')
-		&& /^\d+$/.test(context.entityFilter)
-		&& Number(context.entityFilter) > 0
-		? { kind: context.viewMode, id: Number(context.entityFilter), label: context.pivotLabel(Number(context.entityFilter)) }
-		: null;
-	const exportCenterEntities: Array<{ kind: 'section' | 'room'; id: number; label: string }> = context.viewMode === 'faculty'
-		? []
-		: context.groupedPivotEntities.flatMap((group) =>
-			group.ids.map((id) => ({ kind: context.viewMode as 'section' | 'room', id, label: context.pivotLabel(id) })),
-		);
 
 	const clearGridSelection = () => {
 		context.setSelectedEntry(null);
@@ -633,8 +621,7 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 				/>
 				{hasGeneratedRun ? (
 					<SimpleExportMenu
-						onOpenPrintSchedules={() => setPrintPanelOpen(true)}
-						onOpenOfficeData={() => setExportCenterOpen(true)}
+						onOpenDownloadSchedules={() => setPrintPanelOpen(true)}
 					/>
 				) : null}
 
@@ -759,19 +746,6 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 			</div>
 			{/* ── end of the one row band (TIMETABLE-HEADER-COLLAPSE-C01 D1) ── */}
 
-			{hasGeneratedRun ? (
-				<SchedulerExportCenterDialog
-					open={exportCenterOpen}
-					onOpenChange={setExportCenterOpen}
-					schoolId={context.schoolId}
-					schoolYearId={context.schoolYearId}
-					runId={exportRunId}
-					termIndex={context.termFilter}
-					yearLabel={exportYearLabel}
-					selection={exportCenterSelection}
-					entities={exportCenterEntities}
-				/>
-			) : null}
 			<SchedulerPrintDialog
 				open={printPanelOpen}
 				onOpenChange={setPrintPanelOpen}

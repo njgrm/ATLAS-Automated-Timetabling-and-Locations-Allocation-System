@@ -26,10 +26,8 @@ import { ConflictInspectorSheet, type ConflictInspectorData } from '@/components
 import { OccupancyTemplatePreview } from '@/components/room-schedules/OccupancyTemplatePreview';
 import { ScheduleTimetableGrid } from '@/components/room-schedules/ScheduleTimetableGrid';
 import { ScheduleMobileCards } from '@/components/room-schedules/ScheduleMobileCards';
-import { exportScheduleToCsv, resolveRoomProgramExportRequest } from '@/components/room-schedules/schedule-export';
-import { dispatchSimpleExport } from '@/components/timetable/simple/simpleExportRequests';
-import { SchedulerExportCenterDialog } from '@/components/timetable/simple/SchedulerExportCenterDialog';
-import type { SchedulerExportSelection } from '@/components/timetable/simple/schedulerExportCenterRequests';
+import { exportScheduleToCsv } from '@/components/room-schedules/schedule-export';
+import { SchedulerPrintDialog } from '@/components/timetable/simple/SchedulerPrintDialog';
 import { MAX_ACADEMIC_TERM_INDEX } from '@/lib/academic-term';
 import { SmartHelpTrigger, SmartSourceStatusChip } from '@/components/smart/SmartPageShell';
 import type { Building, Room, Subject, FacultyMirror, RoomScheduleView, SectionSummaryResponse, DraftReport } from '@/types';
@@ -95,9 +93,7 @@ export default function RoomSchedules() {
 	// C05 T7/M11 — official room program download term selection. `all` is
 	// unresolved and keeps the official control disabled with zero dispatch.
 	const [exportTerm, setExportTerm] = useState<string>('all');
-	const [exportCenterOpen, setExportCenterOpen] = useState(false);
-	const [exportingRoomProgram, setExportingRoomProgram] = useState(false);
-	const [roomProgramError, setRoomProgramError] = useState<string | null>(null);
+	const [downloadSchedulesOpen, setDownloadSchedulesOpen] = useState(false);
 
 	const [state, setState] = useState<FetchState>({ status: 'idle' });
 	const [conflictData, setConflictData] = useState<ConflictInspectorData | null>(null);
@@ -363,45 +359,10 @@ export default function RoomSchedules() {
 		const s = sectionList.find((x) => String(x.id) === selectedEntityId);
 		return s?.name ?? 'section';
 	}, [viewMode, selectedEntityId, rooms, facultyList, sectionList]);
-	const exportCenterSelection: SchedulerExportSelection = viewMode === 'rooms' && selectedRoomId
-		? { kind: 'room', id: Number(selectedRoomId), label: rooms.find((room) => String(room.id) === selectedRoomId)?.name ?? 'Selected room' }
-		: viewMode === 'sections' && selectedSectionId
-			? { kind: 'section', id: Number(selectedSectionId), label: sectionList.find((section) => String(section.id) === selectedSectionId)?.name ?? 'Selected section' }
-			: null;
-	const exportCenterEntities: Exclude<SchedulerExportSelection, null>[] = [
-		...rooms.map((room) => ({ kind: 'room' as const, id: room.id, label: room.name })),
-		...sectionList.map((section) => ({ kind: 'section' as const, id: section.id, label: section.name })),
-	];
-
 	const handleExport = useCallback(() => {
 		if (state.status !== 'ok') return;
 		exportScheduleToCsv(state.data, viewMode, selectedName, subjectMap, facultyMap, sectionMap, roomMap);
 	}, [state, viewMode, selectedName, subjectMap, facultyMap, sectionMap, roomMap]);
-
-	// C05 T7/M11 — official server-generated room program. The request resolves
-	// only when the run and a numeric term are both resolved; otherwise the
-	// control is disabled and no request is dispatched.
-	const roomProgramRequest = useMemo(() => resolveRoomProgramExportRequest({
-		schoolId: actorSchoolId,
-		schoolYearId,
-		runId: state.status === 'ok' ? state.data.source.runId : null,
-		termFilter: exportTerm === 'all' ? 'all' : Number(exportTerm),
-		roomId: viewMode === 'rooms' ? Number(selectedEntityId) : null,
-		yearLabel: schoolYearLabel,
-	}), [actorSchoolId, schoolYearId, state, exportTerm, viewMode, selectedEntityId, schoolYearLabel]);
-
-	const handleRoomProgramExport = useCallback(async () => {
-		if (!roomProgramRequest || exportingRoomProgram) return;
-		setRoomProgramError(null);
-		setExportingRoomProgram(true);
-		try {
-			await dispatchSimpleExport(roomProgramRequest);
-		} catch (err) {
-			setRoomProgramError(err instanceof Error && err.message ? err.message : 'Room program export failed');
-		} finally {
-			setExportingRoomProgram(false);
-		}
-	}, [roomProgramRequest, exportingRoomProgram]);
 
 	const conflictHandler = useCallback((day: string, dayLabel: string, startTime: string, endTime: string, entries: Parameters<NonNullable<Parameters<typeof ScheduleTimetableGrid>[0]['onConflictClick']>>[4]) => {
 		if (state.status !== 'ok') return;
@@ -526,8 +487,8 @@ export default function RoomSchedules() {
 					</div>
 
 					<div className="flex items-center gap-1.5 shrink-0">
-						<Button type="button" variant="outline" size="sm" onClick={() => setExportCenterOpen(true)} className="h-10 shrink-0 shadow-sm text-xs" data-testid="schedules-export-center-open">
-							Export Center
+						<Button type="button" variant="outline" size="sm" onClick={() => setDownloadSchedulesOpen(true)} className="h-10 shrink-0 shadow-sm text-xs" data-testid="schedules-open-download">
+							Download schedules
 						</Button>
 						{viewMode === 'rooms' && (
 							<Button
@@ -565,36 +526,19 @@ export default function RoomSchedules() {
 					<Select value={exportTerm} onValueChange={setExportTerm}>
 						<SelectTrigger
 							className="h-10 w-28 text-xs"
-							aria-label="Official room program term"
-							data-testid="schedules-room-program-term"
+							aria-label="Schedule download term"
+							data-testid="schedules-download-term"
 						>
 							<SelectValue placeholder="Term" />
 						</SelectTrigger>
 						<SelectContent>
-							<SelectItem value="all">All terms</SelectItem>
+							<SelectItem value="all">Choose one term</SelectItem>
 							{Array.from({ length: MAX_ACADEMIC_TERM_INDEX }, (_, index) => index + 1).map((term) => (
 								<SelectItem key={term} value={String(term)}>{`Term ${term}`}</SelectItem>
 							))}
 						</SelectContent>
 					</Select>
-					<Button
-						variant="outline"
-						size="sm"
-						onClick={handleRoomProgramExport}
-						disabled={!roomProgramRequest || exportingRoomProgram}
-						className="h-10 shrink-0 shadow-sm text-xs"
-						data-testid="schedules-export-room-program"
-						data-room-program-url={roomProgramRequest?.url ?? ''}
-						data-room-program-filename={roomProgramRequest?.filename ?? ''}
-					>
-						{exportingRoomProgram ? 'Exporting…' : 'Export room program (.xlsx)'}
-					</Button>
 				</div>
-				{roomProgramError ? (
-					<p className="w-full text-xs font-medium text-destructive" data-testid="schedules-room-program-error">
-						{roomProgramError}
-					</p>
-				) : null}
 			</div>
 
 			{state.status === 'ok' && (
@@ -625,16 +569,16 @@ export default function RoomSchedules() {
 					</div>
 				</div>
 			)}
-			<SchedulerExportCenterDialog
-				open={exportCenterOpen}
-				onOpenChange={setExportCenterOpen}
+			<SchedulerPrintDialog
+				open={downloadSchedulesOpen}
+				onOpenChange={setDownloadSchedulesOpen}
 				schoolId={actorSchoolId ?? 0}
 				schoolYearId={schoolYearId}
 				runId={state.status === 'ok' ? state.data.source.runId : null}
 				termIndex={exportTerm === 'all' ? 'all' : Number(exportTerm)}
 				yearLabel={schoolYearLabel}
-				selection={exportCenterSelection}
-				entities={exportCenterEntities}
+				viewMode={viewMode === 'rooms' ? 'room' : viewMode === 'teachers' ? 'faculty' : 'section'}
+				entityFilter={selectedEntityId}
 			/>
 
 			{viewMode === 'rooms' && presentationMode === 'occupancy' && (

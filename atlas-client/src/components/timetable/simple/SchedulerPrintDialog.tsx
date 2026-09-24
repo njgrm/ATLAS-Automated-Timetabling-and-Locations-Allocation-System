@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Loader2, Printer, Search, Settings2 } from 'lucide-react';
+import { Download, FileSpreadsheet, Loader2, Printer, Search, Settings2 } from 'lucide-react';
 import { Button } from '@/ui/button';
 import { Checkbox } from '@/ui/checkbox';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/ui/dialog';
@@ -47,6 +47,7 @@ function choicesFor(options: PrintOptions, program: SchedulerPrintProgram): Choi
 
 export function SchedulerPrintDialog(props: Props) {
 	const [program, setProgram] = useState<SchedulerPrintProgram>('grade');
+	const [format, setFormat] = useState<'docx' | 'xlsx'>('docx');
 	const [options, setOptions] = useState<PrintOptions | null>(null);
 	const [selectedIds, setSelectedIds] = useState<number[]>([]);
 	const [query, setQuery] = useState('');
@@ -93,7 +94,7 @@ export function SchedulerPrintDialog(props: Props) {
 		return choices.filter((choice) => !normalized || choice.label.toLocaleLowerCase().includes(normalized));
 	}, [choices, query]);
 	const allSelected = choices.length > 0 && selectedIds.length === choices.length;
-	const unresolvedReason = props.termIndex === 'all' ? 'Choose one ordered term in the timetable header.'
+	const unresolvedReason = props.termIndex === 'all' ? 'Choose one ordered term before downloading.'
 		: !props.runId ? 'Choose a completed schedule run first.'
 			: !props.schoolYearId ? 'School-year scope is not ready.' : null;
 
@@ -107,7 +108,7 @@ export function SchedulerPrintDialog(props: Props) {
 		if (busy || !options || unresolvedReason) return;
 		const request = resolveSchedulerPrintRequest({
 			schoolId: props.schoolId, schoolYearId: props.schoolYearId, runId: props.runId,
-			termIndex: props.termIndex, yearLabel: options.yearLabel, program,
+			termIndex: props.termIndex, yearLabel: options.yearLabel, program, format,
 			...(allSelected && choices.length > 1 ? { all: true } : { ids: selectedIds }),
 		});
 		if (!request) return;
@@ -122,14 +123,14 @@ export function SchedulerPrintDialog(props: Props) {
 			});
 			if (!response.ok) {
 				const payload = await response.json().catch(() => ({})) as { message?: string };
-				throw new Error(payload.message || 'Word programs could not be prepared.');
+				throw new Error(payload.message || 'Schedules could not be prepared.');
 			}
 			const blob = await response.blob();
 			const filename = ensureFilenameExtension(resolveDownloadFilename(response, request.filename), request.url);
 			triggerBlobDownload(blob, filename);
 			props.onOpenChange(false);
 		} catch (cause) {
-			setError(cause instanceof Error ? cause.message : 'Word programs could not be prepared.');
+			setError(cause instanceof Error ? cause.message : 'Schedules could not be prepared.');
 		} finally {
 			setBusy(false);
 		}
@@ -139,11 +140,15 @@ export function SchedulerPrintDialog(props: Props) {
 		<Dialog open={props.open} onOpenChange={props.onOpenChange}>
 			<DialogContent className="max-w-2xl" data-testid="scheduler-print-dialog">
 				<DialogHeader>
-					<DialogTitle>Print schedules</DialogTitle>
-					<DialogDescription>Choose a Word program from one completed run and one ordered term. Selecting several items creates one ZIP package.</DialogDescription>
+					<DialogTitle>Download schedules</DialogTitle>
+					<DialogDescription>Choose Word for official printable forms or Excel for editable working schedules. Downloads use one completed run and one ordered term. Selecting several items creates one ZIP package.</DialogDescription>
 				</DialogHeader>
 				{unresolvedReason ? <p role="status" className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">{unresolvedReason}</p> : (
 					<div className="grid min-h-0 gap-4">
+						<div className="flex flex-wrap gap-2" aria-label="File format">
+							<Button type="button" size="sm" variant={format === 'docx' ? 'default' : 'outline'} aria-pressed={format === 'docx'} onClick={() => setFormat('docx')}><Printer className="mr-2 size-4" aria-hidden="true" />Word</Button>
+							<Button type="button" size="sm" variant={format === 'xlsx' ? 'default' : 'outline'} aria-pressed={format === 'xlsx'} onClick={() => setFormat('xlsx')}><FileSpreadsheet className="mr-2 size-4" aria-hidden="true" />Excel</Button>
+						</div>
 						<div className="flex flex-wrap gap-2" aria-label="Program type">
 							{PROGRAMS.map((item) => (
 								<Button key={item.value} type="button" size="sm" variant={program === item.value ? 'default' : 'outline'}
@@ -183,8 +188,8 @@ export function SchedulerPrintDialog(props: Props) {
 					{props.onOpenPresentationSettings ? <Button type="button" variant="ghost" onClick={props.onOpenPresentationSettings}><Settings2 className="mr-2 size-4" aria-hidden="true" />Header and signatories</Button> : null}
 					<Button type="button" variant="outline" onClick={() => props.onOpenChange(false)}>Close</Button>
 					<Button type="button" onClick={() => { void download(); }} disabled={!options || loading || busy || Boolean(unresolvedReason) || selectedIds.length === 0}>
-						{busy ? <Loader2 className="mr-2 size-4 animate-spin" aria-hidden="true" /> : <Printer className="mr-2 size-4" aria-hidden="true" />}
-						{busy ? 'Preparing…' : selectedIds.length > 1 || (allSelected && choices.length > 1) ? 'Download ZIP' : 'Download Word'}
+						{busy ? <Loader2 className="mr-2 size-4 animate-spin" aria-hidden="true" /> : format === 'docx' ? <Printer className="mr-2 size-4" aria-hidden="true" /> : <Download className="mr-2 size-4" aria-hidden="true" />}
+						{busy ? 'Preparing…' : selectedIds.length > 1 || (allSelected && choices.length > 1) ? 'Download ZIP' : `Download ${format === 'docx' ? 'Word' : 'Excel'}`}
 					</Button>
 				</DialogFooter>
 			</DialogContent>

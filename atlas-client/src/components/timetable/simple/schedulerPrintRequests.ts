@@ -9,6 +9,7 @@ export type SchedulerPrintRequestTarget = {
 	termIndex: number | 'all';
 	yearLabel: string | null;
 	program: SchedulerPrintProgram;
+	format?: 'docx' | 'xlsx';
 	ids?: number[];
 	all?: boolean;
 };
@@ -16,7 +17,7 @@ export type SchedulerPrintRequest = {
 	method: 'GET' | 'POST';
 	url: string;
 	filename: string;
-	body?: { termIndex: number; program: SchedulerPrintProgram; ids?: number[]; all?: true };
+	body?: { termIndex: number; program: SchedulerPrintProgram; format?: 'docx' | 'xlsx'; ids?: number[]; all?: true };
 };
 export type SchedulerPrintScope = Omit<SchedulerPrintRequestTarget, 'program' | 'ids' | 'all'>;
 
@@ -45,6 +46,8 @@ export function resolveSchedulerPrintOptionsUrl(target: SchedulerPrintScope): st
 
 export function resolveSchedulerPrintRequest(target: SchedulerPrintRequestTarget): SchedulerPrintRequest | null {
 	const { schoolId, schoolYearId, runId, termIndex, yearLabel, program } = target;
+	const format = target.format ?? 'docx';
+	if (format !== 'docx' && format !== 'xlsx') return null;
 	if (!Number.isSafeInteger(schoolId) || schoolId <= 0
 		|| !Number.isSafeInteger(schoolYearId) || (schoolYearId ?? 0) <= 0
 		|| !Number.isSafeInteger(runId) || (runId ?? 0) <= 0
@@ -61,11 +64,19 @@ export function resolveSchedulerPrintRequest(target: SchedulerPrintRequestTarget
 		return {
 			method: 'POST',
 			url: `${root}/print-schedules.zip`,
-			body: { termIndex, program, ...(all ? { all: true as const } : { ids: ids! }) },
+			body: { termIndex, program, ...(format === 'xlsx' ? { format } : {}), ...(all ? { all: true as const } : { ids: ids! }) },
 			filename: `${program}-programs-${year}-term${termIndex}.zip`,
 		};
 	}
 	const id = ids![0];
+	if (format === 'xlsx') {
+		const identity = program === 'grade' ? `G${id}` : String(id);
+		return {
+			method: 'GET',
+			url: `${root}/export/print-program.xlsx?termIndex=${termIndex}&program=${program}&id=${id}`,
+			filename: `${program}-program-${identity}-${year}-term${termIndex}.xlsx`,
+		};
+	}
 	const path = program === 'grade' ? `/export/class-program.docx?termIndex=${termIndex}&gradeLevel=${id}`
 		: program === 'section' ? `/export/section-program.docx?termIndex=${termIndex}&sectionId=${id}`
 			: program === 'teacher' ? `/export/teacher-program.docx?facultyId=${id}&termIndex=${termIndex}`

@@ -94,29 +94,35 @@ test('M11: the room program request is scoped, identity-bound, and dispatches ze
 
 // ─── M17 — the single-flight guard blocks a second concurrent dispatch ───
 
-test('M17: the Simple header exposes one official print action and clearly secondary Excel working data', () => {
+test('M17: the Simple header exposes one combined schedule download action', () => {
 	const markup = renderToStaticMarkup(createElement(SimpleExportMenu, {
-		onOpenPrintSchedules: () => {},
-		onOpenOfficeData: () => {},
+		onOpenDownloadSchedules: () => {},
 	}));
-	assert.match(markup, /data-testid="timetable-open-print-schedules"/);
-	assert.match(markup, /Print schedules/);
-	assert.match(markup, /data-testid="timetable-open-office-working-data"/);
-	assert.match(markup, /Office working data/);
+	assert.match(markup, /data-testid="timetable-open-download-schedules"/);
+	assert.match(markup, /Download schedules/);
+	assert.doesNotMatch(markup, /Print schedules|Office working data/);
 	assert.doesNotMatch(markup, /Download beneficiary outputs|Beneficiary downloads|\.docx/);
 	const header = source('src/components/timetable/TimetableSimpleHeader.tsx');
 	assert.match(header, /<SchedulerPrintDialog/);
-	assert.match(header, /<SchedulerExportCenterDialog/);
+	assert.doesNotMatch(header, /<SchedulerExportCenterDialog/);
 });
 
 // ─── M11 wiring — RoomSchedules binds the official server-generated control ───
 
-test('M11: the RoomSchedules page binds the official room-program control to a resolved run and term', () => {
+test('M11: the RoomSchedules page binds unified downloads to the current run, term, and selected entity', () => {
 	const page = source('src/pages/RoomSchedules.tsx');
-	assert.match(page, /resolveRoomProgramExportRequest/, 'the page uses the official request resolver');
-	assert.match(page, /roomProgramRequest/, 'the resolved request drives the control');
-	assert.match(page, /termFilter:\s*exportTerm/, 'the request is bound to the selected term');
-	// The legacy client CSV remains a view export only and is not the official output.
-	const scheduleExport = source('src/components/room-schedules/schedule-export.ts');
-	assert.match(scheduleExport, /resolveRoomProgramExportRequest/, 'the official request lives beside the view CSV export');
+	assert.match(page, /onClick=\{\(\) => setDownloadSchedulesOpen\(true\)\}/, 'the room page entry point opens the unified dialog');
+	assert.match(page, /runId=\{state\.status === 'ok' \? state\.data\.source\.runId : null\}/, 'the dialog is bound to the run rendered in the room view');
+	assert.match(page, /termIndex=\{exportTerm === 'all' \? 'all' : Number\(exportTerm\)\}/, 'the dialog receives only the explicitly selected term');
+	assert.match(page, /entityFilter=\{selectedEntityId\}/, 'the dialog receives the active room, teacher, or section');
+	assert.doesNotMatch(page, /SchedulerExportCenterDialog|Export Center|Export room program \(\.xlsx\)|handleRoomProgramExport|dispatchSimpleExport/);
+});
+
+test('RoomSchedules removes legacy office actions and uses the unified Word/Excel dialog', () => {
+	const page = source('src/pages/RoomSchedules.tsx');
+	assert.match(page, /<SchedulerPrintDialog/, 'Room Schedules opens the shared Word/Excel dialog');
+	assert.match(page, /runId=\{state\.status === 'ok' \? state\.data\.source\.runId : null\}/, 'the dialog uses the run currently rendered in the room view');
+	assert.match(page, /termIndex=\{exportTerm === 'all' \? 'all' : Number\(exportTerm\)\}/, 'the dialog uses the explicitly selected ordered term');
+	assert.match(page, /entityFilter=\{selectedEntityId\}/, 'the dialog defaults to the selected room, teacher, or section');
+	assert.doesNotMatch(page, /SchedulerExportCenterDialog|Export Center|Export room program \(\.xlsx\)|handleRoomProgramExport|dispatchSimpleExport/, 'the parallel Office-only paths are no longer reachable');
 });

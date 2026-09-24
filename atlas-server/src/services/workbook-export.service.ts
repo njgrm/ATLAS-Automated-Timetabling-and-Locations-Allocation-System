@@ -3,6 +3,7 @@ import { prisma } from '../lib/prisma.js';
 import { resolveCanonicalSlotsForPrograms, normalizeGradeLevelSync } from './class-program-slot.service.js';
 import { resolvePublishedRun } from './published-schedule.service.js';
 import { frozenCanonicalSlots, type PublishedIdentitySnapshot } from './published-identity-snapshot.service.js';
+import { applyTemplateSignatoryFallback, resolveExportSignatoryProfile } from './export-presentation.service.js';
 
 export type ExportOptions = {
 	schoolId: number;
@@ -10,6 +11,7 @@ export type ExportOptions = {
 	runId: number;
 	/** Optional external EnrollPro section id for a single-section program. */
 	sectionId?: number;
+	gradeLevel?: number;
 	/** Resolved numeric term index from the verified ordered-term authority (1..termCount). */
 	termIndex?: number;
 	specializationVisibility?: 'hidden' | 'visible';
@@ -330,7 +332,7 @@ export async function loadExportContext(options: ExportOptions): Promise<ExportC
 			}),
 			roomIds.length > 0
 				? db.room.findMany({
-					where: { id: { in: roomIds } },
+					where: { id: { in: roomIds }, building: { schoolId } },
 					select: {
 						id: true,
 						name: true,
@@ -836,9 +838,12 @@ export async function exportClassProgramWorkbook(options: ExportOptions): Promis
 	if (options.sectionId != null) {
 		if (!sortedSections.some((section) => section.externalId === options.sectionId)) throw new Error('SECTION_NOT_FOUND');
 	}
+	const gradeFilteredSections = options.gradeLevel == null ? sortedSections : sortedSections.filter((section) => resolveSectionGradeLevel(section) === options.gradeLevel);
+	if (options.gradeLevel != null && (!Number.isInteger(options.gradeLevel) || options.gradeLevel < 7 || options.gradeLevel > 10)) throw new Error('INVALID_GRADE_LEVEL');
+	if (options.gradeLevel != null && gradeFilteredSections.length === 0) throw new Error('GRADE_NOT_FOUND');
 	const outputSections = options.sectionId == null
-		? sortedSections
-		: sortedSections.filter((section) => section.externalId === options.sectionId);
+		? gradeFilteredSections
+		: gradeFilteredSections.filter((section) => section.externalId === options.sectionId);
 	const learnerCounts = options.resolveLearnerCounts
 		? await options.resolveLearnerCounts(outputSections.map((section) => section.externalId))
 		: new Map<number, { male: number; female: number; total: number }>();
@@ -1052,4 +1057,194 @@ export async function exportClassProgramWorkbook(options: ExportOptions): Promis
 
 	const buffer = await workbook.xlsx.writeBuffer();
 	return Buffer.from(buffer);
+}
+
+export type PrintableExcelProgram = 'grade' | 'section' | 'teacher' | 'room';
+
+/**
+ * Editable print-form equivalent for one entity from a single verified run
+ * and ordered term. Unlike exportSummaryWorkbook, this is one beneficiary form
+ * (or a grade sheet grouped in sets of at most four sections), never a
+ * monitoring/aggregation workbook.
+ */
+export async function exportPrintableProgramWorkbook(
+	options: ExportOptions,
+	program: PrintableExcelProgram,
+	entityId: number,
+): Promise<Buffer> {
+	const ctx = await loadExportContext(options);
+	assertRenderableExportEntries(ctx);
+	const renderable = (entry: ScheduledEntry) => !isReferenceOnlySubjectCode(ctx.subjectMap.get(entry.subjectId)?.code);
+	const sections = [...ctx.sections].sort((a, b) => resolveSectionGradeLevel(a) - resolveSectionGradeLevel(b) || a.name.localeCompare(b.name));
+	let selectedSections = sections;
+	let entries = ctx.entries.filter(renderable);
+	let title: string;
+	let sheetGroups: Array<typeof sections> = [];
+	if (program === 'grade') {
+		if (!Number.isInteger(entityId) || entityId < 7 || entityId > 10) throw new Error('INVALID_GRADE_LEVEL');
+		selectedSections = sections.filter((section) => resolveSectionGradeLevel(section) === entityId);
+		if (!selectedSections.length) throw new Error('PRINT_ENTITY_NOT_FOUND');
+		const allowed = new Set(selectedSections.map((section) => section.externalId));
+		entries = entries.filter((entry) => allowed.has(entry.sectionId));
+		sheetGroups = [];
+		for (let index = 0; index < selectedSections.length; index += 4) sheetGroups.push(selectedSections.slice(index, index + 4));
+		title = `GRADE ${entityId} CLASS PROGRAM`;
+	} else if (program === 'section') {
+		selectedSections = sections.filter((section) => section.externalId === entityId);
+		if (!selectedSections.length) throw new Error('PRINT_ENTITY_NOT_FOUND');
+		entries = entries.filter((entry) => entry.sectionId === entityId);
+		sheetGroups = [selectedSections];
+		title = `CLASS PROGRAM — ${selectedSections[0].name}`;
+	} else if (program === 'teacher') {
+		if (!ctx.facultyMap.has(entityId)) throw new Error('PRINT_ENTITY_NOT_FOUND');
+		entries = entries.filter((entry) => entry.facultyId === entityId);
+		title = `TEACHER PROGRAM — ${[ctx.facultyMap.get(entityId)?.firstName, ctx.facultyMap.get(entityId)?.lastName].filter(Boolean).join(' ') || `Teacher ${entityId}`}`;
+		sheetGroups = [[]];
+	} else {
+		if (!ctx.roomMap.has(entityId)) throw new Error('PRINT_ENTITY_NOT_FOUND');
+		entries = entries.filter((entry) => entry.roomId === entityId);
+		title = `ROOM PROGRAM — ${ctx.roomMap.get(entityId)?.name ?? `Room ${entityId}`}`;
+		sheetGroups = [[]];
+	}
+	if (!entries.length) throw new Error('PRINT_ENTITY_NOT_FOUND');
+
+	const profile = applyTemplateSignatoryFallback(await resolveExportSignatoryProfile({
+		schoolId: options.schoolId,
+		schoolYearId: options.schoolYearId,
+		isPublished: ctx.publication.isPublished,
+		publishedAt: ctx.publication.publishedAt,
+		client: options.client,
+	}), ctx.schoolName);
+	const presentationContext: ExportContext = {
+		...ctx,
+		branding: {
+			schoolName: profile.officialSchoolName || ctx.schoolName,
+			regionLine: [profile.headerLine, profile.regionLine].filter(Boolean).join(' '),
+			divisionLine: profile.divisionLine ?? '',
+			districtLine: profile.districtLine ?? '',
+		},
+	};
+	const allSlots = new Map<string, TimeSlot>();
+	for (const slot of ctx.displaySlots) allSlots.set(`${slot.startTime}-${slot.endTime}`, slot);
+	for (const entry of entries) {
+		const key = `${entry.startTime}-${entry.endTime}`;
+		if (!allSlots.has(key)) allSlots.set(key, { startTime: entry.startTime, endTime: entry.endTime });
+	}
+	const orderedSlots = [...allSlots.values()].sort((a, b) => a.startTime.localeCompare(b.startTime) || a.endTime.localeCompare(b.endTime));
+	const workbook = await createWorkbook(options);
+	workbook.creator = 'ATLAS';
+	const gradeColors: Record<number, string> = { 7: 'FFE2F0D9', 8: 'FFFFF2CC', 9: 'FFF4CCCC', 10: 'FFD9EAF7' };
+	for (const [groupIndex, group] of sheetGroups.entries()) {
+		const groupTitle = program === 'grade' && sheetGroups.length > 1 ? `${title} — PAGE ${groupIndex + 1} OF ${sheetGroups.length}` : title;
+		const sheet = workbook.addWorksheet(sanitizeSheetName(group.length ? `${program} ${groupIndex + 1}` : `${program} ${entityId}`));
+		const dayColumnCount = program === 'grade' ? group.length : WEEKDAYS.length;
+		addReportHeader(sheet, presentationContext, groupTitle);
+		const metadataRow = sheet.getRow(EXPORT_HEADER_LAST_ROW);
+		metadataRow.getCell(1).value = [
+			`School: ${ctx.schoolName}`,
+			`Year: ${ctx.yearLabel}`,
+			`Term: T${ctx.termIndex}`,
+			`Run: ${ctx.runId}`,
+			`Generated: ${new Date().toISOString().split('T')[0]}`,
+			publicationMarker(ctx),
+		].join('  |  ');
+		for (let col = 2; col <= 6; col++) metadataRow.getCell(col).value = null;
+		sheet.mergeCells(EXPORT_HEADER_LAST_ROW, 1, EXPORT_HEADER_LAST_ROW, dayColumnCount + 1);
+		metadataRow.height = 30;
+		metadataRow.getCell(1).font = { italic: true, bold: true, size: 8 };
+		metadataRow.getCell(1).alignment = { vertical: 'middle', wrapText: true };
+		sheet.columns = [
+			{ width: 21 },
+			...(program === 'grade' ? group.map(() => ({ width: 27 })) : WEEKDAYS.map(() => ({ width: 25 }))),
+		];
+		for (let row = 1; row <= 5; row++) sheet.mergeCells(row, 1, row, dayColumnCount + 1);
+		const identity = sheet.getRow(EXPORT_FIRST_BLOCK_ROW);
+		identity.getCell(1).value = program === 'teacher'
+			? `TEACHER: ${title.replace('TEACHER PROGRAM — ', '')}`
+			: program === 'room' ? `ROOM: ${ctx.roomMap.get(entityId)?.buildingName ?? ''} / ${ctx.roomMap.get(entityId)?.name ?? ''}`
+				: program === 'section' ? `SECTION: ${group[0].name}    ADVISER: ${ctx.adviserMap.get(group[0].externalId) ?? ''}`
+					: `GRADE: ${entityId}    SECTIONS: ${group.map((section) => section.name).join(', ')}`;
+		identity.font = { bold: true };
+		sheet.mergeCells(EXPORT_FIRST_BLOCK_ROW, 1, EXPORT_FIRST_BLOCK_ROW, dayColumnCount + 1);
+		const header = sheet.getRow(EXPORT_FIRST_BLOCK_ROW + 1);
+		header.getCell(1).value = 'TIME';
+		if (program === 'grade') {
+			group.forEach((section, index) => {
+				header.getCell(index + 2).value = `${section.name}\nADVISER: ${ctx.adviserMap.get(section.externalId) ?? ''}`;
+			});
+		} else {
+			WEEKDAYS.forEach((day, index) => { header.getCell(index + 2).value = day; });
+		}
+		header.font = { bold: true };
+		header.height = 30;
+		let rowIndex = EXPORT_FIRST_BLOCK_ROW + 2;
+		for (const slot of orderedSlots) {
+			const row = sheet.getRow(rowIndex++);
+			row.getCell(1).value = `${formatTime12h(slot.startTime)}-${formatTime12h(slot.endTime)}`;
+			row.getCell(1).font = { bold: true };
+			const days = program === 'grade' ? [null] : WEEKDAYS;
+			for (let col = 0; col < dayColumnCount; col++) {
+				const section = program === 'grade' ? group[col] : null;
+				const day = program === 'grade' ? null : (days[col] as typeof WEEKDAYS[number]);
+				const eventDay = slot.isSpecialEvent ? resolveSpecialEventDay(slot.eventName, slot.dayOfWeek) : null;
+				if (slot.isSpecialEvent && (!day || !eventDay || eventDay === day)) {
+					row.getCell(col + 2).value = slot.eventName ?? 'BREAK';
+				} else {
+					const cellEntries = entries.filter((entry) => entry.startTime === slot.startTime && entry.endTime === slot.endTime
+						&& (day == null || entry.day === day)
+						&& (section ? entry.sectionId === section.externalId : true));
+					const labels = cellEntries.map((entry) => {
+						const subject = ctx.subjectMap.get(entry.subjectId)?.name ?? '';
+						const sectionName = ctx.sections.find((candidate) => candidate.externalId === entry.sectionId)?.name ?? '';
+						const teacher = entry.facultyId ? ctx.facultyMap.get(entry.facultyId) : null;
+						const teacherName = teacher ? [teacher.firstName, teacher.lastName].filter(Boolean).join(' ') : 'Unassigned';
+						const room = ctx.roomMap.get(entry.roomId);
+						if (program === 'grade') return `${subject}\n${teacherName}`;
+						if (program === 'teacher') return `${subject}\n${sectionName}\n${formatRoomLabel(room)}`;
+						if (program === 'room') return `${subject}\n${sectionName}\n${teacherName}`;
+						return `${subject}\n${teacherName}`;
+					});
+					row.getCell(col + 2).value = labels.join('\n\n');
+				}
+				row.getCell(col + 2).alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
+				row.getCell(col + 2).border = { top: { style: 'thin' }, bottom: { style: 'thin' }, left: { style: 'thin' }, right: { style: 'thin' } };
+			}
+			const visibleLines = Array.from({ length: dayColumnCount + 1 }, (_, index) => {
+				const value = String(row.getCell(index + 1).value ?? '');
+				const maxCharsPerLine = index === 0 ? 21 : (program === 'grade' ? 27 : 25);
+				return value.split('\n').reduce((count, line) => count + Math.max(1, Math.ceil(line.length / maxCharsPerLine)), 0);
+			});
+			row.height = Math.max(36, Math.max(...visibleLines) * 16);
+		}
+		for (let col = 1; col <= dayColumnCount + 1; col++) {
+			header.getCell(col).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: gradeColors[program === 'grade' ? entityId : resolveSectionGradeLevel(group[0] ?? { gradeLevelId: 7 })] ?? 'FFD9EAF7' } };
+			header.getCell(col).border = { top: { style: 'thin' }, bottom: { style: 'thin' }, left: { style: 'thin' }, right: { style: 'thin' } };
+			header.getCell(col).alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
+		}
+		const signatureStart = rowIndex + 1;
+		const finalApprover = profile.asds.name ? profile.asds : profile.schoolHead;
+		const signatureRows = [
+			`Prepared by: __________________________`,
+			`${profile.psds.title}: __________________________ ${profile.psds.name ?? ''}`,
+			`${profile.cidChief.title}: __________________________ ${profile.cidChief.name ?? ''}`,
+			`${finalApprover.title}: __________________________ ${finalApprover.name ?? ''}`,
+		];
+		signatureRows.forEach((label, index) => {
+			const row = sheet.getRow(signatureStart + index);
+			row.getCell(1).value = label;
+			row.getCell(1).font = { bold: true };
+			row.getCell(1).alignment = { vertical: 'middle', wrapText: true };
+			const mergedWidth = program === 'grade' ? 21 + group.length * 27 : 21 + WEEKDAYS.length * 25;
+			const wrappedLines = Math.ceil(label.length / mergedWidth);
+			row.height = Math.max(program === 'grade' && group.length === 1 ? 42 : 26, wrappedLines * 16);
+			sheet.mergeCells(signatureStart + index, 1, signatureStart + index, dayColumnCount + 1);
+		});
+		if (profile.footerText) sheet.headerFooter.oddFooter = `&C${profile.footerText}`;
+		applyLandscapePrintSetup(sheet);
+		sheet.views = [{ state: 'frozen', ySplit: EXPORT_FIRST_BLOCK_ROW + 2 }];
+		sheet.pageSetup.printArea = `A1:${String.fromCharCode(64 + dayColumnCount + 1)}${signatureStart + signatureRows.length}`;
+		sheet.pageSetup.printTitlesRow = `${EXPORT_FIRST_BLOCK_ROW}:${EXPORT_FIRST_BLOCK_ROW + 1}`;
+		sheet.pageSetup.margins = { left: 0.2, right: 0.2, top: 0.35, bottom: 0.35, header: 0.15, footer: 0.15 };
+	}
+	return Buffer.from(await workbook.xlsx.writeBuffer());
 }
