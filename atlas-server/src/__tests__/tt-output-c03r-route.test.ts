@@ -458,6 +458,7 @@ test('section and room DOCX endpoints render direct entity forms from the select
 	assert.match(room, /Mathematics/);
 	assert.match(room, /7-Rizal/);
 	assert.match(room, /Dela Cruz/);
+	assert.ok((room.match(/<w:br\b/g) ?? []).length >= 2, 'room cells separate subject, section, and teacher onto distinct lines');
 	assert.doesNotMatch(room, /Science|ARAL Program|Homeroom Guidance/);
 	assert.equal(calls.some((call) => WRITE_METHODS.has(call.method)), false, 'official DOCX reads must perform zero writes');
 });
