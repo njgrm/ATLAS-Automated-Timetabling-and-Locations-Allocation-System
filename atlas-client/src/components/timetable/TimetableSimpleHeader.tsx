@@ -46,13 +46,13 @@ import {
 	SimpleScheduleControls,
 	SimpleScheduleSheet,
 	SimpleTutorialControl,
+	resetSimpleWorkspaceFilters,
 	useSimpleTasks,
 } from '@/components/timetable/simple/SimpleHeaderHelpers';
 import {
 	resolveSimpleReadiness,
 	SimpleReadinessChip,
 } from '@/components/timetable/simple/SimpleSetupSharedControls';
-import { SimpleActiveFilterChips, SimpleFilterControls } from '@/components/timetable/simple/SimpleFilterControls';
 import type { SimpleViewMode } from '@/components/timetable/simple/SimpleHeaderHelpers';
 import { SimpleExportErrorBanner, SimpleExportMenu, SimpleTermSwitcher } from '@/components/timetable/simple/SimpleBeneficiaryControls';
 import { useSimpleExportSurface } from '@/components/timetable/simple/useSimpleExportSurface';
@@ -216,6 +216,9 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 		return () => { cancelled = true; };
 	}, [context.schoolId]);
 	const [lastEntityByMode, setLastEntityByMode] = useState<Partial<Record<SimpleViewMode, string>>>({});
+	useEffect(() => {
+		resetSimpleWorkspaceFilters(context);
+	}, [context.programFilter, context.entryKindFilter, context.severityFilter, context.setProgramFilter, context.setEntryKindFilter, context.setSeverityFilter]);
 	const visibleRunId = context.draft?.runId ?? null;
 	// TIMETABLE-TERM-GATE-C01 (D3) — same explicit-scope fallback notice as
 	// Advanced: an unverified authority with data on screen means the timetable
@@ -284,7 +287,7 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 	// subject · term · session reason). Keep the operator sentence short and
 	// expose the technical detail behind a tooltip for support.
 	const setupBlockedDiagnostic = context.curriculumReadiness?.state === 'blocked' ? setupState.message : null;
-	const setupOperatorMessage = 'Setup needs attention before ATLAS can generate a timetable. Review the reported setup item, then check readiness again.';
+	const setupOperatorMessage = 'ATLAS found schedule information to check before a timetable can be made. Review the item shown, then check again.';
 	const canPlanOrGenerate = scopeResolved && generationReady && !context.loading;
 	// R7 — the shared capability model is the production guard for every Simple
 	// task action (publish/swap/review), not just generation.
@@ -543,23 +546,10 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 
 	return (
 		<header className="shrink-0 border-b border-border bg-background" data-testid="timetable-simple-header">
-			{/* TIMETABLE-HEADER-COLLAPSE-C01 (D1) — ONE row band. The single status
-			    region and the single action row are the two children of this one
-			    band: at >=1366px the band becomes an explicitly non-wrapping flex
-			    row (`wide:flex-row` + `wide:flex-nowrap`), so the header renders
-			    one row instead of two stacked bands; below 1366px the band stacks
-			    them exactly as before. This is the header's only content band —
-			    the conditional export/swap banners stay outside it so they remain
-			    full-width strips. The band's children keep their original
-			    indentation deliberately: the diff stays surgical.
-			    C1 correction — `wide` is the NAMED 1366px breakpoint declared in
-			    `src/index.css` (`--breakpoint-wide: 85.375rem`). The original
-			    `min-[1366px]:` arbitrary variants were emitted BEFORE the `lg:`
-			    block in the built CSS, so at >=1366px `lg:flex` won the
-			    equal-specificity tie and this collapse did not apply. A named
-			    breakpoint sorts after `lg`/`xl`, so the `wide:` rules are emitted
-			    later and win. See `timetable-header-collapse-c01.test.tsx` for the
-			    emitted-order proof.
+			{/* The status and action areas intentionally wrap at every desktop width;
+			    this keeps every control visible without turning the header into a
+			    horizontally scrolling strip. The conditional export/swap banners
+			    remain full-width strips outside these rows.
 			    A3/C5 — the region is still ONE status region, rendered as a compact
 			    single-line strip: the readiness chip, the single coherent authority
 			    state, and the one labelled way to the setup repairs. A4 — the
@@ -572,11 +562,11 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 			    setup-input repairs (Fix rooms / Preview impact / Sync with
 			    setup) and the rollover guidance live on `/timetable/setup`. */}
 			<div
-				className="flex min-w-0 flex-col wide:flex-row wide:flex-nowrap wide:items-center wide:gap-3 wide:overflow-x-auto"
+				className="flex min-w-0 flex-col gap-1.5"
 				data-testid="timetable-simple-header-row"
 			>
-			<section data-testid="timetable-simple-status-region" role="region" aria-label="Timetable status" className="min-w-0 px-3 wide:flex-1">
-			<div className="flex min-w-0 flex-wrap items-center gap-1.5 wide:flex-nowrap">
+			<section data-testid="timetable-simple-status-region" role="region" aria-label="Timetable status" className="min-w-0 px-3">
+			<div className="flex min-w-0 flex-wrap items-center gap-1.5">
 				<SimpleReadinessChip
 					readiness={readiness}
 					publishBlocked={publishBlocked}
@@ -605,7 +595,7 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 				) : null}
 				{latestRunFailed ? (
 					<p className="min-w-0 text-xs font-medium text-red-700" data-testid="timetable-last-generation-failed-message">
-						The last generation run failed. Review setup, then try generating again.
+						The last schedule build did not finish. Check schedule information, then try again.
 					</p>
 				) : null}
 				{setupBlockedDiagnostic ? (
@@ -631,18 +621,18 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 				<Button asChild type="button" variant="outline" size="sm" className="h-6 shrink-0 gap-1 px-2 text-xs" data-testid="timetable-simple-review-setup">
 					<Link to="/timetable/setup">
 						<Settings2 className="size-3" aria-hidden="true" />
-						Review setup
+						Check schedule information
 					</Link>
 				</Button>
 			</div>
 			</section>
 
-			{/* A3/C5 — ONE action row: term, schedule, filters, downloads, and the
+			{/* A3/C5 — ONE action row: term, schedule, downloads, and the
 			    single primary action. Everything else is one click away in More.
 			    C5 — the row no longer adds its own bottom band padding, so the
 			    header is one compact block (status strip + control row) instead
 			    of two padded bands. */}
-			<div className="flex min-w-0 flex-wrap items-center gap-1.5 px-3 wide:flex-nowrap wide:shrink-0">
+			<div className="flex min-w-0 flex-wrap items-center gap-1.5 px-3">
 				<SimpleTermSwitcher context={context} />
 
 				<div className="hidden min-w-0 flex-1 lg:flex lg:shrink-0 lg:min-w-[24rem]">
@@ -654,7 +644,6 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 					/>
 				</div>
 
-				<SimpleFilterControls context={context} renderActiveFilters={false} />
 				<SimpleScheduleSheet
 					context={context}
 					lastEntityByMode={lastEntityByMode}
@@ -679,7 +668,7 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 				    the secondary Generate, and the More disclosure. C6 — on the
 				    narrow scrollable strip the primary leads (order-first) so it is
 				    visible without scrolling; at lg it returns to its inline order. */}
-				<div className="order-last flex w-full min-w-0 shrink-0 items-center justify-start gap-1.5 overflow-x-auto lg:order-none lg:ml-auto lg:w-auto lg:max-w-[48vw] lg:justify-end">
+				<div className="flex min-w-0 flex-wrap items-center justify-start gap-1.5 lg:ml-auto lg:justify-end">
 					<TimetablePublishedReturnAction
 						visible={context.isPreGenerationWorkspace && Boolean(context.hasPublishedReturnState)}
 						onReturn={context.returnToGeneratedRun}
@@ -792,7 +781,6 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 						</DropdownMenuContent>
 					</DropdownMenu>
 				</div>
-				<SimpleActiveFilterChips context={context} />
 			</div>
 			</div>
 			{/* ── end of the one row band (TIMETABLE-HEADER-COLLAPSE-C01 D1) ── */}

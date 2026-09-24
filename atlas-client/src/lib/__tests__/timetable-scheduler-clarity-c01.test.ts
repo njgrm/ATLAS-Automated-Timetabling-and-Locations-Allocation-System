@@ -31,8 +31,8 @@ function context(overrides: Record<string, unknown> = {}) {
 
 test('Simple lifecycle labels describe the schedule and next action in plain language', () => {
 	assert.equal(readinessLabel(context({ isPreGenerationWorkspace: true })), 'Working schedule draft');
-	assert.equal(readinessLabel(context({ curriculumReadiness: { state: 'loading', message: 'technical diagnostic' } })), 'Checking schedule information…');
-	assert.equal(readinessLabel(context({ curriculumReadiness: { state: 'failed', message: 'technical diagnostic' } })), 'Schedule check needs retry');
+	assert.equal(readinessLabel(context({ isPreGenerationWorkspace: true, curriculumReadiness: { state: 'loading', message: 'technical diagnostic' } })), 'Checking schedule information…');
+	assert.equal(readinessLabel(context({ isPreGenerationWorkspace: true, curriculumReadiness: { state: 'failed', message: 'technical diagnostic' } })), 'Schedule check needs retry');
 	assert.equal(resolveTimetableLoadingIntent('/timetable/setup')?.title, 'Check schedule information');
 	assert.equal(resolveTimetableLoadingIntent('/timetable/setup')?.message,
 		'ATLAS is checking the school year and schedule information. No changes are made by this check.');
@@ -102,11 +102,11 @@ test('readiness remains fail-closed while checking and becomes an actionable ret
 });
 
 test('setup guidance names what ATLAS found and the next safe step without claiming a change', () => {
-	assert.match(simpleSetupGuidance({ state: 'loading', message: 'internal diagnostic' }), /ATLAS is checking schedule information/);
-	assert.match(simpleSetupGuidance({ state: 'blocked', message: 'internal diagnostic' }), /Open Review readiness/);
-	assert.match(simpleSetupGuidance({ state: 'failed', message: 'internal diagnostic' }), /Retry schedule check/);
-	assert.match(simpleSetupGuidance({ state: 'ready', message: 'internal diagnostic' }), /ATLAS checked the schedule information/);
+	assert.match(simpleSetupGuidance({ state: 'loading' }), /ATLAS is checking schedule information/);
+	assert.match(simpleSetupGuidance({ state: 'blocked' }), /Open Review readiness/);
+	assert.match(simpleSetupGuidance({ state: 'failed' }), /Retry schedule check/);
+	assert.match(simpleSetupGuidance({ state: 'ready' }), /ATLAS checked the schedule information/);
 	for (const state of ['loading', 'blocked', 'failed', 'ready'] as const) {
-		assert.doesNotMatch(simpleSetupGuidance({ state, message: 'internal diagnostic' }), /internal diagnostic|updated|changed to/);
+		assert.doesNotMatch(simpleSetupGuidance({ state }), /updated|changed to/);
 	}
 });

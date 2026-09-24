@@ -118,12 +118,12 @@ const LIFECYCLE_LABELS: Record<TimetableLifecycleState, string> = {
 	'setup-blocked': 'Setup needs attention',
 	'setup-unavailable': 'Setup check unavailable',
 	'ready-no-run': 'Ready to generate',
-	'pre-generation': 'Planning draft',
+	'pre-generation': 'Working schedule draft',
 	generating: 'Generating…',
 	'failed-run': 'Last generation failed',
 	'generated-issues': 'Generated — issues to review',
 	'generated-reviewable': 'Generated — ready to review',
-	published: 'Published — read only',
+	published: 'Published schedule — view only',
 };
 
 /**
@@ -137,7 +137,7 @@ export function deriveTimetableCapabilities(input: TimetableCapabilityInput): Ti
 	const generation: TimetableActionGate = (() => {
 		if (!input.scopeResolved) return denied('Waiting for your school and school year to load.');
 		if (input.generating) return denied('A generation run is already in progress.');
-		if (input.curriculumState === 'loading') return denied('Still checking setup inputs for this school year.');
+		if (input.curriculumState === 'loading') return denied('Checking schedule information for this school year.');
 		if (input.curriculumState === 'blocked') {
 			const repair: TimetableRepair = input.readinessRepair
 				? input.readinessRepair.kind === 'retry'
@@ -147,7 +147,7 @@ export function deriveTimetableCapabilities(input: TimetableCapabilityInput): Ti
 			return denied('Setup inputs for the active school year are not ready yet.', repair);
 		}
 		if (input.curriculumState === 'unavailable' || input.curriculumState === 'failed') {
-			return denied('Setup inputs could not be checked.', retry('Retry setup check'));
+			return denied('Schedule information could not be checked.', retry('Retry schedule check'));
 		}
 		// UX-C01R — never allow generation from a "ready" state whose canonical
 		// diagnostic does not prove allow + zero-write + no blockers.
@@ -155,7 +155,7 @@ export function deriveTimetableCapabilities(input: TimetableCapabilityInput): Ti
 			&& (!input.generationDiagnostic.generateAllowed || !input.generationDiagnostic.zeroWrite || input.generationDiagnostic.blockerCount > 0)) {
 			return denied(
 				'Generation readiness is not verified for this school year.',
-				retry('Recheck generation readiness'),
+				retry('Retry schedule check'),
 			);
 		}
 		if (input.driftBlocked) {
@@ -235,7 +235,7 @@ export function describeSetupState(
 	return {
 		label: 'Setup check unavailable',
 		message: readiness.message || 'Term and setup data could not be checked for the active school year.',
-		repair: retry('Retry setup check'),
+		repair: retry('Retry schedule check'),
 	};
 }
 

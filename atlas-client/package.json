@@ -28,6 +28,7 @@
     "test:dashboard-truth-c01": "tsx --test src/lib/__tests__/dashboard-truth-c01.test.ts",
     "test:warning-readability": "tsx --test src/lib/__tests__/warning-readability-c01.test.ts",
     "test:timetable-scheduler-simplicity": "tsx --test src/lib/__tests__/timetable-scheduler-simplicity-c01.test.ts",
+    "test:timetable-scheduler-clarity": "tsx --test src/lib/__tests__/timetable-scheduler-clarity-c01.test.ts src/lib/__tests__/timetable-operator-workflow-state.test.ts src/components/timetable/__tests__/timetable-header-collapse-c01.test.tsx",
     "test:scheduler-collaboration": "tsx --test src/lib/__tests__/publication-approval-action-c01.test.ts src/lib/__tests__/room-preference-collaboration-ticket-c01.test.ts src/lib/__tests__/scheduler-navigation-c01.test.ts",
     "test:export-center": "tsx --test src/lib/__tests__/scheduler-export-center.test.ts",
     "test:timetable-ux-rehaul": "tsx --test src/lib/__tests__/timetable-ux-rehaul-c01.test.ts src/lib/__tests__/ux-r02-simple-stripdown.test.ts src/lib/__tests__/ux-quickfix-c01-header-actions.test.ts src/lib/__tests__/ux-r01-shared-chrome.test.tsx",

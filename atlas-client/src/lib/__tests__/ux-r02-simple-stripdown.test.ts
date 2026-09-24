@@ -76,14 +76,13 @@ test('R02 renders the visible filter trigger, count, and removable active chips'
 	assert.match(markup, /Clear all/);
 });
 
-test('R02 production header exposes filters directly and More no longer duplicates filters or help', () => {
+test('Simple header exposes no filters and More no longer duplicates filters or help', () => {
 	const header = readSource('src/components/timetable/TimetableSimpleHeader.tsx');
 	const menu = readSource('src/components/timetable/simple/SimpleMoreMenuContent.tsx');
 	const controls = readSource('src/components/timetable/simple/SimpleFilterControls.tsx');
 
-	assert.match(header, /<SimpleFilterControls context=\{context\} renderActiveFilters=\{false\} \/>/);
-	assert.match(header, /<SimpleActiveFilterChips context=\{context\} \/>/);
-	assert.equal((header.match(/<SimpleFilterControls\b/g) ?? []).length, 1);
+	assert.doesNotMatch(header, /SimpleFilterControls|SimpleActiveFilterChips/);
+	assert.match(header, /resetSimpleWorkspaceFilters\(context\)/);
 	assert.doesNotMatch(menu, />Filters</);
 	assert.doesNotMatch(menu, />Tutorial</);
 	assert.doesNotMatch(menu, />Status key</);

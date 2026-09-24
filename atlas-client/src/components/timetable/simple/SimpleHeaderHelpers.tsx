@@ -30,6 +30,15 @@ type SimpleViewMode = ScheduleReviewWorkspaceHeaderContext['viewMode'];
 
 export type { SimpleViewMode };
 
+/** Simple mode always starts with the complete schedule; Expert review keeps
+ * its independent filters and can reapply them deliberately. */
+export function resetSimpleWorkspaceFilters(context: Pick<ScheduleReviewWorkspaceHeaderContext,
+	'programFilter' | 'entryKindFilter' | 'severityFilter' | 'setProgramFilter' | 'setEntryKindFilter' | 'setSeverityFilter'>) {
+	if (context.programFilter !== 'all') context.setProgramFilter('all');
+	if (context.entryKindFilter !== 'all') context.setEntryKindFilter('all');
+	if (context.severityFilter !== 'all') context.setSeverityFilter('all');
+}
+
 type SimpleTutorialStep = {
 	title: string;
 	body: string;
@@ -183,7 +192,13 @@ export function sourceLabel(context: ScheduleReviewWorkspaceHeaderContext) {
 
 export function readinessLabel(context: ScheduleReviewWorkspaceHeaderContext) {
 	const yearLabel = context.schoolYearContext?.activeSchoolYearLabel;
-	if (context.isPreGenerationWorkspace) return 'Planning draft';
+	if (context.isPreGenerationWorkspace) {
+		if (context.curriculumReadiness?.state === 'loading') return 'Checking schedule information…';
+		if (context.curriculumReadiness?.state === 'failed' || context.curriculumReadiness?.state === 'unavailable') {
+			return 'Schedule check needs retry';
+		}
+		return 'Working schedule draft';
+	}
 	if (!context.draft) return yearLabel ? `No ${yearLabel} timetable yet` : 'No current-year timetable yet';
 	const summaryRaw = context.draft.summary as unknown as Record<string, unknown> | null;
 	const isPublished = summaryRaw?.isPublished === true;
@@ -639,8 +654,8 @@ export function SimplePublishAction({
  */
 export function SimplePublishedState({ followUpCount }: { followUpCount: number }) {
 	const label = followUpCount > 0
-		? `Published — ${followUpCount} follow-up item${followUpCount === 1 ? '' : 's'} remain`
-		: 'Published — read only';
+		? `Published schedule — ${followUpCount} follow-up item${followUpCount === 1 ? '' : 's'} remain`
+		: 'Published schedule — view only';
 	return (
 		<div
 			className="flex h-11 min-w-28 shrink-0 items-center gap-1.5 rounded-lg border border-emerald-600 bg-emerald-50 px-3 text-sm font-semibold text-emerald-900"

@@ -440,81 +440,34 @@ test('D1 the header renders exactly one row band holding the one status region a
 	assert.ok(regionAt < actionAt, 'the status region and the action controls share the one row band');
 });
 
-test('D1 at ≥1366px the one band is an explicitly non-wrapping row (rendered contract)', () => {
+test('D1 at ≥1366px the header uses bounded wrapping rows instead of a horizontal strip', () => {
 	const markup = renderHeader(CLEAN_UNPUBLISHED);
 
-	// The rendered row band stacks by default and becomes a non-wrapping flex
-	// row at the one-row breakpoint. These are the RENDERED classes; whether
-	// they actually win the cascade is proven by the C1 test below.
 	const rowClasses = classOf(tagFor(markup, 'timetable-simple-header-row'));
-	assert.match(rowClasses, /(?:^|\s)flex-col(?:\s|$)/, 'the band stacks below the breakpoint');
-	assert.match(rowClasses, /wide:flex-row/, 'the band becomes one row at ≥1366px');
-	assert.match(rowClasses, /wide:flex-nowrap/, 'the row cannot wrap at ≥1366px');
-	assert.doesNotMatch(rowClasses, /(?:^|\s)flex-wrap(?:\s|$)/, 'the base stack must not wrap the row itself');
-	// C3 — the one-row band is the no-document-scrollbar fallback: a nowrap row
-	// that scrolls INTERNALLY (overflow-x-auto) rather than widening the page.
-	// Whether the ≥1366px row actually fits without using it is a post-deployment
-	// browser row; this only pins the fallback in place.
-	assert.match(rowClasses, /wide:overflow-x-auto/, 'the one-row band scrolls internally, never the document');
-
-	// The status region takes the free space, and the committed single action row
-	// must not wrap inside the one-row band either.
-	assert.match(classOf(tagFor(markup, 'timetable-simple-status-region')), /wide:flex-1/);
-	assert.match(
-		markup,
-		/class="flex min-w-0 flex-wrap items-center gap-1\.5 px-3 wide:flex-nowrap wide:shrink-0"/,
-		'the single action row cannot wrap at ≥1366px',
-	);
+	assert.match(rowClasses, /flex-col/);
+	assert.doesNotMatch(rowClasses, /wide:flex-row|wide:flex-nowrap|overflow-x-auto/);
+	assert.match(markup, /class="flex min-w-0 flex-wrap items-center gap-1\.5"/,
+		'the status line wraps rather than clipping');
+	assert.match(markup, /class="flex min-w-0 flex-wrap items-center gap-1\.5 px-3"/,
+		'controls wrap cleanly at desktop widths');
+	assert.doesNotMatch(markup, /justify-start gap-1\.5 overflow-x-auto/);
 });
 
-test('C1 the built CSS emits the ≥1366px collapse rules AFTER lg:, so they win the equal-specificity tie', async () => {
+test('C1 the rendered header has no horizontal strip overflow at desktop widths', () => {
 	const markup = renderHeader(CLEAN_UNPUBLISHED);
-	const rules = emittedUtilityRules(await builtUtilitiesCss(headerCascadeCandidates(markup)));
-
-	// The reviewed defect: `min-[1366px]:*` used to be emitted BEFORE the `lg:`
-	// block, so at ≥1366px — where both queries match and the selectors have
-	// equal specificity — `lg:` won by source order. The `wide:` named
-	// breakpoint must be emitted after `lg:` instead.
-	const lgFlex = emittedRuleFor(rules, 'lg:flex');
-	const wideHidden = emittedRuleFor(rules, 'wide:hidden');
-	const lgHidden = emittedRuleFor(rules, 'lg:hidden');
-	const wideInlineFlex = emittedRuleFor(rules, 'wide:inline-flex');
-	assert.ok(lgFlex && wideHidden && lgHidden && wideInlineFlex, 'all four competing rules must be emitted');
-
-	assert.equal(lgFlex.media, '(min-width:64rem)', 'lg: resolves to the 64rem media query');
-	assert.equal(wideHidden.media, '(min-width:85.375rem)', 'wide: resolves to the 85.375rem (1366px) media query');
-
-	// Emitted order is the cascade tie-breaker for equal-specificity rules.
-	assert.ok(
-		lgFlex.offset < wideHidden.offset,
-		'wide:hidden must be emitted after lg:flex, or the inline switcher keeps display:flex at ≥1366px',
-	);
-	assert.ok(
-		lgHidden.offset < wideInlineFlex.offset,
-		'wide:inline-flex must be emitted after lg:hidden, or the sheet trigger stays display:none at ≥1366px',
-	);
-
-	// The effective declaration at a 1366px viewport, evaluated with the real
-	// cascade rule (both queries match; last applying declaration wins).
-	assert.equal(effectiveDisplay(rules, 'wide:hidden', 1366), 'none', 'the inline switcher yields at 1366px');
-	assert.equal(effectiveDisplay(rules, 'wide:inline-flex', 1366), 'inline-flex', 'the sheet trigger returns at 1366px');
-	// Below the breakpoint the settlement inverts back.
-	assert.equal(effectiveDisplay(rules, 'lg:flex', 1280), 'flex', 'the inline switcher shows between lg and 1366px');
-	assert.equal(effectiveDisplay(rules, 'lg:hidden', 1280), 'none', 'the sheet trigger is hidden between lg and 1366px');
+	assert.doesNotMatch(markup, /wide:flex-row|wide:flex-nowrap|overflow-x-auto/);
+	assert.match(markup, /class="flex min-w-0 flex-wrap items-center gap-1\.5 px-3"/);
 });
 
-test('D1 the inline schedule switcher yields to its one-click sheet at ≥1366px (nothing becomes unreachable)', () => {
+test('D1 the mobile schedule entity sheet remains available', () => {
 	const markup = renderHeader(CLEAN_UNPUBLISHED);
 
-	// The inline switcher and its sheet fallback both render, carrying the
-	// breakpoint declarations the C1 test proves in the built CSS.
+	// The inline switcher is for desktop; the sheet remains for touch-sized layouts.
 	const switcher = markup.match(/class="(hidden min-w-0 flex-1 lg:flex[^"]*)"/)?.[1];
 	assert.ok(switcher, 'the inline switcher must render');
 	assert.match(switcher, /lg:flex/, 'the inline switcher shows from lg');
-	assert.match(switcher, /wide:hidden/, 'the inline switcher yields at ≥1366px');
 	const trigger = classOf(tagFor(markup, 'timetable-simple-schedule-sheet-trigger'));
 	assert.match(trigger, /lg:hidden/, 'the sheet trigger is compact below lg');
-	assert.match(trigger, /wide:inline-flex/, 'the sheet trigger returns at ≥1366px');
 
 	// The sheet's content is the unchanged shared chooser, so the full
 	// Section/Teacher/Room chooser stays exactly one click away.
@@ -537,7 +490,7 @@ test('D2 (failing-first) a published run is dominated by the published lifecycle
 	assert.doesNotMatch(published, /^<button\b/, 'the published lifecycle surface is not an action button');
 	assert.match(published, /role="status"/);
 	assert.match(published, /Published/);
-	assert.match(published, /read only/);
+	assert.match(published, /view only/);
 	assert.equal(solidButtons(markup).length, 0, 'a published run has no filled action');
 
 	// The failing-first assertion: the published lifecycle surface must strictly

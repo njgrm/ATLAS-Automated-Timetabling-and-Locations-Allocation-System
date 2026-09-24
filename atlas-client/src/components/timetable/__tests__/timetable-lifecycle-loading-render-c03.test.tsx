@@ -92,7 +92,7 @@ test('loading production workspace reconciles guarded direct route intent and ke
 	assert.equal(container.querySelector('[data-testid="actual-center-view"]')?.textContent, 'pre-generation');
 
 	for (const [path, view, title] of [
-		['/timetable/setup', 'setup', 'Review setup'],
+		['/timetable/setup', 'setup', 'Check schedule information'],
 		['/timetable/policies', 'policy', 'Scheduling policies'],
 		['/timetable/runs', 'runs', 'Generation history'],
 		['/timetable/exports', 'exports', 'Exports'],

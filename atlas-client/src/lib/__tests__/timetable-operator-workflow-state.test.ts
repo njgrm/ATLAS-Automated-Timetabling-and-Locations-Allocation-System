@@ -110,14 +110,14 @@ test('lifecycle failed newest run with no reviewable run offers retry, never pub
 test('lifecycle fails closed while readiness is unresolved or unavailable', () => {
 	const checking = deriveSimpleLifecycleAction({ hasGeneratedRun: false, curriculumState: 'loading' });
 	assert.equal(checking.kind, 'retry-readiness');
-	assert.equal(checking.label, 'Checking setup…');
+	assert.equal(checking.label, 'Checking schedule information…');
 	assert.equal(checking.disabled, true);
 	assert.equal(checking.interactive, false);
 
 	for (const curriculumState of ['unavailable', 'failed'] as const) {
 		const retry = deriveSimpleLifecycleAction({ hasGeneratedRun: false, curriculumState });
 		assert.equal(retry.kind, 'retry-readiness');
-		assert.equal(retry.label, 'Retry setup check');
+		assert.equal(retry.label, 'Retry schedule check');
 		assert.equal(retry.disabled, false);
 		assert.equal(retry.interactive, true);
 	}
@@ -212,7 +212,7 @@ test('readiness chip distinguishes published follow-ups from clean published', (
 		'Published with 2 follow-up items',
 	);
 	assert.equal(readinessLabel(headerContext({ draft, summary: { unassignedCount: 0 } })), 'Published');
-	assert.equal(readinessLabel(headerContext({ isPreGenerationWorkspace: true })), 'Planning draft');
+	assert.equal(readinessLabel(headerContext({ isPreGenerationWorkspace: true })), 'Working schedule draft');
 });
 
 // --- TT-C04 publish readiness: no run is never clean ---
@@ -345,7 +345,7 @@ test('drawer blocker items carry plain-language next steps, never raw codes', ()
 test('failed newest run is named explicitly instead of looking like no history', () => {
 	const header = source('src/components/timetable/TimetableSimpleHeader.tsx');
 	assert.match(header, /timetable-last-generation-failed-message/);
-	assert.match(header, /The last generation run failed/);
+	assert.match(header, /The last schedule build did not finish/);
 });
 
 test('insertion workflow stays preview-only with zero production apply', () => {

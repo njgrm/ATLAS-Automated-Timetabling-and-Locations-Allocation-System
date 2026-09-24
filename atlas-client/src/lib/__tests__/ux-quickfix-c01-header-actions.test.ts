@@ -191,7 +191,7 @@ test('UX-QUICKFIX-C01 (c) an already-published run shows the published state, no
 		blockingHardCount: 0,
 	});
 	assert.match(markup, /data-testid="timetable-simple-published-state"/, 'the published state must render');
-	assert.match(markup, /Published — read only/);
+	assert.match(markup, /Published schedule — view only/);
 	assert.equal(markup.includes('Publish schedule'), false, 'no publish affordance may render on a published run');
 	assert.equal(
 		markup.includes('data-testid="timetable-simple-primary-action"'),
@@ -250,7 +250,7 @@ test('UX-QUICKFIX-C01 (d2) a closed generation gate renders a disabled Generate 
 	});
 	const generate = tagFor(markup, 'timetable-simple-generate-action');
 	assert.match(generate, /disabled=""/, 'the disabled generation control cannot dispatch');
-	assert.match(generate, /aria-label="Generate schedule — Setup inputs could not be checked\."/);
+	assert.match(generate, /aria-label="Generate schedule — Schedule information could not be checked\."/);
 });
 
 test('UX-QUICKFIX-C01 (d3) a closed publication gate renders a disabled Publish and still shows the next step', () => {

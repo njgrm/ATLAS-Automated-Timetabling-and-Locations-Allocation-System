@@ -83,6 +83,22 @@ type TimetableSetupPaneProps = {
 	onSetRepairOrigin?: ((origin: RepairOrigin | null) => void) | null;
 };
 
+export function simpleSetupGuidance(
+	readiness: Pick<TimetableCurriculumReadinessState, 'state'> | null | undefined,
+) {
+	switch (readiness?.state ?? 'unavailable') {
+		case 'loading':
+			return 'ATLAS is checking schedule information. Nothing is changed by this check.';
+		case 'blocked':
+			return 'ATLAS found schedule items that need attention. Open Review readiness to see what to check before making changes.';
+		case 'failed':
+		case 'unavailable':
+			return 'ATLAS could not finish the schedule check. Retry schedule check; timetable generation stays unavailable until it completes.';
+		case 'ready':
+			return 'ATLAS checked the schedule information. Review any warnings before publishing.';
+	}
+}
+
 export function TimetableSetupPane({
 	inputs,
 	sectionLabel,
@@ -180,8 +196,8 @@ export function TimetableSetupPane({
 				<div className="mx-auto w-full max-w-2xl space-y-3 p-4">
 					<div className="flex items-center gap-2">
 						<Badge variant="outline" className="h-5 px-1.5 text-xs uppercase">Setup</Badge>
-					<p className="text-xs text-muted-foreground">
-						Check input freshness and publish readiness, then refresh the reference names for the active school year.
+					<p className="text-xs text-muted-foreground" data-testid="timetable-setup-guidance">
+						{simpleSetupGuidance(inputs.curriculumReadiness)}
 					</p>
 					</div>
 					<section aria-label="Publish readiness" className="space-y-2 rounded-lg border border-border bg-card p-3">
