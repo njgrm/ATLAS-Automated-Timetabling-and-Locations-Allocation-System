@@ -1,5 +1,10 @@
 # Private planning/customization artifacts
-.agents/
+# .agents/skills/ is the tracked cross-agent skill set (Codex + opencode read it;
+# .claude/skills/ holds Claude Code pointer stubs). Everything else under .agents/ stays private.
+.agents/*
+!.agents/skills/
+.claude/*
+!.claude/skills/
 .codex/
 .cursor/
 # AGENTS.md is the tracked, sanitized cross-agent workflow authority.
