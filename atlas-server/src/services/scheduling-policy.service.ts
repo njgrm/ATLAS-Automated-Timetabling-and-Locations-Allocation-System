@@ -115,6 +115,8 @@ export const POLICY_DEFAULTS = {
 	recessStartTime: '09:45',
 	recessEndTime: '10:00',
 	enableLunchWindow: true,
+	enableTeacherLunchWindow: true,
+	enforceTeacherLunchWindow: false,
 	enableTleTwoPassPriority: true,
 	allowFlexibleSubjectAssignment: false,
 	allowConsecutiveLabSessions: false,
@@ -178,6 +180,11 @@ export const PROMOTABLE_CONSTRAINT_CODES: ReadonlySet<string> = new Set([
 	'ROOM_TYPE_MISMATCH',
 	'ROOM_FEATURE_MISMATCH',
 	'FACULTY_DAILY_MAX_EXCEEDED',
+	// D9 — a teacher assigned across their lunch window is a deterministic
+	// schedule-structure defect (not an unreliable wellbeing metric), so the
+	// `enforceTeacherLunchWindow` HARD switch may block publication. It is
+	// emitted HARD only when that policy switch is on.
+	'FACULTY_LUNCH_WINDOW_VIOLATION',
 ]);
 
 export function isPromotableConstraintCode(code: string): boolean {
@@ -196,6 +203,11 @@ export const DEFAULT_CONSTRAINT_CONFIG: Record<string, ConstraintOverride> = {
 	FACULTY_EARLY_START_PREFERENCE: { enabled: false, weight: 2, treatAsHard: false },
 	FACULTY_LATE_END_PREFERENCE: { enabled: false, weight: 2, treatAsHard: false },
 	FACULTY_INSUFFICIENT_DAILY_VACANT: { enabled: false, weight: 3, treatAsHard: false },
+	// D9 — teacher-lunch band. Enabled by default and SOFT; the policy field
+	// `enforceTeacherLunchWindow` is the primary hard switch. The code is on the
+	// promotion allowlist so a HARD emission blocks publication and an explicit
+	// `treatAsHard` override may also promote it.
+	FACULTY_LUNCH_WINDOW_VIOLATION: { enabled: true, weight: 4, treatAsHard: false },
 	SECTION_OVERCOMPRESSED: { enabled: false, weight: 3, treatAsHard: false },
 	ROOM_CAPACITY_EXCEEDED: { enabled: true, weight: 5, treatAsHard: false },
 	// C07A — modular-group structural families. Both are on the promotion
@@ -385,6 +397,8 @@ export interface SchedulingPolicyData {
 	recessStartTime: string;
 	recessEndTime: string;
 	enableLunchWindow: boolean;
+	enableTeacherLunchWindow: boolean;
+	enforceTeacherLunchWindow: boolean;
 	enableTleTwoPassPriority: boolean;
 	allowFlexibleSubjectAssignment: boolean;
 	allowConsecutiveLabSessions: boolean;
@@ -442,6 +456,8 @@ export interface PolicyInput {
 	recessStartTime?: unknown;
 	recessEndTime?: unknown;
 	enableLunchWindow?: unknown;
+	enableTeacherLunchWindow?: unknown;
+	enforceTeacherLunchWindow?: unknown;
 	enableTleTwoPassPriority?: unknown;
 	allowFlexibleSubjectAssignment?: unknown;
 	allowConsecutiveLabSessions?: unknown;
@@ -645,6 +661,31 @@ export function validatePolicyInput(input: PolicyInput): { data: SchedulingPolic
 		? enableLunchWindow
 		: enforceLunch;
 	enforceLunch = enableLunchWindow;
+
+	// --- teacher lunch window (D9) ---
+	// A teacher keeps a free block over the lunch window of the grade band they
+	// teach. Enabled by default; SOFT unless the enforce switch is on.
+	let enableTeacherLunchWindow: boolean = POLICY_DEFAULTS.enableTeacherLunchWindow;
+	if (input.enableTeacherLunchWindow !== undefined && input.enableTeacherLunchWindow !== null) {
+		if (typeof input.enableTeacherLunchWindow !== 'boolean') {
+			errors.push('enableTeacherLunchWindow must be a boolean.');
+		} else {
+			enableTeacherLunchWindow = input.enableTeacherLunchWindow;
+		}
+	}
+
+	let enforceTeacherLunchWindow: boolean = POLICY_DEFAULTS.enforceTeacherLunchWindow;
+	if (input.enforceTeacherLunchWindow !== undefined && input.enforceTeacherLunchWindow !== null) {
+		if (typeof input.enforceTeacherLunchWindow !== 'boolean') {
+			errors.push('enforceTeacherLunchWindow must be a boolean.');
+		} else {
+			enforceTeacherLunchWindow = input.enforceTeacherLunchWindow;
+		}
+	}
+
+	// An enforcement switch with the window disabled is inert; never persist a
+	// dead hard gate.
+	if (!enableTeacherLunchWindow) enforceTeacherLunchWindow = false;
 
 	let showSpecialEventsInGrid: boolean = POLICY_DEFAULTS.showSpecialEventsInGrid;
 	if (input.showSpecialEventsInGrid !== undefined && input.showSpecialEventsInGrid !== null) {
@@ -867,6 +908,8 @@ export function validatePolicyInput(input: PolicyInput): { data: SchedulingPolic
 			recessStartTime,
 			recessEndTime,
 			enableLunchWindow,
+			enableTeacherLunchWindow,
+			enforceTeacherLunchWindow,
 			enableTleTwoPassPriority: enableTleTwoPass,
 			allowFlexibleSubjectAssignment: allowFlexibleAssignment,
 			allowConsecutiveLabSessions: allowConsecutiveLab,
@@ -1017,6 +1060,8 @@ async function ensureSchedulingPolicyColumns(): Promise<void> {
 				ADD COLUMN IF NOT EXISTS "recess_start_time" TEXT NOT NULL DEFAULT '09:45',
 				ADD COLUMN IF NOT EXISTS "recess_end_time" TEXT NOT NULL DEFAULT '10:00',
 				ADD COLUMN IF NOT EXISTS "enable_lunch_window" BOOLEAN NOT NULL DEFAULT true,
+				ADD COLUMN IF NOT EXISTS "enable_teacher_lunch_window" BOOLEAN NOT NULL DEFAULT true,
+				ADD COLUMN IF NOT EXISTS "enforce_teacher_lunch_window" BOOLEAN NOT NULL DEFAULT false,
 				ADD COLUMN IF NOT EXISTS "enable_tle_two_pass_priority" BOOLEAN NOT NULL DEFAULT true,
 				ADD COLUMN IF NOT EXISTS "allow_flexible_subject_assignment" BOOLEAN NOT NULL DEFAULT false,
 				ADD COLUMN IF NOT EXISTS "allow_consecutive_lab_sessions" BOOLEAN NOT NULL DEFAULT false,
@@ -1312,6 +1357,8 @@ export async function upsertPolicy(schoolId: number, schoolYearId: number, input
 		recessStartTime: data.recessStartTime,
 		recessEndTime: data.recessEndTime,
 		enableLunchWindow: data.enableLunchWindow,
+		enableTeacherLunchWindow: data.enableTeacherLunchWindow,
+		enforceTeacherLunchWindow: data.enforceTeacherLunchWindow,
 		enableTleTwoPassPriority: data.enableTleTwoPassPriority,
 		allowFlexibleSubjectAssignment: data.allowFlexibleSubjectAssignment,
 		allowConsecutiveLabSessions: data.allowConsecutiveLabSessions,

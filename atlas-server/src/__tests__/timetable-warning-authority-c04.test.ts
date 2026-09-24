@@ -336,6 +336,10 @@ test('R4: the allowlist is exactly the trustworthy structural code set', () => {
 		'FACULTY_OVERLOAD', 'FACULTY_SUBJECT_NOT_QUALIFIED', 'UNASSIGNED_SECTION',
 		'LACKING_FACULTY', 'INCOMPLETE_MODULAR_GROUP', 'ROOM_TYPE_MISMATCH',
 		'ROOM_FEATURE_MISMATCH', 'FACULTY_DAILY_MAX_EXCEEDED',
+		// D9 — a teacher assigned across their lunch window is a deterministic
+		// schedule-structure defect; the `enforceTeacherLunchWindow` switch makes
+		// it a hard publication blocker.
+		'FACULTY_LUNCH_WINDOW_VIOLATION',
 	];
 	assert.deepEqual([...PROMOTABLE_CONSTRAINT_CODES].sort(), expected.sort());
 	for (const unsafe of ['FACULTY_EXCESSIVE_TRAVEL_DISTANCE', 'FACULTY_FLOOR_TRANSITION', 'FACULTY_EXCESSIVE_BUILDING_TRANSITIONS', 'FACULTY_INSUFFICIENT_TRANSITION_BUFFER', 'FACULTY_EXCESSIVE_IDLE_GAP', 'FACULTY_EARLY_START_PREFERENCE', 'FACULTY_LATE_END_PREFERENCE', 'FACULTY_INSUFFICIENT_DAILY_VACANT', 'SECTION_OVERCOMPRESSED', 'ROOM_CAPACITY_EXCEEDED']) {

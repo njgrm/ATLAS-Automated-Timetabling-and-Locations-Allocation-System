@@ -56,6 +56,7 @@ export const VIOLATION_CODES = [
 	'FACULTY_EARLY_START_PREFERENCE',
 	'FACULTY_LATE_END_PREFERENCE',
 	'FACULTY_INSUFFICIENT_DAILY_VACANT',
+	'FACULTY_LUNCH_WINDOW_VIOLATION',
 	'SPECIALIZED_ROOM_UNAVAILABLE',
 	'UNASSIGNED_SECTION',
 	'ZONE_IMBALANCE_WARNING',
@@ -102,6 +103,7 @@ export const VIOLATION_COPY: Record<ViolationCode, ViolationCopy> = {
 	FACULTY_EARLY_START_PREFERENCE: { title: 'Starts earlier than preferred', meaning: 'The first class of the day begins earlier than the teacher preferred start.', action: 'Move the first class later when another valid slot is available.' },
 	FACULTY_LATE_END_PREFERENCE: { title: 'Ends later than preferred', meaning: 'The last class of the day ends later than the teacher preferred end.', action: 'Move the last class earlier when another valid slot is available.' },
 	FACULTY_INSUFFICIENT_DAILY_VACANT: { title: 'Too little preparation time', meaning: 'The teacher has fewer free periods in the day than the preparation target.', action: 'Move a class to another day or redistribute the load.' },
+	FACULTY_LUNCH_WINDOW_VIOLATION: { title: 'Teacher has no free lunch window', meaning: 'The teacher is assigned a class across the lunch window of the grade band they teach, so no free block covers it.', action: 'Move the class out of the lunch window or assign another qualified teacher.' },
 	SPECIALIZED_ROOM_UNAVAILABLE: { title: 'Specialized room unavailable', meaning: 'No suitable specialized room was free for this session.', action: 'Free a suitable room, change the time, or review whether the specialization is required.' },
 	UNASSIGNED_SECTION: { title: 'Class session unassigned', meaning: 'A required class session could not be placed in the timetable.', action: 'Open the unassigned queue and resolve its teacher, room, or time blocker.' },
 	ZONE_IMBALANCE_WARNING: { title: 'Campus zone imbalance (retired)', meaning: 'An older run recorded a campus-zone concentration warning that current ATLAS no longer calculates.', action: 'Regenerate with the current policy before acting on this historical warning.' },
@@ -215,6 +217,13 @@ export interface PolicyRef {
 	earliestStartTime: string;
 	latestEndTime: string;
 	enforceConsecutiveBreakAsHard: boolean;
+	/** D9 — teacher-lunch constraint switches (absent = disabled, legacy callers). */
+	enableTeacherLunchWindow?: boolean;
+	enforceTeacherLunchWindow?: boolean;
+	/** D9 fallback lunch window, used only when no canonical/grade-scoped lunch row applies. */
+	lunchStartTime?: string;
+	lunchEndTime?: string;
+	enableLunchWindow?: boolean;
 }
 
 /**
@@ -604,6 +613,54 @@ function isCanonicalBreakGap(breakIntervals: MinuteInterval[], gapStart: number,
 	const gap = gapEnd - gapStart;
 	if (gap <= 0) return false;
 	return coveredMinutes(breakIntervals, gapStart, gapEnd) >= gap;
+}
+
+function minutesToClock(totalMinutes: number): string {
+	const hours = Math.floor(totalMinutes / 60);
+	const minutes = totalMinutes % 60;
+	return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+}
+
+/**
+ * D9 — the lunch windows that apply to one faculty/day group.
+ *
+ * A teacher's lunch window is the lunch window of the grade band they teach:
+ * the effective `LUNCH_BREAK` break windows already resolved for the scopes of
+ * the group's sections — canonical grade-scoped rows when present, otherwise
+ * the persisted `PolicySpecialEvent` rows. When no such window exists the
+ * policy row's own lunch window is the fallback. An absent authority yields no
+ * window, so the constraint never invents a lunch band.
+ */
+function teacherLunchWindowsForGroup(
+	ctx: ValidatorContext,
+	entries: ScheduledEntry[],
+): Array<{ start: number; end: number; label: string }> {
+	const windows = ctx.breakWindows ?? [];
+	const seen = new Set<string>();
+	const result: Array<{ start: number; end: number; label: string }> = [];
+	for (const entry of entries) {
+		const scope = ctx.sectionScope?.get(entry.sectionId) ?? null;
+		for (const window of windows) {
+			if (String(window.eventType).trim().toUpperCase() !== 'LUNCH_BREAK') continue;
+			if (!scopeMatches(window, scope)) continue;
+			const interval = toMinuteInterval(window);
+			if (!interval) continue;
+			const key = `${interval.start}-${interval.end}`;
+			if (seen.has(key)) continue;
+			seen.add(key);
+			result.push({ start: interval.start, end: interval.end, label: window.label || 'Lunch Break' });
+		}
+	}
+	if (result.length === 0 && ctx.policy) {
+		const lunchEnabled = ctx.policy.enableLunchWindow !== false;
+		const start = ctx.policy.lunchStartTime;
+		const end = ctx.policy.lunchEndTime;
+		if (lunchEnabled && start && end) {
+			const interval = toMinuteInterval({ startTime: start, endTime: end });
+			if (interval) result.push({ start: interval.start, end: interval.end, label: 'Lunch Break' });
+		}
+	}
+	return result;
 }
 
 // ─── Validator ───
@@ -1012,6 +1069,50 @@ export function validateHardConstraints(ctx: ValidatorContext): ValidationResult
 				blockEntries = [entry.entryId];
 			}
 			flushBlock();
+		}
+
+		// 6c) D9 — teacher lunch window.
+		//
+		// A teacher keeps a free block over the lunch window of the grade band
+		// they teach. The window is resolved from the effective LUNCH_BREAK
+		// windows already scoped to the group's sections (canonical grade-scoped
+		// rows when present, otherwise the persisted special-event rows), with
+		// the policy row's lunch window as the fallback. Gated by
+		// `enableTeacherLunchWindow`; SOFT by default and HARD when
+		// `enforceTeacherLunchWindow` is on, so it blocks publication.
+		if (ctx.policy.enableTeacherLunchWindow === true) {
+			const lunchSeverity = ctx.policy.enforceTeacherLunchWindow === true ? 'HARD' as const : 'SOFT' as const;
+			for (const [key, dayEntries] of facDayEntries) {
+				const { facultyId, day } = parseFacultyDayTermKey(key);
+				const sorted = [...dayEntries].sort((a, b) => a.startTime.localeCompare(b.startTime));
+				const lunchWindows = teacherLunchWindowsForGroup(ctx, sorted);
+				for (const lunch of lunchWindows) {
+					const overlapping = sorted.filter((entry) => {
+						const entryStart = timeToMinutes(entry.startTime);
+						const entryEnd = timeToMinutes(entry.endTime);
+						return entryStart < lunch.end && lunch.start < entryEnd;
+					});
+					if (overlapping.length === 0) continue;
+					violations.push({
+						...base, severity: lunchSeverity,
+						code: 'FACULTY_LUNCH_WINDOW_VIOLATION',
+						message: `Faculty ${facultyId} teaches across the ${lunch.label} window (${minutesToClock(lunch.start)}-${minutesToClock(lunch.end)}) on ${day}; no free block covers the teacher lunch window.`,
+						entities: {
+							facultyId, day,
+							startTime: minutesToClock(lunch.start),
+							endTime: minutesToClock(lunch.end),
+							entryIds: overlapping.map((entry) => entry.entryId),
+						},
+						meta: {
+							facultyId, day,
+							lunchWindowStart: minutesToClock(lunch.start),
+							lunchWindowEnd: minutesToClock(lunch.end),
+							lunchWindowLabel: lunch.label,
+							overlappingEntryIds: overlapping.map((entry) => entry.entryId),
+						},
+					});
+				}
+			}
 		}
 	}
 
