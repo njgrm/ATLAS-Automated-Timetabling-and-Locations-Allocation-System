@@ -385,6 +385,16 @@ and AIMS.
 
 ## Current blockers and accepted source
 
+- **BLOCKED — `cca84c6b` deployment: the handoff's "no migration required" is false** (as of 2026-09-24;
+  proven by `prisma migrate status` against `atlas_recovery_clean_rebuild_20260905`). The range
+  `002c8879..cca84c6b` adds two **unapplied** migrations — `20260924000001_teacher_lunch_window` (two
+  additive `scheduling_policies` columns) and `20260925000000_faculty_grade_preference` (new
+  `faculty_grade_preferences` table) — and the server reads both (`schedulingPolicy.*` selects all
+  scalars; `facultyGradePreference.*`). Deploying without applying them would break policy reads and
+  the new faculty-grade-preference routes. **Next:** a separately approved HIGH apply of exactly those
+  two migrations (guarded runner, fresh verified backup), then redeploy. No cutover occurred; the
+  unbuilt target worktree was retired. (The `## Live release` block deliberately does **not** name
+  `cca84c6b`, so the deploy-runner gate stays closed until the migration is applied.)
 - `DUP-READ-CALLERS-C01` / `-C01R` are **integrated, deployed and independently accepted**
   2026-09-21. `C01` closed the three named duplicate-read callers: one in-flight `/auth/me` per
   token epoch across **both** `resolveActorSchoolId` and `verifySessionToken`; the
