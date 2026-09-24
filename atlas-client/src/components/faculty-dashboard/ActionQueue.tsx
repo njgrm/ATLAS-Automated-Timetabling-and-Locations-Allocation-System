@@ -12,8 +12,9 @@ type ActionItem = {
 	description: string;
 	icon: LucideIcon;
 	tone: Tone;
-	link: string;
-	linkText: string;
+	/** D6 — optional; the retired teacher-portal actions are informational. */
+	link?: string;
+	linkText?: string;
 };
 
 type ActionQueueProps = {
@@ -93,33 +94,27 @@ export default function ActionQueue({ counts, hasDraftPreferences, hasDraftRoomR
 		actions.push({
 			id: 'rejected',
 			title: `${counts.rejected} request${counts.rejected > 1 ? 's' : ''} need attention`,
-			description: 'The scheduler declined some room changes. Open them to read the reason and revise.',
+			description: 'The scheduler declined some room changes. They will follow up with the reason in your next update.',
 			icon: AlertCircle,
 			tone: 'destructive',
-			link: '/my/room-preferences',
-			linkText: 'Review',
 		});
 	}
 	if (hasDraftRoomRequests) {
 		actions.push({
 			id: 'draft-rooms',
 			title: 'Unsubmitted room request',
-			description: 'You have a room-change draft that hasn’t been sent for review yet.',
+			description: 'A room-change draft is still with the scheduler and has not been decided yet.',
 			icon: FileEdit,
 			tone: 'warning',
-			link: '/my/room-preferences',
-			linkText: 'Finish and submit',
 		});
 	}
 	if (hasDraftPreferences) {
 		actions.push({
 			id: 'draft-prefs',
 			title: 'Support preferences not submitted',
-			description: 'Your support notes are saved as a draft. Submit them so the scheduler can use them.',
+			description: 'Support notes are saved but not yet reviewed. The scheduler records and reviews concerns for you.',
 			icon: FileEdit,
 			tone: 'warning',
-			link: '/my/preferences',
-			linkText: 'Submit preferences',
 		});
 	}
 

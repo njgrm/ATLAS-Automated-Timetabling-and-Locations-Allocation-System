@@ -13,12 +13,10 @@ const Faculty = lazy(() => import('./pages/Faculty'));
 const TeachingLoad = lazy(() => import('./pages/TeachingLoad'));
 const TeachingLoadHistory = lazy(() => import('./components/faculty-assignments/TeachingLoadHistoryView'));
 const Sections = lazy(() => import('./pages/Sections'));
-const FacultyPreferences = lazy(() => import('./pages/FacultyPreferences'));
-const FacultyRoomPreferences = lazy(() => import('./pages/FacultyRoomPreferences'));
 const MyDashboard = lazy(() => import('./pages/MyDashboard'));
-const MySchedule = lazy(() => import('./pages/MySchedule'));
 const OfficerPreferences = lazy(() => import('./pages/OfficerPreferences'));
 const OfficerRoomPreferences = lazy(() => import('./pages/OfficerRoomPreferences'));
+const TeacherConcerns = lazy(() => import('./pages/TeacherConcerns'));
 const ComingSoon = lazy(() => import('./pages/ComingSoon'));
 const RoomSchedules = lazy(() => import('./pages/RoomSchedules'));
 const ScheduleReview = lazy(() => import('./pages/ScheduleReview'));
@@ -104,10 +102,6 @@ const router = createBrowserRouter([
 				element: <MyDashboard />,
 			},
 			{
-				path: 'my/schedule',
-				element: <MySchedule />,
-			},
-			{
 				path: 'subjects',
 				element: <Subjects />,
 			},
@@ -148,12 +142,8 @@ const router = createBrowserRouter([
 				element: <OfficerPreferences />,
 			},
 			{
-				path: 'my/preferences',
-				element: <FacultyPreferences />,
-			},
-			{
-				path: 'my/room-preferences',
-				element: <FacultyRoomPreferences />,
+				path: 'faculty/concerns',
+				element: <TeacherConcerns />,
 			},
 			{
 				path: 'timetable',

@@ -87,15 +87,17 @@ test('resource routing resolves per resourceType and stays inert without a point
 		'/schedules?revision=7',
 		'published-schedule rows route to the revision',
 	);
+	// D6 — the retired teacher-portal deep links (`/preferences`, `/rooms`) are
+	// deleted; those two resource types are inert rather than dead links.
 	assert.equal(
 		resolveNotificationRoute('preference', '9'),
-		'/preferences?preferenceId=9',
-		'preference rows route to the preference',
+		null,
+		'retired preference rows never fabricate a route',
 	);
 	assert.equal(
 		resolveNotificationRoute('room-request', '5'),
-		'/rooms?requestId=5',
-		'room-request rows route to the request',
+		null,
+		'retired room-request rows never fabricate a route',
 	);
 	assert.equal(
 		resolveNotificationRoute('integration', '3'),

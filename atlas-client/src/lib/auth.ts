@@ -67,11 +67,10 @@ const ATLAS_AUTH_COOKIE_PATH = '/api/v1';
 
 export type AuthSource = 'bridge' | 'local';
 
+// D6 — the ATLAS teacher portal is retired; only the read-only `/my` dashboard
+// remains a faculty-portal route. Teacher self-service lives in SMART.
 const FACULTY_PORTAL_ROUTES = new Set([
 	'/my',
-	'/my/schedule',
-	'/my/preferences',
-	'/my/room-preferences',
 ]);
 
 function readSessionStorage(key: string): string | null {

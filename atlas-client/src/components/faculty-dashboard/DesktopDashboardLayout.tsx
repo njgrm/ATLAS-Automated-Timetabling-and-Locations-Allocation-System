@@ -1,8 +1,6 @@
-import { CalendarClock, MapPin, ChevronRight } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { CalendarClock } from 'lucide-react';
 import type { ReactNode } from 'react';
 
-import { Button } from '@/ui/button';
 import { Card, CardContent } from '@/ui/card';
 import type { FacultyRoomPreferenceEntry, FacultyPortalObjectiveState, FacultyTeachingAssignmentIdentity } from '@/types';
 import ActionQueue from './ActionQueue';
@@ -71,12 +69,6 @@ export default function DesktopDashboardLayout({
 					<ActionQueue counts={counts} hasDraftRoomRequests={hasDrafts} objectiveState={objectiveState} />
 					<FacultyObjectiveStateCard objectiveState={objectiveState} />
 					{banners}
-					<Button asChild size='lg' className='h-12 w-full rounded-xl text-sm font-semibold'>
-						<Link to='/my/room-preferences'>
-							<MapPin className='mr-2 size-4' />
-							Open room requests
-						</Link>
-					</Button>
 				</div>
 
 				<div className='col-span-8 flex min-h-0 flex-col gap-4'>
@@ -128,12 +120,6 @@ export default function DesktopDashboardLayout({
 												<td className='px-5 py-3'>
 													<div className='flex items-center justify-end gap-2'>
 														{renderEntryBadge(entry)}
-														<Link
-															to={`/my/room-preferences?entryId=${entry.entryId}`}
-															className='inline-flex items-center gap-0.5 rounded-md px-2 py-1 text-[12px] font-semibold text-primary opacity-0 transition-opacity group-hover:opacity-100'
-														>
-															Request move <ChevronRight className='size-3' />
-														</Link>
 													</div>
 												</td>
 											</tr>

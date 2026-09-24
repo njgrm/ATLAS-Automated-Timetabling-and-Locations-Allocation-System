@@ -1,5 +1,3 @@
-import { Link } from 'react-router-dom';
-import { CalendarClock, ChevronRight, ClipboardList, MapPin } from 'lucide-react';
 import type { ReactNode } from 'react';
 
 import { Card, CardContent } from '@/ui/card';
@@ -25,26 +23,6 @@ type MobileDashboardLayoutProps = {
 	objectiveState: FacultyPortalObjectiveState;
 };
 
-function QuickAction({ to, icon: Icon, label, hint, tone }: { to: string; icon: typeof MapPin; label: string; hint: string; tone: 'primary' | 'muted' }) {
-	const toneCls = tone === 'primary'
-		? 'bg-primary text-primary-foreground active:bg-primary/90'
-		: 'bg-card text-foreground border border-border/70 active:bg-muted/60';
-	return (
-		<Link to={to} className={`group flex flex-col gap-2 rounded-2xl p-4 shadow-sm transition-colors ${toneCls}`}>
-			<div className='flex items-center justify-between'>
-				<span className={`flex size-9 items-center justify-center rounded-xl ${tone === 'primary' ? 'bg-white/20' : 'bg-primary/10 text-primary'}`}>
-					<Icon className='size-4' />
-				</span>
-				<ChevronRight className={`size-4 ${tone === 'primary' ? 'opacity-80' : 'text-muted-foreground'}`} />
-			</div>
-			<div>
-				<p className='text-[15px] font-semibold leading-tight'>{label}</p>
-				<p className={`mt-0.5 text-[12px] leading-snug ${tone === 'primary' ? 'text-primary-foreground/85' : 'text-muted-foreground'}`}>{hint}</p>
-			</div>
-		</Link>
-	);
-}
-
 export default function MobileDashboardLayout({
 	facultyName,
 	phaseMessage,
@@ -67,21 +45,27 @@ export default function MobileDashboardLayout({
 				<p className='mt-1 text-[13px] leading-snug text-primary-foreground/85'>{phaseMessage}</p>
 			</section>
 
-			{/* Quick actions */}
+			{/* D6 — teacher self-service is view-only; the removed portal quick
+			    actions are replaced by a read-only request-status summary. */}
 			<section className='grid grid-cols-2 gap-3'>
-				<QuickAction to='/my/room-preferences' icon={MapPin} label='Room requests' hint='Move or swap a class' tone='primary' />
-				<QuickAction to='/my/schedule' icon={CalendarClock} label='My schedule' hint='See your week' tone='muted' />
-				<QuickAction to='/my/preferences' icon={ClipboardList} label='Support needs' hint='Tell the scheduler' tone='muted' />
-				<Link
-					to='/my/room-preferences'
-					className='flex flex-col justify-between rounded-2xl border border-border/70 bg-card p-4 shadow-sm active:bg-muted/60'
-				>
-					<p className='text-[11px] font-medium uppercase tracking-wider text-muted-foreground'>Pending</p>
-					<div className='mt-2 flex items-baseline justify-between'>
-						<span className='text-2xl font-bold'>{counts.pending}</span>
-						<span className='text-[11px] text-muted-foreground'>{counts.approved} approved</span>
-					</div>
-				</Link>
+				<Card className='rounded-2xl border-border/70 shadow-sm'>
+					<CardContent className='flex flex-col justify-between p-4'>
+						<p className='text-[11px] font-medium uppercase tracking-wider text-muted-foreground'>Pending</p>
+						<div className='mt-2 flex items-baseline justify-between'>
+							<span className='text-2xl font-bold'>{counts.pending}</span>
+							<span className='text-[11px] text-muted-foreground'>{counts.approved} approved</span>
+						</div>
+					</CardContent>
+				</Card>
+				<Card className='rounded-2xl border-border/70 shadow-sm'>
+					<CardContent className='flex flex-col justify-between p-4'>
+						<p className='text-[11px] font-medium uppercase tracking-wider text-muted-foreground'>Total tracked</p>
+						<div className='mt-2 flex items-baseline justify-between'>
+							<span className='text-2xl font-bold'>{counts.total}</span>
+							<span className='text-[11px] text-muted-foreground'>classes</span>
+						</div>
+					</CardContent>
+				</Card>
 			</section>
 
 			{/* Attention items */}
@@ -98,7 +82,6 @@ export default function MobileDashboardLayout({
 			<section className='space-y-2'>
 				<div className='flex items-center justify-between px-1'>
 					<h2 className='text-[13px] font-semibold text-foreground'>Upcoming classes</h2>
-					<Link to='/my/schedule' className='text-[12px] font-semibold text-primary'>View all</Link>
 				</div>
 
 				<div className='space-y-2'>
@@ -115,12 +98,6 @@ export default function MobileDashboardLayout({
 										<p className='truncate text-[14px] font-semibold leading-tight text-foreground'>{entry.subjectDisplayLabel ?? entry.subjectCode}</p>
 										<p className='mt-0.5 truncate text-[12px] text-muted-foreground'>{entry.sectionName} · {entry.day} {entry.startTime}–{entry.endTime}</p>
 										<p className='mt-0.5 truncate text-[12px] text-muted-foreground'>Room {entry.currentRoomName}</p>
-										<Link
-											to={`/my/room-preferences?entryId=${entry.entryId}`}
-											className='mt-1.5 inline-flex items-center gap-1 text-[12px] font-semibold text-primary'
-										>
-											Request move <ChevronRight className='size-3' />
-										</Link>
 									</div>
 									<div className='shrink-0'>{renderEntryBadge(entry)}</div>
 								</CardContent>

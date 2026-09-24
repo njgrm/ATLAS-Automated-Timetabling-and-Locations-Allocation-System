@@ -1,12 +1,14 @@
 import { NavLink } from 'react-router-dom';
-import { CalendarClock, ClipboardList, Home, MapPin } from 'lucide-react';
+import { Home } from 'lucide-react';
 import { motion, useReducedMotion } from 'motion/react';
 
+/**
+ * D6 — the ATLAS teacher portal is retired. Teacher self-service is view-only
+ * (`/my`), so the bottom nav keeps the single Home destination; the removed
+ * teacher-portal tabs (schedule, support preferences, room requests) are gone.
+ */
 const FACULTY_TABS = [
 	{ to: '/my', label: 'Home', icon: Home, end: true },
-	{ to: '/my/schedule', label: 'Schedule', icon: CalendarClock, end: false },
-	{ to: '/my/preferences', label: 'Support', icon: ClipboardList, end: false },
-	{ to: '/my/room-preferences', label: 'Requests', icon: MapPin, end: false },
 ] as const;
 
 export function FacultyMobileBottomNav() {
@@ -17,7 +19,7 @@ export function FacultyMobileBottomNav() {
 			className='lg:hidden fixed bottom-0 inset-x-0 z-40 border-t border-border/70 bg-card/95 backdrop-blur-md shadow-[0_-1px_0_rgba(0,0,0,0.04)]'
 			style={{ paddingBottom: 'max(0.25rem, env(safe-area-inset-bottom))' }}
 		>
-			<ul className='mx-auto grid max-w-md grid-cols-4'>
+			<ul className='mx-auto grid max-w-md grid-cols-1'>
 				{FACULTY_TABS.map((tab) => (
 					<li key={tab.to}>
 						<NavLink
