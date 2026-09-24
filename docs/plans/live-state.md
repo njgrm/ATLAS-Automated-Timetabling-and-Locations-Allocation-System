@@ -39,17 +39,17 @@ resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs
 ## Live release
 
 - Tailnet: `https://njgrm.buru-degree.ts.net`
-- **Target release SHA: `89295c27`** (**deployment-pending** 2026-09-25; release dir
-  `E:\ATLAS-runtime-supervised-89295c27-20260925`; `SERVER-TIMING-C01` request timing/event-loop-stall
-  diagnostics (QA `ACCEPT_READY`, handoff `docs/handoffs/lane-c-server-timing-c01.md`) + the S6 E1
-  test-only copy fix; rollback basis `b6687fee`; **no migration**). Recorded before cutover per the
-  `deploy-runner.ps1` gate.
-- **Release SHA: `b6687fee`** (**LIVE** since 2026-09-25; `E:\ATLAS-runtime-supervised-b6687fee-20260925`;
-  supervisor-owned 5001→70176 / 5174→80088; health/ready + DB-backed read + Tailnet 200; rollback basis
-  `066da7a7`; **no migration**). Scheduler-clarity client release. **Acceptance owner: Lane B (Codex)** —
-  browser rows (scheduler copy/term/control contrast at 1366×768 and 390×844) separate and not yet run.
-  Checksums, cutover audits and the prior-release detail: `docs/handoffs/deploy-b6687fee-2026-09-25.md`.
-- **Rollback basis: `066da7a7`** at `E:\ATLAS-runtime-supervised-066da7a7-20260925` (startable in place;
+- **Release SHA: `89295c27`** (**LIVE** since 2026-09-25; `E:\ATLAS-runtime-supervised-89295c27-20260925`;
+  supervisor-owned 5001→76676 / 5174→53516; health/ready + DB-backed read + Tailnet 200; rollback basis
+  `b6687fee`; **no migration**). `SERVER-TIMING-C01` request timing / event-loop-stall diagnostics + the S6 E1
+  test-only copy fix; client bytes unchanged from `b6687fee`. **Acceptance owner: Lane C** — post-deploy
+  `/timetable` stall diagnostics in the supervisor log; Lane B's client-copy browser rows separate and not yet
+  run. Cutover audit (execute): `C:\ProgramData\ATLAS\release-audit\89295c27-20260925-055126`.
+- **Rollback basis: `b6687fee`** at `E:\ATLAS-runtime-supervised-b6687fee-20260925` (previous LIVE 2026-09-25;
+  supervisor-owned ports reclaimed on restart; scheduler-clarity client release; **no migration**). Its Lane B
+  browser rows (scheduler copy/term/control contrast at 1366×768 and 390×844) were separate and not yet run.
+  Detail: `docs/handoffs/deploy-b6687fee-2026-09-25.md`.
+- **Rollback depth: `066da7a7`** at `E:\ATLAS-runtime-supervised-066da7a7-20260925` (startable in place;
   carries the C5+C6 teacher-concern product and the applied migration `20260925000002_faculty_availability`;
   compatible). **Acceptance INCOMPLETE** — `passed 0 / blocked 1 / unperformed 3 / NEEDS_SESSION 0`; blocked
   on `409 TERM_SCOPE_MISMATCH` (client `resolveActiveSchoolYearContext` vs the server's persisted active
