@@ -378,6 +378,6 @@ test('E1: the policy pane exposes both switches with truthful soft/hard copy', (
 	assert.match(source, /enforceTeacherLunchWindow/, 'the enforce switch is wired');
 	assert.match(source, /Teacher Lunch Window/, 'the enable control is labelled');
 	assert.match(source, /Block Publication on Teacher Lunch Violation/, 'the hard switch is labelled');
-	assert.match(source, /SOFT warning/, 'the copy names the soft behaviour');
-	assert.match(source, /blocks publishing/, 'the copy names the hard publication block');
+	assert.match(source, /reports a teacher assigned through lunch as a warning/, 'the copy names the soft behaviour');
+	assert.match(source, /must have a free lunch block before publishing/, 'the copy names the hard publication block');
 });

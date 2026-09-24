@@ -39,52 +39,17 @@ resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs
 ## Live release
 
 - Tailnet: `https://njgrm.buru-degree.ts.net`
-- **Release SHA: `b6687fee`** (**LIVE** since 2026-09-25; release dir
-  `E:\ATLAS-runtime-supervised-b6687fee-20260925`; scheduler-clarity client release; supervisor-owned
-  5001→70176 / 5174→80088; health/ready (`database:"ok"`) + DB-backed read
-  (`GET /api/v1/subjects?schoolId=1` → 200 with data) + Tailnet 200; served entry
-  `assets/index-DNzys7Zh.js` (SHA-256 `C11F747CDB98F2F4608C2AA0E86E56A2A49D17052FAAC25CD9294E11C767C851`,
-  byte-identical to the build and absent from the incumbent) and new-build-only chunk
-  `assets/ScheduleReviewWorkspace-DPx-KMEP.js`
-  (SHA-256 `9844683E9B781AA5EE910713F9B065F2AB3D9E3932A48168B9EDBD36A8FCFE26`, byte-identical); machine
-  `ATLAS_RUNTIME_SOURCE_DIR` / `RELEASE_SHA` = this target; rollback basis `066da7a7`; **no migration** —
-  no `atlas-server`/`prisma` changes in `066da7a7..b6687fee`). Cut over by `ops/runtime/deploy-runner.ps1`
-  (dry-run audit `C:\ProgramData\ATLAS\release-audit\b6687fee-20260925-052343`; execute audit
-  `C:\ProgramData\ATLAS\release-audit\b6687fee-20260925-052413`). Handoff: Luna's candidate + Terra's
-  independent review `ACCEPT_READY`; route/state preservation 58/58; scheduler-clarity suite 52/52;
-  production client build passed. Browser acceptance for this release is **separate and not performed by
-  the cutover** (scheduler copy/term/control contrast at 1366×768 and 390×844; owner Lane B).
-- **Rollback basis: `066da7a7`** at `E:\ATLAS-runtime-supervised-066da7a7-20260925` (LIVE 2026-09-25 until
-  the `b6687fee` cutover;
-  supervisor-owned 5001→78160 / 5174→74512; health/ready (`database:"ok"`) + DB-backed read
-  (`GET /api/v1/subjects?schoolId=1` → 200 with data) + Tailnet 200; served entry
-  `assets/index-D90Rg0kl.js` (SHA-256 `6C057F4C…B8EC44C`, byte-identical to the build) and new-build-only
-  chunk `assets/TeacherConcerns-B1glPilv.js` (SHA-256 `834649FF…8BD41AEA`, byte-identical); machine
-  `ATLAS_RUNTIME_SOURCE_DIR` / `RELEASE_SHA` = the target). Program
-  `TEACHER-CONCERN-AUTHORITY-PROGRAM-20260924` C5+C6 product. **Migration APPLIED** 2026-09-25 via the
-  guarded runner to `atlas_recovery_clean_rebuild_20260905`:
-  `20260925000002_faculty_availability` (`MIGRATE_GATE_OK`, backup
-  `atlas-backup-atlas_recovery_clean_rebuild_20260905-20260924-204504.dump`, sha256 `1e6343c7…`;
-  applied count 10 → 11; tables/FKs/unique index/enum probed present). Cut over by
-  `ops/runtime/deploy-runner.ps1` (dry-run audit `C:\ProgramData\ATLAS\release-audit\066da7a7-20260925-044557`;
-  execute audit `C:\ProgramData\ATLAS\release-audit\066da7a7-20260925-044622`). **Deployment verified:** fresh
-  independent post-action QA `ACCEPT_READY` **8/8/0/0** (blocked 0, unperformed 0). **Acceptance PARTIAL** —
-  authenticated/browser rows `EXTERNALLY_BLOCKED(AUTH_SESSION_REQUIRED)`. **Acceptance owner: Lane B (Codex)**
-  — browser custody; needs an operator-provided session (one `LOCAL_LOGIN_SUCCESS` + `last_login_at`).
-  **Acceptance INCOMPLETE (2026-09-25):** tally `passed 0 / blocked 1 / unperformed 3 / NEEDS_SESSION 0`.
-  (a) the retired `/my/*` routes redirect to `/` and the desktop nav has no retired entries, but the
-  preservation routes and the mobile bottom-nav were unperformed; (b) **BLOCKED** — `/faculty/concerns` is
-  reachable and fails closed on an unresolved term, but saving a painted slot returned
-  `409 TERM_SCOPE_MISMATCH` (UI `termIndex 2` vs persisted active term `1`): the S2 client
-  (`resolveActiveSchoolYearContext`) and the S1 server (`resolveActiveAvailabilityTermIndex`) disagree on
-  the active term — **corrective lane required** (`AVAILABILITY-TERM-ALIGNMENT-C01` candidate: the client
-  must source the active term from the S1 server authority); (c)(d)(e) unperformed.
-  **Incident closed — no shared-data mutation:** the live `201` from
-  `POST /api/v1/room-preferences/collaboration/ticket` is a 60 s in-memory single-use ticket
-  (`timetable-collaboration-ticket.service.ts`; only a `generationRun` scope read), evidence preserved.
-  Disclosure (QA F1): a post-cutover authentication footprint (audit rows 952 FAILED / 953 SUCCESS) is not
-  attributable to the deployment executor. Packet:
-  `docs/prompts/c7-teacher-concern-deploy-2026-09-25.md`.
+- **Release SHA: `b6687fee`** (**LIVE** since 2026-09-25; `E:\ATLAS-runtime-supervised-b6687fee-20260925`;
+  supervisor-owned 5001→70176 / 5174→80088; health/ready + DB-backed read + Tailnet 200; rollback basis
+  `066da7a7`; **no migration**). Scheduler-clarity client release. **Acceptance owner: Lane B (Codex)** —
+  browser rows (scheduler copy/term/control contrast at 1366×768 and 390×844) separate and not yet run.
+  Checksums, cutover audits and the prior-release detail: `docs/handoffs/deploy-b6687fee-2026-09-25.md`.
+- **Rollback basis: `066da7a7`** at `E:\ATLAS-runtime-supervised-066da7a7-20260925` (startable in place;
+  carries the C5+C6 teacher-concern product and the applied migration `20260925000002_faculty_availability`;
+  compatible). **Acceptance INCOMPLETE** — `passed 0 / blocked 1 / unperformed 3 / NEEDS_SESSION 0`; blocked
+  on `409 TERM_SCOPE_MISMATCH` (client `resolveActiveSchoolYearContext` vs the server's persisted active
+  term) — corrective lane `AVAILABILITY-TERM-ALIGNMENT-C01`. The collaboration-ticket `201` incident is
+  closed (no shared-data mutation). Detail: `docs/handoffs/deploy-b6687fee-2026-09-25.md`.
 - **Rollback depth: `37e0c85b`** at `E:\ATLAS-runtime-supervised-37e0c85b-20260925` (startable in place;
   supervisor-owned ports reclaimed on restart; carries the global native-scrollbar token policy and the S8
   shift-coherence guard (D11); applied `20260925000001_shift_coherence`; compatible with the additive
