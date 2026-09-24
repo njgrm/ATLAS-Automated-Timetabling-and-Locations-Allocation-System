@@ -27,12 +27,12 @@
  *    scheduler (JWT + `timetable:edit` capability + actor-school scope) through
  *    `PATCH /generation/:schoolId/:schoolYearId/runs/:runId/draft-sharing`.
  * 5. **Scope is the route parameter plus the toggle.** `faculty-external` scopes
- *    entries to the named teacher; `sections` scopes to the named section;
- *    the whole-run route returns the full shared draft. A caller can never read
- *    an arbitrary teacher's draft unless the run is explicitly shared. A caller
- *    whose identity is itself faculty-scoped (a resolvable faculty identity,
- *    non-scheduler role) can only read its OWN teacher draft even when shared —
- *    otherwise `403 CROSS_FACULTY_DENIED`.
+ *    entries to the named teacher; `sections` scopes to the named section. There
+ *    is deliberately NO whole-run / whole-school read (locked decision D3). A
+ *    caller can never read an arbitrary teacher's draft unless the run is
+ *    explicitly shared. A caller whose identity is itself faculty-scoped (a
+ *    resolvable faculty identity, non-scheduler role) can only read its OWN
+ *    teacher draft even when shared — otherwise `403 CROSS_FACULTY_DENIED`.
  *
  * ## Payload
  * The producer is the existing `generation.service.getRunDraft` (`DraftReport`,
@@ -279,7 +279,6 @@ function buildDraftPayload(
 	}
 
 	const entries = scopedEntries.filter((entry) => entry.termIndex === args.term.termIndex);
-	const isScoped = args.filter.facultyId !== undefined || args.filter.sectionId !== undefined;
 
 	return {
 		source: {
@@ -297,8 +296,9 @@ function buildDraftPayload(
 		},
 		entries,
 		// Unassigned demand is run-wide and not attributable to one teacher or
-		// section; only the whole-run read exposes it.
-		unassignedItems: isScoped ? [] : report.unassignedItems,
+		// section. This family exposes only scoped reads (D3: never a whole-school
+		// draft), so a scoped response never carries the run-wide unassigned set.
+		unassignedItems: [],
 		summary: report.summary,
 		inputState: report.inputState,
 		version: report.version,
@@ -309,7 +309,7 @@ function buildDraftPayload(
 	};
 }
 
-type DraftReadScope = 'faculty' | 'section' | 'run';
+type DraftReadScope = 'faculty' | 'section';
 
 /** Shared handler for the three read routes: parse, validate, resolve, project. */
 function createDraftReadHandler(scope: DraftReadScope) {
@@ -360,11 +360,10 @@ router.get(
 	createDraftReadHandler('section'),
 );
 
-router.get(
-	'/schools/:schoolId/school-years/:schoolYearId/schedules/draft',
-	authenticateWithSystemToken,
-	createDraftReadHandler('run'),
-);
+// D3 (locked): there is deliberately NO whole-run / whole-school draft read.
+// A run-wide route would expose every teacher's draft in one response, which D3
+// forbids. Only the param-scoped reads above exist, both gated by the per-run
+// sharing toggle (default OFF); see §8A of the companion contract.
 
 // ─── Per-run "share draft with teachers" toggle (default OFF) ───
 

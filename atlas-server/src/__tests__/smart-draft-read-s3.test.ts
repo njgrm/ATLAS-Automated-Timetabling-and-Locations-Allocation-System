@@ -13,9 +13,10 @@
  *   B  the sharing toggle: capability/actor-school/body guards, ON write + audit,
  *      idempotent re-apply
  *   C  scoped reads while shared: faculty-external returns only that teacher's
- *      entries for the requested term; sections scopes to one section; whole-run
- *      returns the shared run; active resolves through the verified contract;
- *      CROSS_FACULTY_DENIED for a self-identified teacher reading another's draft
+ *      entries for the requested term; sections scopes to one section; the
+ *      whole-run/whole-school draft route is ABSENT (D3); active resolves through
+ *      the verified contract; CROSS_FACULTY_DENIED for a self-identified teacher
+ *      reading another's draft
  *   D  a published run is never a draft (404 read, 409 share)
  *
  * Run: `npx tsx src/__tests__/smart-draft-read-s3.test.ts` (from `atlas-server`).
@@ -308,12 +309,11 @@ async function main() {
 		check(sectionEntries.every((e) => e.sectionId === SECTION_S1), 'C2 every entry is the requested section');
 		check(!sectionEntries.some((e) => e.sectionId === SECTION_S2), 'C2 entries of another section are absent');
 
-		const wholeRead = await call('GET', wholeRunDraftPath(), systemToken);
-		check(wholeRead.status === 200, `C3 whole-run read → ${wholeRead.status}`);
-		const wholeEntries: any[] = wholeRead.json.entries ?? [];
-		check(wholeEntries.length === 3, `C3 whole-run term 1 has 3 entries (got ${wholeEntries.length})`);
-		check(wholeEntries.every((e) => e.termIndex === 1), 'C3 whole-run read is term-scoped');
-		checkEqual(wholeRead.json.runId, sharedRunId, 'C3 whole-run read resolves the shared run');
+		// D3 (locked): there is deliberately no whole-run / whole-school draft read.
+		// The path must be ABSENT (app fallback 404), not 200 and not 401.
+		const wholeRunAbsent = await call('GET', wholeRunDraftPath(), systemToken);
+		check(wholeRunAbsent.status === 404, `C3 whole-run/whole-school draft route is absent (D3) → ${wholeRunAbsent.status}`);
+		check(wholeRunAbsent.json?.entries === undefined, 'C3 absent whole-run route returns no entries payload');
 
 		const activeRead = await call('GET', facultyDraftPath(FACULTY_A_EXTERNAL, 'active'), systemToken);
 		check(activeRead.status === 200 && activeRead.json.source?.termScope === 'active' && activeRead.json.source?.termIndex === 1, `C4 active resolves to T1 → ${activeRead.status} term=${activeRead.json.source?.termIndex}`);
@@ -342,7 +342,7 @@ async function main() {
 		});
 		const publishedRunId = publishedRun.id as number;
 
-		const publishedRead = await call('GET', wholeRunDraftPath(), systemToken);
+		const publishedRead = await call('GET', facultyDraftPath(FACULTY_A_EXTERNAL), systemToken);
 		check(publishedRead.status === 404 && publishedRead.json.code === 'DRAFT_RUN_NOT_FOUND', `D1 published latest run is not a draft → ${publishedRead.status}/${publishedRead.json.code}`);
 		check(publishedRead.json.details?.reason === 'PUBLISHED_RUN_IS_NOT_A_DRAFT', 'D1 typed reason names the published-run case');
 

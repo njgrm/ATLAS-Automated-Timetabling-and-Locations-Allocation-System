@@ -256,8 +256,17 @@ an explicit per-run sharing switch that defaults OFF.
 | --- | --- |
 | Teacher (external id) | `GET /schools/:schoolId/school-years/:schoolYearId/schedules/draft/faculty-external/:externalFacultyId?termIndex=<n>` |
 | Section | `GET /schools/:schoolId/school-years/:schoolYearId/schedules/draft/sections/:sectionId?termIndex=<n>` |
-| Whole run (shared only) | `GET /schools/:schoolId/school-years/:schoolYearId/schedules/draft?termIndex=<n>` |
 | Share toggle (scheduler) | `PATCH /generation/:schoolId/:schoolYearId/runs/:runId/draft-sharing` body `{ "enabled": true\|false }` |
+
+**A whole-run / whole-school draft read is deliberately NOT offered.** There is no
+`GET …/schedules/draft` route; that path returns the app's plain `404`. This is the
+locked decision **D3 ("Never expose whole-school drafts")**: a single run-wide
+response would hand every teacher's unpublished draft to any authenticated caller,
+which D3 forbids. Only the two **param-scoped** reads exist, and both are still
+gated by the per-run sharing toggle (default OFF). The section read is kept because
+it is the published-family section mirror for a section-scoped integration client
+and it returns exactly one section in a single response; it cannot return
+whole-school data. For a teacher's own view, use `faculty-external`.
 
 `school-years/:schoolYearId` is explicit on every read, so this family has no active-year
 election and therefore no `ACTIVE_SCHOOL_YEAR_AMBIGUOUS`.
@@ -299,7 +308,7 @@ The producer is the existing term-normalized draft report plus an additive `sour
 | `source.draftSharedWithTeachers` | `true` (a read is only possible while shared) |
 | `source.inputFingerprint`, `source.inputStateStatus` | change-detection basis (`null` when unavailable) |
 | `entries[]` | the **term-filtered**, scope-filtered draft rows (raw draft entry shape: `entryId`, `facultyId`, `sectionId`, `subjectId`, `roomId`, `day`, `startTime`, `endTime`, `durationMinutes`, `termIndex`) |
-| `unassignedItems[]` | run-wide; **empty** on faculty/section-scoped reads, populated on the whole-run read |
+| `unassignedItems[]` | always `[]` — unassigned demand is run-wide and not attributable to one teacher/section, and there is no whole-run read to carry it |
 | `summary`, `inputState`, `version`, `finishedAt`, `createdAt`, `status`, `runId` | reused producer fields |
 
 The draft entry shape is **raw** (`roomId` / `sectionId` / `subjectId` are surrogate ids, not the
@@ -309,7 +318,7 @@ published whole-school payload or its own mirrors.
 ### Scope enforcement
 
 - `faculty-external` returns only that teacher's entries; `sections` returns only that section's
-  entries (including cohort member sections); the whole-run route returns the whole shared draft.
+  entries (including cohort member sections). No route returns a whole run.
 - A caller whose identity is faculty-scoped (a resolvable faculty identity, non-scheduler role) may
   read only its **own** teacher draft — otherwise `403 CROSS_FACULTY_DENIED`. Scheduler/officer/
   system-token callers are exempt.
@@ -344,6 +353,8 @@ published whole-school payload or its own mirrors.
    out-of-contract → `400 TERM_INDEX_OUTSIDE_CONTRACT`.
 6. **Published run:** cannot be read as a draft (`404`) nor shared (`409 RUN_ALREADY_PUBLISHED`).
 7. **Cross-faculty:** a self-identified teacher reading another teacher's shared draft → `403 CROSS_FACULTY_DENIED`.
+8. **D3:** the whole-run path `GET …/schedules/draft` is **absent** — the app returns a plain `404`
+   (no scoped payload), never a `200` and never a `401`.
 
 Executable matrix: `atlas-server/src/__tests__/smart-draft-read-s3.test.ts`.
 SMART-facing summary: `docs/handoffs/smart-draft-read-s3-2026-09-24.md`.
@@ -363,8 +374,17 @@ SMART-facing summary: `docs/handoffs/smart-draft-read-s3-2026-09-24.md`.
   label. This is a **bounded successor** to schedule separately (`TEACHER-PROGRAM-LUNCH-BREAK-C01`);
   it does not change this read contract and must not be "fixed" from a companion lane. Until it is
   fixed, do not treat the Teacher Program DOCX break labels as authoritative.
-- **Break-window scope is deliberately not exposed** (§4.4) — derive grade/shift attribution from the
-  owning class-program rows if you need it.
+- **Break-window scope is deliberately not exposed** (§4.4). The precise successor, if a
+  grade/shift-attributed break band is ever required, is **`SPECIAL-EVENT-SCOPE-C01`**: the canonical
+  BREAK rows (`classProgramSlot`) DO carry `(gradeLevel, programType)`, but
+  `buildCanonicalDisplayGrid` unions every scope's BREAK rows and `dedupeIntervalSlots` (in
+  `schedule-constructor.ts`) keys them by `startTime-endTime` alone, discarding the scope before the
+  payload. Attributing each duplicate `Lunch Break` / `Health Break` window to its grade/shift group
+  therefore requires **emitting per-scope events** rather than one unioned window — a
+  **cardinality-changing, additive** contract change (`specialEvents[]` would grow, even though every
+  existing field value is preserved). That trade-off was judged out of scope for
+  SMART-DRAFT-READ-S3. Until it lands, keep the §4.4 ambiguity warning: treat `specialEvents[]` as the
+  school-wide union and derive any grade/shift attribution from the owning class-program rows.
 - **Not covered here:** writing schedules back to ATLAS, Teaching Load, enrolment, and the SSO
   federation handshakes (those are separate handoffs:
   `docs/handoffs/aims-direct-federation-c04.md`, `docs/handoffs/smart-direct-federation-c04.md`).

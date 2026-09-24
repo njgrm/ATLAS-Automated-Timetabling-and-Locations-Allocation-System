@@ -39,12 +39,12 @@ the verified ordered-term contract. Missing → `400 TERM_INDEX_REQUIRED`.
 | --- | --- |
 | One teacher (your external faculty id) | `GET /api/v1/schools/:schoolId/school-years/:schoolYearId/schedules/draft/faculty-external/:externalFacultyId?termIndex=<n>` |
 | One section | `GET /api/v1/schools/:schoolId/school-years/:schoolYearId/schedules/draft/sections/:sectionId?termIndex=<n>` |
-| Whole shared run | `GET /api/v1/schools/:schoolId/school-years/:schoolYearId/schedules/draft?termIndex=<n>` |
 
-**For a teacher's own schedule, always use `faculty-external` with that teacher's external id.** Do
-not use the whole-run route for a teacher — it returns the whole shared draft and is intended for
-machine/whole-school sync. ATLAS also refuses a self-identified teacher reading another teacher's
-draft (`403 CROSS_FACULTY_DENIED`).
+**There is no whole-run / whole-school draft read.** The path
+`GET …/schedules/draft` is deliberately absent and returns a plain `404` (locked decision D3:
+never expose whole-school drafts). Only the two scoped reads exist. **For a teacher's own schedule,
+always use `faculty-external` with that teacher's external id.** ATLAS also refuses a self-identified
+teacher reading another teacher's draft (`403 CROSS_FACULTY_DENIED`).
 
 ## What you get
 
@@ -95,6 +95,7 @@ The draft report plus an additive provenance block:
 
 ## Acceptance (what ATLAS proved)
 
-`atlas-server/src/__tests__/smart-draft-read-s3.test.ts` (48/48 on a disposable PostgreSQL) proves:
+`atlas-server/src/__tests__/smart-draft-read-s3.test.ts` (on a disposable PostgreSQL) proves:
 scoped-only reads, toggle-off typed failure with zero payload, `401` unauthenticated, `404` unknown
-faculty, typed `400` term errors, published-run read `404` / share `409`, and `403 CROSS_FACULTY_DENIED`.
+faculty, typed `400` term errors, published-run read `404` / share `409`,
+`403 CROSS_FACULTY_DENIED`, and that the whole-run path is absent (`404`).
