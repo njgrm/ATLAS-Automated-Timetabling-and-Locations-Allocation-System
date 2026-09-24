@@ -119,8 +119,15 @@ hand teacher concerns to SMART.
 - Mirror the published contract: term-scoped (`termIndex` required or `active`), run-scoped to a draft
   `COMPLETED`/`FULL` run, faculty-scoped by external id.
 - Payload reuses `DraftReport` (already terminized via `ensureEntriesHaveTermIndex`).
-- Auth: companion identity (reverse-SSO assertion) **or** a faculty-scoped draft token; never a bare
-  `ATLAS_SYSTEM_TOKEN` (system identity carries no schoolId and `authenticate` is JWT-only).
+- **Auth (§B superseded at integration 2026-09-24):** implemented as `authenticateWithSystemToken`
+  (the companion integration key / `X-Integration-Key`), **not** as the originally frozen "reverse-SSO
+  assertion or faculty-scoped draft token" and not with a literal ban on `ATLAS_SYSTEM_TOKEN`. Rationale:
+  the credential is only the transport; **teacher scope is enforced by the `faculty-external` path
+  parameter**, the whole-run family was removed (D3), and the per-run `draftSharedWithTeachers` toggle
+  (default off) is the exposure boundary — so a holder of the key can read a draft only for a run the
+  scheduler has explicitly shared. Residual: a leaked integration key exposes every *shared* draft
+  (never unshared, never whole-school). Independent QA `ACCEPT_READY` 8/8/0/0 accepted this; operator
+  confirmation of the supersession is requested.
 - Gate: per-run `shareDraftWithTeachers` flag (default off). Fail-closed codes: toggle-off, unresolved
   term, unknown faculty, cross-faculty.
 

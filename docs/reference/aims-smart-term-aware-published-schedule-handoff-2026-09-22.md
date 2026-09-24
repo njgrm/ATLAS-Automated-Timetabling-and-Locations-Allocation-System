@@ -367,13 +367,17 @@ SMART-facing summary: `docs/handoffs/smart-draft-read-s3-2026-09-24.md`.
 - **Known ATLAS-side defect (flagged, not fixed here) — official Teacher Program DOCX omits
   `Lunch Break`.** Measured on the live run: the **Teacher Program** DOCX renders `Lunch Break: 0`,
   `Health Break: 2`, while the **Section/Grade** DOCX renders `Lunch Break: 5`, `Health Break: 10`.
-  Root-cause lead: `atlas-server/src/services/teacher-program-export.service.ts` builds its display
-  slots from `frozenSnapshot.displaySlots` **else** `run.summary.timetableDisplaySlots`, and the
-  latter stores bare `{startTime,endTime,dayOfWeek}` with **no `kind`/`label`**; consequently
-  `isSpecialEvent: slot.kind === 'SPECIAL_EVENT'` is false and canonical BREAK rows lose their
-  label. This is a **bounded successor** to schedule separately (`TEACHER-PROGRAM-LUNCH-BREAK-C01`);
-  it does not change this read contract and must not be "fixed" from a companion lane. Until it is
-  fixed, do not treat the Teacher Program DOCX break labels as authoritative.
+  Root cause is **not yet pinned** (QA flagged the first draft of this lead as imprecise): the teacher
+  program builds its display slots from `frozenSnapshot.displaySlots` **else**
+  `run.summary.timetableDisplaySlots`. Two candidate paths must be reproduced and distinguished before
+  any fix: (a) the *frozen* branch maps only `slot.kind === 'SPECIAL_EVENT'`, so a canonical BREAK row
+  stored with a different `kind` would lose its `isSpecialEvent` flag; (b) the *fallback* branch reads
+  `run.summary.timetableDisplaySlots`, which per `buildUnionDisplaySlots`
+  (`schedule-constructor.ts`) **does** persist `isSpecialEvent`/`eventName`, so the fallback may instead
+  *add* the break — meaning the two branches disagree about the same row. This is a **bounded successor**
+  to schedule separately (`TEACHER-PROGRAM-LUNCH-BREAK-C01`); it does not change this read contract and
+  must not be "fixed" from a companion lane. Until it is fixed, do not treat the Teacher Program DOCX
+  break labels as authoritative.
 - **Break-window scope is deliberately not exposed** (§4.4). The precise successor, if a
   grade/shift-attributed break band is ever required, is **`SPECIAL-EVENT-SCOPE-C01`**: the canonical
   BREAK rows (`classProgramSlot`) DO carry `(gradeLevel, programType)`, but
