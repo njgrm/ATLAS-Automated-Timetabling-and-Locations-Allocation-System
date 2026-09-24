@@ -167,7 +167,13 @@ Three unregistered directories in `E:/ATLAS-worktrees` (`flag-window-per-scope-c
 `rollover-year-identity-c01`, `warning-readability-c01`) are clones or leftovers — the clone-removal
 exception applies; untouched.
 
-**Next action:** none dispatched; awaiting the operator.
+**`SERVER-TIMING-C01` integrated (2026-09-25):** candidate `26fbfe57` (QA `ACCEPT_READY`, suite 318/323 = base
+313/318 + 5 new, same 5 pre-existing failures) merged to `main`. Adds `[slow-request]` / `[event-loop-stall]`
+supervisor-log lines to find the ~8 s shared stall on `/timetable` (audit finding 5). Server-only, no schema.
+**For Lane A:** the queued `b6687fee` release predates it — pin the release to this merge or later so the
+diagnostics ship. Handoff: `docs/handoffs/lane-c-server-timing-c01.md`.
+
+**Next action:** after that deploy, load `/timetable` once and read the stall lines; then fix the cause.
 
 ## Lane A — current lane (written only by Lane A)
 
