@@ -458,7 +458,10 @@ test('section and room DOCX endpoints render direct entity forms from the select
 	assert.match(room, /Mathematics/);
 	assert.match(room, /7-Rizal/);
 	assert.match(room, /Dela Cruz/);
-	assert.ok((room.match(/<w:br\b/g) ?? []).length >= 2, 'room cells separate subject, section, and teacher onto distinct lines');
+	const subjectIndex = room.match(/<w:t[^>]*>Mathematics<\/w:t>/)?.index ?? -1;
+	assert.ok(subjectIndex >= 0, 'room subject text is present in the XML');
+	const roomCellXml = room.slice(room.lastIndexOf('<w:tc', subjectIndex), room.indexOf('</w:tc>', subjectIndex));
+	assert.ok((roomCellXml.match(/<w:p\b/g) ?? []).length >= 3, 'room cells separate subject, section, and teacher into distinct paragraphs');
 	assert.doesNotMatch(room, /Science|ARAL Program|Homeroom Guidance/);
 	assert.equal(calls.some((call) => WRITE_METHODS.has(call.method)), false, 'official DOCX reads must perform zero writes');
 });

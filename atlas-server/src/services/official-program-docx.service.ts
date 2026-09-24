@@ -21,7 +21,7 @@ function text(value: string, bold = false, size = 18) {
 function cell(value: string, bold = false, width = 1200, align: (typeof AlignmentType)[keyof typeof AlignmentType] = AlignmentType.LEFT) {
 	return new TableCell({
 		width: { size: width, type: WidthType.DXA }, borders: BORDERS, verticalAlign: 'center' as any,
-		children: [new Paragraph({ children: [text(value, bold)], alignment: align, spacing: { before: 0, after: 0 } })],
+		children: value.split('\n').map((line) => new Paragraph({ children: [text(line, bold)], alignment: align, spacing: { before: 0, after: 0 } })),
 	});
 }
 
