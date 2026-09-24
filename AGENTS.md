@@ -7,6 +7,8 @@ description: ATLAS project directive. Lean by design — keep the rules that cha
 
 **Read this once; it is deliberately short.** If a rule is not here, it is not a rule — use judgement. Every rule below earned its place by preventing or catching a real, named defect. **Updating this file is part of the work:** when a session finds a failure mode a rule would have prevented, or a rule that is wrong, stale, or ceremony, change it in the same turn. Add rules that change behaviour; delete rules that only record it. Prefer a rule that prevented a named defect over one that sounds thorough.
 
+**Procedures are packaged as skills** in `.agents/skills/` (read by Codex and opencode; `.claude/skills/` holds Claude Code pointer stubs): `atlas-worktree-reclaim` (§3), `atlas-companion-sync` (§4), `atlas-deploy` (§6, §13), `atlas-timetable-invariants` (§7), `atlas-candidate-review` (§10, §11), `atlas-live-browser-qa` (§12). Loading the skill satisfies a "read `docs/reference/…`" instruction below; the reference docs remain the detailed source. Change a procedure in the skill, and a fact in its reference doc.
+
 ---
 
 ## 1. Commit Message Rule
@@ -188,6 +190,8 @@ Deployment, schema/migration apply, live-data mutation, generation, publication,
 ## 14. Parallel Work And Planners
 
 - Separate worktrees, separate branches, **disjoint file ownership**; one owner per stream. Coordinate through Git, not through a shared status file.
+- **Name the owning lane in every new worktree path**: `E:/ATLAS-worktrees/lane-<a|b|c>-<stream>`. On 2026-09-25 a reclaim found 19 clean-but-unmerged and 9 dirty worktrees whose owner nothing recorded, so none could be retired or handed over.
+- **`D:/ATLAS` is the operator's reference checkout, not an agent workspace.** Read the directive and `live-state.md` from `origin/main` (`git show origin/main:AGENTS.md`) and work in a worktree. On 2026-09-25 `D:/ATLAS` sat 1,065 commits behind with a divergent uncommitted `AGENTS.md` (420 vs 227 lines), so every agent started there obeyed a stale directive.
 - **A lane in an integration closure gets an exclusive `main` push window.** The other lane holds its pushes until that integration lands. Continuity-document commits are cheap and frequent, which makes `main` a moving target: on 2026-09-21 Lane A's docs pushes invalidated Lane B's integration base twice in a row, each time after a clean merge and green gates. When a lane announces an integration, stop pushing to `main` until it reports the push landed.
 - Browser work is serialised (one controller, §12); source and non-browser work run in parallel freely.
 - Only one stream may swap or restart the shared 5001/5174 runtime at a time; others use isolated ports and label their evidence `isolated`.
@@ -204,6 +208,8 @@ Do not maintain a per-transition register, state machine, lease table, or receip
 **Date every blocker and every "not done" claim, and name what proves it.** An undated "still pending" line is a premise error waiting to happen: on 2026-09-21 a session spent a packet, an independent review and an executor dispatch on a term-cache apply that had already been satisfied three days earlier, because the line saying it was unbound carried no date and contradicted a zero-HARD published run recorded elsewhere in the same file. **Reconcile the whole file — or the newest dated handoff — before acting on any blocker line.**
 
 **If more than one lane co-maintains this file, partition it into lane-owned sections** and edit only your own — plus the live-release block when you deploy. Disjoint regions merge cleanly, so two planners can work in parallel without a custody defect; a second writer inside your section is one.
+
+**Keep each lane section under ~40 lines: current stream, dated blockers, next action.** Move finished-cycle narrative into the lane's handoff when the cycle closes. Queue and "what remains" lists are blocker lines too — date them. On 2026-09-25 the file had grown to 1,340 lines, and an undated queue in it assigned a lane to `warning-readability-c01`, integrated four days earlier.
 
 ---
 
