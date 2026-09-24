@@ -96,6 +96,8 @@ interface LocalPolicy {
 	recessStartTime: string;
 	recessEndTime: string;
 	enableLunchWindow: boolean;
+	enableTeacherLunchWindow: boolean;
+	enforceTeacherLunchWindow: boolean;
 	enableTleTwoPassPriority: boolean;
 	allowFlexibleSubjectAssignment: boolean;
 	allowConsecutiveLabSessions: boolean;
@@ -165,6 +167,13 @@ function toLocalGradeWindows(windows: GradeShiftWindow[]): LocalGradeWindow[] {
 }
 
 function policyToLocal(p: SchedulingPolicy): LocalPolicy {
+	// D9 — the two teacher-lunch switches are additive policy columns. The
+	// shared `SchedulingPolicy` client type is owned elsewhere, so read them
+	// through a narrow local augmentation rather than widening a shared type.
+	const teacherLunch = p as SchedulingPolicy & {
+		enableTeacherLunchWindow?: boolean | null;
+		enforceTeacherLunchWindow?: boolean | null;
+	};
 	return {
 		teacherMoveEnabled: p.teacherMoveEnabled ?? true,
 		periodLengthMinutes: p.periodLengthMinutes ?? 45,
@@ -197,6 +206,8 @@ function policyToLocal(p: SchedulingPolicy): LocalPolicy {
 		recessStartTime: p.recessStartTime ?? '09:45',
 		recessEndTime: p.recessEndTime ?? '10:00',
 		enableLunchWindow: p.enableLunchWindow ?? p.enforceLunchWindow,
+		enableTeacherLunchWindow: teacherLunch.enableTeacherLunchWindow ?? true,
+		enforceTeacherLunchWindow: teacherLunch.enforceTeacherLunchWindow ?? false,
 		enableTleTwoPassPriority: p.enableTleTwoPassPriority ?? true,
 		allowFlexibleSubjectAssignment: p.allowFlexibleSubjectAssignment ?? false,
 		allowConsecutiveLabSessions: p.allowConsecutiveLabSessions ?? false,
@@ -839,6 +850,34 @@ export default function SchedulingPolicyPane({
 										/>
 									</div>
 								</div>
+							)}
+
+							{/* D9 — Teacher Lunch Window */}
+							<PolicySwitch
+								label="Teacher Lunch Window"
+								explanation="When ON, a teacher keeps a free block over the lunch window of the grade band they teach (the grade-scoped break rows, or the lunch window above when none exist)."
+								checked={local.enableTeacherLunchWindow}
+								onCheckedChange={(v) => {
+									update('enableTeacherLunchWindow', v);
+									if (!v) update('enforceTeacherLunchWindow', false);
+								}}
+							/>
+							{local.enableTeacherLunchWindow && (
+								<>
+									<PolicySwitch
+										label="Block Publication on Teacher Lunch Violation"
+										explanation="When ON, a teacher assigned across their lunch window is a HARD constraint that blocks publishing. When OFF, it is a SOFT warning that does not block publication."
+										checked={local.enforceTeacherLunchWindow}
+										onCheckedChange={(v) => update('enforceTeacherLunchWindow', v)}
+										warning
+									/>
+									<div className="flex items-start gap-1.5 rounded-md border border-border/60 bg-muted/30 px-2.5 py-1.5 text-[0.6875rem] text-muted-foreground">
+										<Shield className="size-3 mt-0.5 shrink-0" />
+										{local.enforceTeacherLunchWindow
+											? 'Hard: publishing is blocked until every teacher has a free lunch block.'
+											: 'Soft: a teacher who teaches through lunch is reported as a warning and does not block publishing.'}
+									</div>
+								</>
 							)}
 						</div>
 

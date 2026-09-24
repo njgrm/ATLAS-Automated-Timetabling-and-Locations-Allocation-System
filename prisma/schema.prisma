@@ -727,6 +727,11 @@ model SchedulingPolicy {
   recessStartTime                          String   @default("09:45") @map("recess_start_time")
   recessEndTime                            String   @default("10:00") @map("recess_end_time")
   enableLunchWindow                        Boolean  @default(true) @map("enable_lunch_window")
+  /// D9: a teacher keeps a free block over the lunch window of the grade band
+  /// they teach. Enabled by default; SOFT (warning) unless the enforce switch
+  /// is on, when a violation blocks publication.
+  enableTeacherLunchWindow                 Boolean  @default(true) @map("enable_teacher_lunch_window")
+  enforceTeacherLunchWindow                Boolean  @default(false) @map("enforce_teacher_lunch_window")
   enableTleTwoPassPriority                 Boolean  @default(true) @map("enable_tle_two_pass_priority")
   allowFlexibleSubjectAssignment           Boolean  @default(false) @map("allow_flexible_subject_assignment")
   allowConsecutiveLabSessions              Boolean  @default(false) @map("allow_consecutive_lab_sessions")

@@ -333,7 +333,19 @@ async function resolveCanonicalIntervals(params: {
 	}
 
 	// 3. Persisted run display slots (canonical union fallback).
+	//
+	// The run's display slots are a UNION across every scope and shift, so one
+	// interval can carry one shift's CLASS row and another shift's BREAK row.
+	// The canonical G7/G9 lunch split is exactly that: G7 classes 11:30-12:15
+	// and lunches 12:15-13:00, while G9 lunches 11:30-12:15 and classes
+	// 12:15-13:00. This is a FALLBACK for intervals the teacher's scoped
+	// canonical rows (step 1) and effective events (step 2) did not already
+	// classify. A union CLASS must never reclassify a scoped BREAK: the `add`
+	// CLASS-wins rule would otherwise erase the teacher's lunch band and the
+	// Teacher Program DOCX prints no `Lunch Break`.
 	for (const slot of displaySlots) {
+		const key = `${slot.startTime}-${slot.endTime}`;
+		if (intervals.has(key)) continue;
 		if (slot.isSpecialEvent) {
 			add({
 				startTime: slot.startTime,
