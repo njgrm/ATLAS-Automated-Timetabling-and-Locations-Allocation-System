@@ -9,8 +9,9 @@
 by the re-pin; §5A is the new draft-read family, authored on this pin's lineage
 (repository base `530e3b19`). **§4.1 and §4.4 additionally document the additive
 SPECIAL-EVENT-SCOPE-C01 (D8) fields (`specialEvents[].scope` and `source.shiftWindows[]`),
-authored on base `25fc402e` and NOT yet in the `70a51608` deployment** — read the deployed-pin
-restatement in §4.5.
+authored on base `25fc402e` and **NOT yet deployed** — neither `70a51608` nor the current live
+release `002c88793212709468843c10fc69aa09eef0eb46` (deployed 2026-09-24; verified absent) carries
+them. Read the deployed-pin restatement in §4.5.
 
 **This replaces a deleted document.** `docs/reference/aims-smart-term-aware-api-context-2026-08-27.md`
 and `docs/guides/AIMS_FETCH_PUBLISHED_SCHEDULES_GUIDE.md` were removed from tracking on 2026-08-28 by
@@ -102,11 +103,16 @@ Live example (`?termIndex=1`, run 315):
   from the upstream ordered-term authority, and the school year is `TRIMESTER` here (T1/T2/T3) while
   `termIndex` still ranges to 4.
 - **`shiftWindows` is the school grade-to-shift map** (the `grade_shift_windows` rows), added by
-  **SPECIAL-EVENT-SCOPE-C01** (D8; repository base `25fc402e`). Key a schedule entry's
-  `section.gradeLevel` against it to get that grade's shift band. It is **additive**: it is absent
-  from the deployed `70a51608` pin, so a consumer must treat a missing `shiftWindows` as "no shift map
-  available" rather than an error. `programType: null` is the grade-generic shift; a program-specific
-  row (non-null `programType`) is the narrower authority when one exists.
+  **SPECIAL-EVENT-SCOPE-C01** (D8; repository base `25fc402e`). **These fields are numbered in numeric
+  grades (7-10), NOT in EnrollPro grade-level IDs.** `entry.section.gradeLevel` is the upstream
+  grade-level **ID** (e.g. `17`); `entry.section.gradeLevelName` is the human label (e.g. `"Grade 7"`).
+  **Derive the entry's numeric grade from `gradeLevelName`** (parse the trailing integer) and compare
+  *that* against `shiftWindows[].gradeLevel`, `scope.gradeLevels` and `scope.programTypes`. It is
+  **additive**: it is absent from both the authoring pin `70a51608` and the current live release
+  `002c8879`, so a consumer must treat a missing `shiftWindows` as "no shift map available" rather than
+  an error. `programType: null` is the grade-generic shift; a program-specific row (non-null
+  `programType`) is the narrower authority when one exists. *(Successor note: an additive
+  `entry.section.gradeLevelNumber` would remove the need to parse the label.)*
 - **`termScope` + `termIndex`** state what the payload actually covers. `"active"` means the resolved
   active term, with `termIndex` naming it.
 - **`revisionMarker` is the cheapest change-detection key.** Store it and re-fetch when it differs.
@@ -216,7 +222,9 @@ a given entry/grade:
 1. Read `source.shiftWindows[]` once and build a `gradeLevel -> { startTime, endTime }` lookup (prefer a
    `programType` row matching the section's `programType`; otherwise the `programType: null` row).
 2. If `scope.appliesToAll === true`, the window applies to every grade — render it for all.
-3. Otherwise render the window only when `entry.section.gradeLevel` is in `scope.gradeLevels` **and**
+3. Otherwise render the window only when the entry's **numeric grade** (derived from
+   `entry.section.gradeLevelName`, per §4.1 - `entry.section.gradeLevel` is an upstream grade-level
+   ID, not the grade number, so it will not match) is in `scope.gradeLevels` **and**
    (`scope.programTypes` is empty **or** it contains `entry.section.programType`).
 4. Use `scope.shift` when non-null; when it is `null`, fall back to the `source.shiftWindows[]` lookup
    for the entry's grade.
