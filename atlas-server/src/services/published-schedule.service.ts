@@ -1,6 +1,6 @@
 import { getDataContext } from '../lib/data-context.js';
 import type { ScheduledEntry } from './constraint-validator.js';
-import { buildCanonicalDisplayGrid, buildSpecialEventSlots, type CanonicalDisplayRow, type PolicyInput } from './schedule-constructor.js';
+import { buildCanonicalDisplayGrid, buildSpecialEventSlots, resolveSpecialEventScope, type CanonicalDisplayRow, type CanonicalDisplayWindowScope, type PolicyInput, type ShiftWindowLike } from './schedule-constructor.js';
 import { POLICY_DEFAULTS } from './scheduling-policy.service.js';
 import {
 	isTermIndexWithinContract,
@@ -530,10 +530,25 @@ async function loadReferenceMaps(
 	};
 }
 
+/**
+ * SPECIAL-EVENT-SCOPE-C01 (D8) — the persisted `grade_shift_windows` shape and
+ * the additive `source.shiftWindows[]` element. The scope/shift derivation is the
+ * pure `resolveSpecialEventScope` authority in `schedule-constructor.ts`.
+ */
+type GradeShiftWindowLike = ShiftWindowLike;
+
+type PublishedShiftWindow = {
+	gradeLevel: number;
+	programType: string | null;
+	startTime: string;
+	endTime: string;
+};
+
 function buildSpecialEventsPayload(
 	policy: NonNullable<Parameters<typeof buildSpecialEventSlots>[0]>,
 	specialEvents?: Array<{ eventType: string; label: string; startTime: string; endTime: string; dayOfWeek?: string | null; gradeGroup?: string | null; programType?: string | null }>,
 	canonicalRows?: readonly CanonicalDisplayRow[] | null,
+	shiftWindows: readonly GradeShiftWindowLike[] = [],
 ) {
 	// SLOT-BREAK-AUTHORITY-C11R: when canonical `classProgramSlot` rows exist for a
 	// scope, their BREAK rows ARE the displayed break bands and the retired policy
@@ -564,25 +579,24 @@ function buildSpecialEventsPayload(
 			specialEvents,
 		});
 
-	// SMART-DRAFT-READ-S3 (Deliverable 2) — SCOPE AMBIGUITY, deliberately NOT
-	// resolved here. A canonical `classProgramSlot` row DOES carry `(gradeLevel,
-	// programType)`, but `buildCanonicalDisplayGrid` unions every scope's BREAK
-	// rows and `dedupeIntervalSlots` (schedule-constructor.ts) keys them by
-	// `startTime-endTime` ALONE, so the grade/program scope is discarded before it
-	// reaches this projection. One emitted interval can therefore be owned by
-	// zero (policy Flag/HGP overlay or the legacy policy fallback), one, or
-	// several scopes. There is no truthful single `scope` to attach without
-	// either changing the emitted event cardinality (per-scope duplicates) or
-	// asserting a scope the union cannot prove — both violate the additive-only
-	// contract. Consumers that need a grade/shift-attributed break band must
-	// derive it from the owning canonical rows, not from `specialEvents[]`.
-	// See docs/reference/aims-smart-term-aware-published-schedule-handoff-2026-09-22.md §4.4.
+	// SPECIAL-EVENT-SCOPE-C01 (D8) — ADDITIVE scope attribution. The dedupe
+	// already collapses the union by `startTime-endTime` into ONE row per distinct
+	// window; `buildCanonicalDisplayGrid` now accumulates the owning
+	// `(gradeLevel, programType)` SET while collapsing, so each emitted window can
+	// carry a truthful scope without changing the row count or any existing field.
+	// A consumer that ignores `scope` sees exactly what it saw before.
+	const windowScopeByKey = new Map<string, CanonicalDisplayWindowScope>();
+	canonicalGrid.specialEventSlots.forEach((slot, index) => {
+		const key = `${slot.startTime}-${slot.endTime}`;
+		if (!windowScopeByKey.has(key)) windowScopeByKey.set(key, canonicalGrid.specialEventWindowScopes[index]);
+	});
 	return specialEventSlots.map((event) => ({
 		eventName: event.eventName,
 		startTime: event.startTime,
 		endTime: event.endTime,
 		dayOfWeek: event.dayOfWeek ?? null,
 		days: event.dayOfWeek ? [event.dayOfWeek] : ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY'],
+		scope: resolveSpecialEventScope(windowScopeByKey.get(`${event.startTime}-${event.endTime}`), event, shiftWindows),
 	}));
 }
 
@@ -664,6 +678,25 @@ export async function getPublishedSchedulePayload(
 				orderBy: [{ gradeLevel: 'asc' }, { startTime: 'asc' }],
 			})
 			: [];
+
+	// SPECIAL-EVENT-SCOPE-C01 (D8) — the school grade-to-shift map
+	// (`grade_shift_windows`). Additive: it lets a consumer map any
+	// `entry.section.gradeLevel` to its shift without guessing, and it is the basis
+	// for each window's `scope.shift`. A client that does not expose the delegate
+	// (test doubles, older narrow clients) resolves an empty map and every
+	// `scope.shift` stays `null` rather than a fabricated band. The frozen snapshot
+	// does not carry shift windows, so this additive map is read live; every
+	// EXISTING field and the `specialEvents[]` rows remain frozen.
+	const gradeShiftWindowDelegate = (db() as unknown as {
+		gradeShiftWindow?: { findMany: (args: unknown) => Promise<readonly GradeShiftWindowLike[]> };
+	}).gradeShiftWindow;
+	const shiftWindows: readonly GradeShiftWindowLike[] = typeof gradeShiftWindowDelegate?.findMany === 'function'
+		? await gradeShiftWindowDelegate.findMany({
+			where: { schoolId: resolved.source.schoolId, schoolYearId: resolved.source.schoolYearId },
+			select: { gradeLevel: true, programType: true, startTime: true, endTime: true },
+			orderBy: [{ gradeLevel: 'asc' }, { programType: 'asc' }],
+		})
+		: [];
 
 	const sectionIds = Array.from(new Set(filteredEntries.map((entry) => entry.sectionId)));
 	const subjectIds = Array.from(new Set(filteredEntries.map((entry) => entry.subjectId)));
@@ -843,11 +876,19 @@ export async function getPublishedSchedulePayload(
 			termIndex: resolvedTermIndex,
 			activeTermVerified,
 			orderedTerms: resolvedTermContract?.terms.map((term) => ({ ...term })) ?? [],
+			// SPECIAL-EVENT-SCOPE-C01 (D8) — the additive school grade-to-shift map,
+			// so a consumer can attribute any entry's section grade to its shift.
+			shiftWindows: shiftWindows.map((window) => ({
+				gradeLevel: window.gradeLevel,
+				programType: window.programType ?? null,
+				startTime: window.startTime,
+				endTime: window.endTime,
+			} satisfies PublishedShiftWindow)),
 		},
 		timeSlots,
 		// C08 — frozen policy/special events feed the same deterministic slot
 		// builder the live path uses, so a frozen artifact reproduces byte-stably.
-		specialEvents: buildSpecialEventsPayload(policy as never, mappedPublishedSpecialEvents, canonicalDisplayRows),
+		specialEvents: buildSpecialEventsPayload(policy as never, mappedPublishedSpecialEvents, canonicalDisplayRows, shiftWindows),
 		entries,
 	};
 }
