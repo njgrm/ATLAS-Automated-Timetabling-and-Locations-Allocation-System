@@ -42,6 +42,12 @@ Tally: 12 findings (4 HIGH, 5 MEDIUM, 3 LOW) · 1 row unperformed · 0 console e
 5. **About 8–10 seconds of loading, with jargon.** The grid is blank behind "Loading timetable: navigation is ready
    now; the grid fills as soon as the latest run resolves." `GET /api/v1/sections/summary/10?schoolId=1` took
    **7.9 s** and gates the grid. *Fix:* speed up or defer that call; message: "Loading the class schedule…".
+   **Correction (same day, follow-up measurement):** `sections/summary` is a victim, not the cause. Browser resource
+   timing on two reloads showed 6–7 unrelated requests (`sections/summary`, `room-preferences/…/latest/summary`,
+   `follow-up-flags/…/runs/317/flags`, `generation/…/runs/317/manual-edits`, `room-preferences/collaboration/ticket`,
+   `runtime/rollover-status`) started 0.8–1.6 s apart yet **finished within ~10 ms of each other at ~8.0 s** — a
+   shared server-side stall, varying by load (8 s, then ~5 s). The server-side cause is not yet identified; this
+   finding is a server stream (Lane C), and the loading-copy half stays with the client packet.
 
 6. **"View only" cells behave as if editable.** Every cell has a drag handle (⋮), a pointer cursor and a "Select…"
    label while the header says view only. Mixed signals make a cautious user afraid to click anything. *Fix:*
@@ -55,6 +61,8 @@ Tally: 12 findings (4 HIGH, 5 MEDIUM, 3 LOW) · 1 row unperformed · 0 console e
 8. **Jargon and codes.** "Runs", "Draft", "Setup", "Policies" tabs; "Active Term: T2"; room code "G7AW"; program
    groups "SPA", "SPS" in the section picker. *Fix:* "Past versions" for Runs, "Term 2" instead of "T2", explain
    or expand codes on hover.
+   **Correction (operator, same day):** "G7AW" is a building name and "SPA"/"SPS" are the school's own
+   special-program abbreviations, familiar to schedulers — keep both as they are. The tab names and "T2" stand.
 
 9. **The term picker is truncated.** The closed control shows "TERM…" in a wide box, so the user cannot see which
    term they are looking at without opening it. The open list is clear ("TERM 2 (active)"). *Fix:* show the
