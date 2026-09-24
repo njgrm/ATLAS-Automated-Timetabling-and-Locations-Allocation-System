@@ -53,11 +53,14 @@ test('editable grade workbook pages contain at most four section columns and one
 	assert.deepEqual(workbook.worksheets.map((sheet) => sheet.getRow(9).cellCount), [5, 2], 'each sheet has TIME plus at most four section columns');
 	assert.equal(workbook.worksheets[0].pageSetup.orientation, 'landscape');
 	assert.match(String(workbook.worksheets[0].getRow(9).getCell(2).value), /7-Section-1/);
+	assert.equal(workbook.worksheets[0].getRow(5).getCell(1).value, 'GRADE 7 CLASS PROGRAM — PAGE 1 OF 2');
 	assert.match(String(workbook.worksheets[0].getRow(10).getCell(2).value), /Mathematics/);
 	assert.match(String(workbook.worksheets[0].getRow(6).getCell(1).value), /Term: T2.*NOT PUBLISHED/);
 	const splitPage = workbook.worksheets[1];
-	assert.equal(splitPage.getRow(5).getCell(1).value, 'GRADE 7 CLASS PROGRAM — SECTIONS 5-5');
-	assert.doesNotMatch(String(splitPage.headerFooter?.oddHeader ?? ''), /5-5/);
+	assert.equal(splitPage.getRow(5).getCell(1).value, 'GRADE 7 CLASS PROGRAM — PAGE 2 OF 2');
+	const visibleTitles = workbook.worksheets.flatMap((sheet) => [1, 2, 3, 4, 5].map((row) => String(sheet.getRow(row).getCell(1).value ?? ''))).join(' ');
+	assert.doesNotMatch(visibleTitles, /SECTIONS\s+\d+-\d+/i, 'split sheet titles never expose section-range pagination markers');
+	assert.doesNotMatch(String(splitPage.headerFooter?.oddHeader ?? ''), /\d+-\d+/);
 	assert.equal(splitPage.pageSetup.printTitlesRow, '8:9', 'only the grid identity and column headings repeat across pagination');
 	assert.ok([12, 13, 14, 15].every((row) => (splitPage.getRow(row).height ?? 0) >= 42), 'narrow grade-sheet signatory rows reserve enough wrapped height');
 	assert.ok(String(splitPage.getRow(12).getCell(1).value).length <= 42, 'prepared-by signature rule stays within the narrow final-page band');
