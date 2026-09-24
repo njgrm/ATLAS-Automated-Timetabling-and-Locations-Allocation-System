@@ -13,6 +13,7 @@ for (const key of REQUIRED_ENV) {
 }
 
 import { errorHandler } from './middleware/errorHandler.js';
+import { createRequestTiming } from './lib/request-timing.js';
 import authRouter from './routes/auth.router.js';
 import mapRouter from './routes/map.router.js';
 import subjectRouter from './routes/subject.router.js';
@@ -58,6 +59,11 @@ import { getDependencyReadiness } from './services/health.service.js';
 
 const app = express();
 initializeNotificationEventBridges();
+
+// SERVER-TIMING-C01: first middleware, so every request is timed. The stall
+// monitor is started by server.ts on listen, never by importing this module.
+export const requestTiming = createRequestTiming();
+app.use(requestTiming.middleware);
 
 app.use(
 	helmet({
