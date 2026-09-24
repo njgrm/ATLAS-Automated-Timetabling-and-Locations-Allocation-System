@@ -17,15 +17,11 @@ import type {
 	GradeShiftWindow,
 	PolicySpecialEvent,
 	SchedulingPolicy,
-	SectionSummaryResponse,
-	ViolationCode,
 } from '@/types';
 
 import { Button } from '@/ui/button';
 import { Input } from '@/ui/input';
-import { Label } from '@/ui/label';
 import { Slider } from '@/ui/slider';
-import { Switch } from '@/ui/switch';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip';
 import { Tabs, TabsList, TabsTrigger } from '@/ui/tabs';
 import {
@@ -49,124 +45,26 @@ import {
 	type LocalGradeWindow,
 } from '@/components/scheduling-policy/schedulingPolicyWindowModel';
 import {
-	ConstraintRow,
 	DEFAULT_CONSTRAINT_CONFIG,
 	MetricExplain,
 	PolicyNumberField,
 	PolicySwitch,
 	SectionCard,
-	SOFT_CONSTRAINT_LABELS,
 	WarningFamilyFields,
 } from '@/components/scheduling-policy/PolicyPanePrimitives';
-import { isPublicationBlockingCode } from '@/components/timetable/simplePublishReadiness';
+import { PolicyPaneConstraintWeights } from '@/components/scheduling-policy/PolicyPaneConstraintWeights';
+import { PolicyPaneSchedulingMode } from '@/components/scheduling-policy/PolicyPaneSchedulingMode';
+import {
+	buildProgramContextNote,
+	deepEqual,
+	toLocalGradeWindows,
+	toProgramOptionsFromSections,
+	type LocalPolicy,
+} from '@/components/scheduling-policy/policyPaneModel';
 import { ensureTimetablePolicyAuxiliary } from '@/lib/timetable-data/timetableServerState';
 import { Badge } from '@/ui/badge';
 
 /* G��G��G�� Types G��G��G�� */
-
-interface LocalPolicy {
-	teacherMoveEnabled: boolean;
-	periodLengthMinutes: number;
-	periodsPerDay: number;
-	maxConsecutiveTeachingMinutesBeforeBreak: number;
-	minBreakMinutesAfterConsecutiveBlock: number;
-	maxTeachingMinutesPerDay: number;
-	earliestStartTime: string;
-	latestEndTime: string;
-	enforceConsecutiveBreakAsHard: boolean;
-	enableTravelWellbeingChecks: boolean;
-	maxWalkingDistanceMetersPerTransition: number;
-	maxBuildingTransitionsPerDay: number;
-	maxBackToBackTransitionsWithoutBuffer: number;
-	maxIdleGapMinutesPerDay: number;
-	avoidEarlyFirstPeriod: boolean;
-	avoidLateLastPeriod: boolean;
-	enableVacantAwareConstraints: boolean;
-	targetFacultyDailyVacantMinutes: number;
-	targetSectionDailyVacantPeriods: number;
-	maxCompressedTeachingMinutesPerDay: number;
-	lunchStartTime: string;
-	lunchEndTime: string;
-	enforceLunchWindow: boolean;
-	showSpecialEventsInGrid: boolean;
-	enableFlagCeremony: boolean;
-	flagCeremonyStartTime: string;
-	flagCeremonyEndTime: string;
-	enableRecess: boolean;
-	recessStartTime: string;
-	recessEndTime: string;
-	enableLunchWindow: boolean;
-	enableTeacherLunchWindow: boolean;
-	enforceTeacherLunchWindow: boolean;
-	enableShiftCoherenceGuard: boolean;
-	enforceShiftCoherenceGuard: boolean;
-	enableTleTwoPassPriority: boolean;
-	allowFlexibleSubjectAssignment: boolean;
-	allowConsecutiveLabSessions: boolean;
-	constraintConfig: Record<string, ConstraintOverride>;
-}
-
-/* Grade/shift-window model helpers now live in ./schedulingPolicyWindowModel. */
-
-function toProgramOptionsFromSections(summary: SectionSummaryResponse | null): ProgramWindowOption[] {
-	if (!summary) return DEFAULT_PROGRAM_WINDOW_OPTIONS;
-	const sections = summary.sections ?? [];
-	const availablePrograms = [...new Set(sections
-		.map((section) => section.programType)
-		.filter((programType): programType is NonNullable<typeof programType> => Boolean(programType)))];
-
-	if (availablePrograms.length === 0) return DEFAULT_PROGRAM_WINDOW_OPTIONS;
-
-	const labels: Record<string, string> = {
-		REGULAR: 'Regular',
-		STE: 'STE',
-		SPS: 'SPS',
-		SPA: 'SPA',
-		SPJ: 'SPJ',
-		SPFL: 'SPFL',
-		SPTVE: 'SPTVE',
-		OTHER: 'Other',
-	};
-
-	return [
-		{ value: 'ALL', label: 'All Programs' },
-		...availablePrograms
-			.sort((left, right) => left.localeCompare(right))
-			.map((programType) => ({ value: programType, label: labels[programType] ?? programType })) as ProgramWindowOption[],
-	];
-}
-
-function buildProgramContextNote(summary: SectionSummaryResponse | null): string {
-	if (!summary) {
-		return 'Program-aware windows use EnrollPro program ownership. TLE specialization ownership is also upstream-managed and synchronized into ATLAS when available.';
-	}
-	const sections = summary.sections ?? [];
-	const programs = [...new Set(sections
-		.map((section) => section.programType)
-		.filter((programType): programType is NonNullable<typeof programType> => Boolean(programType)))];
-	const sectionsWithTleSpecialization = sections.filter((section) => Boolean(section.tleSpecialization && section.tleSpecialization.trim().length > 0));
-
-	if (sectionsWithTleSpecialization.length > 0) {
-		return `Program options are sourced from EnrollPro sections (${programs.join(', ') || 'REGULAR'}). ${sectionsWithTleSpecialization.length} section(s) currently include EnrollPro TLE specialization ownership.`;
-	}
-
-	return `Program options are sourced from EnrollPro sections (${programs.join(', ') || 'REGULAR'}). No section-level TLE specialization ownership is currently present in this school-year feed.`;
-}
-
-function toLocalGradeWindows(windows: GradeShiftWindow[]): LocalGradeWindow[] {
-	const byKey = new Map<string, LocalGradeWindow>(DEFAULT_GRADE_WINDOWS.map((window) => [`${window.gradeLevel}:ALL`, window]));
-	for (const window of windows) {
-		if (!GRADE_LEVELS.includes(window.gradeLevel)) continue;
-		const key = `${window.gradeLevel}:${window.programType ?? 'ALL'}`;
-		byKey.set(key, {
-			gradeLevel: window.gradeLevel,
-			programType: (window.programType ?? null) as LocalGradeWindow['programType'],
-			startTime: window.startTime,
-			endTime: window.endTime,
-		});
-	}
-	return [...byKey.values()].sort((left, right) => left.gradeLevel - right.gradeLevel || String(left.programType ?? 'ALL').localeCompare(String(right.programType ?? 'ALL')));
-}
 
 function policyToLocal(p: SchedulingPolicy): LocalPolicy {
 	// D9 — the two teacher-lunch switches are additive policy columns. The
@@ -224,10 +122,6 @@ function policyToLocal(p: SchedulingPolicy): LocalPolicy {
 		allowConsecutiveLabSessions: p.allowConsecutiveLabSessions ?? false,
 		constraintConfig: { ...DEFAULT_CONSTRAINT_CONFIG, ...(p.constraintConfig ?? {}) },
 	};
-}
-
-function deepEqual(a: unknown, b: unknown) {
-	return JSON.stringify(a) === JSON.stringify(b);
 }
 
 /* G��G��G�� Micro-components G��G��G�� */
@@ -675,45 +569,7 @@ export default function SchedulingPolicyPane({
 					</div>
 
 					{/* COL 0: Scheduling Mode */}
-					<SectionCard title="Scheduling Mode">
-						<div className="space-y-3">
-							<div className="grid grid-cols-2 gap-3">
-								<PolicyNumberField
-									label="Block Length (min)"
-									explanation="Length of one generated timetable block. This controls session normalization and the visible timetable slot grid."
-									value={local.periodLengthMinutes}
-									onChange={(v) => update('periodLengthMinutes', v)}
-									min={30}
-									max={90}
-								/>
-								<PolicyNumberField
-									label="Periods Per Day"
-									explanation="Maximum schedulable blocks in one day before protected breaks and special events are applied."
-									value={local.periodsPerDay}
-									onChange={(v) => update('periodsPerDay', v)}
-									min={4}
-									max={12}
-								/>
-							</div>
-							<div className="flex items-center justify-between rounded-md border border-border/60 bg-muted/30 px-3 py-2">
-								<div className="space-y-0.5">
-									<Label className="font-medium text-xs text-foreground">Teacher's Move</Label>
-									<p className="text-[0.6875rem] text-muted-foreground leading-relaxed">
-										{local.teacherMoveEnabled
-											? 'Teachers can move between buildings for classes.'
-											: 'Teachers stay within their assigned building context.'}
-									</p>
-								</div>
-								<Switch
-									checked={local.teacherMoveEnabled}
-									onCheckedChange={(checked) => update('teacherMoveEnabled', checked)}
-								/>
-							</div>
-							<div className="rounded-md border border-sky-200 bg-sky-50 px-2.5 py-2 text-[0.6875rem] text-sky-700 leading-relaxed">
-								Full-day fidelity uses 45-minute blocks with protected lunch, recess, and special-event windows. Shift-window overrides are in the Shift Settings tab.
-							</div>
-						</div>
-					</SectionCard>
+					<PolicyPaneSchedulingMode local={local} update={update} />
 
 					{/* COL 1: Core Teaching Limits */}
 					<SectionCard title="Core Teaching Limits">
@@ -1015,30 +871,7 @@ export default function SchedulingPolicyPane({
 					</SectionCard>
 
 					{/* COL 2: Per-Constraint Weights */}
-					<SectionCard title="Per-Constraint Weights">
-						<p className="text-[0.6875rem] text-muted-foreground">
-							Toggle and weight each soft constraint. Only structural conflicts the server allowlists may
-							block publication, so promotion is offered only where it is accepted.
-						</p>
-						<div className="space-y-2">
-							{Object.entries(SOFT_CONSTRAINT_LABELS).map(([code, info]) => {
-								const cfg = local.constraintConfig[code] ?? DEFAULT_CONSTRAINT_CONFIG[code];
-								return (
-									<ConstraintRow
-										key={code}
-										code={code as ViolationCode}
-										label={info.label}
-										explanation={info.explanation}
-										config={cfg}
-										promotable={isPublicationBlockingCode(code)}
-										onToggleEnabled={(v) => updateConstraint(code, 'enabled', v)}
-										onWeightChange={(v) => updateConstraint(code, 'weight', v)}
-										onToggleTreatAsHard={(v) => updateConstraint(code, 'treatAsHard', v)}
-									/>
-								);
-							})}
-						</div>
-					</SectionCard>
+					<PolicyPaneConstraintWeights local={local} updateConstraint={updateConstraint} />
 
 					</div>
 				) : (

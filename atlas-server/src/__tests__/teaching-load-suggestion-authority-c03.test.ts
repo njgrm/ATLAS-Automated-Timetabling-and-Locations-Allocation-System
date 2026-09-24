@@ -20,7 +20,15 @@
  *     routes reject cross-school / historical / zero-active / ambiguous-year
  *     requests before any suggestion service work.
  *
- * Run with `npx tsx <this-file>`. No DATABASE_URL is required or used.
+ * Section D adds the REAL mounted-route row on the disposable PostgreSQL harness
+ * (`test:server-db`): the same route runs against the REAL migrated schema with
+ * persisted `grade_shift_windows`, proving the D11 shift-coherence contract
+ * (SOFT named notice; HARD typed `SHIFT_COHERENCE_CONFLICT`; zero preview write).
+ * It is guarded by the repository `atlas_restore_drill_*` disposable-name
+ * pattern, so a direct `npx tsx` run with no disposable harness skips it and
+ * never writes to a shared database.
+ *
+ * Run with `npx tsx <this-file>`. No DATABASE_URL is required for sections A–C.
  */
 
 import { createServer, type Server } from 'node:http';
@@ -29,6 +37,7 @@ import express, { type NextFunction, type Request, type Response } from 'express
 import jwt from 'jsonwebtoken';
 
 import facultyAssignmentRouter from '../routes/faculty-assignment.router.js';
+import { prisma } from '../lib/prisma.js';
 import { withDataContext } from '../lib/data-context.js';
 import {
 	autoFill,
@@ -182,6 +191,8 @@ function buildClient(fixture: Row): { client: any; state: ClientState } {
 		crossDepartmentPermission: readModel('crossDepartmentPermission', fixture.crossDepartmentPermissions ?? []),
 		specializationAlias: readModel('specializationAlias', fixture.specializationAliases ?? []),
 		schedulingPolicy: readModel('schedulingPolicy', fixture.policies ?? []),
+		facultyGradePreference: readModel('facultyGradePreference', fixture.gradePreferences ?? []),
+		gradeShiftWindow: readModel('gradeShiftWindow', fixture.gradeWindows ?? []),
 		facultySubject: readModel('facultySubject', []),
 		teachingLoadCycle: readModel('teachingLoadCycle', []),
 		auditLog: readModel('auditLog', []),
@@ -804,10 +815,220 @@ async function testMountedRouteAuthority() {
 	});
 }
 
+// ─── D. Real mounted route on disposable PostgreSQL (D11) ───────────────────
+//
+// Sections A–C inject an in-memory client. This row proves the same contract
+// through the REAL Express route against the REAL migrated PostgreSQL schema
+// (the runner's per-file disposable database). It is guarded by the repository
+// disposable-name pattern, so a direct `npx tsx` run with no disposable harness
+// skips it and never writes to a shared database.
+
+function disposableDatabaseName(): string | null {
+	const url = process.env.DATABASE_URL;
+	if (!url) return null;
+	try {
+		const name = decodeURIComponent(new URL(url).pathname.replace(/^\//, ''));
+		return /^atlas_restore_drill_[0-9]{8}_[a-z0-9]+$/.test(name) ? name : null;
+	} catch {
+		return null;
+	}
+}
+
+async function mountRealRouter<T>(
+	schoolId: number,
+	run: (ctx: { baseUrl: string; token: string }) => Promise<T>,
+): Promise<T> {
+	const previousSecret = process.env.JWT_SECRET;
+	process.env.JWT_SECRET = 'tl-suggestion-c03-postgres-secret';
+	let server: Server | undefined;
+	try {
+		const app = express();
+		app.use(express.json());
+		app.use('/api/v1/faculty-assignments', facultyAssignmentRouter);
+		app.use((error: Error & { statusCode?: number; code?: string }, _req: Request, res: Response, _next: NextFunction) => {
+			res.status(error.statusCode ?? 500).json({ code: error.code ?? 'SERVER_ERROR', message: error.message });
+		});
+		server = createServer(app);
+		await new Promise<void>((resolve) => server!.listen(0, '127.0.0.1', resolve));
+		const address = server.address();
+		if (!address || typeof address === 'string') throw new Error('failed to bind ephemeral test port');
+		const token = jwt.sign(
+			{ userId: ACTOR, role: 'officer', authSource: 'local', schoolId },
+			process.env.JWT_SECRET!,
+		);
+		return await run({ baseUrl: `http://127.0.0.1:${address.port}`, token });
+	} finally {
+		if (server) await new Promise<void>((resolve, reject) => server!.close((error) => (error ? reject(error) : resolve())));
+		if (previousSecret === undefined) delete process.env.JWT_SECRET;
+		else process.env.JWT_SECRET = previousSecret;
+	}
+}
+
+async function testMountedRouteShiftCoherencePostgres() {
+	heading('D. Mounted auto-fill on disposable PostgreSQL — D11 shift coherence');
+	const database = disposableDatabaseName();
+	if (!database) {
+		console.log('[SKIP] EXTERNALLY_BLOCKED(DISPOSABLE_DB_UNAVAILABLE) — no atlas_restore_drill_* DATABASE_URL');
+		return;
+	}
+
+	const schoolYearId = 9_800_001;
+	const school = await prisma.school.create({
+		data: { name: 'S8-SHIFT-COHERENCE-DISPOSABLE — SAFE TO DELETE', shortName: 'S8SHIFT' },
+		select: { id: true },
+	});
+	const schoolId = school.id as number;
+
+	try {
+		await prisma.enrollProSchoolYearMirror.create({
+			data: {
+				schoolId,
+				enrollProSchoolYearId: schoolYearId,
+				yearLabel: '2030-2031',
+				isActive: true,
+				isArchived: false,
+				termContractCache: {
+					schoolId,
+					schoolYear: { id: schoolYearId, yearLabel: '2030-2031' },
+					format: 'TRIMESTER',
+					terms: [
+						{ identity: 'T1', displayLabel: 'Term 1', order: 1 },
+						{ identity: 'T2', displayLabel: 'Term 2', order: 2 },
+						{ identity: 'T3', displayLabel: 'Term 3', order: 3 },
+					],
+				},
+				termContractCachedAt: new Date(),
+			},
+		});
+		await prisma.schedulingPolicy.create({
+			data: {
+				schoolId,
+				schoolYearId,
+				periodLengthMinutes: 45,
+				periodsPerDay: 10,
+				earliestStartTime: '06:00',
+				latestEndTime: '18:30',
+				teachingStandardMinutes: 1800,
+				advisoryCreditMinutes: 300,
+				hardCapMinutes: 2400,
+				enableShiftCoherenceGuard: true,
+				enforceShiftCoherenceGuard: false,
+			},
+		});
+		await prisma.subject.create({
+			data: {
+				schoolId,
+				code: 'MATH',
+				name: 'Mathematics',
+				ownerDepartment: 'MATH',
+				minMinutesPerWeek: 240,
+				gradeLevels: [7, 9],
+				programScopes: ['REGULAR'],
+				isActive: true,
+			},
+		});
+		await prisma.sectionMirror.createMany({
+			data: [
+				{ externalId: 7001, schoolId, schoolYearId, name: 'G7-A', gradeLevelId: 17, gradeLevelName: 'Grade 7', displayOrder: 7, maxCapacity: 50, enrolledCount: 45, programType: 'REGULAR', isActiveForScheduling: true, isStale: false },
+				{ externalId: 7003, schoolId, schoolYearId, name: 'G9-A', gradeLevelId: 19, gradeLevelName: 'Grade 9', displayOrder: 9, maxCapacity: 50, enrolledCount: 45, programType: 'REGULAR', isActiveForScheduling: true, isStale: false },
+			],
+		});
+		const teacher = await prisma.facultyMirror.create({
+			data: {
+				externalId: 8001,
+				schoolId,
+				firstName: 'S8',
+				lastName: 'Span',
+				department: 'MATH',
+				maxHoursPerWeek: 30,
+				isActiveForScheduling: true,
+				isStale: false,
+			},
+			select: { id: true },
+		});
+		await prisma.gradeShiftWindow.createMany({
+			data: [
+				{ schoolId, schoolYearId, gradeLevel: 7, programType: null, startTime: '06:00', endTime: '15:30' },
+				{ schoolId, schoolYearId, gradeLevel: 8, programType: null, startTime: '06:00', endTime: '15:30' },
+				{ schoolId, schoolYearId, gradeLevel: 9, programType: null, startTime: '09:45', endTime: '18:30' },
+				{ schoolId, schoolYearId, gradeLevel: 10, programType: null, startTime: '09:45', endTime: '18:30' },
+			],
+		});
+
+		const writeCounts = async () => ({
+			ownerships: await prisma.subjectSectionOwnership.count({ where: { schoolId } }),
+			facultySubjects: await prisma.facultySubject.count({ where: { schoolId } }),
+			cycles: await prisma.teachingLoadCycle.count({ where: { schoolId } }),
+			audits: await prisma.auditLog.count({ where: { schoolId } }),
+		});
+
+		await mountRealRouter(schoolId, async ({ baseUrl, token }) => {
+			// SOFT (default): the assignment proceeds and a named notice is emitted.
+			const beforeSoft = await writeCounts();
+			const softResponse = await post(baseUrl, token, '/api/v1/faculty-assignments/auto-fill', { schoolId, schoolYearId, previewOnly: true });
+			checkEqual(softResponse.status, 200, 'PostgreSQL SOFT preview returns 200');
+			const softBody = await softResponse.json() as {
+				shiftCoherenceNotices?: Array<{ facultyId: number; spanningWindows?: unknown[]; sections?: unknown[] }>;
+				warnings?: string[];
+				suggestedRows?: Array<{ facultyId: number | null; sectionId: number; assignmentType: string }>;
+				unresolved?: number;
+			};
+			check(Array.isArray(softBody.shiftCoherenceNotices) && softBody.shiftCoherenceNotices.length === 1, 'PostgreSQL SOFT preview emits exactly one named shiftCoherenceNotice');
+			checkEqual(softBody.shiftCoherenceNotices?.[0]?.facultyId, teacher.id, 'the SOFT notice names the spanning teacher');
+			checkEqual(softBody.shiftCoherenceNotices?.[0]?.spanningWindows?.length, 2, 'the SOFT notice names both spanning windows');
+			checkEqual(softBody.shiftCoherenceNotices?.[0]?.sections?.length, 2, 'the SOFT notice names both responsible sections');
+			check((softBody.warnings ?? []).some((line) => line.includes('Shift coherence (SOFT)')), 'the SOFT preview emits a human warnings line');
+			check(
+				(softBody.suggestedRows ?? []).filter((row) => row.assignmentType === 'REAL_TEACHER' && row.facultyId === teacher.id).map((row) => row.sectionId).sort().join(',') === '7001,7003',
+				'the SOFT preview still assigns the teacher to both shift windows',
+			);
+			checkEqual(softBody.unresolved, 0, 'SOFT coverage is unchanged');
+			checkEqual(await writeCounts(), beforeSoft, 'the SOFT preview performs zero writes');
+
+			// HARD: the spanning assignment is prevented with the typed reason.
+			await prisma.schedulingPolicy.update({
+				where: { schoolId_schoolYearId: { schoolId, schoolYearId } },
+				data: { enforceShiftCoherenceGuard: true },
+			});
+			const beforeHard = await writeCounts();
+			const hardResponse = await post(baseUrl, token, '/api/v1/faculty-assignments/auto-fill', { schoolId, schoolYearId, previewOnly: true });
+			checkEqual(hardResponse.status, 200, 'PostgreSQL HARD preview returns 200 (no thrown error)');
+			const hardBody = await hardResponse.json() as {
+				candidateRejections?: Array<{ facultyId: number; reason: string; spanningWindows?: unknown[]; sections?: unknown[] }>;
+				suggestedRows?: Array<{ facultyId: number | null; sectionId: number; assignmentType: string }>;
+				unresolved?: number;
+			};
+			const shiftRejections = (hardBody.candidateRejections ?? []).filter((row) => row.reason === 'SHIFT_COHERENCE_CONFLICT');
+			checkEqual(shiftRejections.length, 1, 'the HARD preview reports exactly one typed SHIFT_COHERENCE_CONFLICT');
+			checkEqual(shiftRejections[0]?.facultyId, teacher.id, 'the typed rejection names the spanning teacher');
+			checkEqual(shiftRejections[0]?.spanningWindows?.length, 2, 'the typed rejection carries both spanning windows');
+			checkEqual(shiftRejections[0]?.sections?.length, 2, 'the typed rejection carries both responsible sections');
+			checkEqual(hardBody.unresolved, 1, 'the spanning row is left unresolved, never thrown');
+			check(
+				(hardBody.suggestedRows ?? []).filter((row) => row.assignmentType === 'REAL_TEACHER' && row.facultyId === teacher.id).length === 1,
+				'the HARD preview prevents assigning the teacher into both shift windows',
+			);
+			checkEqual(await writeCounts(), beforeHard, 'the HARD preview performs zero writes');
+		});
+	} finally {
+		await prisma.gradeShiftWindow.deleteMany({ where: { schoolId } }).catch(() => undefined);
+		await prisma.subjectSectionOwnership.deleteMany({ where: { schoolId } }).catch(() => undefined);
+		await prisma.facultySubject.deleteMany({ where: { schoolId } }).catch(() => undefined);
+		await prisma.facultyMirror.deleteMany({ where: { schoolId } }).catch(() => undefined);
+		await prisma.sectionMirror.deleteMany({ where: { schoolId } }).catch(() => undefined);
+		await prisma.subject.deleteMany({ where: { schoolId } }).catch(() => undefined);
+		await prisma.schedulingPolicy.deleteMany({ where: { schoolId } }).catch(() => undefined);
+		await prisma.enrollProSchoolYearMirror.deleteMany({ where: { schoolId } }).catch(() => undefined);
+		await prisma.school.deleteMany({ where: { id: schoolId } }).catch(() => undefined);
+		await prisma.$disconnect().catch(() => undefined);
+	}
+}
+
 async function main() {
 	await testCoveragePersistedAuthority();
 	await testOverCapDiagnostics();
 	await testMountedRouteAuthority();
+	await testMountedRouteShiftCoherencePostgres();
 	console.log(`\n=== TL-SUGGESTION-C03R hermetic suggestion authority ===`);
 	console.log(`Total: ${passCount + failCount}, Passed: ${passCount}, Failed: ${failCount}`);
 	if (failCount > 0) process.exitCode = 1;

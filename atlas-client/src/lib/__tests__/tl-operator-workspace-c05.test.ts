@@ -47,6 +47,16 @@ function repoSource(relativePath: string): string {
 	return readFileSync(resolve(REPO_ROOT, relativePath), 'utf8');
 }
 
+/**
+ * Strip line and block comments before extracting a declared union. The union's
+ * own doc comments may contain a `;`, which a non-greedy `/…=([\s\S]*?);/` match
+ * would treat as the declaration terminator and silently truncate the domain —
+ * leaving a producer reason with no client copy while the parity guard passes.
+ */
+function stripSourceComments(source: string): string {
+	return source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+}
+
 function rejection(overrides: Partial<TeachingLoadCandidateRejection> = {}): TeachingLoadCandidateRejection {
 	return {
 		subjectId: 21,
@@ -156,8 +166,9 @@ test('R4 failing-first mutant: the retired null-department pre-emption would hid
 test('R5 producer parity: every reason the server emits has client copy and an order entry', () => {
 	const serverSrc = repoSource('atlas-server/src/services/teaching-load-automation.service.ts');
 
-	// 1. The declared producer union.
-	const unionMatch = serverSrc.match(/export type TeachingLoadCandidateRejectionReason =([\s\S]*?);/);
+	// 1. The declared producer union (comments stripped so a `;` inside a doc
+	// comment cannot truncate the domain).
+	const unionMatch = stripSourceComments(serverSrc).match(/export type TeachingLoadCandidateRejectionReason =([\s\S]*?);/);
 	assert.ok(unionMatch, 'producer reason union must be found in the server source');
 	const union = Array.from(unionMatch[1].matchAll(/'([A-Z_]+)'/g)).map((match) => match[1]);
 	assert.ok(union.length >= 6, `producer union should be non-trivial, saw ${union.length}`);
@@ -207,7 +218,7 @@ test('R5 producer parity: every reason the server emits has client copy and an o
 
 test('C-6 mutant A — removed producer member: the client mapping must cover the whole producer domain', () => {
 	const serverSrc = repoSource('atlas-server/src/services/teaching-load-automation.service.ts');
-	const unionMatch = serverSrc.match(/export type TeachingLoadCandidateRejectionReason =([\s\S]*?);/);
+	const unionMatch = stripSourceComments(serverSrc).match(/export type TeachingLoadCandidateRejectionReason =([\s\S]*?);/);
 	assert.ok(unionMatch, 'the producer reason union must be found in the server source');
 	const producerDomain = Array.from(unionMatch[1].matchAll(/'([A-Z_]+)'/g)).map((match) => match[1]);
 	assert.ok(producerDomain.length >= 6, 'the producer domain must be non-trivial');

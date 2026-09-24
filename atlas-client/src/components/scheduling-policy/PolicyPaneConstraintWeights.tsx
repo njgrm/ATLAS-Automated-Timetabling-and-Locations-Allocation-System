@@ -1,0 +1,51 @@
+/**
+ * Per-Constraint Weights column of the Scheduling Policy pane.
+ *
+ * Extracted verbatim from `SchedulingPolicyPane.tsx` (AGENTS.md §8 1000-line
+ * cap). Pure extraction: the same controls, copy, props and behaviour.
+ */
+
+import type { ConstraintOverride, ViolationCode } from '@/types';
+import {
+	ConstraintRow,
+	DEFAULT_CONSTRAINT_CONFIG,
+	SectionCard,
+	SOFT_CONSTRAINT_LABELS,
+} from '@/components/scheduling-policy/PolicyPanePrimitives';
+import { isPublicationBlockingCode } from '@/components/timetable/simplePublishReadiness';
+import type { LocalPolicy } from '@/components/scheduling-policy/policyPaneModel';
+
+export function PolicyPaneConstraintWeights({
+	local,
+	updateConstraint,
+}: {
+	local: LocalPolicy;
+	updateConstraint: (code: string, field: keyof ConstraintOverride, value: unknown) => void;
+}) {
+	return (
+		<SectionCard title="Per-Constraint Weights">
+			<p className="text-[0.6875rem] text-muted-foreground">
+				Toggle and weight each soft constraint. Only structural conflicts the server allowlists may
+				block publication, so promotion is offered only where it is accepted.
+			</p>
+			<div className="space-y-2">
+				{Object.entries(SOFT_CONSTRAINT_LABELS).map(([code, info]) => {
+					const cfg = local.constraintConfig[code] ?? DEFAULT_CONSTRAINT_CONFIG[code];
+					return (
+						<ConstraintRow
+							key={code}
+							code={code as ViolationCode}
+							label={info.label}
+							explanation={info.explanation}
+							config={cfg}
+							promotable={isPublicationBlockingCode(code)}
+							onToggleEnabled={(v) => updateConstraint(code, 'enabled', v)}
+							onWeightChange={(v) => updateConstraint(code, 'weight', v)}
+							onToggleTreatAsHard={(v) => updateConstraint(code, 'treatAsHard', v)}
+						/>
+					);
+				})}
+			</div>
+		</SectionCard>
+	);
+}

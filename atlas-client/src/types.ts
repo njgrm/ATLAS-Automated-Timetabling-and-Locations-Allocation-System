@@ -2076,6 +2076,12 @@ export type TeachingLoadCandidateRejectionReason =
 	| 'PLACEHOLDER_FACULTY'
 	/** Emitted by the server preview; parsed from the distribution plan. */
 	| 'OUTSIDE_CANONICAL_DEMAND'
+	/**
+	 * SHIFT-COHERENCE-C01 (D11): the server's HARD auto-fill guard rejected a
+	 * candidate that would place the teacher into both shift windows. A manual
+	 * assignment can always override it.
+	 */
+	| 'SHIFT_COHERENCE_CONFLICT'
 	// Operator-mandated R5 vocabulary kept as reserved/defensive copy. These are
 	// not currently emitted by the producer but must render human copy if they are.
 	| 'INACTIVE_FACULTY'
