@@ -40,14 +40,26 @@ import { resolve } from 'node:path';
 import test from 'node:test';
 import { compile, optimize } from '@tailwindcss/node';
 import { createElement } from 'react';
+import { act, useState } from 'react';
+import { createRoot, type Root } from 'react-dom/client';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { MemoryRouter } from 'react-router-dom';
+import { JSDOM } from 'jsdom';
 
-import { TimetableSimpleHeader } from '../TimetableSimpleHeader';
+import { dispatchSimpleReadinessRepair, TimetableSimpleHeader } from '../TimetableSimpleHeader';
 import type { ScheduleReviewWorkspaceHeaderContext } from '@/components/timetable/buildScheduleReviewWorkspaceContexts';
 import type { DraftReport } from '@/types';
 
 const clientRoot = resolve(import.meta.dirname, '../../../..');
+const dom = new JSDOM('<!doctype html><html><body><div id="root"></div></body></html>', { url: 'http://localhost/timetable' });
+Object.assign(globalThis, {
+	window: dom.window,
+	document: dom.window.document,
+	HTMLElement: dom.window.HTMLElement,
+	MutationObserver: dom.window.MutationObserver,
+	IS_REACT_ACT_ENVIRONMENT: true,
+});
+Object.defineProperty(globalThis, 'navigator', { value: dom.window.navigator, configurable: true });
 function source(path: string): string {
 	return readFileSync(resolve(clientRoot, path), 'utf8');
 }
@@ -473,6 +485,65 @@ test('D1 the mobile schedule entity sheet remains available', () => {
 	// Section/Teacher/Room chooser stays exactly one click away.
 	const helpers = source('src/components/timetable/simple/SimpleHeaderHelpers.tsx');
 	assert.match(helpers, /<SimpleScheduleControls/);
+});
+
+test('mounted readiness repair keeps its hard filter, while re-entering Simple clears stale filters', async () => {
+	const container = document.getElementById('root');
+	assert.ok(container);
+	let root: Root | null = null;
+	let severity = 'all';
+	function MountedHeader({ simple }: { simple: boolean }) {
+		const [currentSeverity, setCurrentSeverity] = useState('all');
+		severity = currentSeverity;
+		const context = makeContext({
+			isPreGenerationWorkspace: true,
+			severityFilter: currentSeverity,
+			setSeverityFilter: (value: string) => setCurrentSeverity(value),
+			blockingHardCount: 1,
+			violations: [{ code: 'ROOM_TIME_CONFLICT', severity: 'HARD', entities: { roomId: 4, sectionId: 2 } }],
+			draft: draftWithSummary({ isPublished: false }),
+		});
+		return createElement(MemoryRouter, { initialEntries: ['/timetable'] }, createElement('div', null,
+			createElement(TimetableSimpleHeader, {
+				context,
+				layoutMode: simple ? 'simple' : 'advanced',
+				onLayoutModeChange: () => {},
+				activeTask: null,
+				onTaskChange: () => {},
+			}),
+			createElement('button', {
+				'aria-label': 'Review readiness',
+				onClick: () => dispatchSimpleReadinessRepair({
+					href: '/timetable',
+					reason: 'ROOM_TIME_CONFLICT',
+					navigate: () => {},
+					violations: [],
+					setUnassignedReasonFilter: () => {},
+					setBlockerReasonFilter: () => {},
+					startPlaceUnresolvedTask: () => {},
+					startReviewIssuesTask: () => {},
+					setSelectedViolation: () => {},
+					setSeverityFilter: (value) => setCurrentSeverity(value),
+					issueReviewEnabled: true,
+				}),
+			}, 'Review readiness'),
+		));
+	}
+	root = createRoot(container);
+	try {
+		await act(async () => { root?.render(createElement(MountedHeader, { simple: true })); });
+		const repair = container.querySelector<HTMLButtonElement>('[aria-label="Review readiness"]');
+		assert.ok(repair);
+		await act(async () => { repair.click(); });
+		assert.equal(severity, 'hard', 'the Review readiness repair must focus hard issues after rerender');
+		await act(async () => { root?.render(createElement(MountedHeader, { simple: false })); });
+		await act(async () => { root?.render(createElement(MountedHeader, { simple: true })); });
+		assert.equal(severity, 'all', 're-entering Simple clears the prior filter once');
+	} finally {
+		if (root) await act(async () => { root?.unmount(); });
+		container.replaceChildren();
+		dom.window.close();
+	}
 });
 
 /* ── D2 — the published run is dominated by its published lifecycle surface ─ */
