@@ -46,7 +46,7 @@ export type CollaborationSocket = {
 };
 
 function resolveWsBaseUrl(): string {
-	const envBase = import.meta.env.VITE_ATLAS_API as string | undefined;
+	const envBase = (import.meta as ImportMeta & { env?: { VITE_ATLAS_API?: string } }).env?.VITE_ATLAS_API;
 	if (envBase && /^https?:\/\//i.test(envBase)) {
 		const httpUrl = new URL(envBase);
 		httpUrl.protocol = httpUrl.protocol === 'https:' ? 'wss:' : 'ws:';
