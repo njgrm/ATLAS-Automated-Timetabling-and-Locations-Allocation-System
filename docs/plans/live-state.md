@@ -35,20 +35,26 @@ and AIMS.
 ## Live release
 
 - Tailnet: `https://njgrm.buru-degree.ts.net`
-- **Pending release SHA: `37e0c85b`** (**NOT LIVE** as of 2026-09-25; source accepted and built). Carries the
-  global native-scrollbar token policy (app shell, pages, drawers, dialogs, tables, timetable — thin 6px rails,
-  primary-token thumb, muted track; Radix scroll areas and intentional hidden-scroll utilities preserved) plus
-  the S8 shift-coherence guard (D11, policy-switched SOFT/HARD, additive `scheduling_policies` switches).
-  **Schema migration APPLIED** via the guarded runner to `atlas_recovery_clean_rebuild_20260905` on 2026-09-25
-  — `20260925000001_shift_coherence` (two additive `scheduling_policies` columns): `MIGRATE_GATE_OK` after a
-  fresh verified backup (`atlas-backup-atlas_recovery_clean_rebuild_20260905-20260924-181614.dump`, 631,219 B,
-  sha256 `5676cde9…`, 525 `pg_restore --list` entries); post-apply status "Database schema is up to date!" and
-  an existence probe (both columns) passed. Target built at `E:\ATLAS-runtime-supervised-37e0c85b-20260925`
-  (server `tsc` + client `vite` exit 0; entry `assets/index-qbOXyMnr.js`). **Rollback basis:
+- **Release SHA: `37e0c85b`** (**LIVE** since 2026-09-25; `E:\ATLAS-runtime-supervised-37e0c85b-20260925`;
+  supervisor-owned 5001→63452 / 5174→26084; health/ready (`database:"ok"`) + DB-backed read + Tailnet 200;
+  served entry `assets/index-qbOXyMnr.js` (SHA-256 `8372C342…D43B60`, byte-identical to the build) with served
+  CSS `assets/index-BpfEFmMU.css` carrying the token scrollbar policy; machine `ATLAS_RUNTIME_SOURCE_DIR` /
+  `RELEASE_SHA` = the target). Carries the global native-scrollbar token policy (app shell, pages, drawers,
+  dialogs, tables, timetable — thin 6px rails, primary-token thumb, muted track; Radix scroll areas and
+  intentional hidden-scroll utilities preserved) plus the S8 shift-coherence guard (D11, policy-switched
+  SOFT/HARD, additive `scheduling_policies` switches). **Schema migration APPLIED** via the guarded runner to
+  `atlas_recovery_clean_rebuild_20260905` on 2026-09-25 — `20260925000001_shift_coherence` (two additive
+  `scheduling_policies` columns): `MIGRATE_GATE_OK` after a fresh verified backup
+  (`atlas-backup-atlas_recovery_clean_rebuild_20260905-20260924-181614.dump`, 631,219 B, sha256 `5676cde9…`,
+  525 `pg_restore --list` entries); post-apply status "Database schema is up to date!" and an existence probe
+  (both columns) passed. Cut over by the SHA-pinned `ops/runtime/deploy-runner.ps1` (audit
+  `C:\ProgramData\ATLAS\release-audit\37e0c85b-20260925-021830`). **Deployment verified:** fresh independent QA
+  `ACCEPT_READY` 18/18/0/0 (blocked 0, unperformed 0). **Rollback basis:
   `a5f7384e61a24059cdeaadbfa279969877838e0f`** at `E:\ATLAS-runtime-supervised-a5f7384e-20260925` (the migration
-  is additive with safe defaults, so the `a5f7384e` application remains compatible). **Next:**
-  `deploy-runner.ps1` dry-run; cutover `-Execute` requires separate approval.
-- **Release SHA: `a5f7384e`** (**LIVE** since 2026-09-24; `E:\ATLAS-runtime-supervised-a5f7384e-20260925`;
+  is additive with safe defaults, so the `a5f7384e` application remains compatible). **Acceptance PARTIAL:** the
+  authenticated in-browser scrollbar / shift-coherence acceptance remains
+  `EXTERNALLY_BLOCKED(AUTH_SESSION_REQUIRED)`.
+- **Release SHA: `a5f7384e`** (rollback basis; previously LIVE 2026-09-24; `E:\ATLAS-runtime-supervised-a5f7384e-20260925`;
   supervisor-owned 5001→67696 / 5174→69560; health/ready (`database:"ok"`) + DB-backed read + Tailnet 200;
   served entry `assets/index-DWJSV9dX.js` (SHA-256 `FBD1E493…D6F1CE`, byte-identical to the build); machine
   `ATLAS_RUNTIME_SOURCE_DIR` / `RELEASE_SHA` = the target). Carries the C3 authority work (S5 break-window
