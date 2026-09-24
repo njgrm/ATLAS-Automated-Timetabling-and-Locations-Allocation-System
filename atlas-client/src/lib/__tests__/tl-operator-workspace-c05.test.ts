@@ -532,22 +532,33 @@ test('R9 the Teaching Load page binds every suggestion handler to the scope epoc
  * F2 — the diagnostics read is scope-guarded
  * ================================================================== */
 
-test('F2 the diagnostics fetch captures a scope token before dispatch', () => {
+test('F2 the diagnostics read is guarded by resolved scope identity, not render ordering', () => {
 	const hook = source('src/hooks/useTeachingLoadData.ts');
 	assert.match(hook, /const diagnosticsEpochRef = useRef\(createScopeEpoch\(\)\)/);
-	assert.match(hook, /diagnosticsEpochRef\.current\.begin\(\)/);
-	assert.match(hook, /const diagnosticsStillCurrent = captureEpoch\(diagnosticsEpochRef\.current\)/);
+	assert.match(hook, /const diagnosticsScopeRef = useRef<string \| null>\(null\)/);
+	// The resolving fetch owns the epoch and passes the resolved scope identity.
+	assert.match(hook, /await loadAuthorityDiagnosticsForScope\(\{/);
+	assert.match(hook, /epoch: diagnosticsEpochRef\.current,/);
+	assert.match(hook, /scopeRef: diagnosticsScopeRef,/);
+	assert.match(hook, /scopeId: `\$\{school\}:\$\{schoolYearId\}`/);
 
-	// The state setter is unreachable without passing the guard.
-	const guardIndex = hook.indexOf('const diagnosticsStillCurrent = captureEpoch(diagnosticsEpochRef.current)');
-	const setterIndex = hook.indexOf('setAuthorityDiagnostics(diagnosticsRes.data ?? null)');
-	assert.ok(guardIndex >= 0, 'the diagnostics fetch must capture a scope token');
-	assert.ok(setterIndex > guardIndex, 'the setter must appear after the token capture');
-	assert.match(
-		hook.slice(guardIndex, setterIndex),
-		/if \(!diagnosticsStillCurrent\(\)\) return;/,
-		'the success path must discard an obsolete reply',
+	// The scope-reset effect clears the panel but MUST NOT open an epoch: that
+	// ordering is exactly what invalidated the cold-cache first load.
+	const resetEffect = hook.match(
+		/useEffect\(\(\) => \{[\s\S]*?setAuthorityDiagnostics\(null\);[\s\S]*?\}, \[scopeKey, setDraftAssignmentsByFaculty\]\);/,
 	);
+	assert.ok(resetEffect, 'the scope reset effect must clear the diagnostics state');
+	assert.doesNotMatch(resetEffect[0], /\.begin\(\)/, 'the scope effect must not open the epoch');
+});
+
+test('F2 the loader opens the epoch BEFORE capturing its token (ordering is load bearing)', () => {
+	const hook = source('src/hooks/useTeachingLoadData.ts');
+	const openIndex = hook.indexOf('openDiagnosticsScope(scopeRef, epoch, scopeId);');
+	const tokenIndex = hook.indexOf('const epochToken = epoch.current;');
+	assert.ok(openIndex >= 0, 'the loader must open the epoch for the resolved scope');
+	assert.ok(tokenIndex > openIndex, 'the token must be captured AFTER the epoch is opened');
+	// A superseded reply must leave state untouched.
+	assert.match(hook, /if \(!isCurrent\(\)\) return 'discarded';/);
 });
 
 test('F2 a diagnostics reply captured before the scope changed is discarded', () => {
@@ -558,11 +569,6 @@ test('F2 a diagnostics reply captured before the scope changed is discarded', ()
 	epoch.begin();
 	assert.equal(inFlight(), false, 'an obsolete diagnostics reply must be discarded');
 	assert.equal(captureEpoch(epoch)(), true, 'the next request in the new scope is authoritative');
-
-	// The scope reset opens the epoch before clearing the state it owns.
-	const hook = source('src/hooks/useTeachingLoadData.ts');
-	const resetMatch = hook.match(/useEffect\(\(\) => \{[\s\S]*?diagnosticsEpochRef\.current\.begin\(\);[\s\S]*?setAuthorityDiagnostics\(null\);[\s\S]*?\}/);
-	assert.ok(resetMatch, 'the scope reset must open a new epoch and clear the diagnostics state');
 });
 
 /* ================================================================== *
