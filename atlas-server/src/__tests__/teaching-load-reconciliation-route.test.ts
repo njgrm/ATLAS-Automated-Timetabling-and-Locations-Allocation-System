@@ -115,7 +115,7 @@ async function main() {
     const sectionRow = await base.sectionMirror.create({
       data: {
         schoolId: fixtureSchoolId, schoolYearId: fixtureYearId, externalId: 101, name: 'Grade 7 - A',
-        gradeLevelId: 7, gradeLevelName: 'Grade 7', displayOrder: 7, programType: 'REGULAR', maxCapacity: 50, enrolledCount: 50,
+        gradeLevelId: 17, gradeLevelName: 'Grade 7', displayOrder: 7, programType: 'REGULAR', maxCapacity: 50, enrolledCount: 50,
         isActiveForScheduling: true, isStale: false,
       },
       select: { id: true },
@@ -182,12 +182,15 @@ async function main() {
     // Missing actor school → 403.
     await callRoute('R3 missing-school preview rejected', 'POST', previewPath, officerJwt(null), previewBody(), 403, 'ACTOR_SCHOOL_REQUIRED');
     await callRoute('R3 missing-school apply rejected', 'POST', applyPath, officerJwt(null), previewBody(), 403, 'ACTOR_SCHOOL_REQUIRED');
+    await callRoute('R3 missing-school diagnostics rejected', 'GET', `${diagnosticsPath}?schoolId=${fixtureSchoolId}&schoolYearId=${fixtureYearId}`, officerJwt(null), undefined, 403, 'ACTOR_SCHOOL_REQUIRED');
     // Cross-school JWT → 403.
     await callRoute('R3 cross-school preview rejected', 'POST', previewPath, officerJwt(999997), previewBody(), 403, 'SCHOOL_MISMATCH');
     await callRoute('R3 cross-school apply rejected', 'POST', applyPath, officerJwt(999997), previewBody(), 403, 'SCHOOL_MISMATCH');
+    await callRoute('R3 cross-school diagnostics rejected', 'GET', `${diagnosticsPath}?schoolId=${fixtureSchoolId}&schoolYearId=${fixtureYearId}`, officerJwt(999997), undefined, 403, 'SCHOOL_MISMATCH');
     // System token cannot call operator preview/apply.
     await callRoute('R3 system-token preview rejected', 'POST', previewPath, systemToken, previewBody(), 401);
     await callRoute('R3 system-token apply rejected', 'POST', applyPath, systemToken, previewBody(), 401);
+    await callRoute('R3 system-token diagnostics rejected (JWT-only contract)', 'GET', `${diagnosticsPath}?schoolId=${fixtureSchoolId}&schoolYearId=${fixtureYearId}`, systemToken, undefined, 401);
     // System token CAN read the read-only readiness surface.
     {
       const res = await fetch(`${baseUrl}${readinessPath}?schoolId=${fixtureSchoolId}&schoolYearId=${fixtureYearId}`, {

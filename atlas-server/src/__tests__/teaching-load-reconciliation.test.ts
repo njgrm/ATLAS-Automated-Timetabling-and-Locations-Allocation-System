@@ -810,7 +810,7 @@ async function runFixtureTests(svc: typeof import('../services/teaching-load-rec
     const section101 = await instrumented.sectionMirror.create({
       data: {
         schoolId: fixtureSchoolId, schoolYearId: fixtureYearId, externalId: 101, name: 'Grade 7 - A',
-        gradeLevelId: 7, gradeLevelName: 'Grade 7', displayOrder: 7, programType: 'REGULAR', maxCapacity: 50, enrolledCount: 50,
+        gradeLevelId: 17, gradeLevelName: 'Grade 7', displayOrder: 7, programType: 'REGULAR', maxCapacity: 50, enrolledCount: 50,
         isActiveForScheduling: true, isStale: false,
       },
       select: { id: true },
@@ -819,7 +819,7 @@ async function runFixtureTests(svc: typeof import('../services/teaching-load-rec
     const section102 = await instrumented.sectionMirror.create({
       data: {
         schoolId: fixtureSchoolId, schoolYearId: fixtureYearId, externalId: 102, name: 'Grade 7 - B',
-        gradeLevelId: 7, gradeLevelName: 'Grade 7', displayOrder: 7, programType: 'REGULAR', maxCapacity: 50, enrolledCount: 50,
+        gradeLevelId: 17, gradeLevelName: 'Grade 7', displayOrder: 7, programType: 'REGULAR', maxCapacity: 50, enrolledCount: 50,
         isActiveForScheduling: true, isStale: false,
       },
       select: { id: true },
@@ -1305,7 +1305,7 @@ async function runFixtureTests(svc: typeof import('../services/teaching-load-rec
     await instrumented.sectionMirror.create({
       data: {
         schoolId: fixtureSchoolId, schoolYearId: fixtureYearId, externalId: 201, name: 'Grade 8 - A',
-        gradeLevelId: 8, gradeLevelName: 'Grade 8', displayOrder: 8, programType: 'REGULAR', maxCapacity: 50, enrolledCount: 50,
+        gradeLevelId: 18, gradeLevelName: 'Grade 8', displayOrder: 8, programType: 'REGULAR', maxCapacity: 50, enrolledCount: 50,
         isActiveForScheduling: true, isStale: false,
       },
     });
@@ -1386,7 +1386,7 @@ async function runFixtureTests(svc: typeof import('../services/teaching-load-rec
     await instrumented.sectionMirror.create({
       data: {
         schoolId: fixtureSchoolId, schoolYearId: fixtureYearId, externalId: 202, name: 'Grade 8 - B',
-        gradeLevelId: 8, gradeLevelName: 'Grade 8', displayOrder: 8, programType: 'STE', maxCapacity: 50, enrolledCount: 50,
+        gradeLevelId: 18, gradeLevelName: 'Grade 8', displayOrder: 8, programType: 'STE', maxCapacity: 50, enrolledCount: 50,
         isActiveForScheduling: true, isStale: false,
       },
     });

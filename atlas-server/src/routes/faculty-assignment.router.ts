@@ -350,7 +350,7 @@ router.get('/summary', authenticateWithSystemToken, requirePrivilegedRole, async
 // Read-only Teaching Load authority report. It intentionally reuses the
 // production reconciliation preview so demand, qualification, policy, and
 // adviser diagnostics cannot drift from the actual read-model plan.
-router.get('/authority-diagnostics', authenticateWithSystemToken, requirePrivilegedRole, async (req: Request, res: Response, next: NextFunction) => {
+router.get('/authority-diagnostics', authenticate, requirePrivilegedRole, async (req: Request, res: Response, next: NextFunction) => {
 	try {
 		const schoolId = Number(req.query.schoolId);
 		if (!Number.isInteger(schoolId) || schoolId <= 0) {
