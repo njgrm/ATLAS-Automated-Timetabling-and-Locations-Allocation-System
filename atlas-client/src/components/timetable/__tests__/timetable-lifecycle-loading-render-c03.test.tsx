@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { after, mock, test } from 'node:test';
 import { act, createElement, Fragment, useEffect, useState } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import { MemoryRouter, useNavigate } from 'react-router-dom';
+import { MemoryRouter, useLocation, useNavigate } from 'react-router-dom';
 import { JSDOM } from 'jsdom';
 
 const dom = new JSDOM('<!doctype html><html><body><div id="root"></div></body></html>', {
@@ -21,6 +21,7 @@ let centerView = 'schedule';
 let guardedTransitions = 0;
 let navigateRoute: ((path: string) => void) | null = null;
 let setRenderedCenterView: ((view: string) => void) | null = null;
+let currentLocation: { pathname: string; search: string; hash: string } | null = null;
 let root: Root | null = null;
 
 const workspaceState = {
@@ -54,6 +55,8 @@ const { default: ScheduleReviewWorkspace } = await import('../ScheduleReviewWork
 
 function RouteDriver() {
 	const navigate = useNavigate();
+	const location = useLocation();
+	currentLocation = location;
 	useEffect(() => { navigateRoute = navigate; }, [navigate]);
 	return null;
 }
@@ -95,7 +98,6 @@ test('loading production workspace reconciles guarded direct route intent and ke
 		['/timetable/setup', 'setup', 'Check schedule information'],
 		['/timetable/policies', 'policy', 'Scheduling policies'],
 		['/timetable/runs', 'runs', 'Generation history'],
-		['/timetable/exports', 'exports', 'Exports'],
 	] as const) {
 		assert.ok(navigateRoute);
 		await act(async () => { navigateRoute?.(path); });
@@ -104,5 +106,11 @@ test('loading production workspace reconciles guarded direct route intent and ke
 		assert.ok(container.querySelector('[data-testid="timetable-route-loading-state"]')?.textContent?.includes(title));
 		assert.match(container.textContent ?? '', /Loading this view…/);
 	}
-	assert.equal(guardedTransitions, 5, 'every direct route transition must use the guard exactly once');
+	assert.ok(navigateRoute);
+	await act(async () => { navigateRoute?.('/timetable/exports?runId=317&termIndex=2&entity=teacher%3A502&filter=all#grid'); });
+	assert.equal(centerView, 'schedule', 'the compatibility route returns to the schedule surface');
+	assert.equal(currentLocation?.pathname, '/timetable');
+	assert.equal(currentLocation?.search, '?runId=317&termIndex=2&entity=teacher%3A502&filter=all&print=1');
+	assert.equal(currentLocation?.hash, '#grid');
+	assert.equal(guardedTransitions, 5, 'every direct route transition, including the compatibility redirect, uses the existing guard once');
 });

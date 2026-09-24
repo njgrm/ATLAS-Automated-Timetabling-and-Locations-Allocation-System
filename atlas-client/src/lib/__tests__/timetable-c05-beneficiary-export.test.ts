@@ -94,28 +94,19 @@ test('M11: the room program request is scoped, identity-bound, and dispatches ze
 
 // ─── M17 — the single-flight guard blocks a second concurrent dispatch ───
 
-test('M17: while one official export is in flight every export control is disabled and the handler refuses re-entry', () => {
-	const descriptor: SimpleExportDescriptor = { kind: 'class-program', url: '/u2', filename: 'class-program-SY2026-2027-term2.xlsx', termIndex: 2 };
-	const busy = renderToStaticMarkup(createElement(SimpleExportMenu, {
-		summary: descriptor,
-		classProgram: descriptor,
-		teacherProgram: { ...descriptor, kind: 'teacher-program', url: '/u3' },
-		showTeacherProgram: true,
-		needsTerm: false,
-		exportingKind: 'class-program',
-		onExport: () => {},
+test('M17: the Simple header exposes one official print action and clearly secondary Excel working data', () => {
+	const markup = renderToStaticMarkup(createElement(SimpleExportMenu, {
+		onOpenPrintSchedules: () => {},
+		onOpenOfficeData: () => {},
 	}));
-	const trigger = busy.match(/<[^>]*data-testid="timetable-simple-export-trigger"[^>]*>/)?.[0] ?? '';
-	assert.match(trigger, /data-export-busy="true"/, 'a pending download marks the trigger busy');
-
-	// The busy flag is the production disable gate for every menu item.
-	const controls = source('src/components/timetable/simple/SimpleBeneficiaryControls.tsx');
-	const disabledGates = controls.match(/disabled=\{[^}]*exporting[^}]*\}/g) ?? [];
-	assert.ok(disabledGates.length >= 3, 'every official export item is disabled by the in-flight flag');
-
-	// The header handler is the single-flight gate that refuses a second dispatch.
+	assert.match(markup, /data-testid="timetable-open-print-schedules"/);
+	assert.match(markup, /Print schedules/);
+	assert.match(markup, /data-testid="timetable-open-office-working-data"/);
+	assert.match(markup, /Office working data/);
+	assert.doesNotMatch(markup, /Download beneficiary outputs|Beneficiary downloads|\.docx/);
 	const header = source('src/components/timetable/TimetableSimpleHeader.tsx');
-	assert.match(header, /if \(exportingKind !== null\) return;/, 'the handler refuses re-entry while a download is in flight');
+	assert.match(header, /<SchedulerPrintDialog/);
+	assert.match(header, /<SchedulerExportCenterDialog/);
 });
 
 // ─── M11 wiring — RoomSchedules binds the official server-generated control ───

@@ -149,7 +149,7 @@ test('nested timetable pages keep focused routes without duplicating scheduler c
 	const workspace = source('src/components/timetable/ScheduleReviewWorkspace.tsx');
 	const center = source('src/components/timetable/CenterWorkspace.tsx');
 	assert.match(workspace, /const showSchedulerChrome = isTimetableSchedulerView\(state\.headerContext\.centerView\)/);
-	assert.match(center, /centerView === 'setup'|centerView === 'policy'|centerView === 'runs'|centerView === 'exports'/);
+	assert.match(center, /centerView === 'setup'|centerView === 'policy'|centerView === 'runs'/);
 	assert.match(workspace, /h-\[calc\(100svh-3\.5rem\)\]/);
 	assert.match(center, /min-h-0 overflow-auto|flex-1 min-h-0/);
 });

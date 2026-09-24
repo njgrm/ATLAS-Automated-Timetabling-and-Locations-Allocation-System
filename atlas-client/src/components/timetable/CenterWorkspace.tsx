@@ -27,9 +27,6 @@ const CampusMap = lazy(() => import('@/components/CampusMap').then((module) => (
 })));
 const ManualEditPanel = lazy(() => import('@/components/ManualEditPanel'));
 const SchedulingPolicyPane = lazy(() => import('@/components/SchedulingPolicyPane'));
-const TimetableExportsPane = lazy(() => import('@/components/timetable/TimetableExportsPane').then((module) => ({
-	default: module.TimetableExportsPane,
-})));
 const TimetableRunsPane = lazy(() => import('@/components/timetable/TimetableRunsPane').then((module) => ({
 	default: module.TimetableRunsPane,
 })));
@@ -102,7 +99,7 @@ function buildSandboxTeacherConflictEntryIds(entries: any[], changedEntryIds: Se
 }
 
 type CenterWorkspaceProps = {
-	centerView: 'schedule' | 'pre-generation' | 'policy' | 'manual-edit' | 'map' | 'building' | 'exports' | 'runs' | 'setup';
+	centerView: 'schedule' | 'pre-generation' | 'policy' | 'manual-edit' | 'map' | 'building' | 'runs' | 'setup';
 	selectedEntry: any;
 	selectedUnassigned: UnassignedItem | null;
 	setSelectedUnassigned: (value: UnassignedItem | null) => void;
@@ -132,7 +129,7 @@ type CenterWorkspaceProps = {
 	isStaleRoom: (roomId: number) => boolean;
 	timeSlots: Array<{ startTime: string; endTime: string; isSpecialEvent?: boolean; eventName?: string }>;
 	preGenOnboarding: boolean;
-	setCenterView: (view: 'schedule' | 'pre-generation' | 'policy' | 'manual-edit' | 'map' | 'building' | 'exports' | 'runs' | 'setup') => void;
+	setCenterView: (view: 'schedule' | 'pre-generation' | 'policy' | 'manual-edit' | 'map' | 'building' | 'runs' | 'setup') => void;
 	buildings: any[];
 	mapBuildingId: number | null;
 	setMapBuildingId: (id: number | null) => void;
@@ -196,12 +193,6 @@ type CenterWorkspaceProps = {
 	/** UX-R03c — dedicated policy refetch trigger, threaded to the policy pane so a save converges both consumers. */
 	policyRefreshToken?: number;
 	refreshPolicy?: () => void;
-	/** UX-R03c — export scope for the `/timetable/exports` center view (same inputs the Simple header uses). */
-	exportTermFilter?: 'all' | number;
-	exportYearLabel?: string | null;
-	exportRunId?: number | null;
-	exportViewMode?: string;
-	exportEntityFilter?: string;
 	/**
 	 * UX-R03e (runs) — the workspace run-selection state for the
 	 * `/timetable/runs` center view: the same `selectedRunId` / `handleRunChange`
@@ -312,11 +303,6 @@ export const CenterWorkspace = memo(function CenterWorkspace(props: CenterWorksp
 		policyRecord = null,
 		policyRefreshToken = 0,
 		refreshPolicy,
-		exportTermFilter = 'all',
-		exportYearLabel = null,
-		exportRunId = null,
-		exportViewMode = 'section',
-		exportEntityFilter = '',
 		runsSelectedId = 'latest',
 		onRunsSelect = () => {},
 		formatRunTimestamp = (value) => value ?? '',
@@ -460,28 +446,6 @@ export const CenterWorkspace = memo(function CenterWorkspace(props: CenterWorksp
 								policyRecord={policyRecord}
 								policyRefreshToken={policyRefreshToken}
 								onPolicyRefetch={refreshPolicy}
-							/>
-						</Suspense>
-					</motion.div>
-				) : centerView === 'exports' ? (
-					<motion.div
-						key="exports"
-						initial={{ opacity: 0, y: 8 }}
-						animate={{ opacity: 1, y: 0 }}
-						exit={{ opacity: 0, y: 8 }}
-						transition={{ duration: 0.18 }}
-						className="flex flex-col min-h-0 h-full"
-					>
-						<Suspense fallback={<AdvancedSurfaceFallback label="Loading exports..." />}>
-							<TimetableExportsPane
-								schoolId={defaultSchoolId}
-								schoolYearId={schoolYearId}
-								runId={exportRunId ?? draft?.runId ?? null}
-								termFilter={exportTermFilter}
-								yearLabel={exportYearLabel}
-								viewMode={exportViewMode}
-								entityFilter={exportEntityFilter}
-								hasGeneratedRun={draft != null}
 							/>
 						</Suspense>
 					</motion.div>

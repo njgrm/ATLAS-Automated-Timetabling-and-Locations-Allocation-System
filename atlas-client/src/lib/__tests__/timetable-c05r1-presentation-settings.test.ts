@@ -82,6 +82,11 @@ test('the passive read loads the effective profile without a write', async () =>
 		asdsName: '',
 		asdsTitle: 'Assistant Schools Division Superintendent',
 		footerText: 'For every learner, we rise!',
+		officialSchoolName: '',
+		headerLine: '',
+		regionLine: '',
+		divisionLine: '',
+		districtLine: '',
 	});
 });
 
@@ -122,30 +127,18 @@ test('a stale revision surfaces the typed CAS error', async () => {
 	);
 });
 
-test('the editor is reachable from the Simple Timetable download area', () => {
-	const descriptor = { kind: 'class-program' as const, url: '/u', filename: 'class-program-SY2026-2027-term1.xlsx', termIndex: 1 };
+test('the editor is reachable from the official print panel', () => {
 	const html = renderToStaticMarkup(createElement(SimpleExportMenu, {
-		summary: descriptor,
-		classProgram: descriptor,
-		teacherProgram: { ...descriptor, kind: 'teacher-program', filename: 'teacher-program-501-SY2026-2027-term1.docx' },
-		showTeacherProgram: true,
-		needsTerm: false,
-		exportingKind: null,
-		onExport: () => {},
-		onOpenPresentationSettings: () => {},
+		onOpenPrintSchedules: () => {},
+		onOpenOfficeData: () => {},
 	}));
-	assert.match(html, /data-testid="timetable-simple-export-trigger"/, 'the official download menu still renders');
-
-	// The menu content is only mounted when open; the entry and its wiring are
-	// asserted from the production source.
-	const controls = source('src/components/timetable/simple/SimpleBeneficiaryControls.tsx');
-	assert.match(controls, /data-testid="timetable-simple-export-signatories"/, 'the download menu exposes the signatory editor entry');
-	assert.match(controls, /Teacher program signatories/, 'the entry is labeled');
-	assert.match(controls, /onOpenPresentationSettings/, 'the entry dispatches the settings callback');
-
+	assert.match(html, /Print schedules/);
+	const printDialog = source('src/components/timetable/simple/SchedulerPrintDialog.tsx');
+	assert.match(printDialog, /Header and signatories/);
+	assert.match(printDialog, /onOpenPresentationSettings/);
 	const header = source('src/components/timetable/TimetableSimpleHeader.tsx');
 	assert.match(header, /ExportPresentationSettingsDialog/, 'the header renders the editor');
-	assert.match(header, /onOpenPresentationSettings=\{\(\) => setPresentationSettingsOpen\(true\)\}/, 'the menu opens the editor');
+	assert.match(header, /onOpenPresentationSettings=\{\(\) => setPresentationSettingsOpen\(true\)\}/, 'the print panel opens the editor');
 	assert.match(header, /schoolId=\{context\.schoolId\}/, 'the editor is bound to the resolved school');
 	assert.match(header, /schoolYearId=\{context\.schoolYearId\}/, 'the editor is bound to the resolved school year');
 });

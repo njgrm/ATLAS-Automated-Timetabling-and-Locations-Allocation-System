@@ -13,7 +13,7 @@ test('direct timetable lifecycle routes resolve their bounded loading copy', () 
 	assert.equal(resolveTimetableLoadingIntent('/timetable/setup')?.title, 'Check schedule information');
 	assert.equal(resolveTimetableLoadingIntent('/timetable/policies')?.title, 'Scheduling policies');
 	assert.equal(resolveTimetableLoadingIntent('/timetable/runs')?.title, 'Generation history');
-	assert.equal(resolveTimetableLoadingIntent('/timetable/exports')?.title, 'Exports');
+	assert.equal(resolveTimetableLoadingIntent('/timetable/exports'), null, 'legacy exports redirects into the schedule shell instead of a duplicate loading page');
 	assert.equal(resolveTimetableLoadingIntent('/timetable'), null, 'the generic schedule keeps the standard skeleton');
 });
 

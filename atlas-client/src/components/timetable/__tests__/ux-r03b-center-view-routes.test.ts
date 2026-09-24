@@ -61,8 +61,9 @@ test('UX-R03b row 1: each new route resolves to its own center view, with traili
 	// UX-R03e — runs and setup are real routed sub-pages now.
 	assert.equal(resolveTimetableRouteView('/timetable/runs'), 'runs');
 	assert.equal(resolveTimetableRouteView('/timetable/setup'), 'setup');
-	// UX-R03c — exports is a real routed sub-page now; UX-R03e routes runs and setup too.
-	assert.equal(resolveTimetableRouteView('/timetable/exports'), 'exports');
+	// Legacy exports redirects to the schedule shell; it is no longer a center sub-page.
+	assert.equal(resolveTimetableRouteView('/timetable/exports'), 'schedule');
+	assert.doesNotMatch(source('src/components/timetable/CenterWorkspace.tsx'), /centerView === 'exports'/);
 	assert.equal(resolveTimetableRouteView('/timetable/anything-else'), 'schedule');
 });
 
@@ -187,7 +188,7 @@ test('UX-R03b row 5: child navigations cannot unmount the shell or issue data re
 	const sync = source('src/components/timetable/TimetableRouteViewSync.tsx');
 	assert.match(sync, /return null;/);
 	assert.doesNotMatch(sync, /fetch\(|axios|useQuery|useMutation|XMLHttpRequest|atlasApi/);
-	assert.match(sync, /\}, \[pathname\]\);/);
+	assert.match(sync, /\}, \[pathname, search, hash, navigate\]\);/);
 	// No sibling flat timetable/* route may exist: a sibling would mount a second
 	// shell (remount + refetch) instead of reusing the nested one.
 	const app = source('src/App.tsx');

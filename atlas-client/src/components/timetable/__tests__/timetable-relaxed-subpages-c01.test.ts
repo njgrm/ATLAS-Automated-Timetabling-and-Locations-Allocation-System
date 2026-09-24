@@ -7,7 +7,7 @@ test('TIMETABLE-RELAXED-SUBPAGES-C01: only schedule and pre-generation retain sc
 	assert.equal(isTimetableSchedulerView('schedule'), true);
 	assert.equal(isTimetableSchedulerView('pre-generation'), true);
 
-	for (const view of ['policy', 'map', 'manual-edit', 'building', 'exports', 'runs', 'setup']) {
+	for (const view of ['policy', 'map', 'manual-edit', 'building', 'runs', 'setup']) {
 		assert.equal(isTimetableSchedulerView(view), false, `${view} must use its own relaxed sub-page shell`);
 	}
 });
@@ -22,7 +22,7 @@ test('TIMETABLE-RELAXED-SUBPAGES-C01: workspace gates full scheduler header and 
 	assert.match(workspace, /showSchedulerChrome \? \(layoutMode === 'simple' \?/);
 
 	const center = readFileSync(resolve(import.meta.dirname, '..', 'CenterWorkspace.tsx'), 'utf8');
-	for (const view of ['policy', 'exports', 'runs', 'setup']) {
+	for (const view of ['policy', 'runs', 'setup']) {
 		assert.match(center, new RegExp(`centerView === '${view}'`), `${view} must have an explicit non-grid branch`);
 	}
 	assert.match(center, /<TimetableGrid/);

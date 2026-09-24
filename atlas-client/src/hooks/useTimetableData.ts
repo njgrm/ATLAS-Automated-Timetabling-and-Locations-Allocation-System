@@ -270,11 +270,11 @@ type UseTimetableDataInput = {
 
 	isLeftCollapsed: boolean;
 	leftPanelRef: React.RefObject<ImperativePanelHandle | null>;
-	centerView: 'schedule' | 'pre-generation' | 'policy' | 'manual-edit' | 'map' | 'building' | 'exports' | 'runs' | 'setup';
+	centerView: 'schedule' | 'pre-generation' | 'policy' | 'manual-edit' | 'map' | 'building' | 'runs' | 'setup';
 	preGenOnboarding: boolean;
 	preGenMapContext: boolean;
 	setPreGenMapContext: React.Dispatch<React.SetStateAction<boolean>>;
-	setCenterView: React.Dispatch<React.SetStateAction<'schedule' | 'pre-generation' | 'policy' | 'manual-edit' | 'map' | 'building' | 'exports' | 'runs' | 'setup'>>;
+	setCenterView: React.Dispatch<React.SetStateAction<'schedule' | 'pre-generation' | 'policy' | 'manual-edit' | 'map' | 'building' | 'runs' | 'setup'>>;
 	setMapBuildingId: React.Dispatch<React.SetStateAction<number | null>>;
 	setMapRoomId: React.Dispatch<React.SetStateAction<number | null>>;
 	switchCenterViewWithGuard: (action: () => void) => void;

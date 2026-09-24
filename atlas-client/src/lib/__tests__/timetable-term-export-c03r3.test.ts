@@ -78,32 +78,16 @@ test('C03R3: every beneficiary download failure renders a visible retryable bann
 	);
 });
 
-test('C03R3: a pending download marks the export control busy', () => {
-	const idle = renderToStaticMarkup(
-		createElement(SimpleExportMenu, {
-			summary: SUMMARY,
-			classProgram: CLASS_PROGRAM,
-			teacherProgram: TEACHER_PROGRAM,
-			showTeacherProgram: true,
-			needsTerm: false,
-			exportingKind: null,
-			onExport: () => {},
-		}),
-	);
-	assert.equal(attr(tagFor(idle, 'timetable-simple-export-trigger'), 'data-export-busy'), 'false');
-
-	const busy = renderToStaticMarkup(
-		createElement(SimpleExportMenu, {
-			summary: SUMMARY,
-			classProgram: CLASS_PROGRAM,
-			teacherProgram: TEACHER_PROGRAM,
-			showTeacherProgram: true,
-			needsTerm: false,
-			exportingKind: 'summary-teacher-schedule',
-			onExport: () => {},
-		}),
-	);
-	assert.equal(attr(tagFor(busy, 'timetable-simple-export-trigger'), 'data-export-busy'), 'true', 'a pending download must mark the control busy so every download is disabled');
+test('C03R3: print panel and Excel working-data entry have separate labeled routes', () => {
+	const markup = renderToStaticMarkup(createElement(SimpleExportMenu, {
+		onOpenPrintSchedules: () => {},
+		onOpenOfficeData: () => {},
+	}));
+	assert.ok(markup.includes('timetable-open-print-schedules'));
+	assert.ok(markup.includes('timetable-open-office-working-data'));
+	assert.match(markup, /Print schedules/);
+	assert.match(markup, /Office working data/);
+	assert.doesNotMatch(markup, /Download beneficiary outputs|Beneficiary downloads/);
 });
 
 test('C03R3: a non-2xx official export rejects with the server message and dispatches no download', async () => {

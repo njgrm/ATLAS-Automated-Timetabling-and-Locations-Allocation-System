@@ -262,7 +262,7 @@ test('B3 first paint: the shell, the labelled sub-nav and the skeleton all rende
 	assert.match(markup, /data-testid="timetable-first-paint"/, 'the first-paint shell marker renders');
 	assert.match(markup, /data-testid="timetable-sub-nav"/, 'the sub-nav is visible immediately');
 	// Every labelled destination is reachable while the grid is still loading.
-	for (const key of ['schedule', 'draft', 'setup', 'policies', 'runs', 'exports']) {
+	for (const key of ['schedule', 'draft', 'setup', 'policies', 'runs']) {
 		assert.match(markup, new RegExp(`data-testid="timetable-sub-nav-${key}"`), `sub-nav ${key} must be visible on first paint`);
 	}
 	assert.match(markup, /Loading timetable:/, 'the honest loading copy renders');
@@ -425,7 +425,8 @@ test('B5 cap guard: every React component this range touched stays inside the 10
 		'src/components/timetable/ScheduleReviewWorkspaceSummaryStats.tsx',
 		'src/components/timetable/ScheduleReviewWorkspaceTaskModes.tsx',
 		'src/components/timetable/TimetableAdvancedHeaderHelp.tsx',
-		'src/components/timetable/TimetableExportsPane.tsx',
+		'src/components/timetable/simple/SchedulerPrintDialog.tsx',
+		'src/components/timetable/simple/SchedulerExportCenterDialog.tsx',
 		'src/components/timetable/TimetableGrid.tsx',
 		'src/components/timetable/TimetableGridConflictBadge.tsx',
 		'src/components/timetable/TimetableSetupPane.tsx',

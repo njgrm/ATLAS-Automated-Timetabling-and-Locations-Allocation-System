@@ -12,6 +12,8 @@
 
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
+import { mkdir, writeFile } from 'node:fs/promises';
+import { resolve, join } from 'node:path';
 import test from 'node:test';
 
 process.env.JWT_SECRET = process.env.JWT_SECRET || 'tt-output-c03r-route-fixture';
@@ -22,6 +24,7 @@ const RUN_ID = 42;
 
 const SECTIONS = [
 	{ id: 1, externalId: 701, name: '7-Rizal', gradeLevelId: 7, gradeLevelName: 'Grade 7', programType: 'REGULAR', enrolledCount: 2, isActiveForScheduling: true, isStale: false },
+	{ id: 2, externalId: 702, name: '7-Zamora', gradeLevelId: 7, gradeLevelName: 'Grade 7', programType: 'REGULAR', enrolledCount: 2, isActiveForScheduling: true, isStale: false },
 ];
 let activeExportSections: typeof SECTIONS = SECTIONS;
 const FACULTY = [
@@ -57,6 +60,7 @@ const CLASS_PROGRAM_SLOTS = [
 const ENTRIES = [
 	{ entryId: 'mon', sectionId: 701, subjectId: 11, facultyId: 501, roomId: 601, day: 'MONDAY', startTime: '06:00', endTime: '06:45', durationMinutes: 45, termIndex: 1 },
 	{ entryId: 'tue', sectionId: 701, subjectId: 12, facultyId: 502, roomId: 602, day: 'TUESDAY', startTime: '06:00', endTime: '06:45', durationMinutes: 45, termIndex: 1 },
+	{ entryId: 'wed', sectionId: 702, subjectId: 11, facultyId: 502, roomId: 602, day: 'WEDNESDAY', startTime: '06:45', endTime: '07:30', durationMinutes: 45, termIndex: 1 },
 ];
 
 /**
@@ -217,7 +221,7 @@ test.before(async () => {
 	if (!harnessReady) return;
 	process.env.ENROLLPRO_SERVICE_TOKEN = 'test-only-service-token';
 	globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
-		if (String(input).includes('/integration/v1/sections/701/learners')) {
+		if (/\/integration\/v1\/sections\/(?:701|702)\/learners/.test(String(input))) {
 			return new Response(JSON.stringify({ data: [{ learner: { sex: 'M' } }, { learner: { sex: 'F' } }], meta: { total: 2, totalPages: 1 } }), { status: 200 });
 		}
 		return nativeFetch(input, init);
@@ -334,7 +338,7 @@ test('scheduler may read same-school exports and receives reconciled M/F/T total
 	const previousToken = process.env.ENROLLPRO_SERVICE_TOKEN;
 	process.env.ENROLLPRO_SERVICE_TOKEN = 'test-only-service-token';
 	globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
-		if (String(input).includes('/integration/v1/sections/701/learners')) {
+		if (/\/integration\/v1\/sections\/(?:701|702)\/learners/.test(String(input))) {
 			assert.match(String(new Headers(init?.headers).get('authorization')), /^Bearer test-only-service-token$/);
 			return new Response(JSON.stringify({ data: [{ learner: { sex: 'M' } }, { learner: { sex: 'F' } }], meta: { total: 2, totalPages: 1 } }), { status: 200 });
 		}
@@ -535,6 +539,93 @@ test('mounted teacher-program.docx returns a real DOCX for a same-school actor w
 	assert.equal(calls.some((call) => WRITE_METHODS.has(call.method)), false, 'route must perform zero writes');
 });
 
+test('mounted print-options returns same-run selected-term searchable entities with zero writes', { skip: harnessSkip }, async () => {
+	calls.length = 0;
+	const response = await fetch(`${baseUrl}/api/v1/generation/${SCHOOL_ID}/${SCHOOL_YEAR_ID}/runs/${RUN_ID}/print-options?termIndex=1`, {
+		headers: { Authorization: `Bearer ${authToken(SCHOOL_ID)}` },
+	});
+	assert.equal(response.status, 200);
+	const options = await response.json() as any;
+	assert.equal(options.runId, RUN_ID);
+	assert.equal(options.termIndex, 1);
+	assert.deepEqual(options.grades.map((item: any) => item.value), [7]);
+	assert.deepEqual(options.sections.map((item: any) => item.value), [701, 702]);
+	assert.deepEqual(options.teachers.map((item: any) => item.value), [501, 502]);
+	assert.deepEqual(options.rooms.map((item: any) => item.value), [601, 602]);
+	assert.equal(calls.some((call) => WRITE_METHODS.has(call.method)), false);
+});
+
+test('mounted multi-entity print ZIP validates the complete set before rendering and emits one archive', { skip: harnessSkip }, async () => {
+	const headers = { Authorization: `Bearer ${authToken(SCHOOL_ID)}`, 'Content-Type': 'application/json' };
+	calls.length = 0;
+	const malformed = await fetch(`${baseUrl}/api/v1/generation/${SCHOOL_ID}/${SCHOOL_YEAR_ID}/runs/${RUN_ID}/print-schedules.zip`, {
+		method: 'POST', headers, body: JSON.stringify({ termIndex: 1, program: 'room', ids: [601, true] }),
+	});
+	assert.equal(malformed.status, 400, 'non-numeric JSON IDs must not be coerced into entity IDs');
+	assert.equal((await malformed.json() as any).code, 'INVALID_PRINT_ENTITY');
+	assert.equal(malformed.headers.get('content-disposition'), null);
+	assert.equal(calls.some((call) => WRITE_METHODS.has(call.method)), false);
+
+	calls.length = 0;
+	const invalid = await fetch(`${baseUrl}/api/v1/generation/${SCHOOL_ID}/${SCHOOL_YEAR_ID}/runs/${RUN_ID}/print-schedules.zip`, {
+		method: 'POST', headers, body: JSON.stringify({ termIndex: 1, program: 'room', ids: [601, 999] }),
+	});
+	assert.equal(invalid.status, 404);
+	assert.equal(invalid.headers.get('content-disposition'), null);
+	assert.equal(calls.some((call) => WRITE_METHODS.has(call.method)), false);
+
+	calls.length = 0;
+	const valid = await fetch(`${baseUrl}/api/v1/generation/${SCHOOL_ID}/${SCHOOL_YEAR_ID}/runs/${RUN_ID}/print-schedules.zip`, {
+		method: 'POST', headers, body: JSON.stringify({ termIndex: 1, program: 'room', ids: [601, 602] }),
+	});
+	assert.equal(valid.status, 200);
+	assert.match(String(valid.headers.get('content-type')), /application\/zip/);
+	assert.match(String(valid.headers.get('content-disposition')), /room-programs-SY2026-2027-term1\.zip/);
+	const archive = Buffer.from(await valid.arrayBuffer());
+	assert.equal(archive.subarray(0, 2).toString('ascii'), 'PK');
+	const { default: JSZip } = await import('jszip');
+	const parsed = await (JSZip as any).loadAsync(archive);
+	assert.deepEqual(Object.keys(parsed.files).filter((name: string) => name.endsWith('.docx')).sort(), [
+		'room-program-601-SY2026-2027-term1.docx', 'room-program-602-SY2026-2027-term1.docx',
+	]);
+	assert.equal(calls.some((call) => WRITE_METHODS.has(call.method)), false);
+});
+
+test('optional Word-render fixtures exercise all four direct program builders', { skip: harnessSkip || !process.env.SCHEDULER_PRINT_RENDER_DIR }, async () => {
+	const outputDir = resolve(process.env.SCHEDULER_PRINT_RENDER_DIR!);
+	await mkdir(outputDir, { recursive: true });
+	const headers = { Authorization: `Bearer ${authToken(SCHOOL_ID)}` };
+	const paths = [
+		['grade-program-G7.docx', `/export/class-program.docx?termIndex=1&gradeLevel=7`],
+		['section-program-701.docx', `/export/section-program.docx?termIndex=1&sectionId=701`],
+		['teacher-program-501.docx', `/export/teacher-program.docx?facultyId=501&termIndex=1`],
+		['room-program-601.docx', `/export/room-program.docx?termIndex=1&roomId=601`],
+	] as const;
+	calls.length = 0;
+	for (const [filename, path] of paths) {
+		const response = await fetch(`${baseUrl}/api/v1/generation/${SCHOOL_ID}/${SCHOOL_YEAR_ID}/runs/${RUN_ID}${path}`, { headers });
+		assert.equal(response.status, 200, `${filename} route should return a renderable document`);
+		const content = Buffer.from(await response.arrayBuffer());
+		assert.equal(content.subarray(0, 2).toString('ascii'), 'PK');
+		await writeFile(join(outputDir, filename), content);
+		if (filename.startsWith('section-') || filename.startsWith('room-') || filename.startsWith('grade-')) {
+			const { default: JSZip } = await import('jszip');
+			const zip = await (JSZip as any).loadAsync(content);
+			const xml = await zip.file('word/document.xml')?.async('string') as string;
+			assert.match(xml, /<w:pgSz w:w="15840" w:h="12240" w:orient="landscape"\/>/, `${filename} should be Letter landscape`);
+		}
+		if (filename === 'grade-program-G7.docx') {
+			const { default: JSZip } = await import('jszip');
+			const zip = await (JSZip as any).loadAsync(content);
+			const xml = await zip.file('word/document.xml')?.async('string') as string;
+			assert.match(xml, /7-Rizal/);
+			assert.match(xml, /7-Zamora/);
+			assert.match(xml, /ADVISER/);
+		}
+	}
+	assert.equal(calls.some((call) => WRITE_METHODS.has(call.method)), false, 'fixture generation must perform zero database writes');
+});
+
 test('mounted teacher-program.docx fails closed without a term and across schools', { skip: harnessSkip }, async () => {
 	calls.length = 0;
 	const noTerm = await fetch(`${baseUrl}/api/v1/generation/${SCHOOL_ID}/${SCHOOL_YEAR_ID}/runs/${RUN_ID}/export/teacher-program.docx?facultyId=501`, {
@@ -613,11 +704,13 @@ test('mounted room-program.xlsx returns a scoped workbook with identity, zero wr
 // ─── C05 M14 — mounted authentication and role matrix across official exports ───
 
 test('official export routes fail closed on missing, invalid, non-privileged, and raw system-token callers', { skip: harnessSkip }, async () => {
-	const exportPaths = [
-		`${baseUrl}/api/v1/generation/${SCHOOL_ID}/${SCHOOL_YEAR_ID}/runs/${RUN_ID}/export/summary-teacher-schedule.xlsx?termIndex=1`,
-		`${baseUrl}/api/v1/generation/${SCHOOL_ID}/${SCHOOL_YEAR_ID}/runs/${RUN_ID}/export/class-program.xlsx?termIndex=1`,
-		`${baseUrl}/api/v1/generation/${SCHOOL_ID}/${SCHOOL_YEAR_ID}/runs/${RUN_ID}/export/teacher-program.docx?facultyId=501&termIndex=1`,
-		`${baseUrl}/api/v1/generation/${SCHOOL_ID}/${SCHOOL_YEAR_ID}/runs/${RUN_ID}/export/room-program.xlsx?termIndex=1`,
+	const exportRequests = [
+		{ url: `${baseUrl}/api/v1/generation/${SCHOOL_ID}/${SCHOOL_YEAR_ID}/runs/${RUN_ID}/export/summary-teacher-schedule.xlsx?termIndex=1`, method: 'GET' },
+		{ url: `${baseUrl}/api/v1/generation/${SCHOOL_ID}/${SCHOOL_YEAR_ID}/runs/${RUN_ID}/export/class-program.xlsx?termIndex=1`, method: 'GET' },
+		{ url: `${baseUrl}/api/v1/generation/${SCHOOL_ID}/${SCHOOL_YEAR_ID}/runs/${RUN_ID}/export/teacher-program.docx?facultyId=501&termIndex=1`, method: 'GET' },
+		{ url: `${baseUrl}/api/v1/generation/${SCHOOL_ID}/${SCHOOL_YEAR_ID}/runs/${RUN_ID}/export/room-program.xlsx?termIndex=1`, method: 'GET' },
+		{ url: `${baseUrl}/api/v1/generation/${SCHOOL_ID}/${SCHOOL_YEAR_ID}/runs/${RUN_ID}/print-options?termIndex=1`, method: 'GET' },
+		{ url: `${baseUrl}/api/v1/generation/${SCHOOL_ID}/${SCHOOL_YEAR_ID}/runs/${RUN_ID}/print-schedules.zip`, method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ termIndex: 1, program: 'room', ids: [601, 602] }) },
 	];
 	const cases: Array<{ label: string; headers: Record<string, string>; status: number; code: string }> = [
 		{ label: 'missing JWT', headers: {}, status: 401, code: 'NO_TOKEN' },
@@ -626,14 +719,15 @@ test('official export routes fail closed on missing, invalid, non-privileged, an
 		{ label: 'raw system token', headers: { Authorization: 'Bearer atlas-system-raw-token' }, status: 401, code: 'INVALID_TOKEN' },
 	];
 
-	for (const target of exportPaths) {
+	for (const request of exportRequests) {
 		for (const testCase of cases) {
 			calls.length = 0;
-			const response = await fetch(target, { headers: testCase.headers });
-			assert.equal(response.status, testCase.status, `${testCase.label} must be rejected on ${target}`);
-			assert.equal((await response.json() as any).code, testCase.code, `${testCase.label} must return the typed code on ${target}`);
+			const headers = { ...request.headers, ...testCase.headers };
+			const response = await fetch(request.url, { method: request.method, headers, body: request.body });
+			assert.equal(response.status, testCase.status, `${testCase.label} must be rejected on ${request.url}`);
+			assert.equal((await response.json() as any).code, testCase.code, `${testCase.label} must return the typed code on ${request.url}`);
 			assert.equal(response.headers.get('content-disposition'), null, `${testCase.label} must not receive a file`);
-			assert.equal(calls.length, 0, `${testCase.label} must dispatch zero downstream reads/writes on ${target}`);
+			assert.equal(calls.length, 0, `${testCase.label} must dispatch zero downstream reads/writes on ${request.url}`);
 		}
 	}
 });

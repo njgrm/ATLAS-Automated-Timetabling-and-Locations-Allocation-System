@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import test from 'node:test';
 
-import { resolveTimetableRouteForView, resolveTimetableRouteView, resolveUrlRestoreTarget } from '../TimetableRouteViewSync';
+import { resolveLegacyExportsRedirect, resolveTimetableRouteForView, resolveTimetableRouteView, resolveUrlRestoreTarget } from '../TimetableRouteViewSync';
 import { resolveRouteChrome } from '../../app-shell/navigation';
 
 const clientRoot = resolve(import.meta.dirname, '../../../..');
@@ -14,6 +14,15 @@ function source(path: string): string {
 function lineCount(path: string): number {
 	return source(path).split('\n').length;
 }
+
+test('legacy exports URL redirects to the schedule shell, opens print, and preserves every existing query field and hash', () => {
+	assert.equal(
+		resolveLegacyExportsRedirect('/timetable/exports', '?runId=317&termIndex=2&entity=teacher%3A502&filter=all', '#grid'),
+		'/timetable?runId=317&termIndex=2&entity=teacher%3A502&filter=all&print=1#grid',
+	);
+	assert.equal(resolveTimetableRouteView('/timetable/exports'), 'schedule');
+	assert.equal(resolveLegacyExportsRedirect('/timetable/exports', '?print=0&termIndex=3', ''), '/timetable?print=1&termIndex=3');
+});
 
 // --- Row 1: routes exist (index + policies share one mounted shell) ---
 
@@ -51,7 +60,7 @@ test('UX-R03a row 2: child navigations cannot unmount the shell or issue data re
 	assert.doesNotMatch(sync, /fetch\(|axios|useQuery|useMutation|XMLHttpRequest/);
 	// The only effect is keyed on the pathname, so in-app view changes and
 	// re-renders never retrigger it.
-	assert.match(sync, /\}, \[pathname\]\);/);
+	assert.match(sync, /\}, \[pathname, search, hash, navigate\]\);/);
 	// No sibling flat timetable/policies route may exist: a sibling would mount
 	// a second shell (remount + refetch) instead of reusing the nested one.
 	const app = source('src/App.tsx');
@@ -70,7 +79,7 @@ test('UX-R03a row 2: route to view mapping keeps the schedule surface for every 
 	assert.equal(resolveTimetableRouteView('/timetable/setup'), 'setup');
 	assert.equal(resolveTimetableRouteView('/timetable/setup/'), 'setup');
 	// UX-R03c — exports is a real routed sub-page now; UX-R03e routes runs and setup too.
-	assert.equal(resolveTimetableRouteView('/timetable/exports'), 'exports');
+	assert.equal(resolveTimetableRouteView('/timetable/exports'), 'schedule');
 });
 
 // --- Row 3: the guard is never bypassed ---
