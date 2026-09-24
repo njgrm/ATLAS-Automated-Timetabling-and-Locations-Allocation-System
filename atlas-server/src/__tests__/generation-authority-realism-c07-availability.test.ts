@@ -8,8 +8,8 @@
  * the configured database: it provisions a NEW guarded disposable database
  * (`atlas_restore_drill_<yyyymmdd>_c07<rand>`), applies the canonical committed
  * schema ONLY inside it, proves that the availability freshness domain binds the
- * real `faculty_preferences` + `preference_time_slots` rows (a persisted
- * availability edit changes the fingerprint and compares as STALE with
+ * real `faculty_availabilities` + `faculty_availability_slots` rows (a persisted
+ * reviewed availability edit changes the fingerprint and compares as STALE with
  * `availability` in `changedDomains`), and drops the database in `finally`.
  *
  * SCOPE NOTE (honest): this tier proves the availability DOMAIN binding on a
@@ -53,7 +53,7 @@ function psql(args: string[], env: NodeJS.ProcessEnv): string {
 	return execFileSync(PSQL, args, { env, stdio: 'pipe' }).toString().trim();
 }
 
-test('C07-S11. the availability freshness domain binds real faculty_preferences/preference_time_slots rows on a disposable PostgreSQL database', { skip: RUNNABLE ? false : 'DATABASE_URL is not configured' }, async () => {
+test('C07-S11. the availability freshness domain binds real faculty_availabilities/faculty_availability_slots rows on a disposable PostgreSQL database', { skip: RUNNABLE ? false : 'DATABASE_URL is not configured' }, async () => {
 	const source = new URL(SOURCE_URL!);
 	const stamp = new Date().toISOString().slice(0, 10).replace(/-/g, '');
 	const disposableName = `atlas_restore_drill_${stamp}_c07${randomBytes(4).toString('hex')}`;
@@ -95,8 +95,8 @@ test('C07-S11. the availability freshness domain binds real faculty_preferences/
 		const schoolCount = await prisma.school.count();
 		const countRows = async (sql: string): Promise<Array<{ count: bigint }>> => (await prisma.$queryRawUnsafe(sql)) as Array<{ count: bigint }>;
 		const migrationCount = await countRows('SELECT count(*)::bigint AS count FROM _prisma_migrations');
-		const [{ count: preferenceCountBefore }] = await countRows('SELECT count(*)::bigint AS count FROM faculty_preferences');
-		console.log(`[C07-S11] target=${disposableName} host=${host} port=${port} class=DISPOSABLE schoolCount=${schoolCount} migrationCount=${Number(migrationCount[0].count)} preferences=${Number(preferenceCountBefore)}`);
+		const [{ count: availabilityCountBefore }] = await countRows(`SELECT count(*)::bigint AS count FROM faculty_availabilities`);
+		console.log(`[C07-S11] target=${disposableName} host=${host} port=${port} class=DISPOSABLE schoolCount=${schoolCount} migrationCount=${Number(migrationCount[0].count)} availabilities=${Number(availabilityCountBefore)}`);
 		assert.equal(schoolCount, 0, 'the disposable database must start empty');
 
 		const { computeGenerationInputSnapshot, compareGenerationInputSnapshots, extractGenerationInputSnapshot } = await import('../services/generation-input-snapshot.service.js');
@@ -107,27 +107,53 @@ test('C07-S11. the availability freshness domain binds real faculty_preferences/
 			data: { externalId: 990001, schoolId: school.id, firstName: 'Disposable', lastName: 'Teacher' },
 		});
 
-		// Zero availability rows: the domain still resolves.
+		// R2 (correction): the availability domain is scoped to the RESOLVED ACTIVE
+		// ORDERED TERM, so the disposable fixture must persist a verified ordered
+		// term contract with an active term.
+		await prisma.enrollProSchoolYearMirror.create({
+			data: {
+				schoolId: school.id,
+				enrollProSchoolYearId: 1,
+				yearLabel: '2030-2031',
+				isActive: true,
+				isArchived: false,
+				termContractCachedAt: new Date('2030-01-01T00:00:00Z'),
+				termContractCache: {
+					schoolId: school.id,
+					schoolYear: { id: 1 },
+					format: 'TRIMESTER',
+					terms: [
+						{ identity: 'T1', displayLabel: 'First Trimester', order: 1, startDate: '2030-06-01', endDate: '2030-09-30' },
+						{ identity: 'T2', displayLabel: 'Second Trimester', order: 2, startDate: '2030-10-01', endDate: '2031-01-31' },
+						{ identity: 'T3', displayLabel: 'Third Trimester', order: 3, startDate: '2031-02-01', endDate: '2031-05-31' },
+					],
+					activeTerm: { identity: 'T1', displayLabel: 'First Trimester', order: 1 },
+				},
+			},
+		});
+
+		// Zero availability rows: the domain still resolves for the active term.
 		const before = await computeGenerationInputSnapshot(1, 1, prisma);
 		assert.equal(before.schemaVersion, 3);
 		assert.ok(before.domains.availability, 'availability domain must be emitted');
+		assert.equal(before.domains.availability.signals.availabilityTermIndex, 1, 'the domain is scoped to the resolved active term');
 		const beforeAvailability = before.domains.availability.fingerprint;
-		assert.equal(before.domains.availability.signals.preferenceCount, 0);
-		assert.equal(before.domains.availability.signals.timeSlotCount, 0);
+		assert.equal(before.domains.availability.signals.availabilityCount, 0);
+		assert.equal(before.domains.availability.signals.availabilitySlotCount, 0);
 
-		// ── Persist ONLY an availability row and prove the fingerprint changes ──
-		const preference = await prisma.facultyPreference.create({
-			data: { schoolId: school.id, schoolYearId: 1, facultyId: faculty.id, status: 'SUBMITTED' },
+		// ── Persist ONLY a reviewed availability authority and prove the fingerprint changes ──
+		const availability = await prisma.facultyAvailability.create({
+			data: { schoolId: school.id, schoolYearId: 1, facultyId: faculty.id, termIndex: 1, status: 'REVIEWED' },
 		});
-		await prisma.preferenceTimeSlot.create({
-			data: { preferenceId: preference.id, day: 'MONDAY', startTime: '06:00', endTime: '06:45', preference: 'UNAVAILABLE' },
+		await prisma.facultyAvailabilitySlot.create({
+			data: { availabilityId: availability.id, day: 'MONDAY', startTime: '06:00', endTime: '06:45', state: 'UNAVAILABLE' },
 		});
 
 		const after = await computeGenerationInputSnapshot(1, 1, prisma);
-		assert.equal(after.domains.availability.signals.preferenceCount, 1);
-		assert.equal(after.domains.availability.signals.timeSlotCount, 1);
-		assert.notEqual(after.domains.availability.fingerprint, beforeAvailability, 'a persisted availability edit must change the availability fingerprint');
-		assert.notEqual(after.fingerprint, before.fingerprint, 'a persisted availability edit must change the overall fingerprint');
+		assert.equal(after.domains.availability.signals.availabilityCount, 1);
+		assert.equal(after.domains.availability.signals.availabilitySlotCount, 1);
+		assert.notEqual(after.domains.availability.fingerprint, beforeAvailability, 'a persisted reviewed availability edit must change the availability fingerprint');
+		assert.notEqual(after.fingerprint, before.fingerprint, 'a persisted reviewed availability edit must change the overall fingerprint');
 
 		// ── Compare: the pre-edit snapshot must fail closed as STALE ────────────
 		const runSnapshot = extractGenerationInputSnapshot({ inputSnapshot: before });
@@ -138,10 +164,10 @@ test('C07-S11. the availability freshness domain binds real faculty_preferences/
 		assert.equal(comparison.changedDomains.length, 1, 'only the availability domain changed');
 
 		// Removing the availability row reverts the domain fingerprint.
-		await prisma.preferenceTimeSlot.deleteMany({ where: { preferenceId: preference.id } });
-		await prisma.facultyPreference.deleteMany({ where: { id: preference.id } });
+		await prisma.facultyAvailabilitySlot.deleteMany({ where: { availabilityId: availability.id } });
+		await prisma.facultyAvailability.deleteMany({ where: { id: availability.id } });
 		const reverted = await computeGenerationInputSnapshot(1, 1, prisma);
-		assert.equal(reverted.domains.availability.signals.timeSlotCount, 0);
+		assert.equal(reverted.domains.availability.signals.availabilitySlotCount, 0);
 		assert.equal(reverted.domains.availability.fingerprint, beforeAvailability, 'removing the persisted row restores the pre-edit availability fingerprint');
 	} finally {
 		if (prisma) {

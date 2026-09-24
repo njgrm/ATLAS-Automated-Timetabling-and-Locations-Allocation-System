@@ -1881,6 +1881,28 @@ function buildUnavailableTimeRanges(preferences: FacultyPreferenceInput[]): Map<
 	return ranges;
 }
 
+/**
+ * TEACHER-AVAILABILITY-AUTHORITY-C01: build a time-range lookup for `PREFERRED`
+ * availability. Unlike `UNAVAILABLE`, a `PREFERRED` window is a ranked SOFT
+ * signal — it only orders otherwise-available candidates; it never excludes a
+ * candidate and never changes HARD violation counts.
+ */
+function buildPreferredTimeRanges(preferences: FacultyPreferenceInput[]): Map<number, UnavailableTimeRange[]> {
+	const ranges = new Map<number, UnavailableTimeRange[]>();
+	for (const pref of preferences) {
+		const facultyRanges: UnavailableTimeRange[] = [];
+		for (const ts of pref.timeSlots) {
+			if (ts.preference === 'PREFERRED') {
+				facultyRanges.push({ day: ts.day, startTime: ts.startTime, endTime: ts.endTime });
+			}
+		}
+		if (facultyRanges.length > 0) {
+			ranges.set(pref.facultyId, facultyRanges);
+		}
+	}
+	return ranges;
+}
+
 // ─── Time helper ───
 
 function timeToMinutes(t: string): number {
@@ -2225,6 +2247,18 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 	// Preference lookup
 	const prefLookup = buildPreferenceLookup(preferences, FALLBACK_PERIOD_SLOTS);
 	const unavailableTimeRanges = buildUnavailableTimeRanges(preferences);
+	const preferredTimeRanges = buildPreferredTimeRanges(preferences);
+	/**
+	 * TEACHER-AVAILABILITY-AUTHORITY-C01: the reviewed `PREFERRED` soft rank at a
+	 * concrete slot. Never a HARD exclusion (that is `UNAVAILABLE`).
+	 */
+	const isPreferredAtSlot = (facId: number, day: string, startTime: string, endTime: string): boolean => {
+		const ranges = preferredTimeRanges.get(facId);
+		if (!ranges) return false;
+		const slotStart = timeToMinutes(startTime);
+		const slotEnd = timeToMinutes(endTime);
+		return ranges.some((range) => range.day === day && slotStart < timeToMinutes(range.endTime) && slotEnd > timeToMinutes(range.startTime));
+	};
 
 	// Occupancy trackers
 	const facultyOcc = new OccupancyTracker();
@@ -2735,6 +2769,14 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 				const candidates = isModularUnified
 					? rawCandidates
 					: [...rawCandidates].sort((left, right) => {
+						// TEACHER-AVAILABILITY-AUTHORITY-C01: the reviewed `PREFERRED`
+						// availability is a ranked SOFT signal. It orders candidates
+						// that already passed the load/occupancy/HARD-UNAVAILABLE
+						// filters above; it never excludes and never changes HARD
+						// counts. Per-term load spreading and stable id follow.
+						const leftPreferred = isPreferredAtSlot(left, slotCandidate.day, slot.startTime, slot.endTime) ? 0 : 1;
+						const rightPreferred = isPreferredAtSlot(right, slotCandidate.day, slot.startTime, slot.endTime) ? 0 : 1;
+						if (leftPreferred !== rightPreferred) return leftPreferred - rightPreferred;
 						// Compare per-term load using the term this session would run in,
 						// so the constructor spreads rotation work across teachers within terms.
 						const leftLoad = getFacultyProjectedLoadForTerm(left, sessionTermIndex);

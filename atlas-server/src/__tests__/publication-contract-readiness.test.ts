@@ -252,6 +252,10 @@ function makeRevisionFixture(options: RevisionFixtureOptions = {}) {
 		classTemplateSubject: { aggregate: async () => ({ _count: { _all: 0 }, _max: { id: null, createdAt: null } }) },
 		facultyPreference: { aggregate: zeroAggregate() },
 		preferenceTimeSlot: { aggregate: async () => ({ _count: { _all: 0 }, _max: { id: null, createdAt: null } }) },
+		// TEACHER-AVAILABILITY-AUTHORITY-C01: the availability domain now reads the
+		// reviewed `FacultyAvailability` authority.
+		facultyAvailability: { aggregate: zeroAggregate() },
+		facultyAvailabilitySlot: { aggregate: async () => ({ _count: { _all: 0 }, _max: { id: null, createdAt: null } }) },
 	};
 	let lock = Promise.resolve();
 	const client: any = {
@@ -327,6 +331,9 @@ async function makeRoutePublishClient() {
 		classTemplateSubject: { aggregate: async () => ({ _count: { _all: 0 }, _max: { id: null, createdAt: null } }) },
 		facultyPreference: { aggregate: zeroAggregate() },
 		preferenceTimeSlot: { aggregate: async () => ({ _count: { _all: 0 }, _max: { id: null, createdAt: null } }) },
+		// TEACHER-AVAILABILITY-AUTHORITY-C01: availability domain source.
+		facultyAvailability: { aggregate: zeroAggregate() },
+		facultyAvailabilitySlot: { aggregate: async () => ({ _count: { _all: 0 }, _max: { id: null, createdAt: null } }) },
 		schoolYearOffering: { aggregate: async () => ({ _count: { _all: 0 }, _max: { id: null, version: null, updatedAt: null } }) },
 		offeringTermAssignment: { aggregate: async () => ({ _count: { _all: 0 }, _max: { id: null, createdAt: null } }) },
 		generationRun: {
@@ -480,6 +487,9 @@ async function main() {
 		classTemplateSubject: { aggregate: async () => ({ _count: { _all: 0 }, _max: { id: null, createdAt: null } }) },
 		facultyPreference: { aggregate: zeroRevisionAggregate() },
 		preferenceTimeSlot: { aggregate: async () => ({ _count: { _all: 0 }, _max: { id: null, createdAt: null } }) },
+		// TEACHER-AVAILABILITY-AUTHORITY-C01: availability domain source.
+		facultyAvailability: { aggregate: zeroRevisionAggregate() },
+		facultyAvailabilitySlot: { aggregate: async () => ({ _count: { _all: 0 }, _max: { id: null, createdAt: null } }) },
 	};
 	const revisionClient: any = { $transaction: async (work: any) => work(revisionTx) };
 	const revisionInput = {

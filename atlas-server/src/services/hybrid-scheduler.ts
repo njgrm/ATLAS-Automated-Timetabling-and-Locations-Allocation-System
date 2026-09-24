@@ -646,6 +646,11 @@ export function repairUnassignedByEjection(
 	const roomHas = (roomId: number, day: string, startTime: string, endTime: string): boolean =>
 		busyHas(roomBusy, roomId, day, startTime, endTime);
 
+	// TEACHER-AVAILABILITY-AUTHORITY-C01: `input.preferences` is the normalised
+	// review of the term-scoped `FacultyAvailability` authority (already limited
+	// to REVIEWED rows for the active term by the generation preflight). The
+	// `UNAVAILABLE`-only read below is the HARD exclusion; `PREFERRED` is a
+	// ranked SOFT signal handled by the constructor candidate ordering.
 	const unavailableByFaculty = new Map<number, Array<{ day: string; startTime: string; endTime: string }>>();
 	for (const preference of input.preferences ?? []) {
 		for (const slot of preference.timeSlots ?? []) {

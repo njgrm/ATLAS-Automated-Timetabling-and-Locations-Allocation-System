@@ -125,7 +125,10 @@ function buildTriggerClient(options: TriggerMockOptions = {}) {
 		enrollProSchoolYearMirror: {
 			findMany: async () => [{ enrollProSchoolYearId: SCHOOL_YEAR_ID, yearLabel: '2029-2030' }],
 			findFirst: async () => ({ enrollProSchoolYearId: SCHOOL_YEAR_ID }),
-			findUnique: async () => ({ isActive: true, isArchived: false, termContractCache: { schoolId: SCHOOL_ID, schoolYear: { id: SCHOOL_YEAR_ID }, format: 'TRIMESTER', terms: TERM_CONTRACT.terms }, termContractCachedAt: new Date('2029-01-01') }),
+			// TEACHER-AVAILABILITY-AUTHORITY-C01 (correction R1): the persisted
+			// verified cache must carry the active ordered term; generation now fails
+			// closed rather than run without the term-scoped HARD authority.
+			findUnique: async () => ({ isActive: true, isArchived: false, termContractCache: { schoolId: SCHOOL_ID, schoolYear: { id: SCHOOL_YEAR_ID }, format: 'TRIMESTER', terms: TERM_CONTRACT.terms, activeTerm: TERM_CONTRACT.activeTerm }, termContractCachedAt: new Date('2029-01-01') }),
 		},
 		sectionMirror: { findMany: async () => sectionMirrors, count: async () => sectionMirrors.length, createMany: recordWrite('sectionMirror.createMany') },
 		subject: { findMany: async () => subjects },
@@ -134,6 +137,9 @@ function buildTriggerClient(options: TriggerMockOptions = {}) {
 		room: { findMany: async () => [{ id: 201, type: 'CLASSROOM', isTeachingSpace: true, isSharedFacility: false, capacity: 50, features: [], buildingId: 301, buildingZoneId: 'Z1', building: { gradeScope: [7] } }] },
 		building: { findMany: async () => [{ id: 301, name: 'Building 1', x: 0, y: 0 }] },
 		facultyPreference: { findMany: async () => [] },
+		// TEACHER-AVAILABILITY-AUTHORITY-C01: generation reads the reviewed
+		// term-scoped availability authority.
+		facultyAvailability: { findMany: async () => [] },
 		policySpecialEvent: { findMany: async () => [] },
 		gradeShiftWindow: { findMany: async () => [], createMany: recordWrite('gradeShiftWindow.createMany') },
 		classProgramSlot: {

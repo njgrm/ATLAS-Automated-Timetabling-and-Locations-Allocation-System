@@ -1,3 +1,10 @@
+/**
+ * DEPRECATED (TEACHER-AVAILABILITY-AUTHORITY-C01): the legacy faculty-preference
+ * routes are retained for existing stored data and clients, but they are NO
+ * LONGER a generation consumer. Generation reads the reviewed, term-scoped
+ * availability authority at `/api/v1/faculty-availability`.
+ */
+
 import { Router } from 'express';
 import type { Request, Response, NextFunction } from 'express';
 import { authenticate } from '../middleware/authenticate.js';

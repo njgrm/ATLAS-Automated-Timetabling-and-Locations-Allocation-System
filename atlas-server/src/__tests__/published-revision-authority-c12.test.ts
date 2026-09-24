@@ -209,6 +209,9 @@ function makeFixture(options: FixtureOptions = {}) {
 	tx.classTemplateSubject = { aggregate: async () => ({ _count: { _all: 0 }, _max: { id: null, createdAt: null } }) };
 	tx.facultyPreference = { aggregate: zeroAggregate() };
 	tx.preferenceTimeSlot = { aggregate: async () => ({ _count: { _all: 0 }, _max: { id: null, createdAt: null } }) };
+	// TEACHER-AVAILABILITY-AUTHORITY-C01: availability domain source.
+	tx.facultyAvailability = { aggregate: zeroAggregate() };
+	tx.facultyAvailabilitySlot = { aggregate: async () => ({ _count: { _all: 0 }, _max: { id: null, createdAt: null } }) };
 	const client: any = {
 		...tx,
 		$transaction: async (work: any) => {
