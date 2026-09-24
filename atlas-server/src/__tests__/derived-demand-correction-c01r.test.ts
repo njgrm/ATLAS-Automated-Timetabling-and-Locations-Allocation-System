@@ -152,6 +152,10 @@ function makeClient(state: FakeState) {
 		policySpecialEvent: { aggregate: zeroAggregate },
 		facultyPreference: { aggregate: zeroAggregate },
 		preferenceTimeSlot: { aggregate: zeroAggregate },
+		// TEACHER-AVAILABILITY-AUTHORITY-C01: the `availability` freshness domain is
+		// now sourced from the reviewed `FacultyAvailability` authority.
+		facultyAvailability: { aggregate: zeroAggregate },
+		facultyAvailabilitySlot: { aggregate: zeroAggregate },
 		classTemplate: { aggregate: async () => ({ _count: { _all: 0 }, _max: { id: null, createdAt: null } }) },
 		classTemplateSubject: { aggregate: async () => ({ _count: { _all: 0 }, _max: { id: null, createdAt: null } }) },
 		$queryRawUnsafe: async () => { calls.push('raw'); return [{ teachingLoad: 'tl', policy: 'pl', rooms: 'rm', sections: 'sc', subjects: 'sb' }]; },

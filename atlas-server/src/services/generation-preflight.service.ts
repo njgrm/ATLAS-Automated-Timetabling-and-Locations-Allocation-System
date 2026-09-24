@@ -48,6 +48,7 @@ import type { SectionsByGrade } from './section-adapter.js';
 import { buildSectionRosterIndex, normalizeStoredAssignmentScope } from './faculty-assignment-scope.service.js';
 import { DEFAULT_CONSTRAINT_CONFIG, POLICY_DEFAULTS, computeEffectiveWeeklyTeachingMinutes, resolveMaxConsecutiveTeachingMinutesBeforeBreak, resolveWarningFamilyPolicy } from './scheduling-policy.service.js';
 import { buildWarningWindowAuthority, type CanonicalSlotWindowSource } from './warning-window-authority.service.js';
+import { loadReviewedAvailabilityForTerm } from './faculty-availability.service.js';
 import { getTemplatePeriodProfiles } from './class-template.service.js';
 import {
 	readCanonicalClassProgramSlotsCoverage,
@@ -676,6 +677,11 @@ async function buildGenerationPreflightWithContext(
 		}
 	}
 	for (const blocker of derivedDemandBlockers) blockers.push(classifyDemandBlocker(blocker));
+	// The active ordered term for the availability authority is the SAME verified
+	// authority the derived demand consumed: the caller-provided contract when
+	// present, otherwise the persisted verified cache re-read below.
+	const declaredActiveTermOrder = (dependencies.termContract as { activeTerm?: { order?: unknown } } | undefined)?.activeTerm?.order;
+	let resolvedActiveTermOrder: number | null = Number.isInteger(declaredActiveTermOrder) ? (declaredActiveTermOrder as number) : null;
 	if (derived && !dependencies.termContract && typeof client.enrollProSchoolYearMirror?.findUnique === 'function') {
 		const authorityMirror = await client.enrollProSchoolYearMirror.findUnique({
 			where: { schoolId_enrollProSchoolYearId: { schoolId, enrollProSchoolYearId: schoolYearId } },
@@ -687,6 +693,10 @@ async function buildGenerationPreflightWithContext(
 		// persisted structure the derived demand consumed and compares the two
 		// CANONICAL revisions: canonical ↔ canonical, never cross-namespace.
 		const persistedAuthority = normalizePersistedTermStructure(authorityMirror?.termContractCache, schoolId, schoolYearId);
+		if (resolvedActiveTermOrder == null) {
+			const persistedActiveOrder = (authorityMirror?.termContractCache as { activeTerm?: { order?: unknown } } | null | undefined)?.activeTerm?.order;
+			if (Number.isInteger(persistedActiveOrder)) resolvedActiveTermOrder = persistedActiveOrder as number;
+		}
 		if (!persistedAuthority.ok || persistedAuthority.structure.revision !== derived.termStructure.semanticRevision) {
 			blockers.push({
 				code: 'TERM_AUTHORITY_STALE',
@@ -726,7 +736,6 @@ async function buildGenerationPreflightWithContext(
 		facultySubjectRows,
 		rooms,
 		subjects,
-		preferences,
 		buildings,
 		specialEvents,
 		gradeWindows,
@@ -749,17 +758,6 @@ async function buildGenerationPreflightWithContext(
 				id: true, code: true, name: true, ownerDepartment: true, qualificationPriority: true, minMinutesPerWeek: true,
 				preferredRoomType: true, gradeLevels: true, interSectionEnabled: true, interSectionGradeLevels: true,
 				programScopes: true, allowedSpecializations: true, requiredFeatures: true, modularGroupId: true, modularOrder: true,
-			},
-		}),
-		client.facultyPreference.findMany({
-			where: { schoolId, schoolYearId },
-			select: {
-				facultyId: true,
-				status: true,
-				timeSlots: {
-					select: { day: true, startTime: true, endTime: true, preference: true },
-					orderBy: [{ day: 'asc' }, { startTime: 'asc' }, { endTime: 'asc' }],
-				},
 			},
 		}),
 		client.building.findMany({ where: { schoolId }, select: { id: true, name: true, x: true, y: true } }),
@@ -789,6 +787,19 @@ async function buildGenerationPreflightWithContext(
 			orderBy: [{ gradeLevel: 'asc' }, { startTime: 'asc' }],
 		}),
 	]);
+
+	// TEACHER-AVAILABILITY-AUTHORITY-C01: the SINGLE generation source for a
+	// teacher's UNAVAILABLE (HARD exclusion) and PREFERRED (ranked SOFT) signals
+	// is the reviewed, term-scoped availability authority. The legacy
+	// `facultyPreference` read is retired from generation here. The active term
+	// is the SAME verified ordered-term authority the derived demand consumed;
+	// when it is unresolved the read returns ZERO preferences and the
+	// derived-demand blocker above already fails the preflight closed ΓÇö Term 1 is
+	// never assumed.
+	const availabilityRead = resolvedActiveTermOrder != null
+		? await loadReviewedAvailabilityForTerm(schoolId, schoolYearId, resolvedActiveTermOrder, client)
+		: { ok: false as const, code: 'TERM_AUTHORITY_UNRESOLVED' as const, termIndex: null, preferences: [] };
+	const preferences = availabilityRead.preferences;
 
 	const sectionsByGrade = (sectionMirrorCount > 0
 		? await loadReadOnlySectionsByGrade(schoolId, schoolYearId, client)
@@ -1292,10 +1303,12 @@ export function buildPreflightConstructorInput(
 		preferences: assembly.preferences.map((p: any) => ({
 			facultyId: p.facultyId,
 			status: p.status,
-			// R6: carry the ACTUAL persisted availability authority
-			// (`faculty_preferences` → `preference_time_slots`) verbatim. The former
-			// `timeSlots: []` made the real trigger and the readiness dry run schedule
-			// with no UNAVAILABLE exclusion at all.
+			// TEACHER-AVAILABILITY-AUTHORITY-C01: carry the reviewed,
+			// term-scoped availability authority verbatim. `loadReviewedAvailabilityForTerm`
+			// has already mapped the authority's `state` into the constructor's
+			// `preference` vocabulary (identical closed set), so the HARD
+			// `UNAVAILABLE` exclusion and the ranked `PREFERRED` soft signal reach
+			// the real scheduler unchanged.
 			timeSlots: (p.timeSlots ?? []).map((slot: any) => ({
 				day: String(slot.day),
 				startTime: String(slot.startTime),

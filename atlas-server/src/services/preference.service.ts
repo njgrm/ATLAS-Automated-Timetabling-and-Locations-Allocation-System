@@ -1,6 +1,14 @@
 /**
  * Preference service — faculty preference CRUD and officer monitoring.
  * Business logic only; no transport concerns.
+ *
+ * DEPRECATED (TEACHER-AVAILABILITY-AUTHORITY-C01): the
+ * `FacultyPreference`/`PreferenceTimeSlot` write path is deprecated and is NO
+ * LONGER a generation consumer. Generation reads the reviewed, term-scoped
+ * `FacultyAvailability` authority (`faculty-availability.service.ts`) instead.
+ * These routes are retained only so existing stored data and clients keep
+ * working; `ATLAS_ENABLE_LEGACY_TIME_PREFERENCES` is never flipped here, and the
+ * models are deliberately not removed.
  */
 
 import { prisma } from '../lib/prisma.js';

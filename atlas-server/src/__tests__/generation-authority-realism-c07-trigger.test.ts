@@ -266,7 +266,10 @@ function buildTriggerClient(options: TriggerOptions = {}) {
 		enrollProSchoolYearMirror: {
 			findMany: async () => [{ enrollProSchoolYearId: SCHOOL_YEAR_ID, yearLabel: '2029-2030' }],
 			findFirst: async () => ({ enrollProSchoolYearId: SCHOOL_YEAR_ID }),
-			findUnique: async () => ({ isActive: true, isArchived: false, termContractCache: { schoolId: SCHOOL_ID, schoolYear: { id: SCHOOL_YEAR_ID }, format: 'TRIMESTER', terms: TERM_CONTRACT.terms }, termContractCachedAt: new Date('2029-01-01') }),
+			// TEACHER-AVAILABILITY-AUTHORITY-C01: the persisted verified cache must
+			// carry the active ordered term so the reviewed availability authority is
+			// term-scoped exactly like the derived demand.
+			findUnique: async () => ({ isActive: true, isArchived: false, termContractCache: { schoolId: SCHOOL_ID, schoolYear: { id: SCHOOL_YEAR_ID }, format: 'TRIMESTER', terms: TERM_CONTRACT.terms, activeTerm: TERM_CONTRACT.activeTerm }, termContractCachedAt: new Date('2029-01-01') }),
 		},
 		sectionMirror: { findMany: async () => sections, count: async () => sections.length, aggregate, createMany: record('sectionMirror.createMany') },
 		subject: { findMany: async () => subjects, aggregate },
@@ -276,6 +279,17 @@ function buildTriggerClient(options: TriggerOptions = {}) {
 		building: { findMany: async () => buildings, aggregate },
 		facultyPreference: { findMany: async () => preferenceRows, aggregate },
 		preferenceTimeSlot: { aggregate: async () => ({ _count: { _all: 1 }, _max: { id: 1, createdAt: new Date('2029-01-01') } }) },
+		// TEACHER-AVAILABILITY-AUTHORITY-C01: generation reads the reviewed,
+		// term-scoped authority. The legacy `preferenceRows` fixture is mapped to
+		// the new `state` vocabulary so the availability contract stays identical.
+		facultyAvailability: {
+			findMany: async () => preferenceRows.map((row: any) => ({
+				facultyId: row.facultyId,
+				slots: (row.timeSlots ?? []).map((slot: any) => ({ day: slot.day, startTime: slot.startTime, endTime: slot.endTime, state: slot.preference })),
+			})),
+			aggregate,
+		},
+		facultyAvailabilitySlot: { aggregate: async () => ({ _count: { _all: 1 }, _max: { id: 1, createdAt: new Date('2029-01-01') } }) },
 		policySpecialEvent: {
 			findMany: async () => options.specialEventRows ?? [],
 			aggregate: async () => ({

@@ -44,6 +44,7 @@ model School {
   notifications              Notification[]
   publicationApprovalRequests PublicationApprovalRequest[]
   facultyGradePreferences    FacultyGradePreference[]
+  facultyAvailabilities      FacultyAvailability[]
 
   @@map("schools")
 }
@@ -303,6 +304,7 @@ model FacultyMirror {
   authAccounts              AtlasAuthAccount[]
   crossDepartmentPermissions CrossDepartmentPermission[]
   gradePreferences          FacultyGradePreference[]
+  availabilities            FacultyAvailability[]
 
   @@unique([schoolId, externalId], map: "uq_faculty_school_external")
   @@index([schoolId])
@@ -331,6 +333,70 @@ model FacultyGradePreference {
   @@unique([schoolId, facultyId], map: "uq_faculty_grade_preference_school_faculty")
   @@index([schoolId])
   @@map("faculty_grade_preferences")
+}
+
+/// TEACHER-AVAILABILITY-AUTHORITY-C01 (decision D1/D2): a term-scoped,
+/// reviewed, versioned teacher-availability authority. This is the SINGLE
+/// generation source for a teacher's `UNAVAILABLE` (HARD exclusion) and
+/// `PREFERRED` (ranked SOFT) signals. Only `status = REVIEWED` rows bind
+/// generation, and only for the exact ordered term (`termIndex`) they were
+/// authored against ΓÇö an unresolved term never defaults to Term 1. The legacy
+/// `FacultyPreference`/`PreferenceTimeSlot` write path is deprecated and is no
+/// longer a generation consumer (it is deliberately NOT removed).
+model FacultyAvailability {
+  id            Int                     @id @default(autoincrement())
+  schoolId      Int                     @map("school_id")
+  schoolYearId  Int                     @map("school_year_id")
+  facultyId     Int                     @map("faculty_id")
+  /// Persisted academic-term order this authority applies to (1..4). Never
+  /// defaulted; checked against the verified ordered term contract on write.
+  termIndex     Int                     @map("term_index")
+  status        FacultyAvailabilityStatus @default(DRAFT)
+  notes         String?
+  version       Int                     @default(1)
+  submittedAt   DateTime?               @map("submitted_at")
+  reviewedBy    Int?                    @map("reviewed_by")
+  reviewedAt    DateTime?               @map("reviewed_at")
+  reviewerNotes String?                 @map("reviewer_notes")
+  createdAt     DateTime                @default(now()) @map("created_at")
+  updatedAt     DateTime                @updatedAt @map("updated_at")
+
+  school  School                  @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  faculty FacultyMirror           @relation(fields: [facultyId], references: [id], onDelete: Cascade)
+  slots   FacultyAvailabilitySlot[]
+
+  @@unique([schoolId, schoolYearId, facultyId, termIndex], map: "uq_faculty_availability_scope")
+  @@index([schoolId, schoolYearId, termIndex, status], map: "idx_faculty_availability_reviewed")
+  @@index([facultyId])
+  @@map("faculty_availabilities")
+}
+
+enum FacultyAvailabilityStatus {
+  DRAFT
+  SUBMITTED
+  REVIEWED
+  REJECTED
+
+  @@map("faculty_availability_status")
+}
+
+/// One painted availability slot on a `FacultyAvailability`. `state` reuses the
+/// exact existing capability vocabulary (`PREFERRED|AVAILABLE|UNAVAILABLE`) so
+/// the generation mapping is lossless; `UNAVAILABLE` is the HARD set and
+/// `PREFERRED` the ranked SOFT set.
+model FacultyAvailabilitySlot {
+  id             Int                @id @default(autoincrement())
+  availabilityId Int                @map("availability_id")
+  day            DayOfWeek
+  startTime      String             @map("start_time")
+  endTime        String             @map("end_time")
+  state          TimeSlotPreference @default(AVAILABLE)
+  createdAt      DateTime           @default(now()) @map("created_at")
+
+  availability FacultyAvailability @relation(fields: [availabilityId], references: [id], onDelete: Cascade)
+
+  @@index([availabilityId])
+  @@map("faculty_availability_slots")
 }
 
 model AtlasAuthAccount {

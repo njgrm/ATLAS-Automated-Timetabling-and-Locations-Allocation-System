@@ -160,6 +160,18 @@ export async function computeGenerationInputSnapshot(
 	schoolYearId: number,
 	client: Prisma.TransactionClient | PrismaClient = getDataContext(),
 ): Promise<GenerationInputSnapshot> {
+	// TEACHER-AVAILABILITY-AUTHORITY-C01: the `availability` freshness domain is
+	// sourced from the new reviewed, term-scoped authority. New-model access is
+	// expressed structurally so this module does not depend on a freshly
+	// generated Prisma client for type-checking.
+	const availabilityClient = client as unknown as {
+		facultyAvailability: {
+			aggregate: (args: unknown) => Promise<{ _count: { _all: number }; _max: { id: number | null; updatedAt: Date | null; version: number | null } }>;
+		};
+		facultyAvailabilitySlot: {
+			aggregate: (args: unknown) => Promise<{ _count: { _all: number }; _max: { id: number | null; createdAt: Date | null } }>;
+		};
+	};
 	const [
 		facultyMirrorAggregate,
 		facultySubjectAggregate,
@@ -174,8 +186,8 @@ export async function computeGenerationInputSnapshot(
 		subjectAggregate,
 		classTemplateAggregate,
 		classTemplateSubjectAggregate,
-		facultyPreferenceAggregate,
-		preferenceTimeSlotAggregate,
+		facultyAvailabilityAggregate,
+		facultyAvailabilitySlotAggregate,
 	] = await Promise.all([
 		client.facultyMirror.aggregate({
 			where: { schoolId, isStale: false },
@@ -240,13 +252,13 @@ export async function computeGenerationInputSnapshot(
 			_count: { _all: true },
 			_max: { id: true, createdAt: true },
 		}),
-		client.facultyPreference.aggregate({
-			where: { schoolId, schoolYearId },
+		availabilityClient.facultyAvailability.aggregate({
+			where: { schoolId, schoolYearId, status: 'REVIEWED' },
 			_count: { _all: true },
-			_max: { id: true, updatedAt: true },
+			_max: { id: true, updatedAt: true, version: true },
 		}),
-		client.preferenceTimeSlot.aggregate({
-			where: { facultyPreference: { schoolId, schoolYearId } },
+		availabilityClient.facultyAvailabilitySlot.aggregate({
+			where: { availability: { schoolId, schoolYearId, status: 'REVIEWED' } },
 			_count: { _all: true },
 			_max: { id: true, createdAt: true },
 		}),
@@ -286,8 +298,8 @@ export async function computeGenerationInputSnapshot(
 				UNION ALL SELECT 'binding', cts.id, to_jsonb(cts.*) FROM class_template_subjects cts JOIN class_templates t ON t.id = cts.template_id WHERE t.school_id = $1
 			) x) AS "subjects",
 			(SELECT md5(COALESCE(string_agg(to_jsonb(x)::text, '|' ORDER BY x."tableName", x.id), '')) FROM (
-				SELECT 'preference' AS "tableName", p.id, to_jsonb(p.*) AS row FROM faculty_preferences p WHERE p.school_id = $1 AND p.school_year_id = $2
-				UNION ALL SELECT 'slot', s.id, to_jsonb(s.*) FROM preference_time_slots s JOIN faculty_preferences p ON p.id = s.preference_id WHERE p.school_id = $1 AND p.school_year_id = $2
+				SELECT 'availability' AS "tableName", a.id, to_jsonb(a.*) AS row FROM faculty_availabilities a WHERE a.school_id = $1 AND a.school_year_id = $2 AND a.status = 'REVIEWED'
+				UNION ALL SELECT 'slot', s.id, to_jsonb(s.*) FROM faculty_availability_slots s JOIN faculty_availabilities a ON a.id = s.availability_id WHERE a.school_id = $1 AND a.school_year_id = $2 AND a.status = 'REVIEWED'
 			) x) AS "availability"
 	`, schoolId, schoolYearId);
 	const exact = exactRows[0];
@@ -398,12 +410,16 @@ export async function computeGenerationInputSnapshot(
 		derivedDemand: buildDomainSnapshot(derivedDemandSignals),
 		availability: buildDomainSnapshot({
 			exactRevisionDigest: exact.availability,
-			preferenceCount: facultyPreferenceAggregate._count._all,
-			preferenceMaxId: facultyPreferenceAggregate._max.id,
-			preferenceMaxUpdatedAt: iso(facultyPreferenceAggregate._max.updatedAt),
-			timeSlotCount: preferenceTimeSlotAggregate._count._all,
-			timeSlotMaxId: preferenceTimeSlotAggregate._max.id,
-			timeSlotMaxCreatedAt: iso(preferenceTimeSlotAggregate._max.createdAt),
+			// TEACHER-AVAILABILITY-AUTHORITY-C01: only REVIEWED authorities bind
+			// generation, so only REVIEWED rows contribute to the freshness domain.
+			// An unreviewed draft edit therefore cannot stale a run.
+			availabilityCount: facultyAvailabilityAggregate._count._all,
+			availabilityMaxId: facultyAvailabilityAggregate._max.id,
+			availabilityMaxUpdatedAt: iso(facultyAvailabilityAggregate._max.updatedAt),
+			availabilityMaxVersion: facultyAvailabilityAggregate._max.version,
+			availabilitySlotCount: facultyAvailabilitySlotAggregate._count._all,
+			availabilitySlotMaxId: facultyAvailabilitySlotAggregate._max.id,
+			availabilitySlotMaxCreatedAt: iso(facultyAvailabilitySlotAggregate._max.createdAt),
 		}),
 	};
 

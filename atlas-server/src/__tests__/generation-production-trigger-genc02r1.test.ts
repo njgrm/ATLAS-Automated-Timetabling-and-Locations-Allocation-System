@@ -134,6 +134,9 @@ function buildTriggerClient(options: TriggerMockOptions = {}) {
 		room: { findMany: async () => [{ id: 201, type: 'CLASSROOM', isTeachingSpace: true, isSharedFacility: false, capacity: 50, features: [], buildingId: 301, buildingZoneId: 'Z1', building: { gradeScope: [7] } }] },
 		building: { findMany: async () => [{ id: 301, name: 'Building 1', x: 0, y: 0 }] },
 		facultyPreference: { findMany: async () => [] },
+		// TEACHER-AVAILABILITY-AUTHORITY-C01: generation reads the reviewed
+		// term-scoped availability authority.
+		facultyAvailability: { findMany: async () => [] },
 		policySpecialEvent: { findMany: async () => [] },
 		gradeShiftWindow: { findMany: async () => [], createMany: recordWrite('gradeShiftWindow.createMany') },
 		classProgramSlot: {

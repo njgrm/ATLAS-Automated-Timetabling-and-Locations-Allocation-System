@@ -259,6 +259,9 @@ function buildPreflightClient(flagRows: ReturnType<typeof persistedSpecialEvents
 		},
 		building: { findMany: async () => [{ id: 301, name: 'Building 1', x: 0, y: 0 }, { id: 302, name: 'Science Building', x: 1, y: 0 }, { id: 303, name: 'TLE Building', x: 2, y: 0 }] },
 		facultyPreference: { findMany: async () => [{ facultyId: 71, status: 'SUBMITTED', timeSlots: [{ day: 'MONDAY', startTime: '06:00', endTime: '06:45', preference: 'UNAVAILABLE' }] }] },
+		// TEACHER-AVAILABILITY-AUTHORITY-C01: the reviewed, term-scoped authority
+		// is the generation source; `state` is the slot vocabulary.
+		facultyAvailability: { findMany: async () => [{ facultyId: 71, slots: [{ day: 'MONDAY', startTime: '06:00', endTime: '06:45', state: 'UNAVAILABLE' }] }] },
 		policySpecialEvent: { findMany: async () => flagRows },
 		gradeShiftWindow: { findMany: async () => [], createMany: recordWrite('gradeShiftWindow.createMany') },
 		classProgramSlot: {
@@ -672,6 +675,10 @@ function buildSnapshotClient(availabilityDigest: string | undefined, specialEven
 		classTemplateSubject: { aggregate: async () => ({ _count: { _all: 0 }, _max: { id: null, createdAt: null } }) },
 		facultyPreference: { aggregate },
 		preferenceTimeSlot: { aggregate: async () => ({ _count: { _all: 0 }, _max: { id: null, createdAt: null } }) },
+		// TEACHER-AVAILABILITY-AUTHORITY-C01: the `availability` domain is now
+		// sourced from the reviewed `FacultyAvailability` authority.
+		facultyAvailability: { aggregate },
+		facultyAvailabilitySlot: { aggregate: async () => ({ _count: { _all: 0 }, _max: { id: null, createdAt: null } }) },
 		$queryRawUnsafe: async () => [row],
 	};
 }

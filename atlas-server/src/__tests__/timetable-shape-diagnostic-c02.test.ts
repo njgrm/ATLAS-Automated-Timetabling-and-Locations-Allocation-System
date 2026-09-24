@@ -440,6 +440,9 @@ function buildDiagnosticClient(options: DiagnosticClientOptions = {}) {
 		room: { findMany: async () => rooms },
 		building: { findMany: async () => [{ id: 301, name: 'Building 1', shortCode: 'B1', x: 0, y: 0 }] },
 		facultyPreference: { findMany: async () => [] },
+		// TEACHER-AVAILABILITY-AUTHORITY-C01: generation reads the reviewed
+		// term-scoped availability authority.
+		facultyAvailability: { findMany: async () => [] },
 		policySpecialEvent: { findMany: async () => specialEvents },
 		gradeShiftWindow: { findMany: async () => [] },
 		classProgramSlot: { findMany: async (args: any) => {

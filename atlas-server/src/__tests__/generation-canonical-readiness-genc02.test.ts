@@ -303,6 +303,9 @@ function buildMockClient(overrides: MockOverrides = {}) {
 		room: { findMany: async () => rooms },
 		building: { findMany: async () => buildings },
 		facultyPreference: { findMany: async () => [] },
+		// TEACHER-AVAILABILITY-AUTHORITY-C01: generation reads the reviewed
+		// term-scoped availability authority.
+		facultyAvailability: { findMany: async () => [] },
 		policySpecialEvent: { findMany: async () => [] },
 		gradeShiftWindow: { findMany: async () => [] },
 		classProgramSlot: { findMany: async () => slotRows },

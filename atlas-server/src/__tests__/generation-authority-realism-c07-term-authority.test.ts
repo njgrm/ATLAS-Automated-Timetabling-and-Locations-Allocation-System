@@ -143,6 +143,9 @@ function buildTermAuthorityClient(plan: ReadPlan) {
 		room: { findMany: async () => [{ id: 201, type: 'CLASSROOM', isTeachingSpace: true, isSharedFacility: false, capacity: 50, features: [], floor: 1, buildingId: 301, buildingZoneId: 'Z1', building: { gradeScope: [7] } }] },
 		building: { findMany: async () => [{ id: 301, name: 'Building 1', shortCode: 'B1', x: 0, y: 0 }] },
 		facultyPreference: { findMany: async () => [] },
+		// TEACHER-AVAILABILITY-AUTHORITY-C01: generation now reads the reviewed
+		// term-scoped availability authority instead of the legacy preference read.
+		facultyAvailability: { findMany: async () => [] },
 		policySpecialEvent: { findMany: async () => [] },
 		gradeShiftWindow: { findMany: async () => [], createMany: record('gradeShiftWindow.createMany') },
 		classProgramSlot: {
