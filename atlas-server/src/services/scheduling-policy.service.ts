@@ -117,6 +117,9 @@ export const POLICY_DEFAULTS = {
 	enableLunchWindow: true,
 	enableTeacherLunchWindow: true,
 	enforceTeacherLunchWindow: false,
+	// D11 — shift-coherence guard. ON by default (SOFT advisory), HARD switch off.
+	enableShiftCoherenceGuard: true,
+	enforceShiftCoherenceGuard: false,
 	enableTleTwoPassPriority: true,
 	allowFlexibleSubjectAssignment: false,
 	allowConsecutiveLabSessions: false,
@@ -399,6 +402,8 @@ export interface SchedulingPolicyData {
 	enableLunchWindow: boolean;
 	enableTeacherLunchWindow: boolean;
 	enforceTeacherLunchWindow: boolean;
+	enableShiftCoherenceGuard: boolean;
+	enforceShiftCoherenceGuard: boolean;
 	enableTleTwoPassPriority: boolean;
 	allowFlexibleSubjectAssignment: boolean;
 	allowConsecutiveLabSessions: boolean;
@@ -458,6 +463,8 @@ export interface PolicyInput {
 	enableLunchWindow?: unknown;
 	enableTeacherLunchWindow?: unknown;
 	enforceTeacherLunchWindow?: unknown;
+	enableShiftCoherenceGuard?: unknown;
+	enforceShiftCoherenceGuard?: unknown;
 	enableTleTwoPassPriority?: unknown;
 	allowFlexibleSubjectAssignment?: unknown;
 	allowConsecutiveLabSessions?: unknown;
@@ -687,6 +694,32 @@ export function validatePolicyInput(input: PolicyInput): { data: SchedulingPolic
 	// dead hard gate.
 	if (!enableTeacherLunchWindow) enforceTeacherLunchWindow = false;
 
+	// --- shift-coherence guard (D11) ---
+	// A policy-switched guard against a teacher being assigned into both the
+	// morning and afternoon shift windows. Enabled by default (SOFT advisory);
+	// HARD is an explicit operator switch.
+	let enableShiftCoherenceGuard: boolean = POLICY_DEFAULTS.enableShiftCoherenceGuard;
+	if (input.enableShiftCoherenceGuard !== undefined && input.enableShiftCoherenceGuard !== null) {
+		if (typeof input.enableShiftCoherenceGuard !== 'boolean') {
+			errors.push('enableShiftCoherenceGuard must be a boolean.');
+		} else {
+			enableShiftCoherenceGuard = input.enableShiftCoherenceGuard;
+		}
+	}
+
+	let enforceShiftCoherenceGuard: boolean = POLICY_DEFAULTS.enforceShiftCoherenceGuard;
+	if (input.enforceShiftCoherenceGuard !== undefined && input.enforceShiftCoherenceGuard !== null) {
+		if (typeof input.enforceShiftCoherenceGuard !== 'boolean') {
+			errors.push('enforceShiftCoherenceGuard must be a boolean.');
+		} else {
+			enforceShiftCoherenceGuard = input.enforceShiftCoherenceGuard;
+		}
+	}
+
+	// An enforcement switch with the guard disabled is inert; never persist a
+	// dead hard gate.
+	if (!enableShiftCoherenceGuard) enforceShiftCoherenceGuard = false;
+
 	let showSpecialEventsInGrid: boolean = POLICY_DEFAULTS.showSpecialEventsInGrid;
 	if (input.showSpecialEventsInGrid !== undefined && input.showSpecialEventsInGrid !== null) {
 		if (typeof input.showSpecialEventsInGrid !== 'boolean') {
@@ -910,6 +943,8 @@ export function validatePolicyInput(input: PolicyInput): { data: SchedulingPolic
 			enableLunchWindow,
 			enableTeacherLunchWindow,
 			enforceTeacherLunchWindow,
+			enableShiftCoherenceGuard,
+			enforceShiftCoherenceGuard,
 			enableTleTwoPassPriority: enableTleTwoPass,
 			allowFlexibleSubjectAssignment: allowFlexibleAssignment,
 			allowConsecutiveLabSessions: allowConsecutiveLab,
@@ -1062,6 +1097,8 @@ async function ensureSchedulingPolicyColumns(): Promise<void> {
 				ADD COLUMN IF NOT EXISTS "enable_lunch_window" BOOLEAN NOT NULL DEFAULT true,
 				ADD COLUMN IF NOT EXISTS "enable_teacher_lunch_window" BOOLEAN NOT NULL DEFAULT true,
 				ADD COLUMN IF NOT EXISTS "enforce_teacher_lunch_window" BOOLEAN NOT NULL DEFAULT false,
+				ADD COLUMN IF NOT EXISTS "enable_shift_coherence_guard" BOOLEAN NOT NULL DEFAULT true,
+				ADD COLUMN IF NOT EXISTS "enforce_shift_coherence_guard" BOOLEAN NOT NULL DEFAULT false,
 				ADD COLUMN IF NOT EXISTS "enable_tle_two_pass_priority" BOOLEAN NOT NULL DEFAULT true,
 				ADD COLUMN IF NOT EXISTS "allow_flexible_subject_assignment" BOOLEAN NOT NULL DEFAULT false,
 				ADD COLUMN IF NOT EXISTS "allow_consecutive_lab_sessions" BOOLEAN NOT NULL DEFAULT false,
@@ -1359,6 +1396,8 @@ export async function upsertPolicy(schoolId: number, schoolYearId: number, input
 		enableLunchWindow: data.enableLunchWindow,
 		enableTeacherLunchWindow: data.enableTeacherLunchWindow,
 		enforceTeacherLunchWindow: data.enforceTeacherLunchWindow,
+		enableShiftCoherenceGuard: data.enableShiftCoherenceGuard,
+		enforceShiftCoherenceGuard: data.enforceShiftCoherenceGuard,
 		enableTleTwoPassPriority: data.enableTleTwoPassPriority,
 		allowFlexibleSubjectAssignment: data.allowFlexibleSubjectAssignment,
 		allowConsecutiveLabSessions: data.allowConsecutiveLabSessions,
