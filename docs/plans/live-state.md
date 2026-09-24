@@ -616,7 +616,7 @@ it complete `TEST-GATE-REACHABILITY-C01` (`f4462374`) and hand it over for integ
 
 ## Lane A — current lane (written only by Lane A)
 
-**`TEACHER-CONCERN-AUTHORITY-PROGRAM-20260924` — S8 integrated; D1–D11 locked; cycle queue current (2026-09-25).**
+**`TEACHER-CONCERN-AUTHORITY-PROGRAM-20260924` — S8 + C5 (S1/S4-server) integrated; D1–D11 locked; cycle queue current (2026-09-25).**
 Plan `docs/plans/teacher-concern-authority-plan-2026-09-24.md` is the continuity index (its **Cycle queue**
 table + streams S0–S8). Objective: the **scheduler** becomes the single place that accommodates a teacher's
 preferences/availability **in draft and post-publish**; those inputs must genuinely affect generation rows;
@@ -633,9 +633,25 @@ levels** (ATLAS-owned `(schoolId, facultyId)`; **no rollover reset**; advisory a
 **Done:** C1 S0 freeze (`530e3b19`); **C2 `S3` SMART draft read integrated at `e7ecd886`** — fresh QA
 `ACCEPT_READY` 8/8/0/0, whole-run route removed for D3, contract re-pinned off `5a333c74`, rooms + breaks
 corrections, successors `SPECIAL-EVENT-SCOPE-C01` / `TEACHER-PROGRAM-LUNCH-BREAK-C01` recorded.
-**Next action:** **C5 — dispatch `S1` `TEACHER-AVAILABILITY-AUTHORITY` ∥ `S4-server` post-publish
-mid-year identity deltas** (two parallel lanes, disjoint files; D1/D2 and D4). Then C6 S2 ∥ S4-client,
-C7 integration/deploy/acceptance. **C4b `DONE` (2026-09-25)** — `SHIFT-COHERENCE-C01` (D11) candidate
+**Next action:** **C6 — dispatch `S2` `SCHEDULER CONCERN WORKSPACE` (client) ∥ `S4-client`
+drift/revision UX** (two parallel client lanes; D5/D6 plus the D4 read-back wiring). Then C7
+integration/deploy/acceptance. **C5 `DONE` (2026-09-25)** — `S1 TEACHER-AVAILABILITY-AUTHORITY`
+(candidate `af3a24c5`, QA `ACCEPT_READY` **16/16/0/0** after one bounded correction for the blocking
+fail-open: the preflight consumed `availabilityRead.preferences` without checking `ok`, so a valid
+ordered structure with an unresolved `activeTerm` could run with zero `UNAVAILABLE` exclusions — now a
+typed `TERM_AUTHORITY_UNRESOLVED` blocker; also active-term-scoped the `availability` digest and made
+the version CAS transactional) and `S4-server POST-PUBLISH MID-YEAR IDENTITY DELTAS` (candidate
+`d51a8f16`, QA `ACCEPT_READY` **9/9/0/0**: `identityOverrides` validated by `assertSnapshotConsistency`
+and applied in effective-date order, base immutable, reason-required audited idempotent withdraw) are
+merged together at `4e9acbf5` over `origin/main` `5b3f2643`; combined gates faculty-availability 12/12,
+published-revision-identity pass / 0 fail, server-suite 318 tests / 314 pass / 4 pre-existing
+`tt-output-c03r`, server build + `prisma validate` + `git diff --check` clean. Migrations
+`20260925000002_faculty_availability` and `20260925000001_shift_coherence` remain **UNAPPLIED**.
+Residuals (NON_BLOCKING): D4 identity deltas are not yet visible in the canonical published projection
+(`published-schedule.service.ts` still reads only the base identity snapshot) — successor wiring is
+needed before D4 is user-visible; the availability feasibility proxy can over-reject (R4); default
+transaction isolation on existing-row availability writes (F1); `shiftCoherenceNotices`/`preferenceNotices`
+stay server-only. **C4b `DONE` (2026-09-25)** — `SHIFT-COHERENCE-C01` (D11) candidate
 `ae79b45f` (base `63efb62e`, packet `fe0442b7`) integrated at merge `f37b8ea4` over `origin/main`
 `16551c92`; fresh QA `ACCEPT_READY` **19/19/0/0** after one bounded correction (the first candidate
 `5a47d114` broke the §8 1000-line cap in `SchedulingPolicyPane.tsx`; corrected to 893 plus client
