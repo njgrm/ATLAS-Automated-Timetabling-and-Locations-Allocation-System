@@ -43,6 +43,7 @@ model School {
   teacherProgramPresentationRevisions TeacherProgramPresentationRevision[]
   notifications              Notification[]
   publicationApprovalRequests PublicationApprovalRequest[]
+  facultyGradePreferences    FacultyGradePreference[]
 
   @@map("schools")
 }
@@ -301,11 +302,35 @@ model FacultyMirror {
   roomRequestAppeals        RoomRequestAppeal[]
   authAccounts              AtlasAuthAccount[]
   crossDepartmentPermissions CrossDepartmentPermission[]
+  gradePreferences          FacultyGradePreference[]
 
   @@unique([schoolId, externalId], map: "uq_faculty_school_external")
   @@index([schoolId])
   @@index([schoolId, isStale])
   @@map("faculty_mirrors")
+}
+
+/// FACULTY-GRADE-PREFERENCE-C01 (decision D10): an ATLAS-owned, optional,
+/// soft grade-level preference for a teacher. Keyed `(schoolId, facultyId)`
+/// with **no `schoolYearId`** — it is persistent across rollover and must never
+/// be cleared by the rollover or by the EnrollPro faculty sync. It is a ranking
+/// hint only: it never blocks coverage and an empty `gradeLevels` means "no
+/// preference". Numeric JHS grades 7-10 are stored; EnrollPro grade-level IDs
+/// (1-4) are rejected by the API. Deliberately NOT a field on the synced
+/// `FacultyMirror`.
+model FacultyGradePreference {
+  id          Int           @id @default(autoincrement())
+  schoolId    Int           @map("school_id")
+  facultyId   Int           @map("faculty_id")
+  gradeLevels Int[]         @default([]) @map("grade_levels")
+  createdAt   DateTime      @default(now()) @map("created_at")
+  updatedAt   DateTime      @updatedAt @map("updated_at")
+  school      School        @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  faculty     FacultyMirror @relation(fields: [facultyId], references: [id], onDelete: Cascade)
+
+  @@unique([schoolId, facultyId], map: "uq_faculty_grade_preference_school_faculty")
+  @@index([schoolId])
+  @@map("faculty_grade_preferences")
 }
 
 model AtlasAuthAccount {

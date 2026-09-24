@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import type { Request, Response, NextFunction } from 'express';
 import { authenticate, authenticateWithSystemToken } from '../middleware/authenticate.js';
-import { requirePrivilegedRole } from '../middleware/authorize.js';
+import { assertRequestSchoolScope, requireCapability, requirePrivilegedRole } from '../middleware/authorize.js';
 import { prisma } from '../lib/prisma.js';
 import { resolveCanonicalFacultyFromAuthPayload } from '../services/faculty-identity.service.js';
 import * as facultyService from '../services/faculty.service.js';
@@ -9,6 +9,10 @@ import { fetchEnrollProActiveSchoolYear } from '../services/section-adapter.js';
 import { getUpstreamAuthToken } from '../middleware/upstream-auth.js';
 import { validateAncillaryLoadImmutable } from '../services/scheduling-policy.service.js';
 import { publishNotificationEvent } from '../services/notification-events.service.js';
+import {
+	listFacultyGradePreferences,
+	setFacultyGradePreference,
+} from '../services/faculty-grade-preference.service.js';
 
 const router = Router();
 
@@ -47,6 +51,60 @@ router.get('/me', authenticate, async (req: Request, res: Response, next: NextFu
 		next(err);
 	}
 });
+
+// ─── FACULTY-GRADE-PREFERENCE-C01 (decision D10) ─────────────────────────────
+// A scheduler-owned, SOFT per-teacher grade preference. Declared BEFORE the
+// privileged-role gate below so a `scheduler` role (which holds `timetable:edit`
+// but is not admin/officer) can read and edit it. Auth is a normal JWT
+// (`authenticate`), the `timetable:edit` capability, and strict actor-school
+// scope. There is no school-year scope: the preference persists across rollover.
+
+// Auth: GET /faculty/grade-preferences?schoolId=X
+router.get(
+	'/grade-preferences',
+	authenticate,
+	requireCapability('timetable:edit'),
+	async (req: Request, res: Response, next: NextFunction) => {
+		try {
+			const schoolId = parseStrictFacultySchoolId(req.query.schoolId);
+			if (schoolId === null) {
+				res.status(400).json({ code: 'INVALID_PARAM', message: 'schoolId must be a present positive integer.' });
+				return;
+			}
+			if (!assertRequestSchoolScope(req, res, schoolId)) return;
+			const preferences = await listFacultyGradePreferences(schoolId);
+			res.json({ preferences });
+		} catch (err) {
+			next(err);
+		}
+	},
+);
+
+// Auth: PUT /faculty/:facultyId/grade-preference — body { schoolId, gradeLevels: number[] }
+router.put(
+	'/:facultyId/grade-preference',
+	authenticate,
+	requireCapability('timetable:edit'),
+	async (req: Request, res: Response, next: NextFunction) => {
+		try {
+			const facultyId = parseStrictFacultySchoolId(req.params.facultyId);
+			if (facultyId === null) {
+				res.status(400).json({ code: 'INVALID_PARAM', message: 'facultyId must be a positive integer.' });
+				return;
+			}
+			const schoolId = parseStrictFacultySchoolId(req.body?.schoolId);
+			if (schoolId === null) {
+				res.status(400).json({ code: 'INVALID_PARAM', message: 'schoolId must be a present positive integer.' });
+				return;
+			}
+			if (!assertRequestSchoolScope(req, res, schoolId)) return;
+			const preference = await setFacultyGradePreference(schoolId, facultyId, req.body?.gradeLevels);
+			res.json({ preference });
+		} catch (err) {
+			next(err);
+		}
+	},
+);
 
 // All remaining /faculty routes are scheduler/admin-only.
 // Allow either a normal JWT or the static ATLAS_SYSTEM_TOKEN.

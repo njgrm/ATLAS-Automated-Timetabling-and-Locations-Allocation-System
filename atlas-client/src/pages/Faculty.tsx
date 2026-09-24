@@ -30,6 +30,7 @@ import { AdminDataTable, type AdminDataTableColumn } from '@/components/admin-wo
 import {
 	FacultyAssignedClassesCell,
 	FacultyAssignedGradeChips,
+	FacultyPreferredGradesControl,
 	getFacultyLoadPresentation,
 	FacultyIdentityCell,
 	FacultyLoadStateBadge,
@@ -526,6 +527,7 @@ export default function Faculty() {
 						onClick={() => setProfileTarget(teacher)}
 					/>
 					<FacultyAssignedGradeChips faculty={teacher} />
+					<FacultyPreferredGradesControl faculty={teacher} />
 				</div>
 			),
 		},

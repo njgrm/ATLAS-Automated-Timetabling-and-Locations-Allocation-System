@@ -182,6 +182,30 @@ export interface TeachingLoadCandidateRejection {
 	reason: TeachingLoadCandidateRejectionReason;
 }
 
+/**
+ * FACULTY-GRADE-PREFERENCE-C01 (decision D10): a SOFT, non-blocking advisory
+ * emitted when a CHOSEN assignment places a teacher outside their own persisted
+ * grade preference. It is deliberately NOT a `TeachingLoadCandidateRejection`:
+ * the teacher is not skipped, coverage is unchanged, and the advisory never
+ * removes a candidate from ranking. Keeping it a separate type also avoids
+ * widening the client's closed `TeachingLoadCandidateRejectionReason` union.
+ */
+export type TeachingLoadPreferenceNoticeReason = 'OUTSIDE_PREFERRED_GRADE';
+
+export interface TeachingLoadPreferenceNotice {
+	subjectId: number;
+	subjectCode: string;
+	sectionId: number;
+	sectionName: string;
+	facultyId: number;
+	facultyName: string;
+	/** The numeric JHS grade (7-10) of the section the teacher was assigned to. */
+	gradeLevel: number;
+	/** The teacher's persisted preference. Empty means no preference. */
+	preferredGradeLevels: number[];
+	reason: TeachingLoadPreferenceNoticeReason;
+}
+
 const MAX_CANDIDATE_REJECTIONS = 100;
 
 function appendBoundedCandidateRejections(
@@ -281,6 +305,12 @@ export interface AutoFillResult {
 	suggestedRows?: SuggestedRowPreview[];
 	/** Bounded, stable rejection details for uncovered subject-section rows. */
 	candidateRejections?: TeachingLoadCandidateRejection[];
+	/**
+	 * FACULTY-GRADE-PREFERENCE-C01 (D10): bounded, SOFT advisories for chosen
+	 * assignments that fall outside a teacher's persisted preference. These never
+	 * block an assignment and never reduce coverage.
+	 */
+	preferenceNotices?: TeachingLoadPreferenceNotice[];
 	/** Coverage + distribution plan. Never report full success from coverage alone. */
 	distribution?: TeachingLoadDistributionPlan;
 	/** Moves actually persisted by an apply call. */
@@ -522,6 +552,7 @@ interface CoverageSimulationResult {
 	capacityUsed: Map<number, number>;
 	staffingReport: StaffingReport;
 	candidateRejections: TeachingLoadCandidateRejection[];
+	preferenceNotices: TeachingLoadPreferenceNotice[];
 }
 
 interface StaffingShortageBucket {
@@ -1371,6 +1402,13 @@ type CoverageCandidateRankSnapshot = {
 	rotationFamilyAssignedCount?: number;
 	projectedRotationFamilyPeakMinutes?: number;
 	projectedUsedMinutes: number;
+	/**
+	 * FACULTY-GRADE-PREFERENCE-C01 (D10) soft signals. Both default to neutral
+	 * when absent, so a snapshot with no preference reproduces the base ordering
+	 * exactly.
+	 */
+	advisoryMatch?: boolean;
+	preferredGradeMatch?: boolean;
 };
 
 function compareCoverageCandidateRank(
@@ -1378,6 +1416,17 @@ function compareCoverageCandidateRank(
 	right: CoverageCandidateRankSnapshot,
 ): number {
 	if (left.tier !== right.tier) return left.tier - right.tier;
+	// Advisory override (D10): a section's adviser is always preferred for their
+	// own advisory section, regardless of their grade preference.
+	const leftAdvisory = left.advisoryMatch === true;
+	const rightAdvisory = right.advisoryMatch === true;
+	if (leftAdvisory !== rightAdvisory) return leftAdvisory ? -1 : 1;
+	// Soft preference tier (D10): prefer a candidate whose persisted preference
+	// includes the section's numeric grade. This only reorders otherwise
+	// qualified candidates; it never filters and never reduces coverage.
+	const leftPreferred = left.preferredGradeMatch === true;
+	const rightPreferred = right.preferredGradeMatch === true;
+	if (leftPreferred !== rightPreferred) return leftPreferred ? -1 : 1;
 	if (left.subjectAssignedCount !== right.subjectAssignedCount) {
 		return left.subjectAssignedCount - right.subjectAssignedCount;
 	}
@@ -1408,6 +1457,44 @@ export function __testRankCoverageCandidates(candidates: CoverageCandidateRankSn
 		.map((entry) => entry.facultyId);
 }
 
+/**
+ * FACULTY-GRADE-PREFERENCE-C01 (D10). Pure decision used by the ranking loop.
+ * It NEVER returns a "blocked" result: `outsidePreferredGrade` only decides
+ * whether a SOFT `OUTSIDE_PREFERRED_GRADE` advisory is emitted for a CHOSEN
+ * assignment. The advisory override makes a section adviser's own advisory
+ * section always count as a match, regardless of their preference.
+ */
+export interface GradePreferenceEvaluation {
+	advisoryMatch: boolean;
+	hasPreference: boolean;
+	preferredGradeMatch: boolean;
+	outsidePreferredGrade: boolean;
+}
+
+export function evaluateGradePreferenceMatch(input: {
+	isClassAdviser: boolean | null | undefined;
+	advisedSectionId: number | null | undefined;
+	sectionId: number;
+	sectionGradeLevel: number | null | undefined;
+	preferredGradeLevels: readonly number[] | undefined;
+}): GradePreferenceEvaluation {
+	const advisoryMatch =
+		input.isClassAdviser === true
+		&& input.advisedSectionId != null
+		&& input.advisedSectionId === input.sectionId;
+	const hasPreference = Array.isArray(input.preferredGradeLevels) && input.preferredGradeLevels.length > 0;
+	const preferredGradeMatch =
+		hasPreference
+		&& Number.isInteger(input.sectionGradeLevel)
+		&& (input.preferredGradeLevels as number[]).includes(input.sectionGradeLevel as number);
+	return {
+		advisoryMatch,
+		hasPreference,
+		preferredGradeMatch,
+		outsidePreferredGrade: hasPreference && !preferredGradeMatch && !advisoryMatch,
+	};
+}
+
 function findBestCandidateForMode(
 	subjectRow: SubjectRow,
 	sectionId: number,
@@ -1422,7 +1509,9 @@ function findBestCandidateForMode(
 	rotationLaneAssignmentCountByFacultyId?: Map<number, number>,
 	rotationFamilyAssignmentCountByFacultyId?: Map<number, number>,
 	nonTeachingMinutesByFaculty?: Map<number, number>,
-): { faculty: FacultyRow | null; rejections: TeachingLoadCandidateRejection[] } {
+	sectionGradeLevel?: number,
+	preferredGradeLevelsByFacultyId?: ReadonlyMap<number, number[]>,
+): { faculty: FacultyRow | null; rejections: TeachingLoadCandidateRejection[]; preferenceNotice: TeachingLoadPreferenceNotice | null } {
 	const candidates: Array<{
 		faculty: FacultyRow;
 		tier: number;
@@ -1431,6 +1520,9 @@ function findBestCandidateForMode(
 		rotationLaneAssignedCount: number;
 		rotationFamilyAssignedCount: number;
 		projectedRotationFamilyPeakMinutes: number;
+		advisoryMatch: boolean;
+		preferredGradeMatch: boolean;
+		outsidePreferredGrade: boolean;
 	}> = [];
 	const rejections: TeachingLoadCandidateRejection[] = [];
 	const realCoverageMode = resolveRealCoverageMode(coverageMode);
@@ -1483,6 +1575,21 @@ function findBestCandidateForMode(
 			continue;
 		}
 
+		// FACULTY-GRADE-PREFERENCE-C01 (D10). Advisory override first: a section's
+		// adviser is always assignable to, and preferred for, their own advisory
+		// section. The preference is a soft signal only — it never rejects a
+		// candidate. An unset/empty preference changes nothing.
+		const preferenceEvaluation = evaluateGradePreferenceMatch({
+			isClassAdviser: member.isClassAdviser,
+			advisedSectionId: member.advisedSectionId,
+			sectionId,
+			sectionGradeLevel,
+			preferredGradeLevels: preferredGradeLevelsByFacultyId?.get(member.id),
+		});
+		const advisoryMatch = preferenceEvaluation.advisoryMatch;
+		const preferredGradeMatch = preferenceEvaluation.preferredGradeMatch;
+		const outsidePreferredGrade = preferenceEvaluation.outsidePreferredGrade;
+
 		candidates.push({
 				faculty: member,
 				tier: qualification.tier,
@@ -1491,10 +1598,13 @@ function findBestCandidateForMode(
 				rotationLaneAssignedCount: rotationLaneAssignmentCountByFacultyId?.get(member.id) ?? 0,
 				rotationFamilyAssignedCount: rotationFamilyAssignmentCountByFacultyId?.get(member.id) ?? 0,
 				projectedRotationFamilyPeakMinutes: estimateProjectedRotationFamilyPeakMinutes(ledger, laneKey, subjectMinutes),
+				advisoryMatch,
+				preferredGradeMatch,
+				outsidePreferredGrade,
 			});
 	}
 
-	if (candidates.length === 0) return { faculty: null, rejections };
+	if (candidates.length === 0) return { faculty: null, rejections, preferenceNotice: null };
 
 	candidates.sort((a, b) => compareCoverageCandidateRank({
 		facultyId: a.faculty.id,
@@ -1504,6 +1614,8 @@ function findBestCandidateForMode(
 		rotationFamilyAssignedCount: a.rotationFamilyAssignedCount,
 		projectedRotationFamilyPeakMinutes: a.projectedRotationFamilyPeakMinutes,
 		projectedUsedMinutes: a.projectedUsedMinutes,
+		advisoryMatch: a.advisoryMatch,
+		preferredGradeMatch: a.preferredGradeMatch,
 	}, {
 		facultyId: b.faculty.id,
 		tier: b.tier,
@@ -1512,9 +1624,27 @@ function findBestCandidateForMode(
 		rotationFamilyAssignedCount: b.rotationFamilyAssignedCount,
 		projectedRotationFamilyPeakMinutes: b.projectedRotationFamilyPeakMinutes,
 		projectedUsedMinutes: b.projectedUsedMinutes,
+		advisoryMatch: b.advisoryMatch,
+		preferredGradeMatch: b.preferredGradeMatch,
 	}));
 
-	return { faculty: candidates[0].faculty, rejections };
+	const selected = candidates[0];
+	const preferenceNotice: TeachingLoadPreferenceNotice | null =
+		selected.outsidePreferredGrade && Number.isInteger(sectionGradeLevel)
+			? {
+				subjectId: subjectRow.id,
+				subjectCode: subjectRow.code,
+				sectionId,
+				sectionName,
+				facultyId: selected.faculty.id,
+				facultyName: `${selected.faculty.lastName}, ${selected.faculty.firstName}`,
+				gradeLevel: sectionGradeLevel as number,
+				preferredGradeLevels: [...(preferredGradeLevelsByFacultyId?.get(selected.faculty.id) ?? [])].sort((a, b) => a - b),
+				reason: 'OUTSIDE_PREFERRED_GRADE',
+			}
+			: null;
+
+	return { faculty: selected.faculty, rejections, preferenceNotice };
 }
 
 function simulateRealFacultyCoverage(input: {
@@ -1524,6 +1654,8 @@ function simulateRealFacultyCoverage(input: {
 	baseCapacityLedgersByFaculty: Map<number, CapacityLedger>;
 	qualificationAuthority: PersistedQualificationAuthority;
 	nonTeachingMinutesByFaculty?: Map<number, number>;
+	sectionGradeLevelBySectionId?: ReadonlyMap<number, number>;
+	preferredGradeLevelsByFacultyId?: ReadonlyMap<number, number[]>;
 }): CoverageSimulationResult {
 	const capacityLedgersByFaculty = cloneCapacityLedgers(input.baseCapacityLedgersByFaculty);
 	const capacityUsed = new Map<number, number>();
@@ -1548,6 +1680,7 @@ function simulateRealFacultyCoverage(input: {
 
 	const unresolvedPairs: UnresolvedPair[] = [];
 	const candidateRejections: TeachingLoadCandidateRejection[] = [];
+	const preferenceNotices: TeachingLoadPreferenceNotice[] = [];
 	let rowsClosedByRealFaculty = 0;
 	const rotationFamilyAssignmentCountsByFamily = new Map<string, Map<number, number>>();
 
@@ -1612,8 +1745,13 @@ function simulateRealFacultyCoverage(input: {
 				rotationLaneAssignmentCountByFacultyId,
 				rotationFamilyAssignmentCountByFacultyId,
 				input.nonTeachingMinutesByFaculty,
+				input.sectionGradeLevelBySectionId?.get(pair.sectionId) ?? 0,
+				input.preferredGradeLevelsByFacultyId,
 			);
 			appendBoundedCandidateRejections(candidateRejections, selection.rejections);
+			if (selection.preferenceNotice && preferenceNotices.length < MAX_CANDIDATE_REJECTIONS) {
+				preferenceNotices.push(selection.preferenceNotice);
+			}
 			const candidate = selection.faculty;
 			if (!candidate) {
 				unresolvedPairs.push(pair);
@@ -1645,6 +1783,7 @@ function simulateRealFacultyCoverage(input: {
 		capacityUsed,
 		staffingReport: buildStaffingReport(unresolvedPairs, input.realFaculty, capacityUsed, input.coverageMode, input.nonTeachingMinutesByFaculty),
 		candidateRejections,
+		preferenceNotices,
 	};
 }
 
@@ -2020,6 +2159,7 @@ export async function autoFill(
 			staffingReport: emptyReport,
 			staffingTruth: emptyTruth,
 			distribution: emptyDistributionPlan(),
+			preferenceNotices: [],
 			derivedDemandRevision: derivedDemand.revision,
 			canonicalDemandPairCount: derivedDemand.totalPairs,
 			outsideDemandOwnershipCount: 0,
@@ -2067,6 +2207,21 @@ export async function autoFill(
 	const realFaculty = faculty.filter((member) => !member.isPlaceholder);
 	const realFacultyIds = realFaculty.map((member) => member.id);
 	const placeholderFacultyIds = new Set(faculty.filter((member) => member.isPlaceholder).map((member) => member.id));
+
+	// FACULTY-GRADE-PREFERENCE-C01 (D10). One year-independent read of the
+	// ATLAS-owned soft preference. There is deliberately no schoolYearId filter:
+	// the preference persists across rollover. Empty arrays are dropped so an
+	// unset preference changes nothing.
+	const gradePreferenceRows = await db().facultyGradePreference.findMany({
+		where: { schoolId },
+		select: { facultyId: true, gradeLevels: true },
+	});
+	const preferredGradeLevelsByFacultyId = new Map<number, number[]>();
+	for (const row of gradePreferenceRows) {
+		if (Array.isArray(row.gradeLevels) && row.gradeLevels.length > 0) {
+			preferredGradeLevelsByFacultyId.set(row.facultyId, row.gradeLevels);
+		}
+	}
 
 	// One persisted-only qualification snapshot is shared by coverage and
 	// distribution evaluation for this preview. This keeps aliases, owner
@@ -2244,6 +2399,7 @@ export async function autoFill(
 	const workQueue: UnresolvedPair[] = [];
 	const unresolvedPairs: UnresolvedPair[] = [];
 	const autoFillCandidateRejections: TeachingLoadCandidateRejection[] = [];
+	const autoFillPreferenceNotices: TeachingLoadPreferenceNotice[] = [];
 	const allTeachablePairs: UnresolvedPair[] = [];
 	const teachablePairKeySet = new Set<string>();
 	for (const pair of canonicalPairs) {
@@ -2298,6 +2454,8 @@ export async function autoFill(
 		baseCapacityLedgersByFaculty: baseRealCapacityLedgersByFaculty,
 		qualificationAuthority,
 		nonTeachingMinutesByFaculty,
+		sectionGradeLevelBySectionId: sectionGradeLevel,
+		preferredGradeLevelsByFacultyId,
 	});
 	const hardCapSimulation = simulateRealFacultyCoverage({
 		coverageMode: REAL_ONLY_HARD_CAP_MODE,
@@ -2306,6 +2464,8 @@ export async function autoFill(
 		baseCapacityLedgersByFaculty: baseRealCapacityLedgersByFaculty,
 		qualificationAuthority,
 		nonTeachingMinutesByFaculty,
+		sectionGradeLevelBySectionId: sectionGradeLevel,
+		preferredGradeLevelsByFacultyId,
 	});
 
 	const staffingTruth = buildStaffingTruthComparison({
@@ -2341,6 +2501,7 @@ export async function autoFill(
 			staffingReport: selectedStaffingReport,
 			staffingTruth,
 			candidateRejections: selectedSimulation.candidateRejections,
+			preferenceNotices: selectedSimulation.preferenceNotices,
 			derivedDemandRevision: derivedDemand.revision,
 			canonicalDemandPairCount: canonicalPairs.length,
 			outsideDemandOwnershipCount: outsideDemandOwnershipRows.length,
@@ -2434,8 +2595,13 @@ export async function autoFill(
 				rotationLaneAssignmentCountByFacultyId,
 				undefined,
 				nonTeachingMinutesByFaculty,
+				sectionGradeLevel.get(pair.sectionId) ?? 0,
+				preferredGradeLevelsByFacultyId,
 			);
 			appendBoundedCandidateRejections(autoFillCandidateRejections, selection.rejections);
+			if (selection.preferenceNotice && autoFillPreferenceNotices.length < MAX_CANDIDATE_REJECTIONS) {
+				autoFillPreferenceNotices.push(selection.preferenceNotice);
+			}
 			const candidate = selection.faculty;
 			if (!candidate) {
 				warnings.push(`Lacking Faculty: no department-qualified teacher for ${subjectRow.name} (${pair.sectionName}).`);
@@ -2605,6 +2771,7 @@ export async function autoFill(
 		teacherXResolution,
 		suggestedRows,
 		candidateRejections: autoFillCandidateRejections,
+		preferenceNotices: autoFillPreferenceNotices,
 		distribution,
 		derivedDemandRevision: derivedDemand.revision,
 		canonicalDemandPairCount: canonicalPairs.length,

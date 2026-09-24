@@ -1,23 +1,46 @@
-import type { ReactNode } from 'react';
-import { BookOpen, Eye, Star } from 'lucide-react';
+import { useEffect, useState, type ReactNode } from 'react';
+import { AlertTriangle, BookOpen, Eye, Star } from 'lucide-react';
 
 import {
 	deriveLoadStatus,
 	getFacultyLoadSortRank,
 	STANDARD_WEEKLY_TEACHING_HOURS,
 } from '@/lib/faculty-assignment-helpers';
-import { GRADE_COLORS } from '@/lib/grade-labels';
+import { GRADE_COLORS, gradeLabel } from '@/lib/grade-labels';
 import { cn } from '@/lib/utils';
 import { Button } from '@/ui/button';
 import { Badge } from '@/ui/badge';
+import { Checkbox } from '@/ui/checkbox';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip';
 import { Popover, PopoverContent, PopoverTrigger } from '@/ui/popover';
 import { AccessibleInfo } from '@/components/smart/AccessibleInfo';
 import { TEACHER_X_LABEL } from '@/lib/deped-glossary';
+import atlasApi from '@/lib/api';
+import { useActorSchoolScope } from '@/lib/actor-scope-session';
+import { toast } from 'sonner';
 import type { FacultySummary, FacultyAssignmentRecord, ExternalSection } from '@/types';
 
 /** Valid JHS grade levels for Philippine Junior High School. */
 const VALID_JHS_GRADES = new Set([7, 8, 9, 10]);
+
+/** Soft grade-preference choices (numeric JHS grades 7-10). */
+export const PREFERRED_GRADE_CHOICES = [7, 8, 9, 10] as const;
+/** A teacher whose actual footprint spans this many grades is flagged. */
+export const WIDE_GRADE_SPAN_THRESHOLD = 3;
+
+/**
+ * FACULTY-GRADE-PREFERENCE-C01 (D10) pure helpers. Keep only numeric JHS grades
+ * 7-10 (EnrollPro grade-level IDs are dropped), dedupe, and sort ascending.
+ */
+export function normalizePreferredGrades(input: readonly number[] | null | undefined): number[] {
+	if (!input) return [];
+	return [...new Set(input.filter((grade) => VALID_JHS_GRADES.has(grade)))].sort((left, right) => left - right);
+}
+
+/** True when the teacher's actual grade footprint spans 3 or more grades. */
+export function hasWideGradeSpan(assignedGradeLevels: readonly number[] | null | undefined): boolean {
+	return normalizePreferredGrades(assignedGradeLevels).length >= WIDE_GRADE_SPAN_THRESHOLD;
+}
 
 /**
  * Extract the academic grade number from an ExternalSection.
@@ -232,6 +255,182 @@ export function FacultyAssignedGradeChips({ faculty }: { faculty: FacultySummary
 				</span>
 			))}
 		</span>
+	);
+}
+
+type GradePreferenceMap = Map<number, number[]>;
+const preferenceCacheBySchool = new Map<number, { data: GradePreferenceMap; fetchedAt: number }>();
+const preferenceInflightBySchool = new Map<number, Promise<GradePreferenceMap>>();
+const PREFERENCE_CACHE_TTL_MS = 60_000;
+
+/** One shared, short-lived preference read per school; the roster shares it across rows. */
+async function loadGradePreferences(schoolId: number, force = false): Promise<GradePreferenceMap> {
+	const cached = preferenceCacheBySchool.get(schoolId);
+	if (!force && cached && Date.now() - cached.fetchedAt < PREFERENCE_CACHE_TTL_MS) return cached.data;
+	const inflight = preferenceInflightBySchool.get(schoolId);
+	if (!force && inflight) return inflight;
+	const request = atlasApi
+		.get<{ preferences?: Array<{ facultyId: number; gradeLevels: number[] }> }>('/faculty/grade-preferences', { params: { schoolId } })
+		.then(({ data }) => {
+			const map: GradePreferenceMap = new Map();
+			for (const row of data.preferences ?? []) {
+				const grades = normalizePreferredGrades(row.gradeLevels);
+				if (grades.length > 0) map.set(row.facultyId, grades);
+			}
+			preferenceCacheBySchool.set(schoolId, { data: map, fetchedAt: Date.now() });
+			return map;
+		})
+		.finally(() => preferenceInflightBySchool.delete(schoolId));
+	preferenceInflightBySchool.set(schoolId, request);
+	return request;
+}
+
+/**
+ * FACULTY-GRADE-PREFERENCE-C01 (D10): scheduler-facing, SOFT per-teacher grade
+ * preference editor for the teacher roster. Shows the persisted preference and
+ * flags a wide actual grade span. The preference is a hint only — it never
+ * blocks a teacher or reduces coverage — so the popover says so honestly rather
+ * than implying a hard constraint.
+ */
+export function FacultyPreferredGradesControl({ faculty }: { faculty: FacultySummary }) {
+	const { actorSchoolId } = useActorSchoolScope();
+	const [preferred, setPreferred] = useState<number[]>([]);
+	const [open, setOpen] = useState(false);
+	const [draft, setDraft] = useState<number[]>([]);
+	const [saving, setSaving] = useState(false);
+	const [loaded, setLoaded] = useState(false);
+
+	useEffect(() => {
+		if (actorSchoolId == null) {
+			setLoaded(true);
+			return;
+		}
+		let cancelled = false;
+		void loadGradePreferences(actorSchoolId)
+			.then((map) => {
+				if (cancelled) return;
+				setPreferred(normalizePreferredGrades(map.get(faculty.id)));
+				setLoaded(true);
+			})
+			.catch(() => {
+				if (!cancelled) setLoaded(true);
+			});
+		return () => {
+			cancelled = true;
+		};
+	}, [actorSchoolId, faculty.id]);
+
+	const openEditor = () => {
+		setDraft(preferred);
+		setOpen(true);
+	};
+
+	const toggleGrade = (grade: number, checked: boolean) => {
+		setDraft((current) => {
+			const next = new Set(current);
+			if (checked) next.add(grade);
+			else next.delete(grade);
+			return [...next].sort((left, right) => left - right);
+		});
+	};
+
+	const save = async () => {
+		if (actorSchoolId == null) {
+			toast.error('Your school scope could not be verified. Sign in again, then retry.');
+			return;
+		}
+		setSaving(true);
+		try {
+			const { data } = await atlasApi.put<{ preference?: { gradeLevels: number[] } }>(
+				`/faculty/${faculty.id}/grade-preference`,
+				{ schoolId: actorSchoolId, gradeLevels: draft },
+			);
+			const saved = normalizePreferredGrades(data.preference?.gradeLevels ?? draft);
+			setPreferred(saved);
+			await loadGradePreferences(actorSchoolId, true);
+			setOpen(false);
+			toast.success(
+				saved.length > 0
+					? `Preferred grades saved for ${faculty.lastName}, ${faculty.firstName}.`
+					: `Grade preference cleared for ${faculty.lastName}, ${faculty.firstName}.`,
+			);
+		} catch (err: any) {
+			toast.error(err?.response?.data?.message ?? 'Could not save the grade preference.');
+		} finally {
+			setSaving(false);
+		}
+	};
+
+	const wideSpan = hasWideGradeSpan(faculty.assignedGradeLevels);
+	const teacherName = `${faculty.lastName}, ${faculty.firstName}`;
+
+	return (
+		<div className="flex flex-wrap items-center gap-1" data-testid="teacher-grade-preference">
+			<Popover
+				open={open}
+				onOpenChange={(next) => {
+					if (next) openEditor();
+					else setOpen(false);
+				}}
+			>
+				<PopoverTrigger asChild>
+					<button
+						type="button"
+						className="inline-flex items-center gap-1 rounded border border-dashed border-border px-1.5 py-0.5 text-[0.65rem] font-semibold text-muted-foreground transition-colors hover:text-foreground"
+						aria-label={`Edit preferred grades for ${teacherName}`}
+						data-testid="teacher-grade-preference-trigger"
+					>
+						<Star className="size-2.5" />
+						{!loaded ? 'Grades...' : preferred.length === 0 ? 'Any grade' : `Pref ${preferred.map((grade) => gradeLabel(grade)).join(' ')}`}
+					</button>
+				</PopoverTrigger>
+				<PopoverContent side="bottom" align="start" className="w-64 p-3 text-xs">
+					<p className="mb-1 font-bold uppercase tracking-wider text-muted-foreground">Preferred grades</p>
+					<p className="mb-2 text-muted-foreground">A soft hint for auto-assign. It never blocks a teacher or reduces coverage.</p>
+					<div className="space-y-1.5">
+						{PREFERRED_GRADE_CHOICES.map((grade) => (
+							<label key={grade} className="flex cursor-pointer items-center gap-2">
+								<Checkbox
+									checked={draft.includes(grade)}
+									onCheckedChange={(checked) => toggleGrade(grade, checked === true)}
+									aria-label={`Prefer Grade ${grade}`}
+								/>
+								<span>Grade {grade}</span>
+							</label>
+						))}
+					</div>
+					<div className="mt-3 flex items-center justify-between gap-2">
+						<Button type="button" variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => setDraft([])} disabled={saving}>
+							Clear
+						</Button>
+						<Button type="button" size="sm" className="h-7 px-2 text-xs font-bold" onClick={save} disabled={saving} data-testid="teacher-grade-preference-save">
+							{saving ? 'Saving...' : 'Save'}
+						</Button>
+					</div>
+					<p className="mt-2 border-t border-border/50 pt-2 text-[0.65rem] text-muted-foreground">
+						A per-teacher would-be footprint preview from auto-assign is not available on this page. Run the Teaching Load preview to see proposed assignments.
+					</p>
+				</PopoverContent>
+			</Popover>
+			{wideSpan && (
+				<TooltipProvider delayDuration={200}>
+					<Tooltip>
+						<TooltipTrigger asChild>
+							<span
+								className="inline-flex items-center gap-1 rounded border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[0.65rem] font-bold text-amber-700"
+								data-testid="teacher-wide-grade-span"
+							>
+								<AlertTriangle className="size-2.5" />
+								Wide span
+							</span>
+						</TooltipTrigger>
+						<TooltipContent className="max-w-56 text-xs">
+							This teacher is assigned across {normalizePreferredGrades(faculty.assignedGradeLevels).length} grades. Review their preferred grades before adding more load.
+						</TooltipContent>
+					</Tooltip>
+				</TooltipProvider>
+			)}
+		</div>
 	);
 }
 

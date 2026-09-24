@@ -24,6 +24,7 @@
     "test:rollover-year-identity-c01": "tsx src/__tests__/rollover-year-identity-c01.test.ts",
     "test:home-room-auto-assign": "tsx src/__tests__/home-room-auto-assign.test.ts",
     "test:warning-readability": "tsx src/__tests__/warning-readability-c01.test.ts",
+    "test:faculty-grade-preference": "tsx --test src/__tests__/faculty-grade-preference-s7.test.ts",
     "test:timetable-scheduling-quality-c03": "tsx --test src/__tests__/timetable-scheduling-quality-c03.test.ts",
     "test:section-route-authority": "tsx src/__tests__/section-route-authority-c01.test.ts",
     "test:section-route-authority-c02": "tsx src/__tests__/section-route-authority-c02.test.ts",

@@ -2094,6 +2094,27 @@ export type TeachingLoadCandidateRejection = {
 	reason: TeachingLoadCandidateRejectionReason;
 };
 
+/**
+ * FACULTY-GRADE-PREFERENCE-C01 (D10): a SOFT, non-blocking advisory emitted when
+ * a chosen assignment places a teacher outside their persisted grade preference.
+ * Distinct from `TeachingLoadCandidateRejection` — the teacher is not skipped.
+ */
+export type TeachingLoadPreferenceNoticeReason = 'OUTSIDE_PREFERRED_GRADE';
+
+export type TeachingLoadPreferenceNotice = {
+	subjectId: number;
+	subjectCode: string;
+	sectionId: number;
+	sectionName: string;
+	facultyId: number;
+	facultyName: string;
+	/** The numeric JHS grade (7-10) of the assigned section. */
+	gradeLevel: number;
+	/** The teacher's persisted preference. Empty means no preference. */
+	preferredGradeLevels: number[];
+	reason: TeachingLoadPreferenceNoticeReason;
+};
+
 export type TeachingLoadDistributionSummary = {
 	coveredRows: number;
 	uncoveredRows: number;
@@ -2151,6 +2172,8 @@ export type AutoFillSummaryResult = {
 	suggestedRows?: SuggestedRowPreview[];
 	/** Bounded, stable diagnostics explaining why candidate receivers were skipped. */
 	candidateRejections?: TeachingLoadCandidateRejection[];
+	/** SOFT advisories for chosen assignments outside a teacher's grade preference. */
+	preferenceNotices?: TeachingLoadPreferenceNotice[];
 };
 
 export type LoadStatus = 'below-standard' | 'compliant' | 'overload-allowed' | 'over-cap';
