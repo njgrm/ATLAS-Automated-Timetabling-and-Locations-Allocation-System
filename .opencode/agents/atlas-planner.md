@@ -29,6 +29,13 @@ permission:
     atlas-wave-auditor: allow
     atlas-executor-delegate: allow
     atlas-qa-delegate: allow
+    atlas-bench-mimo: allow
+    atlas-bench-muse: allow
+    atlas-bench-ds: allow
+    atlas-bench-dsflash: allow
+    atlas-executor-mimo: allow
+    atlas-qa-dsflashv4: allow
+    atlas-executor-muse: allow
   skill:
     "*": deny
     git-workflow: allow
