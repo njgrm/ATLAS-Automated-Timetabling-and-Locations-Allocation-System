@@ -2,7 +2,7 @@
 
 - **Date:** 2026-09-25 · **Lane:** C (Claude Code) · **Mode:** read-only (no save, generate, publish or cell selection)
 - **Origin:** `https://njgrm.buru-degree.ts.net` (asserted) · **Served build:** entry `assets/index-D90Rg0kl.js`
-  (the C7 release that replaced `37e0c85b`'s `index-qbOXyMnr.js` during this session)
+  — release `066da7a7` (C7), which replaced `37e0c85b` (`index-qbOXyMnr.js`) during this session
 - **Browser:** Claude in Chrome, operator's existing session (`officer`, Admin), window 1366×768 at 125% scaling
   (CSS viewport 1536×730). **390×844: UNPERFORMED** — the window would not resize.
 - **Persona:** a school scheduler in their 50s–60s, comfortable with Word/Excel and printed class programs, not
