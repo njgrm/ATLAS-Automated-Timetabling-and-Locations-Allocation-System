@@ -652,6 +652,13 @@ runtime release directories, Codex worktrees, and Lane A's 2-hour-old S8 pair
 (excluding the two active C5 streams) and 9 dirty ones remain. They need owner confirmation or
 tree-equivalence proof before any retirement.
 
+**`D:/ATLAS` reset to `origin/main` (2026-09-25, operator-authorized).** It was 1,065 commits
+behind with 203 dirty entries; all but three matched committed blobs. Those three (the planner's
+bench-subagent task allow-list and two handoff drafts) were committed first (`72042911`), root
+reference files moved into `stakeholderFiles/root-reference/`, then `git reset --hard
+origin/main`. It is now a clean, fast-forwardable reference checkout (`git pull --ff-only`);
+per `AGENTS.md` §14 agents read from `origin/main` and work in worktrees.
+
 **Next action:** none dispatched; awaiting the operator's next Lane C assignment.
 
 ## Lane A — current lane (written only by Lane A)
