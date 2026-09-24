@@ -452,7 +452,7 @@ test('grade DOCX is one whole-grade matrix with every selected-grade section and
 	activeExportFaculty = [
 		...FACULTY,
 		{ ...FACULTY[0], id: 503, firstName: 'Ana', lastName: 'Reyes', advisedSectionId: 702, advisedSectionName: '7-Bonifacio' },
-	];
+	] as typeof FACULTY;
 	activeExportEntries = [
 		...ENTRIES,
 		{ entryId: 'bonifacio-mon', sectionId: 702, subjectId: 12, facultyId: 502, roomId: 602, day: 'MONDAY', startTime: '06:00', endTime: '06:45', durationMinutes: 45, termIndex: 1 },

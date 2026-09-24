@@ -1,6 +1,6 @@
 import {
 	AlignmentType, BorderStyle, Document, Footer, PageBreak, PageOrientation, Packer, Paragraph, Table,
-	TableCell, TableRow, TextRun, WidthType,
+	ShadingType, TableCell, TableRow, TextRun, WidthType,
 } from 'docx';
 import type { ExportContext, ExportOptions } from './workbook-export.service.js';
 import { assertRenderableExportEntries, loadExportContext } from './workbook-export.service.js';
@@ -27,6 +27,22 @@ function cell(value: string, bold = false, width = 1200, align: (typeof Alignmen
 
 function headerCell(value: string, width: number) {
 	return cell(value, true, width, AlignmentType.CENTER);
+}
+
+function gradeMatrixCell(value: string, width: number, options: { bold?: boolean; fill?: string; color?: string; span?: number } = {}) {
+	const lines = value.split('\n');
+	return new TableCell({
+		width: { size: width * (options.span ?? 1), type: WidthType.DXA },
+		columnSpan: options.span,
+		borders: BORDERS,
+		shading: options.fill ? { type: ShadingType.CLEAR, fill: options.fill } : undefined,
+		verticalAlign: 'center' as any,
+		children: lines.map((line) => new Paragraph({
+			children: [new TextRun({ text: line, font: 'Arial Narrow', size: 16, bold: options.bold, color: options.color })],
+			alignment: AlignmentType.CENTER,
+			spacing: { before: 0, after: 0 },
+		})),
+	});
 }
 
 function formattedTime(value: string) {
@@ -154,16 +170,66 @@ export async function exportGradeClassProgramDocx(options: ExportOptions & { gra
 	const ctx = await prepare(options);
 	const sections = ctx.sections.filter((section) => {
 		const grade = Number(section.gradeLevelName?.match(/Grade\s+(\d+)/i)?.[1] ?? section.gradeLevelId);
-		return grade === options.gradeLevel && (options.sectionId == null || section.externalId === options.sectionId);
+		return grade === options.gradeLevel;
 	}).sort((a, b) => a.name.localeCompare(b.name));
-	if (!sections.length) throw new Error(options.sectionId == null ? 'GRADE_NOT_FOUND' : 'SECTION_NOT_FOUND');
-	const children: Array<Paragraph | Table> = [];
-	for (const [index, section] of sections.entries()) {
-		if (index) children.push(new Paragraph({ children: [new PageBreak()] }));
-		children.push(...titleLines(ctx, `GRADE ${options.gradeLevel} CLASS PROGRAM`));
-		children.push(new Paragraph({ children: [text(`SECTION: ${section.name}    ADVISER: ${ctx.adviserMap.get(section.externalId) ?? ''}    BUILDING / ROOM: ${sectionRoomLabel(ctx, section.externalId)}`)], spacing: { before: 0, after: 80 } }));
-		children.push(sectionTable(ctx, section), ...approvalLines(ctx));
+	if (!sections.length) throw new Error('GRADE_NOT_FOUND');
+	const intervalsByTime = new Map<string, Interval>();
+	for (const slot of ctx.displaySlots) {
+		const key = `${slot.startTime}-${slot.endTime}`;
+		const current = intervalsByTime.get(key);
+		if (!current || slot.isSpecialEvent) intervalsByTime.set(key, slot);
 	}
+	for (const entry of ctx.entries) {
+		const key = `${entry.startTime}-${entry.endTime}`;
+		if (!intervalsByTime.has(key)) intervalsByTime.set(key, { startTime: entry.startTime, endTime: entry.endTime });
+	}
+	const intervals = [...intervalsByTime.values()].sort((a, b) => a.startTime.localeCompare(b.startTime) || a.endTime.localeCompare(b.endTime));
+	const timeWidth = 1450;
+	const sectionWidth = Math.floor(13430 / sections.length);
+	const rows: TableRow[] = [
+		new TableRow({ children: [gradeMatrixCell('SECTION', timeWidth, { bold: true }), ...sections.map((section) => gradeMatrixCell(section.name, sectionWidth, { bold: true }))] }),
+		new TableRow({ children: [gradeMatrixCell('ADVISER', timeWidth, { bold: true }), ...sections.map((section) => gradeMatrixCell(ctx.adviserMap.get(section.externalId) ?? '', sectionWidth))] }),
+		new TableRow({ children: [gradeMatrixCell('BLDG/ROOM NO.', timeWidth, { bold: true }), ...sections.map((section) => gradeMatrixCell(sectionRoomLabel(ctx, section.externalId), sectionWidth))] }),
+	];
+	for (const day of DAYS) {
+		for (const slot of intervals) {
+			const time = `${day}\n${formattedTime(slot.startTime)}–${formattedTime(slot.endTime)}`;
+			const specialDay = slot.isSpecialEvent ? resolveSpecialEventDay(slot.eventName, slot.dayOfWeek) : null;
+			if (slot.isSpecialEvent && (!specialDay || specialDay === day)) {
+				rows.push(new TableRow({ children: [
+					gradeMatrixCell(time, timeWidth, { bold: true }),
+					gradeMatrixCell(slot.eventName ?? 'BREAK', sectionWidth, { bold: true, fill: '1F4E78', color: 'FFFFFF', span: sections.length }),
+				] }));
+				continue;
+			}
+			rows.push(new TableRow({ children: [
+				gradeMatrixCell(time, timeWidth, { bold: true }),
+				...sections.map((section) => {
+					const entries = ctx.entries.filter((entry) => entry.sectionId === section.externalId && entry.day === day
+						&& entry.startTime === slot.startTime && entry.endTime === slot.endTime && printableEntry(ctx, entry));
+					const names = [...new Set(entries.map((entry) => ctx.subjectMap.get(entry.subjectId)?.name ?? '').filter(Boolean))];
+					return gradeMatrixCell(names.join('\n'), sectionWidth, { fill: '70AD47' });
+				}),
+			] }));
+			rows.push(new TableRow({ children: [
+				gradeMatrixCell('TEACHER', timeWidth, { bold: true }),
+				...sections.map((section) => {
+					const names = [...new Set(ctx.entries.filter((entry) => entry.sectionId === section.externalId && entry.day === day
+						&& entry.startTime === slot.startTime && entry.endTime === slot.endTime && printableEntry(ctx, entry))
+						.map((entry) => {
+							const faculty = entry.facultyId ? ctx.facultyMap.get(entry.facultyId) : null;
+							return faculty ? `${faculty.lastName ?? ''}, ${faculty.firstName ?? ''}`.trim().replace(/^, /, '') : 'Unassigned';
+						}))];
+					return gradeMatrixCell(names.join('\n'), sectionWidth, { bold: true, fill: 'E2F0D9' });
+				}),
+			] }));
+		}
+	}
+	const children: Array<Paragraph | Table> = [
+		...titleLines(ctx, `GRADE ${options.gradeLevel} CLASS PROGRAM`),
+		new Table({ rows, width: { size: 100, type: WidthType.PERCENTAGE }, columnWidths: [timeWidth, ...sections.map(() => sectionWidth)] }),
+		...approvalLines(ctx),
+	];
 	return Packer.toBuffer(new Document({ creator: 'ATLAS', sections: [documentSection(ctx, children)] }));
 }
 

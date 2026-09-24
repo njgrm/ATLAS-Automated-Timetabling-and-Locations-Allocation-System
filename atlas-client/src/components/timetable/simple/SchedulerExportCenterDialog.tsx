@@ -44,8 +44,8 @@ export function SchedulerExportCenterDialog(props: Props) {
 	const supportsDocx = kind === 'room-program' || kind === 'section-program' || kind === 'grade-class-program';
 	const entityOptions = (props.entities ?? (props.selection ? [props.selection] : []))
 		.filter((entity) => entity.kind === (kind === 'room-program' ? 'room' : 'section'));
-	const supportsSelection = (kind === 'room-program' || kind === 'section-program' || kind === 'grade-class-program') && entityOptions.length > 0;
-	const selectedEntity = entityOptions.find((entity) => String(entity.id) === entityId)
+	const supportsSelection = (kind === 'room-program' || kind === 'section-program') && entityOptions.length > 0;
+	const selectedEntity = kind === 'grade-class-program' ? null : entityOptions.find((entity) => String(entity.id) === entityId)
 		?? (props.selection && props.selection.kind === (kind === 'room-program' ? 'room' : 'section') ? props.selection : null);
 	const request = useMemo(() => resolveSchedulerExportCenterRequest({
 		schoolId: props.schoolId,
@@ -98,7 +98,7 @@ export function SchedulerExportCenterDialog(props: Props) {
 							if (next === 'teacher-consolidated' || next === 'class-program') setFormat('xlsx');
 							if (next === 'grade-class-program') setFormat('docx');
 							const matchesSelection = (next === 'room-program' && props.selection?.kind === 'room')
-								|| ((next === 'section-program' || next === 'grade-class-program') && props.selection?.kind === 'section');
+								|| (next === 'section-program' && props.selection?.kind === 'section');
 							setScope(matchesSelection ? 'selected' : 'all');
 						}}>
 							<SelectTrigger id="scheduler-export-kind" data-testid="scheduler-export-kind"><SelectValue /></SelectTrigger>
@@ -124,7 +124,7 @@ export function SchedulerExportCenterDialog(props: Props) {
 							</Select>
 						</div>
 					) : null}
-					<div className="grid gap-1.5 sm:col-span-2">
+					{kind === 'grade-class-program' ? <p className="text-sm text-muted-foreground sm:col-span-2">Includes every section in the selected grade.</p> : <div className="grid gap-1.5 sm:col-span-2">
 						<Label htmlFor="scheduler-export-scope">Include</Label>
 						<Select value={supportsSelection ? scope : 'all'} onValueChange={(value) => setScope(value as 'all' | 'selected')}>
 							<SelectTrigger id="scheduler-export-scope" data-testid="scheduler-export-scope"><SelectValue /></SelectTrigger>
@@ -133,7 +133,7 @@ export function SchedulerExportCenterDialog(props: Props) {
 								{supportsSelection ? <SelectItem value="selected">Choose one {kind === 'room-program' ? 'room' : 'section'}</SelectItem> : null}
 							</SelectContent>
 						</Select>
-					</div>
+					</div>}
 					{supportsSelection && scope === 'selected' ? (
 						<div className="grid gap-1.5 sm:col-span-2">
 							<Label>{kind === 'room-program' ? 'Room' : 'Section'}</Label>

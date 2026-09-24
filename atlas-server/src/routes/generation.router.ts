@@ -1006,20 +1006,16 @@ router.get(
 				res.status(400).json({ code, message: 'gradeLevel must be one of 7, 8, 9, or 10.' }); return;
 			}
 			if (gradeLevel < 7 || gradeLevel > 10) { res.status(400).json({ code: 'INVALID_GRADE_LEVEL', message: 'gradeLevel must be one of 7, 8, 9, or 10.' }); return; }
-			const termIndex = await resolvePublishedRunTermIndex(schoolId, schoolYearId, runId, termParse.requested);
-			let sectionId: number | undefined;
-			if (req.query.sectionId != null && String(req.query.sectionId).trim() !== '') {
-				const parsed = positiveInt(req.query.sectionId, 'sectionId');
-				if (typeof parsed === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: parsed }); return; }
-				sectionId = parsed;
+			if (req.query.sectionId != null) {
+				res.status(400).json({ code: 'GRADE_EXPORT_IS_WHOLE_GRADE', message: 'The official grade program always includes every section in the selected grade.' }); return;
 			}
-			const docx = await exportGradeClassProgramDocx({ schoolId, schoolYearId, runId, termIndex, gradeLevel, sectionId });
+			const termIndex = await resolvePublishedRunTermIndex(schoolId, schoolYearId, runId, termParse.requested);
+			const docx = await exportGradeClassProgramDocx({ schoolId, schoolYearId, runId, termIndex, gradeLevel });
 			const yearLabel = await resolveExportSchoolYearLabel(schoolId, schoolYearId);
 			res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
 			res.setHeader('Content-Disposition', `attachment; filename="${exportFileStem('class-program', `G${gradeLevel}`, yearLabel, termIndex as number)}.docx"`);
 			res.send(docx);
 		} catch (error: any) {
-			if (error?.message === 'SECTION_NOT_FOUND') { res.status(404).json({ code: 'SECTION_NOT_FOUND', message: 'Section not found for this school year.' }); return; }
 			if (error?.message === 'GRADE_NOT_FOUND') { res.status(404).json({ code: 'GRADE_NOT_FOUND', message: 'No sections were found for this grade and school year.' }); return; }
 			if (error?.code === 'EMPTY_SELECTED_TERM' || error?.message === 'EMPTY_SELECTED_TERM') { res.status(422).json({ code: 'EMPTY_SELECTED_TERM', message: 'The selected term has no renderable entries for this run; no official file was produced.' }); return; }
 			if (typeof error?.statusCode === 'number' && typeof error?.code === 'string') { res.status(error.statusCode).json({ code: error.code, message: error.message }); return; }
