@@ -625,11 +625,11 @@ test('D1/D3 exactly one filled primary per state, and Generate is never it', () 
 test('the collapse preserves the strict publication predicate, the one status region, and the Generate/Publish presence contracts', () => {
 	const header = source('src/components/timetable/TimetableSimpleHeader.tsx');
 	assert.match(header, /isRunPublishedStrict/, 'the strict publication predicate is unchanged');
-	// Generate, Publish and the term-bound export trigger stay present.
+	// Generate, Publish and the term-bound download action stay present.
 	assert.match(header, /<SimpleGenerateAction/);
 	assert.match(header, /<SimplePublishedState|<SimplePublishAction/);
 	const markup = renderHeader(CLEAN_UNPUBLISHED);
 	assert.match(markup, /data-testid="timetable-simple-generate-action"/);
 	assert.match(markup, /data-testid="timetable-simple-publish-action"/);
-	assert.match(markup, /data-testid="timetable-simple-export-trigger"/);
+	assert.match(markup, /data-testid="timetable-open-download-schedules"/);
 });

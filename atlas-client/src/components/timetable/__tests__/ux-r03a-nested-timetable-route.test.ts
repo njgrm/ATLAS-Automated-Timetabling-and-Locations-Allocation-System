@@ -169,7 +169,7 @@ test('UX-R03a row 4: the policy item block is a link, not a state dispatch', () 
 	assert.match(block, /asChild/);
 	assert.match(block, /<Link/);
 	assert.match(block, /to="\/timetable\/policies"/);
-	assert.match(block, /Scheduling policy \(Expert\)/);
+	assert.match(block, /Advanced rules/);
 	assert.doesNotMatch(block, /onSelect/);
 	assert.doesNotMatch(block, /preventDefault/);
 	assert.doesNotMatch(block, /requestAnimationFrame/);

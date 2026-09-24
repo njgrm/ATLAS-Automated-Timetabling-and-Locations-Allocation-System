@@ -23,10 +23,9 @@ export function PolicyPaneConstraintWeights({
 	updateConstraint: (code: string, field: keyof ConstraintOverride, value: unknown) => void;
 }) {
 	return (
-		<SectionCard title="Per-Constraint Weights">
+		<SectionCard title="Schedule preferences">
 			<p className="text-[0.6875rem] text-muted-foreground">
-				Toggle and weight each soft constraint. Only structural conflicts the server allowlists may
-				block publication, so promotion is offered only where it is accepted.
+				Mark a rule Preferred or Required. Priority strength is Low, Standard, or High. These choices guide future schedules and revisions; they never silently change a published schedule.
 			</p>
 			<div className="space-y-2">
 				{Object.entries(SOFT_CONSTRAINT_LABELS).map(([code, info]) => {

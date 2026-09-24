@@ -200,7 +200,7 @@ test('UX-R03e setup row 2: CenterWorkspace renders the setup pane from threaded 
 	// component-scoped callbacks arrive through the body, not the hook.
 	const state = readFileSync(resolve(repoRoot, 'atlas-client/src/hooks/useScheduleReviewWorkspaceState.ts'), 'utf8');
 	for (const field of [
-		'setupInputs: { schoolId, schoolYearId, activeGeneratedRunId, draft',
+		'setupInputs: { schoolId, schoolYearId, activeGeneratedRunId, onStartRevision: handleTriggerGenerate, draft',
 		'onRefresh: handleRefresh, onRefreshSetupNames: refreshReferenceLabels',
 		'curriculumReadiness, hasSelectedEntry',
 		'blockingHardCount, softCount, summary, violations, schoolYearContext',
@@ -233,8 +233,7 @@ test('UX-R03e setup row 2: the pane renders the drift banner directly with no se
 	const code = pane.replace(/\/\*[\s\S]*?\*\//g, '');
 	assert.doesNotMatch(code, /handleSyncSetup|runSyncSetup|createSyncSetupInFlightGuard/);
 	const banner = source('src/components/timetable/simple/SimpleDriftBanner.tsx');
-	assert.match(banner, /runSyncSetup/);
-	assert.match(banner, /createSyncSetupInFlightGuard/);
+	assert.doesNotMatch(banner, /runSyncSetup|createSyncSetupInFlightGuard/);
 	// The header keeps its own drift entry point.
 	const header = source('src/components/timetable/TimetableSimpleHeader.tsx');
 	assert.match(header, /<SimpleDriftBanner/);
@@ -309,8 +308,8 @@ test('UX-R03e setup row 3: header, menu, and banner entry points are preserved',
 	assert.match(menu, /data-testid="timetable-more-policy"/);
 	assert.match(menu, /Refresh timetable/);
 	const banner = source('src/components/timetable/simple/SimpleDriftBanner.tsx');
-	assert.match(banner, /Sync with setup/);
-	assert.match(banner, /timetable-simple-sync-setup/);
+	assert.doesNotMatch(banner, /Sync with setup|timetable-simple-sync-setup/);
+	assert.match(banner, /timetable-simple-regenerate-impact/);
 });
 
 // --- UX-R03e (setup): no new behaviour, no new data path ---

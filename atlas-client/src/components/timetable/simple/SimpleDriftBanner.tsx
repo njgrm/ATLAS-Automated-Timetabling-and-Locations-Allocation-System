@@ -1,14 +1,12 @@
-import { useMemo, useRef, useState } from 'react';
-import { toast } from 'sonner';
+import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ExternalLink, RefreshCw, RotateCw, SearchCheck } from 'lucide-react';
+import { ExternalLink, RotateCw, SearchCheck } from 'lucide-react';
 
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/ui/dialog';
 import { RolloverGuidanceCard } from '@/components/runtime/RolloverGuidanceCard';
-import { SetupImpactDialog, SyncTimetableConfirmDialog } from '@/components/timetable/ScheduleReviewWorkspaceDialogs';
-import { createSyncSetupInFlightGuard, runSyncSetup } from '@/lib/timetable-sync-setup';
+import { SetupImpactDialog } from '@/components/timetable/ScheduleReviewWorkspaceDialogs';
 import { describeRunInputDrift, type RunInputDrift } from '@/components/timetable/timetableDriftRouting';
 import { formatCheckedAtAge } from '@/components/timetable/timetableWorkspaceTruth';
 import type { TimetableCapabilities } from '@/lib/timetable-capabilities';
@@ -17,8 +15,8 @@ import type { DraftReport } from '@/types';
 
 /**
  * R6 — Simple must surface run input freshness, ordered-term authority, and
- * rollover drift before publish or sync (findings A-11/B-06/B-14). This is the
- * same canonical information Advanced already renders, with the same sync
+ * rollover drift before applying changes (findings A-11/B-06/B-14). This is the
+ * same canonical information Advanced already renders, with the same authority
  * authority and zero duplication of the setup readers.
  *
  * The per-domain chips are informational; each changed domain also renders a
@@ -44,7 +42,7 @@ type SimpleDriftBannerProps = {
 	capabilities: TimetableCapabilities;
 	/**
 	 * F4: the strict published predicate. A published run must never expose the
-	 * direct setup-sync action; it routes to revision/review guidance instead.
+	 * draft-only changes; it routes to revision/review guidance instead.
 	 */
 	isPublished: boolean;
 	/**
@@ -57,7 +55,7 @@ type SimpleDriftBannerProps = {
 	/**
 	 * A3 — when false the banner renders only its plain-language message line.
 	 * The header uses this so the setup-input repairs (Fix rooms / Preview
-	 * impact / Sync with setup) live only on `/timetable/setup`, one click away,
+	 * impact actions) live only on `/timetable/setup`, one click away,
 	 * instead of competing with the single primary action.
 	 */
 	showActions?: boolean;
@@ -76,11 +74,12 @@ type SimpleDriftBannerProps = {
 	/** The shared generation capability. False disables the action with its gate reason. */
 	regenerationEnabled?: boolean;
 	regenerating?: boolean;
+	onStartRevision?: () => void;
 };
 
 export function SimpleDriftBanner({
 	schoolId,
-	schoolYearId,
+	// schoolYearId remains part of the shared banner contract for its callers.
 	activeGeneratedRunId,
 	draft,
 	isPreGenerationWorkspace,
@@ -95,53 +94,18 @@ export function SimpleDriftBanner({
 	onRegenerate,
 	regenerationEnabled = true,
 	regenerating = false,
+	onStartRevision,
 }: SimpleDriftBannerProps) {
 	const inputState = draft?.inputState ?? null;
 	const drift = useMemo(() => describeRunInputDrift(inputState), [inputState]);
 	const [showImpactPreview, setShowImpactPreview] = useState(false);
 	const [showRegenerateImpact, setShowRegenerateImpact] = useState(false);
-	const [showSyncConfirm, setShowSyncConfirm] = useState(false);
-	const [syncing, setSyncing] = useState(false);
-	const syncGuardRef = useRef(createSyncSetupInFlightGuard());
 
 	const repairGate = capabilities.gates.setupInputStatus;
 	const domainHrefs = new Set(drift.domains.map((domain) => domain.href));
 	// When the umbrella primary href has no per-domain control (unmapped/unknown
 	// domain), render one explicit primary action so `primaryHref` is never dead.
 	const needsPrimaryFallback = showPrimaryFallback(drift.primaryHref, domainHrefs);
-
-	const handleSyncSetup = async () => {
-		// F4 defense in depth: a published run never dispatches the direct sync.
-		if (isPublished) return;
-		if (!schoolYearId || activeGeneratedRunId == null) return;
-		setSyncing(true);
-		try {
-			const outcome = await runSyncSetup({
-				schoolId,
-				schoolYearId,
-				runId: activeGeneratedRunId,
-				draftVersion: draft?.version,
-				guard: syncGuardRef.current,
-			});
-			if (outcome.status === 'COMMITTED') {
-				const retainedReviewedCount = outcome.data.retainedFacultyPinCount ?? 0;
-				toast.success(
-					retainedReviewedCount > 0
-						? `Timetable synced with setup; retained ${retainedReviewedCount} reviewed teacher assignment(s).`
-						: 'Timetable synced with setup.'
-				);
-				onRefresh();
-			} else if (outcome.status === 'REPLAYED') {
-				toast.success('Timetable setup already matches the current run. Nothing to change.');
-				onRefresh();
-			} else if (outcome.status === 'FAILED') {
-				toast.error(outcome.error.message);
-			}
-		} finally {
-			setSyncing(false);
-			setShowSyncConfirm(false);
-		}
-	};
 
 	const handleRegenerate = () => {
 		// D5 guard: a published run is never auto-regenerated and never exposes the
@@ -178,17 +142,28 @@ export function SimpleDriftBanner({
 					)) : null}
 					<span className="min-w-0 flex-1 break-words whitespace-normal text-amber-800">
 						{drift.status === 'STALE'
-							? 'This schedule no longer matches the latest school information. Refresh before publishing.'
-							: 'ATLAS could not check whether this schedule matches current school information. Refresh before publishing.'}
+							? 'School information changed after this schedule was made. Review the changes before applying them.'
+							: 'ATLAS could not check the latest school information. Review it before applying changes.'}
 						{formatCheckedAtAge(drift.checkedAt) ? ` · ${formatCheckedAtAge(drift.checkedAt)}` : ''}
 					</span>
 					{showActions ? (isPublished ? (
+					<>
 						<span
 							className="shrink-0 rounded border border-amber-300 bg-white/70 px-2 py-0.5 font-semibold text-amber-900"
 							data-testid="timetable-simple-published-drift-guidance"
-						>Published schedule: changes go through a new effective-dated revision. Direct sync is not available.</span>
+						>Published schedule is safe to view. Changes are made in a separate revision.</span>
+						<Button asChild variant="outline" size="sm" className="h-8 shrink-0 text-xs" data-testid="timetable-simple-review-published-changes">
+							<Link to={drift.primaryHref}>Review changes</Link>
+						</Button>
+						<Button type="button" variant="default" size="sm" className="h-8 shrink-0 text-xs" onClick={onStartRevision} disabled={!onStartRevision} data-testid="timetable-simple-start-revision">
+							Start a revision
+						</Button>
+						</>
 					) : (
 					<>
+					<Button asChild variant="outline" size="sm" className="h-8 shrink-0 text-xs" data-testid="timetable-simple-review-draft-changes">
+						<Link to={drift.primaryHref}>Review changes</Link>
+					</Button>
 					{/* Per-domain routed repairs. Disabled (never dead) when the shared
 					    setup-input capability gate denies the action. */}
 					{repairGate.enabled ? (
@@ -240,18 +215,6 @@ export function SimpleDriftBanner({
 						<SearchCheck className="size-3" />
 						Preview impact
 					</Button>
-					<Button
-						type="button"
-						variant="outline"
-						size="sm"
-						className="h-7 shrink-0 gap-1 border-amber-300 px-2 text-xs font-semibold text-amber-900"
-						onClick={() => setShowSyncConfirm(true)}
-						disabled={loading || syncing || activeGeneratedRunId == null}
-						data-testid="timetable-simple-sync-setup"
-					>
-						<RefreshCw className="size-3" />
-						Sync with setup
-					</Button>
 					</>
 					)) : null}
 					{/* D5 — the explicit regeneration affordance. It is mounted whenever a
@@ -276,7 +239,7 @@ export function SimpleDriftBanner({
 								variant="default"
 								size="sm"
 								className="h-7 shrink-0 gap-1 px-2 text-xs font-semibold"
-								onClick={handleRegenerate}
+								onClick={() => setShowRegenerateImpact(true)}
 								disabled={regenerateDisabled}
 								aria-label={!regenerationEnabled ? 'Regenerate to apply — generation is not available' : 'Regenerate to apply'}
 								data-testid="timetable-simple-regenerate-to-apply"
@@ -291,12 +254,6 @@ export function SimpleDriftBanner({
 			{showRolloverGuidance ? (
 				<RolloverGuidanceCard compact schoolId={schoolId} onApplied={() => onRefresh()} onStatus={onRolloverStatus} />
 			) : null}
-			<SyncTimetableConfirmDialog
-				open={showSyncConfirm && !isPublished}
-				onOpenChange={setShowSyncConfirm}
-				syncing={syncing}
-				onSyncNow={() => void handleSyncSetup()}
-			/>
 			<SetupImpactDialog
 				open={showImpactPreview && !isPublished}
 				onOpenChange={setShowImpactPreview}
@@ -361,8 +318,8 @@ function RegenerateImpactDialog({
 				</div>
 				<p className="text-xs leading-relaxed text-muted-foreground">
 					{requiresRegeneration
-						? 'At least one changed area only takes effect through a fresh generation; syncing setup alone cannot apply it.'
-						: 'The draft can be synced with setup for assignment changes, but regeneration is the complete, explicit way to apply every changed area.'}
+						? 'At least one changed area needs a fresh generation; regeneration is the explicit way to apply it.'
+						: 'Regeneration is the complete, explicit way to apply every changed area.'}
 				</p>
 				<p className="text-xs leading-relaxed text-muted-foreground" data-testid="timetable-simple-regenerate-preservation-note">
 					Valid draft placements are preserved: reviewed placements locked as draft anchors are carried into the new run, and only sessions affected by the changed setup are recomputed.

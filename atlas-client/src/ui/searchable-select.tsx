@@ -133,8 +133,8 @@ export function SearchableSelect({
 										setQuery('');
 									}}
 									className={cn(
-										'relative flex h-auto min-h-10 w-full cursor-pointer select-none items-center justify-start rounded-md px-2.5 py-2 text-sm font-normal outline-none hover:bg-accent hover:text-accent-foreground',
-										value === item.value && 'bg-accent/50',
+										'relative flex h-auto min-h-10 w-full cursor-pointer select-none items-center justify-start rounded-md px-2.5 py-2 text-sm font-normal outline-none hover:bg-accent hover:text-accent-foreground hover:[&_*]:text-accent-foreground focus:bg-accent focus:text-accent-foreground focus:[&_*]:text-accent-foreground aria-selected:bg-accent aria-selected:text-accent-foreground aria-selected:[&_*]:text-accent-foreground',
+									value === item.value && 'bg-accent text-accent-foreground [&_*]:text-accent-foreground',
 									)}
 								>
 									<Check

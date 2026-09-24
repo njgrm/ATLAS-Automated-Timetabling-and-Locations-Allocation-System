@@ -128,6 +128,9 @@ test('drift actions distinguish safe published review from draft preview and con
 	assert.match(drift, /Start a revision/);
 	assert.match(drift, /Regenerate to apply/);
 	assert.match(drift, /Nothing has changed yet/);
+	assert.match(drift, /onClick=\{\(\) => setShowRegenerateImpact\(true\)\}/);
+	assert.match(drift, /onConfirm=\{handleRegenerate\}/);
+	assert.match(drift, /onClick=\{onStartRevision\}/);
 	assert.doesNotMatch(drift, /Refresh before publishing|Direct sync|stale inputs/i);
 });
 
@@ -141,16 +144,28 @@ test('term switcher is a standalone, complete ordered-term control', () => {
 
 test('policy and shift editor use plain labels while retaining explicit technical values', () => {
 	const policy = source('src/components/scheduling-policy/PolicyPanePrimitives.tsx');
-	const shift = source('src/components/scheduling-policy/ShiftSettingsEditor.tsx');
+	const shift = source('src/components/SchedulingPolicyPane.tsx');
 	assert.match(policy, /Priority strength/);
 	assert.match(policy, /Low.*Standard.*High/s);
 	assert.match(policy, /Required/);
 	assert.match(policy, /Preferred/);
 	assert.match(policy, /Advanced details/);
 	assert.match(shift, /Keep each class in one school-day shift/);
-	assert.match(shift, /Morning schedule/);
-	assert.match(shift, /Afternoon schedule/);
+	assert.match(shift, /Morning schedule/i);
+	assert.match(shift, /Afternoon schedule/i);
 	assert.match(policy, /treatAsHard/);
+	const policyPage = source('src/components/SchedulingPolicyPane.tsx');
+	assert.match(policyPage, /data-testid="advanced-rules-guided-summary"/);
+	assert.match(policyPage, /data-testid="edit-advanced-rules"/);
+	assert.match(policyPage, /!showAdvancedRules/);
+});
+
+test('setup-name refresh states its limited effect and where to fix incorrect names', () => {
+	const controls = source('src/components/timetable/simple/SimpleSetupSharedControls.tsx');
+	assert.match(controls, /Refresh school names/);
+	assert.match(controls, /selected school year only/);
+	assert.match(controls, /does not change the schedule/);
+	assert.match(controls, /check School information/);
 });
 
 test('highlighted select, menu, and selectable rows inherit readable semantic foregrounds', () => {
@@ -158,7 +173,8 @@ test('highlighted select, menu, and selectable rows inherit readable semantic fo
 	const searchable = source('src/ui/searchable-select.tsx');
 	const menu = source('src/ui/dropdown-menu.tsx');
 	assert.match(select, /data-\[highlighted\]:text-primary-foreground/);
-	assert.match(searchable, /data-\[highlighted\]:text-accent-foreground/);
+	assert.match(searchable, /hover:\[&_\*\]:text-accent-foreground/);
+	assert.match(searchable, /focus:\[&_\*\]:text-accent-foreground/);
 	assert.match(menu, /data-\[highlighted\]:text-accent-foreground/);
 	assert.match(menu, /data-\[state=open\]:text-accent-foreground/);
 });

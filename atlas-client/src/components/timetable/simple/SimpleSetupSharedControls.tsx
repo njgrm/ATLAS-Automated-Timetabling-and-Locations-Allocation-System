@@ -102,6 +102,7 @@ export function SimpleReadinessChip({
  */
 export function RefreshSetupNamesButton({ onRefreshNames }: { onRefreshNames: () => void }) {
 	return (
+		<div className="space-y-1" data-testid="timetable-refresh-setup-names-guidance">
 		<Button
 			type="button"
 			variant="outline"
@@ -111,7 +112,9 @@ export function RefreshSetupNamesButton({ onRefreshNames }: { onRefreshNames: ()
 			data-testid="timetable-refresh-setup-names"
 		>
 			<RefreshCw className="size-3.5" aria-hidden="true" />
-			Refresh names
+			Refresh school names
 		</Button>
+		<p className="text-xs leading-relaxed text-muted-foreground">Updates displayed names for the selected school year only. It does not change the schedule. If names still look wrong, check School information.</p>
+		</div>
 	);
 }

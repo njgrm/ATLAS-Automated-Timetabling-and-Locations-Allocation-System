@@ -30,12 +30,12 @@ export function ShiftSettingsEditor({
 		<div className="flex-1 min-h-0 overflow-hidden p-4">
 			<div className="flex h-full min-h-0 flex-col rounded-lg border border-border bg-background">
 				<div className="shrink-0 border-b border-border px-4 py-3">
-					<h3 className="text-sm font-semibold leading-none">Shift Settings</h3>
+					<h3 className="text-sm font-semibold leading-none">Morning and afternoon schedules</h3>
 				</div>
 				<div className="flex-1 min-h-0 overflow-auto">
 					<div className="px-4 py-3 space-y-3">
 						<div className="rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-800">
-							Adjust these windows to control the allowable scheduling boundaries for each grade or program override.
+							Grades 7–8 use the Morning schedule; Grades 9–10 use the Afternoon schedule. Overrides set when each class may be placed.
 						</div>
 						<div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
 							{programContextNote}
@@ -44,10 +44,10 @@ export function ShiftSettingsEditor({
 							<p className="text-[0.6875rem] text-muted-foreground">Base windows are applied when no program override exists.</p>
 							<div className="flex items-center gap-2">
 								<Button type="button" variant="outline" size="sm" className="h-7 text-xs" onClick={onApplyFullDayPreset}>
-									Apply Full-Day Baseline
+									Use full-day schedule
 								</Button>
 								<Button type="button" variant="outline" size="sm" className="h-7 text-xs" onClick={onApplyHalfDayPreset}>
-									Apply SY 2026-2027 Half-Day
+									Use morning and afternoon schedules
 								</Button>
 								<Button type="button" variant="outline" size="sm" className="h-7 text-xs" onClick={onAddOverride}>
 									Add Override

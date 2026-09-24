@@ -593,7 +593,7 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 				<Button asChild type="button" variant="outline" size="sm" className="h-6 shrink-0 gap-1 px-2 text-xs" data-testid="timetable-simple-review-setup">
 					<Link to="/timetable/setup">
 						<Settings2 className="size-3" aria-hidden="true" />
-						Check schedule information
+						School information
 					</Link>
 				</Button>
 			</div>
