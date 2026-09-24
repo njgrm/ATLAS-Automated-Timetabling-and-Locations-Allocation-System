@@ -636,9 +636,23 @@ on `origin/main` `5b3f2643`)** — do not dispatch from it:
    `parseStrictTermAuthoritySchoolId` rejects non-string/non-number input;
    `work/actor-school-mutations-c01` (`2f1ee14b`) is merged.
 
-**Next action:** `WORKTREE-RECLAIM-C02` — retire clean, integrated, inactive task worktrees
-under `AGENTS.md` §3 (runtime release directories, Codex-managed worktrees, dirty or unmerged
-trees, and every active Lane A/B stream are out of scope).
+**`WORKTREE-RECLAIM-C02` DONE (2026-09-25).** Retired non-forced, one exact path at a time, then
+pruned: eight `D:/ATLAS-worktrees` task trees — `planner-tt-tl-modules-c04r1`,
+`integration-tt-tl-c03-cycle-20260913`, `tt-shape-diagnostic-c02`, `integration-tlrr01r-20260911`,
+`actor-scope-c01`, `w1-runtime-deploy`, `teaching-load-dept-apply`, `timetable-ttc04`. Each had an
+empty `git status --short`, a HEAD that is an ancestor of `origin/main` `5b3f2643`, an empty
+recursive reparse scan, no inbound junction from any worktree/runtime/Codex root, and no process
+referencing it. No branch deleted. `D:` free 37.8 → 47 GiB; registered worktrees 66 → 58.
+Preserved on purpose: `integration-rrtc01r-20260912` (junction anchor for the dirty
+`tl-authority-diagnostic-c02` `atlas-server/node_modules`), every dirty or unmerged tree, all
+runtime release directories, Codex worktrees, and Lane A's 2-hour-old S8 pair
+(`shift-coherence-s8`, `integration-shift-coherence-s8` — Lane A's closure to retire).
+
+**Awaiting operator decision (as of 2026-09-25):** 19 clean-but-unmerged task worktrees
+(excluding the two active C5 streams) and 9 dirty ones remain. They need owner confirmation or
+tree-equivalence proof before any retirement.
+
+**Next action:** none dispatched; awaiting the operator's next Lane C assignment.
 
 ## Lane A — current lane (written only by Lane A)
 
