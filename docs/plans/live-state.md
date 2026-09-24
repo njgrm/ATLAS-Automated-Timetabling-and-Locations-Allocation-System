@@ -42,14 +42,13 @@ and AIMS.
   Grade-level Class Program DOCX matrix across all sections, Section/Room/Teacher official DOCX, readable
   companion XLSX workbooks, and additive school-year export identity. The additive migration
   `20260924000000_unified_official_export_profile` was applied via the guarded runner (6 → 7 applied; fresh
-  revalidated backup). No generation or publication occurred. **Acceptance `PARTIAL`:** deployment verified
-  (fresh independent QA `ACCEPT_READY` 8/8/0/0); Export Center controls verified live under one authorized
-  login (audit 943); the Grade/Section/Room/Teacher DOCX + XLSX download rows and the responsive pass are
-  pending — the Playwright MCP browser crashed mid-download and the session token was `sessionStorage`-only.
+  revalidated backup). No generation or publication occurred. **Acceptance `ACCEPTED`:** deployment verified
+  (fresh independent QA `ACCEPT_READY` 8/8/0/0); live Export Center controls and the official Grade/Section/Room
+  DOCX + Teacher XLSX content, the no-regression sweep and the 390×844 pass all completed under two authorized
+  logins (audit 943, 944); the Room DOCX was rendered from the deployed service against live run #317.
   **Rollback basis: `c7fc0c955253b924fd880f346c23d428166437c6`** at
   `E:\ATLAS-runtime-supervised-c7fc0c95-20260924` (startable in place). Acceptance artifact
-  `docs/handoffs/deploy-acceptance-70a51608-20260924.md`. **Next action:** authorize one further login to
-  re-run the export download/content and responsive rows.
+  `docs/handoffs/deploy-acceptance-70a51608-20260924.md`.
 - **Release SHA: `c7fc0c95`** (rollback basis; previously LIVE 2026-09-24; `E:\ATLAS-runtime-supervised-c7fc0c95-20260924`;
   health/ready 200; served entry `assets/index-C7SskN0k.js`. Carries one client fix on top of `514be157`: the
   faculty `/my/schedule` page now sends the resolved ordered term to the published-faculty-schedule endpoint,
