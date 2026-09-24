@@ -10,7 +10,7 @@ Make the **scheduler** the single place that accommodates a teacher's preference
 **SMART** read-only access to a teacher's **draft** schedule. Remove the ATLAS teacher portal; do not
 hand teacher concerns to SMART.
 
-## Locked decisions (D1–D6)
+## Locked decisions (D1–D11)
 
 - **D1 — Semantics: both, staged.** `UNAVAILABLE` is a HARD exclusion with an explicit audited relax;
   `PREFERRED` is a ranked SOFT signal surfaced as non-promotable `SOFT` warnings. An availability
@@ -35,6 +35,29 @@ hand teacher concerns to SMART.
 - **D6 — Portal removal: confirmed.** Remove `/my/schedule`, `/my/preferences`, `/my/room-preferences`
   and their nav/footer entries; delete the dead notification deep links (`/preferences`, `/rooms`).
   SMART is view-only for teachers. **S3 is a prerequisite** for D6.
+- **D7 — SMART draft-read auth (confirmed 2026-09-24).** The credential is the **companion integration
+  key** (`ATLAS_SYSTEM_TOKEN` / `X-Integration-Key`); teacher scope is the `faculty-external` path
+  parameter plus the per-run `draftSharedWithTeachers` toggle (default off). **No faculty-scoped token
+  is minted.** Residual: a leaked key exposes every *shared* draft (never unshared, never whole-school).
+  Revisit only if SMART ever calls ATLAS from the teacher's browser instead of server-to-server.
+- **D8 — Break-window scope (approved).** Each `specialEvents[]` window gains an additive **`scope`
+  set** (`appliesToAll`, `gradeLevels`, `programTypes`, `shift`) plus an additive
+  **`source.shiftWindows[]`** grade→shift map. Row count is **unchanged** — the dedupe already collapses
+  by window, so we only accumulate the scope set. Do **not** emit one row per grade.
+- **D9 — Teacher lunch (approved).** Add `enableTeacherLunchWindow` + `enforceTeacherLunchWindow`
+  (**SOFT by default, HARD switchable with an override**) to policy; a teacher keeps a free block over
+  the lunch window of the grade band they teach (reusing the canonical grade-scoped lunch rows); the
+  Teacher Program renders it. Absorbs `TEACHER-PROGRAM-LUNCH-BREAK-C01`.
+- **D10 — Preferred grade levels (approved; persistent).** Optional per-teacher `preferredGradeLevels`
+  in an **ATLAS-owned table keyed `(schoolId, facultyId)`** — **not** on the EnrollPro-synced
+  `FacultyMirror`. **It does not reset on rollover** (no `schoolYearId` scope); schedulers edit it
+  before assigning load. Empty = no preference. `autoFill` gains a **soft** preference tier and a new
+  non-blocking reason `OUTSIDE_PREFERRED_GRADE`. **Advisory always overrides**: an adviser is always
+  assignable to, and preferred for, their own advisory section's grade.
+- **D11 — Shift coherence (approved).** A policy-switched guard against a teacher being assigned into
+  **both** the morning and the afternoon shift window (`grade_shift_windows`). **Default SOFT**, HARD
+  switchable, always overridable; diagnostics must name who spans and why. Preference alone does not fix
+  the morning→evening pattern; this guard does.
 
 ## Current state (evidence, origin/main `cc72928c`)
 
@@ -74,6 +97,10 @@ hand teacher concerns to SMART.
 | S2 | SCHEDULER CONCERN WORKSPACE (UI) | MEDIUM UI | `atlas-client/src/pages/**`; `components/faculty-shared/**`; `components/timetable/simple/**` (concern entry points); `navigation.ts`; `hooks/useNotificationInbox.ts` | S0 + S1 contract |
 | S3 | SMART DRAFT READ | MEDIUM server / security-sensitive | new `atlas-server/src/routes/draft-schedule.router.ts`; `app.ts`; `docs/reference/*draft*`; SMART handoff doc | S0 |
 | S4 | POST-PUBLISH MID-YEAR EDIT | MEDIUM-HIGH | `published-revision.service.ts`; `manual-edit.service.ts`; `components/timetable/simple/**`; `timetableDriftRouting.ts`; `lib/published-revision-client.ts` | S0 (+ D4 shape) |
+| S5 | SPECIAL-EVENT-SCOPE-C01 | MEDIUM | `published-schedule.service.ts`; `schedule-constructor.ts` (`dedupeIntervalSlots`); tests; companion contract doc | D8 |
+| S6 | TEACHER-LUNCH-POLICY-C01 | MEDIUM source / HIGH generation | `prisma/schema.prisma` + migration; `scheduling-policy.service.ts`/`router.ts`; `constraint-validator.ts`; `teacher-program-export.service.ts`; `docx-export.service.ts`; `SchedulingPolicyPane.tsx` | D9 |
+| S7 | FACULTY-GRADE-PREFERENCE-C01 | MEDIUM | `prisma/schema.prisma` + migration; `teaching-load-automation.service.ts`; `faculty.router.ts`; `Faculty.tsx`/`FacultyRow.tsx`; new preference service | D10 |
+| S8 | SHIFT-COHERENCE-C01 | MEDIUM / HIGH generation | `teaching-load-automation.service.ts`; `scheduling-policy.service.ts`; diagnostics | D11; **shares `autoFill` with S7 — sequence, do not parallelise** |
 
 ### Acceptance skeletons (executor packets fill these in)
 
@@ -91,14 +118,21 @@ hand teacher concerns to SMART.
   post-effective date returns the changed authority; attempt to mutate the base fails closed; withdraw is
   audited and reason-required.
 
-## Cycles
+## Cycle queue (keep current — this is the continuity index)
 
-1. **Cycle 1 (S0)** — freeze contracts + decisions; commit this file. *Done on commit.*
-2. **Cycle 2 (parallel, 3 lanes)** — **S1** ∥ **S3** ∥ **S4-server**. Separate worktrees on `E:`, one writer
-   each, disjoint files.
-3. **Cycle 3 (parallel, 2 lanes)** — **S2 client** ∥ **S4 client** (drift-domain mapping rides here).
-4. **Cycle 4** — integration → deployment → two-viewport browser acceptance (bundled under the standing
-   authorization).
+| Cycle | Lanes (parallel where shown) | State |
+|---|---|---|
+| C1 (S0) | interface freeze + decisions | **DONE** (`530e3b19`) |
+| C2 | **S3** SMART draft read + contract corrections | **DONE** — integrated `e7ecd886`; QA `ACCEPT_READY` 8/8/0/0 |
+| C3 | **S5** special-event scope ∥ **S6** teacher-lunch policy + export | **NEXT** |
+| C4 | **S7** faculty grade preference, **then** **S8** shift coherence (same `autoFill` file — not parallel) | queued |
+| C5 | **S1** availability authority ∥ **S4-server** post-publish identity deltas | queued |
+| C6 | **S2** scheduler concern workspace (client) ∥ **S4-client** drift/revision UX | queued |
+| C7 | integration → deployment → two-viewport browser acceptance | queued |
+
+Rules: one writer per lane, separate `E:` worktrees, disjoint files. `S7`/`S8` share
+`teaching-load-automation.service.ts` → **sequenced**. D6 (teacher-portal removal) lands with **S2**,
+**after** S3 (already integrated).
 
 ## Frozen contracts
 
