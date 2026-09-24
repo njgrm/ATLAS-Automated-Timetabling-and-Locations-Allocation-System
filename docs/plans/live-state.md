@@ -648,9 +648,20 @@ Preserved on purpose: `integration-rrtc01r-20260912` (junction anchor for the di
 runtime release directories, Codex worktrees, and Lane A's 2-hour-old S8 pair
 (`shift-coherence-s8`, `integration-shift-coherence-s8` — Lane A's closure to retire).
 
-**Awaiting operator decision (as of 2026-09-25):** 19 clean-but-unmerged task worktrees
-(excluding the two active C5 streams) and 9 dirty ones remain. They need owner confirmation or
-tree-equivalence proof before any retirement.
+**`WORKTREE-RECLAIM-C03` — ownership transferred to Lane C by the operator (2026-09-25).**
+29 task worktrees judged retirable; their `git worktree remove` is **pending operator execution**
+(the agent harness blocked the bulk removal). Done so far: every dirty tree's uncommitted state is
+committed on its own `preserve/<name>-20260925` branch (8; original branch refs untouched), and
+those plus all 18 branches whose work is not on `main` are **pushed to origin** (26 refs), so
+retiring the checkouts loses nothing. `node_modules` junction links inside 10 of them were unlinked
+(link only; targets verified intact). **Kept:** Lane A's C6 pair (`scheduler-concern-s2`,
+`publish-drift-s4-client`) and C5 set (`integration-c5-teacher-concern`, `teacher-availability-s1`,
+`publish-identity-s4-server`) for Lane A's closure, plus two junction anchors those depend on:
+`timetable-scheduler-simplicity-c01` (← `publish-drift-s4-client`) and `g9g10-grid-delta-probe`
+(← `teacher-availability-s1`). Unlanded code branches worth a look before any branch deletion:
+`work/public-published-view-term-merge-c01` (public 3× term render — queue item 2) and
+`work/timetable-live-term-authority-c01` (09-22 term-authority gating); the rest are 3–15 days
+old and superseded by later work on `main`, or docs-only probes/audits.
 
 **`D:/ATLAS` reset to `origin/main` (2026-09-25, operator-authorized).** It was 1,065 commits
 behind with 203 dirty entries; all but three matched committed blobs. Those three (the planner's
