@@ -1,7 +1,8 @@
-import { AlertTriangle, CheckCircle2, Loader2, ShieldCheck } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Loader2, ShieldCheck, Undo2 } from 'lucide-react';
 
 import { formatTime } from '@/lib/utils';
-import type { ScheduledEntry } from '@/types';
+import { identityOverrideFieldLabel } from '@/lib/published-revision-client';
+import type { PublishedRevisionIdentityOverrides, ScheduledEntry } from '@/types';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import {
@@ -46,6 +47,25 @@ type PublishedRevisionDialogProps = {
 	subjectLabel: (id: number) => string;
 	sectionLabel: (id: number) => string;
 	facultyLabel: (id: number) => string;
+	/**
+	 * D4 — the optional effective-dated identity delta that will be attached under
+	 * `metadata.identityOverrides`. Read-only here: the editor is owned by the
+	 * caller; this dialog only states truthfully what will be attached.
+	 */
+	identityOverrides?: PublishedRevisionIdentityOverrides | null;
+	identityOverridesError?: string | null;
+	/**
+	 * D4 — an optional already-scheduled revision the operator may withdraw
+	 * (supersede). The action is reason-required; the base publication can never
+	 * be withdrawn and the server fails that closed with a typed 409.
+	 */
+	withdrawCandidate?: { revisionId: number; effectiveDate: string } | null;
+	withdrawReason?: string;
+	onWithdrawReasonChange?: (value: string) => void;
+	onWithdraw?: () => void;
+	withdrawing?: boolean;
+	withdrawSuccess?: { revisionId: number } | null;
+	withdrawError?: string | null;
 };
 
 export function PublishedRevisionDialog({
@@ -66,6 +86,15 @@ export function PublishedRevisionDialog({
 	subjectLabel,
 	sectionLabel,
 	facultyLabel,
+	identityOverrides,
+	identityOverridesError,
+	withdrawCandidate,
+	withdrawReason,
+	onWithdrawReasonChange,
+	onWithdraw,
+	withdrawing = false,
+	withdrawSuccess,
+	withdrawError,
 }: PublishedRevisionDialogProps) {
 	const revisionFeedback = revisionSuccess
 		? {
@@ -91,6 +120,22 @@ export function PublishedRevisionDialog({
 			: revisionFeedback.tone === 'warn'
 				? 'border-amber-200 bg-amber-50 text-amber-900'
 				: 'border-border bg-muted/30 text-muted-foreground';
+
+	const identityOverrideFields = identityOverrides
+		? Object.entries(identityOverrides).filter(([, value]) => value !== undefined && value !== null).map(([field]) => field)
+		: [];
+	const withdrawToneClass = withdrawSuccess
+		? 'border-emerald-200 bg-emerald-50 text-emerald-800'
+		: withdrawError
+			? 'border-red-200 bg-red-50 text-red-800'
+			: 'border-amber-200 bg-amber-50 text-amber-900';
+	const withdrawFeedback = withdrawSuccess
+		? `Revision #${withdrawSuccess.revisionId} was withdrawn. Earlier dates still use the original published schedule.`
+		: withdrawError
+			? withdrawError
+			: !(withdrawReason ?? '').trim()
+				? 'Add a short reason before withdrawing this revision.'
+				: 'Ready to withdraw this scheduled revision. Its prior dates keep the original published schedule.';
 
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
@@ -129,6 +174,26 @@ export function PublishedRevisionDialog({
 							{revisionChanges.length} class{revisionChanges.length === 1 ? '' : 'es'} will use the selected replacement teacher from the effective date forward. Earlier schedule history stays unchanged.
 						</p>
 					</div>
+					{identityOverrideFields.length > 0 || identityOverridesError ? (
+						<div className="rounded-lg border border-border bg-card p-3" data-testid="published-revision-identity-overrides">
+							<p className="text-sm font-semibold text-foreground">Identity changes after this date</p>
+							{identityOverrideFields.length > 0 ? (
+								<div className="mt-2 flex flex-wrap gap-2">
+									{identityOverrideFields.map((field) => (
+										<Badge key={field} variant="outline" className="h-5 bg-background px-2 text-xs font-semibold">
+											{identityOverrideFieldLabel(field)}
+										</Badge>
+									))}
+								</div>
+							) : null}
+							<p className="mt-1 text-xs text-muted-foreground">
+								These identity changes apply from the effective date forward. The original published revision and its frozen identity stay unchanged for earlier dates.
+							</p>
+							{identityOverridesError ? (
+								<p className="mt-1 text-xs text-red-700" data-testid="published-revision-identity-overrides-error">{identityOverridesError}</p>
+							) : null}
+						</div>
+					) : null}
 					<div className="grid gap-2">
 						<div>
 							<p className="text-sm font-semibold text-foreground">Changed classes</p>
@@ -189,6 +254,46 @@ export function PublishedRevisionDialog({
 							<p className="font-semibold">Revision was not created.</p>
 							<p className="mt-0.5 text-xs">{error}</p>
 							{actionHint ? <p className="mt-1 text-xs">{actionHint}</p> : null}
+						</div>
+					) : null}
+					{withdrawCandidate ? (
+						<div className="rounded-lg border border-border bg-card p-3" data-testid="published-revision-withdraw">
+							<div className="flex items-center gap-2">
+								<Undo2 className="size-4 text-muted-foreground" aria-hidden="true" />
+								<p className="text-sm font-semibold text-foreground">Withdraw scheduled revision #{withdrawCandidate.revisionId}</p>
+							</div>
+							<p className="mt-1 text-xs text-muted-foreground">
+								This supersedes only this scheduled revision; the original published schedule and every earlier date stay unchanged. The original publication can never be withdrawn.
+							</p>
+							<div className="mt-3 space-y-1.5">
+								<label htmlFor="published-revision-withdraw-reason" className="text-sm font-medium text-foreground">Withdrawal reason</label>
+								<Textarea
+									id="published-revision-withdraw-reason"
+									data-testid="published-revision-withdraw-reason"
+									value={withdrawReason ?? ''}
+									onChange={(event) => onWithdrawReasonChange?.(event.target.value)}
+									placeholder="Example: revision was mis-dated and must be re-created"
+									maxLength={500}
+									disabled={withdrawing || Boolean(withdrawSuccess)}
+								/>
+								<p className="text-xs text-muted-foreground">This note appears in the revision audit trail.</p>
+							</div>
+							<p className={`mt-2 rounded-md border px-2.5 py-2 text-xs ${withdrawToneClass}`} role="status" aria-live="polite" data-testid="published-revision-withdraw-feedback">
+								{withdrawFeedback}
+							</p>
+							<div className="mt-2 flex justify-end">
+								<Button
+									type="button"
+									variant="destructive"
+									size="sm"
+									disabled={withdrawing || Boolean(withdrawSuccess) || !(withdrawReason ?? '').trim()}
+									onClick={onWithdraw}
+									data-testid="published-revision-withdraw-submit"
+								>
+									{withdrawing ? <Loader2 className="size-4 animate-spin" /> : <Undo2 className="size-4" />}
+									Withdraw revision
+								</Button>
+							</div>
 						</div>
 					) : null}
 				</div>

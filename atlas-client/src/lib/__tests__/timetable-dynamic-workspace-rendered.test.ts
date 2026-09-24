@@ -53,7 +53,7 @@ function draftWithInputState(inputState: GenerationInputComparison): DraftReport
 	} as unknown as DraftReport;
 }
 
-function renderBanner(inputState: GenerationInputComparison, isPublished = false) {
+function renderBanner(inputState: GenerationInputComparison, isPublished = false, extra: Record<string, unknown> = {}) {
 	return renderToStaticMarkup(
 		createElement(MemoryRouter, null,
 			createElement(SimpleDriftBanner, {
@@ -66,6 +66,7 @@ function renderBanner(inputState: GenerationInputComparison, isPublished = false
 				onRefresh: () => {},
 				capabilities: READY_CAPABILITIES,
 				isPublished,
+				...extra,
 			}),
 		),
 	);
@@ -94,13 +95,66 @@ test('R6 an unmapped changed domain renders the umbrella primary repair action',
 		status: 'STALE',
 		message: 'Demand changed.',
 		actionHint: 'Review setup.',
-		// 'derivedDemand' has no dedicated home in the client domain map.
-		changedDomains: ['rooms', 'derivedDemand'] as GenerationInputComparison['changedDomains'],
+		// A runtime-unknown domain (forward-compat) still has no dedicated home.
+		changedDomains: ['rooms', 'unknownDomain'] as unknown as GenerationInputComparison['changedDomains'],
 		checkedAt: '2026-09-13T00:00:00.000Z',
 	});
 	assert.match(markup, /data-testid="timetable-simple-repair-primary"/);
 	assert.match(markup, /href="\/admin\/year-setup"/);
 	assert.ok(mountedRoutes().has('/admin/year-setup'));
+});
+
+// --- S4-client / D5 rendered regeneration affordance ---
+
+test('D5 a stale availability change renders its chip and the explicit regenerate action', () => {
+	const markup = renderBanner(
+		{
+			status: 'STALE',
+			message: 'Teacher availability changed.',
+			actionHint: 'Regenerate to apply.',
+			changedDomains: ['availability'] as GenerationInputComparison['changedDomains'],
+			checkedAt: '2026-09-13T00:00:00.000Z',
+		},
+		false,
+		{ onRegenerate: () => {}, regenerationEnabled: true },
+	);
+	assert.match(markup, /Teacher availability/);
+	assert.match(markup, /data-testid="timetable-simple-regenerate-to-apply"/);
+	assert.match(markup, /data-testid="timetable-simple-regenerate-impact"/);
+	assert.match(markup, /Regenerate to apply/);
+});
+
+test('D5 a published run never renders the regenerate action, only revision guidance', () => {
+	const markup = renderBanner(
+		{
+			status: 'STALE',
+			message: 'Setup changed.',
+			actionHint: 'Make a revision.',
+			changedDomains: ['availability'] as GenerationInputComparison['changedDomains'],
+			checkedAt: '2026-09-13T00:00:00.000Z',
+		},
+		true,
+		{ onRegenerate: () => {}, regenerationEnabled: true },
+	);
+	assert.doesNotMatch(markup, /timetable-simple-regenerate-to-apply/);
+	assert.doesNotMatch(markup, /timetable-simple-regenerate-impact/);
+	assert.doesNotMatch(markup, /timetable-simple-sync-setup/);
+});
+
+test('D5 a closed generation gate disables the regenerate action rather than dispatching', () => {
+	const markup = renderBanner(
+		{
+			status: 'STALE',
+			message: 'Policy changed.',
+			actionHint: 'Regenerate to apply.',
+			changedDomains: ['policy'] as GenerationInputComparison['changedDomains'],
+			checkedAt: '2026-09-13T00:00:00.000Z',
+		},
+		false,
+		{ onRegenerate: () => {}, regenerationEnabled: false },
+	);
+	assert.match(markup, /data-testid="timetable-simple-regenerate-to-apply"/);
+	assert.match(markup, /disabled=""[^>]*data-testid="timetable-simple-regenerate-to-apply"/);
 });
 
 test('R6 a fresh run renders no drift banner and no repair control', () => {

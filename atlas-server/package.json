@@ -28,6 +28,7 @@
     "test:shift-coherence": "tsx --test src/__tests__/shift-coherence-s8.test.ts",
     "test:faculty-availability": "tsx --test src/__tests__/faculty-availability-s1.test.ts",
     "test:published-revision-identity": "tsx --test src/__tests__/published-revision-identity-s4.test.ts",
+    "test:published-identity-readback": "tsx --test src/__tests__/published-identity-readback-s4-client.test.ts",
     "test:timetable-scheduling-quality-c03": "tsx --test src/__tests__/timetable-scheduling-quality-c03.test.ts",
     "test:section-route-authority": "tsx src/__tests__/section-route-authority-c01.test.ts",
     "test:section-route-authority-c02": "tsx src/__tests__/section-route-authority-c02.test.ts",

@@ -874,6 +874,75 @@ export type FacultyRoomPreferenceState = {
 	teachingAssignments?: FacultyTeachingAssignmentIdentity[];
 };
 
+/**
+ * S4-client — operator-facing revision identity deltas (D4). These mirror the
+ * server's `identityOverrides` contract additively; the server validates the
+ * exact shape, the client only transports the operator's confirmed delta.
+ */
+export type PublishedRevisionTermContractOverride = {
+	format: 'TRIMESTER' | 'QUARTERS';
+	terms: Array<{ identity: string; displayLabel: string; order: number }>;
+	activeTermOrder?: number | null;
+};
+
+export type PublishedRevisionSpecialEventOverride = {
+	eventType: string;
+	label: string;
+	startTime: string;
+	endTime: string;
+	dayOfWeek?: string | null;
+	gradeGroup?: string | null;
+	programType?: string | null;
+	sortOrder?: number;
+};
+
+export type PublishedRevisionDisplaySlotOverride = {
+	key?: string;
+	label?: string;
+	startTime: string;
+	endTime: string;
+	order?: number;
+	kind: 'PERIOD' | 'SPECIAL_EVENT';
+	dayOfWeek?: string | null;
+};
+
+export type PublishedRevisionClassProgramSlotOverride = {
+	id?: number;
+	gradeLevel?: number;
+	programType?: string | null;
+	dayOfWeek?: string | null;
+	startTime: string;
+	endTime: string;
+	rowKind: string;
+	subjectFamily?: string | null;
+	subjectLabel?: string | null;
+	sourceLabel?: string;
+	sourceNote?: string | null;
+};
+
+export type PublishedRevisionIdentityOverrides = {
+	orderedTermContract?: PublishedRevisionTermContractOverride;
+	specialEvents?: PublishedRevisionSpecialEventOverride[];
+	displaySlots?: PublishedRevisionDisplaySlotOverride[];
+	policy?: Record<string, unknown>;
+	classProgramSlots?: PublishedRevisionClassProgramSlotOverride[];
+};
+
+/** The `GET …/published-revisions/effective-identity` read response. */
+export type PublishedEffectiveIdentityReadResponse = {
+	snapshot: {
+		orderedTermContract?: PublishedRevisionTermContractOverride;
+		specialEvents?: unknown[];
+		displaySlots?: unknown[];
+		policy?: Record<string, unknown>;
+		classProgramSlots?: unknown[];
+	} | null;
+	state: 'FROZEN' | 'LEGACY_LIVE_PROJECTION';
+	asOf: string;
+	baseRevisionId: number;
+	appliedRevisionIds: number[];
+};
+
 export type GenerationGateStatus = {
 	blocked: boolean;
 	openCount: number;
@@ -1067,7 +1136,11 @@ export interface GenerationRun {
 	updatedAt: string;
 }
 
-export type GenerationInputDomain = 'teachingLoad' | 'policy' | 'rooms' | 'sections' | 'subjects';
+// S4-client / D5 — the client freshness domain union mirrors the server's
+// `GenerationInputDomain` exactly (all seven). `derivedDemand` and
+// `availability` were already reported by the server comparison but were
+// absent here, so their chips fell through to an unlabelled umbrella.
+export type GenerationInputDomain = 'teachingLoad' | 'policy' | 'rooms' | 'sections' | 'subjects' | 'derivedDemand' | 'availability';
 
 export type GenerationInputComparison = {
 	status: 'FRESH' | 'STALE' | 'UNKNOWN';

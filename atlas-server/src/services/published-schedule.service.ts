@@ -13,6 +13,8 @@ import {
 	frozenReferenceMaps,
 	frozenTermContract,
 	readPublishedIdentitySnapshot,
+	resolveEffectiveIdentitySnapshot,
+	selectEffectiveIdentityOverrideRevisions,
 	snapshotGaps,
 	type PublishedIdentitySnapshot,
 	type SnapshotState,
@@ -34,6 +36,12 @@ type PublishedRunSource = {
 	activeRevisionId: number | null;
 	activeRevisionEffectiveDate: string | null;
 	appliedRevisionIds: number[];
+	/**
+	 * S4-client / D4 — the scheduled revision ids whose `identityOverrides`
+	 * contributed to the effective identity snapshot at the read date. Additive:
+	 * `appliedRevisionIds` keeps its existing entry-revision meaning.
+	 */
+	appliedIdentityRevisionIds: number[];
 	revisionMarker: string;
 	/** C08 — truthful immutability state of the resolved publication. */
 	snapshotState: SnapshotState;
@@ -275,6 +283,7 @@ export async function resolvePublishedRun(
 			changeSet: true,
 			sourceRevisionId: true,
 			reason: true,
+			status: true,
 			metadata: true,
 		},
 	});
@@ -341,8 +350,22 @@ export async function resolvePublishedRun(
 	// C08 — the base revision's frozen identity snapshot is the published
 	// artifact's authority. A publication without one is reported honestly as a
 	// legacy live projection and must never claim immutable reproduction.
-	const frozenSnapshot = readPublishedIdentitySnapshot(baseMetadata);
+	//
+	// S4-client / D4 — the canonical published read applies every already-effective
+	// scheduled revision `identityOverrides` in effective-date order on top of the
+	// base freeze (the same resolver + validator the S4-server write path uses; no
+	// second validator is forked). The base snapshot and its persisted bytes are
+	// never mutated, and a withdrawn (SUPERSEDED) override stops governing.
+	const baseSnapshot = readPublishedIdentitySnapshot(baseMetadata);
+	const frozenSnapshot = baseSnapshot
+		? resolveEffectiveIdentitySnapshot({ baseMetadata, revisions: applicableRevisions, asOf: readDate })
+		: null;
 	const snapshotState: SnapshotState = frozenSnapshot ? 'FROZEN' : 'LEGACY_LIVE_PROJECTION';
+	const appliedIdentityRevisionIds = frozenSnapshot
+		? selectEffectiveIdentityOverrideRevisions(applicableRevisions, readDate)
+			.map((revision) => revision.id)
+			.filter((id): id is number => typeof id === 'number')
+		: [];
 
 	// Resolve the runtime-active school year. A caller-supplied election is
 	// authoritative; otherwise the service resolves it so both route families
@@ -375,6 +398,7 @@ export async function resolvePublishedRun(
 			activeRevisionId: activeRevision?.id ?? null,
 			activeRevisionEffectiveDate,
 			appliedRevisionIds: applicableRevisions.map((revision) => revision.id),
+			appliedIdentityRevisionIds,
 			revisionMarker: buildRevisionMarker({
 				runId: publishedRunMeta.id,
 				publishedAt,

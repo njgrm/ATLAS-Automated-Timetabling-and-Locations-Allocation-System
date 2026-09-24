@@ -3,9 +3,9 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import test from 'node:test';
 
-import { describeRunInputDrift } from '../../components/timetable/timetableDriftRouting';
+import { describeRunInputDrift, domainRequiresRegeneration } from '../../components/timetable/timetableDriftRouting';
 import { formatCheckedAtAge } from '../../components/timetable/timetableWorkspaceTruth';
-import type { GenerationInputComparison } from '../../types';
+import type { GenerationInputComparison, GenerationInputDomain } from '../../types';
 
 const clientRoot = resolve(import.meta.dirname, '../../..');
 function source(path: string): string {
@@ -63,8 +63,63 @@ test('R6 Simple renders the shared drift banner and rollover authority surface',
 	assert.match(header, /driftBlocked:/);
 });
 
-// --- B-10 cache/checked-at age is surfaced ---
+// --- S4-client / D5 — all seven domains + explicit regeneration ---
 
+test('D5 every GenerationInputDomain has a labelled repair home', () => {
+	const all: GenerationInputDomain[] = ['teachingLoad', 'policy', 'rooms', 'sections', 'subjects', 'derivedDemand', 'availability'];
+	const drift = describeRunInputDrift(inputState({ changedDomains: all }));
+	assert.deepEqual(drift.domains.map((domain) => domain.domain), all);
+	for (const domain of drift.domains) {
+		assert.ok(domain.label.length > 0, `${domain.domain} carries a label`);
+		assert.ok(domain.href.startsWith('/'), `${domain.domain} carries a mounted-style href`);
+	}
+	assert.equal(drift.domains.find((domain) => domain.domain === 'derivedDemand')?.label, 'Derived demand');
+	assert.equal(drift.domains.find((domain) => domain.domain === 'availability')?.label, 'Teacher availability');
+	assert.equal(drift.domains.find((domain) => domain.domain === 'derivedDemand')?.href, '/admin/year-setup');
+	assert.equal(drift.domains.find((domain) => domain.domain === 'availability')?.href, '/faculty');
+});
+
+test('D5 availability and derivedDemand produce a chip, not an umbrella fallback', () => {
+	for (const [domain, href] of [['availability', '/faculty'], ['derivedDemand', '/admin/year-setup']] as const) {
+		const drift = describeRunInputDrift(inputState({ changedDomains: [domain] }));
+		assert.equal(drift.domains.length, 1, `${domain} produces exactly one chip`);
+		assert.equal(drift.domains[0].domain, domain);
+		assert.equal(drift.primaryHref, href);
+		assert.equal(drift.requiresRegeneration, true);
+	}
+});
+
+test('D5 a syncable-only change does not demand regeneration', () => {
+	const drift = describeRunInputDrift(inputState({ changedDomains: ['rooms', 'sections', 'subjects', 'teachingLoad'] }));
+	assert.equal(drift.requiresRegeneration, false);
+	for (const domain of ['teachingLoad', 'rooms', 'sections', 'subjects'] as const) {
+		assert.equal(domainRequiresRegeneration(domain), false, `${domain} is sync-applicable`);
+	}
+	for (const domain of ['policy', 'derivedDemand', 'availability'] as const) {
+		assert.equal(domainRequiresRegeneration(domain), true, `${domain} requires regeneration`);
+	}
+});
+
+test('D5 a runtime-unknown domain still routes to the umbrella Year Setup primary', () => {
+	const drift = describeRunInputDrift(inputState({ changedDomains: ['unknownDomain' as never] }));
+	assert.equal(drift.domains.length, 0);
+	assert.equal(drift.primaryHref, '/admin/year-setup');
+});
+
+test('D5 the Simple drift surface renders the explicit regenerate affordance with its published guard', () => {
+	const banner = source('src/components/timetable/simple/SimpleDriftBanner.tsx');
+	assert.match(banner, /timetable-simple-regenerate-to-apply/);
+	assert.match(banner, /timetable-simple-regenerate-impact/);
+	assert.match(banner, /Valid draft placements are preserved/);
+	// The published guard is code-level as well as render-level.
+	assert.match(banner, /if \(isPublished\) return;/);
+	assert.match(banner, /A published schedule is never regenerated automatically/);
+	// The header wires the shared generation trigger; no automatic dispatch.
+	const header = source('src/components/timetable/TimetableSimpleHeader.tsx');
+	assert.match(header, /onRegenerate=\{context\.handleTriggerGenerate\}/);
+});
+
+// --- B-10 cache/checked-at age is surfaced ---
 test('B-10 checked-at age is rendered for recent, minutes, and hours', () => {
 	const now = Date.parse('2026-09-13T12:00:00.000Z');
 	assert.equal(formatCheckedAtAge('2026-09-13T11:59:30.000Z', now), 'checked 30s ago');

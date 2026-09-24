@@ -558,6 +558,9 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 						layout="inline"
 						showActions={false}
 						showRolloverGuidance={false}
+						onRegenerate={context.handleTriggerGenerate}
+						regenerationEnabled={generationReady}
+						regenerating={context.generating}
 					/>
 				) : termAuthorityNotice ? (
 					<p className="min-w-0 flex-1 truncate text-xs font-medium text-amber-800" data-testid="timetable-term-authority-unverified">{termAuthorityNotice}</p>
