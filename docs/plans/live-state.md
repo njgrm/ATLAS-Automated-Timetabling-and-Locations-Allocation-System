@@ -139,7 +139,7 @@ exception applies; untouched.
 
 ## Lane A — current lane (written only by Lane A)
 
-**`TEACHER-CONCERN-AUTHORITY-PROGRAM-20260924` — S8 + C5 (S1/S4-server) integrated; D1–D11 locked; cycle queue current (2026-09-25).**
+**`TEACHER-CONCERN-AUTHORITY-PROGRAM-20260924` — C6 (S2/S4-client) integrated; D1–D11 locked; cycle queue current (2026-09-25).**
 Plan `docs/plans/teacher-concern-authority-plan-2026-09-24.md` is the continuity index (its **Cycle queue**
 table + streams S0–S8). Objective: the **scheduler** becomes the single place that accommodates a teacher's
 preferences/availability **in draft and post-publish**; those inputs must genuinely affect generation rows;
@@ -156,9 +156,30 @@ levels** (ATLAS-owned `(schoolId, facultyId)`; **no rollover reset**; advisory a
 **Done:** C1 S0 freeze (`530e3b19`); **C2 `S3` SMART draft read integrated at `e7ecd886`** — fresh QA
 `ACCEPT_READY` 8/8/0/0, whole-run route removed for D3, contract re-pinned off `5a333c74`, rooms + breaks
 corrections, successors `SPECIAL-EVENT-SCOPE-C01` / `TEACHER-PROGRAM-LUNCH-BREAK-C01` recorded.
-**Next action:** **C6 — dispatch `S2` `SCHEDULER CONCERN WORKSPACE` (client) ∥ `S4-client`
-drift/revision UX** (two parallel client lanes; D5/D6 plus the D4 read-back wiring). Then C7
-integration/deploy/acceptance. **C5 `DONE` (2026-09-25)** — `S1 TEACHER-AVAILABILITY-AUTHORITY`
+**Next action:** **C7 — integration → deployment → two-viewport browser acceptance.** The deployment must
+first apply the unapplied migrations `20260925000001_shift_coherence` and
+`20260925000002_faculty_availability` via the guarded runner (`atlas-migrate.ts`) after a fresh
+revalidated backup, then deploy and run the two-viewport acceptance (D6 portal removal, the concern
+workspace, the seven-domain drift/regenerate affordance, and the identity-delta read-back). **C6 `DONE`
+(2026-09-25)** — `S2 SCHEDULER CONCERN WORKSPACE` (candidate `c403e743`, QA `ACCEPT_READY` **12/12/0/0**:
+`/faculty/concerns` records/reviews through the S1 authority fail-closed with no `?? 1`; D6 removed the
+three `/my/*` portal routes, their nav/footer entries, every in-app link and the `/preferences`/`/rooms`
+deep links — mechanical grep = 0 matches in `atlas-client/src`; `/my`, `/faculty/preferences`,
+`/faculty/room-preferences` kept) and `S4-client DRIFT/REVISION UX + D4 read-back` (candidate `ffbda016`,
+QA `ACCEPT_READY` **9/9/0/0**: all seven `GenerationInputDomain`s mapped, explicit operator-triggered
+"Regenerate to apply" that never auto-regenerates a published run, revision UX with optional
+`identityOverrides` + reason-required withdraw, and `published-schedule.service.ts` now applies the
+effective identity snapshot in effective-date order) are merged together. Combined gates:
+scheduler-concern 26/26, publish-drift-revision 26/26, published-identity-readback 1/1, server-suite 318
+tests / 314 pass / 4 pre-existing `tt-output-c03r`, client + server builds and `git diff --check` clean;
+the client-suite red (10–11 failures) is pre-existing and independently reproduced on base. Residuals
+(NON_BLOCKING): `resolvePublishedRunTermIndex` still resolves official export terms from the base
+snapshot — close before any `orderedTermContract` override is applied live (F1); the availability drift
+repair href is `/faculty`, not the new `/faculty/concerns` (F2); the tracked
+`qa-artifacts/playwright/specs/client-route-smoke.spec.ts` still names the removed `/my/*` routes and
+needs a follow-up cleanup; the "valid draft placements preserved" regenerate claim is impact-dialog copy
+plus delegation to the unchanged shared generate handler (F4, unproven without a HIGH generation run).
+**C5 `DONE` (2026-09-25)** — `S1 TEACHER-AVAILABILITY-AUTHORITY`
 (candidate `af3a24c5`, QA `ACCEPT_READY` **16/16/0/0** after one bounded correction for the blocking
 fail-open: the preflight consumed `availabilityRead.preferences` without checking `ok`, so a valid
 ordered structure with an unresolved `activeTerm` could run with zero `UNAVAILABLE` exclusions — now a
