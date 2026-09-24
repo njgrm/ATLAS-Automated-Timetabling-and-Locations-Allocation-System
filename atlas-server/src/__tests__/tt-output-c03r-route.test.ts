@@ -315,8 +315,8 @@ test('mounted class-program.xlsx route returns a real weekday workbook', {
 	// is row 10 and the first data row is 11.
 	const header = [1, 2, 3, 4, 5, 6, 7].map((col) => sheet.getRow(10).getCell(col).value);
 	assert.deepEqual(header, ['TIME', 'MINUTES', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY']);
-	assert.equal(sheet.getRow(11).getCell(3).value, 'Mathematics', 'teacher appears only once in each weekday cell');
-	assert.equal(sheet.getRow(11).getCell(4).value, 'Science');
+	assert.equal(sheet.getRow(11).getCell(3).value, 'Mathematics\nDela Cruz, Juan', 'teacher appears only once in each weekday cell');
+	assert.equal(sheet.getRow(11).getCell(4).value, 'Science\nSantos, Maria');
 	assert.equal(sheet.getRow(11).getCell(8).value, null, 'the redundant aggregate teacher column is removed');
 	assert.equal(sheet.pageSetup.orientation, 'landscape');
 	assert.equal(sheet.pageSetup.fitToPage, true);
@@ -389,6 +389,23 @@ test('every official export route rejects an absent termIndex with a typed 4xx a
 		assert.doesNotMatch(String(response.headers.get('content-type')), /spreadsheetml|wordprocessingml/, 'a rejected export must not emit a document content type');
 	}
 	assert.equal(calls.length, 0, 'an absent term must be rejected before any downstream read/write');
+});
+
+test('summary working workbook separates each weekday instead of day-tag aggregation', { skip: harnessSkip || !exceljsUsable }, async () => {
+	const response = await fetch(`${baseUrl}/api/v1/generation/${SCHOOL_ID}/${SCHOOL_YEAR_ID}/runs/${RUN_ID}/export/summary-teacher-schedule.xlsx?termIndex=1`, {
+		headers: { Authorization: `Bearer ${authToken(SCHOOL_ID)}` },
+	});
+	assert.equal(response.status, 200);
+	const ExcelJS = (await import('exceljs')).default as any;
+	const workbook = new ExcelJS.Workbook();
+	await workbook.xlsx.load(Buffer.from(await response.arrayBuffer()));
+	const values: string[] = [];
+	for (const sheet of workbook.worksheets) {
+		sheet.eachRow((row: any) => row.eachCell((cell: any) => { if (typeof cell.value === 'string') values.push(cell.value); }));
+	}
+	assert.ok(values.some((value) => value.includes('MONDAY')));
+	assert.ok(values.some((value) => value.includes('TUESDAY')));
+	assert.equal(values.some((value) => /\b(MON|TUE|WED|THU|FRI):/.test(value)), false);
 });
 
 test('mounted grade-specific class-program.docx requires a grade and renders the official selected-term form', { skip: harnessSkip }, async () => {
