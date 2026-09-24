@@ -36,6 +36,7 @@ import gradeWindowRouter from './routes/grade-window.router.js';
 import cohortRouter from './routes/cohort.router.js';
 import facultyPortalRouter from './routes/faculty-portal.router.js';
 import publishedScheduleRouter from './routes/published-schedule.router.js';
+import draftScheduleRouter from './routes/draft-schedule.router.js';
 import publishedRevisionRouter from './routes/published-revision.router.js';
 import publicationApprovalRouter from './routes/publication-approval.router.js';
 import classTemplateRouter from './routes/class-template.router.js';
@@ -133,6 +134,10 @@ app.use('/api/v1/generation', timetableUnassignedRouter);
 app.use('/api/v1/cohorts', cohortRouter);
 app.use('/api/v1/faculty-portal', facultyPortalRouter);
 app.use('/api/v1', publishedScheduleRouter);
+// SMART-DRAFT-READ-S3 — companion read-only DRAFT family (sharing-gated) and the
+// per-run draft-sharing toggle. Distinct paths from the published family above;
+// neither router shadows the other.
+app.use('/api/v1', draftScheduleRouter);
 app.use('/api/v1/class-templates', classTemplateRouter);
 app.use('/api/v1/specialization-aliases', specializationAliasRouter);
 app.use('/api/v1/runtime', runtimeRouter);

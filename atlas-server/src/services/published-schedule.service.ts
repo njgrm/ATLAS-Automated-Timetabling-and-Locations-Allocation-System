@@ -564,6 +564,19 @@ function buildSpecialEventsPayload(
 			specialEvents,
 		});
 
+	// SMART-DRAFT-READ-S3 (Deliverable 2) — SCOPE AMBIGUITY, deliberately NOT
+	// resolved here. A canonical `classProgramSlot` row DOES carry `(gradeLevel,
+	// programType)`, but `buildCanonicalDisplayGrid` unions every scope's BREAK
+	// rows and `dedupeIntervalSlots` (schedule-constructor.ts) keys them by
+	// `startTime-endTime` ALONE, so the grade/program scope is discarded before it
+	// reaches this projection. One emitted interval can therefore be owned by
+	// zero (policy Flag/HGP overlay or the legacy policy fallback), one, or
+	// several scopes. There is no truthful single `scope` to attach without
+	// either changing the emitted event cardinality (per-scope duplicates) or
+	// asserting a scope the union cannot prove — both violate the additive-only
+	// contract. Consumers that need a grade/shift-attributed break band must
+	// derive it from the owning canonical rows, not from `specialEvents[]`.
+	// See docs/reference/aims-smart-term-aware-published-schedule-handoff-2026-09-22.md §4.4.
 	return specialEventSlots.map((event) => ({
 		eventName: event.eventName,
 		startTime: event.startTime,

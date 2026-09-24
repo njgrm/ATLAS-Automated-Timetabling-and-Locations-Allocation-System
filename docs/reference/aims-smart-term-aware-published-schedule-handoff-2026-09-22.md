@@ -1,9 +1,13 @@
 # AIMS / SMART handoff — consuming ATLAS's term-aware published schedule
 
-**To:** the AIMS and SMART owners. **From:** ATLAS (Lane A), 2026-09-22.
-**Pinned to deployed ATLAS release:** `5a333c74de03df11e0d0bf9ec6839c1916798896`
-(release dir `D:\ATLAS-runtime-supervised-5a333c74-20260922`; served on
-`https://njgrm.buru-degree.ts.net`).
+**To:** the AIMS and SMART owners. **From:** ATLAS (Lane A); first issued 2026-09-22,
+**re-pinned 2026-09-24**.
+**Pinned to deployed ATLAS release:** `70a5160819349f5ea0742b839c11606e8408185d`
+(short `70a51608`; release dir `E:\ATLAS-runtime-supervised-70a51608-20260924`; served on
+`https://njgrm.buru-degree.ts.net`). The previous pin was the superseded
+`5a333c74de03df11e0d0bf9ec6839c1916798896`. The **published read contract is unchanged**
+by the re-pin; §5A is the new draft-read family, authored on this pin's lineage
+(repository base `530e3b19`).
 
 **This replaces a deleted document.** `docs/reference/aims-smart-term-aware-api-context-2026-08-27.md`
 and `docs/guides/AIMS_FETCH_PUBLISHED_SCHEDULES_GUIDE.md` were removed from tracking on 2026-08-28 by
@@ -124,14 +128,70 @@ match against your own faculty records — prefer those over `faculty.id`/`facul
 ATLAS surrogates. `section.externalId` is the upstream section id. `faculty.isPlaceholder` marks a
 non-real assignment; do not present a placeholder as a person.
 
-`timeSlots[]` is `{ "startTime": "06:00", "endTime": "06:45" }` and `specialEvents` is a list of the
-school's configured non-teaching windows; use them to render a correct grid rather than inferring
-periods from entry times.
+`timeSlots[]` is `{ "startTime": "06:00", "endTime": "06:45" }`. `specialEvents[]` is a list of the
+school's configured non-teaching windows (including breaks); use both to render a correct grid rather
+than inferring periods from entry times. Breaks are **only** in `specialEvents[]` — a consumer that
+builds a grid from `entries[]` alone will show **no break bands at all**. See §4.4.
 
-### 4.3 Verified counts at the pin
+### 4.3 Room identity and the room-lookup trap
 
-`GET /schools/1/schedules/published?termIndex=1` → **200**, **920 entries**, every entry
-`termIndex: 1`. `?termIndex=1|2|3|active` all → 200. `timeSlots` non-empty; `specialEvents` count 5.
+**Each entry's room is the nested `room` object** (`entry.room.id` is the **ATLAS** `Room.id`, not an
+upstream id):
+
+```json
+"room": { "id": 65, "name": "G10 Room 101", "type": "CLASSROOM", "floor": "1",
+          "buildingId": 4, "buildingName": "Grade 10 Academic Wing" }
+```
+
+- **ATLAS `Room` has no external id, and there is no room external-id lookup endpoint** (unlike
+  `faculty-external/:externalFacultyId`). The only room identifier ATLAS exposes is the surrogate
+  `room.id`.
+- `GET …/published/rooms/:roomId` expects the **ATLAS `Room.id`**. Passing an *external/upstream*
+  room id is a silent trap: if no ATLAS room has that integer the response is still **200 with an
+  empty `entries[]`**, and if the integer happens to collide with a different ATLAS room you get
+  **another room's schedule**. Neither case errors.
+- **Safe mapping path.** Do not construct a room id from your own records. Read the whole-school
+  payload (`GET …/school-years/:schoolYearId/schedules/published?termIndex=<n>`), collect the distinct
+  `entries[].room` objects, and key them by `room.id` (deduplicate by `room.name` + `buildingName`
+  where it helps a human). Only then call `…/rooms/:roomId` with that ATLAS `room.id`. If your own
+  system holds a different room identifier, maintain your own room crosswalk — ATLAS cannot resolve
+  it for you.
+
+### 4.4 `specialEvents[]`, breaks, and the break-scope ambiguity
+
+Each `specialEvents[]` element has exactly this shape — **there is no `eventType` field**:
+
+```json
+{ "eventName": "Lunch Break", "startTime": "11:30", "endTime": "12:15",
+  "dayOfWeek": null, "days": ["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY"] }
+```
+
+- **Breaks are never in `entries[]`.** If you render only `entries`, break bands disappear.
+- `dayOfWeek: null` (with `days` = the five weekdays) is the normal school-wide case. A day-scoped
+  event (e.g. a Monday-only flag ceremony) carries a concrete `dayOfWeek` and a single-entry `days`.
+- **Duplicate windows are real and are NOT duplicates to be de-duplicated away.** At the pinned live
+  release, term 1 carries **two `"Lunch Break"` windows** (`11:30–12:15`, `12:15–13:00`) and **two
+  `"Health Break"` windows** (`09:00–09:15`, `15:15–15:30`); the whole payload has 5 special events
+  (the four break windows plus the flag ceremony). Different grade/shift groups legitimately have
+  different break boundaries, and the published union keeps each distinct window.
+- **Break scope is genuinely ambiguous in this projection — do not assume it.** ATLAS's canonical
+  class-program rows do carry `(gradeLevel, programType)`, but the display grid unions every scope's
+  break rows and de-duplicates them by `startTime–endTime` alone, so the grade/shift scope is lost
+  before the payload is built. A single emitted window may belong to one grade group, several, or
+  **none** (a policy flag overlay or the legacy policy fallback). ATLAS therefore does **not** emit a
+  `scope`/`gradeGroup` field on `specialEvents[]` (adding one would either change the event count or
+  assert a scope the union cannot prove). **Consumers that need a grade/shift-attributed break band
+  must derive it from the owning class-program rows**, not from `specialEvents[]`; treat this array
+  as the school-wide union of non-teaching windows. (This is the resolved outcome of the
+  SMART-DRAFT-READ-S3 Deliverable-2 investigation; the in-source note is at
+  `atlas-server/src/services/published-schedule.service.ts` `buildSpecialEventsPayload`.)
+
+### 4.5 Verified counts at the 2026-09-24 pin
+
+`GET /schools/1/school-years/<active>/schedules/published?termIndex=1` → **200**, **920 entries**,
+every entry `termIndex: 1`, run **317** / revision **43**, `snapshotState: FROZEN`. `timeSlots`
+non-empty; `specialEvents` count 5 (two `Lunch Break`, two `Health Break`, one flag ceremony) as
+described in §4.4.
 
 ## 5. Error contract
 
@@ -184,11 +244,127 @@ If you have a caller written against the deleted doc, these are the breaking dif
 6. **Label authority:** a term whose `displayLabel` differs from `TERM <order>` renders the
    `displayLabel`.
 
+## 8A. Draft schedule read (new — share-gated, term-scoped)
+
+Companions can read a teacher's **draft** (not-yet-published) schedule through a separate,
+read-only family. Draft reads are **never public**: they require a credential and are gated by
+an explicit per-run sharing switch that defaults OFF.
+
+### Routes (mounted at `/api/v1`)
+
+| Purpose | Path |
+| --- | --- |
+| Teacher (external id) | `GET /schools/:schoolId/school-years/:schoolYearId/schedules/draft/faculty-external/:externalFacultyId?termIndex=<n>` |
+| Section | `GET /schools/:schoolId/school-years/:schoolYearId/schedules/draft/sections/:sectionId?termIndex=<n>` |
+| Whole run (shared only) | `GET /schools/:schoolId/school-years/:schoolYearId/schedules/draft?termIndex=<n>` |
+| Share toggle (scheduler) | `PATCH /generation/:schoolId/:schoolYearId/runs/:runId/draft-sharing` body `{ "enabled": true\|false }` |
+
+`school-years/:schoolYearId` is explicit on every read, so this family has no active-year
+election and therefore no `ACTIVE_SCHOOL_YEAR_AMBIGUOUS`.
+
+### Authentication (fail-closed)
+
+- Reads accept the ATLAS **system token / integration key** (`X-Integration-Key` or
+  `Authorization: Bearer <ATLAS_SYSTEM_TOKEN>`) or a valid ATLAS JWT. No credential → `401 NO_TOKEN`.
+- The toggle is **JWT-only** and additionally requires the `timetable:edit` capability and
+  actor-school equality; the system token is rejected there (`401`).
+
+### The sharing switch (default OFF)
+
+- A run's draft is readable **only** while `summary.draftSharedWithTeachers === true`. Otherwise
+  every read fails `403 DRAFT_SHARING_DISABLED` with **zero payload**.
+- Only a **`COMPLETED`, `FULL`, unpublished** run can be shared. A published run is never a draft:
+  reading returns `404 DRAFT_RUN_NOT_FOUND` (details `reason: PUBLISHED_RUN_IS_NOT_A_DRAFT`) and
+  sharing returns `409 RUN_ALREADY_PUBLISHED`.
+- The toggle is a version-CAS update of the run summary plus a `DRAFT_SHARING_ENABLED` /
+  `DRAFT_SHARING_DISABLED` audit row, committed together. Re-applying the current value is a
+  zero-write `changed: false` response.
+
+### Term scoping (mandatory)
+
+`termIndex` is required and validated against the verified ordered-term contract, exactly like the
+published family. `active` resolves through the verified active term.
+
+### Payload
+
+The producer is the existing term-normalized draft report plus an additive `source` block:
+
+| Field | Meaning |
+| --- | --- |
+| `source.runId`, `source.schoolYearId` | run/year identity |
+| `source.isDraft` | always `true` |
+| `source.termScope`, `source.termIndex` | what the payload actually covers |
+| `source.orderedTerms` | authoritative term list (`order` / `identity` / `displayLabel`) |
+| `source.runStatus` | generation run status |
+| `source.draftSharedWithTeachers` | `true` (a read is only possible while shared) |
+| `source.inputFingerprint`, `source.inputStateStatus` | change-detection basis (`null` when unavailable) |
+| `entries[]` | the **term-filtered**, scope-filtered draft rows (raw draft entry shape: `entryId`, `facultyId`, `sectionId`, `subjectId`, `roomId`, `day`, `startTime`, `endTime`, `durationMinutes`, `termIndex`) |
+| `unassignedItems[]` | run-wide; **empty** on faculty/section-scoped reads, populated on the whole-run read |
+| `summary`, `inputState`, `version`, `finishedAt`, `createdAt`, `status`, `runId` | reused producer fields |
+
+The draft entry shape is **raw** (`roomId` / `sectionId` / `subjectId` are surrogate ids, not the
+published nested objects). A companion that needs human-readable names must map them from the
+published whole-school payload or its own mirrors.
+
+### Scope enforcement
+
+- `faculty-external` returns only that teacher's entries; `sections` returns only that section's
+  entries (including cohort member sections); the whole-run route returns the whole shared draft.
+- A caller whose identity is faculty-scoped (a resolvable faculty identity, non-scheduler role) may
+  read only its **own** teacher draft — otherwise `403 CROSS_FACULTY_DENIED`. Scheduler/officer/
+  system-token callers are exempt.
+
+### Draft error contract
+
+| Status | `code` | When |
+| --- | --- | --- |
+| `400` | `TERM_INDEX_REQUIRED` | no `termIndex` supplied |
+| `400` | `INVALID_TERM_INDEX` | not `1..4` and not `active` |
+| `400` | `TERM_INDEX_OUTSIDE_CONTRACT` | index outside the verified contract (e.g. `4` on a trimester) |
+| `400` | `INVALID_PARAM` / `INVALID_BODY` | bad path id / non-boolean toggle body |
+| `401` | `NO_TOKEN` | no credential on a read; also a system token on the JWT-only toggle |
+| `403` | `DRAFT_SHARING_DISABLED` | the run is not shared (default) |
+| `403` | `CROSS_FACULTY_DENIED` | a self-identified teacher reading another teacher's draft |
+| `403` | `FORBIDDEN` / `SCHOOL_SCOPE_REQUIRED` / `CROSS_SCHOOL_DENIED` | toggle capability / actor-school guards |
+| `404` | `DRAFT_RUN_NOT_FOUND` | no completed FULL draft run, or the latest run is published |
+| `404` | `FACULTY_NOT_FOUND` | unknown `externalFacultyId` |
+| `409` | `TERM_STRUCTURE_UNAVAILABLE` / `TERM_SELECTION_REQUIRED` | unresolved ordered term |
+| `409` | `RUN_ALREADY_PUBLISHED` | attempting to share a published run |
+| `409` | `DRAFT_SHARING_UNAVAILABLE` / `DRAFT_SHARING_CONFLICT` | non-FULL/completed run / concurrent write |
+| `501` | `TERM_FILTER_NOT_READY` | entries lack a reliable `termIndex` |
+
+### Draft acceptance tests
+
+1. **Scope:** a shared `faculty-external` read returns only that teacher's entries for the requested
+   term; `sections` returns only that section's.
+2. **Toggle OFF:** reads fail `403 DRAFT_SHARING_DISABLED` with no `entries` and no writes.
+3. **Unauthenticated:** `401 NO_TOKEN`.
+4. **Unknown faculty:** `404 FACULTY_NOT_FOUND`.
+5. **Term:** missing → `400 TERM_INDEX_REQUIRED`; malformed → `400 INVALID_TERM_INDEX`;
+   out-of-contract → `400 TERM_INDEX_OUTSIDE_CONTRACT`.
+6. **Published run:** cannot be read as a draft (`404`) nor shared (`409 RUN_ALREADY_PUBLISHED`).
+7. **Cross-faculty:** a self-identified teacher reading another teacher's shared draft → `403 CROSS_FACULTY_DENIED`.
+
+Executable matrix: `atlas-server/src/__tests__/smart-draft-read-s3.test.ts`.
+SMART-facing summary: `docs/handoffs/smart-draft-read-s3-2026-09-24.md`.
+
 ## 9. Scope and open items
 
 - **The API contract is stable at the pin.** ATLAS has two pending *client-side* term-scope lanes
   (`work/timetable-live-term-authority-c01`, `work/public-published-view-term-merge-c01`); **neither
   touches `atlas-server/**`**, so neither moves this contract. You do not need to wait for them.
+- **Known ATLAS-side defect (flagged, not fixed here) — official Teacher Program DOCX omits
+  `Lunch Break`.** Measured on the live run: the **Teacher Program** DOCX renders `Lunch Break: 0`,
+  `Health Break: 2`, while the **Section/Grade** DOCX renders `Lunch Break: 5`, `Health Break: 10`.
+  Root-cause lead: `atlas-server/src/services/teacher-program-export.service.ts` builds its display
+  slots from `frozenSnapshot.displaySlots` **else** `run.summary.timetableDisplaySlots`, and the
+  latter stores bare `{startTime,endTime,dayOfWeek}` with **no `kind`/`label`**; consequently
+  `isSpecialEvent: slot.kind === 'SPECIAL_EVENT'` is false and canonical BREAK rows lose their
+  label. This is a **bounded successor** to schedule separately (`TEACHER-PROGRAM-LUNCH-BREAK-C01`);
+  it does not change this read contract and must not be "fixed" from a companion lane. Until it is
+  fixed, do not treat the Teacher Program DOCX break labels as authoritative.
+- **Break-window scope is deliberately not exposed** (§4.4) — derive grade/shift attribution from the
+  owning class-program rows if you need it.
 - **Not covered here:** writing schedules back to ATLAS, Teaching Load, enrolment, and the SSO
   federation handshakes (those are separate handoffs:
   `docs/handoffs/aims-direct-federation-c04.md`, `docs/handoffs/smart-direct-federation-c04.md`).
