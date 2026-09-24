@@ -39,13 +39,23 @@ resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs
 ## Live release
 
 - Tailnet: `https://njgrm.buru-degree.ts.net`
-- **Target release SHA: `b6687fee`** (**deployment-pending** 2026-09-25; release dir
-  `E:\ATLAS-runtime-supervised-b6687fee-20260925`; scheduler-clarity client release; rollback basis
-  `066da7a7`; **no migration** — no `atlas-server`/`prisma` changes in `066da7a7..b6687fee`). Handoff:
-  Luna's candidate + Terra's independent review `ACCEPT_READY`; route/state preservation 58/58;
-  scheduler-clarity suite 52/52; production client build passed. Recorded before cutover per the
-  `deploy-runner.ps1` gate.
-- **Release SHA: `066da7a7`** (**LIVE** since 2026-09-25; `E:\ATLAS-runtime-supervised-066da7a7-20260925`;
+- **Release SHA: `b6687fee`** (**LIVE** since 2026-09-25; release dir
+  `E:\ATLAS-runtime-supervised-b6687fee-20260925`; scheduler-clarity client release; supervisor-owned
+  5001→70176 / 5174→80088; health/ready (`database:"ok"`) + DB-backed read
+  (`GET /api/v1/subjects?schoolId=1` → 200 with data) + Tailnet 200; served entry
+  `assets/index-DNzys7Zh.js` (SHA-256 `C11F747CDB98F2F4608C2AA0E86E56A2A49D17052FAAC25CD9294E11C767C851`,
+  byte-identical to the build and absent from the incumbent) and new-build-only chunk
+  `assets/ScheduleReviewWorkspace-DPx-KMEP.js`
+  (SHA-256 `9844683E9B781AA5EE910713F9B065F2AB3D9E3932A48168B9EDBD36A8FCFE26`, byte-identical); machine
+  `ATLAS_RUNTIME_SOURCE_DIR` / `RELEASE_SHA` = this target; rollback basis `066da7a7`; **no migration** —
+  no `atlas-server`/`prisma` changes in `066da7a7..b6687fee`). Cut over by `ops/runtime/deploy-runner.ps1`
+  (dry-run audit `C:\ProgramData\ATLAS\release-audit\b6687fee-20260925-052343`; execute audit
+  `C:\ProgramData\ATLAS\release-audit\b6687fee-20260925-052413`). Handoff: Luna's candidate + Terra's
+  independent review `ACCEPT_READY`; route/state preservation 58/58; scheduler-clarity suite 52/52;
+  production client build passed. Browser acceptance for this release is **separate and not performed by
+  the cutover** (scheduler copy/term/control contrast at 1366×768 and 390×844; owner Lane B).
+- **Rollback basis: `066da7a7`** at `E:\ATLAS-runtime-supervised-066da7a7-20260925` (LIVE 2026-09-25 until
+  the `b6687fee` cutover;
   supervisor-owned 5001→78160 / 5174→74512; health/ready (`database:"ok"`) + DB-backed read
   (`GET /api/v1/subjects?schoolId=1` → 200 with data) + Tailnet 200; served entry
   `assets/index-D90Rg0kl.js` (SHA-256 `6C057F4C…B8EC44C`, byte-identical to the build) and new-build-only
@@ -75,7 +85,7 @@ resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs
   Disclosure (QA F1): a post-cutover authentication footprint (audit rows 952 FAILED / 953 SUCCESS) is not
   attributable to the deployment executor. Packet:
   `docs/prompts/c7-teacher-concern-deploy-2026-09-25.md`.
-- **Rollback basis: `37e0c85b`** at `E:\ATLAS-runtime-supervised-37e0c85b-20260925` (startable in place;
+- **Rollback depth: `37e0c85b`** at `E:\ATLAS-runtime-supervised-37e0c85b-20260925` (startable in place;
   supervisor-owned ports reclaimed on restart; carries the global native-scrollbar token policy and the S8
   shift-coherence guard (D11); applied `20260925000001_shift_coherence`; compatible with the additive
   `20260925000002_faculty_availability`). Its cutover audit was
