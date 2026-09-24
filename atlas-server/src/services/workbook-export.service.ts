@@ -1135,7 +1135,7 @@ export async function exportPrintableProgramWorkbook(
 	workbook.creator = 'ATLAS';
 	const gradeColors: Record<number, string> = { 7: 'FFE2F0D9', 8: 'FFFFF2CC', 9: 'FFF4CCCC', 10: 'FFD9EAF7' };
 	for (const [groupIndex, group] of sheetGroups.entries()) {
-		const groupTitle = program === 'grade' && sheetGroups.length > 1 ? `${title} — SECTIONS ${groupIndex * 4 + 1}-${groupIndex * 4 + group.length}` : title;
+		const groupTitle = program === 'grade' && sheetGroups.length > 1 ? `${title} — PAGE ${groupIndex + 1} OF ${sheetGroups.length}` : title;
 		const sheet = workbook.addWorksheet(sanitizeSheetName(group.length ? `${program} ${groupIndex + 1}` : `${program} ${entityId}`));
 		const dayColumnCount = program === 'grade' ? group.length : WEEKDAYS.length;
 		addReportHeader(sheet, presentationContext, groupTitle);
