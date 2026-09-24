@@ -23,6 +23,12 @@ after: 11.** Apply only via `npm run migrate:guarded` (never bare Prisma) after 
 checksum-valid backup (`npm run backup`; the guard revalidates `pg_restore --list` immediately before
 Prisma and prints `MIGRATE_GATE_OK`). Post-apply: migrate status up to date + existence probe for the
 `faculty_availability` / `faculty_availability_slots` tables and FKs.
+- **Env/backup (specified):** the release worktree has no `atlas-server/.env`; load `DATABASE_URL` into
+  the process from `D:\ATLAS-runtime-config\atlas-server.env` (read it inside the process — never print
+  it). No `ATLAS_BACKUP_CONFIG` is set, so the default backup root `D:\ATLAS-database-recovery\backups`
+  and the 24 h freshness window apply; run `npm run backup` first and confirm the guard revalidates a
+  fresh manifest (`pg_restore --list`). A bare `migrate:guarded` without the env fails closed
+  `CONFIG_MISSING` (no mutation).
 
 ## Expected product delta (`37e0c85b..066da7a7`)
 
@@ -55,6 +61,12 @@ Two-viewport matrix (1366×768 and 390×844): (a) the teacher portal routes `/my
 concern workspace `/faculty/concerns` loads/saves/reviews a teacher's availability; (c) the run drift
 shows all seven domains and the explicit "Regenerate to apply" affordance never auto-regenerates a
 published run; (d) an effective-dated identity revision reads back the override post-effective-date.
+
+**Post-action QA (mandatory, one fresh independent `atlas-qa`):** health + DB-backed read + a chunk that
+exists only in the new build byte-compared against the built asset + machine `ATLAS_RUNTIME_SOURCE_DIR`/
+`RELEASE_SHA` = target; the migration present and the existence probe passed; zero unauthorized writes;
+a real `passed/blocked/unperformed` tally. `ACCEPT_READY` only if `passed == total`, `blocked 0`,
+`unperformed 0`.
 
 ## Rollback
 

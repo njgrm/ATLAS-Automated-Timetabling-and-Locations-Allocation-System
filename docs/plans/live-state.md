@@ -108,7 +108,7 @@ resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs
 
 ## Decisions awaited (operator-facing, as of 2026-09-25)
 
-- Name the acceptance owner for `37e0c85b` and give it an authenticated session (see `AGENTS.md` §12).
+- Give `37e0c85b` (acceptance owner: Lane B / Codex) and the C7 target an authenticated session (see `AGENTS.md` §12).
 - `E:` is under its 50 GiB warning: authorize the release-directory retention reclaim before the next build.
 - Keep or delete two unlanded code branches (both pushed): `work/public-published-view-term-merge-c01`,
   `work/timetable-live-term-authority-c01`.
