@@ -94,7 +94,7 @@ export function SchedulerPrintDialog(props: Props) {
 		return choices.filter((choice) => !normalized || choice.label.toLocaleLowerCase().includes(normalized));
 	}, [choices, query]);
 	const allSelected = choices.length > 0 && selectedIds.length === choices.length;
-	const unresolvedReason = props.termIndex === 'all' ? 'Choose one ordered term in the timetable header.'
+	const unresolvedReason = props.termIndex === 'all' ? 'Choose one ordered term before downloading.'
 		: !props.runId ? 'Choose a completed schedule run first.'
 			: !props.schoolYearId ? 'School-year scope is not ready.' : null;
 
