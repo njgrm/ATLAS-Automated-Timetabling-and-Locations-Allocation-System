@@ -39,6 +39,12 @@ resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs
 ## Live release
 
 - Tailnet: `https://njgrm.buru-degree.ts.net`
+- **Target release SHA: `066da7a7`** (**deployment-pending** 2026-09-25; release dir
+  `E:\ATLAS-runtime-supervised-066da7a7-20260925`; program `TEACHER-CONCERN-AUTHORITY-PROGRAM-20260924`
+  C5+C6 product; rollback basis `37e0c85b`; adds `20260925000002_faculty_availability`). Recorded before
+  cutover per the `deploy-runner.ps1` gate; the incumbent bullet below remains the LIVE release until the
+  cutover completes. Browser acceptance deferred to **Lane B (Codex)**. Packet:
+  `docs/prompts/c7-teacher-concern-deploy-2026-09-25.md`.
 - **Release SHA: `37e0c85b`** (**LIVE** since 2026-09-25; `E:\ATLAS-runtime-supervised-37e0c85b-20260925`;
   supervisor-owned 5001→63452 / 5174→26084; health/ready (`database:"ok"`) + DB-backed read + Tailnet 200;
   served entry `assets/index-qbOXyMnr.js` (SHA-256 `8372C342…D43B60`, byte-identical to the build); machine
@@ -48,7 +54,8 @@ resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs
   `atlas-backup-atlas_recovery_clean_rebuild_20260905-20260924-181614.dump`, sha256 `5676cde9…`). Cut over by
   `ops/runtime/deploy-runner.ps1` (audit `C:\ProgramData\ATLAS\release-audit\37e0c85b-20260925-021830`).
   **Deployment verified:** fresh QA `ACCEPT_READY` 18/18/0/0. **Acceptance PARTIAL** — authenticated browser
-  rows `EXTERNALLY_BLOCKED(AUTH_SESSION_REQUIRED)`. **Acceptance owner: unassigned (as of 2026-09-25).**
+  rows `EXTERNALLY_BLOCKED(AUTH_SESSION_REQUIRED)`. **Acceptance owner: Lane B (Codex)** — assigned by
+  Lane A 2026-09-25; needs an operator-provided session (one `LOCAL_LOGIN_SUCCESS` + `last_login_at`).
 - **Rollback depth** (retention policy: live + two most recent accepted):
   1. `a5f7384e61a24059cdeaadbfa279969877838e0f` at `E:\ATLAS-runtime-supervised-a5f7384e-20260925` — the
      rollback basis; compatible with the additive `37e0c85b` migration.
