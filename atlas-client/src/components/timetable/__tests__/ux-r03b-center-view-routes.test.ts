@@ -305,7 +305,7 @@ test('UX-R03b correction: empty-state way-backs navigate so the URL matches the 
 });
 
 // --- Row 8: nothing is lost ---
-test('UX-R03b row 8: the four views stay reachable with unchanged Generate/Publish/Preview/Sync call sites', () => {
+test('UX-R03b row 8: lifecycle drift actions preserve published and draft confirmation gates', () => {
 	const center = source('src/components/timetable/CenterWorkspace.tsx');
 	for (const view of ['pre-generation', 'manual-edit', 'map', 'building']) {
 		assert.ok(center.includes(`'${view}'`), `center view '${view}' must remain`);
@@ -319,6 +319,33 @@ test('UX-R03b row 8: the four views stay reachable with unchanged Generate/Publi
 	assert.match(simple, /SimplePublishAction/);
 	assert.match(simple, /Preview demand/);
 	const drift = source('src/components/timetable/simple/SimpleDriftBanner.tsx');
-	assert.match(drift, /Sync with setup/);
-	assert.match(drift, /timetable-simple-sync-setup/);
+	assert.doesNotMatch(drift, /Sync with setup|timetable-simple-sync-setup/);
+	assert.match(drift, /Published schedule is safe to view\. Changes are made in a separate revision\./);
+	assert.match(drift, /data-testid="timetable-simple-review-published-changes"/);
+	assert.match(drift, /data-testid="timetable-simple-start-revision"/);
+	assert.match(drift, /onClick=\{onStartRevision\}/);
+	assert.match(drift, /const showRegenerateAction = Boolean\(onRegenerate\) && !isPublished && showRunDrift/);
+	assert.match(drift, /data-testid="timetable-simple-review-draft-changes"/);
+	assert.match(drift, /data-testid="timetable-simple-regenerate-impact"/);
+	assert.match(drift, /data-testid="timetable-simple-regenerate-to-apply"/);
+	assert.match(drift, /onClick=\{\(\) => setShowRegenerateImpact\(true\)\}/);
+	assert.match(drift, /onConfirm=\{handleRegenerate\}/);
+	assert.match(drift, /data-testid="timetable-simple-regenerate-confirm"/);
+	// The draft action only opens the impact dialog. Its confirm callback is the
+	// sole route to the generation callback, which itself opens confirmation;
+	// actual generation remains behind the separate confirmGenerate handler.
+	const pane = source('src/components/timetable/TimetableSetupPane.tsx');
+	assert.match(pane, /onStartRevision=\{inputs\?\.onStartRevision\}/);
+	const workspace = source('src/hooks/useScheduleReviewWorkspaceState.ts');
+	assert.match(workspace, /onStartRevision: handleTriggerGenerate/);
+	const mutations = source('src/hooks/useTimetableMutations.ts');
+	const triggerStart = mutations.indexOf('const handleTriggerGenerate = useCallback');
+	const confirmStart = mutations.indexOf('const confirmGenerate = useCallback', triggerStart);
+	assert.ok(triggerStart >= 0 && confirmStart > triggerStart, 'generation trigger and confirmation must both remain wired');
+	const trigger = mutations.slice(triggerStart, confirmStart);
+	assert.match(trigger, /setShowGenerateConfirm\(true\)/);
+	assert.doesNotMatch(trigger, /triggerGeneration\(/);
+	const confirmation = mutations.slice(confirmStart, mutations.indexOf('const openPreGenerationWorkspace', confirmStart));
+	assert.match(confirmation, /setShowGenerateConfirm\(false\)/);
+	assert.match(confirmation, /triggerGeneration\(true/);
 });
