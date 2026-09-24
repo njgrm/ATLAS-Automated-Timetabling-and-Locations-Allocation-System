@@ -467,7 +467,7 @@ test('C01R D5 every timetable surface renders one visible h1 naming the surface'
 		['/timetable/setup', 'Setup'],
 		['/timetable/policies', 'Scheduling Policy'],
 		['/timetable/runs', 'Runs'],
-		['/timetable/exports', 'Print schedules'],
+		['/timetable/exports', 'Download schedules'],
 	] as Array<[string, string]>) {
 		const markup = renderSubNav(path);
 		const h1 = markup.match(new RegExp('<h1[^>]*>([^<]*)</h1>'));

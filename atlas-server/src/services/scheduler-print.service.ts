@@ -3,6 +3,7 @@ import { exportGradeClassProgramDocx, exportRoomProgramDocx, exportSectionProgra
 import type { ExportOptions } from './workbook-export.service.js';
 import { buildTeacherProgramExportShape } from './teacher-program-export.service.js';
 import { generateTeacherProgramDocx } from './docx-export.service.js';
+import { exportPrintableProgramWorkbook } from './workbook-export.service.js';
 
 export type SchedulerPrintProgram = 'grade' | 'section' | 'teacher' | 'room';
 export type SchedulerPrintFile = { filename: string; content: Buffer };
@@ -11,6 +12,7 @@ export async function renderSchedulerPrintFiles(
 	options: ExportOptions,
 	program: SchedulerPrintProgram,
 	requestedIds: number[],
+	format: 'docx' | 'xlsx' = 'docx',
 ): Promise<SchedulerPrintFile[]> {
 	const available = await getOfficialPrintOptions(options);
 	const choices = program === 'grade' ? available.grades
@@ -26,6 +28,11 @@ export async function renderSchedulerPrintFiles(
 	// before any document is rendered or handed to the ZIP writer.
 	const yearToken = (available.yearLabel || 'UNLABELED').replace(/[^a-zA-Z0-9-]/g, '');
 	const render = async (id: number): Promise<SchedulerPrintFile> => {
+		if (format === 'xlsx') {
+			const content = await exportPrintableProgramWorkbook(options, program, id);
+			const identity = program === 'grade' ? `G${id}` : String(id);
+			return { filename: `${program}-program-${identity}-SY${yearToken}-term${options.termIndex}.xlsx`, content };
+		}
 		let content: Buffer;
 		let identity: string;
 		switch (program) {

@@ -129,10 +129,9 @@ test('a stale revision surfaces the typed CAS error', async () => {
 
 test('the editor is reachable from the official print panel', () => {
 	const html = renderToStaticMarkup(createElement(SimpleExportMenu, {
-		onOpenPrintSchedules: () => {},
-		onOpenOfficeData: () => {},
+		onOpenDownloadSchedules: () => {},
 	}));
-	assert.match(html, /Print schedules/);
+	assert.match(html, /Download schedules/);
 	const printDialog = source('src/components/timetable/simple/SchedulerPrintDialog.tsx');
 	assert.match(printDialog, /Header and signatories/);
 	assert.match(printDialog, /onOpenPresentationSettings/);

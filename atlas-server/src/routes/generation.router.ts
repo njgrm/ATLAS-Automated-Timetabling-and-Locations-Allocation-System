@@ -11,7 +11,7 @@ import { resolvePublishedRunTermIndex } from '../services/published-schedule.ser
 import { getFixSuggestions } from '../services/fix-suggestions.service.js';
 import { getRunById } from '../services/generation.service.js';
 import { getViolationRepairOptions, parseViolationRepairLocator } from '../services/violation-repair-options.service.js';
-import { exportSummaryWorkbook, exportClassProgramWorkbook, resolveExportSchoolYearLabel } from '../services/workbook-export.service.js';
+import { exportSummaryWorkbook, exportClassProgramWorkbook, exportPrintableProgramWorkbook, resolveExportSchoolYearLabel } from '../services/workbook-export.service.js';
 import { exportRoomProgramWorkbook } from '../services/room-program-export.service.js';
 import { aggregateSectionLearnerCounts } from '../services/export-learner-count.service.js';
 import { exportGradeClassProgramDocx, exportRoomProgramDocx, exportSectionProgramDocx } from '../services/official-program-docx.service.js';
@@ -33,6 +33,10 @@ function exportIdentityToken(value: string): string {
 
 function schedulerPrintProgram(value: unknown): value is SchedulerPrintProgram {
 	return value === 'grade' || value === 'section' || value === 'teacher' || value === 'room';
+}
+
+function schedulerPrintFormat(value: unknown): value is 'docx' | 'xlsx' {
+	return value === 'docx' || value === 'xlsx';
 }
 
 
@@ -814,6 +818,44 @@ router.get(
 	},
 );
 
+router.get(
+	'/:schoolId/:schoolYearId/runs/:runId/export/print-program.xlsx',
+	authenticate,
+	async (req: Request, res: Response, next: NextFunction) => {
+		try {
+			if (!hasWorkspaceCapability(req, res, 'timetable:read')) return;
+			const schoolId = positiveInt(req.params.schoolId, 'schoolId');
+			const schoolYearId = positiveInt(req.params.schoolYearId, 'schoolYearId');
+			const runId = positiveInt(req.params.runId, 'runId');
+			const entityId = positiveInt(req.query.id, 'id');
+			if ([schoolId, schoolYearId, runId, entityId].some((value) => typeof value === 'string')) {
+				res.status(400).json({ code: 'INVALID_PARAM', message: 'School, year, run and entity identifiers must be positive integers.' }); return;
+			}
+			const resolvedSchoolId = schoolId as number;
+			if (!assertActorSchoolScope(req, res, resolvedSchoolId)) return;
+			const program = req.query.program;
+			if (!schedulerPrintProgram(program)) { res.status(400).json({ code: 'INVALID_PRINT_PROGRAM', message: 'program must be grade, section, teacher, or room.' }); return; }
+			const termParse = parseRequiredTermQuery(req.query.termIndex);
+			if (!termParse.ok) { res.status(400).json({ code: termParse.code, message: termParse.message }); return; }
+			const resolvedTerm = await resolvePublishedRunTermIndex(resolvedSchoolId, schoolYearId as number, runId as number, termParse.requested);
+			const buffer = await exportPrintableProgramWorkbook({ schoolId: resolvedSchoolId, schoolYearId: schoolYearId as number, runId: runId as number, termIndex: resolvedTerm }, program, entityId as number);
+			const yearLabel = await resolveExportSchoolYearLabel(resolvedSchoolId, schoolYearId as number);
+			const kind = `${program}-program`;
+			const entity = program === 'grade' ? `G${entityId}` : String(entityId);
+			res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+			res.setHeader('Content-Disposition', `attachment; filename="${exportFileStem(kind, entity, yearLabel, resolvedTerm as number)}.xlsx"`);
+			res.send(buffer);
+		} catch (error: any) {
+			if (error?.message === 'PRINT_ENTITY_NOT_FOUND') { res.status(404).json({ code: 'PRINT_ENTITY_NOT_FOUND', message: 'The selected program is not part of this school, run, and term.' }); return; }
+			if (error?.message === 'EMPTY_SELECTED_TERM') { res.status(422).json({ code: 'EMPTY_SELECTED_TERM', message: 'The selected term has no printable programs.' }); return; }
+			if (error?.message === 'RUN_NOT_FOUND') { res.status(404).json({ code: 'RUN_NOT_FOUND', message: 'Run not found for this school year.' }); return; }
+			if (error?.code === 'TERM_FILTER_NOT_READY' || error?.message === 'TERM_FILTER_NOT_READY') { res.status(501).json({ code: 'TERM_FILTER_NOT_READY', message: 'The selected term cannot be verified for this run.' }); return; }
+			if (typeof error?.statusCode === 'number' && typeof error?.code === 'string') { res.status(error.statusCode).json({ code: error.code, message: error.message }); return; }
+			next(error);
+		}
+	},
+);
+
 router.post(
 	'/:schoolId/:schoolYearId/runs/:runId/print-schedules.zip',
 	authenticate,
@@ -829,6 +871,8 @@ router.post(
 			if (!assertActorSchoolScope(req, res, schoolId)) return;
 			const program = req.body?.program;
 			if (!schedulerPrintProgram(program)) { res.status(400).json({ code: 'INVALID_PRINT_PROGRAM', message: 'program must be grade, section, teacher, or room.' }); return; }
+			const format = req.body?.format ?? 'docx';
+			if (!schedulerPrintFormat(format)) { res.status(400).json({ code: 'INVALID_PRINT_FORMAT', message: 'format must be docx or xlsx.' }); return; }
 			const termParse = parseRequiredTermQuery(req.body?.termIndex);
 			if (!termParse.ok) { res.status(400).json({ code: termParse.code, message: termParse.message }); return; }
 			const termIndex = await resolvePublishedRunTermIndex(schoolId, schoolYearId, runId, termParse.requested);
@@ -848,9 +892,9 @@ router.post(
 			} else {
 				res.status(400).json({ code: 'PRINT_ENTITY_REQUIRED', message: 'Choose one or more entities, or set all to true.' }); return;
 			}
-			if (ids.length < 2) { res.status(400).json({ code: 'PRINT_ZIP_REQUIRES_MULTIPLE_FILES', message: 'Use the single-program Word download when only one entity is selected.' }); return; }
+			if (ids.length < 2) { res.status(400).json({ code: 'PRINT_ZIP_REQUIRES_MULTIPLE_FILES', message: 'Use the single-program download when only one entity is selected.' }); return; }
 			if (ids.length > 500) { res.status(400).json({ code: 'TOO_MANY_PRINT_ENTITIES', message: 'A single print package may contain at most 500 programs.' }); return; }
-			const files = await renderSchedulerPrintFiles(options, program, ids);
+			const files = await renderSchedulerPrintFiles(options, program, ids, format);
 			const zip = await createSchedulerPrintZip(files);
 			const yearLabel = await resolveExportSchoolYearLabel(schoolId, schoolYearId);
 			const safeYear = exportIdentityToken(yearLabel || 'UNLABELED');

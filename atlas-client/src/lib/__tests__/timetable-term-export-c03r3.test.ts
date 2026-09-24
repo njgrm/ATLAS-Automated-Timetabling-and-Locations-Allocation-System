@@ -10,6 +10,7 @@
 
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { readFile } from 'node:fs/promises';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 
@@ -78,16 +79,18 @@ test('C03R3: every beneficiary download failure renders a visible retryable bann
 	);
 });
 
-test('C03R3: print panel and Excel working-data entry have separate labeled routes', () => {
+test('C03R3: one download action opens the combined Word and Excel schedule dialog', async () => {
 	const markup = renderToStaticMarkup(createElement(SimpleExportMenu, {
-		onOpenPrintSchedules: () => {},
-		onOpenOfficeData: () => {},
+		onOpenDownloadSchedules: () => {},
 	}));
-	assert.ok(markup.includes('timetable-open-print-schedules'));
-	assert.ok(markup.includes('timetable-open-office-working-data'));
-	assert.match(markup, /Print schedules/);
-	assert.match(markup, /Office working data/);
+	assert.ok(markup.includes('timetable-open-download-schedules'));
+	assert.match(markup, /Download schedules/);
+	assert.doesNotMatch(markup, /Print schedules|Office working data/);
 	assert.doesNotMatch(markup, /Download beneficiary outputs|Beneficiary downloads/);
+	const dialog = await readFile(new URL('../../components/timetable/simple/SchedulerPrintDialog.tsx', import.meta.url), 'utf8');
+	assert.match(dialog, /File format/);
+	assert.match(dialog, />Word<\/Button>/);
+	assert.match(dialog, />Excel<\/Button>/);
 });
 
 test('C03R3: a non-2xx official export rejects with the server message and dispatches no download', async () => {

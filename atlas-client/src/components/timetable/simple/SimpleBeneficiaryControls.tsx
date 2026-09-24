@@ -4,7 +4,7 @@
  * binds every official download to that selected term.
  */
 
-import { AlertTriangle, FileSpreadsheet, Loader2, Printer } from 'lucide-react';
+import { AlertTriangle, Download, Loader2 } from 'lucide-react';
 
 import { Button } from '@/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui/select';
@@ -54,18 +54,14 @@ export function SimpleTermSwitcher({ context }: { context: ScheduleReviewWorkspa
 }
 
 type SimpleExportMenuProps = {
-	onOpenPrintSchedules: () => void;
-	onOpenOfficeData: () => void;
+	onOpenDownloadSchedules: () => void;
 };
 
-export function SimpleExportMenu({ onOpenPrintSchedules, onOpenOfficeData }: SimpleExportMenuProps) {
+export function SimpleExportMenu({ onOpenDownloadSchedules }: SimpleExportMenuProps) {
 	return (
 		<div className="flex shrink-0 items-center gap-1.5" data-testid="timetable-simple-print-actions">
-			<Button type="button" variant="outline" size="sm" className="h-8 min-h-11 min-w-11 gap-1.5 px-2.5 text-xs sm:min-h-0 sm:min-w-0" onClick={onOpenPrintSchedules} data-testid="timetable-open-print-schedules">
-				<Printer className="size-3.5" aria-hidden="true" /><span>Print schedules</span>
-			</Button>
-			<Button type="button" variant="outline" size="sm" className="h-8 min-h-11 min-w-11 gap-1.5 px-2.5 text-xs sm:min-h-0 sm:min-w-0" onClick={onOpenOfficeData} data-testid="timetable-open-office-working-data">
-				<FileSpreadsheet className="size-3.5" aria-hidden="true" /><span>Office working data</span>
+			<Button type="button" variant="outline" size="sm" className="h-8 min-h-11 min-w-11 gap-1.5 px-2.5 text-xs sm:min-h-0 sm:min-w-0" onClick={onOpenDownloadSchedules} data-testid="timetable-open-download-schedules">
+				<Download className="size-3.5" aria-hidden="true" /><span>Download schedules</span>
 			</Button>
 		</div>
 	);

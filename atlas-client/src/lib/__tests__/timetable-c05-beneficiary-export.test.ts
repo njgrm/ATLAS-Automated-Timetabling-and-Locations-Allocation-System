@@ -94,19 +94,17 @@ test('M11: the room program request is scoped, identity-bound, and dispatches ze
 
 // ─── M17 — the single-flight guard blocks a second concurrent dispatch ───
 
-test('M17: the Simple header exposes one official print action and clearly secondary Excel working data', () => {
+test('M17: the Simple header exposes one combined schedule download action', () => {
 	const markup = renderToStaticMarkup(createElement(SimpleExportMenu, {
-		onOpenPrintSchedules: () => {},
-		onOpenOfficeData: () => {},
+		onOpenDownloadSchedules: () => {},
 	}));
-	assert.match(markup, /data-testid="timetable-open-print-schedules"/);
-	assert.match(markup, /Print schedules/);
-	assert.match(markup, /data-testid="timetable-open-office-working-data"/);
-	assert.match(markup, /Office working data/);
+	assert.match(markup, /data-testid="timetable-open-download-schedules"/);
+	assert.match(markup, /Download schedules/);
+	assert.doesNotMatch(markup, /Print schedules|Office working data/);
 	assert.doesNotMatch(markup, /Download beneficiary outputs|Beneficiary downloads|\.docx/);
 	const header = source('src/components/timetable/TimetableSimpleHeader.tsx');
 	assert.match(header, /<SchedulerPrintDialog/);
-	assert.match(header, /<SchedulerExportCenterDialog/);
+	assert.doesNotMatch(header, /<SchedulerExportCenterDialog/);
 });
 
 // ─── M11 wiring — RoomSchedules binds the official server-generated control ───
