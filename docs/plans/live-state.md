@@ -35,6 +35,14 @@ and AIMS.
 ## Live release
 
 - Tailnet: `https://njgrm.buru-degree.ts.net`
+- **Pending release SHA: `70a51608`** (**NOT LIVE** as of 2026-09-24; source accepted and pushed).
+  Carries `2c4a6c80` scheduler-control clarity plus official printable timetable exports: grade-wide
+  Class Program DOCX matrices, section/room/teacher DOCX forms, readable companion XLSX workbooks, and
+  school-year export identity fields. The additive migration
+  `20260924000000_unified_official_export_profile` is pending; no live database, runtime, generation,
+  or publication action has occurred. **Rollback basis: `c7fc0c955253b924fd880f346c23d428166437c6`**
+  at `E:\ATLAS-runtime-supervised-c7fc0c95-20260924`. **Next action:** elevated operator runs the
+  SHA-pinned deployment packet and performs fresh authenticated browser/document acceptance.
 - **Release SHA: `c7fc0c95`** (**LIVE** since 2026-09-24; `E:\ATLAS-runtime-supervised-c7fc0c95-20260924`;
   health/ready 200; served entry `assets/index-C7SskN0k.js`. Carries one client fix on top of `514be157`: the
   faculty `/my/schedule` page now sends the resolved ordered term to the published-faculty-schedule endpoint,
