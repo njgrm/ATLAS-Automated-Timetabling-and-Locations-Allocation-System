@@ -375,6 +375,7 @@ test('every official export route rejects an absent termIndex with a typed 4xx a
 		`${baseUrl}/api/v1/generation/${SCHOOL_ID}/${SCHOOL_YEAR_ID}/runs/${RUN_ID}/export/room-program.xlsx`,
 		`${baseUrl}/api/v1/generation/${SCHOOL_ID}/${SCHOOL_YEAR_ID}/runs/${RUN_ID}/export/room-program.docx`,
 		`${baseUrl}/api/v1/generation/${SCHOOL_ID}/${SCHOOL_YEAR_ID}/runs/${RUN_ID}/export/section-program.docx`,
+		`${baseUrl}/api/v1/generation/${SCHOOL_ID}/${SCHOOL_YEAR_ID}/runs/${RUN_ID}/export/class-program.docx?gradeLevel=7`,
 		`${baseUrl}/api/v1/generation/${SCHOOL_ID}/${SCHOOL_YEAR_ID}/class-program-matrix?gradeLevel=7&runId=${RUN_ID}`,
 	];
 	for (const url of targets) {
@@ -385,6 +386,32 @@ test('every official export route rejects an absent termIndex with a typed 4xx a
 		assert.doesNotMatch(String(response.headers.get('content-type')), /spreadsheetml|wordprocessingml/, 'a rejected export must not emit a document content type');
 	}
 	assert.equal(calls.length, 0, 'an absent term must be rejected before any downstream read/write');
+});
+
+test('mounted grade-specific class-program.docx requires a grade and renders the official selected-term form', { skip: harnessSkip }, async () => {
+	calls.length = 0;
+	const headers = { Authorization: `Bearer ${authToken(SCHOOL_ID)}` };
+	const missingGrade = await fetch(`${baseUrl}/api/v1/generation/${SCHOOL_ID}/${SCHOOL_YEAR_ID}/runs/${RUN_ID}/export/class-program.docx?termIndex=1`, { headers });
+	assert.equal(missingGrade.status, 400);
+	assert.equal((await missingGrade.json() as any).code, 'GRADE_LEVEL_REQUIRED');
+
+	const invalidGrade = await fetch(`${baseUrl}/api/v1/generation/${SCHOOL_ID}/${SCHOOL_YEAR_ID}/runs/${RUN_ID}/export/class-program.docx?termIndex=1&gradeLevel=11`, { headers });
+	assert.equal(invalidGrade.status, 400);
+	assert.equal((await invalidGrade.json() as any).code, 'INVALID_GRADE_LEVEL');
+
+	const response = await fetch(`${baseUrl}/api/v1/generation/${SCHOOL_ID}/${SCHOOL_YEAR_ID}/runs/${RUN_ID}/export/class-program.docx?termIndex=1&gradeLevel=7`, { headers });
+	assert.equal(response.status, 200);
+	assert.match(String(response.headers.get('content-type')), /wordprocessingml/);
+	assert.match(String(response.headers.get('content-disposition')), /class-program-G7-SY.*term1\.docx/);
+	const bytes = Buffer.from(await response.arrayBuffer());
+	assert.equal(bytes.subarray(0, 2).toString('latin1'), 'PK');
+	const { default: JSZip } = await import('jszip');
+	const archive = await (JSZip as any).loadAsync(bytes);
+	const xml = await archive.file('word/document.xml')?.async('string');
+	assert.match(xml, /Monday/);
+	assert.match(xml, /Mathematics/);
+	assert.doesNotMatch(xml, /Homeroom Guidance|ARAL Program/);
+	assert.equal(calls.some((call) => WRITE_METHODS.has(call.method)), false, 'official export reads must perform zero writes');
 });
 
 test('official export routes accept an explicit in-contract term and reject an out-of-contract one', { skip: harnessSkip }, async () => {

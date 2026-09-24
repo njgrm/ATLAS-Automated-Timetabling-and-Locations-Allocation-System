@@ -40,6 +40,25 @@ test('consolidated teacher workbook uses the existing revision-aware summary exp
 	assert.equal(resolveSchedulerExportCenterRequest({ ...base, kind: 'teacher-consolidated', format: 'docx' }), null);
 });
 
+test('official grade class-program is a Word export with explicit grade and optional selected section', () => {
+	const all = resolveSchedulerExportCenterRequest({
+		...base, kind: 'grade-class-program', format: 'docx', gradeLevel: 8,
+	});
+	assert.equal(all?.url, '/api/v1/generation/7/9/runs/42/export/class-program.docx?termIndex=2&gradeLevel=8');
+	assert.equal(all?.filename, 'class-program-G8-SY2026-2027-term2.docx');
+	const selected = resolveSchedulerExportCenterRequest({
+		...base, kind: 'grade-class-program', format: 'docx', gradeLevel: 8, scope: 'selected',
+		selection: { kind: 'section', id: 701, label: '8-Rizal' },
+	});
+	assert.equal(selected?.url, '/api/v1/generation/7/9/runs/42/export/class-program.docx?termIndex=2&gradeLevel=8&sectionId=701');
+	assert.equal(resolveSchedulerExportCenterRequest({
+		...base, kind: 'grade-class-program', format: 'docx', gradeLevel: null,
+	}), null);
+	assert.equal(resolveSchedulerExportCenterRequest({
+		...base, kind: 'grade-class-program', format: 'xlsx', gradeLevel: 8,
+	}), null);
+});
+
 test('Export Center sends nothing when term, run, scope, or selected entity is unresolved', () => {
 	assert.equal(resolveSchedulerExportCenterRequest({ ...base, termIndex: 'all', kind: 'room-program', format: 'xlsx' }), null);
 	assert.equal(resolveSchedulerExportCenterRequest({ ...base, runId: null, kind: 'room-program', format: 'xlsx' }), null);
