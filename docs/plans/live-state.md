@@ -35,6 +35,19 @@ and AIMS.
 ## Live release
 
 - Tailnet: `https://njgrm.buru-degree.ts.net`
+- **Pending release SHA: `a5f7384e`** (**NOT LIVE** as of 2026-09-24; source accepted and built). Carries the
+  C3 authority work (S5 break-window scope, S6 teacher-lunch policy), S7 persistent faculty grade preference,
+  and S8 unified Word/Excel schedule downloads. **Schema migration APPLIED** via the guarded runner to
+  `atlas_recovery_clean_rebuild_20260905` on 2026-09-24 — `20260924000001_teacher_lunch_window` (two additive
+  `scheduling_policies` columns) and `20260925000000_faculty_grade_preference` (new `faculty_grade_preferences`
+  table): `MIGRATE_GATE_OK` after a fresh verified backup
+  (`atlas-backup-atlas_recovery_clean_rebuild_20260905-20260924-164253.dump`, 626,413 B, sha256 `fe3dc560…`,
+  514 `pg_restore --list` entries); post-apply status "Database schema is up to date!" and an existence probe
+  (both columns, the table, its FKs) passed. Target built at `E:\ATLAS-runtime-supervised-a5f7384e-20260925`
+  (server `tsc` + client `vite` exit 0; entry `assets/index-DWJSV9dX.js`). **Rollback basis:
+  `002c88793212709468843c10fc69aa09eef0eb46`** at `E:\ATLAS-runtime-supervised-002c8879-20260924` (the
+  migrations are additive with safe defaults, so the `002c8879` application remains compatible). **Next:**
+  `deploy-runner.ps1` dry-run; cutover `-Execute` requires separate approval.
 - **Release SHA: `002c8879`** (**LIVE** since 2026-09-24; `E:\ATLAS-runtime-supervised-002c8879-20260924`;
   supervisor-owned 5001→56236 / 5174→54932 under the target supervisor; health/ready (`database:"ok"`) +
   DB-backed read + Tailnet 200; served entry `assets/index-D_VODkDf.js` (SHA-256 `AA9AE7FD…E2C2`,
