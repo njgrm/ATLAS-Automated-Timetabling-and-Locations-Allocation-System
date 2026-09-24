@@ -313,11 +313,14 @@ test('mounted class-program.xlsx route returns a real weekday workbook', {
 	// C05 T4/M9 — the branding block (rows 1-4) sits above the title (row 5) and
 	// the identity/meta row (row 6); block rows follow at 8, so the weekday header
 	// is row 10 and the first data row is 11.
-	const header = [1, 2, 3, 4, 5, 6, 7, 8].map((col) => sheet.getRow(10).getCell(col).value);
-	assert.deepEqual(header, ['TIME', 'MINUTES', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'TEACHER']);
-	assert.equal(sheet.getRow(11).getCell(3).value, 'Mathematics\nDela Cruz, Juan');
-	assert.equal(sheet.getRow(11).getCell(4).value, 'Science\nSantos, Maria');
-	assert.equal(sheet.getRow(11).getCell(8).value, 'MON: Dela Cruz, Juan / TUE: Santos, Maria');
+	const header = [1, 2, 3, 4, 5, 6, 7].map((col) => sheet.getRow(10).getCell(col).value);
+	assert.deepEqual(header, ['TIME', 'MINUTES', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY']);
+	assert.equal(sheet.getRow(11).getCell(3).value, 'Mathematics', 'teacher appears only once in each weekday cell');
+	assert.equal(sheet.getRow(11).getCell(4).value, 'Science');
+	assert.equal(sheet.getRow(11).getCell(8).value, null, 'the redundant aggregate teacher column is removed');
+	assert.equal(sheet.pageSetup.orientation, 'landscape');
+	assert.equal(sheet.pageSetup.fitToPage, true);
+	assert.ok(sheet.getRow(10).getCell(3).border.bottom.style, 'weekday table headers have print borders');
 	assert.equal(calls.some((call) => WRITE_METHODS.has(call.method)), false, 'route must perform zero writes');
 });
 
@@ -408,7 +411,7 @@ test('mounted grade-specific class-program.docx requires a grade and renders the
 	const { default: JSZip } = await import('jszip');
 	const archive = await (JSZip as any).loadAsync(bytes);
 	const xml = await archive.file('word/document.xml')?.async('string');
-	assert.match(xml, /Monday/);
+	assert.match(xml, /MONDAY/);
 	assert.match(xml, /Mathematics/);
 	assert.doesNotMatch(xml, /Homeroom Guidance|ARAL Program/);
 	assert.equal(calls.some((call) => WRITE_METHODS.has(call.method)), false, 'official export reads must perform zero writes');
