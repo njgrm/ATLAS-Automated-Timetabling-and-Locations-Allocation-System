@@ -55,6 +55,12 @@ test('editable grade workbook pages contain at most four section columns and one
 	assert.match(String(workbook.worksheets[0].getRow(9).getCell(2).value), /7-Section-1/);
 	assert.match(String(workbook.worksheets[0].getRow(10).getCell(2).value), /Mathematics/);
 	assert.match(String(workbook.worksheets[0].getRow(6).getCell(1).value), /Term: T2.*NOT PUBLISHED/);
+	const splitPage = workbook.worksheets[1];
+	assert.equal(splitPage.getRow(5).getCell(1).value, 'GRADE 7 CLASS PROGRAM — SECTIONS 5-5');
+	assert.doesNotMatch(String(splitPage.headerFooter?.oddHeader ?? ''), /5-5/);
+	assert.equal(splitPage.pageSetup.printTitlesRow, '8:9', 'only the grid identity and column headings repeat across pagination');
+	assert.ok([12, 13, 14, 15].every((row) => (splitPage.getRow(row).height ?? 0) >= 42), 'narrow grade-sheet signatory rows reserve enough wrapped height');
+	assert.ok(String(splitPage.getRow(12).getCell(1).value).length <= 42, 'prepared-by signature rule stays within the narrow final-page band');
 	assert.deepEqual(roomScopeFilter, { schoolId: 71 }, 'room identity resolution is school-scoped');
 });
 
@@ -67,6 +73,8 @@ test('teacher and room Excel programs are individual weekday forms, not consolid
 	assert.doesNotMatch(teacherText, /7-Section-2/);
 	assert.match(teacherText, /Building A \/ Room 1/);
 	assert.match(teacherText, /MONDAY/);
+	assert.ok(teacher.worksheets[0].getRow(10).height >= 48, 'teacher rows fit subject, section and room lines');
+	assert.equal(teacher.worksheets[0].getRow(10).getCell(2).alignment?.wrapText, true);
 
 	const room = new ExcelJS.Workbook();
 	const roomBytes = await exportPrintableProgramWorkbook(base, 'room', 601);
@@ -76,6 +84,8 @@ test('teacher and room Excel programs are individual weekday forms, not consolid
 	assert.doesNotMatch(roomText, /7-Section-2/);
 	assert.match(roomText, /Ari Teacher/);
 	assert.match(roomText, /FRIDAY/);
+	assert.ok(room.worksheets[0].getRow(10).height >= 48, 'room rows fit subject, section and teacher lines');
+	assert.equal(room.worksheets[0].getRow(10).getCell(2).alignment?.wrapText, true);
 	const sectionBytes = await exportPrintableProgramWorkbook(base, 'section', 701);
 	const section = new ExcelJS.Workbook();
 	await section.xlsx.load(sectionBytes as any);
