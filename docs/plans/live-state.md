@@ -39,6 +39,12 @@ resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs
 ## Live release
 
 - Tailnet: `https://njgrm.buru-degree.ts.net`
+- **Target release SHA: `b6687fee`** (**deployment-pending** 2026-09-25; release dir
+  `E:\ATLAS-runtime-supervised-b6687fee-20260925`; scheduler-clarity client release; rollback basis
+  `066da7a7`; **no migration** — no `atlas-server`/`prisma` changes in `066da7a7..b6687fee`). Handoff:
+  Luna's candidate + Terra's independent review `ACCEPT_READY`; route/state preservation 58/58;
+  scheduler-clarity suite 52/52; production client build passed. Recorded before cutover per the
+  `deploy-runner.ps1` gate.
 - **Release SHA: `066da7a7`** (**LIVE** since 2026-09-25; `E:\ATLAS-runtime-supervised-066da7a7-20260925`;
   supervisor-owned 5001→78160 / 5174→74512; health/ready (`database:"ok"`) + DB-backed read
   (`GET /api/v1/subjects?schoolId=1` → 200 with data) + Tailnet 200; served entry
@@ -55,9 +61,19 @@ resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs
   independent post-action QA `ACCEPT_READY` **8/8/0/0** (blocked 0, unperformed 0). **Acceptance PARTIAL** —
   authenticated/browser rows `EXTERNALLY_BLOCKED(AUTH_SESSION_REQUIRED)`. **Acceptance owner: Lane B (Codex)**
   — browser custody; needs an operator-provided session (one `LOCAL_LOGIN_SUCCESS` + `last_login_at`).
-  Disclosure (QA F1): a post-cutover authentication footprint (audit rows 952 FAILED / 953 SUCCESS at
-  ~20:49–20:50Z plus one account `last_login_at`) was observed and is **not** attributable to the deployment
-  executor (it performed no login) — the operator should attribute it. Packet:
+  **Acceptance INCOMPLETE (2026-09-25):** tally `passed 0 / blocked 1 / unperformed 3 / NEEDS_SESSION 0`.
+  (a) the retired `/my/*` routes redirect to `/` and the desktop nav has no retired entries, but the
+  preservation routes and the mobile bottom-nav were unperformed; (b) **BLOCKED** — `/faculty/concerns` is
+  reachable and fails closed on an unresolved term, but saving a painted slot returned
+  `409 TERM_SCOPE_MISMATCH` (UI `termIndex 2` vs persisted active term `1`): the S2 client
+  (`resolveActiveSchoolYearContext`) and the S1 server (`resolveActiveAvailabilityTermIndex`) disagree on
+  the active term — **corrective lane required** (`AVAILABILITY-TERM-ALIGNMENT-C01` candidate: the client
+  must source the active term from the S1 server authority); (c)(d)(e) unperformed.
+  **Incident closed — no shared-data mutation:** the live `201` from
+  `POST /api/v1/room-preferences/collaboration/ticket` is a 60 s in-memory single-use ticket
+  (`timetable-collaboration-ticket.service.ts`; only a `generationRun` scope read), evidence preserved.
+  Disclosure (QA F1): a post-cutover authentication footprint (audit rows 952 FAILED / 953 SUCCESS) is not
+  attributable to the deployment executor. Packet:
   `docs/prompts/c7-teacher-concern-deploy-2026-09-25.md`.
 - **Rollback basis: `37e0c85b`** at `E:\ATLAS-runtime-supervised-37e0c85b-20260925` (startable in place;
   supervisor-owned ports reclaimed on restart; carries the global native-scrollbar token policy and the S8
@@ -162,17 +178,19 @@ ATLAS teacher portal is removed. Plan + cycle queue:
 `docs/plans/teacher-concern-authority-plan-2026-09-24.md`. Full cycle narrative:
 `docs/handoffs/planner-session-handoff.md` (2026-09-25).
 
-**Next action — browser acceptance only:** the deferred authenticated/two-viewport rows for `066da7a7`
-belong to the named acceptance owner **Lane B (Codex)** (browser custody); handoff:
-`docs/handoffs/lane-a-to-lane-b-c7-browser-acceptance-2026-09-25.md` (release SHA + rows (a)–(e)); it
-records the result in the Live release block. Needs one operator-provided session (`LOCAL_LOGIN_SUCCESS` +
-`last_login_at`). Deployment rollback basis: `37e0c85b` (startable in place; additive migration). Nothing
-else remains in this stream.
+**Next action — two lanes:** (1) deploy the scheduler-clarity release `b6687fee` (pending entry above) and
+run its post-cutover QA; (2) a corrective lane `AVAILABILITY-TERM-ALIGNMENT-C01` for the C7 acceptance
+blocker below, then re-run the deferred browser rows (owner **Lane B (Codex)**; handoff
+`docs/handoffs/lane-a-to-lane-b-c7-browser-acceptance-2026-09-25.md`).
 
 **Dated blockers / open residuals (verify before acting):**
 - C7 DEPLOYED 2026-09-25 (`066da7a7` LIVE; migration `20260925000002_faculty_availability` applied
-  `MIGRATE_GATE_OK`, count 10→11; fresh post-action QA `ACCEPT_READY` 8/8/0/0). **Acceptance PARTIAL** —
-  authenticated/browser rows deferred to the named owner **Lane B (Codex)** (2026-09-25).
+  `MIGRATE_GATE_OK`, count 10→11; post-action QA `ACCEPT_READY` 8/8/0/0). **Acceptance INCOMPLETE** —
+  `passed 0 / blocked 1 / unperformed 3 / NEEDS_SESSION 0`; **BLOCKED (b)** on
+  `409 TERM_SCOPE_MISMATCH`: the S2 concern-workspace client resolves the active term via
+  `resolveActiveSchoolYearContext` while the S1 server writes only against the persisted active term —
+  corrective lane `AVAILABILITY-TERM-ALIGNMENT-C01` (2026-09-25). The `201` incident is closed: no
+  shared-data mutation.
 - `resolvePublishedRunTermIndex` resolves official export terms from the base snapshot, not the
   effective identity override (F1) — close before any `orderedTermContract` override is applied live
   (2026-09-25).
