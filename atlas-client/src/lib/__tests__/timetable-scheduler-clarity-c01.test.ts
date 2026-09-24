@@ -9,6 +9,7 @@ import { SimplePublishedState, readinessLabel } from '@/components/timetable/sim
 import { resetSimpleWorkspaceFilters } from '@/components/timetable/simple/SimpleHeaderHelpers';
 import { deriveSimpleLifecycleAction } from '@/lib/simple-timetable-state';
 import { resolveTimetableLoadingIntent } from '@/components/timetable/timetable-route-loading-intent';
+import { simpleSetupGuidance } from '@/components/timetable/TimetableSetupPane';
 
 const clientRoot = resolve(import.meta.dirname, '../../..');
 const source = (path: string) => readFileSync(resolve(clientRoot, path), 'utf8');
@@ -30,14 +31,16 @@ function context(overrides: Record<string, unknown> = {}) {
 
 test('Simple lifecycle labels describe the schedule and next action in plain language', () => {
 	assert.equal(readinessLabel(context({ isPreGenerationWorkspace: true })), 'Working schedule draft');
+	assert.equal(readinessLabel(context({ curriculumReadiness: { state: 'loading', message: 'technical diagnostic' } })), 'Checking schedule information…');
+	assert.equal(readinessLabel(context({ curriculumReadiness: { state: 'failed', message: 'technical diagnostic' } })), 'Schedule check needs retry');
 	assert.equal(resolveTimetableLoadingIntent('/timetable/setup')?.title, 'Check schedule information');
 	assert.equal(resolveTimetableLoadingIntent('/timetable/setup')?.message,
 		'ATLAS is checking the school year and schedule information. No changes are made by this check.');
 	const published = renderToStaticMarkup(createElement(SimplePublishedState, { followUpCount: 0 }));
 	assert.match(published, /Published schedule — view only/);
 	assert.doesNotMatch(published, /Published — read only/);
-	assert.match(source('components/timetable/simple/SimpleDriftBanner.tsx'), /Schedule information changed since this schedule was generated/);
-	assert.match(source('components/timetable/TimetableSimpleHeader.tsx'), /Checking schedule information/);
+	assert.match(source('src/components/timetable/simple/SimpleDriftBanner.tsx'), /Schedule information changed/);
+	assert.match(source('src/lib/simple-timetable-state.ts'), /Checking schedule information…/);
 });
 
 test('entering the Simple workspace clears old grid filters without deleting filter behavior elsewhere', () => {
@@ -51,24 +54,27 @@ test('entering the Simple workspace clears old grid filters without deleting fil
 		setSeverityFilter: (value: string) => cleared.push(`attention:${value}`),
 	} as never);
 	assert.deepEqual(cleared, ['program:all', 'entry:all', 'attention:all']);
-	const header = source('components/timetable/TimetableSimpleHeader.tsx');
+	const header = source('src/components/timetable/TimetableSimpleHeader.tsx');
 	assert.match(header, /resetSimpleWorkspaceFilters\(context\)/);
 	assert.doesNotMatch(header, /SimpleFilterControls|SimpleActiveFilterChips/);
-	assert.match(source('components/timetable/simple/SimpleHeaderHelpers.tsx'), /<SimpleFiltersContent context=\{context\} \/>/,
+	const workspaceState = source('src/hooks/useScheduleReviewWorkspaceState.ts');
+	assert.match(workspaceState, /const \[programFilter, setProgramFilter\] = useState/);
+	assert.match(workspaceState, /const \[entryKindFilter, setEntryKindFilter\] = useState/);
+	assert.match(workspaceState, /const \[severityFilter, setSeverityFilter\] = useState/,
 		'underlying review filtering remains available outside Simple header controls');
 });
 
 test('the 1366px header wraps intentionally instead of scrolling a one-line strip', () => {
-	const header = source('components/timetable/TimetableSimpleHeader.tsx');
-	const row = header.match(/data-testid="timetable-simple-header-row"[\s\S]*?className="([^"]+)"/)?.[1] ?? '';
+	const header = source('src/components/timetable/TimetableSimpleHeader.tsx');
+	const row = header.match(/className="([^"]+)"\s+data-testid="timetable-simple-header-row"/)?.[1] ?? '';
 	assert.match(row, /flex-col/);
 	assert.doesNotMatch(row, /wide:flex-row|wide:flex-nowrap|overflow-x-auto/);
-	assert.match(header, /data-testid="timetable-simple-status-region"[\s\S]*?className="[^"]*flex-wrap/);
+	assert.match(header, /className="flex min-w-0 flex-wrap items-center gap-1\.5"/);
 	assert.doesNotMatch(header, /justify-start gap-1\.5 overflow-x-auto/);
 });
 
 test('timetable scroll regions use thin primary-token scrollbars in both browser engines', () => {
-	const css = source('../index.css');
+	const css = source('src/index.css');
 	assert.match(css, /\.scrollbar-thin\s*\{\s*scrollbar-width:\s*thin;/);
 	assert.match(css, /scrollbar-color:\s*hsl\(var\(--primary\)\)/);
 	assert.match(css, /\.scrollbar-thin::-webkit-scrollbar\s*\{\s*height:\s*6px;\s*width:\s*6px;/);
@@ -93,4 +99,14 @@ test('readiness remains fail-closed while checking and becomes an actionable ret
 		assert.equal(retry.interactive, true);
 	}
 	assert.equal(deriveSimpleLifecycleAction({ hasGeneratedRun: false, isPreGeneration: true, curriculumState: 'loading' }).kind, 'retry-readiness');
+});
+
+test('setup guidance names what ATLAS found and the next safe step without claiming a change', () => {
+	assert.match(simpleSetupGuidance({ state: 'loading', message: 'internal diagnostic' }), /ATLAS is checking schedule information/);
+	assert.match(simpleSetupGuidance({ state: 'blocked', message: 'internal diagnostic' }), /Open Review readiness/);
+	assert.match(simpleSetupGuidance({ state: 'failed', message: 'internal diagnostic' }), /Retry schedule check/);
+	assert.match(simpleSetupGuidance({ state: 'ready', message: 'internal diagnostic' }), /ATLAS checked the schedule information/);
+	for (const state of ['loading', 'blocked', 'failed', 'ready'] as const) {
+		assert.doesNotMatch(simpleSetupGuidance({ state, message: 'internal diagnostic' }), /internal diagnostic|updated|changed to/);
+	}
 });
