@@ -39,6 +39,11 @@ resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs
 ## Live release
 
 - Tailnet: `https://njgrm.buru-degree.ts.net`
+- **Target release SHA: `89295c27`** (**deployment-pending** 2026-09-25; release dir
+  `E:\ATLAS-runtime-supervised-89295c27-20260925`; `SERVER-TIMING-C01` request timing/event-loop-stall
+  diagnostics (QA `ACCEPT_READY`, handoff `docs/handoffs/lane-c-server-timing-c01.md`) + the S6 E1
+  test-only copy fix; rollback basis `b6687fee`; **no migration**). Recorded before cutover per the
+  `deploy-runner.ps1` gate.
 - **Release SHA: `b6687fee`** (**LIVE** since 2026-09-25; `E:\ATLAS-runtime-supervised-b6687fee-20260925`;
   supervisor-owned 5001→70176 / 5174→80088; health/ready + DB-backed read + Tailnet 200; rollback basis
   `066da7a7`; **no migration**). Scheduler-clarity client release. **Acceptance owner: Lane B (Codex)** —
