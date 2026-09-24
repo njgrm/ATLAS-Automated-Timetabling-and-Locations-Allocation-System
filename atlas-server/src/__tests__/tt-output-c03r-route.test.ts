@@ -436,6 +436,9 @@ test('mounted grade-specific class-program.docx requires a grade and renders the
 	assert.match(xml, /Mathematics/);
 	assert.doesNotMatch(xml, /Homeroom Guidance|ARAL Program/);
 	assert.equal(calls.some((call) => WRITE_METHODS.has(call.method)), false, 'official export reads must perform zero writes');
+	const misleadingSectionRequest = await fetch(`${baseUrl}/api/v1/generation/${SCHOOL_ID}/${SCHOOL_YEAR_ID}/runs/${RUN_ID}/export/class-program.docx?termIndex=1&gradeLevel=7&sectionId=701`, { headers });
+	assert.equal(misleadingSectionRequest.status, 400, 'grade-wide form must not accept a single-section filter');
+	assert.equal((await misleadingSectionRequest.json() as any).code, 'GRADE_EXPORT_IS_WHOLE_GRADE');
 });
 
 test('grade DOCX is one whole-grade matrix with every selected-grade section and teacher band', { skip: harnessSkip }, async () => {

@@ -40,7 +40,7 @@ test('consolidated teacher workbook uses the existing revision-aware summary exp
 	assert.equal(resolveSchedulerExportCenterRequest({ ...base, kind: 'teacher-consolidated', format: 'docx' }), null);
 });
 
-test('official grade class-program is a Word export with explicit grade and optional selected section', () => {
+test('official grade class-program is a Word export for the whole grade, independent of selected section', () => {
 	const all = resolveSchedulerExportCenterRequest({
 		...base, kind: 'grade-class-program', format: 'docx', gradeLevel: 8,
 	});
@@ -50,7 +50,8 @@ test('official grade class-program is a Word export with explicit grade and opti
 		...base, kind: 'grade-class-program', format: 'docx', gradeLevel: 8, scope: 'selected',
 		selection: { kind: 'section', id: 701, label: '8-Rizal' },
 	});
-	assert.equal(selected?.url, '/api/v1/generation/7/9/runs/42/export/class-program.docx?termIndex=2&gradeLevel=8&sectionId=701');
+	assert.equal(selected?.url, '/api/v1/generation/7/9/runs/42/export/class-program.docx?termIndex=2&gradeLevel=8');
+	assert.equal(selected?.filename, 'class-program-G8-SY2026-2027-term2.docx');
 	assert.equal(resolveSchedulerExportCenterRequest({
 		...base, kind: 'grade-class-program', format: 'docx', gradeLevel: null,
 	}), null);
