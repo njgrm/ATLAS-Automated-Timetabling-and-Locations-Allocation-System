@@ -44,6 +44,20 @@ test('multiple or all official print selections resolve to one run-and-term-boun
 	});
 });
 
+test('print request model supports same-run editable Excel forms and packages them as Excel files', () => {
+	assert.deepEqual(resolveSchedulerPrintRequest({ ...base, program: 'section', format: 'xlsx', ids: [201] } as any), {
+		method: 'GET',
+		url: '/api/v1/generation/7/9/runs/42/export/print-program.xlsx?termIndex=2&program=section&id=201',
+		filename: 'section-program-201-SY2026-2027-term2.xlsx',
+	});
+	assert.deepEqual(resolveSchedulerPrintRequest({ ...base, program: 'grade', format: 'xlsx', ids: [7, 8] } as any), {
+		method: 'POST',
+		url: '/api/v1/generation/7/9/runs/42/print-schedules.zip',
+		body: { termIndex: 2, program: 'grade', format: 'xlsx', ids: [7, 8] },
+		filename: 'grade-programs-SY2026-2027-term2.zip',
+	});
+});
+
 test('unresolved scope/term and invalid entity sets produce no print request', () => {
 	assert.equal(resolveSchedulerPrintRequest({ ...base, termIndex: 'all', program: 'room', ids: [601] }), null);
 	assert.equal(resolveSchedulerPrintRequest({ ...base, runId: null, program: 'room', ids: [601] }), null);
