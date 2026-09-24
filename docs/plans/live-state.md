@@ -43,12 +43,13 @@ and AIMS.
   companion XLSX workbooks, and additive school-year export identity. The additive migration
   `20260924000000_unified_official_export_profile` was applied via the guarded runner (6 → 7 applied; fresh
   revalidated backup). No generation or publication occurred. **Acceptance `PARTIAL`:** deployment verified
-  (fresh independent QA `ACCEPT_READY` 8/8/0/0); authenticated browser rows are
-  `EXTERNALLY_BLOCKED(AUTH_SESSION_REQUIRED)` (session expired, `auth/me` 401, no login authorized).
+  (fresh independent QA `ACCEPT_READY` 8/8/0/0); Export Center controls verified live under one authorized
+  login (audit 943); the Grade/Section/Room/Teacher DOCX + XLSX download rows and the responsive pass are
+  pending — the Playwright MCP browser crashed mid-download and the session token was `sessionStorage`-only.
   **Rollback basis: `c7fc0c955253b924fd880f346c23d428166437c6`** at
   `E:\ATLAS-runtime-supervised-c7fc0c95-20260924` (startable in place). Acceptance artifact
-  `docs/handoffs/deploy-acceptance-70a51608-20260924.md`. **Next action:** grant one authorized login and run
-  the Export Center / Grade DOCX matrix / Section-Room-Teacher DOCX / XLSX browser acceptance.
+  `docs/handoffs/deploy-acceptance-70a51608-20260924.md`. **Next action:** authorize one further login to
+  re-run the export download/content and responsive rows.
 - **Release SHA: `c7fc0c95`** (rollback basis; previously LIVE 2026-09-24; `E:\ATLAS-runtime-supervised-c7fc0c95-20260924`;
   health/ready 200; served entry `assets/index-C7SskN0k.js`. Carries one client fix on top of `514be157`: the
   faculty `/my/schedule` page now sends the resolved ordered term to the published-faculty-schedule endpoint,

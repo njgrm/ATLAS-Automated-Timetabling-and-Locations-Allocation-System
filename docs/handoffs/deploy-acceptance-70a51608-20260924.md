@@ -114,29 +114,51 @@ Word→PDF over the reviewed range `e74408c1...70a51608` (recorded in the cycle 
   additive schema ↔ source-only migration field parity).
 
 The **live download and on-screen content check** of the Grade DOCX (and the Section/Room/Teacher
-DOCX and XLSX) against the live published run is part of the authenticated browser acceptance and is
-**blocked** (§4) — it was not performed.
+DOCX and XLSX) against the live published run is part of the authenticated browser acceptance: the
+Export Center control was verified live, but the document download did not complete (§4).
 
 ---
 
-## 4. Browser acceptance — `EXTERNALLY_BLOCKED(AUTH_SESSION_REQUIRED)`
+## 4. Browser acceptance — `PARTIAL` (Export Center verified; document downloads blocked by a tooling crash)
 
-No login was authorized for this cycle, and a fresh login is a mutation (one `LOCAL_LOGIN_SUCCESS`
-row + `last_login_at`), so browser acceptance was not performed. Evidence the session is expired
-(read-only; no login, no generate, no publish):
+Pre-login, the session was confirmed expired read-only: `GET /api/v1/auth/me` → **401** `NO_TOKEN`,
+`document.cookie` length **0**, console `401` on `/api/v1/auth/me` on load.
 
-- Navigated `https://njgrm.buru-degree.ts.net/` and asserted `window.location.origin` =
-  `https://njgrm.buru-degree.ts.net`; page title `ATLAS`.
-- `GET /api/v1/auth/me` → **401** `{"code":"NO_TOKEN","message":"Authorization header missing or malformed."}`.
-- `document.cookie` length **0** (no session cookie).
-- Console: `401` on `https://njgrm.buru-degree.ts.net/api/v1/auth/me` on load.
-- A stale `atlas:session-user:v1` localStorage shell remains (pre-existing, known); it is not a valid
-  session.
+**One login was authorized and consumed exactly once** — audit `LOCAL_LOGIN_SUCCESS` id **943**
+(actor 46, school 1, `2026-09-24 10:24:18Z`); the pre-existing row id 942 predates this cycle.
+Credentials were read and entered entirely inside the browser process via a loopback-only broker and
+were never printed, committed, staged, or written to any artifact/log/history. The authenticated shell
+rendered as `officer / Admin`, `Active Term: T2`, `Active year: 2031-2032`, with the published run
+read-only.
 
-**Blocked rows (to run in a later authorized acceptance):** Export Center controls at 1366×768 and
-390×844; Grade-level DOCX matrix download + real content check; Section / Room / Teacher official DOCX;
-readable XLSX working book; console/network regression check; confirmation that no generation or
-publication control is reachable or invoked.
+Verified live at 1366×768 (origin asserted `https://njgrm.buru-degree.ts.net`):
+
+- `/timetable` renders the published schedule (run #317 / revision 43) read-only, with **no** reachable
+  generation or publication action (`Published — view only`; the Generate control is inert on a
+  published run).
+- The toolbar **Download** menu exposes *Open Export Center…* and a *Summary workbook (.xlsx)* shortcut.
+- **Export Center controls — PASS.** The `Export Center` dialog
+  (`data-testid="scheduler-export-center"`) binds to the selected run and ordered term and its
+  "Schedule file" selector distinguishes official Word output from Excel working data:
+  *Teacher working data — Excel*, *Class working data — Excel*, *Official grade class program — Word*,
+  *Room program — Word or Excel*, *Section program — Word or Excel*. Selecting the official grade
+  option forces the format to Word (Excel disabled) and reveals a Grade selector (G7–G10) with the
+  note "Includes every section in the selected grade."
+
+**Not completed — tooling crash.** While capturing the first official document download (grade class
+program, G7, DOCX) the **Playwright MCP browser closed unexpectedly** (the `download.saveAs` target
+directory did not exist). The session token lived only in `sessionStorage` (`atlas_local_token`), so
+the session was lost with the tab and the browser tool surface disconnected. The following rows are
+therefore **not performed**:
+
+- Grade-level DOCX matrix download + real content check against the live run.
+- Section / Room / Teacher official DOCX downloads.
+- Readable XLSX working-book download.
+- Console/network regression sweep and the 390×844 viewport pass.
+
+**This is a test-harness failure, not a product failure.** The served bundle is byte-identical to the
+reviewed build (`E080F7F5…F4EE60`) and the official renderers were exercised on the deployed tree (§3).
+**Next action:** authorize one further login to re-run the download/content and responsive rows.
 
 Cohort note (not a blocker): cohort sections are not active for the live school year — the cohorts
 endpoint returns 200 with zero cohorts and the current run has no cohort entries. This needs
@@ -177,7 +199,10 @@ data/EnrollPro population, not a UI or deployment change.
   `assets/index-C7SskN0k.js` → 404.
 - Migration: `MIGRATE_GATE_OK` + `prisma migrate deploy` exit 0; 6 → 7 applied; five columns present;
   backup manifest `atlas-backup-…-20260924-100920.dump.manifest.json`.
+- Authorized login delta: exactly one `LOCAL_LOGIN_SUCCESS` (id 943, actor 46); credentials never
+  printed.
 - Acceptance artifact commit: this file.
 
-**Verdict:** deployment `DEPLOYED` and verified; acceptance `PARTIAL` — authenticated browser rows
-`EXTERNALLY_BLOCKED(AUTH_SESSION_REQUIRED)` pending one authorized login.
+**Verdict:** deployment `DEPLOYED` and verified (independent QA `ACCEPT_READY` 8/8/0/0 on range
+`676771ec`); acceptance `PARTIAL` — Export Center control verified live, document-download and
+responsive rows pending a further authorized login after a Playwright MCP crash.
