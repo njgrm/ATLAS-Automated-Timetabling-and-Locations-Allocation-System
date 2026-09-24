@@ -190,6 +190,234 @@ export function readPublishedIdentitySnapshot(value: unknown): PublishedIdentity
 	return candidate as unknown as PublishedIdentitySnapshot;
 }
 
+// ─── Effective-dated identity overrides (D4) ───
+
+/**
+ * D4 — optional, effective-dated identity deltas carried on a published
+ * revision's metadata under `identityOverrides`.
+ *
+ * Each override replaces one or more of the five identity field groups the base
+ * freeze captured (ordered-term authority, special events, display slots, policy
+ * projection, class-program template). It never mutates the base revision or its
+ * frozen snapshot: `applyIdentityOverrides` returns a NEW snapshot and the base
+ * bytes stay untouched. An override is validated by the SAME consistency rule the
+ * base freeze uses (`assertSnapshotConsistency`, applied to the merged snapshot),
+ * so an inconsistent delta fails closed with a typed 4xx before any write.
+ */
+export const IDENTITY_OVERRIDES_KEY = 'identityOverrides';
+
+export type IdentityOverrides = {
+	orderedTermContract?: FrozenTermContract;
+	specialEvents?: FrozenSpecialEvent[];
+	displaySlots?: FrozenDisplaySlot[];
+	policy?: Record<string, unknown>;
+	classProgramSlots?: FrozenClassProgramSlot[];
+};
+
+const IDENTITY_OVERRIDE_FIELDS = ['orderedTermContract', 'specialEvents', 'displaySlots', 'policy', 'classProgramSlots'] as const;
+
+export type IdentityOverrideRevision = {
+	id?: number;
+	status?: string | null;
+	effectiveDate: Date | string;
+	metadata: unknown;
+};
+
+function overrideFieldError(field: string, message: string): never {
+	throw snapshotError(422, 'PUBLISHED_IDENTITY_OVERRIDE_INVALID', message, { field });
+}
+
+function readOverrideTermContract(value: unknown): FrozenTermContract {
+	if (!isRecord(value) || (value.format !== 'TRIMESTER' && value.format !== 'QUARTERS') || !Array.isArray(value.terms)) {
+		overrideFieldError('orderedTermContract', 'identityOverrides.orderedTermContract must be a valid ordered-term contract.');
+	}
+	const terms = value.terms.map((term) => {
+		if (!isRecord(term) || typeof term.identity !== 'string' || typeof term.displayLabel !== 'string'
+			|| typeof term.order !== 'number' || !Number.isInteger(term.order) || term.order < 1) {
+			overrideFieldError('orderedTermContract', 'identityOverrides.orderedTermContract.terms must carry identity, displayLabel, and a positive integer order.');
+		}
+		return { identity: term.identity, displayLabel: term.displayLabel, order: term.order };
+	});
+	if (terms.length === 0) overrideFieldError('orderedTermContract', 'identityOverrides.orderedTermContract must carry at least one term.');
+	const activeTermOrder = value.activeTermOrder;
+	if (activeTermOrder != null && (typeof activeTermOrder !== 'number' || !Number.isInteger(activeTermOrder) || activeTermOrder < 1)) {
+		overrideFieldError('orderedTermContract', 'identityOverrides.orderedTermContract.activeTermOrder must be a positive integer or null.');
+	}
+	return { format: value.format, terms, activeTermOrder: activeTermOrder == null ? null : activeTermOrder };
+}
+
+function readOverrideSpecialEvents(value: unknown): FrozenSpecialEvent[] {
+	if (!Array.isArray(value)) overrideFieldError('specialEvents', 'identityOverrides.specialEvents must be an array.');
+	return value.map((event, index) => {
+		if (!isRecord(event) || typeof event.eventType !== 'string' || typeof event.label !== 'string'
+			|| typeof event.startTime !== 'string' || typeof event.endTime !== 'string'
+			|| (event.dayOfWeek != null && typeof event.dayOfWeek !== 'string')
+			|| (event.gradeGroup != null && typeof event.gradeGroup !== 'string')
+			|| (event.programType != null && typeof event.programType !== 'string')) {
+			overrideFieldError('specialEvents', `identityOverrides.specialEvents[${index}] must carry eventType, label, startTime, endTime and optional dayOfWeek/gradeGroup/programType.`);
+		}
+		return {
+			eventType: event.eventType,
+			label: event.label,
+			gradeGroup: event.gradeGroup ?? null,
+			programType: event.programType ?? null,
+			startTime: event.startTime,
+			endTime: event.endTime,
+			sortOrder: typeof event.sortOrder === 'number' ? event.sortOrder : index,
+			dayOfWeek: event.dayOfWeek ?? null,
+		};
+	});
+}
+
+function readOverrideDisplaySlots(value: unknown): FrozenDisplaySlot[] {
+	if (!Array.isArray(value)) overrideFieldError('displaySlots', 'identityOverrides.displaySlots must be an array.');
+	return value.map((slot, index) => {
+		if (!isRecord(slot) || (slot.kind !== 'PERIOD' && slot.kind !== 'SPECIAL_EVENT')
+			|| typeof slot.startTime !== 'string' || typeof slot.endTime !== 'string'
+			|| (slot.dayOfWeek != null && typeof slot.dayOfWeek !== 'string')) {
+			overrideFieldError('displaySlots', `identityOverrides.displaySlots[${index}] must carry kind PERIOD|SPECIAL_EVENT, startTime, endTime and an optional dayOfWeek.`);
+		}
+		return {
+			key: typeof slot.key === 'string' ? slot.key : `${slot.startTime}-${slot.endTime}`,
+			label: typeof slot.label === 'string' ? slot.label : `${slot.startTime}-${slot.endTime}`,
+			startTime: slot.startTime,
+			endTime: slot.endTime,
+			order: typeof slot.order === 'number' ? slot.order : index,
+			kind: slot.kind,
+			dayOfWeek: slot.dayOfWeek ?? null,
+		};
+	});
+}
+
+function readOverrideClassProgramSlots(value: unknown): FrozenClassProgramSlot[] {
+	if (!Array.isArray(value)) overrideFieldError('classProgramSlots', 'identityOverrides.classProgramSlots must be an array.');
+	return value.map((row, index) => {
+		if (!isRecord(row) || typeof row.startTime !== 'string' || typeof row.endTime !== 'string' || typeof row.rowKind !== 'string') {
+			overrideFieldError('classProgramSlots', `identityOverrides.classProgramSlots[${index}] must carry startTime, endTime and rowKind.`);
+		}
+		return {
+			id: typeof row.id === 'number' ? row.id : index,
+			gradeLevel: typeof row.gradeLevel === 'number' ? row.gradeLevel : 0,
+			programType: row.programType != null ? String(row.programType) : null,
+			dayOfWeek: row.dayOfWeek != null ? String(row.dayOfWeek) : null,
+			startTime: row.startTime,
+			endTime: row.endTime,
+			rowKind: row.rowKind,
+			subjectFamily: row.subjectFamily != null ? String(row.subjectFamily) : null,
+			subjectLabel: row.subjectLabel != null ? String(row.subjectLabel) : null,
+			sourceLabel: typeof row.sourceLabel === 'string' ? row.sourceLabel : '',
+			sourceNote: row.sourceNote != null ? String(row.sourceNote) : null,
+		};
+	});
+}
+
+/**
+ * Structural read of a persisted `identityOverrides` value. Returns `null` when
+ * absent; throws a typed 422 when present but malformed. The shape check is
+ * deliberately strict so `assertSnapshotConsistency` can never be reached with a
+ * partially-shaped override.
+ */
+export function readIdentityOverrides(value: unknown): IdentityOverrides | null {
+	if (value == null) return null;
+	if (!isRecord(value)) overrideFieldError('identityOverrides', 'Published identity overrides must be an object.');
+	const unknownFields = Object.keys(value).filter((key) => !(IDENTITY_OVERRIDE_FIELDS as readonly string[]).includes(key));
+	if (unknownFields.length > 0) {
+		throw snapshotError(422, 'PUBLISHED_IDENTITY_OVERRIDE_INVALID', 'Published identity overrides contain unsupported fields.', { unknownFields });
+	}
+	const overrides: IdentityOverrides = {};
+	if (value.orderedTermContract !== undefined) overrides.orderedTermContract = readOverrideTermContract(value.orderedTermContract);
+	if (value.specialEvents !== undefined) overrides.specialEvents = readOverrideSpecialEvents(value.specialEvents);
+	if (value.displaySlots !== undefined) overrides.displaySlots = readOverrideDisplaySlots(value.displaySlots);
+	if (value.policy !== undefined) {
+		if (!isRecord(value.policy)) overrideFieldError('policy', 'identityOverrides.policy must be an object.');
+		overrides.policy = value.policy;
+	}
+	if (value.classProgramSlots !== undefined) overrides.classProgramSlots = readOverrideClassProgramSlots(value.classProgramSlots);
+	return overrides;
+}
+
+/**
+ * Merge one override onto a base snapshot and validate the result with the SAME
+ * rule the base freeze uses. The base object is never mutated. Inconsistency (a
+ * frozen special event contradicting the merged display slots) fails closed with
+ * `PUBLISHED_IDENTITY_OVERRIDE_INCONSISTENT` and zero writes.
+ */
+export function applyIdentityOverrides(base: PublishedIdentitySnapshot, overrides: IdentityOverrides): PublishedIdentitySnapshot {
+	const candidate: PublishedIdentitySnapshot = {
+		...base,
+		...(overrides.orderedTermContract !== undefined ? { orderedTermContract: overrides.orderedTermContract } : {}),
+		...(overrides.specialEvents !== undefined ? { specialEvents: overrides.specialEvents } : {}),
+		...(overrides.displaySlots !== undefined ? { displaySlots: overrides.displaySlots } : {}),
+		...(overrides.policy !== undefined ? { policy: overrides.policy } : {}),
+		...(overrides.classProgramSlots !== undefined ? { classProgramSlots: overrides.classProgramSlots } : {}),
+	};
+	const validated = readPublishedIdentitySnapshot({ [PUBLISHED_IDENTITY_SNAPSHOT_KEY]: candidate });
+	if (!validated) {
+		throw snapshotError(422, 'PUBLISHED_IDENTITY_OVERRIDE_INVALID', 'The merged identity snapshot is not structurally valid.');
+	}
+	try {
+		assertSnapshotConsistency(validated);
+	} catch (error) {
+		if ((error as SnapshotError).code === 'PUBLICATION_SNAPSHOT_INCONSISTENT') {
+			throw snapshotError(
+				422,
+				'PUBLISHED_IDENTITY_OVERRIDE_INCONSISTENT',
+				'The identity override contradicts the base frozen snapshot: the merged special events do not match the merged display slots.',
+				(error as SnapshotError).details,
+			);
+		}
+		throw error;
+	}
+	return validated;
+}
+
+/**
+ * The override revisions that actually apply at `asOf`: already effective
+ * (`effectiveDate <= asOf`), still `SCHEDULED` (a `SUPERSEDED` revision is kept
+ * in the chain for history but its override no longer governs), and carrying an
+ * `identityOverrides` value. Ordered by effective date, then id, then input order.
+ */
+export function selectEffectiveIdentityOverrideRevisions(
+	revisions: readonly IdentityOverrideRevision[],
+	asOf: Date | string,
+): IdentityOverrideRevision[] {
+	const asOfTime = asOf instanceof Date ? asOf.getTime() : new Date(asOf).getTime();
+	if (Number.isNaN(asOfTime)) {
+		throw snapshotError(400, 'PUBLISHED_IDENTITY_AS_OF_INVALID', 'The effective-identity read date must be a valid date.');
+	}
+	return revisions
+		.map((revision, index) => ({ revision, index, effectiveTime: new Date(revision.effectiveDate).getTime() }))
+		.filter((row) => Number.isFinite(row.effectiveTime) && row.effectiveTime <= asOfTime
+			&& (row.revision.status == null || row.revision.status === 'SCHEDULED')
+			&& readIdentityOverrides(isRecord(row.revision.metadata) ? row.revision.metadata[IDENTITY_OVERRIDES_KEY] : null) !== null)
+		.sort((a, b) => a.effectiveTime - b.effectiveTime
+			|| (a.revision.id ?? a.index) - (b.revision.id ?? b.index)
+			|| a.index - b.index)
+		.map((row) => row.revision);
+}
+
+/**
+ * D4 read path: resolve the effective identity snapshot at `asOf` by applying the
+ * base freeze and then each effective override in effective-date order. Returns
+ * `null` for a legacy publication with no frozen base snapshot. The base snapshot
+ * and its persisted bytes are never mutated.
+ */
+export function resolveEffectiveIdentitySnapshot(input: {
+	baseMetadata: unknown;
+	revisions: readonly IdentityOverrideRevision[];
+	asOf: Date | string;
+}): PublishedIdentitySnapshot | null {
+	const base = readPublishedIdentitySnapshot(input.baseMetadata);
+	if (!base) return null;
+	let effective = base;
+	for (const revision of selectEffectiveIdentityOverrideRevisions(input.revisions, input.asOf)) {
+		const overrides = readIdentityOverrides(isRecord(revision.metadata) ? revision.metadata[IDENTITY_OVERRIDES_KEY] : null);
+		if (!overrides) continue;
+		effective = applyIdentityOverrides(effective, overrides);
+	}
+	return effective;
+}
+
 // ─── Consistency gate (§3.4) ───
 
 function timeToMinutes(value: string): number {

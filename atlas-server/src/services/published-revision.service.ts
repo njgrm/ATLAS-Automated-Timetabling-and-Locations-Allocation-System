@@ -12,6 +12,16 @@ import {
 	computeGenerationInputSnapshot,
 	type GenerationInputSnapshot,
 } from './generation-input-snapshot.service.js';
+import {
+	IDENTITY_OVERRIDES_KEY,
+	applyIdentityOverrides,
+	readIdentityOverrides,
+	readPublishedIdentitySnapshot,
+	resolveEffectiveIdentitySnapshot,
+	selectEffectiveIdentityOverrideRevisions,
+	type PublishedIdentitySnapshot,
+	type SnapshotState,
+} from './published-identity-snapshot.service.js';
 
 const db = () => getDataContext();
 
@@ -293,7 +303,7 @@ type AuthoritativeLatestRevision = {
 		metadata: unknown;
 	};
 	latestRevision: { id: number; effectiveDate: Date; changeSet: unknown } | null;
-	revisionChain: Array<{ id: number; effectiveDate: Date; changeSet: unknown }>;
+	revisionChain: Array<{ id: number; effectiveDate: Date; changeSet: unknown; status: string; metadata: unknown }>;
 };
 
 /**
@@ -334,7 +344,7 @@ async function resolveAuthoritativeLatestRevision(
 	const revisionChain = await client.publishedScheduleRevision.findMany({
 		where: { schoolId: params.schoolId, schoolYearId: params.schoolYearId, sourceRunId: params.sourceRunId, status: { in: ['SCHEDULED', 'SUPERSEDED'] } },
 		orderBy: [{ effectiveDate: 'asc' }, { createdAt: 'asc' }, { id: 'asc' }],
-		select: { id: true, effectiveDate: true, changeSet: true },
+		select: { id: true, effectiveDate: true, changeSet: true, status: true, metadata: true },
 	});
 	const publishedMarker = asSummaryRecord(sourceRun.summary).publishedAt;
 	return {
@@ -378,6 +388,7 @@ export async function createPublishedScheduleRevision(
 		effectiveDate: effectiveDate.toISOString(),
 		reason,
 		changes,
+		identityOverrides: asSummaryRecord(input.metadata)[IDENTITY_OVERRIDES_KEY] ?? null,
 	});
 	const result = await runSerializablePublicationTransaction(db(), async (tx) => {
 		await tx.$executeRawUnsafe('SELECT pg_advisory_xact_lock($1::integer, $2::integer)', input.schoolId, input.schoolYearId);
@@ -434,6 +445,28 @@ export async function createPublishedScheduleRevision(
 			});
 			if (!replayAudit) throw err(409, 'PUBLISHED_REVISION_STATE_AMBIGUOUS', 'The revision replay has no matching audit record.');
 			return { revision: replay, auditId: replayAudit.id, replayed: true, validation: null };
+		}
+
+		// D4 — effective-dated identity overrides carried on this revision's
+		// metadata are validated against the SAME consistency rule the base
+		// freeze uses, applied on top of every already-effective scheduled
+		// override, before any write reads or writes. An invalid or inconsistent
+		// override fails closed typed with zero writes.
+		const identityOverrides = readIdentityOverrides(asSummaryRecord(input.metadata)[IDENTITY_OVERRIDES_KEY]);
+		if (identityOverrides) {
+			const baseSnapshot = readPublishedIdentitySnapshot(resolved.baseRevision.metadata);
+			if (!baseSnapshot) {
+				throw err(409, 'PUBLISHED_REVISION_IDENTITY_BASE_UNAVAILABLE', 'Published identity overrides require the base revision to carry a frozen identity snapshot.');
+			}
+			const priorEffective = resolveEffectiveIdentitySnapshot({
+				baseMetadata: resolved.baseRevision.metadata,
+				revisions: resolved.revisionChain,
+				asOf: effectiveDate,
+			});
+			if (!priorEffective) {
+				throw err(409, 'PUBLISHED_REVISION_IDENTITY_BASE_UNAVAILABLE', 'Published identity overrides require the base revision to carry a frozen identity snapshot.');
+			}
+			applyIdentityOverrides(priorEffective, identityOverrides);
 		}
 
 		if (input.sourceRevisionId !== resolved.latestRevisionId) {
@@ -781,6 +814,172 @@ export async function resolveLatestPublishedSourceRevision(params: {
 	return { baseRevisionId: resolved.baseRevisionId, latestRevisionId: resolved.latestRevisionId };
 }
 
+export type EffectivePublishedIdentitySnapshot = {
+	/** The effective identity at `asOf`; `null` for a legacy publication. */
+	snapshot: PublishedIdentitySnapshot | null;
+	state: SnapshotState;
+	asOf: string;
+	baseRevisionId: number;
+	/** The revision ids whose effective-dated overrides contributed to the result. */
+	appliedRevisionIds: number[];
+};
+
+/**
+ * D4 read path (DB orchestration). Resolves the frozen base publication snapshot
+ * and then applies every already-effective `SCHEDULED` revision override in
+ * effective-date order at `asOf`. The base revision and its persisted snapshot
+ * are never mutated; a later read of the base still returns the base bytes.
+ */
+export async function resolveEffectivePublishedIdentitySnapshot(params: {
+	schoolId: number;
+	schoolYearId: number;
+	sourceRunId: number;
+	asOf?: string | Date | null;
+}): Promise<EffectivePublishedIdentitySnapshot> {
+	if (!isPositiveInteger(params.schoolId)) throw err(400, 'INVALID_SCHOOL_ID', 'schoolId must be a positive integer.');
+	if (!isPositiveInteger(params.schoolYearId)) throw err(400, 'INVALID_SCHOOL_YEAR_ID', 'schoolYearId must be a positive integer.');
+	if (!isPositiveInteger(params.sourceRunId)) throw err(400, 'INVALID_SOURCE_RUN_ID', 'sourceRunId must be a positive integer.');
+	const asOfDate = params.asOf == null || params.asOf === ''
+		? new Date()
+		: params.asOf instanceof Date
+			? params.asOf
+			: new Date(params.asOf);
+	if (Number.isNaN(asOfDate.getTime())) {
+		throw err(400, 'PUBLISHED_IDENTITY_AS_OF_INVALID', 'asOf must be a valid date or ISO date string.');
+	}
+
+	const resolved = await resolveAuthoritativeLatestRevision(db(), {
+		schoolId: params.schoolId,
+		schoolYearId: params.schoolYearId,
+		sourceRunId: params.sourceRunId,
+	});
+	const baseSnapshot = readPublishedIdentitySnapshot(resolved.baseRevision.metadata);
+	if (!baseSnapshot) {
+		return { snapshot: null, state: 'LEGACY_LIVE_PROJECTION', asOf: asOfDate.toISOString(), baseRevisionId: resolved.baseRevisionId, appliedRevisionIds: [] };
+	}
+	const applied = selectEffectiveIdentityOverrideRevisions(resolved.revisionChain, asOfDate);
+	const snapshot = resolveEffectiveIdentitySnapshot({
+		baseMetadata: resolved.baseRevision.metadata,
+		revisions: resolved.revisionChain,
+		asOf: asOfDate,
+	});
+	return {
+		snapshot,
+		state: 'FROZEN',
+		asOf: asOfDate.toISOString(),
+		baseRevisionId: resolved.baseRevisionId,
+		appliedRevisionIds: applied.map((revision) => revision.id).filter((id): id is number => typeof id === 'number'),
+	};
+}
+
+export type WithdrawPublishedScheduleRevisionInput = {
+	schoolId: number;
+	schoolYearId: number;
+	sourceRunId: number;
+	revisionId: number;
+	actorId?: number | null;
+	reason?: string | null;
+};
+
+export type WithdrawPublishedScheduleRevisionResult = {
+	revision: Pick<PublishedScheduleRevision, 'id' | 'schoolId' | 'schoolYearId' | 'sourceRunId' | 'status' | 'effectiveDate' | 'reason' | 'metadata'>;
+	auditId: number;
+	replayed: boolean;
+};
+
+/**
+ * D4 — bounded, audited, reason-required withdraw/supersede of a scheduled
+ * published revision.
+ *
+ * The immutable base publication revision is never a valid target and is never
+ * mutated. A valid withdraw flips exactly one SCHEDULED revision to SUPERSEDED,
+ * records the withdrawal on that revision's metadata, and writes exactly one
+ * audit row. A missing/blank/overlong reason, an unknown revision, the base
+ * revision, or a revision that is not currently SCHEDULED all fail closed with a
+ * typed 4xx and zero writes. An already-withdrawn revision replays idempotently
+ * with no second audit row. Actor-school scope and capability are enforced by the
+ * router.
+ */
+export async function withdrawPublishedScheduleRevision(
+	input: WithdrawPublishedScheduleRevisionInput,
+	options?: { now?: Date },
+): Promise<WithdrawPublishedScheduleRevisionResult> {
+	if (!isPositiveInt32(input.schoolId)) throw err(400, 'INVALID_SCHOOL_ID', 'schoolId must be a positive Int32 integer.');
+	if (!isPositiveInt32(input.schoolYearId)) throw err(400, 'INVALID_SCHOOL_YEAR_ID', 'schoolYearId must be a positive Int32 integer.');
+	if (!isPositiveInteger(input.sourceRunId)) throw err(400, 'INVALID_SOURCE_RUN_ID', 'sourceRunId must be a positive integer.');
+	if (!isPositiveInteger(input.revisionId)) throw err(400, 'INVALID_REVISION_ID', 'revisionId must be a positive integer.');
+	const reason = normalizeReason(input.reason);
+	const actorId = input.actorId != null && isPositiveInteger(input.actorId) ? input.actorId : null;
+	const now = options?.now ?? new Date();
+
+	return runSerializablePublicationTransaction(db(), async (tx) => {
+		await tx.$executeRawUnsafe('SELECT pg_advisory_xact_lock($1::integer, $2::integer)', input.schoolId, input.schoolYearId);
+
+		const resolved = await resolveAuthoritativeLatestRevision(tx, {
+			schoolId: input.schoolId,
+			schoolYearId: input.schoolYearId,
+			sourceRunId: input.sourceRunId,
+		});
+		const revision = await tx.publishedScheduleRevision.findFirst({
+			where: { id: input.revisionId, schoolId: input.schoolId, schoolYearId: input.schoolYearId, sourceRunId: input.sourceRunId },
+			select: {
+				id: true, schoolId: true, schoolYearId: true, sourceRunId: true,
+				status: true, sourceRevisionId: true, reason: true, effectiveDate: true, metadata: true,
+			},
+		});
+		if (!revision) throw err(404, 'PUBLISHED_REVISION_NOT_FOUND', 'The published revision was not found in this school/year/run scope.');
+		if (revision.id === resolved.baseRevisionId || revision.sourceRevisionId === null || revision.reason === 'INITIAL_PUBLICATION') {
+			throw err(409, 'PUBLISHED_REVISION_BASE_IMMUTABLE', 'The immutable base publication revision cannot be withdrawn or superseded.');
+		}
+		if (revision.status === 'SUPERSEDED') {
+			const existingAudit = await tx.auditLog.findFirst({
+				where: { schoolId: input.schoolId, schoolYearId: input.schoolYearId, action: 'PUBLISHED_SCHEDULE_REVISION_WITHDRAWN', targetIds: { has: revision.id } },
+				select: { id: true },
+			});
+			if (!existingAudit) throw err(409, 'PUBLISHED_REVISION_STATE_AMBIGUOUS', 'The revision is superseded but has no matching withdrawal audit record.');
+			return { revision, auditId: existingAudit.id, replayed: true };
+		}
+		if (revision.status !== 'SCHEDULED') {
+			throw err(409, 'PUBLISHED_REVISION_NOT_WITHDRAWABLE', 'Only a SCHEDULED published revision can be withdrawn or superseded.');
+		}
+
+		const withdrawnAt = now.toISOString();
+		const updated = await tx.publishedScheduleRevision.update({
+			where: { id: revision.id },
+			data: {
+				status: 'SUPERSEDED',
+				metadata: {
+					...asSummaryRecord(revision.metadata),
+					withdrawn: true,
+					withdrawnAt,
+					withdrawnBy: actorId,
+					withdrawReason: reason,
+				} as Prisma.InputJsonValue,
+			},
+		});
+		const audit = await tx.auditLog.create({
+			data: {
+				schoolId: input.schoolId,
+				schoolYearId: input.schoolYearId,
+				action: 'PUBLISHED_SCHEDULE_REVISION_WITHDRAWN',
+				actorId: actorId ?? 0,
+				targetIds: [input.sourceRunId, revision.id],
+				metadata: {
+					revisionId: revision.id,
+					sourceRunId: input.sourceRunId,
+					baseRevisionId: resolved.baseRevisionId,
+					previousStatus: revision.status,
+					status: 'SUPERSEDED',
+					reason,
+					withdrawnAt,
+					publishedTruthPreserved: true,
+				} as Prisma.InputJsonValue,
+			},
+		});
+		return { revision: updated, auditId: audit.id, replayed: false };
+	});
+}
+
 function revisionIdempotencyKey(input: {
 	schoolId: number;
 	schoolYearId: number;
@@ -789,6 +988,7 @@ function revisionIdempotencyKey(input: {
 	effectiveDate: string;
 	reason: string;
 	changes: PublishedRevisionEntryChange[];
+	identityOverrides: unknown;
 }): string {
 	return createHash('sha256').update(JSON.stringify(input)).digest('hex');
 }
