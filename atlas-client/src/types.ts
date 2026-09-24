@@ -629,6 +629,41 @@ export type FacultyPreference = {
 	avoidUpperFloors: boolean;
 };
 
+/* ─── S2 teacher-concern availability authority (S1 frozen contract) ─── */
+
+export type FacultyAvailabilityState = 'PREFERRED' | 'AVAILABLE' | 'UNAVAILABLE';
+export type FacultyAvailabilityStatus = 'DRAFT' | 'SUBMITTED' | 'REVIEWED' | 'REJECTED';
+export type FacultyConcernReviewDecision = 'REVIEWED' | 'REJECTED';
+
+export type FacultyAvailabilitySlot = {
+	day: DayOfWeek;
+	startTime: string;
+	endTime: string;
+	state: FacultyAvailabilityState;
+};
+
+/**
+ * The reviewed, term-scoped availability authority (`faculty-availability`
+ * routes). `notes` is the single frozen free-text field; the scheduler concern
+ * workspace stores its notes and room requests inside it under labelled
+ * sections (there is deliberately no second persistence model).
+ */
+export type FacultyAvailabilityRecord = {
+	id: number;
+	schoolId: number;
+	schoolYearId: number;
+	facultyId: number;
+	termIndex: number;
+	status: FacultyAvailabilityStatus;
+	version: number;
+	notes: string | null;
+	submittedAt: string | null;
+	reviewedBy: number | null;
+	reviewedAt: string | null;
+	reviewerNotes: string | null;
+	slots: FacultyAvailabilitySlot[];
+};
+
 export type OfficerSummaryFaculty = {
 	facultyId: number;
 	firstName: string;

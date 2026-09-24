@@ -4,6 +4,7 @@ import {
 	CalendarClock,
 	CircleHelp,
 	ClipboardCheck,
+	HeartHandshake,
 	History,
 	ListChecks,
 	MapPin,
@@ -192,6 +193,14 @@ export function SimpleMoreMenuContent({
 			    now reachable from a labelled control on the index (no orphan route). */}
 			<div className="space-y-1 rounded-md border border-border bg-muted/20 p-2" data-testid="timetable-simple-more-tools">
 				<DropdownMenuLabel className="px-0 py-0 text-xs">Tools</DropdownMenuLabel>
+				{/* S2 — the scheduler concern workspace is reachable from Simple's More
+				    menu as a real link (no state dispatch, no header prop change). */}
+				<DropdownMenuItem asChild className="h-9 gap-2 text-xs" data-testid="timetable-more-teacher-concerns">
+					<Link to="/faculty/concerns" onClick={onClose}>
+						<HeartHandshake className="size-3.5" aria-hidden="true" />
+						Teacher concerns
+					</Link>
+				</DropdownMenuItem>
 				<DropdownMenuItem asChild className="h-9 gap-2 text-xs" data-testid="timetable-more-map">
 					<Link to="/timetable/map" onClick={onClose}>
 						<MapPin className="size-3.5" aria-hidden="true" />

@@ -132,15 +132,19 @@ export default function AvailabilityPicker({ slots, onChange, disabled }: Availa
 			<div className='flex flex-wrap items-center justify-between gap-3 p-3 bg-muted/30 rounded-2xl border border-border shadow-sm'>
 				<div className='flex items-center gap-2'>
 					{PREF_ORDER.map(pref => (
-						<button
+						<Button
 							key={pref}
+							type='button'
+							variant='outline'
+							size='sm'
+							aria-pressed={activePref === pref}
 							onClick={() => setActivePref(pref)}
-							className={`px-3 py-1.5 rounded-full text-[11px] font-bold border transition-all ${
+							className={`h-auto rounded-full border px-3 py-1.5 text-xs font-bold transition-all ${
 								activePref === pref ? PREF_COLORS[pref] : 'bg-background border-border text-muted-foreground hover:border-primary/30'
 							}`}
 						>
 							{pref.charAt(0) + pref.slice(1).toLowerCase()}
-						</button>
+						</Button>
 					))}
 				</div>
 				<div className='flex items-center gap-2'>

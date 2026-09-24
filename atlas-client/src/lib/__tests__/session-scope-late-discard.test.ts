@@ -1,12 +1,17 @@
 /**
  * ACTOR-SCOPE-C01 correction — late session-A response discard for the
- * MyDashboard and MySchedule scope-gated loaders.
+ * MyDashboard scope-gated loader.
  *
- * Drives the REAL production functions `loadMyDashboardScoped` and
- * `loadMyScheduleScoped`, through the shared `runActorScoped` mechanism, with a
- * recording `atlasApi` and a deferred scoped response. Both orderings are
- * covered: (a) A's response lands AFTER B is authoritative, (b) A's response
- * lands while B is still unresolved. In both, A's payload must be discarded.
+ * Drives the REAL production function `loadMyDashboardScoped`, through the
+ * shared `runActorScoped` mechanism, with a recording `atlasApi` and a deferred
+ * scoped response. Both orderings are covered: (a) A's response lands AFTER B
+ * is authoritative, (b) A's response lands while B is still unresolved. In both,
+ * A's payload must be discarded.
+ *
+ * D6 — the teacher published-schedule reader and its page were retired with the
+ * ATLAS teacher portal, so its MySchedule-specific cases were removed with it.
+ * The shared `runActorScoped` late-discard contract remains covered here
+ * (MyDashboard) and in `actor-scope-session.test.ts`.
  *
  * Run: `npx tsx --test src/lib/__tests__/session-scope-late-discard.test.ts`
  */
@@ -30,16 +35,14 @@ Object.defineProperty(globalThis, 'localStorage', { value: localStorageShim, con
 Object.defineProperty(globalThis, 'window', { value: { location: { protocol: 'https:' }, dispatchEvent: () => true }, configurable: true });
 
 import atlasApi from '@/lib/api';
-import { setLocalToken, clearAtlasAuthStorage, getPreferredAccessToken } from '@/lib/auth';
+import { setLocalToken, getPreferredAccessToken } from '@/lib/auth';
 import { resolveActorSchoolId } from '@/lib/settings';
 import { loadMyDashboardScoped } from '@/pages/MyDashboard';
-import { loadMyScheduleScoped } from '@/pages/MySchedule';
 
 type RecordedCall = { method: 'get' | 'post'; url: string; params?: Record<string, unknown>; token: string | null };
 let recorded: RecordedCall[] = [];
 let authMeResponder: (() => Promise<unknown>) | null = null;
 let dashboardResponder: (() => Promise<unknown>) | null = null;
-let scheduleResponder: (() => Promise<unknown>) | null = null;
 
 (atlasApi as unknown as { get: (url: string, config?: { params?: Record<string, unknown> }) => Promise<{ data: unknown }> }).get =
 	async (url: string, config?: { params?: Record<string, unknown> }) => {
@@ -55,10 +58,6 @@ let scheduleResponder: (() => Promise<unknown>) | null = null;
 		if (url.includes('/dashboard')) {
 			if (!dashboardResponder) throw new Error('test dashboard responder not installed');
 			return { data: await dashboardResponder() };
-		}
-		if (url.includes('/schedules/published/faculty/')) {
-			if (!scheduleResponder) throw new Error('test schedule responder not installed');
-			return { data: await scheduleResponder() };
 		}
 		return { data: {} };
 	};
@@ -86,7 +85,6 @@ beforeEach(() => {
 	recorded = [];
 	authMeResponder = null;
 	dashboardResponder = null;
-	scheduleResponder = null;
 	sessionStorageShim.clear();
 	localStorageShim.clear();
 });
@@ -125,57 +123,10 @@ test('MyDashboard: late A response is discarded in ordering (b) A lands while B 
 	assert.equal(result.status, 'discarded', 'A payload must be discarded while B is unresolved');
 });
 
-test('MySchedule: late A response is discarded in ordering (a) A lands after B is authoritative', async () => {
-	const deferredA = deferred<unknown>();
-	scheduleResponder = () => deferredA.promise;
-	setLocalToken('ms-a');
-	authMeResponder = authMe(1);
-	const pendingA = loadMyScheduleScoped(1, 7001, 55, '2026-09-12', 2);
-	await waitFor((c) => c.url.includes('/schedules/published/faculty/'));
-
-	setLocalToken('ms-b');
-	authMeResponder = authMe(2);
-	assert.equal(await resolveActorSchoolId(), 2);
-
-	deferredA.resolve({ entries: [{ entryId: 'A' }], source: {} });
-	const result = await pendingA;
-	assert.equal(result, null, 'A schedule payload must be discarded after B is authoritative');
-});
-
-test('MySchedule: late A response is discarded in ordering (b) A lands while B is unresolved', async () => {
-	const deferredA = deferred<unknown>();
-	scheduleResponder = () => deferredA.promise;
-	setLocalToken('ms-a2');
-	authMeResponder = authMe(1);
-	const pendingA = loadMyScheduleScoped(1, 7001, 55, '2026-09-12', 2);
-	await waitFor((c) => c.url.includes('/schedules/published/faculty/'));
-
-	setLocalToken('ms-b2');
-	authMeResponder = authMe(2);
-	deferredA.resolve({ entries: [{ entryId: 'A2' }] });
-	const result = await pendingA;
-	assert.equal(result, null, 'A schedule payload must be discarded while B is unresolved');
-});
-
-test('sanity: a current-session dashboard/schedule response is returned (not discarded)', async () => {
+test('sanity: a current-session dashboard response is returned (not discarded)', async () => {
 	setLocalToken('md-current');
 	authMeResponder = authMe(5);
 	dashboardResponder = async () => ({ faculty: 'current' });
 	const dash = await loadMyDashboardScoped(5, 7001);
 	assert.equal(dash.status, 'ok');
-
-	setLocalToken('ms-current');
-	authMeResponder = authMe(5);
-	scheduleResponder = async () => ({ entries: [] });
-	clearAtlasAuthStorage();
-	setLocalToken('ms-current');
-	authMeResponder = authMe(5);
-	const schedule = await loadMyScheduleScoped(5, 7001, 55, '2026-09-12', 2);
-	assert.ok(schedule != null, 'current-session schedule loads');
-	const facultyCall = recorded.find((call) => call.url.includes('/schedules/published/faculty/'));
-	assert.equal(
-		(facultyCall?.params as { termIndex?: number } | undefined)?.termIndex,
-		2,
-		'the ordered term must be sent; the published endpoint fails closed with TERM_SELECTION_REQUIRED without it',
-	);
 });

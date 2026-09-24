@@ -33,8 +33,10 @@ const NON_TIMETABLE_PATHS = [
 	'/subjects/requirements',
 	'/teaching-load',
 	'/teaching-load/history',
-	'/my/preferences',
-	'/my/room-preferences',
+	'/faculty/preferences',
+	'/faculty/room-preferences',
+	// S2 — the scheduler concern workspace is another non-timetable surface.
+	'/faculty/concerns',
 	'/timetabling/how-it-works',
 ];
 
@@ -54,7 +56,7 @@ test('UX-R03d row 3: non-timetable paths keep the exact legacy key', () => {
 	// Nested pairs on other pages must still differ from each other (remount as today).
 	assert.notEqual(resolveOutletKey('/subjects', epoch), resolveOutletKey('/subjects/requirements', epoch));
 	assert.notEqual(resolveOutletKey('/teaching-load', epoch), resolveOutletKey('/teaching-load/history', epoch));
-	assert.notEqual(resolveOutletKey('/my/preferences', epoch), resolveOutletKey('/my/room-preferences', epoch));
+	assert.notEqual(resolveOutletKey('/faculty/preferences', epoch), resolveOutletKey('/faculty/room-preferences', epoch));
 });
 
 test('UX-R03d row 2: changing routeEpoch changes the key (remount preserved)', () => {

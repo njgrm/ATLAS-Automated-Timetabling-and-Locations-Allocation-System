@@ -57,10 +57,9 @@ export function resolveNotificationRoute(
 			return `/timetable?runId=${encodeURIComponent(id)}`;
 		case 'published-schedule':
 			return `/schedules?revision=${encodeURIComponent(id)}`;
-		case 'preference':
-			return `/preferences?preferenceId=${encodeURIComponent(id)}`;
-		case 'room-request':
-			return `/rooms?requestId=${encodeURIComponent(id)}`;
+		// D6 — the retired teacher-portal deep links (`/preferences`, `/rooms`)
+		// are deleted; those resource types are inert (null) rather than a dead
+		// link that pretends to navigate.
 		case 'integration':
 			return `/admin/year-setup?event=${encodeURIComponent(id)}`;
 		default:

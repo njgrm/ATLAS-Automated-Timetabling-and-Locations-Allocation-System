@@ -23,12 +23,12 @@ function source(path: string): string {
 }
 
 const authenticatedRoutes = [
-	'/', '/my', '/my/schedule', '/subjects', '/subjects/requirements',
+	'/', '/my', '/subjects', '/subjects/requirements',
 	'/subjects/decision-workspace', '/teachers', '/teaching-load/history',
 	'/teaching-load', '/faculty', '/assignments', '/sections',
-	'/faculty/preferences', '/my/preferences', '/my/room-preferences',
+	'/faculty/preferences', '/faculty/room-preferences', '/faculty/concerns',
 	'/timetable', '/timetabling/how-it-works', '/room-schedules', '/schedules',
-	'/faculty/room-preferences', '/map', '/audit', '/admin/year-setup',
+	'/map', '/audit', '/admin/year-setup',
 ];
 
 test('every authenticated route resolves truthful chrome with no repeated group and leaf', () => {

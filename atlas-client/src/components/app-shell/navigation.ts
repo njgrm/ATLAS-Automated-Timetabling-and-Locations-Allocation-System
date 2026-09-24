@@ -4,6 +4,7 @@ import {
 	CalendarDays,
 	ClipboardList,
 	GraduationCap,
+	HeartHandshake,
 	LayoutDashboard,
 	MapPinned,
 	Shield,
@@ -32,6 +33,7 @@ export const setupNav: NavItemDef[] = [
 export const teachersAndRoomsNav: NavItemDef[] = [
 	{ label: 'Teachers', to: '/teachers', icon: Users, adminOnly: true },
 	{ label: 'Teaching Load', to: '/teaching-load', icon: ClipboardList, adminOnly: true, schedulerAccess: true },
+	{ label: 'Teacher Concerns', to: '/faculty/concerns', icon: HeartHandshake, adminOnly: true, schedulerAccess: true },
 	{ label: 'Campus & Rooms', to: '/map', icon: MapPinned, adminOnly: true },
 ];
 
@@ -49,9 +51,6 @@ export const auditNav: NavItemDef[] = [
 
 export const facultyNav: NavItemDef[] = [
 	{ label: 'My Dashboard', to: '/my', icon: LayoutDashboard, facultyOnly: true },
-	{ label: 'My Schedule', to: '/my/schedule', icon: CalendarClock, facultyOnly: true },
-	{ label: 'My Preferences', to: '/my/preferences', icon: ClipboardList, facultyOnly: true },
-	{ label: 'My Room Requests', to: '/my/room-preferences', icon: CalendarDays, facultyOnly: true },
 ];
 
 export const breadcrumbGroups: { label: string; items: NavItemDef[] }[] = [
@@ -93,6 +92,7 @@ const routeChromeOverrides: Record<string, { group?: string; title: string }> = 
 	'/faculty': { group: 'Teachers and Rooms', title: 'Faculty' },
 	'/assignments': { group: 'Teachers and Rooms', title: 'Assignments' },
 	'/faculty/preferences': { group: 'Teachers and Rooms', title: 'Faculty Preferences' },
+	'/faculty/concerns': { group: 'Teachers and Rooms', title: 'Teacher Concerns' },
 	'/timetabling/how-it-works': { group: 'Class Schedule', title: 'How Scheduling Works' },
 	// UX-R03a — the nested policy route shares the Class Schedule shell.
 	'/timetable/policies': { group: 'Class Schedule', title: 'Scheduling Policy' },
