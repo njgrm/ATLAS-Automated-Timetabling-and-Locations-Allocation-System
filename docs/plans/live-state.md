@@ -35,15 +35,20 @@ and AIMS.
 ## Live release
 
 - Tailnet: `https://njgrm.buru-degree.ts.net`
-- **Pending release SHA: `002c8879`** (**NOT LIVE** as of 2026-09-24; source accepted and pushed on
-  `origin/main`). Carries the scheduler print center: the legacy timetable exports pane is replaced by a
-  Print schedules panel — single official Word (DOCX) downloads and selected/all ZIP packages — legacy
-  export links redirect into the panel, and Excel stays clearly labelled as editable working data. Adds the
-  `archiver` server dependency; **no schema migration**. **Rollback basis:
+- **Release SHA: `002c8879`** (**LIVE** since 2026-09-24; `E:\ATLAS-runtime-supervised-002c8879-20260924`;
+  supervisor-owned 5001→56236 / 5174→54932 under the target supervisor; health/ready (`database:"ok"`) +
+  DB-backed read + Tailnet 200; served entry `assets/index-D_VODkDf.js` (SHA-256 `AA9AE7FD…E2C2`,
+  byte-identical to the build); machine `ATLAS_RUNTIME_SOURCE_DIR` / `RELEASE_SHA` = the target). Carries the
+  scheduler print center: the legacy timetable exports pane is replaced by a Print schedules panel — single
+  official Word (DOCX) downloads and selected/all ZIP packages — legacy export links redirect into the panel,
+  and Excel stays clearly labelled as editable working data. Adds the `archiver` server dependency; **no
+  schema migration**. Deployed by the SHA-pinned `ops/runtime/deploy-runner.ps1` (audit
+  `C:\ProgramData\ATLAS\release-audit\002c8879-20260924-213603`). **Deployment verified:** fresh independent
+  QA `ACCEPT_READY` 6/6/0/0 (blocked 0, unperformed 0). **Rollback basis:
   `70a5160819349f5ea0742b839c11606e8408185d`** at `E:\ATLAS-runtime-supervised-70a51608-20260924`
-  (startable in place). **Next action:** elevated operator runs the SHA-pinned `ops/runtime/deploy-runner.ps1`
-  cutover and performs fresh authenticated browser/document acceptance.
-- **Release SHA: `70a51608`** (**LIVE** since 2026-09-24; `E:\ATLAS-runtime-supervised-70a51608-20260924`;
+  (startable in place). **Acceptance PARTIAL:** the authenticated in-browser DOCX/ZIP download acceptance is
+  `EXTERNALLY_BLOCKED(AUTH_SESSION_REQUIRED)` — needs an authorized scheduler-session login.
+- **Release SHA: `70a51608`** (rollback basis; previously LIVE 2026-09-24; `E:\ATLAS-runtime-supervised-70a51608-20260924`;
   health/ready (`database:"ok"`) + DB-backed read + Tailnet 200; served entry `assets/index-DBNdrVle.js`
   (SHA-256 `E080F7F5…F4EE60`, byte-identical to the build); machine `ATLAS_RUNTIME_RELEASE_SHA` = `70a51608`).
   Carries `2c4a6c80` scheduler-control clarity plus official printable timetable exports: one landscape
