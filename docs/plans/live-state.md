@@ -35,6 +35,14 @@ and AIMS.
 ## Live release
 
 - Tailnet: `https://njgrm.buru-degree.ts.net`
+- **Pending release SHA: `002c8879`** (**NOT LIVE** as of 2026-09-24; source accepted and pushed on
+  `origin/main`). Carries the scheduler print center: the legacy timetable exports pane is replaced by a
+  Print schedules panel — single official Word (DOCX) downloads and selected/all ZIP packages — legacy
+  export links redirect into the panel, and Excel stays clearly labelled as editable working data. Adds the
+  `archiver` server dependency; **no schema migration**. **Rollback basis:
+  `70a5160819349f5ea0742b839c11606e8408185d`** at `E:\ATLAS-runtime-supervised-70a51608-20260924`
+  (startable in place). **Next action:** elevated operator runs the SHA-pinned `ops/runtime/deploy-runner.ps1`
+  cutover and performs fresh authenticated browser/document acceptance.
 - **Release SHA: `70a51608`** (**LIVE** since 2026-09-24; `E:\ATLAS-runtime-supervised-70a51608-20260924`;
   health/ready (`database:"ok"`) + DB-backed read + Tailnet 200; served entry `assets/index-DBNdrVle.js`
   (SHA-256 `E080F7F5…F4EE60`, byte-identical to the build); machine `ATLAS_RUNTIME_RELEASE_SHA` = `70a51608`).
