@@ -1,5 +1,6 @@
 import atlasApi from '@/lib/api';
 import type { PublishedEffectiveIdentityReadResponse, PublishedRevisionIdentityOverrides } from '@/types';
+import type { PublishedRevisionPreview } from '@/lib/published-revision-clashes';
 
 /**
  * Client contract for the published-revision read + create pair.
@@ -253,4 +254,42 @@ export function describePublishedRevisionFailure(error: unknown): string {
 		default:
 			return 'The revision was not saved. Check the values and try again.';
 	}
+}
+
+type RevisionScope = { schoolId: number; schoolYearId: number; runId: number };
+
+function revisionsPath(scope: RevisionScope): string {
+	return `/generation/${scope.schoolId}/${scope.schoolYearId}/runs/${scope.runId}/published-revisions`;
+}
+
+/**
+ * LANE-C POST-PUBLISH-C01 — dry run of a published revision. The server runs the
+ * exact checks the create path runs and returns the blocking clashes with zero
+ * writes; effective date and reason are optional so the check can run before the
+ * user picks them.
+ */
+export async function previewPublishedRevision(
+	scope: RevisionScope,
+	input: { sourceRevisionId: number; changes: RevisionPayloadChange[]; effectiveDate?: string; reason?: string },
+): Promise<PublishedRevisionPreview> {
+	const { data } = await atlasApi.post<PublishedRevisionPreview>(`${revisionsPath(scope)}/preview`, input);
+	return data;
+}
+
+/** Dry run of a published swap: the same two-class time exchange, zero writes. */
+export async function previewPublishedSwap(
+	scope: RevisionScope,
+	input: { sourceRevisionId: number; entryIdA: string; entryIdB: string; effectiveDate?: string },
+): Promise<PublishedRevisionPreview> {
+	const { data } = await atlasApi.post<PublishedRevisionPreview>(`${revisionsPath(scope)}/swap/preview`, input);
+	return data;
+}
+
+/** Schedules a published swap as an effective-dated revision (the supported swap path for published runs). */
+export async function createPublishedSwapRevision(
+	scope: RevisionScope,
+	input: { sourceRevisionId: number; entryIdA: string; entryIdB: string; effectiveDate: string; reason: string },
+): Promise<RevisionCreateResult> {
+	const { data } = await atlasApi.post<RevisionCreateResult>(`${revisionsPath(scope)}/swap`, input);
+	return data;
 }

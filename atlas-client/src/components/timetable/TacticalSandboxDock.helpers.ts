@@ -239,7 +239,10 @@ export function workspaceScopeKey(scope: {
 export function describeDepartureRepairTruth(isPublished: boolean, affectedClassCount: number): string {
 	const count = Number.isFinite(affectedClassCount) && affectedClassCount > 0 ? Math.floor(affectedClassCount) : 0;
 	if (isPublished) {
-		return 'This schedule is published. The published run stays unchanged; an effective-dated revision is the only way to change it, and its effective date is the sole temporal authority.';
+		// LANE-C POST-PUBLISH-C01: same contract in plain words — the published
+		// schedule is never rewritten, the change starts only on the chosen date,
+		// and nothing reverts on an end date.
+		return 'This schedule is published and stays as it is. The change takes effect only from the start date you choose; earlier dates keep the current schedule, and it does not switch back on its own.';
 	}
 	return `This reassigns ${count} affected class${count === 1 ? '' : 'es'} for the current generated run only. It records no absence period and does not schedule a future reversion.`;
 }

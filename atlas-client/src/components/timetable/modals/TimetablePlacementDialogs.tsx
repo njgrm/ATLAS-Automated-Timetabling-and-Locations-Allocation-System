@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { SearchableSelect } from '@/ui/searchable-select';
 import { ReviewActionMiniCard, ReviewActionSection, ReviewActionSheet } from './ReviewActionSheet';
 import { SoftViolationConfirmDialog } from './SoftViolationConfirmDialog';
+import { PublishedSwapRevisionPanel } from './PublishedSwapRevisionPanel';
 
 type PreviewLike = { hardViolations: unknown[]; softViolations: unknown[] } | null | undefined;
 
@@ -251,6 +252,7 @@ export function TimetablePlacementDialogs({ context }: { context: ScheduleReview
 		assignPickerFacultyId, setAssignPickerFacultyId, assignPickerRoomId, setAssignPickerRoomId,
 		assignPickerPreview, assignPickerPreviewLoading, assignPickerPreviewError, assignPickerSaving,
 		confirmAssignmentPicker, restoreReviewFocus,
+		publishedSwapScope, onPublishedSwapScheduled,
 	} = context;
 
 	const generatedPlacementCancelRef = useRef<HTMLButtonElement>(null);
@@ -641,6 +643,22 @@ export function TimetablePlacementDialogs({ context }: { context: ScheduleReview
 							{regularSwapPending ? 'These two classes will exchange their scheduled times. Each teacher stays with their class.' : ''}
 						</DialogDescription>
 					</DialogHeader>
+					{publishedSwapScope && regularSwapPending ? (
+						// LANE-C POST-PUBLISH-C01: a published run swaps through a dated revision.
+						<PublishedSwapRevisionPanel
+							entryA={regularSwapPending.entryA}
+							entryB={regularSwapPending.entryB}
+							scope={publishedSwapScope}
+							subjectLabel={subjectLabel}
+							sectionLabel={sectionLabel}
+							facultyLabel={(id) => {
+								const faculty = facultyMap.get(id);
+								return faculty ? `${faculty.lastName}, ${faculty.firstName}` : `Teacher #${id}`;
+							}}
+							onClose={closeGeneratedSwap}
+							onScheduled={onPublishedSwapScheduled}
+						/>
+					) : (<>
 					<div role="status" aria-live="polite" data-testid="generated-swap-preview-status" className="sr-only">
 						{regularSwapPreview?.loading
 							? 'Checking occupied-slot swap options.'
@@ -772,6 +790,7 @@ export function TimetablePlacementDialogs({ context }: { context: ScheduleReview
 						)}
 						</div>
 					</div>
+					</>)}
 				</DialogContent>
 			</Dialog>
 

@@ -4,7 +4,8 @@ import { getDataContext } from '../lib/data-context.js';
 import { publishPublishedScheduleEvent } from './published-schedule-events.service.js';
 import { runSerializablePublicationTransaction } from './serializable-transaction-retry.js';
 import { loadVerifiedOrderedTermContract, MAX_ACADEMIC_TERM_INDEX, isTermIndexWithinContract } from './academic-term.service.js';
-import { validateHardConstraints, type ScheduledEntry } from './constraint-validator.js';
+import { VIOLATION_COPY, validateHardConstraints, type ScheduledEntry, type Violation, type ViolationCode } from './constraint-validator.js';
+import { isPromotableConstraintCode } from './scheduling-policy.service.js';
 import { buildValidatorCtx, loadRunContext } from './manual-edit.service.js';
 import { countBlockingHardViolations } from './publication-contract.service.js';
 import {
@@ -87,6 +88,55 @@ export type PublishedRevisionValidationSummary = {
 	hardCodes: string[];
 	softViolationCount: number;
 	softViolations: Array<{ code: string; severity: 'SOFT'; message: string }>;
+};
+
+/** One schedule entry involved in a clash, with the identities a client needs to name it. */
+export type PublishedRevisionClashEntry = {
+	entryId: string;
+	/** True when this revision changes the entry; false for an entry the change collides with. */
+	changed: boolean;
+	sectionId: number | null;
+	subjectId: number | null;
+	facultyId: number | null;
+	roomId: number | null;
+	day: string | null;
+	startTime: string | null;
+	endTime: string | null;
+	termIndex: number | null;
+};
+
+/**
+ * LANE-C POST-PUBLISH-C01 — one blocking clash in operator language. `title`,
+ * `meaning` and `action` come from the canonical `VIOLATION_COPY`; the raw
+ * validator message (which names faculty by numeric id) is never the headline.
+ */
+export type PublishedRevisionClash = {
+	code: string;
+	title: string;
+	meaning: string;
+	action: string;
+	facultyId: number | null;
+	roomId: number | null;
+	sectionId: number | null;
+	day: string | null;
+	startTime: string | null;
+	endTime: string | null;
+	entries: PublishedRevisionClashEntry[];
+};
+
+/**
+ * LANE-C POST-PUBLISH-C01 — the dry-run result: the exact merged-entry
+ * validation the create path would run, returned instead of thrown, with zero
+ * writes. `alreadyScheduled` is true when an identical revision already exists.
+ */
+export type PublishedRevisionPreview = {
+	changeCount: number;
+	blockingHardViolationCount: number;
+	hardViolationCount: number;
+	softViolationCount: number;
+	softViolations: PublishedRevisionValidationSummary['softViolations'];
+	clashes: PublishedRevisionClash[];
+	alreadyScheduled: boolean;
 };
 
 export type PublishedRevisionServiceOptions = {
@@ -290,6 +340,69 @@ function toValidationSummary(
 	};
 }
 
+const MAX_REPORTED_CLASHES = 50;
+
+function numberOrNull(value: unknown): number | null {
+	return typeof value === 'number' && Number.isFinite(value) ? value : null;
+}
+
+function stringOrNull(value: unknown): string | null {
+	return typeof value === 'string' && value.length > 0 ? value : null;
+}
+
+/**
+ * LANE-C POST-PUBLISH-C01 — the blocking HARD violations (the publication-gate
+ * predicate: HARD severity AND promotable code) as operator-language clashes,
+ * each naming the merged entries it involves so a client can say which
+ * teacher, section, room and time collide.
+ */
+function buildRevisionClashes(
+	violations: Violation[],
+	mergedEntriesById: Map<string, Record<string, unknown>>,
+	changedEntryIds: Set<string>,
+): PublishedRevisionClash[] {
+	return violations
+		.filter((violation) => violation.severity === 'HARD' && isPromotableConstraintCode(violation.code))
+		.slice(0, MAX_REPORTED_CLASHES)
+		.map((violation) => {
+			const copy = VIOLATION_COPY[violation.code as ViolationCode];
+			const entities = violation.entities ?? {};
+			const entryIds = Array.isArray(entities.entryIds) ? entities.entryIds : [];
+			return {
+				code: violation.code,
+				title: copy?.title ?? 'Schedule conflict',
+				meaning: copy?.meaning ?? '',
+				action: copy?.action ?? '',
+				facultyId: numberOrNull(entities.facultyId),
+				roomId: numberOrNull(entities.roomId),
+				sectionId: numberOrNull(entities.sectionId),
+				day: stringOrNull(entities.day),
+				startTime: stringOrNull(entities.startTime),
+				endTime: stringOrNull(entities.endTime),
+				entries: entryIds.map((entryId) => {
+					const entry = mergedEntriesById.get(entryId) ?? {};
+					return {
+						entryId,
+						changed: changedEntryIds.has(entryId),
+						sectionId: numberOrNull(entry.sectionId),
+						subjectId: numberOrNull(entry.subjectId),
+						facultyId: numberOrNull(entry.facultyId),
+						roomId: numberOrNull(entry.roomId),
+						day: stringOrNull(entry.day),
+						startTime: stringOrNull(entry.startTime),
+						endTime: stringOrNull(entry.endTime),
+						termIndex: numberOrNull(entry.termIndex),
+					};
+				}),
+			};
+		});
+}
+
+/** The first moment of the next UTC day: the earliest date the create path accepts. */
+function nextUtcDay(now: Date): Date {
+	return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1));
+}
+
 type AuthoritativeLatestRevision = {
 	baseRevisionId: number;
 	latestRevisionId: number;
@@ -358,10 +471,43 @@ async function resolveAuthoritativeLatestRevision(
 	};
 }
 
+type RevisionRunOutcome =
+	| { kind: 'committed'; result: CreatePublishedScheduleRevisionResult }
+	| { kind: 'preview'; preview: PublishedRevisionPreview };
+
 export async function createPublishedScheduleRevision(
 	input: CreatePublishedScheduleRevisionInput,
 	options?: PublishedRevisionServiceOptions,
 ): Promise<CreatePublishedScheduleRevisionResult> {
+	const outcome = await runPublishedScheduleRevision(input, options, 'commit');
+	if (outcome.kind !== 'committed') throw err(500, 'PUBLISHED_REVISION_STATE_AMBIGUOUS', 'The revision write returned a preview.');
+	return outcome.result;
+}
+
+/**
+ * LANE-C POST-PUBLISH-C01 — dry run of `createPublishedScheduleRevision`. It
+ * runs the identical scope, term-contract, source-token, previous-value and
+ * merged hard-constraint checks inside the same advisory-locked transaction,
+ * then returns the clashes instead of throwing and before the first write, so
+ * the preview can never disagree with the commit. A missing effective date
+ * defaults to the next UTC day and a missing reason to "Preview", so a client
+ * can check a change before the user has chosen either.
+ */
+export async function previewPublishedScheduleRevision(
+	input: CreatePublishedScheduleRevisionInput,
+	options?: PublishedRevisionServiceOptions,
+): Promise<PublishedRevisionPreview> {
+	const outcome = await runPublishedScheduleRevision(input, options, 'preview');
+	if (outcome.kind !== 'preview') throw err(500, 'PUBLISHED_REVISION_STATE_AMBIGUOUS', 'The revision preview attempted a write.');
+	return outcome.preview;
+}
+
+async function runPublishedScheduleRevision(
+	input: CreatePublishedScheduleRevisionInput,
+	options: PublishedRevisionServiceOptions | undefined,
+	mode: 'commit' | 'preview',
+): Promise<RevisionRunOutcome> {
+	const previewOnly = mode === 'preview';
 	if (!isPositiveInt32(input.schoolId)) throw err(400, 'INVALID_SCHOOL_ID', 'schoolId must be a positive Int32 integer.');
 	if (!isPositiveInt32(input.schoolYearId)) throw err(400, 'INVALID_SCHOOL_YEAR_ID', 'schoolYearId must be a positive Int32 integer.');
 	if (!isPositiveInteger(input.sourceRunId)) throw err(400, 'INVALID_SOURCE_RUN_ID', 'sourceRunId must be a positive integer.');
@@ -370,8 +516,10 @@ export async function createPublishedScheduleRevision(
 	}
 
 	const now = options?.now ?? new Date();
-	const effectiveDate = parseEffectiveDate(input.effectiveDate, now);
-	const reason = normalizeReason(input.reason);
+	const hasEffectiveDate = input.effectiveDate != null && input.effectiveDate !== '';
+	let effectiveDate = previewOnly && !hasEffectiveDate ? nextUtcDay(now) : parseEffectiveDate(input.effectiveDate, now);
+	const hasReason = typeof input.reason === 'string' && input.reason.trim().length > 0;
+	const reason = previewOnly && !hasReason ? 'Preview' : normalizeReason(input.reason);
 	const changes = normalizeChanges(input.changes);
 	const actorId = input.actorId != null && isPositiveInteger(input.actorId) ? input.actorId : null;
 
@@ -390,7 +538,10 @@ export async function createPublishedScheduleRevision(
 		changes,
 		identityOverrides: asSummaryRecord(input.metadata)[IDENTITY_OVERRIDES_KEY] ?? null,
 	});
-	const result = await runSerializablePublicationTransaction(db(), async (tx) => {
+	type TxOutcome =
+		| { kind: 'committed'; revision: PublishedScheduleRevision; auditId: number; replayed: boolean; validation: PublishedRevisionValidationSummary | null }
+		| { kind: 'preview'; preview: PublishedRevisionPreview };
+	const result = await runSerializablePublicationTransaction(db(), async (tx): Promise<TxOutcome> => {
 		await tx.$executeRawUnsafe('SELECT pg_advisory_xact_lock($1::integer, $2::integer)', input.schoolId, input.schoolYearId);
 
 		const computeSnapshot = options?.computeInputSnapshot ?? computeGenerationInputSnapshot;
@@ -435,6 +586,12 @@ export async function createPublishedScheduleRevision(
 		const replay = await tx.publishedScheduleRevision.findFirst({
 			where: { schoolId: input.schoolId, schoolYearId: input.schoolYearId, sourceRunId: input.sourceRunId, metadata: { path: ['idempotencyKey'], equals: idempotencyKey } },
 		});
+		if (replay && previewOnly) {
+			return {
+				kind: 'preview',
+				preview: { changeCount: changes.length, blockingHardViolationCount: 0, hardViolationCount: 0, softViolationCount: 0, softViolations: [], clashes: [], alreadyScheduled: true },
+			};
+		}
 		if (replay) {
 			if ((replay.actorId ?? null) !== (actorId ?? null)) {
 				throw err(409, 'PUBLISHED_REVISION_STATE_AMBIGUOUS', 'The revision replay does not match the requesting actor.');
@@ -444,7 +601,7 @@ export async function createPublishedScheduleRevision(
 				select: { id: true },
 			});
 			if (!replayAudit) throw err(409, 'PUBLISHED_REVISION_STATE_AMBIGUOUS', 'The revision replay has no matching audit record.');
-			return { revision: replay, auditId: replayAudit.id, replayed: true, validation: null };
+			return { kind: 'committed', revision: replay, auditId: replayAudit.id, replayed: true, validation: null };
 		}
 
 		// D4 — effective-dated identity overrides carried on this revision's
@@ -473,6 +630,11 @@ export async function createPublishedScheduleRevision(
 			throw err(409, 'SOURCE_REVISION_STALE', 'The revision must be based on the latest published revision.', { details: { expectedSourceRevisionId: resolved.latestRevisionId } });
 		}
 		const sourceEffectiveDate = resolved.latestRevision?.effectiveDate ?? resolved.baseRevision.effectiveDate;
+		// A preview without a chosen date checks the earliest date the change
+		// could take effect: the later of tomorrow and the source revision's date.
+		if (previewOnly && !hasEffectiveDate && effectiveDate.getTime() < sourceEffectiveDate.getTime()) {
+			effectiveDate = sourceEffectiveDate;
+		}
 		if (effectiveDate.getTime() < sourceEffectiveDate.getTime()) {
 			throw err(409, 'REVISION_EFFECTIVE_DATE_BEFORE_SOURCE', 'A revision that claims a later source revision must take effect on or after that source revision\'s effective date.', {
 				details: { sourceRevisionId: input.sourceRevisionId, sourceEffectiveDate: sourceEffectiveDate.toISOString(), requestedEffectiveDate: effectiveDate.toISOString() },
@@ -555,8 +717,25 @@ export async function createPublishedScheduleRevision(
 		const mergedValidation = validateHardConstraints(buildValidatorCtx(input.schoolId, input.schoolYearId, input.sourceRunId, mergedEntries, refData));
 		const blockingHardViolationCount = countBlockingHardViolations(mergedValidation.violations);
 		const validation = toValidationSummary(mergedValidation.violations, blockingHardViolationCount);
+		const clashes = buildRevisionClashes(mergedValidation.violations, mergedEntriesById, new Set(changedEntryIds));
+		if (previewOnly) {
+			// Dry run: report the decision the commit would make, before any write.
+			return {
+				kind: 'preview',
+				preview: {
+					changeCount: changes.length,
+					blockingHardViolationCount,
+					hardViolationCount: validation.hardViolationCount,
+					softViolationCount: validation.softViolationCount,
+					softViolations: validation.softViolations,
+					clashes,
+					alreadyScheduled: false,
+				},
+			};
+		}
 		if (blockingHardViolationCount !== 0) {
 			throw err(422, 'PUBLISHED_REVISION_BLOCKED_HARD_VIOLATIONS', 'Cannot revise a published schedule while the merged entries contain hard violations.', {
+				actionHint: 'Change the classes named in the conflicts, or choose a different teacher, room or time, then try again.',
 				details: {
 					sourceRunId: input.sourceRunId,
 					blockingHardViolationCount,
@@ -567,6 +746,7 @@ export async function createPublishedScheduleRevision(
 						severity: violation.severity,
 						message: violation.message,
 					})),
+					clashes,
 				},
 			});
 		}
@@ -628,8 +808,9 @@ export async function createPublishedScheduleRevision(
 			},
 		});
 
-		return { revision, auditId: audit.id, replayed: false, validation };
+		return { kind: 'committed', revision, auditId: audit.id, replayed: false, validation };
 	});
+	if (result.kind === 'preview') return result;
 
 	// Fire notification event after successful commit
 	const affectedFacultyIdsSet = new Set<number>();
@@ -671,7 +852,8 @@ export async function createPublishedScheduleRevision(
 		}
 	}
 
-	return { ...result, notificationDelivery };
+	const { kind: _kind, ...committed } = result;
+	return { kind: 'committed', result: { ...committed, notificationDelivery } };
 }
 
 export type CreatePublishedSwapRevisionInput = {
@@ -708,6 +890,22 @@ export async function createPublishedSwapRevision(
 	input: CreatePublishedSwapRevisionInput,
 	options?: PublishedRevisionServiceOptions,
 ): Promise<CreatePublishedScheduleRevisionResult> {
+	return createPublishedScheduleRevision(await buildPublishedSwapRevisionInput(input), options);
+}
+
+/**
+ * LANE-C POST-PUBLISH-C01 — dry run of `createPublishedSwapRevision`: the same
+ * two-change timeslot exchange checked through `previewPublishedScheduleRevision`,
+ * with zero writes.
+ */
+export async function previewPublishedSwapRevision(
+	input: CreatePublishedSwapRevisionInput,
+	options?: PublishedRevisionServiceOptions,
+): Promise<PublishedRevisionPreview> {
+	return previewPublishedScheduleRevision(await buildPublishedSwapRevisionInput(input), options);
+}
+
+async function buildPublishedSwapRevisionInput(input: CreatePublishedSwapRevisionInput): Promise<CreatePublishedScheduleRevisionInput> {
 	const entryIdA = typeof input.entryIdA === 'string' ? input.entryIdA.trim() : '';
 	const entryIdB = typeof input.entryIdB === 'string' ? input.entryIdB.trim() : '';
 	if (!entryIdA || !entryIdB) throw err(400, 'SWAP_ENTRY_REQUIRED', 'A published swap requires two entryIds.');
@@ -752,7 +950,7 @@ export async function createPublishedSwapRevision(
 	const slotA = slotOf(entryIdA);
 	const slotB = slotOf(entryIdB);
 
-	return createPublishedScheduleRevision({
+	return {
 		schoolId: input.schoolId,
 		schoolYearId: input.schoolYearId,
 		sourceRunId: input.sourceRunId,
@@ -766,7 +964,7 @@ export async function createPublishedSwapRevision(
 		],
 		changeSummary: input.changeSummary ?? null,
 		metadata: input.metadata ?? null,
-	}, options);
+	};
 }
 
 export async function listPublishedScheduleRevisions(params: {

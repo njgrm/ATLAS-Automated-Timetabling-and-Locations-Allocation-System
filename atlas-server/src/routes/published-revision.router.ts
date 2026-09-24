@@ -5,6 +5,8 @@ import {
 	createPublishedScheduleRevision,
 	createPublishedSwapRevision,
 	listPublishedScheduleRevisions,
+	previewPublishedScheduleRevision,
+	previewPublishedSwapRevision,
 	resolveEffectivePublishedIdentitySnapshot,
 	resolveLatestPublishedSourceRevision,
 	withdrawPublishedScheduleRevision,
@@ -162,6 +164,74 @@ router.post(
 			});
 
 			res.status(201).json(result);
+		} catch (e) { next(e); }
+	},
+);
+
+/**
+ * LANE-C POST-PUBLISH-C01 — read-only dry runs of the two write routes above.
+ * Same privileged + actor-school gates; the service runs the identical checks
+ * and returns the blocking clashes (in operator language, naming the entries
+ * involved) instead of writing. Effective date and reason are optional here.
+ */
+router.post(
+	'/:schoolId/:schoolYearId/runs/:runId/published-revisions/preview',
+	authenticate,
+	async (req: Request, res: Response, next: NextFunction) => {
+		try {
+			if (!assertPrivileged(req, res)) return;
+
+			const scope = parseScope(req.params as Record<string, string>);
+			if (typeof scope === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: scope }); return; }
+			if (!assertActorSchool(req, res, scope.schoolId)) return;
+
+			const { effectiveDate, reason, sourceRevisionId, metadata } = req.body ?? {};
+			const changes = Array.isArray(req.body?.changes)
+				? req.body.changes
+				: Array.isArray(req.body?.changeSet)
+					? req.body.changeSet
+					: undefined;
+
+			const preview = await previewPublishedScheduleRevision({
+				schoolId: scope.schoolId,
+				schoolYearId: scope.schoolYearId,
+				sourceRunId: scope.runId,
+				sourceRevisionId: sourceRevisionId ?? null,
+				actorId: req.user?.userId ?? null,
+				effectiveDate,
+				reason,
+				changes,
+				metadata: metadata ?? null,
+			});
+			res.json(preview);
+		} catch (e) { next(e); }
+	},
+);
+
+router.post(
+	'/:schoolId/:schoolYearId/runs/:runId/published-revisions/swap/preview',
+	authenticate,
+	async (req: Request, res: Response, next: NextFunction) => {
+		try {
+			if (!assertPrivileged(req, res)) return;
+
+			const scope = parseScope(req.params as Record<string, string>);
+			if (typeof scope === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: scope }); return; }
+			if (!assertActorSchool(req, res, scope.schoolId)) return;
+
+			const { effectiveDate, reason, sourceRevisionId, entryIdA, entryIdB } = req.body ?? {};
+			const preview = await previewPublishedSwapRevision({
+				schoolId: scope.schoolId,
+				schoolYearId: scope.schoolYearId,
+				sourceRunId: scope.runId,
+				sourceRevisionId: sourceRevisionId ?? null,
+				actorId: req.user?.userId ?? null,
+				effectiveDate,
+				reason,
+				entryIdA,
+				entryIdB,
+			});
+			res.json(preview);
 		} catch (e) { next(e); }
 	},
 );

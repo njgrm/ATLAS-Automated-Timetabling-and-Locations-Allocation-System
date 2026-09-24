@@ -293,4 +293,11 @@ export type ScheduleReviewDialogsContext = {
 	revertLoading: boolean;
 	/** The current run version the CAS must match. */
 	currentRunVersion: number | null;
+	/**
+	 * LANE-C POST-PUBLISH-C01 — non-null when the shown run is published: a swap
+	 * is then scheduled as a dated revision instead of a direct edit.
+	 */
+	publishedSwapScope: { schoolId: number; schoolYearId: number; runId: number } | null;
+	/** Called after a published swap revision is scheduled. */
+	onPublishedSwapScheduled: () => void;
 };

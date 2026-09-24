@@ -119,7 +119,9 @@ test('R2 published mode never reaches the direct Teaching Load save', () => {
 	// The canonical commit is only reachable when the run is unpublished.
 	assert.match(departure, /const handleSave = async \(\) => \{[\s\S]*?commitTeachingLoadRepair\(/);
 	assert.match(departure, /if \(saveDisabledReason\) \{[\s\S]{0,120}return;/);
-	assert.match(departure, /isPublished[\s\S]{0,120}effective-date revision/);
+	// SUPERSEDED by LANE-C POST-PUBLISH-C01 (audit B5 jargon): assert.match(departure, /isPublished[\s\S]{0,120}effective-date revision/);
+	// Replacement — published mode's save reason is the plain published note:
+	assert.match(departure, /const saveDisabledReason = isPublished\s*\?\s*PUBLISHED_CHANGE_NOTE/);
 	// Published mode exposes the revision review instead of the save button.
 	assert.match(departure, /teacher-departure-review-revision-button/);
 	assert.match(departure, /PublishedRevisionDialog/);
