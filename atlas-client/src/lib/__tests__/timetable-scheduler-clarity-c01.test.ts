@@ -110,3 +110,55 @@ test('setup guidance names what ATLAS found and the next safe step without claim
 		assert.doesNotMatch(simpleSetupGuidance({ state }), /updated|changed to/);
 	}
 });
+
+test('selected class actions show one concise context and safe preview guidance', () => {
+	const workspace = source('src/components/timetable/ScheduleReviewWorkspace.tsx');
+	assert.match(workspace, /Selected: \{state\.subjectLabel\(state\.selectedEntry\.subjectId\)\} · \{state\.sectionLabel\(state\.selectedEntry\.sectionId\)\}/);
+	assert.match(workspace, /Dismiss selection/);
+	assert.match(workspace, /Choose a new time/);
+	assert.match(workspace, /Swap with another class/);
+	assert.match(workspace, /Review the change before saving/);
+	assert.doesNotMatch(workspace, /Choose another occupied slot to review a swap/);
+});
+
+test('drift actions distinguish safe published review from draft preview and confirmation', () => {
+	const drift = source('src/components/timetable/simple/SimpleDriftBanner.tsx');
+	assert.match(drift, /Published schedule is safe to view/);
+	assert.match(drift, /Review changes/);
+	assert.match(drift, /Start a revision/);
+	assert.match(drift, /Regenerate to apply/);
+	assert.match(drift, /Nothing has changed yet/);
+	assert.doesNotMatch(drift, /Refresh before publishing|Direct sync|stale inputs/i);
+});
+
+test('term switcher is a standalone, complete ordered-term control', () => {
+	const controls = source('src/components/timetable/simple/SimpleBeneficiaryControls.tsx');
+	assert.match(controls, /<span[^>]*>Term<\/span>/);
+	assert.match(controls, /Term \$\{option\.value\}/);
+	assert.doesNotMatch(controls, /\(active\)|rounded-lg border border-border bg-muted\/20/);
+	assert.match(controls, /onTermFilterChange\(next === 'all' \? 'all' : Number\(next\)\)/);
+});
+
+test('policy and shift editor use plain labels while retaining explicit technical values', () => {
+	const policy = source('src/components/scheduling-policy/PolicyPanePrimitives.tsx');
+	const shift = source('src/components/scheduling-policy/ShiftSettingsEditor.tsx');
+	assert.match(policy, /Priority strength/);
+	assert.match(policy, /Low.*Standard.*High/s);
+	assert.match(policy, /Required/);
+	assert.match(policy, /Preferred/);
+	assert.match(policy, /Advanced details/);
+	assert.match(shift, /Keep each class in one school-day shift/);
+	assert.match(shift, /Morning schedule/);
+	assert.match(shift, /Afternoon schedule/);
+	assert.match(policy, /treatAsHard/);
+});
+
+test('highlighted select, menu, and selectable rows inherit readable semantic foregrounds', () => {
+	const select = source('src/ui/select.tsx');
+	const searchable = source('src/ui/searchable-select.tsx');
+	const menu = source('src/ui/dropdown-menu.tsx');
+	assert.match(select, /data-\[highlighted\]:text-primary-foreground/);
+	assert.match(searchable, /data-\[highlighted\]:text-accent-foreground/);
+	assert.match(menu, /data-\[highlighted\]:text-accent-foreground/);
+	assert.match(menu, /data-\[state=open\]:text-accent-foreground/);
+});
