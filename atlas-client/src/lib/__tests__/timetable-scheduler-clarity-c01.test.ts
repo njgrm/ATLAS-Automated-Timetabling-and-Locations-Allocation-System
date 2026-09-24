@@ -10,6 +10,9 @@ import { resetSimpleWorkspaceFilters } from '@/components/timetable/simple/Simpl
 import { deriveSimpleLifecycleAction } from '@/lib/simple-timetable-state';
 import { resolveTimetableLoadingIntent } from '@/components/timetable/timetable-route-loading-intent';
 import { simpleSetupGuidance } from '@/components/timetable/TimetableSetupPane';
+import { buildProgramContextNote } from '@/components/scheduling-policy/policyPaneModel';
+import { ShiftSettingsEditor } from '@/components/scheduling-policy/ShiftSettingsEditor';
+import { DEFAULT_PROGRAM_WINDOW_OPTIONS, type LocalGradeWindow } from '@/components/scheduling-policy/SchedulingPolicyDialogs';
 
 const clientRoot = resolve(import.meta.dirname, '../../..');
 const source = (path: string) => readFileSync(resolve(clientRoot, path), 'utf8');
@@ -41,6 +44,69 @@ test('Simple lifecycle labels describe the schedule and next action in plain lan
 	assert.doesNotMatch(published, /Published — read only/);
 	assert.match(source('src/components/timetable/simple/SimpleDriftBanner.tsx'), /Schedule information changed/);
 	assert.match(source('src/lib/simple-timetable-state.ts'), /Checking schedule information…/);
+});
+
+test('ordinary stale notice offers one safe setup action and promises the current schedule stays unchanged', () => {
+	const drift = source('src/components/timetable/simple/SimpleDriftBanner.tsx');
+	assert.match(drift, /The current schedule stays unchanged while you review school information\./i);
+	assert.doesNotMatch(drift, /Sync with setup|Refresh before publishing|Update schedule now/);
+	const header = source('src/components/timetable/TimetableSimpleHeader.tsx');
+	assert.match(header, /showActions=\{false\}/, 'ordinary timetable notice must use its single-action form');
+	assert.match(header, /<Link to="\/timetable\/setup">[\s\S]*\{showDriftState \? 'Check school information' : 'School information'\}/);
+	assert.match(header, /data-testid="timetable-simple-review-setup"/);
+	assert.doesNotMatch(drift, /timetable-simple-check-school-information/, 'the existing setup CTA is reused rather than duplicated');
+});
+
+test('shift editor progressively groups descriptive schedules without changing window callbacks or technical copy', () => {
+	const editor = source('src/components/scheduling-policy/ShiftSettingsEditor.tsx');
+	assert.match(editor, /Accordion, AccordionContent, AccordionItem, AccordionTrigger/);
+	assert.match(editor, /Grade \{group\.gradeLevel\} · \{scheduleLabel\}/);
+	assert.match(editor, /Add schedule window/);
+	assert.doesNotMatch(editor, /Override #|Add Override|EnrollPro|upstream|ownership|TLE-specialization/i);
+	assert.match(editor, /onApplyFullDayPreset\}/);
+	assert.match(editor, /onApplyHalfDayPreset\}/);
+	assert.match(editor, /onAddOverride\}/);
+	assert.match(editor, /onRemove\(index\)/);
+	assert.match(editor, /onUpdate\(index, 'gradeLevel'/);
+	assert.match(editor, /onUpdate\(index, 'programType'/);
+	assert.match(editor, /onUpdate\(index, 'startTime'/);
+	assert.match(editor, /onUpdate\(index, 'endTime'/);
+	assert.match(editor, /Changes are not saved automatically/);
+	assert.doesNotMatch(editor, /<details\b/);
+	const dialog = source('src/components/scheduling-policy/SchedulingPolicyDialogs.tsx');
+	assert.match(dialog, /Add a schedule window/);
+	assert.match(dialog, /Add schedule window/);
+	const pane = source('src/components/SchedulingPolicyPane.tsx');
+	assert.match(pane, /isDirty/);
+	assert.match(pane, /Save Policy/);
+	const context = buildProgramContextNote(null);
+	assert.doesNotMatch(context, /EnrollPro|upstream|ownership|feed|specialization/i);
+	assert.match(context, /Program choices are based on the sections set up for this school year/);
+	const sectionContext = buildProgramContextNote({ sections: [{ programType: 'SPTVE', tleSpecialization: 'CARPENTRY' }] } as never);
+	assert.match(sectionContext, /Technology and Livelihood Education focus/);
+	assert.doesNotMatch(sectionContext, /SPTVE|CARPENTRY|EnrollPro|upstream|ownership|feed|specialization/i);
+	const windows = [7, 8, 9, 10].flatMap((gradeLevel) => ['ALL', 'REGULAR', 'STE', 'SPS', 'SPA'].map((programType): LocalGradeWindow => ({
+		gradeLevel,
+		programType: programType === 'ALL' ? null : programType as LocalGradeWindow['programType'],
+		startTime: '07:00',
+		endTime: '16:00',
+	})));
+	const markup = renderToStaticMarkup(createElement(ShiftSettingsEditor, {
+		shiftWindows: windows,
+		onAddOverride: () => {},
+		onApplyFullDayPreset: () => {},
+		onApplyHalfDayPreset: () => {},
+		onRemove: () => {},
+		onUpdate: () => {},
+		gradeLevels: [7, 8, 9, 10],
+		programOptions: DEFAULT_PROGRAM_WINDOW_OPTIONS,
+		programContextNote: sectionContext,
+	}));
+	assert.equal((markup.match(/data-slot="accordion-item"/g) ?? []).length, 20, 'all twenty schedule groups remain available behind progressive disclosure');
+	assert.match(markup, /Grade 7 · Morning schedule/);
+	assert.match(markup, /Grade 9 · Afternoon schedule/);
+	assert.match(markup, /data-state="closed"/, 'schedule windows start collapsed until a group is opened');
+	assert.doesNotMatch(markup, /Override #|Add Override|EnrollPro|upstream|ownership|CARPENTRY/i);
 });
 
 test('entering the Simple workspace clears old grid filters without deleting filter behavior elsewhere', () => {

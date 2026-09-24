@@ -67,7 +67,7 @@ test('user-facing layout entry points use Expert while the stored layout key sta
 	const menu = source('src/components/timetable/simple/SimpleMoreMenuContent.tsx');
 	assert.match(menu, /Expert view/);
 	assert.match(workspace, /Expert details/);
-	assert.match(menu, /Scheduling policy \(Expert\)/);
+	assert.match(menu, /Advanced rules/);
 	assert.match(workspace, /localStorage\.getItem\('atlas_timetable_layout_mode'\).*advanced/s);
 	assert.doesNotMatch(source('src/components/timetable/simple/SimpleHeaderHelpers.tsx'), /Advanced view/);
 });
