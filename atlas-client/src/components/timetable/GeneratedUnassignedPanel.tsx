@@ -148,7 +148,7 @@ export function GeneratedUnassignedPanel({ context, renderUnassignedReasonBadge 
 								</Button>
 							)}
 						</div>
-						<div className="flex gap-1 overflow-x-auto pb-0.5" aria-label="Unresolved status filters">
+						<div className="flex gap-1 overflow-x-auto scrollbar-thin pb-0.5" aria-label="Unresolved status filters">
 							{([
 								['all', 'All'],
 								['needs-room', 'Needs room'],
@@ -168,7 +168,7 @@ export function GeneratedUnassignedPanel({ context, renderUnassignedReasonBadge 
 								</Button>
 							))}
 						</div>
-						<div className="flex gap-1 overflow-x-auto pb-0.5" aria-label="Unresolved grade and reason filters">
+						<div className="flex gap-1 overflow-x-auto scrollbar-thin pb-0.5" aria-label="Unresolved grade and reason filters">
 							<Button
 								type="button"
 								variant={gradeFilter === 'all' ? 'default' : 'secondary'}
@@ -244,7 +244,7 @@ export function GeneratedUnassignedPanel({ context, renderUnassignedReasonBadge 
 									renderUnassignedReasonBadge={renderUnassignedReasonBadge}
 								/>
 							)}
-							className="flex-1 min-h-[240px] touch-pan-y overscroll-contain overflow-auto px-3 pb-3 pt-2"
+							className="flex-1 min-h-[240px] touch-pan-y overscroll-contain overflow-auto scrollbar-thin px-3 pb-3 pt-2"
 							ariaLabel="Unassigned generated sessions"
 							overscan={6}
 						/>

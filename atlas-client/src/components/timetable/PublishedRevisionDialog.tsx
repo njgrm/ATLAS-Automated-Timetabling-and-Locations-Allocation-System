@@ -105,7 +105,7 @@ export function PublishedRevisionDialog({
 						Choose when these ownership changes take effect. Earlier dates will still show the original published schedule.
 					</DialogDescription>
 				</DialogHeader>
-				<div className="grid max-h-[70vh] gap-4 overflow-y-auto px-5 py-4">
+				<div className="grid max-h-[70vh] gap-4 overflow-y-auto scrollbar-thin px-5 py-4">
 					{revisionSuccess ? (
 						<div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">
 							<div className="flex items-start gap-2">

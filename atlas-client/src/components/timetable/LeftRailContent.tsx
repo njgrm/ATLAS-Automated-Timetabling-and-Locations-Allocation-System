@@ -187,7 +187,7 @@ function LeftRailContentImpl({ context }: LeftRailContentProps) {
 					renderUnassignedReasonBadge={renderUnassignedReasonBadge}
 				/>
 			) : isPreGenerationWorkspace && (leftTab === 'unassigned' || leftTab === 'pinned') ? (
-				<div id={leftTab === 'pinned' ? 'panel-pinned' : 'panel-unassigned'} role="tabpanel" aria-labelledby={leftTab === 'pinned' ? 'tab-pinned' : 'tab-unassigned'} className="flex flex-col flex-1 min-h-0 overflow-auto">
+				<div id={leftTab === 'pinned' ? 'panel-pinned' : 'panel-unassigned'} role="tabpanel" aria-labelledby={leftTab === 'pinned' ? 'tab-pinned' : 'tab-unassigned'} className="flex flex-col flex-1 min-h-0 overflow-auto scrollbar-thin">
 					<div className="shrink-0 border-b border-border px-3 py-2">
 						<div className="flex items-center justify-between gap-2">
 							<div className="flex items-center gap-1.5">

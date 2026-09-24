@@ -636,7 +636,7 @@ export const CenterWorkspace = memo(function CenterWorkspace(props: CenterWorksp
 							</div>
 							<div className="col-span-4 min-h-0 rounded-lg border border-border bg-muted/20 p-3">
 								<p className="mb-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">Rooms</p>
-								<div className="space-y-px overflow-auto rounded-lg border border-border bg-border max-h-104">
+								<div className="space-y-px overflow-auto scrollbar-thin rounded-lg border border-border bg-border max-h-104">
 									{selectedMapBuildingFloors.map((floor) => {
 										const rooms = selectedMapBuilding.rooms
 											.filter((r: any) => r.floor === floor)

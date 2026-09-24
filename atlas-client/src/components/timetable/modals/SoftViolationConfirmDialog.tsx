@@ -41,7 +41,7 @@ export function SoftViolationConfirmDialog({
 						 You can still apply it, but review the issues below.
 					</DialogDescription>
 				</DialogHeader>
-				<div className="max-h-48 overflow-auto space-y-1.5 py-2">
+				<div className="max-h-48 overflow-auto scrollbar-thin space-y-1.5 py-2">
 					{warnings.map((warning, index) => (
 						<div
 							key={index}

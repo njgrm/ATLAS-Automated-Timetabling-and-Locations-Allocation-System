@@ -403,7 +403,7 @@ export function GeneratedUnassignedPanel({ context, renderUnassignedReasonBadge 
 						) : null}
 						{filteredUnassignedItems.length > 0 && (
 							<div className="space-y-1.5">
-								<div className="flex gap-1 overflow-x-auto pb-0.5">
+								<div className="flex gap-1 overflow-x-auto scrollbar-thin pb-0.5">
 									{(['all', 'NO_QUALIFIED_FACULTY', 'FACULTY_OVERLOADED', 'NO_AVAILABLE_SLOT', 'NO_COMPATIBLE_ROOM'] as const).map((reason) => {
 										const label = reason === 'all' ? 'All' : (UNASSIGNED_REASON_LABELS[reason]?.label ?? reason);
 										const count = reason === 'all'
@@ -443,7 +443,7 @@ export function GeneratedUnassignedPanel({ context, renderUnassignedReasonBadge 
 									renderUnassignedReasonBadge={renderUnassignedReasonBadge}
 								/>
 							)}
-							className="flex-1 min-h-[220px] touch-pan-y overscroll-contain overflow-auto px-3 pb-3"
+							className="flex-1 min-h-[220px] touch-pan-y overscroll-contain overflow-auto scrollbar-thin px-3 pb-3"
 							ariaLabel="Unassigned generated sessions"
 							overscan={5}
 						/>

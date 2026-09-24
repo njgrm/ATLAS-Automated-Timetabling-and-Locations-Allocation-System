@@ -385,7 +385,7 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 				<span><span className="font-semibold text-foreground">Scope:</span> {termFilter === 'all' ? 'All terms' : (termOptions.find((option) => option.value === String(termFilter))?.label ?? 'Selected term')}</span>
 				<span><span className="font-semibold text-foreground">Next:</span> {nextActionLabel}</span>
 			</div>
-			<div className="flex items-center gap-2 overflow-x-auto px-4 pt-2 pb-1.5 [@media(max-height:500px)]:pt-1 [@media(max-height:500px)]:pb-1">
+			<div className="flex items-center gap-2 overflow-x-auto scrollbar-thin px-4 pt-2 pb-1.5 [@media(max-height:500px)]:pt-1 [@media(max-height:500px)]:pb-1">
 				<Badge
 					variant={isPreGenerationWorkspace ? 'secondary' : 'default'}
 					className={cn('h-7 shrink-0 px-2.5 text-xs font-semibold uppercase', isPreGenerationWorkspace ? 'border border-border bg-muted text-muted-foreground' : 'bg-primary text-primary-foreground')}

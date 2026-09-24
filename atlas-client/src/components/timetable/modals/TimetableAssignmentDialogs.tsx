@@ -31,7 +31,7 @@ export function TimetableAssignmentDialogs({ context }: { context: ScheduleRevie
 							: `${editHistory.length} edit${editHistory.length === 1 ? '' : 's'} recorded. Only the latest edit can be reverted; newer edits would make an older revert stale.`}
 					</DialogDescription>
 				</DialogHeader>
-				<div className="max-h-64 space-y-2 overflow-auto py-2">
+				<div className="max-h-64 space-y-2 overflow-auto scrollbar-thin py-2">
 					{editHistory.map((edit, index) => {
 						const summary = edit.validationSummary as Record<string, number> | null;
 						const isHead = index === 0;

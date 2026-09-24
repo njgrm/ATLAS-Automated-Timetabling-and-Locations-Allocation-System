@@ -64,7 +64,7 @@ export function PublicationApprovalInbox({ schoolId, schoolYearId, actorId, visi
 	return <>
 		<Button variant="outline" size="sm" onClick={() => setOpen(true)}>Review publication requests</Button>
 		<Dialog open={open} onOpenChange={setOpen}>
-			<DialogContent className="max-h-[80svh] overflow-auto sm:max-w-lg">
+			<DialogContent className="max-h-[80svh] overflow-auto scrollbar-thin sm:max-w-lg">
 				<DialogHeader><DialogTitle>Pending publication requests</DialogTitle><DialogDescription>Approval revalidates the exact run revision. Your approval publishes only if all current publication checks still pass.</DialogDescription></DialogHeader>
 				<div className="space-y-2">
 					{loading && <div className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="size-4 animate-spin" />Loading requests…</div>}

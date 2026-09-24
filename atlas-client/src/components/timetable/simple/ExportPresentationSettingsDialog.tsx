@@ -138,7 +138,7 @@ export function ExportPresentationSettingsDialog({ schoolId, schoolYearId, yearL
 				) : null}
 
 				{draft ? (
-					<div className="flex max-h-[60svh] flex-col gap-4 overflow-y-auto pr-1">
+					<div className="flex max-h-[60svh] flex-col gap-4 overflow-y-auto scrollbar-thin pr-1">
 						<div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
 							{IDENTITY_FIELDS.map((field) => (
 								<div key={field.key} className="flex flex-col gap-1.5">

@@ -15,7 +15,7 @@ test('native timetable grid, desktop toolbar, and simple filter-chip scrollers u
 	} as any;
 	const grid = renderToStaticMarkup(createElement(TimetableGrid, {
 		entries: [entry], timeSlots: [{ startTime: '08:00', endTime: '08:45' }],
-		violationIndex: new Map(), highlightedEntryIds: new Set(), selectedEntry: null, followUps: new Set(),
+		violationIndex: new Map(), highlightedEntryIds: new Set<string>(), selectedEntry: null, followUps: new Set<string>(),
 		onEntryClick: () => {}, subjectLabel: () => 'Math', sectionLabel: () => '7-A', gradeForSection: () => 7,
 		entryContextLabel: () => '7-A', formatFacultyInitials: () => 'AB', facultyLabel: () => 'Teacher A',
 		viewMode: 'section', pivotLabel: () => '7-A', roomLabelShort: () => 'Room 1', kbSelectedSource: null,
@@ -31,7 +31,7 @@ test('native timetable grid, desktop toolbar, and simple filter-chip scrollers u
 		entryKindFilter: 'all', onEntryKindFilterChange: () => {}, entryKindFilterOptions: [{ value: 'all', label: 'All entries' }],
 		termFilter: 1, onTermFilterChange: () => {}, termOptions: [{ value: '1', label: 'Term 1' }], activeTermIndex: 1,
 	}));
-	assert.match(toolbar, /data-tutorial="grid-controls"[^>]*class="[^"]*overflow-x-auto[^\"]*scrollbar-thin/, 'desktop toolbar control scroller is styled');
+	assert.match(toolbar, /class="[^"]*overflow-x-auto[^\"]*scrollbar-thin[^"]*" data-tutorial="grid-controls"/, 'desktop toolbar control scroller is styled');
 
 	const context = {
 		programFilter: 'special', entryKindFilter: 'subject', severityFilter: 'all',
@@ -40,5 +40,5 @@ test('native timetable grid, desktop toolbar, and simple filter-chip scrollers u
 		setProgramFilter: () => {}, setEntryKindFilter: () => {}, setSeverityFilter: () => {},
 	} as unknown as ScheduleReviewWorkspaceHeaderContext;
 	const chips = renderToStaticMarkup(createElement(SimpleActiveFilterChips, { context }));
-	assert.match(chips, /data-testid="timetable-active-filters"[^>]*class="[^"]*overflow-x-auto[^\"]*scrollbar-thin/, 'simple active-filter chips are styled');
+	assert.match(chips, /class="[^"]*overflow-x-auto[^\"]*scrollbar-thin[^"]*" data-testid="timetable-active-filters"/, 'simple active-filter chips are styled');
 });

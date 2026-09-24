@@ -170,7 +170,7 @@ export function SchedulerPrintDialog(props: Props) {
 								{allSelected ? 'Clear all' : 'Select all'}
 							</Button>
 						</div>
-						<div className="max-h-64 min-h-20 overflow-auto rounded-md border p-2" aria-live="polite">
+						<div className="max-h-64 min-h-20 overflow-auto scrollbar-thin rounded-md border p-2" aria-live="polite">
 							{loading ? <div className="flex items-center gap-2 p-3 text-sm text-muted-foreground"><Loader2 className="size-4 animate-spin" />Loading available programs…</div>
 								: visibleChoices.length === 0 ? <p className="p-3 text-sm text-muted-foreground">No {program.toLowerCase()} programs are available for this term.</p>
 									: visibleChoices.map((choice) => (

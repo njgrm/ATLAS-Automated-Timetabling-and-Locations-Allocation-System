@@ -590,7 +590,7 @@ export function TacticalSandboxDock({
 				</SheetHeader>
 
 				{activeContextEntry ? (
-					<div className="grid min-h-0 flex-1 gap-3 overflow-y-auto pr-1 md:h-full md:grid-cols-3 md:overflow-hidden md:pr-0">
+					<div className="grid min-h-0 flex-1 gap-3 overflow-y-auto scrollbar-thin pr-1 md:h-full md:grid-cols-3 md:overflow-hidden md:pr-0">
 						<section className="min-w-0 min-h-0 overflow-hidden rounded-lg border border-border bg-muted/20 p-3">
 							<div className="space-y-3 text-xs">
 								<div>

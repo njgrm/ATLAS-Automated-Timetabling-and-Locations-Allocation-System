@@ -155,7 +155,7 @@ export function ClassProgramMatrixView({
 								</CardTitle>
 							</CardHeader>
 							<CardContent className="p-0">
-								<div className="overflow-auto">
+								<div className="overflow-auto scrollbar-thin">
 									<table aria-label="Timetable" className="min-w-230 w-full border-collapse text-xs">
 										<colgroup>
 											<col className="w-48" />

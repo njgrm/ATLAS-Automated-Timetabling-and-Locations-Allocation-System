@@ -87,7 +87,7 @@ export function TimetableWorkflowDialogs({ context }: { context: ScheduleReviewD
 		</Dialog>
 
 		<Sheet open={Boolean(requestPreview || requestPreviewLoading)} onOpenChange={(open) => { if (!open) closeRequest(); }}>
-			<SheetContent className="w-full overflow-auto sm:max-w-lg">
+		<SheetContent className="w-full overflow-auto scrollbar-thin sm:max-w-lg">
 				<SheetHeader><SheetTitle>Room request review</SheetTitle><SheetDescription>Check the requested change and its timetable impact.</SheetDescription></SheetHeader>
 				<div className="mt-4 space-y-3 text-xs">
 					{requestPreviewLoading && !requestPreview ? <><Skeleton className="h-20" /><Skeleton className="h-28" /></> : null}

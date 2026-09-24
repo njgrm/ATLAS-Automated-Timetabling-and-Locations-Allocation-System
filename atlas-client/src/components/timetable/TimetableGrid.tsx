@@ -129,7 +129,7 @@ const GridDropContainer = memo(function GridDropContainer({ children }: { childr
 		data: { type: 'timetableGrid' },
 	});
 
-	return <div ref={setNodeRef} className="overflow-auto">{children}</div>;
+	return <div ref={setNodeRef} className="overflow-auto scrollbar-thin">{children}</div>;
 });
 
 const GridCell = memo(function GridCell({

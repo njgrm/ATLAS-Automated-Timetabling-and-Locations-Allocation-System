@@ -495,7 +495,7 @@ export function TimetablePlacementDialogs({ context }: { context: ScheduleReview
 									? 'Draft placement preview is ready.'
 									: 'Draft placement review opened.'}
 					</div>
-					<div className="flex-1 min-h-0 overflow-auto px-4 py-3">
+					<div className="flex-1 min-h-0 overflow-auto scrollbar-thin px-4 py-3">
 						<ReviewActionSheet type="draft-placement">
 							<ReviewActionSection title="What changes" description="This draft session is anchored to the selected slot after review.">
 						<div className="grid gap-2 sm:grid-cols-2">
@@ -614,7 +614,7 @@ export function TimetablePlacementDialogs({ context }: { context: ScheduleReview
 							{swapPreview?.loading ? 'Checking…' : swapPreview?.error ? draftSwapErrorGuidance(swapPreview.error) : draftSwapHardViolations.length ? `${draftSwapHardViolations.length} blocking conflicts` : `${draftSwapSoftViolations.length} warnings`}
 						</p>
 					</header>
-					<div className="min-h-0 overflow-auto px-3 py-2">
+					<div className="min-h-0 overflow-auto scrollbar-thin px-3 py-2">
 						{swapPreview?.error ? <p className="text-xs text-destructive">{swapPreview.error}</p> : null}
 						{swapAction ? <p className="text-xs text-muted-foreground">Teacher {formatFacultyInitials(swapAction.target.facultyId)} · Room {roomLabelShort(swapAction.target.roomId)} · the displaced session returns to its original slot.</p> : null}
 						<ConflictDetails items={draftSwapHardViolations} tone="bad" heading="Blocking conflicts" />
@@ -650,7 +650,7 @@ export function TimetablePlacementDialogs({ context }: { context: ScheduleReview
 									? 'Occupied-slot swap preview is ready.'
 									: 'Occupied-slot swap review opened.'}
 					</div>
-					<div className="flex-1 min-h-0 overflow-auto">
+					<div className="flex-1 min-h-0 overflow-auto scrollbar-thin">
 						{regularSwapPreview?.loading ? (
 							<div className="px-4 py-3"><p className="flex items-center gap-2 text-xs"><Loader2 className="size-4 animate-spin" />Checking options...</p></div>
 						) : regularSwapPreview?.error ? (

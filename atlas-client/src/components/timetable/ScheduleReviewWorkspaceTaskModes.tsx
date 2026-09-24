@@ -29,7 +29,7 @@ export function ScheduleReviewWorkspaceTaskModes({ taskModes }: { taskModes: Tim
 		<div
 			role="group"
 			aria-label="Timetable task modes"
-			className="flex min-w-0 gap-1 overflow-x-auto pb-0.5 sm:flex-1 [@media(max-height:500px)]:pb-0"
+			className="flex min-w-0 gap-1 overflow-x-auto scrollbar-thin pb-0.5 sm:flex-1 [@media(max-height:500px)]:pb-0"
 		>
 			{taskModes.map((task) => {
 				const Icon = task.icon;

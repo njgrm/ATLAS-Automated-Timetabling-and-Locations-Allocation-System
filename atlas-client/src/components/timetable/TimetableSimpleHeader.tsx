@@ -726,7 +726,7 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 								<span className="hidden sm:inline">More</span>
 							</Button>
 						</DropdownMenuTrigger>
-						<DropdownMenuContent align="end" className="max-h-[min(82svh,32rem)] w-80 overflow-y-auto p-2">
+						<DropdownMenuContent align="end" className="max-h-[min(82svh,32rem)] w-80 overflow-y-auto scrollbar-thin p-2">
 							<SimpleMoreMenuContent
 								context={context}
 								runToolsAvailable={runToolsAvailable}

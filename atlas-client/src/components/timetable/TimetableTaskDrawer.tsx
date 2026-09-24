@@ -454,7 +454,7 @@ function SimpleDraftPlottingTray({ context }: { context: LeftRailContentContext 
 								</Button>
 							) : null}
 						</div>
-						<div className="flex gap-1 overflow-x-auto pb-0.5" aria-label="Draft queue grade filters">
+						<div className="flex gap-1 overflow-x-auto scrollbar-thin pb-0.5" aria-label="Draft queue grade filters">
 							<Button type="button" variant={pinsGradeFilter === 'all' ? 'default' : 'secondary'} size="sm" onClick={() => { setPinsGradeFilter('all'); setPinsSectionFilter('all'); }} className="h-7 shrink-0 rounded-full px-2.5 text-xs">
 								All grades
 							</Button>
@@ -472,7 +472,7 @@ function SimpleDraftPlottingTray({ context }: { context: LeftRailContentContext 
 			</div>
 
 			<div
-				className="min-h-0 flex-1 overflow-auto touch-pan-y overscroll-contain"
+				className="min-h-0 flex-1 overflow-auto scrollbar-thin touch-pan-y overscroll-contain"
 				data-testid="pregen-plotting-scroll"
 				role="list"
 				aria-label="Pre-generation draft sessions"
@@ -822,7 +822,7 @@ function SimpleGeneratedPlottingTray({ context }: { context: LeftRailContentCont
 			)}
 
 			<div
-				className="min-h-0 flex-1 overflow-auto touch-pan-y overscroll-contain"
+				className="min-h-0 flex-1 overflow-auto scrollbar-thin touch-pan-y overscroll-contain"
 				data-testid="simple-plotting-scroll"
 				data-virtualized-rail="Unassigned generated sessions"
 				role="list"

@@ -81,7 +81,7 @@ export function SimpleActiveFilterChips({ context }: { context: ScheduleReviewWo
 
 	return (
 		<div
-			className="order-last flex min-w-0 basis-full items-center gap-1.5 overflow-x-auto sm:basis-auto lg:order-none lg:shrink-0"
+			className="order-last flex min-w-0 basis-full items-center gap-1.5 overflow-x-auto scrollbar-thin sm:basis-auto lg:order-none lg:shrink-0"
 			data-testid="timetable-active-filters"
 			role="group"
 			aria-label="Active timetable filters"
@@ -188,7 +188,7 @@ export function SimpleFilterControls({ context, renderActiveFilters = true }: { 
 
 			{renderActiveFilters && activeFilters.length > 0 ? (
 				<div
-					className="relative z-10 flex min-w-0 basis-full items-center gap-1.5 overflow-x-auto sm:basis-auto"
+					className="relative z-10 flex min-w-0 basis-full items-center gap-1.5 overflow-x-auto scrollbar-thin sm:basis-auto"
 					data-testid="timetable-active-filters"
 					role="group"
 					aria-label="Active timetable filters"
