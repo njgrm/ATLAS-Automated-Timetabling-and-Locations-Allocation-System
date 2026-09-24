@@ -48,7 +48,7 @@ import type { SectionsByGrade } from './section-adapter.js';
 import { buildSectionRosterIndex, normalizeStoredAssignmentScope } from './faculty-assignment-scope.service.js';
 import { DEFAULT_CONSTRAINT_CONFIG, POLICY_DEFAULTS, computeEffectiveWeeklyTeachingMinutes, resolveMaxConsecutiveTeachingMinutesBeforeBreak, resolveWarningFamilyPolicy } from './scheduling-policy.service.js';
 import { buildWarningWindowAuthority, type CanonicalSlotWindowSource } from './warning-window-authority.service.js';
-import { loadReviewedAvailabilityForTerm } from './faculty-availability.service.js';
+import { loadReviewedAvailabilityForActiveTerm, loadReviewedAvailabilityForTerm, type ReviewedAvailabilityRead } from './faculty-availability.service.js';
 import { getTemplatePeriodProfiles } from './class-template.service.js';
 import {
 	readCanonicalClassProgramSlotsCoverage,
@@ -788,18 +788,37 @@ async function buildGenerationPreflightWithContext(
 		}),
 	]);
 
-	// TEACHER-AVAILABILITY-AUTHORITY-C01: the SINGLE generation source for a
-	// teacher's UNAVAILABLE (HARD exclusion) and PREFERRED (ranked SOFT) signals
-	// is the reviewed, term-scoped availability authority. The legacy
-	// `facultyPreference` read is retired from generation here. The active term
-	// is the SAME verified ordered-term authority the derived demand consumed;
-	// when it is unresolved the read returns ZERO preferences and the
-	// derived-demand blocker above already fails the preflight closed ΓÇö Term 1 is
-	// never assumed.
-	const availabilityRead = resolvedActiveTermOrder != null
-		? await loadReviewedAvailabilityForTerm(schoolId, schoolYearId, resolvedActiveTermOrder, client)
-		: { ok: false as const, code: 'TERM_AUTHORITY_UNRESOLVED' as const, termIndex: null, preferences: [] };
-	const preferences = availabilityRead.preferences;
+	// TEACHER-AVAILABILITY-AUTHORITY-C01 (+ correction R1): the SINGLE generation
+	// source for a teacher's UNAVAILABLE (HARD exclusion) and PREFERRED (ranked
+	// SOFT) signals is the reviewed, term-scoped availability authority. The
+	// active term is the SAME verified ordered-term authority the derived demand
+	// consumed (caller contract, else the persisted verified cache re-read above).
+	//
+	// Fail closed: a valid ordered structure with an UNRESOLVED active term must
+	// refuse generation rather than run with zero UNAVAILABLE exclusions. A
+	// resolved term with zero reviewed rows is legitimate (zero exclusions).
+	let availabilityRead: ReviewedAvailabilityRead;
+	if (resolvedActiveTermOrder != null) {
+		availabilityRead = await loadReviewedAvailabilityForTerm(schoolId, schoolYearId, resolvedActiveTermOrder, client);
+	} else {
+		availabilityRead = await loadReviewedAvailabilityForActiveTerm(schoolId, schoolYearId, client);
+		if (availabilityRead.ok && availabilityRead.termIndex != null) resolvedActiveTermOrder = availabilityRead.termIndex;
+	}
+	const preferences = availabilityRead.ok ? availabilityRead.preferences : [];
+	if (!availabilityRead.ok) {
+		blockers.push({
+			code: 'TERM_AUTHORITY_UNRESOLVED',
+			category: 'DEMAND_AUTHORITY',
+			termIdentity: null,
+			sectionId: null,
+			subjectId: null,
+			subjectCode: null,
+			entity: `Ordered term authority · school ${schoolId} · year ${schoolYearId}`,
+			reason: 'The active ordered term is unresolved, so the term-scoped teacher availability (HARD exclusions) cannot be applied. Generation is refused rather than run without its HARD authority.',
+			owningSurface: 'EnrollPro term authority cache',
+			nextAction: 'Resolve or refresh the active ordered term authority, then re-run readiness.',
+		});
+	}
 
 	const sectionsByGrade = (sectionMirrorCount > 0
 		? await loadReadOnlySectionsByGrade(schoolId, schoolYearId, client)

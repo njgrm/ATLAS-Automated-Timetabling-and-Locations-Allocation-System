@@ -4,6 +4,7 @@ import type { Prisma, PrismaClient } from '@prisma/client';
 
 import { getDataContext } from '../lib/data-context.js';
 import { buildDerivedDemand } from './derived-demand.service.js';
+import { loadVerifiedOrderedTermContract } from './academic-term.service.js';
 
 export type GenerationInputDomain = 'teachingLoad' | 'policy' | 'rooms' | 'sections' | 'subjects' | 'derivedDemand' | 'availability';
 
@@ -155,6 +156,28 @@ export function compareGenerationInputSnapshots(
 	};
 }
 
+/**
+ * R2 (correction): resolve the persisted verified active ordered term for the
+ * `availability` snapshot domain. Returns `null` when no verified contract is
+ * available — the caller scopes the read to a non-matching sentinel and records
+ * `availabilityTermIndex: null`, so an unresolved term can never compare FRESH
+ * against a resolved-term digest.
+ */
+async function resolveAvailabilityTermIndexForSnapshot(
+	schoolId: number,
+	schoolYearId: number,
+	client: Prisma.TransactionClient | PrismaClient,
+): Promise<number | null> {
+	try {
+		const authorityClient = client as unknown as { enrollProSchoolYearMirror?: { findUnique: (args: unknown) => Promise<unknown> } };
+		if (typeof authorityClient.enrollProSchoolYearMirror?.findUnique !== 'function') return null;
+		const contract = await loadVerifiedOrderedTermContract(schoolId, schoolYearId, client as never);
+		return contract?.activeTermOrder ?? null;
+	} catch {
+		return null;
+	}
+}
+
 export async function computeGenerationInputSnapshot(
 	schoolId: number,
 	schoolYearId: number,
@@ -172,6 +195,13 @@ export async function computeGenerationInputSnapshot(
 			aggregate: (args: unknown) => Promise<{ _count: { _all: number }; _max: { id: number | null; createdAt: Date | null } }>;
 		};
 	};
+	// R2 (correction): the `availability` freshness domain is the digest of the
+	// reviewed slots for the RESOLVED ACTIVE ORDERED TERM (plan §A). An unresolved
+	// term is not silently "fresh": the read is scoped to a sentinel term that
+	// cannot match rows, and the domain carries `availabilityTermIndex: null`, so
+	// it diverges from any resolved-term digest and compares STALE.
+	const availabilityTermIndex = await resolveAvailabilityTermIndexForSnapshot(schoolId, schoolYearId, client);
+	const availabilityTermFilter = availabilityTermIndex ?? -1;
 	const [
 		facultyMirrorAggregate,
 		facultySubjectAggregate,
@@ -253,12 +283,12 @@ export async function computeGenerationInputSnapshot(
 			_max: { id: true, createdAt: true },
 		}),
 		availabilityClient.facultyAvailability.aggregate({
-			where: { schoolId, schoolYearId, status: 'REVIEWED' },
+			where: { schoolId, schoolYearId, termIndex: availabilityTermFilter, status: 'REVIEWED' },
 			_count: { _all: true },
 			_max: { id: true, updatedAt: true, version: true },
 		}),
 		availabilityClient.facultyAvailabilitySlot.aggregate({
-			where: { availability: { schoolId, schoolYearId, status: 'REVIEWED' } },
+			where: { availability: { schoolId, schoolYearId, termIndex: availabilityTermFilter, status: 'REVIEWED' } },
 			_count: { _all: true },
 			_max: { id: true, createdAt: true },
 		}),
@@ -298,10 +328,10 @@ export async function computeGenerationInputSnapshot(
 				UNION ALL SELECT 'binding', cts.id, to_jsonb(cts.*) FROM class_template_subjects cts JOIN class_templates t ON t.id = cts.template_id WHERE t.school_id = $1
 			) x) AS "subjects",
 			(SELECT md5(COALESCE(string_agg(to_jsonb(x)::text, '|' ORDER BY x."tableName", x.id), '')) FROM (
-				SELECT 'availability' AS "tableName", a.id, to_jsonb(a.*) AS row FROM faculty_availabilities a WHERE a.school_id = $1 AND a.school_year_id = $2 AND a.status = 'REVIEWED'
-				UNION ALL SELECT 'slot', s.id, to_jsonb(s.*) FROM faculty_availability_slots s JOIN faculty_availabilities a ON a.id = s.availability_id WHERE a.school_id = $1 AND a.school_year_id = $2 AND a.status = 'REVIEWED'
+				SELECT 'availability' AS "tableName", a.id, to_jsonb(a.*) AS row FROM faculty_availabilities a WHERE a.school_id = $1 AND a.school_year_id = $2 AND a.term_index = $3 AND a.status = 'REVIEWED'
+				UNION ALL SELECT 'slot', s.id, to_jsonb(s.*) FROM faculty_availability_slots s JOIN faculty_availabilities a ON a.id = s.availability_id WHERE a.school_id = $1 AND a.school_year_id = $2 AND a.term_index = $3 AND a.status = 'REVIEWED'
 			) x) AS "availability"
-	`, schoolId, schoolYearId);
+	`, schoolId, schoolYearId, availabilityTermFilter);
 	const exact = exactRows[0];
 	if (!exact) throw new Error('GENERATION_INPUT_EXACT_DIGEST_UNAVAILABLE');
 
@@ -410,9 +440,12 @@ export async function computeGenerationInputSnapshot(
 		derivedDemand: buildDomainSnapshot(derivedDemandSignals),
 		availability: buildDomainSnapshot({
 			exactRevisionDigest: exact.availability,
-			// TEACHER-AVAILABILITY-AUTHORITY-C01: only REVIEWED authorities bind
-			// generation, so only REVIEWED rows contribute to the freshness domain.
-			// An unreviewed draft edit therefore cannot stale a run.
+			// TEACHER-AVAILABILITY-AUTHORITY-C01 + R2: only REVIEWED authorities for
+			// the RESOLVED ACTIVE ORDERED TERM bind generation, so only those rows
+			// contribute to the freshness domain. `availabilityTermIndex` is `null`
+			// when unresolved, which makes the domain differ from any resolved-term
+			// digest (fail closed, never falsely FRESH).
+			availabilityTermIndex,
 			availabilityCount: facultyAvailabilityAggregate._count._all,
 			availabilityMaxId: facultyAvailabilityAggregate._max.id,
 			availabilityMaxUpdatedAt: iso(facultyAvailabilityAggregate._max.updatedAt),

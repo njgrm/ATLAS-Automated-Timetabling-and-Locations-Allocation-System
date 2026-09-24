@@ -286,3 +286,30 @@ test('B3. the shared normalizer retains and validates persisted term boundaries 
 	assert.equal(reordered.ok, true);
 	if (reordered.ok) assert.equal(reordered.structure.revision, normalized.structure.revision);
 });
+
+// ─── Correction R1: unresolved active term must fail generation closed ──────
+
+test('R1. a valid ordered structure with an unresolved active term blocks the real preflight instead of silently dropping the HARD availability authority', async () => {
+	// Reachable live state: a valid verified ordered structure with `activeTerm`
+	// absent. Before R1 this ran generation with ZERO `UNAVAILABLE` exclusions.
+	const unresolvedCache = mirrorCache();
+	delete (unresolvedCache as { activeTerm?: unknown }).activeTerm;
+	const harness = buildTermAuthorityClient({ reads: [unresolvedCache, unresolvedCache] });
+	const preflight = await buildGenerationPreflight(SCHOOL_ID, SCHOOL_YEAR_ID, { client: harness.client, includeRetainedDrafts: false });
+	assert.equal(preflight.ok, false, 'an unresolved active term must refuse generation');
+	const unresolvedBlockers = preflight.blockers.filter((blocker) => blocker.code === 'TERM_AUTHORITY_UNRESOLVED');
+	assert.equal(unresolvedBlockers.length, 1, 'exactly one typed unresolved-term blocker');
+	assert.equal(unresolvedBlockers[0].category, 'DEMAND_AUTHORITY');
+	assert.equal(unresolvedBlockers[0].owningSurface, 'EnrollPro term authority cache');
+	assert.deepEqual(harness.writes, [], 'the refusal is read-only');
+
+	// Distinguish the legitimate case: a resolved active term with zero reviewed
+	// rows must NOT produce the unresolved blocker (zero exclusions is valid).
+	const resolvedHarness = buildTermAuthorityClient({ reads: [mirrorCache()] });
+	const resolvedPreflight = await buildGenerationPreflight(SCHOOL_ID, SCHOOL_YEAR_ID, { client: resolvedHarness.client, includeRetainedDrafts: false });
+	assert.equal(
+		resolvedPreflight.blockers.some((blocker) => blocker.code === 'TERM_AUTHORITY_UNRESOLVED'),
+		false,
+		'a resolved active term with zero reviewed rows is legitimate',
+	);
+});

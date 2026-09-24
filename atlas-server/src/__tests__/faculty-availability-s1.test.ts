@@ -106,6 +106,7 @@ function createFakeClient(options: {
 		store.set(withId.id, withId);
 	}
 	const writes: string[] = [];
+	const events: string[] = [];
 	const contractPresent = options.contractPresent !== false;
 	const activeTermOrder = 'activeTermOrder' in options ? options.activeTermOrder : 2;
 	const facultyExists = options.facultyExists !== false;
@@ -128,6 +129,7 @@ function createFakeClient(options: {
 		},
 		facultyAvailability: {
 			findUnique: async ({ where }: any) => {
+				events.push('read');
 				const key = where.schoolId_schoolYearId_facultyId_termIndex;
 				const row = [...store.values()].find((entry) =>
 					entry.schoolId === key.schoolId && entry.schoolYearId === key.schoolYearId && entry.facultyId === key.facultyId && entry.termIndex === key.termIndex);
@@ -137,6 +139,7 @@ function createFakeClient(options: {
 				[...store.values()].filter((row) => matchesWhere(row, where)).sort((a, b) => a.facultyId - b.facultyId).map(project),
 			create: async ({ data }: any) => {
 				writes.push('create');
+				events.push('write');
 				const row: FakeAvailabilityRow = {
 					id: nextId++,
 					schoolId: data.schoolId,
@@ -157,6 +160,7 @@ function createFakeClient(options: {
 			},
 			update: async ({ where, data }: any) => {
 				writes.push('update');
+				events.push('write');
 				const row = store.get(where.id);
 				if (!row) throw new Error('missing row');
 				if (data.version !== undefined) row.version = data.version;
@@ -185,8 +189,21 @@ function createFakeClient(options: {
 		schedulingPolicy: {
 			findUnique: async () => ({ periodsPerDay: options.periodsPerDay ?? 8, periodLengthMinutes: options.periodLengthMinutes ?? 45 }),
 		},
+		// R3 (correction): a real interactive transaction seam so the tests can
+		// prove the row + version are re-read INSIDE the write transaction.
+		$transaction: async <T>(fn: (tx: any) => Promise<T>): Promise<T> => {
+			events.push('tx:start');
+			try {
+				const result = await fn(client);
+				events.push('tx:end');
+				return result;
+			} catch (error) {
+				events.push('tx:abort');
+				throw error;
+			}
+		},
 	};
-	return { client, store, writes };
+	return { client, store, writes, events };
 }
 
 function reviewedRow(slots: AvailabilitySlotInput[], overrides: Partial<FakeAvailabilityRow> = {}): FakeAvailabilityRow {
@@ -350,53 +367,117 @@ test('draft/submit lifecycle enforces the active term, validates slots, and vers
 
 // ─── 5. Freshness domain source ───
 
-test('the availability freshness domain digests REVIEWED new-authority slots and a reviewed edit changes the fingerprint', async () => {
+test('R2: the availability freshness domain is scoped to the resolved active ordered term and fails closed when unresolved', async () => {
 	assert.equal(GENERATION_INPUT_SNAPSHOT_SCHEMA_VERSION, 3, 'source swap of an existing domain does not require a schema-version bump');
 
 	const zeroAggregate = async () => ({ _count: { _all: 0 }, _max: { id: null, updatedAt: null, version: null, createdAt: null } });
 	const availabilityCalls: any[] = [];
-	const makeClient = (digest: string) => ({
-		facultyMirror: { aggregate: zeroAggregate },
-		facultySubject: { aggregate: zeroAggregate },
-		subjectSectionOwnership: { aggregate: zeroAggregate },
-		teachingLoadCycle: { findUnique: async () => null },
-		schedulingPolicy: { findUnique: async () => null },
-		gradeShiftWindow: { aggregate: zeroAggregate },
-		policySpecialEvent: { aggregate: async () => ({ _count: { _all: 0 }, _max: { id: null, updatedAt: null } }) },
-		room: { aggregate: zeroAggregate },
-		building: { aggregate: zeroAggregate },
-		sectionMirror: { aggregate: zeroAggregate },
-		subject: { aggregate: zeroAggregate },
-		classTemplate: { aggregate: async () => ({ _count: { _all: 0 }, _max: { id: null, createdAt: null } }) },
-		classTemplateSubject: { aggregate: async () => ({ _count: { _all: 0 }, _max: { id: null, createdAt: null } }) },
-		enrollProSchoolYearMirror: { findUnique: async () => { throw new Error('DERIVED_DEMAND_UNUSED'); } },
-		facultyAvailability: {
-			aggregate: async (args: unknown) => {
-				availabilityCalls.push(args);
-				return { _count: { _all: 1 }, _max: { id: 1, updatedAt: new Date('2030-01-01T00:00:00Z'), version: 3 } };
+	const rawArgs: unknown[][] = [];
+	const makeClient = (digest: string, activeTerm: number | null | 'no-mirror') => {
+		const client: any = {
+			facultyMirror: { aggregate: zeroAggregate },
+			facultySubject: { aggregate: zeroAggregate },
+			subjectSectionOwnership: { aggregate: zeroAggregate },
+			teachingLoadCycle: { findUnique: async () => null },
+			schedulingPolicy: { findUnique: async () => null },
+			gradeShiftWindow: { aggregate: zeroAggregate },
+			policySpecialEvent: { aggregate: async () => ({ _count: { _all: 0 }, _max: { id: null, updatedAt: null } }) },
+			room: { aggregate: zeroAggregate },
+			building: { aggregate: zeroAggregate },
+			sectionMirror: { aggregate: zeroAggregate },
+			subject: { aggregate: zeroAggregate },
+			classTemplate: { aggregate: async () => ({ _count: { _all: 0 }, _max: { id: null, createdAt: null } }) },
+			classTemplateSubject: { aggregate: async () => ({ _count: { _all: 0 }, _max: { id: null, createdAt: null } }) },
+			facultyAvailability: {
+				aggregate: async (args: unknown) => {
+					availabilityCalls.push(args);
+					return { _count: { _all: 1 }, _max: { id: 1, updatedAt: new Date('2030-01-01T00:00:00Z'), version: 3 } };
+				},
 			},
-		},
-		facultyAvailabilitySlot: {
-			aggregate: async (args: unknown) => {
-				availabilityCalls.push(args);
-				return { _count: { _all: 2 }, _max: { id: 2, createdAt: new Date('2030-01-01T00:00:00Z') } };
+			facultyAvailabilitySlot: {
+				aggregate: async (args: unknown) => {
+					availabilityCalls.push(args);
+					return { _count: { _all: 2 }, _max: { id: 2, createdAt: new Date('2030-01-01T00:00:00Z') } };
+				},
 			},
-		},
-		$queryRawUnsafe: async () => [{ teachingLoad: 'tl', policy: 'pl', rooms: 'rm', sections: 'sc', subjects: 'sb', availability: digest }],
+			$queryRawUnsafe: async (...args: unknown[]) => {
+				rawArgs.push(args);
+				return [{ teachingLoad: 'tl', policy: 'pl', rooms: 'rm', sections: 'sc', subjects: 'sb', availability: digest }];
+			},
+		};
+		if (activeTerm !== 'no-mirror') {
+			client.enrollProSchoolYearMirror = {
+				findUnique: async () => ({
+					isActive: true,
+					isArchived: false,
+					termContractCachedAt: new Date(),
+					termContractCache: { ...TERM_CACHE, activeTerm: activeTerm == null ? undefined : { ...TERM_CACHE.activeTerm, order: activeTerm } },
+				}),
+			};
+		}
+		return client;
+	};
+
+	const resolved = await computeGenerationInputSnapshot(SCHOOL_ID, SCHOOL_YEAR_ID, makeClient('av-A', 2) as never);
+	const edited = await computeGenerationInputSnapshot(SCHOOL_ID, SCHOOL_YEAR_ID, makeClient('av-B', 2) as never);
+	const unresolved = await computeGenerationInputSnapshot(SCHOOL_ID, SCHOOL_YEAR_ID, makeClient('av-A', null) as never);
+	const noMirror = await computeGenerationInputSnapshot(SCHOOL_ID, SCHOOL_YEAR_ID, makeClient('av-A', 'no-mirror') as never);
+
+	assert.equal(resolved.domains.availability.signals.availabilityTermIndex, 2);
+	assert.equal(resolved.domains.availability.signals.availabilityCount, 1);
+	assert.equal(resolved.domains.availability.signals.availabilitySlotCount, 2);
+	assert.notEqual(resolved.domains.availability.fingerprint, edited.domains.availability.fingerprint);
+	assert.notEqual(resolved.fingerprint, edited.fingerprint);
+
+	// R2 fail-closed: an unresolved term is never a "fresh" domain.
+	assert.equal(unresolved.domains.availability.signals.availabilityTermIndex, null);
+	assert.equal(noMirror.domains.availability.signals.availabilityTermIndex, null);
+	assert.notEqual(unresolved.domains.availability.fingerprint, resolved.domains.availability.fingerprint);
+
+	// The aggregate reads and the exact SQL digest are scoped to the active term.
+	assert.ok(availabilityCalls.find((call) => call?.where?.termIndex === 2), 'the availability aggregate is scoped to the active term');
+	assert.ok(availabilityCalls.find((call) => call?.where?.availability?.termIndex === 2), 'the slot aggregate is scoped to the active term');
+	assert.equal(rawArgs[0][3], 2, 'the exact digest query binds the active term');
+	// Unresolved scopes to a non-matching sentinel — never Term 1.
+	assert.ok(availabilityCalls.find((call) => call?.where?.termIndex === -1), 'an unresolved term scopes to a non-matching sentinel');
+	assert.equal(rawArgs[2][3], -1, 'an unresolved term binds the sentinel, never Term 1');
+});
+
+test('R3: save/submit/review re-read the row + version INSIDE the write transaction and CAS-reject with zero writes', async () => {
+	const { client, writes, events } = createFakeClient({
+		rows: [reviewedRow([{ day: 'MONDAY', startTime: '06:00', endTime: '06:45', state: 'UNAVAILABLE' }], { status: 'SUBMITTED', version: 4 })],
+		activeTermOrder: 2,
 	});
 
-	const before = await computeGenerationInputSnapshot(SCHOOL_ID, SCHOOL_YEAR_ID, makeClient('av-A') as never);
-	const after = await computeGenerationInputSnapshot(SCHOOL_ID, SCHOOL_YEAR_ID, makeClient('av-B') as never);
-	assert.equal(before.domains.availability.signals.availabilityCount, 1);
-	assert.equal(before.domains.availability.signals.availabilitySlotCount, 2);
-	assert.equal(before.domains.availability.signals.exactRevisionDigest, 'av-A');
-	assert.notEqual(before.domains.availability.fingerprint, after.domains.availability.fingerprint);
-	assert.notEqual(before.fingerprint, after.fingerprint);
+	// Stale version: the in-transaction read sees version 4, requested 3 -> 409.
+	await assert.rejects(
+		() => saveAvailabilityDraft({ schoolId: SCHOOL_ID, schoolYearId: SCHOOL_YEAR_ID, facultyId: 71, termIndex: 2, slots: [], version: 3 }, client),
+		(err: unknown) => err instanceof FacultyAvailabilityError && err.code === 'VERSION_CONFLICT',
+	);
+	assert.deepEqual(writes, [], 'a stale save writes nothing');
+	const txStart = events.indexOf('tx:start');
+	const readIndex = events.indexOf('read');
+	assert.ok(txStart >= 0 && readIndex > txStart, 'the row is re-read inside the write transaction');
 
-	const availabilityAggregateCall = availabilityCalls.find((call) => call?.where?.status === 'REVIEWED');
-	assert.ok(availabilityAggregateCall, 'the availability domain aggregate is scoped to REVIEWED rows');
-	const slotAggregateCall = availabilityCalls.find((call) => call?.where?.availability?.status === 'REVIEWED');
-	assert.ok(slotAggregateCall, 'the slot aggregate is scoped to REVIEWED authorities');
+	// Correct version: the reviewed authority is explicitly reset to DRAFT, CAS-guarded.
+	writes.length = 0;
+	events.length = 0;
+	const reset = await saveAvailabilityDraft({ schoolId: SCHOOL_ID, schoolYearId: SCHOOL_YEAR_ID, facultyId: 71, termIndex: 2, slots: [], version: 4 }, client);
+	assert.equal(reset.status, 'DRAFT');
+	assert.equal(reset.version, 5);
+	assert.ok((writes as string[]).includes('update'), 'the CAS-validated save updates');
+	assert.ok(events.indexOf('read') > events.indexOf('tx:start'), 'the reset read is inside the transaction');
+
+	// A review against a row that is no longer SUBMITTED fails closed with zero writes.
+	const alreadyReviewed = createFakeClient({
+		rows: [reviewedRow([{ day: 'MONDAY', startTime: '06:00', endTime: '06:45', state: 'UNAVAILABLE' }], { status: 'REVIEWED', version: 3 })],
+		activeTermOrder: 2,
+	});
+	await assert.rejects(
+		() => reviewAvailability({ schoolId: SCHOOL_ID, schoolYearId: SCHOOL_YEAR_ID, facultyId: 71, version: 3, decision: 'REVIEWED', reviewerId: 9 }, alreadyReviewed.client),
+		(err: unknown) => err instanceof FacultyAvailabilityError && err.code === 'NOT_SUBMITTED',
+	);
+	assert.deepEqual(alreadyReviewed.writes, [], 'a non-submitted review writes nothing');
 });
 
 // ─── 6. Mounted router authority matrix ───

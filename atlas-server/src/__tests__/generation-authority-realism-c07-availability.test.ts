@@ -107,10 +107,36 @@ test('C07-S11. the availability freshness domain binds real faculty_availabiliti
 			data: { externalId: 990001, schoolId: school.id, firstName: 'Disposable', lastName: 'Teacher' },
 		});
 
-		// Zero availability rows: the domain still resolves.
+		// R2 (correction): the availability domain is scoped to the RESOLVED ACTIVE
+		// ORDERED TERM, so the disposable fixture must persist a verified ordered
+		// term contract with an active term.
+		await prisma.enrollProSchoolYearMirror.create({
+			data: {
+				schoolId: school.id,
+				enrollProSchoolYearId: 1,
+				yearLabel: '2030-2031',
+				isActive: true,
+				isArchived: false,
+				termContractCachedAt: new Date('2030-01-01T00:00:00Z'),
+				termContractCache: {
+					schoolId: school.id,
+					schoolYear: { id: 1 },
+					format: 'TRIMESTER',
+					terms: [
+						{ identity: 'T1', displayLabel: 'First Trimester', order: 1, startDate: '2030-06-01', endDate: '2030-09-30' },
+						{ identity: 'T2', displayLabel: 'Second Trimester', order: 2, startDate: '2030-10-01', endDate: '2031-01-31' },
+						{ identity: 'T3', displayLabel: 'Third Trimester', order: 3, startDate: '2031-02-01', endDate: '2031-05-31' },
+					],
+					activeTerm: { identity: 'T1', displayLabel: 'First Trimester', order: 1 },
+				},
+			},
+		});
+
+		// Zero availability rows: the domain still resolves for the active term.
 		const before = await computeGenerationInputSnapshot(1, 1, prisma);
 		assert.equal(before.schemaVersion, 3);
 		assert.ok(before.domains.availability, 'availability domain must be emitted');
+		assert.equal(before.domains.availability.signals.availabilityTermIndex, 1, 'the domain is scoped to the resolved active term');
 		const beforeAvailability = before.domains.availability.fingerprint;
 		assert.equal(before.domains.availability.signals.availabilityCount, 0);
 		assert.equal(before.domains.availability.signals.availabilitySlotCount, 0);

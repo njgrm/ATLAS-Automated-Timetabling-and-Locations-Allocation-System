@@ -446,20 +446,22 @@ export async function saveAvailabilityDraft(input: SaveAvailabilityInput, client
 	}
 	await assertFacultyInSchool(db, schoolId, facultyId);
 
-	const existing = await db.facultyAvailability.findUnique({
-		where: { schoolId_schoolYearId_facultyId_termIndex: { schoolId, schoolYearId, facultyId, termIndex } },
-		include: { slots: SLOT_SELECT },
-	});
-
-	if (existing && input.version != null && input.version !== existing.version) {
-		throw err(409, 'VERSION_CONFLICT', `Version conflict: expected ${existing.version}, got ${input.version}. Reload and retry.`);
-	}
-
 	const notes = input.notes ?? null;
 	const slotRows = slots.map((slot) => ({ day: slot.day, startTime: slot.startTime, endTime: slot.endTime, state: slot.state }));
 
-	if (existing) {
-		const updated = await runTransaction(db, async (tx) => {
+	// R3 (correction): the row + version are re-read INSIDE the write transaction,
+	// so a concurrent edit cannot be overwritten (lost update) and a reviewed
+	// authority cannot be silently reset. A version mismatch aborts with 409 and
+	// zero writes (verification gate 5).
+	const saved = await runTransaction(db, async (tx) => {
+		const existing = await tx.facultyAvailability.findUnique({
+			where: { schoolId_schoolYearId_facultyId_termIndex: { schoolId, schoolYearId, facultyId, termIndex } },
+			include: { slots: SLOT_SELECT },
+		});
+		if (existing) {
+			if (input.version != null && input.version !== existing.version) {
+				throw err(409, 'VERSION_CONFLICT', `Version conflict: expected ${existing.version}, got ${input.version}. Reload and retry.`);
+			}
 			await tx.facultyAvailabilitySlot.deleteMany({ where: { availabilityId: existing.id } });
 			return tx.facultyAvailability.update({
 				where: { id: existing.id },
@@ -475,12 +477,8 @@ export async function saveAvailabilityDraft(input: SaveAvailabilityInput, client
 				},
 				include: { slots: SLOT_SELECT },
 			});
-		});
-		return toRecord(updated);
-	}
-
-	const created = await runTransaction(db, async (tx) =>
-		tx.facultyAvailability.create({
+		}
+		return tx.facultyAvailability.create({
 			data: {
 				schoolId,
 				schoolYearId,
@@ -491,9 +489,9 @@ export async function saveAvailabilityDraft(input: SaveAvailabilityInput, client
 				...(slotRows.length > 0 ? { slots: { createMany: { data: slotRows } } } : {}),
 			},
 			include: { slots: SLOT_SELECT },
-		}),
-	);
-	return toRecord(created);
+		});
+	});
+	return toRecord(saved);
 }
 
 export interface SubmitAvailabilityInput {
@@ -516,21 +514,20 @@ export async function submitAvailability(input: SubmitAvailabilityInput, client?
 	const { termIndex } = await resolveActiveAvailabilityTermIndex(schoolId, schoolYearId, db);
 	await assertFacultyInSchool(db, schoolId, facultyId);
 
-	const existing = await db.facultyAvailability.findUnique({
-		where: { schoolId_schoolYearId_facultyId_termIndex: { schoolId, schoolYearId, facultyId, termIndex } },
-		include: { slots: SLOT_SELECT },
-	});
-	if (!existing) throw err(404, 'AVAILABILITY_NOT_FOUND', 'No availability draft exists for this teacher and active term.');
-	if (version !== existing.version) {
-		throw err(409, 'VERSION_CONFLICT', `Version conflict: expected ${existing.version}, got ${version}. Reload and retry.`);
-	}
-
-	const notes = input.notes !== undefined ? input.notes ?? null : existing.notes;
-	const slotRows = slots === null
-		? (existing.slots ?? []).map((slot) => ({ day: slot.day, startTime: slot.startTime, endTime: slot.endTime, state: slot.state }))
-		: slots.map((slot) => ({ day: slot.day, startTime: slot.startTime, endTime: slot.endTime, state: slot.state }));
-
+	// R3 (correction): re-read + version CAS inside the write transaction.
 	const submitted = await runTransaction(db, async (tx) => {
+		const existing = await tx.facultyAvailability.findUnique({
+			where: { schoolId_schoolYearId_facultyId_termIndex: { schoolId, schoolYearId, facultyId, termIndex } },
+			include: { slots: SLOT_SELECT },
+		});
+		if (!existing) throw err(404, 'AVAILABILITY_NOT_FOUND', 'No availability draft exists for this teacher and active term.');
+		if (version !== existing.version) {
+			throw err(409, 'VERSION_CONFLICT', `Version conflict: expected ${existing.version}, got ${version}. Reload and retry.`);
+		}
+		const notes = input.notes !== undefined ? input.notes ?? null : existing.notes;
+		const slotRows = slots === null
+			? (existing.slots ?? []).map((slot) => ({ day: slot.day, startTime: slot.startTime, endTime: slot.endTime, state: slot.state }))
+			: slots.map((slot) => ({ day: slot.day, startTime: slot.startTime, endTime: slot.endTime, state: slot.state }));
 		await tx.facultyAvailabilitySlot.deleteMany({ where: { availabilityId: existing.id } });
 		return tx.facultyAvailability.update({
 			where: { id: existing.id },
@@ -572,37 +569,35 @@ export async function reviewAvailability(input: ReviewAvailabilityInput, client?
 	}
 
 	const { termIndex } = await resolveActiveAvailabilityTermIndex(schoolId, schoolYearId, db);
-	const existing = await db.facultyAvailability.findUnique({
-		where: { schoolId_schoolYearId_facultyId_termIndex: { schoolId, schoolYearId, facultyId, termIndex } },
-		include: { slots: SLOT_SELECT },
-	});
-	if (!existing) throw err(404, 'AVAILABILITY_NOT_FOUND', 'No availability submission exists for this teacher and active term.');
-	if (existing.status !== 'SUBMITTED') {
-		throw err(422, 'NOT_SUBMITTED', 'Only a submitted availability authority can be reviewed.');
-	}
-	if (version !== existing.version) {
-		throw err(409, 'VERSION_CONFLICT', `Version conflict: expected ${existing.version}, got ${version}. Reload and retry.`);
-	}
-
-	// Feasibility is checked BEFORE any write so an infeasible authority leaves
-	// zero residue (gate 6). A rejected decision records the outcome as-is.
-	const record = toRecord(existing);
-	if (input.decision === 'REVIEWED') {
-		const feasibility = await evaluateAvailabilityFeasibility(
-			{ schoolId, schoolYearId, facultyId, slots: record.slots },
-			db,
-		);
-		if (!feasibility.feasible) {
-			throw err(
-				422,
-				'AVAILABILITY_INFEASIBLE',
-				`This availability leaves ${feasibility.remainingMinutes} usable teaching minutes per week but the teacher's required load is ${feasibility.requiredMinutes}; narrow the UNAVAILABLE windows and resubmit.`,
-			);
+	// R3 (correction): re-read the row inside the write transaction, then apply
+	// the submitted/version CAS and feasibility gate before the single update.
+	// Every rejection aborts before any write (gate 5 / gate 6).
+	const reviewed = await runTransaction(db, async (tx) => {
+		const existing = await tx.facultyAvailability.findUnique({
+			where: { schoolId_schoolYearId_facultyId_termIndex: { schoolId, schoolYearId, facultyId, termIndex } },
+			include: { slots: SLOT_SELECT },
+		});
+		if (!existing) throw err(404, 'AVAILABILITY_NOT_FOUND', 'No availability submission exists for this teacher and active term.');
+		if (existing.status !== 'SUBMITTED') {
+			throw err(422, 'NOT_SUBMITTED', 'Only a submitted availability authority can be reviewed.');
 		}
-	}
-
-	const reviewed = await runTransaction(db, async (tx) =>
-		tx.facultyAvailability.update({
+		if (version !== existing.version) {
+			throw err(409, 'VERSION_CONFLICT', `Version conflict: expected ${existing.version}, got ${version}. Reload and retry.`);
+		}
+		if (input.decision === 'REVIEWED') {
+			const feasibility = await evaluateAvailabilityFeasibility(
+				{ schoolId, schoolYearId, facultyId, slots: toRecord(existing).slots },
+				tx,
+			);
+			if (!feasibility.feasible) {
+				throw err(
+					422,
+					'AVAILABILITY_INFEASIBLE',
+					`This availability leaves ${feasibility.remainingMinutes} usable teaching minutes per week but the teacher's required load is ${feasibility.requiredMinutes}; narrow the UNAVAILABLE windows and resubmit.`,
+				);
+			}
+		}
+		return tx.facultyAvailability.update({
 			where: { id: existing.id },
 			data: {
 				status: input.decision,
@@ -612,7 +607,7 @@ export async function reviewAvailability(input: ReviewAvailabilityInput, client?
 				version: existing.version + 1,
 			},
 			include: { slots: SLOT_SELECT },
-		}),
-	);
+		});
+	});
 	return toRecord(reviewed);
 }

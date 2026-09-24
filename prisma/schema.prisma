@@ -340,7 +340,7 @@ model FacultyGradePreference {
 /// generation source for a teacher's `UNAVAILABLE` (HARD exclusion) and
 /// `PREFERRED` (ranked SOFT) signals. Only `status = REVIEWED` rows bind
 /// generation, and only for the exact ordered term (`termIndex`) they were
-/// authored against ΓÇö an unresolved term never defaults to Term 1. The legacy
+/// authored against — an unresolved term never defaults to Term 1. The legacy
 /// `FacultyPreference`/`PreferenceTimeSlot` write path is deprecated and is no
 /// longer a generation consumer (it is deliberately NOT removed).
 model FacultyAvailability {
