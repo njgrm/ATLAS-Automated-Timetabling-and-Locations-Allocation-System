@@ -42,9 +42,10 @@ resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs
 - **Release SHA: `89295c27`** (**LIVE** since 2026-09-25; `E:\ATLAS-runtime-supervised-89295c27-20260925`;
   supervisor-owned 5001→76676 / 5174→53516; health/ready + DB-backed read + Tailnet 200; rollback basis
   `b6687fee`; **no migration**). `SERVER-TIMING-C01` request timing / event-loop-stall diagnostics + the S6 E1
-  test-only copy fix; client bytes unchanged from `b6687fee`. **Acceptance owner: Lane C** — post-deploy
-  `/timetable` stall diagnostics in the supervisor log; Lane B's client-copy browser rows separate and not yet
-  run. Cutover audit (execute): `C:\ProgramData\ATLAS\release-audit\89295c27-20260925-055126`.
+  test-only copy fix; client bytes unchanged from `b6687fee`. **Stall-diagnostics owner: Lane C** (reads the
+  `[slow-request]`/`[event-loop-stall]` lines left in the supervisor log); **browser-copy acceptance owner:
+  Lane B (Codex)** — scheduler copy/term/control contrast rows, separate and not yet run. Cutover audit
+  (execute): `C:\ProgramData\ATLAS\release-audit\89295c27-20260925-055126`.
 - **Rollback basis: `b6687fee`** at `E:\ATLAS-runtime-supervised-b6687fee-20260925` (previous LIVE 2026-09-25;
   supervisor-owned ports reclaimed on restart; scheduler-clarity client release; **no migration**). Its Lane B
   browser rows (scheduler copy/term/control contrast at 1366×768 and 390×844) were separate and not yet run.
