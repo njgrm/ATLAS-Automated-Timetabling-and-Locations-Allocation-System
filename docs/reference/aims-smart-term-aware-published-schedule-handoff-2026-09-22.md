@@ -7,7 +7,10 @@
 `https://njgrm.buru-degree.ts.net`). The previous pin was the superseded
 `5a333c74de03df11e0d0bf9ec6839c1916798896`. The **published read contract is unchanged**
 by the re-pin; §5A is the new draft-read family, authored on this pin's lineage
-(repository base `530e3b19`).
+(repository base `530e3b19`). **§4.1 and §4.4 additionally document the additive
+SPECIAL-EVENT-SCOPE-C01 (D8) fields (`specialEvents[].scope` and `source.shiftWindows[]`),
+authored on base `25fc402e` and NOT yet in the `70a51608` deployment** — read the deployed-pin
+restatement in §4.5.
 
 **This replaces a deleted document.** `docs/reference/aims-smart-term-aware-api-context-2026-08-27.md`
 and `docs/guides/AIMS_FETCH_PUBLISHED_SCHEDULES_GUIDE.md` were removed from tracking on 2026-08-28 by
@@ -84,6 +87,12 @@ Live example (`?termIndex=1`, run 315):
     { "order": 1, "identity": "T1", "displayLabel": "TERM 1" },
     { "order": 2, "identity": "T2", "displayLabel": "TERM 2" },
     { "order": 3, "identity": "T3", "displayLabel": "TERM 3" }
+  ],
+  "shiftWindows": [
+    { "gradeLevel": 7, "programType": null, "startTime": "06:00", "endTime": "15:30" },
+    { "gradeLevel": 8, "programType": null, "startTime": "06:00", "endTime": "15:30" },
+    { "gradeLevel": 9, "programType": null, "startTime": "09:45", "endTime": "18:30" },
+    { "gradeLevel": 10, "programType": null, "startTime": "09:45", "endTime": "18:30" }
   ]
 }
 ```
@@ -92,6 +101,12 @@ Live example (`?termIndex=1`, run 315):
   `identity`/`order` as the stable key. Do **not** hardcode "Term 1/2/3" — the count and labels come
   from the upstream ordered-term authority, and the school year is `TRIMESTER` here (T1/T2/T3) while
   `termIndex` still ranges to 4.
+- **`shiftWindows` is the school grade-to-shift map** (the `grade_shift_windows` rows), added by
+  **SPECIAL-EVENT-SCOPE-C01** (D8; repository base `25fc402e`). Key a schedule entry's
+  `section.gradeLevel` against it to get that grade's shift band. It is **additive**: it is absent
+  from the deployed `70a51608` pin, so a consumer must treat a missing `shiftWindows` as "no shift map
+  available" rather than an error. `programType: null` is the grade-generic shift; a program-specific
+  row (non-null `programType`) is the narrower authority when one exists.
 - **`termScope` + `termIndex`** state what the payload actually covers. `"active"` means the resolved
   active term, with `termIndex` naming it.
 - **`revisionMarker` is the cheapest change-detection key.** Store it and re-fetch when it differs.
@@ -157,13 +172,16 @@ upstream id):
   system holds a different room identifier, maintain your own room crosswalk — ATLAS cannot resolve
   it for you.
 
-### 4.4 `specialEvents[]`, breaks, and the break-scope ambiguity
+### 4.4 `specialEvents[]`, breaks, and break-window scope
 
-Each `specialEvents[]` element has exactly this shape — **there is no `eventType` field**:
+Each `specialEvents[]` element carries the legacy fields **plus** an additive `scope` object
+(**SPECIAL-EVENT-SCOPE-C01**, D8; repository base `25fc402e`). There is still **no `eventType` field**:
 
 ```json
 { "eventName": "Lunch Break", "startTime": "11:30", "endTime": "12:15",
-  "dayOfWeek": null, "days": ["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY"] }
+  "dayOfWeek": null, "days": ["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY"],
+  "scope": { "appliesToAll": false, "gradeLevels": [9, 10], "programTypes": ["REGULAR", "SPA", "SPS", "STE"],
+             "shift": { "label": null, "startTime": "09:45", "endTime": "18:30" } } }
 ```
 
 - **Breaks are never in `entries[]`.** If you render only `entries`, break bands disappear.
@@ -173,18 +191,40 @@ Each `specialEvents[]` element has exactly this shape — **there is no `eventTy
   release, term 1 carries **two `"Lunch Break"` windows** (`11:30–12:15`, `12:15–13:00`) and **two
   `"Health Break"` windows** (`09:00–09:15`, `15:15–15:30`); the whole payload has 5 special events
   (the four break windows plus the flag ceremony). Different grade/shift groups legitimately have
-  different break boundaries, and the published union keeps each distinct window.
-- **Break scope is genuinely ambiguous in this projection — do not assume it.** ATLAS's canonical
-  class-program rows do carry `(gradeLevel, programType)`, but the display grid unions every scope's
-  break rows and de-duplicates them by `startTime–endTime` alone, so the grade/shift scope is lost
-  before the payload is built. A single emitted window may belong to one grade group, several, or
-  **none** (a policy flag overlay or the legacy policy fallback). ATLAS therefore does **not** emit a
-  `scope`/`gradeGroup` field on `specialEvents[]` (adding one would either change the event count or
-  assert a scope the union cannot prove). **Consumers that need a grade/shift-attributed break band
-  must derive it from the owning class-program rows**, not from `specialEvents[]`; treat this array
-  as the school-wide union of non-teaching windows. (This is the resolved outcome of the
-  SMART-DRAFT-READ-S3 Deliverable-2 investigation; the in-source note is at
-  `atlas-server/src/services/published-schedule.service.ts` `buildSpecialEventsPayload`.)
+  different break boundaries, and the published union keeps each distinct window — **one row per
+  distinct window, never one row per grade**.
+- **`scope` is the additive attribution of each window** and never changes the row count or any
+  existing field value. A consumer that ignores `scope` sees exactly what it saw before this field
+  landed.
+  - `appliesToAll: true` — a genuinely school-wide window (the policy Flag/HGP overlay, or the legacy
+    policy-global fallback). `gradeLevels` and `programTypes` are then **empty arrays**.
+  - `appliesToAll: false` — the window belongs to the canonical class-program rows listed in
+    `gradeLevels`/`programTypes`. `programTypes` is empty when the rows are grade-generic
+    (`programType: null`).
+  - `shift` — `{ label, startTime, endTime }` when the window resolves to **exactly one** shift band
+    (the owning grades share one shift, or a school-wide window is contained by exactly one shift);
+    otherwise `null`. ATLAS persists **no shift label**, so `label` is `null`; use
+    `source.shiftWindows[]` for the raw map. `shift: null` means "do not assume" — map per grade
+    yourself.
+  - `note` — present **only** when a scope genuinely cannot be derived: the window then reports
+    `appliesToAll: false` with empty arrays and `note: "SCOPE_NOT_DERIVABLE"`. ATLAS never fabricates
+    an owner.
+
+**Select the right window by scope (recipe).** For each `specialEvents[]` window you want to render for
+a given entry/grade:
+
+1. Read `source.shiftWindows[]` once and build a `gradeLevel -> { startTime, endTime }` lookup (prefer a
+   `programType` row matching the section's `programType`; otherwise the `programType: null` row).
+2. If `scope.appliesToAll === true`, the window applies to every grade — render it for all.
+3. Otherwise render the window only when `entry.section.gradeLevel` is in `scope.gradeLevels` **and**
+   (`scope.programTypes` is empty **or** it contains `entry.section.programType`).
+4. Use `scope.shift` when non-null; when it is `null`, fall back to the `source.shiftWindows[]` lookup
+   for the entry's grade.
+5. Treat a window with `scope.note === "SCOPE_NOT_DERIVABLE"` (or a payload that predates `scope`
+   entirely — see the deployed `70a51608` pin) as the legacy school-wide union: **do not assume a
+   grade/shift attribution.** (This is the resolved outcome of the SMART-DRAFT-READ-S3 Deliverable-2
+   investigation and its successor SPECIAL-EVENT-SCOPE-C01; the in-source note is at
+   `atlas-server/src/services/published-schedule.service.ts` `buildSpecialEventsPayload`.)
 
 ### 4.5 Verified counts at the 2026-09-24 pin
 
@@ -192,6 +232,15 @@ Each `specialEvents[]` element has exactly this shape — **there is no `eventTy
 every entry `termIndex: 1`, run **317** / revision **43**, `snapshotState: FROZEN`. `timeSlots`
 non-empty; `specialEvents` count 5 (two `Lunch Break`, two `Health Break`, one flag ceremony) as
 described in §4.4.
+
+**Live pin restated.** The deployed release remains
+`70a5160819349f5ea0742b839c11606e8408185d` (short `70a51608`; release dir
+`E:\ATLAS-runtime-supervised-70a51608-20260924`; served on `https://njgrm.buru-degree.ts.net`). That
+pin's `specialEvents[]` rows carry the legacy fields only — **no `scope`, and no
+`source.shiftWindows[]`**. Those two fields are the additive SPECIAL-EVENT-SCOPE-C01 (D8) contract,
+authored on repository base `25fc402e` and **not yet deployed**; the counts above are unchanged by
+them. A consumer written against this section must tolerate both the present and the absent shape
+(§4.4 recipe step 5).
 
 ## 5. Error contract
 
@@ -378,17 +427,14 @@ SMART-facing summary: `docs/handoffs/smart-draft-read-s3-2026-09-24.md`.
   to schedule separately (`TEACHER-PROGRAM-LUNCH-BREAK-C01`); it does not change this read contract and
   must not be "fixed" from a companion lane. Until it is fixed, do not treat the Teacher Program DOCX
   break labels as authoritative.
-- **Break-window scope is deliberately not exposed** (§4.4). The precise successor, if a
-  grade/shift-attributed break band is ever required, is **`SPECIAL-EVENT-SCOPE-C01`**: the canonical
-  BREAK rows (`classProgramSlot`) DO carry `(gradeLevel, programType)`, but
-  `buildCanonicalDisplayGrid` unions every scope's BREAK rows and `dedupeIntervalSlots` (in
-  `schedule-constructor.ts`) keys them by `startTime-endTime` alone, discarding the scope before the
-  payload. Attributing each duplicate `Lunch Break` / `Health Break` window to its grade/shift group
-  therefore requires **emitting per-scope events** rather than one unioned window — a
-  **cardinality-changing, additive** contract change (`specialEvents[]` would grow, even though every
-  existing field value is preserved). That trade-off was judged out of scope for
-  SMART-DRAFT-READ-S3. Until it lands, keep the §4.4 ambiguity warning: treat `specialEvents[]` as the
-  school-wide union and derive any grade/shift attribution from the owning class-program rows.
+- **Break-window scope is now exposed additively (§4.4).** `SPECIAL-EVENT-SCOPE-C01` (D8) landed the
+  additive `specialEvents[].scope` set plus `source.shiftWindows[]` on repository base `25fc402e`. It is
+  **cardinality-neutral**: the union still collapses to one row per distinct window, and the scope is
+  accumulated as a SET while collapsing (never one row per grade). The deployed `70a51608` pin predates
+  the fields; the only remaining ambiguity is a window whose scope genuinely cannot be derived, which
+  reports `appliesToAll:false` + empty arrays + `note: "SCOPE_NOT_DERIVABLE"` — for that case (and for
+  any pre-`25fc402e` payload) keep treating `specialEvents[]` as the school-wide union and derive any
+  grade/shift attribution from the owning class-program rows.
 - **Not covered here:** writing schedules back to ATLAS, Teaching Load, enrolment, and the SSO
   federation handshakes (those are separate handoffs:
   `docs/handoffs/aims-direct-federation-c04.md`, `docs/handoffs/smart-direct-federation-c04.md`).

@@ -460,12 +460,41 @@ export interface CanonicalDisplayScope {
 	programType: string | null;
 }
 
+/**
+ * A canonical BREAK row's owning `(gradeLevel, programType)` scope. The resolved
+ * rows carry their OWN scope (a known program never falls back to grade-generic
+ * rows), so this is the truthful owner of the interval even under the
+ * grade-generic fallback.
+ */
+export interface CanonicalBreakScope {
+	startTime: string;
+	endTime: string;
+	gradeLevel: number;
+	programType: string | null;
+}
+
+/**
+ * SPECIAL-EVENT-SCOPE-C01 (D8) — the additive scope a published
+ * `specialEvents[]` window carries. `appliesToAll` is true ONLY for genuinely
+ * school-wide windows (the policy Flag/HGP overlay, or the legacy policy-global
+ * fallback); otherwise `gradeLevels`/`programTypes` list the canonical scopes
+ * that own the window, accumulated as a SET across the collapsed union so one
+ * distinct window stays ONE row.
+ */
+export interface CanonicalDisplayWindowScope {
+	appliesToAll: boolean;
+	gradeLevels: number[];
+	programTypes: string[];
+}
+
 export interface ResolvedCanonicalDisplayScope {
 	hasCanonicalRows: boolean;
 	/** Canonical CLASS rows — the effective period grid and shift bounds. */
 	periodSlots: PeriodSlot[];
 	/** Canonical BREAK rows only — parity identity with the C11 validator authority. */
 	canonicalBreakSlots: PeriodSlot[];
+	/** The owning `(gradeLevel, programType)` of each canonical BREAK row, for payload attribution. */
+	canonicalBreakScopes: CanonicalBreakScope[];
 	/** Min start / max end of the canonical CLASS rows. */
 	shiftWindow: { startTime: string; endTime: string } | null;
 }
@@ -489,7 +518,7 @@ export function resolveCanonicalDisplayScope(args: {
 	gradeLevel: number;
 	programType?: string | null;
 }): ResolvedCanonicalDisplayScope {
-	const empty: ResolvedCanonicalDisplayScope = { hasCanonicalRows: false, periodSlots: [], canonicalBreakSlots: [], shiftWindow: null };
+	const empty: ResolvedCanonicalDisplayScope = { hasCanonicalRows: false, periodSlots: [], canonicalBreakSlots: [], canonicalBreakScopes: [], shiftWindow: null };
 	const rows = args.rows ?? [];
 	if (rows.length === 0) return empty;
 
@@ -500,21 +529,29 @@ export function resolveCanonicalDisplayScope(args: {
 	);
 	if (resolved.length === 0) return empty;
 
+	const breakRows = resolved.filter((row) => row.rowKind === 'BREAK' && isClockTime(row.startTime) && isClockTime(row.endTime));
 	const periodSlots = dedupeIntervalSlots(
 		resolved
 			.filter((row) => row.rowKind === 'CLASS' && isClockTime(row.startTime) && isClockTime(row.endTime))
 			.map((row) => ({ startTime: row.startTime, endTime: row.endTime })),
 	);
 	const canonicalBreakSlots = dedupeIntervalSlots(
-		resolved
-			.filter((row) => row.rowKind === 'BREAK' && isClockTime(row.startTime) && isClockTime(row.endTime))
-			.map((row) => ({
-				startTime: row.startTime,
-				endTime: row.endTime,
-				isSpecialEvent: true,
-				eventName: (row.subjectLabel ?? '').trim() || 'BREAK',
-			})),
+		breakRows.map((row) => ({
+			startTime: row.startTime,
+			endTime: row.endTime,
+			isSpecialEvent: true,
+			eventName: (row.subjectLabel ?? '').trim() || 'BREAK',
+		})),
 	);
+	// SPECIAL-EVENT-SCOPE-C01 (D8) — the owning scope of each canonical BREAK row,
+	// read from the RESOLVED row (not the requested scope) so a grade-generic
+	// fallback attributes the interval to the grade-generic owner it truly has.
+	const canonicalBreakScopes: CanonicalBreakScope[] = breakRows.map((row) => ({
+		startTime: row.startTime,
+		endTime: row.endTime,
+		gradeLevel: row.gradeLevel,
+		programType: normalizeCanonicalScopeProgramType(row.programType),
+	}));
 
 	let shiftWindow: { startTime: string; endTime: string } | null = null;
 	if (periodSlots.length > 0) {
@@ -524,7 +561,7 @@ export function resolveCanonicalDisplayScope(args: {
 		};
 	}
 
-	return { hasCanonicalRows: true, periodSlots, canonicalBreakSlots, shiftWindow };
+	return { hasCanonicalRows: true, periodSlots, canonicalBreakSlots, canonicalBreakScopes, shiftWindow };
 }
 
 /**
@@ -559,6 +596,35 @@ function resolvePolicyFlagOverlaySlots(policy: PolicyInput | undefined, canonica
 }
 
 /**
+ * SPECIAL-EVENT-SCOPE-C01 (D8) — the persisted policy `gradeGroup` values map to
+ * their grade levels. A policy event row with no grade group is school-wide.
+ */
+const POLICY_GRADE_GROUP_LEVELS: Record<string, number[]> = {
+	'7-8': [7, 8],
+	'9-10': [9, 10],
+};
+
+/**
+ * The additive scope of a persisted policy special-event row. A row carrying a
+ * known `gradeGroup` is grade-scoped; a row with no grade group (or an unknown
+ * one) is genuinely school-wide and reports `appliesToAll`.
+ */
+function policyEventWindowScope(event: { gradeGroup?: string | null; programType?: string | null }): CanonicalDisplayWindowScope {
+	const gradeGroup = (event.gradeGroup ?? '').trim();
+	const levels = POLICY_GRADE_GROUP_LEVELS[gradeGroup];
+	if (!levels || levels.length === 0) {
+		return { appliesToAll: true, gradeLevels: [], programTypes: [] };
+	}
+	const programType = normalizeCanonicalScopeProgramType(event.programType);
+	return { appliesToAll: false, gradeLevels: [...levels], programTypes: programType ? [programType] : [] };
+}
+
+/** A window that belongs to no grade/program scope (policy-global fallback). */
+function schoolWideWindowScope(): CanonicalDisplayWindowScope {
+	return { appliesToAll: true, gradeLevels: [], programTypes: [] };
+}
+
+/**
  * SLOT-BREAK-AUTHORITY-C11R — the canonical display grid for a set of scopes.
  *
  * When at least one scope resolves canonical rows, the deduped union of those
@@ -567,6 +633,11 @@ function resolvePolicyFlagOverlaySlots(policy: PolicyInput | undefined, canonica
  * canonical rows never contribute (they are never forced to another scope's
  * grid). When NO requested scope has canonical rows the persisted policy
  * fallback is returned unchanged.
+ *
+ * SPECIAL-EVENT-SCOPE-C01 (D8): `specialEventWindowScopes` is aligned
+ * index-for-index with `specialEventSlots` and reports the accumulated
+ * `(gradeLevel, programType)` SET of each collapsed window — one row per distinct
+ * window, never one row per grade.
  *
  * `scopes` omitted/empty means "every distinct (gradeLevel, programType) scope
  * present in `rows`" — an honest union, never a coerced single scope.
@@ -581,6 +652,7 @@ export function buildCanonicalDisplayGrid(args: {
 	canonicalBreakSlots: PeriodSlot[];
 	shiftWindow: { startTime: string; endTime: string } | null;
 	specialEventSlots: PeriodSlot[];
+	specialEventWindowScopes: CanonicalDisplayWindowScope[];
 	displaySlots: PeriodSlot[];
 } {
 	const rows = args.rows ?? [];
@@ -593,23 +665,38 @@ export function buildCanonicalDisplayGrid(args: {
 
 	const periodSlots: PeriodSlot[] = [];
 	const canonicalBreakSlots: PeriodSlot[] = [];
+	// The accumulated owner SET per distinct window key.
+	const breakScopeByWindow = new Map<string, { gradeLevels: Set<number>; programTypes: Set<string> }>();
 	for (const scope of scopes) {
 		const resolved = resolveCanonicalDisplayScope({ rows, gradeLevel: scope.gradeLevel, programType: scope.programType });
 		if (!resolved.hasCanonicalRows) continue;
 		periodSlots.push(...resolved.periodSlots);
 		canonicalBreakSlots.push(...resolved.canonicalBreakSlots);
+		for (const breakScope of resolved.canonicalBreakScopes) {
+			const key = `${breakScope.startTime}-${breakScope.endTime}`;
+			const entry = breakScopeByWindow.get(key) ?? { gradeLevels: new Set<number>(), programTypes: new Set<string>() };
+			entry.gradeLevels.add(breakScope.gradeLevel);
+			if (breakScope.programType) entry.programTypes.add(breakScope.programType);
+			breakScopeByWindow.set(key, entry);
+		}
 	}
 
 	if (periodSlots.length === 0 && canonicalBreakSlots.length === 0) {
 		// No requested scope has canonical rows — keep the persisted policy path.
 		const fallbackPeriodSlots = buildPeriodSlots(args.policy);
 		const fallbackSpecialEventSlots = buildSpecialEventSlots(args.policy);
+		const fallbackScopeByWindow = new Map<string, CanonicalDisplayWindowScope>();
+		for (const event of args.policy?.specialEvents ?? []) {
+			const key = `${event.startTime}-${event.endTime}`;
+			if (!fallbackScopeByWindow.has(key)) fallbackScopeByWindow.set(key, policyEventWindowScope(event));
+		}
 		return {
 			hasCanonicalRows: false,
 			periodSlots: fallbackPeriodSlots,
 			canonicalBreakSlots: [],
 			shiftWindow: null,
 			specialEventSlots: fallbackSpecialEventSlots,
+			specialEventWindowScopes: fallbackSpecialEventSlots.map((slot) => fallbackScopeByWindow.get(`${slot.startTime}-${slot.endTime}`) ?? schoolWideWindowScope()),
 			displaySlots: (args.policy?.showSpecialEventsInGrid ?? true)
 				? mergeDisplaySlots(fallbackPeriodSlots, fallbackSpecialEventSlots)
 				: fallbackPeriodSlots,
@@ -618,7 +705,26 @@ export function buildCanonicalDisplayGrid(args: {
 
 	const dedupedPeriodSlots = dedupeIntervalSlots(periodSlots);
 	const dedupedBreakSlots = dedupeIntervalSlots(canonicalBreakSlots);
-	const specialEventSlots = mergeDisplaySlots(dedupedBreakSlots, resolvePolicyFlagOverlaySlots(args.policy, dedupedPeriodSlots));
+	const flagOverlaySlots = resolvePolicyFlagOverlaySlots(args.policy, dedupedPeriodSlots);
+	// The Monday Flag/HGP overlay is policy-row owned: it is school-wide, not a
+	// canonical BREAK row, so it never claims a grade/program scope.
+	const flagWindowKeys = new Set(flagOverlaySlots.map((slot) => `${slot.startTime}-${slot.endTime}`));
+	const specialEventSlots = mergeDisplaySlots(dedupedBreakSlots, flagOverlaySlots);
+	const specialEventWindowScopes = specialEventSlots.map((slot) => {
+		const key = `${slot.startTime}-${slot.endTime}`;
+		if (flagWindowKeys.has(key)) return schoolWideWindowScope();
+		const entry = breakScopeByWindow.get(key);
+		if (!entry || entry.gradeLevels.size === 0) {
+			// A canonical-derived interval whose owner set is empty is not derivable;
+			// the caller emits `appliesToAll:false` with empty arrays plus a typed note.
+			return { appliesToAll: false, gradeLevels: [], programTypes: [] };
+		}
+		return {
+			appliesToAll: false,
+			gradeLevels: [...entry.gradeLevels].sort((left, right) => left - right),
+			programTypes: [...entry.programTypes].sort(),
+		};
+	});
 	return {
 		hasCanonicalRows: true,
 		periodSlots: dedupedPeriodSlots,
@@ -632,9 +738,160 @@ export function buildCanonicalDisplayGrid(args: {
 			}
 			: null,
 		specialEventSlots,
+		specialEventWindowScopes,
 		displaySlots: (args.policy?.showSpecialEventsInGrid ?? true)
 			? mergeDisplaySlots(dedupedPeriodSlots, specialEventSlots)
 			: dedupedPeriodSlots,
+	};
+}
+
+/**
+ * A persisted `grade_shift_windows` row (the school grade-to-shift map).
+ */
+export interface ShiftWindowLike {
+	gradeLevel: number;
+	programType?: string | null;
+	startTime: string;
+	endTime: string;
+}
+
+/** A resolved shift band. `label` is `null` — ATLAS persists no shift label. */
+export interface SpecialEventShiftPayload {
+	label: string | null;
+	startTime: string;
+	endTime: string;
+}
+
+/**
+ * SPECIAL-EVENT-SCOPE-C01 (D8) — the additive `scope` object emitted on every
+ * published `specialEvents[]` element.
+ */
+export interface SpecialEventScopePayload {
+	appliesToAll: boolean;
+	gradeLevels: number[];
+	programTypes: string[];
+	shift: SpecialEventShiftPayload | null;
+	/** Present ONLY when scope genuinely cannot be derived — never fabricated. */
+	note?: string;
+}
+
+/** Typed note emitted when a window's scope cannot be derived from authority. */
+export const SPECIAL_EVENT_SCOPE_NOT_DERIVABLE = 'SCOPE_NOT_DERIVABLE';
+
+function normalizeShiftProgramType(value?: string | null): string | null {
+	if (typeof value !== 'string') return null;
+	const normalized = value.trim().toUpperCase();
+	return normalized.length > 0 ? normalized : null;
+}
+
+/**
+ * The shift window that governs ONE grade level. A program-specific window whose
+ * program is in the scope's program set is preferred; otherwise the grade-generic
+ * (`programType: null`) window. Never crosses grade levels. Returns `null` when
+ * the grade has no window or its candidates disagree.
+ */
+function shiftWindowForGrade(
+	gradeLevel: number,
+	programTypes: readonly string[],
+	shiftWindows: readonly ShiftWindowLike[],
+): SpecialEventShiftPayload | null {
+	const candidates = shiftWindows.filter((window) => window.gradeLevel === gradeLevel);
+	if (candidates.length === 0) return null;
+	const programSet = new Set(programTypes.map((program) => program.toUpperCase()));
+	const programSpecific = candidates.filter((window) => {
+		const program = normalizeShiftProgramType(window.programType);
+		return program != null && programSet.has(program);
+	});
+	const chosen = programSpecific.length > 0
+		? programSpecific
+		: candidates.filter((window) => normalizeShiftProgramType(window.programType) == null);
+	if (chosen.length === 0) return null;
+	const distinct = new Map<string, SpecialEventShiftPayload>();
+	for (const window of chosen) {
+		distinct.set(`${window.startTime}-${window.endTime}`, { label: null, startTime: window.startTime, endTime: window.endTime });
+	}
+	if (distinct.size !== 1) return null;
+	return [...distinct.values()][0];
+}
+
+/**
+ * The shift of a grade/program-scoped window: the single distinct shift band
+ * across the window's owning grades. `null` when the scope spans shifts, has no
+ * shift row, or is otherwise ambiguous (the consumer then maps per grade through
+ * `source.shiftWindows[]`).
+ */
+function resolveScopedShift(
+	gradeLevels: readonly number[],
+	programTypes: readonly string[],
+	shiftWindows: readonly ShiftWindowLike[],
+): SpecialEventShiftPayload | null {
+	if (gradeLevels.length === 0) return null;
+	const shifts = new Map<string, SpecialEventShiftPayload>();
+	for (const gradeLevel of gradeLevels) {
+		const window = shiftWindowForGrade(gradeLevel, programTypes, shiftWindows);
+		if (!window) continue;
+		shifts.set(`${window.startTime}-${window.endTime}`, window);
+	}
+	if (shifts.size !== 1) return null;
+	return [...shifts.values()][0];
+}
+
+/**
+ * The shift of a genuinely school-wide window: the single shift band that
+ * CONTAINS the event interval, when exactly one does. Otherwise `null` — never a
+ * guessed shift.
+ */
+function resolveSchoolWideShift(
+	startTime: string,
+	endTime: string,
+	shiftWindows: readonly ShiftWindowLike[],
+): SpecialEventShiftPayload | null {
+	const start = timeToMinutes(startTime);
+	const end = timeToMinutes(endTime);
+	if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return null;
+	const containing = new Map<string, SpecialEventShiftPayload>();
+	for (const window of shiftWindows) {
+		const windowStart = timeToMinutes(window.startTime);
+		const windowEnd = timeToMinutes(window.endTime);
+		if (!Number.isFinite(windowStart) || !Number.isFinite(windowEnd)) continue;
+		if (windowStart <= start && windowEnd >= end) {
+			containing.set(`${window.startTime}-${window.endTime}`, { label: null, startTime: window.startTime, endTime: window.endTime });
+		}
+	}
+	if (containing.size !== 1) return null;
+	return [...containing.values()][0];
+}
+
+/**
+ * SPECIAL-EVENT-SCOPE-C01 (D8) — build the additive scope for one emitted window.
+ * An unknown/empty scope never fabricates an owner: it reports
+ * `appliesToAll:false` with empty arrays plus the typed
+ * `SPECIAL_EVENT_SCOPE_NOT_DERIVABLE` note.
+ */
+export function resolveSpecialEventScope(
+	windowScope: CanonicalDisplayWindowScope | undefined,
+	event: { startTime: string; endTime: string },
+	shiftWindows: readonly ShiftWindowLike[] = [],
+): SpecialEventScopePayload {
+	if (!windowScope) {
+		return { appliesToAll: false, gradeLevels: [], programTypes: [], shift: null, note: SPECIAL_EVENT_SCOPE_NOT_DERIVABLE };
+	}
+	if (windowScope.appliesToAll) {
+		return {
+			appliesToAll: true,
+			gradeLevels: [],
+			programTypes: [],
+			shift: resolveSchoolWideShift(event.startTime, event.endTime, shiftWindows),
+		};
+	}
+	if (windowScope.gradeLevels.length === 0) {
+		return { appliesToAll: false, gradeLevels: [], programTypes: [], shift: null, note: SPECIAL_EVENT_SCOPE_NOT_DERIVABLE };
+	}
+	return {
+		appliesToAll: false,
+		gradeLevels: [...windowScope.gradeLevels],
+		programTypes: [...windowScope.programTypes],
+		shift: resolveScopedShift(windowScope.gradeLevels, windowScope.programTypes, shiftWindows),
 	};
 }
 
