@@ -98,7 +98,7 @@ additive columns (no data loss).
 | Teacher Program | DOCX (official Word) | `teacher-program-export.service.ts` | Per-teacher form |
 | Class Program / working data | XLSX (working Excel) | `workbook-export.service.ts` (separate weekday cells) | Readable working workbook, not the official form |
 
-Supporting contracts: the Export Center (`SchedulerExportCenterDialog.tsx`) now distinguishes official
+Supporting contracts: the Export Center (`atlas-client/src/components/timetable/simple/SchedulerExportCenterDialog.tsx`) now distinguishes official
 Word output from Excel working data; the official export identity/profile is additive and frozen for
 published schedules (`export-presentation.service.ts`); grade exports reject a misleading `sectionId`
 filter (`generation.router.ts`); the DOCX→printable path uses `docx-export.service.ts`.
