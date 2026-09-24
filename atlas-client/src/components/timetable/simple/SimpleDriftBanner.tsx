@@ -142,8 +142,8 @@ export function SimpleDriftBanner({
 					)) : null}
 					<span className="min-w-0 flex-1 break-words whitespace-normal text-amber-800">
 						{drift.status === 'STALE'
-							? 'School information changed after this schedule was made. Review the changes before applying them.'
-							: 'ATLAS could not check the latest school information. Review it before applying changes.'}
+							? 'School information changed after this schedule was made. The current schedule stays unchanged while you review school information.'
+							: 'ATLAS could not check the latest school information. The current schedule stays unchanged while you review school information.'}
 						{formatCheckedAtAge(drift.checkedAt) ? ` · ${formatCheckedAtAge(drift.checkedAt)}` : ''}
 					</span>
 					{showActions ? (isPublished ? (

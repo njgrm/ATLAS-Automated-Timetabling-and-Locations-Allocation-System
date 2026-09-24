@@ -92,19 +92,21 @@ export function toProgramOptionsFromSections(summary: SectionSummaryResponse | n
 
 export function buildProgramContextNote(summary: SectionSummaryResponse | null): string {
 	if (!summary) {
-		return 'Program-aware windows use EnrollPro program ownership. TLE specialization ownership is also upstream-managed and synchronized into ATLAS when available.';
+		return 'Program choices are based on the sections set up for this school year. You can use All Programs until you have reviewed the section list.';
 	}
 	const sections = summary.sections ?? [];
 	const programs = [...new Set(sections
 		.map((section) => section.programType)
 		.filter((programType): programType is NonNullable<typeof programType> => Boolean(programType)))];
-	const sectionsWithTleSpecialization = sections.filter((section) => Boolean(section.tleSpecialization && section.tleSpecialization.trim().length > 0));
+	const sectionsWithTleFocus = sections.some((section) => Boolean(section.tleSpecialization && section.tleSpecialization.trim().length > 0));
+	const labels: Record<string, string> = {
+		REGULAR: 'Regular', STE: 'Science, Technology and Engineering', SPS: 'Special Program in Sports',
+		SPA: 'Special Program in the Arts', SPJ: 'Special Program in Journalism',
+		SPFL: 'Special Program in Foreign Language', SPTVE: 'Technical-Vocational Education', OTHER: 'Other',
+	};
+	const programCopy = programs.map((program) => labels[program] ?? 'Other').join(', ') || 'All Programs';
 
-	if (sectionsWithTleSpecialization.length > 0) {
-		return `Program options are sourced from EnrollPro sections (${programs.join(', ') || 'REGULAR'}). ${sectionsWithTleSpecialization.length} section(s) currently include EnrollPro TLE specialization ownership.`;
-	}
-
-	return `Program options are sourced from EnrollPro sections (${programs.join(', ') || 'REGULAR'}). No section-level TLE specialization ownership is currently present in this school-year feed.`;
+	return `Program choices reflect the school's current sections: ${programCopy}.${sectionsWithTleFocus ? ' Some sections also have a Technology and Livelihood Education focus.' : ''}`;
 }
 
 export function toLocalGradeWindows(windows: GradeShiftWindow[]): LocalGradeWindow[] {

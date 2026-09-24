@@ -161,9 +161,7 @@ export default function SchedulingPolicyPane({
 	const [persistedShiftWindows, setPersistedShiftWindows] = useState<LocalGradeWindow[]>(DEFAULT_GRADE_WINDOWS);
 	const [shiftWindows, setShiftWindows] = useState<LocalGradeWindow[]>(DEFAULT_GRADE_WINDOWS);
 	const [programOptions, setProgramOptions] = useState<ProgramWindowOption[]>(DEFAULT_PROGRAM_WINDOW_OPTIONS);
-	const [programContextNote, setProgramContextNote] = useState<string>(
-		'Program-aware windows use EnrollPro program ownership. TLE specialization ownership is also upstream-managed and synchronized into ATLAS when available.',
-	);
+	const [programContextNote, setProgramContextNote] = useState<string>(buildProgramContextNote(null));
 	const [editIntent, setEditIntent] = useState<EditIntent>(null);
 	const [showAddOverrideDialog, setShowAddOverrideDialog] = useState(false);
 	const [newOverride, setNewOverride] = useState<LocalGradeWindow>(createInitialOverride());

@@ -314,6 +314,10 @@ test('A4: the stale-input state never renders beside the verified-source authori
 		schoolYearContext: { activeSchoolYearLabel: '2030-2031', source: 'enrollpro-verified', activeTerm: null },
 	});
 	assert.match(markup, /timetable-simple-input-drift/, 'the drift state renders');
+	assert.match(markup, /The current schedule stays unchanged while you review school information\./, 'the notice makes the no-change promise explicit');
+	const setupCta = markup.match(/data-testid="timetable-simple-review-setup"[\s\S]*?<\/a>/)?.[0] ?? '';
+	assert.match(setupCta, /Check school information/, 'the one adjacent setup action is plain and actionable');
+	assert.equal((markup.match(/>Check school information</g) ?? []).length, 1, 'the stale notice has one setup CTA, not competing duplicates');
 	assert.doesNotMatch(markup, /timetable-simple-authority/, 'the source authority line must not contradict it');
 	assert.doesNotMatch(markup, /Verified with EnrollPro/, 'the verified-source claim is suppressed while inputs are stale');
 });

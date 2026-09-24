@@ -130,9 +130,9 @@ export function AddOverrideDialog({
 		<Dialog open={open} onOpenChange={onOpenChange}>
 			<DialogContent>
 				<DialogHeader>
-					<DialogTitle>Add Grade/Program Override</DialogTitle>
+					<DialogTitle>Add a schedule window</DialogTitle>
 					<DialogDescription>
-						Choose a grade, program scope, and time window before adding the override.
+						Choose the grade, program, and times for this schedule window.
 					</DialogDescription>
 				</DialogHeader>
 				<div className="space-y-3">
@@ -177,7 +177,7 @@ export function AddOverrideDialog({
 				</div>
 				<DialogFooter>
 					<Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-					<Button onClick={onConfirm}>Add Override</Button>
+					<Button onClick={onConfirm}>Add schedule window</Button>
 				</DialogFooter>
 			</DialogContent>
 		</Dialog>
