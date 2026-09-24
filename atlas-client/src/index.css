@@ -173,6 +173,25 @@
 	* {
 		@apply border-border outline-ring/50;
 	}
+	:where(*:not([data-radix-scroll-area-viewport])) {
+		scrollbar-width: thin;
+		scrollbar-color: hsl(var(--primary)) hsl(var(--muted));
+	}
+	:where(*:not([data-radix-scroll-area-viewport]))::-webkit-scrollbar {
+		width: 6px;
+		height: 6px;
+	}
+	:where(*:not([data-radix-scroll-area-viewport]))::-webkit-scrollbar-track {
+		background: hsl(var(--muted));
+	}
+	:where(*:not([data-radix-scroll-area-viewport]))::-webkit-scrollbar-thumb {
+		background: hsl(var(--primary));
+		border: 1px solid hsl(var(--muted));
+		border-radius: 5px;
+	}
+	:where(*:not([data-radix-scroll-area-viewport]))::-webkit-scrollbar-thumb:hover {
+		background: hsl(var(--primary) / 0.8);
+	}
 	body {
 		@apply text-foreground antialiased font-normal;
 		font-variation-settings: "wght" 500;
