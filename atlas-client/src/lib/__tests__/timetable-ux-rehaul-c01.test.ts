@@ -187,15 +187,15 @@ const CLEAN_UNPUBLISHED = {
 
 /* ── D1 — persistent sub-nav ─────────────────────────────────────────────── */
 
-test('C01R D1 the sub-nav renders on the index with all five timetable links', () => {
+test('C01R D1 the sub-nav renders the four timetable navigation links without an export page', () => {
 	const markup = renderSubNav('/timetable');
 	assert.match(markup, /data-testid="timetable-sub-nav"/);
 	for (const [key, href] of [
 		['schedule', '/timetable'],
+		['draft', '/timetable/pre-generation'],
 		['setup', '/timetable/setup'],
 		['policies', '/timetable/policies'],
 		['runs', '/timetable/runs'],
-		['exports', '/timetable/exports'],
 	] as Array<[string, string]>) {
 		assert.match(markup, new RegExp(`data-testid="timetable-sub-nav-${key}"[^>]*href="${href.replaceAll('/', '\\/')}"|href="${href.replaceAll('/', '\\/')}"[^>]*data-testid="timetable-sub-nav-${key}"`), `sub-nav item ${key} must link to ${href}`);
 	}
@@ -467,7 +467,7 @@ test('C01R D5 every timetable surface renders one visible h1 naming the surface'
 		['/timetable/setup', 'Setup'],
 		['/timetable/policies', 'Scheduling Policy'],
 		['/timetable/runs', 'Runs'],
-		['/timetable/exports', 'Exports'],
+		['/timetable/exports', 'Print schedules'],
 	] as Array<[string, string]>) {
 		const markup = renderSubNav(path);
 		const h1 = markup.match(new RegExp('<h1[^>]*>([^<]*)</h1>'));

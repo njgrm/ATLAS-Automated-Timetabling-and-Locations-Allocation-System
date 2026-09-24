@@ -11,9 +11,6 @@ import { useLocation, useNavigate } from 'react-router-dom';
  * so it keeps mapping to schedule (UX-R03e routes `/timetable/runs`; setup
  * follows in the setup checkpoint).
  *
- * UX-R03c — `/timetable/exports` becomes the third operator sub-page with its
- * own center view; runs/setup stay deferred to UX-R03d.
- *
  * UX-R03e (runs) — `/timetable/runs` becomes a read-only run-history center
  * view; `/timetable/setup` stays deferred to the setup checkpoint.
  *
@@ -27,7 +24,6 @@ export type TimetableRoutedView =
 	| 'map'
 	| 'manual-edit'
 	| 'building'
-	| 'exports'
 	| 'runs'
 	| 'setup';
 
@@ -49,8 +45,18 @@ export function isTimetableSchedulerView(view: string): boolean {
  * UX-R03b — each of the four remaining existing center views resolves to
  * its own view; unknown children still fall back to the schedule surface.
  *
- * UX-R03c — the exports sub-page resolves to its own view as well.
+ * The legacy `/timetable/exports` path is handled as a query-preserving
+ * redirect into the schedule shell with its print dialog requested.
  */
+export function resolveLegacyExportsRedirect(pathname: string, search: string, hash: string): string | null {
+	const normalized = pathname.length > 1 ? pathname.replace(/\/+$/, '') : pathname;
+	if (normalized !== '/timetable/exports') return null;
+	const params = new URLSearchParams(search);
+	params.set('print', '1');
+	const query = params.toString();
+	return `/timetable${query ? `?${query}` : ''}${hash}`;
+}
+
 export function resolveTimetableRouteView(pathname: string): TimetableRoutedView {
 	const normalized = pathname.length > 1 ? pathname.replace(/\/+$/, '') : pathname;
 	switch (normalized) {
@@ -64,8 +70,6 @@ export function resolveTimetableRouteView(pathname: string): TimetableRoutedView
 			return 'manual-edit';
 		case '/timetable/building':
 			return 'building';
-		case '/timetable/exports':
-			return 'exports';
 		case '/timetable/runs':
 			return 'runs';
 		case '/timetable/setup':
@@ -95,7 +99,6 @@ export type TimetableCenterRoute =
 	| '/timetable/map'
 	| '/timetable/manual-edit'
 	| '/timetable/building'
-	| '/timetable/exports'
 	| '/timetable/runs'
 	| '/timetable/setup';
 
@@ -111,8 +114,6 @@ export function resolveTimetableRouteForView(centerView: string): TimetableCente
 			return '/timetable/manual-edit';
 		case 'building':
 			return '/timetable/building';
-		case 'exports':
-			return '/timetable/exports';
 		case 'runs':
 			return '/timetable/runs';
 		case 'setup':
@@ -150,8 +151,6 @@ type TimetableRouteViewSyncProps = {
 	enterMapView: () => void;
 	enterManualEditView: () => void;
 	enterBuildingView: () => void;
-	/** UX-R03c — plain route entry for the exports sub-page (same guarded-plain contract as the R03b entries). */
-	enterExportsView: () => void;
 	/** UX-R03e (runs) — plain route entry for the read-only run-history sub-page (same guarded-plain contract). */
 	enterRunsView: () => void;
 	/** UX-R03e (setup) — plain route entry for the composed setup sub-page (same guarded-plain contract). */
@@ -171,8 +170,8 @@ type TimetableRouteViewSyncProps = {
  * effect); selection-dependent panes (`manual-edit`, `building`) render a
  * truthful empty state when entered without a selection.
  *
- * The effect is keyed on the pathname only (callbacks and the current view are
- * read through refs). In-app transitions that never change the URL are never
+ * The route-intent effect tracks location identity for compatibility redirects;
+ * callbacks and the current view are read through refs. In-app transitions that never change the URL are never
  * yanked back by this sync. This component dispatches no
  * data requests — it only reuses the existing state.
  */
@@ -185,12 +184,11 @@ export function TimetableRouteViewSync({
 	enterMapView,
 	enterManualEditView,
 	enterBuildingView,
-	enterExportsView,
 	enterRunsView,
 	enterSetupView,
 	leaveDialogOpen,
 }: TimetableRouteViewSyncProps) {
-	const { pathname } = useLocation();
+	const { pathname, search, hash } = useLocation();
 	const navigate = useNavigate();
 	const centerViewRef = useRef(centerView);
 	centerViewRef.current = centerView;
@@ -204,7 +202,6 @@ export function TimetableRouteViewSync({
 		enterMapView,
 		enterManualEditView,
 		enterBuildingView,
-		enterExportsView,
 		enterRunsView,
 		enterSetupView,
 	});
@@ -216,7 +213,6 @@ export function TimetableRouteViewSync({
 		enterMapView,
 		enterManualEditView,
 		enterBuildingView,
-		enterExportsView,
 		enterRunsView,
 		enterSetupView,
 	};
@@ -224,6 +220,11 @@ export function TimetableRouteViewSync({
 	const leaveDialogOpenRef = useRef(leaveDialogOpen);
 
 	useEffect(() => {
+		const legacyRedirect = resolveLegacyExportsRedirect(pathname, search, hash);
+		if (legacyRedirect) {
+			navigate(legacyRedirect, { replace: true });
+			return;
+		}
 		if (appliedPathnameRef.current === pathname) return;
 		appliedPathnameRef.current = pathname;
 		const desired = resolveTimetableRouteView(pathname);
@@ -236,7 +237,6 @@ export function TimetableRouteViewSync({
 			enterMapView: enterMap,
 			enterManualEditView: enterManualEdit,
 			enterBuildingView: enterBuilding,
-			enterExportsView: enterExports,
 			enterRunsView: enterRuns,
 			enterSetupView: enterSetup,
 		} = callbacksRef.current;
@@ -256,9 +256,6 @@ export function TimetableRouteViewSync({
 			case 'building':
 				guarded(enterBuilding);
 				break;
-			case 'exports':
-				guarded(enterExports);
-				break;
 			case 'runs':
 				guarded(enterRuns);
 				break;
@@ -269,7 +266,7 @@ export function TimetableRouteViewSync({
 				guarded(exit);
 				break;
 		}
-	}, [pathname]);
+	}, [pathname, search, hash, navigate]);
 
 	// UX-R03a (F2) — when the leave-draft guard dialog closes, the address bar
 	// must describe the center view actually shown. A confirmed navigation

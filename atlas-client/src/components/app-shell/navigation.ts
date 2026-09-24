@@ -101,7 +101,7 @@ const routeChromeOverrides: Record<string, { group?: string; title: string }> = 
 	'/timetable/map': { group: 'Class Schedule', title: 'Campus Map' },
 	'/timetable/manual-edit': { group: 'Class Schedule', title: 'Manual Edit' },
 	'/timetable/building': { group: 'Class Schedule', title: 'Building View' },
-	'/timetable/exports': { group: 'Class Schedule', title: 'Exports' },
+	'/timetable/exports': { group: 'Class Schedule', title: 'Print schedules' },
 	// UX-R03e (runs) — the read-only run-history route shares the Class Schedule shell.
 	'/timetable/runs': { group: 'Class Schedule', title: 'Runs' },
 	// UX-R03e (setup) — the composed setup route shares the Class Schedule shell.

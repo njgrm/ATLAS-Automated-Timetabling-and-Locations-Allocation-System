@@ -218,7 +218,6 @@ export default function ScheduleReviewWorkspace() {
 			enterMapView={() => state.centerWorkspaceContext.setCenterView('map')}
 			enterManualEditView={() => state.centerWorkspaceContext.setCenterView('manual-edit')}
 			enterBuildingView={() => state.centerWorkspaceContext.setCenterView('building')}
-			enterExportsView={() => state.centerWorkspaceContext.setCenterView('exports')}
 			enterRunsView={() => state.centerWorkspaceContext.setCenterView('runs')}
 			enterSetupView={() => state.centerWorkspaceContext.setCenterView('setup')}
 			leaveDialogOpen={state.dialogContext.showLeavePreGenDialog}
@@ -343,7 +342,6 @@ export default function ScheduleReviewWorkspace() {
 				enterMapView={() => state.centerWorkspaceContext.setCenterView('map')}
 				enterManualEditView={() => state.centerWorkspaceContext.setCenterView('manual-edit')}
 				enterBuildingView={() => state.centerWorkspaceContext.setCenterView('building')}
-				enterExportsView={() => state.centerWorkspaceContext.setCenterView('exports')}
 				enterRunsView={() => state.centerWorkspaceContext.setCenterView('runs')}
 				enterSetupView={() => state.centerWorkspaceContext.setCenterView('setup')}
 				leaveDialogOpen={state.dialogContext.showLeavePreGenDialog}

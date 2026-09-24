@@ -21,9 +21,20 @@ import {
 	EXPORT_PRESENTATION_SCHEMA_UNAVAILABLE_MESSAGE,
 } from '../services/export-presentation.service.js';
 import { generateTeacherProgramDocx } from '../services/docx-export.service.js';
+import { createSchedulerPrintZip, renderSchedulerPrintFiles, type SchedulerPrintProgram } from '../services/scheduler-print.service.js';
+import { getOfficialPrintOptions } from '../services/official-program-docx.service.js';
 import { generateClassProgramMatrix, validateSpecializationVisibility } from '../services/class-program-matrix.service.js';
 
 const router = Router();
+
+function exportIdentityToken(value: string): string {
+	return value.replace(/[^a-zA-Z0-9-]/g, '');
+}
+
+function schedulerPrintProgram(value: unknown): value is SchedulerPrintProgram {
+	return value === 'grade' || value === 'section' || value === 'teacher' || value === 'room';
+}
+
 
 // ─── Helpers ───
 
@@ -774,6 +785,88 @@ router.get(
 );
 
 // ─── GET /:schoolId/:schoolYearId/runs/:runId/export/teacher-program.docx ───
+
+router.get(
+	'/:schoolId/:schoolYearId/runs/:runId/print-options',
+	authenticate,
+	async (req: Request, res: Response, next: NextFunction) => {
+		try {
+			if (!hasWorkspaceCapability(req, res, 'timetable:read')) return;
+			const schoolId = positiveInt(req.params.schoolId, 'schoolId');
+			const schoolYearId = positiveInt(req.params.schoolYearId, 'schoolYearId');
+			const runId = positiveInt(req.params.runId, 'runId');
+			if (typeof schoolId === 'string' || typeof schoolYearId === 'string' || typeof runId === 'string') {
+				res.status(400).json({ code: 'INVALID_PARAM', message: 'schoolId, schoolYearId and runId must be positive integers.' }); return;
+			}
+			if (!assertActorSchoolScope(req, res, schoolId)) return;
+			const termParse = parseRequiredTermQuery(req.query.termIndex);
+			if (!termParse.ok) { res.status(400).json({ code: termParse.code, message: termParse.message }); return; }
+			const termIndex = await resolvePublishedRunTermIndex(schoolId, schoolYearId, runId, termParse.requested);
+			const options = await getOfficialPrintOptions({ schoolId, schoolYearId, runId, termIndex });
+			res.json(options);
+		} catch (error: any) {
+			if (error?.message === 'EMPTY_SELECTED_TERM' || error?.code === 'EMPTY_SELECTED_TERM') {
+				res.status(422).json({ code: 'EMPTY_SELECTED_TERM', message: 'The selected term has no printable programs for this run.' }); return;
+			}
+			if (error?.message === 'RUN_NOT_FOUND') { res.status(404).json({ code: 'RUN_NOT_FOUND', message: 'Run not found for this school year.' }); return; }
+			next(error);
+		}
+	},
+);
+
+router.post(
+	'/:schoolId/:schoolYearId/runs/:runId/print-schedules.zip',
+	authenticate,
+	async (req: Request, res: Response, next: NextFunction) => {
+		try {
+			if (!hasWorkspaceCapability(req, res, 'timetable:read')) return;
+			const schoolId = positiveInt(req.params.schoolId, 'schoolId');
+			const schoolYearId = positiveInt(req.params.schoolYearId, 'schoolYearId');
+			const runId = positiveInt(req.params.runId, 'runId');
+			if (typeof schoolId === 'string' || typeof schoolYearId === 'string' || typeof runId === 'string') {
+				res.status(400).json({ code: 'INVALID_PARAM', message: 'schoolId, schoolYearId and runId must be positive integers.' }); return;
+			}
+			if (!assertActorSchoolScope(req, res, schoolId)) return;
+			const program = req.body?.program;
+			if (!schedulerPrintProgram(program)) { res.status(400).json({ code: 'INVALID_PRINT_PROGRAM', message: 'program must be grade, section, teacher, or room.' }); return; }
+			const termParse = parseRequiredTermQuery(req.body?.termIndex);
+			if (!termParse.ok) { res.status(400).json({ code: termParse.code, message: termParse.message }); return; }
+			const termIndex = await resolvePublishedRunTermIndex(schoolId, schoolYearId, runId, termParse.requested);
+			const options = { schoolId, schoolYearId, runId, termIndex };
+			let ids: number[];
+			if (req.body?.all === true && req.body?.ids === undefined) {
+				const available = await getOfficialPrintOptions(options);
+				const choices = program === 'grade' ? available.grades
+					: program === 'section' ? available.sections
+						: program === 'teacher' ? available.teachers : available.rooms;
+				ids = choices.map((choice) => choice.value);
+			} else if (req.body?.all !== true && Array.isArray(req.body?.ids)) {
+				if (req.body.ids.some((value: unknown) => typeof value !== 'number' || !Number.isSafeInteger(value) || value < 1)) {
+					res.status(400).json({ code: 'INVALID_PRINT_ENTITY', message: 'Each selected entity must be a positive integer ID.' }); return;
+				}
+				ids = req.body.ids;
+			} else {
+				res.status(400).json({ code: 'PRINT_ENTITY_REQUIRED', message: 'Choose one or more entities, or set all to true.' }); return;
+			}
+			if (ids.length < 2) { res.status(400).json({ code: 'PRINT_ZIP_REQUIRES_MULTIPLE_FILES', message: 'Use the single-program Word download when only one entity is selected.' }); return; }
+			if (ids.length > 500) { res.status(400).json({ code: 'TOO_MANY_PRINT_ENTITIES', message: 'A single print package may contain at most 500 programs.' }); return; }
+			const files = await renderSchedulerPrintFiles(options, program, ids);
+			const zip = await createSchedulerPrintZip(files);
+			const yearLabel = await resolveExportSchoolYearLabel(schoolId, schoolYearId);
+			const safeYear = exportIdentityToken(yearLabel || 'UNLABELED');
+			res.setHeader('Content-Type', 'application/zip');
+			res.setHeader('Content-Disposition', `attachment; filename="${program}-programs-SY${safeYear}-term${termIndex}.zip"`);
+			res.send(zip);
+		} catch (error: any) {
+			if (error?.message === 'PRINT_ENTITY_NOT_FOUND') { res.status(404).json({ code: 'PRINT_ENTITY_NOT_FOUND', message: 'One or more selected entities are not in this school, run, or term.' }); return; }
+			if (error?.message === 'DUPLICATE_PRINT_ENTITY') { res.status(400).json({ code: 'DUPLICATE_PRINT_ENTITY', message: 'The selected entity list contains duplicates.' }); return; }
+			if (error?.message === 'PRINT_ENTITY_REQUIRED') { res.status(400).json({ code: 'PRINT_ENTITY_REQUIRED', message: 'Choose at least one printable entity.' }); return; }
+			if (error?.message === 'EMPTY_SELECTED_TERM' || error?.code === 'EMPTY_SELECTED_TERM') { res.status(422).json({ code: 'EMPTY_SELECTED_TERM', message: 'The selected term has no printable programs for this run.' }); return; }
+			if (error?.message === 'RUN_NOT_FOUND') { res.status(404).json({ code: 'RUN_NOT_FOUND', message: 'Run not found for this school year.' }); return; }
+			next(error);
+		}
+	},
+);
 
 router.get(
 	'/:schoolId/:schoolYearId/runs/:runId/export/teacher-program.docx',

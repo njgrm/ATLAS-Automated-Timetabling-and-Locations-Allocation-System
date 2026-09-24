@@ -27,7 +27,6 @@ const SUB_NAV_ITEMS: TimetableSubNavItem[] = [
 	{ key: 'setup', label: 'Setup', to: '/timetable/setup' },
 	{ key: 'policies', label: 'Policies', to: '/timetable/policies' },
 	{ key: 'runs', label: 'Runs', to: '/timetable/runs' },
-	{ key: 'exports', label: 'Exports', to: '/timetable/exports' },
 ];
 
 export function TimetableSubNav() {

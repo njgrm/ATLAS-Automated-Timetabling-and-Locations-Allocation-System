@@ -1,8 +1,20 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { resolveSchedulerPrintRequest } from '../../components/timetable/simple/schedulerPrintRequests';
+import { resolveSchedulerPrintOptionsUrl, resolveSchedulerPrintRequest, schedulerPrintProgramForView } from '../../components/timetable/simple/schedulerPrintRequests';
 
 const base = { schoolId: 7, schoolYearId: 9, runId: 42, termIndex: 2 as const, yearLabel: '2026-2027' };
+
+test('print options are requested from exactly the selected run and ordered term', () => {
+	assert.equal(resolveSchedulerPrintOptionsUrl(base), '/api/v1/generation/7/9/runs/42/print-options?termIndex=2');
+	assert.equal(resolveSchedulerPrintOptionsUrl({ ...base, termIndex: 'all' }), null);
+	assert.equal(resolveSchedulerPrintOptionsUrl({ ...base, runId: null }), null);
+});
+
+test('the current timetable entity view selects the matching print program by default', () => {
+	assert.equal(schedulerPrintProgramForView('section'), 'section');
+	assert.equal(schedulerPrintProgramForView('faculty'), 'teacher');
+	assert.equal(schedulerPrintProgramForView('room'), 'room');
+});
 
 test('single official print selection resolves to its existing Word-only entity route', () => {
 	assert.deepEqual(resolveSchedulerPrintRequest({ ...base, program: 'grade', ids: [8] }), {

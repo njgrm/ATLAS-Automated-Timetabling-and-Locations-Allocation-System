@@ -6,7 +6,6 @@ const routeCopy: Record<string, TimetableLoadingIntent> = {
 	'/timetable/manual-edit': { title: 'Manual edit', message: 'Checking the selected schedule before opening edit tools.' },
 	'/timetable/map': { title: 'Rooms and map', message: 'Checking rooms and schedule information.' },
 	'/timetable/building': { title: 'Building', message: 'Checking the selected room information.' },
-	'/timetable/exports': { title: 'Exports', message: 'Checking the schedule and available downloads.' },
 	'/timetable/runs': { title: 'Generation history', message: 'Checking schedules for this school year.' },
 	'/timetable/setup': { title: 'Check schedule information', message: 'ATLAS is checking the school year and schedule information. No changes are made by this check.' },
 };

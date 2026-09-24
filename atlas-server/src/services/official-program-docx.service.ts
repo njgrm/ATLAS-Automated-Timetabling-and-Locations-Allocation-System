@@ -112,9 +112,49 @@ function documentSection(ctx: ExportContext, children: Array<Paragraph | Table>)
 	const profile = (ctx as ExportContext & { presentationProfile?: Awaited<ReturnType<typeof resolveExportSignatoryProfile>> }).presentationProfile;
 	const footerText = profile?.footerText?.trim();
 	return {
-		properties: { page: { size: { orientation: PageOrientation.LANDSCAPE }, margin: { top: 480, right: 480, bottom: 480, left: 480 } } },
+		properties: { page: { size: { width: 12240, height: 15840, orientation: PageOrientation.LANDSCAPE }, margin: { top: 480, right: 480, bottom: 480, left: 480 } } },
 		...(footerText ? { footers: { default: new Footer({ children: [new Paragraph({ children: [text(footerText)], alignment: AlignmentType.CENTER })] }) } } : {}),
 		children,
+	};
+}
+
+export type OfficialPrintChoice = { value: number; label: string };
+export type OfficialPrintOptions = {
+	runId: number;
+	termIndex: number | null;
+	yearLabel: string;
+	grades: OfficialPrintChoice[];
+	sections: OfficialPrintChoice[];
+	teachers: OfficialPrintChoice[];
+	rooms: OfficialPrintChoice[];
+};
+
+/** Read-only options derived from the same verified run and selected-term context used by official forms. */
+export async function getOfficialPrintOptions(options: ExportOptions): Promise<OfficialPrintOptions> {
+	const ctx = await prepare(options);
+	const entries = ctx.entries.filter((entry) => printableEntry(ctx, entry));
+	const usedSections = new Set(entries.map((entry) => entry.sectionId));
+	const usedTeachers = new Set(entries.map((entry) => entry.facultyId).filter((id): id is number => id != null));
+	const usedRooms = new Set(entries.map((entry) => entry.roomId));
+	const sectionRows = ctx.sections.filter((section) => usedSections.has(section.externalId));
+	const grades = [...new Set(sectionRows.map((section) => Number(section.gradeLevelName?.match(/Grade\s+(\d+)/i)?.[1] ?? section.gradeLevelId)))]
+		.filter((grade) => Number.isInteger(grade) && grade >= 7 && grade <= 10)
+		.sort((a, b) => a - b)
+		.map((grade) => ({ value: grade, label: `Grade ${grade}` }));
+	return {
+		runId: ctx.runId,
+		termIndex: ctx.termIndex,
+		yearLabel: ctx.yearLabel,
+		grades,
+		sections: sectionRows.sort((a, b) => a.name.localeCompare(b.name)).map((section) => ({ value: section.externalId, label: section.name })),
+		teachers: [...usedTeachers].sort((a, b) => a - b).flatMap((id) => {
+			const teacher = ctx.facultyMap.get(id);
+			return teacher ? [{ value: id, label: [teacher.firstName, teacher.lastName].filter(Boolean).join(' ') || `Teacher ${id}` }] : [];
+		}),
+		rooms: [...usedRooms].sort((a, b) => a - b).flatMap((id) => {
+			const room = ctx.roomMap.get(id);
+			return room ? [{ value: id, label: [room.buildingName, room.name].filter(Boolean).join(' / ') || `Room ${id}` }] : [];
+		}),
 	};
 }
 

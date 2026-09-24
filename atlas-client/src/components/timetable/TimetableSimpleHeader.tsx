@@ -54,15 +54,14 @@ import {
 	SimpleReadinessChip,
 } from '@/components/timetable/simple/SimpleSetupSharedControls';
 import type { SimpleViewMode } from '@/components/timetable/simple/SimpleHeaderHelpers';
-import { SimpleExportErrorBanner, SimpleExportMenu, SimpleTermSwitcher } from '@/components/timetable/simple/SimpleBeneficiaryControls';
-import { useSimpleExportSurface } from '@/components/timetable/simple/useSimpleExportSurface';
-import type { SimpleExportKind } from '@/components/timetable/simple/simpleExportRequests';
+import { SimpleExportMenu, SimpleTermSwitcher } from '@/components/timetable/simple/SimpleBeneficiaryControls';
 import { SimpleDriftBanner } from '@/components/timetable/simple/SimpleDriftBanner';
 import { describeRunInputDrift } from '@/components/timetable/timetableDriftRouting';
 import { SimpleMoreMenuContent } from '@/components/timetable/simple/SimpleMoreMenuContent';
 import { resolveTermAuthorityNotice } from '@/hooks/useTimetableData';
 import { ExportPresentationSettingsDialog } from '@/components/timetable/simple/ExportPresentationSettingsDialog';
 import { SchedulerExportCenterDialog } from '@/components/timetable/simple/SchedulerExportCenterDialog';
+import { SchedulerPrintDialog } from '@/components/timetable/simple/SchedulerPrintDialog';
 import { TimetablePublishedReturnAction } from '@/components/timetable/TimetablePublishedReturnAction';
 import { fetchRolloverStatus, type RolloverStatus } from '@/lib/settings';
 
@@ -198,6 +197,14 @@ function TimetableSimpleHeaderImpl({
 	const [readinessSheetOpenLocal, setReadinessSheetOpenLocal] = useState(false);
 	const [presentationSettingsOpen, setPresentationSettingsOpen] = useState(false);
 	const [exportCenterOpen, setExportCenterOpen] = useState(false);
+	const printPanelOpen = new URLSearchParams(location.search).get('print') === '1';
+	const setPrintPanelOpen = (open: boolean) => {
+		const params = new URLSearchParams(location.search);
+		if (open) params.set('print', '1');
+		else params.delete('print');
+		const search = params.toString();
+		navigate({ pathname: location.pathname, search: search ? `?${search}` : '', hash: location.hash }, { replace: true });
+	};
 	const readinessSheetOpen = readinessSheetOpenProp ?? readinessSheetOpenLocal;
 	const setReadinessSheetOpen = onReadinessSheetOpenChange ?? setReadinessSheetOpenLocal;
 	const [blockerReasonFilter, setBlockerReasonFilter] = useState<string | null>(null);
@@ -431,36 +438,8 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 		}
 	};
 
-	// Official beneficiary downloads are bound to exactly one selected ordered
-	// term. "All terms" resolves to no request so nothing mixed-term is exported.
-	// UX-R03c — the descriptors and the single-flight dispatch live in the shared
-	// export surface hook (also consumed by the /timetable/exports center view);
-	// the header control below is untouched.
 	const exportRunId = context.draft?.runId ?? context.activeGeneratedRunId ?? null;
-	const exportFacultyId = context.viewMode === 'faculty' && context.entityFilter ? Number(context.entityFilter) : null;
-	// C05 T9/M18 — the persisted school-year label keeps client filenames
-	// byte-identical to the server `Content-Disposition` identity.
 	const exportYearLabel = context.schoolYearContext?.activeSchoolYearLabel ?? null;
-	// UX-R03c — the header consumes resolveSimpleExportRequest('summary-teacher-schedule'),
-	// resolveSimpleExportRequest('class-program') and resolveSimpleExportRequest('teacher-program')
-	// plus await dispatchSimpleExport(descriptor) through useSimpleExportSurface (shared with the
-	// /timetable/exports center view). The menu/dialog JSX and the M17 re-entry gate stay here untouched.
-	const {
-		summaryExport,
-		classProgramExport,
-		teacherProgramExport,
-		exportingKind,
-		exportError,
-		setExportError,
-		handleSimpleExport: dispatchExport,
-	} = useSimpleExportSurface({
-		schoolId: context.schoolId,
-		schoolYearId: context.schoolYearId,
-		runId: exportRunId,
-		termFilter: context.termFilter,
-		facultyId: exportFacultyId,
-		yearLabel: exportYearLabel,
-	});
 	const exportCenterSelection = (context.viewMode === 'section' || context.viewMode === 'room')
 		&& /^\d+$/.test(context.entityFilter)
 		&& Number(context.entityFilter) > 0
@@ -471,13 +450,6 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 		: context.groupedPivotEntities.flatMap((group) =>
 			group.ids.map((id) => ({ kind: context.viewMode as 'section' | 'room', id, label: context.pivotLabel(id) })),
 		);
-
-	const handleSimpleExport = (kind: SimpleExportKind) => {
-		// M17 pins this re-entry gate in the header source; the shared surface
-		// owns the identical single-flight guard for every consumer.
-		if (exportingKind !== null) return;
-		void dispatchExport(kind);
-	};
 
 	const clearGridSelection = () => {
 		context.setSelectedEntry(null);
@@ -661,15 +633,8 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 				/>
 				{hasGeneratedRun ? (
 					<SimpleExportMenu
-						summary={summaryExport}
-						classProgram={classProgramExport}
-						teacherProgram={teacherProgramExport}
-						showTeacherProgram={context.viewMode === 'faculty' && Boolean(context.entityFilter)}
-						needsTerm={context.termFilter === 'all'}
-						exportingKind={exportingKind}
-						onExport={(kind) => { void handleSimpleExport(kind); }}
-						onOpenPresentationSettings={() => setPresentationSettingsOpen(true)}
-						onOpenExportCenter={() => setExportCenterOpen(true)}
+						onOpenPrintSchedules={() => setPrintPanelOpen(true)}
+						onOpenOfficeData={() => setExportCenterOpen(true)}
 					/>
 				) : null}
 
@@ -794,12 +759,6 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 			</div>
 			{/* ── end of the one row band (TIMETABLE-HEADER-COLLAPSE-C01 D1) ── */}
 
-			<SimpleExportErrorBanner
-				error={exportError}
-				onRetry={(kind) => { void handleSimpleExport(kind); }}
-				onDismiss={() => setExportError(null)}
-			/>
-
 			{hasGeneratedRun ? (
 				<SchedulerExportCenterDialog
 					open={exportCenterOpen}
@@ -813,6 +772,18 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 					entities={exportCenterEntities}
 				/>
 			) : null}
+			<SchedulerPrintDialog
+				open={printPanelOpen}
+				onOpenChange={setPrintPanelOpen}
+				schoolId={context.schoolId}
+				schoolYearId={context.schoolYearId}
+				runId={exportRunId}
+				termIndex={context.termFilter}
+				yearLabel={exportYearLabel}
+				viewMode={context.viewMode}
+				entityFilter={context.entityFilter}
+				onOpenPresentationSettings={() => setPresentationSettingsOpen(true)}
+			/>
 
 			{hasGeneratedRun ? (
 				<ExportPresentationSettingsDialog

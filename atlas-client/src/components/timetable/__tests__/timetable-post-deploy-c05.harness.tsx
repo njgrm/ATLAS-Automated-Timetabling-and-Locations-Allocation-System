@@ -53,7 +53,6 @@ function MountedTimetable() {
 				enterMapView={() => setCenterView('map')}
 				enterManualEditView={() => setCenterView('manual-edit')}
 				enterBuildingView={() => setCenterView('building')}
-				enterExportsView={() => setCenterView('exports')}
 				enterRunsView={() => setCenterView('runs')}
 				enterSetupView={() => setCenterView('setup')}
 				leaveDialogOpen={false}

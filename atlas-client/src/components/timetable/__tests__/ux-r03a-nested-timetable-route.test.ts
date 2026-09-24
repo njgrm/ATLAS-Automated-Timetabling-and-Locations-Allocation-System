@@ -60,7 +60,7 @@ test('UX-R03a row 2: child navigations cannot unmount the shell or issue data re
 	assert.doesNotMatch(sync, /fetch\(|axios|useQuery|useMutation|XMLHttpRequest/);
 	// The only effect is keyed on the pathname, so in-app view changes and
 	// re-renders never retrigger it.
-	assert.match(sync, /\}, \[pathname\]\);/);
+	assert.match(sync, /\}, \[pathname, search, hash, navigate\]\);/);
 	// No sibling flat timetable/policies route may exist: a sibling would mount
 	// a second shell (remount + refetch) instead of reusing the nested one.
 	const app = source('src/App.tsx');
@@ -79,7 +79,7 @@ test('UX-R03a row 2: route to view mapping keeps the schedule surface for every 
 	assert.equal(resolveTimetableRouteView('/timetable/setup'), 'setup');
 	assert.equal(resolveTimetableRouteView('/timetable/setup/'), 'setup');
 	// UX-R03c — exports is a real routed sub-page now; UX-R03e routes runs and setup too.
-	assert.equal(resolveTimetableRouteView('/timetable/exports'), 'exports');
+	assert.equal(resolveTimetableRouteView('/timetable/exports'), 'schedule');
 });
 
 // --- Row 3: the guard is never bypassed ---
