@@ -466,6 +466,11 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 		&& Number(context.entityFilter) > 0
 		? { kind: context.viewMode, id: Number(context.entityFilter), label: context.pivotLabel(Number(context.entityFilter)) }
 		: null;
+	const exportCenterEntities: Array<{ kind: 'section' | 'room'; id: number; label: string }> = context.viewMode === 'faculty'
+		? []
+		: context.groupedPivotEntities.flatMap((group) =>
+			group.ids.map((id) => ({ kind: context.viewMode as 'section' | 'room', id, label: context.pivotLabel(id) })),
+		);
 
 	const handleSimpleExport = (kind: SimpleExportKind) => {
 		// M17 pins this re-entry gate in the header source; the shared surface
@@ -805,6 +810,7 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 					termIndex={context.termFilter}
 					yearLabel={exportYearLabel}
 					selection={exportCenterSelection}
+					entities={exportCenterEntities}
 				/>
 			) : null}
 

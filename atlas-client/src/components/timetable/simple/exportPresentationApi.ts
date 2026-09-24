@@ -22,6 +22,11 @@ export type ExportPresentationProfile = {
 	cidChief: ExportPresentationSignatory;
 	asds: ExportPresentationSignatory;
 	footerText: string | null;
+	officialSchoolName: string | null;
+	headerLine: string | null;
+	regionLine: string | null;
+	divisionLine: string | null;
+	districtLine: string | null;
 };
 
 export type ExportPresentationInput = {
@@ -34,6 +39,11 @@ export type ExportPresentationInput = {
 	asdsName?: string | null;
 	asdsTitle?: string | null;
 	footerText?: string | null;
+	officialSchoolName?: string | null;
+	headerLine?: string | null;
+	regionLine?: string | null;
+	divisionLine?: string | null;
+	districtLine?: string | null;
 };
 
 export type ExportPresentationSaveResult = {
@@ -155,5 +165,10 @@ export function toExportPresentationInput(profile: ExportPresentationProfile): R
 		asdsName: profile.asds.name ?? '',
 		asdsTitle: profile.asds.title,
 		footerText: profile.footerText ?? '',
+		officialSchoolName: profile.officialSchoolName ?? '',
+		headerLine: profile.headerLine ?? '',
+		regionLine: profile.regionLine ?? '',
+		divisionLine: profile.divisionLine ?? '',
+		districtLine: profile.districtLine ?? '',
 	};
 }

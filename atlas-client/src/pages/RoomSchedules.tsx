@@ -368,6 +368,10 @@ export default function RoomSchedules() {
 		: viewMode === 'sections' && selectedSectionId
 			? { kind: 'section', id: Number(selectedSectionId), label: sectionList.find((section) => String(section.id) === selectedSectionId)?.name ?? 'Selected section' }
 			: null;
+	const exportCenterEntities: Exclude<SchedulerExportSelection, null>[] = [
+		...rooms.map((room) => ({ kind: 'room' as const, id: room.id, label: room.name })),
+		...sectionList.map((section) => ({ kind: 'section' as const, id: section.id, label: section.name })),
+	];
 
 	const handleExport = useCallback(() => {
 		if (state.status !== 'ok') return;
@@ -630,6 +634,7 @@ export default function RoomSchedules() {
 				termIndex={exportTerm === 'all' ? 'all' : Number(exportTerm)}
 				yearLabel={schoolYearLabel}
 				selection={exportCenterSelection}
+				entities={exportCenterEntities}
 			/>
 
 			{viewMode === 'rooms' && presentationMode === 'occupancy' && (

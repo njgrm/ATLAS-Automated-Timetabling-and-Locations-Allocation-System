@@ -14,7 +14,7 @@ import { getViolationRepairOptions, parseViolationRepairLocator } from '../servi
 import { exportSummaryWorkbook, exportClassProgramWorkbook, resolveExportSchoolYearLabel } from '../services/workbook-export.service.js';
 import { exportRoomProgramWorkbook } from '../services/room-program-export.service.js';
 import { aggregateSectionLearnerCounts } from '../services/export-learner-count.service.js';
-import { scheduleWorkbookToDocx } from '../services/schedule-workbook-docx.service.js';
+import { exportGradeClassProgramDocx, exportRoomProgramDocx, exportSectionProgramDocx } from '../services/official-program-docx.service.js';
 import { buildTeacherProgramExportShape } from '../services/teacher-program-export.service.js';
 import {
 	EXPORT_PRESENTATION_SCHEMA_UNAVAILABLE_CODE,
@@ -948,7 +948,7 @@ router.get(
 	},
 );
 
-// Scheduler export center DOCX variants reuse the exact selected-term XLSX projection.
+// Official room-program DOCX is built directly from the selected-term run shape.
 router.get(
 	'/:schoolId/:schoolYearId/runs/:runId/export/room-program.docx',
 	authenticate,
@@ -971,8 +971,7 @@ router.get(
 				if (typeof parsed === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: parsed }); return; }
 				roomId = parsed;
 			}
-			const xlsx = await exportRoomProgramWorkbook({ schoolId, schoolYearId, runId, termIndex, roomId });
-			const docx = await scheduleWorkbookToDocx(xlsx);
+			const docx = await exportRoomProgramDocx({ schoolId, schoolYearId, runId, termIndex, roomId });
 			const yearLabel = await resolveExportSchoolYearLabel(schoolId, schoolYearId);
 			res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
 			res.setHeader('Content-Disposition', `attachment; filename="${exportFileStem('room-program', roomId == null ? 'ALL' : String(roomId), yearLabel, termIndex as number)}.docx"`);
@@ -980,6 +979,49 @@ router.get(
 		} catch (error: any) {
 			if (error?.message === 'ROOM_NOT_FOUND') { res.status(404).json({ code: 'ROOM_NOT_FOUND', message: 'Room not found for this school.' }); return; }
 			if (error?.message === 'EMPTY_ROOM_SCHEDULE') { res.status(422).json({ code: 'EMPTY_ROOM_SCHEDULE', message: 'The requested room has no entries in the selected term.' }); return; }
+			if (typeof error?.statusCode === 'number' && typeof error?.code === 'string') { res.status(error.statusCode).json({ code: error.code, message: error.message }); return; }
+			next(error);
+		}
+	},
+);
+
+router.get(
+	'/:schoolId/:schoolYearId/runs/:runId/export/class-program.docx',
+	authenticate,
+	async (req: Request, res: Response, next: NextFunction) => {
+		try {
+			if (!hasWorkspaceCapability(req, res, 'timetable:read')) return;
+			const schoolId = positiveInt(req.params.schoolId, 'schoolId');
+			const schoolYearId = positiveInt(req.params.schoolYearId, 'schoolYearId');
+			const runId = positiveInt(req.params.runId, 'runId');
+			if (typeof schoolId === 'string' || typeof schoolYearId === 'string' || typeof runId === 'string') {
+				res.status(400).json({ code: 'INVALID_PARAM', message: 'schoolId, schoolYearId and runId must be positive integers.' }); return;
+			}
+			if (!assertActorSchoolScope(req, res, schoolId)) return;
+			const termParse = parseRequiredTermQuery(req.query.termIndex);
+			if (!termParse.ok) { res.status(400).json({ code: termParse.code, message: termParse.message }); return; }
+			const gradeLevel = positiveInt(req.query.gradeLevel, 'gradeLevel');
+			if (typeof gradeLevel === 'string') {
+				const code = req.query.gradeLevel == null ? 'GRADE_LEVEL_REQUIRED' : 'INVALID_GRADE_LEVEL';
+				res.status(400).json({ code, message: 'gradeLevel must be one of 7, 8, 9, or 10.' }); return;
+			}
+			if (gradeLevel < 7 || gradeLevel > 10) { res.status(400).json({ code: 'INVALID_GRADE_LEVEL', message: 'gradeLevel must be one of 7, 8, 9, or 10.' }); return; }
+			const termIndex = await resolvePublishedRunTermIndex(schoolId, schoolYearId, runId, termParse.requested);
+			let sectionId: number | undefined;
+			if (req.query.sectionId != null && String(req.query.sectionId).trim() !== '') {
+				const parsed = positiveInt(req.query.sectionId, 'sectionId');
+				if (typeof parsed === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: parsed }); return; }
+				sectionId = parsed;
+			}
+			const docx = await exportGradeClassProgramDocx({ schoolId, schoolYearId, runId, termIndex, gradeLevel, sectionId });
+			const yearLabel = await resolveExportSchoolYearLabel(schoolId, schoolYearId);
+			res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+			res.setHeader('Content-Disposition', `attachment; filename="${exportFileStem('class-program', `G${gradeLevel}`, yearLabel, termIndex as number)}.docx"`);
+			res.send(docx);
+		} catch (error: any) {
+			if (error?.message === 'SECTION_NOT_FOUND') { res.status(404).json({ code: 'SECTION_NOT_FOUND', message: 'Section not found for this school year.' }); return; }
+			if (error?.message === 'GRADE_NOT_FOUND') { res.status(404).json({ code: 'GRADE_NOT_FOUND', message: 'No sections were found for this grade and school year.' }); return; }
+			if (error?.code === 'EMPTY_SELECTED_TERM' || error?.message === 'EMPTY_SELECTED_TERM') { res.status(422).json({ code: 'EMPTY_SELECTED_TERM', message: 'The selected term has no renderable entries for this run; no official file was produced.' }); return; }
 			if (typeof error?.statusCode === 'number' && typeof error?.code === 'string') { res.status(error.statusCode).json({ code: error.code, message: error.message }); return; }
 			next(error);
 		}
@@ -1008,11 +1050,7 @@ router.get(
 				if (typeof parsed === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: parsed }); return; }
 				sectionId = parsed;
 			}
-			const xlsx = await exportClassProgramWorkbook({
-				schoolId, schoolYearId, runId, termIndex, sectionId,
-				resolveLearnerCounts: (sectionIds) => aggregateSectionLearnerCounts({ schoolId, schoolYearId, sectionIds, authToken: getUpstreamAuthToken(req) }),
-			});
-			const docx = await scheduleWorkbookToDocx(xlsx);
+			const docx = await exportSectionProgramDocx({ schoolId, schoolYearId, runId, termIndex, sectionId });
 			const yearLabel = await resolveExportSchoolYearLabel(schoolId, schoolYearId);
 			res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
 			res.setHeader('Content-Disposition', `attachment; filename="${exportFileStem('section-program', sectionId == null ? 'ALL' : String(sectionId), yearLabel, termIndex as number)}.docx"`);

@@ -26,7 +26,7 @@
 import { prisma } from '../lib/prisma.js';
 import { getDataContext } from '../lib/data-context.js';
 import { normalizeGradeLevelSync } from './class-program-slot.service.js';
-import { resolveExportSignatoryProfile, type TeacherProgramSignatoryProfile } from './export-presentation.service.js';
+import { applyTemplateSignatoryFallback, resolveExportSignatoryProfile, type TeacherProgramSignatoryProfile } from './export-presentation.service.js';
 
 // ─── Types ───
 
@@ -891,13 +891,14 @@ export async function buildTeacherProgramExportShape(params: {
 		revisionId: Number.isInteger(revisionId) && revisionId > 0 ? revisionId : null,
 	};
 
-	const signatories = await resolveExportSignatoryProfile({
+	const resolvedSignatories = await resolveExportSignatoryProfile({
 		schoolId,
 		schoolYearId,
 		isPublished: publication.isPublished,
 		publishedAt: publication.publishedAt,
 		client: db,
 	});
+	const signatories = applyTemplateSignatoryFallback(resolvedSignatories, school?.name ?? '');
 
 	// Deterministic interval ordering: start, end, kind weight, label.
 	const KIND_WEIGHT: Record<string, number> = { TEACHING: 0, BREAK: 1, ANCILLARY: 2, ADVISORY: 3 };
@@ -931,10 +932,10 @@ export async function buildTeacherProgramExportShape(params: {
 			label: mirror?.yearLabel ?? String(schoolYearId),
 		},
 		branding: {
-			schoolName: school?.name ?? '',
-			regionLine: '',
-			divisionLine: '',
-			districtLine: '',
+			schoolName: signatories.officialSchoolName || school?.name || '',
+			regionLine: signatories.regionLine ?? '',
+			divisionLine: signatories.divisionLine ?? '',
+			districtLine: signatories.districtLine ?? '',
 		},
 		term: {
 			index: termIndex ?? null,

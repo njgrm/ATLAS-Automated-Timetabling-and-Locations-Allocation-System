@@ -1,7 +1,7 @@
 import { MAX_ACADEMIC_TERM_INDEX } from '@/lib/academic-term';
 
 export type SchedulerExportFormat = 'xlsx' | 'docx';
-export type SchedulerExportKind = 'teacher-consolidated' | 'class-program' | 'room-program' | 'section-program';
+export type SchedulerExportKind = 'teacher-consolidated' | 'class-program' | 'grade-class-program' | 'room-program' | 'section-program';
 export type SchedulerExportSelection = { kind: 'room' | 'section'; id: number; label: string } | null;
 
 export type SchedulerExportCenterTarget = {
@@ -14,6 +14,8 @@ export type SchedulerExportCenterTarget = {
 	format: SchedulerExportFormat;
 	scope: 'all' | 'selected';
 	selection: SchedulerExportSelection;
+	entities?: Exclude<SchedulerExportSelection, null>[];
+	gradeLevel?: number | null;
 };
 
 function yearToken(yearLabel: string | null): string {
@@ -33,6 +35,8 @@ export function resolveSchedulerExportCenterRequest(target: SchedulerExportCente
 		|| !validTerm(target.termIndex)) return null;
 	if (target.kind === 'teacher-consolidated' && target.format !== 'xlsx') return null;
 	if (target.kind === 'class-program' && target.format !== 'xlsx') return null;
+	if (target.kind === 'grade-class-program'
+		&& (target.format !== 'docx' || !Number.isInteger(target.gradeLevel) || (target.gradeLevel ?? 0) < 7 || (target.gradeLevel ?? 0) > 10)) return null;
 	if (target.scope === 'selected' && target.kind !== 'teacher-consolidated') {
 		const expectedKind = target.kind === 'room-program' ? 'room' : 'section';
 		if (target.selection?.kind !== expectedKind || !Number.isInteger(target.selection.id) || target.selection.id <= 0) return null;
@@ -46,6 +50,14 @@ export function resolveSchedulerExportCenterRequest(target: SchedulerExportCente
 	}
 	if (target.kind === 'class-program') {
 		return { url: `${root}/class-program.xlsx?${term}`, filename: `class-program-${year}-term${target.termIndex}.xlsx` };
+	}
+	if (target.kind === 'grade-class-program') {
+		const section = target.scope === 'selected' ? target.selection!.id : null;
+		const suffix = section == null ? '' : `&sectionId=${section}`;
+		return {
+			url: `${root}/class-program.docx?${term}&gradeLevel=${target.gradeLevel}${suffix}`,
+			filename: `class-program-G${target.gradeLevel}${section == null ? '' : `-section${section}`}-${year}-term${target.termIndex}.docx`,
+		};
 	}
 	const entityId = target.scope === 'selected' ? target.selection!.id : null;
 	const entity = entityId == null ? 'ALL' : String(entityId);

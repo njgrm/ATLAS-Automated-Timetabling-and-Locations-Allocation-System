@@ -158,6 +158,7 @@ export async function exportRoomProgramWorkbook(options: RoomProgramOptions): Pr
 		headerRow.getCell(2).value = 'MINUTES';
 		WEEKDAYS.forEach((day, dayIndex) => { headerRow.getCell(dayIndex + 3).value = day; });
 		headerRow.font = { bold: true };
+		for (let column = 1; column <= 7; column += 1) headerRow.getCell(column).border = { top: { style: 'thin' }, bottom: { style: 'thin' }, left: { style: 'thin' }, right: { style: 'thin' } };
 
 		let rowCursor = EXPORT_FIRST_BLOCK_ROW + 2;
 		// C05 T7/M13 — occupied minutes are accumulated per weekday from the
@@ -207,6 +208,7 @@ export async function exportRoomProgramWorkbook(options: RoomProgramOptions): Pr
 					dailyMinutes[day] = (dailyMinutes[day] ?? 0) + intervalMinutes;
 				});
 			}
+			for (let column = 1; column <= 7; column += 1) row.getCell(column).border = { top: { style: 'thin' }, bottom: { style: 'thin' }, left: { style: 'thin' }, right: { style: 'thin' } };
 			rowCursor++;
 		}
 
@@ -222,6 +224,8 @@ export async function exportRoomProgramWorkbook(options: RoomProgramOptions): Pr
 		});
 
 		applyLandscapePrintSetup(sheet);
+		sheet.pageSetup.printArea = `A1:G${rowCursor}`;
+		sheet.pageSetup.margins = { left: 0.2, right: 0.2, top: 0.35, bottom: 0.35, header: 0.15, footer: 0.15 };
 	}
 
 	const buffer = await workbook.xlsx.writeBuffer();

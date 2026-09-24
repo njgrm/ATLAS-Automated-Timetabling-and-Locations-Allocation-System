@@ -141,7 +141,7 @@ export async function generateTeacherProgramDocx(
 
 	const identityLines = [
 		'Republic of the Philippines',
-		'Department of Education',
+		signatories.headerLine || 'Department of Education',
 		branding.regionLine,
 		branding.divisionLine,
 		branding.districtLine,

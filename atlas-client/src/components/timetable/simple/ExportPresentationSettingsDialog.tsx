@@ -39,6 +39,14 @@ const FIELD_GROUPS: Array<{ key: keyof ExportPresentationInput; titleKey: keyof 
 	{ key: 'asdsName', titleKey: 'asdsTitle', label: 'ASDS' },
 ];
 
+const IDENTITY_FIELDS: Array<{ key: 'officialSchoolName' | 'headerLine' | 'regionLine' | 'divisionLine' | 'districtLine'; label: string }> = [
+	{ key: 'officialSchoolName', label: 'Official school name' },
+	{ key: 'headerLine', label: 'Header or department line' },
+	{ key: 'regionLine', label: 'Region' },
+	{ key: 'divisionLine', label: 'Division' },
+	{ key: 'districtLine', label: 'District' },
+];
+
 export function ExportPresentationSettingsDialog({ schoolId, schoolYearId, yearLabel, open, onOpenChange }: Props) {
 	const [profile, setProfile] = useState<ExportPresentationProfile | null>(null);
 	const [draft, setDraft] = useState<Required<ExportPresentationInput> | null>(null);
@@ -109,9 +117,9 @@ export function ExportPresentationSettingsDialog({ schoolId, schoolYearId, yearL
 				data-revision={profile?.revision ?? ''}
 			>
 				<DialogHeader>
-					<DialogTitle>Teacher program export signatories</DialogTitle>
+					<DialogTitle>Official export profile</DialogTitle>
 					<DialogDescription>
-						These names and titles print on the official teacher program for
+						These identity lines, names, and titles print on official Word schedules for
 						{yearLabel ? ` SY ${yearLabel}` : ' the active school year'}. Published and archived
 						exports keep the values that were effective when they were published.
 					</DialogDescription>
@@ -131,6 +139,15 @@ export function ExportPresentationSettingsDialog({ schoolId, schoolYearId, yearL
 
 				{draft ? (
 					<div className="flex max-h-[60svh] flex-col gap-4 overflow-y-auto pr-1">
+						<div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+							{IDENTITY_FIELDS.map((field) => (
+								<div key={field.key} className="flex flex-col gap-1.5">
+									<Label htmlFor={`export-presentation-${field.key}`}>{field.label}</Label>
+									<Input id={`export-presentation-${field.key}`} value={(draft[field.key] as string) ?? ''} onChange={(event) => update(field.key, event.target.value)} data-testid={`export-presentation-${field.key}`} />
+								</div>
+							))}
+						</div>
+						<Separator />
 						{FIELD_GROUPS.map((group) => (
 							<div key={group.key} className="grid grid-cols-1 gap-3 sm:grid-cols-2">
 								<div className="flex flex-col gap-1.5">

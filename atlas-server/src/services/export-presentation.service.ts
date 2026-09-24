@@ -42,6 +42,11 @@ export interface TeacherProgramSignatoryProfile {
 	cidChief: TeacherProgramSignatoryEntry;
 	asds: TeacherProgramSignatoryEntry;
 	footerText: string | null;
+	officialSchoolName: string | null;
+	headerLine: string | null;
+	regionLine: string | null;
+	divisionLine: string | null;
+	districtLine: string | null;
 }
 
 export interface TeacherProgramSignatoryInput {
@@ -54,6 +59,11 @@ export interface TeacherProgramSignatoryInput {
 	asdsName?: string | null;
 	asdsTitle?: string | null;
 	footerText?: string | null;
+	officialSchoolName?: string | null;
+	headerLine?: string | null;
+	regionLine?: string | null;
+	divisionLine?: string | null;
+	districtLine?: string | null;
 }
 
 export type SaveSignatoryProfileResult = {
@@ -173,6 +183,11 @@ export type NormalizedSignatoryProfile = {
 	asdsName: string | null;
 	asdsTitle: string | null;
 	footerText: string | null;
+	officialSchoolName: string | null;
+	headerLine: string | null;
+	regionLine: string | null;
+	divisionLine: string | null;
+	districtLine: string | null;
 };
 
 export function normalizeSignatoryInput(input: TeacherProgramSignatoryInput): NormalizedSignatoryProfile {
@@ -189,6 +204,11 @@ export function normalizeSignatoryInput(input: TeacherProgramSignatoryInput): No
 		asdsName: normalizeText(input.asdsName, 'asdsName', NAME_MAX, 'ASDS name'),
 		asdsTitle: normalizeText(input.asdsTitle, 'asdsTitle', NAME_MAX, 'ASDS title'),
 		footerText: normalizeText(input.footerText, 'footerText', FOOTER_MAX, 'Footer text'),
+		officialSchoolName: normalizeText(input.officialSchoolName, 'officialSchoolName', 200, 'Official school name'),
+		headerLine: normalizeText(input.headerLine, 'headerLine', 200, 'Header line'),
+		regionLine: normalizeText(input.regionLine, 'regionLine', 160, 'Region line'),
+		divisionLine: normalizeText(input.divisionLine, 'divisionLine', 160, 'Division line'),
+		districtLine: normalizeText(input.districtLine, 'districtLine', 160, 'District line'),
 	};
 }
 
@@ -203,6 +223,11 @@ function rowToProfile(row: {
 	asdsName: string | null;
 	asdsTitle: string | null;
 	footerText: string | null;
+	officialSchoolName: string | null;
+	headerLine: string | null;
+	regionLine: string | null;
+	divisionLine: string | null;
+	districtLine: string | null;
 }): TeacherProgramSignatoryProfile {
 	return {
 		revision: row.revision,
@@ -211,6 +236,11 @@ function rowToProfile(row: {
 		cidChief: { name: row.cidChiefName ?? null, title: row.cidChiefTitle ?? SIGNATORY_ROLE_TITLES.cidChief },
 		asds: { name: row.asdsName ?? null, title: row.asdsTitle ?? SIGNATORY_ROLE_TITLES.asds },
 		footerText: row.footerText ?? null,
+		officialSchoolName: row.officialSchoolName ?? null,
+		headerLine: row.headerLine ?? null,
+		regionLine: row.regionLine ?? null,
+		divisionLine: row.divisionLine ?? null,
+		districtLine: row.districtLine ?? null,
 	};
 }
 
@@ -222,6 +252,25 @@ export function emptySignatoryProfile(): TeacherProgramSignatoryProfile {
 		cidChief: { name: null, title: SIGNATORY_ROLE_TITLES.cidChief },
 		asds: { name: null, title: SIGNATORY_ROLE_TITLES.asds },
 		footerText: null,
+		officialSchoolName: null,
+		headerLine: null,
+		regionLine: null,
+		divisionLine: null,
+		districtLine: null,
+	};
+}
+
+/** The three supplied legacy forms contain Hinigaran signatory examples. They
+ * are a compatibility fallback only for that exact institution; no other
+ * school inherits reference personal data. Explicit saved values always win. */
+export function applyTemplateSignatoryFallback(profile: TeacherProgramSignatoryProfile, schoolName: string): TeacherProgramSignatoryProfile {
+	if (schoolName.trim().toLocaleLowerCase() !== 'hinigaran national high school'.toLocaleLowerCase()) return profile;
+	return {
+		...profile,
+		schoolHead: { ...profile.schoolHead, name: profile.schoolHead.name ?? 'JUDY ANN B. NONATO' },
+		psds: { ...profile.psds, name: profile.psds.name ?? 'EMILIA L. ENGLIS' },
+		cidChief: { ...profile.cidChief, name: profile.cidChief.name ?? 'ARCH. NELSON G. BEDAURE, PhD' },
+		asds: { ...profile.asds, name: profile.asds.name ?? 'JULITO L. FELICANO, CESE' },
 	};
 }
 
@@ -236,6 +285,11 @@ const PROFILE_SELECT = {
 	asdsName: true,
 	asdsTitle: true,
 	footerText: true,
+	officialSchoolName: true,
+	headerLine: true,
+	regionLine: true,
+	divisionLine: true,
+	districtLine: true,
 } as const;
 
 // ─── Read paths (zero writes) ───
@@ -355,6 +409,11 @@ function normalizedEquals(
 		&& current.asdsName === next.asdsName
 		&& current.asdsTitle === next.asdsTitle
 		&& current.footerText === next.footerText
+		&& current.officialSchoolName === next.officialSchoolName
+		&& current.headerLine === next.headerLine
+		&& current.regionLine === next.regionLine
+		&& current.divisionLine === next.divisionLine
+		&& current.districtLine === next.districtLine
 	);
 }
 
@@ -369,6 +428,11 @@ function rowToNormalized(row: Record<string, unknown>): NormalizedSignatoryProfi
 		asdsName: (row.asdsName as string | null) ?? null,
 		asdsTitle: (row.asdsTitle as string | null) ?? null,
 		footerText: (row.footerText as string | null) ?? null,
+		officialSchoolName: (row.officialSchoolName as string | null) ?? null,
+		headerLine: (row.headerLine as string | null) ?? null,
+		regionLine: (row.regionLine as string | null) ?? null,
+		divisionLine: (row.divisionLine as string | null) ?? null,
+		districtLine: (row.districtLine as string | null) ?? null,
 	};
 }
 

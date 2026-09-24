@@ -4,6 +4,7 @@ import { Button } from '@/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/ui/dialog';
 import { Label } from '@/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui/select';
+import { SearchableSelect } from '@/ui/searchable-select';
 import { dispatchSimpleExport } from './simpleExportRequests';
 import {
 	resolveSchedulerExportCenterRequest,
@@ -21,24 +22,31 @@ type Props = {
 	termIndex: number | 'all';
 	yearLabel: string | null;
 	selection: SchedulerExportSelection;
+	entities?: Exclude<SchedulerExportSelection, null>[];
 };
 
 const EXPORT_OPTIONS: Array<{ value: SchedulerExportKind; label: string }> = [
-	{ value: 'teacher-consolidated', label: 'Teacher consolidated workbook' },
-	{ value: 'class-program', label: 'Class program' },
-	{ value: 'room-program', label: 'Room program' },
-	{ value: 'section-program', label: 'Section program' },
+	{ value: 'teacher-consolidated', label: 'Teacher working data — Excel' },
+	{ value: 'class-program', label: 'Class working data — Excel' },
+	{ value: 'grade-class-program', label: 'Official grade class program — Word' },
+	{ value: 'room-program', label: 'Room program — Word or Excel' },
+	{ value: 'section-program', label: 'Section program — Word or Excel' },
 ];
 
 export function SchedulerExportCenterDialog(props: Props) {
 	const [kind, setKind] = useState<SchedulerExportKind>('teacher-consolidated');
 	const [format, setFormat] = useState<SchedulerExportFormat>('xlsx');
 	const [scope, setScope] = useState<'all' | 'selected'>('all');
+	const [gradeLevel, setGradeLevel] = useState<number | null>(7);
+	const [entityId, setEntityId] = useState('');
 	const [busy, setBusy] = useState(false);
 	const [error, setError] = useState<string | null>(null);
-	const supportsSelection = kind === 'room-program' ? props.selection?.kind === 'room'
-		: kind === 'section-program' ? props.selection?.kind === 'section' : false;
-	const supportsDocx = kind === 'room-program' || kind === 'section-program';
+	const supportsDocx = kind === 'room-program' || kind === 'section-program' || kind === 'grade-class-program';
+	const entityOptions = (props.entities ?? (props.selection ? [props.selection] : []))
+		.filter((entity) => entity.kind === (kind === 'room-program' ? 'room' : 'section'));
+	const supportsSelection = (kind === 'room-program' || kind === 'section-program' || kind === 'grade-class-program') && entityOptions.length > 0;
+	const selectedEntity = entityOptions.find((entity) => String(entity.id) === entityId)
+		?? (props.selection && props.selection.kind === (kind === 'room-program' ? 'room' : 'section') ? props.selection : null);
 	const request = useMemo(() => resolveSchedulerExportCenterRequest({
 		schoolId: props.schoolId,
 		schoolYearId: props.schoolYearId,
@@ -48,8 +56,9 @@ export function SchedulerExportCenterDialog(props: Props) {
 		kind,
 		format: supportsDocx ? format : 'xlsx',
 		scope: supportsSelection ? scope : 'all',
-		selection: props.selection,
-	}), [props.schoolId, props.schoolYearId, props.runId, props.termIndex, props.yearLabel, kind, format, scope, supportsDocx, supportsSelection, props.selection]);
+		selection: selectedEntity,
+		gradeLevel,
+	}), [props.schoolId, props.schoolYearId, props.runId, props.termIndex, props.yearLabel, kind, format, scope, supportsDocx, supportsSelection, props.selection, props.entities, selectedEntity, gradeLevel]);
 	const disabledReason = props.termIndex === 'all'
 		? 'Choose one ordered term in the timetable header before exporting.'
 		: !props.runId ? 'Select a completed schedule run first.'
@@ -84,8 +93,13 @@ export function SchedulerExportCenterDialog(props: Props) {
 						<Select value={kind} onValueChange={(value) => {
 							const next = value as SchedulerExportKind;
 							setKind(next);
+							const expected = next === 'room-program' ? 'room' : 'section';
+							setEntityId(props.selection?.kind === expected ? String(props.selection.id) : '');
 							if (next === 'teacher-consolidated' || next === 'class-program') setFormat('xlsx');
-							setScope('all');
+							if (next === 'grade-class-program') setFormat('docx');
+							const matchesSelection = (next === 'room-program' && props.selection?.kind === 'room')
+								|| ((next === 'section-program' || next === 'grade-class-program') && props.selection?.kind === 'section');
+							setScope(matchesSelection ? 'selected' : 'all');
 						}}>
 							<SelectTrigger id="scheduler-export-kind" data-testid="scheduler-export-kind"><SelectValue /></SelectTrigger>
 							<SelectContent>{EXPORT_OPTIONS.map((option) => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}</SelectContent>
@@ -93,7 +107,7 @@ export function SchedulerExportCenterDialog(props: Props) {
 					</div>
 					<div className="grid gap-1.5">
 						<Label htmlFor="scheduler-export-format">File format</Label>
-						<Select value={supportsDocx ? format : 'xlsx'} onValueChange={(value) => setFormat(value as SchedulerExportFormat)} disabled={!supportsDocx}>
+						<Select value={kind === 'grade-class-program' ? 'docx' : supportsDocx ? format : 'xlsx'} onValueChange={(value) => setFormat(value as SchedulerExportFormat)} disabled={!supportsDocx || kind === 'grade-class-program'}>
 							<SelectTrigger id="scheduler-export-format" data-testid="scheduler-export-format"><SelectValue /></SelectTrigger>
 							<SelectContent>
 								<SelectItem value="xlsx">Excel workbook (.xlsx)</SelectItem>
@@ -101,16 +115,38 @@ export function SchedulerExportCenterDialog(props: Props) {
 							</SelectContent>
 						</Select>
 					</div>
+					{kind === 'grade-class-program' ? (
+						<div className="grid gap-1.5">
+							<Label htmlFor="scheduler-export-grade">Grade</Label>
+							<Select value={gradeLevel == null ? '' : String(gradeLevel)} onValueChange={(value) => setGradeLevel(Number(value))}>
+								<SelectTrigger id="scheduler-export-grade" data-testid="scheduler-export-grade"><SelectValue placeholder="Choose grade" /></SelectTrigger>
+								<SelectContent>{[7, 8, 9, 10].map((grade) => <SelectItem key={grade} value={String(grade)}>Grade {grade}</SelectItem>)}</SelectContent>
+							</Select>
+						</div>
+					) : null}
 					<div className="grid gap-1.5 sm:col-span-2">
 						<Label htmlFor="scheduler-export-scope">Include</Label>
 						<Select value={supportsSelection ? scope : 'all'} onValueChange={(value) => setScope(value as 'all' | 'selected')}>
 							<SelectTrigger id="scheduler-export-scope" data-testid="scheduler-export-scope"><SelectValue /></SelectTrigger>
 							<SelectContent>
 								<SelectItem value="all">All {kind === 'room-program' ? 'rooms' : 'sections'}</SelectItem>
-								{supportsSelection ? <SelectItem value="selected">Current selection: {props.selection!.label}</SelectItem> : null}
+								{supportsSelection ? <SelectItem value="selected">Choose one {kind === 'room-program' ? 'room' : 'section'}</SelectItem> : null}
 							</SelectContent>
 						</Select>
 					</div>
+					{supportsSelection && scope === 'selected' ? (
+						<div className="grid gap-1.5 sm:col-span-2">
+							<Label>{kind === 'room-program' ? 'Room' : 'Section'}</Label>
+							<SearchableSelect
+								value={selectedEntity ? String(selectedEntity.id) : ''}
+								onValueChange={setEntityId}
+								items={entityOptions.map((entity) => ({ value: String(entity.id), label: entity.label }))}
+								placeholder={`Search ${kind === 'room-program' ? 'rooms' : 'sections'}`}
+								triggerClassName="w-full justify-between"
+								disabled={entityOptions.length === 0}
+							/>
+						</div>
+					) : null}
 				</div>
 				{disabledReason ? <p className="text-sm text-amber-700" role="status" data-testid="scheduler-export-disabled-reason">{disabledReason}</p> : null}
 				{error ? <p className="text-sm font-medium text-destructive" role="alert" data-testid="scheduler-export-error">{error}</p> : null}

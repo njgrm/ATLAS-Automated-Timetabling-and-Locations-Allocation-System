@@ -104,7 +104,9 @@ function buildFakeModels(): Record<string, Record<string, unknown>> {
 			findFirst: async (args: any) => {
 				const id = args?.where?.id;
 				if (id != null && id !== RUN_ID) return null;
-				return { id: id ?? RUN_ID, status: 'COMPLETED', summary: { isPublished: false, timetableDisplaySlots: [] }, draftEntries: activeExportEntries };
+			return { id: id ?? RUN_ID, status: 'COMPLETED', summary: { isPublished: false, timetableDisplaySlots: [
+				{ startTime: '06:00', endTime: '06:45' }, { startTime: '06:45', endTime: '07:30' },
+			] }, draftEntries: activeExportEntries };
 			},
 			findMany: async () => [{ id: RUN_ID }],
 		}),
@@ -345,9 +347,9 @@ test('scheduler may read same-school exports and receives reconciled M/F/T total
 		const workbook = new ExcelJS.Workbook();
 		await workbook.xlsx.load(Buffer.from(await response.arrayBuffer()));
 		const identity = workbook.getWorksheet('Grade 7').getRow(8);
-		assert.equal(identity.getCell(4).value, 1);
-		assert.equal(identity.getCell(6).value, 1);
-		assert.equal(identity.getCell(8).value, 2);
+	assert.equal(identity.getCell(4).value, 1);
+	assert.equal(identity.getCell(6).value, 1);
+	assert.equal(identity.getCell(7).value, 'TOTAL: 2');
 		assert.equal(calls.some((call) => WRITE_METHODS.has(call.method)), false);
 		calls.length = 0;
 		const denied = await originalFetch(`${baseUrl}/api/v1/generation/${SCHOOL_ID}/${SCHOOL_YEAR_ID}/runs/${RUN_ID}/export/summary-teacher-schedule.xlsx?termIndex=1`, {
@@ -403,8 +405,8 @@ test('summary working workbook separates each weekday instead of day-tag aggrega
 	for (const sheet of workbook.worksheets) {
 		sheet.eachRow((row: any) => row.eachCell((cell: any) => { if (typeof cell.value === 'string') values.push(cell.value); }));
 	}
-	assert.ok(values.some((value) => value.includes('MONDAY')));
-	assert.ok(values.some((value) => value.includes('TUESDAY')));
+		assert.ok(values.some((value) => value.includes('MONDAY')), values.join(' | '));
+		assert.ok(values.some((value) => value.includes('TUESDAY')), values.join(' | '));
 	assert.equal(values.some((value) => /\b(MON|TUE|WED|THU|FRI):/.test(value)), false);
 });
 
@@ -432,6 +434,32 @@ test('mounted grade-specific class-program.docx requires a grade and renders the
 	assert.match(xml, /Mathematics/);
 	assert.doesNotMatch(xml, /Homeroom Guidance|ARAL Program/);
 	assert.equal(calls.some((call) => WRITE_METHODS.has(call.method)), false, 'official export reads must perform zero writes');
+});
+
+test('section and room DOCX endpoints render direct entity forms from the selected run', { skip: harnessSkip }, async () => {
+	calls.length = 0;
+	const headers = { Authorization: `Bearer ${authToken(SCHOOL_ID)}` };
+	const { default: JSZip } = await import('jszip');
+	const readDocument = async (response: Response) => {
+		assert.equal(response.status, 200);
+		assert.match(String(response.headers.get('content-type')), /wordprocessingml/);
+		const zip = await (JSZip as any).loadAsync(Buffer.from(await response.arrayBuffer()));
+		return await zip.file('word/document.xml')?.async('string') as string;
+	};
+	const section = await readDocument(await fetch(`${baseUrl}/api/v1/generation/${SCHOOL_ID}/${SCHOOL_YEAR_ID}/runs/${RUN_ID}/export/section-program.docx?termIndex=1&sectionId=701`, { headers }));
+	assert.match(section, /CLASS PROGRAM/);
+	assert.match(section, /Mathematics/);
+	assert.match(section, /Dela Cruz/);
+	assert.match(section, /MONDAY/);
+	assert.doesNotMatch(section, /MON:|Homeroom Guidance|ARAL Program/);
+	const room = await readDocument(await fetch(`${baseUrl}/api/v1/generation/${SCHOOL_ID}/${SCHOOL_YEAR_ID}/runs/${RUN_ID}/export/room-program.docx?termIndex=1&roomId=601`, { headers }));
+	assert.match(room, /ROOM PROGRAM/);
+	assert.match(room, /Room 101/);
+	assert.match(room, /Mathematics/);
+	assert.match(room, /7-Rizal/);
+	assert.match(room, /Dela Cruz/);
+	assert.doesNotMatch(room, /Science|ARAL Program|Homeroom Guidance/);
+	assert.equal(calls.some((call) => WRITE_METHODS.has(call.method)), false, 'official DOCX reads must perform zero writes');
 });
 
 test('official export routes accept an explicit in-contract term and reject an out-of-contract one', { skip: harnessSkip }, async () => {

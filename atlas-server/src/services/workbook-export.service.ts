@@ -638,7 +638,7 @@ export async function exportSummaryWorkbook(options: ExportOptions): Promise<Buf
 	addReportHeader(sheet, ctx, 'CLASS-MONITORING SUMMARY');
 
 	const orderedSlots = interleaveSlots(periodSlots, breakSlots);
-	const bandHeight = orderedSlots.reduce((sum, item) => sum + (item.type === 'break' ? 1 : 2), 0) + 3;
+	const bandHeight = orderedSlots.reduce((sum, item) => sum + (item.type === 'break' ? 1 : WEEKDAYS.length * 2), 0) + 3;
 
 	let rowCursor = EXPORT_FIRST_BLOCK_ROW;
 	for (let bandIdx = 0; bandIdx < bands.length; bandIdx++) {
@@ -665,33 +665,40 @@ export async function exportSummaryWorkbook(options: ExportOptions): Promise<Buf
 		let row = startRow + 2;
 		for (const item of orderedSlots) {
 			if (item.type === 'break') {
-				const label = getBreakLabel(item.slot.eventName, item.slot.dayOfWeek);
+				const eventDay = resolveSpecialEventDay(item.slot.eventName, item.slot.dayOfWeek);
+				const label = getBreakLabel(item.slot.eventName);
 				const r = sheet.getRow(row);
-				r.getCell(1).value = label;
+				r.getCell(1).value = `${eventDay ? `${eventDay} — ` : ''}${label}`;
 				r.getCell(1).font = { bold: true };
-				band.forEach((_, col) => { r.getCell(col + 2).value = label; });
+				band.forEach((section, col) => {
+					r.getCell(col + 2).value = eventDay
+						? (section.gradeLevelId === undefined ? '' : label)
+						: label;
+				});
 				row++;
 			} else {
-				// Teacher row
-				const teacherRow = sheet.getRow(row);
-				teacherRow.getCell(1).value = `${formatTime12h(item.slot.startTime)}-${formatTime12h(item.slot.endTime)}`;
-				band.forEach((sec, col) => {
-					const dayEntries = collectDayEntries(entryGrid, sec.externalId, item.slot.startTime, item.slot.endTime);
-					teacherRow.getCell(col + 2).value = formatDayTaggedField(dayEntries, 'teacher');
-				});
-				row++;
+				for (const day of WEEKDAYS) {
+					const timeLabel = `${formatTime12h(item.slot.startTime)}-${formatTime12h(item.slot.endTime)} — ${day}`;
+					const teacherRow = sheet.getRow(row);
+					teacherRow.getCell(1).value = `${timeLabel} — TEACHER`;
+					band.forEach((sec, col) => {
+						const dayEntries = collectDayEntries(entryGrid, sec.externalId, item.slot.startTime, item.slot.endTime).filter((entry) => entry.day === day);
+						teacherRow.getCell(col + 2).value = [...new Set(dayEntries.map((entry) => entry.teacher).filter(Boolean))].join('\n');
+					});
+					row++;
 
-				// Subject row
-				const subjectRow = sheet.getRow(row);
-				subjectRow.getCell(1).value = '';
-				band.forEach((sec, col) => {
-					const dayEntries = collectDayEntries(entryGrid, sec.externalId, item.slot.startTime, item.slot.endTime);
-					subjectRow.getCell(col + 2).value = formatDayTaggedField(dayEntries, 'subject');
-				});
-				row++;
+					const subjectRow = sheet.getRow(row);
+					subjectRow.getCell(1).value = `${timeLabel} — SUBJECT`;
+					band.forEach((sec, col) => {
+						const dayEntries = collectDayEntries(entryGrid, sec.externalId, item.slot.startTime, item.slot.endTime).filter((entry) => entry.day === day);
+						subjectRow.getCell(col + 2).value = [...new Set(dayEntries.map((entry) => entry.subject).filter(Boolean))].join('\n');
+					});
+					row++;
+				}
 			}
 		}
 		rowCursor = row + 1;
+		if (bandIdx < bands.length - 1) (sheet as any).rowBreaks.push({ id: rowCursor, max: 16383, min: 0, man: 1 });
 	}
 
 	// C05 T5/M12 — reconciliation totals from the same selected-term entries the
@@ -926,12 +933,11 @@ export async function exportClassProgramWorkbook(options: ExportOptions): Promis
 			sectionRow.getCell(1).value = `GRADE ${gradeLevel} — SECTION: ${section.name}`;
 			sectionRow.getCell(1).font = { bold: true, size: 12 };
 			if (fillArgb) sectionRow.getCell(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: fillArgb } };
-			sectionRow.getCell(3).value = 'No. of Learners — MALE:';
+			sectionRow.getCell(3).value = 'MALE';
 			sectionRow.getCell(4).value = learnerCounts.get(section.externalId)?.male ?? '';
-			sectionRow.getCell(5).value = 'FEMALE:';
+			sectionRow.getCell(5).value = 'FEMALE';
 			sectionRow.getCell(6).value = learnerCounts.get(section.externalId)?.female ?? '';
-			sectionRow.getCell(7).value = 'TOTAL:';
-			sectionRow.getCell(8).value = learnerCounts.get(section.externalId)?.total ?? '';
+			sectionRow.getCell(7).value = `TOTAL: ${learnerCounts.get(section.externalId)?.total ?? ''}`;
 			rowCursor++;
 
 			const identityRow = sheet.getRow(rowCursor);
@@ -945,16 +951,15 @@ export async function exportClassProgramWorkbook(options: ExportOptions): Promis
 			headerRow.getCell(2).value = 'MINUTES';
 			WEEKDAYS.forEach((day, dayIndex) => { headerRow.getCell(dayIndex + 3).value = day; });
 			// C05 T4/M9 — unambiguous per-period teacher attribution column.
-			headerRow.getCell(8).value = 'TEACHER';
 			headerRow.font = { bold: true };
 			if (fillArgb) {
-				for (let column = 1; column <= 8; column += 1) {
+				for (let column = 1; column <= 7; column += 1) {
 					headerRow.getCell(column).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: fillArgb } };
 				}
 			}
 			rowCursor++;
 
-			let dailyTotalMinutes = 0;
+			const dailyMinutes = Object.fromEntries(WEEKDAYS.map((day) => [day, 0])) as Record<(typeof WEEKDAYS)[number], number>;
 			for (const item of orderedSlots) {
 				const row = sheet.getRow(rowCursor);
 				const startTime = item.slot.startTime;
@@ -981,8 +986,6 @@ export async function exportClassProgramWorkbook(options: ExportOptions): Promis
 						}
 					}
 				} else {
-					dailyTotalMinutes += Math.max(0, toMinutes(endTime) - toMinutes(startTime));
-					const dayEntries: GridEntry[] = [];
 					WEEKDAYS.forEach((day, dayIndex) => {
 						const cell = row.getCell(dayIndex + 3);
 						// A Monday-only Flag/HGP event occupies only Monday's cell; the
@@ -996,10 +999,10 @@ export async function exportClassProgramWorkbook(options: ExportOptions): Promis
 						if (!entry) { cell.value = ''; return; }
 						if (visibility === 'hidden' && entry.isSpecialization) { cell.value = ''; return; }
 						cell.value = entry.teacher ? `${entry.subject}\n${entry.teacher}` : entry.subject;
-						dayEntries.push(entry);
+						dailyMinutes[day] += entry.minutes;
 					});
-					row.getCell(8).value = formatDayTaggedField(dayEntries, 'teacher');
 				}
+				for (let column = 1; column <= 7; column += 1) row.getCell(column).border = { top: { style: 'thin' }, bottom: { style: 'thin' }, left: { style: 'thin' }, right: { style: 'thin' } };
 				rowCursor++;
 			}
 
@@ -1008,13 +1011,16 @@ export async function exportClassProgramWorkbook(options: ExportOptions): Promis
 			const totalsRow = sheet.getRow(rowCursor);
 			totalsRow.getCell(1).value = 'TOTAL MINUTES PER DAY';
 			totalsRow.getCell(1).font = { bold: true };
-			totalsRow.getCell(2).value = dailyTotalMinutes;
+			const weekTotalMinutes = WEEKDAYS.reduce((sum, day) => sum + dailyMinutes[day], 0);
+			totalsRow.getCell(2).value = weekTotalMinutes;
 			totalsRow.getCell(2).font = { bold: true };
-			WEEKDAYS.forEach((_, dayIndex) => {
-				totalsRow.getCell(dayIndex + 3).value = dailyTotalMinutes;
+			WEEKDAYS.forEach((day, dayIndex) => {
+				totalsRow.getCell(dayIndex + 3).value = dailyMinutes[day];
 				totalsRow.getCell(dayIndex + 3).font = { bold: true };
 			});
+			for (let column = 1; column <= 7; column += 1) headerRow.getCell(column).border = { top: { style: 'thin' }, bottom: { style: 'thin' }, left: { style: 'thin' }, right: { style: 'thin' } };
 			rowCursor += 2; // blank separator between sections
+			if (gradeSections.indexOf(section) < gradeSections.length - 1) (sheet as any).rowBreaks.push({ id: rowCursor, max: 16383, min: 0, man: 1 });
 		}
 
 		// C05 T4/M9 — approval block after each grade sheet. Unset names render as
@@ -1039,7 +1045,7 @@ export async function exportClassProgramWorkbook(options: ExportOptions): Promis
 			.join(', ') || '________________________';
 
 		applyLandscapePrintSetup(sheet);
-		sheet.pageSetup.printArea = `A1:H${rowCursor + 7}`;
+		sheet.pageSetup.printArea = `A1:G${rowCursor + 7}`;
 		sheet.pageSetup.printTitlesRow = `1:${EXPORT_HEADER_LAST_ROW}`;
 		sheet.pageSetup.margins = { left: 0.2, right: 0.2, top: 0.35, bottom: 0.35, header: 0.15, footer: 0.15 };
 	}
