@@ -94,7 +94,8 @@ repository, never in the target.
 `D:/ATLAS`, Codex-managed worktrees, `D:/ATLAS-runtime-config`, PostgreSQL storage, companion
 repositories, `stakeholderFiles`, or preservation/backup directories.
 
-**Retention policy for `D:/ATLAS-runtime-*` (operator decision 2026-09-23).** These are **not**
+**Retention policy for `D:/ATLAS-runtime-*` and `E:/ATLAS-runtime-*` (operator decisions 2026-09-23;
+`E:` added 2026-09-25).** The keep set below is counted across **both** volumes. These are **not**
 absolutely retained: they accumulated to ~46 GiB because no rule defined the required rollback
 depth, and routine hygiene ended up needing a one-off operator exception. **Keep** the live release,
 the two most recent accepted releases, the two named last-resort artifacts (the supervisor reset
