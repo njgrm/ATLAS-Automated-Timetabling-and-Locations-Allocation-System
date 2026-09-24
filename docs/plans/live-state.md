@@ -163,10 +163,11 @@ ATLAS teacher portal is removed. Plan + cycle queue:
 `docs/handoffs/planner-session-handoff.md` (2026-09-25).
 
 **Next action — browser acceptance only:** the deferred authenticated/two-viewport rows for `066da7a7`
-belong to the named acceptance owner **Lane B (Codex)** (browser custody); hand it the release SHA and the
-packet's rows (a)–(d); it records the result in the Live release block. Needs one operator-provided
-session (`LOCAL_LOGIN_SUCCESS` + `last_login_at`). Deployment rollback basis: `37e0c85b` (startable in
-place; additive migration). Nothing else remains in this stream.
+belong to the named acceptance owner **Lane B (Codex)** (browser custody); handoff:
+`docs/handoffs/lane-a-to-lane-b-c7-browser-acceptance-2026-09-25.md` (release SHA + rows (a)–(e)); it
+records the result in the Live release block. Needs one operator-provided session (`LOCAL_LOGIN_SUCCESS` +
+`last_login_at`). Deployment rollback basis: `37e0c85b` (startable in place; additive migration). Nothing
+else remains in this stream.
 
 **Dated blockers / open residuals (verify before acting):**
 - C7 DEPLOYED 2026-09-25 (`066da7a7` LIVE; migration `20260925000002_faculty_availability` applied
