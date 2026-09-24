@@ -535,6 +535,44 @@ test('mounted teacher-program.docx returns a real DOCX for a same-school actor w
 	assert.equal(calls.some((call) => WRITE_METHODS.has(call.method)), false, 'route must perform zero writes');
 });
 
+test('mounted print-options returns same-run selected-term searchable entities with zero writes', { skip: harnessSkip }, async () => {
+	calls.length = 0;
+	const response = await fetch(`${baseUrl}/api/v1/generation/${SCHOOL_ID}/${SCHOOL_YEAR_ID}/runs/${RUN_ID}/print-options?termIndex=1`, {
+		headers: { Authorization: `Bearer ${authToken(SCHOOL_ID)}` },
+	});
+	assert.equal(response.status, 200);
+	const options = await response.json() as any;
+	assert.equal(options.runId, RUN_ID);
+	assert.equal(options.termIndex, 1);
+	assert.deepEqual(options.grades.map((item: any) => item.value), [7]);
+	assert.deepEqual(options.sections.map((item: any) => item.value), [701]);
+	assert.deepEqual(options.teachers.map((item: any) => item.value), [501, 502]);
+	assert.deepEqual(options.rooms.map((item: any) => item.value), [601, 602]);
+	assert.equal(calls.some((call) => WRITE_METHODS.has(call.method)), false);
+});
+
+test('mounted multi-entity print ZIP validates the complete set before rendering and emits one archive', { skip: harnessSkip }, async () => {
+	const headers = { Authorization: `Bearer ${authToken(SCHOOL_ID)}`, 'Content-Type': 'application/json' };
+	calls.length = 0;
+	const invalid = await fetch(`${baseUrl}/api/v1/generation/${SCHOOL_ID}/${SCHOOL_YEAR_ID}/runs/${RUN_ID}/print-schedules.zip`, {
+		method: 'POST', headers, body: JSON.stringify({ termIndex: 1, program: 'room', ids: [601, 999] }),
+	});
+	assert.equal(invalid.status, 404);
+	assert.equal(invalid.headers.get('content-disposition'), null);
+	assert.equal(calls.some((call) => WRITE_METHODS.has(call.method)), false);
+
+	calls.length = 0;
+	const valid = await fetch(`${baseUrl}/api/v1/generation/${SCHOOL_ID}/${SCHOOL_YEAR_ID}/runs/${RUN_ID}/print-schedules.zip`, {
+		method: 'POST', headers, body: JSON.stringify({ termIndex: 1, program: 'room', ids: [601, 602] }),
+	});
+	assert.equal(valid.status, 200);
+	assert.match(String(valid.headers.get('content-type')), /application\/zip/);
+	assert.match(String(valid.headers.get('content-disposition')), /room-programs-SY2026-2027-term1\.zip/);
+	const archive = Buffer.from(await valid.arrayBuffer());
+	assert.equal(archive.subarray(0, 2).toString('ascii'), 'PK');
+	assert.equal(calls.some((call) => WRITE_METHODS.has(call.method)), false);
+});
+
 test('mounted teacher-program.docx fails closed without a term and across schools', { skip: harnessSkip }, async () => {
 	calls.length = 0;
 	const noTerm = await fetch(`${baseUrl}/api/v1/generation/${SCHOOL_ID}/${SCHOOL_YEAR_ID}/runs/${RUN_ID}/export/teacher-program.docx?facultyId=501`, {

@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import test from 'node:test';
 
-import { resolveTimetableRouteForView, resolveTimetableRouteView, resolveUrlRestoreTarget } from '../TimetableRouteViewSync';
+import { resolveLegacyExportsRedirect, resolveTimetableRouteForView, resolveTimetableRouteView, resolveUrlRestoreTarget } from '../TimetableRouteViewSync';
 import { resolveRouteChrome } from '../../app-shell/navigation';
 
 const clientRoot = resolve(import.meta.dirname, '../../../..');
@@ -14,6 +14,15 @@ function source(path: string): string {
 function lineCount(path: string): number {
 	return source(path).split('\n').length;
 }
+
+test('legacy exports URL redirects to the schedule shell, opens print, and preserves every existing query field and hash', () => {
+	assert.equal(
+		resolveLegacyExportsRedirect('/timetable/exports', '?runId=317&termIndex=2&entity=teacher%3A502&filter=all', '#grid'),
+		'/timetable?runId=317&termIndex=2&entity=teacher%3A502&filter=all&print=1#grid',
+	);
+	assert.equal(resolveTimetableRouteView('/timetable/exports'), 'schedule');
+	assert.equal(resolveLegacyExportsRedirect('/timetable/exports', '?print=0&termIndex=3', ''), '/timetable?print=1&termIndex=3');
+});
 
 // --- Row 1: routes exist (index + policies share one mounted shell) ---
 
