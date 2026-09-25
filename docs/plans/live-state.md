@@ -220,7 +220,7 @@ resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs
 ## Decisions awaited (operator-facing, as of 2026-09-25)
 
 - Give `37e0c85b` (acceptance owner: Lane B / Codex) and the C7 target an authenticated session (see `AGENTS.md` §12).
-- `E:` reclaim C is **complete (2026-09-25)**: audited removal of `82871619` and `ff87b06b` freed 3.07 GiB; E: is 47.80 GiB free, still below the 50 GiB warning but above the 25 GiB fail-closed line. The §3 reclaim obligation is discharged for the `861d89a2` build; do not loop another reclaim for the same trigger.
+- `E:` reclaim C is **complete (2026-09-25)**: audited removal of `82871619` and `ff87b06b` freed 3.07 GiB; post-action E: was 47.80 GiB free and the current recheck is 49.55 GiB, still below the 50 GiB warning but above the 25 GiB fail-closed line. The §3 reclaim obligation is discharged for the `861d89a2` build; do not loop another reclaim for the same trigger.
 - Keep or delete two unlanded code branches (both pushed): `work/public-published-view-term-merge-c01`,
   `work/timetable-live-term-authority-c01`.
 
@@ -296,8 +296,8 @@ publication transactions, threads one term through preflight and snapshots, pres
 the network out of Serializable/advisory locks. It is not deployed; no migration or live-data action occurred.
 
 **Next action (2026-09-25):** deployment packet `deploy-861d89a2-active-term-c02-2026-09-25.md` is corrected at
-`b7cd0ea6`; retention reclaim C is `ACCEPT_READY` and capacity is rechecked at 47.80 GiB free. A fresh
-pre-action packet review is still required before the standing-authorized cutover; generation, publication, and
+`01b0a62f`; retention reclaim C is `ACCEPT_READY` and the current capacity recheck is 49.55 GiB free. A fresh
+confirming packet review is still required before the standing-authorized cutover; generation, publication, and
 live-data actions remain separately gated.
 
 **Dated decisions / residuals (verify before acting):**
