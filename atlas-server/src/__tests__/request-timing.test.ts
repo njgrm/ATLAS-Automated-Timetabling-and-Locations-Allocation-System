@@ -12,6 +12,18 @@
  *      naming the request that was active during the block (by route pattern)
  *   T4 a stall with no request in flight is reported as background work
  *   T5 the monitor's timer never keeps the process alive, and stop() is idempotent
+ *
+ * LANE-C SERVER-STALL-C01 — the live e8553752/89295c27 logs (2026-09-25) showed
+ * every stall line filled by open notification SSE streams (running for hours),
+ * with the request that actually blocked hidden behind "+7 more", and
+ * `inFlight=18` counting those streams as pending work:
+ *
+ *   T7 open event streams never crowd the active list: the short-lived request
+ *      active during the block is named, streams are reported as a count
+ *   T8 streams are excluded from a slow-request line's inFlight, and a stream
+ *      closing after hours never logs itself as a slow request
+ *   T9 a stall line carries the V8 heap in use and its limit, so a GC pause is
+ *      distinguishable from handler CPU work
  */
 import assert from 'node:assert/strict';
 import type { AddressInfo } from 'node:net';
@@ -142,4 +154,57 @@ test('T5 the monitor timer is unref-ed and stop() is idempotent', () => {
 	assert.equal(timing.start(), timer, 'a second start() reuses the running monitor');
 	timing.stop();
 	timing.stop();
+});
+
+function openStream(res: express.Response) {
+	res.setHeader('Content-Type', 'text/event-stream');
+	res.flushHeaders();
+	res.write('retry: 2000\n\n');
+}
+
+test('T7/T8/T9 open event streams do not hide the blocking request or inflate inFlight', async () => {
+	const lines: string[] = [];
+	const timing = createRequestTiming({ slowRequestMs: 50, stallMs: 150, sampleIntervalMs: 20, log: (line) => lines.push(line) });
+	const app = express();
+	app.use(timing.middleware);
+	app.get('/api/v1/notifications/:schoolId/:schoolYearId/events', (_req, res) => {
+		openStream(res);
+	});
+	app.get('/api/v1/generation/:schoolId/:schoolYearId/readiness/diagnostic', async (_req, res) => {
+		await new Promise((resolve) => setTimeout(resolve, 20));
+		busyWait(300);
+		res.json({ ok: true });
+	});
+	timing.start();
+	const controllers: AbortController[] = [];
+	try {
+		await withServer(app, async (base) => {
+			// Nine streams: more than the eight entries a stall line lists.
+			for (let i = 0; i < 9; i += 1) {
+				const controller = new AbortController();
+				controllers.push(controller);
+				await fetch(`${base}/api/v1/notifications/1/10/events`, { signal: controller.signal });
+			}
+			await new Promise((resolve) => setTimeout(resolve, 80));
+			await fetch(`${base}/api/v1/generation/1/10/readiness/diagnostic`);
+			await new Promise((resolve) => setTimeout(resolve, 60));
+			for (const controller of controllers) controller.abort();
+			await new Promise((resolve) => setTimeout(resolve, 60));
+		});
+	} finally {
+		timing.stop();
+	}
+
+	const stalls = lines.filter((line) => line.startsWith('[event-loop-stall]'));
+	assert.equal(stalls.length, 1, `expected one stall line, got ${JSON.stringify(lines)}`);
+	assert.match(stalls[0], /active: GET \/api\/v1\/generation\/:n\/:n\/readiness\/diagnostic \(done, \d+ms\)/);
+	assert.doesNotMatch(stalls[0], /notifications/, 'streams must be counted, not listed');
+	assert.doesNotMatch(stalls[0], /more/, 'nothing may be elided when only one request was active');
+	assert.match(stalls[0], /; streams=9$/);
+	assert.match(stalls[0], /^\[event-loop-stall\] blocked ~\d+ms heap=\d+\/\d+MB; active: /);
+
+	const slow = lines.filter((line) => line.startsWith('[slow-request]'));
+	assert.equal(slow.length, 1, `streams must never log as slow requests, got ${JSON.stringify(slow)}`);
+	assert.match(slow[0], /^\[slow-request\] GET \/api\/v1\/generation\/:n\/:n\/readiness\/diagnostic 200 \d+ms inFlight=0 streams=9$/);
+	assert.equal(timing.inFlightCount(), 0, 'closed streams leave nothing in flight');
 });

@@ -102,9 +102,11 @@ resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs
   `EXTERNALLY_BLOCKED(AUTH_SESSION_REQUIRED)`; the planner accepted the structural zero-write proof (preview
   returns before any create/update/delete; caller asserts the preview outcome) plus the 401 gate control; no
   BLOCKING finding. **Rollback basis: `e475c673e85fc8ca5a1bb055a7ff1819094b7d41`** at
-  `E:\ATLAS-runtime-supervised-e475c673-20260925`. **Acceptance PARTIAL — owner: Lane B (Codex)**; browser rows
-  are in the Risks sections of `docs/handoffs/lane-c-post-publish-c01.md`,
-  `lane-c-teaching-load-clarity-c02.md` and `lane-c-schedule-clarity-c03.md`.
+  `E:\ATLAS-runtime-supervised-e475c673-20260925`. **Browser acceptance run 2026-09-25 by Lane C (reassigned
+  by the operator): passed 10 / blocked 1 / unperformed 0 / NEEDS_SESSION 0**, including row 5d (authenticated
+  zero-write, API level). Blocked: C3-1 (no free slot exists in the live data). Four NON_BLOCKING findings
+  (F1 suspect swap-preview clash, F2 Draft prompt leak, F3 swap panel stays open, F4 EnrollPro 4 s timeout). Evidence:
+  `docs/handoffs/lane-c-browser-acceptance-e8553752-2026-09-25.md`.
 - **Release SHA: `e475c673`** (rollback basis; previously LIVE 2026-09-25; `E:\ATLAS-runtime-supervised-e475c673-20260925`;
   supervisor-owned 5001→81040 / 5174→82788; health/ready (`database:"ok"`) + DB-backed read + Tailnet 200;
   served entry `assets/index-B6GQrEV1.js` (SHA-256 `A90EA8DB…`, byte-identical to the build) and CSS
@@ -224,12 +226,26 @@ independent startup run (build, Node bound isolated 5198, unauthenticated previe
 `1b371ba`, 914/929); candidate tests 8/8, 12/12, 21/21; server `tsc` exit 0, Node started `dist/server.js` on
 isolated 5198 (health 200, preview 401, stopped); client `vite build` with `VITE_ENROLLPRO_URL` exit 0.
 
-**Next action:** Lane A deploys the `main` tip carrying this line (client + server; no migration). Browser
-acceptance owner: **Lane B (Codex)**, rows in the Risks sections of `docs/handoffs/lane-c-post-publish-c01.md`,
-`lane-c-teaching-load-clarity-c02.md` and `lane-c-schedule-clarity-c03.md`.
+**C1–C3 LIVE 2026-09-25** in `e8553752` (Live release block). **Browser acceptance run 2026-09-25 by local Lane
+C: 10 / 1 blocked (C3-1, no free slot in the data) / 0 / 0**
+(`docs/handoffs/lane-c-browser-acceptance-e8553752-2026-09-25.md`). Open from it (2026-09-25): **F1** swap preview
+reports a section double-booking for Tue MATH ↔ Thu ENG in GR7 Luna (suspected rotating-term false positive; needs
+a failing-first test); F2 placement prompt leaks into Draft; F3 swap side panel stays open after Cancel.
 
-**Open (2026-09-25):** read the stall lines once a release containing `a5550fa6` is live (`89295c27` is), then fix
-the roughly 8 s `/timetable` stall; A3, 0 class advisers, needs a read-only EnrollPro check.
+**Current stream: server stall** (audit finding 5). Evidence read 2026-09-25
+(`docs/handoffs/lane-a-to-lane-c-stall-evidence-2026-09-25.md`): the loop **is** blocked (peak ~7.7 s); pool
+exhaustion ruled out; the blocking request was hidden by open SSE streams filling the stall line. Candidate
+**SERVER-STALL-C01 `c198cd9`** on `work/epic-galileo-cw0swp` (streams counted not listed, `heap=` on stall
+lines; diagnostics only) — handoff `docs/handoffs/lane-c-server-stall-c01.md`. QA `ACCEPT_READY` 5/0/0 (2026-09-25). **Next action:**
+integrate, ship with the next release; then read the stall lines after ≥ 2 h (owner Lane A, host) and open the
+root-cause fix. Separately, `runtime/context` ~4.1 s matches the 4000 ms EnrollPro upstream timeout — needs one
+read-only timed call to the EnrollPro integration endpoints on the host.
+
+**Open (2026-09-25):** retire the integrated Lane C worktrees on the host (list in the planner handoff; a cloud
+session has no `E:`); delete the merged remote branch `claude/wonderful-sagan-nhz302` (the cloud proxy/classifier
+refused it); `work/wonderful-sagan-nhz302` is **not** stale — its commit `9f04d4f` is merged into
+`work/epic-galileo-cw0swp`; delete it after that integrates. A3, 0 class advisers, needs a read-only
+EnrollPro check. E: at 49.91 GiB (below the 50 GiB warn) — release-directory reclaim before the next build.
 
 ## Lane A — current lane (written only by Lane A)
 

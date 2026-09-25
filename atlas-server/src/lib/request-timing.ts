@@ -1,4 +1,5 @@
 import type { NextFunction, Request, Response } from 'express';
+import { getHeapStatistics } from 'node:v8';
 
 /**
  * LANE-C SERVER-TIMING-C01 — slow-request and event-loop-stall diagnostics.
@@ -8,13 +9,20 @@ import type { NextFunction, Request, Response } from 'express';
  * client cannot attribute. Two log lines name it from the supervisor log:
  *
  *   [slow-request] GET /api/v1/sections/summary/:n 200 7285ms inFlight=6
- *   [event-loop-stall] blocked ~6700ms; active: GET /api/v1/... (done, 6912ms), GET /api/v1/... (running 812ms)
+ *   [event-loop-stall] blocked ~6700ms heap=412/4144MB; active: GET /api/v1/... (done, 6912ms), GET /api/v1/... (running 812ms); streams=15
  *
  * A stall line lists every request active during the blocked window (a block is
  * only observable after it ends, so the culprit usually shows as "done");
  * "active: none (background work)" points at timers such as rollover automation.
  * Lines carry the request path with numeric ids and long opaque segments masked —
  * never query strings, bodies, headers or tokens.
+ *
+ * SERVER-STALL-C01: open `text/event-stream` responses (notification SSE) stay
+ * "running" for hours by design. They are counted as `streams=N`, never listed
+ * as active work, counted in `inFlight`, or logged as slow requests — on the
+ * live logs they filled every stall line and hid the request that blocked. A
+ * stall line also carries `heap=<used>/<limit>MB` so a GC pause can be told
+ * apart from handler CPU work.
  */
 
 export type TimingLogger = (line: string) => void;
@@ -33,6 +41,7 @@ interface InFlightRequest {
 	method: string;
 	path: string;
 	startedAt: number;
+	res: Response;
 }
 
 interface FinishedRequest {
@@ -43,6 +52,17 @@ interface FinishedRequest {
 }
 
 const MAX_LISTED_ACTIVE = 8;
+const MB = 1024 * 1024;
+
+function isEventStream(res: Response): boolean {
+	const type = res.getHeader('content-type');
+	return typeof type === 'string' && type.startsWith('text/event-stream');
+}
+
+function heapSummary(): string {
+	const { used_heap_size: used, heap_size_limit: limit } = getHeapStatistics();
+	return `heap=${Math.round(used / MB)}/${Math.round(limit / MB)}MB`;
+}
 const RECENT_FINISHED_CAPACITY = 64;
 
 /**
@@ -80,18 +100,21 @@ export function createRequestTiming(options: RequestTimingOptions = {}) {
 		const id = nextId++;
 		const startedAt = performance.now();
 		const path = maskedPath(req);
-		inFlight.set(id, { method: req.method, path, startedAt });
+		inFlight.set(id, { method: req.method, path, startedAt, res });
 		let settled = false;
 		const settle = () => {
 			if (settled) return;
 			settled = true;
 			inFlight.delete(id);
+			if (isEventStream(res)) return;
 			const finishedAt = performance.now();
 			const elapsed = finishedAt - startedAt;
 			recentFinished.push({ method: req.method, path, startedAt, finishedAt });
 			if (recentFinished.length > RECENT_FINISHED_CAPACITY) recentFinished.shift();
 			if (elapsed >= slowRequestMs) {
-				log(`[slow-request] ${req.method} ${path} ${res.statusCode} ${Math.round(elapsed)}ms inFlight=${inFlight.size}`);
+				const { requests, streams } = partitionInFlight();
+				const streamSuffix = streams > 0 ? ` streams=${streams}` : '';
+				log(`[slow-request] ${req.method} ${path} ${res.statusCode} ${Math.round(elapsed)}ms inFlight=${requests.length}${streamSuffix}`);
 			}
 		};
 		res.on('finish', settle);
@@ -99,17 +122,30 @@ export function createRequestTiming(options: RequestTimingOptions = {}) {
 		next();
 	}
 
+	/** In-flight requests, with open event streams split out as a count. */
+	function partitionInFlight(): { requests: InFlightRequest[]; streams: number } {
+		const requests: InFlightRequest[] = [];
+		let streams = 0;
+		for (const entry of inFlight.values()) {
+			if (isEventStream(entry.res)) streams += 1;
+			else requests.push(entry);
+		}
+		return { requests, streams };
+	}
+
 	/** Requests running at any point in `[windowStart, at]`: still in flight, or finished inside the window. */
 	function describeActive(windowStart: number, at: number): string {
+		const { requests, streams } = partitionInFlight();
 		const active = [
 			...recentFinished
 				.filter((entry) => entry.finishedAt >= windowStart)
 				.map((entry) => `${entry.method} ${entry.path} (done, ${Math.round(entry.finishedAt - entry.startedAt)}ms)`),
-			...[...inFlight.values()].map((entry) => `${entry.method} ${entry.path} (running ${Math.round(at - entry.startedAt)}ms)`),
+			...requests.map((entry) => `${entry.method} ${entry.path} (running ${Math.round(at - entry.startedAt)}ms)`),
 		];
-		if (active.length === 0) return 'none (background work)';
+		const streamSuffix = streams > 0 ? `; streams=${streams}` : '';
+		if (active.length === 0) return `none (background work)${streamSuffix}`;
 		const more = active.length > MAX_LISTED_ACTIVE ? `, +${active.length - MAX_LISTED_ACTIVE} more` : '';
-		return `${active.slice(0, MAX_LISTED_ACTIVE).join(', ')}${more}`;
+		return `${active.slice(0, MAX_LISTED_ACTIVE).join(', ')}${more}${streamSuffix}`;
 	}
 
 	/** Starts the stall monitor. Its timer never keeps the process alive. */
@@ -122,7 +158,7 @@ export function createRequestTiming(options: RequestTimingOptions = {}) {
 			expected = now + sampleIntervalMs;
 			if (lag >= stallMs) {
 				const windowStart = now - lag - sampleIntervalMs;
-				log(`[event-loop-stall] blocked ~${Math.round(lag)}ms; active: ${describeActive(windowStart, now)}`);
+				log(`[event-loop-stall] blocked ~${Math.round(lag)}ms ${heapSummary()}; active: ${describeActive(windowStart, now)}`);
 			}
 		}, sampleIntervalMs);
 		monitor.unref();
