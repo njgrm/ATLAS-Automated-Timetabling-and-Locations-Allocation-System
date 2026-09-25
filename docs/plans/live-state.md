@@ -205,11 +205,19 @@ ATLAS teacher portal is removed. Plan + cycle queue:
 `docs/plans/teacher-concern-authority-plan-2026-09-24.md`. Full cycle narrative:
 `docs/handoffs/planner-session-handoff.md` (2026-09-25).
 
-**Next action — deploy + re-run acceptance:** deploy the current tip (carries `SERVER-TIMING-C01`, the
-scheduler-clarity client copy, and the C1 active-term fix) with **no migration**, then re-run the deferred
-C7 browser rows (owner **Lane B (Codex)**; handoff
-`docs/handoffs/lane-a-to-lane-b-c7-browser-acceptance-2026-09-25.md`). The `b6687fee`/`89295c27`
-client-copy rows (audit findings 2, 3, 4, 6, 7 still open) ride the same acceptance.
+**Next action — finish browser acceptance (Lane A, custody transferred):** `ff87b06b` is LIVE with the C1
+active-term fix; post-action QA `ACCEPT_READY` 8/8. Lane A's seeded-session pass (2026-09-25) **cleared the
+C7 blocker**: `/faculty/concerns` GET 200 and **PUT 200 with `termIndex 2` (`status: DRAFT`, v1) — no
+`409 TERM_SCOPE_MISMATCH`** (UI "Draft Term 2 · v1"). D6 removal **PASS**: all three `/my/*` routes
+redirect to `/`, `/my`, `/faculty/concerns`, `/faculty/preferences`, `/faculty/room-preferences` resolve,
+desktop nav clean, zero console errors. The availability-domain drift is shown ("Teacher availability
+changed since this run was generated"). Outstanding for a structured pass: the seven-domain map + explicit
+"Regenerate to apply" on `/timetable` (the current run is published, so the affordance is not on the
+surface), the published view-only state, D6 mobile bottom-nav detail, and audit findings 2/3/4/6/7
+(2 likely addressed — no Generate button on the published view; 3 mostly — 20/21 warning triangles carry
+an accessible name, 1 unlabelled; 4 still open — 12 px text present; 6/7 need the draft+published
+structured pass). Disclosed UI mutation: one `DRAFT` availability (faculty 1 / year 10 / term 2, v1, zero
+slots) created by the save — test data, no delete route, harmless.
 
 **Dated blockers / open residuals (verify before acting):**
 - C7 (`066da7a7`) **acceptance INCOMPLETE** — `0/1/3/0`; **BLOCKED (b)** on `409 TERM_SCOPE_MISMATCH`
