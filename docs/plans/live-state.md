@@ -209,7 +209,7 @@ resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs
 ## Decisions awaited (operator-facing, as of 2026-09-25)
 
 - Give `37e0c85b` (acceptance owner: Lane B / Codex) and the C7 target an authenticated session (see `AGENTS.md` §12).
-- `E:` reclaim C is **complete (2026-09-25)**: audited removal of `82871619` and `ff87b06b` freed 3.07 GiB; post-action E: was 47.80 GiB free and the current recheck is 49.55 GiB, still below the 50 GiB warning but above the 25 GiB fail-closed line. The §3 reclaim obligation is discharged for the `861d89a2` build; do not loop another reclaim for the same trigger.
+- `E:` reclaim C is **complete (2026-09-25)**: audited removal of `82871619` and `ff87b06b` freed 3.07 GiB; post-action E: was 47.80 GiB free. The §3 reclaim obligation is discharged for the `861d89a2` build only; do not re-run `20260925c` (it is closed at `ACCEPT_READY` 17/17). A **new** release build re-triggers the obligation while E: is below the 50 GiB warning: measured **47.45 GiB free on E: and 60.67 GiB on D: on 2026-09-26** (the earlier "49.55 GiB" figure here was stale and is superseded), both above the fail-closed lines. The `9f42190e` release build therefore requires successor reclaim `20260926a` (retire `ad8f9717`) or a dated one-build operator deviation — see `docs/prompts/deploy-9f42190e-draft-ux-c01-2026-09-26.md` step 2.
 - Keep or delete two unlanded code branches (both pushed): `work/public-published-view-term-merge-c01`,
   `work/timetable-live-term-authority-c01`.
 
@@ -240,11 +240,67 @@ merges). Candidate `1670a611`, QA (Opus) `ACCEPT_READY` S1-S6 6/6, client-suite 
 fail with the same names. Packet `docs/prompts/lane-c-draft-ux-c01-2026-09-25.md`; handoff
 `docs/handoffs/lane-c-draft-ux-2026-09-26.md`. Client-only; no migration.
 
-**Wait (as of 2026-09-26): release.** Operator chose **sequential** releases: the `861d89a2` cutover (other lane's
-packet) first, then `docs/prompts/deploy-9f42190e-draft-ux-c01-2026-09-26.md` (HIGH, explicit operator approval;
-rollback basis `861d89a2`). E: 50 GiB free after retiring worktrees `lane-c-draft-ux-c01`, `-int`, `-docs` (clean,
-merged, no reparse/borrower; health + subjects 200) — still at the warning line; reclaim first. After the
-release: D1 rows + QA NON_BLOCKING 1-2 via `atlas-browser-qa` on Claude in Chrome at 1366x768 and 390x844.
+**Sequential-release decision (operator, 2026-09-26) — SUPERSEDED IN PART, retained as the standing order.**
+The `861d89a2` cutover ran first and is **DEPLOYED with post-action QA `ACCEPT_READY` 8/8/0/0**. What
+remains of the decision is: `docs/prompts/deploy-9f42190e-draft-ux-c01-2026-09-26.md` (HIGH, explicit
+operator approval; rollback basis `861d89a2`) runs only after that, and its D1 rows + QA NON_BLOCKING 1-2
+are run by `atlas-browser-qa` on Claude in Chrome at 1366x768 and 390x844. E: was 50 GiB free after
+retiring worktrees `lane-c-draft-ux-c01`, `-int`, `-docs` (clean, merged, no reparse/borrower; health +
+subjects 200) — still at the warning line, so reclaim first (now specified as successor reclaim
+`20260926a`; see the decisions-awaited entry). Deployment of `9f42190e` is additionally **held** by the
+operator's 2026-09-26 instruction because another opencode planner may be deploying the same release.
+
+**Custody (2026-09-26, operator):** Lane C is held by the opencode primary-planner session from this date;
+the former Lane C (Claude Code) stream is closed with its commits integrated. The 9f42190e packet is
+corrected at `0ecf4778` but **still unapproved** — see the deploy-gate paragraph below.
+
+**Timetable UX audit complete (2026-09-26):** artifact
+`docs/reviews/timetable-ux-audit-20260926/audit.md` (read-only, two independent lanes, planner-adjudicated;
+no browser/DB/network). Framing fact: audited against `0ecf4778`, which already contains `9f42190e`, so
+**every finding survives the pending deploy** — this is the next cycle's work, not the current fix's.
+Verdict: the *act* half of the workflow is strong (preview-before-save, reasons on every disabled
+control, real destinations behind every blocker action, honest fail-closed term gate); the *diagnose*
+half is not. **10 blocking findings**, led by (1) **generation-blocked is a dead end** — the header says
+"Review the item shown", no item is ever rendered, and `/timetable/setup`'s "Review readiness" opens the
+*publication* sheet, which for a run-less year says "No timetable generated yet"; (2) the repair banner
+always states "**0 sessions affected**" because `groupCount` is hard-coded at its only producer, above
+"cannot test slots until this is resolved", and a test asserting only the *string* keeps it green;
+(3) one HARD problem has **four names** (`Must fix`/`Blocked`/`blocker`/`hard`) and three different
+"hard" numbers, undeclared; (5) a term-scoped `Unassigned sessions (0)` sits beside a run-wide
+`2 unresolved sessions`; (6) **drift suppresses the term-authority notice**, a §7 invariant defect; (7)
+the unassigned evidence surface is dead code, so `Still blocked`/`Ready to place` and the plain "Why
+blocked" sentence are unreachable. Systemic: the dominant test pattern here is source-text regex
+assertion, which cannot catch a wrong value, a count mismatch, or an unmounted component — findings
+2/5/7/10 all survive a fully green suite. Also recorded: the ≤6 header cap is asserted only in tests and
+the drift state already renders 8; the Expert header shows ~20 controls. 15 items are marked **protect
+this** (one-primary rule, consequence-stating severity signs, scope disclosure, all-term export refusal,
+the term predicates, expert tooling honestly labelled). Proposed cycles C1–C5 in the artifact, **not
+dispatched**.
+
+**Next action (2026-09-26):** hold deployment. Two operator decisions outstanding before C1 source
+writes: (a) **custody boundary** — the lane map gives the client timetable surface to Lane A (opencode),
+so C1–C5 overlap it and need an explicit disjoint slice; (b) **finding 8** — restoring visible labels to
+the view-type and entity pickers reverses a deliberately accepted DRAFT-UX-C01 contract
+(`draft-ux-c01.test.tsx:410-425`) and is the operator's call, not the planner's.
+
+**Deploy gate state (2026-09-26, planner):** the `861d89a2` cutover is **DEPLOYED with post-action QA
+`ACCEPT_READY` 8/8/0/0**, so this packet's ordering precondition is **satisfied** (scheduled task action
+reads `E:\ATLAS-runtime-supervised-861d89a2-20260925\ops\runtime\cli.mjs start`, `Running`, last run
+2026-09-26 01:27). One fresh read-only `atlas_qa` pre-action pass over range `861d89a2...9f42190e` plus the
+packet's satisfiability lint returned **`CORRECTION_REQUIRED` 11/18, blocked 0, unperformed 1**: the source
+range is **clean and exactly as described** (30 client files / +1606 / −456, `atlas-client/package.json`
+test-scripts-only, no server/Prisma/migration/lockfile, no authority expansion, max component 943/1000 lines,
+all 16 changed test files gate-reachable, 17-failure set faithfully base-reproduced) and all six blocking
+findings were **documentation-only defects in the packet**, applied by the planner as one bounded docs-only
+commit per §11 (no executor, no re-review): step 2 named a **closed** reclaim artifact while the §3
+obligation was live for this new build (successor reclaim `20260926a` now specified); gate 3 would have
+recorded a **false liveness claim** in the `## Live release` block; gate 1 named the undispatchable
+`atlas-reviewer-high`; D1-N2's stated term-axis mechanism was **refuted** by
+`useScheduleReviewWorkspaceState.ts:1953` (the real residual is the program/entry-kind/reason axis); the §13
+D1 acceptance owner was unnamed; and the D1 draft run/term premise is now re-derived in a new step 1a.
+**Not approved. Two operator decisions outstanding:** (1) successor reclaim `20260926a` vs a dated one-build
+§3 deviation; (2) whether D1 is staffed by `atlas-browser-qa` before approval, else the release is recorded
+`DEPLOYED_ACCEPTANCE_INCOMPLETE` with the owner named.
 
 **Open (2026-09-25):** EnrollPro unreachable from the host — Tailscale `dev-jegs` offline since ~19:40 local;
 `runtime/context`/`sections/summary` wait the 4 s timeout (not a loop block). F1–F3
