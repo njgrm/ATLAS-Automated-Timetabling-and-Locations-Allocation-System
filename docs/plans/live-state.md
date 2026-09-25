@@ -276,15 +276,18 @@ DRAFT availability for faculty 1 / year 10 / term 2 / v1 with zero slots.
 
 **Deployment outcome (2026-09-25):** operator-approved `eb0e3038` cutover is **DEPLOYED**. Post-action QA passed
 Q1/Q2/Q3/Q5/Q6/Q7; Q4/Q6 evidence review is `ACCEPT_READY` **2/2/0/0** after the operator-seeded session produced
-the required cold/warm pair. The first browser acceptance incident for c5 and the successful R1 pixel pass remain
-preserved in `docs/handoffs/lane-a-browser-acceptance-c5e167d7-2026-09-25.md` and
-`docs/handoffs/lane-a-browser-acceptance-c5e167d7-r1-2026-09-25.md`. The deployment handoff is
+the required cold/warm pair. Lane C recorded A1 at 2026-09-25 15:11Z: two tracked `/timetable` reloads returned
+readiness 200 with zero console errors; the log window had no readiness `[slow-request]`, no readiness stall, and
+zero `[hybrid-scheduler]` lines, so the stall criterion passed. The `scheduler.cached` response field was
+**unperformed** because the Chrome tool exposed no response body. The first browser acceptance incident for c5 and
+the successful R1 pixel pass remain preserved in `docs/handoffs/lane-a-browser-acceptance-c5e167d7-2026-09-25.md`
+and `docs/handoffs/lane-a-browser-acceptance-c5e167d7-r1-2026-09-25.md`. The deployment handoff is
 `docs/handoffs/deploy-eb0e3038-2026-09-25.md`; six-table zero-write digests match, focused controls pass, and no
-migration occurred. A1 is unlocked and pending with Lane C.
+migration occurred.
 
-**Next action (2026-09-25):** Lane C takes the supervisor-log cursor and performs A1's two warm `/timetable` reloads;
-both readiness responses must be cached and neither may add a readiness-attributable event-loop stall. No further
-Q4 call is permitted because the cold cache is already consumed.
+**Next action (2026-09-25):** Lane C's server-stall stream is closed on the stall criterion. If the operator requires
+the `scheduler.cached` field itself, run one bounded body-readable read; otherwise no further Q4/A1 browser work is
+required.
 
 **Dated decisions / residuals (verify before acting):**
 - **F7 remains deliberately rejected (2026-09-25):** daily tools stay under More so the header remains compact;
