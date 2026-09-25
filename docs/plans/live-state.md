@@ -616,9 +616,48 @@ capacity is 47.23 GiB E: / 60.67 GiB D:, and the next build requires a fresh suc
 live in the isolated `116a7658` target. Handoffs: `docs/handoffs/published-term-and-drift-followup-c01-2026-09-26.md`
 and `docs/handoffs/deploy-116a7658-f1-f2-2026-07-26.md`.
 
-**Next action (2026-09-26):** no Lane A source or deployment task remains. Keep `116a7658` live, `861d89a2`
-as rollback, and `5c100ea6` as donor. The next `9f42190e` build requires a fresh successor reclaim/audit;
-client-suite gate debt, F1 422 mapping, and provider-memo residuals remain separate follow-ups.
+**J2/J3 RECONCILED and INTEGRATED (2026-09-26) — the Lane A/Lane C collision is CLOSED.** Lane C integrated
+its J2 `9f232cec` + D2 `1ccdf4dd` as `4c76208d`; this lane rebased Lane A's `98289573` onto it under Lane C's
+corrected reconciliation map as merge `996b1b8b`, resolving all 6 conflicts. Fresh independent QA returned
+`CORRECTION_REQUIRED` **18/20/0/0** with one BLOCKING finding — **B1**: an unmapped rule code degraded to a
+de-snake-cased engine token (`"faculty lunch window violation"`), which reversed main's own tested J2/P5
+rejection of that string and gave one code two different sentences on two surfaces. Correction `4130fd3c` put
+**one** degradation rule in a new `atlas-client/src/lib/plain-rule-degradation.ts` — **absent → em dash; known →
+its one canonical label; unmapped or out-of-union → the one honest sentence** — kept `humaniseEngineToken`
+exported and restricted to free-form text, restored `plain-tokens-c04.test.tsx` byte-identical to main, and
+added a cross-surface row pinned in both directions. Fresh bounded-correction QA: **`ACCEPT_READY` 20/20/0/0**.
+Pushed to `origin/main` as **`de392cf8`** (4 commits, 17 paths). Handoff:
+`docs/handoffs/reconcile-plain-language-j2j3-2026-09-26.md`. **Custody:** two dated records pointed at
+different writers, so this lane took the reconciliation rather than stalling the queue, on the grounds that it
+is the planner of record, holds planner merge authority, and no Lane A2 process was present. **Revertible as
+three additive commits on one branch** if the operator or an active A2 session disagrees.
+
+Gates: base `5960cfce` 1062/1046/**16** across 11 files vs final `de392cf8` 1079/1063/**16** across the
+**same 11 files** → **+17 net-new passing, zero new failures**. Focused 17/17, 29/29, 32/32; `ux-guardrails`
+30/31 (pre-existing `gate-reachability`); `typecheck` exactly 4 errors in 3 files this range never touches, so
+**zero** attributable. **The integration client suite earned its keep:** it caught a net-new failure that both
+the focused gates and the bounded review had missed — main's R7 control pinned the de-snake-cased
+`'some future code'` — fixed additively at `de392cf8`.
+
+**DONOR CORRECTION (2026-09-26) — the donor guidance below is WRONG and must not be reused.**
+`E:\ATLAS-runtime-supervised-5c100ea6-20260925\atlas-client\node_modules` is **empty: 0 entries, no `tsx`**. It
+is **not** a usable junction source, so the "keep `5c100ea6` as donor" line below is void. Use a real copy of
+an intact tree (~0.21 GiB) and run no install. This also invalidated the dependency provenance of this lane's
+earlier `19bc`-era base-attribution measurement, which was re-run against one identical self-owned tree to
+produce the `5960cfce` numbers above. E: is now 43 GiB (below the 50 GiB warning).
+
+**Next action (2026-09-26):** no Lane A **source** task remains. `main` carries C1/C2/C3 + J2 + D2 + J2/J3 and
+is **still not deployed**; live is `116a7658` off the `861d89a2` line, so the next release must reconcile that
+divergence, not fast-forward. Before any next release build: a fresh successor reclaim/audit, then a new
+deployment packet with its own pre-action review. Keep `116a7658` live and `861d89a2` as rollback — **not** as
+donor (see the donor correction). Dated follow-ups, none blocking: **F1**, a product ruling this lane did not
+make — main's four per-code-space fallbacks still differ from the shared honest sentence for an out-of-union
+value (unreachable on today's schema, no token leak, QA ruled NON_BLOCKING); **F3**, B1's defect class still
+live at `ManualEditPanel.tsx:929,948` and `QuickPlaceSummaryModal.tsx:58`; **F4**,
+`TimetableSimpleHeader.tsx:153` renders "Unknown issue" for an absent reason; **F5**, `playwright` undeclared,
+the source of the 4 standing typecheck errors; **F2/F6/F7** in the handoff. Still owed: the written QA capsule
+for the original J2/J3 candidate `98289573`, whose verdict was returned in-session and cited here by tally
+only.
 
 **Dated decisions / residuals (verify before acting):**
 - **F7 remains deliberately rejected (2026-09-25):** daily tools stay under More so the header remains compact;
@@ -637,8 +676,17 @@ client-suite gate debt, F1 422 mapping, and provider-memo residuals remain separ
 
 **Custody / workspace (2026-09-26):** Lane A owns the seeded browser profile and this docs worktree
 `E:\ATLAS-worktrees\lane-a-r1-deploy-target` (`docs/lane-a-r1-deploy-target`, `KEEP_ACTIVE` as the current lane
-record). The C02 and F1/F2 source/integration worktrees were clean, integrated, and retired. The isolated deploy
+record). The C02 and F1/F2 source/integration worktrees were clean, integrated, and retired. The J2/J3
+reconcile worktree `E:\ATLAS-worktrees\lane-a-j2j3-reconcile-20260726` (`de392cf8`, clean, integrated) and the
+J2/J3 candidate worktree `E:\ATLAS-worktrees\lane-a-plain-language-j2j3-c01` (`98289573`, clean, now an
+ancestor of `main`) are `RETIRE_AFTER_INTEGRATION` and retired with this closure. The superseded first-attempt
+integration worktree `E:\ATLAS-worktrees\lane-a-plain-language-j2j3-integration` (branch
+`integration/plain-language-j2j3-c01-20260726` at `c9c51307`, **never pushed**; its two commits are superseded
+by `de392cf8`) is retired, and the branch is kept only as history. Lane C owns its own worktrees; the contested
+files were written by this lane under the custody ruling above, and Lane A2 must not write them for this range.
+The isolated deploy
 candidate worktree `E:\ATLAS-worktrees\lane-a-f1-f2-deploy-candidate` at `116a7658` is `PRESERVE_FOR_DECISION`:
 it is the source of the deployed target and is not an ancestor of `main`. Live release
-`E:\ATLAS-runtime-supervised-116a7658-20260726` is `KEEP_ACTIVE`; rollback `861d89a2` and donor `5c100ea6` are
-`PRESERVE_FOR_DECISION`. Do not write in Lane B/C worktrees.
+`E:\ATLAS-runtime-supervised-116a7658-20260726` is `KEEP_ACTIVE`; rollback `861d89a2` is
+`PRESERVE_FOR_DECISION`; `5c100ea6` is `PRESERVE_FOR_DECISION` **as a release directory only** — its
+`node_modules` is empty, so it is **not** a dependency donor. Do not write in Lane B/C worktrees.
