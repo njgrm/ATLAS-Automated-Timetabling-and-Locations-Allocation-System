@@ -242,25 +242,20 @@ or process borrower, and is `RETIRE_AFTER_INTEGRATION` (E: 47.55 GiB before reti
 Opened 2026-09-25 (operator). Branches `work|fix|docs/lane-c-*`, worktrees `E:/ATLAS-worktrees/lane-c-*`. Finished
 cycles are in Git history and their handoffs. Claude Code lanes follow `CLAUDE.md` (cost rules).
 
-**Current stream: server stall** (as of 2026-09-25 21:40). Root cause found with SERVER-STALL-C01 live in
-`c5e167d7`: `GET …/readiness/diagnostic` (every `/timetable` load) ran `runHybridScheduler` synchronously,
-blocking the loop 3.1 s offline / 6.9–7.8 s live (stall lines 12:47, 12:57, 13:07, 13:11Z). A browser swap preview
-on run 318 (Tue MATH ↔ Thu MATH 10:00) answered in 668 ms; the operator's 31.7 s case (Thu 10:45 ENG) was not
-re-run and is presumed queued behind readiness stalls.
+**Current stream: draft scheduler UX** (as of 2026-09-26). Server-stall stream closed (A1, 2026-09-25 15:11Z; see
+the Live release block and `docs/handoffs/lane-c-handoff-2026-09-25-stall.md`).
 
-**READINESS-STALL-C01 `5376a5c9` integrated 2026-09-25** (merge `ad23ef84` on `integration/readiness-stall-c01`;
-executor Sonnet, QA Sonnet `ACCEPT_READY`). HH:MM parse memo + readiness-only scheduler-result cache keyed by
-sha256 of the full scheduler input (bounded 8, cloned out; real generation uncached). Output deep-equal to the live
-build for school 1 / year 10; loop block 4,314 → 1,175 ms cold, 4,161 → ~120 ms warm; `test:readiness-stall` 7/7,
-`test:request-timing` 6/6, server-suite 337/341 (4 pre-existing `tt-output-c03r`), Node start on 5198. No migration.
-NON_BLOCKING: `canonicalStringify` maps Map/Set to `{}` (no Map/Set reaches the input today); T2's failing-first
-was an import failure, not behavioural.
-
-**A1 recorded (2026-09-25 15:11Z)** in the Live release block: stall criterion passed on both tracked reloads,
-scheduler did not run (log), `cached` body field unobserved. Server-stall stream closed unless the operator wants
-the body field read directly. A1 cost (`subagent_tokens`): built-in browser 59,627 + 69,254 + 56,161 (no request
-fired); Chrome 65,108 (`NEEDS_SESSION`) + 80,777 (run). **Next Lane C action:** ask the operator what else was
-"broken" in manual draft placements. Browser QA now runs in Claude in Chrome only (`CLAUDE.md` rule 2).
+**DRAFT-UX-C01 `1670a611` ACCEPT_READY, integration pushed as a branch, NOT on `main`** (2026-09-26). Packet
+`docs/prompts/lane-c-draft-ux-c01-2026-09-25.md`; handoff `docs/handoffs/lane-c-draft-ux-2026-09-26.md`. Client-only:
+simple header at most 6 controls (primary = Generate with no run, Publish once one exists; Download, School
+information and the other primary in More; warnings count + Review warnings merged), "Term"/"View type" labels
+removed, cell "Schedule note · N" badges back to warning/Must-fix signs, desktop (>=768 px) session details in a
+centred dialog with the TIME card fixed, unassigned sessions reachable in the simple layout (the rail that holds
+them was never mounted there, `ScheduleReviewWorkspaceBody.tsx:65`). QA (Opus) `ACCEPT_READY` S1-S6 6/6;
+client-suite base 978/17 fail vs candidate 988/17 fail, same failure names. Merge `b15050cb` on
+`integration/lane-c-draft-ux-c01-20260926` (client tree identical to the candidate); **the `:main` push was refused
+by the Claude Code permission classifier ("Merge Without Review") and awaits the operator.** No migration. After
+integration: a deploy (HIGH, operator approval) then D1 browser rows on Claude in Chrome.
 
 **Open (2026-09-25):** EnrollPro unreachable from the host — Tailscale `dev-jegs` offline since ~19:40 local;
 `runtime/context`/`sections/summary` wait the 4 s timeout (not a loop block). F1–F3
