@@ -302,6 +302,59 @@ test('F6: a published run renders read-only entries; a draft keeps its edit affo
 	assert.ok(draftEntry.querySelector('svg[class*="grip-vertical"]'), 'a draft keeps its drag handle');
 });
 
+/* ── R1 (UX-AUDIT-SIZE-C01) — absolute rendered sizes at both viewport roots ─ */
+
+// `index.css` shrinks `:root` to 15px under 640px, so a rem token renders 13.125px on a
+// 390×844 viewport. These controls read the mounted element's class list and resolve it
+// against the same viewport root instead of trusting the token.
+const REM_BY_TOKEN: Record<string, number> = { xs: 0.75, sm: 0.875, base: 1, lg: 1.125 };
+
+function resolveFontSizePx(className: string, rootPx: number): number | null {
+	const absolute = className.match(/(?:^|\s)text-\[(\d+(?:\.\d+)?)px\](?=\s|$)/);
+	if (absolute) return Number(absolute[1]);
+	const rem = className.match(/(?:^|\s)text-(xs|sm|base|lg)(?=\s|$)/);
+	if (rem) return REM_BY_TOKEN[rem[1]] * rootPx;
+	return null;
+}
+
+for (const [label, width, height, rootPx] of [
+	['desktop 1366×768', 1366, 768, 16],
+	['mobile 390×844', 390, 844, 15],
+] as const) {
+	test(`R1 ${label}: grid text renders absolute ≥14px and flags ≥12px`, async () => {
+		Object.defineProperty(dom.window, 'innerWidth', { value: width, configurable: true });
+		Object.defineProperty(dom.window, 'innerHeight', { value: height, configurable: true });
+		dom.window.dispatchEvent(new dom.window.Event('resize'));
+		await mount(createElement(TimetableGrid, gridProps() as never));
+		await flush();
+		const sizeOf = (selector: string): number => {
+			const element = document.querySelector(selector) as HTMLElement | null;
+			assert.ok(element, `${selector} renders at ${label}`);
+			const size = resolveFontSizePx(element!.className, rootPx);
+			assert.notEqual(size, null, `${selector} resolves a font size at ${label}`);
+			return size as number;
+		};
+		assert.ok(sizeOf('table[aria-label="Timetable"]') >= 14, 'the grid table base is absolute ≥14px');
+		assert.ok(sizeOf('td.whitespace-nowrap.font-mono') >= 14, 'the time label is absolute ≥14px');
+		assert.ok(sizeOf('[data-testid="timetable-cell-detail"]') >= 14, 'the teacher/room line is absolute ≥14px');
+		assert.ok(sizeOf('[data-timetable-entry="true"] div.font-semibold') >= 14, 'the entry subject line is absolute ≥14px');
+
+		await mount(createElement(TimetableGrid, gridProps({
+			entries: [entry, { ...entry, entryId: 'e-2' }, { ...entry, entryId: 'e-3' }],
+		}) as never));
+		await flush();
+		assert.ok(sizeOf('[data-testid="timetable-cell-overflow-trigger"]') >= 12, 'the overflow flag is absolute ≥12px');
+
+		await mount(createElement(TimetableGrid, gridProps({
+			termFilter: 'all',
+			termOptions: [{ value: '1', label: 'Term 1' }],
+		}) as never));
+		await flush();
+		assert.ok(sizeOf('[data-testid="timetable-entry-term-label"]') >= 12, 'the term flag is absolute ≥12px');
+		assert.equal(dom.window.location.origin, ORIGIN, 'the evidence origin is the ATLAS Tailnet origin');
+	});
+}
+
 /* ── two-viewport structural proof ───────────────────────────────────────── */
 
 for (const [label, width, height] of [['desktop 1366×768', 1366, 768], ['mobile 390×844', 390, 844]] as const) {

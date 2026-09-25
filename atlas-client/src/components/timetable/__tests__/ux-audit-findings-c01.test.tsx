@@ -235,21 +235,102 @@ test('F3: the explanation uses the @/ui Tooltip primitive, never a native title 
 	assert.doesNotMatch(code, /<details/, 'no native details disclosure');
 });
 
-/* ── F4 — legible grid typography, no-scroll preserved ───────────────────── */
+/* ── F4 / R1 (UX-AUDIT-SIZE-C01) — legible absolute typography, no-scroll ── */
 
-test('F4: time, subject, and teacher/room line render at 14px (text-sm)', () => {
+// UX-AUDIT-SIZE-C01 R1: `index.css` applies `@media (max-width:640px){:root{font-size:15px}}`,
+// so a rem token shrinks on a 390×844 viewport (`text-sm` → 0.875 × 15 = 13.125px). The grid
+// must therefore carry absolute `text-[Npx]` values. These controls resolve the rendered class
+// against the viewport root instead of trusting the class token.
+const VIEWPORT_ROOTS: ReadonlyArray<readonly [string, number]> = [['1366×768', 16], ['390×844', 15]];
+const REM_BY_TOKEN: Record<string, number> = { xs: 0.75, sm: 0.875, base: 1, lg: 1.125 };
+
+function resolveFontSizePx(className: string, rootPx: number): number | null {
+	const absolute = className.match(/(?:^|\s)text-\[(\d+(?:\.\d+)?)px\](?=\s|$)/);
+	if (absolute) return Number(absolute[1]);
+	const rem = className.match(/(?:^|\s)text-(xs|sm|base|lg)(?=\s|$)/);
+	if (rem) return REM_BY_TOKEN[rem[1]] * rootPx;
+	return null;
+}
+
+function renderedFontSizePx(markup: string, tagPattern: RegExp, rootPx: number): number | null {
+	const tag = markup.match(tagPattern)?.[0];
+	if (!tag) return null;
+	const className = tag.match(/class="([^"]*)"/)?.[1];
+	if (!className) return null;
+	return resolveFontSizePx(className, rootPx);
+}
+
+// Renders every flag the static surface can reach: the ceremony overlay, the per-entry term
+// label, and the cohort badge. Placement/Current are drag-state-only, so the source contract
+// in the next test carries their floor.
+function renderGridFlags(): string {
+	return renderToStaticMarkup(createElement(TimetableGrid, {
+		entries: [entryFor('e-1', 1), { ...entryFor('e-2', 1), entryKind: 'COHORT', cohortCode: 'G7AW' } as unknown as ScheduledEntry],
+		timeSlots: [{ startTime: '11:30', endTime: '12:15', eventName: 'Flag Ceremony', dayOfWeek: 'MONDAY' }],
+		violationIndex: new Map(),
+		highlightedEntryIds: new Set<string>(),
+		selectedEntry: null,
+		followUps: new Set<string>(),
+		onEntryClick: () => {},
+		subjectLabel: () => 'TLE',
+		sectionLabel: () => 'G7AW',
+		gradeForSection: () => 7,
+		entryContextLabel: () => 'G7AW',
+		formatFacultyInitials: () => 'P. CRUZ',
+		facultyLabel: () => 'P. CRUZ',
+		viewMode: 'section',
+		termFilter: 'all',
+		termOptions: [{ value: '1', label: 'Term 1' }],
+		pivotLabel: () => '',
+		roomLabelShort: () => 'Room 103 · G7AW',
+		kbSelectedSource: null,
+		onKbPlace: () => {},
+		getCellConflict: () => null,
+		getLiveCellConflict: () => null,
+		onNavToFaculty: () => {},
+		onNavToSection: () => {},
+		onNavToRoom: () => {},
+	}));
+}
+
+test('F4/R1: table base, time, subject, and teacher/room render absolute ≥14px at both viewport roots', () => {
 	const markup = renderGrid([entryFor('e-1', 1)], new Map());
-	assert.match(markup, /<table[^>]*class="[^"]*text-sm/, 'the grid table base is 14px');
-	assert.match(markup, /<td class="px-2 py-1\.5 text-muted-foreground whitespace-nowrap font-mono text-sm align-top">/, 'the time label is 14px');
-	assert.match(markup, /font-semibold text-sm truncate/, 'the entry subject line is 14px');
-	assert.match(markup, /truncate text-sm font-medium text-muted-foreground\/80/, 'the teacher/room line is 14px');
+	const targets: ReadonlyArray<readonly [string, RegExp]> = [
+		['grid table base', /<table[^>]*class="[^"]*"[^>]*>/],
+		['time label', /<td class="px-2 py-1\.5[^"]*">/],
+		['entry subject line', /<div class="[^"]*font-semibold[^"]*truncate[^"]*">/],
+		['teacher/room line', /<p class="[^"]*truncate[^"]*"[^>]*data-testid="timetable-cell-detail"/],
+	];
+	for (const [viewport, rootPx] of VIEWPORT_ROOTS) {
+		for (const [label, pattern] of targets) {
+			const size = renderedFontSizePx(markup, pattern, rootPx);
+			assert.notEqual(size, null, `${label} resolves a rendered font size at ${viewport}`);
+			assert.ok((size ?? 0) >= 14, `${label} renders ${size}px at ${viewport} (root ${rootPx}px); expected absolute ≥14px`);
+		}
+	}
 });
 
-test('F4: the 9.6px flags are raised to a legible size', () => {
+test('F4/R1: grid flags hold an absolute ≥12px floor no rem token can shrink', () => {
 	const grid = source('src/components/timetable/TimetableGrid.tsx');
-	assert.doesNotMatch(grid, /text-\[0\.6rem\]/, 'the 9.6px ceremony/placement flags are gone');
-	assert.doesNotMatch(grid, /text-\[0\.65rem\]/, 'the 10.4px hidden-cell flag is gone');
-	assert.doesNotMatch(grid, /text-\[0\.\d+rem\]/, 'no sub-12px arbitrary rem size remains in the grid');
+	assert.doesNotMatch(grid, /\btext-(xs|sm)\b/, 'no rem font-size token remains in the grid');
+	assert.doesNotMatch(grid, /text-\[0?\.\d+rem\]/, 'no arbitrary rem size remains in the grid');
+	const absolute = [...grid.matchAll(/text-\[(\d+(?:\.\d+)?)px\]/g)].map((match) => Number(match[1]));
+	assert.ok(absolute.length > 0, 'the grid sizes are absolute px values');
+	assert.ok(absolute.every((px) => px >= 12), `every grid font-size token is ≥12px, saw ${absolute.join(', ')}`);
+
+	const markup = renderGridFlags();
+	const flags: ReadonlyArray<readonly [string, RegExp]> = [
+		['ceremony overlay', /<div class="[^"]*"[^>]*data-testid="timetable-ceremony-overlay-label"/],
+		['term label', /<span class="[^"]*"[^>]*data-testid="timetable-entry-term-label"/],
+		['cohort badge', /<span class="[^"]*rounded bg-sky-100[^"]*">/],
+	];
+	for (const [viewport, rootPx] of VIEWPORT_ROOTS) {
+		for (const [label, pattern] of flags) {
+			const size = renderedFontSizePx(markup, pattern, rootPx);
+			assert.notEqual(size, null, `${label} resolves a rendered font size at ${viewport}`);
+			assert.ok((size ?? 0) >= 12, `${label} renders ${size}px at ${viewport} (root ${rootPx}px); expected absolute ≥12px`);
+		}
+	}
 });
 
 test('F4: the no-scroll architecture is preserved (scroll only inside the grid region)', () => {
