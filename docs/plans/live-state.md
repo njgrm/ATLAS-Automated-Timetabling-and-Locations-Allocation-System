@@ -404,6 +404,21 @@ is never defaulted. Correct — but **not guarded by a committed regression row*
 term phrase could reintroduce a default with a green suite. That row is **owed by C3**, which already owns
 these files; it is not an extra round-trip for its own sake.
 
+> **CORRECTION 2026-09-26 (planner): the sentence above is wrong. C3 did NOT add that row.** C3
+> (`39645f2d`) was scoped J1/J4/J5 only, and **no test in
+> `atlas-client/src/components/timetable/__tests__/generation-blockers-c02.test.tsx` covers the term clause
+> at all** (its rows cover the operator sentence, code leaks, the tooltip, all-three-blockers, real repairs,
+> the no-blockers case, the control cap, the entry point and the setup pane). **The timetable-invariant
+> fail-closed term guard is therefore still OWED**, and after the Lane A collision recorded above it is the
+> one remaining item that is both non-colliding and correctness-critical. It is **test-only**, so AGENTS.md
+> section 11 lets the planner apply it directly: add `C2-term.1` (five degraded cases: `termIdentity` null,
+> empty, and not-in-structure; `termStructure` null; and no terms. Each asserts **no term clause is invented
+> and `Term 1` never appears**, with no `undefined` / `null` / `NaN` placeholder leaking in) and `C2-term.2`
+> (a known identity renders its verified ordered position and never the identity string), against
+> `presentGenerationBlockers` in `src/lib/timetable-generation-readiness.ts`. It must be written in a
+> **registered worktree**; `D:/ATLAS` is read-only by directive section 14 and this session correctly refused
+> an edit there, so do not attempt it in the root checkout. Blocked only on a worktree, which is cheap.
+
 **Planner calls on QA's three non-blocking items (2026-09-26):** (1) a resolved Subject that has no
 `displayCode` may render its own `code` (e.g. `TLE-7`) — **accepted**: it is the reference-map name the grid
 already prints in every cell, it is provably not `blocker.subjectCode`, and a Subject's own code is the
