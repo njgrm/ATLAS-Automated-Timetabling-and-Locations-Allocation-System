@@ -35,7 +35,7 @@ import {
 	buildPreflightConstructorInput,
 	buildPreflightValidatorContext,
 } from './generation-preflight.service.js';
-import { resolveRequestedTermIndex } from './academic-term.service.js';
+import { resolvePreResolvedActiveTermAuthority, resolveRequestedTermIndex, type ActiveOrderedTermProvider } from './academic-term.service.js';
 import { runHybridScheduler, type SeedQualitySummary, type RepairImpact } from './hybrid-scheduler.js';
 import * as preGenerationDraftService from './pre-generation-draft.service.js';
 import { resolveActiveDraftRun } from './active-draft-run-resolver.service.js';
@@ -630,9 +630,35 @@ export async function triggerGenerationRun(
 		enforceShiftWindows?: boolean;
 		roomerStrategy?: 'UNIVERSAL' | 'HOME_ROOM_FIRST';
 		authToken?: string;
+		/**
+		 * ACTIVE-TERM-LIVE-RESOLUTION-C02: injectable live-contract provider seam for
+		 * the entry-point active-term pre-resolution. Production callers omit it.
+		 */
+		activeTermProvider?: ActiveOrderedTermProvider;
+		/** ACTIVE-TERM-LIVE-RESOLUTION-C02: clock for the date-derived fallback seam. */
+		activeTermNow?: Date;
 	},
 ) {
 	await assertActiveSchoolYearForGeneration(schoolId, schoolYearId, options?.authToken);
+
+	// ACTIVE-TERM-LIVE-RESOLUTION-C02: pre-resolve the authoritative active ordered
+	// term ONCE, here, at the non-transaction entry point, alongside the
+	// active-year guard and BEFORE the first transaction or write. The persisted
+	// `activeTerm` is frozen by design and can still name the previous term, so the
+	// live-first resolver is the generation authority from here on. The value is
+	// threaded explicitly through the preflight, the revalidation, and BOTH the
+	// captured and in-transaction input snapshots, so nothing re-reads the network
+	// inside the Serializable write transaction. An unresolved term stays
+	// `null` and fails closed below; it is never Term 1.
+	const preResolvedActiveTerm = await resolvePreResolvedActiveTermAuthority(schoolId, schoolYearId, {
+		provider: options?.activeTermProvider,
+		now: options?.activeTermNow,
+	});
+	const preflightDependencies = {
+		activeTermIndex: preResolvedActiveTerm.termIndex,
+		activeTermProvider: options?.activeTermProvider,
+		activeTermNow: options?.activeTermNow,
+	};
 
 	const gateStatus = await getGenerationRoomRequestGateStatus(schoolId, schoolYearId);
 	if (gateStatus.blocked && !options?.ignoreRoomRequestGate) {
@@ -654,6 +680,7 @@ export async function triggerGenerationRun(
 	// setup-healing writes. No GenerationRun/event/audit/draft/lock/policy/
 	// window/template/slot/section/ownership/cycle write may precede this.
 	const preflight = await buildGenerationPreflight(schoolId, schoolYearId, {
+		...preflightDependencies,
 		enforceShiftWindows: options?.enforceShiftWindows === true,
 	});
 	if (!preflight.ok) {
@@ -669,8 +696,11 @@ export async function triggerGenerationRun(
 	}
 
 	// Revalidate the bound revisions immediately before the first write. Drift is
-	// a typed stale-preflight error with zero writes, never a silent rebuild.
-	const freshness = await revalidateGenerationPreflight(preflight.assembly);
+	// a typed stale-preflight error with zero writes, never a silent rebuild. The
+	// same pre-resolved active term is rechecked here (still outside every
+	// transaction), so an active-term change between pre-resolution and the first
+	// write reports `activeTermOrder` and fails closed below — never Term 1.
+	const freshness = await revalidateGenerationPreflight(preflight.assembly, preflightDependencies);
 	if (!freshness.ok) {
 		throw err(
 			409,
@@ -691,7 +721,18 @@ export async function triggerGenerationRun(
 	// data. The captured fingerprint is revalidated with the TRANSACTION client
 	// inside the final Serializable write transaction below; any covered input
 	// change aborts with typed `SOURCE_AUTHORITY_STALE` and zero COMPLETED writes.
-	const capturedSourceSnapshot = await computeGenerationInputSnapshot(schoolId, schoolYearId);
+	//
+	// ACTIVE-TERM-LIVE-RESOLUTION-C02: the captured snapshot digests the
+	// PRE-RESOLVED active term, so the in-transaction recomputation must digest the
+	// same explicit value. Both sides are computed from the frozen term and never
+	// from a network read, so this transaction stays network-free while the
+	// `availability` domain still records the exact term the run was built for.
+	const capturedSourceSnapshot = await computeGenerationInputSnapshot(
+		schoolId,
+		schoolYearId,
+		undefined,
+		{ availabilityTermIndex: preResolvedActiveTerm.termIndex },
+	);
 
 	// Create run as QUEUED
 	const run = await db().generationRun.create({
@@ -941,7 +982,12 @@ export async function triggerGenerationRun(
 		// / zero success notification.
 		stage = 'persist';
 		const completed = await db().$transaction(async (tx) => {
-			const txInputSnapshot = await computeGenerationInputSnapshot(schoolId, schoolYearId, tx);
+			const txInputSnapshot = await computeGenerationInputSnapshot(
+				schoolId,
+				schoolYearId,
+				tx,
+				{ availabilityTermIndex: preResolvedActiveTerm.termIndex },
+			);
 			if (txInputSnapshot.fingerprint !== capturedSourceSnapshot.fingerprint) {
 				throw err(
 					409,

@@ -10,6 +10,7 @@ import {
 	type GenerationInputSnapshot,
 } from './generation-input-snapshot.service.js';
 import { buildDerivedDemand } from './derived-demand.service.js';
+import { resolvePreResolvedActiveTermAuthority, type ActiveOrderedTermProvider } from './academic-term.service.js';
 import { isPromotableConstraintCode } from './scheduling-policy.service.js';
 import {
 	PUBLISHED_IDENTITY_SNAPSHOT_KEY,
@@ -53,8 +54,16 @@ type PublicationDependencies = {
 		schoolId: number,
 		schoolYearId: number,
 		client: Prisma.TransactionClient | PrismaClient,
+		options?: { availabilityTermIndex?: number | null },
 	) => Promise<GenerationInputSnapshot>;
 	buildIdentitySnapshot?: typeof buildPublishedIdentitySnapshot;
+	/**
+	 * ACTIVE-TERM-LIVE-RESOLUTION-C02: injectable live-contract provider seam for the
+	 * pre-transaction active-term pre-resolution. Production callers omit it.
+	 */
+	activeTermProvider?: ActiveOrderedTermProvider;
+	/** ACTIVE-TERM-LIVE-RESOLUTION-C02: clock for the date-derived fallback seam. */
+	activeTermNow?: Date;
 };
 
 function fail(
@@ -175,6 +184,19 @@ export async function publishSchedule(
 	const computeSnapshot = dependencies.computeInputSnapshot ?? computeGenerationInputSnapshot;
 	const buildIdentitySnapshot = dependencies.buildIdentitySnapshot ?? buildPublishedIdentitySnapshot;
 	const publishEvent = dependencies.publishEvent ?? publishPublishedScheduleEvent;
+
+	// ACTIVE-TERM-LIVE-RESOLUTION-C02: pre-resolve the authoritative active ordered
+	// term BEFORE `runSerializablePublicationTransaction` and before the publication
+	// advisory lock, so the network-aware resolver never runs under the lock. The
+	// bound term structure and term index are threaded through the existing
+	// `computeInputSnapshot` and `buildPublishedIdentitySnapshot` seams below; the
+	// transaction itself performs no network read at all.
+	const preResolvedActiveTerm = await resolvePreResolvedActiveTermAuthority(input.schoolId, input.schoolYearId, {
+		provider: dependencies.activeTermProvider,
+		now: dependencies.activeTermNow,
+		client,
+	});
+	const preResolvedTermContract = preResolvedActiveTerm.contract ?? undefined;
 
 	const committed = await runSerializablePublicationTransaction(client, async (tx) => {
 		// One publisher per school/year enters the decision boundary at a time. This closes the
@@ -320,7 +342,12 @@ export async function publishSchedule(
 		if (!runSnapshot) {
 			throw fail(422, 'PUBLICATION_INPUT_SNAPSHOT_REQUIRED', 'The selected run has no valid authoritative input snapshot.');
 		}
-		const currentSnapshot = await computeSnapshot(input.schoolId, input.schoolYearId, tx);
+		const currentSnapshot = await computeSnapshot(
+			input.schoolId,
+			input.schoolYearId,
+			tx,
+			{ availabilityTermIndex: preResolvedActiveTerm.termIndex },
+		);
 		const comparison = compareGenerationInputSnapshots(runSnapshot, currentSnapshot, now().toISOString());
 		if (comparison.status !== 'FRESH') {
 			throw fail(409, 'PUBLICATION_INPUTS_STALE', 'The selected run no longer matches current authoritative inputs.', {
@@ -352,6 +379,10 @@ export async function publishSchedule(
 			entries: (run.draftEntries ?? []) as Array<Record<string, unknown>>,
 			inputFingerprint: currentSnapshot.fingerprint,
 			capturedAt: publishedAt.toISOString(),
+			// ACTIVE-TERM-LIVE-RESOLUTION-C02: the frozen identity snapshot binds the
+			// term structure resolved BEFORE the advisory lock, through the existing
+			// seam, instead of re-reading it inside the transaction.
+			termContract: preResolvedTermContract,
 			summaryDisplaySlots: Array.isArray(summaryRecord.timetableDisplaySlots)
 				? summaryRecord.timetableDisplaySlots as Array<{ startTime: string; endTime: string; eventName?: string; isSpecialEvent?: boolean; dayOfWeek?: string | null }>
 				: undefined,

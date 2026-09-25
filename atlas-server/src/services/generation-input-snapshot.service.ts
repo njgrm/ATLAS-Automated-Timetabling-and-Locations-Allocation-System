@@ -178,10 +178,27 @@ async function resolveAvailabilityTermIndexForSnapshot(
 	}
 }
 
+export type GenerationInputSnapshotOptions = {
+	/**
+	 * ACTIVE-TERM-LIVE-RESOLUTION-C02: the pre-resolved authoritative active
+	 * ordered term, resolved once at the caller's NON-transaction entry point
+	 * through `resolveActiveOrderedTermIndexLive` and threaded in so the captured
+	 * snapshot and the in-transaction recomputation digest the SAME term.
+	 *
+	 * `undefined` (the default) keeps the historical persisted/network-free
+	 * resolution, so every existing caller is byte-identical. An explicit `null`
+	 * is the unresolved authority and reuses the unchanged fail-closed sentinel
+	 * (`availabilityTermIndex: null` + the non-matching `-1` row filter), so it can
+	 * never compare FRESH against a resolved-term digest and never becomes Term 1.
+	 */
+	availabilityTermIndex?: number | null;
+};
+
 export async function computeGenerationInputSnapshot(
 	schoolId: number,
 	schoolYearId: number,
 	client: Prisma.TransactionClient | PrismaClient = getDataContext(),
+	options: GenerationInputSnapshotOptions = {},
 ): Promise<GenerationInputSnapshot> {
 	// TEACHER-AVAILABILITY-AUTHORITY-C01: the `availability` freshness domain is
 	// sourced from the new reviewed, term-scoped authority. New-model access is
@@ -200,7 +217,17 @@ export async function computeGenerationInputSnapshot(
 	// term is not silently "fresh": the read is scoped to a sentinel term that
 	// cannot match rows, and the domain carries `availabilityTermIndex: null`, so
 	// it diverges from any resolved-term digest and compares STALE.
-	const availabilityTermIndex = await resolveAvailabilityTermIndexForSnapshot(schoolId, schoolYearId, client);
+	//
+	// ACTIVE-TERM-LIVE-RESOLUTION-C02: when the caller pre-resolved the active
+	// term at its non-transaction entry point, that explicit value IS the
+	// authority for both the captured snapshot and the in-transaction
+	// recomputation, so a term that is no longer the resolved one is visible as a
+	// changed `availability` domain. The null/`-1` fail-closed semantics below are
+	// unchanged: a `null` term still scopes the read to a non-matching sentinel and
+	// still records `availabilityTermIndex: null`.
+	const availabilityTermIndex = options.availabilityTermIndex !== undefined
+		? options.availabilityTermIndex
+		: await resolveAvailabilityTermIndexForSnapshot(schoolId, schoolYearId, client);
 	const availabilityTermFilter = availabilityTermIndex ?? -1;
 	const [
 		facultyMirrorAggregate,

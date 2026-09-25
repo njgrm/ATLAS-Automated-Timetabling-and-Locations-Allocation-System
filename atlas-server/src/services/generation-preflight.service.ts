@@ -65,6 +65,7 @@ import {
 } from '../lib/policy-special-events.js';
 import { consumeDraftPlacementsForRun, type DraftConsumeRejection } from './pre-generation-draft.service.js';
 import type { VerifiedTermContract } from './enrollpro-term-contract.service.js';
+import { isTermIndexWithinContract, resolveActiveOrderedTermIndexLive, type ActiveOrderedTermProvider } from './academic-term.service.js';
 import {
 	validateTermTeacherResolution,
 	validateTimetableShapePolicy,
@@ -183,6 +184,28 @@ export interface GenerationPreflightDependencies {
 	enforceShiftWindows?: boolean;
 	/** Resolve retained drafts read-only (default true). */
 	includeRetainedDrafts?: boolean;
+	/**
+	 * ACTIVE-TERM-LIVE-RESOLUTION-C02: the authoritative active ordered term,
+	 * resolved ONCE at a NON-transaction entry point through
+	 * `resolveActiveOrderedTermIndexLive` and threaded in through the preflight,
+	 * the revalidation, and the input snapshot.
+	 *
+	 * `undefined` keeps the historical persisted/network-free resolution, so every
+	 * existing caller is unchanged. An explicit `null` is the unresolved
+	 * authority: the preflight then fails closed with `TERM_AUTHORITY_UNRESOLVED`
+	 * and never assumes Term 1. This preflight function is never network-aware —
+	 * it consumes an already-resolved value only.
+	 */
+	activeTermIndex?: number | null;
+	/**
+	 * ACTIVE-TERM-LIVE-RESOLUTION-C02: injectable live-contract provider seam used
+	 * by `revalidateGenerationPreflight`'s pre-transaction term recheck. Production
+	 * callers omit it. Ignored by `buildGenerationPreflight` itself, which must stay
+	 * network-free.
+	 */
+	activeTermProvider?: ActiveOrderedTermProvider;
+	/** ACTIVE-TERM-LIVE-RESOLUTION-C02: clock for the date-derived fallback seam. */
+	activeTermNow?: Date;
 }
 
 /** Persisted `PolicySpecialEvent` row mapped into the constructor policy shape (R1). */
@@ -680,8 +703,20 @@ async function buildGenerationPreflightWithContext(
 	// The active ordered term for the availability authority is the SAME verified
 	// authority the derived demand consumed: the caller-provided contract when
 	// present, otherwise the persisted verified cache re-read below.
+	//
+	// ACTIVE-TERM-LIVE-RESOLUTION-C02: when the caller pre-resolved the active term
+	// at its non-transaction entry point, that EXPLICIT value is the authority. It
+	// is never silently replaced by the persisted snapshot (which is frozen by
+	// design and can still name the previous term), and an explicit `null` stays
+	// unresolved instead of falling back to the persisted value.
+	const hasPreResolvedActiveTerm = dependencies.activeTermIndex !== undefined;
+	const preResolvedActiveTermOrder: number | null = Number.isInteger(dependencies.activeTermIndex)
+		? (dependencies.activeTermIndex as number)
+		: null;
 	const declaredActiveTermOrder = (dependencies.termContract as { activeTerm?: { order?: unknown } } | undefined)?.activeTerm?.order;
-	let resolvedActiveTermOrder: number | null = Number.isInteger(declaredActiveTermOrder) ? (declaredActiveTermOrder as number) : null;
+	let resolvedActiveTermOrder: number | null = hasPreResolvedActiveTerm
+		? preResolvedActiveTermOrder
+		: (Number.isInteger(declaredActiveTermOrder) ? (declaredActiveTermOrder as number) : null);
 	if (derived && !dependencies.termContract && typeof client.enrollProSchoolYearMirror?.findUnique === 'function') {
 		const authorityMirror = await client.enrollProSchoolYearMirror.findUnique({
 			where: { schoolId_enrollProSchoolYearId: { schoolId, enrollProSchoolYearId: schoolYearId } },
@@ -693,7 +728,7 @@ async function buildGenerationPreflightWithContext(
 		// persisted structure the derived demand consumed and compares the two
 		// CANONICAL revisions: canonical ↔ canonical, never cross-namespace.
 		const persistedAuthority = normalizePersistedTermStructure(authorityMirror?.termContractCache, schoolId, schoolYearId);
-		if (resolvedActiveTermOrder == null) {
+		if (!hasPreResolvedActiveTerm && resolvedActiveTermOrder == null) {
 			const persistedActiveOrder = (authorityMirror?.termContractCache as { activeTerm?: { order?: unknown } } | null | undefined)?.activeTerm?.order;
 			if (Number.isInteger(persistedActiveOrder)) resolvedActiveTermOrder = persistedActiveOrder as number;
 		}
@@ -713,6 +748,26 @@ async function buildGenerationPreflightWithContext(
 				nextAction: 'Refresh and verify the ordered term authority, then re-run readiness.',
 			});
 		}
+	}
+
+	// ACTIVE-TERM-LIVE-RESOLUTION-C02: a pre-resolved active term must belong to the
+	// SAME verified ordered structure the derived demand consumed. A live term
+	// outside that structure is an authority divergence: it is reported as
+	// `TERM_AUTHORITY_STALE` and never clamped, never cycled, and never Term 1.
+	if (hasPreResolvedActiveTerm && derived && preResolvedActiveTermOrder != null
+		&& !isTermIndexWithinContract(preResolvedActiveTermOrder, derived.termStructure.terms)) {
+		blockers.push({
+			code: 'TERM_AUTHORITY_STALE',
+			category: 'DEMAND_AUTHORITY',
+			termIdentity: null,
+			sectionId: null,
+			subjectId: null,
+			subjectCode: null,
+			entity: `Active ordered term · school ${schoolId} · year ${schoolYearId}`,
+			reason: `The resolved active term ${preResolvedActiveTermOrder} is outside the verified ${derived.termStructure.terms.length}-term ordered structure, so the two term authorities disagree.`,
+			owningSurface: 'EnrollPro term authority cache',
+			nextAction: 'Refresh and verify the ordered term authority so the active term and the ordered structure agree, then re-run readiness.',
+		});
 	}
 
 	const sectionMirrorCount = await client.sectionMirror.count({ where: { schoolId, schoolYearId, isStale: false } });
@@ -798,7 +853,14 @@ async function buildGenerationPreflightWithContext(
 	// refuse generation rather than run with zero UNAVAILABLE exclusions. A
 	// resolved term with zero reviewed rows is legitimate (zero exclusions).
 	let availabilityRead: ReviewedAvailabilityRead;
-	if (resolvedActiveTermOrder != null) {
+	if (hasPreResolvedActiveTerm) {
+		// ACTIVE-TERM-LIVE-RESOLUTION-C02 (Stage-2 parity): the generation-side read
+		// consumes the SAME pre-resolved term the availability WRITE authority
+		// resolves, so the Stage-1 divergence (availability on live T2, generation
+		// on persisted T1) is closed. An explicit unresolved term returns zero rows
+		// and the unchanged `TERM_AUTHORITY_UNRESOLVED` blocker below.
+		availabilityRead = await loadReviewedAvailabilityForTerm(schoolId, schoolYearId, preResolvedActiveTermOrder, client);
+	} else if (resolvedActiveTermOrder != null) {
 		availabilityRead = await loadReviewedAvailabilityForTerm(schoolId, schoolYearId, resolvedActiveTermOrder, client);
 	} else {
 		availabilityRead = await loadReviewedAvailabilityForActiveTerm(schoolId, schoolYearId, client);
@@ -1289,6 +1351,21 @@ export async function revalidateGenerationPreflight(
 	if (current.assembly.revisions.policyRevision !== assembly.revisions.policyRevision) changed.push('policyRevision');
 	if (current.assembly.revisions.shapeRevision !== assembly.revisions.shapeRevision) changed.push('shapeRevision');
 	if (current.assembly.revisions.sourceRevision !== assembly.revisions.sourceRevision) changed.push('sourceRevision');
+	// ACTIVE-TERM-LIVE-RESOLUTION-C02: re-resolve the active ordered term HERE, still
+	// outside every transaction, so a term change between the entry-point
+	// pre-resolution and the first write is a typed stale failure with zero writes.
+	// The recheck reuses the same live-first resolver and its bounded single-flight
+	// / short TTL memo, so it is never a second resolver and never a live fetch under
+	// a Serializable or advisory lock. A mismatch reports `activeTermOrder`; the
+	// trigger surfaces the existing `GENERATION_PREFLIGHT_STALE` error. It never
+	// resolves to Term 1.
+	if (dependencies.activeTermIndex !== undefined) {
+		const recheckedActiveTermOrder = await resolveActiveOrderedTermIndexLive(assembly.scope.schoolId, assembly.scope.schoolYearId, {
+			provider: dependencies.activeTermProvider,
+			now: dependencies.activeTermNow,
+		});
+		if (recheckedActiveTermOrder !== dependencies.activeTermIndex) changed.push('activeTermOrder');
+	}
 	return { ok: changed.length === 0 && current.ok, changed, stale: changed.length > 0, current };
 }
 
