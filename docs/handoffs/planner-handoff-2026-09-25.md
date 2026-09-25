@@ -105,17 +105,22 @@ post-publish); SMART holds a view-only teacher-scoped draft read; the ATLAS teac
 
 Operator goal: move the paid planning pipeline to the free **`opencode-go/space-bunny-free`**.
 
-**Complete:** the global agent files (`~/.config/opencode/agents/atlas-planner.md`, `atlas-qa.md`,
-`atlas-executor.md`) and `opencode.jsonc` line 127 (`agent.plan`) read `opencode-go/space-bunny-free`; and the
-**repo-level** `.opencode/agents/{atlas-planner,atlas-qa,atlas-executor,atlas-wave-auditor}.md` — which
-override the global config for sessions in this repo and previously still bound `deepseek-v4.1-flash` — were
-re-bound to `opencode-go/space-bunny-free` and committed 2026-09-25.
+**Mechanism (measured; corrects an earlier claim in this file):** opencode loads markdown agents from both
+`~/.config/opencode/agents/` (global) and the project's `.opencode/agents/`. Measured 2026-09-25: the Lane A
+session started 20:13 local loaded `space-bunny-free` for `atlas-planner` **from the global file**, even though
+that checkout still had `deepseek-v4.1-flash` in the project file — so the **global definition is what takes
+effect**; a project file is the fallback used when no global twin exists. (An earlier note here said the
+repo-level files override the global config — that was wrong; the repo-level re-binding is harmless parity, not
+the fix.) A subagent with **no** resolved model inherits the invoking primary's model.
 
-**Verify on takeover:** restart and confirm the loaded model id. The outgoing session still reported
-`deepseek-v4.1-flash` because it ran before this change.
+**The one real gap, now fixed:** `atlas-wave-auditor` was the only ATLAS agent with **no global twin**, so it
+fell through to the project file — which in the launch checkout (`D:\ATLAS`, stale `af3bb594`) still bound
+`deepseek-v4.1-flash`. Fixed by creating `~/.config/opencode/agents/atlas-wave-auditor.md` (full role body,
+`model: opencode-go/space-bunny-free`). **Restart the session to load it and confirm the auditor's model id.**
 
-**Gates migrated too (global-only files, no repo counterpart):** `atlas-executor-delegate.md` and
-`atlas-qa-delegate.md` now also read `opencode-go/space-bunny-free`.
+**Complete:** global `atlas-planner`, `atlas-qa`, `atlas-executor`, `atlas-wave-auditor` and both `*-delegate`
+gates read `opencode-go/space-bunny-free`, as do `opencode.jsonc` line 127 (`agent.plan`) and the repo-level
+`.opencode/agents/*.md` on `origin/main` (parity, commit `a368f47c`).
 
 **Still on DeepSeek deliberately:** `compaction` (`opencode.jsonc` 130–133; `deepseek-v4.1-flash` /
 `variant: low` — a free model summarising long sessions risks quality), and the model-specific agents
@@ -126,10 +131,11 @@ bench/AB set exists to compare models, so do not silently rebind them).
 (`https://opencode.ai/zen/go/v1/models`) and present in the local model cache, so the id resolves. Routing
 rule unchanged: default `high`; `max` only for architecture / conflicting candidates / HIGH actions.
 
-**Permission note (still true):** the repo-level `.opencode/agents/atlas-planner.md` has `edit: "*": deny`,
-overriding the global allow for `C:/Users/njgro/.config/opencode/**`; `D:/ATLAS/**` and `E:/ATLAS-worktrees/**`
-remain writable. `D:\ATLAS` is **dirty** with an uncommitted `.opencode/agents/atlas-planner.md` edit (adds the
-config-dir allow) — do not build on that checkout (AGENTS §14); make intended changes from a worktree.
+**Permission note:** the repo-level `.opencode/agents/atlas-planner.md` on `origin/main` has `edit: "*": deny`
+with no allow for `C:/Users/njgro/.config/opencode/**`, so a planner running from a main-based worktree cannot
+edit the global config; `D:/ATLAS/**` and `E:/ATLAS-worktrees/**` remain writable. `D:\ATLAS` is **dirty** with
+an uncommitted `.opencode/agents/atlas-planner.md` edit (that copy adds the config-dir allow) — do not build on
+that checkout (AGENTS §14).
 
 ## Reconcile these stale `live-state.md` lines on takeover (as of 2026-09-25)
 
