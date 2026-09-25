@@ -177,12 +177,16 @@ independent startup run (build, Node bound isolated 5198, unauthenticated previe
 `1b371ba`, 914/929); candidate tests 8/8, 12/12, 21/21; server `tsc` exit 0, Node started `dist/server.js` on
 isolated 5198 (health 200, preview 401, stopped); client `vite build` with `VITE_ENROLLPRO_URL` exit 0.
 
-**Next action:** Lane A deploys the `main` tip carrying this line (client + server; no migration). Browser
-acceptance owner: **Lane B (Codex)**, rows in the Risks sections of `docs/handoffs/lane-c-post-publish-c01.md`,
-`lane-c-teaching-load-clarity-c02.md` and `lane-c-schedule-clarity-c03.md`.
+**Deploy requested 2026-09-25:** `e8553752` (built, NOT LIVE as of `main` `1903bc3d`); Lane A deploys, Lane B
+owns browser acceptance (rows in the Risks sections of the three C1–C3 handoffs).
 
-**Open (2026-09-25):** read the stall lines once a release containing `a5550fa6` is live (`89295c27` is), then fix
-the roughly 8 s `/timetable` stall; A3, 0 class advisers, needs a read-only EnrollPro check.
+**Current stream: server stall** (audit finding 5, ~8 s shared `/timetable` stall). **Blocked 2026-09-25** on the
+`[event-loop-stall]`/`[slow-request]` supervisor-log lines after one `/timetable` load (host only; the request text
+and the three hypotheses are in `docs/handoffs/lane-c-planner-handoff.md`). **Next action:** read those lines, then
+`work/lane-c-server-stall-c01` with a failing-first test and one fresh QA.
+
+**Open (2026-09-25):** retire the integrated Lane C worktrees on the host (list in the handoff); A3, 0 class
+advisers, needs a read-only EnrollPro check.
 
 ## Lane A — current lane (written only by Lane A)
 
