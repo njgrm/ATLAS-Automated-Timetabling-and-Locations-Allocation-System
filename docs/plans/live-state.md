@@ -53,9 +53,10 @@ resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs
   rollback basis `c5e167d7c5939ff586880149c566ce29506430e8` at
   `E:\ATLAS-runtime-supervised-c5e167d7-20260925`; production delta is two server service files plus the committed
   server test/script (`generation-readiness.service.ts`, `timetable-candidate-domain.ts`, test, package script), with
-  docs/config changes carried by `origin/main`; **no migration**; deployment not yet run. Post-cutover acceptance
-  owner: Lane C reloads `/timetable` twice and reads the new stall lines; no generation, publication, or timetable-data
-  write is authorized.)
+  docs/config changes carried by `origin/main`; **no migration**; deployment not yet run. Source review accepted;
+  corrected packet lint `AUDIT_CLEAR` **6/6/0/0** at `f1dc67b4`; explicit §13 approval is still pending. Post-cutover
+  acceptance owner: Lane C reloads `/timetable` twice after Q4's cold/warm API proof and reads the new stall lines;
+  no generation, publication, or timetable-data write is authorized.)
 - **Release SHA: `ad8f9717`** (rollback basis; previously LIVE 2026-09-25 17:12, Lane C; `E:\ATLAS-runtime-supervised-ad8f9717-20260925`;
   operator cutover, audit `C:\ProgramData\ATLAS\release-audit\ad8f9717-20260925-171136`; active state
   `running`/`ad8f9717`; machine env = target; health 200, `/health/ready` `database:"ok"`, subjects read 200, Tailnet
