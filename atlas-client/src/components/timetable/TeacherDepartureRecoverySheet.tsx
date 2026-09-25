@@ -25,6 +25,7 @@ import {
 } from './TacticalSandboxDock.helpers';
 import {
 	buildRevisionCreatePayload,
+	extractServerErrorCode,
 	fetchLatestRevisionToken,
 	isSourceRevisionStaleError,
 	previewPublishedRevision,
@@ -46,6 +47,9 @@ import type {
 	TeachingLoadRepairPreviewResult,
 	UnassignedItem,
 } from '@/types';
+
+/** Server refusals caused by the chosen teacher; their message names the fix. */
+const PUBLISHED_PREVIEW_REFUSAL_CODES = new Set(['TEACHING_LOAD_QUALIFICATION_MISSING', 'FACULTY_INACTIVE']);
 
 type AffectedGroup = {
 	key: string;
@@ -387,9 +391,14 @@ export function TeacherDepartureRecoverySheetBody({
 			);
 			setPublishedPreview(result);
 		} catch (error) {
+			// LANE-C C05 — a refusal the teacher choice causes is shown as-is, so the
+			// operator picks another teacher instead of retrying the same one.
+			const refusal = PUBLISHED_PREVIEW_REFUSAL_CODES.has(extractServerErrorCode(error) ?? '')
+				? (error as { response?: { data?: { message?: string } } })?.response?.data?.message ?? null
+				: null;
 			setPublishedPreviewError(isSourceRevisionStaleError(error)
 				? 'The published schedule changed while you were preparing this. Refresh the timetable, then try again.'
-				: 'ATLAS could not check this change. Try again in a moment.');
+				: refusal ?? 'ATLAS could not check this change. Try again in a moment.');
 		} finally {
 			setPublishedPreviewLoading(false);
 		}
@@ -767,10 +776,15 @@ export function TeacherDepartureRecoverySheetBody({
 							</Button>
 						</div>
 					) : publishedPreviewClean ? (
+						<>
 						<p className="flex items-center gap-1.5 text-xs text-emerald-700" data-testid="teacher-departure-published-check-clean">
 							<CheckCircle2 className="size-3.5 shrink-0" aria-hidden="true" />
 							No clashes. Every replacement teacher is free at these class times.
 						</p>
+						<p className="text-xs text-muted-foreground" data-testid="teacher-departure-load-transfer-note">
+							Scheduling this change also moves these classes to the new teacher in Teaching Load.
+						</p>
+						</>
 					) : publishedPreview ? (
 						<div className="space-y-2">
 							<PublishedRevisionClashList

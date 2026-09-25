@@ -89,3 +89,20 @@ test('S3: room clashes use the room name wherever the demo paths build clash lab
 		assert.match(text, /useMemo\(\(\) => \(\{ facultyLabel, sectionLabel, subjectLabel, roomLabel \}\)/, `${path} passes roomLabel`);
 	}
 });
+
+test('S4: a clean published check says the change also moves the classes in Teaching Load', () => {
+	const sheet = source('../../components/timetable/TeacherDepartureRecoverySheet.tsx');
+	const clean = sheet.indexOf('data-testid="teacher-departure-published-check-clean"');
+	const note = sheet.indexOf('data-testid="teacher-departure-load-transfer-note"');
+	assert.ok(clean > 0 && note > clean, 'the note follows the clean result');
+	assert.ok(note < sheet.indexOf(') : publishedPreview ? (', clean), 'the note renders only in the clean branch');
+	assert.match(sheet, /also moves these classes to the new teacher in Teaching Load/);
+});
+
+test('S5: a teacher-caused refusal is shown with the server message, not "try again"', () => {
+	const sheet = source('../../components/timetable/TeacherDepartureRecoverySheet.tsx');
+	assert.match(sheet, /PUBLISHED_PREVIEW_REFUSAL_CODES = new Set\(\['TEACHING_LOAD_QUALIFICATION_MISSING', 'FACULTY_INACTIVE'\]\)/);
+	const handler = sheet.slice(sheet.indexOf('const runPublishedPreview'), sheet.indexOf('// Any change to the replacements'));
+	assert.match(handler, /PUBLISHED_PREVIEW_REFUSAL_CODES\.has\(extractServerErrorCode\(error\)/);
+	assert.match(handler, /refusal \?\? 'ATLAS could not check this change/);
+});

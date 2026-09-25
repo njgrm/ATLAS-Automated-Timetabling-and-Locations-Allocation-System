@@ -96,10 +96,13 @@ export function isSourceRevisionStaleError(error: unknown): boolean {
 /** Reads the server error `code` from a service throw or an axios transport error. */
 export function extractServerErrorCode(error: unknown): string | null {
 	if (!error || typeof error !== 'object') return null;
-	const direct = (error as { code?: unknown }).code;
-	if (typeof direct === 'string' && direct.length > 0) return direct;
+	// LANE-C C05 — a real axios error carries its own transport `code`
+	// (`ERR_BAD_REQUEST` for every 4xx), so the server's code in the response
+	// body wins; an axios `ERR_*` code is never a server code.
 	const responseData = (error as { response?: { data?: { code?: unknown } } }).response?.data;
-	return typeof responseData?.code === 'string' && responseData.code.length > 0 ? responseData.code : null;
+	if (typeof responseData?.code === 'string' && responseData.code.length > 0) return responseData.code;
+	const direct = (error as { code?: unknown }).code;
+	return typeof direct === 'string' && direct.length > 0 && !direct.startsWith('ERR_') ? direct : null;
 }
 
 export function isPublishedRevisionErrorCode(error: unknown, code: PublishedRevisionErrorCode): boolean {
