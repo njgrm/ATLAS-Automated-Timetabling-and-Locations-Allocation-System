@@ -45,11 +45,16 @@ runtime action is authorized by this packet alone.
 2. Recheck capacity: E: warns below 50 GiB and fails below 25 GiB; D: warns below 25 GiB and fails
    below 15 GiB. Verify the target parent exists and the exact target path is absent. Preserve every
    dirty, active, uncertain, or rollback worktree.
-3. Add the exact detached target worktree. The release owns copied dependencies: verify root,
-   server, and client lockfiles are byte-unchanged from the incumbent, then copy the incumbent
-   release's own `node_modules` trees into the target as real directories. Do not run `npm ci`; do
-   not create a junction into another release.
-4. From `atlas-server`, run `npx prisma generate --schema ../prisma/schema.prisma`, then
+3. Add the exact detached target worktree. Do not copy dependency trees from the incumbent release: it is production-only and lacks the required TypeScript/test/client build executables. Use `E:\ATLAS-runtime-supervised-5c100ea6-20260925` as the frozen dependency donor for this action. Immediately before copying, require that the donor still exists, is detached and clean, has no process borrower, has real non-reparse root/server/client `node_modules` directories, and has root/server/client lockfiles byte-equal to the target worktree. Preserve the donor through target build and deployment.
+
+   Copy the donor's root, server, and client `node_modules` trees into the corresponding target
+   directories as real directories using `robocopy /E /COPY:DAT /DCOPY:DAT /R:1 /W:1 /XJ`; accept
+   robocopy exit codes 0–7 and fail on 8 or above. Do not run `npm ci`, do not permit an implicit
+   `npx` download, and do not create a junction. Verify the target contains
+   `atlas-server/node_modules/.bin/tsx.cmd`, `atlas-server/node_modules/.bin/tsc.cmd`,
+   `atlas-client/node_modules/.bin/tsc.cmd`, `atlas-client/node_modules/.bin/vite.cmd`, and local
+   Prisma before continuing.
+4. From `atlas-server`, run `npx --no-install prisma generate --schema ../prisma/schema.prisma`, then
    `npm run build`, `npm run test:readiness-stall`, `npm run test:request-timing`, and
    `npm run test:server-suite`. The readiness suite must be 7/7 and request timing 6/6; the full
    server suite must reproduce the recorded 337/341 baseline with the same four pre-existing
@@ -120,18 +125,15 @@ helper test, health response, or source QA does not substitute for a live row.
 | Q1 | Exact product target live | Task action, machine env, active target state, listeners and one target `cli.mjs` parent lineage all name `eb0e3038` / target directory. |
 | Q2 | Local runtime | `/api/v1/health` 200, `/api/v1/health/ready` 200 with `database:"ok"`, and `GET /api/v1/subjects?schoolId=1` 200. |
 | Q3 | Tailnet | Tailnet `/api/v1/health` 200 with origin asserted. |
-| Q4 | Target server behavior | Read-only `GET /api/v1/generation/1/10/readiness/diagnostic` succeeds and exposes the additive `scheduler.cached` field; repeat the identical request and record the cold/warm behavior without a data write. |
+| Q4 | Server-only target proof and cold/warm API behavior | Before any browser activity or any other readiness request, use the retained QA-owned authenticated session/harness to issue two identical `GET /api/v1/generation/1/10/readiness/diagnostic` requests. Both must return 200 with `readiness.scheduler.ran === true`, `readiness.databaseSignature.zeroWrite === true`, and exact school/year scope. The first response must contain `readiness.scheduler.cached === false`; the second must contain `readiness.scheduler.cached === true`. Record both response timings and the supervisor-log window. This is the server-only proof that the deployed target contains the reviewed behavior; no new client chunk is required. If the retained session is unavailable, report `NEEDS_SESSION(atlas-qa/<profile>)` and block Q4 rather than logging in or inferring approval. |
 | Q5 | Startup log | Target supervisor log contains target start and no fatal startup/listener/schema error. |
 | Q6 | Zero live-data write | Exact pre/post SQL digests match for all six tables, captured before any browser action. |
-| Q7 | Focused controls | Independently rerun `test:readiness-stall` 7/7, `test:request-timing` 6/6, and the relevant preservation suite on the exact target tree. |
+| Q7 | Focused controls and named preservation suites | From the exact target `atlas-server`, run `npm run test:readiness-stall` (7/7), `npm run test:request-timing` (6/6), and `npx --no-install tsx --test src/__tests__/timetable-candidate-domain.test.ts src/__tests__/generation-canonical-readiness-genc02.test.ts` (28/28). |
 | Q8 | Acceptance honesty | `ACCEPT_READY` only if every Q row passed with `passed == total`, `blocked: 0`, `unperformed: 0`; deployment is not global browser acceptance. |
 
 ## Separate acceptance after QA
 
-Lane C owns the two production `/timetable` reloads with the supervisor stall log open: record the
-first cold request and second warm request, expecting approximately 1.2 s and 0.1 s respectively,
-and preserve the actual lines/tallies. This is a post-deployment acceptance row, not executor work.
-No generation, publication, or timetable-data write is part of it.
+**A1 — Lane C production `/timetable` reload acceptance, after Q1–Q8:** Take a supervisor-log cursor after Q4 has completed its mandatory cold/warm API sequence. Lane C then reloads production `/timetable` twice. Both reload readiness responses must expose `scheduler.cached === true`; record their actual timings and all new slow-request/event-loop-stall lines. The acceptance row passes only when neither reload produces a new event-loop-stall line attributable to the readiness diagnostic. Do not describe the first Lane C reload as cold or expect the original approximately 1.2-second cold value: Q4 has already consumed the cold scheduler-cache entry. Q4 owns the cold/warm proof; A1 owns the separate production warm-reload regression check. No generation, publication, or timetable-data write is part of A1.
 
 ## Rollback and failure handling
 
