@@ -39,21 +39,26 @@ resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs
 ## Live release
 
 - Tailnet: `https://njgrm.buru-degree.ts.net`
-- **Pending release SHA: `e8553752`** (**NOT LIVE** as of 2026-09-25; source accepted and built). Lane C C1–C3:
-  C1 post-publish clash check (`POST /api/v1/generation/:schoolId/:yearId/runs/:runId/published-revisions/preview`
-  and `/swap/preview` — read-only dry runs that run the identical checks and return before the first write; the
-  caller asserts the outcome is a preview or throws "the revision preview attempted a write"), C2 Teaching Load
-  clarity, C3 schedule clarity (published-entry change panel, swap arming/highlight, draft-view hygiene,
+- **Release SHA: `e8553752`** (**LIVE** since 2026-09-25; `E:\ATLAS-runtime-supervised-e8553752-20260925`;
+  supervisor-owned 5001→60756 / 5174→86968; health/ready (`database:"ok"`) + DB-backed read + Tailnet 200;
+  served entry `assets/index-CqO3DnVa.js` (SHA-256 `7ADDAACA…81171A`, byte-identical to the build) and CSS
+  `index-BBttqTpl.css` byte-identical; machine `ATLAS_RUNTIME_SOURCE_DIR` / `RELEASE_SHA` = the target). Lane C
+  C1–C3: C1 post-publish clash check (read-only `…/published-revisions/preview` and `/swap/preview` — the
+  preview returns before the first write and the caller throws if the outcome is not a preview), C2 Teaching
+  Load clarity, C3 schedule clarity (published-entry change panel, swap arming/highlight, draft-view hygiene,
   `searchable-select` a11y). **No Prisma, migration, generation, publication, or timetable-data change.**
-  Client-only regression baseline verified independently: full client suite 970 / **955 pass / 15 fail**, and the
-  same 15 failures (identical assertion set, same 10 files) reproduce on base `e475c673` — no candidate-only
-  failure. Built at `E:\ATLAS-runtime-supervised-e8553752-20260925` (server `tsc` + client `vite` exit 0; entry
-  `assets/index-CqO3DnVa.js`). **Rollback basis: `e475c673e85fc8ca5a1bb055a7ff1819094b7d41`** at
-  `E:\ATLAS-runtime-supervised-e475c673-20260925`. **Next:** `deploy-runner.ps1` dry-run; cutover `-Execute`.
-  **Acceptance owner: Lane B (Codex)** — browser rows are in the Risks sections of
-  `docs/handoffs/lane-c-post-publish-c01.md`, `lane-c-teaching-load-clarity-c02.md` and
-  `lane-c-schedule-clarity-c03.md`.
-- **Release SHA: `e475c673`** (**LIVE** since 2026-09-25; `E:\ATLAS-runtime-supervised-e475c673-20260925`;
+  Client-only regression baseline verified independently: full client suite 970 / **955 pass / 15 fail**, the
+  same 15 failures (identical assertion set, same 10 files) reproducing on base `e475c673` — no candidate-only
+  failure. Cut over by the SHA-pinned `ops/runtime/deploy-runner.ps1` (audit
+  `C:\ProgramData\ATLAS\release-audit\e8553752-20260925-130313`). **Deployment verified:** fresh independent QA
+  `PLANNER_DECISION_REQUIRED` 6/7 — row 5d (authenticated live zero-write) is
+  `EXTERNALLY_BLOCKED(AUTH_SESSION_REQUIRED)`; the planner accepted the structural zero-write proof (preview
+  returns before any create/update/delete; caller asserts the preview outcome) plus the 401 gate control; no
+  BLOCKING finding. **Rollback basis: `e475c673e85fc8ca5a1bb055a7ff1819094b7d41`** at
+  `E:\ATLAS-runtime-supervised-e475c673-20260925`. **Acceptance PARTIAL — owner: Lane B (Codex)**; browser rows
+  are in the Risks sections of `docs/handoffs/lane-c-post-publish-c01.md`,
+  `lane-c-teaching-load-clarity-c02.md` and `lane-c-schedule-clarity-c03.md`.
+- **Release SHA: `e475c673`** (rollback basis; previously LIVE 2026-09-25; `E:\ATLAS-runtime-supervised-e475c673-20260925`;
   supervisor-owned 5001→81040 / 5174→82788; health/ready (`database:"ok"`) + DB-backed read + Tailnet 200;
   served entry `assets/index-B6GQrEV1.js` (SHA-256 `A90EA8DB…`, byte-identical to the build) and CSS
   `index-DHL7imL_.css` byte-identical; machine `ATLAS_RUNTIME_SOURCE_DIR` / `RELEASE_SHA` = the target). C08
