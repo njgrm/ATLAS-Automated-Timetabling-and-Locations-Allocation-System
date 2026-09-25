@@ -359,13 +359,57 @@ scheduler's own vocabulary. (2) The §7 regression row is **folded into C3** (ab
 against a live `GEN-C02` diagnostic stays **open** and belongs to a later approved acceptance session —
 `NEEDS_DEPLOYED`; jsdom proves the DOM and the wiring, not that a scheduler perceives the way in.
 
-**Next action (2026-09-26):** **deployment remains HELD** (release dir absent, live still `861d89a2`) per the
-operator's standing instruction while another opencode planner may deploy the same release. Next source cycle
-is **C3** (count/scope truthfulness, audit findings 5 and the unassigned count paths) plus the owed §7
-regression row. Two operator decisions still stand unanswered, neither blocking the source work: **finding 8**
-(restore visible labels on the view-type and entity pickers — reverses an accepted DRAFT-UX-C01 contract) and
-the **§3 capacity position** (E: 46.85 GiB, below the 50 GiB warning; 14 registered worktrees against a cap
-of 12, so a retention reclaim is owed before the next release build).
+**C3 (plain language) INTEGRATED on `main` as `39645f2d` (2026-09-26, planner) — J1, J4, J5.** This is the
+cycle the operator asked for by name: *relaxed and less overwhelming, informative, without the technical
+jargon.* Candidate `ef59f6d7` + bounded correction `abec65bf`, merged over Lane A's docs-only `cb20ae84`
+(disjoint, no collision). Client-only, no migration, **not deployed**.
+
+- **J1 — one concept, one name.** Audit finding 3 found a single HARD problem rendered under **four** names
+  on one screen (`Must fix` / `Blocked` / `blocker` / `Hard`) plus three different "hard" numbers with nothing
+  saying they could differ. `src/lib/timetable-plain-language.ts` now exports one plain label, reused by the
+  grid badge, header chip, publish checklist, readiness sheet and summary stat; `run-wide` → *whole year*;
+  the count relationship is stated **once**, in plain words.
+- **J4 — false alarms calmed.** The routine unplaced state is no longer a destructive alarm; the tick no
+  longer sits beside a warning count; "could not be checked" drift now differs from a confirmed change in
+  wording as well as colour; a reassurance is no longer inside an amber alarm band; `Regenerate Draft` is no
+  longer styled destructive.
+- **J5 — the two busiest controls are now labelled** (`Term`, `Show`, `Schedule for`) as **non-interactive
+  text**, so the `≤6` interactive-control cap and one-solid-primary are unchanged. The `S2` assertions that
+  forbade visible labels were corrected **additively** (originals retained and marked superseded, replacements
+  assert the real intent: the cap, the single primary, and both names per control).
+
+**Fresh QA caught the first attempt making things WORSE — twice (2026-09-26).** `CORRECTION_REQUIRED` 5/8 with
+8 blocking findings, including two **newly introduced** falsehoods: `MUST_FIX_LABEL` had been put on the run
+**total**, so a run with 4 serious and 0 blocking problems rendered "Must fix: 4" — which by the
+relationship note's own logic asserts it cannot be published (F1); and `unassignedCount` had been relabelled
+**"classes"** in two places while five other consumers and the resolver call it **sessions** (F3/F6). Also
+caught: the readiness sheet still carried three retired names (F2), a publish-**blocking** state had become
+visually identical to a non-blocking one with the honest consequence sentence computed and discarded (F5), and
+**two new fixtures were shaped so their contradictions could not render** (F7/F8). All corrected; a tag-
+tolerant assertion added in F11 then **failed on first run and found a further real defect** the raw-markup
+row could not see.
+
+Merged-tree gates: typecheck clean, `test:draft-ux-c01` **32/32**, `timetable-relaxed-main` 88/2,
+client suite **1033 / 1017 / 16 fail — the recorded baseline, zero new**. §11 bounded correction reviewed by
+the planner (ancestry, blob parity on the six untouched reviewed paths, and one preservation control), not
+re-dispatched to QA.
+
+**Honest residual (2026-09-26):** `simplePublishReadiness.blockerSentence` / `summaryText` still say "hard
+blockers" — the C07B/R2 sentence-authority contract, pinned by committed rows that must not be weakened, and
+outside the F2 line list. It is now pinned verbatim in a test so it is visible. The Simple severity-filter
+chip label "Hard blockers" (Expert-only) and Advanced/review task copy are likewise untouched.
+
+**Two housekeeping notes (2026-09-26):** commit `abec65bf`'s **subject carries a UTF-8 BOM** from a PowerShell
+`Out-File`; it is cosmetic, affects only subject parsing, and was deliberately not amended (§10 forbids
+amending a handed-off commit). `draft-ux-c01.test.tsx` is now 1473 lines — a test file, outside the §8
+component cap, and unguarded by any committed limit; worth a split in a later lane.
+
+**Next action (2026-09-26):** **deployment remains HELD** (release dir absent, live `861d89a2`, ready 200)
+per the operator's standing instruction. **J2 (engine tokens) and J3 (domain jargon) are owed** and were
+deliberately not half-started — they are the remaining half of the operator's plain-language goal, and J2's
+13 rows include the raw `warning.code`, `decisionStatus` enums and `Run #318` forms still on screen. Lane A
+closed reclaim `20260926a` and prepared an isolated F1/F2 cutover packet for `116a7658` (docs-only, disjoint).
+E: 46.85 GiB after retiring this cycle's worktree.
 
 **Deploy gate state (2026-09-26, planner):** the `861d89a2` cutover is **DEPLOYED with post-action QA
 `ACCEPT_READY` 8/8/0/0**, so this packet's ordering precondition is **satisfied** (scheduled task action
