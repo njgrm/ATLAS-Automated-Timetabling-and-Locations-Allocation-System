@@ -284,7 +284,7 @@ export function WorkspaceToolbar({
 						STRIP_TONE[unassignedPairs > 0 ? 'warning' : 'success'],
 					)}
 				>
-					<span className="text-xs uppercase tracking-wide opacity-75">Unassigned pairs</span>
+					<span className="text-xs uppercase tracking-wide opacity-75">Classes without a teacher</span>
 					<span className="text-sm font-bold tabular-nums">{unassignedPairs}</span>
 				</div>
 

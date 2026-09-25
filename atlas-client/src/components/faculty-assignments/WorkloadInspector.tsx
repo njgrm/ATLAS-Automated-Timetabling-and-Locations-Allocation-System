@@ -162,7 +162,9 @@ export function WorkloadInspector({
 				<section className="space-y-4">
 					<div className="flex items-center justify-between">
 						<span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground/60">Teaching load</span>
-						<span className="text-sm font-semibold tabular-nums">{loadProfile.actualTeachingHours} / {teachingStandardHours}h standard</span>
+						<span className="text-sm font-semibold tabular-nums" data-testid="workload-headline">
+							{loadProfile.actualTeachingHours}h a week{rotationTermBreakdown.length > 0 ? ' (busiest term)' : ''} · {teachingStandardHours}h standard
+						</span>
 					</div>
 					<StackedWorkloadBar
 						teachingHours={loadProfile.actualTeachingHours}
@@ -179,7 +181,7 @@ export function WorkloadInspector({
 				{/* Primary Stats Grid */}
 				<div className="grid grid-cols-2 gap-3">
 					<div className="p-4 rounded-xl border border-border/40 bg-muted/5 space-y-1">
-						<span className="text-xs font-bold text-muted-foreground/60 uppercase tracking-widest block">Teaching load</span>
+						<span className="text-xs font-bold text-muted-foreground/60 uppercase tracking-widest block">Hours a week</span>
 						<p className="text-xl font-black tracking-tight tabular-nums">{loadProfile.actualTeachingHours}h</p>
 					</div>
 					{loadProfile.status === 'overload-allowed' || loadProfile.status === 'over-cap' ? (
@@ -194,7 +196,7 @@ export function WorkloadInspector({
 						</div>
 					) : (
 						<div className="p-4 rounded-xl border border-border/40 bg-muted/5 space-y-1">
-							<span className="text-xs font-bold text-muted-foreground/60 uppercase tracking-widest block">Remaining teaching time</span>
+							<span className="text-xs font-bold text-muted-foreground/60 uppercase tracking-widest block">Room for more classes</span>
 							<p className="text-xl font-black tracking-tight tabular-nums text-emerald-600">
 								{loadProfile?.remainingHours?.toFixed(1) ?? '0.0'}h
 							</p>
@@ -204,7 +206,7 @@ export function WorkloadInspector({
 
 				{/* Handled Classes Summary */}
 				<section className="space-y-4">
-					<h5 className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground/60 border-b border-border/40 pb-2">Handled Classes</h5>
+					<h5 className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground/60 border-b border-border/40 pb-2">Classes taught</h5>
 					{loadProfile.breakdown.length === 0 ? (
 						<div className="p-4 rounded-xl border border-dashed border-border/60 bg-muted/5 text-center">
 							<p className="text-xs font-bold text-muted-foreground/40 uppercase tracking-widest italic">No sections assigned yet</p>
@@ -213,8 +215,8 @@ export function WorkloadInspector({
 						<div className="space-y-2">
 							{loadProfile.breakdown.map((item, idx) => (
 								<div key={`${item.subjectId}-${item.sectionId}-${idx}`} className="flex items-center gap-3 p-2 rounded-lg border border-border/40 bg-background shadow-sm">
-									<Badge variant="secondary" className="px-2 py-0.5 text-xs font-semibold uppercase bg-primary/5 text-primary border-primary/10">
-										{item.subjectCode}
+									<Badge variant="secondary" className="max-w-[45%] truncate px-2 py-0.5 text-xs font-semibold bg-primary/5 text-primary border-primary/10" data-testid="workload-class-subject">
+										{item.subjectName || item.subjectCode}
 									</Badge>
 									<div className="flex-1 min-w-0">
 										<p className="text-sm font-semibold uppercase truncate leading-tight">{item.sectionName}</p>
@@ -236,12 +238,12 @@ export function WorkloadInspector({
 
 				{/* Arithmetic Breakdown */}
 				<section className="space-y-4">
-					<h5 className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground/60 border-b border-border/40 pb-2">Load Arithmetic</h5>
+					<h5 className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground/60 border-b border-border/40 pb-2">How this load is counted</h5>
 					<div className="space-y-2.5">
 						<div className="flex items-center justify-between text-xs font-bold">
 							<div className="flex items-center gap-2 text-muted-foreground">
 								<BookOpen className="size-4 opacity-40" />
-								<span>Total Classes Sum</span>
+								<span>All classes added together</span>
 							</div>
 							<span className="tabular-nums">{(loadProfile.rawTeachingHours).toFixed(1)}h</span>
 						</div>
@@ -250,7 +252,7 @@ export function WorkloadInspector({
 							<div className="flex items-center justify-between text-xs font-bold text-violet-700 bg-violet-50/50 p-2 rounded-lg border border-violet-100/50">
 								<div className="flex items-center gap-2">
 									<Layers className="size-4 opacity-60" />
-									<span>Rotation Deduction</span>
+									<span>Subjects that rotate by term count once</span>
 								</div>
 								<span className="tabular-nums">-{(loadProfile.rotationOvercountHours).toFixed(1)}h</span>
 							</div>
@@ -259,7 +261,7 @@ export function WorkloadInspector({
 						<div className="flex items-center justify-between text-xs font-bold">
 							<div className="flex items-center gap-2 text-muted-foreground">
 								<Clock className="size-4 opacity-40" />
-								<span>Actual Teaching</span>
+								<span>{loadProfile.rotationOvercountHours > 0 ? 'Teaching hours in the busiest term' : 'Teaching hours a week'}</span>
 							</div>
 							<span className="tabular-nums">{(loadProfile.actualTeachingHours).toFixed(1)}h</span>
 						</div>
@@ -268,14 +270,14 @@ export function WorkloadInspector({
 							<div className="flex items-center justify-between text-xs font-bold text-emerald-700">
 								<div className="flex items-center gap-2">
 									<Star className="size-4 opacity-60" />
-									<span>Advisory / Ancillary</span>
+									<span>Adviser and other duties (credit)</span>
 								</div>
 								<span className="tabular-nums">+{(loadProfile.equivalentHours).toFixed(1)}h</span>
 							</div>
 						)}
 
 						<div className="pt-2 mt-2 border-t border-dashed border-border/60 flex items-center justify-between">
-							<span className="text-sm font-semibold uppercase tracking-tight text-primary">Total Credited</span>
+							<span className="text-sm font-semibold uppercase tracking-tight text-primary">Total with credit</span>
 							<span className="text-lg font-semibold tabular-nums text-primary">{loadProfile.creditedTotalHours.toFixed(1)}h</span>
 						</div>
 					</div>
@@ -284,20 +286,19 @@ export function WorkloadInspector({
 				{/* Rotational Families */}
 				{rotationTermBreakdown.length > 0 && (
 					<section className="space-y-4">
-						<h5 className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground/60 border-b border-border/40 pb-2">Rotational Groups</h5>
+						<h5 className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground/60 border-b border-border/40 pb-2">Subjects that rotate by term</h5>
 						<div className="space-y-4">
 							{rotationTermBreakdown.map((family) => (
 								<div key={family.family} className="p-4 rounded-xl border border-sky-100 bg-sky-50/20 space-y-4">
 									<div className="flex items-center justify-between gap-2">
 										<div className="min-w-0">
-											<span className="text-xs font-semibold uppercase tracking-widest text-sky-900/40 block leading-none mb-1">Group</span>
 											<span className="text-sm font-semibold uppercase tracking-tight text-sky-900 truncate block">{family.family}</span>
 										</div>
 										<div className="text-right">
 											<span className="text-lg font-semibold text-sky-900 tabular-nums leading-none">
 												{(family.peakTermMinutesPerWeek / 60).toFixed(1)}h
 											</span>
-											<span className="text-xs font-bold text-sky-600/70 uppercase tracking-tighter block mt-1">Peak Weekly</span>
+											<span className="text-xs font-bold text-sky-600/70 uppercase tracking-tighter block mt-1">Busiest term</span>
 										</div>
 									</div>
 
@@ -321,8 +322,8 @@ export function WorkloadInspector({
 												)}
 											>
 												<span className={cn("text-xs font-semibold uppercase tracking-widest", isActive ? "text-primary" : isPeak ? "text-sky-900" : "text-sky-700/60")}>
-													T{term}
-													{isActive && <span className="ml-0.5 text-[0.5rem] font-bold">(active)</span>}
+													Term {term}
+													{isActive && <span className="ml-0.5 text-xs font-bold normal-case">(now)</span>}
 												</span>
 												<div className={cn("text-xs font-semibold tabular-nums leading-none", isActive ? "text-foreground" : isPeak ? "text-sky-800" : "text-sky-700/60")}>
 													{bucket ? `${(bucket.creditedMinutesPerWeek / 60).toFixed(1)}h` : '0.0h'}
@@ -367,16 +368,16 @@ export function WorkloadInspector({
 				<div className="p-4 rounded-xl border border-dashed border-border bg-muted/20">
 					<h6 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-2 flex items-center gap-2">
 						<Info className="size-4" />
-						Scheduling Guidance
+						What to do
 					</h6>
-					<p className="text-sm text-muted-foreground/80 font-medium leading-relaxed italic">
-						{loadProfile.status === 'over-cap' 
-							? `This teacher exceeds the ${selected.maxHoursPerWeek}h weekly maximum. Reduce their assignments immediately to ensure timetable feasibility.`
+					<p className="text-sm text-muted-foreground/80 font-medium leading-relaxed" data-testid="workload-guidance">
+						{loadProfile.status === 'over-cap'
+							? `This teacher is above their ${selected.maxHoursPerWeek}h weekly maximum. Move some of their classes to another teacher before making the schedule.`
 							: loadProfile.status === 'overload-allowed'
-							? `Load is above the ${teachingStandardHours}h teaching standard and within the ${selected.maxHoursPerWeek}h maximum. Ensure this is approved by the department head.`
+							? `This teacher is above the ${teachingStandardHours}h standard but within their ${selected.maxHoursPerWeek}h maximum. Check that the department head has agreed.`
 							: loadProfile.status === 'below-standard'
-							? "Capacity remains for additional assignments. Prioritize unassigned sections from the shortage grid."
-							: "Teacher load is optimal."}
+							? `This teacher can take more classes (up to the ${teachingStandardHours}h standard).`
+							: 'This teacher is at the standard load. Nothing to do.'}
 					</p>
 				</div>
 			</div>

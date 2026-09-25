@@ -217,7 +217,8 @@ test('C-5 cold load renders the truth panel with known metrics, never "Checking 
 	);
 
 	assert.doesNotMatch(markup, /Checking source/, 'the panel must not be stuck on the loading badge');
-	assert.match(markup, /Source verified/);
+	// SUPERSEDED by LANE-C TEACHING-LOAD-CLARITY-C02 (audit A4 plain wording): assert.match(markup, /Source verified/);
+	assert.match(markup, /Up to date with EnrollPro/);
 	assert.ok(isKnown(model.requiredPairs));
 	assert.equal(model.requiredPairs.value, 2);
 	assert.match(markup, /data-testid="teaching-load-truth-required-pairs" data-metric-state="known"/);
@@ -283,15 +284,19 @@ test('F4 a cache-sourced workspace never renders "Source verified" beside the un
 		})),
 	);
 
+	// SUPERSEDED by LANE-C TEACHING-LOAD-CLARITY-C02 (audit A4 plain wording):
+	//   verified: /Source verified/ present, /Source not verified/ absent
+	//   cached:   /Source not verified/ present, /Source verified/ absent
+	// Replacement — the same contract with the plain badge text:
 	const verified = renderBadge(true);
-	assert.match(verified, /Source verified/);
-	assert.doesNotMatch(verified, /Source not verified/);
+	assert.match(verified, /Up to date with EnrollPro/);
+	assert.doesNotMatch(verified, /Using saved data/);
 
 	// Negative control: the same panel with an unverified upstream source must
 	// stop claiming verification while the page sentence says cache-only.
 	const cached = renderBadge(false);
-	assert.match(cached, /Source not verified/);
-	assert.doesNotMatch(cached, /Source verified/);
+	assert.match(cached, /Using saved data/);
+	assert.doesNotMatch(cached, /Up to date with EnrollPro/);
 });
 
 /* ================================================================== *

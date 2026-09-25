@@ -66,7 +66,7 @@ export function StackedWorkloadBar({
 					overCap && 'border-rose-300 ring-1 ring-rose-200',
 				)}
 				role="img"
-				aria-label={`Teaching load ${formatHours(Math.max(teachingHours, 0))} of ${formatHours(maxHours)} cap (${standardLabel}); plus ${formatHours(Math.max(creditHours, 0))} advisory or ancillary credit shown separately.${normalizedHoverHours > 0 ? ` Projected teaching ${formatHours(state.projectedTeachingHours)} (${state.projectedTone}).` : ''}`}
+				aria-label={`Teaching load ${formatHours(Math.max(teachingHours, 0))} of this teacher's ${formatHours(maxHours)} maximum (${standardLabel}); plus ${formatHours(Math.max(creditHours, 0))} adviser or other-duty credit shown separately.${normalizedHoverHours > 0 ? ` Projected teaching ${formatHours(state.projectedTeachingHours)} (${state.projectedTone}).` : ''}`}
 			>
 				<div
 					className={cn("absolute left-0 top-0 h-full rounded-full transition-all", barColor)}
@@ -94,12 +94,12 @@ export function StackedWorkloadBar({
 			</div>
 
 			{showLegend && (
-				<div className="flex items-center justify-between gap-2 text-xs font-semibold uppercase tracking-tighter text-muted-foreground/85">
+				<div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-0.5 text-xs font-semibold text-muted-foreground/85" data-testid="workload-bar-legend">
 					<div className="flex min-w-0 items-center gap-1.5">
 						<span className={cn("inline-block size-2 rounded-full", barColor)} />
-						<span className="truncate">Teaching: {formatHours(Math.max(teachingHours, 0))} (+{formatHours(Math.max(creditHours, 0))} credits){normalizedHoverHours > 0 ? ` → projected ${formatHours(state.projectedTeachingHours)}` : ''}</span>
+						<span>Teaching {formatHours(Math.max(teachingHours, 0))}{creditHours > 0 ? ` + ${formatHours(creditHours)} credit` : ''}{normalizedHoverHours > 0 ? ` → ${formatHours(state.projectedTeachingHours)} if added` : ''}</span>
 					</div>
-					<span className="shrink-0 tabular-nums">{standardLabel} / {maxHours}h cap</span>
+					<span className="tabular-nums">{standardLabel} · {maxHours}h max for this teacher</span>
 				</div>
 			)}
 		</div>

@@ -35,12 +35,14 @@ export function SectionInspector({
 			id: entry.subjectId,
 			subjectCode: entry.subjectCode,
 			subjectName: entry.subjectName,
+			termLabel: entry.rotationTermLabel,
 			specializationLabel: entry.specializationLabel,
 		})),
 		...((sectionContract?.unassignedExpectedClasses ?? []).map((entry) => ({
 			id: entry.subjectId,
 			subjectCode: entry.subjectCode,
 			subjectName: entry.subjectName,
+			termLabel: entry.rotationTermLabel,
 			specializationLabel: null,
 		}))),
 	];
@@ -71,7 +73,7 @@ export function SectionInspector({
 				<div className="flex items-center justify-between">
 					<h3 className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground/60">Section Staffing</h3>
 					<Badge variant="outline" className={cn("h-5 font-semibold uppercase tracking-tighter shadow-none text-xs", missingCount === 0 ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-amber-50 text-amber-700 border-amber-200")}>
-						{missingCount === 0 ? "Fully Staffed" : `${missingCount} Subjects Missing`}
+						{missingCount === 0 ? 'Every subject has a teacher' : `${missingCount} subject${missingCount === 1 ? '' : 's'} need a teacher`}
 					</Badge>
 				</div>
 
@@ -141,14 +143,16 @@ export function SectionInspector({
 									? "bg-background border-border/40 shadow-sm" 
 									: "bg-muted/10 border-dashed border-border/60 opacity-60"
 							)}>
-								<Badge variant="secondary" className={cn("px-2 py-0.5 text-xs font-semibold uppercase", owner ? "bg-primary/5 text-primary border-primary/10" : "bg-muted text-muted-foreground/40")}>
-									{subject.subjectCode}
-								</Badge>
-								
+								{/* LANE-C C02 (audit A6/A7): subject name plus its term, not the internal code. */}
 								<div className="flex-1 min-w-0">
-									<p className="text-sm font-semibold uppercase truncate leading-tight">
+									<p className="text-sm font-semibold uppercase truncate leading-tight" data-testid="section-subject-name">
 										{subject.subjectName}
 									</p>
+									{subject.termLabel ? (
+										<p className="text-xs font-semibold text-violet-700" data-testid="section-subject-term">
+											{subject.termLabel} only
+										</p>
+									) : null}
 									<div className="flex items-center gap-1.5 mt-0.5">
 										{owner ? (
 											<>
@@ -160,7 +164,7 @@ export function SectionInspector({
 												)}
 											</>
 										) : (
-											<span className="text-xs font-bold text-rose-500 uppercase tracking-widest italic">Unassigned</span>
+											<span className="text-xs font-bold text-rose-500 uppercase tracking-widest">No teacher yet</span>
 										)}
 										{subject.specializationLabel ? (
 											<Badge variant="outline" className="h-4 px-1.5 text-[10px] font-semibold uppercase bg-background">
@@ -182,12 +186,12 @@ export function SectionInspector({
 				<div className="p-4 rounded-xl border border-dashed border-border bg-muted/20">
 					<h6 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-2 flex items-center gap-2">
 						<Info className="size-4" />
-						Staffing Guidance
+						What to do
 					</h6>
-					<p className="text-sm text-muted-foreground/80 font-medium leading-relaxed italic">
-						{missingCount > 0 
-							? "Identify available teachers from the qualified department list. Prioritize those with lower load percentages."
-							: "This section is fully covered. Review individual teacher loads for potential optimizations."}
+					<p className="text-sm text-muted-foreground/80 font-medium leading-relaxed" data-testid="section-guidance">
+						{missingCount > 0
+							? 'Choose a qualified teacher for each subject marked "No teacher yet". Teachers with lighter loads are the best choice.'
+							: 'Every subject in this section has a teacher. Nothing to do.'}
 					</p>
 				</div>
 			</div>
