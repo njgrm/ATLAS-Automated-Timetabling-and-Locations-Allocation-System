@@ -37,7 +37,8 @@ Correct only `atlas-server/src/services/published-schedule.service.ts:956-984` a
 - Pin `asOf = new Date()` at the call site, matching `published-revision.service.ts`; date threading through the
   eight export routes is out of scope. Record the base-selection (`INITIAL_PUBLICATION` vs publication pointer)
   divergence as a residual rather than changing fail-closed behavior here.
-- Preserve `TERM_INDEX_OUTSIDE_CONTRACT`, `TERM_SELECTION_REQUIRED`, and every existing route status/code
+- Preserve `TERM_INDEX_OUTSIDE_CONTRACT`, `TERM_FILTER_NOT_READY` (the existing export-resolver code for a null
+  active order), `TERM_SELECTION_REQUIRED` (the archived-read payload code), and every existing route status/code
   passthrough. No database writes and no publication mutation.
 - Put the decisive F1 controls in the real-Prisma `published-immutability-c08.test.ts` / `test:server-db` path,
   not in the `published-identity-readback-s4-client` fake, unless the fixture is extended explicitly.
@@ -58,12 +59,12 @@ Correct only `atlas-server/src/services/published-schedule.service.ts:956-984` a
 
 ### F1 rows (MEDIUM)
 
-1. Failing-first real-PG control: base TRIMESTER T1-T3 plus an effective SCHEDULED QUARTERS override; term 3
+1. Failing-first real-PG control: base TRIMESTER T1-T3 plus an effective SCHEDULED QUARTERS override; term 4
    resolves under the effective 4-term contract on candidate and fails `TERM_INDEX_OUTSIDE_CONTRACT` on base.
-2. A requested date before the override effective date remains under the base 3-term authority.
-3. A SUPERSEDED/withdrawn override does not govern and base authority is restored.
-4. `requested === 'active'` uses the effective contract's `activeTermOrder`; null active order fails closed with
-   `TERM_SELECTION_REQUIRED`.
+2. A requested date before the override effective date leaves term 4 under the base 3-term authority and fails closed.
+3. A SUPERSEDED/withdrawn override does not govern and term 4 remains outside the base contract.
+4. `requested === 'active'` uses the effective contract's `activeTermOrder`; a null active order fails closed with
+   the existing `TERM_FILTER_NOT_READY` export code, while the archived read path retains `TERM_SELECTION_REQUIRED`.
 5. `snapshotDigest(baseMetadata)` is byte-identical before/after and direct base read still returns TRIMESTER.
 6. No second validator/import edge; the correction reuses the existing resolver and preserves typed errors.
 7. Existing `test:server-db` C08 immutability, published-revision-identity, and published-identity-readback suites
