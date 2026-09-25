@@ -335,9 +335,14 @@ generation/readiness/publication transactions, threads one term through prefligh
 fail-closed codes, and keeps the network out of Serializable/advisory locks. No migration or live-data action
 occurred.
 
-**Next action (2026-09-26):** no required Q4/A1 work remains. Keep `861d89a2` live and `eb0e3038`/donor preserved;
-any F1/F2 follow-up is a separate bounded cycle. The provider-memo and singleton-instrumentation QA evidence
-residuals are non-blocking accuracy follow-ups.
+**Source follow-up cycle (2026-09-26):** `PUBLISHED-TERM-AND-DRIFT-FOLLOWUP-C01` candidate `b0dee7c6`
+(F1 `published-schedule` effective export authority + F2 availability drift route) passed fresh QA **15/15/0/0**
+and is integrated as `1dd92647`; it is **not deployed**. F1/F2 are closed in source, with no runtime, migration,
+or live-data action. Handoff: `docs/handoffs/published-term-and-drift-followup-c01-2026-09-26.md`.
+
+**Next action (2026-09-26):** no Lane A source task remains. Keep `861d89a2` live and `eb0e3038`/donor preserved.
+F1/F2 deployment is a separate HIGH decision; Lane C's `9f42190e` packet remains separately gated. The provider-memo
+and singleton-instrumentation QA evidence residuals are non-blocking accuracy follow-ups.
 
 **Dated decisions / residuals (verify before acting):**
 - **F7 remains deliberately rejected (2026-09-25):** daily tools stay under More so the header remains compact;
@@ -350,9 +355,8 @@ residuals are non-blocking accuracy follow-ups.
   published-teacher-leaving rows no longer describe the current screen. Acceptance remains separate from deployment.
 - `UX-AUDIT-SIZE-C01` R1 fixed audit finding 4 in source (`fb245772`, QA 6/6/0/0, integrated `c5e167d7`); only
   the live pixel rows remain. Findings 3 and 6 are addressed on main; finding 9 was already addressed.
-- **F1 published-export term derivation remains a separate cycle (2026-09-25):** it is a frozen C08 immutability
-  surface, not part of C02. **F2 availability drift repair href** (`/faculty` → `/faculty/concerns`) is also a
-  separate client-only cycle; neither is a blocker for `861d89a2`.
+- **F1/F2 source follow-up integrated (2026-09-26):** `1dd92647` / QA 15/15; deployment remains separate HIGH.
+  F1's base-selection/date-threading residual and the export-path 422 mapping suggestion remain follow-ups.
 - Host-proxy 502/offline term-cache staleness remain unowned observations from 2026-09-24. The removed `/my/*`
   route smoke fixture remains a D6 cleanup follow-up as of 2026-09-25.
 
