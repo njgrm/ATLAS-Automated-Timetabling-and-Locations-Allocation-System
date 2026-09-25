@@ -3,6 +3,7 @@ import { AlertTriangle, CheckCircle2, ChevronRight, Copy, Download, ExternalLink
 import { Link } from 'react-router-dom';
 
 import { cn } from '@/lib/utils';
+import { MUST_FIX_LABEL, plainScopeLabel } from '@/lib/timetable-plain-language';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import { ScrollArea } from '@/ui/scroll-area';
@@ -92,7 +93,7 @@ function BlockerGroupRow({ group, onNavigate }: { group: BlockerGroup; onNavigat
 	const [expanded, setExpanded] = useState(false);
 	const visibleItems = expanded ? group.items : group.items.slice(0, 3);
 	const whyItMatters = group.items[0]?.nextStep ?? 'Fix this group before the schedule can be published.';
-	const scopeLabel = group.scope === 'run-wide' ? 'Run-wide' : 'Selected term';
+	const scopeLabel = plainScopeLabel(group.scope);
 	const destination = resolveBlockerDestination(group.reason, group.actionHref);
 	return (
 		<div
@@ -244,12 +245,12 @@ export function SimplePublishReadinessSheetBody({
 							className="rounded-xl border border-border bg-muted/30 p-3 text-xs text-muted-foreground"
 							data-testid="timetable-simple-readiness-scope"
 						>
-							<p className="font-semibold text-foreground">Run-wide gate decides publication</p>
+							<p className="font-semibold text-foreground">The whole year&rsquo;s schedule decides whether you can publish</p>
 							<p className="mt-1">
-								Run-wide: <span className="font-medium text-foreground" data-testid="timetable-simple-run-wide-blocking">{readiness.runWideBlockingHard}</span> blocking hard · <span className="font-medium text-foreground" data-testid="timetable-simple-run-wide-unassigned">{readiness.runWideUnassigned}</span> unresolved session{readiness.runWideUnassigned === 1 ? '' : 's'}
+								Whole year: <span className="font-medium text-foreground" data-testid="timetable-simple-run-wide-blocking">{readiness.runWideBlockingHard}</span> {MUST_FIX_LABEL} · <span className="font-medium text-foreground" data-testid="timetable-simple-run-wide-unassigned">{readiness.runWideUnassigned}</span> class{readiness.runWideUnassigned === 1 ? '' : 'es'} still to place
 							</p>
 							<p className="mt-0.5">
-								Selected term detail only: <span className="font-medium text-foreground" data-testid="timetable-simple-selected-term-count">{readiness.selectedTermViolationCount}</span> shown · <span className="font-medium text-foreground" data-testid="timetable-simple-selected-term-blocking">{readiness.selectedTermBlockingHard}</span> blocking hard
+								Selected term detail only: <span className="font-medium text-foreground" data-testid="timetable-simple-selected-term-count">{readiness.selectedTermViolationCount}</span> shown · <span className="font-medium text-foreground" data-testid="timetable-simple-selected-term-blocking">{readiness.selectedTermBlockingHard}</span> {MUST_FIX_LABEL}
 							</p>
 						</div>
 					)}

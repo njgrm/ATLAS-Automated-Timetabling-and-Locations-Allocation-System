@@ -421,7 +421,17 @@ test('R1 a run-wide blocking HARD renders a truthful publish block', () => {
 		summary: { assignedCount: 5, classesProcessed: 5, hardViolationCount: 1, unassignedCount: 0 },
 	});
 	assert.match(markup, /data-testid="timetable-simple-readiness-chip"/);
-	assert.match(markup, /1 blocker/);
+	// SUPERSEDED BY WORD (LANE-C-PLAIN-LANGUAGE-C03 J1, 2026-09-26). The row's
+	// intent — a run-wide blocking HARD renders a truthful, count-bearing
+	// publish block on the readiness chip — is unchanged and still asserted
+	// below, including the value 1. Only the noun changed: the 2026-09-26 audit
+	// finding 3 found this same concept rendered as "Must fix" / "Blocked" /
+	// "blocker" / "Hard" in one viewport, and J1 makes "Must fix" the single
+	// plain word. Original assertion retained verbatim:
+	//   assert.match(markup, /1 blocker/);
+	assert.match(markup, /1 Must fix/, 'the chip states the truthful blocking count in the one plain word');
+	assert.doesNotMatch(markup, /\d+\s+blockers?\b/, 'no competing name for the same idea reaches the chip');
+	assert.equal((markup.match(/data-testid="timetable-simple-readiness-chip"/g) ?? []).length, 1, 'exactly one readiness chip renders');
 });
 
 test('R1 a legacy non-blocking HARD does not block publish', () => {

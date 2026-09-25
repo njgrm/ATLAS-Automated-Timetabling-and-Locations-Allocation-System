@@ -407,7 +407,7 @@ test('S1 the merged warnings control dispatches the review-warnings task, and Mo
 
 /* ── S2 — no visible "Term" / "View type" labels; accessible names kept ─────── */
 
-test('S2 the Term and View type text labels are gone and both dropdowns keep their accessible names', async () => {
+test('S2 SUPERSEDED by LANE-C-PLAIN-LANGUAGE-C03 (J5) — the Term and View type text labels are gone and both dropdowns keep their accessible names', async () => {
 	viewportWidth = 1366;
 	const header = await renderHeader(withRunContext());
 	const walker = document.createTreeWalker(header, dom.window.NodeFilter.SHOW_TEXT);
@@ -418,10 +418,61 @@ test('S2 the Term and View type text labels are gone and both dropdowns keep the
 		const text = node.textContent?.trim();
 		if (text) visibleTexts.push(text);
 	}
-	assert.ok(!visibleTexts.includes('Term'), `no visible "Term" label (visible texts: ${visibleTexts.join(' | ')})`);
-	assert.ok(!visibleTexts.includes('View type'), 'no visible "View type" label');
+	// ── SUPERSEDED IN PLACE by LANE-C-PLAIN-LANGUAGE-C03 (J5), 2026-09-26 ──
+	// The operator asked for the two highest-traffic dropdowns to be labelled in
+	// plain words again, reversing this DRAFT-UX-C01 decision. The original two
+	// assertions are retained VERBATIM below as the record of the decision being
+	// superseded; they are not run as pass/fail. The control cap they existed to
+	// protect is NOT given up — it is still enforced, by the replacement row S2R
+	// below, which asserts the cap, the one-solid-primary contract, and that the
+	// new labels are non-interactive text.
+	//   assert.ok(!visibleTexts.includes('Term'), `no visible "Term" label (visible texts: ${visibleTexts.join(' | ')})`);
+	//   assert.ok(!visibleTexts.includes('View type'), 'no visible "View type" label');
+	// Retained and STILL TRUE: the accessible names are unchanged by J5.
 	assert.equal(header.querySelector('[data-testid="timetable-simple-term-filter"]')?.getAttribute('aria-label'), 'Term');
 	assert.equal(header.querySelector('[data-testid="timetable-simple-view-mode-select"]')?.getAttribute('aria-label'), 'View type');
+});
+
+/* ── S2R — LANE-C-PLAIN-LANGUAGE-C03 (J5): the cap survives, the labels land ── */
+
+test('S2R every header dropdown keeps its accessible name AND gains a visible, non-interactive plain label; the ≤6 cap and one solid primary are unchanged', async () => {
+	viewportWidth = 1366;
+	const header = await renderHeader(withRunContext());
+
+	// 1. The real intent of the superseded S2 row: the control budget is intact.
+	const controls = visibleControls(header);
+	assert.ok(controls.length <= 6, `expected ≤6 visible controls at ≥1280 px, got ${controls.length}: ${controls.map(describeControl).join(' | ')}`);
+	assert.equal(controls.filter((element) => /\bbg-primary\b/.test(element.className)).length, 1, 'exactly one solid primary');
+
+	// 2. Each dropdown has BOTH a visible plain label and its accessible name.
+	const expected = [
+		{ testid: 'timetable-simple-term-filter', control: '[data-testid="timetable-simple-term-filter"]', label: 'Term', labelTestid: 'timetable-simple-term-label' },
+		{ testid: 'timetable-simple-view-mode-select', control: '[data-testid="timetable-simple-view-mode-select"]', label: 'Show', labelTestid: 'timetable-simple-view-mode-label' },
+		// The entity picker's testid is a sizing wrapper; the control inside it is the combobox.
+		{ testid: 'timetable-simple-entity-select [role="combobox"]', control: '[data-testid="timetable-simple-entity-select"] [role="combobox"]', label: 'Schedule for', labelTestid: 'timetable-simple-entity-label' },
+	];
+	for (const { testid, control, label, labelTestid } of expected) {
+		const controlElement = header.querySelector<HTMLElement>(control);
+		assert.ok(controlElement, `${testid} renders`);
+		assert.ok(controls.includes(controlElement), `${testid} is still inside the control budget`);
+
+		const visibleLabel = header.querySelector<HTMLElement>(`[data-testid="${labelTestid}"]`);
+		assert.ok(visibleLabel, `${labelTestid} renders a visible label`);
+		assert.equal(visibleLabel.textContent?.trim(), label, `${labelTestid} says "${label}" in plain words`);
+		assert.equal(visibleLabel.tagName, 'SPAN', 'the label is non-interactive text, not a control');
+		assert.ok(!hiddenAtDesktop(visibleLabel, header), `${labelTestid} is actually visible at ≥1280 px`);
+		// Load-bearing: the label must not have consumed one of the six controls.
+		assert.ok(!controls.includes(visibleLabel), `${labelTestid} is NOT counted as a control`);
+	}
+
+	// 3. The accessible names the superseded row already protected are unchanged.
+	assert.equal(header.querySelector('[data-testid="timetable-simple-term-filter"]')?.getAttribute('aria-label'), 'Term');
+	assert.equal(header.querySelector('[data-testid="timetable-simple-view-mode-select"]')?.getAttribute('aria-label'), 'View type');
+
+	// 4. The labels are plain words, not the old engineer vocabulary.
+	const headerText = header.textContent ?? '';
+	assert.match(headerText, /Show/, 'the view-type label is visible text');
+	assert.doesNotMatch(headerText, /View type(?!\s*$)/, 'no raw "View type" jargon is rendered as visible copy');
 });
 
 /* ── S3 — cell warnings are severity signs, not "Schedule note · N" text ─── */
@@ -678,4 +729,276 @@ test('S1 every Simple tutorial step targets a control that still renders somewhe
 		}
 	}
 	assert.equal(corpus.includes('data-testid="timetable-simple-primary-action"'), false, 'the removed lifecycle primary is not a target');
+});
+
+/* ── PL (J1) — one concept, one name, one stated relationship ──────────────
+ *
+ * The 2026-09-26 audit finding 3: the same HARD problem was rendered as
+ * "Must fix" (grid sign), "Blocked" (grid badge), "blocker" (header chip) and
+ * "Hard" (summary stat), with three different hard counts and nothing saying
+ * they can legitimately differ.
+ *
+ * These are RENDERED-DOM rows on purpose (audit "systemic" finding: a
+ * readFileSync+regex control cannot catch a wrong value or an unmounted
+ * component, which is how C1's false statement survived a green suite).
+ */
+
+/** The grid cell's hard conflict badge — the surface that said "Blocked". */
+async function renderHardCellBadge() {
+	const { ConflictBadgeWithTooltip } = await import('../TimetableGridConflictBadge');
+	await mount(createElement('div', null,
+		createElement(ConflictBadgeWithTooltip, {
+			info: {
+				kind: 'hard',
+				reasons: ['Teacher is double-booked at this time.'],
+				displaced: [],
+			} as never,
+			onNavToFaculty: () => {},
+			onNavToSection: () => {},
+			onNavToRoom: () => {},
+		}),
+	));
+	return container();
+}
+
+test('PL-J1.1 the grid hard badge says "Must fix", never "Blocked"', async () => {
+	const host = await renderHardCellBadge();
+	const text = host.textContent ?? '';
+	assert.match(text, /Must fix/, 'the hard cell badge uses the one plain word');
+	assert.doesNotMatch(text, /Blocked/, 'the fourth name for the same concept is gone from the grid');
+	// The SR-only disclosure names the same word, so a screen reader is not told
+	// a different name than the sighted one.
+	assert.match(host.querySelector('.sr-only')?.textContent ?? '', /Must fix/, 'the screen-reader detail uses the same word');
+});
+
+test('PL-J1.2 the header chip says "N Must fix", never "N blockers"', async () => {
+	viewportWidth = 1366;
+	const header = await renderHeader(withRunContext({
+		blockingHardCount: 2,
+		hardCount: 5,
+		softCount: 0,
+		summary: { assignedCount: 400, classesProcessed: 401, hardViolationCount: 5, unassignedCount: 0 },
+		draft: draft([], { hardViolationCount: 5, unassignedCount: 0 }),
+	}));
+	const text = header.textContent ?? '';
+	assert.match(text, /2 Must fix/, 'the readiness chip uses the one plain word with the allowlist-filtered count');
+	assert.doesNotMatch(text, /\d+\s+blockers?\b/, 'the "blocker" name is gone from the header chip');
+});
+
+test('PL-J1.3 the publish checklist names the one word and states WHY the two hard numbers differ', async () => {
+	const { PublishChecklistContent } = await import('../simple/SimpleTaskDrawerHelpers');
+	// Deliberately divergent, as the audit says they legitimately may be:
+	// 2 publication-blocking, 5 serious problems in total.
+	await mount(createElement(PublishChecklistContent, {
+		runId: 318,
+		assignedCount: 400,
+		unassignedCount: 2,
+		hardCount: 5,
+		blockingHardCount: 2,
+		softCount: 194,
+		violationScopeLabel: 'Selected term only',
+		violations: [],
+		sectionLabel: (id: number) => `GR7 - Section ${id}`,
+		subjectLabel: (id: number) => `Subject ${id}`,
+		facultyLabel: (id: number) => `Teacher ${id}`,
+		onPublish: () => {},
+		onReviewIssues: () => {},
+		onPlaceUnresolved: () => {},
+	} as never));
+	const checklist = container().querySelector<HTMLElement>('[data-testid="timetable-publish-readiness-summary"]');
+	assert.ok(checklist, 'the checklist renders');
+
+	// The numbers are unchanged: no new number is invented.
+	assert.match(checklist.textContent ?? '', /Must fix \(whole year\): 2/, 'the publication-relevant count keeps its value');
+	assert.match(checklist.textContent ?? '', /All serious problems \(whole year\): 5/, 'the serious-problem total keeps its value');
+	assert.match(checklist.textContent ?? '', /2 classes still to place \(whole year\)/, 'unplaced classes are named in plain words');
+
+	// The relationship is stated ONCE, in plain words, where both are visible.
+	const note = container().querySelector<HTMLElement>('[data-testid="timetable-hard-count-relationship"]');
+	assert.ok(note, 'the relationship is stated where more than one hard number is visible');
+	const noteText = note.textContent ?? '';
+	assert.match(noteText, /Must fix/, 'the note uses the one plain word');
+	assert.match(noteText, /total can be higher/, 'the note says why the two numbers may differ');
+	assert.match(noteText, /can still be published/, 'the note says what a zero in the first column means');
+
+	// One concept, one name: none of the other three names appear.
+	assert.doesNotMatch(checklist.textContent ?? '', /Blocking hard violations/, 'the "blocking hard violations" jargon is gone');
+	assert.doesNotMatch(noteText, /blocker|Blocked|Hard violations/, 'the note introduces no competing name');
+});
+
+test('PL-J1.4 the readiness sheet uses the one word and says whose schedule decides publishing', async () => {
+	const { SimplePublishReadinessSheetBody } = await import('../SimplePublishReadinessSheet');
+	await mount(createElement(SimplePublishReadinessSheetBody, {
+		readiness: {
+			hasGeneratedRun: true,
+			isClean: false,
+			runWideBlockingHard: 2,
+			runWideUnassigned: 2,
+			selectedTermViolationCount: 1,
+			selectedTermBlockingHard: 0,
+			blockerGroups: [],
+			warningGroups: [],
+			canPublish: false,
+			unacknowledgedWarningCount: 0,
+		},
+		onNavigate: () => {},
+		onCopySummary: () => {},
+		onDownloadCsv: () => {},
+		onClose: () => {},
+	} as never));
+	const scope = container().querySelector<HTMLElement>('[data-testid="timetable-simple-readiness-scope"]');
+	assert.ok(scope, 'the readiness scope block renders');
+	const text = scope.textContent ?? '';
+	assert.match(text, /Must fix/, 'the sheet uses the one plain word');
+	assert.doesNotMatch(text, /blocking hard/, 'the "blocking hard" jargon is gone from the sheet');
+	assert.match(text, /The whole year/, 'the scope is stated in plain words, not "Run-wide"');
+	assert.match(text, /decides whether you can publish/, 'the sheet says whose schedule decides publishing');
+	// The two figures are preserved exactly.
+	assert.equal(scope.querySelector('[data-testid="timetable-simple-run-wide-blocking"]')?.textContent, '2');
+	assert.equal(scope.querySelector('[data-testid="timetable-simple-run-wide-unassigned"]')?.textContent, '2');
+	assert.equal(scope.querySelector('[data-testid="timetable-simple-selected-term-blocking"]')?.textContent, '0');
+});
+
+/* ── PL (J4) — calm the false alarms: styling and copy only, no new control ── */
+
+async function renderReadinessChip(props: Record<string, unknown>) {
+	const { SimpleReadinessChip } = await import('../simple/SimpleSetupSharedControls');
+	await mount(createElement(SimpleReadinessChip as unknown as (p: Record<string, unknown>) => ReactElement, props));
+	const chip = container().querySelector<HTMLElement>('[data-testid="timetable-simple-readiness-chip"]');
+	assert.ok(chip, 'the readiness chip renders');
+	return chip;
+}
+
+test('PL-J4.1 unplaced classes are a calm notice, not a fire: no destructive tint, no warning triangle, neutral height', async () => {
+	const chip = await renderReadinessChip({ readiness: '2 classes still to place', publishBlocked: true, blockingHardCount: 0 });
+	// The FACT is kept — it is still a publish blocker and still says so.
+	assert.match(chip.textContent ?? '', /2 classes still to place/, 'the blocking fact is still stated in plain words');
+	assert.equal(chip.getAttribute('data-readiness-state'), 'unplaced');
+	// The ALARM register is gone: no destructive colour, no AlertTriangle, and
+	// the chip is no longer twice the height of the neutral chip.
+	assert.doesNotMatch(chip.className, /destructive/, 'no destructive tint on a routine, pre-work state');
+	assert.doesNotMatch(chip.innerHTML, /lucide-alert-triangle/, 'no warning triangle on a routine, pre-work state');
+	assert.match(chip.className, /\bh-6\b/, 'the chip is back to the neutral height');
+	assert.doesNotMatch(chip.className, /\bh-10\b/, 'the double-height fire chip is gone');
+	// One consistent, non-alarming signal.
+	assert.match(chip.innerHTML, /lucide-info/, 'a neutral info sign is used instead');
+});
+
+/**
+ * The green tick is `lucide-circle-check` in the installed lucide version. The
+ * lookahead makes this an exact class match, so a negative assertion here CAN
+ * fail — an earlier draft of this row used `lucide-circle-check-big` and
+ * therefore passed vacuously.
+ */
+const GREEN_TICK = /lucide-circle-check(?![\w-])/;
+const INFO_SIGN = /lucide-info(?![\w-])/;
+
+test('PL-J4.2 the chip never shows a green tick beside outstanding problems', async () => {
+	// (a) the exact audited contradiction: a tick beside "5 warnings".
+	const warned = await renderReadinessChip({ readiness: '5 warnings', publishBlocked: false, blockingHardCount: 0, softCount: 5 });
+	assert.equal(warned.getAttribute('data-readiness-state'), 'outstanding');
+	assert.doesNotMatch(warned.innerHTML, GREEN_TICK, 'no green tick beside "5 warnings"');
+
+	// (b) the worse case: a green tick inside a destructive badge.
+	const blocked = await renderReadinessChip({ readiness: '1 Must fix', publishBlocked: false, blockingHardCount: 1, softCount: 0 });
+	assert.equal(blocked.getAttribute('data-readiness-state'), 'blockers');
+	assert.doesNotMatch(blocked.innerHTML, GREEN_TICK, 'a destructive chip never wears a green tick');
+
+	// (c) the tick is still earned when nothing is outstanding.
+	const clear = await renderReadinessChip({ readiness: 'Ready to publish', publishBlocked: false, blockingHardCount: 0, softCount: 0 });
+	assert.equal(clear.getAttribute('data-readiness-state'), 'clear');
+	assert.match(clear.innerHTML, GREEN_TICK, 'the tick remains for a genuinely clear schedule');
+
+	// (d) the negatives above are load-bearing: the info sign really is reachable
+	// in this same rendering path, so (a)/(b) are not passing for a structural
+	// reason (e.g. an icon that never renders at all).
+	assert.match(warned.innerHTML, INFO_SIGN, 'the non-clear states do render the info sign');
+	assert.doesNotMatch(clear.innerHTML, INFO_SIGN, 'the clear state does not');
+});
+
+/** A run whose recorded input comparison is STALE, from the real derivation. */
+function staleRun() {
+	return {
+		runId: 318, status: 'COMPLETED', entries: [], unassignedItems: [], version: 3,
+		createdAt: '2031-01-01T00:00:00.000Z', summary: {},
+		inputState: {
+			status: 'STALE' as const,
+			message: 'Teaching Load changed after this run.',
+			actionHint: 'Regenerate to apply.',
+			changedDomains: ['teachingLoad'],
+			checkedAt: '2031-01-02T00:00:00.000Z',
+		},
+	};
+}
+
+/** The same run, but the freshness check could not be completed. */
+function unknownRun() {
+	return {
+		...staleRun(),
+		inputState: {
+			status: 'UNKNOWN' as const,
+			message: 'Freshness could not be determined.',
+			actionHint: 'Check school information.',
+			changedDomains: [],
+			checkedAt: null,
+		},
+	};
+}
+
+const DRIFT_BANNER_PROPS = {
+	layout: 'banner',
+	isPreGenerationWorkspace: false,
+	loading: false,
+	onRefresh: () => {},
+	onRolloverStatus: null,
+	capabilities: { canViewExpert: true, canGenerate: true, gates: { setupInputStatus: { allowed: false, reason: null } } },
+	isPublished: false,
+	activeGeneratedRunId: 318,
+	showRolloverGuidance: false,
+	showActions: true,
+};
+
+async function renderDriftBanner(run: Record<string, unknown>) {
+	const { SimpleDriftBanner } = await import('../simple/SimpleDriftBanner');
+	await mount(createElement(MemoryRouter, null,
+		createElement(SimpleDriftBanner as unknown as (p: Record<string, unknown>) => ReactElement, { ...DRIFT_BANNER_PROPS, draft: run } as never),
+	));
+	const banner = container().querySelector<HTMLElement>('[data-testid="timetable-simple-input-drift"]');
+	assert.ok(banner, 'the drift notice renders');
+	return banner;
+}
+
+test('PL-J4.3 a drift we could not CHECK is not styled as a confirmed drift, and the wording says so', async () => {
+	const stale = await renderDriftBanner(staleRun());
+	const unknown = await renderDriftBanner(unknownRun());
+
+	// The derivation really produced the two different confidences we are styling.
+	assert.equal(stale.getAttribute('data-drift-status'), 'STALE');
+	assert.equal(unknown.getAttribute('data-drift-status'), 'UNKNOWN');
+
+	// Different confidence must not share one alarm.
+	assert.match(stale.className, /amber/, 'a confirmed change keeps the amber register');
+	assert.doesNotMatch(unknown.className, /amber/, '"could not be checked" is not styled as a confirmed change');
+	assert.notEqual(stale.className, unknown.className, 'the two confidences are visually distinct');
+	// And the wording distinguishes them too, so colour is not the only signal.
+	assert.match(stale.textContent ?? '', /changed after this schedule was made/, 'STALE says the information changed');
+	assert.match(unknown.textContent ?? '', /could not check the latest school information/, 'UNKNOWN says it could not be checked');
+	assert.match(unknown.textContent ?? '', /nothing is known to have changed/, 'UNKNOWN says plainly that nothing is known to have changed');
+});
+
+test('PL-J4.4 the "schedule stays unchanged" reassurance is not wrapped in alarm styling', async () => {
+	const unknown = await renderDriftBanner(unknownRun());
+	assert.match(unknown.textContent ?? '', /The current schedule stays unchanged/, 'the reassurance is preserved verbatim');
+	assert.doesNotMatch(unknown.className, /amber/, 'the register matches the message: a calm notice, not a band of alarm');
+});
+
+test('PL-J4.5 the routine rebuild is not the one destructive header button', async () => {
+	const { readFileSync } = await import('node:fs');
+	const { resolve } = await import('node:path');
+	const source = readFileSync(resolve(import.meta.dirname, '../ScheduleReviewInputStateBanner.tsx'), 'utf8');
+	assert.doesNotMatch(source, /variant="destructive"[^>]*onRegenerate/, 'Regenerate Draft no longer wears the destructive variant');
+	// The action itself is unchanged: same handler, same label, same disabled rule.
+	assert.match(source, /onClick=\{onRegenerate\}/, 'the rebuild action is unchanged');
+	assert.match(source, /Regenerate Draft/, 'the rebuild label is unchanged');
+	assert.match(source, /disabled=\{!generationEnabled \|\| loading\}/, 'the rebuild disabled rule is unchanged');
 });

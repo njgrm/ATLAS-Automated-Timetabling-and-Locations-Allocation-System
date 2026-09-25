@@ -2,6 +2,7 @@ import { memo, useState } from 'react';
 import { AlertCircle, AlertTriangle, OctagonAlert } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
+import { MUST_FIX_LABEL } from '@/lib/timetable-plain-language';
 import { Button } from '@/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip';
 import type { CellConflictInfo, Violation } from '@/types';
@@ -93,9 +94,13 @@ export const EntrySeverityIndicator = memo(function EntrySeverityIndicator({
 /**
  * TIMETABLE-RELAXED-MAIN-C01 — the grid's per-cell hard/soft conflict badge,
  * extracted from `TimetableGrid.tsx` so that file stays inside the 1000-line
- * component budget. Behaviour is unchanged: the badge states "Blocked"/"Warning"
- * with icon + text (never colour alone) and discloses the reasons, the
- * displacement list, and the entity navigation links through a `@/ui` Tooltip.
+ * component budget. Behaviour is unchanged: the badge states the severity with
+ * icon + text (never colour alone) and discloses the reasons, the displacement
+ * list, and the entity navigation links through a `@/ui` Tooltip.
+ *
+ * LANE-C-PLAIN-LANGUAGE-C03 (J1) — the hard badge said "Blocked" while
+ * `severitySummary` above said "Must fix" for the identical concept, so the
+ * grid carried two names for one idea. Both now read MUST_FIX_LABEL.
  */
 export const ConflictBadgeWithTooltip = memo(function ConflictBadgeWithTooltip({
 	info,
@@ -125,10 +130,10 @@ export const ConflictBadgeWithTooltip = memo(function ConflictBadgeWithTooltip({
 				<AlertTriangle className="size-3 shrink-0" />
 			)}
 			<span className="truncate text-xs leading-none font-medium">
-				{info.kind === 'hard' ? 'Blocked' : 'Warning'}
+				{info.kind === 'hard' ? MUST_FIX_LABEL : 'Warning'}
 			</span>
 			<span className="sr-only">
-				{info.kind === 'hard' ? 'Hard conflict: ' : 'Soft warning: '}
+				{info.kind === 'hard' ? `${MUST_FIX_LABEL}: ` : 'Soft warning: '}
 				{info.reasons.join(', ')}
 			</span>
 		</div>
@@ -141,7 +146,7 @@ export const ConflictBadgeWithTooltip = memo(function ConflictBadgeWithTooltip({
 			<TooltipTrigger asChild>{badge}</TooltipTrigger>
 			<TooltipContent side="right" className="z-100 max-w-64 space-y-1.5 p-2 text-xs">
 				<p className={cn('font-semibold', info.kind === 'hard' ? 'text-red-700' : 'text-amber-700')}>
-					{info.kind === 'hard' ? 'Blocked - fix before saving' : 'Warning - review before saving'}
+					{info.kind === 'hard' ? 'Must fix - fix before saving' : 'Warning - review before saving'}
 				</p>
 				{info.reasons.map((reason, reasonIndex) => (
 					<p key={reasonIndex} className="text-muted-foreground">{reason}</p>

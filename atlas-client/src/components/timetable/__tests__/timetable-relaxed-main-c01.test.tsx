@@ -365,7 +365,18 @@ test('A3/C5: the header renders one compact status region and one primary, with 
 	// const primaryIdx = markup.indexOf('timetable-simple-primary-action');
 	// assert.equal(primaryLabel, 'Fix blockers', 'the primary names the lifecycle next step');
 	const warningsTag = markup.match(/<[^>]*data-testid="timetable-simple-warnings-control"[^>]*>/)?.[0] ?? '';
-	assert.match(warningsTag, /aria-label="Fix blockers: 1 blocker"/, 'the merged control names the lifecycle next step');
+	// SUPERSEDED BY WORD (LANE-C-PLAIN-LANGUAGE-C03 J1, 2026-09-26). The
+	// assertion's INTENT is unchanged and still enforced on the line below: the
+	// merged control must name the lifecycle next step AND the current count.
+	// Only the vocabulary changed — the 2026-09-26 audit finding 3 found one HARD
+	// problem carried four names, and this accessible name mixed the old noun
+	// ("blocker") with the new one ("Must fix"). The original assertion is
+	// retained verbatim:
+	//   assert.match(warningsTag, /aria-label="Fix blockers: 1 blocker"/, 'the merged control names the lifecycle next step');
+	// The count value (1), the merged control, the dispatch, and the absence of a
+	// second lifecycle primary are all still asserted exactly as before.
+	assert.match(warningsTag, /aria-label="Fix must-fix problems: 1 Must fix"/, 'the merged control names the lifecycle next step and the count, in the one plain word');
+	assert.doesNotMatch(warningsTag, /blocker/i, 'the merged control carries no competing name for the same idea');
 	assert.equal((markup.match(/data-testid="timetable-simple-primary-action"/g) ?? []).length, 0, 'no second lifecycle primary');
 	// A3 — the setup repairs are relocated to the setup sub-page, not the header.
 	assert.doesNotMatch(markup, /timetable-simple-sync-setup/, 'Sync with setup is not a header control');

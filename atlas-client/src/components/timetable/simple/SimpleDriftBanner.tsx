@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ExternalLink, RotateCw, SearchCheck } from 'lucide-react';
 
+import { cn } from '@/lib/utils';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/ui/dialog';
@@ -124,26 +125,40 @@ export function SimpleDriftBanner({
 	return (
 		<>
 			{showRunDrift ? (
+				/* J4.3/J4.4 — two different confidences must not share one alarm.
+				 * `UNKNOWN` (could not be checked) is now a calm neutral notice and a
+				 * confirmed `STALE` keeps the amber. J4.4 — the band no longer wraps a
+				 * reassurance in alarm styling when there is nothing actionable to do
+				 * yet: the "schedule stays unchanged" wording is a promise, and it is
+				 * now presented as one. Wording and colour both distinguish the two
+				 * cases, so the difference survives a monochrome or colour-blind read. */
 				<div
 					role="status"
 					data-testid="timetable-simple-input-drift"
-					className={layout === 'inline'
-						? 'flex min-w-0 flex-wrap items-center gap-1.5 text-xs text-amber-900'
-						: 'flex min-h-8 flex-wrap items-center gap-1.5 border-b border-amber-200 bg-amber-50 px-3 py-1 text-xs text-amber-900'}
+					data-drift-status={drift.status}
+					className={cn(
+						layout === 'inline'
+							? 'flex min-w-0 flex-wrap items-center gap-1.5 text-xs'
+							: 'flex min-h-8 flex-wrap items-center gap-1.5 border-b px-3 py-1 text-xs',
+						drift.status === 'STALE' ? 'border-amber-200 bg-amber-50 text-amber-900' : 'border-border bg-muted/40 text-muted-foreground',
+					)}
 				>
 					<span className="shrink-0 font-semibold">
 						{drift.status === 'STALE' ? 'Schedule information changed' : 'Schedule information could not be checked'}
 					</span>
 					{/* Informational domain chips stay next to the actionable repair control. */}
 					{showActions ? drift.domains.map((domain) => (
-						<Badge key={domain.domain} variant="outline" className="h-5 border-amber-300 bg-white/70 px-1.5 text-xs font-bold text-amber-800">
+						<Badge key={domain.domain} variant="outline" className={cn(
+							'h-5 px-1.5 text-xs font-bold',
+							drift.status === 'STALE' ? 'border-amber-300 bg-white/70 text-amber-800' : 'border-border bg-background/70 text-muted-foreground',
+						)}>
 							{domain.label}
 						</Badge>
 					)) : null}
-					<span className="min-w-0 flex-1 break-words whitespace-normal text-amber-800">
+					<span className={cn('min-w-0 flex-1 break-words whitespace-normal', drift.status === 'STALE' ? 'text-amber-800' : 'text-muted-foreground')}>
 						{drift.status === 'STALE'
 							? 'School information changed after this schedule was made. The current schedule stays unchanged while you review school information.'
-							: 'ATLAS could not check the latest school information. The current schedule stays unchanged while you review school information.'}
+							: 'ATLAS could not check the latest school information, so nothing is known to have changed. The current schedule stays unchanged while you review school information.'}
 						{formatCheckedAtAge(drift.checkedAt) ? ` · ${formatCheckedAtAge(drift.checkedAt)}` : ''}
 					</span>
 					{showActions ? (isPublished ? (

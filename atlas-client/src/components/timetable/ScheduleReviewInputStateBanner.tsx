@@ -101,7 +101,10 @@ export function ScheduleReviewInputStateBanner({
 						<TooltipContent>{hasSelectedEntry ? 'Repair the selected class without regenerating.' : 'Select a timetable class before using manual repair.'}</TooltipContent>
 					</Tooltip>
 				</TooltipProvider>
-				<Button variant="destructive" size="sm" className="h-8 gap-1.5" disabled={!generationEnabled || loading} onClick={onRegenerate}>
+				{/* LANE-C-PLAIN-LANGUAGE-C03 (J4.5) — this was the only
+				    destructive-styled header button, worn by a routine rebuild. The
+				    action is unchanged; only the register is. Expert-only today. */}
+				<Button variant="outline" size="sm" className="h-8 gap-1.5" disabled={!generationEnabled || loading} onClick={onRegenerate}>
 					<RotateCw className="size-3.5" />
 					<span className="hidden sm:inline">Regenerate Draft</span>
 				</Button>

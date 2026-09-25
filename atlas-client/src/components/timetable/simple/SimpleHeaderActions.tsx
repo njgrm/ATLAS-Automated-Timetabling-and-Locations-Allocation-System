@@ -125,7 +125,11 @@ export function SimpleWarningsControl({
 }) {
 	const actionName = dispatch === 'generation-blockers'
 		? 'See what to fix'
-		: dispatch === 'readiness-sheet' ? 'Fix blockers' : 'Review warnings';
+		// LANE-C-PLAIN-LANGUAGE-C03 (J1) — this action name used to say
+		// "Fix blockers" while the count beside it said "Must fix", so the one
+		// merged control still carried two names for one idea. The dispatch value
+		// ('readiness-sheet') and the destination are unchanged; only the words are.
+		: dispatch === 'readiness-sheet' ? 'Fix must-fix problems' : 'Review warnings';
 	return (
 		<Button
 			type="button"

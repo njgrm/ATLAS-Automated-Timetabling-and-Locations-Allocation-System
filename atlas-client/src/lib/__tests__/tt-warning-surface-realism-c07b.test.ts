@@ -844,7 +844,24 @@ test('F2 rendered: the publish task renders the real publish checklist', () => {
 	);
 	assert.match(markup, /data-testid="timetable-task-drawer"/);
 	assert.match(markup, /data-testid="timetable-publish-readiness-summary"/);
-	assert.match(markup, /Blocking hard violations \(run-wide\): 2/);
+	// SUPERSEDED IN PART (LANE-C-PLAIN-LANGUAGE-C03, J1, 2026-09-26). The original
+	// assertion is RETAINED verbatim as evidence of the retired vocabulary, per
+	// AGENTS.md 16 (corrections are additive; an assertion is never deleted to close
+	// a finding):
+	//   assert.match(markup, /Blocking hard violations \(run-wide\): 2/);
+	// It asserted the same fact in a retired word. Audit finding 3 found one HARD
+	// problem carried FOUR names on one screen (Must fix / Blocked / blocker / Hard)
+	// and the scope jargon "run-wide" was never explained. The replacements below
+	// assert the same value and the same intent in the single plain label, and prove
+	// no competing name survives on the same surface.
+	assert.match(markup, /Must fix \(whole year\): 2/);
+	assert.doesNotMatch(markup, /Blocking hard violations/, 'the retired second name for the same problem is gone from the publish checklist');
+	assert.doesNotMatch(markup, /\(run-wide\)/, 'the retired run-wide scope jargon is gone from the scheduler-facing checklist');
+	// The retired LABEL form is a count paired with the word (the old "3 blockers"
+	// chip). Natural prose that happens to use the word is not jargon and is not
+	// what audit finding 3 flagged, so this targets the count+label shape only.
+	assert.doesNotMatch(markup, /\d+\s+blockers?\b/i, 'no count is labelled with the retired blocker wording');
+	// END SUPERSEDED-IN-PART
 	assert.match(markup, /data-testid="timetable-publish-blocked-reason"/);
 	assert.match(markup, /Publish schedule/);
 });

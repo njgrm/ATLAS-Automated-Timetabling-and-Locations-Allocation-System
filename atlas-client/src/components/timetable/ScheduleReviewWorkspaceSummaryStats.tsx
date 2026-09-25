@@ -4,10 +4,16 @@
  * C1 (TIMETABLE-RELAXED-MAIN-C01) — extracted from ScheduleReviewWorkspaceHeader
  * to keep that file inside the 1000-physical-line component cap (AGENTS.md §8).
  * The rendered DOM is unchanged: presence avatars, the run-status badge, and the
- * Assigned / Hard / Duration stat items.
+ * Assigned / Must fix / Duration stat items.
+ *
+ * LANE-C-PLAIN-LANGUAGE-C03 (J1) — the stat label read "Hard" while the grid
+ * read "Blocked" and the Simple header read "blocker" for the same concept, so
+ * one viewport carried four names. It now reads MUST_FIX_LABEL. This is a
+ * label string only: no control, no layout and no count changed here.
  */
 import { Check, Clock, ShieldAlert } from 'lucide-react';
 
+import { MUST_FIX_LABEL } from '@/lib/timetable-plain-language';
 import { Badge } from '@/ui/badge';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip';
 import { StatItem } from '@/components/timetable/TimetableShared';
@@ -73,7 +79,7 @@ export function ScheduleReviewWorkspaceSummaryStats({
 			/>
 			<StatItem
 				icon={ShieldAlert}
-				label="Hard"
+				label={MUST_FIX_LABEL}
 				value={String(summary.hardViolationCount)}
 				className={summary.hardViolationCount > 0 ? 'text-red-600 font-semibold' : ''}
 				explanation="Critical policy violations. A schedule with any Hard Violations cannot be published."

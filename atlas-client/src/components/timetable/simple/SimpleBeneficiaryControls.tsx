@@ -20,7 +20,14 @@ export function SimpleTermSwitcher({ context }: { context: ScheduleReviewWorkspa
 			className="flex shrink-0 items-center gap-2"
 			data-testid="timetable-simple-term-switcher"
 		>
-			{/* DRAFT-UX-C01 (S2) — no visible "Term" label; the trigger keeps aria-label="Term". */}
+			{/* LANE-C-PLAIN-LANGUAGE-C03 (J5) — a plain visible label is BACK, as
+			    NON-INTERACTIVE text. DRAFT-UX-C01 (S2) removed it to satisfy the
+			    ≤6 visible-control cap; this span is not a control, so the cap is
+			    unchanged and the aria-label below is unchanged. A sighted scheduler
+			    previously had to infer what a bare "All terms ▾" meant. */}
+			<span className="shrink-0 text-xs font-medium text-muted-foreground" data-testid="timetable-simple-term-label">
+				Term
+			</span>
 			<Select value={value} onValueChange={(next) => context.onTermFilterChange(next === 'all' ? 'all' : Number(next))}>
 				<SelectTrigger
 					className="h-9 w-[8.5rem] shrink-0 text-sm"

@@ -693,11 +693,12 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 					dispatch={warningsDispatch}
 					onClick={handleWarningsClick}
 				>
-					<SimpleReadinessChip
-						readiness={readiness}
-						publishBlocked={publishBlocked}
-						blockingHardCount={context.blockingHardCount}
-					/>
+				<SimpleReadinessChip
+					readiness={readiness}
+					publishBlocked={publishBlocked}
+					blockingHardCount={context.blockingHardCount}
+					softCount={context.softCount}
+				/>
 				</SimpleWarningsControl>
 
 				<div className="flex min-w-0 flex-wrap items-center justify-start gap-1.5 lg:ml-auto lg:justify-end">

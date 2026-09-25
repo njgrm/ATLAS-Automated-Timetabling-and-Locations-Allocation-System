@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { ArrowRightLeft, BookOpen, CalendarClock, CheckCircle2, ChevronDown, ClipboardCheck, Download, GraduationCap, ListChecks, Play, Send, Settings2, SlidersHorizontal, Sun, type LucideIcon } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
+import { mustFixCountLabel } from '@/lib/timetable-plain-language';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/ui/dialog';
@@ -209,7 +210,7 @@ export function readinessLabel(context: ScheduleReviewWorkspaceHeaderContext) {
 		if (unassigned > 0) return `Published with ${unassigned} follow-up item${unassigned === 1 ? '' : 's'}`;
 		return 'Published';
 	}
-	if (context.blockingHardCount > 0) return `${context.blockingHardCount} blocker${context.blockingHardCount === 1 ? '' : 's'}`;
+	if (context.blockingHardCount > 0) return mustFixCountLabel(context.blockingHardCount);
 	// Unresolved sessions block publish exactly like hard blockers: individual
 	// previewability is not joint feasibility, so never report ready while any
 	// session still needs fixing.
@@ -268,7 +269,15 @@ export function SimpleScheduleControls({
 			data-view-mode={context.viewMode}
 			data-entity-filter={context.entityFilter}
 		>
-			{/* DRAFT-UX-C01 (S2) — no visible "View type" label; the trigger keeps aria-label="View type". */}
+			{/* LANE-C-PLAIN-LANGUAGE-C03 (J5) — the two highest-traffic controls get
+			    plain visible labels again, as NON-INTERACTIVE <span>s. DRAFT-UX-C01
+			    (S2) removed them to satisfy the ≤6 visible-control cap; a span is
+			    not a control, so that cap and the one-solid-primary contract are
+			    both unchanged, and the aria-labels below are unchanged. The words
+			    describe the destination in the scheduler's own vocabulary. */}
+			<span className="shrink-0 text-xs font-medium text-muted-foreground" data-testid="timetable-simple-view-mode-label">
+				Show
+			</span>
 			<Select value={context.viewMode} onValueChange={onViewModeChange}>
 				<SelectTrigger
 					className="h-8 w-[7.25rem] shrink-0 text-xs"
@@ -283,6 +292,9 @@ export function SimpleScheduleControls({
 					<SelectItem value="room">Room</SelectItem>
 				</SelectContent>
 			</Select>
+			<span className="shrink-0 text-xs font-medium text-muted-foreground" data-testid="timetable-simple-entity-label">
+				Schedule for
+			</span>
 			<div className="min-w-[9rem] flex-1" data-testid="timetable-simple-entity-select">
 				<SearchableSelect
 					value={context.entityFilter}

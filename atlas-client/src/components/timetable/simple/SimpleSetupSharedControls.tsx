@@ -1,4 +1,4 @@
-import { AlertTriangle, CheckCircle2, RefreshCw } from 'lucide-react';
+import { CheckCircle2, Info, RefreshCw } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
 import { Badge } from '@/ui/badge';
@@ -63,33 +63,63 @@ export function SimpleReadinessChip({
 	readiness,
 	publishBlocked,
 	blockingHardCount,
+	softCount = 0,
 }: {
 	readiness: string;
 	publishBlocked: boolean;
 	blockingHardCount: number;
+	/**
+	 * LANE-C-PLAIN-LANGUAGE-C03 (J4.2) — the count the label beside the tick is
+	 * describing, so the icon can agree with the text instead of contradicting
+	 * it. Defaults to 0 for callers that pass none.
+	 */
+	softCount?: number;
 }) {
 	if (publishBlocked) {
+		/* J4.1 — unplaced classes are the ROUTINE state before anyone has touched
+		 * the grid, but this chip was `h-10` (double the neutral chip), fully
+		 * destructive-tinted and wearing an AlertTriangle, so a brand-new run
+		 * looked like a fire. The fact genuinely blocks publishing, so it is kept
+		 * and the label still states the consequence; only the alarm register goes,
+		 * and the height returns to the neutral chip's. No control was added. */
 		return (
 			<Badge
 				variant="outline"
 				className={cn(
-					'h-10 min-w-0 shrink gap-1.5 truncate rounded-full px-3 text-sm font-semibold',
-					'border-destructive/30 bg-destructive/10 text-destructive',
+					'h-6 min-w-0 shrink gap-1.5 truncate rounded-full px-2 text-xs font-semibold sm:h-6 sm:shrink-0 sm:gap-1.5 sm:px-2',
+					'border-border bg-muted text-foreground',
 				)}
 				data-testid="timetable-simple-readiness-chip"
+				data-readiness-state="unplaced"
 			>
-				<AlertTriangle className="size-3.5 shrink-0" aria-hidden="true" />
+				<Info className="size-3.5 shrink-0" aria-hidden="true" />
 				<span className="truncate">{readiness}</span>
 			</Badge>
 		);
 	}
+
+	/* J4.2 — one consistent signal. This chip previously rendered a green
+	 * CheckCircle2 unconditionally, so a scheduler could read a tick beside
+	 * "5 warnings" (self-contradicting) and, worse, a green tick inside a
+	 * destructive badge when `blockingHardCount > 0`. The icon now follows the
+	 * state the badge is actually describing; the label is untouched. */
+	const state: 'blockers' | 'outstanding' | 'clear'
+		= blockingHardCount > 0 ? 'blockers' : softCount > 0 ? 'outstanding' : 'clear';
+
 	return (
 		<Badge
-			variant={blockingHardCount > 0 ? 'destructive' : 'secondary'}
-			className="h-5 shrink min-w-0 gap-1 truncate px-1.5 text-xs font-semibold sm:h-6 sm:shrink-0 sm:gap-1.5 sm:px-2"
+			variant={state === 'clear' ? 'secondary' : 'outline'}
+			className={cn(
+				'h-6 min-w-0 shrink gap-1.5 truncate px-2 text-xs font-semibold sm:h-6 sm:shrink-0 sm:gap-1.5 sm:px-2',
+				state === 'blockers' && 'border-destructive/40 bg-destructive/10 text-destructive',
+				state === 'outstanding' && 'border-border bg-muted text-foreground',
+			)}
 			data-testid="timetable-simple-readiness-chip"
+			data-readiness-state={state}
 		>
-			<CheckCircle2 className="size-3.5 shrink-0" aria-hidden="true" />
+			{state === 'clear'
+				? <CheckCircle2 className="size-3.5 shrink-0" aria-hidden="true" />
+				: <Info className="size-3.5 shrink-0" aria-hidden="true" />}
 			<span className="truncate">{readiness}</span>
 		</Badge>
 	);

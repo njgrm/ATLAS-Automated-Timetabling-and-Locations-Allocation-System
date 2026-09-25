@@ -3,6 +3,7 @@ import { CheckCircle2, ExternalLink } from 'lucide-react';
 
 import { Button } from '@/ui/button';
 import { Badge } from '@/ui/badge';
+import { HARD_COUNT_RELATIONSHIP_NOTE, MUST_FIX_LABEL, plainScopeLabel } from '@/lib/timetable-plain-language';
 import { isBlockingHardViolation, resolveBlockerDestination } from '@/components/timetable/simplePublishReadiness';
 import type { Violation } from '@/types';
 
@@ -172,7 +173,7 @@ export function PublishChecklistContent({
 	onOpenRoomSetup?: () => void;
 	onSelectViolation?: (violation: Violation) => void;
 }) {
-	const scopeLabel = violationScopeLabel ?? 'Selected term';
+	const scopeLabel = violationScopeLabel ?? plainScopeLabel('selected-term');
 	const blockerGroups = useMemo(
 		() => buildBlockerGroups(violations, sectionLabel, subjectLabel, facultyLabel, 'selected-term'),
 		[violations, sectionLabel, subjectLabel, facultyLabel],
@@ -218,13 +219,19 @@ export function PublishChecklistContent({
 				)}
 				<ul className="mt-2 space-y-1.5 text-sm text-muted-foreground">
 					<li>Assigned sessions: {assignedCount}</li>
-					<li>Unresolved sessions (run-wide): {unassignedCount}</li>
-					<li>Blocking hard violations (run-wide): {runWideBlocking}</li>
-					<li>Hard violations total (run-wide): {hardCount}</li>
-					<li>Warnings to review (run-wide): {softCount}</li>
+					<li>{unassignedCount} classes still to place (whole year)</li>
+					<li>{MUST_FIX_LABEL} (whole year): {runWideBlocking}</li>
+					<li>All serious problems (whole year): {hardCount}</li>
+					<li>Warnings to review (whole year): {softCount}</li>
 				</ul>
 				<p className="mt-1 text-[0.6875rem] text-muted-foreground" data-testid="timetable-publish-scope-note">
-					Blockers listed below are scoped to {scopeLabel}; the publish gate above is always run-wide.
+					Blockers listed below are scoped to {scopeLabel}; the publish gate above is always the whole year.
+				</p>
+				{/* LANE-C-PLAIN-LANGUAGE-C03 (J1): this checklist is the one Simple
+				    surface that shows more than one "hard" number, so the reason the
+				    two figures can differ is stated here once, in plain words. */}
+				<p className="mt-1 text-[0.6875rem] text-muted-foreground" data-testid="timetable-hard-count-relationship">
+					{HARD_COUNT_RELATIONSHIP_NOTE}
 				</p>
 			</div>
 
@@ -294,7 +301,7 @@ export function BlockerGroupCard({ group, onNavigate }: { group: BlockerGroup; o
 	const [expanded, setExpanded] = useState(false);
 	const visibleItems = expanded ? group.items : group.items.slice(0, 3);
 	const whyItMatters = group.items[0]?.nextStep ?? 'Fix this group before the schedule can be published.';
-	const scopeLabel = group.scope === 'run-wide' ? 'Run-wide' : 'Selected term';
+	const scopeLabel = plainScopeLabel(group.scope);
 	const destination = resolveBlockerDestination(group.reason, group.actionHref);
 
 	return (

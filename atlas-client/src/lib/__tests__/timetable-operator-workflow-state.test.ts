@@ -208,9 +208,23 @@ test('readiness chip reports unresolved sessions instead of ready to publish', (
 
 test('readiness chip keeps blockers first and stays honest when clean', () => {
 	const draft = generatedDraft();
+	// SUPERSEDED BY WORD (LANE-C-PLAIN-LANGUAGE-C03 J1, 2026-09-26). This row's
+	// intent is unchanged and still fully asserted: a run-wide blocking HARD
+	// takes precedence over unassigned sessions and over warnings, and the count
+	// 2 is still carried. Only the noun changed — the 2026-09-26 audit finding 3
+	// found this concept under four names in one viewport and J1 makes
+	// "Must fix" the single plain word. Original retained verbatim:
+	//   assert.equal(readinessLabel(headerContext({ draft, hardCount: 2, summary: { unassignedCount: 5 }, softCount: 9 })), '2 blockers');
 	assert.equal(
 		readinessLabel(headerContext({ draft, hardCount: 2, summary: { unassignedCount: 5 }, softCount: 9 })),
-		'2 blockers',
+		'2 Must fix',
+		'blocking HARD still outranks unassigned sessions and warnings',
+	);
+	// The precedence itself is still proven, not just the wording: a blocking
+	// count still wins even when a larger unassigned count is present.
+	assert.notEqual(
+		readinessLabel(headerContext({ draft, hardCount: 2, summary: { unassignedCount: 5 }, softCount: 9 })),
+		'5 classes still to place (whole year)',
 	);
 	assert.equal(
 		readinessLabel(headerContext({ draft, summary: { unassignedCount: 0 }, softCount: 2 })),
