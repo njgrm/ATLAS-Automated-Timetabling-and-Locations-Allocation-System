@@ -1,6 +1,6 @@
 import { AlertTriangle } from 'lucide-react';
 
-import type { Violation } from '@/types';
+import type { Violation, ViolationCode } from '@/types';
 import { Button } from '@/ui/button';
 import {
 	Dialog,
@@ -10,6 +10,8 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from '@/ui/dialog';
+import { UNLABELLED_RULE_SENTENCE } from '@/lib/timetable-plain-language';
+import { VIOLATION_PRESENTATION } from '@/lib/violation-presentation';
 
 type SoftViolationConfirmDialogProps = {
 	open: boolean;
@@ -37,20 +39,30 @@ export function SoftViolationConfirmDialog({
 						Soft Constraint Warnings
 					</DialogTitle>
 					<DialogDescription>
-						This edit introduces {warnings.length} soft warning(s).
-						 You can still apply it, but review the issues below.
+						{warnings.length === 1
+							? 'This edit introduces 1 warning. You can still apply it, but check the one below.'
+							: `This edit introduces ${warnings.length} warnings. You can still apply it, but check them below.`}
 					</DialogDescription>
 				</DialogHeader>
 				<div className="max-h-48 overflow-auto scrollbar-thin space-y-1.5 py-2">
-					{warnings.map((warning, index) => (
-						<div
-							key={index}
-							className="rounded border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800"
-						>
-							<span className="mr-1.5 font-mono text-xs opacity-60">{warning.code}</span>
-							{formatConstraintMessage(warning.message)}
-						</div>
-					))}
+					{warnings.map((warning, index) => {
+						/* J2 (P1): the raw `warning.code` used to be printed in a
+						 * monospace span. The code is an engine token, so the row
+						 * leads with the rule's PLAIN name from the established
+						 * presentation map and then the humanised message. An
+						 * unlabelled rule degrades to the shared plain sentence —
+						 * never to the token. */
+						const named = VIOLATION_PRESENTATION[warning.code as ViolationCode];
+						return (
+							<div
+								key={index}
+								className="rounded border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800"
+							>
+								<p className="font-semibold">{named ? named.title : UNLABELLED_RULE_SENTENCE}</p>
+								<p>{formatConstraintMessage(warning.message)}</p>
+							</div>
+						);
+					})}
 				</div>
 				<DialogFooter className="gap-2 sm:gap-0">
 					<Button variant="outline" size="sm" onClick={onCancel}>Cancel</Button>

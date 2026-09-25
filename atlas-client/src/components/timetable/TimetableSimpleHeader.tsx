@@ -6,6 +6,7 @@ import {
 import { useLocation, useNavigate } from 'react-router-dom';
 
 import { cn } from '@/lib/utils';
+import { UNLABELLED_RULE_SENTENCE } from '@/lib/timetable-plain-language';
 import { deriveSimpleLifecycleAction } from '@/lib/simple-timetable-state';
 import { deriveTimetableCapabilities, describeSetupState, YEAR_SETUP_HREF } from '@/lib/timetable-capabilities';
 import { summarizeGenerationReadiness, generationBlockedOperatorSentence } from '@/lib/timetable-generation-readiness';
@@ -138,12 +139,18 @@ export function dispatchSimpleReadinessRepair(context: SimpleReadinessRepairDeps
 		issueReviewEnabled,
 		onSetRepairOrigin,
 	} = context;
+	/* J2 (P5): the fallback used to de-snake-case the reason into "no available
+	 * slot" — the reason's own token, lower-cased, which reads as a typo rather
+	 * than a sentence. It now degrades to the ONE shared plain sentence, the same
+	 * one the readiness warning groups use, so the C1 blocker banner and the
+	 * generation blocker sheet cannot disagree. The branch structure, the repair
+	 * resolution and every destination are untouched. */
 	const plainReason = reason === 'NO_AVAILABLE_SLOT' ? 'No available slot'
 		: reason === 'FACULTY_OVERLOADED' ? 'Teachers are overloaded'
 		: reason === 'NO_QUALIFIED_FACULTY' ? 'No qualified teacher'
 		: reason === 'NO_COMPATIBLE_ROOM' ? 'No compatible room'
 		: reason === 'ROOM_CAPACITY_EXCEEDED' ? 'Room capacity exceeded'
-		: reason ? reason.replace(/_/g, ' ').toLowerCase() : 'Unknown issue';
+		: reason ? UNLABELLED_RULE_SENTENCE : 'Unknown issue';
 	// C1-a — the real count from the followed blocker group. It was hard-coded to
 	// `0` here, so every blocker repair banner claimed "0 sessions affected" while
 	// the same sheet had just printed the true count one click away. An absent

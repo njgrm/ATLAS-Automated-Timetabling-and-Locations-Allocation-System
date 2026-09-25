@@ -204,7 +204,31 @@ test('R4 replacement: the visible Undo/Redo/History control is mounted for Advan
 });
 
 test('R4 history shows actor/time/type/counts with a per-row revert affordance', () => {	const dialogs = source('src/components/timetable/modals/TimetableAssignmentDialogs.tsx');
-	assert.match(dialogs, /edit\.actorId/);
+	/* SUPERSEDED (LANE-C-PLAIN-TOKENS-C04 J2 P4, 2026-09-26). The original
+	 * assertion is retained verbatim:
+	 *   assert.match(dialogs, /edit\.actorId/);
+	 *
+	 * It asserted the MECHANISM (print the actor field). The requirement behind
+	 * it is that the history identifies WHO made each change. LANE-C-PLAIN-TOKENS
+	 * C04 P4 forbids printing a bare numeric id and directs that, when only an id
+	 * exists, the attribution be OMITTED rather than printed — so printing
+	 * `edit.actorId` is now the defect, not the contract.
+	 *
+	 * WHY IT CANNOT BE SATISFIED ON THE CLIENT, and this is an OPEN GAP, not a
+	 * completed item: `listManualEdits` (`manual-edit.service.ts`) returns only
+	 * `actorId`, which the route fills from `req.user.userId` — a User id, NOT a
+	 * faculty-mirror id. The dialog therefore holds no map from which that id
+	 * could be resolved to a name, and resolving it through `facultyMap` would
+	 * attribute the change to the WRONG person. `RoomRequestAppealHistory` already
+	 * returns an `actorName` beside its `actorId`, which is the precedent.
+	 *
+	 * REQUIRED FOLLOW-UP (server, out of scope for J2): return an actor name in
+	 * `listManualEdits`, then restore the actor assertion in its plain form. Until
+	 * then no scheduler can see who made a change — a real accountability gap
+	 * that this cycle's green run does NOT close. */
+	assert.doesNotMatch(dialogs, /edit\.actorId/, 'a bare numeric actor id must never be printed (P4)');
+	assert.doesNotMatch(dialogs, /by user/, 'the numeric actor attribution is gone (P4)');
+	assert.match(dialogs, /manualEditActionLabel\(edit\.editType\)/, 'the edit type reads as what the edit did (P4)');
 	assert.match(dialogs, /edit\.editType/);
 	assert.match(dialogs, /new Date\(edit\.createdAt\)/);
 	assert.match(dialogs, /hardCount/);

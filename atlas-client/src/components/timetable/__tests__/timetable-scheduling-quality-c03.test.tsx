@@ -34,13 +34,43 @@ test('C03 selected issue guide stays human-readable and exposes preview, not dir
 	assert.doesNotMatch(markup, /FACULTY_TIME_CONFLICT|fingerprint|source revision/i);
 	assert.doesNotMatch(markup, /Preview & Apply|Apply now/i);
 	const componentSource = readFileSync(resolve(clientRoot, 'src/components/timetable/TimetableIssueRepairGuide.tsx'), 'utf8');
+	/* The component's own CODE, with block and line comments stripped. The
+	 * wording rows below must judge what the component renders, not what its
+	 * documentation quotes — and the §16 rule requires the superseded assertion
+	 * to be RETAINED as a comment, which necessarily contains the very literal
+	 * the replacement forbids. Scanning the code is what keeps both rules
+	 * satisfiable at once. */
+	const componentCode = componentSource
+		.replace(/\/\*[\s\S]*?\*\//g, '')
+		.replace(/^[^\S\n]*\/\/.*$/gm, '');
 	assert.match(componentSource, /context\.previewEdit\(option\.proposal\)/, 'each option must enter the existing canonical preview flow');
 	assert.match(componentSource, /violation-repair-options/);
 	assert.match(componentSource, /setLoading\(true\)/, 'the guide exposes a pending verification state');
 	assert.match(componentSource, /setResult\(data\)/, 'only the server response supplies verified options');
 	assert.match(componentSource, /setError\('Verified repair guidance could not be loaded/);
 	assert.match(componentSource, /result\?\.status !== 'REPAIRABLE'/, 'policy and no-safe results render guidance, not an option');
-	assert.match(componentSource, /Projected:.*hard change/);
+	// SUPERSEDED BY WORD (LANE-C-PLAIN-TOKENS-C04 J2 P6, 2026-09-26). The
+	// assertion's INTENT — the guide must still show a projection of the outcome
+	// — is unchanged and still enforced on the lines below. Only the wording
+	// changed. The 2026-09-26 audit found the line rendered a count of ISSUES
+	// behind a mechanical plural-suffix construct, and put a SIGNED delta (the
+	// server only emits an option when hardAfter <= hardBefore, so it is 0 or
+	// negative) behind a label that read as a count of changes. The original
+	// assertion is retained verbatim:
+	// assert.match(componentSource, /Projected:.*hard change/);
+	assert.match(componentCode, /Projected: \$\{shiftSentence\(issueShift, 'selected issue'\)\} and \$\{shiftSentence\(hardShift, /, 'the projection is still rendered, in words, and each clause names its unit');
+	assert.doesNotMatch(componentCode, /issue\(s\)/, 'the mechanical plural-suffix construct is gone');
+	assert.doesNotMatch(componentCode, /hard change/, 'a signed delta no longer wears a count-of-changes label');
+	// The sign convention is the trap this cycle caught. `targetIssuesBefore -
+	// targetIssuesAfter` is POSITIVE when the change is an improvement, while
+	// `hardAfter - hardBefore` is NEGATIVE when it is — the two fields are named
+	// in opposite orders. Both clauses are therefore normalised to one
+	// before-minus-after intent before a direction word is chosen. These two rows
+	// fail if anyone "simplifies" the hard clause back to the opposite-sign
+	// expression and re-introduces a falsehood.
+	assert.match(componentCode, /const hardShift = delta\.hardBefore - delta\.hardAfter;/, 'the hard clause is normalised to before-minus-after');
+	assert.doesNotMatch(componentCode, /delta\.hardAfter - delta\.hardBefore;/, 'the opposite-sign expression must not come back');
+	assert.match(componentCode, /MUST_FIX_LABEL/, 'the projection reuses the one established plain word for the blocking count');
 	assert.doesNotMatch(componentSource, /manual-edits\/commit|\/apply/);
 	assert.doesNotMatch(componentSource, /commitManualEdit|applyProposal|setSelectedViolation/, 'opening or previewing the guide cannot apply or advance an issue');
 	const railSource = readFileSync(resolve(clientRoot, 'src/components/timetable/GeneratedRunRailPanels.tsx'), 'utf8');

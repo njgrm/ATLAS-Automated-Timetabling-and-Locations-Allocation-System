@@ -114,3 +114,52 @@ export function sortViolationGroupsHardFirst<T extends { severity?: string }>(
 export const VIOLATION_TITLES: Record<ViolationCode, string> = Object.fromEntries(
 	Object.entries(VIOLATION_PRESENTATION).map(([code, copy]) => [code, copy.title]),
 ) as Record<ViolationCode, string>;
+
+/**
+ * LANE-C-PLAIN-TOKENS-C04 (J2, P1): the HARD blocker dialog's `delta` line.
+ *
+ * TRACED FIRST. `HumanConflict.delta` is built on the server in
+ * `manual-edit.service.ts` `buildHumanConflicts` and is NOT an id, hash or
+ * index — it is a policy-threshold comparison in six fixed shapes, all built
+ * from the same three parts joined by " · ":
+ *
+ *   `Limit: 200 min · Observed: 320 min · Δ +120 min`   (over a limit)
+ *   `Target: 360 min · Observed: 400 min · Δ +40 min`    (over a target)
+ *   `Required: 10 min · Actual: 4 min · Short by 6 min`  (under a requirement)
+ *   `Limit: 3 · Observed: 5 · Δ +2`                      (a count, no unit)
+ *   `Target: 2 period(s) · Observed: 0 period(s)`        (periods, no difference)
+ *
+ * So it already means something without the code and must NOT be dropped. What
+ * it cannot keep is the three tokens an older scheduler cannot act on: the `Δ`
+ * glyph, the bare `min` abbreviation, and the `period(s)` construct. This
+ * rewrites only those and the " · " separator into "; ", and it keeps the
+ * server's own labels (`Limit` / `Target` / `Required` / `Observed` /
+ * `Actual`) untouched, because relabelling "Observed" as "Scheduled" would be
+ * FALSE for the idle-gap and over-compressed shapes, where the observed value is
+ * idle time or teaching minutes rather than anything scheduled.
+ *
+ * `Δ +N` becomes "N over" rather than "N over the limit", because one of the
+ * five shapes is measured against a target, not a limit.
+ */
+export function formatPolicyDeltaText(delta: string): string {
+	return delta
+		.split(' · ')
+		.map((part) => {
+			const overage = part.match(/^Δ \+(-?\d+)(?: (min|period\(s\)))?$/);
+			if (overage) {
+				const amount = Number(overage[1]);
+				const unit = overage[2] ? plainUnit(overage[2] as 'min' | 'period(s)', Math.abs(amount)) : '';
+				return `${Math.abs(amount)}${unit ? ` ${unit}` : ''} over`;
+			}
+			return part
+				.replace(/(\d+) min\b/g, '$1 minutes')
+				.replace(/(\d+) period\(s\)/g, (_whole, count: string) => `${count} ${plainUnit('period(s)', Number(count))}`)
+				.replace(/\bperiod\(s\)/g, 'periods');
+		})
+		.join('; ');
+}
+
+function plainUnit(unit: 'min' | 'period(s)', count: number): string {
+	if (unit === 'min') return 'minutes';
+	return count === 1 ? 'period' : 'periods';
+}

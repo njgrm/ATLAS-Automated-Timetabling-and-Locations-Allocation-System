@@ -1,4 +1,5 @@
 import type { DraftReport, UnassignedItem, UnassignedReason, Violation } from '@/types';
+import { UNLABELLED_RULE_SENTENCE } from '@/lib/timetable-plain-language';
 
 export type BlockerReason =
 	| 'FACULTY_OVERLOADED'
@@ -239,8 +240,16 @@ const DEFAULT_BLOCKER_CONFIG: BlockerConfig = {
 	nextStep: 'Open the review rail and resolve this issue before publishing.',
 };
 
-function humanizeCode(code: string): string {
-	return code.replace(/_/g, ' ').toLowerCase();
+/**
+ * J2 (P5): a warning group whose code has no label used to be de-snake-cased
+ * into "faculty excessive idle gap" — not English, and it reads to a scheduler
+ * like a typo they caused. It now degrades to the one shared plain sentence.
+ * The grouping, the counts, the sort order and every downstream consumer of
+ * `plainLabel` (the sheet, the C1 blocker banner, the generation blocker sheet,
+ * the pasted report and the CSV) are untouched: only the wording changes.
+ */
+function unlabelledWarningLabel(): string {
+	return UNLABELLED_RULE_SENTENCE;
 }
 
 /**
@@ -532,7 +541,7 @@ function buildWarningGroups(
 	return Array.from(groups.entries())
 		.map(([code, items]) => ({
 			code,
-			plainLabel: VIOLATION_WARNING_LABELS[code] ?? humanizeCode(code),
+			plainLabel: VIOLATION_WARNING_LABELS[code] ?? unlabelledWarningLabel(),
 			count: items.length,
 			items,
 		}))

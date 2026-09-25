@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
 import atlasApi from '@/lib/api';
 import type { RolloverStatus } from '@/lib/settings';
-
+import { runAnchorLabel } from '@/lib/timetable-plain-language';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
@@ -428,11 +428,15 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 						</SelectTrigger>
 						<SelectContent>
 							<SelectItem value="latest" disabled={runOptions.length === 0}>Latest Run</SelectItem>
-							{runOptions.map((r) => (
-								<SelectItem key={r.id} value={String(r.id)}>
-									Run #{r.id} · {formatTimestamp(r.createdAt)}
-								</SelectItem>
-							))}
+						{runOptions.map((r) => (
+							<SelectItem key={r.id} value={String(r.id)}>
+								{/* J2 (P3): the run number stays — it is the one internal id a
+								 * scheduler can quote — but it is a quiet suffix behind the
+								 * run's own timestamp instead of being the label. A run with
+								 * no timestamp falls back to the plain phrase. */}
+								{runAnchorLabel(r.id, r.createdAt ? formatTimestamp(r.createdAt) : null)}
+							</SelectItem>
+						))}
 						</SelectContent>
 					</Select>
 				</div>

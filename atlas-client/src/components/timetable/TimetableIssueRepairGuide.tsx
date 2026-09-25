@@ -3,9 +3,49 @@ import { Loader2, Wand2 } from 'lucide-react';
 
 import atlasApi from '@/lib/api';
 import type { Violation, ViolationRepairOptionsResponse } from '@/types';
+import { MUST_FIX_LABEL } from '@/lib/timetable-plain-language';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import type { LeftRailContentContext } from '@/components/timetable/timetableContexts.types';
+
+/**
+ * J2 (P6): the projected outcome, in plain words.
+ *
+ * TRACED FIRST, and this is the trap the brief warns about. The old line
+ * printed two differences that do NOT share a sign convention:
+ *
+ *   `targetIssuesBefore - targetIssuesAfter` — positive means FEWER issues.
+ *   `hardAfter - hardBefore`                 — negative means FEWER problems,
+ *     because `hardBefore`/`hardAfter` are named in the opposite order.
+ *
+ * So the old "N hard change" put a negative number next to a count of changes.
+ * A direction WORD can only be true if both clauses are normalised to the same
+ * before-minus-after intent, which is what this does. The same two field pairs
+ * are read; no count, threshold or projection is changed.
+ *
+ * The old labels also lied in two smaller ways: "N fewer selected issue(s)"
+ * called a count of issues "issues" behind a mechanical "(s)", and a signed
+ * delta was labelled as if it counted changes. Each clause now names what it
+ * counts — the selected issues, and the `MUST_FIX_LABEL` problems — and says
+ * the direction in words.
+ */
+function projectedOutcomeSentence(delta: {
+	targetIssuesBefore: number;
+	targetIssuesAfter: number;
+	hardBefore: number;
+	hardAfter: number;
+}): string {
+	const issueShift = delta.targetIssuesBefore - delta.targetIssuesAfter;
+	const hardShift = delta.hardBefore - delta.hardAfter;
+	return `Projected: ${shiftSentence(issueShift, 'selected issue')} and ${shiftSentence(hardShift, `${MUST_FIX_LABEL} problem`)}.`;
+}
+
+/** One signed count, stated as a direction rather than as a signed number. */
+function shiftSentence(shift: number, unit: string): string {
+	if (shift > 0) return `${shift} fewer ${unit}${shift === 1 ? '' : 's'}`;
+	if (shift < 0) return `${-shift} more ${unit}${-shift === 1 ? '' : 's'}`;
+	return `no change to the ${unit}s`;
+}
 
 export function TimetableIssueRepairGuide({ context, violation }: { context: LeftRailContentContext; violation: Violation | null }) {
 	const [result, setResult] = useState<ViolationRepairOptionsResponse | null>(null);
@@ -72,7 +112,7 @@ export function TimetableIssueRepairGuide({ context, violation }: { context: Lef
 			{result?.options.map((option) => (
 				<div key={option.id} className="mt-1.5 rounded border border-border bg-background px-2 py-1.5">
 					<p className="text-xs font-medium">{option.label}</p>
-					<p className="mt-0.5 text-xs text-muted-foreground">{option.explanation} Projected: {option.projectedDelta.targetIssuesBefore - option.projectedDelta.targetIssuesAfter} fewer selected issue(s), {option.projectedDelta.hardAfter - option.projectedDelta.hardBefore} hard change.</p>
+					<p className="mt-0.5 text-xs text-muted-foreground">{option.explanation} {projectedOutcomeSentence(option.projectedDelta)}</p>
 					<Button type="button" size="sm" variant="outline" className="mt-1 h-6 text-xs" onClick={() => void context.previewEdit(option.proposal)}>
 						<Wand2 className="mr-1 size-3" />Preview
 					</Button>

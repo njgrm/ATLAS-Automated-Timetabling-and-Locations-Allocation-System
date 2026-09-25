@@ -18,7 +18,7 @@
 
 import { Link } from 'react-router-dom';
 import { ChevronLeft, History } from 'lucide-react';
-
+import { generationRunKindLabel, generationRunStateLabel, runAnchorLabel } from '@/lib/timetable-plain-language';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import { ScrollArea } from '@/ui/scroll-area';
@@ -104,10 +104,18 @@ export function TimetableRunsPane({
 									data-selected={selected ? 'true' : undefined}
 								>
 									<div className="flex min-w-0 flex-wrap items-center gap-2">
-										<Badge variant={statusVariant(run.status)} className="h-5 px-1.5 text-xs">
-											{run.status}
-										</Badge>
-										<p className="text-sm font-semibold">Run #{run.id}</p>
+									<Badge variant={statusVariant(run.status)} className="h-5 px-1.5 text-xs">
+										{/* J2 (P1/P2): the run's own state enum and its kind were
+										 * printed verbatim in this row. They are enums, so they
+										 * are mapped to plain words like every other status on
+										 * this surface. */}
+										{generationRunStateLabel(run.status)}
+									</Badge>
+										{/* J2 (P3): the heading is now a human anchor — the date the
+										 * run was generated — with the run number kept as a quiet
+										 * suffix, because it is the one internal id a scheduler can
+										 * legitimately quote back. */}
+										<p className="text-sm font-semibold">{runAnchorLabel(run.id, formatTimestamp(run.createdAt))}</p>
 										{index === 0 ? (
 											<Badge variant="outline" className="h-5 px-1.5 text-xs">Latest</Badge>
 										) : null}
@@ -136,16 +144,18 @@ export function TimetableRunsPane({
 											<dt className="font-semibold uppercase tracking-wide">Duration</dt>
 											<dd className="truncate">{formatDuration(run.durationMs)}</dd>
 										</div>
-										{run.version != null ? (
-											<div className="min-w-0">
-												<dt className="font-semibold uppercase tracking-wide">Version</dt>
-												<dd className="truncate">v{run.version}</dd>
-											</div>
-										) : null}
+									{run.version != null ? (
+										<div className="min-w-0">
+											{/* J2 (P3): the term above already says "Version", so the
+											 * `v3` abbreviation added nothing and read as a token. */}
+											<dt className="font-semibold uppercase tracking-wide">Version</dt>
+											<dd className="truncate">{run.version}</dd>
+										</div>
+									) : null}
 										{run.runType ? (
 											<div className="min-w-0">
-												<dt className="font-semibold uppercase tracking-wide">Type</dt>
-												<dd className="truncate">{run.runType}</dd>
+												<dt className="font-semibold uppercase tracking-wide">Kind</dt>
+												<dd className="truncate">{generationRunKindLabel(run.runType)}</dd>
 											</div>
 										) : null}
 										<div className="min-w-0">

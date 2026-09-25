@@ -15,7 +15,7 @@ import {
 
 import { Link } from 'react-router-dom';
 import type { ReactNode } from 'react';
-
+import { runAnchorLabel } from '@/lib/timetable-plain-language';
 import { cn } from '@/lib/utils';
 import { Button } from '@/ui/button';
 import { Badge } from '@/ui/badge';
@@ -241,11 +241,14 @@ export function SimpleMoreMenuContent({
 					</SelectTrigger>
 					<SelectContent>
 						<SelectItem value="latest" disabled={context.runs.length === 0}>Latest Run</SelectItem>
-						{context.runs.map((run) => (
-							<SelectItem key={run.id} value={String(run.id)}>
-								Run #{run.id} · {context.formatTimestamp(run.createdAt)}
-							</SelectItem>
-						))}
+					{context.runs.map((run) => (
+						<SelectItem key={run.id} value={String(run.id)}>
+							{/* J2 (P3): the run number stays — it is the one internal id a
+							 * scheduler can quote — but it is a quiet suffix behind the
+							 * run's own timestamp instead of being the label. */}
+							{runAnchorLabel(run.id, run.createdAt ? context.formatTimestamp(run.createdAt) : null)}
+						</SelectItem>
+					))}
 					</SelectContent>
 				</Select>
 				<div className="grid gap-1.5">

@@ -3,7 +3,7 @@ import { AlertTriangle, CheckCircle2, ChevronRight, Copy, Download, ExternalLink
 import { Link } from 'react-router-dom';
 
 import { cn } from '@/lib/utils';
-import { MUST_FIX_LABEL, plainScopeLabel } from '@/lib/timetable-plain-language';
+import { MUST_FIX_LABEL, plainScopeLabel, runAnchorLabel } from '@/lib/timetable-plain-language';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import { ScrollArea } from '@/ui/scroll-area';
@@ -409,7 +409,12 @@ export function SimplePublishReadinessSheetContent({
 		const runId = draft?.runId ?? null;
 		const lines: string[] = [];
 		lines.push(`Publish Readiness Report`);
-		if (runId) lines.push(`Run: #${runId}`);
+		/* J2 (P3): this text is pasted into emails and tickets, so the run number
+		 * is a quiet suffix behind a plain phrase rather than the heading. Only a
+		 * run id is available here — no timestamp — so the phrase is the anchor.
+		 * The CSV download filename below is deliberately NOT changed: it stays
+		 * machine-parseable. */
+		if (runId) lines.push(runAnchorLabel(runId));
 		/* J1r (QA F2) — this text is what the operator pastes into an email or a
 		 * ticket, so it is operator-facing copy and carries the same one-word-per-
 		 * idea contract as the sheet above it. The three lines that still said

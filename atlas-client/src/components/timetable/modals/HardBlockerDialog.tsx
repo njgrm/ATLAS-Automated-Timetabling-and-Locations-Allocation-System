@@ -1,5 +1,6 @@
 import { AlertCircle, ShieldAlert } from 'lucide-react';
 
+import { formatPolicyDeltaText } from '@/lib/violation-presentation';
 import { Button } from '@/ui/button';
 import {
 	Dialog,
@@ -40,16 +41,27 @@ export function HardBlockerDialog({ open, items, onClose }: HardBlockerDialogPro
 				<div className="mt-4 bg-red-50/50 border border-red-100 rounded-xl overflow-hidden max-h-[40vh]">
 					<ScrollArea className="max-h-[40vh]">
 						<div className="p-4 space-y-3">
-							{items.map((item, index) => (
-								<div key={index} className="flex items-start gap-2">
-									<AlertCircle className="size-4 shrink-0 mt-0.5 text-red-500" />
-									<div className="space-y-0.5">
-										<p className="text-sm font-medium text-red-800 leading-snug">{item.humanTitle}</p>
-										<p className="text-xs text-red-700/80 leading-snug">{item.humanDetail}</p>
-										{item.delta && <p className="mt-0.5 font-mono text-xs text-red-500/70">{item.delta}</p>}
-									</div>
-								</div>
-							))}
+									{items.map((item, index) => {
+										/* J2 (P1): `delta` is the server's policy-threshold
+										 * comparison (limit/target vs observed), not an engine
+										 * token, so it is kept and put in the scheduler's
+										 * terms. `formatPolicyDeltaText` drops the `Δ` glyph, the
+										 * bare `min` and the `period(s)` construct. The mono
+										 * styling is removed because this is prose, not code, and
+										 * it keeps the server's own Limit/Target/Observed labels
+										 * so the number is never relabelled. */
+										const plainDelta = item.delta ? formatPolicyDeltaText(item.delta) : null;
+										return (
+											<div key={index} className="flex items-start gap-2">
+												<AlertCircle className="size-4 shrink-0 mt-0.5 text-red-500" />
+												<div className="space-y-0.5">
+													<p className="text-sm font-medium text-red-800 leading-snug">{item.humanTitle}</p>
+													<p className="text-xs text-red-700/80 leading-snug">{item.humanDetail}</p>
+													{plainDelta && <p className="mt-0.5 text-xs text-red-500/70">{plainDelta}</p>}
+												</div>
+											</div>
+										);
+									})}
 						</div>
 					</ScrollArea>
 				</div>

@@ -3,7 +3,7 @@ import { CheckCircle2, ExternalLink } from 'lucide-react';
 
 import { Button } from '@/ui/button';
 import { Badge } from '@/ui/badge';
-import { ALL_SERIOUS_PROBLEMS_LABEL, HARD_COUNT_RELATIONSHIP_NOTE, MUST_FIX_LABEL, plainScopeLabel } from '@/lib/timetable-plain-language';
+import { ALL_SERIOUS_PROBLEMS_LABEL, HARD_COUNT_RELATIONSHIP_NOTE, MUST_FIX_LABEL, plainScopeLabel, runAnchorLabel } from '@/lib/timetable-plain-language';
 import { isBlockingHardViolation, resolveBlockerDestination } from '@/components/timetable/simplePublishReadiness';
 import type { Violation } from '@/types';
 
@@ -215,7 +215,10 @@ export function PublishChecklistContent({
 			<div className="rounded-xl border border-border bg-muted/30 p-3" data-testid="timetable-publish-readiness-summary">
 				<p className="font-semibold text-foreground">Publish checklist</p>
 				{runId && (
-					<p className="mt-1 text-xs text-muted-foreground">Run #{runId}</p>
+					/* J2 (P3): the run number stays — it is the one internal id a
+					 * scheduler can quote — but as a quiet suffix behind a plain
+					 * phrase, never as the label on its own. */
+					<p className="mt-1 text-xs text-muted-foreground">{runAnchorLabel(runId)}</p>
 				)}
 				<ul className="mt-2 space-y-1.5 text-sm text-muted-foreground">
 					<li>Assigned sessions: {assignedCount}</li>

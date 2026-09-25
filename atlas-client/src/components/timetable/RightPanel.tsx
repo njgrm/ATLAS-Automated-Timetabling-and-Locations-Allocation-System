@@ -15,6 +15,12 @@ import {
 } from 'lucide-react';
 
 import { formatTime } from '@/lib/utils';
+import {
+	UNLABELLED_RULE_SENTENCE,
+	roomRequestAppealState,
+	roomRequestDecisionState,
+	roomRequestSubmissionState,
+} from '@/lib/timetable-plain-language';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import { ResizableHandle, ResizablePanel } from '@/ui/resizable';
@@ -267,6 +273,15 @@ function RightPanelImpl(props: RightPanelProps) {
 											const entryViolations = violationIndex.get(selectedEntry.entryId) ?? [];
 											const faculty = facultyMap.get(selectedEntry.facultyId);
 											const matchingRequest = (roomRequestSummary?.requests ?? []).find((request: any) => request.entryId === selectedEntry.entryId) ?? null;
+											/* J2 (P2): the three enums behind this block are the
+											 * request's submission state, its DECISION and each
+											 * appeal's own state. They are different
+											 * measurements, so each is labelled in its own
+											 * plain words and each says what happens next.
+											 * Presentation only — the enum values, the
+											 * state machine and every payload are untouched. */
+											const requestSubmission = roomRequestSubmissionState(matchingRequest?.status);
+											const requestDecision = roomRequestDecisionState(matchingRequest?.decisionStatus);
 											const facultyPhotoUrl = faculty?.photoUrl ?? null;
 											return (
 												<>
@@ -296,15 +311,26 @@ function RightPanelImpl(props: RightPanelProps) {
 														{matchingRequest ? (
 															<>
 																<p className="text-xs text-foreground truncate">Requested: {matchingRequest.requestedRoomName}</p>
+																<p className="text-xs font-medium text-foreground">
+																	{matchingRequest.status === 'DRAFT'
+																		? requestSubmission.label
+																		: `Decision: ${requestDecision.label}`}
+																</p>
 																<p className="text-xs text-muted-foreground">
-																	Status: {matchingRequest.decisionStatus} · Reason: {matchingRequest.rationale ?? '—'}
+																	{matchingRequest.status === 'DRAFT' ? requestSubmission.next : requestDecision.next}
+																</p>
+																<p className="text-xs text-muted-foreground">
+																	Reason: {matchingRequest.rationale ?? '—'}
 																</p>
 																<p className="text-xs text-muted-foreground truncate">
 																	Reviewer notes: {matchingRequest.reviewerNotes ?? '—'}
 																</p>
 																{matchingRequest.appealCount > 0 ? (
 																	<p className="text-xs text-muted-foreground">
-																		Appeals: {matchingRequest.appealCount} total ({matchingRequest.openAppealCount} open) · Latest {matchingRequest.latestAppealStatus ?? '—'}
+																		Appeals: {matchingRequest.appealCount} raised, {matchingRequest.openAppealCount} still open
+																		{matchingRequest.latestAppealStatus
+																			? ` · latest appeal is ${roomRequestAppealState(matchingRequest.latestAppealStatus)}`
+																			: ''}
 																	</p>
 																) : null}
 															</>
@@ -341,17 +367,24 @@ function RightPanelImpl(props: RightPanelProps) {
 															</div>
 															{entryViolations.map((v: any, i: number) => {
 																const explanation = violationExplanations[v.code];
+																/* J2 (P1): the old fallback was `?? v.code`, so a
+																 * stored or future rule with no label printed its raw
+																 * engine token in the operator's session chip. An
+																 * unknown rule now reads as the shared plain sentence,
+																 * which is still English and still says the honest
+																 * thing: ATLAS has no name for this one yet. */
+																const label = violationLabels[v.code] ?? UNLABELLED_RULE_SENTENCE;
 																return (
 																	<TooltipProvider key={i}>
 																		<Tooltip delayDuration={300}>
 																			<TooltipTrigger asChild>
 																				<div className={`rounded px-2.5 py-1 text-xs leading-snug cursor-help ${v.severity === 'HARD' ? 'border border-red-200 bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300 dark:border-red-800' : 'border border-amber-200 bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300 dark:border-amber-800'}`}>
-																					{violationLabels[v.code] ?? v.code}
+																					{label}
 																				</div>
 																			</TooltipTrigger>
 																			{explanation && (
 																				<TooltipContent side="left" className="max-w-62.5 text-xs">
-																					<p className="font-semibold mb-1">{violationLabels[v.code]}</p>
+																					<p className="font-semibold mb-1">{label}</p>
 																					<p className="text-muted-foreground leading-normal">{explanation.why}</p>
 																				</TooltipContent>
 																			)}
