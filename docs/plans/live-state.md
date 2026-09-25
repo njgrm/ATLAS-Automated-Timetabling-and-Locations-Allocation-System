@@ -39,12 +39,17 @@ resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs
 ## Live release
 
 - Tailnet: `https://njgrm.buru-degree.ts.net`
-- **Pending release SHA: `c5e167d7c5939ff586880149c566ce29506430e8`** (target recorded 2026-09-25 before the
-  §13 deployment action; planned release directory `E:\ATLAS-runtime-supervised-c5e167d7-20260925`; incumbent and
-  rollback basis `ad8f971787cd004d9aeb040d362a9acd3e290074`; delta is 14 client + 2 server files, including Lane C's
-  `SERVER-STALL-C01`; **no migration**; deployment not yet run. Post-cutover acceptance remains separate: Lane A owns
-  the live pixel rows and Lane C owns the stall-diagnostic reproduction.)
-- **Release SHA: `ad8f9717`** (**LIVE** since 2026-09-25 17:12, Lane C; `E:\ATLAS-runtime-supervised-ad8f9717-20260925`;
+- **Release SHA: `c5e167d7c5939ff586880149c566ce29506430e8`** (**LIVE** since 2026-09-25 20:40, Lane A;
+  `E:\ATLAS-runtime-supervised-c5e167d7-20260925`; execute audit
+  `C:\ProgramData\ATLAS\release-audit\c5e167d7-20260925-204030`; active state `running`/`c5e167d7`; machine env =
+  target; health 200, ready 200 `database:"ok"`, DB-backed subjects read 200, Tailnet 200; served target entry
+  `assets/index-BW9wl1o-.js` SHA-256 `40E58645…294BC1`, byte-identical local/Tailnet/build; old entry 404. Independent
+  post-action QA `ACCEPT_READY` **8/8/0/0**; six-table zero-write signature unchanged. **No migration. Rollback
+  basis: `ad8f9717`.** Browser acceptance is separate and **BLOCKED/UNPERFORMED**: Lane A's first 1366×768 read-only
+  attempt triggered an unexpected `POST /api/v1/room-preferences/collaboration/ticket` 201 for school 1 / year 10 /
+  run 318, so the incident stop forbids further browser actions until separately reviewed. Two EnrollPro proxy 502s
+  were also observed; see Lane A handoff evidence.
+- **Release SHA: `ad8f9717`** (rollback basis; previously LIVE 2026-09-25 17:12, Lane C; `E:\ATLAS-runtime-supervised-ad8f9717-20260925`;
   operator cutover, audit `C:\ProgramData\ATLAS\release-audit\ad8f9717-20260925-171136`; active state
   `running`/`ad8f9717`; machine env = target; health 200, `/health/ready` `database:"ok"`, subjects read 200, Tailnet
   200; served `assets/index-DEoaxzaH.js` byte-identical to the build). **Browser acceptance: UNPERFORMED as of
@@ -245,20 +250,22 @@ advisers, read-only EnrollPro check); `runtime/context` ~4.1 s vs the 4000 ms En
 
 **Current stream (2026-09-25):** `TEACHER-CONCERN-AUTHORITY-PROGRAM-20260924` C1–C7 is complete. The scheduler is
 the single teacher-concern accommodation surface, SMART's draft access is teacher-scoped/read-only, and the ATLAS
-teacher portal is removed. The latest accepted product tip is `c5e167d7`; the authoritative live release remains
-`ad8f9717` until the pending cutover completes.
+teacher portal is removed. The latest accepted product tip and verified live release is `c5e167d7`.
 
 **Completed acceptance (2026-09-25):** `ACTIVE-TERM-LIVE-RESOLUTION-C01` fixed the former C7
 `409 TERM_SCOPE_MISMATCH`: Lane A's seeded browser pass returned `/faculty/concerns` GET 200 and PUT 200 at
 `termIndex 2`, with D6 redirects and removed navigation verified. One disclosed test-data mutation remains: a
 DRAFT availability for faculty 1 / year 10 / term 2 / v1 with zero slots.
 
-**Next action (2026-09-25):** pre-action review is `ACCEPT_READY` **25/25/0/0** for packet
-`62ae7455`; explicit §13 approval is still required before the HIGH action. After approval, build and deploy
-product `c5e167d7` using `ops/runtime/deploy-runner.ps1` dry-run then `-Execute`; rollback basis is the live
-`ad8f9717`. The exact pending record and no-migration delta are in `## Live release`. Post-cutover, Lane A runs the
-1366×768 and 390×844 pixel rows (rendered text >=14 px and no global scrollbar); Lane C then reproduces the draft
-swap preview and reads the new stall diagnostics.
+**Deployment outcome (2026-09-25):** operator-approved `c5e167d7` cutover is **DEPLOYED**; independent post-action
+QA `ACCEPT_READY` **8/8/0/0**; zero-write digest unchanged; rollback basis `ad8f9717`. Browser acceptance is
+**BLOCKED/UNPERFORMED** after the first 1366×768 attempt issued an unexpected collaboration-ticket POST 201; the
+incident evidence is `docs/handoffs/lane-a-browser-acceptance-c5e167d7-2026-09-25.md`. Do not rerun the browser
+until that ticket behavior is reviewed and the acceptance boundary is explicitly resolved.
+
+**Next action (2026-09-25):** review the collaboration-ticket contract and decide whether ticket issuance is an
+allowed read-only browser prerequisite or requires a bounded source correction. Lane C's separate stall-diagnostic
+acceptance remains pending.
 
 **Dated decisions / residuals (verify before acting):**
 - **F7 remains deliberately rejected (2026-09-25):** daily tools stay under More so the header remains compact;
