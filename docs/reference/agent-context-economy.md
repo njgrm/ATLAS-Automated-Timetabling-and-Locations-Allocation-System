@@ -67,6 +67,25 @@ until reading it costs more than the state it carries. Put narrative in packets 
 keep the handoff to: current verdict, live identity, custody/dispositions, decisions awaited, one
 next action.
 
+## Executor loop shape
+
+Observed 2026-09-25 (Lane C, SCHEDULE-CLARITY-C03): about 120 tool calls at a context of 300k+ tokens used up most
+of a 5-hour plan window. The single-file reads and edits, not the work itself, re-paid that context each time.
+
+- **Read once, in bulk.** Collect every file region a change needs in one shell call
+  (`sed -n` ranges, `grep -n -A`), then edit. Do not alternate read, edit and read.
+- **Group edits by file.** Make every change to one file in one edit pass. Group files a change touches together
+  into one step when the edit is mechanical.
+- **Run the full suite once per candidate,** after the focused tests pass and every superseded assertion is
+  updated. Before that, run only the affected test files. A full run that starts while tests are still being
+  edited is wasted.
+- **Record the base failure names** in the handoff (or a scratch file named by base SHA) the first time they are
+  computed. A later candidate on the same base compares against that list instead of re-running the base suite.
+- **Browser evidence as text:** use `get_page_text`, `find` or `javascript_tool` returning a small JSON object;
+  take screenshots only when layout is the question, at a reduced scale.
+- **Start a fresh planner session at a lane boundary:** when QA verdicts arrive, after a deploy, or when context
+  passes about 200k tokens. Write the handoff first (see below).
+
 ## Session checkpoint
 
 Before compaction or a session reset, record only:
