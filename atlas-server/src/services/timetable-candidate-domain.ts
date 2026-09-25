@@ -54,10 +54,41 @@ export interface CandidateInvariantVerdict {
 
 const TIME_PATTERN = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
 
+/**
+ * READINESS-STALL-C01: `timeToCandidateMinutes` is the innermost hot-path call
+ * in the scheduler's occupancy checks (`intervalsOverlap` /
+ * `isValidCandidateInterval`, reached from `OccupancyTracker.isOccupied` and
+ * `constructBaseline`) — it is invoked millions of times per scheduler run
+ * against a small, closed set of distinct "HH:MM" strings (period/policy
+ * boundaries). A bounded module-level memo turns each of those calls into a
+ * Map lookup instead of a regex test + string split + parseInt pair, with
+ * byte-identical return values for every input (valid and invalid).
+ *
+ * The cache is bounded because this module is process-local and long-lived
+ * (server process, not per-request): a pathological caller feeding unbounded
+ * distinct strings could otherwise grow it forever. Real callers only ever
+ * pass a few dozen distinct time strings, so the bound is never expected to
+ * trigger; a full clear is fine here — it beats the cost of a real LRU purely
+ * for a bound that exists only as a safety net.
+ */
+const TIME_TO_MINUTES_CACHE_LIMIT = 2000;
+const timeToMinutesMemo = new Map<string, number | null>();
+
 export function timeToCandidateMinutes(value: string): number | null {
-	if (!TIME_PATTERN.test(value)) return null;
-	const [hours, minutes] = value.split(':').map(Number);
-	return hours * 60 + minutes;
+	const cached = timeToMinutesMemo.get(value);
+	if (cached !== undefined) return cached;
+
+	let result: number | null;
+	if (!TIME_PATTERN.test(value)) {
+		result = null;
+	} else {
+		const [hours, minutes] = value.split(':').map(Number);
+		result = hours * 60 + minutes;
+	}
+
+	if (timeToMinutesMemo.size >= TIME_TO_MINUTES_CACHE_LIMIT) timeToMinutesMemo.clear();
+	timeToMinutesMemo.set(value, result);
+	return result;
 }
 
 export function isValidCandidateIdentity(value: number): boolean {

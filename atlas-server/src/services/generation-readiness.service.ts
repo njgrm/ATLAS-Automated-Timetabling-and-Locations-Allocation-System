@@ -16,7 +16,8 @@ import { createHash } from 'node:crypto';
 import { getDataContext, withDataContext } from '../lib/data-context.js';
 import { canonicalStringify } from '../lib/canonical-json.js';
 import { validateHardConstraints, type ScheduledEntry } from './constraint-validator.js';
-import { runHybridScheduler } from './hybrid-scheduler.js';
+import { runHybridScheduler, type HybridSchedulerResult } from './hybrid-scheduler.js';
+import type { ConstructorInput } from './schedule-constructor.js';
 import {
 	buildGenerationPreflight,
 	buildPreflightConstructorInput,
@@ -91,6 +92,11 @@ export interface GenerationReadinessResult {
 		classesProcessed: number;
 		selectedProfileId: string | null;
 		runtimeMs: number;
+		/** READINESS-STALL-C01: true when this call reused a prior scheduler
+		 * result for byte-identical input instead of re-running the scheduler.
+		 * `runtimeMs` always reports THIS call's own measured time, so it stays
+		 * truthful (a cache hit reports its own, much smaller, duration). */
+		cached: boolean;
 	};
 	violations: { hardCount: number; softCount: number; hardCodes: Record<string, number>; softCodes: Record<string, number> };
 	blockers: GenerationReadinessBlocker[];
@@ -103,6 +109,65 @@ export interface GenerationReadinessResult {
 
 function sha256(value: unknown): string {
 	return createHash('sha256').update(canonicalStringify(value), 'utf8').digest('hex').toUpperCase();
+}
+
+/**
+ * READINESS-STALL-C01: the readiness dry run re-executes the full
+ * `runHybridScheduler` synchronously on every `/timetable` page load, even
+ * when nothing that feeds the scheduler has changed since the last call in
+ * this process. `runHybridScheduler` is deterministic for identical input —
+ * confirmed by grep: no `Math.random`/`Date.now` in its decision path
+ * (`hybrid-scheduler.ts`, `schedule-constructor.ts`), and every keyed
+ * iteration (`qualifiedMap`, `qualifiedSets`, etc.) walks a `Map`/array built
+ * in a fixed, input-derived order, never a `Set`/object whose iteration order
+ * could vary run to run — so caching its result by a hash of its input is
+ * behaviour-preserving.
+ *
+ * `ConstructorInput`'s fields are plain arrays/objects/Records; the one
+ * pass-through Prisma row (`policy`) has no `Decimal` columns (verified
+ * against `prisma/schema.prisma`'s `SchedulingPolicy` model — Int/Boolean/
+ * String only) and any `Date` field is handled by `canonicalStringify`
+ * (`lib/canonical-json.ts` converts `Date` via `toISOString()`). No Map/Set
+ * instances reach this input, so the canonical serialization is deterministic
+ * for a given logical input.
+ *
+ * Bounded (evict-oldest) and process-local: this is a readiness-path-only
+ * optimization. `generation.service.ts` (the real, writing generation path)
+ * calls `runHybridScheduler` directly and never touches this cache.
+ *
+ * The cached result is deep-cloned on every read: downstream readiness code
+ * only reads `result.entries`/`result.unassignedItems` through
+ * `resolvePerTermScheduleEntries`/`resolvePerTermUnassignedItems`, which spread
+ * each item into a new object and never mutate their input arrays — but the
+ * clone keeps that true even if a future caller stops being so careful.
+ */
+export const SCHEDULER_RESULT_CACHE_LIMIT = 8;
+const schedulerResultCache = new Map<string, HybridSchedulerResult>();
+
+/**
+ * Exported (in addition to being used internally by
+ * `buildGenerationReadinessWithContext`) so `readiness-stall-c01.test.ts` can
+ * exercise the cache directly — hit/miss, eviction, and mutation-safety — with
+ * fast synthetic inputs instead of only observing it indirectly through the
+ * full `buildGenerationReadiness` pipeline.
+ */
+export function runHybridSchedulerCached(constructorInput: ConstructorInput): { result: HybridSchedulerResult; cached: boolean } {
+	const key = sha256(constructorInput);
+	const hit = schedulerResultCache.get(key);
+	if (hit) {
+		// Refresh recency for the evict-oldest bound below.
+		schedulerResultCache.delete(key);
+		schedulerResultCache.set(key, hit);
+		return { result: structuredClone(hit), cached: true };
+	}
+
+	const result = runHybridScheduler(constructorInput);
+	schedulerResultCache.set(key, result);
+	if (schedulerResultCache.size > SCHEDULER_RESULT_CACHE_LIMIT) {
+		const oldestKey = schedulerResultCache.keys().next().value;
+		if (oldestKey !== undefined) schedulerResultCache.delete(oldestKey);
+	}
+	return { result: structuredClone(result), cached: false };
 }
 
 async function computeDatabaseSignature(schoolId: number, schoolYearId: number): Promise<GenerationReadinessDatabaseSignature> {
@@ -170,13 +235,13 @@ async function buildGenerationReadinessWithContext(
 	const assembly: GenerationPreflightAssembly = preflight.assembly;
 	const blockers: GenerationReadinessBlocker[] = [...preflight.blockers];
 
-	let scheduler: GenerationReadinessResult['scheduler'] = { ran: false, assignedCount: 0, unassignedCount: 0, policyBlockedCount: 0, classesProcessed: 0, selectedProfileId: null, runtimeMs: 0 };
+	let scheduler: GenerationReadinessResult['scheduler'] = { ran: false, assignedCount: 0, unassignedCount: 0, policyBlockedCount: 0, classesProcessed: 0, selectedProfileId: null, runtimeMs: 0, cached: false };
 	let violations: GenerationReadinessResult['violations'] = { hardCount: 0, softCount: 0, hardCodes: {}, softCodes: {} };
 
 	if (assembly.schedulerCanRun && assembly.derived) {
 		const constructorInput = buildPreflightConstructorInput(assembly, {});
 		const schedulerStartedAt = Date.now();
-		const result = runHybridScheduler(constructorInput);
+		const { result, cached: wasCached } = runHybridSchedulerCached(constructorInput);
 		scheduler = {
 			ran: true,
 			assignedCount: result.assignedCount,
@@ -185,6 +250,7 @@ async function buildGenerationReadinessWithContext(
 			classesProcessed: result.classesProcessed,
 			selectedProfileId: result.selectedProfileId,
 			runtimeMs: Date.now() - schedulerStartedAt,
+			cached: wasCached,
 		};
 		// TT-OUTPUT-C03R3: the constructor produces COMPACT base entries. A
 		// year-long subject session carries no term identity, and a rotating family
