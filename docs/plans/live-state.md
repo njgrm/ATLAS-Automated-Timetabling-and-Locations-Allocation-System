@@ -39,20 +39,17 @@ resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs
 ## Live release
 
 - Tailnet: `https://njgrm.buru-degree.ts.net`
-- **Release SHA: `861d89a2bc2682c5f875dde0b4b1d8ffc079b1fe`** (**LIVE** since 2026-09-26 01:27, Lane A;
-  `E:\ATLAS-runtime-supervised-861d89a2-20260925`; execute audit
-  `C:\ProgramData\ATLAS\release-audit\861d89a2-20260926-012633`; dry-run audit
-  `C:\ProgramData\ATLAS\release-audit\861d89a2-20260926-012619`; active state `running`/`861d89a2`; machine env =
+- **Release SHA: `116a765814bf56fdd30aec02c611869aaff42190`** (**LIVE** since 2026-09-26 05:11, Lane A;
+  `E:\ATLAS-runtime-supervised-116a7658-20260726`; execute audit
+  `C:\ProgramData\ATLAS\release-audit\116a7658-20260926-051034`; dry-run audit
+  `C:\ProgramData\ATLAS\release-audit\116a7658-20260926-051018`; active state `running`/`116a7658`; machine env =
   target; health 200, ready 200 `database:"ok"`, DB-backed subjects read 200, Tailnet 200; startup log clean;
-  served `assets/index-BW9wl1o-.js` byte-identical to the target build. Independent post-action QA
-  `ACCEPT_READY` **8/8/0/0**; six-table zero-write digest unchanged; focused C02 13/13, PostgreSQL 6/6, C01 8/8,
-  client term-gate 8/8, preservation failure set base-reproduced with zero candidate-only failures. **No migration.
-  Rollback basis: `eb0e3038`.**
-- **Pending release SHA: `116a765814bf56fdd30aec02c611869aaff42190`** (isolated F1/F2 target recorded
-  2026-07-26; planned release `E:\ATLAS-runtime-supervised-116a7658-20260726`; incumbent/rollback `861d89a2`;
-  target is live `861d89a2` plus only the reviewed F1/F2 five-path delta, excluding the unapproved Lane C
-  DRAFT-UX product delta; no migration; standing authorization applies subject to packet gates; deployment
-  not yet run).
+  served target-only `assets/index-BAf43GT7.js` byte-identical to the target build. Independent post-action QA
+  `ACCEPT_READY` **8/8/0/0**; six-table zero-write digests unchanged; C08 160/0, published identity/swap/load
+  suites pass, F2 drift/client failures base-reproduced with zero candidate-only failures. **No migration.
+  Rollback basis: `861d89a2`.**
+- **Release SHA: `861d89a2bc2682c5f875dde0b4b1d8ffc079b1fe`** (rollback basis; previously LIVE 2026-09-26 01:27;
+  `E:\ATLAS-runtime-supervised-861d89a2-20260925`; prior QA `ACCEPT_READY` 8/8/0/0 preserved; **no migration.**)
 - **Release SHA: `eb0e30386336673a4a31ecfe39a9bef93549e0ed`** (rollback basis; previously LIVE 2026-09-25 22:19;
   `E:\ATLAS-runtime-supervised-eb0e3038-20260925`; prior Q4/A1 evidence preserved; **no migration.**)
 - **Release SHA: `c5e167d7c5939ff586880149c566ce29506430e8`** (rollback basis; previously LIVE 2026-09-25 20:40,
@@ -243,6 +240,61 @@ or process borrower, and is `RETIRE_AFTER_INTEGRATION` (E: 47.55 GiB before reti
 
 ## Lane C — current lane (written only by Lane C)
 
+**⚠ LIVE RELEASE CHANGED UNDER THIS LANE — 2026-09-26 05:11:02 +08. Read before any deploy work.** The live
+release is **`116a7658`**, NOT `861d89a2`. Supervisor task action:
+`E:\ATLAS-runtime-supervised-116a7658-20260726\ops\runtime\cli.mjs start` (Running; 5001 and 5174 both 200;
+`/health/ready` 200 `database:"ok"`). Lane A performed an isolated F1/F2 cutover while this lane worked.
+**Every earlier line in this section saying the live release is `861d89a2` is superseded.** This lane's
+"live still 861d89a2" checks were **verified wrongly**: they confirmed the old release *directory* was intact
+at that SHA, not that the supervisor still pointed at it. The correct check is the **scheduled-task action**.
+
+**Divergence (2026-09-26):** `116a7658` is **not an ancestor of `origin/main`** — it is Lane A's line off
+`861d89a2`. It contains **none** of `212809f7` (C1), `8bdf5802` (C2), `39645f2d` (C3) or `9f232cec` (J2);
+`merge-base --is-ancestor` returns exit 1 for each. **Live and `main` have diverged; the next deployment must
+reconcile them and cannot assume a fast-forward.** The held `9f42190e` release directory still does not exist.
+
+**J2 — candidate `9f232cec`, NOT integrated, awaiting one bounded correction.** Fresh independent QA returned
+`CORRECTION_REQUIRED` 8/9 with **one BLOCKING product finding (D2)**: the P4 work deleted the manual-edit
+history's actor attribution outright, so the audit trail shows **no actor at all**. QA ruled that "silence
+where a fact exists" is a capability regression, not an acceptable interim — "who changed my schedule" is the
+first question about an unexpected edit — and that an honest interim exists with no server change. The server
+gap (`listManualEdits` returns only `actorId`; `RoomRequestAppealHistory` already returns `actorName`) is
+**owed, not waived**. Every other row PASS: 0 base assertions dropped, 0 reparse points, no BOM, and gates
+reproduced exactly (28/28, 32/32, 88/2, client suite **1061/1045/16 — the identical failure set to the
+1033/1017/16 baseline**). The executor's **sign-convention catch** stands and must be preserved: the two
+projection numbers have opposite sign conventions and its first fix reproduced the error in reverse.
+
+**⚠ CUSTODY COLLISION with Lane A on J2/J3 — 2026-09-26. Do not integrate `9f232cec` blind.** Lane A is
+executing `PLAIN-LANGUAGE-J2J3-C01` in `E:\ATLAS-worktrees\lane-a-plain-language-j2j3-c01`, and its packet
+(`docs/prompts/plain-language-j2j3-c01-2026-07-26.md`) scopes *"total enum-to-plain-word maps for
+`RoomPreferenceDecisionStatus`, `RoomRequestAppealStatus`, `GenerationRunStatus` in
+`lib/timetable-plain-language.ts`"* — **the same module and the same enums this lane's J2 candidate
+`9f232cec` already implements**, and it also lands in the left rail / selected-entry / run / status surfaces
+J2 rewrote. Two planners on one stream is a custody defect, not parallelism. **This lane's ruling: hold
+`9f232cec` un-integrated**; whoever finishes first, the other candidate must be reconciled file by file
+rather than merged blind — `lib/timetable-plain-language.ts`, `RightPanel.tsx`,
+`ScheduleReviewWorkspaceHeader.tsx`, `SimplePublishReadinessSheet.tsx`, `TimetableSimpleHeader.tsx`,
+`simplePublishReadiness.ts`, `TimetableIssueRepairGuide.tsx`, `TimetableRunsPane.tsx`,
+`simple/SimpleMoreMenuContent.tsx`, `simple/SimpleTaskDrawerHelpers.tsx`, and the three modals. J3 (domain
+jargon) is untouched by this lane and remains available to whichever lane does not take it.
+
+**Donor governance (planner ruling after QA D1, 2026-09-26).** The `.vite` write into the frozen donor
+`5c100ea6` was **not** this candidate (the Vite-spawning tests resolve their root from `import.meta.dirname`
+into their own worktree; distinct `configHash` values prove distinct roots; the live release has no `.vite` at
+all). Build risk is **nil** — `vite build` does not read `node_modules/.vite/deps`, and the cache is
+self-invalidating. **But the governance problem is real:** a frozen retained release is doubling as a shared
+mutable `node_modules` source, so any process running Vite with that tree as root writes into it. **Ruling:
+the pending `9f42190e` build gets its own real copy, and `5c100ea6` is recorded read-only. No `.vite` removal
+is required; nothing was deleted.**
+
+**Owed J2 sweep — registered, not silently dropped (QA findings 2–5).** The same de-snake-case fallback
+survives at `QuickPlaceSummaryModal.tsx:58`, `SectionRoomMapModal.tsx:213,316`, `SectionRoomPicker.tsx:258`;
+`TimetableTaskDrawer.tsx:139` still mints `Subject #<id>`; `PublicationApprovalInbox.tsx:77` still renders
+`Run #<id>` and `account #<id>`; and `warning-readability-c01.test.ts` shows a **live** leak of all three
+fixed classes on an untouched surface (`FACULTY_LUNCH_WINDOW_VIOLATION` raw, a de-snake-cased token,
+`Faculty 16`, raw `MONDAY`) because `VIOLATION_PRESENTATION` has no entry for that rule — new rule content,
+not a rename, and one of the recorded 16 failures.
+
 Opened 2026-09-25 (operator). Branches `work|fix|docs/lane-c-*`, worktrees `E:/ATLAS-worktrees/lane-c-*`. Finished
 cycles are in Git history and their handoffs. Claude Code lanes follow `CLAUDE.md` (cost rules).
 
@@ -352,6 +404,21 @@ is never defaulted. Correct — but **not guarded by a committed regression row*
 term phrase could reintroduce a default with a green suite. That row is **owed by C3**, which already owns
 these files; it is not an extra round-trip for its own sake.
 
+> **CORRECTION 2026-09-26 (planner): the sentence above is wrong. C3 did NOT add that row.** C3
+> (`39645f2d`) was scoped J1/J4/J5 only, and **no test in
+> `atlas-client/src/components/timetable/__tests__/generation-blockers-c02.test.tsx` covers the term clause
+> at all** (its rows cover the operator sentence, code leaks, the tooltip, all-three-blockers, real repairs,
+> the no-blockers case, the control cap, the entry point and the setup pane). **The timetable-invariant
+> fail-closed term guard is therefore still OWED**, and after the Lane A collision recorded above it is the
+> one remaining item that is both non-colliding and correctness-critical. It is **test-only**, so AGENTS.md
+> section 11 lets the planner apply it directly: add `C2-term.1` (five degraded cases: `termIdentity` null,
+> empty, and not-in-structure; `termStructure` null; and no terms. Each asserts **no term clause is invented
+> and `Term 1` never appears**, with no `undefined` / `null` / `NaN` placeholder leaking in) and `C2-term.2`
+> (a known identity renders its verified ordered position and never the identity string), against
+> `presentGenerationBlockers` in `src/lib/timetable-generation-readiness.ts`. It must be written in a
+> **registered worktree**; `D:/ATLAS` is read-only by directive section 14 and this session correctly refused
+> an edit there, so do not attempt it in the root checkout. Blocked only on a worktree, which is cheap.
+
 **Planner calls on QA's three non-blocking items (2026-09-26):** (1) a resolved Subject that has no
 `displayCode` may render its own `code` (e.g. `TLE-7`) — **accepted**: it is the reference-map name the grid
 already prints in every cell, it is provably not `blocker.subjectCode`, and a Subject's own code is the
@@ -439,39 +506,33 @@ D1 acceptance owner was unnamed; and the D1 draft run/term premise is now re-der
 
 **Current stream (2026-09-26):** `TEACHER-CONCERN-AUTHORITY-PROGRAM-20260924` C1–C7 is complete. The scheduler is
 the single teacher-concern accommodation surface, SMART's draft access is teacher-scoped/read-only, and the ATLAS
-teacher portal is removed. `ACTIVE-TERM-LIVE-RESOLUTION-C02` is source-accepted at `07804498`, integrated as
-`861d89a2`, and now verified live; the previous `eb0e3038` release is the rollback basis.
+teacher portal is removed. `ACTIVE-TERM-LIVE-RESOLUTION-C02` and the F1/F2 follow-up are live at `116a7658`;
+`861d89a2` is the rollback basis.
 
 **Completed acceptance (2026-09-25):** `ACTIVE-TERM-LIVE-RESOLUTION-C01` fixed the former C7
 `409 TERM_SCOPE_MISMATCH`: Lane A's seeded browser pass returned `/faculty/concerns` GET 200 and PUT 200 at
 `termIndex 2`, with D6 redirects and removed navigation verified. One disclosed test-data mutation remains: a
 DRAFT availability for faculty 1 / year 10 / term 2 / v1 with zero slots.
 
-**Deployment outcome (2026-09-26):** operator-authorized `861d89a2` cutover is **DEPLOYED**. Independent
-post-action QA is `ACCEPT_READY` **8/8/0/0**: Q4's authenticated cold/warm readiness pair passed from the Tailnet
-origin (first `cached=false`, second `cached=true`, `ran=true`, `zeroWrite=true`); Q1/Q2/Q3/Q5/Q6 passed; Q7 passed
-C02 13/13, PostgreSQL 6/6, C01 8/8, client term-gate 8/8, with the preservation failure set base-reproduced and no
-candidate-only failures. The executor handoff and QA addendum are recorded in
-`docs/handoffs/deploy-861d89a2-2026-09-26.md`; the first eb/A1 incident and R1 browser evidence remain preserved
-in their separate handoffs. No migration, generation, publication, availability/Teaching Load write, term-cache
-apply, or rollover sync occurred. Reclaim C is `ACCEPT_READY` 25/25 pre-action and 17/17 post-action; the
-49.55 GiB E: capacity figure in this historical deployment block is superseded by the current 45.72/60.67
-re-measurement above.
+**Deployment outcome (2026-09-26):** operator-authorized `116a7658` cutover is **DEPLOYED**. Fresh post-action QA
+is `ACCEPT_READY` **8/8/0/0**; Q4's authenticated pair used the Tailnet root origin only (first `cached=false`,
+second `cached=true`, `ran=true`, `zeroWrite=true`), Q7's C08 passed 160/0 and all preservation failures were
+base-reproduced with zero candidate-only failures, and Q6 six-table digests were unchanged. Handoff:
+`docs/handoffs/deploy-116a7658-f1-f2-2026-07-26.md`. No migration, generation, publication, availability/
+Teaching Load write, term-cache apply, or rollover sync occurred. Reclaim `20260926a` is complete; current
+capacity is 47.23 GiB E: / 60.67 GiB D:, and the next build requires a fresh successor reclaim.
 
 **Stage-2 source cycle (2026-09-26):** `ACTIVE-TERM-LIVE-RESOLUTION-C02` candidate `07804498` passed fresh QA
-**8/8/0/0**, integrated as `861d89a2`, and is now the verified live release. It pre-resolves the active term before
-generation/readiness/publication transactions, threads one term through preflight and snapshots, preserves
-fail-closed codes, and keeps the network out of Serializable/advisory locks. No migration or live-data action
-occurred.
+**8/8/0/0** and was deployed in `861d89a2`, then superseded by the isolated F1/F2 `116a7658` cutover.
 
 **Source follow-up cycle (2026-09-26):** `PUBLISHED-TERM-AND-DRIFT-FOLLOWUP-C01` candidate `b0dee7c6`
-(F1 `published-schedule` effective export authority + F2 availability drift route) passed fresh QA **15/15/0/0**
-and is integrated as `1dd92647`; it is **not deployed**. F1/F2 are closed in source, with no runtime, migration,
-or live-data action. Handoff: `docs/handoffs/published-term-and-drift-followup-c01-2026-09-26.md`.
+(F1 effective published export authority + F2 availability drift route) passed fresh QA **15/15/0/0** and is
+live in the isolated `116a7658` target. Handoffs: `docs/handoffs/published-term-and-drift-followup-c01-2026-09-26.md`
+and `docs/handoffs/deploy-116a7658-f1-f2-2026-07-26.md`.
 
-**Next action (2026-09-26):** no Lane A source task remains. Keep `861d89a2` live and `eb0e3038`/donor preserved.
-F1/F2 deployment is a separate HIGH decision; Lane C's `9f42190e` packet remains separately gated. The provider-memo
-and singleton-instrumentation QA evidence residuals are non-blocking accuracy follow-ups.
+**Next action (2026-09-26):** no Lane A source or deployment task remains. Keep `116a7658` live, `861d89a2`
+as rollback, and `5c100ea6` as donor. The next `9f42190e` build requires a fresh successor reclaim/audit;
+client-suite gate debt, F1 422 mapping, and provider-memo residuals remain separate follow-ups.
 
 **Dated decisions / residuals (verify before acting):**
 - **F7 remains deliberately rejected (2026-09-25):** daily tools stay under More so the header remains compact;
@@ -484,13 +545,14 @@ and singleton-instrumentation QA evidence residuals are non-blocking accuracy fo
   published-teacher-leaving rows no longer describe the current screen. Acceptance remains separate from deployment.
 - `UX-AUDIT-SIZE-C01` R1 fixed audit finding 4 in source (`fb245772`, QA 6/6/0/0, integrated `c5e167d7`); only
   the live pixel rows remain. Findings 3 and 6 are addressed on main; finding 9 was already addressed.
-- **F1/F2 source follow-up integrated (2026-09-26):** `1dd92647` / QA 15/15; deployment remains separate HIGH.
-  F1's base-selection/date-threading residual and the export-path 422 mapping suggestion remain follow-ups.
+- **F1/F2 deployed (2026-09-26):** `116a7658` / QA 8/8, source handoff `1dd92647` / QA 15/15. F1 base-selection/date-threading and export-path 422 mapping remain follow-ups.
 - Host-proxy 502/offline term-cache staleness remain unowned observations from 2026-09-24. The removed `/my/*`
   route smoke fixture remains a D6 cleanup follow-up as of 2026-09-25.
 
 **Custody / workspace (2026-09-26):** Lane A owns the seeded browser profile and this docs worktree
 `E:\ATLAS-worktrees\lane-a-r1-deploy-target` (`docs/lane-a-r1-deploy-target`, `KEEP_ACTIVE` as the current lane
-record). The C02 and F1/F2 executor/integration worktrees were clean, integrated, and retired. Live release
-`E:\ATLAS-runtime-supervised-861d89a2-20260925` is `KEEP_ACTIVE`; rollback `eb0e3038` and donor `5c100ea6` are
+record). The C02 and F1/F2 source/integration worktrees were clean, integrated, and retired. The isolated deploy
+candidate worktree `E:\ATLAS-worktrees\lane-a-f1-f2-deploy-candidate` at `116a7658` is `PRESERVE_FOR_DECISION`:
+it is the source of the deployed target and is not an ancestor of `main`. Live release
+`E:\ATLAS-runtime-supervised-116a7658-20260726` is `KEEP_ACTIVE`; rollback `861d89a2` and donor `5c100ea6` are
 `PRESERVE_FOR_DECISION`. Do not write in Lane B/C worktrees.
