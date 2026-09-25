@@ -10,6 +10,7 @@
 # only the narrow project role definitions needed in every worktree.
 .codex/*
 !.codex/agents/
+.codex/agents/*
 !.codex/agents/*.toml
 .cursor/
 # AGENTS.md is the tracked, sanitized cross-agent workflow authority.
