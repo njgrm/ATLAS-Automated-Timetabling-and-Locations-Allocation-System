@@ -177,9 +177,10 @@ independent startup run (build, Node bound isolated 5198, unauthenticated previe
 `1b371ba`, 914/929); candidate tests 8/8, 12/12, 21/21; server `tsc` exit 0, Node started `dist/server.js` on
 isolated 5198 (health 200, preview 401, stopped); client `vite build` with `VITE_ENROLLPRO_URL` exit 0.
 
-**C1–C3 LIVE 2026-09-25** in `e8553752` (Live release block). Browser acceptance PARTIAL as of 2026-09-25;
-owner **Lane B (Codex)**, rows in the Risks sections of the three C1–C3 handoffs. (A cloud Lane C session cannot
-reach the Tailnet: proxy 403, 2026-09-25.)
+**C1–C3 LIVE 2026-09-25** in `e8553752` (Live release block). Browser acceptance is PARTIAL and **unrun** as of
+2026-09-25. The operator reassigned it to **local Lane C** before the demo; the rows are in the Risks sections of the
+three C1–C3 handoffs. The 2026-09-25 cloud session could not reach the Tailnet (proxy 403). **Resume from
+`docs/handoffs/lane-c-planner-handoff.md` on `origin/work/epic-galileo-cw0swp`.**
 
 **Current stream: server stall** (audit finding 5). Evidence read 2026-09-25
 (`docs/handoffs/lane-a-to-lane-c-stall-evidence-2026-09-25.md`): the loop **is** blocked (peak ~7.7 s); pool
