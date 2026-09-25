@@ -247,10 +247,10 @@ export function SimplePublishReadinessSheetBody({
 						>
 							<p className="font-semibold text-foreground">The whole year&rsquo;s schedule decides whether you can publish</p>
 							<p className="mt-1">
-								Whole year: <span className="font-medium text-foreground" data-testid="timetable-simple-run-wide-blocking">{readiness.runWideBlockingHard}</span> {MUST_FIX_LABEL} · <span className="font-medium text-foreground" data-testid="timetable-simple-run-wide-unassigned">{readiness.runWideUnassigned}</span> class{readiness.runWideUnassigned === 1 ? '' : 'es'} still to place
+								{plainScopeLabel('run-wide')}: <span className="font-medium text-foreground" data-testid="timetable-simple-run-wide-blocking">{readiness.runWideBlockingHard}</span> {MUST_FIX_LABEL} · <span className="font-medium text-foreground" data-testid="timetable-simple-run-wide-unassigned">{readiness.runWideUnassigned}</span> session{readiness.runWideUnassigned === 1 ? '' : 's'} still to place
 							</p>
 							<p className="mt-0.5">
-								Selected term detail only: <span className="font-medium text-foreground" data-testid="timetable-simple-selected-term-count">{readiness.selectedTermViolationCount}</span> shown · <span className="font-medium text-foreground" data-testid="timetable-simple-selected-term-blocking">{readiness.selectedTermBlockingHard}</span> {MUST_FIX_LABEL}
+								Detail for the {plainScopeLabel('selected-term').toLowerCase()}: <span className="font-medium text-foreground" data-testid="timetable-simple-selected-term-count">{readiness.selectedTermViolationCount}</span> shown · <span className="font-medium text-foreground" data-testid="timetable-simple-selected-term-blocking">{readiness.selectedTermBlockingHard}</span> {MUST_FIX_LABEL}
 							</p>
 						</div>
 					)}
@@ -260,7 +260,7 @@ export function SimplePublishReadinessSheetBody({
 							<CheckCircle2 className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
 							<div>
 								<p className="text-sm font-semibold">Ready to publish</p>
-								<p className="mt-0.5 text-xs">No hard blockers or unresolved sessions remain run-wide.</p>
+								<p className="mt-0.5 text-xs">No &ldquo;{MUST_FIX_LABEL}&rdquo; problems and no unresolved sessions remain for the {plainScopeLabel('run-wide').toLowerCase()}.</p>
 							</div>
 						</div>
 					)}
@@ -272,7 +272,7 @@ export function SimplePublishReadinessSheetBody({
 								<p className="mt-1 text-xs" data-testid="timetable-simple-blocker-sentence">
 									{readiness.blockerSentence}
 								</p>
-								<p className="mt-1 text-xs text-red-700">Fix blockers first. Warnings can be reviewed after blockers are clear.</p>
+								<p className="mt-1 text-xs text-red-700">Fix the &ldquo;{MUST_FIX_LABEL}&rdquo; problems first. Warnings can be reviewed once they are clear.</p>
 							</div>
 
 							<div className="space-y-2">
@@ -286,7 +286,7 @@ export function SimplePublishReadinessSheetBody({
 					{readiness.hasWarnings && !readiness.hasBlockers && (
 						<div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-amber-900">
 							<p className="text-sm font-semibold">Ready except for warnings</p>
-							<p className="mt-1 text-xs">No hard blockers remain. Review the warnings, then publish if the schedule is acceptable.</p>
+							<p className="mt-1 text-xs">No &ldquo;{MUST_FIX_LABEL}&rdquo; problems remain for the {plainScopeLabel('run-wide').toLowerCase()}. Review the warnings, then publish if the schedule is acceptable.</p>
 						</div>
 					)}
 
@@ -410,15 +410,21 @@ export function SimplePublishReadinessSheetContent({
 		const lines: string[] = [];
 		lines.push(`Publish Readiness Report`);
 		if (runId) lines.push(`Run: #${runId}`);
-		lines.push(`Gate (run-wide): ${readiness.runWideBlockingHard} blocking hard, ${readiness.runWideUnassigned} unresolved`);
-		lines.push(`Selected term detail: ${readiness.selectedTermViolationCount} shown, ${readiness.selectedTermBlockingHard} blocking hard`);
-		lines.push(`Hard blockers: ${readiness.totalHardBlockers}`);
-		lines.push(`Soft warnings: ${readiness.totalSoftWarnings}`);
+		/* J1r (QA F2) — this text is what the operator pastes into an email or a
+		 * ticket, so it is operator-facing copy and carries the same one-word-per-
+		 * idea contract as the sheet above it. The three lines that still said
+		 * "blocking hard", "Hard blockers" and "run-wide" are routed through
+		 * MUST_FIX_LABEL and plainScopeLabel so the pasted text cannot reintroduce
+		 * a retired name the sheet itself no longer shows. */
+		lines.push(`Gate (${plainScopeLabel('run-wide')}): ${readiness.runWideBlockingHard} ${MUST_FIX_LABEL}, ${readiness.runWideUnassigned} unresolved session${readiness.runWideUnassigned === 1 ? '' : 's'}`);
+		lines.push(`Detail for the ${plainScopeLabel('selected-term').toLowerCase()}: ${readiness.selectedTermViolationCount} shown, ${readiness.selectedTermBlockingHard} ${MUST_FIX_LABEL}`);
+		lines.push(`${MUST_FIX_LABEL} in total: ${readiness.totalHardBlockers}`);
+		lines.push(`Warnings: ${readiness.totalSoftWarnings}`);
 		lines.push('');
 		if (readiness.hasBlockers) {
 			lines.push('Blocker causes:');
 			for (const group of readiness.blockerGroups) {
-				lines.push(`  ${group.plainLabel}: ${group.count} session${group.count === 1 ? '' : 's'} (${group.scope})`);
+				lines.push(`  ${group.plainLabel}: ${group.count} session${group.count === 1 ? '' : 's'} (${plainScopeLabel(group.scope)})`);
 				lines.push(`    Action: ${group.actionLabel}`);
 				lines.push(`    Next step: ${group.items[0]?.nextStep ?? 'Review issue'}`);
 			}

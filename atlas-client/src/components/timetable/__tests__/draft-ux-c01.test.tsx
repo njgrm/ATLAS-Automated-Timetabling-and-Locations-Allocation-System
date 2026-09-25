@@ -114,6 +114,12 @@ async function click(element: HTMLElement) {
 	await flush();
 }
 
+/** Radix tooltips need their real open delay to have elapsed. */
+async function wait(ms: number) {
+	await act(async () => { await new Promise((resolve) => setTimeout(resolve, ms)); });
+	await flush();
+}
+
 after(async () => {
 	if (root) await act(async () => { root?.unmount(); });
 	mock.restoreAll();
@@ -428,14 +434,37 @@ test('S2 SUPERSEDED by LANE-C-PLAIN-LANGUAGE-C03 (J5) — the Term and View type
 	// new labels are non-interactive text.
 	//   assert.ok(!visibleTexts.includes('Term'), `no visible "Term" label (visible texts: ${visibleTexts.join(' | ')})`);
 	//   assert.ok(!visibleTexts.includes('View type'), 'no visible "View type" label');
+	//
+	// ── J5r (QA F4): a THIRD label, `Term`, was added by the candidate without
+	// this row naming it, so `!visibleTexts.includes('Term')` was superseded too.
+	// Planner decision: KEEP all three labels (`Term`, `Show`, `Schedule for`).
+	// The term control is exactly as high-traffic as the other two, and leaving
+	// it unlabelled would preserve the defect this cycle exists to remove. The
+	// purpose of this row — the ≤6 interactive-control budget and the preserved
+	// accessible names — is asserted by S2R, which is what the replacement
+	// protects; the absence of a label is a means, not the purpose, and it is
+	// given up deliberately here.
 	// Retained and STILL TRUE: the accessible names are unchanged by J5.
 	assert.equal(header.querySelector('[data-testid="timetable-simple-term-filter"]')?.getAttribute('aria-label'), 'Term');
 	assert.equal(header.querySelector('[data-testid="timetable-simple-view-mode-select"]')?.getAttribute('aria-label'), 'View type');
+	// The supersession above is explicit, not silent: the label this row used to
+	// forbid is now required, and it is a non-interactive span.
+	const termLabel = header.querySelector<HTMLElement>('[data-testid="timetable-simple-term-label"]');
+	assert.ok(termLabel, 'the "Term" label the superseded assertion forbade is present on purpose');
+	assert.equal(termLabel.textContent?.trim(), 'Term');
+	assert.equal(termLabel.tagName, 'SPAN', 'the "Term" label is non-interactive text, not a control');
+	assert.ok(!visibleControls(header).includes(termLabel), 'the "Term" label does not consume a control slot');
 });
 
 /* ── S2R — LANE-C-PLAIN-LANGUAGE-C03 (J5): the cap survives, the labels land ── */
 
 test('S2R every header dropdown keeps its accessible name AND gains a visible, non-interactive plain label; the ≤6 cap and one solid primary are unchanged', async () => {
+	// ── J5r (QA F4): the PURPOSE of the superseded S2 row is the ≤6 interactive-
+	// control budget (plus the preserved accessible names), NOT the absence of
+	// visible labels. This row therefore names ALL THREE labelled controls —
+	// `Term`, `Show` and `Schedule for` — and asserts the budget, not the silence.
+	// `Term` is included because the candidate added it and S2R originally did
+	// not name it, which left the supersession implicit.
 	viewportWidth = 1366;
 	const header = await renderHeader(withRunContext());
 
@@ -741,6 +770,16 @@ test('S1 every Simple tutorial step targets a control that still renders somewhe
  * These are RENDERED-DOM rows on purpose (audit "systemic" finding: a
  * readFileSync+regex control cannot catch a wrong value or an unmounted
  * component, which is how C1's false statement survived a green suite).
+ *
+ * ONE EXCEPTION, stated rather than hidden (QA F10): `PL-J4.5` is a
+ * readFileSync + regex row, because the property it protects is the SOURCE of
+ * a JSX attribute (`variant="destructive"` next to `onRegenerate`), which no
+ * rendered-DOM assertion can distinguish from a destructive button rendered
+ * for any other reason. It is not vacuous — it reads the real file and its
+ * three "unchanged" assertions are load-bearing — but it is not a rendered row
+ * and does not claim to be. `PL-J4.5R` below renders the real banner and
+ * asserts the same outcome on rendered output, so the styled claim is now
+ * backed by the DOM as well.
  */
 
 /** The grid cell's hard conflict badge — the surface that said "Blocked". */
@@ -811,7 +850,15 @@ test('PL-J1.3 the publish checklist names the one word and states WHY the two ha
 	// The numbers are unchanged: no new number is invented.
 	assert.match(checklist.textContent ?? '', /Must fix \(whole year\): 2/, 'the publication-relevant count keeps its value');
 	assert.match(checklist.textContent ?? '', /All serious problems \(whole year\): 5/, 'the serious-problem total keeps its value');
-	assert.match(checklist.textContent ?? '', /2 classes still to place \(whole year\)/, 'unplaced classes are named in plain words');
+	// SUPERSEDED IN PLACE by J1r (QA F3/F6), 2026-09-26. The candidate wrote
+	// "2 classes still to place" here. `unassignedCount` is SESSIONS — the
+	// unresolved queue holds (session, term) placement obligations, and five
+	// other consumers of the same field already say "session" — so the original
+	// assertion is retained VERBATIM as the record of the wrong unit and is not
+	// run as pass/fail. The replacement is PL-J1.3R, which renders the state
+	// where BOTH lines are visible so the two units can be compared directly.
+	//   assert.match(checklist.textContent ?? '', /2 classes still to place \(whole year\)/, 'unplaced classes are named in plain words');
+	assert.match(checklist.textContent ?? '', /2 sessions still to place \(whole year\)/, 'the one count is named in the unit every other consumer uses');
 
 	// The relationship is stated ONCE, in plain words, where both are visible.
 	const note = container().querySelector<HTMLElement>('[data-testid="timetable-hard-count-relationship"]');
@@ -824,6 +871,94 @@ test('PL-J1.3 the publish checklist names the one word and states WHY the two ha
 	// One concept, one name: none of the other three names appear.
 	assert.doesNotMatch(checklist.textContent ?? '', /Blocking hard violations/, 'the "blocking hard violations" jargon is gone');
 	assert.doesNotMatch(noteText, /blocker|Blocked|Hard violations/, 'the note introduces no competing name');
+});
+
+test('PL-J1.3R the checklist and the unplaced panel name ONE unit for the same count (sessions, never classes)', async () => {
+	// J1r (QA F7). PL-J1.3 passes `blockingHardCount: 2, unassignedCount: 2`, and
+	// the "Sessions still unresolved" branch is `unassignedCount > 0 &&
+	// runWideBlocking === 0 && …`, so that branch was SUPPRESSED and the
+	// classes/sessions contradiction was invisible to the very row that asserted
+	// it. This fixture is the shape the contradiction needs: zero blocking
+	// problems, so BOTH lines render and can be compared on screen.
+	const { PublishChecklistContent } = await import('../simple/SimpleTaskDrawerHelpers');
+	await mount(createElement(PublishChecklistContent, {
+		runId: 318,
+		assignedCount: 400,
+		unassignedCount: 2,
+		hardCount: 0,
+		blockingHardCount: 0,
+		softCount: 0,
+		violationScopeLabel: 'Selected term only',
+		violations: [],
+		sectionLabel: (id: number) => `GR7 - Section ${id}`,
+		subjectLabel: (id: number) => `Subject ${id}`,
+		facultyLabel: (id: number) => `Teacher ${id}`,
+		onPublish: () => {},
+		onReviewIssues: () => {},
+		onPlaceUnresolved: () => {},
+	} as never));
+	const host = container();
+	const checklist = host.querySelector<HTMLElement>('[data-testid="timetable-publish-readiness-summary"]');
+	assert.ok(checklist, 'the checklist renders');
+
+	// Load-bearing: the branch that PL-J1.3 could not reach IS rendered here.
+	const panel = Array.from(host.querySelectorAll<HTMLElement>('p'))
+		.find((node) => node.textContent?.includes('need placement'));
+	assert.ok(panel, 'the unplaced panel renders in this fixture (PL-J1.3 suppressed it)');
+
+	// The SAME number, in the SAME unit, in both places.
+	assert.match(checklist.textContent ?? '', /2 sessions still to place \(whole year\)/, 'the checklist line names sessions');
+	assert.match(panel.textContent ?? '', /2 sessions need placement before publishing\./, 'the panel line names sessions');
+	// The regression itself: "classes" is not a plainer word for this count, it
+	// is a different one, and it contradicted the panel three lines below.
+	assert.doesNotMatch(checklist.textContent ?? '', /2 classes\b/, 'the checklist no longer calls the session count "classes"');
+	assert.doesNotMatch(panel.textContent ?? '', /classes\b/, 'the unplaced panel does not call the session count "classes"');
+	// And the count is genuinely the same number on both lines.
+	assert.equal(panel.textContent?.match(/(\d+) sessions need placement/)?.[1], '2');
+});
+
+test('PL-J1.5 the summary stat carries the TOTAL serious problems, never the blocking "Must fix" word', async () => {
+	// J1r (QA F1). The candidate labelled this stat MUST_FIX_LABEL while the
+	// number it renders is `RunSummary.hardViolationCount` — the run's TOTAL.
+	// The publication-blocking count is a different field
+	// (`blockingHardViolationCount` -> `blockingHardCount`), so with
+	// `hardViolationCount: 4, blockingHardViolationCount: 0` the viewport said
+	// "Must fix: 4" and, three lines under it, "a schedule with any Must fix
+	// cannot be published".
+	const { ScheduleReviewWorkspaceSummaryStats } = await import('../ScheduleReviewWorkspaceSummaryStats');
+	await mount(createElement(ScheduleReviewWorkspaceSummaryStats, {
+		summary: { assignedCount: 400, classesProcessed: 401, hardViolationCount: 4 },
+		presence: [],
+		statusColor: () => '',
+		draftStatus: 'COMPLETED',
+		durationMs: null,
+		formatDuration: () => '—',
+	} as never));
+	const host = container();
+	const text = host.textContent ?? '';
+	// The value is untouched — only the label and the explanation moved.
+	assert.match(text, /All serious problems:4/, 'the total carries the checklist\'s own plain wording, and the value is unchanged');
+	// The blocking word belongs to `blockingHardCount` alone.
+	assert.doesNotMatch(text, /Must fix/, 'this stat never wears the publication-blocking word');
+	assert.doesNotMatch(text, /Hard Violation/, 'the old "Hard Violations" wording is gone');
+
+	// The explanation is rendered inside the real Radix tooltip, so it is opened
+	// the way a scheduler opens it (keyboard focus) rather than read from source.
+	const trigger = Array.from(host.querySelectorAll<HTMLButtonElement>('button'))
+		.find((button) => button.textContent?.includes('All serious problems'));
+	assert.ok(trigger, 'the labelled stat is a focusable trigger');
+	await act(async () => { trigger.focus(); });
+	await wait(400);
+	const tooltip = document.querySelector<HTMLElement>('[role="tooltip"]');
+	assert.ok(tooltip, 'the explanation really renders in the tooltip');
+	const explanation = tooltip.textContent ?? '';
+	// The component must name the idea ONE way. The old explanation said "A
+	// schedule with any Hard Violations cannot be published", which is false of
+	// this count and reintroduced two retired names three lines under the label.
+	assert.doesNotMatch(explanation, /cannot be published/, 'the explanation no longer claims this total blocks publication');
+	assert.doesNotMatch(explanation, /Hard Violation/i, 'the explanation introduces no competing name');
+	assert.match(explanation, /do not stop you publishing/, 'the explanation says which of these stop publishing');
+	assert.match(explanation, /“Must fix”/, 'the explanation names the blocking count by the one plain word it does not mean');
 });
 
 test('PL-J1.4 the readiness sheet uses the one word and says whose schedule decides publishing', async () => {
@@ -859,6 +994,180 @@ test('PL-J1.4 the readiness sheet uses the one word and says whose schedule deci
 	assert.equal(scope.querySelector('[data-testid="timetable-simple-selected-term-blocking"]')?.textContent, '0');
 });
 
+/* ── J1r (QA F2/F8) — one rendered row per readiness STATE ───────────────────
+ *
+ * PL-J1.4 passed `isClean: false, canPublish: false, blockerGroups: []`, which is
+ * exactly what disables the sheet's three state branches (`:258` clean, `:268`
+ * blockers, `:286` warnings-only). The retired words "hard blockers",
+ * "blocking hard" and "run-wide" live in those three branches, so PL-J1.4 was
+ * green while every one of them was still on the surface. These rows render the
+ * state each branch belongs to, so each of the three is a row of its own.
+ */
+
+/** One plain word per idea: no retired name may reach the Simple surface. */
+function assertNoRetiredNames(text: string, where: string) {
+	assert.doesNotMatch(text, /hard blocker/i, `${where}: "hard blocker" is retired`);
+	assert.doesNotMatch(text, /blocking hard/i, `${where}: "blocking hard" is retired`);
+	assert.doesNotMatch(text, /\brun-wide\b/i, `${where}: "run-wide" is retired`);
+	assert.doesNotMatch(text, /\bblocked\b/i, `${where}: "Blocked" is retired`);
+	assert.doesNotMatch(text, /unresolved classes|\bclasses still to place\b/i, `${where}: the session count is not called "classes"`);
+}
+
+type SheetReadiness = Record<string, unknown>;
+
+async function renderReadinessSheetBody(readiness: SheetReadiness) {
+	const { SimplePublishReadinessSheetBody } = await import('../SimplePublishReadinessSheet');
+	await mount(createElement(SimplePublishReadinessSheetBody, {
+		readiness,
+		onNavigate: () => {},
+		onCopySummary: () => {},
+		onDownloadCsv: () => {},
+		onClose: () => {},
+	} as never));
+	return container();
+}
+
+/** A complete readiness object; each state row overrides only what it needs. */
+function sheetReadiness(overrides: SheetReadiness = {}): SheetReadiness {
+	return {
+		totalUnresolved: 0,
+		totalHardBlockers: 0,
+		totalSoftWarnings: 0,
+		blockerGroups: [],
+		warningGroups: [],
+		blockerSentence: '',
+		summaryText: '',
+		hasBlockers: false,
+		hasWarnings: false,
+		isClean: false,
+		hasGeneratedRun: true,
+		runWideBlockingHard: 0,
+		runWideUnassigned: 0,
+		runWideSoft: 0,
+		selectedTermWarningCount: 0,
+		selectedTermViolationCount: 0,
+		selectedTermBlockingHard: 0,
+		hasSelectedTermBlockers: false,
+		...overrides,
+	};
+}
+
+test('PL-J1.4a the CLEAN state renders the one plain word and no retired name', async () => {
+	const host = await renderReadinessSheetBody(sheetReadiness({ isClean: true, totalSoftWarnings: 0 }));
+	const clean = host.querySelector<HTMLElement>('[data-testid="timetable-simple-ready-to-publish"]');
+	assert.ok(clean, 'the clean branch actually renders in this state');
+	assertNoRetiredNames(clean.textContent ?? '', 'the clean card');
+	assert.match(clean.textContent ?? '', /Ready to publish/, 'the state is named');
+	// The branch that used to read "No hard blockers or unresolved sessions
+	// remain run-wide" now routes both retired words through the module.
+	assert.match(clean.textContent ?? '', /No “Must fix” problems and no unresolved sessions remain for the whole year\./, 'the clean sentence states the one word and the plain scope');
+	assertNoRetiredNames(host.textContent ?? '', 'the whole clean sheet');
+});
+
+test('PL-J1.4b the HAS-BLOCKERS state renders the one plain word and no retired name', async () => {
+	// J1r (QA F8/F7): this state is derived by the REAL resolver from a real
+	// producer-shaped draft, not by a hand-written readiness object. A synthetic
+	// `blockerSentence` is exactly the F7 defect again — it would let the row
+	// pass on copy the production path can never emit.
+	const { deriveSimplePublishReadiness } = await import('../simplePublishReadiness');
+	const realRun = draft([unassignedItem(2, 701, 1), unassignedItem(2, 702, 1)], {
+		hardViolationCount: 2, blockingHardViolationCount: 2, unassignedCount: 2, softViolationCount: 1,
+	});
+	const realReadiness = deriveSimplePublishReadiness(
+		realRun as never,
+		[TEACHER_CLASH_HARD as never],
+		(id: number) => `GR7 - Section ${id}`,
+		(id: number) => `Subject ${id}`,
+		(id: number) => `Teacher ${id}`,
+		{ blockingHardCount: 2, unassignedCount: 2, softCount: 1 },
+	);
+	assert.equal(realReadiness.hasBlockers, true, 'the fixture really is the has-blockers state');
+	assert.ok(realReadiness.blockerGroups.length > 0, 'and it really has a blocker group to render');
+
+	const host = await renderReadinessSheetBody(sheetReadiness(realReadiness as unknown as SheetReadiness));
+	const group = host.querySelector<HTMLElement>('[data-testid="timetable-simple-blocker-group"]');
+	assert.ok(group, 'the has-blockers branch actually renders in this state');
+	// The "Fix blockers first" line is the one at issue.
+	const sheet = host.querySelector<HTMLElement>('[data-testid="timetable-simple-publish-blocker-summary"]');
+	assert.ok(sheet);
+	const sheetText = sheet.textContent ?? '';
+	assert.match(sheetText, /Fix the “Must fix” problems first\. Warnings can be reviewed once they are clear\./, 'the fix-first line states the one word');
+	// ── DISCLOSED RESIDUAL, NOT SILENTLY RENAMED. The resolver's own
+	// `blockerSentence` (`simplePublishReadiness.ts:642`) still says "hard
+	// blockers". It is the C07B/R2 sentence-authority contract and its exact
+	// wording is pinned by committed rows in `tt-warning-surface-realism-c07b`
+	// (F1 (a), the F1 summaryText row, R2 (a) and the two mutant controls) that
+	// this packet must not weaken, and it is outside the F2 line list. It is
+	// pinned here so the residue is visible in a test rather than discovered
+	// later. Everything ELSE the sheet renders — which is what F2 named — is
+	// asserted clean below, with this one sentence removed.
+	assert.ok(sheetText.includes(realReadiness.blockerSentence), 'the resolver sentence renders verbatim (documented residual, see the note above)');
+	assertNoRetiredNames(sheetText.split(realReadiness.blockerSentence).join(' '), 'the blocked sheet apart from the disclosed resolver sentence');
+	// The unplaced count is sessions here too (QA F3/F6 repeated at the sheet).
+	assert.match(sheetText, /2 sessions still to place/, 'the sheet names the unplaced count in sessions');
+});
+
+test('PL-J1.4c the WARNINGS-ONLY state renders the one plain word and no retired name', async () => {
+	const host = await renderReadinessSheetBody(sheetReadiness({
+		hasWarnings: true,
+		totalSoftWarnings: 3,
+		selectedTermWarningCount: 3,
+		selectedTermViolationCount: 3,
+		warningGroups: [{ code: 'FACULTY_EXCESSIVE_IDLE_GAP', plainLabel: 'Long teacher idle gap', count: 3, items: [] }],
+	}));
+	assert.equal(host.querySelector('[data-testid="timetable-simple-blocker-group"]'), null, 'no blocker group renders in the warnings-only state');
+	assert.equal(host.querySelector('[data-testid="timetable-simple-ready-to-publish"]'), null, 'the clean card does not render in the warnings-only state');
+	const sheet = host.querySelector<HTMLElement>('[data-testid="timetable-simple-publish-blocker-summary"]');
+	assert.ok(sheet);
+	// The branch that used to read "No hard blockers remain. Review the warnings…"
+	assert.match(sheet.textContent ?? '', /No “Must fix” problems remain for the whole year\. Review the warnings, then publish if the schedule is acceptable\./, 'the warnings-only sentence states the one word and the plain scope');
+	assertNoRetiredNames(sheet.textContent ?? '', 'the warnings-only sheet');
+});
+
+test('PL-J1.4R the copy text the operator pastes reads in the same plain words as the sheet', async () => {
+	// The three copy-summary lines are what leaves ATLAS in an email or a
+	// ticket, so they are operator-facing copy and carry the same contract. They
+	// are reached through the real button and the real clipboard, not by reading
+	// the source.
+	const written: string[] = [];
+	Object.defineProperty(dom.window.navigator, 'clipboard', {
+		value: { writeText: async (text: string) => { written.push(text); } },
+		configurable: true,
+	});
+	const { SimplePublishReadinessSheetContent } = await import('../SimplePublishReadinessSheet');
+	await mount(createElement(MemoryRouter, null,
+		createElement(SimplePublishReadinessSheetContent as unknown as (p: Record<string, unknown>) => ReactElement, {
+			draft: draft([unassignedItem(2, 701, 1), unassignedItem(2, 702, 1)], { hardViolationCount: 2, unassignedCount: 2, softViolationCount: 1 }),
+			violations: [TEACHER_CLASH_HARD],
+			sectionLabel: (id: number) => `GR7 - Section ${id}`,
+			subjectLabel: (id: number) => `Subject ${id}`,
+			facultyLabel: (id: number) => `Teacher ${id}`,
+			runWide: { blockingHardCount: 2, unassignedCount: 2, softCount: 1 },
+			onNavigateToRepair: () => {},
+			onRequestClose: () => {},
+		}),
+	));
+	const copy = container().querySelector<HTMLElement>('button[data-testid], button');
+	assert.ok(copy);
+	const copyButton = Array.from(container().querySelectorAll<HTMLButtonElement>('button'))
+		.find((button) => /Copy summary/.test(button.textContent ?? ''));
+	assert.ok(copyButton, 'the real Copy summary control renders');
+	await click(copyButton);
+	assert.equal(written.length, 1, 'copying writes exactly one report');
+
+	const text = written[0];
+	// The three retired lines, now routed through the shared vocabulary:
+	//   "Gate (run-wide): 2 blocking hard, 2 unresolved"
+	//   "Selected term detail: 1 shown, 0 blocking hard"
+	//   "Hard blockers: 2"
+	assertNoRetiredNames(text, 'the copied report');
+	assert.match(text, /Gate \(Whole year\): 2 Must fix, 2 unresolved sessions/, 'the gate line states the plain scope, the one word, and the unit');
+	assert.match(text, /Detail for the selected term only: 1 shown, 1 Must fix/, 'the detail line states the plain scope and the one word (the one allowlisted selected-term HARD violation)');
+	assert.match(text, /Must fix in total: 2/, 'the combined line states the one word');
+	// Load-bearing: the values are untouched, only the words changed.
+	assert.match(text, /Warnings: 1/, 'the warning count keeps its value');
+});
+
 /* ── PL (J4) — calm the false alarms: styling and copy only, no new control ── */
 
 async function renderReadinessChip(props: Record<string, unknown>) {
@@ -870,6 +1179,12 @@ async function renderReadinessChip(props: Record<string, unknown>) {
 }
 
 test('PL-J4.1 unplaced classes are a calm notice, not a fire: no destructive tint, no warning triangle, neutral height', async () => {
+	// NOTE (J1r, QA F7): this row drives the chip component directly, so its
+	// `readiness` prop is synthetic — the production `readinessLabel` returns
+	// "N unresolved" for this state, not "N classes still to place". The row is
+	// RETAINED unchanged because what it proves (the alarm register is gone) is
+	// still true and still only provable here; the real production path, where
+	// the label is derived rather than supplied, is PL-J4.1R below.
 	const chip = await renderReadinessChip({ readiness: '2 classes still to place', publishBlocked: true, blockingHardCount: 0 });
 	// The FACT is kept — it is still a publish blocker and still says so.
 	assert.match(chip.textContent ?? '', /2 classes still to place/, 'the blocking fact is still stated in plain words');
@@ -882,6 +1197,110 @@ test('PL-J4.1 unplaced classes are a calm notice, not a fire: no destructive tin
 	assert.doesNotMatch(chip.className, /\bh-10\b/, 'the double-height fire chip is gone');
 	// One consistent, non-alarming signal.
 	assert.match(chip.innerHTML, /lucide-info/, 'a neutral info sign is used instead');
+});
+
+/* ── J1r (QA F5) — a publish-BLOCKING state and a non-blocking one must not
+ * look identical ────────────────────────────────────────────────────────────
+ *
+ * J4.1 gave the blocking chip the calm register and, in doing so, gave it the
+ * SAME classes and the SAME `Info` sign as the neutral "5 warnings" chip. The
+ * two differed only by label text and a `data-readiness-state` attribute nobody
+ * can see, the blocking label was `readinessLabel`'s bare "3 unresolved" which
+ * never says publishing is shut, and `publishBlockedReason` — the one honest
+ * consequence sentence on this surface — was computed and thrown away.
+ *
+ * These rows render the REAL header (not the chip in isolation) so the label,
+ * the predicate and the consequence sentence all come from the production
+ * derivation, and they separate the two states by TEXT and by a border WEIGHT
+ * that survives greyscale, never by colour or by the data attribute alone.
+ */
+
+async function renderRealReadinessChip(overrides: Record<string, unknown>) {
+	viewportWidth = 1366;
+	const header = await renderHeader(withRunContext(overrides));
+	const chip = header.querySelector<HTMLElement>('[data-testid="timetable-simple-readiness-chip"]');
+	assert.ok(chip, 'the real Simple header renders the readiness chip');
+	return { header, chip };
+}
+
+test('PL-J4.1R the real blocking chip states the publish consequence, so "3 unresolved" cannot read as informational', async () => {
+	const { publishBlockedSentence } = await import('../../../lib/timetable-plain-language');
+	const { chip } = await renderRealReadinessChip({
+		blockingHardCount: 3,
+		hardCount: 7,
+		softCount: 0,
+		summary: { assignedCount: 400, classesProcessed: 401, hardViolationCount: 7, unassignedCount: 0 },
+	});
+	const text = chip.textContent ?? '';
+	// The chip's own text carries the consequence, and it is the sentence the
+	// shared resolver produced — not a second wording invented here.
+	assert.match(text, /3 Must fix — this schedule cannot be published yet\./, 'the blocking chip states the count and the consequence');
+	assert.equal(text.trim(), publishBlockedSentence({ blockingHardCount: 3, unassignedCount: 0 }), 'the chip renders exactly the shared resolver sentence');
+	assert.doesNotMatch(text, /\d+ blocker/i, 'the consequence introduces no retired name');
+	// The fact is still there, and still calm.
+	assert.match(chip.className, /\bh-6\b/, 'the calm height is preserved');
+	assert.doesNotMatch(chip.className, /destructive/, 'still no destructive register');
+	assert.doesNotMatch(chip.innerHTML, /lucide-alert-triangle/, 'still no warning triangle');
+	assert.match(chip.innerHTML, /lucide-info/, 'still the neutral info sign');
+});
+
+test('PL-J4.1S an unassigned-only block names SESSIONS on the chip, the same unit as every other surface', async () => {
+	// J1r (QA F3/F6 follow-through): the unassigned count is sessions, so the
+	// chip's own consequence sentence says so too.
+	const { chip } = await renderRealReadinessChip({
+		blockingHardCount: 0,
+		hardCount: 0,
+		softCount: 0,
+		summary: { assignedCount: 400, classesProcessed: 401, hardViolationCount: 0, unassignedCount: 3 },
+		draft: draft([unassignedItem(2, 701, 1), unassignedItem(2, 702, 1), unassignedItem(2, 703, 1)], { hardViolationCount: 0, unassignedCount: 3 }),
+	});
+	const text = chip.textContent ?? '';
+	assert.match(text, /3 sessions still need fixing — this schedule cannot be published yet\./, 'the unplaced clause names sessions');
+	assert.doesNotMatch(text, /classes/, 'the chip never calls the session count "classes"');
+});
+
+test('PL-J4.1T the blocking and the non-blocking chip are distinguishable by TEXT and by a greyscale-visible border, not by colour or the data attribute', async () => {
+	const { publishBlockedSentence } = await import('../../../lib/timetable-plain-language');
+	const blocked = await renderRealReadinessChip({
+		blockingHardCount: 3,
+		hardCount: 7,
+		softCount: 0,
+		summary: { assignedCount: 400, classesProcessed: 401, hardViolationCount: 7, unassignedCount: 0 },
+	});
+	const warned = await renderRealReadinessChip({
+		blockingHardCount: 0,
+		hardCount: 0,
+		softCount: 5,
+		summary: { assignedCount: 400, classesProcessed: 401, hardViolationCount: 0, unassignedCount: 0 },
+	});
+	const blockedText = (blocked.chip.textContent ?? '').trim();
+	const warnedText = (warned.chip.textContent ?? '').trim();
+
+	// (1) DISTINGUISHABLE BY TEXT ALONE. This is the assertion that fails if the
+	// two states are made to render identically.
+	assert.notEqual(blockedText, warnedText, 'the two states read differently');
+	assert.equal(blockedText, publishBlockedSentence({ blockingHardCount: 3, unassignedCount: 0 }), 'the blocked chip states the consequence');
+	assert.equal(warnedText, '5 warnings', 'the non-blocked chip states only its warning count');
+	assert.match(blockedText, /cannot be published yet/, 'only the blocking chip says publishing is shut');
+	assert.doesNotMatch(warnedText, /cannot be published|before publish/i, 'the non-blocking chip does not imply publishing is shut');
+	// The plain word, too: the blocking chip is the one carrying the consequence.
+	assert.match(blockedText, /Must fix/, 'the blocking chip names the problem in the one plain word');
+	assert.doesNotMatch(warnedText, /Must fix/, 'the non-blocking chip does not claim a must-fix problem');
+
+	// (2) GREYSCALE-VISIBLE STRUCTURE. A 2px border against a 1px `border` is a
+	// weight difference, not a hue, so it survives a monochrome rendering; the
+	// neutral chip has no 2px border at all.
+	assert.match(blocked.chip.className, /\bborder-2\b/, 'the blocking chip has a heavier border than the neutral chip');
+	assert.doesNotMatch(warned.chip.className, /\bborder-2\b/, 'the non-blocking chip does not share the heavier border');
+	assert.doesNotMatch(blocked.chip.className, /\bborder-border\b/, 'the blocking chip is not the neutral border');
+	assert.doesNotMatch(blocked.chip.className, /\bbg-muted\b/, 'the blocking chip is not the neutral field');
+
+	// (3) THE DATA ATTRIBUTE IS NOT THE ONLY CARRIER. It is asserted for the
+	// record, but the distinction above already held without reading it.
+	assert.equal(blocked.chip.getAttribute('data-readiness-state'), 'unplaced');
+	assert.equal(warned.chip.getAttribute('data-readiness-state'), 'outstanding');
+	assert.equal(blocked.chip.getAttribute('data-publish-blocked'), 'true');
+	assert.equal(warned.chip.getAttribute('data-publish-blocked'), null);
 });
 
 /**
@@ -993,6 +1412,8 @@ test('PL-J4.4 the "schedule stays unchanged" reassurance is not wrapped in alarm
 });
 
 test('PL-J4.5 the routine rebuild is not the one destructive header button', async () => {
+	// RETAINED, and it is a readFileSync + regex row — see the exception noted in
+	// the PL block comment above. The rendered counterpart is PL-J4.5R.
 	const { readFileSync } = await import('node:fs');
 	const { resolve } = await import('node:path');
 	const source = readFileSync(resolve(import.meta.dirname, '../ScheduleReviewInputStateBanner.tsx'), 'utf8');
@@ -1001,4 +1422,52 @@ test('PL-J4.5 the routine rebuild is not the one destructive header button', asy
 	assert.match(source, /onClick=\{onRegenerate\}/, 'the rebuild action is unchanged');
 	assert.match(source, /Regenerate Draft/, 'the rebuild label is unchanged');
 	assert.match(source, /disabled=\{!generationEnabled \|\| loading\}/, 'the rebuild disabled rule is unchanged');
+});
+
+test('PL-J4.5R the rendered banner gives the routine rebuild the neutral variant and keeps every other action', async () => {
+	// J1r (QA F10): the rendered counterpart of the source row above. It asserts
+	// the OUTCOME on the mounted component — the Rebuild button is not the
+	// destructive variant — so the styled claim is no longer carried by a regex
+	// alone. A substring test for "destructive" is useless here (every button
+	// carries `aria-invalid:*destructive*` base classes), so the control is the
+	// destructive variant's OWN tokens, rendered in this same test so the
+	// assertion cannot pass for want of a reachable token.
+	const { ScheduleReviewInputStateBanner } = await import('../ScheduleReviewInputStateBanner');
+	const { Button } = await import('../../../ui/button');
+	await mount(createElement('div', null,
+		createElement(ScheduleReviewInputStateBanner, {
+			inputState: staleRun().inputState,
+			changedDomainLabels: ['Teaching Load'],
+			loading: false,
+			syncing: false,
+			hasSelectedEntry: true,
+			generationEnabled: true,
+			onPreviewImpact: () => {},
+			onSync: () => {},
+			onManualRepair: () => {},
+			onRegenerate: () => {},
+		} as never),
+		createElement(Button, { variant: 'destructive' }, 'destructive reference'),
+	));
+	const tokensOf = (element: Element) => new Set((element.getAttribute('class') ?? '').split(/\s+/).filter(Boolean));
+	const buttons = Array.from(container().querySelectorAll<HTMLButtonElement>('button'));
+	const rebuild = buttons.find((button) => button.textContent?.includes('Regenerate Draft'));
+	assert.ok(rebuild, 'the rebuild control renders');
+	const reference = buttons.find((button) => button.textContent === 'destructive reference');
+	assert.ok(reference, 'a destructive button is rendered in this same DOM');
+
+	const DESTRUCTIVE_TOKENS = ['bg-destructive/10', 'text-destructive'];
+	const rebuildTokens = tokensOf(rebuild);
+	const referenceTokens = tokensOf(reference);
+	for (const token of DESTRUCTIVE_TOKENS) {
+		assert.ok(referenceTokens.has(token), `control: the destructive variant really does apply ${token}`);
+		assert.ok(!rebuildTokens.has(token), `the rebuild button does not carry the destructive token ${token}`);
+	}
+	assert.equal(rebuild.disabled, false, 'the rebuild is enabled in this state');
+	// The other three actions are unchanged, so the routine rebuild really is
+	// the only button that lost its alarm register — not all of them.
+	const labels = buttons
+		.filter((button) => !button.textContent?.includes('destructive reference'))
+		.map((button) => button.textContent?.replace(/\s+/g, ' ').trim());
+	assert.deepEqual(labels, ['Preview Impact', 'Sync with Setup', 'Manually Repair', 'Regenerate Draft'], 'all four banner actions still render, once each');
 });

@@ -861,6 +861,22 @@ test('F2 rendered: the publish task renders the real publish checklist', () => {
 	// chip). Natural prose that happens to use the word is not jargon and is not
 	// what audit finding 3 flagged, so this targets the count+label shape only.
 	assert.doesNotMatch(markup, /\d+\s+blockers?\b/i, 'no count is labelled with the retired blocker wording');
+	// ── ADDED (LANE-C-PLAIN-LANGUAGE-C03 J1r, QA F11), the tag-tolerant variant.
+	// The assertion above reads RAW MARKUP, so a regression that splits the number
+	// and the noun across elements — `<span>3</span> blockers`, or a `</li></ul>`
+	// between them — slips past it. This variant strips the tags first and asserts
+	// against the text the scheduler actually reads, the same technique PL-J1.3
+	// uses. The markup row is RETAINED above, not replaced.
+	//
+	// This variant is not decorative: run first at the J1r candidate it FAILED on
+	// the checklist's own scope note ("...: 0 Blockers listed below are scoped
+	// to Term 1"), which the raw-markup row could not see because a `</li></ul>`
+	// sat between the digit and the word. `SimpleTaskDrawerHelpers.tsx` was
+	// corrected; the row now holds.
+	const renderedText = markup.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ');
+	assert.match(renderedText, /Must fix \(whole year\): 2/, 'the stripped text is not empty (positive control)');
+	assert.doesNotMatch(renderedText, /\d+\s+blockers?\b/i, 'no count is labelled with the retired blocker wording, even when the markup splits them across elements');
+	assert.doesNotMatch(renderedText, /\d+\s+classes\b/i, 'the unplaced count is never labelled "classes" (it is sessions) — the same count+label shape as the retired blocker wording');
 	// END SUPERSEDED-IN-PART
 	assert.match(markup, /data-testid="timetable-publish-blocked-reason"/);
 	assert.match(markup, /Publish schedule/);

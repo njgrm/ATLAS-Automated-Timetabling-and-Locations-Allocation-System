@@ -696,6 +696,7 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 				<SimpleReadinessChip
 					readiness={readiness}
 					publishBlocked={publishBlocked}
+					publishBlockedReason={publishBlockedReason}
 					blockingHardCount={context.blockingHardCount}
 					softCount={context.softCount}
 				/>

@@ -222,9 +222,36 @@ test('readiness chip keeps blockers first and stays honest when clean', () => {
 	);
 	// The precedence itself is still proven, not just the wording: a blocking
 	// count still wins even when a larger unassigned count is present.
-	assert.notEqual(
-		readinessLabel(headerContext({ draft, hardCount: 2, summary: { unassignedCount: 5 }, softCount: 9 })),
-		'5 classes still to place (whole year)',
+	// ── SUPERSEDED IN PLACE (QA F9, 2026-09-26), retained VERBATIM as the
+	// record of the vacuous row. `'5 classes still to place (whole year)'` is a
+	// publish-CHECKLIST `<li>` fragment, and `readinessLabel` — a header CHIP
+	// label — can never return it, so the assertion passed even if the label had
+	// returned "Ready to publish". The comment above it also overstated what it
+	// proved. Replaced by the real precedence pair immediately below, which
+	// compares two label values the function CAN actually return.
+	//   assert.notEqual(
+	//     readinessLabel(headerContext({ draft, hardCount: 2, summary: { unassignedCount: 5 }, softCount: 9 })),
+	//     '5 classes still to place (whole year)',
+	//   );
+	// The replacement precedence pair — both sides are reachable return values,
+	// so a wrong label fails the row:
+	//   (a) blocking problems outrank unassigned sessions and warnings;
+	assert.equal(
+		readinessLabel(headerContext({ draft, hardCount: 0, blockingHardCount: 2, summary: { unassignedCount: 5 }, softCount: 9 })),
+		'2 Must fix',
+		'the publication-blocking count outranks a larger unassigned count and warnings',
+	);
+	//   (b) with no blocking problem, the unassigned count outranks warnings;
+	//       the unassigned clause names sessions, not classes.
+	assert.equal(
+		readinessLabel(headerContext({ draft, hardCount: 0, blockingHardCount: 0, summary: { unassignedCount: 5 }, softCount: 9 })),
+		'5 unresolved',
+		'with nothing publication-blocking, unassigned sessions outrank warnings',
+	);
+	assert.doesNotMatch(
+		readinessLabel(headerContext({ draft, hardCount: 0, blockingHardCount: 0, summary: { unassignedCount: 5 }, softCount: 9 })),
+		/classes/,
+		'the unassigned clause names the unit every other consumer uses (sessions)',
 	);
 	assert.equal(
 		readinessLabel(headerContext({ draft, summary: { unassignedCount: 0 }, softCount: 2 })),

@@ -1,6 +1,7 @@
 import { CheckCircle2, Info, RefreshCw } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
+import { publishBlockedSentence } from '@/lib/timetable-plain-language';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import type { ScheduleReviewWorkspaceHeaderContext } from '@/components/timetable/buildScheduleReviewWorkspaceContexts';
@@ -43,14 +44,22 @@ export function resolveSimpleReadiness(input: SimpleReadinessSnapshot): {
 	// The snapshot carries every field `readinessLabel` reads; the cast only
 	// narrows the header-context type to that shared subset.
 	const readiness = readinessLabel(input as unknown as ScheduleReviewWorkspaceHeaderContext);
+	const unassignedCount = input.summary?.unassignedCount ?? 0;
 	const publishBlocked = input.hasGeneratedRun
 		&& !input.isRunPublished
-		&& (input.blockingHardCount > 0 || (input.summary?.unassignedCount ?? 0) > 0);
-	const publishBlockedReason = input.blockingHardCount > 0
-		? `${input.blockingHardCount} hard blocker${input.blockingHardCount === 1 ? '' : 's'} must be fixed before publish.`
-		: (input.summary?.unassignedCount ?? 0) > 0
-			? `${input.summary?.unassignedCount} session${(input.summary?.unassignedCount ?? 0) === 1 ? '' : 's'} still need fixing before publish.`
-			: '';
+		&& (input.blockingHardCount > 0 || unassignedCount > 0);
+	// J1r (QA F5) — this sentence is the honest consequence. It used to be
+	// computed and then only printed by `/timetable/setup`; the Simple header
+	// chip discarded it, so a scheduler whose schedule could not be published
+	// read the bare count "3 unresolved" and could reasonably take it for
+	// informational. It is now shared with the chip (see `SimpleReadinessChip`)
+	// and it wears the one plain word, so the count and its consequence can
+	// never disagree. `blockingHardCount` is the publication-relevant count, so
+	// its clause says "Must fix"; the unassigned count is sessions, which is the
+	// unit the whole surface uses for that number.
+	const publishBlockedReason = publishBlocked
+		? publishBlockedSentence({ blockingHardCount: input.blockingHardCount, unassignedCount })
+		: '';
 	return { readiness, publishBlocked, publishBlockedReason };
 }
 
@@ -62,11 +71,20 @@ export function resolveSimpleReadiness(input: SimpleReadinessSnapshot): {
 export function SimpleReadinessChip({
 	readiness,
 	publishBlocked,
+	publishBlockedReason = '',
 	blockingHardCount,
 	softCount = 0,
 }: {
 	readiness: string;
 	publishBlocked: boolean;
+	/**
+	 * J1r (QA F5) — the consequence sentence from `resolveSimpleReadiness`, now
+	 * rendered INSIDE the chip. Without it the publish-blocking state differed
+	 * from the non-blocking one only by a class and a `data-readiness-state`
+	 * attribute, and its visible text ("3 unresolved") never said that
+	 * publishing is shut.
+	 */
+	publishBlockedReason?: string;
 	blockingHardCount: number;
 	/**
 	 * LANE-C-PLAIN-LANGUAGE-C03 (J4.2) — the count the label beside the tick is
@@ -81,19 +99,33 @@ export function SimpleReadinessChip({
 		 * destructive-tinted and wearing an AlertTriangle, so a brand-new run
 		 * looked like a fire. The fact genuinely blocks publishing, so it is kept
 		 * and the label still states the consequence; only the alarm register goes,
-		 * and the height returns to the neutral chip's. No control was added. */
+		 * and the height returns to the neutral chip's. No control was added.
+		 *
+		 * J1r (QA F5) — but "calm" had collapsed two DIFFERENT states into one
+		 * appearance: this publish-BLOCKING case and the neutral "5 warnings"
+		 * case below rendered the same classes and the same `Info` sign, so the
+		 * only difference was a data attribute nobody can see. The register is
+		 * still calm — no `destructive`, no AlertTriangle, `h-6` — but it is now a
+		 * MUTED WARNING that is visibly its own thing: a 2px amber border against
+		 * the neutral 1px `border`, on an amber field. The 1px/2px border-weight
+		 * difference survives greyscale, and the rendered sentence states the
+		 * consequence so the distinction never depends on colour or on the
+		 * attribute at all. */
+		const consequence = publishBlockedReason || `${readiness} — this schedule cannot be published yet.`;
 		return (
 			<Badge
 				variant="outline"
 				className={cn(
 					'h-6 min-w-0 shrink gap-1.5 truncate rounded-full px-2 text-xs font-semibold sm:h-6 sm:shrink-0 sm:gap-1.5 sm:px-2',
-					'border-border bg-muted text-foreground',
+					'border-2 border-amber-600/70 bg-amber-50 text-amber-900',
 				)}
 				data-testid="timetable-simple-readiness-chip"
 				data-readiness-state="unplaced"
+				data-publish-blocked="true"
+				aria-label={`${readiness}. ${consequence}`}
 			>
 				<Info className="size-3.5 shrink-0" aria-hidden="true" />
-				<span className="truncate">{readiness}</span>
+				<span className="truncate" data-testid="timetable-simple-readiness-consequence">{consequence}</span>
 			</Badge>
 		);
 	}

@@ -3,7 +3,7 @@ import { CheckCircle2, ExternalLink } from 'lucide-react';
 
 import { Button } from '@/ui/button';
 import { Badge } from '@/ui/badge';
-import { HARD_COUNT_RELATIONSHIP_NOTE, MUST_FIX_LABEL, plainScopeLabel } from '@/lib/timetable-plain-language';
+import { ALL_SERIOUS_PROBLEMS_LABEL, HARD_COUNT_RELATIONSHIP_NOTE, MUST_FIX_LABEL, plainScopeLabel } from '@/lib/timetable-plain-language';
 import { isBlockingHardViolation, resolveBlockerDestination } from '@/components/timetable/simplePublishReadiness';
 import type { Violation } from '@/types';
 
@@ -219,13 +219,27 @@ export function PublishChecklistContent({
 				)}
 				<ul className="mt-2 space-y-1.5 text-sm text-muted-foreground">
 					<li>Assigned sessions: {assignedCount}</li>
-					<li>{unassignedCount} classes still to place (whole year)</li>
+					{/* J1r (QA F3/F6) — `unassignedCount` is SESSIONS. The unresolved
+					    queue holds placement obligations for a (session, term) pair,
+					    and five other consumers of the same field already say so:
+					    `ScheduleReviewWorkspaceHeader`, `SimpleSetupSharedControls`,
+					    `TimetableTaskDrawer`, `GeneratedUnassignedPanel` and
+					    `useTimetableMutations`. `classesProcessed` is a separate,
+					    already-shown field on the line above, so calling this
+					    "classes" was not plainer — it was wrong, and it
+					    contradicted the "N sessions need placement" line a few lines
+					    below. One count, one unit. */}
+					<li>{unassignedCount} session{unassignedCount === 1 ? '' : 's'} still to place (whole year)</li>
 					<li>{MUST_FIX_LABEL} (whole year): {runWideBlocking}</li>
-					<li>All serious problems (whole year): {hardCount}</li>
+					<li>{ALL_SERIOUS_PROBLEMS_LABEL} (whole year): {hardCount}</li>
 					<li>Warnings to review (whole year): {softCount}</li>
 				</ul>
 				<p className="mt-1 text-[0.6875rem] text-muted-foreground" data-testid="timetable-publish-scope-note">
-					Blockers listed below are scoped to {scopeLabel}; the publish gate above is always the whole year.
+					{/* J1r (QA F11's tag-tolerant row found this one): the note said
+					    "Blockers listed below", so a count and the retired noun sat
+					    one element apart. It is routed through the shared vocabulary
+					    and the plain scope word like every other line here. */}
+					Problems listed below are scoped to {scopeLabel}; the publish gate above is always the {plainScopeLabel('run-wide').toLowerCase()}.
 				</p>
 				{/* LANE-C-PLAIN-LANGUAGE-C03 (J1): this checklist is the one Simple
 				    surface that shows more than one "hard" number, so the reason the

@@ -24,9 +24,43 @@
 /** The one plain word for "a problem that stops you saving and publishing". */
 export const MUST_FIX_LABEL = 'Must fix';
 
+/**
+ * The one plain phrase for the OTHER count: every serious problem the run
+ * recorded, including the ones that do not stop publishing.
+ *
+ * It exists because the number is genuinely different from `MUST_FIX_LABEL`:
+ * `RunSummary.hardViolationCount` is the run's TOTAL, while
+ * `RunSummary.blockingHardViolationCount` is the allowlist-filtered
+ * publication-relevant subset (`timetableWorkspaceTruth.ts`
+ * `deriveRunWideReadiness` reads them as two distinct fields, and
+ * `blockingHardCount = summaryBlockingHard ?? summaryHard ?? displayHard`).
+ * A surface that shows the TOTAL must therefore NOT wear the blocking word,
+ * or a run with `hardViolationCount: 4, blockingHardViolationCount: 0` renders
+ * "Must fix: 4" and contradicts the publish gate three lines away.
+ */
+export const ALL_SERIOUS_PROBLEMS_LABEL = 'All serious problems';
+
 /** `mustFixCountLabel(3)` -> `"3 Must fix"`. */
 export function mustFixCountLabel(count: number): string {
 	return `${count} ${MUST_FIX_LABEL}`;
+}
+
+/**
+ * The consequence sentence for a publish gate that is shut, in one shape, so
+ * the header chip and the setup pane cannot disagree about what is wrong.
+ * `blockingHardCount` is the publication-relevant count, so its clause wears
+ * `MUST_FIX_LABEL`; an unresolved-session clause names sessions, which is the
+ * unit every other surface uses for that count.
+ */
+export function publishBlockedSentence(input: {
+	blockingHardCount: number;
+	unassignedCount: number;
+}): string {
+	const unplaced = input.unassignedCount;
+	const tail = unplaced > 0
+		? `${unplaced} session${unplaced === 1 ? ' still needs' : 's still need'} fixing`
+		: mustFixCountLabel(input.blockingHardCount);
+	return `${tail} — this schedule cannot be published yet.`;
 }
 
 /* The consequence sentences ("This blocks saving and publishing." / "This does
@@ -51,15 +85,4 @@ export const HARD_COUNT_RELATIONSHIP_NOTE =
  */
 export function plainScopeLabel(scope: 'run-wide' | 'selected-term'): string {
 	return scope === 'run-wide' ? 'Whole year' : 'Selected term only';
-}
-
-/**
- * J2 — a run is the one internal id a scheduler can legitimately act on, so it
- * is kept, but never presented as the label on its own. Where the run has a
- * date, that date is the human anchor; the bare number remains as the
- * disambiguating suffix rather than the heading.
- */
-export function runAnchorLabel(runId: number | string, when?: string | null): string {
-	const id = `schedule version #${runId}`;
-	return when ? `${id} (${when})` : id;
 }

@@ -8,12 +8,21 @@
  *
  * LANE-C-PLAIN-LANGUAGE-C03 (J1) — the stat label read "Hard" while the grid
  * read "Blocked" and the Simple header read "blocker" for the same concept, so
- * one viewport carried four names. It now reads MUST_FIX_LABEL. This is a
- * label string only: no control, no layout and no count changed here.
+ * one viewport carried four names.
+ *
+ * LANE-C-PLAIN-LANGUAGE-C03 (J1r, QA F1) — that first pass gave this stat
+ * `MUST_FIX_LABEL`, which was a NEW falsehood: the number it renders is the
+ * run's TOTAL, not the publication-blocking count, so a run with
+ * `hardViolationCount: 4` and `blockingHardViolationCount: 0` rendered
+ * "Must fix: 4" while the same viewport's publish gate read 0. The blocking
+ * word is now reserved for `blockingHardCount` (which has its own summary key,
+ * `blockingHardViolationCount`) and this stat carries the checklist's own
+ * plain wording for the total, `ALL_SERIOUS_PROBLEMS_LABEL`. A label string and
+ * an explanation only: no control, no layout and no count changed here.
  */
 import { Check, Clock, ShieldAlert } from 'lucide-react';
 
-import { MUST_FIX_LABEL } from '@/lib/timetable-plain-language';
+import { ALL_SERIOUS_PROBLEMS_LABEL } from '@/lib/timetable-plain-language';
 import { Badge } from '@/ui/badge';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip';
 import { StatItem } from '@/components/timetable/TimetableShared';
@@ -79,10 +88,19 @@ export function ScheduleReviewWorkspaceSummaryStats({
 			/>
 			<StatItem
 				icon={ShieldAlert}
-				label={MUST_FIX_LABEL}
+				/* WHICH count this is: `RunSummary.hardViolationCount` — the run's
+				 * recorded TOTAL of serious problems, including codes that no longer
+				 * block publication. The publication-relevant count is a DIFFERENT
+				 * field, `RunSummary.blockingHardViolationCount`, which reaches the
+				 * Simple surface as `blockingHardCount` (`timetableWorkspaceTruth.ts`
+				 * `deriveRunWideReadiness` resolves the two separately) and is the one
+				 * `MUST_FIX_LABEL` names. So this stat must never wear the blocking
+				 * word; if a future producer ever passed a blocking count here, the
+				 * label below would have to change with it. */
+				label={ALL_SERIOUS_PROBLEMS_LABEL}
 				value={String(summary.hardViolationCount)}
 				className={summary.hardViolationCount > 0 ? 'text-red-600 font-semibold' : ''}
-				explanation="Critical policy violations. A schedule with any Hard Violations cannot be published."
+				explanation="Every serious problem this run recorded, including some that do not stop you publishing. The “Must fix” count is the smaller set that does."
 			/>
 			<StatItem
 				icon={Clock}
