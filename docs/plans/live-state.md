@@ -39,24 +39,18 @@ resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs
 ## Live release
 
 - Tailnet: `https://njgrm.buru-degree.ts.net`
-- **Release SHA: `c5e167d7c5939ff586880149c566ce29506430e8`** (**LIVE** since 2026-09-25 20:40, Lane A;
-  `E:\ATLAS-runtime-supervised-c5e167d7-20260925`; execute audit
-  `C:\ProgramData\ATLAS\release-audit\c5e167d7-20260925-204030`; active state `running`/`c5e167d7`; machine env =
-  target; health 200, ready 200 `database:"ok"`, DB-backed subjects read 200, Tailnet 200; served target entry
-  `assets/index-BW9wl1o-.js` SHA-256 `40E58645…294BC1`, byte-identical local/Tailnet/build; old entry 404. Independent
-  post-action QA `ACCEPT_READY` **8/8/0/0**; six-table zero-write signature unchanged. R1 browser rows are accepted
-  at 1366×768 and 390×844 (`docs/handoffs/lane-a-browser-acceptance-c5e167d7-r1-2026-09-25.md`); the earlier
-  collaboration-ticket incident remains preserved in the separate incident handoff. Two EnrollPro proxy 502s remain
-  non-blocking residuals. **No migration. Rollback basis: `ad8f9717`.**
-- **Pending release SHA: `eb0e30386336673a4a31ecfe39a9bef93549e0ed`** (target recorded 2026-09-25 before the
-  §13 deployment action; planned release directory `E:\ATLAS-runtime-supervised-eb0e3038-20260925`; incumbent and
-  rollback basis `c5e167d7c5939ff586880149c566ce29506430e8` at
-  `E:\ATLAS-runtime-supervised-c5e167d7-20260925`; production delta is two server service files plus the committed
-  server test/script (`generation-readiness.service.ts`, `timetable-candidate-domain.ts`, test, package script), with
-  docs/config changes carried by `origin/main`; **no migration**; deployment not yet run. Source review accepted;
-  corrected packet lint `AUDIT_CLEAR` **6/6/0/0** at `f1dc67b4`; explicit §13 approval is still pending. Post-cutover
-  acceptance owner: Lane C reloads `/timetable` twice after Q4's cold/warm API proof and reads the new stall lines;
-  no generation, publication, or timetable-data write is authorized.)
+- **Release SHA: `eb0e30386336673a4a31ecfe39a9bef93549e0ed`** (**LIVE** since 2026-09-25 22:19, Lane A/Lane C;
+  `E:\ATLAS-runtime-supervised-eb0e3038-20260925`; execute audit
+  `C:\ProgramData\ATLAS\release-audit\eb0e3038-20260925-221948`; active state `running`/`eb0e3038`; machine env =
+  target; health 200, ready 200 `database:"ok"`, DB-backed subjects read 200, Tailnet 200; startup log clean.
+  Post-action QA rows Q1/Q2/Q3/Q5/Q6/Q7 passed; Q4 is **BLOCKED** by `NEEDS_SESSION` (both readiness calls
+  returned 401 `NO_TOKEN`); A1 is locked until Q4 closes. Focused controls: readiness 7/7, request timing 6/6,
+  named preservation 28/28; server suite reproduced the four pre-existing `tt-output-c03r` failures. Six-table
+  zero-write digests match; the executor's malformed 33-character audit_logs transcription is superseded by the
+  independently re-derived valid baseline. **No migration. Rollback basis: `c5e167d7`.**
+- **Release SHA: `c5e167d7c5939ff586880149c566ce29506430e8`** (rollback basis; previously LIVE 2026-09-25 20:40,
+  `E:\ATLAS-runtime-supervised-c5e167d7-20260925`; R1 browser rows accepted at 1366×768 and 390×844; prior
+  collaboration-ticket incident preserved; two EnrollPro proxy 502s remain non-blocking. **No migration.**)
 - **Release SHA: `ad8f9717`** (rollback basis; previously LIVE 2026-09-25 17:12, Lane C; `E:\ATLAS-runtime-supervised-ad8f9717-20260925`;
   operator cutover, audit `C:\ProgramData\ATLAS\release-audit\ad8f9717-20260925-171136`; active state
   `running`/`ad8f9717`; machine env = target; health 200, `/health/ready` `database:"ok"`, subjects read 200, Tailnet
@@ -261,26 +255,24 @@ Lane C reloads `/timetable` twice and reads the stall lines (expect ≤ ~1.2 s c
 
 **Current stream (2026-09-25):** `TEACHER-CONCERN-AUTHORITY-PROGRAM-20260924` C1–C7 is complete. The scheduler is
 the single teacher-concern accommodation surface, SMART's draft access is teacher-scoped/read-only, and the ATLAS
-teacher portal is removed. The latest accepted product tip and verified live release is `c5e167d7`.
+teacher portal is removed. The latest accepted product tip and verified live release is `eb0e3038`.
 
 **Completed acceptance (2026-09-25):** `ACTIVE-TERM-LIVE-RESOLUTION-C01` fixed the former C7
 `409 TERM_SCOPE_MISMATCH`: Lane A's seeded browser pass returned `/faculty/concerns` GET 200 and PUT 200 at
 `termIndex 2`, with D6 redirects and removed navigation verified. One disclosed test-data mutation remains: a
 DRAFT availability for faculty 1 / year 10 / term 2 / v1 with zero slots.
 
-**Deployment outcome (2026-09-25):** operator-approved `c5e167d7` cutover is **DEPLOYED**; independent post-action
-QA `ACCEPT_READY` **8/8/0/0**; zero-write digest unchanged; rollback basis `ad8f9717`. The first browser attempt
-issued an unexpected collaboration-ticket POST 201; that incident remains preserved in
-`docs/handoffs/lane-a-browser-acceptance-c5e167d7-2026-09-25.md`. Fresh ticket-contract QA verified process-local,
-one-time, 60-second, school/year/run-scoped state with no Prisma or timetable-domain write. Lane A's second pass
-accepted the R1 pixel rows at both viewports: primary timetable text 14px, deliberate 12px flag/special-cell
-exceptions, no global scrollbar, and only the disclosed ticket POST; evidence is
-`docs/handoffs/lane-a-browser-acceptance-c5e167d7-r1-2026-09-25.md`. Two EnrollPro proxy 502s remain non-blocking
-residuals.
+**Deployment outcome (2026-09-25):** operator-approved `eb0e3038` cutover is **DEPLOYED**. Post-action QA passed
+Q1/Q2/Q3/Q5/Q6/Q7; Q4 is **BLOCKED** because the available QA profile returned 401 `NO_TOKEN` on both required
+readiness calls. The first browser acceptance incident for c5 and the successful R1 pixel pass remain preserved in
+`docs/handoffs/lane-a-browser-acceptance-c5e167d7-2026-09-25.md` and
+`docs/handoffs/lane-a-browser-acceptance-c5e167d7-r1-2026-09-25.md`. The deployment handoff is
+`docs/handoffs/deploy-eb0e3038-2026-09-25.md`; six-table zero-write digests match, focused controls pass, and no
+migration occurred. A1 is locked until Q4 closes.
 
-**Next action (2026-09-25):** Lane C runs the separate draft-swap/stall-diagnostic acceptance on the deployed target;
-Lane A's R1 browser rows are closed. No further Lane A browser action is required unless a new source or live-state
-change requires re-verification.
+**Next action (2026-09-25):** seed or identify an authorized QA profile with a valid session, then rerun exactly
+the Q4 cold/warm readiness pair; after Q4 passes, Lane C performs A1's two warm `/timetable` reloads and stall-log
+acceptance. Do not run A1 while Q4 is blocked.
 
 **Dated decisions / residuals (verify before acting):**
 - **F7 remains deliberately rejected (2026-09-25):** daily tools stay under More so the header remains compact;
