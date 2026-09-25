@@ -224,27 +224,30 @@ or process borrower, and is `RETIRE_AFTER_INTEGRATION` (E: 47.55 GiB before reti
 
 ## Lane C — current lane (written only by Lane C)
 
-Opened 2026-09-25 (operator). Branches `work|docs/lane-c-*`, worktrees `E:/ATLAS-worktrees/lane-c-*`. Finished
-cycles (C1–C3 integration and acceptance, C04/C05) are in Git history and their handoffs. **Current handoff:
-`docs/handoffs/lane-c-handoff-2026-09-25-stall.md`.** Claude Code lanes also follow `CLAUDE.md` (cost rules).
+Opened 2026-09-25 (operator). Branches `work|fix|docs/lane-c-*`, worktrees `E:/ATLAS-worktrees/lane-c-*`. Finished
+cycles are in Git history and their handoffs. Claude Code lanes follow `CLAUDE.md` (cost rules).
 
-**Current stream: server stall freezing draft manual edits** (as of 2026-09-25 evening). A draft swap preview on
-run 318 took 31.7 s with a matching `[event-loop-stall]`; the same code runs offline in ~0.4 s, so the blocker is
-elsewhere in the live process and the stall line hides it behind open SSE streams.
+**Current stream: server stall** (as of 2026-09-25 21:40). Root cause found with SERVER-STALL-C01 live in
+`c5e167d7`: `GET …/readiness/diagnostic` (every `/timetable` load) ran `runHybridScheduler` synchronously,
+blocking the loop 3.1 s offline / 6.9–7.8 s live (stall lines 12:47, 12:57, 13:07, 13:11Z). A browser swap preview
+on run 318 (Tue MATH ↔ Thu MATH 10:00) answered in 668 ms; the operator's 31.7 s case (Thu 10:45 ENG) was not
+re-run and is presumed queued behind readiness stalls.
 
-**SERVER-STALL-C01 `c198cd9` integrated 2026-09-25** (merge `c99385f4` on `integration/server-stall-c01` off
-`main` `d7fd8f8d`; QA `ACCEPT_READY` 5/0/0). Merged tree: `test:request-timing` 6/6, server `tsc` exit 0, Node
-started `dist/server.js` on isolated 5198 (health 200, subjects 200, stopped). Server delta vs live `ad8f9717`:
-`lib/request-timing.ts` and its test only; no migration.
+**READINESS-STALL-C01 `5376a5c9` integrated 2026-09-25** (merge `ad23ef84` on `integration/readiness-stall-c01`;
+executor Sonnet, QA Sonnet `ACCEPT_READY`). HH:MM parse memo + readiness-only scheduler-result cache keyed by
+sha256 of the full scheduler input (bounded 8, cloned out; real generation uncached). Output deep-equal to the live
+build for school 1 / year 10; loop block 4,314 → 1,175 ms cold, 4,161 → ~120 ms warm; `test:readiness-stall` 7/7,
+`test:request-timing` 6/6, server-suite 337/341 (4 pre-existing `tt-output-c03r`), Node start on 5198. No migration.
+NON_BLOCKING: `canonicalStringify` maps Map/Set to `{}` (no Map/Set reaches the input today); T2's failing-first
+was an import failure, not behavioural.
 
-**Next action (2026-09-25):** operator deploys the `main` tip carrying this line with the elevated
-`deploy-runner.ps1` (incumbent `ad8f9717`); then Lane C reproduces one draft swap preview on run 318 and reads the
-new stall line. Browser acceptance owner for `ad8f9717` rows B1/B2: Lane C.
+**Next action (2026-09-25):** operator deploys the `main` tip carrying this line (incumbent `c5e167d7`); then
+Lane C reloads `/timetable` twice and reads the stall lines (expect ≤ ~1.2 s cold, ~0.1 s warm).
 
-**Open (2026-09-25):** F1–F3 from `docs/handoffs/lane-c-browser-acceptance-e8553752-2026-09-25.md`; A3 (0 class
-advisers, read-only EnrollPro check); `runtime/context` ~4.1 s vs the 4000 ms EnrollPro timeout; delete remote
-`work/wonderful-sagan-nhz302` and `work/epic-galileo-cw0swp` now that `c198cd9` is on `main`. `E:` 52 GiB free
-(2026-09-25, just above the 50 GiB warn; Lane A owns the manifest-B reclaim).
+**Open (2026-09-25):** EnrollPro unreachable from the host — Tailscale `dev-jegs` offline since ~19:40 local;
+`runtime/context`/`sections/summary` wait the 4 s timeout (not a loop block). F1–F3
+(`docs/handoffs/lane-c-browser-acceptance-e8553752-2026-09-25.md`); A3 (0 class advisers); delete remote
+`work/wonderful-sagan-nhz302`, `work/epic-galileo-cw0swp`. `E:` 59 GiB free (21:40).
 
 ## Lane A — current lane (written only by Lane A)
 
