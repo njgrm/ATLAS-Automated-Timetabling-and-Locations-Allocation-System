@@ -39,15 +39,21 @@ resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs
 ## Live release
 
 - Tailnet: `https://njgrm.buru-degree.ts.net`
-- **Pending release SHA: `e475c673`** (**NOT LIVE** as of 2026-09-25; source accepted and built). C08
+- **Release SHA: `e475c673`** (**LIVE** since 2026-09-25; `E:\ATLAS-runtime-supervised-e475c673-20260925`;
+  supervisor-owned 5001→81040 / 5174→82788; health/ready (`database:"ok"`) + DB-backed read + Tailnet 200;
+  served entry `assets/index-B6GQrEV1.js` (SHA-256 `A90EA8DB…`, byte-identical to the build) and CSS
+  `index-DHL7imL_.css` byte-identical; machine `ATLAS_RUNTIME_SOURCE_DIR` / `RELEASE_SHA` = the target). C08
   scheduler clarity (client only): a plain-language stale-information notice with one **Check school
   information** action promising the schedule is unchanged, and descriptive collapsed grade/program shift
   schedules replacing anonymous `Override #n` blocks. **No server, Prisma, migration, generation, publication,
-  or timetable-data change.** Built at `E:\ATLAS-runtime-supervised-e475c673-20260925` (server `tsc` + client
-  `vite` exit 0; entry `assets/index-B6GQrEV1.js`). **Rollback basis:
-  `89295c2785153787f5f50c93b17d97f881012169`** at `E:\ATLAS-runtime-supervised-89295c27-20260925`. **Next:**
-  `deploy-runner.ps1` dry-run; cutover `-Execute`.
-- **Release SHA: `89295c27`** (**LIVE** since 2026-09-25; `E:\ATLAS-runtime-supervised-89295c27-20260925`;
+  or timetable-data change.** Cut over by the SHA-pinned `ops/runtime/deploy-runner.ps1` (audit
+  `C:\ProgramData\ATLAS\release-audit\e475c673-20260925-123726`). **Deployment verified:** fresh independent QA
+  `ACCEPT_READY` 6/6/0/0 (blocked 0, unperformed 0). **Rollback basis:
+  `89295c2785153787f5f50c93b17d97f881012169`** at `E:\ATLAS-runtime-supervised-89295c27-20260925` (no
+  migration; compatible). **Acceptance PARTIAL:** the authenticated read-only browser QA at 1366×768 and
+  390×844 (stale-notice copy + single CTA, collapsed descriptive shift schedules, no console/network
+  regressions) is `EXTERNALLY_BLOCKED(AUTH_SESSION_REQUIRED)` — **acceptance owner: Lane B (Codex)**.
+- **Release SHA: `89295c27`** (rollback basis; previously LIVE 2026-09-25; `E:\ATLAS-runtime-supervised-89295c27-20260925`;
   supervisor-owned 5001→76676 / 5174→53516; health/ready + DB-backed read + Tailnet 200; rollback basis
   `b6687fee`; **no migration**). `SERVER-TIMING-C01` request timing / event-loop-stall diagnostics + the S6 E1
   test-only copy fix; client bytes unchanged from `b6687fee`. **Stall-diagnostics owner: Lane C** (reads the
