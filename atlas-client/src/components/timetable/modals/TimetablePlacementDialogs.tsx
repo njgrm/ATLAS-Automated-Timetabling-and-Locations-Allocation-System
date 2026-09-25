@@ -655,6 +655,7 @@ export function TimetablePlacementDialogs({ context }: { context: ScheduleReview
 								const faculty = facultyMap.get(id);
 								return faculty ? `${faculty.lastName}, ${faculty.firstName}` : `Teacher #${id}`;
 							}}
+							roomLabel={roomLabelShort}
 							onClose={closeGeneratedSwap}
 							onScheduled={onPublishedSwapScheduled}
 						/>

@@ -662,6 +662,7 @@ export default function ScheduleReviewWorkspace() {
 						subjectLabel={state.subjectLabel}
 						sectionLabel={state.sectionLabel}
 						facultyLabel={state.headerContext ? state.centerWorkspaceContext.facultyLabel : () => 'Teacher'}
+						roomLabel={state.centerWorkspaceContext.roomLabel}
 						previewTeachingLoadRepair={state.previewTeachingLoadRepair}
 						commitTeachingLoadRepair={state.commitTeachingLoadRepair}
 						onSaved={state.handleRefresh}
