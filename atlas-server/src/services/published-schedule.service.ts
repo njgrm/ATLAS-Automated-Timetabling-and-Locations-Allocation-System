@@ -973,8 +973,48 @@ export async function resolvePublishedRunTermIndex(
 	});
 	const snapshot = readPublishedIdentitySnapshot(baseRevision?.metadata);
 	if (snapshot) {
+		/**
+		 * PUBLISHED-TERM-AND-DRIFT-FOLLOWUP-C01 (F1) — an official export must
+		 * honour the EFFECTIVE identity, not only the base publication bytes.
+		 *
+		 * A base revision alone under-reports: once a `SCHEDULED` revision
+		 * overrides the ordered-term contract (for example a 3-term TRIMESTER
+		 * year re-cut as 4-term QUARTERS), every already-effective export has to
+		 * resolve against the contract that is actually in force, or a valid
+		 * term fails closed as out-of-contract.
+		 *
+		 * The revision chain is read in effective-date order and resolved
+		 * through the SAME already-imported `resolveEffectiveIdentitySnapshot`
+		 * that the D4 read path uses, so there is no second validator and no new
+		 * import edge. `asOf` is pinned at the call site; threading a caller date
+		 * through the eight export routes is out of scope for this cycle.
+		 *
+		 * Fail-closed shape is unchanged: a SUPERSEDED/withdrawn revision is
+		 * skipped by the resolver (only `SCHEDULED` overrides govern), a legacy
+		 * publication with no base snapshot still falls through to the live
+		 * verified authority, and `TERM_INDEX_OUTSIDE_CONTRACT` /
+		 * `TERM_SELECTION_REQUIRED` keep their existing codes and statuses. The
+		 * base revision is never mutated, so a direct base read still returns
+		 * the base bytes.
+		 */
+		const asOf = new Date();
+		const revisionChain = await db().publishedScheduleRevision.findMany({
+			where: {
+				schoolId,
+				schoolYearId,
+				sourceRunId: runId,
+				status: { in: ['SCHEDULED', 'SUPERSEDED'] },
+			},
+			orderBy: [{ effectiveDate: 'asc' }, { id: 'asc' }],
+			select: { id: true, status: true, effectiveDate: true, metadata: true },
+		});
+		const effective = resolveEffectiveIdentitySnapshot({
+			baseMetadata: baseRevision?.metadata,
+			revisions: revisionChain,
+			asOf,
+		}) ?? snapshot;
 		return resolveRequestedTermIndexFromContract(
-			frozenTermContract(snapshot, schoolId, schoolYearId),
+			frozenTermContract(effective, schoolId, schoolYearId),
 			schoolId,
 			schoolYearId,
 			requested,

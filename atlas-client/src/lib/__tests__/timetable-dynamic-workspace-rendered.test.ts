@@ -126,6 +126,23 @@ test('D5 a stale availability change renders its chip and the explicit regenerat
 	assert.match(markup, /data-testid="timetable-simple-regenerate-to-apply"/);
 	assert.match(markup, /data-testid="timetable-simple-regenerate-impact"/);
 	assert.match(markup, /Regenerate to apply/);
+	// PUBLISHED-TERM-AND-DRIFT-FOLLOWUP-C01 (F2) — the rendered chip's repair
+	// action must carry the exact concern-workspace href, and that href must be
+	// a mounted route. A mounted-route-only assertion would be satisfied by
+	// the legacy `/faculty` redirect too, so the href itself is asserted.
+	assert.match(markup, /data-testid="timetable-simple-repair-availability"/);
+	assert.match(markup, /href="\/faculty\/concerns"/);
+	assert.doesNotMatch(markup, /href="\/faculty"/);
+	assert.ok(mountedRoutes().has('/faculty/concerns'), 'the availability repair href must be a mounted route');
+	// `availability` is a mapped domain, so the primary repair affordance IS the
+	// per-domain control (it carries data-primary-repair) and the umbrella Year
+	// Setup fallback must not appear.
+	assert.match(
+		markup,
+		/data-testid="timetable-simple-repair-availability"[^>]*data-primary-repair="true"|data-primary-repair="true"[^>]*data-testid="timetable-simple-repair-availability"/,
+		'the availability repair is the primary repair action',
+	);
+	assert.doesNotMatch(markup, /data-testid="timetable-simple-repair-primary"/);
 });
 
 test('D5 a published run never renders the regenerate action, only revision guidance', () => {
