@@ -39,28 +39,17 @@ resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs
 ## Live release
 
 - Tailnet: `https://njgrm.buru-degree.ts.net`
-- **Release SHA: `eb0e30386336673a4a31ecfe39a9bef93549e0ed`** (**LIVE** since 2026-09-25 22:19, Lane A/Lane C;
-  `E:\ATLAS-runtime-supervised-eb0e3038-20260925`; execute audit
-  `C:\ProgramData\ATLAS\release-audit\eb0e3038-20260925-221948`; active state `running`/`eb0e3038`; machine env =
-  target; health 200, ready 200 `database:"ok"`, DB-backed subjects read 200, Tailnet 200; startup log clean.
-  Post-action QA rows Q1/Q2/Q3/Q5/Q6/Q7 passed; Q4/Q6 evidence review is `ACCEPT_READY` **2/2/0/0** after the
-  operator-seeded session produced the required cold/warm pair. **A1 (Lane C, Claude in Chrome, 2026-09-25 15:11Z): stall criterion passed; `cached` field
-  unperformed.** Two tracked `/timetable` reloads (15:11:00Z, 15:11:08Z): readiness 200 both, 0 console errors; log
-  window (cursor line 33 @ 15:09:47Z → line 48 @ 15:11:20Z) has no readiness `[slow-request]`, no stall during the
-  tracked reloads, and **zero `[hybrid-scheduler]` lines** (the cold miss at 14:51:46Z printed nine), i.e. the
-  scheduler did not run — a cache hit by server evidence. The response body was not readable (the Chrome tool exposes
-  no body), so `scheduler.cached === true` was not observed directly. NON_BLOCKING: an untracked earlier load logged
-  `[event-loop-stall] ~224ms` at 15:10:10Z with readiness one of five in-flight reads (789 ms) — not solely
-  readiness-attributable; the pre-fix stall was 2–8 s. Earlier attempts in the built-in browser pane fired no
-  request (`net::ERR_BLOCKED_BY_CLIENT`).
-  Focused controls: readiness 7/7, request timing 6/6, named preservation 28/28; server suite reproduced the four
-  pre-existing `tt-output-c03r` failures. Six-table zero-write digests match; the executor's malformed 33-character
-  audit_logs transcription is superseded by the independently re-derived valid baseline. **No migration. Rollback
-  basis: `c5e167d7`.**
-- **Pending release SHA: `861d89a2bc2682c5f875dde0b4b1d8ffc079b1fe`** (target recorded 2026-09-25 before the
-  §13 action; planned release directory `E:\ATLAS-runtime-supervised-861d89a2-20260925`; incumbent/rollback
-  `eb0e30386336673a4a31ecfe39a9bef93549e0ed`; source QA `ACCEPT_READY` 8/8/0/0; no migration; standing
-  authorization applies subject to the packet gates; deployment not yet run).
+- **Release SHA: `861d89a2bc2682c5f875dde0b4b1d8ffc079b1fe`** (**LIVE** since 2026-09-26 01:27, Lane A;
+  `E:\ATLAS-runtime-supervised-861d89a2-20260925`; execute audit
+  `C:\ProgramData\ATLAS\release-audit\861d89a2-20260926-012633`; dry-run audit
+  `C:\ProgramData\ATLAS\release-audit\861d89a2-20260926-012619`; active state `running`/`861d89a2`; machine env =
+  target; health 200, ready 200 `database:"ok"`, DB-backed subjects read 200, Tailnet 200; startup log clean;
+  served `assets/index-BW9wl1o-.js` byte-identical to the target build. Independent post-action QA
+  `ACCEPT_READY` **8/8/0/0**; six-table zero-write digest unchanged; focused C02 13/13, PostgreSQL 6/6, C01 8/8,
+  client term-gate 8/8, preservation failure set base-reproduced with zero candidate-only failures. **No migration.
+  Rollback basis: `eb0e3038`.**
+- **Release SHA: `eb0e30386336673a4a31ecfe39a9bef93549e0ed`** (rollback basis; previously LIVE 2026-09-25 22:19;
+  `E:\ATLAS-runtime-supervised-eb0e3038-20260925`; prior Q4/A1 evidence preserved; **no migration.**)
 - **Release SHA: `c5e167d7c5939ff586880149c566ce29506430e8`** (rollback basis; previously LIVE 2026-09-25 20:40,
   `E:\ATLAS-runtime-supervised-c5e167d7-20260925`; R1 browser rows accepted at 1366×768 and 390×844; prior
   collaboration-ticket incident preserved; two EnrollPro proxy 502s remain non-blocking. **No migration.**)
@@ -264,36 +253,35 @@ release: D1 rows + QA NON_BLOCKING 1-2 via `atlas-browser-qa` on Claude in Chrom
 
 ## Lane A — current lane (written only by Lane A)
 
-**Current stream (2026-09-25):** `TEACHER-CONCERN-AUTHORITY-PROGRAM-20260924` C1–C7 is complete. The scheduler is
+**Current stream (2026-09-26):** `TEACHER-CONCERN-AUTHORITY-PROGRAM-20260924` C1–C7 is complete. The scheduler is
 the single teacher-concern accommodation surface, SMART's draft access is teacher-scoped/read-only, and the ATLAS
-teacher portal is removed. `ACTIVE-TERM-LIVE-RESOLUTION-C02` is source-accepted at candidate `07804498` and
-integrated as `861d89a2`; the verified live release remains `eb0e3038` until a separate HIGH deployment.
+teacher portal is removed. `ACTIVE-TERM-LIVE-RESOLUTION-C02` is source-accepted at `07804498`, integrated as
+`861d89a2`, and now verified live; the previous `eb0e3038` release is the rollback basis.
 
 **Completed acceptance (2026-09-25):** `ACTIVE-TERM-LIVE-RESOLUTION-C01` fixed the former C7
 `409 TERM_SCOPE_MISMATCH`: Lane A's seeded browser pass returned `/faculty/concerns` GET 200 and PUT 200 at
 `termIndex 2`, with D6 redirects and removed navigation verified. One disclosed test-data mutation remains: a
 DRAFT availability for faculty 1 / year 10 / term 2 / v1 with zero slots.
 
-**Deployment outcome (2026-09-25):** operator-approved `eb0e3038` cutover is **DEPLOYED**. Post-action QA passed
-Q1/Q2/Q3/Q5/Q6/Q7; Q4/Q6 evidence review is `ACCEPT_READY` **2/2/0/0** after the operator-seeded session produced
-the required cold/warm pair. Lane C recorded A1 at 2026-09-25 15:11Z: two tracked `/timetable` reloads returned
-readiness 200 with zero console errors; the log window had no readiness `[slow-request]`, no readiness stall, and
-zero `[hybrid-scheduler]` lines, so the stall criterion passed. The `scheduler.cached` response field was
-**unperformed** because the Chrome tool exposed no response body. The first browser acceptance incident for c5 and
-the successful R1 pixel pass remain preserved in `docs/handoffs/lane-a-browser-acceptance-c5e167d7-2026-09-25.md`
-and `docs/handoffs/lane-a-browser-acceptance-c5e167d7-r1-2026-09-25.md`. The deployment handoff is
-`docs/handoffs/deploy-eb0e3038-2026-09-25.md`; six-table zero-write digests match, focused controls pass, and no
-migration occurred.
+**Deployment outcome (2026-09-26):** operator-authorized `861d89a2` cutover is **DEPLOYED**. Independent
+post-action QA is `ACCEPT_READY` **8/8/0/0**: Q4's authenticated cold/warm readiness pair passed from the Tailnet
+origin (first `cached=false`, second `cached=true`, `ran=true`, `zeroWrite=true`); Q1/Q2/Q3/Q5/Q6 passed; Q7 passed
+C02 13/13, PostgreSQL 6/6, C01 8/8, client term-gate 8/8, with the preservation failure set base-reproduced and no
+candidate-only failures. The executor handoff and QA addendum are recorded in
+`docs/handoffs/deploy-861d89a2-2026-09-26.md`; the first eb/A1 incident and R1 browser evidence remain preserved
+in their separate handoffs. No migration, generation, publication, availability/Teaching Load write, term-cache
+apply, or rollover sync occurred. Reclaim C is `ACCEPT_READY` 25/25 pre-action and 17/17 post-action; the current
+capacity recheck is 49.55 GiB on E: and 60.67 GiB on D:.
 
-**Stage-2 source cycle (2026-09-25):** `ACTIVE-TERM-LIVE-RESOLUTION-C02` candidate `07804498` passed fresh QA
-**8/8/0/0** and is integrated as `861d89a2`. It pre-resolves the live active term before generation/readiness/
-publication transactions, threads one term through preflight and snapshots, preserves fail-closed codes, and keeps
-the network out of Serializable/advisory locks. It is not deployed; no migration or live-data action occurred.
+**Stage-2 source cycle (2026-09-26):** `ACTIVE-TERM-LIVE-RESOLUTION-C02` candidate `07804498` passed fresh QA
+**8/8/0/0**, integrated as `861d89a2`, and is now the verified live release. It pre-resolves the active term before
+generation/readiness/publication transactions, threads one term through preflight and snapshots, preserves
+fail-closed codes, and keeps the network out of Serializable/advisory locks. No migration or live-data action
+occurred.
 
-**Next action (2026-09-25):** deployment packet `deploy-861d89a2-active-term-c02-2026-09-25.md` is corrected at
-`01b0a62f`; retention reclaim C is `ACCEPT_READY` and the current capacity recheck is 49.55 GiB free. A fresh
-confirming packet review is still required before the standing-authorized cutover; generation, publication, and
-live-data actions remain separately gated.
+**Next action (2026-09-26):** no required Q4/A1 work remains. Keep `861d89a2` live and `eb0e3038`/donor preserved;
+any F1/F2 follow-up is a separate bounded cycle. The provider-memo and singleton-instrumentation QA evidence
+residuals are non-blocking accuracy follow-ups.
 
 **Dated decisions / residuals (verify before acting):**
 - **F7 remains deliberately rejected (2026-09-25):** daily tools stay under More so the header remains compact;
@@ -312,7 +300,8 @@ live-data actions remain separately gated.
 - Host-proxy 502/offline term-cache staleness remain unowned observations from 2026-09-24. The removed `/my/*`
   route smoke fixture remains a D6 cleanup follow-up as of 2026-09-25.
 
-**Custody / workspace (2026-09-25):** Lane A owns the seeded browser profile and this docs worktree
+**Custody / workspace (2026-09-26):** Lane A owns the seeded browser profile and this docs worktree
 `E:\ATLAS-worktrees\lane-a-r1-deploy-target` (`docs/lane-a-r1-deploy-target`, `KEEP_ACTIVE` as the current lane
-record). The C02 executor and integration worktrees were clean, integrated, and retired after the source push. Do
-not write in Lane B/C worktrees. E: and D: were both above warning at takeover.
+record). The C02 executor and integration worktrees were clean, integrated, and retired. Live release
+`E:\ATLAS-runtime-supervised-861d89a2-20260925` is `KEEP_ACTIVE`; rollback `eb0e3038` and donor `5c100ea6` are
+`PRESERVE_FOR_DECISION`. Do not write in Lane B/C worktrees.
