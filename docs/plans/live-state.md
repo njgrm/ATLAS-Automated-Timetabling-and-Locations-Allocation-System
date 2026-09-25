@@ -258,16 +258,18 @@ teacher portal is removed. The latest accepted product tip and verified live rel
 DRAFT availability for faculty 1 / year 10 / term 2 / v1 with zero slots.
 
 **Deployment outcome (2026-09-25):** operator-approved `c5e167d7` cutover is **DEPLOYED**; independent post-action
-QA `ACCEPT_READY` **8/8/0/0**; zero-write digest unchanged; rollback basis `ad8f9717`. Browser acceptance is
-**BLOCKED/UNPERFORMED** after the first 1366×768 attempt issued an unexpected collaboration-ticket POST 201; the
-incident evidence is `docs/handoffs/lane-a-browser-acceptance-c5e167d7-2026-09-25.md`. Fresh ticket-contract QA
-verified process-local, one-time, 60-second, school/year/run-scoped state with no Prisma or timetable-domain write;
-the planner now explicitly allows that ephemeral ticket plus its scoped WebSocket as a disclosed `/timetable`
-browser prerequisite. No other POST/PUT/PATCH/DELETE is allowed during acceptance.
+QA `ACCEPT_READY` **8/8/0/0**; zero-write digest unchanged; rollback basis `ad8f9717`. The first browser attempt
+issued an unexpected collaboration-ticket POST 201; that incident remains preserved in
+`docs/handoffs/lane-a-browser-acceptance-c5e167d7-2026-09-25.md`. Fresh ticket-contract QA verified process-local,
+one-time, 60-second, school/year/run-scoped state with no Prisma or timetable-domain write. Lane A's second pass
+accepted the R1 pixel rows at both viewports: primary timetable text 14px, deliberate 12px flag/special-cell
+exceptions, no global scrollbar, and only the disclosed ticket POST; evidence is
+`docs/handoffs/lane-a-browser-acceptance-c5e167d7-r1-2026-09-25.md`. Two EnrollPro proxy 502s remain non-blocking
+residuals.
 
-**Next action (2026-09-25):** rerun the complete Tailnet `/timetable` browser acceptance at 1366×768 and 390×844,
-recording rendered R1 sizes, no global scrollbar, console/network results, and the disclosed collaboration-ticket
-prerequisite. Lane C's separate stall-diagnostic acceptance remains pending.
+**Next action (2026-09-25):** Lane C runs the separate draft-swap/stall-diagnostic acceptance on the deployed target;
+Lane A's R1 browser rows are closed. No further Lane A browser action is required unless a new source or live-state
+change requires re-verification.
 
 **Dated decisions / residuals (verify before acting):**
 - **F7 remains deliberately rejected (2026-09-25):** daily tools stay under More so the header remains compact;
