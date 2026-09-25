@@ -90,15 +90,29 @@ post-publish); SMART holds a view-only teacher-scoped draft read; the ATLAS teac
 
 ## Model binding (planner)
 
-`atlas-planner` is bound to **`opencode-go/deepseek-v4.1-flash`** in
-`~/.config/opencode/agents/atlas-planner.md` (and mirrored in `opencode.jsonc`'s `"agent"` block). To hand
-planning to another model, change that `model:` value (e.g. `opencode-go/deepseek-v4-pro`,
-`agentrouter/glm-5.3`, `opencode-go/kimi-k2.7-code`, `opencode-go/qwen3.8-flash`) and restart the session.
-Keep the routing rule in the same file: default `high`; `max` only for architecture / conflicting
-candidates / HIGH actions.
+`atlas-planner`, `atlas-qa`, and `atlas-executor` were bound to **`opencode-go/deepseek-v4.1-flash`**. The
+operator is moving the whole planning pipeline — planner, QA, executor, and the built-in `plan` mode — to the
+free **`opencode-go/space-bunny-free`** to conserve paid usage. Four edits, then restart the session:
+
+| File | Line | Change |
+|---|---|---|
+| `~/.config/opencode/agents/atlas-planner.md` | 4 | `model: opencode-go/space-bunny-free` |
+| `~/.config/opencode/agents/atlas-qa.md` | 4 | `model: opencode-go/space-bunny-free` |
+| `~/.config/opencode/agents/atlas-executor.md` | 4 | `model: opencode-go/space-bunny-free` |
+| `~/.config/opencode/opencode.jsonc` | 127 | `"model": "opencode-go/space-bunny-free"` (the `agent.plan` entry) |
+
+`compaction` (`opencode.jsonc` 130–133) is still DeepSeek / `variant: low`; switch it too if usage pressure
+continues, accepting that a free model summarising long sessions may degrade quality. Keep the routing rule in
+the planner file: default `high`; `max` only for architecture / conflicting candidates / HIGH actions.
+
+**Why the planner session could not apply these itself (2026-09-25):** the governing permission block is the
+*repo-level* `D:\ATLAS\.opencode\agents\atlas-planner.md`, whose `edit: "*": deny` overrides the global allow
+for `C:/Users/njgro/.config/opencode/**`. To let a planner session edit its own config, add
+`"C:/Users/njgro/.config/opencode/**": allow` to that file's `edit:` block (after the `"*": deny` line) and
+restart.
 
 ## Next action
 
-Deploy `origin/main` `c5e167d7` at the next free runtime window (client-only, no migration; rollback basis =
-live at cutover), run the post-cutover QA, then Lane A's live pixel/browser acceptance. Then decide F7 and
-the Stage-2 successor.
+Deploy the tip carrying R1 (product tip `c5e167d7`; `origin/main` `f9125dfe` is docs-only above it) at the next
+free runtime window — client-only, no migration; rollback basis = live at cutover. Run the post-cutover QA,
+then Lane A's live pixel/browser acceptance. Then decide F7 and the Stage-2 successor.
