@@ -55,7 +55,7 @@ Object.defineProperty(globalThis, 'navigator', { value: dom.window.navigator, co
 const { createRoot } = await import('react-dom/client');
 const { TimetableGrid } = await import('../TimetableGrid');
 const { TimetableSimpleHeader } = await import('../TimetableSimpleHeader');
-const { useTimetableEntryReadOnly } = await import('../TimetableDraggableEntry');
+const { setTimetableEntryReadOnly, useTimetableEntryReadOnly } = await import('../TimetableDraggableEntry');
 const { MemoryRouter } = await import('react-router-dom');
 
 type AnyProps = Record<string, unknown>;
@@ -231,18 +231,21 @@ function ReadOnlyProbe() {
 	return createElement('span', { 'data-testid': 'readonly-probe' }, readOnly ? 'readonly' : 'editable');
 }
 
-function harness(isPublished: boolean) {
+let disclosureCount = 0;
+function harness(isPublished: boolean, layoutMode: 'simple' | 'advanced' = 'simple') {
+	disclosureCount = 0;
+	setTimetableEntryReadOnly(isPublished);
 	return createElement(MemoryRouter, null,
 		createElement('div', null,
-			createElement(TimetableSimpleHeader, {
+			layoutMode === 'simple' ? createElement(TimetableSimpleHeader, {
 				context: headerContext(isPublished) as never,
 				layoutMode: 'simple',
 				onLayoutModeChange: () => {},
 				activeTask: null,
 				onTaskChange: () => {},
-			}),
+			}) : null,
 			createElement(ReadOnlyProbe),
-			createElement(TimetableGrid, gridProps() as never),
+			createElement(TimetableGrid, gridProps({ onEntryClick: () => { disclosureCount += 1; } }) as never),
 		),
 	);
 }
@@ -275,6 +278,18 @@ test('F6: a published run renders read-only entries; a draft keeps its edit affo
 	assert.doesNotMatch(publishedEntry.className, /cursor-pointer/, 'no pointer cursor on a published run');
 	assert.match(publishedEntry.className, /cursor-default/);
 	assert.equal(publishedEntry.querySelector('svg[class*="grip-vertical"]'), null, 'no drag handle on a published run');
+	await act(async () => { publishedEntry.click(); });
+	assert.equal(disclosureCount, 1, 'a published entry still discloses details on click');
+	await act(async () => { publishedEntry.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); });
+	assert.equal(disclosureCount, 2, 'a published entry discloses details with Enter');
+	await act(async () => { publishedEntry.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: ' ', bubbles: true })); });
+	assert.equal(disclosureCount, 3, 'a published entry discloses details with Space');
+
+	await mount(harness(true, 'advanced'));
+	await flush();
+	const advancedPublishedEntry = document.querySelector('[data-timetable-entry="true"]') as HTMLElement;
+	assert.equal(advancedPublishedEntry.getAttribute('data-read-only'), 'true', 'Advanced mode receives the shared published state without the Simple header');
+	assert.doesNotMatch(advancedPublishedEntry.className, /cursor-pointer/);
 
 	await mount(harness(false));
 	await flush();

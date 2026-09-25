@@ -19,11 +19,12 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from '@/ui/sheet';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/ui/dropdown-menu';
 import { AlertCircle, ArrowRight, ArrowRightLeft, BookOpen, Clock, DoorOpen, GraduationCap, MoreHorizontal, Move, Redo2, RefreshCw, Undo2, UserRoundX } from 'lucide-react';
-import { lazy, Profiler, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Profiler, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import type { ScheduledEntry } from '@/types';
 import { TIMETABLE_DAY_SHORT } from '@/components/timetable/TimetableGrid.constants';
 import { isDraftPublishedStrict } from '@/components/timetable/timetableWorkspaceTruth';
+import { setTimetableEntryReadOnly } from '@/components/timetable/TimetableDraggableEntry';
 import { TimetableUndoRedoControl } from '@/components/timetable/TimetableUndoRedoControl';
 import { dispatchUndoByLedger } from '@/components/timetable/timetableUndoRedoState';
 import { createSwapArmHandler } from '@/components/timetable/timetableSwapArming';
@@ -240,6 +241,10 @@ export default function ScheduleReviewWorkspace() {
 	) : null;
 
 	const isDraftPublished = isDraftPublishedStrict(state.draft);
+	useLayoutEffect(() => {
+		setTimetableEntryReadOnly(isDraftPublished);
+		return () => setTimetableEntryReadOnly(false);
+	}, [isDraftPublished]);
 
 	if (state.loading && !state.draft) {
 		const routeIntent = resolveTimetableLoadingIntent(location.pathname);

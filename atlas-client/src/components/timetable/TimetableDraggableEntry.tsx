@@ -154,6 +154,9 @@ export const DraggableEntry = forwardRef<HTMLDivElement, DraggableEntryProps>(fu
 				data-dnd-source-type={entryData.type}
 				data-dnd-entry-id={entryId}
 				data-read-only="true"
+				tabIndex={0}
+				onClick={onClick}
+				onKeyDown={onKeyDown}
 				style={{ ...style }}
 			>
 				{children}
