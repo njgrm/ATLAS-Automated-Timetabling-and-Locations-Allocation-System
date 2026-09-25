@@ -18,6 +18,8 @@ import {
 } from 'lucide-react';
 
 import atlasApi from '@/lib/api';
+import { humaniseEngineToken, resolveViolationTitle } from '@/lib/violation-presentation';
+import { ALL_SESSIONS_PLACED_LABEL } from '@/lib/timetable-plain-language';
 import {
 	getDefaultUnassignedReasonDetail,
 	getProgramBadgeLabel,
@@ -186,10 +188,16 @@ export function GeneratedViolationsPanel({
 										setSeverityFilter('hard');
 									}}
 									className="h-6 w-full justify-start gap-1.5 rounded px-1 py-0.5 text-left text-xs font-semibold text-red-800 hover:bg-red-100/60 hover:text-red-600"
-									aria-label={`${VIOLATION_LABELS[violation.code] ?? violation.code.replace(/_/g, ' ').toLowerCase()}, ${count} in ${violationScopeLabel}`}
-								>
-									<ChevronRight className="size-3 shrink-0" />
-									<span className="truncate flex-1">{VIOLATION_LABELS[violation.code] ?? violation.code.replace(/_/g, ' ').toLowerCase()}</span>
+								aria-label={`${resolveViolationTitle(violation.code)}, ${count} in ${violationScopeLabel}`}
+							>
+								<ChevronRight className="size-3 shrink-0" />
+								{/* PLAIN-LANGUAGE-J2J3-C01 (J2): the two
+								 * `VIOLATION_LABELS[code] ?? code.replace(/_/g,' ').toLowerCase()`
+								 * expressions here were a third and fourth copy of the
+								 * humanising rule. The shared resolver IS that expression plus
+								 * the canonical title map, so the rail and the panel now agree
+								 * by construction rather than by two literals matching. */}
+								<span className="truncate flex-1">{resolveViolationTitle(violation.code)}</span>
 									<span className="shrink-0 text-red-500 font-semibold">x{count} · {violationScopeLabel}</span>
 								</Button>
 							);
@@ -405,7 +413,7 @@ export function GeneratedUnassignedPanel({ context, renderUnassignedReasonBadge 
 							<div className="space-y-1.5">
 								<div className="flex gap-1 overflow-x-auto scrollbar-thin pb-0.5">
 									{(['all', 'NO_QUALIFIED_FACULTY', 'FACULTY_OVERLOADED', 'NO_AVAILABLE_SLOT', 'NO_COMPATIBLE_ROOM'] as const).map((reason) => {
-										const label = reason === 'all' ? 'All' : (UNASSIGNED_REASON_LABELS[reason]?.label ?? reason);
+										const label = reason === 'all' ? 'All' : (UNASSIGNED_REASON_LABELS[reason]?.label ?? humaniseEngineToken(reason));
 										const count = reason === 'all'
 											? programKindFilteredUnassignedItems.length
 											: programKindFilteredUnassignedItems.filter((item) => item.reason === reason).length;
@@ -451,7 +459,11 @@ export function GeneratedUnassignedPanel({ context, renderUnassignedReasonBadge 
 					{generatedSummary.unassignedCount === 0 && (
 						<div className="px-3 py-4 text-center text-xs text-muted-foreground">
 							<Check className="mx-auto size-6 text-emerald-500 mb-1" />
-							All classes assigned successfully
+							{/* PLAIN-LANGUAGE-J2J3-C01 (J3): was "All classes assigned
+							 * successfully" — wrong unit (this count is sessions) and an
+							 * unearned promise. One shared constant, so the two panels that
+							 * render this state cannot drift apart. */}
+							{ALL_SESSIONS_PLACED_LABEL}
 						</div>
 					)}
 					{generatedSummary.unassignedCount > 0 && filteredUnassignedItems.length === 0 && (
@@ -462,7 +474,8 @@ export function GeneratedUnassignedPanel({ context, renderUnassignedReasonBadge 
 				</>
 			) : (
 				<div className="px-3 py-6 text-center text-xs text-muted-foreground">
-					No draft data available
+					{/* PLAIN-LANGUAGE-J2J3-C01 (J3): "draft data" is engine vocabulary. */}
+					No schedule to show yet
 				</div>
 			)}
 		</div>

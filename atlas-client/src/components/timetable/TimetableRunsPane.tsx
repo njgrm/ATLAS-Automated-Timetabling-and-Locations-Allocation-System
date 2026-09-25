@@ -23,6 +23,7 @@ import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import { ScrollArea } from '@/ui/scroll-area';
 import type { GenerationRun } from '@/types';
+import { plainGenerationRunStatus } from '@/lib/timetable-plain-language';
 
 /**
  * The exact fields `listRuns` selects. `runType` and `version` are returned by
@@ -105,7 +106,12 @@ export function TimetableRunsPane({
 								>
 									<div className="flex min-w-0 flex-wrap items-center gap-2">
 										<Badge variant={statusVariant(run.status)} className="h-5 px-1.5 text-xs">
-											{run.status}
+											{/* PLAIN-LANGUAGE-J2J3-C01 (J2): was `{run.status}`, so the runs
+											 * list — the surface a scheduler reads to decide WHICH run to
+											 * open — printed the raw `QUEUED`/`RUNNING`/`COMPLETED`/`FAILED`
+											 * enum. `statusVariant` above still receives the raw value, so the
+											 * badge colour logic is untouched. */}
+											{plainGenerationRunStatus(run.status)}
 										</Badge>
 										<p className="text-sm font-semibold">Run #{run.id}</p>
 										{index === 0 ? (

@@ -54,6 +54,7 @@ import { ExplainabilityDrawer } from '../../components/ExplainabilityDrawer';
 import { ConstraintRow, SOFT_CONSTRAINT_LABELS, DEFAULT_CONSTRAINT_CONFIG } from '../../components/scheduling-policy/PolicyPanePrimitives';
 import { PublishChecklistContent, buildBlockerGroups, UNASSIGNED_GROUP_MAP } from '../../components/timetable/simple/SimpleTaskDrawerHelpers';
 import type { DraftReport, UnassignedItem, Violation, ViolationReport } from '../../types';
+import { resolveViolationLabel } from '../../hooks/useTimetableData';
 
 const clientRoot = resolve(import.meta.dirname, '../../..');
 const repoRoot = resolve(clientRoot, '..');
@@ -526,7 +527,35 @@ test('B7 the retired travel metric has no operative client residue', () => {
 	assert.ok(constantsWellbeing.length > 0 && !constantsWellbeing.includes(retired), 'rail wellbeing family excludes travel');
 
 	// The legacy label fallback is intentionally retained for old persisted runs.
-	assert.ok(source('src/hooks/useTimetableData.ts').includes(`${retired}: 'Excessive Travel Distance'`), 'legacy runs still render a readable label');
+	//
+	// ── SUPERSEDED IN PLACE by PLAIN-LANGUAGE-J2J3-C01 (J2), 2026-09-26 ──
+	// The original assertion is retained VERBATIM below as the record of the
+	// decision being superseded; it is not run as pass/fail. It pinned the
+	// fallback to one FILE (`useTimetableData.ts`), which was only ever a proxy
+	// for the real requirement — "old persisted runs still render a readable
+	// label". J2 collapsed the two copies of the humanising rule (the label map
+	// and the retired-code fallback) into one shared rule in
+	// `lib/violation-presentation.ts`, so the file pin broke while the behaviour
+	// it protected is unchanged. The replacement rows below assert the actual
+	// requirement instead: the fallback is present in the module that now owns
+	// it, the public resolver still returns the readable label at runtime, and
+	// the rail resolver still delegates to that one rule. The capability this
+	// row exists to protect is therefore NOT given up.
+	//   assert.ok(source('src/hooks/useTimetableData.ts').includes(`${retired}: 'Excessive Travel Distance'`), 'legacy runs still render a readable label');
+	assert.ok(
+		source('src/lib/violation-presentation.ts').includes(`${retired}: 'Excessive Travel Distance'`),
+		'the legacy label fallback lives in the shared presentation module that now owns the humanising rule',
+	);
+	// Behaviour, not a file pin: this is what the superseded assertion was for.
+	assert.equal(
+		resolveViolationLabel(retired),
+		'Excessive Travel Distance',
+		'legacy runs still render a readable label (runtime proof, not a source-location proxy)',
+	);
+	assert.ok(
+		source('src/hooks/useTimetableData.ts').includes('resolveViolationTitle'),
+		'the rail resolver delegates to the one shared humanising rule instead of holding a second copy',
+	);
 	assert.ok(source('src/types.ts').includes(`'${retired}'`), 'the wire union still accepts a legacy persisted code');
 });
 

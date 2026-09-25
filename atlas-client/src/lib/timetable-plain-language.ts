@@ -21,6 +21,13 @@
  * is introduced.
  */
 
+import type {
+	GenerationRunStatus,
+	RoomPreferenceDecisionStatus,
+	RoomRequestAppealStatus,
+} from '@/types';
+import { humaniseEngineToken } from '@/lib/violation-presentation';
+
 /** The one plain word for "a problem that stops you saving and publishing". */
 export const MUST_FIX_LABEL = 'Must fix';
 
@@ -86,3 +93,91 @@ export const HARD_COUNT_RELATIONSHIP_NOTE =
 export function plainScopeLabel(scope: 'run-wide' | 'selected-term'): string {
 	return scope === 'run-wide' ? 'Whole year' : 'Selected term only';
 }
+
+/* ------------------------------------------------------------------ *
+ * PLAIN-LANGUAGE-J2J3-C01 (J2) — engine tokens that were still on screen.
+ *
+ * Three unions reached the operator as raw `SCREAMING_SNAKE`:
+ * `request.decisionStatus` (left rail + selected-entry panel), `appeal.status`
+ * (workflow dialog) and `run.status` (runs pane + summary stat). The repo
+ * already had the right pattern for this — `ACTION_LABELS: Record<
+ * RoomPreferenceActionType, string>` in the Officer room-preferences page: a
+ * TOTAL `Record<Enum, string>` of plain words, so a new union member is a
+ * compile error instead of a silent enum on screen. These three reuse it.
+ *
+ * The maps are total by annotation, which is the load-bearing part: totality is
+ * what guarantees no enum can leak, and a `Record<Union, string>` is checked by
+ * the compiler rather than by a test that could be deleted.
+ */
+
+/** `RoomPreferenceDecisionStatus` — a room request's officer decision. */
+export const ROOM_DECISION_STATUS_LABELS: Record<RoomPreferenceDecisionStatus, string> = {
+	PENDING: 'Waiting for a decision',
+	APPROVED: 'Approved',
+	REJECTED: 'Not approved',
+};
+
+/** `RoomRequestAppealStatus` — what happened to a room request's appeal. */
+export const ROOM_APPEAL_STATUS_LABELS: Record<RoomRequestAppealStatus, string> = {
+	OPEN: 'Open',
+	UNDER_REVIEW: 'Being reviewed',
+	UPHELD: 'Upheld',
+	DENIED: 'Not upheld',
+};
+
+/** `GenerationRunStatus` — what one scheduling attempt did. */
+export const GENERATION_RUN_STATUS_LABELS: Record<GenerationRunStatus, string> = {
+	QUEUED: 'Waiting to start',
+	RUNNING: 'In progress',
+	COMPLETED: 'Finished',
+	FAILED: 'Did not finish',
+};
+
+/** The one "this value is genuinely absent" marker, matching the em-dash the
+ * surfaces already used. It is not an enum, so it is not in any map. */
+const ABSENT_VALUE_LABEL = '—';
+
+function plainEnumLabel<T extends string>(
+	map: Record<T, string>,
+	value: string | null | undefined,
+): string {
+	// An absent value keeps the existing em-dash. It must not be humanised into
+	// a word, and it must not reach a map lookup typed as the union.
+	if (value == null || value === '' || value === ABSENT_VALUE_LABEL) return ABSENT_VALUE_LABEL;
+	const known = map[value as T];
+	if (known) return known;
+	// A value outside the union (a newer server, a stored legacy row) degrades
+	// to a readable phrase. It must NEVER echo the raw token: an unmapped enum
+	// reaching the operator is the exact defect J2 exists to close, so a missing
+	// map entry is a defect here, not a pass.
+	return humaniseEngineToken(value);
+}
+
+export function plainRoomDecisionStatus(value: string | null | undefined): string {
+	return plainEnumLabel(ROOM_DECISION_STATUS_LABELS, value);
+}
+
+export function plainRoomAppealStatus(value: string | null | undefined): string {
+	return plainEnumLabel(ROOM_APPEAL_STATUS_LABELS, value);
+}
+
+export function plainGenerationRunStatus(value: string | null | undefined): string {
+	return plainEnumLabel(GENERATION_RUN_STATUS_LABELS, value);
+}
+
+/**
+ * The canonical wording for "nothing is waiting to be placed", in the one unit
+ * every other surface already uses for that count: sessions.
+ *
+ * PLAIN-LANGUAGE-J2J3-C01 (J3) — this state read "All classes assigned
+ * successfully" in two places. That sentence is not merely jargon: `classes`
+ * is the WRONG UNIT. The count behind it is `unassignedCount`, which the
+ * resolver, five other consumers and the J1 publish checklist all call
+ * sessions, and an "assigned class" is a subject-period pair rather than
+ * anything a scheduler places. So the sentence was wrong twice over — wrong
+ * vocabulary, and a promise ("successfully") the surface cannot make, since
+ * zero unplaced sessions says nothing about whether the schedule can be
+ * published. It is the positive counterpart of the checklist's "N sessions need
+ * placement", and it is stated once here so the two cannot drift.
+ */
+export const ALL_SESSIONS_PLACED_LABEL = 'All sessions placed';

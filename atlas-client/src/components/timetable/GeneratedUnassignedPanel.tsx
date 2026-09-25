@@ -16,6 +16,8 @@ import {
 } from 'lucide-react';
 
 import atlasApi from '@/lib/api';
+import { humaniseEngineToken } from '@/lib/violation-presentation';
+import { ALL_SESSIONS_PLACED_LABEL } from '@/lib/timetable-plain-language';
 import {
 	getProgramBadgeLabel,
 	matchesProgramFilter,
@@ -60,7 +62,12 @@ function getUnassignedStatus(
 /** The rail's unresolved-reason badge (shared by `LeftRailContent` and the Simple drawer). */
 export function renderUnassignedReasonBadgeFor(labels: LeftRailContentContext['UNASSIGNED_REASON_LABELS'], reason: string) {
 	const info = labels[reason] ?? {
-		label: reason,
+		// PLAIN-LANGUAGE-J2J3-C01 (J2): the fallback used to be `label: reason`,
+		// so a reason the server adds before the client learns it rendered as a
+		// raw `NO_AVAILABLE_SLOT`-shaped token on the badge. It now degrades to a
+		// readable phrase through the same humanising rule the violation titles
+		// use, so an unmapped reason is never an enum.
+		label: humaniseEngineToken(reason),
 		className: 'border-gray-300 bg-gray-50 text-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:border-gray-700',
 	};
 	return (
@@ -218,7 +225,7 @@ export function GeneratedUnassignedPanel({ context, renderUnassignedReasonBadge 
 								</Button>
 							))}
 							{(['all', 'NO_QUALIFIED_FACULTY', 'FACULTY_OVERLOADED', 'NO_AVAILABLE_SLOT', 'NO_COMPATIBLE_ROOM'] as const).map((reason) => {
-								const label = reason === 'all' ? 'Any reason' : (UNASSIGNED_REASON_LABELS[reason]?.label ?? reason);
+								const label = reason === 'all' ? 'Any reason' : (UNASSIGNED_REASON_LABELS[reason]?.label ?? humaniseEngineToken(reason));
 								const count = reason === 'all'
 									? programKindFilteredUnassignedItems.length
 									: programKindFilteredUnassignedItems.filter((item) => item.reason === reason).length;
@@ -279,7 +286,11 @@ export function GeneratedUnassignedPanel({ context, renderUnassignedReasonBadge 
 					{generatedSummary.unassignedCount === 0 && (
 						<div className="px-3 py-4 text-center text-xs text-muted-foreground">
 							<Check className="mx-auto mb-1 size-6 text-emerald-500" />
-							All classes assigned successfully
+							{/* PLAIN-LANGUAGE-J2J3-C01 (J3): was "All classes assigned
+							 * successfully" — wrong unit (this count is sessions, as the
+							 * resolver, five other consumers and the publish checklist all
+							 * call it) and an unearned promise ("successfully"). */}
+							{ALL_SESSIONS_PLACED_LABEL}
 						</div>
 					)}
 					{generatedSummary.unassignedCount > 0 && visibleItems.length === 0 && (
@@ -290,7 +301,8 @@ export function GeneratedUnassignedPanel({ context, renderUnassignedReasonBadge 
 				</>
 			) : (
 				<div className="px-3 py-6 text-center text-xs text-muted-foreground">
-					No draft data available
+					{/* PLAIN-LANGUAGE-J2J3-C01 (J3): "draft data" is engine vocabulary. */}
+					No schedule to show yet
 				</div>
 			)}
 		</div>

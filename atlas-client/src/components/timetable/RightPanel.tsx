@@ -15,6 +15,11 @@ import {
 } from 'lucide-react';
 
 import { formatTime } from '@/lib/utils';
+import { resolveViolationTitle } from '@/lib/violation-presentation';
+import {
+	plainRoomAppealStatus,
+	plainRoomDecisionStatus,
+} from '@/lib/timetable-plain-language';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import { ResizableHandle, ResizablePanel } from '@/ui/resizable';
@@ -49,6 +54,13 @@ type RightPanelProps = {
 	roomRequestSummary: any;
 	previewResult: any;
 	formatConstraintMessage: (message: string) => string;
+	/**
+	 * Retained on the shared context because the workspace still publishes it,
+	 * but this panel deliberately does NOT read it. PLAIN-LANGUAGE-J2J3-C01 (J2)
+	 * resolves every violation title through the canonical
+	 * `resolveViolationTitle`, so a second label map cannot be indexed here and
+	 * reintroduce a raw-enum or empty-heading defect.
+	 */
 	violationLabels: Record<string, string>;
 	violationExplanations: Record<string, { why: string }>;
 	setSelectedViolation: (value: any) => void;
@@ -90,7 +102,6 @@ function RightPanelImpl(props: RightPanelProps) {
 		roomRequestSummary,
 		previewResult,
 		formatConstraintMessage,
-		violationLabels,
 		violationExplanations,
 		setSelectedViolation,
 		toast,
@@ -296,17 +307,20 @@ function RightPanelImpl(props: RightPanelProps) {
 														{matchingRequest ? (
 															<>
 																<p className="text-xs text-foreground truncate">Requested: {matchingRequest.requestedRoomName}</p>
+															<p className="text-xs text-muted-foreground">
+																{/* PLAIN-LANGUAGE-J2J3-C01 (J2): was `{matchingRequest.decisionStatus}`,
+																 * so the selected-entry panel printed the raw
+																 * `PENDING`/`APPROVED`/`REJECTED` enum. */}
+																Status: {plainRoomDecisionStatus(matchingRequest.decisionStatus)} · Reason: {matchingRequest.rationale ?? '—'}
+															</p>
+															<p className="text-xs text-muted-foreground truncate">
+																Reviewer notes: {matchingRequest.reviewerNotes ?? '—'}
+															</p>
+															{matchingRequest.appealCount > 0 ? (
 																<p className="text-xs text-muted-foreground">
-																	Status: {matchingRequest.decisionStatus} · Reason: {matchingRequest.rationale ?? '—'}
+																	Appeals: {matchingRequest.appealCount} total ({matchingRequest.openAppealCount} open) · Latest {plainRoomAppealStatus(matchingRequest.latestAppealStatus)}
 																</p>
-																<p className="text-xs text-muted-foreground truncate">
-																	Reviewer notes: {matchingRequest.reviewerNotes ?? '—'}
-																</p>
-																{matchingRequest.appealCount > 0 ? (
-																	<p className="text-xs text-muted-foreground">
-																		Appeals: {matchingRequest.appealCount} total ({matchingRequest.openAppealCount} open) · Latest {matchingRequest.latestAppealStatus ?? '—'}
-																	</p>
-																) : null}
+															) : null}
 															</>
 														) : (
 															<p className="text-xs text-muted-foreground">No request linked to this session.</p>
@@ -339,26 +353,36 @@ function RightPanelImpl(props: RightPanelProps) {
 																	</Badge>
 																)}
 															</div>
-															{entryViolations.map((v: any, i: number) => {
-																const explanation = violationExplanations[v.code];
-																return (
-																	<TooltipProvider key={i}>
-																		<Tooltip delayDuration={300}>
-																			<TooltipTrigger asChild>
-																				<div className={`rounded px-2.5 py-1 text-xs leading-snug cursor-help ${v.severity === 'HARD' ? 'border border-red-200 bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300 dark:border-red-800' : 'border border-amber-200 bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300 dark:border-amber-800'}`}>
-																					{violationLabels[v.code] ?? v.code}
-																				</div>
-																			</TooltipTrigger>
-																			{explanation && (
-																				<TooltipContent side="left" className="max-w-62.5 text-xs">
-																					<p className="font-semibold mb-1">{violationLabels[v.code]}</p>
-																					<p className="text-muted-foreground leading-normal">{explanation.why}</p>
-																				</TooltipContent>
-																			)}
-																		</Tooltip>
-																	</TooltipProvider>
-																);
-															})}
+														{entryViolations.map((v: any, i: number) => {
+															const explanation = violationExplanations[v.code];
+															// PLAIN-LANGUAGE-J2J3-C01 (J2): resolved ONCE through the shared
+															// humanising resolver. The trigger used to render
+															// `violationLabels[v.code] ?? v.code`, so a code missing from the map
+															// showed the operator the raw `SCREAMING_SNAKE` enum, and the tooltip
+															// heading rendered `violationLabels[v.code]` with NO fallback at all —
+															// an empty <p> as the heading of the explanation. The resolver never
+															// returns empty for a non-empty code, so both defects are gone and the
+															// heading can no longer disagree with the trigger.
+															const violationTitle = resolveViolationTitle(v.code);
+															return (
+																<TooltipProvider key={i}>
+																	<Tooltip delayDuration={300}>
+																		<TooltipTrigger asChild>
+																			<div className={`rounded px-2.5 py-1 text-xs leading-snug cursor-help ${v.severity === 'HARD' ? 'border border-red-200 bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300 dark:border-red-800' : 'border border-amber-200 bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300 dark:border-amber-800'}`}>
+																				{violationTitle}
+																			</div>
+																		</TooltipTrigger>
+																		{explanation && (
+																			<TooltipContent side="left" className="max-w-62.5 text-xs">
+																				<p className="font-semibold mb-1">{violationTitle}</p>
+																				<p className="text-muted-foreground leading-normal">{explanation.why}</p>
+																			</TooltipContent>
+																		)}
+																	</Tooltip>
+																</TooltipProvider>
+															);
+														})}
+
 														</div>
 													)}
 												</>
