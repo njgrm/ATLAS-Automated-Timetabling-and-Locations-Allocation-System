@@ -106,15 +106,15 @@ export function TeachingLoadTruthPanel({ model, loading = false, sourceRevision 
 	// "unknown" rather than 0.
 	const summaryLine = model
 		? [
-			`Required ${isKnown(model.requiredPairs) ? model.requiredPairs.value : 'unknown'}`,
-			`Unresolved ${isKnown(model.unresolvedPairs) ? model.unresolvedPairs.value : 'unknown'}`,
+			`${isKnown(model.requiredPairs) ? model.requiredPairs.value : 'Unknown number of'} classes`,
+			`${isKnown(model.unresolvedPairs) ? model.unresolvedPairs.value : 'unknown'} without a teacher`,
 		].join(' · ')
-		: 'Authority unavailable';
+		: 'Not available yet';
 
 	return (
 		<section
 			data-testid="teaching-load-truth-panel"
-			aria-label="Canonical Teaching Load truth"
+			aria-label="Teaching Load summary"
 			className="rounded-xl border border-border/40 bg-background px-2 py-1.5 shadow-sm"
 		>
 			{/*
@@ -130,7 +130,7 @@ export function TeachingLoadTruthPanel({ model, loading = false, sourceRevision 
 					<AccordionTrigger className="items-center gap-1.5 py-1 text-left hover:no-underline">
 						<span className="flex min-w-0 flex-1 items-center gap-1.5">
 							<ClipboardList className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-							<span className="shrink-0 text-xs font-bold uppercase tracking-widest text-muted-foreground">Teaching Load truth</span>
+							<span className="shrink-0 text-xs font-bold uppercase tracking-widest text-muted-foreground">Teaching Load summary</span>
 							<span
 								className="min-w-0 truncate text-xs font-semibold text-muted-foreground"
 								data-testid="teaching-load-truth-summary-line"
@@ -158,13 +158,13 @@ export function TeachingLoadTruthPanel({ model, loading = false, sourceRevision 
 											)}
 											data-testid="teaching-load-truth-source-badge"
 										>
-											{upstreamVerified ? 'Source verified' : 'Source not verified'}
+											{upstreamVerified ? 'Up to date with EnrollPro' : 'Using saved data'}
 										</Badge>
 									</TooltipTrigger>
 									<TooltipContent side="bottom" className="max-w-72 p-3 text-xs font-medium leading-relaxed">
 										{upstreamVerified
-											? 'This summary is derived from the canonical read-only Teaching Load authority.'
-											: 'This summary is derived from the canonical read-only Teaching Load authority, but upstream EnrollPro verification is unavailable, so the workspace is showing the ATLAS runtime cache.'}
+											? 'These numbers come from the saved Teaching Load and match EnrollPro.'
+											: 'EnrollPro could not be reached just now, so these numbers come from the last saved Teaching Load. Recent changes in EnrollPro may be missing.'}
 									</TooltipContent>
 								</Tooltip>
 							) : null}
@@ -178,16 +178,16 @@ export function TeachingLoadTruthPanel({ model, loading = false, sourceRevision 
 										</Button>
 									</PopoverTrigger>
 									<PopoverContent align="start" className="w-[min(24rem,calc(100vw-1.5rem))] space-y-3 p-3">
-										<DrillDownList title="Zero-load active teachers" values={zeroLoadNames} empty="Every active teacher currently carries load." />
-										<DrillDownList title="Class advisers" values={adviserNames} empty="No adviser mapping is recorded for this scope." />
+										<DrillDownList title="Teachers with no classes" values={zeroLoadNames} empty="Every active teacher has classes." />
+										<DrillDownList title="Class advisers" values={adviserNames} empty="No class advisers are recorded for this school year." />
 										<DrillDownList
-											title="Unresolved reasons"
+											title="Why some classes have no teacher"
 											values={unresolvedReasons.map((reason) => reason.message).filter(Boolean)}
-											empty="No unresolved pair reasons were reported."
+											empty="No problems reported."
 										/>
 										{hgExplanation && (
 											<div className="space-y-1">
-												<p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Excluded rows</p>
+												<p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Not counted</p>
 												<p className="text-xs font-medium text-muted-foreground">{hgExplanation}</p>
 											</div>
 										)}
@@ -199,27 +199,27 @@ export function TeachingLoadTruthPanel({ model, loading = false, sourceRevision 
 			{/* Row 1 — demand and assignment truth. */}
 			<div className="mt-1.5 flex min-w-0 flex-nowrap items-center gap-1.5 overflow-x-auto border-t border-border/40 pt-1.5" data-testid="teaching-load-truth-summary">
 				<MetricChip
-					label="Required pairs"
+					label="Classes needing a teacher"
 					testId="teaching-load-truth-required-pairs"
 					metric={model?.requiredPairs ?? { state: 'unknown', reason: 'Waiting for authority.' }}
 					format={(value: number) => `${value}`}
 				/>
 				<MetricChip
-					label="Assigned pairs"
+					label="Classes with a teacher"
 					testId="teaching-load-truth-assigned-pairs"
 					tone={model && isKnown(model.assignedPairs) && model.assignedPairs.value.real > 0 ? 'success' : 'neutral'}
 					metric={model?.assignedPairs ?? { state: 'unknown', reason: 'Waiting for authority.' }}
-					format={(value: { real: number; placeholder: number; total: number }) => `${value.total} (${value.real} real, ${value.placeholder} temp)`}
+					format={(value: { real: number; placeholder: number; total: number }) => (value.placeholder > 0 ? `${value.total} (${value.placeholder} temporary)` : `${value.total}`)}
 				/>
 				<MetricChip
-					label="Unresolved pairs"
+					label="Still without a teacher"
 					testId="teaching-load-truth-unresolved-pairs"
 					tone={model && isKnown(model.unresolvedPairs) && model.unresolvedPairs.value > 0 ? 'warning' : 'neutral'}
 					metric={model?.unresolvedPairs ?? { state: 'unknown', reason: 'Waiting for authority.' }}
 					format={(value: number) => `${value}`}
 				/>
 				<MetricChip
-					label="Actual teaching"
+					label="Total teaching hours"
 					testId="teaching-load-truth-actual-hours"
 					metric={model?.actualTeachingMinutes ?? { state: 'unknown', reason: 'Waiting for authority.' }}
 					format={(value: number) => `${minutesToHours(value)}h`}
@@ -229,58 +229,58 @@ export function TeachingLoadTruthPanel({ model, loading = false, sourceRevision 
 			{/* Row 2 — persisted policy capacity, overload, and exceptions. */}
 			<div className="mt-1.5 flex min-w-0 flex-nowrap items-center gap-1.5 overflow-x-auto border-t border-border/40 pt-1.5" data-testid="teaching-load-truth-capacity">
 				<MetricChip
-					label="Standard"
+					label="Standard load"
 					testId="teaching-load-truth-standard"
 					metric={model?.policyCapacity ?? { state: 'unknown', reason: 'Waiting for authority.' }}
 					format={(value: { teachingStandardMinutes: number; hardCapMinutes: number | null }) => `${minutesToHours(value.teachingStandardMinutes)}h`}
 				/>
 				<MetricChip
-					label="Hard cap"
+					label="School hard cap"
 					testId="teaching-load-truth-hard-cap"
 					metric={model?.policyCapacity ?? { state: 'unknown', reason: 'Waiting for authority.' }}
 					format={(value: { teachingStandardMinutes: number; hardCapMinutes: number | null }) => (value.hardCapMinutes == null ? 'Not set' : `${minutesToHours(value.hardCapMinutes)}h`)}
 				/>
 				<MetricChip
-					label="Over standard"
+					label="Above standard"
 					testId="teaching-load-truth-over-standard"
 					tone={model && isKnown(model.overload) && model.overload.value.overStandardCount > 0 ? 'warning' : 'success'}
 					metric={model?.overload ?? { state: 'unknown', reason: 'Waiting for authority.' }}
 					format={(value: { overStandardCount: number; overHardCapCount: number; excessMinutes: number }) => `${value.overStandardCount} (+${minutesToHours(value.excessMinutes)}h)`}
 				/>
 				<MetricChip
-					label="Over hard cap"
+					label="Above hard cap"
 					testId="teaching-load-truth-over-hard-cap"
 					tone={model && isKnown(model.overload) && model.overload.value.overHardCapCount > 0 ? 'danger' : 'neutral'}
 					metric={model?.overload ?? { state: 'unknown', reason: 'Waiting for authority.' }}
 					format={(value: { overStandardCount: number; overHardCapCount: number; excessMinutes: number }) => `${value.overHardCapCount}`}
 				/>
 				<MetricChip
-					label="Remaining"
+					label="Hours still available"
 					testId="teaching-load-truth-remaining"
 					metric={model?.remainingCapacityMinutes ?? { state: 'unknown', reason: 'Waiting for authority.' }}
 					format={(value: number) => `${minutesToHours(value)}h`}
 				/>
 				<MetricChip
-					label="Zero-load"
+					label="Teachers with no classes"
 					testId="teaching-load-truth-zero-load"
 					tone={model && isKnown(model.zeroLoadFaculty) && model.zeroLoadFaculty.value.count > 0 ? 'warning' : 'success'}
 					metric={model?.zeroLoadFaculty ?? { state: 'unknown', reason: 'Waiting for authority.' }}
 					format={(value: { count: number; names: string[] }) => `${value.count}`}
 				/>
 				<MetricChip
-					label="Advisers"
+					label="Class advisers"
 					testId="teaching-load-truth-advisers"
 					metric={model?.adviserStatus ?? { state: 'unknown', reason: 'Waiting for authority.' }}
 					format={(value: { count: number; names: string[] }) => `${value.count}`}
 				/>
 				<MetricChip
-					label="Advisory credit"
+					label="Adviser credit"
 					testId="teaching-load-truth-advisory-credit"
 					metric={model?.advisoryCreditMinutes ?? { state: 'unknown', reason: 'Waiting for authority.' }}
 					format={(value: number) => `${minutesToHours(value)}h`}
 				/>
 				<MetricChip
-					label="HG excluded"
+					label="Homeroom Guidance (not counted)"
 					testId="teaching-load-truth-hg-excluded"
 					metric={model?.excludedHgRows ?? { state: 'unknown', reason: 'Waiting for authority.' }}
 					format={(value: { count: number; explanation: string }) => `${value.count}`}
@@ -289,8 +289,8 @@ export function TeachingLoadTruthPanel({ model, loading = false, sourceRevision 
 
 			<p className="sr-only" aria-live="polite" data-testid="teaching-load-truth-summary-text">
 				{model
-					? `Required pairs ${isKnown(model.requiredPairs) ? model.requiredPairs.value : 'unknown'}; assigned pairs ${isKnown(model.assignedPairs) ? model.assignedPairs.value.total : 'unknown'}; unresolved pairs ${isKnown(model.unresolvedPairs) ? model.unresolvedPairs.value : 'unknown'}.`
-					: 'Canonical Teaching Load authority is not available yet.'}
+					? `Classes needing a teacher ${isKnown(model.requiredPairs) ? model.requiredPairs.value : 'unknown'}; classes with a teacher ${isKnown(model.assignedPairs) ? model.assignedPairs.value.total : 'unknown'}; still without a teacher ${isKnown(model.unresolvedPairs) ? model.unresolvedPairs.value : 'unknown'}.`
+					: 'The Teaching Load summary is not available yet.'}
 			</p>
 
 			{/* A typed unknown is an operator-visible condition, not a silent zero. */}
@@ -312,7 +312,7 @@ export function TeachingLoadTruthPanel({ model, loading = false, sourceRevision 
 					className="mt-1.5 flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-800"
 				>
 					<BadgeCheck className="size-3.5" />
-					<span>Every required subject-section pair has an owner.</span>
+					<span>Every class has a teacher.</span>
 				</div>
 			)}
 

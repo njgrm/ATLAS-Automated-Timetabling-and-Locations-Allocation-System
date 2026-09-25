@@ -514,7 +514,7 @@ export default function TeachingLoad() {
 			return {
 				label: 'ATLAS Teaching Load draft',
 				description: data.degradedNotice ?? 'ATLAS is using synced EnrollPro section data for Teaching Load. This is expected. Draft changes can be saved.',
-				nextAction: data.activeDraftCount > 0 ? 'Save the draft, then refresh when live verification is available.' : 'Review coverage carefully, then refresh when live verification is available.',
+				nextAction: data.activeDraftCount > 0 ? 'Save your changes. Refresh later to pick up any new EnrollPro changes.' : 'Check the classes below. Refresh later to pick up any new EnrollPro changes.',
 				writeBlockedReason: null,
 			};
 		}

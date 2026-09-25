@@ -33,6 +33,7 @@ import {
 } from '@/lib/faculty-assignment-helpers';
 import type { FacultySummary, FacultyAssignmentDraft, Subject, ExternalSection, LoadProfile } from '@/types';
 import { SubjectRow } from './SubjectRow';
+import { countDistinctSections } from '@/lib/teaching-load-counts';
 
 type TeacherGridModeProps = {
 	loading: boolean;
@@ -403,7 +404,8 @@ export function TeacherGridMode({
 											: teachingUtilizationPercentFor(member, teachingStandardHours, effectiveActualHours);
 										
 										const subjectsCount = effectiveAssignmentsByFaculty[member.id]?.length || 0;
-										const sectionsCount = effectiveAssignmentsByFaculty[member.id]?.reduce((acc, a) => acc + a.sectionIds.length, 0) || 0;
+										// LANE-C C02 (audit A1): distinct sections, not the per-subject sum.
+										const sectionsCount = countDistinctSections(effectiveAssignmentsByFaculty[member.id]);
 
 										return (
 											<div 
@@ -471,18 +473,18 @@ export function TeacherGridMode({
 																	</p>
 																</TooltipTrigger>
 																<TooltipContent side="bottom" className="max-w-64 p-3">
-																	<p className="text-xs font-medium">{policyReady && teachingStandardHours != null ? `Actual teaching load versus the ${teachingStandardHours}h teaching standard. Advisory and ancillary credits are counted separately and never inflate this figure.` : 'Teaching standard is not configured for this school year, so utilization cannot be computed.'}</p>
+																	<p className="text-xs font-medium">{policyReady && teachingStandardHours != null ? `Teaching hours a week in this teacher's busiest term, compared with the ${teachingStandardHours}h standard. Adviser and other-duty credit is counted separately.` : 'The standard load is not set for this school year, so the percentage cannot be shown.'}</p>
 																</TooltipContent>
 															</Tooltip>
-															<p className="text-[10px] font-bold text-muted-foreground uppercase tracking-tighter hidden sm:block">Teaching load</p>
+															<p className="text-xs font-bold text-muted-foreground uppercase tracking-tight hidden sm:block">Hours / week</p>
 														</div>
 														<div className="text-right min-w-10 hidden sm:block">
 															<p className="text-xs font-semibold tabular-nums">{subjectsCount}</p>
-															<p className="text-[10px] font-bold text-muted-foreground uppercase tracking-tighter">Subjects</p>
+															<p className="text-xs font-bold text-muted-foreground uppercase tracking-tight">Subjects</p>
 														</div>
 														<div className="text-right min-w-10 hidden sm:block">
 															<p className="text-xs font-semibold tabular-nums">{sectionsCount}</p>
-															<p className="text-[10px] font-bold text-muted-foreground uppercase tracking-tighter">Sections</p>
+															<p className="text-xs font-bold text-muted-foreground uppercase tracking-tight">Sections</p>
 														</div>
 													</div>
 

@@ -322,7 +322,7 @@ export const SubjectRow = memo(({
 									label={`More details for ${subject.name}`}
 									shortHelp={[
 										isOutsideDepartment ? 'This subject is outside this teacher\'s department.' : null,
-										isRotationFamily ? 'This subject rotates by term (shares one weekly lane across terms).' : null,
+										isRotationFamily ? 'This subject rotates by term: one weekly period, with a different topic each term.' : null,
 										isRotationFamily && rotationTermLabel ? `Active in ${rotationTermLabel}.` : null,
 										isSpecializationSlot ? 'This subject needs a specific specialization to teach.' : null,
 									].filter(Boolean).join(' ')}
@@ -331,8 +331,13 @@ export const SubjectRow = memo(({
 							) : null}
 						</div>
 						<div className="flex items-center gap-2 mt-1">
-							<code className="text-xs font-mono text-muted-foreground/80 font-bold uppercase tracking-tight">{subject.code}</code>
-							<span className="text-muted-foreground/30 text-xs">•</span>
+							{/* LANE-C C02 (audit A6): the term for rotating subjects, not the internal code. */}
+							{isRotationFamily && rotationTermLabel ? (
+								<>
+									<span className="text-xs font-semibold text-violet-700" data-testid="subject-row-term">{rotationTermLabel}</span>
+									<span className="text-muted-foreground/30 text-xs">•</span>
+								</>
+							) : null}
 							{/* Phase 4.5: minutes-per-week shown in hours ("m" was cryptic). */}
 							<span className="text-xs text-muted-foreground font-semibold flex items-center gap-1 uppercase tracking-tight">
 								<Clock className="size-3" />
@@ -388,7 +393,7 @@ export const SubjectRow = memo(({
 			<div className="bg-muted/5">
 				{sections.length === 0 ? (
 					<p className="p-8 text-center text-sm text-muted-foreground italic font-medium">
-						No active sections in the current school year for {subject.code}.
+						No sections take {subject.name} this school year.
 					</p>
 				) : (
 					<div className="divide-y divide-border/30">

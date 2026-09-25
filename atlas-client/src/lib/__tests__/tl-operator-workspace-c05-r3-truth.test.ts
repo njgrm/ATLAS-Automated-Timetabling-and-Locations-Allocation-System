@@ -120,7 +120,9 @@ test('R3 the rendered panel shows every canonical metric with its authoritative 
 
 	const expected: Array<[string, string]> = [
 		['teaching-load-truth-required-pairs', '3'],
-		['teaching-load-truth-assigned-pairs', '2 (1 real, 1 temp)'],
+		// SUPERSEDED by LANE-C TEACHING-LOAD-CLARITY-C02 (audit A4): ['teaching-load-truth-assigned-pairs', '2 (1 real, 1 temp)'],
+		// Replacement — total plus the temporary count (real = total - temporary):
+		['teaching-load-truth-assigned-pairs', '2 (1 temporary)'],
 		['teaching-load-truth-unresolved-pairs', '1'],
 		['teaching-load-truth-actual-hours', '125h'],
 		['teaching-load-truth-standard', '30h'],

@@ -146,7 +146,7 @@ export function useTeachingLoadRepairQueue({
 				kind: 'review-ready',
 				title: 'Teaching Load looks ready',
 				description: 'No open classes, over-cap teachers, or temporary substitutes need review. Review teachers once before generating.',
-				status: `${coverageAssigned}/${coverageTotal} pairs staffed.`,
+				status: `${coverageAssigned} of ${coverageTotal} classes have a teacher.`,
 				actionLabel: 'Review teachers',
 			});
 		}

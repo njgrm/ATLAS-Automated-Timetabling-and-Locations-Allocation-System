@@ -590,8 +590,8 @@ export function useTeachingLoadData() {
 					isUpstreamBacked
 						? null
 						: isUpstreamContext
-						? 'Teaching load context is sourced from ATLAS mirror. EnrollPro connection is active.'
-						: 'Teaching load data is available from ATLAS runtime cache while upstream verification is unavailable.',
+						? 'Using the sections last copied from EnrollPro. EnrollPro is connected.'
+						: 'EnrollPro could not be reached, so ATLAS is using the last saved sections. Recent changes in EnrollPro may be missing.',
 				);
 				setError(null);
 			}
