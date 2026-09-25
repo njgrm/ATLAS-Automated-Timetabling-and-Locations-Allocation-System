@@ -55,9 +55,11 @@ resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs
   `EXTERNALLY_BLOCKED(AUTH_SESSION_REQUIRED)`; the planner accepted the structural zero-write proof (preview
   returns before any create/update/delete; caller asserts the preview outcome) plus the 401 gate control; no
   BLOCKING finding. **Rollback basis: `e475c673e85fc8ca5a1bb055a7ff1819094b7d41`** at
-  `E:\ATLAS-runtime-supervised-e475c673-20260925`. **Acceptance PARTIAL — owner: Lane B (Codex)**; browser rows
-  are in the Risks sections of `docs/handoffs/lane-c-post-publish-c01.md`,
-  `lane-c-teaching-load-clarity-c02.md` and `lane-c-schedule-clarity-c03.md`.
+  `E:\ATLAS-runtime-supervised-e475c673-20260925`. **Browser acceptance run 2026-09-25 by Lane C (reassigned
+  by the operator): passed 10 / blocked 1 / unperformed 0 / NEEDS_SESSION 0**, including row 5d (authenticated
+  zero-write, API level). Blocked: C3-1 (no free slot exists in the live data). Four NON_BLOCKING findings
+  (F1 suspect swap-preview clash, F2 Draft prompt leak, F3 swap panel stays open, F4 EnrollPro 4 s timeout). Evidence:
+  `docs/handoffs/lane-c-browser-acceptance-e8553752-2026-09-25.md`.
 - **Release SHA: `e475c673`** (rollback basis; previously LIVE 2026-09-25; `E:\ATLAS-runtime-supervised-e475c673-20260925`;
   supervisor-owned 5001→81040 / 5174→82788; health/ready (`database:"ok"`) + DB-backed read + Tailnet 200;
   served entry `assets/index-B6GQrEV1.js` (SHA-256 `A90EA8DB…`, byte-identical to the build) and CSS
@@ -177,10 +179,11 @@ independent startup run (build, Node bound isolated 5198, unauthenticated previe
 `1b371ba`, 914/929); candidate tests 8/8, 12/12, 21/21; server `tsc` exit 0, Node started `dist/server.js` on
 isolated 5198 (health 200, preview 401, stopped); client `vite build` with `VITE_ENROLLPRO_URL` exit 0.
 
-**C1–C3 LIVE 2026-09-25** in `e8553752` (Live release block). Browser acceptance is PARTIAL and **unrun** as of
-2026-09-25. The operator reassigned it to **local Lane C** before the demo; the rows are in the Risks sections of the
-three C1–C3 handoffs. The 2026-09-25 cloud session could not reach the Tailnet (proxy 403). **Resume from
-`docs/handoffs/lane-c-planner-handoff.md` on `origin/work/epic-galileo-cw0swp`.**
+**C1–C3 LIVE 2026-09-25** in `e8553752` (Live release block). **Browser acceptance run 2026-09-25 by local Lane
+C: 10 / 1 blocked (C3-1, no free slot in the data) / 0 / 0**
+(`docs/handoffs/lane-c-browser-acceptance-e8553752-2026-09-25.md`). Open from it (2026-09-25): **F1** swap preview
+reports a section double-booking for Tue MATH ↔ Thu ENG in GR7 Luna (suspected rotating-term false positive; needs
+a failing-first test); F2 placement prompt leaks into Draft; F3 swap side panel stays open after Cancel.
 
 **Current stream: server stall** (audit finding 5). Evidence read 2026-09-25
 (`docs/handoffs/lane-a-to-lane-c-stall-evidence-2026-09-25.md`): the loop **is** blocked (peak ~7.7 s); pool
