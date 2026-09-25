@@ -197,3 +197,11 @@ confirmed on origin). `timetable-scheduler-simplicity-c01` is **preserved** — 
 (live); this docs worktree `E:\ATLAS-worktrees\c7-teacher-concern-deploy` (branch
 `docs/c7-teacher-concern-deploy`) is `RETIRE_AFTER_INTEGRATION`; the retired S8/C5/C6 worktrees' branches
 are retained. `E:` 57.9 GiB free.
+
+- **TERM-AUTHORITY-REFRESH-C01 option A is unsatisfiable (2026-09-25):** the persisted
+  `EnrollProSchoolYearMirror.termContractCache.activeTerm` is **frozen by design** — `semanticRevision`
+  excludes the active term, so both `applyTermCacheSync` and `syncActiveTermContractAuthority` are
+  zero-write replays when only the active term moved (live and persisted revision both `e0dba8dc…`).
+  Revised options: **(C1) resolve the active term LIVE at read time** in `academic-term.service.ts`
+  (correct; moves generation/availability/readiness to T2 together) — recommended; **(B)** align the
+  client to the frozen server term (writes T1, a past term) — stopgap only. Packet marked BLOCKED.

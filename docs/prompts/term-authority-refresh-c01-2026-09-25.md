@@ -1,3 +1,10 @@
+> **BLOCKED (2026-09-25) — option A is unsatisfiable via this route.** The pre-action review found the
+> live and persisted `semanticRevision` byte-identical (`e0dba8dc…`) because `semanticRevisionFor`
+> **excludes the active term**, so `applyTermCacheSync` takes the zero-write replay branch and the
+> persisted `activeTerm` stays T1; the lone writer `syncActiveTermContractAuthority` is likewise
+> idempotent on an unchanged revision. **The persisted active term is frozen by design and cannot be
+> refreshed alone.** The preview also exposes no `activeTerm.order`, so the apply gate is undecidable.
+> **Do not run the apply.** Revised options: `docs/plans/live-state.md` (Lane A).
 # TERM-AUTHORITY-REFRESH-C01 packet (2026-09-25)
 
 Program: `TEACHER-CONCERN-AUTHORITY-PROGRAM-20260924` follow-up. HIGH live-data action (operator chose
