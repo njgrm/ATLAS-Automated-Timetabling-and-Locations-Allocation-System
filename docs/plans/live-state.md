@@ -44,11 +44,18 @@ resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs
   `C:\ProgramData\ATLAS\release-audit\c5e167d7-20260925-204030`; active state `running`/`c5e167d7`; machine env =
   target; health 200, ready 200 `database:"ok"`, DB-backed subjects read 200, Tailnet 200; served target entry
   `assets/index-BW9wl1o-.js` SHA-256 `40E58645…294BC1`, byte-identical local/Tailnet/build; old entry 404. Independent
-  post-action QA `ACCEPT_READY` **8/8/0/0**; six-table zero-write signature unchanged. **No migration. Rollback
-  basis: `ad8f9717`.** Browser acceptance is separate and **BLOCKED/UNPERFORMED**: Lane A's first 1366×768 read-only
-  attempt triggered an unexpected `POST /api/v1/room-preferences/collaboration/ticket` 201 for school 1 / year 10 /
-  run 318, so the incident stop forbids further browser actions until separately reviewed. Two EnrollPro proxy 502s
-  were also observed; see Lane A handoff evidence.
+  post-action QA `ACCEPT_READY` **8/8/0/0**; six-table zero-write signature unchanged. R1 browser rows are accepted
+  at 1366×768 and 390×844 (`docs/handoffs/lane-a-browser-acceptance-c5e167d7-r1-2026-09-25.md`); the earlier
+  collaboration-ticket incident remains preserved in the separate incident handoff. Two EnrollPro proxy 502s remain
+  non-blocking residuals. **No migration. Rollback basis: `ad8f9717`.**
+- **Pending release SHA: `eb0e30386336673a4a31ecfe39a9bef93549e0ed`** (target recorded 2026-09-25 before the
+  §13 deployment action; planned release directory `E:\ATLAS-runtime-supervised-eb0e3038-20260925`; incumbent and
+  rollback basis `c5e167d7c5939ff586880149c566ce29506430e8` at
+  `E:\ATLAS-runtime-supervised-c5e167d7-20260925`; production delta is two server service files plus the committed
+  server test/script (`generation-readiness.service.ts`, `timetable-candidate-domain.ts`, test, package script), with
+  docs/config changes carried by `origin/main`; **no migration**; deployment not yet run. Post-cutover acceptance
+  owner: Lane C reloads `/timetable` twice and reads the new stall lines; no generation, publication, or timetable-data
+  write is authorized.)
 - **Release SHA: `ad8f9717`** (rollback basis; previously LIVE 2026-09-25 17:12, Lane C; `E:\ATLAS-runtime-supervised-ad8f9717-20260925`;
   operator cutover, audit `C:\ProgramData\ATLAS\release-audit\ad8f9717-20260925-171136`; active state
   `running`/`ad8f9717`; machine env = target; health 200, `/health/ready` `database:"ok"`, subjects read 200, Tailnet
