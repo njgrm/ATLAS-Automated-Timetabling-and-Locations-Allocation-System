@@ -362,6 +362,6 @@ and singleton-instrumentation QA evidence residuals are non-blocking accuracy fo
 
 **Custody / workspace (2026-09-26):** Lane A owns the seeded browser profile and this docs worktree
 `E:\ATLAS-worktrees\lane-a-r1-deploy-target` (`docs/lane-a-r1-deploy-target`, `KEEP_ACTIVE` as the current lane
-record). The C02 executor and integration worktrees were clean, integrated, and retired. Live release
+record). The C02 and F1/F2 executor/integration worktrees were clean, integrated, and retired. Live release
 `E:\ATLAS-runtime-supervised-861d89a2-20260925` is `KEEP_ACTIVE`; rollback `eb0e3038` and donor `5c100ea6` are
 `PRESERVE_FOR_DECISION`. Do not write in Lane B/C worktrees.
