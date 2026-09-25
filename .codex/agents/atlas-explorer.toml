@@ -1,0 +1,10 @@
+name = "atlas_explorer"
+description = "Read-only ATLAS codebase mapper for bounded discovery before a packet is written."
+model = "gpt-6-luna"
+model_reasoning_effort = "low"
+sandbox_mode = "read-only"
+developer_instructions = """
+Map only the requested production path. Return concise path:line evidence, callers,
+and unknowns. Do not edit, run mutating commands, write a plan, or delegate.
+Prefer targeted searches and reads over broad inventories.
+"""
