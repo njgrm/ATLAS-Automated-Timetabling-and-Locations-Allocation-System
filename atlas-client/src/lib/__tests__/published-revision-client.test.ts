@@ -147,3 +147,33 @@ test('typed server failures surface honest operator sentences', () => {
 	assert.equal(isPublishedRevisionErrorCode({ code: 'FORBIDDEN' }, 'FORBIDDEN'), true);
 	assert.equal(isPublishedRevisionErrorCode({ code: 'FORBIDDEN' }, 'CROSS_SCHOOL_DENIED'), false);
 });
+// LANE-C C05 — the fixtures above are hand-built objects with no axios transport
+// `code` (superseded as evidence for the real surface, kept as contract rows).
+// A real axios 4xx sets `code: 'ERR_BAD_REQUEST'`; the server code lives in
+// `response.data.code`. These rows produce the error through axios itself.
+test('server codes are read from a real axios 4xx error, not the transport code', async () => {
+	const { default: axios, AxiosError } = await import('axios');
+	// A custom adapter settles itself; this is axios/lib/core/settle.js for a non-2xx response.
+	const failWith = (status: number, data: Record<string, unknown>) => axios.create({
+		adapter: async (config) => {
+			const response = { data, status, statusText: 'x', headers: {}, config, request: {} };
+			throw new AxiosError(
+				`Request failed with status code ${status}`,
+				[AxiosError.ERR_BAD_REQUEST, AxiosError.ERR_BAD_RESPONSE][Math.floor(status / 100) - 4],
+				config,
+				{},
+				response as never,
+			);
+		},
+	}).post('/preview', {}).then(() => { throw new Error('expected rejection'); }, (error: unknown) => error);
+
+	const refusal = await failWith(409, { code: 'TEACHING_LOAD_QUALIFICATION_MISSING', message: 'plain msg' });
+	assert.equal((refusal as { code?: string }).code, 'ERR_BAD_REQUEST', 'axios sets its own transport code');
+	assert.equal(extractServerErrorCode(refusal), 'TEACHING_LOAD_QUALIFICATION_MISSING');
+
+	const stale = await failWith(409, { code: 'SOURCE_REVISION_STALE', message: 'stale' });
+	assert.equal(isSourceRevisionStaleError(stale), true);
+
+	const bodyless = await failWith(500, {});
+	assert.equal(extractServerErrorCode(bodyless), null, 'an axios ERR_* code is never reported as a server code');
+});

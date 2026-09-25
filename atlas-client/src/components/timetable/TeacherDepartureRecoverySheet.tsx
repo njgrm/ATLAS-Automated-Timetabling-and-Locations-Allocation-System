@@ -30,9 +30,6 @@ import {
 	isSourceRevisionStaleError,
 	previewPublishedRevision,
 } from '@/lib/published-revision-client';
-
-/** Server refusals caused by the chosen teacher; their message names the fix. */
-const PUBLISHED_PREVIEW_REFUSAL_CODES = new Set(['TEACHING_LOAD_QUALIFICATION_MISSING', 'FACULTY_INACTIVE']);
 import {
 	describeRevisionClashes,
 	extractRevisionClashes,
@@ -50,6 +47,9 @@ import type {
 	TeachingLoadRepairPreviewResult,
 	UnassignedItem,
 } from '@/types';
+
+/** Server refusals caused by the chosen teacher; their message names the fix. */
+const PUBLISHED_PREVIEW_REFUSAL_CODES = new Set(['TEACHING_LOAD_QUALIFICATION_MISSING', 'FACULTY_INACTIVE']);
 
 type AffectedGroup = {
 	key: string;
