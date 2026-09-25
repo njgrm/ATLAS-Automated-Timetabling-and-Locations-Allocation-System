@@ -19,6 +19,7 @@ import {
 	resolveViolationLabel,
 } from '../../hooks/useTimetableData';
 import { VIOLATION_LABELS as RAIL_LABELS } from '../../components/timetable/ScheduleReviewWorkspace.constants';
+import { UNLABELLED_RULE_SENTENCE } from '../../lib/timetable-plain-language';
 import {
 	isBlockingHardViolation,
 	isInformationalHardViolation,
@@ -49,7 +50,17 @@ test('R7: ROOM_FEATURE_MISMATCH and FACULTY_FLOOR_TRANSITION have labels in ever
 test('R7 (failing-first): an unknown/legacy code never throws and degrades to a readable label', () => {
 	const unknown = 'SOME_FUTURE_CODE' as Violation['code'];
 	assert.doesNotThrow(() => resolveViolationLabel(unknown));
-	assert.equal(resolveViolationLabel(unknown), 'some future code');
+	// J2J3-RECONCILE (B1): this row used to pin the de-snake-cased string
+	// 'some future code'. That string is the engine token with underscores
+	// replaced: it adds no meaning and reads on screen as a label ATLAS wrote
+	// for a rule it cannot name. The shared degradation rule is now
+	// absent -> em dash, known -> its one canonical label, unmapped -> the one
+	// honest sentence, so the readable degradation is that sentence. The legacy
+	// map still wins over it, which the next assertion pins.
+	assert.equal(resolveViolationLabel(unknown), UNLABELLED_RULE_SENTENCE);
+	// The rule is "readable", not merely non-throwing, and it must never be a
+	// de-snake-cased token again.
+	assert.doesNotMatch(resolveViolationLabel(unknown), /some future code/i);
 	assert.equal(resolveViolationLabel('FACULTY_EXCESSIVE_TRAVEL_DISTANCE'), 'Excessive Travel Distance');
 });
 
