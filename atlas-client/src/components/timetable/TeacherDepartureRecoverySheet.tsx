@@ -66,6 +66,7 @@ type TeacherDepartureRecoverySheetProps = {
 	subjectLabel: (id: number) => string;
 	sectionLabel: (id: number) => string;
 	facultyLabel: (id: number) => string;
+	roomLabel?: (id: number) => string;
 	previewTeachingLoadRepair: (changes: TeachingLoadRepairChange[]) => Promise<TeachingLoadRepairPreviewResult | null>;
 	commitTeachingLoadRepair: (changes: TeachingLoadRepairChange[], allowSoftOverride?: boolean) => Promise<CommitResult | null>;
 	onSaved: () => void;
@@ -211,6 +212,7 @@ export function TeacherDepartureRecoverySheetBody({
 	subjectLabel,
 	sectionLabel,
 	facultyLabel,
+	roomLabel,
 	previewTeachingLoadRepair,
 	commitTeachingLoadRepair,
 	onSaved,
@@ -315,7 +317,7 @@ export function TeacherDepartureRecoverySheetBody({
 	);
 	const hasBlockingPreview = (preview?.hardViolations.length ?? 0) > 0 || (preview?.errorCount ?? 0) > 0;
 	const hasSoftWarnings = (preview?.softViolations.length ?? 0) > 0;
-	const clashLabels = useMemo(() => ({ facultyLabel, sectionLabel, subjectLabel }), [facultyLabel, sectionLabel, subjectLabel]);
+	const clashLabels = useMemo(() => ({ facultyLabel, sectionLabel, subjectLabel, roomLabel }), [facultyLabel, sectionLabel, subjectLabel, roomLabel]);
 	const publishedPreviewClashes = useMemo(
 		() => describeRevisionClashes(publishedPreview?.clashes ?? [], clashLabels),
 		[clashLabels, publishedPreview],
@@ -749,7 +751,8 @@ export function TeacherDepartureRecoverySheetBody({
 				) : null}
 
 				{isPublished && (visibleStep === 3 || visibleStep === 4) ? (
-				<div className="space-y-2 rounded-lg border border-border bg-muted/20 p-3" role="status" aria-live="polite" data-testid="teacher-departure-published-check">
+				// LANE-C C04 (S1) — the check scrolls inside the fixed-height sheet so the footer stays reachable.
+				<div className="min-h-0 flex-1 space-y-2 overflow-y-auto rounded-lg border border-border bg-muted/20 p-3" role="status" aria-live="polite" data-testid="teacher-departure-published-check">
 					<p className="text-sm font-semibold text-foreground">Check for clashes</p>
 					{publishedPreviewLoading ? (
 						<p className="flex items-center gap-1.5 text-xs text-muted-foreground">
@@ -787,7 +790,7 @@ export function TeacherDepartureRecoverySheetBody({
 				) : null}
 
 				{!isPublished && (visibleStep === 3 || visibleStep === 4) ? (
-				<div className="space-y-2 rounded-lg border border-border bg-muted/20 p-3" role="status" aria-live="polite">
+				<div className="min-h-0 flex-1 space-y-2 overflow-y-auto rounded-lg border border-border bg-muted/20 p-3" role="status" aria-live="polite" data-testid="teacher-departure-draft-check">
 					<div className="flex items-center justify-between gap-2">
 						<div className="min-w-0">
 							<p className="text-sm font-semibold text-foreground">Preview result</p>

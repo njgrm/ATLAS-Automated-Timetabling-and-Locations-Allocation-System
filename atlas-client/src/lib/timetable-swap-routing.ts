@@ -84,14 +84,26 @@ export function resolvePreGenSlotDisplacement(
 	return { kind: 'multiple', placement: null, count: slotMatches.length };
 }
 
+type SwapCandidateFields = Pick<ScheduledEntry, 'entryId' | 'sectionId' | 'facultyId' | 'roomId'> & { termIndex?: number | null };
+
+/** A whole-year entry (no term, or term 0) shares time with every term, as on the server. */
+function termsOverlap(a: number | null | undefined, b: number | null | undefined): boolean {
+	const termA = typeof a === 'number' && a >= 1 ? a : 0;
+	const termB = typeof b === 'number' && b >= 1 ? b : 0;
+	return termA === 0 || termB === 0 || termA === termB;
+}
+
 export function findRegularSwapCandidate(
-	source: Pick<ScheduledEntry, 'entryId' | 'sectionId' | 'facultyId' | 'roomId'>,
-	slotEntries: Array<Pick<ScheduledEntry, 'entryId' | 'sectionId' | 'facultyId' | 'roomId'>>,
+	source: SwapCandidateFields,
+	slotEntries: SwapCandidateFields[],
 ): ScheduledEntry | null {
-	let best: { score: number; candidate: Pick<ScheduledEntry, 'entryId' | 'sectionId' | 'facultyId' | 'roomId'> } | null = null;
+	let best: { score: number; candidate: SwapCandidateFields } | null = null;
 
 	for (const candidate of slotEntries) {
 		if (candidate.entryId === source.entryId) continue;
+		// LANE-C C04 (S2) — the slot holds every term's copy of a class; only the
+		// copy in the moved class's term can trade times with it.
+		if (!termsOverlap(source.termIndex, candidate.termIndex)) continue;
 		const sameSection = candidate.sectionId === source.sectionId;
 		const sameFaculty = source.facultyId != null && candidate.facultyId != null && candidate.facultyId === source.facultyId;
 		const sameRoom = candidate.roomId === source.roomId;

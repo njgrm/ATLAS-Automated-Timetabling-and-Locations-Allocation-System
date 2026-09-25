@@ -8,6 +8,7 @@ import { VIOLATION_COPY, validateHardConstraints, type ScheduledEntry, type Viol
 import { isPromotableConstraintCode } from './scheduling-policy.service.js';
 import { buildValidatorCtx, loadRunContext } from './manual-edit.service.js';
 import { countBlockingHardViolations } from './publication-contract.service.js';
+import { effectiveTermsOverlap, entryTermScope } from './effective-scheduled-resources.js';
 import {
 	compareGenerationInputSnapshots,
 	computeGenerationInputSnapshot,
@@ -949,6 +950,14 @@ async function buildPublishedSwapRevisionInput(input: CreatePublishedSwapRevisio
 	};
 	const slotA = slotOf(entryIdA);
 	const slotB = slotOf(entryIdB);
+	// LANE-C C04 (S2) — a slot holds every term's copy of a class. Trading a Term 2
+	// class with another class's Term 1 copy leaves both terms double-booked, so a
+	// swap across two different terms is refused before any clash check.
+	const termA = entryTermScope(effectiveById.get(entryIdA) as { termIndex?: number | null });
+	const termB = entryTermScope(effectiveById.get(entryIdB) as { termIndex?: number | null });
+	if (!effectiveTermsOverlap(termA, termB)) {
+		throw err(422, 'SWAP_TERM_MISMATCH', 'Both classes must be in the same term to swap their times.');
+	}
 
 	return {
 		schoolId: input.schoolId,

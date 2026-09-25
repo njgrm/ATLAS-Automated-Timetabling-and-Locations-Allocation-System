@@ -30,6 +30,7 @@ type PublishedSwapRevisionPanelProps = {
 	subjectLabel: (id: number) => string;
 	sectionLabel: (id: number) => string;
 	facultyLabel: (id: number) => string;
+	roomLabel?: (id: number) => string;
 	onClose: () => void;
 	onScheduled: () => void;
 };
@@ -54,6 +55,7 @@ export function PublishedSwapRevisionPanel({
 	subjectLabel,
 	sectionLabel,
 	facultyLabel,
+	roomLabel,
 	onClose,
 	onScheduled,
 }: PublishedSwapRevisionPanelProps) {
@@ -67,7 +69,7 @@ export function PublishedSwapRevisionPanel({
 	const [submitClashes, setSubmitClashes] = useState<PublishedRevisionClash[]>([]);
 	const [scheduledFrom, setScheduledFrom] = useState<string | null>(null);
 
-	const labels = useMemo(() => ({ facultyLabel, sectionLabel, subjectLabel }), [facultyLabel, sectionLabel, subjectLabel]);
+	const labels = useMemo(() => ({ facultyLabel, sectionLabel, subjectLabel, roomLabel }), [facultyLabel, sectionLabel, subjectLabel, roomLabel]);
 
 	useEffect(() => {
 		let cancelled = false;
