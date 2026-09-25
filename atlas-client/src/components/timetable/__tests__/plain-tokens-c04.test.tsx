@@ -423,6 +423,20 @@ test('J2 P4 the edit history reads as plain actions, names no actor id, and uses
 	assert.doesNotMatch(rendered, /PLACE UNASSIGNED|PLACE_UNASSIGNED/, 'the raw editType is gone');
 	assert.doesNotMatch(rendered, /by user/, 'the bare actor id attribution is gone');
 	assert.doesNotMatch(rendered, /Edit #/, 'the raw edit id label is gone');
+	// D2: the deletion of the actor was itself the defect — the row must carry an
+	// attribution affordance that is TRUE with only an id available, so the operator
+	// is told an actor exists instead of being left with silence. It is asserted on
+	// RENDERED text, and it must not smuggle the id back.
+	assert.match(
+		rendered,
+		/Changed by a signed-in account\. This record does not show which person\./,
+		'each history row states that an actor exists and names nobody (D2)',
+	);
+	assert.equal(
+		document.querySelectorAll('[data-testid="timetable-edit-history-row"] [data-testid="timetable-edit-history-actor"]').length,
+		2,
+		'the affordance is on EVERY row, not just the head edit (D2)',
+	);
 	assert.match(rendered, /All serious problems: 2, warnings: 1/, 'the total keeps the total word, not the blocking word');
 	assertNoEngineTokens(rendered, 'P4 edit history');
 	// AGENTS.md section 8: no native `title` attribute for extra information.
@@ -439,6 +453,23 @@ test('J2 P4 mutant: the pre-fix actor attribution fails this control', () => {
 	assert.match(preFixText, /#[0-9]+/, 'the pre-fix line really printed two numeric ids');
 	assert.throws(() => assert.doesNotMatch(preFixText, /#[0-9]+/), /expected to not match/);
 	assert.throws(() => assertNoEngineTokens(preFixText, 'P4 pre-fix line'), /no numeric id may render/);
+});
+
+test('D2 mutant: a row with no attribution affordance fails the D2 control', () => {
+	// The D2 finding was that P4 cured the bare-id defect by DELETING the actor
+	// outright, so the history rendered no attribution at all. This is that exact
+	// state — the pre-D2 rendered row, with its bare-id line already removed — and
+	// it must fail the D2 assertion. Without this, the affordance could be deleted
+	// again and the suite would stay green, which is precisely the regression the
+	// finding was raised for.
+	const D2_PATTERN = /Changed by a signed-in account\. This record does not show which person\./;
+	const preD2Text = 'Gave an unplaced session a slot 2026-09-26 All serious problems: 2, warnings: 1 Revert this edit';
+	assert.doesNotMatch(preD2Text, D2_PATTERN, 'the pre-D2 row really carried no attribution');
+	assert.throws(() => assert.match(preD2Text, D2_PATTERN), /input did not match/);
+	// And the affordance is load-bearing rather than incidentally matching: it must
+	// not be satisfiable by any token it forbids.
+	assert.throws(() => assertNoEngineTokens('Changed by a signed-in account #46', 'D2 id smuggling'), /no numeric id may render/);
+	assert.throws(() => assertNoEngineTokens('CHANGED_BY_ACCOUNT', 'D2 shouted smuggling'), /no SHOUTED engine token/);
 });
 
 /* ── P6 — the projection line ────────────────────────────────────────────── */

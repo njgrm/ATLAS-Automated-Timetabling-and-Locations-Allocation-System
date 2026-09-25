@@ -47,14 +47,36 @@ export function TimetableAssignmentDialogs({ context }: { context: ScheduleRevie
 									<Badge variant="outline" className="text-xs">{manualEditActionLabel(edit.editType)}</Badge>
 									<span className="text-muted-foreground">{new Date(edit.createdAt).toLocaleString()}</span>
 								</div>
-								{/* J2 (P4): `ManualEditRecord` carries only `actorId`, which
-								 * is `req.user.userId` on the server — a User id, NOT a
-								 * faculty-mirror id, so it cannot be resolved to a name from
-								 * any map the dialog holds. The attribution is therefore
-								 * omitted rather than printing a bare number. The server is
-								 * out of scope for this cycle; when it returns an actor name
-								 * this line can say who made the change. */}
-								{summary && (
+								{/* D2 (J2 P4 follow-up). The fact that an actor EXISTS was
+								 * never in doubt, so a row that renders no attribution at all
+								 * is "silence where a fact exists" — and for an unexpected
+								 * change to my own schedule, who made it is the first
+								 * question. The original P4 fix solved the bare-id problem by
+								 * DELETING the fact, which cured the token and lost the
+								 * capability. The sentence below is the additive middle: it
+								 * states the presence of an actor and the absence of a name,
+								 * and prints no identifier.
+								 *
+								 * WHY IT CANNOT NAME THE PERSON HERE: `ManualEditRecord`
+								 * carries only `actorId`, which the route fills from
+								 * `req.user.userId` — a User id, NOT a faculty-mirror id — so
+								 * no map this dialog holds can resolve it, and resolving it
+								 * through `facultyMap` would attribute the change to the WRONG
+								 * person.
+								 *
+								 * OWED, NOT WAIVED (server follow-up; out of scope for this
+								 * cycle): `listManualEdits` (`manual-edit.service.ts`) returns
+								 * only `actorId`, whereas `RoomRequestAppealHistory`
+								 * (`room-preference.service.ts`) already returns `actorName`
+								 * beside its id — that is the precedent to follow. Its
+								 * fallback, which prints a bare numeric teacher id, is
+								 * deliberately NOT copied here, because P4 forbids a bare id.
+								 * When the server returns a name, render it and drop this
+								 * sentence; the guard below stays either way. */}
+								<p className="mt-1 text-muted-foreground" data-testid="timetable-edit-history-actor">
+									Changed by a signed-in account. This record does not show which person.
+								</p>
+							{summary && (
 									/* J2 (P4), surfaced by the edit above and traced to its
 									 * value: `validationSummary.hardCount` is `hardAfter.length`
 									 * — every HARD the run recorded, NOT the publication-blocking
