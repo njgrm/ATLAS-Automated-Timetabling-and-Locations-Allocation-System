@@ -19,6 +19,7 @@ import { DraggablePlacementPin, DraggableQueuePin, PinnedRailDropZone, UnassignD
 import { GeneratedViolationsPanel } from '@/components/timetable/GeneratedRunRailPanels';
 import { GeneratedUnassignedPanel, renderUnassignedReasonBadgeFor } from '@/components/timetable/GeneratedUnassignedPanel';
 import { sortViolationGroupsHardFirst } from '@/lib/violation-presentation';
+import { plainRoomDecisionStatus } from '@/lib/timetable-plain-language';
 import type { LeftRailContentContext } from '@/components/timetable/timetableContexts.types';
 import { onProfilerRender } from '@/components/timetable/ScheduleReviewWorkspace';
 
@@ -550,7 +551,14 @@ function LeftRailContentImpl({ context }: LeftRailContentProps) {
 												<p className="text-xs text-muted-foreground truncate">{request.day} {request.startTime}-{request.endTime} · {request.requestedRoomName}</p>
 											</div>
 											<div className="flex flex-col items-end gap-1">
-												<Badge variant="outline" className="h-4 px-1 text-xs uppercase">{request.decisionStatus}</Badge>
+												{/* PLAIN-LANGUAGE-J2J3-C01 (J2): was
+												 * `uppercase>{request.decisionStatus}`, so the left rail
+												 * printed the raw enum AND shouted it. `uppercase` is dropped
+												 * deliberately: the plain label is already sentence case, and
+												 * keeping the class would CSS-uppercase "Waiting for a
+												 * decision" into a new piece of shouting — the same defect in
+												 * a different font. */}
+												<Badge variant="outline" className="h-4 px-1 text-xs">{plainRoomDecisionStatus(request.decisionStatus)}</Badge>
 												{request.appealCount > 0 ? (
 													<Badge variant="outline" className="h-4 px-1 text-xs uppercase">
 														Appeals {request.appealCount}

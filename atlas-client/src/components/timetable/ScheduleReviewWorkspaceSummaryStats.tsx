@@ -22,7 +22,7 @@
  */
 import { Check, Clock, ShieldAlert } from 'lucide-react';
 
-import { ALL_SERIOUS_PROBLEMS_LABEL } from '@/lib/timetable-plain-language';
+import { ALL_SERIOUS_PROBLEMS_LABEL, plainGenerationRunStatus } from '@/lib/timetable-plain-language';
 import { Badge } from '@/ui/badge';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip';
 import { StatItem } from '@/components/timetable/TimetableShared';
@@ -77,14 +77,21 @@ export function ScheduleReviewWorkspaceSummaryStats({
 					</div>
 				</div>
 			)}
+			{/* PLAIN-LANGUAGE-J2J3-C01 (J2): the badge rendered `{draftStatus}`
+				 * raw, i.e. the `GenerationRunStatus` enum, beside the two plain
+				 * stat labels J1 just introduced. `statusColor` deliberately still
+				 * receives the RAW value: it is a colour lookup keyed on the
+				 * enum, and humanising the argument would silently change which
+				 * runs render in which colour. Only the visible text is
+				 * humanised. */}
 			<Badge variant="outline" className={`h-5 px-1.5 text-xs font-bold ${statusColor(draftStatus)}`}>
-				{draftStatus}
+				{plainGenerationRunStatus(draftStatus)}
 			</Badge>
 			<StatItem
 				icon={Check}
 				label="Assigned"
 				value={`${summary.assignedCount}/${summary.classesProcessed}`}
-				explanation="Classes successfully placed vs total classes the algorithm attempted to schedule."
+				explanation="Class periods successfully placed, out of all the class periods the scheduler tried to place."
 			/>
 			<StatItem
 				icon={ShieldAlert}
@@ -106,7 +113,7 @@ export function ScheduleReviewWorkspaceSummaryStats({
 				icon={Clock}
 				label="Duration"
 				value={formatDuration(durationMs)}
-				explanation="Real-world computing time it took to generate this draft."
+				explanation="How long it really took to build this schedule."
 			/>
 		</div>
 	);

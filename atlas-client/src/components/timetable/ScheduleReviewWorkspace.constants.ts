@@ -5,6 +5,7 @@ import type {
 	UnassignedItem,
 	ViolationCode,
 } from '@/types';
+import { VIOLATION_TITLES } from '@/lib/violation-presentation';
 
 
 export const DAYS = ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY'] as const;
@@ -16,38 +17,31 @@ export const DAY_SHORT: Record<string, string> = {
 	FRIDAY: 'Fri',
 };
 
-export const VIOLATION_LABELS: Record<ViolationCode, string> = {
-	FACULTY_TIME_CONFLICT: 'Teacher Time Conflict',
-	ROOM_TIME_CONFLICT: 'Room Time Conflict',
-	SECTION_TIME_CONFLICT: 'Section Time Conflict',
-	FACULTY_OVERLOAD: 'Teacher Overload',
-	ROOM_TYPE_MISMATCH: 'Room Type Mismatch',
-	ROOM_FEATURE_MISMATCH: 'Room Feature Mismatch',
-	FACULTY_SUBJECT_NOT_QUALIFIED: 'Teaching Load Review',
-	FACULTY_CONSECUTIVE_LIMIT_EXCEEDED: 'Consecutive Limit',
-	FACULTY_BREAK_REQUIREMENT_VIOLATED: 'Break Requirement',
-	FACULTY_DAILY_STANDARD_EXCEEDED: 'Daily Load Warning',
-	FACULTY_DAILY_MAX_EXCEEDED: 'Daily Max Exceeded',
-	FACULTY_EXCESSIVE_TRAVEL_DISTANCE: 'Excessive Travel Distance',
-	FACULTY_FLOOR_TRANSITION: 'Cross-Floor Transition',
-	FACULTY_EXCESSIVE_BUILDING_TRANSITIONS: 'Excessive Building Transitions',
-	FACULTY_INSUFFICIENT_TRANSITION_BUFFER: 'Insufficient Transition Buffer',
-	FACULTY_EXCESSIVE_IDLE_GAP: 'Excessive Idle Gap',
-	FACULTY_EARLY_START_PREFERENCE: 'Early Start Preference',
-	FACULTY_LATE_END_PREFERENCE: 'Late End Preference',
-	FACULTY_INSUFFICIENT_DAILY_VACANT: 'Insufficient Daily Vacant',
-	SECTION_OVERCOMPRESSED: 'Section Overcompressed',
-	ROOM_CAPACITY_EXCEEDED: 'Room Capacity Exceeded',
-	LACKING_FACULTY: 'Lacking Teacher',
-	INCOMPLETE_MODULAR_GROUP: 'Incomplete Modular Group',
-	SPECIALIZED_ROOM_UNAVAILABLE: 'Specialized Room Needed',
-	UNASSIGNED_SECTION: 'Session Needs Placement',
-	// ZONE-WARNING-REMOVAL-C01: retained — this is a complete
-	// Record<ViolationCode, string> (like the retired travel entry above), so
-	// the key must stay for stored rows to render. The label is a neutral
-	// historical noun, not an action.
-	ZONE_IMBALANCE_WARNING: 'Campus Zone Imbalance',
-};
+/**
+ * The rail's violation labels are the ONE plain title per code, owned by
+ * `lib/violation-presentation.ts` and reused verbatim here.
+ *
+ * PLAIN-LANGUAGE-J2J3-C01 (J2) — this used to be a SECOND, hand-written
+ * `Record<ViolationCode, string>` of terser engine nouns ("Teacher Time
+ * Conflict", "Lacking Teacher", "Consecutive Limit"). The same code therefore
+ * had two operator names depending on which surface resolved it: the rail said
+ * "Lacking Teacher" where the grid badge and the explainability drawer said "No
+ * teacher available". Two maps over one union is exactly the drift J1 exists to
+ * remove, and the duplicate was free to fall behind the canonical set.
+ *
+ * The typed union is preserved: `VIOLATION_TITLES` is itself
+ * `Record<ViolationCode, string>`, so this annotation still makes the map
+ * TOTAL — a new `ViolationCode` member is a compile error here, exactly as
+ * before. Totality is therefore not weakened by the collapse.
+ *
+ * The retired zone warning keeps its neutral historical label. `ZONE-WARNING-
+ * REMOVAL-C01` requires the complete rail record to keep a neutral historical
+ * noun (not an action) so stored rows still render, and the canonical
+ * presentation title is "Campus zone imbalance (retired)" — the same neutral
+ * historical noun, plus the fact that it is retired. The committed row
+ * `warning-readability-c01.test.ts` asserts /campus zone/i on this map.
+ */
+export const VIOLATION_LABELS: Record<ViolationCode, string> = VIOLATION_TITLES;
 
 export const CONFLICT_CODES: Set<ViolationCode> = new Set([
 	'FACULTY_TIME_CONFLICT',

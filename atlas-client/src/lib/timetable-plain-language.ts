@@ -22,11 +22,13 @@
  */
 
 import type {
+	GenerationRunStatus,
 	ManualEditType,
 	RoomPreferenceDecisionStatus,
 	RoomPreferenceStatus,
 	RoomRequestAppealStatus,
 } from '@/types';
+import { humaniseEngineToken } from '@/lib/violation-presentation';
 
 /** The one plain word for "a problem that stops you saving and publishing". */
 export const MUST_FIX_LABEL = 'Must fix';
@@ -223,8 +225,17 @@ export function manualEditActionLabel(editType: string): string {
  * A run's own state, in plain words. TRACED: `GenerationRunStatus` in
  * `prisma/schema.prisma` is exactly `QUEUED | RUNNING | COMPLETED | FAILED`,
  * and the run pane printed the enum verbatim in a badge.
+ *
+ * Typed `Record<GenerationRunStatus, string>`, so it is TOTAL: adding a union
+ * member is a compile error here rather than a silent enum on screen. This is
+ * the same guarantee `ACTION_LABELS: Record<RoomPreferenceActionType, string>`
+ * gives the Officer room-preferences page, and it is why the J2J3 candidate's
+ * separate `GENERATION_RUN_STATUS_LABELS` map was NOT adopted — two label sets
+ * for one status is exactly the one-label-one-idea defect this module exists to
+ * remove (audit finding 3). The candidate's own retyped map is grafted here
+ * instead; only the name and the two middle wordings differ.
  */
-const GENERATION_RUN_STATE_LABELS: Record<string, string> = {
+const GENERATION_RUN_STATE_LABELS: Record<GenerationRunStatus, string> = {
 	QUEUED: 'Waiting to start',
 	RUNNING: 'Being generated now',
 	COMPLETED: 'Finished',
@@ -232,7 +243,11 @@ const GENERATION_RUN_STATE_LABELS: Record<string, string> = {
 };
 
 export function generationRunStateLabel(status: string | null | undefined): string {
-	return GENERATION_RUN_STATE_LABELS[status ?? ''] ?? 'In a state this version does not name';
+	/* The cast is required by the total `Record<GenerationRunStatus, string>`
+	 * annotation and is sound: a value outside the union simply misses the map
+	 * and falls through to the fallback below, so an unknown or absent status
+	 * still never reaches the operator as a raw enum. */
+	return GENERATION_RUN_STATE_LABELS[status as GenerationRunStatus] ?? 'In a state this version does not name';
 }
 
 /**
@@ -249,3 +264,79 @@ const GENERATION_RUN_KIND_LABELS: Record<string, string> = {
 export function generationRunKindLabel(runType: string | null | undefined): string {
 	return GENERATION_RUN_KIND_LABELS[runType ?? ''] ?? 'A different kind of run';
 }
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * PLAIN-LANGUAGE-J2J3-C01 (J2/J3) — the ONE degradation rule, grafted onto the
+ * maps above.
+ *
+ * The candidate's own three bare-label maps (`ROOM_DECISION_STATUS_LABELS`,
+ * `ROOM_APPEAL_STATUS_LABELS`, `GENERATION_RUN_STATUS_LABELS`) are NOT adopted:
+ * this module already names each of those statuses, and two label sets for one
+ * status is the exact "one HARD problem has four names" defect J1 was written to
+ * remove (2026-09-26 audit finding 3). What IS adopted is its `plainEnumLabel`
+ * degradation rule, which is strictly better than the `?? 'In a state this
+ * version does not name'` fallbacks above for one specific reason: it
+ * distinguishes an ABSENT value from an UNKNOWN one.
+ *
+ * `generationRunStateLabel(null)` and `roomRequestDecisionState(null)` both
+ * conflate the two, and the conflation is a false claim — "this version does not
+ * name it" asserts something about ATLAS when the truth is that the server sent
+ * no value at all. So a `plain*` caller now gets the em dash for absent (the
+ * marker the surfaces already used) and a humanised phrase for a value outside
+ * the union. Known values still come from the canonical maps above, unchanged.
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+/** The one "this value is genuinely absent" marker, matching the em dash the
+ * surfaces already used. It is not an enum, so it is not in any map. */
+const ABSENT_VALUE_LABEL = '—';
+
+/**
+ * The one degradation rule for a union-typed status. `label` projects a map
+ * entry to its plain words, so the object-valued decision map above can be read
+ * through its `.label` instead of being restated as a second label set.
+ */
+function plainEnumLabel<T extends string, V>(
+	map: Record<T, V>,
+	value: string | null | undefined,
+	label: (entry: V) => string,
+): string {
+	// An absent value keeps the em dash. It must not be humanised into a word,
+	// and it must not reach a map lookup typed as the union.
+	if (value == null || value === '' || value === ABSENT_VALUE_LABEL) return ABSENT_VALUE_LABEL;
+	const known = map[value as T];
+	if (known !== undefined) return label(known);
+	// A value outside the union (a newer server, a stored legacy row) degrades
+	// to a readable phrase. It must NEVER echo the raw token: an unmapped enum
+	// reaching the operator is the exact defect J2 exists to close, so a missing
+	// map entry is a defect here, not a pass.
+	return humaniseEngineToken(value);
+}
+
+export function plainRoomDecisionStatus(value: string | null | undefined): string {
+	return plainEnumLabel(ROOM_REQUEST_DECISION_STATES, value, (state) => state.label);
+}
+
+export function plainRoomAppealStatus(value: string | null | undefined): string {
+	return plainEnumLabel(ROOM_REQUEST_APPEAL_STATES, value, (label) => label);
+}
+
+export function plainGenerationRunStatus(value: string | null | undefined): string {
+	return plainEnumLabel(GENERATION_RUN_STATE_LABELS, value, (label) => label);
+}
+
+/**
+ * The canonical wording for "nothing is waiting to be placed", in the one unit
+ * every other surface already uses for that count: sessions.
+ *
+ * PLAIN-LANGUAGE-J2J3-C01 (J3) — this state read "All classes assigned
+ * successfully" in two places. That sentence is not merely jargon: `classes`
+ * is the WRONG UNIT. The count behind it is `unassignedCount`, which the
+ * resolver, five other consumers and the J1 publish checklist all call
+ * sessions, and an "assigned class" is a subject-period pair rather than
+ * anything a scheduler places. So the sentence was wrong twice over — wrong
+ * vocabulary, and a promise ("successfully") the surface cannot make, since
+ * zero unplaced sessions says nothing about whether the schedule can be
+ * published. It is the positive counterpart of the checklist's "N sessions need
+ * placement", and it is stated once here so the two cannot drift.
+ */
+export const ALL_SESSIONS_PLACED_LABEL = 'All sessions placed';

@@ -1,6 +1,6 @@
 import { AlertTriangle } from 'lucide-react';
 
-import type { Violation, ViolationCode } from '@/types';
+import type { Violation } from '@/types';
 import { Button } from '@/ui/button';
 import {
 	Dialog,
@@ -11,7 +11,7 @@ import {
 	DialogTitle,
 } from '@/ui/dialog';
 import { UNLABELLED_RULE_SENTENCE } from '@/lib/timetable-plain-language';
-import { VIOLATION_PRESENTATION } from '@/lib/violation-presentation';
+import { resolveViolationTitle } from '@/lib/violation-presentation';
 
 type SoftViolationConfirmDialogProps = {
 	open: boolean;
@@ -48,17 +48,28 @@ export function SoftViolationConfirmDialog({
 					{warnings.map((warning, index) => {
 						/* J2 (P1): the raw `warning.code` used to be printed in a
 						 * monospace span. The code is an engine token, so the row
-						 * leads with the rule's PLAIN name from the established
-						 * presentation map and then the humanised message. An
-						 * unlabelled rule degrades to the shared plain sentence —
-						 * never to the token. */
-						const named = VIOLATION_PRESENTATION[warning.code as ViolationCode];
+						 * leads with the rule's PLAIN name and then the humanised
+						 * message. An unlabelled rule degrades to English — never to
+						 * the token.
+						 *
+						 * PLAIN-LANGUAGE-J2J3-C01 (J2) contributed the TOTAL resolver:
+						 * `VIOLATION_PRESENTATION[code]` misses a retired code that
+						 * `resolveViolationTitle` still names, and it can render
+						 * `undefined` rather than degrading. `UNLABELLED_RULE_SENTENCE`
+						 * is kept as the explicit fallback for a row that carries no
+						 * code at all, so the title is never an empty paragraph.
+						 *
+						 * Lane A's mono `<p>{warning.code}</p>` tooltip is deliberately
+						 * NOT adopted: this surface prints no engine token anywhere. */
+						const title = warning.code
+							? resolveViolationTitle(warning.code)
+							: UNLABELLED_RULE_SENTENCE;
 						return (
 							<div
 								key={index}
 								className="rounded border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800"
 							>
-								<p className="font-semibold">{named ? named.title : UNLABELLED_RULE_SENTENCE}</p>
+								<p className="font-semibold">{title}</p>
 								<p>{formatConstraintMessage(warning.message)}</p>
 							</div>
 						);

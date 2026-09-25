@@ -2,7 +2,7 @@ import { memo, useState } from 'react';
 import { AlertCircle, AlertTriangle, OctagonAlert } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
-import { MUST_FIX_LABEL } from '@/lib/timetable-plain-language';
+import { MUST_FIX_LABEL, mustFixCountLabel } from '@/lib/timetable-plain-language';
 import { Button } from '@/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip';
 import type { CellConflictInfo, Violation } from '@/types';
@@ -21,7 +21,14 @@ export function SeveritySign({ severity, className }: { severity: 'HARD' | 'SOFT
 /** "1 Must fix, 2 warnings" — the plain severity summary for a class. */
 export function severitySummary(hardCount: number, softCount: number): string {
 	return [
-		hardCount > 0 ? `${hardCount} Must fix` : null,
+		// PLAIN-LANGUAGE-J2J3-C01 (J2): this interpolated the literal "Must fix"
+		// while the SAME FILE already imports MUST_FIX_LABEL and uses it twice
+		// below — a fourth copy of one plain word, in the one file that owns the
+		// grid's severity sign. `mustFixCountLabel` is the shared
+		// count-plus-label helper and is itself defined in terms of
+		// MUST_FIX_LABEL, so the string is written once in the codebase. The
+		// rendered text is byte-identical to before.
+		hardCount > 0 ? mustFixCountLabel(hardCount) : null,
 		softCount > 0 ? `${softCount} ${softCount === 1 ? 'warning' : 'warnings'}` : null,
 	].filter(Boolean).join(', ');
 }

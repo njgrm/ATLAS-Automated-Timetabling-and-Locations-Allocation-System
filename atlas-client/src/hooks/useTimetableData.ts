@@ -70,7 +70,7 @@ import type {
 	ViolationCode,
 	ViolationReport,
 } from '@/types';
-import { VIOLATION_TITLES } from '@/lib/violation-presentation';
+import { resolveViolationTitle } from '@/lib/violation-presentation';
 
 /**
  * A6 — a superseded/obsolete school-year resolution is not a missing school
@@ -82,13 +82,6 @@ export const TIMETABLE_LOAD_SUPERSEDED = Symbol('timetable-load-superseded');
 export type TimetableLoadSchoolYear = number | null | typeof TIMETABLE_LOAD_SUPERSEDED;
 
 const DAYS = ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY'] as const;
-
-const VIOLATION_LABELS: Record<ViolationCode, string> = VIOLATION_TITLES;
-// Historical persisted runs can still carry the retired metric code. Keep this
-// explicit wire fallback visible here until every such run has aged out.
-const LEGACY_VIOLATION_LABELS = {
-	FACULTY_EXCESSIVE_TRAVEL_DISTANCE: 'Excessive Travel Distance',
-} as const;
 
 const CONFLICT_CODES: Set<ViolationCode> = new Set([
 	'FACULTY_TIME_CONFLICT',
@@ -149,11 +142,17 @@ const WELLBEING_CODES: Set<ViolationCode> = new Set([
 /**
  * Resolve a readable violation label. An unknown/legacy code must never throw;
  * it degrades to a humanised code string (R7).
+ *
+ * PLAIN-LANGUAGE-J2J3-C01 (J2): this now delegates to
+ * `resolveViolationTitle` in `lib/violation-presentation.ts`. It used to own a
+ * private copy of the label map and the retired-code fallback, which meant the
+ * rule for "what does an unmapped code look like" was written down twice and
+ * the rail, the right panel and the unassigned filters could each answer
+ * differently. The exported name is unchanged, so every caller and the
+ * committed contract rows that assert on it are unaffected.
  */
 export function resolveViolationLabel(code: string): string {
-	const known = VIOLATION_LABELS[code as ViolationCode];
-	const legacy = LEGACY_VIOLATION_LABELS[code as keyof typeof LEGACY_VIOLATION_LABELS];
-	return known ?? legacy ?? code.replace(/_/g, ' ').toLowerCase();
+	return resolveViolationTitle(code);
 }
 
 /** Search predicate shared by the violation rail (guarded label lookup). */

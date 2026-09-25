@@ -163,3 +163,48 @@ function plainUnit(unit: 'min' | 'period(s)', count: number): string {
 	if (unit === 'min') return 'minutes';
 	return count === 1 ? 'period' : 'periods';
 }
+
+/**
+ * Historical persisted runs can still carry the retired travel metric code. It
+ * has no producer in the canonical set, so it is not in `VIOLATION_TITLES` (and
+ * must not be: adding a key the server does not emit would make the "total"
+ * map lie about the canonical set). Keep this wire fallback visible here until
+ * every such run has aged out — it is the only place a retired code is named.
+ */
+const LEGACY_VIOLATION_TITLES: Record<string, string> = {
+	FACULTY_EXCESSIVE_TRAVEL_DISTANCE: 'Excessive Travel Distance',
+};
+
+/**
+ * PLAIN-LANGUAGE-J2J3-C01 (J2) — the ONE humanising resolver for a violation
+ * title, so no operator surface can fall back to a raw `SCREAMING_SNAKE` enum.
+ *
+ * Before this, three different fallbacks existed and two of them were visible
+ * defects: `RightPanel` rendered `violationLabels[v.code] ?? v.code` (the raw
+ * enum) and its tooltip heading rendered `violationLabels[v.code]` with NO
+ * fallback at all, so any code missing from the map produced an empty `<p>`
+ * heading. The rail's unassigned-reason filters had the same shape.
+ *
+ * `useTimetableData.resolveViolationLabel` and every J2 surface now call this,
+ * so the degradation rule is stated once: a known code gets its plain title, a
+ * retired code gets its historical label, and anything else degrades to a
+ * humanised phrase rather than an enum. It never returns an empty string for a
+ * non-empty code, which is what the empty tooltip heading needed.
+ */
+export function resolveViolationTitle(code: string): string {
+	const known = VIOLATION_TITLES[code as ViolationCode];
+	if (known) return known;
+	const legacy = LEGACY_VIOLATION_TITLES[code];
+	if (legacy) return legacy;
+	return humaniseEngineToken(code);
+}
+
+/**
+ * The shared degradation for an engine token that has no plain map entry:
+ * underscores become spaces and the token reads as an ordinary phrase. This is
+ * the same shape `resolveViolationLabel` has always used for an unknown code
+ * (R7, never throw), kept here so the two resolvers cannot drift apart.
+ */
+export function humaniseEngineToken(token: string): string {
+	return token.replace(/_/g, ' ').toLowerCase();
+}
