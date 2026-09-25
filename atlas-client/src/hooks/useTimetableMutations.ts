@@ -6,7 +6,7 @@ import atlasApiClient from '@/lib/api';
 import { createTimetableScopedClient } from '@/components/timetable/timetableSchoolScope';
 import { parseDraftPlacementId, scopePreviewToCandidate } from '@/lib/timetable-utils';
 import { isSameTimetableSlot, resolvePreGenSlotDisplacement } from '@/lib/timetable-swap-routing';
-import { deriveRunWideReadiness } from '@/components/timetable/timetableWorkspaceTruth';
+import { deriveRunWideReadiness, isDraftPublishedStrict } from '@/components/timetable/timetableWorkspaceTruth';
 import { resolvePublicationActionIntent } from '@/lib/publication-approval-action';
 import { deriveRedoAfterRevert, dispatchRedo } from '@/components/timetable/timetableUndoRedoState';
 import { requiresFacultyIssueConfirmation, resolveTimetableEntryPivot, resolveViolationFacultyTarget, type TimetableEntryContext } from '@/lib/timetable-entry-pivot';
@@ -1332,6 +1332,13 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 
 	const openRegularSwapPrompt = useCallback((entryA: ScheduledEntry, entryB: ScheduledEntry) => {
 		setRegularSwapPending({ entryA, entryB });
+		// LANE-C POST-PUBLISH-C01: a published run refuses direct swaps (409); the
+		// dialog schedules a dated revision instead, so no direct preview is sent.
+		if (draft && isDraftPublishedStrict(draft)) {
+			setRegularSwapPreview(null);
+			setRegularSwapStrategy(null);
+			return;
+		}
 		const cacheKey = `${runVersion}:${entryA.entryId}:${entryB.entryId}`;
 		const cached = regularSwapPreviewCacheRef.current.get(cacheKey);
 		if (cached) {
@@ -1406,7 +1413,7 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 				setRegularSwapStrategy(null);
 			}
 		})();
-	}, [apiBase, runIdNumeric, runVersion, schoolYearId, setRegularSwapPending]);
+	}, [apiBase, draft, runIdNumeric, runVersion, schoolYearId, setRegularSwapPending]);
 
 	const runPreGenPreview = useCallback(async (pending: PreGenPendingPlacement) => {
 		if (!schoolYearId) return;

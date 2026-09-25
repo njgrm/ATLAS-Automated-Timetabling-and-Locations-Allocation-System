@@ -27,7 +27,16 @@ import {
 	buildRevisionCreatePayload,
 	fetchLatestRevisionToken,
 	isSourceRevisionStaleError,
+	previewPublishedRevision,
 } from '@/lib/published-revision-client';
+import {
+	describeRevisionClashes,
+	extractRevisionClashes,
+	revisionFailureHint,
+	type PublishedRevisionClash,
+	type PublishedRevisionPreview,
+} from '@/lib/published-revision-clashes';
+import { PublishedRevisionClashList } from './PublishedRevisionClashList';
 import type {
 	CommitResult,
 	DraftReport,
@@ -101,6 +110,19 @@ const TEACHER_DEPARTURE_STEPS = [
 ] as const;
 
 type TeacherDepartureStep = 0 | 1 | 2 | 3 | 4;
+
+/**
+ * LANE-C POST-PUBLISH-C01 — the single published-mode note. It replaces four
+ * repeated warnings ("effective-date revision", "published run", "sole
+ * temporal authority") that the 2026-09-25 audit found on one sheet.
+ */
+const PUBLISHED_CHANGE_NOTE = 'This schedule is published. Your change starts on a date you choose; before that date everyone keeps seeing the current schedule.';
+
+/** "Term 2" when every class in the group meets in one term; empty otherwise. */
+function groupTermLabel(group: AffectedGroup): string {
+	const terms = new Set(group.entries.map((entry) => entry.termIndex).filter((term): term is number => typeof term === 'number' && term > 0));
+	return terms.size === 1 ? `Term ${[...terms][0]}` : '';
+}
 
 function buildAffectedGroups(draft: DraftReport | null, departingFacultyId: number | null): AffectedGroup[] {
 	if (!draft || departingFacultyId == null) return [];
@@ -215,6 +237,11 @@ export function TeacherDepartureRecoverySheetBody({
 	const [revisionError, setRevisionError] = useState<string | null>(null);
 	const [revisionActionHint, setRevisionActionHint] = useState<string | null>(null);
 	const [revisionSuccess, setRevisionSuccess] = useState<{ revisionId: number; effectiveDate: string; changeCount: number } | null>(null);
+	const [revisionClashes, setRevisionClashes] = useState<PublishedRevisionClash[]>([]);
+	// LANE-C POST-PUBLISH-C01: the published-mode Step 4 check (server dry run).
+	const [publishedPreview, setPublishedPreview] = useState<PublishedRevisionPreview | null>(null);
+	const [publishedPreviewLoading, setPublishedPreviewLoading] = useState(false);
+	const [publishedPreviewError, setPublishedPreviewError] = useState<string | null>(null);
 	const [currentStep, setCurrentStep] = useState<TeacherDepartureStep>(0);
 	// F1: there is no absence window. Decision D1 defers persisted faculty
 	// availability, so this sheet records no absence period and schedules no
@@ -238,6 +265,9 @@ export function TeacherDepartureRecoverySheetBody({
 		setRevisionError(null);
 		setRevisionActionHint(null);
 		setRevisionSuccess(null);
+		setRevisionClashes([]);
+		setPublishedPreview(null);
+		setPublishedPreviewError(null);
 	}, [initialFacultyId, open]);
 
 	const facultyOptions = useMemo(() => {
@@ -285,10 +315,18 @@ export function TeacherDepartureRecoverySheetBody({
 	);
 	const hasBlockingPreview = (preview?.hardViolations.length ?? 0) > 0 || (preview?.errorCount ?? 0) > 0;
 	const hasSoftWarnings = (preview?.softViolations.length ?? 0) > 0;
+	const clashLabels = useMemo(() => ({ facultyLabel, sectionLabel, subjectLabel }), [facultyLabel, sectionLabel, subjectLabel]);
+	const publishedPreviewClashes = useMemo(
+		() => describeRevisionClashes(publishedPreview?.clashes ?? [], clashLabels),
+		[clashLabels, publishedPreview],
+	);
+	const publishedPreviewClean = publishedPreview != null
+		&& publishedPreview.blockingHardViolationCount === 0
+		&& publishedPreview.clashes.length === 0;
 	// F1: the only temporal authority is the published revision effective date.
 	const departureTruth = describeDepartureRepairTruth(isPublished, affectedGroups.length);
 	const saveDisabledReason = isPublished
-		? 'Published schedules require an effective-date revision. Do not rewrite the published run directly.'
+		? PUBLISHED_CHANGE_NOTE
 		: !draft
 			? 'No generated run is loaded.'
 			: departingFacultyId == null
@@ -310,7 +348,7 @@ export function TeacherDepartureRecoverySheetBody({
 			? 1
 			: !replacementComplete
 				? 2
-				: preview || isPublished
+				: (isPublished ? publishedPreviewClean : preview)
 					? 4
 					: 3;
 	const visibleStep = Math.min(currentStep, maxReachableStep) as TeacherDepartureStep;
@@ -321,16 +359,53 @@ export function TeacherDepartureRecoverySheetBody({
 			: visibleStep === 2
 				? 'Choose the active replacement teacher for every affected group.'
 				: visibleStep === 3
-					? 'Preview the effect before ATLAS saves anything.'
+					? isPublished
+						? 'ATLAS checks that each replacement teacher is free at these class times.'
+						: 'Preview the effect before ATLAS saves anything.'
 					: isPublished
-						? 'Create an effective-date revision. The published run will not be rewritten.'
+						? 'Choose the date the new teachers take over. The published schedule stays as it is before then.'
 						: 'Save only after the preview says the reassignment is ready.';
 
 	const goBack = () => setCurrentStep((step) => Math.max(0, step - 1) as TeacherDepartureStep);
 	const goNext = () => {
-		const requested = isPublished && visibleStep === 2 ? 4 : visibleStep + 1;
-		setCurrentStep(Math.min(4, Math.min(maxReachableStep, requested)) as TeacherDepartureStep);
+		// LANE-C POST-PUBLISH-C01: published mode no longer skips the check step.
+		setCurrentStep(Math.min(4, Math.min(maxReachableStep, visibleStep + 1)) as TeacherDepartureStep);
 	};
+
+	const runPublishedPreview = async () => {
+		if (!schoolYearId || !runId || publishedRevisionChanges.length === 0) return;
+		setPublishedPreviewLoading(true);
+		setPublishedPreviewError(null);
+		setPublishedPreview(null);
+		try {
+			const sourceRevisionId = await fetchLatestRevisionToken(schoolId, schoolYearId, runId);
+			const result = await previewPublishedRevision(
+				{ schoolId, schoolYearId, runId },
+				{ sourceRevisionId, changes: publishedRevisionChanges.map(buildRevisionPayloadChange) },
+			);
+			setPublishedPreview(result);
+		} catch (error) {
+			setPublishedPreviewError(isSourceRevisionStaleError(error)
+				? 'The published schedule changed while you were preparing this. Refresh the timetable, then try again.'
+				: 'ATLAS could not check this change. Try again in a moment.');
+		} finally {
+			setPublishedPreviewLoading(false);
+		}
+	};
+
+	// Any change to the replacements invalidates the last check.
+	useEffect(() => {
+		setPublishedPreview(null);
+		setPublishedPreviewError(null);
+	}, [publishedRevisionChanges]);
+
+	// Published Step 4 runs the check as soon as it is reached.
+	useEffect(() => {
+		if (!open || !isPublished || visibleStep !== 3 || !replacementComplete) return;
+		if (publishedPreview || publishedPreviewLoading || publishedPreviewError) return;
+		void runPublishedPreview();
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [open, isPublished, visibleStep, replacementComplete, publishedPreview, publishedPreviewLoading, publishedPreviewError]);
 
 	const applyBulkReplacement = () => {
 		if (!bulkReplacementId) return;
@@ -340,6 +415,8 @@ export function TeacherDepartureRecoverySheetBody({
 			return next;
 		});
 		setPreview(null);
+		setPublishedPreview(null);
+		setPublishedPreviewError(null);
 		setStatus('Replacement applied to all affected groups. Preview before saving.');
 	};
 
@@ -413,6 +490,7 @@ export function TeacherDepartureRecoverySheetBody({
 		setRevisionError(null);
 		setRevisionActionHint(null);
 		setRevisionSuccess(null);
+		setRevisionClashes([]);
 		setRevisionDialogOpen(true);
 	};
 
@@ -445,6 +523,7 @@ export function TeacherDepartureRecoverySheetBody({
 		setRevisionSubmitting(true);
 		setRevisionError(null);
 		setRevisionActionHint(null);
+		setRevisionClashes([]);
 		try {
 			const sourceRevisionId = await fetchLatestRevisionToken(schoolId, schoolYearId, runId);
 			const payload = buildRevisionCreatePayload({
@@ -478,8 +557,14 @@ export function TeacherDepartureRecoverySheetBody({
 				setRevisionActionHint('Another officer may have just published or revised the schedule. Refresh the timetable before creating this revision again.');
 				return;
 			}
-			setRevisionError(response?.message ?? (error instanceof Error ? error.message : 'Revision creation failed.'));
-			setRevisionActionHint(response?.actionHint ?? 'Check the effective date and reason, then try creating the revision again.');
+			// LANE-C POST-PUBLISH-C01: a clash refusal names the colliding classes;
+			// the date and reason are only blamed when the error is about them.
+			const clashes = extractRevisionClashes(error);
+			setRevisionClashes(clashes);
+			setRevisionError(clashes.length > 0
+				? 'This change would double-book a teacher, room or class, so nothing was saved.'
+				: response?.message ?? (error instanceof Error ? error.message : 'Revision creation failed.'));
+			setRevisionActionHint(revisionFailureHint(error));
 		} finally {
 			setRevisionSubmitting(false);
 		}
@@ -514,8 +599,8 @@ export function TeacherDepartureRecoverySheetBody({
 					<p className="font-semibold">{TEACHER_DEPARTURE_STEPS[visibleStep]}</p>
 					<p className="mt-1 text-xs">{stepInstruction}</p>
 					{isPublished ? (
-						<p className="mt-1 text-xs font-medium text-amber-800">
-							Published run selected. Use an effective-date revision; ATLAS will not rewrite the published schedule.
+						<p className="mt-1 text-xs font-medium text-amber-800" data-testid="teacher-departure-published-note">
+							{PUBLISHED_CHANGE_NOTE}
 						</p>
 					) : null}
 				</div>
@@ -541,11 +626,6 @@ export function TeacherDepartureRecoverySheetBody({
 							className="w-[min(88vw,28rem)]"
 						/>
 					</div>
-					{isPublished ? (
-						<div className="rounded-md border border-amber-200 bg-amber-50 px-2 py-1.5 text-xs text-amber-900">
-							Published run selected. Use an effective-date revision for already-published schedules; this sheet will not rewrite the published record.
-						</div>
-					) : null}
 					<div className="mt-1 rounded-md border border-border bg-muted/20 px-2 py-1.5 text-xs text-muted-foreground" data-testid="teacher-departure-truth">
 						{departureTruth}
 					</div>
@@ -558,7 +638,7 @@ export function TeacherDepartureRecoverySheetBody({
 						<div>
 							<p className="text-sm font-semibold text-foreground">Affected sessions</p>
 							<p className="text-xs text-muted-foreground">
-								{affectedGroups.length} group{affectedGroups.length === 1 ? '' : 's'} · {affectedEntryIds.size} grid block{affectedEntryIds.size === 1 ? '' : 's'} · {unresolvedAffectedCount} unresolved · {groupsNeedingReplacement} need replacement
+								{affectedGroups.length} class{affectedGroups.length === 1 ? '' : 'es'} · {affectedEntryIds.size} weekly meeting{affectedEntryIds.size === 1 ? '' : 's'}{unresolvedAffectedCount > 0 ? ` · ${unresolvedAffectedCount} not yet on the timetable` : ''} · {groupsNeedingReplacement} still need a teacher
 							</p>
 						</div>
 						<Badge variant={affectedGroups.length > 0 ? 'secondary' : 'outline'} className="text-xs">
@@ -602,13 +682,12 @@ export function TeacherDepartureRecoverySheetBody({
 							return (
 								<div key={group.key} className="grid min-h-16 gap-2 p-2 sm:grid-cols-[1fr_13rem]" data-testid="teacher-departure-affected-row">
 									<div className="min-w-0">
-										<p className="truncate text-sm font-semibold text-foreground">
-											{subjectLabel(group.subjectId)} · {sectionLabel(group.sectionId)}
+										<p className="truncate text-sm font-semibold text-foreground" data-testid="teacher-departure-group-label">
+											{subjectLabel(group.subjectId)}{groupTermLabel(group) ? ` · ${groupTermLabel(group)}` : ''} · {sectionLabel(group.sectionId)}
 										</p>
 										<p className="text-xs text-muted-foreground">
-											{sessionCount} affected session{sessionCount === 1 ? '' : 's'}
-											{group.entries.length > 0 ? ` · ${group.entries.length} on grid` : ''}
-											{group.unassignedItems.length > 0 ? ` · ${group.unassignedItems.length} unresolved` : ''}
+											{sessionCount} class meeting{sessionCount === 1 ? '' : 's'} a week
+											{group.unassignedItems.length > 0 ? ` · ${group.unassignedItems.length} not yet on the timetable` : ''}
 										</p>
 										<Button
 											type="button"
@@ -664,7 +743,45 @@ export function TeacherDepartureRecoverySheetBody({
 				</div>
 				) : null}
 
-				{visibleStep === 3 || visibleStep === 4 ? (
+				{isPublished && (visibleStep === 3 || visibleStep === 4) ? (
+				<div className="space-y-2 rounded-lg border border-border bg-muted/20 p-3" role="status" aria-live="polite" data-testid="teacher-departure-published-check">
+					<p className="text-sm font-semibold text-foreground">Check for clashes</p>
+					{publishedPreviewLoading ? (
+						<p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+							<Loader2 className="size-3.5 animate-spin" aria-hidden="true" />
+							Checking that each replacement teacher is free at these class times…
+						</p>
+					) : publishedPreviewError ? (
+						<div className="space-y-1">
+							<p className="text-xs text-destructive">{publishedPreviewError}</p>
+							<Button type="button" variant="outline" size="sm" className="h-8 text-xs" onClick={() => void runPublishedPreview()}>
+								Check again
+							</Button>
+						</div>
+					) : publishedPreviewClean ? (
+						<p className="flex items-center gap-1.5 text-xs text-emerald-700" data-testid="teacher-departure-published-check-clean">
+							<CheckCircle2 className="size-3.5 shrink-0" aria-hidden="true" />
+							No clashes. Every replacement teacher is free at these class times.
+						</p>
+					) : publishedPreview ? (
+						<div className="space-y-2">
+							<PublishedRevisionClashList
+								clashes={publishedPreviewClashes}
+								heading={`${publishedPreviewClashes.length} clash${publishedPreviewClashes.length === 1 ? '' : 'es'} found. Nothing has been saved.`}
+								onShowOnTimetable={(entryIds) => {
+									onHighlightEntries?.(new Set(entryIds));
+									onJumpToEntry?.(entryIds[0]);
+								}}
+							/>
+							<Button type="button" variant="outline" size="sm" className="h-9 text-xs" onClick={() => setCurrentStep(2)} data-testid="teacher-departure-choose-different">
+								Choose a different teacher
+							</Button>
+						</div>
+					) : null}
+				</div>
+				) : null}
+
+				{!isPublished && (visibleStep === 3 || visibleStep === 4) ? (
 				<div className="space-y-2 rounded-lg border border-border bg-muted/20 p-3" role="status" aria-live="polite">
 					<div className="flex items-center justify-between gap-2">
 						<div className="min-w-0">
@@ -719,7 +836,7 @@ export function TeacherDepartureRecoverySheetBody({
 				</div>
 				) : null}
 
-				{visibleStep < 3 ? (
+				{visibleStep < 3 && !isPublished ? (
 					<p className="flex items-start gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900" data-testid="teacher-departure-save-reason">
 						<AlertTriangle className="mt-0.5 size-3 shrink-0" aria-hidden="true" />
 						{saveDisabledReason ?? 'Continue through the steps before saving.'}
@@ -748,10 +865,10 @@ export function TeacherDepartureRecoverySheetBody({
 						<Button
 							type="button"
 							onClick={openPublishedRevisionReview}
-							disabled={!replacementComplete || publishedRevisionChanges.length === 0}
+							disabled={!replacementComplete || publishedRevisionChanges.length === 0 || !publishedPreviewClean}
 							data-testid="teacher-departure-review-revision-button"
 						>
-							Review revision
+							Choose start date
 						</Button>
 					) : (
 						<>
@@ -783,6 +900,7 @@ export function TeacherDepartureRecoverySheetBody({
 					onReasonChange={setRevisionReason}
 					error={revisionError}
 					actionHint={revisionActionHint}
+					clashes={describeRevisionClashes(revisionClashes, clashLabels)}
 					submitting={revisionSubmitting}
 					onSubmit={() => void submitPublishedRevision()}
 					subjectLabel={subjectLabel}

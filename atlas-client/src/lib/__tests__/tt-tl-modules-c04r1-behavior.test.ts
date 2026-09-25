@@ -157,13 +157,21 @@ test('F1 published departure repair cannot imply an end-date reversion', () => {
 	assert.doesNotMatch(markup, /type="date"/);
 	// The rendered published truth states the effective date is the only
 	// temporal authority, and the rendered save reason routes to a revision.
-	assert.match(markup, /sole temporal authority/i);
-	assert.match(markup, /Published schedules require an effective-date revision/);
+	// SUPERSEDED by LANE-C POST-PUBLISH-C01 (2026-09-25 audit B5: jargon repeated four times):
+	//   assert.match(markup, /sole temporal authority/i);
+	//   assert.match(markup, /Published schedules require an effective-date revision/);
+	// Replacement — the same contract in plain words, stated once:
+	assert.match(markup, /takes effect only from the start date you choose/i, 'the chosen date is the only moment the change starts');
+	assert.match(markup, /does not switch back on its own/i, 'no end-date reversion is implied');
+	assert.match(markup, /starts on a date you choose/, 'the published note routes the change to a dated start');
+	assert.doesNotMatch(markup, /sole temporal authority|effective-date revision/i, 'the jargon is gone');
 	// The direct Teaching Load save affordance is never rendered for a published
 	// run; the step gate keeps the revision path (`Review revision`) as the next
 	// enabled action, whose source contract the C04R1 contract suite covers.
 	assert.doesNotMatch(markup, /teacher-departure-save-button/);
-	assert.match(markup, /effective-dated revision/i);
+	// SUPERSEDED by LANE-C POST-PUBLISH-C01: assert.match(markup, /effective-dated revision/i);
+	// Replacement — the published schedule is stated to stay as it is:
+	assert.match(markup, /published and stays as it is/i);
 });
 
 test('F1 absence-window mutant: the false authority is not present anywhere in the sheet source', () => {

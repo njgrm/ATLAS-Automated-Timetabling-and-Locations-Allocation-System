@@ -6,6 +6,7 @@ import { withDataContext } from '../lib/data-context.js';
 import {
 	createPublishedScheduleRevision,
 	createPublishedSwapRevision,
+	previewPublishedScheduleRevision,
 } from '../services/published-revision.service.js';
 import { assertRunIsEditable } from '../services/manual-edit.service.js';
 import { POLICY_DEFAULTS, isPromotableConstraintCode } from '../services/scheduling-policy.service.js';
@@ -515,6 +516,131 @@ async function main() {
 			'unknown-entry swap rejected',
 		);
 		assert.deepEqual(fixture.counts(), { revisions: 0, audits: 0 }, 'malformed swaps write nothing');
+	}
+
+	// LANE-C POST-PUBLISH-C01 — the dry run. The 2026-09-25 live audit found the
+	// teacher-leaving wizard learned of a clash only at the final save, with a
+	// message naming neither the teacher nor the class. These rows pin the
+	// preview that runs the same checks earlier and names what collides.
+
+	// Row P1 — a clashing change previews its clash by name, with zero writes.
+	// The same change as Row 1: e-2 moves onto faculty 20 in e-1's slot.
+	{
+		const fixture = makeFixture();
+		const preview = await withDataContext(fixture.client, () => previewPublishedScheduleRevision(
+			{ schoolId: SCHOOL_ID, schoolYearId: SCHOOL_YEAR_ID, sourceRunId: RUN_ID, sourceRevisionId: BASE_REVISION_ID, actorId: ACTOR_ID, changes: [{
+				entryId: 'e-2',
+				previous: { facultyId: 21, startTime: '08:15', endTime: '09:00' },
+				next: { facultyId: 20, startTime: '07:30', endTime: '08:15' },
+			}] },
+			{ now: FIXED_NOW, computeInputSnapshot: fixture.computeInputSnapshot },
+		));
+		assert.ok(preview.blockingHardViolationCount >= 1, 'preview reports the blocking count the commit would refuse');
+		const clash = preview.clashes.find((c) => c.code === 'FACULTY_TIME_CONFLICT');
+		assert.ok(clash, 'the faculty clash is reported');
+		assert.equal(clash.title, 'Teacher double-booked', 'headline is operator language, not a code');
+		assert.match(clash.action, /another qualified teacher|Move one class/, 'a next action is given');
+		assert.equal(clash.facultyId, 20, 'the clashing teacher is identified');
+		const ids = clash.entries.map((entry) => entry.entryId).sort();
+		assert.deepEqual(ids, ['e-1', 'e-2'], 'both colliding classes are named');
+		assert.equal(clash.entries.find((entry) => entry.entryId === 'e-2')?.changed, true, 'the changed class is marked');
+		assert.equal(clash.entries.find((entry) => entry.entryId === 'e-1')?.changed, false, 'the existing class it hits is marked');
+		assert.equal(clash.entries.find((entry) => entry.entryId === 'e-1')?.sectionId, 10, 'the existing class carries its section');
+		assert.deepEqual(fixture.counts(), { revisions: 0, audits: 0 }, 'preview writes nothing');
+	}
+
+	// Row P2 — a clean change previews empty; no date or reason is needed yet.
+	{
+		const fixture = makeFixture();
+		const preview = await withDataContext(fixture.client, () => previewPublishedScheduleRevision(
+			{ schoolId: SCHOOL_ID, schoolYearId: SCHOOL_YEAR_ID, sourceRunId: RUN_ID, sourceRevisionId: BASE_REVISION_ID, actorId: ACTOR_ID, changes: [{ entryId: 'e-1', previous: { roomId: 30 }, next: { roomId: 32 } }] },
+			{ now: FIXED_NOW, computeInputSnapshot: fixture.computeInputSnapshot },
+		));
+		assert.equal(preview.blockingHardViolationCount, 0);
+		assert.deepEqual(preview.clashes, []);
+		assert.equal(preview.changeCount, 1);
+		assert.equal(preview.alreadyScheduled, false);
+		assert.deepEqual(fixture.counts(), { revisions: 0, audits: 0 }, 'clean preview writes nothing');
+		// Control: the same change commits, so the preview agreed with the write.
+		const committed = await withDataContext(fixture.client, () => createPublishedScheduleRevision(
+			{ ...baseInput, changes: [{ entryId: 'e-1', previous: { roomId: 30 }, next: { roomId: 32 } }] },
+			{ now: FIXED_NOW, computeInputSnapshot: fixture.computeInputSnapshot },
+		));
+		assert.equal(committed.validation?.blockingHardViolationCount, 0);
+		assert.deepEqual(fixture.counts(), { revisions: 1, audits: 1 });
+	}
+
+	// Row P3 — a refused commit carries the named clashes and a truthful hint
+	// (the old client fallback told users to re-check the date and reason).
+	{
+		const fixture = makeFixture();
+		let captured: any = null;
+		await assert.rejects(
+			() => withDataContext(fixture.client, () => createPublishedScheduleRevision(
+				{ ...baseInput, changes: [{ entryId: 'e-2', previous: { facultyId: 21, startTime: '08:15', endTime: '09:00' }, next: { facultyId: 20, startTime: '07:30', endTime: '08:15' } }] },
+				{ now: FIXED_NOW, computeInputSnapshot: fixture.computeInputSnapshot },
+			)),
+			(error: any) => { captured = error; return error?.code === 'PUBLISHED_REVISION_BLOCKED_HARD_VIOLATIONS'; },
+		);
+		assert.ok((captured?.details?.clashes ?? []).some((c: any) => c.code === 'FACULTY_TIME_CONFLICT' && c.entries.length === 2), 'refusal names the colliding classes');
+		assert.ok(Array.isArray(captured?.details?.violations), 'the existing violations field is preserved');
+		assert.doesNotMatch(captured?.actionHint ?? '', /effective date|reason/i, 'the hint does not blame the date or reason');
+		assert.deepEqual(fixture.counts(), { revisions: 0, audits: 0 });
+	}
+
+	// Row P4 — the swap preview on the real route: the Row 6b conflict is
+	// reported by name with 200 and zero writes; malformed input stays typed.
+	{
+		const fixture = makeFixture({
+			entries: [
+				slotEntry('e-1'),
+				slotEntry('e-2', { facultyId: 21, roomId: 31, subjectId: 41, sectionId: 11, startTime: '08:15', endTime: '09:00' }),
+				slotEntry('e-3', { roomId: 32, subjectId: 40, sectionId: 12, startTime: '08:15', endTime: '09:00' }),
+			],
+			qualifications: [
+				{ facultyId: 20, subjectId: 40, sectionIds: [10, 12] },
+				{ facultyId: 21, subjectId: 41, sectionIds: [11] },
+			],
+			sections: [
+				{ id: 10, enrolledCount: 30 },
+				{ id: 11, enrolledCount: 30 },
+				{ id: 12, enrolledCount: 25 },
+			],
+		});
+		const { default: app } = await import('../app.js');
+		const officer = jwt.sign({ userId: ACTOR_ID, role: 'officer', schoolId: SCHOOL_ID, authSource: 'local' }, process.env.JWT_SECRET!);
+		const outsider = jwt.sign({ userId: ACTOR_ID, role: 'officer', schoolId: SCHOOL_ID + 1, authSource: 'local' }, process.env.JWT_SECRET!);
+		await withDataContext(fixture.client, async () => {
+			const server = createServer(app);
+			await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+			try {
+				const address = server.address();
+				assert(address && typeof address === 'object');
+				const base = `http://127.0.0.1:${address.port}/api/v1/generation/${SCHOOL_ID}/${SCHOOL_YEAR_ID}/runs/${RUN_ID}/published-revisions`;
+				const post = (path: string, token: string, body: unknown) => fetch(`${base}${path}`, {
+					method: 'POST',
+					headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+					body: JSON.stringify(body),
+				});
+				const response = await post('/swap/preview', officer, { sourceRevisionId: BASE_REVISION_ID, entryIdA: 'e-1', entryIdB: 'e-2' });
+				assert.equal(response.status, 200, 'a clashing swap previews with 200, not a thrown error');
+				const body = await response.json() as any;
+				assert.ok(body.blockingHardViolationCount >= 1);
+				assert.ok(body.clashes.some((c: any) => c.code === 'FACULTY_TIME_CONFLICT' && c.title === 'Teacher double-booked'), 'swap clash named');
+				assert.deepEqual(fixture.counts(), { revisions: 0, audits: 0 }, 'swap preview writes nothing');
+
+				const same = await post('/swap/preview', officer, { sourceRevisionId: BASE_REVISION_ID, entryIdA: 'e-1', entryIdB: 'e-1' });
+				assert.equal(same.status, 400);
+				assert.equal(((await same.json()) as any).code, 'SWAP_SAME_ENTRY');
+
+				// Row P5 — the preview routes keep the write routes' gates.
+				const crossSchool = await post('/preview', outsider, { sourceRevisionId: BASE_REVISION_ID, changes: [{ entryId: 'e-1', previous: { roomId: 30 }, next: { roomId: 32 } }] });
+				assert.equal(crossSchool.status, 403, 'cross-school preview refused');
+				assert.deepEqual(fixture.counts(), { revisions: 0, audits: 0 }, 'refused previews write nothing');
+			} finally {
+				await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+			}
+		});
 	}
 
 	console.log('published revision authority C12: all checks passed');
