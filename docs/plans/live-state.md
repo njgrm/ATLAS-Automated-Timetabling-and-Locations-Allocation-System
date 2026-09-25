@@ -39,12 +39,19 @@ resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs
 ## Live release
 
 - Tailnet: `https://njgrm.buru-degree.ts.net`
-- **Target release SHA: `ff87b06b`** (**deployment-pending** 2026-09-25; release dir
-  `E:\ATLAS-runtime-supervised-ff87b06b-20260925`; `ACTIVE-TERM-LIVE-RESOLUTION-C01` — the availability
-  authority resolves the active term live-first with a date-derived fallback; rollback basis `e8553752`;
-  **no migration** — no `prisma/**` change in `e8553752..ff87b06b`). **Browser acceptance owner: Lane A**
-  (custody transferred; seeded profile). Packet: `docs/prompts/active-term-deploy-2026-09-25.md`.
-- **Release SHA: `e8553752`** (**LIVE** since 2026-09-25; `E:\ATLAS-runtime-supervised-e8553752-20260925`;
+- **Release SHA: `ff87b06b`** (**LIVE** since 2026-09-25; `E:\ATLAS-runtime-supervised-ff87b06b-20260925`;
+  supervisor-owned 5001→51652 / 5174→36128; health/ready (`database:"ok"`) + `GET /api/v1/subjects?schoolId=1`
+  + Tailnet 200; served entry `assets/index-CqO3DnVa.js` (SHA-256 `7ADDAACA…81171A`, byte-identical to the
+  build); machine `ATLAS_RUNTIME_SOURCE_DIR` / `RELEASE_SHA` = the target). `ACTIVE-TERM-LIVE-RESOLUTION-C01`:
+  the availability authority resolves the active term live-first with a date-derived fallback (deployed read
+  `resolveActiveAvailabilityTermIndex(1, 10)` → `termIndex 2` while the persisted snapshot still names `T1`).
+  Cut over by the SHA-pinned `ops/runtime/deploy-runner.ps1` (audit
+  `C:\ProgramData\ATLAS\release-audit\ff87b06b-20260925-141126`). **No migration** — no `prisma/**` change in
+  `e8553752..ff87b06b`, applied count stays 11. **Rollback basis: `e8553752`** at
+  `E:\ATLAS-runtime-supervised-e8553752-20260925` (start-in-place; compatible). **Deployment verified;
+  acceptance pending — browser acceptance owner: Lane A** (custody transferred; seeded profile). Packet:
+  `docs/prompts/active-term-deploy-2026-09-25.md`.
+- **Rollback basis: `e8553752`** (previously LIVE 2026-09-25; `E:\ATLAS-runtime-supervised-e8553752-20260925`;
   supervisor-owned 5001→60756 / 5174→86968; health/ready (`database:"ok"`) + DB-backed read + Tailnet 200;
   served entry `assets/index-CqO3DnVa.js` (SHA-256 `7ADDAACA…81171A`, byte-identical to the build) and CSS
   `index-BBttqTpl.css` byte-identical; machine `ATLAS_RUNTIME_SOURCE_DIR` / `RELEASE_SHA` = the target). Lane C
