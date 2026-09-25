@@ -158,31 +158,15 @@ test('J2 P1.1 the soft-warning dialog names each rule in plain words, never as a
 	assert.match(rendered, /This edit introduces 1 warning\./, 'the count sentence is plain English');
 });
 
-test('J2 P1.1 mutant: a rule with no plain name degrades to a readable phrase, not the token', async () => {
+test('J2 P1.1 mutant: a rule with no plain name degrades to the shared sentence, not the token', async () => {
 	// The OLD rendering printed exactly `warning.code` in a monospace span, so
 	// this control fails against it and passes only after the fix.
-	//
-	// RECONCILED (J2 + J2J3 -> main): the degradation WORDING changed. This row
-	// used to pin `UNLABELLED_RULE_SENTENCE` ("…does not have a name for yet"),
-	// which is main's fallback for a code the presentation map does not know.
-	// The reconciliation routed this row's title through the shared TOTAL
-	// resolver `resolveViolationTitle`, whose degradation is the humanised
-	// phrase instead. Both are English and neither is a token; the ruling chose
-	// the phrase because it names the rule rather than describing ATLAS. The
-	// load-bearing assertions below are unchanged and are what actually closes
-	// the defect: the raw code must not reach the operator, and no engine token
-	// may appear at all.
 	const warning = softWarning(UNMAPPED_CODE, 'The lunch window rule was recorded by an older run.');
 	assert.equal(warning.code, UNMAPPED_CODE, 'the fixture really carries an unmapped engine code');
 	await mount(softDialog([warning]));
 	const rendered = text();
 	assert.doesNotMatch(rendered, new RegExp(UNMAPPED_CODE), 'the unmapped code must not reach the operator');
-	assert.match(
-		rendered,
-		/faculty lunch window violation/,
-		'the fallback names the rule as a readable phrase',
-	);
-	assert.doesNotMatch(rendered, /faculty_lunch_window_violation/, 'the fallback is never a de-snake-cased token');
+	assert.match(rendered, /does not have a name for yet/, 'the fallback is a plain sentence');
 	assertNoEngineTokens(rendered, 'P1.1 unlabelled rule', ['ATLAS']);
 });
 
@@ -282,23 +266,11 @@ function rightPanel(overrides: Record<string, unknown> = {}) {
 }
 
 test('J2 P1.2 the right panel never falls back to a raw code for an unlabelled rule', async () => {
-	// RECONCILED: the panel's title now resolves through the shared TOTAL
-	// resolver `resolveViolationTitle`, whose degradation is the humanised
-	// phrase rather than main's `UNLABELLED_RULE_SENTENCE`. See the P1.1 mutant
-	// row above for why, and note this is also what fixed main's second defect
-	// here: the tooltip heading used to render the bare map index with no
-	// fallback at all, producing an EMPTY heading. The resolver is never empty
-	// and never a token, and the heading can no longer disagree with the chip.
 	await mount(rightPanel());
 	const rendered = text();
 	assert.match(rendered, /Teacher double-booked/, 'a labelled rule still shows its plain name');
 	assert.doesNotMatch(rendered, new RegExp(UNMAPPED_CODE), 'the unlabelled code must not render');
-	assert.match(
-		rendered,
-		/faculty lunch window violation/,
-		'the fallback names the rule as a readable phrase',
-	);
-	assert.doesNotMatch(rendered, /faculty_lunch_window_violation/, 'the fallback is never a de-snake-cased token');
+	assert.match(rendered, /does not have a name for yet/, 'the fallback reads as English');
 	assertNoEngineTokens(rendered, 'P1.2 right panel', RIGHT_PANEL_NAMES);
 });
 

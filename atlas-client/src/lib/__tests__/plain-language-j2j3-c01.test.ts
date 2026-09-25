@@ -22,6 +22,11 @@
  * T5 session-unit truth . a zero-unassigned surface never says "classes".
  * T6 total enum maps .... every union member maps to a non-empty plain label.
  * T7 shared severity .... the summary severity label derives from MUST_FIX_LABEL.
+ * T8 ONE degradation .... ONE unmapped code yields ONE honest sentence on the
+ *                         resolver, the room/run helpers, the unassigned
+ *                         reasons and the rendered dialog; absent yields the em
+ *                         dash; and the rule really is shared (no import cycle,
+ *                         no second copy, no de-snake-cased fallback anywhere).
  *
  * Each row carries a MUTANT that proves the assertion can fail, so a green run is
  * evidence rather than a tautology.
@@ -94,7 +99,7 @@ Object.defineProperty(globalThis, 'navigator', { value: dom.window.navigator, co
 // react-dom must load after the DOM globals.
 const { createRoot } = await import('react-dom/client');
 const { MemoryRouter } = await import('react-router-dom');
-const { VIOLATION_LABELS: RAIL_LABELS } = await import('../../components/timetable/ScheduleReviewWorkspace.constants');
+const { VIOLATION_LABELS: RAIL_LABELS, UNASSIGNED_REASON_LABELS } = await import('../../components/timetable/ScheduleReviewWorkspace.constants');
 const { VIOLATION_TITLES, humaniseEngineToken, resolveViolationTitle } = await import('../../lib/violation-presentation');
 const plain = await import('../../lib/timetable-plain-language');
 const { ViolationGroup } = await import('../../components/timetable/TimetableShared');
@@ -102,6 +107,7 @@ const { TimetableRunsPane } = await import('../../components/timetable/Timetable
 const { SoftViolationConfirmDialog } = await import('../../components/timetable/modals/SoftViolationConfirmDialog');
 const { severitySummary } = await import('../../components/timetable/TimetableGridConflictBadge');
 const { resolveViolationLabel } = await import('../../hooks/useTimetableData');
+const degradation = await import('../../lib/plain-rule-degradation');
 // Type-only: erased at runtime, so it cannot disturb the jsdom init order above.
 type Violation = import('../../types').Violation;
 type ViolationCode = import('../../types').ViolationCode;
@@ -116,6 +122,7 @@ type ViolationCode = import('../../types').ViolationCode;
 const {
 	ALL_SESSIONS_PLACED_LABEL,
 	MUST_FIX_LABEL,
+	UNLABELLED_RULE_SENTENCE,
 	generationRunStateLabel,
 	mustFixCountLabel,
 	plainGenerationRunStatus,
@@ -139,6 +146,10 @@ function code(relative: string): string {
  * matches this. A violation code legitimately does, so the shape is never
  * asserted against a code — only against a label or a rendered surface. */
 const ENGINE_TOKEN = /^[A-Z][A-Z0-9]*(_[A-Z0-9]+)+$/;
+
+/** The one absent-value marker, written as a replacement so the row cannot pass on
+ * a stray ASCII hyphen. Shared by T6 and T8, which both assert it. */
+const EM_DASH = '-'.replace('-', '—');
 
 /** The REAL union members, read from the REAL type declaration, so no row can
  * pass against a union that has since grown or shrunk. */
@@ -258,7 +269,7 @@ test('T2: the rail renders the real plain title, and the terse title and raw enu
 	}
 });
 
-test('T2: an unmapped code degrades to a readable phrase, never a raw enum and never empty', () => {
+test('T2: an unmapped code degrades to the ONE honest sentence, never a raw enum, a de-snake-cased token, or empty', () => {
 	// This is the empty-tooltip-heading defect. The old RightPanel heading was
 	// the bare map index with NO fallback, so an unmapped code produced an EMPTY
 	// heading on the explanation it was supposed to title.
@@ -267,15 +278,30 @@ test('T2: an unmapped code degrades to a readable phrase, never a raw enum and n
 		assert.ok(resolved.trim().length > 0, `${entry} must never resolve to an empty heading`);
 		assert.doesNotMatch(resolved, ENGINE_TOKEN, `${entry} must never resolve to a raw engine token`);
 	}
-	assert.equal(resolveViolationTitle('SOME_FUTURE_CODE'), 'some future code');
+	/* R1 (B1) SUPERSEDES this row's pinned degradation. It used to assert
+	 * `resolveViolationTitle('SOME_FUTURE_CODE') === 'some future code'`, which
+	 * is exactly main's REJECTED string: a de-snake-cased canonical code, which
+	 * reads as a broken sentence and is indistinguishable on screen from a real
+	 * label. It also gave the same code two different sentences on two surfaces
+	 * (`simplePublishReadiness` printed the shared honest sentence for the very
+	 * same `FACULTY_EXCESSIVE_TRAVEL_DISTANCE`). The assertion is KEPT and its
+	 * expected value re-pinned to the one honest sentence; the guard is
+	 * strengthened, not removed. */
+	assert.equal(resolveViolationTitle('SOME_FUTURE_CODE'), UNLABELLED_RULE_SENTENCE);
+	assert.doesNotMatch(
+		resolveViolationTitle('SOME_FUTURE_CODE'),
+		/faculty|some future code/i,
+		'an unmapped canonical code must not be de-snake-cased into a fake label',
+	);
 
-	// The retired travel code keeps its historical label (R7).
+	// The retired travel code keeps its historical label (R7) — it is KNOWN, so
+	// the honest-sentence rule does not apply to it.
 	assert.equal(resolveViolationTitle('FACULTY_EXCESSIVE_TRAVEL_DISTANCE'), 'Excessive Travel Distance');
 
 	// The exported `resolveViolationLabel` name is preserved and now shares ONE
 	// rule, so the rail search and the panel can never disagree.
 	assert.equal(resolveViolationLabel('LACKING_FACULTY'), resolveViolationTitle('LACKING_FACULTY'));
-	assert.equal(resolveViolationLabel('SOME_FUTURE_CODE'), 'some future code');
+	assert.equal(resolveViolationLabel('SOME_FUTURE_CODE'), UNLABELLED_RULE_SENTENCE);
 
 	// RightPanel must not index a label map unguarded any more.
 	const rightPanel = code('src/components/timetable/RightPanel.tsx');
@@ -514,7 +540,7 @@ test('T5: no zero-unassigned surface says "classes"; the canonical session wordi
 		assert.doesNotMatch(code(path), /draft data/i, `${path} must not say "draft data"`);
 	}
 
-	// And the unassigned-reason fallbacks humanise instead of echoing the enum.
+	// And the unassigned-reason fallbacks never echo the enum.
 	for (const path of [
 		'src/components/timetable/GeneratedRunRailPanels.tsx',
 		'src/components/timetable/GeneratedUnassignedPanel.tsx',
@@ -523,6 +549,13 @@ test('T5: no zero-unassigned surface says "classes"; the canonical session wordi
 		assert.doesNotMatch(text, /\?\? reason\b/, `${path} must not fall back to a raw reason enum`);
 		assert.doesNotMatch(text, /label: reason\b/, `${path} must not badge a raw reason enum`);
 	}
+	/* R1 (B1): this row used to end on `humaniseEngineToken('NO_AVAILABLE_SLOT')
+	 * === 'no available slot'`, presented as the unassigned-reason degradation.
+	 * `UnassignedReason` is a CANONICAL code space, so de-snake-casing it is a
+	 * false label, and the assertion read as a claim that the badge printed a
+	 * de-snake-cased phrase. The helper stays exported and stays covered — it is
+	 * still the readable fallback for genuinely free-form text — so the assertion
+	 * is KEPT, and T8 now pins what the badge actually does. */
 	assert.equal(humaniseEngineToken('NO_AVAILABLE_SLOT'), 'no available slot');
 });
 
@@ -608,13 +641,16 @@ test('T6: every union member maps to a non-empty plain word for all three unions
 	);
 
 	// The resolvers degrade honestly: absent stays the em-dash the surfaces
-	// already used, and an out-of-union value humanises rather than echoing.
-	// Unchanged by the reconciliation — `plain*` keeps this behaviour.
+	// already used, and an out-of-union value gets the ONE shared sentence.
+	/* R1 (B1) SUPERSEDES the out-of-union expectation. It used to assert
+	 * `plainGenerationRunStatus('A_NEW_SERVER_STATUS') === 'a new server status'`
+	 * — the de-snake-cased phrase this cycle removed as a false label. The
+	 * assertion is KEPT and re-pinned to the honest sentence. */
 	assert.equal(plainRoomDecisionStatus(null), '-'.replace('-', '—'));
 	assert.equal(plainRoomAppealStatus(undefined), '—');
 	assert.equal(plainGenerationRunStatus(''), '—');
 	assert.equal(plainGenerationRunStatus('—'), '—');
-	assert.equal(plainGenerationRunStatus('A_NEW_SERVER_STATUS'), 'a new server status');
+	assert.equal(plainGenerationRunStatus('A_NEW_SERVER_STATUS'), UNLABELLED_RULE_SENTENCE);
 	for (const value of ['A_NEW_SERVER_STATUS', 'NEW_THING']) {
 		assert.doesNotMatch(plainGenerationRunStatus(value), ENGINE_TOKEN);
 	}
@@ -688,4 +724,212 @@ test('T7 mutant: a reintroduced hardcoded copy is caught by the T7 source assert
 		/Must fix/,
 		'a reintroduced hardcoded copy must actually fail the assertion',
 	);
+});
+
+/* =============== T8 — ONE degradation rule across every surface ============ */
+
+test('T8: one unmapped code gets ONE honest sentence on the resolver, the room/run helpers, the unassigned reasons and the dialog', async () => {
+	/* THE B1 ROW. Before R1, `resolveViolationTitle` degraded an unmapped
+	 * `ViolationCode` with `humaniseEngineToken` while `simplePublishReadiness`
+	 * degraded the same code with `UNLABELLED_RULE_SENTENCE`, so the SAME code had
+	 * two different sentences on two operator surfaces. This row is the regression
+	 * guard for that: it drives one real unmapped code through every resolver and
+	 * the really-rendered dialog, and requires a single answer.
+	 *
+	 * FIXTURE FROM THE REAL SURFACE. `UNMAPPED_CODE` is the code the sibling
+	 * `plain-tokens-c04.test.tsx` P1.1/P1.2 rows already exercise through the real
+	 * dialog and the real right panel — a value outside the canonical
+	 * `ViolationCode` union, not an invented one. */
+	const UNMAPPED_CODE = 'FACULTY_LUNCH_WINDOW_VIOLATION';
+
+	// Every resolver, one code. Each entry is (surface, text).
+	const surfaces: Array<[string, string]> = [
+		['resolveViolationTitle', resolveViolationTitle(UNMAPPED_CODE)],
+		['useTimetableData.resolveViolationLabel', resolveViolationLabel(UNMAPPED_CODE)],
+		['plainRoomDecisionStatus', plainRoomDecisionStatus(UNMAPPED_CODE)],
+		['plainRoomAppealStatus', plainRoomAppealStatus(UNMAPPED_CODE)],
+		['plainGenerationRunStatus', plainGenerationRunStatus(UNMAPPED_CODE)],
+		// The unassigned-reason badge and the filter chip, through the exact
+		// expression both real call sites now use over the real canonical map.
+		[
+			'unassigned reason (badge + filter chip)',
+			degradation.plainRuleValue(UNASSIGNED_REASON_LABELS, UNMAPPED_CODE, (entry) => entry.label),
+		],
+	];
+	for (const [where, text] of surfaces) {
+		assert.equal(text, UNLABELLED_RULE_SENTENCE, `${where} must use the ONE honest sentence`);
+		assert.doesNotMatch(text, ENGINE_TOKEN, `${where} must never render a raw engine token`);
+		assert.doesNotMatch(text, /_/, `${where} must never render an underscore`);
+		assert.doesNotMatch(
+			text,
+			/faculty|lunch window/i,
+			`${where} must never de-snake-case the code into a fake label`,
+		);
+	}
+	assert.equal(
+		new Set(surfaces.map(([, text]) => text)).size,
+		1,
+		'ONE code must produce ONE sentence across every surface — two answers is the B1 defect',
+	);
+
+	// The dialog, really rendered, with the same unmapped code.
+	await mount(createElement(SoftViolationConfirmDialog, {
+		open: true,
+		warnings: [
+			// The real dialog row shape, carrying a code that is deliberately OUTSIDE
+			// the canonical `ViolationCode` union — the exact case under test.
+			{ ...violation('FACULTY_DAILY_STANDARD_EXCEEDED'), code: UNMAPPED_CODE } as unknown as Violation,
+		],
+		commitLoading: false,
+		onCancel: () => {},
+		onConfirm: () => {},
+		formatConstraintMessage: (message: string) => message,
+	}));
+	const dialogText = document.body.textContent ?? '';
+	assert.match(
+		dialogText,
+		/does not have a name for yet/,
+		'the rendered dialog prints the same honest sentence',
+	);
+	assert.doesNotMatch(
+		dialogText,
+		/faculty lunch window violation/i,
+		'the rendered dialog must not de-snake-case the code into a fake label',
+	);
+	assert.doesNotMatch(dialogText, new RegExp(UNMAPPED_CODE), 'the raw code never reaches the operator');
+
+	/* Step 1 of the rule, on the same code space, through the same resolvers:
+	 * ABSENT is not "unknown name". A server that sends no value must not produce
+	 * a sentence about ATLAS having no name for it. */
+	for (const absent of [null, undefined, ''] as Array<string | null | undefined>) {
+		for (const [where, resolve] of [
+			['plainRoomDecisionStatus', plainRoomDecisionStatus],
+			['plainRoomAppealStatus', plainRoomAppealStatus],
+			['plainGenerationRunStatus', plainGenerationRunStatus],
+		] as const) {
+			assert.equal(
+				resolve(absent),
+				EM_DASH,
+				`${where} must render the em dash for an absent value, not ${JSON.stringify(absent)}`,
+			);
+			assert.notEqual(
+				resolve(absent),
+				UNLABELLED_RULE_SENTENCE,
+				`${where} must not claim ATLAS has no name for a value that was never sent`,
+			);
+		}
+	}
+	assert.equal(resolveViolationTitle(''), EM_DASH, 'an absent violation code is absent, not unnamed');
+
+	// Step 2 still works: a KNOWN member renders the ONE canonical label.
+	assert.equal(resolveViolationTitle('LACKING_FACULTY'), VIOLATION_TITLES.LACKING_FACULTY);
+	assert.equal(plainGenerationRunStatus('COMPLETED'), generationRunStateLabel('COMPLETED'));
+	for (const known of Object.keys(UNASSIGNED_REASON_LABELS)) {
+		assert.equal(
+			degradation.plainRuleValue(UNASSIGNED_REASON_LABELS, known, (entry) => entry.label),
+			UNASSIGNED_REASON_LABELS[known].label,
+			`${known} must render its canonical label, not the honest sentence`,
+		);
+	}
+});
+
+test('T8 mutant: a reintroduced de-snake-cased fallback is caught, and the shared rule really is shared', () => {
+	// The assertion above discriminates: the exact de-snake-cased string this
+	// range used to ship must fail the same equality it applies to the product.
+	const deSnakeCased = (code: string) => code.replace(/_/g, ' ').toLowerCase();
+	assert.throws(
+		() => assert.equal(deSnakeCased('FACULTY_LUNCH_WINDOW_VIOLATION'), UNLABELLED_RULE_SENTENCE),
+		/[Ee]xpected values to be strictly equal/,
+		'a de-snake-cased fallback must actually fail the cross-surface equality',
+	);
+
+	/* The shared rule is shared, not copied. `timetable-plain-language.ts` and
+	 * `violation-presentation.ts` both depend on `plain-rule-degradation.ts`; it
+	 * depends on neither; and the two label modules do not import each other. The
+	 * import cycle is what pushed the previous round into a private fallback, so
+	 * its absence is the structural half of this fix and is asserted on real
+	 * source, comments stripped. */
+	const degradationSource = code('src/lib/plain-rule-degradation.ts');
+	assert.doesNotMatch(
+		degradationSource,
+		/violation-presentation|timetable-plain-language/,
+		'the shared degradation module must import neither label module',
+	);
+	for (const path of ['src/lib/violation-presentation.ts', 'src/lib/timetable-plain-language.ts']) {
+		const source = code(path);
+		assert.match(
+			source,
+			/from '@\/lib\/plain-rule-degradation'/,
+			`${path} must take the degradation rule from the shared module`,
+		);
+	}
+	assert.doesNotMatch(
+		code('src/lib/timetable-plain-language.ts'),
+		/violation-presentation/,
+		'the plain-language module must no longer import the presentation module',
+	);
+	assert.doesNotMatch(
+		code('src/lib/violation-presentation.ts'),
+		/timetable-plain-language/,
+		'the presentation module must not import the plain-language module',
+	);
+	// The re-export is the same value, not a second copy of the sentence.
+	assert.equal(
+		degradation.UNLABELLED_RULE_SENTENCE,
+		UNLABELLED_RULE_SENTENCE,
+		'timetable-plain-language must re-export the ONE sentence, not restate it',
+	);
+	assert.equal(
+		degradation.UNLABELLED_RULE_SENTENCE,
+		'A problem that this version of ATLAS does not have a name for yet.',
+	);
+	assert.equal(degradation.ABSENT_VALUE_LABEL, EM_DASH);
+
+	// And no operator surface may CALL it: `humaniseEngineToken` stays exported
+	// for free-form text, but no canonical resolver may degrade through it. The
+	// two label modules are checked precisely — `timetable-plain-language.ts` must
+	// not even name it, and `violation-presentation.ts` may carry exactly one
+	// occurrence, the export declaration itself.
+	assert.doesNotMatch(
+		code('src/lib/timetable-plain-language.ts'),
+		/humaniseEngineToken/,
+		'the plain-language module must not name the de-snake-cased helper at all',
+	);
+	const presentation = code('src/lib/violation-presentation.ts');
+	assert.match(
+		presentation,
+		/export function humaniseEngineToken\(/,
+		'the free-form helper must stay exported',
+	);
+	assert.equal(
+		presentation.split('humaniseEngineToken').length - 1,
+		1,
+		'violation-presentation.ts must carry exactly one mention — the declaration — and no call',
+	);
+	for (const path of [
+		'src/components/timetable/RightPanel.tsx',
+		'src/components/timetable/GeneratedUnassignedPanel.tsx',
+		'src/components/timetable/GeneratedRunRailPanels.tsx',
+		'src/components/timetable/modals/SoftViolationConfirmDialog.tsx',
+		'src/hooks/useTimetableData.ts',
+		'src/components/timetable/simplePublishReadiness.ts',
+		'src/components/timetable/TimetableSimpleHeader.tsx',
+	]) {
+		assert.doesNotMatch(
+			code(path),
+			/humaniseEngineToken/,
+			`${path} must not degrade a canonical code with a de-snake-cased token`,
+		);
+	}
+	// The two unassigned-reason sites must read the ONE rule over the ONE map.
+	for (const path of [
+		'src/components/timetable/GeneratedUnassignedPanel.tsx',
+		'src/components/timetable/GeneratedRunRailPanels.tsx',
+	]) {
+		assert.match(
+			code(path),
+			/plainRuleValue\(UNASSIGNED_REASON_LABELS, reason, \(entry\) => entry\.label\)/,
+			`${path} must resolve an unassigned reason through the shared rule`,
+		);
+	}
 });

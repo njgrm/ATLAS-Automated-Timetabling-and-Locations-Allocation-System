@@ -1,4 +1,5 @@
 import type { ViolationCode } from '@/types';
+import { degradeUnnamedRuleValue } from '@/lib/plain-rule-degradation';
 
 export type ViolationPresentation = {
 	title: string;
@@ -176,8 +177,9 @@ const LEGACY_VIOLATION_TITLES: Record<string, string> = {
 };
 
 /**
- * PLAIN-LANGUAGE-J2J3-C01 (J2) — the ONE humanising resolver for a violation
- * title, so no operator surface can fall back to a raw `SCREAMING_SNAKE` enum.
+ * PLAIN-LANGUAGE-J2J3-C01 R1 (B1) — the ONE resolver for a violation title, so
+ * no operator surface can fall back to a raw `SCREAMING_SNAKE` enum, and so the
+ * same code cannot get two different sentences on two surfaces.
  *
  * Before this, three different fallbacks existed and two of them were visible
  * defects: `RightPanel` rendered `violationLabels[v.code] ?? v.code` (the raw
@@ -185,25 +187,45 @@ const LEGACY_VIOLATION_TITLES: Record<string, string> = {
  * fallback at all, so any code missing from the map produced an empty `<p>`
  * heading. The rail's unassigned-reason filters had the same shape.
  *
- * `useTimetableData.resolveViolationLabel` and every J2 surface now call this,
- * so the degradation rule is stated once: a known code gets its plain title, a
- * retired code gets its historical label, and anything else degrades to a
- * humanised phrase rather than an enum. It never returns an empty string for a
- * non-empty code, which is what the empty tooltip heading needed.
+ * The rule is the shared three-step one in `lib/plain-rule-degradation.ts`: a
+ * known code gets its plain title, a retired wire code gets its historical label,
+ * an ABSENT code gets the em-dash marker, and anything else — unmapped or
+ * out-of-union — gets `UNLABELLED_RULE_SENTENCE`.
+ *
+ * R1 SUPERSEDES this resolver's previous de-snake-cased fallback
+ * (`humaniseEngineToken(code)`). That string was a FALSE degradation for a
+ * canonical code space: `"Excessive Travel Distance"` and the shared sentence
+ * then described the same retired travel code on two surfaces, and the shipped
+ * `timetable-plain-language.ts` prose asserted the opposite rule 200 lines above
+ * the code doing it. See `plain-rule-degradation.ts` for the full argument.
+ *
+ * TOTAL is unchanged and must not regress: it never returns an empty string for
+ * a non-empty code, which is precisely what the empty tooltip heading needed. The
+ * honest sentence is non-empty, so totality is preserved by the correction rather
+ * than traded away for it.
  */
 export function resolveViolationTitle(code: string): string {
 	const known = VIOLATION_TITLES[code as ViolationCode];
 	if (known) return known;
 	const legacy = LEGACY_VIOLATION_TITLES[code];
 	if (legacy) return legacy;
-	return humaniseEngineToken(code);
+	return degradeUnnamedRuleValue(code);
 }
 
 /**
- * The shared degradation for an engine token that has no plain map entry:
- * underscores become spaces and the token reads as an ordinary phrase. This is
- * the same shape `resolveViolationLabel` has always used for an unknown code
- * (R7, never throw), kept here so the two resolvers cannot drift apart.
+ * `humaniseEngineToken` — underscores become spaces and the token reads as an
+ * ordinary phrase.
+ *
+ * It is a FREE-FORM TEXT helper, and it is kept exported and unit-covered for
+ * that use: a value an operator or a server can genuinely type at will (a
+ * `GenerationRun.runType`, which is a free-form `String` column).
+ *
+ * It is NOT, and must not become, the degradation for a value drawn from a
+ * canonical code space. R1 removed exactly that use: a de-snake-cased canonical
+ * code is indistinguishable on screen from a real label and contradicts the
+ * shared sentence the other surfaces print for the same code. Every canonical
+ * resolver goes through `plainRuleValue` / `degradeUnnamedRuleValue` in
+ * `lib/plain-rule-degradation.ts` instead.
  */
 export function humaniseEngineToken(token: string): string {
 	return token.replace(/_/g, ' ').toLowerCase();

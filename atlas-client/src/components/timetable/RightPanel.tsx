@@ -382,10 +382,16 @@ function RightPanelImpl(props: RightPanelProps) {
 													// returns empty for a non-empty code, so both defects are gone and the
 													// heading can no longer disagree with the trigger.
 													//
-													// It supersedes main's J2/P1 `?? UNLABELLED_RULE_SENTENCE`, which fixed
-													// the raw-enum leak but still produced an empty tooltip heading for a
-													// code the map did not name, and answered an unlabelled rule with a
-													// sentence about ATLAS rather than a name for the rule.
+											// It supersedes main's J2/P1 `?? UNLABELLED_RULE_SENTENCE`, which fixed
+											// the raw-enum leak but still produced an empty tooltip heading for a
+											// code the map did not name.
+											//
+											// R1 (B1): this surface and the publish-readiness warning group must not
+											// answer the same unlabelled code differently, so the resolver now returns
+											// the ONE honest sentence from `lib/plain-rule-degradation.ts` rather than a
+											// de-snake-cased phrase. The totality the empty-heading fix depended on is
+											// preserved: that sentence is non-empty, so the heading can still never be
+											// blank, and the chip and the heading cannot disagree.
 													const violationTitle = resolveViolationTitle(v.code);
 													return (
 														<TooltipProvider key={i}>

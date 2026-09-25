@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 
 import atlasApi from '@/lib/api';
-import { humaniseEngineToken } from '@/lib/violation-presentation';
+import { plainRuleValue } from '@/lib/plain-rule-degradation';
 import { ALL_SESSIONS_PLACED_LABEL } from '@/lib/timetable-plain-language';
 import {
 	getProgramBadgeLabel,
@@ -61,18 +61,23 @@ function getUnassignedStatus(
 
 /** The rail's unresolved-reason badge (shared by `LeftRailContent` and the Simple drawer). */
 export function renderUnassignedReasonBadgeFor(labels: LeftRailContentContext['UNASSIGNED_REASON_LABELS'], reason: string) {
-	const info = labels[reason] ?? {
-		// PLAIN-LANGUAGE-J2J3-C01 (J2): the fallback used to be `label: reason`,
-		// so a reason the server adds before the client learns it rendered as a
-		// raw `NO_AVAILABLE_SLOT`-shaped token on the badge. It now degrades to a
-		// readable phrase through the same humanising rule the violation titles
-		// use, so an unmapped reason is never an enum.
-		label: humaniseEngineToken(reason),
-		className: 'border-gray-300 bg-gray-50 text-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:border-gray-700',
-	};
+	/* PLAIN-LANGUAGE-J2J3-C01 R1 (B1): the fallback used to be `label: reason`, so
+	 * a reason the server adds before the client learns it rendered as a raw
+	 * `NO_AVAILABLE_SLOT`-shaped token on the badge; the previous round changed it
+	 * to a de-snake-cased phrase, which is a FALSE label — `UnassignedReason` is a
+	 * canonical code space, not free-form text, so the same reason code was
+	 * getting a different sentence here than in the publish-readiness warning
+	 * group. The label now comes from the ONE shared rule over the same canonical
+	 * map, so an unmapped reason gets the same honest sentence on every surface
+	 * and never an enum in any casing. The className default is the neutral badge
+	 * style, unchanged: an unmapped reason has no severity the client knows. */
+	const known = labels[reason];
 	return (
-		<Badge variant="outline" className={`h-4 px-1 text-xs ${info.className}`}>
-			{info.label}
+		<Badge
+			variant="outline"
+			className={`h-4 px-1 text-xs ${known?.className ?? 'border-gray-300 bg-gray-50 text-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:border-gray-700'}`}
+		>
+			{plainRuleValue(labels, reason, (entry) => entry.label)}
 		</Badge>
 	);
 }
@@ -224,8 +229,13 @@ export function GeneratedUnassignedPanel({ context, renderUnassignedReasonBadge 
 									GR{grade}
 								</Button>
 							))}
-							{(['all', 'NO_QUALIFIED_FACULTY', 'FACULTY_OVERLOADED', 'NO_AVAILABLE_SLOT', 'NO_COMPATIBLE_ROOM'] as const).map((reason) => {
-								const label = reason === 'all' ? 'Any reason' : (UNASSIGNED_REASON_LABELS[reason]?.label ?? humaniseEngineToken(reason));
+						{(['all', 'NO_QUALIFIED_FACULTY', 'FACULTY_OVERLOADED', 'NO_AVAILABLE_SLOT', 'NO_COMPATIBLE_ROOM'] as const).map((reason) => {
+							// R1 (B1): the filter chip and the reason badge read the SAME canonical
+							// map through the SAME shared rule, so the two cannot show different
+							// sentences for one reason code.
+							const label = reason === 'all'
+								? 'Any reason'
+								: plainRuleValue(UNASSIGNED_REASON_LABELS, reason, (entry) => entry.label);
 								const count = reason === 'all'
 									? programKindFilteredUnassignedItems.length
 									: programKindFilteredUnassignedItems.filter((item) => item.reason === reason).length;

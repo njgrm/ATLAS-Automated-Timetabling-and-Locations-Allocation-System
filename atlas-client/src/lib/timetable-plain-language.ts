@@ -28,7 +28,16 @@ import type {
 	RoomPreferenceStatus,
 	RoomRequestAppealStatus,
 } from '@/types';
-import { humaniseEngineToken } from '@/lib/violation-presentation';
+import { UNLABELLED_RULE_SENTENCE, plainRuleValue } from '@/lib/plain-rule-degradation';
+
+/* The degradation rule itself — the honest unlabelled sentence, the absent-value
+ * em dash, and the ONE total helper that applies them — lives in
+ * `lib/plain-rule-degradation.ts`, which imports nothing from here. It has to:
+ * `lib/violation-presentation.ts` needs the same rule, and this module already
+ * imports from that file, so a rule owned by either label module could not be
+ * shared without an import cycle. `UNLABELLED_RULE_SENTENCE` is re-exported
+ * below so every existing importer keeps working unchanged. */
+export { UNLABELLED_RULE_SENTENCE };
 
 /** The one plain word for "a problem that stops you saving and publishing". */
 export const MUST_FIX_LABEL = 'Must fix';
@@ -161,17 +170,23 @@ const ROOM_REQUEST_APPEAL_STATES: Record<RoomRequestAppealStatus, string> = {
 };
 
 /**
- * The one plain sentence for a stored code this version has no words for. It is
- * used wherever a label lookup misses. It deliberately does NOT de-snake-case
- * the token: "faculty excessive idle gap" reads as a broken sentence and looks
- * like a typo the scheduler caused, whereas this says plainly that ATLAS has no
- * name for the rule and invites the honest next step.
+ * `UNLABELLED_RULE_SENTENCE` is OWNED by `lib/plain-rule-degradation.ts` and
+ * re-exported above. The rule it belongs to, restated here so this file cannot
+ * be read as making a promise its own code does not keep:
  *
- * Shared by the readiness warning groups (`simplePublishReadiness`) and the
- * blocker-repair banner (`dispatchSimpleReadinessRepair`) so the two C1/C2
- * consumers cannot drift into two different sentences for one gap.
+ *   absent value      -> the em-dash marker
+ *   known member      -> the plain label from the ONE canonical map
+ *   unmapped value    -> the shared honest sentence, NEVER a de-snake-cased
+ *                        engine token
+ *
+ * R1 moved that sentence out of this module because `resolveViolationTitle` in
+ * `lib/violation-presentation.ts` needs the same rule, and the import that
+ * existed between the two files (this one reading `humaniseEngineToken` from
+ * there) made the reverse import a cycle. While the sentence lived only here,
+ * the other resolver improvised its own degradation and the same code rendered
+ * two different sentences on two surfaces. Do not reintroduce a local fallback:
+ * every degradation in this file goes through `plainRuleValue`.
  */
-export const UNLABELLED_RULE_SENTENCE = 'A problem that this version of ATLAS does not have a name for yet.';
 
 /** Unknown members degrade to English, never to the raw token. */
 export function roomRequestDecisionState(status: string | null | undefined): PlainRoomRequestState {
@@ -266,62 +281,46 @@ export function generationRunKindLabel(runType: string | null | undefined): stri
 }
 
 /* ────────────────────────────────────────────────────────────────────────────
- * PLAIN-LANGUAGE-J2J3-C01 (J2/J3) — the ONE degradation rule, grafted onto the
+ * PLAIN-LANGUAGE-J2J3-C01 (J2/J3) — one degradation rule, grafted onto the
  * maps above.
  *
  * The candidate's own three bare-label maps (`ROOM_DECISION_STATUS_LABELS`,
  * `ROOM_APPEAL_STATUS_LABELS`, `GENERATION_RUN_STATUS_LABELS`) are NOT adopted:
  * this module already names each of those statuses, and two label sets for one
  * status is the exact "one HARD problem has four names" defect J1 was written to
- * remove (2026-09-26 audit finding 3). What IS adopted is its `plainEnumLabel`
- * degradation rule, which is strictly better than the `?? 'In a state this
- * version does not name'` fallbacks above for one specific reason: it
- * distinguishes an ABSENT value from an UNKNOWN one.
+ * remove (2026-09-26 audit finding 3). What IS adopted is the rule those
+ * resolvers were built on, which is strictly better than the
+ * `?? 'In a state this version does not name'` fallbacks above for one specific
+ * reason: it distinguishes an ABSENT value from an UNKNOWN one.
  *
  * `generationRunStateLabel(null)` and `roomRequestDecisionState(null)` both
  * conflate the two, and the conflation is a false claim — "this version does not
  * name it" asserts something about ATLAS when the truth is that the server sent
- * no value at all. So a `plain*` caller now gets the em dash for absent (the
- * marker the surfaces already used) and a humanised phrase for a value outside
- * the union. Known values still come from the canonical maps above, unchanged.
+ * no value at all. So a `plain*` caller gets the em dash for absent (the marker
+ * the surfaces already used). Known values still come from the canonical maps
+ * above, unchanged.
+ *
+ * R1 (B1) SUPERSEDES this block's original step 3, which degraded an
+ * out-of-union value with `humaniseEngineToken(value)` — a de-snake-cased
+ * phrase. That contradicted the prose this very module carried about
+ * `UNLABELLED_RULE_SENTENCE` 200 lines above, and it gave the same canonical code
+ * two different sentences depending on which resolver read it. Step 3 is now the
+ * shared honest sentence, applied by the ONE helper in
+ * `lib/plain-rule-degradation.ts`, which this module no longer owns a private
+ * copy of. There is deliberately no local `plainEnumLabel` here any more: a
+ * second implementation is what let the two rules drift in the first place.
  * ──────────────────────────────────────────────────────────────────────────── */
 
-/** The one "this value is genuinely absent" marker, matching the em dash the
- * surfaces already used. It is not an enum, so it is not in any map. */
-const ABSENT_VALUE_LABEL = '—';
-
-/**
- * The one degradation rule for a union-typed status. `label` projects a map
- * entry to its plain words, so the object-valued decision map above can be read
- * through its `.label` instead of being restated as a second label set.
- */
-function plainEnumLabel<T extends string, V>(
-	map: Record<T, V>,
-	value: string | null | undefined,
-	label: (entry: V) => string,
-): string {
-	// An absent value keeps the em dash. It must not be humanised into a word,
-	// and it must not reach a map lookup typed as the union.
-	if (value == null || value === '' || value === ABSENT_VALUE_LABEL) return ABSENT_VALUE_LABEL;
-	const known = map[value as T];
-	if (known !== undefined) return label(known);
-	// A value outside the union (a newer server, a stored legacy row) degrades
-	// to a readable phrase. It must NEVER echo the raw token: an unmapped enum
-	// reaching the operator is the exact defect J2 exists to close, so a missing
-	// map entry is a defect here, not a pass.
-	return humaniseEngineToken(value);
-}
-
 export function plainRoomDecisionStatus(value: string | null | undefined): string {
-	return plainEnumLabel(ROOM_REQUEST_DECISION_STATES, value, (state) => state.label);
+	return plainRuleValue(ROOM_REQUEST_DECISION_STATES, value, (state) => state.label);
 }
 
 export function plainRoomAppealStatus(value: string | null | undefined): string {
-	return plainEnumLabel(ROOM_REQUEST_APPEAL_STATES, value, (label) => label);
+	return plainRuleValue(ROOM_REQUEST_APPEAL_STATES, value, (label) => label);
 }
 
 export function plainGenerationRunStatus(value: string | null | undefined): string {
-	return plainEnumLabel(GENERATION_RUN_STATE_LABELS, value, (label) => label);
+	return plainRuleValue(GENERATION_RUN_STATE_LABELS, value, (label) => label);
 }
 
 /**

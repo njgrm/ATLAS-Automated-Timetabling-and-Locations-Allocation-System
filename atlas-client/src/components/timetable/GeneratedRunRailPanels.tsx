@@ -18,7 +18,8 @@ import {
 } from 'lucide-react';
 
 import atlasApi from '@/lib/api';
-import { humaniseEngineToken, resolveViolationTitle } from '@/lib/violation-presentation';
+import { resolveViolationTitle } from '@/lib/violation-presentation';
+import { plainRuleValue } from '@/lib/plain-rule-degradation';
 import { ALL_SESSIONS_PLACED_LABEL } from '@/lib/timetable-plain-language';
 import {
 	getDefaultUnassignedReasonDetail,
@@ -413,7 +414,13 @@ export function GeneratedUnassignedPanel({ context, renderUnassignedReasonBadge 
 							<div className="space-y-1.5">
 								<div className="flex gap-1 overflow-x-auto scrollbar-thin pb-0.5">
 									{(['all', 'NO_QUALIFIED_FACULTY', 'FACULTY_OVERLOADED', 'NO_AVAILABLE_SLOT', 'NO_COMPATIBLE_ROOM'] as const).map((reason) => {
-										const label = reason === 'all' ? 'All' : (UNASSIGNED_REASON_LABELS[reason]?.label ?? humaniseEngineToken(reason));
+										// R1 (B1): `UnassignedReason` is a canonical code space, so an unmapped
+										// member routes through the ONE shared degradation rule and gets the
+										// same honest sentence as the reason badge and the publish-readiness
+										// warning group — never a de-snake-cased phrase for this chip only.
+										const label = reason === 'all'
+											? 'All'
+											: plainRuleValue(UNASSIGNED_REASON_LABELS, reason, (entry) => entry.label);
 										const count = reason === 'all'
 											? programKindFilteredUnassignedItems.length
 											: programKindFilteredUnassignedItems.filter((item) => item.reason === reason).length;
