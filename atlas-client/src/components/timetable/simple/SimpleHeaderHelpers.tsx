@@ -707,6 +707,11 @@ export function useSimpleTasks(
 		const unassignedCount = context.summary?.unassignedCount ?? 0;
 		const noCurrentTimetable = !context.draft && !context.isPreGenerationWorkspace;
 		const yearLabel = context.schoolYearContext?.activeSchoolYearLabel ?? 'current school year';
+		// C1-b — the task badge reads the same single authority as the
+		// recommended task and the lifecycle next step. It previously counted
+		// every HARD violation and labelled it "blocked", so a run the publish
+		// gate called ready showed "3 blocked" on its own review task.
+		const publishTruth = resolvePublishBlockTruth(context);
 		return [
 			{
 				id: 'place-unresolved',
@@ -733,7 +738,10 @@ export function useSimpleTasks(
 				primaryLabel: 'Review issues',
 				helper: 'See the most important blockers and warnings without opening the full diagnostics wall.',
 				icon: ListChecks,
-				badge: taskCount(context.hardCount || context.softCount, context.hardCount > 0 ? 'blocked' : 'warnings'),
+				badge: taskCount(
+					publishTruth.blockingHardCount || context.softCount,
+					publishTruth.blockingHardCount > 0 ? 'blocked' : 'warnings',
+				),
 				disabled: context.isPreGenerationWorkspace || !gates.issueReview.enabled,
 			},
 			{
@@ -762,6 +770,7 @@ export function useSimpleTasks(
 	}, [
 		context.draft,
 		context.draftPlacementCount,
+		context.blockingHardCount,
 		context.hardCount,
 		context.isPreGenerationWorkspace,
 		context.newDraftLoading,
@@ -777,12 +786,43 @@ export function useSimpleTasks(
 	]);
 }
 
+/**
+ * C1-b — the ONE predicate for "what must I fix before this can be published".
+ *
+ * `hardCount` is every HARD violation the run reports. `blockingHardCount` is
+ * the allowlist-filtered, publication-relevant subset — the count the publish
+ * gate, the readiness chip, the readiness sheet, and `deriveSimpleLifecycleAction`
+ * already agree on. The Simple header's *recommended task* used to read
+ * `hardCount` instead, so with `hardCount = 3, blockingHardCount = 0` the header
+ * recommended "Review issues" while the same header reported "Ready to publish".
+ *
+ * Every surface now reads this single derivation, so that state is unreachable.
+ * The HARD violations that do not block publication are real, so they are not
+ * hidden either: `nonBlockingHardCount` is stated on the header in plain words.
+ */
+export type SimplePublishBlockTruth = {
+	/** The one count that decides what must be fixed before this can be published. */
+	blockingHardCount: number;
+	/** HARD rule breaks that do not stop publishing; still worth stating plainly. */
+	nonBlockingHardCount: number;
+};
+
+export function resolvePublishBlockTruth(context: { hardCount: number; blockingHardCount: number }): SimplePublishBlockTruth {
+	return {
+		blockingHardCount: context.blockingHardCount,
+		nonBlockingHardCount: Math.max(0, context.hardCount - context.blockingHardCount),
+	};
+}
+
 export function chooseRecommendedTask(tasks: SimpleTaskDefinition[], context: ScheduleReviewWorkspaceHeaderContext) {
 	const unassignedCount = context.summary?.unassignedCount ?? 0;
 	if (context.isPreGenerationWorkspace) return tasks.find((task) => task.id === 'plan-draft') ?? tasks[0];
 	if (!context.draft) return tasks.find((task) => task.id === 'plan-draft') ?? tasks[0];
 	if (unassignedCount > 0) return tasks.find((task) => task.id === 'place-unresolved') ?? tasks[0];
-	if (context.hardCount > 0 || context.softCount > 0) return tasks.find((task) => task.id === 'review-issues') ?? tasks[0];
+	// C1-b — `blockingHardCount`, the same count the lifecycle next step and the
+	// publish gate read. Reading `hardCount` here is what let the header
+	// recommend "Review issues" beside its own "Ready to publish".
+	if (context.blockingHardCount > 0 || context.softCount > 0) return tasks.find((task) => task.id === 'review-issues') ?? tasks[0];
 	if (context.requestPendingCount > 0) return tasks.find((task) => task.id === 'review-issues') ?? tasks[0];
 	return tasks.find((task) => task.id === 'publish') ?? tasks[0];
 }

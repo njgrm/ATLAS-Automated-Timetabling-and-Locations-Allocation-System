@@ -57,6 +57,10 @@ function cleanPlacementInput(overrides: Partial<InlinePlacementInput> = {}): Inl
 		startTime: '11:30',
 		endTime: '12:15',
 		roomLabel: 'Room 103 - G7 Main',
+		// C1-c R1 — the fixture carries no reference-read discriminator unless a
+		// row supplies one, which is the honest `unknown` case: the copy keeps
+		// the pre-C1-c wording instead of guessing a count.
+		availableTeachingSpaces: { state: 'unknown' },
 		softCount: 0,
 		hardTitle: null,
 		...overrides,
@@ -208,6 +212,178 @@ test('B1 source contract: the placement hook routes the confirm decisions inline
 	assert.match(hook, /buildInlinePlacementPreviewData\(/);
 	assert.match(hook, /const confirmInlinePlacement = useCallback/);
 	assert.match(hook, /commitEditWithMeta\(\s*pending\.proposal/, 'the confirm is the only commit path');
+});
+
+/* ── C1-c — the room instruction matches what the screen can actually do ──── */
+
+test('C1-c: with more than one teaching space the chooser renders and the step is followable', () => {
+	const input = cleanPlacementInput({ roomLabel: null, availableTeachingSpaces: { state: 'ready', count: 2 } });
+	const described = describeInlinePlacement(input);
+	assert.equal(described.confirmable, false);
+	// >1 is the only case where "Choose a room first" names an action the screen
+	// offers, so this wording is preserved byte-identically.
+	assert.equal(
+		described.consequence,
+		'ATLAS could not choose a room for this session yet. Choose a room first.',
+		'the >1 wording is unchanged',
+	);
+	const markup = renderPreview(input, {
+		roomId: null,
+		roomOptions: [
+			{ value: '103', label: 'Room 103 - G7 Main' },
+			{ value: '201', label: 'Room 201 - G7 Main' },
+		],
+		onRoomChange: () => {},
+	});
+	assert.match(markup, /data-testid="inline-placement-room-picker"/, 'the chooser renders when there is a real choice');
+	assert.match(markup, /Choose a room first/, 'the rendered consequence matches the rendered control');
+	assert.match(markup, /data-testid="inline-placement-confirm"[^>]*disabled/, 'Confirm waits for a room');
+});
+
+test('C1-c: with exactly one teaching space the screen never tells the scheduler to choose', () => {
+	// The resolver now treats a lone teaching space as the destination, so the
+	// placement is confirmable and the copy is the ordinary confirmable one.
+	const resolved = cleanPlacementInput({ availableTeachingSpaces: { state: 'ready', count: 1 } });
+	const described = describeInlinePlacement(resolved);
+	assert.equal(described.confirmable, true, 'a single available space is a resolvable destination, not a choice');
+	assert.doesNotMatch(described.consequence, /Choose a room first/, 'no unfollowable instruction');
+	assert.match(described.consequence, /Room 103 - G7 Main/, 'the resolved room is named');
+
+	const markup = renderPreview(resolved, {
+		roomOptions: [{ value: '103', label: 'Room 103 - G7 Main' }],
+		onRoomChange: () => {},
+	});
+	assert.doesNotMatch(markup, /data-testid="inline-placement-room-picker"/, 'one option is not a chooser');
+	assert.doesNotMatch(markup, /Choose a room first/, 'the rendered panel never names an action it does not offer');
+	assert.match(markup, /data-confirmable="true"/, 'the step is completable');
+	assert.doesNotMatch(markup, /data-testid="inline-placement-confirm"[^>]*disabled/, 'Confirm is enabled');
+
+	// R2 — the defensive copy for a lone space that still did not resolve now
+	// states the situation instead of a diagnosis. The pre-R2 assertion
+	// (`assert.match(unresolved.consequence, /Room Map \(\/map\)/)`, "the real
+	// destination is named") is SUPERSEDED, not deleted: nothing here knows why
+	// the one space was not used, so naming Room Map asserted a cause the
+	// function cannot know. Its intent — never naming an unfollowable choice —
+	// is retained and strengthened by the negative assertion below.
+	const unresolved = describeInlinePlacement(cleanPlacementInput({ roomLabel: null, availableTeachingSpaces: { state: 'ready', count: 1 } }));
+	assert.equal(unresolved.confirmable, false);
+	assert.doesNotMatch(unresolved.consequence, /Choose a room first/);
+	assert.doesNotMatch(unresolved.consequence, /could not read/i, 'no unprovable cause is asserted');
+	assert.doesNotMatch(unresolved.consequence, /Room Map \(\/map\)/, 'no configuration page is offered for a situation that may not be one');
+	assert.match(
+		unresolved.consequence,
+		/1 teaching space is available and this session is not in it/,
+		'the situation is stated, not a diagnosis',
+	);
+});
+
+test('C1-c: with zero teaching spaces AND a good reference read the copy states the fact and the real destination', () => {
+	// R1 — the "no teaching space" claim is only available when reference data
+	// is known good, so this row is explicitly the `ready` state. The
+	// unread-state counterpart is the R1 row below.
+	const input = cleanPlacementInput({ roomLabel: null, availableTeachingSpaces: { state: 'ready', count: 0 } });
+	const described = describeInlinePlacement(input);
+	assert.equal(described.confirmable, false);
+	assert.doesNotMatch(described.consequence, /Choose a room first/, 'there is nothing to choose, so nothing is named as a choice');
+	assert.match(described.consequence, /No teaching space is available for this session/, 'the real reason is stated');
+	assert.match(described.consequence, /Room Map \(\/map\)/, 'room configuration lives at /map, per the shared blocker resolver');
+
+	const markup = renderPreview(input, { roomId: null, roomOptions: [], onRoomChange: () => {} });
+	assert.doesNotMatch(markup, /data-testid="inline-placement-room-picker"/, 'no chooser at zero rooms');
+	assert.doesNotMatch(markup, /Choose a room first/, 'the rendered panel never names an action it does not offer');
+	assert.match(markup, /No teaching space is available for this session/, 'the rendered consequence is honest');
+	assert.match(markup, /Room Map \(\/map\)/, 'the rendered consequence names the real configuration page');
+	assert.match(markup, /data-testid="inline-placement-confirm"[^>]*disabled/, 'Confirm stays disabled because the step is not completable');
+});
+
+/* ── C1-c R1 — the zero-room claim needs a provable reference read ────────── */
+
+test('C1-c R1: an unread reference read never claims that no teaching space exists', () => {
+	// The real degraded path: `runTimetableLoad` swallows a reference-data
+	// failure so the grid stays usable, which leaves the room map EMPTY. An
+	// empty map is therefore not evidence that the school configured nothing.
+	const input = cleanPlacementInput({ roomLabel: null, availableTeachingSpaces: { state: 'unread' } });
+	const described = describeInlinePlacement(input);
+	assert.equal(described.confirmable, false, 'nothing becomes confirmable when the read is unknown');
+	assert.doesNotMatch(described.consequence, /No teaching space is available/, 'no claim that none are configured');
+	assert.doesNotMatch(described.consequence, /Room Map \(\/map\)/, 'no routing to a configuration page for a problem that may not exist');
+	assert.doesNotMatch(described.consequence, /Choose a room first/, 'no unfollowable instruction when no chooser renders');
+	assert.match(described.consequence, /could not read the teaching spaces/, 'the uncertainty itself is named');
+
+	// RENDERED, not source-matched: the panel must show the hedged copy, must
+	// not show the zero-room claim, and must not enable Confirm.
+	const markup = renderPreview(input, { roomId: null, roomOptions: [], onRoomChange: () => {} });
+	assert.match(markup, /could not read the teaching spaces/, 'the rendered panel states the uncertainty');
+	assert.match(markup, /Refresh the school names/, 'the remedy the screen really offers is named');
+	assert.doesNotMatch(markup, /No teaching space is available/, 'the rendered panel makes no false claim');
+	assert.doesNotMatch(markup, /Room Map/, 'the rendered panel does not send the scheduler to /map');
+	assert.doesNotMatch(markup, /Choose a room first/, 'the rendered panel names no action it does not offer');
+	assert.doesNotMatch(markup, /data-testid="inline-placement-room-picker"/, 'no chooser can render with an unread list');
+	assert.match(markup, /data-confirmable="false"/, 'the rendered panel is not confirmable');
+	assert.match(markup, /data-testid="inline-placement-confirm"[^>]*disabled/, 'Confirm is not enabled in the unknown state');
+});
+
+test('C1-c R1: the zero-room claim and its converse are gated on the same rendered evidence', () => {
+	// Converse of the row above, on the identical rendered panel: with reference
+	// data known good and 0 spaces, the plain claim DOES render. The two rows
+	// together make the discriminator load-bearing — neither copy can be reached
+	// from the other state.
+	const unread = renderPreview(cleanPlacementInput({ roomLabel: null, availableTeachingSpaces: { state: 'unread' } }), { roomId: null, roomOptions: [] });
+	const noneConfigured = renderPreview(cleanPlacementInput({ roomLabel: null, availableTeachingSpaces: { state: 'ready', count: 0 } }), { roomId: null, roomOptions: [] });
+	assert.doesNotMatch(unread, /No teaching space is available/, 'the unread state renders no zero-room claim');
+	assert.match(noneConfigured, /No teaching space is available/, 'the ready/0 state renders the zero-room claim');
+	assert.doesNotMatch(noneConfigured, /could not read the teaching spaces/, 'the ready state does not hedge a fact it can prove');
+	// `unknown` (a caller with no discriminator) is also not a licence to claim.
+	const unknown = describeInlinePlacement(cleanPlacementInput({ roomLabel: null, availableTeachingSpaces: { state: 'unknown' } }));
+	assert.doesNotMatch(unknown.consequence, /No teaching space is available/);
+	assert.doesNotMatch(unknown.consequence, /Room Map/);
+	assert.equal(unknown.confirmable, false);
+});
+
+test('C1-c: the confirmable and blocked copy is byte-identical to before the correction', () => {
+	// The >1 room choice and both confirmable outcomes must not drift.
+	assert.equal(
+		describeInlinePlacement(cleanPlacementInput({ availableTeachingSpaces: { state: 'ready', count: 3 } })).consequence,
+		'Confirm to place TLE · G7AW · session 1 in MONDAY 11:30–12:15 · Room 103 - G7 Main. No conflicts were found, so nothing changes until you confirm.',
+	);
+	assert.equal(
+		describeInlinePlacement(cleanPlacementInput({ softCount: 2, availableTeachingSpaces: { state: 'ready', count: 3 } })).consequence,
+		'Confirm to place TLE · G7AW · session 1 in MONDAY 11:30–12:15 · Room 103 - G7 Main. 2 soft warnings will be acknowledged.',
+	);
+	assert.equal(
+		describeInlinePlacement(cleanPlacementInput({ hardTitle: 'Room already in use', availableTeachingSpaces: { state: 'ready', count: 3 } })).consequence,
+		'This slot is blocked: Room already in use. Choose another slot.',
+	);
+	// An unknown read state keeps the pre-existing wording rather than guessing.
+	assert.equal(
+		describeInlinePlacement(cleanPlacementInput({ roomLabel: null })).consequence,
+		'ATLAS could not choose a room for this session yet. Choose a room first.',
+	);
+	// A partial (`needs-refresh`) or still-loading reference read is `unread`,
+	// never `ready`, so the hook cannot reach the zero-room claim through it.
+	assert.equal(
+		describeInlinePlacement(cleanPlacementInput({ roomLabel: null, availableTeachingSpaces: { state: 'unread' } })).consequence,
+		'ATLAS could not read the teaching spaces for this session, so it cannot place it yet. Refresh the school names, then place it again.',
+	);
+});
+
+test('C1-c structural guard: a lone teaching space is the destination, not a dead end', () => {
+	// The resolver lives inside the workspace hook and has no unit seam, so this
+	// is a STRUCTURAL guard on the fallback, not a behavioural one. The rendered
+	// rows above are the behavioural control; this row exists so the fallback
+	// cannot be silently deleted while they still pass.
+	const hook = source('src/hooks/useScheduleReviewWorkspaceState.ts');
+	assert.match(hook, /if \(teachingSpaces\.length === 1\) return teachingSpaces\[0\]\.id;/, 'one teaching space resolves to that space');
+	// R1 — the count is attached only behind a known-good reference read, so a
+	// swallowed reference-data failure cannot masquerade as "none configured".
+	assert.match(
+		hook,
+		/referenceLookupStatus\.state === 'ready'\s*\?\s*\{ state: 'ready', count: inlinePlacementRoomOptions\.length \}\s*:\s*\{ state: 'unread' \}/,
+		'a count is believed only when the reference read is known good',
+	);
+	assert.match(hook, /availableTeachingSpaces: inlinePlacementTeachingSpaces/, 'the consequence reads the same canonical list the chooser renders from, with its provenance');
+	// The chooser still renders only when there is a real choice.
+	assert.match(source('src/components/timetable/InlinePlacementPreview.tsx'), /const canChooseRoom = Boolean\(onRoomChange\) && roomOptions\.length > 1;/);
 });
 
 /* ── B2 — the Advanced guidance is visible, not sr-only ──────────────────── */

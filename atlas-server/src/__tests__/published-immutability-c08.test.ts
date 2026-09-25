@@ -798,6 +798,194 @@ async function main() {
 		check(snapshotDigest(frozenSnapshot!) === frozenDigestBaseline, 'R1 missing-interval mutant does not mutate the frozen snapshot (byte-exact)');
 		check(snapshotDigest(frozenSnapshot!).length > 0, 'G01b frozen snapshot digest is deterministic');
 
+		// ── PUBLISHED-TERM-AND-DRIFT-FOLLOWUP-C01 (F1) ──────────────────────
+		// Official export term authority must follow the EFFECTIVE identity, not
+		// only the INITIAL_PUBLICATION base bytes. A real SCHEDULED revision that
+		// re-cuts the ordered-term contract (3-term TRIMESTER -> 4-term QUARTERS)
+		// must govern every already-effective export, or a valid term fails closed
+		// as out-of-contract.
+		//
+		// The chain is evolved phase by phase against the REAL published run, so
+		// every row exercises `resolvePublishedRunTermIndex` over real Prisma rows.
+		// Each control is non-fatal: a mutant yields a control FAIL, not an abort.
+		section('F1. effective-identity export term authority (real SCHEDULED/SUPERSEDED chain)');
+
+		const baseMetaBefore = await prisma.publishedScheduleRevision.findUnique({
+			where: { id: revisionId },
+			select: { metadata: true, reason: true, status: true, effectiveDate: true },
+		});
+		const baseSnapshotBefore = readPublishedIdentitySnapshot(baseMetaBefore?.metadata);
+		check(baseSnapshotBefore !== null, 'F1 the base publication carries a readable identity snapshot');
+		const baseDigestBefore = baseSnapshotBefore ? snapshotDigest(baseSnapshotBefore) : '';
+		// A sha256 over the serialized base metadata, so the immutability control
+		// can compare bytes without printing an 8 KB snapshot on failure.
+		const baseMetaBytesBefore = (await import('node:crypto'))
+			.createHash('sha256')
+			.update(JSON.stringify(baseMetaBefore?.metadata ?? null))
+			.digest('hex');
+		checkEqual(baseSnapshotBefore?.orderedTermContract.format, 'TRIMESTER', 'F1 the base publication is a TRIMESTER contract');
+		checkEqual(baseSnapshotBefore?.orderedTermContract.terms.length, 3, 'F1 the base publication has three terms');
+
+		// A four-term QUARTERS contract with a distinct active term, so the
+		// controls below can tell the effective contract from the base one.
+		const fourTermOverride = {
+			identityOverrides: {
+				orderedTermContract: {
+					format: 'QUARTERS',
+					terms: [
+						{ identity: 'Q1', displayLabel: 'Quarter 1', order: 1 },
+						{ identity: 'Q2', displayLabel: 'Quarter 2', order: 2 },
+						{ identity: 'Q3', displayLabel: 'Quarter 3', order: 3 },
+						{ identity: 'Q4', displayLabel: 'Quarter 4', order: 4 },
+					],
+					activeTermOrder: 3,
+				},
+			},
+		};
+		const daysAgo = (n: number) => new Date(Date.now() - n * 24 * 60 * 60 * 1000);
+		const daysAhead = (n: number) => new Date(Date.now() + n * 24 * 60 * 60 * 1000);
+
+		const makeRevision = (data: any) => prisma.publishedScheduleRevision.create({
+			data: {
+				schoolId,
+				schoolYearId,
+				sourceRunId: runId,
+				status: 'SCHEDULED',
+				reason: 'IDENTITY_OVERRIDE',
+				changeSet: { entries: [] },
+				previousValues: {},
+				newValues: {},
+				metadata: data.metadata,
+				...data.extra,
+			},
+			select: { id: true, status: true, effectiveDate: true },
+		});
+		const exportTerm = async (requested: number | 'active') => {
+			try {
+				return { value: await withDataContext(prisma, () => resolvePublishedRunTermIndex(schoolId, schoolYearId, runId, requested)), code: '' };
+			} catch (error) {
+				return { value: undefined, code: (error as { code?: string }).code ?? '' };
+			}
+		};
+
+		// ── F1-2: a revision dated AFTER asOf must not govern ──────────────────
+		// Phase 1 of the chain: only a future-dated override exists, so the base
+		// three-term authority still governs. Term 4 is the discriminating index:
+		// it is inside the base three-term MAX bound but absent from the base
+		// contract, so it must fail closed while the override is not yet effective.
+		const futureOverride = await makeRevision({ extra: { effectiveDate: daysAhead(30) }, metadata: fourTermOverride });
+		const phaseFutureNumeric = await exportTerm(4);
+		checkEqual(
+			phaseFutureNumeric.code,
+			'TERM_INDEX_OUTSIDE_CONTRACT',
+			`F1-2 a pre-effective date stays under the base three-term authority (got ${String(phaseFutureNumeric.value)}, code ${phaseFutureNumeric.code || 'none'})`,
+		);
+		checkEqual((await exportTerm(3)).value, 3, 'F1-2 a term inside the base contract still resolves before the effective date');
+		const phaseFutureActive = await exportTerm('active');
+		checkEqual(phaseFutureActive.value, 1, 'F1-2 the base active term order still governs before the effective date');
+
+		// ── F1-1: an effective SCHEDULED override re-cuts the contract ─────────
+		const effectiveOverride = await makeRevision({ extra: { effectiveDate: daysAgo(2) }, metadata: fourTermOverride });
+		const phaseEffectiveNumeric = await exportTerm(4);
+		checkEqual(
+			phaseEffectiveNumeric.value,
+			4,
+			`F1-1 the previously out-of-contract term 4 resolves under the effective four-term contract (code ${phaseEffectiveNumeric.code || 'none'})`,
+		);
+		checkEqual(phaseEffectiveNumeric.code, '', 'F1-1 the effective override produces no typed error');
+		// Terms 1-3 are unchanged by the re-cut and still resolve.
+		checkEqual((await exportTerm(1)).value, 1, 'F1-1 term 1 still resolves under the effective contract');
+		checkEqual((await exportTerm(3)).value, 3, 'F1-1 term 3 still resolves under the effective contract');
+		// MAX_ACADEMIC_TERM_INDEX is 4, so 5 is rejected before contract lookup.
+		// The existing typed passthrough is preserved.
+		checkEqual((await exportTerm(5)).code, 'INVALID_TERM_INDEX', 'F1-1 a term beyond MAX_ACADEMIC_TERM_INDEX keeps the existing INVALID_TERM_INDEX code');
+
+		// ── F1-4: 'active' follows the effective contract's activeTermOrder ────
+		checkEqual((await exportTerm('active')).value, 3, "F1-4 'active' resolves the effective contract's activeTermOrder (3, not the base 1)");
+
+		// ── F1-4: a null activeTermOrder fails closed ──────────────────────────
+		// Two distinct typed codes exist and both are asserted, because the two
+		// layers fail closed differently and neither may be weakened:
+		//   - the EXPORT term resolver raises TERM_FILTER_NOT_READY (501);
+		//   - the archived READ payload raises TERM_SELECTION_REQUIRED (409).
+		const nullActiveOverride = await makeRevision({
+			extra: { effectiveDate: daysAgo(1) },
+			metadata: {
+				identityOverrides: {
+					orderedTermContract: { ...fourTermOverride.identityOverrides.orderedTermContract, activeTermOrder: null },
+				},
+			},
+		});
+		const phaseNullActive = await exportTerm('active');
+		checkEqual(
+			phaseNullActive.code,
+			'TERM_FILTER_NOT_READY',
+			`F1-4 a null effective activeTermOrder fails closed at the export resolver (got ${String(phaseNullActive.value)})`,
+		);
+		// A numeric term still resolves under the same (null-active) contract.
+		checkEqual((await exportTerm(2)).value, 2, 'F1-4 a numeric term is unaffected by a null activeTermOrder');
+		// Remove it before F1-3, otherwise this still-effective null-active
+		// revision would (correctly) keep governing the chain and mask the
+		// SUPERSEDED assertion below.
+		await prisma.publishedScheduleRevision.delete({ where: { id: nullActiveOverride.id } });
+
+		// ── F1-3: a SUPERSEDED/withdrawn override does not govern ─────────────
+		await prisma.publishedScheduleRevision.update({
+			where: { id: effectiveOverride.id },
+			data: { status: 'SUPERSEDED' },
+		});
+		const phaseSuperseded = await exportTerm(4);
+		checkEqual(
+			phaseSuperseded.code,
+			'TERM_INDEX_OUTSIDE_CONTRACT',
+			`F1-3 a SUPERSEDED override does not govern and base authority returns (got ${String(phaseSuperseded.value)})`,
+		);
+		checkEqual((await exportTerm('active')).value, 1, "F1-3 a SUPERSEDED override restores the base active term order");
+		// Restore it for the immutability read below.
+		await prisma.publishedScheduleRevision.update({
+			where: { id: effectiveOverride.id },
+			data: { status: 'SCHEDULED' },
+		});
+
+		// ── F1-5: the base publication is never mutated ────────────────────────
+		const baseMetaAfter = await prisma.publishedScheduleRevision.findUnique({
+			where: { id: revisionId },
+			select: { metadata: true, reason: true, status: true, effectiveDate: true },
+		});
+		const baseSnapshotAfter = readPublishedIdentitySnapshot(baseMetaAfter?.metadata);
+		const baseMetaBytesAfter = (await import('node:crypto'))
+			.createHash('sha256')
+			.update(JSON.stringify(baseMetaAfter?.metadata ?? null))
+			.digest('hex');
+		check(
+			baseMetaBytesAfter === baseMetaBytesBefore,
+			`F1-5 the base revision metadata bytes are unchanged before/after the effective-revision reads (sha256 ${baseMetaBytesBefore.slice(0, 16)} -> ${baseMetaBytesAfter.slice(0, 16)})`,
+		);
+		check(
+			(baseSnapshotAfter ? snapshotDigest(baseSnapshotAfter) : '') === baseDigestBefore,
+			'F1-5 snapshotDigest(baseMetadata) is byte-identical before/after',
+		);
+		checkEqual(baseSnapshotAfter?.orderedTermContract.format, 'TRIMESTER', 'F1-5 a direct base read still returns TRIMESTER');
+		checkEqual(baseSnapshotAfter?.orderedTermContract.terms.length, 3, 'F1-5 a direct base read still returns three terms');
+		checkEqual(baseMetaAfter?.reason, 'INITIAL_PUBLICATION', 'F1-5 the base revision is still the INITIAL_PUBLICATION');
+		checkEqual(baseSnapshotAfter?.orderedTermContract.activeTermOrder, baseSnapshotBefore?.orderedTermContract.activeTermOrder, 'F1-5 the base active term order is untouched');
+
+		// ── F1-6: the existing published read path is unaffected ───────────────
+		// The override is an export-authority concern; the archived read still
+		// reports the base frozen snapshot for its own term scoping.
+		const afterOverrideRead = await read({ termIndex: 2 });
+		checkEqual(afterOverrideRead.source.snapshotState, 'FROZEN', 'F1-6 the archived read stays FROZEN under an effective identity override');
+		check(afterOverrideRead.entries.length > 0, `F1-6 the archived read still returns entries under an effective override (${afterOverrideRead.entries.length})`);
+
+		// Cleanup: the override revisions are fixture rows in a disposable
+		// database, but drop them so the chain reads stay interpretable.
+		await prisma.publishedScheduleRevision.delete({ where: { id: futureOverride.id } });
+		await prisma.publishedScheduleRevision.delete({ where: { id: effectiveOverride.id } });
+		const chainAfterCleanup = await prisma.publishedScheduleRevision.count({
+			where: { schoolId, schoolYearId, sourceRunId: runId, reason: 'INITIAL_PUBLICATION' },
+		});
+		checkEqual(chainAfterCleanup, 1, 'F1 the F1 fixture left exactly the one immutable base publication revision');
+
 		// ── Gate 9: disposable database cleanup ──
 		section('G09. disposable database cleanup');
 		await prisma.$disconnect();

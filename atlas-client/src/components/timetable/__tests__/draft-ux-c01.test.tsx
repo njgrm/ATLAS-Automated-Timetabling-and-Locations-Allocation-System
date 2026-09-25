@@ -596,6 +596,66 @@ test('S5 with only another term\'s item the entry shows 0 and is disabled with a
 	assert.match(entry.textContent ?? '', /No unassigned sessions in Term 2/, 'the disabled entry says why');
 });
 
+/* ── C1-a — the repair banner states the REAL affected-session count ───────── */
+
+test('C1-a following a blocker repair states the real group count, never a hard-coded 0', async () => {
+	viewportWidth = 1366;
+	// Two unresolved sessions share one reason, so the readiness sheet renders ONE
+	// blocker group whose `count` is 2. That is the number the banner must state.
+	const run = draft([unassignedItem(2, 701, 1), unassignedItem(2, 702, 1)]);
+	const context = withRunContext({
+		draft: run,
+		summary: run.summary,
+		blockingHardCount: 0,
+		hardCount: 0,
+	});
+	const origins: Array<Record<string, unknown>> = [];
+	const header = await renderHeader(context, { onSetRepairOrigin: (origin: Record<string, unknown>) => origins.push(origin) });
+
+	// Open the real readiness sheet through the real visible control.
+	const warnings = header.querySelector<HTMLElement>('[data-testid="timetable-simple-warnings-control"]');
+	assert.ok(warnings, 'the merged warnings control renders');
+	await click(warnings);
+	const nextAction = document.querySelector<HTMLElement>('[data-testid="timetable-simple-blocker-next-action"]');
+	assert.ok(nextAction, 'the readiness sheet renders the blocker repair action');
+	// The sheet itself already states the true count one click away.
+	assert.match(nextAction.getAttribute('aria-label') ?? '', /2 sessions affected/, 'the sheet states the real group count');
+	await click(nextAction);
+
+	assert.equal(origins.length, 1, 'following the repair sets exactly one repair origin');
+	assert.equal(origins[0].groupCount, 2, 'the origin carries the followed group\'s real count, not a hard-coded 0');
+	assert.equal(origins[0].plainReason, 'No available slot', 'the rest of the banner meaning is unchanged');
+
+	// The banner is the production surface that renders this origin.
+	const { RepairContextBanner } = await import('../simple/SimpleTaskDrawerHelpers');
+	await mount(createElement(RepairContextBanner, { repairOrigin: origins[0] as never }));
+	const banner = container().querySelector<HTMLElement>('[data-testid="timetable-repair-context-banner"]');
+	assert.ok(banner, 'the repair banner renders');
+	assert.equal(banner.getAttribute('role'), 'status', 'the banner keeps its status role');
+	assert.equal(banner.getAttribute('aria-label'), 'Repairing: No available slot', 'the banner keeps its accessible name');
+	assert.match(banner.textContent ?? '', /2 sessions affected\./, 'the banner states the real count');
+	assert.doesNotMatch(banner.textContent ?? '', /0 sessions affected/, 'the hard-coded 0 can never render');
+	assert.match(banner.textContent ?? '', /ATLAS cannot test slots until this is resolved\./, 'the second sentence is kept');
+});
+
+test('C1-a an unknown count omits the affected-sessions clause entirely; 0 is unreachable', async () => {
+	viewportWidth = 1366;
+	const { RepairContextBanner } = await import('../simple/SimpleTaskDrawerHelpers');
+	// The shared dispatcher has a second caller (`/timetable/setup`) with no
+	// blocker group, so `groupCount` is genuinely absent there.
+	for (const groupCount of [undefined, null]) {
+		await mount(createElement(RepairContextBanner, {
+			repairOrigin: { reason: 'UNKNOWN', plainReason: 'Unknown issue', groupCount } as never,
+		}));
+		const banner = container().querySelector<HTMLElement>('[data-testid="timetable-repair-context-banner"]');
+		assert.ok(banner, 'the repair banner renders');
+		assert.match(banner.textContent ?? '', /Fixing publish blockers → Unknown issue/, 'the banner still says what is being fixed');
+		assert.match(banner.textContent ?? '', /ATLAS cannot test slots until this is resolved\./, 'the second sentence is kept');
+		assert.doesNotMatch(banner.textContent ?? '', /session/, 'no count is printed and no zero is invented');
+		assert.doesNotMatch(banner.textContent ?? '', /0\s*session/, 'a literal 0 is unreachable in rendered output');
+	}
+});
+
 /* ── S1 guard — the tutorial never points at a control this change removed ── */
 
 test('S1 every Simple tutorial step targets a control that still renders somewhere', async () => {
