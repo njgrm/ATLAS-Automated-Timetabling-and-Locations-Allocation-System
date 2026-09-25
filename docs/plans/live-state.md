@@ -48,6 +48,11 @@ resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs
   `ACCEPT_READY` **8/8/0/0**; six-table zero-write digest unchanged; focused C02 13/13, PostgreSQL 6/6, C01 8/8,
   client term-gate 8/8, preservation failure set base-reproduced with zero candidate-only failures. **No migration.
   Rollback basis: `eb0e3038`.**
+- **Pending release SHA: `116a765814bf56fdd30aec02c611869aaff42190`** (isolated F1/F2 target recorded
+  2026-07-26; planned release `E:\ATLAS-runtime-supervised-116a7658-20260726`; incumbent/rollback `861d89a2`;
+  target is live `861d89a2` plus only the reviewed F1/F2 five-path delta, excluding the unapproved Lane C
+  DRAFT-UX product delta; no migration; standing authorization applies subject to packet gates; deployment
+  not yet run).
 - **Release SHA: `eb0e30386336673a4a31ecfe39a9bef93549e0ed`** (rollback basis; previously LIVE 2026-09-25 22:19;
   `E:\ATLAS-runtime-supervised-eb0e3038-20260925`; prior Q4/A1 evidence preserved; **no migration.**)
 - **Release SHA: `c5e167d7c5939ff586880149c566ce29506430e8`** (rollback basis; previously LIVE 2026-09-25 20:40,
