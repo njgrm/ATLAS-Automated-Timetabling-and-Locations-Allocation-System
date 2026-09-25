@@ -39,6 +39,15 @@ resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs
 ## Live release
 
 - Tailnet: `https://njgrm.buru-degree.ts.net`
+- **Target release SHA: `82871619`** (**deployment-pending** 2026-09-25, Lane C; release dir
+  `E:\ATLAS-runtime-supervised-82871619-20260925`, built, own `npm ci`; entry `assets/index-DnEOPehP.js`).
+  `DEPARTURE-SWAP-C04`: teacher-leaving Step 4/5 scroll; a published swap only pairs classes in the same term
+  (client) and the server refuses cross-term swaps (422 `SWAP_TERM_MISMATCH`); clash text names rooms. Integrated
+  on `main` as merge `bc2608d6` (code tree identical to `82871619`). Independent QA `ACCEPT_READY` 7/0/1
+  (2026-09-25). **No migration** (no `prisma/**` change). **Rollback basis: `ff87b06b`**. Cutover needs an
+  elevated shell (operator). **Browser acceptance owner: Lane C.** Deviation (2026-09-25, operator-directed
+  pre-demo release): `E:` at 47–49 GiB (< 50 GiB warning) and the release-directory reclaim was **not** run
+  before this build; it is Lane C's first action after the demo.
 - **Release SHA: `ff87b06b`** (**LIVE** since 2026-09-25; `E:\ATLAS-runtime-supervised-ff87b06b-20260925`;
   supervisor-owned 5001→51652 / 5174→36128; health/ready (`database:"ok"`) + `GET /api/v1/subjects?schoolId=1`
   + Tailnet 200; served entry `assets/index-CqO3DnVa.js` (SHA-256 `7ADDAACA…81171A`, byte-identical to the
