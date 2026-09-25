@@ -1,14 +1,9 @@
 import { memo, useEffect, useMemo, useState } from 'react';
 import {
-	BookOpen,
-	CalendarClock,
-	Loader2,
 	MoreHorizontal,
-	RefreshCw,
-	Settings2,
 	type LucideIcon,
 } from 'lucide-react';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 
 import { cn } from '@/lib/utils';
 import { deriveSimpleLifecycleAction } from '@/lib/simple-timetable-state';
@@ -54,14 +49,22 @@ import {
 	SimpleReadinessChip,
 } from '@/components/timetable/simple/SimpleSetupSharedControls';
 import type { SimpleViewMode } from '@/components/timetable/simple/SimpleHeaderHelpers';
-import { SimpleExportMenu, SimpleTermSwitcher } from '@/components/timetable/simple/SimpleBeneficiaryControls';
+import { SimpleTermSwitcher } from '@/components/timetable/simple/SimpleBeneficiaryControls';
+import {
+	countUnassignedForSelectedTerm,
+	lifecycleStepNeedsMoreEntry,
+	resolveSimpleHeaderPrimary,
+	resolveWarningsControlDispatch,
+	SimpleMoreScheduleActions,
+	SimpleUnassignedSessionsItem,
+	SimpleWarningsControl,
+} from '@/components/timetable/simple/SimpleHeaderActions';
 import { SimpleDriftBanner } from '@/components/timetable/simple/SimpleDriftBanner';
 import { describeRunInputDrift } from '@/components/timetable/timetableDriftRouting';
 import { SimpleMoreMenuContent } from '@/components/timetable/simple/SimpleMoreMenuContent';
 import { resolveTermAuthorityNotice } from '@/hooks/useTimetableData';
 import { ExportPresentationSettingsDialog } from '@/components/timetable/simple/ExportPresentationSettingsDialog';
 import { SchedulerPrintDialog } from '@/components/timetable/simple/SchedulerPrintDialog';
-import { TimetablePublishedReturnAction } from '@/components/timetable/TimetablePublishedReturnAction';
 import { fetchRolloverStatus, type RolloverStatus } from '@/lib/settings';
 
 type TimetableSimpleHeaderProps = {
@@ -369,11 +372,9 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 		isRunPublished,
 		gateReason: capabilities.gates.publication.reason,
 	});
-	const showPublishAction = hasGeneratedRun && !isRunPublished;
-	// C01R C1 — one publish control per state. The dynamic primary is
-	// suppressed while the dedicated publish control owns the publish slot;
-	// the dedicated control is the solid primary exactly then. For every other
-	// next step the lifecycle primary stays the single filled action.
+	// C01R C1 — one publish control per state. DRAFT-UX-C01: the former
+	// lifecycle primary is no longer a visible control; while the publish slot
+	// owns its step it adds no More "Next step" entry either.
 	const primaryRendersPublish = activeTask
 		? activeTaskDefinition.id === 'publish'
 		: lifecycleAction.kind === 'publish';
@@ -381,13 +382,6 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 		? (activeTaskDefinition.id === 'publish' && isRunPublished)
 		: lifecycleAction.kind === 'published';
 	const suppressPrimaryAction = primaryRendersPublish || primaryIsPublished;
-	// C7 — one action is never reachable from both the header primary and More.
-	// The primary owns the review-issues dispatch in the review-warnings state
-	// (and while a review task is armed); More drops its duplicate entry then.
-	const moreHidesReviewIssues = primaryDispatchesReviewIssues({
-		activeTaskId: activeTask,
-		lifecycleKind: lifecycleAction.kind,
-	});
 
 	const handlePublishClick = () => {
 		if (isRunPublished) return;
@@ -436,6 +430,52 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 		}
 	};
 
+	// DRAFT-UX-C01 (operator, 2026-09-25) — the relaxed header: at ≥1280 px at
+	// most six visible controls (Term · View · picker · ONE merged warnings
+	// control · ONE primary · More). Generate is the primary with no generated
+	// run, Publish once a run exists; everything else moved into More with its
+	// gate, reason and dispatch unchanged.
+	const headerPrimary = resolveSimpleHeaderPrimary({
+		hasGeneratedRun,
+		isRunPublished,
+		isPreGenerationWorkspace: context.isPreGenerationWorkspace,
+	});
+	const warningsDispatch = resolveWarningsControlDispatch({
+		lifecycleKind: lifecycleAction.kind,
+		issueReviewEnabled: capabilities.gates.issueReview.enabled,
+	});
+	const handleWarningsClick = () => {
+		if (warningsDispatch === 'readiness-sheet') {
+			setReadinessSheetOpen(true);
+			return;
+		}
+		if (warningsDispatch === 'review-issues') void startTask('review-issues');
+	};
+	// C7 — the review action is never offered twice: More drops its entry while
+	// the merged warnings control (or an armed review task) owns it.
+	const moreHidesReviewIssues = warningsDispatch === 'review-issues' || primaryDispatchesReviewIssues({
+		activeTaskId: activeTask,
+		lifecycleKind: lifecycleAction.kind,
+	});
+	// The former lifecycle primary's remaining next steps keep one More entry.
+	const moreNextStep = suppressPrimaryAction ? null
+		: setupRepairIsInPlace
+			? { label: setupRepair.label ?? lifecycleAction.label, disabled: lifecycleAction.disabled || context.loading, href: null, onSelect: () => context.handleRefresh() }
+			: lifecycleAction.kind === 'fix-setup' && setupRepair.kind === 'navigate'
+				? { label: setupRepair.label ?? lifecycleAction.label, disabled: false, href: setupRepair.href ?? YEAR_SETUP_HREF, onSelect: () => undefined }
+				: lifecycleStepNeedsMoreEntry(lifecycleAction.kind)
+					? { label: lifecycleAction.label, disabled: lifecycleAction.disabled, href: null, onSelect: handleLifecycleAction }
+					: null;
+	// S5 — the Simple layout's unassigned entry counts the selected term only.
+	const selectedTermLabel = typeof context.termFilter === 'number' ? `Term ${context.termFilter}` : 'All terms';
+	const unassignedForTerm = countUnassignedForSelectedTerm(
+		context.draft?.unassignedItems as Array<{ termIndex?: number | null }> | undefined,
+		context.termFilter,
+	);
+	const unassignedUnavailable = context.isPreGenerationWorkspace
+		? 'Unassigned sessions belong to a generated schedule; this is the working draft.'
+		: !hasGeneratedRun ? 'No generated schedule yet.' : null;
+
 	const exportRunId = context.draft?.runId ?? context.activeGeneratedRunId ?? null;
 	const exportYearLabel = context.schoolYearContext?.activeSchoolYearLabel ?? null;
 
@@ -463,7 +503,9 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 	};
 
 	const startTask = async (task: TimetableSimpleTask) => {
-		if (task === 'place-unresolved') {
+		// DRAFT-UX-C01 (S5) — the unassigned list (the rail's own panel) in the
+		// Simple task drawer; same left-tab state the Advanced rail uses.
+		if (task === 'place-unresolved' || task === 'unassigned-sessions') {
 			context.setLeftTab('unassigned');
 			context.setPresentationMode('workflow');
 			onTaskChange(task);
@@ -515,32 +557,17 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 
 	return (
 		<header className="shrink-0 border-b border-border bg-background" data-testid="timetable-simple-header">
-			{/* The status and action areas intentionally wrap at every desktop width;
-			    this keeps every control visible without turning the header into a
-			    horizontally scrolling strip. The conditional export/swap banners
-			    remain full-width strips outside these rows.
-			    A3/C5 — the region is still ONE status region, rendered as a compact
-			    single-line strip: the readiness chip, the single coherent authority
-			    state, and the one labelled way to the setup repairs. A4 — the
-			    ordered-term notice, the run-input drift message, or the source
-			    authority line renders here, never two at once. C5 — the region
-			    no longer carries its own bordered band (margins + vertical
-			    padding) and the redundant `Next step:` line is gone: the single
-			    primary action already names the next step, so the header keeps
-			    exactly one status region and one visually dominant primary. The
-			    setup-input repairs (Fix rooms / Preview impact / Sync with
-			    setup) and the rollover guidance live on `/timetable/setup`. */}
+			{/* DRAFT-UX-C01 — one status region (drift / term / failure / setup
+			    notices only) and one action row: Term · View · picker · the merged
+			    warnings control · the one primary · More. `School information`,
+			    `Download schedules`, the non-primary Generate/Publish and the former
+			    lifecycle next steps live in More ▸ Schedule actions. */}
 			<div
 				className="flex min-w-0 flex-col gap-1.5"
 				data-testid="timetable-simple-header-row"
 			>
 			<section data-testid="timetable-simple-status-region" role="region" aria-label="Timetable status" className="min-w-0 px-3">
 			<div className="flex min-w-0 flex-wrap items-center gap-1.5">
-				<SimpleReadinessChip
-					readiness={readiness}
-					publishBlocked={publishBlocked}
-					blockingHardCount={context.blockingHardCount}
-				/>
 				{/* Only actionable drift and unresolved-term states belong in the
 				    ordinary header. Routine provenance remains in Expert diagnostics. */}
 				{showDriftState ? (
@@ -589,21 +616,9 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 						</Tooltip>
 					</TooltipProvider>
 				) : null}
-				{/* A3 — one labelled way to the setup repairs. */}
-				<Button asChild type="button" variant="outline" size="sm" className="h-6 shrink-0 gap-1 px-2 text-xs" data-testid="timetable-simple-review-setup">
-					<Link to="/timetable/setup">
-						<Settings2 className="size-3" aria-hidden="true" />
-						{showDriftState ? 'Check school information' : 'School information'}
-					</Link>
-				</Button>
 			</div>
 			</section>
 
-			{/* A3/C5 — ONE action row: term, schedule, downloads, and the
-			    single primary action. Everything else is one click away in More.
-			    C5 — the row no longer adds its own bottom band padding, so the
-			    header is one compact block (status strip + control row) instead
-			    of two padded bands. */}
 			<div className="flex min-w-0 flex-wrap items-center gap-1.5 px-3">
 				<SimpleTermSwitcher context={context} />
 
@@ -622,101 +637,39 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 					onViewModeChange={handleViewModeChange}
 					onEntityChange={handleEntityChange}
 				/>
-				{hasGeneratedRun ? (
-					<SimpleExportMenu
-						onOpenDownloadSchedules={() => setPrintPanelOpen(true)}
-					/>
-				) : null}
 
-				{/* A3/C6 — the single action cluster: one lifecycle-derived primary,
-				    the secondary Generate, and the More disclosure. C6 — on the
-				    narrow scrollable strip the primary leads (order-first) so it is
-				    visible without scrolling; at lg it returns to its inline order. */}
+				{/* The count badge and `Review warnings` are ONE control. */}
+				<SimpleWarningsControl
+					readiness={readiness}
+					dispatch={warningsDispatch}
+					onClick={handleWarningsClick}
+				>
+					<SimpleReadinessChip
+						readiness={readiness}
+						publishBlocked={publishBlocked}
+						blockingHardCount={context.blockingHardCount}
+					/>
+				</SimpleWarningsControl>
+
 				<div className="flex min-w-0 flex-wrap items-center justify-start gap-1.5 lg:ml-auto lg:justify-end">
-					<TimetablePublishedReturnAction
-						visible={context.isPreGenerationWorkspace && Boolean(context.hasPublishedReturnState)}
-						onReturn={context.returnToGeneratedRun}
-					/>
-					<SimpleGenerateAction
-						disabled={generateActionState.disabled}
-						disabledReason={generateActionState.reason}
-						onClick={handleGenerateClick}
-						published={isRunPublished}
-					/>
-					{/* LANE-C C03 (B9) — the published chip describes the published
-					    run, not the draft, so the Draft view no longer shows it. */}
-					{isRunPublished && context.isPreGenerationWorkspace ? null : isRunPublished ? (
-						<SimplePublishedState followUpCount={context.summary?.unassignedCount ?? 0} />
-					) : showPublishAction ? (
+					{headerPrimary === 'generate' ? (
+						<SimpleGenerateAction
+							primary
+							disabled={generateActionState.disabled}
+							disabledReason={generateActionState.reason}
+							onClick={handleGenerateClick}
+							published={false}
+						/>
+					) : headerPrimary === 'publish' ? (
 						<SimplePublishAction
 							enabled={!publishActionState.disabled}
 							disabledReason={publishActionState.reason}
-							primary={primaryRendersPublish}
+							primary
 							onClick={handlePublishActionClick}
 						/>
+					) : headerPrimary === 'published' ? (
+						<SimplePublishedState followUpCount={context.summary?.unassignedCount ?? 0} />
 					) : null}
-					{generationReady && !hasGeneratedRun ? (
-						<Button
-							type="button"
-							variant="outline"
-							size="sm"
-							className="h-11 gap-1.5 px-3 text-sm"
-							disabled={!canPlanOrGenerate}
-							onClick={() => setInsertionOpen(true)}
-							data-testid="timetable-unassigned-insertion-action"
-						>
-							<CalendarClock className="size-3.5" aria-hidden="true" />
-							<span>Preview demand</span>
-						</Button>
-					) : null}
-					{suppressPrimaryAction ? null : setupRepairIsInPlace ? (
-						<Button
-							type="button"
-							size="sm"
-							className="order-first h-11 gap-1.5 px-3 text-sm lg:order-none"
-							disabled={lifecycleAction.disabled || context.loading}
-							onClick={() => context.handleRefresh()}
-							data-testid="timetable-simple-primary-action"
-						>
-							<RefreshCw className="size-3.5" aria-hidden="true" />
-							<span>{setupRepair.label ?? lifecycleAction.label}</span>
-						</Button>
-					) : lifecycleAction.kind === 'fix-setup' && setupRepair.kind === 'navigate' ? (
-						<Button asChild type="button" size="sm" className="order-first h-11 gap-1.5 px-3 text-sm lg:order-none" data-testid="timetable-simple-primary-action">
-							<Link to={setupRepair.href ?? YEAR_SETUP_HREF}>
-								<BookOpen className="size-3.5" aria-hidden="true" />
-								{setupRepair.label ?? lifecycleAction.label}
-							</Link>
-						</Button>
-					) : activeTask && activeTaskDefinition.href ? (
-						<Button
-							asChild
-							size="sm"
-							className="order-first h-11 min-w-28 gap-1.5 px-3 text-sm lg:order-none"
-							disabled={activeTaskDefinition.disabled}
-							data-testid="timetable-simple-primary-action"
-						>
-							<Link to={activeTaskDefinition.href}>
-								{activeTaskDefinition.primaryLabel}
-							</Link>
-						</Button>
-					) : (
-						<Button
-							type="button"
-							size="sm"
-							className="order-first h-11 min-w-28 gap-1.5 px-3 text-sm lg:order-none"
-							disabled={activeTask ? activeTaskDefinition.disabled : lifecycleAction.disabled}
-							onClick={() => activeTask ? void startTask(activeTaskDefinition.id) : handleLifecycleAction()}
-							data-testid="timetable-simple-primary-action"
-						>
-							{lifecycleAction.kind === 'generating' || (lifecycleAction.kind === 'retry-readiness' && lifecycleAction.disabled)
-								? <Loader2 className="size-3.5 animate-spin" aria-hidden="true" />
-								: lifecycleAction.kind === 'retry-generate' || lifecycleAction.kind === 'retry-readiness'
-									? <RefreshCw className="size-3.5" aria-hidden="true" />
-									: <CalendarClock className="size-3.5" aria-hidden="true" />}
-							<span>{activeTask ? activeTaskDefinition.primaryLabel : lifecycleAction.label}</span>
-						</Button>
-					)}
 
 					<DropdownMenu open={moreOpen} onOpenChange={setMoreOpen}>
 						<DropdownMenuTrigger asChild>
@@ -733,17 +686,51 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 							</Button>
 						</DropdownMenuTrigger>
 						<DropdownMenuContent align="end" className="max-h-[min(82svh,32rem)] w-80 overflow-y-auto scrollbar-thin p-2">
-							<SimpleMoreMenuContent
-								context={context}
-								runToolsAvailable={runToolsAvailable}
-								hideReviewIssues={moreHidesReviewIssues}
-								onClose={() => setMoreOpen(false)}
-								onStartTask={startTask}
-								onOpenTeacherDeparture={openTeacherDeparture}
-								onOpenRequests={openRequestsTask}
-								onLayoutModeChange={onLayoutModeChange}
-								onOpenTutorial={() => { setMoreOpen(false); setTutorialOpen(true); }}
-							/>
+							<div className="space-y-2">
+								<SimpleMoreScheduleActions
+									onClose={() => setMoreOpen(false)}
+									downloadAvailable={hasGeneratedRun}
+									onOpenDownloadSchedules={() => setPrintPanelOpen(true)}
+									schoolInformationLabel={showDriftState ? 'Check school information' : 'School information'}
+									generate={{
+										visible: headerPrimary !== 'generate',
+										disabled: generateActionState.disabled,
+										reason: generateActionState.reason,
+										published: isRunPublished,
+										onSelect: handleGenerateClick,
+									}}
+									previewDemand={{
+										visible: generationReady && !hasGeneratedRun,
+										disabled: !canPlanOrGenerate,
+										onSelect: () => setInsertionOpen(true),
+									}}
+									returnToPublished={{
+										visible: context.isPreGenerationWorkspace && Boolean(context.hasPublishedReturnState),
+										onSelect: context.returnToGeneratedRun,
+									}}
+									nextStep={moreNextStep}
+								/>
+								<SimpleMoreMenuContent
+									context={context}
+									runToolsAvailable={runToolsAvailable}
+									hideReviewIssues={moreHidesReviewIssues}
+									onClose={() => setMoreOpen(false)}
+									onStartTask={startTask}
+									onOpenTeacherDeparture={openTeacherDeparture}
+									onOpenRequests={openRequestsTask}
+									onLayoutModeChange={onLayoutModeChange}
+									onOpenTutorial={() => { setMoreOpen(false); setTutorialOpen(true); }}
+									unassignedEntry={(
+										<SimpleUnassignedSessionsItem
+											count={unassignedForTerm}
+											termLabel={selectedTermLabel}
+											unavailableReason={unassignedUnavailable}
+											onClose={() => setMoreOpen(false)}
+											onOpen={() => { void startTask('unassigned-sessions'); }}
+										/>
+									)}
+								/>
+							</div>
 						</DropdownMenuContent>
 					</DropdownMenu>
 				</div>

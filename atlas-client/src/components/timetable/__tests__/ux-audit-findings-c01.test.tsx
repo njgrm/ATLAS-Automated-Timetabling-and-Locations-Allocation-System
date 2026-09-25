@@ -212,7 +212,9 @@ test('F3: the SOFT warning indicator carries a truthful accessible name', () => 
 	const tag = markup.match(/<span[^>]*data-testid="timetable-entry-severity-indicator"[^>]*>/)?.[0] ?? '';
 	assert.ok(tag, 'the per-entry severity indicator must render');
 	assert.match(tag, /role="img"/);
-	assert.match(tag, /aria-label="1 warning: 1 Schedule note"/, 'the indicator names the warning count and its non-blocking severity');
+	// SUPERSEDED (DRAFT-UX-C01 S3, operator 2026-09-25): the sign is named by its severity summary ("1 warning"; "Must fix" for HARD).
+	// assert.match(tag, /aria-label="1 warning: 1 Schedule note"/, 'the indicator names the warning count and its non-blocking severity');
+	assert.match(tag, /aria-label="1 warning"/, 'the indicator names the warning count and its non-blocking severity');
 });
 
 test('F3: no bare, unlabelled entry warning glyph remains in the grid', () => {
@@ -392,7 +394,9 @@ test('F7: the expert tools stay under More', () => {
 
 test('F2 re-verify: a published run offers "New version", never a destructive "Generate"', () => {
 	const markup = renderHeader(PUBLISHED);
-	assert.match(markup, /New version/);
+	// SUPERSEDED (DRAFT-UX-C01, operator 2026-09-25): "New version" is a More entry once a run exists.
+	// assert.match(markup, /New version/);
+	assert.match(source('src/components/timetable/simple/SimpleHeaderActions.tsx'), /generate\.published \? PUBLISHED_GENERATE_LABEL : 'Generate'/);
 	assert.equal(markup.includes('Generate schedule'), false, 'no destructive Generate label on a published run');
 	assert.equal(markup.includes('Publish schedule'), false, 'no publish affordance on a published run');
 });

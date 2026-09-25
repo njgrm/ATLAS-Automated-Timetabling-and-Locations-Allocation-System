@@ -22,7 +22,7 @@ import { Button } from '@/ui/button';
 import { Input } from '@/ui/input';
 import { ScrollArea } from '@/ui/scroll-area';
 import { LeftRailContent } from '@/components/timetable/LeftRailContent';
-import { getUnassignedStatus } from '@/components/timetable/GeneratedUnassignedPanel';
+import { getUnassignedStatus, SimpleUnassignedSessionsPanel } from '@/components/timetable/GeneratedUnassignedPanel';
 import { DraggableQueuePin, DraggableUnassignedPin } from '@/components/timetable/DraggablePinWrappers';
 import type { LeftRailContentContext } from '@/components/timetable/timetableContexts.types';
 import type { TimetableSimpleTask } from '@/components/timetable/TimetableSimpleTypes';
@@ -104,6 +104,13 @@ const copyByTask: Record<TimetableSimpleTask, DrawerCopy> = {
 		stepOne: 'Choose draft item',
 		stepTwo: 'Choose a grid slot',
 		icon: CalendarClock,
+	},
+	'unassigned-sessions': {
+		title: 'Unassigned sessions',
+		description: 'Sessions of the selected term that have no slot yet. Drag one onto the grid, or use Place session.',
+		stepOne: 'Choose a session',
+		stepTwo: 'Place it on the grid',
+		icon: ClipboardCheck,
 	},
 	publish: {
 		title: 'Publish schedule',
@@ -195,6 +202,8 @@ function TimetableTaskDrawerImpl({
 					)}
 					<SimpleGeneratedPlottingTray context={leftRailContentContext} />
 				</>
+			) : task === 'unassigned-sessions' ? (
+				<div className="flex min-h-0 flex-1 flex-col overflow-hidden"><SimpleUnassignedSessionsPanel context={leftRailContentContext} /></div>
 			) : task === 'plan-draft' ? (
 				<SimpleDraftPlottingTray context={leftRailContentContext} />
 			) : shouldShowRail ? (

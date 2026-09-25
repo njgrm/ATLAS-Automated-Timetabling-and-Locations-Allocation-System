@@ -91,7 +91,10 @@ test('Simple header exposes no filters and More no longer duplicates filters or 
 	// C5 — the two mutually exclusive NEXT STEP task-prompt blocks collapsed into
 	// the single lifecycle action control; no separate task-prompt band remains.
 	assert.equal((header.match(/data-testid="timetable-simple-task-prompt"/g) ?? []).length, 0);
-	assert.match(header, /data-testid="timetable-simple-primary-action"/);
+	// SUPERSEDED (DRAFT-UX-C01, operator 2026-09-25): assert.match(header, /data-testid="timetable-simple-primary-action"/);
+	// The lifecycle next step is the merged warnings control or a More ▸ "Next step" entry.
+	assert.match(header, /<SimpleWarningsControl/);
+	assert.match(header, /nextStep=\{moreNextStep\}/);
 });
 
 test('R02 Simple timetable chrome does not use typography below the 12px floor', () => {

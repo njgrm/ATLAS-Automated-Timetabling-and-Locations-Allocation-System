@@ -57,6 +57,33 @@ function getUnassignedStatus(
 	return { key: 'ready' as const, label: 'Check slot', actionLabel: 'Place session', className: 'border-slate-200 bg-slate-50 text-slate-700' };
 }
 
+/** The rail's unresolved-reason badge (shared by `LeftRailContent` and the Simple drawer). */
+export function renderUnassignedReasonBadgeFor(labels: LeftRailContentContext['UNASSIGNED_REASON_LABELS'], reason: string) {
+	const info = labels[reason] ?? {
+		label: reason,
+		className: 'border-gray-300 bg-gray-50 text-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:border-gray-700',
+	};
+	return (
+		<Badge variant="outline" className={`h-4 px-1 text-xs ${info.className}`}>
+			{info.label}
+		</Badge>
+	);
+}
+
+/**
+ * DRAFT-UX-C01 (S5) — the Simple layout has no left rail, so its task drawer
+ * renders this same panel (search, filters, `DraggableUnassignedPin` rows,
+ * their Place / Teaching Load actions) instead of a second list.
+ */
+export function SimpleUnassignedSessionsPanel({ context }: { context: LeftRailContentContext }) {
+	return (
+		<GeneratedUnassignedPanel
+			context={context}
+			renderUnassignedReasonBadge={(reason) => renderUnassignedReasonBadgeFor(context.UNASSIGNED_REASON_LABELS, reason)}
+		/>
+	);
+}
+
 export function GeneratedUnassignedPanel({ context, renderUnassignedReasonBadge }: GeneratedUnassignedPanelProps) {
 	const {
 		summary,

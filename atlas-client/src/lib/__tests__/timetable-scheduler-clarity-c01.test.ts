@@ -55,8 +55,12 @@ test('ordinary stale notice offers one safe setup action and promises the curren
 	assert.doesNotMatch(drift, /Sync with setup|Refresh before publishing|Update schedule now/);
 	const header = source('src/components/timetable/TimetableSimpleHeader.tsx');
 	assert.match(header, /showActions=\{false\}/, 'ordinary timetable notice must use its single-action form');
-	assert.match(header, /<Link to="\/timetable\/setup">[\s\S]*\{showDriftState \? 'Check school information' : 'School information'\}/);
-	assert.match(header, /data-testid="timetable-simple-review-setup"/);
+	// SUPERSEDED (DRAFT-UX-C01, operator 2026-09-25): the setup link moved into More ▸ Schedule actions.
+	// assert.match(header, /<Link to="\/timetable\/setup">[\s\S]*\{showDriftState \? 'Check school information' : 'School information'\}/);
+	// assert.match(header, /data-testid="timetable-simple-review-setup"/);
+	assert.match(header, /schoolInformationLabel=\{showDriftState \? 'Check school information' : 'School information'\}/);
+	const actions = source('src/components/timetable/simple/SimpleHeaderActions.tsx');
+	assert.match(actions, /<Link to="\/timetable\/setup"[^>]*data-testid="timetable-simple-review-setup"[^>]*>[\s\S]*\{schoolInformationLabel\}/);
 	assert.doesNotMatch(drift, /timetable-simple-check-school-information/, 'the existing setup CTA is reused rather than duplicated');
 });
 
@@ -205,7 +209,10 @@ test('drift actions distinguish safe published review from draft preview and con
 
 test('term switcher is a standalone, complete ordered-term control', () => {
 	const controls = source('src/components/timetable/simple/SimpleBeneficiaryControls.tsx');
-	assert.match(controls, /<span[^>]*>Term<\/span>/);
+	// SUPERSEDED (DRAFT-UX-C01 S2, operator 2026-09-25): assert.match(controls, /<span[^>]*>Term<\/span>/);
+	// No visible "Term" label; the trigger keeps its accessible name.
+	assert.doesNotMatch(controls, /<span[^>]*>Term<\/span>/);
+	assert.match(controls, /aria-label="Term"/);
 	assert.match(controls, /Term \$\{option\.value\}/);
 	assert.doesNotMatch(controls, /\(active\)|rounded-lg border border-border bg-muted\/20/);
 	assert.match(controls, /onTermFilterChange\(next === 'all' \? 'all' : Number\(next\)\)/);

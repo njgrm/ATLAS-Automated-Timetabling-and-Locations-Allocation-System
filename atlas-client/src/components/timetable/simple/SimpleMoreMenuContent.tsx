@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 
 import { Link } from 'react-router-dom';
+import type { ReactNode } from 'react';
 
 import { cn } from '@/lib/utils';
 import { Button } from '@/ui/button';
@@ -48,6 +49,11 @@ export type SimpleMoreMenuContentProps = {
 	onLayoutModeChange: (mode: TimetableLayoutMode) => void;
 	/** A3 — the tutorial dialog now opens from here, not the main header row. */
 	onOpenTutorial?: () => void;
+	/**
+	 * DRAFT-UX-C01 (S5) — the Simple layout has no left rail; the
+	 * "Unassigned sessions (N)" entry leads the daily tasks.
+	 */
+	unassignedEntry?: ReactNode;
 };
 
 export function SimpleMoreMenuContent({
@@ -60,11 +66,13 @@ export function SimpleMoreMenuContent({
 	onOpenRequests,
 	onLayoutModeChange,
 	onOpenTutorial,
+	unassignedEntry = null,
 }: SimpleMoreMenuContentProps) {
 	return (
 		<div className="space-y-2">
 			<div className="space-y-1 rounded-md border border-border bg-muted/20 p-2" data-testid="timetable-simple-more-daily-tasks">
 				<DropdownMenuLabel className="px-0 py-0 text-xs">Daily tasks</DropdownMenuLabel>
+				{unassignedEntry}
 				{(context.summary?.unassignedCount ?? 0) > 0 ? <DropdownMenuItem className="h-9 gap-2 text-xs" disabled={!runToolsAvailable} data-testid="timetable-more-place-unresolved" onSelect={(event) => { event.preventDefault(); onClose(); void onStartTask('place-unresolved'); }}>
 					<ClipboardCheck className="size-3.5" aria-hidden="true" />
 					Place unresolved sessions

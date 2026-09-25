@@ -16,7 +16,11 @@ test('R3 the selected-class Swap arms the same workflow as the task path', () =>
 	assert.match(workspace, /createSwapArmHandler/);
 	assert.match(workspace, /data-testid="timetable-simple-selected-swap-action"/);
 	assert.match(workspace, /armSwapSessions\(\)/);
-	assert.match(workspace, /data-testid="timetable-simple-details-swap"/);
+	// SUPERSEDED (DRAFT-UX-C01, operator 2026-09-25): the details moved to
+	// `simple/SimpleSessionDetails`; its Swap button calls the same handler.
+	// assert.match(workspace, /data-testid="timetable-simple-details-swap"/);
+	assert.match(source('src/components/timetable/simple/SimpleSessionDetails.tsx'), /onClick=\{run\(props\.onSwap\)\} data-testid="timetable-simple-details-swap"/);
+	assert.match(workspace, /onSwap=\{armSwapSessions\}/);
 	// The arming transition is the real production module, not a state-only no-op.
 	assert.match(arming, /mode: 'select-first'/);
 	assert.match(arming, /deps\.setTask\('swap-sessions'\)/);

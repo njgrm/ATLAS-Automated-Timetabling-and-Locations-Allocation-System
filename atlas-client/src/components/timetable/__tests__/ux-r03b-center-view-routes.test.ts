@@ -317,7 +317,10 @@ test('UX-R03b row 8: lifecycle drift actions preserve published and draft confir
 	assert.match(simple, /handleTriggerGenerate/);
 	assert.match(simple, /SimpleGenerateAction/);
 	assert.match(simple, /SimplePublishAction/);
-	assert.match(simple, /Preview demand/);
+	// SUPERSEDED (DRAFT-UX-C01, operator 2026-09-25): Preview demand moved into More ▸ Schedule actions.
+	// assert.match(simple, /Preview demand/);
+	assert.match(simple, /previewDemand=\{\{/);
+	assert.match(source('src/components/timetable/simple/SimpleHeaderActions.tsx'), /Preview demand/);
 	const drift = source('src/components/timetable/simple/SimpleDriftBanner.tsx');
 	assert.doesNotMatch(drift, /Sync with setup|timetable-simple-sync-setup/);
 	assert.match(drift, /Published schedule is safe to view\. Changes are made in a separate revision\./);
