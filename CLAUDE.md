@@ -10,8 +10,10 @@ Load fix). Every turn re-read all three streams' context, and the browser steps 
    handed off, after a deploy, when QA verdicts arrive, or when the work moves to an unrelated stream. Write the
    handoff first (Session checkpoint in `agent-context-economy.md`) and say so to the operator. This is the
    largest saving. **The planner recommends the reset unprompted** — the operator should never have to ask. When
-   a stream reaches a boundary, end the turn with the handoff path and one line: "Start a fresh session from
-   `<handoff path>`." Also recommend it when context passes about 200k tokens.
+   a stream reaches a boundary, end the turn with a **ready-to-paste initiator prompt** in a fenced block: the
+   lane, the handoff path on `origin/main`, the current blocker or wait (dated), the first action, and the
+   `CLAUDE.md` rules to apply. A recommendation without the prompt is incomplete (operator, 2026-09-25). Also do
+   this when context passes about 200k tokens.
 2. **Browser QA runs in a subagent.** Give it the release SHA, the rows and the `atlas-live-browser-qa` skill. It
    returns one short tally (`passed/blocked/unperformed`, one line per row, evidence paths). The main
    conversation never holds the individual browser steps.

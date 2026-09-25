@@ -248,8 +248,11 @@ build for school 1 / year 10; loop block 4,314 → 1,175 ms cold, 4,161 → ~120
 NON_BLOCKING: `canonicalStringify` maps Map/Set to `{}` (no Map/Set reaches the input today); T2's failing-first
 was an import failure, not behavioural.
 
-**Next action (2026-09-25):** operator deploys the `main` tip carrying this line (incumbent `c5e167d7`); then
-Lane C reloads `/timetable` twice and reads the stall lines (expect ≤ ~1.2 s cold, ~0.1 s warm).
+**Waiting (2026-09-25 22:10):** the elevated deployer owns the `eb0e3038` cutover and its post-action QA rows Q1–Q8
+(packet `docs/prompts/deploy-eb0e3038-readiness-stall-2026-09-25.md`). **Next Lane C action:** once Q1–Q8 report
+`ACCEPT_READY`, run packet row **A1** (two production `/timetable` reloads, both readiness responses
+`scheduler.cached === true`, no new readiness-attributable `[event-loop-stall]` line) and record it in the Live
+release block. Then ask the operator what else was "broken" in manual draft placements.
 
 **Open (2026-09-25):** EnrollPro unreachable from the host — Tailscale `dev-jegs` offline since ~19:40 local;
 `runtime/context`/`sections/summary` wait the 4 s timeout (not a loop block). F1–F3
