@@ -85,6 +85,8 @@ of a 5-hour plan window. The single-file reads and edits, not the work itself, r
   take screenshots only when layout is the question, at a reduced scale.
 - **Start a fresh planner session at a lane boundary:** when QA verdicts arrive, after a deploy, or when context
   passes about 200k tokens. Write the handoff first (see below).
+- **Claude Code lanes** also follow `CLAUDE.md`: one stream per session, browser QA in a subagent, and a subagent
+  model chosen by task (Haiku/Sonnet for search, Sonnet for browser QA and MEDIUM review, Opus only for HIGH).
 
 ## Session checkpoint
 

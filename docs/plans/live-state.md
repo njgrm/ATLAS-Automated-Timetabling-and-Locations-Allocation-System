@@ -214,38 +214,27 @@ or process borrower, and is `RETIRE_AFTER_INTEGRATION` (E: 47.55 GiB before reti
 
 ## Lane C — current lane (written only by Lane C)
 
-Opened 2026-09-25 (operator). Branches `work|docs/lane-c-*`, worktrees `E:/ATLAS-worktrees/lane-c-*`. Earlier
-2026-09-25 work (skills, worktree reclaim C02/C03, `D:/ATLAS` reset, SERVER-TIMING-C01) is in this section's Git
-history. **Planner handoff: `docs/handoffs/lane-c-planner-handoff.md`.**
+Opened 2026-09-25 (operator). Branches `work|docs/lane-c-*`, worktrees `E:/ATLAS-worktrees/lane-c-*`. Finished
+cycles (C1–C3 integration and acceptance, C04/C05) are in Git history and their handoffs. **Current handoff:
+`docs/handoffs/lane-c-handoff-2026-09-25-stall.md`.** Claude Code lanes also follow `CLAUDE.md` (cost rules).
 
-**Stream: audit fixes C1–C3** (from `docs/reviews/ux-audit-teaching-load-and-schedule-controls-2026-09-25.md`).
-All three **ACCEPT_READY** as of 2026-09-25: C2 `d66510ea`, C3 `07a3e5f7` (QA), and C1 `50b8077c` after an
-independent startup run (build, Node bound isolated 5198, unauthenticated preview POST 401, stopped, port clear).
-**Integrated 2026-09-25** on `integration/lane-c-c01-c03` off `main` `1b371ba`, `--no-ff` C2, C1, C3, then
-`docs/lane-c-planner-handoff`. Merged tree: `test:client-suite` 955/970 (the same 15 failure names as base
-`1b371ba`, 914/929); candidate tests 8/8, 12/12, 21/21; server `tsc` exit 0, Node started `dist/server.js` on
-isolated 5198 (health 200, preview 401, stopped); client `vite build` with `VITE_ENROLLPRO_URL` exit 0.
+**Current stream: server stall freezing draft manual edits** (as of 2026-09-25 evening). A draft swap preview on
+run 318 took 31.7 s with a matching `[event-loop-stall]`; the same code runs offline in ~0.4 s, so the blocker is
+elsewhere in the live process and the stall line hides it behind open SSE streams.
 
-**C1–C3 LIVE 2026-09-25** in `e8553752` (Live release block). **Browser acceptance run 2026-09-25 by local Lane
-C: 10 / 1 blocked (C3-1, no free slot in the data) / 0 / 0**
-(`docs/handoffs/lane-c-browser-acceptance-e8553752-2026-09-25.md`). Open from it (2026-09-25): **F1** swap preview
-reports a section double-booking for Tue MATH ↔ Thu ENG in GR7 Luna (suspected rotating-term false positive; needs
-a failing-first test); F2 placement prompt leaks into Draft; F3 swap side panel stays open after Cancel.
+**SERVER-STALL-C01 `c198cd9` integrated 2026-09-25** (merge `c99385f4` on `integration/server-stall-c01` off
+`main` `d7fd8f8d`; QA `ACCEPT_READY` 5/0/0). Merged tree: `test:request-timing` 6/6, server `tsc` exit 0, Node
+started `dist/server.js` on isolated 5198 (health 200, subjects 200, stopped). Server delta vs live `ad8f9717`:
+`lib/request-timing.ts` and its test only; no migration.
 
-**Current stream: server stall** (audit finding 5). Evidence read 2026-09-25
-(`docs/handoffs/lane-a-to-lane-c-stall-evidence-2026-09-25.md`): the loop **is** blocked (peak ~7.7 s); pool
-exhaustion ruled out; the blocking request was hidden by open SSE streams filling the stall line. Candidate
-**SERVER-STALL-C01 `c198cd9`** on `work/epic-galileo-cw0swp` (streams counted not listed, `heap=` on stall
-lines; diagnostics only) — handoff `docs/handoffs/lane-c-server-stall-c01.md`. QA `ACCEPT_READY` 5/0/0 (2026-09-25). **Next action:**
-integrate, ship with the next release; then read the stall lines after ≥ 2 h (owner Lane A, host) and open the
-root-cause fix. Separately, `runtime/context` ~4.1 s matches the 4000 ms EnrollPro upstream timeout — needs one
-read-only timed call to the EnrollPro integration endpoints on the host.
+**Next action (2026-09-25):** operator deploys the `main` tip carrying this line with the elevated
+`deploy-runner.ps1` (incumbent `ad8f9717`); then Lane C reproduces one draft swap preview on run 318 and reads the
+new stall line. Browser acceptance owner for `ad8f9717` rows B1/B2: Lane C.
 
-**Open (2026-09-25):** retire the integrated Lane C worktrees on the host (list in the planner handoff; a cloud
-session has no `E:`); delete the merged remote branch `claude/wonderful-sagan-nhz302` (the cloud proxy/classifier
-refused it); `work/wonderful-sagan-nhz302` is **not** stale — its commit `9f04d4f` is merged into
-`work/epic-galileo-cw0swp`; delete it after that integrates. A3, 0 class advisers, needs a read-only
-EnrollPro check. E: at 49.91 GiB (below the 50 GiB warn) — release-directory reclaim before the next build.
+**Open (2026-09-25):** F1–F3 from `docs/handoffs/lane-c-browser-acceptance-e8553752-2026-09-25.md`; A3 (0 class
+advisers, read-only EnrollPro check); `runtime/context` ~4.1 s vs the 4000 ms EnrollPro timeout; delete remote
+`work/wonderful-sagan-nhz302` and `work/epic-galileo-cw0swp` now that `c198cd9` is on `main`. `E:` 52 GiB free
+(2026-09-25, just above the 50 GiB warn; Lane A owns the manifest-B reclaim).
 
 ## Lane A — current lane (written only by Lane A)
 
