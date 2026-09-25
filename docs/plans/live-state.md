@@ -209,7 +209,7 @@ resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs
 ## Decisions awaited (operator-facing, as of 2026-09-25)
 
 - Give `37e0c85b` (acceptance owner: Lane B / Codex) and the C7 target an authenticated session (see `AGENTS.md` §12).
-- `E:` reclaim C is **complete (2026-09-25)**: audited removal of `82871619` and `ff87b06b` freed 3.07 GiB; post-action E: was 47.80 GiB free and the current recheck is 49.55 GiB, still below the 50 GiB warning but above the 25 GiB fail-closed line. The §3 reclaim obligation is discharged for the `861d89a2` build; do not loop another reclaim for the same trigger.
+- `E:` reclaim C is **complete (2026-09-25)**: audited removal of `82871619` and `ff87b06b` freed 3.07 GiB; post-action E: was 47.80 GiB free. The §3 reclaim obligation is discharged for the `861d89a2` build only; do not re-run `20260925c` (it is closed at `ACCEPT_READY` 17/17). A **new** release build re-triggers the obligation while E: is below the 50 GiB warning: measured **47.45 GiB free on E: and 60.67 GiB on D: on 2026-09-26** (the earlier "49.55 GiB" figure here was stale and is superseded), both above the fail-closed lines. The `9f42190e` release build therefore requires successor reclaim `20260926a` (retire `ad8f9717`) or a dated one-build operator deviation — see `docs/prompts/deploy-9f42190e-draft-ux-c01-2026-09-26.md` step 2.
 - Keep or delete two unlanded code branches (both pushed): `work/public-published-view-term-merge-c01`,
   `work/timetable-live-term-authority-c01`.
 
@@ -245,6 +245,25 @@ packet) first, then `docs/prompts/deploy-9f42190e-draft-ux-c01-2026-09-26.md` (H
 rollback basis `861d89a2`). E: 50 GiB free after retiring worktrees `lane-c-draft-ux-c01`, `-int`, `-docs` (clean,
 merged, no reparse/borrower; health + subjects 200) — still at the warning line; reclaim first. After the
 release: D1 rows + QA NON_BLOCKING 1-2 via `atlas-browser-qa` on Claude in Chrome at 1366x768 and 390x844.
+
+**Deploy gate state (2026-09-26, planner):** the `861d89a2` cutover is **DEPLOYED with post-action QA
+`ACCEPT_READY` 8/8/0/0**, so this packet's ordering precondition is **satisfied** (scheduled task action
+reads `E:\ATLAS-runtime-supervised-861d89a2-20260925\ops\runtime\cli.mjs start`, `Running`, last run
+2026-09-26 01:27). One fresh read-only `atlas_qa` pre-action pass over range `861d89a2...9f42190e` plus the
+packet's satisfiability lint returned **`CORRECTION_REQUIRED` 11/18, blocked 0, unperformed 1**: the source
+range is **clean and exactly as described** (30 client files / +1606 / −456, `atlas-client/package.json`
+test-scripts-only, no server/Prisma/migration/lockfile, no authority expansion, max component 943/1000 lines,
+all 16 changed test files gate-reachable, 17-failure set faithfully base-reproduced) and all six blocking
+findings were **documentation-only defects in the packet**, applied by the planner as one bounded docs-only
+commit per §11 (no executor, no re-review): step 2 named a **closed** reclaim artifact while the §3
+obligation was live for this new build (successor reclaim `20260926a` now specified); gate 3 would have
+recorded a **false liveness claim** in the `## Live release` block; gate 1 named the undispatchable
+`atlas-reviewer-high`; D1-N2's stated term-axis mechanism was **refuted** by
+`useScheduleReviewWorkspaceState.ts:1953` (the real residual is the program/entry-kind/reason axis); the §13
+D1 acceptance owner was unnamed; and the D1 draft run/term premise is now re-derived in a new step 1a.
+**Not approved. Two operator decisions outstanding:** (1) successor reclaim `20260926a` vs a dated one-build
+§3 deviation; (2) whether D1 is staffed by `atlas-browser-qa` before approval, else the release is recorded
+`DEPLOYED_ACCEPTANCE_INCOMPLETE` with the owner named.
 
 **Open (2026-09-25):** EnrollPro unreachable from the host — Tailscale `dev-jegs` offline since ~19:40 local;
 `runtime/context`/`sections/summary` wait the 4 s timeout (not a loop block). F1–F3
