@@ -20,7 +20,7 @@ export function SimpleTermSwitcher({ context }: { context: ScheduleReviewWorkspa
 			className="flex shrink-0 items-center gap-2"
 			data-testid="timetable-simple-term-switcher"
 		>
-			<span className="text-sm font-medium text-foreground">Term</span>
+			{/* DRAFT-UX-C01 (S2) — no visible "Term" label; the trigger keeps aria-label="Term". */}
 			<Select value={value} onValueChange={(next) => context.onTermFilterChange(next === 'all' ? 'all' : Number(next))}>
 				<SelectTrigger
 					className="h-9 w-[8.5rem] shrink-0 text-sm"

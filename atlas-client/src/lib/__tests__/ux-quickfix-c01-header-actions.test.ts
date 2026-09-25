@@ -166,7 +166,10 @@ const CLEAN_UNPUBLISHED = {
 // --- (a) Generate is present and enabled when generation is allowed ---
 
 test('UX-QUICKFIX-C01 (a) Generate is present and enabled when the generation gate is open', () => {
-	const markup = renderHeader(CLEAN_UNPUBLISHED);
+	// SUPERSEDED (DRAFT-UX-C01, operator 2026-09-25): Generate is the visible primary only while no
+	// generated run exists; once a run exists it is a More ▸ Schedule actions entry.
+	// const markup = renderHeader(CLEAN_UNPUBLISHED);
+	const markup = renderHeader({ draft: null });
 	const generate = tagFor(markup, 'timetable-simple-generate-action');
 	assert.doesNotMatch(generate, /\sdisabled=""/, 'an open generation gate must render an enabled Generate control');
 	assert.match(generate, /aria-label="Generate schedule"/);
@@ -201,7 +204,11 @@ test('UX-QUICKFIX-C01 (c) an already-published run shows the published state, no
 		'the dead-end publish primary slot is replaced by the published state',
 	);
 	// Generate remains the adjacent real next step (re-generate from new data).
-	assert.match(markup, /data-testid="timetable-simple-generate-action"/);
+	// SUPERSEDED (DRAFT-UX-C01, operator 2026-09-25): Generate is the visible primary only while no
+	// generated run exists; once a run exists it is a More ▸ Schedule actions entry.
+	// assert.match(markup, /data-testid="timetable-simple-generate-action"/);
+	assert.doesNotMatch(markup, /data-testid="timetable-simple-generate-action"/);
+	assert.match(source('src/components/timetable/TimetableSimpleHeader.tsx'), /visible: headerPrimary !== 'generate',[\s\S]*published: isRunPublished,/, 'More offers "New version" beside a published run');
 });
 
 test('UX-QUICKFIX-C01 (c2) a published run with follow-ups keeps the follow-up review action', () => {
@@ -212,8 +219,14 @@ test('UX-QUICKFIX-C01 (c2) a published run with follow-ups keeps the follow-up r
 	});
 	assert.match(markup, /data-testid="timetable-simple-published-state"/);
 	assert.equal(markup.includes('Publish schedule'), false);
-	assert.match(markup, /data-testid="timetable-simple-primary-action"/);
-	assert.match(markup, /Review follow-ups/);
+	// SUPERSEDED (DRAFT-UX-C01, operator 2026-09-25): the lifecycle primary is no longer a visible control.
+	// assert.match(markup, /data-testid="timetable-simple-primary-action"/);
+	// assert.match(markup, /Review follow-ups/);
+	// The follow-up review stays reachable: More ▸ "Next step: Review follow-ups" and "Unassigned sessions (N)".
+	assert.match(markup, /2 follow-up items remain/);
+	const actions = source('src/components/timetable/simple/SimpleHeaderActions.tsx');
+	assert.match(actions, /kind === 'review-follow-ups'/);
+	assert.match(actions, /Next step: \{nextStep\.label\}/);
 });
 
 // --- (d) no request is dispatched while a gate is closed ---
@@ -246,8 +259,9 @@ test('UX-QUICKFIX-C01 (d) the visible dispatch guards fail closed on a closed ga
 });
 
 test('UX-QUICKFIX-C01 (d2) a closed generation gate renders a disabled Generate with the truthful reason', () => {
+	// DRAFT-UX-C01: rendered in the no-run state, where Generate is the visible primary.
 	const markup = renderHeader({
-		...CLEAN_UNPUBLISHED,
+		draft: null,
 		curriculumReadiness: { state: 'unavailable', message: 'Setup check unavailable.' },
 	});
 	const generate = tagFor(markup, 'timetable-simple-generate-action');
@@ -266,7 +280,9 @@ test('UX-QUICKFIX-C01 (d3) a closed publication gate renders a disabled Publish 
 	assert.match(publish, /disabled=""/, 'the disabled publish control cannot dispatch');
 	assert.match(publish, /aria-label="Publish schedule — Fix 1 hard blocker before publishing\."/);
 	// The real next step is still a functional primary action.
-	assert.match(markup, /data-testid="timetable-simple-primary-action"/);
+	// SUPERSEDED (DRAFT-UX-C01, operator 2026-09-25): assert.match(markup, /data-testid="timetable-simple-primary-action"/);
+	// The next step (Fix blockers) is the merged warnings control.
+	assert.match(tagFor(markup, 'timetable-simple-warnings-control'), /data-warnings-dispatch="readiness-sheet"/);
 });
 
 test('UX-QUICKFIX-C01 (d4) every visible handler consults its pure guard before dispatch', () => {
@@ -282,7 +298,10 @@ test('UX-QUICKFIX-C01 the action row mounts Generate and Publish without opening
 	assert.match(header, /<SimpleGenerateAction/);
 	assert.match(header, /<SimplePublishedState|<SimplePublishAction/);
 	// The More menu is not required to reach either control.
-	const markup = renderHeader(CLEAN_UNPUBLISHED);
-	assert.match(markup, /data-testid="timetable-simple-generate-action"/);
-	assert.match(markup, /data-testid="timetable-simple-publish-action"/);
+	// SUPERSEDED (DRAFT-UX-C01, operator 2026-09-25): one primary at a time —
+	// Generate without a run, Publish once a run exists (the other is in More).
+	// const markup = renderHeader(CLEAN_UNPUBLISHED);
+	// assert.match(markup, /data-testid="timetable-simple-generate-action"/);
+	assert.match(renderHeader({ draft: null }), /data-testid="timetable-simple-generate-action"/);
+	assert.match(renderHeader(CLEAN_UNPUBLISHED), /data-testid="timetable-simple-publish-action"/);
 });
