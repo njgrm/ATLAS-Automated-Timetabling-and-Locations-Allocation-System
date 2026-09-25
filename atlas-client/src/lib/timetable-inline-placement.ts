@@ -10,6 +10,31 @@
  * boundary, so the copy is unit-testable without a DOM.
  */
 
+/**
+ * C1-c R1 — what ATLAS is entitled to claim about the teaching spaces behind an
+ * unresolved room.
+ *
+ * A bare count cannot be honest. On the deliberately supported degraded
+ * reference read (`timetableLoadOrchestration` swallows a reference-data
+ * failure so the grid stays usable) the room map is EMPTY, which is
+ * indistinguishable from "this school configured no teaching spaces". Only the
+ * reference-read status separates them, so the count must carry its own
+ * provenance instead of travelling alone.
+ *
+ * - `ready` — reference data is known good, so `count` is authoritative and a
+ *   count of 0 really does mean "none are configured".
+ * - `unread` — the reference read is not known good: still loading, swallowed
+ *   on the degraded path, or only partial. No count is carried, and the copy
+ *   must not claim that no space exists, nor send the scheduler to a
+ *   configuration page to repair a problem that may not exist.
+ * - `unknown` — the caller has no discriminator at all. Keeps the pre-C1-c
+ *   wording rather than guessing.
+ */
+export type InlinePlacementTeachingSpaces =
+	| { state: 'ready'; count: number }
+	| { state: 'unread' }
+	| { state: 'unknown' };
+
 export type InlinePlacementInput = {
 	/** The session being placed. */
 	subjectLabel: string;
@@ -22,17 +47,10 @@ export type InlinePlacementInput = {
 	/** The resolved destination room, or null when ATLAS could not choose one. */
 	roomLabel: string | null;
 	/**
-	 * C1-c — how many teaching spaces this session could use.
-	 *
-	 * The inline room chooser renders only when there is more than one option
-	 * (`InlinePlacementPreview`: `roomOptions.length > 1`). The consequence
-	 * text used to say "Choose a room first" regardless, so at 0 or 1 available
-	 * spaces it named an action the screen did not offer and Confirm stayed
-	 * disabled — a dead end. This count is what lets the copy tell those two
-	 * states apart. `null`/`undefined` means "not known here" and keeps the
-	 * original wording.
+	 * C1-c R1 — the provenance of the teaching-space list, not a bare count.
+	 * See `InlinePlacementTeachingSpaces`.
 	 */
-	availableRoomCount?: number | null;
+	availableTeachingSpaces: InlinePlacementTeachingSpaces;
 	/** Soft warnings the confirm will acknowledge. */
 	softCount: number;
 	/** The first hard conflict's plain-language title, when the slot is blocked. */
@@ -88,23 +106,47 @@ export function describeInlinePlacement(input: InlinePlacementInput): InlinePlac
 		};
 	}
 	if (!input.roomLabel) {
-		// C1-c — the instruction must match what the screen can actually do.
-		// With 0 or 1 available teaching spaces the chooser does not render, so
-		// "Choose a room first" names an action the scheduler cannot take and
-		// Confirm stays disabled. Each branch states the real situation and the
-		// real destination instead. >1 (and unknown) keep the original wording.
-		if (input.availableRoomCount === 0) {
+		// C1-c/R1 — the instruction must match what the screen can actually do,
+		// AND the claim must match what ATLAS can actually prove. With 0 or 1
+		// available teaching spaces the chooser does not render, so "Choose a
+		// room first" names an action the scheduler cannot take and Confirm stays
+		// disabled. Each branch below states the real situation instead, and a
+		// count is believed only when the reference read is known good.
+		const spaces = input.availableTeachingSpaces;
+		if (spaces.state === 'ready' && spaces.count === 0) {
+			// The only state in which "no teaching space exists" is a fact.
 			return {
 				consequence: 'No teaching space is available for this session, so it cannot be placed yet. Teaching spaces are set up in Room Map (/map).',
 				confirmable: false,
 			};
 		}
-		if (input.availableRoomCount === 1) {
+		if (spaces.state === 'ready' && spaces.count === 1) {
+			// R2 — state the situation, not a diagnosis. This branch is not
+			// reachable from the drag path (a lone teaching space resolves to
+			// that space in `resolveGeneratedPlacementRoomId`), and if it ever
+			// were reachable nothing here knows WHY the one space was not used,
+			// so no cause is asserted.
 			return {
-				consequence: 'ATLAS could not read the one teaching space available for this session. Check Room Map (/map), then place it again.',
+				consequence: '1 teaching space is available and this session is not in it, so it cannot be placed here. Choose another slot.',
 				confirmable: false,
 			};
 		}
+		if (spaces.state === 'unread') {
+			// R1 — an empty list here is ATLAS's missing read, not a fact about
+			// the school. Do not claim none are configured, and do not route the
+			// scheduler to Room Map to repair a configuration problem that may
+			// not exist; the one remedy the screen really offers is a name
+			// refresh (`RefreshSetupNamesButton`).
+			return {
+				consequence: 'ATLAS could not read the teaching spaces for this session, so it cannot place it yet. Refresh the school names, then place it again.',
+				confirmable: false,
+			};
+		}
+		// `ready` above one space is the only case where "Choose a room first"
+		// names an action the screen actually offers (the chooser renders above
+		// one option), so that wording is preserved byte-identically. `unknown`
+		// — a caller with no discriminator — keeps the pre-C1-c wording rather
+		// than guessing.
 		return {
 			consequence: 'ATLAS could not choose a room for this session yet. Choose a room first.',
 			confirmable: false,

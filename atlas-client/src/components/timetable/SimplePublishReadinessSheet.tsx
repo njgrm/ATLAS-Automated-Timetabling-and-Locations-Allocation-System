@@ -36,8 +36,11 @@ type SimplePublishReadinessSheetProps = {
 		identity?: RepairIdentity | null,
 		/**
 		 * C1-a — the affected-session count of the group whose action was
-		 * followed. Optional so the `/timetable/setup` caller of the shared
-		 * dispatcher (which has no group) keeps compiling unchanged.
+		 * followed. Optional because the `/timetable/setup` caller
+		 * (`TimetableSetupPane`) renders this same sheet with real
+		 * `BlockerGroup`s that carry real counts, but its `onNavigateToRepair`
+		 * callback does not thread a count through — so the affected-session
+		 * clause is omitted there rather than rendered as a zero.
 		 */
 		groupCount?: number | null,
 	) => void;

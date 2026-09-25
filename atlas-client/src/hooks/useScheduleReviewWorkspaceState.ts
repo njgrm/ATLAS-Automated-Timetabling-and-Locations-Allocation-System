@@ -16,6 +16,7 @@ import { decideAutoSavePlacement } from '@/lib/simple-timetable-state';
 import {
 	buildInlinePlacementPreviewData,
 	type InlinePlacementPreviewData,
+	type InlinePlacementTeachingSpaces,
 } from '@/lib/timetable-inline-placement';
 import { buildAcademicTermOptions, isVerifiedOrderedActiveTerm, repairTermFilter, type OrderedAcademicTerm } from '@/lib/academic-term';
 import { isTargetSlotOccupiedForTerm } from '@/lib/timetable-term-scope';
@@ -1075,6 +1076,25 @@ export function useScheduleReviewWorkspaceState() {
 		return `${room.name} - ${room.buildingShortCode || room.buildingName}`;
 	}, [roomMap]);
 
+	/**
+	 * C1-c R1 — what the inline consequence is entitled to claim about teaching
+	 * spaces, and the discriminator that makes the claim provable.
+	 *
+	 * `referenceLookupStatus.state` is the only thing on this path that can tell
+	 * "the school configured none" from "ATLAS could not read them": it stays
+	 * `loading` while the room map is empty — which is also the end state of the
+	 * deliberately supported degraded read, where `runTimetableLoad` swallows a
+	 * reference-data failure so the grid stays usable (`timetableLoadOrchestration`)
+	 * — and it reaches `ready` only once all four reference maps are populated.
+	 * A `needs-refresh` list is partial, so it is not enough to claim that no
+	 * space exists either. The count is therefore attached on `ready` alone.
+	 */
+	const inlinePlacementTeachingSpaces = useMemo((): InlinePlacementTeachingSpaces => (
+		referenceLookupStatus.state === 'ready'
+			? { state: 'ready', count: inlinePlacementRoomOptions.length }
+			: { state: 'unread' }
+	), [inlinePlacementRoomOptions.length, referenceLookupStatus.state]);
+
 	/** TT-C04: clear generated-run-scoped UI whenever the actor school, school
 	 * year, or selected run changes. Collaboration resubscribes through its own
 	 * schoolId/schoolYearId/runId keys; everything here is reset explicitly so
@@ -1224,9 +1244,10 @@ export function useScheduleReviewWorkspaceState() {
 			startTime,
 			endTime,
 			// C1-c — the chooser renders only above one option, so the
-			// consequence needs the same count to avoid naming an action the
-			// screen does not offer.
-			availableRoomCount: inlinePlacementRoomOptions.length,
+			// consequence needs the same list to avoid naming an action the
+			// screen does not offer, and R1 needs its provenance so the copy
+			// never claims a space does not exist on an unread reference read.
+			availableTeachingSpaces: inlinePlacementTeachingSpaces,
 		};
 		if (!targetSlotOccupied) {
 			setDragItem(null);
@@ -1319,9 +1340,10 @@ export function useScheduleReviewWorkspaceState() {
 		sectionLabel,
 		roomDisplayLabel,
 		roomMap,
-		// C1-c — the consequence text reads the same canonical list the chooser
-		// renders from, so a stale count can never contradict the rendered control.
-		inlinePlacementRoomOptions,
+		// C1-c/R1 — the consequence text reads the same canonical list the chooser
+		// renders from, with the read provenance that makes its claim provable, so
+		// a stale list can never contradict the rendered control.
+		inlinePlacementTeachingSpaces,
 		toast,
 	]);
 
@@ -1393,9 +1415,10 @@ export function useScheduleReviewWorkspaceState() {
 				startTime: pending.preview.startTime,
 				endTime: pending.preview.endTime,
 				roomLabel,
-				// C1-c — the chooser is reachable from this state, so the count
-				// is re-derived from the same canonical teaching-space list.
-				availableRoomCount: inlinePlacementRoomOptions.length,
+				// C1-c — the chooser is reachable from this state, so the list
+				// is re-derived from the same canonical teaching-space source,
+				// carrying the same read provenance (R1).
+				availableTeachingSpaces: inlinePlacementTeachingSpaces,
 			};
 			if (!preview) {
 				setInlinePlacementPending({
@@ -1424,7 +1447,7 @@ export function useScheduleReviewWorkspaceState() {
 		} finally {
 			setInlinePlacementRoomChanging(false);
 		}
-	}, [inlinePlacementPending, previewEdit, roomDisplayLabel, setInlineActionStatus, inlinePlacementRoomOptions]);
+	}, [inlinePlacementPending, previewEdit, roomDisplayLabel, setInlineActionStatus, inlinePlacementTeachingSpaces]);
 
 	const runGeneratedPlacementPreview = useCallback(async (
 		target = assignPickerTarget,

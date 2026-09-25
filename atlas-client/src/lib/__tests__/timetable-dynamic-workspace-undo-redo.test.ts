@@ -14,6 +14,65 @@ function source(path: string): string {
 	return readFileSync(resolve(clientRoot, path), 'utf8');
 }
 
+/**
+ * R4 (Lane C, 2026-09-26) — the derived replacement for the tautological
+ * `rendersIn` helper.
+ *
+ * `ScheduleReviewWorkspace` selects its header with
+ * `layoutMode === 'simple' ? (<TimetableSimpleHeader …/>) : (…<TimetableUndoRedoControl/>…)`,
+ * so the control's reachability is decided by WHICH SIDE of that ternary it
+ * sits on — not by the nearest preceding `layoutMode` token. A naive
+ * "innermost guard wins" scan gets this exactly backwards, which is why this
+ * walks real parenthesis depth from each guard to its branch boundary.
+ *
+ * Every `layoutMode === '<mode>' ? (` ternary is measured; the ones that
+ * actually ENCLOSE the mount constrain the answer (true branch → that mode,
+ * alternative branch → the other member of the two-member union), and the ones
+ * that do not enclose it are ignored. So an unconditional mount (no enclosing
+ * guard) returns BOTH modes — the regression the replaced assertions could not
+ * detect — and a mount moved into the simple branch returns `['simple']`.
+ */
+function reachableUndoControlModes(workspace: string): LayoutMode[] {
+	const mount = workspace.indexOf('<TimetableUndoRedoControl');
+	if (mount < 0) return [];
+	let modes: LayoutMode[] = ['advanced', 'simple'];
+	const guardPattern = /layoutMode === '(advanced|simple)' \? \(/g;
+	for (let match = guardPattern.exec(workspace); match !== null; match = guardPattern.exec(workspace)) {
+		const openParen = match.index + match[0].length - 1;
+		const trueClose = closingParenIndex(workspace, openParen);
+		if (trueClose < 0) continue;
+		// `trueClose` is the `)` ending the TRUE branch; the `:` and `(` after it
+		// open the alternative.
+		const alternation = /^\s*:\s*\(/.exec(workspace.slice(trueClose + 1));
+		if (!alternation) continue;
+		const alternativeOpen = trueClose + 1 + alternation[0].length - 1;
+		const alternativeClose = closingParenIndex(workspace, alternativeOpen);
+		if (alternativeClose < 0) continue;
+		const stated = match[1] as LayoutMode;
+		const other: LayoutMode = stated === 'advanced' ? 'simple' : 'advanced';
+		let branch: LayoutMode[] = [];
+		if (mount > openParen && mount < trueClose) branch = [stated];
+		else if (mount > alternativeOpen && mount < alternativeClose) branch = [other];
+		if (branch.length > 0) modes = modes.filter((mode) => branch.includes(mode));
+	}
+	return modes;
+}
+
+type LayoutMode = 'advanced' | 'simple';
+
+/** Index of the `)` that closes the `(` at `open`, by parenthesis depth. */
+function closingParenIndex(text: string, open: number): number {
+	let depth = 0;
+	for (let index = open; index < text.length; index += 1) {
+		if (text[index] === '(') depth += 1;
+		else if (text[index] === ')') {
+			depth -= 1;
+			if (depth === 0) return index;
+		}
+	}
+	return -1;
+}
+
 // --- R4 bounded authoritative Redo state machine ---
 
 test('R4 a successful revert arms a redo target at the new run version', () => {
@@ -104,10 +163,17 @@ test('R4 replacement: the visible Undo/Redo/History control is mounted for Advan
 
 	// Locate the single TimetableUndoRedoControl mount and the advanced guard
 	// that encloses it, so this row fails if the branch ever changes.
+	//
+	// R4 (Lane C, 2026-09-26) — this pair is RETAINED but marked SUPERSEDED IN
+	// STRENGTH: `lastIndexOf("layoutMode === 'advanced'", mount)` resolves to the
+	// unrelated `if (layoutMode === 'advanced')` near the top of the file, so it
+	// passes without proving anything about the mount's branch. The derived
+	// branch-boundary check below replaces it as the load-bearing evidence; it
+	// is kept so the two cannot drift apart silently.
 	const mount = workspace.indexOf('<TimetableUndoRedoControl');
 	assert.ok(mount >= 0, 'the control is mounted in the workspace');
 	const branchStart = workspace.lastIndexOf("layoutMode === 'advanced'", mount);
-	assert.ok(branchStart >= 0 && branchStart < mount, 'the mount is inside the advanced-layout branch');
+	assert.ok(branchStart >= 0 && branchStart < mount, 'SUPERSEDED-IN-STRENGTH: the mount is inside the advanced-layout branch');
 	// The ternary that owns the branch closes before the workspace body, so no
 	// Simple-path element between the branch and the mount can be the guard.
 	assert.doesNotMatch(
@@ -116,13 +182,24 @@ test('R4 replacement: the visible Undo/Redo/History control is mounted for Advan
 		'the control is not behind a Simple fallback that could also render it',
 	);
 
-	// The honest, layout-mode-parameterised statement: which modes render it.
-	const rendersIn = (mode: 'advanced' | 'simple') => mode === 'advanced';
-	assert.equal(rendersIn('advanced'), true, 'Advanced renders the visible Undo/Redo/History control');
-	assert.equal(
-		rendersIn('simple'),
-		false,
+	// R4 (Lane C, 2026-09-26) — the previous form of the two statements below was
+	// `const rendersIn = (mode) => mode === 'advanced'` followed by assertions on
+	// `rendersIn(...)`. That asserted a closure's own return value:
+	// tautological, carrying no evidence, and free to pass while the real mount
+	// moved. Both statements are RETAINED IN INTENT but now read a DERIVED
+	// answer from the real source: which layout modes can actually reach the
+	// control's mount, and which mode the workspace actually falls back to.
+	const reachableModes = reachableUndoControlModes(workspace);
+	assert.deepEqual(reachableModes, ['advanced'], 'the visible Undo/Redo/History control is reachable only from the advanced layout');
+	const fallbackMode = /atlas_timetable_layout_mode'\)\s*===\s*'advanced'\s*\?\s*'advanced'\s*:\s*'(\w+)'/.exec(workspace)?.[1] ?? null;
+	assert.equal(fallbackMode, 'simple', 'the workspace falls back to the simple layout');
+	assert.ok(
+		fallbackMode === null || !reachableModes.includes(fallbackMode as LayoutMode),
 		'Simple does NOT render the visible Undo/Redo/History control; the control is advanced-only today',
+	);
+	assert.ok(
+		reachableModes.includes('advanced'),
+		'Advanced renders the visible Undo/Redo/History control',
 	);
 });
 
