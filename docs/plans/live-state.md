@@ -278,7 +278,48 @@ rather than merged blind — `lib/timetable-plain-language.ts`, `RightPanel.tsx`
 `simple/SimpleMoreMenuContent.tsx`, `simple/SimpleTaskDrawerHelpers.tsx`, and the three modals. J3 (domain
 jargon) is untouched by this lane and remains available to whichever lane does not take it.
 
-**RECONCILIATION MAP (2026-09-26, operator authorised A2 to reconcile) — execute this, do not re-derive it.**
+**J2 + D2 INTEGRATED on `main` as `4c76208d` (2026-09-26, Lane A2).** Candidate `9f232cec` + D2 correction
+`1ccdf4dd` + merge of main. Client-only, no migration, **not deployed**. J2 removed the engine tokens from the
+operator surface: raw `FACULTY_CONSECUTIVE_LIMIT_EXCEEDED` codes, the `?? v.code` fallback, `item.delta`,
+`PENDING`/`APPROVED`/`REJECTED` enums, `Run #318` / `v3`, `PLACE UNASSIGNED`, `by user #46`, and a
+§8-forbidden native `title` (now an `@/ui` `Tooltip`). Gates: `plain-tokens-c04` **29/29**,
+`draft-ux-c01` **32/32**, `timetable-relaxed-main` 88/2, client suite **1062 / 1046 / 16 fail — zero new**.
+
+**D2 closed (the one BLOCKING finding from J2's QA).** Manual-edit history had been left showing **no actor
+at all** — "silence where a fact exists", a capability regression. It now renders *"Changed by a signed-in
+account. This record does not show which person."* — true when only `actorId` exists, printing no identifier.
+Both guards retained (`doesNotMatch(/edit\.actorId/)`, `doesNotMatch(/by user/)`); the superseded R4 assertion
+untouched. **Server gap still owed, not waived:** `manual-edit.service.ts:1884` returns `actorId` only, while
+`room-preference.service.ts:1251` returns `actorName` — the precedent. Negative control observed both ways.
+
+**Merge authority is the planner's, not the executor's — settled 2026-09-26.** The executor's deny-list blocks
+`git merge*` (and even `git merge-base`), and it correctly refused to route around that with
+`cherry-pick`/`merge-tree`/`commit-tree`. So Lane A2 holds merge authority for the J2/J3 reconciliation.
+
+**RECONCILIATION of Lane A's `98289573` — still owed, map CORRECTED by the executor's findings.**
+`98289573` (J2J3) is unreviewed and now sits behind `main`; whoever reconciles it must rebase onto `4c76208d`.
+Corrections to the earlier map, all verified by inspection:
+
+1. **BLOCKER the map missed — an import coupling.** Lane A's three exported bare-label maps
+   (`ROOM_DECISION_STATUS_LABELS`, `ROOM_APPEAL_STATUS_LABELS`, `GENERATION_RUN_STATUS_LABELS`) are imported
+   **only by Lane A's own test file**. Since J2 is now on `main` and our richer maps are canonical, those maps
+   are **not** adopted — which means **their test must be repointed** at `roomRequestDecisionState` /
+   `roomRequestAppealState` / `generationRunStateLabel`, or the merged tree does not build. Exporting both is
+   forbidden: two labels for one status is the exact C3 defect.
+2. **Graft 2 is a rename, not a retype.** Theirs is the exported `GENERATION_RUN_STATUS_LABELS`; ours is the
+   private `GENERATION_RUN_STATE_LABELS`. Keep **ours**, retype it to `Record<GenerationRunStatus, string>`, and
+   do **not** import theirs.
+3. Graft 1 stands: add their `ALL_SESSIONS_PLACED_LABEL` — present only on their side, non-overlapping.
+4. `humaniseEngineToken` exists **only on their side** and is imported by 5+ of their components. It **must be
+   kept**; our `timetable-plain-language.ts` does not reference it, so the "keep ours" ruling grafts cleanly.
+5. **`violation-presentation.ts` has NO wording conflict** — theirs is a title resolver, mine is
+   `formatPolicyDeltaText`. Disjoint symbols, so it is a plain union and the "pick one wording" step does not
+   apply there. The earlier map over-specified this file.
+6. Still required after the merge: one fresh independent QA over the whole reconciled range before any push
+   (§11 — no release ships source no reviewer has seen), and the six **J2 sweep items** remain registered
+   below, untouched.
+
+
 `9f232cec` (mine, J2 engine tokens, independently QA'd 8/9) and Lane A's `98289573` (J2J3) both sit off
 main, worktrees clean, neither on main. A trial merge produced **13 conflicts in exactly 6 files** and was
 **aborted** rather than half-resolved. Per-file resolution:
