@@ -155,6 +155,8 @@ The browser network-event stream produced no observable events after a fresh rel
 regression row is **UNPERFORMED**, not passed. Non-blocking accessibility residual: visually collapsed
 shared-accordion child inputs remain exposed to keyboard/AX. No scheduling data changed; the session
 tab remains open. Evidence owner: Lane B (Codex).
+Closure worktree: `E:\ATLAS-worktrees\lane-b-e475-browser-acceptance` is clean, merged, has no reparse
+or process borrower, and is `RETIRE_AFTER_INTEGRATION` (E: 47.55 GiB before retirement).
 
 ## Lane C — current lane (written only by Lane C)
 
