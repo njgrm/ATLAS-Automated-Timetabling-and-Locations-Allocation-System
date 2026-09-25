@@ -8,7 +8,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { deriveSimpleLifecycleAction } from '@/lib/simple-timetable-state';
 import { deriveTimetableCapabilities, describeSetupState, YEAR_SETUP_HREF } from '@/lib/timetable-capabilities';
-import { summarizeGenerationReadiness } from '@/lib/timetable-generation-readiness';
+import { summarizeGenerationReadiness, generationBlockedOperatorSentence } from '@/lib/timetable-generation-readiness';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/ui/dialog';
@@ -61,6 +61,7 @@ import {
 	SimpleWarningsControl,
 } from '@/components/timetable/simple/SimpleHeaderActions';
 import { SimpleDriftBanner } from '@/components/timetable/simple/SimpleDriftBanner';
+import { SimpleGenerationBlockerSheet } from '@/components/timetable/simple/SimpleGenerationBlockerSheet';
 import { describeRunInputDrift } from '@/components/timetable/timetableDriftRouting';
 import { SimpleMoreMenuContent } from '@/components/timetable/simple/SimpleMoreMenuContent';
 import { resolveTermAuthorityNotice } from '@/hooks/useTimetableData';
@@ -211,6 +212,10 @@ function TimetableSimpleHeaderImpl({
 	const [moreOpen, setMoreOpen] = useState(false);
 	const [tutorialOpen, setTutorialOpen] = useState(false);
 	const [readinessSheetOpenLocal, setReadinessSheetOpenLocal] = useState(false);
+	// C2-a — the generation-blocker disclosure. It is its own surface from the
+	// publication readiness sheet: one answers "why can't I publish?" about a
+	// run that exists, the other answers "why can't a timetable be made at all?".
+	const [blockerSheetOpen, setBlockerSheetOpen] = useState(false);
 	const [presentationSettingsOpen, setPresentationSettingsOpen] = useState(false);
 	const printPanelOpen = new URLSearchParams(location.search).get('print') === '1';
 	const setPrintPanelOpen = (open: boolean) => {
@@ -313,7 +318,17 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 	// subject · term · session reason). Keep the operator sentence short and
 	// expose the technical detail behind a tooltip for support.
 	const setupBlockedDiagnostic = context.curriculumReadiness?.state === 'blocked' ? setupState.message : null;
-	const setupOperatorMessage = 'ATLAS found schedule information to check before a timetable can be made. Review the item shown, then check again.';
+	// C2-a — the operator sentence is the shared, count-true derivation, not a
+	// hard-coded string. The old copy ("Review the item shown") promised an item
+	// the client never rendered, which is what made a blocked generation a dead
+	// end. This one states the consequence, the real count, and where the real
+	// list is.
+	const setupBlockerCount = context.curriculumReadiness?.state === 'blocked'
+		? context.curriculumReadiness.diagnostic.blockers.length
+		: 0;
+	const setupOperatorMessage = setupBlockedDiagnostic
+		? generationBlockedOperatorSentence({ blockerCount: setupBlockerCount, setupLabel: setupState.label })
+		: '';
 	const canPlanOrGenerate = scopeResolved && generationReady && !context.loading;
 	// R7 — the shared capability model is the production guard for every Simple
 	// task action (publish/swap/review), not just generation.
@@ -465,8 +480,15 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 	const warningsDispatch = resolveWarningsControlDispatch({
 		lifecycleKind: lifecycleAction.kind,
 		issueReviewEnabled: capabilities.gates.issueReview.enabled,
+		// C2-a — a real count opens the real list. A blocked check that reported no
+		// blockers never claims to have items to show.
+		generationBlockerCount: setupBlockerCount,
 	});
 	const handleWarningsClick = () => {
+		if (warningsDispatch === 'generation-blockers') {
+			setBlockerSheetOpen(true);
+			return;
+		}
 		if (warningsDispatch === 'readiness-sheet') {
 			setReadinessSheetOpen(true);
 			return;
@@ -806,6 +828,20 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 			{/* A3 — the tutorial dialog is opened from More; render it without an
 			    inline trigger so the header keeps one action row. */}
 			<SimpleTutorialControl triggerless open={tutorialOpen} onOpenChange={setTutorialOpen} lifecycle={capabilities.lifecycle} />
+
+		{/* C2-a — the real blocker list, with a real repair for every row. It
+		    renders in a portal, so the header keeps its six-control cap and its
+		    exactly-one-solid-primary contract, and the entry point is the
+		    EXISTING merged warnings control (which is disabled in this state
+		    without it) rather than a new seventh control. */}
+		<SimpleGenerationBlockerSheet
+			open={blockerSheetOpen}
+			onOpenChange={setBlockerSheetOpen}
+			diagnostic={context.curriculumReadiness?.state === 'blocked' ? context.curriculumReadiness.diagnostic : null}
+			onRetry={context.handleRefresh}
+			labelForSection={context.sectionLabel}
+			labelForSubject={context.subjectLabel}
+		/>
 
 			<SimplePublishReadinessSheet
 				open={readinessSheetOpen}

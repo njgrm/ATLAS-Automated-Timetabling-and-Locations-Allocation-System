@@ -16,6 +16,10 @@
  * zero-write) instead of collapsing it to a boolean plus first message.
  */
 
+// C2-a: the operator presentation reuses the established violation-copy
+// normalisers rather than growing a parallel humaniser.
+import { formatIdentityFallbackText, formatWarningMessageText } from './violation-presentation';
+
 export type TimetableGenerationBlockerCategory =
 	| 'DEMAND_AUTHORITY'
 	| 'DATA_GAP'
@@ -85,6 +89,123 @@ export type TimetableReadinessDiagnosticSummary = {
 	zeroWrite: boolean;
 	blockerCount: number;
 };
+
+/* ------------------------------------------------------------------ *
+ * C2-a — the operator presentation of a blocked generation
+ *
+ * The engine diagnostic is the authority; this is the only place it is
+ * turned into something a scheduler can act on. Two rules are absolute:
+ *
+ * 1. No raw `code`, `termIdentity` or `subjectCode` may reach operator
+ *    text. The engine strings (`entity`, `reason`, `nextAction`) may
+ *    contain them, so they are never printed here at all — they stay
+ *    behind the Technical detail tooltip for support.
+ * 2. Every row carries the REAL repair `deriveTimetableReadinessRepair`
+ *    already resolves, so a `retry` really retries and a `navigate` goes
+ *    to a mounted route. There is no no-op row.
+ * ------------------------------------------------------------------ */
+
+/**
+ * C2-a — a plain phrase per blocker category. The category is a small closed
+ * vocabulary; anything unknown falls back to a plain phrase that is still
+ * honest, rather than printing an unrecognised engine code.
+ */
+const CATEGORY_PHRASES: Record<string, string> = {
+	DEMAND_AUTHORITY: 'The schedule is missing required subject or section information',
+	DATA_GAP: 'Some schedule information is missing or incomplete',
+	POLICY_BLOCKER: 'A scheduling rule needs a decision before a schedule can be made',
+	RESOURCE_INFEASIBLE: 'The available rooms cannot accommodate the schedule as set up',
+	ALGORITHM_LIMIT: 'A session could not be placed with the current setup',
+};
+
+const DEFAULT_CATEGORY_PHRASE = 'A schedule setup item needs attention before a timetable can be made';
+
+function safeLabel(value: string | null | undefined): string | null {
+	if (typeof value !== 'string') return null;
+	const trimmed = value.trim();
+	return trimmed.length > 0 ? trimmed : null;
+}
+
+/**
+ * C2-a — the ordered-term phrase. The term is read from the canonical ordered
+ * term structure by POSITION, never from the raw `termIdentity`, and a
+ * `termIdentity` that is not in that structure yields NO phrase at all. A
+ * missing or unknown term never becomes "Term 1" (AGENTS.md section 7).
+ */
+function termPhrase(
+	diagnostic: TimetableGenerationReadinessDiagnostic,
+	termIdentity: string | null,
+): string | null {
+	if (!termIdentity) return null;
+	const match = diagnostic.termStructure?.terms.find((term) => term.identity === termIdentity);
+	if (!match || !Number.isInteger(match.order)) return null;
+	return `Term ${match.order}`;
+}
+
+export type TimetableGenerationBlockerPresentation = {
+	/** Stable row key. Carries no engine text into the DOM. */
+	key: string;
+	/** Plain human sentence. Never a code, term identity, or subject code. */
+	sentence: string;
+	/** The real repair for THIS blocker, from the shared resolver. */
+	repair: TimetableReadinessRepair;
+};
+
+/**
+ * C2-a — present every blocker, in plain language, with its real repair.
+ *
+ * The entity clause reuses the workspace's own reference-name resolvers
+ * (the same `sectionLabel` / `subjectLabel` the grid uses), and the result
+ * is passed through the established operator normalisers from
+ * `violation-presentation.ts`, so no `faculty #12` / `section #701` raw-id
+ * form and no bare `min` / `h` abbreviation can reach the surface. The raw
+ * `subjectCode`, `code` and `entity` strings are deliberately never read.
+ */
+export function presentGenerationBlockers(input: {
+	diagnostic: TimetableGenerationReadinessDiagnostic;
+	labelForSection?: (id: number) => string;
+	labelForSubject?: (id: number) => string;
+}): TimetableGenerationBlockerPresentation[] {
+	const { diagnostic, labelForSection, labelForSubject } = input;
+	return diagnostic.blockers.map((blocker, index) => {
+		const base = CATEGORY_PHRASES[blocker.category] ?? DEFAULT_CATEGORY_PHRASE;
+		const label = typeof blocker.sectionId === 'number' && Number.isInteger(blocker.sectionId) && labelForSection
+			? safeLabel(labelForSection(blocker.sectionId))
+			: typeof blocker.subjectId === 'number' && Number.isInteger(blocker.subjectId) && labelForSubject
+				? safeLabel(labelForSubject(blocker.subjectId))
+				: null;
+		const qualifiers = [termPhrase(diagnostic, blocker.termIdentity), label].filter(
+			(part): part is string => part != null,
+		);
+		const sentence = formatWarningMessageText(
+			formatIdentityFallbackText(qualifiers.length > 0 ? `${base} (${qualifiers.join(', ')})` : base),
+		);
+		return {
+			key: `generation-blocker-${index}`,
+			sentence,
+			repair: deriveTimetableReadinessRepair(blocker),
+		};
+	});
+}
+
+/**
+ * C2-a — the operator sentence for a blocked generation.
+ *
+ * It states the consequence, the real count, and where the real list is. It
+ * never says "review the item shown": the earlier copy promised an item the
+ * client never rendered, which is what made the blocked state a dead end.
+ */
+export function generationBlockedOperatorSentence(input: {
+	blockerCount: number;
+	/** The shared setup-state label, so there is one source of truth. */
+	setupLabel: string;
+}): string {
+	if (input.blockerCount > 0) {
+		const item = input.blockerCount === 1 ? 'item' : 'items';
+		return `${input.setupLabel} before ATLAS can generate a timetable. ${input.blockerCount} setup ${item} must be fixed first, and the readiness chip below lists each one with the place to fix it.`;
+	}
+	return `${input.setupLabel} before ATLAS can generate a timetable. The schedule check did not finish, so nothing can be listed. Retry the check to see where it stands.`;
+}
 
 export type ExpectedGenerationScope = {
 	schoolId: number | null;
