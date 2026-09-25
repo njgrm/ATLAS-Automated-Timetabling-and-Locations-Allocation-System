@@ -8,13 +8,46 @@ current `origin/main` before the target record commit. **Trigger:** E: is below 
 **Policy:** keep live `861d89a2`, rollback `eb0e3038`, the second-most-recent accepted release
 `c5e167d7`, the frozen donor `5c100ea6`, the D: last-resort artifacts, and the deferred standalone
 clone `4893cbde`. Retire only rollback depth beyond that. Rows are removed one at a time, exact
-literal paths, non-forced, no branch deletion.
+literal paths, non-forced, no branch deletion. Pre-reclaim capacity is E: 45.72 GiB / D: 60.67 GiB;
+retiring 1.46 GiB projects E: approximately 47.18 GiB, still below the 50 GiB warning but far above the
+25/15 GiB fail-closed lines. The successor obligation is therefore discharged for this build, and the
+post-action capacity reading must be recorded rather than treated as a new reclaim loop.
+
+`ad8f9717` is retained by `refs/heads/fix/departure-load-transfer` and
+`refs/remotes/origin/fix/departure-load-transfer`, and is an ancestor of `origin/main` and `116a7658`;
+the removal destroys no Git object.
 
 ## Retire row
 
 | Path | HEAD | Status | Ancestor | Reparse | Borrower | Size |
 |---|---|---|---|---|---:|---:|
 | `E:\ATLAS-runtime-supervised-ad8f9717-20260925` | `ad8f971787cd004d9aeb040d362a9acd3e290074` | `?? ops/runtime/logs/` only | yes | none | 0 | 1.46 GiB |
+
+## Pre-delete safety capture
+
+The retire row's `ops/runtime/logs/supervisor-state.json` was read before any removal. Its verbatim contents are:
+
+```json
+{
+  "contractVersion": 1,
+  "stream": "RUNTIME-SUPERVISION-C01",
+  "releaseLabel": "atlas-d44f29e0",
+  "productPin": "d44f29e04d359ad9b18e4443b0fd4fed1daeaecd",
+  "releaseSha": "ad8f971787cd004d9aeb040d362a9acd3e290074",
+  "sourceDir": "E:\\ATLAS-runtime-supervised-ad8f9717-20260925",
+  "state": "running",
+  "startedAt": "2026-09-25T09:12:06.947Z",
+  "updatedAt": "2026-09-25T09:12:06.947Z",
+  "ownedPids": { "server": 15884, "client": 86660 },
+  "previous": null
+}
+```
+
+PIDs `15884` and `86660` are absent. The authoritative live triple is machine
+`ATLAS_RUNTIME_SOURCE_DIR=E:\ATLAS-runtime-supervised-861d89a2-20260925`, scheduled-task action
+`node ...\861d89a2-20260925\ops\runtime\cli.mjs start` (Running), and the 861 supervisor process tree
+`85536 -> 36120/62504`. The retire row's `state: running` is a stale superseded record under §6, not
+evidence of activity. This capture is retained before the logs directory is removed.
 
 ## Keep / out of scope
 
@@ -24,6 +57,9 @@ literal paths, non-forced, no branch deletion.
 - Donor `E:\ATLAS-runtime-supervised-5c100ea6-20260925`.
 - `E:\ATLAS-runtime-supervised-4893cbde-20260923` standalone clone, deferred to its own manifest.
 - D: runtime/config/PostgreSQL, `D:\ATLAS`, all lane worktrees, and all other release directories.
+- The `ad8f9717` browser rows B1/B2 remain **UNPERFORMED**, owned by Lane C; they bind release behavior,
+  not this directory, and are **not discharged** by this reclaim. This manifest supersedes the prior
+  `PRESERVE_FOR_DECISION` disposition recorded for that directory.
 
 ## Method
 
