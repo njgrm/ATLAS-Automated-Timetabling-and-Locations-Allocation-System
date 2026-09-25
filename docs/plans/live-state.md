@@ -137,14 +137,16 @@ Opened 2026-09-25 (operator). Branches `work|docs/lane-c-*`, worktrees `E:/ATLAS
 history. **Planner handoff: `docs/handoffs/lane-c-planner-handoff.md`.**
 
 **Stream: audit fixes C1–C3** (from `docs/reviews/ux-audit-teaching-load-and-schedule-controls-2026-09-25.md`).
-QA returned 2026-09-25:
-- C1 `work/lane-c-post-publish-c01` (`af3bb594...50b8077c`): **BLOCKED(environment)**. The built-server startup
-  row was not run (the reviewer's process launch was denied); everything else passed.
-- C2 `work/lane-c-teaching-load-clarity-c02` (`e475c673...d66510ea`): **ACCEPT_READY**.
-- C3 `work/lane-c-schedule-clarity-c03` (`61f57a39...07a3e5f7`, stacked on C1): **ACCEPT_READY**.
+All three **ACCEPT_READY** as of 2026-09-25: C2 `d66510ea`, C3 `07a3e5f7` (QA), and C1 `50b8077c` after an
+independent startup run (build, Node bound isolated 5198, unauthenticated preview POST 401, stopped, port clear).
+**Integrated 2026-09-25** on `integration/lane-c-c01-c03` off `main` `1b371ba`, `--no-ff` C2, C1, C3, then
+`docs/lane-c-planner-handoff`. Merged tree: `test:client-suite` 955/970 (the same 15 failure names as base
+`1b371ba`, 914/929); candidate tests 8/8, 12/12, 21/21; server `tsc` exit 0, Node started `dist/server.js` on
+isolated 5198 (health 200, preview 401, stopped); client `vite build` with `VITE_ENROLLPRO_URL` exit 0.
 
-**Next action:** an independent run of C1's startup row (Codex or opencode), then one integration of
-C2, C1 and C3 plus this docs branch; after that, ask Lane A to deploy, with Lane B as the browser acceptance owner.
+**Next action:** Lane A deploys the `main` tip carrying this line (client + server; no migration). Browser
+acceptance owner: **Lane B (Codex)**, rows in the Risks sections of `docs/handoffs/lane-c-post-publish-c01.md`,
+`lane-c-teaching-load-clarity-c02.md` and `lane-c-schedule-clarity-c03.md`.
 
 **Open (2026-09-25):** read the stall lines once a release containing `a5550fa6` is live (`89295c27` is), then fix
 the roughly 8 s `/timetable` stall; A3, 0 class advisers, needs a read-only EnrollPro check.
