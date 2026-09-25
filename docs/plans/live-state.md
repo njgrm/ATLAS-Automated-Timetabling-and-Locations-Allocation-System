@@ -57,6 +57,10 @@ resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs
   pre-existing `tt-output-c03r` failures. Six-table zero-write digests match; the executor's malformed 33-character
   audit_logs transcription is superseded by the independently re-derived valid baseline. **No migration. Rollback
   basis: `c5e167d7`.**
+- **Pending release SHA: `861d89a2bc2682c5f875dde0b4b1d8ffc079b1fe`** (target recorded 2026-09-25 before the
+  §13 action; planned release directory `E:\ATLAS-runtime-supervised-861d89a2-20260925`; incumbent/rollback
+  `eb0e30386336673a4a31ecfe39a9bef93549e0ed`; source QA `ACCEPT_READY` 8/8/0/0; no migration; standing
+  authorization applies subject to the packet gates; deployment not yet run).
 - **Release SHA: `c5e167d7c5939ff586880149c566ce29506430e8`** (rollback basis; previously LIVE 2026-09-25 20:40,
   `E:\ATLAS-runtime-supervised-c5e167d7-20260925`; R1 browser rows accepted at 1366×768 and 390×844; prior
   collaboration-ticket incident preserved; two EnrollPro proxy 502s remain non-blocking. **No migration.**)
