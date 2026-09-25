@@ -253,7 +253,8 @@ fail with the same names. Packet `docs/prompts/lane-c-draft-ux-c01-2026-09-25.md
 
 **Wait (as of 2026-09-26): release.** Operator chose **sequential** releases: the `861d89a2` cutover (other lane's
 packet) first, then `docs/prompts/deploy-9f42190e-draft-ux-c01-2026-09-26.md` (HIGH, explicit operator approval;
-rollback basis `861d89a2`). E: 48 GiB free (below the 50 GiB warning) — the retention reclaim runs first. After the
+rollback basis `861d89a2`). E: 50 GiB free after retiring worktrees `lane-c-draft-ux-c01`, `-int`, `-docs` (clean,
+merged, no reparse/borrower; health + subjects 200) — still at the warning line; reclaim first. After the
 release: D1 rows + QA NON_BLOCKING 1-2 via `atlas-browser-qa` on Claude in Chrome at 1366x768 and 390x844.
 
 **Open (2026-09-25):** EnrollPro unreachable from the host — Tailscale `dev-jegs` offline since ~19:40 local;
