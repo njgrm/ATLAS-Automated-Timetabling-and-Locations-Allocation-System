@@ -245,22 +245,21 @@ cycles are in Git history and their handoffs. Claude Code lanes follow `CLAUDE.m
 **Current stream: draft scheduler UX** (as of 2026-09-26). Server-stall stream closed (A1, 2026-09-25 15:11Z; see
 the Live release block and `docs/handoffs/lane-c-handoff-2026-09-25-stall.md`).
 
-**DRAFT-UX-C01 `1670a611` ACCEPT_READY, integration pushed as a branch, NOT on `main`** (2026-09-26). Packet
-`docs/prompts/lane-c-draft-ux-c01-2026-09-25.md`; handoff `docs/handoffs/lane-c-draft-ux-2026-09-26.md`. Client-only:
-simple header at most 6 controls (primary = Generate with no run, Publish once one exists; Download, School
-information and the other primary in More; warnings count + Review warnings merged), "Term"/"View type" labels
-removed, cell "Schedule note · N" badges back to warning/Must-fix signs, desktop (>=768 px) session details in a
-centred dialog with the TIME card fixed, unassigned sessions reachable in the simple layout (the rail that holds
-them was never mounted there, `ScheduleReviewWorkspaceBody.tsx:65`). QA (Opus) `ACCEPT_READY` S1-S6 6/6;
-client-suite base 978/17 fail vs candidate 988/17 fail, same failure names. Merge `b15050cb` on
-`integration/lane-c-draft-ux-c01-20260926` (client tree identical to the candidate); **the `:main` push was refused
-by the Claude Code permission classifier ("Merge Without Review") and awaits the operator.** No migration. After
-integration: a deploy (HIGH, operator approval) then D1 browser rows on Claude in Chrome.
+**DRAFT-UX-C01 integrated on `main` as `9f42190e`** (2026-09-26, fast-forward of
+`integration/lane-c-draft-ux-c01-20260926`; `origin/main..` held only the three accepted candidate commits and two
+merges). Candidate `1670a611`, QA (Opus) `ACCEPT_READY` S1-S6 6/6, client-suite base 978/17 fail vs candidate 988/17
+fail with the same names. Packet `docs/prompts/lane-c-draft-ux-c01-2026-09-25.md`; handoff
+`docs/handoffs/lane-c-draft-ux-2026-09-26.md`. Client-only; no migration.
+
+**Wait (as of 2026-09-26): release.** Operator chose **sequential** releases: the `861d89a2` cutover (other lane's
+packet) first, then `docs/prompts/deploy-9f42190e-draft-ux-c01-2026-09-26.md` (HIGH, explicit operator approval;
+rollback basis `861d89a2`). E: 48 GiB free (below the 50 GiB warning) — the retention reclaim runs first. After the
+release: D1 rows + QA NON_BLOCKING 1-2 via `atlas-browser-qa` on Claude in Chrome at 1366x768 and 390x844.
 
 **Open (2026-09-25):** EnrollPro unreachable from the host — Tailscale `dev-jegs` offline since ~19:40 local;
 `runtime/context`/`sections/summary` wait the 4 s timeout (not a loop block). F1–F3
 (`docs/handoffs/lane-c-browser-acceptance-e8553752-2026-09-25.md`); A3 (0 class advisers); delete remote
-`work/wonderful-sagan-nhz302`, `work/epic-galileo-cw0swp`. `E:` 59 GiB free (21:40).
+`work/wonderful-sagan-nhz302`, `work/epic-galileo-cw0swp`; remote `docs/lane-c-*` branches cannot be deleted (repo rule).
 
 ## Lane A — current lane (written only by Lane A)
 

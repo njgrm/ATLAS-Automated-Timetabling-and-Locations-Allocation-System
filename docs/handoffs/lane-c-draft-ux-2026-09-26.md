@@ -1,8 +1,8 @@
 # Lane C handoff — draft scheduler UX (DRAFT-UX-C01), 2026-09-26
 
 **Stream:** manual draft placements / simple scheduler UX (operator report, 2026-09-25, run 318, Term 2).
-**State:** candidate accepted; integration branch pushed; **not on `main`** (push refused by the permission
-classifier, awaiting the operator). Live is still `eb0e3038`.
+**State:** integrated on `main` as `9f42190e` (2026-09-26); release pending (sequential after `861d89a2`).
+Live is still `eb0e3038`.
 
 ## Refs
 
@@ -39,13 +39,15 @@ click keeps the inline bar (dialog opens for warning cells and "View class detai
 Reproduction 58,530 (runner broke the no-spawn rule) + 107,208 (its nested runner) + 101,998 (rows) = 267,736;
 atlas-search 79,187; executor 416,404; QA 117,082. Total for one accepted candidate ≈ 880k.
 
-## Next
+## Next (updated 2026-09-26, integration session)
 
-1. Operator: push `integration/lane-c-draft-ux-c01-20260926` (`b15050cb`) to `main`, after checking that
-   `origin/main` is still its first parent or merging again.
-2. Deploy (HIGH, AGENTS.md §13, operator approval), coordinated with the pending `861d89a2` cutover packet
-   (`a7603540`), which is another lane's work.
-3. D1 browser rows (packet) via `atlas-browser-qa` on Claude in Chrome at 1366×768 and 390×844, plus the QA
-   NON_BLOCKING items 1–2.
+1. **Done:** integration refreshed over `origin/main` `9a14295a` (merge `9f42190e`) and fast-forwarded to `main`
+   (`9a14295a..9f42190e`). Worktrees `lane-c-draft-ux-c01`, `-int`, `-docs` retired (`RETIRE_AFTER_INTEGRATION`).
+2. **Wait:** releases are **sequential** (operator, 2026-09-26): the `861d89a2` cutover
+   (`docs/prompts/deploy-861d89a2-active-term-c02-2026-09-25.md`, other lane) first, then
+   `docs/prompts/deploy-9f42190e-draft-ux-c01-2026-09-26.md` (HIGH; explicit operator approval; rollback
+   basis `861d89a2`; client-only delta). E: 48 GiB free — reclaim first.
+3. After the release: D1-S1…S5 + D1-N1/N2 via `atlas-browser-qa` on Claude in Chrome at 1366×768 and 390×844.
 4. Open: EnrollPro `dev-jegs` offline; F1–F3; A3; remote `docs/lane-c-*` branches cannot be deleted (repo rule).
-   Retire `lane-c-draft-ux-c01` / `-int` worktrees after integration.
+
+Integration session cost: planner only, no subagent dispatched (`subagent_tokens` 0).
