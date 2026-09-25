@@ -43,11 +43,12 @@ resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs
   `E:\ATLAS-runtime-supervised-eb0e3038-20260925`; execute audit
   `C:\ProgramData\ATLAS\release-audit\eb0e3038-20260925-221948`; active state `running`/`eb0e3038`; machine env =
   target; health 200, ready 200 `database:"ok"`, DB-backed subjects read 200, Tailnet 200; startup log clean.
-  Post-action QA rows Q1/Q2/Q3/Q5/Q6/Q7 passed; Q4 is **BLOCKED** by `NEEDS_SESSION` (both readiness calls
-  returned 401 `NO_TOKEN`); A1 is locked until Q4 closes. Focused controls: readiness 7/7, request timing 6/6,
-  named preservation 28/28; server suite reproduced the four pre-existing `tt-output-c03r` failures. Six-table
-  zero-write digests match; the executor's malformed 33-character audit_logs transcription is superseded by the
-  independently re-derived valid baseline. **No migration. Rollback basis: `c5e167d7`.**
+  Post-action QA rows Q1/Q2/Q3/Q5/Q6/Q7 passed; Q4/Q6 evidence review is `ACCEPT_READY` **2/2/0/0** after the
+  operator-seeded session produced the required cold/warm pair. A1 is now unlocked and remains pending with Lane C.
+  Focused controls: readiness 7/7, request timing 6/6, named preservation 28/28; server suite reproduced the four
+  pre-existing `tt-output-c03r` failures. Six-table zero-write digests match; the executor's malformed 33-character
+  audit_logs transcription is superseded by the independently re-derived valid baseline. **No migration. Rollback
+  basis: `c5e167d7`.**
 - **Release SHA: `c5e167d7c5939ff586880149c566ce29506430e8`** (rollback basis; previously LIVE 2026-09-25 20:40,
   `E:\ATLAS-runtime-supervised-c5e167d7-20260925`; R1 browser rows accepted at 1366×768 and 390×844; prior
   collaboration-ticket incident preserved; two EnrollPro proxy 502s remain non-blocking. **No migration.**)
@@ -266,16 +267,16 @@ teacher portal is removed. The latest accepted product tip and verified live rel
 DRAFT availability for faculty 1 / year 10 / term 2 / v1 with zero slots.
 
 **Deployment outcome (2026-09-25):** operator-approved `eb0e3038` cutover is **DEPLOYED**. Post-action QA passed
-Q1/Q2/Q3/Q5/Q6/Q7; Q4 is **BLOCKED** because the available QA profile returned 401 `NO_TOKEN` on both required
-readiness calls. The first browser acceptance incident for c5 and the successful R1 pixel pass remain preserved in
-`docs/handoffs/lane-a-browser-acceptance-c5e167d7-2026-09-25.md` and
+Q1/Q2/Q3/Q5/Q6/Q7; Q4/Q6 evidence review is `ACCEPT_READY` **2/2/0/0** after the operator-seeded session produced
+the required cold/warm pair. The first browser acceptance incident for c5 and the successful R1 pixel pass remain
+preserved in `docs/handoffs/lane-a-browser-acceptance-c5e167d7-2026-09-25.md` and
 `docs/handoffs/lane-a-browser-acceptance-c5e167d7-r1-2026-09-25.md`. The deployment handoff is
 `docs/handoffs/deploy-eb0e3038-2026-09-25.md`; six-table zero-write digests match, focused controls pass, and no
-migration occurred. A1 is locked until Q4 closes.
+migration occurred. A1 is unlocked and pending with Lane C.
 
-**Next action (2026-09-25):** seed or identify an authorized QA profile with a valid session, then rerun exactly
-the Q4 cold/warm readiness pair; after Q4 passes, Lane C performs A1's two warm `/timetable` reloads and stall-log
-acceptance. Do not run A1 while Q4 is blocked.
+**Next action (2026-09-25):** Lane C takes the supervisor-log cursor and performs A1's two warm `/timetable` reloads;
+both readiness responses must be cached and neither may add a readiness-attributable event-loop stall. No further
+Q4 call is permitted because the cold cache is already consumed.
 
 **Dated decisions / residuals (verify before acting):**
 - **F7 remains deliberately rejected (2026-09-25):** daily tools stay under More so the header remains compact;
