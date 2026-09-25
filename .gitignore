@@ -6,7 +6,16 @@
 .claude/*
 !.claude/skills/
 !.claude/agents/
-.codex/
+# Keep machine-local Codex permissions and credentials private, while sharing
+# only the narrow project role definitions needed in every worktree.
+.codex/*
+!.codex/agents/
+.codex/agents/*
+!.codex/agents/atlas-browser-qa.toml
+!.codex/agents/atlas-executor-high.toml
+!.codex/agents/atlas-executor.toml
+!.codex/agents/atlas-explorer.toml
+!.codex/agents/atlas-qa.toml
 .cursor/
 # AGENTS.md is the tracked, sanitized cross-agent workflow authority.
 # Machine-local overrides and credential stores must never enter Git.
