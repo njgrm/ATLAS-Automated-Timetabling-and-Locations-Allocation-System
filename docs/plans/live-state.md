@@ -39,8 +39,13 @@ resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs
 ## Live release
 
 - Tailnet: `https://njgrm.buru-degree.ts.net`
-- **Target release SHA: `ad8f9717`** (**deployment-pending** 2026-09-25, Lane C; release dir
-  `E:\ATLAS-runtime-supervised-ad8f9717-20260925`, own `npm ci`, entry `assets/index-DEoaxzaH.js`).
+- **Release SHA: `ad8f9717`** (**LIVE** since 2026-09-25 17:12, Lane C; `E:\ATLAS-runtime-supervised-ad8f9717-20260925`;
+  operator cutover, audit `C:\ProgramData\ATLAS\release-audit\ad8f9717-20260925-171136`; active state
+  `running`/`ad8f9717`; machine env = target; health 200, `/health/ready` `database:"ok"`, subjects read 200, Tailnet
+  200; served `assets/index-DEoaxzaH.js` byte-identical to the build). **Browser acceptance: UNPERFORMED as of
+  2026-09-25** — the operator generated draft run 318 before the demo, so `/timetable` opens an unpublished draft
+  and the published teacher-leaving rows (B1 commit, B2 refusal) no longer apply to the screen; see the Lane C
+  handoff `docs/handoffs/lane-c-handoff-2026-09-25-stall.md`.
   `DEPARTURE-LOAD-C05`: a privileged teacher change on the published timetable moves the class's subject+section
   Teaching Load ownership to the new teacher in the same transaction as the revision (receiver department/program +
   active checks; audit carries `teachingLoadTransfers`); already-authorized receivers transfer nothing; the
