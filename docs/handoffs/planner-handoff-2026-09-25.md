@@ -4,6 +4,11 @@
 supersedes the stale top of `docs/handoffs/planner-session-handoff.md` (that living doc is kept for
 history; its top "verdict" predates 2026-09-25).
 
+**FINALIZED 2026-09-25 by the outgoing Lane A planner for the incoming Lane A planner.** No runtime,
+task, env, migration, deploy, or live-data action was taken while finalizing: the deployment below is
+the incoming planner's to run, under its own §13 approval. Read the two **verify-on-takeover** items
+first — the model transition and the deploy delta both carry premise corrections.
+
 ## Read first (from `origin/main`)
 
 `AGENTS.md` (already injected — do not reread from disk) · `docs/plans/live-state.md` (Lane A section) ·
@@ -12,12 +17,14 @@ index) · `docs/reference/agent-verification-gates.md` · `docs/reference/agent-
 `docs/reference/agent-runtime-deploy-facts.md` (before any deploy) · the other lanes' handoffs under
 `docs/handoffs/`.
 
-## Current state (verified 2026-09-25)
+## Current state (verified 2026-09-25 by the outgoing planner)
 
-- `origin/main` = **`c5e167d7`**. Live release = **`ad8f9717`** at
-  `E:\ATLAS-runtime-supervised-ad8f9717-20260925` (Lane C cutover 17:12; 5001→15884 / 5174→86660).
+- `origin/main` = **`255fc306`** — docs-only above product tip **`c5e167d7`** (the extra commit is the
+  workflow/cost rule on `docs/context-economy-session-cap`). Live release = **`ad8f9717`** at
+  `E:\ATLAS-runtime-supervised-ad8f9717-20260925` (Lane C cutover 17:12; 5001→15884 / 5174→86660;
+  `/api/v1/health` 200; machine env = target).
 - Applied migrations on `atlas_recovery_clean_rebuild_20260905` (localhost:5432): **11**.
-- Capacity: `E:` 61.6 GiB, `D:` 60.8 GiB (both above warning; Lane C ran a release-dir reclaim).
+- Capacity: `E:` 61.6 GiB, `D:` 60.7 GiB (both above warning).
 - Other lanes are active: **Lane B** (scheduler warning clarity / published read-only + disclosure) and
   **Lane C** (schedule clarity, stall investigation, retention). Their worktrees under
   `E:/ATLAS-worktrees/lane-b-*`, `lane-c-*` are theirs — do not write there.
@@ -42,9 +49,14 @@ post-publish); SMART holds a view-only teacher-scoped draft read; the ATLAS teac
 
 ## Open work / decisions (dated)
 
-1. **Deploy the R1 tip** (`origin/main` `c5e167d7`): client-only, **no migration**; rollback basis = live at
-   cutover. Then the **live pixel rows** (rendered ≥14 px at 1366×768 and 390×844; no global scrollbar) —
-   browser custody is **Lane A**.
+1. **Deploy the R1 tip** (product tip `c5e167d7`). **Premise correction — the delta is not client-only.**
+   `ad8f9717..c5e167d7` is **16 product files: 14 client + 2 server** (`atlas-server/src/lib/request-timing.ts`
+   and its test — Lane C's `SERVER-STALL-C01`), plus docs. **No migration.** The cutover therefore also takes
+   Lane C's stall diagnostics live, which is what lets Lane C run its acceptance afterwards. Rollback basis =
+   live `ad8f9717` at cutover. Then the **live pixel rows** (rendered ≥14 px at 1366×768 and 390×844; no global
+   scrollbar) — browser custody is **Lane A**. Sequence: record the target SHA in the `## Live release` block on
+   `origin/main` first (runner fails closed), state target/delta/rollback/verification, take §13 approval, build
+   the release tree, dry-run then `-Execute`, then post-cutover QA.
 2. **`ad8f9717` browser acceptance is UNPERFORMED** (operator generated draft run 318 before the demo, so
    `/timetable` opens an unpublished draft; see `docs/handoffs/lane-c-handoff-2026-09-25-stall.md`). Owner:
    whoever the operator names; acceptance is separate from deployment.
@@ -62,8 +74,9 @@ post-publish); SMART holds a view-only teacher-scoped draft read; the ATLAS teac
 
 ## Browser custody (Lane A) — how it works here
 
-- The `playwright` MCP is configured in `~/.config/opencode/opencode.jsonc` but is **not loaded** in agent
-  sessions; `@playwright/mcp` was never fetched. **Drive Playwright via the CLI instead**:
+- **Browser tooling:** the `playwright_browser_*` MCP tools **are available in this session** (the outgoing
+  session had them) — prefer them; the earlier "`@playwright/mcp` was never fetched" note is stale. Fallback
+  if the MCP is not loaded: drive the CLI directly —
   `require('D:/ATLAS/node_modules/playwright')` (v1.59.1; chromium binaries present) and
   `chromium.launchPersistentContext('C:/Users/njgro/.config/opencode/playwright-profile', {headless,ignoreHTTPSErrors})`.
 - The seeded "remember me" session lives in that profile (cookie `atlasAuthToken`, ~30 days). One agent per
@@ -88,31 +101,55 @@ post-publish); SMART holds a view-only teacher-scoped draft read; the ATLAS teac
 - Migrations: apply only via `npm run migrate:guarded` (never bare Prisma, never reset) after a fresh
   revalidated backup.
 
-## Model binding (planner)
+## Model transition to `space-bunny-free` — PARTIAL, probably not yet in effect
 
-`atlas-planner`, `atlas-qa`, and `atlas-executor` were bound to **`opencode-go/deepseek-v4.1-flash`**. The
-operator is moving the whole planning pipeline — planner, QA, executor, and the built-in `plan` mode — to the
-free **`opencode-go/space-bunny-free`** to conserve paid usage. Four edits, then restart the session:
+Operator goal: move the paid planning pipeline to the free **`opencode-go/space-bunny-free`**.
 
-| File | Line | Change |
-|---|---|---|
-| `~/.config/opencode/agents/atlas-planner.md` | 4 | `model: opencode-go/space-bunny-free` |
-| `~/.config/opencode/agents/atlas-qa.md` | 4 | `model: opencode-go/space-bunny-free` |
-| `~/.config/opencode/agents/atlas-executor.md` | 4 | `model: opencode-go/space-bunny-free` |
-| `~/.config/opencode/opencode.jsonc` | 127 | `"model": "opencode-go/space-bunny-free"` (the `agent.plan` entry) |
+**Verified applied (global config):** `~/.config/opencode/agents/atlas-planner.md`, `atlas-qa.md`, and
+`atlas-executor.md` all read `model: opencode-go/space-bunny-free`, and `opencode.jsonc` line 127
+(`agent.plan`) reads `"opencode-go/space-bunny-free"`.
 
-`compaction` (`opencode.jsonc` 130–133) is still DeepSeek / `variant: low`; switch it too if usage pressure
-continues, accepting that a free model summarising long sessions may degrade quality. Keep the routing rule in
-the planner file: default `high`; `max` only for architecture / conflicting candidates / HIGH actions.
+**VERIFY-ON-TAKEOVER — the transition is probably NOT in effect for repo sessions.** The *repo-level*
+`D:\ATLAS\.opencode\agents\{atlas-planner,atlas-qa,atlas-executor,atlas-wave-auditor}.md` (tracked on
+`origin/main`, checked out into every E: worktree) still each bind `model: opencode-go/deepseek-v4.1-flash`,
+and per the permission note below the repo-level files override the global config. Observed: this outgoing
+session loaded `deepseek-v4.1-flash`, not `space-bunny-free`. **To finish the transition, change the
+repo-level `.opencode/agents/*.md` `model:` lines in a worktree and commit them** (writable under
+`D:/ATLAS/**` / `E:/ATLAS-worktrees/**`); the global edit alone does not bind repo sessions. Restart and
+confirm the loaded model id.
 
-**Why the planner session could not apply these itself (2026-09-25):** the governing permission block is the
-*repo-level* `D:\ATLAS\.opencode\agents\atlas-planner.md`, whose `edit: "*": deny` overrides the global allow
-for `C:/Users/njgro/.config/opencode/**`. To let a planner session edit its own config, add
-`"C:/Users/njgro/.config/opencode/**": allow` to that file's `edit:` block (after the `"*": deny` line) and
-restart.
+**Also not migrated:** `atlas-executor-delegate.md` and `atlas-qa-delegate.md` are still
+`opencode-go/deepseek-v4.1-flash` (global and repo) — dispatch through the non-delegate roles, or migrate
+them too, or that path keeps spending paid usage.
+
+**Verify:** `space-bunny-free` is referenced only at `opencode.jsonc` line 127 and is **not** declared in the
+`opencode-go-2` provider `models` block — confirm the id resolves before relying on it.
+
+`compaction` (`opencode.jsonc` 130–133) stays `opencode-go/deepseek-v4.1-flash` / `variant: low`; switch it
+only if usage pressure continues, accepting that a free model summing long sessions may degrade quality. Keep
+the routing rule: default `high`; `max` only for architecture / conflicting candidates / HIGH actions.
+
+**Permission note (still true):** the repo-level `D:\ATLAS\.opencode\agents\atlas-planner.md` has
+`edit: "*": deny`, which overrides the global allow for `C:/Users/njgro/.config/opencode/**`; `D:/ATLAS/**`
+and `E:/ATLAS-worktrees/**` remain writable. `D:\ATLAS` is currently **dirty** with an uncommitted
+`.opencode/agents/atlas-planner.md` edit (adds the config-dir allow) — do not build on that checkout
+(AGENTS §14); make any intended change from a worktree and commit it.
+
+## Reconcile these stale `live-state.md` lines on takeover (as of 2026-09-25)
+
+- **Lane A section** still says `066da7a7` is LIVE — the live release is **`ad8f9717`**; the shared
+  `## Live release` block is authoritative.
+- **Lane A section** lists audit finding **4 as OPEN ("12 px text prevalent")** — fixed by R1
+  (`fb245772`, QA 6/6/0/0, integrated `c5e167d7`); only the live pixel row is outstanding.
+- Finding 3 (one unlabelled warning triangle) and 6 (published cells look editable) are addressed on main;
+  **finding 7 was deliberately rejected** and stays in More unless the operator reverses it.
 
 ## Next action
 
-Deploy the tip carrying R1 (product tip `c5e167d7`; `origin/main` `f9125dfe` is docs-only above it) at the next
-free runtime window — client-only, no migration; rollback basis = live at cutover. Run the post-cutover QA,
-then Lane A's live pixel/browser acceptance. Then decide F7 and the Stage-2 successor.
+Deploy the tip carrying R1 (product tip `c5e167d7`; `origin/main` `255fc306` is docs-only above it) at the next
+free runtime window. Delta vs live `ad8f9717` = 14 client + 2 server files, **no migration**; rollback basis =
+live at cutover. Order: (1) record the target SHA in the `## Live release` block on `origin/main`; (2) state
+target/delta/rollback/verification and take §13 approval; (3) build the release tree and run `deploy-runner.ps1`
+dry-run then `-Execute`; (4) post-cutover verification + independent post-action QA; (5) Lane A live
+pixel/browser rows. Then decide F7 and the Stage-2 successor. **Separately, finish the model transition above
+before relying on it — the incoming planner is still on the paid binding until the repo-level files change.**
