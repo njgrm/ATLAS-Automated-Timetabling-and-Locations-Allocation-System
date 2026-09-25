@@ -19,17 +19,24 @@ test('warning affordance is keyboard discoverable and explains severity and publ
 	const indicator = read('TimetableGridConflictBadge.tsx');
 	assert.match(grid, /warnings=\{warnings\}/);
 	assert.match(indicator, /TooltipTrigger asChild/);
-	assert.match(indicator, /aria-label=\{accessibleName\}/);
+	// SUPERSEDED (DRAFT-UX-C01, operator 2026-09-25): assert.match(indicator, /aria-label=\{accessibleName\}/);
+	// The sign is named by its severity summary ("1 Must fix, 2 warnings").
+	assert.match(indicator, /aria-label=\{warningSummary\}/);
 	assert.match(indicator, /blocks saving and publishing|does not block saving or publishing/i);
 	assert.doesNotMatch(grid, /violation\.code/);
 });
 
 test('warned simple-grid selection opens the read-only details with every warning', () => {
 	const workspace = read('ScheduleReviewWorkspace.tsx');
-	assert.match(workspace, /timetable-simple-schedule-notes/);
+	// SUPERSEDED (DRAFT-UX-C01, operator 2026-09-25): the details content moved to
+	// `simple/SimpleSessionDetails` (dialog from 768 px, drawer below); the
+	// workspace passes every warning of the selected entry and the canonical formatter.
+	// assert.match(workspace, /timetable-simple-schedule-notes/);
+	// assert.match(workspace, /formatConstraintMessage\?\.\(warning\.message\)/);
+	assert.match(read('simple/SimpleSessionDetails.tsx'), /timetable-simple-schedule-notes/);
 	assert.match(workspace, /violationIndex\.get\(state\.selectedEntry\.entryId\)/);
 	assert.match(workspace, /setSimpleDetailsOpen\(true\)/);
-	assert.match(workspace, /formatConstraintMessage\?\.\(warning\.message\)/);
+	assert.match(workspace, /formatConstraintMessage\?\.\(message\)/);
 	const body = read('ScheduleReviewWorkspaceBody.tsx');
 	assert.equal((body.match(/formatWarningMessage=\{rightPanelContext\.formatConstraintMessage\}/g) ?? []).length, 2, 'Simple and Advanced workspace grids use the same canonical formatter');
 });

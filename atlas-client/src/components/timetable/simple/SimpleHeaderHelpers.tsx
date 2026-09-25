@@ -59,23 +59,24 @@ const NO_RUN_STEPS: readonly SimpleTutorialStep[] = [
 	SCHEDULE_SWITCHER_STEP,
 	{
 		title: 'Check the lifecycle action',
-		body: 'With no timetable yet, the main button is your next step: generate a timetable, or open Year Setup if setup is not ready.',
-		target: 'Lifecycle action',
-		targetTestId: 'timetable-simple-primary-action',
+		// DRAFT-UX-C01 — with no generated run, Generate is the header's one primary.
+		body: 'With no timetable yet, Generate is the main button: generate a timetable, or open Year Setup from More > Schedule actions > Next step if setup is not ready (Generate then says why it is unavailable).',
+		target: 'Generate action',
+		targetTestId: 'timetable-simple-generate-action',
 		icon: Send,
 	},
 	{
 		title: 'Confirm before generating',
 		body: 'Generating opens a confirmation that lists your school year, terms, expected sessions, and saved draft anchors. Nothing is published by generating.',
 		target: 'Generate confirmation',
-		targetTestId: 'timetable-simple-primary-action',
+		targetTestId: 'timetable-simple-generate-action',
 		icon: ListChecks,
 	},
 	{
 		title: 'Repair setup on Year Setup',
-		body: 'If the active year, ordered terms, or Subject scheduling metadata are missing or out of sync, ATLAS sends you to Year Setup and Subjects.',
-		target: 'Open Year Setup',
-		targetTestId: 'timetable-simple-primary-action',
+		body: 'If the active year, ordered terms, or Subject scheduling metadata are missing or out of sync, More > Schedule actions > Next step sends you to Year Setup and Subjects.',
+		target: 'More menu',
+		targetTestId: 'timetable-simple-more-trigger',
 		icon: ClipboardCheck,
 	},
 	{
@@ -91,9 +92,10 @@ const GENERATED_STEPS: readonly SimpleTutorialStep[] = [
 	SCHEDULE_SWITCHER_STEP,
 	{
 		title: 'Generate or re-generate the timetable',
-		body: 'Use Generate to build a fresh run after setup or data changes. The run status chip shows whether the schedule is clean, blocked, or published, and Generate stays visible without opening More.',
-		target: 'Generate action',
-		targetTestId: 'timetable-simple-generate-action',
+		// DRAFT-UX-C01 — once a run exists, Publish is the primary and Generate is in More.
+		body: 'Use More > Schedule actions > Generate to build a fresh run after setup or data changes. Once a run exists, Publish schedule is the main button, and the status chip shows whether the schedule is clean, blocked, or published.',
+		target: 'More menu',
+		targetTestId: 'timetable-simple-more-trigger',
 		icon: Play,
 	},
 	{
@@ -266,9 +268,7 @@ export function SimpleScheduleControls({
 			data-view-mode={context.viewMode}
 			data-entity-filter={context.entityFilter}
 		>
-			<span className="shrink-0 text-xs font-semibold text-muted-foreground">
-				View type
-			</span>
+			{/* DRAFT-UX-C01 (S2) — no visible "View type" label; the trigger keeps aria-label="View type". */}
 			<Select value={context.viewMode} onValueChange={onViewModeChange}>
 				<SelectTrigger
 					className="h-8 w-[7.25rem] shrink-0 text-xs"
@@ -579,6 +579,7 @@ export function SimpleGenerateAction({
 	disabledReason,
 	onClick,
 	published = false,
+	primary = false,
 }: {
 	disabled: boolean;
 	disabledReason: string | null;
@@ -589,6 +590,12 @@ export function SimpleGenerateAction({
 	 * version instead, and says so.
 	 */
 	published?: boolean;
+	/**
+	 * DRAFT-UX-C01 (operator, 2026-09-25) — Generate is the header's one solid
+	 * primary while the school year/term has no generated run. Once a run
+	 * exists, Publish owns the primary slot and Generate moves into More.
+	 */
+	primary?: boolean;
 }) {
 	const reason = disabled ? (disabledReason ?? 'Generation is not available for this school year yet.') : null;
 	const name = published ? PUBLISHED_GENERATE_DESCRIPTION : 'Generate schedule';
@@ -596,9 +603,9 @@ export function SimpleGenerateAction({
 		<GatedAction disabled={disabled} reason={reason}>
 			<Button
 				type="button"
-				variant="outline"
+				variant={primary ? 'default' : 'outline'}
 				size="sm"
-				className="h-8 gap-1.5 px-2.5 text-xs"
+				className={primary ? 'h-11 min-w-28 gap-1.5 px-3 text-sm' : 'h-8 gap-1.5 px-2.5 text-xs'}
 				disabled={disabled}
 				aria-label={reason ? `${published ? 'Build a new version' : 'Generate schedule'} — ${reason}` : name}
 				onClick={onClick}

@@ -128,9 +128,17 @@ test('production header mounts the lifecycle-derived primary cluster and the vis
 	// A3 — one action cluster. The primary identifies the same sole action in
 	// each of its four conditional render forms (in-place retry, external
 	// fix-setup Link, task-href Link, lifecycle dispatcher).
-	assert.equal((header.match(/data-testid="timetable-simple-primary-action"/g) ?? []).length, 4,
-		'the four conditional render forms must identify the same sole primary action');
-	assert.match(header, /onClick=\{\(\) => activeTask \? void startTask\(activeTaskDefinition\.id\) : handleLifecycleAction\(\)\}/);
+	// SUPERSEDED (DRAFT-UX-C01, operator 2026-09-25): the lifecycle primary is no
+	// longer a visible control. Its warning steps are the merged warnings
+	// control; its other steps (in-place retry, external fix-setup link,
+	// lifecycle dispatcher) are ONE More ▸ "Next step" entry.
+	// assert.equal((header.match(/data-testid="timetable-simple-primary-action"/g) ?? []).length, 4,
+	// 	'the four conditional render forms must identify the same sole primary action');
+	// assert.match(header, /onClick=\{\(\) => activeTask \? void startTask\(activeTaskDefinition\.id\) : handleLifecycleAction\(\)\}/);
+	assert.equal((header.match(/data-testid="timetable-simple-primary-action"/g) ?? []).length, 0);
+	assert.match(header, /onSelect: \(\) => context\.handleRefresh\(\)/, 'in-place retry');
+	assert.match(header, /href: setupRepair\.href \?\? YEAR_SETUP_HREF/, 'external fix-setup link');
+	assert.match(header, /onSelect: handleLifecycleAction/, 'lifecycle dispatcher');
 	assert.doesNotMatch(header, /data-testid="timetable-empty-generate-action"/);
 	// UX-QUICKFIX-C01 supersedes the "Generate exists only in More" contract: the
 	// action row mounts the visible, gate-guarded Generate control. Dispatch still
@@ -166,8 +174,14 @@ test('the hidden generation bypasses are superseded by the visible, gated action
 
 	// A3 — the preview-demand control stays a preview-only action in the single
 	// action row, and the NEXT STEP names the primary action.
-	assert.match(header, /data-testid="timetable-unassigned-insertion-action"/);
-	assert.match(header, /Preview demand/);
+	// SUPERSEDED (DRAFT-UX-C01, operator 2026-09-25): Preview demand moved into
+	// More ▸ Schedule actions with the same gate and the same dispatch.
+	// assert.match(header, /data-testid="timetable-unassigned-insertion-action"/);
+	// assert.match(header, /Preview demand/);
+	const actions = source('src/components/timetable/simple/SimpleHeaderActions.tsx');
+	assert.match(actions, /data-testid="timetable-unassigned-insertion-action"/);
+	assert.match(actions, /Preview demand/);
+	assert.match(header, /visible: generationReady && !hasGeneratedRun,\s*disabled: !canPlanOrGenerate,/);
 	assert.match(header, /setInsertionOpen\(true\)/);
 });
 

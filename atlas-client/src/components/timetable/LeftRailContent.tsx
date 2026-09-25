@@ -17,7 +17,7 @@ import { Skeleton } from '@/ui/skeleton';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip';
 import { DraggablePlacementPin, DraggableQueuePin, PinnedRailDropZone, UnassignDropZone } from '@/components/timetable/DraggablePinWrappers';
 import { GeneratedViolationsPanel } from '@/components/timetable/GeneratedRunRailPanels';
-import { GeneratedUnassignedPanel } from '@/components/timetable/GeneratedUnassignedPanel';
+import { GeneratedUnassignedPanel, renderUnassignedReasonBadgeFor } from '@/components/timetable/GeneratedUnassignedPanel';
 import { sortViolationGroupsHardFirst } from '@/lib/violation-presentation';
 import type { LeftRailContentContext } from '@/components/timetable/timetableContexts.types';
 import { onProfilerRender } from '@/components/timetable/ScheduleReviewWorkspace';
@@ -107,17 +107,8 @@ function LeftRailContentImpl({ context }: LeftRailContentProps) {
 		focusPinnedPlacement,
 	} = context;
 
-	const renderUnassignedReasonBadge = (reason: string) => {
-		const info = UNASSIGNED_REASON_LABELS[reason] ?? {
-			label: reason,
-			className: 'border-gray-300 bg-gray-50 text-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:border-gray-700',
-		};
-		return (
-			<Badge variant="outline" className={`h-4 px-1 text-xs ${info.className}`}>
-				{info.label}
-			</Badge>
-		);
-	};
+	// DRAFT-UX-C01 — one reason-badge renderer, shared with the Simple drawer.
+	const renderUnassignedReasonBadge = (reason: string) => renderUnassignedReasonBadgeFor(UNASSIGNED_REASON_LABELS, reason);
 
 	const filteredPreGenQueue = (draftBoard?.queue ?? []).filter((item) => {
 		const matchesGrade = pinsGradeFilter === 'all' || item.gradeLevel === pinsGradeFilter;

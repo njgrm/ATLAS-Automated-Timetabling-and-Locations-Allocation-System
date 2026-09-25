@@ -16,6 +16,9 @@ import { deriveGenerationReadinessState } from '../timetable-generation-readines
 import type { DraftReport, GenerationInputComparison } from '../../types';
 
 const clientRoot = resolve(import.meta.dirname, '../../..');
+function source(path: string): string {
+	return readFileSync(resolve(clientRoot, path), 'utf8');
+}
 
 function mountedRoutes(): Set<string> {
 	const app = readFileSync(resolve(clientRoot, 'src/App.tsx'), 'utf8');
@@ -350,7 +353,9 @@ test('R7 Simple renders the setup-sync entry point from the shared drift surface
 	// setup-input repairs (Fix rooms / Preview impact / Sync with setup) are
 	// relocated to the `/timetable/setup` sub-page, one click away.
 	assert.match(markup, /timetable-simple-input-drift/);
-	assert.match(markup, /data-testid="timetable-simple-review-setup"/);
+	// SUPERSEDED (DRAFT-UX-C01, operator 2026-09-25): the setup entry point is in More ▸ Schedule actions.
+	// assert.match(markup, /data-testid="timetable-simple-review-setup"/);
+	assert.match(source('src/components/timetable/simple/SimpleHeaderActions.tsx'), /data-testid="timetable-simple-review-setup"/);
 	assert.doesNotMatch(markup, /timetable-simple-sync-setup/);
 	assert.doesNotMatch(markup, /timetable-simple-repair-rooms/);
 });
@@ -398,14 +403,20 @@ test('ALGORITHM_LIMIT/self-route repair renders a real in-place primary action, 
 	// C5 — the empty state names its next step through the single primary action
 	// alone; the redundant NEXT STEP row no longer renders.
 	assert.doesNotMatch(markup, /data-testid="timetable-simple-next-action"/);
-	assert.match(markup, /data-testid="timetable-simple-primary-action"/);
-	// It must be a real in-place button (re-run readiness), not a dead self-link.
-	assert.match(markup, /<button[^>]*data-testid="timetable-simple-primary-action"/);
+	// SUPERSEDED (DRAFT-UX-C01, operator 2026-09-25): with no generated run the
+	// one visible primary is Generate (disabled here, with its reason); the
+	// in-place repair is the More ▸ "Next step" entry, still a real button that
+	// re-runs readiness, never a dead self-link.
+	// assert.match(markup, /data-testid="timetable-simple-primary-action"/);
+	// assert.match(markup, /<button[^>]*data-testid="timetable-simple-primary-action"/);
+	// assert.match(markup, /Recheck generation readiness/);
+	assert.match(markup, /<button[^>]*data-testid="timetable-simple-generate-action"[^>]*disabled=""|<button[^>]*disabled=""[^>]*data-testid="timetable-simple-generate-action"/, 'Generate is the visible primary and cannot dispatch while blocked');
 	assert.doesNotMatch(
 		markup,
 		/href="\/timetable"[^>]*data-testid="timetable-simple-primary-action"|data-testid="timetable-simple-primary-action"[^>]*href="\/timetable"/,
 	);
-	assert.match(markup, /Recheck generation readiness/);
+	const header = source('src/components/timetable/TimetableSimpleHeader.tsx');
+	assert.match(header, /: setupRepairIsInPlace\s*\? \{ label: setupRepair\.label \?\? lifecycleAction\.label, disabled: lifecycleAction\.disabled \|\| context\.loading, href: null, onSelect: \(\) => context\.handleRefresh\(\) \}/, 'the in-place repair re-runs readiness from More');
 });
 
 test('a genuinely external repair still renders a navigable primary action', () => {
@@ -413,11 +424,13 @@ test('a genuinely external repair still renders a navigable primary action', () 
 		schoolYearId: 9,
 		curriculumReadiness: blockedReadiness('OWNERSHIP_MISSING', 'DEMAND_AUTHORITY'),
 	});
-	assert.match(markup, /data-testid="timetable-simple-primary-action"/);
-	assert.match(
-		markup,
-		/href="\/teaching-load"[^>]*data-testid="timetable-simple-primary-action"|data-testid="timetable-simple-primary-action"[^>]*href="\/teaching-load"/,
-	);
+	// SUPERSEDED (DRAFT-UX-C01, operator 2026-09-25): the external repair is the
+	// More ▸ "Next step" link (same href); Generate is the visible primary.
+	// assert.match(markup, /data-testid="timetable-simple-primary-action"/);
+	assert.match(markup, /data-testid="timetable-simple-generate-action"/);
+	const header = source('src/components/timetable/TimetableSimpleHeader.tsx');
+	assert.match(header, /lifecycleAction\.kind === 'fix-setup' && setupRepair\.kind === 'navigate'\s*\? \{ label: setupRepair\.label \?\? lifecycleAction\.label, disabled: false, href: setupRepair\.href \?\? YEAR_SETUP_HREF/);
+	assert.match(source('src/components/timetable/simple/SimpleHeaderActions.tsx'), /<Link to=\{nextStep\.href\} onClick=\{onClose\}>/, 'the repair stays a navigable link');
 });
 
 test('the empty-state copy and the no-run tutorial agree with the rendered primary action', () => {
@@ -428,7 +441,9 @@ test('the empty-state copy and the no-run tutorial agree with the rendered prima
 	const noRunSteps = simpleTutorialSteps('ready-no-run');
 	const actionStep = noRunSteps.find((step) => step.title === 'Check the lifecycle action');
 	assert.ok(actionStep, 'the no-run tutorial must name the lifecycle action step');
-	assert.equal(actionStep.targetTestId, 'timetable-simple-primary-action');
+	// SUPERSEDED (DRAFT-UX-C01, operator 2026-09-25): with no run, Generate is the one primary.
+	// assert.equal(actionStep.targetTestId, 'timetable-simple-primary-action');
+	assert.equal(actionStep.targetTestId, 'timetable-simple-generate-action');
 	// The tutorial targets the exact testid that the empty state renders.
 	assert.match(markup, new RegExp(`data-testid="${actionStep.targetTestId}"`));
 	// The raw engine diagnostic stays behind the tooltip: the operator sentence is

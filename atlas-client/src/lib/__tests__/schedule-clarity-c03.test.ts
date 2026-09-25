@@ -154,7 +154,10 @@ test('B4 beside a published schedule, Generate says it builds a new version', ()
 	assert.match(published, /aria-label="Build a new version of the schedule\. Teachers keep seeing the published schedule until you publish the new one\."/);
 	const ordinary = renderToStaticMarkup(createElement(SimpleGenerateAction, { disabled: false, disabledReason: null, onClick: () => {} }));
 	assert.match(ordinary, />Generate</);
-	assert.match(source('../../components/timetable/TimetableSimpleHeader.tsx'), /published=\{isRunPublished\}/);
+	// SUPERSEDED (DRAFT-UX-C01, operator 2026-09-25): beside a run, Generate is the More entry; it carries the same flag.
+	// assert.match(source('../../components/timetable/TimetableSimpleHeader.tsx'), /published=\{isRunPublished\}/);
+	assert.match(source('../../components/timetable/TimetableSimpleHeader.tsx'), /published: isRunPublished,/);
+	assert.match(source('../../components/timetable/simple/SimpleHeaderActions.tsx'), /generate\.published \? PUBLISHED_GENERATE_LABEL : 'Generate'/);
 });
 
 // ── B8 ────────────────────────────────────────────────────────────────────
@@ -244,7 +247,10 @@ test('B8 both swap-arming prompts clear when the swap is cancelled', () => {
 
 test('B9 the Draft view does not inherit the published chip or a live swap', () => {
 	const header = source('../../components/timetable/TimetableSimpleHeader.tsx');
-	assert.match(header, /\{isRunPublished && context\.isPreGenerationWorkspace \? null : isRunPublished \? \(\s*<SimplePublishedState/);
+	// SUPERSEDED (DRAFT-UX-C01, operator 2026-09-25): the same rule now lives in the primary resolver.
+	// assert.match(header, /\{isRunPublished && context\.isPreGenerationWorkspace \? null : isRunPublished \? \(\s*<SimplePublishedState/);
+	assert.match(header, /headerPrimary === 'published' \? \(\s*<SimplePublishedState/);
+	assert.match(source('../../components/timetable/simple/SimpleHeaderActions.tsx'), /return input\.isPreGenerationWorkspace \? 'none' : 'published';/);
 	const workspace = source('../../components/timetable/ScheduleReviewWorkspace.tsx');
 	assert.match(workspace, /if \(currentCenterView == null \|\| currentCenterView === 'schedule'\) return;\s*state\.setSwapClassTimesMode\?\.\(null\);/);
 	assert.match(workspace, /setActiveSimpleTask\(\(task\) => \(task === 'swap-sessions' \? null : task\)\)/);

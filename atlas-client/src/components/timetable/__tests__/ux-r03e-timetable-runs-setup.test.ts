@@ -302,7 +302,10 @@ test('UX-R03e setup row 3: header, menu, and banner entry points are preserved',
 	assert.match(header, /handleTriggerGenerate/);
 	assert.match(header, /SimpleGenerateAction/);
 	assert.match(header, /SimplePublishAction/);
-	assert.match(header, /Preview demand/);
+	// SUPERSEDED (DRAFT-UX-C01, operator 2026-09-25): Preview demand moved into More ▸ Schedule actions.
+	// assert.match(header, /Preview demand/);
+	assert.match(header, /previewDemand=\{\{/);
+	assert.match(source('src/components/timetable/simple/SimpleHeaderActions.tsx'), /Preview demand/);
 	assert.match(header, /data-testid="timetable-simple-more-trigger"/);
 	const menu = source('src/components/timetable/simple/SimpleMoreMenuContent.tsx');
 	assert.match(menu, /data-testid="timetable-more-policy"/);
