@@ -114,9 +114,13 @@ re-bound to `opencode-go/space-bunny-free` and committed 2026-09-25.
 **Verify on takeover:** restart and confirm the loaded model id. The outgoing session still reported
 `deepseek-v4.1-flash` because it ran before this change.
 
-**Still on paid DeepSeek:** `atlas-executor-delegate.md` and `atlas-qa-delegate.md` (global-only) remain
-`opencode-go/deepseek-v4.1-flash`, and `compaction` (`opencode.jsonc` 130–133) stays `deepseek-v4.1-flash` /
-`variant: low`. Dispatch through the non-delegate roles, or migrate those too.
+**Gates migrated too (global-only files, no repo counterpart):** `atlas-executor-delegate.md` and
+`atlas-qa-delegate.md` now also read `opencode-go/space-bunny-free`.
+
+**Still on DeepSeek deliberately:** `compaction` (`opencode.jsonc` 130–133; `deepseek-v4.1-flash` /
+`variant: low` — a free model summarising long sessions risks quality), and the model-specific agents
+`atlas-bench-ds`, `atlas-bench-dsflash`, and `atlas-qa-dsflashv4` (their names encode their model; the
+bench/AB set exists to compare models, so do not silently rebind them).
 
 **Model availability confirmed:** `space-bunny-free` is advertised by the gateway
 (`https://opencode.ai/zen/go/v1/models`) and present in the local model cache, so the id resolves. Routing
