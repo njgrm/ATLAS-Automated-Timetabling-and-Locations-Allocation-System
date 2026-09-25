@@ -39,6 +39,14 @@ resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs
 ## Live release
 
 - Tailnet: `https://njgrm.buru-degree.ts.net`
+- **Pending release SHA: `e475c673`** (**NOT LIVE** as of 2026-09-25; source accepted and built). C08
+  scheduler clarity (client only): a plain-language stale-information notice with one **Check school
+  information** action promising the schedule is unchanged, and descriptive collapsed grade/program shift
+  schedules replacing anonymous `Override #n` blocks. **No server, Prisma, migration, generation, publication,
+  or timetable-data change.** Built at `E:\ATLAS-runtime-supervised-e475c673-20260925` (server `tsc` + client
+  `vite` exit 0; entry `assets/index-B6GQrEV1.js`). **Rollback basis:
+  `89295c2785153787f5f50c93b17d97f881012169`** at `E:\ATLAS-runtime-supervised-89295c27-20260925`. **Next:**
+  `deploy-runner.ps1` dry-run; cutover `-Execute`.
 - **Release SHA: `89295c27`** (**LIVE** since 2026-09-25; `E:\ATLAS-runtime-supervised-89295c27-20260925`;
   supervisor-owned 5001→76676 / 5174→53516; health/ready + DB-backed read + Tailnet 200; rollback basis
   `b6687fee`; **no migration**). `SERVER-TIMING-C01` request timing / event-loop-stall diagnostics + the S6 E1
