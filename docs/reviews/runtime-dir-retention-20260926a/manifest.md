@@ -10,8 +10,11 @@ current `origin/main` before the target record commit. **Trigger:** E: is below 
 clone `4893cbde`. Retire only rollback depth beyond that. Rows are removed one at a time, exact
 literal paths, non-forced, no branch deletion. Pre-reclaim capacity is E: 45.72 GiB / D: 60.67 GiB;
 retiring 1.46 GiB projects E: approximately 47.18 GiB, still below the 50 GiB warning but far above the
-25/15 GiB fail-closed lines. The successor obligation is therefore discharged for this build, and the
-post-action capacity reading must be recorded rather than treated as a new reclaim loop.
+25/15 GiB fail-closed lines. The successor obligation is therefore discharged only for the single
+release build that immediately follows this reclaim (the `116a7658` F1/F2 build). Because the
+post-reclaim figure remains below 50 GiB, any second release build — including the `9f42190e` build —
+re-triggers §3 and requires its own fresh successor manifest and pre-action audit. The post-action
+capacity reading must be recorded rather than treated as a new reclaim loop.
 
 `ad8f9717` is retained by `refs/heads/fix/departure-load-transfer` and
 `refs/remotes/origin/fix/departure-load-transfer`, and is an ancestor of `origin/main` and `116a7658`;
@@ -38,10 +41,16 @@ The retire row's `ops/runtime/logs/supervisor-state.json` was read before any re
   "state": "running",
   "startedAt": "2026-09-25T09:12:06.947Z",
   "updatedAt": "2026-09-25T09:12:06.947Z",
-  "ownedPids": { "server": 15884, "client": 86660 },
+  "ownedPids": {
+    "server": 15884,
+    "client": 86660
+  },
   "previous": null
 }
 ```
+
+Verbatim file size: **477 bytes**. SHA-256:
+`0FE85443150AFED160173A5CF426E4E5C869095B4FF27150BDF3E9AFA7ACFFB0`.
 
 PIDs `15884` and `86660` are absent. The authoritative live triple is machine
 `ATLAS_RUNTIME_SOURCE_DIR=E:\ATLAS-runtime-supervised-861d89a2-20260925`, scheduled-task action
@@ -71,4 +80,6 @@ evidence of activity. This capture is retained before the logs directory is remo
 
 A fresh independent pre-action audit must return `ACCEPT_READY` with `passed == total`, `blocked: 0`,
 `unperformed: 0` before any removal. A fresh post-action audit must verify the keep set, retired path,
-branch refs, capacity, live `861d89a2` identity/health, and zero residue.
+branch refs, capacity, live `861d89a2` identity/health, and zero residue. It must also reconcile
+`docs/plans/live-state.md` so the retired `ad8f9717` rollback-basis row is marked retired (while its B1/B2
+rows remain UNPERFORMED and owned by Lane C) and records the measured post-reclaim E: free figure.
