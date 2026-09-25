@@ -8,6 +8,8 @@ steps: 120
 permission:
   edit:
     "*": deny
+    "C:/Users/njgro/.config/opencode/agents/**": allow
+    "C:/Users/njgro/.config/opencode/opencode.jsonc": allow
     "D:/ATLAS/**": allow
     "E:/ATLAS-worktrees/**": allow
     "D:/ATLAS-worktrees/**": allow
