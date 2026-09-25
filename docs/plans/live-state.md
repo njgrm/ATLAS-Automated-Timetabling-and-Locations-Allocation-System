@@ -481,6 +481,8 @@ client-suite gate debt, F1 422 mapping, and provider-memo residuals remain separ
 
 **Custody / workspace (2026-09-26):** Lane A owns the seeded browser profile and this docs worktree
 `E:\ATLAS-worktrees\lane-a-r1-deploy-target` (`docs/lane-a-r1-deploy-target`, `KEEP_ACTIVE` as the current lane
-record). The C02, F1/F2 source, and F1/F2 deploy-candidate worktrees were clean, integrated, and retired. Live release
+record). The C02 and F1/F2 source/integration worktrees were clean, integrated, and retired. The isolated deploy
+candidate worktree `E:\ATLAS-worktrees\lane-a-f1-f2-deploy-candidate` at `116a7658` is `PRESERVE_FOR_DECISION`:
+it is the source of the deployed target and is not an ancestor of `main`. Live release
 `E:\ATLAS-runtime-supervised-116a7658-20260726` is `KEEP_ACTIVE`; rollback `861d89a2` and donor `5c100ea6` are
 `PRESERVE_FOR_DECISION`. Do not write in Lane B/C worktrees.
