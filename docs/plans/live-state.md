@@ -260,12 +260,14 @@ DRAFT availability for faculty 1 / year 10 / term 2 / v1 with zero slots.
 **Deployment outcome (2026-09-25):** operator-approved `c5e167d7` cutover is **DEPLOYED**; independent post-action
 QA `ACCEPT_READY` **8/8/0/0**; zero-write digest unchanged; rollback basis `ad8f9717`. Browser acceptance is
 **BLOCKED/UNPERFORMED** after the first 1366×768 attempt issued an unexpected collaboration-ticket POST 201; the
-incident evidence is `docs/handoffs/lane-a-browser-acceptance-c5e167d7-2026-09-25.md`. Do not rerun the browser
-until that ticket behavior is reviewed and the acceptance boundary is explicitly resolved.
+incident evidence is `docs/handoffs/lane-a-browser-acceptance-c5e167d7-2026-09-25.md`. Fresh ticket-contract QA
+verified process-local, one-time, 60-second, school/year/run-scoped state with no Prisma or timetable-domain write;
+the planner now explicitly allows that ephemeral ticket plus its scoped WebSocket as a disclosed `/timetable`
+browser prerequisite. No other POST/PUT/PATCH/DELETE is allowed during acceptance.
 
-**Next action (2026-09-25):** review the collaboration-ticket contract and decide whether ticket issuance is an
-allowed read-only browser prerequisite or requires a bounded source correction. Lane C's separate stall-diagnostic
-acceptance remains pending.
+**Next action (2026-09-25):** rerun the complete Tailnet `/timetable` browser acceptance at 1366×768 and 390×844,
+recording rendered R1 sizes, no global scrollbar, console/network results, and the disclosed collaboration-ticket
+prerequisite. Lane C's separate stall-diagnostic acceptance remains pending.
 
 **Dated decisions / residuals (verify before acting):**
 - **F7 remains deliberately rejected (2026-09-25):** daily tools stay under More so the header remains compact;
