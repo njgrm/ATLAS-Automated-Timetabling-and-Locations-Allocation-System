@@ -793,7 +793,7 @@ export default function ScheduleReviewWorkspace() {
 									<p className="mt-1 text-xs font-medium text-foreground">{TIMETABLE_DAY_SHORT[state.selectedEntry.day] ?? state.selectedEntry.day} · {state.selectedEntry.startTime}–{state.selectedEntry.endTime}</p>
 									<p className="mt-1 text-xs text-muted-foreground">Read-only information about this class. Each item says whether it blocks saving or publishing.</p>
 									<ul className="mt-2 list-disc space-y-1 pl-4 text-sm text-foreground">
-										{(state.centerWorkspaceContext.violationIndex.get(state.selectedEntry.entryId) ?? []).map((warning: any, index: number) => <li key={`${warning.severity}-${index}`}><span className="font-semibold">{warning.severity === 'HARD' ? 'Must fix: ' : 'Schedule note: '}</span>{state.rightPanelContext.formatConstraintMessage?.(warning.message, warning) ?? warning.message} <span className="text-xs font-medium">{warning.severity === 'HARD' ? '(Blocks saving and publishing.)' : '(Does not block saving or publishing.)'}</span></li>)}
+										{(state.centerWorkspaceContext.violationIndex.get(state.selectedEntry.entryId) ?? []).map((warning: any, index: number) => <li key={`${warning.severity}-${index}`}><span className="font-semibold">{warning.severity === 'HARD' ? 'Must fix: ' : 'Schedule note: '}</span>{state.rightPanelContext.formatConstraintMessage?.(warning.message) ?? warning.message} <span className="text-xs font-medium">{warning.severity === 'HARD' ? '(Blocks saving and publishing.)' : '(Does not block saving or publishing.)'}</span></li>)}
 									</ul>
 								</section>
 							) : null}

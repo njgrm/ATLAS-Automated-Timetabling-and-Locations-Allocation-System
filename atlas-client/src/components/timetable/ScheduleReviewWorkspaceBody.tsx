@@ -114,7 +114,7 @@ function ScheduleReviewWorkspaceBodyImpl({
 			<ResizableHandle withHandle className={!isDesktop && isLeftCollapsed ? 'hidden' : undefined} />
 
 			<Profiler id="Center/Grid" onRender={onProfilerRender}>
-				<CenterWorkspace {...centerWorkspaceContext} teacherDepartureEntryIds={teacherDepartureEntryIds} onReassignTeacher={onReassignTeacher} setupOnStartTask={onSimpleTaskChange} setupOnSetRepairOrigin={onSetupSetRepairOrigin ?? null} />
+				<CenterWorkspace {...centerWorkspaceContext} formatWarningMessage={rightPanelContext.formatConstraintMessage} teacherDepartureEntryIds={teacherDepartureEntryIds} onReassignTeacher={onReassignTeacher} setupOnStartTask={onSimpleTaskChange} setupOnSetRepairOrigin={onSetupSetRepairOrigin ?? null} />
 			</Profiler>
 
 			<RightPanel {...rightPanelContext} />

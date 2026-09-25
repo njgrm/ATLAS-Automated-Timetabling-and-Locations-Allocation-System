@@ -27,7 +27,9 @@ test('warned simple-grid selection opens the read-only details with every warnin
 	assert.match(workspace, /timetable-simple-schedule-notes/);
 	assert.match(workspace, /violationIndex\.get\(state\.selectedEntry\.entryId\)/);
 	assert.match(workspace, /setSimpleDetailsOpen\(true\)/);
-	assert.match(workspace, /formatConstraintMessage\?\.\(warning\.message, warning\)/);
+	assert.match(workspace, /formatConstraintMessage\?\.\(warning\.message\)/);
+	const body = read('ScheduleReviewWorkspaceBody.tsx');
+	assert.equal((body.match(/formatWarningMessage=\{rightPanelContext\.formatConstraintMessage\}/g) ?? []).length, 2, 'Simple and Advanced workspace grids use the same canonical formatter');
 });
 
 test('More omits Prepare, hides unavailable placement and only offers pending room requests', () => {
