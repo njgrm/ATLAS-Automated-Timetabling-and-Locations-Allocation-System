@@ -8,11 +8,12 @@ import { MemoryRouter } from 'react-router-dom';
 
 import { SimpleDriftBanner } from '../../components/timetable/simple/SimpleDriftBanner';
 import { SimpleMoreMenuContent } from '../../components/timetable/simple/SimpleMoreMenuContent';
-import { simpleTutorialSteps } from '../../components/timetable/simple/SimpleHeaderHelpers';
+import { chooseRecommendedTask, simpleTutorialSteps, useSimpleTasks } from '../../components/timetable/simple/SimpleHeaderHelpers';
 import { TimetableSimpleHeader } from '../../components/timetable/TimetableSimpleHeader';
 import type { ScheduleReviewWorkspaceHeaderContext } from '../../components/timetable/buildScheduleReviewWorkspaceContexts';
 import { deriveTimetableCapabilities } from '../timetable-capabilities';
 import { deriveGenerationReadinessState } from '../timetable-generation-readiness';
+import { summarizeGenerationReadiness } from '../timetable-generation-readiness';
 import type { DraftReport, GenerationInputComparison } from '../../types';
 
 const clientRoot = resolve(import.meta.dirname, '../../..');
@@ -294,6 +295,106 @@ function renderHeader(overrides: Record<string, unknown> = {}): string {
 		),
 	);
 }
+
+/* ── C1-b — one authority for "what must I fix before this can be published" ── */
+
+/**
+ * The state in which the header used to recommend "Review issues" while the same
+ * header reported "Ready to publish": a run whose total HARD count is above its
+ * publication-blocking count, so the difference is a HARD rule break that is
+ * real but does not gate publication.
+ */
+function nonBlockingHardContext(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+	const run = draftWithSummary({
+		runId: 42,
+		hardViolationCount: 3,
+		softViolationCount: 0,
+		unassignedCount: 0,
+		isPublished: false,
+	});
+	return {
+		draft: run,
+		hardCount: 3,
+		blockingHardCount: 0,
+		softCount: 0,
+		summary: { assignedCount: 5, classesProcessed: 5, hardViolationCount: 3, unassignedCount: 0 },
+		...overrides,
+	};
+}
+
+/**
+ * A probe that renders the header's OWN recommended task through the real
+ * `useSimpleTasks` + `chooseRecommendedTask`, so the recommendation is observed
+ * as rendered output rather than inferred from source text.
+ */
+function renderRecommendedTask(overrides: Record<string, unknown> = {}): string {
+	const context = makeHeaderContext(nonBlockingHardContext(overrides));
+	const capabilities = deriveTimetableCapabilities({
+		scopeResolved: true,
+		curriculumState: 'ready',
+		generating: false,
+		isPreGeneration: false,
+		hasGeneratedRun: true,
+		isPublished: false,
+		latestRunFailed: false,
+		// The header feeds the capability model the allowlist-filtered count.
+		hardCount: context.blockingHardCount,
+		unassignedCount: 0,
+		softCount: context.softCount,
+		hasSelectedEntry: false,
+		requestPendingCount: context.requestPendingCount,
+		generationDiagnostic: summarizeGenerationReadiness(context.curriculumReadiness),
+	});
+	function Probe() {
+		const tasks = useSimpleTasks(context, capabilities.gates);
+		const recommended = chooseRecommendedTask(tasks, context);
+		return createElement('span', { 'data-testid': 'probe-recommended-task' }, recommended.id);
+	}
+	return renderToStaticMarkup(createElement(MemoryRouter, null, createElement(Probe)));
+}
+
+test('C1-b a non-blocking HARD never yields a "review" recommendation beside "Ready to publish"', () => {
+	// The lifecycle next step reads blockingHardCount and reports publish.
+	const markup = renderHeader(nonBlockingHardContext());
+	assert.match(markup, /data-testid="timetable-simple-readiness-chip"/);
+	assert.match(markup, /Ready to publish/, 'the publish gate genuinely allows publication');
+	// The recommended task must read the SAME count, so the two cannot disagree.
+	assert.match(
+		renderRecommendedTask(),
+		/data-testid="probe-recommended-task"[^>]*>publish</,
+		'the recommended task follows the publication-blocking count, not every HARD violation',
+	);
+});
+
+test('C1-b the non-blocking HARD difference is stated in plain words, not implied away', () => {
+	const markup = renderHeader(nonBlockingHardContext());
+	const notice = /data-testid="timetable-non-blocking-hard-notice"[^>]*>([^<]*)</.exec(markup);
+	assert.ok(notice, 'the header states the difference rather than showing a bare "Ready to publish"');
+	assert.match(notice[1], /3 rule breaks/, 'the count is stated');
+	assert.match(notice[1], /did not stop publishing/, 'the consequence is stated in plain words');
+	assert.match(notice[1], /still worth reviewing/, 'the scheduler is not told to ignore them');
+	// One rule break reads truthfully too, and a fully-blocking run states nothing.
+	assert.match(
+		renderHeader(nonBlockingHardContext({ hardCount: 1, summary: { assignedCount: 5, classesProcessed: 5, hardViolationCount: 1, unassignedCount: 0 } })),
+		/1 rule break did not stop publishing, but it is still worth reviewing\./,
+	);
+	assert.doesNotMatch(
+		renderHeader({ draft: draftWithSummary({ runId: 42, hardViolationCount: 1, softViolationCount: 0, unassignedCount: 0, isPublished: false }), hardCount: 1, blockingHardCount: 1, summary: { assignedCount: 5, classesProcessed: 5, hardViolationCount: 1, unassignedCount: 0 } }),
+		/data-testid="timetable-non-blocking-hard-notice"/,
+		'a fully-blocking run has no difference to disclose',
+	);
+});
+
+test('C1-b the disclosure adds no visible header control (the ≤6 cap holds)', () => {
+	// The notice is a paragraph in the existing status region, so the control
+	// census the accepted DRAFT-UX-C01 contract asserts is unchanged.
+	const withNotice = renderHeader(nonBlockingHardContext());
+	const withoutNotice = renderHeader({ draft: draftWithSummary({ runId: 42, hardViolationCount: 0, softViolationCount: 0, unassignedCount: 0, isPublished: false }), hardCount: 0, blockingHardCount: 0, summary: { assignedCount: 5, classesProcessed: 5, hardViolationCount: 0, unassignedCount: 0 } });
+	const controls = (markup: string) => (markup.match(/<(?:button|a)\b/g) ?? []).length;
+	assert.equal(controls(withNotice), controls(withoutNotice), 'the disclosure introduces no control element');
+	// The one-solid-primary contract is likewise untouched.
+	assert.equal((withNotice.match(/bg-primary/g) ?? []).length, (withoutNotice.match(/bg-primary/g) ?? []).length);
+});
 
 test('R1 a run-wide blocking HARD renders a truthful publish block', () => {
 	const markup = renderHeader({

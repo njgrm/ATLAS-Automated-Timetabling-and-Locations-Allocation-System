@@ -1013,6 +1013,17 @@ export function useScheduleReviewWorkspaceState() {
 
 	const openTacticalSandbox = useCallback(() => setTacticalSandboxOpen(true), [setTacticalSandboxOpen]);
 
+	/**
+	 * C1-c — the one canonical teaching-space list, shared by the placement
+	 * room resolver and the inline room chooser. Previously each derived its own
+	 * filter, so the chooser and the resolver could disagree about how many
+	 * rooms were available.
+	 */
+	const teachingSpaces = useMemo(
+		() => Array.from(roomMap.values()).filter((room) => room.isTeachingSpace),
+		[roomMap],
+	);
+
 	const resolveGeneratedPlacementRoomId = useCallback((item: UnassignedItem, day: string, startTime: string, endTime: string): number | null => {
 		const itemRoomId = item.homeRoomId ?? null;
 		if (itemRoomId && roomMap.has(itemRoomId)) return itemRoomId;
@@ -1031,13 +1042,20 @@ export function useScheduleReviewWorkspaceState() {
 		const currentRoomViewId = viewMode === 'room' ? Number(entityFilter) : NaN;
 		if (Number.isFinite(currentRoomViewId) && roomMap.has(currentRoomViewId)) return currentRoomViewId;
 
+		// C1-c — with exactly one teaching space there is nothing to choose, so
+		// that space IS the destination. Without this the screen said "Choose a
+		// room first" while rendering no chooser at all, and Confirm stayed
+		// disabled: an unfollowable instruction and a dead end. Two or more
+		// spaces still require a real choice, and zero still fails closed.
+		if (teachingSpaces.length === 1) return teachingSpaces[0].id;
+
 		return null;
-	}, [draft?.entries, entityFilter, roomMap, sectionMap, viewMode]);
+	}, [draft?.entries, entityFilter, roomMap, sectionMap, teachingSpaces, viewMode]);
 
 	/** B1 — the inline room chooser's options (teaching spaces, grouped by building). */
 	const inlinePlacementRoomOptions = useMemo(() => (
-		Array.from(roomMap.values())
-			.filter((room) => room.isTeachingSpace)
+		teachingSpaces
+			.slice()
 			.sort((a, b) => {
 				const buildingCompare = (a.buildingShortCode || a.buildingName || '').localeCompare(b.buildingShortCode || b.buildingName || '');
 				if (buildingCompare !== 0) return buildingCompare;
@@ -1047,7 +1065,7 @@ export function useScheduleReviewWorkspaceState() {
 				value: String(room.id),
 				label: `${room.name} - ${room.buildingShortCode || room.buildingName}`,
 			}))
-	), [roomMap]);
+	), [teachingSpaces]);
 
 	/** B1 — one plain-language room label shared by the consequence and the chooser. */
 	const roomDisplayLabel = useCallback((roomId: number | null): string | null => {
@@ -1205,6 +1223,10 @@ export function useScheduleReviewWorkspaceState() {
 			day,
 			startTime,
 			endTime,
+			// C1-c — the chooser renders only above one option, so the
+			// consequence needs the same count to avoid naming an action the
+			// screen does not offer.
+			availableRoomCount: inlinePlacementRoomOptions.length,
 		};
 		if (!targetSlotOccupied) {
 			setDragItem(null);
@@ -1297,6 +1319,9 @@ export function useScheduleReviewWorkspaceState() {
 		sectionLabel,
 		roomDisplayLabel,
 		roomMap,
+		// C1-c — the consequence text reads the same canonical list the chooser
+		// renders from, so a stale count can never contradict the rendered control.
+		inlinePlacementRoomOptions,
 		toast,
 	]);
 
@@ -1368,6 +1393,9 @@ export function useScheduleReviewWorkspaceState() {
 				startTime: pending.preview.startTime,
 				endTime: pending.preview.endTime,
 				roomLabel,
+				// C1-c — the chooser is reachable from this state, so the count
+				// is re-derived from the same canonical teaching-space list.
+				availableRoomCount: inlinePlacementRoomOptions.length,
 			};
 			if (!preview) {
 				setInlinePlacementPending({
@@ -1396,7 +1424,7 @@ export function useScheduleReviewWorkspaceState() {
 		} finally {
 			setInlinePlacementRoomChanging(false);
 		}
-	}, [inlinePlacementPending, previewEdit, roomDisplayLabel, setInlineActionStatus]);
+	}, [inlinePlacementPending, previewEdit, roomDisplayLabel, setInlineActionStatus, inlinePlacementRoomOptions]);
 
 	const runGeneratedPlacementPreview = useCallback(async (
 		target = assignPickerTarget,

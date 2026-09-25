@@ -210,6 +210,106 @@ test('B1 source contract: the placement hook routes the confirm decisions inline
 	assert.match(hook, /commitEditWithMeta\(\s*pending\.proposal/, 'the confirm is the only commit path');
 });
 
+/* ── C1-c — the room instruction matches what the screen can actually do ──── */
+
+test('C1-c: with more than one teaching space the chooser renders and the step is followable', () => {
+	const input = cleanPlacementInput({ roomLabel: null, availableRoomCount: 2 });
+	const described = describeInlinePlacement(input);
+	assert.equal(described.confirmable, false);
+	// >1 is the only case where "Choose a room first" names an action the screen
+	// offers, so this wording is preserved byte-identically.
+	assert.equal(
+		described.consequence,
+		'ATLAS could not choose a room for this session yet. Choose a room first.',
+		'the >1 wording is unchanged',
+	);
+	const markup = renderPreview(input, {
+		roomId: null,
+		roomOptions: [
+			{ value: '103', label: 'Room 103 - G7 Main' },
+			{ value: '201', label: 'Room 201 - G7 Main' },
+		],
+		onRoomChange: () => {},
+	});
+	assert.match(markup, /data-testid="inline-placement-room-picker"/, 'the chooser renders when there is a real choice');
+	assert.match(markup, /Choose a room first/, 'the rendered consequence matches the rendered control');
+	assert.match(markup, /data-testid="inline-placement-confirm"[^>]*disabled/, 'Confirm waits for a room');
+});
+
+test('C1-c: with exactly one teaching space the screen never tells the scheduler to choose', () => {
+	// The resolver now treats a lone teaching space as the destination, so the
+	// placement is confirmable and the copy is the ordinary confirmable one.
+	const resolved = cleanPlacementInput({ availableRoomCount: 1 });
+	const described = describeInlinePlacement(resolved);
+	assert.equal(described.confirmable, true, 'a single available space is a resolvable destination, not a choice');
+	assert.doesNotMatch(described.consequence, /Choose a room first/, 'no unfollowable instruction');
+	assert.match(described.consequence, /Room 103 - G7 Main/, 'the resolved room is named');
+
+	const markup = renderPreview(resolved, {
+		roomOptions: [{ value: '103', label: 'Room 103 - G7 Main' }],
+		onRoomChange: () => {},
+	});
+	assert.doesNotMatch(markup, /data-testid="inline-placement-room-picker"/, 'one option is not a chooser');
+	assert.doesNotMatch(markup, /Choose a room first/, 'the rendered panel never names an action it does not offer');
+	assert.match(markup, /data-confirmable="true"/, 'the step is completable');
+	assert.doesNotMatch(markup, /data-testid="inline-placement-confirm"[^>]*disabled/, 'Confirm is enabled');
+
+	// Defensive copy: if the one space still cannot be resolved, say so plainly
+	// instead of naming a choice that does not exist.
+	const unresolved = describeInlinePlacement(cleanPlacementInput({ roomLabel: null, availableRoomCount: 1 }));
+	assert.equal(unresolved.confirmable, false);
+	assert.doesNotMatch(unresolved.consequence, /Choose a room first/);
+	assert.match(unresolved.consequence, /Room Map \(\/map\)/, 'the real destination is named');
+});
+
+test('C1-c: with zero teaching spaces the copy states the fact and the real destination', () => {
+	const input = cleanPlacementInput({ roomLabel: null, availableRoomCount: 0 });
+	const described = describeInlinePlacement(input);
+	assert.equal(described.confirmable, false);
+	assert.doesNotMatch(described.consequence, /Choose a room first/, 'there is nothing to choose, so nothing is named as a choice');
+	assert.match(described.consequence, /No teaching space is available for this session/, 'the real reason is stated');
+	assert.match(described.consequence, /Room Map \(\/map\)/, 'room configuration lives at /map, per the shared blocker resolver');
+
+	const markup = renderPreview(input, { roomId: null, roomOptions: [], onRoomChange: () => {} });
+	assert.doesNotMatch(markup, /data-testid="inline-placement-room-picker"/, 'no chooser at zero rooms');
+	assert.doesNotMatch(markup, /Choose a room first/, 'the rendered panel never names an action it does not offer');
+	assert.match(markup, /No teaching space is available for this session/, 'the rendered consequence is honest');
+	assert.match(markup, /data-testid="inline-placement-confirm"[^>]*disabled/, 'Confirm stays disabled because the step is not completable');
+});
+
+test('C1-c: the confirmable and blocked copy is byte-identical to before the correction', () => {
+	// The >1 room choice and both confirmable outcomes must not drift.
+	assert.equal(
+		describeInlinePlacement(cleanPlacementInput({ availableRoomCount: 3 })).consequence,
+		'Confirm to place TLE · G7AW · session 1 in MONDAY 11:30–12:15 · Room 103 - G7 Main. No conflicts were found, so nothing changes until you confirm.',
+	);
+	assert.equal(
+		describeInlinePlacement(cleanPlacementInput({ softCount: 2, availableRoomCount: 3 })).consequence,
+		'Confirm to place TLE · G7AW · session 1 in MONDAY 11:30–12:15 · Room 103 - G7 Main. 2 soft warnings will be acknowledged.',
+	);
+	assert.equal(
+		describeInlinePlacement(cleanPlacementInput({ hardTitle: 'Room already in use', availableRoomCount: 3 })).consequence,
+		'This slot is blocked: Room already in use. Choose another slot.',
+	);
+	// An unknown count keeps the pre-existing wording rather than guessing.
+	assert.equal(
+		describeInlinePlacement(cleanPlacementInput({ roomLabel: null })).consequence,
+		'ATLAS could not choose a room for this session yet. Choose a room first.',
+	);
+});
+
+test('C1-c structural guard: a lone teaching space is the destination, not a dead end', () => {
+	// The resolver lives inside the workspace hook and has no unit seam, so this
+	// is a STRUCTURAL guard on the fallback, not a behavioural one. The rendered
+	// rows above are the behavioural control; this row exists so the fallback
+	// cannot be silently deleted while they still pass.
+	const hook = source('src/hooks/useScheduleReviewWorkspaceState.ts');
+	assert.match(hook, /if \(teachingSpaces\.length === 1\) return teachingSpaces\[0\]\.id;/, 'one teaching space resolves to that space');
+	assert.match(hook, /availableRoomCount: inlinePlacementRoomOptions\.length/, 'the consequence reads the same canonical list the chooser renders from');
+	// The chooser still renders only when there is a real choice.
+	assert.match(source('src/components/timetable/InlinePlacementPreview.tsx'), /const canChooseRoom = Boolean\(onRoomChange\) && roomOptions\.length > 1;/);
+});
+
 /* ── B2 — the Advanced guidance is visible, not sr-only ──────────────────── */
 
 function renderAdvancedHelp(mode: 'schedule' | 'draft' = 'schedule'): string {

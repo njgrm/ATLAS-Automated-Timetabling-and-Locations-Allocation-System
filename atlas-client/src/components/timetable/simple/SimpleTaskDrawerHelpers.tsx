@@ -9,7 +9,18 @@ import type { Violation } from '@/types';
 export type RepairOrigin = {
 	reason: string;
 	plainReason: string;
-	groupCount: number;
+	/**
+	 * C1-a — the affected-session count of the blocker group the operator
+	 * actually followed, carried from `BlockerGroupRow` through the shared
+	 * repair dispatch. It was hard-coded to `0` at its only producer, so the
+	 * banner printed "0 sessions affected" above a promise it could not keep.
+	 *
+	 * It is deliberately optional: the shared dispatcher has a second caller
+	 * (`/timetable/setup`) that has no blocker group. `null`/`undefined` means
+	 * "not known here", and the banner then omits the affected-sessions clause
+	 * entirely rather than printing a zero or a guess.
+	 */
+	groupCount?: number | null;
 };
 
 export type BlockerGroupScope = 'run-wide' | 'selected-term';
@@ -342,6 +353,12 @@ export function RepairContextBanner({
 	onBackToBlockerSummary?: () => void;
 	onClearFilter?: () => void;
 }) {
+	// C1-a — an unknown count is not a zero. The clause renders only for a known
+	// positive count, so the literal "0 sessions affected" is unreachable in
+	// rendered output by construction, not by convention.
+	const affectedSessionsClause = typeof repairOrigin.groupCount === 'number' && repairOrigin.groupCount > 0
+		? `${repairOrigin.groupCount} session${repairOrigin.groupCount === 1 ? '' : 's'} affected. `
+		: '';
 	return (
 		<div
 			className="shrink-0 border-b border-amber-200 bg-amber-50 px-3 py-2"
@@ -354,8 +371,8 @@ export function RepairContextBanner({
 					<p className="text-xs font-semibold text-amber-900">
 						Fixing publish blockers → {repairOrigin.plainReason}
 					</p>
-					<p className="mt-0.5 text-xs text-amber-700">
-						{repairOrigin.groupCount} session{repairOrigin.groupCount === 1 ? '' : 's'} affected.
+					<p className="mt-0.5 text-xs text-amber-700" data-testid="timetable-repair-affected-sessions">
+						{affectedSessionsClause}
 						ATLAS cannot test slots until this is resolved.
 					</p>
 				</div>

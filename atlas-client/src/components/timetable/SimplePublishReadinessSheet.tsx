@@ -30,7 +30,17 @@ type SimplePublishReadinessSheetProps = {
 	 * requirement); the selected-term `violations` array is supporting detail.
 	 */
 	runWide?: RunWidePublishAuthority | null;
-	onNavigateToRepair: (href: string, reason?: string, identity?: RepairIdentity | null) => void;
+	onNavigateToRepair: (
+		href: string,
+		reason?: string,
+		identity?: RepairIdentity | null,
+		/**
+		 * C1-a — the affected-session count of the group whose action was
+		 * followed. Optional so the `/timetable/setup` caller of the shared
+		 * dispatcher (which has no group) keeps compiling unchanged.
+		 */
+		groupCount?: number | null,
+	) => void;
 };
 
 const VIOLATION_TO_BLOCKER_REASON: Record<string, string> = {
@@ -75,7 +85,7 @@ function resolveRepairIdentity(
 	return null;
 }
 
-function BlockerGroupRow({ group, onNavigate }: { group: BlockerGroup; onNavigate: (href: string, reason?: string) => void }) {
+function BlockerGroupRow({ group, onNavigate }: { group: BlockerGroup; onNavigate: (href: string, reason?: string, groupCount?: number) => void }) {
 	const [expanded, setExpanded] = useState(false);
 	const visibleItems = expanded ? group.items : group.items.slice(0, 3);
 	const whyItMatters = group.items[0]?.nextStep ?? 'Fix this group before the schedule can be published.';
@@ -103,7 +113,7 @@ function BlockerGroupRow({ group, onNavigate }: { group: BlockerGroup; onNavigat
 					variant="outline"
 					size="sm"
 					className="h-11 shrink-0 gap-1 px-3 text-xs"
-					onClick={() => onNavigate(group.actionHref, group.reason)}
+					onClick={() => onNavigate(group.actionHref, group.reason, group.count)}
 					data-testid="timetable-simple-blocker-next-action"
 					data-blocker-reason={group.reason}
 					data-action-kind={destination.kind}
@@ -193,7 +203,11 @@ function WarningGroupRow({ group }: { group: WarningGroup }) {
 
 export type SimplePublishReadinessSheetBodyProps = {
 	readiness: SimplePublishReadiness;
-	onNavigate: (href: string, reason?: string) => void;
+	/**
+	 * C1-a — carries the followed group's own `count` so the repair banner can
+	 * state the real number of affected sessions instead of a hard-coded zero.
+	 */
+	onNavigate: (href: string, reason?: string, groupCount?: number) => void;
 	onCopySummary: () => void;
 	onDownloadCsv: () => void;
 	onClose: () => void;
@@ -380,9 +394,9 @@ export function SimplePublishReadinessSheetContent({
 	);
 
 	const handleNavigate = useCallback(
-		(href: string, reason?: string) => {
+		(href: string, reason?: string, groupCount?: number) => {
 			onRequestClose();
-			onNavigateToRepair(href, reason, resolveRepairIdentity(reason, draft, violations));
+			onNavigateToRepair(href, reason, resolveRepairIdentity(reason, draft, violations), groupCount);
 		},
 		[onRequestClose, onNavigateToRepair, draft, violations],
 	);

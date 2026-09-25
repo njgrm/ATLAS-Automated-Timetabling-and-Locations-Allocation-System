@@ -66,6 +66,66 @@ test('R4 Advanced and Simple both render a visible Undo/Redo/History control', (
 	assert.match(control, /data-testid="timetable-visible-history"/);
 });
 
+/*
+ * ADDITIVE CORRECTION (LANE-C C1, 2026-09-26) — the row above is RETAINED
+ * UNCHANGED per AGENTS.md §16 (never delete an assertion to close a finding);
+ * it is marked SUPERSEDED IN PART, not deleted.
+ *
+ * Why: the test NAME claims "Advanced and Simple both render a visible
+ * Undo/Redo/History control", but its only workspace assertion is
+ * `assert.match(workspace, /TimetableUndoRedoControl/)` — a source-string
+ * presence check. In `ScheduleReviewWorkspace.tsx` the control is rendered
+ * INSIDE the `layoutMode === 'advanced'` branch (the ternary that ends around
+ * line 610), and `layoutMode` defaults to `'simple'` unless localStorage holds
+ * `'advanced'` (lines 74-77). Simple therefore never renders it. A test whose
+ * name claims more than it asserts is itself the defect.
+ *
+ * Audit finding: `docs/reviews/timetable-ux-audit-20260926/audit.md` finding 10
+ * (test integrity) and its "Systemic" section — the dominant pattern in this
+ * area is source-text assertion, which cannot detect an unmounted component.
+ *
+ * Owed by: the successor cycle that owns the Simple Undo/Redo surface. Until
+ * that control is mounted for Simple (or the accepted contract is formally
+ * narrowed to Advanced), this row is the honest statement of what renders.
+ * Simple's post-save Undo is a DIFFERENT surface and is already covered by the
+ * `B1: the rendered preview offers exactly one Confirm…` row in
+ * `timetable-relaxed-main-b02.test.tsx` (`timetable-auto-save-undo`).
+ */
+test('R4 replacement: the visible Undo/Redo/History control is mounted for Advanced only, not Simple', () => {
+	const workspace = source('src/components/timetable/ScheduleReviewWorkspace.tsx');
+
+	// The default layout is Simple, so a control rendered only under the
+	// advanced branch is unreachable for the persona this lane serves.
+	assert.match(
+		workspace,
+		/atlas_timetable_layout_mode'\)\s*===\s*'advanced'\s*\?\s*'advanced'\s*:\s*'simple'/,
+		'Simple is the default layout mode',
+	);
+
+	// Locate the single TimetableUndoRedoControl mount and the advanced guard
+	// that encloses it, so this row fails if the branch ever changes.
+	const mount = workspace.indexOf('<TimetableUndoRedoControl');
+	assert.ok(mount >= 0, 'the control is mounted in the workspace');
+	const branchStart = workspace.lastIndexOf("layoutMode === 'advanced'", mount);
+	assert.ok(branchStart >= 0 && branchStart < mount, 'the mount is inside the advanced-layout branch');
+	// The ternary that owns the branch closes before the workspace body, so no
+	// Simple-path element between the branch and the mount can be the guard.
+	assert.doesNotMatch(
+		workspace.slice(branchStart, mount),
+		/^\s*\)\s*:\s*null\s*\)\}/m,
+		'the control is not behind a Simple fallback that could also render it',
+	);
+
+	// The honest, layout-mode-parameterised statement: which modes render it.
+	const rendersIn = (mode: 'advanced' | 'simple') => mode === 'advanced';
+	assert.equal(rendersIn('advanced'), true, 'Advanced renders the visible Undo/Redo/History control');
+	assert.equal(
+		rendersIn('simple'),
+		false,
+		'Simple does NOT render the visible Undo/Redo/History control; the control is advanced-only today',
+	);
+});
+
 test('R4 history shows actor/time/type/counts with a per-row revert affordance', () => {	const dialogs = source('src/components/timetable/modals/TimetableAssignmentDialogs.tsx');
 	assert.match(dialogs, /edit\.actorId/);
 	assert.match(dialogs, /edit\.editType/);

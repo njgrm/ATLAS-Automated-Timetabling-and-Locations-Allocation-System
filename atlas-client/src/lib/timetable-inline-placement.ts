@@ -21,6 +21,18 @@ export type InlinePlacementInput = {
 	endTime: string;
 	/** The resolved destination room, or null when ATLAS could not choose one. */
 	roomLabel: string | null;
+	/**
+	 * C1-c — how many teaching spaces this session could use.
+	 *
+	 * The inline room chooser renders only when there is more than one option
+	 * (`InlinePlacementPreview`: `roomOptions.length > 1`). The consequence
+	 * text used to say "Choose a room first" regardless, so at 0 or 1 available
+	 * spaces it named an action the screen did not offer and Confirm stayed
+	 * disabled — a dead end. This count is what lets the copy tell those two
+	 * states apart. `null`/`undefined` means "not known here" and keeps the
+	 * original wording.
+	 */
+	availableRoomCount?: number | null;
 	/** Soft warnings the confirm will acknowledge. */
 	softCount: number;
 	/** The first hard conflict's plain-language title, when the slot is blocked. */
@@ -76,6 +88,23 @@ export function describeInlinePlacement(input: InlinePlacementInput): InlinePlac
 		};
 	}
 	if (!input.roomLabel) {
+		// C1-c — the instruction must match what the screen can actually do.
+		// With 0 or 1 available teaching spaces the chooser does not render, so
+		// "Choose a room first" names an action the scheduler cannot take and
+		// Confirm stays disabled. Each branch states the real situation and the
+		// real destination instead. >1 (and unknown) keep the original wording.
+		if (input.availableRoomCount === 0) {
+			return {
+				consequence: 'No teaching space is available for this session, so it cannot be placed yet. Teaching spaces are set up in Room Map (/map).',
+				confirmable: false,
+			};
+		}
+		if (input.availableRoomCount === 1) {
+			return {
+				consequence: 'ATLAS could not read the one teaching space available for this session. Check Room Map (/map), then place it again.',
+				confirmable: false,
+			};
+		}
 		return {
 			consequence: 'ATLAS could not choose a room for this session yet. Choose a room first.',
 			confirmable: false,

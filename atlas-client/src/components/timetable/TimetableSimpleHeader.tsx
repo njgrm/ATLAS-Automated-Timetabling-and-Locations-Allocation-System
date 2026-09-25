@@ -42,6 +42,7 @@ import {
 	SimpleScheduleSheet,
 	SimpleTutorialControl,
 	resetSimpleWorkspaceFilters,
+	resolvePublishBlockTruth,
 	useSimpleTasks,
 } from '@/components/timetable/simple/SimpleHeaderHelpers';
 import {
@@ -92,6 +93,13 @@ export type SimpleReadinessRepairDeps = {
 	href: string;
 	reason?: string;
 	identity?: SimpleReadinessRepairIdentity | null;
+	/**
+	 * C1-a — the affected-session count of the blocker group the operator
+	 * followed, read from `BlockerGroupRow`. Optional: the `/timetable/setup`
+	 * caller of this shared dispatcher has no group, and an absent count makes
+	 * the banner omit the clause instead of printing a zero.
+	 */
+	groupCount?: number | null;
 	navigate: (to: string) => void;
 	violations: Violation[];
 	setUnassignedReasonFilter: (value: 'all' | UnassignedReason) => void;
@@ -118,6 +126,7 @@ export function dispatchSimpleReadinessRepair(context: SimpleReadinessRepairDeps
 		href,
 		reason,
 		identity,
+		groupCount,
 		navigate,
 		violations,
 		setBlockerReasonFilter,
@@ -134,7 +143,12 @@ export function dispatchSimpleReadinessRepair(context: SimpleReadinessRepairDeps
 		: reason === 'NO_COMPATIBLE_ROOM' ? 'No compatible room'
 		: reason === 'ROOM_CAPACITY_EXCEEDED' ? 'Room capacity exceeded'
 		: reason ? reason.replace(/_/g, ' ').toLowerCase() : 'Unknown issue';
-	onSetRepairOrigin?.({ reason: reason ?? 'UNKNOWN', plainReason, groupCount: 0 });
+	// C1-a — the real count from the followed blocker group. It was hard-coded to
+	// `0` here, so every blocker repair banner claimed "0 sessions affected" while
+	// the same sheet had just printed the true count one click away. An absent
+	// count (the setup pane has no group) is carried through as `null` and the
+	// banner omits the clause; it is never coerced to a number.
+	onSetRepairOrigin?.({ reason: reason ?? 'UNKNOWN', plainReason, groupCount: groupCount ?? null });
 	// B3 — one shared destination resolver; every blocker action is real.
 	const destination = resolveBlockerDestination(reason, href);
 	if (destination.kind === 'teaching-load') {
@@ -345,6 +359,14 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 		hasGeneratedRun,
 		isRunPublished,
 	});
+	// C1-b — one derivation shared with `chooseRecommendedTask` and the task
+	// badge. The recommended task and the lifecycle next step now read the same
+	// `blockingHardCount`, so the header cannot recommend "Review issues" while
+	// it also reports "Ready to publish". A HARD violation that does not block
+	// publication is still real, so the difference is stated in plain words in
+	// the existing status region below rather than implied away. It is a
+	// paragraph, not a control, so the accepted ≤6 visible-control cap holds.
+	const publishBlockTruth = resolvePublishBlockTruth(context);
 	const lifecycleAction = deriveSimpleLifecycleAction({
 		hasGeneratedRun,
 		isPreGeneration: context.isPreGenerationWorkspace,
@@ -597,6 +619,11 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 						The last schedule build did not finish. Check schedule information, then try again.
 					</p>
 				) : null}
+				{publishBlockTruth.nonBlockingHardCount > 0 ? (
+					<p className="min-w-0 text-xs font-medium text-amber-800" data-testid="timetable-non-blocking-hard-notice">
+						{publishBlockTruth.nonBlockingHardCount} rule break{publishBlockTruth.nonBlockingHardCount === 1 ? '' : 's'} did not stop publishing, but {publishBlockTruth.nonBlockingHardCount === 1 ? 'it is' : 'they are'} still worth reviewing.
+					</p>
+				) : null}
 				{setupBlockedDiagnostic ? (
 					<TooltipProvider delayDuration={200}>
 						<Tooltip>
@@ -793,15 +820,16 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 					unassignedCount: context.summary?.unassignedCount ?? 0,
 					softCount: context.softCount,
 				}}
-			onNavigateToRepair={(href, reason, identity) => {
-				setReadinessSheetOpen(false);
-				// UX-R03e (setup) — one shared repair dispatch with the
-				// `/timetable/setup` pane; the sheet-close stays here.
-				dispatchSimpleReadinessRepair({
-					href,
-					reason,
-					identity,
-					navigate,
+		onNavigateToRepair={(href, reason, identity, groupCount) => {
+			setReadinessSheetOpen(false);
+			// UX-R03e (setup) — one shared repair dispatch with the
+			// `/timetable/setup` pane; the sheet-close stays here.
+			dispatchSimpleReadinessRepair({
+				href,
+				reason,
+				identity,
+				groupCount,
+				navigate,
 					violations: context.violations,
 					setUnassignedReasonFilter: context.setUnassignedReasonFilter,
 					setBlockerReasonFilter,
