@@ -45,17 +45,31 @@ export function resolveSimpleHeaderPrimary(input: {
 	return input.isPreGenerationWorkspace ? 'none' : 'published';
 }
 
-export type SimpleWarningsDispatch = 'readiness-sheet' | 'review-issues' | 'none';
+export type SimpleWarningsDispatch = 'generation-blockers' | 'readiness-sheet' | 'review-issues' | 'none';
 
 /**
  * The merged warnings control does what the former count badge + lifecycle
  * primary pair did: `Fix blockers` opened the readiness sheet, `Review
  * warnings` started the review-issues task (behind the issue-review gate).
+ *
+ * C2-a adds a third dispatch, `generation-blockers`. When generation itself is
+ * blocked, this control is otherwise DISABLED (a blocked school year has no
+ * generated run to review), so it was a dead control in the one state where
+ * the scheduler most needs a way in. Pointing it at the real blocker list
+ * closes the dead end and adds NO header control: the cap is unchanged, and
+ * `Review issues` is not lost because it returns to the More menu.
  */
 export function resolveWarningsControlDispatch(input: {
 	lifecycleKind: SimpleLifecycleKind;
 	issueReviewEnabled: boolean;
+	/**
+	 * C2-a: how many generation blockers the canonical diagnostic reports. Only a
+	 * real count opens the list, so a blocked state whose own check did not
+	 * finish never claims to show items it cannot list.
+	 */
+	generationBlockerCount?: number;
 }): SimpleWarningsDispatch {
+	if ((input.generationBlockerCount ?? 0) > 0) return 'generation-blockers';
 	if (input.lifecycleKind === 'fix-blockers') return 'readiness-sheet';
 	if (input.issueReviewEnabled) return 'review-issues';
 	return 'none';
@@ -109,7 +123,9 @@ export function SimpleWarningsControl({
 	/** The readiness chip rendered as the control's face. */
 	children: ReactNode;
 }) {
-	const actionName = dispatch === 'readiness-sheet' ? 'Fix blockers' : 'Review warnings';
+	const actionName = dispatch === 'generation-blockers'
+		? 'See what to fix'
+		: dispatch === 'readiness-sheet' ? 'Fix blockers' : 'Review warnings';
 	return (
 		<Button
 			type="button"

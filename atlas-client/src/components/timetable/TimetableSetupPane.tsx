@@ -35,6 +35,7 @@ import {
 } from '@/components/timetable/simple/SimpleSetupSharedControls';
 import { dispatchSimpleReadinessRepair } from '@/components/timetable/TimetableSimpleHeader';
 import { SimplePublishReadinessSheet } from '@/components/timetable/SimplePublishReadinessSheet';
+import { SimpleGenerationBlockerSheet } from '@/components/timetable/simple/SimpleGenerationBlockerSheet';
 import { isRunPublishedStrict } from '@/components/timetable/timetableWorkspaceTruth';
 import { deriveTimetableCapabilities } from '@/lib/timetable-capabilities';
 import { summarizeGenerationReadiness, type TimetableCurriculumReadinessState } from '@/lib/timetable-generation-readiness';
@@ -84,14 +85,30 @@ type TimetableSetupPaneProps = {
 	onSetRepairOrigin?: ((origin: RepairOrigin | null) => void) | null;
 };
 
+/**
+ * C2-b — the guidance under the Setup badge.
+ *
+ * The `blocked` copy used to say "Open Review readiness to see what to check",
+ * but that entry opened `SimplePublishReadinessSheet` — the PUBLICATION
+ * readiness sheet, which for a year with no generated run answers "No timetable
+ * generated yet" and cannot say why a timetable cannot be made. It now points
+ * at the real generation blockers, which are the thing the scheduler needs.
+ *
+ * `blockerCount` keeps the two blocked sub-cases honest: with a real count the
+ * copy names the real list; with none (the check itself did not finish) it says
+ * so instead of pointing at a list that does not exist.
+ */
 export function simpleSetupGuidance(
 	readiness: Pick<TimetableCurriculumReadinessState, 'state'> | null | undefined,
+	blockerCount = 0,
 ) {
 	switch (readiness?.state ?? 'unavailable') {
 		case 'loading':
 			return 'ATLAS is checking schedule information. Nothing is changed by this check.';
 		case 'blocked':
-			return 'ATLAS found schedule items that need attention. Open Review readiness to see what to check before making changes.';
+			return blockerCount > 0
+				? `ATLAS cannot make a timetable yet. Open See what to fix to see each of the ${blockerCount} setup ${blockerCount === 1 ? 'item' : 'items'} and the place to fix it.`
+				: 'ATLAS cannot make a timetable yet, and the schedule check did not finish, so there is no list to show. Retry the schedule check to see where it stands.';
 		case 'failed':
 		case 'unavailable':
 			return 'ATLAS could not finish the schedule check. Retry schedule check; timetable generation stays unavailable until it completes.';
@@ -110,6 +127,9 @@ export function TimetableSetupPane({
 }: TimetableSetupPaneProps) {
 	const navigate = useNavigate();
 	const [sheetOpen, setSheetOpen] = useState(false);
+	// C2-b — the generation-blocker disclosure is a different surface from the
+	// publication readiness sheet, and this route must open the right one.
+	const [blockerSheetOpen, setBlockerSheetOpen] = useState(false);
 	const [, setBlockerReasonFilter] = useState<string | null>(null);
 	const [rolloverStatus, setRolloverStatus] = useState<RolloverStatus | null>(null);
 
@@ -179,6 +199,23 @@ export function TimetableSetupPane({
 		onStartSimpleTask('review-issues');
 	};
 
+	// C2-b — a scheduler told a schedule cannot be GENERATED must not be sent to a
+	// publication panel about a schedule that does not exist. When the canonical
+	// diagnostic reports real generation blockers, this entry opens the real
+	// blocker list; otherwise it keeps its publication-readiness meaning.
+	const generationBlocked = inputs.curriculumReadiness?.state === 'blocked'
+		&& inputs.curriculumReadiness.diagnostic.blockers.length > 0;
+	const generationBlockerCount = inputs.curriculumReadiness?.state === 'blocked'
+		? inputs.curriculumReadiness.diagnostic.blockers.length
+		: 0;
+	const openReadinessEntry = () => {
+		if (generationBlocked) {
+			setBlockerSheetOpen(true);
+			return;
+		}
+		setSheetOpen(true);
+	};
+
 	return (
 		<div className="flex min-h-0 flex-1 flex-col" data-testid="timetable-setup-pane">
 			<SimpleDriftBanner
@@ -199,10 +236,10 @@ export function TimetableSetupPane({
 					<div className="flex items-center gap-2">
 						<Badge variant="outline" className="h-5 px-1.5 text-xs uppercase">Setup</Badge>
 					<p className="text-xs text-muted-foreground" data-testid="timetable-setup-guidance">
-						{simpleSetupGuidance(inputs.curriculumReadiness)}
+						{simpleSetupGuidance(inputs.curriculumReadiness, generationBlockerCount)}
 					</p>
 					</div>
-					<section aria-label="Publish readiness" className="space-y-2 rounded-lg border border-border bg-card p-3">
+					<section aria-label={generationBlocked ? 'Schedule readiness' : 'Publish readiness'} className="space-y-2 rounded-lg border border-border bg-card p-3">
 						<div className="flex min-w-0 flex-wrap items-center gap-2">
 							<SimpleReadinessChip
 								readiness={readiness}
@@ -215,11 +252,12 @@ export function TimetableSetupPane({
 								variant="outline"
 								size="sm"
 								className="h-7 text-xs"
-								onClick={() => setSheetOpen(true)}
+								onClick={openReadinessEntry}
 								data-testid="timetable-setup-review-readiness"
+								data-readiness-target={generationBlocked ? 'generation-blockers' : 'publish-readiness'}
 							>
 								<ListChecks className="size-3.5" aria-hidden="true" />
-								Review readiness
+								{generationBlocked ? 'See what to fix' : 'Review readiness'}
 							</Button>
 						</div>
 						{publishBlocked ? (
@@ -247,6 +285,14 @@ export function TimetableSetupPane({
 					</div>
 				</div>
 			</ScrollArea>
+			<SimpleGenerationBlockerSheet
+				open={blockerSheetOpen}
+				onOpenChange={setBlockerSheetOpen}
+				diagnostic={inputs.curriculumReadiness?.state === 'blocked' ? inputs.curriculumReadiness.diagnostic : null}
+				onRetry={inputs.onRefresh}
+				labelForSection={sectionLabel}
+				labelForSubject={subjectLabel}
+			/>
 			<SimplePublishReadinessSheet
 				open={sheetOpen}
 				onOpenChange={setSheetOpen}

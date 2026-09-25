@@ -310,13 +310,52 @@ same 17 pre-existing failures, zero new**. Client-only; **no migration; NOT depl
   production, and `timetableSetupPane`/`ux-r03b`/`ux-r03e` assert the sync entry is NOT a header/banner
   control. Notably the first is a **failing-first control for audit finding 1 (the generation dead end)** —
   C2's first row already exists on main. Both are inside the 17.
-- **Dependency-junction hazard, contained (2026-09-26).** The C1 worktree linked
+- **Dependency-junction hazard, RESOLVED (2026-09-26).** The C1 worktree junctioned
   `atlas-client/node_modules` → the **live** release `E:\ATLAS-runtime-supervised-861d89a2-20260925\...`.
   A run wrote `.vite/deps` through it at 02:37:29 and the live supervisor logged ~1.5s event-loop stalls at
-  that moment. No tracked file in the live release changed and it is healthy now (5001 health/ready 200
-  `database:"ok"`, 5174 200), but **production was written to**. The project's own frozen procedure is
-  real-directory copy from the donor, never a junction chain. The junction is still in place (removing one
-  unsafely is what takes a runtime down); treat it as `PRESERVE_FOR_DECISION` and remove link-only.
+  that moment. No tracked file in the live release changed. **Closed:** both junctions were removed
+  **link-only** (`cmd /c rmdir`, no `/s`) with the live target verified intact afterwards (156 entries
+  before and after), and the integrated C1 worktree was retired. The C2 cycle instead used the project's
+  frozen procedure — a **real copy** of the frozen donor's `node_modules` — so the two
+  self-spawning-Vite tests in `test:timetable-relaxed-main` wrote `.vite` **inside the worktree only**;
+  donor and live release mtimes were byte-identical before and after. **Rule for every future cycle: real
+  copy from the frozen donor, never a junction to the live release, the donor, or `D:\ATLAS`.**
+
+**C2 INTEGRATED on `main` as `8bdf5802` (2026-09-26, planner) — audit finding 1, the generation dead end.**
+A scheduler blocked from generating was told "Review the item shown" while **no item was shown**, and
+`/timetable/setup`'s "Review readiness" opened the *publication* readiness sheet, which for a no-run year
+answers "No timetable generated yet". So a blocked scheduler could never start. The data already existed and
+was simply discarded at `TimetableSimpleHeader.tsx:302`. Now: a shared derivation produces the operator
+sentence, and **every** blocker in `diagnostic.blockers[]` renders in plain words with the repair
+`deriveTimetableReadinessRepair()` already resolves (`retry` in place, or navigate to a real mounted route).
+Humanisation reuses the established `violation-presentation.ts` layer; `blocker.code`, `termIdentity` and
+`subjectCode` are never read, and degraded lookups fall back to plain words ("this section"), never an id.
+The setup pane now reaches the **generation** blockers. Fresh independent QA returned **`ACCEPT_READY`
+16/16/0/0** (blocked 0, unperformed 0) and re-ran the negative controls. **The pre-existing failing-first
+control on `main` is now green** — the suite went **17 → 16 failures, zero new**, all 16 attributed to
+byte-identical assertion sites outside the change. Client-only; **no migration; NOT deployed.**
+
+**§7 verdict on C2 (2026-09-26):** the term clause is derived from the server's ordered term **position**;
+QA probed six degraded cases (`termIdentity` null / unknown / empty, `termStructure` null, empty terms,
+`order=1.5`) and **no case produced a term clause, and none rendered as "Term 1"**. A missing term identity
+is never defaulted. Correct — but **not guarded by a committed regression row**, so a future refactor of the
+term phrase could reintroduce a default with a green suite. That row is **owed by C3**, which already owns
+these files; it is not an extra round-trip for its own sake.
+
+**Planner calls on QA's three non-blocking items (2026-09-26):** (1) a resolved Subject that has no
+`displayCode` may render its own `code` (e.g. `TLE-7`) — **accepted**: it is the reference-map name the grid
+already prints in every cell, it is provably not `blocker.subjectCode`, and a Subject's own code is the
+scheduler's own vocabulary. (2) The §7 regression row is **folded into C3** (above). (3) Finding 1 end-to-end
+against a live `GEN-C02` diagnostic stays **open** and belongs to a later approved acceptance session —
+`NEEDS_DEPLOYED`; jsdom proves the DOM and the wiring, not that a scheduler perceives the way in.
+
+**Next action (2026-09-26):** **deployment remains HELD** (release dir absent, live still `861d89a2`) per the
+operator's standing instruction while another opencode planner may deploy the same release. Next source cycle
+is **C3** (count/scope truthfulness, audit findings 5 and the unassigned count paths) plus the owed §7
+regression row. Two operator decisions still stand unanswered, neither blocking the source work: **finding 8**
+(restore visible labels on the view-type and entity pickers — reverses an accepted DRAFT-UX-C01 contract) and
+the **§3 capacity position** (E: 46.85 GiB, below the 50 GiB warning; 14 registered worktrees against a cap
+of 12, so a retention reclaim is owed before the next release build).
 
 **Deploy gate state (2026-09-26, planner):** the `861d89a2` cutover is **DEPLOYED with post-action QA
 `ACCEPT_READY` 8/8/0/0**, so this packet's ordering precondition is **satisfied** (scheduled task action
