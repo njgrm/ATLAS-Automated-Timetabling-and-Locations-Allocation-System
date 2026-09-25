@@ -39,20 +39,17 @@ resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs
 ## Live release
 
 - Tailnet: `https://njgrm.buru-degree.ts.net`
-- **Release SHA: `861d89a2bc2682c5f875dde0b4b1d8ffc079b1fe`** (**LIVE** since 2026-09-26 01:27, Lane A;
-  `E:\ATLAS-runtime-supervised-861d89a2-20260925`; execute audit
-  `C:\ProgramData\ATLAS\release-audit\861d89a2-20260926-012633`; dry-run audit
-  `C:\ProgramData\ATLAS\release-audit\861d89a2-20260926-012619`; active state `running`/`861d89a2`; machine env =
+- **Release SHA: `116a765814bf56fdd30aec02c611869aaff42190`** (**LIVE** since 2026-09-26 05:11, Lane A;
+  `E:\ATLAS-runtime-supervised-116a7658-20260726`; execute audit
+  `C:\ProgramData\ATLAS\release-audit\116a7658-20260926-051034`; dry-run audit
+  `C:\ProgramData\ATLAS\release-audit\116a7658-20260926-051018`; active state `running`/`116a7658`; machine env =
   target; health 200, ready 200 `database:"ok"`, DB-backed subjects read 200, Tailnet 200; startup log clean;
-  served `assets/index-BW9wl1o-.js` byte-identical to the target build. Independent post-action QA
-  `ACCEPT_READY` **8/8/0/0**; six-table zero-write digest unchanged; focused C02 13/13, PostgreSQL 6/6, C01 8/8,
-  client term-gate 8/8, preservation failure set base-reproduced with zero candidate-only failures. **No migration.
-  Rollback basis: `eb0e3038`.**
-- **Pending release SHA: `116a765814bf56fdd30aec02c611869aaff42190`** (isolated F1/F2 target recorded
-  2026-07-26; planned release `E:\ATLAS-runtime-supervised-116a7658-20260726`; incumbent/rollback `861d89a2`;
-  target is live `861d89a2` plus only the reviewed F1/F2 five-path delta, excluding the unapproved Lane C
-  DRAFT-UX product delta; no migration; standing authorization applies subject to packet gates; deployment
-  not yet run).
+  served target-only `assets/index-BAf43GT7.js` byte-identical to the target build. Independent post-action QA
+  `ACCEPT_READY` **8/8/0/0**; six-table zero-write digests unchanged; C08 160/0, published identity/swap/load
+  suites pass, F2 drift/client failures base-reproduced with zero candidate-only failures. **No migration.
+  Rollback basis: `861d89a2`.**
+- **Release SHA: `861d89a2bc2682c5f875dde0b4b1d8ffc079b1fe`** (rollback basis; previously LIVE 2026-09-26 01:27;
+  `E:\ATLAS-runtime-supervised-861d89a2-20260925`; prior QA `ACCEPT_READY` 8/8/0/0 preserved; **no migration.**)
 - **Release SHA: `eb0e30386336673a4a31ecfe39a9bef93549e0ed`** (rollback basis; previously LIVE 2026-09-25 22:19;
   `E:\ATLAS-runtime-supervised-eb0e3038-20260925`; prior Q4/A1 evidence preserved; **no migration.**)
 - **Release SHA: `c5e167d7c5939ff586880149c566ce29506430e8`** (rollback basis; previously LIVE 2026-09-25 20:40,
@@ -439,39 +436,33 @@ D1 acceptance owner was unnamed; and the D1 draft run/term premise is now re-der
 
 **Current stream (2026-09-26):** `TEACHER-CONCERN-AUTHORITY-PROGRAM-20260924` C1–C7 is complete. The scheduler is
 the single teacher-concern accommodation surface, SMART's draft access is teacher-scoped/read-only, and the ATLAS
-teacher portal is removed. `ACTIVE-TERM-LIVE-RESOLUTION-C02` is source-accepted at `07804498`, integrated as
-`861d89a2`, and now verified live; the previous `eb0e3038` release is the rollback basis.
+teacher portal is removed. `ACTIVE-TERM-LIVE-RESOLUTION-C02` and the F1/F2 follow-up are live at `116a7658`;
+`861d89a2` is the rollback basis.
 
 **Completed acceptance (2026-09-25):** `ACTIVE-TERM-LIVE-RESOLUTION-C01` fixed the former C7
 `409 TERM_SCOPE_MISMATCH`: Lane A's seeded browser pass returned `/faculty/concerns` GET 200 and PUT 200 at
 `termIndex 2`, with D6 redirects and removed navigation verified. One disclosed test-data mutation remains: a
 DRAFT availability for faculty 1 / year 10 / term 2 / v1 with zero slots.
 
-**Deployment outcome (2026-09-26):** operator-authorized `861d89a2` cutover is **DEPLOYED**. Independent
-post-action QA is `ACCEPT_READY` **8/8/0/0**: Q4's authenticated cold/warm readiness pair passed from the Tailnet
-origin (first `cached=false`, second `cached=true`, `ran=true`, `zeroWrite=true`); Q1/Q2/Q3/Q5/Q6 passed; Q7 passed
-C02 13/13, PostgreSQL 6/6, C01 8/8, client term-gate 8/8, with the preservation failure set base-reproduced and no
-candidate-only failures. The executor handoff and QA addendum are recorded in
-`docs/handoffs/deploy-861d89a2-2026-09-26.md`; the first eb/A1 incident and R1 browser evidence remain preserved
-in their separate handoffs. No migration, generation, publication, availability/Teaching Load write, term-cache
-apply, or rollover sync occurred. Reclaim C is `ACCEPT_READY` 25/25 pre-action and 17/17 post-action; the
-49.55 GiB E: capacity figure in this historical deployment block is superseded by the current 45.72/60.67
-re-measurement above.
+**Deployment outcome (2026-09-26):** operator-authorized `116a7658` cutover is **DEPLOYED**. Fresh post-action QA
+is `ACCEPT_READY` **8/8/0/0**; Q4's authenticated pair used the Tailnet root origin only (first `cached=false`,
+second `cached=true`, `ran=true`, `zeroWrite=true`), Q7's C08 passed 160/0 and all preservation failures were
+base-reproduced with zero candidate-only failures, and Q6 six-table digests were unchanged. Handoff:
+`docs/handoffs/deploy-116a7658-f1-f2-2026-07-26.md`. No migration, generation, publication, availability/
+Teaching Load write, term-cache apply, or rollover sync occurred. Reclaim `20260926a` is complete; current
+capacity is 47.23 GiB E: / 60.67 GiB D:, and the next build requires a fresh successor reclaim.
 
 **Stage-2 source cycle (2026-09-26):** `ACTIVE-TERM-LIVE-RESOLUTION-C02` candidate `07804498` passed fresh QA
-**8/8/0/0**, integrated as `861d89a2`, and is now the verified live release. It pre-resolves the active term before
-generation/readiness/publication transactions, threads one term through preflight and snapshots, preserves
-fail-closed codes, and keeps the network out of Serializable/advisory locks. No migration or live-data action
-occurred.
+**8/8/0/0** and was deployed in `861d89a2`, then superseded by the isolated F1/F2 `116a7658` cutover.
 
 **Source follow-up cycle (2026-09-26):** `PUBLISHED-TERM-AND-DRIFT-FOLLOWUP-C01` candidate `b0dee7c6`
-(F1 `published-schedule` effective export authority + F2 availability drift route) passed fresh QA **15/15/0/0**
-and is integrated as `1dd92647`; it is **not deployed**. F1/F2 are closed in source, with no runtime, migration,
-or live-data action. Handoff: `docs/handoffs/published-term-and-drift-followup-c01-2026-09-26.md`.
+(F1 effective published export authority + F2 availability drift route) passed fresh QA **15/15/0/0** and is
+live in the isolated `116a7658` target. Handoffs: `docs/handoffs/published-term-and-drift-followup-c01-2026-09-26.md`
+and `docs/handoffs/deploy-116a7658-f1-f2-2026-07-26.md`.
 
-**Next action (2026-09-26):** no Lane A source task remains. Keep `861d89a2` live and `eb0e3038`/donor preserved.
-F1/F2 deployment is a separate HIGH decision; Lane C's `9f42190e` packet remains separately gated. The provider-memo
-and singleton-instrumentation QA evidence residuals are non-blocking accuracy follow-ups.
+**Next action (2026-09-26):** no Lane A source or deployment task remains. Keep `116a7658` live, `861d89a2`
+as rollback, and `5c100ea6` as donor. The next `9f42190e` build requires a fresh successor reclaim/audit;
+client-suite gate debt, F1 422 mapping, and provider-memo residuals remain separate follow-ups.
 
 **Dated decisions / residuals (verify before acting):**
 - **F7 remains deliberately rejected (2026-09-25):** daily tools stay under More so the header remains compact;
@@ -484,13 +475,12 @@ and singleton-instrumentation QA evidence residuals are non-blocking accuracy fo
   published-teacher-leaving rows no longer describe the current screen. Acceptance remains separate from deployment.
 - `UX-AUDIT-SIZE-C01` R1 fixed audit finding 4 in source (`fb245772`, QA 6/6/0/0, integrated `c5e167d7`); only
   the live pixel rows remain. Findings 3 and 6 are addressed on main; finding 9 was already addressed.
-- **F1/F2 source follow-up integrated (2026-09-26):** `1dd92647` / QA 15/15; deployment remains separate HIGH.
-  F1's base-selection/date-threading residual and the export-path 422 mapping suggestion remain follow-ups.
+- **F1/F2 deployed (2026-09-26):** `116a7658` / QA 8/8, source handoff `1dd92647` / QA 15/15. F1 base-selection/date-threading and export-path 422 mapping remain follow-ups.
 - Host-proxy 502/offline term-cache staleness remain unowned observations from 2026-09-24. The removed `/my/*`
   route smoke fixture remains a D6 cleanup follow-up as of 2026-09-25.
 
 **Custody / workspace (2026-09-26):** Lane A owns the seeded browser profile and this docs worktree
 `E:\ATLAS-worktrees\lane-a-r1-deploy-target` (`docs/lane-a-r1-deploy-target`, `KEEP_ACTIVE` as the current lane
-record). The C02 and F1/F2 executor/integration worktrees were clean, integrated, and retired. Live release
-`E:\ATLAS-runtime-supervised-861d89a2-20260925` is `KEEP_ACTIVE`; rollback `eb0e3038` and donor `5c100ea6` are
+record). The C02, F1/F2 source, and F1/F2 deploy-candidate worktrees were clean, integrated, and retired. Live release
+`E:\ATLAS-runtime-supervised-116a7658-20260726` is `KEEP_ACTIVE`; rollback `861d89a2` and donor `5c100ea6` are
 `PRESERVE_FOR_DECISION`. Do not write in Lane B/C worktrees.
