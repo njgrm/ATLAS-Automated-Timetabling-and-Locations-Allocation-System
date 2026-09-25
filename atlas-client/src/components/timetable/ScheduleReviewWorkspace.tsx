@@ -22,6 +22,7 @@ import { AlertCircle, ArrowRight, ArrowRightLeft, BookOpen, Clock, DoorOpen, Gra
 import { lazy, Profiler, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import type { ScheduledEntry } from '@/types';
+import { TIMETABLE_DAY_SHORT } from '@/components/timetable/TimetableGrid.constants';
 import { isDraftPublishedStrict } from '@/components/timetable/timetableWorkspaceTruth';
 import { TimetableUndoRedoControl } from '@/components/timetable/TimetableUndoRedoControl';
 import { dispatchUndoByLedger } from '@/components/timetable/timetableUndoRedoState';
@@ -616,6 +617,7 @@ export default function ScheduleReviewWorkspace() {
 						setReadinessSheetOpen(true);
 					}}
 					onSetupSetRepairOrigin={setRepairOrigin}
+					onWarningEntrySelect={() => setSimpleDetailsOpen(true)}
 					context={{
 						leftPanelRef: state.leftPanelRef,
 						setIsLeftCollapsed: state.setIsLeftCollapsed,
@@ -785,6 +787,16 @@ export default function ScheduleReviewWorkspace() {
 									</p>
 								</div>
 							</div>
+							{(state.centerWorkspaceContext.violationIndex.get(state.selectedEntry.entryId) ?? []).length > 0 ? (
+								<section className="rounded-xl border border-amber-300 bg-amber-50/60 p-3" data-testid="timetable-simple-schedule-notes" aria-label="Schedule notes">
+									<h3 className="text-xs font-bold uppercase tracking-wide text-amber-950">Schedule notes · {(state.centerWorkspaceContext.violationIndex.get(state.selectedEntry.entryId) ?? []).length}</h3>
+									<p className="mt-1 text-xs font-medium text-foreground">{TIMETABLE_DAY_SHORT[state.selectedEntry.day] ?? state.selectedEntry.day} · {state.selectedEntry.startTime}–{state.selectedEntry.endTime}</p>
+									<p className="mt-1 text-xs text-muted-foreground">Read-only information about this class. Each item says whether it blocks saving or publishing.</p>
+									<ul className="mt-2 list-disc space-y-1 pl-4 text-sm text-foreground">
+										{(state.centerWorkspaceContext.violationIndex.get(state.selectedEntry.entryId) ?? []).map((warning: any, index: number) => <li key={`${warning.severity}-${index}`}><span className="font-semibold">{warning.severity === 'HARD' ? 'Must fix: ' : 'Schedule note: '}</span>{state.rightPanelContext.formatConstraintMessage?.(warning.message, warning) ?? warning.message} <span className="text-xs font-medium">{warning.severity === 'HARD' ? '(Blocks saving and publishing.)' : '(Does not block saving or publishing.)'}</span></li>)}
+									</ul>
+								</section>
+							) : null}
 							<div className="rounded-xl border border-border bg-background p-3" data-testid="simple-details-summary-card">
 								<p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Actions</p>
 								<div className="mt-2 grid gap-1.5 text-xs text-muted-foreground sm:grid-cols-2">

@@ -26,6 +26,7 @@ type ScheduleReviewWorkspaceBodyProps = {
 	 * The task starter reuses `onSimpleTaskChange` above; no second task path.
 	 */
 	onSetupSetRepairOrigin?: (origin: RepairOrigin | null) => void;
+	onWarningEntrySelect?: () => void;
 };
 
 function ScheduleReviewWorkspaceBodyImpl({
@@ -38,6 +39,7 @@ function ScheduleReviewWorkspaceBodyImpl({
 	repairOrigin,
 	onBackToBlockerSummary,
 	onSetupSetRepairOrigin,
+	onWarningEntrySelect,
 }: ScheduleReviewWorkspaceBodyProps) {
 	const {
 		leftPanelRef,
@@ -65,7 +67,7 @@ function ScheduleReviewWorkspaceBodyImpl({
 			<div className="relative flex flex-1 min-h-0 overflow-hidden" data-testid="timetable-simple-body">
 				<ResizablePanelGroup direction="horizontal" className="flex flex-1 min-h-0">
 					<Profiler id="Center/Grid" onRender={onProfilerRender}>
-						<CenterWorkspace {...centerWorkspaceContext} teacherDepartureEntryIds={teacherDepartureEntryIds} onReassignTeacher={onReassignTeacher} simpleMode setupOnStartTask={onSimpleTaskChange} setupOnSetRepairOrigin={onSetupSetRepairOrigin ?? null} />
+						<CenterWorkspace {...centerWorkspaceContext} formatWarningMessage={rightPanelContext.formatConstraintMessage} teacherDepartureEntryIds={teacherDepartureEntryIds} onReassignTeacher={onReassignTeacher} simpleMode onWarningEntrySelect={onWarningEntrySelect} setupOnStartTask={onSimpleTaskChange} setupOnSetRepairOrigin={onSetupSetRepairOrigin ?? null} />
 					</Profiler>
 				</ResizablePanelGroup>
 				<TimetableTaskDrawer
@@ -129,6 +131,7 @@ function arePropsEqual(prevProps: ScheduleReviewWorkspaceBodyProps, nextProps: S
 	if (prevProps.repairOrigin !== nextProps.repairOrigin) return false;
 	if (prevProps.onBackToBlockerSummary !== nextProps.onBackToBlockerSummary) return false;
 	if (prevProps.onSetupSetRepairOrigin !== nextProps.onSetupSetRepairOrigin) return false;
+	if (prevProps.onWarningEntrySelect !== nextProps.onWarningEntrySelect) return false;
 	if (!prevProps.context || !nextProps.context) return prevProps.context === nextProps.context;
 	const prevKeys = Object.keys(prevProps.context);
 	const nextKeys = Object.keys(nextProps.context);

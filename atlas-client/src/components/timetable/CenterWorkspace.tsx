@@ -104,6 +104,7 @@ type CenterWorkspaceProps = {
 	selectedUnassigned: UnassignedItem | null;
 	setSelectedUnassigned: (value: UnassignedItem | null) => void;
 	violationIndex: Map<string, Violation[]>;
+	formatWarningMessage?: (message: string, violation?: Violation) => string;
 	followUps: Set<string>;
 	toggleFollowUp: (entryId: string) => Promise<void>;
 	exitPolicyView: () => void;
@@ -188,6 +189,7 @@ type CenterWorkspaceProps = {
 	tacticalSandboxOpen: boolean;
 	setTacticalSandboxOpen: (v: boolean) => void;
 	simpleMode?: boolean;
+	onWarningEntrySelect?: () => void;
 	/** UX-R03c — the workspace-owned full scheduling-policy record the policy pane hydrates from. */
 	policyRecord?: import('@/types').SchedulingPolicy | null;
 	/** UX-R03c — dedicated policy refetch trigger, threaded to the policy pane so a save converges both consumers. */
@@ -221,6 +223,7 @@ export const CenterWorkspace = memo(function CenterWorkspace(props: CenterWorksp
 		selectedUnassigned,
 		setSelectedUnassigned,
 		violationIndex,
+		formatWarningMessage,
 		followUps,
 		toggleFollowUp,
 		exitPolicyView,
@@ -301,6 +304,7 @@ export const CenterWorkspace = memo(function CenterWorkspace(props: CenterWorksp
 		tacticalSandboxOpen,
 		setTacticalSandboxOpen,
 		simpleMode = false,
+		onWarningEntrySelect,
 		policyRecord = null,
 		policyRefreshToken = 0,
 		refreshPolicy,
@@ -810,7 +814,10 @@ export const CenterWorkspace = memo(function CenterWorkspace(props: CenterWorksp
 										localSandboxConflictEntryIds={localSandboxConflictEntryIds}
 										selectedEntry={selectedEntry}
 										followUps={followUps}
-										onEntryClick={handleEntryClick}
+										onEntryClick={(entry) => {
+											handleEntryClick(entry);
+											if ((violationIndex.get(entry.entryId)?.length ?? 0) > 0) onWarningEntrySelect?.();
+										}}
 										subjectLabel={subjectLabel}
 										sectionLabel={sectionLabel}
 										gradeForSection={gradeForSection}
@@ -821,6 +828,7 @@ export const CenterWorkspace = memo(function CenterWorkspace(props: CenterWorksp
 										termFilter={termFilter}
 										termOptions={termOptions}
 										reviewEntryIds={reviewEntryIds}
+										formatWarningMessage={formatWarningMessage}
 										showTeacherDetails
 										pivotLabel={pivotLabel}
 										roomLabelShort={roomLabelShort}

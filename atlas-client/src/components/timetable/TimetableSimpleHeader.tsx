@@ -736,7 +736,6 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 							<SimpleMoreMenuContent
 								context={context}
 								runToolsAvailable={runToolsAvailable}
-								canPlanOrGenerate={canPlanOrGenerate}
 								hideReviewIssues={moreHidesReviewIssues}
 								onClose={() => setMoreOpen(false)}
 								onStartTask={startTask}

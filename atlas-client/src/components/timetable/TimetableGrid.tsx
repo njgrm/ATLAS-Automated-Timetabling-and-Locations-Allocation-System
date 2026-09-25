@@ -73,6 +73,7 @@ interface GridCellProps {
 	termLabelFor?: (termIndex: number | null | undefined) => string | null;
 	/** A8 — only entries in the active review set carry a warning marker. */
 	reviewEntryIds?: ReadonlySet<string>;
+	formatWarningMessage?: (message: string, violation?: Violation) => string;
 	showTeacherDetails?: boolean;
 	pivotLabel: (id: number) => string;
 	roomLabelShort: (roomId: number) => string;
@@ -162,6 +163,7 @@ const GridCell = memo(function GridCell({
 	termFilter = 'all',
 	termLabelFor,
 	reviewEntryIds,
+	formatWarningMessage,
 	showTeacherDetails = true,
 	pivotLabel,
 	roomLabelShort,
@@ -396,14 +398,13 @@ const GridCell = memo(function GridCell({
 			)}
 			<div className="space-y-0.5 min-h-6 overflow-hidden">
 				{visibleEntries.map((entry) => {
+					const warnings = violationIndex.get(entry.entryId) ?? [];
+					const hardWarningCount = warnings.filter((warning) => warning.severity === 'HARD').length;
+					const softWarningCount = warnings.filter((warning) => warning.severity === 'SOFT').length;
 					const rawSeverity = getEntrySeverity(entry.entryId, violationIndex);
-					// A8 — prioritise: only cells in the active review set carry a
-					// marker, so an attention filter narrows the flagged set instead
-					// of flagging every violating cell identically. Severity stays
-					// differentiated (HARD ring+icon vs SOFT border+icon).
-					const severity = rawSeverity && (reviewEntryIds == null || reviewEntryIds.has(entry.entryId))
-						? rawSeverity
-						: null;
+					// Keep every selected-term warning discoverable; the review set only
+					// identifies which warning is currently being worked on.
+					const severity = rawSeverity;
 					const isHighlighted = highlightedEntryIds.has(entry.entryId);
 					const isTeacherDepartureAffected = teacherDepartureEntryIds?.has(entry.entryId) ?? false;
 					const isSandboxChanged = localSandboxChangedEntryIds?.has(entry.entryId) ?? false;
@@ -452,7 +453,7 @@ const GridCell = memo(function GridCell({
 							entryId={entry.entryId}
 							entryData={entryData}
 							role="button"
-							aria-label={`Select ${entrySubjectLabel} for ${entrySectionLabel}, ${entryDayLabel} ${entryTimeLabel}`}
+							aria-label={`Select ${entrySubjectLabel} for ${entrySectionLabel}, ${entryDayLabel} ${entryTimeLabel}${warnings.length ? `, ${warnings.length} ${warnings.length === 1 ? 'warning' : 'warnings'}, ${hardWarningCount} Must fix, ${softWarningCount} Schedule note` : ''}`}
 							data-timetable-entry="true"
 							data-timetable-entry-id={entry.entryId}
 							data-subject-id={entry.subjectId}
@@ -494,11 +495,21 @@ const GridCell = memo(function GridCell({
 										{entryTermLabel}
 									</span>
 								) : null}
-								{severity === 'HARD' && (
-									<AlertCircle className="size-3.5 shrink-0 text-red-500" />
-								)}
-								{severity === 'SOFT' && (
-									<AlertTriangle className="size-3.5 shrink-0 text-amber-500" />
+								{warnings.length > 0 && (
+									<TooltipProvider delayDuration={250}>
+										<Tooltip>
+											<TooltipTrigger asChild>
+												<span tabIndex={0} className={cn('inline-flex shrink-0 items-center gap-0.5 rounded px-1 py-0.5 text-xs font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary', warnings.some((warning) => warning.severity === 'HARD') ? 'bg-red-100 text-red-800' : 'bg-amber-100 text-amber-900')} aria-label={`${warnings.length} ${warnings.length === 1 ? 'warning' : 'warnings'}: ${hardWarningCount} Must fix, ${softWarningCount} Schedule note`} data-review-focus={reviewEntryIds?.has(entry.entryId) ? 'true' : undefined} data-testid="timetable-entry-warning-indicator">
+													{warnings.some((warning) => warning.severity === 'HARD') ? <AlertCircle className="size-3" aria-hidden="true" /> : <AlertTriangle className="size-3" aria-hidden="true" />}
+													<span>{hardWarningCount > 0 ? `Must fix · ${hardWarningCount}` : ''}{hardWarningCount > 0 && softWarningCount > 0 ? ' · ' : ''}{softWarningCount > 0 ? `Schedule note · ${softWarningCount}` : ''}</span>
+												</span>
+											</TooltipTrigger>
+											<TooltipContent side="bottom" className="max-w-sm space-y-1.5 text-xs" data-testid="timetable-entry-warning-tooltip">
+												<p className="font-semibold">{warnings.some((warning) => warning.severity === 'HARD') ? 'Must fix' : 'Schedule note'} · {warnings.length}</p>
+												{warnings.map((warning, index) => <p key={`${warning.severity}-${index}`}><span className="font-semibold">{warning.severity === 'HARD' ? 'Must fix: ' : 'Schedule note: '}</span>{formatWarningMessage?.(warning.message, warning) ?? warning.message} <span className="font-medium">{warning.severity === 'HARD' ? 'This blocks saving and publishing.' : 'This does not block saving or publishing.'}</span></p>)}
+												</TooltipContent>
+										</Tooltip>
+									</TooltipProvider>
 								)}
 								{entry.entryKind === 'COHORT' && entry.cohortCode && (
 									<span className="rounded bg-sky-100 px-1 py-0.5 text-xs font-bold uppercase tracking-wide text-sky-700 shrink-0">
@@ -634,6 +645,7 @@ interface TimetableGridProps {
 	termOptions?: ReadonlyArray<{ value: string; label: string }>;
 	/** A8 — only entries in the active review set carry a warning marker. */
 	reviewEntryIds?: ReadonlySet<string>;
+	formatWarningMessage?: (message: string, violation?: Violation) => string;
 	showTeacherDetails?: boolean;
 	pivotLabel: (id: number) => string;
 	roomLabelShort: (roomId: number) => string;
@@ -679,6 +691,7 @@ export const TimetableGrid = memo(function TimetableGrid({
 	termFilter = 'all',
 	termOptions = [],
 	reviewEntryIds,
+	formatWarningMessage,
 	showTeacherDetails = true,
 	pivotLabel,
 	roomLabelShort,
@@ -952,6 +965,7 @@ export const TimetableGrid = memo(function TimetableGrid({
 												termFilter={termFilter}
 												termLabelFor={termLabelFor}
 												reviewEntryIds={reviewEntryIds}
+												formatWarningMessage={formatWarningMessage}
 												showTeacherDetails={showTeacherDetails}
 												pivotLabel={pivotLabel}
 												roomLabelShort={roomLabelShort}
