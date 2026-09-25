@@ -258,7 +258,9 @@ test('F3: focusing the entry warning indicator opens a tooltip naming the real v
 	const indicator = document.querySelector('[data-testid="timetable-entry-severity-indicator"]') as HTMLElement | null;
 	assert.ok(indicator, 'the severity indicator renders');
 	assert.equal(indicator!.getAttribute('role'), 'img');
-	assert.match(indicator!.getAttribute('aria-label') ?? '', /1 warning: 1 Schedule note/);
+	// SUPERSEDED (DRAFT-UX-C01 S3, operator 2026-09-25): the sign is named by its severity summary ("1 warning"; "Must fix" for HARD).
+	// assert.match(indicator!.getAttribute('aria-label') ?? '', /1 warning: 1 Schedule note/);
+	assert.equal(indicator!.getAttribute('aria-label'), '1 warning');
 	await act(async () => { indicator!.focus(); });
 	await act(async () => { await new Promise((resolve) => setTimeout(resolve, 350)); });
 	assert.match(document.body.textContent ?? '', /Teacher is close to the load limit/, 'the tooltip explains the warning on focus');

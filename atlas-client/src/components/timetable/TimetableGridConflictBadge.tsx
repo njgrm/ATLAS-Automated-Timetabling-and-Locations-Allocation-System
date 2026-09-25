@@ -1,5 +1,5 @@
 import { memo, useState } from 'react';
-import { AlertCircle, AlertTriangle } from 'lucide-react';
+import { AlertCircle, AlertTriangle, OctagonAlert } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
 import { Button } from '@/ui/button';
@@ -7,11 +7,34 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/t
 import type { CellConflictInfo, Violation } from '@/types';
 
 /**
- * UX-AUDIT-FINDINGS-C01 (F3) — the per-entry severity indicator. Before this,
- * the entry warning triangle was a bare icon with no accessible name and no
- * explanation. The indicator now names its warning count and severity, then
- * discloses the plain-language details through a `@/ui` Tooltip on both hover
- * and keyboard focus. Never a native `title` or `<details>` (AGENTS.md §8).
+ * DRAFT-UX-C01 (S3) — one severity sign per class, shared by the grid cell and
+ * the session details. Must fix and warning use distinct icons and colours
+ * (never colour alone); the word stays in the accessible label.
+ */
+export function SeveritySign({ severity, className }: { severity: 'HARD' | 'SOFT'; className?: string }) {
+	return severity === 'HARD'
+		? <OctagonAlert className={cn('size-3.5 shrink-0 text-red-700', className)} aria-hidden="true" data-severity-icon="must-fix" />
+		: <AlertTriangle className={cn('size-3.5 shrink-0 text-amber-700', className)} aria-hidden="true" data-severity-icon="warning" />;
+}
+
+/** "1 Must fix, 2 warnings" — the plain severity summary for a class. */
+export function severitySummary(hardCount: number, softCount: number): string {
+	return [
+		hardCount > 0 ? `${hardCount} Must fix` : null,
+		softCount > 0 ? `${softCount} ${softCount === 1 ? 'warning' : 'warnings'}` : null,
+	].filter(Boolean).join(', ');
+}
+
+/**
+ * UX-AUDIT-FINDINGS-C01 (F3) — the per-entry severity indicator: a named,
+ * focusable sign whose plain-language details are disclosed through a `@/ui`
+ * Tooltip on hover and keyboard focus. Never a native `title` or `<details>`
+ * (AGENTS.md §8).
+ *
+ * DRAFT-UX-C01 (S3) — SUPERSEDED the inline "Must fix · N" / "Schedule note ·
+ * N" text badge: the cell shows the compact severity sign (with the count
+ * beside it only when N>1). The note text lives in the tooltip and in the
+ * session details. Which violations are shown is unchanged.
  */
 export const EntrySeverityIndicator = memo(function EntrySeverityIndicator({
 	severity,
@@ -31,38 +54,32 @@ export const EntrySeverityIndicator = memo(function EntrySeverityIndicator({
 		: reasons.map((message) => ({ severity, message }) as Violation);
 	const hardCount = allWarnings.filter((warning) => warning.severity === 'HARD').length;
 	const softCount = allWarnings.filter((warning) => warning.severity === 'SOFT').length;
-	const warningSummary = [
-		hardCount > 0 ? `${hardCount} Must fix` : null,
-		softCount > 0 ? `${softCount} Schedule note` : null,
-	].filter(Boolean).join(', ');
-	const accessibleName = `${allWarnings.length} ${allWarnings.length === 1 ? 'warning' : 'warnings'}: ${warningSummary}`;
+	const warningSummary = severitySummary(hardCount, softCount);
 	return (
 		<TooltipProvider delayDuration={200}>
 			<Tooltip>
 				<TooltipTrigger asChild>
 					<span
 						role="img"
-						aria-label={accessibleName}
+						aria-label={warningSummary}
 						tabIndex={0}
 						data-testid="timetable-entry-severity-indicator"
 						data-severity={severity.toLowerCase()}
 						data-review-focus={reviewFocused ? 'true' : undefined}
 						className={cn(
-							'inline-flex shrink-0 items-center gap-0.5 rounded px-1 py-0.5 text-xs font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1',
+							'inline-flex shrink-0 items-center gap-0.5 rounded px-0.5 py-0.5 text-xs font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1',
 							severity === 'HARD' ? 'bg-red-100 text-red-800' : 'bg-amber-100 text-amber-900',
 						)}
 					>
-						{severity === 'HARD'
-							? <AlertCircle className="size-3" aria-hidden="true" />
-							: <AlertTriangle className="size-3" aria-hidden="true" />}
-						<span>{hardCount > 0 ? `Must fix · ${hardCount}` : ''}{hardCount > 0 && softCount > 0 ? ' · ' : ''}{softCount > 0 ? `Schedule note · ${softCount}` : ''}</span>
+						<SeveritySign severity={severity} />
+						{allWarnings.length > 1 ? <span aria-hidden="true">{allWarnings.length}</span> : null}
 					</span>
 				</TooltipTrigger>
 				<TooltipContent side="bottom" className="z-100 max-w-sm space-y-1.5 p-2 text-xs" data-testid="timetable-entry-warning-tooltip">
 					<p className={cn('font-semibold', severity === 'HARD' ? 'text-red-800' : 'text-amber-900')}>{warningSummary}</p>
 					{allWarnings.map((warning, warningIndex) => (
 						<p key={`${warning.severity}-${warningIndex}`}>
-							<span className="font-semibold">{warning.severity === 'HARD' ? 'Must fix: ' : 'Schedule note: '}</span>
+							<span className="font-semibold">{warning.severity === 'HARD' ? 'Must fix: ' : 'Warning: '}</span>
 							{formatWarningMessage?.(warning.message, warning) ?? warning.message}{' '}
 							<span className="font-medium">{warning.severity === 'HARD' ? 'This blocks saving and publishing.' : 'This does not block saving or publishing.'}</span>
 						</p>
