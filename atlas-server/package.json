@@ -31,6 +31,8 @@
     "test:published-load-transfer": "tsx --test src/__tests__/published-teaching-load-transfer-c05.test.ts",
     "test:faculty-availability": "tsx --test src/__tests__/faculty-availability-s1.test.ts",
     "test:active-term-live-resolution": "tsx --test src/__tests__/active-term-live-resolution-c01.test.ts",
+    "test:active-term-live-resolution-c02": "tsx --test src/__tests__/active-term-live-resolution-c02.test.ts",
+    "test:active-term-live-resolution-c02-postgres": "tsx src/__tests__/active-term-live-resolution-c02-postgres.test.ts",
     "test:published-revision-identity": "tsx --test src/__tests__/published-revision-identity-s4.test.ts",
     "test:published-identity-readback": "tsx --test src/__tests__/published-identity-readback-s4-client.test.ts",
     "test:timetable-scheduling-quality-c03": "tsx --test src/__tests__/timetable-scheduling-quality-c03.test.ts",
