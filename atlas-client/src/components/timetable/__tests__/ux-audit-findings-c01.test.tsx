@@ -212,7 +212,7 @@ test('F3: the SOFT warning indicator carries a truthful accessible name', () => 
 	const tag = markup.match(/<span[^>]*data-testid="timetable-entry-severity-indicator"[^>]*>/)?.[0] ?? '';
 	assert.ok(tag, 'the per-entry severity indicator must render');
 	assert.match(tag, /role="img"/);
-	assert.match(tag, /aria-label="Warning: Teacher is close to the load limit"/, 'the indicator names the real warning');
+	assert.match(tag, /aria-label="1 warning: 1 Schedule note"/, 'the indicator names the warning count and its non-blocking severity');
 });
 
 test('F3: no bare, unlabelled entry warning glyph remains in the grid', () => {
@@ -220,7 +220,7 @@ test('F3: no bare, unlabelled entry warning glyph remains in the grid', () => {
 	// The bare severity icons moved into the labelled indicator component.
 	assert.doesNotMatch(grid, /<AlertTriangle/, 'no bare warning triangle may remain in the grid');
 	assert.doesNotMatch(grid, /<AlertCircle className="size-3\.5 shrink-0 text-red-500" \/>/, 'no bare hard-conflict icon may remain');
-	assert.match(grid, /<EntrySeverityIndicator severity=\{severity\} reasons=\{severityReasons\} \/>/);
+	assert.match(grid, /<EntrySeverityIndicator[\s\S]*?warnings=\{warnings\}/);
 	// The remaining conflict/follow-up glyphs are named too.
 	assert.match(grid, /role="img" aria-label="Sandbox conflict"/);
 	assert.match(grid, /role="img" aria-label="Marked for follow-up"/);
@@ -229,7 +229,7 @@ test('F3: no bare, unlabelled entry warning glyph remains in the grid', () => {
 test('F3: the explanation uses the @/ui Tooltip primitive, never a native title or details', () => {
 	const badge = source('src/components/timetable/TimetableGridConflictBadge.tsx');
 	assert.match(badge, /EntrySeverityIndicator/);
-	assert.match(badge, /<TooltipContent[\s\S]*?\{heading\}/, 'the indicator discloses the reasons through @/ui Tooltip');
+	assert.match(badge, /<TooltipContent[\s\S]*?\{warningSummary\}/, 'the indicator discloses the reasons through @/ui Tooltip');
 	const code = badge.replace(/\/\*[\s\S]*?\*\//g, '');
 	assert.doesNotMatch(code, /\btitle=/, 'no native title attribute');
 	assert.doesNotMatch(code, /<details/, 'no native details disclosure');
@@ -273,43 +273,27 @@ test('F6: the grid drives read-only from publication state, not CSS', () => {
 	assert.match(header, /setTimetableEntryReadOnly\(isRunPublished\)/, 'the header publishes its isRunPublished state to the grid');
 });
 
-/* ── F7 — the four daily tasks are labelled header actions ───────────────── */
+/* ── F7 — header density stays calm; daily work remains in More ─────────── */
 
-test('F7: all four daily tasks render as labelled header controls without opening More', () => {
+test('F7: no daily repair controls are promoted into the persistent header', () => {
 	const markup = renderHeader(CLEAN_DRAFT);
-	assert.match(markup, /data-testid="timetable-simple-daily-tasks"/);
 	for (const id of [
+		'timetable-simple-daily-tasks',
 		'timetable-header-place-unresolved',
 		'timetable-header-swap-sessions',
 		'timetable-header-teacher-departure',
 		'timetable-header-review-requests',
 	]) {
-		assert.ok(markup.includes(id), `${id} must be reachable in the header`);
+		assert.equal(markup.includes(id), false, `${id} must not crowd the persistent header`);
 	}
-	assert.match(markup, /Place unresolved/);
-	assert.match(markup, /Swap sessions/);
-	assert.match(markup, /Teacher leaving/);
-	assert.match(markup, /Room requests/);
-	// They are NOT behind the (closed) More menu in this render.
-	assert.doesNotMatch(markup, /data-testid="timetable-more-place-unresolved"/);
-	assert.doesNotMatch(markup, /data-testid="timetable-more-swap-sessions"/);
 });
 
-test('F7: the daily header actions mirror the More enablement rules', () => {
-	const markup = renderHeader(CLEAN_DRAFT);
-	const place = markup.match(/<button[^>]*data-testid="timetable-header-place-unresolved"[^>]*>/)?.[0] ?? '';
-	const swap = markup.match(/<button[^>]*data-testid="timetable-header-swap-sessions"[^>]*>/)?.[0] ?? '';
-	const departure = markup.match(/<button[^>]*data-testid="timetable-header-teacher-departure"[^>]*>/)?.[0] ?? '';
-	const requests = markup.match(/<button[^>]*data-testid="timetable-header-review-requests"[^>]*>/)?.[0] ?? '';
-	assert.doesNotMatch(place, /disabled=""/, 'a generated run enables Place unresolved');
-	assert.doesNotMatch(swap, /disabled=""/, 'a generated run enables Swap sessions');
-	assert.doesNotMatch(departure, /disabled=""/, 'a generated run enables Teacher leaving');
-	assert.match(requests, /disabled=""/, 'zero pending requests disables Review room requests');
-
-	const withRequests = renderHeader({ ...CLEAN_DRAFT, requestPendingCount: 3 });
-	const enabled = withRequests.match(/<button[^>]*data-testid="timetable-header-review-requests"[^>]*>/)?.[0] ?? '';
-	assert.doesNotMatch(enabled, /disabled=""/, 'pending requests enable Review room requests');
-	assert.match(withRequests, /Room requests \(3\)/);
+test('F7: More keeps daily tools and preserves their relevance rules', () => {
+	const menu = source('src/components/timetable/simple/SimpleMoreMenuContent.tsx');
+	assert.match(menu, /timetable-more-place-unresolved/);
+	assert.match(menu, /timetable-more-swap-sessions/);
+	assert.match(menu, /Teacher leaving \/ Reassign load/);
+	assert.match(menu, /context\.requestPendingCount > 0/);
 });
 
 test('F7: the expert tools stay under More', () => {

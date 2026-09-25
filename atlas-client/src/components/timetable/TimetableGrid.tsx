@@ -3,13 +3,11 @@ import type { ReactNode, TdHTMLAttributes } from 'react';
 import { AlertCircle, ArrowRightLeft, Flag, GripVertical, Plus } from 'lucide-react';
 import { useDroppable } from '@dnd-kit/core';
 import { toast } from 'sonner';
-
 import { parseDraftPlacementId } from '@/lib/timetable-utils';
 import { isDayScopedOverlay } from '@/lib/timetable-grid-slots';
 import { resolveCellTeacherText } from '@/lib/timetable-cell-teacher';
 import { cn, formatTime } from '@/lib/utils';
 import type { CellConflictInfo, ScheduledEntry, Violation, ViolationCode } from '@/types';
-
 import { Button } from '@/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip';
 import { EMPTY_SCHEDULED_ENTRIES, getEntrySeverity, TIMETABLE_DAY_SHORT, TIMETABLE_DAYS } from '@/components/timetable/TimetableGrid.constants';
@@ -71,8 +69,9 @@ interface GridCellProps {
 	 * different terms must be distinguishable.
 	 */
 	termLabelFor?: (termIndex: number | null | undefined) => string | null;
-	/** A8 — only entries in the active review set carry a warning marker. */
+	/** A8 — the active review set annotates, but never hides, selected-term warnings. */
 	reviewEntryIds?: ReadonlySet<string>;
+	formatWarningMessage?: (message: string, violation?: Violation) => string;
 	showTeacherDetails?: boolean;
 	pivotLabel: (id: number) => string;
 	roomLabelShort: (roomId: number) => string;
@@ -164,6 +163,7 @@ const GridCell = memo(function GridCell({
 	termFilter = 'all',
 	termLabelFor,
 	reviewEntryIds,
+	formatWarningMessage,
 	showTeacherDetails = true,
 	pivotLabel,
 	roomLabelShort,
@@ -399,18 +399,13 @@ const GridCell = memo(function GridCell({
 			)}
 			<div className="space-y-0.5 min-h-6 overflow-hidden">
 				{visibleEntries.map((entry) => {
+					const warnings = violationIndex.get(entry.entryId) ?? [];
+					const hardWarningCount = warnings.filter((warning) => warning.severity === 'HARD').length;
+					const softWarningCount = warnings.filter((warning) => warning.severity === 'SOFT').length;
 					const rawSeverity = getEntrySeverity(entry.entryId, violationIndex);
-					// A8 — prioritise: only cells in the active review set carry a
-					// marker, so an attention filter narrows the flagged set instead
-					// of flagging every violating cell identically. Severity stays
-					// differentiated (HARD ring+icon vs SOFT border+icon).
-					const severity = rawSeverity && (reviewEntryIds == null || reviewEntryIds.has(entry.entryId))
-						? rawSeverity
-						: null;
-					// F3 — the truthful reasons behind the entry's severity marker.
-					const severityReasons = severity
-						? (violationIndex.get(entry.entryId) ?? []).filter((violation) => violation.severity === severity).map((violation) => violation.message).filter(Boolean)
-						: [];
+					// Keep every selected-term warning discoverable; the review set only
+					// identifies which warning is currently being worked on.
+					const severity = rawSeverity;
 					const isHighlighted = highlightedEntryIds.has(entry.entryId);
 					const isTeacherDepartureAffected = teacherDepartureEntryIds?.has(entry.entryId) ?? false;
 					const isSandboxChanged = localSandboxChangedEntryIds?.has(entry.entryId) ?? false;
@@ -459,10 +454,11 @@ const GridCell = memo(function GridCell({
 							entryId={entry.entryId}
 							entryData={entryData}
 							readOnly={readOnly}
-							role={readOnly ? undefined : 'button'}
+							role="button"
+							tabIndex={0}
 							aria-label={readOnly
-								? `${entrySubjectLabel} for ${entrySectionLabel}, ${entryDayLabel} ${entryTimeLabel}`
-								: `Select ${entrySubjectLabel} for ${entrySectionLabel}, ${entryDayLabel} ${entryTimeLabel}`}
+								? `View ${entrySubjectLabel} for ${entrySectionLabel}, ${entryDayLabel} ${entryTimeLabel}${warnings.length ? `, ${warnings.length} ${warnings.length === 1 ? 'warning' : 'warnings'}, ${hardWarningCount} Must fix, ${softWarningCount} Schedule note` : ''}`
+								: `Select ${entrySubjectLabel} for ${entrySectionLabel}, ${entryDayLabel} ${entryTimeLabel}${warnings.length ? `, ${warnings.length} ${warnings.length === 1 ? 'warning' : 'warnings'}, ${hardWarningCount} Must fix, ${softWarningCount} Schedule note` : ''}`}
 							data-timetable-entry="true"
 							data-timetable-entry-id={entry.entryId}
 							data-subject-id={entry.subjectId}
@@ -470,8 +466,8 @@ const GridCell = memo(function GridCell({
 							data-section-id={entry.sectionId}
 							data-section-label={entrySectionLabel}
 							data-faculty-id={entry.facultyId ?? ''}
-							onClick={readOnly ? undefined : (event) => {
-								if (hasKbSource) {
+							onClick={(event) => {
+								if (!readOnly && hasKbSource) {
 									event.stopPropagation();
 									onKbPlace(day, startTime, endTime);
 									return;
@@ -479,7 +475,7 @@ const GridCell = memo(function GridCell({
 								event.stopPropagation();
 								onEntryClick(entry);
 							}}
-							onKeyDown={readOnly ? undefined : (event) => {
+							onKeyDown={(event) => {
 								if (event.key === 'Enter' || event.key === ' ') {
 									event.preventDefault();
 									onEntryClick(entry);
@@ -505,7 +501,13 @@ const GridCell = memo(function GridCell({
 									</span>
 								) : null}
 								{severity ? (
-									<EntrySeverityIndicator severity={severity} reasons={severityReasons} />
+									<EntrySeverityIndicator
+										severity={severity}
+										reasons={warnings.map((warning) => warning.message).filter(Boolean)}
+										warnings={warnings}
+										formatWarningMessage={formatWarningMessage}
+										reviewFocused={reviewEntryIds?.has(entry.entryId) ?? false}
+									/>
 								) : null}
 								{entry.entryKind === 'COHORT' && entry.cohortCode && (
 									<span className="rounded bg-sky-100 px-1 py-0.5 text-xs font-bold uppercase tracking-wide text-sky-700 shrink-0">
@@ -645,8 +647,9 @@ interface TimetableGridProps {
 	termFilter?: 'all' | number;
 	/** A2 — the configured ordered-term options, used to label stacked entries. */
 	termOptions?: ReadonlyArray<{ value: string; label: string }>;
-	/** A8 — only entries in the active review set carry a warning marker. */
+	/** A8 — the active review set annotates, but never hides, selected-term warnings. */
 	reviewEntryIds?: ReadonlySet<string>;
+	formatWarningMessage?: (message: string, violation?: Violation) => string;
 	showTeacherDetails?: boolean;
 	pivotLabel: (id: number) => string;
 	roomLabelShort: (roomId: number) => string;
@@ -692,6 +695,7 @@ export const TimetableGrid = memo(function TimetableGrid({
 	termFilter = 'all',
 	termOptions = [],
 	reviewEntryIds,
+	formatWarningMessage,
 	showTeacherDetails = true,
 	pivotLabel,
 	roomLabelShort,
@@ -968,6 +972,7 @@ export const TimetableGrid = memo(function TimetableGrid({
 												termFilter={termFilter}
 												termLabelFor={termLabelFor}
 												reviewEntryIds={reviewEntryIds}
+												formatWarningMessage={formatWarningMessage}
 												showTeacherDetails={showTeacherDetails}
 												pivotLabel={pivotLabel}
 												roomLabelShort={roomLabelShort}

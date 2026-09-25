@@ -36,7 +36,7 @@
     "test:warning-readability": "tsx --test src/lib/__tests__/warning-readability-c01.test.ts",
     "test:faculty-grade-preference": "tsx --test src/lib/__tests__/faculty-grade-preference-s7.test.ts",
     "test:timetable-scheduler-simplicity": "tsx --test src/lib/__tests__/timetable-scheduler-simplicity-c01.test.ts",
-    "test:timetable-scheduler-clarity": "tsx --test src/lib/__tests__/timetable-scheduler-clarity-c01.test.ts src/lib/__tests__/timetable-operator-workflow-state.test.ts src/components/timetable/__tests__/timetable-header-collapse-c01.test.tsx",
+    "test:timetable-scheduler-clarity": "tsx --test src/lib/__tests__/timetable-scheduler-clarity-c01.test.ts src/lib/__tests__/timetable-operator-workflow-state.test.ts src/components/timetable/__tests__/timetable-header-collapse-c01.test.tsx src/components/timetable/__tests__/scheduler-warning-clarity-c01.test.ts",
     "test:scheduler-collaboration": "tsx --test src/lib/__tests__/publication-approval-action-c01.test.ts src/lib/__tests__/room-preference-collaboration-ticket-c01.test.ts src/lib/__tests__/scheduler-navigation-c01.test.ts",
     "test:scheduler-concern": "tsx --test src/components/faculty-shared/__tests__/scheduler-concern-s2.test.ts src/lib/__tests__/scheduler-navigation-c01.test.ts src/components/__tests__/ux-r03d-outlet-keying.test.ts",
     "test:export-center": "tsx --test src/lib/__tests__/scheduler-export-center.test.ts",

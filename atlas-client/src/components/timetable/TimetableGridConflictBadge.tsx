@@ -4,24 +4,38 @@ import { AlertCircle, AlertTriangle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip';
-import type { CellConflictInfo } from '@/types';
+import type { CellConflictInfo, Violation } from '@/types';
 
 /**
  * UX-AUDIT-FINDINGS-C01 (F3) — the per-entry severity indicator. Before this,
  * the entry warning triangle was a bare icon with no accessible name and no
- * explanation. The indicator now carries a truthful accessible name (the actual
- * violation messages) and discloses them through a `@/ui` Tooltip on both hover
+ * explanation. The indicator now names its warning count and severity, then
+ * discloses the plain-language details through a `@/ui` Tooltip on both hover
  * and keyboard focus. Never a native `title` or `<details>` (AGENTS.md §8).
  */
 export const EntrySeverityIndicator = memo(function EntrySeverityIndicator({
 	severity,
 	reasons,
+	warnings,
+	formatWarningMessage,
+	reviewFocused = false,
 }: {
 	severity: 'HARD' | 'SOFT';
 	reasons: readonly string[];
+	warnings?: readonly Violation[];
+	formatWarningMessage?: (message: string, violation?: Violation) => string;
+	reviewFocused?: boolean;
 }) {
-	const heading = severity === 'HARD' ? 'Hard conflict' : 'Warning';
-	const accessibleName = reasons.length > 0 ? `${heading}: ${reasons.join('; ')}` : heading;
+	const allWarnings = warnings?.length
+		? warnings
+		: reasons.map((message) => ({ severity, message }) as Violation);
+	const hardCount = allWarnings.filter((warning) => warning.severity === 'HARD').length;
+	const softCount = allWarnings.filter((warning) => warning.severity === 'SOFT').length;
+	const warningSummary = [
+		hardCount > 0 ? `${hardCount} Must fix` : null,
+		softCount > 0 ? `${softCount} Schedule note` : null,
+	].filter(Boolean).join(', ');
+	const accessibleName = `${allWarnings.length} ${allWarnings.length === 1 ? 'warning' : 'warnings'}: ${warningSummary}`;
 	return (
 		<TooltipProvider delayDuration={200}>
 			<Tooltip>
@@ -32,23 +46,27 @@ export const EntrySeverityIndicator = memo(function EntrySeverityIndicator({
 						tabIndex={0}
 						data-testid="timetable-entry-severity-indicator"
 						data-severity={severity.toLowerCase()}
+						data-review-focus={reviewFocused ? 'true' : undefined}
 						className={cn(
-							'inline-flex shrink-0 items-center justify-center rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1',
-							severity === 'HARD' ? 'text-red-500' : 'text-amber-500',
+							'inline-flex shrink-0 items-center gap-0.5 rounded px-1 py-0.5 text-xs font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1',
+							severity === 'HARD' ? 'bg-red-100 text-red-800' : 'bg-amber-100 text-amber-900',
 						)}
 					>
 						{severity === 'HARD'
-							? <AlertCircle className="size-3.5" aria-hidden="true" />
-							: <AlertTriangle className="size-3.5" aria-hidden="true" />}
+							? <AlertCircle className="size-3" aria-hidden="true" />
+							: <AlertTriangle className="size-3" aria-hidden="true" />}
+						<span>{hardCount > 0 ? `Must fix · ${hardCount}` : ''}{hardCount > 0 && softCount > 0 ? ' · ' : ''}{softCount > 0 ? `Schedule note · ${softCount}` : ''}</span>
 					</span>
 				</TooltipTrigger>
-				<TooltipContent side="top" className="z-100 max-w-64 space-y-1 p-2 text-xs">
-					<p className={cn('font-semibold', severity === 'HARD' ? 'text-red-700' : 'text-amber-700')}>{heading}</p>
-					{reasons.length > 0
-						? reasons.map((reason, reasonIndex) => (
-							<p key={reasonIndex} className="text-muted-foreground">{reason}</p>
-						))
-						: <p className="text-muted-foreground">Open the review list for the full detail.</p>}
+				<TooltipContent side="bottom" className="z-100 max-w-sm space-y-1.5 p-2 text-xs" data-testid="timetable-entry-warning-tooltip">
+					<p className={cn('font-semibold', severity === 'HARD' ? 'text-red-800' : 'text-amber-900')}>{warningSummary}</p>
+					{allWarnings.map((warning, warningIndex) => (
+						<p key={`${warning.severity}-${warningIndex}`}>
+							<span className="font-semibold">{warning.severity === 'HARD' ? 'Must fix: ' : 'Schedule note: '}</span>
+							{formatWarningMessage?.(warning.message, warning) ?? warning.message}{' '}
+							<span className="font-medium">{warning.severity === 'HARD' ? 'This blocks saving and publishing.' : 'This does not block saving or publishing.'}</span>
+						</p>
+					))}
 				</TooltipContent>
 			</Tooltip>
 		</TooltipProvider>

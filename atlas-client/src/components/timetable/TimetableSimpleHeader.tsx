@@ -1,14 +1,11 @@
 import { memo, useEffect, useLayoutEffect, useMemo, useState } from 'react';
 import {
-	ArrowRightLeft,
 	BookOpen,
 	CalendarClock,
-	ClipboardCheck,
 	Loader2,
 	MoreHorizontal,
 	RefreshCw,
 	Settings2,
-	UserRoundX,
 	type LucideIcon,
 } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
@@ -643,69 +640,6 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 					/>
 				) : null}
 
-				{/* F7 — the four daily tasks are labelled header actions, reachable
-				    without opening More. Enablement mirrors the More entries
-				    exactly; the expert tools stay under More. */}
-				<div
-					className="flex min-w-0 flex-wrap items-center gap-1.5"
-					role="group"
-					aria-label="Daily tasks"
-					data-testid="timetable-simple-daily-tasks"
-				>
-					<Button
-						type="button"
-						variant="outline"
-						size="sm"
-						className="h-8 gap-1.5 px-2 text-xs"
-						disabled={!runToolsAvailable}
-						onClick={() => void startTask('place-unresolved')}
-						aria-label="Place unresolved sessions"
-						data-testid="timetable-header-place-unresolved"
-					>
-						<ClipboardCheck className="size-3.5" aria-hidden="true" />
-						Place unresolved
-					</Button>
-					<Button
-						type="button"
-						variant="outline"
-						size="sm"
-						className="h-8 gap-1.5 px-2 text-xs"
-						disabled={!runToolsAvailable}
-						onClick={() => void startTask('swap-sessions')}
-						aria-label="Swap sessions"
-						data-testid="timetable-header-swap-sessions"
-					>
-						<ArrowRightLeft className="size-3.5" aria-hidden="true" />
-						Swap sessions
-					</Button>
-					<Button
-						type="button"
-						variant="outline"
-						size="sm"
-						className="h-8 gap-1.5 px-2 text-xs"
-						disabled={!runToolsAvailable}
-						onClick={openTeacherDeparture}
-						aria-label="Teacher leaving / Reassign load"
-						data-testid="timetable-header-teacher-departure"
-					>
-						<UserRoundX className="size-3.5" aria-hidden="true" />
-						Teacher leaving
-					</Button>
-					<Button
-						type="button"
-						variant="outline"
-						size="sm"
-						className="h-8 gap-1.5 px-2 text-xs"
-						disabled={context.requestPendingCount === 0}
-						onClick={openRequestsTask}
-						aria-label={`Review room requests${context.requestPendingCount > 0 ? ` (${context.requestPendingCount})` : ''}`}
-						data-testid="timetable-header-review-requests"
-					>
-						<ClipboardCheck className="size-3.5" aria-hidden="true" />
-						Room requests{context.requestPendingCount > 0 ? ` (${context.requestPendingCount})` : ''}
-					</Button>
-				</div>
-
 				{/* A3/C6 — the single action cluster: one lifecycle-derived primary,
 				    the secondary Generate, and the More disclosure. C6 — on the
 				    narrow scrollable strip the primary leads (order-first) so it is
@@ -814,7 +748,6 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 							<SimpleMoreMenuContent
 								context={context}
 								runToolsAvailable={runToolsAvailable}
-								canPlanOrGenerate={canPlanOrGenerate}
 								hideReviewIssues={moreHidesReviewIssues}
 								onClose={() => setMoreOpen(false)}
 								onStartTask={startTask}

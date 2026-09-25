@@ -102,6 +102,8 @@ function AccordionContent({ className, children }: { className?: string; childre
 		<div
 			data-slot="accordion-content"
 			data-state={isOpen ? 'open' : 'closed'}
+			aria-hidden={!isOpen}
+			inert={!isOpen}
 			className={cn(
 				'grid transition-all duration-200 ease-out',
 				isOpen ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0',

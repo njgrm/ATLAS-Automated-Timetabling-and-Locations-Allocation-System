@@ -255,7 +255,7 @@ test('F3: focusing the entry warning indicator opens a tooltip naming the real v
 	const indicator = document.querySelector('[data-testid="timetable-entry-severity-indicator"]') as HTMLElement | null;
 	assert.ok(indicator, 'the severity indicator renders');
 	assert.equal(indicator!.getAttribute('role'), 'img');
-	assert.match(indicator!.getAttribute('aria-label') ?? '', /Warning: Teacher is close to the load limit/);
+	assert.match(indicator!.getAttribute('aria-label') ?? '', /1 warning: 1 Schedule note/);
 	await act(async () => { indicator!.focus(); });
 	await act(async () => { await new Promise((resolve) => setTimeout(resolve, 350)); });
 	assert.match(document.body.textContent ?? '', /Teacher is close to the load limit/, 'the tooltip explains the warning on focus');
@@ -270,8 +270,8 @@ test('F6: a published run renders read-only entries; a draft keeps its edit affo
 	const publishedEntry = document.querySelector('[data-timetable-entry="true"]') as HTMLElement;
 	assert.ok(publishedEntry);
 	assert.equal(publishedEntry.getAttribute('data-read-only'), 'true');
-	assert.equal(publishedEntry.getAttribute('role'), null, 'a published cell is not a button');
-	assert.doesNotMatch(publishedEntry.getAttribute('aria-label') ?? '', /^Select /, 'no "Select …" action on a published run');
+	assert.equal(publishedEntry.getAttribute('role'), 'button', 'a published cell can disclose read-only details');
+	assert.match(publishedEntry.getAttribute('aria-label') ?? '', /^View /, 'a published cell offers a view-only disclosure, never a change');
 	assert.doesNotMatch(publishedEntry.className, /cursor-pointer/, 'no pointer cursor on a published run');
 	assert.match(publishedEntry.className, /cursor-default/);
 	assert.equal(publishedEntry.querySelector('svg[class*="grip-vertical"]'), null, 'no drag handle on a published run');
@@ -290,7 +290,7 @@ test('F6: a published run renders read-only entries; a draft keeps its edit affo
 /* ── two-viewport structural proof ───────────────────────────────────────── */
 
 for (const [label, width, height] of [['desktop 1366×768', 1366, 768], ['mobile 390×844', 390, 844]] as const) {
-	test(`viewport ${label}: daily tasks are reachable and no global scroll is introduced`, async () => {
+	test(`viewport ${label}: the compact header avoids global scrolling`, async () => {
 		Object.defineProperty(dom.window, 'innerWidth', { value: width, configurable: true });
 		Object.defineProperty(dom.window, 'innerHeight', { value: height, configurable: true });
 		dom.window.dispatchEvent(new dom.window.Event('resize'));
@@ -299,7 +299,7 @@ for (const [label, width, height] of [['desktop 1366×768', 1366, 768], ['mobile
 		const header = document.querySelector('[data-testid="timetable-simple-header"]') as HTMLElement;
 		assert.ok(header, 'the header renders');
 		assert.doesNotMatch(header.className, /overflow-(x|y)-scroll/, 'the header never opts into a global scrollbar');
-		assert.ok(document.querySelector('[data-testid="timetable-simple-daily-tasks"]'), 'the daily tasks are visible without More');
+		assert.equal(document.querySelector('[data-testid="timetable-simple-daily-tasks"]'), null, 'daily repair tools remain in More so the header stays compact');
 		const grid = document.querySelector('[data-testid="timetable-center-panel"]');
 		if (grid) {
 			assert.doesNotMatch((grid as HTMLElement).className, /overflow-(x|y)-scroll/, 'the grid never opts into a global scrollbar');
