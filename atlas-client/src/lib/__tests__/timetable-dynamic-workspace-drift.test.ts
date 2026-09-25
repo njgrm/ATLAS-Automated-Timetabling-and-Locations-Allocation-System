@@ -76,11 +76,28 @@ test('D5 every GenerationInputDomain has a labelled repair home', () => {
 	assert.equal(drift.domains.find((domain) => domain.domain === 'derivedDemand')?.label, 'Derived demand');
 	assert.equal(drift.domains.find((domain) => domain.domain === 'availability')?.label, 'Teacher availability');
 	assert.equal(drift.domains.find((domain) => domain.domain === 'derivedDemand')?.href, '/admin/year-setup');
-	assert.equal(drift.domains.find((domain) => domain.domain === 'availability')?.href, '/faculty');
+	assert.equal(drift.domains.find((domain) => domain.domain === 'availability')?.href, '/faculty/concerns');
+});
+
+// PUBLISHED-TERM-AND-DRIFT-FOLLOWUP-C01 (F2) — the availability repair home is
+// the canonical scheduler concern workspace, not the legacy `/faculty`
+// redirect. Asserted on the domain href AND the derived primaryHref, because
+// an availability-only drift has exactly one mapped domain, so `primaryHref`
+// must follow the same authority.
+test('F2 an availability-only drift routes to the mounted concern workspace on both hrefs', () => {
+	const drift = describeRunInputDrift(inputState({ changedDomains: ['availability'] }));
+	assert.equal(drift.domains.length, 1);
+	assert.equal(drift.domains[0].domain, 'availability');
+	assert.equal(drift.domains[0].href, '/faculty/concerns');
+	assert.equal(drift.primaryHref, '/faculty/concerns');
+	// The old value was a legacy route redirect to /teachers, never the
+	// availability authority. Guard both hrefs against a silent regression.
+	assert.notEqual(drift.domains[0].href, '/faculty');
+	assert.notEqual(drift.primaryHref, '/faculty');
 });
 
 test('D5 availability and derivedDemand produce a chip, not an umbrella fallback', () => {
-	for (const [domain, href] of [['availability', '/faculty'], ['derivedDemand', '/admin/year-setup']] as const) {
+	for (const [domain, href] of [['availability', '/faculty/concerns'], ['derivedDemand', '/admin/year-setup']] as const) {
 		const drift = describeRunInputDrift(inputState({ changedDomains: [domain] }));
 		assert.equal(drift.domains.length, 1, `${domain} produces exactly one chip`);
 		assert.equal(drift.domains[0].domain, domain);

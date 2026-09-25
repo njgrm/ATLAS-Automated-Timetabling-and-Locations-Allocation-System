@@ -49,10 +49,10 @@ const DOMAIN_META: Record<GenerationInputDomain, Omit<RunInputDriftDomain, 'doma
 	// the ATLAS-owned subject scheduling metadata; `/admin/year-setup` is the same
 	// canonical repair home the Dashboard's derived-demand state uses.
 	derivedDemand: { label: 'Derived demand', href: '/admin/year-setup' },
-	// Reviewed teacher availability is a per-faculty authority; the Faculty
-	// surface is its canonical ATLAS home until the scheduler concern workspace
-	// is routed.
-	availability: { label: 'Teacher availability', href: '/faculty' },
+	// Reviewed teacher availability is a per-faculty authority, and the scheduler
+	// concern workspace is its canonical ATLAS home. `/faculty` is only a legacy
+	// route redirect to `/teachers`; it was never the availability authority.
+	availability: { label: 'Teacher availability', href: '/faculty/concerns' },
 };
 
 /**
