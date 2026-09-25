@@ -253,11 +253,12 @@ teacher portal is removed. The latest accepted product tip is `c5e167d7`; the au
 `termIndex 2`, with D6 redirects and removed navigation verified. One disclosed test-data mutation remains: a
 DRAFT availability for faculty 1 / year 10 / term 2 / v1 with zero slots.
 
-**Next action (2026-09-25):** after §13 approval, build and deploy product `c5e167d7` using
-`ops/runtime/deploy-runner.ps1` dry-run then `-Execute`; rollback basis is the live `ad8f9717`. The exact pending
-record and no-migration delta are in `## Live release`. Post-cutover, Lane A runs the 1366×768 and 390×844 pixel
-rows (rendered text >=14 px and no global scrollbar); Lane C then reproduces the draft swap preview and reads the
-new stall diagnostics.
+**Next action (2026-09-25):** pre-action review is `ACCEPT_READY` **25/25/0/0** for packet
+`62ae7455`; explicit §13 approval is still required before the HIGH action. After approval, build and deploy
+product `c5e167d7` using `ops/runtime/deploy-runner.ps1` dry-run then `-Execute`; rollback basis is the live
+`ad8f9717`. The exact pending record and no-migration delta are in `## Live release`. Post-cutover, Lane A runs the
+1366×768 and 390×844 pixel rows (rendered text >=14 px and no global scrollbar); Lane C then reproduces the draft
+swap preview and reads the new stall diagnostics.
 
 **Dated decisions / residuals (verify before acting):**
 - **F7 remains deliberately rejected (2026-09-25):** daily tools stay under More so the header remains compact;
