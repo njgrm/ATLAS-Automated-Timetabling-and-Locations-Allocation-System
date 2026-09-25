@@ -57,6 +57,10 @@ resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs
   pre-existing `tt-output-c03r` failures. Six-table zero-write digests match; the executor's malformed 33-character
   audit_logs transcription is superseded by the independently re-derived valid baseline. **No migration. Rollback
   basis: `c5e167d7`.**
+- **Pending release SHA: `861d89a2bc2682c5f875dde0b4b1d8ffc079b1fe`** (target recorded 2026-09-25 before the
+  §13 action; planned release directory `E:\ATLAS-runtime-supervised-861d89a2-20260925`; incumbent/rollback
+  `eb0e30386336673a4a31ecfe39a9bef93549e0ed`; source QA `ACCEPT_READY` 8/8/0/0; no migration; standing
+  authorization applies subject to the packet gates; deployment not yet run).
 - **Release SHA: `c5e167d7c5939ff586880149c566ce29506430e8`** (rollback basis; previously LIVE 2026-09-25 20:40,
   `E:\ATLAS-runtime-supervised-c5e167d7-20260925`; R1 browser rows accepted at 1366×768 and 390×844; prior
   collaboration-ticket incident preserved; two EnrollPro proxy 502s remain non-blocking. **No migration.**)
@@ -267,7 +271,8 @@ fired); Chrome 65,108 (`NEEDS_SESSION`) + 80,777 (run). **Next Lane C action:** 
 
 **Current stream (2026-09-25):** `TEACHER-CONCERN-AUTHORITY-PROGRAM-20260924` C1–C7 is complete. The scheduler is
 the single teacher-concern accommodation surface, SMART's draft access is teacher-scoped/read-only, and the ATLAS
-teacher portal is removed. The latest accepted product tip and verified live release is `eb0e3038`.
+teacher portal is removed. `ACTIVE-TERM-LIVE-RESOLUTION-C02` is source-accepted at candidate `07804498` and
+integrated as `861d89a2`; the verified live release remains `eb0e3038` until a separate HIGH deployment.
 
 **Completed acceptance (2026-09-25):** `ACTIVE-TERM-LIVE-RESOLUTION-C01` fixed the former C7
 `409 TERM_SCOPE_MISMATCH`: Lane A's seeded browser pass returned `/faculty/concerns` GET 200 and PUT 200 at
@@ -285,24 +290,32 @@ and `docs/handoffs/lane-a-browser-acceptance-c5e167d7-r1-2026-09-25.md`. The dep
 `docs/handoffs/deploy-eb0e3038-2026-09-25.md`; six-table zero-write digests match, focused controls pass, and no
 migration occurred.
 
-**Next action (2026-09-25):** Lane C's server-stall stream is closed on the stall criterion. If the operator requires
-the `scheduler.cached` field itself, run one bounded body-readable read; otherwise no further Q4/A1 browser work is
-required.
+**Stage-2 source cycle (2026-09-25):** `ACTIVE-TERM-LIVE-RESOLUTION-C02` candidate `07804498` passed fresh QA
+**8/8/0/0** and is integrated as `861d89a2`. It pre-resolves the live active term before generation/readiness/
+publication transactions, threads one term through preflight and snapshots, preserves fail-closed codes, and keeps
+the network out of Serializable/advisory locks. It is not deployed; no migration or live-data action occurred.
+
+**Next action (2026-09-25):** prepare a separate HIGH deployment packet for `861d89a2` if the operator wants the
+Stage-2 fix live; deployment, generation, publication, and live-data actions remain separately gated.
 
 **Dated decisions / residuals (verify before acting):**
 - **F7 remains deliberately rejected (2026-09-25):** daily tools stay under More so the header remains compact;
   reverse only on explicit operator instruction.
-- **Stage-2 successor (unowned, 2026-09-25):** pre-resolve the active term at generation/publication entry points
-  and thread it into their transactions; do not perform a live fetch inside Serializable/advisory-locked work.
+- **Stage-2 source is integrated (2026-09-25):** `ACTIVE-TERM-LIVE-RESOLUTION-C02` `07804498` / `861d89a2`;
+  deployment is a separate HIGH action. QA evidence residuals: the 30-second provider memo can make the production
+  revalidation comment/cache-busting seam non-observable within one TTL window, and the publication no-fetch test
+  instrumented the singleton rather than the injected client. Both are accuracy follow-ups, not blocking defects.
 - `ad8f9717` browser acceptance is **UNPERFORMED (2026-09-25)** because the operator generated draft run 318; its
   published-teacher-leaving rows no longer describe the current screen. Acceptance remains separate from deployment.
 - `UX-AUDIT-SIZE-C01` R1 fixed audit finding 4 in source (`fb245772`, QA 6/6/0/0, integrated `c5e167d7`); only
   the live pixel rows remain. Findings 3 and 6 are addressed on main; finding 9 was already addressed.
-- `resolvePublishedRunTermIndex` still uses base-snapshot export terms (F1), and availability drift repair still
-  targets `/faculty` rather than `/faculty/concerns` (F2); both were open residuals on 2026-09-25.
+- **F1 published-export term derivation remains a separate cycle (2026-09-25):** it is a frozen C08 immutability
+  surface, not part of C02. **F2 availability drift repair href** (`/faculty` → `/faculty/concerns`) is also a
+  separate client-only cycle; neither is a blocker for `861d89a2`.
 - Host-proxy 502/offline term-cache staleness remain unowned observations from 2026-09-24. The removed `/my/*`
   route smoke fixture remains a D6 cleanup follow-up as of 2026-09-25.
 
 **Custody / workspace (2026-09-25):** Lane A owns the seeded browser profile and this docs worktree
-`E:\ATLAS-worktrees\lane-a-r1-deploy-target` (`docs/lane-a-r1-deploy-target`, `KEEP_ACTIVE` until the target record
-is pushed). Do not write in Lane B/C worktrees. E: and D: were both 61.6 GiB free at takeover, above warning.
+`E:\ATLAS-worktrees\lane-a-r1-deploy-target` (`docs/lane-a-r1-deploy-target`, `KEEP_ACTIVE` as the current lane
+record). The C02 executor and integration worktrees were clean, integrated, and retired after the source push. Do
+not write in Lane B/C worktrees. E: and D: were both above warning at takeover.

@@ -336,6 +336,65 @@ export async function resolveActiveOrderedTermIndexLive(
 	return loadPersistedActiveOrderedTermIndex(schoolId, schoolYearId, options.client, now);
 }
 
+// ─── ACTIVE-TERM-LIVE-RESOLUTION-C02: entry-point pre-resolution ───
+//
+// Generation, readiness, and publication each resolve the authoritative active
+// ordered term ONCE at their non-transaction entry point and then thread that
+// explicit value through the existing preflight / input-snapshot /
+// publication-identity contracts. Nothing re-reads the network inside a
+// Serializable or advisory-locked transaction, and no path falls back to Term 1.
+
+export type PreResolvedActiveTermAuthority = {
+	/**
+	 * The pre-resolved authoritative active ordered term, or `null` when the
+	 * authority is unresolved. `null` is carried through unchanged so the caller
+	 * keeps its existing `TERM_AUTHORITY_UNRESOLVED` / stale failure; it is never
+	 * coerced to Term 1.
+	 */
+	termIndex: number | null;
+	/**
+	 * The persisted, network-free verified ordered structure bound to
+	 * {@link PreResolvedActiveTermAuthority.termIndex} — that is,
+	 * `contract.activeTermOrder === termIndex` whenever a verified structure
+	 * exists. `null` when no verified structure is persisted, in which case the
+	 * caller's existing `TERM_STRUCTURE_UNAVAILABLE` /
+	 * `PUBLICATION_TERM_CONTRACT_INVALID` failure applies.
+	 */
+	contract: LoadedAcademicTermContract | null;
+};
+
+/**
+ * Bind the live-first active term to the persisted verified ordered structure.
+ *
+ * This is NOT a second live resolver and it does not change the three-way
+ * policy: it calls the existing {@link resolveActiveOrderedTermIndexLive} and
+ * the existing network-free {@link loadVerifiedOrderedTermContract}, then binds
+ * the two. The structure read never touches the network, so the whole call is
+ * safe at a non-transaction entry point and is never invoked inside a
+ * Serializable or advisory-locked transaction.
+ */
+export async function resolvePreResolvedActiveTermAuthority(
+	schoolId: number,
+	schoolYearId: number,
+	options: ResolveActiveOrderedTermIndexLiveOptions = {},
+): Promise<PreResolvedActiveTermAuthority> {
+	const termIndex = await resolveActiveOrderedTermIndexLive(schoolId, schoolYearId, options);
+	let contract: LoadedAcademicTermContract | null = null;
+	try {
+		contract = await loadVerifiedOrderedTermContract(
+			schoolId,
+			schoolYearId,
+			(options.client ?? getDataContext<TermAuthorityClient>()) as TermAuthorityClient,
+		);
+	} catch {
+		contract = null;
+	}
+	return {
+		termIndex,
+		contract: contract ? { ...contract, activeTermOrder: termIndex } : null,
+	};
+}
+
 export function termIndexOutsideContractMessage(schoolId: number, schoolYearId: number, index: number, contract: LoadedAcademicTermContract): string {
 	return `termIndex ${index} is outside the ${contract.terms.length}-term ${contract.format} contract for school ${schoolId} / year ${schoolYearId}.`;
 }

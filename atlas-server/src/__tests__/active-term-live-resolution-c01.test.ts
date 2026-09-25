@@ -19,6 +19,7 @@ import test from 'node:test';
 import {
 	loadVerifiedOrderedTermContract,
 	resolveActiveOrderedTermIndexLive,
+	resolvePreResolvedActiveTermAuthority,
 	type ActiveOrderedTermProvider,
 	type PersistedTermBoundary,
 } from '../services/academic-term.service.js';
@@ -268,6 +269,17 @@ test('the live provider is single-flighted and TTL-memoized per provider + (scho
 });
 
 // ─── 5. N1 / N3 / no-`?? 1` source controls ───
+//
+// SUPERSESSION NOTE (ACTIVE-TERM-LIVE-RESOLUTION-C02, 2026-09-25):
+// The N1 divergence asserted below was real at Stage 1 and was disclosed as the
+// successor's job. Stage 2 closed it: generation, readiness, and publication now
+// pre-resolve the SAME live-first term at their non-transaction entry points, so
+// the generation-side availability read consumes the availability WRITE
+// authority's term. Both N1 controls are RETAINED UNAMENDED as the historical
+// evidence of that divergence — `loadReviewedAvailabilityForActiveTerm` is still
+// the persisted/network-free fallback used only when a caller pre-resolves no
+// term — and the parity replacement sits immediately beside them. Nothing was
+// deleted.
 
 test('N1: the generation read stays persisted/network-free while the availability authority uses the live resolver', () => {
 	const availabilitySource = readFileSync(resolve(here, '..', 'services', 'faculty-availability.service.ts'), 'utf8');
@@ -285,7 +297,7 @@ test('N1: the generation read stays persisted/network-free while the availabilit
 	assert.equal(runtimeContextSource.includes('function dayStamp'), false, 'dayStamp is extracted from runtime-context');
 });
 
-test('N1 controls: the generation read resolves the persisted T1 while the availability read resolves live T2', async () => {
+test('N1 controls (SUPERSEDED by ACTIVE-TERM-LIVE-RESOLUTION-C02 parity, retained as divergence evidence): the generation read resolves the persisted T1 while the availability read resolves live T2', async () => {
 	const { client } = createFakeClient({ persistedOrder: 1, rows: [row(1, 1, 'REVIEWED'), row(2, 2, 'REVIEWED')] });
 	const liveT2: ActiveOrderedTermProvider = async () => liveContract(2);
 
@@ -294,4 +306,21 @@ test('N1 controls: the generation read resolves the persisted T1 while the avail
 	assert.equal(generationRead.termIndex, 1, 'N1: generation still reads the persisted T1');
 	const availabilityRead = await getFacultyAvailability(SCHOOL_ID, SCHOOL_YEAR_ID, 71, client, { provider: liveT2, now: NOW });
 	assert.equal(availabilityRead?.termIndex, 2, 'the availability read resolves live T2');
+});
+
+test('N1 replacement (ACTIVE-TERM-LIVE-RESOLUTION-C02): the generation entry point and the availability write authority now resolve the SAME term', async () => {
+	const { client } = createFakeClient({ persistedOrder: 1, rows: [row(1, 1, 'REVIEWED'), row(2, 2, 'REVIEWED')] });
+	const liveT2: ActiveOrderedTermProvider = async () => liveContract(2);
+
+	// The superseded N1 divergence: the persisted-only generation read lands on T1.
+	const supersededGenerationRead = await loadReviewedAvailabilityForActiveTerm(SCHOOL_ID, SCHOOL_YEAR_ID, client);
+	assert.equal(supersededGenerationRead.termIndex, 1, 'the superseded persisted-only path still reads T1 (retained as evidence)');
+
+	// The Stage-2 entry-point pre-resolution closes the divergence: generation and
+	// the availability write authority both land on the live T2, never Term 1.
+	const generationEntry = await resolvePreResolvedActiveTermAuthority(SCHOOL_ID, SCHOOL_YEAR_ID, { provider: liveT2, now: NOW, client });
+	assert.equal(generationEntry.termIndex, 2, 'the generation entry point resolves the live T2');
+	const availabilityWriteAuthority = await resolveActiveAvailabilityTermIndex(SCHOOL_ID, SCHOOL_YEAR_ID, client, { provider: liveT2, now: NOW });
+	assert.equal(generationEntry.termIndex, availabilityWriteAuthority.termIndex, 'generation and the availability write authority agree (parity)');
+	assert.notEqual(generationEntry.termIndex, supersededGenerationRead.termIndex, 'the divergence the superseded control recorded is closed at the entry point');
 });

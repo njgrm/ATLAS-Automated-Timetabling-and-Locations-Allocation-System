@@ -15,6 +15,7 @@ import { createHash } from 'node:crypto';
 
 import { getDataContext, withDataContext } from '../lib/data-context.js';
 import { canonicalStringify } from '../lib/canonical-json.js';
+import { resolvePreResolvedActiveTermAuthority } from './academic-term.service.js';
 import { validateHardConstraints, type ScheduledEntry } from './constraint-validator.js';
 import { runHybridScheduler, type HybridSchedulerResult } from './hybrid-scheduler.js';
 import type { ConstructorInput } from './schedule-constructor.js';
@@ -231,7 +232,31 @@ async function buildGenerationReadinessWithContext(
 	const client = db() as any;
 	const databaseBefore = await computeDatabaseSignature(schoolId, schoolYearId);
 
-	const preflight: GenerationPreflightResult = await buildGenerationPreflight(schoolId, schoolYearId, dependencies);
+	// ACTIVE-TERM-LIVE-RESOLUTION-C02: readiness is a NON-transaction, zero-write
+	// entry point, so it pre-resolves the SAME live-first authoritative active
+	// ordered term the generation trigger does and threads it into the shared
+	// preflight. Readiness and generation therefore cannot disagree about the
+	// active term, and no live fetch happens inside any transaction.
+	//
+	// An authority the caller already declared wins: an explicit `activeTermIndex`,
+	// then a `termContract` that carries an integer `activeTerm.order`. Only when
+	// neither is present does readiness pre-resolve, so every pre-existing caller
+	// that passes a term contract keeps its exact behaviour.
+	const declaredContractActiveTermOrder = (dependencies.termContract as { activeTerm?: { order?: unknown } } | undefined)?.activeTerm?.order;
+	const hasDeclaredTermAuthority = dependencies.activeTermIndex !== undefined
+		|| Number.isInteger(declaredContractActiveTermOrder);
+	const preflightDependencies: GenerationPreflightDependencies = hasDeclaredTermAuthority
+		? dependencies
+		: {
+			...dependencies,
+			activeTermIndex: (await resolvePreResolvedActiveTermAuthority(schoolId, schoolYearId, {
+				provider: dependencies.activeTermProvider,
+				now: dependencies.activeTermNow,
+				client: dependencies.client,
+			})).termIndex,
+		};
+
+	const preflight: GenerationPreflightResult = await buildGenerationPreflight(schoolId, schoolYearId, preflightDependencies);
 	const assembly: GenerationPreflightAssembly = preflight.assembly;
 	const blockers: GenerationReadinessBlocker[] = [...preflight.blockers];
 
