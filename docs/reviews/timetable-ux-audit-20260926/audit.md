@@ -1,9 +1,13 @@
 # Timetable UX audit — older-scheduler surface (2026-09-26)
 
 **Cycle:** Lane C read-only audit. **Tree audited:** `origin/main` `0ecf4778` (which already contains
-`DRAFT-UX-C01` `9f42190e`). **Live release:** `861d89a2` — *not* the audited tree, and not audited here.
-**Method:** two independent read-only lanes (overwhelm/jargon census; task-effectiveness and dead-end
-walk), planner-adjudicated. Nothing was edited by the audit; no browser, database, or network was used.
+`DRAFT-UX-C01` `9f42190e`). **Live release at audit time:** `861d89a2` — *not* the audited tree, and not
+audited here. **SUPERSEDED 2026-09-26 05:11 +08:** the live release is now **`116a7658`** (Lane A's isolated
+F1/F2 cutover, task action `E:\ATLAS-runtime-supervised-116a7658-20260726\ops\runtime\cli.mjs start`).
+`116a7658` is **not** an ancestor of `main` and contains **none** of the C1/C2/C3 work audited here; live and
+`main` have diverged and the next deployment must reconcile them. **Method:** two independent read-only lanes
+(overwhelm/jargon census; task-effectiveness and dead-end walk), planner-adjudicated. Nothing was edited by
+the audit; no browser, database, or network was used.
 
 ## The one framing fact
 

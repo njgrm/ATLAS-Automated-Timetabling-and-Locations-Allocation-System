@@ -243,6 +243,47 @@ or process borrower, and is `RETIRE_AFTER_INTEGRATION` (E: 47.55 GiB before reti
 
 ## Lane C — current lane (written only by Lane C)
 
+**⚠ LIVE RELEASE CHANGED UNDER THIS LANE — 2026-09-26 05:11:02 +08. Read before any deploy work.** The live
+release is **`116a7658`**, NOT `861d89a2`. Supervisor task action:
+`E:\ATLAS-runtime-supervised-116a7658-20260726\ops\runtime\cli.mjs start` (Running; 5001 and 5174 both 200;
+`/health/ready` 200 `database:"ok"`). Lane A performed an isolated F1/F2 cutover while this lane worked.
+**Every earlier line in this section saying the live release is `861d89a2` is superseded.** This lane's
+"live still 861d89a2" checks were **verified wrongly**: they confirmed the old release *directory* was intact
+at that SHA, not that the supervisor still pointed at it. The correct check is the **scheduled-task action**.
+
+**Divergence (2026-09-26):** `116a7658` is **not an ancestor of `origin/main`** — it is Lane A's line off
+`861d89a2`. It contains **none** of `212809f7` (C1), `8bdf5802` (C2), `39645f2d` (C3) or `9f232cec` (J2);
+`merge-base --is-ancestor` returns exit 1 for each. **Live and `main` have diverged; the next deployment must
+reconcile them and cannot assume a fast-forward.** The held `9f42190e` release directory still does not exist.
+
+**J2 — candidate `9f232cec`, NOT integrated, awaiting one bounded correction.** Fresh independent QA returned
+`CORRECTION_REQUIRED` 8/9 with **one BLOCKING product finding (D2)**: the P4 work deleted the manual-edit
+history's actor attribution outright, so the audit trail shows **no actor at all**. QA ruled that "silence
+where a fact exists" is a capability regression, not an acceptable interim — "who changed my schedule" is the
+first question about an unexpected edit — and that an honest interim exists with no server change. The server
+gap (`listManualEdits` returns only `actorId`; `RoomRequestAppealHistory` already returns `actorName`) is
+**owed, not waived**. Every other row PASS: 0 base assertions dropped, 0 reparse points, no BOM, and gates
+reproduced exactly (28/28, 32/32, 88/2, client suite **1061/1045/16 — the identical failure set to the
+1033/1017/16 baseline**). The executor's **sign-convention catch** stands and must be preserved: the two
+projection numbers have opposite sign conventions and its first fix reproduced the error in reverse.
+
+**Donor governance (planner ruling after QA D1, 2026-09-26).** The `.vite` write into the frozen donor
+`5c100ea6` was **not** this candidate (the Vite-spawning tests resolve their root from `import.meta.dirname`
+into their own worktree; distinct `configHash` values prove distinct roots; the live release has no `.vite` at
+all). Build risk is **nil** — `vite build` does not read `node_modules/.vite/deps`, and the cache is
+self-invalidating. **But the governance problem is real:** a frozen retained release is doubling as a shared
+mutable `node_modules` source, so any process running Vite with that tree as root writes into it. **Ruling:
+the pending `9f42190e` build gets its own real copy, and `5c100ea6` is recorded read-only. No `.vite` removal
+is required; nothing was deleted.**
+
+**Owed J2 sweep — registered, not silently dropped (QA findings 2–5).** The same de-snake-case fallback
+survives at `QuickPlaceSummaryModal.tsx:58`, `SectionRoomMapModal.tsx:213,316`, `SectionRoomPicker.tsx:258`;
+`TimetableTaskDrawer.tsx:139` still mints `Subject #<id>`; `PublicationApprovalInbox.tsx:77` still renders
+`Run #<id>` and `account #<id>`; and `warning-readability-c01.test.ts` shows a **live** leak of all three
+fixed classes on an untouched surface (`FACULTY_LUNCH_WINDOW_VIOLATION` raw, a de-snake-cased token,
+`Faculty 16`, raw `MONDAY`) because `VIOLATION_PRESENTATION` has no entry for that rule — new rule content,
+not a rename, and one of the recorded 16 failures.
+
 Opened 2026-09-25 (operator). Branches `work|fix|docs/lane-c-*`, worktrees `E:/ATLAS-worktrees/lane-c-*`. Finished
 cycles are in Git history and their handoffs. Claude Code lanes follow `CLAUDE.md` (cost rules).
 
