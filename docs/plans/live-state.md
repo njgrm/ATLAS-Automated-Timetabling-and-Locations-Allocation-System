@@ -220,7 +220,7 @@ resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs
 ## Decisions awaited (operator-facing, as of 2026-09-25)
 
 - Give `37e0c85b` (acceptance owner: Lane B / Codex) and the C7 target an authenticated session (see `AGENTS.md` §12).
-- `E:` is under its 50 GiB warning: authorize the release-directory retention reclaim before the next build.
+- `E:` reclaim C is **complete (2026-09-25)**: audited removal of `82871619` and `ff87b06b` freed 3.07 GiB; E: is 47.80 GiB free, still below the 50 GiB warning but above the 25 GiB fail-closed line. The §3 reclaim obligation is discharged for the `861d89a2` build; do not loop another reclaim for the same trigger.
 - Keep or delete two unlanded code branches (both pushed): `work/public-published-view-term-merge-c01`,
   `work/timetable-live-term-authority-c01`.
 
@@ -295,8 +295,10 @@ migration occurred.
 publication transactions, threads one term through preflight and snapshots, preserves fail-closed codes, and keeps
 the network out of Serializable/advisory locks. It is not deployed; no migration or live-data action occurred.
 
-**Next action (2026-09-25):** prepare a separate HIGH deployment packet for `861d89a2` if the operator wants the
-Stage-2 fix live; deployment, generation, publication, and live-data actions remain separately gated.
+**Next action (2026-09-25):** deployment packet `deploy-861d89a2-active-term-c02-2026-09-25.md` is corrected at
+`b7cd0ea6`; retention reclaim C is `ACCEPT_READY` and capacity is rechecked at 47.80 GiB free. A fresh
+pre-action packet review is still required before the standing-authorized cutover; generation, publication, and
+live-data actions remain separately gated.
 
 **Dated decisions / residuals (verify before acting):**
 - **F7 remains deliberately rejected (2026-09-25):** daily tools stay under More so the header remains compact;
