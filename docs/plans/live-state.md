@@ -264,6 +264,20 @@ reproduced exactly (28/28, 32/32, 88/2, client suite **1061/1045/16 — the iden
 1033/1017/16 baseline**). The executor's **sign-convention catch** stands and must be preserved: the two
 projection numbers have opposite sign conventions and its first fix reproduced the error in reverse.
 
+**⚠ CUSTODY COLLISION with Lane A on J2/J3 — 2026-09-26. Do not integrate `9f232cec` blind.** Lane A is
+executing `PLAIN-LANGUAGE-J2J3-C01` in `E:\ATLAS-worktrees\lane-a-plain-language-j2j3-c01`, and its packet
+(`docs/prompts/plain-language-j2j3-c01-2026-07-26.md`) scopes *"total enum-to-plain-word maps for
+`RoomPreferenceDecisionStatus`, `RoomRequestAppealStatus`, `GenerationRunStatus` in
+`lib/timetable-plain-language.ts`"* — **the same module and the same enums this lane's J2 candidate
+`9f232cec` already implements**, and it also lands in the left rail / selected-entry / run / status surfaces
+J2 rewrote. Two planners on one stream is a custody defect, not parallelism. **This lane's ruling: hold
+`9f232cec` un-integrated**; whoever finishes first, the other candidate must be reconciled file by file
+rather than merged blind — `lib/timetable-plain-language.ts`, `RightPanel.tsx`,
+`ScheduleReviewWorkspaceHeader.tsx`, `SimplePublishReadinessSheet.tsx`, `TimetableSimpleHeader.tsx`,
+`simplePublishReadiness.ts`, `TimetableIssueRepairGuide.tsx`, `TimetableRunsPane.tsx`,
+`simple/SimpleMoreMenuContent.tsx`, `simple/SimpleTaskDrawerHelpers.tsx`, and the three modals. J3 (domain
+jargon) is untouched by this lane and remains available to whichever lane does not take it.
+
 **Donor governance (planner ruling after QA D1, 2026-09-26).** The `.vite` write into the frozen donor
 `5c100ea6` was **not** this candidate (the Vite-spawning tests resolve their root from `import.meta.dirname`
 into their own worktree; distinct `configHash` values prove distinct roots; the live release has no `.vite` at
