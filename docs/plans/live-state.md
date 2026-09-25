@@ -44,7 +44,11 @@ resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs
   `C:\ProgramData\ATLAS\release-audit\eb0e3038-20260925-221948`; active state `running`/`eb0e3038`; machine env =
   target; health 200, ready 200 `database:"ok"`, DB-backed subjects read 200, Tailnet 200; startup log clean.
   Post-action QA rows Q1/Q2/Q3/Q5/Q6/Q7 passed; Q4/Q6 evidence review is `ACCEPT_READY` **2/2/0/0** after the
-  operator-seeded session produced the required cold/warm pair. A1 is now unlocked and remains pending with Lane C.
+  operator-seeded session produced the required cold/warm pair. **A1 (Lane C, 2026-09-25 15:04Z): passed 0 / blocked 1 / unperformed 0** — the
+  in-app browser (`atlas-browser-qa`) got the `/timetable` HTML (200), but every JS asset failed with
+  `net::ERR_BLOCKED_BY_CLIENT`, so no readiness request fired on either reload. This is a browser-environment block,
+  not a session or server defect. Supervisor log unchanged past the cursor (line 29, 15:03:52Z → 15:04:50Z). Retry A1
+  once the browser's block on the Tailnet origin is lifted.
   Focused controls: readiness 7/7, request timing 6/6, named preservation 28/28; server suite reproduced the four
   pre-existing `tt-output-c03r` failures. Six-table zero-write digests match; the executor's malformed 33-character
   audit_logs transcription is superseded by the independently re-derived valid baseline. **No migration. Rollback
@@ -244,11 +248,13 @@ build for school 1 / year 10; loop block 4,314 → 1,175 ms cold, 4,161 → ~120
 NON_BLOCKING: `canonicalStringify` maps Map/Set to `{}` (no Map/Set reaches the input today); T2's failing-first
 was an import failure, not behavioural.
 
-**Waiting (2026-09-25 22:10):** the elevated deployer owns the `eb0e3038` cutover and its post-action QA rows Q1–Q8
-(packet `docs/prompts/deploy-eb0e3038-readiness-stall-2026-09-25.md`). **Next Lane C action:** once Q1–Q8 report
-`ACCEPT_READY`, run packet row **A1** (two production `/timetable` reloads, both readiness responses
-`scheduler.cached === true`, no new readiness-attributable `[event-loop-stall]` line) and record it in the Live
-release block. Then ask the operator what else was "broken" in manual draft placements.
+**A1 BLOCKED (as of 2026-09-25 15:04Z):** `eb0e3038` is LIVE and Q4 passed, but the in-app browser blocks every
+JS asset on the Tailnet origin (`net::ERR_BLOCKED_BY_CLIENT`), so no readiness request fired (supervisor log
+unchanged past line 29). **Next Lane C action:** the operator lifts the browser's block on the origin; Lane C
+then re-runs packet row **A1** (two production `/timetable` reloads, both readiness responses
+`scheduler.cached === true`, no new readiness-attributable `[event-loop-stall]` line). Then ask the operator what
+else was "broken" in manual draft placements. A1 dispatch cost: `atlas-browser-qa` 59,627 + 69,254 (resumed) +
+56,161 (nested run) subagent_tokens.
 
 **Open (2026-09-25):** EnrollPro unreachable from the host — Tailscale `dev-jegs` offline since ~19:40 local;
 `runtime/context`/`sections/summary` wait the 4 s timeout (not a loop block). F1–F3
