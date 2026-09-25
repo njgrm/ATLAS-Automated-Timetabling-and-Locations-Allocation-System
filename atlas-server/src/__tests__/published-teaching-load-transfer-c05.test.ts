@@ -14,6 +14,9 @@
  *   L3 a receiver outside the subject's department is refused with zero writes
  *   L4 a time-only change (swap) transfers nothing
  *   L5 the derivation skips cohort entries and unchanged teachers
+ *   L6 an inactive replacement is refused with zero writes (review finding 4)
+ *   L7 a change that also moves subject/section transfers the new pairing
+ *      (review finding 2)
  */
 import assert from 'node:assert/strict';
 import test from 'node:test';
@@ -266,4 +269,27 @@ test('L5: derivation skips cohort entries and unchanged teachers, and de-duplica
 		{ entryId: 'same', previous: { facultyId: 22 }, next: { facultyId: 22 } },
 	], effective);
 	assert.deepEqual(transfers, [{ subjectId: 40, sectionId: 10, fromFacultyId: 20, toFacultyId: 22 }]);
+});
+
+test('L6: an inactive replacement is refused with zero writes', async () => {
+	const fixture = makeFixture();
+	const original = fixture.client.facultyMirror.findMany;
+	const inactive = async (args: any = {}) => (await original(args)).map((row: any) => (row.id === 22 ? { ...row, isActiveForScheduling: false } : row));
+	fixture.client.facultyMirror.findMany = inactive;
+	(fixture.client as any).facultyMirror = { ...fixture.client.facultyMirror, findMany: inactive };
+	await assert.rejects(
+		() => withDataContext({ ...fixture.client, $transaction: async (work: any) => work({ ...fixture.client, facultyMirror: { ...fixture.client.facultyMirror, findMany: inactive } }) },
+			() => createPublishedScheduleRevision({ ...baseInput, changes: [reassignToScience] }, fixture.options)),
+		(error: any) => error?.code === 'FACULTY_INACTIVE',
+	);
+	assert.equal(fixture.state.revisions.length + fixture.state.audits.length, 0);
+	assert.equal(fixture.state.ownerships.find((row) => row.subjectId === 40)?.facultyId, 20);
+});
+
+test('L7: a change that also moves the section transfers the new subject+section pairing', () => {
+	const transfers = derivePublishedTeachingLoadTransfers(
+		[{ entryId: 'x', previous: { facultyId: 20, sectionId: 12 }, next: { facultyId: 22, sectionId: 11, subjectId: 41 } }],
+		new Map([['x', { facultyId: 20, subjectId: 40, sectionId: 12 }]]),
+	);
+	assert.deepEqual(transfers, [{ subjectId: 41, sectionId: 11, fromFacultyId: 20, toFacultyId: 22 }]);
 });

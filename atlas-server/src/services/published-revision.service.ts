@@ -263,8 +263,10 @@ export function derivePublishedTeachingLoadTransfers(
 		const current = effectiveEntries.get(change.entryId);
 		if (typeof toFacultyId !== 'number' || !current) continue;
 		const fromFacultyId = typeof current.facultyId === 'number' ? current.facultyId : null;
-		const subjectId = current.subjectId;
-		const sectionId = current.sectionId;
+		// The class as it will be: a change that also moves the subject or section
+		// transfers the new pairing, never the one the class leaves.
+		const subjectId = typeof change.next.subjectId === 'number' ? change.next.subjectId : current.subjectId;
+		const sectionId = typeof change.next.sectionId === 'number' ? change.next.sectionId : current.sectionId;
 		if (fromFacultyId === toFacultyId || current.entryKind === 'COHORT') continue;
 		if (typeof subjectId !== 'number' || typeof sectionId !== 'number') continue;
 		transfers.set(`${subjectId}:${sectionId}:${toFacultyId}`, { subjectId, sectionId, fromFacultyId, toFacultyId });

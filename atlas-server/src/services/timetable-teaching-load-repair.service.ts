@@ -1149,6 +1149,14 @@ export async function assertTransferReceiversQualified(
 	schoolYearId: number,
 	transfers: PublishedTeachingLoadTransfer[],
 ): Promise<void> {
+	const receiverIds = [...new Set(transfers.map((transfer) => transfer.toFacultyId))];
+	const receivers = await client.facultyMirror.findMany({
+		where: { schoolId, id: { in: receiverIds } },
+		select: { id: true, isActiveForScheduling: true },
+	});
+	if (receiverIds.some((id) => !receivers.some((row) => row.id === id && row.isActiveForScheduling))) {
+		throw err(409, 'FACULTY_INACTIVE', 'The replacement teacher is no longer active for scheduling. Choose another active teacher.');
+	}
 	await assertReceiversQualified(client, schoolId, schoolYearId, transfersAsRepairChanges(transfers));
 }
 

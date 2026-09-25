@@ -25,10 +25,14 @@ import {
 } from './TacticalSandboxDock.helpers';
 import {
 	buildRevisionCreatePayload,
+	extractServerErrorCode,
 	fetchLatestRevisionToken,
 	isSourceRevisionStaleError,
 	previewPublishedRevision,
 } from '@/lib/published-revision-client';
+
+/** Server refusals caused by the chosen teacher; their message names the fix. */
+const PUBLISHED_PREVIEW_REFUSAL_CODES = new Set(['TEACHING_LOAD_QUALIFICATION_MISSING', 'FACULTY_INACTIVE']);
 import {
 	describeRevisionClashes,
 	extractRevisionClashes,
@@ -387,9 +391,14 @@ export function TeacherDepartureRecoverySheetBody({
 			);
 			setPublishedPreview(result);
 		} catch (error) {
+			// LANE-C C05 — a refusal the teacher choice causes is shown as-is, so the
+			// operator picks another teacher instead of retrying the same one.
+			const refusal = PUBLISHED_PREVIEW_REFUSAL_CODES.has(extractServerErrorCode(error) ?? '')
+				? (error as { response?: { data?: { message?: string } } })?.response?.data?.message ?? null
+				: null;
 			setPublishedPreviewError(isSourceRevisionStaleError(error)
 				? 'The published schedule changed while you were preparing this. Refresh the timetable, then try again.'
-				: 'ATLAS could not check this change. Try again in a moment.');
+				: refusal ?? 'ATLAS could not check this change. Try again in a moment.');
 		} finally {
 			setPublishedPreviewLoading(false);
 		}
