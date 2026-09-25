@@ -39,6 +39,18 @@ resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs
 ## Live release
 
 - Tailnet: `https://njgrm.buru-degree.ts.net`
+- **Target release SHA: `ad8f9717`** (**deployment-pending** 2026-09-25, Lane C; release dir
+  `E:\ATLAS-runtime-supervised-ad8f9717-20260925`, own `npm ci`, entry `assets/index-DEoaxzaH.js`).
+  `DEPARTURE-LOAD-C05`: a privileged teacher change on the published timetable moves the class's subject+section
+  Teaching Load ownership to the new teacher in the same transaction as the revision (receiver department/program +
+  active checks; audit carries `teachingLoadTransfers`); already-authorized receivers transfer nothing; the
+  teacher-leaving check shows teacher-caused refusals; server error codes are read from real axios errors (also
+  fixes the stale-source message in four consumers). Commits `463cd9fa` + corrections `e6aeff4f`, `ad8f9717`;
+  integrated as merge `6e992878`. Independent review `ACCEPT_READY` (2026-09-25, after two bounded corrections).
+  **No migration.** **Rollback basis: `82871619`.** Operator decisions (2026-09-25): ownership moves at scheduling
+  time, not on the effective date, and withdrawing the revision does not revert Teaching Load — **accepted**; one
+  live teacher-leaving commit on test data (Tolentino → Villanueva, Jose Gabriel) is **approved** for acceptance.
+  Browser acceptance owner: Lane C.
 - **Release SHA: `82871619`** (**LIVE** since 2026-09-25 14:41, Lane C; `E:\ATLAS-runtime-supervised-82871619-20260925`;
   cut over by the operator via `deploy-runner.ps1 -Execute` (audit
   `C:\ProgramData\ATLAS\release-audit\82871619-20260925-144036`); active state file `running`/`82871619`; machine
