@@ -147,8 +147,14 @@ resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs
 
 ## Lane B — current lane (written only by Planner B)
 
-Lane B owns this section. Current stream and state: see Lane B's own handoff file. Lane A last saw
-it complete `TEST-GATE-REACHABILITY-C01` (`f4462374`) and hand it over for integration.
+**e475c673 browser acceptance (2026-09-25): PARTIAL — passed 4 / blocked 0 / unperformed 1.**
+Authenticated read-only browser QA at 1366×768 and 390×844 confirmed the current-schedule-unchanged
+notice, exactly one **Check school information** action to `/timetable/setup`, descriptive collapsed
+grade morning/afternoon schedules without `Override #n`, no document overflow, and no console errors.
+The browser network-event stream produced no observable events after a fresh reload, so the network
+regression row is **UNPERFORMED**, not passed. Non-blocking accessibility residual: visually collapsed
+shared-accordion child inputs remain exposed to keyboard/AX. No scheduling data changed; the session
+tab remains open. Evidence owner: Lane B (Codex).
 
 ## Lane C — current lane (written only by Lane C)
 
