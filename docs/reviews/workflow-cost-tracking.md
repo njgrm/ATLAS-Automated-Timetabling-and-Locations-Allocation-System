@@ -34,6 +34,38 @@ output / 521.2M cache read**; 7 days **$65.65 / 426 sessions / 28,680 messages**
 **Model split, 7 days:** `deepseek-v4.1-flash` **$63.50 (96.7%)**;
 `muse-spark-1.3-contributor` **$1.33 (2.0%)**; `deepseek-v4-flash` $0.69; other $0.14.
 
+## Measurement, 2026-09-25 — session length is the sink
+
+Source: `opencode.db` read-only (`session.cost`, `session.tokens_*`), all local projects, all-time at
+2026-09-25. Provider billing is the Zen dashboard (`/zen/go/v1/usage` is OAuth-only — 401 with the
+API key); the local store is opencode's own accounting, so read it as **attribution** and the
+dashboard as **billing**.
+
+- All-time: **1,117 sessions / 76,865 messages / 460M input / 30M output / 17.0B cache read**
+  (cache read : input = **37 : 1**); `tokens_cache_write` records 0 throughout (automatic caching).
+- **Cost is superlinear in session length, not in turns or days.** Cost grows with the *product* of
+  message count and context size, because every message re-reads the whole transcript:
+
+| session length | sessions | cost | share |
+| --- | --- | --- | --- |
+| <25 msgs | 369 | $9.1 | 5% |
+| 25–99 | 558 | $43.0 | 25% |
+| 100–299 | 151 | $41.1 | 24% |
+| 300–599 | 29 | $24.5 | 14% |
+| **600+** | **10** | **$51.7** | **31%** |
+
+- Two sessions are 24% of all-time spend: `ATLAS project orientation` (2026-08-10, `build`, 842
+  msgs, $23.80) and `ATLAS head planner startup and cycle validation` (2026-09-19, `atlas-planner`,
+  **2,018 msgs**, 85.6M input, 743M cache read, $16.59).
+- By agent: `build` (interactive default) $61.6 / 6.91B cache read; `atlas-planner` $45.7 / 3.54B;
+  `atlas-executor-delegate` $17.2; `atlas-qa-delegate` $12.9; `atlas-executor` $8.6; `atlas-qa` $7.4.
+- **Why the existing ~200k-token fresh-session rule did not fire:** the 1M-token context window makes
+  native auto-compaction (`compaction.reserved: 12000`) trigger only near the window limit, so
+  sessions grow far past 200k context. The rule existed; it needed a hard, checked trigger — now in
+  `docs/reference/agent-context-economy.md`.
+- Window caveat: bucketing by session start understates recent days, because the long sessions accrue
+  cost across days (this is why the 8-day dashboard total exceeds the sum of session-start buckets).
+
 ## How to read this (operator directive, 2026-09-21)
 
 **We are under a deadline and spend is not the constraint.** The instruction is to spend what the

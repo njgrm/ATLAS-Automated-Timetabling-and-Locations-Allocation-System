@@ -7,6 +7,12 @@ This is a non-normative operating note. `AGENTS.md` remains the authority.
 - Start a fresh session at a durable lane boundary, not during an uncommitted
   correction, browser handoff, or HIGH action. The prior lane must have a committed
   handoff and must release browser, worktree, runtime, and register custody.
+- **Cap session length as a checked trigger, not a hope.** Checkpoint and start a fresh
+  session at the lane boundary **and** at ~150 messages or ~200k context, whichever comes
+  first. The 1M-token context window makes native auto-compaction almost never fire, so
+  sessions run to 2,000+ messages and every message re-reads the whole transcript; measured
+  2026-09-25, 10 sessions of 600+ messages were 31% of all-time project spend and the top two
+  sessions alone were 24% (`docs/reviews/workflow-cost-tracking.md`).
 - Keep stable instructions, model, reasoning effort, and tool definitions at the
   front of the prompt. Put changing SHAs, results, and the immediate request last.
 - Use one compaction system. OpenCode native auto-compaction and pruning are the
