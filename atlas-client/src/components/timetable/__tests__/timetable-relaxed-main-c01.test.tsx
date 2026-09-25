@@ -315,9 +315,13 @@ test('A4: the stale-input state never renders beside the verified-source authori
 	});
 	assert.match(markup, /timetable-simple-input-drift/, 'the drift state renders');
 	assert.match(markup, /The current schedule stays unchanged while you review school information\./, 'the notice makes the no-change promise explicit');
-	const setupCta = markup.match(/data-testid="timetable-simple-review-setup"[\s\S]*?<\/a>/)?.[0] ?? '';
-	assert.match(setupCta, /Check school information/, 'the one adjacent setup action is plain and actionable');
-	assert.equal((markup.match(/>Check school information</g) ?? []).length, 1, 'the stale notice has one setup CTA, not competing duplicates');
+	// SUPERSEDED (DRAFT-UX-C01, operator 2026-09-25): the one setup CTA moved into
+	// More ▸ Schedule actions and keeps its drift label there.
+	// const setupCta = markup.match(/data-testid="timetable-simple-review-setup"[\s\S]*?<\/a>/)?.[0] ?? '';
+	// assert.match(setupCta, /Check school information/, 'the one adjacent setup action is plain and actionable');
+	// assert.equal((markup.match(/>Check school information</g) ?? []).length, 1, 'the stale notice has one setup CTA, not competing duplicates');
+	assert.equal((markup.match(/>Check school information</g) ?? []).length, 0, 'no competing setup CTA in the header row');
+	assert.match(source('src/components/timetable/TimetableSimpleHeader.tsx'), /schoolInformationLabel=\{showDriftState \? 'Check school information' : 'School information'\}/, 'the one setup action is plain and actionable (in More)');
 	assert.doesNotMatch(markup, /timetable-simple-authority/, 'the source authority line must not contradict it');
 	assert.doesNotMatch(markup, /Verified with EnrollPro/, 'the verified-source claim is suppressed while inputs are stale');
 });
@@ -355,16 +359,19 @@ test('A3/C5: the header renders one compact status region and one primary, with 
 	// A3 — the single primary action names the lifecycle next step itself. The
 	// control renders either a bare label (link variant) or a `<span>` label, so
 	// read the text that follows its leading icon.
-	const primaryIdx = markup.indexOf('timetable-simple-primary-action');
-	assert.ok(primaryIdx >= 0, 'the lifecycle primary renders in the issue state');
-	const primaryLabel = markup.slice(primaryIdx).match(/<\/svg>(?:<span>)?([^<]*)/)?.[1];
-	assert.ok(primaryLabel, 'the primary control carries a visible label');
-	assert.equal(primaryLabel, 'Fix blockers', 'the primary names the lifecycle next step');
-	assert.equal((markup.match(/data-testid="timetable-simple-primary-action"/g) ?? []).length, 1, 'exactly one primary action control');
+	// SUPERSEDED (DRAFT-UX-C01, operator 2026-09-25): the lifecycle primary merged
+	// into the warnings control, which names the next step in its accessible
+	// name; Publish is the one filled primary once a run exists.
+	// const primaryIdx = markup.indexOf('timetable-simple-primary-action');
+	// assert.equal(primaryLabel, 'Fix blockers', 'the primary names the lifecycle next step');
+	const warningsTag = markup.match(/<[^>]*data-testid="timetable-simple-warnings-control"[^>]*>/)?.[0] ?? '';
+	assert.match(warningsTag, /aria-label="Fix blockers: 1 blocker"/, 'the merged control names the lifecycle next step');
+	assert.equal((markup.match(/data-testid="timetable-simple-primary-action"/g) ?? []).length, 0, 'no second lifecycle primary');
 	// A3 — the setup repairs are relocated to the setup sub-page, not the header.
 	assert.doesNotMatch(markup, /timetable-simple-sync-setup/, 'Sync with setup is not a header control');
 	assert.doesNotMatch(markup, /timetable-simple-impact-preview/, 'Preview impact is not a header control');
-	assert.match(markup, /data-testid="timetable-simple-review-setup"/, 'one labelled way to the setup repairs remains');
+	// SUPERSEDED (DRAFT-UX-C01): assert.match(markup, /data-testid="timetable-simple-review-setup"/, 'one labelled way to the setup repairs remains');
+	assert.match(source('src/components/timetable/simple/SimpleHeaderActions.tsx'), /data-testid="timetable-simple-review-setup"/, 'one labelled way to the setup repairs remains (in More)');
 	// Status key, Tutorial and Day options are not header controls any more.
 	assert.doesNotMatch(markup, /data-testid="timetable-status-legend"/, 'Status key left the header row');
 	assert.doesNotMatch(markup, /data-testid="timetable-simple-tutorial-trigger"/, 'Tutorial left the header row');
@@ -399,17 +406,14 @@ test('C6: the primary action leads the narrow action strip and returns inline at
 	// The action strip is the sanctioned horizontally scrollable region, so the
 	// primary must lead it (visible without scrolling) on narrow viewports and
 	// return to its inline order at lg — never clipped unreachably.
-	const header = source('src/components/timetable/TimetableSimpleHeader.tsx');
-	const primaryTags = header.match(/<[^>]*data-testid="timetable-simple-primary-action"[^>]*>/g) ?? [];
-	assert.ok(primaryTags.length >= 1, 'the primary action control renders');
-	for (const tag of primaryTags) {
-		assert.match(tag, /order-first/, `every primary variant leads the mobile strip: ${tag}`);
-		assert.match(tag, /lg:order-none/, `every primary variant returns inline at lg: ${tag}`);
-	}
-	// Rendered proof: the control that actually renders carries the mobile order.
-	const renderedTag = markup.match(/<[^>]*data-testid="timetable-simple-primary-action"[^>]*>/)?.[0];
+	// SUPERSEDED (DRAFT-UX-C01, operator 2026-09-25): the lifecycle primary
+	// (`order-first lg:order-none`) is gone. The action row wraps (never a
+	// horizontal strip), so the one primary (Publish here) and More stay
+	// visible on narrow viewports without reordering.
+	const renderedTag = markup.match(/<[^>]*data-testid="timetable-simple-publish-action"[^>]*>/)?.[0];
 	assert.ok(renderedTag, 'the rendered primary action element exists');
-	assert.match(renderedTag, /order-first/, 'the rendered primary leads the scrollable strip');
+	assert.match(markup, /class="flex min-w-0 flex-wrap items-center justify-start gap-1\.5 lg:ml-auto lg:justify-end"/, 'the primary cluster wraps instead of scrolling');
+	assert.doesNotMatch(markup, /overflow-x-auto/, 'no horizontally scrolling strip can clip the primary');
 });
 
 test('C7: the header primary and More never both dispatch the review-issues action', () => {
@@ -435,7 +439,11 @@ test('C7: the header primary and More never both dispatch the review-issues acti
 	// render in SSR, so the runtime condition is this decision + this gate).
 	const header = source('src/components/timetable/TimetableSimpleHeader.tsx');
 	assert.match(header, /hideReviewIssues=\{moreHidesReviewIssues\}/, 'the header passes the C7 decision');
-	assert.match(header, /const moreHidesReviewIssues = primaryDispatchesReviewIssues\(\{/, 'the decision is the shared helper');
+	// SUPERSEDED (DRAFT-UX-C01, operator 2026-09-25): the merged warnings control
+	// now owns the review dispatch whenever issue review is open; the shared
+	// helper still covers an armed review task.
+	// assert.match(header, /const moreHidesReviewIssues = primaryDispatchesReviewIssues\(\{/, 'the decision is the shared helper');
+	assert.match(header, /const moreHidesReviewIssues = warningsDispatch === 'review-issues' \|\| primaryDispatchesReviewIssues\(\{/, 'the decision is the warnings control plus the shared helper');
 	const menu = source('src/components/timetable/simple/SimpleMoreMenuContent.tsx');
 	assert.match(
 		menu,

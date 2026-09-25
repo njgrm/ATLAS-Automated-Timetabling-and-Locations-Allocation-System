@@ -6,6 +6,7 @@ import { TimetableSubNav } from '@/components/timetable/TimetableSubNav';
 import { ScheduleReviewWorkspaceBody } from '@/components/timetable/ScheduleReviewWorkspaceBody';
 import { ScheduleReviewWorkspaceOverlays } from '@/components/timetable/ScheduleReviewWorkspaceOverlays';
 import { TimetableFacultyIssuePivotDialog } from '@/components/timetable/TimetableFacultyIssuePivotDialog';
+import { SimpleSessionDetails } from '@/components/timetable/simple/SimpleSessionDetails';
 import { TimetableSkeleton } from '@/components/timetable/TimetableSkeleton';
 import { InlinePlacementPreview } from '@/components/timetable/InlinePlacementPreview';
 import { PublishedEntryChangePanel } from '@/components/timetable/modals/PublishedEntryChangePanel';
@@ -16,13 +17,11 @@ import type { TimetableLayoutMode, TimetableSimpleTask } from '@/components/time
 import type { RepairOrigin } from '@/components/timetable/TimetableTaskDrawer';
 import { Button } from '@/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/ui/dialog';
-import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from '@/ui/sheet';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/ui/dropdown-menu';
-import { AlertCircle, ArrowRight, ArrowRightLeft, BookOpen, Clock, DoorOpen, GraduationCap, MoreHorizontal, Move, Redo2, RefreshCw, Undo2, UserRoundX } from 'lucide-react';
+import { AlertCircle, ArrowRight, ArrowRightLeft, BookOpen, DoorOpen, GraduationCap, MoreHorizontal, Move, Redo2, RefreshCw, Undo2, UserRoundX } from 'lucide-react';
 import { lazy, Profiler, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import type { ScheduledEntry } from '@/types';
-import { TIMETABLE_DAY_SHORT } from '@/components/timetable/TimetableGrid.constants';
 import { isDraftPublishedStrict } from '@/components/timetable/timetableWorkspaceTruth';
 import { setTimetableEntryReadOnly } from '@/components/timetable/TimetableDraggableEntry';
 import { TimetableUndoRedoControl } from '@/components/timetable/TimetableUndoRedoControl';
@@ -704,9 +703,26 @@ export default function ScheduleReviewWorkspace() {
 					) : null}
 				</DialogContent>
 			</Dialog>
-			<Sheet open={simpleDetailsOpen && layoutMode === 'simple' && !!state.selectedEntry} onOpenChange={setSimpleDetailsOpen}>
-				<SheetContent side="bottom" className="max-h-[86svh] rounded-t-2xl p-4" data-testid="timetable-simple-details-sheet">
-			{state.redoState || state.redoVersionStale ? (
+			{/* DRAFT-UX-C01 (S4) — centred dialog from 768 px, the bottom drawer below. */}
+			<SimpleSessionDetails
+				open={simpleDetailsOpen && layoutMode === 'simple' && !!state.selectedEntry}
+				onOpenChange={setSimpleDetailsOpen}
+				entry={state.selectedEntry ?? null}
+				subjectLabel={state.subjectLabel}
+				sectionLabel={state.sectionLabel}
+				teacherLabel={(id) => state.centerWorkspaceContext.facultyLabel(id)}
+				roomLabel={(id) => state.centerWorkspaceContext.roomLabelShort(id)}
+				warnings={state.selectedEntry ? (state.centerWorkspaceContext.violationIndex.get(state.selectedEntry.entryId) ?? []) : []}
+				formatWarningMessage={(message) => state.rightPanelContext.formatConstraintMessage?.(message) ?? message}
+				onMoveTime={startMoveSelectedEntry}
+				onChangeRoom={openSelectedChangeRoom}
+				onSwap={armSwapSessions}
+				onChangeOwner={openSelectedOwnerRepair}
+				onExpertDetails={() => {
+					setLayoutMode('advanced');
+					window.requestAnimationFrame(() => state.rightPanelContext?.rightPanelRef?.current?.expand());
+				}}
+				topSlot={state.redoState || state.redoVersionStale ? (
 				<div
 					role="status"
 					aria-live="polite"
@@ -745,126 +761,8 @@ export default function ScheduleReviewWorkspace() {
 						</Button>
 					</div>
 				</div>
-			) : null}
-			{state.selectedEntry ? (
-						<div className="flex max-h-[78svh] flex-col gap-3">
-							<SheetHeader>
-								<SheetTitle className="text-base">
-									{state.subjectLabel(state.selectedEntry.subjectId)}
-								</SheetTitle>
-								<SheetDescription>
-									Simple class summary. Use More actions for repairs.
-								</SheetDescription>
-							</SheetHeader>
-							<div className="grid gap-2 text-sm sm:grid-cols-2">
-								<div className="rounded-xl border border-border bg-muted/20 p-3" data-testid="simple-details-summary-card">
-									<p className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-muted-foreground">
-										<BookOpen className="size-3.5" aria-hidden="true" />
-										Class
-									</p>
-									<p className="mt-1 font-semibold text-foreground">{state.sectionLabel(state.selectedEntry.sectionId)}</p>
-								</div>
-								<div className="rounded-xl border border-border bg-muted/20 p-3" data-testid="simple-details-summary-card">
-									<p className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-muted-foreground">
-										<UserRoundX className="size-3.5" aria-hidden="true" />
-										Teacher
-									</p>
-									<p className="mt-1 font-semibold text-foreground">
-										{state.selectedEntry.facultyId ? state.centerWorkspaceContext.facultyLabel(state.selectedEntry.facultyId) : 'No teacher assigned'}
-									</p>
-								</div>
-								<div className="rounded-xl border border-border bg-muted/20 p-3" data-testid="simple-details-summary-card">
-									<p className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-muted-foreground">
-										<DoorOpen className="size-3.5" aria-hidden="true" />
-										Room
-									</p>
-									<p className="mt-1 flex items-center gap-1.5 font-semibold text-foreground">
-										{state.selectedEntry.roomId ? state.centerWorkspaceContext.roomLabelShort(state.selectedEntry.roomId) : 'No room assigned'}
-									</p>
-								</div>
-								<div className="rounded-xl border border-border bg-muted/20 p-3" data-testid="simple-details-summary-card">
-									<p className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-muted-foreground">
-										<Clock className="size-3.5" aria-hidden="true" />
-										Time
-									</p>
-									<p className="mt-1 flex items-center gap-1.5 font-semibold text-foreground">
-										{state.headerContext.VIEW_MODE_LABELS[state.headerContext.viewMode]} view · {state.entryContextLabel(state.selectedEntry)}
-									</p>
-								</div>
-							</div>
-							{(state.centerWorkspaceContext.violationIndex.get(state.selectedEntry.entryId) ?? []).length > 0 ? (
-								<section className="rounded-xl border border-amber-300 bg-amber-50/60 p-3" data-testid="timetable-simple-schedule-notes" aria-label="Schedule notes">
-									<h3 className="text-xs font-bold uppercase tracking-wide text-amber-950">Schedule notes · {(state.centerWorkspaceContext.violationIndex.get(state.selectedEntry.entryId) ?? []).length}</h3>
-									<p className="mt-1 text-xs font-medium text-foreground">{TIMETABLE_DAY_SHORT[state.selectedEntry.day] ?? state.selectedEntry.day} · {state.selectedEntry.startTime}–{state.selectedEntry.endTime}</p>
-									<p className="mt-1 text-xs text-muted-foreground">Read-only information about this class. Each item says whether it blocks saving or publishing.</p>
-									<ul className="mt-2 list-disc space-y-1 pl-4 text-sm text-foreground">
-										{(state.centerWorkspaceContext.violationIndex.get(state.selectedEntry.entryId) ?? []).map((warning: any, index: number) => <li key={`${warning.severity}-${index}`}><span className="font-semibold">{warning.severity === 'HARD' ? 'Must fix: ' : 'Schedule note: '}</span>{state.rightPanelContext.formatConstraintMessage?.(warning.message) ?? warning.message} <span className="text-xs font-medium">{warning.severity === 'HARD' ? '(Blocks saving and publishing.)' : '(Does not block saving or publishing.)'}</span></li>)}
-									</ul>
-								</section>
-							) : null}
-							<div className="rounded-xl border border-border bg-background p-3" data-testid="simple-details-summary-card">
-								<p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Actions</p>
-								<div className="mt-2 grid gap-1.5 text-xs text-muted-foreground sm:grid-cols-2">
-									<span className="rounded-lg bg-muted px-2 py-1">Move time: choose a new slot</span>
-									<span className="rounded-lg bg-muted px-2 py-1">Change room: pick another room</span>
-									<span className="rounded-lg bg-muted px-2 py-1">Swap sessions: choose another class</span>
-									<span className="rounded-lg bg-muted px-2 py-1">Owner repair: opens Teaching Load</span>
-								</div>
-							</div>
-							<SheetFooter className="gap-2 sm:gap-0">
-								<Button type="button" variant="outline" onClick={() => setSimpleDetailsOpen(false)}>Close</Button>
-								<Button
-									type="button"
-									variant="outline"
-									onClick={() => {
-										setSimpleDetailsOpen(false);
-										openSelectedChangeRoom();
-									}}
-									data-testid="timetable-simple-details-change-room"
-								>
-									<DoorOpen className="mr-1.5 size-3.5" aria-hidden="true" />
-									Change room
-								</Button>
-								<Button
-									type="button"
-									variant="outline"
-									onClick={() => {
-										setSimpleDetailsOpen(false);
-										openSelectedOwnerRepair();
-									}}
-									data-testid="timetable-simple-details-owner-repair"
-								>
-									<GraduationCap className="mr-1.5 size-3.5" aria-hidden="true" />
-									Change owner
-								</Button>
-								<Button
-									type="button"
-									variant="outline"
-									onClick={() => {
-										setSimpleDetailsOpen(false);
-										armSwapSessions();
-									}}
-									data-testid="timetable-simple-details-swap"
-								>
-									<ArrowRightLeft className="mr-1.5 size-3.5" aria-hidden="true" />
-									Swap
-								</Button>
-								<Button
-									type="button"
-									onClick={() => {
-										setSimpleDetailsOpen(false);
-										setLayoutMode('advanced');
-										window.requestAnimationFrame(() => state.rightPanelContext?.rightPanelRef?.current?.expand());
-									}}
-								>
-									<GraduationCap className="mr-1.5 size-3.5" aria-hidden="true" />
-									Expert details
-								</Button>
-							</SheetFooter>
-						</div>
-					) : null}
-				</SheetContent>
-			</Sheet>
+				) : null}
+			/>
 			<TimetableFacultyIssuePivotDialog
 				open={state.pendingFacultyIssuePivot != null}
 				teacherLabel={state.pendingFacultyIssuePivot?.teacherLabel ?? null}

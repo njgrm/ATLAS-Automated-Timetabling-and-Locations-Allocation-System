@@ -546,83 +546,64 @@ test('mounted readiness repair keeps its hard filter, while re-entering Simple c
 	}
 });
 
-/* ── D2 — the published run is dominated by its published lifecycle surface ─ */
-
-test('D2 (failing-first) a published run is dominated by the published lifecycle surface, never by Generate', () => {
+/*
+ * SUPERSEDED (DRAFT-UX-C01, operator 2026-09-25) — D2/D3 and the presence
+ * contract below pinned "Generate stays a demoted control in every state" and
+ * "the lifecycle primary out-sizes Generate". The operator replaced that rule:
+ * the header shows ONE primary — Generate while no generated run exists,
+ * Publish once a run exists (the published status surface on a published
+ * run) — and the other one moves into More ▸ Schedule actions. The rows now
+ * pin that rule; the published-surface honesty assertions are unchanged.
+ */
+test('D2 a published run is dominated by the published lifecycle surface; Generate ("New version") is in More', () => {
 	const markup = renderHeader(PUBLISHED_RUN);
-	const generate = tagFor(markup, 'timetable-simple-generate-action');
 	const published = tagFor(markup, 'timetable-simple-published-state');
-
-	// Generate stays present: two committed contracts require it in the render.
-	// SUPERSEDED (LANE-C C03 B4): assert.match(markup, /<span>Generate<\/span>/, 'Generate remains present in the header render');
-	// Beside a published schedule the same control is labelled "New version".
-	assert.match(markup, /<span>New version<\/span>/, 'Generate remains present in the header render');
-	assert.match(markup, /data-testid="timetable-simple-generate-action"/);
+	// SUPERSEDED (DRAFT-UX-C01): assert.match(markup, /<span>New version<\/span>/, 'Generate remains present in the header render');
+	assert.doesNotMatch(markup, /data-testid="timetable-simple-generate-action"/, 'Generate is a More entry once a run exists');
+	assert.match(source('src/components/timetable/simple/SimpleHeaderActions.tsx'), /generate\.published \? PUBLISHED_GENERATE_LABEL : 'Generate'/, 'More labels it "New version" beside a published run');
 
 	// The published state is the lifecycle primary for a read-only run: an
 	// honest status surface, never an action button.
 	assert.doesNotMatch(published, /^<button\b/, 'the published lifecycle surface is not an action button');
 	assert.match(published, /role="status"/);
 	assert.match(published, /Published/);
-	// SUPERSEDED (LANE-C C03 B4): assert.match(published, /view only/);
-	// A published schedule takes dated changes, so "view only" was untrue.
 	assert.doesNotMatch(published, /view only/);
 	assert.match(published, /Changes start on a date you choose/);
 	assert.equal(solidButtons(markup).length, 0, 'a published run has no filled action');
-
-	// The failing-first assertion: the published lifecycle surface must strictly
-	// out-size the Generate control. On the base commit both render at h-11
-	// (44px), so Generate is the largest control and this fails.
-	const publishedPx = heightPx(published);
-	const generatePx = heightPx(generate);
-	assert.ok(
-		publishedPx > generatePx,
-		`the published lifecycle surface (${publishedPx}px) must out-size the demoted Generate (${generatePx}px)`,
-	);
+	assert.equal(heightPx(published), 44, 'the published surface keeps the h-11 primary sizing');
 });
 
-/* ── D3 — Generate is never the largest control ──────────────────────────── */
-
-test('D3 the lifecycle primary strictly out-sizes Generate in every renderable state', () => {
-	const states: Array<[string, Record<string, unknown>]> = [
-		['no run yet', { draft: null, isPreGenerationWorkspace: false }],
-		['hard blockers', HARD_BLOCKERS],
-		['publish-ready clean run', CLEAN_UNPUBLISHED],
-		['published run', PUBLISHED_RUN],
-		['published run with follow-ups', PUBLISHED_WITH_FOLLOW_UPS],
+test('D3 the one visible primary follows the run: Generate with no run, Publish once a run exists', () => {
+	const states: Array<[string, Record<string, unknown>, string]> = [
+		['no run yet', { draft: null, isPreGenerationWorkspace: false }, 'timetable-simple-generate-action'],
+		['hard blockers', HARD_BLOCKERS, 'timetable-simple-publish-action'],
+		['publish-ready clean run', CLEAN_UNPUBLISHED, 'timetable-simple-publish-action'],
+		['published run', PUBLISHED_RUN, 'timetable-simple-published-state'],
+		['published run with follow-ups', PUBLISHED_WITH_FOLLOW_UPS, 'timetable-simple-published-state'],
 	];
-	for (const [name, overrides] of states) {
+	for (const [name, overrides, primaryTestId] of states) {
 		const markup = renderHeader(overrides);
-		const generate = tagFor(markup, 'timetable-simple-generate-action');
-		const primary = lifecyclePrimaryTag(markup);
-		assert.ok(primary, `${name}: a lifecycle primary must render`);
-		const primaryPx = heightPx(primary);
-		const generatePx = heightPx(generate);
-		assert.ok(
-			primaryPx > generatePx,
-			`${name}: the lifecycle primary (${primaryPx}px) must out-size Generate (${generatePx}px)`,
-		);
+		const primary = tagFor(markup, primaryTestId);
+		assert.equal(heightPx(primary), 44, `${name}: the primary renders at the h-11 primary size`);
+		for (const other of ['timetable-simple-generate-action', 'timetable-simple-publish-action', 'timetable-simple-published-state', 'timetable-simple-primary-action']) {
+			if (other === primaryTestId) continue;
+			assert.doesNotMatch(markup, new RegExp(`data-testid="${other}"`), `${name}: ${other} is not a second visible primary`);
+		}
 	}
 });
 
-test('D1/D3 exactly one filled primary per state, and Generate is never it', () => {
-	const states: Array<[string, Record<string, unknown>, number]> = [
-		['no run yet', { draft: null, isPreGenerationWorkspace: false }, 1],
-		['hard blockers', HARD_BLOCKERS, 1],
-		['publish-ready clean run', CLEAN_UNPUBLISHED, 1],
-		['published run', PUBLISHED_RUN, 0],
+test('D1/D3 exactly one filled primary per state, and it is the run-appropriate one', () => {
+	const states: Array<[string, Record<string, unknown>, number, string | null]> = [
+		['no run yet', { draft: null, isPreGenerationWorkspace: false }, 1, 'timetable-simple-generate-action'],
+		['hard blockers', HARD_BLOCKERS, 1, 'timetable-simple-publish-action'],
+		['publish-ready clean run', CLEAN_UNPUBLISHED, 1, 'timetable-simple-publish-action'],
+		['published run', PUBLISHED_RUN, 0, null],
 	];
-	for (const [name, overrides, expected] of states) {
+	for (const [name, overrides, expected, testId] of states) {
 		const markup = renderHeader(overrides);
 		const solid = solidButtons(markup);
 		assert.equal(solid.length, expected, `${name}: filled action count`);
-		for (const tag of solid) {
-			assert.doesNotMatch(
-				tag,
-				/data-testid="timetable-simple-generate-action"/,
-				`${name}: Generate is never the filled primary`,
-			);
-		}
+		if (testId) assert.match(solid[0], new RegExp(`data-testid="${testId}"`), `${name}: the filled primary`);
 	}
 });
 
@@ -634,8 +615,13 @@ test('the collapse preserves the strict publication predicate, the one status re
 	// Generate, Publish and the term-bound download action stay present.
 	assert.match(header, /<SimpleGenerateAction/);
 	assert.match(header, /<SimplePublishedState|<SimplePublishAction/);
-	const markup = renderHeader(CLEAN_UNPUBLISHED);
-	assert.match(markup, /data-testid="timetable-simple-generate-action"/);
-	assert.match(markup, /data-testid="timetable-simple-publish-action"/);
-	assert.match(markup, /data-testid="timetable-open-download-schedules"/);
+	// SUPERSEDED (DRAFT-UX-C01): Generate and Download schedules are More entries once a run exists.
+	// const markup = renderHeader(CLEAN_UNPUBLISHED);
+	// assert.match(markup, /data-testid="timetable-simple-generate-action"/);
+	// assert.match(markup, /data-testid="timetable-open-download-schedules"/);
+	assert.match(renderHeader({ draft: null, isPreGenerationWorkspace: false }), /data-testid="timetable-simple-generate-action"/);
+	assert.match(renderHeader(CLEAN_UNPUBLISHED), /data-testid="timetable-simple-publish-action"/);
+	const actions = source('src/components/timetable/simple/SimpleHeaderActions.tsx');
+	assert.match(actions, /data-testid="timetable-open-download-schedules"/, 'Download schedules stays one click away in More');
+	assert.match(header, /downloadAvailable=\{hasGeneratedRun\}/, 'Download keeps its run gate');
 });

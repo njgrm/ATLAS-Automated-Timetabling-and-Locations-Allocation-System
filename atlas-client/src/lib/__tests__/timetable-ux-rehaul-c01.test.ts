@@ -286,7 +286,10 @@ test('C01R C3 the header renders one status surface owning drift, day options, a
 	assert.match(markup, /data-testid="timetable-simple-publish-action"/, 'the one next-step action control still renders');
 	// A3 — the setup-input repairs are relocated to the setup sub-page; the
 	// header keeps one labelled way there.
-	assert.match(markup, /data-testid="timetable-simple-review-setup"/, 'one labelled setup entry point remains');
+	// SUPERSEDED (DRAFT-UX-C01, operator 2026-09-25): assert.match(markup, /data-testid="timetable-simple-review-setup"/, 'one labelled setup entry point remains');
+	// The one labelled setup entry point moved into More ▸ Schedule actions.
+	const actions = source('src/components/timetable/simple/SimpleHeaderActions.tsx');
+	assert.match(actions, /<Link to="\/timetable\/setup"[^>]*data-testid="timetable-simple-review-setup"/, 'one labelled setup entry point remains (in More)');
 	assert.doesNotMatch(markup, /timetable-simple-sync-setup/, 'Sync with setup is not a header control');
 	assert.doesNotMatch(markup, /timetable-simple-impact-preview/, 'Preview impact is not a header control');
 	// Simple keeps the status and schedule chooser, without grid-refinement controls.
@@ -302,12 +305,17 @@ test('C01R D3 the no-run state renders exactly one filled primary', () => {
 	assert.match(markup, /data-testid="timetable-simple-generate-action"/, 'Generate stays reachable without opening More');
 	const solid = solidActionButtons(markup);
 	assert.equal(solid.length, 1, `the no-run state must render exactly one filled primary, found ${solid.length}`);
-	assert.match(markup, /data-testid="timetable-simple-primary-action"/);
+	// SUPERSEDED (DRAFT-UX-C01, operator 2026-09-25): assert.match(markup, /data-testid="timetable-simple-primary-action"/);
+	// With no generated run, Generate IS the one filled primary.
+	assert.match(solid[0], /data-testid="timetable-simple-generate-action"/);
 });
 
 test('C01R C1 the publish-ready state renders one solid publish control and no second primary', () => {
 	const markup = renderHeader(CLEAN_UNPUBLISHED);
-	assert.match(markup, /data-testid="timetable-simple-generate-action"/, 'Generate stays reachable without opening More');
+	// SUPERSEDED (DRAFT-UX-C01, operator 2026-09-25): assert.match(markup, /data-testid="timetable-simple-generate-action"/, 'Generate stays reachable without opening More');
+	// Once a run exists Publish owns the primary slot and Generate moves into More.
+	assert.doesNotMatch(markup, /data-testid="timetable-simple-generate-action"/, 'Generate is a More entry once a run exists');
+	assert.match(source('src/components/timetable/simple/SimpleHeaderActions.tsx'), /data-testid="timetable-more-generate"/);
 	const publish = markup.match(new RegExp('<[^>]*data-testid="timetable-simple-publish-action"[^>]*>'));
 	assert.ok(publish, 'the dedicated publish control must render');
 	assert.match(publish[0], /bg-primary/, 'the publish-slot owner is the filled primary');
@@ -327,11 +335,17 @@ test('C01R C1 an issue state renders the lifecycle primary solid with publish se
 		blockingHardCount: 1,
 		summary: { assignedCount: 5, classesProcessed: 5, hardViolationCount: 1, unassignedCount: 0 },
 	});
-	assert.match(markup, /data-testid="timetable-simple-primary-action"/, 'the next step keeps its primary affordance');
+	// SUPERSEDED (DRAFT-UX-C01, operator 2026-09-25): the lifecycle primary
+	// ("Fix blockers" / "Review warnings") merged into the warnings control, and
+	// Publish is the one primary once a run exists.
+	// assert.match(markup, /data-testid="timetable-simple-primary-action"/, 'the next step keeps its primary affordance');
+	// assert.doesNotMatch(publish[0], /bg-primary/, 'away from the publish slot it is secondary/outline');
+	const warnings = markup.match(new RegExp('<[^>]*data-testid="timetable-simple-warnings-control"[^>]*>'));
+	assert.ok(warnings, 'the next step keeps its affordance on the merged warnings control');
+	assert.match(warnings[0], /data-warnings-dispatch="readiness-sheet"/, 'blockers open the readiness sheet, as Fix blockers did');
 	assert.equal(solidActionButtons(markup).length, 1, 'exactly one filled action in the issue state');
 	const publish = markup.match(new RegExp('<[^>]*data-testid="timetable-simple-publish-action"[^>]*>'));
 	assert.ok(publish, 'the publish control stays reachable');
-	assert.doesNotMatch(publish[0], /bg-primary/, 'away from the publish slot it is secondary/outline');
 });
 
 test('C01R D3 a published run renders no solid action and the primary dispatches (no chevron menu)', () => {
@@ -343,13 +357,12 @@ test('C01R D3 a published run renders no solid action and the primary dispatches
 	assert.equal(solidActionButtons(markup).length, 0, 'a published run has no action to take, so no solid control may render');
 	assert.equal(markup.includes('data-testid="timetable-simple-publish-action"'), false, 'no publish control may render on a published run');
 	// The primary action button dispatches; it never carries the false menu affordance.
+	// SUPERSEDED (DRAFT-UX-C01, operator 2026-09-25): the lifecycle primary
+	// blocks are gone from the header (`timetable-simple-primary-action`); the
+	// visible primary is Generate / Publish, neither of which renders a chevron.
 	const header = source('src/components/timetable/TimetableSimpleHeader.tsx');
-	const primaryBlocks = header.split('data-testid="timetable-simple-primary-action"');
-	assert.ok(primaryBlocks.length > 1, 'primary action blocks must exist');
-	for (const block of primaryBlocks.slice(1)) {
-		const buttonWindow = block.slice(0, 400);
-		assert.doesNotMatch(buttonWindow, /ChevronDown/, 'the dispatching primary must not render a menu chevron');
-	}
+	assert.doesNotMatch(header, /data-testid="timetable-simple-primary-action"/);
+	assert.doesNotMatch(source('src/components/timetable/simple/SimpleHeaderActions.tsx'), /ChevronDown/, 'no moved action renders a menu chevron');
 	// A chevron survives only where a control genuinely opens a menu/sheet.
 	const helpers = source('src/components/timetable/simple/SimpleHeaderHelpers.tsx');
 	assert.match(helpers, /data-testid="timetable-simple-schedule-sheet-trigger"/);
