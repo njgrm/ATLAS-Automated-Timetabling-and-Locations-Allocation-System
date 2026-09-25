@@ -283,6 +283,36 @@ so C1–C5 overlap it and need an explicit disjoint slice; (b) **finding 8** —
 the view-type and entity pickers reverses a deliberately accepted DRAFT-UX-C01 contract
 (`draft-ux-c01.test.tsx:410-425`) and is the operator's call, not the planner's.
 
+**C1 INTEGRATED on `main` as `212809f7` (2026-09-26, planner).** Candidate `d8277599` + bounded
+correction `1dbbbbf9`, merged over Lane A's `5d287e49`. Three truthfulness defects closed: the repair
+banner no longer states a hard-coded "0 sessions affected" (the real group count is threaded and an
+unknown count omits the clause); the recommended task and the lifecycle next step now read ONE authority
+(`resolvePublishBlockTruth`) so the header cannot say "Review issues" and "Ready to publish" at once; and
+"Choose a room first" is followable at 0/1/many teaching spaces. Independent QA (`atlas-qa`, fresh,
+read-only) returned `CORRECTION_REQUIRED` 4/7 with **one BLOCKING finding — the fix itself introduced a
+new false statement**: the zero-room copy claimed "No teaching space is available" as fact on the
+deliberately-supported degraded path where `timetableLoadOrchestration.ts:53-57` swallows the reference
+read, so the true state is "ATLAS could not read the teaching spaces". The correction re-gates that claim
+on `referenceLookupStatus.state === 'ready'` and hedges the unread state without routing to `/map`. §11
+bounded correction reviewed by the planner, not re-dispatched to QA. Merged-tree gates: typecheck clean,
+`draft-ux-c01` 12/12, `timetable-relaxed-main` 88/2, client suite **1002 tests / 985 pass / 17 fail — the
+same 17 pre-existing failures, zero new**. Client-only; **no migration; NOT deployed.**
+
+**Two facts other lanes need (2026-09-26):**
+- **`origin/main` is already red by 2 pre-existing failures, not caused by C1.** `rendered.test.ts`
+  expects `Setup needs attention before ATLAS can generate a timetable.` (added by `104021c7`) and
+  `drift.test.ts` expects a `timetable-simple-sync-setup` testid (added by `a49ae9d3`); neither exists in
+  production, and `timetableSetupPane`/`ux-r03b`/`ux-r03e` assert the sync entry is NOT a header/banner
+  control. Notably the first is a **failing-first control for audit finding 1 (the generation dead end)** —
+  C2's first row already exists on main. Both are inside the 17.
+- **Dependency-junction hazard, contained (2026-09-26).** The C1 worktree linked
+  `atlas-client/node_modules` → the **live** release `E:\ATLAS-runtime-supervised-861d89a2-20260925\...`.
+  A run wrote `.vite/deps` through it at 02:37:29 and the live supervisor logged ~1.5s event-loop stalls at
+  that moment. No tracked file in the live release changed and it is healthy now (5001 health/ready 200
+  `database:"ok"`, 5174 200), but **production was written to**. The project's own frozen procedure is
+  real-directory copy from the donor, never a junction chain. The junction is still in place (removing one
+  unsafely is what takes a runtime down); treat it as `PRESERVE_FOR_DECISION` and remove link-only.
+
 **Deploy gate state (2026-09-26, planner):** the `861d89a2` cutover is **DEPLOYED with post-action QA
 `ACCEPT_READY` 8/8/0/0**, so this packet's ordering precondition is **satisfied** (scheduled task action
 reads `E:\ATLAS-runtime-supervised-861d89a2-20260925\ops\runtime\cli.mjs start`, `Running`, last run
