@@ -124,35 +124,22 @@ it complete `TEST-GATE-REACHABILITY-C01` (`f4462374`) and hand it over for integ
 
 ## Lane C — current lane (written only by Lane C)
 
-Opened 2026-09-25 (operator). Branches `docs/lane-c-*`, worktrees `E:/ATLAS-worktrees/lane-c-*`. Does not
-write to Lane A's C5/C6 streams or any Lane B stream. Detail lives in Git history of this section.
+Opened 2026-09-25 (operator). Branches `work|docs/lane-c-*`, worktrees `E:/ATLAS-worktrees/lane-c-*`. Earlier
+2026-09-25 work (skills, worktree reclaim C02/C03, `D:/ATLAS` reset, SERVER-TIMING-C01) is in this section's Git
+history. **Planner handoff: `docs/handoffs/lane-c-planner-handoff.md`.**
 
-**Done (2026-09-25):**
-- Closed the undated 2026-09-20 "what remains" queue: every item is integrated or superseded on `main`
-  except `work/public-published-view-term-merge-c01` (see Decisions awaited).
-- Six cross-agent skills in `.agents/skills/` (+ `.claude/skills/` stubs); user-level `~/.agents/skills`
-  cut from 188 to 5 (archive `~/.agents/skills-archive-20260925`).
-- `D:/ATLAS` reset to `origin/main` after committing its only unique content (`72042911`); operator
-  reference files moved to `stakeholderFiles/root-reference/`.
-- Worktree reclaim C02 + C03: 37 task worktrees retired non-forced after per-tree evidence; dirty state
-  saved on `preserve/<name>-20260925` branches; 26 unlanded/preserve refs pushed to origin; no branch
-  deleted. `D:` 37.8 → 61 GiB, `E:` 36 → 48 GiB free.
-- Shared sections of this file trimmed (1,414 → about 400 lines).
+**Stream: audit fixes C1–C3** (from `docs/reviews/ux-audit-teaching-load-and-schedule-controls-2026-09-25.md`).
+QA returned 2026-09-25:
+- C1 `work/lane-c-post-publish-c01` (`af3bb594...50b8077c`): **BLOCKED(environment)**. The built-server startup
+  row was not run (the reviewer's process launch was denied); everything else passed.
+- C2 `work/lane-c-teaching-load-clarity-c02` (`e475c673...d66510ea`): **ACCEPT_READY**.
+- C3 `work/lane-c-schedule-clarity-c03` (`61f57a39...07a3e5f7`, stacked on C1): **ACCEPT_READY**.
 
-**Remaining worktrees (as of 2026-09-25):** Lane A's C5 set and C6 pair, plus two junction anchors they
-depend on — `timetable-scheduler-simplicity-c01` (← `publish-drift-s4-client`) and
-`g9g10-grid-delta-probe` (← `teacher-availability-s1`). Lane A retires all of them at its closure.
-Three unregistered directories in `E:/ATLAS-worktrees` (`flag-window-per-scope-c01`,
-`rollover-year-identity-c01`, `warning-readability-c01`) are clones or leftovers — the clone-removal
-exception applies; untouched.
+**Next action:** an independent run of C1's startup row (Codex or opencode), then one integration of
+C2, C1 and C3 plus this docs branch; after that, ask Lane A to deploy, with Lane B as the browser acceptance owner.
 
-**`SERVER-TIMING-C01` integrated (2026-09-25):** candidate `26fbfe57` (QA `ACCEPT_READY`, suite 318/323 = base
-313/318 + 5 new, same 5 pre-existing failures) merged to `main`. Adds `[slow-request]` / `[event-loop-stall]`
-supervisor-log lines to find the ~8 s shared stall on `/timetable` (audit finding 5). Server-only, no schema.
-**For Lane A:** the queued `b6687fee` release predates it — pin the release to this merge or later so the
-diagnostics ship. Handoff: `docs/handoffs/lane-c-server-timing-c01.md`.
-
-**Next action:** after that deploy, load `/timetable` once and read the stall lines; then fix the cause.
+**Open (2026-09-25):** read the stall lines once a release containing `a5550fa6` is live (`89295c27` is), then fix
+the roughly 8 s `/timetable` stall; A3, 0 class advisers, needs a read-only EnrollPro check.
 
 ## Lane A — current lane (written only by Lane A)
 
