@@ -58,24 +58,32 @@ resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs
 - **Release SHA: `c5e167d7c5939ff586880149c566ce29506430e8`** (rollback basis; previously LIVE 2026-09-25 20:40,
   `E:\ATLAS-runtime-supervised-c5e167d7-20260925`; R1 browser rows accepted at 1366×768 and 390×844; prior
   collaboration-ticket incident preserved; two EnrollPro proxy 502s remain non-blocking. **No migration.**)
-- **Release SHA: `ad8f9717`** (rollback basis; previously LIVE 2026-09-25 17:12, Lane C; `E:\ATLAS-runtime-supervised-ad8f9717-20260925`;
-  operator cutover, audit `C:\ProgramData\ATLAS\release-audit\ad8f9717-20260925-171136`; active state
-  `running`/`ad8f9717`; machine env = target; health 200, `/health/ready` `database:"ok"`, subjects read 200, Tailnet
+- **Release SHA: `ad8f9717`** (**RETIRED 2026-09-26** under successor reclaim `20260926a`; its release directory
+  `E:\ATLAS-runtime-supervised-ad8f9717-20260925` was removed — only `ops/runtime/logs/` deleted, then non-forced
+  `git worktree remove` + `git worktree prune`; no branch deleted; zero residue. **It is NOT a usable rollback
+  target**; deeper rollback is a rebuild. The commit is retained by `refs/heads/fix/departure-load-transfer` and
+  `refs/remotes/origin/fix/departure-load-transfer` and is an ancestor of `origin/main`, so no Git object was
+  destroyed. Previously LIVE 2026-09-25 17:12, Lane C; operator cutover, audit
+  `C:\ProgramData\ATLAS\release-audit\ad8f9717-20260925-171136`. Its recorded
+  `state: running`/`ad8f9717` was superseded by `861d89a2` (LIVE 2026-09-26 01:27; machine env = `861d89a2`) and
+  must not be read as current. Historical: health 200, `/health/ready` `database:"ok"`, subjects read 200, Tailnet
   200; served `assets/index-DEoaxzaH.js` byte-identical to the build). **Browser acceptance: UNPERFORMED as of
   2026-09-25** — the operator generated draft run 318 before the demo, so `/timetable` opens an unpublished draft
   and the published teacher-leaving rows (B1 commit, B2 refusal) no longer apply to the screen; see the Lane C
-  handoff `docs/handoffs/lane-c-handoff-2026-09-25-stall.md`.
+  handoff `docs/handoffs/lane-c-handoff-2026-09-25-stall.md`. The directory retirement does **not** discharge
+  B1/B2; they remain UNPERFORMED and owned by Lane C.
   `DEPARTURE-LOAD-C05`: a privileged teacher change on the published timetable moves the class's subject+section
   Teaching Load ownership to the new teacher in the same transaction as the revision (receiver department/program +
   active checks; audit carries `teachingLoadTransfers`); already-authorized receivers transfer nothing; the
   teacher-leaving check shows teacher-caused refusals; server error codes are read from real axios errors (also
   fixes the stale-source message in four consumers). Commits `463cd9fa` + corrections `e6aeff4f`, `ad8f9717`;
   integrated as merge `6e992878`. Independent review `ACCEPT_READY` (2026-09-25, after two bounded corrections).
-  **No migration.** **Rollback basis: `82871619`.** Operator decisions (2026-09-25): ownership moves at scheduling
+  **No migration.** **Historical rollback basis: `82871619` (directory also retired by reclaim `20260925c`; not usable).** Operator decisions (2026-09-25): ownership moves at scheduling
   time, not on the effective date, and withdrawing the revision does not revert Teaching Load — **accepted**; one
   live teacher-leaving commit on test data (Tolentino → Villanueva, Jose Gabriel) is **approved** for acceptance.
   Browser acceptance owner: Lane C.
-- **Release SHA: `82871619`** (**LIVE** since 2026-09-25 14:41, Lane C; `E:\ATLAS-runtime-supervised-82871619-20260925`;
+- **Release SHA: `82871619`** (**RETIRED 2026-09-25** under reclaim `20260925c`; directory removed; historical
+  release evidence only, not a usable rollback target; previously LIVE since 2026-09-25 14:41, Lane C; `E:\ATLAS-runtime-supervised-82871619-20260925`;
   cut over by the operator via `deploy-runner.ps1 -Execute` (audit
   `C:\ProgramData\ATLAS\release-audit\82871619-20260925-144036`); active state file `running`/`82871619`; machine
   `ATLAS_RUNTIME_SOURCE_DIR` / `RELEASE_SHA` = target; health 200, `/health/ready` `database:"ok"`,
@@ -93,7 +101,8 @@ resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs
   (2026-09-25). **No migration** (no `prisma/**` change). **Rollback basis: `ff87b06b`**. Deviation (2026-09-25, operator-directed
   pre-demo release): `E:` at 47–49 GiB (< 50 GiB warning) and the release-directory reclaim was **not** run
   before this build; it is Lane C's first action after the demo.
-- **Release SHA: `ff87b06b`** (rollback basis; previously LIVE 2026-09-25; `E:\ATLAS-runtime-supervised-ff87b06b-20260925`;
+- **Release SHA: `ff87b06b`** (**RETIRED 2026-09-25** under reclaim `20260925c`; directory removed; historical
+  release evidence only, not a usable rollback target; previously LIVE 2026-09-25; `E:\ATLAS-runtime-supervised-ff87b06b-20260925`;
   supervisor-owned 5001→51652 / 5174→36128; health/ready (`database:"ok"`) + `GET /api/v1/subjects?schoolId=1`
   + Tailnet 200; served entry `assets/index-CqO3DnVa.js` (SHA-256 `7ADDAACA…81171A`, byte-identical to the
   build); machine `ATLAS_RUNTIME_SOURCE_DIR` / `RELEASE_SHA` = the target). `ACTIVE-TERM-LIVE-RESOLUTION-C01`:
@@ -214,7 +223,8 @@ resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs
 ## Decisions awaited (operator-facing, as of 2026-09-25)
 
 - Give `37e0c85b` (acceptance owner: Lane B / Codex) and the C7 target an authenticated session (see `AGENTS.md` §12).
-- `E:` reclaim C is **complete (2026-09-25)**: audited removal of `82871619` and `ff87b06b` freed 3.07 GiB; post-action E: was 47.80 GiB free. The §3 reclaim obligation is discharged for the `861d89a2` build only; do not re-run `20260925c` (it is closed at `ACCEPT_READY` 17/17). A **new** release build re-triggers the obligation while E: is below the 50 GiB warning: re-measured **45.72 GiB free on E: and 60.67 GiB on D: on 2026-09-26**, both above the fail-closed lines. The successor reclaim `20260926a` (retire `ad8f9717`) is required for the next single build (`116a7658` F1/F2); because its post-reclaim projection is approximately 47.18 GiB, still below 50, any subsequent build — including `9f42190e` — requires a fresh successor manifest and audit. The current `9f42190e` packet's one-build deviation is therefore not a substitute for a fresh successor reclaim. (The earlier `47.45 GiB` and `49.55 GiB` capacity figures recorded elsewhere in this file, including the `861d89a2` cycle's "current capacity recheck" line, are superseded by this 45.72/60.67 re-measured reading.)
+- `E:` reclaim C is **complete (2026-09-25)**: audited removal of `82871619` and `ff87b06b` freed 3.07 GiB; post-action E: was 47.80 GiB free. The §3 obligation was discharged for the `861d89a2` build only; do not re-run `20260925c` (closed at `ACCEPT_READY` 17/17).
+- Successor reclaim `20260926a` (retire `ad8f9717`) is **complete (2026-09-26)**: only `ops/runtime/logs/` was deleted, then non-forced `git worktree remove` + `git worktree prune`; no branch deleted; zero residue; keep set `861d89a2`/`eb0e3038`/`c5e167d7`/`5c100ea6`/`4893cbde` verified intact; live `861d89a2` unchanged (machine env, `running`/`861d89a2`, 5001→36120 / 5174→62504, health 200, ready `database:"ok"`, subjects read 200). **Measured post-action: 47.23 GiB free on E: and 60.67 GiB on D:** (1.46 GiB released). This discharges §3 for the single next build (`116a7658` F1/F2) only. Because 47.23 GiB is still below the 50 GiB warning, any second release build — including `9f42190e` — re-triggers §3 and requires its own fresh successor manifest and pre-action audit; the `9f42190e` packet's one-build deviation is not a substitute. (Superseded readings: the 45.72/60.67 pre-reclaim 2026-09-26 measurement, the ~47.18 GiB projection, and the 47.45/49.55 figures elsewhere in this file.)
 - Keep or delete two unlanded code branches (both pushed): `work/public-published-view-term-merge-c01`,
   `work/timetable-live-term-authority-c01`.
 
