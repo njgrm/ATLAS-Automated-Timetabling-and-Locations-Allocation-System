@@ -10,8 +10,10 @@
  *
  * Contract:
  *  - Only `status = REVIEWED` authorities bind generation.
- *  - Only the exact persisted active ordered term binds; an unresolved term
- *    fails closed (`TERM_AUTHORITY_UNRESOLVED`) and is NEVER defaulted to Term 1.
+ *  - Only one resolved active ordered term binds. The availability authority
+ *    (read/write) resolves it live-first (ACTIVE-TERM-LIVE-RESOLUTION-C01); an
+ *    unresolved term fails closed (`TERM_AUTHORITY_UNRESOLVED`) and is NEVER
+ *    defaulted to Term 1.
  *  - A review that makes the teacher's required load infeasible is rejected with
  *    a typed 4xx and ZERO writes.
  *  - Every write is actor-school/term scoped and version-checked.
@@ -22,7 +24,11 @@
  */
 
 import { getDataContext } from '../lib/data-context.js';
-import { loadVerifiedOrderedTermContract, type LoadedAcademicTermContract } from './academic-term.service.js';
+import {
+	loadVerifiedOrderedTermContract,
+	resolveActiveOrderedTermIndexLive,
+	type ActiveOrderedTermProvider,
+} from './academic-term.service.js';
 
 // ─── Vocabulary ───
 
@@ -228,24 +234,41 @@ const SLOT_SELECT = {
 // ─── Term authority ───
 
 /**
- * Resolve the persisted verified active ordered term. Fails closed with a typed
- * 409 when the contract is missing or the active term is unresolved — it NEVER
- * defaults to Term 1.
+ * ACTIVE-TERM-LIVE-RESOLUTION-C01: optional seams for tests. Production callers
+ * omit them; the resolver then uses the live EnrollPro contract and the active
+ * data context.
+ */
+export type AvailabilityTermResolutionOptions = {
+	provider?: ActiveOrderedTermProvider;
+	now?: Date;
+};
+
+/**
+ * Resolve the active ordered term for the availability authority (read/write).
+ * Live-first: the live verified EnrollPro contract, then the date-derived
+ * persisted active term when EnrollPro is unreachable. Fails closed with a typed
+ * 409 when no term resolves — it NEVER defaults to Term 1.
+ *
+ * This is a non-transaction entry point. The generation read
+ * (`loadReviewedAvailabilityForActiveTerm`) deliberately stays on the
+ * network-free persisted path; see its docstring.
  */
 export async function resolveActiveAvailabilityTermIndex(
 	schoolId: number,
 	schoolYearId: number,
 	client?: unknown,
-): Promise<{ termIndex: number; contract: LoadedAcademicTermContract }> {
+	options?: AvailabilityTermResolutionOptions,
+): Promise<{ termIndex: number }> {
 	const db = resolveClient(client);
-	const contract = await loadVerifiedOrderedTermContract(schoolId, schoolYearId, db as never);
-	if (!contract) {
-		throw err(409, 'TERM_AUTHORITY_UNRESOLVED', 'No verified ordered term contract is available for this school year, so availability cannot be scoped.');
-	}
-	if (contract.activeTermOrder == null) {
+	const termIndex = await resolveActiveOrderedTermIndexLive(schoolId, schoolYearId, {
+		provider: options?.provider,
+		now: options?.now,
+		client: db,
+	});
+	if (termIndex == null) {
 		throw err(409, 'TERM_AUTHORITY_UNRESOLVED', 'The active ordered term is unresolved, so availability cannot be scoped. Resolve the term authority and retry.');
 	}
-	return { termIndex: contract.activeTermOrder, contract };
+	return { termIndex };
 }
 
 async function assertFacultyInSchool(db: FacultyAvailabilityClient, schoolId: number, facultyId: number): Promise<void> {
@@ -260,9 +283,10 @@ export async function getFacultyAvailability(
 	schoolYearId: number,
 	facultyId: number,
 	client?: unknown,
+	options?: AvailabilityTermResolutionOptions,
 ): Promise<FacultyAvailabilityRecord | null> {
 	const db = resolveClient(client);
-	const { termIndex } = await resolveActiveAvailabilityTermIndex(schoolId, schoolYearId, db);
+	const { termIndex } = await resolveActiveAvailabilityTermIndex(schoolId, schoolYearId, db, options);
 	const row = await db.facultyAvailability.findUnique({
 		where: { schoolId_schoolYearId_facultyId_termIndex: { schoolId, schoolYearId, facultyId, termIndex } },
 		include: { slots: SLOT_SELECT },
@@ -275,6 +299,12 @@ export async function getFacultyAvailability(
  * ordered term, already normalised into the canonical constructor preference
  * shape (`state` → `preference`). When the term authority is unresolved the
  * result is `ok: false` with ZERO rows — generation must fail closed upstream.
+ *
+ * N1 (ACTIVE-TERM-LIVE-RESOLUTION-C01 Stage 1): the generation read stays on
+ * the persisted/network-free path deliberately. Only the availability
+ * read/write authority moves to the live-first resolver, so generation and
+ * publication transactions keep resolving the persisted term. That divergence
+ * is disclosed and is closed by the Stage-2 successor.
  */
 export interface ReviewedAvailabilityRead {
 	ok: boolean;
@@ -432,7 +462,11 @@ export interface SaveAvailabilityInput {
 	version?: number | null;
 }
 
-export async function saveAvailabilityDraft(input: SaveAvailabilityInput, client?: unknown): Promise<FacultyAvailabilityRecord> {
+export async function saveAvailabilityDraft(
+	input: SaveAvailabilityInput,
+	client?: unknown,
+	options?: AvailabilityTermResolutionOptions,
+): Promise<FacultyAvailabilityRecord> {
 	const db = resolveClient(client);
 	const schoolId = positiveInt(input.schoolId, 'schoolId');
 	const schoolYearId = positiveInt(input.schoolYearId, 'schoolYearId');
@@ -440,9 +474,9 @@ export async function saveAvailabilityDraft(input: SaveAvailabilityInput, client
 	const termIndex = assertTermIndexInRange(input.termIndex);
 	const slots = normalizeAvailabilitySlots(input.slots);
 
-	const { termIndex: activeTermIndex } = await resolveActiveAvailabilityTermIndex(schoolId, schoolYearId, db);
+	const { termIndex: activeTermIndex } = await resolveActiveAvailabilityTermIndex(schoolId, schoolYearId, db, options);
 	if (termIndex !== activeTermIndex) {
-		throw err(409, 'TERM_SCOPE_MISMATCH', `termIndex ${termIndex} is not the persisted active term (${activeTermIndex}); availability is written against the active ordered term only.`);
+		throw err(409, 'TERM_SCOPE_MISMATCH', `termIndex ${termIndex} is not the active ordered term (${activeTermIndex}); availability is written against the active ordered term only.`);
 	}
 	await assertFacultyInSchool(db, schoolId, facultyId);
 
@@ -503,7 +537,11 @@ export interface SubmitAvailabilityInput {
 	notes?: string | null;
 }
 
-export async function submitAvailability(input: SubmitAvailabilityInput, client?: unknown): Promise<FacultyAvailabilityRecord> {
+export async function submitAvailability(
+	input: SubmitAvailabilityInput,
+	client?: unknown,
+	options?: AvailabilityTermResolutionOptions,
+): Promise<FacultyAvailabilityRecord> {
 	const db = resolveClient(client);
 	const schoolId = positiveInt(input.schoolId, 'schoolId');
 	const schoolYearId = positiveInt(input.schoolYearId, 'schoolYearId');
@@ -511,7 +549,7 @@ export async function submitAvailability(input: SubmitAvailabilityInput, client?
 	const version = positiveInt(input.version, 'version');
 	const slots = input.slots === undefined ? null : normalizeAvailabilitySlots(input.slots);
 
-	const { termIndex } = await resolveActiveAvailabilityTermIndex(schoolId, schoolYearId, db);
+	const { termIndex } = await resolveActiveAvailabilityTermIndex(schoolId, schoolYearId, db, options);
 	await assertFacultyInSchool(db, schoolId, facultyId);
 
 	// R3 (correction): re-read + version CAS inside the write transaction.
@@ -557,7 +595,11 @@ export interface ReviewAvailabilityInput {
 	reviewerNotes?: string | null;
 }
 
-export async function reviewAvailability(input: ReviewAvailabilityInput, client?: unknown): Promise<FacultyAvailabilityRecord> {
+export async function reviewAvailability(
+	input: ReviewAvailabilityInput,
+	client?: unknown,
+	options?: AvailabilityTermResolutionOptions,
+): Promise<FacultyAvailabilityRecord> {
 	const db = resolveClient(client);
 	const schoolId = positiveInt(input.schoolId, 'schoolId');
 	const schoolYearId = positiveInt(input.schoolYearId, 'schoolYearId');
@@ -568,7 +610,7 @@ export async function reviewAvailability(input: ReviewAvailabilityInput, client?
 		throw err(400, 'INVALID_DECISION', 'decision must be REVIEWED or REJECTED.');
 	}
 
-	const { termIndex } = await resolveActiveAvailabilityTermIndex(schoolId, schoolYearId, db);
+	const { termIndex } = await resolveActiveAvailabilityTermIndex(schoolId, schoolYearId, db, options);
 	// R3 (correction): re-read the row inside the write transaction, then apply
 	// the submitted/version CAS and feasibility gate before the single update.
 	// Every rejection aborts before any write (gate 5 / gate 6).

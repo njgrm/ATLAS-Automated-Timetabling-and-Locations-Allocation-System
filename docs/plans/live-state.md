@@ -188,19 +188,21 @@ ATLAS teacher portal is removed. Plan + cycle queue:
 `docs/plans/teacher-concern-authority-plan-2026-09-24.md`. Full cycle narrative:
 `docs/handoffs/planner-session-handoff.md` (2026-09-25).
 
-**Next action — two lanes:** (1) deploy the scheduler-clarity release `b6687fee` (pending entry above) and
-run its post-cutover QA; (2) a corrective lane `AVAILABILITY-TERM-ALIGNMENT-C01` for the C7 acceptance
-blocker below, then re-run the deferred browser rows (owner **Lane B (Codex)**; handoff
-`docs/handoffs/lane-a-to-lane-b-c7-browser-acceptance-2026-09-25.md`).
+**Next action — deploy + re-run acceptance:** deploy the current tip (carries `SERVER-TIMING-C01`, the
+scheduler-clarity client copy, and the C1 active-term fix) with **no migration**, then re-run the deferred
+C7 browser rows (owner **Lane B (Codex)**; handoff
+`docs/handoffs/lane-a-to-lane-b-c7-browser-acceptance-2026-09-25.md`). The `b6687fee`/`89295c27`
+client-copy rows (audit findings 2, 3, 4, 6, 7 still open) ride the same acceptance.
 
 **Dated blockers / open residuals (verify before acting):**
-- C7 DEPLOYED 2026-09-25 (`066da7a7` LIVE; migration `20260925000002_faculty_availability` applied
-  `MIGRATE_GATE_OK`, count 10→11; post-action QA `ACCEPT_READY` 8/8/0/0). **Acceptance INCOMPLETE** —
-  `passed 0 / blocked 1 / unperformed 3 / NEEDS_SESSION 0`; **BLOCKED (b)** on
-  `409 TERM_SCOPE_MISMATCH`: the S2 concern-workspace client resolves the active term via
-  `resolveActiveSchoolYearContext` while the S1 server writes only against the persisted active term —
-  corrective lane `AVAILABILITY-TERM-ALIGNMENT-C01` (2026-09-25). The `201` incident is closed: no
-  shared-data mutation.
+- C7 (`066da7a7`) **acceptance INCOMPLETE** — `0/1/3/0`; **BLOCKED (b)** on `409 TERM_SCOPE_MISMATCH`
+  (S2 client live T2 vs S1 server frozen persisted T1). Root cause: the persisted active term is **frozen
+  by design** (option A unsatisfiable). **Resolved in source by `ACTIVE-TERM-LIVE-RESOLUTION-C01`**
+  (candidate `72de00da`, QA `ACCEPT_READY` 9/9/0/0): the availability authority now resolves the active
+  term **live-first with a date-derived fallback**; the client already resolves T2, so they agree.
+  **Stage-1 divergence:** generation/publication transactions still resolve the persisted T1 (a live fetch
+  inside Serializable/advisory locks is unsafe) — Stage 2 must pre-resolve at those entry points. Deploy
+  to make it live, then re-run the acceptance. The `201` incident is closed (no shared-data mutation).
 - `resolvePublishedRunTermIndex` resolves official export terms from the base snapshot, not the
   effective identity override (F1) — close before any `orderedTermContract` override is applied live
   (2026-09-25).
@@ -230,3 +232,10 @@ are retained. `E:` 57.9 GiB free.
   Revised options: **(C1) resolve the active term LIVE at read time** in `academic-term.service.ts`
   (correct; moves generation/availability/readiness to T2 together) — recommended; **(B)** align the
   client to the frozen server term (writes T1, a past term) — stopgap only. Packet marked BLOCKED.
+
+**C1 integration (2026-09-25):** `ACTIVE-TERM-LIVE-RESOLUTION-C01` candidate `72de00da` (QA
+`ACCEPT_READY` 9/9/0/0) merged on the integration boundary; merged-tree gates active-term 7/7,
+faculty-availability 12/12, server-suite 323/319/4 (pre-existing `tt-output-c03r`), server build +
+`git diff --check` clean; `atlas-server/package.json` unioned. No migration/deploy/live-data action.
+Stage-2 successor: pre-resolve the active term at the generation/publication entry points and thread it
+into their transactions.
