@@ -2,7 +2,7 @@
 
 **Cycle:** successor reclaim required before the isolated `116a7658` F1/F2 release build. **Base:**
 current `origin/main` before the target record commit. **Trigger:** E: is below the §3 50 GiB warning
-(current preflight 45.71 GiB free; D: 60.67 GiB). Reclaim C was discharged only for the prior
+(current preflight 45.72 GiB free; D: 60.67 GiB). Reclaim C was discharged only for the prior
 `861d89a2` build and is not reused.
 
 **Policy:** keep live `861d89a2`, rollback `eb0e3038`, the second-most-recent accepted release

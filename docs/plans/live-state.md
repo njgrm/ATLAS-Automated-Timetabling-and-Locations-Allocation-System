@@ -214,7 +214,7 @@ resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs
 ## Decisions awaited (operator-facing, as of 2026-09-25)
 
 - Give `37e0c85b` (acceptance owner: Lane B / Codex) and the C7 target an authenticated session (see `AGENTS.md` §12).
-- `E:` reclaim C is **complete (2026-09-25)**: audited removal of `82871619` and `ff87b06b` freed 3.07 GiB; post-action E: was 47.80 GiB free. The §3 reclaim obligation is discharged for the `861d89a2` build only; do not re-run `20260925c` (it is closed at `ACCEPT_READY` 17/17). A **new** release build re-triggers the obligation while E: is below the 50 GiB warning: re-measured **45.72 GiB free on E: and 60.67 GiB on D: on 2026-09-26**, both above the fail-closed lines. The successor reclaim `20260926a` (retire `ad8f9717`) is required for the next single build (`116a7658` F1/F2); because its post-reclaim projection is approximately 47.18 GiB, still below 50, any subsequent build — including `9f42190e` — requires a fresh successor manifest and audit. The current `9f42190e` packet's one-build deviation is therefore not a substitute for a fresh successor reclaim.
+- `E:` reclaim C is **complete (2026-09-25)**: audited removal of `82871619` and `ff87b06b` freed 3.07 GiB; post-action E: was 47.80 GiB free. The §3 reclaim obligation is discharged for the `861d89a2` build only; do not re-run `20260925c` (it is closed at `ACCEPT_READY` 17/17). A **new** release build re-triggers the obligation while E: is below the 50 GiB warning: re-measured **45.72 GiB free on E: and 60.67 GiB on D: on 2026-09-26**, both above the fail-closed lines. The successor reclaim `20260926a` (retire `ad8f9717`) is required for the next single build (`116a7658` F1/F2); because its post-reclaim projection is approximately 47.18 GiB, still below 50, any subsequent build — including `9f42190e` — requires a fresh successor manifest and audit. The current `9f42190e` packet's one-build deviation is therefore not a substitute for a fresh successor reclaim. (The earlier `47.45 GiB` and `49.55 GiB` capacity figures recorded elsewhere in this file, including the `861d89a2` cycle's "current capacity recheck" line, are superseded by this 45.72/60.67 re-measured reading.)
 - Keep or delete two unlanded code branches (both pushed): `work/public-published-view-term-merge-c01`,
   `work/timetable-live-term-authority-c01`.
 
@@ -400,8 +400,9 @@ C02 13/13, PostgreSQL 6/6, C01 8/8, client term-gate 8/8, with the preservation 
 candidate-only failures. The executor handoff and QA addendum are recorded in
 `docs/handoffs/deploy-861d89a2-2026-09-26.md`; the first eb/A1 incident and R1 browser evidence remain preserved
 in their separate handoffs. No migration, generation, publication, availability/Teaching Load write, term-cache
-apply, or rollover sync occurred. Reclaim C is `ACCEPT_READY` 25/25 pre-action and 17/17 post-action; the current
-capacity recheck is 49.55 GiB on E: and 60.67 GiB on D:.
+apply, or rollover sync occurred. Reclaim C is `ACCEPT_READY` 25/25 pre-action and 17/17 post-action; the
+49.55 GiB E: capacity figure in this historical deployment block is superseded by the current 45.72/60.67
+re-measurement above.
 
 **Stage-2 source cycle (2026-09-26):** `ACTIVE-TERM-LIVE-RESOLUTION-C02` candidate `07804498` passed fresh QA
 **8/8/0/0**, integrated as `861d89a2`, and is now the verified live release. It pre-resolves the active term before
