@@ -259,6 +259,7 @@ export const CenterWorkspace = memo(function CenterWorkspace(props: CenterWorksp
 		draftBoard,
 		draft,
 		runs,
+		newDraftLoading,
 		generating,
 		handleTriggerGenerate,
 		entityFilter,
@@ -544,6 +545,12 @@ export const CenterWorkspace = memo(function CenterWorkspace(props: CenterWorksp
 								<p className="text-xs text-muted-foreground">
 									Select a class on the schedule grid first, then open Move, Change room, or Swap from the selection actions to edit it here.
 								</p>
+								{/* LANE-C C03 (B3) — a published schedule is changed from a date, not here. */}
+								{isDraftPublished ? (
+									<p className="text-sm text-foreground" data-testid="timetable-manual-edit-published-note">
+										This schedule is published. Go back to the schedule, click a class, then choose “Choose a new time”, “Change room” or “Swap with another class”. ATLAS checks the change and you pick the date it starts.
+									</p>
+								) : null}
 								{/* UX-R03b correction: navigate instead of setting view state,
 								    so the URL always matches the shown view; the route→view
 								    sync then drives the guarded transition. */}
@@ -784,6 +791,13 @@ export const CenterWorkspace = memo(function CenterWorkspace(props: CenterWorksp
 											</Button>
 										</div>
 									) : null}
+									{/* LANE-C C03 (B9) — an empty draft grid said nothing, so it read
+									    as the published schedule vanishing. Say what this view is. */}
+									{centerView === 'pre-generation' && sandboxGridEntries.length === 0 ? (
+										<p className="mb-3 rounded-md border border-border bg-muted/30 px-3 py-2 text-sm text-muted-foreground" data-testid="timetable-draft-empty-note">
+											Nothing is placed in this draft yet. The draft is a separate working copy: the published schedule is not shown here and does not change. Place classes from the list on the left, or use Generate to build a new version.
+										</p>
+									) : null}
 									<TimetableGrid
 										entries={sandboxGridEntries}
 										timeSlots={timeSlots}
@@ -828,7 +842,10 @@ export const CenterWorkspace = memo(function CenterWorkspace(props: CenterWorksp
 										<CalendarClock className="mx-auto size-10 text-muted-foreground/30" />
 										<p className="text-sm text-muted-foreground" data-testid="timetable-empty-state-message">
 											{centerView === 'pre-generation'
-												? 'Pre-generation draft is empty. Drag sources from the left panel into this grid.'
+												? (newDraftLoading
+													// LANE-C C03 (B9) — while the draft loads, say so instead of "empty".
+													? 'Loading the draft…'
+													: 'Pre-generation draft is empty. Drag sources from the left panel into this grid.')
 												: runs.length === 0
 												? 'No timetable yet. Use the primary action above to begin.'
 												: 'No draft entries in this run'}

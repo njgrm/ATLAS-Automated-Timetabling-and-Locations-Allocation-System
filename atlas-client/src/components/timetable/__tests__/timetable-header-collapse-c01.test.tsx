@@ -554,14 +554,20 @@ test('D2 (failing-first) a published run is dominated by the published lifecycle
 	const published = tagFor(markup, 'timetable-simple-published-state');
 
 	// Generate stays present: two committed contracts require it in the render.
-	assert.match(markup, /<span>Generate<\/span>/, 'Generate remains present in the header render');
+	// SUPERSEDED (LANE-C C03 B4): assert.match(markup, /<span>Generate<\/span>/, 'Generate remains present in the header render');
+	// Beside a published schedule the same control is labelled "New version".
+	assert.match(markup, /<span>New version<\/span>/, 'Generate remains present in the header render');
+	assert.match(markup, /data-testid="timetable-simple-generate-action"/);
 
 	// The published state is the lifecycle primary for a read-only run: an
 	// honest status surface, never an action button.
 	assert.doesNotMatch(published, /^<button\b/, 'the published lifecycle surface is not an action button');
 	assert.match(published, /role="status"/);
 	assert.match(published, /Published/);
-	assert.match(published, /view only/);
+	// SUPERSEDED (LANE-C C03 B4): assert.match(published, /view only/);
+	// A published schedule takes dated changes, so "view only" was untrue.
+	assert.doesNotMatch(published, /view only/);
+	assert.match(published, /Changes start on a date you choose/);
 	assert.equal(solidButtons(markup).length, 0, 'a published run has no filled action');
 
 	// The failing-first assertion: the published lifecycle surface must strictly

@@ -30,21 +30,43 @@ export function applySwapArming(
 	return next;
 }
 
+export const SWAP_ARMED_MESSAGE = 'Swap armed. Choose the first class on the grid, then the second.';
+/** LANE-C C03 — arming from a class the user already selected. */
+export const SWAP_ARMED_FROM_SELECTION_MESSAGE = 'Now choose the class to swap times with.';
+
 export type SwapArmDeps = {
 	setTask: (task: 'swap-sessions') => void;
 	setMode: (mode: 'select-first' | 'select-second' | null) => void;
 	setEntryIdA: (id: string | null) => void;
 	setEntryIdB: (id: string | null) => void;
 	setStatus: (status: { tone: 'loading'; message: string }) => void;
+	/**
+	 * LANE-C C03 — the class already selected on the grid, if any. The
+	 * 2026-09-25 audit found "Swap with another class" on a selected class
+	 * asking the user to pick that same class again as the first class.
+	 */
+	getSelectedEntryId?: () => string | null | undefined;
+	/** Clears the grid selection once it has become the first swap class. */
+	clearSelection?: () => void;
 };
 
 export function createSwapArmHandler(deps: SwapArmDeps): () => SwapArmingState {
 	return () => {
 		deps.setTask('swap-sessions');
+		const selectedEntryId = deps.getSelectedEntryId?.() ?? null;
+		if (selectedEntryId) {
+			const next: SwapArmingState = { mode: 'select-second', entryIdA: selectedEntryId, entryIdB: null };
+			deps.setMode(next.mode);
+			deps.setEntryIdA(next.entryIdA);
+			deps.setEntryIdB(null);
+			deps.clearSelection?.();
+			deps.setStatus({ tone: 'loading', message: SWAP_ARMED_FROM_SELECTION_MESSAGE });
+			return next;
+		}
 		const next = applySwapArming(deps.setMode, deps.setEntryIdA, deps.setEntryIdB);
 		deps.setStatus({
 			tone: 'loading',
-			message: 'Swap armed. Choose the first class on the grid, then the second.',
+			message: SWAP_ARMED_MESSAGE,
 		});
 		return next;
 	};

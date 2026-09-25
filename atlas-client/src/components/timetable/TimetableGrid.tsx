@@ -661,6 +661,8 @@ export const TimetableGrid = memo(function TimetableGrid({
 	timeSlots,
 	violationIndex,
 	highlightedEntryIds,
+	swapClassAEntryId,
+	swapClassBEntryId,
 	teacherDepartureEntryIds,
 	localSandboxChangedEntryIds,
 	localSandboxConflictEntryIds,
@@ -930,6 +932,10 @@ export const TimetableGrid = memo(function TimetableGrid({
 												hasKbSource={hasKbSource}
 												violationIndex={violationIndex}
 												highlightedEntryIds={highlightedEntryIds}
+												// LANE-C C03 (B8) — the grid received the swap picks but never
+												// passed them to its cells, so Class A had no highlight.
+												swapClassAEntryId={swapClassAEntryId}
+												swapClassBEntryId={swapClassBEntryId}
 												teacherDepartureEntryIds={teacherDepartureEntryIds}
 												localSandboxChangedEntryIds={localSandboxChangedEntryIds}
 												localSandboxConflictEntryIds={localSandboxConflictEntryIds}

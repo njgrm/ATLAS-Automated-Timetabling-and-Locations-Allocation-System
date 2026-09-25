@@ -112,13 +112,25 @@ export function SimpleMoreMenuContent({
 						{!runToolsAvailable && <span className="sr-only"> Unavailable: no generated run yet.</span>}
 					</DropdownMenuItem>
 				)}
+				{/* LANE-C C03 (B10) — a disabled entry says why instead of only
+				    greying out; the reason stays readable (full opacity). */}
 				<DropdownMenuItem
-					className="h-9 gap-2 text-xs"
+					className={cn('gap-2 text-xs', context.editHistoryCount === 0 ? 'h-auto min-h-9 items-start py-1.5 data-[disabled]:opacity-100' : 'h-9')}
 					disabled={context.editHistoryCount === 0}
 					onSelect={(event) => { event.preventDefault(); onClose(); context.setShowEditHistory(true); }}
+					data-testid="timetable-more-schedule-history"
 				>
-					<History className="size-3.5" aria-hidden="true" />
-					Schedule history
+					<History className={cn('size-3.5', context.editHistoryCount === 0 && 'mt-0.5 text-muted-foreground')} aria-hidden="true" />
+					{context.editHistoryCount === 0 ? (
+						<span className="flex flex-col">
+							<span className="text-muted-foreground">Schedule history</span>
+							<span className="text-xs text-muted-foreground" data-testid="timetable-more-schedule-history-reason">
+								Nothing to show yet: no class has been moved, swapped or given a new room in this schedule.
+							</span>
+						</span>
+					) : (
+						<span>Schedule history ({context.editHistoryCount})</span>
+					)}
 				</DropdownMenuItem>
 			{/* UX-R03a — policy editing stays Advanced; Simple links to the nested
 			    policy route. The route→view sync drives the existing guarded

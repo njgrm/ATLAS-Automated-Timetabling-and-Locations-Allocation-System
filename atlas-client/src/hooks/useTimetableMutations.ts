@@ -13,6 +13,7 @@ import { requiresFacultyIssueConfirmation, resolveTimetableEntryPivot, resolveVi
 import { decideDraftPlacementReview, type DraftPlacementReviewDecision } from '@/lib/simple-timetable-state';
 import type { PendingSwapAction } from '@/components/timetable/ScheduleReviewWorkspace.constants';
 import type { ActiveSchoolYearContext } from '@/lib/enrollpro-public-settings';
+import { isPublishedDirectEditRefusal, PUBLISHED_DIRECT_EDIT_MESSAGE } from '@/lib/published-entry-change';
 import type {
 	CommitResult,
 	DraftBoardMutationResult,
@@ -943,6 +944,11 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 			return data;
 		} catch (e: unknown) {
 			if (requestSeq !== latestManualPreviewSeqRef.current) return null;
+			// LANE-C C03 (B3) — never show the server's API path for a published run.
+			if (isPublishedDirectEditRefusal(e)) {
+				toast.error(PUBLISHED_DIRECT_EDIT_MESSAGE);
+				return null;
+			}
 			const msg = e instanceof Error ? e.message : 'Preview failed.';
 			toast.error(msg);
 			return null;
@@ -984,7 +990,8 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 			return data;
 		} catch (e: unknown) {
 			const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message ?? (e instanceof Error ? e.message : 'Commit failed.');
-			if (msg.includes('VERSION_CONFLICT') || msg.includes('version conflict')) toast.error('Version conflict - someone else edited this run. Please refresh.');
+			if (isPublishedDirectEditRefusal(e)) toast.error(PUBLISHED_DIRECT_EDIT_MESSAGE);
+			else if (msg.includes('VERSION_CONFLICT') || msg.includes('version conflict')) toast.error('Version conflict - someone else edited this run. Please refresh.');
 			else toast.error(msg);
 			return null;
 		} finally {

@@ -570,16 +570,28 @@ function GatedAction({ disabled, reason, children }: { disabled: boolean; reason
  * its gate-derived disabled state, its truthful aria-label, and the
  * `shouldDispatchSimpleGenerate` guard ahead of dispatch.
  */
+/** LANE-C C03 (B4) — Generate beside a published schedule makes a new version. */
+export const PUBLISHED_GENERATE_LABEL = 'New version';
+export const PUBLISHED_GENERATE_DESCRIPTION = 'Build a new version of the schedule. Teachers keep seeing the published schedule until you publish the new one.';
+
 export function SimpleGenerateAction({
 	disabled,
 	disabledReason,
 	onClick,
+	published = false,
 }: {
 	disabled: boolean;
 	disabledReason: string | null;
 	onClick: () => void;
+	/**
+	 * LANE-C C03 (B4) — on a published schedule a bare "Generate" beside the
+	 * published chip read as "regenerate what teachers see". It builds a new
+	 * version instead, and says so.
+	 */
+	published?: boolean;
 }) {
 	const reason = disabled ? (disabledReason ?? 'Generation is not available for this school year yet.') : null;
+	const name = published ? PUBLISHED_GENERATE_DESCRIPTION : 'Generate schedule';
 	return (
 		<GatedAction disabled={disabled} reason={reason}>
 			<Button
@@ -588,12 +600,12 @@ export function SimpleGenerateAction({
 				size="sm"
 				className="h-8 gap-1.5 px-2.5 text-xs"
 				disabled={disabled}
-				aria-label={reason ? `Generate schedule — ${reason}` : 'Generate schedule'}
+				aria-label={reason ? `${published ? 'Build a new version' : 'Generate schedule'} — ${reason}` : name}
 				onClick={onClick}
 				data-testid="timetable-simple-generate-action"
 			>
 				<Play className="size-3.5" aria-hidden="true" />
-				<span>Generate</span>
+				<span>{published ? PUBLISHED_GENERATE_LABEL : 'Generate'}</span>
 			</Button>
 		</GatedAction>
 	);
@@ -652,20 +664,30 @@ export function SimplePublishAction({
  * published run offers no publish affordance, and re-generating remains the
  * adjacent Generate control.
  */
+/** LANE-C C03 (B4) — what a published schedule allows, in one line. */
+export const PUBLISHED_CHANGE_HINT = 'Changes start on a date you choose';
+
 export function SimplePublishedState({ followUpCount }: { followUpCount: number }) {
+	// LANE-C C03 (B4) — SUPERSEDED: 'Published schedule — view only'. The chip
+	// sat beside Swap and Teacher leaving, which do change a published schedule
+	// (as dated changes), so "view only" was untrue. The chip now says what a
+	// change does instead.
 	const label = followUpCount > 0
 		? `Published schedule — ${followUpCount} follow-up item${followUpCount === 1 ? '' : 's'} remain`
-		: 'Published schedule — view only';
+		: 'Published schedule';
 	return (
 		<div
 			className="flex h-11 min-w-28 shrink-0 items-center gap-1.5 rounded-lg border border-emerald-600 bg-emerald-50 px-3 text-sm font-semibold text-emerald-900"
 			data-testid="timetable-simple-published-state"
 			data-published-follow-ups={followUpCount}
 			role="status"
-			aria-label={label}
+			aria-label={`${label}. ${PUBLISHED_CHANGE_HINT}.`}
 		>
 			<CheckCircle2 className="size-3.5 shrink-0" aria-hidden="true" />
-			<span className="truncate">{label}</span>
+			<span className="flex min-w-0 flex-col leading-tight">
+				<span className="truncate">{label}</span>
+				<span className="truncate text-xs font-normal text-emerald-800" data-testid="timetable-simple-published-hint">{PUBLISHED_CHANGE_HINT}</span>
+			</span>
 		</div>
 	);
 }

@@ -293,3 +293,15 @@ export async function createPublishedSwapRevision(
 	const { data } = await atlasApi.post<RevisionCreateResult>(`${revisionsPath(scope)}/swap`, input);
 	return data;
 }
+
+/**
+ * LANE-C C03 (B3) — schedules any published change (a class moved to a new
+ * time, or given a new room) as an effective-dated revision.
+ */
+export async function createPublishedRevision(
+	scope: RevisionScope,
+	payload: RevisionCreatePayload,
+): Promise<RevisionCreateResult> {
+	const { data } = await atlasApi.post<RevisionCreateResult>(revisionsPath(scope), payload);
+	return data;
+}

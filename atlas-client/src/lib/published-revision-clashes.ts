@@ -157,5 +157,7 @@ export function revisionFailureHint(error: unknown): string {
 	if (code.startsWith('EFFECTIVE_DATE') || code === 'REVISION_EFFECTIVE_DATE_BEFORE_SOURCE') return 'Choose tomorrow or a later school day, then try again.';
 	if (code.startsWith('REVISION_REASON')) return 'Add a short reason (500 characters or fewer), then try again.';
 	if (code === 'SOURCE_REVISION_STALE' || code === 'PUBLISHED_REVISION_INPUTS_STALE') return 'Someone else changed the schedule. Refresh the timetable, then try again.';
+	// LANE-C C03 — a scheduled change already moved this class.
+	if (code === 'REVISION_PREVIOUS_VALUES_STALE') return 'This class already has a scheduled change. Refresh the timetable, then try again.';
 	return 'Nothing was saved. Review the change, then try again.';
 }

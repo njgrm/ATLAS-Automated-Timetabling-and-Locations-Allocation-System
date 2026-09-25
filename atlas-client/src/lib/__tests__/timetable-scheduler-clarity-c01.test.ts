@@ -40,7 +40,10 @@ test('Simple lifecycle labels describe the schedule and next action in plain lan
 	assert.equal(resolveTimetableLoadingIntent('/timetable/setup')?.message,
 		'ATLAS is checking the school year and schedule information. No changes are made by this check.');
 	const published = renderToStaticMarkup(createElement(SimplePublishedState, { followUpCount: 0 }));
-	assert.match(published, /Published schedule — view only/);
+	// SUPERSEDED (LANE-C C03 B4): assert.match(published, /Published schedule — view only/);
+	assert.match(published, />Published schedule</);
+	assert.match(published, /Changes start on a date you choose/);
+	assert.doesNotMatch(published, /view only/);
 	assert.doesNotMatch(published, /Published — read only/);
 	assert.match(source('src/components/timetable/simple/SimpleDriftBanner.tsx'), /Schedule information changed/);
 	assert.match(source('src/lib/simple-timetable-state.ts'), /Checking schedule information…/);

@@ -607,11 +607,14 @@ export function TeacherDepartureRecoverySheetBody({
 
 				{visibleStep === 0 ? (
 				<div className="space-y-2 rounded-lg border border-border bg-muted/20 p-3">
-					<label className="text-sm font-semibold text-foreground" htmlFor="teacher-departure-departing">
+					{/* LANE-C C03 (B11) — the label names the picker button itself. */}
+					<label className="text-sm font-semibold text-foreground" htmlFor="teacher-departure-departing-trigger">
 						Which teacher is leaving?
 					</label>
 					<div id="teacher-departure-departing" data-testid="teacher-departure-departing-select">
 						<SearchableSelect
+							triggerId="teacher-departure-departing-trigger"
+							ariaLabel="Teacher who is leaving"
 							items={facultyOptions}
 							value={departingFacultyId == null ? '' : String(departingFacultyId)}
 							onValueChange={(value) => {
@@ -706,6 +709,7 @@ export function TeacherDepartureRecoverySheetBody({
 									</div>
 									{visibleStep === 2 ? (
 										<SearchableSelect
+											ariaLabel={`Replacement teacher for ${subjectLabel(group.subjectId)} · ${sectionLabel(group.sectionId)}`}
 											items={replacementOptions}
 											value={replacementByGroup[group.key] ?? ''}
 											onValueChange={(value) => {
@@ -729,6 +733,7 @@ export function TeacherDepartureRecoverySheetBody({
 				<div className="flex min-w-0 gap-2 rounded-lg border border-border bg-background p-3">
 					<div className="min-w-0 flex-1" data-testid="teacher-departure-replacement-select">
 						<SearchableSelect
+							ariaLabel="Replacement teacher for every class"
 							items={replacementOptions}
 							value={bulkReplacementId}
 							onValueChange={setBulkReplacementId}
