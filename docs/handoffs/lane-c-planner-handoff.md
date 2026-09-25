@@ -19,6 +19,11 @@ Codex (server work and browser acceptance). You do not deploy. Work in `E:/ATLAS
 
 ## Next actions, in order
 
+> **Update 2026-09-25 (cloud session):** `e8553752` is LIVE (Live release block). Action 1 evidence is read and
+> candidate `c198cd9` is out for QA (`docs/handoffs/lane-c-server-stall-c01.md`). Actions 2 and 3 remain host-only:
+> a cloud session has no `E:` and its branch delete was refused. `work/wonderful-sagan-nhz302` is not fully
+> merged (it carries this file's commit `9f04d4f`); it rides `work/epic-galileo-cw0swp`.
+
 1. **Server stall (the current stream).** Waiting on evidence. Get the supervisor log lines, read-only, from
    whoever holds the host (you, if you run there; else paste to Lane A):
    > Resolve `<sourceDir>` from `schtasks /query /tn ATLAS-Runtime-Supervisor /fo LIST /v`. Load `/timetable` once

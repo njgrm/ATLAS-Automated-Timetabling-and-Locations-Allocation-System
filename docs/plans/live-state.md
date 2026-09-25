@@ -177,16 +177,24 @@ independent startup run (build, Node bound isolated 5198, unauthenticated previe
 `1b371ba`, 914/929); candidate tests 8/8, 12/12, 21/21; server `tsc` exit 0, Node started `dist/server.js` on
 isolated 5198 (health 200, preview 401, stopped); client `vite build` with `VITE_ENROLLPRO_URL` exit 0.
 
-**Deploy requested 2026-09-25:** `e8553752` (built, NOT LIVE as of `main` `1903bc3d`); Lane A deploys, Lane B
-owns browser acceptance (rows in the Risks sections of the three C1–C3 handoffs).
+**C1–C3 LIVE 2026-09-25** in `e8553752` (Live release block). Browser acceptance PARTIAL as of 2026-09-25;
+owner **Lane B (Codex)**, rows in the Risks sections of the three C1–C3 handoffs. (A cloud Lane C session cannot
+reach the Tailnet: proxy 403, 2026-09-25.)
 
-**Current stream: server stall** (audit finding 5, ~8 s shared `/timetable` stall). **Blocked 2026-09-25** on the
-`[event-loop-stall]`/`[slow-request]` supervisor-log lines after one `/timetable` load (host only; the request text
-and the three hypotheses are in `docs/handoffs/lane-c-planner-handoff.md`). **Next action:** read those lines, then
-`work/lane-c-server-stall-c01` with a failing-first test and one fresh QA.
+**Current stream: server stall** (audit finding 5). Evidence read 2026-09-25
+(`docs/handoffs/lane-a-to-lane-c-stall-evidence-2026-09-25.md`): the loop **is** blocked (peak ~7.7 s); pool
+exhaustion ruled out; the blocking request was hidden by open SSE streams filling the stall line. Candidate
+**SERVER-STALL-C01 `c198cd9`** on `work/epic-galileo-cw0swp` (streams counted not listed, `heap=` on stall
+lines; diagnostics only) — handoff `docs/handoffs/lane-c-server-stall-c01.md`. QA `ACCEPT_READY` 5/0/0 (2026-09-25). **Next action:**
+integrate, ship with the next release; then read the stall lines after ≥ 2 h (owner Lane A, host) and open the
+root-cause fix. Separately, `runtime/context` ~4.1 s matches the 4000 ms EnrollPro upstream timeout — needs one
+read-only timed call to the EnrollPro integration endpoints on the host.
 
-**Open (2026-09-25):** retire the integrated Lane C worktrees on the host (list in the handoff); A3, 0 class
-advisers, needs a read-only EnrollPro check.
+**Open (2026-09-25):** retire the integrated Lane C worktrees on the host (list in the planner handoff; a cloud
+session has no `E:`); delete the merged remote branch `claude/wonderful-sagan-nhz302` (the cloud proxy/classifier
+refused it); `work/wonderful-sagan-nhz302` is **not** stale — its commit `9f04d4f` is merged into
+`work/epic-galileo-cw0swp`; delete it after that integrates. A3, 0 class advisers, needs a read-only
+EnrollPro check. E: at 49.91 GiB (below the 50 GiB warn) — release-directory reclaim before the next build.
 
 ## Lane A — current lane (written only by Lane A)
 
