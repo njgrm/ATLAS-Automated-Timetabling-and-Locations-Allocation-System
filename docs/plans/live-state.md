@@ -278,6 +278,51 @@ rather than merged blind — `lib/timetable-plain-language.ts`, `RightPanel.tsx`
 `simple/SimpleMoreMenuContent.tsx`, `simple/SimpleTaskDrawerHelpers.tsx`, and the three modals. J3 (domain
 jargon) is untouched by this lane and remains available to whichever lane does not take it.
 
+**RECONCILIATION MAP (2026-09-26, operator authorised A2 to reconcile) — execute this, do not re-derive it.**
+`9f232cec` (mine, J2 engine tokens, independently QA'd 8/9) and Lane A's `98289573` (J2J3) both sit off
+main, worktrees clean, neither on main. A trial merge produced **13 conflicts in exactly 6 files** and was
+**aborted** rather than half-resolved. Per-file resolution:
+
+1. **`lib/timetable-plain-language.ts`** — the two lanes **independently converged on the same six exports
+   with the same names and values** (`MUST_FIX_LABEL`, `ALL_SERIOUS_PROBLEMS_LABEL`, `mustFixCountLabel`,
+   `publishBlockedSentence`, `HARD_COUNT_RELATIONSHIP_NOTE`, `plainScopeLabel`). Keep those once.
+   **SETTLED 2026-09-26 by inspection: keep OURS in this file, with two grafts from Lane A.**
+   - *Ours is already at parity on the property Lane A's `Record` typing buys.* Our
+     `ROOM_REQUEST_DECISION_STATES: Record<RoomPreferenceDecisionStatus, PlainRoomRequestState>`,
+     `ROOM_REQUEST_SUBMISSION_STATES: Record<RoomPreferenceStatus, …>` and
+     `ROOM_REQUEST_APPEAL_STATES: Record<RoomRequestAppealStatus, string>` are **already
+     compile-enforced-total**, and they are **richer** than Lane A's bare-label maps because each entry
+     carries the `{ label, next }` "what happens next" sentence my QA verified true against
+     `room-preference.service.ts`. Lane A's `plain*` functions return a bare label, which would **lose** the
+     next-step row. **Do not adopt them.**
+   - *Graft 1:* add Lane A's `ALL_SESSIONS_PLACED_LABEL` — genuinely new, no overlap.
+   - *Graft 2:* retype `GENERATION_RUN_STATE_LABELS` from `Record<string, string>` to
+     `Record<GenerationRunStatus, string>` (import the enum as a type). That is the one place Lane A's
+     typing is strictly better, and it makes an incomplete run-status map a compile error. Leave
+     `GENERATION_RUN_KIND_LABELS` as `Record<string, string>` — `runType` is a free-form column, so
+     totality is genuinely not knowable and our `?? 'A different kind of run'` fallback is correct.
+   - *Rejected:* shipping both label sets for the same status. That is the exact C3 defect QA caught
+     (`MUST_FIX_LABEL` on the wrong count, "classes" for sessions) — one concept, one name.
+2. **`atlas-client/package.json`** — union the `test:client-suite` file list (both lanes appended their own
+   test file). Both dedicated scripts (`test:plain-tokens-c04`, `test:plain-language-j2j3-c01`) already sit
+   outside the conflict, so §11 gate-reachability is satisfied either way — but **union the suite**.
+3. **`RightPanel.tsx`**, **`TimetableRunsPane.tsx`**, **`modals/SoftViolationConfirmDialog.tsx`**,
+   **`lib/violation-presentation.ts`** — both lanes did the *same kind* of work (codes, enums, run ids,
+   delta humanising), so prefer the semantically identical union: one humaniser per concept, and **verify
+   no duplicate label for one idea**, which is the exact C3 defect.
+4. **Unshared, keep both as-is:** my 13 J2 files (run anchors, issue-repair guide, assignment dialogs, the
+   two fallback paths, `TimetableSimpleHeader`, `simplePublishReadiness`, my tests) and Lane A's 10 J3 files
+   (`LeftRailContent`, `ScheduleReviewWorkspace.constants.ts`, `GeneratedUnassignedPanel`,
+   `GeneratedRunRailPanels`, `TimetableGridConflictBadge`, `ScheduleReviewWorkspaceSummaryStats`,
+   `useTimetableData`, `TimetableWorkflowDialogs`, their test).
+5. **Then fix the one open BLOCKING finding (D2)** from my QA: restore an honest interim attribution on the
+   manual-edit history row in `modals/TimetableAssignmentDialogs.tsx` — true when only `actorId` exists,
+   never printing a bare number — keeping the `doesNotMatch(/edit\.actorId/)` guards. Server gap
+   (`listManualEdits` has no `actorName`; `RoomRequestAppealHistory` does) stays **owed**.
+6. **Then one fresh independent QA over the whole reconciled range** — Lane A's commit is currently
+   **unreviewed**, and §11 forbids a release shipping source no independent reviewer has seen. Do not push
+   the reconciliation before that verdict. Expect the client suite at **16 failures, zero new**.
+
 **Donor governance (planner ruling after QA D1, 2026-09-26).** The `.vite` write into the frozen donor
 `5c100ea6` was **not** this candidate (the Vite-spawning tests resolve their root from `import.meta.dirname`
 into their own worktree; distinct `configHash` values prove distinct roots; the live release has no `.vite` at
