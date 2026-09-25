@@ -1,7 +1,7 @@
 ---
 description: Bounded ATLAS implementation subagent; edits only its assigned ATLAS worktree and returns one immutable REVIEW_REQUIRED candidate.
 mode: subagent
-model: opencode-go/deepseek-v4.1-flash
+model: opencode-go/space-bunny-free
 variant: high
 temperature: 0.1
 steps: 160

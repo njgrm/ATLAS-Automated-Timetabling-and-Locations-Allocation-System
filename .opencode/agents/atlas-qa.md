@@ -1,7 +1,7 @@
 ---
 description: Fresh independent read-only ATLAS QA verifier for one immutable candidate range; never edits, integrates, or plans.
 mode: subagent
-model: opencode-go/deepseek-v4.1-flash
+model: opencode-go/space-bunny-free
 variant: high
 temperature: 0.0
 steps: 90

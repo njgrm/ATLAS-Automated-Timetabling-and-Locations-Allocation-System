@@ -1,7 +1,7 @@
 ---
 description: Primary ATLAS planner and delivery coordinator; owns planning, bounded corrections, live-state continuity, and ordinary accepted-candidate integration.
 mode: primary
-model: opencode-go/deepseek-v4.1-flash
+model: opencode-go/space-bunny-free
 variant: high
 temperature: 0.1
 steps: 120

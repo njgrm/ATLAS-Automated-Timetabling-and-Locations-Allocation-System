@@ -19,8 +19,8 @@ index) · `docs/reference/agent-verification-gates.md` · `docs/reference/agent-
 
 ## Current state (verified 2026-09-25 by the outgoing planner)
 
-- `origin/main` = **`255fc306`** — docs-only above product tip **`c5e167d7`** (the extra commit is the
-  workflow/cost rule on `docs/context-economy-session-cap`). Live release = **`ad8f9717`** at
+- `origin/main` = `main` tip — docs-only above product tip **`c5e167d7`** (workflow rule `255fc306`, agent
+  re-binding after it). Live release = **`ad8f9717`** at
   `E:\ATLAS-runtime-supervised-ad8f9717-20260925` (Lane C cutover 17:12; 5001→15884 / 5174→86660;
   `/api/v1/health` 200; machine env = target).
 - Applied migrations on `atlas_recovery_clean_rebuild_20260905` (localhost:5432): **11**.
@@ -101,39 +101,31 @@ post-publish); SMART holds a view-only teacher-scoped draft read; the ATLAS teac
 - Migrations: apply only via `npm run migrate:guarded` (never bare Prisma, never reset) after a fresh
   revalidated backup.
 
-## Model transition to `space-bunny-free` — PARTIAL, probably not yet in effect
+## Model transition to `space-bunny-free` — DONE (2026-09-25)
 
 Operator goal: move the paid planning pipeline to the free **`opencode-go/space-bunny-free`**.
 
-**Verified applied (global config):** `~/.config/opencode/agents/atlas-planner.md`, `atlas-qa.md`, and
-`atlas-executor.md` all read `model: opencode-go/space-bunny-free`, and `opencode.jsonc` line 127
-(`agent.plan`) reads `"opencode-go/space-bunny-free"`.
+**Complete:** the global agent files (`~/.config/opencode/agents/atlas-planner.md`, `atlas-qa.md`,
+`atlas-executor.md`) and `opencode.jsonc` line 127 (`agent.plan`) read `opencode-go/space-bunny-free`; and the
+**repo-level** `.opencode/agents/{atlas-planner,atlas-qa,atlas-executor,atlas-wave-auditor}.md` — which
+override the global config for sessions in this repo and previously still bound `deepseek-v4.1-flash` — were
+re-bound to `opencode-go/space-bunny-free` and committed 2026-09-25.
 
-**VERIFY-ON-TAKEOVER — the transition is probably NOT in effect for repo sessions.** The *repo-level*
-`D:\ATLAS\.opencode\agents\{atlas-planner,atlas-qa,atlas-executor,atlas-wave-auditor}.md` (tracked on
-`origin/main`, checked out into every E: worktree) still each bind `model: opencode-go/deepseek-v4.1-flash`,
-and per the permission note below the repo-level files override the global config. Observed: this outgoing
-session loaded `deepseek-v4.1-flash`, not `space-bunny-free`. **To finish the transition, change the
-repo-level `.opencode/agents/*.md` `model:` lines in a worktree and commit them** (writable under
-`D:/ATLAS/**` / `E:/ATLAS-worktrees/**`); the global edit alone does not bind repo sessions. Restart and
-confirm the loaded model id.
+**Verify on takeover:** restart and confirm the loaded model id. The outgoing session still reported
+`deepseek-v4.1-flash` because it ran before this change.
 
-**Also not migrated:** `atlas-executor-delegate.md` and `atlas-qa-delegate.md` are still
-`opencode-go/deepseek-v4.1-flash` (global and repo) — dispatch through the non-delegate roles, or migrate
-them too, or that path keeps spending paid usage.
+**Still on paid DeepSeek:** `atlas-executor-delegate.md` and `atlas-qa-delegate.md` (global-only) remain
+`opencode-go/deepseek-v4.1-flash`, and `compaction` (`opencode.jsonc` 130–133) stays `deepseek-v4.1-flash` /
+`variant: low`. Dispatch through the non-delegate roles, or migrate those too.
 
-**Verify:** `space-bunny-free` is referenced only at `opencode.jsonc` line 127 and is **not** declared in the
-`opencode-go-2` provider `models` block — confirm the id resolves before relying on it.
+**Model availability confirmed:** `space-bunny-free` is advertised by the gateway
+(`https://opencode.ai/zen/go/v1/models`) and present in the local model cache, so the id resolves. Routing
+rule unchanged: default `high`; `max` only for architecture / conflicting candidates / HIGH actions.
 
-`compaction` (`opencode.jsonc` 130–133) stays `opencode-go/deepseek-v4.1-flash` / `variant: low`; switch it
-only if usage pressure continues, accepting that a free model summing long sessions may degrade quality. Keep
-the routing rule: default `high`; `max` only for architecture / conflicting candidates / HIGH actions.
-
-**Permission note (still true):** the repo-level `D:\ATLAS\.opencode\agents\atlas-planner.md` has
-`edit: "*": deny`, which overrides the global allow for `C:/Users/njgro/.config/opencode/**`; `D:/ATLAS/**`
-and `E:/ATLAS-worktrees/**` remain writable. `D:\ATLAS` is currently **dirty** with an uncommitted
-`.opencode/agents/atlas-planner.md` edit (adds the config-dir allow) — do not build on that checkout
-(AGENTS §14); make any intended change from a worktree and commit it.
+**Permission note (still true):** the repo-level `.opencode/agents/atlas-planner.md` has `edit: "*": deny`,
+overriding the global allow for `C:/Users/njgro/.config/opencode/**`; `D:/ATLAS/**` and `E:/ATLAS-worktrees/**`
+remain writable. `D:\ATLAS` is **dirty** with an uncommitted `.opencode/agents/atlas-planner.md` edit (adds the
+config-dir allow) — do not build on that checkout (AGENTS §14); make intended changes from a worktree.
 
 ## Reconcile these stale `live-state.md` lines on takeover (as of 2026-09-25)
 
@@ -146,10 +138,10 @@ and `E:/ATLAS-worktrees/**` remain writable. `D:\ATLAS` is currently **dirty** w
 
 ## Next action
 
-Deploy the tip carrying R1 (product tip `c5e167d7`; `origin/main` `255fc306` is docs-only above it) at the next
+Deploy the tip carrying R1 (product tip `c5e167d7`; `origin/main` is docs-only above it) at the next
 free runtime window. Delta vs live `ad8f9717` = 14 client + 2 server files, **no migration**; rollback basis =
 live at cutover. Order: (1) record the target SHA in the `## Live release` block on `origin/main`; (2) state
 target/delta/rollback/verification and take §13 approval; (3) build the release tree and run `deploy-runner.ps1`
 dry-run then `-Execute`; (4) post-cutover verification + independent post-action QA; (5) Lane A live
-pixel/browser rows. Then decide F7 and the Stage-2 successor. **Separately, finish the model transition above
-before relying on it — the incoming planner is still on the paid binding until the repo-level files change.**
+pixel/browser rows. Then decide F7 and the Stage-2 successor. **Separately, restart and confirm the model
+binding (transition committed above) before relying on it.**

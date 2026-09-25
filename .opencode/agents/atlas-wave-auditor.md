@@ -1,7 +1,7 @@
 ---
 description: Fresh read-only adversarial Wave Completion Auditor for an integrated ATLAS wave; independent second-planner check, never edits or integrates.
 mode: subagent
-model: opencode-go/deepseek-v4.1-flash
+model: opencode-go/space-bunny-free
 variant: high
 temperature: 0.0
 steps: 90
