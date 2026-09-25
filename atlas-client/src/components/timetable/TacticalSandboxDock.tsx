@@ -65,6 +65,12 @@ import {
 	fetchLatestRevisionToken,
 	isSourceRevisionStaleError,
 } from '@/lib/published-revision-client';
+import {
+	describeRevisionClashes,
+	extractRevisionClashes,
+	revisionFailureHint,
+	type PublishedRevisionClash,
+} from '@/lib/published-revision-clashes';
 
 const MAX_RENDERED_TEACHER_CANDIDATES = 30;
 
@@ -155,6 +161,7 @@ export function TacticalSandboxDock({
 	const [revisionSubmitting, setRevisionSubmitting] = useState(false);
 	const [revisionError, setRevisionError] = useState<string | null>(null);
 	const [revisionActionHint, setRevisionActionHint] = useState<string | null>(null);
+	const [revisionClashes, setRevisionClashes] = useState<PublishedRevisionClash[]>([]);
 	const [revisionSuccess, setRevisionSuccess] = useState<RevisionSuccess | null>(null);
 	const [unassignedTargetFacultyId, setUnassignedTargetFacultyId] = useState<number | null>(null);
 	const [selectedPlacementProposal, setSelectedPlacementProposal] = useState<ManualEditProposal | null>(null);
@@ -491,6 +498,7 @@ export function TacticalSandboxDock({
 
 	function openRevisionReview() {
 		setRevisionError(null);
+		setRevisionClashes([]);
 		setRevisionActionHint(null);
 		setRevisionSuccess(null);
 		setRevisionDialogOpen(true);
@@ -561,8 +569,13 @@ export function TacticalSandboxDock({
 				setRevisionActionHint('Another officer may have just published or revised the schedule. Refresh the timetable before creating this revision again.');
 				return;
 			}
-			setRevisionError(response?.message ?? (e instanceof Error ? e.message : 'Revision creation failed.'));
-			setRevisionActionHint(response?.actionHint ?? 'Check the effective date and reason, then try creating the revision again.');
+			// LANE-C POST-PUBLISH-C01: name the clashes; never blame date/reason by default.
+			const clashes = extractRevisionClashes(e);
+			setRevisionClashes(clashes);
+			setRevisionError(clashes.length > 0
+				? 'This change would double-book a teacher, room or class, so nothing was saved.'
+				: response?.message ?? (e instanceof Error ? e.message : 'Revision creation failed.'));
+			setRevisionActionHint(revisionFailureHint(e));
 		} finally {
 			setRevisionSubmitting(false);
 		}
@@ -871,6 +884,7 @@ export function TacticalSandboxDock({
 			onReasonChange={setRevisionReason}
 			error={revisionError}
 			actionHint={revisionActionHint}
+			clashes={describeRevisionClashes(revisionClashes, { facultyLabel, sectionLabel, subjectLabel })}
 			submitting={revisionSubmitting}
 			onSubmit={() => void submitRevision()}
 			subjectLabel={subjectLabel}

@@ -118,6 +118,11 @@ function isFocusableElement(element: HTMLElement): boolean {
 	return element.matches('a[href], button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"]), [role="button"], [role="link"], [role="menuitem"]');
 }
 
+const SWAP_CLASS_A_SELECTED = 'Class A selected. Choose the second class to swap times with.';
+const SWAP_CLASS_B_SAME = 'Choose a different occupied class than Class A.';
+/** Inline prompts that only make sense while swap mode is active. */
+export const SWAP_MODE_STATUS_MESSAGES = new Set([SWAP_CLASS_A_SELECTED, SWAP_CLASS_B_SAME]);
+
 export function useScheduleReviewWorkspaceState() {
 	const navigate = useNavigate();
 	/* -- Data state -- */
@@ -360,6 +365,13 @@ export function useScheduleReviewWorkspaceState() {
 	const [assignPickerPreviewError, setAssignPickerPreviewError] = useState<string | null>(null);
 	const [assignPickerSaving, setAssignPickerSaving] = useState(false);
 	const [inlineActionStatus, setInlineActionStatus] = useState<{ tone: 'loading' | 'success' | 'warning' | 'error'; message: string } | null>(null);
+	// LANE-C POST-PUBLISH-C01: the swap-picking prompts belong to swap mode only.
+	// The 2026-09-25 audit saw "Class A selected…" survive Cancel, closing the
+	// panel, and a route change to Manual Edit.
+	useEffect(() => {
+		if (swapClassTimesMode != null) return;
+		setInlineActionStatus((current) => (current && SWAP_MODE_STATUS_MESSAGES.has(current.message) ? null : current));
+	}, [swapClassTimesMode]);
 	const [lastAutoSaveUndo, setLastAutoSaveUndo] = useState<{
 		/** C11 — which ledger owns this Undo target (`draft` or run manual edits). */
 		ledger: 'run' | 'draft';
@@ -952,13 +964,13 @@ export function useScheduleReviewWorkspaceState() {
 				setSwapClassTimesMode('select-second');
 				setSelectedEntry(null);
 				setSelectedViolation(null);
-				setInlineActionStatus({ tone: 'loading', message: 'Class A selected. Choose the second class to swap times with.' });
+				setInlineActionStatus({ tone: 'loading', message: SWAP_CLASS_A_SELECTED });
 				return;
 			}
 			if (swapClassTimesMode === 'select-second') {
 				const classA = (gridEntries ?? []).find((candidate: ScheduledEntry) => candidate.entryId === swapClassAEntryId);
 				if (!classA || classA.entryId === entry.entryId) {
-					setInlineActionStatus({ tone: 'warning', message: 'Choose a different occupied class than Class A.' });
+					setInlineActionStatus({ tone: 'warning', message: SWAP_CLASS_B_SAME });
 					return;
 				}
 				setSwapClassBEntryId(entry.entryId);
@@ -1917,7 +1929,7 @@ export function useScheduleReviewWorkspaceState() {
 		headerContext.termFilter = effectiveTermFilter;
 		headerContext.hasPublishedReturnState = publishedReturnState.snapshot != null;
 		headerContext.curriculumReadiness = curriculumReadiness;
-		const dialogContext = buildDialogContext({ showUnassignConfirm, setShowUnassignConfirm, setPendingUnassignId, pendingUnassignId, unassignDraftPlacement, showGenerateConfirm, setShowGenerateConfirm, enforceShiftWindows, setEnforceShiftWindows, draftBoardSummary, followUps, confirmGenerate, activeSchoolYearLabel: schoolYearContext?.activeSchoolYearLabel ?? null, schoolYearSource: schoolYearContext?.source ?? null, showResetDraftDialog, setShowResetDraftDialog, openPreGenerationWorkspace, showLeavePreGenDialog, setShowLeavePreGenDialog, pendingCenterSwitch, setPendingCenterSwitch, requestPreview, requestPreviewLoading, setRequestPreview, setSelectedRequestId, setRequestAppeals, setAppealReason, requestPreviewHardConflicts, requestPreviewSoftWarnings, requestAppeals, appealsLoading, isPrivilegedUser, updateAppealStatus, appealReason, appealSubmitting, submitAppeal, requestReviewerNotes, setRequestReviewerNotes, requestReviewSaving, reviewRoomRequest, generating, generationElapsed, showPublishDialog, setShowPublishDialog, publishAcknowledged, setPublishAcknowledged, softCount, publishUnassignedCount: summary?.unassignedCount ?? 0, policy, handlePublishConfirm, captureReviewFocusReturn, restoreReviewFocus, showPreGenConfirm, setShowPreGenConfirm, setPreGenConfirmCtx, setConfirmPreview, setConfirmRawPreview, setConfirmPreviewError, setConfirmAllowSoftOverride, setConfirmAllowDailyOverride, preGenConfirmCtx, confirmFacultyId, setConfirmFacultyId, confirmPreview, confirmRoomId, setConfirmRoomId, facultyMap, roomMap, confirmPreviewLoading, confirmPreviewError, confirmDisplacedPlacement, toast, openSwapPrompt, confirmAllowDailyOverride, confirmSaving, commitConfirmPlacement: wrappedCommitConfirmPlacement, showSwapConfirm, setShowSwapConfirm, setSwapAction, swapAction, formatFacultyInitials, roomLabelShort, subjectLabel, sectionLabel, swapSaving, executeSwapAction, swapPreview, regularSwapPreview, regularSwapPending, setRegularSwapPending, regularSwapSaving, regularSwapStrategy, setRegularSwapStrategy, executeRegularSwap, showSoftConfirm, setShowSoftConfirm, softConfirmWarnings, commitLoading, formatConstraintMessage, setPendingCommitProposal, setPreviewResult, setSoftConfirmWarnings, setDragItem, pendingCommitProposal, commitEdit, showAssignmentPicker, setShowAssignmentPicker, setAssignPickerTarget, assignPickerTarget, assignPickerFacultyId, setAssignPickerFacultyId, assignPickerRoomId, setAssignPickerRoomId, assignPickerPreview, assignPickerPreviewLoading, assignPickerPreviewError, assignPickerSaving, confirmAssignmentPicker, showEditHistory, setShowEditHistory, editHistory, revertEditById, revertLoading, currentRunVersion: draft?.version ?? null });
+		const dialogContext = buildDialogContext({ showUnassignConfirm, setShowUnassignConfirm, setPendingUnassignId, pendingUnassignId, unassignDraftPlacement, showGenerateConfirm, setShowGenerateConfirm, enforceShiftWindows, setEnforceShiftWindows, draftBoardSummary, followUps, confirmGenerate, activeSchoolYearLabel: schoolYearContext?.activeSchoolYearLabel ?? null, schoolYearSource: schoolYearContext?.source ?? null, showResetDraftDialog, setShowResetDraftDialog, openPreGenerationWorkspace, showLeavePreGenDialog, setShowLeavePreGenDialog, pendingCenterSwitch, setPendingCenterSwitch, requestPreview, requestPreviewLoading, setRequestPreview, setSelectedRequestId, setRequestAppeals, setAppealReason, requestPreviewHardConflicts, requestPreviewSoftWarnings, requestAppeals, appealsLoading, isPrivilegedUser, updateAppealStatus, appealReason, appealSubmitting, submitAppeal, requestReviewerNotes, setRequestReviewerNotes, requestReviewSaving, reviewRoomRequest, generating, generationElapsed, showPublishDialog, setShowPublishDialog, publishAcknowledged, setPublishAcknowledged, softCount, publishUnassignedCount: summary?.unassignedCount ?? 0, policy, handlePublishConfirm, captureReviewFocusReturn, restoreReviewFocus, showPreGenConfirm, setShowPreGenConfirm, setPreGenConfirmCtx, setConfirmPreview, setConfirmRawPreview, setConfirmPreviewError, setConfirmAllowSoftOverride, setConfirmAllowDailyOverride, preGenConfirmCtx, confirmFacultyId, setConfirmFacultyId, confirmPreview, confirmRoomId, setConfirmRoomId, facultyMap, roomMap, confirmPreviewLoading, confirmPreviewError, confirmDisplacedPlacement, toast, openSwapPrompt, confirmAllowDailyOverride, confirmSaving, commitConfirmPlacement: wrappedCommitConfirmPlacement, showSwapConfirm, setShowSwapConfirm, setSwapAction, swapAction, formatFacultyInitials, roomLabelShort, subjectLabel, sectionLabel, swapSaving, executeSwapAction, swapPreview, regularSwapPreview, regularSwapPending, setRegularSwapPending, regularSwapSaving, regularSwapStrategy, setRegularSwapStrategy, executeRegularSwap, showSoftConfirm, setShowSoftConfirm, softConfirmWarnings, commitLoading, formatConstraintMessage, setPendingCommitProposal, setPreviewResult, setSoftConfirmWarnings, setDragItem, pendingCommitProposal, commitEdit, showAssignmentPicker, setShowAssignmentPicker, setAssignPickerTarget, assignPickerTarget, assignPickerFacultyId, setAssignPickerFacultyId, assignPickerRoomId, setAssignPickerRoomId, assignPickerPreview, assignPickerPreviewLoading, assignPickerPreviewError, assignPickerSaving, confirmAssignmentPicker, showEditHistory, setShowEditHistory, editHistory, revertEditById, revertLoading, currentRunVersion: draft?.version ?? null, publishedSwapScope: draft && isDraftPublishedStrict(draft) && schoolYearId && runIdNumeric ? { schoolId, schoolYearId, runId: runIdNumeric } : null, onPublishedSwapScheduled: () => { void handleRefresh(); } });
 		dialogContext.canRequestPublication = userRole === 'scheduler';
 		dialogContext.canApprovePublication = userRole === 'scheduler';
 		dialogContext.approvalSchoolId = schoolYearContext?.schoolId ?? null;

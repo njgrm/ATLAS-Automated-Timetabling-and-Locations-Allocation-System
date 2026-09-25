@@ -16,6 +16,8 @@ import {
 import { Input } from '@/ui/input';
 import { Textarea } from '@/ui/textarea';
 import { formatSlot } from './TacticalSandboxDock.helpers';
+import type { DescribedClash } from '@/lib/published-revision-clashes';
+import { PublishedRevisionClashList } from './PublishedRevisionClashList';
 
 type RevisionChange = {
 	entry: ScheduledEntry;
@@ -66,6 +68,8 @@ type PublishedRevisionDialogProps = {
 	withdrawing?: boolean;
 	withdrawSuccess?: { revisionId: number } | null;
 	withdrawError?: string | null;
+	/** LANE-C POST-PUBLISH-C01 — the named clashes of a refused revision. */
+	clashes?: DescribedClash[];
 };
 
 export function PublishedRevisionDialog({
@@ -95,6 +99,7 @@ export function PublishedRevisionDialog({
 	withdrawing = false,
 	withdrawSuccess,
 	withdrawError,
+	clashes = [],
 }: PublishedRevisionDialogProps) {
 	const revisionFeedback = revisionSuccess
 		? {
@@ -104,7 +109,7 @@ export function PublishedRevisionDialog({
 		: error
 			? {
 				tone: 'bad' as const,
-				message: `${error}${actionHint ? ` ${actionHint}` : ' Check the date and reason, then try again.'}`,
+				message: `${error}${actionHint ? ` ${actionHint}` : ''}`,
 			}
 			: submitting
 				? { tone: 'neutral' as const, message: 'Creating the published timetable revision now.' }
@@ -256,6 +261,7 @@ export function PublishedRevisionDialog({
 							{actionHint ? <p className="mt-1 text-xs">{actionHint}</p> : null}
 						</div>
 					) : null}
+					<PublishedRevisionClashList clashes={clashes} heading="These classes would clash:" />
 					{withdrawCandidate ? (
 						<div className="rounded-lg border border-border bg-card p-3" data-testid="published-revision-withdraw">
 							<div className="flex items-center gap-2">

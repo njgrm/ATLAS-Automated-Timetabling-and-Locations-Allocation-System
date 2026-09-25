@@ -38,8 +38,12 @@ test('F1 unpublished copy describes a current-run reassignment and no reversion'
 test('F1 published copy names the revision effective date as the only temporal authority', () => {
 	const copy = describeDepartureRepairTruth(true, 2);
 	assert.match(copy, /published/i);
-	assert.match(copy, /effective-dated revision/i);
-	assert.match(copy, /sole temporal authority/i);
+	// SUPERSEDED by LANE-C POST-PUBLISH-C01 (audit B5 jargon):
+	//   assert.match(copy, /effective-dated revision/i);
+	//   assert.match(copy, /sole temporal authority/i);
+	// Replacement — the same contract in plain words:
+	assert.match(copy, /takes effect only from the start date you choose/i);
+	assert.match(copy, /does not switch back on its own/i);
 	assert.doesNotMatch(copy, /until further notice|end date/i);
 });
 
