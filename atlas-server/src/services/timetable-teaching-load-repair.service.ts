@@ -1110,6 +1110,59 @@ async function applyCanonicalOwnership(
 	}
 }
 
+/**
+ * LANE-C DEPARTURE-LOAD-C05 — a teacher change made on the published timetable
+ * carries its Teaching Load ownership with it. One subject+section moves from
+ * `fromFacultyId` to `toFacultyId`.
+ */
+export type PublishedTeachingLoadTransfer = {
+	subjectId: number;
+	sectionId: number;
+	fromFacultyId: number | null;
+	toFacultyId: number;
+};
+
+function transfersAsRepairChanges(transfers: PublishedTeachingLoadTransfer[]): NormalizedTeachingLoadRepairChange[] {
+	return transfers.map((transfer) => ({
+		kind: 'ENTRY',
+		entryId: `published-transfer:${transfer.subjectId}:${transfer.sectionId}`,
+		subjectId: transfer.subjectId,
+		sectionId: transfer.sectionId,
+		fromFacultyId: transfer.fromFacultyId,
+		toFacultyId: transfer.toFacultyId,
+		ownershipSectionIds: [transfer.sectionId],
+	}));
+}
+
+/** The Teaching Load rows as they will be once the transfers apply (for validation). */
+export function projectFacultySubjectsForTransfers(
+	facultySubjects: Array<{ facultyId: number; subjectId: number; gradeLevels: number[]; sectionIds: number[] }>,
+	transfers: PublishedTeachingLoadTransfer[],
+): Array<{ facultyId: number; subjectId: number; gradeLevels: number[]; sectionIds: number[] }> {
+	return projectFacultySubjects(facultySubjects, transfersAsRepairChanges(transfers));
+}
+
+/** The same department/program receiver authority the Teaching Load repair path enforces. */
+export async function assertTransferReceiversQualified(
+	client: Prisma.TransactionClient,
+	schoolId: number,
+	schoolYearId: number,
+	transfers: PublishedTeachingLoadTransfer[],
+): Promise<void> {
+	await assertReceiversQualified(client, schoolId, schoolYearId, transfersAsRepairChanges(transfers));
+}
+
+/** Writes the ownership transfers inside the caller's transaction. */
+export async function applyPublishedTeachingLoadTransfers(
+	tx: Prisma.TransactionClient,
+	schoolId: number,
+	schoolYearId: number,
+	actorId: number,
+	transfers: PublishedTeachingLoadTransfer[],
+): Promise<void> {
+	await applyCanonicalOwnership(tx, schoolId, schoolYearId, actorId, transfersAsRepairChanges(transfers));
+}
+
 export async function previewTeachingLoadRepair(
 	runId: number,
 	schoolId: number,

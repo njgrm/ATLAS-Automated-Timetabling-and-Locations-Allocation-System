@@ -767,10 +767,15 @@ export function TeacherDepartureRecoverySheetBody({
 							</Button>
 						</div>
 					) : publishedPreviewClean ? (
+						<>
 						<p className="flex items-center gap-1.5 text-xs text-emerald-700" data-testid="teacher-departure-published-check-clean">
 							<CheckCircle2 className="size-3.5 shrink-0" aria-hidden="true" />
 							No clashes. Every replacement teacher is free at these class times.
 						</p>
+						<p className="text-xs text-muted-foreground" data-testid="teacher-departure-load-transfer-note">
+							Scheduling this change also moves these classes to the new teacher in Teaching Load.
+						</p>
+						</>
 					) : publishedPreview ? (
 						<div className="space-y-2">
 							<PublishedRevisionClashList

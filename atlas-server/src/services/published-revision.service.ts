@@ -9,6 +9,13 @@ import { isPromotableConstraintCode } from './scheduling-policy.service.js';
 import { buildValidatorCtx, loadRunContext } from './manual-edit.service.js';
 import { countBlockingHardViolations } from './publication-contract.service.js';
 import { effectiveTermsOverlap, entryTermScope } from './effective-scheduled-resources.js';
+import { refreshTeachingLoadCycle } from './teaching-load-cycle.service.js';
+import {
+	applyPublishedTeachingLoadTransfers,
+	assertTransferReceiversQualified,
+	projectFacultySubjectsForTransfers,
+	type PublishedTeachingLoadTransfer,
+} from './timetable-teaching-load-repair.service.js';
 import {
 	compareGenerationInputSnapshots,
 	computeGenerationInputSnapshot,
@@ -237,6 +244,32 @@ function normalizeReason(reason: string | null | undefined): string {
 		throw err(400, 'REVISION_REASON_TOO_LONG', 'Revision reason must be 500 characters or fewer.');
 	}
 	return normalized;
+}
+
+/**
+ * LANE-C DEPARTURE-LOAD-C05 — the Teaching Load ownership each teacher change
+ * implies: one transfer per subject+section whose class moves to a different
+ * teacher. Cohort and teacherless entries keep their existing Teaching Load
+ * authority (they are validated, never transferred).
+ */
+export function derivePublishedTeachingLoadTransfers(
+	changes: PublishedRevisionEntryChange[],
+	effectiveEntries: Map<string, Record<string, unknown>>,
+): PublishedTeachingLoadTransfer[] {
+	const transfers = new Map<string, PublishedTeachingLoadTransfer>();
+	for (const change of changes) {
+		if (!Object.prototype.hasOwnProperty.call(change.next, 'facultyId')) continue;
+		const toFacultyId = change.next.facultyId;
+		const current = effectiveEntries.get(change.entryId);
+		if (typeof toFacultyId !== 'number' || !current) continue;
+		const fromFacultyId = typeof current.facultyId === 'number' ? current.facultyId : null;
+		const subjectId = current.subjectId;
+		const sectionId = current.sectionId;
+		if (fromFacultyId === toFacultyId || current.entryKind === 'COHORT') continue;
+		if (typeof subjectId !== 'number' || typeof sectionId !== 'number') continue;
+		transfers.set(`${subjectId}:${sectionId}:${toFacultyId}`, { subjectId, sectionId, fromFacultyId, toFacultyId });
+	}
+	return [...transfers.values()];
 }
 
 function normalizeChanges(changes: PublishedRevisionEntryChange[] | null | undefined): PublishedRevisionEntryChange[] {
@@ -542,6 +575,7 @@ async function runPublishedScheduleRevision(
 	type TxOutcome =
 		| { kind: 'committed'; revision: PublishedScheduleRevision; auditId: number; replayed: boolean; validation: PublishedRevisionValidationSummary | null }
 		| { kind: 'preview'; preview: PublishedRevisionPreview };
+	let committedTransferCount = 0;
 	const result = await runSerializablePublicationTransaction(db(), async (tx): Promise<TxOutcome> => {
 		await tx.$executeRawUnsafe('SELECT pg_advisory_xact_lock($1::integer, $2::integer)', input.schoolId, input.schoolYearId);
 
@@ -715,7 +749,33 @@ async function runPublishedScheduleRevision(
 			if (base) mergedEntriesById.set(change.entryId, applyRevisionNextToEntry(base, change.next));
 		}
 		const mergedEntries = [...mergedEntriesById.values()] as unknown as ScheduledEntry[];
-		const mergedValidation = validateHardConstraints(buildValidatorCtx(input.schoolId, input.schoolYearId, input.sourceRunId, mergedEntries, refData));
+		// LANE-C DEPARTURE-LOAD-C05 — a privileged teacher change on the published
+		// timetable is itself the Teaching Load decision. When the new teacher is not
+		// yet authorized for the class's subject+section, the ownership moves to them
+		// in this same transaction, so the change is validated against (and commits)
+		// the Teaching Load it implies. A receiver the Teaching Load already
+		// authorizes transfers nothing, exactly as before.
+		const teachingLoadTransfers = derivePublishedTeachingLoadTransfers(changes, effectiveEntries)
+			.filter((transfer) => !refData.facultySubjects.some((row) => (
+				row.facultyId === transfer.toFacultyId
+				&& row.subjectId === transfer.subjectId
+				&& row.sectionIds.includes(transfer.sectionId)
+			)));
+		if (teachingLoadTransfers.length > 0) {
+			try {
+				await assertTransferReceiversQualified(tx as Prisma.TransactionClient, input.schoolId, input.schoolYearId, teachingLoadTransfers);
+			} catch (error) {
+				if ((error as ServiceError).code !== 'TEACHING_LOAD_QUALIFICATION_MISSING') throw error;
+				throw err(409, 'TEACHING_LOAD_QUALIFICATION_MISSING', 'The replacement teacher is not set up to teach this subject for this class. Choose a teacher from the subject\'s department.', {
+					actionHint: 'Choose a different teacher for these classes.',
+					details: (error as ServiceError).details,
+				});
+			}
+		}
+		const validationRefData = teachingLoadTransfers.length > 0
+			? { ...refData, facultySubjects: projectFacultySubjectsForTransfers(refData.facultySubjects, teachingLoadTransfers) as typeof refData.facultySubjects }
+			: refData;
+		const mergedValidation = validateHardConstraints(buildValidatorCtx(input.schoolId, input.schoolYearId, input.sourceRunId, mergedEntries, validationRefData));
 		const blockingHardViolationCount = countBlockingHardViolations(mergedValidation.violations);
 		const validation = toValidationSummary(mergedValidation.violations, blockingHardViolationCount);
 		const clashes = buildRevisionClashes(mergedValidation.violations, mergedEntriesById, new Set(changedEntryIds));
@@ -786,6 +846,11 @@ async function runPublishedScheduleRevision(
 			},
 		});
 
+		committedTransferCount = teachingLoadTransfers.length;
+		if (teachingLoadTransfers.length > 0) {
+			await applyPublishedTeachingLoadTransfers(tx as Prisma.TransactionClient, input.schoolId, input.schoolYearId, actorId ?? 0, teachingLoadTransfers);
+		}
+
 		const audit = await tx.auditLog.create({
 			data: {
 				schoolId: input.schoolId,
@@ -805,6 +870,7 @@ async function runPublishedScheduleRevision(
 					publishedTruthPreserved: true,
 					blockingHardViolationCount: validation.blockingHardViolationCount,
 					softViolationCount: validation.softViolationCount,
+					teachingLoadTransfers,
 				} as Prisma.InputJsonValue,
 			},
 		});
@@ -812,6 +878,10 @@ async function runPublishedScheduleRevision(
 		return { kind: 'committed', revision, auditId: audit.id, replayed: false, validation };
 	});
 	if (result.kind === 'preview') return result;
+	if (!result.replayed && committedTransferCount > 0) {
+		// Same post-commit refresh the Teaching Load repair path runs after ownership moves.
+		await refreshTeachingLoadCycle(input.schoolId, input.schoolYearId);
+	}
 
 	// Fire notification event after successful commit
 	const affectedFacultyIdsSet = new Set<number>();
