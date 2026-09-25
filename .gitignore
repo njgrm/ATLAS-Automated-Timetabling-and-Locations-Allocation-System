@@ -5,6 +5,7 @@
 !.agents/skills/
 .claude/*
 !.claude/skills/
+!.claude/agents/
 .codex/
 .cursor/
 # AGENTS.md is the tracked, sanitized cross-agent workflow authority.
