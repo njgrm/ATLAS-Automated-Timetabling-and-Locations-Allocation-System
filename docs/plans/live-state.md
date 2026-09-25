@@ -285,14 +285,24 @@ main, worktrees clean, neither on main. A trial merge produced **13 conflicts in
 
 1. **`lib/timetable-plain-language.ts`** — the two lanes **independently converged on the same six exports
    with the same names and values** (`MUST_FIX_LABEL`, `ALL_SERIOUS_PROBLEMS_LABEL`, `mustFixCountLabel`,
-   `publishBlockedSentence`, `HARD_COUNT_RELATIONSHIP_NOTE`, `plainScopeLabel`). Keep those once. Then
-   **keep mine**: `UNLABELLED_RULE_SENTENCE` (the no-raw-code fallback), `roomRequestSubmissionState` (the
-   *submission* enum, which theirs does not map), `runAnchorLabel`, `manualEditActionLabel`,
-   `generationRunKindLabel`; **adopt theirs for the enum maps** — `ROOM_DECISION_STATUS_LABELS`,
-   `ROOM_APPEAL_STATUS_LABELS`, `GENERATION_RUN_STATUS_LABELS` are typed `Record<Enum, string>`, so an
-   incomplete map is a **compile error**; that is strictly stronger than my equivalent functions and directly
-   satisfies QA's "prove the mapping is total" row. Also take their `ALL_SESSIONS_PLACED_LABEL`. Where both
-   provide an enum mapping, keep the `Record` and drop my function twin rather than shipping two.
+   `publishBlockedSentence`, `HARD_COUNT_RELATIONSHIP_NOTE`, `plainScopeLabel`). Keep those once.
+   **SETTLED 2026-09-26 by inspection: keep OURS in this file, with two grafts from Lane A.**
+   - *Ours is already at parity on the property Lane A's `Record` typing buys.* Our
+     `ROOM_REQUEST_DECISION_STATES: Record<RoomPreferenceDecisionStatus, PlainRoomRequestState>`,
+     `ROOM_REQUEST_SUBMISSION_STATES: Record<RoomPreferenceStatus, …>` and
+     `ROOM_REQUEST_APPEAL_STATES: Record<RoomRequestAppealStatus, string>` are **already
+     compile-enforced-total**, and they are **richer** than Lane A's bare-label maps because each entry
+     carries the `{ label, next }` "what happens next" sentence my QA verified true against
+     `room-preference.service.ts`. Lane A's `plain*` functions return a bare label, which would **lose** the
+     next-step row. **Do not adopt them.**
+   - *Graft 1:* add Lane A's `ALL_SESSIONS_PLACED_LABEL` — genuinely new, no overlap.
+   - *Graft 2:* retype `GENERATION_RUN_STATE_LABELS` from `Record<string, string>` to
+     `Record<GenerationRunStatus, string>` (import the enum as a type). That is the one place Lane A's
+     typing is strictly better, and it makes an incomplete run-status map a compile error. Leave
+     `GENERATION_RUN_KIND_LABELS` as `Record<string, string>` — `runType` is a free-form column, so
+     totality is genuinely not knowable and our `?? 'A different kind of run'` fallback is correct.
+   - *Rejected:* shipping both label sets for the same status. That is the exact C3 defect QA caught
+     (`MUST_FIX_LABEL` on the wrong count, "classes" for sessions) — one concept, one name.
 2. **`atlas-client/package.json`** — union the `test:client-suite` file list (both lanes appended their own
    test file). Both dedicated scripts (`test:plain-tokens-c04`, `test:plain-language-j2j3-c01`) already sit
    outside the conflict, so §11 gate-reachability is satisfied either way — but **union the suite**.
