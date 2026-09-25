@@ -1,11 +1,14 @@
-import { memo, useEffect, useMemo, useState } from 'react';
+import { memo, useEffect, useLayoutEffect, useMemo, useState } from 'react';
 import {
+	ArrowRightLeft,
 	BookOpen,
 	CalendarClock,
+	ClipboardCheck,
 	Loader2,
 	MoreHorizontal,
 	RefreshCw,
 	Settings2,
+	UserRoundX,
 	type LucideIcon,
 } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
@@ -25,6 +28,7 @@ import type { ScheduleReviewWorkspaceHeaderContext } from '@/components/timetabl
 import type { TimetableLayoutMode, TimetableSimpleTask } from '@/components/timetable/TimetableSimpleTypes';
 import type { RepairOrigin } from '@/components/timetable/TimetableTaskDrawer';
 import { isRunPublishedStrict } from '@/components/timetable/timetableWorkspaceTruth';
+import { setTimetableEntryReadOnly } from '@/components/timetable/TimetableDraggableEntry';
 import { SimplePublishReadinessSheet } from '@/components/timetable/SimplePublishReadinessSheet';
 import { resolveBlockerDestination, resolvePlacementReasonFilter } from '@/components/timetable/simplePublishReadiness';
 import type { SeverityFilter } from '@/components/timetable/ScheduleReviewWorkspace.constants';
@@ -63,6 +67,10 @@ import { ExportPresentationSettingsDialog } from '@/components/timetable/simple/
 import { SchedulerPrintDialog } from '@/components/timetable/simple/SchedulerPrintDialog';
 import { TimetablePublishedReturnAction } from '@/components/timetable/TimetablePublishedReturnAction';
 import { fetchRolloverStatus, type RolloverStatus } from '@/lib/settings';
+
+// F6 — a layout effect avoids one editable frame on a published run; on the
+// server (static render) it falls back to `useEffect` so no warning is emitted.
+const useIsomorphicLayoutEffect = typeof window !== 'undefined' ? useLayoutEffect : useEffect;
 
 type TimetableSimpleHeaderProps = {
 	context: ScheduleReviewWorkspaceHeaderContext;
@@ -259,6 +267,13 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 	// R6/CP-2: the single strict predicate. Loose `publishedAt`/`publishedBy`
 	// markers on a superseded run must never render published affordances.
 	const isRunPublished = isRunPublishedStrict(draftSummaryRaw);
+
+	// F6 — one publication signal to every grid entry: a published run is
+	// read-only, a draft keeps its edit affordances.
+	useIsomorphicLayoutEffect(() => {
+		setTimetableEntryReadOnly(isRunPublished);
+		return () => setTimetableEntryReadOnly(false);
+	}, [isRunPublished]);
 
 	// One shared capability and generation decision for Simple and Advanced.
 	const capabilities = deriveTimetableCapabilities({
@@ -627,6 +642,69 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 						onOpenDownloadSchedules={() => setPrintPanelOpen(true)}
 					/>
 				) : null}
+
+				{/* F7 — the four daily tasks are labelled header actions, reachable
+				    without opening More. Enablement mirrors the More entries
+				    exactly; the expert tools stay under More. */}
+				<div
+					className="flex min-w-0 flex-wrap items-center gap-1.5"
+					role="group"
+					aria-label="Daily tasks"
+					data-testid="timetable-simple-daily-tasks"
+				>
+					<Button
+						type="button"
+						variant="outline"
+						size="sm"
+						className="h-8 gap-1.5 px-2 text-xs"
+						disabled={!runToolsAvailable}
+						onClick={() => void startTask('place-unresolved')}
+						aria-label="Place unresolved sessions"
+						data-testid="timetable-header-place-unresolved"
+					>
+						<ClipboardCheck className="size-3.5" aria-hidden="true" />
+						Place unresolved
+					</Button>
+					<Button
+						type="button"
+						variant="outline"
+						size="sm"
+						className="h-8 gap-1.5 px-2 text-xs"
+						disabled={!runToolsAvailable}
+						onClick={() => void startTask('swap-sessions')}
+						aria-label="Swap sessions"
+						data-testid="timetable-header-swap-sessions"
+					>
+						<ArrowRightLeft className="size-3.5" aria-hidden="true" />
+						Swap sessions
+					</Button>
+					<Button
+						type="button"
+						variant="outline"
+						size="sm"
+						className="h-8 gap-1.5 px-2 text-xs"
+						disabled={!runToolsAvailable}
+						onClick={openTeacherDeparture}
+						aria-label="Teacher leaving / Reassign load"
+						data-testid="timetable-header-teacher-departure"
+					>
+						<UserRoundX className="size-3.5" aria-hidden="true" />
+						Teacher leaving
+					</Button>
+					<Button
+						type="button"
+						variant="outline"
+						size="sm"
+						className="h-8 gap-1.5 px-2 text-xs"
+						disabled={context.requestPendingCount === 0}
+						onClick={openRequestsTask}
+						aria-label={`Review room requests${context.requestPendingCount > 0 ? ` (${context.requestPendingCount})` : ''}`}
+						data-testid="timetable-header-review-requests"
+					>
+						<ClipboardCheck className="size-3.5" aria-hidden="true" />
+						Room requests{context.requestPendingCount > 0 ? ` (${context.requestPendingCount})` : ''}
+					</Button>
+				</div>
 
 				{/* A3/C6 — the single action cluster: one lifecycle-derived primary,
 				    the secondary Generate, and the More disclosure. C6 — on the

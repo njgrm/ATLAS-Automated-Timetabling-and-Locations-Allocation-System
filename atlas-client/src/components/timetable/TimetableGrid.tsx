@@ -1,6 +1,6 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import type { ReactNode, TdHTMLAttributes } from 'react';
-import { AlertCircle, AlertTriangle, ArrowRightLeft, Flag, GripVertical, Plus } from 'lucide-react';
+import { AlertCircle, ArrowRightLeft, Flag, GripVertical, Plus } from 'lucide-react';
 import { useDroppable } from '@dnd-kit/core';
 import { toast } from 'sonner';
 
@@ -14,8 +14,8 @@ import { Button } from '@/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip';
 import { EMPTY_SCHEDULED_ENTRIES, getEntrySeverity, TIMETABLE_DAY_SHORT, TIMETABLE_DAYS } from '@/components/timetable/TimetableGrid.constants';
 import { TimetableCellOverflowSheet } from '@/components/timetable/TimetableCellOverflowSheet';
-import { ConflictBadgeWithTooltip } from '@/components/timetable/TimetableGridConflictBadge';
-import { DraggableEntry } from '@/components/timetable/TimetableDraggableEntry';
+import { ConflictBadgeWithTooltip, EntrySeverityIndicator } from '@/components/timetable/TimetableGridConflictBadge';
+import { DraggableEntry, useTimetableEntryReadOnly } from '@/components/timetable/TimetableDraggableEntry';
 import { SandboxEntryBadge, TeacherDepartureEntryBadge } from '@/components/timetable/TimetableGridEntryBadges';
 
 /**
@@ -85,6 +85,8 @@ interface GridCellProps {
 	onNavToRoom: (id: number) => void;
 	onReassignTeacher?: (entry: ScheduledEntry) => void;
 	simpleMode?: boolean;
+	/** F6 — a published run is read-only presentation; a draft keeps edit affordances. */
+	readOnly?: boolean;
 }
 
 type ActiveDragCellState = {
@@ -174,6 +176,7 @@ const GridCell = memo(function GridCell({
 	onNavToRoom,
 	onReassignTeacher,
 	simpleMode = false,
+	readOnly = false,
 }: GridCellProps) {
 	const { isOver, info } = useGridCellDragState(cellId);
 	const [isKbHovered, setIsKbHovered] = useState(false);
@@ -364,7 +367,7 @@ const GridCell = memo(function GridCell({
 		>
 			{ceremonyOverlayWithClass && (
 				<div
-					className="mb-0.5 flex items-center gap-1 rounded-sm bg-amber-100 px-1 py-0.5 text-[0.6rem] font-semibold leading-none text-amber-800"
+					className="mb-0.5 flex items-center gap-1 rounded-sm bg-amber-100 px-1 py-0.5 text-xs font-semibold leading-none text-amber-800"
 					data-testid="timetable-ceremony-overlay-label"
 				>
 					<Flag className="size-2.5 shrink-0" aria-hidden="true" />
@@ -391,7 +394,7 @@ const GridCell = memo(function GridCell({
 					data-placement-state={placementLabel.text.toLowerCase()}
 				>
 					<placementLabel.Icon className="size-3" aria-hidden="true" />
-					<span className="text-[0.6rem] font-semibold leading-none">{placementLabel.text}</span>
+					<span className="text-xs font-semibold leading-none">{placementLabel.text}</span>
 				</div>
 			)}
 			<div className="space-y-0.5 min-h-6 overflow-hidden">
@@ -404,6 +407,10 @@ const GridCell = memo(function GridCell({
 					const severity = rawSeverity && (reviewEntryIds == null || reviewEntryIds.has(entry.entryId))
 						? rawSeverity
 						: null;
+					// F3 — the truthful reasons behind the entry's severity marker.
+					const severityReasons = severity
+						? (violationIndex.get(entry.entryId) ?? []).filter((violation) => violation.severity === severity).map((violation) => violation.message).filter(Boolean)
+						: [];
 					const isHighlighted = highlightedEntryIds.has(entry.entryId);
 					const isTeacherDepartureAffected = teacherDepartureEntryIds?.has(entry.entryId) ?? false;
 					const isSandboxChanged = localSandboxChangedEntryIds?.has(entry.entryId) ?? false;
@@ -451,8 +458,11 @@ const GridCell = memo(function GridCell({
 							key={entry.entryId}
 							entryId={entry.entryId}
 							entryData={entryData}
-							role="button"
-							aria-label={`Select ${entrySubjectLabel} for ${entrySectionLabel}, ${entryDayLabel} ${entryTimeLabel}`}
+							readOnly={readOnly}
+							role={readOnly ? undefined : 'button'}
+							aria-label={readOnly
+								? `${entrySubjectLabel} for ${entrySectionLabel}, ${entryDayLabel} ${entryTimeLabel}`
+								: `Select ${entrySubjectLabel} for ${entrySectionLabel}, ${entryDayLabel} ${entryTimeLabel}`}
 							data-timetable-entry="true"
 							data-timetable-entry-id={entry.entryId}
 							data-subject-id={entry.subjectId}
@@ -460,7 +470,7 @@ const GridCell = memo(function GridCell({
 							data-section-id={entry.sectionId}
 							data-section-label={entrySectionLabel}
 							data-faculty-id={entry.facultyId ?? ''}
-							onClick={(event) => {
+							onClick={readOnly ? undefined : (event) => {
 								if (hasKbSource) {
 									event.stopPropagation();
 									onKbPlace(day, startTime, endTime);
@@ -469,7 +479,7 @@ const GridCell = memo(function GridCell({
 								event.stopPropagation();
 								onEntryClick(entry);
 							}}
-							onKeyDown={(event) => {
+							onKeyDown={readOnly ? undefined : (event) => {
 								if (event.key === 'Enter' || event.key === ' ') {
 									event.preventDefault();
 									onEntryClick(entry);
@@ -477,13 +487,13 @@ const GridCell = memo(function GridCell({
 							}}
 							className={cn(
 								simpleMode
-									? 'min-h-11 w-full text-left rounded-lg border px-2.5 py-1.5 text-xs leading-tight transition-colors cursor-pointer active:cursor-grabbing hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1 select-none'
-									: 'min-h-10 w-full text-left rounded border px-2 py-1 text-xs leading-tight transition-colors cursor-pointer active:cursor-grabbing hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1 select-none',
+									? `min-h-11 w-full text-left rounded-lg border px-2.5 py-1.5 text-sm leading-tight transition-colors hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1 select-none ${readOnly ? 'cursor-default' : 'cursor-pointer active:cursor-grabbing'}`
+									: `min-h-10 w-full text-left rounded border px-2 py-1 text-sm leading-tight transition-colors hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1 select-none ${readOnly ? 'cursor-default' : 'cursor-pointer active:cursor-grabbing'}`,
 								cellClass
 							)}
 						>
-							<div className="font-semibold text-xs truncate flex items-center gap-1">
-								<GripVertical className="size-2.5 text-muted-foreground/40 shrink-0" />
+							<div className="font-semibold text-sm truncate flex items-center gap-1">
+								{readOnly ? null : <GripVertical className="size-2.5 text-muted-foreground/40 shrink-0" />}
 								<span className="min-w-0 flex-1 truncate">{entrySubjectLabel}</span>
 								{entryTermLabel ? (
 									<span
@@ -494,12 +504,9 @@ const GridCell = memo(function GridCell({
 										{entryTermLabel}
 									</span>
 								) : null}
-								{severity === 'HARD' && (
-									<AlertCircle className="size-3.5 shrink-0 text-red-500" />
-								)}
-								{severity === 'SOFT' && (
-									<AlertTriangle className="size-3.5 shrink-0 text-amber-500" />
-								)}
+								{severity ? (
+									<EntrySeverityIndicator severity={severity} reasons={severityReasons} />
+								) : null}
 								{entry.entryKind === 'COHORT' && entry.cohortCode && (
 									<span className="rounded bg-sky-100 px-1 py-0.5 text-xs font-bold uppercase tracking-wide text-sky-700 shrink-0">
 										{entry.cohortCode}
@@ -507,9 +514,15 @@ const GridCell = memo(function GridCell({
 								)}
 								{isSandboxChanged && <SandboxEntryBadge />}
 								{isTeacherDepartureAffected && <TeacherDepartureEntryBadge />}
-								{isSandboxConflict && <AlertCircle className="size-2.5 shrink-0 text-red-600 shrink-0" />}
+								{isSandboxConflict && (
+									<span role="img" aria-label="Sandbox conflict" className="inline-flex shrink-0">
+										<AlertCircle className="size-2.5 text-red-600" aria-hidden="true" />
+									</span>
+								)}
 								{isFollowUp && (
-									<Flag className="size-2.5 text-amber-500 fill-amber-500 shrink-0" />
+									<span role="img" aria-label="Marked for follow-up" className="inline-flex shrink-0">
+										<Flag className="size-2.5 text-amber-500 fill-amber-500" aria-hidden="true" />
+									</span>
 								)}
 							</div>
 							{(() => {
@@ -542,7 +555,7 @@ const GridCell = memo(function GridCell({
 										<Tooltip>
 											<TooltipTrigger asChild>
 												<p
-													className="truncate text-xs font-medium text-muted-foreground/80 mt-0.5"
+													className="truncate text-sm font-medium text-muted-foreground/80 mt-0.5"
 													data-testid="timetable-cell-detail"
 													data-cell-term={entry.termIndex ?? ''}
 													data-cell-teacher={teacherText}
@@ -577,7 +590,7 @@ const GridCell = memo(function GridCell({
 						Show {cellEntries.length - 2} more class{cellEntries.length - 2 === 1 ? '' : 'es'}
 						{hiddenAffectedCount > 0 ? (
 							<span
-								className="ml-auto rounded bg-violet-100 px-1 text-[0.65rem] font-semibold text-violet-700"
+								className="ml-auto rounded bg-violet-100 px-1 text-xs font-semibold text-violet-700"
 								data-testid="teacher-departure-hidden-cell-badge"
 							>
 								{hiddenAffectedCount} need teacher
@@ -861,6 +874,9 @@ export const TimetableGrid = memo(function TimetableGrid({
 	}, [entries]);
 
 	const hasKbSource = kbSelectedSource !== null;
+	// F6 — the header publishes the run's publication state here; a published run
+	// renders read-only entries, a draft keeps its edit affordances.
+	const readOnly = useTimetableEntryReadOnly();
 	// A2 — one ordered-term label resolver for the `All terms` scope. Falls back
 	// to plain "Term N" language rather than an enum code when the option is absent.
 	const termLabelFor = useMemo(() => {
@@ -888,7 +904,7 @@ export const TimetableGrid = memo(function TimetableGrid({
 	return (
 		<TooltipProvider>
 			<GridDropContainer>
-				<table aria-label="Timetable" className="w-full table-fixed border-collapse text-xs min-w-160">
+				<table aria-label="Timetable" className="w-full table-fixed border-collapse text-sm min-w-160">
 					<thead>
 						<tr>
 							<th className="w-20 px-2 py-2 text-left text-muted-foreground font-medium border-b border-border">
@@ -909,7 +925,7 @@ export const TimetableGrid = memo(function TimetableGrid({
 							const rowKey = `${slot.startTime}-${slot.endTime}`;
 							return (
 								<tr key={rowKey} className="border-b border-border/50">
-									<td className="px-2 py-1.5 text-muted-foreground whitespace-nowrap font-mono text-xs align-top">
+									<td className="px-2 py-1.5 text-muted-foreground whitespace-nowrap font-mono text-sm align-top">
 										{formatTime(slot.startTime)}
 										<br />
 										<span className="opacity-50">{formatTime(slot.endTime)}</span>
@@ -964,6 +980,7 @@ export const TimetableGrid = memo(function TimetableGrid({
 												onNavToRoom={onNavToRoom}
 												onReassignTeacher={onReassignTeacher}
 												simpleMode={simpleMode}
+												readOnly={readOnly}
 											/>
 										);
 									})}

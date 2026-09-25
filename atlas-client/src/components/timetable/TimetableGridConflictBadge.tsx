@@ -3,8 +3,57 @@ import { AlertCircle, AlertTriangle } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
 import { Button } from '@/ui/button';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip';
 import type { CellConflictInfo } from '@/types';
+
+/**
+ * UX-AUDIT-FINDINGS-C01 (F3) — the per-entry severity indicator. Before this,
+ * the entry warning triangle was a bare icon with no accessible name and no
+ * explanation. The indicator now carries a truthful accessible name (the actual
+ * violation messages) and discloses them through a `@/ui` Tooltip on both hover
+ * and keyboard focus. Never a native `title` or `<details>` (AGENTS.md §8).
+ */
+export const EntrySeverityIndicator = memo(function EntrySeverityIndicator({
+	severity,
+	reasons,
+}: {
+	severity: 'HARD' | 'SOFT';
+	reasons: readonly string[];
+}) {
+	const heading = severity === 'HARD' ? 'Hard conflict' : 'Warning';
+	const accessibleName = reasons.length > 0 ? `${heading}: ${reasons.join('; ')}` : heading;
+	return (
+		<TooltipProvider delayDuration={200}>
+			<Tooltip>
+				<TooltipTrigger asChild>
+					<span
+						role="img"
+						aria-label={accessibleName}
+						tabIndex={0}
+						data-testid="timetable-entry-severity-indicator"
+						data-severity={severity.toLowerCase()}
+						className={cn(
+							'inline-flex shrink-0 items-center justify-center rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1',
+							severity === 'HARD' ? 'text-red-500' : 'text-amber-500',
+						)}
+					>
+						{severity === 'HARD'
+							? <AlertCircle className="size-3.5" aria-hidden="true" />
+							: <AlertTriangle className="size-3.5" aria-hidden="true" />}
+					</span>
+				</TooltipTrigger>
+				<TooltipContent side="top" className="z-100 max-w-64 space-y-1 p-2 text-xs">
+					<p className={cn('font-semibold', severity === 'HARD' ? 'text-red-700' : 'text-amber-700')}>{heading}</p>
+					{reasons.length > 0
+						? reasons.map((reason, reasonIndex) => (
+							<p key={reasonIndex} className="text-muted-foreground">{reason}</p>
+						))
+						: <p className="text-muted-foreground">Open the review list for the full detail.</p>}
+				</TooltipContent>
+			</Tooltip>
+		</TooltipProvider>
+	);
+});
 
 /**
  * TIMETABLE-RELAXED-MAIN-C01 — the grid's per-cell hard/soft conflict badge,
