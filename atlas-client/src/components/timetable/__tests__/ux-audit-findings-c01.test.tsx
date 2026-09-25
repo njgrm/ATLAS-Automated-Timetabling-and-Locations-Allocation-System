@@ -270,7 +270,10 @@ test('F6: the grid drives read-only from publication state, not CSS', () => {
 	assert.match(entry, /disabled: readOnly/, 'dnd-kit dragging is disabled when read-only');
 	assert.match(entry, /data-read-only="true"/, 'the read-only entry is marked');
 	const header = source('src/components/timetable/TimetableSimpleHeader.tsx');
-	assert.match(header, /setTimetableEntryReadOnly\(isRunPublished\)/, 'the header publishes its isRunPublished state to the grid');
+	assert.doesNotMatch(header, /setTimetableEntryReadOnly/, 'publication state is not owned by the Simple-only header');
+	const workspace = source('src/components/timetable/ScheduleReviewWorkspace.tsx');
+	assert.match(workspace, /isDraftPublishedStrict\(state\.draft\)/, 'the shared workspace keeps the strict publication predicate');
+	assert.match(workspace, /useLayoutEffect\(\(\) => \{\s*setTimetableEntryReadOnly\(isDraftPublished\)/, 'the shared owner publishes the signal before paint for Simple and Advanced');
 });
 
 /* ── F7 — header density stays calm; daily work remains in More ─────────── */

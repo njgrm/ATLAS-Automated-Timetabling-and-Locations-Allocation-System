@@ -1,4 +1,4 @@
-import { memo, useEffect, useLayoutEffect, useMemo, useState } from 'react';
+import { memo, useEffect, useMemo, useState } from 'react';
 import {
 	BookOpen,
 	CalendarClock,
@@ -25,7 +25,6 @@ import type { ScheduleReviewWorkspaceHeaderContext } from '@/components/timetabl
 import type { TimetableLayoutMode, TimetableSimpleTask } from '@/components/timetable/TimetableSimpleTypes';
 import type { RepairOrigin } from '@/components/timetable/TimetableTaskDrawer';
 import { isRunPublishedStrict } from '@/components/timetable/timetableWorkspaceTruth';
-import { setTimetableEntryReadOnly } from '@/components/timetable/TimetableDraggableEntry';
 import { SimplePublishReadinessSheet } from '@/components/timetable/SimplePublishReadinessSheet';
 import { resolveBlockerDestination, resolvePlacementReasonFilter } from '@/components/timetable/simplePublishReadiness';
 import type { SeverityFilter } from '@/components/timetable/ScheduleReviewWorkspace.constants';
@@ -64,10 +63,6 @@ import { ExportPresentationSettingsDialog } from '@/components/timetable/simple/
 import { SchedulerPrintDialog } from '@/components/timetable/simple/SchedulerPrintDialog';
 import { TimetablePublishedReturnAction } from '@/components/timetable/TimetablePublishedReturnAction';
 import { fetchRolloverStatus, type RolloverStatus } from '@/lib/settings';
-
-// F6 — a layout effect avoids one editable frame on a published run; on the
-// server (static render) it falls back to `useEffect` so no warning is emitted.
-const useIsomorphicLayoutEffect = typeof window !== 'undefined' ? useLayoutEffect : useEffect;
 
 type TimetableSimpleHeaderProps = {
 	context: ScheduleReviewWorkspaceHeaderContext;
@@ -264,13 +259,6 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 	// R6/CP-2: the single strict predicate. Loose `publishedAt`/`publishedBy`
 	// markers on a superseded run must never render published affordances.
 	const isRunPublished = isRunPublishedStrict(draftSummaryRaw);
-
-	// F6 — one publication signal to every grid entry: a published run is
-	// read-only, a draft keeps its edit affordances.
-	useIsomorphicLayoutEffect(() => {
-		setTimetableEntryReadOnly(isRunPublished);
-		return () => setTimetableEntryReadOnly(false);
-	}, [isRunPublished]);
 
 	// One shared capability and generation decision for Simple and Advanced.
 	const capabilities = deriveTimetableCapabilities({
