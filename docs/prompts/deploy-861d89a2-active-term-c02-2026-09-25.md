@@ -34,24 +34,33 @@ authorized.
 1. Re-derive task action, machine source/release, active supervisor state, and 5001/5174 listener
    lineage read-only. Require the exact incumbent; return `PACKET_STALE` before mutation on drift.
 2. Recheck capacity (E warns <50 GiB/fails <25; D warns <25/fails <15), target path, and donor
-   existence/cleanliness/no borrower/non-reparse dependency trees/lockfile equality. If E is below
-   50 GiB, stop before creating the release and run the audited retention reclaim; do not build until
-   the post-reclaim capacity is rechecked.
+   existence/cleanliness/no borrower/non-reparse dependency trees/lockfile equality. The §3 release-
+   directory retention obligation is **already discharged for this exact packet revision**: frozen
+   manifest `docs/reviews/runtime-dir-retention-20260925c/manifest.md`, base `b7cd0ea6`, pre-action
+   25/25 and post-action 17/17, recorded E: at approximately 47.67–47.80 GiB — still below the 50 GiB
+   warning and far above the 25 GiB fail-closed line — and concluded the release build is unblocked
+   by capacity. **Do not run a second reclaim**: no reclaim compliant with that keep set can reach
+   50 GiB, so the trigger would be self-rearming. Re-measure and record E:/D: free at this step, and
+   return `PACKET_STALE` before mutation only if E is below 25 GiB or D below 15 GiB.
 3. Add the exact detached target worktree. Copy donor root/server/client `node_modules` as real
    directories using the frozen donor procedure; no `npm ci`, implicit `npx`, or junction chain.
 4. Run `npx --no-install prisma generate --schema ../prisma/schema.prisma`, server build,
    `test:active-term-live-resolution-c02` (13/13), `test:active-term-live-resolution-c02-postgres`
-   (6/6), `test:active-term-live-resolution` (8/8), and the 18-file server preservation subset
-   (196/196). The named preservation files are
-   `tt-source-freshness-generation-c04`, `tt-source-freshness-capability-c04`,
-   `tt-source-freshness-quick-place-c04`, `tt-source-freshness-sync-pin-c04`,
-   `publication-contract-readiness`, `published-revision-identity`, `published-identity-readback`,
-   `published-swap-term`, `publication-contract-postgres-concurrency`,
-   `term-contract-atlas-consumption-c02`, `term-subject-authority`,
-   `generation-authority-realism-c07-term-authority`, and the C01 supersession file. Run the client
-   term-gate preservation set and record its exact base-identical tally. Run client typecheck/build
-   with the literal `VITE_ENROLLPRO_URL=https://dev-jegs.buru-degree.ts.net` build guard even though
-   no client source changed.
+   (6/6), `test:active-term-live-resolution` (8/8), and the 13-file server preservation subset:
+   `atlas-server/src/__tests__/tt-source-freshness-generation-c04.test.ts`,
+   `tt-source-freshness-capability-c04.test.ts`, `tt-source-freshness-quick-place-c04.test.ts`,
+   `tt-source-freshness-sync-pin-c04.test.ts`, `publication-contract-readiness.test.ts`,
+   `published-revision-identity-s4.test.ts`, `published-identity-readback-s4-client.test.ts`,
+   `published-swap-term-guard-c04.test.ts`, `publication-contract-postgres-concurrency.test.ts`,
+   `term-contract-atlas-consumption-c02.test.ts`, `term-subject-authority.test.ts`,
+   `generation-authority-realism-c07-term-authority.test.ts`, and
+   `active-term-live-resolution-c01.test.ts` (the C01 supersession file). **No fixed preservation
+   total is asserted**: record the literal command and exact tally observed, separating reproduced
+   base failures. Run the client term-gate set
+   `atlas-client/src/lib/__tests__/timetable-term-gate-c01.test.ts` and record its exact
+   base-identical tally. Run client typecheck/build with the literal
+   `VITE_ENROLLPRO_URL=https://dev-jegs.buru-degree.ts.net` build guard even though no client source
+   changed.
 5. Start the built target server directly on isolated port 5198 with `PORT=5198` and
    `ROLLOVER_AUTO_SYNC_ENABLED=false` explicitly set in the child environment. A direct start bypasses
    the supervisor, so the runtime-contract invariant is not applied; without the explicit flag the
@@ -88,7 +97,7 @@ One fresh read-only `atlas-qa` closes all rows with a real passed/blocked/unperf
 | Q4 | Deployed active-term behavior | With the operator-seeded QA session, make exactly two authenticated `GET /api/v1/generation/1/10/readiness/diagnostic` calls from a non-timetable same-origin page. Assert 200, school 1/year 10, `ran=true`, `zeroWrite=true`, first `cached=false`, second `cached=true`; record timings/log window. No login, no `/timetable` navigation, no extra readiness call. `NEEDS_SESSION` blocks rather than substituting a claim. |
 | Q5 | Startup evidence | Target log records target start, listeners, DB/schema checks, and no fatal startup/listener/schema error. |
 | Q6 | Zero live-data write | Run the exact SQL in the Zero-write SQL section below through the durable env without printing values; record the literal command, database name, and serialization. Pre/post digests must match before Q4/browser activity. |
-| Q7 | Focused controls | Independently rerun C02 13/13, C02 PostgreSQL 6/6, C01 8/8, the 18-file server preservation subset 196/196, the named term/publication/source-freshness files listed in step 4, and the client term-gate preservation set; report base-only failures separately. |
+| Q7 | Focused controls | Independently rerun C02 13/13, C02 PostgreSQL 6/6, C01 8/8, the 13 named server preservation files listed in step 4, and the client term-gate set `timetable-term-gate-c01`; record the literal command and exact tally observed for each set, and report base-only failures separately. |
 | Q8 | Acceptance honesty | `ACCEPT_READY` only if every row passed, `passed == total`, `blocked: 0`, `unperformed: 0`; this is deployment acceptance, not generation/publication acceptance. |
 
 ## Zero-write SQL
