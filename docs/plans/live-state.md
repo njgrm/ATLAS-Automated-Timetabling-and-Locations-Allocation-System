@@ -312,5 +312,6 @@ Stage-2 fix live; deployment, generation, publication, and live-data actions rem
   route smoke fixture remains a D6 cleanup follow-up as of 2026-09-25.
 
 **Custody / workspace (2026-09-25):** Lane A owns the seeded browser profile and this docs worktree
-`E:\ATLAS-worktrees\lane-a-r1-deploy-target` (`docs/lane-a-r1-deploy-target`, `KEEP_ACTIVE` until the target record
-is pushed). Do not write in Lane B/C worktrees. E: and D: were both 61.6 GiB free at takeover, above warning.
+`E:\ATLAS-worktrees\lane-a-r1-deploy-target` (`docs/lane-a-r1-deploy-target`, `KEEP_ACTIVE` as the current lane
+record). The C02 executor and integration worktrees were clean, integrated, and retired after the source push. Do
+not write in Lane B/C worktrees. E: and D: were both above warning at takeover.
