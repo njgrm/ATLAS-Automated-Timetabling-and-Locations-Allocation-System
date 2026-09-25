@@ -16,7 +16,11 @@ Load fix). Every turn re-read all three streams' context, and the browser steps 
    this when context passes about 200k tokens.
 2. **Browser QA runs in a subagent.** Give it the release SHA, the rows and the `atlas-live-browser-qa` skill. It
    returns one short tally (`passed/blocked/unperformed`, one line per row, evidence paths). The main
-   conversation never holds the individual browser steps.
+   conversation never holds the individual browser steps. **Use Claude in Chrome (`mcp__claude-in-chrome__*`),
+   never the built-in browser pane (`mcp__Claude_Browser__*`)**, for ATLAS and companion origins; say so in the
+   dispatch prompt. Precedent 2026-09-25: the built-in browser loaded `/timetable` HTML but blocked every JS asset
+   (`net::ERR_BLOCKED_BY_CLIENT`), so A1 for `eb0e3038` burned three runner dispatches (~185k tokens) and fired no
+   request. If Chrome is not connected, report `BLOCKED(CHROME_NOT_CONNECTED)`; do not fall back.
 3. **Dispatch through the named agents in `.claude/agents/`**; each pins its model and effort:
 
    | Role | Agent | Model · effort |

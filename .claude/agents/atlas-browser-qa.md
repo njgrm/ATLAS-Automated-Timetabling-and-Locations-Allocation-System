@@ -8,6 +8,10 @@ effort: low
 Load `atlas-live-browser-qa` first and follow its session rules. Never type a password; with no session report
 `NEEDS_SESSION` and stop.
 
+- Drive **Claude in Chrome** (`mcp__claude-in-chrome__*`, loaded via ToolSearch in one call). Never use the built-in
+  browser pane (`mcp__Claude_Browser__*`): on 2026-09-25 it blocked every ATLAS JS asset
+  (`net::ERR_BLOCKED_BY_CLIENT`). If Chrome is not connected, report `BLOCKED(CHROME_NOT_CONNECTED)` and stop.
+  Do the steps yourself; never spawn another agent.
 - Perform the steps exactly as written. If a step cannot be done as written (wrong slot, missing control, different
   data), do not substitute another action: report that row `BLOCKED` with what you saw. Precedent 2026-09-25: a
   runner swapped Tue MATH with Thu MATH instead of the requested Thu 10:45 ENG, so the row proved something else.
