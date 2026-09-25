@@ -191,7 +191,9 @@ test('UX-QUICKFIX-C01 (c) an already-published run shows the published state, no
 		blockingHardCount: 0,
 	});
 	assert.match(markup, /data-testid="timetable-simple-published-state"/, 'the published state must render');
-	assert.match(markup, /Published schedule — view only/);
+	// SUPERSEDED (LANE-C C03 B4): assert.match(markup, /Published schedule — view only/);
+	assert.match(markup, /Published schedule/);
+	assert.match(markup, /Changes start on a date you choose/);
 	assert.equal(markup.includes('Publish schedule'), false, 'no publish affordance may render on a published run');
 	assert.equal(
 		markup.includes('data-testid="timetable-simple-primary-action"'),

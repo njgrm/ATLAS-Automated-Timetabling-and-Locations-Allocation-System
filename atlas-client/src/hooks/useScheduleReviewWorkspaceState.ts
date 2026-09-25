@@ -101,6 +101,8 @@ import { restorePublishedTimetableContext } from '@/lib/timetable-published-retu
 import { usePublishedTimetableReturnState } from '@/hooks/usePublishedTimetableReturnState';
 import { getPreferredAccessToken } from '@/lib/auth';
 import { decodeJwtPayload } from '@/lib/jwt-payload';
+import { SWAP_ARMED_FROM_SELECTION_MESSAGE, SWAP_ARMED_MESSAGE } from '@/components/timetable/timetableSwapArming';
+import type { PublishedEntryChangeRequest } from '@/lib/published-entry-change';
 
 function escapeCssAttributeValue(value: string): string {
 	return value.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
@@ -121,7 +123,9 @@ function isFocusableElement(element: HTMLElement): boolean {
 const SWAP_CLASS_A_SELECTED = 'Class A selected. Choose the second class to swap times with.';
 const SWAP_CLASS_B_SAME = 'Choose a different occupied class than Class A.';
 /** Inline prompts that only make sense while swap mode is active. */
-export const SWAP_MODE_STATUS_MESSAGES = new Set([SWAP_CLASS_A_SELECTED, SWAP_CLASS_B_SAME]);
+// LANE-C C03 — the two arming prompts are swap-mode prompts too; they stayed
+// on screen after Cancel.
+export const SWAP_MODE_STATUS_MESSAGES = new Set([SWAP_CLASS_A_SELECTED, SWAP_CLASS_B_SAME, SWAP_ARMED_MESSAGE, SWAP_ARMED_FROM_SELECTION_MESSAGE]);
 
 export function useScheduleReviewWorkspaceState() {
 	const navigate = useNavigate();
@@ -372,6 +376,10 @@ export function useScheduleReviewWorkspaceState() {
 		if (swapClassTimesMode != null) return;
 		setInlineActionStatus((current) => (current && SWAP_MODE_STATUS_MESSAGES.has(current.message) ? null : current));
 	}, [swapClassTimesMode]);
+	/** LANE-C C03 (B3) — one class being moved or re-roomed on a published run. */
+	const [publishedEntryChange, setPublishedEntryChange] = useState<PublishedEntryChangeRequest | null>(null);
+	const draftPublishedRef = useRef(false);
+	draftPublishedRef.current = Boolean(draft) && isDraftPublishedStrict(draft);
 	const [lastAutoSaveUndo, setLastAutoSaveUndo] = useState<{
 		/** C11 — which ledger owns this Undo target (`draft` or run manual edits). */
 		ledger: 'run' | 'draft';
@@ -1607,6 +1615,14 @@ export function useScheduleReviewWorkspaceState() {
 				setDragItem(null);
 				return;
 			}
+			// LANE-C C03 (B3) — dragging a class on a published run schedules a
+			// dated change instead of calling the refused direct edit.
+			if (draftPublishedRef.current) {
+				setDragItem(null);
+				setInlineActionStatus(null);
+				setPublishedEntryChange({ entry, target: { day, startTime, endTime }, mode: 'move' });
+				return;
+			}
 			const proposal: ManualEditProposal = {
 				editType: 'MOVE_ENTRY',
 				entryId: entry.entryId,
@@ -1722,6 +1738,14 @@ export function useScheduleReviewWorkspaceState() {
 					captureReviewFocusReturn(timetableEntryFocusSelector(swapCandidate.entryId));
 					setInlineActionStatus({ tone: 'warning', message: 'Review swap before saving. This occupied slot will exchange the two sessions.' });
 					openRegularSwapPrompt(fakeItem.entry, swapCandidate);
+					return;
+				}
+				// LANE-C C03 (B3) — a published run refuses direct edits; the move
+				// becomes a dated change, checked before it is scheduled.
+				if (draftPublishedRef.current) {
+					setInlineActionStatus(null);
+					setKbSelectedSource(null);
+					setPublishedEntryChange({ entry: fakeItem.entry, target: { day, startTime, endTime }, mode: 'move' });
 					return;
 				}
 			}
@@ -2055,6 +2079,9 @@ export function useScheduleReviewWorkspaceState() {
 		sectionLabel,
 		showTopLoadingStrip,
 		policyAlignmentWarning,
+		publishedEntryChange,
+		setPublishedEntryChange,
+		publishedChangeScope: draft && isDraftPublishedStrict(draft) && schoolId && schoolYearId && runIdNumeric ? { schoolId, schoolYearId, runId: runIdNumeric } : null,
 		...workspaceContexts,
 	};
 }

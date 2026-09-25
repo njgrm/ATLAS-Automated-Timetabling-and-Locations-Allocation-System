@@ -123,7 +123,9 @@ const LIFECYCLE_LABELS: Record<TimetableLifecycleState, string> = {
 	'failed-run': 'Last generation failed',
 	'generated-issues': 'Generated — issues to review',
 	'generated-reviewable': 'Generated — ready to review',
-	published: 'Published schedule — view only',
+	// LANE-C C03 (B4) — SUPERSEDED: 'Published schedule — view only'. Dated
+	// changes (swap, teacher leaving, move) are allowed, so it was untrue.
+	published: 'Published schedule — changes start on a date you choose',
 };
 
 /**

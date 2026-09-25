@@ -8,6 +8,7 @@ import { ScheduleReviewWorkspaceOverlays } from '@/components/timetable/Schedule
 import { TimetableFacultyIssuePivotDialog } from '@/components/timetable/TimetableFacultyIssuePivotDialog';
 import { TimetableSkeleton } from '@/components/timetable/TimetableSkeleton';
 import { InlinePlacementPreview } from '@/components/timetable/InlinePlacementPreview';
+import { PublishedEntryChangePanel } from '@/components/timetable/modals/PublishedEntryChangePanel';
 import { isTimetableSchedulerView, TimetableRouteViewSync } from '@/components/timetable/TimetableRouteViewSync';
 import { TimetableRouteLoadingState } from '@/components/timetable/TimetableRouteLoadingState';
 import { resolveTimetableLoadingIntent } from '@/components/timetable/timetable-route-loading-intent';
@@ -106,6 +107,17 @@ export default function ScheduleReviewWorkspace() {
 		if (!state.selectedEntry) setSimpleDetailsOpen(false);
 	}, [state.selectedEntry]);
 
+	// LANE-C C03 (B9) — a swap only works on the Schedule view. The audit found
+	// "Class A selected…" and "Start swapping" following the user into Draft.
+	const currentCenterView = state.headerContext?.centerView;
+	useEffect(() => {
+		if (currentCenterView == null || currentCenterView === 'schedule') return;
+		state.setSwapClassTimesMode?.(null);
+		state.setSwapClassAEntryId?.(null);
+		state.setSwapClassBEntryId?.(null);
+		setActiveSimpleTask((task) => (task === 'swap-sessions' ? null : task));
+	}, [currentCenterView, state.setSwapClassTimesMode, state.setSwapClassAEntryId, state.setSwapClassBEntryId]);
+
 	// R5 (finding A-08; ordered-term invariant 6): every component-local sheet,
 	// task, selection, and swap state is scope-bound. When school, school year,
 	// run, or selected term changes, clear it before any dispatch can occur so a
@@ -199,8 +211,10 @@ export default function ScheduleReviewWorkspace() {
 			setEntryIdA: (id) => state.setSwapClassAEntryId?.(id),
 			setEntryIdB: (id) => state.setSwapClassBEntryId?.(id),
 			setStatus: (status) => state.setInlineActionStatus(status),
+			getSelectedEntryId: () => state.selectedEntry?.entryId ?? null,
+			clearSelection: () => state.headerContext?.setSelectedEntry(null),
 		})();
-	}, [state.setSwapClassTimesMode, state.setSwapClassAEntryId, state.setSwapClassBEntryId, state.setInlineActionStatus]);
+	}, [state.setSwapClassTimesMode, state.setSwapClassAEntryId, state.setSwapClassBEntryId, state.setInlineActionStatus, state.selectedEntry, state.headerContext]);
 
 	// Keep route intent synchronization mounted across the no-draft loading
 	// return. It is intentionally unavailable until the guarded view contexts
@@ -265,7 +279,10 @@ export default function ScheduleReviewWorkspace() {
 		state.headerContext.setKbSelectedSource({ type: 'entry', entry: state.selectedEntry });
 		state.setInlineActionStatus({
 			tone: 'loading',
-			message: 'Select an available slot on the grid to preview this move.',
+			// LANE-C C03 (B3) — on a published schedule the move is a dated change.
+			message: state.publishedChangeScope
+				? 'Select an available slot on the grid. Because this schedule is published, you will choose a start date next.'
+				: 'Select an available slot on the grid to preview this move.',
 		});
 	};
 
@@ -281,6 +298,12 @@ export default function ScheduleReviewWorkspace() {
 	// manual-edit surface Advanced uses for Change Room.
 	const openSelectedChangeRoom = () => {
 		if (!state.selectedEntry) return;
+		// LANE-C C03 (B3) — Manual edit refuses a published run; a published room
+		// change is a dated change instead.
+		if (state.publishedChangeScope) {
+			state.setPublishedEntryChange({ entry: state.selectedEntry, target: null, mode: 'room' });
+			return;
+		}
 		state.headerContext.enterManualEditView('CHANGE_ROOM');
 	};
 
@@ -359,21 +382,28 @@ export default function ScheduleReviewWorkspace() {
 		    Links only: the nested children are element-less, so this never
 		    remounts the workspace or refetches the grid. */}
 		<TimetableSubNav />
+			{/* LANE-C C03 (B8) — the status floats over the top edge of the grid
+			    instead of taking a row in the layout. As a row it pushed the grid
+			    down after the first swap pick, so the second click could land on
+			    the wrong class. Opaque tones, because it now sits over the grid. */}
 			{state.inlineActionStatus ? (
-				<div
-					role="status"
-					aria-live="polite"
-					className={`border-b px-3 py-1 text-xs ${
-						state.inlineActionStatus.tone === 'error'
-							? 'border-destructive/40 bg-destructive/10 text-destructive'
-							: state.inlineActionStatus.tone === 'warning'
-								? 'border-amber-400/40 bg-amber-50 text-amber-700'
-								: state.inlineActionStatus.tone === 'success'
-									? 'border-emerald-400/40 bg-emerald-50 text-emerald-700'
-									: 'border-border bg-muted/30 text-muted-foreground'
-					}`}
-				>
-					{state.inlineActionStatus.message}
+				<div className="relative z-30 h-0" data-testid="timetable-inline-status-anchor">
+					<div
+						role="status"
+						aria-live="polite"
+						data-testid="timetable-inline-status"
+						className={`absolute inset-x-3 top-1 rounded-md border px-3 py-1.5 text-sm shadow-sm ${
+							state.inlineActionStatus.tone === 'error'
+								? 'border-red-300 bg-red-50 text-red-800'
+								: state.inlineActionStatus.tone === 'warning'
+									? 'border-amber-300 bg-amber-50 text-amber-800'
+									: state.inlineActionStatus.tone === 'success'
+										? 'border-emerald-300 bg-emerald-50 text-emerald-800'
+										: 'border-border bg-background text-foreground'
+						}`}
+					>
+						{state.inlineActionStatus.message}
+					</div>
 				</div>
 			) : null}
 			{/* B1 — universal inline preview-before-save. Never a modal: the grid
@@ -444,8 +474,10 @@ export default function ScheduleReviewWorkspace() {
 						<p className="truncate font-semibold text-foreground">
 							Selected: {state.subjectLabel(state.selectedEntry.subjectId)} · {state.sectionLabel(state.selectedEntry.sectionId)}
 						</p>
-						<p className="truncate text-muted-foreground [@media(max-height:500px)]:hidden">
-							Review the change before saving. Nothing changes until you confirm.
+						<p className="truncate text-muted-foreground [@media(max-height:500px)]:hidden" data-testid="timetable-selection-strip-hint">
+							{state.publishedChangeScope
+								? 'Published schedule: a change starts on a date you choose.'
+								: 'Review the change before saving. Nothing changes until you confirm.'}
 						</p>
 					</div>
 					<div className="flex shrink-0 items-center justify-end gap-2">
@@ -642,6 +674,28 @@ export default function ScheduleReviewWorkspace() {
 					/>
 				</Suspense>
 			) : null}
+			{/* LANE-C C03 (B3) — move one class or change its room on a published schedule. */}
+			<Dialog open={Boolean(state.publishedEntryChange && state.publishedChangeScope)} onOpenChange={(open) => { if (!open) state.setPublishedEntryChange(null); }}>
+				<DialogContent className="max-w-2xl p-0" data-testid="published-entry-change-dialog">
+					<DialogHeader className="px-4 pt-4">
+						<DialogTitle>{state.publishedEntryChange?.mode === 'room' ? 'Change this class’s room from a date' : 'Move this class from a date'}</DialogTitle>
+						<DialogDescription>ATLAS checks the change for clashes before you pick a start date.</DialogDescription>
+					</DialogHeader>
+					{state.publishedEntryChange && state.publishedChangeScope ? (
+						<PublishedEntryChangePanel
+							request={state.publishedEntryChange}
+							scope={state.publishedChangeScope}
+							roomOptions={state.inlinePlacementRoomOptions ?? []}
+							subjectLabel={state.subjectLabel}
+							sectionLabel={state.sectionLabel}
+							facultyLabel={state.centerWorkspaceContext.facultyLabel}
+							roomLabel={(roomId) => (roomId == null ? 'No room' : state.centerWorkspaceContext.roomLabel(roomId))}
+							onClose={() => state.setPublishedEntryChange(null)}
+							onScheduled={() => { void state.handleRefresh(); }}
+						/>
+					) : null}
+				</DialogContent>
+			</Dialog>
 			<Sheet open={simpleDetailsOpen && layoutMode === 'simple' && !!state.selectedEntry} onOpenChange={setSimpleDetailsOpen}>
 				<SheetContent side="bottom" className="max-h-[86svh] rounded-t-2xl p-4" data-testid="timetable-simple-details-sheet">
 			{state.redoState || state.redoVersionStale ? (

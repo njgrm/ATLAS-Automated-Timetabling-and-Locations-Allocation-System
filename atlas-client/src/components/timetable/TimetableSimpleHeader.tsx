@@ -641,8 +641,11 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 						disabled={generateActionState.disabled}
 						disabledReason={generateActionState.reason}
 						onClick={handleGenerateClick}
+						published={isRunPublished}
 					/>
-					{isRunPublished ? (
+					{/* LANE-C C03 (B9) — the published chip describes the published
+					    run, not the draft, so the Draft view no longer shows it. */}
+					{isRunPublished && context.isPreGenerationWorkspace ? null : isRunPublished ? (
 						<SimplePublishedState followUpCount={context.summary?.unassignedCount ?? 0} />
 					) : showPublishAction ? (
 						<SimplePublishAction
