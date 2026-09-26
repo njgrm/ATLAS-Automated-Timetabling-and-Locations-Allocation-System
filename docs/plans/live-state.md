@@ -1482,16 +1482,56 @@ client-only MEDIUM cycle and a stronger answer than adding one mapping.
 **Acceptance status: still NOT closed.** A7 passes with attribution; A5 is partially evidenced; A6 and A12(b) are
 unperformed. The tally is therefore **not** `passed == total`, and no `ACCEPT_READY` is claimed.
 
-**Next action (2026-09-26): the release is live; acceptance is partially exercised.** (1) **answer the three
-constraint-severity questions** recorded above — they are the gate on any fix there, and five cycles of
-packet-writing have shown they are not mine to decide; (2) **schedule the unnamed-violation class fix** (client-only
-MEDIUM) with the label plus the completeness guard test, now correctly rated BLOCKING for trust; (3) **complete
-A6 and A12(b)** — they need a run-level review surface with warnings, and A12(b) needs a placed session, so either
-a non-empty run or an explicitly authorised placement; (4) **rotate the exposed dev DB credential**;
-(5) retention reclaim before the next release build (E: 46 GiB, below the 50 GiB warning); (6) the `4893cbde` +
-three-leftover decision (1.91 GiB) and the 8.72 GiB disposition backlog owned by Lanes B and C; (7) the three
-room-affordance design decisions; (8) a decision on the oversized `.ts` modules. **Rollback basis `116a7658` is
-verified eligible and was not executed.**
+**INTEGRATED — the unnamed-violation fix is on `main` as `e118d87d` (candidate `9b1ec14a`), `ACCEPT_READY` 10/10, blocked 0,
+unperformed 0, no blocking findings (2026-09-26).** This closes the BLOCKING-for-trust finding from the live walk.
+
+**What changed:** `FACULTY_LUNCH_WINDOW_VIOLATION` is now named, using the **server's own** copy
+(`VIOLATION_COPY` in `constraint-validator.ts:106`) rather than invented client wording, so both operator surfaces
+emit a **byte-identical** string — the rail and Publish Readiness — instead of a raw code in one place and the
+"no name for it" sentence in the other. Title *"Teacher has no free lunch window"*. Adding it **required** a fourth
+production file, because `VIOLATION_PRESENTATION` is `Record<ViolationCode, …>` and the client union was
+server-minus-lunch **plus** the retained deprecated `FACULTY_EXCESSIVE_TRAVEL_DISTANCE` (27 members, deprecated code
+preserved). The union member was forced by the type, not chosen.
+
+**The class guard already existed and was already firing — I was wrong to ask for it.** `warning-readability-c01.test.ts:22-25`
+already read the server's `VIOLATION_CODES` at test time and asserted full client coverage, was already registered in
+`test:client-suite`, and was **already red** on this very defect. The correct action was therefore to **strengthen**
+the existing guard, not add a second file — a second authority for one invariant is the exact hazard the label maps
+exist to prevent. It is now non-vacuous where it was not: it **throws** when the server file cannot be found and when
+the array cannot be parsed (the old `?? []` silently yielded `[]`), and it asserts a **floor of 26** codes, raised
+from 20, which had let six vanish silently. QA proved all three failure modes red and restored byte-exactly.
+
+**Two more of my premises were wrong, both caught:**
+- **`UNASSIGNED_SECTION` is not an unnamed publication-blocking rule.** I treated it as the escalation. It is emitted
+  **always HARD** (`generation.service.ts:442,447`), is in `PUBLICATION_BLOCKING_CODES` so it never reaches the
+  warning map, and carries a real label — *"This class was not placed"*. It never renders unnamed. **The one code
+  that genuinely still falls through to the honest unlabelled sentence on Publish Readiness is
+  `ROOM_CAPACITY_EXCEEDED`** (emitted SOFT, `constraint-validator.ts:901`, absent from the allowlist). **Dated
+  backlog item, non-blocking, pre-existing** — logged rather than fixed here.
+- **My line-cap figures were wrong again**: the client-only count is **7** over 1000 (1 `.tsx`,
+  `draft-ux-c01.test.tsx`), not the "39" I had asserted; no file this range touches crosses the cap, and the committed
+  guard passes. The executor's "23 of 26" warning-label count was itself off by one, corrected by QA.
+
+**Honest post-state, verified at integration by me and independently by QA:** client suite **1083/1070, 13 failures
+across 9 files**, compared by failing **test name** — zero new; the two that flipped are this defect's own guards.
+`typecheck` exactly 4 pre-existing, none in a changed file. `build` passes. `git diff --check` clean. Client-only
+diff: no server file, no `src/ui/*`, no `ops/`, no `prisma/`, no docs. **No assertion or test was deleted to make a
+row green**; the two moved "unmapped" exemplars were re-pointed to `SOME_FUTURE_CODE` with every assertion kept plus
+companion rows, which is now the only honest exemplar since no real canonical code is unmapped.
+
+**Residual:** source-level render proof on both real operator surfaces (the rail fed by the derived label map, and
+`SoftViolationConfirmDialog`), **not** a live-browser walk of the deployed surface. The deployed release is still
+`26f7c907`, so this fix is **not live** — it needs its own deployment, which is a separate HIGH action with its own
+capacity reclaim, packet, pre-action review and acceptance.
+
+**Next action (2026-09-26):** (1) **answer the three constraint-severity questions** recorded above — the gate on any
+fix there, and five cycles of packet-writing have shown they are not mine to decide; (2) **deploy cycle** for
+`ROOM_CAPACITY_EXCEEDED` and this label fix together, once a successor reclaim is in place — the next build re-triggers
+§3, and E: is at 46 GiB; (3) **complete A6 and A12(b)** — they need a run-level review surface with warnings, and
+A12(b) a placed session; (4) **rotate the exposed dev DB credential**; (5) the `4893cbde` + three-leftover decision
+(1.91 GiB) and the 8.72 GiB disposition backlog owned by Lanes B and C; (6) the three room-affordance design
+decisions; (7) a decision on the oversized `.ts` modules. **Rollback basis `116a7658` is verified eligible and was not
+executed.**
 
 **SUPERSEDED 2026-09-26 — a spliced paragraph this lane's own editing left behind, repaired.** The four lines
 immediately below were an orphaned fragment, and the sentence they belonged to was cut in half. They are
