@@ -817,8 +817,44 @@ shell is not. The gate is fail-closed: had the line been absent, the executor wo
 **Packet R5 is `APPROVED_TO_EXECUTE` (11/11, blocked 0, unperformed 0, zero blocking findings)** after five
 independent pre-action passes, with this lane's six accuracy corrections applied.
 
-**Next action (2026-09-26): dispatch the executor for packet R5** — build, gate 6b, register commit, elevated
-runner dry-run → `-Execute` —
+**SECURITY INCIDENT — credential exposed in an agent transcript (2026-09-26). Needs operator rotation.** While
+searching for `DATABASE_URL`, the executor's redaction pattern (`PASS|SECRET|TOKEN|KEY`) did not match that
+variable name, so **the local development database password was printed into a tool transcript.** The value was
+**not** written to any file, commit, doc, or prompt, and is deliberately not reproduced here. Every later command
+read it inside a process and injected the result. **This is the second recorded instance of the same class** — the
+first is at `docs/handoffs/deploy-116a7658-f1-f2-2026-07-26.md:55-56` — so the pattern, not the one-off, is the
+defect: a substring redaction list over variable names is the wrong tool. **Required follow-up:** rotate the local
+dev database credential, and replace name-substring redaction with an allowlist of variables safe to display plus
+blanket suppression of anything matching `URL|PASS|SECRET|TOKEN|KEY|CRED|DSN`. Treat any transcript from this
+cycle as containing the old value until it is rotated.
+
+**Deployment attempt 1 stopped safely at a runner gate (2026-09-26).** The executor built the target, ran the
+port-5198 isolation proof (**gate 6b PASS** — `git status --short` empty after the run, the exclude rule working as
+designed), and proved the build identity (new-only chunk `assets/index-BgXhGnEV.js` 313,925 bytes returns **404**
+on the incumbent 5178, which serves `assets/index-BAf43GT7.js`). The step-9 **dry run then refused**:
+`DEPLOY_RUNNER_STOP: Target HEAD does not equal the declared SHA` at `deploy-runner.ps1:43`, from
+`Get-GitIdentity` (`:71-77`, reached at `:262`) — **before** the audit-dir write and **before** the `-Execute`
+branch. No cutover occurred; live `116a7658` is untouched and healthy; the rollback path is intact.
+
+**The defect is in this lane's packet, not the executor's work.** R5 step 8 told it to make the register commit
+*inside the release worktree*, which moves that worktree's HEAD and therefore breaks `Get-GitIdentity` — the very
+gate that authorises the deployment. The register commit must live on a main-based docs branch. The commit is
+preserved on `docs/lane-a-deploy-26f7c907-register` and has been **cherry-picked onto `main` as `8308fd79`**, so
+`Assert-LiveReleaseRecorded` can now see the `26f7c907` entry in the `## Live release` section (verified present).
+The release worktree HEAD must be returned to `26f7c907` before the dry run is re-attempted. Build artifacts are
+ignored and intact, so nothing needs rebuilding. This is the **sixth** defect of this class from this lane — a step
+specified without checking it against the tool that must consume it — and it is the same shape as the fabricated
+SHA and the miscounted rows.
+
+**Capacity (2026-09-26): E: fell 48.73 → 47.19 GiB** as the new release worktree was created. Above the 25 GiB
+fail-closed line, below the 50 GiB warning. This deployment is unaffected, but the release-directory retention
+reclaim is owed again before the **next** release build.
+
+**Next action (2026-09-26):** return the release worktree HEAD to `26f7c907`, re-run the step-9 dry run and then
+`-Execute` with identical arguments, then run gate 10b and a fresh `atlas-qa` post-action QA against A1–A13 with a
+real `passed/blocked/unperformed` tally. `main` is still not deployed; live is `116a7658` and healthy. Also owed:
+rotate the exposed dev DB credential; the `4893cbde` + three-leftover decision (1.91 GiB); and the 8.72 GiB
+disposition backlog owned by Lanes B and C. Dated follow-ups, none blocking: **F1**, a product ruling this lane did not
 then a fresh `atlas-qa` post-action QA against A1–A13 with a real `passed/blocked/unperformed` tally. `main` is
 still not deployed; live is `116a7658` and healthy. Also still owed and neither blocking: the `4893cbde` +
 three-leftover decision (1.91 GiB) and the 8.72 GiB disposition backlog owned by Lanes B and C. Dated follow-ups,
