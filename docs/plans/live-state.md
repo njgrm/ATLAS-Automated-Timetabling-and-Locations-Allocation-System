@@ -107,6 +107,32 @@ three days ago, **not human work**, and its deployment evidence is preserved *ou
 directory outside the keep set, so discharging §3 means deciding this one. **Operator decision, not taken
 silently below.**
 
+**RESOLVED 2026-09-26 (evening) — `4893cbde` RETIRED. `E:` 49.48 → 51.34 GiB, above the §3 warning.**
+Manifest `docs/reviews/reclaim-4893cbde-20260926/frozen-manifest.md`; independent pre-action audit
+returned `CORRECTION_REQUIRED` 13/14/1/0 on two blockers (a worktree-count baseline of 41 that was
+actually 42, and an authority gap), both cleared, then **RETIRE** on the merits. Method: one exact literal
+`Remove-Item -LiteralPath -Recurse -Force`, correct for a **standalone clone** — it was unregistered, so
+`git worktree remove` did not apply. No branch or ref deleted; `cat-file -t 4893cbde` still resolves.
+
+**The decisive fact, found by the audit and worth keeping:** the dirt was **already diagnosed and fixed
+for every tree created since**. `D:\ATLAS\.git\info\exclude` line 8 carries `/ops/runtime/logs/`, added
+under authorisation precisely because the supervisor writes `supervisor-state.json` into the release tree
+it runs from. `.git/info/exclude` is **per-clone and does not propagate**, so this standalone clone simply
+predates its own fix. The preserve rule protects work; there was none here.
+
+**All tripwires held:** all ten `node_modules` counts unchanged (server **209 ×5**; client
+**155/155/156/155/156**, the donor's 156 being load-bearing — three lanes junction into it); `@prisma/client`
+6.19.2 resolves in live and donor; health 200, ready 200, **DB-backed** subjects 200, 5174 200; listeners
+unmoved at 5001→20004 and 5174→33732, both `e4989b72`; machine-scope env unchanged; `git worktree list` 42
+lines; `git stash list` 3; all three `release-audit\4893cbde-*` entries intact. Five release directories
+remain: `e4989b72` (live), `400a6909` (rollback basis), `26f7c907`, `116a7658` (named fallback),
+`861d89a2` (**donor — never retire**).
+
+**Still owed after the build:** the `0da104f9` release build costs ≈1.46 GiB, landing `E:` at **≈49.8 GiB
+— again just under the warning.** This reclaim discharged the *pre-build* gate and was not wasted, but it
+buys no margin through the build. The deploy will need its own successor manifest.
+
+
 
 ## Objective
 
