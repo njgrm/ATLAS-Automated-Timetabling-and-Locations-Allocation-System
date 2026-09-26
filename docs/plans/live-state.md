@@ -1499,6 +1499,27 @@ Full evidence, every command, plus an independent check that the three `next` se
 two-label-sets defect.** Correct action taken: record it intact and close the item.
 
 **Open items (dated 2026-09-26, in priority order):**
+
+0. **NEW TOP PRIORITY — live BLOCKING §7 defect, from Lane C's accepted browser QA
+   (`7886a910`, handoff `docs/handoffs/planner-a2-timetable-browser-qa-handoff-2026-09-26.md`): Room
+   Schedules merges all three terms and invents hard conflicts.** G7 Room 103 reported **10 conflicts**;
+   the inspector showed three APs and three Math in one Monday slot, linked to T1/T2/T3. **My read-only
+   source map (done, `a1dcfc34`) shrinks this sharply:**
+   - **The rooms tab's server side is already complete and §7-compliant.** `room-schedule.router.ts:59-69`
+     already accepts `termIndex` **including the literal `"active"`** (resolved by
+     `resolveRequestedTermIndex`), with a typed 400 `INVALID_TERM_INDEX`; `getRoomScheduleView` takes
+     `termIndex?: number` (`room-schedule.service.ts:93`); and the filter at `:234-239` is **fail-closed** —
+     a 501 `TERM_FILTER_NOT_READY` if any entry lacks term identity, then a strict per-term filter. **The
+     client simply never sends it**: `RoomSchedules.tsx:227-228` passes only `source` and `runId`, while the
+     export dialog at `:578` is the only place `termIndex` appears. So the rooms tab is a small, safe fix.
+   - **The teachers/sections tabs are the real work and have no server support at all.** They do not use
+     that endpoint — they load the whole draft (`:235-239`) and pivot **client-side** via
+     `pivotDraftToView(report, viewMode, …)` at `:259`, with **no term parameter and no filter**. The §7
+     contract applies equally to all three tabs, so fixing rooms alone leaves two tabs merging terms.
+   - **Also recorded:** `room-schedule.service.ts:295` projects a missing term as `termIndex: 0`, a
+     fail-open sentinel indistinguishable from a real value. It is unreachable on the filtered path (the
+     501 fires first) but is live on today's all-term default.
+   - Not yet done: no code written. This displaces the packet R2 below on the critical path.
 1. **R2 the withdrawn client-delta packet** `docs/prompts/deploy-5152bff0-client-delta-2026-09-26.md` —
    `CORRECTION_REQUIRED` 6/13, **must not execute**. B1 is the serious one: the packet **never builds
    `atlas-server/dist/server.js`**, so a literal run would serve 5174 with **no 5001** after cutover. Also a
@@ -1532,5 +1553,8 @@ two-label-sets defect.** Correct action taken: record it intact and close the it
    reads. A2 has added a section rather than made it worse; the shared `Live release` block alone is ~185
    lines of superseded releases. Pruning another lane's section needs that lane's word or the operator's.
 
-**Next action (2026-09-26):** item 1 — R2 the client-delta packet. It is the only item on the critical path
-to getting two accepted cycles live, and it must not be executed before its re-review.
+**Next action (2026-09-26):** item 0 — the Room Schedules term-merge defect, because it is **live**, it
+**invents conflicts a scheduler must adjudicate**, and it is a §7 invariant breach. Take it in two slices:
+the rooms tab first (send `termIndex`; the server is already correct and fails closed), then the
+teachers/sections pivot, which is the larger half. Item 1 (R2 the packet) is packaging and stays blocked
+behind its re-review either way.
