@@ -1367,21 +1367,36 @@ channel and the batch auto-defer are both **forward-looking only**. (My earlier 
 "keys only ever appear with server companions" — were asserted, not measured, and are corrected in the R2 entry
 above: the reviewer measures 13,800 draft entries and 3,000 carrying a lone `deferredRoomTypePreference`.)
 
-**The decision this now puts to the owner, stated so it can be answered rather than argued:**
-1. **Should route choice change constraint severity?** The evidence says no — `/commit` and `/batch/commit` must
-   produce the same verdict for the same edit, or the lenient route is simply a bypass. This is the primary fix.
-2. **Should a recorded room-type deviation forgive a feature shortfall?** The comment says the flag is for type;
-   the validator uses it for both. Either split the flag, or narrow the validator's use of it to the type check.
-3. **Should the batch auto-defer exist at all?** If yes, it must be recorded (audit row and an operator-visible
-   warning), not applied silently across the whole draft.
+**DECISIONS D1–D3 taken (2026-09-26), and packet R3 authored with a PINNED mechanism (`d8bf3f6d` → R3).** These
+are recorded as **decisions, not preferences**, so a reviewer checks them rather than re-argues them:
+
+- **D1 — route choice must not change constraint severity.** `/commit` and `/batch/commit` must return the same
+  verdict for the same edit. Today the flag is written only in `commitManualEditBatch` and read only by the shared
+  validator, so the lenient route is a bypass.
+- **D2 — a recorded room-type deviation must NOT forgive a feature shortfall.** The comment and the condition are
+  type-only, and the feature constraint is documented as publication-blocking. The flag stops gating the feature
+  check; since nothing sets a feature-scoped deferral, room-feature compliance becomes **HARD on every path**.
+- **D3 — the blanket auto-defer over `newEntries` is removed, not narrowed.** It re-stamps the whole draft
+  unrecorded; the legitimate Quick Place case is served instead by the **server-owned channel**, justified per
+  placement rather than stamped per draft.
+
+**R3 pins the mechanism at the `applyProposal` choke point** — all of it in `manual-edit.service.ts`, with
+**no router-level stripping**, because that provably cannot reach the teaching-load repair router. Entry metadata for
+`PLACE_UNASSIGNED` becomes an explicit body-inaccessible parameter passed by the two legitimate server producers
+(Quick Place `:430`, the repair service), `proposal.metadata` and the type member are deleted, the auto-defer is
+deleted, and the flag's consumption is split. Six controls are required, including the **Quick Place preservation
+control pinned to the feature-mismatching fixture at `timetable-scheduling-quality-c03.test.ts:672`** — R2's review
+caught that the default fixture has `requiredFeatures: []`, which makes "no new HARD" pass **vacuously**. R3 also
+carries a Teaching Load repair preservation control, which no previous version required.
 
 **Next action (2026-09-26): the release is live; acceptance needs one operator action.** (1) **operator
 re-seeds** `C:\Users\njgro\.config\opencode\playwright-profile`; (2) **Lane A** runs A5, A6, A7, A12(b) and records
-the result, closing acceptance; (3) **rotate the exposed dev DB credential**; (4) **decide the three questions
-above**, which gate any fix to the constraint-severity channels; (5) retention reclaim before the next release
-build (E: 46 GiB, below the 50 GiB warning); (6) the `4893cbde` + three-leftover decision (1.91 GiB) and the
-8.72 GiB disposition backlog owned by Lanes B and C; (7) the three room-affordance design decisions; (8) a
-decision on the oversized `.ts` modules. **Rollback basis `116a7658` is verified eligible and was not executed.**
+the result, closing acceptance; (3) **rotate the exposed dev DB credential**; (4) **a fresh independent pre-action
+review of packet R3** — the decisions are taken and the mechanism is pinned, so this is the last gate before an
+executor; (5) retention reclaim before the next release build (E: 46 GiB, below the 50 GiB warning); (6) the
+`4893cbde` + three-leftover decision (1.91 GiB) and the 8.72 GiB disposition backlog owned by Lanes B and C;
+(7) the three room-affordance design decisions; (8) a decision on the oversized `.ts` modules. **Rollback basis
+`116a7658` is verified eligible and was not executed.**
 
 **SUPERSEDED 2026-09-26 — a spliced paragraph this lane's own editing left behind, repaired.** The four lines
 immediately below were an orphaned fragment, and the sentence they belonged to was cut in half. They are

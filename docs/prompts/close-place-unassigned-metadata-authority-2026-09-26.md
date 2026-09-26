@@ -1,114 +1,111 @@
-# HIGH packet R2 — separate the server-owned channel from the client-writable one on `PLACE_UNASSIGNED`
+# HIGH packet R3 — one severity authority for manual-edit constraint checks
 
 Date: 2026-09-26 (Asia/Manila) · Lane: A · Tier: **HIGH** (write-path constraint authority) · Status:
-**DRAFT R2 — requires a fresh independent pre-action review. Supersedes R1 (`11f2c7d2`), which is withdrawn.**
+**DRAFT R3 — requires a fresh independent pre-action review.** Supersedes R1 (`11f2c7d2`) and R2 (`d8bf3f6d`),
+both withdrawn after pre-action review.
 
-## 1. The defect (unchanged, re-verified by the R1 review)
+## 0. Decisions taken (recorded so the reviewer can check them, not re-litigate them)
 
-`atlas-server/src/services/manual-edit.service.ts:692`, in `applyProposal`'s `PLACE_UNASSIGNED` branch, writes
-`metadata: proposal.metadata ? { ...proposal.metadata } : undefined` onto a **newly created, persisted** entry.
-`ManualEditProposal.metadata` is `Record<string, any>` (`:88`), and the **client's own proposal type omits it**
-(`atlas-client/src/types.ts:1384-1400`) — no client author writes it deliberately.
+These follow from the scoped investigation in `docs/plans/live-state.md` and are **decisions, not preferences**:
 
-That bag decides constraint severity: `constraint-validator.ts:869,872` sets
-`ROOM_FEATURE_MISMATCH` to `SOFT` when `deferredRoomTypePreference` is set, and `:838,841` likewise downgrades
-`ROOM_TYPE_MISMATCH` via `roomAssignmentReason` (`:832`). The commit gate only tests `hardAfter.length > 0`
-(`:1341`), and `ManualEditPanel.tsx:215` sends `allowSoftOverride: true` unconditionally.
+- **D1 — route choice must not change constraint severity.** `/commit` and `/batch/commit` must return the same
+  verdict for the same edit. Today `deferredRoomTypePreference` is written **only** at `:1484` inside
+  `commitManualEditBatch` and merely read at `:414`; `commitManualEdit` has no auto-defer, so the same edit is HARD on
+  one route and SOFT on the other. The lenient route is a bypass.
+- **D2 — a recorded room-type deviation must NOT forgive a feature shortfall.** The auto-defer's comment (`:1475`)
+  and its condition (`:1481`, `room.type !== subject.preferredRoomType`) are type-only, and
+  `constraint-validator.ts:860-863` documents the feature constraint as "a HARD violation that would block
+  publication". The flag must stop gating the feature check.
+- **D3 — the blanket auto-defer over `newEntries` is removed, not narrowed.** `:1478` re-stamps the entire draft
+  (the code distinguishes `applied`, used at `:1492`), unrecorded, so one lenient route reaches the whole schedule
+  silently. The legitimate case it exists for — Quick Place placing a room of a different type — is served by the
+  **server-owned channel** in change 1, which is justified per placement instead of stamped per draft.
 
-R1's review proved it live with a probe on the real chain:
-`NO_METADATA {"allowed":false,"hardAfter":1,"hardCodes":["ROOM_FEATURE_MISMATCH"]}` versus
-`CLIENT_METADATA {"allowed":true,"hardAfter":0,"softCodes":["ROOM_FEATURE_MISMATCH"]}` — so the client flag both
-downgrades the violation **and makes the preview report it as permitted**.
+## 1. The mechanism is PINNED (R2's review required this; do not re-open it)
 
-The commit path is properly authorised — `manual-edit.router.ts:64-90` requires `authenticate`,
-`assertTimetableCapability(...,'timetable:edit')` and `assertRequestSchoolScope` — and the proposal is taken
-verbatim from `req.body` (`:78`) with only `editType` presence checked (`:79`), with no allowlist or sanitisation
-anywhere in the service.
+**All of it lands in `atlas-server/src/services/manual-edit.service.ts`, at the `applyProposal` choke point that
+every path funnels through. No router-level stripping is part of this fix**, because it provably cannot reach
+`timetable-teaching-load-repair.router.ts:134`, and because a router-scoped fix is what R2 wrongly offered.
 
-## 2. Why R1's fix was wrong — do not repeat it
+1. **Entry metadata for `PLACE_UNASSIGNED` arrives as an explicit, body-inaccessible parameter.** Change
+   `applyProposal` (and `applyProposalBatch`) to take server-owned entry metadata as a **separate argument** — not
+   from `proposal`. Delete `metadata: proposal.metadata ? {...} : undefined` at `:692` and remove
+   `metadata?: Record<string, any>` from the wire-reachable `ManualEditProposal` (`:88`).
+2. **The two legitimate server producers pass their value through that new argument:**
+   `timetable-quick-place.service.ts:430` (`buildQuickPlaceCommitProposals`, entry built at `:345-348`) and
+   `timetable-teaching-load-repair.service.ts:62,806-808` (the `placementProposal` path).
+   **Expected tripwire:** a compile error at `:430` and in the repair service. **Resolve it by re-pointing the
+   producer to the new argument. Never re-add a wire-writable field, and never cast.** If either producer turns out
+   to depend on *client* metadata rather than server-derived metadata, **STOP and report** — that would mean the
+   client channel has a legitimate consumer and the premise is wrong.
+3. **Delete the blanket auto-defer at `:1475-1487`** per D3.
+4. **Split the flag's consumption (D2).** In `constraint-validator.ts`, `deferredRoomTypePreference` must relax
+   **only** the room-type check (`:838,841`). It must **not** affect the feature check at `:869,872`. Since nothing
+   today sets a *feature-scoped* deferral, room-feature compliance becomes **HARD** on every path. Update the
+   `:860-863` comment so it matches the enforced rule.
 
-R1 proposed deleting `:692` and the type member, reasoning that `UnassignedItemInput` has no `metadata` field so
-there is "no legitimate payload". **That was a false premise: R1 checked who *consumes* the unassigned item and
-never checked who else *writes* the proposal.** The field is **dual-sourced**:
-`timetable-quick-place.service.ts:430` sets `metadata: matchedEntry?.metadata ? { ...matchedEntry.metadata } :
-undefined` on server-built `ManualEditProposal[]` (`buildQuickPlaceCommitProposals:404-433`, entry built at
-`:345-348`), and `applyQuickPlace` commits them with `allowSoftOverride: true` (`:567-577`). A probe confirmed that
-deleting `:692` turns Quick Place's own deferral into a **new HARD** `ROOM_FEATURE_MISMATCH` and a 422 block. **R1's
-"fix" would have broken a working production path.**
+Net effect: every path computes severity from server-owned state only, and the same edit yields the same verdict
+whichever route carries it.
 
-## 3. The required property (state this, not the mechanism)
+## 2. Required controls — all committed, all reachable from an existing `test:*` script
 
-**The entry metadata used for a `PLACE_UNASSIGNED` commit must originate only from server-owned state, and must be
-unreachable from any request body.** Concretely, the service must **not** derive it from its `proposal` parameter.
-A client-sent `metadata` must have no path to the persisted entry, and the server's own Quick Place producer must
-keep working unchanged in effect.
-
-The exact shape is yours to choose — for example: carry the value on an internal, body-inaccessible parameter or an
-internal proposal type used only by in-process callers, **and/or** strip the field at the request boundary in
-`manual-edit.router.ts` for **both** wire routes (`manual-edits/preview` at `:37-57` and `manual-edits/commit` at
-`:64-90`). What is **not** negotiable is the property above; a fix that only deletes the field is the R1 mistake.
-
-**Expected tripwire:** a compile error at `timetable-quick-place.service.ts:430` when the client-reachable member
-goes away. **Resolve it by re-pointing the server producer** to the new server-owned channel. **Never** resolve it
-by re-adding a wire-writable field, and never by casting.
-
-## 4. Required controls — all committed, all reachable from an existing `test:*` script
-
-1. **Failing-first, the authority property.** A `PLACE_UNASSIGNED` whose request body carries
-   `metadata: { deferredRoomTypePreference: true, roomAssignmentReason: 'MODULAR_POOL_ASSIGNED' }`, targeting a
-   room that **lacks** a required feature, must still be **rejected** with 422 `HARD_VIOLATION_BLOCK`, and must not
-   succeed under `allowSoftOverride`. **Report it RED against base and GREEN after the fix.** DB-free form:
-   `previewManualEdit` already runs the production chain and returns `allowed`/`hardViolations`
-   (`manual-edit.service.ts:1101-1107`); `atlas-server/src/__tests__/timetable-scheduling-quality-c03.test.ts`
-   already imports it and is reached by `npm run test:timetable-scheduling-quality-c03` and `test:server-suite`.
-   The literal 422 assertion needs the DB harness — **name which script you use** (`test:server-db` /
-   `scripts/run-db-suite.mjs`).
-2. **The same for `ROOM_TYPE_MISMATCH`**, since the R1 review found the bag downgrades that too.
-3. **Quick Place preservation (mandatory — this is the control R1 lacked).**
+1. **Failing-first, the authority property (D1).** The same type-mismatched, feature-shortfall placement must be
+   **rejected 422 `HARD_VIOLATION_BLOCK` on both `/commit` and `/batch/commit`**, and must not succeed under
+   `allowSoftOverride`. Report **RED against base** and green after. DB-free form: `previewManualEdit` runs the
+   production chain and returns `allowed`/`hardViolations` (`manual-edit.service.ts:1101-1107`);
+   `atlas-server/src/__tests__/timetable-scheduling-quality-c03.test.ts` already imports it and is reached by
+   `npm run test:timetable-scheduling-quality-c03`. The literal 422 assertion needs the DB harness — **name the
+   script you use** (`test:server-db` / `scripts/run-db-suite.mjs`).
+2. **Failing-first, the flag split (D2).** With `deferredRoomTypePreference` set, a room that is the right *type*
+   but **lacks a required feature** must still be **HARD**. A room of the wrong type with features satisfied must be
+   permitted. Both directions asserted.
+3. **Quick Place preservation (mandatory — the control R1 lacked and R2 made satisfiable).**
    `buildQuickPlaceCommitProposals` → `applyProposalBatch` → `validateHardConstraints`: assert **no new HARD** and
-   that `roomAssignmentReason` **survives** onto the committed entry. The compatible-room control alone passes
-   post-fix and would have hidden the R1 break.
-4. **No client metadata persists:** the created entry carries no client-supplied key.
-5. Keep the R1 positive control: a compatible-room `PLACE_UNASSIGNED` still commits.
+   that `roomAssignmentReason` **survives** onto the committed entry.
+   **Use the feature-mismatching fixture at `timetable-scheduling-quality-c03.test.ts:672`.** The default
+   `quickPlacementFixture` has `requiredFeatures: []`, so `roomRequiredFeatures` yields `[]` and "no new HARD" would
+   pass **vacuously** — R2's review caught exactly that.
+4. **Teaching Load repair preservation.** The `placementProposal` path still places an unassigned item and its
+   server-derived metadata still arrives — assert both.
+5. **No client metadata persists** on any created entry, and the MOVE/CHANGE_ROOM/CHANGE_FACULTY/CHANGE_TIMESLOT
+   branch still preserves existing server-written metadata untouched.
+6. **No-regression control:** a fully compatible placement still commits on both routes.
 
-## 5. Verification — commands corrected, with the R1 errors fixed
+## 3. Verification — commands corrected
 
 - Server typecheck: **`atlas-server` has no `typecheck` script** (only `build`). Use
-  `npx tsc --noEmit -p tsconfig.json` from `atlas-server`. State the measured baseline, do not assume it.
+  `npx tsc --noEmit -p tsconfig.json` from `atlas-server`; state the measured baseline.
 - Server `npm run build` must succeed.
-- The `manual-edit` and constraint-validator server suites, with exact tallies **and base classification**.
-- Client `typecheck` and `build`, measured **in the executing worktree** (not `D:\ATLAS`, where `@types/node` is
-  absent and it is unmeasurable). Client typecheck baseline is **exactly 4** pre-existing errors; client suite must
-  remain **15 failures across the same 10 files**, compared by failing **test name**.
-- **Line-cap sweep as a DELTA row, not "must be empty":** the base sweep is **44+ files over 1000** (including
-  `schedule-constructor.ts` 2977, `types.ts` 2286, `manual-edit.service.ts` 2190, `constraint-validator.ts` 1320).
-  **Record the base count literally, and require the post-fix count to equal it.** A "must be empty" row is
-  unsatisfiable and is a false mandatory row.
+- `manual-edit` and constraint-validator server suites, with exact tallies **and base classification**.
+- Client `typecheck` and `build`, measured **in the executing worktree**, which must have `@types/node` installed —
+  in `D:\ATLAS` the client typecheck aborts `TS2688` with no error count and is unmeasurable. Baseline is **exactly
+  4** pre-existing errors there. Client suite must remain **15 failures across the same 10 files**, compared by
+  failing **test name**.
+- **Line-cap sweep as a DELTA row.** The base is **39** files over 1000 physical lines across
+  `atlas-server/src` + `atlas-client/src` (73 repo-wide) at `d8bf3f6d`, including `schedule-constructor.ts` 2977,
+  `types.ts` 2286, `manual-edit.service.ts` 2190, `constraint-validator.ts` 1320. **Record the base count you
+  measure and require the post-fix count to equal it.** "Must be empty" is unsatisfiable and is a false mandatory row.
 - `git diff --check` clean; `git status --short` EMPTY.
 
-## 6. Data repair — none required, recorded deliberately
+## 4. Data repair — none required, on a verified signal
 
-A read-only sweep of all 6 runs and ~13,800 draft entries found **zero** entries with a `manual-` entryId, so the
-`:692` channel has **never written a live row**. Deferral-bearing keys only ever appear alongside server-written
-companions (`modularAssignments`, `roomAuthorityDeviationReason`, `fallbackTier`), and the 150 rows carrying a lone
-`roomAssignmentReason` are seed fixtures with no production producer. **This fix is forward-looking only; no
-migration, no data write, no repair clause is required** — and that is stated here with its evidence rather than
-left as an unanswered question.
+`manual_schedule_edits` has **0 rows**: no manual edit of any kind has ever been committed on this database, so
+none of these channels has been exercised. **Forward-looking only** — no migration, no data write.
 
-## 7. Not authorized
+## 5. Not authorized
 
 Any deployment, runtime/task/env change, migration, live-data write, generation, publication, availability write,
 term-cache apply, Teaching Load apply, or companion-repository action. **Source-only.** The live release
-`26f7c907` is untouched by this packet; rolling the fix out is a separate HIGH action with its own packet, capacity
-reclaim, pre-action review and acceptance.
+`26f7c907` is untouched; rollout is a separate HIGH action with its own packet, capacity reclaim, pre-action review
+and acceptance.
 
-## 8. Verify before editing
+## 6. Verify before editing
 
-1. `:692` is the only read of `proposal\.metadata` in the server.
-2. `timetable-quick-place.service.ts:430` **does** write `metadata` onto a `ManualEditProposal`
-   (**this premise was the one R1 got wrong — check it first**).
-3. The MOVE/CHANGE_ROOM/CHANGE_FACULTY/CHANGE_TIMESLOT branch (`:698-716`) assigns no `metadata`.
-4. Both wire routes take a proposal from `req.body` — `preview` (`:37-57`) and `commit` (`:64-90`).
-5. `ManualEditPanel.tsx:215` sends `allowSoftOverride: true` unconditionally.
+1. `proposal\.metadata` has exactly one read in the server, at `:692`.
+2. `timetable-quick-place.service.ts:430` writes `metadata` onto a proposal — **the premise R1 got wrong; check first.**
+3. `timetable-teaching-load-repair.service.ts:62,806-808` forwards a client `placementProposal` that reaches `:692`.
+4. `deferredRoomTypePreference` is written **only** at `:1484`, inside `commitManualEditBatch`, and read only at `:414`.
+5. `constraint-validator.ts:869,872` uses the same flag for the feature check that `:838,841` uses for type.
+6. `atlas-server` has no `typecheck` script; the client worktree needs `@types/node`.
 
 **If any premise fails, STOP and report it. Do not edit.**
