@@ -19,6 +19,14 @@ Operator rulings that bind both lanes (2026-09-26):
 
 
 
+## 2026-09-27 00:35 — Generate dialog: dense, engineer's words, and "1295 unassigned" against the checklist's "0 to place"
+
+Evidence: findings #43–#45 (read-only; nothing generated or published). **#44 (HIGH, truthfulness):** on the same page the
+generate dialog says "Still unassigned: 1295 sessions" and the publish checklist says "0 sessions still to place". Pick one
+meaning and one number. **Generate dialog (MEDIUM):** 116 words, 14 lines at 12 px, no verdict line, and labels such as
+"Actor school year", "Term authority: Saved ATLAS data" and "Retained draft anchors". **Publish confirm: clear** (17
+words); only cut the duplicate close control. Both dialogs have an unlabelled ✕ plus a "Close" button.
+
 ## 2026-09-27 00:25 — Revert leg: "Edit reverted." and nothing changed; the undo is logged as a new revertable row reading "warnings: 0"
 
 Evidence: findings #38–#42. **Live change:** run 320 now has a third history row, "Undid an earlier change" (12:22:07 AM),
