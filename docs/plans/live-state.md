@@ -77,6 +77,18 @@ resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs
   gone: a request with no `termIndex` still returns `[1,2,3]` with 3 entries in one cell, so any surface
   that fails to scope will still display it.
 
+  **ROOT CAUSE FOUND for the "Term not verified" state (measured, 2026-09-26 15:5x, Lane A2):**
+  `GET /api/v1/runtime/context?schoolId=1` returns `activeTerm` as a **top-level** key with
+  `verified: false`, `termIndex: null`, `reachable: false`, and the message
+  **"Active term verification not requested."** — while still carrying `orderedTerms` (3),
+  `termFormat: "TRIMESTER"`, `termCount: 3`, and `source: "atlas-persisted"`. So the three-term contract
+  **is** present and the year is `aligned` (`atlasSchoolYearId 10`, drift `recommendedAction: NONE`); the
+  endpoint simply was not asked to resolve which term is active. The client's `isVerifiedOrderedActiveTerm`
+  is therefore correct to refuse. **The fix is client-side: `resolveActiveSchoolYearContext` must request
+  active-term verification from `/runtime/context`** (whatever flag that endpoint honours — `message` says
+  plainly it was "not requested"). This is handoff candidate 3 and it is a small change, not a data
+  problem. **Until it lands, Room Schedules stays in its fail-closed state by design.**
+
 - **Release SHA: `26f7c907a37185e036e71cf0d82423794689b318`** (SUPERSEDED 2026-09-26 15:49 by `400a6909`; was LIVE from 09:41, Lane A -
   client-presentation release, cutover executed; `E:\ATLAS-runtime-supervised-26f7c907-20260926`; execute audit
   `C:\ProgramData\ATLAS\release-audit\26f7c907-20260926-094157`, dry-run audit
