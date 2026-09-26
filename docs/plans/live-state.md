@@ -632,6 +632,58 @@ committed limit; worth a split in a later lane. Remote `docs/lane-c-*` branches 
 rule); stale remote work branches still to delete: `work/wonderful-sagan-nhz302`, `work/epic-galileo-cw0swp`.
 ## Lane A — current lane (written only by Lane A)
 
+**Committed live-secret exposure removed from `origin/main` (2026-09-26, fresh Planner A session).** The live
+53-char `ATLAS_SYSTEM_TOKEN` -- the value `authenticateWithSystemToken` grants `SYSTEM_ADMIN` on -- was committed
+in `CHANGELOG.md:2748`, a 2026-09-02 RR-10 narrative entry, and so had been **public since 2026-09-02**. Measured
+against the live value (value never printed; occurrence counts only): **exactly 1 hit across all 4985 tracked
+files** on `origin/main`. Scrubbed at **`8a0686cb`** -- the literal is replaced by the variable name, so the
+decision record survives. Post-push: **0 occurrences** on `origin/main`. This is exposure removal, **not
+rotation**: the credential is still live (health 200) and history still carries the value by the accepted decision
+in `docs/handoffs/lane-a-credential-incident-2026-09-26.md` section 4. Rotation stays the coordinated operator
+action in `docs/prompts/atlas-system-token-rotation-2026-09-26.md`, caller-first.
+
+**`origin/main` was red on the credential guard; fixed at `ee27d2d8`.** Committing that handoff made
+`test:committed-credential-scrub` fail -- **12/13**, `not ok 1 no tracked production file contains a
+credential-shaped literal` -- because the handoff names the shape the first guard missed by *quoting it*, and the
+`password-hash-literal` rule flags that shape in markdown as deliberately as in source. So the prior session's
+"guard 13/13" claim went stale the moment the evidence documenting it landed. Fixed by rewording the **prose**; the
+**rule is untouched** and its own red-then-green controls (tests 4, 13) still pass. Green on the integrated tree:
+**13/13, 0 fail, 0 skipped**. Weakening a security rule to silence a finding in our own documentation is the
+subtractive correction section 16 forbids. Range `2a001b6e..ee27d2d8`, 2 files, 2 lines, `diff --check` clean,
+strict fast-forward, no independent QA needed (LOW, docs-only).
+
+**Residual guard gap (as of 2026-09-26, observation only -- not fixed).** The guard has no rule for a **bare**
+shared secret in prose: every credential rule is shape-anchored (DSN, hashing-call literal, markdown login pair,
+env fallback, JSON key, bearer prefix). A 53-char token inside backticks with no keyword and no `Bearer` prefix
+matches nothing, which is why `CHANGELOG.md` sat exposed for 24 days under a green gate. Same class as the two gaps
+the prior session disclosed (`.gitignore` un-ignores exactly two Playwright spec filenames; a **mid-file** U+FEFF
+still defeats the position-anchored rules, where a *leading* BOM is fixed). Not actioned here: a shape-agnostic
+high-entropy-token rule risks false-positiving hashes and ids, and belongs in a bounded gate-design cycle.
+
+**Capacity re-measured (2026-09-26) -- corrects a stale figure further below.** Three samples, 3 s apart: **D:
+39.45 GiB, E: 50.07 GiB**, stable. The "47.23 GiB E: / 60.67 GiB D:" line in the deployment-outcome block below is
+no longer true. D: is above the section 3 warn (25) and fail-closed (15) lines but has fallen ~21 GiB, and
+PostgreSQL lives on D:. E: is **at** the 50 GiB warn line. No capacity breach is claimed and none is inferred from
+a single sample. The release-directory reclaim is **Lane A2's**
+(`docs/reviews/reclaim-e4989b72-20260926/`) -- not duplicated here.
+
+**Live release observed 2026-09-26: `e4989b72`** (supervisor task action
+`E:\ATLAS-runtime-supervised-e4989b72-20260926\ops\runtime\cli.mjs start`, task Running). The prior session's
+"A2 mid-deploy to `400a6909`" did **not** land. I did **not** touch the runtime or the `## Live release` block --
+A2 owns both. My change is docs-only and **undeployed**; A2's `/my` retirement (`5680c87a`, integrated
+`d902c69a`) is likewise integrated and undeployed as of `2a001b6e`.
+
+**Section 15 debt here, named and dated (2026-09-26).** This section runs **lines 633-1804 (~1170 lines)** against
+a ~40-line guideline, and the file is ~2000 lines -- the regrowth section 15 records having already been corrected
+once (1,340 lines on 2026-09-25, where an undated queue misassigned a lane to work integrated four days earlier).
+Narrative here should move to `docs/handoffs/`. **Not condensed in this session:** it is a lossy,
+evidence-moving edit over retained records and deserves its own bounded pass, not a rider on a secret-scrub commit.
+
+**Worktree:** `E:\ATLAS-worktrees\lane-a-changelog-token-scrub-20260926` (`fix/changelog-token-scrub-20260926`)
+-> `RETIRE_AFTER_INTEGRATION`, clean and fully merged at `ee27d2d8`. All edits were made there, **never in
+`D:\ATLAS`** (section 14); the reference checkout was only fast-forwarded. Branches
+`fix/committed-credential-scrub-20260926` and `docs/lane-a-register-reconcile-20260926` remain fully merged and
+deletable, not pushed.
 **Current stream (2026-09-26):** `TEACHER-CONCERN-AUTHORITY-PROGRAM-20260924` C1–C7 is complete. The scheduler is
 the single teacher-concern accommodation surface, SMART's draft access is teacher-scoped/read-only, and the ATLAS
 teacher portal is removed. `ACTIVE-TERM-LIVE-RESOLUTION-C02` and the F1/F2 follow-up are live at `116a7658`;
