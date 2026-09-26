@@ -6,12 +6,12 @@ changes.
 
 Last reconciled: 2026-09-25 (Lane A).
 
-## Writing protocol — three planner lanes share this file
+## Writing protocol — four planner lanes share this file
 
 This file is co-maintained so three planners can work in parallel without a custody defect. The
 rules are what make that safe:
 
-1. **Each lane edits only its own section** — `Lane A`, `Lane B` or `Lane C — current lane` —
+1. **Each lane edits only its own section** — `Lane A`, `Lane A2`, `Lane B` or `Lane C — current lane` —
    plus the `Live release` block **when it deployed**. Never rewrite another lane's section. If a
    merge conflicts inside another lane's section, **take theirs** and move on.
 2. **Every blocker or "not done" line carries `as of <date>` and what proves it.** An undated
@@ -1704,3 +1704,65 @@ scheduled. This entry exists so the next reclaim does not have to re-derive the 
 `eb0e3038` as a keep row from the two stale lines above.
 
 Do not write in Lane B/C worktrees.
+
+## Lane A2 — current lane (written only by Planner A2)
+
+Timetable custody transferred from Lane A by operator instruction, 2026-09-26. Lane A retains the exposed
+dev DB credential, capacity/reclaim policy, and the cross-lane disposition backlog. **A2 owns:** the
+timetable surface and its packets, the client-delta release, the acceptance rows, the manual-edit
+constraint-severity investigation, and the §7 term guard. Worktree
+`E:\ATLAS-worktrees\lane-a2-timetable-custody` (`work/a2-timetable-custody`), `KEEP_ACTIVE` as the current
+lane record. A2 must not paste or echo the credential value, and must not run a history purge.
+
+**Verified at custody start (2026-09-26, by command — not inherited):**
+- Live release **`26f7c907`** from the **scheduled-task action** (`schtasks /query /tn
+  ATLAS-Runtime-Supervisor /fo LIST /v` → `…-26f7c907-20260926\ops\runtime\cli.mjs start`, Running, Last Run
+  13:09:14); health 200, `/health/ready` 200 `database:"ok"`, 5174 200, DB-backed subjects 200. Rollback
+  basis `116a7658`, never executed.
+- `origin/main` **`a1dcfc34`** — **50 commits ahead of live**; `26f7c907` IS an ancestor of main (exit 0),
+  main is NOT an ancestor of live (exit 1). Two accepted cycles still not live: `2f86ffee`, `9b1ec14a`.
+- C: 46.47 GiB (20.6%), E: 54.11 GiB — above the 50 GiB warning, **no reclaim owed**.
+
+**THE HEADLINE FINDING IN MY INITIATION BRIEF IS FALSE — withdrawn; both prescribed remedies would have
+caused harm.** The brief's finding 1 claims the J2/J2J3 reconciliation left three dead `{label, next}`
+exports (0 call sites) against three bare-label ones (1 each), so a scheduler sees "Waiting for a decision"
+with no explanation of what happens next. Measured at `a1dcfc34`: **all six exports have exactly one live
+production call site each**; `roomRequestAppealState` and `generationRunStateLabel` return **`string`**, not
+`{label, next}`, so they never carried a `next` to lose; and `RightPanel.tsx:326` still renders
+`requestDecision.next`. The three `plain*` functions are **not** a competing second label set — each
+delegates to the ONE `plainRuleValue` helper over the **same** canonical map, adding the absent-vs-unknown
+distinction the reconciliation existed to fix. The choice is documented in-code at
+`timetable-plain-language.ts:283-312`, which names the rejected alternative: *"two label sets for one status
+is the exact 'one HARD problem has four names' defect J1 was written to remove"*. Gates green:
+`test:plain-language-j2j3-c01` **18/18**, `test:plain-tokens-c04` **30/30**, both registered scripts.
+Full evidence, every command, plus an independent check that the three `next` sentences are true against
+`room-preference.service.ts`: `docs/reviews/a2-custody-verification-20260926/plain-language-accessor-verdict.md`.
+**Deleting the "dead" exports would have removed the only rendered `next` sentence and broken a gate;
+"wiring the richer accessors back up" would have reintroduced both the absent/unknown conflation and the
+two-label-sets defect.** Correct action taken: record it intact and close the item.
+
+**Open items (dated 2026-09-26, in priority order):**
+1. **R2 the withdrawn client-delta packet** `docs/prompts/deploy-5152bff0-client-delta-2026-09-26.md` —
+   `CORRECTION_REQUIRED` 6/13, **must not execute**. B1 is the serious one: the packet **never builds
+   `atlas-server/dist/server.js`**, so a literal run would serve 5174 with **no 5001** after cutover. Also a
+   stale target pin, a false A11 expected value, and a wrong authority citation (`252-255`, not `219-222`).
+   A client-only *delta* is not a client-only *build*.
+2. **Acceptance still 9/13, NOT closed** — A6 and A12(b) unperformed (A7 passes with EnrollPro-502
+   attribution; A5 partial). A browser session exists again.
+3. **Land the J2J3 integration record** — `c9c51307`/`16468f85`, on the local-only, never-pushed
+   `integration/plain-language-j2j3-c01-20260726`. It carries the `27713608...98289573` verdict
+   `ACCEPT_READY` 24/24 by tally, which partially discharges the owed written QA capsule. Its
+   `live-state.md` portion is **another lane's section** and is superseded by `de392cf8` (already on main) —
+   do **not** land that part.
+4. **Manual-edit constraint severity — three questions that are NOT planner calls** gate any fix: may a
+   server-derived solver trial forgive a room-feature shortfall; is the modular-pool exemption legitimate;
+   may the Teaching Load repair path carry client metadata at all. R1–R3 all withdrawn pre-action.
+   `manual_schedule_edits` is **0 rows**, so no data repair is needed.
+5. **§7 term guard owed and unguarded** — no test covers the `C2-term.1`/`C2-term.2` clause in
+   `generation-blockers-c02.test.tsx`.
+6. **Register hygiene: this file is 1521 lines**, far past the §15 limit, and it is the first file every lane
+   reads. A2 has added a section rather than made it worse; the shared `Live release` block alone is ~185
+   lines of superseded releases. Pruning another lane's section needs that lane's word or the operator's.
+
+**Next action (2026-09-26):** item 1 — R2 the client-delta packet. It is the only item on the critical path
+to getting two accepted cycles live, and it must not be executed before its re-review.
