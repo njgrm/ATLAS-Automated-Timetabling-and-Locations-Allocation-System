@@ -786,11 +786,46 @@ in-worktree `ops/runtime/logs`. The pass's non-blocking rows are also fixed: `:1
 A's text); `timetable-relaxed-main-b02.test.tsx:243,:370` named as A12(a)'s committed script instead of
 deferring to a handoff; and the dry run's writes to `C:\ProgramData\ATLAS\release-audit` disclosed as writes.
 
-**Next action (2026-09-26):** (1) a fourth pre-action pass on packet **R4**; (2) if clear, the elevated runner
-dry-run → `-Execute` → post-action QA with A1–A13 and a real `passed/blocked/unperformed` tally; (3) the
-operator decision on `4893cbde` and the three non-git leftovers, and the Lanes B/C disposition backlog of
-8.72 GiB, both still owed and neither blocking the build. `main` is still not deployed; live is `116a7658` and
-healthy. Dated follow-ups, none blocking: **F1**, a product ruling this lane did not
+**ONE OPERATOR ACTION UNBLOCKS THE DEPLOYMENT (2026-09-26).** The fourth pre-action pass on R4 returned
+`CORRECTION_REQUIRED` 7/12 with **4 blocking** findings, and proved by execution that **R4's fix did not fix the
+defect**: `ATLAS_RUNTIME_LOG_DIR` moves the supervisor's *log file*, but the file that actually dirties a release
+worktree is **`supervisor-state.json`**, written by a separate hardcoded resolver — `ops/runtime/cli.mjs:21-23`
+`statePathFor()` returns `resolve(sourceDir, contract.logs.defaultDirectory, contract.state.fileBaseName)` and
+**never consults the log-dir variable**. It is also the *only* unignored file there: `.gitignore:83` is `*.log`, so
+the log file is **already** ignored. R4 therefore moved the already-ignored half and left the half that matters.
+(That misstatement was mine — a fourth unverified claim this lane asserted and review caught.)
+
+**The fix is one line, and it is an operator action because this lane's file tools are refused for
+`D:\ATLAS\.git\info\exclude`** — both `write` and `edit` are rejected by the current permission rules despite an
+apparent `D:/ATLAS/**` allow entry. Add to the end of that file:
+
+```
+/ops/runtime/logs/
+```
+
+**Measured effect, proven non-invasively in-session** via `git -c core.excludesFile=<temp>` so the shared file
+was never touched: `116a7658` (live), `861d89a2` and `eb0e3038` each go from `?? ops/runtime/logs/` to **empty**.
+So the one line makes **all three bases runner-eligible** — which fixes the second R4 blocker too, since without it
+the only eligible basis was `861d89a2`, i.e. **`116a7658` minus both F1/F2 production fixes**, so any rollback
+would have reintroduced the availability-drift routing and published-export term-identity defects into
+production. It also removes the need for a machine-scope env mutation (whose authority R4's review flagged as
+unevidenced), for a source change to the audited runtime supervisor, and for restarting the live release.
+
+**Packet R5 authored** (`docs/prompts/deploy-main-26f7c907-client-presentation-2026-09-26.md`), gating on that
+precondition as step 1 — the executor must read the shared excludes and **stop** if the rule is absent, not add it
+and not work around it. R5 repeats the cleanliness gate **after** the isolation run (6b) and again after
+`schtasks /run` (10b), since starting the supervisor is what writes the state file; restores `116a7658` as the
+rollback basis; restates A13 to clauses that are actually satisfiable (R4's "`<target>\ops\runtime\logs` does not
+exist" is impossible while `statePathFor` writes there in-worktree by design); and re-derives A9's baseline at the
+release SHA because `timetable-scheduling-quality-c03.test.tsx` — one of the three files carrying the 4 standing
+typecheck errors — **is** modified by this range, so the earlier "never touches" claim was false.
+
+**Next action (2026-09-26):** (1) **operator** adds `/ops/runtime/logs/` to `D:\ATLAS\.git\info\exclude` — the
+single blocking item; (2) a fifth pre-action pass on **R5**; (3) elevated runner dry-run → `-Execute` →
+post-action QA with A1–A13 and a real `passed/blocked/unperformed` tally. `main` is still not deployed; live is
+`116a7658` and healthy. Also still owed and neither blocking: the `4893cbde` + three-leftover decision (1.91 GiB)
+and the 8.72 GiB disposition backlog owned by Lanes B and C. Dated follow-ups, none blocking: **F1**, a product
+ruling this lane did not
 make — main's four per-code-space fallbacks still differ from the shared honest sentence for an out-of-union
 value (unreachable on today's schema, no token leak, QA ruled NON_BLOCKING); **F3**, B1's defect class still
 live at `ManualEditPanel.tsx:929,948` and `QuickPlaceSummaryModal.tsx:58`; **F4**,
