@@ -2244,6 +2244,39 @@ new `timetable-edit-history-truth-a2.test.tsx` is reachable from `test:a2-timeta
    sessions · Invalid Date" — engine jargon, the exact class this lane removes. **Unreachable in production**:
    `listManualEdits` always emits `createdAt.toISOString()` (`:1949`) — so a one-line guard, not a live defect.
 
+**DONE 2026-09-27 - items 1, 2 and the `title=` cleanup: the Redo fix (merge `aa13a0fd`, QA `ACCEPT_READY`
+19/19/0/0).** The Redo button was broken on **every** successful revert and then reported
+"Version-stale — the schedule changed" with the run version **byte-identical** before and after. **QA confirmed the
+premise from server source *and* by probing every id in the ledger at the post-revert head: none satisfies the
+contract**, because the head *is* the `REVERT` row and the server excludes `REVERT` targets. So no client-only
+truthful Redo exists; a real Redo is separate server work. The control is withdrawn and **states** "This undo cannot
+be undone." — reusing the accepted history-row wording so the surfaces cannot drift — and the header-Undo instance
+was **fixed rather than deferred**, since `editHistory[0].editType` is already client-side. A pre-existing
+`title="The schedule changed…"` was removed: it was both a falsehood and a §8-forbidden disclosure path.
+
+**Accessibility decision, on QA's evidence (2026-09-27): the tooltip-only reason on the two header Undos is
+ACCEPTED.** The deciding fact is not header height — it is that `TimetableUndoRedoControl` renders the **same**
+reason as a visible `role="status"` chip in the same header cluster, from the same `decideHeaderUndo` decision. A
+keyboard-only or touch operator is therefore not left without it, and the tooltip buttons are duplicate affordances
+rather than the sole carrier. **Dated follow-up:** neither header Undo points at that chip via `aria-describedby`,
+and the header one carries no `aria-label` while its icon lacks `aria-hidden` (pre-existing).
+
+**CORRECTION to the executor's completeness claim, from QA (2026-09-27):** there **is** a third `UNDO_CONFLICT`
+mapper at `atlas-client/src/components/timetable/LockPanel.tsx:396`, still saying "Schedule changed—review latest",
+fed by the same `assertUndoHead` (`pre-generation-draft.service.ts:1665-1674`). **It is unreachable dead code** —
+no importer anywhere in `src`. So the accurate statement is "no third **reachable** path", not "no third path".
+**Filed as dead-code cleanup, not as an open truthfulness defect.**
+
+**Two further §16-safe follow-ups from the same QA pass:** the shared `UNDO_CONFLICT_MESSAGE`'s explanatory
+disjunction is incomplete — for **actor-mismatch** and the traced REVERT-row cause, both clauses read false, so add
+"or it belongs to someone else"; and the new message drops the base's "Refresh and re-preview before retrying"
+advice, which is lost for the one cause where refresh *is* right (defensible, since a universal refresh instruction
+would itself be a mild falsehood for the three causes where nothing changed).
+
+**Coverage at `70ada9e2`, independently reproduced by QA with its own census script: 146 on disk / 146 named by a
+committed script / 117 in `test:client-suite` / 29 omitted from the aggregate / 0 unreachable / 0 phantom.**
+Quote which reading you mean — "29 omitted" and "0 unreachable" are opposite conclusions.
+
 
 
 **Dated successor, not a gate:** `getRelocatedClassCount` is `moves?.relocated ? 1 : 0`. Its comment promises the
