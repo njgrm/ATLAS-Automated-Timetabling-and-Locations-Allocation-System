@@ -275,3 +275,21 @@ the runner's Chrome ids (not saved to disk).
 | 59 | **Right after generating, the page still says "Schedule information changed … Regenerate to apply" and offers "Preview impact"**, the same stale drift banner as #17, now also on a run generated seconds ago. Warnings jumped from 69 (run 320) to **159** on run 321 with nothing saying why. | MEDIUM (with #17) |
 
 Cost (`subagent_tokens`): 90,686 (blocked: no "Generate" on a published run) + 122,630 (New version leg).
+
+## Release `c5a9e832` legs on draft run 321 (2026-09-27 05:45–06:05 +08, session 4)
+
+Live `c5a9e832` carries `c50b15ff` + `e51388c1`. Chrome needed an operator sign-in first (one run lost to `/login`).
+
+| Leg | Live answer | Verdict |
+|---|---|---|
+| Change room, MAPEH Mon 7:30 (GARCIA, G7 Room 103), T2 GR7 - Luna | Form rendered: Edit Type (Timeslot/Room/Faculty), "Target Room: G7 Room 103 · Floor 1 · CLASSROOM", "Preview Changes", Conflict Inspector "1 soft". No error boundary, no console errors. Not committed. (ss_1607rc1x6) | **passes** (`c50b15ff`) |
+| #28 no-click reload | After the Change room form, a reload with no clicks: no console errors, grid normal. (ss_7855m07pv) After A2's auto-fixed swap + revert, a fresh load: no console errors. | no repro; **not discriminating** (the load after the auto-fix came after its revert) |
+| Swap → history → revert repeat | **Collided with A2.** A2 drove the same Chrome profile at 05:46–05:57 and committed + reverted Mon 7:30 MAPEH ↔ Wed 8:15 ESP (auto-move 1 class) at 05:54:10 while my runner sat in swap selection on the same class. A2's evidence (`docs/reviews/a2-browser-acceptance-c5a9e832/`) covers the contract rows; I did not repeat it. | unperformed by Lane C |
+
+| # | Finding | Severity |
+|---|---|---|
+| 60 | **History says nothing happened while two edits exist.** ~06:00, after A2's swap (05:54) and its revert, More › Expert tools › "Schedule history" was disabled with "Nothing to show yet: no class has been moved, swapped or given a new room in this schedule." on draft 321 (T2 69 / T1 73 / T3 69 warnings, Mon 7:30 MAPEH back). A2's screenshots show the two rows on the same run. One read; same family as #42 (stale history), now on the menu entry that decides whether history can be opened. (ss_02897zd8d) | HIGH (verify) |
+| 61 | **Another user's commit lands mid-action with engineer IDs and no re-sync.** While the runner was in "Swap class times: Class A selected. Choose Class B on the grid." on Mon 7:30 MAPEH, A2's commit toasted "Manual swap committed between entries entry-321::t2 and entry-421::t2." The grid changed under it (Mon 7:30 went empty, warnings 159 → 68), and the selection banner stayed armed on a class that had just moved. Say who changed what in words ("Another user swapped MAPEH Mon 7:30 with ESP Wed 8:15") and cancel or re-check a selection whose class moved. | HIGH (older users; truthfulness) |
+| 62 | **A2's own finding, seen independently:** swap + revert is not net-neutral: 159 → 68 → 69, and Mon 7:30 was empty between the two. Draft 321 is left at 69. | (A2 CORRECTION_REQUIRED) |
+
+Cost (`subagent_tokens`): 72,218 (no session) + 82,591 (Change room) + 89,180 (swap, collided) + 91,581 (read-only state) + 67,180 (Chrome disconnected) = 402,750.

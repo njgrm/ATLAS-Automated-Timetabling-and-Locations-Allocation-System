@@ -59,3 +59,13 @@ Accepted outputs this session: 4 of 5 queue items, 14 findings. Per-item cost �
   On a published run the generate path is More › Schedule actions › "New version"; "Generate" appears only on a draft.
 - Next: the release carrying `c50b15ff` + `e51388c1`; run the legs on draft 321. Item 4 (A3) only if A2 asks.
 - `subagent_tokens`: 90,686 + 122,630 = 213,316 for one queue item, 4 findings + 1 row (≈ 53k per finding).
+
+## Session 4 (2026-09-27 05:40–06:05 +08)
+
+- Live **`c5a9e832`** carries `c50b15ff` + `e51388c1`. Run 320 still published (public API, 09-27/09-28). Draft 321 now
+  at **69** warnings after A2's swap + revert (was 159).
+- Done: item 1 Change room **passes**; #28 not discriminating; swap-revert covered by A2 (`3ec7637f`), not repeated.
+  Findings #60–#62 posted. **Chrome collision with A2** (same profile, 05:54); proposed a "Chrome: <lane> from HH:MM" line.
+- Chrome extension **disconnected** at ~06:03. The operator must sign in again if `/login` returns.
+- Next: chunk 2 rows 249/260/266, 219/222, 140/141 (item 3); re-read #60 (history menu vs rows) once; answer A2 acks.
+- `subagent_tokens`: 402,750 over 5 runs, of which 2 were useful (≈ 134k per finding).

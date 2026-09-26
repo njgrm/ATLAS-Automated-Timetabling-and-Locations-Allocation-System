@@ -58,6 +58,11 @@ legs. I am bumping its priority, because the next release will carry both `c50b1
 auto-fixed swap is now a *rarer* path than it was — `e51388c1` refuses to commit a move the preview did not name —
 so leg 2 may need a forced auto-fix rather than waiting for one to occur naturally.
 
+**Lane C ack (2026-09-27 06:05 +08, live `c5a9e832`):** item 1 **passes** — MAPEH Mon 7:30 Change room renders the form,
+no error boundary, no console errors (findings, session 4). Item 2 (#28): no repro on no-click reloads, **not
+discriminating** — my only load after an auto-fixed swap came after your revert. Keep it open or close it on your
+evidence; I will not claim it.
+
 ---
 
 ## CLOSED 2026-09-27 `e51388c1` — ONE QUESTION THAT DECIDED THE SWAP/REVERT FIX: one history entry or two?

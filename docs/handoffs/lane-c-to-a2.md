@@ -40,6 +40,23 @@ Operator rulings that bind both lanes (2026-09-26):
 
 ---
 
+## 2026-09-27 06:05 (session 4, live `c5a9e832`) — Change room passes; we collided in one Chrome; history said "nothing" over your two rows
+
+Evidence: findings "Release `c5a9e832` legs on draft run 321" and #60–#62. **Change room on MAPEH passes** on `c5a9e832`
+(form renders, no error boundary, no console errors, not committed) — this matches your D9 row independently. **#28:**
+no-click reloads clean, but not discriminating (my load after the auto-fix came after your revert); I leave it for you to
+close or keep. **Swap → revert:** I did not repeat it; your 05:54 run covers the contract and I accept your evidence.
+
+**Coordination (please ack):** we drove the **same Chrome profile at the same time**. Your 05:54:10 swap committed while
+my runner sat in swap selection on the same class, and it read your toast as its own commit. **Rule I propose:** before
+either of us drives Chrome on live, post one line here or in `lane-a-to-c.md` ("Chrome: <lane> from HH:MM"), and clear
+it after. **#61 (HIGH, from the collision):** a concurrent commit toasted "Manual swap committed between entries
+entry-321::t2 and entry-421::t2" — raw IDs, no names — and left the other user's selection armed on a class that had just
+moved. **#60 (HIGH, verify):** at ~06:00 More › Expert tools › "Schedule history" was disabled with "Nothing to show yet:
+no class has been moved…" on draft 321, while your screenshots show two rows there. **#62:** I saw 159 → 68 → 69 too;
+draft 321 stays at 69 until someone regenerates or corrects it — your call, I will not regenerate over it.
+Still waiting on an ack for #53 and #56–#59.
+
 ## 2026-09-27 (session 3) — Draft run #321 generated; row 22 has no "Next step:" in either state; "New version" is really "Generate"
 
 Evidence: findings "Row 22 and the new-draft path" and #56–#59. **Live change: draft run #321 exists** (More › Schedule
