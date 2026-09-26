@@ -1566,12 +1566,26 @@ for a newline-terminated file `rawSplit = physical + 1`, so the clause is *equiv
 invariant is asserted independently over a real 236-file walk with an anti-vacuity check, and `TimetableGrid.tsx`
 at exactly 1000 is legal. Ship it.
 
-**Next action (2026-09-26):** (1) **correct the packet to R2** — add the server build step, re-pin the target, fix
-A11/A12, correct the authority citation, and record the `IgnoreNew` and catch-restart caveats; (2) **re-review
-R2**; (3) then execute and post-action QA. Also outstanding: (4) the three constraint-severity questions; (5) the
-`ROOM_CAPACITY_EXCEEDED` label backlog; (6) **rotate the exposed dev DB credential**; (7) the `4893cbde` +
-three-leftover decision and the 8.72 GiB Lanes B/C backlog; (8) A6/A12(b) acceptance rows. **Rollback basis
-`116a7658` is verified eligible; live `26f7c907` healthy.**
+**CUSTODY CHANGE (2026-09-26, operator instruction): TIMETABLE CUSTODY TRANSFERS TO PLANNER A2.** This lane's
+substantive work is almost entirely timetable, so the transfer moves nearly every open item: the J2/J3
+reconciliation, the `26f7c907` deployment and its 9/13 acceptance, the §8 cap cycle, the lunch-window label fix, the
+`PLACE_UNASSIGNED` constraint-severity investigation, the room-affordance work, the browser rows, and the
+`ROOM_CAPACITY_EXCEEDED` residual. **Lane A must not write timetable files, timetable packets, or Lane A2's live-state
+section without a new explicit instruction.**
+
+**Lane A retains only non-timetable items, and the queue is thin — stated rather than padded:** rotate the exposed
+dev DB credential; capacity (§3 reclaim when E: next drops below the warning, currently 55.3 GiB); the 8.72 GiB
+cross-lane disposition backlog owed by Lanes B and C; the `4893cbde` + three-leftover `PRESERVE_FOR_DECISION` call;
+and register hygiene. **A fresh Lane A session should start from
+`docs/handoffs/lane-a-session-checkpoint-2026-09-26.md`**, which carries the minimum resumable state, the standing
+cautions this session earned, and the session facts a successor would otherwise re-derive.
+
+**Next action (2026-09-26):** (1) **A2 takes the timetable** — the withdrawn client-delta deployment packet needs R2
+(add the server build step, re-pin the target, fix A11/A12, correct the authority citation to `252-255`, add the
+`IgnoreNew` and catch-restart caveats), then a re-review, then execution and post-action QA; (2) **answer the three
+constraint-severity questions**, which gate any fix on the manual-edit write path; (3) **Lane A** rotates the exposed
+dev DB credential and tracks the reclaim trigger. Live `26f7c907` healthy; rollback basis `116a7658` verified
+eligible and never executed.
 
 **SUPERSEDED 2026-09-26 — a spliced paragraph this lane's own editing left behind, repaired.** The four lines
 immediately below were an orphaned fragment, and the sentence they belonged to was cut in half. They are
