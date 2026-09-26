@@ -53,11 +53,30 @@ interface SpawnResult {
 
 type ServerChildProcess = ChildProcessByStdio<null, Readable, Readable>;
 
-const DEFAULT_ENROLLPRO_DB = 'postgresql://atlas_user:incorrect404@localhost:5432/enrollpro?schema=public';
-const DEFAULT_ATLAS_DB = 'postgresql://atlas_user:incorrect404@localhost:5432/atlas_db?schema=public';
+// No database or password defaults exist here on purpose: a credential committed to this
+// repository is a credential in every clone. These values must come from the caller's
+// environment (see `requireEnvFrom`).
 const DEFAULT_ENROLLPRO_API = 'http://127.0.0.1:5000/api';
 const DEFAULT_ADMIN_EMAIL = 'admin@deped.edu.ph';
-const DEFAULT_ADMIN_PASSWORD = 'Admin2026!';
+
+/**
+ * Resolve a required value from the environment, or fail closed.
+ *
+ * An empty or whitespace-only variable counts as absent: it is not a credential, and
+ * accepting it would defer the failure to an opaque downstream connection error.
+ */
+function requireEnvFrom(label: string, keys: string[]): string {
+	for (const key of keys) {
+		const value = process.env[key];
+		if (typeof value === 'string' && value.trim().length > 0) return value;
+	}
+
+	throw new Error(
+		`Missing ${label}. Set ${keys.join(' or ')} in the environment (e.g. atlas-server/.env) ` +
+			'before running the cross-repo source gate. This gate has no built-in default for this ' +
+			'value, so it cannot fall back to a committed credential.',
+	);
+}
 
 function parseBooleanFlag(value: CliValue, defaultValue = false): boolean {
 	if (value === undefined) return defaultValue;
@@ -82,10 +101,10 @@ function parseArgs(): GateOptions {
 		enrollProApi: typeof parsed.enrollProApi === 'string' && parsed.enrollProApi.trim().length > 0
 			? parsed.enrollProApi.trim()
 			: DEFAULT_ENROLLPRO_API,
-		enrollProDatabaseUrl: process.env.ENROLLPRO_DATABASE_URL ?? DEFAULT_ENROLLPRO_DB,
-		atlasDatabaseUrl: process.env.ATLAS_DATABASE_URL ?? process.env.DATABASE_URL ?? DEFAULT_ATLAS_DB,
+		enrollProDatabaseUrl: requireEnvFrom('the EnrollPro database URL', ['ENROLLPRO_DATABASE_URL']),
+		atlasDatabaseUrl: requireEnvFrom('the ATLAS database URL', ['ATLAS_DATABASE_URL', 'DATABASE_URL']),
 		enrollProAdminEmail: process.env.ENROLLPRO_ADMIN_EMAIL ?? DEFAULT_ADMIN_EMAIL,
-		enrollProAdminPassword: process.env.ENROLLPRO_ADMIN_PASSWORD ?? DEFAULT_ADMIN_PASSWORD,
+		enrollProAdminPassword: requireEnvFrom('the EnrollPro admin password', ['ENROLLPRO_ADMIN_PASSWORD']),
 		reuseServer: parseBooleanFlag(parsed.reuseServer, false),
 	};
 }

@@ -1,6 +1,12 @@
 import { createRequire } from 'module';
 
-process.env.DATABASE_URL = process.env.DATABASE_URL || 'postgresql://atlas_user:incorrect404@localhost:5432/atlas_db?schema=public';
+if (!process.env.DATABASE_URL) {
+  throw new Error(
+    'DATABASE_URL is not set. Refusing to fall back to a hardcoded DSN, because that would ' +
+    'silently target a database the caller did not choose and would require committing a real ' +
+    'credential. Set DATABASE_URL (e.g. in atlas-server/.env) before running this script.'
+  );
+}
 
 const require = createRequire(import.meta.url);
 const { PrismaClient } = require('../../node_modules/.prisma/client/default.js');

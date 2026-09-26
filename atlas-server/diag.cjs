@@ -1,4 +1,9 @@
-process.env.DATABASE_URL = 'postgresql://atlas_user:incorrect404@localhost:5432/atlas_db?schema=public';
+if (!process.env.DATABASE_URL) {
+  throw new Error(
+    'DATABASE_URL is not set. This diagnostic must use the caller-supplied environment ' +
+    'and never a hardcoded fallback. Set DATABASE_URL (e.g. in atlas-server/.env) before running it.'
+  );
+}
 const { PrismaClient } = require('./node_modules/.prisma/client/default.js');
 const p = new PrismaClient();
 
