@@ -1150,11 +1150,28 @@ export async function loginWithEmailPassword(params: {
  * from (an operator-supplied environment variable for the real seed, a per-run random
  * value for a throwaway database). Keeping the parameter mandatory is what makes it
  * impossible for this service to reintroduce a committed default.
+ *
+ * The value is also validated HERE rather than being left to each caller's own checks,
+ * because bcrypt will not do it: `bcrypt.hash('', 12)` succeeds, and a hash of the empty
+ * string verifies against an empty-string login, so an empty or whitespace-only password
+ * would silently produce accounts anyone can log in to. Every current caller happens to
+ * reject one already, which means the safety of this function rests entirely on callers
+ * that can change; an explicit rejection here makes the seeding path fail closed on its
+ * own terms. The LOGIN VERIFY path is deliberately untouched: this is about refusing to
+ * CREATE such an account, not about changing how an existing one authenticates.
  */
 export async function seedLocalAuthAccounts(params: {
 	schoolId: number;
 	password: string;
 }): Promise<{ created: number; updated: number }> {
+	if (typeof params.password !== 'string' || params.password.trim().length === 0) {
+		throw new Error(
+			'seedLocalAuthAccounts requires a non-empty password. The accounts it creates are real ' +
+				'login accounts, and an empty or whitespace-only value would be a password anyone could ' +
+				'log in with. Supply a real password, or a per-run random value for a throwaway database.',
+		);
+	}
+
 	const hash = await bcrypt.hash(params.password, 12);
 
 	const activeFaculty = await prisma.facultyMirror.findMany({

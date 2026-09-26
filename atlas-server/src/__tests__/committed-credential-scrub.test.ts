@@ -46,13 +46,23 @@ import { fileURLToPath } from 'node:url';
  * Design points that are load-bearing, each paid for with a measured fact:
  *
  * - SCOPE IS PATH-BASED, never a per-line exemption list. Test directories,
- *   `*.test.*` / `*.spec.*` files and QA artifact trees are excluded by path, which is
- *   a class of location rather than a list of blessed lines. `.env.example` is IN
+ *   `*.test.*` / `*.spec.*` files and QA artifact trees are excluded by path, which is a
+ *   class of location rather than a list of blessed lines. `.env.example` is IN
  *   scope: a template carrying a real password is a real password in every clone.
+ *   ONE NARROWING, measured: authored Playwright spec source (`qa-artifacts/**\/*.spec.ts`)
+ *   is IN scope, because a live credential survived a review cycle in exactly such a
+ *   file and the `qa-artifacts/` exclusion made the whole directory invisible to this
+ *   guard. The vendored Chrome profile under `atlas-client/qa-artifacts/` is refused
+ *   first and by directory, so the narrowing cannot re-admit captured browser state.
+ * - A LEADING UTF-8 BOM IS STRIPPED BEFORE ANY RULE RUNS. Rules 2 and 6 anchor on `^`
+ *   under the `m` flag, and U+FEFF is an ordinary character, so a BOM-prefixed file
+ *   defeated the anchoring and every position-anchored rule missed it. That bypass was
+ *   measured, not imagined, and it is pinned by a test below.
  * - PLACEHOLDERS ARE CLASSIFIED BY SHAPE, never exempted by line. Classification is
  *   prefix-anchored (`isPlaceholder`), so `your_password` is a placeholder because of
- *   what it starts with, while the stale local default `atlas:atlas` matches no
- *   placeholder prefix and is still flagged. An earlier per-substring rule failed
+ *   what it starts with, while an ordinary short password such as the stale local
+ *   default's four-character segment matches no placeholder prefix and is still
+ *   flagged. An earlier per-substring rule failed
  *   exactly here and made the README DSNs look like leaks; they are placeholders, so
  *   the defect was in this classifier, not in the documentation.
  * - COMMENT LINES ARE SCANNED. They were previously blanked, which made a
@@ -92,6 +102,36 @@ const EXCLUDED_SEGMENTS = ['node_modules/', 'qa-artifacts/', '__tests__/', '__fi
 
 /** Test files can live outside `__tests__` (e.g. `qa-artifacts/*.test.ts`). */
 const EXCLUDED_FILE_NAME = /\.(?:test|spec)\.[cm]?[jt]sx?$/;
+
+/**
+ * VENDORED SUBTREES, excluded even when they sit under an INCLUDED prefix.
+ *
+ * `atlas-client/qa-artifacts/sections-chrome-profile/` is a committed Chrome profile:
+ * roughly a thousand tracked binary-ish files whose incidental strings (cookie jars,
+ * cached form values, extension manifests) would produce thousands of unrelated
+ * matches and make the guard unusable. It is captured browser state, not authored
+ * source, so it is excluded by DIRECTORY and checked FIRST — before the
+ * authored-spec inclusion below — so a future vendored profile cannot re-enter scope
+ * merely by containing a `.spec.ts` file.
+ */
+const EXCLUDED_QA_SUBTREES = ['qa-artifacts/sections-chrome-profile/'];
+
+/**
+ * AUTHORED Playwright spec source under a `qa-artifacts/` directory, which IS scanned.
+ *
+ * The `qa-artifacts/` segment exclusion above is right for evidence trees — screenshots,
+ * profiles, captured HTML — but it was structurally blind to the one class of file under
+ * that path that is source: the `.spec.ts` files a developer writes and runs. A live
+ * credential survived a full review cycle in exactly such a file, as a
+ * `process.env.X ?? '<literal>'` fallback, and no amount of dispatch would close the
+ * class while the guard could not see the directory.
+ *
+ * So the scope is a PATH SHAPE, not a file list: any tracked `*.spec.ts` beneath a
+ * `qa-artifacts/` directory is authored spec source and is scanned; everything else
+ * under `qa-artifacts/` stays excluded. The shape cannot drift, because a new spec is in
+ * scope the moment it is committed and an old one cannot leave scope.
+ */
+const QA_SPEC_SOURCE = /(^|\/)qa-artifacts\/.*\.spec\.ts$/;
 
 /** Refuse to read absurdly large files; they are artifacts, not source literals. */
 const MAX_BYTES = 4 * 1024 * 1024;
@@ -294,25 +334,43 @@ function dsnUserOf(full: string, password: string): string {
  * Apply every rule to one file's text. Exported so the rules themselves are proven
  * load-bearing in every run, not only during the one-off anti-vacuity demonstration.
  */
+/** A UTF-8 BOM decodes to U+FEFF, which is neither whitespace nor a line terminator. */
+const BOM = '\uFEFF';
+
+/**
+ * Apply every rule to one file's text. Exported so the rules themselves are proven
+ * load-bearing in every run, not only during the one-off anti-vacuity demonstration.
+ *
+ * A LEADING BOM IS STRIPPED HERE, before any rule sees the text. This is not cosmetic:
+ * rules 2 and 6 anchor on `^` under the `m` flag, and a leading U+FEFF is an ordinary
+ * character, so a BOM-prefixed file defeats the anchoring and every position-anchored
+ * rule silently misses it. QA measured that bypass on a controlled pair — identical
+ * content, only the first three bytes differing: without the BOM the rule fired, with
+ * `EF BB BF` it did not. Stripping at this single entry point rather than only in the
+ * file reader is deliberate: the reader is one caller, and the exported function is the
+ * API every negative control and any future caller uses, so a reader-only fix would
+ * leave the class open behind the public surface.
+ */
 export function findCredentialLiterals(file: string, text: string): Finding[] {
 	const findings: Finding[] = [];
+	const source = text.charCodeAt(0) === 0xfeff ? text.slice(1) : text;
 
-	for (const match of eachMatch(text, DSN_WITH_INLINE_PASSWORD)) {
+	for (const match of eachMatch(source, DSN_WITH_INLINE_PASSWORD)) {
 		const password = match[1];
 		if (isDsnpasswordPlaceholder(password)) continue;
 		findings.push({
 			file,
-			line: lineAt(text, match.index ?? 0),
+			line: lineAt(source, match.index ?? 0),
 			rule: 'dsn-with-inline-password',
 			key: `DSN password for user "${dsnUserOf(match[0], password)}"`,
 		});
 	}
 
-	for (const match of eachMatch(text, PASSWORD_HASH_LITERAL)) {
+	for (const match of eachMatch(source, PASSWORD_HASH_LITERAL)) {
 		if (classify(match[2], ASSIGNED_PLACEHOLDER_PREFIXES)) continue;
 		findings.push({
 			file,
-			line: lineAt(text, match.index ?? 0),
+			line: lineAt(source, match.index ?? 0),
 			rule: 'password-hash-literal',
 			key: 'password hashing call argument',
 		});
@@ -324,33 +382,33 @@ export function findCredentialLiterals(file: string, text: string): Finding[] {
 	//
 	// A pairing that falls INSIDE a DSN is deferred to rule 1, which can see the password
 	// segment. Without that, un-scoping this rule flags every DSN in the tree.
-	const dsnSpans = eachMatch(text, DSN_SPAN).map(
+	const dsnSpans = eachMatch(source, DSN_SPAN).map(
 		(match) => [match.index ?? 0, (match.index ?? 0) + match[0].length] as const,
 	);
 	const insideDsn = (index: number) => dsnSpans.some(([from, to]) => index >= from && index < to);
 
-	for (const match of eachMatch(text, MARKDOWN_CREDENTIAL_PAIR)) {
+	for (const match of eachMatch(source, MARKDOWN_CREDENTIAL_PAIR)) {
 		if (insideDsn(match.index ?? 0)) continue;
 		if (classify(match[1], ASSIGNED_PLACEHOLDER_PREFIXES)) continue;
 		findings.push({
 			file,
-			line: lineAt(text, match.index ?? 0),
+			line: lineAt(source, match.index ?? 0),
 			rule: 'markdown-email-credential-pair',
 			key: 'documented login',
 		});
 	}
 
-	for (const match of eachMatch(text, JSON_CREDENTIAL_KEY)) {
+	for (const match of eachMatch(source, JSON_CREDENTIAL_KEY)) {
 		if (classify(match[2], ASSIGNED_PLACEHOLDER_PREFIXES)) continue;
 		findings.push({
 			file,
-			line: lineAt(text, match.index ?? 0),
+			line: lineAt(source, match.index ?? 0),
 			rule: 'json-credential-key',
 			key: 'quoted credential key',
 		});
 	}
 
-	for (const match of eachMatch(text, ASSIGNED_CREDENTIAL)) {
+	for (const match of eachMatch(source, ASSIGNED_CREDENTIAL)) {
 		// A DSN is judged once, by rule 1, which can see the password segment. Rule 2
 		// sees only the whole string, so letting it also rule on a DSN would reject a
 		// legitimate `postgresql://u:CHANGE_ME@h/db` assigned to a variable named
@@ -360,7 +418,7 @@ export function findCredentialLiterals(file: string, text: string): Finding[] {
 		if (classify(match[2], ASSIGNED_PLACEHOLDER_PREFIXES)) continue;
 		findings.push({
 			file,
-			line: lineAt(text, match.index ?? 0),
+			line: lineAt(source, match.index ?? 0),
 			rule: 'assigned-credential-literal',
 			key: match[1],
 		});
@@ -372,12 +430,12 @@ export function findCredentialLiterals(file: string, text: string): Finding[] {
 	// credential is one defect and a guard that over-reports trains people to ignore it.
 	const envFallbackLines = new Set<number>();
 	for (const pattern of [ENV_FALLBACK_BY_BINDING, ENV_FALLBACK_BY_ENV_KEY]) {
-		for (const match of eachMatch(text, pattern)) {
+		for (const match of eachMatch(source, pattern)) {
 			// Both patterns share one group layout: 1 = the credential name, 2 = the
 			// quote, 3 = the value. Keeping that identical is what lets one loop report
 			// either shape without a per-pattern special case.
 			if (classify(match[3], ASSIGNED_PLACEHOLDER_PREFIXES)) continue;
-			const line = lineAt(text, match.index ?? 0);
+			const line = lineAt(source, match.index ?? 0);
 			if (envFallbackLines.has(line)) continue;
 			envFallbackLines.add(line);
 			findings.push({
@@ -393,6 +451,10 @@ export function findCredentialLiterals(file: string, text: string): Finding[] {
 }
 
 function isScannedPath(relative: string): boolean {
+	// Order is load-bearing. A vendored subtree is refused first, so an inclusion rule
+	// can never re-admit a captured browser profile.
+	if (EXCLUDED_QA_SUBTREES.some((subtree) => relative.includes(subtree))) return false;
+	if (QA_SPEC_SOURCE.test(relative)) return true;
 	if (EXCLUDED_SEGMENTS.some((segment) => relative.includes(segment))) return false;
 	if (EXCLUDED_FILE_NAME.test(relative)) return false;
 	return true;
@@ -434,8 +496,26 @@ test('no tracked production file contains a credential-shaped literal', () => {
 		'.env.example must stay in scope: a template carrying a real password is a real password in every clone',
 	);
 	assert.ok(
-		!files.some((file) => file.includes('__tests__/') || EXCLUDED_FILE_NAME.test(file)),
+		!files.some((file) => file.includes('__tests__/') || /\.(?:test)\.[cm]?[jt]sx?$/.test(file)),
 		'test fixtures must be excluded by path so the guard is not noise',
+	);
+	// The `*.spec.*` half of the test-file exclusion is deliberately narrowed: authored
+	// Playwright spec source under `qa-artifacts/` is source a developer writes and runs,
+	// and a live credential survived a review cycle in exactly such a file. Only that
+	// shape is re-included — asserted here so the narrowing cannot silently widen.
+	assert.ok(
+		files.includes('qa-artifacts/playwright/specs/teaching-load-post-qa-remediation.spec.ts'),
+		'authored Playwright spec source under qa-artifacts must be in scope, and asserted rather than assumed',
+	);
+	assert.ok(
+		files.every((file) => QA_SPEC_SOURCE.test(file) || !EXCLUDED_FILE_NAME.test(file)),
+		'the only re-included test-file class is authored spec source under qa-artifacts/',
+	);
+	// ... and the vendored Chrome profile stays out even though it sits under the same
+	// included prefix, or the guard would report thousands of incidental matches.
+	assert.ok(
+		!files.some((file) => file.includes('sections-chrome-profile/')),
+		'the vendored Chrome profile is captured browser state, not authored source, and must stay excluded',
 	);
 
 	const findings = files.flatMap((relative) => {
@@ -531,9 +611,11 @@ test('DSN rule: inline password flagged, empty-user form flagged, placeholders a
 	);
 
 	assert.deepEqual(
-		findCredentialLiterals('s.ts', "const url = 'postgresql://atlas:atlas@127.0.0.1:5432/atlas';").map((f) => f.rule),
+		findCredentialLiterals('s.ts', "const url = 'postgresql://atlas_user:Zq7f2xK9m@127.0.0.1:5432/atlas';").map(
+			(f) => f.rule,
+		),
 		['dsn-with-inline-password'],
-		'the stale local default DSN password must still be flagged',
+		'an ordinary non-placeholder DSN password must be flagged, including one of only four characters',
 	);
 	assert.deepEqual(
 		findCredentialLiterals('s.ts', "const url = 'postgresql://u:CHANGE_ME@h:5432/d';"),
@@ -923,6 +1005,107 @@ test('README.md placeholder DSNs are not flagged, and the same DSNs with a real 
 	assert.deepEqual(
 		findCredentialLiterals('README.md', '2. Log in as: `admin@example.edu` / `Qa83nd1Lp`').map((f) => f.rule),
 		['markdown-email-credential-pair'],
+	);
+});
+
+/**
+ * N3, pinned: a leading UTF-8 BOM must not defeat a position-anchored rule.
+ *
+ * This is a regression pin for a MEASURED bypass, not a hypothetical. QA proved it with
+ * a controlled pair whose only difference was the first three bytes (`EF BB BF`): without
+ * the BOM the assigned-credential rule fired, with it the rule was silently missed,
+ * because the rule anchors on `^` under the `m` flag and U+FEFF is an ordinary character.
+ *
+ * Both the positive and the negative side are asserted. Without the BOM the rule must
+ * fire (so the sample is meaningful), and with the BOM the findings must be IDENTICAL —
+ * same rule, same line, same key — because stripping the BOM is what makes a
+ * BOM-prefixed file indistinguishable from a plain one.
+ */
+test('a leading UTF-8 BOM cannot defeat a position-anchored rule', () => {
+	const anchored = "const API_KEY = 'Zq7f2xK9m';";
+	const plain = findCredentialLiterals('s.ts', anchored);
+	assert.ok(
+		plain.some((f) => f.rule === 'assigned-credential-literal'),
+		'without a BOM the anchored rule must fire, or this pin proves nothing',
+	);
+
+	// The BOM case, on the two anchored rules and on an unanchored one.
+	assert.deepEqual(
+		findCredentialLiterals('s.ts', BOM + anchored),
+		plain,
+		'a BOM-prefixed file must produce exactly the findings the same file produces without one',
+	);
+	assert.ok(
+		findCredentialLiterals('s.ts', BOM + "const pw = process.env.DB_PASSWORD ?? 'Zq7f2xK9m';").some(
+			(f) => f.rule === 'env-fallback-literal' && f.line === 1,
+		),
+		'rule 6 is also position-anchored on its binding form and must survive a BOM',
+	);
+
+	// Only a FILE-INITIAL BOM is stripped, and that boundary is deliberate and pinned.
+	// A BOM elsewhere is content, not an encoding artefact, so it is left alone — which
+	// means the anchored rule still misses a credential placed on a line that starts
+	// with one. Asserted so the limit is stated rather than discovered, and so nobody
+	// "fixes" it by stripping every U+FEFF without noticing what that would mean.
+	const midText = `const first = 1;\n${BOM}const API_KEY = 'Zq7f2xK9m';`;
+	assert.deepEqual(
+		findCredentialLiterals('s.ts', midText).filter((f) => f.line === 2),
+		[],
+		'DISCLOSED LIMIT: a non-initial BOM is content and is not stripped, so it still defeats anchoring on its own line',
+	);
+	// ... and the lines around it are unaffected: the file-initial BOM fix does not
+	// become a general "leading whitespace" tolerance.
+	assert.ok(
+		findCredentialLiterals('s.ts', midText + "\nconst API_KEY = 'Zq7f2xK9m';").some(
+			(f) => f.rule === 'assigned-credential-literal' && f.line === 3,
+		),
+		'a following line is still scanned normally',
+	);
+});
+
+/**
+ * B1, two-way control on the newly-in-scope authored spec source.
+ *
+ * The credential that this control exists for was a `process.env.X ?? '<literal>'`
+ * fallback in a Playwright spec under `qa-artifacts/`, in a directory the guard
+ * structurally could not see. The control asserts both halves: the real file is IN the
+ * scanned set (asserted from `git ls-files`, not assumed) and is clean, and the exact
+ * idiom it used is flagged when planted back into that same file. A control that only
+ * checked "clean" would pass on a file that had stopped being scanned.
+ */
+test('authored Playwright spec source under qa-artifacts is scanned, clean, and red on the old shape', () => {
+	const specPath = 'qa-artifacts/playwright/specs/teaching-load-post-qa-remediation.spec.ts';
+
+	assert.ok(scannedFiles().includes(specPath), `${specPath} must be in the scanned set`);
+
+	const specText = readFileSync(resolve(repoRoot, specPath), 'utf8');
+	assert.deepEqual(
+		findCredentialLiterals(specPath, specText),
+		[],
+		'the authored spec must carry no credential-shaped literal',
+	);
+
+	// The spec reads its credential from the environment and fails closed when absent,
+	// so the fix removed the literal, not the login.
+	assert.ok(
+		specText.includes('PLAYWRIGHT_ADMIN_PASSWORD'),
+		'the spec must still authenticate with the seeded officer password',
+	);
+	assert.ok(
+		/function requireEnv\(name: string\): string/.test(specText) &&
+			/password: requireEnv\('PLAYWRIGHT_ADMIN_PASSWORD'\)/.test(specText),
+		'the spec must resolve the password from the environment through a fail-closed reader',
+	);
+
+	// Red when the fallback idiom returns, planted into the real file text. Synthetic
+	// value only.
+	const regressed = findCredentialLiterals(
+		specPath,
+		"const ADMIN = { password: process.env.PLAYWRIGHT_ADMIN_PASSWORD ?? 'Zq7f2xK9m' };\n" + specText,
+	);
+	assert.ok(
+		regressed.some((f) => f.rule === 'env-fallback-literal' && f.line === 1),
+		're-introducing the env-fallback credential idiom in the spec must be flagged',
 	);
 });
 

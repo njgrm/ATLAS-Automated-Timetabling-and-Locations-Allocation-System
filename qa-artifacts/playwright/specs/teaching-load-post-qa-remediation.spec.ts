@@ -20,9 +20,32 @@ const CANDIDATE = process.env.PLAYWRIGHT_EXPECT_CANDIDATE === '1';
 const SHOT_DIR = resolve(process.cwd(), 'test-results', 'tl-ux-c01');
 const SPLIT_BRAIN_PREVIEW = '/faculty-assignments/integrity/reconcile-split-brain';
 
+/**
+ * Read a required value from the environment, or fail closed with an actionable
+ * message.
+ *
+ * The admin login below is a real credential: this spec authenticates against a live
+ * ATLAS deployment. A fallback literal here would therefore be a working credential in
+ * every clone of this public repository, so there is no default and this throws
+ * instead. An empty or whitespace-only value counts as absent: it is not a credential,
+ * and accepting it would defer the failure to an opaque login error.
+ */
+function requireEnv(name: string): string {
+	const value = process.env[name];
+	if (typeof value !== 'string' || value.trim().length === 0) {
+		throw new Error(
+			`${name} is not set, so this spec stopped before authenticating. ` +
+				'This spec logs in to a live ATLAS deployment, so the credential must come from ' +
+				`the environment rather than a committed literal. Set ${name} and re-run ` +
+				'(for example PLAYWRIGHT_ADMIN_PASSWORD=<the admin password> npx playwright test).',
+		);
+	}
+	return value;
+}
+
 const ADMIN = {
 	identifier: process.env.PLAYWRIGHT_ADMIN_ID ?? '1234501',
-	password: process.env.PLAYWRIGHT_ADMIN_PASSWORD ?? 'DepEdSY2026!',
+	password: requireEnv('PLAYWRIGHT_ADMIN_PASSWORD'),
 };
 
 type Violation = { method: string; url: string; body: string | null };

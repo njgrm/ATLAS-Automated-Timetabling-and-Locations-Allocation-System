@@ -110,10 +110,18 @@ const deprecatedSubjectCodes = [
  *
  * Resolved at the top of main() on purpose: failing here aborts before the seed
  * opens a write, so a misconfigured seed leaves no half-seeded database behind.
+ *
+ * A whitespace-only value counts as absent, and is tested on the TRIMMED value
+ * because that is what its two sibling guards do (`requireSeededAuthPassword` in
+ * seed-realistic.ts and `requireEnvFrom` in the cross-repo source gate). A guard
+ * that accepted "   " would seed a password no one can type, and the mismatch
+ * between the three would leave the next reader unsure which is the contract.
+ * The value itself is returned UNTRIMMED: leading or trailing spaces are part of
+ * an operator's chosen password, and a seed must not silently rewrite it.
  */
 function requireSeedPassword(variableName) {
 	const value = process.env[variableName];
-	if (typeof value !== 'string' || value.length === 0) {
+	if (typeof value !== 'string' || value.trim().length === 0) {
 		console.error(
 			`\n❌ ${variableName} is not set, so the seed stopped before writing anything.\n` +
 				`   This seed creates working ATLAS logins for the scheduling officer and for\n` +
