@@ -16,6 +16,7 @@
 | `MISLABELLED` | The label does not describe what the control does. |
 | `CONTRADICTS` | It disagrees with another visible control or status statement on the same screen. |
 | `UNTESTED` | No rendered test covers it. |
+| `NOT FOUND` | Used **only** on the two rows that record a control the packet asked about which does not exist on the surface. Those rows point at §15, where the search and its evidence are recorded in full. No row that renders uses this value. |
 
 **"Rendered test" rule used throughout.** A test counts only if it mounts the component and asserts on the produced DOM (JSDOM + `react-dom/client`, `react-dom/server` `renderToStaticMarkup`, or a `*.harness.tsx` harness). A test that `readFileSync`s the source and regex-matches a `data-testid` or a string **does not count** and is reported as `UNTESTED` with the gap named. Every cited test file is reachable from a committed `atlas-client/package.json` script; the script name is given per row.
 
@@ -48,7 +49,7 @@ The row is one band: `atlas-client/src/components/timetable/TimetableSimpleHeade
 
 | # | Control | Where | Rule | Effect | Read-only | Covering test | Status |
 |---|---|---|---|---|---|---|---|
-| 15 | **Not found.** No control or text on `/timetable` states whether the grid is the working draft or the published schedule. | Searched: `TimetableSimpleHeader.tsx:620-676` (the whole status region), `simple/SimpleHeaderActions.tsx:114-148` (the only chip), `TimetableSubNav.tsx:22-30`, `simple/SimpleHeaderHelpers.tsx:196-221` (`readinessLabel`). The only state-dependent text is `SimplePublishedState` (row 11), which renders **only** when the run *is* published — an unpublished draft prints nothing. | n/a | n/a | n/a | n/a — there is nothing to test | recorded in §15 and §16 |
+| 15 | **No control states whether the grid is the working draft or the published schedule.** | Searched: `TimetableSimpleHeader.tsx:620-676` (the whole status region), `simple/SimpleHeaderActions.tsx:114-148` (the only chip), `TimetableSubNav.tsx:22-30`, `simple/SimpleHeaderHelpers.tsx:196-221` (`readinessLabel`). The only state-dependent text is `SimplePublishedState` (row 11), which renders **only** when the run *is* published — an unpublished draft prints nothing. | n/a | n/a | Read-only | n/a, there is nothing to render or to test | `NOT FOUND` (see §15 row 221) |
 
 ---
 
@@ -353,7 +354,7 @@ Page: `atlas-client/src/pages/RoomSchedules.tsx`. Term scope is mandatory here: 
 | 183 | Conflict badge `Conflict — Click to inspect` (`role="button"`, `aria-label="Inspect conflict"`) | `components/room-schedules/ScheduleTimetableGrid.tsx:176-187`; click `:154-163` | Rendered only when `cellData.conflict`. | `onConflictClick` → `ConflictInspectorSheet` (`RoomSchedules.tsx:804-811`). | Read-only | `UNTESTED` | `UNTESTED` |
 | 184 | `Retry` in the error state | `RoomSchedules.tsx:758-760` | Rendered only in `state.status === 'error'`. | `fetchSchedule`. | Read-only | `UNTESTED` | `UNTESTED` |
 | 185 | Utilisation / Occupied / Conflicts / `Run #<id> · <status>` summary | `RoomSchedules.tsx:662-687` | Rendered only when `state.status === 'ok'`. | Statement. **`Run #318 · COMPLETED` is raw engine wording** — the same complaint the operator's QA lane recorded as system-walk finding 6. | Read-only | `UNTESTED` | `MISLABELLED` |
-| 186 | An **empty state for a sparsely used room** | `ScheduleTimetableGrid.tsx:122-134` renders an unoccupied `<td>` containing only the special-event label; there is no "this room is mostly free" affordance anywhere on the page or the grid. | n/a | n/a | Read-only | n/a | recorded in §15 and §16 |
+| 186 | **No empty-state or utilisation affordance for a sparsely used room.** | `ScheduleTimetableGrid.tsx:122-134` renders an unoccupied `<td>` containing only the special-event label; the only utilisation summary in the product is `RoomSchedules.tsx:662-687`, and it appears only once a room is already selected. | n/a | n/a | Read-only | n/a, there is nothing to render or to test | `NOT FOUND` (see §15 row 224) |
 
 ---
 
