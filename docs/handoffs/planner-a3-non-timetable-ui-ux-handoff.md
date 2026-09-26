@@ -292,6 +292,69 @@ A healthy `/api/v1/health` on 200 was reporting a deploy that had not happened. 
 
 ## Planned stream boundaries (proposed, not dispatched)
 
+### 2026-09-27 — browser acceptance RUN against the live release: `CORRECTION_REQUIRED`
+
+**Tally: 7 PASS · 1 FAIL · 1 PARTIAL · 3 UNPERFORMED of 12.** Viewport 1366x768, against
+`c5a9e832` — which contains every A3 candidate as an ancestor and is the release A2 deployed on
+top of mine. This is a verdict on the live surface, not on a candidate build.
+
+**PASS — 7 rows, each observed in the real surface:**
+
+| Row | Evidence |
+|---|---|
+| B1 | Subjects shows 3 filters directly on the row with no expansion; "More filters" still holds the rest |
+| B3 | Room picker: "Used by Aguinaldo" on its own wrapping line, fully readable; the "Room already has a home section" warning is inline in the same layer (fix 02) and `BROWSE INTERACTIVE MAP` is a direct footer action (fix 05) |
+| B6 | Permanent 80-unit desktop inspector column is **gone**; the roster spans full width (fix 26) |
+| B9 | 3 complete teacher rows with hours/subjects/sections visible at 1366x768, well past the one-row minimum; no page scrollbar |
+| B10 | Select checked option legible and check-marked while **not** hovered — the exact white-on-white defect is gone; disabled options correctly muted |
+| B11 | `Review teachers` opened, then Escape returned the roster to an **identical** filter set, scroll position, selection and draft state |
+| B12 | **A2 cross-lane sweep: clean.** Class Schedule renders intact — Term/Show/Schedule-for selects legible, drift banner, grid and Publish present. The `ui/select.tsx` change caused no regression on the lane that consumes it most |
+
+Fix 22 (uppercase program and teacher names) and Fix 13/18 (GR7 green, GR8 yellow chips in the
+workload modal) are both visible in the live surface.
+
+**FAIL — B4, the room-map name legibility the correction traded away.** Every room card renders
+its name truncated: **`G7 Room…`**, for all rooms, at the 101% fit scale. Fix 11's stated defect
+was "room names render as `G7 Room…`", and that is still exactly what happens. The cause traces
+to the correction itself: reverting `ROOM_MIN_W` to 90 to protect Lane A2's fit scale left the
+name box **70 px** wide. The re-review proved the six-box budget is disjoint and that 84 is the
+minimum height — but it never proved a 70 px box can hold `G7 Room 203`. **Disjointness and
+legibility are different properties**, and the correction optimised the first while the
+requirement was the second. Within the same row **Fix 07 passes** (type, capacity, utilization,
+name and bar each own their space, no overlap) and **Fix 06 passes** (F1-F4 visible and clickable
+at fit scale). B4 is a narrow, well-diagnosed failure, not a collapse.
+
+**PARTIAL — B2.** The `BLOCKED` term-authority state renders as a loud red `role="alert"` block
+with an icon and explanatory lines, **not** flattened into a quiet line — the guardrail that
+actually mattered held. The `VERIFIED_LIVE` compaction half could not be exercised because
+EnrollPro answers 502 through the proxy, so the banner is permanently in the blocked state.
+That 502 is the unapproved `ENROLLPRO-PROXY-RECOVERY-LIVE` item, not a regression: the deployed
+delta has zero `atlas-server/` paths.
+
+**UNPERFORMED — B5, B7, B8.** Not run. I stopped consuming the live session once B4 had already
+determined the verdict, rather than spend further rows on a release known to need a correction.
+Owed, not waived: **B5 is the load-bearing swap-Cancel zero-change control** and is the first
+row to run on the retry.
+
+**A second defect found while running B11: a dead control.** The Next Step banner's
+**`Review teachers`** button takes focus but opens **no** `role="dialog"`. The bottom-bar button
+(`data-testid="teaching-load-review-open"`) opens the modal correctly. Two controls carry the same
+label and only one works — a Fix 25/26 defect not covered by any existing control, which asserts
+the working entry point only.
+
+**Coordination confirmed, and it bit.** Mid-session the runtime went down. Diagnosis: Lane A2 had
+quiesced and replaced it with `c5a9e832` — their own deploy, taken without waiting for my push
+window. A stale state file reporting `running` over zero live processes is the documented trap
+appearing in the wild. Every A3 commit is an ancestor of `c5a9e832` and A2's own register entry
+reads *"A2 superseded by Lane A3's d11304e8; re-verified my fix survived it"*, so nothing was
+lost — but the §14 interruption I had flagged as a risk was real, and checking A2 first was the
+right instruction twice over.
+
+**Verdict: `CORRECTION_REQUIRED`.** Two narrow corrections: (1) give the room card enough width
+for a real name **while keeping `buildingContentW` unchanged for Lane A2** — the budget has to
+be re-flowed, not the width raised, or A2's fit scale moves again; (2) wire or remove the
+banner's dead `Review teachers` control. Neither requires re-reviewing the whole range.
+
 Three streams, three worktrees, one writer each, all under `E:/ATLAS-worktrees/lane-a3-*` from base `3cfe79a8`. Consolidated pairs preserved: 13+18, 14+16, 17+23, 25+26, 33A+33B.
 
 **S1 - Sections and room map** (`work/a3-sections-map`): fixes 03, 06, 07, 10, 11, 12; 08 held.
