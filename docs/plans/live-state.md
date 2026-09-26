@@ -105,17 +105,30 @@ resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs
   **Target `0da104f9`, deliberately NOT the `origin/main` tip `4174f295`**: the commits above the pin
   (`e4df0019`, `4174f295`) are two docs-only commits, and a release must not be pinned to a SHA that
   carries unreviewed material. Docs-only commits above a product pin are safe to ship alongside.
-  **What the target adds** over the live `e4989b72`, all client-only with zero `atlas-server/`, `prisma/`,
-  migration or seed path: the `/my` faculty portal tombstone (`5680c87a`), and browser-QA items #4 and
-  #3c (`b6db07b3`) — one plain name for a blocking problem, and the public term switch no longer clearing a
-  still-valid section. `b6db07b3` passed fresh independent QA at 14/14/0/0; merged-tree gates 18/18, 30/30,
-  31/31 and the full client suite still failing exactly the 12 pre-existing names, none added.
-  **No schema command is authorised** — the range is client-only.
-  **Cutover NOT yet executed.** Remaining HIGH steps: independent pre-action review, release build
-  (`VITE_ENROLLPRO_URL` **must** be set or the client build exits 1 silently), dry run, elevated
-  `-Execute`, proof by byte-comparing a chunk that exists only in the new build, then fresh post-action QA
-  with a real `passed/blocked/unperformed` tally. **A healthy process is `DEPLOYED`, not accepted.**
-  **Before the swap, re-check that Planner A has not claimed the window** — A works alongside and may
+  **What the target adds over the live `e4989b72` — CORRECTED 2026-09-26: the range is NOT client-only.**
+  An earlier version of this entry said "client-only with zero `atlas-server/`", and that was **false**. The
+  pinned range `e4989b72..0da104f9` is **40 changed files, including 15 under `atlas-server/` and one
+  `prisma/seed.js`**. The reviewer caught it and I confirmed it independently. Two lanes are in the range:
+  - **Lane A2 (client only, the three accepted pieces):** `5680c87a` — the `/my` faculty portal tombstone;
+    `b6db07b3` — browser-QA #4 (one plain name for a blocking problem) and #3c (public term switch no longer
+    clears a still-valid `sectionId`). `b6db07b3` passed fresh independent QA at 14/14/0/0; merged-tree gates
+    18/18, 30/30, 31/31 and the full client suite still failing exactly the 12 pre-existing names, none added.
+  - **Lane A credential scrub (SERVER — rides along because my branch merged `origin/main` repeatedly):**
+    `7a27922a`, tip `d330870a`, with its own recorded **`ACCEPT_READY` 9/9/0/0** (`## Live release` below).
+    The load-bearing file is **`atlas-server/src/services/local-auth.service.ts`**: `seedLocalAuthAccounts` now
+    **requires** an explicit `password` with no default, and **throws** on empty/whitespace. This **removes a
+    hardcoded default credential (`Atlas2026!`) from a public repository** and closes a real hole —
+    `bcrypt.hash('', 12)` succeeds, so an empty password would otherwise have created accounts anyone could log
+    into. **The login-verify path is deliberately untouched.** This is a **security improvement, and this is the
+    first time this server build reaches production.**
+  - **No `prisma/schema.prisma` and no `prisma/migrations/` file is in the range, so NO schema command is
+    authorised or implied.** The `prisma/seed.js` and `atlas-server` script changes are source only; the deploy
+    does not execute any seed.
+  - **Cutover NOT yet executed.** Remaining HIGH steps: independent pre-action review, release build
+    (`VITE_ENROLLPRO_URL` **must** be set or the client build exits 1 silently), dry run, elevated
+    `-Execute`, proof by byte-comparing a chunk that exists only in the new build, then fresh post-action QA
+    with a real `passed/blocked/unperformed` tally. **A healthy process is `DEPLOYED`, not accepted.**
+  - **Before the swap, re-check that Planner A has not claimed the window** — A works alongside and may
   deploy at any time; this entry is not a lock on A.
 
 - **LIVE (until the entry above completes): `e4989b725394204898ebcd429db74daaf7316323` (full 40-char), rollback basis
