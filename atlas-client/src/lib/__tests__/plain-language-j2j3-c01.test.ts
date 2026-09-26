@@ -342,6 +342,9 @@ test('T3: the runs pane renders a plain word for every real run status', async (
 		createElement(TimetableRunsPane, {
 			runs: runs as never,
 			selectedRunId: 'latest',
+			// A2-RUNS-PENDING-CUSTODY — settled read; the run count may be stated.
+			runsPending: false,
+			runsUnavailableReason: null,
 			onSelectRun: () => {},
 			formatTimestamp: (value: string | null) => value ?? '-',
 			formatDuration: () => '-',

@@ -205,6 +205,17 @@ type CenterWorkspaceProps = {
 	formatRunTimestamp?: (value: string | null) => string;
 	formatRunDuration?: (value: number | null) => string;
 	/**
+	 * A2-RUNS-PENDING-CUSTODY — the workspace's own in-flight signal for the run
+	 * read. Threaded from the data layer's `loading` so an unfetched `runs = []`
+	 * renders a pending state instead of claiming the year has no runs.
+	 */
+	runsPending: boolean;
+	/**
+	 * A2-RUNS-PENDING-CUSTODY — the workspace's own failure reason for the load,
+	 * so a rejected read reports unavailable rather than empty.
+	 */
+	runsUnavailableReason: string | null;
+	/**
 	 * UX-R03e (setup) — the bound setup inputs for the `/timetable/setup` center
 	 * view (same state the Simple header consumes). Null renders the pane's
 	 * truthful unavailable state instead of invented setup data.
@@ -312,6 +323,8 @@ export const CenterWorkspace = memo(function CenterWorkspace(props: CenterWorksp
 		onRunsSelect = () => {},
 		formatRunTimestamp = (value) => value ?? '',
 		formatRunDuration = (value) => value == null ? '—' : `${(value / 1000).toFixed(1)}s`,
+		runsPending,
+		runsUnavailableReason,
 		setupInputs = null,
 		setupOnStartTask = () => {},
 		setupOnSetRepairOrigin = null,
@@ -466,6 +479,8 @@ export const CenterWorkspace = memo(function CenterWorkspace(props: CenterWorksp
 						<Suspense fallback={<AdvancedSurfaceFallback label="Loading runs..." />}>
 							<TimetableRunsPane
 								runs={runs}
+								runsPending={runsPending}
+								runsUnavailableReason={runsUnavailableReason}
 								selectedRunId={runsSelectedId}
 								onSelectRun={onRunsSelect}
 								formatTimestamp={formatRunTimestamp}

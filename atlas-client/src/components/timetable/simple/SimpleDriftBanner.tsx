@@ -155,7 +155,29 @@ export function SimpleDriftBanner({
 							{domain.label}
 						</Badge>
 					)) : null}
-					<span className={cn('min-w-0 flex-1 break-words whitespace-normal', drift.status === 'STALE' ? 'text-amber-800' : 'text-muted-foreground')}>
+					<span className={cn(
+						/* A2-DRIFT-BANNER-390 (item 5) — at 390x844 this band was one
+						 * wrapping flex row whose `shrink-0` action buttons and domain
+						 * chips left the message a near one-word column, so the
+						 * explanation and the actions competed for the same line.
+						 * `w-full basis-full` gives the message its own line below the
+						 * `sm` breakpoint and the parent `flex-wrap` moves the actions
+						 * onto the rows after it, so every label keeps its intrinsic
+						 * width and stays readable and tappable. `sm:w-auto sm:flex-1`
+						 * restores the existing inline share from `sm` up, so no larger
+						 * viewport moves. This is the same idiom the neighbouring Simple
+						 * filter row already uses (`SimpleFilterControls.tsx`).
+						 *
+						 * `sm:basis-auto` is deliberately absent: `cn()` is `twMerge`,
+						 * and `sm:flex-1` also sets `flex-basis`, so twMerge drops a
+						 * `sm:basis-auto` written before it. `sm:flex-1` alone is exactly
+						 * this element's pre-change `flex-1`, which is what `sm:w-auto`
+						 * pairs with, so nothing is lost and nothing is silently
+						 * reordered. No overflow container is added, so the no-scroll
+						 * architecture is untouched. */
+						'min-w-0 w-full basis-full break-words whitespace-normal sm:w-auto sm:flex-1',
+						drift.status === 'STALE' ? 'text-amber-800' : 'text-muted-foreground',
+					)}>
 						{drift.status === 'STALE'
 							? 'School information changed after this schedule was made. The current schedule stays unchanged while you review school information.'
 							: 'ATLAS could not check the latest school information, so nothing is known to have changed. The current schedule stays unchanged while you review school information.'}
