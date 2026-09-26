@@ -16,7 +16,7 @@ manifest exists to execute it safely, not to decide whether to.
 | `ATLAS-runtime-supervised-e4989b72-20260926` | 1.46 GiB | 2026-09-26T09:24:38Z | **KEEP — live** |
 | `ATLAS-runtime-supervised-400a6909-20260926` | 1.46 GiB | 2026-09-26T09:23:22Z | **KEEP** — most recent accepted release (rollback basis) |
 | `ATLAS-runtime-supervised-26f7c907-20260926` | 1.47 GiB | 2026-09-26T05:09:43Z | **KEEP** — second most recent accepted release |
-| `ATLAS-runtime-supervised-116a7658-20260726` | 1.46 GiB | 2026-09-25T21:11:03Z | **KEEP** — named older fallback / reset baseline |
+| `ATLAS-runtime-supervised-116a7658-20260726` | 1.46 GiB | 2026-09-25T21:11:03Z | **KEEP** — immediately prior rollback basis, older fallback named in history (the two *named last-resort* artifacts are `9d293879` and `d44f29e0` on `D:`) |
 | `ATLAS-runtime-supervised-861d89a2-20260925` | 1.47 GiB | 2026-09-25T17:27:03Z | **KEEP — dependency donor, never retire** (lanes copy `node_modules` from it) |
 | `ATLAS-runtime-supervised-eb0e3038-20260925` | 1.46 GiB | 2026-09-25T14:20:17Z | **RETIRE** — row R1 below |
 | `ATLAS-runtime-supervised-4893cbde-20260923` | 1.80 GiB | 2026-09-23T13:57:08Z | **PRESERVE** — dirty (row X1 below) |
@@ -64,14 +64,47 @@ re-deriving rather than trusting it:
 
 ## Tripwires (must hold after removal)
 
-- `node_modules` entry counts on all five KEEP directories must be unchanged from the pre-reclaim
-  values (`atlas-server` 209; `atlas-client` 155/155/156/155), proving no junction was followed into a
-  preserved tree.
+- `node_modules` entry counts on all **five** KEEP directories must be unchanged from the pre-reclaim
+  baseline below. `atlas-server` = **209** for each; `atlas-client` =
+  `e4989b72` **155** · `400a6909` **155** · `26f7c907` **156** · `116a7658` **155** ·
+  `861d89a2` **156**. This proves no junction was followed into a preserved tree. The donor
+  `861d89a2` matters most: three live lanes junction `atlas-client/node_modules` into it.
 - `@prisma/client` must still resolve inside the live release and the donor.
 - Live runtime untouched: `/api/v1/health` 200 **and** `/api/v1/health/ready` 200 **and** a DB-backed
-  read (`GET /api/v1/subjects?schoolId=1`) 200 **and** 5174 200.
-- `git worktree list` count falls 42 → 41; the four KEEP release worktrees and the donor still resolve.
-- `git stash list` unchanged; no branch or ref deleted.
+  read (`GET /api/v1/subjects?schoolId=1`) 200 **and** 5174 200. Listener PIDs must remain
+  supervisor `4252`, server `20004`, client `33732`, all resolving to `e4989b72`.
+- `git worktree list` count falls 42 → 41; the keep-set release worktrees and the donor still resolve.
+- `git stash list` unchanged (3 entries); no branch or ref deleted.
+
+## Recorded coupling — do not reach for `--force`
+
+Non-forced `git worktree remove` succeeds here **only** while
+`D:\ATLAS\.git\info\exclude:8` (`/ops/runtime/logs/`) is in place; `git check-ignore` attributes the
+target's own state file to it, which is why the tree is genuinely clean. If that exclude is ever
+removed the target becomes dirty, non-forced removal refuses, `--force` is forbidden, and
+`Remove-Item` would leave a stale registration. Satisfied at manifest time; recorded so a future
+reclaim does not force past the refusal.
+
+The target's own `supervisor-state.json` still reads `state: "running"` with `ownedPids` that no longer
+exist. That is stale residue from its last run, not evidence of a live runtime; liveness is decided by
+machine-scope env, listener ownership, and the process table.
+
+
+## Pre-action audit
+
+One fresh independent read-only auditor (not the implementer) re-derived all of the above rather than
+reading it: **`CLEAR_TO_PROCEED`, 12/12/0/0**, five findings, **all NON_BLOCKING**, no disposition
+changed. It confirmed `eb0e3038` ranks **6th** by `updatedAt` across **both** volumes and fills none of
+the six keep-set slots, and it strengthened the dependents row beyond the manifest by running a full
+recursive reparse scan of every ATLAS root: 8 reparse points total, the only destinations being
+`861d89a2` and `0eb3b67fe94c`, **0** into the target.
+
+Two of its findings were **my** errors and are corrected above rather than left standing: the tripwire
+baseline omitted the donor's `atlas-client` count of **156** (I transcribed four values for five
+directories, having measured all five), and the `116a7658` role label was imprecise. Its third finding
+— that `docs/plans/live-state.md` on `origin/main` still reads "DEPLOY IN PROGRESS — target `400a6909`,
+rollback basis `26f7c907`" while the machine serves `e4989b72` — is a register reconciliation owed in
+this cycle's closure, not a reclaim blocker.
 
 ## Capacity consequence (operator decision, not actioned here)
 
