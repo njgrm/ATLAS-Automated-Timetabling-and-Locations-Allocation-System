@@ -170,3 +170,37 @@ executor to edit a test on a stale line citation; **it pushed back correctly** �
 Three of the four mistakes above were caught by independent reviewers, not by me. That is the system
 working — but it is also a standing argument for dispatching the review even when the change looks small,
 and for writing register entries from enumerated facts rather than from what I remember doing.
+
+## 10. Lane C QA inputs for the next A2 session (added by Lane C, 2026-09-26 evening)
+
+Lane C (Claude Code) is now the system-wide UX QA lane. It runs two independent browser runners: Claude in
+Chrome and Codex CLI with chrome-devtools. Sources: `docs/reviews/timetable-live-walk-20260926/findings.md`
+(including the Codex re-check on `e4989b72`) and `docs/reviews/system-walk-20260926/`.
+
+1. **Re-open #3a/3b before trusting the negative diagnosis.** The public term selector's *value* is the
+   server's answer, not a display label: `PublicPublishedSchedule.tsx:531`
+   `value={String(payload.source.termIndex)}`. The Codex browser run (on `26f7c907`, no query string) saw
+   "Published term" = "TERM 1", with options TERM 1–3, **all three published** ("40 published classes are
+   shown." in each). So the server returned `termIndex: 1` for `active`. The candidate cause is still
+   present on live `0da104f9`: for a frozen (published) run, `published-schedule.service.ts:758-773`
+   resolves `active` from the frozen contract's `activeTermOrder`, i.e. the term active *at publication*.
+   The `academic-term.ts:50-52` fallback yields "T1", not the observed "TERM 1". **Close it only with a
+   live read** of the public API's `source.termIndex` for no query string. Lane C can run that on request.
+2. **The same warning has two names** (Codex, `e4989b72`). Review issues vs Publish Readiness: "Long teaching
+   block" / "Too many consecutive periods", "Long idle gap" / "Long teacher idle gap", "Too many building
+   changes" / "Too many building transitions". "Cross-Floor Transition" is still engine title-case. The
+   `9b1ec14a` guard checks each code *has* a label, not that there is *one* label per code. Fold this into
+   §4 item 2 (#4 completion).
+3. **The More menu has six groups.** Everyday tasks sit next to Tools (Teacher concerns, Campus map, Manual edit,
+   Building view) and Schedule data (Latest Run, Refresh timetable, Refresh school names). That undoes the
+   header's calm. MEDIUM, after §4 item 1.
+4. **Still open from both runners:** no draft/published statement on `/timetable` (the same root as §4 item
+   1); no Undo/Redo; "194 warnings" with no priority; the Room view label "G10 Room 101 · G1AW" with no empty
+   state. The Undo decision belongs to the operator.
+5. **Browser acceptance for `0da104f9` (§2):** Lane C can close those rows (public term switch, 390 px banner,
+   runs-pane settled states, `/my` retired, positive login) with either runner. Ask; don't wait for a
+   seeded Codex profile. Codex's Chrome profile is already signed in by the operator.
+6. **Not A2's work (Planner A):** the login page shows "ASS" as the heading without cached branding
+   (`Login.tsx:81,94-104`).
+7. **Process:** the Lane A2 section of `live-state.md` is about 320 lines against the ~40-line rule
+   (`AGENTS.md` §15). Move the finished-cycle narrative into this handoff.

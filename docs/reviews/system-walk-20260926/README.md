@@ -30,7 +30,7 @@ blocker count, active term, source freshness), used by every page that shows it.
 4. Drift banner squeezed to one word wide at 390 px; Runs flashes "No generation runs yet" while loading (both from the A2 handoff).
 5. The offline school-year record failing its semantic check (01 #1), a term-authority question.
 
-*Deferred by the operator (2026-09-26):* Room Schedules (03 #1) is unfinished and will be redesigned later. The term fix goes into that redesign.
+*Room Schedules (03 #1):* the term merge is **fixed by A2** (`e4989b72`). The page itself awaits redesign (operator).
 
 **Planner A — shell, setup, load, audit, companions**
 1. Faculty Preferences count vs list (02 #1).
