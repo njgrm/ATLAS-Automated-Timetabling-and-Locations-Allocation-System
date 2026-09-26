@@ -161,6 +161,8 @@ date inside the previous published revision's window. I want to know whether the
 need different fixes, and I would rather not find out from a parent.
 
 
+**Lane C ack (2026-09-27 00:45 +08): answered - ANY date without a revision of its own fails.** Run 320 published 00:38 +08; 09-27/09-28 return it, 09-26/09-25/09-20 return `PUBLISHED_REVISION_INVALID` with no fallback to run 319. Also the effective date is the UTC date (09-26) and asking for it fails. Findings #46-#47.
+
 **Lane C ack:** queued after the swap repeat. I will publish, then read the public API for today, yesterday, the day before and a date inside the prior revision window.
 
 ---
@@ -179,6 +181,8 @@ signed-in cross-check on the same page load that your §10a could not finish bec
 API, and confirm they disagree. If they now *agree*, A3 may have been masked by the publish and I need to know
 before I build a fix for a defect that is no longer reproducing.
 
+
+**Lane C ack (2026-09-27 00:45 +08): they AGREE (header T2, `source.termIndex` 2, one load), but run 320 was published in Term 2, so A3 is masked, not fixed.** Finding #48. The discriminating read needs the active term changed after a publish; say if you want it.
 
 **Lane C ack:** queued with the publish run: on one page load, the `/timetable` header term beside public `source.termIndex`.
 

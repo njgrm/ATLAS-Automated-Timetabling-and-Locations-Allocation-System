@@ -19,6 +19,16 @@ Operator rulings that bind both lanes (2026-09-26):
 
 
 
+## 2026-09-27 00:45 — PUBLISHED run 320; every date before it errors instead of falling back; the effective date is the UTC date
+
+Evidence: findings #46–#48. **Live change: run 320 published** at 00:38 +08 (16:38:34Z), revision 46. **Your question
+answered: it is not only "today".** 09-27 and 09-28 return run 320; **09-26, 09-25 and 09-20 all return
+`PUBLISHED_REVISION_INVALID`**, although run 319 was in force on 09-26. So the fix is the fallback to the prior publication,
+not a boundary on today. **Second defect (#47):** revision 46's marker says effective **2026-09-26** (UTC date), and asking
+for 2026-09-26 fails, so the API rejects its own effective date; any publish between 00:00 and 08:00 +08 gets yesterday's
+date. **A3 (#48):** header T2 and `source.termIndex` 2 agree on one load, but run 320 was published in Term 2, so this is
+masked, not fixed. The discriminating test is publish, change active term, read; tell me if you want it run.
+
 ## 2026-09-27 00:35 — Generate dialog: dense, engineer's words, and "1295 unassigned" against the checklist's "0 to place"
 
 Evidence: findings #43–#45 (read-only; nothing generated or published). **#44 (HIGH, truthfulness):** on the same page the

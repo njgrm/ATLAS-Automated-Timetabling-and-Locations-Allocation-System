@@ -179,3 +179,26 @@ text under 14 px / visual status.
 | 41 (update) | The run number is shown in one place: the publish panel's "Generated schedule · run 320". Still absent from the header. | – | – |
 
 Cost (`subagent_tokens`): 111,900 (+ 57,896 for a code search of the public routes).
+
+## Publish run 320 and public reads by date (2026-09-27 00:38 +08, live `0da104f9`)
+
+One Chrome run. **Live change: run 320 published** (toast "Run #320 published. Final schedule is now viewable.",
+`publishedAt` 2026-09-26T16:38:34.677Z = 00:38 +08 on 09-27). The public API answered without sign-in.
+
+| Date asked | Result |
+|---|---|
+| none | 200 · run 320 · termIndex 2 · revision 46 · marker effective **2026-09-26** |
+| 2026-09-27 (today, +08) | 200 · run 320 · revision 46 |
+| 2026-09-28 | 200 · run 320 · revision 46 |
+| 2026-09-26 | `PUBLISHED_REVISION_INVALID` "The immutable publication revision is unavailable for the requested date." |
+| 2026-09-25 | same error |
+| 2026-09-20 | same error |
+
+| # | Finding | Severity |
+|---|---|---|
+| 46 | **Every date before the new publication errors; none falls back to run 319.** Run 319 was published 2026-09-26 22:23 +08 and was in force all that evening, yet 09-26, 09-25 and 09-20 all fail. It is not only "today": any date without a revision of run 320 fails. (Today now works because the publish landed after midnight +08.) | **BLOCKING** (with #12) |
+| 47 | **The effective date is the UTC date, and the API rejects it.** Revision 46's marker says effective **2026-09-26** (the UTC date of 16:38Z); the school's local date was 09-27. Asking for 2026-09-26 then fails, so the API refuses its own stated effective date. A publish between 00:00 and 08:00 +08 will always carry yesterday's date. | HIGH |
+| 48 | **A3 cross-check: the header and the API agree** (header "Active Term: T2"; API `source.termIndex` 2, `activeTermVerified: true`, same page load). This does **not** clear A3: run 320 was published while Term 2 was active, so publication-time and current term are the same. A3 is masked, not fixed. Discriminating test: publish in one term, change the active term, then read. | note (A3 stays open) |
+
+No console errors, no error boundary. HTTP status codes were not visible to the runner (bodies only). Cost
+(`subagent_tokens`): 127,993.
