@@ -28,7 +28,7 @@ import { ScheduleTimetableGrid } from '@/components/room-schedules/ScheduleTimet
 import { ScheduleMobileCards } from '@/components/room-schedules/ScheduleMobileCards';
 import { exportScheduleToCsv } from '@/components/room-schedules/schedule-export';
 import { SchedulerPrintDialog } from '@/components/timetable/simple/SchedulerPrintDialog';
-import { MAX_ACADEMIC_TERM_INDEX } from '@/lib/academic-term';
+import { MAX_ACADEMIC_TERM_INDEX, academicTermDisplayLabel, isTermIndexWithinTerms, isVerifiedOrderedActiveTerm, type AcademicTermOption, type OrderedAcademicTerm } from '@/lib/academic-term';
 import { SmartHelpTrigger, SmartSourceStatusChip } from '@/components/smart/SmartPageShell';
 import type { Building, Room, Subject, FacultyMirror, RoomScheduleView, SectionSummaryResponse, DraftReport } from '@/types';
 import type { ViewMode, SectionInfo } from '@/components/room-schedules/schedule-types';
@@ -95,6 +95,43 @@ export default function RoomSchedules() {
 	const [exportTerm, setExportTerm] = useState<string>('all');
 	const [downloadSchedulesOpen, setDownloadSchedulesOpen] = useState(false);
 
+	// ROOM-SCHEDULES-TERM-C01 — the ONE selected term for every on-screen view.
+	//
+	// The three view tabs (Rooms / Teachers / Sections) all render a WEEKLY grid,
+	// and a weekly grid built from three merged terms shows the same class three
+	// times in one slot. The grid then counts that as a room conflict, so the
+	// page reported 10 conflicts for a room that had none. Term scope is
+	// therefore an invariant of the view, not a display filter.
+	//
+	// `orderedTerms` and `activeTermIndex` come from the ONE existing authority
+	// (`resolveActiveSchoolYearContext` + `isVerifiedOrderedActiveTerm`). There
+	// is deliberately no "All terms" option here: that is correct for a filter
+	// over a list (`buildAcademicTermOptions`) and is precisely the merge this
+	// view must not perform. `viewTerm` is null until a term is VERIFIED, and
+	// null means "prove the term", never "fall back to Term 1".
+	const [orderedTerms, setOrderedTerms] = useState<OrderedAcademicTerm[] | null>(null);
+	const [verifiedActiveTermIndex, setVerifiedActiveTermIndex] = useState<number | null>(null);
+	const [viewTerm, setViewTerm] = useState<number | null>(null);
+
+	const termVerified = verifiedActiveTermIndex != null && viewTerm != null;
+
+	const viewTermOptions = useMemo<AcademicTermOption[]>(() => {
+		const ordered = orderedTerms && orderedTerms.length > 0
+			? [...orderedTerms].sort((a, b) => a.order - b.order)
+			: [];
+		// Labels come from the shared authority; the option LIST is built here
+		// because the shared builder's leading "All terms" entry is forbidden in
+		// a schedule view.
+		return ordered
+			.filter((term) => isTermIndexWithinTerms(term.order, ordered))
+			.map((term) => ({ value: String(term.order), label: academicTermDisplayLabel(ordered, term.order) }));
+	}, [orderedTerms]);
+
+	const selectedTermLabel = useMemo(() => {
+		if (viewTerm == null) return null;
+		return academicTermDisplayLabel(orderedTerms, viewTerm);
+	}, [orderedTerms, viewTerm]);
+
 	const [state, setState] = useState<FetchState>({ status: 'idle' });
 	const [conflictData, setConflictData] = useState<ConflictInspectorData | null>(null);
 
@@ -141,8 +178,28 @@ export default function RoomSchedules() {
 					atlasApi.get<{ faculty: FacultyMirror[] }>(`/faculty?schoolId=${scopedSchoolId}`).catch(() => ({ data: { faculty: [] as FacultyMirror[] } })),
 				]);
 
-				setSchoolYearId(activeSchoolYearId);
-				setSchoolYearLabel(yearContext.activeSchoolYearLabel ?? null);
+			setSchoolYearId(activeSchoolYearId);
+			setSchoolYearLabel(yearContext.activeSchoolYearLabel ?? null);
+
+			// ROOM-SCHEDULES-TERM-C01 — capture the term authority that was
+			// already being fetched and discarded. `isVerifiedOrderedActiveTerm`
+			// is the same predicate the main workspace uses, so this surface
+			// cannot develop a second opinion about what "the active term" is.
+			const activeTerm = yearContext.activeTerm ?? null;
+			if (isVerifiedOrderedActiveTerm(activeTerm)) {
+				const terms = activeTerm?.orderedTerms ?? [];
+				setOrderedTerms(terms.length > 0 ? terms : null);
+				setVerifiedActiveTermIndex(activeTerm?.termIndex ?? null);
+				setViewTerm((current) => (
+					current != null && isTermIndexWithinTerms(current, terms) ? current : activeTerm?.termIndex ?? null
+				));
+			} else {
+				// Unresolved authority. Clear the selection rather than defaulting:
+				// the view must not read, and must not claim, a term it cannot prove.
+				setOrderedTerms(null);
+				setVerifiedActiveTermIndex(null);
+				setViewTerm(null);
+			}
 
 				if (activeSchoolYearId) {
 					atlasApi.get<SectionSummaryResponse>(`/sections/summary/${activeSchoolYearId}?schoolId=${scopedSchoolId}`)
@@ -216,6 +273,19 @@ export default function RoomSchedules() {
 		}
 		const scopedSchoolId = actorSchoolId;
 
+		// ROOM-SCHEDULES-TERM-C01 — fail closed BEFORE any request. An unverified
+		// term is unresolved authority: this surface must neither read an all-term
+		// draft nor silently adopt Term 1. The message is an operator action, not
+		// an error code, and it never claims the schedule is empty.
+		if (viewTerm == null) {
+			setState({
+				status: 'empty',
+				message: 'ATLAS could not verify which term this schedule is for, so it is not showing one. Check the school year and term in EnrollPro, then retry.',
+			});
+			return;
+		}
+		const selectedTermForView = viewTerm;
+
 		if (sourceMode === 'run' && !/^[1-9]\d*$/.test(debouncedRunId)) {
 			setState({ status: 'empty', message: 'Enter a valid Run ID to view this source.' });
 			return;
@@ -226,6 +296,11 @@ export default function RoomSchedules() {
 			if (viewMode === 'rooms') {
 				const params = new URLSearchParams({ source: sourceMode });
 				if (sourceMode === 'run') params.set('runId', debouncedRunId);
+				// ROOM-SCHEDULES-TERM-C01 — send the ONE selected term. The server
+				// endpoint already accepts an explicit termIndex and fails closed
+				// with 501 TERM_FILTER_NOT_READY rather than merging; it was only
+				// ever omitted here, which is what produced the invented conflicts.
+				params.set('termIndex', String(selectedTermForView));
 
 				const { data } = await atlasApi.get<RoomScheduleView>(
 					`/room-schedules/${scopedSchoolId}/${schoolYearId}/rooms/${selectedEntityId}?${params}`,
@@ -256,8 +331,18 @@ export default function RoomSchedules() {
 					};
 				}
 
-				const view = pivotDraftToView(report, viewMode, entityId, entity, subjectMap);
-				setState({ status: 'ok', data: view });
+				const result = pivotDraftToView(report, viewMode, entityId, entity, selectedTermForView, subjectMap);
+				if (!result.ok) {
+					// Fail closed for the same reason the server refuses: an entry
+					// with no term identity cannot be placed in one term, and
+					// merging is what this whole change exists to stop.
+					setState({
+						status: 'empty',
+						message: 'Some sessions in this draft have no verified term, so they cannot be shown for one term. Regenerate the draft, then retry.',
+					});
+					return;
+				}
+				setState({ status: 'ok', data: result.view });
 			}
 		} catch (e: unknown) {
 			const resp = (e as { response?: { data?: { code?: string; message?: string } } })?.response;
@@ -269,7 +354,7 @@ export default function RoomSchedules() {
 				setState({ status: 'error', message: msg });
 			}
 		}
-	}, [actorSchoolId, viewMode, selectedEntityId, schoolYearId, sourceMode, debouncedRunId, facultyList, sectionList, subjectMap]);
+	}, [actorSchoolId, viewMode, selectedEntityId, schoolYearId, sourceMode, debouncedRunId, facultyList, sectionList, subjectMap, viewTerm]);
 
 	useEffect(() => {
 		if (!selectedEntityId || !schoolYearId) return;
@@ -388,11 +473,21 @@ export default function RoomSchedules() {
 							<span className="text-[0.65rem] font-medium text-muted-foreground uppercase tracking-wider">
 								Schedules
 							</span>
-							<SmartSourceStatusChip
-								label={state.status === 'ok' ? 'Ready to review' : roomsLoading ? 'Loading names' : 'Choose schedule'}
-								tone={state.status === 'ok' ? 'live' : roomsLoading ? 'checking' : 'neutral'}
-								testId="schedules-readiness-chip"
-							/>
+						<SmartSourceStatusChip
+							label={state.status === 'ok' ? 'Ready to review' : roomsLoading ? 'Loading names' : 'Choose schedule'}
+							tone={state.status === 'ok' ? 'live' : roomsLoading ? 'checking' : 'neutral'}
+							testId="schedules-readiness-chip"
+						/>
+						{/* ROOM-SCHEDULES-TERM-C01 — the term the grid on this page
+						    actually shows. It is stated, not implied, because the
+						    grid is single-term and an operator comparing it with
+						    another term's output needs to know which one this is. */}
+						<span
+							className="rounded-md border border-primary/20 bg-primary/5 px-1.5 py-0.5 text-[0.65rem] font-medium text-primary"
+							data-testid="schedules-selected-term"
+						>
+							{selectedTermLabel ? `Showing ${selectedTermLabel}` : 'Term not verified'}
+						</span>
 						</div>
 					</div>
 					<div className="flex flex-wrap items-center justify-end gap-2">
@@ -487,6 +582,30 @@ export default function RoomSchedules() {
 					</div>
 
 					<div className="flex items-center gap-1.5 shrink-0">
+						{/* ROOM-SCHEDULES-TERM-C01 — the VIEW term selector, which is a
+						    different control from the download-term selector further
+						    down. The download selector may offer "All terms" because a
+						    file is allowed to cover the year; the on-screen weekly grid
+						    may not, so this control is built without that option. */}
+						<div className="shrink-0">
+							<Select
+								value={viewTerm != null ? String(viewTerm) : undefined}
+								onValueChange={(value) => {
+									const parsed = Number(value);
+									if (isTermIndexWithinTerms(parsed, orderedTerms)) setViewTerm(parsed);
+								}}
+								disabled={!termVerified}
+							>
+								<SelectTrigger className="h-10 w-[9.5rem] shrink-0 rounded-xl bg-white text-xs shadow-sm" aria-label="Schedule view term" data-testid="schedules-view-term">
+									<SelectValue placeholder="Term" />
+								</SelectTrigger>
+								<SelectContent>
+									{viewTermOptions.map((option) => (
+										<SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
+						</div>
 						<Button type="button" variant="outline" size="sm" onClick={() => setDownloadSchedulesOpen(true)} className="h-10 shrink-0 shadow-sm text-xs" data-testid="schedules-open-download">
 							Download schedules
 						</Button>

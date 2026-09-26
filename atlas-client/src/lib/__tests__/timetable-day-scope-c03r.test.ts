@@ -25,6 +25,12 @@ const TUESDAY_CLASS: ScheduledEntry = {
 	startTime: '06:00',
 	endTime: '06:45',
 	durationMinutes: 45,
+	// ROOM-SCHEDULES-TERM-C01 — this fixture previously carried NO termIndex and
+	// the pivot papered over that with `e.termIndex ?? 1`, so the row below was
+	// passing *because of* the fail-open this change removes. A real draft entry
+	// does carry its term, so the fixture now says so. The row's actual subject —
+	// Monday-only event scoping — is untouched.
+	termIndex: 1,
 };
 
 test('live conflict map blocks a Monday-only event only on Monday and leaves the interval clean elsewhere', () => {
@@ -62,7 +68,10 @@ test('section pivot renders a Monday-only event only on Monday and keeps Tuesday
 			],
 		},
 	} as DraftReport;
-	const view = pivotDraftToView(report, 'sections', 701, { id: 701, name: '7-Rizal' }, new Map([[11, 'Mathematics']]));
+	const pivot = pivotDraftToView(report, 'sections', 701, { id: 701, name: '7-Rizal' }, 1, new Map([[11, 'Mathematics']]));
+	assert.equal(pivot.ok, true, 'a fully identified single-term draft must build a view');
+	if (!pivot.ok) return;
+	const view = pivot.view;
 	const flagRow = view.grid.find((row) => row.timeSlot.eventLabel === 'FLAG CEREMONY');
 	assert.ok(flagRow);
 	const monday = flagRow.cells.find((cell) => cell.day === 'MONDAY');

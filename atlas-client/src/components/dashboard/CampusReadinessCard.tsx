@@ -21,6 +21,7 @@ import type { BuildingSetupStatus } from '@/hooks/useDashboardData';
 import atlasApi from '@/lib/api';
 import { getPreferredAccessToken } from '@/lib/auth';
 import { resolveActiveSchoolYearContext } from '@/lib/enrollpro-public-settings';
+import { isVerifiedOrderedActiveTerm } from '@/lib/academic-term';
 import { useActorSchoolScope } from '@/lib/actor-scope-session';
 import { pivotDraftToView } from '@/lib/schedule-pivot';
 import { parseGradeFromSectionName } from '@/components/GradeLevelBadge';
@@ -133,8 +134,11 @@ export function CampusReadinessCard({
 	const [roomTypeFilter, setRoomTypeFilter] = useState('all');
 
 	const [scheduleLoading, setScheduleLoading] = useState(true);
-	const [scheduleReport, setScheduleReport] = useState<DraftReport | null>(null);
-	const [activeSchoolYearLabel, setActiveSchoolYearLabel] = useState<string | null>(null);
+const [scheduleReport, setScheduleReport] = useState<DraftReport | null>(null);
+const [activeSchoolYearLabel, setActiveSchoolYearLabel] = useState<string | null>(null);
+// ROOM-SCHEDULES-TERM-C01 — the ONE verified term every figure below is scoped
+// to. Null means "not proven", which renders no figure rather than a merged one.
+const [verifiedTermIndex, setVerifiedTermIndex] = useState<number | null>(null);
 	const [subjectMap, setSubjectMap] = useState<Map<number, string>>(new Map());
 	const [facultyMap, setFacultyMap] = useState<Map<number, string>>(new Map());
 	const [sectionMap, setSectionMap] = useState<Map<number, SectionScheduleInfo>>(new Map());
@@ -176,6 +180,22 @@ export function CampusReadinessCard({
 			const context = await resolveActiveSchoolYearContext({ schoolId: scopedSchoolId, allowStaleOnError: true, preferCache: true, backgroundRefresh: true });
 			const activeSchoolYearId = context.activeSchoolYearId;
 			if (!cancelled) setActiveSchoolYearLabel(context.activeSchoolYearLabel ?? null);
+
+			// ROOM-SCHEDULES-TERM-C01 — this card builds weekly room grids and a
+			// per-room utilisation figure from the draft. Both are single-term
+			// measurements: a percentage summed across three terms is not a
+			// utilisation figure for any term, and a grid merged across terms
+			// invents room conflicts. The term authority was already being fetched
+			// here and discarded, so capture it and prove it with the same shared
+			// predicate the timetable workspace uses. Unverified means NO figure,
+			// never a merged one and never Term 1.
+			const activeTerm = context.activeTerm ?? null;
+			if (!cancelled) setVerifiedTermIndex(isVerifiedOrderedActiveTerm(activeTerm) ? activeTerm?.termIndex ?? null : null);
+			if (!isVerifiedOrderedActiveTerm(activeTerm)) {
+				if (!cancelled) { setScheduleReport(null); setScheduleLoading(false); }
+				return;
+			}
+
 			if (!activeSchoolYearId) {
 				if (!cancelled) setScheduleLoading(false);
 				return;
@@ -253,24 +273,29 @@ export function CampusReadinessCard({
 
 	const roomUtilization = useMemo(() => {
 		const utilization = new Map<number, number>();
-		if (!scheduleReport) return utilization;
+		if (!scheduleReport || verifiedTermIndex == null) return utilization;
 
 		for (const building of buildings) {
 			for (const room of building.rooms ?? []) {
 				if (!room.isTeachingSpace) continue;
-				const schedule = pivotDraftToView(
+				const result = pivotDraftToView(
 					scheduleReport,
 					'rooms',
 					room.id,
 					{ id: room.id, name: room.name, subtitle: building.name },
+					verifiedTermIndex,
 					subjectMap,
 				);
-				utilization.set(room.id, Math.min(100, schedule.summary.utilizationPercent));
+				// A refusal means the draft lacks term identity for this room, so
+				// there is no honest percentage to show. Omit it; do not fall back
+				// to an all-term sum, which is not a utilisation figure.
+				if (!result.ok) continue;
+				utilization.set(room.id, Math.min(100, result.view.summary.utilizationPercent));
 			}
 		}
 
 		return utilization;
-	}, [buildings, scheduleReport, subjectMap]);
+	}, [buildings, scheduleReport, subjectMap, verifiedTermIndex]);
 
 	const scheduleEmptyLabel = activeSchoolYearLabel
 		? `No ${activeSchoolYearLabel} timetable yet`
@@ -304,18 +329,20 @@ export function CampusReadinessCard({
 	}, [scheduleReport, sectionMap]);
 
 	const selectedRoomSchedule = useMemo<RoomScheduleView | null>(() => {
-		if (!scheduleReport || !selectedRoom) return null;
+		if (!scheduleReport || !selectedRoom || verifiedTermIndex == null) return null;
 		const parentBuilding = buildings.find((building) => (building.rooms ?? []).some((room) => room.id === selectedRoom.id));
-		return pivotDraftToView(
+		const result = pivotDraftToView(
 			scheduleReport,
 			'rooms',
 			selectedRoom.id,
 			{ id: selectedRoom.id, name: selectedRoom.name, subtitle: parentBuilding?.name },
+			verifiedTermIndex,
 			subjectMap,
 			sectionLabelMap,
 			facultyMap,
 		);
-	}, [buildings, facultyMap, scheduleReport, sectionLabelMap, selectedRoom, subjectMap]);
+		return result.ok ? result.view : null;
+	}, [buildings, facultyMap, scheduleReport, sectionLabelMap, selectedRoom, subjectMap, verifiedTermIndex]);
 
 	const handleSelectBuilding = (buildingId: number) => {
 		setSelectedBuildingId(buildingId);
