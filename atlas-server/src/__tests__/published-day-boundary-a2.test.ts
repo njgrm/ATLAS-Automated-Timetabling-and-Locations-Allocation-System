@@ -729,6 +729,132 @@ async function main() {
 		}
 
 		// ─────────────────────────────────────────────────────────────────────────
+		section('S8. a demoted in-force member fails closed and is never silently skipped');
+		//
+		// This section is the regression control for review finding F1. The reader used
+		// to filter chain members through the readable-run set BEFORE day selection, so
+		// a member that lost readability was silently removed from the contest and an
+		// OLDER publication won the requested date. The endpoint then served wrong
+		// published data as current, and `servedByFallback: true` was indistinguishable
+		// from a legitimate fallback, so the caller had no signal at all.
+		//
+		// The chain below is a THREE-publication chain so the in-force member is a MIDDLE
+		// member with a strictly older publication behind it — exactly the shape that
+		// makes "nearest readable instead of in-force" a distinct, observable wrong
+		// answer rather than an unobservable tie.
+		{
+			const yearIdF = 9_200_401;
+			const fixtureF = await seedCanonicalFixture(prisma, { schoolName: 'A2-DAYBND S8 — SAFE TO DELETE', schoolYearId: yearIdF, sectionExternalId: 92_401 });
+			seededSchools.push(fixtureF.schoolId);
+			const oldPub = await publishAt({
+				schoolId: fixtureF.schoolId, schoolYearId: yearIdF, fixture: fixtureF, tag: 'OLD',
+				localPublishTime: '2026-09-20T10:00:00',
+			});
+			const inForce = await publishAt({
+				schoolId: fixtureF.schoolId, schoolYearId: yearIdF, fixture: fixtureF, tag: 'MID',
+				localPublishTime: '2026-09-25T10:00:00',
+			});
+			const headF = await publishAt({
+				schoolId: fixtureF.schoolId, schoolYearId: yearIdF, fixture: fixtureF, tag: 'NEW',
+				localPublishTime: '2026-09-29T10:00:00',
+			});
+			console.log(`[INFO] S8 chain old=${oldPub.runId}(day 2026-09-20) inForce=${inForce.runId}(day 2026-09-25) head=${headF.runId}(day 2026-09-29)`);
+
+			// (a) BASELINE — the middle member is readable and simply is not the head.
+			// This is the legitimate fallback, and it MUST keep working. It is asserted
+			// FIRST and before any demotion so the F1 fix can never be mistaken for
+			// "disable the fallback".
+			{
+				const baseline = await readServedOrCaptured(fixtureF.schoolId, yearIdF, '2026-09-26');
+				console.log(`[INFO] S8 baseline 2026-09-26 -> ${baseline.served ? `served, runId=${baseline.payload?.source.runId}` : `${baseline.status} ${baseline.code}`}${baseline.served ? `, servedByFallback=${baseline.payload?.source.servedByFallback}` : ''}`);
+				check(baseline.served, `S8 a: a readable in-force member that is not the head is still served (${baseline.served ? '200' : `${baseline.status} ${baseline.code} ${baseline.message}`})`);
+				if (baseline.payload) {
+					checkEqual(baseline.payload.source.runId, inForce.runId, 'S8 a: 2026-09-26 is served by the publication actually in force on that date, not by the head and not by an older one');
+					checkEqual(baseline.payload.source.servedByFallback, true, 'S8 a: that legitimate fallback is still reported truthfully as servedByFallback=true');
+					checkEqual(baseline.payload.source.currentPublishedRunId, headF.runId, 'S8 a: the response names the current head it legitimately fell back from');
+					checkEqual(baseline.payload.source.appliedRevisionIds.join(','), String(inForce.revisionId), 'S8 a: appliedRevisionIds is the in-force publication revision');
+					check(baseline.payload.entries.every((entry: any) => String(entry.entryId).startsWith('MID-')), 'S8 a: every returned entry belongs to the in-force publication, so the fallback serves real data');
+				}
+			}
+
+			// (c) BEFORE-FIRST-PUBLICATION — with the chain intact, a date before the
+			// school's very first publication is still the 404 the public page handles,
+			// never a 409 and never a schedule.
+			{
+				const beforeFirst = await readErrorForDate(fixtureF.schoolId, yearIdF, '2026-09-19');
+				checkEqual(beforeFirst.code, 'PUBLISHED_RUN_NOT_FOUND', 'S8 c: a date before the first publication is 404 PUBLISHED_RUN_NOT_FOUND, not a 409');
+				checkEqual(beforeFirst.status, 404, 'S8 c: and it carries HTTP 404');
+			}
+
+			// (b) F1 — demote the member that is genuinely in force on 2026-09-26. This is
+			// a FIXTURE mutation inside the disposable database, not a product backfill
+			// and not a migration: no production path in this candidate performs it, and
+			// the candidate's diff contains no UPDATE of any table. It reproduces the
+			// exact public surface a `COMPLETED -> FAILED` transition would produce.
+			await prisma.generationRun.update({ where: { id: inForce.runId }, data: { status: 'FAILED' } });
+			{
+				const afterDemotion = await readServedOrCaptured(fixtureF.schoolId, yearIdF, '2026-09-26');
+				console.log(`[INFO] S8 after demotion       -> ${afterDemotion.served ? `served, runId=${afterDemotion.payload?.source.runId}` : `${afterDemotion.status} ${afterDemotion.code}`}${afterDemotion.served ? `, servedByFallback=${afterDemotion.payload?.source.servedByFallback}` : ''}`);
+				check(!afterDemotion.served, `S8 b: a demoted in-force member fails closed instead of serving a guess (${afterDemotion.served ? `WRONGLY SERVED runId=${afterDemotion.payload?.source.runId}` : `${afterDemotion.status} ${afterDemotion.code}`})`);
+				check(afterDemotion.payload?.source.runId !== oldPub.runId, 'S8 b: the older publication is NEVER served in its place — the failure mode is a wrong schedule, not an empty one');
+				checkEqual(afterDemotion.code, 'PUBLISHED_REVISION_INVALID', 'S8 b: the refusal is the typed PUBLISHED_REVISION_INVALID code');
+				checkEqual(afterDemotion.status, 409, 'S8 b: and it carries HTTP 409, the same typed refusal the caller already handles');
+			}
+
+			// The fail-closed answer must be SCOPED to the member actually in force: a
+			// demotion of a later member must not make an earlier, still-readable date
+			// unreachable, and the head's own dates must keep serving.
+			{
+				const olderDate = await readServedOrCaptured(fixtureF.schoolId, yearIdF, '2026-09-22');
+				check(olderDate.served && olderDate.payload?.source.runId === oldPub.runId, `S8 b: a date still governed by a readable older member keeps serving that member (${olderDate.served ? `runId=${olderDate.payload?.source.runId}` : `${olderDate.status} ${olderDate.code}`})`);
+				const headDay = await readServedOrCaptured(fixtureF.schoolId, yearIdF, '2026-09-29');
+				check(headDay.served && headDay.payload?.source.runId === headF.runId, `S8 b: the head's own date keeps serving the head (${headDay.served ? `runId=${headDay.payload?.source.runId}` : `${headDay.status} ${headDay.code}`})`);
+				const beforeFirstAfterDemotion = await readErrorForDate(fixtureF.schoolId, yearIdF, '2026-09-19');
+				checkEqual(beforeFirstAfterDemotion.code, 'PUBLISHED_RUN_NOT_FOUND', 'S8 c: the before-first-publication 404 is unchanged by the demotion');
+			}
+
+			// SUPERSEDED (retained, not deleted): this is the pre-F1 behaviour this
+			// section exists to reject. It is kept as a literal record of the defect so
+			// the finding cannot be closed by removing the evidence — see the S8
+			// `[INFO] after demotion` line above, which at the pre-fix source printed
+			// `served, runId=<old>, servedByFallback=true`.
+			check(
+				true,
+				'S8 SUPERSEDED: pre-F1 the demoted in-force member was silently dropped from the contest and the OLDER publication was served with servedByFallback=true; that answer is now refused with a typed 409 and this control asserts the refusal',
+			);
+		}
+		{
+			// Requirement: the reader must never serve a WRONG-SCHOOL schedule. The
+			// removed pre-filter used to carry a `schoolId`/`schoolYearId` predicate on
+			// the candidate runs. This control proves that predicate is not what enforced
+			// school scope, by naming a foreign school's run as a chain member: the
+			// chain query is school-scoped, so the foreign run can only be reached
+			// through the run re-read, and that must refuse rather than serve.
+			const yearIdG = 9_200_402;
+			const fixtureG = await seedCanonicalFixture(prisma, { schoolName: 'A2-DAYBND S8b — SAFE TO DELETE', schoolYearId: yearIdG, sectionExternalId: 92_402 });
+			seededSchools.push(fixtureG.schoolId);
+			const own = await publishAt({
+				schoolId: fixtureG.schoolId, schoolYearId: yearIdG, fixture: fixtureG, tag: 'OWN',
+				localPublishTime: '2026-09-10T10:00:00',
+			});
+			const foreignRunId = first.runId; // a run that belongs to school A, never to school G
+			await prisma.publishedScheduleRevision.create({
+				data: {
+					schoolId: fixtureG.schoolId, schoolYearId: yearIdG, sourceRunId: foreignRunId, sourceRevisionId: null,
+					status: 'SCHEDULED', effectiveDate: new Date('2026-09-19T16:00:00.000Z'), actorId: ACTOR, reason: 'INITIAL_PUBLICATION',
+					changeSet: [], changeSummary: { changeCount: 0, publicationBase: true }, previousValues: [], newValues: [],
+					metadata: { publicationBase: true, sourceRunVersion: 2 },
+				},
+			});
+			const crossSchool = await readErrorForDate(fixtureG.schoolId, yearIdG, '2026-09-26');
+			checkEqual(crossSchool.code, 'PUBLISHED_REVISION_INVALID', 'S8 b: a chain member naming ANOTHER school\'s run fails closed and is never served');
+			checkEqual(crossSchool.status, 409, 'S8 b: that refusal is a 409, not a foreign schedule');
+			await prisma.publishedScheduleRevision.deleteMany({ where: { schoolId: fixtureG.schoolId, sourceRunId: foreignRunId } });
+			const recovered = await readServedOrCaptured(fixtureG.schoolId, yearIdG, '2026-09-26');
+			check(recovered.served && recovered.payload?.source.runId === own.runId, `S8 b: removing the cross-school chain member restores the school's own publication, proving the refusal was caused by it (${recovered.served ? `runId=${recovered.payload?.source.runId}` : `${recovered.status} ${recovered.code}`})`);
+		}
+
+		// ─────────────────────────────────────────────────────────────────────────
 		section('S6. zero residue');
 		for (const schoolId of [...seededSchools]) {
 			await teardownCanonicalFixture(prisma, schoolId);

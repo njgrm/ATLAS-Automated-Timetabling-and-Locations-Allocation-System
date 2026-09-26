@@ -254,9 +254,14 @@ const PUBLISHED_RUN_META_SELECT = {
 /**
  * PUBLISHED-DAY-BOUNDARY-A2 (Defect A) — a prior publication reached by fallback is
  * re-read through the SAME projection and the SAME eligibility rules as the head
- * (`status: COMPLETED`, `runType: FULL`, same school/year scope). A base revision
- * whose run is not a readable completed publication is not a publication and is
- * excluded rather than served.
+ * (`status: COMPLETED`, `runType: FULL`, same school/year scope).
+ *
+ * A base revision whose run is not a readable completed publication is NOT silently
+ * dropped from consideration. It is selected first, by date, and then this re-read
+ * returns `null` so the caller can refuse with a typed
+ * `409 PUBLISHED_REVISION_INVALID`. Excluding it here would let an OLDER publication
+ * win a date the unreadable one governed, which presents wrong published data as
+ * current — see the `!publishedRunMeta` branch in `resolvePublishedRun`.
  */
 async function loadReadablePublishedRun(runId: number, schoolId: number) {
 	return db().generationRun.findFirst({
@@ -276,6 +281,12 @@ async function loadReadablePublishedRun(runId: number, schoolId: number) {
  *    "no schedule", not as an error);
  *  - every other chain inconsistency is validated by the caller against the run's
  *    own publication binding.
+ *
+ * Selection is by DATE ONLY, over EVERY chain member. Readability is deliberately
+ * NOT a selection criterion: pruning unreadable members here would silently hand the
+ * requested date to an older publication and report it as a legitimate fallback, so
+ * the caller could not tell a correct fallback from a wrong schedule. The selected
+ * member is re-read by the caller, which fails closed when it is not readable.
  */
 async function selectPublicationInForceForDate(params: {
 	schoolId: number;
@@ -310,21 +321,9 @@ async function selectPublicationInForceForDate(params: {
 		throw err(404, 'PUBLISHED_RUN_NOT_FOUND', 'No published schedule is available for the requested scope.');
 	}
 
-	const chainRunIds = chain.map((revision) => revision.sourceRunId);
-	const readableRuns = await db().generationRun.findMany({
-		where: {
-			id: { in: chainRunIds },
-			schoolId: params.schoolId,
-			schoolYearId: params.schoolYearId,
-			status: 'COMPLETED',
-			runType: 'FULL',
-		},
-		select: { id: true },
-	});
-	const readableRunIds = new Set(readableRuns.map((run) => run.id));
-
+	// Selection is over EVERY chain member, by date only. See the note above: an
+	// unreadable member must lose the date, not be dropped from the contest.
 	const entries = chain
-		.filter((revision) => readableRunIds.has(revision.sourceRunId))
 		.map((revision) => ({
 			runId: revision.sourceRunId,
 			revisionId: revision.id,
