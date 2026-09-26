@@ -184,10 +184,32 @@ resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs
   (`git ls-tree -r <sha> -- prisma/migrations` filtered `migration.sql`; the twelfth `ls-tree` line is
   `migration_lock.toml`, which is how a reviewer and an executor previously disagreed).
 
-  **D9 — OWE, NOT WAIVED.** The three **visual** rows (amber icon, the "Swap + move 1 class" label in situ, the
-  "This undo cannot be undone." statement) remain `NEEDS_SESSION(space-bunny/opencode-default)`. **This release has
-  no rendered-surface evidence for the fixes it ships**, which is the accepted and disclosed cost. **The cycle must
-  not be closed until D9 runs.**
+  **D9 — 2 of 3 rows now PASS; 1 remains blocked on AUTHORITY, not capability (2026-09-27 05:46–05:51 +08).**
+  **The session finally arrived** — `/timetable` loaded instead of redirecting, clearing the
+  `NEEDS_SESSION(space-bunny/opencode-default)` blocker that had held these rows across five cycles. Performed with
+  **zero live writes** (swap preview cancelled, Change room not submitted); full evidence at
+  `docs/reviews/a2-browser-acceptance-c5a9e832/`.
+  - **PASS — "Change room" on MAPEH**, the subject with `requiredFeatures: []` that originally crashed. The form
+    renders with a Target Room combobox reading `G7 Room 103 · Floor 1 · CLASSROOM`, and **no error boundary**.
+    This was the row I twice flagged as most likely to be wrongly closed by a later reader; it is now proven.
+  - **PASS — amber icon**: `svg.lucide-move … text-amber-600`, `aria-hidden`, on the auto-move row.
+  - **PASS — "Swap + move 1 class"**: the commit button, which previously read "Swap sessions" in every state
+    including this one. The preview names the exact move and shows "Safe to review".
+  - **PASS — public page DOM**: 20 sections, TERM 2, "40 published classes are shown", no "Unable to load".
+  - **UNPERFORMED — "This undo cannot be undone."** The statement renders on a `REVERT` row and this schedule has
+    none: *Schedule history* is disabled — *"no class has been moved, swapped or given a new room in this schedule."*
+    Producing one needs a **committed swap plus a revert**, a live production-data write this packet does not
+    authorise. **Blocked on authority, not capability** — a capable agent could do it under a separate explicit
+    live-write authorisation.
+  - Console: **3 errors, all EnrollPro proxy 502s** — the separate `ENROLLPRO-PROXY-RECOVERY` stream, none from
+    these surfaces.
+
+  **Honest observation, not glossed:** the auto-fix target for the original reproduction pair is
+  **WEDNESDAY 12:15 PM–1:00 PM** — the same slot the original bug used. The adopted contract **is** satisfied
+  (the move is now named exactly and the button says a class will move; it was previously silent). But the shift
+  bound checks the session's **start**, not its whole span: GR7 REGULAR is `06:00–12:15`, so a session starting at
+  `12:15` passes while running 45 minutes past the end. **A narrowing opportunity, not a regression, and not a
+  blocker.** Dated successor: decide whether the bound should require `start >= windowStart && end <= windowEnd`.
 
 - **PREVIOUS: `d11304e8135715783455ca4cb6cfd7a9e39222e8` (Lane A3's release)** — now the rollback basis, retained
   and startable. **PREVIOUS-PREVIOUS: `b0736007e89547ff66eab70d1d869e21f73d49ad` (Lane A2)** — superseded; its
