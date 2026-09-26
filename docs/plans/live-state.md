@@ -149,11 +149,58 @@ resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs
 
 - Tailnet: `https://njgrm.buru-degree.ts.net`
 
-- **DEPLOY IN PROGRESS — target `0da104f96696aef7de7016e5364f29b50d0ed00f`, rollback basis
-  `400a6909a9642703e3891861c40d5f49f85c7cd9`** (Lane A2, 2026-09-26, HIGH authority granted by the
-  operator). Recorded here BEFORE the cutover because `ops/runtime/deploy-runner.ps1` refuses to swap
-  unless this register already names the target and its rollback, so the runtime can never be swapped
-  while this file is silent about it.
+- **LIVE: `0da104f96696aef7de7016e5364f29b50d0ed00f` (full 40-char)** (Lane A2, 2026-09-26 19:55 +08,
+  HIGH authority granted by the operator). Release dir **`E:\ATLAS-worktrees\lane-a2-release-0da104f9`**.
+  **Rollback basis is `e4989b725394204898ebcd429db74daaf7316323`** — the *immediate one-step* basis, which is
+  what `deployment-plan.json` records as `incumbentSha` and what `task-before.xml` captures. Deeper
+  two-step basis `400a6909a9642703e3891861c40d5f49f85c7cd9`, retained and startable.
+
+  **Cutover EXECUTED and verified by command, not inherited.** Machine-scope `ATLAS_RUNTIME_SOURCE_DIR` and
+  `ATLAS_RUNTIME_RELEASE_SHA` both read `0da104f9…`; the scheduled-task action names the new
+  `ops\runtime\cli.mjs`; **5001 → PID 23308** running the new `atlas-server\dist\server.js` and
+  **5174 → PID 22724** running the new `ops\runtime\host.mjs`; the supervisor's own
+  `supervisor-state.json` reports `state=running`, `releaseSha=0da104f9…`, `ownedPids{server:23308,
+  client:22724}`. Reads: `/api/v1/health` 200, `/api/v1/health/ready` 200 with
+  `{"checks":{"database":"ok"}}`, **DB-backed** `GET /api/v1/subjects?schoolId=1` 200, 5174 200. Audit:
+  `C:\ProgramData\ATLAS\release-audit\0da104f9-20260926-195435` (dry run, `mutates:false`,
+  `secretsPrinted:false`) and `-195457` (execute, `CUTOVER_STARTED`).
+
+  **The proof artefact is the server side, and it is a real security fix.** `atlas-server/dist/server.js` is
+  a thin stub and is **byte-identical** in both builds, so it is NOT a valid discriminator — the real one is
+  `atlas-server/dist/services/local-auth.service.js`: the committed credential literal `Atlas2026!` is
+  **0 hits in the live tree and 1 hit in the incumbent's**, the guard `requires a non-empty password` is
+  **1 hit live and 0 in the incumbent**, and the SHA-256 differs (`417506EF…` vs `5EE64161…`). **A committed
+  default credential is no longer present in the running server.** The credential-scrub guard test
+  (`dist/__tests__/committed-credential-scrub.test.js`) passes **13/13** on the live build with genuine
+  red-when-replanted controls. Client-side: the served `index-Co12IRfI.js` contains
+  `retired-faculty-portal-notice` (1 hit) where the incumbent has **0 across all 171 chunks**, and the
+  served bytes are byte-identical to the new on-disk build.
+
+  **Zero-write confirmed:** 0 inserts on every table (no seed ran), `_prisma_migrations` 11/11 unchanged with
+  the newest `finished_at` ~39 h before the cutover, and the newest `audit_logs` row predates the cutover by
+  ~14 h. **Only the source tree and the scheduled task were swapped.** No migration, no generation, no
+  publication, no term-cache or Teaching Load apply.
+
+  **Live release acceptance owner: the seeded-profile browser agent (Codex `atlas_browser_qa`).** Two rows
+  are **owed and cannot be closed from source**: the retired `/my` surface on a real browser, and the
+  public-schedule term switch retaining a valid section. A **positive login confirmation** is folded into
+  that same owner — it needs the seeded session, not a source read. Until those close, this release is
+  `DEPLOYED_ACCEPTANCE_INCOMPLETE`, **not** `ACCEPT_READY`; a healthy process is `DEPLOYED`, not accepted.
+
+  **Do not read `supervisor-state.json`'s `productPin: d44f29e0` as the live release.** `contract.mjs`
+  documents it as the reviewed **ancestor milestone** that must merely be *reachable*, and
+  `verifyProductPin` **enforces** `isAncestor(productPin, head)`. It is a designed floor, not a live claim.
+  The authoritative live identity is **`releaseSha` + `sourceDir`**. Also note the inherited-shell trap is
+  live right now: a fresh shell reads `ATLAS_RUNTIME_SOURCE_DIR` = `26f7c907`, one-plus releases stale, and
+  it **overrides** machine scope.
+
+  **⚠ §3 obligation is LIVE again.** `E:` measured **49.80 GiB** after the build — below the 50 GiB warning,
+  matching the pre-build prediction of ≈49.8 GiB exactly. The release-directory retention reclaim is owed
+  **before the next release build**. There is no reclaim candidate left outside the keep set, so that
+  decision is open.
+
+- **PRIOR RELEASE (superseded by the entry above, retained as the immediate rollback basis): `e4989b72`**
+
   **Target `0da104f9`, deliberately NOT the `origin/main` tip `4174f295`**: the commits above the pin
   (`e4df0019`, `4174f295`) are two docs-only commits, and a release must not be pinned to a SHA that
   carries unreviewed material. Docs-only commits above a product pin are safe to ship alongside.
@@ -179,14 +226,14 @@ resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs
   - **No `prisma/schema.prisma` and no `prisma/migrations/` file is in the range, so NO schema command is
     authorised or implied.** The `prisma/seed.js` and `atlas-server` script changes are source only; the deploy
     does not execute any seed.
-  - **Cutover NOT yet executed.** Remaining HIGH steps: independent pre-action review, release build
-    (`VITE_ENROLLPRO_URL` **must** be set or the client build exits 1 silently), dry run, elevated
-    `-Execute`, proof by byte-comparing a chunk that exists only in the new build, then fresh post-action QA
-    with a real `passed/blocked/unperformed` tally. **A healthy process is `DEPLOYED`, not accepted.**
-  - **Before the swap, re-check that Planner A has not claimed the window** — A works alongside and may
-  deploy at any time; this entry is not a lock on A.
+  - **Cutover EXECUTED 2026-09-26 19:55 +08** — see the LIVE entry above for the verified evidence, the
+    server-side proof artefact, the zero-write confirmation, and the two browser rows still owed to a named
+    acceptance owner. Everything this block listed as remaining is done, and the client build did require
+    `VITE_ENROLLPRO_URL` to be set or it exits 1 silently.
+  - The window re-check before the swap found **no competing deploy or push-window claim**, so the swap ran
+    unopposed. This entry never was a lock on Planner A.
 
-- **LIVE (until the entry above completes): `e4989b725394204898ebcd429db74daaf7316323` (full 40-char), rollback basis
+- **SUPERSEDED (was live until the `0da104f9` cutover at 19:55 +08 on 2026-09-26): `e4989b725394204898ebcd429db74daaf7316323` (full 40-char), rollback basis
   `400a6909a9642703e3891861c40d5f49f85c7cd9`** (Lane A2, 2026-09-26, HIGH authority granted by the
   operator). Release dir `E:\ATLAS-runtime-supervised-e4989b72-20260926`.
   **Re-verified by command this session**, not inherited: the scheduled-task action names
@@ -2131,8 +2178,11 @@ rather than accept it, and confirmed it **additive** — 19 tests unchanged, ass
 tombstone was made to satisfy that contract instead. Failing-first was reproduced independently by QA's own
 mutation (fail 3/5), restored byte-exactly.
 
-**NOT DEPLOYED — so faculty still see the live dashboard.** This is source-only. Making the absence real
-needs a deploy, which is a separate HIGH action with its own pre-action review. Nothing here authorises it.
+**DEPLOYED as part of `0da104f9` on 2026-09-26 19:55 +08**, so `/my` is now genuinely unreachable for
+faculty in the running application. The remaining obligation is a **browser** row, owned by the
+seeded-profile browser agent (Codex `atlas_browser_qa`): confirm the tombstone renders on a real browser,
+the page issues **zero** `/faculty-portal/*/dashboard` requests, `/my` lands faculty on the tombstone
+rather than the operator `Dashboard` or an unmatched URL, and the AppShell guard does not redirect-loop.
 
 Two open items for the operator, both NON_BLOCKING and neither blocking the retirement:
 1. **Where faculty land long-term is still undecided.** They currently land on a truthful tombstone that
@@ -2142,7 +2192,7 @@ Two open items for the operator, both NON_BLOCKING and neither blocking the reti
    while the page and breadcrumb leaf read `Faculty Portal Retired`. Left alone to avoid unrequested copy
    scope; one-line fix on request.
 
-### Packet 1 CLOSED in source — integrated `0da104f9`, NOT deployed (2026-09-26, A2)
+### Packet 1 CLOSED — integrated `0da104f9` and **DEPLOYED LIVE 2026-09-26 19:55 +08** (2026-09-26, A2)
 
 Closes browser-QA-handoff items **#4 (one name for a blocking problem)** and **#3c (public term/section
 retention)**. Candidate `b6db07b3` (base `2a001b6e`, 8 client paths), executor `ses_f22b00a36ffe5JSYN3JJ8MHIna`
@@ -2197,11 +2247,14 @@ Operator granted HIGH deploy authority this session, conditional on checking Pla
 clear:** no lane has announced an integration closure or claimed a push/deploy window; runtime stable at
 `e4989b72` (health/ready/DB-backed/5174 all 200); `E:` at 50.07 GiB.
 
-**Nothing deployed yet, deliberately.** `0da104f9` is **not** pre-verified, and the directive requires a
-HIGH cycle to run: independent pre-action review, register-before-cutover naming the target **and** its
-rollback basis, release build, dry-run, elevated `-Execute`, proof by byte-comparing a chunk that exists only
-in the new build, then fresh post-action QA. Starting that with the remaining context budget would risk a
-half-executed cutover, which is worse than not starting. **This is the next action, not a deferral.**
+**Deploy COMPLETED 2026-09-26 19:55 +08.** `0da104f9` is **live** — see the LIVE entry at the top of this
+file for verified identity, the server-side proof artefact, and zero-write confirmation. It took two rounds of
+independent pre-action review to get here, and both were worth it: round one caught me claiming the range
+was *client-only* when it carries **14 `atlas-server/` files plus `prisma/seed.js`** (Lane A's credential
+scrub, whose `ACCEPT_READY` 9/9/0/0 covers them), and round two caught a tripped §3 capacity obligation
+that the register was denying. §3 was discharged by retiring `4893cbde`; the build then landed `E:` at
+49.80 GiB, so **a fresh §3 obligation is now live for the next release build.** Acceptance is
+`DEPLOYED_ACCEPTANCE_INCOMPLETE` pending the named browser owner.
 
 Two things to note for whoever runs it: the client build **fails closed** without
 `VITE_ENROLLPRO_URL=https://dev-jegs.buru-degree.ts.net` (`vite.config.ts:13,29`); and a new release directory
