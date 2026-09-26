@@ -10,6 +10,7 @@ import { SearchableSelect } from '@/ui/searchable-select';
 import { ReviewActionMiniCard, ReviewActionSection, ReviewActionSheet } from './ReviewActionSheet';
 import { SoftViolationConfirmDialog } from './SoftViolationConfirmDialog';
 import { PublishedSwapRevisionPanel } from './PublishedSwapRevisionPanel';
+import GeneratedSwapMoveDisclosure, { getCommittedMoves } from './GeneratedSwapMoveDisclosure';
 
 type PreviewLike = { hardViolations: unknown[]; softViolations: unknown[] } | null | undefined;
 
@@ -254,6 +255,19 @@ export function TimetablePlacementDialogs({ context }: { context: ScheduleReview
 		confirmAssignmentPicker, restoreReviewFocus,
 		publishedSwapScope, onPublishedSwapScheduled,
 	} = context;
+
+	// A2-TIMETABLE-CUSTODY (D2): the commit is offered only when the panel can
+	// name the exact move it will apply. Computed through the SAME helper the
+	// disclosure renders, so the button and the description can never disagree.
+	const committedSwapMove = regularSwapPending == null
+		? null
+		: getCommittedMoves(
+			regularSwapPreview?.autoFixBlockingTarget ?? null,
+			regularSwapPreview?.autoFixSourceTarget ?? null,
+			regularSwapStrategy,
+			regularSwapPending.entryA,
+			regularSwapPending.entryB,
+		);
 
 	const generatedPlacementCancelRef = useRef<HTMLButtonElement>(null);
 	const draftPlacementCancelRef = useRef<HTMLButtonElement>(null);
@@ -703,19 +717,14 @@ export function TimetablePlacementDialogs({ context }: { context: ScheduleReview
 									<span className="font-medium text-amber-700">B</span>
 									<span className="ml-1">Teachers stay with their classes.</span>
 								</div>
-								<div className="mt-3 rounded-md border border-border bg-muted/30 p-2" data-testid="generated-swap-before-after">
-									<p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground mb-1.5">Before → After</p>
-									<div className="grid grid-cols-2 gap-2 text-xs">
-										<div className="space-y-0.5">
-											<p className="font-semibold text-blue-800">Class A moves to</p>
-											<p className="text-muted-foreground">{regularSwapPending.entryB.day} {formatTime(regularSwapPending.entryB.startTime)}–{formatTime(regularSwapPending.entryB.endTime)}</p>
-										</div>
-										<div className="space-y-0.5">
-											<p className="font-semibold text-amber-800">Class B moves to</p>
-											<p className="text-muted-foreground">{regularSwapPending.entryA.day} {formatTime(regularSwapPending.entryA.startTime)}–{formatTime(regularSwapPending.entryA.endTime)}</p>
-										</div>
-									</div>
-								</div>
+							<GeneratedSwapMoveDisclosure
+								autoFixBlockingTarget={regularSwapPreview?.autoFixBlockingTarget ?? null}
+								autoFixSourceTarget={regularSwapPreview?.autoFixSourceTarget ?? null}
+								strategy={regularSwapStrategy}
+								entryA={regularSwapPending.entryA}
+								entryB={regularSwapPending.entryB}
+								formatTime={formatTime}
+							/>
 								</div>
 								<div data-testid="generated-swap-primary-region" className="px-4 py-3 border-t border-border">
 									<div data-testid="generated-swap-recommended-region">
@@ -784,7 +793,14 @@ export function TimetablePlacementDialogs({ context }: { context: ScheduleReview
 							{regularSwapPreview?.recommendedStrategy === 'BLOCKED' ? 'Cancel safely' : 'Cancel'}
 						</Button>
 						{regularSwapPreview?.recommendedStrategy !== 'BLOCKED' && (
-							<Button className="min-h-[40px] sm:min-h-[44px]" disabled={regularSwapSaving || !regularSwapStrategy} onClick={() => void executeRegularSwap()}>
+							<Button
+								className="min-h-[40px] sm:min-h-[44px]"
+								// A2-TIMETABLE-CUSTODY (D2): never offer the commit when the
+								// exact move is not the one on screen. "Save" is only honest
+								// when the panel named the move that will happen.
+								disabled={regularSwapSaving || !regularSwapStrategy || committedSwapMove === null}
+								onClick={() => void executeRegularSwap()}
+							>
 								{regularSwapSaving ? <Loader2 className="size-4 animate-spin" /> : <RefreshCw className="size-4" />}
 								Swap sessions
 							</Button>
