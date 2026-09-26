@@ -149,11 +149,57 @@ resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs
 
 - Tailnet: `https://njgrm.buru-degree.ts.net`
 
-- **LIVE: `0da104f96696aef7de7016e5364f29b50d0ed00f` (full 40-char)** (Lane A2, 2026-09-26 19:55 +08,
-  HIGH authority granted by the operator). Release dir **`E:\ATLAS-worktrees\lane-a2-release-0da104f9`**.
-  **Rollback basis is `e4989b725394204898ebcd429db74daaf7316323`** — the *immediate one-step* basis, which is
-  what `deployment-plan.json` records as `incumbentSha` and what `task-before.xml` captures. Deeper
-  two-step basis `400a6909a9642703e3891861c40d5f49f85c7cd9`, retained and startable.
+- **LIVE: `b0736007e89547ff66eab70d1d869e21f73d49ad` (full 40-char)** (Lane A2, 2026-09-27 03:28 +08,
+  HIGH authority granted by the operator; packet
+  `docs/prompts/a2-release-b0736007-2026-09-27.md` rev 3, independent pre-action review **`PRE_ACTION_CLEAR`
+  10/10/0/0** after four rounds). Release dir **`E:\ATLAS-worktrees\lane-a2-release-b0736007`**.
+  **Rollback basis: `0da104f96696aef7de7016e5364f29b50d0ed00f`**, dir
+  `E:\ATLAS-worktrees\lane-a2-release-0da104f9` — **verified present, `dist/server.js` and
+  `atlas-client/dist/index.html` both present, at HEAD `0da104f9`, and it is the *previous live release*, so
+  rollback is a one-step supervised reset.** (Its rollback basis in turn was `e4989b72…`.)
+
+  **Cutover EXECUTED and verified by command, not inherited.** Machine-scope `ATLAS_RUNTIME_SOURCE_DIR` and
+  `ATLAS_RUNTIME_RELEASE_SHA` both read `b0736007…`; the scheduled-task action names the new
+  `ops\runtime\cli.mjs`; **5001 → PID 25644** running the new `atlas-server\dist\server.js` and
+  **5174 → PID 41332** running the new `ops\runtime\host.mjs`; the active
+  `supervisor-state.json` reports `state=running`, `releaseSha=b0736007…`,
+  `ownedPids{server:25644, client:41332}`. Supervisor log: *"All targets healthy (liveness and dependency
+  readiness)"*, `DB connected, 2 school(s) found`, rollover automation **disabled**. The task was ended
+  first and quiesced the whole tree cleanly, so no manual tree-kill was needed.
+
+  **What this release fixes, and the proof is behavioural.** The public schedule returned **409 for every
+  date before the current publication's own effective date** — the public page sends today's date, so parents
+  saw "Unable to load public schedule". **Measured before:** 09-20/09-25/09-26 → 409. **Measured after:**
+
+  | `?date=` | before | after | run served | `servedByFallback` |
+  |---|---|---|---|---|
+  | 2026-09-20 | 409 | **200** | 315 | `true` |
+  | 2026-09-25 | 409 | **200** | 317 | `true` |
+  | 2026-09-26 | 409 | **200** | **319** | `true` |
+  | 2026-09-27 | 200 | 200 | 320 (head) | `false` |
+  | 2026-09-28 | 200 | 200 | 320 (head) | `false` |
+
+  Each date resolves to **the publication actually in force on it** — 09-26 to run 319, exactly the run Lane C
+  recorded as in force that day. `servedByFallback` was **absent from the old build entirely**, so its presence
+  is a second, independent discriminator. `index.html` is **byte-identical** across both builds and is NOT a
+  valid marker; the three real lazy chunks all changed hash and all serve 200 from the new build
+  (`ScheduleReviewWorkspace-5fft4tp_` → `-SxQiBhZg`, `TimetableRunsPane-D_lBT0Vq` → `-DhPd20im`,
+  `ManualEditPanel-DjRgXRma` → `-BprMFJ-q`).
+
+  **Zero-write confirmed with a real before/after, not an assertion.** Window
+  `2026-09-26T19:25:52.432Z` → `2026-09-26T19:28:58.765Z`, `authorisedActorIds={46}`:
+  `generation_runs` 9→9, `manual_schedule_edits` 5→5, `audit_logs` 438→438,
+  `published_schedule_revisions` 6→6. **Zero delta on all four.** Migration count **11 → 11**
+  `migration.sql` files (counted by `git ls-tree -r <sha> -- prisma/migrations`).
+
+  **Other rows:** `/health/ready` 200 `database:ok` + DB-backed `/subjects?schoolId=1` 200; 5174
+  `/__host/live` 200 `application/json` and `/` 200; term guard intact (400 without `termIndex`, 200 with);
+  swap route `GET /api/v1/generation/1/10/runs/320/manual-edits` → **401, not 404** (mounted, auth
+  answering).
+
+- **PREVIOUS: `0da104f96696aef7de7016e5364f29b50d0ed00f` (full 40-char)** (Lane A2, 2026-09-26 19:55 +08,
+  HIGH authority granted by the operator). Release dir `E:\ATLAS-worktrees\lane-a2-release-0da104f9` — **now
+  the rollback basis for `b0736007`, retained and startable.**
 
   **Cutover EXECUTED and verified by command, not inherited.** Machine-scope `ATLAS_RUNTIME_SOURCE_DIR` and
   `ATLAS_RUNTIME_RELEASE_SHA` both read `0da104f9…`; the scheduled-task action names the new
