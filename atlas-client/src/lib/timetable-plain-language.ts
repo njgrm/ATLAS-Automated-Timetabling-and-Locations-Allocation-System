@@ -250,6 +250,16 @@ export function runAnchorLabel(runId: number, humanAnchor?: string | null): stri
  * phrase rather than a de-snake-cased token. The four CHANGE_* members are
  * distinct intents in the proposal, and MOVE_ENTRY is named "moved" because the
  * commit path may also carry a new room and teacher with the move.
+ *
+ * A2-TIMETABLE-CUSTODY-R1 (D3): `REVERT` was "Undid an earlier change", which
+ * is a claim about WHICH edit that the label cannot back — the same phrase
+ * rendered a row that named nothing, and QA read an undo as indistinguishable
+ * from any other ("No row says which edit was undone"). It is now the KIND of
+ * record only ("Undone change"), a category peer of "Swapped two sessions" that
+ * asserts just what `editType: 'REVERT'` is. The specific edit is named beside
+ * the badge by `undoneEditLabel` in `modals/TimetableAssignmentDialogs.tsx`,
+ * which resolves the server-recorded `revertedEditId`; this map keeps no opinion
+ * about it, so the two cannot drift.
  */
 const MANUAL_EDIT_ACTION_LABELS: Record<ManualEditType, string> = {
 	PLACE_UNASSIGNED: 'Gave an unplaced session a slot',
@@ -258,7 +268,7 @@ const MANUAL_EDIT_ACTION_LABELS: Record<ManualEditType, string> = {
 	CHANGE_FACULTY: 'Changed the teacher',
 	CHANGE_TIMESLOT: 'Changed the time',
 	SWAP_ENTRIES: 'Swapped two sessions',
-	REVERT: 'Undid an earlier change',
+	REVERT: 'Undone change',
 };
 
 export function manualEditActionLabel(editType: string): string {
