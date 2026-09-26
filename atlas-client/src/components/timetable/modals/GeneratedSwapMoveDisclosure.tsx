@@ -16,9 +16,12 @@
  * to `autoFixBlockingTarget`. `AUTO_FIX_MOVE_SOURCE` relocates Class A to
  * `autoFixSourceTarget` and leaves Class B where it is.
  *
- * Presentation only — no `@/ui` primitive is needed because the surrounding panel
- * already styles these lines, and the existing markup is plain text elements.
+ * Presentation only — no `@/ui` primitive is needed: the auto-move marker is a
+ * decorative `aria-hidden` icon beside text that already names the relocation, so
+ * the row carries no interactive affordance and no hover-only disclosure.
  */
+
+import { Move } from 'lucide-react';
 
 export type SwapSlot = { day: string; startTime: string; endTime: string };
 export type SwapStrategy = 'DIRECT_SWAP' | 'AUTO_FIX_MOVE_BLOCKING' | 'AUTO_FIX_MOVE_SOURCE';
@@ -60,6 +63,43 @@ export function getCommittedMoves(
 
 export function describeSwapSlot(slot: SwapSlot, formatTime: SwapMoveFormat): string {
 	return `${slot.day} ${formatTime(slot.startTime)}–${formatTime(slot.endTime)}`;
+}
+
+/**
+ * How many classes the commit relocates BEYOND the two classes' exchange.
+ *
+ * Derived from the model's own `relocated` field rather than hard-coded, so the
+ * count can never understate the move. Today `relocated` is `'A' | 'B' | null`,
+ * so this is 0 or 1: an auto-fix parks one class on the other's slot and relocates
+ * exactly one. A `null` move (the fail-closed state) relocates nothing that can be
+ * claimed, and returns 0 for the same reason.
+ */
+export function getRelocatedClassCount(moves: SwapMove | null): number {
+	return moves?.relocated ? 1 : 0;
+}
+
+/**
+ * The move phrase, pluralised from the count. Only reached with a count of at
+ * least 1 — `getSwapCommitLabel` returns the plain label for 0, so the
+ * ungrammatical "+ move 0 classes" is unreachable from the shipped entry point.
+ */
+export function formatRelocatedClassLabel(count: number): string {
+	return `+ move ${count} class${count === 1 ? '' : 'es'}`;
+}
+
+/**
+ * The commit button's label, and the only place it may claim a relocation.
+ *
+ * It claims one in exactly one state: a move the panel could name AND that
+ * relocates a class. A direct two-class exchange relocates nothing, and an
+ * unnameable move describes nothing — both keep the plain swap label, so the
+ * button never promises a move the panel did not show. The caller still gates the
+ * button on `moves !== null` (see the review dialog), so a plain label here is
+ * never an enabled promise of a hidden move.
+ */
+export function getSwapCommitLabel(moves: SwapMove | null): string {
+	const count = getRelocatedClassCount(moves);
+	return count === 0 ? 'Swap sessions' : `Swap ${formatRelocatedClassLabel(count)}`;
 }
 
 export type GeneratedSwapMoveDisclosureProps = {
@@ -114,18 +154,30 @@ export default function GeneratedSwapMoveDisclosure({
 				</div>
 			</div>
 			{moves.relocated ? (
-				<p
-					className="mt-1.5 border-t border-border pt-1.5 text-xs font-medium text-amber-900"
+				<div
+					className="mt-1.5 flex items-start gap-1.5 border-t border-border pt-1.5 text-xs font-medium text-amber-900"
 					data-testid="generated-swap-autofix-disclosure"
 				>
-					Committing also relocates Class {moves.relocated} beyond the two classes&apos; current times:{' '}
-					{moves.relocated === 'A'
-						? `Class A leaves ${describeSwapSlot(entryA, formatTime)} and goes to ${describeSwapSlot(moves.moveA, formatTime)}.`
-						: `Class B leaves ${describeSwapSlot(entryB, formatTime)} and goes to ${describeSwapSlot(moves.moveB, formatTime)}.`}{' '}
-					{moves.relocated === 'A'
-						? `Class B stays at ${describeSwapSlot(entryB, formatTime)}.`
-						: `Class A then takes Class B's original time, ${describeSwapSlot(entryB, formatTime)}.`}
-				</p>
+					{/* The payload carries NO reason string, so this marker deliberately
+					    claims nothing. It is decorative and `aria-hidden`; the text beside
+					    it names the relocation in words, so the row never relies on the
+					    icon or its colour alone. `Move` is the same lucide primitive the
+					    cell overflow sheet already uses for a relocation action. */}
+					<Move
+						className="mt-px size-3.5 shrink-0 text-amber-600"
+						aria-hidden="true"
+						data-testid="generated-swap-autofix-icon"
+					/>
+					<p>
+						Committing also relocates Class {moves.relocated} beyond the two classes&apos; current times:{' '}
+						{moves.relocated === 'A'
+							? `Class A leaves ${describeSwapSlot(entryA, formatTime)} and goes to ${describeSwapSlot(moves.moveA, formatTime)}.`
+							: `Class B leaves ${describeSwapSlot(entryB, formatTime)} and goes to ${describeSwapSlot(moves.moveB, formatTime)}.`}{' '}
+						{moves.relocated === 'A'
+							? `Class B stays at ${describeSwapSlot(entryB, formatTime)}.`
+							: `Class A then takes Class B's original time, ${describeSwapSlot(entryB, formatTime)}.`}
+					</p>
+				</div>
 			) : null}
 		</div>
 	);

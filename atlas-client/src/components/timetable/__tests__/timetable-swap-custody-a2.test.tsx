@@ -19,6 +19,22 @@
  *      assertions discriminate and are not tautological.
  *   C6 the review dialog gates its commit on the same helper the panel renders,
  *      so the button and the description cannot disagree.
+ *
+ * P-rows — the PRESENTATION layer over the same accepted move (LANE-C D-row).
+ * The D2 correctness above is settled and deployed; these rows change only how
+ * that already-correct move is presented, and add no new truthfulness contract.
+ * The payload carries no reason string, so nothing here invents one: the auto-move
+ * row is marked with an icon and the commit button names the relocation count.
+ *   P1 the commit label claims a move in exactly one state: the state that
+ *      relocates a class. Direct exchange, unnameable move, and no strategy all
+ *      keep the plain swap label, so the button never promises a move the panel
+ *      cannot name.
+ *   P2 the auto-move row carries a real amber icon in BOTH relocating strategies.
+ *   P3 no icon when nothing relocates — the marker never appears for a plain
+ *      exchange, and never appears in the fail-closed unknown state.
+ *   P4 the review dialog renders the move-aware label and no longer hard-codes it.
+ *   P5 MUTANT: the pre-fix constant label and the pre-fix button body both fail
+ *      P1/P4, so those rows discriminate and are not tautological.
  */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -51,7 +67,14 @@ Object.assign(globalThis, {
 Object.defineProperty(globalThis, 'navigator', { value: dom.window.navigator, configurable: true });
 
 const { createRoot } = await import('react-dom/client');
-const { default: GeneratedSwapMoveDisclosure, getCommittedMoves } = await import('../modals/GeneratedSwapMoveDisclosure');
+const swapDisclosureModule = await import('../modals/GeneratedSwapMoveDisclosure');
+const {
+	default: GeneratedSwapMoveDisclosure,
+	getCommittedMoves,
+	getSwapCommitLabel,
+	getRelocatedClassCount,
+	formatRelocatedClassLabel,
+} = swapDisclosureModule;
 
 const clientRoot = resolve(import.meta.dirname, '../../../..');
 const dialogSource = readFileSync(resolve(clientRoot, 'src/components/timetable/modals/TimetablePlacementDialogs.tsx'), 'utf8');
@@ -71,7 +94,7 @@ after(() => {
 	for (const root of roots) act(() => root.unmount());
 });
 
-function render(props: Record<string, unknown>): { text: string; testId: (id: string) => string | null } {
+function render(props: Record<string, unknown>): { text: string; testId: (id: string) => string | null; host: HTMLElement } {
 	const host = dom.window.document.createElement('div');
 	dom.window.document.body.appendChild(host);
 	const root = createRoot(host);
@@ -90,6 +113,7 @@ function render(props: Record<string, unknown>): { text: string; testId: (id: st
 	return {
 		text: host.textContent ?? '',
 		testId: (id) => host.querySelector(`[data-testid="${id}"]`)?.textContent ?? null,
+		host,
 	};
 }
 
@@ -175,4 +199,144 @@ test('C6 the review dialog gates its commit on the same move the panel renders',
 	const disclosureSource = readFileSync(resolve(clientRoot, 'src/components/timetable/modals/GeneratedSwapMoveDisclosure.tsx'), 'utf8');
 	assert.match(disclosureSource, /Class A moves to/, 'the "Class A moves to" line moved into the disclosure component');
 	assert.match(disclosureSource, /Class B moves to/, 'the "Class B moves to" line moved into the disclosure component');
+});
+
+// ---------------------------------------------------------------------------
+// P-rows — the presentation layer. See the header note: no reason string is
+// invented, and the D2 correctness above is untouched.
+// ---------------------------------------------------------------------------
+
+/** The three real payload states, derived through the accepted D2 helper. */
+const DIRECT_MOVES = getCommittedMoves(null, null, 'DIRECT_SWAP', ENTRY_A, ENTRY_B);
+const BLOCKING_MOVES = getCommittedMoves(IN_SHIFT, null, 'AUTO_FIX_MOVE_BLOCKING', ENTRY_A, ENTRY_B);
+const SOURCE_MOVES = getCommittedMoves(null, IN_SHIFT, 'AUTO_FIX_MOVE_SOURCE', ENTRY_A, ENTRY_B);
+/** An auto-fix strategy whose target the panel cannot name — the fail-closed state. */
+const UNNAMEABLE_MOVES = getCommittedMoves(null, null, 'AUTO_FIX_MOVE_BLOCKING', ENTRY_A, ENTRY_B);
+
+/** The pre-fix commit button body, verbatim, so P4 can be shown to reject it. */
+const PRE_FIX_COMMIT_BUTTON = [
+	'\t\t\t\t\t\t\t<Button',
+	'\t\t\t\t\t\t\t\tclassName="min-h-[40px] sm:min-h-[44px]"',
+	'\t\t\t\t\t\t\t\tdisabled={regularSwapSaving || !regularSwapStrategy || committedSwapMove === null}',
+	'\t\t\t\t\t\t\t\tonClick={() => void executeRegularSwap()}',
+	'\t\t\t\t\t\t\t>',
+	'\t\t\t\t\t\t\t\t{regularSwapSaving ? <Loader2 className="size-4 animate-spin" /> : <RefreshCw className="size-4" />}',
+	'\t\t\t\t\t\t\t\tSwap sessions',
+	'\t\t\t\t\t\t\t</Button>',
+].join('\n');
+
+/** The rule P4 uses to reject a hard-coded button label. */
+const HARDCODED_LABEL_RULE = /^[^\S\n]*Swap sessions[^\S\n]*$/m;
+
+test('P1 the commit label claims a move in exactly one state: the state that relocates a class', () => {
+	assert.equal(typeof getSwapCommitLabel, 'function', 'the move-aware commit label helper is exported');
+	assert.equal(typeof getRelocatedClassCount, 'function', 'the relocated-class count helper is exported');
+	assert.equal(typeof formatRelocatedClassLabel, 'function', 'the relocated-class phrase helper is exported');
+
+	// State 1 — direct two-class exchange. Nothing relocates, so no "move" claim.
+	assert.equal(getRelocatedClassCount(DIRECT_MOVES), 0, 'a direct swap relocates no class beyond the exchange');
+	assert.equal(getSwapCommitLabel(DIRECT_MOVES), 'Swap sessions', 'a direct swap keeps the plain swap label');
+
+	// State 2 — exactly one class relocated. The label says so, in the singular.
+	assert.equal(getRelocatedClassCount(BLOCKING_MOVES), 1, 'AUTO_FIX_MOVE_BLOCKING relocates exactly one class');
+	assert.equal(getSwapCommitLabel(BLOCKING_MOVES), 'Swap + move 1 class', 'the label names the one relocated class, in the singular');
+	assert.equal(getRelocatedClassCount(SOURCE_MOVES), 1, 'AUTO_FIX_MOVE_SOURCE relocates exactly one class');
+	assert.equal(getSwapCommitLabel(SOURCE_MOVES), 'Swap + move 1 class', 'both relocating strategies label identically');
+
+	// State 3 — the unnameable move. The button is disabled (C6) and claims nothing.
+	assert.equal(UNNAMEABLE_MOVES, null, 'precondition: an auto-fix with no target cannot be named');
+	assert.equal(getRelocatedClassCount(UNNAMEABLE_MOVES), 0, 'an unnameable move relocates nothing that can be claimed');
+	assert.equal(getSwapCommitLabel(UNNAMEABLE_MOVES), 'Swap sessions', 'an unnameable move makes no "move" claim');
+	assert.ok(!/move/i.test(getSwapCommitLabel(UNNAMEABLE_MOVES)), 'the unnameable label never claims a move');
+	assert.equal(getSwapCommitLabel(null), 'Swap sessions', 'a null move makes no "move" claim');
+
+	// The count phrase is a function of the count, so it can never understate a
+	// move. `SwapMove.relocated` is `'A' | 'B' | null`, so today's payload can
+	// only reach 0 or 1; the plural form is asserted directly on the shipped
+	// helper rather than through an invented payload.
+	assert.equal(formatRelocatedClassLabel(1), '+ move 1 class', 'one relocates as the singular');
+	assert.equal(formatRelocatedClassLabel(3), '+ move 3 classes', 'more than one relocates as the plural, per the requested wording');
+	// The zero case is routed around the phrase, so the ungrammatical
+	// "+ move 0 classes" is unreachable from the shipped entry point.
+	assert.ok(!getSwapCommitLabel(DIRECT_MOVES).includes(formatRelocatedClassLabel(0)), 'the zero-count phrase never reaches a rendered label');
+	assert.ok(!/move/i.test(getSwapCommitLabel(DIRECT_MOVES)), 'a direct exchange label mentions no move at all');
+});
+
+test('P2 the auto-move row carries a real amber icon in both relocating strategies', () => {
+	for (const props of [
+		{ strategy: 'AUTO_FIX_MOVE_BLOCKING', autoFixBlockingTarget: IN_SHIFT },
+		{ strategy: 'AUTO_FIX_MOVE_SOURCE', autoFixSourceTarget: IN_SHIFT },
+	] as const) {
+		const label = props.strategy;
+		const view = render({ ...props });
+		const row = view.host.querySelector('[data-testid="generated-swap-autofix-disclosure"]');
+		assert.ok(row, `${label} renders the auto-move row`);
+		const icon = row!.querySelector('[data-testid="generated-swap-autofix-icon"]');
+		assert.ok(icon, `${label} marks the auto-move row with an icon (pre-fix the row is plain text with no icon element)`);
+		// A real rendered icon element, not a placeholder glyph or a comment.
+		assert.equal(icon!.tagName.toLowerCase(), 'svg', `${label} uses a real SVG icon element`);
+		assert.match(icon!.getAttribute('class') ?? '', /text-amber-\d+/, `${label} the icon is amber`);
+		// The icon is decorative only, and the row text still carries the meaning,
+		// so the marker never relies on colour alone (AGENTS.md §8; the repo's own
+		// "warnings never rely on color alone" rule in conflictGuidance).
+		assert.equal(icon!.getAttribute('aria-hidden'), 'true', `${label} the icon is decorative and adds no accessible name`);
+		assert.match(row!.textContent ?? '', /Committing also relocates Class [AB]/, `${label} the row text still names the relocation in words`);
+	}
+});
+
+test('P3 no icon when nothing relocates, and none in the unnameable state', () => {
+	const direct = render({ strategy: 'DIRECT_SWAP' });
+	assert.equal(direct.host.querySelector('[data-testid="generated-swap-autofix-disclosure"]'), null, 'a direct exchange has no auto-move row to mark');
+	assert.equal(direct.host.querySelector('[data-testid="generated-swap-autofix-icon"]'), null, 'a direct exchange shows no move icon');
+	assert.equal(direct.host.querySelector('svg'), null, 'a direct exchange marks nothing as a relocation');
+
+	for (const strategy of ['AUTO_FIX_MOVE_BLOCKING', 'AUTO_FIX_MOVE_SOURCE'] as const) {
+		const unknown = render({ strategy });
+		assert.equal(unknown.host.querySelector('[data-testid="generated-swap-autofix-icon"]'), null, `${strategy} with no target shows no move icon`);
+		assert.equal(unknown.host.querySelector('svg'), null, `${strategy} with no target marks nothing as a relocation`);
+		assert.equal(
+			unknown.testId('generated-swap-move-unknown'),
+			"This option's exact move is not known yet. Do not save until it is shown here.",
+			`${strategy} with no target still refuses to describe a move`,
+		);
+	}
+});
+
+test('P4 the review dialog renders the move-aware label instead of a hard-coded one', () => {
+	assert.match(
+		dialogSource,
+		/\{getSwapCommitLabel\(committedSwapMove\)\}/,
+		'the commit button label is derived from the same committed move the panel renders',
+	);
+	assert.ok(
+		!HARDCODED_LABEL_RULE.test(dialogSource),
+		'the commit button no longer hard-codes "Swap sessions" as its label',
+	);
+	assert.match(
+		dialogSource,
+		/import GeneratedSwapMoveDisclosure, \{[^}]*getSwapCommitLabel[^}]*\} from '\.\/GeneratedSwapMoveDisclosure'/,
+		'the dialog imports the label helper beside the disclosure it already renders',
+	);
+	// C6's gate is untouched by the presentation change: still disabled exactly
+	// when the panel cannot name the move, so a "move" label is never actionable
+	// on a move the panel did not describe.
+	assert.match(
+		dialogSource,
+		/disabled=\{regularSwapSaving \|\| !regularSwapStrategy \|\| committedSwapMove === null\}/,
+		'the commit button is still disabled exactly when the panel cannot name the move',
+	);
+});
+
+test('P5 MUTANT: the pre-fix constant label and button body both fail P1 and P4', () => {
+	const PRE_FIX_LABEL = 'Swap sessions';
+	assert.equal(PRE_FIX_LABEL, 'Swap sessions', 'precondition: the pre-fix button label was a constant');
+	assert.notEqual(PRE_FIX_LABEL, getSwapCommitLabel(BLOCKING_MOVES), 'so P1 discriminates: the pre-fix label hid a committed relocation');
+	assert.equal(PRE_FIX_LABEL, getSwapCommitLabel(DIRECT_MOVES), 'and P1 deliberately holds for a direct exchange, where the pre-fix label was correct');
+	// The pre-fix constant was wrong in exactly ONE state — the relocating one,
+	// which is the state Lane C reported. It coincided with the required label in
+	// the other two, so the defect was narrow and the fix is bounded to the
+	// relocating case. This is also why the label must be derived, not deleted.
+	assert.equal(PRE_FIX_LABEL, getSwapCommitLabel(UNNAMEABLE_MOVES), 'the unnameable state keeps the plain label, exactly as the pre-fix constant did');
+	assert.ok(HARDCODED_LABEL_RULE.test(PRE_FIX_COMMIT_BUTTON), 'precondition: the rule P4 uses rejects the verbatim pre-fix button body');
+	assert.ok(!HARDCODED_LABEL_RULE.test(dialogSource), 'so P4 discriminates: the pre-fix body is no longer the shipped body');
 });
