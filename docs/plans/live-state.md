@@ -896,10 +896,36 @@ cutover rather than trusting the executor:
   Tailnet root origin redirects to `/login` with no `atlas_local_token` in the profile. This is **not** a
   deployment defect and no source correction can close it.
 
+**REPRODUCED 2026-09-26 on the deployed release: the host-proxy 502 is user-visible PRE-AUTH and still has no
+owner.** The two `NEEDS_SESSION` browser rows were blocked, but the unauthenticated login surface was still
+reachable and it reports two console errors, both from the ATLAS host's EnrollPro proxy:
+`/enrollpro-api/settings/public` → **502** and `/enrollpro-uploads/<uuid>.png` → **502**.
+
+**This is inherited, not introduced.** `git diff --name-only 116a7658 26f7c907 -- ops` = **0**,
+`-- atlas-server` = **0**, and neither `atlas-client/vite.config.ts` nor `vite.config.ts` differs. The deployed
+change cannot have caused it.
+
+**New evidence narrowing the cause.** Machine scope carries **neither `ENROLLPRO_PROXY_ORIGIN` nor
+`ENROLLPRO_API`** — both empty — and the proxy route through ATLAS times out. So the ATLAS production host has no
+durable EnrollPro origin configured and is resolving its proxy target some other way. That is consistent with the
+long-standing `ENROLLPRO-PROXY-RECOVERY` finding, whose prepared live packet was never approved, and it upgrades
+the standing characterisation: the register recorded this as "host-side, server-side cause uninvestigated" and as
+an "unowned observation from 2026-09-24", but it is now dated evidence that it **breaks the login page for an
+unauthenticated user**, i.e. companion SSO and companion assets are degraded in production.
+
+**Why it does not block this release:** the delta is additive, health/ready/DB-backed reads are 200, the served
+bytes are the new build, and the rollback basis is intact. But it should stop being an unowned observation. It
+needs an owner, and the fix is a **HIGH** action — setting a durable machine-scope EnrollPro origin and restarting
+the supervised host — which is **not** authorized by this packet and was not taken. Left open and dated here.
+
 **Acceptance owner: Lane A**, for the four browser rows, against the Tailnet **root origin only**. **Unblocking
 action is the operator's:** re-seed the profile (about a minute), after which Lane A runs those four rows. Per
 `AGENTS.md` §12 the four rows are reported `NEEDS_SESSION` in one line and the rest of the acceptance continued,
-which is what happened.
+which is what happened. **This lane did not log in itself:** the QA credential file is
+`C:\Users\njgro\.config\opencode\atlas-qa-credentials.local.md`, and every way to inject it from this session would
+either place the value in a tool call — which §12 forbids after the `DATABASE_URL` exposure already recorded this
+cycle — or require standing up a localhost endpoint to serve a credential unattended. §12's intended path is that
+the **operator seeds the session**, and routing around that control while unattended is not this lane's call.
 
 **A dated supersession request for Lane C, which this lane does not edit.** Lane C's section carries four
 now-false `not deployed` claims naming `4c76208d`, `1ccdf4dd`, `9f42190e`, `212809f7`, `8bdf5802`, `39645f2d` and
