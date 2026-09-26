@@ -83,6 +83,7 @@ const { HardBlockerDialog } = await import('../modals/HardBlockerDialog');
 const { SoftViolationConfirmDialog } = await import('../modals/SoftViolationConfirmDialog');
 const { TimetableAssignmentDialogs } = await import('../modals/TimetableAssignmentDialogs');
 const { PublishChecklistContent } = await import('../simple/SimpleTaskDrawerHelpers');
+const { ALL_SERIOUS_PROBLEMS_LABEL, MUST_FIX_LABEL } = await import('../../../lib/timetable-plain-language');
 const atlasApi = (await import('../../../lib/api')).default;
 
 const clientRoot = resolve(import.meta.dirname, '../../../..');
@@ -468,7 +469,35 @@ test('J2 P4 the edit history reads as plain actions, names no actor id, and uses
 		2,
 		'the affordance is on EVERY row, not just the head edit (D2)',
 	);
-	assert.match(rendered, /All serious problems: 2, warnings: 1/, 'the total keeps the total word, not the blocking word');
+	/* SUPERSEDED by A2-TIMETABLE-CUSTODY-R1 (D2) — retained, not deleted.
+	 *
+	 * This assertion pinned the row's rendered count line, and that line WAS the
+	 * defect: it rendered `validationSummary`, a commit-time whole-year snapshot,
+	 * so a row read `warnings: 241` while the header read 69 — and on a `REVERT`
+	 * row, which the server writes no count for, the `?? 0` default fabricated
+	 * `warnings: 0`. Deleting the assertion silently would have removed the only
+	 * record of what shipped, so the literal it asserted is kept here as the
+	 * fingerprint of the pre-fix state, and the replacement control follows. */
+	const PRE_FIX_COUNT_LINE = 'All serious problems: 2, warnings: 1';
+	assert.match(PRE_FIX_COUNT_LINE, /All serious problems/, 'the pre-fix row really rendered a stored count');
+	assert.throws(() => assert.doesNotMatch(PRE_FIX_COUNT_LINE, /All serious problems/), /expected to not match/);
+	// The REPLACEMENT: the row renders no count at all, and the total is not
+	// re-pointed at the header's current figure either.
+	assert.doesNotMatch(
+		rendered,
+		/All serious problems: *\d|warnings: *\d/,
+		'a history row renders no violation count (D2): the stored snapshot is removed, not re-labelled',
+	);
+	// The property this assertion originally protected — a violation TOTAL never
+	// wears the blocking word — is still load-bearing, and still owned by the one
+	// plain-language map, now consumed by the surfaces that show a live total.
+	// Guarded here so the label cannot be re-pointed while the row is silent.
+	assert.equal(
+		ALL_SERIOUS_PROBLEMS_LABEL,
+		'All serious problems',
+		'the total keeps the total word, not the blocking word, for the surfaces that do render it',
+	);
+	assert.doesNotMatch(ALL_SERIOUS_PROBLEMS_LABEL, new RegExp(MUST_FIX_LABEL), 'the total label must never wear the blocking word');
 	assertNoEngineTokens(rendered, 'P4 edit history');
 	// AGENTS.md section 8: no native `title` attribute for extra information.
 	assert.doesNotMatch(document.body.innerHTML, /\stitle=/, 'no native title attribute may survive');
