@@ -24,12 +24,13 @@ blocker count, active term, source freshness), used by every page that shows it.
 ## Priority list (for the implementing planners)
 
 **A2 — timetable and publication**
-1. Room Schedules must pass the selected term (default active, never all). False conflicts today (03 #1).
-2. One lifecycle statement shared by dashboard, timetable, `/my` and public: published (date, term) + draft in review (04 #1, 03 #4). Stop tagging draft rows "Live" (04 #7).
-3. Public page: diagnose Term 1 (04 #2); keep a valid section when the term changes (`PublicPublishedSchedule.tsx:523`).
-4. Review-issues "Must fix" wording (timetable walk #2). The unnamed-violation guard landed on `main` as `9b1ec14a` (not yet live).
-5. Drift banner squeezed to one word wide at 390 px; Runs flashes "No generation runs yet" while loading (both from the A2 handoff).
-6. The offline school-year record failing its semantic check (01 #1), a term-authority question.
+1. One lifecycle statement shared by dashboard, timetable, `/my` and public: published (date, term) + draft in review (04 #1, 03 #4). Stop tagging draft rows "Live" (04 #7).
+2. Public page: diagnose Term 1 (04 #2); keep a valid section when the term changes (`PublicPublishedSchedule.tsx:523`).
+3. Review-issues "Must fix" wording (timetable walk #2). The unnamed-violation guard landed on `main` as `9b1ec14a` (not yet live).
+4. Drift banner squeezed to one word wide at 390 px; Runs flashes "No generation runs yet" while loading (both from the A2 handoff).
+5. The offline school-year record failing its semantic check (01 #1), a term-authority question.
+
+*Deferred by the operator (2026-09-26):* Room Schedules (03 #1) is unfinished and will be redesigned later. The term fix goes into that redesign.
 
 **Planner A — shell, setup, load, audit, companions**
 1. Faculty Preferences count vs list (02 #1).
