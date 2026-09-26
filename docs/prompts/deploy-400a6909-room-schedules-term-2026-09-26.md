@@ -76,11 +76,32 @@ product behaviour and nothing else.
    it the client build exits 1 and emits no bundle.
 5. **Node must actually start the built server** — not just type-check it (`AGENTS.md` §5).
 6. No migration step. Skip §3 of the deploy skill entirely.
-7. `ops/runtime/deploy-runner.ps1` with explicit `-TargetSha 400a6909 -TargetSourceDir
-   E:\ATLAS-runtime-supervised-400a6909-20260926 -IncumbentSha 26f7c907 -IncumbentSourceDir
-   E:\ATLAS-runtime-supervised-26f7c907-20260926 -EnvFile D:\ATLAS-runtime-config\atlas-server.env`.
-   **Dry run first** (default) and read the redacted plan under `C:\ProgramData\ATLAS\release-audit`. Then
-   the same arguments with `-Execute` in an **elevated** shell (assert `IsInRole(Administrator)`).
+7. Cutover. **Both guards below were hit for real during the dry run — do not rediscover them.**
+   - The runner's parameters are validated against `^[0-9a-f]{40}$`, so it **rejects 8-char
+     prefixes**. Use the full SHAs below verbatim.
+   - The runner **refuses to swap unless `docs/plans/live-state.md` at `origin/main` already names the
+     target release prefix and its rollback basis** in the `## Live release` section. This is
+     deliberate: the register must be committed *before* the swap so the runtime can never be changed
+     while the register is silent about it. **This precondition is now SATISFIED** at `f1f899e4`.
+
+   Dry run first (no `-Execute`, mutates nothing):
+
+   ```powershell
+   $rel = 'E:\ATLAS-runtime-supervised-400a6909-20260926'
+   Push-Location $rel
+   & powershell -NoProfile -ExecutionPolicy Bypass -File "$rel\ops\runtime\deploy-runner.ps1" `
+     -TargetSha 400a6909a9642703e3891861c40d5f49f85c7cd9 `
+     -TargetSourceDir $rel `
+     -IncumbentSha 26f7c907a37185e036e71cf0d82423794689b318 `
+     -IncumbentSourceDir 'E:\ATLAS-runtime-supervised-26f7c907-20260926' `
+     -EnvFile 'D:\ATLAS-runtime-config\atlas-server.env'
+   Pop-Location
+   ```
+
+   Read the redacted plan under `C:\ProgramData\ATLAS\release-audit`, then repeat the **same arguments
+   with `-Execute`** in an elevated shell. Check elevation with
+   `([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)`
+   (this session was already elevated). Expect `CUTOVER_STARTED` on success.
 
 ## 4. Acceptance rows — the reason for this deploy
 
