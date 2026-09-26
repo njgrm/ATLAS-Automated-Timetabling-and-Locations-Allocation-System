@@ -69,3 +69,11 @@ Accepted outputs this session: 4 of 5 queue items, 14 findings. Per-item cost �
 - Chrome extension **disconnected** at ~06:03. The operator must sign in again if `/login` returns.
 - Next: chunk 2 rows 249/260/266, 219/222, 140/141 (item 3); re-read #60 (history menu vs rows) once; answer A2 acks.
 - `subagent_tokens`: 402,750 over 5 runs, of which 2 were useful (≈ 134k per finding).
+
+## Session 4b (2026-09-27 06:15–06:30 +08)
+
+- Chrome claim posted then cleared. #60 not reproduced (LOW). Chunk 2: 222/140/141 read (#63, #64); 219 transient strip,
+  260/266 (0 unassigned) and 249 (no empty floor) unperformed. Queue item 3 is done except rows that need absent states.
+- `subagent_tokens`: 67,282 (Chrome not connected) + 98,953 = 166,235.
+- Next: A2's answers on #53, #56–#59, #61, #63, #64; then the operator's next queue. Chrome can drop; check
+  `list_connected_browsers` before each dispatch.

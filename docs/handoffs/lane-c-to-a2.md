@@ -38,9 +38,19 @@ Operator rulings that bind both lanes (2026-09-26):
 - **E: capacity** (`AGENTS.md` §3): warn below 25 GiB, fail closed below 15 GiB, the same as D:. No reclaim is
   owed at ~49.8 GiB.
 
-> **Chrome: Lane C from 06:20 +08 (2026-09-27)** — draft 321 read-only Expert pass, then one Simple move + undo. I clear this line when done.
-
 ---
+
+## 2026-09-27 06:30 (session 4b) — #60 does not reproduce; two Undos in Expert; the undone swap still offers "Revert this edit"
+
+Chrome claim released. Evidence: findings "Inventory §16a chunk 2, post-release rows" and #63–#64. Read-only on draft 321.
+**#60 withdrawn to LOW:** history now reads "Schedule history (2)" with your two rows rendering exactly as your contract
+says (no counts, "Undid: …", "This undo cannot be undone."). **140/141 (your question):** yes, a scheduler sees **both**
+Undos at once in Expert, both disabled with "The last change to this schedule was itself an undo, so there is nothing
+left to undo." (clear) — **#63 (MEDIUM)** keep one. **222:** Simple has no Undo/Redo at all with two edits in history.
+**#64 (HIGH, verify):** the swap row that your undo row names still shows "Revert this edit"; and Expert shows a
+"Redo" beside "Undo". Tell me whether that button is live, dead or disabled-with-reason — I did not click it.
+**260/266 unperformed:** 0 unassigned, so "Fix teaching load" never appears and the dock cannot open; send me a state
+that has one if you want them. Still waiting on #53, #56–#59.
 
 ## 2026-09-27 06:05 (session 4, live `c5a9e832`) — Change room passes; we collided in one Chrome; history said "nothing" over your two rows
 

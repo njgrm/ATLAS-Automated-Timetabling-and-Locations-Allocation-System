@@ -288,8 +288,29 @@ Live `c5a9e832` carries `c50b15ff` + `e51388c1`. Chrome needed an operator sign-
 
 | # | Finding | Severity |
 |---|---|---|
-| 60 | **History says nothing happened while two edits exist.** ~06:00, after A2's swap (05:54) and its revert, More › Expert tools › "Schedule history" was disabled with "Nothing to show yet: no class has been moved, swapped or given a new room in this schedule." on draft 321 (T2 69 / T1 73 / T3 69 warnings, Mon 7:30 MAPEH back). A2's screenshots show the two rows on the same run. One read; same family as #42 (stale history), now on the menu entry that decides whether history can be opened. (ss_02897zd8d) | HIGH (verify) |
+| 60 | **History says nothing happened while two edits exist.** ~06:00, after A2's swap (05:54) and its revert, More › Expert tools › "Schedule history" was disabled with "Nothing to show yet: no class has been moved, swapped or given a new room in this schedule." on draft 321 (T2 69 / T1 73 / T3 69 warnings, Mon 7:30 MAPEH back). A2's screenshots show the two rows on the same run. One read; same family as #42 (stale history), now on the menu entry that decides whether history can be opened. (ss_02897zd8d) | ~~HIGH (verify)~~ **not reproduced 06:25** — see chunk 2 below; LOW, transient (with #42) |
 | 61 | **Another user's commit lands mid-action with engineer IDs and no re-sync.** While the runner was in "Swap class times: Class A selected. Choose Class B on the grid." on Mon 7:30 MAPEH, A2's commit toasted "Manual swap committed between entries entry-321::t2 and entry-421::t2." The grid changed under it (Mon 7:30 went empty, warnings 159 → 68), and the selection banner stayed armed on a class that had just moved. Say who changed what in words ("Another user swapped MAPEH Mon 7:30 with ESP Wed 8:15") and cancel or re-check a selection whose class moved. | HIGH (older users; truthfulness) |
 | 62 | **A2's own finding, seen independently:** swap + revert is not net-neutral: 159 → 68 → 69, and Mon 7:30 was empty between the two. Draft 321 is left at 69. | (A2 CORRECTION_REQUIRED) |
 
 Cost (`subagent_tokens`): 72,218 (no session) + 82,591 (Change room) + 89,180 (swap, collided) + 91,581 (read-only state) + 67,180 (Chrome disconnected) = 402,750.
+
+## Inventory §16a chunk 2, post-release rows (draft run 321, live `c5a9e832`, 2026-09-27 ~06:20–06:25 +08)
+
+One read-only Chrome run; nothing clicked that writes. Header "69 warnings", red "Publish schedule".
+
+| Row | Live answer (quoted) | Verdict |
+|---|---|---|
+| #60 re-read | More › Expert tools › "Schedule history (2)", enabled. Rows: "Undone change" 5:55:23 AM · "Undid: Swapped two sessions · 9/27/2026, 5:54:10 AM" · "This undo cannot be undone." (no button); "Swapped two sessions" 5:54:10 AM with **"Revert this edit"** shown. No counts on either row. (ss_8975wn5gd) | #60 **not reproduced**; the 06:00 "Nothing to show yet" was transient |
+| 222 (and 219) | Simple with 2 edits in history: **no Undo or Redo control anywhere** (find + a11y tree). (ss_43344p85l) | matches (no persistent pair in Simple). 219's transient post-move strip not exercised: a move + undo leaves residue (#62) |
+| 140 | Expert guidance bar: "Undo last change", visible, disabled. | matches |
+| 141 | Expert toolbar: "Undo" beside "Redo" and "History (2)", visible, disabled. | matches; **both visible at once**, one accessible name "Undo last manual timetable change" |
+| 140/141 tooltip | Both: "The last change to this schedule was itself an undo, so there is nothing left to undo." | clear (21 words, says why) |
+| 260, 266 | Unassigned: "0 unresolved", "2685/2685 placed", "All sessions placed"; no "Fix teaching load" anywhere. The dock only opens from that button. | **unperformed (state absent)** |
+| 249 | – | unperformed (no empty floor; unchanged) |
+
+| # | Finding | Severity |
+|---|---|---|
+| 63 | **Two Undo buttons on one Expert screen, same name, same reason.** A scheduler sees "Undo last change" in the guidance bar and "Undo" in the toolbar and cannot tell whether they differ; a screen reader hears the same name twice. Keep the toolbar one. | MEDIUM (with #6 DUPLICATE) |
+| 64 | **The undone swap still offers "Revert this edit".** Its undo row already says "Undid: Swapped two sessions", yet the swap row keeps the button while both header Undos say "nothing left to undo". Either it is dead (a 409) or it re-reverts. Not clicked; A2 to say which, then hide it or say why it is off. Also: Expert shows a "Redo" beside "Undo" (state not read) although your commit says no Redo anywhere. | HIGH (verify; truthfulness) |
+
+Cost (`subagent_tokens`): 67,282 (Chrome not connected) + 98,953 (read) = 166,235.
