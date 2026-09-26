@@ -277,6 +277,18 @@ resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs
   and protect the invariant that the old string is **never reused**. **(c)** The four-file source scrub is Lane B's
   server surface. **(d)** Rotation will break `D:\ATLAS\EnrollPro\server\.env`, a `READ_ONLY` companion
   (`AGENTS.md` §4) — **the operator must update it; this lane may not.**
+- **ROTATION ATTEMPTED AND ROLLED BACK after a self-inflicted outage — 2026-09-26.** The operator approved rotation
+  and authorised HIGH actions; the attempt **succeeded at `ALTER ROLE` and then failed on the env-file write**
+  (`Access to path 'D:\ATLAS-runtime-config\atlas-server.env' is denied`), leaving role = NEW / env = OLD with the
+  new value unrecoverable. ATLAS went down (`/health/ready` 503, subjects 500) and was **fully recovered** via
+  temporary `pg_hba.conf` `trust` rules; `pg_hba.conf` verified **byte-identical** (5728 bytes) with no `trust`
+  residue, `/health/ready` 200 `database:"ok"`, subjects 200, Tailnet 200, and **ATLAS listener PIDs unchanged
+  throughout** (23520/23544) so it never restarted. **Net data change: none; the credential is NOT rotated and
+  the system is at its exact pre-attempt state.** Full evidence and the two earned rules are in the Lane A section.
+  **Consequence for the decision: the exposure is unchanged, because the rollback restored the original password —
+  which is the one published on GitHub. The cheapest genuinely effective mitigation is no longer the rotation; it is
+  deleting the `100.64.0.0/10` Tailnet grant for `atlas_db` from `pg_hba.conf`** (one line, instantly reversible,
+  removes the only reachable path). The rotation remains correct but must be done as a single pre-verified change.
 - **Cross-lane worktree dispositions (2026-09-26, re-verified this session):** ten E: worktrees totalling 8.72 GiB
   are clean, hold no unique content (`ahead-of-main = 0` for all 13 non-release branch tips), and carry **no
   disposition in this file** — confirmed by grep. They belong to Lanes B and C. **Not urgent** now that E: is at
@@ -1005,6 +1017,55 @@ So: **rotate, scrub the four files forward, and add a committed secret-scan guar
 deliberately**, and the residual is stated rather than hidden: after rotation the old string remains publicly
 readable forever, which is acceptable **only because it will never be reused** — that is the invariant to protect,
 not the byte sequence.
+
+**SELF-INFLICTED OUTAGE during the authorised rotation, 2026-09-26 ~13:50–14:05 +08. Recorded in full because
+`AGENTS.md` §16 requires it and because the failure is instructive. The credential is NOT rotated; the system is
+back at its exact pre-attempt state.**
+
+**What I did.** Executed the operator-approved rotation of the `atlas_user` password in the intended order:
+`ALTER ROLE … WITH PASSWORD '<new>'` → rewrite the durable env file → quiesce → `schtasks /run`.
+
+**What happened.** The `ALTER ROLE` **succeeded**. The **env-file write was denied** — `Access to the path
+'D:\ATLAS-runtime-config\atlas-server.env' is denied` — and that path is not writable from this session. The script
+threw at that point, so the restart never ran, and the new password existed only in the exited process's memory.
+The result was the worst possible intermediate state: **role = NEW, env file = OLD, new value unrecoverable.**
+
+**Measured impact — a real outage, self-inflicted.** Between the `ALTER` and recovery, `/health/ready` returned
+**503** and `GET /api/v1/subjects?schoolId=1` returned **500**, and a fresh `psql` connection failed with
+`FATAL: password authentication failed for user "atlas_user"`. The app degraded exactly as predicted, because
+`ALTER ROLE` does not kill established sessions but every *new* pool connection presents the now-wrong password.
+
+**Recovery, in order, with evidence retained.** No superuser credential exists anywhere (the durable env has no
+admin DSN and the repo contains no `postgres://postgres:` DSN), so recovery went through `pg_hba.conf`:
+prepended temporary `trust` rules for `local` and `127.0.0.1/32` and `::1/128` → restarted
+`postgresql-x64-18` → `ALTER ROLE` back to the original password, read from the **untouched** env file → restored
+`pg_hba.conf` → restarted the service again. Verified after recovery: the original password authenticates
+(`SELECT current_user()` → `atlas_user`, exit 0); `pg_hba.conf` is **byte-identical to the pre-incident backup**
+(5728 bytes both sides, `Compare-Object` clean) with **no `trust` rule anywhere** and all seven effective rules
+back to `scram-sha-256`; `/health/ready` **200 `{"status":"ready","checks":{"database":"ok"}}`**; subjects **200**;
+Tailnet health **200**. **The ATLAS listener PIDs stayed 23520/23544 throughout, so ATLAS never restarted** — the
+outage was purely DB authentication and it recovered the moment the role was restored. **Net data change: none.**
+
+**Root cause, which is the part worth keeping.** I split an operation that is **atomic in effect** across a
+permission boundary and **did not verify the second write before performing the first**. I had already confirmed
+that `pg_hba.conf` was writable and that the service was controllable — but I never probed write access to the
+env file, so I discovered it only when the write threw, *after* the irreversible half had run. The new password
+was also never persisted anywhere retrievable before the `ALTER`, which is what made the half-state
+unrecoverable by design rather than by luck.
+
+**Two rules this earns, both generalisable past this incident:**
+1. **Prove every write in a multi-write change before performing any of them.** A credential rotation is a
+   two-write transaction; the first write must not run until the second is *known* to be possible. A permission
+   probe is cheap; an outage is not.
+2. **Persist the new secret somewhere retrievable before rotating, never only in process memory** — otherwise a
+   lost value is unrecoverable and the rollback then needs a privilege you may not have.
+
+**The standing verdict is unchanged by this failure, but the cheapest control has changed.** The exposure is
+identical, because the rollback restored the *original* password — the one published on GitHub. So rotation is
+still the right control, but it must be re-run as one pre-verified change (probe both writes, persist the new
+value, then execute). **The genuinely effective mitigation available immediately is not the rotation at all: delete
+the `100.64.0.0/10` Tailnet grant for `atlas_db` from `pg_hba.conf`.** That removes the only reachable path
+(28 rows, no personal data), is one line, and is instantly reversible — and it needs no secret handling at all.
 
 **Deployment attempt 1 stopped safely at a runner gate (2026-09-26).** The executor built the target, ran the
 port-5198 isolation proof (**gate 6b PASS** — `git status --short` empty after the run, the exclude rule working as
