@@ -46,12 +46,18 @@ import {
 import { SectionRow, type SectionDetail } from '@/components/sections/SectionRow';
 import { SectionRoomPicker, type RoomOption as HomeRoomOption } from '@/components/sections/SectionRoomPicker';
 import { SectionDetailsSheet } from '@/components/sections/SectionDetailsSheet';
-import { SwapConfirmationModal, UnassignConfirmationModal } from '@/components/sections/SectionHomeRoomModals';
 import { SectionRoomMapModal } from '@/components/sections/SectionRoomMapModal';
 import { HomeRoomAutoAssignDialog } from '@/components/sections/HomeRoomAutoAssignDialog';
 import { SectionsHomeRoomActions } from '@/components/sections/SectionsHomeRoomActions';
 import { SectionMobileCard } from '@/components/sections/SectionMobileCard';
 import { SectionsFilterToolbar } from '@/components/sections/SectionsFilterToolbar';
+import {
+	persistHomeRoomAssignment,
+	resolveHomeRoomIntent,
+	type HomeRoomUpdateResult,
+} from '@/components/sections/homeRoomPersistence';
+import { HomeRoomConfirmDialogs, type PendingAssignment } from '@/components/sections/HomeRoomConfirmDialogs';
+import { deriveHomeRoomEditStatus } from '@/components/sections/homeRoomEditStatus';
 import { cn } from '@/lib/utils';
 import type { RoomSectionMetadata } from '@/components/BuildingView';
 import type { Building, SectionSummaryResponse } from '@/types';
@@ -79,14 +85,9 @@ type HomeRoomQueueEntry = {
 	queuedAt: string;
 };
 
-type PendingAssignment = {
-	section: SectionDetail;
-	roomId: number | null;
-	type: 'unassign' | 'swap' | 'direct';
-	displacedSection?: string;
-	currentRoomName?: string | null;
-	targetRoomName?: string;
-};
+/* A3 fix 12 — PendingAssignment now lives with the confirmation surface that
+ * owns it (components/sections/HomeRoomConfirmDialogs.tsx), so the escalation
+ * and the write it performs cannot drift apart. */
 
 /* ─── Helpers ─── */
 function gradeKey(name: string) {
@@ -383,8 +384,16 @@ export default function Sections() {
 		}
 	}, [actorSchoolId, isOnline]);
 
-	const performHomeRoomUpdate = useCallback(async (section: SectionDetail, nextHomeRoomId: number | null, swapTarget?: { sectionId: number, homeRoomId: number | null }) => {
-		if (!section.id || !activeSchoolYearId || actorSchoolId == null || state.status !== 'ok' || dataSource === 'refreshing') return;
+	/* A3 fix 12 — the owner of the mutation reports the final result, so the
+	 * confirmation surface can stay open and tell the truth about it. */
+	const performHomeRoomUpdate = useCallback(async (
+		section: SectionDetail,
+		nextHomeRoomId: number | null,
+		swapTarget?: { sectionId: number, homeRoomId: number | null },
+	): Promise<HomeRoomUpdateResult> => {
+		if (!section.id || !activeSchoolYearId || actorSchoolId == null || state.status !== 'ok' || dataSource === 'refreshing') {
+			return { status: 'failed', reason: 'blocked', detail: 'Home-room edits are blocked while the roster source is being checked. Nothing was changed or queued.' };
+		}
 		setSavingMirrorId(section.id);
 
 		const applyOptimisticHomeRoom = () => {
@@ -403,38 +412,29 @@ export default function Sections() {
 			});
 		};
 
-		if (!isOnline) {
-			applyOptimisticHomeRoom();
-			setQueuedHomeRoomEdits((current) => {
-				let next = mergeQueuedHomeRoomEdit(current, section.id, nextHomeRoomId);
-				if (swapTarget) next = mergeQueuedHomeRoomEdit(next, swapTarget.sectionId, swapTarget.homeRoomId);
-				writeQueuedHomeRoomEdits(actorSchoolId, activeSchoolYearId, next);
-				return next;
-			});
-			setCacheNotice('Home-room change saved locally and queued for sync when your connection is restored.');
-			setSavingMirrorId(null);
-			return;
-		}
-
 		try {
 			const assignments = [{ sectionId: section.id, homeRoomId: nextHomeRoomId }];
 			if (swapTarget) assignments.push({ sectionId: swapTarget.sectionId, homeRoomId: swapTarget.homeRoomId });
 
-			await atlasApi.put(`/sections/home-rooms/${activeSchoolYearId}`, {
-				schoolId: actorSchoolId,
+			const result = await persistHomeRoomAssignment({
+				isOnline,
 				assignments,
+				put: async () => {
+					await atlasApi.put(`/sections/home-rooms/${activeSchoolYearId}`, { schoolId: actorSchoolId, assignments });
+				},
+				applyOptimistic: applyOptimisticHomeRoom,
+				onWriteError: (error) => console.error('Failed to update home room:', error),
+				enqueue: () => {
+					setQueuedHomeRoomEdits((current) => {
+						let next = mergeQueuedHomeRoomEdit(current, section.id, nextHomeRoomId);
+						if (swapTarget) next = mergeQueuedHomeRoomEdit(next, swapTarget.sectionId, swapTarget.homeRoomId);
+						writeQueuedHomeRoomEdits(actorSchoolId, activeSchoolYearId, next);
+						return next;
+					});
+				},
 			});
-			applyOptimisticHomeRoom();
-		} catch (error) {
-			console.error('Failed to update home room:', error);
-			applyOptimisticHomeRoom();
-			setQueuedHomeRoomEdits((current) => {
-				let next = mergeQueuedHomeRoomEdit(current, section.id, nextHomeRoomId);
-				if (swapTarget) next = mergeQueuedHomeRoomEdit(next, swapTarget.sectionId, swapTarget.homeRoomId);
-				writeQueuedHomeRoomEdits(actorSchoolId, activeSchoolYearId, next);
-				return next;
-			});
-			setCacheNotice('Home-room change saved locally. It will sync after the section service is reachable.');
+			if (result.status === 'queued') setCacheNotice(result.detail);
+			return result;
 		} finally {
 			setSavingMirrorId(null);
 		}
@@ -466,32 +466,43 @@ export default function Sections() {
 
 	const handleHomeRoomChange = useCallback(async (section: SectionDetail, nextHomeRoomId: number | null) => {
 		if (!section.id || !activeSchoolYearId || state.status !== 'ok' || dataSource === 'none' || dataSource === 'refreshing') return;
-		
-		if (nextHomeRoomId === null && section.homeRoomId) {
+
+		/* A3 fix 12 — the escalation decision is production code
+		 * (homeRoomPersistence), so the confirm-and-cancel path is exercised
+		 * end to end rather than re-implemented in a control. */
+		const intent = resolveHomeRoomIntent(
+			section,
+			nextHomeRoomId,
+			(roomId) => roomOccupancyMap.get(roomId),
+			(roomId) => homeRoomOptions.find(r => r.id === roomId)?.name,
+		);
+
+		if (intent.kind === 'unassign') {
 			setPendingAssignment({
 				section,
 				roomId: null,
 				type: 'unassign',
-				currentRoomName: homeRoomOptions.find(r => r.id === section.homeRoomId)?.name ?? 'Unknown Room'
-			});
-			return;
-		}
-		
-		if (nextHomeRoomId !== null && roomOccupancyMap.has(nextHomeRoomId) && section.homeRoomId !== nextHomeRoomId) {
-			const displacedSectionName = roomOccupancyMap.get(nextHomeRoomId)!;
-			const targetRoomName = homeRoomOptions.find(r => r.id === nextHomeRoomId)?.name ?? 'Unknown Room';
-			setPendingAssignment({
-				section,
-				roomId: nextHomeRoomId,
-				type: 'swap',
-				displacedSection: displacedSectionName,
-				currentRoomName: section.homeRoomId ? (homeRoomOptions.find(r => r.id === section.homeRoomId)?.name ?? 'Unknown Room') : null,
-				targetRoomName
+				currentRoomName: intent.currentRoomName,
 			});
 			return;
 		}
 
-		void performHomeRoomUpdate(section, nextHomeRoomId);
+		if (intent.kind === 'swap') {
+			setPendingAssignment({
+				section,
+				roomId: nextHomeRoomId,
+				type: 'swap',
+				displacedSection: intent.displacedSectionName,
+				currentRoomName: intent.currentRoomName,
+				targetRoomName: intent.targetRoomName,
+			});
+			return;
+		}
+
+		// A3 fix 12 — a plain write still reports its outcome through the same
+		// typed result, so the row's saving state and the notice stay truthful.
+		const result = await performHomeRoomUpdate(section, nextHomeRoomId);
+		if (result.status === 'failed') setCacheNotice(result.detail);
 	}, [activeSchoolYearId, dataSource, homeRoomOptions, roomOccupancyMap, state.status, performHomeRoomUpdate]);
 
 	const handleSync = async () => {
@@ -736,36 +747,16 @@ export default function Sections() {
 		];
 	}, [assignedCount, queuedHomeRoomEdits.length, state]);
 
-	const homeRoomEditStatus = useMemo(() => {
-		if (!activeSchoolYearId || state.status !== 'ok' || dataSource === 'none') {
-			return {
-				tone: 'blocked' as const,
-				message: 'Home-room edits are blocked until ATLAS has a section roster for the active school year.',
-			};
-		}
-		if (dataSource === 'refreshing') {
-			return {
-				tone: 'checking' as const,
-				message: 'Home-room edits are paused while ATLAS checks the roster source. Review the list now, then save room changes when the source settles.',
-			};
-		}
-		if (!isOnline) {
-			return {
-				tone: 'queued' as const,
-				message: 'You are offline. Home-room changes save on this device and sync when the connection returns.',
-			};
-		}
-		if (queuedHomeRoomEdits.length > 0) {
-			return {
-				tone: 'queued' as const,
-				message: `${queuedHomeRoomEdits.length} home-room change${queuedHomeRoomEdits.length === 1 ? '' : 's'} will sync before the page is final.`,
-			};
-		}
-		return {
-			tone: 'ready' as const,
-			message: 'Home-room edits are writable. Pick a room from the row or review the room map before changing assignments.',
-		};
-	}, [activeSchoolYearId, dataSource, isOnline, queuedHomeRoomEdits.length, state.status]);
+	const homeRoomEditStatus = useMemo(
+		() => deriveHomeRoomEditStatus({
+			hasActiveSchoolYear: !!activeSchoolYearId,
+			rosterStatus: state.status,
+			dataSource,
+			isOnline,
+			queuedEditCount: queuedHomeRoomEdits.length,
+		}),
+		[activeSchoolYearId, dataSource, isOnline, queuedHomeRoomEdits.length, state.status],
+	);
 
 	return (
 		<AdminWorkspaceFrame
@@ -962,12 +953,20 @@ export default function Sections() {
 				/>
 			)}
 
-			{pendingAssignment && (
-				<>
-					<SwapConfirmationModal open={pendingAssignment.type === 'swap'} onOpenChange={(open) => !open && setPendingAssignment(null)} onConfirm={() => { const { section, roomId } = pendingAssignment; if (state.status !== 'ok') return; const displaced = state.data.sections.find(s => s.homeRoomId === roomId); void performHomeRoomUpdate(section, roomId, displaced ? { sectionId: displaced.id, homeRoomId: section.homeRoomId ?? null } : undefined); setPendingAssignment(null); }} sourceSectionName={pendingAssignment.section.name} targetRoomName={pendingAssignment.targetRoomName ?? ''} displacedSectionName={pendingAssignment.displacedSection ?? ''} currentRoomName={pendingAssignment.currentRoomName} isSaving={savingMirrorId !== null} />
-					<UnassignConfirmationModal open={pendingAssignment.type === 'unassign'} onOpenChange={(open) => !open && setPendingAssignment(null)} onConfirm={() => { void performHomeRoomUpdate(pendingAssignment.section, null); setPendingAssignment(null); }} sectionName={pendingAssignment.section.name} currentRoomName={pendingAssignment.currentRoomName ?? ''} isSaving={savingMirrorId !== null} />
-				</>
-			)}
+		{pendingAssignment && (
+			<HomeRoomConfirmDialogs
+				pending={pendingAssignment}
+				sections={state.status === 'ok' ? state.data.sections : []}
+				onRun={(pending, swapTarget) => {
+					if (state.status !== 'ok') {
+						return Promise.resolve({ status: 'failed', reason: 'blocked', detail: 'The section roster is no longer loaded. Nothing was changed or queued.' } as const);
+					}
+					return performHomeRoomUpdate(pending.section, pending.roomId, swapTarget);
+				}}
+				onClose={() => setPendingAssignment(null)}
+			/>
+		)}
+
 
 			{scopedSchoolId != null && activeSchoolYearId && (
 				<HomeRoomAutoAssignDialog

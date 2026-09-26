@@ -27,6 +27,12 @@ interface SwapConfirmationModalProps {
 	displacedSectionName: string;
 	currentRoomName?: string | null;
 	isSaving?: boolean;
+	/** A3 fix 12 — the confirm control locks once a result is on screen so a
+	 * settled dialog cannot be re-submitted by a stray click. */
+	confirmDisabled?: boolean;
+	/** A3 fix 12 — the in-modal outcome surface (persisted / queued / failed). */
+	resultPanel?: React.ReactNode;
+	confirmLabel?: string;
 }
 
 export function SwapConfirmationModal({
@@ -38,6 +44,9 @@ export function SwapConfirmationModal({
 	displacedSectionName,
 	currentRoomName,
 	isSaving,
+	confirmDisabled = false,
+	resultPanel,
+	confirmLabel,
 }: SwapConfirmationModalProps) {
 	const displacedBecomesUnassigned = !currentRoomName;
 	return (
@@ -130,13 +139,15 @@ export function SwapConfirmationModal({
 					) : null}
 				</div>
 
+				{resultPanel}
+
 				<DialogFooter className="bg-muted/50 p-4 border-t flex gap-3 sm:justify-end">
-					<Button variant="outline" onClick={() => onOpenChange(false)} disabled={isSaving} className="h-10 rounded-xl px-6 font-bold border-muted-foreground/20">
+					<Button variant="outline" onClick={() => onOpenChange(false)} disabled={isSaving} data-testid="swap-modal-cancel" className="h-10 rounded-xl px-6 font-bold border-muted-foreground/20">
 						Cancel
 					</Button>
-					<Button onClick={onConfirm} disabled={isSaving} className="h-10 rounded-xl px-6 font-bold shadow-lg shadow-primary/20">
+					<Button onClick={onConfirm} disabled={isSaving || confirmDisabled} data-testid="swap-modal-confirm" className="h-10 rounded-xl px-6 font-bold shadow-lg shadow-primary/20">
 						{isSaving ? <RefreshCw className="mr-2 size-4 animate-spin" /> : <ArrowRight className="mr-2 size-4" />}
-						Confirm swap
+						{isSaving ? 'Saving...' : (confirmLabel ?? 'Confirm swap')}
 					</Button>
 				</DialogFooter>
 			</DialogContent>
@@ -151,6 +162,10 @@ interface UnassignConfirmationModalProps {
 	sectionName: string;
 	currentRoomName: string;
 	isSaving?: boolean;
+	/** A3 fix 12 — see SwapConfirmationModal. */
+	confirmDisabled?: boolean;
+	/** A3 fix 12 — the in-modal outcome surface. */
+	resultPanel?: React.ReactNode;
 }
 
 export function UnassignConfirmationModal({
@@ -160,6 +175,8 @@ export function UnassignConfirmationModal({
 	sectionName,
 	currentRoomName,
 	isSaving,
+	confirmDisabled = false,
+	resultPanel,
 }: UnassignConfirmationModalProps) {
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
@@ -179,31 +196,34 @@ export function UnassignConfirmationModal({
 						</DialogDescription>
 					</div>
 
-					<div className="w-full pt-4 flex flex-col gap-2">
-						{/* Phase 1.3: standard a11y ordering for destructive confirmations.
-							Safe (default focus) is first; destructive is second and
-							visually distinct. */}
-						<Button
-							variant="outline"
-							onClick={() => onOpenChange(false)}
-							disabled={isSaving}
-							autoFocus
-							className="h-11 rounded-xl font-bold border-muted-foreground/20"
-							data-testid="unassign-modal-keep"
-						>
-							Keep {currentRoomName}
-						</Button>
-						<Button
-							variant="destructive"
-							onClick={onConfirm}
-							disabled={isSaving}
-							className="h-11 rounded-xl font-bold shadow-lg shadow-red-200"
-							data-testid="unassign-modal-confirm"
-						>
-							{isSaving ? 'Processing...' : 'Yes, remove home room'}
-						</Button>
-					</div>
+				<div className="w-full pt-4 flex flex-col gap-2">
+					{/* Phase 1.3: standard a11y ordering for destructive confirmations.
+						Safe (default focus) is first; destructive is second and
+						visually distinct. */}
+					<Button
+						variant="outline"
+						onClick={() => onOpenChange(false)}
+						disabled={isSaving}
+						autoFocus
+						className="h-11 rounded-xl font-bold border-muted-foreground/20"
+						data-testid="unassign-modal-keep"
+					>
+						Keep {currentRoomName}
+					</Button>
+					<Button
+						variant="destructive"
+						onClick={onConfirm}
+						disabled={isSaving || confirmDisabled}
+						className="h-11 rounded-xl font-bold shadow-lg shadow-red-200"
+						data-testid="unassign-modal-confirm"
+					>
+						{isSaving ? 'Processing...' : 'Yes, remove home room'}
+					</Button>
 				</div>
+
+				{resultPanel}
+			</div>
+
 			</DialogContent>
 		</Dialog>
 	);

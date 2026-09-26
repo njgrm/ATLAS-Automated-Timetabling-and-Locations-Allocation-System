@@ -135,7 +135,11 @@ export function SectionRoomPicker({
 					</Button>
 				</PopoverTrigger>
 				<PopoverContent
-					className="w-70 p-0 shadow-xl border-border/40 flex flex-col h-100"
+					/* A3 fix 03 — the body was a fixed w-70 (17.5rem), so a long
+					 * occupant name was clipped on the right instead of wrapping.
+					 * This is a viewport-relative cap, not a fixed width: the
+					 * popover is at least 22rem and never wider than the window. */
+					className="w-[min(22rem,calc(100vw-1.5rem))] max-w-[calc(100vw-1.5rem)] p-0 shadow-xl border-border/40 flex flex-col h-100"
 					align="start"
 				>
 					{/* Header */}
@@ -217,51 +221,57 @@ export function SectionRoomPicker({
 										<Badge variant="outline" className="h-3.5 text-xs px-1 font-normal opacity-50 border-0">{group.items.length}</Badge>
 									</div>
 									<div className="grid gap-0.5 mt-0.5">
-										{group.items.map((item) => {
-											const occupying = roomOccupancy?.get(item.id);
-											const isSelected = value === item.id;
-											return (
-												<Button
-													key={item.id}
-													ref={isSelected ? activeItemRef : null}
-													type="button"
-													variant="ghost"
-													role="option"
-													aria-selected={isSelected}
-													data-occupied={occupying ? 'true' : undefined}
-													onClick={() => {
-														onSelect(item.id);
-														setOpen(false);
-													}}
-													onFocus={() => setFocusedRoomId(item.id)}
-													onMouseEnter={() => setFocusedRoomId(item.id)}
-													className={cn(
-														'w-full justify-start px-2 py-2 h-auto text-xs transition-all rounded-md outline-none',
-														'hover:bg-primary hover:text-primary-foreground focus:bg-primary focus:text-primary-foreground group',
-														isSelected ? 'bg-accent/60 font-bold' : 'transparent'
-													)}
-												>
-													<Check className={cn('mr-2 size-3.5 shrink-0 text-primary group-hover:text-primary-foreground', isSelected ? 'opacity-100' : 'opacity-0')} />
-													<div className="flex flex-col items-start min-w-0 flex-1">
-														<div className="flex items-center gap-2 w-full">
-															<span className="truncate group-hover:text-primary-foreground">{item.name}</span>
+											{group.items.map((item) => {
+												const occupying = roomOccupancy?.get(item.id);
+												const isSelected = value === item.id;
+												return (
+													<Button
+														key={item.id}
+														ref={isSelected ? activeItemRef : null}
+														type="button"
+														variant="ghost"
+														role="option"
+														aria-selected={isSelected}
+														data-occupied={occupying ? 'true' : undefined}
+														onClick={() => {
+															onSelect(item.id);
+															setOpen(false);
+														}}
+														onFocus={() => setFocusedRoomId(item.id)}
+														onMouseEnter={() => setFocusedRoomId(item.id)}
+														className={cn(
+															'w-full justify-start px-2 py-2 h-auto text-xs transition-all rounded-md outline-none',
+															'hover:bg-primary hover:text-primary-foreground focus:bg-primary focus:text-primary-foreground group',
+															isSelected ? 'bg-accent/60 font-bold' : 'transparent'
+														)}
+													>
+														<Check className={cn('mr-2 size-3.5 shrink-0 text-primary group-hover:text-primary-foreground', isSelected ? 'opacity-100' : 'opacity-0')} />
+														{/* A3 fix 03 — the occupant label gets its own wrapping
+														 * line instead of competing with the room name for
+														 * width on a non-wrapping flex row. A long section name
+														 * is fully readable and the popover never overflows. */}
+														<div className="flex flex-col items-start gap-1 min-w-0 flex-1 text-left">
+															<span className="w-full truncate group-hover:text-primary-foreground">{item.name}</span>
+															<span className="text-xs text-muted-foreground/70 uppercase font-medium group-hover:text-primary-foreground/70">{item.type.replace('_', ' ')}</span>
 															{occupying ? (
-																<Badge variant="outline" className={cn(
-																	"ml-auto h-4 px-1 text-xs font-bold uppercase border-opacity-50",
-																	isSelected ? "bg-white/10 text-white border-white/20" : "bg-amber-50 text-amber-600 border-amber-200"
-																)}>
-																	Used by {occupying}
-																</Badge>
+																<>
+																	<span
+																		data-testid="room-option-occupant"
+																		className={cn(
+																			"max-w-full whitespace-normal break-words text-left text-xs font-bold",
+																			isSelected ? "bg-white/10 text-white px-1.5 py-0.5 rounded border border-white/20" : "bg-amber-50 text-amber-700 px-1.5 py-0.5 rounded border border-amber-200"
+																		)}
+																	>
+																		Used by {occupying}
+																	</span>
+																	<span className="max-w-full whitespace-normal break-words text-left text-xs text-amber-700/80 group-hover:text-primary-foreground/70">Room already has a home section</span>
+																</>
 															) : null}
 														</div>
-														<div className="flex items-center gap-1.5 mt-0.5">
-															<span className="text-xs text-muted-foreground/70 uppercase font-medium group-hover:text-primary-foreground/70">{item.type.replace('_', ' ')}</span>
-															{occupying ? <span className="text-xs font-bold text-amber-600/80 group-hover:text-primary-foreground/60">Room already has a home section</span> : null}
-														</div>
-													</div>
-												</Button>
-											);
-										})}
+													</Button>
+												);
+											})}
+
 									</div>
 								</div>
 							))}
