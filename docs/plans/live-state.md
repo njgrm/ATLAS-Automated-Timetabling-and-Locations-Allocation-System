@@ -1440,14 +1440,58 @@ recorded, verified, and reproducible.**
 3. **May the Teaching Load repair path carry client-supplied entry metadata at all?** Today it does, and its scope
    check does not cover the placement fields.
 
-**Next action (2026-09-26): the release is live; acceptance needs one operator action.** (1) **operator
-re-seeds** `C:\Users\njgro\.config\opencode\playwright-profile`; (2) **Lane A** runs A5, A6, A7, A12(b) and records
-the result, closing acceptance; (3) **rotate the exposed dev DB credential**; (4) **answer the three questions
-above** — they are the gate on any fix to the constraint-severity channels, and five cycles of packet-writing have
-shown they are not mine to decide; (5) retention reclaim before the next release build (E: 46 GiB, below the 50
-GiB warning); (6) the `4893cbde` + three-leftover decision (1.91 GiB) and the 8.72 GiB disposition backlog owned
-by Lanes B and C; (7) the three room-affordance design decisions; (8) a decision on the oversized `.ts` modules.
-**Rollback basis `116a7658` is verified eligible and was not executed.**
+**BROWSER ACCEPTANCE PARTIALLY EXERCISED — a session exists again (2026-09-26), and another lane's live walk
+overturns a severity call of mine.** The `NEEDS_SESSION` blocker is lifted as an environment matter: the profile
+now carries `atlas_local_token` (745 chars) plus `atlas:session-user:v1`, and `/timetable` no longer redirects to
+`/login`. Rows measured, read-only, no generation, placement, publication or save:
+
+- **A7 — PASS, attributable.** Across four page loads the console recorded **8 errors, every one of them the same
+  two EnrollPro proxy routes** — `/enrollpro-api/settings/public` and `/enrollpro-uploads/<uuid>.png`, both 502.
+  **Zero application errors**: nothing from the timetable workspace, the grid, or the J2/J3 surfaces. The only
+  failed requests are the two proxy routes already diagnosed as the **external EnrollPro outage** (TCP 443 dead at
+  `100.120.169.123`), which is inherited by this release and not caused by it. A7 is satisfied *with that
+  attribution stated*, not waived.
+- **A5 — partial PASS, honestly bounded.** **0 raw `SCREAMING_SNAKE` tokens** across the full published day grid for
+  `GR7 - Luna` / Term 2 (five weekday columns, ~20 rendered sessions, each showing a readable subject code, teacher
+  name and room) and across the draft surface. This is real positive evidence for the changed surfaces, but it is
+  **not** the whole of A5: see the correction below, because the surface where a raw code *does* render is the
+  Review-issues panel, which I could not reach (below).
+- **A6 and A12(b) — NOT REACHED, and therefore not claimed.** The Review-issues panel is a run-level surface; the
+  section draft is empty (*"Nothing is placed in this draft yet"*), and reaching the panel with warnings would need a
+  different run/section or a placement mutation. Per `AGENTS.md` §16 these are reported as **unperformed**, not
+  passed. A12(b) additionally needs a placed session in a many-space context, and I will not mutate the live
+  schedule unattended to manufacture one.
+
+**CORRECTION TO MY OWN SEVERITY CALL — I under-rated the unnamed-violation residual, and live evidence says so.**
+I recorded the `warning-readability-c01` R1/R2 residual as *"comprehension/cosmetic — raw enum strings and
+de-snake-cased text in operator headings; no data, authority, publication or accessibility consequence"*, and that
+rating came from a **unit test, not the live surface**. Another lane's live walk of this same release
+(`docs/reviews/timetable-live-walk-20260926/findings.md`, landed as `a36c5f69`) measured the opposite: the largest
+single group on the schedule is **100 of 194 warnings** rendering the **raw engine code `FACULTY_LUNCH_WINDOW_VIOLATION`**
+on Review issues, while Publish Readiness calls the same group *"A problem that this version of ATLAS does not have
+a name for yet"* — **two surfaces, two texts, neither usable** — and the client has **zero** mappings for that code
+outside tests. A veteran scheduler's judgement, recorded verbatim: *"A scheduler would read that as 'the tool doesn't
+know what it's complaining about' and stop trusting the other 94."* Rated **BLOCKING for trust**. **My cosmetic
+rating was wrong and is withdrawn.** The same walk also confirms my `ManualEditPanel.tsx`/`QuickPlaceSummaryModal.tsx`
+de-snake-casing residuals (F3) remain real on the deployed surface.
+
+**The fix is the class, not the instance**, per that walk: add the missing label **and** a guard test that every
+code the server's validator can emit has a client label, so the next new rule cannot ship unnamed. That is a
+client-only MEDIUM cycle and a stronger answer than adding one mapping.
+
+**Acceptance status: still NOT closed.** A7 passes with attribution; A5 is partially evidenced; A6 and A12(b) are
+unperformed. The tally is therefore **not** `passed == total`, and no `ACCEPT_READY` is claimed.
+
+**Next action (2026-09-26): the release is live; acceptance is partially exercised.** (1) **answer the three
+constraint-severity questions** recorded above — they are the gate on any fix there, and five cycles of
+packet-writing have shown they are not mine to decide; (2) **schedule the unnamed-violation class fix** (client-only
+MEDIUM) with the label plus the completeness guard test, now correctly rated BLOCKING for trust; (3) **complete
+A6 and A12(b)** — they need a run-level review surface with warnings, and A12(b) needs a placed session, so either
+a non-empty run or an explicitly authorised placement; (4) **rotate the exposed dev DB credential**;
+(5) retention reclaim before the next release build (E: 46 GiB, below the 50 GiB warning); (6) the `4893cbde` +
+three-leftover decision (1.91 GiB) and the 8.72 GiB disposition backlog owned by Lanes B and C; (7) the three
+room-affordance design decisions; (8) a decision on the oversized `.ts` modules. **Rollback basis `116a7658` is
+verified eligible and was not executed.**
 
 **SUPERSEDED 2026-09-26 — a spliced paragraph this lane's own editing left behind, repaired.** The four lines
 immediately below were an orphaned fragment, and the sentence they belonged to was cut in half. They are
