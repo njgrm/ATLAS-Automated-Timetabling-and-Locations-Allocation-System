@@ -1,5 +1,56 @@
 # Handoff - Planner A2 -> next session (2026-09-27)
 
+> ## STATUS 2026-09-27 (later the same day) - item 1 of the queue below is DONE. Read this banner first.
+>
+> **Integrated: `e51388c1` (merge `3cfe79a8`, pushed to `origin/main`). Fresh independent QA `ACCEPT_READY`
+> 41/41/0/0** (`ses_f2190b3a5ffeObHPlfTgdZSS6B`). Section 3 item 1 and section 5 are **history - do not re-dispatch
+> them.** The next candidate is **item 2, the publish-date resolver** (see section 9).
+>
+> **The blocking question in section 3 item 1 is answered, from source before Lane C replied, then confirmed by Lane
+> C: the history records ONE entry, and the fix therefore belonged in the restore path, not the history model.**
+> `swapManualEntries` writes a single `manualScheduleEdit` row per swap. Its payload is the multi-entry shape
+> `{entryIdA, entryIdB, entryA, entryB}` with **no `entryId` field**, while `revertLastEdit` had no
+> `SWAP_ENTRIES` case and fell into a single-entry branch reading `afterPayload.entryId`. That is `undefined`,
+> `findIndex` returned `-1`, and `if (idx !== -1)` **silently skipped the restore** - after which the function still
+> bumped the version, wrote a `REVERT` row, wrote an audit row and published `TIMETABLE_REVERTED`. Base literal:
+> `draftUnchanged=true revertRowsWritten=1 auditRowsWritten=1`. That is the operator's "Undid an earlier change".
+> Corroboration it was an oversight: the pre-generation draft undo model already had `'SWAP': 'restore-pair'`
+> (`atlas-server/src/services/timetable-undo-contract.ts:37`).
+>
+> **The three fixes, all failing-first proven at base `a6187a03` on a disposable database:**
+> 1. **D1** - the auto-fix pool is bounded by **term overlap** (canonical `entryTermScope`, never coercing a missing
+>    term identity to Term 1) **and** the moved section's own **shift window**, each **failing closed**. The base
+>    target was `WEDNESDAY|12:15|13:00`, which the canonical grid defines as **grade 7's own Lunch Break row** -
+>    a slot legal for a different grade. QA proved the boundary is load-bearing by differential interleave: the same
+>    move reports zero hard violations while the occupier is Term 3, and a room conflict appears when it is Term 2.
+> 2. **D2** - the dialog rendered a hard-coded DIRECT "Before -> After" regardless of strategy, so a green "Safe to
+>    review" sat above a description of a move that was not the move. The panel now derives the move from the
+>    selected strategy and returns `null` when it cannot name one, which **disables the commit**. The **server no
+>    longer trusts the client**: it re-derives the authoritative target from the snapshot the version CAS already
+>    proved unchanged and refuses with `AUTO_FIX_TARGET_DRIFT` (409) / `AUTO_FIX_TARGET_UNAVAILABLE` (422), zero
+>    writes, both verified to precede the `$transaction`.
+> 3. **D3** - the restore is now a shape-aware `switch`. `SWAP_ENTRIES` restores both halves of the pair or refuses;
+>    any edit type without a strategy throws `422 UNDO_RESTORE_UNAVAILABLE` with **zero writes**. The generic
+>    `else` with the silent skip is gone.
+>
+> **Also closed, and worth knowing because it was a second zero-change path:** Lane C's "swap succeeds and changes
+> nothing" (run 320, warnings 69 -> 69) was the auto-fix targeting a **moved session's own slot** - at base the
+> shared pool excluded only entryB's slot, so entryA's own slot was a legal target. Each strategy now has its own
+> pool, excluding its own slot.
+>
+> **Not closed, do not let these be read as done:** Lane C's amber icon + "Swap + move 3 classes" label (the
+> load-bearing half of their rule shipped, the glyph and label did not, and the **operator's ruling is still
+> outstanding**); history-model honesty (record the auto-move, name the edit an undo row undid, and the snapshot
+> reading **241** while the header says **69**); QA **F1** (`manual-edit.router.ts:249` does not validate `strategy`
+> against the enum on the wire - bounded one-line follow-up); QA **F2** (**`test:client-suite` omits 21 client test
+> files**, so "the full client suite" overstates coverage and a green run is not full client coverage).
+>
+> **One correction to section 4 below, from QA:** the `1142 / 1130 / 12` client baseline **is authoritative and
+> reproduces exactly** on a full-tree checkout. A scratch extract of `atlas-client` alone yields 20 failures
+> (8 spurious ENOENT from client tests that read sibling `atlas-server/` and `prisma/` files by walking up), which
+> QA initially reported and then corrected itself. If you see 20, your extract is incomplete - not a regression.
+
+
 Supersedes `planner-a2-handoff-2026-09-26.md` for resumption. Read this first, then
 `docs/handoffs/lane-c-to-a2.md` (**newest first, and it changes often - read it at the start of every cycle and
 before every integration or release**), then `docs/plans/live-state.md` (`## Live release`, `## Capacity`,

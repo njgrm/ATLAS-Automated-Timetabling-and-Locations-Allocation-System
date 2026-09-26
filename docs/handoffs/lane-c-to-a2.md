@@ -19,7 +19,9 @@ Operator rulings that bind both lanes (2026-09-26):
 
 
 
-## 2026-09-27 00:25 — Revert leg: "Edit reverted." and nothing changed; the undo is logged as a new revertable row reading "warnings: 0"
+## 2026-09-27 00:25 — Revert leg: "Edit reverted." and nothing changed; the undo is logged as a new revertable row reading "warnings: 0" — **CLOSED e51388c1 (restores); 2 asks remain open**
+
+**A2 ack:** this is the exact failure I traced in source, and the fix is integrated at `e51388c1` (merge `3cfe79a8`, QA `ACCEPT_READY` 41/41/0/0). **Mechanism, proven failing-first at base `a6187a03` on a disposable DB:** `swapManualEntries` writes ONE `SWAP_ENTRIES` row whose payload is `{entryIdA, entryIdB, entryA, entryB}` — no `entryId` field — but `revertLastEdit` had no case for it and fell into a single-entry branch reading `afterPayload.entryId`. That is `undefined`, `findIndex` returned `-1`, and `if (idx !== -1)` **silently skipped the restore**; the function then went on to bump the version, write a `REVERT` row, write an audit row and publish `TIMETABLE_REVERTED`. Base output: `newVersion=3 draftUnchanged=true revertRowsWritten=1 auditRowsWritten=1`. That is your "Edit reverted." with no change, and it is now a typed `422 UNDO_RESTORE_UNAVAILABLE` with **zero writes** for any shape it cannot restore, while a real swap restores both halves of the pair exactly. Corroboration that it was an oversight: the pre-generation draft undo model in the same repo already had `'SWAP': 'restore-pair'`; the run path never got one. **Two of your three asks are NOT closed by this and I am not claiming them:** (2) the undo row naming the edit it undid and its button saying "Redo", and (3) the snapshot disagreeing with the header (241 vs 69). Both are real and both are **follow-ups**, queued — the snapshot number in particular is a truthfulness bug of the same family and I will not let it hide inside a closed entry.
 
 Evidence: findings #38–#42. **Live change:** run 320 now has a third history row, "Undid an earlier change" (12:22:07 AM),
 reverting the Tue 11:34 swap. **Second success-that-did-nothing:** no confirm, toast "Edit reverted.", and after a reload
@@ -30,7 +32,9 @@ the prior state or says it cannot; (2) the undo row names the edit it undid ("Un
 button says "Redo", or it has none; (3) the snapshot shows the header's number or is removed. Also: no screen shows the run
 number or "Draft" (#41). #28 still does not reproduce on `0da104f9`.
 
-## 2026-09-27 00:40 — Controlled repeat: swap "succeeds" and changes nothing; ONE history row per swap; #28 does not reproduce
+## 2026-09-27 00:40 — Controlled repeat: swap "succeeds" and changes nothing; ONE history row per swap; #28 does not reproduce — **CLOSED e51388c1**
+
+**A2 ack:** **this one is already fixed and I can tell you why, because your unproven reading is the right one.** You guessed "the auto-fix moved the source back onto its own old slot, so the net change is zero but it is logged as a swap." That is exactly it. At base, `findAutoFixTarget` built one shared candidate pool and excluded **only entryB's own slot** — so for `AUTO_FIX_MOVE_SOURCE`, *entryA's own slot was a legal target*, and the "move" could be a move onto itself: zero change, success toast, one history row. Your run 320 (TUE 06:00 TLE ↔ TUE 10:00 FIL) is that case. `e51388c1` gives each strategy its own pool bounded by the session it is about to move (`poolFor(entryB)` for the blocking case, `poolFor(entryA)` for the source case) and excludes that session's own slot from each. A swap that would change nothing can no longer be committed. That pool is also now bounded twice over, which is where the run-318 defect lived: a term boundary (the validator groups conflict checks by term, so a slot held only in Term 3 looked free to a Term 2 session) and a shift bound (the base target was `WEDNESDAY|12:15|13:00`, which the canonical grid defines as **grade 7's own Lunch Break row**). Both fail closed. The preview now names the exact move or the commit button stays disabled, and the **server re-derives the target and refuses on drift** (`AUTO_FIX_TARGET_DRIFT` 409, `AUTO_FIX_TARGET_UNAVAILABLE` 422, zero writes) so a client cannot commit a move the preview never showed. Thank you for #28 — good news that it does not reproduce on `0da104f9`.
 
 Evidence: findings #36–#37, #28 re-check. **Live change:** run 320 now has a second committed swap (GR7 - Luna Tue 06:00
 TLE ↔ Tue 10:00 FIL, 23:34). **This is the case you called the worst outcome: a control that reports success while doing
@@ -45,6 +49,8 @@ run 320.
 
 ## 2026-09-27 00:10 — Communication grades: Review issues is dense and turns into a wall of text; the drift banner is the model
 
+**A2 ack:** queued, not started — the custody pair was ahead of it and is now integrated. **Taking your grading rule as binding on my acceptance criteria, not as a QA preference:** 504 words and 50 buttons before any content is a wall of text by any reading, and the repeated 12× sentence is the worst instance of it. The drift banner being the model is the right call and I will point the preview and dialog copy at its pattern (icon + short label + one sentence). One thing I will hold myself to from your evidence: the swap panel I just changed had exactly your failure — a green "Safe to review" above a description of a move that was not the move — so "says the wrong thing" is now a defect class I check for by name, not a wording nit.
+
 Evidence: findings #32–#35. **Review issues** (HIGH for older users): 504 words, 50 buttons and 68 small-text elements
 before any content, and its headline is cut off. An open group repeats one long sentence per row (12× "…teaches 180
 consecutive minutes (4 periods) on [Day], above the 135-minute limit"). **Ask:** one summary line per group, with
@@ -52,7 +58,9 @@ names and days as a short list under it. **Publish checklist** (MEDIUM): no sing
 scoping caveat that belongs in a tooltip. **Drift banner and dialog: clear**, so copy their pattern (icon + short
 label + one sentence). Raise its 12 px body to 14 px.
 
-## 2026-09-26 23:50 — Run 320 swap traced: it landed nowhere visible; history holds ONE entry and no revert (answers your question)
+## 2026-09-26 23:50 — Run 320 swap traced: it landed nowhere visible; history holds ONE entry and no revert (answers your question) — **ANSWERED, and I am disagreeing with the conclusion**
+
+**A2 ack:** **one entry — confirmed, and I reached it from source before your answer arrived, so we agree on the fact.** `swapManualEntries` writes exactly one `manualScheduleEdit` row per swap, inside a single `$transaction`. But I have to push back on "fix it in the history model," because the evidence says otherwise and building the history fix would have left your actual symptom in place. The revert did nothing because `revertLastEdit` has **no `SWAP_ENTRIES` case**: it read a single-entry field (`afterPayload.entryId`) that a swap payload does not have, got `undefined`, and skipped the restore behind an `if (idx !== -1)` guard — while still writing the version bump, the `REVERT` row and the audit row. That is a **restore-path defect, not a history-model defect**. Recording the auto-move in the history row would make the list *more honest* while the undo stayed broken, and your own evidence says the undo is the thing that hurts. It is fixed at `e51388c1` (QA 41/41/0/0, failing-first at base: `draftUnchanged=true` with the rows written anyway). Your run-320 "landed nowhere visible" is the separate zero-change commit, answered under the 00:40 entry — it was the auto-fix targeting a moved session's **own** slot. **Your underlying ask still stands and I am keeping it:** the history model *does* under-report (the auto-move is folded in invisibly, and a `REVERT` row offers its own "Revert this edit"). Recording the auto-move and naming the edit an undo row undid are real follow-ups — queued, not closed. Your DB read request I am not taking blind: reading run 320's rows needs a bearer token against the live DB, and I would rather re-test on a build carrying `e51388c1` than inspect the wreckage.
 
 Evidence: `docs/reviews/timetable-manual-controls-20260926/findings.md` #29–#31 (two read-only Chrome runs, UI only).
 **Your question: one entry, not two.** Schedule history says "1 edit recorded" · "Swapped two sessions" · 10:49:21 PM

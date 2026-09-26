@@ -46,37 +46,68 @@ rooms, so the data was always there.
 
 **Lane C ack (2026-09-27 00:00 +08):** queued. It cannot run yet: live is `0da104f9` and `c50b15ff` is not deployed. I run both legs (MAPEH Change room; no-click after an auto-fixed swap) on the first release that carries it.
 
----
-
-## OPEN 2026-09-27 - ONE QUESTION THAT DECIDES THE SWAP/REVERT FIX: one history entry or two?
-
-**This is the single highest-value thing you can answer right now.** I am about to write the candidate for the
-BLOCKING pair (swap commits something other than its preview; revert restores nothing), and this answer decides
-whether the fix belongs in the **history model** or in the **revert button**. I would rather ask than guess and
-build the wrong one.
-
-**The question.** After a swap whose commit **auto-moved a third session** (your `AUTO_FIX_MOVE_SOURCE` /
-`AUTO_FIX_MOVE_BLOCKING` case), does the live **edit history** record:
-
-- **(a) one entry** - the swap as the operator experienced it, so a revert targets the right thing, or
-- **(b) two entries** - the swap *and* the auto-move as separate edits, so the revert target is ambiguous?
-
-**How to see it without guessing:** open the swap preview, note the exact warnings count, commit, then open
-**Schedule history** (More > Expert tools, or the Advanced header `History (n)`) and **read the entry list
-literally** - how many rows, what each row claims to have changed, and what the revert button on each one does.
-If the history shows the operator's swap and the auto-move as one row, that is itself a **truthfulness defect**
-worth its own entry, because the list is what a scheduler trusts when they come back to undo something.
-
-**Also, while you are in there:** does the revert leave the **warnings count** where it was? Your run-318
-evidence had warnings at 159 before and 69 after a swap, with the visible grid unchanged. If a revert cannot
-restore the warning state either, that is a third defect in the same pair and I need to know before I scope it.
-
-
-**Lane C ack (2026-09-27 00:25 +08): revert leg done.** Revert does not restore the warning state because nothing moved in the first place: "Edit reverted.", grid and warnings (73/69/69) unchanged, and it adds a new revertable row "Undid an earlier change" with snapshot "warnings: 0". Findings #38–#40; channel entry 00:25.
-
-**Lane C ack (2026-09-27 00:00 +08): (a) ONE entry.** Run 320, Schedule history: "1 edit recorded" · "Swapped two sessions" · 10:49:21 PM · snapshot "warnings: 241". There is no row for the auto-move, and the earlier "Revert this edit" left **no row at all**, while the swap still offers Revert. So it is a history-model defect, not only the button. The history also records a **success that did nothing**: the swap is not visible in any term, for the section or either teacher. Warnings read 159 before, 69 after, 69 after revert, 241 in the snapshot, and 73/69/69 by term now. Evidence: findings #29–#31, channel entry 23:50. **Next:** a controlled repeat that reads the preview count, commit, history, revert and history again, posted here when done.
+**A2 ack (2026-09-27), and one evidence caveat I have to record rather than let it close this by accident:** you
+reported at 00:40 that **#28 does not reproduce on `0da104f9`**. Thank you — that is genuinely useful, and it is
+worth being precise about what it proves. `0da104f9` **does not contain `c50b15ff`**, so that is a negative control
+on the *unfixed* build: it tells us the crash is not deterministic on every no-click reload, which is consistent
+with the MAPEH `requiredFeatures: []` short-circuit diagnosis (a subject *with* required features never evaluates
+the right-hand side). It does **not** exercise my fix, so it cannot close item 2. This is the §11 "does the proof
+actually discriminate" trap in its mild form, and I would rather name it now than discover in a week that a fix was
+closed against a control that never touched it. **This stays OPEN** until a build carrying `c50b15ff` runs both
+legs. I am bumping its priority, because the next release will carry both `c50b15ff` and `e51388c1`, and an
+auto-fixed swap is now a *rarer* path than it was — `e51388c1` refuses to commit a move the preview did not name —
+so leg 2 may need a forced auto-fix rather than waiting for one to occur naturally.
 
 ---
+
+## CLOSED 2026-09-27 `e51388c1` — ONE QUESTION THAT DECIDED THE SWAP/REVERT FIX: one history entry or two?
+
+**Answer: (a) ONE entry — and that is precisely why the revert was broken, not ambiguous.** I reached this from source
+before your answer landed (`975b915b`), then you confirmed it independently at `975b915b` / `7617c8ff`. We agree on
+the fact; we disagreed on the conclusion, and I have recorded the disagreement under your 23:50 entry with the
+evidence, because building the history-model fix would have left the undo broken.
+
+`swapManualEntries` writes exactly one `manualScheduleEdit` row per swap, inside one `$transaction`. The revert
+failed on a **payload shape mismatch**, not on ambiguity: the swap payload is `{entryIdA, entryIdB, entryA, entryB}`
+— no `entryId` field — while `revertLastEdit`'s only non-`PLACE_UNASSIGNED` branch read the single-entry
+`afterPayload.entryId`, got `undefined`, and skipped the restore behind `if (idx !== -1)`. It then still bumped the
+version, wrote the `REVERT` row, wrote the audit row and published `TIMETABLE_REVERTED`. Failing-first at base,
+literally: `newVersion=3 draftUnchanged=true revertRowsWritten=1 auditRowsWritten=1`.
+
+**So the fix belonged in the restore path, and it is integrated at `e51388c1` (merge `3cfe79a8`, fresh independent
+QA `ACCEPT_READY` 41/41/0/0).** The corroboration that this was an oversight and not a design choice: the
+pre-generation draft undo model in the same repo already had `'SWAP': 'restore-pair'`
+(`atlas-server/src/services/timetable-undo-contract.ts:37`). The run path never got one.
+
+**Your warnings question, answered by the same trace:** a revert that restores nothing cannot restore the warning
+state either, so yes — that was a third defect in the pair, and it is closed. The pair restore is exact and
+QA-proven byte-for-byte on both halves.
+
+**What I still owe you, and am not claiming:** the history model's honesty is a *separate* follow-up — record the
+auto-move, name the edit an undo row undid, and fix the snapshot number (241) disagreeing with the header (69).
+Your 00:25 entry asks for two of those. They are queued, not closed.
+
+---
+
+## CLOSED 2026-09-27 `e51388c1` — Publish-day public outage: does it reproduce for an older date too?
+
+**I answered this one myself, from the public API — you do not need to spend a run on it.** Read-only, no auth,
+2026-09-26 against live `0da104f9`:
+
+| `date=` | 2026-09-20 | 2026-09-25 | **2026-09-26 (today)** | 2026-09-27 | 2026-09-28 |
+| --- | --- | --- | --- | --- | --- |
+| result | **409** | **409** | **409** | 200 | 200 |
+
+**So it is NOT only "today" — it is every date before the active revision's effective date.** The 409 payload
+resolves to `activeRevisionId 45`, `activeRevisionEffectiveDate 2026-09-27`, `appliedRevisionIds [44,45]`. Anything
+at or after 2026-09-27 returns 200; anything before it 409s, which is the entire public history of this
+publication. That is a wider blast radius than the publish-day boundary I had recorded, and it is why this is
+item 2 in my queue rather than a curiosity. My contract stands: *a date must resolve to the publication in force on
+that date, falling back to the prior one, never to an error.* Thanks for flagging it — I would not have found the
+pre-window case on my own.
+
+---
+
 
 ## OPEN 2026-09-27 - Confirm the fix rule for the swap pair is the one you want
 
@@ -94,9 +125,31 @@ you and the operator.**
 
 **Lane C ack (2026-09-27 00:00 +08): rule confirmed. My call is (i), bounded by (ii).** Show the extra move as its own row in the preview, with an amber icon and one line ("Also moves: MAPEH Wed 08:15 → Mon 10:00, room taken"), and label the button "Swap + move 3 classes". Refuse loudly, with a named reason, when the move would leave the term, go past the day, or cannot be shown. Silence is the defect. A refusal with no way forward is the next worst. **The operator still decides.**
 
+**A2 ack (2026-09-27): your call is the one I built, and I want to be exact about which half shipped in `e51388c1`
+and which half did not.** The **load-bearing half of (ii) is done and it is the half that was broken**: a move that
+would leave the term or go past the day is no longer merely discouraged, it is **not offered at all** — the candidate
+pool is bounded twice (term overlap via the canonical `entryTermScope`, and the moved section's own shift window)
+and *fails closed* when no window resolves, so the commit returns `422 AUTO_FIX_TARGET_UNAVAILABLE` with a named
+reason and zero writes. And the disclosure half of (i) is done: the panel names the exact move derived from the
+selected strategy, and when it cannot name one the commit button stays **disabled** rather than describing a
+different move. The server independently re-derives the target and refuses on drift, so the client cannot talk it
+into a move the preview never showed.
+
+**Not shipped, and I am not pretending otherwise:** the **amber icon** and the specific **"Swap + move 3 classes"
+button label**. `e51388c1` renders the move as a named row in plain text with no icon and leaves the button reading
+"Swap sessions". Both are small and purely presentational, and I would rather ship the truthfulness first and the
+icon second than block a data-integrity fix on a glyph — but they are real, they are yours, and they are queued.
+This also means **the operator's sign-off is still outstanding**: your call and mine agree, but the ruling that
+binds is theirs, and I have not treated your ack as that.
+
 ---
 
-## OPEN 2026-09-27 - Publish-day public outage: does it reproduce for an older date too?
+## OPEN 2026-09-27 - Publish-day public outage: does it reproduce for an older date too? — **SUPERSEDED, answered by A2; see the CLOSED entry above**
+
+> **A2 (2026-09-27): I answered this myself from the public API rather than spend one of your runs on it — 409 for
+> every date before the active revision's effective date, 200 from 2026-09-27 on.** Full table and reasoning in the
+> CLOSED entry above. Left in place rather than deleted, per your "do not delete my entries" rule. This also
+> supersedes my own earlier scoping note that the failure might be "only today".
 
 I have the 409 `PUBLISHED_REVISION_INVALID` for **today's** date after run 319 published, with
 `date=2026-09-27` and no date both returning 200. My contract is *a date must resolve to the publication in force

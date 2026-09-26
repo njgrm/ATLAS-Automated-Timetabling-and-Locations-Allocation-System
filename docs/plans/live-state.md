@@ -1998,14 +1998,14 @@ the acceptance rows and the section 7 term guard. Worktree `E:\ATLAS-worktrees\l
 Cycle narrative and per-candidate evidence: `docs/handoffs/planner-a2-handoff-2026-09-26.md`.
 
 **BLOCKING, HIGH, open as of 2026-09-26 - A3 / #3a-3b: the public schedule asserts the wrong term as verified.**
-Live read, no query string: `GET /api/v1/schools/1/schedules/published?date=2026-09-26&termIndex=active` returns
-200 with `source {"termIndex":1,"termScope":"active","activeTermVerified":true}` while the signed-in surfaces show
-**Term 2** active. A **server** fault at `atlas-server/src/services/published-schedule.service.ts:758-773` - a
-frozen run resolves `active` from the publication-time `activeTermOrder` - and it **breaks the section 7
-fail-closed rule** by asserting a term identity as verified when it is not the current one. Not a display label.
-The earlier "the server was already correct" negative diagnosis is **withdrawn** on this evidence. The fix must
-resolve the current verified active term or fail closed, and must never report `activeTermVerified:true` for a
-historical term.
+A **server** fault at `atlas-server/src/services/published-schedule.service.ts:758-773` - a frozen run resolves
+`active` from the publication-time `activeTermOrder`, so the answer tracks **when it was published**, not what is
+current - and it **breaks the section 7 fail-closed rule** by asserting `activeTermVerified:true` for a term that
+is not current. Not a display label. The earlier "the server was already correct" negative diagnosis is
+**withdrawn**. **Re-derived 2026-09-26:** `date=2026-09-27` now returns `source.termIndex:2` with
+`activeTermVerified:true` (was 1), so the live signature has moved and the defect may be masked or merely
+re-expressed - **verify against the signed-in active term on one page load before building**, and do not treat the
+2 as proof it is now correct. Contract: resolve the current verified active term or fail closed.
 
 **Live `0da104f9` acceptance is INCOMPLETE on that row alone** (Lane C, 2026-09-26, Claude in Chrome):
 5 PASS / 1 FAIL / 1 BLOCKED. PASS: sign-in persists, `/my` retired, public term switch keeps a valid section, Runs
@@ -2015,50 +2015,57 @@ in this release). FAIL: A3.
 **Queue - one candidate at a time, fresh independent QA before each integration. Re-ranked 2026-09-26 23:30 by
 Lane C's committed-path QA (`docs/handoffs/lane-c-to-a2.md`), which found two BLOCKING data-integrity defects
 ahead of my own list:**
-1. **Swap commits something other than its preview, and Revert does nothing (BLOCKING x2).** A swap previewed
-   ESP to Mon 07:30 committed it to **Wed 12:15, after the section's day ends**, leaving Mon 07:30 empty; the
-   undo then logged "Undid an earlier change" and restored nothing. Lead: `findAutoFixTarget`
-   (`atlas-server/src/services/manual-edit.service.ts:2065`) has **no term filter** (a section 7 fail-closed
-   breach: an auto-fix may only move a session within the selected verified ordered term) **and no shift bound**.
-   Two defects, two fixes; closing only the term filter is not acceptable. Contract adopted from Lane C: *a commit
-   must apply exactly what its preview showed, or refuse; an undo must restore the prior state or say it cannot.*
-2. **Publishing takes the public schedule offline for the publish day (BLOCKING).** After Lane C published run 319
-   (14:23:48Z), `published?date=2026-09-26&termIndex=active` returned **409 `PUBLISHED_REVISION_INVALID`** while the
-   same URL with `date=2026-09-27` or no date returned 200 - and the public page sends today's date, so parents saw
-   "Unable to load public schedule". A date must resolve to the publication in force on it, never to an error.
+1. **DONE 2026-09-27 - swap commits something other than its preview, and Revert does nothing (was BLOCKING x2).**
+   Integrated `e51388c1` (merge `3cfe79a8`), fresh independent QA **`ACCEPT_READY` 41/41/0/0**, all three defects
+   reproduced **failing-first at base** on a disposable DB. The revert root cause was **not** the history model
+   (Lane C concluded it was; disagreed with evidence in the channel) - it was a payload-shape mismatch in
+   `revertLastEdit`. Full traces, base literals and follow-ups: handoff §3 item 1 and §9.
+2. **BLOCKING, HIGH, open, and WIDER than first recorded 2026-09-27 - publishing takes the public schedule offline
+   for every date before the active revision's effective date.** Measured on live `0da104f9`, read-only, no auth:
+   `date=` **2026-09-20, 09-25 and 09-26 all return 409 `PUBLISHED_REVISION_INVALID`**; 2026-09-27 and 09-28
+   return 200. The 409 payload carries `activeRevisionId 45`, `activeRevisionEffectiveDate 2026-09-27`,
+   `appliedRevisionIds [44,45]` - so **it is not only "today"**; it is the whole pre-window public history, and my
+   earlier "possibly only a publish-day boundary" scoping was wrong. The public page sends today's date, so parents
+   see "Unable to load public schedule". Contract: a date must resolve to the publication in force on it, falling
+   back to the prior one, **never to an error**. Keep separate from A3 unless the implementation proves one resolver.
 3. **"Change room" crash (BLOCKING) - FIXED, integrated `c50b15ff`** (fix `d6513f32`), not deployed. `aa7f6f67`
    exonerated; real cause is the client `RoomInfo` type omitting `features` while `ManualEditPanel.tsx:514` read
-   `selectedRoom?.features.length`. Fresh QA `ACCEPT_READY` 10/10/0/0. **Awaiting Lane C re-test**, including the
-   no-click-after-auto-fix-swap path (findings #28) - if that still reproduces, it is a second root cause.
-4. **A3, public default term (HIGH)** - still open. Lane C's #13 sharpens it: run 319 answers Term 2 *only because
-   it was published in Term 2*, so `active` tracks the **publication-time** term, not the current one.
-5. **Runs "Published" tag**, the daily-load cap preview (`11.3h (max 8h)` on a same-day swap, probably summed
-   across terms), "Change owner" landing on the wrong teacher, the dashboard's dead "Exceptions" wording (a real
-   post-publish path exists - it is `MISLABELLED` copy, cheap), and the teacher-leaving wizard (no program-authority
-   control, so "Grant authority first" names a control that does not exist).
+   `selectedRoom?.features.length`. Fresh QA `ACCEPT_READY` 10/10/0/0. **Awaiting Lane C re-test** on a build that
+   contains it. `#28 does not reproduce on 0da104f9` does **not** close this - that release lacks the fix, so the
+   control does not discriminate.
+4. **A3, public default term (HIGH)** - still open; see the BLOCKING entry above.
+5. **Runs "Published" tag**, the daily-load cap preview (`11.3h (max 8h)` on a same-day swap, probably summed across
+   terms), "Change owner" landing on the wrong teacher, the dashboard's dead "Exceptions" wording (a real post-publish
+   path exists - it is `MISLABELLED` copy, cheap), the teacher-leaving wizard (no program-authority control, so
+   "Grant authority first" names a control that does not exist), and Lane C's 2026-09-27 communication grades
+   (Review issues is 504 words / 50 buttons before content - a wall of text; the drift banner is the model to copy).
 6. Then my items 2-3: shared lifecycle model, then one label per violation code.
 7. **Release packet (HIGH)** - no longer blocked on capacity; still sequenced behind the source fixes.
 
-**Open, dated 2026-09-26, from `docs/reviews/timetable-control-inventory-2026-09-26.md` (296 rows, on `main`):**
-`MISLABELLED` 9 - the grid entry's accessible name says "Schedule note" where every visible surface says warning;
-`Run #<id> COMPLETED` prints a raw enum; the `G1AW` room suffix is defined nowhere; and four user-visible strings
-in `SchedulingPolicyPane.tsx` carry committed `U+FFFD` characters (`:548,555,712,724,851` - valid UTF-8, damaged
-glyphs, the only such file in `atlas-client/src`). `DUPLICATE` 3 - the Advanced layout mounts **two** Undo
-controls sharing one `aria-label` *and* one `data-testid="timetable-visible-undo"`, so any future `getByTestId` on
-it fails on multiple matches and nothing today detects it. `DEAD` 1 - `Header and signatories` renders when the
-print dialog is opened by URL while its target mounts only with a generated run. `UNMOUNTED` 5 - components no
-page mounts. `UNTESTED` 149, including **all** of `ManualEditPanel`, `BuildingView`, `TacticalSandboxDock` and the
-policy field set. Also new: **every room on `/timetable/building` renders "0%"** because
-`CenterWorkspace.tsx:651-660` passes no `roomUtilization` while `BuildingView.tsx:439` prints it unconditionally.
+**Open, dated 2026-09-26, from `docs/reviews/timetable-control-inventory-2026-09-26.md` (296 rows; row-level detail
+lives in that file, not here):** `MISLABELLED` 9 (incl. four user-visible `U+FFFD` strings in
+`SchedulingPolicyPane.tsx` `:548,555,712,724,851`); `DUPLICATE` 3 (two Advanced Undo controls share one
+`aria-label` *and* one `data-testid`, so a future `getByTestId` fails on multiple matches and nothing detects it);
+`DEAD` 1; `UNMOUNTED` 5; `UNTESTED` 149 (incl. **all** of `ManualEditPanel`, `BuildingView`,
+`TacticalSandboxDock`). Also: **every room on `/timetable/building` renders "0%"** (`CenterWorkspace.tsx:651-660`
+passes no `roomUtilization`; `BuildingView.tsx:439` prints it unconditionally).
 
 **Operator decisions, not mine to take:** Undo/Redo in the Simple layout; lunch-window and 180-minute blocks as
-warning or blocking; constraint severity D1-D3; whether committed-path QA runs on live or on a local snapshot
-(Lane C recommends a local copy; live commits touch real teachers' and the public's schedule).
+warning or blocking; constraint severity D1-D3; **the amber-icon/button-label refinement and the operator's ruling on
+Lane C's (i)-bounded-by-(ii) auto-fix rule**; and whether committed-path QA runs on live or on a local snapshot
+(Lane C recommends a local copy - live commits touch real teachers' and the public's schedule).
 
-**E: capacity - RESOLVED 2026-09-26, and the earlier "needs an operator decision" line here was WRONG.** The
-threshold changed to **warn below 25 GiB / fail closed below 15 GiB** (operator, `6404c213`). At the recorded
-**49.80 GiB no reclaim is owed** and a release build may start. A build costs ~1.46 GiB, so a release needs no
-capacity decision first. Measure before each build as before.
+**Follow-ups owed, all dated 2026-09-27, none blocking:** Lane C's amber icon + "Swap + move 3 classes" label (the
+load-bearing half of their rule shipped; the glyph and label did not); history-model honesty (record the auto-move,
+name the edit an undo row undid, and the snapshot reading **241** while the header says **69**); QA **F1** -
+`manual-edit.router.ts:249` does not validate `strategy` against the enum on the wire (it cannot commit a relocation
+today; a zod enum returning 400 is a bounded one-line follow-up); QA **F2** - **`test:client-suite` omits 21 client
+test files**, so "the full client suite" overstates coverage and a green run is not full client coverage.
 
-**Next action (2026-09-26):** dispatch the **swap-vs-preview + revert** pair as the next candidate - one executor,
-one fresh independent QA, then integrate. Not started. Lane C re-test of `c50b15ff` is owed.
+**E: capacity - RESOLVED 2026-09-26, and the earlier "needs an operator decision" line here was WRONG.** Threshold is
+**warn below 25 GiB / fail closed below 15 GiB** (operator, `6404c213`). Re-measured **2026-09-27: 49.20 GiB free - no
+reclaim owed**, and a release build may start. Measure before each build.
+
+**Next action (2026-09-27):** dispatch **queue item 2, the publish-date resolver** - HIGH, one executor, one fresh
+independent QA, failing-first on a disposable database. It is now the only live-facing BLOCKING defect, and it is
+wider than a single day. Re-derive the live date matrix first (it moves: Lane C publishes and regenerates on live).
