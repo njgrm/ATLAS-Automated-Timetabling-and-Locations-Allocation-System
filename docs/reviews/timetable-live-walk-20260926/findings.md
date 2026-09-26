@@ -66,3 +66,26 @@ Undo/Redo belongs in Simple.
 ## Cost (`subagent_tokens`)
 
 Walk 1: 68,237 (BLOCKED `NEEDS_SESSION`, no sign-in in the Chrome profile). Walk 2: 132,100 (43 tool calls).
+
+## Re-check on `e4989b72` — independent second opinion (Codex CLI, 2026-09-26 evening)
+
+Read-only, signed in, 1536 px, 35 browser calls. One console error only: the EnrollPro `settings/public` 502.
+The live release had moved from `26f7c907` → `400a6909` (15:49) → `e4989b72` (17:24, A2).
+
+**Fixed since the morning walk**
+- **#1 fixed:** the 100-warning group now reads **"Teacher has no free lunch window"**.
+- **#2 fixed in the Review-issues panel:** "0 Must fix + 194 Warning". No Hard/Soft wording.
+- Group sums still reconcile (17+100+31+3+10+33 = 194), and Publish Readiness agrees on the numbers.
+
+**Still open, confirmed by both runners**
+- **#5 no draft/published statement.** Only a "Draft" tab and the Publish button hint at it. A drift banner now also shows ("Schedule information changed… current schedule stays unchanged…"), which makes the page's state harder to read.
+- **#6 no Undo/Redo** anywhere on the screen.
+- **#7 Room view label** "G10 Room 101 · G1AW": a mostly empty week with no empty state.
+- **#4 "194 warnings" / "Ready except for warnings"** gives no priority to act on.
+
+**New**
+- **One warning, two names.** Review issues and Publish Readiness use different labels for the same groups: "Long teaching block" vs "Too many consecutive periods", "Long idle gap" vs "Long teacher idle gap", "Too many building changes" vs "Too many building transitions". "Cross-Floor Transition" is still title-case engine wording. A second label map survives. The label guard in `9b1ec14a` checks that each code *has* a label, not that there is only *one* label per code. → **A2**, MEDIUM.
+- **The More menu has grown to six groups:** Schedule actions, Daily tasks, Expert tools, Help & display, Tools (Teacher concerns, Campus map, Manual edit, Building view) and Schedule data (Latest Run, Refresh timetable, Refresh school names). Everyday work and expert/technical tools are mixed together, which undoes much of the six-control calm in the header. → **A2**, MEDIUM.
+- *Codex's opinion, which Lane C does not adopt:* the warning dialog "exposes high-risk edit actions immediately". Those actions *are* the repair path, and each opens a preview before anything is saved. Keep them.
+
+Codex cost: 2.43 M input tokens (2.34 M cached), 6.7 k output, on the operator's ChatGPT plan.
