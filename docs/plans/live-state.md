@@ -97,7 +97,28 @@ resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs
 
 - Tailnet: `https://njgrm.buru-degree.ts.net`
 
-- **LIVE: `e4989b725394204898ebcd429db74daaf7316323` (full 40-char), rollback basis
+- **DEPLOY IN PROGRESS — target `0da104f96696aef7de7016e5364f29b50d0ed00f`, rollback basis
+  `400a6909a9642703e3891861c40d5f49f85c7cd9`** (Lane A2, 2026-09-26, HIGH authority granted by the
+  operator). Recorded here BEFORE the cutover because `ops/runtime/deploy-runner.ps1` refuses to swap
+  unless this register already names the target and its rollback, so the runtime can never be swapped
+  while this file is silent about it.
+  **Target `0da104f9`, deliberately NOT the `origin/main` tip `4174f295`**: the commits above the pin
+  (`e4df0019`, `4174f295`) are two docs-only commits, and a release must not be pinned to a SHA that
+  carries unreviewed material. Docs-only commits above a product pin are safe to ship alongside.
+  **What the target adds** over the live `e4989b72`, all client-only with zero `atlas-server/`, `prisma/`,
+  migration or seed path: the `/my` faculty portal tombstone (`5680c87a`), and browser-QA items #4 and
+  #3c (`b6db07b3`) — one plain name for a blocking problem, and the public term switch no longer clearing a
+  still-valid section. `b6db07b3` passed fresh independent QA at 14/14/0/0; merged-tree gates 18/18, 30/30,
+  31/31 and the full client suite still failing exactly the 12 pre-existing names, none added.
+  **No schema command is authorised** — the range is client-only.
+  **Cutover NOT yet executed.** Remaining HIGH steps: independent pre-action review, release build
+  (`VITE_ENROLLPRO_URL` **must** be set or the client build exits 1 silently), dry run, elevated
+  `-Execute`, proof by byte-comparing a chunk that exists only in the new build, then fresh post-action QA
+  with a real `passed/blocked/unperformed` tally. **A healthy process is `DEPLOYED`, not accepted.**
+  **Before the swap, re-check that Planner A has not claimed the window** — A works alongside and may
+  deploy at any time; this entry is not a lock on A.
+
+- **LIVE (until the entry above completes): `e4989b725394204898ebcd429db74daaf7316323` (full 40-char), rollback basis
   `400a6909a9642703e3891861c40d5f49f85c7cd9`** (Lane A2, 2026-09-26, HIGH authority granted by the
   operator). Release dir `E:\ATLAS-runtime-supervised-e4989b72-20260926`.
   **Re-verified by command this session**, not inherited: the scheduled-task action names
