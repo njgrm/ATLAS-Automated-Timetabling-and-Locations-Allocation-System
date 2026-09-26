@@ -34,6 +34,7 @@
     "test:timetable-post-deploy-c05": "tsx --test src/components/timetable/__tests__/timetable-post-deploy-c05.test.ts",
     "test:a2-timetable-custody": "tsx --test src/components/timetable/__tests__/timetable-runs-pending-custody-a2.test.tsx src/components/timetable/__tests__/timetable-drift-banner-390-a2.test.tsx src/components/timetable/__tests__/timetable-change-room-features-a2.test.tsx",
     "test:timetable-swap-custody-a2": "tsx --test src/components/timetable/__tests__/timetable-swap-custody-a2.test.tsx",
+    "test:a3-teachers-load": "tsx --test src/components/faculty-assignments/__tests__/a3-teachers-load-c3.test.tsx src/components/faculty-assignments/__tests__/a3-swap-confirmation-c3.test.tsx",
     "test:timetable-lifecycle-loading": "node --experimental-test-module-mocks --import tsx --test src/components/timetable/__tests__/timetable-lifecycle-loading-render-c03.test.tsx",
     "test:timetable-scheduling-quality-c03": "tsx --test src/components/timetable/__tests__/timetable-scheduling-quality-c03.test.tsx",
     "test:retired-faculty-portal": "tsx --test src/lib/__tests__/retired-faculty-portal-custody.test.tsx",

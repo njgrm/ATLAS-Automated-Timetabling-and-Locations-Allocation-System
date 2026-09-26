@@ -7,6 +7,7 @@ import {
 	STANDARD_WEEKLY_TEACHING_HOURS,
 } from '@/lib/faculty-assignment-helpers';
 import { GRADE_COLORS, gradeLabel } from '@/lib/grade-labels';
+import { formatFacultyDisplayName } from '@/components/faculty/teacherNameDisplay';
 import { cn } from '@/lib/utils';
 import { Button } from '@/ui/button';
 import { Badge } from '@/ui/badge';
@@ -124,7 +125,7 @@ export function FacultyIdentityCell({ faculty }: { faculty: FacultySummary }) {
 			</div>
 			<div className="min-w-0">
 				<div className="flex min-w-0 items-center gap-2">
-					<p className="truncate font-semibold leading-tight text-foreground">{faculty.lastName}, {faculty.firstName}</p>
+					<p className="truncate font-semibold leading-tight text-foreground">{formatFacultyDisplayName(faculty)}</p>
 					{isPlaceholder && (
 						<>
 							<Badge variant="outline" className="h-4 px-1.5 text-[0.65rem] font-bold border-violet-200 bg-violet-50 text-violet-700">Temporary</Badge>
@@ -362,7 +363,7 @@ export function FacultyPreferredGradesControl({ faculty }: { faculty: FacultySum
 	};
 
 	const wideSpan = hasWideGradeSpan(faculty.assignedGradeLevels);
-	const teacherName = `${faculty.lastName}, ${faculty.firstName}`;
+	const teacherName = formatFacultyDisplayName(faculty);
 
 	return (
 		<div className="flex flex-wrap items-center gap-1" data-testid="teacher-grade-preference">
@@ -437,7 +438,7 @@ export function FacultyPreferredGradesControl({ faculty }: { faculty: FacultySum
 export function FacultyAssignedClassesCell({ faculty, onClick }: { faculty: FacultySummary; onClick?: () => void }) {
 	const assignments = faculty.assignments ?? [];
 	const summaries = buildSubjectSummaries(assignments);
-	const teacherName = `${faculty.lastName}, ${faculty.firstName}`;
+	const teacherName = formatFacultyDisplayName(faculty);
 
 	const Wrapper = onClick ? 'button' : 'div';
 	const wrapperProps = onClick
@@ -578,7 +579,7 @@ export function FacultyMobileCard({
 	const presentation = getFacultyLoadPresentation(faculty);
 	const assignments = faculty.assignments ?? [];
 	const summaries = buildSubjectSummaries(assignments);
-	const teacherName = `${faculty.lastName}, ${faculty.firstName}`;
+	const teacherName = formatFacultyDisplayName(faculty);
 
 	return (
 		<div className="rounded-xl border border-slate-100 bg-slate-50/70 p-3 shadow-sm" data-testid="teacher-mobile-card">
