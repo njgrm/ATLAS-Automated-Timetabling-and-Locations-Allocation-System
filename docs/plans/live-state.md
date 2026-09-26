@@ -1269,14 +1269,70 @@ write-path authority change, enumerate **every writer** of the field in question
 proposing to remove it. **Not re-authored here** — the fix design is now known and specific, and it belongs in a
 fresh cycle with its own pre-action review rather than a third rewrite at the end of an overlong session.
 
+**R2 PRE-ACTION `CORRECTION_REQUIRED` 6/11 — and it found TWO NEW DEFECTS, not just packet errors. I am stopping
+here (2026-09-26). R1 and R2 are both withdrawn.** Four consecutive pre-action cycles on this packet, each finding
+new blocking defects. The finding is now **much larger than one packet**, and the right next step is a scoped
+investigation, not a third rewrite.
+
+**Two previously unrecorded channels, both verified by the reviewer with probes:**
+
+1. **`commitManualEditBatch` downgrades HARD violations with NO client metadata at all.**
+   `manual-edit.service.ts:1478-1487` stamps `deferredRoomTypePreference: true` onto **every** new entry whose
+   `room.type !== subject.preferredRoomType`. The reviewer's probe, same proposal, a `LAB` room against a
+   `CLASSROOM` preference with a missing `FUME_HOOD`, and **no `metadata` key in the proposal**:
+   `SINGLE /commit` → `allowed:false, hardAfter:3`, all HARD; **`/batch/commit` before auto-defer → HARD; after
+   auto-defer (`:1478-1487`) → both `ROOM_TYPE_MISMATCH` and `ROOM_FEATURE_MISMATCH` become SOFT.** So the identical
+   edit is hard-rejected on one route and silently accepted on another. `constraint-validator.ts:860-863` documents
+   `ROOM_FEATURE_MISMATCH` as "a HARD violation that would block publication", so this batch path softens a
+   publication-blocking constraint by design. **This is independent of `:692` and survives that fix entirely.**
+2. **There are FOUR body-taking proposal routes, not two**, plus a fifth path on a different router:
+   `manual-edit.router.ts:48` (preview), `:78` (commit), `:109` (batch/preview), `:139` (batch/commit), and
+   **`timetable-teaching-load-repair.router.ts:134`**, which forwards a client `placementProposal` into
+   `applyProposalBatch` — and `bindPlacementToUnassignedChange` returns `{ ...proposal }`, **preserving
+   `metadata`**. This is why R2's router-stripping mechanism **provably cannot satisfy its own property**: the
+   repair path is on another router, and only fixing the service choke point closes it. `applyProposal` *is* the
+   single choke point — every path funnels through it.
+
+**My R2 mechanism was the specification that produced R1's error.** Leaving "the exact shape is yours to choose",
+while offering router-stripping as an acceptable option, named a mechanism that cannot work and omitted a path no
+reading of the property catches. **Pinning the mechanism to the service choke point is mandatory**, and the
+reviewer is right that delegating it to the executor reproduces exactly the failure the correction round exists to
+prevent.
+
+**CORRECTION TO MY OWN RECORD — I asserted a data claim I had not measured.** I wrote that deferral-bearing keys
+"only ever appear alongside server-written companions" and cited "150 rows carrying a lone `roomAssignmentReason`".
+**Both are wrong.** The reviewer measures **3,000** entries carrying a lone `deferredRoomTypePreference` with none
+of `modularAssignments` / `roomAuthorityDeviationReason` / `fallbackTier`, and **13,800** by the same shape of
+test, not 150. My conclusion was not wrong, but my evidence for it was asserted rather than measured — the same
+failure mode as the fabricated SHA earlier in this session.
+
+**The no-repair conclusion survives on a far stronger, independently confirmed signal:** `manual_schedule_edits`
+has **0 rows**, i.e. **no manual edit of any kind has ever been committed on this database**. The `:692` channel
+has therefore never been exercised, and the fix is forward-looking only.
+
+**Other corrections the review forced:** the repo-wide over-1000 count is **39** across the two `src` trees (73
+repo-wide), not "44+"; my claim that `test:server-suite` reaches the named test file is **false** (the dedicated
+`test:timetable-scheduling-quality-c03` does, and `gate-reachability.test.ts` polices that); the Quick Place
+preservation control **would pass vacuously** on the default fixture because `requiredFeatures: []` makes
+`roomRequiredFeatures` yield `[]` — it must use the feature-mismatching fixture at
+`timetable-scheduling-quality-c03.test.ts:672`; and the client typecheck baseline is unmeasurable in `D:\ATLAS`
+(`TS2688`, `@types/node` absent) so the executing worktree must have it installed.
+
+**Why I am not writing R3.** Four pre-action cycles, and the last one did not merely correct my packet — it
+**enlarged the defect** by two independent channels and proved my chosen mechanism incapable of closing it. The
+scope is now: a service-choke-point fix for `:692`, plus a separate decision on whether the batch auto-defer may
+soften a publication-blocking constraint, plus the repair router's proposal path. **That is a scoped
+investigation with its own evidence, not a third packet rewrite at the end of an overlong session.**
+
 **Next action (2026-09-26): the release is live; acceptance needs one operator action.** (1) **operator
 re-seeds** `C:\Users\njgro\.config\opencode\playwright-profile`; (2) **Lane A** runs A5, A6, A7, A12(b) and records
-the result, closing acceptance; (3) **rotate the exposed dev DB credential**; (4) **author the channel-separation
-rewrite of the `PLACE_UNASSIGNED` metadata authority fix, with the Quick Place preservation control and a delta
-sweep row — the highest-value open item, now precisely specified**; (5) retention reclaim before the next release
-build (E: 46 GiB, below the 50 GiB warning); (6) the `4893cbde` + three-leftover decision (1.91 GiB) and the
-8.72 GiB disposition backlog owned by Lanes B and C; (7) the three room-affordance design decisions; (8) a decision
-on the oversized `.ts` modules. **Rollback basis `116a7658` is verified eligible and was not executed.**
+the result, closing acceptance; (3) **rotate the exposed dev DB credential**; (4) **a scoped investigation of
+client-controlled constraint severity across all five routes**, covering the `:692` channel, the
+`commitManualEditBatch:1478-1487` auto-defer, and the Teaching Load repair `placementProposal` path — now the
+highest-value open item and no longer a single packet; (5) retention reclaim before the next release build
+(E: 46 GiB, below the 50 GiB warning); (6) the `4893cbde` + three-leftover decision (1.91 GiB) and the 8.72 GiB
+disposition backlog owned by Lanes B and C; (7) the three room-affordance design decisions; (8) a decision on the
+oversized `.ts` modules. **Rollback basis `116a7658` is verified eligible and was not executed.**
 
 **SUPERSEDED 2026-09-26 — a spliced paragraph this lane's own editing left behind, repaired.** The four lines
 immediately below were an orphaned fragment, and the sentence they belonged to was cut in half. They are
