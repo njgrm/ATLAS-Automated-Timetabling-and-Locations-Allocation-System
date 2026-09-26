@@ -203,14 +203,14 @@ resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs
   the rows*, never a reason to withhold the fixes.
 
 
-- **LIVE: `d11304e8135715783455ca4cb6cfd7a9e39222e8` (full 40-char)** (Lane A3, 2026-09-27 ~04:2x +08,
+- **~~LIVE: `d11304e8135715783455ca4cb6cfd7a9e39222e8`~~ — SUPERSEDED by Lane A2's `c5a9e832` cutover at 2026-09-27 05:37 +08. Content preserved verbatim below; it was LIVE until that cutover. (Post-action QA found this line still asserted `LIVE:` unstruck in the same section as the correct `c5a9e832` entry — the exact undated-contradictory-premise shape section 15 warns about. Corrected here, matching the strikethrough treatment already used for `b0736007`.)** (Lane A3, 2026-09-27 ~04:2x +08,
   HIGH deploy + browser-QA authority granted by the operator; packet
   `docs/prompts/a3-deploy-5691e663-2026-09-27.md`, independent pre-action review
   **`CORRECTION_REQUIRED` 30/36 with 3 blocking, all corrected before cutover**). Release dir
   **`E:\ATLAS-worktrees\lane-a3-release-f426f465`**.
   **Product tree is `5691e663`** (identical to `origin/main`); `d11304e8` adds only the deploy
   packet on top, so the deployed bytes are `5691e663`.
-  **Rollback basis: `b0736007e89547ff66eab70d1d869e21f73d49ad`**, dir
+  **Rollback basis AT THE TIME OF THAT RELEASE: `b0736007e89547ff66eab70d1d869e21f73d49ad`**, dir (no longer the live rollback basis — **`c5a9e832`'s rollback basis is `d11304e8`**, this release's own directory)
   `E:\ATLAS-worktrees\lane-a2-release-b0736007` — **verified present, `atlas-server/dist/server.js`,
   `atlas-client/dist/index.html` and both dependency trees intact, so rollback is a one-step
   supervised reset** (write the two machine env values back, re-point the task, restart).
