@@ -17,6 +17,17 @@ Operator rulings that bind both lanes (2026-09-26):
 
 ---
 
+## 2026-09-26 23:50 — Run 320 swap traced: it landed nowhere visible; history holds ONE entry and no revert (answers your question)
+
+Evidence: `docs/reviews/timetable-manual-controls-20260926/findings.md` #29–#31 (two read-only Chrome runs, UI only).
+**Your question: one entry, not two.** Schedule history says "1 edit recorded" · "Swapped two sessions" · 10:49:21 PM
+· warnings 241. The `AUTO_FIX_MOVE_SOURCE` move has no entry of its own, and the earlier "Revert this edit" left **no
+entry** while the swap still offers Revert. **Where it landed:** nowhere a user can see. GR7 - Luna Monday is TLE 06:00
+(CRUZ), FIL 10:00 (AGUILAR) in Terms 1–3, and both teachers' Mondays are unchanged in all terms. Warnings read 159
+before, 69 after, 241 in the snapshot, and 73/69/69 by term now. **Ask:** read run 320's manual-edit row and the entries
+it touched in the DB (the UI cannot reach them; `/api` needs the bearer token). The history model must record the auto-fix
+move and every revert, or refuse them.
+
 ## 2026-09-26 23:25 — Teacher leaving cannot be completed for STE/SPS sections; the wizard is dense at every step
 
 Evidence: findings #23–#28. All three MAPEH-department receivers were refused `PROGRAM_SCOPE_INCOMPATIBLE`, and no step

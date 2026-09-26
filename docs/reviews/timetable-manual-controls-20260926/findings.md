@@ -110,3 +110,16 @@ section program (PROGRAM_SCOPE_INCOMPATIBLE)". Nothing was saved.
 | 28 | **The Change room crash can appear without clicking it.** After the round-2 swap, `/timetable` carried the `ManualEditPanel` TypeError and a floating "Source session auto-fixed to the nearest valid slot." toast before any action in this run. The crashing panel may mount on its own once an auto-fixed entry exists (not isolated). | HIGH (verify) |
 
 Cost (`subagent_tokens`): see the channel.
+
+## Trace of run 320's swap (#20), read-only (live `0da104f9`, 2026-09-26 ~23:45 +08)
+
+Two Claude-in-Chrome runs, UI only. The JSON reads were not possible: `/api/v1/...` needs the app's bearer token
+(`NO_TOKEN` on a plain same-origin fetch), and the runner rightly did not read it.
+
+| # | Finding | Severity |
+|---|---|---|
+| 29 | **The committed swap is invisible everywhere.** GR7 - Luna Monday is the same in Terms 1, 2 and 3: TLE 06:00 (P. CRUZ), FIL 10:00 (C. AGUILAR). The Monday cells for CRUZ and AGUILAR are the same in all three terms too, with no overlap and nothing outside the day. The only difference between terms is unrelated: Mon 06:45 SCIENCE is J. Villanueva in Term 1 and R. Santos in Terms 2–3. Either the swap never applied and the history lies, or it changed a row that no section or teacher view shows. | **BLOCKING** (with #8/#20) |
+| 30 | **The history records one entry and no revert.** Modal: "1 edit recorded" · "Swapped two sessions" · 9/26/2026 10:49:21 PM · "All serious problems: 0, warnings: 241". The earlier "Revert this edit" (#20) left **no entry**, and the swap still offers Revert. The auto-fix move has **no entry of its own**. | **BLOCKING** (with #9) |
+| 31 | **Four warning counts disagree.** Before the swap 159; after it 69 in the header; 241 in the history snapshot; per term now T1 73, T2 69, T3 69. The user cannot tell which number to trust or what the swap did to it. | HIGH |
+
+Cost (`subagent_tokens`): 109,335 + 127,889.
