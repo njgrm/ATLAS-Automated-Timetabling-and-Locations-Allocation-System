@@ -827,210 +827,51 @@ dev database credential, and replace name-substring redaction with an allowlist 
 blanket suppression of anything matching `URL|PASS|SECRET|TOKEN|KEY|CRED|DSN`. Treat any transcript from this
 cycle as containing the old value until it is rotated.
 
-**SUPERSEDED 2026-09-26 (fresh Lane A session, ~13:20 +08) — the sentence above is FALSE, and it materially
-understates the incident. The value was already committed to the shared repository, long before this cycle.** The
-claim "not written to any file, commit, doc, or prompt" was asserted and never tested. It is wrong.
+**COMMITTED-CREDENTIAL INCIDENT â€” condensed record 2026-09-26. Full evidence, commands and verdicts:
+`docs/handoffs/lane-a-credential-incident-2026-09-26.md`. Kept short deliberately (Â§15).**
 
-**Measured, by hash comparison, never by printing the value.** The live credential is
-`atlas_user@localhost:5432/atlas_recovery_clean_rebuild_20260905` in
-`D:\ATLAS-runtime-config\atlas-server.env` (outside the repo, and `.env*` is ignored at `.gitignore:95`, so the
-*env file itself* is not the problem). SHA-256 of that password, first 16 hex: **`D982B00C0D617681`**. A scan of
-every file reported by `git ls-files` for `postgres(ql)://user:pw@host/db` and hashed each password found **5
-locations across 4 tracked files** whose password hash equals the live one:
-
-| Location (host/db as written) | Note |
-| --- | --- |
-| `atlas-server/.env.example:2` (`atlas_db`) | **the template new `.env` files are copied from** |
-| `atlas-server/diag.cjs:1` (`atlas_db`) | added by `c12238cd0`; `merge-base --is-ancestor c12238cd0 origin/main` → **exit 0** |
-| `atlas-server/src/scripts/assign-coverage-subjects.mjs:3` (`atlas_db`) | |
-| `atlas-server/src/scripts/verify-cross-repo-source-gate.ts:56` (`enrollpro`) and `:57` (`atlas_db`) | one file, two lines |
-
-**Why this is worse than the transcript, and why rotation alone does not close it.** The committed DSNs name
-`atlas_db`/`enrollpro`, not the live database — but the **password is byte-identical to the live one**, so the same
-secret is reused and is recoverable by anyone with repository access. It is in **Git history**, so deleting the file
-later does not remove it, and the remote is a GitHub repository
-(`njgrm/ATLAS-Automated-Timetabling-and-Locations-Allocation-System`, from `git remote -v`). **Whether that
-repository is private or public is UNVERIFIED — `gh` is not installed on this host — and it decides the urgency, so
-it is the operator's first question, not a planner assumption.** Consequences, stated plainly:
-
-1. **Rotation is necessary but not sufficient.** A new password leaves the old one live in history, in every clone,
-   and in the GitHub remote. Closing this properly needs the committed value replaced, and a decision on history.
-2. **A history rewrite is a HIGH, shared-repo, force-push action** affecting every lane's clone and every open
-   branch. It is **not** taken here and **must not** be taken unattended.
-3. `.env.example` is the highest-leverage single file: it is the documented template, so the secret propagates to
-   every fresh checkout by design.
-
-**This is the one place where "record what you actually ran" and the redaction rule interact:** the evidence is the
-*hash* `D982B00C0D617681` and the file:line list, never the value. Remediation is a bounded source change in four
-server files (Lane B's surface per the lane map) plus an operator-owned rotation; the history decision is the
-operator's. Recorded here, in Lane A's section, because the credential item is Lane A's retained queue.
-
-**EXPOSURE MEASURED, 2026-09-26 ~13:35 +08 — the repository is PUBLIC, and the database is Tailnet-reachable. Both
-confirmed, neither assumed.** An unauthenticated fetch of the repo page returned full content and rendered the
-**`Public`** badge, so the credential is **publicly disclosed**, not merely repo-visible. Then, on the host:
-
-- PostgreSQL **listens on `0.0.0.0:5432` and `:::5432`** (PID 7328) — all interfaces, not loopback — and a
-  firewall rule **`Tailscale_Postgres_5432 = Allow`** permits inbound 5432.
-- `D:\PostgreSQL\18\data\pg_hba.conf` ends with exactly one Tailnet grant:
-  `host  atlas_db  atlas_user  100.64.0.0/10  scram-sha-256`. `100.64.0.0/10` is the Tailscale range, and this
-  host's Tailnet address `100.88.55.125` is inside it.
-- **So any enrolled Tailnet node can authenticate as `atlas_user` to `atlas_db`** using a password published on a
-  public page, with the DSN's exact shape (`atlas_user` / `localhost:5432` / `atlas_db`) already written out in
-  the committed files. This is a live, concrete path — not a theoretical one.
-
-**Blast radius, measured rather than feared (exact `count(*)`, not the `n_live_tup` estimate, across every
-user table):**
-
-| Database | Tailnet-reachable as `atlas_user`? | Rows |
-| --- | --- | --- |
-| `atlas_db` | **YES** — the one `pg_hba` grant | **28 total**: 27 `_prisma_migrations` + 1 `scheduling_policies`. No faculty, subjects, auth accounts or audit rows. |
-| `atlas_recovery_clean_rebuild_20260905` (live) | **No** — no `pg_hba` grant; needs `127.0.0.1`/`::1`/socket | 2,705 across 34 tables, incl. 45 `atlas_auth_accounts`, 424 `audit_logs` |
-
-`atlas_user` is **not** privileged: `rolsuper=f`, `rolcreaterole=f`, `rolreplication=f`, `rolbypassrls=f`
-(only `rolcreatedb=t`). It **owns** all eight ATLAS databases, but ownership confers nothing without a `CONNECT`
-path, and `pg_hba` grants Tailnet access to `atlas_db` alone. **Conclusion, stated at full precision: the
-Tailnet-reachable target is an effectively empty database. There is no evidence of data exposure, and this is a
-credential-compromise incident — not a data breach.** It is still a real one, because the value is public and
-permanent, so **any future reuse of that string is instantly compromised**.
-
-**Full consumer inventory before any rotation (every writer, not just the readers — the lesson this lane keeps
-relearning).** Files containing the live password, by scan: `D:\ATLAS\atlas-server\.env` (untracked) and the
-durable runtime config `D:\ATLAS-runtime-config\atlas-server.env`; **`.env.example` in 15 worktrees**, all copies
-of the one tracked file; and the 4 tracked source files listed above. **No CI workflow references DB credentials
-and no scheduled task embeds the DSN.** One cross-boundary consequence: **`D:\ATLAS\EnrollPro\server\.env` also
-carries it**, and EnrollPro is a **`READ_ONLY` companion under `AGENTS.md` §4** — so a rotation will break the
-local EnrollPro dev server until the operator updates it, and **this lane may not make that edit**. (EnrollPro is
-separately down as of 2026-09-26, TCP 443 dead at `100.120.169.123`.)
-
-**REMEDIATION VERDICT — rotate; do NOT rewrite history.** Rotation is the control that works, because it makes the
-published string inert. A history rewrite is *not* worth it here, for reasons that are about this repository
-specifically and are measured, not asserted:
-1. `git filter-repo` would rewrite every commit from `c12238cd0` to HEAD, so **every SHA pinned in this register
-   and in the handoffs becomes dangling** — the entire audit chain (`2f86ffee`, `de392cf8`, `26f7c907`,
-   `116a7658`, `4c76208d`, the live-release pins) rests on ranges that `AGENTS.md` §10–§11 require to stay
-   addressable.
-2. **Three active lanes** (A, B, C) hold 19 E: and 12 D: worktrees, and 13 of their branch tips have remote refs
-   absent or behind. A force-push rewrite leaves every lane diverged from a rewritten origin — exactly the
-   "candidate the integration boundary has never seen" defect §10 rule 12 records as having already happened once.
-3. The public repo has **1 open PR**, which a force-push would break.
-4. Security value is marginal: assume the value is **already scraped** (GitHub secret scanning and forks exist),
-   so a purge cannot make it unpublished. It only prevents *future reuse* of a string rotation already kills.
-
-So: **rotate, scrub the four files forward, and add a committed secret-scan guard. History is left intact
-deliberately**, and the residual is stated rather than hidden: after rotation the old string remains publicly
-readable forever, which is acceptable **only because it will never be reused** — that is the invariant to protect,
-not the byte sequence.
-
-**SELF-INFLICTED OUTAGE during the authorised rotation, 2026-09-26 ~13:50–14:05 +08. Recorded in full because
-`AGENTS.md` §16 requires it and because the failure is instructive. The credential is NOT rotated; the system is
-back at its exact pre-attempt state.**
-
-**What I did.** Executed the operator-approved rotation of the `atlas_user` password in the intended order:
-`ALTER ROLE … WITH PASSWORD '<new>'` → rewrite the durable env file → quiesce → `schtasks /run`.
-
-**What happened.** The `ALTER ROLE` **succeeded**. The **env-file write was denied** — `Access to the path
-'D:\ATLAS-runtime-config\atlas-server.env' is denied` — and that path is not writable from this session. The script
-threw at that point, so the restart never ran, and the new password existed only in the exited process's memory.
-The result was the worst possible intermediate state: **role = NEW, env file = OLD, new value unrecoverable.**
-
-**Measured impact — a real outage, self-inflicted.** Between the `ALTER` and recovery, `/health/ready` returned
-**503** and `GET /api/v1/subjects?schoolId=1` returned **500**, and a fresh `psql` connection failed with
-`FATAL: password authentication failed for user "atlas_user"`. The app degraded exactly as predicted, because
-`ALTER ROLE` does not kill established sessions but every *new* pool connection presents the now-wrong password.
-
-**Recovery, in order, with evidence retained.** No superuser credential exists anywhere (the durable env has no
-admin DSN and the repo contains no `postgres://postgres:` DSN), so recovery went through `pg_hba.conf`:
-prepended temporary `trust` rules for `local` and `127.0.0.1/32` and `::1/128` → restarted
-`postgresql-x64-18` → `ALTER ROLE` back to the original password, read from the **untouched** env file → restored
-`pg_hba.conf` → restarted the service again. Verified after recovery: the original password authenticates
-(`SELECT current_user()` → `atlas_user`, exit 0); `pg_hba.conf` is **byte-identical to the pre-incident backup**
-(5728 bytes both sides, `Compare-Object` clean) with **no `trust` rule anywhere** and all seven effective rules
-back to `scram-sha-256`; `/health/ready` **200 `{"status":"ready","checks":{"database":"ok"}}`**; subjects **200**;
-Tailnet health **200**. **The ATLAS listener PIDs stayed 23520/23544 throughout, so ATLAS never restarted** — the
-outage was purely DB authentication and it recovered the moment the role was restored. **Net data change: none.**
-
-**Root cause, which is the part worth keeping.** I split an operation that is **atomic in effect** across a
-permission boundary and **did not verify the second write before performing the first**. I had already confirmed
-that `pg_hba.conf` was writable and that the service was controllable — but I never probed write access to the
-env file, so I discovered it only when the write threw, *after* the irreversible half had run. The new password
-was also never persisted anywhere retrievable before the `ALTER`, which is what made the half-state
-unrecoverable by design rather than by luck.
-
-**Two rules this earns, both generalisable past this incident:**
-1. **Prove every write in a multi-write change before performing any of them.** A credential rotation is a
-   two-write transaction; the first write must not run until the second is *known* to be possible. A permission
-   probe is cheap; an outage is not.
-2. **Persist the new secret somewhere retrievable before rotating, never only in process memory** — otherwise a
-   lost value is unrecoverable and the rollback then needs a privilege you may not have.
-
-**The standing verdict is unchanged by this failure, but the cheapest control has changed.** The exposure is
-identical, because the rollback restored the *original* password — the one published on GitHub. So rotation is
-still the right control, but it must be re-run as one pre-verified change (probe both writes, persist the new
-value, then execute). **The genuinely effective mitigation available immediately is not the rotation at all: delete
-the `100.64.0.0/10` Tailnet grant for `atlas_db` from `pg_hba.conf`.** That removes the only reachable path
-(28 rows, no personal data), is one line, and is instantly reversible — and it needs no secret handling at all.
-
-**MITIGATION 1 APPLIED AND VERIFIED (2026-09-26 ~15:20 +08): the Tailnet grant is gone; PostgreSQL is now
-loopback-only.** Operator-approved. The `host atlas_db atlas_user 100.64.0.0/10 scram-sha-256` line was
-**commented out, not deleted**, with a dated in-file note giving the reason, the measured reachable content, and
-the original line for reversibility (§16 additive). No service restart was needed — PostgreSQL re-reads
-`pg_hba.conf` per connection. Verified before and after by connecting exactly as an attacker would:
-
-- **Before:** `target 100.88.55.125:5432 db=atlas_db` with the published password → `CONNECTED as atlas_user to
-  atlas_db`.
-- **After:** the same attempt → `FATAL: no pg_hba.conf entry for host "100.88.55.125", user "atlas_user",
-  database "atlas_db"`.
-- **No collateral damage:** every live connection was already loopback (`pg_stat_activity` showed all sessions from
-  `::1/128`), `DATABASE_URL` is `localhost:5432`, and no tracked file uses the Tailnet address for Postgres. Loopback
-  re-verified after the change: `127.0.0.1` and `::1` both return 22 subjects; `/health/ready` 200
-  `database:"ok"`; subjects 200; Tailnet 200. Effective rules are now six loopback/replication `scram-sha-256`
-  lines and nothing else. **The published credential is now useless from any host but this one, with no rotation.**
-
-**MITIGATION 2 APPLIED AND VERIFIED (2026-09-26 ~15:40 +08): the `atlas_user` password is ROTATED.** Operator
-approved option A after being shown three options. Sequence, in three separable stages so each was verified before
-the next:
-
-1. **Probe first — which is what the earlier outage taught, and this time it worked.** The probe found the live env
-   file is **deliberately read-only**: `D:\ATLAS-runtime-config\atlas-server.env` has an explicit,
-   non-inherited ACL granting **only `Read, Synchronize`** to SYSTEM, Administrators and `njgro` — *not*
-   FullControl, not even for Administrators, who are the owner. So elevation cannot write it, and the probe stopped
-   the rotation **before any credential changed**. Un-hardening that file is a security decision, so it was
-   escalated rather than assumed.
-2. **Capture, back up, generate, persist, write — all non-disruptive.** The file's SDDL was captured for exact
-   restoration; both env files (`…\atlas-server.env` and `D:\ATLAS\atlas-server\.env`) were backed up
-   byte-exactly; a 44-character base64url password was generated and **written to disk before use**, so the value
-   was never only in process memory (the rule the outage earned). Both files were rewritten by byte-level
-   substitution only, each reporting a byte delta of exactly `+32` — the password-length difference, which proves
-   nothing else moved. State at that point: **env = NEW, role = OLD, running server = OLD** (loaded at start), so
-   traffic was unaffected, and that was confirmed live before proceeding.
-3. **The window, ~20 s, with rollback armed.** `ALTER ROLE atlas_user WITH PASSWORD '<new>'` → `taskkill /T /F` the
-   supervisor tree (PID 32924) → wait for 5001/5174 to release → `schtasks /run /tn ATLAS-Runtime-Supervisor`. The
-   script would have rolled the role *and* both env files back and re-started the task had the ports not cleared.
-   It reported `1/3`, `2/3 quiesced`, `3/3`.
-
-**Post-rotation verification, all executed:** the **new** password authenticates (`SELECT current_user()` →
-`atlas_user`); the **old, published** password now returns `FATAL: password authentication failed` — the
-GitHub-disclosed credential is dead; `/health` 200, `/health/ready` 200 `{"status":"ready",
-"checks":{"database":"ok"}}`, `GET /subjects?schoolId=1` 200, Tailnet health 200. Fresh PIDs confirm a real
-restart: 5001 → 32400, 5174 → 26472, supervisor → 24704.
-
-**The ACL hardening is restored byte-identically.** Administrators were granted `Modify` only for the duration;
-the captured SDDL was then re-applied and compared — `O:BAG:…D:PAI(A;;FR;;;SY)(A;;FR;;;BA)(A;;FR;;;…)` before and
-after, **IDENTICAL: True**. A real write was then attempted and **denied**, so the restriction is proven rather
-than assumed, and all three ACEs are back to `Read, Synchronize`. The app was re-verified healthy after the ACL
-change. The staged password and both backups were deleted, so the new value exists **only** in the two env files,
-one of which is ACL-locked.
-
-**What is deliberately NOT done, and why.** `ATLAS_SYSTEM_TOKEN` is **not** rotated: ATLAS validates it against
-what EnrollPro presents, EnrollPro's copy lives on `dev-jegs`, and §4 makes that companion read-only — so rotating
-it would break the integration until its owner updates their side. It is a **coordinated operator action**.
-`CHANGELOG.md` still carries that live token (pre-existing, outside every lane's current scope; hash-confirmed
-identical to the live value). `D:\ATLAS\EnrollPro\server\.env` still carries the **old** DB password and will stop
-authenticating — **operator-only** under §4. And the credential-scrub branch `fix/committed-credential-scrub-20260926`
-(tip `d330870a`, fresh independent QA `ACCEPT_READY` 9/9/0/0, convergence measured at 0) is **still unpushed**:
-pushing republishes every removed value in history, so integration must not precede the coordinated token
-rotation.
-
+- **The register previously claimed the exposed `atlas_user` password "was not written to any file, commit, doc, or
+  prompt". That was false.** Hashing every tracked file's DSN password against the live env value found **5
+  occurrences across 4 files**, in history since `c12238cd0`, in a **Public** repository (verified by
+  unauthenticated fetch). Evidence is a hash and file:line only, never the value.
+- **Reachable, proven not assumed:** PostgreSQL listened on `0.0.0.0:5432` and `pg_hba.conf` granted `atlas_user`
+  on **`atlas_db`** to `100.64.0.0/10` (Tailscale). Connecting with only the published password returned
+  `CONNECTED as atlas_user to atlas_db`. **Blast radius by exact `count(*)`: `atlas_db` held 28 rows** (27
+  migrations + 1 policy), no personal data; the live DB's 2,705 rows were **not** covered by that grant;
+  `atlas_user` was not a superuser. **A credential-compromise incident, not a data breach.**
+- **The credential is the system's DB identity** â€” the live API pool, owner of all eight ATLAS databases (so
+  migrations and Prisma's shadow DB work), and the admin for the whole server DB test gate. The harness reads it
+  from the environment, so those 4 hardcoded files were the only hardcoded consumers.
+- **History purge rejected, with reasons:** it would repoint every commit from `c12238cd0` and dangle every SHA
+  pinned in this register and the handoffs, breaking the Â§10â€“Â§11 range-review chain; three active lanes (19 E: and
+  12 D: worktrees) would diverge; the open PR breaks; and its security value is marginal because the value must be
+  assumed already scraped. **History left intact deliberately.**
+- **A self-inflicted outage occurred during the first rotation attempt and is preserved in full in the handoff.**
+  `ALTER ROLE` succeeded, the env write was denied, the new value was lost, ATLAS went to `/health/ready` 503, and
+  it was fully recovered through `pg_hba.conf` with **zero net data change**. Two rules earned: **prove every write
+  in a multi-write change before performing any of them**, and **persist a new secret retrievably before rotating.**
+- **MITIGATION 1 APPLIED:** the `100.64.0.0/10` grant is **commented out, not deleted**, with a dated reversible
+  note. The same attacker connection now returns `no pg_hba.conf entry`. **PostgreSQL is loopback-only**, with no
+  collateral damage (every live session was already loopback).
+- **MITIGATION 2 APPLIED:** the `atlas_user` password is **rotated** â€” the published value now fails
+  authentication. A **probe-first** stage found the live env file is *deliberately read-only* (explicit ACL,
+  `Read, Synchronize` only, not even FullControl for Administrators) and stopped before changing anything; the
+  operator chose a temporary grant; the new value was persisted to disk before use; both env files were rewritten by
+  byte-level substitution (delta exactly `+32`); ~20 s window with rollback armed. **The ACL hardening is restored
+  byte-identically** â€” SDDL compared equal, and a real write was re-tested and **denied**.
+- **The committed-credential class is closed and gated.** `fix/committed-credential-scrub-20260926`
+  (`4775381a â†’ 5023aad0 â†’ 10abbd38 â†’ dcb98ce6 â†’ d330870a`) merged to `main` as **`253d2dff`**. It removed the 4
+  original sites plus a live credential in `local-auth.service.ts`, a password printed in a seed log,
+  `bcrypt.hash()` literals in `prisma/seed.js` that fed real seeded accounts, a Playwright spec fallback, a bearer
+  token and the README login instructions, and it added a guard (**13/13**, reachable from
+  `test:committed-credential-scrub` and the `test:server-suite` aggregate) whose every rule is proven
+  RED-then-GREEN. **Convergence measured at 0** by an independent scan. **All four formerly-public values now read
+  0 files on the public `origin/main`.** Merged-tree gates: `tsc --noEmit` and `build` exit 0 **after
+  `prisma generate`** (a fresh worktree's missing client masquerades as type errors in unrelated files); server
+  suite 350/354 with the 4 failures **proven pre-existing** by byte-identity of the test and its import closure.
+- **Open, operator-owned:** `ATLAS_SYSTEM_TOKEN` is **not** rotated (EnrollPro must be updated in lockstep and is
+  `READ_ONLY` here) and is committed in `CHANGELOG.md`; `D:\ATLAS\EnrollPro\server\.env` held the old DB password
+  and will stop authenticating; history retains every removed value by accepted decision.
 **Deployment attempt 1 stopped safely at a runner gate (2026-09-26).** The executor built the target, ran the
 port-5198 isolation proof (**gate 6b PASS** — `git status --short` empty after the run, the exclude rule working as
 designed), and proved the build identity (new-only chunk `assets/index-BgXhGnEV.js` 313,925 bytes returns **404**
