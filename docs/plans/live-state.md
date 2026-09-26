@@ -1530,8 +1530,26 @@ two-label-sets defect.** Correct action taken: record it intact and close the it
    build passes, all files under the §8 cap. **Browser acceptance UNPERFORMED and owed from Lane C** — it is
    the only harness that can decide "default opens the active term, T1/T2/T3 switching updates the grid, never
    a merged weekly schedule". Not deployed; not in `origin/main` yet.
-1. **R2 the withdrawn client-delta packet** `docs/prompts/deploy-5152bff0-client-delta-2026-09-26.md` —
-   `CORRECTION_REQUIRED` 6/13, **must not execute**. B1 is the serious one: the packet **never builds
+1. **Lifecycle model — handoff candidate 2. DIAGNOSIS CONFIRMED live; the fix is BLOCKED UPSTREAM on a
+   term-authority contradiction the handoff did not record.** One authenticated Tailnet session, deployed
+   `26f7c907`, page reads only:
+   - `/` Dashboard: **"Schedule published"** · **"Published schedule is live"**
+   - `/timetable`: **"Draft"**
+   - `/my`: bare **"Live"** *and* "draft ready" *and* "Draft schedules may still change." · **Term: T2**
+   - `/public/schedules`: **"PUBLISHED TIMETABLE"** · **"Live publish"** · **TERM 1**
+   Facts: runs 314–318 all COMPLETED in year 10; mirror 551 active with a populated cache naming
+   `activeTerm` T1. So this is exactly the contested state — **317 published (rev 43) + 318 a newer draft** —
+   and every surface shows one half while naming neither. `/my`'s unattributed bare "Live" is the handoff's
+   "do not infer Live from the existence of a row", reproduced.
+   **NEW, and it blocks the work: the surfaces disagree on which term is current.** `/my` says **T2** (the
+   live-resolved value), the public page says **TERM 1** (the stale persisted value). The handoff requires
+   the shared model to state "the published schedule and **the term it represents**", which is not writable
+   while two surfaces name different current terms — a model would just relocate the defect. **Sequencing
+   decision owed by the operator: close the term-authority disagreement first, or land the independent half
+   (draft rows not labelled Live) first for visible progress.** Full evidence, the five required states
+   (`UNVERIFIED` included), and what this does *not* establish:
+   `docs/reviews/a2-custody-verification-20260926/lifecycle-contradiction-diagnosis.md`.
+2. **R2 the withdrawn client-delta packet** `docs/prompts/deploy-5152bff0-client-delta-2026-09-26.md` —   `CORRECTION_REQUIRED` 6/13, **must not execute**. B1 is the serious one: the packet **never builds
    `atlas-server/dist/server.js`**, so a literal run would serve 5174 with **no 5001** after cutover. Also a
    stale target pin, a false A11 expected value, and a wrong authority citation (`252-255`, not `219-222`).
    A client-only *delta* is not a client-only *build*.
