@@ -1960,3 +1960,43 @@ default is **still fail-open**. Audited the class across the server:
 **Sequencing note:** finding 2 is the cheap systemic fix and finding 1 is the sharp instance. Doing 2
 first would have made 1 structurally impossible to reintroduce — the same "sequence the dependency
 first" lesson that produced the earlier Rooms outage.
+
+### `/my` faculty portal RETIRED in source — integrated `d902c69a`, NOT deployed (2026-09-26, A2)
+
+Operator instruction 2026-09-26: `/my` is being retired, must be **unreachable**, implementation
+commented out until further notice. Candidate `5680c87a` (base `c2f704ea`, 7 client paths), executor
+`ses_f22d66467ffey2lj4DrZOnXGef`, fresh independent QA `ses_f22cb25f6ffeCmO6qvRmWHB01q`
+**`ACCEPT_READY` 14/14/0/0**. Integrated by merge `d902c69a` on `origin/main` `0007cc17`; all four
+production blobs byte-identical to the reviewed candidate. Merged-tree gates: `test:retired-faculty-portal`
+**5/5**, `test:scheduler-concern` **26/26**, `test:timetable-ux-rehaul` **35/35**, full `test:client-suite`
+**fail 12 — the identical 12 baseline names, zero added and zero removed, compared by name**. Client-only:
+zero `atlas-server/`, `prisma/`, migration, seed or ops path.
+
+**The trap that shaped it — `/my` is the ONLY faculty-portal route**, and five places resolve faculty
+to it (`Login.tsx:89,132,161`, `AppShell.tsx:368,405`, `FacultyMobileBottomNav`, `auth.ts` FACULTY_PORTAL_ROUTES).
+Deleting the route registration would have 404'd every faculty login, and redirecting faculty to `/` would
+have dropped the whole faculty role onto the **operator** setup Dashboard. So the house retirement pattern
+(`RetiredRequirementsRedirect`, `App.tsx:35-43`) was followed instead: the route **stays declared** and its
+element is swapped to a tombstone that mounts nothing and fetches nothing — so `/my` is unreachable, no
+`/faculty-portal/*/dashboard` request is issued, and no login breaks. `pages/MyDashboard.tsx` is untouched on
+disk (blob `442273c9…` at both revisions), so the retirement is reversible. `MyDashboard` is no longer
+imported, lazily imported, or mounted.
+
+**Evidence discipline worth recording:** the executor changed one existing assertion in
+`scheduler-concern-s2.test.ts` and called it non-blocking. QA was tasked specifically to judge that claim
+rather than accept it, and confirmed it **additive** — 19 tests unchanged, assertions 60 → **62**, the old
+`path: 'my'` constraint retained and two *negative* controls added. `/my` was also **kept** in
+`ux-r01-shared-chrome`'s route list (untouched file) rather than deleted to make a test pass, and the
+tombstone was made to satisfy that contract instead. Failing-first was reproduced independently by QA's own
+mutation (fail 3/5), restored byte-exactly.
+
+**NOT DEPLOYED — so faculty still see the live dashboard.** This is source-only. Making the absence real
+needs a deploy, which is a separate HIGH action with its own pre-action review. Nothing here authorises it.
+
+Two open items for the operator, both NON_BLOCKING and neither blocking the retirement:
+1. **Where faculty land long-term is still undecided.** They currently land on a truthful tombstone that
+   mounts nothing. That satisfies "not reachable", but it is a placeholder, not a destination — the faculty
+   role currently has no real home in ATLAS.
+2. **The left-rail label is now stale.** `navigation.ts:56` still reads `My Dashboard` with a dashboard icon
+   while the page and breadcrumb leaf read `Faculty Portal Retired`. Left alone to avoid unrequested copy
+   scope; one-line fix on request.
