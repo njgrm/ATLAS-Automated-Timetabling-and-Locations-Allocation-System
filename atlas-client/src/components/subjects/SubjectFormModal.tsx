@@ -1,13 +1,13 @@
 import { useState, useEffect, useRef, useId } from 'react';
 import type { RoomType } from '@/types';
 import {
-	ALL_ROOM_TYPES,
 	GRADE_OPTIONS,
 	PROGRAM_SCOPE_OPTIONS,
 	ROOM_TYPE_LABELS,
 	SUBJECT_OWNER_BADGE,
 	SUBJECT_OWNER_LABELS,
 	SUBJECT_OWNER_OPTIONS,
+	SUBJECT_ROOM_NEED_TYPES,
 	type NewSubjectForm,
 	emptyForm,
 } from '@/lib/subject-constants';
@@ -22,11 +22,28 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/t
 import { Separator } from '@/ui/separator';
 import { gradeLabel } from '@/lib/grade-labels';
 import { roomAuthoritySemantics } from '@/lib/room-authority-copy';
-import { Info, Clock, Settings2, ShieldCheck, Layout, X, ChevronRight, ChevronLeft, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { Info, Clock, Settings2, ShieldCheck, Layout, X, ChevronRight, AlertTriangle, CheckCircle2, History } from 'lucide-react';
 
 export type SubjectFormValues = NewSubjectForm & {
 	id?: number;
 };
+
+/**
+ * A3-20: the outcome of a save attempt, as three DISTINCT results.
+ *
+ * A stale write is not a failure — nothing was lost, but the operator's edit
+ * was built on a version that no longer exists, and the only correct next
+ * action is to reload. Collapsing it into a generic error string (which is
+ * what the single `toast.error(msg)` channel did) told the operator their
+ * change failed and gave them no route back. Success closes the dialog, so its
+ * result surface exists for the window before close; failure and stale keep
+ * the dialog open and are stated inline, so the outcome is readable without
+ * depending on a transient toast.
+ */
+export type SubjectSaveOutcome =
+	| { status: 'saved' }
+	| { status: 'stale'; message: string }
+	| { status: 'failed'; message: string };
 
 type Props = {
 	open: boolean;
@@ -45,7 +62,7 @@ type Props = {
 		isSystemManaged?: boolean;
 	};
 	saving: boolean;
-	onSave: (values: SubjectFormValues) => void;
+	onSave: (values: SubjectFormValues) => Promise<SubjectSaveOutcome>;
 	onClose: () => void;
 };
 
@@ -68,7 +85,9 @@ export function SubjectFormModal({
 }: Props) {
 	const [form, setForm] = useState<SubjectFormValues>(initialValues ?? { ...emptyForm });
 	const [timeMode, setTimeMode] = useState<'minutes' | 'hours'>('hours');
-	const [showAdvanced, setShowAdvanced] = useState(false);
+	// A3-20: the truthful result surface. Cleared on every open so a previous
+	// attempt's outcome is never shown against a fresh form.
+	const [result, setResult] = useState<SubjectSaveOutcome | null>(null);
 	const [validationErrors, setValidationErrors] = useState<{
 		code?: string;
 		name?: string;
@@ -81,7 +100,7 @@ export function SubjectFormModal({
 		if (open) {
 			setForm(initialValues ?? { ...emptyForm });
 			setTimeMode('hours');
-			setShowAdvanced(mode === 'edit');
+			setResult(null);
 			setValidationErrors({});
 			// Phase 2.1: focus the code input on add so a non-technical user
 			// can start typing immediately.
@@ -90,6 +109,18 @@ export function SubjectFormModal({
 			}
 		}
 	}, [open, initialValues, mode]);
+
+	// A3-20 (Cancel / non-action): Cancel and Escape are a non-action path. They
+	// must issue no request and must not mutate form state, so the submit
+	// handler is the ONLY thing that calls onSave and it is the only thing that
+	// writes a result. This is asserted by a control, not by inspection.
+	const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+		event.preventDefault();
+		if (!canSave) return;
+		setResult(null);
+		const outcome = await onSave(form);
+		setResult(outcome);
+	};
 
 	const toggleGradeLevel = (gradeLevel: number) => {
 		setForm((previous) => ({
@@ -124,16 +155,14 @@ export function SubjectFormModal({
 		});
 	};
 
-	const toggleInterSectionGrade = (gradeLevel: number) => {
-		setForm((previous) => {
-			const current = previous.interSectionGradeLevels ?? [];
-			const hasGradeLevel = current.includes(gradeLevel);
-			const next = hasGradeLevel
-				? current.filter((value) => value !== gradeLevel)
-				: [...current, gradeLevel].sort((left, right) => left - right);
-			return { ...previous, interSectionGradeLevels: next };
-		});
-	};
+	// A3-33B (PRESENTATION ONLY): the shared class session is no longer an
+	// operator input in this form, but its PERSISTED value is untouched. Nothing
+	// below writes `interSectionEnabled` or `interSectionGradeLevels`, and every
+	// setForm call in this component spreads `...previous`, so a subject stored
+	// with a shared session carries the same `true` (and the same pooled grade
+	// levels) into the save payload. `subjectToFormValues` is what seeds it, and
+	// Subjects.handleModalSave is what sends it. A round-trip control asserts
+	// the payload; this comment is not the evidence.
 
 	const [newFeature, setNewFeature] = useState('');
 	const addFeature = () => {
@@ -195,25 +224,29 @@ export function SubjectFormModal({
 		subjectMeta?.rotationTermRank ?? null,
 	);
 
-	// Phase 2.1: step indicator (the modal is a single-scroll layout; the
-	// indicator tells the scheduler where they are in the four sections).
+	// A3-33A: the section map. `showAdvanced` is gone, so the last section is no
+	// longer an OPTIONAL step the operator can skip — the form is a single
+	// scroll in which all four sections are always present, and its terminal
+	// state is the scheduling-rules section. `currentStepId` is therefore a
+	// constant, not a derived value: the form never leaves the last section.
+	// Nothing dangles on `advanced` and there is no phantom step — 'Advanced'
+	// is renamed 'Scheduling rules' to name the section that actually renders.
 	const steps = [
 		{ id: 'identity', label: 'Identity' },
 		{ id: 'time', label: 'Time and room' },
 		{ id: 'governance', label: 'Programs and owner' },
-		{ id: 'advanced', label: 'Advanced' },
+		{ id: 'scheduling', label: 'Scheduling rules' },
 	] as const;
-	const currentStepId = showAdvanced
-		? 'advanced'
-		: 'governance';
+	const currentStepId = 'scheduling';
 	const currentStepIndex = steps.findIndex((step) => step.id === currentStepId);
 
 	return (
 		<Dialog open={open} onOpenChange={(value) => { if (!value) onClose(); }}>
 			<DialogContent
 				className="max-w-2xl max-h-[95svh] overflow-hidden flex flex-col p-0"
+				data-testid="subjects-form-dialog"
 			>
-				<DialogHeader className="p-6 pb-4 border-b">
+				<DialogHeader className="shrink-0 p-6 pb-4 border-b">
 					<div className="flex items-center gap-2">
 						<div className="p-2 rounded-lg bg-primary/10 text-primary">
 							<Settings2 className="size-5" />
@@ -226,9 +259,9 @@ export function SubjectFormModal({
 						</div>
 					</div>
 
-					{/* Phase 2.1: step indicator (4 sections) so the scheduler knows
-						where they are. Identity and Time & room are always required;
-						Programs and owner is required; Advanced is optional. */}
+					{/* A3-33A: all four sections are always rendered, so the indicator
+						is a section map whose current step is the final one. The
+						`aria-current="step"` marker is on that section only. */}
 					<ol className="mt-4 flex items-center gap-2 text-xs" data-testid="subjects-form-stepper">
 						{steps.map((step, index) => {
 							const isCurrent = index === currentStepIndex;
@@ -257,13 +290,14 @@ export function SubjectFormModal({
 
 				<form
 					id={formId}
-					onSubmit={(event) => {
-						event.preventDefault();
-						if (canSave) onSave(form);
-					}}
+					onSubmit={handleSubmit}
 					className="flex-1 min-h-0 flex flex-col"
 				>
-					<div className="flex-1 overflow-y-auto p-6 space-y-8">
+					{/* A3-20: the dialog owns its scroll. A fixed header, a single
+						`flex-1 min-h-0` scroll region and a fixed footer mean the
+						modal can never grow past the viewport or push page scroll
+						(AGENTS.md §8), no matter how many sections are open. */}
+					<div className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-6 space-y-8" data-testid="subjects-form-scroll">
 						{/* Metadata Alert if syncing */}
 						{mode === 'edit' && subjectMeta && (
 							<div className="rounded-xl border bg-muted/30 p-4 flex items-start gap-3">
@@ -472,7 +506,12 @@ export function SubjectFormModal({
 										<SelectValue />
 									</SelectTrigger>
 									<SelectContent>
-										{ALL_ROOM_TYPES.map((roomType) => (
+										{/* A3-32: SUBJECT_ROOM_NEED_TYPES, not ALL_ROOM_TYPES. A
+											subject is never scheduled into a Faculty Room or an
+											Office, so those were false options here. The list is a
+											subset of ALL_ROOM_TYPES, which is still what the Room
+											Type FILTER and the room map read. */}
+										{SUBJECT_ROOM_NEED_TYPES.map((roomType) => (
 											<SelectItem key={roomType} value={roomType}>{ROOM_TYPE_LABELS[roomType]}</SelectItem>
 										))}
 									</SelectContent>
@@ -629,152 +668,169 @@ export function SubjectFormModal({
 
 						<Separator className="opacity-50" />
 
-						{/* Phase 2.1: "Skip if unsure" gate on Advanced. Collapsed by
-							default in add mode so non-technical users are not confronted
-							with three unfamiliar concepts at once. */}
-						<div className="space-y-4">
-							<div className="flex items-center justify-between gap-3">
-								<div className="flex items-center gap-2 text-primary">
-									<Settings2 className="size-4" />
-									<h3 className="text-sm font-bold uppercase tracking-wider">4. Advanced scheduling rules</h3>
-								</div>
-								<Button
-									type="button"
-									variant="outline"
-									size="sm"
-									onClick={() => setShowAdvanced((show) => !show)}
-									aria-expanded={showAdvanced}
-									aria-controls="subjects-form-advanced"
-									data-testid="subjects-form-advanced-toggle"
-									className="h-9 font-bold"
-								>
-									{showAdvanced ? 'Hide advanced' : 'Show advanced'}
-									{showAdvanced ? <ChevronLeft className="ml-1 size-3.5" /> : <ChevronRight className="ml-1 size-3.5" />}
-								</Button>
+						{/* A3-33A: ALWAYS VISIBLE. The "Show advanced" disclosure and
+							its "Skip if you are unsure" hint are gone — a hidden
+							section is a section an operator cannot audit, and the
+							values it guarded (term rotation order, required room
+							features) feed schedule generation directly. There is no
+							disclosure, no collapsed state and no `showAdvanced`.
+							A3-33B: the Shared class session control is removed and
+							"Rotates by term" is the FIRST control here. */}
+						<div className="space-y-4" data-testid="subjects-form-scheduling-section">
+							<div className="flex items-center gap-2 text-primary">
+								<Settings2 className="size-4" />
+								<h3 className="text-sm font-bold uppercase tracking-wider">4. Scheduling rules</h3>
 							</div>
-							{!showAdvanced ? (
-								<p className="text-xs text-muted-foreground">
-									Skip if you are unsure. These settings are only needed for shared class sessions, modular (rotating) subjects, and special room features.
-								</p>
-							) : (
-								<div id="subjects-form-advanced" className="space-y-4 animate-in zoom-in-95 duration-200">
-									{/* Inter-section Pooling */}
-									<div className="p-4 rounded-xl border bg-muted/20 space-y-4">
-										<div className="flex items-center justify-between">
-											<div className="flex flex-col">
-												<span className="text-sm font-bold">Shared class session</span>
-												<span className="text-xs text-muted-foreground">Use only when one teacher can teach multiple sections at the same time.</span>
-											</div>
-											<Switch
-												checked={form.interSectionEnabled ?? false}
-												onCheckedChange={(v) => setForm((p) => ({ ...p, interSectionEnabled: v, interSectionGradeLevels: v ? p.interSectionGradeLevels : [] }))}
-											/>
-										</div>
 
-										{form.interSectionEnabled && (
-											<div className="grid grid-cols-4 gap-2 pt-2 animate-in zoom-in-95 duration-200">
-												{form.gradeLevels.map((g) => (
-													<Button
-														key={g}
-														type="button"
-														variant="outline"
-														size="sm"
-														onClick={() => toggleInterSectionGrade(g)}
-														className={`h-8 px-2 text-xs font-bold ${(form.interSectionGradeLevels ?? []).includes(g) ? 'bg-violet-100 text-violet-800 border-violet-300 hover:bg-violet-100' : ''}`}
-													>
-														{gradeLabel(g)} Pool
-													</Button>
-												))}
-											</div>
-										)}
+							{/* A3-33B: read-only disclosure, NOT an input. A subject stored
+								with a shared class session must not appear to have lost
+								it when the control disappears, and the value still round-
+								trips to the save payload untouched. No control here writes
+								`interSectionEnabled`. */}
+							{form.interSectionEnabled ? (
+								<div
+									data-testid="subjects-form-shared-session-readonly"
+									className="flex items-start gap-2 rounded-lg border border-violet-200 bg-violet-50/40 px-3 py-2 text-xs text-violet-900"
+								>
+									<History className="mt-0.5 size-3.5 shrink-0" />
+									<p>
+										<span className="font-bold">Shared class session is on for this subject</span>
+										{(form.interSectionGradeLevels ?? []).length > 0 ? (
+											<>
+												{' '}· pooled across {form.interSectionGradeLevels.map((g) => gradeLabel(g)).join(', ')}.
+											</>
+										) : null}
+										{' '}This is a saved scheduling attribute and is preserved unchanged when you save.
+									</p>
+								</div>
+							) : null}
+
+							{/* Modular Scheduling — first control of the section (A3-33B). */}
+							<div className="p-4 rounded-xl border bg-muted/20 space-y-4">
+								<div className="flex items-center justify-between">
+									<div className="flex flex-col">
+										<span className="text-sm font-bold">Rotates by term</span>
+										<span className="text-xs text-muted-foreground">Use for subjects that share one weekly schedule lane across terms.</span>
 									</div>
+									<Switch
+										checked={isModularSubject}
+										onCheckedChange={(v) => setForm((p) => ({
+											...p,
+											modularGroupId: v ? (p.modularGroupId.trim() || 'SCIENCE') : '',
+											modularOrder: v ? (p.modularOrder ?? 1) : null,
+										}))}
+									/>
+								</div>
 
-									{/* Modular Scheduling */}
-									<div className="p-4 rounded-xl border bg-muted/20 space-y-4">
-										<div className="flex items-center justify-between">
-											<div className="flex flex-col">
-												<span className="text-sm font-bold">Rotates by term</span>
-												<span className="text-xs text-muted-foreground">Use for subjects that share one weekly schedule lane across terms.</span>
-											</div>
-											<Switch
-												checked={isModularSubject}
-												onCheckedChange={(v) => setForm((p) => ({
-													...p,
-													modularGroupId: v ? (p.modularGroupId.trim() || 'SCIENCE') : '',
-													modularOrder: v ? (p.modularOrder ?? 1) : null,
-												}))}
-											/>
-										</div>
-
-										{isModularSubject && (
-											<div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 animate-in zoom-in-95 duration-200">
-												<div className="space-y-1.5">
-													<label className="text-xs font-bold text-muted-foreground uppercase">Rotation family</label>
-													<Input
-														placeholder="e.g. SCIENCE"
-														value={form.modularGroupId}
-														onChange={(e) => setForm((p) => ({ ...p, modularGroupId: e.target.value.toUpperCase() }))}
-														className="h-9 text-sm uppercase font-mono"
-													/>
-												</div>
-												<div className="space-y-1.5">
-													<label className="text-xs font-bold text-muted-foreground uppercase">Term rank</label>
-													<Input
-														type="number"
-														min={1}
-														value={form.modularOrder ?? 1}
-														onChange={(e) => setForm((p) => ({ ...p, modularOrder: Math.max(1, Number(e.target.value) || 1) }))}
-														aria-describedby="modular-rank-help"
-														className="h-9 text-sm"
-													/>
-													<p id="modular-rank-help" className="text-xs text-muted-foreground">
-														Term rank controls the sequence within this rotation family (1 = first term).
-													</p>
-												</div>
-											</div>
-										)}
-									</div>
-
-									{/* Room Requirements */}
-									<div className="space-y-3">
-										<label className="text-sm font-semibold text-foreground ml-0.5">Required room features</label>
-										<div className="flex gap-2">
+								{isModularSubject && (
+									<div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 animate-in zoom-in-95 duration-200">
+										<div className="space-y-1.5">
+											<label className="text-xs font-bold text-muted-foreground uppercase">Rotation family</label>
 											<Input
-												placeholder="e.g. ICT lab, workshop tools"
-												value={newFeature}
-												onChange={(e) => setNewFeature(e.target.value)}
-												onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addFeature(); } }}
+												placeholder="e.g. SCIENCE"
+												value={form.modularGroupId}
+												onChange={(e) => setForm((p) => ({ ...p, modularGroupId: e.target.value.toUpperCase() }))}
+												className="h-9 text-sm uppercase font-mono"
+											/>
+										</div>
+										<div className="space-y-1.5">
+											<label className="text-xs font-bold text-muted-foreground uppercase">Term rank</label>
+											<Input
+												type="number"
+												min={1}
+												value={form.modularOrder ?? 1}
+												onChange={(e) => setForm((p) => ({ ...p, modularOrder: Math.max(1, Number(e.target.value) || 1) }))}
+												aria-describedby="modular-rank-help"
 												className="h-9 text-sm"
 											/>
-											<Button type="button" size="sm" onClick={addFeature} className="h-9 font-bold">Add</Button>
-										</div>
-										<div className="flex flex-wrap gap-1.5">
-											{form.requiredFeatures.map((f) => (
-												<Badge key={f} variant="secondary" className="pl-2 pr-1 py-0.5 text-xs font-bold flex items-center gap-1 bg-amber-50 text-amber-700 border-amber-200">
-													{f}
-													<Button
-														type="button"
-														variant="ghost"
-														size="icon"
-														onClick={() => removeFeature(f)}
-														aria-label={`Remove required feature ${f}`}
-														className="size-4 p-0 hover:text-red-600 transition-colors text-current"
-													>
-														<X className="size-3" />
-													</Button>
-												</Badge>
-											))}
-											{form.requiredFeatures.length === 0 && (
-												<span className="text-xs text-muted-foreground italic pl-1">No special room features needed.</span>
-											)}
+											<p id="modular-rank-help" className="text-xs text-muted-foreground">
+												Term rank controls the sequence within this rotation family (1 = first term).
+											</p>
 										</div>
 									</div>
+								)}
+							</div>
+
+							{/* Room Requirements */}
+							<div className="space-y-3">
+								<label className="text-sm font-semibold text-foreground ml-0.5">Required room features</label>
+								<div className="flex gap-2">
+									<Input
+										placeholder="e.g. ICT lab, workshop tools"
+										value={newFeature}
+										onChange={(e) => setNewFeature(e.target.value)}
+										onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addFeature(); } }}
+										className="h-9 text-sm"
+									/>
+									<Button type="button" size="sm" onClick={addFeature} className="h-9 font-bold">Add</Button>
 								</div>
-							)}
+								<div className="flex flex-wrap gap-1.5">
+									{form.requiredFeatures.map((f) => (
+										<Badge key={f} variant="secondary" className="pl-2 pr-1 py-0.5 text-xs font-bold flex items-center gap-1 bg-amber-50 text-amber-700 border-amber-200">
+											{f}
+											<Button
+												type="button"
+												variant="ghost"
+												size="icon"
+												onClick={() => removeFeature(f)}
+												aria-label={`Remove required feature ${f}`}
+												className="size-4 p-0 hover:text-red-600 transition-colors text-current"
+											>
+												<X className="size-3" />
+											</Button>
+										</Badge>
+									))}
+									{form.requiredFeatures.length === 0 && (
+										<span className="text-xs text-muted-foreground italic pl-1">No special room features needed.</span>
+									)}
+								</div>
+							</div>
 						</div>
 					</div>
 
-					<DialogFooter className="p-6 border-t bg-muted/20">
+					{/* A3-20: the truthful result surface, inside the dialog, above the
+						footer. `role="alert"` for the two outcomes that need action and
+						`role="status"` for the one that does not, so a screen reader
+						announces a failure and does not interrupt for a save. The three
+						outcomes are distinct in role, wording and icon — a stale write is
+						never reported as a plain failure, because its correct next action
+						is "reload", not "retry and hope". The page's transient toast
+						remains as a secondary channel; this region does not depend on it
+						painting above the dialog. */}
+					{result ? (
+						<div
+							role={result.status === 'saved' ? 'status' : 'alert'}
+							aria-live={result.status === 'saved' ? 'polite' : 'assertive'}
+							data-testid="subjects-form-result"
+							data-result-status={result.status}
+							className={`mx-6 mb-3 flex items-start gap-2 rounded-lg border px-3 py-2.5 text-sm ${
+								result.status === 'saved'
+									? 'border-emerald-200 bg-emerald-50 text-emerald-900'
+									: result.status === 'stale'
+										? 'border-amber-300 bg-amber-50 text-amber-900'
+										: 'border-destructive/30 bg-destructive/10 text-destructive'
+							}`}
+						>
+							{result.status === 'saved' ? (
+								<CheckCircle2 className="mt-0.5 size-4 shrink-0" />
+							) : result.status === 'stale' ? (
+								<History className="mt-0.5 size-4 shrink-0" />
+							) : (
+								<AlertTriangle className="mt-0.5 size-4 shrink-0" />
+							)}
+							<p className="leading-relaxed">
+								{result.status === 'saved' ? (
+									<><span className="font-bold">Saved.</span> {mode === 'add' ? 'The subject was created.' : 'Your changes were written.'}</>
+								) : result.status === 'stale' ? (
+									<><span className="font-bold">Not saved — this subject changed while you were editing.</span> {result.message}</>
+								) : (
+									<><span className="font-bold">Not saved.</span> {result.message}</>
+								)}
+							</p>
+						</div>
+					) : null}
+
+					<DialogFooter className="shrink-0 p-6 border-t bg-muted/20">
 						<Button type="button" variant="outline" onClick={onClose} disabled={saving} className="h-10 font-bold px-6">Cancel</Button>
 						<TooltipProvider>
 							<Tooltip>

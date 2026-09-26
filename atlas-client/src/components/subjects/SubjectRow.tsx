@@ -205,32 +205,41 @@ export function SubjectRow({
 								<MoreVertical className="size-4" />
 							</Button>
 						</DropdownMenuTrigger>
-						<DropdownMenuContent align="end" className="w-44">
-							<DropdownMenuItem onClick={() => onEdit(subject)}>
-								<Pencil className="mr-2 size-4" />
-								<span>Edit subject</span>
+					{/* A3-19 (route-scoped): the shared `DropdownMenuContent` primitive
+						ships `min-w-[8rem]` and its items carry no `whitespace-nowrap`,
+						so "Archive for new schedules" wrapped and clipped inside the old
+						w-44. The primitive is shared with timetable/other routes and is
+						NOT changed here; the width and no-wrap are applied at this call
+						site only. `w-56` replaces `w-44` (tailwind-merge resolves the two
+						width classes in the primitive/base pair last-wins) and
+						`min-w-[13rem]` is the load-bearing guard against the primitive's
+						own `min-w-[8rem]`. */}
+					<DropdownMenuContent align="end" className="min-w-[13rem] w-56">
+						<DropdownMenuItem onClick={() => onEdit(subject)} className="whitespace-nowrap">
+							<Pencil className="mr-2 size-4" />
+							<span>Edit subject</span>
+						</DropdownMenuItem>
+						{subject.isActive && (
+							<DropdownMenuItem onClick={() => onArchive(subject)} className="whitespace-nowrap">
+								<Archive className="mr-2 size-4" />
+								<span>Archive for new schedules</span>
 							</DropdownMenuItem>
-							{subject.isActive && (
-								<DropdownMenuItem onClick={() => onArchive(subject)}>
-									<Archive className="mr-2 size-4" />
-									<span>Archive for new schedules</span>
-								</DropdownMenuItem>
-							)}
-							{!subject.isActive && (
-								<DropdownMenuItem onClick={() => onReactivate(subject)}>
-									<RotateCcw className="mr-2 size-4" />
-									<span>Make schedulable again</span>
-								</DropdownMenuItem>
-							)}
-							<DropdownMenuSeparator />
-							<DropdownMenuItem
-								onClick={() => onDelete(subject)}
-								className="text-red-600 focus:text-red-600"
-							>
-								<Trash2 className="mr-2 size-4" />
-								<span>Delete permanently</span>
+						)}
+						{!subject.isActive && (
+							<DropdownMenuItem onClick={() => onReactivate(subject)} className="whitespace-nowrap">
+								<RotateCcw className="mr-2 size-4" />
+								<span>Make schedulable again</span>
 							</DropdownMenuItem>
-						</DropdownMenuContent>
+						)}
+						<DropdownMenuSeparator />
+						<DropdownMenuItem
+							onClick={() => onDelete(subject)}
+							className="whitespace-nowrap text-red-600 focus:text-red-600"
+						>
+							<Trash2 className="mr-2 size-4" />
+							<span>Delete permanently</span>
+						</DropdownMenuItem>
+					</DropdownMenuContent>
 					</DropdownMenu>
 				</div>
 			</td>

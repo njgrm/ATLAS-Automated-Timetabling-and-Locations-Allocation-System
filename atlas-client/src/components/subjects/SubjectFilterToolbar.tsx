@@ -45,6 +45,20 @@ export function SubjectFilterToolbar({
 	onProgramScopeFilterChange,
 	onResetFilters,
 }: Props) {
+	// A3-15: the FIRST three selects are PRIMARY and stay on one directly
+	// visible row. Reasoning: Status, Attention and Grade are the three an
+	// operator reaches for to answer "what needs my attention right now" — they
+	// gate every routine triage pass, so hiding them behind a disclosure put two
+	// clicks in front of the commonest read. Room Type and Program are narrower
+	// catalog lookups used for setup and export checks, so they keep the
+	// disclosure. The reset button stays in the overflow group: it only exists
+	// once a filter is active, and the "Active" badge on the disclosure already
+	// advertises it.
+	//
+	// THE CHILD ORDER BELOW IS THE CONTRACT, and Grade is deliberately declared
+	// third: the previous source order was Status, Attention, Room Type, Grade,
+	// which would have made Room Type the third primary filter and silently
+	// demoted Grade. The A3 control asserts which labels are in the primary row.
 	return (
 		<AdminSearchFilterToolbar
 			searchValue={searchQuery}
@@ -53,9 +67,10 @@ export function SubjectFilterToolbar({
 			filtersOpen={showFilters}
 			onToggleFilters={onToggleFilters}
 			hasActiveFilters={hasActiveFilters}
+			primaryFilterCount={3}
 		>
 			<Select value={statusFilter} onValueChange={onStatusFilterChange}>
-				<SelectTrigger className="h-10 w-36 text-sm">
+				<SelectTrigger className="h-10 w-36 text-sm" aria-label="Filter by subject status">
 					<SelectValue placeholder="All Status" />
 				</SelectTrigger>
 				<SelectContent>
@@ -65,7 +80,7 @@ export function SubjectFilterToolbar({
 				</SelectContent>
 			</Select>
 			<Select value={attentionFilter} onValueChange={onAttentionFilterChange}>
-				<SelectTrigger className="h-10 w-52 text-sm">
+				<SelectTrigger className="h-10 w-52 text-sm" aria-label="Filter by attention status">
 					<SelectValue placeholder="All statuses" />
 				</SelectTrigger>
 				<SelectContent>
@@ -74,19 +89,8 @@ export function SubjectFilterToolbar({
 					<SelectItem value="room-constrained">Room-constrained subjects</SelectItem>
 				</SelectContent>
 			</Select>
-			<Select value={roomTypeFilter} onValueChange={onRoomTypeFilterChange}>
-				<SelectTrigger className="h-10 w-44 text-sm">
-					<SelectValue placeholder="All Room Types" />
-				</SelectTrigger>
-				<SelectContent>
-					<SelectItem value="all">All Room Types</SelectItem>
-					{ALL_ROOM_TYPES.map((t) => (
-						<SelectItem key={t} value={t}>{ROOM_TYPE_LABELS[t]}</SelectItem>
-					))}
-				</SelectContent>
-			</Select>
 			<Select value={String(gradeLevelFilter)} onValueChange={(v) => onGradeLevelFilterChange(v === 'all' ? 'all' : Number(v))}>
-				<SelectTrigger className="h-10 w-36 text-sm">
+				<SelectTrigger className="h-10 w-36 text-sm" aria-label="Filter by grade level">
 					<SelectValue placeholder="All grade levels" />
 				</SelectTrigger>
 				<SelectContent>
@@ -96,8 +100,19 @@ export function SubjectFilterToolbar({
 					))}
 				</SelectContent>
 			</Select>
+			<Select value={roomTypeFilter} onValueChange={onRoomTypeFilterChange}>
+				<SelectTrigger className="h-10 w-44 text-sm" aria-label="Filter by room type">
+					<SelectValue placeholder="All Room Types" />
+				</SelectTrigger>
+				<SelectContent>
+					<SelectItem value="all">All Room Types</SelectItem>
+					{ALL_ROOM_TYPES.map((t) => (
+						<SelectItem key={t} value={t}>{ROOM_TYPE_LABELS[t]}</SelectItem>
+					))}
+				</SelectContent>
+			</Select>
 			<Select value={programScopeFilter} onValueChange={onProgramScopeFilterChange}>
-				<SelectTrigger className="h-10 w-40 text-sm">
+				<SelectTrigger className="h-10 w-40 text-sm" aria-label="Filter by program scope">
 					<SelectValue placeholder="All Programs" />
 				</SelectTrigger>
 				<SelectContent>
