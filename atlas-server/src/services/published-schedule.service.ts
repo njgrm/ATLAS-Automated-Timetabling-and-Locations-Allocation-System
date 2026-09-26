@@ -9,6 +9,7 @@ import {
 	resolveRequestedTermIndexFromContract,
 } from './academic-term.service.js';
 import { isRejectedFlagCeremonyRow, resolveSpecialEventDayOfWeek } from '../lib/policy-special-events.js';
+import { schoolLocalDayKey, schoolLocalDayWindow } from '../lib/school-operating-time-zone.js';
 import {
 	frozenReferenceMaps,
 	frozenTermContract,
@@ -47,6 +48,23 @@ type PublishedRunSource = {
 	snapshotState: SnapshotState;
 	/** C08 — frozen fields an entry references but the snapshot does not carry. */
 	snapshotGaps: string[];
+	/**
+	 * PUBLISHED-DAY-BOUNDARY-A2 (Defect A) — ADDITIVE, and always present.
+	 *
+	 * `true` when the requested date resolved to a PRIOR publication because the
+	 * current head did not cover it, `false` when the current head served it. A
+	 * caller can therefore tell a fallback from the head without inferring it.
+	 * Every other identity field on this source (`runId`, `activeRevisionId`,
+	 * `appliedRevisionIds`, `activeRevisionEffectiveDate`) describes the
+	 * publication actually served — the fallback's, never the head's.
+	 */
+	servedByFallback: boolean;
+	/**
+	 * PUBLISHED-DAY-BOUNDARY-A2 (Defect A) — the run id of the current
+	 * publication head for this scope, even when `runId` is a prior publication.
+	 * Equal to `runId` whenever `servedByFallback` is `false`.
+	 */
+	currentPublishedRunId: number;
 };
 
 export type PublishedRunResolution = {
@@ -222,6 +240,110 @@ export async function resolveActiveSchoolYearElection(schoolId: number): Promise
 	return mirrors[0]?.enrollProSchoolYearId ?? null;
 }
 
+const PUBLISHED_RUN_META_SELECT = {
+	id: true,
+	schoolId: true,
+	schoolYearId: true,
+	version: true,
+	runType: true,
+	summary: true,
+	finishedAt: true,
+	createdAt: true,
+} as const;
+
+/**
+ * PUBLISHED-DAY-BOUNDARY-A2 (Defect A) — a prior publication reached by fallback is
+ * re-read through the SAME projection and the SAME eligibility rules as the head
+ * (`status: COMPLETED`, `runType: FULL`, same school/year scope).
+ *
+ * A base revision whose run is not a readable completed publication is NOT silently
+ * dropped from consideration. It is selected first, by date, and then this re-read
+ * returns `null` so the caller can refuse with a typed
+ * `409 PUBLISHED_REVISION_INVALID`. Excluding it here would let an OLDER publication
+ * win a date the unreadable one governed, which presents wrong published data as
+ * current — see the `!publishedRunMeta` branch in `resolvePublishedRun`.
+ */
+async function loadReadablePublishedRun(runId: number, schoolId: number) {
+	return db().generationRun.findFirst({
+		where: { id: runId, schoolId, status: 'COMPLETED', runType: 'FULL' },
+		select: PUBLISHED_RUN_META_SELECT,
+	});
+}
+
+/**
+ * PUBLISHED-DAY-BOUNDARY-A2 (Defect A) — the publication in force on a local day.
+ *
+ * Fails closed rather than approximating:
+ *  - two base revisions on one run ⇒ the chain is ambiguous ⇒ 409;
+ *  - no chain member at or before the requested day ⇒ the school had published
+ *    nothing for that date ⇒ 404 `PUBLISHED_RUN_NOT_FOUND` (the code the public
+ *    route already translates, and the code the public page already handles as
+ *    "no schedule", not as an error);
+ *  - every other chain inconsistency is validated by the caller against the run's
+ *    own publication binding.
+ *
+ * Selection is by DATE ONLY, over EVERY chain member. Readability is deliberately
+ * NOT a selection criterion: pruning unreadable members here would silently hand the
+ * requested date to an older publication and report it as a legitimate fallback, so
+ * the caller could not tell a correct fallback from a wrong schedule. The selected
+ * member is re-read by the caller, which fails closed when it is not readable.
+ */
+async function selectPublicationInForceForDate(params: {
+	schoolId: number;
+	schoolYearId: number;
+	requestedDayKey: string;
+}): Promise<{ runId: number; revisionId: number; dayKey: string }> {
+	const baseRevisions = await db().publishedScheduleRevision.findMany({
+		where: {
+			schoolId: params.schoolId,
+			schoolYearId: params.schoolYearId,
+			reason: 'INITIAL_PUBLICATION',
+		},
+		orderBy: [{ effectiveDate: 'asc' }, { id: 'asc' }],
+		select: { id: true, sourceRunId: true, effectiveDate: true, metadata: true },
+	});
+
+	const revisionsByRunId = new Map<number, typeof baseRevisions>();
+	for (const revision of baseRevisions) {
+		const existing = revisionsByRunId.get(revision.sourceRunId);
+		if (existing) existing.push(revision);
+		else revisionsByRunId.set(revision.sourceRunId, [revision]);
+	}
+	for (const [runId, revisions] of revisionsByRunId) {
+		if (revisions.length > 1) {
+			throw err(409, 'PUBLISHED_REVISION_INVALID', `Publication run ${runId} carries ${revisions.length} immutable publication revisions; the publication in force on ${params.requestedDayKey} is ambiguous.`);
+		}
+	}
+
+	// Only a revision explicitly marked as the publication base is a chain member.
+	const chain = baseRevisions.filter((revision) => isRecord(revision.metadata) && revision.metadata.publicationBase === true);
+	if (chain.length === 0) {
+		throw err(404, 'PUBLISHED_RUN_NOT_FOUND', 'No published schedule is available for the requested scope.');
+	}
+
+	// Selection is over EVERY chain member, by date only. See the note above: an
+	// unreadable member must lose the date, not be dropped from the contest.
+	const entries = chain
+		.map((revision) => ({
+			runId: revision.sourceRunId,
+			revisionId: revision.id,
+			dayKey: schoolLocalDayKey(revision.effectiveDate),
+		}))
+		// `dayKey` ascending, then the later revision wins a shared day: the most
+		// recent publication governs the day it was published for.
+		.sort((left, right) => (left.dayKey < right.dayKey ? -1 : left.dayKey > right.dayKey ? 1 : left.revisionId - right.revisionId));
+
+	let winner: { runId: number; revisionId: number; dayKey: string } | null = null;
+	for (const entry of entries) {
+		if (entry.dayKey > params.requestedDayKey) break;
+		winner = entry;
+	}
+	if (!winner) {
+		throw err(404, 'PUBLISHED_RUN_NOT_FOUND', `No published schedule is in force on ${params.requestedDayKey} for the requested scope.`);
+	}
+	return winner;
+}
+
 export async function resolvePublishedRun(
 	schoolId: number,
 	schoolYearId?: number,
@@ -255,17 +377,88 @@ export async function resolvePublishedRun(
 	if (publishedRunCandidates.length > 1) {
 		throw err(409, 'PUBLISHED_RUN_AMBIGUOUS', 'Multiple current published runs exist for the requested scope.');
 	}
-	const publishedRunMeta = publishedRunCandidates[0];
-	if (!publishedRunMeta) {
+	const headRunMeta = publishedRunCandidates[0];
+	if (!headRunMeta) {
 		throw err(404, 'PUBLISHED_RUN_NOT_FOUND', 'No published schedule is available for the requested scope.');
 	}
+
+	// PUBLISHED-DAY-BOUNDARY-A2 (Defect A) — resolve WHICH publication was in force
+	// on the requested local calendar day before anything else reads rows from it.
+	//
+	// The pre-fix reader only ever considered the current head. When the head's base
+	// revision did not cover the requested date it threw
+	// `409 PUBLISHED_REVISION_INVALID` ("unavailable for the requested date"), so a
+	// date the school HAD published for became unreachable: publishing run 320 at
+	// 00:38 +08 on 2026-09-27 (16:38Z on 2026-09-26) made 2026-09-26 — a day run 319
+	// was genuinely in force for — return 409, and the public page ("Unable to load
+	// public schedule") followed the browser's local today into the failure.
+	//
+	// The chain is the immutable `INITIAL_PUBLICATION` base revisions of the scope.
+	// Selection is by the school's local calendar DAY of each base revision's
+	// `effectiveDate`, which is the same day rule the writer now stamps
+	// (Defect B) and the same frame the caller's `?date=` is expressed in. Legacy
+	// rows stamped with a raw instant are handled by the identical rule — that is
+	// why this reader change alone makes the ALREADY-PUBLISHED, ALREADY-MIS-STAMPED
+	// revisions correct, with no row rewritten and no migration.
+	//
+	// `YYYY-MM-DD` is zero-padded and fixed-width, so plain string comparison is
+	// chronological. `servedByFallback` below reports when the winner is not the head.
+	const requestedDay = schoolLocalDayWindow(readDate);
+	const inForcePublication = await selectPublicationInForceForDate({
+		schoolId,
+		schoolYearId: headRunMeta.schoolYearId,
+		requestedDayKey: requestedDay.dayKey,
+	});
+
+	const publishedRunMeta = inForcePublication.runId === headRunMeta.id
+		? headRunMeta
+		: await loadReadablePublishedRun(inForcePublication.runId, schoolId);
+	if (!publishedRunMeta) {
+		// Fail closed: the chain named a run this reader cannot read as a
+		// publication. Serving the nearest other publication would be a guess.
+		throw err(409, 'PUBLISHED_REVISION_INVALID', `The publication in force on ${requestedDay.dayKey} (run ${inForcePublication.runId}) is not a readable completed publication for the requested scope.`);
+	}
+
 	const publication = isRecord(publishedRunMeta.summary) && isRecord(publishedRunMeta.summary.publication)
 		? publishedRunMeta.summary.publication
 		: null;
 	const publicationRevisionId = Number(publication?.revisionId);
 	const publicationRunVersion = Number(publication?.sourceRunVersion);
-	if (!Number.isInteger(publicationRevisionId) || publicationRevisionId < 1 || publicationRunVersion !== publishedRunMeta.version) {
+	const servedByFallback = inForcePublication.runId !== headRunMeta.id;
+	if (!Number.isInteger(publicationRevisionId) || publicationRevisionId < 1 || !Number.isInteger(publicationRunVersion)) {
 		throw err(409, 'PUBLISHED_REVISION_INVALID', 'The published run is not bound to its immutable publication revision.');
+	}
+	// PUBLISHED-DAY-BOUNDARY-A2 — the run/publication binding is validated on the
+	// pair the product actually freezes, which is supersession-proof.
+	//
+	// The pre-fix reader required `publication.sourceRunVersion === run.version`.
+	// That equality is only ever true for the CURRENT head: `publishSchedule`
+	// retires a prior publication with `version: { increment: 1 }`
+	// (`publication-contract.service.ts`) while deliberately leaving
+	// `summary.publication.sourceRunVersion` at its publish-time value. A fallback
+	// therefore legitimately reads a run whose version has moved on, and the
+	// equality would reject every prior publication — turning the fix into a
+	// different 409.
+	//
+	// So: the head keeps its exact original invariant, and a fallback is instead
+	// proven to be a genuine superseded publication (a supersession pointer naming
+	// a later run) with its run still bound to one frozen publication version. The
+	// frozen pairing itself is checked below against the base revision's
+	// `metadata.sourceRunVersion`, which no code path rewrites.
+	if (!servedByFallback && publicationRunVersion !== publishedRunMeta.version) {
+		throw err(409, 'PUBLISHED_REVISION_INVALID', 'The published run is not bound to its immutable publication revision.');
+	}
+	if (servedByFallback) {
+		const supersededByRunId = Number((publishedRunMeta.summary as Record<string, unknown>).publicationSupersededByRunId);
+		const supersededAt = (publishedRunMeta.summary as Record<string, unknown>).publicationSupersededAt;
+		if (!Number.isInteger(supersededByRunId) || supersededByRunId < 1 || typeof supersededAt !== 'string' || supersededAt.length === 0) {
+			throw err(409, 'PUBLISHED_REVISION_INVALID', 'The prior publication in force for the requested date carries no valid supersession record.');
+		}
+	}
+	if (publicationRevisionId !== inForcePublication.revisionId) {
+		// The chain and the run disagree about which immutable revision is this
+		// publication's base. The chain cannot be trusted, so nothing is served.
+		throw err(409, 'PUBLISHED_REVISION_INVALID', 'The publication revision chain disagrees with the publication binding of the run in force.');
 	}
 
 	const applicableRevisions = await db().publishedScheduleRevision.findMany({
@@ -274,7 +467,18 @@ export async function resolvePublishedRun(
 			schoolYearId: publishedRunMeta.schoolYearId,
 			sourceRunId: publishedRunMeta.id,
 			status: { in: ['SCHEDULED', 'SUPERSEDED'] },
-			effectiveDate: { lte: readDate },
+			// Scheduled overrides keep their exact-instant rule: a revision is applied
+			// only once its instant has passed the read anchor. The publication's OWN
+			// base revision is day-granular instead, so it is additionally admitted for
+			// the whole requested local day. That second arm is what keeps a legacy
+			// base revision stamped with a raw publish instant (for example 15:58Z on
+			// the requested day, i.e. 23:58 local) readable on that same day instead of
+			// rejecting the date the school published for. It can only ever admit the
+			// one revision already selected by the day rule above.
+			OR: [
+				{ effectiveDate: { lte: readDate } },
+				{ id: publicationRevisionId, effectiveDate: { lt: requestedDay.endExclusiveUtc } },
+			],
 		},
 		orderBy: [{ effectiveDate: 'asc' }, { createdAt: 'asc' }, { id: 'asc' }],
 		select: {
@@ -290,8 +494,13 @@ export async function resolvePublishedRun(
 	const baseRevision = applicableRevisions.find((revision) => revision.id === publicationRevisionId);
 	const baseMetadata = isRecord(baseRevision?.metadata) ? baseRevision.metadata : null;
 	if (!baseRevision || baseRevision.sourceRevisionId !== null || baseRevision.reason !== 'INITIAL_PUBLICATION'
-		|| baseMetadata?.publicationBase !== true || Number(baseMetadata.sourceRunVersion) !== publishedRunMeta.version) {
-		throw err(409, 'PUBLISHED_REVISION_INVALID', 'The immutable publication revision is unavailable for the requested date.');
+		|| baseMetadata?.publicationBase !== true || Number(baseMetadata.sourceRunVersion) !== publicationRunVersion) {
+		// The date is no longer the reason this can fail: the selected publication's
+		// base revision is day-selected above, so a failure here is a broken
+		// publication binding, not an uncovered date. The version comparison is
+		// against the publication's own FROZEN `sourceRunVersion`, not the run's
+		// current version, so a superseded publication stays valid.
+		throw err(409, 'PUBLISHED_REVISION_INVALID', 'The immutable publication revision is not a valid publication base for the run in force on the requested date.');
 	}
 
 	let draftEntries: ScheduledEntry[] = [];
@@ -399,6 +608,12 @@ export async function resolvePublishedRun(
 			activeRevisionEffectiveDate,
 			appliedRevisionIds: applicableRevisions.map((revision) => revision.id),
 			appliedIdentityRevisionIds,
+			// PUBLISHED-DAY-BOUNDARY-A2 (Defect A) — every identity field above
+			// describes the publication ACTUALLY SERVED for `resolvedForDate`, and
+			// these two fields make a fallback explicit instead of letting a caller
+			// mistake a prior publication for the current head.
+			servedByFallback,
+			currentPublishedRunId: headRunMeta.id,
 			revisionMarker: buildRevisionMarker({
 				runId: publishedRunMeta.id,
 				publishedAt,
