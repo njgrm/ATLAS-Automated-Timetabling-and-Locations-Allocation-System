@@ -60,8 +60,10 @@ resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs
   and after, so the cutover and supervisor restart wrote no audit row. **No migration, no live-data write, no
   machine-env mutation beyond the runner's own three-part cutover, no `ops/runtime/` source change.** Deployment
   packet: `docs/prompts/deploy-main-26f7c907-client-presentation-2026-09-26.md` (R5, `APPROVED_TO_EXECUTE` 11/11/0/0
-  after five pre-action passes). **Acceptance is a separate outcome** — the A-row tally is owned by a fresh
-  independent post-action QA. **Rollback basis: `116a7658`.**)
+  after five pre-action passes). **Post-action QA `PLANNER_DECISION_REQUIRED` 9/13, blocked 4, unperformed 0** —
+  A1–A4 and A8–A13 PASS with the zero-write proof independently re-derived (0 of 6 tables, `audit_logs` unchanged
+  at 421 rows), and A5/A6/A7/A12(b) BLOCKED on `NEEDS_SESSION`, so the release is **DEPLOYED /
+  ACCEPTANCE_INCOMPLETE** with **Lane A** named as the acceptance owner. **Rollback basis: `116a7658`.**)
 
 - **Host change, unversioned shared Git state, 2026-09-26, Lane A, authorized:** `/ops/runtime/logs/` added to `D:\ATLAS\.git\info\exclude` (line 8). The supervisor writes `supervisor-state.json` into the release worktree it runs from (`ops/runtime/cli.mjs` `statePathFor`, which never reads `ATLAS_RUNTIME_LOG_DIR`), so every started release reported `?? ops/runtime/logs/` and `deploy-runner.ps1` `Get-GitIdentity` rejected it as both a deploy target and a rollback basis. The `*.log` sibling was already covered by `.gitignore:83`; this rule covers the state file. Verified: `git check-ignore -v` attributes `ops/runtime/logs/supervisor-state.json` to `D:/ATLAS/.git/info/exclude:8`, and `git status --short` is empty for `116a7658`, `861d89a2`, `eb0e3038` and the new target. Before/after measurement and rationale: `docs/prompts/deploy-main-26f7c907-client-presentation-2026-09-26.md` section 0. **No `ops/runtime/` source change was made.**
 - **Release SHA: `116a765814bf56fdd30aec02c611869aaff42190`** (**previously LIVE 2026-09-26 05:11 → 09:41, when
@@ -877,19 +879,65 @@ SHA and the miscounted rows.
 fail-closed line, below the 50 GiB warning. This deployment is unaffected, but the release-directory retention
 reclaim is owed again before the **next** release build.
 
-**Next action (2026-09-26): `26f7c907` is DEPLOYED and the register now names it LIVE. The single remaining
-required step is the fresh independent post-action QA** — `atlas-qa`, dispatched by the planner, owning the A1–A13
-tally with a real `passed / blocked / unperformed` and no row declared not applicable. It must **re-run A4's
-six-table digest corroboration itself** rather than accept the executor's figures, and A5–A7 plus A12(b) are
-Lane A's authenticated browser rows against the Tailnet root origin using the seeded profile. **Deployment and
-acceptance stay separate outcomes** — the runtime is live and healthy, and acceptance is not yet closed. Also
-owed: **rotate the exposed dev DB credential**; E: is 47.19 GiB, so the retention reclaim is owed before the next
-release build; the `4893cbde` + three-leftover decision (1.91 GiB); and the 8.72 GiB disposition backlog owned by
-Lanes B and C. Dated follow-ups, none blocking: **F1**, a product ruling this lane did not
-then a fresh `atlas-qa` post-action QA against A1–A13 with a real `passed/blocked/unperformed` tally. `main` is
-still not deployed; live is `116a7658` and healthy. Also still owed and neither blocking: the `4893cbde` +
-three-leftover decision (1.91 GiB) and the 8.72 GiB disposition backlog owned by Lanes B and C. Dated follow-ups,
-none blocking: **F1**, a product ruling this lane did not
+**POST-ACTION QA VERDICT (2026-09-26): `PLANNER_DECISION_REQUIRED` — 9/13 passed, 4 blocked, 0 unperformed. The
+release is DEPLOYED and ACCEPTANCE_INCOMPLETE, not accepted.** Fresh independent `atlas-qa` reproduced the
+cutover rather than trusting the executor:
+
+- **A1–A4, A8–A13 all PASS.** Identity is consistent across the task action, both machine env vars, the listeners
+  (5001→88120, 5174→84436), the CLI and the production host. The new chunk serves 200 with a SHA-256 identical
+  to the on-disk build while the superseded chunk 404s.
+- **A4 zero write re-derived independently at full precision: 0 of 6 tables changed**, all 32 hex chars matching,
+  with **`audit_logs` unchanged at 421 rows** — so the cutover, the `taskkill /T /F`, the `schtasks /run` and the
+  new supervisor's startup wrote no audit row.
+- **A8/A9 baselines re-derived at `5960cfce`**, not assumed: 16 fails in the **same 11 files** (1079/1063 vs
+  1062/1046, +17 tests, **zero new failures**) and the **identical 4 typecheck errors**. A9's baseline is 4, not
+  the 3 my packet stated — the packet's composition was wrong, though the comparison is unaffected.
+- **A5, A6, A7, A12(b) BLOCKED — `NEEDS_SESSION(C:\Users\njgro\.config\opencode\playwright-profile)`.** The
+  Tailnet root origin redirects to `/login` with no `atlas_local_token` in the profile. This is **not** a
+  deployment defect and no source correction can close it.
+
+**Acceptance owner: Lane A**, for the four browser rows, against the Tailnet **root origin only**. **Unblocking
+action is the operator's:** re-seed the profile (about a minute), after which Lane A runs those four rows. Per
+`AGENTS.md` §12 the four rows are reported `NEEDS_SESSION` in one line and the rest of the acceptance continued,
+which is what happened.
+
+**A dated supersession request for Lane C, which this lane does not edit.** Lane C's section carries four
+now-false `not deployed` claims naming `4c76208d`, `1ccdf4dd`, `9f42190e`, `212809f7`, `8bdf5802`, `39645f2d` and
+`de392cf8` — **all verified ancestors of the live `26f7c907`** (`merge-base --is-ancestor` exit 0 each). **Lane C
+updates its own text**; this lane records the request, as the packet anticipated.
+
+**Adjudicated non-blocking findings worth keeping:**
+- **`cli.mjs status` reporting `live: false` is a pre-existing false negative**, root-caused to
+  `cli.mjs:81-89` building a fresh `Supervisor` with an empty `children` map so `supervisor.mjs:401` computes
+  `live:false` unconditionally. `ops/` diff across the deployed delta is **0 files**, and the live supervisor's own
+  log reads `All targets healthy`. Operator-facing only — do not read it as a regression.
+- `status` printing `releaseLabel: atlas-d44f29e0` beside `releaseSha: 26f7c907…` is **by design**:
+  `runtime-contract.json:5-6` pins the immutable ancestor milestone, not the installed HEAD. Do not "fix" it.
+- **Two files exceed the §8 1000-line cap** and are outside any current guard: `TimetableGrid.tsx` (1001 lines)
+  and `ManualEditPanel.tsx` (1013). The B5 guard only scans files a range touches, so neither is caught. Both
+  pre-existing; backlog.
+- The plain-language residuals are user-visible at the deployed bytes at **comprehension/cosmetic** severity only —
+  no data, authority, publication or accessibility consequence — and are already pinned by committed failing
+  tests.
+- **Correction to this lane's own claim:** `timetable-scheduling-quality-c03.test.tsx` is **not** modified in the
+  A8/A9 baseline range `5960cfce..26f7c907` (blob `14b81c3d…` on both sides), so the earlier "never touches" was
+  true *there*; it is modified in the deployed delta. I had said the claim was simply false — it was false only
+  about the other range.
+
+**Next action (2026-09-26): the release is live; acceptance needs one operator action.** (1) **operator
+re-seeds** `C:\Users\njgro\.config\opencode\playwright-profile`; (2) **Lane A** runs A5, A6, A7, A12(b) and records
+the result, closing acceptance; (3) **rotate the exposed dev DB credential**; (4) retention reclaim before the
+next release build (E: 47.19 GiB, below the 50 GiB warning); (5) the `4893cbde` + three-leftover decision
+(1.91 GiB) and the 8.72 GiB disposition backlog owned by Lanes B and C. **Rollback basis `116a7658` is verified
+eligible and was not executed.**
+
+**SUPERSEDED 2026-09-26 — a spliced paragraph this lane's own editing left behind, repaired.** The four lines
+immediately below were an orphaned fragment, and the sentence they belonged to was cut in half. They are
+retained rather than deleted, per "corrections are additive to evidence":
+
+> ~~then a fresh `atlas-qa` post-action QA against A1–A13 with a real `passed/blocked/unperformed` tally. `main`
+> is still not deployed; live is `116a7658` and healthy.~~ **This was true when written and is now false: the
+> post-action QA ran, `main` IS deployed, and live is `26f7c907`.** The QA verdict is recorded in the block below.
 `CORRECTION_REQUIRED` 7/12 with **4 blocking** findings, and proved by execution that **R4's fix did not fix the
 defect**: `ATLAS_RUNTIME_LOG_DIR` moves the supervisor's *log file*, but the file that actually dirties a release
 worktree is **`supervisor-state.json`**, written by a separate hardcoded resolver — `ops/runtime/cli.mjs:21-23`
