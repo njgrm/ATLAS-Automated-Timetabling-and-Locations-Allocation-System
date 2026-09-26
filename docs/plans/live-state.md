@@ -26,29 +26,61 @@ rules are what make that safe:
    `docs/handoffs/planner-session-handoff.md`, Lane B in its own handoff file, Lane C in its
    section below until a stream needs a handoff.
 
-## Capacity — a reclaim is OWED before the next release build (dated 2026-09-26, Lane A2)
+## Capacity — reclaim EXECUTED 2026-09-26 (Lane A2); the §3 warning is STILL met (dated 2026-09-26)
 
-**`E:` is at 49.84 GiB free (5.4%), just below the 50 GiB warning line**, because the `e4989b72` deploy added
-a ~1.47 GiB release directory. `AGENTS.md` §3 requires the release-directory retention reclaim to run when a
-volume crosses its warning, and **not to wait for the fail-closed line**. `C:` is at 42.91 GiB (19%) and is
-not a concern. **Not executed** — a destructive reclaim is the wrong thing to start with almost no context
-budget left, so it is recorded here for a bounded execution instead.
+**One directory retired: `E:\ATLAS-runtime-supervised-eb0e3038-20260925` (1.46 GiB).** `E:` went
+**48.54 → ~50.0 GiB free**, which *reaches* the 50 GiB warning line but does **not** clear it. `C:` is
+42.90 GiB and is not a concern. Frozen manifest + full audit trail:
+`docs/reviews/reclaim-e4989b72-20260926/frozen-manifest.md`. Pre-action audit by a fresh independent
+read-only reviewer: **`CLEAR_TO_PROCEED` 12/12/0/0**, five findings all NON_BLOCKING.
 
-| Release directory | Size | Role | Action |
+**The reclaim table recorded in `ae523c9d` was wrong in two ways that mattered; both are corrected here
+so the next session does not repeat it.** It is superseded — do not act on it:
+
+| Release directory | Size | Role | Disposition |
 | --- | --- | --- | --- |
-| `ATLAS-runtime-supervised-e4989b72-20260926` | 1.46 GiB | **LIVE** | never touch |
-| `ATLAS-runtime-supervised-400a6909-20260926` | 1.46 GiB | **rollback basis** (immediately prior) | keep |
-| `ATLAS-runtime-supervised-116a7658-20260726` | 1.46 GiB | older fallback, named in history | keep |
-| `ATLAS-runtime-supervised-861d89a2-20260925` | 1.47 GiB | **frozen dependency donor** — lanes copy `node_modules` from it | **never retire**; retiring it breaks every future release build |
-| `ATLAS-runtime-supervised-26f7c907-20260926` | 1.47 GiB | superseded (Lane A, live 09:41–15:49) | reclaimable |
-| `ATLAS-runtime-supervised-eb0e3038-20260925` | 1.46 GiB | superseded | reclaimable |
-| `ATLAS-runtime-supervised-4893cbde-20260923` | 1.43 GiB | superseded | reclaimable |
+| `ATLAS-runtime-supervised-e4989b72-20260926` | 1.46 GiB | **LIVE** (verified: scheduled-task action, machine-scope env, listener command lines) | never touch |
+| `ATLAS-runtime-supervised-400a6909-20260926` | 1.46 GiB | most recent accepted release — **rollback basis** | keep |
+| `ATLAS-runtime-supervised-26f7c907-20260926` | 1.47 GiB | **second** most recent accepted release | **keep — the old table wrongly said "reclaimable"** |
+| `ATLAS-runtime-supervised-116a7658-20260726` | 1.46 GiB | immediately prior rollback basis / older fallback named in history (the two *named last-resort* artifacts are `9d293879` and `d44f29e0`, on `D:`) | keep |
+| `ATLAS-runtime-supervised-861d89a2-20260925` | 1.47 GiB | **frozen dependency donor** — three live lanes junction `atlas-client/node_modules` into it | **never retire** |
+| `ATLAS-runtime-supervised-eb0e3038-20260925` | 1.46 GiB | superseded; ranked 6th by deploy recency across **both** volumes, filling none of the six keep-set slots | **RETIRED 2026-09-26** ✅ |
+| `ATLAS-runtime-supervised-4893cbde-20260923` | **1.80 GiB** (old table said 1.43) | reports `?? ops/runtime/logs/` — untracked supervisor output | **PRESERVED — dirty**; the preserve rule covers any non-empty `git status --short` |
 
-**Reclaimable: 3 directories, 4.36 GiB**, which restores `E:` to ~54.2 GiB — above the warning with margin.
-**Rules that apply, from `docs/reference/agent-worktree-lifecycle.md`:** read it before retiring anything;
-the frozen donor must not be retired; removal is non-forced; verify the target's `node_modules` entry count
-before and after so a junction cannot be followed; and confirm no listener is bound to a directory being
-removed. **Do not delete any branch or Git ref** — history lives there, not in these directories.
+**Correction 1 — `26f7c907` is keep-set, not reclaimable.** The retention policy in
+`docs/reference/agent-worktree-lifecycle.md` keeps the **live release + the two most recent accepted
+releases + the two named last-resort artifacts + one real dependency source**. `26f7c907` is the second
+most recent accepted release. Removing it would have destroyed a keep-set rollback basis — and a deep
+rollback is a *rebuild*, not an instant re-point.
+
+**Correction 2 — the method was wrong for 2 of the 3 rows.** `26f7c907` and `eb0e3038` are **registered
+linked worktrees** (`.git` is a file, both listed by `git worktree list`), so `git worktree remove`
+applies. The old table's blanket "non-forced removal" wording invited `Remove-Item -Recurse -Force`,
+which is reserved for standalone clones and **would have left a stale worktree registration**.
+`4893cbde` is by contrast a standalone clone (`.git` is a directory, unregistered).
+
+**Verified after removal:** `git worktree remove` exit 0 (non-forced, no `--force`) + `git worktree prune`
+exit 0; registered worktrees **42 → 41**; `node_modules` counts on all five kept directories unchanged
+(`atlas-server` 209 each; `atlas-client` 155/155/156/155/**156** — the donor's 156 is the load-bearing
+one); `@prisma/client` still resolves in the live release and the donor; `/api/v1/health` 200,
+`/health/ready` 200, **DB-backed** `GET /api/v1/subjects?schoolId=1` 200, 5174 200; listeners unmoved at
+5001→PID 20004 and 5174→PID 33732, both `e4989b72`; `git stash list` unchanged at 3; **no branch or ref
+deleted** (`eb0e3038` was detached and had none).
+
+**⚠ STILL OWED — operator decision, deliberately not self-resolved by deleting keep-set rollback depth.**
+`E:` cannot absorb another release build: ~50.0 − ~1.46 = **~48.5 GiB**, i.e. back below the warning, one
+deploy from the 25 GiB fail-closed line. The keep set cannot free that. Options, all requiring an explicit
+operator decision: (a) drop the second-most-recent-accepted rollback basis with a recorded exception;
+(b) relocate release directories to another volume; (c) authorise disposal of the `4893cbde` runtime logs
+to free 1.80 GiB. **The next release build needs a fresh manifest and its own pre-action audit.**
+
+**Trap that cost time here, recorded so it is not re-learned:** a supervisor state read is
+**env-sensitive**. `ATLAS_RUNTIME_SOURCE_DIR` in a long-lived shell's *inherited* process env can be one
+release behind machine scope, and it **overrides** machine scope — so `cli.mjs status` reported the
+displaced `26f7c907` with dead child PIDs and looked like a misconfigured or downed runtime. Judge
+identity by `[Environment]::GetEnvironmentVariable('ATLAS_RUNTIME_SOURCE_DIR','Machine')`, the
+scheduled-task action, and the listener command lines. Machine scope currently reads
+`e4989b72…` / `e4989b725394204898ebcd429db74daaf7316323`, which is correct.
 
 ## Objective
 
@@ -65,40 +97,46 @@ resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs
 
 - Tailnet: `https://njgrm.buru-degree.ts.net`
 
-- **DEPLOY IN PROGRESS — target `400a6909a9642703e3891861c40d5f49f85c7cd9`, rollback basis
-  `26f7c907a37185e036e71cf0d82423794689b318`** (Lane A2, 2026-09-26, HIGH authority granted by the
-  operator). Recorded here BEFORE the cutover because `ops/runtime/deploy-runner.ps1` refuses to swap
-  unless the register already names the target and its rollback — so the runtime can never be swapped
-  while this file is silent about it.
-  Target is **`400a6909` and deliberately NOT the tip `ea5e12b0`**: the three later commits are two
-  docs commits plus the unreviewed, deliberately unwired lifecycle model, and a release must not ship
-  source no independent reviewer has seen.
-  **Range `41a2f0f8..400a6909` is client-only** (11 paths, all `atlas-client/`, zero
-  `migration|prisma|schema` matches) — **no schema command is authorised**.
-  Release dir `E:\ATLAS-runtime-supervised-400a6909-20260926`: `npm ci` both packages (0 reparse
-  points, no junction), `prisma generate` exit 0, server `dist/server.js` built, client built with the
-  `VITE_ENROLLPRO_URL` guard (171 chunks), and the built server **proven to start** on isolated port
-  5099 with health 200. Dry run reached the guard and stopped for this register entry — it had already
-  caught one real error first, that the runner needs full 40-char SHAs rather than 8-char prefixes.
-  Cutover NOT yet executed; acceptance rows A1–A6 are owed and are deployment-acceptance clauses.
-  Packet: `docs/prompts/deploy-400a6909-room-schedules-term-2026-09-26.md`.
+- **LIVE: `e4989b725394204898ebcd429db74daaf7316323` (full 40-char), rollback basis
+  `400a6909a9642703e3891861c40d5f49f85c7cd9`** (Lane A2, 2026-09-26, HIGH authority granted by the
+  operator). Release dir `E:\ATLAS-runtime-supervised-e4989b72-20260926`.
+  **Re-verified by command this session**, not inherited: the scheduled-task action names
+  `…-e4989b72-20260926\ops\runtime\cli.mjs start` (Running); **machine-scope**
+  `ATLAS_RUNTIME_SOURCE_DIR` / `ATLAS_RUNTIME_RELEASE_SHA` both read `e4989b72…`; the listeners run its
+  bytes (5001→PID 20004 `…\atlas-server\dist\server.js`, 5174→PID 33732 `…\ops\runtime\host.mjs`);
+  `/api/v1/health` 200, `/api/v1/health/ready` 200, **DB-backed** `GET /api/v1/subjects?schoolId=1` 200,
+  5174 200.
 
-- **DEPLOY NEXT — target `e4989b72`, rollback basis `400a6909a9642703e3891861c40d5f49f85c7cd9`**
-  (Lane A2, 2026-09-26, HIGH authority granted). **This entry exists to satisfy the runner's precondition**:
-  `ops/runtime/deploy-runner.ps1` refuses to swap unless this section already names the target and its
-  rollback, so the register is never silent about a swap in flight.
-  `e4989b72` is a **4-line client-only** fix on top of the live release: all four surfaces that need term
-  authority now pass `verifyUpstream: true` to `fetchAtlasRuntimeContext`, correcting the three-layer
+  **What this release is:** a **4-line client-only** fix on top of `400a6909` — all four surfaces needing
+  term authority now pass `verifyUpstream: true` to `fetchAtlasRuntimeContext`, correcting the three-layer
   default mismatch (client default false / route absent-means-false / service `!== false` intending true)
-  that left the deployed Room Schedules page fail-closed on "Term not verified". Verified: typecheck clean
-  bar the 4 known `playwright` errors; **20/20** across `timetable-term-gate-c01`,
-  `room-schedules-term-c01` and `academic-term`, including the pre-existing D1–D4 rows that already cover
-  this verified-authority path. **NOT yet deployed.** **This changes the client cache key deliberately** —
-  `settings.ts:179-191` documents `verifyUpstream` as load-bearing, so surfaces re-fetch rather than serve
-  a stale unverified context. Remaining steps: build the release, dry-run, elevated `-Execute`, prove it
-  (byte-compare a new chunk), then close acceptance **A1–A6**. `reachable: false` on this deployment, so
-  the verified path is expected to take the persisted contract's own active term — the documented fallback
-  that resolves one ordered term rather than dead-ending.
+  that left the deployed Room Schedules page fail-closed on "Term not verified". `settings.ts:179-191`
+  documents `verifyUpstream` as load-bearing, so the client cache key changes deliberately and surfaces
+  re-fetch rather than serve a stale unverified context. 20/20 across `timetable-term-gate-c01`,
+  `room-schedules-term-c01` and `academic-term` at deploy time.
+  **Acceptance A1–A6 is CLOSED**, not owed: on the live deployment the term resolves
+  (`verified: true`, `termIndex: 2`, `T2`, 3 ordered terms), the page renders "Showing TERM 2", the view
+  selector reads "TERM 2", the scoped request returns `termIndexes [2]` with `maxEntriesInOneCell 1`, and
+  **the page reports no conflicts** — the G7 Room 103 report of 10 invented conflicts is fixed.
+  `reachable: false` (EnrollPro down), so the verified path took the persisted contract's documented
+  fallback and resolved one ordered term — the resilience path working, not a workaround.
+
+  **This entry supersedes two earlier in-flight entries in this section, both of which were stale and are
+  removed rather than retained:** the "DEPLOY IN PROGRESS — target `400a6909`, rollback `26f7c907`"
+  entry (its "cutover NOT yet executed" became false — `400a6909` was deployed and then superseded by
+  `e4989b72`) and the "DEPLOY NEXT — target `e4989b72` … NOT yet deployed" entry (it was deployed).
+  Keeping both would be a per-transition register, which §15 forbids. Their evidence is retained in Git
+  at `git show 6065222b:docs/plans/live-state.md`, and the deploy packets remain at
+  `docs/prompts/deploy-400a6909-room-schedules-term-2026-09-26.md` and the `e4989b72` packet.
+
+  **Do not trust an inherited shell's `ATLAS_RUNTIME_SOURCE_DIR`.** It can be one release behind machine
+  scope and it *overrides* machine scope, so `cli.mjs status` will report a displaced release with dead
+  child PIDs and look like a downed runtime. See the Capacity block.
+
+- **Accepted residual, not yet fixed:** an **unscoped** Rooms request still returns `termIndexes [1,2,3]`
+  with 3 entries per cell — the server keeps an all-term default read. Every audited surface now scopes,
+  so this is defence in depth, but **the server default is still fail-open for any future caller that
+  forgets.** Tracked as the next server-side item.
 
 - **Release SHA: `e4989b725394204898ebcd429db74daaf7316323` — LIVE since 2026-09-26 17:24 (Lane A2).
   CANDIDATE 1 ACCEPTED.** Runner returned `CUTOVER_STARTED`, audit
@@ -1889,3 +1927,36 @@ that can decide the merge is actually gone. Then take the handoff's candidates i
 lifecycle model across dashboard / timetable / `/my` / public (BLOCKING, and the one that makes a reviewing
 draft read as Live), **(3)** public term resolver diagnosis + retain a valid section, **(4)** 390 px drift
 banner, **(5)** Runs loading vs empty. Item 1 (R2 the packet) stays blocked behind its re-review either way.
+
+### Fail-open default audit (2026-09-26, A2) — the `!== false` / absent-is-false class
+
+The handoff flagged that `settings.ts:597` defaulted `verifyUpstream = false`, `runtime.router.ts:204`
+treated an absent param as false, and `runtime-context.service.ts:375` uses `options?.verifyUpstream !==
+false` (intending true) — the route silently overrode the service. That cost a live fail-closed page.
+**The `e4989b72` fix was client-side only** (four surfaces now pass `verifyUpstream: true`), so the route
+default is **still fail-open**. Audited the class across the server:
+
+1. **LIVE, UNFIXED, same class — `atlas-server/src/routes/runtime.router.ts:204`.**
+   `req.query.verifyUpstream === 'true' || === '1'` ⇒ **absent means unverified**, which contradicts
+   `runtime-context.service.ts:375`'s `!== false` (absent means verify). Any caller that omits the param
+   still gets unverified context. **Not fixed here, deliberately:** flipping the route default to
+   fail-closed aligns it with the service's intent, but it adds a network read per request for every
+   caller that does not pass the flag, on a **live** endpoint. That is a behaviour change to production
+   wiring and wants its own reviewed packet plus a deploy, not a drive-by. This is the same shape as the
+   accepted Rooms residual, one layer up.
+2. **ROOT CAUSE — the route layer mixes both boolean conventions with nothing announcing which.**
+   Absent-means-**false**: `runtime.router.ts:204`, `runtime.router.ts:228` (`includeCounts`),
+   `generation.router.ts:171` (`enforceShiftWindows`), `faculty.router.ts:121`, `subject.router.ts:227-229`.
+   Absent-means-**true**: `subject.router.ts:40-41` (`includeSte`/`includeSpa`),
+   `pre-generation-draft.router.ts:45`. **`subject.router.ts` uses both, in the same file**
+   (`:40-41` vs `:227-229`), so a caller cannot infer the convention from context. A one-line
+   normalisation at the route boundary (or a shared `boolParam` helper that states its absent-default)
+   retires the class rather than this instance.
+3. **VERIFIED SAFE — a control, not a defect.** `section.service.ts:330-331` relies on the service
+   default (`allowExternalSync`/`verifyRuntimeUpstream` `!== false`) and its call at `:340` omits the
+   options object entirely, so it *does* verify. That call is a provenance-labelling read, not a term
+   authority gate, so an unverified result there is reported, not silently trusted.
+
+**Sequencing note:** finding 2 is the cheap systemic fix and finding 1 is the sharp instance. Doing 2
+first would have made 1 structurally impossible to reintroduce — the same "sequence the dependency
+first" lesson that produced the earlier Rooms outage.
