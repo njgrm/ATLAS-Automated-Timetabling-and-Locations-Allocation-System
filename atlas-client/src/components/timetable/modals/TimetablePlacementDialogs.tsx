@@ -10,7 +10,7 @@ import { SearchableSelect } from '@/ui/searchable-select';
 import { ReviewActionMiniCard, ReviewActionSection, ReviewActionSheet } from './ReviewActionSheet';
 import { SoftViolationConfirmDialog } from './SoftViolationConfirmDialog';
 import { PublishedSwapRevisionPanel } from './PublishedSwapRevisionPanel';
-import GeneratedSwapMoveDisclosure, { getCommittedMoves } from './GeneratedSwapMoveDisclosure';
+import GeneratedSwapMoveDisclosure, { getCommittedMoves, getSwapCommitLabel } from './GeneratedSwapMoveDisclosure';
 
 type PreviewLike = { hardViolations: unknown[]; softViolations: unknown[] } | null | undefined;
 
@@ -802,7 +802,7 @@ export function TimetablePlacementDialogs({ context }: { context: ScheduleReview
 								onClick={() => void executeRegularSwap()}
 							>
 								{regularSwapSaving ? <Loader2 className="size-4 animate-spin" /> : <RefreshCw className="size-4" />}
-								Swap sessions
+								{getSwapCommitLabel(committedSwapMove)}
 							</Button>
 						)}
 						</div>
