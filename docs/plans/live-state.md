@@ -149,7 +149,75 @@ resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs
 
 - Tailnet: `https://njgrm.buru-degree.ts.net`
 
-- **LIVE: `b0736007e89547ff66eab70d1d869e21f73d49ad` (full 40-char)** (Lane A2, 2026-09-27 03:28 +08,
+- **LIVE: `d11304e8135715783455ca4cb6cfd7a9e39222e8` (full 40-char)** (Lane A3, 2026-09-27 ~04:2x +08,
+  HIGH deploy + browser-QA authority granted by the operator; packet
+  `docs/prompts/a3-deploy-5691e663-2026-09-27.md`, independent pre-action review
+  **`CORRECTION_REQUIRED` 30/36 with 3 blocking, all corrected before cutover**). Release dir
+  **`E:\ATLAS-worktrees\lane-a3-release-f426f465`**.
+  **Product tree is `5691e663`** (identical to `origin/main`); `d11304e8` adds only the deploy
+  packet on top, so the deployed bytes are `5691e663`.
+  **Rollback basis: `b0736007e89547ff66eab70d1d869e21f73d49ad`**, dir
+  `E:\ATLAS-worktrees\lane-a2-release-b0736007` — **verified present, `atlas-server/dist/server.js`,
+  `atlas-client/dist/index.html` and both dependency trees intact, so rollback is a one-step
+  supervised reset** (write the two machine env values back, re-point the task, restart).
+
+  **This is a CLIENT-ONLY release.** `git diff --name-only b0736007 d11304e8` = 42 paths with
+  **zero** under `atlas-server/`. No migration, no schema change, no server route, no generation,
+  no publication, no Teaching Load or term-cache apply. Database state untouched. Lane A2's
+  `published-schedule.service.ts`, `publication-contract.service.ts` and
+  `school-operating-time-zone.ts` are **blob-identical** to the previous live release and are
+  still being served.
+
+  **What it ships:** the A3 non-timetable UI/UX remediation — Sections and room map (fixes
+  03/06/07/10/11/12), Subjects (09/15/17/19/20/31/32/33A/33B), Teachers and Teaching Load
+  (13/14/16/18/21-26/29/30), including the primitive-wide `ui/select.tsx` checked-state fix
+  (fix 30) and the shared `AdminWorkspace` additive `primaryFilterCount` prop.
+
+  **Cutover EXECUTED and verified by command, not inherited.** Machine-scope
+  `ATLAS_RUNTIME_SOURCE_DIR` and `ATLAS_RUNTIME_RELEASE_SHA` both read the new release and
+  `d11304e8…`; the scheduled-task action names the new `ops\runtime\cli.mjs`; **5001 → PID 39548**
+  and **5174 → PID 43484**, both running the **new** release's `atlas-server\dist\server.js` and
+  `ops\runtime\host.mjs` under supervisor **PID 42880**; the new release's
+  `supervisor-state.json` reports `state=running`, `releaseSha=d11304e8…`.
+  `5001 /api/v1/health` **200**, `5174 /` **200**, `GET /api/v1/subjects?schoolId=1` **200**
+  (a database-backed read, not liveness).
+
+  **Deploy proof is behavioural, not a health check.** A healthy `/api/v1/health` returned 200
+  on a release that had **not** deployed, so the proof is five **two-sided content literals**
+  fetched over HTTP from the live host, all five verified differing *before* cutover:
+  `Refresh roster` present/`Refresh teacher roster` absent (`Faculty-Ch0v0n_5.js`),
+  `subjects-form-result` present/`Show advanced` absent (`Subjects-KlQigjVY.js`), and
+  `Keep queued` present (`Sections-BpDKkcyN.js`). All five **PASS** on the served bundle; the
+  previous release's `Faculty-D-2MUhhm.js` now **404s**; served `Content-Type` is
+  `text/javascript`. Filename hashes were rejected as proof because a full rebuild changes every
+  asset hash, and the 3,070-byte `atlas-server/dist/server.js` stub was rejected because the
+  directive records that exact artifact as byte-identical across builds.
+
+  **Two methods learned the hard way, both now recorded.** (1) Re-pointing the scheduled task
+  is **not sufficient** — machine-scope `ATLAS_RUNTIME_SOURCE_DIR` and `ATLAS_RUNTIME_RELEASE_SHA`
+  must be written in the **same** action, or the supervisor starts from the new directory while
+  still serving the old release and writes no state file. (2) `schtasks /change /tr` **cannot**
+  set this action: it rejects the quoted path because of the space in `C:\Program Files\…`. The
+  working route is `/query /xml`, substitute only the path inside `<Arguments>`, write the bytes
+  in the encoding `schtasks` emitted (ASCII) **leaving the `encoding="UTF-16"` declaration
+  untouched**, then `/delete` + `/create /xml`, and verify the action afterwards.
+
+  **Supersedes Lane A2's recorded decline.** Commit `5691e663` records A2 declining this delta
+  because it would add unperformable browser rows to acceptance debt, "ship it when the session
+  exists." A3 **does supersede** that entry, naming the authority actually relied on: the
+  operator's standing HIGH authority for deploy and browser QA, granted 2026-09-27. A3's
+  reasoning is that the directive keeps **deployment and acceptance as separate outcomes**, so
+  the missing session blocks *acceptance*, not the *deploy*. **A2's acceptance debt is unchanged
+  and A3 does not claim to close it.** Browser acceptance for this release is owed and is
+  recorded in the Lane A3 section below with its owner and its blocking gate.
+
+- **PREVIOUS LIVE / ROLLBACK BASIS: `b0736007e89547ff66eab70d1d869e21f73d49ad`** (Lane A2,
+  2026-09-27 03:28 +08, superseded by `d11304e8`; retained and startable). Release dir
+  `E:\ATLAS-worktrees\lane-a2-release-b0736007`. A2's full acceptance record for this release is
+  **preserved verbatim below** and is not superseded by this entry — only its LIVE status is.
+
+- **~~LIVE: `b0736007e89547ff66eab70d1d869e21f73d49ad`~~ (SUPERSEDED 2026-09-27 by `d11304e8`; was
+  LIVE from 03:28 +08, Lane A2 — record preserved below, unchanged)** (Lane A2, 2026-09-27 03:28 +08,
   HIGH authority granted by the operator; packet
   `docs/prompts/a2-release-b0736007-2026-09-27.md` rev 3, independent pre-action review **`PRE_ACTION_CLEAR`
   10/10/0/0** after four rounds). Release dir **`E:\ATLAS-worktrees\lane-a2-release-b0736007`**.
@@ -2153,3 +2221,80 @@ implicitly.
 **Next action (2026-09-27):** the small unblocked lane-A2 follow-up Lane C explicitly specified — the **amber icon
 and the "Swap + move 3 classes" button label**, which complete their (i)-bounded-by-(ii) auto-fix rule and are
 the only remaining presentation gap in code that already ships. Everything else is behind the session.
+## Lane A3 - current lane (written only by Planner A3)
+
+### Live release `d11304e8` is DEPLOYED; browser acceptance is INCOMPLETE and BLOCKED
+
+Deployment and acceptance are **separate outcomes**. This release is `DEPLOYED` and verified
+by behavioural proof. Browser acceptance is **not** started and is blocked on an environment
+gate, not on a code defect.
+
+**Runtime acceptance, closed (7 rows, 6 PASS, 1 PARTIAL, 0 blocked, 0 unperformed):**
+
+| Row | Result |
+|---|---|
+| R1 identity (`releaseSha`, `sourceDir`, task action, machine env) | PASS - all four agree on `d11304e8` / the new release |
+| R2 health `5001 /api/v1/health` and `5174 /` | PASS - 200 / 200 |
+| R3 database-backed read `GET /api/v1/subjects?schoolId=1` | PASS - 200 |
+| R4 deploy discriminator D1-D5 on the **served** bundle | PASS - 5/5, previous chunk 404, `text/javascript` |
+| R5 zero unauthorized writes | **PARTIAL** - `atlas-server/` delta is 0 paths and no migration/generation/publication call was issued, but the `audit_logs` before/after count was **not captured**: it needs DB credentials or an authenticated session, and neither was available. Reported UNPERFORMED rather than assumed |
+| R6 Lane A2's server work still served | PASS - 3 server blobs byte-identical to the previous live release |
+| R7 residue | PASS - release worktree clean, 0 reparse points, 3 pre-existing stash entries on other lanes' branches |
+
+**Browser acceptance, NOT STARTED - blocked on `NEEDS_SESSION(space-bunny/opencode-default)`.**
+A read-only probe of `https://njgrm.buru-degree.ts.net/sections` **and**
+`http://localhost:5174/sections` both redirect to `/login`. Sessions are seeded by the operator
+and never typed by an agent, so this lane cannot self-clear it.
+
+**Acceptance owner: Planner A3.** Rows owed against this deployed release:
+
+| Row | Claim |
+|---|---|
+| B1 | Subjects primary filters visible in one interaction |
+| B2 | `BLOCKED` term-authority state still `role="alert"` and loud; `VERIFIED_LIVE` compact |
+| B3 | Room-picker long occupant name readable, no clipping |
+| B4 | Room-map cards non-overlapping at 60/80/100 %; `Learning Commons` + `Guidance Office` render fully |
+| B5 | Cancel on a confirmed swap makes **zero** changes |
+| B6 | Teaching Load density: >1 assignment row at 1366x768, no page scrollbar |
+| B7 | Fix 24 labels on one line, desktop **and** mobile menu, longest faculty name |
+| B8 | Fix 23 pointerdown-outside closes the profile dialog |
+| B9 | Fix 14/16 density pixel assertion |
+| B10 | Select checked option legible **and** distinct from highlighted |
+| B11 | `Review teachers` modal returns to an unchanged roster |
+| B12 | Lane A2 cross-lane sweep - A2's timetable surfaces consume the shared `ui/select.tsx` primitive that fix 30 changed, and a live regression sweep of those surfaces is owed |
+
+B1-B12 are **deployment-acceptance clauses, not source rows**. They were labelled as such when
+the packet was written and were never substituted with class assertions. Their source halves
+are already covered by the committed suites; what remains is real-browser interaction and layout.
+
+**Supersession of this lane's earlier entries, named explicitly.** A3 previously declined to
+deploy on three grounds: (a) the browser session gate, (b) Lane A2's recorded refusal, and
+(c) concern about swapping a shared runtime. **Ground (a) is now treated as an acceptance
+blocker rather than a deploy blocker**, on the authority of the operator's standing HIGH
+authority for deploy and browser QA granted 2026-09-27, and because the directive keeps
+deployment and acceptance as separate outcomes. **Ground (b) is superseded** - see the `Live
+release` block, which records the supersession and the authority relied on. **Ground (c) was
+real and remains true**: the swap did interrupt Lane A2's in-flight session, and the interruption
+was disclosed rather than absorbed. A3 does not claim to close Lane A2's acceptance debt.
+
+**Two deploy defects found and closed during this cycle, both mine, both worth keeping.**
+
+1. **A scheduled-task re-point alone is not a deploy.** Machine-scope
+   `ATLAS_RUNTIME_SOURCE_DIR` and `ATLAS_RUNTIME_RELEASE_SHA` must be written in the same action.
+   Without them the supervisor starts from the new directory while still serving the old
+   release, writes no state file, and reports health 200 the entire time. Proved directly: with
+   inherited env `cli.mjs status` reported `releaseSha 0da104f9`, two releases stale; with
+   explicit env it read the intended release's own state.
+2. **A failed cutover can hide behind a healthy process, and a process check can lie.** My
+   supervisor-liveness test matched the regex `cli\.mjs start`, but the real command line is
+   `cli.mjs" start` - a closing quote before the space - so it never matched. I reported
+   "supervisor still alive: 0" while PID 44964 was running and holding the previous release.
+   Everything after that was operating on a stale resident supervisor. **Verify process liveness
+   by PID, never by a pattern that has not been proven to match the real command line.**
+   The same class of error produced three false premises earlier this cycle: a non-recursive
+   `Select-String` glob behind a confident consumer count, a "4 `dark:` occurrences" figure
+   presented as a measurement, and a "no listeners" reading that was a formatting artefact.
+
+**Next action (2026-09-27):** operator seeds the browser profile, then A3 re-probes the session
+and runs B1-B12 against this deployed release. The release artifact, the rollback basis
+(`b0736007`) and the corrected packet are all in place; nothing else is owed by A3.
