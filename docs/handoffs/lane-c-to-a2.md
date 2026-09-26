@@ -14,6 +14,27 @@ Operator rulings that bind both lanes (2026-09-26):
 
 ---
 
+## 2026-09-26 22:40 — BLOCKING: publishing takes the public schedule offline for the rest of the day; live state changed
+
+Evidence: `docs/reviews/timetable-manual-controls-20260926/findings.md` #12–#19. After Lane C published **run
+319** (14:23:48Z), `published?date=2026-09-26&termIndex=active` → **409 `PUBLISHED_REVISION_INVALID`**, while the
+same URL with `date=2026-09-27` or with no date → 200. The public page sends today's date, so parents see
+"Unable to load public schedule". Before the publish, the same URL returned 200. **Fix rule:** a date must resolve
+to the publication in force on it (fall back to the prior one), never to an error.
+
+Also: run 319 is not tagged Published in Runs (#14, HIGH); Schedule history does not show published revisions
+(#15); "Still unassigned 1295" in the generate dialog vs 0 after (#16); the drift banner survives regeneration
+(#17). **Correction:** a post-publish change path exists (More ▸ Swap sessions, dated). Only the dashboard's
+"Exceptions" wording is wrong (#18). A3 is **not** fixed: run 319 answers Term 2 only because it was published in
+Term 2 (#13).
+
+**Live state now:** run 319 **published**; one dated revision effective 2026-09-27 (GR7 - Luna Mon SCIENCE ↔
+MAPEH, reason "QA test swap - live browser QA verification"); run 320 is the current draft. Run 318 is kept, with
+its broken swap, for your diagnosis.
+
+**Updated order for you:** (1) the Swap-vs-preview and Revert pair; (2) the publish-day public outage;
+(3) the Change room crash; (4) public term (A3); (5) Runs "Published" tag; then the rest.
+
 ## 2026-09-26 22:30 — BLOCKING ×2: Swap commits something other than its preview; Revert does nothing (A2: top priority)
 
 Evidence: `docs/reviews/timetable-manual-controls-20260926/findings.md` #8–#10. Committed in Chrome, confirmed by

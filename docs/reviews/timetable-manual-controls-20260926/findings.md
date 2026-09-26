@@ -51,3 +51,27 @@ does not fix it. Lane C will regenerate a new draft for further QA rather than k
 history stay available for diagnosis.
 
 Cost (`subagent_tokens`): Claude runner 163,514; Codex verifier 2.29 M input (95 % cached).
+
+## Generate, publish, change after publishing, new version (live `0da104f9`, 2026-09-26 22:18–22:36 +08)
+
+Claude in Chrome, with commits authorised. The public API was re-probed from the host with `curl` at 14:36Z.
+**Live state now: run 319 PUBLISHED (14:23:48Z); one dated revision (SCIENCE ↔ MAPEH, GR7 - Luna, Monday,
+effective 2026-09-27, reason "QA test swap - live browser QA verification"); run 320 is the current draft.**
+
+| # | Step | Finding | Severity |
+|---|---|---|---|
+| 12 | **Publish → public page** | Straight after publishing run 319, `/public/schedules` shows "Unable to load public schedule / The immutable publication revision is unavailable for the requested date." The page sends today's date. `curl`: `published?date=2026-09-26&termIndex=active` → **409 `PUBLISHED_REVISION_INVALID`** (also with termIndex 1 and 2). The same URL with `date=2026-09-27` or with **no date** → 200 (run 319). Two hours earlier, before this publish, `date=2026-09-26` returned 200. **Publishing takes the public schedule offline for the rest of the publish day**: parents and students get an error. It must fall back to the publication in force that day, or make the new one effective at once. | **BLOCKING** |
+| 13 | **Public default term after republishing** | With no date, run 319 now returns `termIndex: 2, activeTermVerified: true`. The earlier "Term 1" came from the old publication's **frozen** `activeTermOrder`, which confirms the diagnosis in handoff §10a. Republishing hid the symptom; the next term change will bring it back. **Do not close A3 on this.** | HIGH (unchanged) |
+| 14 | **Runs after publishing** | Run 319 is still tagged "Latest · Reviewing" after being published. No run in Runs is marked Published, so a scheduler cannot tell which run teachers see. | HIGH |
+| 15 | **Schedule history after a published change** | After "Published schedule has been revised (effective date: 2026-09-27)…", More ▸ Expert tools ▸ Schedule history still says "Nothing to show yet: no class has been moved, swapped or given a new room in this schedule." Revisions are invisible. | MEDIUM |
+| 16 | **Generate dialog numbers** | The pre-generation dialog says "Still unassigned 1295 sessions"; the finished run has 0 unassigned. The number shown before generating means nothing to a scheduler, or is wrong. | MEDIUM |
+| 17 | **Drift banner** | "Schedule information changed… Regenerate to apply" stays up, unchanged, after two successful generations (319, 320). | MEDIUM |
+| 18 | **Correction to #4** | A change-after-publishing path **does** exist: More ▸ "Swap sessions" on a published schedule asks for a start date and reason and creates a dated revision. The defect is narrower: the dashboard calls it "Exceptions", a name that exists nowhere in the UI. | MEDIUM (was HIGH) |
+| 19 | **Revision start date** | A plain date field (dd/mm/yyyy) accepted typed input as "272026" with no inline error. | LOW |
+
+**Worked well:** generate and publish dialogs state exact counts and say publishing is separate. Publish is
+gated behind acknowledging the warnings ("159 warnings must be acknowledged…"). Post-publish swap conflict checks
+were correct twice (a named teacher double-booked in another section), and a clean swap was allowed. The dated
+revision leaves today's schedule unchanged and says so. The dashboard stayed "Published" through the new draft.
+
+Cost (`subagent_tokens`): 216,395 (184 tool calls).
