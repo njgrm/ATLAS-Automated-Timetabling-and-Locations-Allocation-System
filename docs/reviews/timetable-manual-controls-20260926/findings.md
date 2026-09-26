@@ -150,3 +150,18 @@ Swap GR7 - Luna **Tue 06:00 TLE (P. CRUZ) ↔ Tue 10:00 FIL (C. AGUILAR)**. Befo
 
 Unperformed: Revert and the H2 read (the runner hit a model rate limit). The Tue swap is still committed on run 320 and
 is the newest row, so Revert is still armed for the next run. Cost (`subagent_tokens`): 134,109.
+
+## Revert leg on run 320 (draft, 2026-09-27 00:22 +08, live `0da104f9`)
+
+One Claude-in-Chrome run, UI only. Reverted the newest row (Tue swap, 11:34:08 PM).
+
+| # | Finding | Severity |
+|---|---|---|
+| 38 | **Revert "succeeds" and changes nothing, just like the swap.** No confirm; toast "Edit reverted." (green ✓). After a full reload, GR7 - Luna Tuesday is identical in Terms 1–3 (TLE 06:00 P. CRUZ, FIL 10:00 C. AGUILAR; only SCIENCE 06:45 differs by term, as before) and warnings stay T1 73 / T2 69 / T3 69. Since the swap changed nothing visible, the pair swap→revert is two success messages over zero net change. | **BLOCKING** (with #36) |
+| 39 | **The revert is logged as a new row, and that row can itself be reverted.** History "2 edits" → "3 edits recorded": new top row "Undid an earlier change" · 12:22:07 AM · **"warnings: 0"**, with an active "Revert this edit". The 11:34 row stays, its Revert now greyed. No row says *which* edit was undone. "Revert this edit" on an undo is a redo with the wrong name. | HIGH |
+| 40 | **Snapshot counts are fiction.** Rows read 241, 241 and now **0**, while the header reads 69 before and after every step. A scheduler reading history would believe the revert cleared every warning. | HIGH (with #31/#37) |
+| 41 | **The UI never shows which run is on screen.** The header says "Active Term: T2 · Active year: 2031-2032"; no run number or "Draft" label appears in the header, Draft tab or Runs tab. The user cannot confirm they are editing the draft they mean. | MEDIUM |
+| 42 | **Stale history panel.** After switching terms and reopening More, the sidebar history briefly showed "Nothing to show yet" with 2 edits recorded; a full reload fixed it. | LOW |
+
+#28 again: no console errors and no error boundary across the revert and reloads. Evidence: runner screenshots only
+(not saved to disk). Cost (`subagent_tokens`): 162,106.

@@ -72,6 +72,8 @@ evidence had warnings at 159 before and 69 after a swap, with the visible grid u
 restore the warning state either, that is a third defect in the same pair and I need to know before I scope it.
 
 
+**Lane C ack (2026-09-27 00:25 +08): revert leg done.** Revert does not restore the warning state because nothing moved in the first place: "Edit reverted.", grid and warnings (73/69/69) unchanged, and it adds a new revertable row "Undid an earlier change" with snapshot "warnings: 0". Findings #38–#40; channel entry 00:25.
+
 **Lane C ack (2026-09-27 00:00 +08): (a) ONE entry.** Run 320, Schedule history: "1 edit recorded" · "Swapped two sessions" · 10:49:21 PM · snapshot "warnings: 241". There is no row for the auto-move, and the earlier "Revert this edit" left **no row at all**, while the swap still offers Revert. So it is a history-model defect, not only the button. The history also records a **success that did nothing**: the swap is not visible in any term, for the section or either teacher. Warnings read 159 before, 69 after, 69 after revert, 241 in the snapshot, and 73/69/69 by term now. Evidence: findings #29–#31, channel entry 23:50. **Next:** a controlled repeat that reads the preview count, commit, history, revert and history again, posted here when done.
 
 ---

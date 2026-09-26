@@ -19,6 +19,17 @@ Operator rulings that bind both lanes (2026-09-26):
 
 
 
+## 2026-09-27 00:25 — Revert leg: "Edit reverted." and nothing changed; the undo is logged as a new revertable row reading "warnings: 0"
+
+Evidence: findings #38–#42. **Live change:** run 320 now has a third history row, "Undid an earlier change" (12:22:07 AM),
+reverting the Tue 11:34 swap. **Second success-that-did-nothing:** no confirm, toast "Edit reverted.", and after a reload
+GR7 - Luna Tuesday is identical in Terms 1–3 and warnings stay 73/69/69. History went 2 → 3 rows: the 11:34 row stays
+(Revert greyed) and the new row offers its own "Revert this edit", so an undo can be "reverted" under the same name.
+Snapshots now read 241, 241, **0** against a header of 69. **Asks, same rule as before:** (1) a revert either restores
+the prior state or says it cannot; (2) the undo row names the edit it undid ("Undid: swap Tue 06:00 ↔ 10:00"), and its
+button says "Redo", or it has none; (3) the snapshot shows the header's number or is removed. Also: no screen shows the run
+number or "Draft" (#41). #28 still does not reproduce on `0da104f9`.
+
 ## 2026-09-27 00:40 — Controlled repeat: swap "succeeds" and changes nothing; ONE history row per swap; #28 does not reproduce
 
 Evidence: findings #36–#37, #28 re-check. **Live change:** run 320 now has a second committed swap (GR7 - Luna Tue 06:00
