@@ -1,5 +1,7 @@
+import type { ReactNode } from 'react';
 import { ConfirmationModal } from '@/ui/confirmation-modal';
 import { AutoFillSummaryModal, type AutoFillSummaryResult } from '@/components/faculty-assignments/AutoFillSummaryModal';
+import { ReviewTeachersModal } from '@/components/faculty-assignments/ReviewTeachersModal';
 
 type TeachingLoadModalsProps = {
 	summaryModalOpen: boolean;
@@ -15,6 +17,12 @@ type TeachingLoadModalsProps = {
 	onDiscardConfirmOpenChange: (open: boolean) => void;
 	onDiscardConfirm: () => void;
 	activeDraftCount: number;
+	/** Fix 26: the on-demand replacement for the permanent desktop inspector. */
+	reviewModalOpen: boolean;
+	onReviewModalOpenChange: (open: boolean) => void;
+	reviewInspector: ReactNode;
+	reviewTitle: string;
+	reviewDescription: string;
 };
 
 export function TeachingLoadModals({
@@ -31,6 +39,11 @@ export function TeachingLoadModals({
 	onDiscardConfirmOpenChange,
 	onDiscardConfirm,
 	activeDraftCount,
+	reviewModalOpen,
+	onReviewModalOpenChange,
+	reviewInspector,
+	reviewTitle,
+	reviewDescription,
 }: TeachingLoadModalsProps) {
 	return (
 		<>
@@ -66,6 +79,15 @@ export function TeachingLoadModals({
 				confirmText="Discard all"
 				variant="danger"
 			/>
+
+			<ReviewTeachersModal
+				open={reviewModalOpen}
+				onOpenChange={onReviewModalOpenChange}
+				title={reviewTitle}
+				description={reviewDescription}
+			>
+				{reviewInspector}
+			</ReviewTeachersModal>
 		</>
 	);
 }

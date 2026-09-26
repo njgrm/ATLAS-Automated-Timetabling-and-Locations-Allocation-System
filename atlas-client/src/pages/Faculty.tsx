@@ -2,12 +2,9 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
 	AlertTriangle,
-	ArrowRight,
 	BookOpenCheck,
 	Eye,
-	ListChecks,
 	Pencil,
-	Plus,
 	RefreshCw,
 	Trash2,
 	Users,
@@ -20,7 +17,6 @@ import atlasApi from '@/lib/api';
 import type { FacultySummary } from '@/types';
 import { Button } from '@/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui/select';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip';
 import {
 	AdminSearchFilterToolbar,
 	AdminWorkspaceFrame,
@@ -38,6 +34,8 @@ import {
 	FacultyWeeklyLoadCell,
 } from '@/components/faculty/FacultyRow';
 import { FacultyProfileSheet } from '@/components/faculty/FacultyProfileSheet';
+import { FacultyRosterActions } from '@/components/faculty/FacultyRosterActions';
+import { TeacherAttentionFilters } from '@/components/faculty/TeacherAttentionFilters';
 import { toast } from 'sonner';
 import { departmentLabel } from '@/lib/deped-glossary';
 import { GRADE_OPTIONS } from '@/lib/subject-constants';
@@ -571,6 +569,26 @@ export default function Faculty() {
 
 	const nextTeacherIntent = nextTeacherToFix ? getTeacherRepairIntent(nextTeacherToFix) : null;
 
+	/**
+	 * Fix 25 (in-page review). The former header control navigated to
+	 * `/teaching-load`, which unmounted the roster and destroyed its filters,
+	 * scroll position, and selection. It now opens the review dialog IN PLACE and
+	 * seeds it with the next teacher needing attention — the same
+	 * `nextTeacherToFix` / `nextTeacherIntent` pair the removed strip used to
+	 * display, so the repair logic survives its removal (Fix 21).
+	 *
+	 * Nothing here mutates filter state, so closing the dialog leaves the roster
+	 * exactly as it was.
+	 */
+	const openRosterReview = useCallback(() => {
+		setProfileTarget(nextTeacherToFix);
+	}, [nextTeacherToFix]);
+
+	const openCreateTemporary = useCallback(() => {
+		setPlaceholderEditTarget(null);
+		setPlaceholderDialogOpen(true);
+	}, []);
+
 	const applyAttentionFilter = useCallback((filter: TeacherAttentionFilter) => {
 		setAttentionFilter(filter);
 		// Phase 3.3: "All teachers" only clears the attention filter. It no
@@ -643,37 +661,26 @@ return (
 			}}
 			stats={teacherStats}
 			primaryActions={(
-				<Button asChild size="sm" className="hidden gap-2 font-semibold shadow-sm sm:inline-flex">
-					<Link to="/teaching-load">
-						<BookOpenCheck className="size-4" />
-						Review load
-					</Link>
-				</Button>
+				<FacultyRosterActions
+					slot="primary"
+					onOpenReview={openRosterReview}
+					onCreateTemporary={openCreateTemporary}
+					onRefreshRoster={handleSync}
+					syncing={syncing}
+					isOnline={isOnline}
+					refreshing={refreshing}
+				/>
 			)}
 			secondaryActions={(
-				<>
-					<Button asChild size="sm" className="gap-2 font-semibold shadow-sm sm:hidden">
-						<Link to="/teaching-load">
-							<BookOpenCheck className="size-4" />
-							Review load
-						</Link>
-					</Button>
-					<Button
-						onClick={() => {
-							setPlaceholderEditTarget(null);
-							setPlaceholderDialogOpen(true);
-						}}
-						size="sm"
-						className="gap-2 font-semibold shadow-sm"
-					>
-						<Plus className="size-4" />
-						Create Temporary
-					</Button>
-					<Button variant="outline" onClick={handleSync} disabled={syncing || !isOnline} size="sm" className="gap-2 font-semibold">
-						<RefreshCw className={`size-4 ${syncing ? 'animate-spin' : ''}`} />
-						{syncing ? 'Refreshing...' : !isOnline ? 'Offline' : refreshing ? 'Checking...' : 'Refresh teacher roster'}
-					</Button>
-				</>
+				<FacultyRosterActions
+					slot="secondary"
+					onOpenReview={openRosterReview}
+					onCreateTemporary={openCreateTemporary}
+					onRefreshRoster={handleSync}
+					syncing={syncing}
+					isOnline={isOnline}
+					refreshing={refreshing}
+				/>
 			)}
 			toolbar={(
 				<AdminSearchFilterToolbar
@@ -775,72 +782,21 @@ return (
 				data={paged}
 				columns={teacherColumns}
 				getRowKey={(teacher) => teacher.id}
-				leadingContent={(
-					<section
-						data-testid="teachers-next-action-strip"
-						className="rounded-t-xl bg-primary/[0.03] px-2.5 py-1"
-						aria-label="Teacher load guidance"
-					>
-						<div className="flex min-w-0 flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-							<div className="flex min-w-0 shrink-0 items-center gap-2">
-								<div className="min-w-0 shrink-0">
-								{/* Phase 3.4 + "fix" language rule: the heading and empty-state
-									copy no longer use "fix" and no longer say "Load data is
-									still loading" forever after load completes. */}
-									<p className="text-[0.65rem] font-bold uppercase tracking-wider text-muted-foreground">
-										<span aria-hidden="true">Next teacher</span>
-										<span className="sr-only">Next teacher to review</span>
-									</p>
-									{nextTeacherToFix && nextTeacherIntent ? (
-										<div className="mt-0.5 flex min-w-0 items-center gap-2">
-											<p className="max-w-32 truncate text-sm font-bold text-foreground sm:max-w-48">{nextTeacherToFix.lastName}, {nextTeacherToFix.firstName}</p>
-											<span className="sr-only">{nextTeacherIntent.helper}</span>
-										</div>
-									) : loading || refreshing ? (
-										<p className="mt-0.5 text-sm font-semibold text-muted-foreground">Checking the teacher roster...</p>
-									) : faculty.length === 0 ? (
-										<p className="mt-0.5 text-sm font-semibold text-muted-foreground">No active teachers to review. Sync the roster first.</p>
-									) : (
-										<p className="mt-0.5 text-sm font-semibold text-muted-foreground">Every teacher looks ready to review.</p>
-									)}
-								</div>
-								{nextTeacherToFix && nextTeacherIntent && (
-									<Button asChild size="sm" className="h-8 shrink-0 gap-1.5 px-2 text-xs font-bold" data-testid="teacher-repair-card">
-										<Link to={`/teaching-load?facultyId=${nextTeacherToFix.id}&task=${nextTeacherIntent.task}`}>
-											<ListChecks className="size-4" />
-											{nextTeacherIntent.label}
-											<ArrowRight className="size-4" />
-										</Link>
-									</Button>
-								)}
-							</div>
-							<div className="flex min-w-0 flex-1 flex-nowrap items-center justify-start gap-2 overflow-x-auto pb-0.5 sm:justify-end">
-								<div className="flex max-w-full shrink-0 flex-nowrap items-center gap-1.5 sm:max-w-[22rem] lg:max-w-full">
-									{attentionChips.map((chip) => (
-										<TooltipProvider key={chip.id} delayDuration={200}>
-											<Tooltip>
-												<TooltipTrigger asChild>
-													<Button
-														type="button"
-														variant={attentionFilter === chip.id ? 'secondary' : 'outline'}
-														size="sm"
-														aria-pressed={attentionFilter === chip.id}
-														className="h-8 shrink-0 rounded-full px-2.5 text-xs font-bold"
-														onClick={() => applyAttentionFilter(chip.id)}
-													>
-														{chip.label}
-														<span className="ml-1 tabular-nums text-muted-foreground">{chip.count}</span>
-													</Button>
-												</TooltipTrigger>
-												<TooltipContent side="bottom" className="max-w-60 text-xs">{chip.helper}</TooltipContent>
-											</Tooltip>
-										</TooltipProvider>
-									))}
-								</div>
-							</div>
-						</div>
-					</section>
-				)}
+			leadingContent={(
+				/* Fix 21: the "Next teacher" strip is removed. It duplicated the
+					roster's own state, carried a redundant `Review load` link out to
+					/teaching-load, and consumed vertical space the roster needs at
+					1366x768. Its repair-intent logic is NOT lost: `nextTeacherToFix`
+					and `nextTeacherIntent` still compute, and they now seed the in-place
+					`Review teachers` modal via `openRosterReview`. The attention chips,
+					which lived inside the same wrapper and are a real filter control,
+					are preserved and are now the whole leading row. */
+				<TeacherAttentionFilters
+					chips={attentionChips}
+					activeChipId={attentionFilter}
+					onApplyFilter={(id) => applyAttentionFilter(id as TeacherAttentionFilter)}
+				/>
+			)}
 				loading={loading}
 				isFiltered={searchQuery.trim().length > 0 || hasActiveFilters}
 				sort={{ key: sortField, direction: sortDir }}
@@ -949,12 +905,13 @@ return (
 				)}
 			/>
 
-			{/* Roster profile side drawer */}
-			<FacultyProfileSheet 
+			{/* Roster review / profile — Fix 23: a centred Dialog, opened in place. */}
+			<FacultyProfileSheet
 				faculty={profileTarget}
 				open={profileTarget !== null}
 				onOpenChange={(open) => !open && setProfileTarget(null)}
 				sourceFreshness={profileSourceLabel}
+				reviewLabel={nextTeacherIntent?.label ?? 'Review teaching load'}
 			/>
 
 			{/* Create/Edit Placeholder Modal */}

@@ -15,7 +15,8 @@ import { Badge } from '@/ui/badge';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip';
 import { cn } from '@/lib/utils';
 import type { FacultySummary, LoadProfile, RotationFamilyTermBreakdown } from '@/types';
-import { gradeLabel } from '@/lib/grade-labels';
+import { GradeBadge } from '@/components/faculty-assignments/GradeBadge';
+import { formatFacultyDisplayName } from '@/components/faculty/teacherNameDisplay';
 import { StackedWorkloadBar } from './StackedWorkloadBar';
 
 type WorkloadInspectorProps = {
@@ -73,8 +74,10 @@ export function WorkloadInspector({
 							{selected.firstName[0]}{selected.lastName[0]}
 						</div>
 						<div className="min-w-0">
-							<h4 className="text-base font-semibold uppercase tracking-tight truncate leading-tight">
-								{selected.lastName}, {selected.firstName}
+							{/* Fix 22: one casing convention. The stored first/last name is
+								unchanged; only the CSS `uppercase` shout is gone. */}
+							<h4 className="text-base font-semibold tracking-tight truncate leading-tight">
+								{formatFacultyDisplayName(selected)}
 							</h4>
 							<p className="text-xs font-bold text-muted-foreground uppercase tracking-widest truncate">
 								{selected.department || 'No Department'}
@@ -133,8 +136,8 @@ export function WorkloadInspector({
 						)}
 					</div>
 					<div className="min-w-0">
-						<h4 className="text-base font-semibold uppercase tracking-tight truncate leading-tight">
-							{selected.lastName}, {selected.firstName}
+						<h4 className="text-base font-semibold tracking-tight truncate leading-tight">
+							{formatFacultyDisplayName(selected)}
 						</h4>
 						<p className="text-xs font-bold text-muted-foreground uppercase tracking-widest truncate">
 							{selected.department || 'No Department'}
@@ -220,9 +223,14 @@ export function WorkloadInspector({
 									</Badge>
 									<div className="flex-1 min-w-0">
 										<p className="text-sm font-semibold uppercase truncate leading-tight">{item.sectionName}</p>
-										<div className="flex items-center gap-1.5 mt-0.5">
-											<span className="text-xs font-bold text-muted-foreground uppercase tracking-widest">{gradeLabel(item.gradeLevel)}</span>
-											{item.rotationFamily && (
+									<div className="flex items-center gap-1.5 mt-0.5">
+										{/* Fix 13/18: a bare muted `GR7` span was the whole grade
+											signal. GradeBadge renders the same `GR7` text as a
+											DepEd colour chip off the ONE canonical palette in
+											`components/GradeLevelBadge.tsx` (G7 green, G8 yellow,
+											G9 red, G10 blue, each with dark variants). */}
+										<GradeBadge grade={item.gradeLevel} ariaSuffix="section" />
+										{item.rotationFamily && (
 												<>
 													<span className="text-muted-foreground/30">•</span>
 													<span className="text-xs font-semibold text-violet-600 uppercase tracking-tighter">{item.rotationTermLabel || 'Rotational'}</span>

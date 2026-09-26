@@ -12,6 +12,7 @@ import type { ExternalSection, Subject } from '@/types';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import { Checkbox } from '@/ui/checkbox';
+import { ConfirmationModal } from '@/ui/confirmation-modal';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip';
 import { AccessibleInfo } from '@/components/smart/AccessibleInfo';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -116,6 +117,20 @@ export const SubjectRow = memo(({
 }: SubjectRowProps) => {
 	const [openGrades, setOpenGrades] = useState<Record<number, boolean>>({});
 
+	/**
+	 * Fix 29. A section-section transfer moves ownership between two teachers,
+	 * so it is a write and now always goes through the dedicated `ArrowLeftRight`
+	 * control AND an explicit confirmation. This state holds the request that
+	 * the confirmation is gating; it is cleared on cancel without dispatching.
+	 */
+	const [pendingSwap, setPendingSwap] = useState<{
+		sectionId: number;
+		sectionName: string;
+		fromFacultyId: number;
+		ownerName: string;
+		ownerIsPending: boolean;
+	} | null>(null);
+
 	// Phase 4.7: subject-level hard-conflict signal (a section in this subject
 	// has more than one owner saved). Used by the header priority badge; the
 	// per-section cells still show their own conflict states.
@@ -177,6 +192,27 @@ export const SubjectRow = memo(({
 				),
 			}));
 	}, [displaySections]);
+
+	/**
+	 * Fix 16 (density). Grade groups previously defaulted to CLOSED, so reaching
+	 * a single assignment row cost three clicks: expand the teacher, then expand
+	 * the grade, then read the section. They now default to open, which is what
+	 * makes assignment rows visible at a glance. `openGrades` is still the
+	 * per-grade override, so the collapse-all control keeps working.
+	 */
+	const isGradeOpen = useCallback(
+		(gradeLevel: number) => openGrades[gradeLevel] ?? true,
+		[openGrades],
+	);
+	const anyGradeOpen = groupedSections.some((group) => isGradeOpen(group.gradeLevel));
+	const toggleAllGrades = useCallback(() => {
+		const nextOpen = !anyGradeOpen;
+		const next: Record<number, boolean> = {};
+		groupedSections.forEach((group) => {
+			next[group.gradeLevel] = nextOpen;
+		});
+		setOpenGrades(next);
+	}, [anyGradeOpen, groupedSections]);
 
 	const selectedSectionIds = new Set(assignment?.sectionIds ?? []);
 	const selectedCount = selectedSectionIds.size;
@@ -374,17 +410,13 @@ export const SubjectRow = memo(({
 						<Button
 							variant="ghost"
 							size="icon"
-							aria-label={Object.values(openGrades).some(v => v) ? 'Collapse all grade groups' : 'Expand all grade groups'}
-							aria-expanded={Object.values(openGrades).some(v => v)}
-							className={`h-9 w-9 rounded-full transition-all ${Object.values(openGrades).some(v => v) ? 'bg-muted shadow-inner' : 'hover:bg-muted/50'}`}
-							onClick={() => {
-								const anyOpen = Object.values(openGrades).some(v => v);
-								const next: Record<number, boolean> = {};
-								groupedSections.forEach(g => { next[g.gradeLevel] = !anyOpen; });
-								setOpenGrades(next);
-							}}
+							aria-label={anyGradeOpen ? 'Collapse all grade groups' : 'Expand all grade groups'}
+							aria-expanded={anyGradeOpen}
+							data-testid="subject-row-toggle-all-grades"
+							className={`h-9 w-9 rounded-full transition-all ${anyGradeOpen ? 'bg-muted shadow-inner' : 'hover:bg-muted/50'}`}
+							onClick={toggleAllGrades}
 						>
-							<ChevronDown className={`size-5 transition-transform duration-300 ${Object.values(openGrades).some(v => v) ? 'rotate-180' : ''}`} />
+							<ChevronDown className={`size-5 transition-transform duration-300 ${anyGradeOpen ? 'rotate-180' : ''}`} />
 						</Button>
 					</div>
 				</div>
@@ -398,7 +430,7 @@ export const SubjectRow = memo(({
 				) : (
 					<div className="divide-y divide-border/30">
 						{groupedSections.map(({ gradeLevel, sections: gradeSections }) => {
-							const isOpen = openGrades[gradeLevel] ?? Boolean(searchTerm);
+							const isOpen = isGradeOpen(gradeLevel);
 							const selectedInGrade = gradeSections.filter((section) => selectedSectionIds.has(section.id)).length;
 							const gradeColorClass = GRADE_COLORS[gradeLevel.toString()]?.split(' ')[1] || 'text-muted-foreground';
 							const gradeTint = GRADE_TINTS[gradeLevel.toString()] || 'bg-muted/10';
@@ -468,8 +500,15 @@ export const SubjectRow = memo(({
 														const isSavedOther = Boolean(isOwnedByOther && !owner?.isPending);
 														
 													const blocked = !isSelected && isHardConflict;
-														const isSystemAssignedSection = isSystemAssignedSubject && section.id === advisedSectionId;
-														const isClickable = !disabled && !isSystemAssignedSection && (!blocked || isOwnedByOther);
+													const isSystemAssignedSection = isSystemAssignedSubject && section.id === advisedSectionId;
+
+													// Fix 29: a section owned by ANOTHER teacher is not clickable at
+													// all. It was previously `isClickable` (via
+													// `!blocked || isOwnedByOther`) and its body click ran a
+													// full ownership transfer with no confirmation. The body is
+													// now inert for that case; the dedicated control below is the
+													// only path, and it is confirmation-gated.
+													const isClickable = !disabled && !isSystemAssignedSection && !blocked && !isOwnedByOther;
 
 														const conflictLabel = isHardConflict
 															? 'Two teachers both saved as owner'
@@ -486,14 +525,15 @@ export const SubjectRow = memo(({
 														const isPerfectMatch = Boolean(requiredSpec && facultySpec && requiredSpec === facultySpec);
 														const isApprovedCompatibility = Boolean(isSpecializationSlot && !isPerfectMatch && !blocked);
 
-														const handleClick = () => {
-															if (!isClickable) return;
-															if (isOwnedByOther) {
-																onSwapSectionOwnership?.(subject.id, section.id, owner.facultyId, selectedFacultyId);
-															} else {
-																toggleSection(section.id);
-															}
-														};
+													const handleClick = () => {
+														// Fix 29: the card body NEVER transfers ownership. A section
+														// owned by another teacher is not clickable, so this returns
+														// without touching the draft and without dispatching a swap.
+														// Ownership transfer lives only behind the dedicated
+														// `ArrowLeftRight` control and its confirmation.
+														if (!isClickable) return;
+														toggleSection(section.id);
+													};
 
 														return (
 															<div
@@ -524,24 +564,26 @@ export const SubjectRow = memo(({
 																	}
 																}}
 																onMouseLeave={() => onClearHoverLoad?.()}
-																className={cn(
-																	"group/section relative flex flex-col items-start gap-2 rounded-xl border px-3.5 py-3 transition-all duration-200 shadow-sm select-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50",
-																	isClickable && "cursor-pointer",
-																	isSystemAssignedSection
-																		? 'border-amber-300 bg-amber-50/50 shadow-inner'
-																		: isHardConflict
-																		? 'border-rose-400 bg-rose-50 shadow-rose-100/50'
-																		: !isClickable
-																		? 'border-muted bg-muted/40 opacity-70 cursor-not-allowed'
-																		: isSelected
-																		? 'border-primary/50 bg-primary/5 ring-1 ring-primary/10 shadow-primary/5'
-																		: isPerfectMatch
-																		? 'border-emerald-300 bg-emerald-50/30 hover:border-primary/40 hover:shadow-md'
-																		: isRotationFamily 
-																		? 'bg-card border-violet-200 hover:border-violet-400 hover:shadow-md'
-																		: 'bg-card border-border/80 hover:border-primary/40 hover:shadow-md'
-																)}
-															>
+																			className={cn(
+												"group/section relative flex flex-col items-start gap-2 rounded-xl border px-3.5 py-3 transition-all duration-200 shadow-sm select-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50",
+												isClickable && "cursor-pointer",
+												isSystemAssignedSection
+													? 'border-amber-300 bg-amber-50/50 shadow-inner'
+													: isHardConflict
+													? 'border-rose-400 bg-rose-50 shadow-rose-100/50'
+													: isOwnedByOther
+													? 'border-amber-200 bg-amber-50/30'
+													: !isClickable
+													? 'border-muted bg-muted/40 opacity-70 cursor-not-allowed'
+													: isSelected
+													? 'border-primary/50 bg-primary/5 ring-1 ring-primary/10 shadow-primary/5'
+													: isPerfectMatch
+													? 'border-emerald-300 bg-emerald-50/30 hover:border-primary/40 hover:shadow-md'
+													: isRotationFamily
+													? 'bg-card border-violet-200 hover:border-violet-400 hover:shadow-md'
+													: 'bg-card border-border/80 hover:border-primary/40 hover:shadow-md'
+											)}
+										>
 																<div className="flex items-center justify-between w-full mb-1">
 																	<div className="flex items-center gap-2.5 min-w-0 w-full">
 																		<Checkbox
@@ -576,18 +618,18 @@ export const SubjectRow = memo(({
 
 																<div className="w-full space-y-1.5">
 																	<div className="flex flex-wrap items-center gap-1.5">
-																		{isOwnedByOther && (
-																			<Tooltip>
-																				<TooltipTrigger asChild>
-																					<span className="text-[10px] font-bold tracking-tight text-amber-700 bg-amber-50 border border-amber-200/50 px-1.5 py-0.5 rounded truncate max-w-[180px] cursor-help">
-																						{owner.facultyName}
-																					</span>
-																				</TooltipTrigger>
-																				<TooltipContent side="top" className="text-xs font-bold">
-																					Assigned to {owner.facultyName}
-																				</TooltipContent>
-																			</Tooltip>
-																		)}
+																			{isOwnedByOther && (
+																				<Tooltip>
+																					<TooltipTrigger asChild>
+																						<span className="text-[10px] font-bold tracking-tight text-amber-700 bg-amber-50 border border-amber-200/50 px-1.5 py-0.5 rounded truncate max-w-[180px] cursor-help">
+																							{owner.facultyName}
+																						</span>
+																					</TooltipTrigger>
+																					<TooltipContent side="top" className="text-xs font-bold">
+																						{`Assigned to ${owner.facultyName}. Click the swap arrows to move this class.`}
+																					</TooltipContent>
+																				</Tooltip>
+																			)}
 																		
 																		{section.isSpecialProgram && section.programCode && PROGRAM_BADGE[section.programCode] && (
 																			<Badge variant="outline" className={`h-4 px-1.5 text-xs font-semibold uppercase border-none shadow-none ${PROGRAM_BADGE[section.programCode]}`}>
@@ -633,27 +675,38 @@ export const SubjectRow = memo(({
 																			)}
 																		</div>
 
-																		{isOwnedByOther && !disabled && (
-																			<Tooltip>
-																				<TooltipTrigger asChild>
-																					<Button
-																						type="button"
-																						variant="outline"
-																						size="icon-xs"
-																						onClick={(e) => {
-																							e.stopPropagation();
-																							onSwapSectionOwnership?.(subject.id, section.id, owner.facultyId, selectedFacultyId);
-																						}}
-																						className="h-6 w-6 text-primary border-primary/30 hover:bg-primary hover:text-white"
-																					>
-																						<ArrowLeftRight className="size-3" />
-																					</Button>
-																				</TooltipTrigger>
-																				<TooltipContent side="top" className="text-xs font-bold">
-																					{owner.isPending ? 'Swap from pending owner' : 'Swap ownership to current teacher'}
-																				</TooltipContent>
-																			</Tooltip>
-																		)}
+																			{/* Fix 29: the ONLY path to an ownership transfer. It opens a
+																				confirmation instead of dispatching immediately, so an
+																				accidental tap can no longer move a class between teachers. */}
+																			{isOwnedByOther && !disabled && onSwapSectionOwnership && (
+																				<Tooltip>
+																					<TooltipTrigger asChild>
+																						<Button
+																							type="button"
+																							variant="outline"
+																							size="icon-xs"
+																							data-testid="section-swap-control"
+																							aria-label={`Swap ${section.name} from ${owner.facultyName} to the current teacher`}
+																							onClick={(e) => {
+																								e.stopPropagation();
+																								setPendingSwap({
+																									sectionId: section.id,
+																									sectionName: section.name,
+																									fromFacultyId: owner.facultyId,
+																									ownerName: owner.facultyName,
+																									ownerIsPending: Boolean(owner.isPending),
+																								});
+																							}}
+																							className="h-6 w-6 text-primary border-primary/30 hover:bg-primary hover:text-white"
+																						>
+																							<ArrowLeftRight className="size-3" />
+																						</Button>
+																					</TooltipTrigger>
+																					<TooltipContent side="top" className="text-xs font-bold">
+																						{owner.isPending ? 'Swap from pending owner' : 'Swap ownership to current teacher'}
+																					</TooltipContent>
+																				</Tooltip>
+																			)}
 																	</div>
 																</div>
 															</div>
@@ -669,6 +722,31 @@ export const SubjectRow = memo(({
 					</div>
 				)}
 			</div>
+
+			{/* Fix 29: the confirmation that gates every ownership transfer.
+				`onOpenChange(false)` is the Cancel path and dispatches nothing;
+				`onConfirm` dispatches exactly one swap and only after the
+				operator commits. A closed Dialog renders no portal, so this
+				costs nothing until a swap is actually requested. */}
+			<ConfirmationModal
+				open={pendingSwap !== null}
+				onOpenChange={(open) => {
+					if (!open) setPendingSwap(null);
+				}}
+				variant="warning"
+				title={`Move ${pendingSwap?.sectionName ?? 'this class'} to this teacher?`}
+				description={
+					pendingSwap
+						? `This class is currently ${pendingSwap.ownerIsPending ? 'selected by' : 'owned by'} ${pendingSwap.ownerName}. Confirming removes it from them and assigns it to the teacher you are editing. It is a draft until you save.`
+						: ''
+				}
+				confirmText="Move class"
+				onConfirm={() => {
+					if (!pendingSwap) return;
+					onSwapSectionOwnership?.(subject.id, pendingSwap.sectionId, pendingSwap.fromFacultyId, selectedFacultyId);
+					setPendingSwap(null);
+				}}
+			/>
 		</div>
 	);
 });

@@ -1,26 +1,19 @@
 import { useMemo, useState, useEffect } from 'react';
-import { 
-	ChevronDown, 
-	ChevronRight, 
-	AlertTriangle, 
-	Search, 
-	Filter,
+import {
+	ChevronDown,
+	ChevronRight,
+	AlertTriangle,
+	Search,
 	Users,
 	MoreHorizontal,
 	RotateCcw,
-	Star,
-	LayoutGrid,
-	ListFilter
+	Star
 } from 'lucide-react';
 import { Button } from '@/ui/button';
 import { Badge } from '@/ui/badge';
-import { Input } from '@/ui/input';
 import { Skeleton } from '@/ui/skeleton';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui/select';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/ui/dropdown-menu';
-import { Switch } from '@/ui/switch';
-import { Label } from '@/ui/label';
 import { cn } from '@/lib/utils';
 import {
 	resolveTeachingActualHours,
@@ -33,6 +26,8 @@ import {
 } from '@/lib/faculty-assignment-helpers';
 import type { FacultySummary, FacultyAssignmentDraft, Subject, ExternalSection, LoadProfile } from '@/types';
 import { SubjectRow } from './SubjectRow';
+import { TeachingLoadFilterBar } from './TeachingLoadFilterBar';
+import { formatFacultyDisplayName } from '@/components/faculty/teacherNameDisplay';
 import { countDistinctSections } from '@/lib/teaching-load-counts';
 
 type TeacherGridModeProps = {
@@ -185,9 +180,9 @@ export function TeacherGridMode({
 	return (
 		<div className="flex-1 flex flex-col min-h-0 bg-muted/5">
 			{/* Familiar Discovery Controls */}
-			<div className="shrink-0 border-b border-border/40 bg-background/50 p-3 space-y-3 backdrop-blur-sm lg:p-4">
+			<div className="shrink-0 border-b border-border/40 bg-background/50 p-2.5 space-y-2 backdrop-blur-sm lg:px-4">
 				{isReadOnlyMode && writeBlockedReason && (
-					<div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50/70 px-4 py-3 text-amber-900">
+					<div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50/70 px-4 py-2 text-amber-900">
 						<div className="flex items-start gap-3">
 							<AlertTriangle className="mt-0.5 size-4 shrink-0 text-amber-600" />
 							<div>
@@ -198,156 +193,34 @@ export function TeacherGridMode({
 						<p className="text-xs font-semibold text-amber-800">{workspaceStateNextAction}</p>
 					</div>
 				)}
-				<div className="flex flex-wrap items-center gap-2">
-					<div className="relative flex-1 min-w-50 max-w-sm">
-						<Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-						<Input 
-							placeholder="Search teachers..." 
-							value={searchQuery}
-							onChange={(e) => onSearchQueryChange(e.target.value)}
-							className="pl-10 h-10 bg-background shadow-sm border-border/60"
-						/>
-					</div>
 
-					<Select value={filterStatus} onValueChange={(value) => onFilterStatusChange(value as TeachingLoadStatusFilter)}>
-						<SelectTrigger className="w-44 h-10 bg-background shadow-sm border-border/60 text-xs font-bold uppercase tracking-tight">
-							<div className="flex items-center gap-2">
-								<ListFilter className="size-3.5 opacity-50" />
-								<SelectValue placeholder="Status" />
-							</div>
-						</SelectTrigger>
-						<SelectContent>
-							<SelectItem value="all" className="text-xs font-bold uppercase tracking-tight">All status</SelectItem>
-							<SelectItem value="teaching-assigned" className="text-xs font-bold uppercase tracking-tight" disabled={(statusFacetCounts['teaching-assigned'] ?? 0) === 0}>Teaching assigned ({statusFacetCounts['teaching-assigned'] ?? 0})</SelectItem>
-							<SelectItem value="no-teaching" className="text-xs font-bold uppercase tracking-tight" disabled={(statusFacetCounts['no-teaching'] ?? 0) === 0}>No teaching load ({statusFacetCounts['no-teaching'] ?? 0})</SelectItem>
-							<SelectItem value="adviser-only" className="text-xs font-bold uppercase tracking-tight" disabled={(statusFacetCounts['adviser-only'] ?? 0) === 0}>Adviser only ({statusFacetCounts['adviser-only'] ?? 0}, subset)</SelectItem>
-						</SelectContent>
-					</Select>
-
-					<Button
-						type="button"
-						variant={showFilters ? 'secondary' : 'outline'}
-						size="sm"
-						className="h-10 shrink-0 gap-2 font-bold"
-						onClick={onToggleFilters}
-						aria-expanded={showFilters}
-					>
-						<Filter className="size-4" />
-						More filters
-					</Button>
-				</div>
-
-				{(searchQuery.trim() || filterStatus !== 'all' || departmentFilter !== 'all' || loadFilter !== 'all') && (
-					<div className="flex flex-wrap items-center gap-1.5" data-testid="teaching-load-active-filters">
-						<span className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">Active filters:</span>
-						{searchQuery.trim() && (
-							<Badge variant="secondary" className="gap-1 text-[11px] font-bold">
-								Search: {searchQuery.trim()}
-							</Badge>
-						)}
-						{filterStatus !== 'all' && (
-							<Badge variant="secondary" className="gap-1 text-[11px] font-bold">
-								{filterStatus === 'teaching-assigned' ? 'Teaching assigned' : filterStatus === 'no-teaching' ? 'No teaching load' : 'Adviser only'}
-							</Badge>
-						)}
-						{departmentFilter !== 'all' && (
-							<Badge variant="secondary" className="gap-1 text-[11px] font-bold">
-								{departmentOptions.find((option) => option.value === departmentFilter)?.label ?? departmentFilter}
-							</Badge>
-						)}
-						{loadFilter !== 'all' && (
-							<Badge variant="secondary" className="gap-1 text-[11px] font-bold">
-								{loadFilter === 'excess' ? 'Excess teaching load' : loadFilter === 'at-standard' ? 'At standard' : 'Below standard'}
-							</Badge>
-						)}
-						<Button type="button" variant="ghost" size="sm" className="h-7 gap-1 px-2 text-[11px] font-bold uppercase" onClick={onClearTeachingLoadFilters}>
-							<RotateCcw className="size-3.5" />
-							Clear all
-						</Button>
-					</div>
-				)}
-				<p className="sr-only" role="status" aria-live="polite" data-testid="teaching-load-filter-announcement">
-					{filterAnnouncement}
-				</p>
-				{!policyReady && (
-					<div className="rounded-xl border border-amber-200 bg-amber-50/70 px-4 py-3 text-amber-900" data-testid="teaching-load-policy-readiness">
-						<div className="flex items-start gap-3">
-							<AlertTriangle className="mt-0.5 size-4 shrink-0 text-amber-600" />
-							<div>
-								<p className="text-sm font-semibold">Teaching standard not configured</p>
-								<p className="text-xs font-medium text-amber-800/80">ATLAS has no persisted workload policy for this school year, so utilization, remaining, and excess figures are unavailable. Teaching assignments and department filters still work. Ask an administrator to configure the teaching standard before generating.</p>
-							</div>
-						</div>
-					</div>
-				)}
-
-				{showFilters && (
-					<div className="flex flex-wrap items-center gap-2 rounded-xl border border-border/50 bg-background/80 p-2 shadow-sm">
-						<Select value={departmentFilter} onValueChange={onDepartmentFilterChange}>
-							<SelectTrigger className="w-48 h-10 bg-background shadow-sm border-border/60 text-xs font-bold uppercase tracking-tight">
-								<div className="flex items-center gap-2">
-									<LayoutGrid className="size-3.5 opacity-50" />
-									<SelectValue placeholder="Department" />
-								</div>
-							</SelectTrigger>
-							<SelectContent>
-								<SelectItem value="all" className="text-xs font-bold uppercase tracking-tight">All departments</SelectItem>
-								{departmentOptions.map(option => (
-									<SelectItem key={option.value} value={option.value} disabled={option.count === 0} className="text-xs font-bold uppercase tracking-tight">{option.label} ({option.count})</SelectItem>
-								))}
-							</SelectContent>
-						</Select>
-
-						<Select value={loadFilter} onValueChange={(value) => onLoadFilterChange(value as TeachingLoadLoadFilter)}>
-							<SelectTrigger className="w-48 h-10 bg-background shadow-sm border-border/60 text-xs font-bold uppercase tracking-tight">
-								<div className="flex items-center gap-2">
-									<Star className="size-3.5 opacity-50" />
-									<SelectValue placeholder="Load" />
-								</div>
-							</SelectTrigger>
-							<SelectContent>
-								<SelectItem value="all" className="text-xs font-bold uppercase tracking-tight">All loads</SelectItem>
-								<SelectItem value="excess" className="text-xs font-bold uppercase tracking-tight text-amber-700" disabled={!policyReady || (loadFacetCounts.excess ?? 0) === 0}>Excess teaching load ({policyReady ? (loadFacetCounts.excess ?? 0) : '—'})</SelectItem>
-								<SelectItem value="at-standard" className="text-xs font-bold uppercase tracking-tight text-emerald-700" disabled={!policyReady || (loadFacetCounts['at-standard'] ?? 0) === 0}>At standard ({policyReady ? (loadFacetCounts['at-standard'] ?? 0) : '—'})</SelectItem>
-								<SelectItem value="below-standard" className="text-xs font-bold uppercase tracking-tight text-sky-700" disabled={!policyReady || (loadFacetCounts['below-standard'] ?? 0) === 0}>Below standard ({policyReady ? (loadFacetCounts['below-standard'] ?? 0) : '—'})</SelectItem>
-							</SelectContent>
-						</Select>
-
-						<Select value={sortOrder} onValueChange={onSortOrderChange}>
-							<SelectTrigger className="w-44 h-10 bg-background shadow-sm border-border/60 text-xs font-bold uppercase tracking-tight">
-								<SelectValue placeholder="Sort teachers" />
-							</SelectTrigger>
-							<SelectContent>
-								<SelectItem value="load-desc" className="text-xs font-bold uppercase tracking-tight">Highest load</SelectItem>
-								<SelectItem value="load-asc" className="text-xs font-bold uppercase tracking-tight">Lowest load</SelectItem>
-							</SelectContent>
-						</Select>
-
-						<div className="flex flex-wrap items-center gap-4 border-l border-border/40 pl-4 h-10">
-						<div className="flex items-center gap-2">
-							<Switch 
-								id="show-outside-dept" 
-								checked={showOutsideDept} 
-								onCheckedChange={onToggleOutsideDept} 
-							/>
-							<Label htmlFor="show-outside-dept" className="text-xs font-semibold uppercase tracking-widest cursor-pointer text-muted-foreground whitespace-nowrap">
-								Cross-Dept
-							</Label>
-						</div>
-						
-						<div className="flex items-center gap-2 border-l border-border/40 pl-4 h-10">
-							<Switch 
-								id="show-unmapped-specialization" 
-								checked={showUnmappedSpecialization} 
-								onCheckedChange={onShowUnmappedSpecializationChange} 
-							/>
-							<Label htmlFor="show-unmapped-specialization" className="text-xs font-semibold uppercase tracking-widest cursor-pointer text-muted-foreground whitespace-nowrap">
-								Unmapped Specialization
-							</Label>
-						</div>
-					</div>
-					</div>
-				)}
+				{/* Fix 14/16: extracted to its own file. Status, Department, and Load
+					now sit on ONE always-visible row instead of behind a
+					`More filters` disclosure. This block adds no scroll container. */}
+				<TeachingLoadFilterBar
+					searchQuery={searchQuery}
+					onSearchQueryChange={onSearchQueryChange}
+					filterStatus={filterStatus}
+					onFilterStatusChange={onFilterStatusChange}
+					statusFacetCounts={statusFacetCounts}
+					loadFilter={loadFilter}
+					loadFacetCounts={loadFacetCounts}
+					onLoadFilterChange={onLoadFilterChange}
+					departmentFilter={departmentFilter}
+					onDepartmentFilterChange={onDepartmentFilterChange}
+					departmentOptions={departmentOptions}
+					filterAnnouncement={filterAnnouncement}
+					onClearTeachingLoadFilters={onClearTeachingLoadFilters}
+					sortOrder={sortOrder}
+					onSortOrderChange={onSortOrderChange}
+					showFilters={showFilters}
+					onToggleFilters={onToggleFilters}
+					showOutsideDept={showOutsideDept}
+					onToggleOutsideDept={onToggleOutsideDept}
+					showUnmappedSpecialization={showUnmappedSpecialization}
+					onShowUnmappedSpecializationChange={onShowUnmappedSpecializationChange}
+					policyReady={policyReady}
+				/>
 			</div>
 
 			<div className="flex-1 overflow-auto p-3 space-y-3 no-scrollbar lg:p-4">
@@ -440,8 +313,10 @@ export function TeacherGridMode({
 													{/* Name + department: always visible, never collapsed behind initials */}
 													<div className="flex-1 min-w-0">
 														<div className="flex items-center gap-2">
-															<h4 className="text-sm font-semibold uppercase tracking-tight truncate">
-																{member.lastName}, {member.firstName}
+															{/* Fix 22: canonical `Last, First`; the CSS `uppercase` shout on a
+																Filipino given name is removed. Stored value unchanged. */}
+															<h4 className="text-sm font-semibold tracking-tight truncate">
+																{formatFacultyDisplayName(member)}
 															</h4>
 															{member.isClassAdviser && (
 																<Tooltip>
