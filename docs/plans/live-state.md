@@ -717,10 +717,30 @@ block execution.** The E: release set has no further retirable row and the E: wo
 lanes, so `20260926c` will most likely record an exhausted set plus the `4893cbde` decision — an honest report,
 not a blocker. **The one E: row that would clear the warning still needs the operator.**
 
-**Next action (2026-09-26):** (1) a third pre-action pass on packet **R3**; (2) reclaim `20260926c` with its
-own pre-action audit as step 0; (3) then the elevated runner dry-run → `-Execute` → post-action QA with
-A1–A12 and a real `passed/blocked/unperformed` tally. `main` is still not deployed; live is `116a7658` and
-healthy. Dated follow-ups, none blocking: **F1**, a product ruling this lane did not
+**Two unverified assertions by this lane, both caught by audit, recorded as a standing caution (2026-09-26).**
+Independent review caught this lane stating a fact in an artifact **without ever checking it**, twice, in
+different registers: (1) the deployment packets R1/R2 carried a **fabricated** `-TargetSha` — a short SHA
+completed by pattern instead of `git rev-parse`; (2) the reclaim `20260926c` manifest claimed several E: lane
+worktrees were `KEEP_ACTIVE`/`PRESERVE_FOR_DECISION` "in their own sections" when **none of the ten is named in
+this file at all**. Both were load-bearing and both were wrong in a way that flattered the lane's own position.
+**Standing rule: no SHA, path, count, disposition, or hash enters any artifact of this lane unless the command
+that produced it is recorded beside it, and "the other lanes' sections say X" must be grepped, not assumed.**
+Neither error reached a live action — the first because the deploy runner fails closed on a bad SHA, the second
+because it was caught before any removal — but both were caught by review, not by care.
+
+**§3 status (2026-09-26): reclaim `20260926c` ran and its pre-action audit returned `CORRECTION_REQUIRED` 7/8 on
+one BLOCKING claim of mine (the disposition claim above), now corrected additively at `c85e70e6` and awaiting a
+fresh audit.** Its own audit found the substantive position sound: the E: **release** set is genuinely exhausted,
+the accepted-release order is correct, the keep set is complete and intact, and a no-op cycle **can** discharge
+`AGENTS.md:43`'s obligation to *run* the reclaim — it just cannot clear the warning. Two dated debts are now on
+record instead of one: **8.72 GiB across ten E: worktrees** that are clean, pushed, merged and carrying **no
+disposition anywhere** (owed by Lanes B and C, and the only lever large enough to clear the 50 GiB warning), and
+`4893cbde` (1.80 GiB) plus three non-git E: leftovers (0.11 GiB) held for decision. E: 48.73 GiB, D: 60.67 GiB.
+
+**Next action (2026-09-26):** (1) a fresh pre-action audit of the corrected `20260926c`; (2) a third pre-action
+pass on packet **R3**; (3) then the elevated runner dry-run → `-Execute` → post-action QA with A1–A12 and a real
+`passed/blocked/unperformed` tally. `main` is still not deployed; live is `116a7658` and healthy. Dated
+follow-ups, none blocking: **F1**, a product ruling this lane did not
 make — main's four per-code-space fallbacks still differ from the shared honest sentence for an out-of-union
 value (unreachable on today's schema, no token leak, QA ruled NON_BLOCKING); **F3**, B1's defect class still
 live at `ManualEditPanel.tsx:929,948` and `QuickPlaceSummaryModal.tsx:58`; **F4**,
