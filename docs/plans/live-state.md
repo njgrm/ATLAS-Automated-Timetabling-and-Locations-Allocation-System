@@ -1389,14 +1389,65 @@ control pinned to the feature-mismatching fixture at `timetable-scheduling-quali
 caught that the default fixture has `requiredFeatures: []`, which makes "no new HARD" pass **vacuously**. R3 also
 carries a Teaching Load repair preservation control, which no previous version required.
 
+**R3 PRE-ACTION `CORRECTION_REQUIRED` 2/12 — AND IT PROVED THE OBVIOUS FIX BREAKS PRODUCTION. I am closing this line
+of work (2026-09-26). R1, R2 and R3 are all withdrawn.** The reviewer probed the fallback placement path and showed
+that R3's D2 **converts a working production commit into a 422**:
+
+- **D2 disables two load-bearing, server-derived deferrals.** `timetable-quick-place.service.ts:278-281` and
+  `timetable-teaching-load-repair.service.ts:313-315` are **solver trial validations** that legitimately defer while
+  searching for a slot. A probe of Quick Place's fallback (no home room, a wrong-type `LAB`, subject requiring
+  `PROJECTOR`) shows base → `roomAssignmentReason: 'FALLBACK_ROOM_ASSIGNED'`, `deferredRoomTypePreference: true`,
+  both violations SOFT, **commit succeeds**; with R3's D2 (type relaxed by a recorded reason, feature not) →
+  `ROOM_TYPE_MISMATCH: SOFT, ROOM_FEATURE_MISMATCH: HARD` → **422 `HARD_VIOLATION_BLOCK` at `:1502-1503`**. Same
+  shape at the repair service (`:313-315` → `:320-338`, empty `validSlots` → a misleading blocker string at
+  `:347`). **This is R1's failure mode reached by a different route** — a fix that removes the symptom and takes a
+  working flow with it.
+- **D2's stated effect is false.** "Features become HARD on every path" is wrong: `constraint-validator.ts:869`
+  also honours `isModularPoolAssignment`, and `schedule-constructor.ts:3067-3074` writes that at scale. A probe
+  proves `MODULAR_POOL_ASSIGNED` → `ROOM_FEATURE_MISMATCH: SOFT`. So the modular-pool exemption is a **decision
+  that must be made**, not something to leave implicit.
+- **D1 and the choke-point mechanism are sound.** The funnel is proven (`applyProposal` is private, reached only
+  from `:767`, `:1116`, `:1323`), and closing `:692` at that point is the only location that covers every path.
+- **The Quick Place control was vacuous.** R3 pinned it to `timetable-scheduling-quality-c03.test.ts:672`, but on
+  that fixture the solver produces **0 proposals** (`placed=0, unplaced=1 "No available conflict-free slot
+  found."`) — so it could not have caught R1's break either. The reviewer supplied the correct scenario: a
+  **no-home-room, single wrong-type room, subject requiring a feature the room lacks**.
+- **The repair service is a client-data forwarder, not a producer.** `timetable-teaching-load-repair.router.ts:134`
+  passes `req.body`, `bindPlacementToUnassignedChange:623-628` returns `{ ...proposal }`, and its scope check
+  (`:602-614`) does not cover `targetRoomId`/`targetDay`/times. So R3's "re-point the producer to the new argument"
+> instruction would have **recreated the client channel under a new name** — R3's own STOP condition, correctly
+> triggered. There is **one** legitimate server producer (Quick Place `:430`), not two.
+- **Six body routes, not five:** the repair service's **preview** route `timetable-teaching-load-repair.router.ts:118`
+> also reaches `:692` via `previewTeachingLoadRepair` → `prepareRepair:806-808` → `applyProposalBatch`. R3 and my
+  Finding 1 both missed it.
+- **Correction to my own evidence:** I cited `ManualEditPanel.tsx:215` as the client sending `allowSoftOverride:
+  true` unconditionally. **That code no longer exists**; the client now defaults `allowSoftOverride = false`
+  (`useTimetableMutations.ts:960`, `LockPanel.tsx:128`). So that half of my evidence was stale. **The preview-truth
+  half stands** — `previewManualEdit` reports `allowed` ignoring soft violations (`:1167`).
+
+**Why I am closing this line rather than writing R4.** Five pre-action cycles. The first three found packet
+errors; the last two found that my *decisions* were wrong about load-bearing production behaviour. The deferral
+mechanism is genuinely load-bearing for two solver flows and genuinely conflates two constraints — so the fix needs
+someone who can decide the semantics, not another packet from me. **Everything needed to make that decision is now
+recorded, verified, and reproducible.**
+
+**The decision, stated so it can be answered rather than argued:**
+1. **May a server-derived solver-trial placement forgive a room-feature shortfall?** Today it does, and that is
+   what Quick Place depends on. If yes, the feature constraint is not the absolute the `:860-863` comment claims,
+   and the comment is wrong. If no, the two solver trials need a typed placement blocker instead of a deferred
+   violation, with a truthful operator reason.
+2. **Is the modular-pool exemption legitimate?** It is real, at scale, and currently undocumented as an exemption.
+3. **May the Teaching Load repair path carry client-supplied entry metadata at all?** Today it does, and its scope
+   check does not cover the placement fields.
+
 **Next action (2026-09-26): the release is live; acceptance needs one operator action.** (1) **operator
 re-seeds** `C:\Users\njgro\.config\opencode\playwright-profile`; (2) **Lane A** runs A5, A6, A7, A12(b) and records
-the result, closing acceptance; (3) **rotate the exposed dev DB credential**; (4) **a fresh independent pre-action
-review of packet R3** — the decisions are taken and the mechanism is pinned, so this is the last gate before an
-executor; (5) retention reclaim before the next release build (E: 46 GiB, below the 50 GiB warning); (6) the
-`4893cbde` + three-leftover decision (1.91 GiB) and the 8.72 GiB disposition backlog owned by Lanes B and C;
-(7) the three room-affordance design decisions; (8) a decision on the oversized `.ts` modules. **Rollback basis
-`116a7658` is verified eligible and was not executed.**
+the result, closing acceptance; (3) **rotate the exposed dev DB credential**; (4) **answer the three questions
+above** — they are the gate on any fix to the constraint-severity channels, and five cycles of packet-writing have
+shown they are not mine to decide; (5) retention reclaim before the next release build (E: 46 GiB, below the 50
+GiB warning); (6) the `4893cbde` + three-leftover decision (1.91 GiB) and the 8.72 GiB disposition backlog owned
+by Lanes B and C; (7) the three room-affordance design decisions; (8) a decision on the oversized `.ts` modules.
+**Rollback basis `116a7658` is verified eligible and was not executed.**
 
 **SUPERSEDED 2026-09-26 — a spliced paragraph this lane's own editing left behind, repaired.** The four lines
 immediately below were an orphaned fragment, and the sentence they belonged to was cut in half. They are
