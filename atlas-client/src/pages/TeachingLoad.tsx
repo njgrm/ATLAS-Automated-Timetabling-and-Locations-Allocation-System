@@ -27,6 +27,7 @@ import { TeachingLoadRepairQueue } from '@/components/faculty-assignments/Teachi
 import { TeachingLoadDraftActionBar } from '@/components/faculty-assignments/TeachingLoadDraftActionBar';
 import { TeachingLoadGuidedModePlaceholder } from '@/components/faculty-assignments/TeachingLoadGuidedModePlaceholder';
 import { TeachingLoadModals } from '@/components/faculty-assignments/TeachingLoadModals';
+import { TeachingLoadInspectorTriggers } from '@/components/faculty-assignments/TeachingLoadInspectorTriggers';
 import { TeachingLoadTruthPanel } from '@/components/faculty-assignments/TeachingLoadTruthPanel';
 import { buildTeachingLoadTruthModel } from '@/lib/teaching-load-authority-truth';
 import { useTeachingLoadRepairQueue } from '@/hooks/useTeachingLoadRepairQueue';
@@ -62,6 +63,10 @@ export default function TeachingLoad() {
 	// Phase 4.8: the inspector is hard-cut below lg. A mobile Sheet restores
 	// access to the teacher/section load profile on small screens.
 	const [mobileInspectorOpen, setMobileInspectorOpen] = useState(false);
+	// Fix 26: the always-on desktop inspector column is gone. The same content is
+	// now on demand behind `Review teachers`, which returns the full 320px to the
+	// assignment workspace on every large viewport.
+	const [reviewModalOpen, setReviewModalOpen] = useState(false);
 	const [advancedGridVisible, setAdvancedGridVisible] = useState(true);
 	const [guidedDefaultApplied, setGuidedDefaultApplied] = useState(false);
 	const [draftStatusMessage, setDraftStatusMessage] = useState('No draft changes yet. Start with the next step below.');
@@ -608,8 +613,45 @@ export default function TeachingLoad() {
 		[data.authorityDiagnostics],
 	);
 
-	if (data.error && data.dataSource === 'none') {
-		return (
+	// Fix 26: ONE inspector node, shared by the mobile Sheet and the desktop
+	// `Review teachers` modal. Previously the same WorkloadInspector/SectionInspector
+	// element tree was written out twice; it is now defined once, so the modal can
+	// never drift from the Sheet.
+	const activeInspector = ui.viewMode === 'teacher' ? (
+		<WorkloadInspector
+			selected={data.selected}
+			loadProfile={ui.loadProfile}
+			rotationTermBreakdown={data.selected?.rotationTermBreakdown ?? []}
+			hoveredIncomingMinutes={ui.hoveredIncomingMinutes}
+			previewLoadHours={previewLoadHours}
+			isReadOnlyMode={data.isReadOnlyMode}
+			activeTermIndex={data.activeTermIndex}
+			teachingStandardHours={ui.teachingStandardHours}
+			policyReady={ui.policyReady}
+			writeBlockedReason={workspaceState.writeBlockedReason}
+		/>
+	) : (
+		<SectionInspector
+			section={ui.selectedSectionId ? data.sectionMap.get(ui.selectedSectionId) ?? null : null}
+			sectionContract={selectedSectionContract}
+			effectiveOwnershipMap={data.effectiveOwnershipMap}
+			writeBlockedReason={workspaceState.writeBlockedReason}
+		/>
+	);
+
+	const reviewModalTitle = ui.viewMode === 'teacher'
+		? data.selected
+			? `Teacher workload: ${data.selected.lastName}, ${data.selected.firstName}`
+			: 'Review teachers'
+		: 'Review section';
+
+	const reviewModalDescription = ui.viewMode === 'teacher'
+		? data.selected
+			? 'Teaching load, capacity, and the next safe action for this teacher.'
+			: 'Select a teacher to inspect their workload.'
+		: 'Section coverage and ownership for the selected section.';
+
+	if (data.error && data.dataSource === 'none') {		return (
 			<div className="flex h-[calc(100svh-3.5rem)] items-center justify-center p-6">
 				<Card className="max-w-md border-red-200 bg-red-50 p-8 text-center shadow-lg">
 					<AlertTriangle className="mx-auto size-12 text-red-600 mb-4" />
@@ -808,31 +850,14 @@ export default function TeachingLoad() {
 						</div>
 					</div>
 
-					{/* Persistent Inspector Area */}
-					<div className={cn("hidden w-80 shrink-0 border-l border-border/40 bg-background shadow-xl lg:block", !advancedGridVisible && "lg:hidden")}>
-						{ui.viewMode === 'teacher' ? (
-							<WorkloadInspector
-								selected={data.selected}
-								loadProfile={ui.loadProfile}
-								rotationTermBreakdown={data.selected?.rotationTermBreakdown ?? []}
-								hoveredIncomingMinutes={ui.hoveredIncomingMinutes}
-								previewLoadHours={previewLoadHours}
-								isReadOnlyMode={data.isReadOnlyMode}
-								activeTermIndex={data.activeTermIndex}
-								teachingStandardHours={ui.teachingStandardHours}
-								policyReady={ui.policyReady}
-								writeBlockedReason={workspaceState.writeBlockedReason}
-							/>
-						) : (
-							<SectionInspector
-								section={ui.selectedSectionId ? data.sectionMap.get(ui.selectedSectionId) ?? null : null}
-								sectionContract={selectedSectionContract}
-								effectiveOwnershipMap={data.effectiveOwnershipMap}
-								writeBlockedReason={workspaceState.writeBlockedReason}
-							/>
-						)}
-					</div>
-				</div>
+				{/* Fix 26: the permanent `hidden w-80 ... lg:block` inspector column
+					was removed here. It narrowed the workspace by 320px on every
+					large viewport. The identical content is now reachable on demand
+					via the `Review teachers` control below and the `ReviewTeachersModal`
+					in `TeachingLoadModals`. The mobile `View profile` Sheet further
+					down is deliberately preserved. */}
+			</div>
+
 
 				<TeachingLoadDraftActionBar
 					activeDraftCount={data.activeDraftCount}
@@ -847,23 +872,14 @@ export default function TeachingLoad() {
 				/>
 			</div>
 
-			{/* Phase 4.8: mobile inspector access. The persistent inspector is
-				hidden below lg; this floating button opens the same profile in a
-				Sheet on small screens. Only visible in Teachers and Sections modes,
-				not Subjects (which has no meaningful inspector). */}
-			{advancedGridVisible && (
-				<Button
-					type="button"
-					variant="outline"
-					size="sm"
-					className="fixed bottom-16 right-4 z-40 h-10 gap-2 font-bold shadow-lg lg:hidden"
-					data-testid="teaching-load-mobile-inspector-open"
-					onClick={() => setMobileInspectorOpen(true)}
-				>
-					<UserRound className="size-4" />
-					View profile
-				</Button>
-			)}
+			{/* Phase 4.8: mobile inspector access. This is the legitimate small-screen
+				affordance and is PRESERVED. The desktop equivalent is now the
+				`Review teachers` modal. */}
+			<TeachingLoadInspectorTriggers
+				visible={advancedGridVisible}
+				onOpenMobile={() => setMobileInspectorOpen(true)}
+				onOpenReview={() => setReviewModalOpen(true)}
+			/>
 
 			<Sheet open={mobileInspectorOpen} onOpenChange={setMobileInspectorOpen}>
 				<SheetContent side="right" className="w-full sm:max-w-md overflow-y-auto" data-testid="teaching-load-mobile-inspector-sheet">
@@ -876,29 +892,7 @@ export default function TeachingLoad() {
 								: 'Section profile'}
 						</SheetTitle>
 					</SheetHeader>
-					<div className="py-4">
-						{ui.viewMode === 'teacher' ? (
-							<WorkloadInspector
-								selected={data.selected}
-								loadProfile={ui.loadProfile}
-								rotationTermBreakdown={data.selected?.rotationTermBreakdown ?? []}
-								hoveredIncomingMinutes={ui.hoveredIncomingMinutes}
-								previewLoadHours={previewLoadHours}
-								isReadOnlyMode={data.isReadOnlyMode}
-								activeTermIndex={data.activeTermIndex}
-								teachingStandardHours={ui.teachingStandardHours}
-								policyReady={ui.policyReady}
-								writeBlockedReason={workspaceState.writeBlockedReason}
-							/>
-						) : (
-							<SectionInspector
-								section={ui.selectedSectionId ? data.sectionMap.get(ui.selectedSectionId) ?? null : null}
-								sectionContract={selectedSectionContract}
-								effectiveOwnershipMap={data.effectiveOwnershipMap}
-								writeBlockedReason={workspaceState.writeBlockedReason}
-							/>
-						)}
-					</div>
+					<div className="py-4">{activeInspector}</div>
 				</SheetContent>
 			</Sheet>
 
@@ -919,6 +913,11 @@ export default function TeachingLoad() {
 					setShowDiscardConfirm(false);
 				}}
 				activeDraftCount={data.activeDraftCount}
+				reviewModalOpen={reviewModalOpen}
+				onReviewModalOpenChange={setReviewModalOpen}
+				reviewInspector={activeInspector}
+				reviewTitle={reviewModalTitle}
+				reviewDescription={reviewModalDescription}
 			/>
 		</TooltipProvider>
 	);

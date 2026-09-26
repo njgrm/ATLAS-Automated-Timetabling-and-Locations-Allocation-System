@@ -10,20 +10,22 @@ import {
 	ClipboardList,
 	Star
 } from 'lucide-react';
+import type { ReactNode } from 'react';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import {
-	Sheet,
-	SheetContent,
-	SheetDescription,
-	SheetHeader,
-	SheetTitle,
-} from '@/ui/sheet';
+	Dialog,
+	DialogContent,
+	DialogDescription,
+	DialogHeader,
+	DialogTitle,
+} from '@/ui/dialog';
 import { Separator } from '@/ui/separator';
 import type { FacultySummary } from '@/types';
 import { Link } from 'react-router-dom';
-import { GRADE_COLORS, gradeLabel } from '@/lib/grade-labels';
 import { getDepartmentColor } from '@/lib/department-colors';
+import { GradeBadge } from '@/components/faculty-assignments/GradeBadge';
+import { formatFacultyDisplayName } from '@/components/faculty/teacherNameDisplay';
 import { deriveLoadStatus, STANDARD_WEEKLY_TEACHING_HOURS } from '@/lib/faculty-assignment-helpers';
 import { departmentLabel } from '@/lib/deped-glossary';
 
@@ -32,6 +34,15 @@ interface FacultyProfileSheetProps {
 	open: boolean;
 	onOpenChange: (open: boolean) => void;
 	sourceFreshness: string;
+	/**
+	 * Fix 25. When this dialog is opened as the in-page "Review teachers"
+	 * surface, the primary action is a repair route rather than a second
+	 * profile view. `onReviewLoad` is optional so an unmigrated caller keeps
+	 * working; when absent, the internal `/teaching-load` Link is rendered.
+	 */
+	onReviewLoad?: (faculty: FacultySummary) => void;
+	/** Label for the primary action. Defaults to "Review teaching load". */
+	reviewLabel?: string;
 }
 
 export function FacultyProfileSheet({
@@ -39,6 +50,8 @@ export function FacultyProfileSheet({
 	open,
 	onOpenChange,
 	sourceFreshness,
+	onReviewLoad,
+	reviewLabel = 'Review teaching load',
 }: FacultyProfileSheetProps) {
 	if (!faculty) return null;
 
@@ -71,24 +84,59 @@ export function FacultyProfileSheet({
 
 	const deptColor = getDepartmentColor(faculty.department);
 
+	// Fix 25: when the parent supplies a handler the primary action stays in
+	// place (no navigation, so the roster keeps its filters/scroll/selection).
+	// Otherwise fall back to the original cross-page Link.
+	const reviewAction = (variant: 'link' | 'default' | 'outline', className: string, icon?: ReactNode) => {
+		const body = (
+			<>
+				{icon}
+				{reviewLabel}
+				<ChevronRight className="size-3 ml-0.5" />
+			</>
+		);
+		if (onReviewLoad) {
+			return (
+				<Button variant={variant} className={className} onClick={() => onReviewLoad(faculty)}>
+					{body}
+				</Button>
+			);
+		}
+		return (
+			<Link to={`/teaching-load?facultyId=${faculty.id}`} className="contents">
+				<Button variant={variant} className={className}>{body}</Button>
+			</Link>
+		);
+	};
+
 	return (
-		<Sheet open={open} onOpenChange={onOpenChange}>
-			<SheetContent className="w-full sm:max-w-md overflow-y-auto">
-				<SheetHeader className="pb-6 border-b">
+		// Fix 23: a centred Dialog with internal scrolling, matching the
+		// Fix 17/23 pattern. Radix Dialog closes on Escape and on an overlay /
+		// outside click, and sets `pointer-events: none` on `document.body`
+		// while open, which blocks background scroll without any extra code.
+		// The former `Sheet` (w-full sm:max-w-md) was a side drawer that could
+		// not be centred and did not match the rest of the workspace.
+		<Dialog open={open} onOpenChange={onOpenChange}>
+			<DialogContent
+				className="max-h-[90vh] w-[calc(100vw-2rem)] max-w-2xl overflow-y-auto"
+				data-testid="faculty-profile-dialog"
+			>
+				<DialogHeader className="pb-6 border-b">
 					<div className="flex items-center gap-4">
 						<div className="flex size-14 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xl font-bold text-primary shadow-sm border border-primary/10">
 							{faculty.firstName?.[0] ?? ''}{faculty.lastName?.[0] ?? ''}
 						</div>
 						<div className="min-w-0">
 							<div className="flex items-center gap-2">
-								<SheetTitle className="text-xl font-bold truncate">
-									{faculty.firstName} {faculty.lastName}
-								</SheetTitle>
+								{/* Fix 22: canonical `Last, First`, stored casing preserved. */}
+								<DialogTitle className="text-xl font-bold truncate">
+									{formatFacultyDisplayName(faculty)}
+								</DialogTitle>
 								{faculty.isClassAdviser && (
 									<Star className="size-4 fill-amber-400 text-amber-500 shrink-0" />
 								)}
 							</div>
-							<SheetDescription className="flex flex-wrap items-center gap-2 mt-1">
+							<DialogDescription className="flex flex-wrap items-center gap-2 mt-1">
 								<code className="text-xs font-mono bg-muted px-1.5 py-0.5 rounded uppercase tracking-tighter opacity-80">
 									#{faculty.employeeId || 'ID-PENDING'}
 								</code>
@@ -102,7 +150,7 @@ export function FacultyProfileSheet({
 									</span>
 								)}
 								<span className="text-[0.7rem] font-bold text-muted-foreground uppercase tracking-wider">{sourceFreshness}</span>
-							</SheetDescription>
+							</DialogDescription>
 							{faculty.isClassAdviser && (
 								<div className="mt-2">
 									<Badge className="bg-amber-50 text-amber-800 hover:bg-amber-100 shadow-none border-amber-200 font-bold text-[0.7rem] px-2 py-0.5">
@@ -113,7 +161,7 @@ export function FacultyProfileSheet({
 							)}
 						</div>
 					</div>
-				</SheetHeader>
+				</DialogHeader>
 
 				<div className="py-6 space-y-8">
 					{/* Identity Section */}
@@ -209,12 +257,11 @@ export function FacultyProfileSheet({
 					<div className="space-y-4">
 						<div className="flex items-center justify-between">
 							<h4 className="text-[0.7rem] font-bold text-muted-foreground uppercase tracking-widest">Assigned subjects and sections</h4>
-							<Link to={`/teaching-load?facultyId=${faculty.id}`}>
-								<Button variant="link" size="sm" className="h-auto p-0 text-[0.65rem] font-bold uppercase tracking-widest text-primary hover:no-underline">
-										Review teaching load <ChevronRight className="size-3 ml-0.5" />
-								</Button>
-							</Link>
-						</div>
+						{/* Fix 25: `reviewAction` renders a plain Button when the parent
+							handles the review in place, and only falls back to the
+							navigating Link when it does not. No nested interactive. */}
+						{reviewAction('link', 'h-auto p-0 text-[0.65rem] font-bold uppercase tracking-widest text-primary hover:no-underline')}
+					</div>
 
 						{faculty.assignments && faculty.assignments.length > 0 ? (
 							<div className="space-y-3">
@@ -233,9 +280,7 @@ export function FacultyProfileSheet({
 											{fs.sections && fs.sections.length > 0 ? (
 												fs.sections.map((sec) => (
 													<div key={sec.id} className="flex items-center gap-2">
-														<Badge variant="outline" className={`text-[0.6rem] min-w-10 justify-center h-4 font-bold border-opacity-40 ${GRADE_COLORS[String(sec.displayOrder)] ?? ''}`}>
-															{gradeLabel(sec.displayOrder)}
-														</Badge>
+										<GradeBadge grade={sec.displayOrder} ariaSuffix={sec.name} />
 														<span className="text-xs text-foreground font-semibold truncate">{sec.name}</span>
 													</div>
 												))
@@ -250,12 +295,9 @@ export function FacultyProfileSheet({
 							<div className="space-y-3 rounded-xl border border-dashed bg-muted/5 px-4 py-10 text-center">
 								<p className="text-sm font-bold text-foreground">No teaching load assigned yet.</p>
 								<p className="text-xs leading-5 text-muted-foreground">Open Teaching Load to assign subjects and sections before generation.</p>
-								<Link to={`/teaching-load?facultyId=${faculty.id}`} className="inline-flex justify-center">
-									<Button size="sm" variant="outline" className="gap-2 font-bold">
-										Review teaching load
-										<ChevronRight className="size-3" />
-									</Button>
-								</Link>
+						<div className="flex justify-center">
+							{reviewAction('outline', 'gap-2 font-bold')}
+						</div>
 							</div>
 						)}
 					</div>
@@ -276,18 +318,13 @@ export function FacultyProfileSheet({
 
 					{/* Secondary Actions */}
 					<div className="pt-4 pb-8 flex flex-col gap-2">
-						<Link to={`/teaching-load?facultyId=${faculty.id}`} className="w-full">
-							<Button className="w-full h-10 gap-2 font-bold shadow-md uppercase tracking-wide text-xs">
-								<ClipboardList className="size-4" />
-								Review teaching load
-							</Button>
-						</Link>
+						{reviewAction('default', 'w-full h-10 gap-2 font-bold shadow-md uppercase tracking-wide text-xs', <ClipboardList className="size-4" />)}
 						<Button variant="secondary" className="h-10 text-muted-foreground font-bold uppercase tracking-wide text-xs" onClick={() => onOpenChange(false)}>
 							Close profile
 						</Button>
 					</div>
 				</div>
-			</SheetContent>
-		</Sheet>
+			</DialogContent>
+		</Dialog>
 	);
 }

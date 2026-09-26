@@ -114,7 +114,26 @@ const SelectItem = React.forwardRef<
 	<SelectPrimitive.Item
 		ref={ref}
 		className={cn(
-			'relative flex w-full cursor-default select-none items-center rounded-sm py-1.5 pl-8 pr-2 text-sm outline-none focus:bg-primary focus:text-primary-foreground focus:[&_*]:text-primary-foreground data-[highlighted]:bg-primary data-[highlighted]:text-primary-foreground data-[highlighted]:[&_*]:text-primary-foreground data-[state=checked]:text-primary-foreground data-[state=checked]:[&_*]:text-primary-foreground data-disabled:pointer-events-none data-disabled:opacity-50',
+			// The checked state needs a BACKGROUND, not just a foreground.
+			//
+			// This used to set only `data-[state=checked]:text-primary-foreground`
+			// with no background, so a selected-but-not-hovered option rendered
+			// white text on the white `--popover` surface (220 14% 96% is
+			// `--popover` 0 0% 100%): the selection was invisible, and hovering
+			// merely *appeared* to fix it because `focus:`/`data-[highlighted]:`
+			// do supply `bg-primary`.
+			//
+			// `dropdown-menu.tsx` pairs `bg-accent` with `text-accent-foreground`,
+			// but in THIS theme `--accent` is an alias of `--primary` (158 64% 40%)
+			// and `--accent-foreground` is an alias of `--primary-foreground`
+			// (0 0% 100%). Copying that pairing literally would render the checked
+			// state pixel-identical to the highlighted state and reintroduce the
+			// exact missing-differentiation defect this fix exists to close.
+			//
+			// The `secondary` family keeps the pairing intact while staying
+			// visibly distinct: checked = light `--secondary` with near-black
+			// text; highlighted/focused = solid `--primary` with white text.
+			'relative flex w-full cursor-default select-none items-center rounded-sm py-1.5 pl-8 pr-2 text-sm outline-none focus:bg-primary focus:text-primary-foreground focus:[&_*]:text-primary-foreground data-[highlighted]:bg-primary data-[highlighted]:text-primary-foreground data-[highlighted]:[&_*]:text-primary-foreground data-[state=checked]:bg-secondary data-[state=checked]:text-secondary-foreground data-[state=checked]:[&_*]:text-secondary-foreground data-disabled:pointer-events-none data-disabled:opacity-50',
 			className,
 		)}
 		{...props}

@@ -168,7 +168,7 @@ export function SectionRoomMapModal({
 							<div className="space-y-1">
 								<div className="flex items-center gap-2">
 									<DialogTitle className="text-xl font-bold tracking-tight">Assign Home Room</DialogTitle>
-									<Badge variant="outline" className="bg-primary/5 text-primary border-primary/20 font-bold uppercase tracking-wider text-[10px]">
+									<Badge variant="outline" className="bg-primary/5 text-primary border-primary/20 font-bold uppercase tracking-wider text-xs">
 										Interactive Map
 									</Badge>
 								</div>
@@ -177,10 +177,10 @@ export function SectionRoomMapModal({
 								</DialogDescription>
 							</div>
 							<div className="flex items-center gap-3 mr-12">
-								<Button variant="outline" size="sm" onClick={() => setSelectedRoomId(null)} disabled={selectedRoomId === null} className="h-9 gap-2 font-bold uppercase text-[10px] tracking-widest border-muted-foreground/20 hover:bg-destructive/5 hover:text-destructive hover:border-destructive/30">
+								<Button variant="outline" size="sm" onClick={() => setSelectedRoomId(null)} disabled={selectedRoomId === null} className="h-9 gap-2 font-bold uppercase text-xs tracking-widest border-muted-foreground/20 hover:bg-destructive/5 hover:text-destructive hover:border-destructive/30">
 									<X className="size-3.5" /> Clear Selection
 								</Button>
-								<Button size="sm" onClick={handleConfirm} className="h-9 gap-2 font-bold uppercase text-[10px] tracking-widest shadow-lg shadow-primary/20">
+								<Button size="sm" onClick={handleConfirm} className="h-9 gap-2 font-bold uppercase text-xs tracking-widest shadow-lg shadow-primary/20">
 									<CheckCircle2 className="size-3.5" /> Confirm Assignment
 								</Button>
 							</div>
@@ -192,24 +192,24 @@ export function SectionRoomMapModal({
 						<div className="w-80 shrink-0 border-r flex flex-col bg-card">
 							{/* Active Selection Sidebar Component */}
 							<div className="p-4 border-b bg-muted/20">
-								<p className="text-[10px] font-black uppercase tracking-[0.15em] text-muted-foreground/60 mb-2">Active Selection</p>
+								<p className="text-xs font-bold uppercase tracking-[0.15em] text-muted-foreground mb-2">Active Selection</p>
 								{selectedRoom ? (
 									<div className="flex items-start gap-3 p-3 rounded-xl border-2 bg-primary/5 border-primary/20 animate-in fade-in zoom-in-95 duration-200">
 										<div className="size-10 shrink-0 rounded-lg bg-primary/10 flex items-center justify-center border border-primary/20">
 											<CheckCircle2 className="size-5 text-primary" />
 										</div>
 										<div className="min-w-0">
-											<p className="font-bold text-foreground leading-tight truncate">{selectedRoom.name}</p>
-											<p className="text-xs text-muted-foreground truncate">{selectedRoom.buildingName}</p>
+											<p className="font-bold text-foreground leading-tight break-words">{selectedRoom.name}</p>
+											<p className="text-xs text-muted-foreground break-words">{selectedRoom.buildingName}</p>
 											
 											{roomOccupancy?.has(selectedRoomId!) && (
-												<div className="mt-2 flex items-center gap-1.5 text-[9px] font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded border border-amber-100">
-													<Users className="size-2.5" />
-													Used by: {roomOccupancy.get(selectedRoomId!)}
+												<div className="mt-2 flex items-start gap-1.5 text-xs font-bold text-amber-700 bg-amber-50 px-2 py-1 rounded border border-amber-100">
+													<Users className="size-3.5 mt-0.5 shrink-0" />
+													<span className="break-words">Used by: {roomOccupancy.get(selectedRoomId!)}</span>
 												</div>
 											)}
 
-											<Badge variant="secondary" className="mt-1.5 h-4 text-[9px] font-black uppercase tracking-tighter">
+											<Badge variant="secondary" className="mt-1.5 h-5 text-xs font-bold uppercase">
 												{selectedRoom.type.replace('_', ' ')}
 											</Badge>
 										</div>
@@ -263,68 +263,69 @@ export function SectionRoomMapModal({
 												
 												{activeBuildingId === b.id && (
 													<div className="grid grid-cols-1 gap-1 px-1 py-1 animate-in fade-in slide-in-from-top-1 duration-200">
-														{b.rooms.length === 0 ? (
-															<p className="text-[10px] text-center py-4 italic text-muted-foreground">No rooms in this building.</p>
-														) : (
-															b.rooms.map((r) => {
-																const occupying = roomOccupancy?.get(r.id);
-																const isSelected = selectedRoomId === r.id;
-																return (
-																	<Button
-																		key={r.id}
-																		ref={isSelected ? activeRoomRef : null}
-																		type="button"
-																		variant="ghost"
-																		onClick={() => {
-																			setSelectedRoomId(r.id);
-																			setViewMode('building');
-																		}}
-																		className={cn(
-																			"group relative w-full justify-start gap-3 px-3 py-2.5 h-auto rounded-lg border text-left transition-all",
-																			isSelected
-																				? "bg-primary border-primary text-primary-foreground shadow-lg shadow-primary/20 scale-[1.02] z-10"
-																				: "bg-background border-border/50 hover:border-primary/50 hover:shadow-md"
-																		)}
-																	>
-																		<div className={cn(
-																			"size-7 shrink-0 rounded-md flex items-center justify-center border",
-																			isSelected 
-																				? "bg-white/20 border-white/30" 
-																				: "bg-muted border-border/40 group-hover:bg-primary/10 group-hover:border-primary/20"
-																		)}>
-																			<span className="text-[10px] font-black uppercase">
-																				{r.name.slice(0, 2)}
-																			</span>
-																		</div>
-																		<div className="min-w-0 flex-1">
-																			<div className="flex items-center gap-2">
-																				<p className="text-xs font-bold truncate leading-none">{r.name}</p>
-																				{occupying && (
-																					<Badge variant="outline" className={cn(
-																						"h-3.5 px-1 text-[8px] font-bold border-opacity-50",
-																						isSelected ? "bg-white/10 text-white border-white/20" : "bg-amber-50 text-amber-600 border-amber-200"
-																					)}>
-																												Used by {occupying}
-																					</Badge>
-																				)}
-																			</div>
-																			<div className="flex items-center gap-1.5 mt-1">
-																				<p className={cn(
-																					"text-[9px] uppercase tracking-tighter font-medium",
-																					isSelected ? "text-primary-foreground/70" : "text-muted-foreground/60"
+													{b.rooms.length === 0 ? (
+														<p className="text-xs text-center py-4 italic text-muted-foreground">No rooms in this building.</p>
+													) : (
+														b.rooms.map((r) => {
+															const occupying = roomOccupancy?.get(r.id);
+															const isSelected = selectedRoomId === r.id;
+															return (
+																<Button
+																	key={r.id}
+																	ref={isSelected ? activeRoomRef : null}
+																	type="button"
+																	variant="ghost"
+																	onClick={() => {
+																		setSelectedRoomId(r.id);
+																		setViewMode('building');
+																	}}
+																	className={cn(
+																		"group relative w-full justify-start gap-3 px-3 py-2.5 h-auto rounded-lg border text-left transition-all",
+																		isSelected
+																			? "bg-primary border-primary text-primary-foreground shadow-lg shadow-primary/20 scale-[1.02] z-10"
+																			: "bg-background border-border/50 hover:border-primary/50 hover:shadow-md"
+																	)}
+																>
+																	<div className={cn(
+																		"size-8 shrink-0 rounded-md flex items-center justify-center border",
+																		isSelected
+																			? "bg-white/20 border-white/30"
+																			: "bg-muted border-border/40 group-hover:bg-primary/10 group-hover:border-primary/20"
+																	)}>
+																		<span className="text-xs font-bold uppercase">
+																			{r.name.slice(0, 2)}
+																		</span>
+																	</div>
+																	<div className="min-w-0 flex-1">
+																		<div className="flex flex-col items-start gap-1">
+																			<p className="text-sm font-bold leading-tight break-words">{r.name}</p>
+																			{occupying && (
+																				<Badge variant="outline" className={cn(
+																					"h-5 max-w-full px-1.5 text-xs font-bold whitespace-normal break-words text-left",
+																					isSelected ? "bg-white/10 text-white border-white/20" : "bg-amber-50 text-amber-700 border-amber-200"
 																				)}>
-																					{r.type.replace('_', ' ')}
-																				</p>
-																				{occupying && (
-																					<span className={cn(
-																						"text-[9px] font-bold",
-																						isSelected ? "text-white/60" : "text-amber-600/80"
-																					)}>
-																												Already assigned
-																					</span>
-																				)}
-																			</div>
+																					Used by {occupying}
+																				</Badge>
+																			)}
 																		</div>
+																		<div className="flex flex-wrap items-center gap-1.5 mt-1">
+																			<p className={cn(
+																				"text-xs uppercase tracking-wide font-medium",
+																				isSelected ? "text-primary-foreground/80" : "text-muted-foreground"
+																			)}>
+																				{r.type.replace('_', ' ')}
+																			</p>
+																			{occupying && (
+																				<span className={cn(
+																					"text-xs font-bold",
+																					isSelected ? "text-white/80" : "text-amber-700"
+																				)}>
+																					Already assigned
+																				</span>
+																			)}
+																		</div>
+																	</div>
+
 																		{isSelected && (
 																			<CheckCircle2 className="size-3.5 ml-auto text-primary-foreground" />
 																		)}
@@ -380,32 +381,42 @@ export function SectionRoomMapModal({
 							) : (
 								<div className="flex-1 flex flex-col min-h-0">
 									<div className="shrink-0 mb-4 flex items-center justify-between">
-										<Button variant="ghost" size="sm" onClick={() => { setActiveBuildingId(null); setViewMode('campus'); }} className="h-9 gap-2 font-bold uppercase text-[10px] tracking-widest text-primary hover:bg-primary/5 rounded-xl border border-primary/10">
-											<ChevronLeft className="size-4" /> Back to Campus
-										</Button>
-										<div className="flex flex-col items-end">
-											<h3 className="font-bold text-xl text-foreground">{activeBuilding?.name}</h3>
-											<p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">Building Interior View</p>
+									<Button variant="ghost" size="sm" onClick={() => { setActiveBuildingId(null); setViewMode('campus'); }} className="h-9 gap-2 font-bold uppercase text-xs tracking-widest text-primary hover:bg-primary/5 rounded-xl border border-primary/10">
+										<ChevronLeft className="size-4" /> Back to Campus
+									</Button>
+									<div className="flex flex-col items-end">
+										<h3 className="font-bold text-xl text-foreground">{activeBuilding?.name}</h3>
+										<p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Building Interior View</p>
+									</div>
+								</div>
+
+								<div className="flex-1 min-h-0 border rounded-3xl bg-background/50 shadow-inner overflow-hidden">
+									{activeBuilding ? (
+									/* A3 fix 06 — the canvas tracks this pane's height.
+									 * Measured at 1366x768: the pane's inner HEIGHT is
+									 * 497.2px (its inner WIDTH is 929.7px) and
+									 * BuildingView's toolbar takes 36px, leaving 461.2px
+									 * for the stage, so the previous hardcoded
+									 * height={500} overflowed by 38.8px and the pane's
+									 * overflow-hidden clipped the bottom-most floor with
+									 * no scrollbar. fillAvailableHeight measures the pane
+									 * instead. Pan/zoom/clamp are unchanged. */
+										<BuildingView
+											building={activeBuilding}
+											fillAvailableHeight
+											selectedRoomId={selectedRoomId}
+											onRoomSelect={handleRoomSelectFromMap}
+											roomOccupancy={roomOccupancy}
+											roomSectionData={roomSectionData}
+										/>
+									) : (
+										<div className="flex-1 flex flex-col items-center justify-center text-muted-foreground opacity-50 h-full">
+											<Building2 className="size-12 mb-4" />
+											<p className="font-bold">No building selected.</p>
 										</div>
-									</div>
-									
-									<div className="flex-1 border rounded-3xl bg-background/50 shadow-inner overflow-hidden">
-										{activeBuilding ? (
-											<BuildingView
-												building={activeBuilding}
-												selectedRoomId={selectedRoomId}
-												onRoomSelect={handleRoomSelectFromMap}
-												height={500}
-												roomOccupancy={roomOccupancy}
-												roomSectionData={roomSectionData}
-											/>
-										) : (
-											<div className="flex-1 flex flex-col items-center justify-center text-muted-foreground opacity-50 h-full">
-												<Building2 className="size-12 mb-4" />
-												<p className="font-bold">No building selected.</p>
-											</div>
-										)}
-									</div>
+									)}
+								</div>
+
 								</div>
 							)}
 						</div>
