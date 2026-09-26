@@ -75,7 +75,34 @@ resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs
   the verified path is expected to take the persisted contract's own active term — the documented fallback
   that resolves one ordered term rather than dead-ending.
 
-- **Release SHA: `400a6909a9642703e3891861c40d5f49f85c7cd9` — LIVE since 2026-09-26 15:49 (Lane A2,
+- **Release SHA: `e4989b725394204898ebcd429db74daaf7316323` — LIVE since 2026-09-26 17:24 (Lane A2).
+  CANDIDATE 1 ACCEPTED.** Runner returned `CUTOVER_STARTED`, audit
+  `C:\ProgramData\ATLAS\release-audit\e4989b72-20260926-172411`; dir
+  `E:\ATLAS-runtime-supervised-e4989b72-20260926`; the **scheduled-task action names the target**;
+  `supervisor-state.json` = `state=running release=e4989b72…`; health 200, ready 200, DB-backed subjects
+  200, 5174 200. Dry run first returned `mutates: false`, `secretsPrinted: false`, with a captured
+  task-XML rollback basis. **Rollback basis `400a6909a9642703e3891861c40d5f49f85c7cd9`** (retained, never
+  executed); `26f7c907` still on disk as the older fallback. Built-server start proven first on isolated
+  port 5098 (health 200, shared 5001 re-checked untouched), and `npm ci` produced **0 reparse points** in
+  both packages. Client-only range; **no schema command was run.**
+  **ACCEPTANCE NOW PASSES, measured on the live deployment:**
+  - the term **resolves** — `runtime/context?verifyUpstream=true` returns `activeTerm.verified: true`,
+    `termIndex: 2`, identity `T2`, `orderedTerms: 3`, and the message
+    *"EnrollPro active-term endpoint is unreachable; using the persisted verified ordered term
+    contract"* — i.e. the documented fallback engaged because `reachable: false`, and it still resolved.
+  - the page renders **"Showing TERM 2"** and the view selector reads `TERM 2`.
+  - a term-scoped request returns **`termIndexes [2]`, `maxEntriesInOneCell 1`, `entryCount 2`**, and
+    `termIndex=1` returns `[1]` / 1 / 2 — one term, one entry per slot.
+  - **the rendered page reports no conflicts.** The defect that showed 10 invented conflicts for G7
+    Room 103, three APs and three Math in one Monday slot, is closed.
+  - **Honest residual:** an *unscoped* request still returns `[1,2,3]` with 3 entries per cell, because the
+    server keeps its default all-term read. Every audited surface now scopes, so this is defence in depth
+    rather than a live fault — but the server-side default is still fail-open if a new caller forgets.
+  - Console: 0 errors on the term-resolution path; 2 errors observed on the manual probe fetches only.
+  - **Browser acceptance owner for the remaining rows remains Lane C**; rows that need the *timetable*
+    tab and a placed session (A12(b)-class) are not decided by this measurement.
+
+- **Release SHA: `400a6909a9642703e3891861c40d5f49f85c7cd9`** (SUPERSEDED 2026-09-26 17:24 by `e4989b72`;
   HIGH authority granted by the operator).** Runner returned `CUTOVER_STARTED`, audit
   `C:\ProgramData\ATLAS\release-audit\400a6909-20260926-154902`; dir
   `E:\ATLAS-runtime-supervised-400a6909-20260926`; the **scheduled-task action now names the target**;
