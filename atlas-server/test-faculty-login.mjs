@@ -1,8 +1,19 @@
 import axios from 'axios';
 
+// The faculty password is never committed to this repository. Supply it from the
+// environment; this script fails closed when it is absent rather than falling back
+// to a literal. See atlas-server/src/__tests__/committed-credential-scrub.test.ts.
+const FACULTY_PASSWORD = process.env.ATLAS_FACULTY_PASSWORD;
+if (!FACULTY_PASSWORD) {
+  console.error(
+    'ATLAS_FACULTY_PASSWORD is not set. Export the faculty password in your shell and re-run. Refusing to fall back to a committed value.'
+  );
+  process.exit(1);
+}
+
 const response = await axios.post('http://localhost:5001/api/v1/auth/login', {
   email: 'maria.santos@deped.edu.ph',
-  password: 'DepEd2026!'
+  password: FACULTY_PASSWORD
 });
 
 console.log('✅ Login successful!');

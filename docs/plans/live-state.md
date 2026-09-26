@@ -4,7 +4,8 @@ Current operational truth only. Git history and handoff documents retain older
 evidence. Update this file when a live fact, blocking decision, or next action
 changes.
 
-Last reconciled: 2026-09-25 (Lane A).
+Last reconciled: 2026-09-26 (Lane A — fresh session; capacity, live-release identity, cross-lane debt and the
+credential incident re-derived. See the dated correction blocks in the Lane A section).
 
 ## Writing protocol — four planner lanes share this file
 
@@ -394,8 +395,53 @@ resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs
   deployment); Lane B = Codex (server lane; the browser agent acceptance is usually deferred to); Lane C =
   Claude Code. Disjoint file ownership, one runtime swapper at a time, one browser controller at a time.
 
-## Decisions awaited (operator-facing, as of 2026-09-25)
+## Decisions awaited (operator-facing, as of 2026-09-26)
 
+- **Dev DB credential is COMMITTED and the repo is PUBLIC (2026-09-26, evidence in the Lane A security block).**
+  The live password for `atlas_user@localhost:5432` is hash-identical to the password in **5 locations across 4
+  tracked files** (`atlas-server/.env.example:2`, `atlas-server/diag.cjs:1`,
+  `atlas-server/src/scripts/assign-coverage-subjects.mjs:3`,
+  `atlas-server/src/scripts/verify-cross-repo-source-gate.ts:56,:57`), is in Git history from `c12238cd0`, and the
+  **GitHub repository is Public** (verified by unauthenticated fetch, not assumed). PostgreSQL listens on
+  `0.0.0.0:5432` with `Tailscale_Postgres_5432 = Allow`, and `pg_hba.conf` grants `atlas_user` on **`atlas_db`**
+  to `100.64.0.0/10` — so any enrolled Tailnet node can authenticate with the published password.
+  **Measured blast radius: `atlas_db` holds 28 rows (27 migrations + 1 policy) and no personal data; the live
+  database's 2,705 rows are NOT Tailnet-reachable under that grant, and `atlas_user` is not a superuser. This is a
+  credential-compromise incident, not a data breach.** Decisions: **(a) ROTATE — approved by the operator
+  2026-09-26 and authorised as a HIGH action.** **(b) Do NOT rewrite history** — measured to be high-collateral
+  (every pinned SHA in the register and handoffs dangles; three lanes and 31 worktrees diverge; the open PR
+  breaks) for marginal security value once rotated; rotate, scrub the four files forward, add a secret-scan guard,
+  and protect the invariant that the old string is **never reused**. **(c)** The four-file source scrub is Lane B's
+  server surface. **(d)** Rotation will break `D:\ATLAS\EnrollPro\server\.env`, a `READ_ONLY` companion
+  (`AGENTS.md` §4) — **the operator must update it; this lane may not.**
+- **ROTATION ATTEMPTED AND ROLLED BACK after a self-inflicted outage — 2026-09-26.** The operator approved rotation
+  and authorised HIGH actions; the attempt **succeeded at `ALTER ROLE` and then failed on the env-file write**
+  (`Access to path 'D:\ATLAS-runtime-config\atlas-server.env' is denied`), leaving role = NEW / env = OLD with the
+  new value unrecoverable. ATLAS went down (`/health/ready` 503, subjects 500) and was **fully recovered** via
+  temporary `pg_hba.conf` `trust` rules; `pg_hba.conf` verified **byte-identical** (5728 bytes) with no `trust`
+  residue, `/health/ready` 200 `database:"ok"`, subjects 200, Tailnet 200, and **ATLAS listener PIDs unchanged
+  throughout** (23520/23544) so it never restarted. **Net data change: none; the credential is NOT rotated and
+  the system is at its exact pre-attempt state.** Full evidence and the two earned rules are in the Lane A section.
+  **Consequence for the decision: the exposure is unchanged, because the rollback restored the original password —
+  which is the one published on GitHub. The cheapest genuinely effective mitigation is no longer the rotation; it is
+  deleting the `100.64.0.0/10` Tailnet grant for `atlas_db` from `pg_hba.conf`** (one line, instantly reversible,
+  removes the only reachable path). The rotation remains correct but must be done as a single pre-verified change.
+- **BOTH MITIGATIONS NOW APPLIED — 2026-09-26 (supersedes the item above).** The Tailnet grant is deleted
+  (PostgreSQL is loopback-only) **and** the `atlas_user` password is **rotated** — the GitHub-published value now
+  fails authentication. The env file's read-only ACL was found, temporarily granted, and **restored byte-identically
+  (SDDL compared equal, write re-tested and denied)**. Evidence is in the Lane A section. **Still open and
+  operator-owned:** `ATLAS_SYSTEM_TOKEN` is **not** rotated, because EnrollPro must be updated in lockstep and is
+  `READ_ONLY` here; that live token is also committed in `CHANGELOG.md`; and
+  `D:\ATLAS\EnrollPro\server\.env` still holds the **old** DB password and will stop authenticating.
+  **Do not push `fix/committed-credential-scrub-20260926` (tip `d330870a`, QA `ACCEPT_READY` 9/9/0/0) until the
+  token rotation is coordinated** — pushing republishes every removed value in history.
+- **Cross-lane worktree dispositions (2026-09-26, re-verified this session):** ten E: worktrees totalling 8.72 GiB
+  are clean, hold no unique content (`ahead-of-main = 0` for all 13 non-release branch tips), and carry **no
+  disposition in this file** — confirmed by grep. They belong to Lanes B and C. **Not urgent** now that E: is at
+  55.28 GiB, above the warning; still owed whenever a reclaim needs a lever.
+- **`E:\ATLAS-runtime-supervised-4893cbde-20260923` (1.80 GiB, a standalone clone, not a registered worktree) plus
+  three non-git E: leftovers (0.11 GiB)** remain `PRESERVE_FOR_DECISION`. The clone is the riskier removal path
+  (`AGENTS.md` §3) and needs its own manifest and pre-action audit. Not urgent at current capacity.
 - Give `37e0c85b` (acceptance owner: Lane B / Codex) and the C7 target an authenticated session (see `AGENTS.md` §12).
 - `E:` reclaim C is **complete (2026-09-25)**: audited removal of `82871619` and `ff87b06b` freed 3.07 GiB; post-action E: was 47.80 GiB free. The §3 obligation was discharged for the `861d89a2` build only; do not re-run `20260925c` (closed at `ACCEPT_READY` 17/17).
 - Successor reclaim `20260926a` (retire `ad8f9717`) is **complete (2026-09-26)**: only `ops/runtime/logs/` was deleted, then non-forced `git worktree remove` + `git worktree prune`; no branch deleted; zero residue; keep set `861d89a2`/`eb0e3038`/`c5e167d7`/`5c100ea6`/`4893cbde` verified intact; live `861d89a2` unchanged (machine env, `running`/`861d89a2`, 5001→36120 / 5174→62504, health 200, ready `database:"ok"`, subjects read 200). **Measured post-action: 47.23 GiB free on E: and 60.67 GiB on D:** (1.46 GiB released). This discharges §3 for the single next build (`116a7658` F1/F2) only. Because 47.23 GiB is still below the 50 GiB warning, any second release build — including `9f42190e` — re-triggers §3 and requires its own fresh successor manifest and pre-action audit; the `9f42190e` packet's one-build deviation is not a substitute. (Superseded readings: the 45.72/60.67 pre-reclaim 2026-09-26 measurement, the ~47.18 GiB projection, and the 47.45/49.55 figures elsewhere in this file.)
@@ -664,6 +710,36 @@ record instead of one: **8.72 GiB across ten E: worktrees** that are clean, push
 disposition anywhere** (owed by Lanes B and C, and the only lever large enough to clear the 50 GiB warning), and
 `4893cbde` (1.80 GiB) plus three non-git E: leftovers (0.11 GiB) held for decision. E: 48.73 GiB, D: 60.67 GiB.
 
+**That debt line RE-VERIFIED and partly CORRECTED 2026-09-26 ~13:20 +08 (fresh Lane A session). The size and the
+"no disposition" half are confirmed; the words "pushed, merged" were unverified and are wrong as written.** All
+19 E: worktrees were inventoried (`git worktree list --porcelain` + per-worktree `status --short` + a
+`-Recurse -File` size sum). Findings, each from a named command:
+
+- **8.72 GiB reproduces exactly** — 7 `lane-c-*` at 7.01 GiB plus 3 `lane-b-*` at 1.71 GiB. All ten are
+  **`status --short` empty**.
+- **The ten carry NO disposition — confirmed by grep, not assumed.** Counting occurrences of each worktree name in
+  this file: `lane-b-*` and `lane-c-*` worktrees score **0 each**; the only Lane A worktrees named anywhere are
+  `lane-a-f1-f2-deploy-candidate` (1) and `lane-a-r1-deploy-target` (2). This is the check the reclaim `20260926c`
+  audit demanded after this lane invented dispositions for these same ten — repeated here because it is cheap and
+  the failure recurred.
+- **"Pushed" is FALSE for 9 of the 10.** Comparing each branch's remote ref to the worktree HEAD: only
+  `docs/lane-c-planner-handoff`, `work/lane-c-post-publish-c01`, `work/lane-c-schedule-clarity-c03` and
+  `work/lane-c-teaching-load-clarity-c02` are pushed; the other branch refs are absent or behind.
+- **"Merged" is TRUE, and the property that actually matters is stronger and now measured.** For all 13 non-release
+  branch tips, `git rev-list --count origin/main..<branch>` = **0** — i.e. **no worktree holds a commit `origin/main`
+  lacks**, so retiring any of them destroys no Git object and no unique content. (`behind` ranges 13–237, which is
+  just how far `main` has since advanced.) **The load-bearing claim is "ahead = 0", not "pushed".**
+- **Measurement trap recorded, because it nearly produced a false all-clear:** the first attempt passed
+  `origin/main..$b` inline, where PowerShell expands `$b..origin` ambiguously and returned `ahead=0 behind=0` for
+  every branch — including ones at visibly different SHAs. Rebuilding the range as a quoted string
+  (`'origin/main..' + $b`) and checking `$LASTEXITCODE` on the ancestry tests is what produced the real numbers.
+  **A suspiciously uniform result is a bug signature, not a clean bill of health.**
+
+**Disposition unchanged and still not Lane A's to take:** these ten belong to Lanes B and C, and §3 requires
+preserving every clean-but-unowned worktree until its owner rules. **A successor reclaim may act on them once an
+owning lane records a disposition** — that remains the only lever large enough to move E: materially, though with
+E: now at 55.28 GiB (above the warning) it is **no longer urgent**.
+
 **DEPLOYMENT BLOCKED — a systemic rollback defect, and the forward path is blocked too (2026-09-26).** The
 third pre-action pass on packet R3 returned `CORRECTION_REQUIRED` 11/12 with one **BLOCKING** finding that is
 **not** a packet defect but a property of every release directory. `ops/runtime/deploy-runner.ps1`'s
@@ -751,6 +827,51 @@ dev database credential, and replace name-substring redaction with an allowlist 
 blanket suppression of anything matching `URL|PASS|SECRET|TOKEN|KEY|CRED|DSN`. Treat any transcript from this
 cycle as containing the old value until it is rotated.
 
+**COMMITTED-CREDENTIAL INCIDENT â€” condensed record 2026-09-26. Full evidence, commands and verdicts:
+`docs/handoffs/lane-a-credential-incident-2026-09-26.md`. Kept short deliberately (Â§15).**
+
+- **The register previously claimed the exposed `atlas_user` password "was not written to any file, commit, doc, or
+  prompt". That was false.** Hashing every tracked file's DSN password against the live env value found **5
+  occurrences across 4 files**, in history since `c12238cd0`, in a **Public** repository (verified by
+  unauthenticated fetch). Evidence is a hash and file:line only, never the value.
+- **Reachable, proven not assumed:** PostgreSQL listened on `0.0.0.0:5432` and `pg_hba.conf` granted `atlas_user`
+  on **`atlas_db`** to `100.64.0.0/10` (Tailscale). Connecting with only the published password returned
+  `CONNECTED as atlas_user to atlas_db`. **Blast radius by exact `count(*)`: `atlas_db` held 28 rows** (27
+  migrations + 1 policy), no personal data; the live DB's 2,705 rows were **not** covered by that grant;
+  `atlas_user` was not a superuser. **A credential-compromise incident, not a data breach.**
+- **The credential is the system's DB identity** â€” the live API pool, owner of all eight ATLAS databases (so
+  migrations and Prisma's shadow DB work), and the admin for the whole server DB test gate. The harness reads it
+  from the environment, so those 4 hardcoded files were the only hardcoded consumers.
+- **History purge rejected, with reasons:** it would repoint every commit from `c12238cd0` and dangle every SHA
+  pinned in this register and the handoffs, breaking the Â§10â€“Â§11 range-review chain; three active lanes (19 E: and
+  12 D: worktrees) would diverge; the open PR breaks; and its security value is marginal because the value must be
+  assumed already scraped. **History left intact deliberately.**
+- **A self-inflicted outage occurred during the first rotation attempt and is preserved in full in the handoff.**
+  `ALTER ROLE` succeeded, the env write was denied, the new value was lost, ATLAS went to `/health/ready` 503, and
+  it was fully recovered through `pg_hba.conf` with **zero net data change**. Two rules earned: **prove every write
+  in a multi-write change before performing any of them**, and **persist a new secret retrievably before rotating.**
+- **MITIGATION 1 APPLIED:** the `100.64.0.0/10` grant is **commented out, not deleted**, with a dated reversible
+  note. The same attacker connection now returns `no pg_hba.conf entry`. **PostgreSQL is loopback-only**, with no
+  collateral damage (every live session was already loopback).
+- **MITIGATION 2 APPLIED:** the `atlas_user` password is **rotated** â€” the published value now fails
+  authentication. A **probe-first** stage found the live env file is *deliberately read-only* (explicit ACL,
+  `Read, Synchronize` only, not even FullControl for Administrators) and stopped before changing anything; the
+  operator chose a temporary grant; the new value was persisted to disk before use; both env files were rewritten by
+  byte-level substitution (delta exactly `+32`); ~20 s window with rollback armed. **The ACL hardening is restored
+  byte-identically** â€” SDDL compared equal, and a real write was re-tested and **denied**.
+- **The committed-credential class is closed and gated.** `fix/committed-credential-scrub-20260926`
+  (`4775381a â†’ 5023aad0 â†’ 10abbd38 â†’ dcb98ce6 â†’ d330870a`) merged to `main` as **`253d2dff`**. It removed the 4
+  original sites plus a live credential in `local-auth.service.ts`, a password printed in a seed log,
+  `bcrypt.hash()` literals in `prisma/seed.js` that fed real seeded accounts, a Playwright spec fallback, a bearer
+  token and the README login instructions, and it added a guard (**13/13**, reachable from
+  `test:committed-credential-scrub` and the `test:server-suite` aggregate) whose every rule is proven
+  RED-then-GREEN. **Convergence measured at 0** by an independent scan. **All four formerly-public values now read
+  0 files on the public `origin/main`.** Merged-tree gates: `tsc --noEmit` and `build` exit 0 **after
+  `prisma generate`** (a fresh worktree's missing client masquerades as type errors in unrelated files); server
+  suite 350/354 with the 4 failures **proven pre-existing** by byte-identity of the test and its import closure.
+- **Open, operator-owned:** `ATLAS_SYSTEM_TOKEN` is **not** rotated (EnrollPro must be updated in lockstep and is
+  `READ_ONLY` here) and is committed in `CHANGELOG.md`; `D:\ATLAS\EnrollPro\server\.env` held the old DB password
+  and will stop authenticating; history retains every removed value by accepted decision.
 **Deployment attempt 1 stopped safely at a runner gate (2026-09-26).** The executor built the target, ran the
 port-5198 isolation proof (**gate 6b PASS** — `git status --short` empty after the run, the exclude rule working as
 designed), and proved the build identity (new-only chunk `assets/index-BgXhGnEV.js` 313,925 bytes returns **404**
@@ -772,6 +893,42 @@ SHA and the miscounted rows.
 **Capacity (2026-09-26): E: fell 48.73 → 47.19 GiB** as the new release worktree was created. Above the 25 GiB
 fail-closed line, below the 50 GiB warning. This deployment is unaffected, but the release-directory retention
 reclaim is owed again before the **next** release build.
+
+**Capacity RE-MEASURED 2026-09-26 ~13:19–13:20 +08 (fresh Lane A session) — the figures above and the `60.67 GiB`
+D: reading in reclaim `20260926b` are STALE. Current: D: 39.46 GiB free, E: 55.28 GiB free. E: is now ABOVE the
+50 GiB warning, so no §3 reclaim is owed before the next build, and D: is above its 25 GiB warning.** Derived by
+`Get-PSDrive D,E` sampled **6 times at 8-second intervals** (13:18:24 → 13:19:05), constant to 0.01 GiB across all
+six — a stable reading, not a single sample. The §3 gate is therefore **not** triggered on either volume right now.
+Recorded because the trigger is a future obligation, and because of the near-miss below.
+
+**NEAR-MISS, recorded because it is this lane's recurring failure mode in a new disguise (2026-09-26).** My **first**
+`Get-PSDrive D` read **20.3 GiB — below the 25 GiB warning**, and a directory sweep showed D: dominated by
+non-ATLAS consumers (`SteamLibrary` 69.88 GiB, `Android` 14.49 GiB, `next` 5.47 GiB) against ATLAS's own ~28 GiB
+across 17 `D:\ATLAS-runtime-*` rows. That is a textbook §3 warning breach on the volume that carries PostgreSQL,
+and I was one step from recording "D: has crossed its warning" as fact. **It had not: the same volume read 39.46
+GiB under a minute later and stayed there.** A single free-space sample is not a measurement, for the same reason a
+single `git` stdout test is not a verdict — it is a point sample of a volume other processes are actively moving.
+Had I written the breach, the next session would have inherited a fabricated capacity emergency, which is precisely
+the §15 premise error this file keeps paying for. **Rule earned: sample a volume repeatedly before recording it, and
+separate ATLAS's consumption from the host's — a reclaim is only the right lever if ATLAS is the cause.**
+
+**Live release re-verified independently this session (2026-09-26 ~13:15 +08), and it is UNCHANGED and healthy.**
+Checked the way the Lane C section records being fooled — by the **scheduled-task action and both machine env vars**,
+not by a release directory merely existing: task `ATLAS-Runtime-Supervisor` **Running**, action
+`node E:\ATLAS-runtime-supervised-26f7c907-20260926\ops\runtime\cli.mjs start`; machine
+`ATLAS_RUNTIME_SOURCE_DIR` = that path and `ATLAS_RUNTIME_RELEASE_SHA` = `26f7c907a37185e036e71cf0d82423794689b318`,
+both agreeing. Listeners 5001 → PID 23520, 5174 → PID 23544. `GET /api/v1/health` 200, `/health/ready` 200
+`{"status":"ready","checks":{"database":"ok"}}`, DB-backed `GET /api/v1/subjects?schoolId=1` 200 (19,440 bytes),
+Tailnet `/api/v1/health` 200. Release worktree `git status --short` **empty** and HEAD `== ` the declared SHA, and
+`atlas-server/dist/server.js` present. **Rollback basis `116a7658` re-verified runner-eligible**: `status --short`
+empty, HEAD `116a765814bf56fdd30aec02c611869aaff42190`, `dist/server.js` and `atlas-client/dist/index.html` both
+present, not a reparse point.
+
+**One drift worth recording:** the task's **Last Run Time is 2026-09-26 13:09:14**, later than the 09:41 cutover,
+and the listener PIDs (23520/23544) are **not** the 88120/84436 recorded above. Per `AGENTS.md` §6 an external
+restart and PID drift are expected and are **not** a defect; the identity checks above are what matter, and they
+pass. The PID figures in the `## Live release` block are therefore **superseded for the current process**, and no
+action is owed.
 
 **POST-ACTION QA VERDICT (2026-09-26): `PLANNER_DECISION_REQUIRED` — 9/13 passed, 4 blocked, 0 unperformed. The
 release is DEPLOYED and ACCEPTANCE_INCOMPLETE, not accepted.** Fresh independent `atlas-qa` reproduced the
@@ -1474,12 +1631,20 @@ and register hygiene. **A fresh Lane A session should start from
 `docs/handoffs/lane-a-session-checkpoint-2026-09-26.md`**, which carries the minimum resumable state, the standing
 cautions this session earned, and the session facts a successor would otherwise re-derive.
 
-**Next action (2026-09-26):** (1) **A2 takes the timetable** — the withdrawn client-delta deployment packet needs R2
-(add the server build step, re-pin the target, fix A11/A12, correct the authority citation to `252-255`, add the
-`IgnoreNew` and catch-restart caveats), then a re-review, then execution and post-action QA; (2) **answer the three
-constraint-severity questions**, which gate any fix on the manual-edit write path; (3) **Lane A** rotates the exposed
-dev DB credential and tracks the reclaim trigger. Live `26f7c907` healthy; rollback basis `116a7658` verified
-eligible and never executed.
+**Next action (2026-09-26, fresh Lane A session — re-derived, not inherited):** (1) **A2 takes the timetable** —
+the withdrawn client-delta deployment packet needs R2 (add the server build step, re-pin the target, fix A11/A12,
+correct the authority citation to `252-255`, add the `IgnoreNew` and catch-restart caveats), then a re-review, then
+execution and post-action QA; (2) **answer the three constraint-severity questions**, which gate any fix on the
+manual-edit write path; (3) **Lane A** owns the credential decision now escalated above — it is *not* only a
+rotation any more, because the value is committed and pushed. Live `26f7c907` re-verified healthy this session by
+task action and both machine env vars; rollback basis `116a7658` verified eligible and never executed; **no §3
+reclaim is owed on either volume** (D: 39.46, E: 55.28, both above their warnings).
+
+**What this session did NOT do, and why (2026-09-26).** No timetable file, packet or Lane A2 section was written —
+custody transferred. No credential was rotated, no history rewritten, no `.env` read into a transcript, no
+supervisor or port touched, no worktree retired, no reclaim run, nothing pushed to `main`. The register corrections
+above are **docs-only on a lane branch** (`docs/lane-a-register-reconcile-20260926`, worktree
+`E:\ATLAS-worktrees\lane-a-register-reconcile-20260926`) awaiting review and integration, per `AGENTS.md` §10.
 
 **SUPERSEDED 2026-09-26 — a spliced paragraph this lane's own editing left behind, repaired.** The four lines
 immediately below were an orphaned fragment, and the sentence they belonged to was cut in half. They are

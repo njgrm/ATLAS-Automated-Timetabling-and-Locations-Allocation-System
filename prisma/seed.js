@@ -99,6 +99,41 @@ const deprecatedSubjectCodes = [
 	'STE_ICT',
 ];
 
+/**
+ * Read a seeded ATLAS auth password from the environment, or fail closed.
+ *
+ * The accounts seeded below (scheduling officer, faculty) are real login
+ * accounts, so their passwords are real credentials. This repository is public,
+ * so a plaintext literal here would be a working credential in every clone.
+ * The seed therefore never invents one: it requires the operator to supply
+ * SEED_ADMIN_PASSWORD / SEED_FACULTY_PASSWORD and names the missing variable.
+ *
+ * Resolved at the top of main() on purpose: failing here aborts before the seed
+ * opens a write, so a misconfigured seed leaves no half-seeded database behind.
+ *
+ * A whitespace-only value counts as absent, and is tested on the TRIMMED value
+ * because that is what its two sibling guards do (`requireSeededAuthPassword` in
+ * seed-realistic.ts and `requireEnvFrom` in the cross-repo source gate). A guard
+ * that accepted "   " would seed a password no one can type, and the mismatch
+ * between the three would leave the next reader unsure which is the contract.
+ * The value itself is returned UNTRIMMED: leading or trailing spaces are part of
+ * an operator's chosen password, and a seed must not silently rewrite it.
+ */
+function requireSeedPassword(variableName) {
+	const value = process.env[variableName];
+	if (typeof value !== 'string' || value.trim().length === 0) {
+		console.error(
+			`\n❌ ${variableName} is not set, so the seed stopped before writing anything.\n` +
+				`   This seed creates working ATLAS logins for the scheduling officer and for\n` +
+				`   faculty, so their passwords are read from the environment rather than\n` +
+				`   committed to this public repository. Set ${variableName} and re-run:\n\n` +
+				`     ${variableName}='<choose-a-strong-password>' npm run db:seed\n\n`,
+		);
+		process.exit(1);
+	}
+	return value;
+}
+
 function resolveSubjectOutputLabel(code, name, modularGroupId) {
 	const normalizedCode = (code || '').trim().toUpperCase();
 	const normalizedName = (name || '').trim().toUpperCase();
@@ -363,6 +398,11 @@ async function assignSectionHomeRooms(schoolId) {
 }
 
 async function main() {
+	// Fail closed before the first write: the seeded accounts below are working
+	// logins, so their passwords come from the environment and are never committed.
+	const adminPassword = requireSeedPassword('SEED_ADMIN_PASSWORD');
+	const facultyPassword = requireSeedPassword('SEED_FACULTY_PASSWORD');
+
 	const school = await prisma.school.upsert({
 		where: { id: 1 },
 		update: {
@@ -744,7 +784,7 @@ async function main() {
 	// ATLAS AUTH ACCOUNTS — Scheduling Officer and demo faculty
 	// ═══════════════════════════════════════════════════════════════════════════
 
-	const adminHash = await bcrypt.hash('AdminSY2026!', 12);
+	const adminHash = await bcrypt.hash(adminPassword, 12);
 	await prisma.atlasAuthAccount.upsert({
 		where: { email: 'admin@deped.edu.ph' },
 		update: {
@@ -773,7 +813,7 @@ async function main() {
 		where: { schoolId: school.id, firstName: 'DIEGO', lastName: 'AQUINO', isStale: false },
 	});
 	if (facultyMirrorForDiego) {
-		const diegoHash = await bcrypt.hash('DepEd2026!', 12);
+		const diegoHash = await bcrypt.hash(facultyPassword, 12);
 		await prisma.atlasAuthAccount.upsert({
 			where: { employeeId: '3179586' },
 			update: {
@@ -805,7 +845,7 @@ async function main() {
 		where: { schoolId: school.id, employeeId: '2000056', firstName: 'ELPIDIO', lastName: 'AQUINO', isStale: false },
 	});
 	if (facultyMirrorForElpidio) {
-		const elpidioHash = await bcrypt.hash('DepEd2026!', 12);
+		const elpidioHash = await bcrypt.hash(facultyPassword, 12);
 		await prisma.atlasAuthAccount.upsert({
 			where: { employeeId: '2000056' },
 			update: {
@@ -839,7 +879,7 @@ async function main() {
 		where: { schoolId: school.id, externalId: 1 },
 	});
 	if (facultyMirrorForDemo) {
-		const facultyHash = await bcrypt.hash('DepEd2026!', 12);
+		const facultyHash = await bcrypt.hash(facultyPassword, 12);
 		await prisma.atlasAuthAccount.upsert({
 			where: { email: 'maria.santos@deped.edu.ph' },
 			update: {
@@ -878,7 +918,7 @@ async function main() {
 	console.log('════════════════════════════════════════════════════════════');
 	console.log('\nNext Steps:');
 	console.log('  1. Start EnrollPro (pnpm dev) for sections and student data');
-	console.log('  2. Log in to EnrollPro as admin@deped.edu.ph / Incorrect_404');
+	console.log('  2. Log in to EnrollPro as admin@deped.edu.ph, using the admin password configured for EnrollPro (see EnrollPro\'s own .env — it is not stored in this repository)');
 	console.log('  3. Navigate to ATLAS from EnrollPro to establish bridge token');
 	console.log('  4. Or use stub mode (SECTION_SOURCE_MODE=stub) for standalone testing');
 	console.log('════════════════════════════════════════════════════════════\n');
