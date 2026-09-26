@@ -11,6 +11,48 @@ resumable state is recorded here rather than in a second ledger.
 Session 2 closed two more packet items but deliberately **did not deploy** — the cutover was not
 pre-verified and a half-executed swap of the shared runtime is worse than none. That is now the whole job.
 
+> **STATUS UPDATE (session 3).** The deploy has been taken through **two rounds of independent pre-action
+> review**, and both are recorded here because they changed the plan:
+> - **Round 1 → `CORRECTION_REQUIRED` 13/15/2/0.** The register entry claimed the range was *client-only*.
+>   **That was false and it was my error**: `e4989b72..0da104f9` is **40 files, 14 under `atlas-server/` plus
+>   `prisma/seed.js`**, because my branch merged `origin/main` repeatedly and Lane A's credential scrub
+>   (tip `d330870a`, recorded `ACCEPT_READY` 9/9/0/0) rides along. The load-bearing file is
+>   `atlas-server/src/services/local-auth.service.ts`, where `seedLocalAuthAccounts` now **requires** a
+>   password and throws on blank — removing the committed `Atlas2026!` default from a public repo. It is a
+>   **security improvement, and the first time this server build reaches production.** Corrected at `5d071e5a`.
+> - **Round 2 → `CORRECTION_REQUIRED` 24/25/1/0.** Both prior findings verified genuinely closed. One **new**
+>   blocker: `E:` is **49.48 GiB, below the §3 50 GiB warning**, and §3 requires the release-directory reclaim
+>   **before the next release build** — which is the deploy's first step. Two register lines still claimed no
+>   reclaim was owed (one citing a stale `E: 55.28`); both are now superseded by a dated recheck at `e9747b79`.
+>
+> **So the deploy's single remaining gate is the §3 capacity obligation.** Everything else is verified green:
+> the runner's register gate passes with a proven positive *and negative* control, the rollback is verified
+> startable, `seedLocalAuthAccounts` has exactly two seed-script callers and **no runtime caller**, the
+> term-authority invariant is untouched, and no assertion was weakened.
+>
+> **§3 decision that is owed, and is yours or mine to make with eyes open:** the only directory outside the
+> keep set is `4893cbde-20260923` (1.80 GiB), dirty by exactly **6.3 KiB** of machine-generated supervisor log
+> from 2026-09-23 — not human work — whose deployment evidence is preserved outside the tree under
+> `C:\ProgramData\ATLAS\release-audit\4893cbde-20260923-212838`, `-213542`, `-215632`. The other 1.79 GiB is
+> `node_modules` and build output, reconstructible from the pushed SHA. Retiring it clears the warning with
+> margin; keeping it leaves `E:` under the warning through the build. It still needs the retention policy's
+> frozen-manifest + pre-action-audit cycle.
+
+### Also carry forward from the two review rounds
+
+- **The server build is now the decisive proof artefact, not the client.** Because a *server* build ships,
+  client-only chunk evidence is no longer sufficient. Prove
+  `Select-String -SimpleMatch 'Atlas2026!' atlas-server\dist\server.js` returns **0 hits in the new build and
+  ≥1 hit in the incumbent's** — that byte-distinguishes the servers *and* demonstrates the credential removal
+  shipped. Client-side, SHA-256 the chunk containing the `/my` tombstone, new vs incumbent.
+- Post-action QA must re-verify on the **live** build that `dist/server.js` carries no `Atlas2026!`, that
+  login still authenticates correctly and rejects wrong/empty credentials, and that `GET /api/v1/auth/me`
+  behaves.
+- Two credential-scrub items Lane A itself flagged as unclosed: no behavioural test covers the
+  blank-password guard (verified only by out-of-tree harnesses), and `.gitignore` un-ignores exactly two
+  Playwright spec filenames, so a new spec under `qa-artifacts/playwright/specs/` is silently unscanned.
+
+
 | Fact | Value | How to confirm |
 | --- | --- | --- |
 | **Deploy target (product pin)** | `0da104f96696aef7de7016e5364f29b50d0ed00f` | full 40-char; runner rejects 8-char prefixes |
