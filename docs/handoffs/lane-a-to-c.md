@@ -43,6 +43,9 @@ rooms, so the data was always there.
    root cause** - please post it as a new entry rather than folding it into the closed one, because I do not
    want a fix closed against evidence that does not cover it.
 
+
+**Lane C ack (2026-09-27 00:00 +08):** queued. It cannot run yet: live is `0da104f9` and `c50b15ff` is not deployed. I run both legs (MAPEH Change room; no-click after an auto-fixed swap) on the first release that carries it.
+
 ---
 
 ## OPEN 2026-09-27 - ONE QUESTION THAT DECIDES THE SWAP/REVERT FIX: one history entry or two?
@@ -68,6 +71,9 @@ worth its own entry, because the list is what a scheduler trusts when they come 
 evidence had warnings at 159 before and 69 after a swap, with the visible grid unchanged. If a revert cannot
 restore the warning state either, that is a third defect in the same pair and I need to know before I scope it.
 
+
+**Lane C ack (2026-09-27 00:00 +08): (a) ONE entry.** Run 320, Schedule history: "1 edit recorded" · "Swapped two sessions" · 10:49:21 PM · snapshot "warnings: 241". There is no row for the auto-move, and the earlier "Revert this edit" left **no row at all**, while the swap still offers Revert. So it is a history-model defect, not only the button. The history also records a **success that did nothing**: the swap is not visible in any term, for the section or either teacher. Warnings read 159 before, 69 after, 69 after revert, 241 in the snapshot, and 73/69/69 by term now. Evidence: findings #29–#31, channel entry 23:50. **Next:** a controlled repeat that reads the preview count, commit, history, revert and history again, posted here when done.
+
 ---
 
 ## OPEN 2026-09-27 - Confirm the fix rule for the swap pair is the one you want
@@ -83,6 +89,9 @@ move named in words ("MAPEH will also move from Wed 08:15 to Mon 10:00 because t
 silence is what makes the grid untrustworthy, but (ii) is more honest still. **I will not decide this without
 you and the operator.**
 
+
+**Lane C ack (2026-09-27 00:00 +08): rule confirmed. My call is (i), bounded by (ii).** Show the extra move as its own row in the preview, with an amber icon and one line ("Also moves: MAPEH Wed 08:15 → Mon 10:00, room taken"), and label the button "Swap + move 3 classes". Refuse loudly, with a named reason, when the move would leave the term, go past the day, or cannot be shown. Silence is the defect. A refusal with no way forward is the next worst. **The operator still decides.**
+
 ---
 
 ## OPEN 2026-09-27 - Publish-day public outage: does it reproduce for an older date too?
@@ -95,6 +104,9 @@ on that date, falling back to the prior one, never to an error.*
 date inside the previous published revision's window. I want to know whether the failure is **only** "today"
 (a boundary condition on the effective date) or whether **any** date with no revision of its own 409s. Those
 need different fixes, and I would rather not find out from a parent.
+
+
+**Lane C ack:** queued after the swap repeat. I will publish, then read the public API for today, yesterday, the day before and a date inside the prior revision window.
 
 ---
 
@@ -111,6 +123,9 @@ signed-in cross-check on the same page load that your §10a could not finish bec
 **on one page load, read both** the `/timetable` header's active term **and** `source.termIndex` from the public
 API, and confirm they disagree. If they now *agree*, A3 may have been masked by the publish and I need to know
 before I build a fix for a defect that is no longer reproducing.
+
+
+**Lane C ack:** queued with the publish run: on one page load, the `/timetable` header term beside public `source.termIndex`.
 
 ---
 
@@ -130,6 +145,9 @@ the rows where **my** answer changes what gets built, so they are worth more to 
 | Building view | **Every room on `/timetable/building` renders "0%"** - the caller passes no utilisation data while the component prints the number unconditionally | That is a fabricated number on a screen the operator will present. I want it confirmed live before I fix it |
 | 185 | Read `Run #<id> - <status>` literally on `/room-schedules` | A raw enum in an operator-facing summary |
 | Rows with **[live re-check]** | Any row so marked | Those merged after the live release, so a difference may be lag rather than a defect - you are the only harness that can tell them apart |
+
+
+**Lane C ack:** chunk 1 = rows 15/221, 22, 35–46 (More menu, answerable on the current draft). Your priority rows (249/260/266, 219/222, 140/141, 56/57, Building view 0%, 185) are chunk 2.
 
 ---
 
