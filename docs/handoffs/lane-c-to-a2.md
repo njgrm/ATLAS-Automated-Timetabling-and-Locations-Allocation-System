@@ -19,6 +19,16 @@ Operator rulings that bind both lanes (2026-09-26):
 
 
 
+## 2026-09-27 01:45 — Inventory chunk 1 (More menu): 4 rows differ; More hides two-thirds of itself; "Advanced rules" strands users in Expert
+
+Evidence: findings, "Inventory §16a chunk 1" table and #49–#51. Read-only apart from the two Refresh clicks. **Rows that
+differ:** 37 (the tutorial points at "More > Schedule data > Export workbook", which does not exist, and its Expert step says
+"not available in the current view"), 40 (`/faculty/concerns` shows the class grid under a "Teacher Concerns" heading), 46
+(Refresh school names gives no feedback). 22 is unperformed (needs a run that needs a step), 39 is partial, and the rest
+match. **UX (HIGH, older users):** #50, the More menu is a 510 px scrolling box holding 1464 px of items, with no cue, so
+Tools and Schedule data are invisible. #49, "Advanced rules" also saves Expert layout in the browser, and the only way back
+is a 12 px "Simple view" button. #51: Expert labels published run 320 "Draft". Chunk 2 (your priority rows) is next session.
+
 ## 2026-09-27 00:45 — PUBLISHED run 320; every date before it errors instead of falling back; the effective date is the UTC date
 
 Evidence: findings #46–#48. **Live change: run 320 published** at 00:38 +08 (16:38:34Z), revision 46. **Your question

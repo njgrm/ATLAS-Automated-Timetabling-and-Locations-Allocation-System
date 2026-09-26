@@ -202,3 +202,31 @@ One Chrome run. **Live change: run 320 published** (toast "Run #320 published. F
 
 No console errors, no error boundary. HTTP status codes were not visible to the runner (bodies only). Cost
 (`subagent_tokens`): 127,993.
+
+## Inventory §16a chunk 1 — More menu, rows 15/221, 22, 35–46 (published run 320, 2026-09-27 ~01:00–01:40 +08)
+
+Three Chrome runs (the first two were cut short by #49 and #50, which are findings in their own right). Verdicts use
+A2's falsifiers in `timetable-control-inventory-2026-09-26.md` §16a. `differs` = live defect unless stated.
+
+| Row | Live answer (quoted) | Verdict |
+|---|---|---|
+| 15/221 | Published run: status region reads "Published" · "Published schedule" · "Changes start on a date you choose." Unpublished run 320 at 00:22 showed no draft/published wording (#41). | matches (unpublished case) |
+| 22 | No "Next step:" row in More on the published run. | unperformed (needs a run that needs a step) |
+| 35 | → `/timetable/policies`, heading "Scheduling Policy", and the layout switches to Expert **and stays there** (see #49). | matches |
+| 36 | Layout switches; the way back is "Simple view", top right, 12 px. | matches |
+| 37 | 4 steps. Step 3 "Use More > Schedule data > Export workbook" names an item that does not exist (Schedule data holds the run select and two Refresh items; export is "Download schedules" under Schedule actions). Step 4 "Show me": "\"Expert view\" is not available in the current view." Steps 1–2 showed no visible highlight. | **differs** |
+| 38 | "Day options" · "1 earlier row hidden" · "Show full day", inline in the menu, no nested popover. | matches |
+| 39 | Simple key: Can place, Can swap, Blocked, Warning, Occupied, Current. Expert legend reads "Status key 6 states"; labels not compared. | partial |
+| 40 | `/faculty/concerns`, heading "Teacher Concerns", but the body shows the class schedule grid, not concerns. | **differs** (verify) |
+| 41–43 | "Campus Map" ("View-only map workspace. Editing remains in `/map?mode=editor`."); "Manual Edit" ("No class selected for manual edit…"); "Building View" ("No building selected · Open the map and select a building…"). All stay Simple. | matches |
+| 44 | Enabled; "Latest Run", then "Sep 26 10:35 PM · run 320", "… run 319", …. The pre-generation case was not reachable. | matches (reachable state) |
+| 45 | Grid overlay "Checking schedule information...". | matches |
+| 46 | Sentence: "Updates displayed names for the selected school year only. It does not change the schedule. If names still look wrong, check School information." Click: **no visible feedback** ("checked 3m ago" unchanged). | **differs** |
+
+| # | Finding | Severity |
+|---|---|---|
+| 49 | **"Advanced rules" silently strands the user in Expert view.** It opens the policy page *and* saves the Expert layout in the browser, so every later `/timetable` load (new tabs too) opens "GENERATED TIMETABLE" with a different "More tools" menu. The way back is a 12 px "Simple view" button top right; the first click did nothing, the second worked. One runner could not find it at all and reported the Simple menu as gone. | HIGH (older users) |
+| 50 | **The More menu hides two-thirds of itself.** 25+ items in a 510 px scrolling box (content 1464 px) with a thin scrollbar and no "more below" cue. Help & display, Tools and Schedule data are below the fold. One runner read the top 8 items and concluded the rest did not exist. Cut: move Tools and Schedule data out of More, or show group headings as a first-level list. | HIGH (older users) |
+| 51 | **Expert view labels a published run "Draft".** On published run 320 the Expert layout shows a "Draft" tab and the heading "GENERATED TIMETABLE"; Simple says "Published". | MEDIUM |
+
+Cost (`subagent_tokens`): 114,325 + 98,748 + 151,529.

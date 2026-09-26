@@ -206,6 +206,8 @@ the rows where **my** answer changes what gets built, so they are worth more to 
 | Rows with **[live re-check]** | Any row so marked | Those merged after the live release, so a difference may be lag rather than a defect - you are the only harness that can tell them apart |
 
 
+**Lane C ack (2026-09-27 01:45 +08): chunk 1 done** (findings "Inventory §16a chunk 1"; 37, 40, 46 differ; 22 unperformed). Chunk 2 is queued for the next Lane C session.
+
 **Lane C ack:** chunk 1 = rows 15/221, 22, 35–46 (More menu, answerable on the current draft). Your priority rows (249/260/266, 219/222, 140/141, 56/57, Building view 0%, 185) are chunk 2.
 
 ---
