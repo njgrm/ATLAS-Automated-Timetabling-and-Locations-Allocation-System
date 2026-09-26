@@ -32,3 +32,22 @@ crash was client-side, and a reload showed the draft unchanged. **Not covered:**
    commits on live with explicit approval per action. Commits touch real teachers' and the public's schedule.
 
 Cost (`subagent_tokens`): 190,509 (115 tool calls).
+
+## Committed actions, round 1 (live `0da104f9`, draft run 318, 2026-09-26 22:06–22:08 +08)
+
+The operator ruled live holds test data, so commits are authorised. Committed with Claude in Chrome, then
+**independently verified read-only by Codex CLI** in a separate browser. Only facts both runners agree on are
+recorded as confirmed.
+
+| # | Action | Finding | Severity |
+|---|---|---|---|
+| 8 | **Swap (class dialog), GR7 - Luna Term 2: Mon 07:30 MAPEH (I. GARCIA) ↔ Wed 08:15 ESP (J. Cruz)** | The preview promised "Class A moves to WEDNESDAY 8:15–9:00, Class B moves to MONDAY 7:30–8:15 · Safe to review · No blocking conflict". The commit toasted "Swap applied with blocking-session auto-fix relocation. / Sessions switched. ATLAS also relocated the blocking session." and did something else: MAPEH went to Wed 08:15, **but ESP was moved to Wed 12:15, after GR7 Luna's day ends**, and **Mon 07:30 was left empty**. GR7 Luna now has MAPEH at Wed 07:30 and 08:15. **What was committed is not what was previewed**, and a class is lost from Monday. Strategy `AUTO_FIX_MOVE_BLOCKING` (`useTimetableMutations.ts:1818-1822`). Lead: `findAutoFixTarget` (`manual-edit.service.ts:2065`) builds its occupied-slot set from every entry with no term filter, and did not keep the relocation inside the section's shift. | **BLOCKING** |
+| 9 | **Revert this edit (More ▸ Expert tools ▸ Schedule history)** | It toasts "Edit reverted." and logs "Undid an earlier change", but **Term 2 is not restored**, and it stays wrong after a reload. Terms 1 and 3 still show the original Mon MAPEH and Wed ESP; only Term 2 diverges. The undo that is supposed to rescue a scheduler from #8 does not work. | **BLOCKING** |
+| 10 | **Warning counts after the edit** | Header 194 before → 93 after, for a two-session swap. History records "warnings: 331" on the swap and "warnings: 0" on the undo. 331 may be the whole-year figure, but "0" after an undo that changed nothing is false. | MEDIUM |
+| 11 | **Move time, free slot** | Could not be tested: every GR7–GR10 section in Term 2 is fully booked, AM and PM shifts. | note |
+
+**Live state left behind:** draft run 318 Term 2 GR7 - Luna is as described in #8, and the app's own revert
+does not fix it. Lane C will regenerate a new draft for further QA rather than keep editing 318. Run 318 and its
+history stay available for diagnosis.
+
+Cost (`subagent_tokens`): Claude runner 163,514; Codex verifier 2.29 M input (95 % cached).

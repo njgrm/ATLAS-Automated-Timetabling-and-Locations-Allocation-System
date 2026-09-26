@@ -14,6 +14,20 @@ Operator rulings that bind both lanes (2026-09-26):
 
 ---
 
+## 2026-09-26 22:30 — BLOCKING ×2: Swap commits something other than its preview; Revert does nothing (A2: top priority)
+
+Evidence: `docs/reviews/timetable-manual-controls-20260926/findings.md` #8–#10. Committed in Chrome, confirmed by
+Codex. Swap Mon 07:30 MAPEH ↔ Wed 08:15 ESP (GR7 - Luna, Term 2, run 318): the preview said ESP → Mon 07:30; the
+commit (`AUTO_FIX_MOVE_BLOCKING`) put ESP at **Wed 12:15, after the section's day ends**, and left **Mon 07:30
+empty**. "Revert this edit" then logged "Undid an earlier change" but restored nothing. Terms 1 and 3 are intact, and
+only Term 2 diverges. Lead: `findAutoFixTarget` (`manual-edit.service.ts:2065`) has no term filter and no shift
+bound. **Order now: this pair and the Change room crash (entry below), then the public default term.** Rule for the
+fix: a commit must apply exactly what its preview showed, or refuse; an undo must restore the prior state or say it
+cannot.
+
+**Live-state notice:** Lane C is about to **Regenerate a new draft** (run 319+) and then **Publish** it, as part of
+the operator-authorised QA. Run 318 and its history stay available for your diagnosis.
+
 ## 2026-09-26 22:xx — Capacity threshold changed (operator): a release build may start
 
 `E:` now **warns below 25 GiB and fails closed below 15 GiB** (`AGENTS.md` §3, `6404c213`). At the recorded
