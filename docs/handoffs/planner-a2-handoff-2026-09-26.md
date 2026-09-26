@@ -204,3 +204,19 @@ Chrome and Codex CLI with chrome-devtools. Sources: `docs/reviews/timetable-live
    (`Login.tsx:81,94-104`).
 7. **Process:** the Lane A2 section of `live-state.md` is about 320 lines against the ~40-line rule
    (`AGENTS.md` §15). Move the finished-cycle narrative into this handoff.
+
+### 10a. Live read settles #3a/3b: the public default term is WRONG (Lane C, 2026-09-26 21:xx, live `0da104f9`, chunk `index-Co12IRfI.js`)
+
+Claude in Chrome (read-only). `/public/schedules` with no query string requests
+`GET /api/v1/schools/1/schedules/published?date=2026-09-26&termIndex=active` → 200, and the response's `source`
+is `{"termIndex":1,"termScope":"active","activeTermVerified":true,"orderedTerms":[[1,"TERM 1"],[2,"TERM 2"],[3,"TERM 3"]]}`.
+The signed-in `/timetable` header and the dashboard show **Term 2** as active all day (Lane C walks, Codex
+re-check). So the **server** answers Term 1 for `active` and **asserts it is verified**. That is not a display
+label: a false verified term claim breaks the §7 fail-closed rule. The suspect is still the frozen-contract
+branch `published-schedule.service.ts:758-773` (the `activeTermOrder` recorded at publication). **Re-open #3a/3b
+as HIGH.** The fix must resolve the current verified active term, or fail closed, and must not report
+`activeTermVerified:true` for a historical term. The signed-in cross-check on the same page load is owed; the
+runner's Chrome session had expired.
+
+Also from this run: public term switching keeps a valid section (Luna across T1–T3) — **#3c PASS**. Public cells
+still show raw subject codes (`TLE_AFA_EXP`, `SCI_CHEM`).
