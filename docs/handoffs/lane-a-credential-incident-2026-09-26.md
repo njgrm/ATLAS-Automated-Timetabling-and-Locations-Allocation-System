@@ -181,7 +181,7 @@ accounts, the Playwright spec fallback, a bearer token, the README login instruc
 
 Each round was stopped by review for falsifying a premise rather than forcing green. Three findings that mattered:
 
-- **The first guard was blind to the shapes actually in the repo** (`bcrypt.hash('literal')`, markdown
+- **The first guard was blind to the shapes actually in the repo** (`bcrypt.hash() called with a string literal`, markdown
   email/credential pairs, `||`/`??` fallbacks, quoted JSON keys, comment lines). A green guard that cannot see the
   defect it exists to prevent is theatre.
 - **My own triage missed the same credential in other files** because it asked whether those *sites* held live
