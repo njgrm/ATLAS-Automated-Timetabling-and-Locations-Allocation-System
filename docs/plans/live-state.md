@@ -40,7 +40,25 @@ resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs
 
 - Tailnet: `https://njgrm.buru-degree.ts.net`
 
-- **Release SHA: `26f7c907a37185e036e71cf0d82423794689b318`** (**LIVE since 2026-09-26 09:41, Lane A** —
+- **DEPLOY IN PROGRESS — target `400a6909a9642703e3891861c40d5f49f85c7cd9`, rollback basis
+  `26f7c907a37185e036e71cf0d82423794689b318`** (Lane A2, 2026-09-26, HIGH authority granted by the
+  operator). Recorded here BEFORE the cutover because `ops/runtime/deploy-runner.ps1` refuses to swap
+  unless the register already names the target and its rollback — so the runtime can never be swapped
+  while this file is silent about it.
+  Target is **`400a6909` and deliberately NOT the tip `ea5e12b0`**: the three later commits are two
+  docs commits plus the unreviewed, deliberately unwired lifecycle model, and a release must not ship
+  source no independent reviewer has seen.
+  **Range `41a2f0f8..400a6909` is client-only** (11 paths, all `atlas-client/`, zero
+  `migration|prisma|schema` matches) — **no schema command is authorised**.
+  Release dir `E:\ATLAS-runtime-supervised-400a6909-20260926`: `npm ci` both packages (0 reparse
+  points, no junction), `prisma generate` exit 0, server `dist/server.js` built, client built with the
+  `VITE_ENROLLPRO_URL` guard (171 chunks), and the built server **proven to start** on isolated port
+  5099 with health 200. Dry run reached the guard and stopped for this register entry — it had already
+  caught one real error first, that the runner needs full 40-char SHAs rather than 8-char prefixes.
+  Cutover NOT yet executed; acceptance rows A1–A6 are owed and are deployment-acceptance clauses.
+  Packet: `docs/prompts/deploy-400a6909-room-schedules-term-2026-09-26.md`.
+
+- **Release SHA: `26f7c907a37185e036e71cf0d82423794689b318`** (LIVE since 2026-09-26 09:41, Lane A -
   client-presentation release, cutover executed; `E:\ATLAS-runtime-supervised-26f7c907-20260926`; execute audit
   `C:\ProgramData\ATLAS\release-audit\26f7c907-20260926-094157`, dry-run audit
   `…-094130`; the runner returned `CUTOVER_STARTED`; active state `running`/`26f7c907`; supervisor task action **and
