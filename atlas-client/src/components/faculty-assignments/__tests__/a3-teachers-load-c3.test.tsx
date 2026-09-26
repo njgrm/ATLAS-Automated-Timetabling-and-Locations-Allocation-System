@@ -70,6 +70,9 @@ const { TooltipProvider } = await import('@/ui/tooltip');
 const { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } = await import('@/ui/select');
 const { GradeBadge } = await import('@/components/faculty-assignments/GradeBadge');
 const { FacultyRosterActions } = await import('@/components/faculty/FacultyRosterActions');
+// Fix 24 long-name row: the component that actually renders a faculty name
+// BESIDE the nowrap-guarded roster controls. See the F24-2 note below.
+const { FacultyMobileCard } = await import('@/components/faculty/FacultyRow');
 const { FacultyProfileSheet } = await import('@/components/faculty/FacultyProfileSheet');
 const { TeacherAttentionFilters } = await import('@/components/faculty/TeacherAttentionFilters');
 const { TeachingLoadFilterBar } = await import('@/components/faculty-assignments/TeachingLoadFilterBar');
@@ -767,22 +770,152 @@ test('F24-1 the Teachers menu labels are short, specific, and cannot wrap', () =
 	assert.ok(!bodyText().includes('Dela Cruz'), 'the header row carries no teacher name');
 });
 
+/**
+ * Fix 24, the long-name row — CORRECTED (QA finding N1).
+ *
+ * The prior version of this test built `{ ...FACULTY, firstName, lastName }` and
+ * never passed it to anything: `TeacherAttentionFilters` was handed only `chips`,
+ * `activeChipId` and `onApplyFilter`, so no long name ever reached the render and
+ * the closing `length > 30` was a tautology over a template literal. A control
+ * that cannot see the thing it claims to defend proves nothing (AGENTS.md §11).
+ *
+ * WHICH component is exercised, and why this one.
+ * `TeacherAttentionFilters` cannot receive a faculty name. Its chips are
+ * attention-STATE labels ("No subjects assigned") and the row renders no teacher
+ * name by design — the same fact F24-1 already asserts for the header row
+ * (`bodyText()` carries no `Dela Cruz`). Adding a name prop to it would invent a
+ * surface that does not exist, so the second option applies: the component that
+ * DOES render the faculty name in the same control path is `FacultyMobileCard`
+ * (`components/faculty/FacultyRow.tsx`). Production assembles it at
+ * `pages/Faculty.tsx:897-905` from the `AdminDataTable` context
+ * (`admin-workspace/AdminDataTable.tsx:380-387`), where the identity cell and the
+ * secondary-action menu are SIBLINGS in one `flex items-start justify-between
+ * gap-3` row (`FacultyRow.tsx:586`). That is the only place on this stream's
+ * surface where a long name and the Fix 24 controls share a row, so it is what
+ * is rendered here — with the real `FacultyRosterActions` in the real
+ * `primaryAction` / `secondaryActionMenu` slots.
+ *
+ * The name-bearing Profile control keeps its own copy ("Profile", seven
+ * characters) and carries the long name only in its accessible name, which
+ * cannot affect layout; it is asserted as a PRECONDITION (the name really
+ * reaches a control) and is deliberately not in the nowrap set.
+ *
+ * WHERE THE NOWRAP ACTUALLY COMES FROM (corrected a second time, measured).
+ * Every Fix 24 control in this row is a shadcn `Button`, and the shared base
+ * variant in `ui/button-variants.ts` already carries `whitespace-nowrap` AND
+ * `shrink-0`. The `whitespace-nowrap` tokens Fix 24 wrote at each call site are
+ * therefore DEFENCE IN DEPTH, not the load-bearing guarantee: a control that
+ * asserted only the call-site token would pass even if the token were deleted,
+ * which was verified by mutation. This control therefore asserts the rendered,
+ * merged class (which is the claim that matters and which does discriminate) and
+ * separately pins BOTH the shared source of the guarantee and the call-site
+ * tokens, labelled for what they are. The load-bearing protection against a long
+ * name in this row is the identity cell's `truncate` + `min-w-0`, asserted below
+ * and proven by mutation (three separate mutations, each byte-restored; the
+ * evidence is in the executor handoff for this correction, not in this file).
+ */
 test('F24-2 the row actions stay nowrap with the longest realistic faculty name', () => {
 	const LONG_FIRST = 'Maria Cristina';
 	const LONG_LAST = 'Dela Cruz-Sant Definitely';
 	const faculty = { ...FACULTY, firstName: LONG_FIRST, lastName: LONG_LAST };
-	const host = render(
-		createElement(TeacherAttentionFilters as any, {
-			chips: [{ id: 'needs-load', label: 'No subjects assigned', helper: 'x', count: 1 }],
-			activeChipId: 'all',
-			onApplyFilter: () => {},
+
+	// The real Fix 24 controls, injected through the real slots. The wrapper
+	// divs are test scope markers so the nowrap assertion is scoped to the roster
+	// controls this fix governs, not to every button on the card.
+	const rowActions = createElement(
+		'div',
+		{ 'data-testid': 'a3-f24-2-row-actions' },
+		createElement(FacultyRosterActions as any, {
+			slot: 'secondary', onOpenReview: () => {}, onCreateTemporary: () => {},
+			onRefreshRoster: () => {}, syncing: false, isOnline: true, refreshing: false,
 		}),
 	);
-	for (const button of buttonsIn(host)) {
-		assert.match(button.getAttribute('class') ?? '', /whitespace-nowrap/, 'a long faculty name must not wrap a roster control');
+	const primaryAction = createElement(
+		'div',
+		{ 'data-testid': 'a3-f24-2-primary-action' },
+		createElement(FacultyRosterActions as any, {
+			slot: 'primary', onOpenReview: () => {}, onCreateTemporary: () => {},
+			onRefreshRoster: () => {}, syncing: false, isOnline: true, refreshing: false,
+		}),
+	);
+
+	const host = render(
+		createElement(FacultyMobileCard as any, {
+			faculty, primaryAction, secondaryActionMenu: rowActions,
+			onAssignedClassesClick: () => {}, onProfileClick: () => {},
+		}),
+	);
+
+	// ── Precondition: the long name is genuinely in the render. Every value in
+	// this block is READ BACK OUT OF THE DOM, so a fixture that failed to reach
+	// the component fails here instead of leaving the nowrap loop vacuous.
+	const card = host.querySelector('[data-testid="teacher-mobile-card"]');
+	assert.ok(card, 'the roster card must render');
+	const cardText = card!.textContent ?? '';
+	assert.ok(cardText.includes(LONG_LAST), `the long last name must be rendered, got ${JSON.stringify(cardText)}`);
+	assert.ok(cardText.includes(LONG_FIRST), `the long first name must be rendered, got ${JSON.stringify(cardText)}`);
+
+	// The node that carries the name, and the two guards that stop a long name
+	// from squeezing the row wider instead of truncating.
+	const nameNode = Array.from(card!.querySelectorAll('p'))
+		.find((p) => (p.textContent ?? '').trim() === `${LONG_LAST}, ${LONG_FIRST}`);
+	assert.ok(nameNode, 'a single node must carry the full display name');
+	assert.match(nameNode!.getAttribute('class') ?? '', /\btruncate\b/, 'a long name must truncate, not widen the row');
+	assert.ok(
+		(nameNode!.parentElement?.parentElement?.getAttribute('class') ?? '').includes('min-w-0'),
+		'the name column needs min-w-0, or truncate cannot engage inside flex',
+	);
+
+	// PROVEN, not assumed: the row actions are a sibling of that name node.
+	const identityRow = nameNode!.closest('.flex.items-start.justify-between');
+	assert.ok(identityRow, 'the name and the row actions must share one flex row');
+	assert.ok(
+		identityRow!.querySelector('[data-testid="a3-f24-2-row-actions"]'),
+		'the secondary roster controls must render in the same row as the long name',
+	);
+	assert.ok(
+		card!.querySelector('[data-testid="a3-f24-2-primary-action"]'),
+		'the primary roster control must render on the card',
+	);
+
+	// The long name reaches a CONTROL as its accessible name
+	// (`FacultyRow.tsx:641`), read back from the DOM.
+	const profile = card!.querySelector('[data-testid="teacher-row-profile-action"]');
+	assert.ok(profile, 'the profile control must render');
+	const accessibleName = profile!.getAttribute('aria-label') ?? '';
+	assert.equal(accessibleName, `View profile for ${LONG_LAST}, ${LONG_FIRST}`, 'the long name must reach the control');
+	// Not a tautology: this is the RENDERED accessible name, not a literal, and
+	// the long fixture is strictly harder on the layout than the short one.
+	assert.ok(accessibleName.length > 30, `the rendered accessible name must exceed the wrap budget, got ${accessibleName.length}`);
+	assert.ok(
+		accessibleName.length > `View profile for ${FACULTY.lastName}, ${FACULTY.firstName}`.length,
+		'the long fixture must be strictly wider than the short one, or the test proves nothing extra',
+	);
+
+	// ── The discriminating assertion: the rendered, MERGED class of the real
+	// controls that share this row with the long name. Reading the merged class
+	// (not the call site) is what makes this discriminate — see the note above.
+	for (const id of ['a3-f24-2-row-actions', 'a3-f24-2-primary-action']) {
+		const group = card!.querySelector(`[data-testid="${id}"]`)!;
+		const buttons = buttonsIn(group);
+		assert.ok(buttons.length > 0, `${id} must render at least one control`);
+		for (const button of buttons) {
+			const cls = button.getAttribute('class') ?? '';
+			const label = (button.textContent ?? '').trim();
+			assert.match(cls, /\bwhitespace-nowrap\b/, `"${label}" must stay on one line beside a ${accessibleName.length}-character name`);
+			assert.match(cls, /\bshrink-0\b/, `"${label}" must not be squeezed by a long name`);
+		}
 	}
-	// The full name is carried in an accessible name, which may wrap harmlessly.
-	assert.equal(`${LONG_LAST}, ${LONG_FIRST}`.length > 30, true);
+	// The shared source of that guarantee, pinned so the rendered assertion above
+	// is not mistaken for a property of `FacultyRosterActions`.
+	const buttonBase = read('src/ui/button-variants.ts');
+	assert.match(buttonBase, /\bwhitespace-nowrap\b/, 'the shared Button base must supply nowrap');
+	assert.match(buttonBase, /\bshrink-0\b/, 'the shared Button base must supply shrink-0');
+	// Fix 24's own call-site tokens: defence in depth over that base, kept on
+	// purpose so these controls keep the guarantee if the base is ever trimmed.
+	const rosterActions = read('src/components/faculty/FacultyRosterActions.tsx');
+	const authored = rosterActions.match(/className="[^"]*whitespace-nowrap[^"]*"/g) ?? [];
+	assert.equal(authored.length, 4, `all four authored Button call sites must keep their own nowrap token, found ${authored.length}`);
 });
 
 // ───────────────────────────────────────── Fix 14 / Fix 16 (density)
