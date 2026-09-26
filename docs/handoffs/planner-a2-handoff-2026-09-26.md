@@ -1,5 +1,8 @@
 # Handoff — Planner A2 → next session (updated 2026-09-26, session 3 close)
 
+> **Lane C channel (2026-09-26):** all Lane C QA results and instructions for A2 are in `docs/qa/lane-c-to-a2.md`. Read it at the start of every cycle.
+
+
 Supersedes the session-1 and session-2 handoffs of the same date. Read this, then
 `docs/plans/live-state.md` (`## Live release`, `## Capacity`, Lane A2 section at the end).
 `atlas-session-checkpoint` could not be loaded (skill loading is restricted in this session), so the
