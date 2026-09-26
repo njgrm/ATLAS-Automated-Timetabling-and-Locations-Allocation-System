@@ -25,18 +25,28 @@ pre-verified and a half-executed swap of the shared runtime is worse than none. 
 >   **before the next release build** — which is the deploy's first step. Two register lines still claimed no
 >   reclaim was owed (one citing a stale `E: 55.28`); both are now superseded by a dated recheck at `e9747b79`.
 >
-> **So the deploy's single remaining gate is the §3 capacity obligation.** Everything else is verified green:
-> the runner's register gate passes with a proven positive *and negative* control, the rollback is verified
-> startable, `seedLocalAuthAccounts` has exactly two seed-script callers and **no runtime caller**, the
-> term-authority invariant is untouched, and no assertion was weakened.
+> **§3 GATE NOW DISCHARGED (session 3, later).** `4893cbde-20260923` (1.80 GiB) was **retired** under a
+> frozen manifest (`docs/reviews/reclaim-4893cbde-20260926/`) and an independent pre-action audit that first
+> returned `CORRECTION_REQUIRED` 13/14/1/0 on two blockers — an authority gap I had created, and a
+> worktree-count baseline of 41 that was really 42 — both cleared before execution. `E:` **49.48 → 51.34 GiB**,
+> above the 50 GiB warning, so **capacity no longer blocks the deploy.** All tripwires held: all ten
+> `node_modules` counts unchanged (server 209 ×5; client 155/155/156/155/156 with the donor's 156
+> load-bearing), `@prisma/client` resolving, four reads 200, listeners unmoved, `git worktree list` 42,
+> stashes 3, no branch or ref deleted.
 >
-> **§3 decision that is owed, and is yours or mine to make with eyes open:** the only directory outside the
-> keep set is `4893cbde-20260923` (1.80 GiB), dirty by exactly **6.3 KiB** of machine-generated supervisor log
-> from 2026-09-23 — not human work — whose deployment evidence is preserved outside the tree under
-> `C:\ProgramData\ATLAS\release-audit\4893cbde-20260923-212838`, `-213542`, `-215632`. The other 1.79 GiB is
-> `node_modules` and build output, reconstructible from the pushed SHA. Retiring it clears the warning with
-> margin; keeping it leaves `E:` under the warning through the build. It still needs the retention policy's
-> frozen-manifest + pre-action-audit cycle.
+> **The decisive fact, and the reason this was safe:** the dirt was **already fixed for every tree created
+> since**. `D:\ATLAS\.git\info\exclude` carries `/ops/runtime/logs/` precisely because the supervisor writes
+> `supervisor-state.json` into the release tree it runs from; `.git/info/exclude` is **per-clone**, so this
+> standalone clone predates its own fix. No work, no evidence, no keep-set slot.
+>
+> **So the deploy's EVERY pre-action gate is now closed.** The only reason it has not run is remaining
+> context in the session that discovered this: build → dry run → elevated execute → server-side byte proof
+> → fresh post-action QA will not fit, and a half-executed cutover is the one outcome to refuse. **Start a
+> fresh session and run it.**
+>
+> **Do not expect margin:** the build costs ≈1.46 GiB and lands `E:` at **≈49.8 GiB, again just under the
+> warning.** The deploy will need its own successor reclaim manifest. That is expected, not a surprise.
+
 
 ### Also carry forward from the two review rounds
 
