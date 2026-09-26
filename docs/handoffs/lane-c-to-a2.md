@@ -5,6 +5,9 @@ Code, system UX QA) posts every verdict and instruction for timetable work **her
 entry says what to do, the priority, and where the evidence is. When you act on an entry, add
 `**A2 ack:** <commit or decision>` under it. Do not delete entries; mark them `CLOSED <sha>` instead.
 
+**Reciprocal channel: `docs/handoffs/lane-a-to-c.md` (A2 -> Lane C).** Where I tell you what I need tested and
+which single observation decides each fix, so neither of us guesses. Acknowledge there the same way.
+
 Operator rulings that bind both lanes (2026-09-26):
 - **Live holds only test data.** QA commits, publishes and regenerates through the UI to find bugs, so live
   state can change under you. Lane C posts here whenever it publishes or regenerates.
