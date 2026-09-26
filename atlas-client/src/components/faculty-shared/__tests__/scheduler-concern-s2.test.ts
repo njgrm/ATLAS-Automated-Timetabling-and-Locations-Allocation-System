@@ -82,7 +82,14 @@ test('D6: the three retired page components are deleted and unregistered', () =>
 
 test('D6: the surviving portal and scheduler review routes stay registered', () => {
 	const app = source('src/App.tsx');
-	assert.match(app, /path: 'my',\s*\n\s*element: <MyDashboard \/>/);
+	// Operator instruction 2026-09-26 — `/my` is now the retirement tombstone
+	// (see `RetiredFacultyPortalNotice`), so this row keeps proving the route is
+	// REGISTERED while asserting the retired dashboard element is not mounted.
+	// `/my` is deliberately not deleted from the route table: Login, AppShell and
+	// FacultyMobileBottomNav still land faculty here.
+	assert.match(app, /path: 'my',\s*\n\s*element: <RetiredFacultyPortalNotice \/>/);
+	assert.doesNotMatch(app, /<MyDashboard \/>/, 'the retired dashboard element must not be mounted');
+	assert.doesNotMatch(app, /import\([^)]*MyDashboard/, 'the retired dashboard must not even be imported');
 	assert.match(app, /path: 'faculty\/preferences',\s*\n\s*element: <OfficerPreferences \/>/);
 	assert.match(app, /path: 'faculty\/room-preferences',\s*\n\s*element: <OfficerRoomPreferences \/>/);
 	assert.match(app, /path: 'faculty\/concerns',\s*\n\s*element: <TeacherConcerns \/>/);
@@ -97,7 +104,7 @@ test('D6: notification deep links to the retired surfaces are inert, others pres
 
 /* ───────────────────────── navigation + chrome ───────────────────────── */
 
-test('faculty navigation is the single read-only /my dashboard', () => {
+test('faculty navigation is the single /my destination, now a retirement tombstone', () => {
 	assert.deepEqual(facultyNav.map((item) => item.to), ['/my']);
 	assert.deepEqual(
 		getVisibleNavigation({ role: 'faculty', capabilities: ['faculty:self-service'] }).map((item) => item.to),

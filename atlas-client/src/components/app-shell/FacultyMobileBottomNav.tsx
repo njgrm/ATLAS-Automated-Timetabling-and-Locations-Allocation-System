@@ -3,9 +3,12 @@ import { Home } from 'lucide-react';
 import { motion, useReducedMotion } from 'motion/react';
 
 /**
- * D6 — the ATLAS teacher portal is retired. Teacher self-service is view-only
- * (`/my`), so the bottom nav keeps the single Home destination; the removed
- * teacher-portal tabs (schedule, support preferences, room requests) are gone.
+ * D6 — the ATLAS teacher portal is retired. Teacher self-service is handled in
+ * SMART, and per the operator instruction of 2026-09-26 `/my` is retired too, so
+ * this bar's single Home destination is the retirement tombstone rather than a
+ * dashboard. It stays so faculty keep one reachable faculty destination; the
+ * removed teacher-portal tabs (schedule, support preferences, room requests) are
+ * gone.
  */
 const FACULTY_TABS = [
 	{ to: '/my', label: 'Home', icon: Home, end: true },

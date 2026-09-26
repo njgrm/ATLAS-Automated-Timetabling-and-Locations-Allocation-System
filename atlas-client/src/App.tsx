@@ -1,9 +1,12 @@
-import { createBrowserRouter, Navigate, RouterProvider, useLocation, useSearchParams } from 'react-router-dom';
+import { createBrowserRouter, Navigate, RouterProvider, useLocation, useSearchParams, type RouteObject } from 'react-router-dom';
 import { lazy, Suspense } from 'react';
 import { Toaster } from 'sonner';
 
 import { AppShell } from './components/AppShell';
 import { RouteErrorBoundary } from './components/RouteErrorBoundary';
+import { PageHeader } from './components/app-shell/PageHeader';
+import { resolveRouteChrome } from './components/app-shell/navigation';
+import { Card, CardContent } from './ui/card';
 
 const Login = lazy(() => import('./pages/Login'));
 const Dashboard = lazy(() => import('./pages/Dashboard'));
@@ -13,7 +16,6 @@ const Faculty = lazy(() => import('./pages/Faculty'));
 const TeachingLoad = lazy(() => import('./pages/TeachingLoad'));
 const TeachingLoadHistory = lazy(() => import('./components/faculty-assignments/TeachingLoadHistoryView'));
 const Sections = lazy(() => import('./pages/Sections'));
-const MyDashboard = lazy(() => import('./pages/MyDashboard'));
 const OfficerPreferences = lazy(() => import('./pages/OfficerPreferences'));
 const OfficerRoomPreferences = lazy(() => import('./pages/OfficerRoomPreferences'));
 const TeacherConcerns = lazy(() => import('./pages/TeacherConcerns'));
@@ -43,6 +45,60 @@ function RetiredRequirementsRedirect() {
 }
 
 /**
+ * Operator instruction 2026-09-26 — the `/my` faculty portal is retired and
+ * must not be reachable. The route declaration is deliberately KEPT (the same
+ * tombstone idea as `RetiredRequirementsRedirect`) because `/my` is the
+ * faculty landing destination in five places: `pages/Login.tsx`,
+ * `components/AppShell.tsx` (both the session-verification landing and the
+ * portal-route guard), `components/app-shell/FacultyMobileBottomNav.tsx`, and
+ * `lib/auth.ts` (`FACULTY_PORTAL_ROUTES`, kept so the guard does not
+ * redirect-loop against this tombstone). Removing the registration would drop
+ * faculty on an unmatched URL; redirecting to `/` would drop them on the
+ * OPERATOR setup surface in `pages/Dashboard.tsx`.
+ *
+ * This component therefore renders only a truthful retirement notice: it
+ * mounts no dashboard, dispatches no `/faculty-portal/<school>/<year>/dashboard`
+ * or any other faculty-portal request, and reads no state. Its title and
+ * breadcrumb group come from `resolveRouteChrome` so the tombstone satisfies
+ * the shared-chrome contract (`lib/__tests__/ux-r01-shared-chrome.test.tsx`)
+ * instead of inventing a second title.
+ *
+ * The retirement is reversible "until further notice", so the parked
+ * implementation stays on disk at `pages/MyDashboard.tsx` with its exported
+ * `loadMyDashboardScoped`; only the route wiring is commented out of reach.
+ */
+export function RetiredFacultyPortalNotice() {
+	const location = useLocation();
+	const { title, breadcrumbs } = resolveRouteChrome(location.pathname);
+
+	return (
+		<div className='flex h-[calc(100svh-3.5rem)] flex-col overflow-hidden'>
+			<div className='flex-1 min-h-0 overflow-auto px-4 py-5 sm:px-6'>
+				<div className='mx-auto w-full max-w-6xl space-y-4'>
+					<PageHeader
+						title={title}
+						eyebrow={breadcrumbs.length > 1 ? breadcrumbs[0] : undefined}
+						subtitle='Retired on 26 September 2026. This page stays reachable so older bookmarks and sign-in landings do not break.'
+					/>
+
+					<Card className='rounded-2xl' data-testid='retired-faculty-portal-notice'>
+						<CardContent className='py-6'>
+							<p className='text-sm font-semibold leading-snug text-foreground'>
+								This faculty portal is retired.
+							</p>
+							<p className='mt-1 text-sm leading-relaxed text-muted-foreground'>
+								Teacher self-service is handled in SMART. Nothing on this page loads your dashboard,
+								schedule, teaching assignments, or room requests.
+							</p>
+						</CardContent>
+					</Card>
+				</div>
+			</div>
+		</div>
+	);
+}
+
+/**
  * `/teaching-load?view=history&schoolYearId=<id>` renders the read-only
  * archived view; plain `/teaching-load` renders the live workspace. The
  * dedicated `/teaching-load/history` route remains for direct links.
@@ -52,7 +108,7 @@ function TeachingLoadRoute() {
 	return searchParams.get('view') === 'history' ? <TeachingLoadHistory /> : <TeachingLoad />;
 }
 
-const router = createBrowserRouter([
+export const appRoutes: RouteObject[] = [
 	{
 		path: '/login',
 		element: <Login />,
@@ -98,8 +154,11 @@ const router = createBrowserRouter([
 				element: <Dashboard />,
 			},
 			{
+				// Operator instruction 2026-09-26 — the faculty portal is retired.
+				// The path stays registered (see RetiredFacultyPortalNotice); the
+				// dashboard element is deliberately NOT mounted here.
 				path: 'my',
-				element: <MyDashboard />,
+				element: <RetiredFacultyPortalNotice />,
 			},
 			{
 				path: 'subjects',
@@ -208,7 +267,9 @@ const router = createBrowserRouter([
 		{ path: '*', element: <Navigate to="/" replace /> },
 		],
 	},
-]);
+];
+
+const router = createBrowserRouter(appRoutes);
 
 export function App() {
 	return (

@@ -67,8 +67,12 @@ const ATLAS_AUTH_COOKIE_PATH = '/api/v1';
 
 export type AuthSource = 'bridge' | 'local';
 
-// D6 — the ATLAS teacher portal is retired; only the read-only `/my` dashboard
-// remains a faculty-portal route. Teacher self-service lives in SMART.
+// D6 — the ATLAS teacher portal is retired; teacher self-service lives in SMART.
+// Operator instruction 2026-09-26 — `/my` itself is now retired as well: the route
+// renders a truthful retirement tombstone (`RetiredFacultyPortalNotice` in `App.tsx`),
+// not a dashboard. `/my` MUST stay in this set: `AppShell` redirects faculty here as
+// its landing destination, and removing the entry would redirect-loop a faculty
+// session against the tombstone instead of settling on it.
 const FACULTY_PORTAL_ROUTES = new Set([
 	'/my',
 ]);

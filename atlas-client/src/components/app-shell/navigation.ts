@@ -50,6 +50,9 @@ export const auditNav: NavItemDef[] = [
 ];
 
 export const facultyNav: NavItemDef[] = [
+	// Operator instruction 2026-09-26 — `/my` now resolves to the retirement
+	// tombstone (`RetiredFacultyPortalNotice`), not a dashboard. The entry stays so
+	// faculty keep one stable faculty-portal destination instead of an unmatched URL.
 	{ label: 'My Dashboard', to: '/my', icon: LayoutDashboard, facultyOnly: true },
 ];
 
@@ -86,6 +89,10 @@ export type RouteChrome = {
 };
 
 const routeChromeOverrides: Record<string, { group?: string; title: string }> = {
+	// Operator instruction 2026-09-26 — the faculty portal is retired, so `/my`
+	// states that truthfully in its own chrome. The breadcrumb leaf equals the
+	// rendered tombstone title, which `RetiredFacultyPortalNotice` reads from here.
+	'/my': { group: 'My Portal', title: 'Faculty Portal Retired' },
 	'/subjects/requirements': { group: 'School Setup', title: 'Subject Requirements' },
 	'/subjects/decision-workspace': { group: 'School Setup', title: 'Subject Decisions' },
 	'/teaching-load/history': { group: 'Teachers and Rooms', title: 'Archived Teaching Load' },
