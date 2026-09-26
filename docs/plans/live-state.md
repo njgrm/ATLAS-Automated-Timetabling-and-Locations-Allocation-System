@@ -2192,6 +2192,38 @@ test files**, so "the full client suite" overstates coverage and a green run is 
 **warn below 25 GiB / fail closed below 15 GiB** (operator, `6404c213`). Re-measured **2026-09-27: 49.20 GiB free - no
 reclaim owed**, and a release build may start. Measure before each build.
 
+**A2 SUPERSEDED BY LANE A3's RELEASE — re-verified against the live build, 2026-09-27 ~04:3x +08.** Lane A3
+deployed **`d11304e8`** (client-only, product tree `5691e663`) over my `b0736007` and took the runtime:
+`E:\ATLAS-worktrees\lane-a3-release-f426f465`, **5001 → PID 39548**, **5174 → PID 43484**, task action re-pointed.
+`git diff --name-only b0736007 d11304e8` minus `docs/` and `atlas-client/` = **0 paths**, so A3's
+client-only claim is confirmed by enumeration. **My `b0736007` is an ancestor of the live release, and I
+re-verified my own acceptance against the build that actually replaced it** rather than assuming continuity:
+
+- **The public-schedule fix is intact and still correct.** `servedByFallback` present in 3 live `dist` files, and
+  the live matrix is unchanged: 09-20 → 200 run 315 (fallback), 09-25 → 200 run 317 (fallback), **09-26 → 200
+  run 319 (fallback)**, 09-27/28 → 200 run 320 head (`servedByFallback=false`). **No 409 anywhere.** The
+  fix I deployed did not get reverted by the release that superseded it.
+- **My swap/revert, Change-room and runs-pane fixes are all ancestors of the live release.**
+- **My swap label/icon candidate `dff85db4` is on `main` but NOT deployed** (not an ancestor of `d11304e8`).
+  Correct — it is presentation, it passed QA `ACCEPT_READY 27/27/0/0`, and it waits for a release.
+- **The three owed browser rows now name `d11304e8`, not `b0736007`** — they were never performed against either,
+  and the surface is materially the same plus A3's client work.
+
+**Correction to this register (post-action QA adjudicated, docs-only):** the client-suite coverage figure I
+published as *"138 on disk, 117 named, 21 omitted"* is **wrong**. **Authoritative: 144 test files on disk under
+`atlas-client/src`, 117 named by `test:client-suite`, 27 omitted** — 122 `.ts` + 22 `.tsx`, zero duplicates in the
+script. A `-Include -Recurse` count returns 538 and is the wrong method. **A green `test:client-suite` is not
+full client coverage**, and this candidate's own gate reaches CI only through `test:timetable-swap-custody-a2`,
+never through the aggregate run.
+
+**Dated successor, not a gate:** `getRelocatedClassCount` is `moves?.relocated ? 1 : 0`. Its comment promises the
+count "can never understate a move" — true for today's `'A' | 'B' | null`, but **if `SwapMove.relocated` ever widens
+to a collection the helper still returns `1` and would silently understate**, while the already-shipped plural
+wording would still read correctly. The two are coupled by nothing but a comment. **Tie them, or hold the plural
+until the payload can express more than one relocation.** QA's own view: the plural test is a legitimate forward
+declaration, not an assertion of a string nothing produces.
+
+
 **Acceptance is INCOMPLETE and the binding constraint is a MISSING BROWSER SESSION, not authority (2026-09-27).**
 **`NEEDS_SESSION(space-bunny/opencode-default)`** — this profile redirects `/timetable` → `/login`; the operator
 re-seeds in about a minute. **Seven rows across two releases are blocked on that one fact**, and deploying more
@@ -2199,7 +2231,7 @@ code into the gap makes the record worse rather than better:
 
 | Row | Release | Harness needed |
 |---|---|---|
-| D8-browser, D9 "Change room" on MAPEH, public-page DOM | `b0736007` | authenticated `/timetable`, run 320 |
+| D8-browser, D9 "Change room" on MAPEH, public-page DOM | **`d11304e8`** (supersedes `b0736007`; never performed against either) | authenticated `/timetable`, run 320 |
 | **U1/U2** Fix 24 pixel fit at **1366x768**, desktop + mobile menu variants, longest faculty name | Lane A3 `f426f465` | **real layout** — jsdom performs none |
 | **U3** Fix 14/16 density pixel assertion (labelled structural-only, not substituted with class assertions) | Lane A3 `f426f465` | **real layout** |
 | **U4** (fourth row in A3's own record) | Lane A3 `f426f465` | per A3's report |
