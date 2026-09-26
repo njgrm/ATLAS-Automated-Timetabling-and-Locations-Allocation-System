@@ -1,5 +1,65 @@
 # Lane A — committed-credential incident, evidence and outcomes (2026-09-26)
 
+## ▶ RESUME HERE — fresh non-timetable planner starts here
+
+**This incident is closed by mitigation. Read this block, then §8 (open items) and §9 (lessons). Do not re-derive
+§1–§7; they are settled, evidenced and merged.**
+
+**Machine truth at handoff (re-verify before acting — `origin/main` moves every few minutes):**
+`origin/main` = `67598ae9` · live release = `e4989b72` (machine env **and** task action agree) ·
+`/health/ready` 200 `database:"ok"` · D: 39.45 GiB, E: 50.07 GiB · 24 registered E: worktrees.
+
+**Merged and pushed (nothing left to integrate):** credential scrub `253d2dff`, register reconciliation
+`6065222b` + condensation `a80307cc`, token-rotation handoff `0c433ef5` / `67598ae9`. **All four formerly-public
+credential values read 0 files on the public `origin/main`.** Branches `fix/committed-credential-scrub-20260926`
+and `docs/lane-a-register-reconcile-20260926` still exist and are fully merged — they may be deleted, not pushed.
+
+**Custody — do not touch without the owner:**
+- **Runtime and the `## Live release` register block belong to Lane A2**, which was **mid-deploy to `400a6909`** when
+  this session ended. A2 also **owns the worktree reclaim** (`docs/reviews/reclaim-e4989b72-20260926/`) — do not
+  duplicate it. `E:\ATLAS-runtime-supervised-861d89a2-20260925` is a **dependency donor, never retire** (lanes
+  copy `node_modules` from it).
+- Timetable custody went to A2 on 2026-09-26. Lane A holds **no** timetable work.
+- `D:\ATLAS\EnrollPro\**` and the EnrollPro host are `READ_ONLY` under `AGENTS.md` §4.
+
+**Worktree dispositions:** `lane-a-integration-cred-scrub` → `RETIRE_AFTER_INTEGRATION` (this lane's boundary, work
+merged and pushed). `lane-b-secret-scrub-20260926` and `lane-a-register-reconcile-20260926` → `RETIRE_AFTER_INTEGRATION`
+(both fully merged). `lane-a-f1-f2-deploy-candidate`, `lane-a-r1-deploy-target`, `lane-a-room-affordance-20260926`,
+`lane-a-s8-cap-guard-20260926`, `lane-a-violation-label-guard-20260926` → `PRESERVE_FOR_DECISION` (pre-existing, not
+this session's, several belong to A2's history).
+
+**Single next action for a fresh planner:** the remaining non-timetable work is small and fully specified — **items
+1–3 in §8 are the only substantive ones and all are operator-owned or another lane's.** If the operator wants more
+non-timetable work, the two mechanical items this session identified and deliberately did **not** do are: (a) the
+committed guard's two disclosed gaps — `.gitignore` un-ignores exactly two Playwright spec filenames, so a new spec
+under `qa-artifacts/playwright/specs/` is silently ignored and never scanned until force-added; and a **mid-file**
+U+FEFF still defeats the position-anchored rules (a *leading* BOM is already fixed); and (b) **no behavioural test
+covers `seedLocalAuthAccounts`' new blank-password guard or the Playwright spec's `requireEnv`** — both are verified
+only by out-of-tree harnesses, so a future refactor could delete them and the suite would stay green. Both are
+bounded, mechanical, and carry the same guard-test discipline as the work already merged.
+
+**Standing cautions this session earned — these cost real time and are the reason a fresh session should not
+re-derive anything:**
+1. **Never assert a value you have not just derived.** This session produced a fabricated claim ("never written to a
+   file"), a near-fabricated capacity breach (a single 20.3 GiB sample of a volume that read 39.46 GiB a minute
+   later), an over-reported finding (five `your_password` placeholders called leaks), and a wrong sequencing claim
+   (that pushing would republish credentials that were *already* public on `main`). All four looked confident.
+2. **A suspiciously uniform result is a bug signature.** `origin/main..$b` inlined in PowerShell expands `$b..origin`
+   ambiguously and returned `ahead=0 behind=0` for every branch. Two of my own greps also returned false negatives
+   (uppercase-only anchor missing lowercase `password:` properties; a backslash pattern against git's forward-slash
+   output). Verify the *shape* of a result, not just its presence.
+3. **A fresh worktree has no generated Prisma client**, and its absence surfaces as `tsc` errors in unrelated
+   files. Run `npx prisma generate --schema ..\prisma\schema.prisma` from `atlas-server` **before** trusting a
+   typecheck or build result.
+4. **`D:\ATLAS-runtime-config\atlas-server.env` is read-only by ACL** (`Read, Synchronize` only; not even
+   FullControl for Administrators, who own it). **Probe the write before any credential change.** Skipping that probe
+   caused the one real outage of this session.
+5. **Two credentials reached this session's transcript** — one through reading files to edit them, one through an
+   `H` → `Get-History` alias collision that dumped a live token in an error message. Never name a helper function
+   after a shell alias, and mask by default.
+
+---
+
 **Status:** closed by mitigation. One item remains operator-owned (coordinated token rotation).
 **Register:** `docs/plans/live-state.md` carries a condensed record; this file carries the evidence.
 **Scope:** non-timetable. Lane A held only the credential item; timetable custody went to A2.
