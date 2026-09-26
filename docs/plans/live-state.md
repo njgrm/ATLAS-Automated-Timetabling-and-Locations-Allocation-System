@@ -1927,3 +1927,36 @@ that can decide the merge is actually gone. Then take the handoff's candidates i
 lifecycle model across dashboard / timetable / `/my` / public (BLOCKING, and the one that makes a reviewing
 draft read as Live), **(3)** public term resolver diagnosis + retain a valid section, **(4)** 390 px drift
 banner, **(5)** Runs loading vs empty. Item 1 (R2 the packet) stays blocked behind its re-review either way.
+
+### Fail-open default audit (2026-09-26, A2) — the `!== false` / absent-is-false class
+
+The handoff flagged that `settings.ts:597` defaulted `verifyUpstream = false`, `runtime.router.ts:204`
+treated an absent param as false, and `runtime-context.service.ts:375` uses `options?.verifyUpstream !==
+false` (intending true) — the route silently overrode the service. That cost a live fail-closed page.
+**The `e4989b72` fix was client-side only** (four surfaces now pass `verifyUpstream: true`), so the route
+default is **still fail-open**. Audited the class across the server:
+
+1. **LIVE, UNFIXED, same class — `atlas-server/src/routes/runtime.router.ts:204`.**
+   `req.query.verifyUpstream === 'true' || === '1'` ⇒ **absent means unverified**, which contradicts
+   `runtime-context.service.ts:375`'s `!== false` (absent means verify). Any caller that omits the param
+   still gets unverified context. **Not fixed here, deliberately:** flipping the route default to
+   fail-closed aligns it with the service's intent, but it adds a network read per request for every
+   caller that does not pass the flag, on a **live** endpoint. That is a behaviour change to production
+   wiring and wants its own reviewed packet plus a deploy, not a drive-by. This is the same shape as the
+   accepted Rooms residual, one layer up.
+2. **ROOT CAUSE — the route layer mixes both boolean conventions with nothing announcing which.**
+   Absent-means-**false**: `runtime.router.ts:204`, `runtime.router.ts:228` (`includeCounts`),
+   `generation.router.ts:171` (`enforceShiftWindows`), `faculty.router.ts:121`, `subject.router.ts:227-229`.
+   Absent-means-**true**: `subject.router.ts:40-41` (`includeSte`/`includeSpa`),
+   `pre-generation-draft.router.ts:45`. **`subject.router.ts` uses both, in the same file**
+   (`:40-41` vs `:227-229`), so a caller cannot infer the convention from context. A one-line
+   normalisation at the route boundary (or a shared `boolParam` helper that states its absent-default)
+   retires the class rather than this instance.
+3. **VERIFIED SAFE — a control, not a defect.** `section.service.ts:330-331` relies on the service
+   default (`allowExternalSync`/`verifyRuntimeUpstream` `!== false`) and its call at `:340` omits the
+   options object entirely, so it *does* verify. That call is a provenance-labelling read, not a term
+   authority gate, so an unverified result there is reported, not silently trusted.
+
+**Sequencing note:** finding 2 is the cheap systemic fix and finding 1 is the sharp instance. Doing 2
+first would have made 1 structurally impossible to reintroduce — the same "sequence the dependency
+first" lesson that produced the earlier Rooms outage.
