@@ -1,6 +1,6 @@
 # Planner A3 — non-timetable UI/UX remediation handoff
 
-**Disposition:** `KEEP_ACTIVE` until A3 has created bounded implementation packets.
+**Disposition:** `KEEP_ACTIVE` as the stream's only writable record. The three candidate worktrees and the integration boundary were retired on 2026-09-27 in the closure that pushed them; all branches are preserved. The earlier Codex-managed copy remains `PRESERVE_FOR_DECISION` and must not be modified.
 
 **Writable home:** `E:/ATLAS-worktrees/lane-a3-ui-ux-ledger`, branch `docs/a3-ui-ux-ledger`. The earlier Codex-managed copy at `C:/Users/njgro/.codex/worktrees/lane-a3-ui-ux-handoff/ATLAS` is frozen as history and must not be modified; see the 2026-09-27 relocation entry in the Progress log.
 
