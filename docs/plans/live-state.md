@@ -222,6 +222,23 @@ resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs
 - Give `37e0c85b` (acceptance owner: Lane B / Codex) and the C7 target an authenticated session (see `AGENTS.md` §12).
 - `E:` reclaim C is **complete (2026-09-25)**: audited removal of `82871619` and `ff87b06b` freed 3.07 GiB; post-action E: was 47.80 GiB free. The §3 obligation was discharged for the `861d89a2` build only; do not re-run `20260925c` (closed at `ACCEPT_READY` 17/17).
 - Successor reclaim `20260926a` (retire `ad8f9717`) is **complete (2026-09-26)**: only `ops/runtime/logs/` was deleted, then non-forced `git worktree remove` + `git worktree prune`; no branch deleted; zero residue; keep set `861d89a2`/`eb0e3038`/`c5e167d7`/`5c100ea6`/`4893cbde` verified intact; live `861d89a2` unchanged (machine env, `running`/`861d89a2`, 5001→36120 / 5174→62504, health 200, ready `database:"ok"`, subjects read 200). **Measured post-action: 47.23 GiB free on E: and 60.67 GiB on D:** (1.46 GiB released). This discharges §3 for the single next build (`116a7658` F1/F2) only. Because 47.23 GiB is still below the 50 GiB warning, any second release build — including `9f42190e` — re-triggers §3 and requires its own fresh successor manifest and pre-action audit; the `9f42190e` packet's one-build deviation is not a substitute. (Superseded readings: the 45.72/60.67 pre-reclaim 2026-09-26 measurement, the ~47.18 GiB projection, and the 47.45/49.55 figures elsewhere in this file.)
+- Reclaim `20260926b` (retire `c5e167d7` + `5c100ea6`) is **EXECUTED (2026-09-26)**, pending its post-action
+  audit: `c5e167d7` had only `ops/runtime/logs/` removed (22,737 bytes, 2 files; its `supervisor-state.json`
+  captured verbatim first — 477 bytes, SHA-256 `B820E66C…30C7DA`, a **stale** `running` record whose PIDs
+  54256/77492 are absent), then non-forced `git worktree remove`; `5c100ea6` was clean, so it needed no
+  pre-step; then `git worktree prune`. No `--force`, no glob, no branch deleted, zero residue, zero junction
+  dependents. Both SHAs are ancestors of `origin/main`, so no Git object was lost. **Measured post-action:
+  48.73 GiB free on E: (46.25 before, 2.48 GiB released) and 60.67 GiB on D:, with all 17 `D:\ATLAS-runtime-*`
+  rows untouched** because D: never crossed its warning. Live `116a7658` verified unchanged: supervisor
+  `Running` on `E:\ATLAS-runtime-supervised-116a7658-20260726\ops\runtime\cli.mjs`, health 200, ready 200, live
+  directory intact. **This is still below the 50 GiB warning, so the next release build re-triggers §3 and
+  needs its own fresh manifest and pre-action audit.** Clearing the warning needs the operator's decision on
+  `E:\ATLAS-runtime-supervised-4893cbde-20260923` (1.80 GiB, `PRESERVE_FOR_DECISION`, and a **standalone
+  clone**, not a registered worktree, so the riskier removal path applies). Keep set is now exactly: live
+  `116a7658`, accepted `861d89a2` + `eb0e3038`, last-resort `9d293879` + `d44f29e0` on D:, dependency source
+  `861d89a2`. Manifest: `docs/reviews/runtime-dir-retention-20260926b/manifest.md`. Note its first draft had
+  the accepted-release ordering **inverted** and would have retired the keep row `eb0e3038`; the independent
+  pre-action audit caught it (`CORRECTION_REQUIRED` 12/14) before anything was removed.
 - Keep or delete two unlanded code branches (both pushed): `work/public-published-view-term-merge-c01`,
   `work/timetable-live-term-authority-c01`.
 
@@ -688,5 +705,8 @@ The isolated deploy
 candidate worktree `E:\ATLAS-worktrees\lane-a-f1-f2-deploy-candidate` at `116a7658` is `PRESERVE_FOR_DECISION`:
 it is the source of the deployed target and is not an ancestor of `main`. Live release
 `E:\ATLAS-runtime-supervised-116a7658-20260726` is `KEEP_ACTIVE`; rollback `861d89a2` is
-`PRESERVE_FOR_DECISION`; `5c100ea6` is `PRESERVE_FOR_DECISION` **as a release directory only** — its
-`node_modules` is empty, so it is **not** a dependency donor. Do not write in Lane B/C worktrees.
+`PRESERVE_FOR_DECISION`; `5c100ea6` is **RETIRED 2026-09-26 by reclaim `20260926b`** (below) — its
+`node_modules` was empty, so it was never a usable dependency source. `eb0e3038` is `PRESERVE_FOR_DECISION`
+and is now the second most recent accepted release. `c5e167d7` is **RETIRED 2026-09-26** (below). The one real
+dependency source is **`861d89a2`** (156 entries): use a real copy, never a junction chain.
+Do not write in Lane B/C worktrees.
