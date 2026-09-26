@@ -58,6 +58,23 @@ resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs
   Cutover NOT yet executed; acceptance rows A1–A6 are owed and are deployment-acceptance clauses.
   Packet: `docs/prompts/deploy-400a6909-room-schedules-term-2026-09-26.md`.
 
+- **DEPLOY NEXT — target `e4989b72`, rollback basis `400a6909a9642703e3891861c40d5f49f85c7cd9`**
+  (Lane A2, 2026-09-26, HIGH authority granted). **This entry exists to satisfy the runner's precondition**:
+  `ops/runtime/deploy-runner.ps1` refuses to swap unless this section already names the target and its
+  rollback, so the register is never silent about a swap in flight.
+  `e4989b72` is a **4-line client-only** fix on top of the live release: all four surfaces that need term
+  authority now pass `verifyUpstream: true` to `fetchAtlasRuntimeContext`, correcting the three-layer
+  default mismatch (client default false / route absent-means-false / service `!== false` intending true)
+  that left the deployed Room Schedules page fail-closed on "Term not verified". Verified: typecheck clean
+  bar the 4 known `playwright` errors; **20/20** across `timetable-term-gate-c01`,
+  `room-schedules-term-c01` and `academic-term`, including the pre-existing D1–D4 rows that already cover
+  this verified-authority path. **NOT yet deployed.** **This changes the client cache key deliberately** —
+  `settings.ts:179-191` documents `verifyUpstream` as load-bearing, so surfaces re-fetch rather than serve
+  a stale unverified context. Remaining steps: build the release, dry-run, elevated `-Execute`, prove it
+  (byte-compare a new chunk), then close acceptance **A1–A6**. `reachable: false` on this deployment, so
+  the verified path is expected to take the persisted contract's own active term — the documented fallback
+  that resolves one ordered term rather than dead-ending.
+
 - **Release SHA: `400a6909a9642703e3891861c40d5f49f85c7cd9` — LIVE since 2026-09-26 15:49 (Lane A2,
   HIGH authority granted by the operator).** Runner returned `CUTOVER_STARTED`, audit
   `C:\ProgramData\ATLAS\release-audit\400a6909-20260926-154902`; dir
