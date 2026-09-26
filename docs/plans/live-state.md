@@ -260,18 +260,23 @@ resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs
 
 ## Decisions awaited (operator-facing, as of 2026-09-26)
 
-- **Dev DB credential is COMMITTED, not merely transcribed (2026-09-26, evidence in the Lane A security block).**
+- **Dev DB credential is COMMITTED and the repo is PUBLIC (2026-09-26, evidence in the Lane A security block).**
   The live password for `atlas_user@localhost:5432` is hash-identical to the password in **5 locations across 4
   tracked files** (`atlas-server/.env.example:2`, `atlas-server/diag.cjs:1`,
   `atlas-server/src/scripts/assign-coverage-subjects.mjs:3`,
   `atlas-server/src/scripts/verify-cross-repo-source-gate.ts:56,:57`), is in Git history from `c12238cd0`, and the
-  remote is a GitHub repository. **Three operator decisions, in order: (a) is that repository private or public?**
-  (`gh` is not installed here, so this is unverified and it sets the urgency); **(b) rotate the credential** — this
-  changes a live server credential, so it is a HIGH action needing a reviewed packet, the env file, and a
-  supervised restart; **(c) decide whether to purge the value from history** — a force-push rewrite across every
-  lane's clone and open branch, explicitly **not** performed here. **Rotation alone leaves the old value in
-  history**, so (b) without (c) reduces but does not close the exposure. The source-side scrub of the four files is
-  a bounded MEDIUM change on Lane B's server surface and can proceed independently of (b) and (c).
+  **GitHub repository is Public** (verified by unauthenticated fetch, not assumed). PostgreSQL listens on
+  `0.0.0.0:5432` with `Tailscale_Postgres_5432 = Allow`, and `pg_hba.conf` grants `atlas_user` on **`atlas_db`**
+  to `100.64.0.0/10` — so any enrolled Tailnet node can authenticate with the published password.
+  **Measured blast radius: `atlas_db` holds 28 rows (27 migrations + 1 policy) and no personal data; the live
+  database's 2,705 rows are NOT Tailnet-reachable under that grant, and `atlas_user` is not a superuser. This is a
+  credential-compromise incident, not a data breach.** Decisions: **(a) ROTATE — approved by the operator
+  2026-09-26 and authorised as a HIGH action.** **(b) Do NOT rewrite history** — measured to be high-collateral
+  (every pinned SHA in the register and handoffs dangles; three lanes and 31 worktrees diverge; the open PR
+  breaks) for marginal security value once rotated; rotate, scrub the four files forward, add a secret-scan guard,
+  and protect the invariant that the old string is **never reused**. **(c)** The four-file source scrub is Lane B's
+  server surface. **(d)** Rotation will break `D:\ATLAS\EnrollPro\server\.env`, a `READ_ONLY` companion
+  (`AGENTS.md` §4) — **the operator must update it; this lane may not.**
 - **Cross-lane worktree dispositions (2026-09-26, re-verified this session):** ten E: worktrees totalling 8.72 GiB
   are clean, hold no unique content (`ahead-of-main = 0` for all 13 non-release branch tips), and carry **no
   disposition in this file** — confirmed by grep. They belong to Lanes B and C. **Not urgent** now that E: is at
@@ -944,6 +949,62 @@ it is the operator's first question, not a planner assumption.** Consequences, s
 *hash* `D982B00C0D617681` and the file:line list, never the value. Remediation is a bounded source change in four
 server files (Lane B's surface per the lane map) plus an operator-owned rotation; the history decision is the
 operator's. Recorded here, in Lane A's section, because the credential item is Lane A's retained queue.
+
+**EXPOSURE MEASURED, 2026-09-26 ~13:35 +08 — the repository is PUBLIC, and the database is Tailnet-reachable. Both
+confirmed, neither assumed.** An unauthenticated fetch of the repo page returned full content and rendered the
+**`Public`** badge, so the credential is **publicly disclosed**, not merely repo-visible. Then, on the host:
+
+- PostgreSQL **listens on `0.0.0.0:5432` and `:::5432`** (PID 7328) — all interfaces, not loopback — and a
+  firewall rule **`Tailscale_Postgres_5432 = Allow`** permits inbound 5432.
+- `D:\PostgreSQL\18\data\pg_hba.conf` ends with exactly one Tailnet grant:
+  `host  atlas_db  atlas_user  100.64.0.0/10  scram-sha-256`. `100.64.0.0/10` is the Tailscale range, and this
+  host's Tailnet address `100.88.55.125` is inside it.
+- **So any enrolled Tailnet node can authenticate as `atlas_user` to `atlas_db`** using a password published on a
+  public page, with the DSN's exact shape (`atlas_user` / `localhost:5432` / `atlas_db`) already written out in
+  the committed files. This is a live, concrete path — not a theoretical one.
+
+**Blast radius, measured rather than feared (exact `count(*)`, not the `n_live_tup` estimate, across every
+user table):**
+
+| Database | Tailnet-reachable as `atlas_user`? | Rows |
+| --- | --- | --- |
+| `atlas_db` | **YES** — the one `pg_hba` grant | **28 total**: 27 `_prisma_migrations` + 1 `scheduling_policies`. No faculty, subjects, auth accounts or audit rows. |
+| `atlas_recovery_clean_rebuild_20260905` (live) | **No** — no `pg_hba` grant; needs `127.0.0.1`/`::1`/socket | 2,705 across 34 tables, incl. 45 `atlas_auth_accounts`, 424 `audit_logs` |
+
+`atlas_user` is **not** privileged: `rolsuper=f`, `rolcreaterole=f`, `rolreplication=f`, `rolbypassrls=f`
+(only `rolcreatedb=t`). It **owns** all eight ATLAS databases, but ownership confers nothing without a `CONNECT`
+path, and `pg_hba` grants Tailnet access to `atlas_db` alone. **Conclusion, stated at full precision: the
+Tailnet-reachable target is an effectively empty database. There is no evidence of data exposure, and this is a
+credential-compromise incident — not a data breach.** It is still a real one, because the value is public and
+permanent, so **any future reuse of that string is instantly compromised**.
+
+**Full consumer inventory before any rotation (every writer, not just the readers — the lesson this lane keeps
+relearning).** Files containing the live password, by scan: `D:\ATLAS\atlas-server\.env` (untracked) and the
+durable runtime config `D:\ATLAS-runtime-config\atlas-server.env`; **`.env.example` in 15 worktrees**, all copies
+of the one tracked file; and the 4 tracked source files listed above. **No CI workflow references DB credentials
+and no scheduled task embeds the DSN.** One cross-boundary consequence: **`D:\ATLAS\EnrollPro\server\.env` also
+carries it**, and EnrollPro is a **`READ_ONLY` companion under `AGENTS.md` §4** — so a rotation will break the
+local EnrollPro dev server until the operator updates it, and **this lane may not make that edit**. (EnrollPro is
+separately down as of 2026-09-26, TCP 443 dead at `100.120.169.123`.)
+
+**REMEDIATION VERDICT — rotate; do NOT rewrite history.** Rotation is the control that works, because it makes the
+published string inert. A history rewrite is *not* worth it here, for reasons that are about this repository
+specifically and are measured, not asserted:
+1. `git filter-repo` would rewrite every commit from `c12238cd0` to HEAD, so **every SHA pinned in this register
+   and in the handoffs becomes dangling** — the entire audit chain (`2f86ffee`, `de392cf8`, `26f7c907`,
+   `116a7658`, `4c76208d`, the live-release pins) rests on ranges that `AGENTS.md` §10–§11 require to stay
+   addressable.
+2. **Three active lanes** (A, B, C) hold 19 E: and 12 D: worktrees, and 13 of their branch tips have remote refs
+   absent or behind. A force-push rewrite leaves every lane diverged from a rewritten origin — exactly the
+   "candidate the integration boundary has never seen" defect §10 rule 12 records as having already happened once.
+3. The public repo has **1 open PR**, which a force-push would break.
+4. Security value is marginal: assume the value is **already scraped** (GitHub secret scanning and forks exist),
+   so a purge cannot make it unpublished. It only prevents *future reuse* of a string rotation already kills.
+
+So: **rotate, scrub the four files forward, and add a committed secret-scan guard. History is left intact
+deliberately**, and the residual is stated rather than hidden: after rotation the old string remains publicly
+readable forever, which is acceptable **only because it will never be reused** — that is the invariant to protect,
+not the byte sequence.
 
 **Deployment attempt 1 stopped safely at a runner gate (2026-09-26).** The executor built the target, ran the
 port-5198 isolation proof (**gate 6b PASS** — `git status --short` empty after the run, the exclude rule working as
