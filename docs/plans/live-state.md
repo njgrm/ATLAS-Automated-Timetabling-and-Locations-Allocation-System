@@ -2235,7 +2235,58 @@ helper (`/(\d+) Must fix/`) was removed — a test must not parse its own subjec
   "one name across the timetable" as done. Any extension of the enum-stripping rename must re-run T7.
 - **Retired-word backlog, deliberately a separate packet:** `Dashboard.tsx:330,368`,
   `timetable-capabilities.ts:202`, `ux-quickfix-c01-header-actions.test.ts:255-281`.
-- **Items #2 (lifecycle model, BLOCKING), #5 (drift banner 390 px), #6 (Runs loading vs empty) remain open.**
+### Packet 2 CLOSED — browser-QA items #5 and #6, integrated `e8e2141f`, NOT deployed (2026-09-26, A2)
+
+Candidate `5f09a133` (base `d6e359b9`, 9 client paths), executor `ses_f22676d00ffejnxtcJmrKqjyUW` (hit its
+step limit *after* committing and verifying — the deliverable was complete), fresh independent QA
+`ses_f2250908affeokqUeuMxF4SGsF` **`ACCEPT_READY` 15/15/0/0**. Integrated on `origin/main` `6f75e90a`;
+**all 9 blobs byte-identical to the reviewed candidate.** Merged-tree gates: `test:a2-timetable-custody`
+**14/14**, `test:plain-language-j2j3-c01` **18/18**, `test:plain-tokens-c04` **30/30**, `test:ux-guardrails`
+**31/31**, `test:timetable-ux-rehaul` **35/35**, full `test:client-suite` **1129 tests / fail 12 — the
+identical 12 baseline names, zero added**. Client-only.
+
+**#6 — Runs no longer claim "none" while loading.** `TimetableRunsPane.tsx` drove both the header sentence
+and the empty body off `runs.length === 0` with **no pending input**, so an unfetched `[]` announced "No
+generation runs yet" and rendered "No runs to review", then silently became five real runs. The **real**
+data-layer signal is now threaded (`useScheduleReviewWorkspaceState`'s `loading`/`error`, written by
+`useTimetableData.loadAll` at `setLoading(true); setError(null)` → dispatch → `setError` in catch → lowered
+in `finally`) — **no `setTimeout` or simulated latency anywhere.** One exported rule,
+`resolveTimetableRunsViewState`, fixes precedence: pending → populated → unavailable → empty. Pending
+announces a checking state; **settled-empty announces the empty string exactly once** (the duplicate "No
+runs to review" is gone); **rejected renders an honest unavailable state and never claims emptiness**; and
+both new props are **required, not defaulted** — QA proved omission is a hard `tsc` error, so a caller that
+cannot state the read state cannot render the pane. That is fail-closed.
+
+**#5 — drift banner legible at 390 px.** One class expression changed at the component boundary: the
+message span becomes `min-w-0 w-full basis-full break-words whitespace-normal sm:w-auto sm:flex-1`, so
+below `sm` it claims its own flex line and the band's existing `flex-wrap` moves the `shrink-0` actions onto
+later rows whole. From `sm` up the effective set is identical to the pre-change `flex-1`, so no larger
+viewport moves. **Every regeneration guard is byte-identical** — QA confirmed `SimpleDriftBanner.tsx` is a
+*single hunk*, so `handleRegenerate`'s early returns, `showRegenerateAction`, `regenerateDisabled` and
+`disabled={!generationEnabled}` are untouched, regeneration stays operator-triggered, and the impact
+**preview still issues no write**. No `overflow-*`/`sticky`/`fixed` introduced; §8 no-scroll intact.
+
+**A real tailwind trap, worth keeping:** `cn()` is `twMerge`, and an `sm:basis-auto` written *before*
+`sm:flex-1` is **silently deleted** (both set `flex-basis`). QA independently proved it by mutating both
+orderings. The shipped form is the merge-stable pair, plus a test asserting `sm:basis-auto` is absent so
+nobody reintroduces a class the merge eats. Also: the two existing test files were modified (required props
+became mandatory, so their fixtures pass them) — QA verified `test(` and `assert.` counts are **unchanged**
+with the T1–T8 and T7 `MUST_FIX_LABEL` mutant power intact, i.e. **purely mechanical, nothing weakened.**
+
+**⚠ Accepted residual, browser-only (QA finding 1) — record it rather than lose it:** `loading` is a
+**workspace-wide** flag, and `handleRunChange` raises it, so **selecting a run inside `/timetable/runs`
+transiently replaces the already-loaded list with the pending state**, whose copy reads "ATLAS is checking
+the generation runs for this school year…". No runs read is in flight at that moment and the list is
+already loaded, so the sentence is inaccurate. It makes **no emptiness claim**, so all three item-6
+requirements hold — this is copy/scope precision, not a false state. **The fix is a runs-read-specific
+signal rather than the shared flag.** Invisible to jsdom; it needs a real browser to see.
+
+**Still open:** **#2** shared lifecycle model (BLOCKING — still needs publication facts exposed past the
+`activeTermPublished` boolean), **#4 completion** (raw literals in `TimetableGridConflictBadge.tsx:90,156`,
+`simple/SimpleSessionDetails.tsx:107`, `TimetableGrid.tsx:460-461`), the unscoped-Rooms server residual, and
+the `boolParam` fail-open default fix. **Browser acceptance for #5/#6 is owed by the named owner above** —
+both legs are class-contract and jsdom assertions, never a layout measurement.
+
 - **The 12 pre-existing client failures are real debt, not noise** — `B4` (policy-pane allowlist drift),
   `tt-source-freshness-client-c04` "server allowlist must have 11 codes (got 12)", and the
   `timetable-simple-sync-setup` / export-trigger / `isPublicationBlockingCode` source-scan family. Several
