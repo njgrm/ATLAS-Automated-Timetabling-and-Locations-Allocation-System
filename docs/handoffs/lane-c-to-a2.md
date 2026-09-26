@@ -14,6 +14,55 @@ Operator rulings that bind both lanes (2026-09-26):
 
 ---
 
+## 2026-09-26 23:05 — Reproduced: Change room crash, Change owner wrong teacher, swap auto-fix ≠ preview (run 320)
+
+Evidence: `docs/reviews/timetable-manual-controls-20260926/findings.md` "round 2" (#1 repro, #3 repro, #20, #22).
+All three reproduced on a fresh draft, so they are not run-318 artefacts. **New specific:** the swap preview shows a
+green "Safe to review" and never mentions that the server may auto-move a session (`AUTO_FIX_MOVE_SOURCE` /
+`AUTO_FIX_MOVE_BLOCKING`). The toast then admits the move, and the warnings drop 159 → 69 while the visible grid is
+unchanged, and revert does not bring them back. **Fix rule (UX + function):** show the exact auto-fix move in the
+preview before commit, or do not auto-fix. A clear screen that says the wrong thing is the worst case for older
+users.
+
+**Operator rule, now binding on QA verdicts:** UX communication is graded as seriously as function: word count,
+visual status cues, less is more, no walls of text for older schedulers. Expect "dense / wall-of-text" findings
+from Lane C alongside the defects.
+
+## 2026-09-26 22:40 — BLOCKING: publishing takes the public schedule offline for the rest of the day; live state changed
+
+Evidence: `docs/reviews/timetable-manual-controls-20260926/findings.md` #12–#19. After Lane C published **run
+319** (14:23:48Z), `published?date=2026-09-26&termIndex=active` → **409 `PUBLISHED_REVISION_INVALID`**, while the
+same URL with `date=2026-09-27` or with no date → 200. The public page sends today's date, so parents see
+"Unable to load public schedule". Before the publish, the same URL returned 200. **Fix rule:** a date must resolve
+to the publication in force on it (fall back to the prior one), never to an error.
+
+Also: run 319 is not tagged Published in Runs (#14, HIGH); Schedule history does not show published revisions
+(#15); "Still unassigned 1295" in the generate dialog vs 0 after (#16); the drift banner survives regeneration
+(#17). **Correction:** a post-publish change path exists (More ▸ Swap sessions, dated). Only the dashboard's
+"Exceptions" wording is wrong (#18). A3 is **not** fixed: run 319 answers Term 2 only because it was published in
+Term 2 (#13).
+
+**Live state now:** run 319 **published**; one dated revision effective 2026-09-27 (GR7 - Luna Mon SCIENCE ↔
+MAPEH, reason "QA test swap - live browser QA verification"); run 320 is the current draft. Run 318 is kept, with
+its broken swap, for your diagnosis.
+
+**Updated order for you:** (1) the Swap-vs-preview and Revert pair; (2) the publish-day public outage;
+(3) the Change room crash; (4) public term (A3); (5) Runs "Published" tag; then the rest.
+
+## 2026-09-26 22:30 — BLOCKING ×2: Swap commits something other than its preview; Revert does nothing (A2: top priority)
+
+Evidence: `docs/reviews/timetable-manual-controls-20260926/findings.md` #8–#10. Committed in Chrome, confirmed by
+Codex. Swap Mon 07:30 MAPEH ↔ Wed 08:15 ESP (GR7 - Luna, Term 2, run 318): the preview said ESP → Mon 07:30; the
+commit (`AUTO_FIX_MOVE_BLOCKING`) put ESP at **Wed 12:15, after the section's day ends**, and left **Mon 07:30
+empty**. "Revert this edit" then logged "Undid an earlier change" but restored nothing. Terms 1 and 3 are intact, and
+only Term 2 diverges. Lead: `findAutoFixTarget` (`manual-edit.service.ts:2065`) has no term filter and no shift
+bound. **Order now: this pair and the Change room crash (entry below), then the public default term.** Rule for the
+fix: a commit must apply exactly what its preview showed, or refuse; an undo must restore the prior state or say it
+cannot.
+
+**Live-state notice:** Lane C is about to **Regenerate a new draft** (run 319+) and then **Publish** it, as part of
+the operator-authorised QA. Run 318 and its history stay available for your diagnosis.
+
 ## 2026-09-26 22:xx — Capacity threshold changed (operator): a release build may start
 
 `E:` now **warns below 25 GiB and fails closed below 15 GiB** (`AGENTS.md` §3, `6404c213`). At the recorded

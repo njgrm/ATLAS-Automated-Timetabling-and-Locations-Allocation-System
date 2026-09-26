@@ -32,3 +32,61 @@ crash was client-side, and a reload showed the draft unchanged. **Not covered:**
    commits on live with explicit approval per action. Commits touch real teachers' and the public's schedule.
 
 Cost (`subagent_tokens`): 190,509 (115 tool calls).
+
+## Committed actions, round 1 (live `0da104f9`, draft run 318, 2026-09-26 22:06–22:08 +08)
+
+The operator ruled live holds test data, so commits are authorised. Committed with Claude in Chrome, then
+**independently verified read-only by Codex CLI** in a separate browser. Only facts both runners agree on are
+recorded as confirmed.
+
+| # | Action | Finding | Severity |
+|---|---|---|---|
+| 8 | **Swap (class dialog), GR7 - Luna Term 2: Mon 07:30 MAPEH (I. GARCIA) ↔ Wed 08:15 ESP (J. Cruz)** | The preview promised "Class A moves to WEDNESDAY 8:15–9:00, Class B moves to MONDAY 7:30–8:15 · Safe to review · No blocking conflict". The commit toasted "Swap applied with blocking-session auto-fix relocation. / Sessions switched. ATLAS also relocated the blocking session." and did something else: MAPEH went to Wed 08:15, **but ESP was moved to Wed 12:15, after GR7 Luna's day ends**, and **Mon 07:30 was left empty**. GR7 Luna now has MAPEH at Wed 07:30 and 08:15. **What was committed is not what was previewed**, and a class is lost from Monday. Strategy `AUTO_FIX_MOVE_BLOCKING` (`useTimetableMutations.ts:1818-1822`). Lead: `findAutoFixTarget` (`manual-edit.service.ts:2065`) builds its occupied-slot set from every entry with no term filter, and did not keep the relocation inside the section's shift. | **BLOCKING** |
+| 9 | **Revert this edit (More ▸ Expert tools ▸ Schedule history)** | It toasts "Edit reverted." and logs "Undid an earlier change", but **Term 2 is not restored**, and it stays wrong after a reload. Terms 1 and 3 still show the original Mon MAPEH and Wed ESP; only Term 2 diverges. The undo that is supposed to rescue a scheduler from #8 does not work. | **BLOCKING** |
+| 10 | **Warning counts after the edit** | Header 194 before → 93 after, for a two-session swap. History records "warnings: 331" on the swap and "warnings: 0" on the undo. 331 may be the whole-year figure, but "0" after an undo that changed nothing is false. | MEDIUM |
+| 11 | **Move time, free slot** | Could not be tested: every GR7–GR10 section in Term 2 is fully booked, AM and PM shifts. | note |
+
+**Live state left behind:** draft run 318 Term 2 GR7 - Luna is as described in #8, and the app's own revert
+does not fix it. Lane C will regenerate a new draft for further QA rather than keep editing 318. Run 318 and its
+history stay available for diagnosis.
+
+Cost (`subagent_tokens`): Claude runner 163,514; Codex verifier 2.29 M input (95 % cached).
+
+## Generate, publish, change after publishing, new version (live `0da104f9`, 2026-09-26 22:18–22:36 +08)
+
+Claude in Chrome, with commits authorised. The public API was re-probed from the host with `curl` at 14:36Z.
+**Live state now: run 319 PUBLISHED (14:23:48Z); one dated revision (SCIENCE ↔ MAPEH, GR7 - Luna, Monday,
+effective 2026-09-27, reason "QA test swap - live browser QA verification"); run 320 is the current draft.**
+
+| # | Step | Finding | Severity |
+|---|---|---|---|
+| 12 | **Publish → public page** | Straight after publishing run 319, `/public/schedules` shows "Unable to load public schedule / The immutable publication revision is unavailable for the requested date." The page sends today's date. `curl`: `published?date=2026-09-26&termIndex=active` → **409 `PUBLISHED_REVISION_INVALID`** (also with termIndex 1 and 2). The same URL with `date=2026-09-27` or with **no date** → 200 (run 319). Two hours earlier, before this publish, `date=2026-09-26` returned 200. **Publishing takes the public schedule offline for the rest of the publish day**: parents and students get an error. It must fall back to the publication in force that day, or make the new one effective at once. | **BLOCKING** |
+| 13 | **Public default term after republishing** | With no date, run 319 now returns `termIndex: 2, activeTermVerified: true`. The earlier "Term 1" came from the old publication's **frozen** `activeTermOrder`, which confirms the diagnosis in handoff §10a. Republishing hid the symptom; the next term change will bring it back. **Do not close A3 on this.** | HIGH (unchanged) |
+| 14 | **Runs after publishing** | Run 319 is still tagged "Latest · Reviewing" after being published. No run in Runs is marked Published, so a scheduler cannot tell which run teachers see. | HIGH |
+| 15 | **Schedule history after a published change** | After "Published schedule has been revised (effective date: 2026-09-27)…", More ▸ Expert tools ▸ Schedule history still says "Nothing to show yet: no class has been moved, swapped or given a new room in this schedule." Revisions are invisible. | MEDIUM |
+| 16 | **Generate dialog numbers** | The pre-generation dialog says "Still unassigned 1295 sessions"; the finished run has 0 unassigned. The number shown before generating means nothing to a scheduler, or is wrong. | MEDIUM |
+| 17 | **Drift banner** | "Schedule information changed… Regenerate to apply" stays up, unchanged, after two successful generations (319, 320). | MEDIUM |
+| 18 | **Correction to #4** | A change-after-publishing path **does** exist: More ▸ "Swap sessions" on a published schedule asks for a start date and reason and creates a dated revision. The defect is narrower: the dashboard calls it "Exceptions", a name that exists nowhere in the UI. | MEDIUM (was HIGH) |
+| 19 | **Revision start date** | A plain date field (dd/mm/yyyy) accepted typed input as "272026" with no inline error. | LOW |
+
+**Worked well:** generate and publish dialogs state exact counts and say publishing is separate. Publish is
+gated behind acknowledging the warnings ("159 warnings must be acknowledged…"). Post-publish swap conflict checks
+were correct twice (a named teacher double-booked in another section), and a clean swap was allowed. The dated
+revision leaves today's schedule unchanged and says so. The dashboard stayed "Published" through the new draft.
+
+Cost (`subagent_tokens`): 216,395 (184 tool calls).
+
+## Committed actions, round 2 (draft run 320, 2026-09-26 ~23:00 +08)
+
+| # | Action | Finding | Severity |
+|---|---|---|---|
+| 1 (repro) | **Change room** | Crashed again on run 320: `TypeError: Cannot read properties of undefined (reading 'length')` at `ManualEditPanel-DjRgXRma.js:1:12213`. **Confirmed on two runs.** The More menu on this draft has no "Tools ▸ Manual edit" entry, so there is no working way to change a room from `/timetable`. | **BLOCKING** |
+| 3 (repro) | **Change owner** | From Mon 06:00 TLE (P. CRUZ) it opened `/teaching-load?facultyId=9&sectionId=141&subjectId=12&task=missing-load`, showing **AGUILAR, CARLO MIGUEL — FILIPINO**. **Confirmed on two classes.** The URL carries the right subject (12) but the page shows another teacher, and it offers no targeted owner-change step. | **HIGH** |
+| 20 | **Move onto an occupied slot → Swap (GR7 - Luna Mon 06:00 TLE ↔ Mon 10:00 FIL)** | The preview said "Safe to review · No blocking conflict" and did **not** mention an automatic move. The commit toasted "Sessions switched. ATLAS also moved the source session to the nearest valid slot." / "Source session auto-fixed to the nearest valid slot." (strategy `AUTO_FIX_MOVE_SOURCE`). Header warnings went 159 → 69, yet the GR7 - Luna Term 2 grid looked **unchanged**. After "Revert this edit" the warnings stayed at 69. **Second instance of #8:** the swap's hidden auto-fix changes something other than what the preview showed, and revert does not restore it. Where the change landed is being traced (Codex, read-only). | **BLOCKING** (same defect as #8) |
+| 21 | **Communication, session dialog** | 43 words, 7 buttons, labelled CLASS/TEACHER/ROOM/TIME fields with icons, no small text: **clear**. Cut: "Class summary. Each action below opens its usual review before anything is saved." (the layout already says it). | note |
+| 22 | **Communication, swap preview** | A/B cards, a before→after block and a green one-line "Safe to review" banner: visually **clear**, but the green banner is **misleading** whenever the server may auto-fix. A clear screen that is wrong is worse than a dense one. The preview must show the auto-fix move, or the commit must not make it. | HIGH (with #8/#20) |
+
+Unperformed in this round (budget): Teacher leaving to Save, and the communication grading of the readiness sheet, the
+Review-issues panel, the drift banner and the generate dialog. Re-dispatched as smaller runs.
+
+Cost (`subagent_tokens`): see the Lane C channel.
