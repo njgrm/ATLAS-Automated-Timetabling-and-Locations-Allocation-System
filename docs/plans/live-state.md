@@ -1012,12 +1012,59 @@ updates its own text**; this lane records the request, as the packet anticipated
   true *there*; it is modified in the deployed delta. I had said the claim was simply false — it was false only
   about the other range.
 
+**§8 CAP CYCLE COMPLETE — integrated as `2f86ffee` (2026-09-26). The cap is now a repo-wide invariant, and
+review surfaced a real latent product defect on the way.** QA returned `CORRECTION_REQUIRED` 16/17 with one
+BLOCKING finding; the correction is applied and pushed.
+
+- **`ManualEditPanel.tsx` 1012 → 933** by extracting the room/faculty option derivation into
+  `atlas-client/src/components/manual-edit/useManualEditOptionGroups.ts`, a sibling of the existing
+  `manual-edit-foundation.ts`. **A real move, not line deletion** — QA verified 89 lines moved byte-identically
+  apart from 4 intended `entry.subjectId` → `subjectId` edits, with comments 36 → 36 and every em dash and middle
+  dot conserved. Prop surface and the `SearchableSelect` `groups`/`value` wiring untouched.
+- **Guard B5 widened from a hardcoded list of ~20 to a filesystem walk of all 236 non-test `.tsx`** under
+  `atlas-client/src`, asserting `physical <= 1000` with an inventory assertion (`files.length > 200`) so a broken
+  walker cannot pass vacuously. **The off-by-one is corrected, not loosened:** the old `rawSplit <= 1000` enforced
+  999 physical lines — stricter than §8, which says "**above** 1000 physical lines" — and false-positived on
+  `TimetableGrid.tsx` at exactly 1000. The equivalent bound `rawSplit <= 1001` is now asserted, with the reason
+  in-file, while the binding `physical <= 1000` invariant stands independently for all 236 files. QA adjudicated
+  this **correct** and verified it independently.
+- **Suite 16 → 15 failures, 11 → 10 files**, compared **by failing test name, not count**: the delta is exactly
+  the renamed B5 row and every other name is character-identical. **Zero new failures.** `typecheck` remains
+  exactly the 4 pre-existing errors.
+- **The executor caught a conflict in my own packet** — I had demanded both "16 failures unchanged" and "B5
+  passes", which are mutually exclusive since B5 *was* one of the 16. It resolved toward the explicit requirement
+  and said why. My spec was wrong, not its judgement.
+- **QA built the render control rather than waiving it.** The executor had disclosed that no test renders
+  `ManualEditPanel` (it is `lazy()`-imported and untested), and correctly called that the §11 "prove the outcome,
+  not the wiring" gap. QA refused to waive it: a temp SSR probe rendered the real component base-vs-candidate to
+  a **byte-identical 27,990-byte DOM** (both `669CE1AE…`), plus a mechanical deep-equality of the derivation on a
+  fixture exercising building ordering, the non-teaching exclusion, `capacity: null`, the `null`-department and
+  inactive branches, tiers 1/2/null, and load accumulation. Residual stated: SSR covers the closed trigger, not
+  the open list — and no interactive logic was moved. **Standing lesson: a `lazy()`-imported panel with no render
+  test is not a waiver; build the control.**
+
+**LATENT PRODUCT DEFECT, now owned and dated (found by the above review, PRE-EXISTING, not introduced here):**
+the new module computed a room option's `disabled: !isCompatible` and a `subLabel` naming the features it lacks —
+but `src/ui/searchable-select.tsx` has **zero** occurrences of `subLabel`, `disabled` or `tier`, its `items` type is
+`{ value: string; label: string }`, and it renders only the label. **So an officer can select a feature-incompatible
+room and gets no warning.** The fields are the intended contract for that guard; wiring `SearchableSelect` to
+honour them is separate work. It was nearly documented *as if* it worked — the BLOCKING finding was the new
+comment asserting a protection that does not exist, now corrected to state the gap. Two related debts: those
+fields are dead on every render path and do not narrow the declared type, so `typecheck` cannot see the mismatch.
+
+**Scope decision owed (planner, recorded):** B5 covers `.tsx` only, per §8's literal "React component file" — a
+defensible reading, and the new hook is 159 lines. Five non-test `.ts` modules exceed 1000 physical lines and are
+untouched: `types.ts` 2473, `useScheduleReviewWorkspaceState.ts` 2138, `useTimetableData.ts` 2008,
+`useTimetableMutations.ts` 1943, and **`lib/faculty-assignment-helpers.ts` 1234** — the last was missed by the
+executor's disclosure and caught only by QA's own sweep. Successor work scoped from that list must not omit it.
+
 **Next action (2026-09-26): the release is live; acceptance needs one operator action.** (1) **operator
 re-seeds** `C:\Users\njgro\.config\opencode\playwright-profile`; (2) **Lane A** runs A5, A6, A7, A12(b) and records
 the result, closing acceptance; (3) **rotate the exposed dev DB credential**; (4) retention reclaim before the
-next release build (E: 47.19 GiB, below the 50 GiB warning); (5) the `4893cbde` + three-leftover decision
-(1.91 GiB) and the 8.72 GiB disposition backlog owned by Lanes B and C. **Rollback basis `116a7658` is verified
-eligible and was not executed.**
+next release build (E: 46.6 GiB, below the 50 GiB warning); (5) the `4893cbde` + three-leftover decision
+(1.91 GiB) and the 8.72 GiB disposition backlog owned by Lanes B and C; (6) decide whether the `SearchableSelect`
+incompatibility guard and the five oversized `.ts` modules are worth a successor lane. **Rollback basis
+`116a7658` is verified eligible and was not executed.**
 
 **SUPERSEDED 2026-09-26 — a spliced paragraph this lane's own editing left behind, repaired.** The four lines
 immediately below were an orphaned fragment, and the sentence they belonged to was cut in half. They are
