@@ -1990,323 +1990,61 @@ scheduled. This entry exists so the next reclaim does not have to re-derive the 
 
 Do not write in Lane B/C worktrees.
 
-## Lane A2 — current lane (written only by Planner A2)
+## Lane A2 - current lane (written only by Planner A2)
 
-Timetable custody transferred from Lane A by operator instruction, 2026-09-26. Lane A retains the exposed
-dev DB credential, capacity/reclaim policy, and the cross-lane disposition backlog. **A2 owns:** the
-timetable surface and its packets, the client-delta release, the acceptance rows, the manual-edit
-constraint-severity investigation, and the §7 term guard. Worktree
-`E:\ATLAS-worktrees\lane-a2-timetable-custody` (`work/a2-timetable-custody`), `KEEP_ACTIVE` as the current
-lane record. A2 must not paste or echo the credential value, and must not run a history purge.
+Timetable custody (operator, 2026-09-26). A2 owns the timetable surface, its packets, the client-delta release,
+the acceptance rows and the section 7 term guard. Worktree `E:\ATLAS-worktrees\lane-a2-timetable-custody`
+(`work/a2-timetable-custody`), `KEEP_ACTIVE`. Never paste the credential value; never run a history purge.
+Cycle narrative and per-candidate evidence: `docs/handoffs/planner-a2-handoff-2026-09-26.md`.
 
-**Verified at custody start (2026-09-26, by command — not inherited):**
-- Live release **`26f7c907`** from the **scheduled-task action** (`schtasks /query /tn
-  ATLAS-Runtime-Supervisor /fo LIST /v` → `…-26f7c907-20260926\ops\runtime\cli.mjs start`, Running, Last Run
-  13:09:14); health 200, `/health/ready` 200 `database:"ok"`, 5174 200, DB-backed subjects 200. Rollback
-  basis `116a7658`, never executed.
-- `origin/main` **`a1dcfc34`** — **50 commits ahead of live**; `26f7c907` IS an ancestor of main (exit 0),
-  main is NOT an ancestor of live (exit 1). Two accepted cycles still not live: `2f86ffee`, `9b1ec14a`.
-- C: 46.47 GiB (20.6%), E: 54.11 GiB — above the 50 GiB warning, **no reclaim owed**.
+**BLOCKING, HIGH, open as of 2026-09-26 - A3 / #3a-3b: the public schedule asserts the wrong term as verified.**
+Live read, no query string: `GET /api/v1/schools/1/schedules/published?date=2026-09-26&termIndex=active` returns
+200 with `source {"termIndex":1,"termScope":"active","activeTermVerified":true}` while the signed-in surfaces show
+**Term 2** active. A **server** fault at `atlas-server/src/services/published-schedule.service.ts:758-773` - a
+frozen run resolves `active` from the publication-time `activeTermOrder` - and it **breaks the section 7
+fail-closed rule** by asserting a term identity as verified when it is not the current one. Not a display label.
+The earlier "the server was already correct" negative diagnosis is **withdrawn** on this evidence. The fix must
+resolve the current verified active term or fail closed, and must never report `activeTermVerified:true` for a
+historical term.
 
-**THE HEADLINE FINDING IN MY INITIATION BRIEF IS FALSE — withdrawn; both prescribed remedies would have
-caused harm.** The brief's finding 1 claims the J2/J2J3 reconciliation left three dead `{label, next}`
-exports (0 call sites) against three bare-label ones (1 each), so a scheduler sees "Waiting for a decision"
-with no explanation of what happens next. Measured at `a1dcfc34`: **all six exports have exactly one live
-production call site each**; `roomRequestAppealState` and `generationRunStateLabel` return **`string`**, not
-`{label, next}`, so they never carried a `next` to lose; and `RightPanel.tsx:326` still renders
-`requestDecision.next`. The three `plain*` functions are **not** a competing second label set — each
-delegates to the ONE `plainRuleValue` helper over the **same** canonical map, adding the absent-vs-unknown
-distinction the reconciliation existed to fix. The choice is documented in-code at
-`timetable-plain-language.ts:283-312`, which names the rejected alternative: *"two label sets for one status
-is the exact 'one HARD problem has four names' defect J1 was written to remove"*. Gates green:
-`test:plain-language-j2j3-c01` **18/18**, `test:plain-tokens-c04` **30/30**, both registered scripts.
-Full evidence, every command, plus an independent check that the three `next` sentences are true against
-`room-preference.service.ts`: `docs/reviews/a2-custody-verification-20260926/plain-language-accessor-verdict.md`.
-**Deleting the "dead" exports would have removed the only rendered `next` sentence and broken a gate;
-"wiring the richer accessors back up" would have reintroduced both the absent/unknown conflation and the
-two-label-sets defect.** Correct action taken: record it intact and close the item.
+**Live `0da104f9` acceptance is INCOMPLETE on that row alone** (Lane C, 2026-09-26, Claude in Chrome):
+5 PASS / 1 FAIL / 1 BLOCKED. PASS: sign-in persists, `/my` retired, public term switch keeps a valid section, Runs
+settled states, 0 console errors. BLOCKED: the 390 px drift leg (runner viewport floor 1280 px; `5f09a133` is not
+in this release). FAIL: A3.
 
-**Open items (dated 2026-09-26, in priority order):**
+**Queue - one candidate at a time, fresh independent QA before each integration:**
+1. **A3 fix** (server; MEDIUM source, HIGH live correctness) - above. Unblocks 2.
+2. **Shared lifecycle model** (client, MEDIUM) - `ea5e12b0`'s `atlas-client/src/lib/schedule-lifecycle.ts` (13
+   exports) is imported by **nothing but its own test**; its commit says "Deliberately NOT wired yet".
+   `/timetable` states neither draft nor published, and an unpublished draft prints nothing. Expose run /
+   revision / publishedAt / termIndex / termVerified **first**, then wire - **do not half-wire**; a model written
+   while two surfaces name different current terms relocates the defect. Surfaces: dashboard, timetable, public.
+   **Blocked on 1.**
+3. **One label per violation code** (client, MEDIUM) - Review issues and Publish Readiness disagree ("Long
+   teaching block" / "Too many consecutive periods", "Long idle gap" / "Long teacher idle gap", "Too many building
+   changes" / "Too many building transitions"). `9b1ec14a` checks each code *has* a label, not that it has
+   *exactly one*; extend it, clear the remaining raw `Must fix` literals (`TimetableGridConflictBadge.tsx:90,156`,
+   `simple/SimpleSessionDetails.tsx:107`, `TimetableGrid.tsx:460-461`), re-run `test:plain-tokens-c04` T7.
+4. **More menu regroup** (client, MEDIUM) - six groups interleave everyday work with expert/data tools. Regroup
+   only; nothing removed without a reachable replacement.
+5. **Release packet** (HIGH) - only after 1-3; must include `5f09a133` and must **enumerate the actual range**.
+   Blocked on the capacity decision below.
 
-0. **LIVE BLOCKING §7 defect — Room Schedules merged all three terms and invented hard conflicts.
-   CANDIDATE `400a6909` (base `41a2f0f8`), awaiting integration; NOT deployed.** Source: Lane C's accepted
-   browser QA (`7886a910`). G7 Room 103 reported **10 conflicts**; the inspector showed three APs and three
-   Math in one Monday slot linked to T1/T2/T3. **What I found by source map:** the rooms tab's server side was
-   already complete and §7-compliant — `room-schedule.router.ts:59-69` accepts `termIndex` including the
-   literal `active`, and `room-schedule.service.ts:234-239` filters fail-closed with a 501. **The client simply
-   never sent it** (`RoomSchedules.tsx:227-228`). Teachers/Sections were the larger half: they load the whole
-   draft and pivoted client-side (`pivotDraftToView`) with no term parameter at all, and the pivot also mapped
-   a missing term to **Term 1**. Now fixed across all four client consumers, and the pivot delegates to the
-   ONE existing authority `matchesTermScope` rather than a second equality predicate.
-   **Independent QA `CORRECTION_REQUIRED` 13/18, 2 blocking — both real, both fixed in `400a6909`:**
-   (a) an unverified term made the campus surfaces assert **"No timetable yet / build Teaching Load first"**,
-   which is false — I had removed one falsehood and introduced another; (b) the refusal message sent the
-   operator to EnrollPro when the missing authority is ATLAS's own persisted term cache.
-   **Two QA findings I did NOT accept, with reasons:** F8 was a false positive (the campus files are column-0
-   throughout, so my lines match; the two `RoomSchedules` lines cited are pre-existing and correctly indented).
-   F3 is not reachable — measured read-only: **13,800 draft entries across all 6 runs, 0 missing `termIndex`,
-   distribution exactly 1:4600 / 2:4600 / 3:4600, `termIndex === 0` count 0**; and excluding an unscoped entry
-   from a selected-term view is the *existing* authority (`matchesTermScope`), not a defect. Recorded as a dated
-   residual only because occupancy accounting treats unscoped as overlapping every term, which is a different
-   question from display.
-   **Live-cache residual, now closed by measurement:** `enrollpro_school_year_mirrors` id 551 (SY 2031-2032,
-   active) holds a **populated 778-byte `term_contract_cache`** naming T1/T2/T3, so the verified path is the one
-   the demo takes. It names `activeTerm` T1 while the walk saw T2 live — the already-recorded stale-cache
-   condition of the live-first resolution, not introduced here.
-   Gates: new suite **8/8**, guard **4/4**, client suite **1101 / 1089 / 12 fail across 8 files** (base 13/9, so
-   one *better*; zero candidate-only failures by name), typecheck clean bar the 4 known `playwright` errors,
-   build passes, all files under the §8 cap. **Browser acceptance UNPERFORMED and owed from Lane C** — it is
-   the only harness that can decide "default opens the active term, T1/T2/T3 switching updates the grid, never
-   a merged weekly schedule". Not deployed; not in `origin/main` yet.
-1. **Lifecycle model — handoff candidate 2. DIAGNOSIS CONFIRMED live; the fix is BLOCKED UPSTREAM on a
-   term-authority contradiction the handoff did not record.** One authenticated Tailnet session, deployed
-   `26f7c907`, page reads only:
-   - `/` Dashboard: **"Schedule published"** · **"Published schedule is live"**
-   - `/timetable`: **"Draft"**
-   - `/my`: bare **"Live"** *and* "draft ready" *and* "Draft schedules may still change." · **Term: T2**
-   - `/public/schedules`: **"PUBLISHED TIMETABLE"** · **"Live publish"** · **TERM 1**
-   Facts: runs 314–318 all COMPLETED in year 10; mirror 551 active with a populated cache naming
-   `activeTerm` T1. So this is exactly the contested state — **317 published (rev 43) + 318 a newer draft** —
-   and every surface shows one half while naming neither. `/my`'s unattributed bare "Live" is the handoff's
-   "do not infer Live from the existence of a row", reproduced.
-   **NEW, and it blocks the work: the surfaces disagree on which term is current.** `/my` says **T2** (the
-   live-resolved value), the public page says **TERM 1** (the stale persisted value). The handoff requires
-   the shared model to state "the published schedule and **the term it represents**", which is not writable
-   while two surfaces name different current terms — a model would just relocate the defect. **Sequencing
-   decision owed by the operator: close the term-authority disagreement first, or land the independent half
-   (draft rows not labelled Live) first for visible progress.** Full evidence, the five required states
-   (`UNVERIFIED` included), and what this does *not* establish:
-   `docs/reviews/a2-custody-verification-20260926/lifecycle-contradiction-diagnosis.md`.
-2. **R2 the withdrawn client-delta packet** `docs/prompts/deploy-5152bff0-client-delta-2026-09-26.md` —   `CORRECTION_REQUIRED` 6/13, **must not execute**. B1 is the serious one: the packet **never builds
-   `atlas-server/dist/server.js`**, so a literal run would serve 5174 with **no 5001** after cutover. Also a
-   stale target pin, a false A11 expected value, and a wrong authority citation (`252-255`, not `219-222`).
-   A client-only *delta* is not a client-only *build*.
-2. **Acceptance still 9/13, NOT closed** — A6 and A12(b) unperformed (A7 passes with EnrollPro-502
-   attribution; A5 partial). A browser session exists again.
-3. **Land the J2J3 integration record** — `c9c51307`/`16468f85`, on the local-only, never-pushed
-   `integration/plain-language-j2j3-c01-20260726`. It carries the `27713608...98289573` verdict
-   `ACCEPT_READY` 24/24 by tally, which partially discharges the owed written QA capsule. Its
-   `live-state.md` portion is **another lane's section** and is superseded by `de392cf8` (already on main) —
-   do **not** land that part.
-4. **Manual-edit constraint severity — the three gating questions are ANSWERED (2026-09-26, A2, on operator
-   delegation).** Decision + verified evidence: `docs/reviews/a2-custody-verification-20260926/manual-edit-constraint-severity-decision.md`.
-   **Q1 yes** — a server-derived solver trial may forgive a room-feature shortfall, because re-hardening it
-   was probe-proven to turn a working Quick Place commit into `422`, and a school that owns no fume hood
-   must still be able to seat a class; **but only server-owned, only with a recorded reason, and only if the
-   operator is told in words.** **Q2 yes** — the modular-pool exemption is sound in concept; keep it,
-   document it, own it. **Q3 no** — the Teaching Load repair path may not carry client metadata. The
-   load-bearing finding: `constraint-validator.ts:836-838` softens the **type** check from any *recorded
-   reason* **or** the boolean, while `:869` softens the **feature** check from the boolean **alone** — so an
-   enumerated server reason naming `PREFERRED_ROOM_UNUSABLE_NO_REQUIRED_FEATURES` is treated as *less*
-   trustworthy than a client-writable boolean. **That inversion is the defect in one sentence.** Free
-   simplification: `schedule-constructor.ts:3072` is redundant (`:869` already honours the modular-pool
-   marker alone), and the blanket auto-defer at `manual-edit.service.ts:1478-1487` can simply be deleted —
-   no legitimate flow depends on it. `manual_schedule_edits` is **0 rows**, so **no data repair**. Still
-   owed: a packet, an independent pre-action review, one executor, fresh post-action QA. **Not started.**
-5. **§7 term guard owed and unguarded** — no test covers the `C2-term.1`/`C2-term.2` clause in
-   `generation-blockers-c02.test.tsx`.
-6. **Register hygiene: this file is 1521 lines**, far past the §15 limit, and it is the first file every lane
-   reads. A2 has added a section rather than made it worse; the shared `Live release` block alone is ~185
-   lines of superseded releases. Pruning another lane's section needs that lane's word or the operator's.
+**Open, dated 2026-09-26, from `docs/reviews/timetable-control-inventory-2026-09-26.md` (296 rows, on `main`):**
+`MISLABELLED` 9 - the grid entry's accessible name says "Schedule note" where every visible surface says warning;
+`Run #<id> COMPLETED` prints a raw enum; the `G1AW` room suffix is defined nowhere; and four user-visible strings
+in `SchedulingPolicyPane.tsx` carry committed `U+FFFD` characters (`:548,555,712,724,851` - valid UTF-8, damaged
+glyphs, the only such file in `atlas-client/src`). `DUPLICATE` 3 - the Advanced layout mounts **two** Undo
+controls sharing one `aria-label` *and* one `data-testid="timetable-visible-undo"`, so any future `getByTestId` on
+it fails on multiple matches and nothing today detects it. `DEAD` 1 - `Header and signatories` renders when the
+print dialog is opened by URL while its target mounts only with a generated run. `UNMOUNTED` 5 - components no
+page mounts. `UNTESTED` 149, including **all** of `ManualEditPanel`, `BuildingView`, `TacticalSandboxDock` and the
+policy field set. Also new: **every room on `/timetable/building` renders "0%"** because
+`CenterWorkspace.tsx:651-660` passes no `roomUtilization` while `BuildingView.tsx:439` prints it unconditionally.
 
-**Next action (2026-09-26):** item 0 is implemented and independently reviewed; it needs **integration plus
-Lane C's browser acceptance** before it is worth deploying, because the browser rows are the only harness
-that can decide the merge is actually gone. Then take the handoff's candidates in order: **(2)** one shared
-lifecycle model across dashboard / timetable / `/my` / public (BLOCKING, and the one that makes a reviewing
-draft read as Live), **(3)** public term resolver diagnosis + retain a valid section, **(4)** 390 px drift
-banner, **(5)** Runs loading vs empty. Item 1 (R2 the packet) stays blocked behind its re-review either way.
+**Operator decisions, not mine to take:** Undo/Redo in the Simple layout; lunch-window and 180-minute blocks as
+warning or blocking; constraint severity D1-D3; **how to free E: capacity** - `E:` 49.80 GiB, below the section 3
+50 GiB warning, no reclaim candidate outside the keep set, so a release build needs this decision first.
 
-### Fail-open default audit (2026-09-26, A2) — the `!== false` / absent-is-false class
-
-The handoff flagged that `settings.ts:597` defaulted `verifyUpstream = false`, `runtime.router.ts:204`
-treated an absent param as false, and `runtime-context.service.ts:375` uses `options?.verifyUpstream !==
-false` (intending true) — the route silently overrode the service. That cost a live fail-closed page.
-**The `e4989b72` fix was client-side only** (four surfaces now pass `verifyUpstream: true`), so the route
-default is **still fail-open**. Audited the class across the server:
-
-1. **LIVE, UNFIXED, same class — `atlas-server/src/routes/runtime.router.ts:204`.**
-   `req.query.verifyUpstream === 'true' || === '1'` ⇒ **absent means unverified**, which contradicts
-   `runtime-context.service.ts:375`'s `!== false` (absent means verify). Any caller that omits the param
-   still gets unverified context. **Not fixed here, deliberately:** flipping the route default to
-   fail-closed aligns it with the service's intent, but it adds a network read per request for every
-   caller that does not pass the flag, on a **live** endpoint. That is a behaviour change to production
-   wiring and wants its own reviewed packet plus a deploy, not a drive-by. This is the same shape as the
-   accepted Rooms residual, one layer up.
-2. **ROOT CAUSE — the route layer mixes both boolean conventions with nothing announcing which.**
-   Absent-means-**false**: `runtime.router.ts:204`, `runtime.router.ts:228` (`includeCounts`),
-   `generation.router.ts:171` (`enforceShiftWindows`), `faculty.router.ts:121`, `subject.router.ts:227-229`.
-   Absent-means-**true**: `subject.router.ts:40-41` (`includeSte`/`includeSpa`),
-   `pre-generation-draft.router.ts:45`. **`subject.router.ts` uses both, in the same file**
-   (`:40-41` vs `:227-229`), so a caller cannot infer the convention from context. A one-line
-   normalisation at the route boundary (or a shared `boolParam` helper that states its absent-default)
-   retires the class rather than this instance.
-3. **VERIFIED SAFE — a control, not a defect.** `section.service.ts:330-331` relies on the service
-   default (`allowExternalSync`/`verifyRuntimeUpstream` `!== false`) and its call at `:340` omits the
-   options object entirely, so it *does* verify. That call is a provenance-labelling read, not a term
-   authority gate, so an unverified result there is reported, not silently trusted.
-
-**Sequencing note:** finding 2 is the cheap systemic fix and finding 1 is the sharp instance. Doing 2
-first would have made 1 structurally impossible to reintroduce — the same "sequence the dependency
-first" lesson that produced the earlier Rooms outage.
-
-### `/my` faculty portal RETIRED in source — integrated `d902c69a`, NOT deployed (2026-09-26, A2)
-
-Operator instruction 2026-09-26: `/my` is being retired, must be **unreachable**, implementation
-commented out until further notice. Candidate `5680c87a` (base `c2f704ea`, 7 client paths), executor
-`ses_f22d66467ffey2lj4DrZOnXGef`, fresh independent QA `ses_f22cb25f6ffeCmO6qvRmWHB01q`
-**`ACCEPT_READY` 14/14/0/0**. Integrated by merge `d902c69a` on `origin/main` `0007cc17`; all four
-production blobs byte-identical to the reviewed candidate. Merged-tree gates: `test:retired-faculty-portal`
-**5/5**, `test:scheduler-concern` **26/26**, `test:timetable-ux-rehaul` **35/35**, full `test:client-suite`
-**fail 12 — the identical 12 baseline names, zero added and zero removed, compared by name**. Client-only:
-zero `atlas-server/`, `prisma/`, migration, seed or ops path.
-
-**The trap that shaped it — `/my` is the ONLY faculty-portal route**, and five places resolve faculty
-to it (`Login.tsx:89,132,161`, `AppShell.tsx:368,405`, `FacultyMobileBottomNav`, `auth.ts` FACULTY_PORTAL_ROUTES).
-Deleting the route registration would have 404'd every faculty login, and redirecting faculty to `/` would
-have dropped the whole faculty role onto the **operator** setup Dashboard. So the house retirement pattern
-(`RetiredRequirementsRedirect`, `App.tsx:35-43`) was followed instead: the route **stays declared** and its
-element is swapped to a tombstone that mounts nothing and fetches nothing — so `/my` is unreachable, no
-`/faculty-portal/*/dashboard` request is issued, and no login breaks. `pages/MyDashboard.tsx` is untouched on
-disk (blob `442273c9…` at both revisions), so the retirement is reversible. `MyDashboard` is no longer
-imported, lazily imported, or mounted.
-
-**Evidence discipline worth recording:** the executor changed one existing assertion in
-`scheduler-concern-s2.test.ts` and called it non-blocking. QA was tasked specifically to judge that claim
-rather than accept it, and confirmed it **additive** — 19 tests unchanged, assertions 60 → **62**, the old
-`path: 'my'` constraint retained and two *negative* controls added. `/my` was also **kept** in
-`ux-r01-shared-chrome`'s route list (untouched file) rather than deleted to make a test pass, and the
-tombstone was made to satisfy that contract instead. Failing-first was reproduced independently by QA's own
-mutation (fail 3/5), restored byte-exactly.
-
-**DEPLOYED as part of `0da104f9` on 2026-09-26 19:55 +08**, so `/my` is now genuinely unreachable for
-faculty in the running application. The remaining obligation is a **browser** row, owned by the
-seeded-profile browser agent (Codex `atlas_browser_qa`): confirm the tombstone renders on a real browser,
-the page issues **zero** `/faculty-portal/*/dashboard` requests, `/my` lands faculty on the tombstone
-rather than the operator `Dashboard` or an unmatched URL, and the AppShell guard does not redirect-loop.
-
-Two open items for the operator, both NON_BLOCKING and neither blocking the retirement:
-1. **Where faculty land long-term is still undecided.** They currently land on a truthful tombstone that
-   mounts nothing. That satisfies "not reachable", but it is a placeholder, not a destination — the faculty
-   role currently has no real home in ATLAS.
-2. **The left-rail label is now stale.** `navigation.ts:56` still reads `My Dashboard` with a dashboard icon
-   while the page and breadcrumb leaf read `Faculty Portal Retired`. Left alone to avoid unrequested copy
-   scope; one-line fix on request.
-
-### Packet 1 CLOSED — integrated `0da104f9` and **DEPLOYED LIVE 2026-09-26 19:55 +08** (2026-09-26, A2)
-
-Closes browser-QA-handoff items **#4 (one name for a blocking problem)** and **#3c (public term/section
-retention)**. Candidate `b6db07b3` (base `2a001b6e`, 8 client paths), executor `ses_f22b00a36ffe5JSYN3JJ8MHIna`
-(after a first dispatch correctly stopped on a prior session's dirty residual), fresh independent QA
-`ses_f22a6ec0cffeV1de6Pii1SfBaY` **`ACCEPT_READY` 14/14/0/0**. Integrated by merge `0da104f9` on
-`origin/main` `607e03f1`; **all 8 blobs byte-identical to the reviewed candidate**. Merged-tree gates:
-`test:plain-language-j2j3-c01` **18/18** (J1–J5 + T1–T8), `test:plain-tokens-c04` **30/30** (P1),
-`test:ux-guardrails` **31/31**, full `test:client-suite` **fail 12 — the identical 12 baseline names, zero
-added**, compared by name. Client-only: zero server/prisma/migration/seed/ops paths.
-
-**Item 3a/3b closed as a NEGATIVE DIAGNOSIS, independently re-verified by QA: the server was already
-correct.** `published-schedule.router.ts:44-51,54,67` maps a missing `termIndex` to `'active'` and never to
-`1`; `published-schedule.service.ts:774-783` resolves `'active'` solely from the verified ordered-term
-contract and **throws** 409 (`TERM_STRUCTURE_UNAVAILABLE` / `TERM_SELECTION_REQUIRED`) rather than
-defaulting. Grep for `?? 1` / `|| 1` / fallback-to-Term-1 across that path: **zero hits**; `service.ts:831`
-even carries the comment "`null` (never coerced to Term 1)". So the walk's "TERM 1" was **display-side** —
-the prime suspect is `academic-term.ts:50-52` `academicTermFallbackLabel` → `T1` when a term's
-`displayLabel` is blank (used by `RoomSchedules.tsx:128,133`). **No server change was made or needed.**
-
-**Wording decision I made (the residual's defect):** `mustFixCountLabel(2)` returns `"2 Must fix"`, which
-made the sentence *"2 Must fix still need fixing…"* — ungrammatical, because `MUST_FIX_LABEL` is a label,
-not a countable noun. Added `MUST_FIX_PROBLEM_NOUN` **derived from `MUST_FIX_LABEL`** (never a second
-literal) so the sentences read "2 Must fix problems still need fixing…" / "1 Must fix problem still needs
-fixing…". `MUST_FIX_LABEL` and `mustFixCountLabel` are **byte-unchanged**, preserving the sanctioned
-PL-J1.2 chip form "N Must fix".
-
-**Evidence discipline:** the residual had silently INVERTED 4 `doesNotMatch(/Must fix/)` retired-word
-guards into an unsatisfiable claim; the executor restored them byte-identical to base, and QA proved them
-load-bearing by its own failing-first mutations (all 4 fire). The 5 removed `hardCountIn(...)` calls were
-replaced by a **field-identity** check (`totalHardBlockers === runWideBlockingHard`, falsifiable because
-`totalHardBlockers = Math.max(selectedTermBlockingHard, runWideBlockingHard)`), with detection of a wrong
-rendered count delegated to the adjacent exact-string `blockerSentence` equality. QA verified nothing
-detectable before is now undetectable. **Net assertions 249 → 249, tests 44 → 44.** A self-parsing test
-helper (`/(\d+) Must fix/`) was removed — a test must not parse its own subject's phrasing.
-
-**STILL OPEN, carried forward honestly:**
-- **Item 4 is PARTIAL at repo scope, not complete.** Pre-existing raw `'Must fix'` literals remain in three
-  files outside this range: `TimetableGridConflictBadge.tsx:90,156`, `simple/SimpleSessionDetails.tsx:107`,
-  `TimetableGrid.tsx:460-461`. Not a regression (`test:plain-tokens-c04` T7 passes), but do **not** record
-  "one name across the timetable" as done. Any extension of the enum-stripping rename must re-run T7.
-- **Retired-word backlog, deliberately a separate packet:** `Dashboard.tsx:330,368`,
-  `timetable-capabilities.ts:202`, `ux-quickfix-c01-header-actions.test.ts:255-281`.
-### Packet 2 CLOSED — browser-QA items #5 and #6, integrated `e8e2141f`, NOT deployed (2026-09-26, A2)
-
-Candidate `5f09a133` (base `d6e359b9`, 9 client paths), executor `ses_f22676d00ffejnxtcJmrKqjyUW` (hit its
-step limit *after* committing and verifying — the deliverable was complete), fresh independent QA
-`ses_f2250908affeokqUeuMxF4SGsF` **`ACCEPT_READY` 15/15/0/0**. Integrated on `origin/main` `6f75e90a`;
-**all 9 blobs byte-identical to the reviewed candidate.** Merged-tree gates: `test:a2-timetable-custody`
-**14/14**, `test:plain-language-j2j3-c01` **18/18**, `test:plain-tokens-c04` **30/30**, `test:ux-guardrails`
-**31/31**, `test:timetable-ux-rehaul` **35/35**, full `test:client-suite` **1129 tests / fail 12 — the
-identical 12 baseline names, zero added**. Client-only.
-
-**#6 — Runs no longer claim "none" while loading.** `TimetableRunsPane.tsx` drove both the header sentence
-and the empty body off `runs.length === 0` with **no pending input**, so an unfetched `[]` announced "No
-generation runs yet" and rendered "No runs to review", then silently became five real runs. The **real**
-data-layer signal is now threaded (`useScheduleReviewWorkspaceState`'s `loading`/`error`, written by
-`useTimetableData.loadAll` at `setLoading(true); setError(null)` → dispatch → `setError` in catch → lowered
-in `finally`) — **no `setTimeout` or simulated latency anywhere.** One exported rule,
-`resolveTimetableRunsViewState`, fixes precedence: pending → populated → unavailable → empty. Pending
-announces a checking state; **settled-empty announces the empty string exactly once** (the duplicate "No
-runs to review" is gone); **rejected renders an honest unavailable state and never claims emptiness**; and
-both new props are **required, not defaulted** — QA proved omission is a hard `tsc` error, so a caller that
-cannot state the read state cannot render the pane. That is fail-closed.
-
-**#5 — drift banner legible at 390 px.** One class expression changed at the component boundary: the
-message span becomes `min-w-0 w-full basis-full break-words whitespace-normal sm:w-auto sm:flex-1`, so
-below `sm` it claims its own flex line and the band's existing `flex-wrap` moves the `shrink-0` actions onto
-later rows whole. From `sm` up the effective set is identical to the pre-change `flex-1`, so no larger
-viewport moves. **Every regeneration guard is byte-identical** — QA confirmed `SimpleDriftBanner.tsx` is a
-*single hunk*, so `handleRegenerate`'s early returns, `showRegenerateAction`, `regenerateDisabled` and
-`disabled={!generationEnabled}` are untouched, regeneration stays operator-triggered, and the impact
-**preview still issues no write**. No `overflow-*`/`sticky`/`fixed` introduced; §8 no-scroll intact.
-
-**A real tailwind trap, worth keeping:** `cn()` is `twMerge`, and an `sm:basis-auto` written *before*
-`sm:flex-1` is **silently deleted** (both set `flex-basis`). QA independently proved it by mutating both
-orderings. The shipped form is the merge-stable pair, plus a test asserting `sm:basis-auto` is absent so
-nobody reintroduces a class the merge eats. Also: the two existing test files were modified (required props
-became mandatory, so their fixtures pass them) — QA verified `test(` and `assert.` counts are **unchanged**
-with the T1–T8 and T7 `MUST_FIX_LABEL` mutant power intact, i.e. **purely mechanical, nothing weakened.**
-
-**⚠ Accepted residual, browser-only (QA finding 1) — record it rather than lose it:** `loading` is a
-**workspace-wide** flag, and `handleRunChange` raises it, so **selecting a run inside `/timetable/runs`
-transiently replaces the already-loaded list with the pending state**, whose copy reads "ATLAS is checking
-the generation runs for this school year…". No runs read is in flight at that moment and the list is
-already loaded, so the sentence is inaccurate. It makes **no emptiness claim**, so all three item-6
-requirements hold — this is copy/scope precision, not a false state. **The fix is a runs-read-specific
-signal rather than the shared flag.** Invisible to jsdom; it needs a real browser to see.
-
-**Still open:** **#2** shared lifecycle model (BLOCKING — still needs publication facts exposed past the
-`activeTermPublished` boolean), **#4 completion** (raw literals in `TimetableGridConflictBadge.tsx:90,156`,
-`simple/SimpleSessionDetails.tsx:107`, `TimetableGrid.tsx:460-461`), the unscoped-Rooms server residual, and
-the `boolParam` fail-open default fix. **Browser acceptance for #5/#6 is owed by the named owner above** —
-both legs are class-contract and jsdom assertions, never a layout measurement.
-
-- **The 12 pre-existing client failures are real debt, not noise** — `B4` (policy-pane allowlist drift),
-  `tt-source-freshness-client-c04` "server allowlist must have 11 codes (got 12)", and the
-  `timetable-simple-sync-setup` / export-trigger / `isPublicationBlockingCode` source-scan family. Several
-  are authority guards currently failing. This candidate did **not** clear them.
-
-### Deploy state — HIGH authority held, NOT executed (2026-09-26, A2)
-
-Operator granted HIGH deploy authority this session, conditional on checking Planner A first. **Checked and
-clear:** no lane has announced an integration closure or claimed a push/deploy window; runtime stable at
-`e4989b72` (health/ready/DB-backed/5174 all 200); `E:` at 50.07 GiB.
-
-**Deploy COMPLETED 2026-09-26 19:55 +08.** `0da104f9` is **live** — see the LIVE entry at the top of this
-file for verified identity, the server-side proof artefact, and zero-write confirmation. It took two rounds of
-independent pre-action review to get here, and both were worth it: round one caught me claiming the range
-was *client-only* when it carries **14 `atlas-server/` files plus `prisma/seed.js`** (Lane A's credential
-scrub, whose `ACCEPT_READY` 9/9/0/0 covers them), and round two caught a tripped §3 capacity obligation
-that the register was denying. §3 was discharged by retiring `4893cbde`; the build then landed `E:` at
-49.80 GiB, so **a fresh §3 obligation is now live for the next release build.** Acceptance is
-`DEPLOYED_ACCEPTANCE_INCOMPLETE` pending the named browser owner.
-
-Two things to note for whoever runs it: the client build **fails closed** without
-`VITE_ENROLLPRO_URL=https://dev-jegs.buru-degree.ts.net` (`vite.config.ts:13,29`); and a new release directory
-(~1.46 GiB) returns `E:` to ~48.6 GiB, re-triggering the §3 warning recorded in the Capacity block.
+**Next action (2026-09-26):** dispatch the A3 fix as the next candidate - one executor, one fresh independent QA,
+then integrate. Not started.

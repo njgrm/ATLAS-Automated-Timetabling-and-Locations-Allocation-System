@@ -238,3 +238,98 @@ not a regression.
 | A7 console | PASS | 0 errors on the signed-in pages and on the public flow. |
 
 Cost (`subagent_tokens`): 67,289 (blocked, expired session) + 97,233 (public rows) + the signed-in rows run.
+
+---
+
+## 11. Session 4 (2026-09-26 evening) — operator item 1 DELIVERED, and the queue reordered
+
+### 11.1 Control inventory — integrated `bfa6c2c9`, on `main`
+
+`docs/reviews/timetable-control-inventory-2026-09-26.md`, **296 rows**, two executor passes plus a planner
+review. LOW tier, so no independent QA (`AGENTS.md` §11); the executor was forbidden from touching source or
+tests and both passes changed only that one file.
+
+| | pass 1 `83c61b87`+`a0dca480` | pass 2 `83866d16` |
+|---|---|---|
+| rows | 226 | +70 (`ManualEditPanel` 12, `BuildingView` 12, `TacticalSandboxDock` 35, policy field set 11) |
+| `OK` | 114 | 121 |
+| `UNTESTED` | 86 | **149** |
+| `MISLABELLED` | 9 | 9 |
+| `DUPLICATE` | 3 | 3 |
+| `DEAD` | 6 | 1 (the other five were reclassified, below) |
+| `UNMOUNTED` | n/a | 5 (new status value) |
+| `NOT FOUND` | 2 | 2 |
+
+Pushed `701aa91a..bfa6c2c9` after `git fetch` and a merge; the pushed range is **three commits, one added
+file, 783 lines, nothing else** (§10.11 verified by enumerating the range, not from memory).
+
+**What I verified myself before integrating** (not the executor's word):
+- `schedule-lifecycle.ts` is imported by **only** its own test — row 218's `UNMOUNTED` is real.
+- `SimpleExportMenu` / `SimpleExportErrorBanner` / `SchedulerExportCenterDialog` — imported only by tests;
+  and `timetable-c05-beneficiary-export.test.ts:107,118,127` *asserts the export centre's absence*, so that
+  component is deliberately retired, not broken. Row 217 says so.
+- The two Advanced `Undo` controls: same `aria-label`, **same** `data-testid="timetable-visible-undo"`
+  (`TimetableAdvancedHeaderHelp.tsx:64` and `TimetableUndoRedoControl.tsx:41`), both mounted in the same
+  `advanced` arm (`ScheduleReviewWorkspaceHeader.tsx:756-762`, `ScheduleReviewWorkspace.tsx:597-606`), both
+  calling `revertLastEdit`. Co-render confirmed. The collision is invisible today only because the one
+  reference is source-text.
+- The "Schedule note" accessible name at `TimetableGrid.tsx:460-461` against the visible "N warning(s)" at
+  `TimetableGridConflictBadge.tsx:31-32`, including the missing plural.
+- `SchedulingPolicyPane.tsx`: **93 committed `U+FFFD`**, 7 of them on 3 rendered strings, `G`+U+01EA at
+  `:548`/`:555`; the only file in `atlas-client/src` with any. I measured it with a strict UTF-8 decoder, not
+  a text search.
+- `RoomSchedules.tsx:684` printing `Run #{id} {status}`.
+- Pass 2's two new substantive claims: `CenterWorkspace.tsx:651-660` passes **no** `roomUtilization` and
+  `BuildingView.tsx:439` prints `${Math.round(utilization)}%` unconditionally, so **every room on
+  `/timetable/building` shows "0%"**; and `SchedulingPolicyPane.tsx:251-400` contains **no JSX** (pass 1's
+  row 208 premise was wrong; `'Reconcile And Save'` at `:352` is a `primaryLabel` string). Both confirmed.
+
+**Three corrections I made as planner, all additive and visible in the document:**
+1. Pass 1 said `SchedulingPolicyPane.tsx` "contains invalid UTF-8". **False** — it decodes cleanly; it is
+   validly encoded and carries committed replacement characters. The distinction matters: one sends a fixer
+   to re-encode a correct file, the other to replace damaged glyphs. Corrected with the measurement method.
+2. Rows 215–219 were `DEAD` but are components **no page mounts**, which the `DEAD` definition does not cover.
+   Added a `UNMOUNTED` value; previous values preserved in-row as superseded. The user-visible absence stays
+   represented by §15 row 222.
+3. Rows 140/141 under-reported the duplicate `data-testid`. Stated: two DOM nodes, one id, so any future
+   `getByTestId('timetable-visible-undo')` fails on multiple matches, and nothing today detects it.
+
+### 11.2 The queue reordered by evidence, not preference
+
+Lane C's §10a/§10b landed on `main` during my push window and **settled item 4 against the earlier negative
+diagnosis.** A live read of the public API with no query string returns
+`source {"termIndex":1,"termScope":"active","activeTermVerified":true}` while every signed-in surface shows
+**Term 2**. So the public default term is a **server** fault at `published-schedule.service.ts:758-773`, it
+**breaks the section 7 fail-closed rule** (a term identity asserted verified that is not the current one),
+and the display-side `academic-term.ts` suspect was a red herring. Consequences:
+
+- **A3 moves to the front of the queue**, ahead of the lifecycle model, even though the operator's written
+  order put the lifecycle first. It is a confirmed live correctness failure on a page that will be presented,
+  and it is the thing item 2 was blocked on — "a model written while two surfaces name different current terms
+  relocates the defect" is now an evidenced statement rather than a judgement.
+- Item 2 stays **blocked on item 1**, and the block is now proven, not assumed.
+- The live `0da104f9` release is `DEPLOYED_ACCEPTANCE_INCOMPLETE` with **one named failing row**, not merely
+  "owed". Five rows PASS; the 390 px leg is BLOCKED on the runner's 1280 px viewport floor.
+
+### 11.3 The mistake this session, and it nearly cost the register
+
+Trimming the Lane A2 section out of `live-state.md` (§15's ~40-line rule; it was 320 lines) I used
+`[System.IO.File]::Open(..., FileMode::Create)` followed by `SetLength($offset)`. **`Create` truncates to
+zero first, so `SetLength` padded the file with ~175 KB of NUL bytes** instead of preserving the prefix: the
+file went from 2,312 lines to 61, with my new section at the top and 175 KB of zeros after it. The tool output
+looked plausible enough that I only caught it because I re-measured.
+
+Caught by `git checkout --` in **my own worktree**; `origin/main` carried the good copy and `D:/ATLAS` was
+never written. Redone correctly with `FileMode::Open` + `SetLength` + `Seek`. Verified afterwards by
+`git diff -U0` showing **exactly one hunk at line 1993** and no other lane's heading touched.
+
+**The rule worth keeping, and it belongs beside the `Get-Content | Set-Content` ban in §2:** a byte-level
+truncate-and-append must open the file **`Open`/`Write`, never `Create`**, and the result must be proven with
+a `git diff` hunk count — not with a byte count, which reported the truncation as success. §2 already bans
+the encoding corruption; this is the same class of silent, locally-plausible file damage from the other
+direction. **I have not edited `AGENTS.md` to add it — the directive says change it in the same turn, and
+that is a docs edit to a file four lanes read, so it is named here for the next session to apply with its own
+review rather than slipped in unreviewed at the end of a long session.**
+
+Section is now 57 lines against the ~40-line rule (was 320). Every line is a current dated fact; further
+compression would start dropping the "what proves it" that §15 requires.
