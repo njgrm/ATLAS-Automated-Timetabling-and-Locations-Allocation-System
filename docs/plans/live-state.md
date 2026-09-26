@@ -1177,13 +1177,58 @@ server must expose committability through a narrower surface; and (c) the server
 `metadata?: Record<string, any>` channel on `ManualEditProposal` (`:88`), which the client type omits. **All three
 are authority/product calls. I am not making them unattended, and the executor was right not to.**
 
+**FOUND WHILE RE-ISSUING: a constraint-authority defect on the manual-edit write path (2026-09-26). The
+"unused" `metadata` channel is NOT unused, and the one place it is read is the hole.** I told the operator in the
+previous turn that a client *cannot* inject deferral metadata to downgrade its own violation, because
+`applyProposal`'s MOVE/CHANGE_ROOM branch spreads the existing entry and never assigns `metadata`. **That was a
+partial read and it was wrong about the function.** `applyProposal` has a second branch, and a repo-wide grep for
+`proposal.metadata` returns **exactly one** read — `manual-edit.service.ts:692`, inside **`PLACE_UNASSIGNED`**. The
+verified chain:
+
+1. `manual-edit.router.ts:64-90` — the commit route requires `authenticate`,
+   `assertTimetableCapability(req, res, 'timetable:edit')` and `assertRequestSchoolScope`, so this is **not** an
+   unauthenticated bypass. It needs an authenticated actor with the timetable:edit capability in the right school.
+2. `manual-edit.router.ts:78` — `const { proposal, expectedVersion, allowSoftOverride } = req.body ?? {}`, and the
+   only check is `proposal.editType` presence (`:79`). **No field allowlist, no metadata sanitisation** — a search
+   for `allowlist|sanitiz|pick(|whitelist|stripUnknown` across the service returns nothing.
+3. `manual-edit.service.ts:692` — `metadata: proposal.metadata ? { ...proposal.metadata } : undefined`, written onto
+   the **newly created persisted entry**. The field is typed `Record<string, any>` (`:88`) — untyped, unvalidated —
+   and the **client's own** `ManualEditProposal` type does not even declare it (`types.ts:1384-1400`).
+4. `constraint-validator.ts:869,872` — `shouldDeferRoomFeatures = isModularPoolAssignment ||
+   e.metadata?.deferredRoomTypePreference === true`, and that is what makes `ROOM_FEATURE_MISMATCH` **SOFT**
+   instead of **HARD**. `isModularPoolAssignment` is `e.metadata?.roomAssignmentReason === 'MODULAR_POOL_ASSIGNED'`
+   (`:832`) — the same untyped bag.
+5. `manual-edit.service.ts:1346-1347` — a SOFT-only commit proceeds when `allowSoftOverride` is set, and
+   `ManualEditPanel.tsx:215` already sends it.
+
+**So any authenticated actor with `timetable:edit` can downgrade a hard room-feature violation to an overridable
+soft warning** by adding `metadata: { deferredRoomTypePreference: true }` — or
+`roomAssignmentReason: 'MODULAR_POOL_ASSIGNED'` — to a `PLACE_UNASSIGNED` proposal. The deferral decision is
+supposed to be **server-derived** (the scheduler writes it for modular-unified placements; the batch commit
+computes it from room type), and a client-supplied copy overrides that authority.
+
+**Blast radius is bounded and worth stating precisely:** `PLACE_UNASSIGNED` only. The MOVE/CHANGE_ROOM branch
+(`:703-716`) spreads the existing entry and assigns only day/start/end/duration/room/faculty, so an existing
+entry's server-written metadata cannot be tampered with there.
+
+**Why this is a defect and not a design choice:** the field has no legitimate client-side purpose — the client
+type omits it, so no client author writes it deliberately — yet it silently decides whether a hard constraint
+blocks a commit. That is the same class this register keeps recording: an untyped channel on a write path letting
+the caller authorise its own exception. **The fail-closed fix is for the server to ignore client-supplied
+`metadata` on the commit path and derive it itself, or to allowlist only the keys the server sets — with a
+regression test that a proposal carrying those two flags does not downgrade `ROOM_FEATURE_MISMATCH`.** That is a
+write-path authority change, so it is HIGH tier: it needs its own packet, independent pre-action review, one
+executor, and fresh post-action QA. **Not started here.** The irony worth recording: I flagged this exact channel
+as a "dormant untyped channel" risk in the previous commit, and it turned out to be live on exactly one branch.
+
 **Next action (2026-09-26): the release is live; acceptance needs one operator action.** (1) **operator
 re-seeds** `C:\Users\njgro\.config\opencode\playwright-profile`; (2) **Lane A** runs A5, A6, A7, A12(b) and records
-the result, closing acceptance; (3) **rotate the exposed dev DB credential**; (4) retention reclaim before the
-next release build (E: 46 GiB, below the 50 GiB warning); (5) the `4893cbde` + three-leftover decision (1.91 GiB)
-and the 8.72 GiB disposition backlog owned by Lanes B and C; (6) the three design decisions above, which gate the
-room-affordance change; (7) a decision on the five oversized `.ts` modules. **Rollback basis `116a7658` is verified
-eligible and was not executed.**
+the result, closing acceptance; (3) **rotate the exposed dev DB credential**; (4) **author and review the packet
+for the `PLACE_UNASSIGNED` metadata authority defect above — this is the highest-value open item**;
+(5) retention reclaim before the next release build (E: 46 GiB, below the 50 GiB warning); (6) the `4893cbde` +
+three-leftover decision (1.91 GiB) and the 8.72 GiB disposition backlog owned by Lanes B and C; (7) the three
+room-affordance design decisions; (8) a decision on the five oversized `.ts` modules. **Rollback basis `116a7658`
+is verified eligible and was not executed.**
 
 **SUPERSEDED 2026-09-26 — a spliced paragraph this lane's own editing left behind, repaired.** The four lines
 immediately below were an orphaned fragment, and the sentence they belonged to was cut in half. They are
