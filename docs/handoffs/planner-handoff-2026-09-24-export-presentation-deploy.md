@@ -75,7 +75,12 @@ npm ci --prefix "$targetDir\atlas-server"
 npm ci --prefix "$targetDir\atlas-client"
 
 Push-Location "$targetDir\atlas-server"
-$env:DATABASE_URL = 'postgresql://atlas:atlas@127.0.0.1:5432/atlas'
+$env:DATABASE_URL = 'postgresql://atlas:<redacted>@127.0.0.1:5432/atlas'
+# REDACTED 2026-09-26 (SECRET-SCRUB-20260926): the password segment above was a stale
+# local default, verified non-functional against the live server on that date. Only
+# the password segment is redacted; this command, its position in the sequence, and
+# all surrounding context are unchanged. The real value belongs in the durable
+# runtime env file, which is never committed.
 npx prisma generate --schema ..\prisma\schema.prisma
 Pop-Location
 
