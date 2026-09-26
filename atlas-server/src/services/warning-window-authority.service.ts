@@ -230,6 +230,34 @@ function scopeKey(scope: SectionScopeRef): string {
 	return `${scope.gradeLevel}:${scope.programType ?? '*'}`;
 }
 
+/**
+ * A2-TIMETABLE-CUSTODY — whether a break/shift window applies to one section
+ * scope. This is the SAME exact-match / grade-generic rule the validator applies
+ * in `constraint-validator.scopeMatches`, promoted here so a consumer that must
+ * bound a placement to a section's own day uses the shared semantics instead of
+ * re-deriving (and possibly inverting) them.
+ *
+ * A window with no grade is school-wide and covers every scope; a window with no
+ * program covers every program of its grade. A known grade never matches another
+ * grade, and a known program never matches another program.
+ */
+export function windowScopeMatches(
+	window: { gradeLevel?: number | null; programType?: string | null },
+	scope: SectionScopeRef | null,
+): boolean {
+	if (window.gradeLevel != null) {
+		if (scope == null || window.gradeLevel !== scope.gradeLevel) return false;
+		if (window.programType != null) {
+			if (normalizeWarningProgramType(window.programType) !== normalizeWarningProgramType(scope.programType)) return false;
+		}
+		return true;
+	}
+	if (window.programType != null) {
+		if (scope == null || normalizeWarningProgramType(window.programType) !== normalizeWarningProgramType(scope.programType)) return false;
+	}
+	return true;
+}
+
 function toMinutes(value: string): number {
 	const [hours, minutes] = value.split(':').map(Number);
 	return hours * 60 + minutes;

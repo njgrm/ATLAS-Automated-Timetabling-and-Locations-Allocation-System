@@ -16,7 +16,8 @@ import {
 } from './constraint-validator.js';
 import { buildSectionRosterIndex, normalizeStoredAssignmentScope } from './faculty-assignment-scope.service.js';
 import { resolveSchedulingPolicyForRead, DEFAULT_CONSTRAINT_CONFIG, computeEffectiveWeeklyTeachingMinutes, resolveWarningFamilyPolicy } from './scheduling-policy.service.js';
-import { buildWarningWindowAuthority, type CanonicalSlotWindowSource, type GradeShiftWindowSource, type WarningWindowAuthority, type WarningWindowPolicyRow } from './warning-window-authority.service.js';
+import { buildWarningWindowAuthority, windowScopeMatches, type CanonicalSlotWindowSource, type GradeShiftWindowSource, type WarningWindowAuthority, type WarningWindowPolicyRow } from './warning-window-authority.service.js';
+import { entryTermScope, effectiveTermsOverlap } from './effective-scheduled-resources.js';
 import type { SpecialEventRowLike } from '../lib/policy-special-events.js';
 import type { RunSummary, DraftReport } from './generation.service.js';
 import type { UnassignedItem } from './schedule-constructor.js';
@@ -1742,9 +1743,24 @@ export async function revertLastEdit(
 	let newEntries = [...entries];
 	let newUnassigned = [...unassigned];
 
-	if (lastEdit.editType === 'PLACE_UNASSIGNED') {
-		// Remove the placed entry, put item back into unassigned
-		if (afterPayload) {
+	// A2-TIMETABLE-CUSTODY (D3): the restore is SHAPE-AWARE and FAILS CLOSED.
+	//
+	// `ManualScheduleEdit` stores one row per edit, but the payload shape differs
+	// per edit type, and the previous single-entry `else` branch assumed every
+	// non-PLACE_UNASSIGNED record carried `{ entryId, ... }`. A `SWAP_ENTRIES`
+	// record instead carries `{ entryIdA, entryIdB, entryA, entryB }` — no
+	// `entryId` — so `findIndex` returned -1, the `if (idx !== -1)` guard skipped
+	// the restore, and the function carried on to bump the version, write a REVERT
+	// row, write an audit row and publish `TIMETABLE_REVERTED`. Reported success,
+	// restored nothing. That is the worst possible outcome, so there is no silent
+	// skip left on this path: an edit type with no correct restore strategy refuses
+	// with a typed error and ZERO writes.
+	switch (lastEdit.editType) {
+		case 'PLACE_UNASSIGNED': {
+			// Remove the placed entry, put item back into unassigned
+			if (!afterPayload || typeof afterPayload.entryId !== 'string') {
+				throw err(422, 'UNDO_RESTORE_UNAVAILABLE', `Edit #${lastEdit.id} (PLACE_UNASSIGNED) has no restorable entry identity in its payload. Nothing was changed.`);
+			}
 			newEntries = newEntries.filter((e) => e.entryId !== afterPayload.entryId);
 			const restoredUnassigned = validationSummary.removedUnassignedItem ?? {
 				sectionId: afterPayload.sectionId,
@@ -1764,15 +1780,59 @@ export async function revertLastEdit(
 				adviserName: afterPayload.adviserName ?? null,
 			};
 			newUnassigned.push(restoredUnassigned);
+			break;
 		}
-	} else {
-		// Restore before state
-		if (beforePayload && afterPayload) {
-			const idx = newEntries.findIndex((e) => e.entryId === afterPayload.entryId);
-			if (idx !== -1) {
-				newEntries[idx] = beforePayload;
+		case 'MOVE_ENTRY':
+		case 'CHANGE_ROOM':
+		case 'CHANGE_FACULTY':
+		case 'CHANGE_TIMESLOT': {
+			// Single-entry shape: restore the whole prior entry at its own index.
+			const entryId = (afterPayload as { entryId?: unknown } | null)?.entryId;
+			if (!beforePayload || typeof entryId !== 'string') {
+				throw err(422, 'UNDO_RESTORE_UNAVAILABLE', `Edit #${lastEdit.id} (${lastEdit.editType}) does not carry the single-entry payload shape this restore requires. Nothing was changed.`);
 			}
+			const idx = newEntries.findIndex((e) => e.entryId === entryId);
+			if (idx === -1) {
+				throw err(422, 'UNDO_RESTORE_UNAVAILABLE', `Edit #${lastEdit.id} (${lastEdit.editType}) refers to entry ${entryId}, which is not in the current draft. Nothing was changed.`);
+			}
+			newEntries[idx] = beforePayload as ScheduledEntry;
+			break;
 		}
+		case 'SWAP_ENTRIES': {
+			// Multi-entry shape: BOTH halves of the pair must be restorable, or the
+			// restore refuses. Restoring one half would leave a half-swapped draft.
+			const before = beforePayload as {
+				entryIdA?: unknown; entryIdB?: unknown;
+				entryA?: unknown; entryB?: unknown;
+			} | null;
+			if (!before || typeof before.entryIdA !== 'string' || typeof before.entryIdB !== 'string'
+				|| !before.entryA || !before.entryB) {
+				throw err(422, 'UNDO_RESTORE_UNAVAILABLE', `Edit #${lastEdit.id} (SWAP_ENTRIES) does not carry the paired payload shape this restore requires. Nothing was changed.`);
+			}
+			const idxA = newEntries.findIndex((e) => e.entryId === before.entryIdA);
+			const idxB = newEntries.findIndex((e) => e.entryId === before.entryIdB);
+			if (idxA === -1 || idxB === -1) {
+				const missing = idxA === -1 ? before.entryIdA : before.entryIdB;
+				throw err(422, 'UNDO_RESTORE_UNAVAILABLE', `Edit #${lastEdit.id} (SWAP_ENTRIES) refers to entry ${missing}, which is not in the current draft, so the pair cannot be restored. Nothing was changed.`);
+			}
+			// The recorded prior state is only a slot triple, so rebuild each entry
+			// from its CURRENT fields with the prior slot and recomputed duration —
+			// exactly what `applySwapWithTarget` wrote when the swap was committed.
+			const withSlot = (current: ScheduledEntry, prior: { day: string; startTime: string; endTime: string }): ScheduledEntry => ({
+				...current,
+				day: prior.day,
+				startTime: prior.startTime,
+				endTime: prior.endTime,
+				durationMinutes: timeToMinutes(prior.endTime) - timeToMinutes(prior.startTime),
+			});
+			newEntries[idxA] = withSlot(newEntries[idxA], before.entryA as { day: string; startTime: string; endTime: string });
+			newEntries[idxB] = withSlot(newEntries[idxB], before.entryB as { day: string; startTime: string; endTime: string });
+			break;
+		}
+		default:
+			// A `REVERT` can never be the target (the head query excludes it), so
+			// anything else is an edit type with no restore strategy at all.
+			throw err(422, 'UNDO_RESTORE_UNAVAILABLE', `Edit #${lastEdit.id} has edit type ${lastEdit.editType}, which has no undo restore strategy. Nothing was changed.`);
 	}
 
 	// Re-validate
@@ -2062,6 +2122,53 @@ function buildSwapPreviewFromValidation(
 	};
 }
 
+/**
+ * A2-TIMETABLE-CUSTODY (D1a) — the ordered term an entry is scoped to.
+ *
+ * Delegates to the canonical `entryTermScope`, which NEVER coerces a missing term
+ * identity to Term 1 (AGENTS.md §7). An unscoped (year-round) entry resolves to
+ * term 0 and therefore overlaps every ordered term, so a whole-year run keeps its
+ * full slot pool.
+ */
+function autoFixTermScope(entry: ScheduledEntry): number {
+	return entryTermScope(entry);
+}
+
+/**
+ * A2-TIMETABLE-CUSTODY (D1b) — the shift windows that bound one entry's own day.
+ *
+ * A session may only be auto-fixed inside a window that applies to ITS OWN section
+ * scope. A grade 7 REGULAR section is bounded by 06:00-12:15, so 12:15-13:00 —
+ * which the canonical grid defines as grade 7's LUNCH BREAK row and grade 9's
+ * first CLASS row — is not a legal target for it.
+ *
+ * Fails CLOSED: when no shift window resolves for the entry's scope the result is
+ * an empty set, so the auto-fix offers no target rather than falling back to an
+ * unbounded pool. The validator has no per-entry "inside its shift" constraint of
+ * its own (its `shiftWindows` only shape gap/idle measurements), so this boundary
+ * is the only thing standing between an auto-fix and the next grade's afternoon.
+ */
+function autoFixShiftBounds(
+	entry: ScheduledEntry,
+	authority: WarningWindowAuthority,
+): { start: number; end: number }[] {
+	const scope = authority.sectionScope?.get(entry.sectionId) ?? null;
+	const bounds: { start: number; end: number }[] = [];
+	for (const window of authority.shiftWindows ?? []) {
+		if (!windowScopeMatches(window, scope)) continue;
+		const start = timeToMinutes(window.startTime);
+		const end = timeToMinutes(window.endTime);
+		if (end > start) bounds.push({ start, end });
+	}
+	return bounds;
+}
+
+function isInsideShiftBounds(slot: { startTime: string; endTime: string }, bounds: { start: number; end: number }[]): boolean {
+	const start = timeToMinutes(slot.startTime);
+	const end = timeToMinutes(slot.endTime);
+	return bounds.some((bound) => start >= bound.start && end <= bound.end);
+}
+
 function findAutoFixTarget(
 	entries: ScheduledEntry[],
 	entryA: ScheduledEntry,
@@ -2075,46 +2182,79 @@ function findAutoFixTarget(
 	blocking: { target: { day: string; startTime: string; endTime: string }; preview: PreviewResult } | null;
 	source: { target: { day: string; startTime: string; endTime: string }; preview: PreviewResult } | null;
 } {
-	const slotSet = new Set(entries.map((entry) => `${entry.day}|${entry.startTime}|${entry.endTime}`));
-	const candidates = Array.from(slotSet)
-		.map((value) => {
+	// A2-TIMETABLE-CUSTODY (D1): the candidate pool is no longer "every slot in
+	// the run". A slot is a legitimate target for a moved session only when
+	//
+	//   (a) it is a slot the run actually uses in the MOVED ENTRY'S OWN ordered
+	//       term — otherwise a slot occupied only in Term 3 looks free to a
+	//       Term 2 session, because the validator groups every conflict check by
+	//       term; and
+	//   (b) it lies inside a shift window that applies to the moved entry's own
+	//       section scope — otherwise a section can be parked after its day ends,
+	//       in a slot that is perfectly legal for a different grade.
+	//
+	// Both boundaries are required. Closing only (a) still permits the move into
+	// another grade's afternoon; closing only (b) still permits a cross-term draw.
+	const authority = resolveManualWindowAuthority(refData);
+	const termOf = (entry: ScheduledEntry) => autoFixTermScope(entry);
+	const poolFor = (moved: ScheduledEntry): { day: string; startTime: string; endTime: string }[] => {
+		const movedTerm = termOf(moved);
+		const bounds = autoFixShiftBounds(moved, authority);
+		if (bounds.length === 0) return []; // fail closed: no authority, no target
+		const slotSet = new Set<string>();
+		for (const entry of entries) {
+			if (!effectiveTermsOverlap(termOf(entry), movedTerm)) continue;
+			const slot = { day: entry.day, startTime: entry.startTime, endTime: entry.endTime };
+			if (!isInsideShiftBounds(slot, bounds)) continue;
+			slotSet.add(`${entry.day}|${entry.startTime}|${entry.endTime}`);
+		}
+		return [...slotSet].map((value) => {
 			const [day, startTime, endTime] = value.split('|');
 			return { day, startTime, endTime };
-		})
-		.filter((slot) => !(slot.day === entryB.day && slot.startTime === entryB.startTime && slot.endTime === entryB.endTime));
+		});
+	};
+
+	const excludeOwn = (slot: { day: string; startTime: string; endTime: string }, moved: ScheduledEntry) =>
+		!(slot.day === moved.day && slot.startTime === moved.startTime && slot.endTime === moved.endTime);
+
+	// `AUTO_FIX_MOVE_BLOCKING` relocates the BLOCKING entry (B) to a target;
+	// `AUTO_FIX_MOVE_SOURCE` relocates the SELECTED entry (A) instead. Each pool is
+	// bounded by the scope of the session it is about to move.
+	const blockingCandidates = poolFor(entryB).filter((slot) => excludeOwn(slot, entryB));
+	const sourceCandidates = poolFor(entryA).filter((slot) => excludeOwn(slot, entryA));
 
 	let bestBlocking: { target: { day: string; startTime: string; endTime: string }; preview: PreviewResult; softCount: number } | null = null;
 	let bestSource: { target: { day: string; startTime: string; endTime: string }; preview: PreviewResult; softCount: number } | null = null;
 
-	for (const target of candidates) {
-		if ((timeToMinutes(target.endTime) - timeToMinutes(target.startTime)) === entryB.durationMinutes) {
-			const blockingEntries = applySwapWithTarget(entries, entryA, entryB, {
-				entryATarget: { day: entryB.day, startTime: entryB.startTime, endTime: entryB.endTime },
-				entryBTarget: target,
-			});
-			const blockingValidation = validateHardConstraints(buildValidatorCtx(schoolId, schoolYearId, runId, blockingEntries, refData));
-			const blockingPreview = buildSwapPreviewFromValidation(currentValidation, blockingValidation, blockingEntries, refData, entryA, entryB, target);
-			if (blockingPreview.hardViolations.length === 0) {
-				const softCount = blockingPreview.softViolations.length;
-				if (!bestBlocking || softCount < bestBlocking.softCount) {
-					bestBlocking = { target, preview: blockingPreview, softCount };
-				}
+	for (const target of blockingCandidates) {
+		if ((timeToMinutes(target.endTime) - timeToMinutes(target.startTime)) !== entryB.durationMinutes) continue;
+		const blockingEntries = applySwapWithTarget(entries, entryA, entryB, {
+			entryATarget: { day: entryB.day, startTime: entryB.startTime, endTime: entryB.endTime },
+			entryBTarget: target,
+		});
+		const blockingValidation = validateHardConstraints(buildValidatorCtx(schoolId, schoolYearId, runId, blockingEntries, refData));
+		const blockingPreview = buildSwapPreviewFromValidation(currentValidation, blockingValidation, blockingEntries, refData, entryA, entryB, target);
+		if (blockingPreview.hardViolations.length === 0) {
+			const softCount = blockingPreview.softViolations.length;
+			if (!bestBlocking || softCount < bestBlocking.softCount) {
+				bestBlocking = { target, preview: blockingPreview, softCount };
 			}
 		}
+	}
 
-		if ((timeToMinutes(target.endTime) - timeToMinutes(target.startTime)) === entryA.durationMinutes) {
-			const sourceEntries = applyMoveOnly(entries, entryA, target);
-			const sourceValidation = validateHardConstraints(buildValidatorCtx(schoolId, schoolYearId, runId, sourceEntries, refData));
-			const sourcePreview = buildSwapPreviewFromValidation(currentValidation, sourceValidation, sourceEntries, refData, entryA, entryB, {
-				day: entryB.day,
-				startTime: entryB.startTime,
-				endTime: entryB.endTime,
-			});
-			if (sourcePreview.hardViolations.length === 0) {
-				const softCount = sourcePreview.softViolations.length;
-				if (!bestSource || softCount < bestSource.softCount) {
-					bestSource = { target, preview: sourcePreview, softCount };
-				}
+	for (const target of sourceCandidates) {
+		if ((timeToMinutes(target.endTime) - timeToMinutes(target.startTime)) !== entryA.durationMinutes) continue;
+		const sourceEntries = applyMoveOnly(entries, entryA, target);
+		const sourceValidation = validateHardConstraints(buildValidatorCtx(schoolId, schoolYearId, runId, sourceEntries, refData));
+		const sourcePreview = buildSwapPreviewFromValidation(currentValidation, sourceValidation, sourceEntries, refData, entryA, entryB, {
+			day: entryB.day,
+			startTime: entryB.startTime,
+			endTime: entryB.endTime,
+		});
+		if (sourcePreview.hardViolations.length === 0) {
+			const softCount = sourcePreview.softViolations.length;
+			if (!bestSource || softCount < bestSource.softCount) {
+				bestSource = { target, preview: sourcePreview, softCount };
 			}
 		}
 	}
@@ -2211,6 +2351,43 @@ export async function swapManualEntries(
 	const entryB = entries.find((e) => e.entryId === entryIdB);
 	if (!entryA) throw err(400, 'ENTRY_NOT_FOUND', `Entry ${entryIdA} not found.`);
 	if (!entryB) throw err(400, 'ENTRY_NOT_FOUND', `Entry ${entryIdB} not found.`);
+
+	// A2-TIMETABLE-CUSTODY (D2): "a commit applies exactly what its preview showed,
+	// or refuses." An auto-fix target is therefore never taken on the client's word.
+	// The pool is re-derived from the same run snapshot the preview read (the
+	// version CAS above already proved the draft is unchanged), and the client's
+	// target must equal the re-derived one exactly. Any drift refuses with a typed
+	// error and ZERO writes — no version bump, no edit row, no audit row, no event.
+	// Recomputing rather than trusting also means a client cannot name a target the
+	// preview never showed, whatever it sends.
+	if (strategy === 'AUTO_FIX_MOVE_BLOCKING' || strategy === 'AUTO_FIX_MOVE_SOURCE') {
+		const currentCtxForAutoFix = buildValidatorCtx(schoolId, schoolYearId, runId, entries, refData);
+		const currentValidationForAutoFix = validateHardConstraints(currentCtxForAutoFix);
+		const recomputed = findAutoFixTarget(
+			entries, entryA, entryB, refData, currentValidationForAutoFix, schoolId, schoolYearId, runId,
+		);
+		const authoritative = strategy === 'AUTO_FIX_MOVE_BLOCKING' ? recomputed.blocking : recomputed.source;
+		if (!authoritative) {
+			throw err(
+				422,
+				'AUTO_FIX_TARGET_UNAVAILABLE',
+				`No safe ${strategy === 'AUTO_FIX_MOVE_BLOCKING' ? 'blocking' : 'source'} auto-fix target exists for this pair within its ordered term and its section's shift window. Nothing was changed; reload the preview.`,
+			);
+		}
+		const requested = autoFixTarget ?? null;
+		if (!requested) {
+			throw err(400, 'INVALID_BODY', 'autoFixTarget is required for an auto-fix strategy.');
+		}
+		if (requested.day !== authoritative.target.day
+			|| requested.startTime !== authoritative.target.startTime
+			|| requested.endTime !== authoritative.target.endTime) {
+			throw err(
+				409,
+				'AUTO_FIX_TARGET_DRIFT',
+				`The auto-fix target this commit asked for (${requested.day} ${requested.startTime}-${requested.endTime}) is not the target the preview showed (${authoritative.target.day} ${authoritative.target.startTime}-${authoritative.target.endTime}). Nothing was changed; reload the preview.`,
+			);
+		}
+	}
 
 	let newEntries: ScheduledEntry[];
 	if (strategy === 'AUTO_FIX_MOVE_SOURCE') {
