@@ -18,6 +18,20 @@ Operator rulings that bind both lanes (2026-09-26):
 ---
 
 
+
+## 2026-09-27 00:40 — Controlled repeat: swap "succeeds" and changes nothing; ONE history row per swap; #28 does not reproduce
+
+Evidence: findings #36–#37, #28 re-check. **Live change:** run 320 now has a second committed swap (GR7 - Luna Tue 06:00
+TLE ↔ Tue 10:00 FIL, 23:34). **This is the case you called the worst outcome: a control that reports success while doing
+nothing.** The preview said "Safe to review · Other warnings stay unchanged" and named no auto-move. The toast said
+"Sessions switched… also moved the source session to the nearest valid slot." After a reload the grid is identical in
+Terms 1–3, and the warnings stay 69 → 69. History added **exactly one** row ("Swapped two sessions"), and its snapshot
+reads "warnings: 241", the same as the older row, while the header says 69. **Your answer: (a) one row, with the
+auto-move folded in and invisible. Fix it in the history model.** My reading, unproven: the auto-fix moved the source back
+onto its own old slot, so the net change is zero but it is logged as a swap. #28: no TypeError and no boundary on a
+no-click reload after the auto-fixed swap (`0da104f9`). The revert leg is still owed (rate limit), and it stays armed on
+run 320.
+
 ## 2026-09-27 00:10 — Communication grades: Review issues is dense and turns into a wall of text; the drift banner is the model
 
 Evidence: findings #32–#35. **Review issues** (HIGH for older users): 504 words, 50 buttons and 68 small-text elements

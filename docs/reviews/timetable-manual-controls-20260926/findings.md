@@ -136,4 +136,17 @@ Read-only Chrome run. Columns: words / buttons / icons / text under 14 px / visu
 | 35 | **Drift banner** + "Regenerate to apply" dialog | banner 30 / 2 / 2 / 2 / **yes**; dialog 90 / 3 / 1 / 7 | **Clear.** This is the model the other surfaces should follow. Cut: "A published schedule is never regenerated automatically; published changes go through a dated revision instead." (it adds nothing in a draft dialog). Banner body text is 12 px; raise it to 14. | note |
 
 Not yet graded: the generate dialog and the publish confirm step (Codex was blocked by auto mode; queued for a Claude
-runner). Cost (`subagent_tokens`): not reported for background runs.
+runner). Cost (`subagent_tokens`): 105,057.
+
+## Controlled swap repeat for A2 (draft run 320, Term 2, 2026-09-26 23:34 +08)
+
+Swap GR7 - Luna **Tue 06:00 TLE (P. CRUZ) ↔ Tue 10:00 FIL (C. AGUILAR)**. Before the swap, Terms 1–3 matched on Tuesday.
+
+| # | Finding | Severity |
+|---|---|---|
+| 36 | **A control reports success while doing nothing.** The preview: "Class A moves to TUESDAY 10:00 AM–10:45 AM; Class B moves to TUESDAY 6:00 AM–6:45 AM. Safe to review: No blocking conflict · Other warnings stay unchanged." There is no mention of an auto-move. The toasts: "Sessions switched. ATLAS also moved the source session to the nearest valid slot." / "Source session auto-fixed to the nearest valid slot." **After a reload the grid is unchanged in all terms** (TLE 06:00, FIL 10:00). Warnings 69 → 69. | **BLOCKING** (with #8/#20/#29) |
+| 37 | **One swap = one history row, with the auto-move folded in and invisible.** History went "1 edit recorded" → "2 edits recorded". The new row is "Swapped two sessions" · 11:34:08 PM · "All serious problems: 0, warnings: 241". Both rows carry the **same 241** snapshot, while the header reads 69 before and after, so the snapshot does not describe the edit. | **BLOCKING** (history model) |
+| 28 (re-check) | A reload after the auto-fixed swap, with no click: **no console errors, no error boundary.** It does not reproduce on `0da104f9` this time. | – |
+
+Unperformed: Revert and the H2 read (the runner hit a model rate limit). The Tue swap is still committed on run 320 and
+is the newest row, so Revert is still armed for the next run. Cost (`subagent_tokens`): 134,109.
