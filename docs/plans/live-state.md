@@ -2124,15 +2124,32 @@ test files**, so "the full client suite" overstates coverage and a green run is 
 **warn below 25 GiB / fail closed below 15 GiB** (operator, `6404c213`). Re-measured **2026-09-27: 49.20 GiB free - no
 reclaim owed**, and a release build may start. Measure before each build.
 
-**Next action (2026-09-27, after the `b0736007` release):** the deploy is `DEPLOYED` with acceptance
-**INCOMPLETE** — **three browser rows were never performed** and are **owed, not assumed**: D8-browser (swap
-preview renders, no 500), **D9 "Change room" on a MAPEH section** (form renders, not the router error
-boundary), and the public page's DOM half (20 sections rendered, 0 console errors). Post-action QA returned
-**`PLANNER_DECISION_REQUIRED` 13/16 passed, 3 unperformed, 0 blocking** — the 409 defect is genuinely closed.
-**Acceptance owner: Planner A2** (holds browser custody). **All three need a seeded session** — this profile
-redirected `/timetable` → `/login`; the operator re-seeds in about a minute, then they are decidable against
-`b0736007` with no further deploy. Harness: authenticated browser on `/timetable`, open run 320. **D9 is the row
-most likely to be wrongly closed by a later reader** — fix `d6513f32` *is* an ancestor of the deployed pin and
-code reading shows the form renders outside the optional feature panel, but **code reading is not browser
-proof**. Separately: **A3 stays open and masked** (its discriminating publish/change-term/read test is owed to
-Lane C), and Lane A3's newly merged source is **not** in this pin and has had no independent review.
+**Acceptance is INCOMPLETE and the binding constraint is a MISSING BROWSER SESSION, not authority (2026-09-27).**
+**`NEEDS_SESSION(space-bunny/opencode-default)`** — this profile redirects `/timetable` → `/login`; the operator
+re-seeds in about a minute. **Seven rows across two releases are blocked on that one fact**, and deploying more
+code into the gap makes the record worse rather than better:
+
+| Row | Release | Harness needed |
+|---|---|---|
+| D8-browser, D9 "Change room" on MAPEH, public-page DOM | `b0736007` | authenticated `/timetable`, run 320 |
+| **U1/U2** Fix 24 pixel fit at **1366x768**, desktop + mobile menu variants, longest faculty name | Lane A3 `f426f465` | **real layout** — jsdom performs none |
+| **U3** Fix 14/16 density pixel assertion (labelled structural-only, not substituted with class assertions) | Lane A3 `f426f465` | **real layout** |
+| **U4** (fourth row in A3's own record) | Lane A3 `f426f465` | per A3's report |
+
+**Acceptance owner: Planner A2** (browser custody). U1/U2/U3 are **pixel-fit rows no available source harness can
+decide** — they are deployment-acceptance rows by construction, and A3 explicitly carried them forward **NOT
+waived**.
+
+**Lane A3's merged delta is deliberately NOT deployed (2026-09-27 judgement).** 38 non-docs files sit above the
+pin, **all `atlas-client/`** — no server, no `prisma/`, no schema, no authority, so the blast radius is
+presentation-only. All three sub-lanes **do** carry independent QA: subjects `36/36`, sections-map `10/10` after
+a `CORRECTION_REQUIRED` round, teachers-load `PLANNER_DECISION_REQUIRED 8/12` with those 4 unperformed browser
+rows. **§11's "no release ships source no independent reviewer has seen" is therefore satisfied**, so a deploy is
+*permissible* — and I am still declining it, because doing so would knowingly add 4 more unperformable rows to
+acceptance debt I already cannot close. **Ship it when the session exists, so the rows are decidable on arrival.**
+It also needs its own packet and its own client-only delta enumeration; do not fold it into a future release
+implicitly.
+
+**Next action (2026-09-27):** the small unblocked lane-A2 follow-up Lane C explicitly specified — the **amber icon
+and the "Swap + move 3 classes" button label**, which complete their (i)-bounded-by-(ii) auto-fix rule and are
+the only remaining presentation gap in code that already ships. Everything else is behind the session.
