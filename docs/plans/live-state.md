@@ -1058,13 +1058,47 @@ untouched: `types.ts` 2473, `useScheduleReviewWorkspaceState.ts` 2138, `useTimet
 `useTimetableMutations.ts` 1943, and **`lib/faculty-assignment-helpers.ts` 1234** — the last was missed by the
 executor's disclosure and caught only by QA's own sweep. Successor work scoped from that list must not omit it.
 
+**THE LATENT DEFECT, characterised properly (2026-09-26) — this CORRECTS the alarm-ward reading above, and the
+accurate version is more useful.** I nearly recorded that a manual edit can write a feature-incompatible room
+with no server rejection. **That is wrong**, and checking before recording is the only reason it was caught:
+`timetable-candidate-domain.ts`'s `evaluateCandidateInvariants` contains **zero** occurrences of "feature", which
+made it *look* unguarded — but the guard is on the other validator. `manual-edit.service.ts:1328` runs
+`validateHardConstraints(newCtx)` on the **post-edit** draft, and `constraint-validator.ts:864-873` checks
+`roomRequiredFeatures(subject.requiredFeatures)` against `room.features`, raising
+`ROOM_FEATURE_MISMATCH` — "Room missing required equipment" (`:92`) — whose own comment at `:863` calls it "a
+HARD violation that would block publication". So a non-deferred incompatible room **is** refused at commit with a
+typed 422 `HARD_VIOLATION_BLOCK` (`manual-edit.service.ts:1342`). **There is no silent integrity hole.**
+
+**What is actually wrong is narrower, and it includes a design flaw in the flag itself:**
+
+1. **The client offers a choice the server will refuse.** `SearchableSelect` renders neither `disabled` nor
+   `subLabel`, so an officer can pick a feature-incompatible room and only discovers it via a 422 after composing
+   the entire edit. That is a misleading affordance — the exact class `AGENTS.md` §8 and the false-operative-control
+   rule exist to close — but it is UX, not integrity.
+2. **The derived `disabled: !isCompatible` is itself wrong by design.** `constraint-validator.ts:872` sets
+   `severity: shouldDeferRoomFeatures ? 'SOFT' : 'HARD'`, where `shouldDeferRoomFeatures` is
+   `isModularPoolAssignment || e.metadata?.deferredRoomTypePreference === true` (`:869`). So for a **deferred**
+   room preference the same mismatch is only SOFT and the officer may legitimately commit it with
+   `allowSoftOverride=true` (`manual-edit.service.ts:1346-1347`), which is corroborated by
+   `allowedRoomTypes` at `:414-416` widening to include `room.type` under that same metadata flag. **A blanket
+   `disabled` on incompatibility would therefore forbid a choice the server explicitly permits.** The correct
+   client behaviour is to disable only *non-deferred* incompatibilities and to label the deferred ones as
+   overridable — which the current derivation does not distinguish, and which the dead fields never expressed.
+
+**So the successor fix is not "wire up `disabled`".** It is: decide the deferral-aware rule, then render it — and
+the deferral signal has to reach the client option builder, which today takes only `subjectId`/room/subject maps.
+**Successor packet needed; not authored here.** The corrected comment in
+`useManualEditOptionGroups.ts` stays as written, since it claims no protection that does not exist — but its
+"wiring `SearchableSelect` to honour them is separate work" note is now known to be **incomplete**: honouring
+them naively would be wrong for deferred assignments. Recorded rather than shipped as a false simplification.
+
 **Next action (2026-09-26): the release is live; acceptance needs one operator action.** (1) **operator
 re-seeds** `C:\Users\njgro\.config\opencode\playwright-profile`; (2) **Lane A** runs A5, A6, A7, A12(b) and records
 the result, closing acceptance; (3) **rotate the exposed dev DB credential**; (4) retention reclaim before the
 next release build (E: 46.6 GiB, below the 50 GiB warning); (5) the `4893cbde` + three-leftover decision
-(1.91 GiB) and the 8.72 GiB disposition backlog owned by Lanes B and C; (6) decide whether the `SearchableSelect`
-incompatibility guard and the five oversized `.ts` modules are worth a successor lane. **Rollback basis
-`116a7658` is verified eligible and was not executed.**
+(1.91 GiB) and the 8.72 GiB disposition backlog owned by Lanes B and C; (6) a successor packet for the
+deferral-aware incompatibility affordance above, and a decision on the five oversized `.ts` modules. **Rollback
+basis `116a7658` is verified eligible and was not executed.**
 
 **SUPERSEDED 2026-09-26 — a spliced paragraph this lane's own editing left behind, repaired.** The four lines
 immediately below were an orphaned fragment, and the sentence they belonged to was cut in half. They are
