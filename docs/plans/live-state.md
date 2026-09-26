@@ -39,6 +39,10 @@ resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs
 ## Live release
 
 - Tailnet: `https://njgrm.buru-degree.ts.net`
+
+- **Release SHA: `26f7c907a37185e036e71cf0d82423794689b318`** (**target of the 2026-09-26 Lane A client-presentation deployment, recorded here BEFORE the cutover so `deploy-runner.ps1` `Assert-LiveReleaseRecorded` can pass; the cutover had not executed when this entry was written, and the post-cutover verification is recorded by the follow-up commit**; `E:\ATLAS-runtime-supervised-26f7c907-20260926`; registered worktree at the target SHA, never a clone; dependency trees by `robocopy /E` real copy from `861d89a2` (client 0.213 GiB, server 0.368 GiB, 0 reparse points, no junction, no `npm ci`); `prisma generate` codegen only, no migration; client built with `VITE_ENROLLPRO_URL=https://dev-jegs.buru-degree.ts.net`; isolation run on port 5198 with `ROLLOVER_AUTO_SYNC_ENABLED=false`: health 200, ready 200 `database:"ok"`, DB-backed subjects read 200, listener PID stopped and 5198 released; `git status --short` empty after the run (gate 6b); new-build-only chunk `assets/index-BgXhGnEV.js` (313,925 bytes) returns 404 on the incumbent 5174, which serves `assets/index-BAf43GT7.js`. **No migration, no live-data write, no machine-env mutation, no `ops/runtime/` source change.** Rollback basis: `116a7658`.)
+
+- **Host change, unversioned shared Git state, 2026-09-26, Lane A, authorized:** `/ops/runtime/logs/` added to `D:\ATLAS\.git\info\exclude` (line 8). The supervisor writes `supervisor-state.json` into the release worktree it runs from (`ops/runtime/cli.mjs` `statePathFor`, which never reads `ATLAS_RUNTIME_LOG_DIR`), so every started release reported `?? ops/runtime/logs/` and `deploy-runner.ps1` `Get-GitIdentity` rejected it as both a deploy target and a rollback basis. The `*.log` sibling was already covered by `.gitignore:83`; this rule covers the state file. Verified: `git check-ignore -v` attributes `ops/runtime/logs/supervisor-state.json` to `D:/ATLAS/.git/info/exclude:8`, and `git status --short` is empty for `116a7658`, `861d89a2`, `eb0e3038` and the new target. Before/after measurement and rationale: `docs/prompts/deploy-main-26f7c907-client-presentation-2026-09-26.md` section 0. **No `ops/runtime/` source change was made.**
 - **Release SHA: `116a765814bf56fdd30aec02c611869aaff42190`** (**LIVE** since 2026-09-26 05:11, Lane A;
   `E:\ATLAS-runtime-supervised-116a7658-20260726`; execute audit
   `C:\ProgramData\ATLAS\release-audit\116a7658-20260926-051034`; dry-run audit
@@ -47,7 +51,7 @@ resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs
   served target-only `assets/index-BAf43GT7.js` byte-identical to the target build. Independent post-action QA
   `ACCEPT_READY` **8/8/0/0**; six-table zero-write digests unchanged; C08 160/0, published identity/swap/load
   suites pass, F2 drift/client failures base-reproduced with zero candidate-only failures. **No migration.
-  Rollback basis: `861d89a2`.**
+  Rollback basis for `26f7c907` once that cutover executes; until then this release is still LIVE, and `861d89a2` remains the deeper rollback basis.**
 - **Release SHA: `861d89a2bc2682c5f875dde0b4b1d8ffc079b1fe`** (rollback basis; previously LIVE 2026-09-26 01:27;
   `E:\ATLAS-runtime-supervised-861d89a2-20260925`; prior QA `ACCEPT_READY` 8/8/0/0 preserved; **no migration.**)
 - **Release SHA: `eb0e30386336673a4a31ecfe39a9bef93549e0ed`** (rollback basis; previously LIVE 2026-09-25 22:19;
