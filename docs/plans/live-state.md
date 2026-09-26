@@ -896,6 +896,35 @@ cutover rather than trusting the executor:
   Tailnet root origin redirects to `/login` with no `atlas_local_token` in the profile. This is **not** a
   deployment defect and no source correction can close it.
 
+**SUPERSEDED 2026-09-26 (same day, hours later) — the causal claim above was WRONG, and the correction matters
+more than the finding.** I wrote that the host "is resolving its proxy target some other way" and that the cause
+was "consistent with the `ENROLLPRO-PROXY-RECOVERY` finding", implying a **ATLAS configuration fault**. The
+evidence says otherwise. Recorded here rather than edited away, per "corrections are additive to evidence":
+
+| Probe (2026-09-26, read-only) | Result |
+| --- | --- |
+| `Resolve-DnsName dev-jegs.buru-degree.ts.net` | **resolves** to `100.120.169.123` (a valid Tailnet address) |
+| `Test-NetConnection dev-jegs.buru-degree.ts.net -Port 443` | **`TcpTestSucceeded = False`** |
+| Direct GET `…/api/v1/settings/public`, `…/api/settings/public`, `…/` | **all three time out** |
+| **Control:** `Test-NetConnection njgrm.buru-degree.ts.net -Port 443` | **`TcpTestSucceeded = True`**, `100.88.55.125` |
+
+**Conclusion: the EnrollPro host is DOWN.** Its name resolves but nothing is listening on 443, while this
+machine's Tailnet path to ATLAS's own origin is healthy. So the 502 is **faithful reporting of a dead upstream,
+not a misconfigured proxy** — and ATLAS is behaving correctly by failing closed with 502 rather than hanging or
+serving stale companion data.
+
+**Two consequences, both material:**
+
+1. **The prepared `ENROLLPRO-PROXY-RECOVERY-LIVE` packet must NOT be executed.** Its premise is an ATLAS-side
+   configuration fault (a missing durable `ENROLLPRO_PROXY_ORIGIN`). That premise is now falsified: no origin
+   setting can make ATLAS reach a host with no listener. Executing it would spend a HIGH env change plus a
+   supervised restart to fix nothing, and would re-point a live release on the strength of a misdiagnosis.
+2. **This is not actionable from ATLAS.** It is an external subsystem outage on the Tailnet, and the companion is
+   a `READ_ONLY` reference surface under `AGENTS.md` §4. The client-side degradation is the designed behaviour —
+   companion SSO and companion assets are unavailable while the host is down, and recover when it returns, with
+   no ATLAS change. Re-verify with the TCP probe above before considering any ATLAS-side action; if 443 ever
+   answers, this closes itself.
+
 **REPRODUCED 2026-09-26 on the deployed release: the host-proxy 502 is user-visible PRE-AUTH and still has no
 owner.** The two `NEEDS_SESSION` browser rows were blocked, but the unauthenticated login surface was still
 reachable and it reports two console errors, both from the ATLAS host's EnrollPro proxy:
