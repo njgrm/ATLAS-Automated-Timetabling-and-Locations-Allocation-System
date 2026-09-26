@@ -89,6 +89,26 @@ resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs
   plainly it was "not requested"). This is handoff candidate 3 and it is a small change, not a data
   problem. **Until it lands, Room Schedules stays in its fail-closed state by design.**
 
+  **THE FIX, now fully diagnosed (2026-09-26, Lane A2) — a default mismatch, in two places:**
+  1. `atlas-client/src/lib/settings.ts:597` — `fetchAtlasRuntimeContext(schoolId, verifyUpstream = false)`
+     **defaults to false**, and `:600` only sends `verifyUpstream` when truthy, so the param is absent.
+  2. `atlas-server/src/routes/runtime.router.ts:204` — `verifyUpstream` is
+     `req.query.verifyUpstream === 'true' || === '1'`, i.e. **absent means false**.
+  3. `atlas-server/src/services/runtime-context.service.ts:375` — `options?.verifyUpstream !== false`,
+     i.e. the **service intends true** and only skips when explicitly passed `false`. The route passes
+     `false` by default, so the service's intended default is overridden and it emits
+     "Active term verification not requested."
+  So the two layers disagree on the default and the more restrictive one wins. The failing-first suite for
+  this exact class already exists and is green: `atlas-client/src/lib/__tests__/timetable-term-gate-c01.test.ts`
+  (row D1 — "a fast unverified read is followed by exactly one `verifyUpstream:true` call"), which is why
+  the **timetable** path resolves a term while **Room Schedules** does not: the timetable performs that
+  second verified call and this path does not. **The change is to have the term-authority path request
+  `verifyUpstream: true`** (either at its `fetchAtlasRuntimeContext` call site or by correcting the
+  route default to match the service's `!== false`). **NOT yet implemented, tested or deployed.** Note
+  `reachable: false` on this deployment, so the verified path will fall back to the persisted contract's
+  own active term — the fallback the service comment describes, which resolves one ordered term rather
+  than dead-ending.
+
 - **Release SHA: `26f7c907a37185e036e71cf0d82423794689b318`** (SUPERSEDED 2026-09-26 15:49 by `400a6909`; was LIVE from 09:41, Lane A -
   client-presentation release, cutover executed; `E:\ATLAS-runtime-supervised-26f7c907-20260926`; execute audit
   `C:\ProgramData\ATLAS\release-audit\26f7c907-20260926-094157`, dry-run audit
