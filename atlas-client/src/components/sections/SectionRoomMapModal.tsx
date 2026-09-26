@@ -392,15 +392,15 @@ export function SectionRoomMapModal({
 
 								<div className="flex-1 min-h-0 border rounded-3xl bg-background/50 shadow-inner overflow-hidden">
 									{activeBuilding ? (
-										/* A3 fix 06 — the canvas tracks this pane's height.
-										 * Measured at 1366x768: the pane's inner box is
-										 * 497.2px and BuildingView's toolbar takes 36px,
-										 * leaving 461.2px for the stage, so the previous
-										 * hardcoded height={500} overflowed by 38.8px and
-										 * the pane's overflow-hidden clipped the bottom-most
-										 * floor with no scrollbar. fillAvailableHeight
-										 * measures the pane instead. Pan/zoom/clamp are
-										 * unchanged. */
+									/* A3 fix 06 — the canvas tracks this pane's height.
+									 * Measured at 1366x768: the pane's inner HEIGHT is
+									 * 497.2px (its inner WIDTH is 929.7px) and
+									 * BuildingView's toolbar takes 36px, leaving 461.2px
+									 * for the stage, so the previous hardcoded
+									 * height={500} overflowed by 38.8px and the pane's
+									 * overflow-hidden clipped the bottom-most floor with
+									 * no scrollbar. fillAvailableHeight measures the pane
+									 * instead. Pan/zoom/clamp are unchanged. */
 										<BuildingView
 											building={activeBuilding}
 											fillAvailableHeight

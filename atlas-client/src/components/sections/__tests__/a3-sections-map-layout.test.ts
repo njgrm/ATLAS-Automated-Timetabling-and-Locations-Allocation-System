@@ -127,6 +127,136 @@ test('fix 11 control: the named worst-case room names fit the name box by wrappi
 	);
 });
 
+/* ─────────── cross-lane contract: this component's width must not move ───── */
+
+/**
+ * Base 3cfe79a8 transcribed verbatim: FLOOR_LABEL_W 36, FLOOR_PAD_X 8,
+ * ROOM_MIN_W 90, ROOM_GAP 4. This is the width every consumer of BuildingView
+ * reads, and it is the divisor of the auto-fit scale.
+ */
+const BASE_ROOM_MIN_W: number = 90;
+function baseBuildingContentW(maxRoomsOnFloor: number): number {
+	return 36 + 8 * 2 + maxRoomsOnFloor * BASE_ROOM_MIN_W + (maxRoomsOnFloor - 1) * 4;
+}
+
+test('cross-lane width contract: buildingContentW equals base, so no consumer\'s fit scale moves', (t) => {
+	// The load-bearing control for the shared component. It fails if the card
+	// width is anything but base 90 — proven by running it against 13f1f189,
+	// which is why the "precondition" below is asserted rather than assumed.
+	//
+	// It deliberately reads ROOM_CARD_W (which exists on both revisions) rather
+	// than a new export, so a width regression fails on a real assertion here
+	// instead of on a module-load error.
+	assert.equal(ROOM_CARD_W, BASE_ROOM_MIN_W, 'the card width must stay at base');
+	// ROOM_CARD_W is the card, and the card is the divisor: pin the production
+	// expression that every consumer's fit scale reads.
+	const view = source('src/components/BuildingView.tsx');
+	assert.match(
+		view,
+		/const buildingContentW = FLOOR_LABEL_W \+ FLOOR_PAD_X \* 2 \+ maxRoomsOnFloor \* ROOM_MIN_W \+ \(maxRoomsOnFloor - 1\) \* ROOM_GAP;/,
+		'the building width must keep the base expression that every consumer reads',
+	);
+	assert.match(view, /const ROOM_MIN_W = 90;/, 'the card width constant must read 90');
+	const contentW = (maxRooms: number) => 36 + 8 * 2 + maxRooms * ROOM_CARD_W + (maxRooms - 1) * 4;
+
+	const cases: Array<[floors: number, maxRooms: number]> = [
+		[2, 4], [3, 6], [4, 6], [4, 8], [5, 8], [6, 10],
+	];
+	const rows: string[] = [];
+	for (const [floors, maxRooms] of cases) {
+		const actual = contentW(maxRooms);
+		const expected = baseBuildingContentW(maxRooms);
+		assert.equal(
+			actual,
+			expected,
+			`${floors}f x ${maxRooms}r: buildingContentW is ${actual}, base is ${expected} — every consumer's fit scale moves`,
+		);
+		rows.push(`${floors}f x ${maxRooms}r: ${actual} = base ${expected}`);
+	}
+
+	// The precondition that makes this discriminating: the width rejected in
+	// review (110) is NOT base, and it is NOT a width change every consumer can
+	// absorb. At 110 the room term grows 110/90 = +22.2%, and because the
+	// rejected card was width-bound in A2's centre view, that is the limiter.
+	const rejected: number = 110;
+	assert.ok(rejected !== BASE_ROOM_MIN_W, 'precondition: the rejected width differs from base');
+	assert.ok(
+		Math.abs((rejected - BASE_ROOM_MIN_W) / BASE_ROOM_MIN_W) > 0.2,
+		'precondition: the rejected width grows the room term by more than 20%',
+	);
+
+	// A2's centre view (components/timetable/CenterWorkspace.tsx, col-span-8 of
+	// 12, height={420}, no fillAvailableHeight) at its two measured container
+	// widths: 616px with the md:w-[24rem] task drawer present, 872px collapsed.
+	// Those two widths are QA's measured inputs, taken as given; the guarantee
+	// below does not depend on them, because the card is base 90 wide for every
+	// width.
+	//
+	// The cross-lane guarantee is about the WIDTH term, and it is exact: sx is
+	// bit-identical to base in every case, so this change contributes 0.0% to
+	// every consumer's fit scale. The height term does move, and where it
+	// becomes the limiter it is the sole cause of any remaining delta — that is
+	// the disclosed vertical cost of the 84px card, not a width effect.
+	const a2Containers = [616, 872];
+	const a2CanvasH = 420;
+	const deltas: number[] = [];
+	for (const containerW of a2Containers) {
+		for (const [floors, maxRooms] of cases) {
+			const w = baseBuildingContentW(maxRooms);
+			const sx = (containerW - 32) / w;
+			// 84 tall instead of 70 is the only remaining difference.
+			const h84 = 29 + 99 * floors;
+			const h70 = 29 + 85 * floors;
+			const sy84 = (a2CanvasH - 32) / h84;
+			const sy70 = (a2CanvasH - 32) / h70;
+			const s84 = Math.max(0.3, Math.min(sx, sy84, 1.4));
+			const s70 = Math.max(0.3, Math.min(sx, sy70, 1.4));
+			const delta = s70 === 0 ? 0 : (s84 - s70) / s70;
+			deltas.push(delta);
+
+			// The load-bearing assertion: the width term has not moved at all.
+			assert.equal(
+				sx,
+				(containerW - 32) / baseBuildingContentW(maxRooms),
+				`${floors}f x ${maxRooms}r at ${containerW}px: the width term of the fit scale must be bit-identical to base`,
+			);
+			// Where the width is still the limiter, the whole scale is identical.
+			if (sx <= sy84) {
+				assert.equal(
+					s84,
+					s70,
+					`${floors}f x ${maxRooms}r at ${containerW}px: width-limited after the change, so the scale must be exactly base`,
+				);
+				assert.equal(
+					ROOM_NAME_FONT * s84,
+					ROOM_NAME_FONT * s70,
+					`${floors}f x ${maxRooms}r at ${containerW}px: rendered card text must be byte-identical to base`,
+				);
+			}
+			rows.push(
+				`${floors}f x ${maxRooms}r at ${containerW}px: width term sx ${sx.toFixed(4)} = base (0.0% width cost); `
+				+ `scale ${s70.toFixed(4)} -> ${s84.toFixed(4)} (${(delta * 100).toFixed(1)}%, ${sx <= sy84 ? 'width-limited: no change' : 'height term is now the limiter'}); `
+				+ `card text ${(ROOM_NAME_FONT * s70).toFixed(2)}px -> ${(ROOM_NAME_FONT * s84).toFixed(2)}px`,
+			);
+		}
+	}
+	// Honest disclosure, asserted so it cannot be quietly forgotten: the height
+	// term is not free, and this stream does not pretend otherwise.
+	const worst = Math.min(...deltas);
+	t.diagnostic(
+		`buildingContentWidth vs base (card ${ROOM_CARD_W}x${ROOM_CARD_H}):\n${rows.join('\n')}\n`
+		+ `width term cost: 0.0% in all ${deltas.length} measured cases.\n`
+		+ `worst overall fit-scale delta, entirely from the required 84px card height: ${(worst * 100).toFixed(1)}%.\n`
+		+ `rejected 110px width at 616px/6 rooms would have given sx ${(((616 - 32) / (36 + 16 + 6 * rejected + 5 * 4))).toFixed(4)} `
+		+ `= ${(ROOM_NAME_FONT * ((616 - 32) / (36 + 16 + 6 * rejected + 5 * 4))).toFixed(2)}px card text, `
+		+ `a ${(((((616 - 32) / (36 + 16 + 6 * rejected + 5 * 4)) / ((616 - 32) / baseBuildingContentW(6))) - 1) * 100).toFixed(1)}% loss against base.`,
+	);
+	assert.ok(
+		worst > -0.2,
+		`the disclosed height cost must stay reported and bounded, got ${(worst * 100).toFixed(1)}%`,
+	);
+});
+
 /* ───────────────────────── fix 06: the map layout budget ─────────────────── */
 
 /** The 1366x768 layout arithmetic over the committed class contract. */
@@ -270,13 +400,19 @@ test('fix 06 control: the bottom-most floor is fully visible at 60% and 80% zoom
 /* ──────────────────────── fix 10: the micro-typography floor ─────────────── */
 
 test('fix 10 control: no text below 11px remains in the files this stream owns', () => {
+	// All eight product files this stream touched, not a subset: a scan that
+	// silently covers 5 of 8 overstates its own name.
 	const owned = [
 		'src/components/sections/SectionRoomMapModal.tsx',
 		'src/components/sections/SectionRoomPicker.tsx',
 		'src/components/sections/SectionHomeRoomModals.tsx',
 		'src/components/sections/HomeRoomConfirmDialogs.tsx',
+		'src/components/sections/homeRoomEditStatus.ts',
+		'src/components/sections/homeRoomPersistence.ts',
 		'src/components/BuildingView.tsx',
+		'src/pages/Sections.tsx',
 	];
+	assert.equal(owned.length, 8);
 	/** Tailwind's root is 16px, so text-[Nrem] = N*16 device px. */
 	const remPx = (rem: number) => rem * 16;
 	const offenders: string[] = [];

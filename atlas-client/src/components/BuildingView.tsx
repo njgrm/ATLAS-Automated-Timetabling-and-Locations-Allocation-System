@@ -51,7 +51,7 @@ const DEPED_COLORS = {
 const FLOOR_LABEL_W = 36;
 const ROOM_GAP = 4;
 const FLOOR_GAP = 3;
-const ROOM_MIN_W = 110;
+const ROOM_MIN_W = 90;
 const ROOM_H = 84;
 const FLOOR_PAD_X = 8;
 const FLOOR_PAD_Y = 6;
@@ -61,12 +61,31 @@ const UTILIZATION_BAR_W = 10;
 
 /* ─── Room-card frame budget (A3 fix 07/11) ───
  * Every text and meter element below owns a disjoint rectangle inside the
- * card, so no element can paint over another at any stage scale. The card grew
- * from 90x70 to 110x84 to hold that budget at an 11px authored size: the
- * building is width-dominated at desktop pane widths, so the extra width costs
- * essentially no fit scale while the taller card only costs the height budget
- * reported in the A3 handoff. Scaled device pixels are fontSize x stage scale,
- * never the authored value, so both are measured in the A3 layout control. */
+ * card, so no element can paint over another at any stage scale. The card is
+ * 90x84: base was 90x70, and only the HEIGHT changed.
+ *
+ * Width is a cross-lane contract, not a private one. buildingContentW =
+ * 48 + n x (ROOM_MIN_W + 4) is the divisor in the auto-fit scale
+ * (containerW - 32) / buildingContentW that every consumer of this component
+ * reads, and calculateCenter and clampPosition key off it too, so widening the
+ * card does not merely cost this view a little fit scale — it shrinks the
+ * rendered size of A2's timetable centre view and of every other consumer. A
+ * previous revision of this comment claimed the opposite ("the building is
+ * width-dominated at desktop pane widths, so the extra width costs essentially
+ * no fit scale"). The code's own arithmetic refutes that, because
+ * width-domination is precisely the case where sx is the limiter and the room
+ * term grows with the width: at 110 wide the room term grows +22.2% and the
+ * width-limited cases lost 16.4% to 16.8% of their fit scale, measured at A2's
+ * 616px container. So the width stays at base 90.
+ *
+ * The 84px height is kept because it is genuinely required: name 2 lines (26) +
+ * type (13) + occupancy (17) + footer (14) = 70px of text plus 8px padding
+ * falls to 78px inside a 70px card, and the height term only limits a view
+ * that is already taller than it is wide. The width-regression control in
+ * a3-sections-map-layout.test.ts pins buildingContentW to base for a set of
+ * (floors, maxRooms) cases so neither half of this can drift again silently.
+ * Scaled device pixels are fontSize x stage scale, never the authored value, so
+ * both are measured in that control. */
 export const ROOM_NAME_FONT = 11;
 export const ROOM_LABEL_FONT = 11;
 export const ROOM_LINE_H = 13;
@@ -76,17 +95,17 @@ export const ROOM_CARD_W = ROOM_MIN_W;
 export const ROOM_CARD_H = ROOM_H;
 
 /** Room name: two wrapped lines before ellipsis (fix 11). */
-export const ROOM_NAME_BOX = { x: 4, y: 4, width: 88, height: 26 } as const;
+export const ROOM_NAME_BOX = { x: 4, y: 4, width: 70, height: 26 } as const;
 /** Room type (or the non-teaching marker) on its own line. */
-export const ROOM_TYPE_BOX = { x: 4, y: 31, width: 88, height: 14 } as const;
+export const ROOM_TYPE_BOX = { x: 4, y: 31, width: 70, height: 14 } as const;
 /** Occupant / capacity chip. */
-export const ROOM_OCCUPANCY_BOX = { x: 4, y: 47, width: 88, height: 17 } as const;
+export const ROOM_OCCUPANCY_BOX = { x: 4, y: 47, width: 70, height: 17 } as const;
 /** Utilization percentage, left of the footer strip. */
-export const ROOM_UTILIZATION_TEXT_BOX = { x: 4, y: 66, width: 56, height: 14 } as const;
+export const ROOM_UTILIZATION_TEXT_BOX = { x: 4, y: 66, width: 36, height: 14 } as const;
 /** Program badge, right of the footer strip. Its own space, clear of the name. */
-export const ROOM_PROGRAM_BADGE_BOX = { x: 66, y: 66, width: 26, height: 14 } as const;
+export const ROOM_PROGRAM_BADGE_BOX = { x: 44, y: 66, width: 30, height: 14 } as const;
 /** Utilization bar, right-hand column. Never overlaps the text column. */
-export const ROOM_UTILIZATION_BAR_BOX = { x: 96, y: 5, width: 10, height: 62 } as const;
+export const ROOM_UTILIZATION_BAR_BOX = { x: 78, y: 5, width: 10, height: 62 } as const;
 
 /* ─── Grade-level color tokens (matching Sections.tsx) ─── */
 const GRADE_ROOM_COLORS: Record<string, string> = {
