@@ -19,9 +19,25 @@ Operator rulings that bind both lanes (2026-09-26):
 
 
 
-## 2026-09-27 00:25 — Revert leg: "Edit reverted." and nothing changed; the undo is logged as a new revertable row reading "warnings: 0" — **CLOSED e51388c1 (restores); 2 asks remain open**
+## 2026-09-27 00:35 — Generate dialog: dense, engineer's words, and "1295 unassigned" against the checklist's "0 to place"
 
-**A2 ack:** this is the exact failure I traced in source, and the fix is integrated at `e51388c1` (merge `3cfe79a8`, QA `ACCEPT_READY` 41/41/0/0). **Mechanism, proven failing-first at base `a6187a03` on a disposable DB:** `swapManualEntries` writes ONE `SWAP_ENTRIES` row whose payload is `{entryIdA, entryIdB, entryA, entryB}` — no `entryId` field — but `revertLastEdit` had no case for it and fell into a single-entry branch reading `afterPayload.entryId`. That is `undefined`, `findIndex` returned `-1`, and `if (idx !== -1)` **silently skipped the restore**; the function then went on to bump the version, write a `REVERT` row, write an audit row and publish `TIMETABLE_REVERTED`. Base output: `newVersion=3 draftUnchanged=true revertRowsWritten=1 auditRowsWritten=1`. That is your "Edit reverted." with no change, and it is now a typed `422 UNDO_RESTORE_UNAVAILABLE` with **zero writes** for any shape it cannot restore, while a real swap restores both halves of the pair exactly. Corroboration that it was an oversight: the pre-generation draft undo model in the same repo already had `'SWAP': 'restore-pair'`; the run path never got one. **Two of your three asks are NOT closed by this and I am not claiming them:** (2) the undo row naming the edit it undid and its button saying "Redo", and (3) the snapshot disagreeing with the header (241 vs 69). Both are real and both are **follow-ups**, queued — the snapshot number in particular is a truthfulness bug of the same family and I will not let it hide inside a closed entry.
+Evidence: findings #43–#45 (read-only; nothing generated or published). **#44 (HIGH, truthfulness):** on the same page the
+generate dialog says "Still unassigned: 1295 sessions" and the publish checklist says "0 sessions still to place". Pick one
+meaning and one number. **Generate dialog (MEDIUM):** 116 words, 14 lines at 12 px, no verdict line, and labels such as
+"Actor school year", "Term authority: Saved ATLAS data" and "Retained draft anchors". **Publish confirm: clear** (17
+words); only cut the duplicate close control. Both dialogs have an unlabelled ✕ plus a "Close" button.
+
+**A2 ack:** queued, behind the publish-date resolver. **#44 is the one I am treating as a defect and not a wording
+nit**, and I want to be explicit about why, because it is the same family as what Lane C caught me shipping in the
+swap panel: two surfaces on one screen asserting different numbers for the same fact. Your rule — *pick one meaning
+and one number* — is the correct acceptance contract and I am adopting it verbatim. "Actor school year" and "Term
+authority: Saved ATLAS data" are the engineer-facing leak: they name the mechanism instead of the state, and an older
+scheduler should not have to know that ATLAS has a saved-authority concept to be told which term is in force. That is
+the drift-banner pattern failing in the opposite direction — clear about the wrong thing. **Publish confirm being
+clear at 17 words is the counter-example worth copying**, same as the drift banner. Noted and not claimed: the
+unlabelled ✕ beside a "Close" button is a duplicate control and lands with the other `DUPLICATE` work.
+
+## 2026-09-27 00:25 — Revert leg: "Edit reverted." and nothing changed; the undo is logged as a new revertable row reading "warnings: 0" — **CLOSED e51388c1 (restores); 2 asks remain open**
 
 Evidence: findings #38–#42. **Live change:** run 320 now has a third history row, "Undid an earlier change" (12:22:07 AM),
 reverting the Tue 11:34 swap. **Second success-that-did-nothing:** no confirm, toast "Edit reverted.", and after a reload

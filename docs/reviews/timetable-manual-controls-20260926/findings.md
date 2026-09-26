@@ -165,3 +165,17 @@ One Claude-in-Chrome run, UI only. Reverted the newest row (Tue swap, 11:34:08 P
 
 #28 again: no console errors and no error boundary across the revert and reloads. Evidence: runner screenshots only
 (not saved to disk). Cost (`subagent_tokens`): 162,106.
+
+## Communication grading: generate dialog and publish confirm (draft run 320, 2026-09-27 ~00:35 +08)
+
+Read-only Chrome run; both dialogs cancelled (warnings 69 and history 3 unchanged). Columns: words / buttons / icons /
+text under 14 px / visual status.
+
+| # | Surface | Measure | Verdict and one cut | Severity |
+|---|---|---|---|---|
+| 43 | **Generate dialog** (More › Schedule actions › Generate) | 116 / 4 (unlabelled ✕, Cancel, Generate schedule, Close) / 2 / **14 at 12 px** / **none** | **Dense, and in engineer's words**: "Actor school year", "Term authority: Saved ATLAS data", "Retained draft anchors: 0 locked sessions". Cut: "Demand and Teaching Load coverage are read from the active school year's setup. If that data is unavailable, generation will stop and tell you what to fix." Rename the stats ("School year", "Locked classes kept"). | MEDIUM |
+| 44 | **Two numbers for the same thing.** The generate dialog says "Still unassigned: **1295** sessions"; the publish checklist, same page, says "**0** sessions still to place" and "Assigned sessions 2685". | – | A scheduler cannot tell whether the schedule is complete. One of them is wrong or they measure different things with the same words. | HIGH |
+| 45 | **Publish confirm** | 17 / 4 (unlabelled ✕, Cancel, Publish, Close) / 2 / 1 / none | **Clear** (text: "69 warnings must be acknowledged before publishing. ☐ I reviewed the remaining warnings."). Cut: the second close control; both dialogs carry an icon-only ✕ with no name **and** a "Close" button. | LOW |
+| 41 (update) | The run number is shown in one place: the publish panel's "Generated schedule · run 320". Still absent from the header. | – | – |
+
+Cost (`subagent_tokens`): 111,900 (+ 57,896 for a code search of the public routes).
