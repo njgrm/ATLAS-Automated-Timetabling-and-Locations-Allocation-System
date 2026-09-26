@@ -1221,14 +1221,62 @@ write-path authority change, so it is HIGH tier: it needs its own packet, indepe
 executor, and fresh post-action QA. **Not started here.** The irony worth recording: I flagged this exact channel
 as a "dormant untyped channel" risk in the previous commit, and it turned out to be live on exactly one branch.
 
+**PRE-ACTION REVIEW `CORRECTION_REQUIRED` 6/11 — the defect is LIVE, and my prescribed fix was WRONG (2026-09-26).**
+Packet `close-place-unassigned-metadata-authority-2026-09-26.md` (`11f2c7d2`) is **withdrawn**. The review
+upgraded the finding and rejected my remedy, both on evidence:
+
+- **The defect is live, not latent, and the preview lies too.** The reviewer proved it with a probe driving the
+  real production chain: `NO_METADATA {"allowed":false,"hardAfter":1,"hardCodes":["ROOM_FEATURE_MISMATCH"]}` versus
+  `CLIENT_METADATA {"allowed":true,"hardAfter":0,"softCodes":["ROOM_FEATURE_MISMATCH"]}`. So a client-supplied
+  flag both **downgrades the violation and makes the preview report it as allowed** — a false-UI-truth
+  consequence, not merely a bypass. The commit gate only tests `hardAfter.length > 0` (`:1341`), and
+  `ManualEditPanel.tsx:215` sends `allowSoftOverride: true` unconditionally.
+- **Blast radius is wider than I stated:** the same bag also downgrades `ROOM_TYPE_MISMATCH`
+  (`constraint-validator.ts:838,841`), not only the feature mismatch.
+- **My fix was falsified, and my reasoning was the error.** I argued "delete `:692`, because
+  `UnassignedItemInput` has no `metadata` field, so there is no legitimate payload." I checked who *consumes* the
+  unassigned item and concluded nobody supplies metadata. **I never checked who else writes the proposal.** The
+  field is **dual-sourced**: `timetable-quick-place.service.ts:430` sets
+  `metadata: matchedEntry?.metadata ? {...} : undefined` on server-built `ManualEditProposal[]`
+  (`buildQuickPlaceCommitProposals:404-433`, entry built at `:345-348`), and `applyQuickPlace` commits them with
+  `allowSoftOverride: true` (`:567-577`). A probe shows that deleting `:692` turns Quick Place's own deferral into
+  a **new HARD** `ROOM_FEATURE_MISMATCH` and a 422 block — i.e. my "fix" would have **broken a working
+  production path**. The batch derivation at `:1475-1487` masks only *type* mismatch and never sets
+  `deferredRoomTypePreference` for a same-type room, so nothing else covers it.
+- **Two mandatory verification rows were unsatisfiable as written:** the repo-wide 1000-line sweep is **not empty at
+  base** (44+ files, including `schedule-constructor.ts` 2977, `types.ts` 2286, `manual-edit.service.ts` 2190,
+  `constraint-validator.ts` 1320), so it must be a **delta** row, not "must be empty"; and **`atlas-server` has no
+  `typecheck` script** (only `build`), while client `typecheck` is unmeasurable from `D:\ATLAS` because
+  `@types/node` is absent there. Both commands were wrong.
+- **NO DATA REPAIR IS REQUIRED, and that is worth recording rather than leaving silent.** A read-only sweep of all
+  6 runs and ~13,800 draft entries found **zero** entries with a `manual-` entryId, so the `:692` channel has
+  **never written a live row**; deferral-bearing keys only ever appear alongside server-written companions
+  (`modularAssignments`, `roomAuthorityDeviationReason`, `fallbackTier`), and the 150 rows carrying a lone
+  `roomAssignmentReason` are seed fixtures with no production producer. So the fix is forward-looking only.
+
+**The correct fix is channel separation, not deletion** — which is the lesson, because deletion was exactly the
+"remove it rather than understand it" instinct. Keep the assignment, but read it from a **server-owned** field the
+wire cannot reach (e.g. an internal entry-metadata member on an internal proposal type, set only by
+`buildQuickPlaceCommitProposals`, with the client-sent `metadata` stripped or ignored at the request boundary), and
+delete only the client-reachable member. A compile error at `timetable-quick-place.service.ts:430` is the
+**expected tripwire** and must be fixed by re-pointing the server producer, never by re-adding a wire-writable
+field. A Quick Place preservation control (`buildQuickPlaceCommitProposals` → `applyProposalBatch` →
+`validateHardConstraints`, asserting no new HARD and that `roomAssignmentReason` survives) is **mandatory** — the
+compatible-room control alone passes post-fix and would have hidden this break.
+
+**Third packet withdrawn in this area, all three caught before execution.** The standing rule extends: for a
+write-path authority change, enumerate **every writer** of the field in question, not just its consumers, before
+proposing to remove it. **Not re-authored here** — the fix design is now known and specific, and it belongs in a
+fresh cycle with its own pre-action review rather than a third rewrite at the end of an overlong session.
+
 **Next action (2026-09-26): the release is live; acceptance needs one operator action.** (1) **operator
 re-seeds** `C:\Users\njgro\.config\opencode\playwright-profile`; (2) **Lane A** runs A5, A6, A7, A12(b) and records
-the result, closing acceptance; (3) **rotate the exposed dev DB credential**; (4) **author and review the packet
-for the `PLACE_UNASSIGNED` metadata authority defect above — this is the highest-value open item**;
-(5) retention reclaim before the next release build (E: 46 GiB, below the 50 GiB warning); (6) the `4893cbde` +
-three-leftover decision (1.91 GiB) and the 8.72 GiB disposition backlog owned by Lanes B and C; (7) the three
-room-affordance design decisions; (8) a decision on the five oversized `.ts` modules. **Rollback basis `116a7658`
-is verified eligible and was not executed.**
+the result, closing acceptance; (3) **rotate the exposed dev DB credential**; (4) **author the channel-separation
+rewrite of the `PLACE_UNASSIGNED` metadata authority fix, with the Quick Place preservation control and a delta
+sweep row — the highest-value open item, now precisely specified**; (5) retention reclaim before the next release
+build (E: 46 GiB, below the 50 GiB warning); (6) the `4893cbde` + three-leftover decision (1.91 GiB) and the
+8.72 GiB disposition backlog owned by Lanes B and C; (7) the three room-affordance design decisions; (8) a decision
+on the oversized `.ts` modules. **Rollback basis `116a7658` is verified eligible and was not executed.**
 
 **SUPERSEDED 2026-09-26 — a spliced paragraph this lane's own editing left behind, repaired.** The four lines
 immediately below were an orphaned fragment, and the sentence they belonged to was cut in half. They are
