@@ -29,6 +29,7 @@ does nothing, and the Help button does nothing (once it crashed to an error page
 | 7 | **The teacher's page tags draft classes "Live".** Every class row on `/my` carries "Live" under a banner saying the draft may still change. A teacher will read "Live" as final. | X1 | MEDIUM |
 | 8 | **Codes and ids reach parents and teachers.** Public cells show "TLE_ICT_EXP", "SCI_BIO". Notifications show "Generation run #318 completed…", "ATLAS server recovered from a inte…" (grammar, and a server event shown to a scheduler), in US date format "9/25/2026, 9:28:27 PM". The audit shows "Average roster load: 55.6%". | P3–P5 | MEDIUM |
 | 9 | **The dashboard claims a sync during the outage.** "Teachers 42 (Synced from EnrollPro)", while every other page says it is using saved data because EnrollPro cannot be reached. Also "1 building have no rooms", and the campus widget opens on "Speech Lab… 0 teaching rooms ready". | P1 | LOW |
+| 10 | **The login page brands ATLAS as "ASS".** In a browser with no cached school branding while EnrollPro is down (a fresh profile, observed in Codex's Chrome), the login page heading reads **"ASS"**. `Login.tsx:81` defaults `schoolName` to "ATLAS Scheduling System", and the acronym at `:94-104` takes the first letter of the first three words. The page accent also falls back to the default green, because the school colour comes only from EnrollPro `settings/public` and a per-browser cache (`lib/settings.ts:436`, accent cache). Every new device, including a principal's laptop at a demo, sees "ASS" until EnrollPro answers once. Fix: default the heading to "ATLAS" and derive an acronym only from a real school name. | Codex login screenshot, code | **HIGH** (demo embarrassment) |
 
 ## Keep
 
@@ -42,4 +43,4 @@ does nothing, and the Help button does nothing (once it crashed to an error page
 ## Hand-off
 
 - **A2 (timetable / publication):** findings 1, 2, 3 and 7. Findings 2 and 3 need read-only diagnosis first.
-- **Planner A (shell, dashboard, audit, companions):** findings 4, 5, 6, 8 and 9. Finding 5 comes first because it crashes. Finding 4 needs a decision on what "blocker" means across audit and readiness. That decision is shared with A2.
+- **Planner A (shell, dashboard, audit, companions):** findings 10 (do first: the "ASS" login heading), 4, 6, 8 and 9. Finding 5 comes first because it crashes. Finding 4 needs a decision on what "blocker" means across audit and readiness. That decision is shared with A2.
