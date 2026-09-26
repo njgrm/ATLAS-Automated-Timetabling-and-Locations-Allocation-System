@@ -52,9 +52,16 @@ resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs
   `E:\ATLAS-runtime-supervised-861d89a2-20260925`; prior QA `ACCEPT_READY` 8/8/0/0 preserved; **no migration.**)
 - **Release SHA: `eb0e30386336673a4a31ecfe39a9bef93549e0ed`** (rollback basis; previously LIVE 2026-09-25 22:19;
   `E:\ATLAS-runtime-supervised-eb0e3038-20260925`; prior Q4/A1 evidence preserved; **no migration.**)
-- **Release SHA: `c5e167d7c5939ff586880149c566ce29506430e8`** (rollback basis; previously LIVE 2026-09-25 20:40,
-  `E:\ATLAS-runtime-supervised-c5e167d7-20260925`; R1 browser rows accepted at 1366×768 and 390×844; prior
-  collaboration-ticket incident preserved; two EnrollPro proxy 502s remain non-blocking. **No migration.**)
+- **Release SHA: `c5e167d7c5939ff586880149c566ce29506430e8`** (**RETIRED 2026-09-26** under reclaim
+  `20260926b`; previously LIVE 2026-09-25 20:40, `E:\ATLAS-runtime-supervised-c5e167d7-20260925`; R1 browser rows
+  accepted at 1366×768 and 390×844; prior collaboration-ticket incident preserved; two EnrollPro proxy 502s
+  remain non-blocking. **No migration.** Its release directory was removed — only `ops/runtime/logs/` deleted
+  (22,737 bytes, 2 files, after its `supervisor-state.json` was captured verbatim: 477 bytes, SHA-256
+  `B820E66C…30C7DA`, a stale `running` record whose PIDs 54256/77492 are absent), then non-forced
+  `git worktree remove` + `git worktree prune`; no branch deleted. **It is NOT a usable rollback target**;
+  deeper rollback is a rebuild. The commit is an ancestor of `origin/main`, so no Git object was destroyed.
+  **It was displaced as a rollback basis by the two later accepted releases `eb0e3038` and `861d89a2`, which
+  are the keep rows above.**)
 - **Release SHA: `ad8f9717`** (**RETIRED 2026-09-26** under successor reclaim `20260926a`; its release directory
   `E:\ATLAS-runtime-supervised-ad8f9717-20260925` was removed — only `ops/runtime/logs/` deleted, then non-forced
   `git worktree remove` + `git worktree prune`; no branch deleted; zero residue. **It is NOT a usable rollback
@@ -222,8 +229,13 @@ resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs
 - Give `37e0c85b` (acceptance owner: Lane B / Codex) and the C7 target an authenticated session (see `AGENTS.md` §12).
 - `E:` reclaim C is **complete (2026-09-25)**: audited removal of `82871619` and `ff87b06b` freed 3.07 GiB; post-action E: was 47.80 GiB free. The §3 obligation was discharged for the `861d89a2` build only; do not re-run `20260925c` (closed at `ACCEPT_READY` 17/17).
 - Successor reclaim `20260926a` (retire `ad8f9717`) is **complete (2026-09-26)**: only `ops/runtime/logs/` was deleted, then non-forced `git worktree remove` + `git worktree prune`; no branch deleted; zero residue; keep set `861d89a2`/`eb0e3038`/`c5e167d7`/`5c100ea6`/`4893cbde` verified intact; live `861d89a2` unchanged (machine env, `running`/`861d89a2`, 5001→36120 / 5174→62504, health 200, ready `database:"ok"`, subjects read 200). **Measured post-action: 47.23 GiB free on E: and 60.67 GiB on D:** (1.46 GiB released). This discharges §3 for the single next build (`116a7658` F1/F2) only. Because 47.23 GiB is still below the 50 GiB warning, any second release build — including `9f42190e` — re-triggers §3 and requires its own fresh successor manifest and pre-action audit; the `9f42190e` packet's one-build deviation is not a substitute. (Superseded readings: the 45.72/60.67 pre-reclaim 2026-09-26 measurement, the ~47.18 GiB projection, and the 47.45/49.55 figures elsewhere in this file.)
-- Reclaim `20260926b` (retire `c5e167d7` + `5c100ea6`) is **EXECUTED (2026-09-26)**, pending its post-action
-  audit: `c5e167d7` had only `ops/runtime/logs/` removed (22,737 bytes, 2 files; its `supervisor-state.json`
+- Reclaim `20260926b` (retire `c5e167d7` + `5c100ea6`) is **COMPLETE (2026-09-26)** — post-action audit returned
+  `CORRECTION_REQUIRED` 7/8 on the **register**, not the reclaim: the physical retirement was correct and
+  complete, but commit `809acefc` left the rollback list above still naming `c5e167d7`, and that commit's own
+  message claimed the entry had been dropped. **Corrected additively in the following commit, not by amending
+  `809acefc` (§16).** No force was required for either removal and none is discoverable — Git records no
+  worktree-remove flags, so that part is circumstantial: both targets were non-dirty detached worktrees and zero
+  collateral damage is observable. Executed: `c5e167d7` had only `ops/runtime/logs/` removed (22,737 bytes, 2 files; its `supervisor-state.json`
   captured verbatim first — 477 bytes, SHA-256 `B820E66C…30C7DA`, a **stale** `running` record whose PIDs
   54256/77492 are absent), then non-forced `git worktree remove`; `5c100ea6` was clean, so it needed no
   pre-step; then `git worktree prune`. No `--force`, no glob, no branch deleted, zero residue, zero junction
@@ -387,7 +399,9 @@ into their own worktree; distinct `configHash` values prove distinct roots; the 
 all). Build risk is **nil** — `vite build` does not read `node_modules/.vite/deps`, and the cache is
 self-invalidating. **But the governance problem is real:** a frozen retained release is doubling as a shared
 mutable `node_modules` source, so any process running Vite with that tree as root writes into it. **Ruling:
-the pending `9f42190e` build gets its own real copy, and `5c100ea6` is recorded read-only. No `.vite` removal
+the pending `9f42190e` build gets its own real copy, and `5c100ea6` was recorded read-only — that release has
+since been **retired** by reclaim `20260926b`, so the ruling now binds `861d89a2` as the one dependency source.
+No `.vite` removal
 is required; nothing was deleted.**
 
 **Owed J2 sweep — registered, not silently dropped (QA findings 2–5).** The same de-snake-case fallback
@@ -657,17 +671,21 @@ the focused gates and the bounded review had missed — main's R7 control pinned
 `'some future code'` — fixed additively at `de392cf8`.
 
 **DONOR CORRECTION (2026-09-26) — the donor guidance below is WRONG and must not be reused.**
-`E:\ATLAS-runtime-supervised-5c100ea6-20260925\atlas-client\node_modules` is **empty: 0 entries, no `tsx`**. It
+`E:\ATLAS-runtime-supervised-5c100ea6-20260925\atlas-client\node_modules` **was measured empty: 0 entries, no
+`tsx`**, as recorded before reclaim `20260926b` removed that release directory on 2026-09-26 (so the path in
+this sentence no longer exists — the measurement stands as history, not as availability). It
 is **not** a usable junction source, so the "keep `5c100ea6` as donor" line below is void. Use a real copy of
 an intact tree (~0.21 GiB) and run no install. This also invalidated the dependency provenance of this lane's
 earlier `19bc`-era base-attribution measurement, which was re-run against one identical self-owned tree to
-produce the `5960cfce` numbers above. E: is now 43 GiB (below the 50 GiB warning).
+produce the `5960cfce` numbers above. E: was 43 GiB when the J2/J3 integration closed; the reclaim
+`20260926b` then measured it at **48.73 GiB**, still below the 50 GiB warning.
 
 **Next action (2026-09-26):** no Lane A **source** task remains. `main` carries C1/C2/C3 + J2 + D2 + J2/J3 and
 is **still not deployed**; live is `116a7658` off the `861d89a2` line, so the next release must reconcile that
 divergence, not fast-forward. Before any next release build: a fresh successor reclaim/audit, then a new
-deployment packet with its own pre-action review. Keep `116a7658` live and `861d89a2` as rollback — **not** as
-donor (see the donor correction). Dated follow-ups, none blocking: **F1**, a product ruling this lane did not
+deployment packet with its own pre-action review. Keep `116a7658` live and `861d89a2` as rollback — **superseded
+2026-09-26 by the keep-set line: `861d89a2` IS the one real dependency source** (the donor correction below
+applies to `5c100ea6` only, and that release is now retired). Dated follow-ups, none blocking: **F1**, a product ruling this lane did not
 make — main's four per-code-space fallbacks still differ from the shared honest sentence for an out-of-union
 value (unreachable on today's schema, no token leak, QA ruled NON_BLOCKING); **F3**, B1's defect class still
 live at `ManualEditPanel.tsx:929,948` and `QuickPlaceSummaryModal.tsx:58`; **F4**,
@@ -705,8 +723,9 @@ The isolated deploy
 candidate worktree `E:\ATLAS-worktrees\lane-a-f1-f2-deploy-candidate` at `116a7658` is `PRESERVE_FOR_DECISION`:
 it is the source of the deployed target and is not an ancestor of `main`. Live release
 `E:\ATLAS-runtime-supervised-116a7658-20260726` is `KEEP_ACTIVE`; rollback `861d89a2` is
-`PRESERVE_FOR_DECISION`; `5c100ea6` is **RETIRED 2026-09-26 by reclaim `20260926b`** (below) — its
-`node_modules` was empty, so it was never a usable dependency source. `eb0e3038` is `PRESERVE_FOR_DECISION`
-and is now the second most recent accepted release. `c5e167d7` is **RETIRED 2026-09-26** (below). The one real
+`PRESERVE_FOR_DECISION`; `5c100ea6` is **RETIRED 2026-09-26 by reclaim `20260926b`** (evidence and figures in
+the reclaim row above) — its `node_modules` was empty, so it was never a usable dependency source.
+`eb0e3038` is `PRESERVE_FOR_DECISION` and is now the second most recent accepted release. `c5e167d7` is
+**RETIRED 2026-09-26** by the same reclaim. The one real
 dependency source is **`861d89a2`** (156 entries): use a real copy, never a junction chain.
 Do not write in Lane B/C worktrees.
