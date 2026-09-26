@@ -40,18 +40,45 @@ resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs
 
 - Tailnet: `https://njgrm.buru-degree.ts.net`
 
-- **Release SHA: `26f7c907a37185e036e71cf0d82423794689b318`** (**target of the 2026-09-26 Lane A client-presentation deployment, recorded here BEFORE the cutover so `deploy-runner.ps1` `Assert-LiveReleaseRecorded` can pass; the cutover had not executed when this entry was written, and the post-cutover verification is recorded by the follow-up commit**; `E:\ATLAS-runtime-supervised-26f7c907-20260926`; registered worktree at the target SHA, never a clone; dependency trees by `robocopy /E` real copy from `861d89a2` (client 0.213 GiB, server 0.368 GiB, 0 reparse points, no junction, no `npm ci`); `prisma generate` codegen only, no migration; client built with `VITE_ENROLLPRO_URL=https://dev-jegs.buru-degree.ts.net`; isolation run on port 5198 with `ROLLOVER_AUTO_SYNC_ENABLED=false`: health 200, ready 200 `database:"ok"`, DB-backed subjects read 200, listener PID stopped and 5198 released; `git status --short` empty after the run (gate 6b); new-build-only chunk `assets/index-BgXhGnEV.js` (313,925 bytes) returns 404 on the incumbent 5174, which serves `assets/index-BAf43GT7.js`. **No migration, no live-data write, no machine-env mutation, no `ops/runtime/` source change.** Rollback basis: `116a7658`.)
+- **Release SHA: `26f7c907a37185e036e71cf0d82423794689b318`** (**LIVE since 2026-09-26 09:41, Lane A** —
+  client-presentation release, cutover executed; `E:\ATLAS-runtime-supervised-26f7c907-20260926`; execute audit
+  `C:\ProgramData\ATLAS\release-audit\26f7c907-20260926-094157`, dry-run audit
+  `…-094130`; the runner returned `CUTOVER_STARTED`; active state `running`/`26f7c907`; supervisor task action **and
+  both machine env vars** `ATLAS_RUNTIME_SOURCE_DIR` / `ATLAS_RUNTIME_RELEASE_SHA` name the target; listeners
+  5001→88120, 5174→84436; health 200, ready 200 `database:"ok"`, DB-backed subjects 200, Tailnet 200; **gate 10b
+  `git status --short` empty** and the runtime state file present but ignored per the host change below; new-build
+  chunk `assets/index-BgXhGnEV.js` (313,925 bytes, SHA-256 `96D628F5…BBA7B25B`) served **200** on 5174 and
+  byte-identical to the on-disk build, while the superseded `assets/index-BAf43GT7.js` now **404** — the served
+  surface demonstrably changed. Registered worktree at the target SHA, never a clone; dependency trees by
+  `robocopy /E` real copy from `861d89a2` (client 0.213 GiB, server 0.368 GiB, 0 reparse points, no junction, no
+  `npm ci`); `prisma generate` codegen only, **no migration**; client built with
+  `VITE_ENROLLPRO_URL=https://dev-jegs.buru-degree.ts.net`; isolation run on port 5198 with
+  `ROLLOVER_AUTO_SYNC_ENABLED=false`: health 200, ready 200 `database:"ok"`, subjects 200, listener PID stopped and
+  5198 released, gate 6b empty. **Zero write: 0 of 6 tables changed** — `audit_logs`
+  `6fb561f2…`, `faculty_availabilities` `a83264ed…`, `faculty_availability_slots` `d41d8cd9…`, `generation_runs`
+  `efb22a71…`, `manual_schedule_edits` `d41d8cd9…`, `published_schedule_revisions` `49210d02…` all identical before
+  and after, so the cutover and supervisor restart wrote no audit row. **No migration, no live-data write, no
+  machine-env mutation beyond the runner's own three-part cutover, no `ops/runtime/` source change.** Deployment
+  packet: `docs/prompts/deploy-main-26f7c907-client-presentation-2026-09-26.md` (R5, `APPROVED_TO_EXECUTE` 11/11/0/0
+  after five pre-action passes). **Acceptance is a separate outcome** — the A-row tally is owned by a fresh
+  independent post-action QA. **Rollback basis: `116a7658`.**)
 
 - **Host change, unversioned shared Git state, 2026-09-26, Lane A, authorized:** `/ops/runtime/logs/` added to `D:\ATLAS\.git\info\exclude` (line 8). The supervisor writes `supervisor-state.json` into the release worktree it runs from (`ops/runtime/cli.mjs` `statePathFor`, which never reads `ATLAS_RUNTIME_LOG_DIR`), so every started release reported `?? ops/runtime/logs/` and `deploy-runner.ps1` `Get-GitIdentity` rejected it as both a deploy target and a rollback basis. The `*.log` sibling was already covered by `.gitignore:83`; this rule covers the state file. Verified: `git check-ignore -v` attributes `ops/runtime/logs/supervisor-state.json` to `D:/ATLAS/.git/info/exclude:8`, and `git status --short` is empty for `116a7658`, `861d89a2`, `eb0e3038` and the new target. Before/after measurement and rationale: `docs/prompts/deploy-main-26f7c907-client-presentation-2026-09-26.md` section 0. **No `ops/runtime/` source change was made.**
-- **Release SHA: `116a765814bf56fdd30aec02c611869aaff42190`** (**LIVE** since 2026-09-26 05:11, Lane A;
+- **Release SHA: `116a765814bf56fdd30aec02c611869aaff42190`** (**previously LIVE 2026-09-26 05:11 → 09:41, when
+  `26f7c907` superseded it; now the ROLLBACK BASIS for the live release**; Lane A;
   `E:\ATLAS-runtime-supervised-116a7658-20260726`; execute audit
   `C:\ProgramData\ATLAS\release-audit\116a7658-20260926-051034`; dry-run audit
-  `C:\ProgramData\ATLAS\release-audit\116a7658-20260926-051018`; active state `running`/`116a7658`; machine env =
-  target; health 200, ready 200 `database:"ok"`, DB-backed subjects read 200, Tailnet 200; startup log clean;
-  served target-only `assets/index-BAf43GT7.js` byte-identical to the target build. Independent post-action QA
+  `C:\ProgramData\ATLAS\release-audit\116a7658-20260926-051018`; at its own cutover: active state
+  `running`/`116a7658`, machine env = target, health 200, ready 200 `database:"ok"`, DB-backed subjects read 200,
+  Tailnet 200; startup log clean; served target-only `assets/index-BAf43GT7.js` byte-identical to that build —
+  **which now returns 404 on 5174, since the served release is `26f7c907`.** Independent post-action QA
   `ACCEPT_READY` **8/8/0/0**; six-table zero-write digests unchanged; C08 160/0, published identity/swap/load
-  suites pass, F2 drift/client failures base-reproduced with zero candidate-only failures. **No migration.
-  Rollback basis for `26f7c907` once that cutover executes; until then this release is still LIVE, and `861d89a2` remains the deeper rollback basis.**
+  suites pass, F2 drift/client failures base-reproduced with zero candidate-only failures. **No migration.**
+  **Runner-eligible as a rollback basis:** clean at its declared SHA (`git status --short` empty under the host
+  change below), not a reparse point, with `ops/runtime/cli.mjs`, `atlas-server/dist/server.js` and
+  `atlas-client/dist/index.html` present. Deeper rollback basis: `861d89a2`. The rollback invocation is the full
+  `-Target*`/`-Incumbent*` argument swap via `deploy-runner.ps1` (target `116a7658…`, incumbent `26f7c907…`) —
+  changing only the target pair fails closed at `GetMachineIdentity` and at `Replace-TaskSourceBytes`.
 - **Release SHA: `861d89a2bc2682c5f875dde0b4b1d8ffc079b1fe`** (rollback basis; previously LIVE 2026-09-26 01:27;
   `E:\ATLAS-runtime-supervised-861d89a2-20260925`; prior QA `ACCEPT_READY` 8/8/0/0 preserved; **no migration.**)
 - **Release SHA: `eb0e30386336673a4a31ecfe39a9bef93549e0ed`** (rollback basis; previously LIVE 2026-09-25 22:19;
@@ -850,11 +877,15 @@ SHA and the miscounted rows.
 fail-closed line, below the 50 GiB warning. This deployment is unaffected, but the release-directory retention
 reclaim is owed again before the **next** release build.
 
-**Next action (2026-09-26):** return the release worktree HEAD to `26f7c907`, re-run the step-9 dry run and then
-`-Execute` with identical arguments, then run gate 10b and a fresh `atlas-qa` post-action QA against A1–A13 with a
-real `passed/blocked/unperformed` tally. `main` is still not deployed; live is `116a7658` and healthy. Also owed:
-rotate the exposed dev DB credential; the `4893cbde` + three-leftover decision (1.91 GiB); and the 8.72 GiB
-disposition backlog owned by Lanes B and C. Dated follow-ups, none blocking: **F1**, a product ruling this lane did not
+**Next action (2026-09-26): `26f7c907` is DEPLOYED and the register now names it LIVE. The single remaining
+required step is the fresh independent post-action QA** — `atlas-qa`, dispatched by the planner, owning the A1–A13
+tally with a real `passed / blocked / unperformed` and no row declared not applicable. It must **re-run A4's
+six-table digest corroboration itself** rather than accept the executor's figures, and A5–A7 plus A12(b) are
+Lane A's authenticated browser rows against the Tailnet root origin using the seeded profile. **Deployment and
+acceptance stay separate outcomes** — the runtime is live and healthy, and acceptance is not yet closed. Also
+owed: **rotate the exposed dev DB credential**; E: is 47.19 GiB, so the retention reclaim is owed before the next
+release build; the `4893cbde` + three-leftover decision (1.91 GiB); and the 8.72 GiB disposition backlog owned by
+Lanes B and C. Dated follow-ups, none blocking: **F1**, a product ruling this lane did not
 then a fresh `atlas-qa` post-action QA against A1–A13 with a real `passed/blocked/unperformed` tally. `main` is
 still not deployed; live is `116a7658` and healthy. Also still owed and neither blocking: the `4893cbde` +
 three-leftover decision (1.91 GiB) and the 8.72 GiB disposition backlog owned by Lanes B and C. Dated follow-ups,
