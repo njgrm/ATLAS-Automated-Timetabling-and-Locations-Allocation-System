@@ -1324,15 +1324,64 @@ scope is now: a service-choke-point fix for `:692`, plus a separate decision on 
 soften a publication-blocking constraint, plus the repair router's proposal path. **That is a scoped
 investigation with its own evidence, not a third packet rewrite at the end of an overlong session.**
 
+**SCOPED INVESTIGATION COMPLETE (2026-09-26) — client-controlled constraint severity, mapped end to end. This
+supersedes the two withdrawn packets and is the reference for the fix.** All read-only; no code, data, runtime or
+environment was touched.
+
+**Finding 1 — the `:692` client-metadata channel.** `applyProposal`'s `PLACE_UNASSIGNED` branch writes
+`proposal.metadata` onto a new persisted entry. It is reachable from **five** body-carrying paths: four in
+`manual-edit.router.ts` (`:48` preview, `:78` commit, `:109` batch/preview, `:139` batch/commit) and
+`timetable-teaching-load-repair.router.ts:134`, which forwards a client `placementProposal` into
+`applyProposalBatch` while `bindPlacementToUnassignedChange` preserves `metadata` via `{ ...proposal }`. **The fix
+must be at the `applyProposal` choke point**, which every path funnels through; router-level stripping provably
+cannot reach the repair router. The server's own `timetable-quick-place.service.ts:430` is a **legitimate second
+writer** and must keep working — that is why deleting the assignment, as R1 proposed, broke Quick Place.
+
+**Finding 2 — severity depends on which route the client picks.** `deferredRoomTypePreference` occurs exactly
+twice in `manual-edit.service.ts`: **written only at `:1484`, inside `commitManualEditBatch`**, and merely *read* at
+`:414` by the shared candidate validator, which widens `allowedRoomTypes` under it. **`commitManualEdit` has no
+auto-defer at all.** So for the identical edit — a type-mismatched, feature-shortfall placement — the reviewer's
+probe gives `/commit` → `allowed:false, hardAfter:3` all HARD, and `/batch/commit` → both `ROOM_TYPE_MISMATCH` and
+`ROOM_FEATURE_MISMATCH` downgraded to SOFT. **A client chooses the lenient route.** That is the sharpest part of
+this finding and it is not a metadata-scoping detail.
+
+**Finding 3 — one flag gates two different constraints.** The auto-defer's own comment (`:1475`) says *"Auto-defer
+room **type** preference"*, and `:1481` tests only `room.type !== subject.preferredRoomType`. But
+`constraint-validator.ts:869` consumes the same flag to soften the **feature** requirement, which `:860-863`
+documents as "a HARD violation that would block publication". So the flag's **stated intent is type-only and its
+effect is type-and-features** — a recorded room-type deviation silently also forgives a missing `FUME_HOOD`. The
+evidence favours intent over effect here: the comment, the type-only condition, and the publication-blocking
+status of the feature constraint all point the same way.
+
+**Finding 4 — the auto-defer re-stamps the whole draft, not the batch's own edits.** `:1478` iterates `newEntries`,
+which is the entire post-batch entry list from `applyProposalBatch` (`:1469`), not `applied` — and the code
+distinguishes the two, using `applied.map(edit => edit.afterEntry)` for candidate invariants at `:1492`. So one
+batch commit re-stamps pre-existing entries nobody touched in that batch. Defensible as long as the whole draft is
+re-validated, but it means the blast radius of a single lenient route is the entire schedule, and it is
+**unrecorded** — the loop mutates entry metadata with no audit row and no operator-visible warning beyond the soft
+violation list.
+
+**Finding 5 — no data repair, on a strong signal.** `manual_schedule_edits` has **0 rows**: no manual edit of any
+kind has ever been committed on this database, so none of these channels has ever been exercised. The `:692`
+channel and the batch auto-defer are both **forward-looking only**. (My earlier supporting figures — "150 rows" and
+"keys only ever appear with server companions" — were asserted, not measured, and are corrected in the R2 entry
+above: the reviewer measures 13,800 draft entries and 3,000 carrying a lone `deferredRoomTypePreference`.)
+
+**The decision this now puts to the owner, stated so it can be answered rather than argued:**
+1. **Should route choice change constraint severity?** The evidence says no — `/commit` and `/batch/commit` must
+   produce the same verdict for the same edit, or the lenient route is simply a bypass. This is the primary fix.
+2. **Should a recorded room-type deviation forgive a feature shortfall?** The comment says the flag is for type;
+   the validator uses it for both. Either split the flag, or narrow the validator's use of it to the type check.
+3. **Should the batch auto-defer exist at all?** If yes, it must be recorded (audit row and an operator-visible
+   warning), not applied silently across the whole draft.
+
 **Next action (2026-09-26): the release is live; acceptance needs one operator action.** (1) **operator
 re-seeds** `C:\Users\njgro\.config\opencode\playwright-profile`; (2) **Lane A** runs A5, A6, A7, A12(b) and records
-the result, closing acceptance; (3) **rotate the exposed dev DB credential**; (4) **a scoped investigation of
-client-controlled constraint severity across all five routes**, covering the `:692` channel, the
-`commitManualEditBatch:1478-1487` auto-defer, and the Teaching Load repair `placementProposal` path — now the
-highest-value open item and no longer a single packet; (5) retention reclaim before the next release build
-(E: 46 GiB, below the 50 GiB warning); (6) the `4893cbde` + three-leftover decision (1.91 GiB) and the 8.72 GiB
-disposition backlog owned by Lanes B and C; (7) the three room-affordance design decisions; (8) a decision on the
-oversized `.ts` modules. **Rollback basis `116a7658` is verified eligible and was not executed.**
+the result, closing acceptance; (3) **rotate the exposed dev DB credential**; (4) **decide the three questions
+above**, which gate any fix to the constraint-severity channels; (5) retention reclaim before the next release
+build (E: 46 GiB, below the 50 GiB warning); (6) the `4893cbde` + three-leftover decision (1.91 GiB) and the
+8.72 GiB disposition backlog owned by Lanes B and C; (7) the three room-affordance design decisions; (8) a
+decision on the oversized `.ts` modules. **Rollback basis `116a7658` is verified eligible and was not executed.**
 
 **SUPERSEDED 2026-09-26 — a spliced paragraph this lane's own editing left behind, repaired.** The four lines
 immediately below were an orphaned fragment, and the sentence they belonged to was cut in half. They are
