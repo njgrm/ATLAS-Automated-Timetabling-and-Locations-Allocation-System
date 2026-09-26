@@ -82,6 +82,32 @@ identity by `[Environment]::GetEnvironmentVariable('ATLAS_RUNTIME_SOURCE_DIR','M
 scheduled-task action, and the listener command lines. Machine scope currently reads
 `e4989b72…` / `e4989b725394204898ebcd429db74daaf7316323`, which is correct.
 
+**⚠ §3 RECHECK 2026-09-26 (evening) — a §3 reclaim IS owed before the next release build, and three
+older lines claiming otherwise are SUPERSEDED.** Measured now with the prescribed method (repeated samples,
+constant to 0.01 GiB): **`E:` 49.48 GiB, which is BELOW the 50 GiB warning line.** `D:` 39.45 GiB, above its
+25/15 lines. The reclaim I executed earlier in the day took `E:` from 48.54 to ~50.0 GiB, which — as that
+block already said — *reaches* the warning line but does not clear it; further activity has since taken it
+back under. §3 requires the release-directory retention reclaim **before the next release build**, and the
+`0da104f9` deploy's first step is exactly a release build, so an independent pre-action review returned
+`CORRECTION_REQUIRED` on this row and correctly so.
+
+**Superseded by this recheck, do not act on them:** the statements "E: is now ABOVE the 50 GiB warning, so
+no §3 reclaim is owed before the next build" and "no §3 reclaim is owed on either volume (D: 39.46,
+E: 55.28, both above their warnings)" are both false as of this measurement — `E: 55.28` is long stale.
+Those lines sit outside this lane's section and are not edited here, per the §15 custody rule; this dated
+recheck is the authority and states what proves it.
+
+**The only remaining reclaim candidate is `4893cbde-20260923` (1.80 GiB), and the §3 obligation is live, so
+its disposition is now a real decision rather than a note.** What is actually dirty in it: exactly
+**6.3 KiB** under `ops/runtime/logs/` — `atlas-supervisor.log` (5.8 KiB) and `supervisor-state.json`
+(0.5 KiB), both dated 2026-09-23. That is machine-generated supervisor output from a release superseded
+three days ago, **not human work**, and its deployment evidence is preserved *outside* the tree under
+`C:\ProgramData\ATLAS\release-audit\4893cbde-20260923-212838`, `-213542` and `-215632`. The remaining
+1.79 GiB is `node_modules` and build output, reconstructible from the pushed SHA. It is the only
+directory outside the keep set, so discharging §3 means deciding this one. **Operator decision, not taken
+silently below.**
+
+
 ## Objective
 
 Deliver a presentable live ATLAS demo for school 1 and active upstream school
@@ -121,6 +147,9 @@ resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs
     `bcrypt.hash('', 12)` succeeds, so an empty password would otherwise have created accounts anyone could log
     into. **The login-verify path is deliberately untouched.** This is a **security improvement, and this is the
     first time this server build reaches production.**
+    *Count correction: an earlier revision of this entry said "15 under `atlas-server/`". Re-derived, it is
+    **14** server files plus `prisma/seed.js` (15 server-and-prisma). The total of 40 is correct; the label
+    was not. No file was concealed, since 14 is a subset of what was disclosed.*
   - **No `prisma/schema.prisma` and no `prisma/migrations/` file is in the range, so NO schema command is
     authorised or implied.** The `prisma/seed.js` and `atlas-server` script changes are source only; the deploy
     does not execute any seed.
