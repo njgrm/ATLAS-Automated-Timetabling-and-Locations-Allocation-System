@@ -511,7 +511,14 @@ export default function ManualEditPanel({
 									{(() => {
 										const subject = subjectMap.get(entry.subjectId);
 										const selectedRoom = roomMap.get(Number(targetRoomId));
-										if (!subject || (subject.requiredFeatures.length === 0 && !selectedRoom?.features.length)) return null;
+										// A2-CUSTODY: normalise both optional fields once. This line used to
+										// read `!selectedRoom?.features.length`, whose optional chaining
+										// guards only an absent ROOM — an absent `features` still threw,
+										// which crashed /timetable for any subject with no required
+										// features. No control may crash the page over a missing field.
+										const requiredFeatures = subject?.requiredFeatures ?? [];
+										const roomFeatures = selectedRoom?.features ?? [];
+										if (!subject || (requiredFeatures.length === 0 && roomFeatures.length === 0)) return null;
 
 										return (
 											<div className="rounded-md border border-border/50 bg-muted/20 p-2.5 space-y-2">
@@ -520,27 +527,27 @@ export default function ManualEditPanel({
 												<div className="space-y-1.5">
 													<p className="text-[0.65rem] font-medium flex items-center gap-1.5">
 														<span className="text-muted-foreground">Subject requires:</span>
-														{subject.requiredFeatures.length > 0 ? (
-															subject.requiredFeatures.map((f: string) => (
+														{requiredFeatures.length > 0 ? (
+															requiredFeatures.map((f: string) => (
 																<Badge key={f} variant="outline" className="text-[0.55rem] px-1 py-0 border-amber-200 bg-amber-50 text-amber-700">{f}</Badge>
 															))
 														) : <span className="italic text-muted-foreground/60">No specific features</span>}
 													</p>
-													
+
 													<p className="text-[0.65rem] font-medium flex items-center gap-1.5">
 														<span className="text-muted-foreground">Room provides:</span>
-														{selectedRoom?.features && selectedRoom.features.length > 0 ? (
-															selectedRoom.features.map((f: string) => (
+														{roomFeatures.length > 0 ? (
+															roomFeatures.map((f: string) => (
 																<Badge key={f} variant="outline" className="text-[0.55rem] px-1 py-0 border-sky-200 bg-sky-50 text-sky-700">{f}</Badge>
 															))
 														) : <span className="italic text-muted-foreground/60">No features tagged</span>}
 													</p>
 												</div>
 
-												{selectedRoom && subject.requiredFeatures.some((f: string) => !(selectedRoom.features || []).includes(f)) && (
+												{selectedRoom && requiredFeatures.some((f: string) => !roomFeatures.includes(f)) && (
 													<div className="flex items-center gap-1.5 text-[0.65rem] text-red-600 font-medium pt-1 border-t border-border/40">
 														<AlertCircle className="size-3" />
-														Lacks: {subject.requiredFeatures.filter((f: string) => !(selectedRoom.features || []).includes(f)).join(', ')}
+														Lacks: {requiredFeatures.filter((f: string) => !roomFeatures.includes(f)).join(', ')}
 													</div>
 												)}
 											</div>

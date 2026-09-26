@@ -210,6 +210,7 @@ type RoomInfo = {
 	floor: number;
 	type: string;
 	isTeachingSpace: boolean;
+	features: string[];
 };
 
 type UseTimetableDataInput = {
@@ -1617,6 +1618,12 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 					floor: room.floor,
 					type: room.type,
 					isTeachingSpace: room.isTeachingSpace,
+					// A2-CUSTODY: this field was never copied, so every room in the map
+					// carried `features: undefined` while `ManualEditRoomInfo` declares
+					// it required. The manual-edit room picker then crashed on a subject
+					// with no required features, and read every room as feature-compatible.
+					// The `?? []` keeps a reference row from an older shape fail-closed.
+					features: room.features ?? [],
 				});
 			}
 		}

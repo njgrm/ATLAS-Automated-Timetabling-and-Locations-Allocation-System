@@ -132,6 +132,13 @@ export type RoomInfo = {
 	floor: number;
 	type: string;
 	isTeachingSpace: boolean;
+	// A2-CUSTODY: this copy is the declared type of the workspace `roomMap`
+	// state, which `useTimetableData` fills and `useTimetableMutations` reads.
+	// It declared nine fields while the producer copied nine, so both sides
+	// agreed — and neither mentioned `features`, which the server sends on
+	// every room. `useTimetableData`'s copy now declares the field, and this
+	// state type has to carry it too or the two stop being interchangeable.
+	features: string[];
 };
 
 export const TUTORIAL_STEPS = [
