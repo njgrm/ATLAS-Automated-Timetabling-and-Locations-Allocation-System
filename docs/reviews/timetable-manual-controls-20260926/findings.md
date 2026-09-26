@@ -255,3 +255,23 @@ canvas read, 219/222, 140/141) wait. Screenshot ids are the runners' Chrome ids 
 | 55 | **The warning badge carries no information for a mouse user, and the screen-reader name counts one issue twice.** Sighted: a bare triangle, no number, no visible tooltip. Screen reader: "1 warning, 0 Must fix, 1 Schedule note" for a single schedule note, which reads as two issues and says "0 Must fix" needlessly. Cut to one phrase used both places, e.g. visible "1 note" beside the icon and name "…, 1 schedule note". | MEDIUM (older users) |
 
 Cost (`subagent_tokens`): 99,454 + 74,753 + 77,215.
+
+## Row 22 and the new-draft path (live `0da104f9`, published run 320 → draft run 321, 2026-09-27, session 3)
+
+One Chrome flow, resumed once. **Live change: draft run #321 generated** from published run 320 via More › Schedule actions ›
+"New version" (defaults, "Keep configured grade and program time windows" checked). Nothing published. Screenshot ids are
+the runner's Chrome ids (not saved to disk).
+
+| Row | Live answer (quoted) | Verdict |
+|---|---|---|
+| 22 | Published run 320 More: no "Next step:" row. Draft run 321 (159 warnings, red "Publish schedule", not published) More: **still no "Next step:" row** in any group. (ss_15992zc3v, ss_7516b4q93) | **differs**: the row does not exist in either state |
+| – | Published run: Schedule actions = "New version" · Download schedules · Check school information. Draft: "Generate" replaces "New version". | see #56 |
+
+| # | Finding | Severity |
+|---|---|---|
+| 56 | **"New version" opens a dialog titled "Generate updated schedule?".** On a published schedule the menu says "New version", the dialog says "Generate", and the button says "Generate schedule". It also sits beside "Change after publishing" semantics (dated revision), so a scheduler cannot tell whether "New version" edits the published schedule or builds a draft. Use one verb: "Build a new draft" in the menu, the title and the button, with "Your published schedule stays in use" as the first line. (ss_5034zhnm9) | MEDIUM (older users) |
+| 57 | **#44 reproduces on run 321, in one flow:** the dialog said "Still unassigned: 1295 sessions" and the finish toast, seconds later, said "Generation run #321 completed with 0 unassigned session(s)." | HIGH (with #44) |
+| 58 | **Three toasts for one action, one of them a loading message:** "Generation run #321 started." → "…completed with 0 unassigned session(s)." → "Schedule generated. ATLAS is loading the assigned, unassigned, and conflict totals." Cut to one: "Draft schedule ready — 0 classes left to place. Review it, then publish." Drop "run #" and "session(s)". | MEDIUM |
+| 59 | **Right after generating, the page still says "Schedule information changed … Regenerate to apply" and offers "Preview impact"**, the same stale drift banner as #17, now also on a run generated seconds ago. Warnings jumped from 69 (run 320) to **159** on run 321 with nothing saying why. | MEDIUM (with #17) |
+
+Cost (`subagent_tokens`): 90,686 (blocked: no "Generate" on a published run) + 122,630 (New version leg).

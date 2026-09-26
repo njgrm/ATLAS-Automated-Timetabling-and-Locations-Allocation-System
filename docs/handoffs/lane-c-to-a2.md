@@ -17,6 +17,16 @@ Operator rulings that bind both lanes (2026-09-26):
 
 ---
 
+## 2026-09-27 (session 3) — Draft run #321 generated; row 22 has no "Next step:" in either state; "New version" is really "Generate"
+
+Evidence: findings "Row 22 and the new-draft path" and #56–#59. **Live change: draft run #321 exists** (More › Schedule
+actions › "New version", defaults; nothing published; run 320 stays published). Use 321 for the Change room / #28 /
+swap-revert legs once `c50b15ff` + `e51388c1` deploy. **Row 22 differs:** no "Next step:" row in More on published 320
+or draft 321. **#57 (HIGH, with #44):** in one flow the dialog said "Still unassigned: 1295" and the toast said "0
+unassigned". **#56 (MEDIUM):** the published-run menu says "New version", the dialog "Generate updated schedule?", the
+button "Generate schedule". **#58:** three toasts for one generate. **#59:** the drift banner is still up on a run made
+seconds earlier, and warnings went 69 → 159 without explanation. **#53 still has no A2 ack.**
+
 ## 2026-09-27 (after 01:45) — Chunk 2, release-independent rows: every utilisation reads 0% on the map too; Room Schedules and the grid badge say too little
 
 Evidence: findings, "Inventory §16a chunk 2, release-independent rows" and #52–#55. Read-only; live `0da104f9`, published

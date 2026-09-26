@@ -51,3 +51,11 @@ Accepted outputs this session: 4 of 5 queue items, 14 findings. Per-item cost �
   Lane C to do it, use UI evidence (the map endpoint may need the bearer token).
 - `subagent_tokens`: 99,454 (building) + 74,753 (185) + 77,215 (56/57) = 251,422 for one queue item, 4 findings
   (≈ 63k per finding; ≈ 84k per flow — about half the previous session's per-run cost, with one flow per run and exact steps).
+
+## Session 3 (2026-09-27)
+
+- Live still `0da104f9` (Live release block checked); queue items 1 and 3 still wait on the release. No A2 ack on #53.
+- Done: queue item 5. **Draft run #321 generated** (not published); row 22 differs, plus findings #56–#59, posted.
+  On a published run the generate path is More › Schedule actions › "New version"; "Generate" appears only on a draft.
+- Next: the release carrying `c50b15ff` + `e51388c1`; run the legs on draft 321. Item 4 (A3) only if A2 asks.
+- `subagent_tokens`: 90,686 + 122,630 = 213,316 for one queue item, 4 findings + 1 row (≈ 53k per finding).
