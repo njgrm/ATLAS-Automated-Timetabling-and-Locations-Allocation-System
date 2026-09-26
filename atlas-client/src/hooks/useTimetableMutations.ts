@@ -8,7 +8,20 @@ import { parseDraftPlacementId, scopePreviewToCandidate } from '@/lib/timetable-
 import { isSameTimetableSlot, resolvePreGenSlotDisplacement } from '@/lib/timetable-swap-routing';
 import { deriveRunWideReadiness, isDraftPublishedStrict } from '@/components/timetable/timetableWorkspaceTruth';
 import { resolvePublicationActionIntent } from '@/lib/publication-approval-action';
-import { deriveRedoAfterRevert, dispatchRedo } from '@/components/timetable/timetableUndoRedoState';
+// A2-TIMETABLE-CUSTODY-R2: `deriveRedoAfterRevert` is retained (the accepted
+// wiring assertion in `timetable-dynamic-workspace-undo-redo.test.ts:112` still
+// holds) and is now reached only through `assessRedoAfterRevert`, which refuses a
+// target the server cannot revert. `decideHeaderUndo` is the one guard every
+// header Undo surface shares, and `UNDO_CONFLICT_MESSAGE` is the one wording both
+// conflict mappers use.
+import {
+	assessRedoAfterRevert,
+	decideHeaderUndo,
+	deriveRedoAfterRevert,
+	dispatchRedo,
+	UNDO_CONFLICT_MESSAGE,
+	UNDO_HEAD_IS_UNDO_MESSAGE,
+} from '@/components/timetable/timetableUndoRedoState';
 import { requiresFacultyIssueConfirmation, resolveTimetableEntryPivot, resolveViolationFacultyTarget, type TimetableEntryContext } from '@/lib/timetable-entry-pivot';
 import { decideDraftPlacementReview, type DraftPlacementReviewDecision } from '@/lib/simple-timetable-state';
 import type { PendingSwapAction } from '@/components/timetable/ScheduleReviewWorkspace.constants';
@@ -281,7 +294,7 @@ export type TimetableMutationState = {
 	runIdNumeric: number | null;
 	runVersion: number;
 	apiBase: string | null;
-	fetchEditHistory: () => Promise<void>;
+	fetchEditHistory: () => Promise<ManualEditRecord[]>;
 	previewEdit: (proposal: ManualEditProposal) => Promise<PreviewResult | null>;
 	commitEdit: (proposal: ManualEditProposal, allowSoftOverride?: boolean) => Promise<boolean>;
 	commitEditWithMeta: (proposal: ManualEditProposal, allowSoftOverride?: boolean) => Promise<CommitResult | null>;
@@ -295,8 +308,28 @@ export type TimetableMutationState = {
 	revertDraftEditById: (operationId: number, expectedVersion: number) => Promise<boolean>;
 	/** R4 — bounded authoritative Redo target; null when no eligible redo exists. */
 	redoState: { operationId: number; expectedVersion: number; label: string } | null;
-	/** R4 — the last redo attempt hit a stale CAS; nothing was dispatched. */
+	/**
+	 * R4 — retained NAME, corrected MEANING. The state is raised by a refused
+	 * UNDO_CONFLICT, which is not only ever a version change: three of the five
+	 * causes `assertUndoHead` raises move no version. The identifier and the
+	 * `timetable-version-stale` testid are kept so the accepted assertions in
+	 * `timetable-dynamic-workspace-undo-redo.test.ts:115,124` are not deleted to
+	 * close this finding (AGENTS.md §16); every surface renders
+	 * `UNDO_CONFLICT_MESSAGE`, which claims no version.
+	 */
 	redoVersionStale: boolean;
+	/**
+	 * A2-TIMETABLE-CUSTODY-R2 — the plain fact to SHOW when the last revert left
+	 * nothing the server can redo, so the absent Redo is never a silent absence.
+	 */
+	undoNotice: string | null;
+	/**
+	 * A2-TIMETABLE-CUSTODY-R2 — why the header Undo cannot be pressed, or `null`
+	 * when it can. `decideHeaderUndo` is the one decision; this is its rendering.
+	 */
+	undoBlockedReason: string | null;
+	/** A2-TIMETABLE-CUSTODY-R2 — `undoBlockedReason === null` means the button is live. */
+	lastEditUndoable: boolean;
 	redoLastEdit: () => Promise<void>;
 	clearRedo: () => void;
 	choosePreGenFaculty: (item: DraftQueueItem) => number;
@@ -458,8 +491,16 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 	// R4 — bounded, authoritative Redo. After an Undo the server records the
 	// inverse edit; Redo re-dispatches the same `/manual-edits/revert` endpoint
 	// against that new head with a fresh CAS. It is never a client-only replay.
+	//
+	// A2-TIMETABLE-CUSTODY-R2 corrects the premise: the head the server just
+	// recorded IS a `REVERT` row, and the route selects targets with
+	// `editType: { not: 'REVERT' }` (`manual-edit.service.ts:1675`), so re-dispatching
+	// it is a guaranteed 409. `assessRedoAfterRevert` therefore arms a target ONLY
+	// when the refreshed ledger names a row the server can actually revert, and
+	// `undoNotice` states the plain fact whenever it does not.
 	const [redoState, setRedoState] = useState<{ operationId: number; expectedVersion: number; label: string } | null>(null);
 	const [redoVersionStale, setRedoVersionStale] = useState(false);
+	const [undoNotice, setUndoNotice] = useState<string | null>(null);
 
 	useEffect(() => {
 		draftBoardSummaryRef.current = draftBoardSummary;
@@ -914,13 +955,20 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 		setRedoVersionStale(false);
 	}, [apiBase]);
 
-	const fetchEditHistory = useCallback(async () => {
-		if (!apiBase) return;
+	// A2-TIMETABLE-CUSTODY-R2: the refreshed records are RETURNED, not only stored.
+	// React state is not readable synchronously after `setEditHistory`, so a caller
+	// that must decide something about the row the server just wrote has no way to
+	// see it otherwise. The revert path needs exactly that, to learn the `editType`
+	// of the id the response handed back (`manual-edit.service.ts:1914`).
+	const fetchEditHistory = useCallback(async (): Promise<ManualEditRecord[]> => {
+		if (!apiBase) return [];
 		try {
 			const { data } = await atlasApi.get<{ edits: ManualEditRecord[] }>(apiBase);
 			setEditHistory(data.edits);
+			return data.edits;
 		} catch {
 			// ignore
+			return [];
 		}
 	}, [apiBase, setEditHistory]);
 
@@ -1010,9 +1058,20 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 	}, [commitEditWithMeta]);
 
 	// Authoritative revert dispatch shared by Undo and Redo. The server records a
-	// new inverse edit and returns its id + resulting run version, which becomes
-	// the only valid Redo target (fresh CAS). A failed CAS is a typed
-	// `Version-stale` with zero further dispatch.
+	// new inverse edit and returns its id + resulting run version.
+	//
+	// A2-TIMETABLE-CUSTODY-R2 corrects two claims this comment used to make:
+	//   1. the returned id is NOT "the only valid Redo target" — it is the id of the
+	//      REVERT row the server just created (`manual-edit.service.ts:1914` over
+	//      `:1857-1871`), and the route selects undo targets with
+	//      `editType: { not: 'REVERT' }` (`:1675`), so it can never resolve to a
+	//      target. `assessRedoAfterRevert` reads the REFRESHED ledger for that id's
+	//      real `editType` and arms a redo only when the server can perform it;
+	//      otherwise nothing is armed and `undoNotice` states the plain fact, so the
+	//      absent Redo is a statement rather than a silence.
+	//   2. a refused CAS is NOT a `Version-stale`. `assertUndoHead` raises
+	//      `UNDO_CONFLICT` for five distinct causes, three of which move no version.
+	//      Both mappers below therefore use the single shared `UNDO_CONFLICT_MESSAGE`.
 	const runAuthoritativeRevert = useCallback(async (
 		operationId: number,
 		expectedVersion: number,
@@ -1030,8 +1089,13 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 				const violRes = await atlasApi.get<ViolationReport>(`/generation/${schoolId}/${schoolYearId}/runs/${runIdNumeric}/violations`);
 				setViolationReport(violRes.data);
 			}
-			await fetchEditHistory();
-			setRedoState(deriveRedoAfterRevert(data, options.redoLabel));
+			const refreshedEdits = await fetchEditHistory();
+			const armedRow = refreshedEdits.find((edit) => edit.id === data.editId) ?? null;
+			const assessment = assessRedoAfterRevert(data, options.redoLabel, armedRow?.editType ?? null);
+			// The assessment is the ONLY path to an armed target, so a target the
+			// server cannot perform can never reach a Redo press.
+			setRedoState(assessment.kind === 'performable' ? assessment.target : null);
+			setUndoNotice(assessment.kind === 'performable' ? null : assessment.reason);
 			setRedoVersionStale(false);
 			toast.success(options.successMessage);
 			return data;
@@ -1039,7 +1103,8 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 			const payload = (e as { response?: { data?: { code?: string; message?: string } } })?.response?.data;
 			if (payload?.code === 'UNDO_CONFLICT') {
 				setRedoVersionStale(true);
-				toast.error('Version-stale — the schedule changed. Refresh and re-preview before retrying.');
+				setUndoNotice(UNDO_CONFLICT_MESSAGE);
+				toast.error(UNDO_CONFLICT_MESSAGE);
 			} else {
 				toast.error(payload?.message ?? (e instanceof Error ? e.message : 'Revert failed.'));
 			}
@@ -1085,7 +1150,11 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 		} catch (e: unknown) {
 			const payload = (e as { response?: { data?: { code?: string; message?: string } } })?.response?.data;
 			if (payload?.code === 'UNDO_CONFLICT') {
-				toast.error('Schedule changed—review latest');
+				// A2-TIMETABLE-CUSTODY-R2: this used to say "Schedule changed—review
+				// latest", which is the same false claim as the run-ledger mapper. The
+				// draft CAS is refused for the same five reasons, only some of which
+				// involve a change, so it takes the one shared message.
+				toast.error(UNDO_CONFLICT_MESSAGE);
 			} else {
 				toast.error(payload?.message ?? (e instanceof Error ? e.message : 'Revert failed.'));
 			}
@@ -1114,6 +1183,10 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 	const clearRedo = useCallback(() => {
 		setRedoState(null);
 		setRedoVersionStale(false);
+		// A2-TIMETABLE-CUSTODY-R2: the notice is part of the same strip, so
+		// dismissing the strip dismisses the statement with it. Leaving it behind
+		// would strand a sentence with no control to dismiss it.
+		setUndoNotice(null);
 	}, []);
 
 	const previewTeachingLoadRepair = useCallback(async (changes: TeachingLoadRepairChange[], placementProposal?: ManualEditProposal): Promise<TeachingLoadRepairPreviewResult | null> => {
@@ -1205,13 +1278,41 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 		return commitTeachingLoadRepair(changes, allowSoftOverride);
 	}, [commitTeachingLoadRepair, draft?.entries]);
 
+	// A2-TIMETABLE-CUSTODY-R2 — the header Undo, guarded in the SHARED handler.
+	//
+	// This dispatched `editHistory[0].id` unconditionally. With a REVERT at the
+	// head that id is unresolvable for the server (`editType: { not: 'REVERT' }`,
+	// `manual-edit.service.ts:1675`) and `assertUndoHead` can only throw, so the
+	// conditional instance of the same defect was a guaranteed 409 too. Guarding
+	// here rather than in each of the three surfaces that render an Undo button
+	// (`TimetableUndoRedoControl`, `ScheduleReviewWorkspaceHeader.tsx:668`,
+	// `TimetableAdvancedHeaderHelp`) closes all of them at once, and the refusal is
+	// stated rather than silent.
 	const revertLastEdit = useCallback(async () => {
-		if (!apiBase || !draft || editHistory.length === 0) return;
-		await runAuthoritativeRevert(editHistory[0].id, draft.version, {
+		if (!apiBase) return;
+		const decision = decideHeaderUndo(editHistory[0], draft?.version ?? null);
+		if (decision.kind === 'blocked') {
+			// `head-is-undo` is the only reason an operator can reach while history is
+			// non-empty; the other two are already reflected in the disabled buttons,
+			// so naming them here would claim a state the operator cannot see.
+			if (decision.reason === 'head-is-undo') toast.error(UNDO_HEAD_IS_UNDO_MESSAGE);
+			return;
+		}
+		await runAuthoritativeRevert(decision.operationId, decision.expectedVersion, {
 			successMessage: 'Last edit reverted.',
 			redoLabel: 'Last edit',
 		});
 	}, [apiBase, draft, editHistory, runAuthoritativeRevert]);
+
+	// A2-TIMETABLE-CUSTODY-R2 — the single decision, surfaced for rendering. The
+	// header buttons disable themselves from this rather than each re-deriving it.
+	const headerUndoDecision = useMemo(
+		() => decideHeaderUndo(editHistory[0], draft?.version ?? null),
+		[editHistory, draft],
+	);
+	const undoBlockedReason = headerUndoDecision.kind === 'blocked' && headerUndoDecision.reason === 'head-is-undo'
+		? UNDO_HEAD_IS_UNDO_MESSAGE
+		: null;
 
 	const choosePreGenFaculty = useCallback((item: DraftQueueItem) => {
 		const contextFacultyId = viewMode === 'faculty' ? Number(entityFilter) : 0;
@@ -1919,6 +2020,9 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 		revertDraftEditById,
 		redoState,
 		redoVersionStale,
+		undoNotice,
+		undoBlockedReason,
+		lastEditUndoable: undoBlockedReason === null,
 		redoLastEdit,
 		clearRedo,
 		choosePreGenFaculty,
