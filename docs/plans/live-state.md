@@ -289,6 +289,15 @@ resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs
   which is the one published on GitHub. The cheapest genuinely effective mitigation is no longer the rotation; it is
   deleting the `100.64.0.0/10` Tailnet grant for `atlas_db` from `pg_hba.conf`** (one line, instantly reversible,
   removes the only reachable path). The rotation remains correct but must be done as a single pre-verified change.
+- **BOTH MITIGATIONS NOW APPLIED — 2026-09-26 (supersedes the item above).** The Tailnet grant is deleted
+  (PostgreSQL is loopback-only) **and** the `atlas_user` password is **rotated** — the GitHub-published value now
+  fails authentication. The env file's read-only ACL was found, temporarily granted, and **restored byte-identically
+  (SDDL compared equal, write re-tested and denied)**. Evidence is in the Lane A section. **Still open and
+  operator-owned:** `ATLAS_SYSTEM_TOKEN` is **not** rotated, because EnrollPro must be updated in lockstep and is
+  `READ_ONLY` here; that live token is also committed in `CHANGELOG.md`; and
+  `D:\ATLAS\EnrollPro\server\.env` still holds the **old** DB password and will stop authenticating.
+  **Do not push `fix/committed-credential-scrub-20260926` (tip `d330870a`, QA `ACCEPT_READY` 9/9/0/0) until the
+  token rotation is coordinated** — pushing republishes every removed value in history.
 - **Cross-lane worktree dispositions (2026-09-26, re-verified this session):** ten E: worktrees totalling 8.72 GiB
   are clean, hold no unique content (`ahead-of-main = 0` for all 13 non-release branch tips), and carry **no
   disposition in this file** — confirmed by grep. They belong to Lanes B and C. **Not urgent** now that E: is at
@@ -1066,6 +1075,67 @@ still the right control, but it must be re-run as one pre-verified change (probe
 value, then execute). **The genuinely effective mitigation available immediately is not the rotation at all: delete
 the `100.64.0.0/10` Tailnet grant for `atlas_db` from `pg_hba.conf`.** That removes the only reachable path
 (28 rows, no personal data), is one line, and is instantly reversible — and it needs no secret handling at all.
+
+**MITIGATION 1 APPLIED AND VERIFIED (2026-09-26 ~15:20 +08): the Tailnet grant is gone; PostgreSQL is now
+loopback-only.** Operator-approved. The `host atlas_db atlas_user 100.64.0.0/10 scram-sha-256` line was
+**commented out, not deleted**, with a dated in-file note giving the reason, the measured reachable content, and
+the original line for reversibility (§16 additive). No service restart was needed — PostgreSQL re-reads
+`pg_hba.conf` per connection. Verified before and after by connecting exactly as an attacker would:
+
+- **Before:** `target 100.88.55.125:5432 db=atlas_db` with the published password → `CONNECTED as atlas_user to
+  atlas_db`.
+- **After:** the same attempt → `FATAL: no pg_hba.conf entry for host "100.88.55.125", user "atlas_user",
+  database "atlas_db"`.
+- **No collateral damage:** every live connection was already loopback (`pg_stat_activity` showed all sessions from
+  `::1/128`), `DATABASE_URL` is `localhost:5432`, and no tracked file uses the Tailnet address for Postgres. Loopback
+  re-verified after the change: `127.0.0.1` and `::1` both return 22 subjects; `/health/ready` 200
+  `database:"ok"`; subjects 200; Tailnet 200. Effective rules are now six loopback/replication `scram-sha-256`
+  lines and nothing else. **The published credential is now useless from any host but this one, with no rotation.**
+
+**MITIGATION 2 APPLIED AND VERIFIED (2026-09-26 ~15:40 +08): the `atlas_user` password is ROTATED.** Operator
+approved option A after being shown three options. Sequence, in three separable stages so each was verified before
+the next:
+
+1. **Probe first — which is what the earlier outage taught, and this time it worked.** The probe found the live env
+   file is **deliberately read-only**: `D:\ATLAS-runtime-config\atlas-server.env` has an explicit,
+   non-inherited ACL granting **only `Read, Synchronize`** to SYSTEM, Administrators and `njgro` — *not*
+   FullControl, not even for Administrators, who are the owner. So elevation cannot write it, and the probe stopped
+   the rotation **before any credential changed**. Un-hardening that file is a security decision, so it was
+   escalated rather than assumed.
+2. **Capture, back up, generate, persist, write — all non-disruptive.** The file's SDDL was captured for exact
+   restoration; both env files (`…\atlas-server.env` and `D:\ATLAS\atlas-server\.env`) were backed up
+   byte-exactly; a 44-character base64url password was generated and **written to disk before use**, so the value
+   was never only in process memory (the rule the outage earned). Both files were rewritten by byte-level
+   substitution only, each reporting a byte delta of exactly `+32` — the password-length difference, which proves
+   nothing else moved. State at that point: **env = NEW, role = OLD, running server = OLD** (loaded at start), so
+   traffic was unaffected, and that was confirmed live before proceeding.
+3. **The window, ~20 s, with rollback armed.** `ALTER ROLE atlas_user WITH PASSWORD '<new>'` → `taskkill /T /F` the
+   supervisor tree (PID 32924) → wait for 5001/5174 to release → `schtasks /run /tn ATLAS-Runtime-Supervisor`. The
+   script would have rolled the role *and* both env files back and re-started the task had the ports not cleared.
+   It reported `1/3`, `2/3 quiesced`, `3/3`.
+
+**Post-rotation verification, all executed:** the **new** password authenticates (`SELECT current_user()` →
+`atlas_user`); the **old, published** password now returns `FATAL: password authentication failed` — the
+GitHub-disclosed credential is dead; `/health` 200, `/health/ready` 200 `{"status":"ready",
+"checks":{"database":"ok"}}`, `GET /subjects?schoolId=1` 200, Tailnet health 200. Fresh PIDs confirm a real
+restart: 5001 → 32400, 5174 → 26472, supervisor → 24704.
+
+**The ACL hardening is restored byte-identically.** Administrators were granted `Modify` only for the duration;
+the captured SDDL was then re-applied and compared — `O:BAG:…D:PAI(A;;FR;;;SY)(A;;FR;;;BA)(A;;FR;;;…)` before and
+after, **IDENTICAL: True**. A real write was then attempted and **denied**, so the restriction is proven rather
+than assumed, and all three ACEs are back to `Read, Synchronize`. The app was re-verified healthy after the ACL
+change. The staged password and both backups were deleted, so the new value exists **only** in the two env files,
+one of which is ACL-locked.
+
+**What is deliberately NOT done, and why.** `ATLAS_SYSTEM_TOKEN` is **not** rotated: ATLAS validates it against
+what EnrollPro presents, EnrollPro's copy lives on `dev-jegs`, and §4 makes that companion read-only — so rotating
+it would break the integration until its owner updates their side. It is a **coordinated operator action**.
+`CHANGELOG.md` still carries that live token (pre-existing, outside every lane's current scope; hash-confirmed
+identical to the live value). `D:\ATLAS\EnrollPro\server\.env` still carries the **old** DB password and will stop
+authenticating — **operator-only** under §4. And the credential-scrub branch `fix/committed-credential-scrub-20260926`
+(tip `d330870a`, fresh independent QA `ACCEPT_READY` 9/9/0/0, convergence measured at 0) is **still unpushed**:
+pushing republishes every removed value in history, so integration must not precede the coordinated token
+rotation.
 
 **Deployment attempt 1 stopped safely at a runner gate (2026-09-26).** The executor built the target, ran the
 port-5198 isolation proof (**gate 6b PASS** — `git status --short` empty after the run, the exclude rule working as
