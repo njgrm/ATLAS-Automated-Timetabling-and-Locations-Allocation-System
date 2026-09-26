@@ -1,47 +1,24 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import {
-	AlertTriangle,
-	ArrowDown,
-	ArrowUp,
-	ArrowUpDown,
 	BookOpen,
-	ChevronLeft,
-	ChevronRight,
 	ChevronsLeft,
 	ChevronsRight,
-	Loader2,
-	Map as MapIcon,
 	Plus,
 	RefreshCw,
-	Users,
 	Info,
-	CheckCircle2,
-	MoreVertical,
-	Pencil,
-	Trash2,
-	Archive,
-	RotateCcw,
 } from 'lucide-react';
 
 import { toast } from 'sonner';
 
 import atlasApi from '@/lib/api';
-import { gradeLabel, GRADE_COLORS } from '@/lib/grade-labels';
-import {
-	ALL_ROOM_TYPES,
-	GRADE_OPTIONS,
-	PROGRAM_SCOPE_OPTIONS,
-	ROOM_TYPE_LABELS,
-} from '@/lib/subject-constants';
 import type { RoomType, Subject, SubjectCoverageSummary, SubjectCoverageRow, TermAuthority } from '@/types';
-import { roomAuthoritySemantics } from '@/lib/room-authority-copy';
 import { fetchSubjectCoverageSummary } from '@/lib/coverage';
-import { SubjectFormModal, type SubjectFormValues } from '@/components/subjects/SubjectFormModal';
+import { SubjectFormModal, type SubjectFormValues, type SubjectSaveOutcome } from '@/components/subjects/SubjectFormModal';
 import { SubjectRow } from '@/components/subjects/SubjectRow';
-import { SubjectMobileCard } from '@/components/subjects/SubjectMobileCard';
 import { SubjectCoverageSheet } from '@/components/subjects/SubjectCoverageSheet';
 import { SubjectStatusBanners } from '@/components/subjects/SubjectStatusBanners';
+import { SubjectTermAuthorityBanner } from '@/components/subjects/SubjectTermAuthorityBanner';
 import { useSubjectStats, useCoverageDetail } from '@/components/subjects/useSubjectStats';
 import { subjectToFormValues } from '@/components/subjects/subject-form-utils';
 import { SubjectFilterToolbar } from '@/components/subjects/SubjectFilterToolbar';
@@ -52,25 +29,11 @@ import { resolveSubjectSourceCopy } from '@/components/subjects/subject-source-u
 import { SubjectMobileList } from '@/components/subjects/SubjectMobileList';
 import { resolveActiveSchoolYearContext } from '@/lib/enrollpro-public-settings';
 import { useActorSchoolScope } from '@/lib/actor-scope-session';
-import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import { ConfirmationModal } from '@/ui/confirmation-modal';
 import { DeleteSubjectDialog } from '@/components/subjects/DeleteSubjectDialog';
-import {
-	Sheet,
-	SheetContent,
-	SheetDescription,
-	SheetHeader,
-	SheetTitle,
-} from '@/ui/sheet';
 import { Skeleton } from '@/ui/skeleton';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui/select';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/ui/dropdown-menu';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip';
-import { cn } from '@/lib/utils';
-import { departmentLabel, programFullLabel, gradeCompact } from '@/lib/deped-glossary';
 import {
-	AdminSearchFilterToolbar,
 	AdminStatePanel,
 	AdminTableShell,
 	AdminWorkspaceFrame,
@@ -78,6 +41,7 @@ import {
 } from '@/components/admin-workspace/AdminWorkspace';
 import { resolveSubjectsReadScope } from '@/lib/subject-school-scope';
 import { buildOperatorSubjectCreatePayload } from '@/lib/subject-create-payload';
+import { gradeCompact } from '@/lib/deped-glossary';
 
 
 const PAGE_SIZES = [10, 25, 50, 100];
@@ -96,20 +60,6 @@ type TeachingLoadResetPreview = {
 	affectedSubjectCount: number;
 	subjectCodes: string[];
 };
-
-function resolveSubjectTermRank(subject: Pick<Subject, 'rotationTermRank'>): number | null {
-	if (typeof subject.rotationTermRank === 'number' && Number.isInteger(subject.rotationTermRank) && subject.rotationTermRank > 0) {
-		return subject.rotationTermRank;
-	}
-	return null;
-}
-
-function resolveSubjectTermLabel(subject: Pick<Subject, 'rotationTermLabel' | 'rotationTermRank'>): string | null {
-	const explicit = (subject.rotationTermLabel ?? '').trim();
-	if (explicit.length > 0) return explicit;
-	const rank = resolveSubjectTermRank(subject);
-	return rank ? `Term ${rank}` : null;
-}
 
 export default function Subjects() {
 	const [searchParams] = useSearchParams();
@@ -363,7 +313,12 @@ export default function Subjects() {
 		}
 	};
 
-	const handleModalSave = async (values: SubjectFormValues) => {
+	// A3-20: three DISTINCT outcomes, not one error string. `STALE_WRITE` means
+	// nothing was lost but the edit was built on a version that no longer
+	// exists, so its correct next action is "reload" — reporting it as a plain
+	// failure told the operator their change was gone. The modal keeps open on
+	// both non-success outcomes and states them inline.
+	const handleModalSave = async (values: SubjectFormValues): Promise<SubjectSaveOutcome> => {
 		setSaving(true);
 		try {
 			if (modalMode === 'edit' && values.id != null) {
@@ -371,8 +326,9 @@ export default function Subjects() {
 				const currentSubject = subjects.find((s) => s.id === values.id);
 				const expectedUpdatedAt = currentSubject?.updatedAt;
 				if (!expectedUpdatedAt) {
-					toast.error('Cannot determine current version. Refresh and retry.');
-					return;
+					const message = 'Cannot determine current version. Refresh and retry.';
+					toast.error(message);
+					return { status: 'stale', message };
 				}
 				await atlasApi.patch(`/subjects/${values.id}`, {
 					name: values.name,
@@ -387,6 +343,11 @@ export default function Subjects() {
 					// by omission (the server rejects either key with 400
 					// PROTECTED_FIELD) instead of resending form state.
 					gradeLevels: values.gradeLevels,
+					// A3-33B: the shared class session is no longer editable in the
+					// form, but its persisted value is still what gets sent. The form
+					// spreads its initial values untouched, so a subject stored with
+					// a shared session round-trips `true` (and its pooled grade
+					// levels) unchanged.
 					interSectionEnabled: values.interSectionEnabled,
 					interSectionGradeLevels: values.interSectionGradeLevels,
 					modularGroupId: values.modularGroupId?.trim() ? values.modularGroupId.trim() : null,
@@ -412,16 +373,17 @@ export default function Subjects() {
 			setModalSubject(null);
 			setModalSubjectMeta(null);
 			await fetchSubjects();
+			return { status: 'saved' };
 		} catch (err: any) {
 			const code = err?.response?.data?.code;
 			const msg = err?.response?.data?.message ?? 'Failed to save subject.';
 			if (code === 'STALE_WRITE') {
-				toast.error('This subject was modified by another user. Refresh and retry.');
-			} else if (code === 'PROTECTED_FIELD' || code === 'UNKNOWN_FIELD') {
-				toast.error(msg);
-			} else {
-				toast.error(msg);
+				const message = 'This subject was modified by another user. Your edit was not written — close and reopen it to load the newer version.';
+				toast.error(message);
+				return { status: 'stale', message };
 			}
+			toast.error(msg);
+			return { status: 'failed', message: msg };
 		} finally {
 			setSaving(false);
 		}
@@ -574,41 +536,10 @@ stats={subjectStats}
 			onRetryLoad={fetchSubjects}
 		/>
 
-		{termAuthority ? (
-			<div
-				role={termAuthority.state === 'BLOCKED' ? 'alert' : 'status'}
-				data-testid="subject-term-authority"
-				className={cn(
-					'mx-4 mt-3 rounded-xl border px-4 py-3 text-sm',
-					termAuthority.state === 'VERIFIED_LIVE' && 'border-emerald-200 bg-emerald-50 text-emerald-900',
-					termAuthority.state === 'VERIFIED_CACHED' && 'border-amber-200 bg-amber-50 text-amber-900',
-					termAuthority.state === 'BLOCKED' && 'border-destructive/30 bg-destructive/10 text-destructive',
-				)}
-			>
-				<div className="flex flex-wrap items-center gap-2">
-					{termAuthority.state === 'VERIFIED_LIVE' ? <CheckCircle2 className="size-4" /> : <AlertTriangle className="size-4" />}
-					<span className="font-bold">
-						{termAuthority.state === 'VERIFIED_LIVE' ? 'EnrollPro year and terms verified live' : termAuthority.state === 'VERIFIED_CACHED' ? 'Using saved EnrollPro year and terms' : 'EnrollPro year or term authority blocked'}
-					</span>
-					<Badge variant="outline" className="bg-background/70 font-semibold uppercase tracking-wide">Read-only source</Badge>
-					{termAuthority.contract ? <Badge variant="outline">{termAuthority.contract.format}</Badge> : null}
-				</div>
-				<p className="mt-1 text-xs font-medium opacity-90">{termAuthority.message}</p>
-				{termAuthority.contract ? (
-					<div className="mt-2">
-						<p className="text-xs font-semibold uppercase tracking-wide opacity-80">S.Y. {termAuthority.contract.schoolYear.yearLabel} · ordered terms from EnrollPro</p>
-						<div className="mt-1.5 flex flex-wrap gap-1.5">
-							{termAuthority.contract.terms.map((term) => (
-								<Badge key={term.identity} variant="outline" className="bg-background/70">
-									{term.displayLabel}{term.identity === termAuthority.contract?.activeTerm?.identity ? ' · Active' : ''}
-								</Badge>
-							))}
-						</div>
-					</div>
-				) : null}
-				<p className="mt-2 text-xs font-medium opacity-90">Participation, grade and program scope, weekly minutes, rotation, and room needs are ATLAS-owned and edited below.</p>
-			</div>
-		) : null}
+		{/* A3-09: the term-authority banner is now a component so the routine
+			VERIFIED_LIVE state can be a one-line inline status while BLOCKED and
+			VERIFIED_CACHED keep the loud, uncompacted treatment. */}
+		<SubjectTermAuthorityBanner termAuthority={termAuthority} />
 
 		{/* SCA-01.1: while the actor school scope is unresolved, no catalog
 			request has been issued — show a bounded scope state instead of an
@@ -708,240 +639,18 @@ stats={subjectStats}
 		</AdminTableShell>
 		)}
 
-		{/* Coverage Side Drawer */}
-			<Sheet open={!!coverageSubject} onOpenChange={(open) => !open && setCoverageSubject(null)}>
-				<SheetContent className="w-full sm:max-w-md overflow-y-auto">
-					<SheetHeader className="pb-6 border-b">
-						<SheetTitle className="flex items-center gap-2 text-xl font-bold">
-							<Users className="size-5 text-primary" />
-							Subject coverage
-						</SheetTitle>
-						<SheetDescription>
-							Assigned teachers and uncovered grade/program scope for <span className="font-bold text-foreground">{coverageSubject?.name}</span>.
-						</SheetDescription>
-					</SheetHeader>
-
-					<div className="py-6 space-y-8">
-						{coverageLoading ? (
-							<div className="flex flex-col items-center justify-center py-12 gap-3 text-muted-foreground">
-								<RefreshCw className="size-8 animate-spin opacity-20" />
-								<p className="text-sm animate-pulse">Analyzing teacher qualifications...</p>
-							</div>
-						) : coverageSubject && (
-							<>
-								{/* Phase 2.3: in-drawer error panel (audit Sub-5). Distinct
-									from the "no teachers assigned" empty state below so a
-									network failure is not misclassified as a coverage gap. */}
-								{coverageError.has(coverageSubject.id) ? (
-									<div
-										role="alert"
-										data-testid="coverage-drawer-error"
-										className="flex items-start gap-3 rounded-xl border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive"
-									>
-										<AlertTriangle className="size-5 shrink-0 mt-0.5" />
-										<div className="space-y-1">
-											<p className="font-semibold">Could not load coverage right now.</p>
-											<p className="text-xs opacity-90">{coverageError.get(coverageSubject.id)}</p>
-											<Button
-												type="button"
-												size="sm"
-												variant="outline"
-												className="mt-2 h-8 font-bold"
-												onClick={() => fetchTeacherCoverage(coverageSubject.id)}
-											>
-												<RefreshCw className="mr-1 size-3" /> Try again
-											</Button>
-										</div>
-									</div>
-								) : null}
-
-								{/* Phase 2.3: only render the Term rotation panel for subjects
-									with a rotation family. The italic body line that
-									always rendered was confusing for non-rotating subjects. */}
-								{coverageSubject.rotationFamily ? (
-									<div className="rounded-xl border border-violet-100 bg-violet-50/30 p-4 space-y-3">
-										<div className="flex items-center justify-between">
-											<p className="text-xs font-semibold uppercase tracking-widest text-violet-700/80">Term rotation</p>
-											<Tooltip>
-												<TooltipTrigger asChild>
-													<div className="flex items-center gap-1.5 cursor-help">
-														<Info className="size-3 text-violet-400" />
-														<span className="text-xs font-bold text-violet-600 uppercase tracking-tight">Rotates by term</span>
-													</div>
-												</TooltipTrigger>
-												<TooltipContent side="top" className="text-xs font-bold max-w-50">
-													This subject shares a weekly schedule lane with related subjects across terms.
-												</TooltipContent>
-											</Tooltip>
-										</div>
-										<div className="flex flex-wrap gap-1.5">
-											<Badge variant="outline" className="bg-white text-violet-700 border-violet-200 font-bold text-xs uppercase px-1.5 h-5 shadow-none">
-												{coverageSubject.code}
-											</Badge>
-											<Badge variant="outline" className="bg-violet-100 text-violet-900 border-violet-300 font-semibold text-xs uppercase px-1.5 h-5 shadow-none">
-												Rotating
-											</Badge>
-											{resolveSubjectTermLabel(coverageSubject) && (
-												<Badge variant="outline" className="bg-violet-100 text-violet-900 border-violet-300 font-semibold text-xs uppercase px-1.5 h-5 shadow-none">
-													{resolveSubjectTermLabel(coverageSubject)}
-												</Badge>
-											)}
-										</div>
-										<p className="text-xs text-violet-800/80 leading-relaxed font-medium italic">
-											Rotating subjects share time across terms, so check both assigned teachers and uncovered grades before generation.
-										</p>
-									</div>
-								) : null}
-
-								{/* Assigned Teachers */}
-								<div className="space-y-4">
-									<h4 className="text-xs font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-2">
-										<div className="size-1.5 rounded-full bg-emerald-500" />
-										Assigned teachers
-										<Badge variant="secondary" className="ml-auto bg-emerald-50 text-emerald-700 hover:bg-emerald-50 border-emerald-100 font-bold">
-											{coverageDetail?.assigned.length ?? 0}
-										</Badge>
-									</h4>
-									
-									{(coverageDetail?.assigned.length ?? 0) > 0 ? (
-										<div className="space-y-3">
-											{coverageDetail?.assigned.map((t) => (
-												<div key={t.facultyId} className="group p-4 rounded-xl border border-emerald-100 bg-emerald-50/20 shadow-sm space-y-3">
-													<div className="flex items-start justify-between gap-4 border-b border-emerald-100/50 pb-2">
-														<div className="min-w-0">
-															<p className="text-sm font-bold truncate leading-tight">{t.name}</p>
-															<div className="flex flex-wrap gap-1 mt-1.5">
-																{t.grades.map((g) => (
-																	<Badge key={g} variant="outline" className={`text-xs px-1.5 py-0 h-4 font-bold border-opacity-40 ${GRADE_COLORS[String(g)] ?? ''}`}>
-																		{gradeLabel(g)}
-																	</Badge>
-																))}
-															</div>
-														</div>
-														<Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100 shadow-none border-emerald-200 font-bold">
-															{t.load}% Load
-														</Badge>
-													</div>
-													
-													{t.sections.length > 0 ? (
-														<div className="space-y-1.5">
-															<p className="text-xs font-bold text-emerald-700/70 uppercase tracking-wider">Assigned Sections</p>
-															<div className="flex flex-wrap gap-1.5">
-																{t.sections.map((section, idx) => (
-																	<div key={idx} className="flex items-center gap-1.5 px-2 py-1 rounded bg-white border border-emerald-100/50 shadow-sm">
-																		<span className="text-xs font-semibold text-foreground">{section}</span>
-																	</div>
-																))}
-															</div>
-														</div>
-													) : (
-														<p className="text-xs text-muted-foreground italic">No sections explicitly mapped.</p>
-													)}
-												</div>
-											))}
-										</div>
-									) : (
-										<div className="p-10 rounded-xl border border-dashed text-center bg-muted/5">
-											<p className="text-sm text-muted-foreground italic">No teachers assigned to this subject yet.</p>
-											<Link to={`/teaching-load?view=subjects&subjectId=${coverageSubject.id}&filter=missing-coverage`} className="mt-3 inline-flex">
-												<Button size="sm" className="gap-2 bg-primary text-primary-foreground shadow-primary-glow hover:bg-primary/90">
-													Fix in Teaching Load
-													<ChevronRight className="size-3.5" />
-												</Button>
-											</Link>
-										</div>
-									)}
-								</div>
-
-								<div className="space-y-4">
-									<h4 className="text-xs font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-2">
-										<div className={`size-1.5 rounded-full ${(coverageDetail?.uncoveredGrades.length ?? 0) > 0 ? 'bg-amber-500' : 'bg-emerald-500'}`} />
-										Section coverage
-									</h4>
-									<div className={(coverageDetail?.uncoveredGrades.length ?? 0) > 0 ? 'rounded-xl border border-amber-200 bg-amber-50 p-4' : 'rounded-xl border border-emerald-200 bg-emerald-50 p-4'}>
-										{(coverageDetail?.uncoveredGrades.length ?? 0) > 0 ? (
-											<div className="space-y-3">
-												<p className="text-sm font-bold text-amber-900">Some required sections still need a teacher for this subject.</p>
-												<div className="flex flex-wrap gap-1.5">
-													{coverageDetail?.uncoveredGrades.map((grade) => (
-														<Badge key={grade} variant="outline" className={`font-bold ${GRADE_COLORS[String(grade)] ?? ''}`}>{gradeLabel(grade)}</Badge>
-													))}
-												</div>
-												<Link to={`/teaching-load?view=subjects&subjectId=${coverageSubject.id}&filter=missing-coverage`} className="inline-flex">
-													<Button size="sm" variant="outline" className="gap-2 border-amber-300 text-amber-900 hover:bg-amber-100">
-														Fix coverage in Teaching Load
-														<ChevronRight className="size-3.5" />
-													</Button>
-												</Link>
-											</div>
-										) : (coverageDetail?.programScopes.length ?? 0) > 0 ? (
-											<div className="flex items-start gap-3 text-amber-900">
-												<AlertTriangle className="mt-0.5 size-4 shrink-0 text-amber-600" />
-												<div>
-													<p className="text-sm font-bold">All required sections have assigned teachers.</p>
-													<p className="text-xs font-medium text-amber-800">This subject is scoped to specific programs. Review section coverage in Teaching Load before generation.</p>
-												</div>
-											</div>
-										) : (
-											<div className="flex items-start gap-3 text-emerald-900">
-												<CheckCircle2 className="mt-0.5 size-4 shrink-0 text-emerald-600" />
-												<div>
-													<p className="text-sm font-bold">All required sections have assigned teachers.</p>
-												</div>
-											</div>
-										)}
-									</div>
-									<div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
-										<span className="font-bold uppercase tracking-wider">Program scope:</span>
-										{coverageDetail?.programScopes.map((scope) => (
-											<Badge key={scope} variant="outline" className="bg-white text-slate-700 shadow-none" aria-label={programFullLabel(scope)}>{programFullLabel(scope)}</Badge>
-										))}
-									</div>
-									<Link to={`/teaching-load?view=subjects&subjectId=${coverageSubject.id}&filter=missing-coverage`} className="inline-flex">
-										<Button size="sm" variant="outline" className="gap-2">
-											Open in Teaching Load
-											<ChevronRight className="size-3.5" />
-										</Button>
-									</Link>
-								</div>
-
-								{/* Phase 2.3: render Resource requirements for non-classroom
-									subjects AND for subjects with required room features
-									(audit Sub-6 -- the old code only gated on
-									preferredRoomType !== 'CLASSROOM', silently dropping
-									subjects that needed a feature but used a standard room).
-									C07-R8: the wording comes from the single shared
-									room-authority copy authority. A CLASSROOM authority is
-									never labelled as an unconditional requirement; special-room
-									use is handled outside this timetable. */}
-								{((coverageSubject.preferredRoomType !== 'CLASSROOM') || (coverageSubject.requiredFeatures.length > 0)) && (
-									<div className="p-4 rounded-xl bg-muted/40 border border-muted/50 flex items-start gap-3 shadow-sm">
-										<MapIcon className="size-5 text-muted-foreground shrink-0 mt-0.5" />
-										<div className="space-y-1">
-											<p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Resource requirements</p>
-											<p className="text-sm font-medium">
-												<span className="font-bold text-primary">{ROOM_TYPE_LABELS[coverageSubject.preferredRoomType] ?? coverageSubject.preferredRoomType}</span>
-												{' — '}
-												{roomAuthoritySemantics(coverageSubject.preferredRoomType)}.
-											</p>
-											{coverageSubject.requiredFeatures.length > 0 ? (
-												<p className="text-sm font-medium">
-													Needs {coverageSubject.requiredFeatures.length} room feature{coverageSubject.requiredFeatures.length === 1 ? '' : 's'}:{' '}
-													<span className="font-bold text-primary">{coverageSubject.requiredFeatures.join(', ')}</span>
-												</p>
-											) : null}
-											<Link to="/map" className="text-xs text-primary font-bold flex items-center gap-1 hover:underline pt-1 uppercase tracking-tight">
-												View occupancy map
-												<ChevronRight className="size-3" />
-											</Link>
-										</div>
-									</div>
-								)}
-							</>
-						)}
-					</div>
-				</SheetContent>
-			</Sheet>
+		{/* A3-17: the coverage review surface is the extracted, centered Dialog
+			component. It used to be a 234-line inline copy of the Sheet that also
+			lived in components/subjects/SubjectCoverageSheet.tsx; both are now one
+			component, which is what keeps this page inside its line budget. */}
+			<SubjectCoverageSheet
+				subject={coverageSubject}
+				loading={coverageLoading}
+				detail={coverageDetail}
+				errorBySubjectId={coverageError}
+				onRetry={(subjectId) => { void fetchTeacherCoverage(subjectId); }}
+				onClose={() => setCoverageSubject(null)}
+			/>
 
 			{/* Subject Form Modal (Add / Edit) */}
 			<SubjectFormModal

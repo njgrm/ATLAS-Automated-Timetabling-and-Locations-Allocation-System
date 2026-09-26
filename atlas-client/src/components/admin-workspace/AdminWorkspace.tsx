@@ -1,3 +1,4 @@
+import { Children } from 'react';
 import type { ReactNode } from 'react';
 import { AlertTriangle, CheckCircle2, Info, MoreHorizontal, Search, SlidersHorizontal } from 'lucide-react';
 
@@ -231,6 +232,7 @@ export function AdminSearchFilterToolbar({
 	filtersOpen,
 	onToggleFilters,
 	hasActiveFilters,
+	primaryFilterCount,
 	children,
 }: {
 	searchValue: string;
@@ -239,8 +241,27 @@ export function AdminSearchFilterToolbar({
 	filtersOpen: boolean;
 	onToggleFilters: () => void;
 	hasActiveFilters: boolean;
+	/**
+	 * A3-15 (additive, default-off): how many leading `children` are PRIMARY
+	 * filters that stay directly visible instead of collapsing behind the
+	 * "More filters" disclosure.
+	 *
+	 * Omitted / undefined behaves as 0, which is byte-for-byte the previous
+	 * contract: every child renders only when `filtersOpen` is true, inside the
+	 * same bordered disclosure row, and the disclosure button is unchanged.
+	 * Consumers that do not opt in (the Sections page, and every page that
+	 * renders this toolbar without the prop) keep today's collapse behaviour.
+	 */
+	primaryFilterCount?: number;
 	children?: ReactNode;
 }) {
+	// A3-15: split the children into the always-visible primary group and the
+	// overflow that keeps the pre-existing disclosure. Clamped so a caller
+	// cannot address past the end of the list.
+	const childList = Children.toArray(children);
+	const primaryCount = Math.min(Math.max(primaryFilterCount ?? 0, 0), childList.length);
+	const primaryChildren = childList.slice(0, primaryCount);
+	const overflowChildren = childList.slice(primaryCount);
 	return (
 		<div className="space-y-1.5" data-testid="admin-search-filter-toolbar">
 			<div className="flex gap-2 md:items-center md:justify-between">
@@ -254,14 +275,23 @@ export function AdminSearchFilterToolbar({
 							className="h-8 pl-9"
 						/>
 					</div>
-					<Button variant={filtersOpen ? 'secondary' : 'outline'} size="sm" className="h-8 shrink-0 gap-2 font-bold" onClick={onToggleFilters}>
-						<SlidersHorizontal className="size-4" />
-						More filters
-						{hasActiveFilters && <Badge className="ml-1 bg-primary text-primary-foreground">Active</Badge>}
-					</Button>
+					{overflowChildren.length > 0 ? (
+						<Button variant={filtersOpen ? 'secondary' : 'outline'} size="sm" className="h-8 shrink-0 gap-2 font-bold" onClick={onToggleFilters}>
+							<SlidersHorizontal className="size-4" />
+							More filters
+							{hasActiveFilters && <Badge className="ml-1 bg-primary text-primary-foreground">Active</Badge>}
+						</Button>
+					) : null}
 				</div>
 			</div>
-			{filtersOpen && <div className="flex flex-wrap items-center gap-2 border-t border-slate-100 pt-1.5">{children}</div>}
+			{primaryChildren.length > 0 ? (
+				<div className="flex flex-wrap items-center gap-2" data-testid="admin-primary-filter-row">
+					{primaryChildren}
+				</div>
+			) : null}
+			{filtersOpen && overflowChildren.length > 0 ? (
+				<div className="flex flex-wrap items-center gap-2 border-t border-slate-100 pt-1.5">{overflowChildren}</div>
+			) : null}
 		</div>
 	);
 }

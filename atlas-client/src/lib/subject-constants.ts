@@ -15,8 +15,26 @@ export const ROOM_TYPE_LABELS: Record<RoomType, string> = {
 export const ALL_ROOM_TYPES = Object.keys(ROOM_TYPE_LABELS) as RoomType[];
 export const GRADE_OPTIONS = [7, 8, 9, 10];
 
+/**
+ * A3-32: the room types a SUBJECT's "Room need" may be set to.
+ *
+ * A subject's room need is a teaching-space requirement consumed by schedule
+ * generation. `FACULTY_ROOM` and `OFFICE` are staff spaces — no subject is ever
+ * scheduled into them, so offering them in the subject form was a false
+ * option. This list is ADDITIVE and deliberately does NOT filter
+ * `ALL_ROOM_TYPES`: the Room Type filter (SubjectFilterToolbar) and the room
+ * map (BuildingView, which renders from `ROOM_TYPE_LABELS`) must keep offering
+ * every room type, and `ALL_ROOM_TYPES` is their shared source.
+ */
+export const SUBJECT_ROOM_NEED_TYPES = ALL_ROOM_TYPES.filter(
+	(roomType) => roomType !== 'FACULTY_ROOM' && roomType !== 'OFFICE',
+);
+
+// A3-31: DISPLAY MAPPING ONLY. `REGULAR` is the persisted enum value, the API
+// payload value, and the server's stored value — none of those change. Only
+// the operator-facing label reads "BEC", the DepEd term the program is known by.
 export const PROGRAM_SCOPE_OPTIONS = [
-	{ value: 'REGULAR', label: 'Regular' },
+	{ value: 'REGULAR', label: 'BEC' },
 	{ value: 'STE', label: 'STE' },
 	{ value: 'SPA', label: 'SPA' },
 	{ value: 'SPS', label: 'SPS' },
