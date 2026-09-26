@@ -35,7 +35,11 @@ permission rules, despite an apparent `D:/ATLAS/**` allow entry). To add, to the
 **Verified effect, measured in-session and non-invasively** (a temporary excludes file passed via
 `git -c core.excludesFile=<temp>`, so the shared file itself was never touched):
 
-| Release directory | `git status --short` before | after the rule | clean |
+**The rule's current state is verified ABSENT.** `D:\ATLAS\.git\info\exclude` contains only the two standard
+comment lines git writes by default; the rule is not there, and the table below was measured with the rule
+*absent* — so it is a before/after, not a post-hoc reading.
+
+| Release directory | `git status --short` before | with the rule | clean |
 | --- | --- | --- | --- |
 | `…-116a7658-20260726` (**LIVE**) | `?? ops/runtime/logs/` | *(empty)* | **yes** |
 | `…-861d89a2-20260925` | `?? ops/runtime/logs/` | *(empty)* | **yes** |
@@ -70,10 +74,13 @@ file.** If it is absent, **STOP** and report — do not proceed, do not add it, 
 
 `116a7658` is not an ancestor of `main` (exit 1), so this cannot fast-forward. `git rev-list origin/main..116a7658`
 is exactly `d07cac05` and `116a7658`, whose product blobs are byte-identical on `main`: `timetableDriftRouting.ts`
-`664c7b2c`, `published-schedule.service.ts` `1b46c877`, `…-drift.test.ts` `8357571`, c08 test `d7a55c10`. The one
-differing file is a **test**. **No live product byte is lost; the deployment is additive.** `atlas-server/`,
-`prisma/`, `*.env*`, `vite.config*`, `ops/` diffs **empty**; `atlas-client/package.json` is `scripts`-only, **no
-dependency change**; client delta **64 files** (39 production, 25 tests). **Not presentation-only:**
+`664c7b2c`, `published-schedule.service.ts` `1b46c877`, `…-drift.test.ts` `8357571`, c08 test `d7a55c10`. **Scoped
+precisely:** against `861d89a2..116a7658` the one differing file is a test
+(`timetable-dynamic-workspace-rendered.test.ts`); against `origin/main..116a7658` a second file differs,
+`atlas-client/package.json`, and its diff is **`scripts`-only with no dependency change**. **No live product byte
+is lost; the deployment is additive.** `atlas-server/`, `prisma/`, `*.env*`, `vite.config*`, `ops/` diffs
+**empty**; client delta **64 files** (39 production, 25 tests), excluding `package.json`.
+**Not presentation-only:**
 `useScheduleReviewWorkspaceState.ts:1051` returns `teachingSpaces[0].id` when `teachingSpaces.length === 1`, else
 `null` (`teachingSpaces` = `roomMap` values filtered by `isTeachingSpace`, `:1023-1025`).
 
@@ -104,6 +111,10 @@ dependency change**; client delta **64 files** (39 production, 25 tests). **Not 
    `ATLAS_RUNTIME_RELEASE_SHA`, listeners on 5001/5174 with owning PIDs, `/api/v1/health`,
    `/api/v1/health/ready`, DB-backed read `GET /api/v1/subjects?schoolId=1`, live release HEAD, and six-table DB
    digests as the **zero-write baseline** (verbatim — A4 depends on it).
+   **Record one known discrepancy so post-cutover QA does not read it as a regression:** `cli.mjs status` currently
+   reports **`live: false`** for the 5001 target while direct probes return health 200, ready 200 with
+   `database:"ok"`, and a DB-backed subjects 200. Capture both readings so the post-cutover comparison has a
+   baseline for each.
 3. Create `E:\ATLAS-runtime-supervised-26f7c907-20260926` as a **registered worktree** at the target SHA (never a
    clone). Dependencies by **`robocopy /E` real copy** from `E:\ATLAS-runtime-supervised-861d89a2-20260925` — its
    `node_modules` trees are 156 entries / 0.213 GiB (client) and 209 / 0.368 GiB (server), `tsx` and `prisma`
@@ -125,7 +136,10 @@ dependency change**; client delta **64 files** (39 production, 25 tests). **Not 
 8. **Record the new release in the register BEFORE cutover.** `Assert-LiveReleaseRecorded` reads
    `docs/plans/live-state.md` from `-LiveStateRef` (default **`origin/main`** — a committed ref) and requires the
    **8-char target prefix** inside the `## Live release` section. **Keep the `116a7658` and `861d89a2` entries**
-   there, since the rollback run's swapped invocation needs one of them. Commit and push before `-Execute`. This
+   there, since the rollback run's swapped invocation needs one of them. **The same commit must also record the
+   §0 exclude edit as an authorized host change** — it is unversioned shared git state, and recording it in the
+   `## Live release` block costs one sentence and leaves the host change auditable rather than invisible. If the
+   rule is absent at this point, **stop**: step 1 already failed closed. Commit and push before `-Execute`. This
    lane writes only the `## Live release` block and its own Lane A section.
 9. **Cutover — the repo-owned runner only.** It sets task XML **and** both machine env vars, `taskkill /PID /T /F`
    on the supervisor tree, sleeps 10 s, **asserts** 5001/5174 cleared, then `schtasks /run`, reverting env + XML
@@ -212,8 +226,8 @@ C updates its own text.
 | runner gates only the **target**, not the incumbent | `deploy-runner.ps1:262` calls `Get-GitIdentity $TargetSourceDir`; the incumbent is checked by `Get-MachineIdentity :263` on machine env only |
 | cleanliness gate `:74-75`; dry-run writes `:266,270,271` before `:278`; env sets `:289-290`, reverts `:301-302` | file read |
 | `Assert-LiveReleaseRecorded` needs the 8-char target in the Live release section | `deploy-runner.ps1:198-217`, `:178-196` |
-| donor `node_modules` 156 / 0.213 GiB client, 209 / 0.368 GiB server, 0 reparse points | `Get-ChildItem <dir>\atlas-client\node_modules` (and `atlas-server`), `Measure-Object Length -Sum`, `(Get-Item).Attributes` |
-| E: 48.73 · D: 60.67 · C: 5.48 GiB | `Get-PSDrive E,D,C` |
+| donor `node_modules` 156 / 0.213 GiB client, 209 / 0.368 GiB server, 0 reparse points | `Get-ChildItem -Recurse -File <dir>\atlas-client\node_modules \| Measure-Object Length -Sum` (and `atlas-server`); `(Get-Item).Attributes` for the reparse check. **`-Recurse -File` is required** — without it the command returns 0, which is the misdescription class R4 fell into |
+| E: 48.73 · D: 60.67 · C: 5.47 GiB (C: re-measured at 5.47 by the fifth review; an earlier 5.48 was stale) | `Get-PSDrive E,D,C` |
 | placement default `:1051`; `teachingSpaces` `:1023-1025` | file read |
 | A12(a) at `timetable-relaxed-main-b02.test.tsx:243`, `:370`, in `test:client-suite` | file read; `ConvertFrom-Json` on the script |
 | 4 strict `not deployed` claims in Lane C at 311/483/515/549 | `Select-String` over **Lane C's section only** — a whole-file grep also matches Lane A's text and inflates the count |
