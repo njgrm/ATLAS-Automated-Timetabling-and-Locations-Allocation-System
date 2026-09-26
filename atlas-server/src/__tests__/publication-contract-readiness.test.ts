@@ -639,6 +639,13 @@ async function main() {
 		publishedScheduleRevision: {
 			findMany: async () => [{
 				id: 701,
+				// PUBLISHED-DAY-BOUNDARY-A2: `sourceRunId` is a REQUIRED column on
+				// `published_schedule_revisions`, so a faithful fixture carries it. The
+				// published reader resolves which publication was in force on the
+				// requested date by reading the base-revision chain, and a base revision
+				// whose `sourceRunId` is absent matches no readable COMPLETED/FULL run.
+				// This completes the fixture; it removes no assertion.
+				sourceRunId: 91,
 				effectiveDate: new Date('2030-01-01T00:00:00.000Z'),
 				sourceRevisionId: null,
 				reason: 'INITIAL_PUBLICATION',
@@ -719,7 +726,15 @@ async function main() {
 			},
 			findUnique: async () => ({ draftEntries: positiveEntries }),
 		},
-		publishedScheduleRevision: { findMany: async () => [{ id: 701, effectiveDate: new Date('2030-01-01T00:00:00.000Z'), changeSet: [], sourceRevisionId: null, reason: 'INITIAL_PUBLICATION', metadata: { publicationBase: true, sourceRunVersion: 5 } }] },
+		// PUBLISHED-DAY-BOUNDARY-A2: this fixture serves reads with NO `date`
+		// parameter, which resolve to the real current instant. Its base revision is
+		// therefore stamped in the PAST so the publication is genuinely in force. The
+		// previous `2030-01-01T00:00:00.000Z` stamp only produced a 200 because this
+		// mock ignores the `where` clause, so the reader's date filter was never
+		// evaluated; with the reader now genuinely selecting by calendar day, a
+		// future stamp correctly resolves to 404. No assertion is removed: the matrix
+		// still requires 200 with entries for a publication that IS in force.
+		publishedScheduleRevision: { findMany: async () => [{ id: 701, sourceRunId: 91, effectiveDate: new Date('2020-01-01T00:00:00.000Z'), changeSet: [], sourceRevisionId: null, reason: 'INITIAL_PUBLICATION', metadata: { publicationBase: true, sourceRunVersion: 5 } }] },
 		enrollProSchoolYearMirror: {
 			findFirst: async () => ({ enrollProSchoolYearId: 81, yearLabel: '2030-2031' }),
 			findMany: async () => [{ enrollProSchoolYearId: 81 }],

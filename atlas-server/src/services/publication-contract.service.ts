@@ -18,6 +18,7 @@ import {
 	type PublishedIdentitySnapshot,
 } from './published-identity-snapshot.service.js';
 import { assertPublicationApprovalAllowed, hashPublicationRunSnapshot, publicationApprovalError } from './publication-approval-contract.service.js';
+import { schoolLocalDayStartUtc } from '../lib/school-operating-time-zone.js';
 
 type ServiceError = Error & {
 	statusCode: number;
@@ -444,7 +445,22 @@ export async function publishSchedule(
 				sourceRunId: run.id,
 				sourceRevisionId: null,
 				status: 'SCHEDULED',
-				effectiveDate: publishedAt,
+				// PUBLISHED-DAY-BOUNDARY-A2 (Defect B) — the base revision is a
+				// DAY-GRANULAR artifact, so it is stamped with the START of the
+				// school's local calendar day containing the publish instant, not
+				// with the raw instant.
+				//
+				// Stamping the instant was self-rejecting: a publish at
+				// 2026-09-27T00:38+08 is 2026-09-26T16:38Z, and the read anchor for
+				// `?date=2026-09-26` is 2026-09-26T12:00Z — so the base revision was
+				// not yet in force for the very date it named, and every
+				// 00:00-08:00 local publish became unreachable for its own day.
+				//
+				// The exact publish instant is NOT lost: `publishedAt` on the run
+				// summary and in the GENERATION_RUN_PUBLISHED audit metadata still
+				// carry it. `effectiveDate` now means "the local calendar day this
+				// publication governs", which is what a date-addressed read needs.
+				effectiveDate: schoolLocalDayStartUtc(publishedAt),
 				actorId: input.actorId,
 				reason: 'INITIAL_PUBLICATION',
 				changeSet: [] as Prisma.InputJsonValue,
