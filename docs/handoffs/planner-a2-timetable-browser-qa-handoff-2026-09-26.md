@@ -107,3 +107,19 @@ here. Items 1–2 above are the same as system-walk 03 #1 and 04 #1.
 
 Since the walk, `main` also carries `9b1ec14a` (the lunch-window label plus the guard that every
 violation code has a client label). It is not yet live.
+
+## Item 3 diagnosis — public default term (Lane C + Codex CLI, 2026-09-26)
+
+Read-only source diagnosis by an independent Codex CLI runner, checked by Lane C: **a defect, not "only Term 1
+is published."** A missing `term` correctly becomes `termIndex=active` (`public-schedule-term-scope.ts:4-11`,
+`PublicPublishedSchedule.tsx:150,187,204-205`, `published-schedule.router.ts:66-72,100`). But for a published
+(frozen) run, `published-schedule.service.ts:758-773` resolves `active` from the **frozen** contract's
+`activeTermOrder`, which is the term that was active *at publication*. A schedule published during Term 1
+therefore keeps defaulting to Term 1 after the school moves to Term 2. The non-frozen branch
+(`:774-783`) already resolves the live verified active term and fails closed.
+
+Direction (A2 to packet; §7 applies): for `active`, resolve the **current** verified active term, and fail
+closed with `TERM_SELECTION_REQUIRED` when it is unavailable or not covered by the publication. Keep the frozen
+contract for explicit-term validation and immutable publication content. This touches the C08
+frozen-authority design, so the packet must show that per-term archived reads and exports are unchanged.
+Browser confirmation is still owed; the CLI runner had no browser surface.
