@@ -25,6 +25,30 @@ rules are what make that safe:
    `docs/handoffs/planner-session-handoff.md`, Lane B in its own handoff file, Lane C in its
    section below until a stream needs a handoff.
 
+## Capacity — a reclaim is OWED before the next release build (dated 2026-09-26, Lane A2)
+
+**`E:` is at 49.84 GiB free (5.4%), just below the 50 GiB warning line**, because the `e4989b72` deploy added
+a ~1.47 GiB release directory. `AGENTS.md` §3 requires the release-directory retention reclaim to run when a
+volume crosses its warning, and **not to wait for the fail-closed line**. `C:` is at 42.91 GiB (19%) and is
+not a concern. **Not executed** — a destructive reclaim is the wrong thing to start with almost no context
+budget left, so it is recorded here for a bounded execution instead.
+
+| Release directory | Size | Role | Action |
+| --- | --- | --- | --- |
+| `ATLAS-runtime-supervised-e4989b72-20260926` | 1.46 GiB | **LIVE** | never touch |
+| `ATLAS-runtime-supervised-400a6909-20260926` | 1.46 GiB | **rollback basis** (immediately prior) | keep |
+| `ATLAS-runtime-supervised-116a7658-20260726` | 1.46 GiB | older fallback, named in history | keep |
+| `ATLAS-runtime-supervised-861d89a2-20260925` | 1.47 GiB | **frozen dependency donor** — lanes copy `node_modules` from it | **never retire**; retiring it breaks every future release build |
+| `ATLAS-runtime-supervised-26f7c907-20260926` | 1.47 GiB | superseded (Lane A, live 09:41–15:49) | reclaimable |
+| `ATLAS-runtime-supervised-eb0e3038-20260925` | 1.46 GiB | superseded | reclaimable |
+| `ATLAS-runtime-supervised-4893cbde-20260923` | 1.43 GiB | superseded | reclaimable |
+
+**Reclaimable: 3 directories, 4.36 GiB**, which restores `E:` to ~54.2 GiB — above the warning with margin.
+**Rules that apply, from `docs/reference/agent-worktree-lifecycle.md`:** read it before retiring anything;
+the frozen donor must not be retired; removal is non-forced; verify the target's `node_modules` entry count
+before and after so a junction cannot be followed; and confirm no listener is bound to a directory being
+removed. **Do not delete any branch or Git ref** — history lives there, not in these directories.
+
 ## Objective
 
 Deliver a presentable live ATLAS demo for school 1 and active upstream school
