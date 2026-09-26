@@ -680,10 +680,34 @@ earlier `19bc`-era base-attribution measurement, which was re-run against one id
 produce the `5960cfce` numbers above. E: was 43 GiB when the J2/J3 integration closed; the reclaim
 `20260926b` then measured it at **48.73 GiB**, still below the 50 GiB warning.
 
-**Next action (2026-09-26):** no Lane A **source** task remains. `main` carries C1/C2/C3 + J2 + D2 + J2/J3 and
-is **still not deployed**; live is `116a7658` off the `861d89a2` line, so the next release must reconcile that
-divergence, not fast-forward. Before any next release build: a fresh successor reclaim/audit, then a new
-deployment packet with its own pre-action review. Keep `116a7658` live and `861d89a2` as rollback — **superseded
+**Deployment of `main` is HELD — packet R2 awaiting a fresh pre-action pass (2026-09-26).** The target is
+`26f7c907`, and the reconciliation question is **resolved**: `116a7658` is not an ancestor of `main`, but
+`main` holds exactly the two commits live lacks (`d07cac05`, `116a7658`) and both of their product blobs are
+already byte-identical on `main` (`timetableDriftRouting.ts` `664c7b2c`, `published-schedule.service.ts`
+`1b46c877`), so **`main` is a content superset of live and the deployment is additive**. The whole live→`main`
+product delta is **64 client source files**: the server tree diff is **empty**, there is no migration, no env
+contract change, and `package.json` gains **test scripts only, no dependency**. Packet:
+`docs/prompts/deploy-main-26f7c907-client-presentation-2026-09-26.md` (R2).
+
+**R1 was rejected by the independent pre-action review (`CORRECTION_REQUIRED` 8/14, 4 blocking) and must not
+execute.** Recorded so the next session does not run it: (1) R1 bypassed the repo-owned atomic cutover owner
+`ops/runtime/deploy-runner.ps1` and its rollback re-pointed only the task action, which would have left
+`ATLAS_RUNTIME_SOURCE_DIR`/`ATLAS_RUNTIME_RELEASE_SHA` naming `116a7658` — **stale authority**; (2) R1's build
+step omitted `VITE_ENROLLPRO_URL`, which `atlas-client/vite.config.ts` **hard-fails on**, so it could not have
+produced a bundle; (3) R1's `cli.mjs stop` was a **no-op**, because `cli.mjs` resolves the release from the
+**process**-scope `ATLAS_RUNTIME_SOURCE_DIR`, which currently names the **retired** `c5e167d7` — so **never
+call `cli.mjs` unqualified in a fresh shell**; (4) R1's acceptance row A5 asserted "no `Run #id`" globally,
+which is **provably unsatisfiable** because `PublicationApprovalInbox.tsx:77` still renders it and is
+byte-unchanged. R2 answers all four plus the four non-blocking findings, and adds the runner's
+`Assert-LiveReleaseRecorded` ordering (the register must name the new release **before** cutover, read from
+`origin/main`).
+
+**Capacity correction to the reclaim note above:** the E: **release** set is exhausted, but the E: **worktree**
+set is not — ~8.7 GiB sits in ten finished lane worktrees, so a fresh §3 manifest is available if wanted.
+Those rows are other lanes' custody and are not this lane's to retire. E: is 48.73 GiB, ample for a ~2 GiB
+build against a 25 GiB fail-closed.
+
+**Next action (2026-09-26):** `main` now carries C1/C2/C3 + J2 + D2 + J2/J3 and is **still not deployed**; live is `116a7658` off the `861d89a2` line, so the next release must reconcile that divergence, not fast-forward. Before any next release build: a fresh successor reclaim/audit (E: 48.73 GiB is below the 50 GiB warning), then a new deployment packet with its own pre-action review. Keep `116a7658` live and `861d89a2` as rollback — **superseded
 2026-09-26 by the keep-set line: `861d89a2` IS the one real dependency source** (the donor correction below
 applies to `5c100ea6` only, and that release is now retired). Dated follow-ups, none blocking: **F1**, a product ruling this lane did not
 make — main's four per-code-space fallbacks still differ from the shared honest sentence for an out-of-union
