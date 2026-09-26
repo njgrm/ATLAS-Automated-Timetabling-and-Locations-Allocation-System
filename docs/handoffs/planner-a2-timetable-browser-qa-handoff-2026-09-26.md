@@ -123,3 +123,10 @@ closed with `TERM_SELECTION_REQUIRED` when it is unavailable or not covered by t
 contract for explicit-term validation and immutable publication content. This touches the C08
 frozen-authority design, so the packet must show that per-term archived reads and exports are unchanged.
 Browser confirmation is still owed; the CLI runner had no browser surface.
+
+**Browser confirmation (Codex CLI + chrome-devtools, live `26f7c907`, 2026-09-26, read-only, 0 console errors).**
+With no query string, `/public/schedules` settles on `?sectionId=143` with "Published term" = "TERM 1". The options are TERM 1–3, and **every term renders a published schedule** (Aguinaldo: "40 published classes are shown." in T1, T2 and T3). So the Term 1 default is the frozen-active-term defect, not "only Term 1 is published."
+
+**Conflicting evidence on section retention (item 3b):** in this run, selecting Luna and then switching the term **kept** Luna (`?sectionId=141&term=3` → `?sectionId=141&term=1`), although `PublicPublishedSchedule.tsx:523` clears `sectionId` on the header term `Select`. The page may have more than one term control. Reproduce with the exact control before packeting a fix.
+
+**Narrow width:** `resize_page 390×844` produced a 502 px viewport (window minimum). At 502 px, `scrollWidth == clientWidth == 502`, the section list is available and the schedule stacks by day. **390 px is still unverified.**
