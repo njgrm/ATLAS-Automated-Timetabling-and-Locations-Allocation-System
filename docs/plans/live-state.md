@@ -1110,4 +1110,29 @@ the reclaim row above) — its `node_modules` was empty, so it was never a usabl
 `eb0e3038` is `PRESERVE_FOR_DECISION` and is now the second most recent accepted release. `c5e167d7` is
 **RETIRED 2026-09-26** by the same reclaim. The one real
 dependency source is **`861d89a2`** (156 entries): use a real copy, never a junction chain.
+**Keep set RE-DERIVED after the `26f7c907` cutover (2026-09-26) — the two lines above are now stale and are
+corrected here.** Deploying `26f7c907` shifted the accepted-release order by one, so a release this register
+still calls "the second most recent accepted" has **silently fallen out of the keep set** — exactly the undated
+premise `AGENTS.md` §15 warns becomes a future session's wrong action. Measured, by commit date:
+
+| Release directory | SHA | Committed | `node_modules` | Status after this deployment |
+| --- | --- | --- | --- | --- |
+| `…-26f7c907-20260926` | `26f7c907` | 2026-09-26T08:11:55+08:00 | 156 | **LIVE** → `KEEP_ACTIVE` |
+| `…-116a7658-20260726` | `116a7658` | 2026-09-26T03:35:39+08:00 | 155 | **Accepted #1**, and the **ROLLBACK BASIS** for the live release → keep |
+| `…-861d89a2-20260925` | `861d89a2` | 2026-09-26T00:21:05+08:00 | 156 | **Accepted #2** → keep. **Still a valid dependency source** (156 entries) |
+| `…-eb0e3038-20260925` | `eb0e3038` | 2026-09-25T21:39:57+08:00 | 155 | **no longer in the keep set** — first row beyond live + the two most recent accepted |
+| `…-4893cbde-20260923` | `4893cbde` | 2026-09-23T21:16:58+08:00 | 125 | `PRESERVE_FOR_DECISION` (operator) — unchanged |
+
+So the two corrections: **`eb0e3038` is no longer "the second most recent accepted release"** and is now the
+first retirable row; and the **one real dependency source remains `861d89a2`**, which is still inside the keep
+set, so the dependency source does **not** need to move. `5c100ea6` stays retired and `c5e167d7` stays retired
+by `20260926b`.
+
+**Verified safe for a future reclaim to act on `eb0e3038`:** an independent scan of every registered worktree and
+every `E:\ATLAS-*` / `D:\ATLAS-*` root found **no reparse point whose target contains `861d89a2` or `eb0e3038`**,
+and the live release carries its **own** 156-entry real dependency copy rather than a junction, so nothing depends
+on either. **No reclaim is owed right now** — §3 requires one *before the next release build*, and none is
+scheduled. This entry exists so the next reclaim does not have to re-derive the order, and so no session reads
+`eb0e3038` as a keep row from the two stale lines above.
+
 Do not write in Lane B/C worktrees.
