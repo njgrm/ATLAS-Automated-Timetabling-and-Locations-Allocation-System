@@ -1,11 +1,22 @@
 import axios from 'axios';
 
+// The admin password is never committed to this repository. Supply it from the
+// environment; this script fails closed when it is absent rather than falling back
+// to a literal. See atlas-server/src/__tests__/committed-credential-scrub.test.ts.
+const ADMIN_PASSWORD = process.env.ATLAS_ADMIN_PASSWORD;
+if (!ADMIN_PASSWORD) {
+  console.error(
+    'ATLAS_ADMIN_PASSWORD is not set. Export the admin password in your shell and re-run. Refusing to fall back to a committed value.'
+  );
+  process.exit(1);
+}
+
 async function main() {
   let token;
   try {
     const response = await axios.post('http://localhost:5001/api/v1/auth/login', {
       email: 'admin@deped.edu.ph',
-      password: 'AdminSY2026!'
+      password: ADMIN_PASSWORD
     });
     token = response.data.token;
     console.log('✅ Admin Login successful!');

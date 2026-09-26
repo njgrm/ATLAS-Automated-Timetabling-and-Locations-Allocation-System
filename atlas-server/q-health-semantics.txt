@@ -23,8 +23,8 @@
 ════ Rollover counts keep public settings unauthenticated ════
   ✓ Public settings contributes reachable count — expected true, got true
   ✓ Public settings request has no Authorization header — expected undefined, got undefined
-  ✓ Protected sections feed keeps bridge token — expected Bearer bridge-token-for-protected-feeds, got Bearer bridge-token-for-protected-feeds
-  ✓ Protected faculty feed keeps bridge token — expected Bearer bridge-token-for-protected-feeds, got Bearer bridge-token-for-protected-feeds
+  ✓ Protected sections feed keeps bridge token — expected Bearer <redacted>, got Bearer <redacted>
+  ✓ Protected faculty feed keeps bridge token — expected Bearer <redacted>, got Bearer <redacted>
 
 ════ Incomplete section rows are skipped and counted by syncSectionsFromExternal ════
   ✓ Sync completed — expected true, got true

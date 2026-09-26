@@ -577,6 +577,30 @@ async function upsertCohorts(schoolId: number, schoolYearId: number, gradeLevels
 	return cohorts.length;
 }
 
+/**
+ * Resolve the password for the local auth accounts this seed creates, or fail closed.
+ *
+ * The seeded officer and faculty accounts are real login accounts, so their password is
+ * a real credential. This repository is public, so a literal here would be a working
+ * credential in every clone — the value therefore comes from the operator's environment
+ * and this seed never invents one.
+ *
+ * Resolved at the top of main() on purpose: failing here aborts before the seed opens a
+ * write, so a misconfigured seed leaves no half-seeded database behind.
+ */
+function requireSeededAuthPassword(): string {
+	const value = process.env.ATLAS_DEFAULT_AUTH_PASSWORD;
+	if (typeof value !== 'string' || value.trim().length === 0) {
+		throw new Error(
+			'ATLAS_DEFAULT_AUTH_PASSWORD is not set, so the seed stopped before writing anything. ' +
+				'This seed creates working ATLAS logins for the scheduling officer and for faculty, so their ' +
+				'password is read from the environment rather than committed to this public repository. ' +
+				"Set ATLAS_DEFAULT_AUTH_PASSWORD='<choose-a-strong-password>' and re-run.",
+		);
+	}
+	return value;
+}
+
 async function main() {
 	const options = parseArgs();
 
@@ -584,6 +608,9 @@ async function main() {
 		console.error(USAGE);
 		process.exit(1);
 	}
+
+	// Before any write: see requireSeededAuthPassword.
+	const seededAuthPassword = requireSeededAuthPassword();
 
 	if (options.mode === 'atlas-fixture' && !options.confirmFixtureBypass) {
 		throw new Error('atlas-fixture mode is dev-only. Re-run with --confirmFixtureBypass=true to proceed.');
@@ -643,6 +670,7 @@ async function main() {
 
 	const authSeed = await seedLocalAuthAccounts({
 		schoolId: options.schoolId,
+		password: seededAuthPassword,
 	});
 
 	console.log('[seed-realistic] Completed successfully.');
@@ -679,7 +707,11 @@ async function main() {
 		console.log(`  - Map reset applied: ${mapSummary.mapResetApplied}`);
 	}
 	console.log(`  - Local auth accounts seeded: ${authSeed.created} created, ${authSeed.updated} updated`);
-	console.log('    Credentials: officer@deped.edu.ph / Atlas2026! and faculty emails using firstname.lastname@deped.edu.ph (duplicate fallback firstname.m.lastname@deped.edu.ph).');
+	// A seeded password is a credential and is never printed. The operator learns where
+	// it came from, not what it is.
+	console.log('    Credentials: the scheduling officer address is ATLAS_SEEDED_OFFICER_EMAIL (default officer@deped.edu.ph).');
+	console.log('      Every account created here, officer and faculty, uses the single password supplied in ATLAS_DEFAULT_AUTH_PASSWORD.');
+	console.log('      Faculty addresses follow firstname.lastname@deped.edu.ph, with a firstname.m.lastname@deped.edu.ph fallback for duplicates.');
 }
 
 // Direct-run only: importing this module (e.g. for seedCampusMap) must not
