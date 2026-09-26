@@ -260,6 +260,36 @@ Final state: **`origin/main` = `f426f4659413ec07ea6d54f2c97630e35f635b29`**. 25 
 
 **Next action:** operator seeds the browser profile, then re-probe G1, then execute §6 of `docs/prompts/a3-deploy-5691e663-2026-09-27.md`.
 
+### 2026-09-27 — deploy ATTEMPTED, FAILED on a wrong assumption in my own packet, ROLLED BACK
+
+**Outcome: NOT DEPLOYED. Service restored. Live is `b0736007` and healthy.**
+
+**What changed my decision to proceed.** The directive says to keep deployment and acceptance as **separate outcomes** — "a healthy deployed process may be `DEPLOYED` while required acceptance is incomplete" — and that "the legitimate reason to stop is a gate that is open, not a budget that is shrinking." I had been conflating the deploy gate with the browser-acceptance gate. The session is needed for **acceptance**, not for the deploy. I was treating an acceptance blocker as a deploy blocker and stalling indefinitely, which is its own failure. I proceeded, and superseded A2's recorded decline explicitly rather than silently.
+
+**The failure.** The cutover quiesced the supervisor tree cleanly (old processes 0, both ports free), re-pointed the scheduled task, and started. The supervisor came up **from the new release** (PID 44964) — but the children serving 5001 and 5174 were **from the old release** (PIDs 48532, 45632), and no `supervisor-state.json` was written in the new release at all.
+
+Root cause: **re-pointing the scheduled task is not sufficient.** Machine-scope `ATLAS_RUNTIME_SOURCE_DIR` and `ATLAS_RUNTIME_RELEASE_SHA` still named `lane-a2-release-b0736007`, and the supervisor resolved its source directory from there. So it executed from the new directory while serving the old release. My packet's §6 enumerated the task re-point and never mentioned the machine-scope environment pair — **that omission is mine, and it is the defect.**
+
+**The discriminator caught it, which is what it was built for.** Fetched over HTTP from the live host:
+```
+GET /assets/Faculty-D-2MUhhm.js  -> 200, text/javascript
+  D1 'Refresh roster'         present: False   (expected True)
+  D2 'Refresh teacher roster' present: True    (expected False)
+GET /assets/Faculty-Ch0v0n_5.js  -> 404
+releaseSha: b0736007e89547ff66eab70d1d869e21f73d49ad
+```
+A healthy `/api/v1/health` on 200 was reporting a deploy that had not happened. The content-literal proof is what made this visible; a hash or liveness check would have declared success. A **half-applied** state was the worst outcome available — task action naming one release, machine env another, and no state file in either.
+
+**Rollback, executed on the packet's own trigger.** The packet's trigger reads "the D1–D5 proof returns any combination other than the expected one." It had. I did **not** improvise a second HIGH mutation to complete the deploy: that would have meant an environment change the packet never authorised or planned for. Restoring coherence was the correct response to a wrong assumption mid-cutover. Quiesced the new supervisor, re-pointed the task back to `b0736007` by the same verified XML method, restarted.
+
+**Rollback verified.** Task action, machine env and `supervisor-state.json` **all agree** on `b0736007`. Listeners owned by old-release processes (server 48532 → 5001, host 45632 → 5174). `5001 /api/v1/health` 200, `5174 /` 200, `GET /api/v1/subjects?schoolId=1` **200**. Served bundle is the old build (D1 absent, D2 present, new chunk 404) — the coherent pre-deploy state. A2's runtime is back in service.
+
+**Two method notes, both now recorded.** `schtasks /change /tr` **cannot** set this action: it rejects the quoted path because of the space in `C:\Program Files\...`, and it failed silently from a `cmd /c` retry too. The working method is `/query /xml`, substitute only the path inside `<Arguments>`, write the bytes in the encoding `schtasks` emitted (ASCII) **leaving the `encoding="UTF-16"` declaration untouched** — the measured fact is that this registers cleanly and rewriting the declaration to UTF-8 fails — then `/delete` and `/create /xml`, verifying the action afterwards rather than assuming. Every step was verified before proceeding, which is how the failed `/change` and the silent no-op were both caught.
+
+**Correction required before any retry.** A complete deploy needs **three** coordinated changes, not one: (1) the scheduled task action, (2) machine-scope `ATLAS_RUNTIME_SOURCE_DIR`, (3) machine-scope `ATLAS_RUNTIME_RELEASE_SHA`. Items 2 and 3 are **environment changes** — HIGH in their own right, requiring their own named authority, expected delta and rollback, and they were absent from the packet. The next packet must carry them explicitly and pre-verify that all three agree **before** quiescing anything. A dry-run preflight that starts the new supervisor on **isolated ports** with isolated env would have caught this with zero disruption.
+
+**Untouched throughout:** `docs/plans/live-state.md` (no deploy, so no false claim), `D:\ATLAS-runtime-config`, the database, any migration/generation/publication call, and no credential typed or echoed. The release artifact remains built and staged at `E:\ATLAS-worktrees\lane-a3-release-f426f465` (`d11304e8`, pushed to `origin/release/a3-f426f465`) and re-verified after the rollback.
+
 ## Planned stream boundaries (proposed, not dispatched)
 
 Three streams, three worktrees, one writer each, all under `E:/ATLAS-worktrees/lane-a3-*` from base `3cfe79a8`. Consolidated pairs preserved: 13+18, 14+16, 17+23, 25+26, 33A+33B.
