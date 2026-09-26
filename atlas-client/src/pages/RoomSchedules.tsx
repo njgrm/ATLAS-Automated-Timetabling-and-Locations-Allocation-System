@@ -170,7 +170,7 @@ export default function RoomSchedules() {
 		(async () => {
 			try {
 				setLookupError(false);
-				const yearContext = await resolveActiveSchoolYearContext({ schoolId: scopedSchoolId, allowStaleOnError: true });
+				const yearContext = await resolveActiveSchoolYearContext({ schoolId: scopedSchoolId, allowStaleOnError: true , verifyUpstream: true });
 				const activeSchoolYearId = yearContext.activeSchoolYearId;
 
 				const [buildingsRes, subjectsRes, facultyRes] = await Promise.all([

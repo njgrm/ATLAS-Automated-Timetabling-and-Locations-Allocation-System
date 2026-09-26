@@ -176,7 +176,7 @@ const [verifiedTermIndex, setVerifiedTermIndex] = useState<number | null>(null);
 		setScheduleLoading(true);
 
 		(async () => {
-			const context = await resolveActiveSchoolYearContext({ schoolId: scopedSchoolId, allowStaleOnError: true, preferCache: true, backgroundRefresh: true });
+			const context = await resolveActiveSchoolYearContext({ schoolId: scopedSchoolId, allowStaleOnError: true, preferCache: true, backgroundRefresh: true , verifyUpstream: true });
 			const activeSchoolYearId = context.activeSchoolYearId;
 			if (!cancelled) setActiveSchoolYearLabel(context.activeSchoolYearLabel ?? null);
 

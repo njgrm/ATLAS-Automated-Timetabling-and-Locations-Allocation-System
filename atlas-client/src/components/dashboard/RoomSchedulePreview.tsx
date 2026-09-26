@@ -45,7 +45,7 @@ export function RoomSchedulePreview({
 
 		(async () => {
 			try {
-				const context = await resolveActiveSchoolYearContext({ schoolId: scopedSchoolId, allowStaleOnError: true, allowEnrollProFallback: false });
+				const context = await resolveActiveSchoolYearContext({ schoolId: scopedSchoolId, allowStaleOnError: true, allowEnrollProFallback: false , verifyUpstream: true });
 				if (!context.activeSchoolYearId || cancelled) return;
 
 				// ROOM-SCHEDULES-TERM-C01 — this component had no callers when the
