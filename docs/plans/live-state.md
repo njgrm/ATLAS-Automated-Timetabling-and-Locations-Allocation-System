@@ -770,14 +770,27 @@ for that path by the current permission rules, so the shared-metadata route need
 `ATLAS_RUNTIME_LOG_DIR` route is better anyway: it is supported, tracked, and prevents recurrence rather than
 masking a symptom.
 
-**Next action (2026-09-26):** (1) author packet **R4** adding the `ATLAS_RUNTIME_LOG_DIR` step, extending A10 to
-require an empty `git status --short` for the rollback basis, relocating the two non-live bases' log
-directories, and fixing the pass's non-blocking rows (`:1051` not `:1050`; **4** not "roughly ten" `NOT
-deployed` claims in Lane C's section; name `timetable-relaxed-main-b02.test.tsx` as A12(a)'s script; disclose the
-dry run's writes to `C:\ProgramData\ATLAS\release-audit`); (2) a fourth pre-action pass on R4; (3) then the
-elevated runner dry-run → `-Execute` → post-action QA. Reclaim `20260926c`'s capacity attestation is **satisfied**
-(its own audit says so) once the additive disposition restoration is recorded. `main` is still not deployed; live
-is `116a7658` and healthy. Dated follow-ups, none blocking: **F1**, a product ruling this lane did not
+**Packet R4 authored (2026-09-26); awaiting a fourth pre-action pass.** R4 fixes the systemic defect by
+pointing `ATLAS_RUNTIME_LOG_DIR` (machine scope, step 2b — an explicit HIGH env action) at
+`C:\ProgramData\ATLAS\runtime-logs`, outside every worktree and beside the runner's own `AuditRoot`; relocating
+the two **non-live** bases' in-worktree log directories with their hashes recorded first (blast radius: two
+untracked log dirs, 2 files each, already superseded); and adding gate **5b**, which requires the freshly built
+target's `git status --short` to be **empty after** the port-5198 isolation run — the check that would have
+caught R3's forward-path failure one step earlier than `Get-GitIdentity` did. A10 is extended to require
+`status --short` empty for each rollback basis, with all three outputs recorded verbatim, and it states plainly
+that **`116a7658` is expected to be ineligible** until a restart with the variable set — which step 2d would be,
+and which is **not authorized** by this packet, so the executor must report that rather than work around it.
+A13 is new: the log directory is machine-set, resolves outside every worktree, and the new release has no
+in-worktree `ops/runtime/logs`. The pass's non-blocking rows are also fixed: `:1051` not `:1050`; **4** Lane C
+`not deployed` claims (311/483/515/549 — my own first count of 5 was a section-boundary error that swept in Lane
+A's text); `timetable-relaxed-main-b02.test.tsx:243,:370` named as A12(a)'s committed script instead of
+deferring to a handoff; and the dry run's writes to `C:\ProgramData\ATLAS\release-audit` disclosed as writes.
+
+**Next action (2026-09-26):** (1) a fourth pre-action pass on packet **R4**; (2) if clear, the elevated runner
+dry-run → `-Execute` → post-action QA with A1–A13 and a real `passed/blocked/unperformed` tally; (3) the
+operator decision on `4893cbde` and the three non-git leftovers, and the Lanes B/C disposition backlog of
+8.72 GiB, both still owed and neither blocking the build. `main` is still not deployed; live is `116a7658` and
+healthy. Dated follow-ups, none blocking: **F1**, a product ruling this lane did not
 make — main's four per-code-space fallbacks still differ from the shared honest sentence for an out-of-union
 value (unreachable on today's schema, no token leak, QA ruled NON_BLOCKING); **F3**, B1's defect class still
 live at `ManualEditPanel.tsx:929,948` and `QuickPlaceSummaryModal.tsx:58`; **F4**,
