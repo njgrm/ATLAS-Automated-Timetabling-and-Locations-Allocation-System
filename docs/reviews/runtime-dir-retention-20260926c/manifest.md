@@ -19,7 +19,7 @@ manifest that claims more than it does — is the failure mode §16 warns about.
 | `E:\ATLAS-runtime-supervised-116a7658-20260726` | 1.46 GiB | 155 | yes | **KEEP — LIVE.** Scheduled task action names it; status Running; health 200, ready 200. |
 | `E:\ATLAS-runtime-supervised-861d89a2-20260925` | 1.47 GiB | 156 | yes | **KEEP** — accepted #1, rollback basis, and the one real dependency source (intact). |
 | `E:\ATLAS-runtime-supervised-eb0e3038-20260925` | 1.46 GiB | 155 | yes | **KEEP** — accepted #2, recorded rollback basis. |
-| `E:\ATLAS-runtime-supervised-4893cbde-20260923` | 1.80 GiB | 125 | **no — standalone clone** (`.git` is a directory) | **PRESERVE_FOR_DECISION — operator.** Not a registered worktree, so the riskier `Remove-Item` path applies; already carried as deferred by `20260926a`. Not one of the two named last-resort artifacts. **This is the only E: row that would clear the 50 GiB warning and retiring it is not this lane's decision.** |
+| `E:\ATLAS-runtime-supervised-4893cbde-20260923` | 1.80 GiB | 125 | **no — standalone clone** (`.git` is a directory) | **PRESERVE_FOR_DECISION — operator.** Not a registered worktree, so the riskier `Remove-Item` path applies; already carried as deferred by `20260926a`. Not one of the two named last-resort artifacts. **Within the E: *release-directory* set this is the only row that would clear the 50 GiB warning, and retiring it is not this lane's decision** (scoped to the release set because the E: worktree rows below are a larger lever). |
 
 **D: is not in scope.** D: is at **60.67 GiB** free — above its warning — and `20260926a`/`20260926b` both
 declined it for that reason. All 17 `D:\ATLAS-runtime-*` rows, including the two named last-resort artifacts
@@ -47,7 +47,29 @@ recorded anywhere. So:
 - **Each of the ten is owed a disposition by its owning lane.** That debt is recorded below as a dated item
   rather than left as an invisible premise.
 
-## Three non-git E: leftovers also omitted from the first draft (F3)
+## This lane's own two E: worktrees — dispositions restored additively
+
+**RESTORED 2026-09-26 after the re-audit found commit `c85e70e6` deleted these two rows instead of replacing
+them — a subtractive correction, which `AGENTS.md:229` forbids regardless of whether the fix is correct.** The
+rows are reinstated verbatim in substance; the deletion was a real breach of "corrections are additive to
+evidence, never subtractive" and is recorded rather than quietly repaired.
+
+| Path | Disposition | Why |
+| --- | --- | --- |
+| `E:\ATLAS-worktrees\lane-a-r1-deploy-target` | **`KEEP_ACTIVE`** | this lane's current record worktree (`docs/lane-a-r1-deploy-target`) |
+| `E:\ATLAS-worktrees\lane-a-f1-f2-deploy-candidate` | **`PRESERVE_FOR_DECISION`** | at `116a7658`, the source of the deployed release, and **not** an ancestor of `main` (`merge-base --is-ancestor 116a7658 origin/main` exit 1), so it is an unintegrated candidate that must be preserved |
+
+With these two restored, all 15 `E:\ATLAS-worktrees` directories are accounted for: 10 other-lane worktrees,
+3 non-git leftovers, and these 2.
+
+### SHA-collision disclosure (N1)
+
+`5c100ea6` names **two different things**, which matters because this lane's standing caution requires
+verifying claims by SHA: it is the **retired release directory** removed by reclaim `20260926b` (its path is
+gone from E:), and it is simultaneously the **current HEAD of the still-present worktree**
+`E:\ATLAS-worktrees\lane-b-integration-scheduler-warning-clarity` (exists, registered, clean). A reader
+verifying a worktree disposition by SHA will find "RETIRED" and draw the wrong conclusion. Dispositions must be
+checked **by path**, not by SHA.
 
 An inventory asserting exhaustion must name these. They are not Git repositories and are absent from
 `git worktree list`, so they fall under the same `Remove-Item`-only bounded path as `4893cbde`, and total

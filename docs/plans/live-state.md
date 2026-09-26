@@ -737,10 +737,47 @@ record instead of one: **8.72 GiB across ten E: worktrees** that are clean, push
 disposition anywhere** (owed by Lanes B and C, and the only lever large enough to clear the 50 GiB warning), and
 `4893cbde` (1.80 GiB) plus three non-git E: leftovers (0.11 GiB) held for decision. E: 48.73 GiB, D: 60.67 GiB.
 
-**Next action (2026-09-26):** (1) a fresh pre-action audit of the corrected `20260926c`; (2) a third pre-action
-pass on packet **R3**; (3) then the elevated runner dry-run → `-Execute` → post-action QA with A1–A12 and a real
-`passed/blocked/unperformed` tally. `main` is still not deployed; live is `116a7658` and healthy. Dated
-follow-ups, none blocking: **F1**, a product ruling this lane did not
+**DEPLOYMENT BLOCKED — a systemic rollback defect, and the forward path is blocked too (2026-09-26).** The
+third pre-action pass on packet R3 returned `CORRECTION_REQUIRED` 11/12 with one **BLOCKING** finding that is
+**not** a packet defect but a property of every release directory. `ops/runtime/deploy-runner.ps1`'s
+`Get-GitIdentity` (`deploy-runner.ps1:74-75`, reached at `:262`) **fails any target whose
+`git status --short` is non-empty**. The supervisor writes its log directory *inside the release worktree it
+runs from*, so **every started release is permanently dirty**. Verified directly: `116a7658`, `861d89a2` and
+`eb0e3038` each report exactly `?? ops/runtime/logs/`, and `ops/runtime/logs/` is untracked **and not ignored**
+(root `.gitignore` has a `# Server logs` comment with no rule for it). Consequences, both serious:
+1. **All three retained rollback bases are unusable**, so cutover would ship with **no runner-executable
+   rollback** — and the register and post-action QA would both have recorded a deployment whose rollback had
+   never worked.
+2. **The forward path fails too.** The packet's isolation pre-check starts the target on port 5198, which
+   creates the log directory, so by step 8 `Get-GitIdentity $TargetSourceDir` would abort the cutover. This is
+   systemic: it would equally have blocked the `116a7658` deployment's own rollback.
+
+**The supported remedy is in the repo's own contract, not a git-ignore patch.**
+`ops/runtime/lib/contract.mjs:328-337` `resolveLogDirectory({ contract, sourceDir, env })` honours
+`contract.logs.directoryVariable`, which `ops/runtime/runtime-contract.json` sets to
+**`ATLAS_RUNTIME_LOG_DIR`** (default `ops/runtime/logs`), and it must be an **absolute path** when set. That
+variable is currently **unset in both process and machine scope**. So the clean fix is to point
+`ATLAS_RUNTIME_LOG_DIR` outside the release worktree — for the port-5198 isolation child in the child
+environment, and machine-scope as part of the cutover so the new release and every future release stay clean —
+and to relocate the two **non-live** bases' existing untracked log directories, whose loss is bounded (22 KB,
+2 files each, already superseded). The **live** `116a7658` must not have its logs moved while it is running;
+it needs the machine-scope variable, which is a task/env change and therefore a **HIGH** action inside the
+packet, not a planner action.
+
+**Note the blocked alternative:** the obvious root-cause fix — adding `/ops/runtime/logs/` to
+`D:\ATLAS\.git\info\exclude` — is **not available to this lane**. Both the `write` and `edit` tools are refused
+for that path by the current permission rules, so the shared-metadata route needs an operator action. The
+`ATLAS_RUNTIME_LOG_DIR` route is better anyway: it is supported, tracked, and prevents recurrence rather than
+masking a symptom.
+
+**Next action (2026-09-26):** (1) author packet **R4** adding the `ATLAS_RUNTIME_LOG_DIR` step, extending A10 to
+require an empty `git status --short` for the rollback basis, relocating the two non-live bases' log
+directories, and fixing the pass's non-blocking rows (`:1051` not `:1050`; **4** not "roughly ten" `NOT
+deployed` claims in Lane C's section; name `timetable-relaxed-main-b02.test.tsx` as A12(a)'s script; disclose the
+dry run's writes to `C:\ProgramData\ATLAS\release-audit`); (2) a fourth pre-action pass on R4; (3) then the
+elevated runner dry-run → `-Execute` → post-action QA. Reclaim `20260926c`'s capacity attestation is **satisfied**
+(its own audit says so) once the additive disposition restoration is recorded. `main` is still not deployed; live
+is `116a7658` and healthy. Dated follow-ups, none blocking: **F1**, a product ruling this lane did not
 make — main's four per-code-space fallbacks still differ from the shared honest sentence for an out-of-union
 value (unreachable on today's schema, no token leak, QA ruled NON_BLOCKING); **F3**, B1's defect class still
 live at `ManualEditPanel.tsx:929,948` and `QuickPlaceSummaryModal.tsx:58`; **F4**,
