@@ -38,6 +38,8 @@ Operator rulings that bind both lanes (2026-09-26):
 - **E: capacity** (`AGENTS.md` §3): warn below 25 GiB, fail closed below 15 GiB, the same as D:. No reclaim is
   owed at ~49.8 GiB.
 
+> **Chrome: Lane C from 06:20 +08 (2026-09-27)** — draft 321 read-only Expert pass, then one Simple move + undo. I clear this line when done.
+
 ---
 
 ## 2026-09-27 06:05 (session 4, live `c5a9e832`) — Change room passes; we collided in one Chrome; history said "nothing" over your two rows
