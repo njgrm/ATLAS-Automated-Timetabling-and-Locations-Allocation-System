@@ -1500,26 +1500,36 @@ two-label-sets defect.** Correct action taken: record it intact and close the it
 
 **Open items (dated 2026-09-26, in priority order):**
 
-0. **NEW TOP PRIORITY — live BLOCKING §7 defect, from Lane C's accepted browser QA
-   (`7886a910`, handoff `docs/handoffs/planner-a2-timetable-browser-qa-handoff-2026-09-26.md`): Room
-   Schedules merges all three terms and invents hard conflicts.** G7 Room 103 reported **10 conflicts**;
-   the inspector showed three APs and three Math in one Monday slot, linked to T1/T2/T3. **My read-only
-   source map (done, `a1dcfc34`) shrinks this sharply:**
-   - **The rooms tab's server side is already complete and §7-compliant.** `room-schedule.router.ts:59-69`
-     already accepts `termIndex` **including the literal `"active"`** (resolved by
-     `resolveRequestedTermIndex`), with a typed 400 `INVALID_TERM_INDEX`; `getRoomScheduleView` takes
-     `termIndex?: number` (`room-schedule.service.ts:93`); and the filter at `:234-239` is **fail-closed** —
-     a 501 `TERM_FILTER_NOT_READY` if any entry lacks term identity, then a strict per-term filter. **The
-     client simply never sends it**: `RoomSchedules.tsx:227-228` passes only `source` and `runId`, while the
-     export dialog at `:578` is the only place `termIndex` appears. So the rooms tab is a small, safe fix.
-   - **The teachers/sections tabs are the real work and have no server support at all.** They do not use
-     that endpoint — they load the whole draft (`:235-239`) and pivot **client-side** via
-     `pivotDraftToView(report, viewMode, …)` at `:259`, with **no term parameter and no filter**. The §7
-     contract applies equally to all three tabs, so fixing rooms alone leaves two tabs merging terms.
-   - **Also recorded:** `room-schedule.service.ts:295` projects a missing term as `termIndex: 0`, a
-     fail-open sentinel indistinguishable from a real value. It is unreachable on the filtered path (the
-     501 fires first) but is live on today's all-term default.
-   - Not yet done: no code written. This displaces the packet R2 below on the critical path.
+0. **LIVE BLOCKING §7 defect — Room Schedules merged all three terms and invented hard conflicts.
+   CANDIDATE `400a6909` (base `41a2f0f8`), awaiting integration; NOT deployed.** Source: Lane C's accepted
+   browser QA (`7886a910`). G7 Room 103 reported **10 conflicts**; the inspector showed three APs and three
+   Math in one Monday slot linked to T1/T2/T3. **What I found by source map:** the rooms tab's server side was
+   already complete and §7-compliant — `room-schedule.router.ts:59-69` accepts `termIndex` including the
+   literal `active`, and `room-schedule.service.ts:234-239` filters fail-closed with a 501. **The client simply
+   never sent it** (`RoomSchedules.tsx:227-228`). Teachers/Sections were the larger half: they load the whole
+   draft and pivoted client-side (`pivotDraftToView`) with no term parameter at all, and the pivot also mapped
+   a missing term to **Term 1**. Now fixed across all four client consumers, and the pivot delegates to the
+   ONE existing authority `matchesTermScope` rather than a second equality predicate.
+   **Independent QA `CORRECTION_REQUIRED` 13/18, 2 blocking — both real, both fixed in `400a6909`:**
+   (a) an unverified term made the campus surfaces assert **"No timetable yet / build Teaching Load first"**,
+   which is false — I had removed one falsehood and introduced another; (b) the refusal message sent the
+   operator to EnrollPro when the missing authority is ATLAS's own persisted term cache.
+   **Two QA findings I did NOT accept, with reasons:** F8 was a false positive (the campus files are column-0
+   throughout, so my lines match; the two `RoomSchedules` lines cited are pre-existing and correctly indented).
+   F3 is not reachable — measured read-only: **13,800 draft entries across all 6 runs, 0 missing `termIndex`,
+   distribution exactly 1:4600 / 2:4600 / 3:4600, `termIndex === 0` count 0**; and excluding an unscoped entry
+   from a selected-term view is the *existing* authority (`matchesTermScope`), not a defect. Recorded as a dated
+   residual only because occupancy accounting treats unscoped as overlapping every term, which is a different
+   question from display.
+   **Live-cache residual, now closed by measurement:** `enrollpro_school_year_mirrors` id 551 (SY 2031-2032,
+   active) holds a **populated 778-byte `term_contract_cache`** naming T1/T2/T3, so the verified path is the one
+   the demo takes. It names `activeTerm` T1 while the walk saw T2 live — the already-recorded stale-cache
+   condition of the live-first resolution, not introduced here.
+   Gates: new suite **8/8**, guard **4/4**, client suite **1101 / 1089 / 12 fail across 8 files** (base 13/9, so
+   one *better*; zero candidate-only failures by name), typecheck clean bar the 4 known `playwright` errors,
+   build passes, all files under the §8 cap. **Browser acceptance UNPERFORMED and owed from Lane C** — it is
+   the only harness that can decide "default opens the active term, T1/T2/T3 switching updates the grid, never
+   a merged weekly schedule". Not deployed; not in `origin/main` yet.
 1. **R2 the withdrawn client-delta packet** `docs/prompts/deploy-5152bff0-client-delta-2026-09-26.md` —
    `CORRECTION_REQUIRED` 6/13, **must not execute**. B1 is the serious one: the packet **never builds
    `atlas-server/dist/server.js`**, so a literal run would serve 5174 with **no 5001** after cutover. Also a
@@ -1553,8 +1563,9 @@ two-label-sets defect.** Correct action taken: record it intact and close the it
    reads. A2 has added a section rather than made it worse; the shared `Live release` block alone is ~185
    lines of superseded releases. Pruning another lane's section needs that lane's word or the operator's.
 
-**Next action (2026-09-26):** item 0 — the Room Schedules term-merge defect, because it is **live**, it
-**invents conflicts a scheduler must adjudicate**, and it is a §7 invariant breach. Take it in two slices:
-the rooms tab first (send `termIndex`; the server is already correct and fails closed), then the
-teachers/sections pivot, which is the larger half. Item 1 (R2 the packet) is packaging and stays blocked
-behind its re-review either way.
+**Next action (2026-09-26):** item 0 is implemented and independently reviewed; it needs **integration plus
+Lane C's browser acceptance** before it is worth deploying, because the browser rows are the only harness
+that can decide the merge is actually gone. Then take the handoff's candidates in order: **(2)** one shared
+lifecycle model across dashboard / timetable / `/my` / public (BLOCKING, and the one that makes a reviewing
+draft read as Live), **(3)** public term resolver diagnosis + retain a valid section, **(4)** 390 px drift
+banner, **(5)** Runs loading vs empty. Item 1 (R2 the packet) stays blocked behind its re-review either way.
