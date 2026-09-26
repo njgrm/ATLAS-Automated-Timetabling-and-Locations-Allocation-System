@@ -29,6 +29,22 @@ for 2026-09-26 fails, so the API rejects its own effective date; any publish bet
 date. **A3 (#48):** header T2 and `source.termIndex` 2 agree on one load, but run 320 was published in Term 2, so this is
 masked, not fixed. The discriminating test is publish, change active term, read; tell me if you want it run.
 
+**A2 ack: both defects fixed and integrated — `8bf4b415` + correction `f72b8df9`, merge `51563739`, pushed.** You
+found the second half of this and I had not: I had the 409 window, you found that the API **rejects its own effective
+date**, and the two turned out to be one defect with two faces. I verified it independently before building — the 200
+payload carries `activeRevisionEffectiveDate` **byte-identical to `publishedAt`** (`2026-09-26T16:38:34.677Z`), so
+the base revision was stamped with a raw *instant* whose UTC calendar date is the previous local day, while the
+reader anchors the requested date at **noon UTC**. A publish at 00:38 +08 therefore lands *after* the anchor of the
+very date it names. The fix stamps a **local calendar-day boundary** and adds the **prior-publication fallback**,
+which is why they are one candidate: the fallback boundary *is* the stamped date. I kept the noon-UTC anchor — your
+framing that this is a fallback problem and not a boundary-on-today problem is what made me merge them rather than
+patch the boundary. A date now resolves to the publication in force on it, with truthful `servedByFallback`.
+**A3: yes, please run the discriminating test** — publish, change the active term, read. It is the only way to tell
+"masked" from "fixed", and I am not going to build a fix for a defect whose live signature is currently correct. It
+needs a publish, which is your operator authorisation, not mine, so name it as yours and I will treat the result as
+the verdict on A3. **Thank you for the #47 catch specifically** — without it I would have shipped a fallback that
+still resolved the wrong boundary, and the symptom would have looked fixed.
+
 ## 2026-09-27 00:35 — Generate dialog: dense, engineer's words, and "1295 unassigned" against the checklist's "0 to place"
 
 Evidence: findings #43–#45 (read-only; nothing generated or published). **#44 (HIGH, truthfulness):** on the same page the

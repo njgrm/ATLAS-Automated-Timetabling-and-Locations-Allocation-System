@@ -1997,15 +1997,18 @@ the acceptance rows and the section 7 term guard. Worktree `E:\ATLAS-worktrees\l
 (`work/a2-timetable-custody`), `KEEP_ACTIVE`. Never paste the credential value; never run a history purge.
 Cycle narrative and per-candidate evidence: `docs/handoffs/planner-a2-handoff-2026-09-26.md`.
 
-**BLOCKING, HIGH, open as of 2026-09-26 - A3 / #3a-3b: the public schedule asserts the wrong term as verified.**
-A **server** fault at `atlas-server/src/services/published-schedule.service.ts:758-773` - a frozen run resolves
-`active` from the publication-time `activeTermOrder`, so the answer tracks **when it was published**, not what is
-current - and it **breaks the section 7 fail-closed rule** by asserting `activeTermVerified:true` for a term that
-is not current. Not a display label. The earlier "the server was already correct" negative diagnosis is
-**withdrawn**. **Re-derived 2026-09-26:** `date=2026-09-27` now returns `source.termIndex:2` with
-`activeTermVerified:true` (was 1), so the live signature has moved and the defect may be masked or merely
-re-expressed - **verify against the signed-in active term on one page load before building**, and do not treat the
-2 as proof it is now correct. Contract: resolve the current verified active term or fail closed.
+**A3 - the one live-facing blocker still open, and it is currently MASKED (2026-09-27).** A **server** fault at
+`atlas-server/src/services/published-schedule.service.ts` - a frozen run resolves `active` from the publication-time
+`activeTermOrder`, so the answer tracks **when it was published**, not what is current - asserting
+`activeTermVerified: true` for a term that is not current, which **breaks the section 7 fail-closed rule**. Not a
+display label. The earlier "the server was already correct" negative diagnosis is **withdrawn**. **Lane C #48: header
+T2 and `source.termIndex: 2` now AGREE on one load - but run 320 was published in Term 2, so this is masked, not
+fixed.** Do not read the agreement as a pass and do not build a fix against the current signature. **The
+discriminating test is: publish, change the active term, read.** That needs a publish, so it runs under **Lane C's**
+operator authorisation, not mine; I have asked them to run it and will treat the result as the verdict on A3.
+Contract when it is built: resolve the current verified active term or fail closed, and never report
+`activeTermVerified: true` for a historical term. **Contained from the publish-date candidate** - that diff carries
+zero term-resolution lines, verified by QA.
 
 **Live `0da104f9` acceptance is INCOMPLETE on that row alone** (Lane C, 2026-09-26, Claude in Chrome):
 5 PASS / 1 FAIL / 1 BLOCKED. PASS: sign-in persists, `/my` retired, public term switch keeps a valid section, Runs
@@ -2020,14 +2023,18 @@ ahead of my own list:**
    reproduced **failing-first at base** on a disposable DB. The revert root cause was **not** the history model
    (Lane C concluded it was; disagreed with evidence in the channel) - it was a payload-shape mismatch in
    `revertLastEdit`. Full traces, base literals and follow-ups: handoff §3 item 1 and §9.
-2. **BLOCKING, HIGH, open, and WIDER than first recorded 2026-09-27 - publishing takes the public schedule offline
-   for every date before the active revision's effective date.** Measured on live `0da104f9`, read-only, no auth:
-   `date=` **2026-09-20, 09-25 and 09-26 all return 409 `PUBLISHED_REVISION_INVALID`**; 2026-09-27 and 09-28
-   return 200. The 409 payload carries `activeRevisionId 45`, `activeRevisionEffectiveDate 2026-09-27`,
-   `appliedRevisionIds [44,45]` - so **it is not only "today"**; it is the whole pre-window public history, and my
-   earlier "possibly only a publish-day boundary" scoping was wrong. The public page sends today's date, so parents
-   see "Unable to load public schedule". Contract: a date must resolve to the publication in force on it, falling
-   back to the prior one, **never to an error**. Keep separate from A3 unless the implementation proves one resolver.
+2. **DONE 2026-09-27 - publishing took the public schedule offline for every date before its own effective date
+   (BLOCKING, and wider than first recorded).** Lane C published run 320 at 00:38 +08; the base revision was stamped
+   with the raw publish **instant**, whose UTC calendar date was the previous local day, so **the API rejected its own
+   effective date**. Integrated `8bf4b415` + bounded correction `f72b8df9`, merge `51563739`. Candidate QA
+   `CORRECTION_REQUIRED` 35/37 (one blocker); correction QA `ACCEPT_READY` 14/14/0/0. Writer now stamps a **local
+   calendar-day boundary**; reader selects the publication **in force on the requested local day** and **falls back to
+   the prior one** with truthful `servedByFallback`. Merged as one candidate deliberately - the fallback boundary *is*
+   the stamped date. The correction closed a **cross-school leak** QA found behind the same pre-filter (a chain member
+   naming another school's run was served outright). No migration, no data backfill, no client change. **Not deployed.**
+   Dated successors: `School.timezone` column (F3, a migration = separate HIGH); referential supersession check (F2);
+   `schoolYearId` on `loadReadablePublishedRun` (N1); and an intended change to disclose - a date governed by an
+   unreadable *earliest* member now 409s where base 404'd, which is more truthful.
 3. **"Change room" crash (BLOCKING) - FIXED, integrated `c50b15ff`** (fix `d6513f32`), not deployed. `aa7f6f67`
    exonerated; real cause is the client `RoomInfo` type omitting `features` while `ManualEditPanel.tsx:514` read
    `selectedRoom?.features.length`. Fresh QA `ACCEPT_READY` 10/10/0/0. **Awaiting Lane C re-test** on a build that
@@ -2043,12 +2050,11 @@ ahead of my own list:**
 7. **Release packet (HIGH)** - no longer blocked on capacity; still sequenced behind the source fixes.
 
 **Open, dated 2026-09-26, from `docs/reviews/timetable-control-inventory-2026-09-26.md` (296 rows; row-level detail
-lives in that file, not here):** `MISLABELLED` 9 (incl. four user-visible `U+FFFD` strings in
-`SchedulingPolicyPane.tsx` `:548,555,712,724,851`); `DUPLICATE` 3 (two Advanced Undo controls share one
-`aria-label` *and* one `data-testid`, so a future `getByTestId` fails on multiple matches and nothing detects it);
-`DEAD` 1; `UNMOUNTED` 5; `UNTESTED` 149 (incl. **all** of `ManualEditPanel`, `BuildingView`,
-`TacticalSandboxDock`). Also: **every room on `/timetable/building` renders "0%"** (`CenterWorkspace.tsx:651-660`
-passes no `roomUtilization`; `BuildingView.tsx:439` prints it unconditionally).
+lives in that file):** `MISLABELLED` 9 (incl. four user-visible `U+FFFD` strings in `SchedulingPolicyPane.tsx`
+`:548,555,712,724,851`); `DUPLICATE` 3 (two Advanced Undo controls share one `aria-label` *and* one `data-testid`);
+`DEAD` 1; `UNMOUNTED` 5; `UNTESTED` 149 (incl. **all** of `ManualEditPanel`, `BuildingView`, `TacticalSandboxDock`).
+Also: **every room on `/timetable/building` renders "0%"** (`CenterWorkspace.tsx:651-660` passes no
+`roomUtilization`; `BuildingView.tsx:439` prints it unconditionally).
 
 **Operator decisions, not mine to take:** Undo/Redo in the Simple layout; lunch-window and 180-minute blocks as
 warning or blocking; constraint severity D1-D3; **the amber-icon/button-label refinement and the operator's ruling on
@@ -2066,6 +2072,12 @@ test files**, so "the full client suite" overstates coverage and a green run is 
 **warn below 25 GiB / fail closed below 15 GiB** (operator, `6404c213`). Re-measured **2026-09-27: 49.20 GiB free - no
 reclaim owed**, and a release build may start. Measure before each build.
 
-**Next action (2026-09-27):** dispatch **queue item 2, the publish-date resolver** - HIGH, one executor, one fresh
-independent QA, failing-first on a disposable database. It is now the only live-facing BLOCKING defect, and it is
-wider than a single day. Re-derive the live date matrix first (it moves: Lane C publishes and regenerates on live).
+**Next action (2026-09-27, after two integrations):** queue items 1 and 2 are done, so the next candidate is
+**item 3's release packet** OR **A3** - and **A3 first**, but **not as a code candidate yet**: the discriminating
+publish/change-term/read test must run first, because the defect is currently masked and building against a masked
+signature is how you "fix" the wrong thing. **So the single next action is to have Lane C run that test** (already
+requested; it needs a publish, so it is theirs under the operator's authorisation). While waiting, the cheapest
+useful work is the small wording/label follow-ups: the amber icon + "Swap + move 3 classes" label, the history-model
+honesty items (record the auto-move, name the edit an undo row undid, the snapshot reading 241 against a header of
+69), and the `SchedulingPolicyPane` `U+FFFD` strings. **Do not start a release packet yet** - it would carry
+`c50b15ff`, `e51388c1` and `51563739`, and the A3 row would still be an open FAIL on the acceptance record.

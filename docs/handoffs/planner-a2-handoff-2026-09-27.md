@@ -1,5 +1,60 @@
 # Handoff - Planner A2 -> next session (2026-09-27)
 
+> ## STATUS 2026-09-27 (later again the same day) - queue item 2 is DONE too. Read this banner first.
+>
+> **Integrated: `8bf4b415` + bounded correction `f72b8df9`, merge `51563739`, pushed to `origin/main`.** Fresh QA on
+> the candidate: `CORRECTION_REQUIRED` 35/37 with exactly one blocker. Bounded-correction QA (§11 bounded review):
+> **`ACCEPT_READY` 14/14/0/0**. 6 `atlas-server` paths; no migration, no client, no `prisma/`, no `docs/`.
+>
+> **The defect, confirmed live by Lane C (#46-#48) and by me independently:** the public schedule 409'd for
+> **every date before the current publication's own effective date** (09-20, 09-25, 09-26 all 409; 09-27/09-28
+> 200), and the 200 payload carried `activeRevisionEffectiveDate` **byte-identical to `publishedAt`** -
+> `2026-09-26T16:38:34.677Z`, a publish at 00:38 +08 on 09-27. So the API **rejected its own effective date**: the
+> base revision was stamped with a raw *instant* whose UTC calendar date is the previous local day, and the reader
+> anchors a requested date at **noon UTC** (deliberate, and correctly NOT moved), so the revision was not yet in
+> force at the anchor of its own date.
+>
+> **Two coupled defects, merged into one candidate deliberately** - the fallback boundary *is* the stamped date, so
+> neither is independently shippable against "must never error for a date the school has published for":
+> - **B (writer)** `publication-contract.service.ts` stamps the `INITIAL_PUBLICATION` base revision with a
+>   **local calendar-day boundary** instead of the raw instant.
+> - **A (reader)** `published-schedule.service.ts` now selects the publication **in force on the requested local
+>   day** and **falls back to the prior publication**, with truthful `servedByFallback` / `currentPublishedRunId`.
+>
+> **The correction (F1, blocking) - and it was worse than reported.** Chain members were filtered through
+> `readableRunIds` *before* day selection, so an unreadable in-force publication was silently dropped from the
+> contest and an **older** publication won the date, with `servedByFallback: true` indistinguishable from a
+> legitimate fallback. QA also found the same pre-filter was masking a **cross-school leak**: pre-fix, a chain
+> member naming another school's run was **served outright**. The correction deletes the pre-filter so the existing
+> `!publishedRunMeta` branch produces a typed 409. Both closed.
+>
+> **The school timezone does not exist as data - this is the durable successor to know about.** QA verified the
+> search: `prisma/schema.prisma` has no `School.timezone` (only `buildingZoneId`, a building zone), no
+> `process.env.TZ`, no `ATLAS_*TIMEZONE`. The candidate declares `Asia/Manila` as a **product constant** in
+> `atlas-server/src/lib/school-operating-time-zone.ts`, justified by in-tree evidence and proved by test (365 days,
+> one offset, no DST; noon-UTC anchor lands on the requested day for offsets -12..+11). **QA ruled it a product
+> decision, not a code defect, needing no operator decision and no fail-loud guard** - selection is monotone in
+> `effectiveDate`, so a wrong offset can never serve an unpublished or wrong-school schedule, and `Intl` *throws*
+> on an unknown zone in this runtime rather than degrading to UTC. **Dated successor: a `School.timezone` column =
+> a migration = separately approved HIGH action. Not a gate.**
+>
+> **Dated successors, none blocking:** **F2** harden the supersession check to be referential (today it accepts any
+> integer `publicationSupersededByRunId >= 1`; the load-bearing protection is the frozen `metadata.sourceRunVersion`
+> pairing, which QA proved holds under tamper). **F3** the `School.timezone` column above. **N1** add
+> `schoolYearId` to `loadReadablePublishedRun` for symmetry (year scoping is currently enforced downstream by the
+> year-scoped `applicableRevisions` query; QA proved a wrong-year member is refused both in the weakest and the
+> strongest form). **N3** an intended behaviour change to disclose: a date governed by an unreadable *earliest*
+> chain member now answers **409** where base answered **404** - the 409 is more truthful, since the school did
+> publish for that date.
+>
+> **Integration-tier evidence, stated exactly (no silent substitution):** I verified **6/6 paths byte-identical**
+> between merge `51563739` and the reviewed candidate, `git diff --check` clean, and the only non-candidate delta
+> is Lane C's docs. **I did not re-run the DB suite at integration** - it requires staging a disposable database
+> with credentials, and the tree is byte-identical to the one QA executed (`155/0` through the committed
+> `test:server-db` entry point, zero residue), so re-running would repeat a tier with no source or environment
+> change (§16).
+
+
 > ## STATUS 2026-09-27 (later the same day) - item 1 of the queue below is DONE. Read this banner first.
 >
 > **Integrated: `e51388c1` (merge `3cfe79a8`, pushed to `origin/main`). Fresh independent QA `ACCEPT_READY`
@@ -225,6 +280,15 @@ contract so the next session can dispatch without re-deriving.
 
 ## 4. Test state - compare by failing NAME, never by count
 
+- **Server (`atlas-server`) `test:server-suite` baseline is 5 failing files, NOT 4** - adjudicated by fresh QA
+  2026-09-27. Authoritative names: `tt-source-freshness-generation-c04`, `tt-source-freshness-quick-place-c04`,
+  `tt-source-freshness-sync-pin-c04` (all on the **A3 term-authority** condition - `GENERATION_PREFLIGHT_BLOCKED` /
+  `TERM_AUTHORITY_UNRESOLVED`), `tt-warning-realism-c07a` (`FACULTY_LUNCH_WINDOW_VIOLATION` plus 5
+  operator-threshold display rows), `teaching-load-suggestion-derived-demand-c03r2`. **I stated 4 in a QA packet
+  and was wrong; QA caught it.** Compare by name. These are the same families as the client failures below -
+  several authority guards are *currently red*, not cleared.
+- **`test:client-suite` omits 21 client test files** (138 on disk, 117 named), so a green run is **not** full client
+  coverage. Say which files you ran.
 - **12 pre-existing client failures**, all real debt, several of them authority guards **currently failing**:
   `B4` policy-pane allowlist drift, `F2` server promotable allowlist, the four `F4` loose-predicate/sync-route
   family, `C04` sync success toasts, `A8` control warning marker, `R6` shared drift banner, and three
