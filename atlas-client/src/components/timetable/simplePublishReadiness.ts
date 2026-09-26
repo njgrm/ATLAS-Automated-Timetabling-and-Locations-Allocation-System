@@ -280,6 +280,22 @@ const VIOLATION_WARNING_LABELS: Record<string, string> = {
 	FACULTY_EARLY_START_PREFERENCE: 'Early start time preference',
 	FACULTY_LATE_END_PREFERENCE: 'Late end time preference',
 	FACULTY_INSUFFICIENT_DAILY_VACANT: 'Insufficient daily vacant time',
+	/**
+	 * LANE-A-VIOLATION-LABEL-GUARD. This map is the Publish Readiness surface's
+	 * OWN label set and it is consulted before the honest unlabelled sentence
+	 * (`VIOLATION_WARNING_LABELS[code] ?? unlabelledWarningLabel()`), so a code
+	 * missing here is a code the operator is told ATLAS "does not have a name
+	 * for yet" — while the Review-issues rail, three clicks away, printed the raw
+	 * engine code for the very same rule. Adding the entry to
+	 * `VIOLATION_PRESENTATION` alone would have left this surface still calling
+	 * a named rule unnamed.
+	 *
+	 * The register is this map's own terse noun-phrase style, not the longer
+	 * `VIOLATION_PRESENTATION` sentence, so the two surfaces stay internally
+	 * consistent. The meaning is identical and is the server's: the teacher has
+	 * no free block across the lunch window of the grade band they teach.
+	 */
+	FACULTY_LUNCH_WINDOW_VIOLATION: 'Teacher has no free lunch window',
 	SPECIALIZED_ROOM_UNAVAILABLE: 'Specialized room unavailable',
 	SECTION_OVERCOMPRESSED: 'Section overcompressed',
 	LACKING_FACULTY: 'Missing faculty coverage',

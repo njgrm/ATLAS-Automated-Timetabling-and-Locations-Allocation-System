@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { existsSync, readFileSync } from 'node:fs';
+import { dirname, join, resolve } from 'node:path';
 import test from 'node:test';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
@@ -14,15 +14,74 @@ import {
 	formatIdentityFallbackText,
 	formatWarningMessageText,
 	getViolationPresentation,
+	resolveViolationTitle,
 	sortViolationGroupsHardFirst,
 } from '../violation-presentation';
+import { UNLABELLED_RULE_SENTENCE } from '../plain-rule-degradation';
 import type { Violation, ViolationCode } from '../../types';
 
 const clientRoot = resolve(import.meta.dirname, '../../..');
-const serverValidator = readFileSync(resolve(clientRoot, '../atlas-server/src/services/constraint-validator.ts'), 'utf8');
-const canonicalCodes = Array.from(
-	serverValidator.match(/export const VIOLATION_CODES = \[([\s\S]*?)\] as const;/)?.[1].matchAll(/'([^']+)'/g) ?? [],
-).map((match) => match[1]);
+
+/**
+ * LANE-A-VIOLATION-LABEL-GUARD — locate the server's canonical code list by
+ * WALKING UP, not by counting `..` segments from this file.
+ *
+ * WHY. The previous `resolve(clientRoot, '../atlas-server/...')` hard-coded two
+ * brittle assumptions: a fixed directory depth, and a sibling checkout layout.
+ * Move this file one level and it resolves to a path that may or may not exist.
+ * Worse, when it did not exist the only signal was a bare ENOENT from
+ * `readFileSync`, which reads as "some path is wrong" rather than "this guard
+ * cannot see the server and is therefore proving nothing".
+ *
+ * `process.cwd()` is the package root under every `npm run test:*` script
+ * (`atlas-client`), and the walk also succeeds from the repo root, from
+ * `atlas-server`, and from any subdirectory. It never reads the file to decide
+ * where the file is, so it cannot be fooled by content.
+ */
+const SERVER_VALIDATOR_PARTS = ['atlas-server', 'src', 'services', 'constraint-validator.ts'] as const;
+
+/**
+ * The floor on how many codes the extraction must yield. The array holds 26
+ * today. A guard that asserts "every code I found has a label" passes VACUOUSLY
+ * when the extraction finds nothing — a renamed export, a changed `as const`
+ * suffix, or a moved file all yield `[]` and a green run. This floor is what
+ * turns those silent passes into failures; it must be raised, never lowered, as
+ * codes are added.
+ */
+const MINIMUM_CANONICAL_CODES = 26;
+
+function findServerValidator(): string {
+	let dir = process.cwd();
+	for (let depth = 0; depth < 12; depth += 1) {
+		const candidate = join(dir, ...SERVER_VALIDATOR_PARTS);
+		if (existsSync(candidate)) return candidate;
+		const parent = dirname(dir);
+		if (parent === dir) break;
+		dir = parent;
+	}
+	throw new Error(
+		`FATAL: could not find ${SERVER_VALIDATOR_PARTS.join('/')} walking up from ${process.cwd()}. `
+		+ 'The canonical-violation-code coverage guard CANNOT SEE THE SERVER SOURCE, so it would pass '
+		+ 'vacuously and prove nothing. Fix the checkout layout or this test location; do not delete the guard.',
+	);
+}
+
+const serverValidatorPath = findServerValidator();
+const serverValidator = readFileSync(serverValidatorPath, 'utf8');
+
+/**
+ * Extract the string literals from the `VIOLATION_CODES = [ ... ]` block. An
+ * unparseable block is a hard failure, not an empty list — see the floor above
+ * for why an empty list is the dangerous outcome.
+ */
+const violationCodesBlock = serverValidator.match(/export const VIOLATION_CODES = \[([\s\S]*?)\] as const;/)?.[1];
+if (violationCodesBlock === undefined) {
+	throw new Error(
+		`FATAL: read ${serverValidatorPath} but could not parse the \`VIOLATION_CODES = [ ... ] as const;\` block. `
+		+ 'A coverage guard that cannot enumerate the canonical set must fail loudly, not pass on an empty set.',
+	);
+}
+const canonicalCodes = Array.from(violationCodesBlock.matchAll(/'([^']+)'/g)).map((match) => match[1]);
 
 function violation(code: ViolationCode, message = 'Faculty 16 has an issue on MONDAY.'): Violation {
 	return {
@@ -38,7 +97,29 @@ function violation(code: ViolationCode, message = 'Faculty 16 has an issue on MO
 }
 
 test('R1: every canonical server violation code has a plain title, meaning, and next action', () => {
-	assert.ok(canonicalCodes.length >= 20, 'the test must enumerate the production canonical set');
+	/* THE CLASS ROW. The point of reading the server array here is that a 27th
+	 * rule cannot ship without a client label: the server's own list is the
+	 * authority, not a hand-kept client copy of it that can quietly fall behind.
+	 *
+	 * This row was RED at base with `FACULTY_LUNCH_WINDOW_VIOLATION needs operator
+	 * copy` — the exact live defect, where the Review-issues rail printed the raw
+	 * engine code for 100 of 194 warnings. The named-missing assertion below is
+	 * ADDED to the per-code loop, not substituted for it, and it names every
+	 * offender in one message instead of stopping at the first. */
+	assert.ok(
+		canonicalCodes.length >= MINIMUM_CANONICAL_CODES,
+		`the extraction must see the whole canonical set: found ${canonicalCodes.length} code(s) in ${serverValidatorPath}, `
+		+ `expected at least ${MINIMUM_CANONICAL_CODES}. An empty or truncated extraction must fail, never pass vacuously.`,
+	);
+	assert.deepEqual(new Set(canonicalCodes).size, canonicalCodes.length, 'the canonical array must not repeat a code');
+
+	const missingCopy = canonicalCodes.filter((code) => !VIOLATION_PRESENTATION[code as ViolationCode]);
+	assert.deepEqual(
+		missingCopy,
+		[],
+		`canonical codes with no client label (each renders unnamed or as a raw engine code): ${missingCopy.join(', ')}`,
+	);
+
 	for (const code of canonicalCodes) {
 		const copy = VIOLATION_PRESENTATION[code as ViolationCode];
 		assert.ok(copy, `${code} needs operator copy`);
@@ -47,6 +128,54 @@ test('R1: every canonical server violation code has a plain title, meaning, and 
 		assert.ok(copy.action.trim().length > 0, `${code} needs a next action`);
 		assert.doesNotMatch(`${copy.title} ${copy.meaning} ${copy.action}`, new RegExp(code, 'i'));
 	}
+});
+
+test('R1/resolver: no canonical code renders the honest unlabelled sentence or its own raw code', () => {
+	/* The map having an entry is necessary but not sufficient: what the operator
+	 * actually reads is the RESOLVER's output. A map entry that the resolver
+	 * fails to reach would leave the same two texts on two screens, so the
+	 * invariant is asserted on `resolveViolationTitle` — the function every
+	 * violation surface calls. This is the surface the live walk found broken. */
+	for (const code of canonicalCodes) {
+		const title = resolveViolationTitle(code);
+		assert.notEqual(
+			title,
+			UNLABELLED_RULE_SENTENCE,
+			`${code} is a canonical code, so naming it is ATLAS's job, not the operator's — it must not degrade to the honest unlabelled sentence`,
+		);
+		assert.doesNotMatch(title, new RegExp(code), `${code} must not render its own raw engine code`);
+		assert.doesNotMatch(title, /_/, `${code} must not render a de-snake-cased engine token`);
+	}
+});
+
+test('R1/two-surfaces: the lunch-window rule is named identically on both operator surfaces', () => {
+	/* THE LIVE FINDING, PINNED. On 2026-09-26 the Review-issues rail rendered the
+	 * raw code `FACULTY_LUNCH_WINDOW_VIOLATION` for 100 of 194 warnings while
+	 * Publish Readiness called the same group "A problem that this version of
+	 * ATLAS does not have a name for yet." Two screens, one rule, two
+	 * incompatible texts — a scheduler's reason to distrust the other 94.
+	 *
+	 * `VIOLATION_PRESENTATION` feeds the rail; `simplePublishReadiness`'s own
+	 * `VIOLATION_WARNING_LABELS` feeds Publish Readiness, and it falls through to
+	 * the unlabelled sentence for any code it omits. Naming the rule in only one
+	 * of the two maps would leave the disagreement in place, so both are
+	 * asserted here against the real source. */
+	const readinessSource = readFileSync(resolve(clientRoot, 'src/components/timetable/simplePublishReadiness.ts'), 'utf8');
+	const readinessWarningLabels = readinessSource.match(
+		/const VIOLATION_WARNING_LABELS: Record<string, string> = \{([\s\S]*?)\n\};/,
+	)?.[1];
+	assert.ok(readinessWarningLabels, 'the Publish Readiness warning label map is present in real source');
+	assert.match(
+		readinessWarningLabels,
+		/FACULTY_LUNCH_WINDOW_VIOLATION:\s*'Teacher has no free lunch window'/,
+		'the Publish Readiness surface must name the lunch-window rule, not call it unnamed',
+	);
+
+	const copy = VIOLATION_PRESENTATION.FACULTY_LUNCH_WINDOW_VIOLATION;
+	assert.equal(copy.title, 'Teacher has no free lunch window', 'the rail and Publish Readiness say the same thing');
+	assert.match(copy.meaning, /lunch window/i, 'the meaning says what the rule is about');
+	assert.match(copy.meaning, /no free block covers it/i, 'the meaning is truthful: a teacher has no lunch break inside the window');
+	assert.doesNotMatch(`${copy.title} ${copy.meaning} ${copy.action}`, /_/, 'no de-snake-cased token reaches the operator');
 });
 
 test('R2: the rendered group and explanation use plain operator copy without leaking the raw code', () => {
@@ -115,7 +244,7 @@ function renderOperatorSurface(code: ViolationCode, labels: Record<ViolationCode
 }
 
 test('R2/all-codes: every canonical warning renders with plain copy and no raw code', () => {
-	assert.ok(canonicalCodes.length >= 20, 'the test must enumerate the production canonical set');
+	assert.ok(canonicalCodes.length >= MINIMUM_CANONICAL_CODES, 'the test must enumerate the production canonical set');
 	const labels = Object.fromEntries(Object.entries(VIOLATION_PRESENTATION).map(([code, value]) => [code, value.title])) as Record<ViolationCode, string>;
 	for (const code of canonicalCodes) {
 		const markup = renderOperatorSurface(code as ViolationCode, labels);

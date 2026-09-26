@@ -736,11 +736,24 @@ test('T8: one unmapped code gets ONE honest sentence on the resolver, the room/r
 	 * guard for that: it drives one real unmapped code through every resolver and
 	 * the really-rendered dialog, and requires a single answer.
 	 *
-	 * FIXTURE FROM THE REAL SURFACE. `UNMAPPED_CODE` is the code the sibling
-	 * `plain-tokens-c04.test.tsx` P1.1/P1.2 rows already exercise through the real
-	 * dialog and the real right panel — a value outside the canonical
-	 * `ViolationCode` union, not an invented one. */
-	const UNMAPPED_CODE = 'FACULTY_LUNCH_WINDOW_VIOLATION';
+	 * FIXTURE CHANGED, CONTROL KEPT AND STRENGTHENED (LANE-A-VIOLATION-LABEL-GUARD).
+	 *
+	 * The exemplar used to be `FACULTY_LUNCH_WINDOW_VIOLATION`, shared with the
+	 * sibling `plain-tokens-c04.test.tsx` P1.1 mutant row. It was a true negative
+	 * control while that code had no client label, because it then genuinely stood
+	 * OUTSIDE the canonical `ViolationCode` union. That is no longer true: the
+	 * code is a union member with real operator copy, so keeping it here would
+	 * assert a FALSE claim — that ATLAS cannot name a rule it now names on both
+	 * the Review-issues rail and Publish Readiness — and the row would go red for
+	 * the right product change.
+	 *
+	 * Nothing is deleted and the control's purpose is unchanged: a value outside
+	 * the canonical set must degrade to the ONE honest sentence on every resolver,
+	 * never to a de-snake-cased token. The exemplar is now `SOME_FUTURE_CODE`,
+	 * the value this same file already uses for exactly this contract at T2, and
+	 * the honest remaining case now that every canonical code is named: a code a
+	 * FUTURE server may emit. */
+	const UNMAPPED_CODE = 'SOME_FUTURE_CODE';
 
 	// Every resolver, one code. Each entry is (surface, text).
 	const surfaces: Array<[string, string]> = [
@@ -831,6 +844,40 @@ test('T8: one unmapped code gets ONE honest sentence on the resolver, the room/r
 			`${known} must render its canonical label, not the honest sentence`,
 		);
 	}
+});
+
+test('T8/LANE-A: the lunch-window rule is NAMED, so the honest sentence no longer applies to it', async () => {
+	/* THE ADDED HALF. T8 above now uses a code that is genuinely outside the
+	 * canonical set. This row pins the other side of the same change, so the
+	 * re-pointed fixture cannot be mistaken for the control having been weakened:
+	 * `FACULTY_LUNCH_WINDOW_VIOLATION` is a canonical code and it now renders a
+	 * real operator label through EVERY resolver T8 drives.
+	 *
+	 * This is the code the 2026-09-26 live walk found rendering as the raw engine
+	 * code on the Review-issues rail (100 of 194 warnings) while Publish Readiness
+	 * called it unnamed. */
+	const LUNCH_CODE = 'FACULTY_LUNCH_WINDOW_VIOLATION';
+	const expectedTitle = 'Teacher has no free lunch window';
+
+	assert.equal(resolveViolationTitle(LUNCH_CODE), expectedTitle, 'the resolver names the rule');
+	assert.equal(VIOLATION_TITLES[LUNCH_CODE], expectedTitle, 'the canonical title map names the rule');
+	assert.equal(RAIL_LABELS[LUNCH_CODE], expectedTitle, 'the rail label map the workspace renders from names the rule');
+	assert.notEqual(resolveViolationTitle(LUNCH_CODE), UNLABELLED_RULE_SENTENCE, 'a named rule is never "unnamed"');
+	assert.equal(resolveViolationLabel(LUNCH_CODE), expectedTitle, 'the hook resolver agrees with the lib resolver');
+
+	for (const [where, text] of [
+		['resolveViolationTitle', resolveViolationTitle(LUNCH_CODE)],
+		['useTimetableData.resolveViolationLabel', resolveViolationLabel(LUNCH_CODE)],
+	] as const) {
+		assert.doesNotMatch(text, ENGINE_TOKEN, `${where} must never render a raw engine token`);
+		assert.doesNotMatch(text, /_/, `${where} must never render an underscore`);
+	}
+
+	// The rail really renders the plain name, and the raw code never reaches it.
+	const railText = await renderRailGroup(LUNCH_CODE);
+	assert.match(railText, new RegExp(expectedTitle), 'the real rail render shows the plain name');
+	assert.doesNotMatch(railText, new RegExp(LUNCH_CODE), 'the raw engine code never reaches the operator surface');
+	assert.doesNotMatch(railText, /faculty lunch window violation/i, 'the code is never de-snake-cased into a fake label');
 });
 
 test('T8 mutant: a reintroduced de-snake-cased fallback is caught, and the shared rule really is shared', () => {

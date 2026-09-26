@@ -28,6 +28,25 @@ export const VIOLATION_PRESENTATION: Record<ViolationCode, ViolationPresentation
 	FACULTY_EARLY_START_PREFERENCE: { title: 'Starts earlier than preferred', meaning: 'The teacher’s first class begins earlier than their recorded preference.', action: 'Move the first class later when another valid slot is available.' },
 	FACULTY_LATE_END_PREFERENCE: { title: 'Ends later than preferred', meaning: 'The teacher’s last class ends later than their recorded preference.', action: 'Move the last class earlier when another valid slot is available.' },
 	FACULTY_INSUFFICIENT_DAILY_VACANT: { title: 'Too little preparation time', meaning: 'The teacher has fewer free periods than the daily preparation target.', action: 'Redistribute a class or move it to another day.' },
+	/**
+	 * LANE-A-VIOLATION-LABEL-GUARD. The server has emitted this code for a
+	 * while and already ships operator copy for it
+	 * (`constraint-validator.ts` `VIOLATION_COPY.FACULTY_LUNCH_WINDOW_VIOLATION`).
+	 * The client did not, so the same rule rendered as the raw engine code on the
+	 * Review-issues rail and as `UNLABELLED_RULE_SENTENCE` on Publish Readiness —
+	 * one code, two incompatible texts, and a scheduler's reason to distrust the
+	 * other 94 warnings beside it.
+	 *
+	 * THE WORDING IS THE SERVER'S, COPIED VERBATIM, NOT INVENTED HERE. The server
+	 * already answered the question this label has to answer ("what does the rule
+	 * mean?") in the operator's own words, and ATLAS's stated rule is one plain
+	 * word for one idea, stated once. Reusing it is what makes the two surfaces
+	 * agree instead of diverging a second time; a second phrasing for one rule
+	 * would recreate the defect this entry closes. `warning-readability-c01` now
+	 * reads the server's `VIOLATION_CODES` at test time, so every canonical code
+	 * — this one and any 27th — is proved to have a client label.
+	 */
+	FACULTY_LUNCH_WINDOW_VIOLATION: { title: 'Teacher has no free lunch window', meaning: 'The teacher is assigned a class across the lunch window of the grade band they teach, so no free block covers it.', action: 'Move the class out of the lunch window or assign another qualified teacher.' },
 	SPECIALIZED_ROOM_UNAVAILABLE: { title: 'Specialized room unavailable', meaning: 'No compatible specialized room was available for this session.', action: 'Free a compatible room, change the time, or review whether specialization is required.' },
 	UNASSIGNED_SECTION: { title: 'Section session unassigned', meaning: 'A required section session could not be placed in the timetable.', action: 'Open the unassigned queue and resolve its teacher, room, or time blocker.' },
 	ZONE_IMBALANCE_WARNING: { title: 'Campus zone imbalance (retired)', meaning: 'An older run recorded a campus-zone concentration warning that current ATLAS no longer calculates.', action: 'Regenerate with the current policy before acting on this historical warning.' },

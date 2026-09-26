@@ -119,8 +119,20 @@ function assertNoEngineTokens(rendered: string, label: string, allowedNames: str
 /** The names every fixture resolves to, plus the product's own name. */
 const RIGHT_PANEL_NAMES = ['GR7 - Luna', 'Cruz, Juan', 'Room 103 - G7AW', 'Room 204 - G7AW', 'MATH', 'GR10 - Rizal', 'MATH 10', 'ATLAS'];
 
-/** The unmapped engine code used as the P1 negative control throughout. */
-const UNMAPPED_CODE = 'FACULTY_LUNCH_WINDOW_VIOLATION';
+/**
+ * The unmapped engine code used as the P1 negative control throughout.
+ *
+ * LANE-A-VIOLATION-LABEL-GUARD: this used to be `FACULTY_LUNCH_WINDOW_VIOLATION`,
+ * which was a true negative control while that code carried no client label. It
+ * now does carry one, so keeping it here would assert the opposite of the
+ * product truth — that ATLAS cannot name a rule it names on both the
+ * Review-issues rail and Publish Readiness — and this row would go red for the
+ * right fix. The control's purpose is unchanged (a code ATLAS cannot name must
+ * degrade to the shared honest sentence, never to the token) and its sibling
+ * `plain-language-j2j3-c01.test.ts` T8 row now drives the same value across
+ * every resolver.
+ */
+const UNMAPPED_CODE = 'SOME_FUTURE_CODE';
 
 after(async () => {
 	if (root) await act(async () => { root?.unmount(); });
@@ -161,13 +173,28 @@ test('J2 P1.1 the soft-warning dialog names each rule in plain words, never as a
 test('J2 P1.1 mutant: a rule with no plain name degrades to the shared sentence, not the token', async () => {
 	// The OLD rendering printed exactly `warning.code` in a monospace span, so
 	// this control fails against it and passes only after the fix.
-	const warning = softWarning(UNMAPPED_CODE, 'The lunch window rule was recorded by an older run.');
+	const warning = softWarning(UNMAPPED_CODE, 'A rule from a newer version of the server has no name in this version.');
 	assert.equal(warning.code, UNMAPPED_CODE, 'the fixture really carries an unmapped engine code');
 	await mount(softDialog([warning]));
 	const rendered = text();
 	assert.doesNotMatch(rendered, new RegExp(UNMAPPED_CODE), 'the unmapped code must not reach the operator');
 	assert.match(rendered, /does not have a name for yet/, 'the fallback is a plain sentence');
 	assertNoEngineTokens(rendered, 'P1.1 unlabelled rule', ['ATLAS']);
+});
+
+test('J2 P1.1/LANE-A: the lunch-window rule renders its plain name in the dialog, not a code', async () => {
+	// The ADDED half of the LANE-A change: the same real dialog, carrying the
+	// code the 2026-09-26 live walk found rendering as a raw engine token. It now
+	// leads with the rule's plain name, so the negative control above cannot be
+	// satisfied by a product that simply stopped naming anything.
+	const warning = softWarning('FACULTY_LUNCH_WINDOW_VIOLATION', 'Ms. Dela Cruz is assigned across the lunch window on Monday.');
+	assert.equal(warning.code, 'FACULTY_LUNCH_WINDOW_VIOLATION', 'the fixture really carries the canonical lunch-window code');
+	await mount(softDialog([warning]));
+	const rendered = text();
+	assert.match(rendered, /Teacher has no free lunch window/, 'the dialog names the rule in plain words');
+	assert.doesNotMatch(rendered, /FACULTY_LUNCH_WINDOW_VIOLATION/, 'the raw engine code must not reach the operator');
+	assert.doesNotMatch(rendered, /does not have a name for yet/, 'a named rule is never called unnamed');
+	assertNoEngineTokens(rendered, 'P1.1 named rule', ['ATLAS', 'Ms. Dela Cruz']);
 });
 
 /* ── P1 row 3 — the hard blocker dialog's policy delta ────────────────────── */

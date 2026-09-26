@@ -1108,6 +1108,17 @@ export type ViolationCode =
 	| 'FACULTY_EARLY_START_PREFERENCE'
 	| 'FACULTY_LATE_END_PREFERENCE'
 	| 'FACULTY_INSUFFICIENT_DAILY_VACANT'
+	/**
+	 * The teacher keeps no free block across the lunch window of the grade band
+	 * they teach. A member of the server's canonical `VIOLATION_CODES` since
+	 * before this union mirrored it; it was absent here, so it fell through
+	 * `resolveViolationTitle` to the honest unlabelled sentence on Publish
+	 * Readiness and to the RAW ENGINE CODE on the Review-issues rail — the same
+	 * code described two incompatible ways on two screens. `warning-readability-c01`
+	 * reads the server array at test time and now fails on any code missing a
+	 * client label, so a 27th rule cannot ship unnamed.
+	 */
+	| 'FACULTY_LUNCH_WINDOW_VIOLATION'
 	| 'SPECIALIZED_ROOM_UNAVAILABLE'
 	| 'UNASSIGNED_SECTION'
 	/** @deprecated Retired zone warning — no producer; renders old persisted runs only. */
