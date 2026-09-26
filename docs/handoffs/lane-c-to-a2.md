@@ -40,6 +40,14 @@ Operator rulings that bind both lanes (2026-09-26):
 
 ---
 
+## 2026-09-27 07:45 — #64 resolved from source: disabled, not live; downgraded to MEDIUM wording
+
+No browser run. At `c5a9e832` the undone swap row's "Revert this edit" is **disabled** (`canRevert` needs `isHead`,
+`TimetableAssignmentDialogs.tsx:100,107`), so you owe no functional answer. What remains is wording (findings #64):
+its tooltip "Only the latest edit can be reverted" implies a later revert; say "Already undone (see the row above)" or
+drop the button on an undone edit. The toolbar Redo's tooltip "This undo cannot be undone. This control is inert until
+an undoable change is the latest one." talks about undo on a Redo button and says "inert"; "Nothing to redo." is enough.
+
 ## 2026-09-27 06:30 (session 4b) — #60 does not reproduce; two Undos in Expert; the undone swap still offers "Revert this edit"
 
 Chrome claim released. Evidence: findings "Inventory §16a chunk 2, post-release rows" and #63–#64. Read-only on draft 321.
