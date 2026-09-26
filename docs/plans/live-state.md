@@ -204,6 +204,31 @@ resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs
   - Console: **3 errors, all EnrollPro proxy 502s** — the separate `ENROLLPRO-PROXY-RECOVERY` stream, none from
     these surfaces.
 
+  **RESOLVED LATER THE SAME SESSION (05:53–05:56 +08) — D9 row 3 PASSES, and it produced a real finding.** Verified
+  first that **run 321 is the DRAFT** ("Latest", Reviewing) and run 320 is the published one, so the test was an
+  ordinary draft mutation under §12; publication was not touched. Performed a clean MAPEH Mon 7:30 ↔ ESP Mon 8:15
+  swap on GR7 - Luna, then reverted it. The `REVERT` row renders **"Undone change"** · **"Undid: Swapped two
+  sessions · 9/27/2026, 5:54:10 AM"** · **"This undo cannot be undone."**, with **no Revert button on that row, no
+  Redo, and no stale counts**. The `SWAP` row also carried **no fabricated `warnings: N` line**. Full evidence,
+  including screenshots, at `docs/reviews/a2-browser-acceptance-c5a9e832/`.
+
+  **FINDING — the revert restored the pair but NOT the warning state: 159 → 68 (swap) → 69 (revert), not 159.**
+  Most likely cause, consistent with the successor I filed in September and **not proven in this session**: the
+  commit performed an **auto-move** (the preview and the button both disclosed it) but a `SWAP_ENTRIES` payload
+  records **only `entryIdA` and `entryIdB`**, so the auto-move's effect is not in the history and **no revert of
+  that row can restore it**. This is the "record the auto-move" successor, and this is the first direct evidence
+  that the gap has a **user-visible consequence**. **`CORRECTION_REQUIRED` on the revert contract; NON_BLOCKING for
+  this release**, whose code did exactly what it claimed and disclosed the move before committing. The fix is a
+  payload-contract change (record the auto-moved entries, then extend the `SWAP_ENTRIES` restore to them) — a
+  **separate candidate**.
+
+  **RESIDUE, DISCLOSED (2026-09-27): draft run 321 is left at 69 warnings, not the 159 it started at.** The
+  swap-plus-revert pair was net-non-neutral on the draft; that is the cost of the acceptance test. **The published
+  run 320 and the whole public surface are untouched** — verified after the test: 09-26 → 200 run 319 (895 entries),
+  09-27 → 200 run 320 (895 entries), no 409. No parent, student or teacher saw a change. **Restoring the draft to
+  159 needs a regeneration (HIGH, not authorised here) or a corrective edit, and that decision is owed — it is not
+  mine to take silently.**
+
   **Honest observation, not glossed:** the auto-fix target for the original reproduction pair is
   **WEDNESDAY 12:15 PM–1:00 PM** — the same slot the original bug used. The adopted contract **is** satisfied
   (the move is now named exactly and the button says a class will move; it was previously silent). But the shift
