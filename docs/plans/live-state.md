@@ -1138,13 +1138,52 @@ withdrawn and must be re-issued with both, plus a decision on the currently-unus
 server's `ManualEditProposal` (`:88`).** The sound, independent part — deleting the dead `disabled`/`subLabel`/
 `tier` fields and closing the type mismatch — depends on neither blocker and can land as its own candidate.
 
+**SECOND WITHDRAWAL — the room-affordance change is NOT small, and I am stopping rather than writing a third
+packet (2026-09-26).** The re-issued packet was verified premise-by-premise and **all five premises held** — my
+*facts* were finally right — but three of my *required changes* were mutually unsatisfiable or false. The executor
+stopped with zero edits. **Two attempts, zero candidates, both stops correct.** New facts, all verified:
+
+1. **The preview response carries no subject data at all.** `PreviewResult` (`manual-edit.service.ts:118-135`) has
+   no subject, no `requiredFeatures`, no room list, and `loadRunContext`'s `subjects` (`:366`) is an in-process
+   `SubjectRef` for the validator, never serialized (`manual-edit.router.ts:37-57` returns it verbatim). The panel's
+   subjects come from a **different** read entirely — `fetchTimetableReferenceData` → `GET /subjects?schoolId=`
+   (`timetableDataSources.ts:127`, `subject.router.ts:33-43`). So "add a field to the preview context" is
+   unreachable by the hook, and the only alternative — the client re-deriving the `OWNER_DEPT:` filter — is exactly
+   what the packet forbade. **The carrier is the subject read, and that is a scope/authority decision I did not
+   have.** Note for the record: that endpoint is **intentionally unauthenticated** — `subject.router.ts:21` says
+   "unauthenticated catalog reads" while every mutation and `/scheduling-authority` carries
+   `authenticate, requirePrivilegedRole`. I probed it live (200, 19,440 bytes, no token) and was about to report it
+   as a security defect; it is **documented intent**, and widening a public payload is a real consideration rather
+   than an oversight.
+2. **`disabled` is a whole-picker prop, so per-room "offered but disabled" is unexpressible as I specified.**
+   Setting it disables every room including compatible ones (`:139` closes the popover, `:153-154` disable the
+   trigger), and `disabledReason` is consumed **only** as the trigger's `aria-label` (`:131-133`) — an accessible
+   name, never operator-visible wording. A per-room visible affordance needs the renderer's per-option surface
+   (`searchable-select.tsx:194-221`), which the packet put out of scope. My instruction was self-contradictory:
+   per-room visible disabled **and** component-level derivation **and** do not touch the primitive.
+3. **The most dangerous of my errors: my claim that `tier` was unread was false.** `tier` **is** read, by the
+   faculty sort comparator at `useManualEditOptionGroups.ts:150-151` (`a.tier ?? 99`), and the tier ordering is
+   documented behaviour at `:5-8` and `:52`. Deleting the dead fields as instructed would have **silently broken
+   "faculty ordered by qualification tier then name"** — a user-visible regression in a change I had justified as
+   mechanical cleanup, and one **no test covers**. `subLabel` and per-item `disabled` are genuinely dead; `tier` is
+   a live sort key that must be separated from the rendered option rather than deleted.
+
+**Standing rule this earns: two premise-verification stops on one change means the change needs a design decision,
+not a third packet.** The open decisions are (a) whether to widen the shared `SearchableSelect` to render
+per-option affordances or accept a panel-level signal beside the room field — which is largely what
+`ManualEditPanel.tsx:510-548` already does, so the net new value may be honestly judged not worth the change;
+(b) whether the intentionally-public subject payload may carry the effective requirement set, or whether the
+server must expose committability through a narrower surface; and (c) the server's currently-unused
+`metadata?: Record<string, any>` channel on `ManualEditProposal` (`:88`), which the client type omits. **All three
+are authority/product calls. I am not making them unattended, and the executor was right not to.**
+
 **Next action (2026-09-26): the release is live; acceptance needs one operator action.** (1) **operator
 re-seeds** `C:\Users\njgro\.config\opencode\playwright-profile`; (2) **Lane A** runs A5, A6, A7, A12(b) and records
 the result, closing acceptance; (3) **rotate the exposed dev DB credential**; (4) retention reclaim before the
 next release build (E: 46 GiB, below the 50 GiB warning); (5) the `4893cbde` + three-leftover decision (1.91 GiB)
-and the 8.72 GiB disposition backlog owned by Lanes B and C; (6) re-issue the room-affordance packet per the
-ruling above, and decide on the five oversized `.ts` modules. **Rollback basis `116a7658` is verified eligible and
-was not executed.**
+and the 8.72 GiB disposition backlog owned by Lanes B and C; (6) the three design decisions above, which gate the
+room-affordance change; (7) a decision on the five oversized `.ts` modules. **Rollback basis `116a7658` is verified
+eligible and was not executed.**
 
 **SUPERSEDED 2026-09-26 — a spliced paragraph this lane's own editing left behind, repaired.** The four lines
 immediately below were an orphaned fragment, and the sentence they belonged to was cut in half. They are
