@@ -53,38 +53,38 @@ Status meaning: `REPRODUCED` was observed on the current desktop runtime; `VERIF
 |---|---|---|---|
 | 01 | VERIFIED_FIXED | Preserve; regression-test picker scroll containment. | TODO |
 | 02 | VERIFIED_FIXED | Preserve; regression-test one picker layer. | TODO |
-| 03 | REPRODUCED | Widen/reflow picker occupancy text; test long occupant name. | TODO |
-| 04 | SOURCE_CONFIRMED | Exercise occupied-room change; retain confirmation and zero-write Cancel control. | REPRODUCED |
-| 05 | SOURCE_CONFIRMED | Verify direct map entry; do not regress it. | REPRODUCED |
-| 06 | NEEDS_REPRO | Test BuildingView pan/zoom on floor-level state before changing bounds. | TODO |
-| 07 | SOURCE_CONFIRMED | Audit interior room-card overlap at usable zoom. | TODO |
+| 03 | REPRODUCED | Widen/reflow picker occupancy text; test long occupant name. | IMPLEMENTED_PENDING_QA |
+| 04 | SOURCE_CONFIRMED | Exercise occupied-room change; retain confirmation and zero-write Cancel control. | IMPLEMENTED_PENDING_QA |
+| 05 | SOURCE_CONFIRMED | Verify direct map entry; do not regress it. | IMPLEMENTED_PENDING_QA |
+| 06 | NEEDS_REPRO | Test BuildingView pan/zoom on floor-level state before changing bounds. | IMPLEMENTED_PENDING_QA |
+| 07 | SOURCE_CONFIRMED | Audit interior room-card overlap at usable zoom. | IMPLEMENTED_PENDING_QA |
 | 08 | PARTIAL | Obtain product decision: deselect versus unassign. | BLOCKED_PRODUCT_DECISION |
-| 09 | REPRODUCED | Replace oversized technical Subjects warning with calm, actionable state copy. | TODO |
-| 10 | SOURCE_CONFIRMED | Increase map typography and badge legibility. | REPRODUCED |
-| 11 | SOURCE_CONFIRMED | Rework premature room-name truncation. | REPRODUCED |
-| 12 | SOURCE_CONFIRMED | Add persistence-aware success/error feedback; distinguish queued from saved. | REPRODUCED |
-| 13 | PARTIAL | Use grade display treatment in workload detail without changing timetable surfaces. | TODO |
-| 14 | PARTIAL | Improve Teaching Load desktop density without page-level scroll. | TODO |
-| 15 | REPRODUCED | Make primary Subjects filters directly visible. | TODO |
-| 16 | REPRODUCED | Reduce Teaching Load click/load density; keep controls mouse-first. | TODO |
-| 17 | REPRODUCED | Convert targeted desktop review drawers to responsive dialogs; preserve mobile sheets where useful. | TODO |
-| 18 | PARTIAL | Standardize grade treatment only in A3-owned routes. | TODO |
-| 19 | SOURCE_CONFIRMED | Prevent wrapping/clipping in A3-owned action menus; avoid broad primitive change. | REPRODUCED |
-| 20 | PARTIAL | Add truthful post-save feedback and maintain internal dialog scrolling. | TODO |
-| 21 | REPRODUCED | Remove redundant Next Teacher strip and reclaim roster space. | TODO |
-| 22 | REPRODUCED | Standardize display casing in A3-owned Teacher/Load UI only. | TODO |
-| 23 | REPRODUCED | Use Fix 17 dialog pattern for Teacher profile detail. | TODO |
-| 24 | REPRODUCED | Update Teachers menu copy and keep labels on one line. | TODO |
-| 25 | REPRODUCED | Replace default navigation with in-page workload review dialog. | TODO |
-| 26 | REPRODUCED | Remove permanent desktop inspector; reuse workload content in an audit modal. | TODO |
+| 09 | REPRODUCED | Replace oversized technical Subjects warning with calm, actionable state copy. | IMPLEMENTED_PENDING_QA |
+| 10 | SOURCE_CONFIRMED | Increase map typography and badge legibility. | IMPLEMENTED_PENDING_QA |
+| 11 | SOURCE_CONFIRMED | Rework premature room-name truncation. | IMPLEMENTED_PENDING_QA |
+| 12 | SOURCE_CONFIRMED | Add persistence-aware success/error feedback; distinguish queued from saved. | IMPLEMENTED_PENDING_QA |
+| 13 | PARTIAL | Use grade display treatment in workload detail without changing timetable surfaces. | IMPLEMENTED_PENDING_QA |
+| 14 | PARTIAL | Improve Teaching Load desktop density without page-level scroll. | IMPLEMENTED_PENDING_QA |
+| 15 | REPRODUCED | Make primary Subjects filters directly visible. | IMPLEMENTED_PENDING_QA |
+| 16 | REPRODUCED | Reduce Teaching Load click/load density; keep controls mouse-first. | IMPLEMENTED_PENDING_QA |
+| 17 | REPRODUCED | Convert targeted desktop review drawers to responsive dialogs; preserve mobile sheets where useful. | IMPLEMENTED_PENDING_QA |
+| 18 | PARTIAL | Standardize grade treatment only in A3-owned routes. | IMPLEMENTED_PENDING_QA |
+| 19 | SOURCE_CONFIRMED | Prevent wrapping/clipping in A3-owned action menus; avoid broad primitive change. | IMPLEMENTED_PENDING_QA |
+| 20 | PARTIAL | Add truthful post-save feedback and maintain internal dialog scrolling. | IMPLEMENTED_PENDING_QA |
+| 21 | REPRODUCED | Remove redundant Next Teacher strip and reclaim roster space. | IMPLEMENTED_PENDING_QA |
+| 22 | REPRODUCED | Standardize display casing in A3-owned Teacher/Load UI only. | IMPLEMENTED_PENDING_QA |
+| 23 | REPRODUCED | Use Fix 17 dialog pattern for Teacher profile detail. | IMPLEMENTED_PENDING_QA |
+| 24 | REPRODUCED | Update Teachers menu copy and keep labels on one line. | IMPLEMENTED_PENDING_QA |
+| 25 | REPRODUCED | Replace default navigation with in-page workload review dialog. | IMPLEMENTED_PENDING_QA |
+| 26 | REPRODUCED | Remove permanent desktop inspector; reuse workload content in an audit modal. | IMPLEMENTED_PENDING_QA |
 | 27 | SOURCE_GAP | Do not implement. | BLOCKED_SOURCE_GAP |
 | 28 | SOURCE_GAP | Do not implement. | BLOCKED_SOURCE_GAP |
-| 29 | SOURCE_CONFIRMED | Restrict swap to a dedicated control and require confirmation; prove Cancel = zero draft change. | REPRODUCED |
-| 30 | SOURCE_CONFIRMED | Separate Select checked and hover states in a route-safe way. | REPRODUCED |
-| 31 | REPRODUCED | Display `BEC` for persisted `REGULAR`; do not migrate enum/schema. | TODO |
-| 32 | REPRODUCED | Filter Faculty Room/Office only from Subject room-need options. | TODO |
-| 33A | REPRODUCED | Make Advanced Scheduling Rules always visible. | TODO |
-| 33B | REPRODUCED | Hide Shared class session UI while preserving logic/schema; elevate Rotates by term. | TODO |
+| 29 | SOURCE_CONFIRMED | Restrict swap to a dedicated control and require confirmation; prove Cancel = zero draft change. | IMPLEMENTED_PENDING_QA |
+| 30 | SOURCE_CONFIRMED | Separate Select checked and hover states in a route-safe way. | IMPLEMENTED_PENDING_QA |
+| 31 | REPRODUCED | Display `BEC` for persisted `REGULAR`; do not migrate enum/schema. | IMPLEMENTED_PENDING_QA |
+| 32 | REPRODUCED | Filter Faculty Room/Office only from Subject room-need options. | IMPLEMENTED_PENDING_QA |
+| 33A | REPRODUCED | Make Advanced Scheduling Rules always visible. | IMPLEMENTED_PENDING_QA |
+| 33B | REPRODUCED | Hide Shared class session UI while preserving logic/schema; elevate Rotates by term. | IMPLEMENTED_PENDING_QA |
 | 34 | SOURCE_GAP | Do not implement. | BLOCKED_SOURCE_GAP |
 
 ## Required progress discipline
@@ -153,6 +153,37 @@ Each dated entry must contain:
 - **Retained risk carried by the executor.** The selected-item state must remain visibly distinct from the highlighted state, since the historical defect was precisely that checked had a foreground but no background. A route-scoped regression control in A3 routes is not sufficient evidence on its own; a control must assert the state against a timetable `Select` consumer too, or the primitive change is unproven. A3 does not edit those timetable files; the control only renders them.
 - **Fix 19 unchanged.** Still route-scoped. `ui/dropdown-menu.tsx` is not in scope for this decision and is not edited.
 - **Status effect.** Fix 30 moves from A2-dependency-blocked to dispatchable. Fix 19 remains the only soft dependency, and it is resolved by scoping, not by an approval.
+
+### 2026-09-27 — three candidates produced; three planner premises refuted by the executors
+
+1. **Fixes/IDs and outcome.** 29 of 34 rows now `IMPLEMENTED_PENDING_QA` across three candidates, all from base `3cfe79a8`. Unchanged: 01 and 02 (`TODO`, preservation controls only), 08 (`BLOCKED_PRODUCT_DECISION`), 27/28/34 (`BLOCKED_SOURCE_GAP`).
+2. **Base SHA and candidate SHAs.** Base `3cfe79a883df92a24e3436a42f7e180bb2d768b8`.
+   - S1 Sections and room map: **`13f1f189`**, 12 paths. Worktree `E:/ATLAS-worktrees/lane-a3-sections-map`, branch `work/a3-sections-map`.
+   - S2 Subjects: **`6ba386dc`**, 10 paths. Worktree `E:/ATLAS-worktrees/lane-a3-subjects`, branch `work/a3-subjects`.
+   - S3 Teachers and Teaching Load: **`f56ef29e`**, 19 paths. Worktree `E:/ATLAS-worktrees/lane-a3-teachers-load`, branch `work/a3-teachers-load`.
+   All three confirmed reachable from the integration boundary with `git cat-file -t`. None pushed. All three worktrees clean, unintegrated, `PRESERVE_FOR_DECISION`.
+3. **Exact changed paths.** Streams are disjoint except `atlas-client/package.json`, where each adds exactly one distinct script key (`test:a3-sections-map`, `test:a3-subjects`, `test:a3-teachers-load`). Pure single-line additions, so the three will auto-union at integration. Every new test file is reachable from a committed script in the same commit, per section 11.
+4. **Focused test command/result.** S1 `test:a3-sections-map` 15/15, `test:global-scrollbars` exit 0, build exit 0. S2 `test:a3-subjects` 19/19, `test:global-scrollbars` 1/1, `test:client-quality` 34/34, `test:ux-guardrails` 31/31, build exit 0. S3 `test:a3-teachers-load` 33/33, `test:global-scrollbars` exit 0, `test:ux-guardrails` 31/31 including `gate-reachability.test.ts`, build exit 0. All `git diff --check` clean.
+5. **Desktop browser result at 1366x768.** **Not performed for any stream.** No accessibility, console or network capture exists yet. Every pixel-density, legibility and contrast claim in all three commit messages is structural only and is labelled as such. S1 discloses that effective card text is 9.0px for five-floor buildings (11 to 15.4px for up to three floors) because the authored size is 11px and the fit scale is width/height bound. S3 discloses its density claim is structural only. These are browser-acceptance rows, not source rows.
+6. **Negative control.** Failing-first controls were proven, not assumed. S1 proved the Fix 12 control fails on the current shape and passes after. S2 restored the base `SubjectFormModal` via `git restore --source=3cfe79a8 --worktree`, observed 2 controls fail including `no result region rendered for outcome saved`, then byte-restored and verified the SHA. S3 proved the Fix 29 swap control failing-first at base with `actual: [[41, 700, 4, 9]]`, a real transfer dispatched by a body click, going from 1 pass/4 fail to 5/5, restore verified by SHA-256. Mutation-capable flows (Fix 12 home-room, Fix 29 swap, Fix 25/26 return path, Fix 20 cancel) all carry zero-change Cancel controls as required.
+7. **A2 dependency and explicitly retained risk.**
+   - **BLOCKING, needs an A2 or operator decision: the Fix 07/11 card re-layout reaches A2-owned code.** See the premise-failure record below. `BuildingView` is rendered by `timetable/CenterWorkspace.tsx`, which A3 must not change the behaviour of. The candidate does not edit that file, but it changes the rendering contract underneath it. This must be adjudicated before integration, not after.
+   - **S3 Fix 30 deviation accepted and better than the packet.** The packet told the executor to copy `ui/dropdown-menu.tsx:101` (`bg-accent`/`text-accent-foreground`). The executor proved at source that `--accent` aliases `--primary` and `--accent-foreground` is white, so that pairing would render checked pixel-identical to highlighted, reintroducing the exact defect. It used `--secondary` instead, and proved the state against the A2-owned `SimpleBeneficiaryControls` without editing it.
+   - **S3 Fix 25 deviation accepted.** `Faculty.tsx:901` row navigation is deliberately left in place: it carries a `task=` intent consumed by `useTeachingLoadRouteIntent`, which is not an A3 file, and it drives the repair queue. The two page-level `Review load` links were converted in place, which is the Fix 25 scope.
+   - **S2 scope note, NON_BLOCKING.** `programFullLabel` in `deped-glossary.ts:33` still renders "Regular Program" inside the coverage dialog. That file is shared and outside Fix 31's stated scope, and a primitive-wide change has no authority here.
+   - **Two evidence-integrity items carried into QA, both disclosed rather than hidden.** S3 made a whitespace-only edit at `SubjectRow.tsx:582` AFTER its gate runs, with staged and stripped SHA-256s recorded and the lines proven token-identical; QA must confirm the committed bytes are the tested bytes. S3 also demoted control F23-4, which no longer claims pointerdown-outside dismissal because Radix routes it through `dispatchDiscreteCustomEvent` and it is unreachable from a JSDOM-dispatched event; the row names it a browser-acceptance item rather than deleting it. Under section 16 a correction must be additive, so QA must confirm both rows still exist and carry their limits.
+   - **Pre-existing failures, proven not regressions.** 12 `test:client-suite` failures and 4 typecheck errors (an undeclared `playwright` import in A2 timetable tests) exist at base and reference none of the changed paths. S3 additionally reduced its own client-suite to 1 failure by running after the others; `SchedulingPolicyPane.tsx` is blob `ab49e4ae5d75ad9284f878ac4ce7cedc5a95ac48` at base and in the candidate.
+   - **Donor verification, S3.** The `node_modules` copy was removed and the donor proven unchanged: 156 top-level entries, 17,348 files, 229,100,225 bytes and a recursive path|length|mtime manifest SHA-256 `ECBD1506…03D5` identical before and after. Donor reparse points 0, worktree reparse points 0, junction-free.
+
+#### Planner premise failures — recorded because they changed the work
+
+Three claims the planner asserted as verified evidence were false. Both executors caught them independently and were right. The cause was the same: a `Select-String` glob (`atlas-client\src\**\*.tsx`) that does not recurse, so the searches measured almost nothing while reporting a confident number.
+
+1. **"BuildingView has exactly one consumer."** False. It has four: `sections/SectionRoomMapModal.tsx`, `dashboard/CampusReadinessCard.tsx`, `campus-map/CampusMapOverview.tsx`, and A2-owned `timetable/CenterWorkspace.tsx`. The search matched only `from '@/components/BuildingView'` and missed every `lazy(() => import('@/components/BuildingView')...)` form. This is the cause of the BLOCKING item above, and it is why the packet asserted the card re-layout had no timetable blast radius.
+2. **"Only 4 `dark:` occurrences exist across the client, so the app is effectively light-only and `GRADE_COLORS` is safe to adopt as-is. Recorded as measured, not assumed."** False and doubly misleading: it was 15 across 5 files, and the claim was dressed as a measurement when it was an artefact of the broken glob. A2 timetable files carry full dark variants. Presenting a broken search as verified evidence is the specific failure section 11 warns about, and it is recorded here so the pattern is not repeated.
+3. **"`GRADE_COLORS` uses `amber` for G8 where the directive says yellow" and "two grade palettes exist."** Both false. G8 is `yellow-100/700` in `lib/grade-labels.ts` and in `components/GradeLevelBadge.tsx`, so no reconciliation was ever needed. Six palettes exist, and `components/GradeLevelBadge.tsx` already is the DepEd-correct, dark-aware badge Fix 18 asked for. The S3 packet pushed the executor toward creating the very duplicate palette it was told to avoid. The bounded correction reversed it: `components/faculty/GradeBadge.tsx` on `GRADE_COLORS` was deleted and replaced with a zero-palette adapter in `components/faculty-assignments/GradeBadge.tsx` that imports `GradeLevelBadge` and contributes only `aria-label` and data attributes. One palette is now in play across `WorkloadInspector` and `FacultyProfileSheet`, asserted at source, with dark variants verified for all four grades.
+
+**Verdict:** three candidates exist and are reachable; nothing is pushed or integrated. 29 rows are `IMPLEMENTED_PENDING_QA`; no row was promoted to `QA_PASSED` because no independent review has run and no browser evidence exists. One BLOCKING cross-lane decision is outstanding.
 
 ## Planned stream boundaries (proposed, not dispatched)
 
