@@ -300,358 +300,115 @@ tab remains open. Evidence owner: Lane B (Codex).
 Closure worktree: `E:\ATLAS-worktrees\lane-b-e475-browser-acceptance` is clean, merged, has no reparse
 or process borrower, and is `RETIRE_AFTER_INTEGRATION` (E: 47.55 GiB before retirement).
 
-## Lane C — current lane (written only by Lane C)
+## Lane C — current lane (written only by Planner C)
 
-**⚠ LIVE RELEASE CHANGED UNDER THIS LANE — 2026-09-26 05:11:02 +08. Read before any deploy work.** The live
-release is **`116a7658`**, NOT `861d89a2`. Supervisor task action:
-`E:\ATLAS-runtime-supervised-116a7658-20260726\ops\runtime\cli.mjs start` (Running; 5001 and 5174 both 200;
-`/health/ready` 200 `database:"ok"`). Lane A performed an isolated F1/F2 cutover while this lane worked.
-**Every earlier line in this section saying the live release is `861d89a2` is superseded.** This lane's
-"live still 861d89a2" checks were **verified wrongly**: they confirmed the old release *directory* was intact
-at that SHA, not that the supervisor still pointed at it. The correct check is the **scheduled-task action**.
+**Pruned by Planner A2 on 2026-09-26, on operator instruction** (Lane C is held by the opencode
+primary-planner session, so A2 may maintain it). **352 lines → this length.** Everything cut was narrative
+or superseded history and stays in Git — `git show a94e2aa5:docs/plans/live-state.md` — and in the lane
+handoffs. **Kept: every browser-QA row, every owed item, every open operator decision.** One superseded
+ruling is marked rather than deleted, because it is the origin of a false finding; two stale claims were
+corrected in place.
 
-**Divergence (2026-09-26):** `116a7658` is **not an ancestor of `origin/main`** — it is Lane A's line off
-`861d89a2`. It contains **none** of `212809f7` (C1), `8bdf5802` (C2), `39645f2d` (C3) or `9f232cec` (J2);
-`merge-base --is-ancestor` returns exit 1 for each. **Live and `main` have diverged; the next deployment must
-reconcile them and cannot assume a fast-forward.** The held `9f42190e` release directory still does not exist.
+### ⚠ SUPERSEDED — this ruling is why a later session raised a false alarm (A2, 2026-09-26)
 
-**J2 — candidate `9f232cec`, NOT integrated, awaiting one bounded correction.** Fresh independent QA returned
-`CORRECTION_REQUIRED` 8/9 with **one BLOCKING product finding (D2)**: the P4 work deleted the manual-edit
-history's actor attribution outright, so the audit trail shows **no actor at all**. QA ruled that "silence
-where a fact exists" is a capability regression, not an acceptable interim — "who changed my schedule" is the
-first question about an unexpected edit — and that an honest interim exists with no server change. The server
-gap (`listManualEdits` returns only `actorId`; `RoomRequestAppealHistory` already returns `actorName`) is
-**owed, not waived**. Every other row PASS: 0 base assertions dropped, 0 reparse points, no BOM, and gates
-reproduced exactly (28/28, 32/32, 88/2, client suite **1061/1045/16 — the identical failure set to the
-1033/1017/16 baseline**). The executor's **sign-convention catch** stands and must be preserved: the two
-projection numbers have opposite sign conventions and its first fix reproduced the error in reverse.
+This section used to carry Lane C's J2/J3 merge ruling: *"keep OURS in this file … Lane A's `plain*`
+functions return a bare label, which would **lose** the next-step row. **Do not adopt them.**"* **Main did
+the opposite — `996b1b8b` adopted both families and nothing was lost.** A later reader took the ruling as
+current, concluded the `{label, next}` accessors had been dropped, and reported a "silent information
+loss" with three dead exports. **That report is false:** all six exports have exactly one live production
+call site each, `RightPanel.tsx:326` still renders the `next` sentence, and the three `plain*` functions are
+thin adapters over the **same** canonical maps (`plainRuleValue`), adding the absent-vs-unknown distinction
+the reconciliation existed to fix. Gates at `a1dcfc34`: `test:plain-language-j2j3-c01` **18/18**,
+`test:plain-tokens-c04` **30/30**. Evidence and commands:
+`docs/reviews/a2-custody-verification-20260926/plain-language-accessor-verdict.md`.
+**Lesson: a superseded ruling left unqualified in a status file is an active defect, not history.**
 
-**⚠ CUSTODY COLLISION with Lane A on J2/J3 — 2026-09-26. Do not integrate `9f232cec` blind.** Lane A is
-executing `PLAIN-LANGUAGE-J2J3-C01` in `E:\ATLAS-worktrees\lane-a-plain-language-j2j3-c01`, and its packet
-(`docs/prompts/plain-language-j2j3-c01-2026-07-26.md`) scopes *"total enum-to-plain-word maps for
-`RoomPreferenceDecisionStatus`, `RoomRequestAppealStatus`, `GenerationRunStatus` in
-`lib/timetable-plain-language.ts`"* — **the same module and the same enums this lane's J2 candidate
-`9f232cec` already implements**, and it also lands in the left rail / selected-entry / run / status surfaces
-J2 rewrote. Two planners on one stream is a custody defect, not parallelism. **This lane's ruling: hold
-`9f232cec` un-integrated**; whoever finishes first, the other candidate must be reconciled file by file
-rather than merged blind — `lib/timetable-plain-language.ts`, `RightPanel.tsx`,
-`ScheduleReviewWorkspaceHeader.tsx`, `SimplePublishReadinessSheet.tsx`, `TimetableSimpleHeader.tsx`,
-`simplePublishReadiness.ts`, `TimetableIssueRepairGuide.tsx`, `TimetableRunsPane.tsx`,
-`simple/SimpleMoreMenuContent.tsx`, `simple/SimpleTaskDrawerHelpers.tsx`, and the three modals. J3 (domain
-jargon) is untouched by this lane and remains available to whichever lane does not take it.
+### Browser QA — Lane C's job, and the rows that gate A2's release
 
-**J2 + D2 INTEGRATED on `main` as `4c76208d` (2026-09-26, Lane A2).** Candidate `9f232cec` + D2 correction
-`1ccdf4dd` + merge of main. Client-only, no migration, **not deployed**. J2 removed the engine tokens from the
-operator surface: raw `FACULTY_CONSECUTIVE_LIMIT_EXCEEDED` codes, the `?? v.code` fallback, `item.delta`,
-`PENDING`/`APPROVED`/`REJECTED` enums, `Run #318` / `v3`, `PLACE UNASSIGNED`, `by user #46`, and a
-§8-forbidden native `title` (now an `@/ui` `Tooltip`). Gates: `plain-tokens-c04` **29/29**,
-`draft-ux-c01` **32/32**, `timetable-relaxed-main` 88/2, client suite **1062 / 1046 / 16 fail — zero new**.
+- **The client-delta release is withdrawn at `CORRECTION_REQUIRED` 6/13 and its acceptance stands at 9/13.
+  The two unperformed rows, A6 and A12(b), are both browser rows Lane C owns.** A6 = the Review-issues
+  panel (run-level); A12(b) needs a placed session in a many-space context. A7 passes with EnrollPro-502
+  attribution; A5 partial. A browser session exists again (`atlas_local_token`). **A2 cannot close these
+  alone** — they are the acceptance gate on A2's own release.
+- **Pending deploy `9f42190e`** (`docs/prompts/deploy-9f42190e-draft-ux-c01-2026-09-26.md`, corrected at
+  `0ecf4778`, still **unapproved**, release dir absent): its D1 rows and QA NON_BLOCKING 1–2 are run by
+  `atlas-browser-qa` in Chrome at **1366×768 and 390×844**.
+- **EnrollPro unreachable from the host** (2026-09-25; Tailscale `dev-jegs` offline since ~19:40 local, so
+  `runtime/context` and `sections/summary` wait the 4 s timeout). F1–F3:
+  `docs/handoffs/lane-c-browser-acceptance-e8553752-2026-09-25.md`; A3 (0 class advisers).
+- Lane B's own browser rows, and `e475c673` acceptance (4 pass / 0 blocked / 1 unperformed), are in Lane B's
+  section — not pruned.
 
-**D2 closed (the one BLOCKING finding from J2's QA).** Manual-edit history had been left showing **no actor
-at all** — "silence where a fact exists", a capability regression. It now renders *"Changed by a signed-in
-account. This record does not show which person."* — true when only `actorId` exists, printing no identifier.
-Both guards retained (`doesNotMatch(/edit\.actorId/)`, `doesNotMatch(/by user/)`); the superseded R4 assertion
-untouched. **Server gap still owed, not waived:** `manual-edit.service.ts:1884` returns `actorId` only, while
-`room-preference.service.ts:1251` returns `actorName` — the precedent. Negative control observed both ways.
+### Owed — test-only, so a planner may apply it directly (§11)
 
-**Merge authority is the planner's, not the executor's — settled 2026-09-26.** The executor's deny-list blocks
-`git merge*` (and even `git merge-base`), and it correctly refused to route around that with
-`cherry-pick`/`merge-tree`/`commit-tree`. So Lane A2 holds merge authority for the J2/J3 reconciliation.
+- **§7 fail-closed term guard — STILL OWED, and A2 carries it as its own open item 5.** No test in
+  `atlas-client/src/components/timetable/__tests__/generation-blockers-c02.test.tsx` covers the term
+  clause. Add `C2-term.1` (five degraded cases — `termIdentity` null / empty / not-in-structure,
+  `termStructure` null, and no terms — each asserting **no term clause is invented and `Term 1` never
+  appears**, with no `undefined` / `null` / `NaN` placeholder leaking in) and `C2-term.2` (a known identity
+  renders its verified ordered position, never the identity string), against `presentGenerationBlockers` in
+  `src/lib/timetable-generation-readiness.ts`. Write it in a **registered worktree** — `D:/ATLAS` is
+  read-only (§14). QA probed six degraded cases and found no default, so this guards a *refactor*, not a
+  live defect.
+- **Manual-edit history actor name — owed, not waived.** `manual-edit.service.ts:1884` returns `actorId`
+  only, while `room-preference.service.ts:1251` returns `actorName` — the precedent. The interim copy
+  ("Changed by a signed-in account. This record does not show which person.") is true, and both guards
+  (`doesNotMatch(/edit\.actorId/)`, `doesNotMatch(/by user/)`) are retained.
 
-**RECONCILIATION of Lane A's `98289573` — still owed, map CORRECTED by the executor's findings.**
-`98289573` (J2J3) is unreviewed and now sits behind `main`; whoever reconciles it must rebase onto `4c76208d`.
-Corrections to the earlier map, all verified by inspection:
+### Standing rules from this lane — kept, because they are rules and each one cost something
 
-1. **BLOCKER the map missed — an import coupling.** Lane A's three exported bare-label maps
-   (`ROOM_DECISION_STATUS_LABELS`, `ROOM_APPEAL_STATUS_LABELS`, `GENERATION_RUN_STATUS_LABELS`) are imported
-   **only by Lane A's own test file**. Since J2 is now on `main` and our richer maps are canonical, those maps
-   are **not** adopted — which means **their test must be repointed** at `roomRequestDecisionState` /
-   `roomRequestAppealState` / `generationRunStateLabel`, or the merged tree does not build. Exporting both is
-   forbidden: two labels for one status is the exact C3 defect.
-2. **Graft 2 is a rename, not a retype.** Theirs is the exported `GENERATION_RUN_STATUS_LABELS`; ours is the
-   private `GENERATION_RUN_STATE_LABELS`. Keep **ours**, retype it to `Record<GenerationRunStatus, string>`, and
-   do **not** import theirs.
-3. Graft 1 stands: add their `ALL_SESSIONS_PLACED_LABEL` — present only on their side, non-overlapping.
-4. `humaniseEngineToken` exists **only on their side** and is imported by 5+ of their components. It **must be
-   kept**; our `timetable-plain-language.ts` does not reference it, so the "keep ours" ruling grafts cleanly.
-5. **`violation-presentation.ts` has NO wording conflict** — theirs is a title resolver, mine is
-   `formatPolicyDeltaText`. Disjoint symbols, so it is a plain union and the "pick one wording" step does not
-   apply there. The earlier map over-specified this file.
-6. Still required after the merge: one fresh independent QA over the whole reconciled range before any push
-   (§11 — no release ships source no reviewer has seen), and the six **J2 sweep items** remain registered
-   below, untouched.
+- **Dependency trees: a real `robocopy /E` copy from the frozen donor, NEVER a junction** to the live
+  release, the donor, or `D:\ATLAS`. A run wrote `.vite/deps` into production through such a junction and
+  the live supervisor logged ~1.5 s event-loop stalls. Remove a junction **link-only** (`cmd /c rmdir`, no
+  `/s`) and verify the target's entry count before and after. The one dependency source is `861d89a2`.
+- **Confirm the live release from the scheduled-task action, never from a release directory existing.**
+  This lane's own "live is still `861d89a2`" checks were verified wrongly for exactly that reason.
+- **Merge authority is the planner's, not the executor's** — the executor deny-list blocks `git merge*`,
+  and it correctly refused to route around that.
+- `main` is **not green**: the client-suite baseline is **16 failures**, all attributed, zero new from any
+  accepted lane. *(This section previously said "red by 2 pre-existing failures"; the `rendered.test.ts`
+  one has been green since C2 `8bdf5802`.)*
 
+### Integrated and accepted, none of it deployed (client-only, no migration)
 
-`9f232cec` (mine, J2 engine tokens, independently QA'd 8/9) and Lane A's `98289573` (J2J3) both sit off
-main, worktrees clean, neither on main. A trial merge produced **13 conflicts in exactly 6 files** and was
-**aborted** rather than half-resolved. Per-file resolution:
+`9f42190e` DRAFT-UX-C01 (QA `ACCEPT_READY` 6/6) · `212809f7` C1 · `8bdf5802` C2 (QA `ACCEPT_READY` 16/16;
+it turned the generation dead-end failing-first control green) · `39645f2d` C3 plain language · `4c76208d`
+J2 + D2. **Live is `26f7c907`; `origin/main` is 50 commits ahead of it.** Per-cycle detail is in Git and in
+the lane handoffs.
 
-1. **`lib/timetable-plain-language.ts`** — the two lanes **independently converged on the same six exports
-   with the same names and values** (`MUST_FIX_LABEL`, `ALL_SERIOUS_PROBLEMS_LABEL`, `mustFixCountLabel`,
-   `publishBlockedSentence`, `HARD_COUNT_RELATIONSHIP_NOTE`, `plainScopeLabel`). Keep those once.
-   **SETTLED 2026-09-26 by inspection: keep OURS in this file, with two grafts from Lane A.**
-   - *Ours is already at parity on the property Lane A's `Record` typing buys.* Our
-     `ROOM_REQUEST_DECISION_STATES: Record<RoomPreferenceDecisionStatus, PlainRoomRequestState>`,
-     `ROOM_REQUEST_SUBMISSION_STATES: Record<RoomPreferenceStatus, …>` and
-     `ROOM_REQUEST_APPEAL_STATES: Record<RoomRequestAppealStatus, string>` are **already
-     compile-enforced-total**, and they are **richer** than Lane A's bare-label maps because each entry
-     carries the `{ label, next }` "what happens next" sentence my QA verified true against
-     `room-preference.service.ts`. Lane A's `plain*` functions return a bare label, which would **lose** the
-     next-step row. **Do not adopt them.**
-   - *Graft 1:* add Lane A's `ALL_SESSIONS_PLACED_LABEL` — genuinely new, no overlap.
-   - *Graft 2:* retype `GENERATION_RUN_STATE_LABELS` from `Record<string, string>` to
-     `Record<GenerationRunStatus, string>` (import the enum as a type). That is the one place Lane A's
-     typing is strictly better, and it makes an incomplete run-status map a compile error. Leave
-     `GENERATION_RUN_KIND_LABELS` as `Record<string, string>` — `runType` is a free-form column, so
-     totality is genuinely not knowable and our `?? 'A different kind of run'` fallback is correct.
-   - *Rejected:* shipping both label sets for the same status. That is the exact C3 defect QA caught
-     (`MUST_FIX_LABEL` on the wrong count, "classes" for sessions) — one concept, one name.
-2. **`atlas-client/package.json`** — union the `test:client-suite` file list (both lanes appended their own
-   test file). Both dedicated scripts (`test:plain-tokens-c04`, `test:plain-language-j2j3-c01`) already sit
-   outside the conflict, so §11 gate-reachability is satisfied either way — but **union the suite**.
-3. **`RightPanel.tsx`**, **`TimetableRunsPane.tsx`**, **`modals/SoftViolationConfirmDialog.tsx`**,
-   **`lib/violation-presentation.ts`** — both lanes did the *same kind* of work (codes, enums, run ids,
-   delta humanising), so prefer the semantically identical union: one humaniser per concept, and **verify
-   no duplicate label for one idea**, which is the exact C3 defect.
-4. **Unshared, keep both as-is:** my 13 J2 files (run anchors, issue-repair guide, assignment dialogs, the
-   two fallback paths, `TimetableSimpleHeader`, `simplePublishReadiness`, my tests) and Lane A's 10 J3 files
-   (`LeftRailContent`, `ScheduleReviewWorkspace.constants.ts`, `GeneratedUnassignedPanel`,
-   `GeneratedRunRailPanels`, `TimetableGridConflictBadge`, `ScheduleReviewWorkspaceSummaryStats`,
-   `useTimetableData`, `TimetableWorkflowDialogs`, their test).
-5. **Then fix the one open BLOCKING finding (D2)** from my QA: restore an honest interim attribution on the
-   manual-edit history row in `modals/TimetableAssignmentDialogs.tsx` — true when only `actorId` exists,
-   never printing a bare number — keeping the `doesNotMatch(/edit\.actorId/)` guards. Server gap
-   (`listManualEdits` has no `actorName`; `RoomRequestAppealHistory` does) stays **owed**.
-6. **Then one fresh independent QA over the whole reconciled range** — Lane A's commit is currently
-   **unreviewed**, and §11 forbids a release shipping source no independent reviewer has seen. Do not push
-   the reconciliation before that verdict. Expect the client suite at **16 failures, zero new**.
+### Timetable UX audit — the next cycle, not dispatched
 
-**Donor governance (planner ruling after QA D1, 2026-09-26).** The `.vite` write into the frozen donor
-`5c100ea6` was **not** this candidate (the Vite-spawning tests resolve their root from `import.meta.dirname`
-into their own worktree; distinct `configHash` values prove distinct roots; the live release has no `.vite` at
-all). Build risk is **nil** — `vite build` does not read `node_modules/.vite/deps`, and the cache is
-self-invalidating. **But the governance problem is real:** a frozen retained release is doubling as a shared
-mutable `node_modules` source, so any process running Vite with that tree as root writes into it. **Ruling:
-the pending `9f42190e` build gets its own real copy, and `5c100ea6` was recorded read-only — that release has
-since been **retired** by reclaim `20260926b`, so the ruling now binds `861d89a2` as the one dependency source.
-No `.vite` removal
-is required; nothing was deleted.**
+`docs/reviews/timetable-ux-audit-20260926/audit.md` (read-only, two lanes, planner-adjudicated; audited
+against `0ecf4778`, which already contains `9f42190e`, so every finding survives the pending deploy).
+Verdict: the **act** half of the workflow is strong, the **diagnose** half is not. **10 blocking findings**,
+led by generation-blocked being a dead end (fixed by C2), a hard-coded "0 sessions affected" (fixed by C1),
+one HARD problem under four names (fixed by C3), drift suppressing the §7 term-authority notice, and a dead
+unassigned-evidence surface. Systemic: the dominant test pattern here is source-text regex assertion, which
+cannot catch a wrong value, a count mismatch, or an unmounted component. 15 items are marked **protect
+this**. Proposed cycles C1–C5; C1–C3 landed, **C4/C5 not dispatched**.
+**Two operator decisions still outstanding:** (a) audit **finding 8** — restoring visible labels to the
+view-type and entity pickers reverses a deliberately accepted DRAFT-UX-C01 contract
+(`draft-ux-c01.test.tsx:410-425`), so it is the operator's call, not the planner's; (b) audit **finding 1
+end-to-end against a live `GEN-C02` diagnostic** stays open as `NEEDS_DEPLOYED`, because jsdom proves the
+DOM and the wiring, not that a scheduler perceives the way in.
 
-**Owed J2 sweep — registered, not silently dropped (QA findings 2–5).** The same de-snake-case fallback
-survives at `QuickPlaceSummaryModal.tsx:58`, `SectionRoomMapModal.tsx:213,316`, `SectionRoomPicker.tsx:258`;
-`TimetableTaskDrawer.tsx:139` still mints `Subject #<id>`; `PublicationApprovalInbox.tsx:77` still renders
-`Run #<id>` and `account #<id>`; and `warning-readability-c01.test.ts` shows a **live** leak of all three
-fixed classes on an untouched surface (`FACULTY_LUNCH_WINDOW_VIOLATION` raw, a de-snake-cased token,
-`Faculty 16`, raw `MONDAY`) because `VIOLATION_PRESENTATION` has no entry for that rule — new rule content,
-not a rename, and one of the recorded 16 failures.
+### Owed J2 sweep (QA findings 2–5) — registered, not dropped
 
-Opened 2026-09-25 (operator). Branches `work|fix|docs/lane-c-*`, worktrees `E:/ATLAS-worktrees/lane-c-*`. Finished
-cycles are in Git history and their handoffs. Claude Code lanes follow `CLAUDE.md` (cost rules).
+The same de-snake-case fallback survives at `QuickPlaceSummaryModal.tsx:58`,
+`SectionRoomMapModal.tsx:213,316` and `SectionRoomPicker.tsx:258`; `TimetableTaskDrawer.tsx:139` still
+mints `Subject #<id>`; `PublicationApprovalInbox.tsx:77` still renders `Run #<id>` and `account #<id>`.
+**Corrected 2026-09-26 (A2):** this list previously recorded the `FACULTY_LUNCH_WINDOW_VIOLATION`
+raw-code leak as live. It is **fixed** on `main` as `e118d87d` (QA `ACCEPT_READY` 10/10) using the
+server's own `VIOLATION_COPY`, with the coverage guard strengthened to be non-vacuous. The one code that
+still falls through to the honest unlabelled sentence is **`ROOM_CAPACITY_EXCEEDED`** (always SOFT,
+`constraint-validator.ts:901`, absent from the allowlist) — dated backlog, non-blocking, pre-existing.
 
-**Current stream: draft scheduler UX** (as of 2026-09-26). Server-stall stream closed (A1, 2026-09-25 15:11Z; see
-the Live release block and `docs/handoffs/lane-c-handoff-2026-09-25-stall.md`).
+### Housekeeping, no longer carried here
 
-**DRAFT-UX-C01 integrated on `main` as `9f42190e`** (2026-09-26, fast-forward of
-`integration/lane-c-draft-ux-c01-20260926`; `origin/main..` held only the three accepted candidate commits and two
-merges). Candidate `1670a611`, QA (Opus) `ACCEPT_READY` S1-S6 6/6, client-suite base 978/17 fail vs candidate 988/17
-fail with the same names. Packet `docs/prompts/lane-c-draft-ux-c01-2026-09-25.md`; handoff
-`docs/handoffs/lane-c-draft-ux-2026-09-26.md`. Client-only; no migration.
-
-**Sequential-release decision (operator, 2026-09-26) — SUPERSEDED IN PART, retained as the standing order.**
-The `861d89a2` cutover ran first and is **DEPLOYED with post-action QA `ACCEPT_READY` 8/8/0/0**. What
-remains of the decision is: `docs/prompts/deploy-9f42190e-draft-ux-c01-2026-09-26.md` (HIGH, explicit
-operator approval; rollback basis `861d89a2`) runs only after that, and its D1 rows + QA NON_BLOCKING 1-2
-are run by `atlas-browser-qa` on Claude in Chrome at 1366x768 and 390x844. E: was 50 GiB free after
-retiring worktrees `lane-c-draft-ux-c01`, `-int`, `-docs` (clean, merged, no reparse/borrower; health +
-subjects 200) — still at the warning line, so reclaim first (now specified as successor reclaim
-`20260926a`; see the decisions-awaited entry). Deployment of `9f42190e` is additionally **held** by the
-operator's 2026-09-26 instruction because another opencode planner may be deploying the same release.
-
-**Custody (2026-09-26, operator):** Lane C is held by the opencode primary-planner session from this date;
-the former Lane C (Claude Code) stream is closed with its commits integrated. The 9f42190e packet is
-corrected at `0ecf4778` but **still unapproved** — see the deploy-gate paragraph below.
-
-**Timetable UX audit complete (2026-09-26):** artifact
-`docs/reviews/timetable-ux-audit-20260926/audit.md` (read-only, two independent lanes, planner-adjudicated;
-no browser/DB/network). Framing fact: audited against `0ecf4778`, which already contains `9f42190e`, so
-**every finding survives the pending deploy** — this is the next cycle's work, not the current fix's.
-Verdict: the *act* half of the workflow is strong (preview-before-save, reasons on every disabled
-control, real destinations behind every blocker action, honest fail-closed term gate); the *diagnose*
-half is not. **10 blocking findings**, led by (1) **generation-blocked is a dead end** — the header says
-"Review the item shown", no item is ever rendered, and `/timetable/setup`'s "Review readiness" opens the
-*publication* sheet, which for a run-less year says "No timetable generated yet"; (2) the repair banner
-always states "**0 sessions affected**" because `groupCount` is hard-coded at its only producer, above
-"cannot test slots until this is resolved", and a test asserting only the *string* keeps it green;
-(3) one HARD problem has **four names** (`Must fix`/`Blocked`/`blocker`/`hard`) and three different
-"hard" numbers, undeclared; (5) a term-scoped `Unassigned sessions (0)` sits beside a run-wide
-`2 unresolved sessions`; (6) **drift suppresses the term-authority notice**, a §7 invariant defect; (7)
-the unassigned evidence surface is dead code, so `Still blocked`/`Ready to place` and the plain "Why
-blocked" sentence are unreachable. Systemic: the dominant test pattern here is source-text regex
-assertion, which cannot catch a wrong value, a count mismatch, or an unmounted component — findings
-2/5/7/10 all survive a fully green suite. Also recorded: the ≤6 header cap is asserted only in tests and
-the drift state already renders 8; the Expert header shows ~20 controls. 15 items are marked **protect
-this** (one-primary rule, consequence-stating severity signs, scope disclosure, all-term export refusal,
-the term predicates, expert tooling honestly labelled). Proposed cycles C1–C5 in the artifact, **not
-dispatched**.
-
-**Next action (2026-09-26):** hold deployment. Two operator decisions outstanding before C1 source
-writes: (a) **custody boundary** — the lane map gives the client timetable surface to Lane A (opencode),
-so C1–C5 overlap it and need an explicit disjoint slice; (b) **finding 8** — restoring visible labels to
-the view-type and entity pickers reverses a deliberately accepted DRAFT-UX-C01 contract
-(`draft-ux-c01.test.tsx:410-425`) and is the operator's call, not the planner's.
-
-**C1 INTEGRATED on `main` as `212809f7` (2026-09-26, planner).** Candidate `d8277599` + bounded
-correction `1dbbbbf9`, merged over Lane A's `5d287e49`. Three truthfulness defects closed: the repair
-banner no longer states a hard-coded "0 sessions affected" (the real group count is threaded and an
-unknown count omits the clause); the recommended task and the lifecycle next step now read ONE authority
-(`resolvePublishBlockTruth`) so the header cannot say "Review issues" and "Ready to publish" at once; and
-"Choose a room first" is followable at 0/1/many teaching spaces. Independent QA (`atlas-qa`, fresh,
-read-only) returned `CORRECTION_REQUIRED` 4/7 with **one BLOCKING finding — the fix itself introduced a
-new false statement**: the zero-room copy claimed "No teaching space is available" as fact on the
-deliberately-supported degraded path where `timetableLoadOrchestration.ts:53-57` swallows the reference
-read, so the true state is "ATLAS could not read the teaching spaces". The correction re-gates that claim
-on `referenceLookupStatus.state === 'ready'` and hedges the unread state without routing to `/map`. §11
-bounded correction reviewed by the planner, not re-dispatched to QA. Merged-tree gates: typecheck clean,
-`draft-ux-c01` 12/12, `timetable-relaxed-main` 88/2, client suite **1002 tests / 985 pass / 17 fail — the
-same 17 pre-existing failures, zero new**. Client-only; **no migration; NOT deployed.**
-
-**Two facts other lanes need (2026-09-26):**
-- **`origin/main` is already red by 2 pre-existing failures, not caused by C1.** `rendered.test.ts`
-  expects `Setup needs attention before ATLAS can generate a timetable.` (added by `104021c7`) and
-  `drift.test.ts` expects a `timetable-simple-sync-setup` testid (added by `a49ae9d3`); neither exists in
-  production, and `timetableSetupPane`/`ux-r03b`/`ux-r03e` assert the sync entry is NOT a header/banner
-  control. Notably the first is a **failing-first control for audit finding 1 (the generation dead end)** —
-  C2's first row already exists on main. Both are inside the 17.
-- **Dependency-junction hazard, RESOLVED (2026-09-26).** The C1 worktree junctioned
-  `atlas-client/node_modules` → the **live** release `E:\ATLAS-runtime-supervised-861d89a2-20260925\...`.
-  A run wrote `.vite/deps` through it at 02:37:29 and the live supervisor logged ~1.5s event-loop stalls at
-  that moment. No tracked file in the live release changed. **Closed:** both junctions were removed
-  **link-only** (`cmd /c rmdir`, no `/s`) with the live target verified intact afterwards (156 entries
-  before and after), and the integrated C1 worktree was retired. The C2 cycle instead used the project's
-  frozen procedure — a **real copy** of the frozen donor's `node_modules` — so the two
-  self-spawning-Vite tests in `test:timetable-relaxed-main` wrote `.vite` **inside the worktree only**;
-  donor and live release mtimes were byte-identical before and after. **Rule for every future cycle: real
-  copy from the frozen donor, never a junction to the live release, the donor, or `D:\ATLAS`.**
-
-**C2 INTEGRATED on `main` as `8bdf5802` (2026-09-26, planner) — audit finding 1, the generation dead end.**
-A scheduler blocked from generating was told "Review the item shown" while **no item was shown**, and
-`/timetable/setup`'s "Review readiness" opened the *publication* readiness sheet, which for a no-run year
-answers "No timetable generated yet". So a blocked scheduler could never start. The data already existed and
-was simply discarded at `TimetableSimpleHeader.tsx:302`. Now: a shared derivation produces the operator
-sentence, and **every** blocker in `diagnostic.blockers[]` renders in plain words with the repair
-`deriveTimetableReadinessRepair()` already resolves (`retry` in place, or navigate to a real mounted route).
-Humanisation reuses the established `violation-presentation.ts` layer; `blocker.code`, `termIdentity` and
-`subjectCode` are never read, and degraded lookups fall back to plain words ("this section"), never an id.
-The setup pane now reaches the **generation** blockers. Fresh independent QA returned **`ACCEPT_READY`
-16/16/0/0** (blocked 0, unperformed 0) and re-ran the negative controls. **The pre-existing failing-first
-control on `main` is now green** — the suite went **17 → 16 failures, zero new**, all 16 attributed to
-byte-identical assertion sites outside the change. Client-only; **no migration; NOT deployed.**
-
-**§7 verdict on C2 (2026-09-26):** the term clause is derived from the server's ordered term **position**;
-QA probed six degraded cases (`termIdentity` null / unknown / empty, `termStructure` null, empty terms,
-`order=1.5`) and **no case produced a term clause, and none rendered as "Term 1"**. A missing term identity
-is never defaulted. Correct — but **not guarded by a committed regression row**, so a future refactor of the
-term phrase could reintroduce a default with a green suite. That row is **owed by C3**, which already owns
-these files; it is not an extra round-trip for its own sake.
-
-> **CORRECTION 2026-09-26 (planner): the sentence above is wrong. C3 did NOT add that row.** C3
-> (`39645f2d`) was scoped J1/J4/J5 only, and **no test in
-> `atlas-client/src/components/timetable/__tests__/generation-blockers-c02.test.tsx` covers the term clause
-> at all** (its rows cover the operator sentence, code leaks, the tooltip, all-three-blockers, real repairs,
-> the no-blockers case, the control cap, the entry point and the setup pane). **The timetable-invariant
-> fail-closed term guard is therefore still OWED**, and after the Lane A collision recorded above it is the
-> one remaining item that is both non-colliding and correctness-critical. It is **test-only**, so AGENTS.md
-> section 11 lets the planner apply it directly: add `C2-term.1` (five degraded cases: `termIdentity` null,
-> empty, and not-in-structure; `termStructure` null; and no terms. Each asserts **no term clause is invented
-> and `Term 1` never appears**, with no `undefined` / `null` / `NaN` placeholder leaking in) and `C2-term.2`
-> (a known identity renders its verified ordered position and never the identity string), against
-> `presentGenerationBlockers` in `src/lib/timetable-generation-readiness.ts`. It must be written in a
-> **registered worktree**; `D:/ATLAS` is read-only by directive section 14 and this session correctly refused
-> an edit there, so do not attempt it in the root checkout. Blocked only on a worktree, which is cheap.
-
-**Planner calls on QA's three non-blocking items (2026-09-26):** (1) a resolved Subject that has no
-`displayCode` may render its own `code` (e.g. `TLE-7`) — **accepted**: it is the reference-map name the grid
-already prints in every cell, it is provably not `blocker.subjectCode`, and a Subject's own code is the
-scheduler's own vocabulary. (2) The §7 regression row is **folded into C3** (above). (3) Finding 1 end-to-end
-against a live `GEN-C02` diagnostic stays **open** and belongs to a later approved acceptance session —
-`NEEDS_DEPLOYED`; jsdom proves the DOM and the wiring, not that a scheduler perceives the way in.
-
-**C3 (plain language) INTEGRATED on `main` as `39645f2d` (2026-09-26, planner) — J1, J4, J5.** This is the
-cycle the operator asked for by name: *relaxed and less overwhelming, informative, without the technical
-jargon.* Candidate `ef59f6d7` + bounded correction `abec65bf`, merged over Lane A's docs-only `cb20ae84`
-(disjoint, no collision). Client-only, no migration, **not deployed**.
-
-- **J1 — one concept, one name.** Audit finding 3 found a single HARD problem rendered under **four** names
-  on one screen (`Must fix` / `Blocked` / `blocker` / `Hard`) plus three different "hard" numbers with nothing
-  saying they could differ. `src/lib/timetable-plain-language.ts` now exports one plain label, reused by the
-  grid badge, header chip, publish checklist, readiness sheet and summary stat; `run-wide` → *whole year*;
-  the count relationship is stated **once**, in plain words.
-- **J4 — false alarms calmed.** The routine unplaced state is no longer a destructive alarm; the tick no
-  longer sits beside a warning count; "could not be checked" drift now differs from a confirmed change in
-  wording as well as colour; a reassurance is no longer inside an amber alarm band; `Regenerate Draft` is no
-  longer styled destructive.
-- **J5 — the two busiest controls are now labelled** (`Term`, `Show`, `Schedule for`) as **non-interactive
-  text**, so the `≤6` interactive-control cap and one-solid-primary are unchanged. The `S2` assertions that
-  forbade visible labels were corrected **additively** (originals retained and marked superseded, replacements
-  assert the real intent: the cap, the single primary, and both names per control).
-
-**Fresh QA caught the first attempt making things WORSE — twice (2026-09-26).** `CORRECTION_REQUIRED` 5/8 with
-8 blocking findings, including two **newly introduced** falsehoods: `MUST_FIX_LABEL` had been put on the run
-**total**, so a run with 4 serious and 0 blocking problems rendered "Must fix: 4" — which by the
-relationship note's own logic asserts it cannot be published (F1); and `unassignedCount` had been relabelled
-**"classes"** in two places while five other consumers and the resolver call it **sessions** (F3/F6). Also
-caught: the readiness sheet still carried three retired names (F2), a publish-**blocking** state had become
-visually identical to a non-blocking one with the honest consequence sentence computed and discarded (F5), and
-**two new fixtures were shaped so their contradictions could not render** (F7/F8). All corrected; a tag-
-tolerant assertion added in F11 then **failed on first run and found a further real defect** the raw-markup
-row could not see.
-
-Merged-tree gates: typecheck clean, `test:draft-ux-c01` **32/32**, `timetable-relaxed-main` 88/2,
-client suite **1033 / 1017 / 16 fail — the recorded baseline, zero new**. §11 bounded correction reviewed by
-the planner (ancestry, blob parity on the six untouched reviewed paths, and one preservation control), not
-re-dispatched to QA.
-
-**Honest residual (2026-09-26):** `simplePublishReadiness.blockerSentence` / `summaryText` still say "hard
-blockers" — the C07B/R2 sentence-authority contract, pinned by committed rows that must not be weakened, and
-outside the F2 line list. It is now pinned verbatim in a test so it is visible. The Simple severity-filter
-chip label "Hard blockers" (Expert-only) and Advanced/review task copy are likewise untouched.
-
-**Two housekeeping notes (2026-09-26):** commit `abec65bf`'s **subject carries a UTF-8 BOM** from a PowerShell
-`Out-File`; it is cosmetic, affects only subject parsing, and was deliberately not amended (§10 forbids
-amending a handed-off commit). `draft-ux-c01.test.tsx` is now 1473 lines — a test file, outside the §8
-component cap, and unguarded by any committed limit; worth a split in a later lane.
-
-**Next action (2026-09-26):** **deployment remains HELD** (release dir absent, live `861d89a2`, ready 200)
-per the operator's standing instruction. **J2 (engine tokens) and J3 (domain jargon) are owed** and were
-deliberately not half-started — they are the remaining half of the operator's plain-language goal, and J2's
-13 rows include the raw `warning.code`, `decisionStatus` enums and `Run #318` forms still on screen. Lane A
-closed reclaim `20260926a` and prepared an isolated F1/F2 cutover packet for `116a7658` (docs-only, disjoint).
-E: 46.85 GiB after retiring this cycle's worktree.
-
-**Deploy gate state (2026-09-26, planner):** the `861d89a2` cutover is **DEPLOYED with post-action QA
-`ACCEPT_READY` 8/8/0/0**, so this packet's ordering precondition is **satisfied** (scheduled task action
-reads `E:\ATLAS-runtime-supervised-861d89a2-20260925\ops\runtime\cli.mjs start`, `Running`, last run
-2026-09-26 01:27). One fresh read-only `atlas_qa` pre-action pass over range `861d89a2...9f42190e` plus the
-packet's satisfiability lint returned **`CORRECTION_REQUIRED` 11/18, blocked 0, unperformed 1**: the source
-range is **clean and exactly as described** (30 client files / +1606 / −456, `atlas-client/package.json`
-test-scripts-only, no server/Prisma/migration/lockfile, no authority expansion, max component 943/1000 lines,
-all 16 changed test files gate-reachable, 17-failure set faithfully base-reproduced) and all six blocking
-findings were **documentation-only defects in the packet**, applied by the planner as one bounded docs-only
-commit per §11 (no executor, no re-review): step 2 named a **closed** reclaim artifact while the §3
-obligation was live for this new build (successor reclaim `20260926a` now specified); gate 3 would have
-recorded a **false liveness claim** in the `## Live release` block; gate 1 named the undispatchable
-`atlas-reviewer-high`; D1-N2's stated term-axis mechanism was **refuted** by
-`useScheduleReviewWorkspaceState.ts:1953` (the real residual is the program/entry-kind/reason axis); the §13
-D1 acceptance owner was unnamed; and the D1 draft run/term premise is now re-derived in a new step 1a.
-**Not approved. Two operator decisions outstanding:** (1) successor reclaim `20260926a` vs a dated one-build
-§3 deviation; (2) whether D1 is staffed by `atlas-browser-qa` before approval, else the release is recorded
-`DEPLOYED_ACCEPTANCE_INCOMPLETE` with the owner named.
-
-**Open (2026-09-25):** EnrollPro unreachable from the host — Tailscale `dev-jegs` offline since ~19:40 local;
-`runtime/context`/`sections/summary` wait the 4 s timeout (not a loop block). F1–F3
-(`docs/handoffs/lane-c-browser-acceptance-e8553752-2026-09-25.md`); A3 (0 class advisers); delete remote
-`work/wonderful-sagan-nhz302`, `work/epic-galileo-cw0swp`; remote `docs/lane-c-*` branches cannot be deleted (repo rule).
-
+`abec65bf`'s subject carries a UTF-8 BOM (cosmetic; deliberately not amended, §10).
+`draft-ux-c01.test.tsx` is 1473 lines — a test file, outside the §8 component cap and unguarded by any
+committed limit; worth a split in a later lane. Remote `docs/lane-c-*` branches cannot be deleted (repo
+rule); stale remote work branches still to delete: `work/wonderful-sagan-nhz302`, `work/epic-galileo-cw0swp`.
 ## Lane A — current lane (written only by Lane A)
 
 **Current stream (2026-09-26):** `TEACHER-CONCERN-AUTHORITY-PROGRAM-20260924` C1–C7 is complete. The scheduler is
@@ -1754,10 +1511,21 @@ two-label-sets defect.** Correct action taken: record it intact and close the it
    `ACCEPT_READY` 24/24 by tally, which partially discharges the owed written QA capsule. Its
    `live-state.md` portion is **another lane's section** and is superseded by `de392cf8` (already on main) —
    do **not** land that part.
-4. **Manual-edit constraint severity — three questions that are NOT planner calls** gate any fix: may a
-   server-derived solver trial forgive a room-feature shortfall; is the modular-pool exemption legitimate;
-   may the Teaching Load repair path carry client metadata at all. R1–R3 all withdrawn pre-action.
-   `manual_schedule_edits` is **0 rows**, so no data repair is needed.
+4. **Manual-edit constraint severity — the three gating questions are ANSWERED (2026-09-26, A2, on operator
+   delegation).** Decision + verified evidence: `docs/reviews/a2-custody-verification-20260926/manual-edit-constraint-severity-decision.md`.
+   **Q1 yes** — a server-derived solver trial may forgive a room-feature shortfall, because re-hardening it
+   was probe-proven to turn a working Quick Place commit into `422`, and a school that owns no fume hood
+   must still be able to seat a class; **but only server-owned, only with a recorded reason, and only if the
+   operator is told in words.** **Q2 yes** — the modular-pool exemption is sound in concept; keep it,
+   document it, own it. **Q3 no** — the Teaching Load repair path may not carry client metadata. The
+   load-bearing finding: `constraint-validator.ts:836-838` softens the **type** check from any *recorded
+   reason* **or** the boolean, while `:869` softens the **feature** check from the boolean **alone** — so an
+   enumerated server reason naming `PREFERRED_ROOM_UNUSABLE_NO_REQUIRED_FEATURES` is treated as *less*
+   trustworthy than a client-writable boolean. **That inversion is the defect in one sentence.** Free
+   simplification: `schedule-constructor.ts:3072` is redundant (`:869` already honours the modular-pool
+   marker alone), and the blanket auto-defer at `manual-edit.service.ts:1478-1487` can simply be deleted —
+   no legitimate flow depends on it. `manual_schedule_edits` is **0 rows**, so **no data repair**. Still
+   owed: a packet, an independent pre-action review, one executor, fresh post-action QA. **Not started.**
 5. **§7 term guard owed and unguarded** — no test covers the `C2-term.1`/`C2-term.2` clause in
    `generation-blockers-c02.test.tsx`.
 6. **Register hygiene: this file is 1521 lines**, far past the §15 limit, and it is the first file every lane
