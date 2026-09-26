@@ -2,7 +2,7 @@
 
 **Release walked:** `26f7c907` (served chunk `assets/index-BgXhGnEV.js` confirmed). **Scope:** school 1,
 SY 2031-2032, Term 2, draft run 318, Section view `GR7 - Luna`. **Method:** read-only `atlas-browser-qa` on
-Claude in Chrome, operator-signed-in session, 1366×768. Tally **11 observed / 2 blocked / 0 unperformed**;
+Claude in Chrome, operator-signed-in session; requested 1366×768 but the window rendered at **1536×730** (it cannot be resized — see `docs/reviews/system-walk-20260926/01-year-setup.md`). Tally **11 observed / 2 blocked / 0 unperformed**;
 R12–R13 (390×844) BLOCKED: `resize_window` left the viewport at 1536×730, so no phone claim is made. Nothing
 was generated, placed, published or saved. **Perspective:** a veteran scheduler who has built timetables on
 paper and in spreadsheets, and who will judge the tool on whether it tells the truth and saves time.
