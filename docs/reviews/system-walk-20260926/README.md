@@ -11,7 +11,7 @@ published.
 | [01](01-year-setup.md) | year setup, subjects, sections, teachers, rooms | saved school-year record fails its own check, so setup cannot resolve the year offline |
 | [02](02-teaching-load.md) | Teaching Load, faculty pages | Faculty Preferences: "Missing 42" over an empty list |
 | [03](03-timetable-rest.md) | timetable sub-views, publish, export | **Room Schedules merges terms and reports false hard double-bookings** |
-| [04](04-what-others-see.md) | dashboard, teacher, public, audit, companions | **four surfaces give four answers to "is it published?"**; public page shows Term 1, and its section picker is dead |
+| [04](04-what-others-see.md) | dashboard, teacher, public, audit, companions | **four surfaces give four answers to "is it published?"**; public page shows Term 1, and changing the term drops the selected section |
 
 ## The pattern
 
@@ -26,23 +26,22 @@ blocker count, active term, source freshness), used by every page that shows it.
 **A2 — timetable and publication**
 1. Room Schedules must pass the selected term (default active, never all). False conflicts today (03 #1).
 2. One lifecycle statement shared by dashboard, timetable, `/my` and public: published (date, term) + draft in review (04 #1, 03 #4). Stop tagging draft rows "Live" (04 #7).
-3. Public page: diagnose Term 1 (04 #2) and the dead section picker (04 #3).
-4. Unnamed-violation guard (Planner A's in-flight candidate) + Review-issues "Must fix" wording (timetable walk #1–2).
-5. The "Draft" tab showing an empty grid (03 #3); Policies not loading (03 #2).
+3. Public page: diagnose Term 1 (04 #2); keep a valid section when the term changes (`PublicPublishedSchedule.tsx:523`).
+4. Review-issues "Must fix" wording (timetable walk #2). The unnamed-violation guard landed on `main` as `9b1ec14a` (not yet live).
+5. Drift banner squeezed to one word wide at 390 px; Runs flashes "No generation runs yet" while loading (both from the A2 handoff).
 6. The offline school-year record failing its semantic check (01 #1), a term-authority question.
 
 **Planner A — shell, setup, load, audit, companions**
-1. The Help button crash (04 #5).
-2. Faculty Preferences count vs list (02 #1).
-3. One shared outage banner with the saved date, modelled on Teaching Load's (01 #4, 02 keep list); the dashboard must not say "Synced" during an outage (04 #9).
-4. Audit "67 blockers" vs readiness "0 Must fix": decide the meaning with A2 (04 #4).
-5. Companion links: EnrollPro link feedback when down; SMART and AIMS entry points (04 #6).
-6. Raw codes outside the timetable: `OWNER_DEPT:*`, subject codes on public cells, run ids in notifications (01 #3, 04 #8).
-7. Setup has no next step (01 #5); under-load has no count (02 #3); year-setup waits forever (01 #2).
+1. Faculty Preferences count vs list (02 #1).
+2. One shared outage banner with the saved date, modelled on Teaching Load's (01 #4, 02 keep list); the dashboard must not say "Synced" during an outage (04 #9).
+3. Audit "67 blockers" vs readiness "0 Must fix": decide the meaning with A2 (04 #4).
+4. Companion links: EnrollPro link feedback when down; SMART and AIMS entry points (04 #6).
+5. Raw codes outside the timetable: `OWNER_DEPT:*`, subject codes on public cells, run ids in notifications (01 #3, 04 #8).
+6. Setup has no next step (01 #5); under-load has no count (02 #3); year-setup waits forever (01 #2).
 
 **Operator decisions:** lunch-window and 180-minute blocks soft or blocking; Undo in Simple; constraint severity D1–D3; what "blocker" means across audit and readiness.
 
-**Not verified:** phone widths. Chrome's window cannot be resized below desktop in this environment, so a different method is needed (a real phone on the Tailnet, or a narrowed desktop window set by the operator).
+**Superseded after an authenticated re-check** (`docs/handoffs/planner-a2-timetable-browser-qa-handoff-2026-09-26.md`, accepted 2026-09-26): 03 #2 Policies and 04 #5 Help were not reproduced; 03 #3 Draft is intentional; 04 #3 narrowed to the term switch dropping the section. That handoff is the ordered A2 work list and acceptance packet; it also covers 390×844, which this walk could not reach.
 
 ## Cost (`subagent_tokens`)
 
