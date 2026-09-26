@@ -149,6 +149,60 @@ resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs
 
 - Tailnet: `https://njgrm.buru-degree.ts.net`
 
+- **LIVE: `c5a9e8321756ee59c7795786417f6449831ecda3` (full 40-char)** (Lane A2, 2026-09-27 05:37 +08, HIGH
+  authority; packet `docs/prompts/a2-release-c5a9e832-2026-09-27.md`, independent pre-action review
+  **`PRE_ACTION_CLEAR` 5/5/0/0** after one `CORRECTION_REQUIRED` round). Release dir
+  **`E:\ATLAS-worktrees\lane-a2-release-c5a9e832`**. **Rollback basis `d11304e8135715783455ca4cb6cfd7a9e39222e8`**
+  (Lane A3's release, `E:\ATLAS-worktrees\lane-a3-release-f426f465`) — **verified present, clean, HEAD `d11304e8`,
+  both `dist`s built, real non-junction `node_modules`**, so rollback is a one-step supervised reset.
+
+  **A CLIENT-ONLY release: 17 non-docs paths, every one under `atlas-client/`, by enumeration** — zero
+  `atlas-server/`, `prisma/`, `ops/`. The only non-component file is `atlas-client/package.json`, **2 `test:` keys
+  only**; root `package.json`/`package-lock.json` not in the delta. So the server product tree's **inputs** are
+  identical (not a byte-proof of the fresh `dist` — the rows assert behaviour, not bytes).
+
+  **Cutover verified by command:** machine scope re-written and **read back**; task XML re-pointed (**both**
+  `<Arguments>` and `<WorkingDirectory>`, declaration preserved, registers exit 0); **5001 → PID 43192**,
+  **5174 → PID 43744**; `supervisor-state.json` `releaseSha=c5a9e832…`, `state=running`; supervisor log
+  **"All targets healthy (liveness and dependency readiness)"**, `DB connected, 2 school(s) found`, rollover
+  automation **disabled**. Ending the scheduled task quiesced the whole tree — no manual kill needed.
+
+  **D2 discriminator, run BEFORE cutover, both globs genuinely changed:** `ScheduleReviewWorkspace-DMHH7guo`
+  (438.6 KiB) → `-dY-BJ1Wl` (442 KiB) and `TimetableRunsPane-D4xtdom0` → `-DQCD7PvL` (**same 6.1 KiB, different
+  hash** — exactly the one-string change QA predicted). Post-cutover each **new name serves 200 and each live name
+  404**. The `ManualEditPanel` glob was **removed by the pre-action review** because it wraps no changed module, so
+  its chunk is byte-identical — it would have been a guaranteed FAIL dressed as a control.
+
+  **Server did not regress (D3/D4/D7/D8):** `/health/ready` 200 `database:ok` + DB-backed read 200; term guard 400
+  without `termIndex` / 200 with; `GET /api/v1/generation/1/10/runs/320/manual-edits` → **401 not 404**; and the
+  public matrix is **identical** pre and post: 09-20 → 200 run 315, 09-25 → 200 run 317, 09-26 → 200 run 319,
+  09-27/28 → 200 run 320, `servedByFallback` true/true/true/false/false. **No 409 anywhere.**
+
+  **Zero-write with a real before/after.** Window `2026-09-26T21:35:45.979Z` → `2026-09-26T21:37:27.678Z`:
+  `generation_runs` 9→9, `manual_schedule_edits` 5→5, `audit_logs` 439→439, `published_schedule_revisions` 6→6.
+  **Zero delta on all four; no increase to attribute and no decrease.** Migrations **11 → 11** by the pinned method
+  (`git ls-tree -r <sha> -- prisma/migrations` filtered `migration.sql`; the twelfth `ls-tree` line is
+  `migration_lock.toml`, which is how a reviewer and an executor previously disagreed).
+
+  **D9 — OWE, NOT WAIVED.** The three **visual** rows (amber icon, the "Swap + move 1 class" label in situ, the
+  "This undo cannot be undone." statement) remain `NEEDS_SESSION(space-bunny/opencode-default)`. **This release has
+  no rendered-surface evidence for the fixes it ships**, which is the accepted and disclosed cost. **The cycle must
+  not be closed until D9 runs.**
+
+- **PREVIOUS: `d11304e8135715783455ca4cb6cfd7a9e39222e8` (Lane A3's release)** — now the rollback basis, retained
+  and startable. **PREVIOUS-PREVIOUS: `b0736007e89547ff66eab70d1d869e21f73d49ad` (Lane A2)** — superseded; its
+  publish-date fix is an ancestor of the live release and was re-verified live.
+
+  **PROCESS CORRECTION (2026-09-27, and the most important line in this section):** I held this deploy across
+  **three consecutive cycles** to avoid adding unperformed browser rows. **That was over-conservative.** The rows
+  are a *bookkeeping* cost; the five falsehoods it kept live were a *product* cost paid by real operators — an
+  **enabled** "Revert this edit" guaranteed to 409, a **Redo** guaranteed to 409 that misreported the cause as
+  "the schedule changed" when the version was byte-identical, a **fabricated `warnings: 0`** the server never
+  wrote, `241` against a header of `69`, and "Swap sessions" on a commit that relocates a class. The correct rule:
+  **bookkeeping debt is not a reason to keep operator-facing falsehoods live.** A missing session is a *blocker on
+  the rows*, never a reason to withhold the fixes.
+
+
 - **LIVE: `d11304e8135715783455ca4cb6cfd7a9e39222e8` (full 40-char)** (Lane A3, 2026-09-27 ~04:2x +08,
   HIGH deploy + browser-QA authority granted by the operator; packet
   `docs/prompts/a3-deploy-5691e663-2026-09-27.md`, independent pre-action review
