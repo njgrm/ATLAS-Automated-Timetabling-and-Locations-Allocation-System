@@ -82,6 +82,15 @@ export type ScheduleReviewWorkspaceHeaderContext = {
 	revertLoading: boolean;
 	editHistoryCount: number;
 	revertLastEdit: () => Promise<void>;
+	/**
+	 * A2-TIMETABLE-CUSTODY-R2 — why the header Undo is unavailable, or `null` when it
+	 * is available. Rendered by the header Undo surfaces so a disabled button always
+	 * carries its reason. Derived from the one shared `decideHeaderUndo` decision in
+	 * `useTimetableMutations`, never re-derived per surface.
+	 */
+	undoBlockedReason: string | null;
+	/** A2-TIMETABLE-CUSTODY-R2 — the inverse of `undoBlockedReason`, for the `disabled` prop. */
+	lastEditUndoable: boolean;
 	setShowEditHistory: (value: boolean) => void;
 	tutorial: { start: () => void };
 	sectionLabel: (id: number) => string;

@@ -1,6 +1,7 @@
 import { Loader2, Undo2 } from 'lucide-react';
 
 import { Button } from '@/ui/button';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip';
 import { TimetableStatusLegend } from '@/components/timetable/TimetableStatusLegend';
 
 /**
@@ -30,6 +31,19 @@ export type TimetableAdvancedHeaderHelpProps = {
 	editHistoryCount: number;
 	revertLoading: boolean;
 	onRevertLastEdit: () => void;
+	/**
+	 * A2-TIMETABLE-CUSTODY-R2 — the shared Undo decision, read not re-derived. With a
+	 * `REVERT` at the head of the ledger this button used to stay enabled and dispatch
+	 * an id the server cannot select as a target
+	 * (`editType: { not: 'REVERT' }`, `manual-edit.service.ts:1675`), so it could
+	 * only 409. It now disables, and `undoBlockedReason` is the reason shown.
+	 *
+	 * Both are OPTIONAL and default FAIL-CLOSED (`false` / `null`): a caller that
+	 * omits the shared decision gets a disabled Undo, never a button that can only
+	 * fail. Every production call site passes both.
+	 */
+	lastEditUndoable?: boolean;
+	undoBlockedReason?: string | null;
 };
 
 export function TimetableAdvancedHeaderHelp({
@@ -38,6 +52,8 @@ export function TimetableAdvancedHeaderHelp({
 	editHistoryCount,
 	revertLoading,
 	onRevertLastEdit,
+	lastEditUndoable = false,
+	undoBlockedReason = null,
 }: TimetableAdvancedHeaderHelpProps) {
 	const guidance = resolveAdvancedHeaderGuidance(mode);
 	return (
@@ -54,20 +70,29 @@ export function TimetableAdvancedHeaderHelp({
 			<div className="flex shrink-0 items-center gap-2">
 				<TimetableStatusLegend />
 				{editHistoryCount > 0 && mode === 'schedule' && (
-					<Button
-						type="button"
-						variant="outline"
-						size="sm"
-						className="hidden h-8 gap-1.5 border-emerald-300 bg-white text-emerald-900 hover:bg-emerald-100 md:inline-flex"
-						onClick={onRevertLastEdit}
-						disabled={revertLoading}
-						data-testid="timetable-visible-undo"
-						aria-label="Undo last manual timetable change"
-					>
-						{revertLoading ? <Loader2 className="size-3.5 animate-spin" aria-hidden="true" /> : <Undo2 className="size-3.5" aria-hidden="true" />}
-						<span className="hidden sm:inline">Undo last change</span>
-						<span className="sm:hidden">Undo</span>
-					</Button>
+					<TooltipProvider>
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<span className="inline-flex">
+									<Button
+										type="button"
+										variant="outline"
+										size="sm"
+										className="hidden h-8 gap-1.5 border-emerald-300 bg-white text-emerald-900 hover:bg-emerald-100 md:inline-flex"
+										onClick={onRevertLastEdit}
+										disabled={revertLoading || !lastEditUndoable}
+										data-testid="timetable-visible-undo"
+										aria-label="Undo last manual timetable change"
+									>
+										{revertLoading ? <Loader2 className="size-3.5 animate-spin" aria-hidden="true" /> : <Undo2 className="size-3.5" aria-hidden="true" />}
+										<span className="hidden sm:inline">Undo last change</span>
+										<span className="sm:hidden">Undo</span>
+									</Button>
+								</span>
+							</TooltipTrigger>
+							<TooltipContent>{undoBlockedReason ?? 'Undo the last manual timetable change'}</TooltipContent>
+						</Tooltip>
+					</TooltipProvider>
 				)}
 			</div>
 		</div>

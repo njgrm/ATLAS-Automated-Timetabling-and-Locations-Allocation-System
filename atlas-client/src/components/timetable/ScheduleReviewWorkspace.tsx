@@ -25,7 +25,7 @@ import type { ScheduledEntry } from '@/types';
 import { isDraftPublishedStrict } from '@/components/timetable/timetableWorkspaceTruth';
 import { setTimetableEntryReadOnly } from '@/components/timetable/TimetableDraggableEntry';
 import { TimetableUndoRedoControl } from '@/components/timetable/TimetableUndoRedoControl';
-import { dispatchUndoByLedger } from '@/components/timetable/timetableUndoRedoState';
+import { dispatchUndoByLedger, UNDO_CONFLICT_MESSAGE } from '@/components/timetable/timetableUndoRedoState';
 import { createSwapArmHandler } from '@/components/timetable/timetableSwapArming';
 import { buildScopeKey, clearScopeState, shouldClearForScopeChange } from '@/components/timetable/timetableScopeHygiene';
 import { YEAR_SETUP_HREF } from '@/lib/timetable-capabilities';
@@ -600,6 +600,8 @@ export default function ScheduleReviewWorkspace() {
 									revertLastEdit={state.headerContext.revertLastEdit}
 									redoState={state.redoState ?? null}
 									redoVersionStale={state.redoVersionStale ?? false}
+									undoNotice={state.undoNotice ?? null}
+									undoBlockedReason={state.undoBlockedReason ?? null}
 									redoLastEdit={async () => { await state.redoLastEdit?.(); }}
 									clearRedo={() => state.clearRedo?.()}
 									setShowEditHistory={state.headerContext.setShowEditHistory}
@@ -722,7 +724,7 @@ export default function ScheduleReviewWorkspace() {
 					setLayoutMode('advanced');
 					window.requestAnimationFrame(() => state.rightPanelContext?.rightPanelRef?.current?.expand());
 				}}
-				topSlot={state.redoState || state.redoVersionStale ? (
+				topSlot={state.redoState || state.redoVersionStale || state.undoNotice ? (
 				<div
 					role="status"
 					aria-live="polite"
@@ -731,7 +733,19 @@ export default function ScheduleReviewWorkspace() {
 				>
 					<div className="flex items-center justify-between gap-2">
 						{state.redoVersionStale ? (
-							<p className="truncate">Version-stale — the schedule changed. Refresh and re-preview before redoing. Nothing was changed.</p>
+							/* A2-TIMETABLE-CUSTODY-R2: this read "Version-stale — the schedule
+							 * changed. Refresh and re-preview before redoing." A `UNDO_CONFLICT`
+							 * is raised for five distinct causes, three of which move no version
+							 * at all, so the claim was false more often than true. The shared
+							 * message is the one that holds for every cause. */
+							<p className="truncate">{UNDO_CONFLICT_MESSAGE}</p>
+						) : state.undoNotice ? (
+							/* A2-TIMETABLE-CUSTODY-R2: the old copy promised "Redo re-applies
+							 * the same server edit with a fresh version check", which is not
+							 * something the server can do — the row a revert records is invisible
+							 * to the target selection (`manual-edit.service.ts:1675`). Say the
+							 * plain fact instead of advertising a re-apply. */
+							<p className="truncate">{state.undoNotice}</p>
 						) : (
 							<p className="truncate">Undo applied. Redo re-applies the same server edit with a fresh version check.</p>
 						)}
