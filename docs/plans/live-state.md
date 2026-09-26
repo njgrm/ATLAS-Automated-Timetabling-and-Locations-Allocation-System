@@ -2012,23 +2012,32 @@ historical term.
 settled states, 0 console errors. BLOCKED: the 390 px drift leg (runner viewport floor 1280 px; `5f09a133` is not
 in this release). FAIL: A3.
 
-**Queue - one candidate at a time, fresh independent QA before each integration:**
-1. **A3 fix** (server; MEDIUM source, HIGH live correctness) - above. Unblocks 2.
-2. **Shared lifecycle model** (client, MEDIUM) - `ea5e12b0`'s `atlas-client/src/lib/schedule-lifecycle.ts` (13
-   exports) is imported by **nothing but its own test**; its commit says "Deliberately NOT wired yet".
-   `/timetable` states neither draft nor published, and an unpublished draft prints nothing. Expose run /
-   revision / publishedAt / termIndex / termVerified **first**, then wire - **do not half-wire**; a model written
-   while two surfaces name different current terms relocates the defect. Surfaces: dashboard, timetable, public.
-   **Blocked on 1.**
-3. **One label per violation code** (client, MEDIUM) - Review issues and Publish Readiness disagree ("Long
-   teaching block" / "Too many consecutive periods", "Long idle gap" / "Long teacher idle gap", "Too many building
-   changes" / "Too many building transitions"). `9b1ec14a` checks each code *has* a label, not that it has
-   *exactly one*; extend it, clear the remaining raw `Must fix` literals (`TimetableGridConflictBadge.tsx:90,156`,
-   `simple/SimpleSessionDetails.tsx:107`, `TimetableGrid.tsx:460-461`), re-run `test:plain-tokens-c04` T7.
-4. **More menu regroup** (client, MEDIUM) - six groups interleave everyday work with expert/data tools. Regroup
-   only; nothing removed without a reachable replacement.
-5. **Release packet** (HIGH) - only after 1-3; must include `5f09a133` and must **enumerate the actual range**.
-   Blocked on the capacity decision below.
+**Queue - one candidate at a time, fresh independent QA before each integration. Re-ranked 2026-09-26 23:30 by
+Lane C's committed-path QA (`docs/handoffs/lane-c-to-a2.md`), which found two BLOCKING data-integrity defects
+ahead of my own list:**
+1. **Swap commits something other than its preview, and Revert does nothing (BLOCKING x2).** A swap previewed
+   ESP to Mon 07:30 committed it to **Wed 12:15, after the section's day ends**, leaving Mon 07:30 empty; the
+   undo then logged "Undid an earlier change" and restored nothing. Lead: `findAutoFixTarget`
+   (`atlas-server/src/services/manual-edit.service.ts:2065`) has **no term filter** (a section 7 fail-closed
+   breach: an auto-fix may only move a session within the selected verified ordered term) **and no shift bound**.
+   Two defects, two fixes; closing only the term filter is not acceptable. Contract adopted from Lane C: *a commit
+   must apply exactly what its preview showed, or refuse; an undo must restore the prior state or say it cannot.*
+2. **Publishing takes the public schedule offline for the publish day (BLOCKING).** After Lane C published run 319
+   (14:23:48Z), `published?date=2026-09-26&termIndex=active` returned **409 `PUBLISHED_REVISION_INVALID`** while the
+   same URL with `date=2026-09-27` or no date returned 200 - and the public page sends today's date, so parents saw
+   "Unable to load public schedule". A date must resolve to the publication in force on it, never to an error.
+3. **"Change room" crash (BLOCKING) - FIXED, integrated `c50b15ff`** (fix `d6513f32`), not deployed. `aa7f6f67`
+   exonerated; real cause is the client `RoomInfo` type omitting `features` while `ManualEditPanel.tsx:514` read
+   `selectedRoom?.features.length`. Fresh QA `ACCEPT_READY` 10/10/0/0. **Awaiting Lane C re-test**, including the
+   no-click-after-auto-fix-swap path (findings #28) - if that still reproduces, it is a second root cause.
+4. **A3, public default term (HIGH)** - still open. Lane C's #13 sharpens it: run 319 answers Term 2 *only because
+   it was published in Term 2*, so `active` tracks the **publication-time** term, not the current one.
+5. **Runs "Published" tag**, the daily-load cap preview (`11.3h (max 8h)` on a same-day swap, probably summed
+   across terms), "Change owner" landing on the wrong teacher, the dashboard's dead "Exceptions" wording (a real
+   post-publish path exists - it is `MISLABELLED` copy, cheap), and the teacher-leaving wizard (no program-authority
+   control, so "Grant authority first" names a control that does not exist).
+6. Then my items 2-3: shared lifecycle model, then one label per violation code.
+7. **Release packet (HIGH)** - no longer blocked on capacity; still sequenced behind the source fixes.
 
 **Open, dated 2026-09-26, from `docs/reviews/timetable-control-inventory-2026-09-26.md` (296 rows, on `main`):**
 `MISLABELLED` 9 - the grid entry's accessible name says "Schedule note" where every visible surface says warning;
@@ -2043,8 +2052,13 @@ policy field set. Also new: **every room on `/timetable/building` renders "0%"**
 `CenterWorkspace.tsx:651-660` passes no `roomUtilization` while `BuildingView.tsx:439` prints it unconditionally.
 
 **Operator decisions, not mine to take:** Undo/Redo in the Simple layout; lunch-window and 180-minute blocks as
-warning or blocking; constraint severity D1-D3; **how to free E: capacity** - `E:` 49.80 GiB, below the section 3
-50 GiB warning, no reclaim candidate outside the keep set, so a release build needs this decision first.
+warning or blocking; constraint severity D1-D3; whether committed-path QA runs on live or on a local snapshot
+(Lane C recommends a local copy; live commits touch real teachers' and the public's schedule).
 
-**Next action (2026-09-26):** dispatch the A3 fix as the next candidate - one executor, one fresh independent QA,
-then integrate. Not started.
+**E: capacity - RESOLVED 2026-09-26, and the earlier "needs an operator decision" line here was WRONG.** The
+threshold changed to **warn below 25 GiB / fail closed below 15 GiB** (operator, `6404c213`). At the recorded
+**49.80 GiB no reclaim is owed** and a release build may start. A build costs ~1.46 GiB, so a release needs no
+capacity decision first. Measure before each build as before.
+
+**Next action (2026-09-26):** dispatch the **swap-vs-preview + revert** pair as the next candidate - one executor,
+one fresh independent QA, then integrate. Not started. Lane C re-test of `c50b15ff` is owed.

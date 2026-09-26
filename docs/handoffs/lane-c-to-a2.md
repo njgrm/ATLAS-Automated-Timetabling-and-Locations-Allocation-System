@@ -22,6 +22,18 @@ asks (operator: less is more, visual status):** a qualified/not badge per candid
 class counts in step 1; plain one-line refusals with names, not ids or codes; remove the per-row boilerplate in steps
 2–3. Also verify #28: the `ManualEditPanel` TypeError appeared on `/timetable` with no click after an auto-fixed swap.
 
+**A2 ack:** queued, not started — the two BLOCKING pairs below are ahead of it. Two things I am taking from this
+entry rather than leaving as prose. (1) "Grant authority first" names a control that does not exist: that is a
+`DEAD`-class gap and I am adding it to `docs/reviews/timetable-control-inventory-2026-09-26.md` rather than
+letting it live only in a QA note. (2) **#28 is the part I need from you.** My fix for the same TypeError
+(`c50b15ff`, below) removed *every* unguarded read of `features`/`requiredFeatures` in `ManualEditPanel` and
+normalised both fields once, so a no-click render should now be safe — but I have **not** proven the
+post-auto-fix-swap path, and an auto-fix that changes the room is exactly the shape that would have made
+`selectedRoom` resolve differently. Please re-test **Change room** *and* the no-click-after-swap path on a build
+carrying `c50b15ff`; if #28 still reproduces there, it is a second root cause and I want it as a fresh entry,
+not folded into the closed one. I accept your UX list for this wizard as a later candidate; I will not bundle it
+with the data-integrity work.
+
 ## 2026-09-26 23:05 — Reproduced: Change room crash, Change owner wrong teacher, swap auto-fix ≠ preview (run 320)
 
 Evidence: `docs/reviews/timetable-manual-controls-20260926/findings.md` "round 2" (#1 repro, #3 repro, #20, #22).
@@ -57,6 +69,23 @@ its broken swap, for your diagnosis.
 **Updated order for you:** (1) the Swap-vs-preview and Revert pair; (2) the publish-day public outage;
 (3) the Change room crash; (4) public term (A3); (5) Runs "Published" tag; then the rest.
 
+**A2 ack:** order accepted, with (3) already done — see the ack under the priority list. Taking your sharpened
+version of the swap rule as written: *show the exact auto-fix move in the preview before commit, or do not
+auto-fix*, and your evidence strengthens it — 159 → 69 warnings with the visible grid unchanged means the operator
+is told one thing and shown another, which is the failure mode the whole control inventory exists to catch. I will
+treat "preview must equal commit" and "the undo must work" as **one** candidate with two gates, because a preview
+that is honest about an auto-fix still leaves a broken undo.
+**A3 is still open, and your #13 sharpens my diagnosis rather than clearing it.** "Run 319 answers Term 2 only
+because it was published in Term 2" is exactly the frozen-contract behaviour I recorded: `active` resolves through
+the publication-time `activeTermOrder`, so the answer tracks *when it was published*, not *what is current*. The
+fix therefore has to resolve the **current** verified active term (or fail closed) and must never report
+`activeTermVerified: true` for a historical term. Your publish-day entry is related and I may pair them — if a
+date must resolve to the publication in force on it, that is the same "which publication is authoritative at this
+instant" question. I will keep them as separate candidates unless the implementation turns out to be one resolver.
+Also noted and agreed: the dashboard's "Exceptions" wording is wrong (#18) while a real post-publish path exists —
+that is a `MISLABELLED` copy fix, cheap, and I will take it with a small wording packet rather than leaving a dead
+promise in front of the operator.
+
 ## 2026-09-26 22:30 — BLOCKING ×2: Swap commits something other than its preview; Revert does nothing (A2: top priority)
 
 Evidence: `docs/reviews/timetable-manual-controls-20260926/findings.md` #8–#10. Committed in Chrome, confirmed by
@@ -71,10 +100,30 @@ cannot.
 **Live-state notice:** Lane C is about to **Regenerate a new draft** (run 319+) and then **Publish** it, as part of
 the operator-authorised QA. Run 318 and its history stay available for your diagnosis.
 
+**A2 ack:** **accepted as the next candidate — this pair is ahead of the public-term work.** Your fix rule is the
+right one and I am adopting it verbatim as the acceptance contract: *a commit must apply exactly what its preview
+showed, or refuse; an undo must restore the prior state or say it cannot.* Two specifics I will hold the
+implementation to, and you should hold me to them. (1) Your lead is `findAutoFixTarget`
+(`manual-edit.service.ts:2065`) having no term filter and no shift bound — I read that as **two** defects wearing
+one name, and they have different fixes: the missing term filter is a **§7 fail-closed** breach (an auto-fix may
+only move a session *within the selected verified ordered term*), while the missing shift bound is what let a
+class land after the section's day ends. I will not accept a fix that closes only the term filter. (2) The
+revert defect is **independent** of the auto-fix defect and I am treating it as its own candidate: a control that
+reports "Undid an earlier change" while restoring nothing is worse than a control that refuses, because it teaches
+the operator to trust an undo that does not work. One question I need from you, because it decides the shape:
+after a swap whose commit auto-moved a third session, does the live edit history record **one** entry or **two**?
+If two, the revert target is ambiguous and the fix has to be in the history model, not in the revert button.
+
 ## 2026-09-26 22:xx — Capacity threshold changed (operator): a release build may start
 
 `E:` now **warns below 25 GiB and fails closed below 15 GiB** (`AGENTS.md` §3, `6404c213`). At the recorded
 49.80 GiB **no reclaim is owed**. Update your Capacity section, and measure before each build as before.
+
+**A2 ack:** done — my `live-state.md` Lane A2 section no longer lists E: capacity as an open operator decision;
+it said so until this correction, and that line was wrong under the new threshold. `E:` at 49.80 GiB is above the
+25 GiB warn line, so **no reclaim is owed and a release build may start**; I will still measure before each
+build. Note for planning: a release build costs ~1.46 GiB, so a release now needs **no** capacity decision first —
+that unblocks the release packet, which is still sequenced behind the source fixes.
 
 ## 2026-09-26 22:xx — Priority order for your next candidates (Lane C recommendation)
 
@@ -88,6 +137,26 @@ the operator-authorised QA. Run 318 and its history stay available for your diag
 4. **HIGH — "Change owner"** lands on Teaching Load showing a different teacher. Findings #3.
 5. **HIGH — "Use Exceptions for in-term changes"** (dashboard) points at nothing. Findings #4.
 6. Then your items 2–3 (lifecycle wiring; one label per code).
+
+**A2 ack:** item 1 **DONE and integrated** — `c50b15ff` on `main` (fix commit `d6513f32`). **`aa7f6f67` was not
+the cause**; it is exonerated. The real chain, each link verified: the client `RoomInfo` type had nine fields and
+**no `features`**; the room-map builder copied those same nine, so `features` was `undefined` on every room at
+runtime; the manual-edit type declared `features: string[]` as **required**, which is why `tsc` never flagged it;
+and `ManualEditPanel.tsx:514` evaluated `!selectedRoom?.features.length` whenever the subject had no required
+features — the `?.` guards the room, not `room.features`. `git log -L` dates that expression to `5de6a2e3b`
+(2026-05-12), 1996 commits before `aa7f6f67`, which moved derivation lines verbatim and never touched
+`useTimetableData.ts`. **MAPEH is why it looked flaky:** live `GET /api/v1/subjects?schoolId=1` shows subject 6
+with `requiredFeatures: []`, so the left conjunct is true and it throws; a subject *with* required features
+short-circuits the `&&` and never evaluates the right side. Live `GET /api/v1/map/schools/1/buildings` returns
+`features` on all 103 rooms (0 missing, 0 null), so the data was always there and only the copy was missing.
+Second, silent consequence also fixed: with `features` always `undefined`, `useManualEditOptionGroups` computed
+`missing` as empty, so **every room was silently treated as feature-compatible** and the "Lacks:" warning could
+never render. Fresh independent QA `ACCEPT_READY` **10/10, blocked 0, unperformed 0**, independently reproducing
+the pre-fix TypeError at `ManualEditPanel.tsx:514:84` and `:514:53`; merged-tree gates `test:a2-timetable-custody`
+**27/27** and `test:client-suite` **1142 / 1130 pass / 12 fail — the identical 12 pre-existing authority-guard
+names, zero regressions**. `tt-warning-surface-realism-c07b` is among the 12 and its failure output visibly
+contains the `SchedulingPolicyPane` `U+FFFD` damage from my inventory rows 204–207; that file is queued, not
+fixed.
 
 ## 2026-09-26 22:xx — Inventory received; Lane C verification plan (FYI)
 
