@@ -947,6 +947,39 @@ bytes are the new build, and the rollback basis is intact. But it should stop be
 needs an owner, and the fix is a **HIGH** action — setting a durable machine-scope EnrollPro origin and restarting
 the supervised host — which is **not** authorized by this packet and was not taken. Left open and dated here.
 
+**THE `AGENTS.md` §8 CAP HAS A COVERAGE BLIND SPOT — measured 2026-09-26, one genuine violation, unguarded.** The
+post-action QA flagged `TimetableGrid.tsx` (1001) and `ManualEditPanel.tsx` (1013) as over the 1000-physical-line
+cap. A repo-wide sweep gives a sharper answer, and the gate turns out to be the real defect.
+
+**Measured, all 236 non-test React `.tsx` files under `atlas-client/src`:** exactly **one** file is over the cap
+— **`ManualEditPanel.tsx`, 1012 physical lines** (1013 by the gate's stricter raw-split count). `TimetableGrid.tsx`
+is **exactly 1000 physical lines**, which §8 permits ("no React component file **above** 1000"); the six next
+largest are 990, 989, 986, 984, 983.
+
+**Why the gate misses it.** `timetable-relaxed-main-b02.test.tsx:588-630` (row **B5**) checks a **hardcoded list
+of components one historical range touched** — about 20 of the 236 files. Its own comment records that it was
+previously widened once, from header-only, "which let `SchedulingPolicyPane.tsx` drift to 1009 lines". So the
+project's own component-size invariant is enforced **only against files a past range happened to touch**, and
+`ManualEditPanel.tsx` is not in the list. **216 of 236 component files are unguarded**, and a file can breach §8
+simply by never appearing in a range someone remembered to add. This is a verification-architecture defect, not a
+style preference, and it is the same failure mode the row's own history describes.
+
+**A definitional conflict that must not be resolved by deleting a line.** B5 asserts **two** measures, both
+`≤ 1000`: `physical` (`:626`, CRLF-normalised, one trailing newline stripped — the `ReadAllLines` count) and
+`rawSplit` (`:627`, which counts the trailing newline as an extra element, described in the comment as "the
+stricter of the two"). For a newline-terminated file `rawSplit = physical + 1`, so the gate effectively enforces
+**999 physical lines** — one tighter than §8 as written. `TimetableGrid.tsx` sits exactly on that boundary: 1000
+physical (compliant with §8) yet failing the gate at `:629`. **Trimming one line to satisfy the gate would be
+exactly the anti-pattern this register keeps recording, and the tension is a real question for the directive
+owner:** is the cap 1000 *physical* lines as §8 says, or 999 so that the raw-split measure also fits? Not resolved
+here.
+
+**Left open, deliberately.** Closing this properly is a MEDIUM cycle, not an unattended edit: widen B5 from a
+hardcoded list to a repo-wide scan of all 236 component files, bring `ManualEditPanel.tsx` under the cap in the
+same change so the widened guard is not born red, and settle the physical-vs-rawSplit question first — because a
+repo-wide guard with the current two-measure rule would fail on `TimetableGrid.tsx` too. **Recorded as a dated,
+owned finding rather than quietly patched.**
+
 **Acceptance owner: Lane A**, for the four browser rows, against the Tailnet **root origin only**. **Unblocking
 action is the operator's:** re-seed the profile (about a minute), after which Lane A runs those four rows. Per
 `AGENTS.md` §12 the four rows are reported `NEEDS_SESSION` in one line and the rest of the acceptance continued,
