@@ -2052,3 +2052,68 @@ Two open items for the operator, both NON_BLOCKING and neither blocking the reti
 2. **The left-rail label is now stale.** `navigation.ts:56` still reads `My Dashboard` with a dashboard icon
    while the page and breadcrumb leaf read `Faculty Portal Retired`. Left alone to avoid unrequested copy
    scope; one-line fix on request.
+
+### Packet 1 CLOSED in source — integrated `0da104f9`, NOT deployed (2026-09-26, A2)
+
+Closes browser-QA-handoff items **#4 (one name for a blocking problem)** and **#3c (public term/section
+retention)**. Candidate `b6db07b3` (base `2a001b6e`, 8 client paths), executor `ses_f22b00a36ffe5JSYN3JJ8MHIna`
+(after a first dispatch correctly stopped on a prior session's dirty residual), fresh independent QA
+`ses_f22a6ec0cffeV1de6Pii1SfBaY` **`ACCEPT_READY` 14/14/0/0**. Integrated by merge `0da104f9` on
+`origin/main` `607e03f1`; **all 8 blobs byte-identical to the reviewed candidate**. Merged-tree gates:
+`test:plain-language-j2j3-c01` **18/18** (J1–J5 + T1–T8), `test:plain-tokens-c04` **30/30** (P1),
+`test:ux-guardrails` **31/31**, full `test:client-suite` **fail 12 — the identical 12 baseline names, zero
+added**, compared by name. Client-only: zero server/prisma/migration/seed/ops paths.
+
+**Item 3a/3b closed as a NEGATIVE DIAGNOSIS, independently re-verified by QA: the server was already
+correct.** `published-schedule.router.ts:44-51,54,67` maps a missing `termIndex` to `'active'` and never to
+`1`; `published-schedule.service.ts:774-783` resolves `'active'` solely from the verified ordered-term
+contract and **throws** 409 (`TERM_STRUCTURE_UNAVAILABLE` / `TERM_SELECTION_REQUIRED`) rather than
+defaulting. Grep for `?? 1` / `|| 1` / fallback-to-Term-1 across that path: **zero hits**; `service.ts:831`
+even carries the comment "`null` (never coerced to Term 1)". So the walk's "TERM 1" was **display-side** —
+the prime suspect is `academic-term.ts:50-52` `academicTermFallbackLabel` → `T1` when a term's
+`displayLabel` is blank (used by `RoomSchedules.tsx:128,133`). **No server change was made or needed.**
+
+**Wording decision I made (the residual's defect):** `mustFixCountLabel(2)` returns `"2 Must fix"`, which
+made the sentence *"2 Must fix still need fixing…"* — ungrammatical, because `MUST_FIX_LABEL` is a label,
+not a countable noun. Added `MUST_FIX_PROBLEM_NOUN` **derived from `MUST_FIX_LABEL`** (never a second
+literal) so the sentences read "2 Must fix problems still need fixing…" / "1 Must fix problem still needs
+fixing…". `MUST_FIX_LABEL` and `mustFixCountLabel` are **byte-unchanged**, preserving the sanctioned
+PL-J1.2 chip form "N Must fix".
+
+**Evidence discipline:** the residual had silently INVERTED 4 `doesNotMatch(/Must fix/)` retired-word
+guards into an unsatisfiable claim; the executor restored them byte-identical to base, and QA proved them
+load-bearing by its own failing-first mutations (all 4 fire). The 5 removed `hardCountIn(...)` calls were
+replaced by a **field-identity** check (`totalHardBlockers === runWideBlockingHard`, falsifiable because
+`totalHardBlockers = Math.max(selectedTermBlockingHard, runWideBlockingHard)`), with detection of a wrong
+rendered count delegated to the adjacent exact-string `blockerSentence` equality. QA verified nothing
+detectable before is now undetectable. **Net assertions 249 → 249, tests 44 → 44.** A self-parsing test
+helper (`/(\d+) Must fix/`) was removed — a test must not parse its own subject's phrasing.
+
+**STILL OPEN, carried forward honestly:**
+- **Item 4 is PARTIAL at repo scope, not complete.** Pre-existing raw `'Must fix'` literals remain in three
+  files outside this range: `TimetableGridConflictBadge.tsx:90,156`, `simple/SimpleSessionDetails.tsx:107`,
+  `TimetableGrid.tsx:460-461`. Not a regression (`test:plain-tokens-c04` T7 passes), but do **not** record
+  "one name across the timetable" as done. Any extension of the enum-stripping rename must re-run T7.
+- **Retired-word backlog, deliberately a separate packet:** `Dashboard.tsx:330,368`,
+  `timetable-capabilities.ts:202`, `ux-quickfix-c01-header-actions.test.ts:255-281`.
+- **Items #2 (lifecycle model, BLOCKING), #5 (drift banner 390 px), #6 (Runs loading vs empty) remain open.**
+- **The 12 pre-existing client failures are real debt, not noise** — `B4` (policy-pane allowlist drift),
+  `tt-source-freshness-client-c04` "server allowlist must have 11 codes (got 12)", and the
+  `timetable-simple-sync-setup` / export-trigger / `isPublicationBlockingCode` source-scan family. Several
+  are authority guards currently failing. This candidate did **not** clear them.
+
+### Deploy state — HIGH authority held, NOT executed (2026-09-26, A2)
+
+Operator granted HIGH deploy authority this session, conditional on checking Planner A first. **Checked and
+clear:** no lane has announced an integration closure or claimed a push/deploy window; runtime stable at
+`e4989b72` (health/ready/DB-backed/5174 all 200); `E:` at 50.07 GiB.
+
+**Nothing deployed yet, deliberately.** `0da104f9` is **not** pre-verified, and the directive requires a
+HIGH cycle to run: independent pre-action review, register-before-cutover naming the target **and** its
+rollback basis, release build, dry-run, elevated `-Execute`, proof by byte-comparing a chunk that exists only
+in the new build, then fresh post-action QA. Starting that with the remaining context budget would risk a
+half-executed cutover, which is worse than not starting. **This is the next action, not a deferral.**
+
+Two things to note for whoever runs it: the client build **fails closed** without
+`VITE_ENROLLPRO_URL=https://dev-jegs.buru-degree.ts.net` (`vite.config.ts:13,29`); and a new release directory
+(~1.46 GiB) returns `E:` to ~48.6 GiB, re-triggering the §3 warning recorded in the Capacity block.
