@@ -202,3 +202,76 @@ One Chrome run. **Live change: run 320 published** (toast "Run #320 published. F
 
 No console errors, no error boundary. HTTP status codes were not visible to the runner (bodies only). Cost
 (`subagent_tokens`): 127,993.
+
+## Inventory §16a chunk 1 — More menu, rows 15/221, 22, 35–46 (published run 320, 2026-09-27 ~01:00–01:40 +08)
+
+Three Chrome runs (the first two were cut short by #49 and #50, which are findings in their own right). Verdicts use
+A2's falsifiers in `timetable-control-inventory-2026-09-26.md` §16a. `differs` = live defect unless stated.
+
+| Row | Live answer (quoted) | Verdict |
+|---|---|---|
+| 15/221 | Published run: status region reads "Published" · "Published schedule" · "Changes start on a date you choose." Unpublished run 320 at 00:22 showed no draft/published wording (#41). | matches (unpublished case) |
+| 22 | No "Next step:" row in More on the published run. | unperformed (needs a run that needs a step) |
+| 35 | → `/timetable/policies`, heading "Scheduling Policy", and the layout switches to Expert **and stays there** (see #49). | matches |
+| 36 | Layout switches; the way back is "Simple view", top right, 12 px. | matches |
+| 37 | 4 steps. Step 3 "Use More > Schedule data > Export workbook" names an item that does not exist (Schedule data holds the run select and two Refresh items; export is "Download schedules" under Schedule actions). Step 4 "Show me": "\"Expert view\" is not available in the current view." Steps 1–2 showed no visible highlight. | **differs** |
+| 38 | "Day options" · "1 earlier row hidden" · "Show full day", inline in the menu, no nested popover. | matches |
+| 39 | Simple key: Can place, Can swap, Blocked, Warning, Occupied, Current. Expert legend reads "Status key 6 states"; labels not compared. | partial |
+| 40 | `/faculty/concerns`, heading "Teacher Concerns", but the body shows the class schedule grid, not concerns. | **differs** (verify) |
+| 41–43 | "Campus Map" ("View-only map workspace. Editing remains in `/map?mode=editor`."); "Manual Edit" ("No class selected for manual edit…"); "Building View" ("No building selected · Open the map and select a building…"). All stay Simple. | matches |
+| 44 | Enabled; "Latest Run", then "Sep 26 10:35 PM · run 320", "… run 319", …. The pre-generation case was not reachable. | matches (reachable state) |
+| 45 | Grid overlay "Checking schedule information...". | matches |
+| 46 | Sentence: "Updates displayed names for the selected school year only. It does not change the schedule. If names still look wrong, check School information." Click: **no visible feedback** ("checked 3m ago" unchanged). | **differs** |
+
+| # | Finding | Severity |
+|---|---|---|
+| 49 | **"Advanced rules" silently strands the user in Expert view.** It opens the policy page *and* saves the Expert layout in the browser, so every later `/timetable` load (new tabs too) opens "GENERATED TIMETABLE" with a different "More tools" menu. The way back is a 12 px "Simple view" button top right; the first click did nothing, the second worked. One runner could not find it at all and reported the Simple menu as gone. | HIGH (older users) |
+| 50 | **The More menu hides two-thirds of itself.** 25+ items in a 510 px scrolling box (content 1464 px) with a thin scrollbar and no "more below" cue. Help & display, Tools and Schedule data are below the fold. One runner read the top 8 items and concluded the rest did not exist. Cut: move Tools and Schedule data out of More, or show group headings as a first-level list. | HIGH (older users) |
+| 51 | **Expert view labels a published run "Draft".** On published run 320 the Expert layout shows a "Draft" tab and the heading "GENERATED TIMETABLE"; Simple says "Published". | MEDIUM |
+
+Cost (`subagent_tokens`): 114,325 + 98,748 + 151,529.
+
+## Inventory §16a chunk 2, release-independent rows — Building view, 185, 56/57 (published run 320, live `0da104f9`, 2026-09-27, session after the 01:45 handoff)
+
+Three Chrome runs, read-only. `c50b15ff`/`e51388c1` not deployed, so the release-dependent rows (249/260/266 beyond the
+canvas read, 219/222, 140/141) wait. Screenshot ids are the runners' Chrome ids (not saved to disk).
+
+| Row | Live answer (quoted) | Verdict |
+|---|---|---|
+| 43 | From More → "Building view": **first render kept the previous GR7 - Luna class grid** under the "Building View" header. Re-entering showed "No building selected" · "Open the map and select a building to view its floors and rooms here." · "< Back to Map". (ss_335320ymy stale, ss_9021e26bs correct) | **differs** (#52) |
+| 164 | "Back to Map" button top left. | matches |
+| 165 | Badge "BUILDING VIEW", name "Grade 7 Academic Wing" (double-click on the map tile). | matches |
+| 246–248 | All 20 cards (G7 Room 101–405): "Classroom", "Capacity: 45", "0%", empty bar; no section chip, no program/grade badge. **But the Campus map tile for the same building also reads "0% FILLED"** (so do Grade 8/9/10 wings and Speech Lab), so this run does not show the map mount powered and the timetable mount unpowered. A "50%" figure near "Back to Schedule" in the building view has no label. (ss_03194hnwa, ss_81667w0ek) | 248 confirmed on the canvas; the "mount-only" claim **not discriminated** (#53) |
+| 249 | Neither "Empty floor" nor "Empty" appears; the side ROOMS list shows name + "Classroom" only. | unperformed (state absent) |
+| 185 | "Utilization: 0% • Occupied: 0/4050 min • Conflicts: 0 • Run #320 · COMPLETED" (G10 Room 101 and 102 identical). Header badge "Ready to review" · "Showing TERM 2". Nothing says Published or Draft. (ss_97447zoog, ss_16710j7v7) | **differs** (#54) |
+| 56 | "View MAPEH for GR7 - Luna, Mon 7:30 AM, 1 warning, 0 Must fix, 1 Schedule note"; same shape for ENG Mon 10:45 AM; clean cell "View SCIENCE for GR7 - Luna, Mon 6:45 AM". "View" is correct for the published run. | matches shape; wording see #55 |
+| 57 | Visible badge: a bare ~14 px orange triangle, no count, no words; hover showed no tooltip in the screenshot (a native `title` may not render in automation, so the tooltip leg is unverified). (ss_1543cubop, ss_4368djnz8) | **differs** (#55) |
+
+| # | Finding | Severity |
+|---|---|---|
+| 52 | **Building view first render shows the wrong content.** Opening it from More kept the previous section's class grid under a "Building View" header; only a second entry showed "No building selected". A scheduler would read that grid as the building's data. | MEDIUM |
+| 53 | **Every utilisation figure reads 0%, on both the map and the building view, and a stray "50%" contradicts them.** A2's source read says the map mount passes utilisation and the timetable mount does not; live shows 0% on both for Grade 7–10 wings on published run 320, although GR7 - Luna has a full Term 2 week (which rooms it uses was not read). Either the map's data is also empty or neither mount is powered. Discriminating read: `GET /api/v1/map/schools/1/buildings` (or the utilisation endpoint) for one G7 room against its sessions in run 320. The unlabelled "50%" needs a label or removal. | MEDIUM (truthfulness) |
+| 54 | **Room Schedules speaks engine words and does not say which schedule it shows.** "Run #320 · COMPLETED" and a "Ready to review" badge on a run that is published. Say "Published schedule (in use from 27 Sep)" or "Draft — not yet published"; drop run ids and enums. | MEDIUM (older users) |
+| 55 | **The warning badge carries no information for a mouse user, and the screen-reader name counts one issue twice.** Sighted: a bare triangle, no number, no visible tooltip. Screen reader: "1 warning, 0 Must fix, 1 Schedule note" for a single schedule note, which reads as two issues and says "0 Must fix" needlessly. Cut to one phrase used both places, e.g. visible "1 note" beside the icon and name "…, 1 schedule note". | MEDIUM (older users) |
+
+Cost (`subagent_tokens`): 99,454 + 74,753 + 77,215.
+
+## Row 22 and the new-draft path (live `0da104f9`, published run 320 → draft run 321, 2026-09-27, session 3)
+
+One Chrome flow, resumed once. **Live change: draft run #321 generated** from published run 320 via More › Schedule actions ›
+"New version" (defaults, "Keep configured grade and program time windows" checked). Nothing published. Screenshot ids are
+the runner's Chrome ids (not saved to disk).
+
+| Row | Live answer (quoted) | Verdict |
+|---|---|---|
+| 22 | Published run 320 More: no "Next step:" row. Draft run 321 (159 warnings, red "Publish schedule", not published) More: **still no "Next step:" row** in any group. (ss_15992zc3v, ss_7516b4q93) | **differs**: the row does not exist in either state |
+| – | Published run: Schedule actions = "New version" · Download schedules · Check school information. Draft: "Generate" replaces "New version". | see #56 |
+
+| # | Finding | Severity |
+|---|---|---|
+| 56 | **"New version" opens a dialog titled "Generate updated schedule?".** On a published schedule the menu says "New version", the dialog says "Generate", and the button says "Generate schedule". It also sits beside "Change after publishing" semantics (dated revision), so a scheduler cannot tell whether "New version" edits the published schedule or builds a draft. Use one verb: "Build a new draft" in the menu, the title and the button, with "Your published schedule stays in use" as the first line. (ss_5034zhnm9) | MEDIUM (older users) |
+| 57 | **#44 reproduces on run 321, in one flow:** the dialog said "Still unassigned: 1295 sessions" and the finish toast, seconds later, said "Generation run #321 completed with 0 unassigned session(s)." | HIGH (with #44) |
+| 58 | **Three toasts for one action, one of them a loading message:** "Generation run #321 started." → "…completed with 0 unassigned session(s)." → "Schedule generated. ATLAS is loading the assigned, unassigned, and conflict totals." Cut to one: "Draft schedule ready — 0 classes left to place. Review it, then publish." Drop "run #" and "session(s)". | MEDIUM |
+| 59 | **Right after generating, the page still says "Schedule information changed … Regenerate to apply" and offers "Preview impact"**, the same stale drift banner as #17, now also on a run generated seconds ago. Warnings jumped from 69 (run 320) to **159** on run 321 with nothing saying why. | MEDIUM (with #17) |
+
+Cost (`subagent_tokens`): 90,686 (blocked: no "Generate" on a published run) + 122,630 (New version leg).

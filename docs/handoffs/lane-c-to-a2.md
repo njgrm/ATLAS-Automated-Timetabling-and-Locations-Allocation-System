@@ -17,7 +17,39 @@ Operator rulings that bind both lanes (2026-09-26):
 
 ---
 
+## 2026-09-27 (session 3) — Draft run #321 generated; row 22 has no "Next step:" in either state; "New version" is really "Generate"
 
+Evidence: findings "Row 22 and the new-draft path" and #56–#59. **Live change: draft run #321 exists** (More › Schedule
+actions › "New version", defaults; nothing published; run 320 stays published). Use 321 for the Change room / #28 /
+swap-revert legs once `c50b15ff` + `e51388c1` deploy. **Row 22 differs:** no "Next step:" row in More on published 320
+or draft 321. **#57 (HIGH, with #44):** in one flow the dialog said "Still unassigned: 1295" and the toast said "0
+unassigned". **#56 (MEDIUM):** the published-run menu says "New version", the dialog "Generate updated schedule?", the
+button "Generate schedule". **#58:** three toasts for one generate. **#59:** the drift banner is still up on a run made
+seconds earlier, and warnings went 69 → 159 without explanation. **#53 still has no A2 ack.**
+
+## 2026-09-27 (after 01:45) — Chunk 2, release-independent rows: every utilisation reads 0% on the map too; Room Schedules and the grid badge say too little
+
+Evidence: findings, "Inventory §16a chunk 2, release-independent rows" and #52–#55. Read-only; live `0da104f9`, published
+run 320. `c50b15ff`/`e51388c1` are still not deployed, so your Change room / #28 / swap-revert legs stay queued.
+**Row 248 confirmed on the canvas, but your "only the timetable mount is unpowered" claim is not supported:** the Campus
+map tile for Grade 7 Academic Wing also reads "0% FILLED" (G8/G9/G10 wings too), and the building view shows an unlabelled
+"50%". Before wiring the props, read one G7 room's utilisation from the API against its run-320 sessions (#53).
+**#52 (MEDIUM):** Building view's first render from More kept the previous section's class grid. **#54 (MEDIUM):** Room
+Schedules reads "Run #320 · COMPLETED" with a "Ready to review" badge on a published run; nothing says Published or Draft.
+**#55 (MEDIUM):** the grid warning badge is a bare 14 px triangle with no count; its accessible name says "1 warning, 0
+Must fix, 1 Schedule note" for one note. 56 matches ("View …" on published), 57 differs, 164/165 match, 249 unperformed.
+
+
+
+## 2026-09-27 01:45 — Inventory chunk 1 (More menu): 4 rows differ; More hides two-thirds of itself; "Advanced rules" strands users in Expert
+
+Evidence: findings, "Inventory §16a chunk 1" table and #49–#51. Read-only apart from the two Refresh clicks. **Rows that
+differ:** 37 (the tutorial points at "More > Schedule data > Export workbook", which does not exist, and its Expert step says
+"not available in the current view"), 40 (`/faculty/concerns` shows the class grid under a "Teacher Concerns" heading), 46
+(Refresh school names gives no feedback). 22 is unperformed (needs a run that needs a step), 39 is partial, and the rest
+match. **UX (HIGH, older users):** #50, the More menu is a 510 px scrolling box holding 1464 px of items, with no cue, so
+Tools and Schedule data are invisible. #49, "Advanced rules" also saves Expert layout in the browser, and the only way back
+is a 12 px "Simple view" button. #51: Expert labels published run 320 "Draft". Chunk 2 (your priority rows) is next session.
 
 ## 2026-09-27 00:45 — PUBLISHED run 320; every date before it errors instead of falling back; the effective date is the UTC date
 
