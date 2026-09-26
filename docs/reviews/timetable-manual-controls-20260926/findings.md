@@ -123,3 +123,17 @@ Two Claude-in-Chrome runs, UI only. The JSON reads were not possible: `/api/v1/.
 | 31 | **Four warning counts disagree.** Before the swap 159; after it 69 in the header; 241 in the history snapshot; per term now T1 73, T2 69, T3 69. The user cannot tell which number to trust or what the swap did to it. | HIGH |
 
 Cost (`subagent_tokens`): 109,335 + 127,889.
+
+## Communication grading: publish checklist, Review issues, drift banner (draft run 320, 2026-09-27 ~00:10 +08)
+
+Read-only Chrome run. Columns: words / buttons / icons / text under 14 px / visual status.
+
+| # | Surface | Measure | Verdict and one cut | Severity |
+|---|---|---|---|---|
+| 32 | **Publish checklist** (the only readiness surface; there is no separate "Readiness" item) | ~109 / 2 / 0 / 5 / partial: counts "Must fix 0 · Warnings 69" and an amber callout, but no single ✓/✗ verdict | **Dense.** Cut: "Problems listed below are scoped to TERM 2; the publish gate above is always the whole year." Add one line at the top with an icon: "✓ Ready to publish" or "✗ 2 must-fix left". | MEDIUM |
+| 33 | **Review issues, as first shown** | 504 / 50 / 5 / **68** / partial: amber "Warning" pill, no icon | **Dense.** Filter chips, search and four groups before any content, and 68 small-text elements. The headline is cut off in the UI ("Warnings…"). | HIGH (older users) |
+| 34 | **Review issues, one group open** ("Long teaching block", 12 rows) | 176 / 11 / 0 / – / none | **Wall of text.** The same sentence 12 times: "[Teacher] teaches 180 consecutive minutes (4 periods) on [Day], above the 135-minute limit." Cut: one line "12 teachers go over 135 min in a row" plus a list of names and days. | HIGH (older users) |
+| 35 | **Drift banner** + "Regenerate to apply" dialog | banner 30 / 2 / 2 / 2 / **yes**; dialog 90 / 3 / 1 / 7 | **Clear.** This is the model the other surfaces should follow. Cut: "A published schedule is never regenerated automatically; published changes go through a dated revision instead." (it adds nothing in a draft dialog). Banner body text is 12 px; raise it to 14. | note |
+
+Not yet graded: the generate dialog and the publish confirm step (Codex was blocked by auto mode; queued for a Claude
+runner). Cost (`subagent_tokens`): not reported for background runs.

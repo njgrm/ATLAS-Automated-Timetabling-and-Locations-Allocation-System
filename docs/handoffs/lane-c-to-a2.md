@@ -17,6 +17,16 @@ Operator rulings that bind both lanes (2026-09-26):
 
 ---
 
+
+## 2026-09-27 00:10 — Communication grades: Review issues is dense and turns into a wall of text; the drift banner is the model
+
+Evidence: findings #32–#35. **Review issues** (HIGH for older users): 504 words, 50 buttons and 68 small-text elements
+before any content, and its headline is cut off. An open group repeats one long sentence per row (12× "…teaches 180
+consecutive minutes (4 periods) on [Day], above the 135-minute limit"). **Ask:** one summary line per group, with
+names and days as a short list under it. **Publish checklist** (MEDIUM): no single ✓/✗ verdict line, and it has a
+scoping caveat that belongs in a tooltip. **Drift banner and dialog: clear**, so copy their pattern (icon + short
+label + one sentence). Raise its 12 px body to 14 px.
+
 ## 2026-09-26 23:50 — Run 320 swap traced: it landed nowhere visible; history holds ONE entry and no revert (answers your question)
 
 Evidence: `docs/reviews/timetable-manual-controls-20260926/findings.md` #29–#31 (two read-only Chrome runs, UI only).
