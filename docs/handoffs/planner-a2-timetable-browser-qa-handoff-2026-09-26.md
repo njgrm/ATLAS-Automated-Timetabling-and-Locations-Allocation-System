@@ -8,7 +8,7 @@
 
 Two defects are confirmed as release-blocking for scheduler trust:
 
-1. Room Schedules mixes all three terms and invents hard conflicts.
+1. Room Schedules mixes all three terms and invents hard conflicts. **DEFERRED by the operator (2026-09-26): an unfinished page, redesigned later; the timetable takes precedence. Start with item 2.**
 2. The same schedule lifecycle is described inconsistently by the dashboard, timetable, teacher view, and public schedule.
 
 The remaining work below is deliberately ordered so the term invariant and the user-visible truth are fixed before lower-risk responsive and loading polish.
@@ -17,7 +17,7 @@ The remaining work below is deliberately ordered so the term invariant and the u
 
 | Order | Finding and observed evidence | Proposed outcome | Priority |
 | --- | --- | --- | --- |
-| 1 | **Room Schedules invents conflicts by merging terms.** With G7 Room 103 selected, the page reported 10 conflicts. Its conflict inspector showed three copies of AP and three copies of Math in the same Monday slot, with links to T1, T2, and T3. The timetable itself shows one selected-term schedule. The page exposes a term selector for download only, not for the view. | Make the on-screen Room, Teacher, and Section schedule views select **one verified ordered term**. Default to the verified active term; send that term in the view request; do not use an all-term read as a normal schedule view. Make the selected term visible in the header. | **BLOCKING** |
+| 1 | **DEFERRED (operator, 2026-09-26): do this inside the Room Schedules redesign, not now.** **Room Schedules invents conflicts by merging terms.** With G7 Room 103 selected, the page reported 10 conflicts. Its conflict inspector showed three copies of AP and three copies of Math in the same Monday slot, with links to T1, T2, and T3. The timetable itself shows one selected-term schedule. The page exposes a term selector for download only, not for the view. | Make the on-screen Room, Teacher, and Section schedule views select **one verified ordered term**. Default to the verified active term; send that term in the view request; do not use an all-term read as a normal schedule view. Make the selected term visible in the header. | **BLOCKING** |
 | 2 | **Lifecycle statements contradict each other.** Dashboard says “Schedule is published” / Phase 5 of 5. Timetable shows run 318 as reviewing with “Publish schedule.” `/my` says “Review draft ready” but every class row says “Live.” | Derive one lifecycle presentation model from canonical publication/run facts, then consume it in dashboard, timetable, `/my`, and public. A reviewing draft must never be labelled Live. When both exist, say both plainly: published schedule (date and term) and newer draft in review. | **BLOCKING** |
 | 3 | **Public term authority and retention are wrong.** With no `term` parameter, the public schedule previously rendered Term 1 while the school’s active term is T2. Changing the term also clears the selected section and moves a valid Luna selection to Aguinaldo. | Diagnose the published-schedule term resolver before changing it. A missing term must resolve to a verified authority or show an actionable unresolved state — never silently Term 1. Keep a selected section when it exists in the newly selected term; only fall back when it is not valid. | **HIGH** |
 | 4 | **The drift banner is not legible on mobile.** At 390 x 844, “Schedule information changed” and its message were squeezed into a near one-word-wide column beside Preview impact and Regenerate to apply. | Below the small breakpoint, stack the message and action controls (or wrap a dedicated action row) so each label remains readable and tappable. Preserve the existing explicit-confirmation flow: regeneration remains operator-triggered and is never automatic. | **HIGH** |
@@ -107,3 +107,26 @@ here. Items 1–2 above are the same as system-walk 03 #1 and 04 #1.
 
 Since the walk, `main` also carries `9b1ec14a` (the lunch-window label plus the guard that every
 violation code has a client label). It is not yet live.
+
+## Item 3 diagnosis — public default term (Lane C + Codex CLI, 2026-09-26)
+
+Read-only source diagnosis by an independent Codex CLI runner, checked by Lane C: **a defect, not "only Term 1
+is published."** A missing `term` correctly becomes `termIndex=active` (`public-schedule-term-scope.ts:4-11`,
+`PublicPublishedSchedule.tsx:150,187,204-205`, `published-schedule.router.ts:66-72,100`). But for a published
+(frozen) run, `published-schedule.service.ts:758-773` resolves `active` from the **frozen** contract's
+`activeTermOrder`, which is the term that was active *at publication*. A schedule published during Term 1
+therefore keeps defaulting to Term 1 after the school moves to Term 2. The non-frozen branch
+(`:774-783`) already resolves the live verified active term and fails closed.
+
+Direction (A2 to packet; §7 applies): for `active`, resolve the **current** verified active term, and fail
+closed with `TERM_SELECTION_REQUIRED` when it is unavailable or not covered by the publication. Keep the frozen
+contract for explicit-term validation and immutable publication content. This touches the C08
+frozen-authority design, so the packet must show that per-term archived reads and exports are unchanged.
+Browser confirmation is still owed; the CLI runner had no browser surface.
+
+**Browser confirmation (Codex CLI + chrome-devtools, live `26f7c907`, 2026-09-26, read-only, 0 console errors).**
+With no query string, `/public/schedules` settles on `?sectionId=143` with "Published term" = "TERM 1". The options are TERM 1–3, and **every term renders a published schedule** (Aguinaldo: "40 published classes are shown." in T1, T2 and T3). So the Term 1 default is the frozen-active-term defect, not "only Term 1 is published."
+
+**Conflicting evidence on section retention (item 3b):** in this run, selecting Luna and then switching the term **kept** Luna (`?sectionId=141&term=3` → `?sectionId=141&term=1`), although `PublicPublishedSchedule.tsx:523` clears `sectionId` on the header term `Select`. The page may have more than one term control. Reproduce with the exact control before packeting a fix.
+
+**Narrow width:** `resize_page 390×844` produced a 502 px viewport (window minimum). At 502 px, `scrollWidth == clientWidth == 502`, the section list is available and the schedule stacks by day. **390 px is still unverified.**
