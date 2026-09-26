@@ -1,9 +1,28 @@
 # Deploy packet — `400a6909` (ROOM-SCHEDULES-TERM-C01 term scoping)
 
-Status: **PREPARED, NOT EXECUTED.** Operator granted HIGH authority to deploy (2026-09-26). Execution was
-not started because the planning session ran out of context budget mid-preparation, and a HIGH cutover on a
-shared runtime must not be begun without enough budget to finish and prove it. Everything below is
-pre-verified so execution is short and mechanical.
+Status: **PREPARED, NOT EXECUTED.** Operator granted HIGH authority to deploy (2026-09-26). Steps 0–5 are
+**DONE and recorded below**; the cutover (steps 6–9) is not started. The planning session ran out of
+context budget, and a HIGH cutover must not begin without budget to finish it and prove it.
+
+## 0a. Build proof — steps 0–5 COMPLETE (2026-09-26)
+
+Do **not** repeat these. Each was executed and verified.
+
+| Step | Result |
+| --- | --- |
+| 0 — Lane A check | **Incumbent still `26f7c907`** from the scheduled-task action. No competing deploy. |
+| 1 — release worktree | `E:\ATLAS-runtime-supervised-400a6909-20260926`, `--detach` at `400a6909`, **clean** |
+| 2 — dependencies | `npm ci` in **both** `atlas-server` and `atlas-client`, 97 s, both exit 0. **0 reparse points** — the release owns its tree; no junction anywhere. |
+| 3 — prisma generate | `npx prisma generate --schema ../prisma/schema.prisma`, exit 0 (repo-root schema path) |
+| 4a — server build | `npm run build` (tsc) exit 0; `dist/server.js` present |
+| 4b — client build | `npm run build` with `VITE_ENROLLPRO_URL=https://dev-jegs.buru-degree.ts.net`, exit 0, **171 chunks** |
+| 5 — server actually starts | `node dist/server.js` on **isolated port 5099** → `GET /api/v1/health` **200**; process stopped; **shared 5001 re-checked 200 and untouched** |
+
+Capacity after the build: `E:` **51.77 GiB free** — still above the 50 GiB warning line, so no reclaim is
+owed. `C:` 45.2 GiB.
+
+**What remains is the cutover only** (steps 6–9 in §3 below), and it is now a short mechanical operation
+because the release is already built and proven to start.
 
 ## 1. Why this SHA and not the tip
 
