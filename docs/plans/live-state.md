@@ -1524,14 +1524,54 @@ companion rows, which is now the only honest exemplar since no real canonical co
 `26f7c907`, so this fix is **not live** — it needs its own deployment, which is a separate HIGH action with its own
 capacity reclaim, packet, pre-action review and acceptance.
 
-**Next action (2026-09-26):** (1) **answer the three constraint-severity questions** recorded above — the gate on any
-fix there, and five cycles of packet-writing have shown they are not mine to decide; (2) **deploy cycle** for
-`ROOM_CAPACITY_EXCEEDED` and this label fix together, once a successor reclaim is in place — the next build re-triggers
-§3, and E: is at 46 GiB; (3) **complete A6 and A12(b)** — they need a run-level review surface with warnings, and
-A12(b) a placed session; (4) **rotate the exposed dev DB credential**; (5) the `4893cbde` + three-leftover decision
-(1.91 GiB) and the 8.72 GiB disposition backlog owned by Lanes B and C; (6) the three room-affordance design
-decisions; (7) a decision on the oversized `.ts` modules. **Rollback basis `116a7658` is verified eligible and was not
-executed.**
+**RECORDS GAP CORRECTED (2026-09-26): the §8 cap cycle's closing verdict was never written here.** The pre-action
+review of the client-delta deployment packet caught it: this file said "CYCLE COMPLETE" and "the correction is
+applied and pushed" for `2f86ffee` while citing **only** the `CORRECTION_REQUIRED` **16/17** verdict and **no
+closing verdict at all** — so a reader would reasonably conclude the shipped bytes had never been blessed. They
+had: the reviewed range is `996b1b8b..4130fd3c` and its fresh independent QA returned **`ACCEPT_READY` 20/20,
+blocked 0, unperformed 0, zero blocking findings**, with the accepting reviewer not the implementer, and
+`2f86ffee` carries exactly that content. **Recorded now, with the tally, so the shipped bytes carry their verdict
+in the register rather than only in a transcript.**
+
+**Deployment packet `deploy-5152bff0-client-delta-2026-09-26.md` — PRE-ACTION `CORRECTION_REQUIRED` 6/13, must not
+execute (2026-09-26).** Five blocking findings, and the first is the most serious defect I have written into a
+packet all session:
+
+- **B1 — the packet never builds the server artifact.** Steps 3–5 create a worktree, run `prisma generate` and
+  build the **client**. **Nothing produces `atlas-server/dist/server.js`**, which is what the supervisor executes
+  and what step 6's port-5198 proof presupposes; a fresh worktree has no `dist`, and the `robocopy` is scoped to
+  `node_modules`. **Followed literally, the release would serve 5174 with no 5001 after cutover.** I focused the
+  packet on a client-only *delta* and lost the fact that a release still needs the server built. Recorded with
+  live `dist/server.js` mtime `09:30:53` vs donor `01:23:05` as evidence that it has been happening.
+- **B2 — stale target pin.** `origin/main` is `18d0d335`, not the `5152bff0` I pinned, and the delta is **19
+  paths — 5 production client, 4 test, 10 docs** — not the 17/9 I wrote, whose own arithmetic (5+4+9) does not
+  even reach 17. A1, A2, A10 and the 8-char register prefix all key on that exact string. The *substance* is
+  still client-only: `5152bff0..18d0d335` is 3 commits, product tree byte-identical.
+- **B3 — A11's expected value is false.** At the target it is **5** files over 1000 physical lines and **0** `.tsx`**
+  — not the 7/1 I asserted. Base `26f7c907` had **6**, including `ManualEditPanel.tsx` at 1012, so the delta
+  *removes* one from the list by design, and the row as written would fail a correct measurement.
+- **B4 — my authority citation is wrong.** I cited `live-state.md:219-222`, which contains no grant; the standing
+  authorization is at **`252-255`**.
+- **B5 — no recorded verdict for the cap cycle**, corrected above.
+
+Non-blocking but real: the task is `IgnoreNew` and the runner asserts nothing after `schtasks /run`, so a
+swallowed request would leave nothing listening while the runner reports `CUTOVER_STARTED` (recovery: a manual
+`schtasks /run`); the runner's `catch` restarts **only** when quiesced **and** ports cleared, so a ports-clear
+failure leaves the runtime stopped **by design**; the dry run also writes at `:272` and `:276`; my donor counts were
+top-level entries, not the `-Recurse -File` output I cited; A7's attribution must be made at run time from the
+endpoint class plus a fresh `Test-NetConnection`, not transcribed; A5 is largely subsumed by A6.
+
+**Adjudicated in the packet's favour:** the B5 `rawSplit <= 1001` relaxation is **correct and not a weakening** —
+for a newline-terminated file `rawSplit = physical + 1`, so the clause is *equivalent* to `physical > 1000`, the §8
+invariant is asserted independently over a real 236-file walk with an anti-vacuity check, and `TimetableGrid.tsx`
+at exactly 1000 is legal. Ship it.
+
+**Next action (2026-09-26):** (1) **correct the packet to R2** — add the server build step, re-pin the target, fix
+A11/A12, correct the authority citation, and record the `IgnoreNew` and catch-restart caveats; (2) **re-review
+R2**; (3) then execute and post-action QA. Also outstanding: (4) the three constraint-severity questions; (5) the
+`ROOM_CAPACITY_EXCEEDED` label backlog; (6) **rotate the exposed dev DB credential**; (7) the `4893cbde` +
+three-leftover decision and the 8.72 GiB Lanes B/C backlog; (8) A6/A12(b) acceptance rows. **Rollback basis
+`116a7658` is verified eligible; live `26f7c907` healthy.**
 
 **SUPERSEDED 2026-09-26 — a spliced paragraph this lane's own editing left behind, repaired.** The four lines
 immediately below were an orphaned fragment, and the sentence they belonged to was cut in half. They are
