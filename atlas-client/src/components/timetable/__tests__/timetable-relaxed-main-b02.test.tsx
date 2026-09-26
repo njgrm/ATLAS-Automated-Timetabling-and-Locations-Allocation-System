@@ -15,7 +15,7 @@
  * Run: `npm run test:timetable-relaxed-main`
  */
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import test, { after } from 'node:test';
 import { createElement } from 'react';
@@ -582,52 +582,61 @@ test('B4: nothing inside Timetable regresses below the 12px typography floor', (
 	}
 });
 
-/* B5: the 1000-physical-line component cap holds for every React component this range touched. */
+/*
+ * B5: the 1000-physical-line component cap is a repo-wide invariant.
+ *
+ * This row used to walk a hardcoded list of the ~20 components one historical
+ * range happened to touch, which left the other 216 non-test `.tsx` files
+ * unguarded — `ManualEditPanel.tsx` reached 1012 physical lines unnoticed. It
+ * now enumerates the real filesystem at test time, so a newly added component
+ * is covered the moment it lands and a second hardcoded list cannot rot.
+ */
 
-test('B5 cap guard: every React component this range touched stays inside the 1000-physical-line cap', () => {
-	// The range touched these component files; none may grow back over the
-	// mandatory cap (AGENTS.md section 8). This is the guard that previously only
-	// covered the header, which let `SchedulingPolicyPane.tsx` drift to 1009 lines.
-	const touchedComponents = [
-		'src/App.tsx',
-		'src/components/AppShell.tsx',
-		'src/components/CampusMap.tsx',
-		'src/components/SchedulingPolicyPane.tsx',
-		'src/components/timetable/CenterWorkspace.tsx',
-		'src/components/timetable/GridScrollMemory.tsx',
-		'src/components/timetable/InlinePlacementPreview.tsx',
-		'src/components/timetable/ScheduleReviewWorkspace.tsx',
-		'src/components/timetable/ScheduleReviewWorkspaceHeader.tsx',
-		'src/components/timetable/ScheduleReviewWorkspaceSummaryStats.tsx',
-		'src/components/timetable/ScheduleReviewWorkspaceTaskModes.tsx',
-		'src/components/timetable/TimetableAdvancedHeaderHelp.tsx',
-		'src/components/timetable/simple/SchedulerPrintDialog.tsx',
-		'src/components/timetable/simple/SchedulerExportCenterDialog.tsx',
-		'src/components/timetable/TimetableGrid.tsx',
-		'src/components/timetable/TimetableGridConflictBadge.tsx',
-		'src/components/timetable/TimetableSetupPane.tsx',
-		'src/components/timetable/TimetableSimpleHeader.tsx',
-		'src/components/timetable/TimetableSkeleton.tsx',
-		'src/components/timetable/TimetableStatusLegend.tsx',
-		'src/components/timetable/TimetableSubNav.tsx',
-		'src/components/timetable/TimetableTaskDrawer.tsx',
-		'src/components/timetable/simple/SimpleBeneficiaryControls.tsx',
-		'src/components/timetable/simple/SimpleDayOptions.tsx',
-		'src/components/timetable/simple/SimpleDriftBanner.tsx',
-		'src/components/timetable/simple/SimpleHeaderHelpers.tsx',
-		'src/components/timetable/simple/SimpleMoreMenuContent.tsx',
-	];
-	for (const path of touchedComponents) {
-		const text = source(path);
-		// Both counting methods must agree the file is inside the cap: the
-		// `[IO.File]::ReadAllLines` physical count, and the raw
-		// `readFileSync(...).split('\n').length` count (which treats the trailing
-		// newline as an extra element and is therefore the stricter of the two).
-		const physical = text.replace(/\r\n/g, '\n').replace(/\n$/, '').split('\n').length;
-		const rawSplit = text.split('\n').length;
-		assert.ok(physical <= 1000, `${path} is ${physical} physical lines by ReadAllLines (cap 1000; AGENTS.md section 8)`);
-		assert.ok(rawSplit <= 1000, `${path} is ${rawSplit} lines by split('\\n') (cap 1000; AGENTS.md section 8)`);
+const CAP = 1000;
+
+/** Every non-test `.tsx` under `atlas-client/src`, discovered on disk. */
+function nonTestComponentFiles(dir: string, found: string[] = []): string[] {
+	for (const entry of readdirSync(dir, { withFileTypes: true })) {
+		const full = resolve(dir, entry.name);
+		if (entry.isDirectory()) {
+			if (entry.name === '__tests__') continue;
+			nonTestComponentFiles(full, found);
+			continue;
+		}
+		if (!entry.name.endsWith('.tsx')) continue;
+		if (/\.test\.tsx?$/.test(entry.name)) continue;
+		found.push(full);
 	}
+	return found;
+}
+
+test('B5 cap guard: no non-test component anywhere under src exceeds the 1000-physical-line cap', () => {
+	const files = nonTestComponentFiles(resolve(clientRoot, 'src'));
+	// A scan that silently matched nothing would pass vacuously; require the
+	// real inventory so a broken walker is a failure, not a green row.
+	assert.ok(files.length > 200, `expected the real component inventory, found only ${files.length} files`);
+
+	const violations: string[] = [];
+	for (const path of files) {
+		const text = readFileSync(path, 'utf8');
+		// `physical` is the AGENTS.md section 8 measure: a newline-terminated
+		// file's line count, with blank lines and comments included. The cap is
+		// 1000 physical lines, so 1000 is legal and 1001 is not.
+		const physical = text.replace(/\r\n/g, '\n').replace(/\n$/, '').split('\n').length;
+		// `rawSplit` is the stricter raw `readFileSync(...).split('\n').length`
+		// count: it treats the trailing newline as an extra element, so for a
+		// newline-terminated file it equals `physical + 1`. The equivalent bound
+		// is therefore 1001, not 1000 — asserting 1000 here would enforce 999
+		// physical lines, which is stricter than the directive and fails
+		// `TimetableGrid.tsx` at exactly 1000 physical lines.
+		const rawSplit = text.split('\n').length;
+		if (physical > CAP || rawSplit > CAP + 1) {
+			violations.push(
+				`${path.slice(clientRoot.length + 1).replace(/\\/g, '/')}: ${physical} physical lines, ${rawSplit} by split('\\n') (cap ${CAP} physical; AGENTS.md section 8)`,
+			);
+		}
+	}
+	assert.deepEqual(violations, [], `components over the ${CAP}-physical-line cap:\n${violations.join('\n')}`);
 });
 
 after(() => {

@@ -14,14 +14,14 @@ import { AnimatePresence, motion } from 'motion/react';
 
 import { formatTime } from '@/lib/utils';
 import { formatIdentityFallbackText, formatWarningMessageText, VIOLATION_PRESENTATION } from '@/lib/violation-presentation';
-import { getQualificationTier, type QualificationTier } from '@/lib/grade-labels';
+import { getQualificationTier } from '@/lib/grade-labels';
 import type { ManualEditProposal, PreviewResult, ScheduledEntry } from '@/types';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import { Label } from '@/ui/label';
 import { ScrollArea } from '@/ui/scroll-area';
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from '@/ui/select';
-import { SearchableSelect, type SearchableSelectGroup } from '@/ui/searchable-select';
+import { SearchableSelect } from '@/ui/searchable-select';
 import {
 	Tooltip,
 	TooltipContent,
@@ -35,9 +35,9 @@ import {
 	DAYS,
 	GRADE_BADGE,
 	type ManualEditActionType,
-	type ManualEditRoomInfo,
 	type ManualEditPanelProps,
 } from '@/components/manual-edit/manual-edit-foundation';
+import { useManualEditOptionGroups } from '@/components/manual-edit/useManualEditOptionGroups';
 
 /* ─── Constants ─── */
 
@@ -111,95 +111,16 @@ export default function ManualEditPanel({
 
 	// ── Derived data ──
 
-	const facultyLoadMap = useMemo(() => {
-		const loads = new Map<number, number>();
-		for (const e of draftEntries) {
-			if (e.facultyId != null) {
-				loads.set(e.facultyId, (loads.get(e.facultyId) ?? 0) + e.durationMinutes);
-			}
-		}
-		return loads;
-	}, [draftEntries]);
-
-	const roomsByBuilding = useMemo(() => {
-		const groups: Array<{ buildingId: number; label: string; rooms: ManualEditRoomInfo[] }> = [];
-		const buildingMap = new Map<number, { label: string; rooms: ManualEditRoomInfo[] }>();
-		for (const [, r] of roomMap) {
-			if (!r.isTeachingSpace) continue;
-			let group = buildingMap.get(r.buildingId);
-			if (!group) {
-				group = { label: r.buildingShortCode || r.buildingName, rooms: [] };
-				buildingMap.set(r.buildingId, group);
-			}
-			group.rooms.push(r);
-		}
-		for (const [buildingId, group] of buildingMap) {
-			group.rooms.sort((a, b) => a.name.localeCompare(b.name));
-			groups.push({ buildingId, ...group });
-		}
-		groups.sort((a, b) => a.label.localeCompare(b.label));
-		return groups;
-	}, [roomMap]);
-
-	/** SearchableSelect groups for rooms — grouped by building */
-	const roomSearchGroups: SearchableSelectGroup[] = useMemo(() => {
-		const subject = subjectMap.get(entry.subjectId);
-		const required = subject?.requiredFeatures || [];
-
-		return roomsByBuilding.map((group) => ({
-			label: group.label,
-			items: group.rooms.map((r) => {
-				const missing = required.filter((f: string) => !(r.features || []).includes(f));
-				const isCompatible = missing.length === 0;
-				
-				return {
-					value: String(r.id),
-					label: `${r.name} · Floor ${r.floor}${r.capacity != null ? ` · Cap ${r.capacity}` : ''} · ${r.type}`,
-					subLabel: !isCompatible ? `Lacks: ${missing.join(', ')}` : r.features?.length ? `Features: ${r.features.join(', ')}` : undefined,
-					disabled: !isCompatible, // Optional: could just warn instead of disable
-				};
-			}),
-		}));
-	}, [roomsByBuilding, subjectMap, entry.subjectId]);
-
-	/** SearchableSelect groups for faculty — grouped by department */
-	const facultySearchGroups: SearchableSelectGroup[] = useMemo(() => {
-		const deptMap = new Map<string, { value: string; label: string; subLabel?: string; tier?: QualificationTier }[]>();
-		const subject = subjectMap.get(entry.subjectId);
-
-		for (const [, f] of facultyMap) {
-			if (!f.isActiveForScheduling) continue;
-			const dept = f.department || 'Unassigned Department';
-			if (!deptMap.has(dept)) deptMap.set(dept, []);
-			const loadMinutes = facultyLoadMap.get(f.id) ?? 0;
-			const loadHours = Math.round(loadMinutes / 60);
-			
-			const tier = subject ? getQualificationTier(f, subject) : null;
-			let tierLabel = '';
-			if (tier === 1 || tier === 2) tierLabel = '[Department Match] ';
-			else if (tier === 3) tierLabel = '[Secondary Match] ';
-			else tierLabel = '[Unqualified] ';
-
-			deptMap.get(dept)!.push({
-				value: String(f.id),
-				label: `${tierLabel}${f.lastName}, ${f.firstName}`,
-				subLabel: `${loadHours}h / ${f.maxHoursPerWeek}h max${f.department ? ` · ${f.department}` : ''}${f.specialization ? ` · ${f.specialization}` : ''}`,
-				tier,
-			});
-		}
-		return Array.from(deptMap.entries())
-			.sort(([a], [b]) => a.localeCompare(b))
-			.map(([dept, items]) => ({
-				label: dept,
-				items: items.sort((a, b) => {
-					// Sort by tier first, then name
-					const tA = a.tier ?? 99;
-					const tB = b.tier ?? 99;
-					if (tA !== tB) return tA - tB;
-					return a.label.localeCompare(b.label);
-				}),
-			}));
-	}, [facultyMap, facultyLoadMap, subjectMap, entry.subjectId]);
+	// Room and faculty options for the two SearchableSelect fields — grouping,
+	// feature compatibility and qualification ordering — are derived in
+	// `useManualEditOptionGroups`, which keeps this panel's surface readable.
+	const { roomSearchGroups, facultySearchGroups } = useManualEditOptionGroups({
+		roomMap,
+		facultyMap,
+		subjectMap,
+		draftEntries,
+		subjectId: entry.subjectId,
+	});
 
 	// Pre-filter: slots occupied by current faculty or current room on the selected day
 	const occupiedSlots = useMemo(
