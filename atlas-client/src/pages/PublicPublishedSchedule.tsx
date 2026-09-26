@@ -520,7 +520,15 @@ export default function PublicPublishedSchedule() {
 									tone={sourceTone}
 									testId="public-schedule-source-status"
 								/>
-								<Select value={String(payload.source.termIndex)} onValueChange={(value) => updateSearchParams({ term: value, sectionId: null })}>
+								{/* PUBLIC-SCHEDULE-TERM-CUSTODY-C01 — a term switch must NOT clear
+								 * `sectionId`. A section that still EXISTS in the newly selected term
+								 * is a valid selection and is kept; the existing selection-repair
+								 * effect below (the one that already handles grade/program filters)
+								 * falls back to the first section ONLY when the section is genuinely
+								 * absent from the target term. Clearing it here was what moved a
+								 * valid Luna selection to Aguinaldo and made the URL, the
+								 * selected combobox value and the rendered schedule disagree. */}
+								<Select value={String(payload.source.termIndex)} onValueChange={(value) => updateSearchParams({ term: value })}>
 									<SelectTrigger className="h-8 w-36 rounded-xl" aria-label="Published term"><SelectValue /></SelectTrigger>
 									<SelectContent>{payload.source.orderedTerms.map((term) => <SelectItem key={term.order} value={String(term.order)}>{term.displayLabel}</SelectItem>)}</SelectContent>
 								</Select>

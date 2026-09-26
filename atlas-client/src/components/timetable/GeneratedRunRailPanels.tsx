@@ -20,7 +20,7 @@ import {
 import atlasApi from '@/lib/api';
 import { resolveViolationTitle } from '@/lib/violation-presentation';
 import { plainRuleValue } from '@/lib/plain-rule-degradation';
-import { ALL_SESSIONS_PLACED_LABEL } from '@/lib/timetable-plain-language';
+import { ALL_SESSIONS_PLACED_LABEL, MUST_FIX_LABEL } from '@/lib/timetable-plain-language';
 import {
 	getDefaultUnassignedReasonDetail,
 	getProgramBadgeLabel,
@@ -249,7 +249,13 @@ export function GeneratedViolationsPanel({
 							: filter === 'hard'
 								? violations.filter((v) => v.severity === 'HARD').length
 								: violations.filter((v) => v.severity === 'SOFT').length;
-						const label = filter === 'all' ? 'All' : filter === 'hard' ? 'Hard' : 'Soft';
+						{/* A2-TIMETABLE-CUSTODY (item 4) — these chips used to print the raw
+						 * filter enum ("Hard"/"Soft") while Publish Readiness said
+						 * `MUST_FIX_LABEL` three lines away, so one HARD problem had two
+						 * names on one screen. The chips now wear the ONE plain word for
+						 * each idea. The COUNTS, the filter keys and which violations each
+						 * chip selects are all unchanged. */}
+						const label = filter === 'all' ? 'All' : filter === 'hard' ? MUST_FIX_LABEL : 'Warning';
 						const isActive = severityFilter === filter;
 						return (
 							<Button

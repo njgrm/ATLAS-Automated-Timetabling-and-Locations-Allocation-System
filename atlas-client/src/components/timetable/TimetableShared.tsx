@@ -2,6 +2,7 @@ import { useState } from 'react';
 import type { ElementType, ReactNode } from 'react';
 
 import type { Violation, ViolationCode } from '@/types';
+import { MUST_FIX_LABEL } from '@/lib/timetable-plain-language';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/ui/accordion';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
@@ -141,7 +142,15 @@ export function ViolationGroup({
 							variant="outline"
 							className={`h-4.5 px-1.5 text-xs ${isHard ? 'border-red-300 bg-red-50 text-red-700' : 'border-amber-300 bg-amber-50 text-amber-700'}`}
 						>
-							{isHard ? 'HARD' : 'SOFT'}
+							{/* A2-TIMETABLE-CUSTODY (item 4) — this tag printed the raw
+						 * severity enum ("HARD"/"SOFT"). LANE-C-PLAIN-TOKENS-C04 (J2) is
+						 * explicit that no engine token reaches the operator, and J1 fixes
+						 * ONE name per idea, so the blocking severity now wears
+						 * `MUST_FIX_LABEL` — the same word the grid badge, the publish
+						 * gate and the review chips use. The SEVERITY ITSELF, the
+						 * isHard branch and the red/amber styling are unchanged, so a
+						 * SOFT violation is still SOFT and still amber. */}
+						{isHard ? MUST_FIX_LABEL : 'Warning'}
 						</Badge>
 						<span className="truncate text-xs font-semibold">{groupLabel}</span>
 						<span className="ml-auto shrink-0 text-xs text-muted-foreground font-semibold">{violations.length}</span>

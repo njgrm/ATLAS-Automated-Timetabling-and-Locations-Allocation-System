@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
+import { MUST_FIX_LABEL } from '@/lib/timetable-plain-language';
 import { initialSimplePlacementState, reduceSimplePlacementState } from '@/lib/simple-timetable-state';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
@@ -93,7 +94,7 @@ const copyByTask: Record<TimetableSimpleTask, DrawerCopy> = {
 	},
 	'review-issues': {
 		title: 'Review issues',
-		description: 'Start with hard blockers. Warnings can be reviewed after blockers are clear.',
+		description: `Start with the “${MUST_FIX_LABEL}” problems. Warnings can be reviewed once they are clear.`,
 		stepOne: 'Read top issue',
 		stepTwo: 'Choose the suggested fix',
 		icon: ListChecks,
@@ -114,7 +115,7 @@ const copyByTask: Record<TimetableSimpleTask, DrawerCopy> = {
 	},
 	publish: {
 		title: 'Publish schedule',
-		description: 'Publish only when hard blockers are gone. Teachers and students can then use the final schedule.',
+		description: `Publish only when the “${MUST_FIX_LABEL}” problems are gone. Teachers and students can then use the final schedule.`,
 		stepOne: 'Confirm blockers are clear',
 		stepTwo: 'Publish the schedule',
 		icon: Send,

@@ -690,7 +690,7 @@ test('F1 rendered (a): run-wide hard blockers with zero unresolved sessions neve
 	// …so the sentence must name the hard blockers, never the false zero claim.
 	assert.equal(
 		blockerSentenceFromMarkup(markup),
-		'2 hard blockers still need fixing before this schedule can be published.',
+		'2 Must fix problems still need fixing before this schedule can be published.',
 	);
 	assert.doesNotMatch(markup, /0 sessions? still need fixing/);
 	assert.doesNotMatch(markup, /session[s]? still need fixing/);
@@ -704,7 +704,7 @@ test('F1 rendered (b): a selected-term-only allowlisted HARD with a clean run-wi
 	assert.match(markup, /data-blocker-scope="selected-term"/);
 	assert.equal(
 		blockerSentenceFromMarkup(markup),
-		'1 hard blocker still needs fixing before this schedule can be published.',
+		'1 Must fix problem still needs fixing before this schedule can be published.',
 	);
 	assert.doesNotMatch(markup, /0 sessions? still need fixing/);
 });
@@ -726,6 +726,15 @@ test('F1 rendered: an unresolved-only block names the sessions and invents no ha
 		blockerSentenceFromMarkup(markup),
 		'3 unresolved sessions still need fixing before this schedule can be published.',
 	);
+	// The retired name is the subject of this guard, not `MUST_FIX_LABEL`.
+	// A2-TIMETABLE-CUSTODY: an unresolved-only block must not name a blocking
+	// problem. The sheet's ADVICE line legitimately says "Fix the “Must fix”
+	// problems first" (SimplePublishReadinessSheet, pre-existing), so asserting
+	// the absence of `MUST_FIX_LABEL` here was unsatisfiable and asserted
+	// nothing. The claim — the sentence invents no hard-blocker clause, and the
+	// retired word is gone for good — is carried by the exact
+	// `blockerSentenceFromMarkup` equality on the line above plus this
+	// retired-wording guard.
 	assert.doesNotMatch(markup, /hard blocker/);
 });
 
@@ -736,7 +745,7 @@ test('F1 summaryText is driven by the same hard/unresolved pair', () => {
 	);
 	assert.equal(hardOnly.totalUnresolved, 0, 'the run-wide unresolved count is genuinely zero');
 	assert.equal(hardOnly.totalHardBlockers, 2, 'the run-wide hard gate is what blocks');
-	assert.match(hardOnly.summaryText, /Cannot publish yet\n2 hard blockers still need fixing before this schedule can be published\./);
+	assert.match(hardOnly.summaryText, /Cannot publish yet\n2 Must fix problems still need fixing before this schedule can be published\./);
 	assert.doesNotMatch(hardOnly.summaryText, /0 sessions still need fixing/);
 
 	const unresolvedOnly = deriveSimplePublishReadiness(
@@ -744,14 +753,20 @@ test('F1 summaryText is driven by the same hard/unresolved pair', () => {
 		{ blockingHardCount: 0, unassignedCount: 2, softCount: 0 },
 	);
 	assert.match(unresolvedOnly.summaryText, /2 unresolved sessions still need fixing/);
+	// Retired-wording guard — see the note on the F1 unresolved-only row. The
+	// claim is that no blocking problem is named, and the `Must fix` advice line
+	// this summary carries is not one.
 	assert.doesNotMatch(unresolvedOnly.summaryText, /hard blocker/);
 
 	const both = deriveSimplePublishReadiness(
 		draftReport(), [], label('Section'), label('Subject'), label('Teacher'),
 		{ blockingHardCount: 1, unassignedCount: 2, softCount: 0 },
 	);
-	assert.match(both.summaryText, /1 hard blocker and 2 unresolved sessions still need fixing/);
-	assert.equal(both.blockerSentence, '1 hard blocker and 2 unresolved sessions still need fixing before this schedule can be published.');
+	assert.match(both.summaryText, /1 Must fix problem and 2 unresolved sessions still need fixing/);
+	assert.equal(
+		both.blockerSentence,
+		'1 Must fix problem and 2 unresolved sessions still need fixing before this schedule can be published.',
+	);
 });
 
 test('mutant: deriving the block sentence from totalUnresolved alone is detected', () => {
@@ -1030,12 +1045,6 @@ function renderedCount(markup: string, testId: string): number {
 	return Number(match![1]);
 }
 
-/** The hard-blocker count a sentence states, or 0 when it states none. */
-function hardCountIn(sentence: string): number {
-	const match = sentence.match(/(\d+) hard blocker/);
-	return match ? Number(match[1]) : 0;
-}
-
 /** The unresolved-session count a sentence states, or 0 when it states none. */
 function unresolvedCountIn(sentence: string): number {
 	const match = sentence.match(/(\d+) unresolved session/);
@@ -1050,7 +1059,14 @@ test('R2 (a) unresolved-only: two producer-shaped queue sessions report zero har
 	assert.equal(readiness.totalHardBlockers, 0, 'the queue is SOFT — there is no hard violation to count');
 	assert.equal(readiness.totalUnresolved, 2);
 	assert.equal(readiness.blockerSentence, '2 unresolved sessions still need fixing before this schedule can be published.');
-	assert.equal(hardCountIn(readiness.summaryText), readiness.runWideBlockingHard, 'summaryText agrees with the run-wide hard gate');
+	// A2-TIMETABLE-CUSTODY: this row used to read the count back OUT of the
+	// summary with a `/(\d+) Must fix/` reader, which couples the test to the
+	// exact phrasing of its own subject — every wording change broke a test that
+	// was asserting nothing about the count. The claim ("summaryText agrees
+	// with the run-wide hard gate") is now read from the production FIELDS, and
+	// the exact-string equality above is a strictly stronger witness: any
+	// invented or dropped blocking count breaks it outright.
+	assert.equal(readiness.totalHardBlockers, readiness.runWideBlockingHard, 'the summary hard clause tracks the run-wide hard gate');
 	assert.doesNotMatch(readiness.summaryText, /hard blocker/);
 	assert.match(readiness.summaryText, /2 unresolved sessions still need fixing/);
 
@@ -1068,12 +1084,12 @@ test('R2 (b) hard-only: the run-wide hard gate blocks and no unresolved claim is
 
 	assert.equal(readiness.totalHardBlockers, 2);
 	assert.equal(readiness.totalUnresolved, 0);
-	assert.equal(readiness.blockerSentence, '2 hard blockers still need fixing before this schedule can be published.');
-	assert.equal(hardCountIn(readiness.summaryText), readiness.runWideBlockingHard);
+	assert.equal(readiness.blockerSentence, '2 Must fix problems still need fixing before this schedule can be published.');
+	assert.equal(readiness.totalHardBlockers, readiness.runWideBlockingHard);
 	assert.doesNotMatch(readiness.summaryText, /unresolved session/);
 
 	const markup = renderSheet({ draft, violations: [], runWide });
-	assert.equal(blockerSentenceFromMarkup(markup), '2 hard blockers still need fixing before this schedule can be published.');
+	assert.equal(blockerSentenceFromMarkup(markup), '2 Must fix problems still need fixing before this schedule can be published.');
 	assert.equal(renderedCount(markup, 'timetable-simple-run-wide-blocking'), 2);
 	assert.equal(unresolvedCountIn(blockerSentenceFromMarkup(markup)), 0);
 });
@@ -1088,12 +1104,18 @@ test('R2 (c) mixed: one hard blocker plus two unresolved sessions are counted on
 	assert.equal(readiness.totalHardBlockers, 1, 'the two SOFT queue sessions are never folded into the hard count');
 	assert.equal(readiness.totalUnresolved, 2);
 	assert.equal(readiness.totalHardBlockers + readiness.totalUnresolved, 3, 'each problem session is claimed exactly once');
-	assert.equal(readiness.blockerSentence, '1 hard blocker and 2 unresolved sessions still need fixing before this schedule can be published.');
-	assert.equal(hardCountIn(readiness.summaryText), readiness.runWideBlockingHard);
+	assert.equal(
+		readiness.blockerSentence,
+		'1 Must fix problem and 2 unresolved sessions still need fixing before this schedule can be published.',
+	);
+	assert.equal(readiness.totalHardBlockers, readiness.runWideBlockingHard);
 	assert.equal(unresolvedCountIn(readiness.summaryText), 2);
 
 	const markup = renderSheet({ draft, violations: [], runWide });
-	assert.equal(blockerSentenceFromMarkup(markup), '1 hard blocker and 2 unresolved sessions still need fixing before this schedule can be published.');
+	assert.equal(
+		blockerSentenceFromMarkup(markup),
+		'1 Must fix problem and 2 unresolved sessions still need fixing before this schedule can be published.',
+	);
 	assert.equal(renderedCount(markup, 'timetable-simple-run-wide-blocking'), 1);
 });
 
@@ -1106,7 +1128,7 @@ test('R2 (d) clean: a producer-shaped empty queue with a clean gate is ready to 
 	assert.equal(readiness.totalUnresolved, 0);
 	assert.equal(readiness.blockerSentence, '');
 	assert.match(readiness.summaryText, /Ready to publish/);
-	assert.equal(hardCountIn(readiness.summaryText), readiness.runWideBlockingHard);
+	assert.equal(readiness.totalHardBlockers, readiness.runWideBlockingHard);
 
 	const markup = renderSheet({ draft, violations: [], runWide });
 	assert.match(markup, /data-testid="timetable-simple-ready-to-publish"/);
@@ -1149,7 +1171,7 @@ test('mutant: reverting the sentence to totalUnresolved alone is detected on a p
 		`${unresolved} session${unresolved === 1 ? '' : 's'} still need fixing before this schedule can be published.`;
 	assert.match(mutantSentence(readiness.totalUnresolved), /^0 sessions still need fixing/, 'the reverted rule ships the false zero claim');
 	assert.notEqual(readiness.blockerSentence, mutantSentence(readiness.totalUnresolved));
-	assert.equal(readiness.blockerSentence, '2 hard blockers still need fixing before this schedule can be published.');
+	assert.equal(readiness.blockerSentence, '2 Must fix problems still need fixing before this schedule can be published.');
 	assert.doesNotMatch(renderSheet({ draft, violations: [], runWide }), /0 sessions? still need fixing/);
 });
 
@@ -1163,6 +1185,8 @@ test('mutant: a hard clause that contradicts the run-wide gate is detected', () 
 	assert.equal(readiness.runWideBlockingHard, 0);
 	assert.notEqual(contradictingHardCount, readiness.runWideBlockingHard, 'the contradicting clause would state 2 hard blockers beside a 0 gate');
 	assert.match(readiness.blockerSentence, /^2 unresolved sessions/, 'the production sentence carries no contradicting hard count');
-	assert.equal(hardCountIn(readiness.blockerSentence), readiness.runWideBlockingHard);
+	assert.equal(readiness.totalHardBlockers, readiness.runWideBlockingHard);
+	// Retired-wording guard — see the F1 unresolved-only row. The claim is that
+	// no blocking problem is named, not that the `Must fix` advice line is gone.
 	assert.doesNotMatch(readiness.summaryText, /hard blocker/);
 });

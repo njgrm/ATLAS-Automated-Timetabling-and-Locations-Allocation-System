@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
 import atlasApi from '@/lib/api';
 import type { RolloverStatus } from '@/lib/settings';
-import { runAnchorLabel } from '@/lib/timetable-plain-language';
+import { MUST_FIX_LABEL, runAnchorLabel } from '@/lib/timetable-plain-language';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
@@ -286,7 +286,7 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 		{
 			id: 'review',
 			label: 'Review schedule',
-			helper: hardCount > 0 ? 'Start with hard blockers before publishing.' : 'Check the generated timetable and publish when clean.',
+			helper: hardCount > 0 ? `Start with the “${MUST_FIX_LABEL}” problems before publishing.` : 'Check the generated timetable and publish when clean.',
 			icon: ListChecks,
 			active: !isPreGenerationWorkspace && leftTab === 'violations' && !hasSelectedEntry,
 			onClick: () => {
@@ -848,14 +848,14 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 					onClick={() => setSeverityFilter('all')}
 				/>
 				<FilterChip
-					label="Hard"
+					label={MUST_FIX_LABEL}
 					count={hardCount}
 					active={severityFilter === 'hard'}
 					onClick={() => setSeverityFilter('hard')}
 					variant="destructive"
 				/>
 				<FilterChip
-					label="Soft"
+					label="Warning"
 					count={softCount}
 					active={severityFilter === 'soft'}
 					onClick={() => setSeverityFilter('soft')}

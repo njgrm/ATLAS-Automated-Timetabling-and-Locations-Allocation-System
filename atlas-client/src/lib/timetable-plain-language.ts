@@ -64,6 +64,35 @@ export function mustFixCountLabel(count: number): string {
 }
 
 /**
+ * `MUST_FIX_LABEL` in the one grammatical form a SENTENCE needs: a countable
+ * noun phrase, so the same idea can be the subject of a verb.
+ *
+ * A2-TIMETABLE-CUSTODY (item 1). `MUST_FIX_LABEL` is a LABEL, and the sanctioned
+ * chip/summary form above — `"3 Must fix"` — is a caption, not a noun. Putting
+ * the bare label in front of a verb produced the ungrammatical
+ * `"2 Must fix still need fixing …"`, because "Must fix" cannot be counted.
+ * A surface that needs the idea as a SUBJECT (`N problems still need fixing`)
+ * uses this instead, so there is still exactly one place the words are written.
+ *
+ * It is DERIVED from `MUST_FIX_LABEL`, never a second literal: a
+ * `"Must fix problems"` typed here would be exactly the fourth-copy drift this
+ * module exists to prevent, and it would survive every future rename.
+ */
+export const MUST_FIX_PROBLEM_NOUN = `${MUST_FIX_LABEL} problem`;
+
+/**
+ * `mustFixProblemCountLabel(2)` -> `"2 Must fix problems"`, and the singular
+ * `mustFixProblemCountLabel(1)` -> `"1 Must fix problem"`.
+ *
+ * The plural is formed by suffixing the singular, so the noun is written once
+ * and the two forms cannot drift. `count === 1` is the singular rule, matching
+ * the unresolved-session clause beside it.
+ */
+export function mustFixProblemCountLabel(count: number): string {
+	return `${count} ${count === 1 ? MUST_FIX_PROBLEM_NOUN : `${MUST_FIX_PROBLEM_NOUN}s`}`;
+}
+
+/**
  * The consequence sentence for a publish gate that is shut, in one shape, so
  * the header chip and the setup pane cannot disagree about what is wrong.
  * `blockingHardCount` is the publication-relevant count, so its clause wears

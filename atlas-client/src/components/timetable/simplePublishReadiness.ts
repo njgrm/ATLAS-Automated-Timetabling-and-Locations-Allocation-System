@@ -1,5 +1,5 @@
 import type { DraftReport, UnassignedItem, UnassignedReason, Violation } from '@/types';
-import { UNLABELLED_RULE_SENTENCE } from '@/lib/timetable-plain-language';
+import { mustFixProblemCountLabel, MUST_FIX_LABEL, UNLABELLED_RULE_SENTENCE } from '@/lib/timetable-plain-language';
 
 export type BlockerReason =
 	| 'FACULTY_OVERLOADED'
@@ -664,7 +664,23 @@ export function deriveSimplePublishReadiness(
 	// listing affected sessions.
 	const blockerClauses: string[] = [];
 	if (totalHardBlockers > 0) {
-		blockerClauses.push(`${totalHardBlockers} hard blocker${totalHardBlockers === 1 ? '' : 's'}`);
+		// A2-TIMETABLE-CUSTODY (items 1 and 4) — ONE name for a HARD problem.
+		// This clause used to build a SECOND name of its own ("N hard
+		// blocker(s)"), which is why the readiness copy said "hard blocker"
+		// while Publish Readiness, the grid badge and the header chip all said
+		// `MUST_FIX_LABEL`. It now goes through the shared helper.
+		//
+		// It is the COUNTABLE form (`mustFixProblemCountLabel`), not the chip
+		// form (`mustFixCountLabel`), because this clause is the SUBJECT of the
+		// sentence below and `MUST_FIX_LABEL` alone is a label, not a countable
+		// noun — "2 Must fix still need fixing" is ungrammatical. Both helpers
+		// read the one `MUST_FIX_LABEL`, so there is still only one place the
+		// words are written.
+		//
+		// The COUNT, the sentence shape, the singular/plural agreement and the
+		// "still need(s) fixing" rule below are all unchanged; only the name is
+		// spoken once.
+		blockerClauses.push(mustFixProblemCountLabel(totalHardBlockers));
 	}
 	if (totalUnresolved > 0) {
 		blockerClauses.push(`${totalUnresolved} unresolved session${totalUnresolved === 1 ? '' : 's'}`);
@@ -677,11 +693,14 @@ export function deriveSimplePublishReadiness(
 	if (!draft) {
 		summaryText = `No timetable generated yet\nGenerate a timetable before reviewing publish readiness. Preview and readiness checks alone cannot be published.`;
 	} else if (hasBlockers) {
-		summaryText = `Cannot publish yet\n${blockerSentence}\nFix blockers first. Warnings can be reviewed after blockers are clear.`;
+		// The wording below is the SAME sentence `SimplePublishReadinessSheet`
+		// already renders, so the resolver's copy text and the rendered sheet can no
+		// longer drift into two names for one idea.
+		summaryText = `Cannot publish yet\n${blockerSentence}\nFix the “${MUST_FIX_LABEL}” problems first. Warnings can be reviewed once they are clear.`;
 	} else if (totalSoftWarnings > 0) {
-		summaryText = `Ready except for warnings\nNo hard blockers remain. Review the warnings, then publish if the schedule is acceptable.`;
+		summaryText = `Ready except for warnings\nNo “${MUST_FIX_LABEL}” problems remain. Review the warnings, then publish if the schedule is acceptable.`;
 	} else {
-		summaryText = `Ready to publish\nNo hard blockers or unresolved sessions remain.`;
+		summaryText = `Ready to publish\nNo “${MUST_FIX_LABEL}” problems or unresolved sessions remain.`;
 	}
 
 	return {
