@@ -220,3 +220,21 @@ runner's Chrome session had expired.
 
 Also from this run: public term switching keeps a valid section (Luna across T1–T3) — **#3c PASS**. Public cells
 still show raw subject codes (`TLE_AFA_EXP`, `SCI_CHEM`).
+
+### 10b. Browser acceptance of live `0da104f9` (Lane C, Claude in Chrome, 2026-09-26 evening)
+
+Read-only; the served chunk `assets/index-Co12IRfI.js` matches; no `mcp__Claude_Browser__*` call.
+**5 PASS / 1 FAIL / 1 BLOCKED → not ACCEPT_READY, on A3 only.** A3 is a defect that predates this release,
+not a regression.
+
+| Row | Verdict | Evidence |
+|---|---|---|
+| A1 sign-in persists | PASS | `/` reloaded twice: "Scheduling Dashboard", user "officer Admin". |
+| A2 `/my` retired | PASS | "Faculty Portal Retired — Retired on 26 September 2026… Teacher self-service is handled in SMART." No old rows, no crash. **But:** no SMART link exists anywhere in the shell (system walk 04 #6), so the tombstone sends teachers to a place they cannot reach from ATLAS. |
+| A3 public default = active term | **FAIL** | In one session, the `/timetable` header shows "Term 2" and the "Active Term: T2" chip, while `published?termIndex=active` returns `{"termIndex":1,"termScope":"active","activeTermVerified":true}`. See §10a. |
+| A4 drift banner at 390 px | BLOCKED(VIEWPORT) | The window cannot go below 1280 px; `5f09a133` is not in this release anyway. |
+| A5 public term switch keeps section | PASS | Luna is kept across T1/T2/T3 (`?sectionId=141&term=2/3`). |
+| A6 Runs settled states | PASS | "Checking schedule information…" (~6 s), then runs 318/317/316. "No generation runs yet" never appeared, and switching runs did not blank the list. `5f09a133` is not live, so the defect did not reproduce in this pass. |
+| A7 console | PASS | 0 errors on the signed-in pages and on the public flow. |
+
+Cost (`subagent_tokens`): 67,289 (blocked, expired session) + 97,233 (public rows) + the signed-in rows run.
