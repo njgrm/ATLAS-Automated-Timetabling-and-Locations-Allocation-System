@@ -58,7 +58,26 @@ resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs
   Cutover NOT yet executed; acceptance rows A1–A6 are owed and are deployment-acceptance clauses.
   Packet: `docs/prompts/deploy-400a6909-room-schedules-term-2026-09-26.md`.
 
-- **Release SHA: `26f7c907a37185e036e71cf0d82423794689b318`** (LIVE since 2026-09-26 09:41, Lane A -
+- **Release SHA: `400a6909a9642703e3891861c40d5f49f85c7cd9` — LIVE since 2026-09-26 15:49 (Lane A2,
+  HIGH authority granted by the operator).** Runner returned `CUTOVER_STARTED`, audit
+  `C:\ProgramData\ATLAS\release-audit\400a6909-20260926-154902`; dir
+  `E:\ATLAS-runtime-supervised-400a6909-20260926`; the **scheduled-task action now names the target**;
+  `supervisor-state.json` reads `state=running release=400a6909a…`; health 200, ready 200, DB-backed
+  subjects 200, 5174 200. **Rollback basis `26f7c907a37185e036e71cf0d82423794689b318` (retained, never
+  executed).** Client-only range; **no schema command was run.** **New-build proof:** the live page now
+  carries `schedules-selected-term` and `schedules-view-term`, which exist only in this candidate.
+  **DEPLOYED ≠ ACCEPTED, and acceptance is INCOMPLETE for a reason worth reading:** the deployed badge
+  reads **"Term not verified"**, so the page sits in its fail-closed state and shows no schedule. That is
+  the fix behaving correctly — it refuses rather than merging — but the scheduler sees nothing rather
+  than a correct single-term week. **The cause is client-side, not server-side:** this same deployment
+  answers `?source=latest&termIndex=active` with **200, `termIndexes [1]`, `maxEntriesInOneCell 1`,
+  `entryCount 2`**, so the server resolves and scopes the active term correctly, while
+  `resolveActiveSchoolYearContext` on the client yields no verified term. **That is handoff candidate 3
+  (term resolver diagnosis) and it is now the blocker for C1's user-visible outcome.** The merge itself is
+  gone: a request with no `termIndex` still returns `[1,2,3]` with 3 entries in one cell, so any surface
+  that fails to scope will still display it.
+
+- **Release SHA: `26f7c907a37185e036e71cf0d82423794689b318`** (SUPERSEDED 2026-09-26 15:49 by `400a6909`; was LIVE from 09:41, Lane A -
   client-presentation release, cutover executed; `E:\ATLAS-runtime-supervised-26f7c907-20260926`; execute audit
   `C:\ProgramData\ATLAS\release-audit\26f7c907-20260926-094157`, dry-run audit
   `…-094130`; the runner returned `CUTOVER_STARTED`; active state `running`/`26f7c907`; supervisor task action **and
