@@ -333,3 +333,12 @@ review rather than slipped in unreviewed at the end of a long session.**
 
 Section is now 57 lines against the ~40-line rule (was 320). Every line is a current dated fact; further
 compression would start dropping the "what proves it" that §15 requires.
+
+### 10c. Manual controls, preview-only walk (Lane C, live `0da104f9`)
+
+See `docs/reviews/timetable-manual-controls-20260926/findings.md`. **BLOCKING:** "Change room" crashes the page
+("Cannot read properties of undefined (reading 'length')", `ManualEditPanel` chunk; first suspect `aa7f6f67`).
+**HIGH:** the daily-load cap preview says "11.3h (max 8h)" for a same-day swap, which suggests load summed
+across terms, and it is labelled "Safe to review" under "Must fix"; "Change owner" jumps to Teaching Load
+showing the wrong teacher; the dashboard's "Use Exceptions for in-term changes" points at nothing. Put these in
+the control inventory before any other UI work.
