@@ -1092,13 +1092,59 @@ the deferral signal has to reach the client option builder, which today takes on
 "wiring `SearchableSelect` to honour them is separate work" note is now known to be **incomplete**: honouring
 them naively would be wrong for deferred assignments. Recorded rather than shipped as a false simplification.
 
+**THE SUCCESSOR FIX NEEDS A RULING I GOT WRONG — packet withdrawn, and the error is instructive (2026-09-26).**
+I wrote a packet to *exclude* feature-incompatible rooms from `roomSearchGroups`, reasoning that no client sets
+deferral metadata, so a manual mismatch is always `HARD`. **The executor verified that premise before building,
+found it false, and stopped with zero edits — the tree is byte-identical to base.** Both halves of my premise were
+wrong, and the second inverted the design:
+
+1. **Deferral is written by the server onto the very entry being edited, and survives the room change.**
+   `applyProposal` spreads `{ ...newEntries[idx] }` and sets only `roomId` (`manual-edit.service.ts:704,712`), so
+   `metadata` carries over and no client field can unset it. `schedule-constructor.ts:3067-3074` writes **both**
+   `roomAssignmentReason: 'MODULAR_POOL_ASSIGNED'` **and** `deferredRoomTypePreference: true` for every
+   modular-unified placement, and those entries are persisted into the draft the panel edits;
+   `manual-edit.service.ts:1476-1487` also sets `deferredRoomTypePreference: true` on every entry whose
+   `room.type !== subject.preferredRoomType`, before validating in the same call. So `shouldDeferRoomFeatures`
+   is true for real entries, `ROOM_FEATURE_MISMATCH` is **SOFT**, and the panel already passes
+   `allowSoftOverride=true` (`ManualEditPanel.tsx:215`). **Excluding those rooms would have deleted a choice the
+   server accepts, and the empty-state copy would have asserted something false.** The deferral case I called
+   hypothetical is the common case.
+2. **And my stated reason for preferring exclusion over `disabled` was backwards.** I argued `disabled` would
+   forbid permitted choices. But `searchable-select.tsx:22-23,131-133` **does** consume component-level
+   `disabled` + `disabledReason` — so a truthful `disabled` needs **no primitive change**, and it is the *safer*
+   rendering precisely because it keeps the room offered.
+
+**A second, independent blocker: the client gates on the wrong requirement set.** The client uses raw
+`subject.requiredFeatures` (`useManualEditOptionGroups.ts:101`); the server uses
+`roomRequiredFeatures(subject.requiredFeatures)` (`constraint-validator.ts:864`), which strips `OWNER_DEPT:`
+markers. The server's own comment (`subject-ownership.service.ts:148-149`) names the hazard: *"treating an
+ownership marker as a room requirement makes every room fail."** For any subject carrying an `OWNER_DEPT:` marker,
+naive exclusion empties the dropdown for **every** room. **The existing `isCompatible` is therefore already wrong
+for those subjects** — invisible only because `disabled` is never read.
+
+**A third correction, to my own defect write-up.** I said the officer "only discovers it after composing the whole
+edit." Not true: `ManualEditPanel.tsx:510-548` already renders a **"Requirement vs capability"** block with a red
+`Lacks: …` line **for the selected room**, so a pre-commit warning exists. The real gap is narrower — the room is
+*offered* with no **pre-selection** signal, and the panel already shows the consequence of choosing it.
+
+**Ruling (mine, from the evidence, replacing the withdrawn packet):** never silently hide a room that exists.
+Render the incompatibility through the `disabled` + `disabledReason` props `SearchableSelect` already consumes —
+**disabled with a stated reason for a non-deferred entry** (the server will refuse it), **enabled for a deferred
+entry** (the server permits it under explicit override). This requires (a) typing
+`ScheduledEntry.metadata` to declare `roomAssignmentReason` and `deferredRoomTypePreference` — today
+`types.ts:1268-1275` declares only `modularGroupId` and `modularAssignments`, so the flags arrive in JSON untyped
+and unread — and (b) **client parity with `roomRequiredFeatures`**, not raw `requiredFeatures`. **The packet is
+withdrawn and must be re-issued with both, plus a decision on the currently-unused `metadata` channel on the
+server's `ManualEditProposal` (`:88`).** The sound, independent part — deleting the dead `disabled`/`subLabel`/
+`tier` fields and closing the type mismatch — depends on neither blocker and can land as its own candidate.
+
 **Next action (2026-09-26): the release is live; acceptance needs one operator action.** (1) **operator
 re-seeds** `C:\Users\njgro\.config\opencode\playwright-profile`; (2) **Lane A** runs A5, A6, A7, A12(b) and records
 the result, closing acceptance; (3) **rotate the exposed dev DB credential**; (4) retention reclaim before the
-next release build (E: 46.6 GiB, below the 50 GiB warning); (5) the `4893cbde` + three-leftover decision
-(1.91 GiB) and the 8.72 GiB disposition backlog owned by Lanes B and C; (6) a successor packet for the
-deferral-aware incompatibility affordance above, and a decision on the five oversized `.ts` modules. **Rollback
-basis `116a7658` is verified eligible and was not executed.**
+next release build (E: 46 GiB, below the 50 GiB warning); (5) the `4893cbde` + three-leftover decision (1.91 GiB)
+and the 8.72 GiB disposition backlog owned by Lanes B and C; (6) re-issue the room-affordance packet per the
+ruling above, and decide on the five oversized `.ts` modules. **Rollback basis `116a7658` is verified eligible and
+was not executed.**
 
 **SUPERSEDED 2026-09-26 — a spliced paragraph this lane's own editing left behind, repaired.** The four lines
 immediately below were an orphaned fragment, and the sentence they belonged to was cut in half. They are
