@@ -75,3 +75,18 @@ were correct twice (a named teacher double-booked in another section), and a cle
 revision leaves today's schedule unchanged and says so. The dashboard stayed "Published" through the new draft.
 
 Cost (`subagent_tokens`): 216,395 (184 tool calls).
+
+## Committed actions, round 2 (draft run 320, 2026-09-26 ~23:00 +08)
+
+| # | Action | Finding | Severity |
+|---|---|---|---|
+| 1 (repro) | **Change room** | Crashed again on run 320: `TypeError: Cannot read properties of undefined (reading 'length')` at `ManualEditPanel-DjRgXRma.js:1:12213`. **Confirmed on two runs.** The More menu on this draft has no "Tools ▸ Manual edit" entry, so there is no working way to change a room from `/timetable`. | **BLOCKING** |
+| 3 (repro) | **Change owner** | From Mon 06:00 TLE (P. CRUZ) it opened `/teaching-load?facultyId=9&sectionId=141&subjectId=12&task=missing-load`, showing **AGUILAR, CARLO MIGUEL — FILIPINO**. **Confirmed on two classes.** The URL carries the right subject (12) but the page shows another teacher, and it offers no targeted owner-change step. | **HIGH** |
+| 20 | **Move onto an occupied slot → Swap (GR7 - Luna Mon 06:00 TLE ↔ Mon 10:00 FIL)** | The preview said "Safe to review · No blocking conflict" and did **not** mention an automatic move. The commit toasted "Sessions switched. ATLAS also moved the source session to the nearest valid slot." / "Source session auto-fixed to the nearest valid slot." (strategy `AUTO_FIX_MOVE_SOURCE`). Header warnings went 159 → 69, yet the GR7 - Luna Term 2 grid looked **unchanged**. After "Revert this edit" the warnings stayed at 69. **Second instance of #8:** the swap's hidden auto-fix changes something other than what the preview showed, and revert does not restore it. Where the change landed is being traced (Codex, read-only). | **BLOCKING** (same defect as #8) |
+| 21 | **Communication, session dialog** | 43 words, 7 buttons, labelled CLASS/TEACHER/ROOM/TIME fields with icons, no small text: **clear**. Cut: "Class summary. Each action below opens its usual review before anything is saved." (the layout already says it). | note |
+| 22 | **Communication, swap preview** | A/B cards, a before→after block and a green one-line "Safe to review" banner: visually **clear**, but the green banner is **misleading** whenever the server may auto-fix. A clear screen that is wrong is worse than a dense one. The preview must show the auto-fix move, or the commit must not make it. | HIGH (with #8/#20) |
+
+Unperformed in this round (budget): Teacher leaving to Save, and the communication grading of the readiness sheet, the
+Review-issues panel, the drift banner and the generate dialog. Re-dispatched as smaller runs.
+
+Cost (`subagent_tokens`): see the Lane C channel.

@@ -14,6 +14,20 @@ Operator rulings that bind both lanes (2026-09-26):
 
 ---
 
+## 2026-09-26 23:05 — Reproduced: Change room crash, Change owner wrong teacher, swap auto-fix ≠ preview (run 320)
+
+Evidence: `docs/reviews/timetable-manual-controls-20260926/findings.md` "round 2" (#1 repro, #3 repro, #20, #22).
+All three reproduced on a fresh draft, so they are not run-318 artefacts. **New specific:** the swap preview shows a
+green "Safe to review" and never mentions that the server may auto-move a session (`AUTO_FIX_MOVE_SOURCE` /
+`AUTO_FIX_MOVE_BLOCKING`). The toast then admits the move, and the warnings drop 159 → 69 while the visible grid is
+unchanged, and revert does not bring them back. **Fix rule (UX + function):** show the exact auto-fix move in the
+preview before commit, or do not auto-fix. A clear screen that says the wrong thing is the worst case for older
+users.
+
+**Operator rule, now binding on QA verdicts:** UX communication is graded as seriously as function: word count,
+visual status cues, less is more, no walls of text for older schedulers. Expect "dense / wall-of-text" findings
+from Lane C alongside the defects.
+
 ## 2026-09-26 22:40 — BLOCKING: publishing takes the public schedule offline for the rest of the day; live state changed
 
 Evidence: `docs/reviews/timetable-manual-controls-20260926/findings.md` #12–#19. After Lane C published **run
