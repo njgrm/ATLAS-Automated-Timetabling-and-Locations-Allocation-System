@@ -3,11 +3,22 @@
  * ManualEditPanel action form.
  *
  * Both selectors are grouped rather than flat: rooms by building, faculty by
- * department. A room option is disabled when the room cannot satisfy the
- * subject's required features; a faculty option carries its qualification tier
- * and current draft load so the officer can sort by qualification inside a
- * department. This module is derivation only — the panel owns the selection
- * state, and no rendered markup lives here.
+ * department. Within a department, faculty options are ordered by qualification
+ * tier then name, and each label is prefixed `[Department Match]`,
+ * `[Secondary Match]` or `[Unqualified]` so the ordering is legible in the list.
+ *
+ * KNOWN GAP, stated here because this module is the authority for the derivation:
+ * each room option also carries a computed `disabled: !isCompatible` and a
+ * `subLabel` naming the features it lacks, but the current `SearchableSelect`
+ * does not consume either — it renders `<span>{item.label}</span>` only, its
+ * `items` type is `{ value: string; label: string }`, and it never reads
+ * `subLabel`, `disabled` or `tier`. **So a feature-incompatible room is
+ * currently selectable and the officer gets no warning.** The fields are kept
+ * because they are the intended contract for that guard; wiring `SearchableSelect`
+ * to honour them is separate work, not something this derivation can deliver.
+ *
+ * This module is derivation only — the panel owns the selection state, and no
+ * rendered markup lives here.
  */
 import { useMemo } from 'react';
 
@@ -30,7 +41,12 @@ export interface ManualEditOptionGroupInput {
 }
 
 export interface ManualEditOptionGroups {
-	/** Rooms grouped by building, feature-incompatible rooms disabled. */
+	/**
+	 * Rooms grouped by building. Options are ordered by name within a building.
+	 * A `disabled` flag and a `subLabel` naming the missing features are computed
+	 * per option, but the current `SearchableSelect` ignores both — see the KNOWN
+	 * GAP note above.
+	 */
 	roomSearchGroups: SearchableSelectGroup[];
 	/** Faculty grouped by department, ordered by qualification tier then name. */
 	facultySearchGroups: SearchableSelectGroup[];
