@@ -22,6 +22,7 @@ import atlasApi from '@/lib/api';
 import { getPreferredAccessToken } from '@/lib/auth';
 import { resolveActiveSchoolYearContext } from '@/lib/enrollpro-public-settings';
 import { isVerifiedOrderedActiveTerm } from '@/lib/academic-term';
+import { UNVERIFIED_TERM_BODY, UNVERIFIED_TERM_TITLE } from '@/lib/room-schedule-term-copy';
 import { useActorSchoolScope } from '@/lib/actor-scope-session';
 import { pivotDraftToView } from '@/lib/schedule-pivot';
 import { parseGradeFromSectionName } from '@/components/GradeLevelBadge';
@@ -697,8 +698,10 @@ const [verifiedTermIndex, setVerifiedTermIndex] = useState<number | null>(null);
 				subjectMap={subjectMap}
 				facultyMap={facultyMap}
 				sectionMap={overlaySectionMap}
-				emptyTitle={scheduleEmptyLabel}
-				emptyDescription="Build Teaching Load before creating the first timetable."
+				emptyTitle={verifiedTermIndex == null ? UNVERIFIED_TERM_TITLE : scheduleEmptyLabel}
+				emptyDescription={verifiedTermIndex == null
+					? UNVERIFIED_TERM_BODY
+					: 'Build Teaching Load before creating the first timetable.'}
 			/>
 		</Card>
 	);

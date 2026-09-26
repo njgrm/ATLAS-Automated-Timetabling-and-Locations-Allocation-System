@@ -6,6 +6,7 @@
  */
 
 import type { DraftReport, RoomScheduleEntry, RoomScheduleView, ScheduledEntry } from '@/types';
+import { matchesTermScope } from '@/lib/timetable-term-scope';
 
 const DAYS = ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY'] as const;
 
@@ -106,8 +107,13 @@ export function pivotDraftToView(
 		return { ok: false, reason: 'TERM_IDENTITY_UNAVAILABLE' };
 	}
 
+	// The term predicate is the ONE client authority (`matchesTermScope`), not a
+	// second `=== termIndex` restated here — two predicates for one term is the
+	// hazard the shared maps exist to prevent. It does not narrow the type, so
+	// the narrowing is asserted separately; it is sound because the fail-closed
+	// check above already proved every one of these entries has a numeric term.
 	const filtered = forEntity.filter(
-		(e): e is ScheduledEntry & { termIndex: number } => e.termIndex === termIndex,
+		(e): e is ScheduledEntry & { termIndex: number } => matchesTermScope(e, termIndex) && typeof e.termIndex === 'number',
 	);
 
 	// Pull display slots from summary; fall back to derived slots if missing

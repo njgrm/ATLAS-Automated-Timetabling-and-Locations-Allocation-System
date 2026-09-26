@@ -4,6 +4,7 @@ import { Maximize2 } from 'lucide-react';
 
 import atlasApi from '@/lib/api';
 import { resolveActiveSchoolYearContext } from '@/lib/enrollpro-public-settings';
+import { isVerifiedOrderedActiveTerm } from '@/lib/academic-term';
 import { useActorSchoolScope } from '@/lib/actor-scope-session';
 import type { RoomScheduleView } from '@/types';
 import { Badge } from '@/ui/badge';
@@ -46,8 +47,23 @@ export function RoomSchedulePreview({
 			try {
 				const context = await resolveActiveSchoolYearContext({ schoolId: scopedSchoolId, allowStaleOnError: true, allowEnrollProFallback: false });
 				if (!context.activeSchoolYearId || cancelled) return;
+
+				// ROOM-SCHEDULES-TERM-C01 — this component had no callers when the
+				// cycle scoped the other three surfaces, so it was left requesting
+				// an all-term read and rendering an all-term utilisation, entry
+				// count and conflict count. Those are exactly the three quantities
+				// that must describe one term. It is scoped now so the file cannot
+				// reintroduce the merged view if it is ever wired up again.
+				const activeTerm = context.activeTerm ?? null;
+				if (!isVerifiedOrderedActiveTerm(activeTerm) || activeTerm?.termIndex == null) {
+					if (cancelled) return;
+					setSchedule(null);
+					setState('empty');
+					return;
+				}
+				const params = new URLSearchParams({ source: 'latest', termIndex: String(activeTerm.termIndex) });
 				const { data } = await atlasApi.get<RoomScheduleView>(
-					`/room-schedules/${scopedSchoolId}/${context.activeSchoolYearId}/rooms/${roomId}?source=latest`,
+					`/room-schedules/${scopedSchoolId}/${context.activeSchoolYearId}/rooms/${roomId}?${params}`,
 				);
 				if (cancelled) return;
 				setSchedule(data);

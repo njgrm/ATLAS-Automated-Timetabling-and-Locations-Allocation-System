@@ -14,6 +14,7 @@ import {
 
 import atlasApi from '@/lib/api';
 import { resolveActiveSchoolYearContext } from '@/lib/enrollpro-public-settings';
+import { UNVERIFIED_TERM_BODY, UNVERIFIED_TERM_TITLE } from '@/lib/room-schedule-term-copy';
 import { useActorSchoolScope } from '@/lib/actor-scope-session';import { pivotDraftToView } from '@/lib/schedule-pivot';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
@@ -278,10 +279,7 @@ export default function RoomSchedules() {
 		// draft nor silently adopt Term 1. The message is an operator action, not
 		// an error code, and it never claims the schedule is empty.
 		if (viewTerm == null) {
-			setState({
-				status: 'empty',
-				message: 'ATLAS could not verify which term this schedule is for, so it is not showing one. Check the school year and term in EnrollPro, then retry.',
-			});
+			setState({ status: 'empty', message: UNVERIFIED_TERM_BODY });
 			return;
 		}
 		const selectedTermForView = viewTerm;
@@ -486,7 +484,7 @@ export default function RoomSchedules() {
 							className="rounded-md border border-primary/20 bg-primary/5 px-1.5 py-0.5 text-[0.65rem] font-medium text-primary"
 							data-testid="schedules-selected-term"
 						>
-							{selectedTermLabel ? `Showing ${selectedTermLabel}` : 'Term not verified'}
+							{viewTerm != null && selectedTermLabel ? `Showing ${selectedTermLabel}` : UNVERIFIED_TERM_TITLE}
 						</span>
 						</div>
 					</div>

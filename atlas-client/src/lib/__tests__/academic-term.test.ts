@@ -79,12 +79,18 @@ test('control 7d: no client academic-term surface retains a hard-coded three-ter
 	// boundary", rather than in a second file: two authorities for one invariant
 	// is the hazard these label maps exist to prevent.
 	//
-	// ONE regex, matched in BOTH orders. An earlier draft of this guard used two
-	// separate patterns, and its own positive control proved the second one could
-	// not fire — `?? 1` follows the property name in the real code, not precedes
-	// it. A guard that cannot match is false assurance, so it was replaced rather
-	// than kept alongside the working one.
-	const termFallOpen = /(termIndex[^;\n]*\?\?\s*\d)|(\?\?\s*\d[^;\n]*termIndex)/;
+	// ONE alternative, because there is only ONE realistic shape. An earlier
+	// draft carried a second "fallback-then-property" alternative and asserted in
+	// prose that both orders were covered; the reviewer showed its second
+	// alternative matched no realistic code, and a positive control here then
+	// confirmed it (the only string that exercised it, `1 ?? e.termIndex`, is not
+	// even valid JavaScript). An alternative that matches nothing is dead weight,
+	// so it was removed rather than kept as decorative coverage.
+	//
+	// The one realistic shape is the property or the read followed by a numeric
+	// fallback, with either `??` or `||`. `termIndex: e.termIndex || 1` is the same
+	// fail-open with a different operator and was NOT covered before this.
+	const termFallOpen = /termIndex[^;\n]*(\?\?|\|\|)\s*\d/;
 	for (const rel of ['src/lib/schedule-pivot.ts', 'src/lib/academic-term.ts']) {
 		const source = readFileSync(resolve(HERE, '../../../', rel), 'utf8');
 		assert.doesNotMatch(
@@ -94,13 +100,26 @@ test('control 7d: no client academic-term surface retains a hard-coded three-ter
 		);
 	}
 
-	// Positive control: the guard must be able to fail in EITHER order, or the row
-	// above is decorative. This is what caught the dead pattern.
-	assert.match('const a = { termIndex: e.termIndex ?? 1 };', termFallOpen, 'property-then-fallback ordering must be caught');
-	assert.match('const t = entry.termIndex ?? 1;', termFallOpen, 'read-then-fallback ordering must be caught');
-	// And it must NOT fire on a legitimate numeric fallback that has nothing to do
-	// with a term, or the guard is too broad to be trusted.
-	assert.doesNotMatch('const n = count ?? 1;', termFallOpen, 'an unrelated numeric fallback must not trip the guard');
+	// Positive controls, each checked against the live pattern. If the pattern
+	// stops matching any of these, the guard would be decorative and this fails
+	// rather than the prose claiming coverage.
+	const mustBeCaught: ReadonlyArray<readonly [string, string]> = [
+		['const a = { termIndex: e.termIndex ?? 1 };', 'property assignment with ??'],
+		['const t = entry.termIndex ?? 1;', 'plain read with ??'],
+		['const u = { termIndex: e.termIndex || 1 };', 'property assignment with ||'],
+		['const v = e.termIndex || 1;', 'plain read with ||'],
+	];
+	for (const [source, description] of mustBeCaught) {
+		assert.ok(
+			termFallOpen.test(source),
+			`the term fall-open guard must be able to catch a ${description} (it matched nothing, so the guard would be decorative)`,
+		);
+	}
+	// And it must NOT fire on an unrelated numeric fallback, or it is too broad
+	// to be trusted on a real file.
+	for (const benign of ['const n = count ?? 1;', 'const m = page || 1;']) {
+		assert.equal(termFallOpen.test(benign), false, `an unrelated numeric fallback must not trip the guard: ${benign}`);
+	}
 	// The toolbar consumes runtime term options rather than an internal static list.
 	const toolbar = readFileSync(resolve(HERE, '../../../', 'src/components/timetable/TimetableToolbar.tsx'), 'utf8');
 	assert.match(toolbar, /termOptions: ReadonlyArray<Option>/, 'toolbar term options come from the caller');

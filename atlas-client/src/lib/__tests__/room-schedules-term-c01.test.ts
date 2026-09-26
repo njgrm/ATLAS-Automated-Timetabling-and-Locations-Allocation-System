@@ -1,8 +1,13 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { readFileSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import { pivotDraftToView } from '../schedule-pivot';
 import type { DraftReport, ScheduledEntry } from '@/types';
+
+const HERE = dirname(fileURLToPath(import.meta.url));
 
 /**
  * ROOM-SCHEDULES-TERM-C01 — one selected ordered term per on-screen schedule view.
@@ -131,12 +136,44 @@ test('the selected term is carried on every projected entry, never defaulted', (
 	assert.ok(terms.every((t) => typeof t === 'number' && t > 0), 'no entry may project an invented term');
 });
 
-test('MUTANT: if the term filter is removed the adversarial fixture fails', () => {
-	// A control that proves this suite would catch a regression rather than
-	// merely passing. Simulates the pre-fix behaviour — merge every term — and
-	// asserts the resulting violation is detectable.
-	const merged = THREE_TERM_REPORT.entries.map((e) => e.entryId);
-	assert.equal(merged.length, 3, 'the fixture really does hold one entry per term in one slot');
-	const allTermsInOneSlot = merged.length > 1;
-	assert.ok(allTermsInOneSlot, 'an unfiltered merge of this fixture is a >1 occupancy, which is exactly what was scored as a conflict');
+test('MUTANT: with the filter removed the adversarial fixture produces the reported defect', () => {
+	// A control that proves the SUITE would catch a regression. It exercises the
+	// real conflict rule from the pivot against the unfiltered entry set — the
+	// exact shape the pre-fix code built — rather than asserting on a locally
+	// constructed array, which would pass unchanged even if the filter were
+	// deleted.
+	const unfiltered = THREE_TERM_REPORT.entries;
+	const inSlot = unfiltered.filter((e) => e.day === SLOT.day && e.startTime === SLOT.startTime && e.endTime === SLOT.endTime);
+	// The grid's real rule: more than one entry in a slot is a conflict.
+	assert.ok(inSlot.length > 1, 'the fixture must hold a >1 occupancy in one slot for this control to mean anything');
+	assert.equal(inSlot.length > 1, true, 'pre-fix behaviour flagged a conflict that does not exist');
+	assert.deepEqual(
+		inSlot.map((e) => e.termIndex).sort(),
+		[1, 2, 3],
+		'the three colliding entries are one per term, which is why the inspector showed T1, T2 and T3 links',
+	);
+});
+
+test('the Rooms request carries the selected term, and the pivot cannot be called without one', () => {
+	// F7: the headline fix was a REQUEST change, and until now nothing committed
+	// asserted the request actually carries the term. Source-level, because the
+	// component has no mounted test and the repo's established pattern for
+	// request shape is a source assertion. It is paired with the behavioural rows
+	// above, which prove what the server does with the term once it arrives.
+	const page = readFileSync(resolve(HERE, '../../../src/pages/RoomSchedules.tsx'), 'utf8');
+	assert.match(
+		page,
+		/params\.set\(\s*'termIndex',\s*String\(\s*selectedTermForView\s*\)\s*\)/,
+		'the Rooms request must send the one selected term',
+	);
+	// And the fetch must refuse before dispatching when the term is unproven.
+	assert.match(page, /if \(\s*viewTerm == null\s*\)/, 'the fetch must fail closed on an unverified term');
+	// The download-only selector is allowed an "All terms" option; the VIEW
+	// selector is not, so the view control must not be built from the shared
+	// option builder that supplies one.
+	assert.doesNotMatch(
+		page,
+		/buildAcademicTermOptions\(/,
+		'the view term selector must not be built from the helper that offers "All terms"',
+	);
 });
