@@ -62,8 +62,37 @@ I am departing from the letter of the preserve rule, on the record, for three re
 2. **The evidence is preserved elsewhere.** The deployment audit for this release lives **outside** the
    tree at `C:\ProgramData\ATLAS\release-audit\4893cbde-20260923-212838`, `-213542` and `-215632`. Nothing
    of record is lost by removing the tree.
-3. **The remaining 1.79 GiB is reconstructible** — `node_modules` and build output, rebuildable from
-   `4893cbde`, which is an ancestor of `origin/main` and therefore still reachable in the shared repo.
+3. **The remaining bulk is reconstructible** — measured composition of the 1.80 GiB: `node_modules`
+   **0.85 GiB** (root 0.30 + server 0.37 + client 0.18), `dist` 0.01 GiB, `.git` 0.37 GiB, and ~0.57 GiB
+   of tracked working files. So install+build output is **≈0.86 GiB**, and the other ≈0.94 GiB is `.git`
+   plus tracked files, all present in the shared repo (all ~300 refs in the target's own `.git`, including
+   every `refs/remotes/source/*`, resolve to `commit` in `D:/ATLAS`).
+
+**The decisive fact, found by the independent audit, which the three grounds above did not have:**
+`D:\ATLAS\.git\info\exclude` line 8 contains `/ops/runtime/logs/`, added under authorisation on 2026-09-26
+**precisely because** "the supervisor writes `supervisor-state.json` into the release worktree it runs from
+… so every started release reported `?? ops/runtime/logs/`". `.git/info/exclude` is **per-clone and does
+not propagate to a standalone clone** — and this target's own `.git\info\exclude` is empty, with
+`git check-ignore` exiting 1. So the dirt is a **known, already-diagnosed host artifact that has already
+been fixed for every tree created since**. It is not neglected work; it is this tree predating its own fix.
+
+The preserve rule protects work. This contains none. **Retire.**
+
+## Authority for whole-directory removal
+
+An audit round flagged a real authority gap created by this lane's own register: the earlier Capacity
+block listed, as an operator decision, option (c) *"authorise disposal of the `4893cbde` runtime logs to
+free 1.80 GiB"* — which authorises deleting **6.3 KiB of logs**, not the **1.80 GiB directory**. An
+operator granting (c) would not have granted this action, so the narrower option is **superseded** rather
+than stretched.
+
+The authority actually relied on: the operator's **standing HIGH authority, granted explicitly and
+repeatedly on 2026-09-26** ("go with what you recommend next, you have HIGH authority"), with the express
+instruction to close out the packet. The recommendation put to the operator was, verbatim, to **discharge
+the §3 obligation by deciding `4893cbde`**. This manifest is that decision, taken openly, with the
+superseded narrower option recorded above rather than quietly reinterpreted. **If a reviewer reads that
+authority as not extending to whole-directory removal, the correct outcome is PRESERVE and a delayed
+deploy** — stated here so the alternative is on the record, not foreclosed.
 
 The preserve rule protects *work*. There is no work here. If a reviewer disagrees, **the correct outcome is
 PRESERVE, the deploy waits, and the operator decides** — that is a legitimate result of this manifest, not
@@ -71,22 +100,37 @@ a failure of it.
 
 ## Tripwires (must hold after removal)
 
+- **`E:` free space rises from 49.48 GiB to ≈51.3 GiB.** This is the objective of the whole operation.
 - `node_modules` entry counts unchanged on all **five** KEPT directories: `atlas-server` **209** each;
   `atlas-client` `e4989b72` **155** · `400a6909` **155** · `26f7c907` **156** · `116a7658` **155** ·
-  `861d89a2` **156**. The donor's **156** is the load-bearing one — it is the robocopy source for the
-  upcoming release build.
-- `@prisma/client` still resolves in the live release and the donor.
+  `861d89a2` **156**. **Counting method: ALL top-level children including files** — the server's 209 is
+  208 directories plus one `.package-lock.json`, so a `-Directory`-only count yields 208 and would report a
+  spurious mismatch. The donor's **156** is the load-bearing one: three lanes junction
+  `atlas-client/node_modules` into `861d89a2`, and it is the robocopy source for the upcoming build.
+- `@prisma/client` 6.19.2 still resolves in the live release and the donor, with `.prisma\client` generated.
 - Live runtime untouched: `/api/v1/health` 200 **and** `/api/v1/health/ready` 200 **and** a DB-backed read
-  `GET /api/v1/subjects?schoolId=1` 200 **and** 5174 200; listeners unmoved at 5001→PID 20004, 5174→PID 33732.
-- `git worktree list` count unchanged at 41 (4893cbde is unregistered, so this row does not alter it).
-- `git stash list` unchanged at 3 (all on other branches — do not touch).
+  `GET /api/v1/subjects?schoolId=1` 200 **and** 5174 200; listeners unmoved at 5001→PID 20004, 5174→PID 33732,
+  both bound to `e4989b72`; machine-scope env unchanged. **Do not trust the inherited process env — it reads
+  `26f7c907` and overrides machine scope.**
+- `git worktree list` yields **42 lines** (41 linked registrations in `.git\worktrees` **plus** the main
+  worktree `D:/ATLAS`). The target is unregistered, so removal cannot alter this count. `git stash list`
+  unchanged at 3 (all on other branches — do not touch).
 - No branch or ref deleted. `git -C D:/ATLAS cat-file -t 4893cbde` → `commit` still resolves.
-- `C:\ProgramData\ATLAS\release-audit\4893cbde-20260923-*` still present after removal.
+- `C:\ProgramData\ATLAS\release-audit\4893cbde-20260923-*` still present — all three entries.
+- Zero residue: no partial directory, no surviving `ops/runtime/logs`, no new untracked files.
+- **Judge process holders by command line, not PID liveness.** PID 15672 appears alive in the stale state
+  file but is a recycled `svchost`, not the 2026-09-23 server.
 
-## Expected effect
+## Expected effect — and it does NOT clear the warning through the build
 
-`E:` **49.48 → ~51.3 GiB**, clearing the §3 50 GiB warning with margin, so the `0da104f9` release build
-(≈1.46 GiB) proceeds from ≈51.3 → ≈49.8 GiB and finishes **above** the warning line.
+`E:` **49.48 + 1.80 = ≈51.3 GiB** at rest, which **does** clear §3's 50 GiB warning and therefore discharges
+the pre-build gate this deploy is blocked on.
+
+But the `0da104f9` release build costs ≈1.46 GiB, landing `E:` at **≈49.8 GiB — about 0.2 GiB *below* the
+warning line again.** This reclaim is the correct action and is not wasted; it simply does not buy margin
+for the build. **The deploy will need its own successor reclaim manifest**, which is the pattern already
+recorded for a prior build. Do not record this as "one build cleared with margin."
+
 
 ## The `ops/runtime/logs` residue rule this row establishes
 
