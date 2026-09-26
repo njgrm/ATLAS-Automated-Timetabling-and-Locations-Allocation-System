@@ -381,7 +381,7 @@ cd ../..
 ```
 
 **EnrollPro seed creates:**
-- Admin account: `admin@deped.edu.ph` / `Admin2026!`
+- Admin account: `admin@deped.edu.ph` — the password is whatever you set as `DEFAULT_ADMIN_PASSWORD` in EnrollPro's own `.env`; it is never stored in this repository. Open that `.env` to read it back.
 - School Year 2026-2027 (Active)
 - 12 JHS Sections (3 per grade, Grades 7-10)
 - 20 Teachers
@@ -407,6 +407,12 @@ CLIENT_URL=http://localhost:5174
 ENROLLPRO_API=http://localhost:5000/api
 FACULTY_ADAPTER=enrollpro
 SECTION_SOURCE_MODE=enrollpro
+
+# Passwords for the ATLAS logins created by `npm run db:seed`.
+# Choose your own strong values — the seed reads them from here and stops with an
+# error if either is missing, rather than creating an account with a known password.
+SEED_ADMIN_PASSWORD=<choose-a-strong-officer-password>
+SEED_FACULTY_PASSWORD=<choose-a-strong-faculty-password>
 ```
 
 > ⚠️ **Critical:** ATLAS `JWT_SECRET` must match EnrollPro's for bridge token validation.
@@ -414,7 +420,7 @@ SECTION_SOURCE_MODE=enrollpro
 Initialize ATLAS database:
 ```bash
 npm run db:bootstrap
-npm run db:seed
+npm run db:seed   # requires SEED_ADMIN_PASSWORD and SEED_FACULTY_PASSWORD above
 ```
 
 #### Step 5: Start Both Systems
@@ -438,7 +444,7 @@ npm run dev
 #### Step 6: Establish Bridge Token
 
 1. Open EnrollPro: http://localhost:5173
-2. Log in as: `admin@deped.edu.ph` / `Admin2026!`
+2. Log in as: `admin@deped.edu.ph`, using the admin password from EnrollPro's `.env` (see Step 3)
 3. Navigate to ATLAS from EnrollPro sidebar or menu
 4. EnrollPro passes your JWT token to ATLAS automatically
 5. ATLAS validates the token and creates your session
