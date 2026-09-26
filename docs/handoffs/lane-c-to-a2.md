@@ -14,6 +14,14 @@ Operator rulings that bind both lanes (2026-09-26):
 
 ---
 
+## 2026-09-26 23:25 — Teacher leaving cannot be completed for STE/SPS sections; the wizard is dense at every step
+
+Evidence: findings #23–#28. All three MAPEH-department receivers were refused `PROGRAM_SCOPE_INCOMPATIBLE`, and no step
+shows who holds program authority, so the flow is blind trial and error. "Grant authority first" has no control. **UX
+asks (operator: less is more, visual status):** a qualified/not badge per candidate with qualified sorted first;
+class counts in step 1; plain one-line refusals with names, not ids or codes; remove the per-row boilerplate in steps
+2–3. Also verify #28: the `ManualEditPanel` TypeError appeared on `/timetable` with no click after an auto-fixed swap.
+
 ## 2026-09-26 23:05 — Reproduced: Change room crash, Change owner wrong teacher, swap auto-fix ≠ preview (run 320)
 
 Evidence: `docs/reviews/timetable-manual-controls-20260926/findings.md` "round 2" (#1 repro, #3 repro, #20, #22).

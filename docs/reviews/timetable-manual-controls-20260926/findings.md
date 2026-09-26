@@ -90,3 +90,23 @@ Unperformed in this round (budget): Teacher leaving to Save, and the communicati
 Review-issues panel, the drift banner and the generate dialog. Re-dispatched as smaller runs.
 
 Cost (`subagent_tokens`): see the Lane C channel.
+
+## Teacher leaving / Reassign load: commit attempt + communication grading (draft run 320, ~23:20 +08)
+
+**Function:** could not commit. Leaving teacher **Rizal, Jose (MAPEH)**. Step 2 lists 4 classes / 60 weekly meetings,
+including MAPEH · GR7-Bonifacio-STE and MAPEH · GR8-Makakalikasan-SPS. Three MAPEH-department replacements
+(Ocampo, Frederick; Garcia, Isabella Joy; Garcia, Anna Patricia) were **all refused at Preview**: "The selected
+teacher is not qualified for this subject through department, program, or specialization authority. Choose a
+qualified receiver, or grant authority first." Toast: "Target faculty 26 is not qualified for subject 21 in this
+section program (PROGRAM_SCOPE_INCOMPATIBLE)". Nothing was saved.
+
+| # | Finding | Severity |
+|---|---|---|
+| 23 | **A departure touching a specialized-program section (STE/SPS) cannot be completed from the wizard.** No step shows who holds program authority, and "grant authority first" names an action that has no control in this flow. The only way to find a valid receiver is trial and error, blind. | **HIGH** |
+| 24 | **The replacement picker (step 3) is a flat alphabetical name list** with no qualification, program-authority or load signal. Refusal comes only after Preview. Mark each candidate qualified/not (icon + colour) and sort qualified first; hide or disable the ineligible ones with a one-word reason. | **HIGH** (UX) |
+| 25 | **The leaving-teacher list (step 1) shows no class count or load.** The runner had to leave the wizard for `/teaching-load` to choose. | MEDIUM |
+| 26 | **The refusal is prose plus engine ids and a code** ("Target faculty 26 … subject 21 … PROGRAM_SCOPE_INCOMPATIBLE"). Use names and one plain line: "Not allowed to teach STE sections." | MEDIUM |
+| 27 | **The wizard is dense at every step.** Words / buttons / text under 14 px / visual status: step 1 88/3/13/none; step 2 147/10/22/none; step 3 131/14/26/none; step 4 ~90 words of refusal, no icon (**wall of text**). Step 2 repeats the same boilerplate on each class row; step 3 repeats per group. | **HIGH** (older users) |
+| 28 | **The Change room crash can appear without clicking it.** After the round-2 swap, `/timetable` carried the `ManualEditPanel` TypeError and a floating "Source session auto-fixed to the nearest valid slot." toast before any action in this run. The crashing panel may mount on its own once an auto-fixed entry exists (not isolated). | HIGH (verify) |
+
+Cost (`subagent_tokens`): see the channel.
