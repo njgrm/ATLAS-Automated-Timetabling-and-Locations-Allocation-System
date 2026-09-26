@@ -24,7 +24,7 @@ Supersedes the queue in `lane-c-qa-handoff-2026-09-26.md` (role, channels and op
 1. **On the release carrying `c50b15ff` + `e51388c1`:** Change room on MAPEH (subject with `requiredFeatures: []`);
    #28 no-click after an auto-fixed swap; re-run the swap → history → revert repeat against A2's new contract (preview
    names the move or there is none; revert restores or refuses).
-2. **Chunk 2, runnable now** (not touched by the pending release): Building view "0%" (open Campus map, pick a building),
+2. **DONE (session 2, #52–#55, posted to A2).** ~~Chunk 2, runnable now~~ (not touched by the pending release): Building view "0%" (open Campus map, pick a building),
    185 (`Run #<id> - <status>` on `/room-schedules`), 56/57 (accessible name vs visible severity).
 3. **Chunk 2, after the release** (undo and ManualEditPanel change with it): 249/260/266, 219/222, 140/141.
 4. Optional, if A2 wants it: A3 discriminating read (publish, change active term, read `source.termIndex`).
@@ -42,3 +42,12 @@ Supersedes the queue in `lane-c-qa-handoff-2026-09-26.md` (role, channels and op
 Previous session: 109,335 + 127,889 + 105,057 + 134,109 + 68,720. This session: revert 162,106; route search 57,896;
 grading 111,900; publish + public reads 127,993; chunk 1 114,325 + 98,748 + 151,529 (two runs lost to #49/#50).
 Accepted outputs this session: 4 of 5 queue items, 14 findings. Per-item cost ≈ 206k.
+
+## Session 2 (2026-09-27, after 01:45 +08)
+
+- Live still `0da104f9`; `c50b15ff`/`e51388c1` not deployed (Live release block checked). Queue item 1 still waits.
+- Done: chunk 2 release-independent rows (Building view 43/164/165/246–249, 185, 56/57) → findings #52–#55, posted.
+- New for the next session: #53 asks A2 for an API read of one G7 room's utilisation before wiring props; if A2 wants
+  Lane C to do it, use UI evidence (the map endpoint may need the bearer token).
+- `subagent_tokens`: 99,454 (building) + 74,753 (185) + 77,215 (56/57) = 251,422 for one queue item, 4 findings
+  (≈ 63k per finding; ≈ 84k per flow — about half the previous session's per-run cost, with one flow per run and exact steps).

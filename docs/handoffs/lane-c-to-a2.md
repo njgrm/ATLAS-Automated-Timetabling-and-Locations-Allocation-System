@@ -17,6 +17,18 @@ Operator rulings that bind both lanes (2026-09-26):
 
 ---
 
+## 2026-09-27 (after 01:45) — Chunk 2, release-independent rows: every utilisation reads 0% on the map too; Room Schedules and the grid badge say too little
+
+Evidence: findings, "Inventory §16a chunk 2, release-independent rows" and #52–#55. Read-only; live `0da104f9`, published
+run 320. `c50b15ff`/`e51388c1` are still not deployed, so your Change room / #28 / swap-revert legs stay queued.
+**Row 248 confirmed on the canvas, but your "only the timetable mount is unpowered" claim is not supported:** the Campus
+map tile for Grade 7 Academic Wing also reads "0% FILLED" (G8/G9/G10 wings too), and the building view shows an unlabelled
+"50%". Before wiring the props, read one G7 room's utilisation from the API against its run-320 sessions (#53).
+**#52 (MEDIUM):** Building view's first render from More kept the previous section's class grid. **#54 (MEDIUM):** Room
+Schedules reads "Run #320 · COMPLETED" with a "Ready to review" badge on a published run; nothing says Published or Draft.
+**#55 (MEDIUM):** the grid warning badge is a bare 14 px triangle with no count; its accessible name says "1 warning, 0
+Must fix, 1 Schedule note" for one note. 56 matches ("View …" on published), 57 differs, 164/165 match, 249 unperformed.
+
 
 
 ## 2026-09-27 01:45 — Inventory chunk 1 (More menu): 4 rows differ; More hides two-thirds of itself; "Advanced rules" strands users in Expert
