@@ -180,11 +180,17 @@ resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs
   | 2026-09-28 | 200 | 200 | 320 (head) | `false` |
 
   Each date resolves to **the publication actually in force on it** — 09-26 to run 319, exactly the run Lane C
-  recorded as in force that day. `servedByFallback` was **absent from the old build entirely**, so its presence
-  is a second, independent discriminator. `index.html` is **byte-identical** across both builds and is NOT a
-  valid marker; the three real lazy chunks all changed hash and all serve 200 from the new build
-  (`ScheduleReviewWorkspace-5fft4tp_` → `-SxQiBhZg`, `TimetableRunsPane-D_lBT0Vq` → `-DhPd20im`,
-  `ManualEditPanel-DjRgXRma` → `-BprMFJ-q`).
+  recorded as in force that day. `servedByFallback` was **absent from the old build entirely** (0 hits across 331
+  old dist JS files, 3 across 334 new), so its presence is a second, independent **server-side** discriminator.
+  **CORRECTION (2026-09-27, post-action QA):** the earlier claim here that `index.html` is *byte-identical* across
+  the two builds was **false and is withdrawn** — it does differ (SHA-256 `5C879527…` new vs `9D2A1C6C…` old,
+  same 3850 bytes, differing in the entry-chunk reference), and the claim contradicted the sentence beside it. The
+  **conclusion is unchanged and stronger than stated**: the entry chunk itself is not a reliable marker
+  (`index-Co12IRfI` → `index-hlA1fy7F`, verified old 404 / new 200), and **49 of 168 chunks differ**. The three
+  register-named lazy chunks all rehashed and the new names serve 200 with the old names 404:
+  `ScheduleReviewWorkspace-5fft4tp_`→`-SxQiBhZg` (449 120 B vs 447 390), `TimetableRunsPane-D_lBT0Vq`→`-DhPd20im`
+  (6 295 vs 4 518), `ManualEditPanel-DjRgXRma`→`-BprMFJ-q` (23 929 vs 24 038). **For the next deploy, compare a
+  lazy chunk, not `index.html` and not `dist/server.js`.**
 
   **Zero-write confirmed with a real before/after, not an assertion.** Window
   `2026-09-26T19:25:52.432Z` → `2026-09-26T19:28:58.765Z`, `authorisedActorIds={46}`:
@@ -2118,12 +2124,15 @@ test files**, so "the full client suite" overstates coverage and a green run is 
 **warn below 25 GiB / fail closed below 15 GiB** (operator, `6404c213`). Re-measured **2026-09-27: 49.20 GiB free - no
 reclaim owed**, and a release build may start. Measure before each build.
 
-**Next action (2026-09-27, after two integrations):** queue items 1 and 2 are done, so the next candidate is
-**item 3's release packet** OR **A3** - and **A3 first**, but **not as a code candidate yet**: the discriminating
-publish/change-term/read test must run first, because the defect is currently masked and building against a masked
-signature is how you "fix" the wrong thing. **So the single next action is to have Lane C run that test** (already
-requested; it needs a publish, so it is theirs under the operator's authorisation). While waiting, the cheapest
-useful work is the small wording/label follow-ups: the amber icon + "Swap + move 3 classes" label, the history-model
-honesty items (record the auto-move, name the edit an undo row undid, the snapshot reading 241 against a header of
-69), and the `SchedulingPolicyPane` `U+FFFD` strings. **Do not start a release packet yet** - it would carry
-`c50b15ff`, `e51388c1` and `51563739`, and the A3 row would still be an open FAIL on the acceptance record.
+**Next action (2026-09-27, after the `b0736007` release):** the deploy is `DEPLOYED` with acceptance
+**INCOMPLETE** — **three browser rows were never performed** and are **owed, not assumed**: D8-browser (swap
+preview renders, no 500), **D9 "Change room" on a MAPEH section** (form renders, not the router error
+boundary), and the public page's DOM half (20 sections rendered, 0 console errors). Post-action QA returned
+**`PLANNER_DECISION_REQUIRED` 13/16 passed, 3 unperformed, 0 blocking** — the 409 defect is genuinely closed.
+**Acceptance owner: Planner A2** (holds browser custody). **All three need a seeded session** — this profile
+redirected `/timetable` → `/login`; the operator re-seeds in about a minute, then they are decidable against
+`b0736007` with no further deploy. Harness: authenticated browser on `/timetable`, open run 320. **D9 is the row
+most likely to be wrongly closed by a later reader** — fix `d6513f32` *is* an ancestor of the deployed pin and
+code reading shows the form renders outside the optional feature panel, but **code reading is not browser
+proof**. Separately: **A3 stays open and masked** (its discriminating publish/change-term/read test is owed to
+Lane C), and Lane A3's newly merged source is **not** in this pin and has had no independent review.
