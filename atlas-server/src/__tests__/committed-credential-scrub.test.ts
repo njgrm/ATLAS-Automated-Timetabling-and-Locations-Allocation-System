@@ -17,14 +17,31 @@ import { fileURLToPath } from 'node:url';
  *   1. `dsn-with-inline-password`   a DSN carrying a password segment
  *   2. `assigned-credential-literal` a credential-named binding assigned a quoted value
  *   3. `password-hash-literal`       a password-hashing call given a literal
- *   4. `markdown-email-credential-pair`  docs pairing an address with a password
+ *   4. `markdown-email-credential-pair`  an address paired with a password
  *   5. `json-credential-key`         a quoted credential key with a quoted value
+ *   6. `env-fallback-literal`        `process.env.X || '<literal>'` / `?? '<literal>'`
  *
  * Rule 3 exists because rule 2 cannot see the real shape. The four credential
  * literals that survived the first two rounds of this guard were all
  * `bcrypt.hash('<literal>', 12)` bound to a variable named `adminHash` /
  * `facultyHash` — a keyword-on-the-line heuristic matches no part of that, and a
  * hashing call carrying a literal password is a structural signal on its own.
+ *
+ * Rule 6 exists for the same reason, and it is the rule that closes the class rather
+ * than a site. The idiom this repository actually writes is
+ * `const defaultPassword = process.env.ATLAS_DEFAULT_AUTH_PASSWORD ?? '<literal>'`,
+ * and no other rule can see it: the literal belongs to the `??` operand rather than to
+ * the assignment, and no hashing call takes it on that line. A live credential in the
+ * login service survived three review rounds on exactly that shape, and a guard that
+ * cannot express it would keep finding sites one dispatch at a time instead of the
+ * class.
+ *
+ * Rule 4 was narrowed to Markdown by file class while its only real site was out of
+ * scope. Its real shape then turned out to be in SOURCE — a seed's completion banner
+ * printing `address / password` in a `.ts` file — so the file-class scoping is removed.
+ * The rule's own negative controls (a versioned package specifier, and an object
+ * literal putting an address and an unrelated field on one line) are structural and
+ * hold in any file class, which is what the un-scoping rests on.
  *
  * Design points that are load-bearing, each paid for with a measured fact:
  *
@@ -51,11 +68,16 @@ import { fileURLToPath } from 'node:url';
  *   flag-free and `eachMatch` builds a fresh global clone per call, so a scan is
  *   independent of every scan before it.
  *
- * KNOWN GAP, disclosed rather than hidden: a `KEY = process.env.X || '<literal>'`
- * fallback literal is NOT covered. Adding that rule makes this guard red on a real
- * credential in `atlas-server/src/services/local-auth.service.ts` which is outside the
- * authority of the change that introduced the rule, so the rule is deferred to the
- * commit that fixes that site rather than shipped as a knowingly-red gate.
+ * DISCLOSED RESIDUAL GAP, pinned by a test rather than hidden: rule 6 is keyed on a
+ * credential being NAMED — the environment key or the bound identifier must contain a
+ * credential keyword. A fallback literal under a key that names nothing credentialic
+ * (`const baseUrl = process.env.X ?? 'literal'`) is out of scope for rule 6. That is a
+ * deliberate trade, not an oversight: this tree is full of legitimate
+ * `process.env.ENROLLPRO_API ?? 'http://localhost:5000/api'` defaults, and keying the
+ * rule on the literal's SHAPE to catch the rest flags a PostgreSQL bin directory and a
+ * lifecycle phase, which is the per-line-exemption behaviour this guard exists to avoid.
+ * The hashing-call rule is the backstop for the sink; the two together are asserted
+ * below on the real shapes.
  *
  * A file set read from `git ls-files` (not a hardcoded array) keeps the scope honest as
  * the tree changes, and the file set is asserted, not assumed: an empty or
@@ -114,8 +136,12 @@ const PASSWORD_HASH_LITERAL =
 	/\b(?:(?:bcrypt|argon2|argon)\s*\.\s*(?:hash|hashSync|derive|deriveKey)|(?:scrypt|pbkdf2)(?:Sync)?)\s*\(\s*(['"])([^'"]{4,})\1/i;
 
 /**
- * Rule 4: documentation pairing an address with a password, e.g.
- * ``admin@example.edu / `P4ssw0rd` ``.
+ * Rule 4: an address paired with a password, e.g. ``admin@example.edu / `P4ssw0rd` ``.
+ *
+ * NOT scoped by file class. It was, and the scoping is removed: the shape occurs in
+ * source, in a seeder's completion banner, and a rule that only looks at Markdown
+ * cannot see a `.ts` file. Both negative controls below are structural rather than
+ * file-shaped, so un-scoping changes which files are scanned, not what counts.
  *
  * The address must end in an alphabetic TLD, which is what keeps `react-query@5.103.1`
  * — a package specifier, not a login — out. Only a run of separators and quotes may sit
@@ -128,6 +154,58 @@ const MARKDOWN_CREDENTIAL_PAIR =
 /** Rule 5: a quoted credential key with a quoted value. */
 const JSON_CREDENTIAL_KEY =
 	/["']\s*(?:password|passwd|pwd|secret|token|api[_-]?key|private[_-]?key)\s*["']\s*:\s*(['"])([^'"]{4,})\1/i;
+
+/**
+ * Rule 6, keyed on the ENV FALLBACK IDIOM. Two independent patterns, because a
+ * credential can be named on either side of the `=`:
+ *
+ *   (a) the ENVIRONMENT KEY names a credential — `process.env.ATLAS_*_PASSWORD ?? '...'`
+ *   (b) the BOUND IDENTIFIER names one — `const defaultPassword = process.env.X ?? '...'`
+ *
+ * (b) is the pattern that sees the surviving site, where the binding is
+ * `defaultPassword` and the env key happens to name a password too; either alone
+ * catches it, and requiring both would miss a binding whose env key is innocuous.
+ *
+ * (b) REQUIRES the `||`/`??` to sit immediately after an `process.env` read. Loosening
+ * it to "any operator anywhere in the assignment" produced a measured false positive on
+ * a real line — `const yearToken = (available.yearLabel || 'UNLABELED').replace(...)` —
+ * where `Token` names a school-year label, there is no environment read at all, and the
+ * rule fired on ordinary code. The rule is about an ENVIRONMENT fallback, so the
+ * environment read is part of the shape, not decoration.
+ *
+ * Both are keying on a NAME CLASS, never on a line list, which is what keeps the rule
+ * quiet on this tree's many legitimate `process.env.ENROLLPRO_API ?? 'http://...'`
+ * defaults: a base URL, a lifecycle phase, a token lifetime and a PostgreSQL bin
+ * directory are not credentials and are not flagged. See the disclosed residual gap in
+ * the header for what that trade does not cover.
+ */
+const ENV_FALLBACK_BY_ENV_KEY = new RegExp(
+	'process\\.env\\.([A-Za-z0-9_]*(?:' + CREDENTIAL_KEYWORD + ')[A-Za-z0-9_]*)' +
+		'[ \\t]*(?:\\|\\||\\?\\?)[ \\t]*([\'"`])([^\'"`\\n]{4,})\\2',
+	'i',
+);
+
+const ENV_FALLBACK_BY_BINDING = new RegExp(
+	'(?:^[ \\t]*|(?<=[;,(.=&])[ \\t]*)' +
+		'(?:(?:\\/\\/|#|\\*)[ \\t]*)?' +
+		'(?:export[ \\t]+)?(?:(?:const|let|var)[ \\t]+)?' +
+		`([A-Za-z0-9_]*?(?:${CREDENTIAL_KEYWORD}))[ \\t]*=[ \\t]*` +
+		'[A-Za-z0-9_$.()\\[\\]\'"` ]{0,60}?process\\.env\\.[A-Za-z0-9_]+' +
+		'[ \\t]*(?:\\|\\||\\?\\?)[ \\t]*([\'"`])([^\'"`\\n]{4,})\\2',
+	'im',
+);
+
+/**
+ * A whole DSN, so a rule-4 match that is really part of one can be recognised.
+ *
+ * Un-scoping rule 4 from Markdown to every file exposed a false positive this guard
+ * would otherwise have shipped: in `postgresql://some_user:<secret>@db.internal:5432/app`
+ * the address pattern happily reads the PASSWORD as the local part and the port plus
+ * database name as the paired value. The password in such a line is rule 1's business
+ * and rule 1 can see it; rule 4 cannot, so a pairing inside a DSN is deferred to rule 1
+ * by value class, exactly as rule 2 defers a DSN assigned to a credential-named binding.
+ */
+const DSN_SPAN = /postgres(?:ql)?:\/\/[^\s'";)\]]*/i;
 
 /** Any DSN, with or without an inline password. */
 const DSN_SHAPE = /postgres(?:ql)?:\/\//i;
@@ -218,7 +296,6 @@ function dsnUserOf(full: string, password: string): string {
  */
 export function findCredentialLiterals(file: string, text: string): Finding[] {
 	const findings: Finding[] = [];
-	const isMarkdown = file.toLowerCase().endsWith('.md');
 
 	for (const match of eachMatch(text, DSN_WITH_INLINE_PASSWORD)) {
 		const password = match[1];
@@ -241,19 +318,26 @@ export function findCredentialLiterals(file: string, text: string): Finding[] {
 		});
 	}
 
-	// Rule 4 is documentation-scoped by file class. A login presented in prose is the
-	// shape it targets, and that surface is Markdown; a code file holding the same
-	// pairing is reported by the other rules or by review, not by guessing.
-	if (isMarkdown) {
-		for (const match of eachMatch(text, MARKDOWN_CREDENTIAL_PAIR)) {
-			if (classify(match[1], ASSIGNED_PLACEHOLDER_PREFIXES)) continue;
-			findings.push({
-				file,
-				line: lineAt(text, match.index ?? 0),
-				rule: 'markdown-email-credential-pair',
-				key: 'documented login',
-			});
-		}
+	// Rule 4 is NOT file-class scoped. The real shape is a seeder's completion banner in
+	// a `.ts` file, and its negative controls are structural, so a source file is scanned
+	// exactly as a Markdown file is.
+	//
+	// A pairing that falls INSIDE a DSN is deferred to rule 1, which can see the password
+	// segment. Without that, un-scoping this rule flags every DSN in the tree.
+	const dsnSpans = eachMatch(text, DSN_SPAN).map(
+		(match) => [match.index ?? 0, (match.index ?? 0) + match[0].length] as const,
+	);
+	const insideDsn = (index: number) => dsnSpans.some(([from, to]) => index >= from && index < to);
+
+	for (const match of eachMatch(text, MARKDOWN_CREDENTIAL_PAIR)) {
+		if (insideDsn(match.index ?? 0)) continue;
+		if (classify(match[1], ASSIGNED_PLACEHOLDER_PREFIXES)) continue;
+		findings.push({
+			file,
+			line: lineAt(text, match.index ?? 0),
+			rule: 'markdown-email-credential-pair',
+			key: 'documented login',
+		});
 	}
 
 	for (const match of eachMatch(text, JSON_CREDENTIAL_KEY)) {
@@ -280,6 +364,29 @@ export function findCredentialLiterals(file: string, text: string): Finding[] {
 			rule: 'assigned-credential-literal',
 			key: match[1],
 		});
+	}
+
+	// Rule 6. The binding-name pattern runs first so the report names the local
+	// identifier when both forms match one site; either way the two patterns overlap
+	// deliberately, and the finding is deduplicated per line, because two reports of one
+	// credential is one defect and a guard that over-reports trains people to ignore it.
+	const envFallbackLines = new Set<number>();
+	for (const pattern of [ENV_FALLBACK_BY_BINDING, ENV_FALLBACK_BY_ENV_KEY]) {
+		for (const match of eachMatch(text, pattern)) {
+			// Both patterns share one group layout: 1 = the credential name, 2 = the
+			// quote, 3 = the value. Keeping that identical is what lets one loop report
+			// either shape without a per-pattern special case.
+			if (classify(match[3], ASSIGNED_PLACEHOLDER_PREFIXES)) continue;
+			const line = lineAt(text, match.index ?? 0);
+			if (envFallbackLines.has(line)) continue;
+			envFallbackLines.add(line);
+			findings.push({
+				file,
+				line,
+				rule: 'env-fallback-literal',
+				key: match[1] ?? '(environment fallback)',
+			});
+		}
 	}
 
 	return findings;
@@ -516,12 +623,86 @@ test('markdown pairing rule: a documented login is flagged, package specifiers a
 		'an address followed by unrelated object fields is not a login pairing',
 	);
 
-	// Scoped to Markdown by file class, and stated rather than assumed.
+	// Un-scoped by file class, and stated rather than assumed: the same pairing in a
+	// SOURCE file is now flagged, because the real site was a `.ts` completion banner.
+	// The value here is synthetic; the real shape is asserted on the tree below.
 	assert.deepEqual(
-		findCredentialLiterals('src/seed.js', "const line = 'Log in as admin@example.edu / Zq7f2xK9m';"),
-		[],
-		'rule 4 is documentation-scoped by file class',
+		findCredentialLiterals('src/seed.ts', "console.log('Log in as admin@example.edu / Zq7f2xK9m');").map((f) => f.rule),
+		['markdown-email-credential-pair'],
+		'rule 4 is not file-class scoped: a login printed by a seeder is a committed credential',
 	);
+});
+
+/**
+ * Rule 6, on the idiom that hid a live credential in the login service for three
+ * rounds. The positive samples use synthetic values; the negative controls are REAL
+ * lines from this tree, taken from the surface rather than invented, because the
+ * failure mode of a widened rule is a false positive that gets it deleted.
+ */
+test('env-fallback rule: a credential fallback literal is flagged, real non-credential fallbacks are not', () => {
+	// (a) the environment key names a credential.
+	for (const line of [
+		"const pw = process.env.DB_PASSWORD ?? 'Zq7f2xK9m';",
+		"const pw = process.env.ATLAS_SYSTEM_TOKEN || 'Zq7f2xK9m';",
+		"process.env.JWT_SECRET = process.env.JWT_SECRET ?? 'Zq7f2xK9m';",
+	]) {
+		assert.ok(
+			findCredentialLiterals('s.ts', line).some((f) => f.rule === 'env-fallback-literal'),
+			`${line} must be flagged`,
+		);
+	}
+
+	// (b) the bound identifier names a credential. This is the surviving shape.
+	assert.deepEqual(
+		findCredentialLiterals(
+			'atlas-server/src/services/local-auth.service.ts',
+			"\tconst defaultPassword = process.env.ATLAS_DEFAULT_AUTH_PASSWORD ?? 'Zq7f2xK9m';",
+		),
+		[
+			{
+				file: 'atlas-server/src/services/local-auth.service.ts',
+				line: 1,
+				rule: 'env-fallback-literal',
+				key: 'defaultPassword',
+			},
+		],
+		'the binding-name form must be flagged, and reported once',
+	);
+
+	// A placeholder fallback is documentation, not a leak.
+	for (const line of [
+		"const pw = process.env.DB_PASSWORD ?? 'CHANGE_ME';",
+		"const pw = process.env.DB_PASSWORD ?? 'your_password';",
+		"const secret = process.env.APP_SECRET || '<injected-at-deploy>';",
+		"const pw = process.env.DB_PASSWORD ?? '${DB_PASSWORD}';",
+	]) {
+		assert.deepEqual(
+			findCredentialLiterals('s.ts', line).filter((f) => f.rule === 'env-fallback-literal'),
+			[],
+			`${line} is a placeholder`,
+		);
+	}
+
+	// NEGATIVE CONTROLS, real lines from this tree. Each is a committed fallback whose
+	// value is NOT a credential; keying the rule on the literal's shape instead of on a
+	// credential being NAMED is exactly what would flag all of these.
+	const realNonCredentialFallbacks = [
+		"const baseUrl = process.env.ENROLLPRO_API ?? 'http://localhost:5000/api';",
+		"const base = process.env.ENROLLPRO_API ?? 'http://localhost:5000/api';",
+		"const baseUrl = (input.baseUrl ?? process.env.ENROLLPRO_API ?? 'http://localhost:5000/api').replace(/\\/$/, '');",
+		'const CURRENT_PHASE = process.env.ATLAS_LIFECYCLE_PHASE ?? \'SETUP\';',
+		"const PG_BIN_DIR = process.env.ATLAS_PG_BIN_DIR ?? 'D:\\\\PostgreSQL\\\\18\\\\bin';",
+		"const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN ?? '8h';",
+		"const identifier = process.env.ATLAS_SEEDED_OFFICER_EMAIL ?? 'officer@deped.edu.ph';",
+		'const target = targetDbNameFromUrl(process.env.DATABASE_URL ?? \'\');',
+	];
+	for (const line of realNonCredentialFallbacks) {
+		assert.deepEqual(
+			findCredentialLiterals('s.ts', line).filter((f) => f.rule === 'env-fallback-literal'),
+			[],
+			`${line} must not be flagged: it names no credential`,
+		);
+	}
 });
 
 /**
@@ -644,12 +825,14 @@ test('scans are order-independent: repeated and interleaved scans return identic
 	const assignedSample = "process.env.ADMIN_PASSWORD = 'Qa83nd1Lp';\nconst TOKEN = 'Hb3nRt6Yw';";
 	const hashSample = "const adminHash = await bcrypt.hash('Vc5mKp8Xq', 12);";
 	const pairSample = 'Log in as `admin@example.edu` / `Zq7f2xK9m`';
+	const envFallbackSample = "const defaultPassword = process.env.ATLAS_DEFAULT_AUTH_PASSWORD ?? 'Zd4nKp9Xw';";
 
 	const baseline = [
 		findCredentialLiterals('a.ts', dsnSample),
 		findCredentialLiterals('a.ts', assignedSample),
 		findCredentialLiterals('b.js', hashSample),
 		findCredentialLiterals('c.md', pairSample),
+		findCredentialLiterals('d.ts', envFallbackSample),
 	];
 
 	// Repeat, and interleave a different text between calls of the same pattern.
@@ -671,6 +854,11 @@ test('scans are order-independent: repeated and interleaved scans return identic
 			findCredentialLiterals('c.md', pairSample),
 			baseline[3],
 			`markdown scan drifted on round ${round}`,
+		);
+		assert.deepEqual(
+			findCredentialLiterals('d.ts', envFallbackSample),
+			baseline[4],
+			`env-fallback scan drifted on round ${round}`,
 		);
 	}
 
@@ -735,5 +923,70 @@ test('README.md placeholder DSNs are not flagged, and the same DSNs with a real 
 	assert.deepEqual(
 		findCredentialLiterals('README.md', '2. Log in as: `admin@example.edu` / `Qa83nd1Lp`').map((f) => f.rule),
 		['markdown-email-credential-pair'],
+	);
+});
+
+/**
+ * The two real sites the widened authority covers, as a two-way control on the tree.
+ *
+ * Green on these two files is only evidence if the same files are actually scanned AND
+ * the widened rules actually reach them. So each file is read from disk, asserted clean,
+ * and then given the exact shape that was removed from it — with a synthetic value, not
+ * the real one — and asserted to go red. A control that only checked "clean" would pass
+ * on a file that had stopped being scanned.
+ */
+test('the two scrubbed source files are clean, and re-inserting each shape makes them red', () => {
+	const authPath = 'atlas-server/src/services/local-auth.service.ts';
+	const seedPath = 'atlas-server/src/scripts/seed-realistic.ts';
+	const authText = readFileSync(resolve(repoRoot, authPath), 'utf8');
+	const seedText = readFileSync(resolve(repoRoot, seedPath), 'utf8');
+
+	// Both files are inside the scanned set. Asserted, not assumed.
+	const scanned = scannedFiles();
+	for (const path of [authPath, seedPath]) {
+		assert.ok(scanned.includes(path), `${path} must be in scope for this control to mean anything`);
+	}
+
+	// Clean now.
+	assert.deepEqual(
+		findCredentialLiterals(authPath, authText).filter((f) => f.rule === 'env-fallback-literal'),
+		[],
+		'the login service must carry no env-fallback credential literal',
+	);
+	assert.deepEqual(
+		findCredentialLiterals(seedPath, seedText).filter((f) => f.rule === 'markdown-email-credential-pair'),
+		[],
+		'the seeder must not print an address paired with a password',
+	);
+
+	// The auth service must also still HASH an env-supplied value rather than a literal,
+	// which is the behaviour the fix had to preserve: a hashing call fed a variable is
+	// not a committed literal, and a seeding call fed a variable is not either.
+	assert.ok(
+		/seedLocalAuthAccounts\(\s*\{[^}]*password:\s*seededAuthPassword/s.test(seedText),
+		'the seeder must pass the environment-supplied password into the auth seed',
+	);
+	assert.ok(
+		/^\s*password:\s*string;/m.test(authText),
+		'the auth seed must require an explicit password parameter, so it cannot hold a default',
+	);
+
+	// Red when the shape returns. Synthetic values only.
+	const authRegressed = findCredentialLiterals(
+		authPath,
+		"const defaultPassword = process.env.ATLAS_DEFAULT_AUTH_PASSWORD ?? 'Zq7f2xK9m';\n" + authText,
+	);
+	assert.ok(
+		authRegressed.some((f) => f.rule === 'env-fallback-literal' && f.line === 1),
+		're-inserting the env-fallback shape into the login service must be flagged',
+	);
+
+	const seedRegressed = findCredentialLiterals(
+		seedPath,
+		"console.log('  Log in as admin@example.edu / Zq7f2xK9m');\n" + seedText,
+	);
+	assert.ok(
+		seedRegressed.some((f) => f.rule === 'markdown-email-credential-pair' && f.line === 1),
+		're-printing an address with a password in the seeder must be flagged in a source file',
 	);
 });

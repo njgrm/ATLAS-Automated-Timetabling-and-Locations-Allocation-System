@@ -17,6 +17,7 @@
  *   $env:DATABASE_URL="postgresql://<user>:<pass>@localhost:5432/atlas_recovery_clean_rebuild_20260905?schema=public"
  *   npx tsx src/scripts/reconstruct-disposable-baseline.ts
  */
+import crypto from 'crypto';
 import { prisma } from '../lib/prisma.js';
 import { fetchEnrollProActiveSchoolYear } from '../services/section-adapter.js';
 import { syncFacultyFromExternal } from '../services/faculty.service.js';
@@ -164,7 +165,14 @@ async function main() {
 	console.log(`[reconstruct] Aliases: +${aliasesCreated} created (upsert-stable)`);
 
 	// 9. Local auth accounts derived from reconstructed identities (upsert; idempotent).
-	const authSeed = await seedLocalAuthAccounts({ schoolId });
+	// The password is a fresh random value for THIS RUN. This target is a guarded
+	// disposable database, so a random password is a working login for nothing outside
+	// the throwaway instance — whereas a committed default would be a working credential
+	// in every clone of this public repository. It is never printed.
+	const authSeed = await seedLocalAuthAccounts({
+		schoolId,
+		password: crypto.randomBytes(32).toString('base64url'),
+	});
 	console.log(`[reconstruct] Auth: ${authSeed.created} created, ${authSeed.updated} updated`);
 
 	// 10. Provenance-approved scheduling policy default (create-once; never overwrites).

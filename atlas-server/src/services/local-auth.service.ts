@@ -1140,11 +1140,22 @@ export async function loginWithEmailPassword(params: {
 	});
 }
 
+/**
+ * Create or refresh the local login accounts for one school.
+ *
+ * `password` is REQUIRED and has no default, on purpose. The accounts seeded here are
+ * real login accounts on a real environment, so their password is a real credential;
+ * this repository is public, so a literal in this file is a working credential in every
+ * clone. The value is supplied by the caller, which owns the decision of where it comes
+ * from (an operator-supplied environment variable for the real seed, a per-run random
+ * value for a throwaway database). Keeping the parameter mandatory is what makes it
+ * impossible for this service to reintroduce a committed default.
+ */
 export async function seedLocalAuthAccounts(params: {
 	schoolId: number;
+	password: string;
 }): Promise<{ created: number; updated: number }> {
-	const defaultPassword = process.env.ATLAS_DEFAULT_AUTH_PASSWORD ?? 'Atlas2026!';
-	const hash = await bcrypt.hash(defaultPassword, 12);
+	const hash = await bcrypt.hash(params.password, 12);
 
 	const activeFaculty = await prisma.facultyMirror.findMany({
 		where: {

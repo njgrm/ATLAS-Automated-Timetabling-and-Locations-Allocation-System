@@ -413,6 +413,12 @@ SECTION_SOURCE_MODE=enrollpro
 # error if either is missing, rather than creating an account with a known password.
 SEED_ADMIN_PASSWORD=<choose-a-strong-officer-password>
 SEED_FACULTY_PASSWORD=<choose-a-strong-faculty-password>
+
+# Password for the local ATLAS logins created by the ATLAS seeder
+# (`npx tsx src/scripts/seed-realistic.ts`), from atlas-server/. Read from the
+# environment and required: the seeder stops before writing anything when it is
+# missing, rather than creating an account with a known password.
+ATLAS_DEFAULT_AUTH_PASSWORD=<choose-a-strong-password>
 ```
 
 > ⚠️ **Critical:** ATLAS `JWT_SECRET` must match EnrollPro's for bridge token validation.
