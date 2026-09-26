@@ -2209,12 +2209,42 @@ re-verified my own acceptance against the build that actually replaced it** rath
 - **The three owed browser rows now name `d11304e8`, not `b0736007`** — they were never performed against either,
   and the surface is materially the same plus A3's client work.
 
-**Correction to this register (post-action QA adjudicated, docs-only):** the client-suite coverage figure I
-published as *"138 on disk, 117 named, 21 omitted"* is **wrong**. **Authoritative: 144 test files on disk under
-`atlas-client/src`, 117 named by `test:client-suite`, 27 omitted** — 122 `.ts` + 22 `.tsx`, zero duplicates in the
-script. A `-Include -Recurse` count returns 538 and is the wrong method. **A green `test:client-suite` is not
-full client coverage**, and this candidate's own gate reaches CI only through `test:timetable-swap-custody-a2`,
-never through the aggregate run.
+**Coverage figure — CORRECTED TWICE, and the reading must be pinned (2026-09-27).** I first published
+"138 on disk / 117 named / 21 omitted" (**wrong**), then "144 / 117 / 27" (**right for the pre-commit tree only**).
+QA adjudicated the authoritative numbers with a stated method (tracked `*.test.ts(x)` under `atlas-client/src` via
+`git ls-files`, versus every `*.test.*` token in `package.json`):
+
+| | on disk | in `test:client-suite` | omitted from the aggregate | named in **any** committed script |
+|---|---|---|---|---|
+| `bf0cbc13` | 144 | 117 | 27 | — |
+| `9bfe0cd6` (current) | **145** | **117** | **28** | **145 — 0 orphans** |
+
+**"Named" has two readings and they are opposite conclusions: 28 files are omitted from the AGGREGATE run, and 0
+are unreachable from the union of all committed scripts.** Quote which one you mean. A green `test:client-suite`
+is **not** full client coverage; §11's gate still passes because every file is reachable from *some* script, and the
+new `timetable-edit-history-truth-a2.test.tsx` is reachable from `test:a2-timetable-custody` (36/36).
+
+**Dated successors, all 2026-09-27, none blocking, none folded into an accepted candidate:**
+
+1. **The visible Redo button is broken on EVERY successful revert, unconditionally** — and this is the sharpest
+   open item on the lane. `revertLastEdit` returns `editId` = the **newly created `REVERT` row**
+   (`manual-edit.service.ts:1914`, row written at `:1857-1871`) → `deriveRedoAfterRevert` arms `redoState` with
+   that id (`timetableUndoRedoState.ts:22`) → `redoLastEdit` POSTs it → the server selects with
+   `editType: { not: 'REVERT' }` → **guaranteed 409**. It then shows **"Version-stale — the schedule changed"**
+   when **nothing changed** (`useTimetableMutations.ts:1040-1042`), which is itself a false claim to an operator.
+   **Three surfaces, one unconditionally broken with a misleading diagnostic** — not the "conditional 409" the
+   first report understated.
+2. **Header Undo / `TimetableUndoRedoControl`** dispatch `editHistory[0]`, so with a `REVERT` at the head they 409
+   by the same path (`useTimetableMutations.ts:1208-1214`). Pre-existing; untouched.
+3. **The literal slot pair** in "Undid: swap Tue 06:00 ↔ 10:00". The data **is** server-side
+   (`beforePayload: { entryIdA, entryIdB, entryA, entryB }`, `manual-edit.service.ts:2445-2450`); what is missing
+   is a **client-side typed narrowing per `editType`**, since the payload is `unknown` and its shape is
+   per-editType and undocumented client-side. Reachable only with a payload-contract change.
+4. **An `Invalid Date` guard** on a resolvable target's unparseable `createdAt` renders "Undid: Swapped two
+   sessions · Invalid Date" — engine jargon, the exact class this lane removes. **Unreachable in production**:
+   `listManualEdits` always emits `createdAt.toISOString()` (`:1949`) — so a one-line guard, not a live defect.
+
+
 
 **Dated successor, not a gate:** `getRelocatedClassCount` is `moves?.relocated ? 1 : 0`. Its comment promises the
 count "can never understate a move" — true for today's `'A' | 'B' | null`, but **if `SwapMove.relocated` ever widens
