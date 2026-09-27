@@ -249,6 +249,18 @@ export interface RunSummary {
 	 * count.
 	 */
 	blockingHardViolationCount?: number;
+	/**
+	 * A2-WARNING-COUNT-62 (D1): the run's TOTAL SOFT violation count, from the
+	 * same `mergedValidationResult` that produces `hardViolationCount`,
+	 * `blockingHardViolationCount` and `violationCounts` below. This is the
+	 * canonical run-wide warning figure. It is what the operator-visible count
+	 * must read: the client's single count authority
+	 * (`atlas-client/src/components/timetable/timetableWorkspaceTruth.ts:98,115`)
+	 * falls back to the SELECTED-TERM violation list when this field is absent,
+	 * so a producer that omits it does not merely lose a number — it silently
+	 * changes which population the header figure measures.
+	 */
+	softViolationCount?: number;
 	prePlacedCount?: number;
 	invalidPrePlacedCount?: number;
 	skippedPrePlacedReasons?: string[];
@@ -945,6 +957,10 @@ export async function triggerGenerationRun(
 			policyBlockedCount: result.policyBlockedCount,
 			hardViolationCount: mergedValidationResult.violations.filter((v) => v.severity === 'HARD').length,
 			blockingHardViolationCount: mergedValidationResult.violations.filter((v) => v.severity === 'HARD' && isPromotableConstraintCode(v.code)).length,
+			// A2-WARNING-COUNT-62 (D1): persisted so the run-wide warning figure
+			// has a server-owned source. Without it the header silently measures a
+			// selected-term subset instead of the run.
+			softViolationCount: mergedValidationResult.violations.filter((v) => v.severity === 'SOFT').length,
 			prePlacedCount: preGenerationDrafts.prePlacedCount,
 			invalidPrePlacedCount: preGenerationDrafts.invalidPrePlacedCount,
 			skippedPrePlacedReasons: preGenerationDrafts.skippedPrePlacedReasons.length > 0 ? preGenerationDrafts.skippedPrePlacedReasons : undefined,

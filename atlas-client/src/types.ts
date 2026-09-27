@@ -1176,6 +1176,15 @@ export interface RunSummary {
 	hardViolationCount: number;
 	/** HARD violations that may block publication (server allowlist only). */
 	blockingHardViolationCount?: number;
+	/**
+	 * A2-WARNING-COUNT-62: the run's TOTAL SOFT violation count, server-owned.
+	 * `deriveRunWideReadiness` reads this field FIRST
+	 * (`components/timetable/timetableWorkspaceTruth.ts:98,115`); when it is
+	 * absent that authority silently falls back to the selected-term violation
+	 * list, so the operator-visible figure stops being a function of the
+	 * schedule and becomes a function of the term selector.
+	 */
+	softViolationCount?: number;
 	prePlacedCount?: number;
 	invalidPrePlacedCount?: number;
 	skippedPrePlacedReasons?: string[];
