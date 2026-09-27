@@ -2566,15 +2566,29 @@ as failing **name sets** — 12 distinct names each side, **0 regressions, 0 abs
 session's own summary arithmetic (9/13) did not match the 11 rows its results table evidenced; that discrepancy
 is unresolved and is why this is recorded as a planner-closed gate rather than a clean QA `ACCEPT_READY`.
 
-**Accepted NON_BLOCKING residuals, dated 2026-09-27 — recorded, not dropped.** **F2 (fix next):**
-`RELOCATING_SWAP_STRATEGIES` (`timetable-edit-message.ts:86-90`) is `ReadonlySet<string>` and bound to no
-constraint, so adding a union member consistently in union + route + service + `S5` leaves the suite 14/14 green
-while the message under-claims a relocation. Direction is a **lost disclosure, not the false claim** this
-candidate exists to remove, hence non-blocking. Remedy: type it against the union and add a
-union-minus-`DIRECT_SWAP` drift row beside `S5` — the candidate's own drift-control pattern already closes it.
+**Accepted NON_BLOCKING residuals, dated 2026-09-27 — recorded, not dropped.** ~~**F2 (fix next):**~~ —
+**F2 IS NOW CLOSED at `d1bf04a1` (2026-09-27), see below.** The original finding, preserved rather than deleted:
+`RELOCATING_SWAP_STRATEGIES` (`timetable-edit-message.ts:86-90`) was `ReadonlySet<string>` and bound to no
+constraint, so adding a union member consistently in union + route + service + `S5` left the suite 14/14 green
+while the message under-claimed a relocation. Direction was a **lost disclosure, not the false claim** that
+candidate exists to remove, hence non-blocking.
 **F3:** the router comment credits the type annotation with catching an *added* union member; only `S5` does.
 **F5:** `undoBlockedReason` / `lastEditUndoable` plumbing is now dead in the header context. **F6:** the range
 removes **two** Undo surfaces, not one.
+
+**F2 CLOSED (2026-09-27, `d1bf04a1`, integrated to `main`; NOT deployed).** The set is now typed
+`ReadonlySet<SwapStrategy>`, so an extra member is a compile error. The obstacle was import direction:
+`manual-edit.service.ts` imports `describeSwapCommitMessage`, so a value import back would close a runtime cycle.
+`SwapStrategy` is a pure type, so `import type` is erased — **verified on the built artifact**, where
+`dist/services/timetable-edit-message.js` contains **zero** import or require statements and every `manual-edit`
+mention is a comment. `SwapCommitMessageInput.strategy` deliberately **stays `string`**: the formatter is total
+over strategy strings on purpose and the negative tests feed it `'SOMETHING_NEW'` and `''`. The type cannot catch
+a **missing** member, so new row **`S6`** asserts the set is exactly the union minus `DIRECT_SWAP`, with two
+non-vacuity guards. Verified: typecheck 0, build 0, `S5`+`S6` 2/2, negative message suite 8/8, `S6` discriminates
+in all six mutations including the review's own and does not pass vacuously, and the built artifact returns the
+correct message for all six strategy values including the unknown-string fail-safe. Bounded correction:
+`af1451a3`/`b289bc05`/`8585cb86` all remain ancestors, 7 of 9 accepted paths are blob-identical, and only the
+service file and its test changed.
 
 Assessment of the previously-uncommitted tree (the handoff's two named checks, both now resolved):
 
