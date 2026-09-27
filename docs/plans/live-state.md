@@ -213,14 +213,42 @@ resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs
   including screenshots, at `docs/reviews/a2-browser-acceptance-c5a9e832/`.
 
   **FINDING — the revert restored the pair but NOT the warning state: 159 → 68 (swap) → 69 (revert), not 159.**
-  Most likely cause, consistent with the successor I filed in September and **not proven in this session**: the
-  commit performed an **auto-move** (the preview and the button both disclosed it) but a `SWAP_ENTRIES` payload
-  records **only `entryIdA` and `entryIdB`**, so the auto-move's effect is not in the history and **no revert of
-  that row can restore it**. This is the "record the auto-move" successor, and this is the first direct evidence
-  that the gap has a **user-visible consequence**. **`CORRECTION_REQUIRED` on the revert contract; NON_BLOCKING for
-  this release**, whose code did exactly what it claimed and disclosed the move before committing. The fix is a
-  payload-contract change (record the auto-moved entries, then extend the `SWAP_ENTRIES` restore to them) — a
-  **separate candidate**.
+  **~~Most likely cause: the commit performed an **auto-move** … a `SWAP_ENTRIES` payload records **only
+  `entryIdA` and `entryIdB`** …~~ — SUPERSEDED AND FALSIFIED 2026-09-27. The enumeration harness at `4157f599`
+  reports **`MUTATED BUT NOT NAMED: []`** and **`RESIDUAL vs PRE-SWAP (0): []`** in **all five** strategies: the
+  payload **does** name every entry a committed swap mutates, and `revertLastEdit` **does** round-trip the entry
+  set. Fresh QA re-ran it independently and agreed. **The payload-omission theory has been tested and refuted —
+  do not re-run it.**
+  **The 159 → 68 → 69 discrepancy is therefore still OPEN and UNEXPLAINED.** The entry set round-trips exactly, so
+  the live candidates are things like a warning count that is not a pure function of entry slots, or a
+  derived/aggregated value. **A lead is wanted; I have already published one wrong explanation about it, so a
+  wrong guess is preferable to silence.** Status: `CORRECTION_REQUIRED` on the revert contract; **NON_BLOCKING for
+  the release**, whose code disclosed the move before committing.
+
+  **DONE 2026-09-27 - Lane C #64: the undone swap row no longer offers a dead Revert (merge `d924f88b`, QA
+  `ACCEPT_READY` 14/14/0/0).** Lane C asked whether that control is dead or re-reverts and left it for me:
+  **it is dead - a guaranteed 409** (`editType: { not: 'REVERT' }` at `manual-edit.service.ts:1675`;
+  `assertUndoHead` at `timetable-undo-contract.ts:22`; the `headEdit` query at `:1676` has **no** `editType`
+  filter, so the head after a revert **is** the `REVERT` row; `priorRevert` at `:1674` is a second trigger).
+  **Lane C was right and I was wrong about the state** - I called it *enabled*; it renders **`disabled`**, and my
+  browser read raced a history refetch. The real defect was the **reason**: the tooltip read *"Only the latest edit
+  can be reverted"*, telling a scheduler to **wait for a newer edit** when the truth is **never again** - worse
+  than a dead button, because it sends the operator to wait for something that will never help. A row now counts
+  as undone iff a `REVERT` row in the already-fetched history names it - **the server's own refusal test**, not an
+  approximation - and the control is replaced by a stated reason. QA proved the wrong-direction failure is
+  **structurally impossible**, not merely unlikely: a row named by a later row can never be the head, so the
+  predicate can only remove a control the head check had already disabled (verified `isUndone => !isHead` across
+  caps of 3/7/51/199/401, non-vacuously).
+
+**Queue after this, all dated 2026-09-27, none blocking:**
+
+1. **#61 (HIGH)** - a concurrent commit lands mid-action, the toast names **engineer ids** (*"Manual swap committed
+   between entries entry-321::t2 and entry-421::t2"*), the grid changes underneath, and **the selection banner
+   stays armed on a class that just moved**. It was **my** swap that landed under Lane C's runner. Must name what
+   changed in words, and cancel or re-check a selection whose class moved.
+2. **#63 (MEDIUM)** - two Undo controls on one Expert screen sharing one accessible name; this is the `DUPLICATE`
+   class from my own inventory, now confirmed live.
+3. **The 159 -> 68 -> 69 discrepancy - OPEN, mechanism UNKNOWN** (the payload-omission theory is refuted).
 
   **RESIDUE, DISCLOSED (2026-09-27): draft run 321 is left at 69 warnings, not the 159 it started at.** The
   swap-plus-revert pair was net-non-neutral on the draft; that is the cost of the acceptance test. **The published

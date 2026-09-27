@@ -38,12 +38,34 @@ The revert **did** what it was asked to do: it restored both halves of the recor
 history row. But the **warning state was not returned to its pre-swap value**, so the draft is ~90 warnings better
 than it started.
 
-**Most likely cause, consistent with a trace I filed as a successor in September and have NOT proven in this
-session:** the swap committed an **auto-move** — the preview said so ("Committing also relocates…"), and the button
-said so ("Swap + move 1 class") — but a `SWAP_ENTRIES` history payload records **only `entryIdA` and `entryB`**. The
+~~**Most likely cause, consistent with a trace I filed as a successor in September and have NOT proven in this
+session:** the swap committed an **auto-move** — the preview said so ("Committing also relocates."), and the button
+said so ("Swap + move 1 class") — but a `SWAP_ENTRIES` history payload records **only `entryIdA` and `entryIdB`**. The
 auto-move's effect on anything outside that pair is therefore **not in the history at all**, so no revert of this row
 can restore it. That is the "record the auto-move" successor, and this test is the first direct evidence that the
-gap has a **user-visible consequence**.
+gap has a **user-visible consequence**.~~
+
+> ### SUPERSEDED 2026-09-27 — this explanation is **FALSIFIED**. The 159 → 68 → 69 mechanism is still unexplained.
+>
+> The enumeration harness committed at `4157f599`
+> (`npm run test:timetable-swap-revert-enumeration-a2`) was run and **retires the hypothesis above**. It reports
+> **`MUTATED BUT NOT NAMED: []`** and **`RESIDUAL vs PRE-SWAP (0): []`** in **all five** strategies: a committed
+> swap's `SWAP_ENTRIES` payload **does** name every entry it actually mutates, and `revertLastEdit` **does**
+> round-trip the entry set. Fresh independent QA re-ran it independently and reached the same reading.
+>
+> **So the auto-move is NOT outside the recorded pair, and payload omission is NOT the mechanism.** The earlier
+> text is struck rather than deleted (§16 — corrections are additive; a wrong explanation is worse than none).
+>
+> **The 159 → 68 → 69 discrepancy therefore remains OPEN and unexplained.** The entry set round-trips exactly, so
+> the candidate explanations now live elsewhere — for example a warning count that is not a pure function of entry
+> slots, or a derived/aggregated value. **Anyone picking this up: do not re-run the payload-omission theory; it has
+> been tested and refuted. Start from what the enumeration already proved and go forward from there.**
+>
+> A second correction in the same pass: I described the undone swap row's control as **enabled**. It renders
+> **`disabled`** — my browser read raced a history refetch. The real defect was never the state but the **reason**,
+> whose tooltip said *"Only the latest edit can be reverted"*, telling a scheduler to wait for a newer edit when
+> the truth is that it can never be reverted again. **Fixed** by `a33680ae` (merge `d924f88b`, QA
+> `ACCEPT_READY` 14/14/0/0).
 
 **Status: `CORRECTION_REQUIRED` on the revert contract, NON_BLOCKING for release `c5a9e832`** — the shipped code did
 exactly what it claims, truthfully, and disclosed the move before commit. What it cannot do is undo a move its own
