@@ -610,6 +610,46 @@ execution in the block.
 outside** the worktree and **assert the byte size** before any destructive checkout; and confirm
 each variant's file size before trusting its result.
 
+### 2026-09-27 addendum 3 — CAUSE ISOLATED: the two `test()` registrations
+
+Suppressed both C2 registrations behind a parse-safe guard
+(`if (process.env.A3_SKIP_C2 !== '1') { … }`, guard opened before `C2-1` and closed after the
+last line) and ran the suite.
+
+```
+A3_SKIP_C2=1  npm run test:a3-teachers-load   ->  exit 0,  no RangeError
+```
+
+**That is the cause.** The `test()` calls at lines 1124 and 1174 are what crash the module at
+load. The enumeration in addendum 2 predicted exactly this — they were the only unexamined
+module-scope execution left — and it was correct. The temporary guard has been **removed**; the
+worktree again holds the executor's original (60874 bytes, no BOM, `U+FFDD`/`U+FFFD` 0, 5 dirty
+files), verified by byte size and by `A3_SKIP_C2` no longer being present.
+
+**Everything is now ruled in or out.** Base passes. The line-20 React import change passes. The
+four new dynamic imports pass alone and pass co-located with the seventeen originals, so await
+interleaving is not it. Static imports are excluded because hoisting runs them before JSDOM at
+line 23 and breaks `F30-1/2/3`, `F22-2`, `F23-1/2`. The crash is the registration of the two C2
+tests themselves.
+
+**Not yet determined, and worth one cheap probe if someone continues:** *which* of the two, and
+whether it is the inline arrow bodies, the `RegExp` at 1168, or the four `read(...)` source-file
+reads at 1175/1197/1202. Suppress them one at a time.
+
+**Recommended fix, unchanged and now clearly the right one:** move the C2 controls into their own
+test file with its own JSDOM setup, registered in `package.json` (§11). This is no longer a
+matter of preference — the registrations cannot coexist in this file, so isolation is the fix
+rather than another workaround. A secondary benefit: the new file keeps the correction's 176
+lines out of a 1200-line shared file, which is independently desirable under the §8 line cap
+pressure on `TeachingLoad.tsx`.
+
+**Then, unchanged:** the full gate set with fail-on-base / pass-on-candidate proof for both new
+controls, junction removal with donor verification, one commit, one fresh independent QA on the
+correction commit only, then browser **B4** and the still-unperformed **B5**.
+
+**Live runtime unchanged:** `c5a9e832`, 5001 **200**. Nothing committed; both corrections
+uncommitted but intact.
+
 Three streams, three worktrees, one writer each, all under `E:/ATLAS-worktrees/lane-a3-*` from base `3cfe79a8`. Consolidated pairs preserved: 13+18, 14+16, 17+23, 25+26, 33A+33B.
 
 **S1 - Sections and room map** (`work/a3-sections-map`): fixes 03, 06, 07, 10, 11, 12; 08 held.
