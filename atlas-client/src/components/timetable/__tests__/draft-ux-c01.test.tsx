@@ -522,8 +522,34 @@ test('S3 a SOFT idle-gap note renders the warning sign; a HARD violation renders
 	assert.notEqual(soft.querySelector('svg')?.getAttribute('class'), hard.querySelector('svg')?.getAttribute('class'), 'distinct icons per severity');
 	assert.match(soft.getAttribute('aria-label') ?? '', /^1 warning$/i, 'SOFT accessible label says "warning"');
 	assert.match(hard.getAttribute('aria-label') ?? '', /Must fix/, 'HARD accessible label says "Must fix"');
-	assert.equal((soft.textContent ?? '').trim(), '', 'a single note shows the sign only');
-	assert.equal((hard.textContent ?? '').trim(), '2', 'N>1 shows the count beside the sign');
+	// A2-UX-STATUS-C2 (#55) SUPERSEDES the two counts-only rows below. They are
+	// retained here as the pre-fix truth on a LITERAL, in this file's own
+	// `preFix…` idiom (`timetable-edit-history-truth-a2.test.tsx:334`), because
+	// the defect they protected against is real: `allWarnings.length > 1` gated
+	// the count, so a SINGLE violation rendered a bare ~14px triangle with no
+	// count, no word and no visible tooltip, and N>1 rendered a naked digit that
+	// never said what it counted.
+	const preFixSingleNoteText = '';
+	const preFixMultipleNoteText = '2';
+	assert.equal(preFixSingleNoteText.trim(), '', 'pre-fix: a single note showed the sign only — the #55 defect');
+	assert.equal(preFixMultipleNoteText.trim(), '2', 'pre-fix: N>1 showed a bare count with no word');
+	// The replacement. ONE phrase, shown on screen AND named to a screen
+	// reader, for EVERY N — the count is never reachable only by hovering.
+	for (const [indicator, phrase] of [[soft, '1 warning'], [hard, '1 Must fix, 1 warning']] as const) {
+		assert.equal(
+			(indicator.textContent ?? '').trim(),
+			phrase,
+			'the cell shows the count and its word, not a sign alone and not a bare digit',
+		);
+		assert.equal(
+			indicator.getAttribute('aria-label'),
+			phrase,
+			'and the accessible name is that same phrase, not a second one',
+		);
+		assert.doesNotMatch(phrase, /(^|[^\d])0 Must fix/, 'and no zero clause is spoken aloud');
+	}
+	assert.equal(soft.getAttribute('data-severity-count'), '1', 'a single note still reports its count of 1');
+	assert.equal(hard.getAttribute('data-severity-count'), '2', 'and a mixed cell reports both');
 });
 
 /* ── S4 — desktop session details are a centred dialog; mobile keeps the drawer ── */

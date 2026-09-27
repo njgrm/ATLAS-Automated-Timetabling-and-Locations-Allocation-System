@@ -18,7 +18,20 @@ export function SeveritySign({ severity, className }: { severity: 'HARD' | 'SOFT
 		: <AlertTriangle className={cn('size-3.5 shrink-0 text-amber-700', className)} aria-hidden="true" data-severity-icon="warning" />;
 }
 
-/** "1 Must fix, 2 warnings" — the plain severity summary for a class. */
+/**
+ * "1 Must fix, 2 warnings" — the plain severity summary for a class, and
+ * (A2-UX-STATUS-C2 / #55) the ONE phrase the cell indicator shows on screen AND
+ * names to a screen reader, so the two channels cannot drift.
+ *
+ * It composes only NON-ZERO clauses, so a lone schedule note reads "1 warning"
+ * and never "0 Must fix, 1 warning" — the count the audit heard quoted is
+ * assembled elsewhere (`TimetableGrid.tsx`, DEPENDENCY noted on
+ * `EntrySeverityIndicator`).
+ *
+ * The returned wording is UNCHANGED by #55: `plain-language-j2j3-c01.test.ts`
+ * pins these four strings exactly, and the defect was that the phrase was never
+ * SHOWN, not that it was worded differently.
+ */
 export function severitySummary(hardCount: number, softCount: number): string {
 	return [
 		// PLAIN-LANGUAGE-J2J3-C01 (J2): this interpolated the literal "Must fix"
@@ -40,9 +53,30 @@ export function severitySummary(hardCount: number, softCount: number): string {
  * (AGENTS.md §8).
  *
  * DRAFT-UX-C01 (S3) — SUPERSEDED the inline "Must fix · N" / "Schedule note ·
- * N" text badge: the cell shows the compact severity sign (with the count
- * beside it only when N>1). The note text lives in the tooltip and in the
- * session details. Which violations are shown is unchanged.
+ * N" text badge: the cell shows the compact severity sign.
+ *
+ * ── A2-UX-STATUS-C2 / #55 — the count is now on screen, and the screen and the
+ * screen-reader say the SAME words ──────────────────────────────────────────
+ *
+ * The pre-candidate cell showed the sign ALONE whenever there was exactly one
+ * violation (`allWarnings.length > 1` gated the count), and a bare number with
+ * no word when there were several. A mouse user therefore saw a ~14px orange
+ * triangle carrying no count, no word and no visible tooltip: the quantity was
+ * reachable only by hovering, and a hover is not available to every operator.
+ *
+ * The fix keeps ONE phrase and uses it twice — as the visible text and as the
+ * `aria-label` — so the two channels cannot disagree, and it is
+ * `severitySummary`, the function this file already owned. That function
+ * already omits a zero clause, so the "0 Must fix" the audit heard is not
+ * produced here.
+ *
+ * DEPENDENCY: the accessible name the audit actually quoted —
+ * "1 warning, 0 Must fix, 1 Schedule note" — is built in
+ * `components/timetable/TimetableGrid.tsx` on the `DraggableEntry`
+ * `aria-label` (`${warnings.length} warning…, ${hardWarningCount} Must fix,
+ * ${softWarningCount} Schedule note`), which wraps this indicator and is read
+ * IN ADDITION to it. That double-count and its unconditional "0 Must fix" need
+ * the same one-phrase treatment; it is not a file this lane owns.
  */
 export const EntrySeverityIndicator = memo(function EntrySeverityIndicator({
 	severity,
@@ -62,6 +96,7 @@ export const EntrySeverityIndicator = memo(function EntrySeverityIndicator({
 		: reasons.map((message) => ({ severity, message }) as Violation);
 	const hardCount = allWarnings.filter((warning) => warning.severity === 'HARD').length;
 	const softCount = allWarnings.filter((warning) => warning.severity === 'SOFT').length;
+	// #55 — ONE phrase, used as the accessible name AND as the visible text.
 	const warningSummary = severitySummary(hardCount, softCount);
 	return (
 		<TooltipProvider delayDuration={200}>
@@ -73,14 +108,17 @@ export const EntrySeverityIndicator = memo(function EntrySeverityIndicator({
 						tabIndex={0}
 						data-testid="timetable-entry-severity-indicator"
 						data-severity={severity.toLowerCase()}
+						data-severity-count={allWarnings.length}
 						data-review-focus={reviewFocused ? 'true' : undefined}
 						className={cn(
-							'inline-flex shrink-0 items-center gap-0.5 rounded px-0.5 py-0.5 text-xs font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1',
+							'inline-flex max-w-[9rem] shrink-0 items-center gap-1 rounded px-0.5 py-0.5 text-xs font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1',
 							severity === 'HARD' ? 'bg-red-100 text-red-800' : 'bg-amber-100 text-amber-900',
 						)}
 					>
 						<SeveritySign severity={severity} />
-						{allWarnings.length > 1 ? <span aria-hidden="true">{allWarnings.length}</span> : null}
+						{/* The count and its word are VISIBLE now, for every N, and they
+						 * are the same characters the accessible name carries. */}
+						<span className="truncate">{warningSummary}</span>
 					</span>
 				</TooltipTrigger>
 				<TooltipContent side="bottom" className="z-100 max-w-sm space-y-1.5 p-2 text-xs" data-testid="timetable-entry-warning-tooltip">

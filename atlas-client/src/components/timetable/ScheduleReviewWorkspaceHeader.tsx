@@ -1,5 +1,6 @@
 import { memo, Profiler, useRef, useState } from 'react';
-import { AlertTriangle, ArrowRightLeft, CalendarClock, ClipboardCheck, ClipboardList, Crosshair, GraduationCap, History, Lightbulb, ListChecks, Loader2, MoreHorizontal, Play, RefreshCw, RotateCw, SearchCheck, Send, Settings2, Undo2, Wrench } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
+import { AlertTriangle, ArrowRightLeft, CalendarClock, CircleCheck, CircleDashed, ClipboardCheck, ClipboardList, Crosshair, GraduationCap, History, Hourglass, Lightbulb, ListChecks, Loader2, MoreHorizontal, PencilLine, Play, RefreshCw, RotateCw, SearchCheck, Send, Settings2, Undo2, Wrench } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
 import atlasApi from '@/lib/api';
@@ -57,6 +58,49 @@ function formatChangedDomains(domains: string[] | undefined): string[] {
 	if (!domains || domains.length === 0) return ['Comparison details are unavailable'];
 	return domains.map((domain) => INPUT_DOMAIN_LABELS[domain] ?? domain);
 }
+
+/* A2-UX-STATUS-C2 / U1 + U5, CLOSED at the integration boundary (2026-09-28).
+ *
+ * This file previously defined its OWN `runStateLine` because the lib's
+ * `runStateSentence` was built around the `Run <n> ·` prefix U1 removes, and the
+ * executor correctly reported the duplication as a DEPENDENCY rather than
+ * silently forking the string. Two definitions of one operator-visible line is
+ * the exact hazard §16 names, so the local copy is gone and the header consumes
+ * the single exported source: the pre-generation branch now reads
+ * "No schedule made yet." (U5) instead of "Planning draft - no generated run
+ * yet", which had survived here while the lib was already fixed.
+ *
+ * `null` still means "nothing to name" and the cell is still omitted, so the
+ * empty state prints no placeholder (asserted by `timetable-run-identity-a2`).
+ */
+
+/**
+ * A2-UX-STATUS-C2 / U2 + #51 — one icon, one tone and one sign token per state.
+ *
+ * The pre-candidate badge had exactly two appearances, chosen by
+ * `isPreGenerationWorkspace` — a LAYOUT/surface flag. That is why Draft and
+ * Published were indistinguishable, and it is #51 in a different costume: the
+ * run's real publication state never reached the styling.
+ *
+ * Three channels, so colour is never load-bearing on its own: the icon shape (a
+ * settling check vs an in-progress stroke), the tone, and the label that
+ * `runStateBadgeLabel` already reads from the run. The key is derived from the
+ * RUN (`draft.runId` + `isDraftPublishedStrict`), never from the layout mode.
+ */
+type RunStateKey = 'planning' | 'published' | 'draft' | 'empty';
+
+const RUN_STATE_PRESENTATION: Record<RunStateKey, {
+	icon: LucideIcon;
+	sign: 'in-progress' | 'settled' | 'none';
+	tone: 'amber' | 'emerald' | 'muted';
+	toneClass: string;
+}> = {
+	planning: { icon: Hourglass, sign: 'in-progress', tone: 'amber', toneClass: 'border-amber-300 bg-amber-50 text-amber-950' },
+	published: { icon: CircleCheck, sign: 'settled', tone: 'emerald', toneClass: 'border-emerald-400 bg-emerald-50 text-emerald-950' },
+	draft: { icon: PencilLine, sign: 'in-progress', tone: 'amber', toneClass: 'border-amber-300 bg-amber-50 text-amber-950' },
+	empty: { icon: CircleDashed, sign: 'none', tone: 'muted', toneClass: 'border-border bg-muted text-muted-foreground' },
+};
+
 
 function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceHeaderProps) {
 	const [showImpactPreview, setShowImpactPreview] = useState(false);
@@ -375,39 +419,18 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 		? runOptions.find((r) => String(r.id) === selectedRunId || (selectedRunId === 'latest' && r.id === runOptions[0]?.id))?.durationMs ?? null
 		: null;
 
-	// A2-TIMETABLE-CUSTODY (#41/#51). The orientation strip named the term and the
-	// scope but never the RUN, so a scheduler could not say which schedule was on
-	// screen; and the heading badge read "Generated timetable" over a PUBLISHED
-	// run, so it never said what the run actually was. Both are resolved by the
-	// one shared sentence in `timetable-plain-language`, so the two lines cannot
-	// disagree with each other or with Simple's `readinessLabel`.
-	//
-	// A2-TIMETABLE-CUSTODY-R1 (QA C3, BLOCKING). The first version of this line
-	// passed `runId: activeGeneratedRunId` next to `isPublished: isRunPublished`,
-	// and those are two DIFFERENT runs' worth of state. `isRunPublished` is
-	// `isDraftPublishedStrict(draft)` — the state of `draft.summary`, i.e. of
-	// `draft.runId`. `activeGeneratedRunId` (`useTimetableData.ts:1370-1375`)
-	// resolves under `selectedRunId === 'latest'` to `runs[0]?.id`, the NEWEST run
-	// whether or not it finished. So with a published 321 and an in-flight 322 the
-	// header said "Run: Run 322 · Published" while its own
-	// `newerFailedRunNotice` (line 352) said the grid was 321 — a false pairing
-	// the base never had, because the base named no run at all.
-	//
-	// The fix is the IDENTITY, not the state derivation: the run number printed
-	// must be read from the run whose publication state is printed, and both must
-	// come from one value so they cannot drift apart again. `draft.runId` is that
-	// run — the same value this file's `hasGeneratedRun: Boolean(draft)` and
-	// `selectedDurationMs` already treat as "the run on the grid", and the same
-	// one `newerFailedRunNotice` names as `#${draft.runId}`. Reading
-	// `activeGeneratedRunId` here is left untouched for the quick-place/sync
-	// request targets, which are a separate question from what this line prints.
-	//
-	// It also repairs the EMPTY state: with `draft == null` and
-	// `runOptions[0].status === 'FAILED'` — a state this file contemplates at line
-	// 234 — `activeGeneratedRunId` is non-null, so `hasRun: true` rendered
-	// "Draft schedule" over a workspace with no schedule on it. With the identity
-	// taken from `draft`, `hasRun` is false there and the badge says the truthful
-	// "No generated run yet", as it did before the candidate.
+	// A2-TIMETABLE-CUSTODY (#41/#51) — the orientation strip names the RUN and
+	// its state. `runOnScreenId` is `draft.runId`, NEVER `activeGeneratedRunId`:
+	// `isRunPublished` is `isDraftPublishedStrict(draft)`, i.e. the state of
+	// `draft.runId`, while `activeGeneratedRunId` resolves under
+	// `selectedRunId === 'latest'` to `runs[0]?.id` — the newest run whether or
+	// not it finished. The two can name different runs, and this file's own
+	// `newerFailedRunNotice` exists for exactly that case. Reading
+	// `activeGeneratedRunId` here also rendered a state over a workspace with no
+	// schedule on it when the only run had FAILED. The full trace is in
+	// `__tests__/timetable-run-identity-a2.test.tsx`; `activeGeneratedRunId` is
+	// left untouched for the quick-place/sync request targets, which are a
+	// separate question from what this line prints.
 	const runOnScreenId = draft?.runId ?? null;
 	const runState = runStateSentence({
 		isPreGeneration: isPreGenerationWorkspace,
@@ -420,6 +443,14 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 		hasRun: runOnScreenId != null,
 		isPublished: isRunPublished,
 	});
+	// U2/#51 — keyed on the RUN, never on `isPreGenerationWorkspace`.
+	const runStateKey: RunStateKey = isPreGenerationWorkspace
+		? 'planning'
+		: runOnScreenId == null
+			? 'empty'
+			: isRunPublished ? 'published' : 'draft';
+	const runStatePresentation = RUN_STATE_PRESENTATION[runStateKey];
+	const RunStateIcon = runStatePresentation.icon;
 
 	return (
 		<Profiler id="Header" onRender={onProfilerRender}>
@@ -427,16 +458,24 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 			<div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-b border-border/60 bg-muted/20 px-4 py-1.5 text-xs text-muted-foreground" data-testid="timetable-scheduler-orientation">
 				<span><span className="font-semibold text-foreground">Term:</span> {activeTermLabel ?? 'Term setup required'}</span>
 				<span><span className="font-semibold text-foreground">Scope:</span> {termFilter === 'all' ? 'All terms' : (termOptions.find((option) => option.value === String(termFilter))?.label ?? 'Selected term')}</span>
-				{runState ? <span data-testid="timetable-run-identity"><span className="font-semibold text-foreground">Run:</span> {runState}</span> : null}
+				{runState ? <span data-testid="timetable-run-identity"><span className="font-semibold text-foreground">State:</span> {runState}</span> : null}
 				<span><span className="font-semibold text-foreground">Next:</span> {nextActionLabel}</span>
 			</div>
 			<div className="flex items-center gap-2 overflow-x-auto scrollbar-thin px-4 pt-2 pb-1.5 [@media(max-height:500px)]:pt-1 [@media(max-height:500px)]:pb-1">
+				{/* U2/#51 — the appearance follows the RUN. The pre-candidate badge keyed
+				 * `variant`/className on `isPreGenerationWorkspace`, so a PUBLISHED run
+				 * and an unpublished one wore the same badge and only the state word
+				 * distinguished them. */}
 				<Badge
-					variant={isPreGenerationWorkspace ? 'secondary' : 'default'}
-					className={cn('h-7 shrink-0 px-2.5 text-xs font-semibold uppercase', isPreGenerationWorkspace ? 'border border-border bg-muted text-muted-foreground' : 'bg-primary text-primary-foreground')}
+					variant="outline"
+					className={cn('h-7 shrink-0 gap-1.5 px-2.5 text-xs font-semibold', runStatePresentation.toneClass)}
 					data-testid="timetable-run-state-badge"
+					data-run-state={runStateKey}
+					data-run-state-sign={runStatePresentation.sign}
+					data-run-state-tone={runStatePresentation.tone}
 				>
-					{runBadgeLabel}
+					<RunStateIcon className="size-3.5 shrink-0" aria-hidden="true" data-testid="timetable-run-state-sign" />
+					<span className="truncate">{runBadgeLabel}</span>
 				</Badge>
 
 				{newerFailedRunNotice && (
