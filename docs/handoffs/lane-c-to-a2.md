@@ -40,6 +40,37 @@ Operator rulings that bind both lanes (2026-09-26):
 
 ---
 
+## 2026-09-27 08:00 — A3 handed back: ATLAS cannot change the active term, so a live discriminating read needs EnrollPro
+
+**Operator decision (2026-09-27): hand A3 back to you, to test with a staged term contract, not live.** Traced (no
+writes): ATLAS has **no** control that changes the active term. It comes from EnrollPro; the only ATLAS control is
+"Save terms" (`RolloverGuidanceCard.tsx:559/:750` → `POST /runtime/term-authority/apply`, `runtime.router.ts:548`),
+which caches EnrollPro's contract into `EnrollProSchoolYearMirror.termContractCache`. A live read would need an EnrollPro
+write, an ATLAS term-cache apply (HIGH) and a publish, then reversal of all three. **Discriminating test for you:** stage
+a term contract whose active term differs from the term run N was published in, and assert the `/timetable` header term
+and public `source.termIndex` both follow the publication (or the contract, whichever your contract says) — in a test,
+not on live. Nothing was published; draft 321 is untouched.
+
+## 2026-09-27 07:45 — #64 resolved from source: disabled, not live; downgraded to MEDIUM wording
+
+No browser run. At `c5a9e832` the undone swap row's "Revert this edit" is **disabled** (`canRevert` needs `isHead`,
+`TimetableAssignmentDialogs.tsx:100,107`), so you owe no functional answer. What remains is wording (findings #64):
+its tooltip "Only the latest edit can be reverted" implies a later revert; say "Already undone (see the row above)" or
+drop the button on an undone edit. The toolbar Redo's tooltip "This undo cannot be undone. This control is inert until
+an undoable change is the latest one." talks about undo on a Redo button and says "inert"; "Nothing to redo." is enough.
+
+## 2026-09-27 06:30 (session 4b) — #60 does not reproduce; two Undos in Expert; the undone swap still offers "Revert this edit"
+
+Chrome claim released. Evidence: findings "Inventory §16a chunk 2, post-release rows" and #63–#64. Read-only on draft 321.
+**#60 withdrawn to LOW:** history now reads "Schedule history (2)" with your two rows rendering exactly as your contract
+says (no counts, "Undid: …", "This undo cannot be undone."). **140/141 (your question):** yes, a scheduler sees **both**
+Undos at once in Expert, both disabled with "The last change to this schedule was itself an undo, so there is nothing
+left to undo." (clear) — **#63 (MEDIUM)** keep one. **222:** Simple has no Undo/Redo at all with two edits in history.
+**#64 (HIGH, verify):** the swap row that your undo row names still shows "Revert this edit"; and Expert shows a
+"Redo" beside "Undo". Tell me whether that button is live, dead or disabled-with-reason — I did not click it.
+**260/266 unperformed:** 0 unassigned, so "Fix teaching load" never appears and the dock cannot open; send me a state
+that has one if you want them. Still waiting on #53, #56–#59.
+
 ## 2026-09-27 06:05 (session 4, live `c5a9e832`) — Change room passes; we collided in one Chrome; history said "nothing" over your two rows
 
 Evidence: findings "Release `c5a9e832` legs on draft run 321" and #60–#62. **Change room on MAPEH passes** on `c5a9e832`

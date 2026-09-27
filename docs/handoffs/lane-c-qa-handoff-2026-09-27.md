@@ -69,3 +69,31 @@ Accepted outputs this session: 4 of 5 queue items, 14 findings. Per-item cost �
 - Chrome extension **disconnected** at ~06:03. The operator must sign in again if `/login` returns.
 - Next: chunk 2 rows 249/260/266, 219/222, 140/141 (item 3); re-read #60 (history menu vs rows) once; answer A2 acks.
 - `subagent_tokens`: 402,750 over 5 runs, of which 2 were useful (≈ 134k per finding).
+
+## Session 4b (2026-09-27 06:15–06:30 +08)
+
+- Chrome claim posted then cleared. #60 not reproduced (LOW). Chunk 2: 222/140/141 read (#63, #64); 219 transient strip,
+  260/266 (0 unassigned) and 249 (no empty floor) unperformed. Queue item 3 is done except rows that need absent states.
+- `subagent_tokens`: 67,282 (Chrome not connected) + 98,953 = 166,235.
+- Next: A2's answers on #53, #56–#59, #61, #63, #64; then the operator's next queue. Chrome can drop; check
+  `list_connected_browsers` before each dispatch.
+
+## Session 4c (2026-09-27 07:40–08:00 +08)
+
+- #64 resolved from source (disabled; misleading reason) → MEDIUM. A3 handed back to A2 (operator, 2026-09-27): active
+  term lives in EnrollPro; ATLAS only caches it ("Save terms"). Queue is empty apart from A2's acks.
+- `subagent_tokens`: 74,817 (search: where the active term is changed).
+
+### Next-session initiator (paste after a /clear; written 2026-09-27 08:05 +08)
+
+```text
+You are Lane C (Claude Code) — system-wide UX/UI, controls and flow QA for ATLAS (veteran, older, mouse-first scheduler; grade communication as seriously as function). You do not implement.
+
+Read on origin/main: CLAUDE.md; docs/handoffs/lane-c-qa-handoff-2026-09-27.md (Sessions 4, 4b, 4c); docs/handoffs/lane-a-to-c.md (add "Lane C ack" lines); docs/handoffs/lane-c-to-a2.md (check "A2 ack" on #53, #56–#59, #61, #63, #64, the Chrome-claim rule and the 08:00 A3 hand-back); docs/reviews/timetable-manual-controls-20260926/findings.md (#1–#64). Work in E:/ATLAS-worktrees/lane-c-qa-20260927 (branch docs/lane-c-qa-20260927; push HEAD:main).
+
+State (2026-09-27 08:05 +08, after 15e4c312): live c5a9e832. Run 320 PUBLISHED; draft 321 at 69 warnings, history 2 rows. Queue empty: 260/266 need an unassigned session, 249 an empty floor; A3 handed back to A2 (active term lives in EnrollPro). No Chrome claim held.
+
+First action: git log origin/main since 15e4c312 and read A2's acks. Act only on what A2 asks for or on a new release in docs/plans/live-state.md (then re-test what it ships). If nothing is new, stop and say you are waiting.
+
+Apply CLAUDE.md: one stream per session; browser QA only via atlas-browser-qa on Claude in Chrome (never the built-in pane; "you are the runner, never call Agent"; full origin https://njgrm.buru-degree.ts.net; one flow per run with exact steps; More menu scrolls; way back from Expert is "Simple view" top right). Before each dispatch call list_connected_browsers and post "Chrome: Lane C from HH:MM" in lane-c-to-a2.md, cleared after. Check source before spending a browser run on a "is it live or dead" question. Post every verdict to lane-c-to-a2.md; record subagent_tokens; ready-to-paste prompt at the next boundary.
+```
