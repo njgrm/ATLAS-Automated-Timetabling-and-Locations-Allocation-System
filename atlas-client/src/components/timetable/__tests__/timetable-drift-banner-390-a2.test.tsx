@@ -306,11 +306,51 @@ test('#59/#17 the drift claim is shown only when the comparison is trustworthy a
 	assert.match(fresh, /data-testid="timetable-simple-review-draft-changes"/, 'and so is the review control');
 	assert.match(
 		fresh,
-		/ATLAS has not re-checked this schedule against your latest setup data\./,
-		'and the one sentence that may honestly be said is said',
+		/This check is not timed to the schedule on screen, so it may not apply to it\./,
+		// CORRECTED (A2-UX-STATUS-C2 B7). This row previously asserted
+		// "ATLAS has not re-checked this schedule against your latest setup data",
+		// which CONTRADICTS the payload it came from: the server's response to this
+		// comparison said STALE, so ATLAS did check, and it found drift. The old
+		// sentence denied a real check.
+		// PRESERVED INTENT, unchanged: exactly ONE honest sentence is offered in
+		// place of the drift claim, and it is the one that may honestly be said. Only
+		// WHICH honest sentence changed - to the actual condition, that the
+		// comparison cannot be tied in time to the schedule on screen.
+		'and the one sentence that may honestly be said is said, and it no longer denies a check the server did run',
 	);
+	assert.doesNotMatch(fresh, /has not re-checked/, 'the note must not claim ATLAS did not check a STALE comparison it was sent');
 	// Amber is reserved for a claim ATLAS can back.
 	assert.doesNotMatch(classListOf(fresh, 'timetable-simple-input-drift'), /amber/, 'an unproven comparison wears no alarm styling');
+});
+
+test('B7/#59 the neutral note names the timing, and a GENUINE stale comparison still alarms', () => {
+	// (1) The audit case: the server said STALE but stamped no `checkedAt`. The
+	// comparison exists and reported drift; only its MOMENT is unusable.
+	const untimedComparison = renderBanner({ draft: staleDraft(['rooms'], { checkedAt: null }) });
+	assert.match(untimedComparison, /data-drift-status="STALE"/, "the server's own STALE verdict is still reported verbatim");
+	assert.doesNotMatch(untimedComparison, /data-drift-claimable="true"/, 'so no drift CLAIM is made about this run');
+	assert.doesNotMatch(untimedComparison, /Regenerate to apply/, 'and the regeneration affordance is withheld, as before');
+	assert.match(
+		untimedComparison,
+		/This check is not timed to the schedule on screen/,
+		'the note states the actual condition: the comparison is not timed to this schedule',
+	);
+	assert.doesNotMatch(
+		untimedComparison,
+		/has not (re-)?checked/,
+		'and it does NOT claim ATLAS failed to check - it checked, and that is where STALE came from',
+	);
+	// The drift is still surfaced, so nothing is hidden by not claiming it.
+	assert.match(untimedComparison, /data-testid="timetable-simple-repair-rooms"/, 'the changed domain and its repair control are still mounted');
+
+	// (2) THE PREDICATE IS UNCHANGED. A comparison stamped AFTER the run finished is
+	// genuinely about the run on screen, so the real alarm still fires. If the
+	// correction had widened the suppression, this row would fail.
+	const genuine = renderBanner();
+	assert.match(genuine, /data-drift-claimable="true"/, 'a comparison later than the run is still claimable');
+	assert.match(genuine, /Schedule information changed/, 'the alarm still fires for genuine post-generation drift');
+	assert.match(genuine, /data-testid="timetable-simple-regenerate-to-apply"/, 'and the repair affordance is still offered');
+	assert.doesNotMatch(genuine, /This check is not timed/, 'a trustworthy comparison shows the claim, not the neutral note');
 });
 
 test('#59/#17 a run with NO comparable timing is not failed, and real drift is not hidden', () => {

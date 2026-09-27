@@ -12,7 +12,7 @@ import { Button } from '@/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip';
 import { EMPTY_SCHEDULED_ENTRIES, getEntrySeverity, TIMETABLE_DAY_SHORT, TIMETABLE_DAYS } from '@/components/timetable/TimetableGrid.constants';
 import { TimetableCellOverflowSheet } from '@/components/timetable/TimetableCellOverflowSheet';
-import { ConflictBadgeWithTooltip, EntrySeverityIndicator } from '@/components/timetable/TimetableGridConflictBadge';
+import { ConflictBadgeWithTooltip, EntrySeverityIndicator, entryAccessibleName } from '@/components/timetable/TimetableGridConflictBadge';
 import { DraggableEntry, useTimetableEntryReadOnly } from '@/components/timetable/TimetableDraggableEntry';
 import { SandboxEntryBadge, TeacherDepartureEntryBadge } from '@/components/timetable/TimetableGridEntryBadges';
 
@@ -400,8 +400,6 @@ const GridCell = memo(function GridCell({
 			<div className="space-y-0.5 min-h-6 overflow-hidden">
 				{visibleEntries.map((entry) => {
 					const warnings = violationIndex.get(entry.entryId) ?? [];
-					const hardWarningCount = warnings.filter((warning) => warning.severity === 'HARD').length;
-					const softWarningCount = warnings.filter((warning) => warning.severity === 'SOFT').length;
 					const rawSeverity = getEntrySeverity(entry.entryId, violationIndex);
 					// Keep every selected-term warning discoverable; the review set only
 					// identifies which warning is currently being worked on.
@@ -445,9 +443,8 @@ const GridCell = memo(function GridCell({
 						: { type: 'entry' as const, entry };
 					const entrySubjectLabel = subjectLabel(entry.subjectId);
 					const entrySectionLabel = sectionLabel(entry.sectionId);
-					const entryDayLabel = TIMETABLE_DAY_SHORT[day] ?? day;
-					const entryTimeLabel = formatTime(startTime);
-
+					// A2-UX-STATUS-C2 / #55 (B1): the name below is composed from the same
+					// `severitySummary` phrase the indicator it WRAPS shows and names.
 					return (
 						<DraggableEntry
 							key={entry.entryId}
@@ -456,9 +453,7 @@ const GridCell = memo(function GridCell({
 							readOnly={readOnly}
 							role="button"
 							tabIndex={0}
-							aria-label={readOnly
-								? `View ${entrySubjectLabel} for ${entrySectionLabel}, ${entryDayLabel} ${entryTimeLabel}${warnings.length ? `, ${warnings.length} ${warnings.length === 1 ? 'warning' : 'warnings'}, ${hardWarningCount} Must fix, ${softWarningCount} Schedule note` : ''}`
-								: `Select ${entrySubjectLabel} for ${entrySectionLabel}, ${entryDayLabel} ${entryTimeLabel}${warnings.length ? `, ${warnings.length} ${warnings.length === 1 ? 'warning' : 'warnings'}, ${hardWarningCount} Must fix, ${softWarningCount} Schedule note` : ''}`}
+							aria-label={entryAccessibleName({ verb: readOnly ? 'View' : 'Select', subjectLabel: entrySubjectLabel, sectionLabel: entrySectionLabel, dayTimeLabel: `${TIMETABLE_DAY_SHORT[day] ?? day} ${formatTime(startTime)}`, warnings })}
 							data-timetable-entry="true"
 							data-timetable-entry-id={entry.entryId}
 							data-subject-id={entry.subjectId}

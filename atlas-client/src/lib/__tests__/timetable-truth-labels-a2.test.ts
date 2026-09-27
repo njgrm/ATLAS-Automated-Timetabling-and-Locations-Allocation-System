@@ -50,7 +50,9 @@ import { MemoryRouter } from 'react-router-dom';
 import {
 	ALL_SESSIONS_PLACED_LABEL,
 	BUILD_NEW_DRAFT_LABEL,
-	CLASS_NOUN,	GENERATE_DIALOG_HEADLINE_LABEL,
+	CLASS_NOUN,
+	GENERATE_DIALOG_DEMAND_UNMEASURED_WORD,
+	GENERATE_DIALOG_HEADLINE_LABEL,
 	GENERATE_DIALOG_LOCKED_LABEL,
 	GENERATE_DIALOG_TERM_LABEL,
 	GENERATE_DIALOG_YEAR_LABEL,
@@ -124,6 +126,52 @@ function collectText(node: ReactNode, out: string[] = []): string[] {
 		return out;
 	}
 	return out;
+}
+
+/**
+ * The element the production component really produced for `data-testid`, with
+ * its real props - the cue's `className` and its state attributes, not a source
+ * string and not a re-declared copy of the mapping.
+ *
+ * This replaces a regex that matched the cue's className ternary in the source
+ * text. That regex passed vacuously the moment the mapping stopped being a
+ * two-arm ternary, and it could not see a colour that a helper computed. Reading
+ * the returned tree keeps the assertion behavioural: it is the production render
+ * path, walked the same way `collectText` walks it for words.
+ */
+function findByTestId(node: ReactNode, testId: string): Record<string, unknown> | null {
+	if (node == null || typeof node === 'boolean' || typeof node === 'string' || typeof node === 'number') return null;
+	if (Array.isArray(node)) {
+		for (const child of node) {
+			const hit = findByTestId(child, testId);
+			if (hit) return hit;
+		}
+		return null;
+	}
+	if (isValidElement(node)) {
+		const props = node.props as { [key: string]: unknown; children?: ReactNode };
+		if (props['data-testid'] === testId) return props as Record<string, unknown>;
+		return findByTestId(props.children, testId);
+	}
+	return null;
+}
+
+/** The production dialog body's real cue element for a given demand count. */
+function demandCue(classesToSchedule: number | null): Record<string, unknown> {
+	const body = GenerateConfirmDialogBody({
+		copy: buildGenerateDialogCopy({
+			schoolYearLabel: '2031-2032',
+			termSource: 'atlas',
+			lockedClassCount: 0,
+			classesToSchedule,
+		}),
+		classesToSchedule,
+		enforceShiftWindows: true,
+		setEnforceShiftWindows: () => {},
+	});
+	const cue = findByTestId(body, 'timetable-generate-demand-cue');
+	assert.ok(cue, `the demand count carries a visible cue for ${String(classesToSchedule)}`);
+	return cue;
 }
 
 function dialogText(context: Partial<ScheduleReviewDialogsContext>): string {
@@ -324,11 +372,43 @@ test('#43 MEASURED: the dialog has one close control, and a visible cue beside t
 	assert.equal(body.split('1295').length - 1, 1, 'the headline states the count once');
 	assert.equal((body.match(/School year|Term setup|Locked classes kept/g) ?? []).length, 3, 'three facts beside the headline, not four');
 	// The visible cue beside the count. It is a real rendered element, and it
-	// encodes the one fact that is true either way: there is work, or there is not.
-	const cue = dialogs.match(/data-testid="timetable-generate-demand-cue"[\s\S]{0,200}?className=\{hasWork \? '([^']*)' : '([^']*)'\}/);
-	assert.ok(cue, 'the demand count carries a visible cue');
-	assert.match(cue![1], /amber/, 'there is work to do');
-	assert.match(cue![2], /emerald/, 'and nothing to do is visibly different, not a third invented severity');
+	// encodes the one fact that is true: whether there is work, there is none, or
+	// the count was never measured.
+	//
+	// CORRECTED (A2-UX-STATUS-C2 B2) from a source regex over a two-arm
+	// `className={hasWork ? ... : ...}` ternary.
+	// PRESERVED INTENT: the cue exists, "there is work" is visibly distinct, and
+	// the states are distinguishable by something other than an invented severity
+	// scale. All three still hold; the row now also pins the case the regex could
+	// not express at all.
+	const work = demandCue(1295);
+	assert.match(String(work.className), /amber/, 'there is work to do');
+	assert.equal(work['data-demand-state'], 'work', 'and it is the work state');
+	const none = demandCue(0);
+	assert.match(String(none.className), /emerald/, 'and nothing to do is visibly different, not a third invented severity');
+	assert.equal(none['data-demand-state'], 'none', 'the measured zero is the none state');
+
+	// The absent count: NEITHER of the two. It must not be painted with the green
+	// "nothing to do" cue, because ATLAS did not establish that everything is
+	// placed - it failed to count it at all.
+	const unknown = demandCue(null);
+	assert.equal(unknown['data-demand-state'], 'unknown', 'an unmeasured count is its own state, not the none state');
+	assert.doesNotMatch(String(unknown.className), /emerald/, 'an unmeasured count is NEVER given the green nothing-to-do cue');
+	assert.doesNotMatch(String(unknown.className), /amber/, 'and it borrows no work cue either: there is no work claim to make');
+	assert.notEqual(String(unknown.className), String(none.className), 'so it is visibly distinct from a measured zero');
+	// Colour is never load-bearing alone: the state is also an attribute, and the
+	// headline beside the icon says the same thing in words.
+	assert.equal(unknown['data-has-work'], 'false', 'the legacy boolean attribute is preserved and agrees');
+	assert.match(
+		collectText(GenerateConfirmDialogBody({
+			copy: buildGenerateDialogCopy({ schoolYearLabel: '2031-2032', termSource: 'atlas', lockedClassCount: 0, classesToSchedule: null }),
+			classesToSchedule: null,
+			enforceShiftWindows: true,
+			setEnforceShiftWindows: () => {},
+		})).join(' '),
+		new RegExp(GENERATE_DIALOG_DEMAND_UNMEASURED_WORD),
+		'the words beside the cue state the same fact, so the cue is not load-bearing alone',
+	);
 });
 
 test('#56 the dialog title, its first line and its button are ONE verb, and the published case opens with the reassurance', () => {
@@ -696,13 +776,42 @@ test('U3a/#43 the generate dialog copy fits its word budget and carries no banne
 
 test('U3a the generate dialog copy degrades honestly on absent values', () => {
 	const copy = buildGenerateDialogCopy({});
-	assert.equal(copy.headline, 'Classes to schedule: 0', 'an absent count reads 0, never NaN');
+	// CORRECTED (A2-UX-STATUS-C2 B2). This row previously asserted
+	// `copy.headline === 'Classes to schedule: 0'` - "an absent count reads 0,
+	// never NaN". That was the FALSE ZERO: `fetchDraftBoardSummary` returns null on
+	// an intermittent 502, the caller passed `?? 0`, and a count that was never
+	// measured was announced as a measured "nothing to schedule". The server this
+	// release shipped states why that is the worst possible lie: a scheduler
+	// reading "all classes placed" stops looking for the classes with no slot.
+	//
+	// PRESERVED INTENT, unchanged and still asserted below: never render NaN, and
+	// never invent a number. Both were the row's point and neither is weakened -
+	// the honest absent state satisfies them more strictly than a 0 did, because a
+	// 0 IS an invented number. What changed is only WHICH absent rendering is
+	// honest.
+	assert.equal(
+		copy.headline,
+		`${GENERATE_DIALOG_HEADLINE_LABEL}: ${GENERATE_DIALOG_DEMAND_UNMEASURED_WORD}`,
+		'an absent count is REPORTED ABSENT in words, never rendered as the number 0',
+	);
+	assert.equal(copy.classesToScheduleKnown, false, 'and the copy says the count is not known');
+	assert.doesNotMatch(copy.headline, /\b0\b/, 'an absent count never reaches the screen as 0');
+	assert.doesNotMatch(copy.headline, /all|placed|complete|nothing to/i, 'and it never claims there is nothing to do');
 	assert.equal(copy.rows[0].value, 'Not set', 'an absent school year says so');
 	assert.equal(copy.rows[1].value, 'Not confirmed', 'an unknown term source is reported, not assumed');
 	assert.doesNotMatch(copy.plainText, /NaN|undefined|null/, 'no placeholder leaks into the copy');
 	for (const bad of [Number.NaN, Number.POSITIVE_INFINITY]) {
 		assert.doesNotMatch(buildGenerateDialogCopy({ classesToSchedule: bad }).plainText, /NaN|Infinity/, 'a non-finite count never reaches the screen');
+		assert.equal(
+			buildGenerateDialogCopy({ classesToSchedule: bad }).classesToScheduleKnown,
+			false,
+			`a non-finite count (${String(bad)}) is an absent count, not a measured one`,
+		);
 	}
+	// The measured case is untouched, and 0 is still a MEASURED zero.
+	const zero = buildGenerateDialogCopy({ classesToSchedule: 0 });
+	assert.equal(zero.headline, 'Classes to schedule: 0', 'a measured zero still reads 0, because it was measured');
+	assert.equal(zero.classesToScheduleKnown, true, 'and it is distinguished from the absent case above');
 });
 
 test('#56 one verb for "generate" on a published schedule', () => {
@@ -787,6 +896,9 @@ test('NOUN RULE: no user-facing string in the copy module says "session"', () =>
 		WEEKLY_UNPLACED_BADGE_LABEL,
 		UNPLACED_COUNT_DISAMBIGUATION,
 		ALL_SESSIONS_PLACED_LABEL,
+		// A2-UX-STATUS-C2 B2: a new user-facing export of the copy module, so it
+		// joins the vocabulary sweep below and cannot reintroduce a banned noun.
+		GENERATE_DIALOG_DEMAND_UNMEASURED_WORD,
 		GENERATE_DIALOG_HEADLINE_LABEL,
 		GENERATE_DIALOG_YEAR_LABEL,
 		GENERATE_DIALOG_TERM_LABEL,

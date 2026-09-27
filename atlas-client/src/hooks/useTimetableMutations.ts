@@ -816,6 +816,14 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 
 	const handleTriggerGenerate = useCallback(async () => {
 		if (!schoolYearId) return;
+		// A2-UX-STATUS-C2 correction B2: `fetchDraftBoardSummary` returns `null` on
+		// an intermittent 502 or a network error, and that null is deliberately NOT
+		// coerced to a zero anywhere on this path. The dialog reads
+		// `draftBoardSummary?.unscheduled ?? null`, so a failed read reaches it as
+		// an ABSENT count and it says the count is not checked - rather than
+		// announcing an unmeasured 0 as a green "nothing to do". The dialog still
+		// offers the action: an operator may legitimately want a new draft even when
+		// ATLAS could not count the demand.
 		if (!draftBoardSummaryRef.current) await fetchDraftBoardSummary(schoolYearId);
 		setEnforceShiftWindows(true);
 		setShowGenerateConfirm(true);

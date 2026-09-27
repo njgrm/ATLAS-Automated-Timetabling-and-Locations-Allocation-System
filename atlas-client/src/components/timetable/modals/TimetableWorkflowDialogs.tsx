@@ -85,7 +85,7 @@ export function TimetableWorkflowDialogs({ context, isPublished = false }: { con
 			schoolYearLabel={activeSchoolYearLabel ?? null}
 			termSource={termSource}
 			lockedClassCount={draftBoardSummary?.draft ?? 0}
-			classesToSchedule={draftBoardSummary?.unscheduled ?? 0}
+			classesToSchedule={draftBoardSummary?.unscheduled ?? null}
 			enforceShiftWindows={enforceShiftWindows}
 			setEnforceShiftWindows={setEnforceShiftWindows}
 			followUpCount={followUps.size}
@@ -170,8 +170,16 @@ type GenerateConfirmProps = {
 	termSource: GenerateDialogTermSource;
 	/** Locked pre-generation placements carried into the new draft. */
 	lockedClassCount: number;
-	/** This year's weekly demand with no time yet. */
-	classesToSchedule: number;
+	/**
+	 * This year's weekly demand with no time yet, or `null` when the board summary
+	 * is ABSENT and the count was therefore never measured.
+	 *
+	 * A2-UX-STATUS-C2 correction B2: this was `?? 0`, which rendered a green
+	 * "nothing to do" cue beside "Classes to schedule: 0" for a count that a
+	 * failed read had never produced. `null` and `0` are different facts and the
+	 * type now says so.
+	 */
+	classesToSchedule: number | null;
 	enforceShiftWindows: boolean;
 	setEnforceShiftWindows: (value: boolean) => void;
 	followUpCount: number;
@@ -242,6 +250,21 @@ export function GenerateConfirmDialog({
 }
 
 /**
+ * The one colour per demand state.
+ *
+ * A2-UX-STATUS-C2 correction B2: `unknown` is deliberately `text-muted-foreground`
+ * and NOT `text-emerald-600`. Green here means a MEASURED "everything is placed";
+ * painting an unmeasured read green told a scheduler the worst thing ATLAS could
+ * tell them - that there was nothing left to do - about a number that was never
+ * produced. A neutral icon beside an honest headline is the truthful middle.
+ */
+const DEMAND_CUE_CLASS: Record<'work' | 'none' | 'unknown', string> = {
+	work: 'size-5 shrink-0 text-amber-600',
+	none: 'size-5 shrink-0 text-emerald-600',
+	unknown: 'size-5 shrink-0 text-muted-foreground',
+};
+
+/**
  * The dialog's whole body, and therefore the region the 45-word budget governs.
  *
  * It is a separate component for one reason: it is the MEASURED unit. The word
@@ -250,9 +273,10 @@ export function GenerateConfirmDialog({
  * actually show — not the copy module's `plainText` and not a source string.
  *
  * The cue beside the count is `aria-hidden` on purpose. It encodes exactly one
- * real fact — there is work, or there is not — and a third colour for "a lot"
- * would be a severity scale ATLAS has no authority for. The visible text beside
- * it already carries the meaning, so the cue adds no words to the budget.
+ * real fact — there is work, there is not, or it was never measured — and a fourth
+ * colour for "a lot" would be a severity scale ATLAS has no authority for. The
+ * visible text beside it already carries the meaning, so the cue adds no words to
+ * the budget.
  */
 export function GenerateConfirmDialogBody({
 	copy,
@@ -261,11 +285,22 @@ export function GenerateConfirmDialogBody({
 	setEnforceShiftWindows,
 }: {
 	copy: ReturnType<typeof buildGenerateDialogCopy>;
-	classesToSchedule: number;
+	classesToSchedule: number | null;
 	enforceShiftWindows: boolean;
 	setEnforceShiftWindows: (value: boolean) => void;
 }) {
-	const hasWork = classesToSchedule > 0;
+	// A2-UX-STATUS-C2 correction B2: THREE states, because there are three facts.
+	// "work" and "none" are both measured. "unknown" is neither - the board summary
+	// read failed, so no count exists - and it must never borrow the green
+	// "nothing to do" cue, which is a claim that everything is placed. Colour is
+	// never load-bearing alone: the headline beside it says which of the three it is
+	// in words, and `data-demand-state` carries the same fact to assistive tech.
+	const demandState: 'work' | 'none' | 'unknown' = classesToSchedule == null
+		? 'unknown'
+		: classesToSchedule > 0
+			? 'work'
+			: 'none';
+	const hasWork = demandState === 'work';
 	return (
 		<div className="space-y-3 text-sm">
 			<div
@@ -278,7 +313,8 @@ export function GenerateConfirmDialogBody({
 					aria-hidden="true"
 					data-testid="timetable-generate-demand-cue"
 					data-has-work={hasWork ? 'true' : 'false'}
-					className={hasWork ? 'size-5 shrink-0 text-amber-600' : 'size-5 shrink-0 text-emerald-600'}
+					data-demand-state={demandState}
+					className={DEMAND_CUE_CLASS[demandState]}
 				/>
 				<p className="font-semibold text-foreground" data-testid="timetable-generate-confirm-unassigned">{copy.headline}</p>
 			</div>

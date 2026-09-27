@@ -525,6 +525,21 @@ export const GENERATE_DIALOG_TERM_SAVED = 'Saved in ATLAS';
 export const GENERATE_DIALOG_TERM_VERIFIED = 'Confirmed with EnrollPro';
 export const GENERATE_DIALOG_TERM_UNCONFIRMED = 'Not confirmed';
 
+/**
+ * The absent demand count, in the same plain "Not ..." vocabulary the other two
+ * absent facts already use ("Not set", "Not confirmed"). It says the count was
+ * never MEASURED; it must never read as a number, and above all must never read
+ * as 0.
+ *
+ * A2-UX-STATUS-C2 correction B2: the caller used to pass `?? 0`, so a
+ * `fetchDraftBoardSummary` that returned null on an intermittent 502 became a
+ * green "nothing to do" beside the headline "Classes to schedule: 0". The server
+ * this release shipped says it plainly: an unmeasured count announced as 0 is the
+ * worst possible lie, because a scheduler reading "all classes placed" stops
+ * looking for the classes that have no slot.
+ */
+export const GENERATE_DIALOG_DEMAND_UNMEASURED_WORD = 'Not checked';
+
 /** "Retained draft anchors: 0 locked sessions" -> plain, one noun, no "(s)". */
 export const GENERATE_DIALOG_LOCKED_LABEL = 'Locked classes kept';
 
@@ -555,7 +570,14 @@ export type GenerateDialogCopyInput = {
 	termSource?: GenerateDialogTermSource;
 	/** Locked draft placements carried into the new draft. */
 	lockedClassCount?: number | null;
-	/** This year's weekly demand with no time yet — the headline number. */
+	/**
+	 * This year's weekly demand with no time yet. The headline number.
+	 *
+	 * `null`/`undefined` means the count was NOT MEASURED - the board summary read
+	 * failed, or there is no authenticated school scope. That is NOT the same as
+	 * `0`, which is a measured "nothing to schedule". Pass the absence through;
+	 * never `?? 0`.
+	 */
 	classesToSchedule?: number | null;
 };
 
@@ -564,6 +586,14 @@ export type GenerateDialogCopy = {
 	rows: ReadonlyArray<{ label: string; value: string }>;
 	unavailability: string;
 	publishesNothing: string;
+	/**
+	 * Whether `headline` carries a MEASURED count. `false` means the board summary
+	 * was absent, so the number is unknown and the headline says so.
+	 *
+	 * The dialog's visual cue keys on this rather than on the count, so an
+	 * unmeasured count can never be given the "nothing to do" treatment.
+	 */
+	classesToScheduleKnown: boolean;
 	/** Every word above, joined, so one caller can budget the whole dialog. */
 	plainText: string;
 };
@@ -583,10 +613,19 @@ function countOrZero(value: number | null | undefined): number {
  * gone rather than kept.
  */
 export function buildGenerateDialogCopy(input: GenerateDialogCopyInput): GenerateDialogCopy {
-	const classesToSchedule = countOrZero(input.classesToSchedule);
+	const measured = typeof input.classesToSchedule === 'number' && Number.isFinite(input.classesToSchedule)
+		? input.classesToSchedule
+		: null;
 	const locked = countOrZero(input.lockedClassCount);
 	const year = input.schoolYearLabel?.trim();
-	const headline = `${GENERATE_DIALOG_HEADLINE_LABEL}: ${classesToSchedule}`;
+	// A2-UX-STATUS-C2 correction B2: an ABSENT count is reported as absent, never
+	// coerced to 0. `countOrZero` used to serve this headline too, which turned an
+	// intermittent 502 into "Classes to schedule: 0" - a false "all classes
+	// placed". The measured number keeps its byte-identical rendering; only the
+	// absent case gains a second, honest wording.
+	const headline = measured === null
+		? `${GENERATE_DIALOG_HEADLINE_LABEL}: ${GENERATE_DIALOG_DEMAND_UNMEASURED_WORD}`
+		: `${GENERATE_DIALOG_HEADLINE_LABEL}: ${measured}`;
 	const rows = [
 		{ label: GENERATE_DIALOG_YEAR_LABEL, value: year && year.length > 0 ? year : 'Not set' },
 		{ label: GENERATE_DIALOG_TERM_LABEL, value: generateDialogTermSourceWord(input.termSource) },
@@ -599,6 +638,7 @@ export function buildGenerateDialogCopy(input: GenerateDialogCopyInput): Generat
 		rows,
 		unavailability: GENERATE_SETUP_UNAVAILABLE_SENTENCE,
 		publishesNothing: GENERATE_PUBLISHES_NOTHING_SENTENCE,
+		classesToScheduleKnown: measured !== null,
 		plainText,
 	};
 }

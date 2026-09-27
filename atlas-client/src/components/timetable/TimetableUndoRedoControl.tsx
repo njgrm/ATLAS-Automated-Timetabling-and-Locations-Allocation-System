@@ -118,17 +118,17 @@ export function TimetableUndoRedoControl({
 								variant="outline"
 								size="sm"
 								className="h-8 gap-1.5"
-							disabled={revertLoading || !redoState}
-							onClick={() => void redoLastEdit()}
-							data-testid="timetable-visible-redo"
-							// The accessible name carries the reason too, so the claim does
-							// not depend on a hover being available. #64: it is the same
-							// sentence the tooltip shows, and it is about REDO.
-							aria-label={redoState ? 'Redo the last reverted change' : REDO_NOTHING_TO_REDO}
-						>
+								disabled={revertLoading || !redoState}
+								onClick={() => void redoLastEdit()}
+								data-testid="timetable-visible-redo"
+								// The accessible name carries the reason too, so the claim does
+								// not depend on a hover being available. #64: it is the same
+								// sentence the tooltip shows, and it is about REDO.
+								aria-label={redoState ? 'Redo the last reverted change' : REDO_NOTHING_TO_REDO}
+							>
 							<Redo2 className="size-3.5" aria-hidden="true" />
 							<span className="hidden sm:inline">Redo</span>
-						</Button>
+							</Button>
 					</span>
 				</TooltipTrigger>
 				<TooltipContent data-testid="timetable-redo-blocked-tooltip">{redoState ? 'Redo the last reverted change' : REDO_NOTHING_TO_REDO}</TooltipContent>

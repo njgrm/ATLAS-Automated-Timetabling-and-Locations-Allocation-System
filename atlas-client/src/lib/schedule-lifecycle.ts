@@ -310,11 +310,22 @@ export function deriveRunFreshness(facts: RunFreshnessFacts): RunFreshnessVerdic
 export function runFreshnessUnverifiedSentence(verdict: RunFreshnessVerdict): string | null {
 	if (verdict.trustworthy) return null;
 	switch (verdict.reason) {
-		case 'COMPARISON_PREDATES_RUN':
-		case 'NO_COMPARISON':
+		// A2-UX-STATUS-C2 correction B7: these two cases got ONE sentence that said
+		// "ATLAS has not re-checked this schedule", which contradicts the payload it
+		// came from. A STALE comparison with no `checkedAt` is a check the SERVER
+		// DID run and DID report drift on; only its moment is unusable, so the note
+		// now names that actual condition instead of denying the check. The predicate
+		// is untouched: an un-timed comparison still raises no alarm (it cannot be
+		// tied to the run on screen), a comparison stamped after the run finished
+		// still raises the real drift alarm, and real drift is never hidden.
 		case 'UNTIMED_COMPARISON':
+		case 'COMPARISON_PREDATES_RUN':
+			return 'This check is not timed to the schedule on screen, so it may not apply to it.';
+		// `NO_COMPARISON` is the one case where the claim IS true: the server sent no
+		// verdict at all, so there is no check to report.
+		case 'NO_COMPARISON':
 		default:
-			return 'ATLAS has not re-checked this schedule against your latest setup data.';
+			return 'ATLAS has not checked this schedule against your latest setup data.';
 	}
 }
 

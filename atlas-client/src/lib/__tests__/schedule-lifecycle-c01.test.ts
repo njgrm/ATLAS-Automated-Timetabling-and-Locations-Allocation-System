@@ -188,6 +188,55 @@ test('#59/#17 a comparison taken BEFORE the run finished cannot speak about that
 	assert.equal(runFreshnessUnverifiedSentence(after), null, 'with no substitute sentence competing for the same slot');
 });
 
+test('B7 the neutral note states the timing condition, and never denies a check the server ran', () => {
+	// The audit case: the server returned STALE but stamped no `checkedAt`, so the
+	// comparison cannot be tied in time to the run on screen. ATLAS DID run that
+	// comparison - STALE is its output - so the note may not say it did not check.
+	const untimed = deriveRunFreshness({ runFinishedAt: '2026-09-28T10:00:00.000Z', checkedAt: null, status: 'STALE' });
+	assert.equal(untimed.trustworthy, false, 'the verdict is still withheld, exactly as before');
+	assert.equal(untimed.trustworthy === false && untimed.reason, 'UNTIMED_COMPARISON');
+	assert.equal(
+		runFreshnessUnverifiedSentence(untimed),
+		'This check is not timed to the schedule on screen, so it may not apply to it.',
+		'the note names the actual condition: the comparison is not timed to this schedule',
+	);
+	// THE defect being closed.
+	const note = runFreshnessUnverifiedSentence(untimed) ?? '';
+	assert.doesNotMatch(note, /has not (re-)?checked/i, 'it does not claim ATLAS failed to check');
+	assert.doesNotMatch(note, /\b0\b/, 'and it asserts no count');
+
+	// `COMPARISON_PREDATES_RUN` is the same condition by a different route, so it
+	// gets the same honest sentence rather than the old false one.
+	const predates = deriveRunFreshness({ ...JUST_GENERATED, status: 'STALE' });
+	assert.equal(
+		runFreshnessUnverifiedSentence(predates),
+		runFreshnessUnverifiedSentence(untimed),
+		'a comparison taken before the run is the same untimed-to-this-schedule condition',
+	);
+
+	// PRESERVED: `NO_COMPARISON` is the one case where "ATLAS has not checked" is
+	// TRUE - the server sent no verdict at all, so there is no check to report.
+	const none = deriveRunFreshness({ runFinishedAt: '2026-09-28T10:00:00.000Z', status: null });
+	assert.equal(none.trustworthy === false && none.reason, 'NO_COMPARISON');
+	assert.equal(
+		runFreshnessUnverifiedSentence(none),
+		'ATLAS has not checked this schedule against your latest setup data.',
+		'the true claim is kept where it is true, and only there',
+	);
+
+	// THE PREDICATE IS UNCHANGED. A comparison stamped after the run finished is
+	// genuinely about the run on screen, so the real alarm still fires. Had the
+	// correction widened the suppression, this would be null.
+	const genuine = deriveRunFreshness({ runFinishedAt: '2026-09-28T10:00:00.000Z', checkedAt: '2026-09-28T10:00:20.000Z', status: 'STALE' });
+	assert.equal(genuine.trustworthy, true, 'a genuine post-generation drift comparison is still trustworthy');
+	assert.equal(
+		runDriftClaimSentence(genuine),
+		'Schedule information changed. Regenerate to apply',
+		'and real drift is still announced, not hidden behind the reworded note',
+	);
+	assert.equal(runFreshnessUnverifiedSentence(genuine), null, 'the neutral note never competes with a real claim');
+});
+
 test('#59/#17 the guard is a function of run freshness on every axis, not a hardcoded false', () => {
 	// Exactly equal timestamps: the comparison ran in the same instant the run
 	// finished, which is still a comparison of THIS run's inputs.

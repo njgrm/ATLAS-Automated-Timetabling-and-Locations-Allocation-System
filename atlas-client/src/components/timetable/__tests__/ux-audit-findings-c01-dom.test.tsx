@@ -266,6 +266,75 @@ test('F3: focusing the entry warning indicator opens a tooltip naming the real v
 	assert.match(document.body.textContent ?? '', /Teacher is close to the load limit/, 'the tooltip explains the warning on focus');
 });
 
+/* ── #55 (B1) ─ the entry's accessible name IS the indicator's phrase ─────────── */
+
+const hardViolation = { code: 'ROOM_DOUBLE_BOOKED', severity: 'HARD', message: 'Room is already taken' };
+
+/**
+ * The two accessible names a screen reader reads for one cell, straight from the
+ * mounted production grid. The `DraggableEntry` WRAPS the severity indicator, so
+ * both are read; the correction is that they are now ONE phrase, not two counts.
+ */
+async function readNames(overrides: AnyProps = {}) {
+	await mount(createElement(TimetableGrid, gridProps(overrides) as never));
+	await flush();
+	const cell = document.querySelector('[data-timetable-entry="true"]') as HTMLElement | null;
+	assert.ok(cell, 'the entry renders');
+	const indicator = cell.querySelector('[data-testid="timetable-entry-severity-indicator"]') as HTMLElement | null;
+	return {
+		entry: cell.getAttribute('aria-label') ?? '',
+		indicator: indicator?.getAttribute('aria-label') ?? null,
+		indicatorMounted: indicator !== null,
+	};
+}
+
+test('B1/#55 the entry name is the indicator phrase: one count, no "0 Must fix", no second tally', async () => {
+	// The exact audit case: ONE schedule note on an entry. At base this cell's
+	// accessible name was "Select TLE for G7AW, MONDAY 11:30, 1 warning, 0 Must fix,
+	// 1 Schedule note" - one issue announced as two, with a "0 Must fix" clause
+	// that says nothing. The indicator already said "1 warning".
+	const soft = await readNames();
+	assert.equal(soft.indicator, '1 warning', 'the inner indicator names the one schedule note');
+	assert.ok(
+		soft.entry.endsWith(', 1 warning'),
+		`the wrapping name ENDS with that same phrase, so the count is spoken once: ${soft.entry}`,
+	);
+	assert.doesNotMatch(soft.entry, /\b0\b/, `no zero clause survives in the wrapping name: ${soft.entry}`);
+	assert.doesNotMatch(soft.entry, /Schedule note/, 'the engine noun is gone from the accessible name');
+	// The count is spoken exactly once, not once per channel.
+	assert.equal(soft.entry.split('1 warning').length - 1, 1, `the count appears once: ${soft.entry}`);
+
+	// Both severities: ONE phrase naming each non-zero clause, still no zero clause.
+	const both = await readNames({
+		violationIndex: new Map<string, unknown[]>([['e-1', [hardViolation, softViolation]]]),
+	});
+	assert.equal(both.indicator, '1 Must fix, 1 warning', 'the phrase names each real severity once');
+	assert.ok(both.entry.endsWith(', 1 Must fix, 1 warning'), `and the wrapping name is that phrase: ${both.entry}`);
+	assert.doesNotMatch(both.entry, /Schedule note/, 'still no engine noun');
+
+	// THE INVARIANT: the wrapping name is its subject, then ", ", then the
+	// indicator's phrase verbatim. Because the phrase is itself comma-separated,
+	// this strips the TRAILING phrase rather than splitting on commas.
+	for (const names of [soft, both]) {
+		assert.ok(names.entry.endsWith(`, ${names.indicator}`), `the name ends with the indicator's phrase: ${names.entry}`);
+		const prefix = names.entry.slice(0, -(names.indicator as string).length - 2);
+		// The prefix is the entry's IDENTITY - verb, subject, section, day and time -
+		// and may legitimately contain digits (G7AW, 11:30). What it must never
+		// contain is a severity clause: any count there would be a SECOND count,
+		// which is the defect.
+		assert.match(prefix, /^Select TLE for G7AW, /, `the prefix is the entry's identity: ${prefix}`);
+		assert.doesNotMatch(prefix, /warning|Must fix/i, `and carries no severity clause of its own: ${prefix}`);
+	}
+
+	// The gate identity: the indicator is mounted exactly when the phrase is
+	// non-empty, so the wrapping name can never announce a count the cell does not
+	// also show. That mismatch is how the two channels drifted apart.
+	assert.equal(soft.indicatorMounted, true, 'a warned entry mounts the indicator, so the phrase is present');
+	const clean = await readNames({ violationIndex: new Map<string, unknown[]>() });
+	assert.equal(clean.indicatorMounted, false, 'an entry with no warning mounts no indicator');
+	assert.doesNotMatch(clean.entry, /warning|Must fix/, `and names no count at all: ${clean.entry}`);
+});
+
 /* ── F6 — published read-only vs draft editable ──────────────────────────── */
 
 test('F6: a published run renders read-only entries; a draft keeps its edit affordances', async () => {

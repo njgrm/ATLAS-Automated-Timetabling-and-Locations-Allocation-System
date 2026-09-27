@@ -47,6 +47,36 @@ export function severitySummary(hardCount: number, softCount: number): string {
 }
 
 /**
+ * A2-UX-STATUS-C2 / #55 (B1) — the grid ENTRY's own accessible name, composed
+ * from the same `severitySummary` phrase `EntrySeverityIndicator` shows and names.
+ *
+ * The entry element WRAPS that indicator, so a screen reader reads this name and
+ * then the indicator's own `aria-label`. Composing them independently is exactly
+ * what let the outer name still read "1 warning, 0 Must fix, 1 Schedule note" for
+ * ONE schedule note: two issues announced for one, with a meaningless "0 Must
+ * fix". Deriving both from one call to `severitySummary` is what makes that
+ * impossible — there is no second copy of the count to disagree with.
+ *
+ * It lives beside `severitySummary` rather than in the grid because the grid was
+ * already at the 1000-physical-line cap, and because the name belongs to the
+ * module that owns the wording it speaks.
+ */
+export function entryAccessibleName(input: {
+	/** `View` on a published run, `Select` on a draft. */
+	verb: 'View' | 'Select';
+	subjectLabel: string;
+	sectionLabel: string;
+	/** Already-formatted day and time, e.g. "Mon 11:30 AM". */
+	dayTimeLabel: string;
+	warnings: readonly Violation[];
+}): string {
+	const hardCount = input.warnings.filter((warning) => warning.severity === 'HARD').length;
+	const softCount = input.warnings.filter((warning) => warning.severity === 'SOFT').length;
+	const phrase = severitySummary(hardCount, softCount);
+	return `${input.verb} ${input.subjectLabel} for ${input.sectionLabel}, ${input.dayTimeLabel}${phrase ? `, ${phrase}` : ''}`;
+}
+
+/**
  * UX-AUDIT-FINDINGS-C01 (F3) — the per-entry severity indicator: a named,
  * focusable sign whose plain-language details are disclosed through a `@/ui`
  * Tooltip on hover and keyboard focus. Never a native `title` or `<details>`
@@ -70,13 +100,16 @@ export function severitySummary(hardCount: number, softCount: number): string {
  * already omits a zero clause, so the "0 Must fix" the audit heard is not
  * produced here.
  *
- * DEPENDENCY: the accessible name the audit actually quoted —
+ * RESOLVED (A2-UX-STATUS-C2 / #55, correction B1): the accessible name the audit
+ * actually quoted —
  * "1 warning, 0 Must fix, 1 Schedule note" — is built in
  * `components/timetable/TimetableGrid.tsx` on the `DraggableEntry`
  * `aria-label` (`${warnings.length} warning…, ${hardWarningCount} Must fix,
  * ${softWarningCount} Schedule note`), which wraps this indicator and is read
- * IN ADDITION to it. That double-count and its unconditional "0 Must fix" need
- * the same one-phrase treatment; it is not a file this lane owns.
+ * IN ADDITION to it. That outer name is now composed from the SAME
+ * `severitySummary` phrase this component shows and names, so the count is
+ * spoken once, no "0 Must fix" clause is emitted when the hard count is zero,
+ * and the two channels cannot drift apart.
  */
 export const EntrySeverityIndicator = memo(function EntrySeverityIndicator({
 	severity,
