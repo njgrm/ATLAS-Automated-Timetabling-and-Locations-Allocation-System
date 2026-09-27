@@ -98,7 +98,13 @@ export function SimpleDriftBanner({
 	onStartRevision,
 }: SimpleDriftBannerProps) {
 	const inputState = draft?.inputState ?? null;
-	const drift = useMemo(() => describeRunInputDrift(inputState), [inputState]);
+	/* #59 / #17 — the comparison is timed against the run ON SCREEN, not read on
+	 * its own. A comparison written before this run finished describes an older
+	 * schedule, so its STALE verdict is not a claim about this one. */
+	const drift = useMemo(
+		() => describeRunInputDrift(inputState, draft ? { finishedAt: draft.finishedAt, createdAt: draft.createdAt } : null),
+		[inputState, draft?.finishedAt, draft?.createdAt, draft],
+	);
 	const [showImpactPreview, setShowImpactPreview] = useState(false);
 	const [showRegenerateImpact, setShowRegenerateImpact] = useState(false);
 
@@ -119,7 +125,28 @@ export function SimpleDriftBanner({
 	};
 
 	const showRunDrift = !isPreGenerationWorkspace && draft != null && drift.status !== 'FRESH';
-	const showRegenerateAction = Boolean(onRegenerate) && !isPublished && showRunDrift;
+	/* The alarm sentence, and it is shown ONLY when the comparison is
+	 * trustworthy about this run. `driftClaim` is null otherwise, and
+	 * `freshnessNote` carries the one thing that may honestly be said instead —
+	 * never both, so the band cannot claim drift it cannot prove. Drift itself is
+	 * NOT hidden: the changed domains, their repair links and the neutral notice
+	 * all still render, because an untimed or pre-run comparison is "not proven",
+	 * not "nothing is wrong". */
+	const driftClaimed = drift.driftClaim !== null;
+	/* Amber is reserved for a claim ATLAS can back. A STALE comparison that
+	 * predates this run is not an alarm about this run, so it wears the same calm
+	 * neutral styling the existing `UNKNOWN` case already wears (J4.3/J4.4: two
+	 * different confidences must not share one alarm). */
+	const alarming = drift.status === 'STALE' && driftClaimed;
+	/* The unverified note replaces the STALE claim ONLY. On the `UNKNOWN` path the
+	 * server already said it could not check, and this component's own calm copy
+	 * ("nothing is known to have changed") is the honest sentence for that; the
+	 * unverified note would restate the same fact in a second wording. */
+	const unverifiedNote = drift.status === 'STALE' && !driftClaimed ? drift.freshnessNote : null;
+	/* "Regenerate to apply" applies a drift. With no trustworthy drift there is
+	 * nothing to apply, so the affordance is not mounted — the pre-existing
+	 * published/regenerating guards are unchanged. */
+	const showRegenerateAction = Boolean(onRegenerate) && !isPublished && showRunDrift && driftClaimed;
 	const regenerateDisabled = regenerating || loading || !regenerationEnabled || activeGeneratedRunId == null;
 
 	return (
@@ -136,21 +163,22 @@ export function SimpleDriftBanner({
 					role="status"
 					data-testid="timetable-simple-input-drift"
 					data-drift-status={drift.status}
+					data-drift-claimable={driftClaimed ? 'true' : 'false'}
 					className={cn(
 						layout === 'inline'
 							? 'flex min-w-0 flex-wrap items-center gap-1.5 text-xs'
 							: 'flex min-h-8 flex-wrap items-center gap-1.5 border-b px-3 py-1 text-xs',
-						drift.status === 'STALE' ? 'border-amber-200 bg-amber-50 text-amber-900' : 'border-border bg-muted/40 text-muted-foreground',
+						alarming ? 'border-amber-200 bg-amber-50 text-amber-900' : 'border-border bg-muted/40 text-muted-foreground',
 					)}
 				>
 					<span className="shrink-0 font-semibold">
-						{drift.status === 'STALE' ? 'Schedule information changed' : 'Schedule information could not be checked'}
+						{alarming ? 'Schedule information changed' : 'Schedule information could not be checked'}
 					</span>
 					{/* Informational domain chips stay next to the actionable repair control. */}
 					{showActions ? drift.domains.map((domain) => (
 						<Badge key={domain.domain} variant="outline" className={cn(
 							'h-5 px-1.5 text-xs font-bold',
-							drift.status === 'STALE' ? 'border-amber-300 bg-white/70 text-amber-800' : 'border-border bg-background/70 text-muted-foreground',
+							alarming ? 'border-amber-300 bg-white/70 text-amber-800' : 'border-border bg-background/70 text-muted-foreground',
 						)}>
 							{domain.label}
 						</Badge>
@@ -176,11 +204,13 @@ export function SimpleDriftBanner({
 						 * reordered. No overflow container is added, so the no-scroll
 						 * architecture is untouched. */
 						'min-w-0 w-full basis-full break-words whitespace-normal sm:w-auto sm:flex-1',
-						drift.status === 'STALE' ? 'text-amber-800' : 'text-muted-foreground',
+						alarming ? 'text-amber-800' : 'text-muted-foreground',
 					)}>
-						{drift.status === 'STALE'
+						{alarming
 							? 'School information changed after this schedule was made. The current schedule stays unchanged while you review school information.'
-							: 'ATLAS could not check the latest school information, so nothing is known to have changed. The current schedule stays unchanged while you review school information.'}
+							: unverifiedNote ?? 'ATLAS could not check the latest school information, so nothing is known to have changed. The current schedule stays unchanged while you review school information.'}
+						{/* The age is only stated when the comparison carries a time, which is
+						    exactly when `deriveRunFreshness` could tie it to this run. */}
 						{formatCheckedAtAge(drift.checkedAt) ? ` · ${formatCheckedAtAge(drift.checkedAt)}` : ''}
 					</span>
 					{showActions ? (isPublished ? (
@@ -359,7 +389,7 @@ function RegenerateImpactDialog({
 						: 'Regeneration is the complete, explicit way to apply every changed area.'}
 				</p>
 				<p className="text-xs leading-relaxed text-muted-foreground" data-testid="timetable-simple-regenerate-preservation-note">
-					Valid draft placements are preserved: reviewed placements locked as draft anchors are carried into the new run, and only sessions affected by the changed setup are recomputed.
+					Valid draft placements are preserved: reviewed placements locked as draft anchors are carried into the new run, and only the classes affected by the changed setup are recomputed.
 				</p>
 				<p className="text-xs leading-relaxed text-muted-foreground">
 					A published schedule is never regenerated automatically; published changes go through a dated revision instead.

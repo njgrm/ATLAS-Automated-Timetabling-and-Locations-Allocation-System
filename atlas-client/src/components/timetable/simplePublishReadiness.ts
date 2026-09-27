@@ -1,5 +1,5 @@
 import type { DraftReport, UnassignedItem, UnassignedReason, Violation } from '@/types';
-import { mustFixProblemCountLabel, MUST_FIX_LABEL, UNLABELLED_RULE_SENTENCE } from '@/lib/timetable-plain-language';
+import { CLASS_NOUN, mustFixProblemCountLabel, MUST_FIX_LABEL, UNLABELLED_RULE_SENTENCE } from '@/lib/timetable-plain-language';
 
 export type BlockerReason =
 	| 'FACULTY_OVERLOADED'
@@ -70,7 +70,7 @@ export type WarningGroup = {
 };
 
 export type SimplePublishReadiness = {
-	/** Unresolved-queue sessions that must be placed before publication. */
+	/** Classes in the unresolved queue that must be placed before publication. */
 	totalUnresolved: number;
 	/**
 	 * Publication-blocking HARD violations only (C07B/R2). Threaded from the same
@@ -153,7 +153,7 @@ const REASON_GROUPS: Record<string, BlockerConfig> = {
 	},
 	UNASSIGNED_SECTION: {
 		plainLabel: 'This class was not placed',
-		actionLabel: 'Place this session',
+		actionLabel: 'Place this class',
 		actionHref: '/timetable',
 		nextStep: 'This class was not placed. Review the unresolved reason.',
 	},
@@ -206,7 +206,7 @@ const VIOLATION_GROUPS: Record<string, BlockerConfig> = {
 		plainLabel: 'Incomplete modular group',
 		actionLabel: 'Open in review',
 		actionHref: '/timetable',
-		nextStep: 'A modular group is missing sessions. Complete the group before publishing.',
+		nextStep: 'A modular group is missing classes. Complete the group before publishing.',
 	},
 	ROOM_TYPE_MISMATCH: {
 		plainLabel: 'Room type mismatch',
@@ -683,7 +683,22 @@ export function deriveSimplePublishReadiness(
 		blockerClauses.push(mustFixProblemCountLabel(totalHardBlockers));
 	}
 	if (totalUnresolved > 0) {
-		blockerClauses.push(`${totalUnresolved} unresolved session${totalUnresolved === 1 ? '' : 's'}`);
+		/* A2-UX-WIRE-C2 (item 4) — the ONE noun, as a clause this sentence can carry.
+		 *
+		 * This clause used to build its own count phrase, `${n} unresolved session(s)`,
+		 * so the publish checklist named the population in a second vocabulary AND
+		 * with a banned "(s)" form. The noun now comes from the copy module's
+		 * `CLASS_NOUN`, so the checklist, the publish dialog and the generation
+		 * outcome cannot drift into three ways of saying one number.
+		 *
+		 * It is a COUNTABLE NOUN PHRASE, not `classesNeedingTime(n)`: the sentence
+		 * template below already supplies the verb ("… still need(s) fixing"), so
+		 * composing a second clause here produced "3 classes still need a time still
+		 * need fixing" — the same two-verbs-on-one-clause defect the finding named.
+		 * "3 classes needing a time" is a noun phrase the template can finish. */
+		blockerClauses.push(
+			`${totalUnresolved} ${totalUnresolved === 1 ? CLASS_NOUN : `${CLASS_NOUN}es`} needing a time`,
+		);
 	}
 	const blockerSentence = blockerClauses.length === 0
 		? ''
@@ -700,7 +715,7 @@ export function deriveSimplePublishReadiness(
 	} else if (totalSoftWarnings > 0) {
 		summaryText = `Ready except for warnings\nNo “${MUST_FIX_LABEL}” problems remain. Review the warnings, then publish if the schedule is acceptable.`;
 	} else {
-		summaryText = `Ready to publish\nNo “${MUST_FIX_LABEL}” problems or unresolved sessions remain.`;
+		summaryText = `Ready to publish\nNo “${MUST_FIX_LABEL}” problems or classes without a time remain.`;
 	}
 
 	return {

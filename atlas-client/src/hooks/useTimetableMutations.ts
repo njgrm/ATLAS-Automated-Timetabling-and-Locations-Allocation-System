@@ -8,6 +8,8 @@ import { parseDraftPlacementId, scopePreviewToCandidate } from '@/lib/timetable-
 import { isSameTimetableSlot, resolvePreGenSlotDisplacement } from '@/lib/timetable-swap-routing';
 import { deriveRunWideReadiness, isDraftPublishedStrict } from '@/components/timetable/timetableWorkspaceTruth';
 import { resolvePublicationActionIntent } from '@/lib/publication-approval-action';
+// A2-UX-WIRE-C2 (item 5, #58): the ONE outcome message for one generation.
+import { generationOutcomeToastSentence } from '@/lib/timetable-plain-language';
 // A2-TIMETABLE-CUSTODY-R2: `deriveRedoAfterRevert` is retained (the accepted
 // wiring assertion in `timetable-dynamic-workspace-undo-redo.test.ts:112` still
 // holds) and is now reached only through `assessRedoAfterRevert`, which refuses a
@@ -737,7 +739,6 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 	) => {
 		if (!schoolYearId) return;
 		setGenerating(true);
-		const lockedAnchorCount = draftBoardSummary?.draft ?? 0;
 		try {
 			const { data: run } = await atlasApi.post<import('@/types').GenerationRun>(`/generation/${schoolId}/${schoolYearId}/runs`, {
 				ignoreRoomRequestGate,
@@ -755,9 +756,31 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 						summary = null;
 					}
 				}
-				const assigned = summary?.assignedCount;
-				const unassigned = summary?.unassignedCount;
-				const hardViolations = summary?.hardViolationCount;
+				const unplaced = summary?.unassignedCount;
+				/* A2-UX-WIRE-C2 (#58) — ONE user-visible message for one generation.
+				 *
+				 * Three were emitted: a completion toast reading "Schedule generated -
+				 * N assigned, M unassigned, K hard violations" (the banned noun, and
+				 * three counts where one decision is needed), a "ATLAS is loading the
+				 * assigned, unassigned, and conflict totals" toast, and a second toast
+				 * about locked draft anchors. Now there is exactly one, composed by
+				 * `generationOutcomeToastSentence`, which names the one number a
+				 * scheduler can act on and says what to do next.
+				 *
+				 * The locked-anchor toast is gone rather than reworded: the generate
+				 * dialog already shows that count as "Locked classes kept" BEFORE the
+				 * operator commits, so the toast repeated a number they had just been
+				 * shown rather than telling them anything new.
+				 *
+				 * When the run reports no summary the count is UNKNOWN. No count-
+				 * bearing sentence is emitted then, because `generationOutcomeToast-
+				 * Sentence(0)` would claim a measured zero that was never measured and
+				 * "totals are loading" is a second message for the same generation.
+				 * Silence is the honest option: the schedule pane reloads immediately
+				 * below with the real totals on screen. */
+				if (typeof unplaced === 'number' && Number.isFinite(unplaced)) {
+					toast.success(generationOutcomeToastSentence(unplaced));
+				}
 				setCenterView('schedule');
 				setPreGenOnboarding(false);
 				setSelectedEntry(null);
@@ -766,14 +789,6 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 				setPreGenPreviewError(null);
 				setPreGenAllowSoftOverride(false);
 				try { localStorage.removeItem('atlas_pregen_active'); } catch { /* ignore */ }
-				if (summary) {
-					toast.success(`Schedule generated - ${assigned} assigned, ${unassigned} unassigned, ${hardViolations} hard violations`);
-				} else {
-					toast.success('Schedule generated. ATLAS is loading the assigned, unassigned, and conflict totals.');
-				}
-				if (lockedAnchorCount > 0) {
-					toast.info(`${lockedAnchorCount} draft anchor${lockedAnchorCount === 1 ? '' : 's'} locked into the new generated run. Review them from Generated Run view.`);
-				}
 			}
 			await loadAll(false);
 			await fetchDraftBoardSummary(schoolYearId);
@@ -788,7 +803,6 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 		schoolYearId,
 		enforceShiftWindows,
 		setGenerating,
-		draftBoardSummary?.draft,
 		setCenterView,
 		setPreGenOnboarding,
 		setSelectedEntry,

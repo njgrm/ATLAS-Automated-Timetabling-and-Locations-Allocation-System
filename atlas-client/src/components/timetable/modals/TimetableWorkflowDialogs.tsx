@@ -1,8 +1,15 @@
-import { CheckCircle2, Clock, Loader2, Send } from 'lucide-react';
+import { CheckCircle2, CircleAlert, Clock, Loader2, Send } from 'lucide-react';
 
 import type { ScheduleReviewDialogsContext } from '@/components/timetable/timetableContexts.types';
-import { plainRoomAppealStatus } from '@/lib/timetable-plain-language';
-import { UNPLACED_COUNT_DISAMBIGUATION, WEEKLY_UNPLACED_LABEL, runUnplacedSentence } from '@/lib/timetable-plain-language';
+import {
+	BUILD_NEW_DRAFT_LABEL,
+	PUBLISHED_SCHEDULE_STAYS_IN_USE,
+	buildGenerateDialogCopy,
+	buildNewDraftDialogTitle,
+	plainRoomAppealStatus,
+	publishPlacementBlockedSentence,
+} from '@/lib/timetable-plain-language';
+import type { GenerateDialogTermSource } from '@/lib/timetable-plain-language';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import { Checkbox } from '@/ui/checkbox';
@@ -12,7 +19,24 @@ import { Skeleton } from '@/ui/skeleton';
 import { Textarea } from '@/ui/textarea';
 import { PublicationApprovalInbox } from '@/components/timetable/PublicationApprovalInbox';
 
-export function TimetableWorkflowDialogs({ context }: { context: ScheduleReviewDialogsContext }) {
+/**
+ * A2-UX-WIRE-C2 (items 1-4) — the generate dialog CONSUMES the copy module's
+ * composed sentences instead of typing its own.
+ *
+ * The dialog was 116-155 words of hard-coded prose: a multi-sentence note
+ * explaining why two different numbers appeared, three engineer labels
+ * ("Actor school year", "Term authority", "Retained draft anchors: N locked
+ * sessions") and a four-paragraph "What this does / What this does not do"
+ * block. `buildGenerateDialogCopy()` is 31 words, names each population by its
+ * row label, and is measured by a test at <= 45 rendered words.
+ *
+ * `isPublished` is OPTIONAL and additive. When it is absent the dialog takes the
+ * unpublished branch, which is the truthful default: with nothing published,
+ * `PUBLISHED_SCHEDULE_STAYS_IN_USE` would be a false claim. The published branch
+ * is implemented and tested; feeding it is the caller's one-line wiring
+ * (DEPENDENCY: `ScheduleReviewDialogs.tsx` / `useScheduleReviewWorkspaceState.ts`).
+ */
+export function TimetableWorkflowDialogs({ context, isPublished = false }: { context: ScheduleReviewDialogsContext; isPublished?: boolean }) {
 	const {
 		showUnassignConfirm, setShowUnassignConfirm, pendingUnassignId, setPendingUnassignId, unassignDraftPlacement,
 		showGenerateConfirm, setShowGenerateConfirm, enforceShiftWindows, setEnforceShiftWindows, draftBoardSummary, followUps, confirmGenerate,
@@ -33,64 +57,43 @@ export function TimetableWorkflowDialogs({ context }: { context: ScheduleReviewD
 		setAppealReason('');
 	};
 
+	/* `atlas-persisted` is ATLAS's own saved term setup, which the copy module
+	 * spells `atlas` ("Saved in ATLAS"). Passing the raw value through would make
+	 * a value ATLAS itself persisted read as "Not confirmed", which is the one
+	 * reading it must never get. Every other source value is already in the
+	 * module's vocabulary and is passed through unchanged. */
+	const termSource: GenerateDialogTermSource = schoolYearSource === 'atlas-persisted' ? 'atlas' : schoolYearSource;
+
 	return <>
 		<Dialog open={showUnassignConfirm} onOpenChange={setShowUnassignConfirm}>
 			<DialogContent className="sm:max-w-sm">
-				<DialogHeader><DialogTitle>Unassign this session?</DialogTitle><DialogDescription>The session returns to the unassigned queue and can be placed again.</DialogDescription></DialogHeader>
+				{/* NOUN RULE (item 4): the one noun for the unit a scheduler places.
+				 * The unassign dialog is the same surface family as the generate
+				 * dialog, so it speaks the same noun. */}
+				<DialogHeader><DialogTitle>Take this class out of its slot?</DialogTitle><DialogDescription>The class returns to the queue without a time and can be placed again.</DialogDescription></DialogHeader>
 				<DialogFooter>
 					<Button variant="outline" onClick={() => { setShowUnassignConfirm(false); setPendingUnassignId(null); }}>Cancel</Button>
-					<Button variant="destructive" onClick={() => { if (pendingUnassignId != null) void unassignDraftPlacement(pendingUnassignId); setShowUnassignConfirm(false); setPendingUnassignId(null); }}>Unassign</Button>
+					<Button variant="destructive" onClick={() => { if (pendingUnassignId != null) void unassignDraftPlacement(pendingUnassignId); setShowUnassignConfirm(false); setPendingUnassignId(null); }}>Remove from slot</Button>
 				</DialogFooter>
 			</DialogContent>
 		</Dialog>
 
-		<Dialog open={showGenerateConfirm} onOpenChange={setShowGenerateConfirm}>
-			<DialogContent className="sm:max-w-md" data-testid="timetable-generate-confirm-dialog">
-				<DialogHeader><DialogTitle>Generate updated schedule?</DialogTitle><DialogDescription>Generation uses the current Teaching Load, setup, and saved draft placements for this school year.</DialogDescription></DialogHeader>
-				<div className="space-y-3 text-sm">
-					<div className="grid gap-1.5 rounded-md border bg-muted/20 p-3 text-xs" data-testid="timetable-generate-confirm-summary">
-						<div className="flex items-center justify-between gap-2">
-							<span className="text-muted-foreground">Actor school year</span>
-							<span className="font-semibold text-foreground" data-testid="timetable-generate-confirm-year">{activeSchoolYearLabel ?? 'Active school year'}</span>
-						</div>
-						<div className="flex items-center justify-between gap-2">
-							<span className="text-muted-foreground">Term authority</span>
-							<span className="font-semibold text-foreground">{schoolYearSource === 'enrollpro-verified' || schoolYearSource === 'enrollpro' ? 'Verified with EnrollPro' : 'Saved ATLAS data'}</span>
-						</div>
-						<div className="flex items-center justify-between gap-2">
-							<span className="text-muted-foreground">Retained draft anchors</span>
-							<span className="font-semibold text-foreground">{draftBoardSummary?.draft ?? 0} locked session{(draftBoardSummary?.draft ?? 0) === 1 ? '' : 's'}</span>
-						</div>
-						<div className="flex items-center justify-between gap-2">
-							<span className="text-muted-foreground">{WEEKLY_UNPLACED_LABEL}</span>
-							<span className="font-semibold text-foreground" data-testid="timetable-generate-confirm-unassigned">{draftBoardSummary?.unscheduled ?? 0} session{(draftBoardSummary?.unscheduled ?? 0) === 1 ? '' : 's'}</span>
-						</div>
-					</div>
-					{/* A2-TIMETABLE-CUSTODY (#57/#44): the count above and the count the
-					    finish toast reports are DIFFERENT populations, and both were
-					    labelled "unassigned". The generate dialog reads the
-					    pre-generation draft board's `counts.unscheduled` (this year's
-					    weekly demand with no saved placement); the toast reads the new
-					    run's `summary.unassignedCount` (what that run could not place).
-					    The number is not wrong and is not reconciled away — it is named,
-					    once, here. */}
-					<p className="text-xs text-muted-foreground" data-testid="timetable-generate-confirm-unplaced-note">{UNPLACED_COUNT_DISAMBIGUATION}</p>
-					<div className="rounded-md border p-3 text-xs text-muted-foreground" data-testid="timetable-generate-confirm-effects">
-						<p className="font-semibold text-foreground">What this does</p>
-						<p className="mt-1">Creates a new reviewable draft run from the current Teaching Load, term setup, and saved anchors.</p>
-						<p className="mt-1 font-medium text-foreground">What this does not do</p>
-						<p className="mt-1">It does not publish the schedule. Nothing is shared with teachers or students until you publish it.</p>
-						<p className="mt-1">Demand and Teaching Load coverage are read from the active school year&rsquo;s setup. If that data is unavailable, generation will stop and tell you what to fix.</p>
-					</div>
-					<label className="flex items-start gap-2 rounded-md border p-3 text-xs"><Checkbox checked={enforceShiftWindows} onCheckedChange={(value) => setEnforceShiftWindows(value === true)} /><span>Keep configured grade and program time windows.</span></label>
-					{followUps.size > 0 && <p className="text-xs text-amber-700">{followUps.size} flagged item{followUps.size === 1 ? '' : 's'} will remain available for review.</p>}
-				</div>
-				<DialogFooter><Button variant="outline" onClick={() => setShowGenerateConfirm(false)}>Cancel</Button><Button onClick={() => confirmGenerate(enforceShiftWindows)} data-testid="timetable-generate-confirm-submit">Generate schedule</Button></DialogFooter>
-			</DialogContent>
-		</Dialog>
+		<GenerateConfirmDialog
+			open={showGenerateConfirm}
+			onOpenChange={setShowGenerateConfirm}
+			isPublished={isPublished}
+			schoolYearLabel={activeSchoolYearLabel ?? null}
+			termSource={termSource}
+			lockedClassCount={draftBoardSummary?.draft ?? 0}
+			classesToSchedule={draftBoardSummary?.unscheduled ?? 0}
+			enforceShiftWindows={enforceShiftWindows}
+			setEnforceShiftWindows={setEnforceShiftWindows}
+			followUpCount={followUps.size}
+			onConfirm={confirmGenerate}
+		/>
 
 		<Dialog open={showResetDraftDialog} onOpenChange={setShowResetDraftDialog}>
-			<DialogContent className="sm:max-w-sm"><DialogHeader><DialogTitle>Reset timetable draft?</DialogTitle><DialogDescription>Saved draft placements return to the unassigned queue.</DialogDescription></DialogHeader><DialogFooter><Button variant="outline" onClick={() => setShowResetDraftDialog(false)}>Cancel</Button><Button variant="destructive" onClick={() => void openPreGenerationWorkspace(true)}>Reset draft</Button></DialogFooter></DialogContent>
+				<DialogContent className="sm:max-w-sm"><DialogHeader><DialogTitle>Reset the draft schedule?</DialogTitle><DialogDescription>Saved placements return to the queue without a time.</DialogDescription></DialogHeader><DialogFooter><Button variant="outline" onClick={() => setShowResetDraftDialog(false)}>Cancel</Button><Button variant="destructive" onClick={() => void openPreGenerationWorkspace(true)}>Reset draft</Button></DialogFooter></DialogContent>
 		</Dialog>
 
 		<Dialog open={showLeavePreGenDialog} onOpenChange={setShowLeavePreGenDialog}>
@@ -128,19 +131,23 @@ export function TimetableWorkflowDialogs({ context }: { context: ScheduleReviewD
 				<DialogHeader>
 					<DialogTitle>{canRequestPublication ? 'Request schedule publication' : 'Publish schedule'}</DialogTitle>
 					<DialogDescription>
-						{/* A2-TIMETABLE-CUSTODY (#57/#44): `publishUnassignedCount` is
-						    `summary.unassignedCount` — the SAME source the finish toast
-						    reads — so these two were already one number. The sentence now
-						    names its population, which is the other half of the fix: the
-						    generate dialog's "unassigned" was a different population
-						    entirely. */}
+						{/* A2-UX-WIRE-C2 (item 4) — the ungrammatical sentence is gone.
+						    It read "3 classes this schedule could not place must be
+						    placed before this schedule can be published.": two verbs on
+						    one clause, the number restated by the modal, and a stacked
+						    obligation. `publishPlacementBlockedSentence` states the count
+						    once, in the one noun, in the present tense.
+
+						    `publishUnassignedCount` is `summary.unassignedCount` — the
+						    SAME source the generation outcome reads, so the two are one
+						    number and both name it the same way. */}
 						{(publishUnassignedCount ?? 0) > 0
-							? `${runUnplacedSentence(publishUnassignedCount ?? 0)} must be placed before this schedule can be published.`
+							? publishPlacementBlockedSentence(publishUnassignedCount ?? 0)
 							: softCount > 0
 								? `${softCount} warning${softCount === 1 ? '' : 's'} must be acknowledged before ${canRequestPublication ? 'requesting approval' : 'publishing'}.`
 								: canRequestPublication
 									? 'Submit this reviewed schedule for another scheduler to approve. It will not go live until that approval succeeds.'
-									: 'The generated schedule has no blockers or unresolved sessions.'}
+									: 'The generated schedule has no problems that stop publishing, and every class has a time.'}
 					</DialogDescription>
 				</DialogHeader>
 				{softCount > 0 && <label className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900"><Checkbox checked={publishAcknowledged} onCheckedChange={(value) => setPublishAcknowledged(value === true)} /><span>I reviewed the remaining warnings.</span></label>}
@@ -152,4 +159,142 @@ export function TimetableWorkflowDialogs({ context }: { context: ScheduleReviewD
 		</Dialog>
 		<PublicationApprovalInbox schoolId={approvalSchoolId} schoolYearId={approvalSchoolYearId} actorId={approvalActorId} visible={canApprovePublication === true} />
 	</>;
+}
+
+type GenerateConfirmProps = {
+	open: boolean;
+	onOpenChange: (open: boolean) => void;
+	/** Whether a published schedule is currently in use. Drives the #56 branch. */
+	isPublished: boolean;
+	schoolYearLabel: string | null;
+	termSource: GenerateDialogTermSource;
+	/** Locked pre-generation placements carried into the new draft. */
+	lockedClassCount: number;
+	/** This year's weekly demand with no time yet. */
+	classesToSchedule: number;
+	enforceShiftWindows: boolean;
+	setEnforceShiftWindows: (value: boolean) => void;
+	followUpCount: number;
+	onConfirm: (enforceShiftWindowsOverride: boolean) => void;
+};
+
+/**
+ * #56 / U3a — the ONE verb. The title and the primary button are the same
+ * sentence's two halves, so a scheduler cannot read the dialog as a dated change
+ * to the schedule that is already in use.
+ *
+ * #43 — the density fixes, all three:
+ *   1. the duplicate close control is gone. `DialogContent` renders its own
+ *      unlabelled `X`; the dialog already had a real, labelled `Cancel`, so
+ *      `hideClose` leaves exactly one close affordance instead of two;
+ *   2. fourteen 12px items became a headline, three rows and one sentence. The
+ *      four-paragraph "What this does / does not do" block is the copy module's
+ *      `unavailability` + `publishesNothing`, which say the same two things in
+ *      21 words instead of 47;
+ *   3. the demand count carries a visible cue, so the one number a scheduler
+ *      acts on is not one more grey 12px row.
+ */
+export function GenerateConfirmDialog({
+	open,
+	onOpenChange,
+	isPublished,
+	schoolYearLabel,
+	termSource,
+	lockedClassCount,
+	classesToSchedule,
+	enforceShiftWindows,
+	setEnforceShiftWindows,
+	followUpCount,
+	onConfirm,
+}: GenerateConfirmProps) {
+	const copy = buildGenerateDialogCopy({ schoolYearLabel, termSource, lockedClassCount, classesToSchedule });
+	return (
+		<Dialog open={open} onOpenChange={onOpenChange}>
+			{/* `hideClose`: the DialogContent `X` and `Cancel` were two controls for
+			 * one action, and the `X` carried no label. One real close remains. */}
+			<DialogContent className="sm:max-w-md" hideClose data-testid="timetable-generate-confirm-dialog">
+				<DialogHeader>
+					<DialogTitle data-testid="timetable-generate-confirm-title">{buildNewDraftDialogTitle(isPublished)}</DialogTitle>
+					<DialogDescription data-testid="timetable-generate-confirm-first-line">
+						{isPublished ? PUBLISHED_SCHEDULE_STAYS_IN_USE : copy.publishesNothing}
+					</DialogDescription>
+				</DialogHeader>
+				<GenerateConfirmDialogBody
+					copy={copy}
+					classesToSchedule={classesToSchedule}
+					enforceShiftWindows={enforceShiftWindows}
+					setEnforceShiftWindows={setEnforceShiftWindows}
+				/>
+				{followUpCount > 0 && (
+					<p className="text-xs text-amber-700" data-testid="timetable-generate-confirm-followups">
+						{followUpCount} flagged item{followUpCount === 1 ? '' : 's'} will remain available for review.
+					</p>
+				)}
+				<DialogFooter>
+					<Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+					<Button onClick={() => onConfirm(enforceShiftWindows)} data-testid="timetable-generate-confirm-submit">
+						{BUILD_NEW_DRAFT_LABEL}
+					</Button>
+				</DialogFooter>
+			</DialogContent>
+		</Dialog>
+	);
+}
+
+/**
+ * The dialog's whole body, and therefore the region the 45-word budget governs.
+ *
+ * It is a separate component for one reason: it is the MEASURED unit. The word
+ * count a scheduler reads is the text inside this element, so the c2 regression
+ * walks this component's real element tree and budgets the words it will
+ * actually show — not the copy module's `plainText` and not a source string.
+ *
+ * The cue beside the count is `aria-hidden` on purpose. It encodes exactly one
+ * real fact — there is work, or there is not — and a third colour for "a lot"
+ * would be a severity scale ATLAS has no authority for. The visible text beside
+ * it already carries the meaning, so the cue adds no words to the budget.
+ */
+export function GenerateConfirmDialogBody({
+	copy,
+	classesToSchedule,
+	enforceShiftWindows,
+	setEnforceShiftWindows,
+}: {
+	copy: ReturnType<typeof buildGenerateDialogCopy>;
+	classesToSchedule: number;
+	enforceShiftWindows: boolean;
+	setEnforceShiftWindows: (value: boolean) => void;
+}) {
+	const hasWork = classesToSchedule > 0;
+	return (
+		<div className="space-y-3 text-sm">
+			<div
+				className="flex items-center gap-2 rounded-md border bg-muted/20 p-3"
+				data-testid="timetable-generate-confirm-summary"
+			>
+				{/* The visible cue: the demand number is the one figure a scheduler
+				 * acts on, and it was one more grey 12px row among fourteen. */}
+				<CircleAlert
+					aria-hidden="true"
+					data-testid="timetable-generate-demand-cue"
+					data-has-work={hasWork ? 'true' : 'false'}
+					className={hasWork ? 'size-5 shrink-0 text-amber-600' : 'size-5 shrink-0 text-emerald-600'}
+				/>
+				<p className="font-semibold text-foreground" data-testid="timetable-generate-confirm-unassigned">{copy.headline}</p>
+			</div>
+			<div className="grid gap-1.5" data-testid="timetable-generate-confirm-rows">
+				{copy.rows.map((row) => (
+					<div key={row.label} className="flex items-center justify-between gap-2 text-sm">
+						<span className="text-muted-foreground">{row.label}</span>
+						<span className="font-semibold text-foreground" data-testid="timetable-generate-confirm-row-value">{row.value}</span>
+					</div>
+				))}
+			</div>
+			<p className="text-xs text-muted-foreground" data-testid="timetable-generate-confirm-unavailability">{copy.unavailability}</p>
+			<label className="flex items-start gap-2 rounded-md border p-3 text-xs">
+				<Checkbox checked={enforceShiftWindows} onCheckedChange={(value) => setEnforceShiftWindows(value === true)} />
+				<span>Keep configured grade and program time windows.</span>
+			</label>
+		</div>
+	);
 }
