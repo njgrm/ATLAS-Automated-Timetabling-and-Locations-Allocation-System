@@ -209,11 +209,11 @@ resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs
   | | |
   |---|---|
   | **Target (authorised, leading)** | **`a1db27d5a9c270c875868436988f5d8cef38af04`** |
-  | **Target dir** | `E:\ATLAS-worktrees\lane-a2-release-a1db27d5` — **NOT YET CREATED.** Creating it, owning its dependency tree and building both `dist`s is the morning's first step, and D3's pre-cutover `new ≠ old` comparison cannot run until it exists. |
+  | **Target dir** | `E:\ATLAS-worktrees\lane-a2-release-a1db27d5` — **CREATED, BUILT, CLEAN as of 2026-09-28 05:57 +08.** HEAD `a1db27d5`, `git status --short` empty, own `npm ci` tree, prisma client generated from the repo-root schema, `atlas-server/dist/server.js` (3 070 B) and `atlas-client/dist/index.html` present, entry `index-CZyHbCus.js`. **Corrects the "NOT YET CREATED" claim** (N4). D3/D4's pre-cutover `new ≠ old` comparison has been run against these artefacts and is non-vacuous — see packet §9.7. |
   | **Live now** | `d31bfacb…`, dir `E:\ATLAS-worktrees\lane-a2-release-d31bfacb` |
   | **Rollback basis** | the `d31bfacb` dir — **one-step supervised reset** (verified present, clean, both `dist`s built) |
   | **Direction** | **FORWARD.** `git merge-base --is-ancestor d31bfacb a1db27d5` exits **0** |
-  | **Authority** | **DEPLOYMENT ONLY.** Generation and publication are separate HIGH actions (§9.3 of the packet) |
+  | **Authority** | **The cutover is DEPLOYMENT ONLY.** Generation and publication are separate HIGH steps from the cutover (packet §9.3) — **but their authority is NOT struck**: the 2026-09-20 standing authorization plus the 2026-09-27 overnight grant authorise them, and each keeps its own pre-action review and post-action QA. See packet **§9.6**, which corrects §9.3 (N3) |
   | **Packet** | `docs/prompts/a2-release-d049f85d-2026-09-28.md` §9 records both reviews' findings and every correction |
 
 - **▶ LIVE (SUPERSEDED by `d31bfacb` above, 2026-09-28 00:24 +08): `c0d91827311e247ac0f2073a83cc50f5a5efcdb2`
