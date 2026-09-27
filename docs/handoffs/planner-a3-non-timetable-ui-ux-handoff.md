@@ -806,6 +806,72 @@ build, and this correction is undeployed — so they sit behind a HIGH deploymen
 **not granted**. No deployment, migration, generation, publication, or live-data action was taken.
 Live remains `c5a9e832`, 5001/5174 on 43192/43744.
 
+### 2026-09-27 addendum 7 — INTEGRATED and PUSHED: `main` `08f1e53d..c4a9960e`; worktrees retired
+
+Ordinary accepted work, so no HIGH approval was required (§11). **Merge `c4a9960e`** on
+`integration/a3-browser-findings-r1`, branched from `origin/main`, then pushed to `main`.
+
+**`origin/main` moved twice while this was in flight** (`c7428d76` → `08f1e53d`, 13 commits since
+`d9575e83`). The overlap check was re-run against the **new** tip before merging, not the stale one,
+and still returned none of the 7 paths. Merge exit 0, **no conflicts**, auto-union.
+Diffstat **+812/−10** across 7 paths — matching QA's corrected figure, not addendum 4's wrong one.
+
+**Product-tree parity:** all **seven** paths' blobs on the merged tree are byte-identical to the
+QA-reviewed candidate `97ee76e9` (`git rev-parse HEAD:<path>` vs `97ee76e9:<path>`, all seven
+MATCH). Nothing was re-resolved at integration.
+
+**Combined integration gates, all run on the merged tree:**
+
+| Gate | Result |
+|---|---|
+| `npm run typecheck` | exit 2, **4** errors, **0 attributable to the range** — the same 3× TS2307 `playwright` + 1 cascading TS7006, in `timetable/__tests__/` files the range never touches. Playwright is **ABSENT** from the donor `node_modules`, so these are environmental. |
+| `npm run test:a3-teachers-load` | **35 / 35, exit 0**, `C2-1` and `C2-2` both pass |
+| `npm run test:a3-sections-map` | **20 / 20, exit 0** |
+| `npm run build` | **exit 0**, `✓ built in 5.92s` |
+| `git diff --check` | clean |
+
+**The build row, stated honestly:** the first `npm run build` **failed**, on
+`Missing required production build configuration: VITE_ENROLLPRO_URL`. That is the documented
+**fail-closed guard** (`vite.config.ts:13,26-31`) firing at config load before any compilation, and
+it is **not attributable to this range** — the guard is byte-identical on `origin/main` and
+`vite.config.ts` is not in the diff. I set `VITE_ENROLLPRO_URL` to the **non-secret public origin
+the guard itself names** for that one invocation only, then removed it; it was not persisted and not
+machine-scope. I did **not** touch the durable runtime env or the live release to get a green build.
+
+**Push range proof (§10.11/§10.12):** exactly **5** commits — the merge plus `9b64271e`, `52b8da25`,
+`f7148d8a`, `97ee76e9`. Every non-merge commit verified as an **accepted ancestor of `97ee76e9`**;
+`97ee76e9` and `c4a9960e` both confirmed ancestors of `origin/main` **from a separate boundary**
+(`D:/ATLAS`, not the pushing worktree). `c5a9e832` remains an ancestor — nothing was reverted. No
+`docs/` or `AGENTS.md` file is in the range; it is source-only.
+
+**Retirement, per `docs/reference/agent-worktree-lifecycle.md`.** Before-retiring fields recorded
+for both worktrees: path, branch, HEAD, complete `git status --short` (both **empty**), ancestry
+evidence run in the **shared** repo, and an active-process scan (**no** `node` process referenced
+either). Both `node_modules` junctions — which pointed at the **live** A2 release donor — were
+unlinked with `cmd rmdir` (reparse point only) and the donor re-verified at **154 packages, react
+present, HEAD `c5a9e832`, clean** before and after. Then non-forced `git worktree remove` (exit 0
+each) and one `git worktree prune`. **No branch deleted** — `fix/a3-browser-findings-r1` and
+`integration/a3-browser-findings-r1` both preserved. Live re-verified after all of it: **5001 → 200**,
+same PIDs **43192/43744**, machine source dir unchanged.
+
+**State now, dated 2026-09-27.** The correction is **on `main` and is NOT deployed**. Live is still
+`c5a9e832`, which `git diff c5a9e832 d9575e83` showed carries the *same* bytes as the old base — so
+**the 143-unit `lineHeight` pitch and the dead `Review teachers` banner are still live.** Integrating
+did not fix the running product.
+
+**Remaining, both BLOCKED on one ungranted HIGH deployment decision:**
+- **B4** — browser re-verification of both findings against a deployed build. Now the single most
+  valuable row in this cycle: the C2 coverage gap (FACT 2 in addendum 6) means a live bug could
+  survive both controls, and only a browser sees the real page.
+- **B5** — the load-bearing swap-Cancel zero-change control, **never performed**.
+
+**Follow-up, not blocking:** a page-level render control for the real `TeachingLoad` page would close
+the FACT 2 coverage gap, and no control pins the bottom bar's new `setViewMode('teacher')` call.
+
+**This cycle is COMPLETE** for the source side: two browser findings corrected, proven load-bearing,
+independently reviewed, corrected once, integrated, and pushed. No deployment, migration, generation,
+publication, live-data write, or companion-repo action was taken at any point.
+
 Three streams, three worktrees, one writer each, all under `E:/ATLAS-worktrees/lane-a3-*` from base `3cfe79a8`. Consolidated pairs preserved: 13+18, 14+16, 17+23, 25+26, 33A+33B.
 
 **S1 - Sections and room map** (`work/a3-sections-map`): fixes 03, 06, 07, 10, 11, 12; 08 held.
