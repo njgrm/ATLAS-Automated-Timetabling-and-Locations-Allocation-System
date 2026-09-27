@@ -33,7 +33,7 @@ export function BuildingGradeScopeControl({ gradeScope, onGradeScopeChange }: Bu
 							className={`h-7 text-xs font-medium border transition-all ${
 								selected
 									? g.color + ' border-current'
-									: 'border-slate-200 text-slate-400 hover:text-slate-600 hover:border-slate-300'
+									: 'border-slate-200 text-muted-foreground hover:text-slate-600 hover:border-slate-300'
 							}`}
 							onClick={() => {
 								const next = selected

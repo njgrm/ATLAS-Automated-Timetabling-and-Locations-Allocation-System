@@ -813,7 +813,7 @@ export default function Dashboard() {
 
 										{/* Right: blocker summary */}
 										<div className='space-y-2.5'>
-											<p className='text-xs font-bold uppercase tracking-wider text-slate-400'>Before generation</p>
+											<p className='text-xs font-bold uppercase tracking-wider text-muted-foreground'>Before generation</p>
 											<div className='grid grid-cols-2 gap-2.5'>
 												<div className='flex items-center gap-2.5 text-sm'>
 													{!domainAvailability.subjects || (unassignedSubjectCount ?? 0) > 0 ? (
@@ -856,7 +856,7 @@ export default function Dashboard() {
 												return (
 													<li key={step.key} className='flex-1 min-w-0 flex items-center gap-1'>
 														<div className={`h-2 flex-1 rounded-full transition-colors ${state === 'done' ? 'bg-emerald-300' : state === 'active' ? 'bg-primary' : 'bg-slate-200'}`} />
-														<span className={`text-xs font-medium whitespace-nowrap ${state === 'active' ? 'text-primary' : state === 'done' ? 'text-emerald-600' : 'text-slate-400'}`}>{step.label}</span>
+														<span className={`text-xs font-medium whitespace-nowrap ${state === 'active' ? 'text-primary' : state === 'done' ? 'text-emerald-600' : 'text-muted-foreground'}`}>{step.label}</span>
 													</li>
 												);
 											})}
@@ -898,7 +898,7 @@ export default function Dashboard() {
 																</div>
 															)}
 															<div className='flex-1 min-w-0'>
-																<p className={`text-sm font-medium ${item.done ? 'text-slate-400 line-through' : 'text-foreground'}`}>{item.label}</p>
+																<p className={`text-sm font-medium ${item.done ? 'text-muted-foreground line-through' : 'text-foreground'}`}>{item.label}</p>
 																{item.hint ? (
 																	<p className='flex items-center gap-1 text-xs text-amber-600 mt-1'>
 																		<AlertTriangle className='w-3 h-3' />

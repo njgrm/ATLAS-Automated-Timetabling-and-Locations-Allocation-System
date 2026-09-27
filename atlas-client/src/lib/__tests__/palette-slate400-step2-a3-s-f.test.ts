@@ -1,0 +1,639 @@
+import assert from 'node:assert/strict';
+import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { dirname, join, relative, resolve, sep } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import test from 'node:test';
+
+/**
+ * A3 S-f palette step 2: text-slate-400 -> text-muted-foreground, 2026-09-28.
+ *
+ * ## What changed
+ *
+ * The remaining raw neutral TEXT colour, text-slate-400, was replaced with the app's own token
+ * class text-muted-foreground in 5 non-timetable demo-route files, 15 sites:
+ *
+ * | file | sites |
+ * |---|---|
+ * | src/components/campus-map/BuildingGradeScopeControl.tsx | 1 (:36) |
+ * | src/components/campus-map/CampusMapOverview.tsx | 4 (:506, :595, :620, :672) |
+ * | src/components/dashboard/CampusReadinessCard.tsx | 4 (:457, :542, :567, :620) |
+ * | src/pages/Audit.tsx | 3 (:748, :784, :788) |
+ * | src/pages/Dashboard.tsx | 3 (:816, :859, :901) |
+ *
+ * 15 substitutions. Nothing else in any file changed: no markup, no spacing, no copy, no other
+ * class, no reordering. Control 1 pins each site by its exact class string, so a reversion of any
+ * single one of the 15 is a red build.
+ *
+ * ## THIS IS NOT A RENAME. It is a deliberate darkening. Do not "fix" it back.
+ *
+ * The S-e sweep (slate-900 -> --foreground, slate-500 -> --muted-foreground) was a rename, and its
+ * CHANNEL_TOLERANCE of 3 guards that fact. THIS MAPPING IS NOT A RENAME and that tolerance must
+ * not be copied here or widened to accommodate it. Measured on this machine against the installed
+ * Tailwind 4.2.2 palette, converting oklch to sRGB the way palette-token-sweep-a3-s-e.test.ts does:
+ *
+ *   text-slate-400        = oklch(70.4% 0.04 256.788) -> sRGB rgb(144, 161, 185)
+ *   --muted-foreground    = 215 16% 47%               -> sRGB rgb(101, 117, 139)
+ *   per-channel delta     = 43 / 44 / 46, max 46 of 255
+ *
+ * 46/255 is a visible, intended darkening chosen to reach WCAG AA. Control 2 asserts the delta is
+ * GREATER THAN the 3/255 rename ceiling on purpose: a future session that reads a red build here
+ * and widens a tolerance, or reverts a site to "keep it looking the same", fails that assertion
+ * first and is told this is accessibility work, not a colour regression.
+ *
+ * A packet for this stream described it as a near-exact rename with 2-3/255 deltas. That premise
+ * was false, inherited from the S-e sweep, and did not transfer. The measured 46/255 is correct.
+ *
+ * ## Contrast, and the honest disclosure that goes with it
+ *
+ * | surface | text-slate-400 | --muted-foreground | WCAG AA 4.5:1 |
+ * |---|---|---|---|
+ * | --background / --card / --popover (white) | 2.630:1 | 4.697:1 | crosses AA |
+ * | --muted / --secondary | 2.390:1 | 4.268:1 | STILL BELOW AA |
+ *
+ * **On --muted and --secondary this token is 4.268:1, which is still under 4.5:1. The sweep is a
+ * strict improvement on every surface (+2.067:1 on white, +1.878:1 on --muted) and a full AA pass
+ * ONLY on white and near-white surfaces. Nothing in this file may be read as a claim that the app
+ * now passes WCAG AA; on the two muted surfaces it does not, before or after.**
+ *
+ * (The packet's earlier 2.628 / 4.718 figures, and QA's 4.300 on --muted, are two other
+ * conversion implementations. Both are retained in the S-e ratchet header as history. The figures
+ * above are this file's, computed by the method in this file, and are what control 2 asserts.)
+ *
+ * ## The load-bearing site, and an exemption that was already retracted
+ *
+ * src/components/campus-map/BuildingGradeScopeControl.tsx:36 is an ENABLED control: the file
+ * contains zero occurrences of "disabled", the element carries a live onClick, and line 36 itself
+ * carries hover:text-slate-600, a hover state only an interactive control has. WCAG 1.4.3 exempts
+ * only DISABLED controls, so nothing protects it. An earlier ratchet comment called it "a disabled
+ * button ... a regression to preserve"; that false exemption was already corrected on main at
+ * f3b8b7ab and is NOT reintroduced here. No site in this sweep is an exemption.
+ *
+ * ## MUST NOT TOUCH, enforced with reasons
+ *
+ * 1. src/components/faculty-assignments/StackedWorkloadBar.tsx:55 holds bg-slate-400. That is a
+ *    background FILL, not text, and this is not a rename. Control 3 pins it.
+ * 2. src/pages/RoomSchedules.tsx holds 2 text-slate-400. Lane A2's in-progress page, out of scope
+ *    by decision. Control 3 pins the count at 2.
+ * 3. src/components/timetable/** is Lane A2's surface. Control 3 walks it for real (130 files,
+ *    never skipped) and pins zero text-slate-400, so the claim is measured rather than asserted.
+ * 4. src/index.css is not edited. --muted-foreground is global and shared with timetable and login
+ *    surfaces, so changing it is not local to this stream. Control 4 pins the file hash.
+ */
+
+const here = dirname(fileURLToPath(import.meta.url));
+const CLIENT_ROOT = resolve(here, '..', '..', '..');
+const INDEX_CSS = join(CLIENT_ROOT, 'src', 'index.css');
+const TAILWIND_THEME = join(CLIENT_ROOT, 'node_modules', 'tailwindcss', 'theme.css');
+const SRC_ROOT = join(CLIENT_ROOT, 'src');
+const TIMETABLE_DIR = join(SRC_ROOT, 'components', 'timetable');
+const SWEEP_TEST = join(SRC_ROOT, 'lib', '__tests__', 'palette-token-sweep-a3-s-e.test.ts');
+const RATCHET_TEST = join(SRC_ROOT, 'lib', '__tests__', 'palette-ratchet-a3-s-e.test.ts');
+
+/**
+ * The 15 sites, each pinned by the exact class string that carried text-slate-400 on the base.
+ * 'from' must be present on the base and absent on the candidate; 'count' is how many times that
+ * exact string occurred in that file on the base, so a file that moved only some of its identical
+ * sites still fails.
+ */
+const SWEPT: ReadonlyArray<readonly [string, string, number]> = [
+	[
+		'src/components/campus-map/BuildingGradeScopeControl.tsx',
+		'border-slate-200 text-slate-400 hover:text-slate-600 hover:border-slate-300',
+		1,
+	],
+	[
+		'src/components/campus-map/CampusMapOverview.tsx',
+		'flex flex-col items-center justify-center py-12 text-center text-slate-400',
+		1,
+	],
+	[
+		'src/components/campus-map/CampusMapOverview.tsx',
+		'absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-slate-400',
+		1,
+	],
+	[
+		'src/components/campus-map/CampusMapOverview.tsx',
+		'text-center py-8 text-xs text-slate-400 border border-dashed rounded-xl',
+		1,
+	],
+	['src/components/campus-map/CampusMapOverview.tsx', 'italic text-slate-400', 1],
+	[
+		'src/components/dashboard/CampusReadinessCard.tsx',
+		'flex flex-col items-center justify-center py-12 text-center text-slate-400',
+		1,
+	],
+	[
+		'src/components/dashboard/CampusReadinessCard.tsx',
+		'absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-slate-400',
+		1,
+	],
+	[
+		'src/components/dashboard/CampusReadinessCard.tsx',
+		'text-center py-8 text-xs text-slate-400 border border-dashed rounded-xl',
+		1,
+	],
+	['src/components/dashboard/CampusReadinessCard.tsx', 'italic text-slate-400', 1],
+	[
+		'src/pages/Audit.tsx',
+		'absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400',
+		1,
+	],
+	['src/pages/Audit.tsx', 'text-[0.68rem] font-bold uppercase tracking-wide text-slate-400', 2],
+	['src/pages/Dashboard.tsx', 'text-xs font-bold uppercase tracking-wider text-slate-400', 1],
+	[
+		'src/pages/Dashboard.tsx',
+		"state === 'done' ? 'text-emerald-600' : 'text-slate-400'",
+		1,
+	],
+	[
+		'src/pages/Dashboard.tsx',
+		"item.done ? 'text-slate-400 line-through' : 'text-foreground'",
+		1,
+	],
+];
+
+const FROM_CLASS = 'text-slate-400';
+const TO_CLASS = 'text-muted-foreground';
+
+/** The five files this sweep owns. Explicit: a glob would silently absorb Lane A2's surface. */
+const OWNED_FILES = [
+	'src/components/campus-map/BuildingGradeScopeControl.tsx',
+	'src/components/campus-map/CampusMapOverview.tsx',
+	'src/components/dashboard/CampusReadinessCard.tsx',
+	'src/pages/Audit.tsx',
+	'src/pages/Dashboard.tsx',
+] as const;
+
+/** The ratchet-family pins after this sweep falls, all measured on the candidate (see control 5). */
+const EXPECTED_RATCHET_TOTAL = 95;
+const EXPECTED_RATCHET_FILE_COUNT = 28;
+const EXPECTED_IN_SCOPE_RESIDUAL = 68;
+const EXPECTED_EXCLUDED_RESIDUAL = 27;
+
+/**
+ * Raw neutrals each swept file still holds, so EXPECTED_RATCHET_FILE_COUNT is not taken on faith.
+ * Measured on the candidate: 1 / 10 / 11 / 8 / 3, against 2 / 14 / 15 / 11 / 6 on the base, i.e.
+ * exactly the 1 / 4 / 4 / 3 / 3 substitutions made here. None of the five emptied.
+ */
+const EXPECTED_RESIDUAL_PER_OWNED_FILE: ReadonlyArray<readonly [string, number]> = [
+	['src/components/campus-map/BuildingGradeScopeControl.tsx', 1],
+	['src/components/campus-map/CampusMapOverview.tsx', 10],
+	['src/components/dashboard/CampusReadinessCard.tsx', 11],
+	['src/pages/Audit.tsx', 8],
+	['src/pages/Dashboard.tsx', 3],
+];
+
+/**
+ * LF-normalised SHA-256 of src/index.css.
+ * Method: read the file as bytes, decode utf8, replace CRLF with LF, re-encode utf8, sha256.
+ * Normalising is deliberate: the worktree is checked out with CRLF, so a raw-bytes hash would be
+ * checkout-dependent and would go red on a machine with different line endings. Index.css is not
+ * in this stream's write scope, so this constant should not change; if a legitimate global token
+ * change ever lands, this goes red on purpose and the value is recomputed in the same session.
+ */
+const INDEX_CSS_LF_SHA256 = '6fe45e63b43d123483d1c4e3b1f06f083baeea8b56acb5caa12ba2951cda3de2';
+
+const AA = 4.5;
+/** The S-e rename ceiling. Asserted to be EXCEEDED below, so nobody can widen their way to green. */
+const S_E_RENAME_CEILING = 3;
+
+// ───────────────────────── colour maths (copied from the S-e method, no library rounding) ─────────────────────────
+
+type Rgb = readonly [number, number, number];
+
+function hslToSrgb(h: number, s: number, l: number): Rgb {
+	s /= 100;
+	l /= 100;
+	const k = (n: number) => (n + h / 30) % 12;
+	const a = s * Math.min(l, 1 - l);
+	const f = (n: number) => l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1)));
+	return [f(0), f(8), f(4)];
+}
+
+function oklchToSrgb(l: number, c: number, h: number): Rgb {
+	const rad = (h * Math.PI) / 180;
+	const a = c * Math.cos(rad);
+	const b = c * Math.sin(rad);
+	const l_ = l + 0.3963377774 * a + 0.2158037573 * b;
+	const m_ = l - 0.1055613458 * a - 0.0638541728 * b;
+	const s_ = l - 0.0894841775 * a - 1.291485548 * b;
+	const lc = l_ ** 3;
+	const mc = m_ ** 3;
+	const sc = s_ ** 3;
+	const r = 4.0767416621 * lc - 3.3077115913 * mc + 0.2309699292 * sc;
+	const g = -1.2684380046 * lc + 2.6097574011 * mc - 0.3413193965 * sc;
+	const bl = -0.0041960863 * lc - 0.7034186147 * mc + 1.707614701 * sc;
+	const enc = (v: number) => (v <= 0.0031308 ? 12.92 * v : 1.055 * Math.pow(v, 1 / 2.4) - 0.055);
+	const clamp = (v: number) => Math.min(1, Math.max(0, enc(v)));
+	return [clamp(r), clamp(g), clamp(bl)];
+}
+
+const to255 = (v: Rgb): Rgb => v.map((x) => Math.round(x * 255)) as unknown as Rgb;
+
+function relativeLuminance(v: Rgb): number {
+	const [r, g, b] = v.map((x) => {
+		const c = x / 255;
+		return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+	}) as unknown as [number, number, number];
+	return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+function contrastRatio(a: Rgb, b: Rgb): number {
+	const l1 = relativeLuminance(a);
+	const l2 = relativeLuminance(b);
+	return (Math.max(l1, l2) + 0.05) / (Math.min(l1, l2) + 0.05);
+}
+
+const maxChannelDelta = (a: Rgb, b: Rgb): number => Math.max(...a.map((x, i) => Math.abs(x - b[i])));
+
+const occurrences = (source: string, needle: string): number => source.split(needle).length - 1;
+
+// ───────────────────────── readers over the real files ─────────────────────────
+
+/** Every '--name: H S% L%' declaration in index.css, with how many times it is declared. */
+function readTokenDeclarations(): Map<string, { value: [number, number, number]; count: number }> {
+	const css = readFileSync(INDEX_CSS, 'utf8');
+	const found = new Map<string, { value: [number, number, number]; count: number }>();
+	for (const raw of css.split('\n')) {
+		const line = raw.replace(/\r$/, '').trim();
+		if (!line.startsWith('--')) continue;
+		const colon = line.indexOf(':');
+		if (colon < 0) continue;
+		const name = line.slice(0, colon).trim();
+		const parts = line
+			.slice(colon + 1)
+			.replace(/;$/, '')
+			.trim()
+			.split(/\s+/)
+			.map((x) => Number.parseFloat(x));
+		if (parts.length !== 3 || parts.some((n) => !Number.isFinite(n))) continue;
+		const existing = found.get(name);
+		if (existing) existing.count += 1;
+		else found.set(name, { value: parts as [number, number, number], count: 1 });
+	}
+	return found;
+}
+
+/** The shade of the Tailwind that is actually installed. v4 ships oklch, so this reads oklch. */
+function readInstalledShade(): Rgb {
+	assert.ok(
+		existsSync(TAILWIND_THEME),
+		'cannot find the installed Tailwind palette at ' +
+			TAILWIND_THEME +
+			'. Control 2 checks this mapping against the palette that is really installed; without it there is no evidence.',
+	);
+	const theme = readFileSync(TAILWIND_THEME, 'utf8');
+	const pattern = /--color-slate-400:\s*oklch\(\s*([0-9.]+)%\s+([0-9.]+)\s+([0-9.]+)\s*\)/;
+	const match = pattern.exec(theme);
+	assert.ok(match, 'the installed Tailwind palette no longer declares --color-slate-400 in oklch form');
+	return to255(oklchToSrgb(Number(match[1]) / 100, Number(match[2]), Number(match[3])));
+}
+
+const tokens = readTokenDeclarations();
+const shade = readInstalledShade();
+const cssSource = readFileSync(INDEX_CSS, 'utf8');
+
+function tokenRgb(name: string): Rgb {
+	const entry = tokens.get(name);
+	assert.ok(entry, 'token ' + name + ' is not declared in index.css');
+	return to255(hslToSrgb(...entry.value));
+}
+
+/** The five app surfaces a text colour can actually sit on. */
+const NEAR_WHITE_SURFACES = ['background', 'card', 'popover'] as const;
+const MUTED_SURFACES = ['muted', 'secondary'] as const;
+
+const lfSha256 = (absPath: string): string =>
+	createHash('sha256')
+		.update(Buffer.from(readFileSync(absPath, 'utf8').replace(/\r\n/g, '\n'), 'utf8'))
+		.digest('hex');
+
+/** Every .tsx/.ts under a directory, recursively, with no exclusions at all. */
+function walkAll(dir: string, out: string[] = []): string[] {
+	for (const entry of readdirSync(dir)) {
+		const full = join(dir, entry);
+		if (statSync(full).isDirectory()) {
+			walkAll(full, out);
+			continue;
+		}
+		if (full.endsWith('.tsx') || full.endsWith('.ts')) out.push(full);
+	}
+	return out;
+}
+
+/** Mirrors the ratchet's own walk: .tsx only, no __tests__, no *.test.*, no components/timetable. */
+function walkRatchetScope(dir: string, out: string[] = []): string[] {
+	for (const entry of readdirSync(dir)) {
+		const full = join(dir, entry);
+		if (statSync(full).isDirectory()) {
+			if (entry === 'timetable' && dir.endsWith(sep + 'components')) continue;
+			walkRatchetScope(full, out);
+			continue;
+		}
+		if (!full.endsWith('.tsx')) continue;
+		if (full.includes(sep + '__tests__' + sep)) continue;
+		if (full.includes('.test.')) continue;
+		out.push(full);
+	}
+	return out;
+}
+
+const RAW_NEUTRAL_TEXT = /\btext-(?:slate|zinc|gray|neutral|stone)-\d{2,3}\b/g;
+
+function ratchetResidual(): { total: number; files: { path: string; count: number }[] } {
+	const files = walkRatchetScope(SRC_ROOT)
+		.map((path) => ({
+			path: relative(CLIENT_ROOT, path).split(sep).join('/'),
+			count: (readFileSync(path, 'utf8').match(RAW_NEUTRAL_TEXT) ?? []).length,
+		}))
+		.filter((entry) => entry.count > 0);
+	return { total: files.reduce((sum, entry) => sum + entry.count, 0), files };
+}
+
+// ───────────────────────── controls ─────────────────────────
+
+test('control 0: the readers see real data, not an empty scan', () => {
+	// A colour control that silently parses nothing is worse than none: it would go green forever.
+	assert.ok(tokens.size > 10, 'expected real tokens in index.css, parsed ' + tokens.size);
+	assert.ok(shadesPresent(), 'the installed palette has no text-slate-400 to compare against');
+	assert.deepEqual(shade, [144, 161, 185], 'text-slate-400 converted to sRGB changed; re-read the header table');
+	for (const surface of [...NEAR_WHITE_SURFACES, ...MUTED_SURFACES]) {
+		assert.ok(tokens.has('--' + surface), 'index.css is missing --' + surface);
+	}
+	assert.ok(tokens.has('--muted-foreground'), 'index.css is missing --muted-foreground');
+});
+
+function shadesPresent(): boolean {
+	return Array.isArray(shade) && shade.length === 3 && shade.every((n) => Number.isFinite(n));
+}
+
+test('control 1: all 15 sites carry the token and no owned file holds text-slate-400', () => {
+	// 15 sites, pinned as 14 class strings: Audit.tsx:784 and :788 carry a byte-identical class
+	// string, so that one anchor pins both with count 2. The site total is the sum of the counts.
+	const sites = SWEPT.reduce((sum, [, , count]) => sum + count, 0);
+	assert.equal(sites, 15, 'the swept-site list covers ' + sites + ' sites, not 15; a changed count means a scope edit');
+	assert.equal(
+		SWEPT.length,
+		14,
+		'the anchor list is 14 entries; a changed count means an anchor was merged or split without the site total moving',
+	);
+
+	// The exact class string each site carried on the base must be gone, and its replacement present
+	// with the same multiplicity. A single reversion anywhere fails here.
+	for (const [rel, from, count] of SWEPT) {
+		const source = readFileSync(join(CLIENT_ROOT, rel), 'utf8');
+		const to = from.split(FROM_CLASS).join(TO_CLASS);
+		assert.notEqual(to, from, 'anchor for ' + rel + ' does not contain ' + FROM_CLASS + ', so it pins nothing');
+		assert.equal(
+			occurrences(source, from),
+			0,
+			rel +
+				' still contains the pre-sweep class string "' +
+				from +
+				'" (' +
+				occurrences(source, from) +
+				' occurrence(s)). Every one of the 15 sites moved to ' +
+				TO_CLASS +
+				'; text-slate-400 is 2.630:1 on white and is an accessibility defect, not an appearance to preserve.',
+		);
+		assert.equal(
+			occurrences(source, to),
+			count,
+			rel +
+				' holds the replacement class string "' +
+				to +
+				'" ' +
+				occurrences(source, to) +
+				' time(s), expected ' +
+				count +
+				'. Sites sharing an identical class string must all have moved.',
+		);
+	}
+
+	// And the blunt sweep-level check, so a new text-slate-400 introduced later is caught too.
+	for (const rel of OWNED_FILES) {
+		const source = readFileSync(join(CLIENT_ROOT, rel), 'utf8');
+		assert.equal(
+			occurrences(source, FROM_CLASS),
+			0,
+			rel + ' contains ' + occurrences(source, FROM_CLASS) + ' x ' + FROM_CLASS + '; this stream owns that class there.',
+		);
+	}
+});
+
+test('control 2: the mapping is a deliberate darkening that crosses AA on white, and is still under AA on --muted', () => {
+	const token = tokenRgb('--muted-foreground');
+	const delta = maxChannelDelta(shade, token);
+
+	// The load-bearing guard on the framing. If this build is ever red, the answer is NOT "widen
+	// CHANNEL_TOLERANCE" and NOT "put text-slate-400 back".
+	assert.ok(
+		delta > S_E_RENAME_CEILING,
+		'text-slate-400 and --muted-foreground are now only ' +
+			delta +
+			'/255 apart, inside the ' +
+			S_E_RENAME_CEILING +
+			'/255 S-e rename ceiling. The measured delta on this machine is 46/255 and this sweep is an ' +
+			'intentional accessibility darkening. If the palette or the token moved, re-measure and record both figures here.',
+	);
+	assert.ok(
+		delta >= 40 && delta <= 50,
+		'the measured channel delta is ' +
+			delta +
+			'/255, outside the recorded 40-50 band around the measured 46. Re-measure against the installed palette and update this file.',
+	);
+
+	// Before: the defect this sweep exists to remove.
+	for (const surface of [...NEAR_WHITE_SURFACES, ...MUTED_SURFACES]) {
+		const bg = tokenRgb('--' + surface);
+		const before = contrastRatio(shade, bg);
+		const after = contrastRatio(token, bg);
+		assert.ok(
+			before < AA,
+			'text-slate-400 on --' + surface + ' is ' + before.toFixed(3) + ':1, already at or above AA. The premise of this sweep is wrong.',
+		);
+		// A strict improvement everywhere. Direction, not magnitude: the token is darker on purpose.
+		assert.ok(
+			after > before,
+			'--muted-foreground (' +
+				after.toFixed(3) +
+				':1) does not improve on text-slate-400 (' +
+				before.toFixed(3) +
+				':1) on --' +
+				surface +
+				'. The whole point of this sweep is that the token is darker.',
+		);
+	}
+
+	// Crosses AA on white and near-white only.
+	for (const surface of NEAR_WHITE_SURFACES) {
+		const after = contrastRatio(token, tokenRgb('--' + surface));
+		assert.ok(
+			after >= AA,
+			'--muted-foreground on --' + surface + ' is ' + after.toFixed(3) + ':1, under AA 4.5:1. The token is global; a fix there is not local to this stream.',
+		);
+	}
+
+	// MANDATORY DISCLOSURE, asserted so it cannot be quietly deleted: still under AA on --muted.
+	for (const surface of MUTED_SURFACES) {
+		const after = contrastRatio(token, tokenRgb('--' + surface));
+		assert.ok(
+			after < AA,
+			'--muted-foreground on --' +
+				surface +
+				' is now ' +
+				after.toFixed(3) +
+				':1, at or above AA 4.5:1. The measured figure is 4.268:1. If this genuinely changed, --muted changed, and the ' +
+				'header table and the handoff disclosure are stale and must be re-measured and rewritten in the same commit.',
+		);
+	}
+
+	// The AA assertions must be able to notice a real edit, or they are decoration.
+	const entry = tokens.get('--muted-foreground') as { value: [number, number, number] };
+	const oneUnitUp = to255(hslToSrgb(...(entry.value.map((v, i) => (i === 2 ? v + 1 : v)) as [number, number, number])));
+	const white = tokenRgb('--background');
+	assert.ok(
+		Math.abs(contrastRatio(oneUnitUp, white) - contrastRatio(token, white)) > 0.1,
+		'a one-unit lightness change to --muted-foreground moves contrast by less than 0.1:1, so the AA assertions above would not notice a real token edit.',
+	);
+
+	// The mapping must stay scheme-independent, or it needs a rendered screen and not this file.
+	assert.equal(
+		(tokens.get('--muted-foreground') as { count: number }).count,
+		1,
+		'--muted-foreground is declared more than once in index.css. A second declaration (typically inside a .dark block) makes this mapping scheme-dependent, and a rendered screen is then required.',
+	);
+	assert.doesNotMatch(
+		cssSource,
+		/\.dark\s*\{/,
+		'index.css now contains a .dark selector block. Re-verify this sweep on a rendered screen in each scheme.',
+	);
+});
+
+test('control 3: every must-not-touch surface is intact, and the timetable walk is real', () => {
+	// 1. StackedWorkloadBar: a background fill, not text. Not a rename, not in scope.
+	const bar = readFileSync(
+		join(CLIENT_ROOT, 'src/components/faculty-assignments/StackedWorkloadBar.tsx'),
+		'utf8',
+	);
+	assert.equal(
+		occurrences(bar, 'bg-slate-400'),
+		1,
+		'StackedWorkloadBar.tsx must keep its bg-slate-400 fill (line 55). That is a background colour, not text, and this sweep is a text sweep.',
+	);
+	assert.equal(
+		occurrences(bar, FROM_CLASS),
+		0,
+		'StackedWorkloadBar.tsx now contains ' + FROM_CLASS + '. Verify it really is text before accepting it.',
+	);
+
+	// 2. RoomSchedules: Lane A2's in-progress page, out of scope by decision.
+	const rooms = readFileSync(join(CLIENT_ROOT, 'src/pages/RoomSchedules.tsx'), 'utf8');
+	assert.equal(
+		occurrences(rooms, FROM_CLASS),
+		2,
+		'RoomSchedules.tsx must keep its 2 text-slate-400 sites (lines 721, 743). It is Lane A2\'s WIP page and out of scope by decision.',
+	);
+
+	// 3. The timetable surface: walked for real, never skipped, so a zero is a measurement.
+	assert.ok(existsSync(TIMETABLE_DIR), 'components/timetable does not exist; the walk below would be vacuous');
+	const timetableFiles = walkAll(TIMETABLE_DIR);
+	assert.ok(
+		timetableFiles.length > 50,
+		'the timetable walk visited only ' + timetableFiles.length + ' files, so its zero would prove nothing.',
+	);
+	const timetableSlate400 = timetableFiles.reduce(
+		(sum, path) => sum + occurrences(readFileSync(path, 'utf8'), FROM_CLASS),
+		0,
+	);
+	assert.equal(
+		timetableSlate400,
+		0,
+		'components/timetable/** now holds ' +
+			timetableSlate400 +
+			' x ' +
+			FROM_CLASS +
+			'. Lane A2 owns that surface. On the base it held zero, so no site there can have moved.',
+	);
+});
+
+test('control 4: index.css is byte-identical to the base', () => {
+	const actual = lfSha256(INDEX_CSS);
+	assert.equal(
+		actual,
+		INDEX_CSS_LF_SHA256,
+		'src/index.css changed. --muted-foreground is global and shared with timetable and login surfaces, so changing it is not local to this stream. Re-measure and rewrite this file and the handoff in the same commit if a global token change is genuinely intended.',
+	);
+	// The specific declaration this sweep's contrast figures were computed from.
+	assert.deepEqual(
+		tokens.get('--muted-foreground')?.value,
+		[215, 16, 47],
+		'--muted-foreground is no longer 215 16% 47%. Every contrast figure in the header table was computed from it.',
+	);
+});
+
+test('control 5: the ratchet pins fell by exactly these 15 substitutions and two files agree', () => {
+	// No owned file was emptied, which is why the file count is unchanged at 28.
+	for (const [rel, expected] of EXPECTED_RESIDUAL_PER_OWNED_FILE) {
+		const count = (readFileSync(join(CLIENT_ROOT, rel), 'utf8').match(RAW_NEUTRAL_TEXT) ?? []).length;
+		assert.equal(
+			count,
+			expected,
+			rel + ' holds ' + count + ' raw neutral text colours, this file states ' + expected + '. If a file emptied, EXPECTED_RATCHET_FILE_COUNT is stale.',
+		);
+		assert.ok(count > 0, rel + ' was emptied by this sweep; the ratchet file count must fall with it');
+	}
+
+	const ratchet = ratchetResidual();
+	assert.equal(ratchet.total, EXPECTED_RATCHET_TOTAL, 'measured ratchet-scope residual');
+	assert.equal(ratchet.files.length, EXPECTED_RATCHET_FILE_COUNT, 'measured ratchet-scope file count');
+	assert.equal(
+		EXPECTED_RATCHET_TOTAL,
+		110 - 15,
+		'the expected ratchet total is not the pre-step-2 total of 110 minus this sweep\'s 15 substitutions',
+	);
+	assert.equal(
+		EXPECTED_IN_SCOPE_RESIDUAL + EXPECTED_EXCLUDED_RESIDUAL,
+		EXPECTED_RATCHET_TOTAL,
+		'the in-scope and excluded residuals must sum to the ratchet total; no occurrence may be unaccounted for',
+	);
+
+	// Second agreement: read the sibling files as source and require them to state the same numbers.
+	// A pin that only one file believes is a false green.
+	const sweepSource = readFileSync(SWEEP_TEST, 'utf8');
+	const ratchetSource = readFileSync(RATCHET_TEST, 'utf8');
+	const read = (source: string, name: string): number =>
+		Number(new RegExp('const ' + name + ' = (\\d+);').exec(source)?.[1]);
+	const pairs: ReadonlyArray<readonly [string, number, number]> = [
+		['sweep EXPECTED_TOTAL', read(sweepSource, 'EXPECTED_TOTAL'), EXPECTED_RATCHET_TOTAL],
+		[
+			'sweep EXPECTED_FILE_COUNT',
+			read(sweepSource, 'EXPECTED_FILE_COUNT'),
+			EXPECTED_RATCHET_FILE_COUNT,
+		],
+		[
+			'sweep EXPECTED_IN_SCOPE_RESIDUAL',
+			read(sweepSource, 'EXPECTED_IN_SCOPE_RESIDUAL'),
+			EXPECTED_IN_SCOPE_RESIDUAL,
+		],
+		[
+			'sweep EXPECTED_EXCLUDED_RESIDUAL',
+			read(sweepSource, 'EXPECTED_EXCLUDED_RESIDUAL'),
+			EXPECTED_EXCLUDED_RESIDUAL,
+		],
+		['ratchet PINNED_TOTAL', read(ratchetSource, 'PINNED_TOTAL'), EXPECTED_RATCHET_TOTAL],
+		['ratchet PINNED_FILE_COUNT', read(ratchetSource, 'PINNED_FILE_COUNT'), EXPECTED_RATCHET_FILE_COUNT],
+	];
+	for (const [label, actualValue, expectedValue] of pairs) {
+		assert.ok(
+			Number.isFinite(actualValue),
+			'could not read ' + label + ' out of its source file; this cross-check is blind.',
+		);
+		assert.equal(
+			actualValue,
+			expectedValue,
+			label + ' states ' + actualValue + ', this file measured ' + expectedValue + '. Two files must agree before either is trusted.',
+		);
+	}
+});

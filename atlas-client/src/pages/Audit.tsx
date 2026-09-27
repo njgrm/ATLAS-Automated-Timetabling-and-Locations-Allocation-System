@@ -745,7 +745,7 @@ export default function Audit() {
 								<p className="text-sm text-muted-foreground">Open each group to see what is wrong, why it matters, and where to fix it.</p>
 							</div>
 							<div className="relative w-full max-w-sm">
-								<Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
+								<Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
 								<Input
 									placeholder="Search findings..."
 									value={searchQuery}
@@ -781,11 +781,11 @@ export default function Audit() {
 											<div className="grid gap-3 border-b border-slate-100 bg-white px-4 py-4 lg:grid-cols-[1fr_auto] lg:items-center">
 												<div className="grid gap-3 text-sm md:grid-cols-2">
 													<div className="rounded-xl bg-slate-50 px-3 py-2">
-														<p className="text-[0.68rem] font-bold uppercase tracking-wide text-slate-400">What is blocked</p>
+														<p className="text-[0.68rem] font-bold uppercase tracking-wide text-muted-foreground">What is blocked</p>
 														<p className="mt-1 font-semibold text-foreground">{group.blockedLabel}</p>
 													</div>
 													<div className="rounded-xl bg-slate-50 px-3 py-2">
-														<p className="text-[0.68rem] font-bold uppercase tracking-wide text-slate-400">Why it matters</p>
+														<p className="text-[0.68rem] font-bold uppercase tracking-wide text-muted-foreground">Why it matters</p>
 														<p className="mt-1 text-slate-600">{group.why}</p>
 													</div>
 												</div>
