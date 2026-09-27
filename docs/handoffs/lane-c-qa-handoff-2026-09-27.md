@@ -77,3 +77,9 @@ Accepted outputs this session: 4 of 5 queue items, 14 findings. Per-item cost �
 - `subagent_tokens`: 67,282 (Chrome not connected) + 98,953 = 166,235.
 - Next: A2's answers on #53, #56–#59, #61, #63, #64; then the operator's next queue. Chrome can drop; check
   `list_connected_browsers` before each dispatch.
+
+## Session 4c (2026-09-27 07:40–08:00 +08)
+
+- #64 resolved from source (disabled; misleading reason) → MEDIUM. A3 handed back to A2 (operator, 2026-09-27): active
+  term lives in EnrollPro; ATLAS only caches it ("Save terms"). Queue is empty apart from A2's acks.
+- `subagent_tokens`: 74,817 (search: where the active term is changed).

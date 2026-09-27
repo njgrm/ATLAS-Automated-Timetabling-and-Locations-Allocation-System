@@ -40,6 +40,17 @@ Operator rulings that bind both lanes (2026-09-26):
 
 ---
 
+## 2026-09-27 08:00 — A3 handed back: ATLAS cannot change the active term, so a live discriminating read needs EnrollPro
+
+**Operator decision (2026-09-27): hand A3 back to you, to test with a staged term contract, not live.** Traced (no
+writes): ATLAS has **no** control that changes the active term. It comes from EnrollPro; the only ATLAS control is
+"Save terms" (`RolloverGuidanceCard.tsx:559/:750` → `POST /runtime/term-authority/apply`, `runtime.router.ts:548`),
+which caches EnrollPro's contract into `EnrollProSchoolYearMirror.termContractCache`. A live read would need an EnrollPro
+write, an ATLAS term-cache apply (HIGH) and a publish, then reversal of all three. **Discriminating test for you:** stage
+a term contract whose active term differs from the term run N was published in, and assert the `/timetable` header term
+and public `source.termIndex` both follow the publication (or the contract, whichever your contract says) — in a test,
+not on live. Nothing was published; draft 321 is untouched.
+
 ## 2026-09-27 07:45 — #64 resolved from source: disabled, not live; downgraded to MEDIUM wording
 
 No browser run. At `c5a9e832` the undone swap row's "Revert this edit" is **disabled** (`canRevert` needs `isHead`,
