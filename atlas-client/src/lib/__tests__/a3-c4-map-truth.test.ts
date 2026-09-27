@@ -77,6 +77,86 @@ const code = (relative: string) =>
 		.filter((line) => !line.trimStart().startsWith('//'))
 		.join('\n');
 
+/**
+ * Comment-stripped source with the IMPORT BLOCK ALSO REMOVED.
+ *
+ * Stripping the imports is what makes a legend control mean what its name says.
+ * QA's mutation for this file deleted the `BuildingView` legend JSX, left the
+ * import untouched, and the named test — "both map surfaces carry a
+ * plain-language legend" — still passed, because the two identifiers survive at
+ * `BuildingView.tsx:9` and `:11` inside
+ * `import { … } from '@/lib/room-utilization-display'`. A bare
+ * `assert.match(text, /ROOM_UTILIZATION_UNKNOWN_LEGEND_TEXT/)` is therefore a
+ * test of the IMPORT LIST, not of a legend, and it cannot fail when its subject
+ * is removed. That is the control §11 calls out, and the only cure is to stop
+ * scanning the import block at all.
+ *
+ * Imports are necessary but not sufficient: stripping them stops the false
+ * positive, but a constant could still be named in a `const` far from any
+ * element and the bare scan would call that a render. `RENDERED` below closes
+ * that second door.
+ */
+const withoutImports = (text: string): string =>
+	text
+		// `import … from '<spec>'`, spanning the braces of a multi-line specifier
+		// list, and the bare `import '<side-effect>'` form.
+		.replace(/^[ \t]*import\s[\s\S]*?from\s*['"][^'"]*['"];?[ \t]*$/gm, '')
+		.replace(/^[ \t]*import\s*['"][^'"]*['"];?[ \t]*$/gm, '');
+
+/** Comment-stripped AND import-stripped source — what a RENDER claim may scan. */
+const rendered = (relative: string) => withoutImports(code(relative));
+
+/**
+ * A JSX element open tag, then up to 600 characters, then a `{ … }` container.
+ * The 600 is a bounded LOCAL window, not a parse: it only has to span the
+ * element's own opening tag and the attribute or child it carries, which is why
+ * it is immune to reformatting, to the identifier moving one line, and to
+ * everything else in the file.
+ */
+const JSX_RENDER_PREFIX = String.raw`<[A-Za-z][\w.]*(?:[^<>{}]|\{[^{}]*\})*>[\s\S]{0,600}?\{\s*`;
+/** …and the container's close, then a JSX element close tag. */
+const JSX_RENDER_SUFFIX = String.raw`\s*\}[\s\S]{0,600}?</[A-Za-z][\w.]*>`;
+
+/**
+ * Matches only when `ident` is RENDERED: it sits in a `{ … }` expression
+ * container INSIDE an element the component actually emits.
+ *
+ * Why the import block cannot satisfy this, twice over. The block is already
+ * gone from `rendered()`, which is the load-bearing half. The second half is
+ * structural: the pattern demands a JSX element open tag BEFORE the identifier
+ * and a JSX element close tag AFTER it, and an import declaration is never
+ * nested inside a JSX element — so however its braces are laid out, however the
+ * specifier is wrapped, and whether it is named, defaulted, or re-exported, no
+ * `import` can put an identifier between a `<tag …>` and a `</tag>`.
+ */
+const RENDERED = (ident: string) => new RegExp(`${JSX_RENDER_PREFIX}${ident}${JSX_RENDER_SUFFIX}`);
+
+/**
+ * The composed legend sentence exactly as both surfaces write it in JSX, so a
+ * control can require the FULL wording inside a `@/ui` surface. The `&middot;`
+ * separator and the brace spacing are matched loosely on purpose; only the two
+ * constants and the surrounding `TooltipContent` are load-bearing.
+ */
+const FULL_SENTENCE_IN_TOOLTIP = new RegExp(
+	String.raw`<TooltipContent>[\s\S]{0,400}?\{\s*ROOM_UTILIZATION_LEGEND_TEXT\s*\}[\s\S]{0,40}?&\s*middot\s*;[\s\S]{0,40}?\{\s*ROOM_UTILIZATION_UNKNOWN_LEGEND_TEXT\s*\}[\s\S]{0,200}?</TooltipContent>`,
+);
+
+/**
+ * Where an identifier really is, so a red row is fixable. Separates the two
+ * regressions a bare scan cannot tell apart: the name occurs nowhere outside its
+ * import, or it occurs somewhere that is not a render.
+ */
+const renderDiagnosis = (file: string, ident: string, text: string): string => {
+	const at = text.indexOf(ident);
+	if (at < 0) {
+		return `${file}: ${ident} occurs NOWHERE outside its import block — nothing renders it`;
+	}
+	return (
+		`${file}: ${ident} occurs at offset ${at} but not in a JSX render position:\n…` +
+		`${text.slice(Math.max(0, at - 140), at + 140)}…`
+	);
+};
+
 const CAMPUS_MAP = 'src/components/CampusMap.tsx';
 const BUILDING_VIEW = 'src/components/BuildingView.tsx';
 
@@ -276,13 +356,31 @@ test('B: both map surfaces carry a plain-language legend, derived from the share
 	assert.doesNotMatch(ROOM_UTILIZATION_UNKNOWN_LEGEND_TEXT, /%/, 'the unknown legend must not print a figure');
 
 	for (const file of [CAMPUS_MAP, BUILDING_VIEW]) {
-		const text = code(file);
+		// Scan import-stripped source, and require a RENDER. The bare identifier
+		// match this replaces was satisfied by `BuildingView.tsx:9` and `:11` in
+		// the import block, so the test named "both surfaces carry a legend"
+		// passed on a surface that rendered no legend at all; QA reproduced that
+		// by deleting the JSX and leaving the import.
+		const text = rendered(file);
+		// A precondition on the HELPER, not on the product. If the import strip
+		// ever stopped matching, every control below would quietly degrade back
+		// into a bare identifier scan and go green for the wrong reason — the
+		// same trap `code()` documents one level up.
+		assert.doesNotMatch(
+			text,
+			/^[ \t]*import\b/m,
+			`precondition: the import strip must keep matching in ${file}, or these legend controls degrade to a bare identifier scan and stop proving a render`,
+		);
 		assert.match(
 			text,
-			/ROOM_UTILIZATION_UNKNOWN_LEGEND_TEXT/,
-			`${file} must render the shared unknown legend — c0's "honest but unlabelled" verdict stands until it does`,
+			RENDERED('ROOM_UTILIZATION_UNKNOWN_LEGEND_TEXT'),
+			`${file} must RENDER the shared unknown legend — c0's "honest but unlabelled" verdict stands until it does. ${renderDiagnosis(file, 'ROOM_UTILIZATION_UNKNOWN_LEGEND_TEXT', text)}`,
 		);
-		assert.match(text, /ROOM_UTILIZATION_LEGEND_TEXT/, `${file} must render the shared legend sentence`);
+		assert.match(
+			text,
+			RENDERED('ROOM_UTILIZATION_LEGEND_TEXT'),
+			`${file} must RENDER the shared legend sentence. ${renderDiagnosis(file, 'ROOM_UTILIZATION_LEGEND_TEXT', text)}`,
+		);
 		// Both surfaces read the SAME constants, so the one-truth requirement is
 		// met by the strings themselves. It is deliberately NOT met by a shared
 		// component: a legend component would have to live in a file this stream
@@ -295,8 +393,75 @@ test('B: both map surfaces carry a plain-language legend, derived from the share
 	}
 });
 
+test('B: the legend sentence is never hover-GATED — both surfaces emit the full words in an @/ui surface', () => {
+	// N2, DECIDED AND RECORDED — QA accepted "visible DOM chrome, not hover-only"
+	// for PRESENCE and for the 920px stage, but not for the complete sentence at
+	// every width, and it left the choice open. The decision is KEEP `truncate`,
+	// for a reason that is checkable rather than asserted:
+	//
+	//  - `truncate` is not the only path to the wording. BOTH surfaces already
+	//    emit the SAME composed sentence inside a `<TooltipContent>` — a
+	//    sanctioned `@/ui` surface, which §8 requires and which a raw `title=`
+	//    would not be. So the complete sentence is always reachable by hover and
+	//    is never truncated-into-ambiguity, which is what "hover-gated" means.
+	//  - The alternative, dropping `truncate`, is strictly worse here. The legend
+	//    is a TRAILING `ml-auto` item on a toolbar row whose height is bound by
+	//    its `h-7` buttons specifically so that three of the four `BuildingView`
+	//    callers keep a FIXED stage height. Letting the sentence wrap would grow
+	//    that row and push every one of those stages down — the exact regression
+	//    the geometry control below exists to prevent.
+	//
+	// So: no production change. What follows is the control that makes the
+	// decision falsifiable — delete either `<TooltipContent>` and it goes red.
+	//
+	// WIDTH OF RECORD. The composed sentence is
+	// `Use = share of periods in use · "n/a" = use not available yet`. At
+	// `text-xs` (12px) in a muted sans that is ~6.0px per glyph, so ~384px. The
+	// `CampusMap` toolbar row is the fixed 920px stage less `px-4` (32px) =
+	// 888px, and its leading controls — three labelled `h-8` buttons (~254px),
+	// the divider and its `mx-2` (~22px), and the uppercase `tracking-widest`
+	// "Campus Map View" label (~150px) — consume ~430px, leaving ~450px. THE
+	// SENTENCE IS THEREFORE COMPLETE at the 920px stage, which is the width QA
+	// checked and accepted. Below roughly 780px of container width the trailing
+	// item narrows far enough to ellipsize — the `BuildingView` panes are 500px
+	// and 420px in two of its four callers, so this is the COMMON case there,
+	// not an edge case — and the Tooltip below is what covers it.
+	//
+	// Glyph width and control widths above are ESTIMATES from the font size and
+	// the class names, not a rendered measurement. The load-bearing, measured
+	// half of this decision is structural: the full sentence is present in the
+	// DOM inside a `@/ui` surface, so legibility never depends on the estimate.
+	const composed = `${ROOM_UTILIZATION_LEGEND_TEXT} · ${ROOM_UTILIZATION_UNKNOWN_LEGEND_TEXT}`;
+	// A legend is a scan surface, not a paragraph: the ceiling is what keeps the
+	// `truncate` decision defensible at all. The exact figure is 61 characters
+	// today — measured from the two constants via the same composition this row
+	// builds, not transcribed by hand — and it is deliberately NOT pinned, so
+	// copy-wording changes cannot fail a legibility control.
+	assert.ok(
+		composed.length <= 80,
+		`the composed legend must stay a glanceable sentence; at ${composed.length} chars ("${composed}") it is a paragraph the toolbar cannot show`,
+	);
+	assert.ok(!/%/.test(composed), 'precondition: the sentence states no figure');
+
+	for (const file of [CAMPUS_MAP, BUILDING_VIEW]) {
+		const text = rendered(file);
+		assert.doesNotMatch(
+			text,
+			/^[ \t]*import\b/m,
+			`precondition: the import strip must keep matching in ${file}`,
+		);
+		assert.match(
+			text,
+			FULL_SENTENCE_IN_TOOLTIP,
+			`${file}: the legend is \`truncate\`d, so the COMPLETE sentence must also be emitted inside a @/ui TooltipContent — otherwise the full wording is hover-gated and §8's ban on a raw title= leaves no way to reach it. ${renderDiagnosis(file, 'ROOM_UTILIZATION_LEGEND_TEXT', text)}`,
+		);
+	}
+});
+
 test('B: the legend changes no canvas geometry and adds no height to any pane', () => {
-	const map = code(CAMPUS_MAP);
+	// `map` is gone: its only assertion below now scans `rendered(CAMPUS_MAP)`
+	// instead of `code(CAMPUS_MAP)`, so the binding was left dead. No assertion
+	// was removed with it — the CampusMap legend check is STRICTER than before.
 	const view = code(BUILDING_VIEW);
 
 	// The frozen room-card geometry is untouched — the words went into the DOM
@@ -341,7 +506,15 @@ test('B: the legend changes no canvas geometry and adds no height to any pane', 
 		/Tooltip|HoverCard/,
 		'the truncated legend needs a @/ui surface for its full sentence',
 	);
-	assert.match(map, /ROOM_UTILIZATION_UNKNOWN_LEGEND_TEXT/, `${CAMPUS_MAP} must place its legend in its toolbar row`);
+	// Same rendered-position requirement as the legend test above, and for the
+	// same reason: a bare `/ROOM_UTILIZATION_UNKNOWN_LEGEND_TEXT/` is satisfied
+	// by `CampusMap.tsx:9` in the import block, so it would have gone green on a
+	// map that renders no legend. This is the CampusMap half of that control.
+	assert.match(
+		rendered(CAMPUS_MAP),
+		RENDERED('ROOM_UTILIZATION_UNKNOWN_LEGEND_TEXT'),
+		`${CAMPUS_MAP} must place its RENDERED legend in its toolbar row`,
+	);
 });
 
 /* ───────────────────────── C: the card answers "is this room free?" ───────────────────────── */
