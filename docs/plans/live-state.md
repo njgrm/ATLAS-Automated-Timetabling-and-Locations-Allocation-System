@@ -3214,3 +3214,87 @@ that has a junction into another worktree.** The documented `cmd /c rmdir` rule 
 (`RETIRE_AFTER_INTEGRATION`). Branches `work/a3-truthful-numbers` and
 `integration/a3-truthful-numbers-20260928` preserved; **no branch deleted**. The
 `docs/a3-ui-ux-ledger` branch and its worktree remain the lane's writable record.
+
+---
+
+## Lane A3 — overnight 2026-09-28 c1/c2 (supersedes the A3 block above; `Live release` untouched)
+
+**A3 integrated for release at `81ad1892`. NOT DEPLOYED — A2 owns every release.** I did not deploy,
+so per §6 I did not touch the `Live release` block. Live is **`d31bfacb`** (read from **machine
+scope** `ATLAS_RUNTIME_SOURCE_DIR` = `E:\ATLAS-worktrees\lane-a2-release-d31bfacb`, corroborated by
+`supervisor-state.json`; 5001/5174/Tailnet all **200** at 2026-09-28 00:45 +08, listeners 55264/5988).
+
+**Four A3 commits are on `origin/main` and none is live** — verified with
+`merge-base --is-ancestor`, all four **NOT** ancestors of `d31bfacb`: `1e417694` (c0's #53 + truthful
+numbers — **this one IS live**, inside `d31bfacb`), `c5cffa72` (c1's page titles),
+`dd5b2366` (c1's palette ratchet), `81ad1892` (c2's palette sweep).
+
+**c2's stream, one line.** S-e replaced 119 raw neutral text classes with the app's own tokens across
+19 non-timetable demo-route files — `text-slate-900`→`text-foreground` (47),
+`text-slate-500`→`text-muted-foreground` (72) — and lowered the ratchet 229/34 → **110/28**. Base
+`70beb055`, candidate `485a2e1e`, planner correction `f3b8b7ab`, merge `81ad1892`. Executor
+`ses_f1c3f3d5cffeWm2g1CAP7pNymT`; fresh QA `ses_f1c2ec739ffexrHKqcRsIOKYJd`
+**`CORRECTION_REQUIRED` 12/13/0/0/1**, then accepted. Zero timetable and zero `atlas-server/` paths.
+Combined gates on the merged tree: 7/5/14/20/19/36/20/1/31/34, all exit 0; typecheck 4 errors, all the
+known `playwright`-absent baseline in A2's timetable tests, **0** in an A3 path; build exit 0.
+
+**BLOCKED, and it is the environment, not the code — `as of 2026-09-28 02:00 +08`.** The c2 packet gave
+A3 the browser until 02:45 and A3 held `.browser-lock` for the whole window, but **every browser row is
+`UNPERFORMED`**: the shared profile is held by a Chromium started 2026-09-27 23:26:04, root **PID
+12580**, whose 5 children `taskkill` killed and which itself returns **Access denied** — the holder is
+elevated and this shell is not. `Default/Network/Cookies` is exclusively locked by it, so a copied
+profile would have had no seeded session. **Remedy: stop PID 12580 or relaunch the harness
+non-elevated. Nothing in ATLAS is involved.** Proof: the `taskkill` output, the exclusive-lock error,
+and the profile path in the harness's own error message.
+
+**Owed to the next browser holder, not waived:**
+- **B5** — Cancel on a confirmed swap makes **zero** changes (record the rows/ids the dialog would
+  touch, plus `audit_logs` max id). **Owed for a third consecutive overnight cycle; never performed in
+  any of them.** A3-owned surface (`/sections`), so no cross-lane coordination is needed.
+- **#52** — Building view first render keeps the previous section's class grid. Needs per-frame canvas
+  pixel sampling cross-referenced against the sidebar's building identity. The precondition and two
+  ruled-out suspects from c0 still stand.
+- **The nine `1e417694` live-acceptance steps** (the handoff's "Rows needing live acceptance"). `1e417694`
+  **is** live, so these are decidable now — by whoever holds a working profile. Steps 4.1/4.3 (rows 14
+  and 16, no page scrollbar, >1 roster row) are the two most likely to have regressed, because A1 widens
+  a roster cell by ~40px.
+- **Both walkthrough walks** and every `UNGRADED` column in the c1 route table.
+
+**Two cross-lane records, both worth a morning's attention.**
+1. **A2's `returnTo` hand-back is built on a premise that does not exist.** A2 asked A3 to render a
+   control from `useTeachingLoadRouteIntent`'s `returnTo`. **`returnTo` is in no ref of this
+   repository** — 0 occurrences in the hook on `origin/main`, 0 in the test A2 cited (which does exist),
+   and `git log --all -S returnTo -- <hook>` is empty; also 0 in `d31bfacb`, `c0d91827`, `c35ee9f2`,
+   `8325834d`. A2's committed work fixed the change-owner *intent resolution*, not a way back. **A3 did
+   not build it** rather than author a cross-lane URL contract unilaterally. **A2's decision: emit
+   `returnTo` first, or drop the row.**
+2. **A2's `U+FFFD` report on `lane-a-to-c.md` is a false positive** — decoding the committed bytes as
+   UTF-8 gives `U+FFFD` count **0** and 40 intact em dashes. A2 matched its own message text, which
+   literally contains `\uFFFD?`. Nothing was changed; do not "fix" a clean file.
+
+**Accessibility work newly recorded, `as of 2026-09-28 02:00 +08`, with measured contrast:** the ratchet
+residual is not uniform. 6 sites are genuinely decorative `slate-200/300` separators and chevrons
+(1.232:1, 1.484:1) and are correct as they are. **5 `slate-400` sites at 2.628:1 are failures to fix** —
+three search icons, one `line-through` completed item, and
+`src/components/campus-map/BuildingGradeScopeControl.tsx:36`, which is an **enabled** control (zero
+`disabled` in the file, live `onClick`, `hover:text-slate-600` on the same line) so WCAG 1.4.3 protects
+nothing. The ratchet had claimed the last one was "a disabled button … a regression to preserve"; that
+false exemption is corrected at `f3b8b7ab`, additively.
+
+**Still `BLOCKED_PRODUCT_DECISION`, unchanged and not decided here: fix 08.** Option A deselect vs
+Option B unassign; A3's read remains **B**, because a silent deselect leaves the operator believing the
+room is theirs. It changes what a button means to an existing user, so it is the operator's call.
+Options are in the A3 block above.
+
+**Still `BLOCKED_SOURCE_GAP`, untouched: 27, 28, 34.**
+
+**Not done, with the reason, `as of 2026-09-28 02:00 +08`.** The title-pattern consolidation (the route
+table's only measured finding: three densities — card, compact strip A, compact strip B) is **deferred,
+not rejected**: it changes density on `/teachers` and `/teaching-load`, the two pages carrying accepted
+rows 14 and 16, and re-verifying those needs a rendered screen this lane could not get. Trading an
+accepted density row for a cosmetic one without a screen is the wrong trade. `uxc01-derived-setup-
+surface.test.ts` (1-of-4 red since 2026-09-20) also not reached. The double policy fetch remains A2's.
+
+**Worktrees to retire (mine, dated 2026-09-28):** `lane-a3-c1-docs`, `lane-a3-c1-integ`,
+`lane-a3-c1-s-e`, `lane-a3-c1-ux`, plus c2's `lane-a3-c2-chrome` and `lane-a3-c2-integ`. All branches
+preserved; **no branch deleted**.

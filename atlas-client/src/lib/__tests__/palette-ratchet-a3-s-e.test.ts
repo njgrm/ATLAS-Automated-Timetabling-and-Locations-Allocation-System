@@ -53,9 +53,76 @@ import test from 'node:test';
  * measurement and not an estimate — an earlier guess of 226 was caught red by this very control on
  * its first run, which is the behaviour a ratchet is supposed to have. Lower these as the sweep
  * lands, with the reason in the commit.
+ *
+ * **Lowered 2026-09-28 by the S-e exact-substitution sweep: 229 -> 110, 34 -> 28 files.**
+ *
+ * The fall is exactly the 119 substitutions that sweep made (47 `text-slate-900` ->
+ * `text-foreground`, 72 `text-slate-500` -> `text-muted-foreground`) across 19 non-timetable
+ * demo-route files, and nothing else: no markup, spacing, copy or non-`text-` class moved, proven
+ * by a whole-file comparison against `HEAD` in `palette-token-sweep-a3-s-e.test.ts` control 5.
+ * The 6-file drop is those six in-scope files whose only raw neutrals were the two swept shades,
+ * so they left the count entirely.
+ *
+ * **The residual 110 is deliberately left for a browser-verified pass, not an oversight.** Those
+ * occurrences are shades with no exact token (`slate-200/300/400/600/700/800`, `gray-*`), and
+ * mapping them is a design judgement, not a rename, so it needs a rendered screen rather than a
+ * rename proof. Their measured contrast and per-file inventory are recorded in the S-e handoff as
+ * the input the next browser holder needs. Do not lower these pins again without a rendered screen
+ * at 1366x768.
+ *
+ * **CORRECTION (A3 c2, planner-applied after QA `ses_f1c2ec739ffexrHKqcRsIOKYJd`) — the
+ * residual is NOT uniform, and the earlier classification of part of it was false.** The previous
+ * wording of this paragraph is retained above as history and is **superseded in two respects**;
+ * `AGENTS.md` §16 forbids deleting an evidence row to close a finding, so the correction is added
+ * beside it rather than in place of it.
+ *
+ * 1. **The `slate-200` and `slate-300` sites are genuinely decorative and must stay.** Measured on
+ *    white they are 1.232:1 and 1.484:1. They are `|` separators (`src/pages/Audit.tsx:665,667,669`)
+ *    and chevrons (`src/components/dashboard/CampusReadinessCard.tsx:436`,
+ *    `src/components/campus-map/CampusMapOverview.tsx:485`, `src/pages/Dashboard.tsx:909`). They are
+ *    not text and carry no information, so promoting them to a foreground token **would** be a
+ *    regression. This part of the original reasoning is confirmed.
+ * 2. **The `slate-400` sites are the opposite case, and calling them a regression was wrong.** Four
+ *    of them are real content: three **search icons** (`CampusMapOverview.tsx:595`,
+ *    `CampusReadinessCard.tsx:542`, `Audit.tsx:748`) and one **`line-through` completed item**
+ *    (`Dashboard.tsx:901`). At `text-slate-400` = **2.628:1** on white they fail WCAG 1.4.11 (3:1
+ *    for non-text) and AA (4.5:1 for text), and `text-muted-foreground` at 4.718:1 would **fix**
+ *    them. Treat these as **accessibility work to do**, not as exemptions to preserve.
+ * 3. **`src/components/campus-map/BuildingGradeScopeControl.tsx:36` is an ENABLED control, not a
+ *    disabled one, and the original sentence calling it "a disabled button" is false.** The file
+ *    contains zero occurrences of `disabled`, the element carries a live `onClick` (lines 38-43), and
+ *    line 36 itself carries `hover:text-slate-600` — a hover state only an interactive control has.
+ *    WCAG 1.4.3 exempts *disabled* controls and grants no exemption here, so there is nothing to
+ *    protect. At 2.628:1 this is an active AA text failure on an enabled control.
+ *
+ * A later session must therefore **not** read this pin as blanket permission to leave the residual
+ * alone: of the 110, the 6 decorative `slate-200/300` sites are correct as they are, and the 5
+ * `slate-400` sites listed above are accessibility defects to fix, not exemptions.
+ *
+ * **LOWERED AGAIN 2026-09-28 by the S-f step-2 sweep: 110 -> 95, 28 -> 28 files.**
+ *
+ * All 15 `text-slate-400` sites in the c2 correction's item 2 and item 3 were replaced with
+ * `text-muted-foreground` across 5 non-timetable demo-route files. The fall is exactly those 15
+ * substitutions and nothing else; no file emptied, which is why the file count is unchanged.
+ *
+ * **This was a deliberate ACCESSIBILITY DARKENING, not a rename, and the pin must not be read as
+ * evidence that appearance was preserved.** Measured against the installed Tailwind 4.2.2 palette,
+ * `text-slate-400` = oklch(70.4% 0.04 256.788) = sRGB rgb(144, 161, 185) and `--muted-foreground` =
+ * `215 16% 47%` = sRGB rgb(101, 117, 139), a per-channel delta of 43 / 44 / 46, **max 46 of 255**.
+ * That is the opposite of the S-e sweep's 2-3/255 rename. Its own contract, tolerances and evidence
+ * are in `src/lib/__tests__/palette-slate400-step2-a3-s-f.test.ts`.
+ *
+ * **DISCLOSED SHORTFALL, unchanged in kind by this sweep: on `--muted` and `--secondary` the token
+ * is 4.268:1, still under WCAG AA 4.5:1.** The sweep is a strict improvement on every surface
+ * (+2.067:1 on white from 2.630:1, +1.878:1 on `--muted` from 2.390:1) and a full AA pass only on
+ * white and near-white surfaces. **Nothing here may be read as a claim that the app passes AA.**
+ *
+ * The c2 correction's item 3 — that `BuildingGradeScopeControl.tsx:36` is an ENABLED control with
+ * no WCAG 1.4.3 exemption — is **confirmed and now acted on**: that site is one of the 15 swept.
+ * No `text-slate-400` site is an exemption, and this pin is not a licence to leave the rest.
  */
-const PINNED_TOTAL = 229;
-const PINNED_FILE_COUNT = 34;
+const PINNED_TOTAL = 95;
+const PINNED_FILE_COUNT = 28;
 
 const here = dirname(fileURLToPath(import.meta.url));
 const CLIENT_ROOT = resolve(here, '..', '..', '..');

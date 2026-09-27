@@ -15,7 +15,7 @@ const GRADE_OPTIONS = [
 export function BuildingGradeScopeControl({ gradeScope, onGradeScopeChange }: BuildingGradeScopeControlProps) {
 	return (
 		<div>
-			<label className="text-[0.72rem] font-semibold text-slate-500">
+			<label className="text-[0.72rem] font-semibold text-muted-foreground">
 				Grade scope
 			</label>
 			<p className="mt-0.5 mb-1.5 text-[0.6875rem] text-muted-foreground">
@@ -33,7 +33,7 @@ export function BuildingGradeScopeControl({ gradeScope, onGradeScopeChange }: Bu
 							className={`h-7 text-xs font-medium border transition-all ${
 								selected
 									? g.color + ' border-current'
-									: 'border-slate-200 text-slate-400 hover:text-slate-600 hover:border-slate-300'
+									: 'border-slate-200 text-muted-foreground hover:text-slate-600 hover:border-slate-300'
 							}`}
 							onClick={() => {
 								const next = selected

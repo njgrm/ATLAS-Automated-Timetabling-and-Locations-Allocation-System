@@ -122,7 +122,7 @@ export default function AdminYearSetup() {
 					{status?.archivedYears?.length ? (
 						<div className="rounded-xl border border-slate-200 bg-white/80 p-4" data-testid="admin-year-setup-archived">
 							<div className="flex items-center gap-1.5 text-sm font-semibold text-slate-800">
-								<Archive className="size-4 text-slate-500" />
+								<Archive className="size-4 text-muted-foreground" />
 								Archived school years
 							</div>
 							<p className="mt-1 text-xs text-muted-foreground">

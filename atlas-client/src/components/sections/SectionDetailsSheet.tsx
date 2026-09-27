@@ -189,20 +189,20 @@ export function SectionDetailsSheet({
 								</div>
 								<div className="grid gap-3 sm:grid-cols-2">
 									<div className="rounded-xl border bg-white p-3">
-										<div className="flex items-center gap-2 text-xs font-bold uppercase text-slate-500">
+										<div className="flex items-center gap-2 text-xs font-bold uppercase text-muted-foreground">
 											<Home className="size-3.5 text-primary" />
 											Current home room
 										</div>
-										<p className="mt-1 text-sm font-bold text-slate-900">{homeRoom?.name ?? 'Not assigned yet'}</p>
-										<p className="text-xs font-medium text-slate-500">{homeRoom ? 'This section has a home room for normal classes.' : 'Assign a home room before schedule generation.'}</p>
+										<p className="mt-1 text-sm font-bold text-foreground">{homeRoom?.name ?? 'Not assigned yet'}</p>
+										<p className="text-xs font-medium text-muted-foreground">{homeRoom ? 'This section has a home room for normal classes.' : 'Assign a home room before schedule generation.'}</p>
 									</div>
 									<div className="rounded-xl border bg-white p-3">
-										<div className="flex items-center gap-2 text-xs font-bold uppercase text-slate-500">
+										<div className="flex items-center gap-2 text-xs font-bold uppercase text-muted-foreground">
 											<Building2 className="size-3.5 text-primary" />
 											Building context
 										</div>
-										<p className="mt-1 text-sm font-bold text-slate-900">{homeRoom?.buildingName ?? 'No building selected'}</p>
-										<p className="text-xs font-medium text-slate-500">{section?.buildingZoneId ? `Campus zone ${section.buildingZoneId}` : 'Building is based on the selected home room.'}</p>
+										<p className="mt-1 text-sm font-bold text-foreground">{homeRoom?.buildingName ?? 'No building selected'}</p>
+										<p className="text-xs font-medium text-muted-foreground">{section?.buildingZoneId ? `Campus zone ${section.buildingZoneId}` : 'Building is based on the selected home room.'}</p>
 									</div>
 								</div>
 							</div>

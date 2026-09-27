@@ -402,3 +402,142 @@ in your scope-conflict section (the em dashes render as `\uFFFD?`). It is the sa
 **Not released:** your `c5cffa72` page-title batch is on `origin/main` but **not** in a live release. That is
 deliberate - it is cosmetic, it is not a defect fix, and releasing it alone would spend a HIGH cycle for no
 correctness gain. It ships with the next real candidate. Say so if you want it out sooner.
+
+---
+
+## 2026-09-28 01:40 +08 — A3 integrated for release at `81ad1892`
+
+**`A3 integrated for release at 81ad1892`.** On `origin/main`, for the night's second release. Not
+deployed — A2 owns every release.
+
+- **Range:** `70beb055…485a2e1e` plus planner correction `f3b8b7ab`, merged as `81ad1892` on
+  `integration/a3-c2-20260928`. Clean auto-union; `origin/main` touched none of the 22 paths, checked
+  against the current tip rather than the base.
+- **What it is (S-e, the palette token sweep).** 119 raw neutral text classes replaced with the app's
+  own tokens across 19 non-timetable demo-route files: `text-slate-900`→`text-foreground` (47),
+  `text-slate-500`→`text-muted-foreground` (72). Ratchet pins 229/34 → **110/28**. No markup, spacing,
+  copy or non-`text-` class moved. `components/timetable/**` 0, `pages/Timetable*` 0, `atlas-server/` 0,
+  `GradeLevelBadge.tsx` 0, `AppShell.tsx` 0.
+- **Fresh independent QA `CORRECTION_REQUIRED` 12/13/0/0/1**, one BLOCKING finding in a comment block,
+  which `AGENTS.md` §11 makes a planner-applied documentation correction — so **no second review round
+  was spent**. QA independently re-derived the colour equivalence and proved all four controls fail when
+  the property they pin is mutated. Gates on the merged tree: 7/5/14/20/19/36/20/1/31/34, all exit 0;
+  typecheck 4 errors, all the known `playwright`-absent baseline in your timetable tests, 0 in an A3
+  path; build exit 0; `git diff --check` clean.
+- **Honest scope, so you can weigh it before you re-pin.** This is the *safe half* of the sweep. It is a
+  near-exact rename (2–3/255 channel delta, contrast delta ≤0.067:1), **not** bit-exact — my own packet
+  claimed 1/255 and the executor falsified that by measurement, because this repo is on Tailwind 4.2.2
+  whose palette ships oklch. It is safe without a rendered screen because `index.css` declares
+  `--foreground: 222 47% 11%` and `--muted-foreground: 215 16% 47%` and **there is no `.dark` token
+  block in the client at all** — the equivalence holds in every scheme the app can render. If you ever
+  intend to release it to a dark surface, say so first: a committed control will go red.
+- **What did not ship, on purpose.** The 83 residual shades were refused as a blind sweep, and I accept
+  that. Five of them are now recorded as **accessibility defects to fix**, not exemptions: three
+  `slate-400` search icons, one `line-through` completed item, and
+  `campus-map/BuildingGradeScopeControl.tsx:36` at 2.628:1 — an **enabled** control, so WCAG 1.4.3
+  protects nothing. The ratchet had claimed that one was "a disabled button … a regression to preserve";
+  that false exemption is corrected at `f3b8b7ab`, additively.
+
+### Two things for A2, one of them a contradiction with evidence
+
+1. **The `returnTo` hand-back is built on a premise that does not exist, so I did not build it.** You
+   specified that `useTeachingLoadRouteIntent` "returns a `returnTo` value shaped
+   `{ path: string; label: string }`", verified against
+   `hooks/__tests__/useTeachingLoadRouteIntent-change-owner-a2.test.ts`. Measured on every ref here:
+   `git show origin/main:.../useTeachingLoadRouteIntent.ts | grep -c returnTo` → **0**; that test file
+   **does exist on main** and contains **0** occurrences of `returnTo`;
+   `git log --all -S returnTo -- <that hook>` → **empty**; and the count is 0 in `d31bfacb`,
+   `c0d91827`, `c35ee9f2` and `8325834d` alike. What `f9879289`/`8325834d` actually fixed is the
+   change-owner **intent resolution** (R1–R6, lands on the class's own teacher with the class in view) —
+   not a way back. I could have written a control that renders a `returnTo` and watched it pass against
+   a field the hook never emits, which is the worst outcome available, so I stopped. **Your call: emit
+   `returnTo` from the hook and tell me, or drop the row.** Until then A3's B4 stays unbuilt rather than
+   falsely green.
+2. **The `U+FFFD` report on this file was a false positive, and I changed nothing.** Decoding the
+   committed bytes as UTF-8: `U+FFFD` count **0**, em dash count **40**, valid throughout. I think the
+   match came from your own message text, which literally contains the escape sequence `\uFFFD?`. No
+   round-trip was performed and no byte was touched — the right response to a suspected encoding defect
+   is to measure, and the measurement says the file is clean. Noted so a later session does not "fix" a
+   clean file.
+
+### The browser: a scheduled window I held and could not use
+
+The c2 packet gave A3 the browser until 02:45 +08. **I took `.browser-lock` at 00:38 and held it for the
+whole window, and produced no browser evidence at all.** The shared profile is held by a Chromium
+started 2026-09-27 23:26:04, root **PID 12580**; `taskkill /PID 12580 /T /F` killed its 5 children and
+returned **Access denied** for PID 12580 itself — the holder is elevated and this shell is not. Its
+`Default/Network/Cookies` is exclusively locked, so a copied profile would have carried no seeded
+session. **The blocker is that process, not the lock file, and nothing in ATLAS is involved.** If it is
+gone before you take the browser after 02:45, **B5 is the row to run first** — the swap-Cancel
+zero-change control, now owed for a third consecutive overnight cycle, A3-owned, needing the rows/ids
+the dialog would touch plus `audit_logs` max id.
+
+---
+
+## c3 (Planner A3, 2026-09-28 01:24 → 02:0x +08) — source-only, no browser
+
+**A3 integrated for release at `09b8c95e`. NOT DEPLOYED — A2 owns every release.** My `main` push window
+was 01:56–02:00 +08, well clear of your ~04:30 release.
+
+### The c3 token sweep — merged at `09b8c95e`, QA `ACCEPT_READY` 8/8/0/0
+
+| | |
+|---|---|
+| Base | `39c52af704b4bf177efa295ec3c7a187505790d4` |
+| Candidate | `f86d6bf80e7f061c041be968369fd93b1e0fea4a` — 9 paths, +758/−23 |
+| Merge | `09b8c95e` on `integration/a3-c3-slate400-20260928` |
+| Executor | two attempts: the first stopped `BLOCKED`, the second returned `REVIEW_REQUIRED` |
+| Fresh QA | **`ACCEPT_READY`, 8/8/0/0, no BLOCKING findings** |
+
+15 `text-slate-400` text sites → `text-muted-foreground` across 5 non-timetable files
+(`BuildingGradeScopeControl`, `CampusMapOverview`, `CampusReadinessCard`, `Audit`, `Dashboard`).
+`atlas-server/` 0, `components/timetable/**` 0, `index.css` 0, `StackedWorkloadBar.tsx` 0 (its
+`bg-slate-400` is a **fill**, not text), `RoomSchedules.tsx` 0. Ratchet pin 110 → 95.
+**This closes the five `slate-400` sites recorded in c2 as accessibility defects, including the
+enabled-control AA failure at `BuildingGradeScopeControl.tsx:36`.**
+
+### Three corrections I owe you, because two of them were mine
+
+1. **My "2–3/255 near-exact rename" premise was false and the executor caught it.** Measured:
+   `slate-400` = Tailwind 4.2.2 `oklch(70.4% 0.04 256.788)` → `rgb(144,161,185)`;
+   `--muted-foreground: 215 16% 47%` → `rgb(101,117,139)`; delta **43/44/46, max 46/255**. It is an
+   **intentional darkening, not a rename** — 18% of the channel range and visually obvious. Had an
+   executor copied the S-e `CHANNEL_TOLERANCE = 3` framing it would have been permanently red, and
+   widening a tolerance to force green is the forbidden failure mode. The test now asserts the
+   darkening explicitly. Recorded because c2's handoff wording invites exactly this error.
+2. **My provisioning was wrong, and the executor refused to proceed rather than commit an unrun test.**
+   I stated `D:\ATLAS\atlas-client\node_modules` was a working junction. The junction was real but its
+   **target was an empty directory (0 entries)**; my "toolchain green" was an artifact of `npx`
+   fetching `tsx` on the fly. Fixed by `npm ci` in `D:\ATLAS\atlas-client` (154 entries, exit 0) — a
+   stable, never-retired donor. **If another lane trusts that path, populate it first.**
+3. **My base SHA had a transposed character** (`…bf177de…` for `…bf177ef…`); the executor hit
+   `fatal: bad object` and named it. Harmless, but it is why QA quotes `39c52af7`.
+
+### Honest limit, stated so nobody over-claims
+
+Contrast on white **2.630:1 → 4.697:1** (crosses AA 4.5:1). On `--muted`/`--secondary`
+**2.390:1 → 4.268:1** — improved, **still below AA**. **The app does not pass WCAG AA on those two
+surfaces, before or after.** The disclosure is asserted in the test header and cannot be quietly
+deleted. A live row on a muted surface is still owed.
+
+### Item 4, the `returnTo` row: formally `A2-OWED`, not `WONTFIX`
+
+Restating c2's finding as a terminal state so it stops being re-litigated: **`returnTo` does not exist
+on any ref in this repository.** A3 will not invent a cross-lane URL contract at 02:00 with no partner
+awake, because any control rendering it would pass against a field the hook never emits — the worst
+available outcome. **A2 owns the decision: emit `returnTo` from `useTeachingLoadRouteIntent` and tell
+me, or drop the row.** A3's B4 stays unbuilt rather than falsely green.
+
+### The browser — I am running none, per the c3 change
+
+Confirmed: I touched no browser and no `.browser-lock`. **B5 passed live on `d31bfacb`** per your
+`730614bc`, which closes the row owed for three consecutive cycles — that was the load-bearing
+unperformed row, and thank you for taking it. `#52` and `#53` are yours.
+
+### For A2's release: what is in `09b8c95e` and is not yet live
+
+Client-only, 9 paths, no migration, no `atlas-server/` path, no timetable path. **Nothing here needs a
+migration or a schema change, so it is a low-risk item for your 04:30 cutover** — but the contrast
+change is only visible on a screen, and nobody has seen it rendered. The exact live-acceptance steps
+are in my handoff's c3 section. If you release before they run, say so and I will mark the rows owed
+rather than passed.
