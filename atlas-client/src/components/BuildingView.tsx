@@ -6,11 +6,14 @@ import type { Building, Room, RoomType } from '@/types';
 import { getPrimaryCanvasColor } from '@/components/campus-map/campusMapPalette';
 import { ROOM_TYPE_LABELS } from '@/lib/room-type-labels';
 import {
+	ROOM_UTILIZATION_LEGEND_TEXT,
 	ROOM_UTILIZATION_UNKNOWN_FILL,
+	ROOM_UTILIZATION_UNKNOWN_LEGEND_TEXT,
 	isRoomUtilizationKnown,
 	roomUtilizationBarPercent,
 	roomUtilizationColor,
 	roomUtilizationCompactLabel,
+	roomUtilizationLabel,
 } from '@/lib/room-utilization-display';
 import { cn } from '@/lib/utils';
 import { Button } from '@/ui/button';
@@ -403,11 +406,11 @@ export function BuildingView({
 					// its own readout; `utilization` is bar geometry only.
 					const utilizationKnown = isRoomUtilizationKnown(roomUtilization, room.id);
 					const utilization = roomUtilizationBarPercent(roomUtilization, room.id);
-					
+
 					const sectionData = roomSectionData?.get(room.id);
 					const occupancy = sectionData?.sectionName ?? roomOccupancy?.get(room.id);
 					const gradeColor = sectionData ? GRADE_ROOM_COLORS[sectionData.gradeKey] : null;
-					
+
 					const roomY = FLOOR_PAD_Y;
 					const isHovered = hoveredRoomId === room.id;
 					const isInspected = selectedRoomId === room.id;
@@ -641,10 +644,29 @@ export function BuildingView({
 							</TooltipTrigger>
 							<TooltipContent>Reset view</TooltipContent>
 						</Tooltip>
-						<span className="ml-1 text-xs text-muted-foreground tabular-nums">
-							{Math.round(scale * 100)}%
-						</span>
-					</div>
+					<span className="ml-1 text-xs text-muted-foreground tabular-nums">
+						{Math.round(scale * 100)}%
+					</span>
+					{/* A3 c4 — the `n/a` token is honest but was UNLABELLED, and it
+					 * contradicted the campus tile's `0%` for the same building.
+					 * `ROOM_UTILIZATION_TEXT_BOX` is 36x14 and frozen, so the words
+					 * cannot go in the card; they go in the DOM chrome, on the
+					 * toolbar's EXISTING row. `h-7` buttons bound that row's height,
+					 * so this adds ZERO height to all four callers — three of which
+					 * pass a fixed stage height — and the `fillAvailableHeight`
+					 * caller re-measures its host anyway. The full sentence is
+					 * reachable on hover through `@/ui` rather than a raw `title`. */}
+					<Tooltip>
+						<TooltipTrigger asChild>
+							<span className="ml-auto min-w-0 truncate text-xs text-muted-foreground">
+								{ROOM_UTILIZATION_LEGEND_TEXT} &middot; {ROOM_UTILIZATION_UNKNOWN_LEGEND_TEXT}
+							</span>
+						</TooltipTrigger>
+						<TooltipContent>
+							{ROOM_UTILIZATION_LEGEND_TEXT} &middot; {ROOM_UTILIZATION_UNKNOWN_LEGEND_TEXT}
+						</TooltipContent>
+					</Tooltip>
+				</div>
 				</TooltipProvider>
 			)}
 
@@ -737,6 +759,28 @@ export function BuildingView({
 								<div className="flex justify-between gap-4">
 									<span className="text-muted-foreground uppercase font-bold text-xs tracking-wide">Capacity</span>
 									<span className="font-bold tabular-nums">{r.capacity ?? '—'}</span>
+								</div>
+								{/* A3 c4 — Top-10 #4: "is this room free?" was not
+								 * answerable, because the card read `Capacity: 45` and
+								 * nothing about use. It now reads beside it, from the SAME
+								 * `roomUtilization` reading the card's own `n/a`/`0%` token
+								 * is drawn from, so the two can never disagree.
+								 *
+								 * A PERCENTAGE, not "Used 32 of 40 periods": the only real
+								 * denominator is `pivotDraftToView`'s `availableMinutes`, a
+								 * duration, and a period count would have to be invented from
+								 * a percentage — the same fabrication the campus tile just
+								 * stopped making.
+								 *
+								 * And this is DOM, so the unknown case is spelled out in
+								 * words here rather than left as the canvas-only `n/a` token:
+								 * c0's header comment claimed this hover layer was the
+								 * full-detail surface, and it did not mention use at all. */}
+								<div className="flex justify-between gap-4" data-utilization={isRoomUtilizationKnown(roomUtilization, r.id) ? 'measured' : 'unknown'}>
+									<span className="text-muted-foreground uppercase font-bold text-xs tracking-wide">Use</span>
+									<span className={cn('font-bold tabular-nums', !isRoomUtilizationKnown(roomUtilization, r.id) && 'italic')}>
+										{roomUtilizationLabel(roomUtilization, r.id)}
+									</span>
 								</div>
 								{meta && (
 									<div className="mt-1 pt-1 border-t flex flex-col gap-1">

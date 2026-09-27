@@ -39,9 +39,18 @@ export const ROOM_UTILIZATION_UNKNOWN_LABEL = 'Not available';
  * `ROOM_UTILIZATION_TEXT_BOX` is 36x14 stage units at `ROOM_LABEL_FONT` 11 and
  * is frozen — other work depends on its geometry — so a two-word label would
  * wrap out of its own box and collide with the program badge beside it. The
- * card is a dense scan surface whose full-detail surface is its hover layer, so
- * `n/a` (a token, not a figure) is the honest short marker here. A measured zero
- * still renders `0%`, so the two remain distinguishable at a glance.
+ * card is a dense scan surface, so `n/a` (a token, not a figure) is the honest
+ * short marker here. A measured zero still renders `0%`, so the two remain
+ * distinguishable at a glance.
+ *
+ * A3 c4 CORRECTION. This comment used to say the card's "full-detail surface is
+ * its hover layer", so the token was left unlabelled. That was FALSE: the
+ * Building view's hover room card showed Type and Capacity and never mentioned
+ * use at all, so the full-detail surface of this figure was nowhere. Two things
+ * changed — the hover card now carries a `Use` row (which is where "is this room
+ * free?" is answered), and the toolbar legend
+ * ({@link ROOM_UTILIZATION_UNKNOWN_LEGEND_TEXT}) is what names the token, since
+ * a hover layer is mouse-only and this figure has to be legible without a mouse.
  */
 export const ROOM_UTILIZATION_UNKNOWN_LABEL_COMPACT = 'n/a';
 
@@ -50,6 +59,105 @@ export const ROOM_UTILIZATION_UNKNOWN_LABEL_COMPACT = 'n/a';
  *  must stay that way. Matches the muted grey already used on the empty-floor
  *  marker in the same canvas. */
 export const ROOM_UTILIZATION_UNKNOWN_FILL = '#9ca3af';
+
+/* ───────────────────────── the campus-map TILE, and the words for both ───────────────────────── */
+
+/**
+ * A3 c4 — `CampusMap` was the one duplicated map component `1e417694` never
+ * converted, so it kept the pre-fix shape in full:
+ *
+ * ```tsx
+ * const occupancy = buildingOccupancy?.get(b.id) ?? 0;
+ * ...
+ * text={`${Math.round(occupancy)}% FILLED`}
+ * ```
+ *
+ * `buildingOccupancy` is OPTIONAL, and of its two callers only
+ * `SectionRoomMapModal` supplies it — `timetable/CenterWorkspace` passes
+ * nothing, so every wing rendered a confident `0% FILLED` for a building with a
+ * full term of lessons in it. Supplying real data there is another lane's file;
+ * making the absent case HONEST is this one, and it is what stops the next
+ * release from fabricating a zero before that wiring lands.
+ *
+ * A `buildingOccupancy` entry is read exactly like a `roomUtilization` entry —
+ * same `Map<number, number>` shape, same "absent means we could not compute
+ * this" rule — so the three helpers below delegate to {@link readRoomUtilization}
+ * rather than re-deriving the tri-state. They exist so `CampusMap` reads as a
+ * building lookup instead of a room lookup on a building id.
+ */
+
+/** The measured tile label, unchanged from the pre-fix wording, so a real figure
+ *  looks exactly as it did. Only the ABSENT case gained a new string. */
+export const BUILDING_UTILIZATION_MEASURED_TILE_SUFFIX = 'FILLED';
+
+/**
+ * The unknown tile label. `USE N/A`, derived from
+ * {@link ROOM_UTILIZATION_UNKNOWN_LABEL_COMPACT} so the map tile and the
+ * Building-view card cannot word the same refusal differently.
+ *
+ * WHY NOT "Use: not available yet", which is the longer honest wording: the
+ * tile draws a Konva `Text` with `width={b.width - 12}` inside a 12-unit-tall
+ * group, and a Konva `Text` with a `width` WRAPS rather than overflows. A second
+ * line at `fontSize 7` escapes the group and runs off the bottom of the
+ * building, so the binding constraint is ONE line — and the narrowest real
+ * building on the seeded campus is 180 units, a 168-unit track. At 7px bold a
+ * sentence is unreadable anyway: this is a scan surface, and 7 characters
+ * occupies the same optical slot as the `0% FILLED` it replaces.
+ *
+ * The words live in the DOM chrome instead — see
+ * {@link ROOM_UTILIZATION_UNKNOWN_LEGEND_TEXT} — so a user who needs the
+ * sentence has it without the canvas shrinking the font below the 7px floor or
+ * the building boxes growing.
+ */
+export const BUILDING_UTILIZATION_UNKNOWN_TILE_LABEL = `USE ${ROOM_UTILIZATION_UNKNOWN_LABEL_COMPACT.toUpperCase()}`;
+
+/**
+ * The label the campus-map tile reads. The whole tile contract, in one place,
+ * so a third map cannot invent its own wording the way `CampusMap` did.
+ */
+export function buildingOccupancyTileLabel(
+	map: ReadonlyMap<number, number> | null | undefined,
+	buildingId: number,
+): string {
+	const reading = readRoomUtilization(map, buildingId);
+	return reading.kind === 'measured'
+		? `${Math.round(reading.percent)}% ${BUILDING_UTILIZATION_MEASURED_TILE_SUFFIX}`
+		: BUILDING_UTILIZATION_UNKNOWN_TILE_LABEL;
+}
+
+/** True only when a measurement exists. Never use this to infer a zero. */
+export function isBuildingOccupancyKnown(
+	map: ReadonlyMap<number, number> | null | undefined,
+	buildingId: number,
+): boolean {
+	return readRoomUtilization(map, buildingId).kind === 'measured';
+}
+
+/** Bar GEOMETRY only — 0 when unknown, exactly as `roomUtilizationBarPercent`.
+ *  Never render this as a figure; pair it with
+ *  {@link buildingOccupancyTileLabel}. */
+export function buildingOccupancyBarPercent(
+	map: ReadonlyMap<number, number> | null | undefined,
+	buildingId: number,
+): number {
+	const reading = readRoomUtilization(map, buildingId);
+	return reading.kind === 'measured' ? reading.percent : 0;
+}
+
+/**
+ * A3 c4 — what the two figures MEAN, in words, for the DOM chrome.
+ *
+ * `n/a` is honest but unlabelled, and it contradicted the tile's `0%` for the
+ * same building. `ROOM_UTILIZATION_TEXT_BOX` is 36x14 stage units and frozen —
+ * a two-word label would wrap out of its own box into the program badge — so the
+ * words are placed where there is room for them: the toolbar, which is DOM and
+ * not a canvas. Both surfaces read these two constants, so the legend and the
+ * card cannot drift apart, and neither prints a number.
+ */
+export const ROOM_UTILIZATION_LEGEND_TEXT = 'Use = share of periods in use';
+
+export const ROOM_UTILIZATION_UNKNOWN_LEGEND_TEXT =
+	`"${ROOM_UTILIZATION_UNKNOWN_LABEL_COMPACT}" = use not available yet`;
 
 /**
  * Read one room's utilisation without collapsing the unknown case into a zero.
