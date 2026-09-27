@@ -25,6 +25,11 @@
  *      `/faculty/concerns`, the page the operator was already on. With
  *      `['policy']` it resolved to `/timetable`, byte-identical to "Review &
  *      regenerate" — the same destination under two labels on one screen.
+ *      A3-C6R1: the ACTION links are de-duplicated by destination, and the
+ *      changed-domain CHIPS keep navigating to each domain's canonical home.
+ *      De-duplicating the action must never cost a route, so the distinct-
+ *      destination rule is scoped to the action set, and two preservation rows
+ *      pin that every named domain still reaches its home.
  *
  * Run: `npm run test:a3-c6-concerns`
  */
@@ -125,6 +130,30 @@ function hrefs(host: HTMLElement): string[] {
 
 function linkTexts(host: HTMLElement): string[] {
 	return anchors(host).map((a) => (a.textContent ?? '').replace(/\s+/g, ' ').trim());
+}
+
+/**
+ * A3-C6R1 — the card has two kinds of link, and the C4 rules differ by kind.
+ *
+ * The ACTION links (`Open Class Schedule`, `Open owning setup`) are the errands
+ * the card asks the operator to perform, so no two of them may name the same
+ * destination and none may be a self-link. The CHIPS are the information layer:
+ * each names a changed domain and links to that domain's canonical home, which
+ * may legitimately be a destination an action also reaches (`policy` is home at
+ * `/timetable`). So "distinct destination" is a property of the ACTION set, and
+ * "every named domain is reachable" is a property of the chips.
+ */
+function actionAnchors(host: HTMLElement): HTMLAnchorElement[] {
+	return anchors(host).filter((a) => a.getAttribute('data-testid') === 'concern-drift-link');
+}
+
+function actionHrefs(host: HTMLElement): string[] {
+	return actionAnchors(host).map((a) => a.getAttribute('href') ?? '');
+}
+
+/** The changed-domain chips: every anchor that is not an action link. */
+function chipAnchors(host: HTMLElement): HTMLAnchorElement[] {
+	return anchors(host).filter((a) => a.getAttribute('data-testid') !== 'concern-drift-link');
 }
 
 function inputState(over: Partial<GenerationInputComparison>): GenerationInputComparison {
@@ -308,64 +337,115 @@ test('C3: the plain-label map covers all three statuses and keeps the badge tone
 
 /* ═════════════════════ C4 — no self-link, no duplicate destination ═════════════════════ */
 
-test('C4: availability drift renders no link back to this page', async () => {
+test('C4: availability drift renders no ACTION link back to this page', async () => {
 	const host = await renderAndUnmount(
 		createElement(RunAvailabilityDriftCard, { inputState: inputState({ changedDomains: ['availability'] }), facultyName: 'Dela Cruz, Juan' }),
 	);
+	// Scoped to the ACTION set: the availability chip itself links to
+	// `/faculty/concerns`, which is this domain's canonical home, and that
+	// navigation is a preserved affordance rather than an errand.
 	assert.ok(
-		!hrefs(host).includes('/faculty/concerns'),
-		`self-link to the current page: ${JSON.stringify(hrefs(host))}`,
+		!actionHrefs(host).includes('/faculty/concerns'),
+		`self-link action to the current page: ${JSON.stringify(actionHrefs(host))}`,
 	);
 	assert.doesNotMatch(host.innerHTML, /Open owning setup/i, 'a self-link is still labelled "Open owning setup"');
 });
 
-test('C4: policy drift does not offer the same destination under two labels', async () => {
+test('C4: policy drift does not offer the same destination under two ACTION labels', async () => {
 	const host = await renderAndUnmount(
 		createElement(RunAvailabilityDriftCard, { inputState: inputState({ changedDomains: ['policy'] }), facultyName: 'Dela Cruz, Juan' }),
 	);
-	const toTimetable = anchors(host).filter((a) => a.getAttribute('href') === '/timetable');
-	assert.equal(toTimetable.length, 1, `expected exactly one /timetable link, got ${toTimetable.length}: ${JSON.stringify(linkTexts(host))}`);
+	const toTimetable = actionAnchors(host).filter((a) => a.getAttribute('href') === '/timetable');
+	assert.equal(
+		toTimetable.length,
+		1,
+		`expected exactly one /timetable ACTION, got ${toTimetable.length}: ${JSON.stringify(linkTexts(host))}`,
+	);
+	// Removing the duplicate action must not remove the route: `/timetable` is
+	// policy's canonical home, so it stays reachable from the card.
+	assert.ok(
+		hrefs(host).includes('/timetable'),
+		`/timetable became unreachable for policy drift: ${JSON.stringify(hrefs(host))}`,
+	);
 });
 
-test('C4: every rendered link has a distinct destination across the drift matrix', async () => {
+test('C4: every rendered ACTION link has a distinct destination across the drift matrix', async () => {
 	const matrix = [['availability'], ['policy'], ['rooms'], ['rooms', 'subjects'], ['teachingLoad', 'rooms'], []] as const;
 	for (const domains of matrix) {
 		const host = await renderAndUnmount(
 			createElement(RunAvailabilityDriftCard, { inputState: inputState({ changedDomains: [...domains] }), facultyName: 'Dela Cruz, Juan' }),
 		);
-		const list = hrefs(host);
-		assert.equal(new Set(list).size, list.length, `duplicate destination for ${JSON.stringify(domains)}: ${JSON.stringify(list)}`);
-		assert.ok(!list.includes('/faculty/concerns'), `self-link for ${JSON.stringify(domains)}`);
+		const list = actionHrefs(host);
+		assert.equal(new Set(list).size, list.length, `duplicate ACTION destination for ${JSON.stringify(domains)}: ${JSON.stringify(list)}`);
+		assert.ok(!list.includes('/faculty/concerns'), `self-link ACTION for ${JSON.stringify(domains)}`);
 		assert.ok(!list.includes('/schedules'), `dead /schedules link for ${JSON.stringify(domains)}`);
 	}
 });
 
-test('C4: the link resolver drops the self-link and the duplicate, and keeps a real second destination', () => {
+test('C4: the link resolver drops the self-link and both duplicates, and keeps the unmapped fallback', () => {
 	const availability = resolveConcernDriftView(inputState({ changedDomains: ['availability'] }));
-	const availabilityLinks = resolveConcernDriftLinks(availability);
-	assert.deepEqual(availabilityLinks.map((l) => l.href), ['/timetable']);
+	assert.deepEqual(resolveConcernDriftLinks(availability).map((l) => l.href), ['/timetable']);
 
 	const policy = resolveConcernDriftView(inputState({ changedDomains: ['policy'] }));
 	assert.deepEqual(resolveConcernDriftLinks(policy).map((l) => l.href), ['/timetable']);
 
+	// `rooms` is a mapped domain, so the Rooms chip already carries `/map` and
+	// the owning-setup action would only restate it.
 	const rooms = resolveConcernDriftView(inputState({ changedDomains: ['rooms'] }));
-	assert.deepEqual(resolveConcernDriftLinks(rooms).map((l) => l.href), ['/timetable', '/map']);
+	assert.deepEqual(resolveConcernDriftLinks(rooms).map((l) => l.href), ['/timetable']);
+
+	// The unmapped-fallback case is where the owning-setup link must SURVIVE:
+	// an unmapped domain renders no chip, so `/admin/year-setup` is the only
+	// route to the umbrella repair.
+	const unmapped = resolveConcernDriftView(
+		inputState({ changedDomains: ['mysteryDomain'] as unknown as GenerationInputComparison['changedDomains'] }),
+	);
+	assert.deepEqual(resolveConcernDriftLinks(unmapped).map((l) => l.href), ['/timetable', '/admin/year-setup']);
 });
 
-/* ═══════════════ Domain chips stay informative, navigation is not duplicated ═══════════════ */
+/* ══════════ Domain chips name a changed domain AND link to its home ══════════ */
 
-test('domain chips keep naming the changed domains without re-adding a self-link', async () => {
+test('domain chips are links to each changed domain canonical home, and keep naming it', async () => {
+	const changed = ['availability', 'rooms', 'teachingLoad'] as const;
 	const host = await renderAndUnmount(
-		createElement(RunAvailabilityDriftCard, { inputState: inputState({ changedDomains: ['availability', 'rooms'] }), facultyName: 'Dela Cruz, Juan' }),
+		createElement(RunAvailabilityDriftCard, { inputState: inputState({ changedDomains: [...changed] }), facultyName: 'Dela Cruz, Juan' }),
 	);
-	// The information is preserved...
+	// The canonical hrefs/labels come from the shared drift mapping, so this
+	// row cannot drift from `DOMAIN_META` and does not restate it.
+	const expected = resolveConcernDriftView(inputState({ changedDomains: [...changed] })).drift.domains;
+	assert.equal(expected.length, changed.length, 'the shared mapping dropped a changed domain');
+
+	const chips = chipAnchors(host);
+	assert.equal(chips.length, changed.length, `expected ${changed.length} chip links, got ${chips.length}`);
+	for (const domain of expected) {
+		const chip = chips.find((a) => a.getAttribute('href') === domain.href);
+		assert.ok(chip, `no chip link to ${domain.href} for changed domain ${domain.domain}`);
+		const label = (chip!.textContent ?? '').replace(/\s+/g, ' ').trim();
+		assert.equal(label, domain.label, `the ${domain.href} chip does not name ${domain.domain}`);
+	}
+});
+
+/**
+ * A3-C6R1 preservation — the affordance an over-broad de-duplication deletes.
+ *
+ * A previous correction removed the chips' navigation to remove duplicate
+ * destinations. That silently made `/map` unreachable from this card while the
+ * card still rendered the label "Rooms": a card naming a domain it cannot route
+ * to is the same false-errand class this lane exists to remove. This row pins
+ * the affordance so it cannot be deleted again silently.
+ */
+test('preservation: for two mapped changed domains BOTH canonical homes stay reachable', async () => {
+	const host = await renderAndUnmount(
+		createElement(RunAvailabilityDriftCard, { inputState: inputState({ changedDomains: ['teachingLoad', 'rooms'] }), facultyName: 'Dela Cruz, Juan' }),
+	);
+	const list = hrefs(host);
+	for (const href of ['/teaching-load', '/map']) {
+		assert.ok(list.includes(href), `${href} is unreachable from the card: ${JSON.stringify(list)}`);
+	}
+	// The card still names both domains, so both must be routeable.
 	const text = (host.textContent ?? '').replace(/\s+/g, ' ');
-	assert.match(text, /Teacher availability/i);
+	assert.match(text, /Teaching Load/i);
 	assert.match(text, /Rooms/i);
-	// ...without the chips becoming a second route to a destination the action
-	// links already carry.
-	assert.equal(new Set(hrefs(host)).size, hrefs(host).length);
-	assert.ok(!hrefs(host).includes('/faculty/concerns'));
 });
 
 /* ══════════════════════ the page's own sentence grammar ══════════════════════ */

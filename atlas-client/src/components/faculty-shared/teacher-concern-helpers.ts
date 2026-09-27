@@ -99,18 +99,23 @@ export function concernDriftStatusLabel(status: 'FRESH' | 'STALE' | 'UNKNOWN'): 
 export type ConcernDriftLink = { href: string; label: string };
 
 /**
- * A3-C6/C4 — the action links for this card, de-duplicated by destination.
+ * A3-C6/C4 — the ACTION links for this card, de-duplicated by destination.
  *
- * Two defects came from rendering the raw trio:
+ * Three defects came from rendering the raw trio:
  *   - `availability` is this page's OWN canonical repair home, so "Open owning
  *     setup" resolved to the page the operator was already reading.
  *   - `policy` also resolves to `/timetable`, byte-identical to the regenerate
  *     destination, so one destination appeared under two labels.
+ *   - Every mapped changed domain is ALSO a chip on this card, and that chip
+ *     links to the same canonical home. `primaryHref` is `domains[0].href` by
+ *     construction (see `timetableDriftRouting`), so the owning-setup action
+ *     always restated a domain chip.
  *
- * Both are suppressed here rather than in the component, so the rule is one
- * testable function. The domain CHIPS keep naming every changed domain — they
- * are labels, and navigation belongs to this list, so no destination is ever
- * offered twice.
+ * All three are suppressed here rather than in the component, so the rule is one
+ * testable function. What is suppressed is the duplicate ACTION, never the
+ * navigation: each changed domain still reaches its canonical home through its
+ * own chip, and the owning-setup link survives in the unmapped-fallback case,
+ * where `/admin/year-setup` is the ONLY route to the umbrella repair.
  *
  * There is no separate "Published revisions" href. The revision surface was
  * proven reachable from the Class Schedule (`/timetable`) — App.tsx mounts
@@ -125,7 +130,9 @@ export function resolveConcernDriftLinks(view: ConcernDriftView, currentHref: st
 	const owningHref = view.drift.primaryHref;
 	const isSelfLink = owningHref === currentHref;
 	const duplicatesClassSchedule = owningHref === view.regenerateHref;
-	if (!isSelfLink && !duplicatesClassSchedule) {
+	// The domain chips already offer every changed domain's canonical home.
+	const duplicatesDomainChip = view.drift.domains.some((domain) => domain.href === owningHref);
+	if (!isSelfLink && !duplicatesClassSchedule && !duplicatesDomainChip) {
 		links.push({ href: owningHref, label: 'Open owning setup' });
 	}
 	return links;

@@ -39,10 +39,11 @@ function statusVariant(status: 'FRESH' | 'STALE' | 'UNKNOWN'): 'success' | 'warn
  *   C3  The badge showed the raw enum. The tone is unchanged; the words are
  *       now plain.
  *   C4  "Open owning setup" could be a self-link (`availability`) or a second
- *       copy of the Class Schedule link (`policy`). `resolveConcernDriftLinks`
- *       de-duplicates by destination. The changed-domain chips are kept, as
- *       LABELS: they name every changed domain, and because they no longer
- *       navigate, no destination on this card is offered twice.
+ *       copy of a destination already on this card — the Class Schedule link
+ *       (`policy`) or a changed domain's own chip. `resolveConcernDriftLinks`
+ *       de-duplicates the ACTION links by destination. The changed-domain chips
+ *       keep navigating: each names a changed domain AND links to that domain's
+ *       canonical home, so a card never names a domain it cannot route to.
  */
 export default function RunAvailabilityDriftCard({ inputState, facultyName }: RunAvailabilityDriftCardProps) {
 	const view = resolveConcernDriftView(inputState);
@@ -81,9 +82,9 @@ export default function RunAvailabilityDriftCard({ inputState, facultyName }: Ru
 				{drift.domains.length > 0 && (
 					<div className='flex flex-wrap gap-1.5'>
 						{drift.domains.map((domain) => (
-							<Badge key={domain.domain} variant='outline'>
-								{domain.label}
-							</Badge>
+							<Link key={domain.domain} to={domain.href}>
+								<Badge variant='outline'>{domain.label}</Badge>
+							</Link>
 						))}
 					</div>
 				)}
