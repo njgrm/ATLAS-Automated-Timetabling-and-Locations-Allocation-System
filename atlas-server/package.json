@@ -50,6 +50,7 @@
     "test:export-center": "tsx --test src/__tests__/export-learner-count.test.ts src/__tests__/schedule-workbook-docx.test.ts src/__tests__/scheduler-print-xlsx-c01.test.ts",
     "test:timetable-sync-setup": "tsx src/__tests__/timetable-sync-setup.test.ts",
     "test:timetable-swap-custody-a2": "tsx src/__tests__/timetable-swap-custody-a2.test.ts",
+    "test:timetable-swap-notification-message-a2": "tsx --test src/__tests__/timetable-swap-notification-message-a2.test.ts",
     "test:derived-setup-readiness": "tsx src/__tests__/uxc01-derived-setup-readiness.test.ts",
     "test:uxc01r-derived-demand-route": "tsx src/__tests__/uxc01r-derived-demand-route.test.ts",
     "test:readiness-stall": "tsx --test src/__tests__/readiness-stall-c01.test.ts",

@@ -708,6 +708,84 @@ test('D3-FAILCLOSED: an edit type with no correct restore strategy refuses and w
 });
 
 // ────────────────────────────────────────────────────────────────────────────
+// A2-TIMETABLE-CUSTODY (#61 correction) — the message the SERVICE publishes
+//
+// Added here, after D3 and before the zero-residue proof, for two reasons:
+//   * this file already owns the mounted fixture that can drive the REAL
+//     `swapManualEntries`, so the assertion can be made on the message the
+//     service actually emits rather than on a builder in isolation. A control
+//     that only exercised the builder would have PASSED while the service still
+//     interpolated the raw ids — which is exactly the gap the correction found.
+//   * running it after D3 keeps D3's narrative (revert the swap D2 committed)
+//     intact. It is purely additive: no existing row is removed or weakened.
+// ────────────────────────────────────────────────────────────────────────────
+
+test('M: the published swap message names the change and carries no entry id', { skip: RUNNABLE ? false : 'DATABASE_URL is not configured' }, async () => {
+	const { onTimetableEvent } = await import('../services/timetable-events.service.js');
+	const published: any[] = [];
+	const stop = onTimetableEvent((event: any) => published.push(event));
+
+	// A run D3 has already reverted, so this swap starts from the seeded state.
+	// The auto-fix strategy is used because a plain DIRECT swap is correctly
+	// REFUSED on this fixture (its blocker occupies Monday 07:30), and because it
+	// also exercises the relocation clause of the message.
+	const runId = fixture.legalRun;
+	const previewed = (await previewSwap(runId)).autoFixBlockingTarget;
+	assert.ok(previewed, 'a previewed auto-fix target exists for this commit');
+	const version = await runVersion(runId);
+	try {
+		await service.swapManualEntries(
+			runId, fixture.schoolId, fixture.schoolYearId, 1,
+			'A-G7-MAPEH-MON0730', 'B-G7-ESP-WED0815', version,
+			'AUTO_FIX_MOVE_BLOCKING', previewed,
+		);
+	} finally {
+		stop();
+	}
+
+	const swapEvent = published.find((event) => event.type === 'TIMETABLE_EDIT_COMMITTED');
+	assert.ok(swapEvent, 'the service really published a TIMETABLE_EDIT_COMMITTED event');
+
+	// The whole point: the PUBLISHED message is id-free, not merely the builder's.
+	// Two shapes are checked because ATLAS mints entry ids two ways in tests and
+	// fixtures: `entry-<n>::t<term>` in production, and the readable
+	// `A-G7-MAPEH-MON0730` this fixture uses. A narrow pattern alone would let one
+	// shape through — which is exactly what happened on the first attempt at this
+	// row, where the production-shaped pattern missed and the literal check caught
+	// the defect.
+	const PRODUCTION_ID_SHAPE = /entry-\d+|::t\d|\bentryId[AB]\b/i;
+	assert.ok(
+		!PRODUCTION_ID_SHAPE.test(swapEvent.message),
+		`the PUBLISHED message carries a production-shaped entry id: ${JSON.stringify(swapEvent.message)}`,
+	);
+	assert.ok(
+		!/A-G7-MAPEH-MON0730|B-G7-ESP-WED0815/.test(swapEvent.message),
+		`the PUBLISHED message carries a concrete entry id: ${JSON.stringify(swapEvent.message)}`,
+	);
+	// And nothing that merely LOOKS like an id fragment leaked in either.
+	assert.ok(
+		!/-G7-(MAPEH|ESP)-/.test(swapEvent.message),
+		`the PUBLISHED message leaks an id fragment: ${JSON.stringify(swapEvent.message)}`,
+	);
+	assert.match(
+		swapEvent.message,
+		/MAPEH/,
+		'and it names the class in words, so the operator gets something actionable',
+	);
+	assert.match(
+		swapEvent.message,
+		/committed/i,
+		'and it still says what happened',
+	);
+
+	// The metadata KEEPS the ids on purpose: the accepted client fix resolves its
+	// labels from them, and the inbox routes on runId. Stripping them there would
+	// break that, so this row pins the separation rather than the removal.
+	assert.equal(swapEvent.metadata.entryIdA, 'A-G7-MAPEH-MON0730', 'metadata keeps entryIdA for the client');
+	assert.equal(swapEvent.metadata.entryIdB, 'B-G7-ESP-WED0815', 'metadata keeps entryIdB for the client');
+});
+
+// ────────────────────────────────────────────────────────────────────────────
 // Zero-residue proof
 // ────────────────────────────────────────────────────────────────────────────
 

@@ -103,6 +103,17 @@ import { usePublishedTimetableReturnState } from '@/hooks/usePublishedTimetableR
 import { getPreferredAccessToken } from '@/lib/auth';
 import { decodeJwtPayload } from '@/lib/jwt-payload';
 import { SWAP_ARMED_FROM_SELECTION_MESSAGE, SWAP_ARMED_MESSAGE } from '@/components/timetable/timetableSwapArming';
+import {
+	describeConcurrentCommit,
+	evaluateArmedSwapSelection,
+	isOwnTimetableCommit,
+	readConflictingEntryIds,
+	subscribeConcurrentCommitEvents,
+	type ArmedSwapSelection,
+	type ConcurrentCommitNotice,
+	type SwapAnchor,
+} from '@/lib/timetable-concurrent-commit';
+
 import type { PublishedEntryChangeRequest } from '@/lib/published-entry-change';
 
 function escapeCssAttributeValue(value: string): string {
@@ -181,6 +192,17 @@ export function useScheduleReviewWorkspaceState() {
 	const [swapClassTimesMode, setSwapClassTimesMode] = useState<'select-first' | 'select-second' | null>(null);
 	const [swapClassAEntryId, setSwapClassAEntryId] = useState<string | null>(null);
 	const [swapClassBEntryId, setSwapClassBEntryId] = useState<string | null>(null);
+	// A2-TIMETABLE-CUSTODY (#61) — where Class A sat at the moment it was armed.
+	// Captured in ONE place (the effect below) so whichever arm site set the id —
+	// the grid click or the selected-class affordance — the guard has an anchor to
+	// compare against. A ref, so a re-render can never silently re-anchor it onto
+	// the class's NEW position and thereby defeat the comparison.
+	const swapAnchorRef = useRef<SwapAnchor>(null);
+	// The named concurrent-commit notice. State, not a toast, so it survives a
+	// re-render and stays dismissible.
+	const [concurrentCommitNotice, setConcurrentCommitNotice] = useState<ConcurrentCommitNotice | null>(null);
+	const dismissConcurrentCommit = useCallback(() => setConcurrentCommitNotice(null), []);
+
 	const [followUps, setFollowUps] = useState<Set<string>>(new Set());
 	const [entityFilter, setEntityFilter] = useState<string>('');
 	const [viewMode, setViewMode] = useState<ViewMode>('section');
@@ -209,7 +231,14 @@ export function useScheduleReviewWorkspaceState() {
 	const [requestReviewSaving, setRequestReviewSaving] = useState(false);
 	const [requestReviewerNotes, setRequestReviewerNotes] = useState('');
 	const [newDraftLoading, setNewDraftLoading] = useState(false);
-	const userRole = decodeJwtPayload(getPreferredAccessToken() ?? '')?.role ?? null;
+	// One decode, two claims.
+	const sessionClaims = decodeJwtPayload(getPreferredAccessToken() ?? '');
+	const userRole = sessionClaims?.role ?? null;
+	// A2-TIMETABLE-CUSTODY (#61) — the operator's own `userId` claim. This is the
+	// same claim the server stamps onto the commit event as `actorId`
+	// (`manual-edit.router.ts:247` takes `req.user?.userId`), so comparing the two
+	// is an exact identity test in one id space — not a heuristic.
+	const actorUserId = sessionClaims?.userId ?? null;
 	const isPrivilegedUser = userRole != null && ['admin', 'officer', 'SYSTEM_ADMIN'].includes(userRole);
 	const isDesktop = useIsDesktop();
 
@@ -604,6 +633,95 @@ export function useScheduleReviewWorkspaceState() {
 		gradeWindows,
 	});
 
+	/**
+	 * The re-read, held in a ref so the concurrent-commit subscription does not
+	 * have to re-subscribe every time the data layer hands back a new closure.
+	 */
+	const handleRefreshRef = useRef(handleRefresh);
+	handleRefreshRef.current = handleRefresh;
+
+	/**
+	 * A2-TIMETABLE-CUSTODY (#61) — anchor the armed Class A, in one place.
+	 *
+	 * The anchor is recorded only when a NEW class is armed. If the grid later
+	 * re-reads and the same class sits somewhere else, the effect sees the same
+	 * `entryId` and leaves the ORIGINAL anchor alone — so the guard below has a
+	 * true "where it was when you picked it" to compare against, and a refresh
+	 * cannot quietly re-anchor onto the new position.
+	 */
+	useEffect(() => {
+		if (swapClassTimesMode !== 'select-second' || !swapClassAEntryId) {
+			swapAnchorRef.current = null;
+			return;
+		}
+		if (swapAnchorRef.current?.entryId === swapClassAEntryId) return;
+		const entry = (gridEntries ?? []).find((candidate) => candidate.entryId === swapClassAEntryId);
+		swapAnchorRef.current = entry
+			? { entryId: entry.entryId, day: entry.day, startTime: entry.startTime, endTime: entry.endTime }
+			: null;
+	}, [swapClassTimesMode, swapClassAEntryId, gridEntries]);
+
+	/** The live armed selection, read fresh — never a captured copy. */
+	const readArmedSelection = useCallback((): ArmedSwapSelection => ({
+		mode: swapClassTimesMode,
+		entryIdA: swapClassAEntryId,
+		entryIdB: swapClassBEntryId,
+	}), [swapClassTimesMode, swapClassAEntryId, swapClassBEntryId]);
+
+	/** Names a class the way the grid names it, for the concurrent-commit copy. */
+	const resolveEntryLabel = useCallback((entryId: string): string | null => {
+		const entry = (gridEntries ?? []).find((candidate) => candidate.entryId === entryId);
+		if (!entry) return null;
+		const subject = subjectLabel ? subjectLabel(entry.subjectId) : '';
+		const section = sectionLabel ? sectionLabel(entry.sectionId) : '';
+		const label = [subject, section].filter(Boolean).join(' · ');
+		return label.length > 0 ? label : null;
+	}, [gridEntries, subjectLabel, sectionLabel]);
+
+	/** Apply a verdict to real state. Cancel releases the banner; keep is a no-op. */
+	const applyArmedVerdict = useCallback((verdict: ReturnType<typeof evaluateArmedSwapSelection>) => {
+		if (verdict.disposition !== 'cancel') return;
+		setSwapClassTimesMode(verdict.armed.mode);
+		setSwapClassAEntryId(verdict.armed.entryIdA);
+		setSwapClassBEntryId(verdict.armed.entryIdB);
+		swapAnchorRef.current = null;
+		setInlineActionStatus({ tone: 'warning', message: verdict.messages[0] });
+	}, []);
+
+	/**
+	 * A concurrent commit from another scheduler: name what changed, release a
+	 * stale armed swap, and re-read the run so the grid stops being a lie.
+	 *
+	 * The re-read is what closes defect #2 (the grid changed underneath the
+	 * operator with no acknowledgement). The notice deliberately does NOT claim
+	 * the grid is already current — the read is in flight when it is written.
+	 */
+	useEffect(() => subscribeConcurrentCommitEvents((event) => {
+		if (isOwnTimetableCommit(event, actorUserId)) return;
+		const notice = describeConcurrentCommit(event, {
+			entries: gridEntries ?? [],
+			subjectLabel: (id) => (subjectLabel ? subjectLabel(id) : ''),
+			sectionLabel: (id) => (sectionLabel ? sectionLabel(id) : ''),
+			formatTime,
+			actorId: actorUserId,
+		});
+		const verdict = evaluateArmedSwapSelection(readArmedSelection(), {
+			entries: gridEntries ?? [],
+			anchor: swapAnchorRef.current,
+			movedEntryIds: readConflictingEntryIds(event),
+			actorId: actorUserId,
+			classLabel: resolveEntryLabel,
+		});
+		if (!notice) return;
+		applyArmedVerdict(verdict);
+		setConcurrentCommitNotice(
+			verdict.messages.length > 0
+				? { ...notice, notes: [...notice.notes, ...verdict.messages] }
+				: notice,
+		);
+		void handleRefreshRef.current?.();
+	}), [actorUserId, gridEntries, subjectLabel, sectionLabel, readArmedSelection, applyArmedVerdict, resolveEntryLabel]);
+
 	// A1 — the verified ordered-term authority is one canonical predicate; the
 	// policy/grade-window reads and the term filter both consume it.
 	const activeTermContext = schoolYearContext?.activeTerm ?? null;
@@ -982,6 +1100,27 @@ export function useScheduleReviewWorkspaceState() {
 				return;
 			}
 			if (swapClassTimesMode === 'select-second') {
+				// A2-TIMETABLE-CUSTODY (#61) — the USE-time re-check. The
+				// concurrent-commit listener may never have fired (a change can
+				// land through a refresh alone), and a re-render or a stale
+				// closure must not be able to open a swap on a class that has
+				// moved. This reads the LIVE grid and the arming anchor at click
+				// time, so the answer is recomputed per click rather than
+				// remembered from when the swap was armed.
+				const staleCheck = evaluateArmedSwapSelection(
+					{ mode: swapClassTimesMode, entryIdA: swapClassAEntryId, entryIdB: swapClassBEntryId },
+					{
+						entries: gridEntries ?? [],
+						anchor: swapAnchorRef.current,
+						movedEntryIds: [],
+						actorId: actorUserId,
+						classLabel: resolveEntryLabel,
+					},
+				);
+				if (staleCheck.disposition === 'cancel') {
+					applyArmedVerdict(staleCheck);
+					return;
+				}
 				const classA = (gridEntries ?? []).find((candidate: ScheduledEntry) => candidate.entryId === swapClassAEntryId);
 				if (!classA || classA.entryId === entry.entryId) {
 					setInlineActionStatus({ tone: 'warning', message: SWAP_CLASS_B_SAME });
@@ -998,7 +1137,7 @@ export function useScheduleReviewWorkspaceState() {
 		}
 		// Ordinary browsing: a second occupied class opens details, never an implicit swap.
 		handleEntrySelect(entry);
-	}, [captureReviewFocusReturn, centerView, handleEntrySelect, openRegularSwapPrompt, selectedEntry, setSelectedEntry, setSelectedViolation, swapClassTimesMode, swapClassAEntryId, gridEntries, setSwapClassTimesMode, setSwapClassAEntryId, setSwapClassBEntryId, setInlineActionStatus]);
+	}, [captureReviewFocusReturn, centerView, handleEntrySelect, openRegularSwapPrompt, selectedEntry, setSelectedEntry, setSelectedViolation, swapClassTimesMode, swapClassAEntryId, swapClassBEntryId, gridEntries, setSwapClassTimesMode, setSwapClassAEntryId, setSwapClassBEntryId, setInlineActionStatus, applyArmedVerdict, actorUserId, resolveEntryLabel]);
 
 	const handleCollaborativeTimetableEvent = useCallback(() => {
 		toast.info('Timetable updated by another scheduler. Refreshing data...', { id: 'collab-edit-alert' });
@@ -2103,6 +2242,9 @@ export function useScheduleReviewWorkspaceState() {
 		pivotTransitionLoading,
 		inlineActionStatus,
 		setInlineActionStatus,
+		// A2-TIMETABLE-CUSTODY (#61) — the named concurrent-commit notice.
+		concurrentCommitNotice,
+		dismissConcurrentCommit,
 		sensors,
 		handleGlobalDragStart,
 		handleGlobalDragMove,
