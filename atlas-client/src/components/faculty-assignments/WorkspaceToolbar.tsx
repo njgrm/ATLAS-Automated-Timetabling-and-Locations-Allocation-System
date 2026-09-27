@@ -7,6 +7,7 @@ import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuIte
 import { Tabs, TabsList, TabsTrigger } from '@/ui/tabs';
 import { cn } from '@/lib/utils';
 import { SmartHelpTrigger } from '@/components/smart/SmartPageShell';
+import { CompactTitleStrip } from '@/components/app-shell/CompactTitleStrip';
 import type { CoverageMode } from '@/types';
 
 type WorkspaceToolbarProps = {
@@ -159,30 +160,27 @@ export function WorkspaceToolbar({
 	}, [overCapCount, excessTeachingCount, policyReady, syntheticPlaceholderPairs, onShowExcessTeachingLoad, onShowTemporarySubstitutes]);
 
 	return (
-		<div className="rounded-xl border border-border/40 bg-background px-2 py-1 shadow-sm" data-testid="teaching-load-command-header">
-			{/* Row 1: Title + status + primary action + More. Wraps on narrow screens. */}
-			<div className="flex min-w-0 flex-wrap items-center gap-1.5" data-testid="teaching-load-compact-command-header">
-				<div className="flex min-w-0 shrink-0 items-center gap-2">
-					<h1 className="text-sm font-bold tracking-tight text-foreground sm:text-base">Teaching Load</h1>
-					<Tooltip>
-						<TooltipTrigger asChild>
-							<Badge
-								variant="outline"
-								data-source-state={dataSource}
-								className="h-6 cursor-help rounded-full border-slate-200 bg-slate-50 px-2 text-xs font-semibold text-slate-700 shadow-none"
-							>
-								<span className={cn('mr-1.5 size-2 rounded-full', statusConfig.color)} />
-								{statusConfig.label}
-							</Badge>
-						</TooltipTrigger>
-						<TooltipContent side="bottom" className="max-w-72 p-3 text-xs font-medium leading-relaxed">
-							<p className="font-semibold text-foreground">{workspaceStateDescription}</p>
-							<p className="mt-1 text-muted-foreground">{workspaceStateNextAction}</p>
-						</TooltipContent>
-					</Tooltip>
-				</div>
-
-				<div className="ml-auto flex shrink-0 items-center gap-2">
+		<CompactTitleStrip
+			stripTestId="teaching-load-command-header"
+			rowTestId="teaching-load-compact-command-header"
+			/* A3-TITLE-STRIP-C3: the h1 keeps Teaching Load's own text-sm /
+				sm:text-base scale. Strip A's text-lg / lg:text-xl is not applied
+				here — that trade needs a rendered screen this stream cannot run. */
+			title={<h1 className="text-sm font-bold tracking-tight text-foreground sm:text-base">Teaching Load</h1>}
+			statusDescription={workspaceStateDescription}
+			statusNextAction={workspaceStateNextAction}
+			status={
+				<Badge
+					variant="outline"
+					data-source-state={dataSource}
+					className="h-6 cursor-help rounded-full border-slate-200 bg-slate-50 px-2 text-xs font-semibold text-slate-700 shadow-none"
+				>
+					<span className={cn('mr-1.5 size-2 rounded-full', statusConfig.color)} />
+					{statusConfig.label}
+				</Badge>
+			}
+			actions={
+				<>
 					<SmartHelpTrigger
 						title="How to use Teaching Load"
 						description="Use this page to build and review which teacher owns each subject-section load before timetable generation."
@@ -252,9 +250,9 @@ export function WorkspaceToolbar({
 						</TooltipTrigger>
 						<TooltipContent side="bottom" className="text-xs font-bold">More teaching-load tools</TooltipContent>
 					</Tooltip>
-				</div>
-			</div>
-
+				</>
+			}
+		>
 			{/* Row 2: Tabs — always visible, never hidden in an overflow strip. */}
 			<div className="mt-1.5 flex min-w-0 items-center gap-1.5 border-t border-border/40 pt-1.5" data-testid="teaching-load-tab-row">
 				<Tabs value={viewMode} onValueChange={(v) => onViewModeChange(v as 'teacher' | 'allocation')} className="h-8">
@@ -321,6 +319,6 @@ export function WorkspaceToolbar({
 			<p className="sr-only" aria-live="polite" data-testid="teaching-load-source-truth-summary">
 				{statusConfig.label}. {statusConfig.description}
 			</p>
-		</div>
+		</CompactTitleStrip>
 	);
 }
