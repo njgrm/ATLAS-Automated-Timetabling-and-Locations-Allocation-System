@@ -872,6 +872,68 @@ the FACT 2 coverage gap, and no control pins the bottom bar's new `setViewMode('
 independently reviewed, corrected once, integrated, and pushed. No deployment, migration, generation,
 publication, live-data write, or companion-repo action was taken at any point.
 
+### 2026-09-27 addendum 8 — deploy STAGED and fully verified; cutover BLOCKED on elevation
+
+Operator approved proceeding three times. The delta was enumerated first (§13: never describe a
+range from the candidates you reviewed), and it is **not** the two-file client fix an operator would
+infer: **19 commits, 22 files** — 7 A3 client paths, **2 lane-A2 server paths**, 14 docs.
+
+**The A2 server delta is test-only in behaviour but not in build output.** `atlas-server/tsconfig.json`
+is `include: ["src"]`, so `4157f599`'s `timetable-swap-revert-enumeration-a2.test.ts` (30,178 B
+source) **compiles into `dist`**. Verified it cannot reach the running product: `server.ts` has no
+`__tests__` import, and the file is a disposable-PostgreSQL harness driving the real exported
+service functions. So **zero server behaviour change** — but the delta is not literally client-only
+and the operator was told so before approving.
+
+**HARD BLOCKER: this shell is not elevated.** `IsInRole(Administrator) = False`; the supervisor runs
+as **SYSTEM** (§6: a non-elevated shell cannot kill it, and a machine-scope env write needs
+elevation). The cutover therefore **cannot be executed from this session**, and attempting it would
+produce exactly the half-applied state the previous handover refused to create. Everything below
+that does *not* require elevation was completed.
+
+**Staged release, built and verified:**
+- Dir `E:\ATLAS-worktrees\lane-a3-release-c4a9960e`, detached at `c4a9960e0fccaab4a324c97e42eb56cfa10c1fa4`, clean.
+- `npm install` **both** trees into the release itself (server 254 pkgs, client 278 pkgs) — **no
+  junction chaining** (§ release hygiene: chaining has taken the runtime down before).
+- `prisma generate --schema ../prisma/schema.prisma` from `atlas-server` → generated into **this**
+  release's `node_modules/.prisma/client` (365,077 B), per the repo-root-schema path trap.
+- Server build exit 0, **1,005** dist files. Client build exit 0, **204** dist files, `built in 35.59s`,
+  with `VITE_ENROLLPRO_URL` set for that one invocation only and then removed (not persisted, not
+  machine scope).
+
+**Discriminator — run BEFORE the cutover, as §11 requires, and it discriminates:**
+
+| Marker | Old (live) | New (staged) |
+|---|---|---|
+| `BuildingView` chunk `lineHeight` | **`lineHeight:13`** hardcoded against `fontSize:11` → 143px pitch | **`T=13/11`** (`1.1818181818181819`); `143` **absent** |
+| dead banner binding | **present** in `TeachingLoad-CN1rcdXS.js` | **absent** |
+| `TeachingLoad` chunk SHA-256 | 188,730 B | 188,871 B — **differ** |
+| `BuildingView` chunk SHA-256 | 11,160 B | 11,190 B — **differ** |
+| A2 server test in `dist/__tests__/` | **absent** | **present** (31,760 B) |
+
+**Two correction-of-record on my own packet, both caught by testing rather than assumed:**
+1. I first nominated the literal `openTeacherReview` as the positive marker. It is **ABSENT** from
+   the new build — the bundler mangles the exported identifier. That marker was wrong and would have
+   failed; the shipped form is `onOpenReview:`/`setViewMode(` *property* accesses, which survive.
+2. **`dist/server.js` is byte-identical between old and new** — measured, not assumed. It is a
+   **3,070 B stub**, precisely the artifact `AGENTS.md` §11 names as a vacuous deploy proof. This
+   deployment would have reported "no difference" from it while genuinely changing the client.
+
+**Live runtime provably untouched by all of it:** 5001 **200**, PIDs **43192/43744** unchanged,
+`releaseSha` still `c5a9e832`. `docs/plans/live-state.md` deliberately **not** touched — §6 requires
+it updated *in the same action as the cutover*, and there has been no cutover.
+
+**Rollback basis (unchanged, verified clean, 154 packages, HEAD `c5a9e832`):**
+`E:\ATLAS-worktrees\lane-a2-release-c5a9e832`. Note `supervisor-state.json` has **`previous: null`**,
+so there is **no** automatic rollback target — rollback is an explicit re-point, not `cli.mjs rollback`.
+
+**Remaining, dated 2026-09-27 — B4 and B5 are BLOCKED, unchanged:** both need a *deployed* build.
+The three remaining cutover steps (kill the SYSTEM supervisor tree, machine-scope
+`ATLAS_RUNTIME_SOURCE_DIR` + `ATLAS_RUNTIME_RELEASE_SHA`, re-point the scheduled task action) all
+require an **elevated** shell this session does not have. The next session must either run them
+elevated or hand them to the operator. **B5 remains never-performed.** No deployment, migration,
+generation, publication, or live-data action has been taken.
+
 Three streams, three worktrees, one writer each, all under `E:/ATLAS-worktrees/lane-a3-*` from base `3cfe79a8`. Consolidated pairs preserved: 13+18, 14+16, 17+23, 25+26, 33A+33B.
 
 **S1 - Sections and room map** (`work/a3-sections-map`): fixes 03, 06, 07, 10, 11, 12; 08 held.
