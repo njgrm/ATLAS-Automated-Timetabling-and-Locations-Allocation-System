@@ -811,6 +811,19 @@ export function computeSummary(entries: ScheduledEntry[], unassigned: unknown[],
 		unassignedCount,
 		policyBlockedCount: 0,
 		hardViolationCount,
+		// A2-WARNING-COUNT-62 (D1): the run-wide SOFT count, from the SAME
+		// recomputation that already produces `hardViolationCount` and
+		// `violationCounts` directly above. Omitting it was not a neutral choice.
+		// `RunSummary.softViolationCount` is the FIRST field the client's only
+		// count authority reads
+		// (`atlas-client/src/components/timetable/timetableWorkspaceTruth.ts:98`,
+		// consumed at `:115`), and when it is absent that authority silently
+		// substitutes the SELECTED-TERM violation list (`:105`, filtered at
+		// `atlas-client/src/hooks/useTimetableData.ts:681-692`). The operator's
+		// figure therefore stopped being a function of the schedule and became a
+		// function of the term selector, which is why a net-neutral swap + revert
+		// could move it while the entry slots were restored byte for byte.
+		softViolationCount: validation.violations.filter((v) => v.severity === 'SOFT').length,
 		violationCounts: validation.counts.byCode as Record<string, number>,
 	};
 }
