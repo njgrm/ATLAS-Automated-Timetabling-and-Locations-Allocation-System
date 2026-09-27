@@ -303,6 +303,44 @@ const SUBJECT_MUTATION_COPY: Readonly<Record<string, SubjectMutationCopyPair>> =
 		description: 'The deletion check for this subject did not finish, so the subject was not deleted.',
 		nextAction: 'Run the deletion check again, then confirm the deletion.',
 	},
+	// subject.router.ts:182 — 409 "A subject with this code already exists for
+	// this school." A3-C6-F1.
+	//
+	// MAPPED BECAUSE THE CAUSE IS PROVABLE, not because a sentence was wanted.
+	// Re-derived for this lane rather than inherited from the c5 handoff:
+	//
+	//  - `POST /subjects` catches Prisma `P2002` and answers 409 DUPLICATE
+	//    (subject.router.ts:181-184).
+	//  - `createSubject` (subject.service.ts:1413-1635) performs exactly ONE
+	//    Prisma write, `prisma.subject.create` at :1594, so a P2002 raised on
+	//    this route can only be that write.
+	//  - `model Subject` carries exactly one unique constraint,
+	//    `@@unique([schoolId, code], map: "uq_subjects_school_code")`, and the
+	//    router passes the ACTOR's school as `schoolId`. So the conflict is
+	//    provably (this school, this code) and nothing else.
+	//
+	// Two consequences the copy depends on, both of which c5's shared fallback
+	// could not assert across its heterogeneous class:
+	//
+	//  - it repeats on EVERY attempt that reuses the code, so a bare "try
+	//    again" would send the operator round a deterministic failure — the
+	//    exact defect c5 removed from the fallback;
+	//  - the errand is therefore to enter a different code, and there is a
+	//    real control for it: `SubjectFormModal` renders the code input with
+	//    its own validation (SubjectFormModal.tsx:205 "Subject code is
+	//    required."), and `Subjects.tsx:419` returns `{ status: 'failed' }`,
+	//    which keeps the dialog open on the same form.
+	//
+	// What the copy deliberately does NOT claim: that nothing was written.
+	// That is true today (the 409 precedes any write, and the failing
+	// `subject.create` is atomic), but DUPLICATE is a code-keyed resolver entry
+	// and a future PATCH-side P2002 would change that reading, so the
+	// sentences assert only the conflict and the one errand, which hold for
+	// every route that can emit this code.
+	DUPLICATE: {
+		description: 'Another subject in this school already uses this subject code.',
+		nextAction: 'Enter a different subject code, then save the subject again.',
+	},
 };
 
 /**
@@ -318,20 +356,30 @@ const SUBJECT_MUTATION_COPY: Readonly<Record<string, SubjectMutationCopyPair>> =
  *
  * What is actually true here, re-verified against the server before writing:
  * this class is HETEROGENEOUS, and that is the whole point. It currently
- * catches real, unrelated failures — `DUPLICATE` (subject.router.ts:182, 409
- * "A subject with this code already exists for this school"), `MISSING_FIELDS`
- * (:137), `CROSS_SCHOOL_YEAR_DENIED` (:405/:442/:478),
- * `SYSTEM_TOKEN_NOT_CONFIGURED` and `INVALID_SYSTEM_TOKEN`
- * (middleware/authenticate.ts:149/:157), plus no-response network failures, plus
- * any code ATLAS has not yet emitted. "Check the school connection" is wrong
- * for a duplicate code and for a school-year mismatch; "try again" is wrong for
- * a 409 that will deterministically conflict again; and ATLAS has no escalation
- * route, so naming one is a second fabrication — the identical defect just
- * removed from the three mapped codes.
+ * catches real, unrelated failures — `MISSING_FIELDS` (:137),
+ * `CROSS_SCHOOL_YEAR_DENIED` (:405/:442/:478), `DELETE_PREVIEW_REQUIRED`
+ * (:239), `SYSTEM_TOKEN_NOT_CONFIGURED` and `INVALID_SYSTEM_TOKEN`
+ * (middleware/authenticate.ts:149/:157), plus no-response network failures,
+ * plus any code ATLAS has not yet emitted. "Check the school connection" is
+ * wrong for a school-year mismatch and for a 409 that will reject the same
+ * request again; "try again" is wrong for all of them; and ATLAS has no
+ * escalation route, so naming one is a second fabrication — the identical
+ * defect just removed from the three mapped codes.
  *
  * So the honest sentence asserts only what holds for ALL of them: ATLAS could
  * not complete the change, and could not say why, so there is no specific
  * action. No remedy is invented, and no support path is named.
+ *
+ * A3-C6-F1 — `DUPLICATE` WAS IN THIS LIST AND IS NO LONGER. The sentence above
+ * previously named `DUPLICATE` (subject.router.ts:182) as one of the causes
+ * this branch catches, and that claim is now SUPERSEDED rather than deleted:
+ * `DUPLICATE` is mapped in `SUBJECT_MUTATION_COPY` above, because its cause is
+ * provable from the schema (a single unique constraint, `@@unique([schoolId,
+ * code])`). The class is still heterogeneous — the remaining members still do
+ * not share one operator meaning, which is exactly why this fallback keeps
+ * asserting nothing beyond "the change did not complete and no action follows".
+ * A3-C6-DUPLICATE-COPY test `A3-C6-1d` pins which codes are in the class, so
+ * the next lane cannot quietly widen or narrow it by editing this comment.
  */
 const SUBJECT_MUTATION_FALLBACK: SubjectMutationCopyPair = {
 	description: 'ATLAS could not complete that subject change.',

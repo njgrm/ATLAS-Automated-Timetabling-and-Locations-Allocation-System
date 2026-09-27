@@ -535,7 +535,61 @@ test('A3-C5-4g: corrected next actions are followable and name no phantom errand
 		assert.equal(copy.nextAction, expected, `${code}: corrected next action drifted`);
 		assert.ok(copy.nextAction.length > 20, `${code}: next action must not be empty`);
 	}
-	for (const probe of [{ code: 'DUPLICATE' }, { code: 'MISSING_FIELDS' }, {}]) {
+	// A3-C6 SUPERSESSION (AGENTS.md §16 — the record is kept, not deleted).
+	//
+	// The probe list used to be `[{ code: 'DUPLICATE' }, { code: 'MISSING_FIELDS' },
+	// {}]`, i.e. it asserted that `DUPLICATE` resolves to the generic fallback.
+	// That assertion is now SUPERSEDED and is replaced IN PLACE by the two
+	// assertions immediately below — the replacement is not subtractive, and
+	// `MISSING_FIELDS` and the no-code probe are still held at the same
+	// strength.
+	//
+	// WHY IT IS SUPERSEDED, and why superseding it is a correction rather than
+	// evidence-weakening: the `DUPLICATE` claim rested on "this class is
+	// heterogeneous, so no single member may be given a specific answer". That
+	// premise does not hold for `DUPLICATE` and A3-C6 proved it from the schema
+	// rather than by opinion — `model Subject` has exactly ONE unique
+	// constraint, `@@unique([schoolId, code])`, `createSubject` performs
+	// exactly one Prisma write, and the router passes the actor's school as
+	// `schoolId`. The cause is therefore provably (this school, this code) and
+	// nothing else, so the vague sentence was withholding a cause ATLAS can
+	// state. The class is still heterogeneous — `MISSING_FIELDS`,
+	// `CROSS_SCHOOL_YEAR_DENIED`, the system-token failures and no-response
+	// failures remain, and the fallback's two sentences still assert only what
+	// holds for all of them.
+	//
+	// REPLACEMENT ASSERTION 1 — `DUPLICATE` must now resolve to specific copy,
+	// not to the fallback. This is the exact inverse of the superseded claim,
+	// so a regression back to the fallback is caught here.
+	const duplicate = resolveSubjectMutationErrorCopy({
+		code: 'DUPLICATE',
+		message: 'A subject with this code already exists for this school.',
+	});
+	assert.equal(
+		duplicate.description,
+		'Another subject in this school already uses this subject code.',
+		'A3-C6: DUPLICATE must no longer resolve to the generic fallback description',
+	);
+	assert.equal(
+		duplicate.nextAction,
+		'Enter a different subject code, then save the subject again.',
+		'A3-C6: DUPLICATE must no longer resolve to the generic fallback next action',
+	);
+	assert.notEqual(duplicate.description, FALLBACK_DESCRIPTION, 'A3-C6: DUPLICATE is back on the fallback');
+	assert.notEqual(duplicate.nextAction, FALLBACK_NEXT_ACTION, 'A3-C6: DUPLICATE is back on the fallback action');
+	// REPLACEMENT ASSERTION 2 — the new copy is held to the SAME bar as the
+	// fallback it replaced, so mapping a code is not a licence to fabricate.
+	assert.deepEqual(
+		unfalsifiableErrandsIn(duplicate.nextAction),
+		[],
+		'A3-C6: the DUPLICATE next action names an errand ATLAS cannot support',
+	);
+	assert.ok(!/\bfrom the list\b/.test(duplicate.nextAction), 'A3-C6: the DUPLICATE next action names a phantom list');
+	assert.ok(!/\btry again\b/i.test(duplicate.nextAction), 'A3-C6: the DUPLICATE next action sends the operator in a circle');
+	// The full unrecognised-class control, with `DUPLICATE` removed as
+	// SUPERSEDED (see above). `MISSING_FIELDS` and the no-code probe are the
+	// surviving members and are still pinned exactly.
+	for (const probe of [{ code: 'MISSING_FIELDS' }, {}]) {
 		const copy = resolveSubjectMutationErrorCopy({ ...probe, message: 'server text' });
 		assert.equal(copy.nextAction, FALLBACK_NEXT_ACTION, `fallback (${probe.code ?? 'no code'}) drifted`);
 		assert.equal(copy.description, FALLBACK_DESCRIPTION);
