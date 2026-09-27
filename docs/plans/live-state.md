@@ -2531,8 +2531,51 @@ artefact, not residue.
 at capture, up from 5 earlier, because a concurrent lane is actively editing the draft. A stored count is stale by
 the time anyone resumes; the window, not the number, is the authority.
 
+**Fresh-session re-verification (2026-09-27, Planner A2, against `origin/main` `1b68dbf4`) — two facts the note
+above did not carry, both re-derived rather than recalled:**
+
+1. **A third gate exists, and it is mine, not elevation's.** `ops/runtime/deploy-runner.ps1`
+   `Assert-LiveReleaseRecorded` fails closed unless the **`## Live release` section** names the target's 8-char
+   prefix. That section (lines 148-853) names `c4a9960e` and `c5a9e832` but **not `9b28c572`**, so a `9b28c572`
+   cutover is refused at the record gate **even from an elevated shell**. The prefix must be recorded, committed
+   and pushed first. Elevation alone does not unblock this.
+2. **There is NO release conflict with A3.** `git merge-base --is-ancestor c4a9960e 9b28c572` exits **0** — A3's
+   staged `c4a9960e` is an **ancestor** of `9b28c572`, so the two targets are linear, not divergent, and
+   `9b28c572` already contains A3's 6 client fixes. `9b28c572` **supersedes** `c4a9960e` as the cutover target;
+   A3's `1b68dbf4` record is stale for the target, not in conflict with it. **Caveat:** the gate tests prefix
+   *presence*, not *exclusivity*, so once both prefixes are present an executor can still cut over to the
+   superseded `c4a9960e` and ship without the six A2 candidates. State which target leads in words — the gate
+   will not enforce it.
+
 Then, while waiting on elevation, the small unblocked follow-ups: **#63** (two Undo controls sharing one accessible
 name) and the **`strategy` wire-validation** allowlist.
+
+**Both follow-ups are now COMMITTED as candidate `af1451a3` (2026-09-27), awaiting independent QA — no longer
+uncommitted work.** Branch `work/a2-timetable-custody`, base `4f4e2064`, 9 paths, +844/-98, worktree clean and
+reachable from the shared repo. `af1451a3` is a **descendant** of `9b28c572`, so it is **not** in that staged
+release and needs its own review and its own release; do not assume the `9b28c572` cutover ships it.
+
+Assessment of the previously-uncommitted tree (the handoff's two named checks, both now resolved):
+
+- **The suspected subtractive-assertion violation is NOT one — cleared empirically, not by argument.** The 3 lines
+  removed from `timetable-relaxed-main-b02.test.tsx` fed `editHistoryCount` / `revertLoading` /
+  `onRevertLastEdit` into a `renderAdvancedHelp` helper; `TimetableAdvancedHeaderHelpProps` no longer declares
+  them, so leaving them would not compile. The owning assertion **"B1: the rendered preview offers exactly one
+  Confirm, no dialog, and keeps Undo reachable"** is **untouched by the diff** and still passes; the file is
+  **26/26**. No assertion was deleted, so AGENTS.md S16 does not bite.
+- **One real blocking defect WAS found, by reading rather than trusting the comment, and is fixed.** The new `S5`
+  drift row could not pass: its pattern required a literal `new Set<string>(` while the declaration is
+  `new Set<manualEditService.SwapStrategy>(`, so the optional group never matched, `allowlist` silently parsed as
+  `[]`, and the row failed for a reason unrelated to drift. Corrected to `new Set(?:<[^>]*>)?\(`; now **1/1**. The
+  correction **strengthens** rather than narrows the row: adding a member to the route allowlist, dropping one,
+  and adding one to the union each still fail it, while re-typings of the constant (`new Set(`,
+  `new Set<string>`) still parse and still compare members — so a future re-typing cannot silently disarm it.
+- `strategy` is destructured on **exactly one** route, so the allowlist sits at the only wire boundary that
+  accepts it; there is no unvalidated second entry point. `RELOCATING_SWAP_STRATEGIES` is a positive 2-member
+  allowlist typed `ReadonlySet<string>` with `DIRECT_SWAP` deliberately absent, so an unrecognised value claims
+  **nothing** — the honest answer — even if it somehow reached the message.
+- New client suite `timetable-undo-single-surface-a2` is reachable from **both** `test:a2-undo-single-surface-a2`
+  and the `test:client-suite` aggregate (AGENTS.md S11) and passes **6/6**. No Lane A3-owned path is touched.
 ## Lane A3 - current lane (written only by Planner A3)
 
 ### Live release `d11304e8` is DEPLOYED; browser acceptance is INCOMPLETE and BLOCKED
