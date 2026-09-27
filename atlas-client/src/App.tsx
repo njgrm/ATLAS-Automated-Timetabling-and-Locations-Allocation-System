@@ -1,12 +1,14 @@
-import { createBrowserRouter, Navigate, RouterProvider, useLocation, useSearchParams, type RouteObject } from 'react-router-dom';
+import { createBrowserRouter, Navigate, RouterProvider, useLocation, useNavigate, useSearchParams, type RouteObject } from 'react-router-dom';
 import { lazy, Suspense } from 'react';
 import { Toaster } from 'sonner';
+import { Compass, LayoutDashboard } from 'lucide-react';
 
 import { AppShell } from './components/AppShell';
 import { RouteErrorBoundary } from './components/RouteErrorBoundary';
 import { PageHeader } from './components/app-shell/PageHeader';
 import { resolveRouteChrome } from './components/app-shell/navigation';
 import { Card, CardContent } from './ui/card';
+import { Button } from './ui/button';
 
 const Login = lazy(() => import('./pages/Login'));
 const Dashboard = lazy(() => import('./pages/Dashboard'));
@@ -19,7 +21,6 @@ const Sections = lazy(() => import('./pages/Sections'));
 const OfficerPreferences = lazy(() => import('./pages/OfficerPreferences'));
 const OfficerRoomPreferences = lazy(() => import('./pages/OfficerRoomPreferences'));
 const TeacherConcerns = lazy(() => import('./pages/TeacherConcerns'));
-const ComingSoon = lazy(() => import('./pages/ComingSoon'));
 const RoomSchedules = lazy(() => import('./pages/RoomSchedules'));
 const ScheduleReview = lazy(() => import('./pages/ScheduleReview'));
 const HowItWorks = lazy(() => import('./pages/HowItWorks'));
@@ -90,6 +91,78 @@ export function RetiredFacultyPortalNotice() {
 								Teacher self-service is handled in SMART. Nothing on this page loads your dashboard,
 								schedule, teaching assignments, or room requests.
 							</p>
+						</CardContent>
+					</Card>
+				</div>
+			</div>
+		</div>
+	);
+}
+
+/**
+ * A3-C6 D1 — the AppShell catch-all was `<Navigate to="/" replace />`, so any
+ * unmatched path under `/` (a mistyped address, a retired link, a bookmark from
+ * before a rename) landed the operator on the Dashboard with no sign that
+ * anything had gone wrong. A wrong URL was indistinguishable from a right one.
+ *
+ * This surface states the truth and stops there: the address does not exist,
+ * nothing was loaded, and no other page was opened in its place. It never
+ * dispatches a request, so it cannot be mistaken for a slow or empty page.
+ *
+ * It deliberately mirrors `RetiredFacultyPortalNotice` (the same AppShell-scoped
+ * tombstone shape: `PageHeader` + a calm `Card`, chrome resolved through
+ * `resolveRouteChrome`) so the shared-chrome contract is satisfied rather than
+ * reinvented. Its `h1` is fixed at "Page not found" because the chrome resolver
+ * has no truthful title for an arbitrary bad address — `ATLAS` would be
+ * misleading as a page name.
+ *
+ * The ONE action offered is the destination that is always available. Unknown
+ * `/timetable/*` children are NOT this surface: that route keeps its own
+ * catch-all (see the `timetable` children) so a bad timetable sub-path still
+ * resolves to the timetable, as it did before.
+ */
+export function RouteNotFound() {
+	const location = useLocation();
+	const navigate = useNavigate();
+	const { breadcrumbs } = resolveRouteChrome(location.pathname);
+
+	return (
+		<div className='flex h-[calc(100svh-3.5rem)] flex-col overflow-hidden'>
+			<div className='flex-1 min-h-0 overflow-auto px-4 py-5 sm:px-6'>
+				<div className='mx-auto w-full max-w-6xl space-y-4'>
+					<PageHeader
+						title='Page not found'
+						eyebrow={breadcrumbs.length > 1 ? breadcrumbs[0] : undefined}
+						subtitle={`No ATLAS page exists at ${location.pathname}.`}
+					/>
+
+					<Card className='rounded-2xl' data-testid='route-not-found'>
+						<CardContent className='py-6'>
+							<div className='flex items-start gap-3'>
+								<div className='flex size-10 shrink-0 items-center justify-center rounded-full bg-muted'>
+									<Compass className='size-5 text-muted-foreground' aria-hidden='true' />
+								</div>
+								<div className='min-w-0 space-y-1'>
+									<p className='text-sm font-semibold leading-snug text-foreground'>
+										This address does not exist.
+									</p>
+									<p className='text-sm leading-relaxed text-muted-foreground'>
+										Nothing was loaded, and no other page was opened in its place. Check the
+										address, or return to the Dashboard and navigate from there.
+									</p>
+									<Button
+										type='button'
+										variant='outline'
+										size='sm'
+										className='mt-2 gap-2'
+										data-testid='route-not-found-dashboard-action'
+										onClick={() => navigate('/')}
+									>
+										<LayoutDashboard className='size-4' aria-hidden='true' />
+										Go to Dashboard
+									</Button>
+								</div>
+							</div>
 						</CardContent>
 					</Card>
 				</div>
@@ -264,7 +337,11 @@ export const appRoutes: RouteObject[] = [
 			path: 'admin/year-setup',
 			element: <AdminYearSetup />,
 		},
-		{ path: '*', element: <Navigate to="/" replace /> },
+		// A3-C6 D1 — the last child under `/` is the only honest answer to an
+		// unknown address. Registration, order and count are unchanged; only the
+		// element changed. `/timetable`'s own catch-all above is deliberately left
+		// alone so a bad timetable sub-path still resolves to `/timetable`.
+		{ path: '*', element: <RouteNotFound /> },
 		],
 	},
 ];
