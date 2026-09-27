@@ -1460,3 +1460,409 @@ on `origin/main` and none of them is live: live is `d31bfacb`. No deployment, mi
 publication, live-data write, browser session, or companion-repo action was taken at any point.** A3
 worked in registered worktrees, pushed only commits proven to be accepted ancestors, verified
 `d31bfacb` was not reverted, and deleted no branch.
+
+## 2026-09-28 c3 (Planner A3, session of 2026-09-28 01:24 → 03:00 +08)
+
+**This section is the current truth for c3.** Packet
+`docs/prompts/overnight-a3-ui-ux-2026-09-28-c3.md`. **A3 did not deploy; A2 owns every release. A3 ran
+no browser and touched no `.browser-lock`.**
+
+**Two streams integrated and pushed: `09b8c95e` (token sweep) and `a33e0376` (title strips).** Both
+are on `origin/main` and **neither is live** — A2's 04:30 release pinned `e642f5e8`, whose content
+already contains `09b8c95e` (`d049f85d`), so the sweep ships in that release and the title strips
+land after it.
+
+### Stream 1 — the step-2 token sweep: `09b8c95e`, QA `ACCEPT_READY` 8/8/0/0
+
+Base `39c52af7`, candidate `f86d6bf8`, merge `09b8c95e`, 9 paths, +758/−23. 15 `text-slate-400`
+text sites → `text-muted-foreground` across `BuildingGradeScopeControl`, `CampusMapOverview`,
+`CampusReadinessCard`, `Audit`, `Dashboard`. Ratchet pin 110 → 95. `atlas-server/` 0,
+`components/timetable/**` 0, `index.css` 0, `StackedWorkloadBar.tsx` 0 (its `bg-slate-400` is a
+**fill**, not text), `RoomSchedules.tsx` 0. **This closes the five `slate-400` sites c2 recorded as
+accessibility defects, including the enabled-control AA failure at `BuildingGradeScopeControl.tsx:36`.**
+
+**The decision to redo it, and the two things I got wrong while deciding.**
+
+*I wrongly assumed the c2 debris's "near-exact rename" framing transferred.* It does not. Measured:
+`slate-400` = Tailwind 4.2.2 `oklch(70.4% 0.04 256.788)` → `rgb(144,161,185)`;
+`--muted-foreground: 215 16% 47%` → `rgb(101,117,139)`; per-channel delta **43/44/46, max 46/255**.
+It is an **intentional darkening, not a rename** — 18% of the channel range. Had an executor copied
+the S-e `CHANNEL_TOLERANCE = 3` framing, its test would have been permanently red and the only way
+"forward" would have been widening a tolerance, which is the forbidden failure mode. My packet said
+2–3/255; the executor stopped and corrected me. **The test now asserts the darkening explicitly**, and
+c2's handoff wording is the thing that would have propagated the error.
+
+*I also provisioned a donor that was an empty directory.* I told the first executor
+`D:\ATLAS\atlas-client\node_modules` was a working junction. The junction existed; its **target held
+0 entries**. My own "toolchain green" was an artifact of `npx` fetching `tsx` on the fly, and the one
+suite I ran happened not to need `tailwindcss`. **The executor refused to proceed rather than commit a
+test it could not run** — which is the behaviour §16 wants and the reason this cost one round rather
+than a broken candidate. Fixed by `npm ci` in `D:\ATLAS\atlas-client` (154 entries, exit 0): a
+stable, never-retired donor. **Any lane trusting that path must populate it first.**
+
+I also mistyped the base SHA (`…bf177de…` for `…bf177ef…`); the executor hit `fatal: bad object` and
+named it. Recorded because three separate premise errors in one dispatch is the pattern worth seeing.
+
+**Honest limit, stated so nobody over-claims.** Contrast on white **2.630:1 → 4.697:1** (crosses AA
+4.5:1). On `--muted`/`--secondary` **2.390:1 → 4.268:1** — improved, **still below AA**. **The app
+does not pass WCAG AA on those two surfaces, before or after.** The disclosure is asserted in the
+test header and cannot be quietly deleted. A live row on a muted surface is owed.
+
+QA's one substantive note: the `delta >= 40 && delta <= 50` band is the one threshold a future session
+could widen without going red, bounded to the framing band rather than defect detection, because the
+load-bearing pins are exact-equality against live disk measurements and the AA assertions are
+absolute against 4.5.
+
+### Stream 2 — title-strip consolidation: `a33e0376`, after `CORRECTION_REQUIRED` 6/8/0/0
+
+Base `e642f5e8`, candidate `45a6fa2c`, planner correction `7d2231da`, merge `a33e0376`, 6 paths.
+
+**The route table's own words scoped this: "Consolidating strips A and B is the next stream."** So
+A (`AdminWorkspace`, 3 pages) and B (`WorkspaceToolbar`, `/teaching-load`) were unified onto a shared
+`CompactTitleStrip`, and **no strip was converted to the card pattern** — that was never in scope.
+Containers and status affordance unified; the `<h1>` stayed at each call site (forced by
+`a3-page-title-c1`, which counts `<h1` literally in both files).
+
+**The deliberate non-change, which is the most important sentence in this section: I did not unify the
+two title scales.** Strip A is `text-lg lg:text-xl`; strip B is `text-sm sm:text-base`. Unifying them
+is a genuine product trade — bigger text serves the older users this lane is graded for, and it also
+adds height to `/teachers` and `/teaching-load`, which carry **accepted browser rows 14 and 16**. **A3
+runs no browser and cannot measure that trade, so I escalated it instead of guessing.** Both scale
+strings are pinned verbatim in the new suite, so when a screen is available the decision lands as a
+deliberate edit to a pinned value rather than silent drift.
+
+**Height-neutrality, because that is what keeps rows 14/16 safe without a screen.** A: `py-1.5`+`border-b`
+= 13px → `py-1`+`border-b` = 9px (**−4**). B: band 13 + card 10 = 23px → strip 9 (**−14**). The
+direction was forced, not chosen: strip A's frame owns a viewport column with no padding, so a card
+treatment could only ever add height; hence full-bleed, and B's redundant page band had to go (the one
+`pages/TeachingLoad.tsx` edit). QA independently confirmed both figures and found **no element that
+could have grown**.
+
+**QA caught a false evidence claim of mine, and I am recording it so it cannot propagate.** I reported
+that `size="sm"`'s `h-10` beats every `h-7/h-8/h-9` override in both files, making those overrides
+"already inert repo-wide", and used it to reassure myself about the arithmetic. **That conclusion is
+false.** `cn()` is `twMerge(clsx(...))`, so competing heights are deduplicated *before the browser sees
+them*: strip A's chip emits `h-8`, and `h-10` is dropped at merge time. The CSS cascade never runs.
+The `.h-10`@25654 ordering in the built CSS is real but never competes. **The overrides are live.** The
+height conclusion survives, but on a different and correct basis: the row's height-driving classes are
+byte-identical before and after, so growth is impossible regardless of which heights win. Nothing
+false was committed in the range — the claim was only ever in my reports — but it is here so no later
+session repeats it.
+
+**The BLOCKING finding QA was right about, and the fix.** My executor reported a control that rejects
+a local re-declaration of the strip shell. QA applied the exact mutation it claimed would fail — a
+`flex items-center gap-1.5` wrapper around the status — and the suite stayed **12/12 green**; a
+stronger mutation, a verbatim local copy of the shared `leading` row, also passed. The ratchet guarding
+the unification did not ratchet, because the test only forbade **two verbatim class strings**. Shipped
+code was correct and in scope; the defect was the control. I applied the correction myself (test-only,
+additive — §16, nothing deleted): three controls added — no `COMPACT_TITLE_STRIP_CLASS` value may appear
+at either call site (catches any verbatim re-declaration of any shell part), a pinned per-file `<div>`
+ratchet (the only shape that catches an ad-hoc wrapper whose class nobody pinned), and the `status` prop
+must be a leaf control. **Both of QA's mutations now fail, each by the right control**, restored
+byte-exact. 15/15 (was 12/12); `a3-page-title-c1` 14/14; `a3-teachers-load` 36/36; blast-radius 43/43.
+**Bounded re-review per §11:** `45a6fa2c` is the parent, the four source files and `package.json` are
+byte-identical to it, and one preservation control passes.
+
+Disclosed residuals, all NON_BLOCKING: `/teaching-load` genuinely lost its card chrome and band padding
+(the consolidation, net −14px) on a page I could not view; strip A's new hover tooltip restates text its
+click-popover already shows; **strip B's status badge is a `div`, so its status is still mouse-only —
+the unification did not close that pre-existing a11y gap**, because fixing it changes the focus ring and
+I would not ship an unverifiable change.
+
+### Item 3 — `uxc01-derived-setup-surface.test.ts` is no longer owed, dated 2026-09-28 02:45
+
+It was 1-of-4 red on 2026-09-20. **It is now 4/4 green**, fixed by `91d327e3` / `b98d1cc3` (the
+derived-setup retirement), and reachable from three committed scripts. Closed with proof, not waived.
+
+### Item 4 — the `returnTo` row is `A2-OWED`, restated so it stops being re-litigated
+
+**`returnTo` does not exist on any ref in this repository** (c2's measurement stands: 0 in the hook,
+0 in the test A2 cited, `git log --all -S returnTo` empty, 0 in `d31bfacb`/`c0d91827`/`c35ee9f2`/
+`8325834d`). A3 will not invent a cross-lane URL contract at 02:00 with no partner awake, because any
+control rendering it would pass against a field the hook never emits. **A2 owns it: emit `returnTo` from
+`useTeachingLoadRouteIntent` and tell me, or drop the row.** A3's B4 stays unbuilt rather than falsely
+green. Not re-litigating this again.
+
+### Item 5 — NOT REACHED as a fresh stream, with the reason measured, dated 2026-09-28 02:50
+
+Not a deferral for capacity — I checked, and **the named items are not A3-owned unmet work.** R02
+(`ux-r02-simple-stripdown.test.ts`) is **4/4 green**. R03a, R03b and R03e live under
+`atlas-client/src/components/timetable/__tests__/` — **A2's timetable surfaces**, which the c1 route
+table already recorded as a scope conflict. R03c has no test file at all. **There is no A3-owned,
+source-verifiable, unmet item in the UX-R02–R05 / UX-R03c list.** The genuinely remaining A3-owned UX
+work is the **c4 HIGH truthfulness set** (walkthrough #7, #8, #53 map tiles, Building-view "n/a"), which
+is a different and higher-value packet that arrived mid-session. The double policy fetch remains A2's
+(`SchedulingPolicyPane`, `useScheduleReviewWorkspaceState`).
+
+### Live-acceptance steps owed — exact, for whoever holds a profile
+
+**Stream 1 (`09b8c95e`, the contrast change; only visible on a screen).** Origin
+`https://njgrm.buru-degree.ts.net`, 1366x768, assert `window.location.origin` on every row.
+1. `/audit` → the search icon and the "What is blocked" / "Why it matters" labels are visibly darker
+   than the previous release and no longer washed out. 2. `/dashboard` → the "Before generation" label,
+   the inactive step label, and the struck-through completed item are all readable. 3. **On a `--muted`
+   surface (e.g. the "What is blocked" tile in `/audit`) confirm the disclosure: still under AA, but
+   clearly better than 2.390:1.** 4. `/map` → "Select a building on the map to begin.", "No rooms match
+   filters." and the italic unknown-utilization value are readable. 5. `/sections` room picker's
+   `BuildingGradeScopeControl` chip is readable **and still clickable** (it is an enabled control — a
+   regression here is the real risk, not a colour miss).
+
+**Stream 2 (`a33e0376`, the title strips; expect a visible change).** 6. `/teaching-load` → the header
+is now a **full-bleed bar with a hairline bottom border, no rounded card and no drop shadow**, and it
+is **~14px shorter** than before; its tabs and readiness rows start at the wider page padding. 7. `/teachers`,
+`/sections`, `/subjects` → same full-bleed treatment, ~4px shorter. 8. **Rows 14 and 16, which this
+change was built to keep safe:** on `/teachers` and `/teaching-load` at 1366x768 confirm **no page
+scrollbar** (`scrollHeight === clientHeight`) and **more than one roster row visible**. 9. Hover the
+status control on both `/teachers` and `/teaching-load` → the same description + next action appear. 10.
+On `/teachers` click the status chip → the fuller click-popover still works. **A2 widened a roster cell
+by ~40px in this same window, so rows 14/16 are the two most likely to have moved for reasons that are
+not mine — re-measure them, do not assume.**
+
+**Title scale is deliberately still different** (`/teachers` larger than `/teaching-load`). If that
+reads as an inconsistency to a reviewer, that is the escalated decision, not an oversight.
+
+### Residual risks carried forward
+
+- **OPEN DECISION, needs one rendered screen** — unify the two title scales. Bigger text serves older
+  users; it costs height on the two pages carrying rows 14/16. Pinned, not guessed.
+- **OPEN, owed to a browser holder** — B5 is **CLOSED** (Lane C, live on `d31bfacb`, `730614bc`), which
+  ends a row owed for three consecutive cycles. `#52` and `#53` are Lane C's per the c3 change.
+- **NON_BLOCKING** — the app still does not pass WCAG AA on `--muted`/`--secondary` (4.268:1).
+- **NON_BLOCKING** — strip B's status is still mouse-only; the unification did not fix that a11y gap.
+- **NON_BLOCKING** — `index.css` is pinned by hash in the sweep's test, so a legitimate future global
+  token change reds that test by design and the constant must be recomputed in-session.
+- **FOR A2, not mine** — `typecheck` on `main` is now **5** errors, not the 4 this lane has been
+  quoting. The new one is `src/lib/__tests__/timetable-truth-labels-a2.test.ts:443` `TS2367`, from A2's
+  `f02c693c`, present on `main` **without** my merge. **0** of my 6 paths have any error. A2's baseline
+  moved and their own lane should know.
+- **FOR ANY LANE** — `D:\ATLAS\atlas-client\node_modules` was an **empty directory** until this session
+  ran `npm ci` in it. Junctioning to it before that gives a tree where `npx` appears to work and the
+  real toolchain is absent.
+
+### Verdict for c3
+
+**Two streams integrated and pushed — `09b8c95e` (QA `ACCEPT_READY` 8/8/0/0) and `a33e0376` (after one
+`CORRECTION_REQUIRED` 6/8/0/0 whose one real defect I corrected test-side, and one false evidence claim
+of mine I have recorded here rather than propagated). Item 3 closed with proof; item 4 recorded
+`A2-OWED`; item 5 shown not to be A3-owned unmet work. Combined gates on both merged trees: 12 A3
+suites green, build exit 0, `git diff --check` clean, 0 typecheck errors in any A3 path. **No deployment,
+migration, generation, publication, live-data write, browser session, runtime/task/env change, or
+companion-repo action was taken at any point.** A3 ran no browser and held no lock, worked only in
+registered worktrees, pushed only ranges proven to contain only accepted commits, and deleted no branch.**
+
+---
+
+## 2026-09-28 c4 (Planner A3, session of 2026-09-28 02:30 → 07:00 +08)
+
+**This section is the current truth for c4.** Packet `docs/prompts/overnight-a3-ui-ux-2026-09-28-c4.md`.
+**A3 did not deploy; A2 owns every release. A3 ran no browser and touched no `.browser-lock` (c3 change).**
+
+**Five streams integrated and pushed: `ed14720c`** on `main` (branch `integration/a3-c4-20260928`),
+34 changed paths, **0** under `components/timetable/**`, **0** under `atlas-server/`, `prisma/`, `docs/`,
+`index.css`. **None of it is live** — your 04:30 cutover is past `ed14720c`'s base `6b84a3a6`, so the
+whole cycle ships in the next release.
+
+| stream | base → candidate → correction | QA |
+|---|---|---|
+| MAPS | `6b84a3a6` → `b02c5663` → `7792614a` | `ACCEPT_READY` **27/27/0/0** → bounded re-review |
+| SECTIONS | `6b84a3a6` → `44f0625a` → `1394f1d2` | `CORRECTION_REQUIRED` (2 BLOCKING) → corrected |
+| TEACHING LOAD | `6b84a3a6` → `1aa31312` → `a3790627` | `CORRECTION_REQUIRED` (1 BLOCKING) → corrected |
+| COPY | `6b84a3a6` → `5218a245` | `PLANNER_DECISION_REQUIRED` (A+B accepted) |
+| SUBJECTS | `6b84a3a6` → `abfa93c6` → `86bf02ae` | `PLANNER_DECISION_REQUIRED` (3 NB corrected) |
+
+### The four HIGH truthfulness items: three fixed, one honestly NOT_REPRODUCED
+
+**#8 Sections "20/20" vs 5 rows — FIXED, and the root cause was a two-definition split, not a bad
+number.** The counter asked `!!s.homeRoomId` (an ID is present) while the rows asked
+`homeRoomOptions.find(r => r.id === section.homeRoomId)` (does it resolve). A dangling ID was counted
+assigned *and* told "Needs home room". **My decision, which QA upheld: the row's test is load-bearing
+so the counter moved to it** — a home room that resolves to no nameable room is not a usable one, and
+printing the dangling ID would show an operator a room they cannot select. One shared predicate
+(`home-room-readiness.ts`) now serves counter, banner, filter and both renderers. I also found a
+**second** fabrication the packet only hinted at: the fraction divided a client-array count by the
+**server-declared** `totalSections`. They agreed only because `section.service.ts:413` happens to set
+`totalSections: sections.length` — another service's detail, not a client invariant. Both ends now
+come from one list.
+
+**#53 map tiles "0% FILLED" — FIXED at the source, and the real cause was an optional prop.**
+`CampusMap.tsx:144` printed `${Math.round(occupancy)}% FILLED` from an **optional** `buildingOccupancy`.
+Its two callers: the Sections modal supplies it; `timetable/CenterWorkspace.tsx:608` passes nothing, so
+`occupancy` fell back to `0` and the tile asserted a confident zero for a fully-occupied wing. That is
+the exact fabrication `room-utilization-display.ts` was written in c0 to kill — **`CampusMap.tsx` was
+simply never converted to the tri-state.** Now an absent reading renders `USE N/A` and can never reach
+the green-at-zero fill; a genuine measured `0%` still reads `0%`. **A2's half remains** — supplying a
+real map — and is handed over in `lane-a-to-c.md` with the exact file. Until then `/timetable/map` reads
+`USE N/A` on every wing: honest, and visibly unfinished.
+
+I chose **`USE N/A`** over the packet's "Use: not available yet" and the reason is worth keeping: the
+binding constraint is **vertical, not horizontal**. A Konva `Text` with a `width` *wraps*, and a second
+line at `fontSize 7` inside the 12-unit group runs off the bottom of the building. Narrowest seeded
+building is 180 units → a 168-unit track; `USE N/A` is ~30 units and `0% FILLED` ~39, both one line.
+
+**Building-view "n/a" — FIXED by labelling, not by moving frozen geometry.** `ROOM_UTILIZATION_TEXT_BOX`
+is 36×14 stage units and other work depends on it, so the words went into **DOM chrome** (the existing
+toolbar row, `0px` added to all four panes). QA confirmed `CampusMapOverview.tsx` needed no edit — its
+room card already renders use from the same source — so the item is fully delivered, not half.
+
+**Walkthrough #7, draft-on-dialog-open — `NOT_REPRODUCED`, and I am not shipping a patch to a healthy
+path.** The save gate is `activeDraftCount === 0` (`TeachingLoadDraftActionBar.tsx:28`), and
+`activeDraftCount` counts the keys of a map that is a **filter over `draftAssignmentsByFaculty`**, not a
+producer: empty in ⇒ zero out, whatever else happens. Both the draft side and the saved side are
+normalised through the same `sectionMap` in the same memo pass, so a background refresh can *remove* a
+stale draft but never manufacture one. QA independently reproduced this. **The row stays open as
+`BLOCKED_NOT_REPRODUCED`, dated 2026-09-28** — if Lane C's observation was real it was a *transient*
+state left by a prior edit, and reproducing it needs the exact interaction sequence, which the
+walkthrough does not record. Recorded as evidence: the control is real (QA re-derived the probe and
+watched it discriminate), and a row I could not reproduce is not a row I fixed.
+
+### Three corrections, and what each one was really about
+
+**SECTIONS B1 was a constraint bypass, not a bug.** QA found `Sections.tsx` at 982 lines at base and
+**1063** at candidate — the stream pushed a *compliant* file past the mandatory §8 1000-line cap. Four
+coherent units came out (the device-local edit queue, the sortable header, the status banners, the
+occupancy derivation) → **950**, and `home-room-readiness.ts` 118 → 204.
+
+**SECTIONS B2 is the most important sentence in this section.** The only tripwire on a HIGH truthfulness
+fix was a source-shape ratchet, and QA **defeated it while the defect was fully back**: a 3-line
+plausible refactor recomputing `assigned` with `s.homeRoomId != null` escaped the boolean-coercion scan
+and the suite returned **17/17 green, exit 0** while the tile printed `Home rooms 3/3` beside two rows
+reading "Needs home room". That is the recorded 20/20 defect at 3-section scale. A shape ratchet is not
+acceptable evidence for a load-bearing claim. The fix moved the tile's label/value into an exported
+pure function the test calls with a controlled input; QA's exact mutation then went red (1 failed/25
+passed) and a worst-case mutation *inside* the function went red 8/17 while all three scans stayed
+green. **The scans are no longer load-bearing and are now only wiring ratchets.**
+
+**Teaching Load F1: six green-on-base controls that were green because no data existed.** QA
+instrumented the hook and saw `faculty=0 sectionMapSize=0 readOnly=true` on every render — so Save was
+disabled by *read-only mode*, not the draft gate, and A5's seeded sections never arrived. The cause was
+two fixture defects, not production: JSDOM never exposed `sessionStorage` so `getPreferredAccessToken`
+failed silently, and the `/auth/me` stub lacked the `data.user.schoolId` envelope `resolveActorSchoolId`
+reads. With both fixed the probe is `faculty=2 sectionMapSize=2 readOnly=false`, and QA's mutation now
+takes A5 red. **`useTeachingLoadData.ts` is byte-identical across the whole range — Defect A has no
+product change, as it should when the code is right.**
+
+### The one integration conflict, and the defect class behind it
+
+`test:a3-c4-copy` went red on the merged tree while every other suite was green. Cause: that suite's
+three `CROSS-LANE FOLLOWUP` controls **pinned the exact `file:line` where each raw Subjects string
+rendered** — they asserted the DEFECT was present, which is right for a locator and wrong for a gate.
+Delivering the fix in the same integration falsified all three. Worse, their `deepEqual(found, [])` was
+the **F6 defect QA had already named**: an assertion of *absence* cannot prove discrimination, because a
+scanner broken to always return `[]` passes it too. I corrected it myself (§11: a test-only correction
+is the planner's) **additively** — the three locators are kept verbatim as `test.skip` with the successor
+named, and the absence assertion is replaced by a **positive control** requiring the scan to FIND the
+strings in the successor module. Proven discriminating: forcing the scan to match nothing now fails with
+"a scan that matches nothing is a broken scan, not a clean one". 18 tests, **15 pass, 0 fail, 3 skipped**.
+
+### What I decided, with no operator asleep
+
+- **Top-10 #5 was mis-fenced, not out of scope.** The COPY stream treated `components/subjects/**` as
+  outside its fence and delivered 0 of 4. A3's own ownership boundary names "Subjects UI" explicitly,
+  so the self-imposed fence was wrong. I opened a successor; it delivered 3 of 4 and the fourth is
+  honestly owed (below).
+- **"Under" for below-standard** — one plain word; the existing help text already supplies the standard.
+  Two pinned literals remain (`faculty-assignment-helpers.ts`, `teaching-load-reconciliation-helpers.ts:43`)
+  because committed tests deep-compare them; control `B6` fails loudly if either moves.
+- **The Dashboard scroll fix is structural, and the pixel row stays owed.** Root cause was a hard-coded
+  `h-[calc(100svh-3.5rem)]` on the page root, which over-grows its `overflow-hidden` parent when the
+  shell mounts the rollover notice — clipping content rather than scrolling. `h-full` fixes it. Every
+  new assertion is labelled `STRUCTURAL ONLY`; jsdom has no layout engine and the Fix 24 /
+  `test:visual:faculty` precedent is cited in the header. **A browser holder must measure it.**
+- **The typecheck baseline I measured myself.** The bounded re-review hit its step limit with that
+  mandatory row unevidenced, so I materialised `6b84a3a6` into a temp tree and ran it: **5 errors in 4
+  A2 files** (3× `TS2307 playwright`, 1 cascading `TS7006`, 1× `TS2367`). All five candidate tips
+  measure **5 errors, 0 in their own paths.** Three executors had disagreed on the baseline because one
+  counted files and two counted errors.
+
+### Ledger, terminal state as of 2026-09-28 07:00
+
+Unchanged: `QA_PASSED` 01–07, 09–26, 29–33B. `BLOCKED_PRODUCT_DECISION`: **08** (deselect vs unassign;
+A3's read remains **B** — it changes what a button means to an existing user, so it is the operator's).
+`BLOCKED_SOURCE_GAP`: **27, 28, 34**. New: **c4 item 7 → `BLOCKED_NOT_REPRODUCED`** (dated above).
+`useSubjectStats.tsx:14-16` → **`SUCCESSOR_OWED`**, dated 2026-09-28, not started, one-line predicate
+plus a two-line control, needs its own lane because it changes a measured number.
+c3's OPEN DECISION on the two title scales is **unchanged and still needs one rendered screen**.
+
+### Live-acceptance steps owed — for whoever holds a profile
+
+**Stream MAPS (`7792614a`).** Origin `https://njgrm.buru-degree.ts.net`, assert
+`window.location.origin`, 1366×768. 1. More › Tools › "Campus map": every wing reads **`USE N/A`**, not
+`0% FILLED`; a genuinely empty wing still reads `0%`. 2. Select a building: rooms show a **"Use"** row
+beside **Capacity**, and the same building cannot read `0%` on the tile and something else on the card.
+3. The toolbar legend reads "Use = share of periods in use" and `"n/a" = use not available yet`, and is
+**visible without hovering** (the full sentence is also in a Tooltip). 4. Hover a room card and confirm
+the full detail layer still shows `Not available` rather than a number.
+
+**Stream SECTIONS (`1394f1d2`).** 5. `/sections` with a real roster: the home-rooms tile and the rows
+**agree** — count the rows reading "Needs home room" and confirm the tile's "Need rooms" value matches;
+with none outstanding it reads `N/N` and the banner agrees. 6. Each row has a visible **room-map**
+control at 32px beside the kebab; **confirm the row height did not change** (A2 widened a roster cell by
+~40px in this window, so rows 14/16 must be re-measured, not assumed). 7. In read-only mode, open the
+map and select a room: the map **stays open** and the Tooltip says edits are paused — no silent no-op.
+8. Confirm the status banners render unchanged after the four extractions.
+
+**Stream COPY (`5218a245`).** 9. `/` — the hero h1, the sidebar entry and the breadcrumb leaf all read
+**"Dashboard"**; the PageHeader card is still absent (that exemption is load-bearing and still asserted).
+10. **At 1366×768, on the Dashboard: `document.documentElement.scrollHeight <= clientHeight` AND
+`document.body.scrollHeight <= window.innerHeight`. Record both numbers, not a boolean.** 11. Confirm
+`[data-testid="dashboard-scroll-region"]` has `role="region"`, `aria-label="Dashboard content"`,
+`tabindex="0"`, and that `ArrowDown` scrolls it. 12. Scroll to the bottom: the **Campus map** card and
+all **10 Setup readiness** items are reachable, not clipped. **13. Repeat 10 with the rollover notice
+visible** — that is the state the old fixed height actually broke.
+
+**Stream SUBJECTS (`86bf02ae`).** 14. `/subjects`: the ownership row reads **"Owned by Araling Panlipunan
+department"** and hovering the info icon shows the raw `OWNER_DEPT:AP`. 15. The term-authority error
+reads **"ATLAS could not confirm the saved school year and terms, so it is not using them."** with
+**"Refresh the term data from EnrollPro, then try again before scheduling into a term."**, and the raw
+sentence survives under a **Technical detail** popover. 16. The subject-code chip is no longer shouting
+`font-bold uppercase`; hovering gives the plain-English explanation. 17. **Walkthrough 3.1 (filters
+visible) still passes.**
+
+**The two runtime-supplied strings — a deployment-acceptance clause, not a source row.** `Could not
+reach the enrolment system` and `Rechecking last year's schedule data` were re-proved by two
+independent scans to exist in **no** client or server source file. No source-level row can decide them.
+18. Reproduce the enrolment failure (stop EnrollPro or cut its route) and record the **exact literal**
+plus the element and surface it sits in. 19. Do the same for the "Rechecking" label; note whether it
+polls. 20. **Attribute each string: ATLAS source, the ATLAS API envelope, or EnrollPro's own response
+proxied through ATLAS.** That attribution decides where the fix belongs — client here, API envelope, or
+an EnrollPro developer handoff (§4, `READ_ONLY`). Report verbatim; do not paraphrase.
+
+### Residual risks carried forward
+
+- **OWED to a browser holder, dated 2026-09-28** — the 1366×768 Dashboard row (12/13 above), the five
+  `1e417694` c0 steps, and both walkthrough walks. A3 ran no browser and cannot measure any of them.
+- **NON_BLOCKING** — the app still does not pass WCAG AA on `--muted`/`--secondary` (4.268:1), unchanged
+  by c4.
+- **NON_BLOCKING** — the SECTIONS wiring ratchet's *stated* purpose is still slightly overstated: QA
+  defeated a third variant with a **`.reduce`-spelled** page-side override of `buildHomeRoomsStat`
+  (the `.filter` spelling is caught). `buildHomeRoomsStat` itself is a genuine behavioural control and
+  the shipped code contains no such override; the ratchet is a wiring guard, not a behaviour guard, and
+  I am recording that rather than claiming otherwise.
+- **NON_BLOCKING** — `pages/Sections.tsx` is still never mounted in a test (supervised fetch, year
+  context, cache, Rollover card). It **is** live — `App.tsx:196-198` routes `/sections` to it — so the
+  gap is "never mounted *in a test*", not "dead code". A successor could extract a presentational
+  container the test can mount.
+- **NON_BLOCKING** — pre-existing §8 violations in files c4 edited but did not introduce:
+  `CampusMap.tsx:53,59,65` (3 raw `<button>`) and `Sections.tsx:829` (a `title=`).
+- **NON_BLOCKING** — `Dashboard.tsx` is 966/1000; the next lane editing it hits the §8 cap and must extract.
+- **NON_BLOCKING** — the two pinned "Below standard" literals need their owning lanes to re-baseline
+  two committed tests; `B6` fails loudly if either moves.
+- **FOR ANY LANE** — `D:\ATLAS\atlas-client\node_modules` is populated and is the junction donor for
+  every A3 worktree this cycle; all five measured 152 entries and a real local `tsx` run.
+
+### Verdict for c4
+
+**Five streams integrated and pushed at `ed14720c`; three HIGH truthfulness items fixed and one honestly
+`NOT_REPRODUCED`; top-10 #1, #2 (structurally), #3, #4, #5 (3 of 4) and #10 delivered; #52 handed to A2
+with the exact file.** Three `CORRECTION_REQUIRED` verdicts were worked and re-reviewed, and the
+`PLANNER_DECISION_REQUIRED` pair were decided rather than deferred. Combined gates on the merged tree:
+26/11/13/18/19/20/20/14/19/15/36/5/7/6, **0 fail**, 3 superseded locators skipped; **typecheck 5 errors,
+0 in any A3 path**, measured against a base I materialised myself; build exit 0; `git diff --check` clean;
+**0 forbidden paths across all 34**. **No deployment, migration, generation, publication, live-data
+write, browser session, runtime/task/env change, or companion-repo action was taken at any point.** A3
+ran no browser and held no lock, worked only in registered worktrees, pushed a range proven to contain
+only accepted commits, and deleted no branch.
+
+**Worktrees (all mine, retired this cycle, junction-safe):** `lane-a3-c4-sections`, `lane-a3-c4-maps`,
+`lane-a3-c4-tl`, `lane-a3-c4-copy`, `lane-a3-c4-subjects`, `lane-a3-c4-integ`. All branches preserved;
+**no branch deleted**.

@@ -61,9 +61,15 @@
  *   Sections/Subjects/      -> AdminWorkspaceFrame and WorkspaceToolbar each own
  *   Faculty/TeachingLoad       one h1 inside a compact strip.
  *
- * Because `/` is exempt, its rendered h1 ("Scheduling Dashboard") deliberately
- * does NOT equal its breadcrumb leaf ("Dashboard"). That is the exemption, not a
- * gap, and the exemption test says so out loud.
+ * A3-C4 (walkthrough 1.4) REVERSED one sentence of the paragraph above, and only
+ * that sentence. `/` is exempt from the `PageHeader` CARD and still keeps its
+ * hero `<h1>`, because that exemption was granted for vertical space and
+ * placement. But A3-C1 also recorded here that the rendered h1 "deliberately
+ * does NOT equal its breadcrumb leaf", and THAT was the defect: the hero read
+ * "Scheduling Dashboard" while the sidebar and breadcrumb read "Dashboard", so
+ * one page had two names. The hero is now aligned to the chrome and `/` obeys
+ * leaf-agreement like every other route; the exemption test asserts the
+ * equality instead of tolerating the disagreement, and says so out loud.
  *
  * F1 (this correction): the test that used to be named "the previously ad-hoc
  * titles now equal their breadcrumb leaf" compared hardcoded literals against
@@ -362,10 +368,46 @@ test('"/" is EXEMPT from the PageHeader card: one h1, it is the hero h1, and no 
 	// check, so the exemption cannot be undone silently.
 	const html = renderStatic('/', Dashboard);
 	assert.equal(h1Count(html), 1, `"/" must render exactly one h1, saw ${h1Count(html)}`);
-	// The hero's own title. It is deliberately NOT the breadcrumb leaf: the hero is
-	// a branded surface that already had a real page-level heading before this
-	// stream, so it keeps it.
-	assert.equal(h1Text(html), 'Scheduling Dashboard', 'the single h1 on "/" must be the hero h1');
+	// A3-C4 (walkthrough 1.4), DELIBERATE PINNED-VALUE EDIT.
+	//
+	// This literal was 'Scheduling Dashboard'. It is now 'Dashboard' because the
+	// hero was ALIGNED TO THE SIDEBAR/BREADCRUMB name, so the page has one name:
+	// the sidebar entry (navigation.ts) and the breadcrumb leaf
+	// (resolveRouteChrome('/')) both read 'Dashboard', and Lane C's graded demo
+	// walkthrough recorded two names for one page as a navigation problem for
+	// older, mouse-first users (step 1.4).
+	//
+	// What this edit does NOT do, deliberately (AGENTS.md §16 — corrections are
+	// additive; never delete or weaken an assertion to get green):
+	//   - it does not relax the assertion. It is still an exact equality, so a
+	//     rename of the hero in EITHER direction still goes red.
+	//   - it does not touch the exemption. The `/` exemption is from the
+	//     `PageHeader` CARD, and its stated reason was vertical space (~66px of
+	//     card + a 24px gap at the very top of a scrolling region) and the h1's
+	//     placement inside the branded hero — never the name. Every load-bearing
+	//     part of that exemption (h1 count, no `<PageHeader` element, no
+	//     PageHeader import, h1 position below the gradient wrapper, the hero
+	//     subtitle pin) is unchanged and still asserted below.
+	//   - it does not drop a test. This file still runs 14 tests.
+	//   - it does not remove coverage. The assertion it reverses — that the h1
+	//     "deliberately does NOT equal its breadcrumb leaf" — was the DEFECT
+	//     being fixed, not a design decision, and it is now replaced by a
+	//     STRONGER control: the leaf-agreement assertion directly below, which
+	//     makes the rendered h1 equal resolveRouteChrome('/').title. A3-C1
+	//     previously exempted `/` from leaf-agreement; it no longer needs to.
+	assert.equal(h1Text(html), 'Dashboard', 'the single h1 on "/" must be the hero h1, and must now equal its breadcrumb leaf');
+	// Leaf-agreement for `/`, rendered. This is the positive control the old
+	// exemption lacked: the hero and the chrome can no longer drift apart.
+	assert.equal(
+		h1Text(html),
+		resolveRouteChrome('/').title,
+		'the hero h1 on "/" must equal its breadcrumb leaf, so the page has ONE name',
+	);
+	assert.equal(
+		resolveRouteChrome('/').title,
+		'Dashboard',
+		'the sidebar/breadcrumb name for "/" is unchanged — the hero moved to it, not the reverse',
+	);
 	assert.equal(primaryActionCount(html), 0, 'the exemption must not smuggle a primary-action slot back in');
 
 	const dashboard = source('src/pages/Dashboard.tsx');

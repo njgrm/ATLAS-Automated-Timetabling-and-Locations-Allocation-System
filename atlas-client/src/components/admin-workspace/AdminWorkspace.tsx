@@ -10,6 +10,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/ui/popover';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip';
 import { cn } from '@/lib/utils';
 import { SmartHelpTrigger } from '@/components/smart/SmartPageShell';
+import { CompactTitleStrip } from '@/components/app-shell/CompactTitleStrip';
 
 export type AdminSourceState = 'verified-live' | 'checking-source' | 'saved-data' | 'no-saved-data';
 
@@ -169,19 +170,26 @@ export function AdminWorkspaceFrame({
 
 	return (
 		<div className="flex h-[calc(100svh-3.5rem)] flex-col overflow-hidden">
-			<div
-				className="shrink-0 border-b bg-background/85 px-4 py-1.5 backdrop-blur-md lg:px-5"
-				data-testid="admin-command-header"
-			>
-				<div className="flex min-w-0 flex-wrap items-center justify-between gap-2" data-testid="setup-compact-command-header">
-					<div className="flex min-w-0 items-center gap-2">
-						<h1 className="shrink-0 text-lg font-bold text-foreground lg:text-xl">{title}</h1>
+			{/* A3-TITLE-STRIP-C3: the strip shell is owned by the shared contract;
+				the h1, the source chip, and the action row stay here, at this call
+				site. A's title scale (text-lg / lg:text-xl) is deliberately NOT
+				normalized against strip B's — see the suite header's OPEN DECISION. */}
+			<CompactTitleStrip
+				stripTestId="admin-command-header"
+				rowTestId="setup-compact-command-header"
+				title={<h1 className="shrink-0 text-lg font-bold text-foreground lg:text-xl">{title}</h1>}
+				statusDescription={resolvedSourceCopy.description}
+				statusNextAction={resolvedSourceCopy.nextAction}
+				status={
+					<>
 						<AdminSourceStateChip state={sourceState} copy={sourceCopy} lastVerified={lastVerified} />
 						<p className="sr-only" aria-live="polite" data-testid="admin-source-truth-summary">
 							{resolvedSourceCopy.label}. {resolvedSourceCopy.description} {resolvedSourceCopy.nextAction}
 						</p>
-					</div>
-					<div className="flex shrink-0 flex-nowrap items-center gap-2">
+					</>
+				}
+				actions={
+					<>
 						{primaryActions}
 						<SmartHelpTrigger
 							title={`How to use ${title}`}
@@ -211,9 +219,9 @@ export function AdminWorkspaceFrame({
 								</PopoverContent>
 							</Popover>
 						) : null}
-					</div>
-				</div>
-			</div>
+					</>
+				}
+			/>
 			{(stats?.length || toolbar) ? (
 				<div className="shrink-0 space-y-1 border-b border-slate-100 bg-slate-50/70 px-4 py-1.5 lg:px-5">
 					{stats?.length ? <AdminStatBanner items={stats} /> : null}

@@ -3309,3 +3309,161 @@ surface.test.ts` (1-of-4 red since 2026-09-20) also not reached. The double poli
 **Worktrees to retire (mine, dated 2026-09-28):** `lane-a3-c1-docs`, `lane-a3-c1-integ`,
 `lane-a3-c1-s-e`, `lane-a3-c1-ux`, plus c2's `lane-a3-c2-chrome` and `lane-a3-c2-integ`. All branches
 preserved; **no branch deleted**.
+
+---
+
+## Lane A3 — overnight 2026-09-28 c3 (supersedes the c1/c2 block above; `Live release` untouched)
+
+**Two A3 streams integrated and pushed: `09b8c95e` and `a33e0376`. A3 did not deploy, so per §6 I did
+not touch the `Live release` block.** Live is A2's release and A2 owns it. A3 ran **no browser** and
+touched no `.browser-lock` (c3 change of plan).
+
+**What is live vs not, decided rather than assumed.** A2's 04:30 release pinned `e642f5e8`, whose tree
+already contains `09b8c95e` (via `d049f85d`) — so **the contrast sweep ships in that release** and the
+**title strips (`a33e0376`) land after it.** Verified by ancestry from an independent boundary.
+
+| | base | candidate | merge | QA |
+|---|---|---|---|---|
+| c3 token sweep | `39c52af7` | `f86d6bf8` | **`09b8c95e`** | `ACCEPT_READY` **8/8/0/0** |
+| c3 title strips | `e642f5e8` | `45a6fa2c` + correction `7d2231da` | **`a33e0376`** | `CORRECTION_REQUIRED` 6/8/0/0 → corrected |
+
+Both: client-only, `atlas-server/` 0, `components/timetable/**` 0, `index.css` 0, `RoomSchedules.tsx` 0.
+12 A3 suites green on the merged trees, build exit 0, `git diff --check` clean, **0 typecheck errors in
+any A3 path**.
+
+**Closes an accessibility debt, with the limit stated.** 15 `text-slate-400` text sites →
+`text-muted-foreground`; contrast on white **2.630:1 → 4.697:1** (crosses AA). On `--muted`/`--secondary`
+**2.390:1 → 4.268:1** — improved, **still below AA**. **The app does not pass WCAG AA on those two
+surfaces, before or after.** This includes the enabled-control failure at
+`BuildingGradeScopeControl.tsx:36` that c2 recorded.
+
+**A false evidence claim of mine, corrected here so it cannot propagate (dated 2026-09-28 02:20).** I
+reported that `size="sm"`'s `h-10` beats every `h-7/h-8/h-9` override, making them "inert repo-wide",
+and leaned on it for the height argument. **False:** `cn()` is `twMerge`, so competing heights are
+deduplicated before the cascade runs — the overrides are **live**. Nothing false was committed; the
+height conclusion survives on the correct basis that the row's height-driving classes are byte-identical
+before and after. Do not repeat the claim.
+
+**OPEN DECISION — needs one rendered screen, dated 2026-09-28 02:30.** The two compact title strips are
+unified in container and status affordance, but **their title scales are deliberately still different**
+(`/teachers` `text-lg lg:text-xl`, `/teaching-load` `text-sm sm:text-base`). Unifying them serves older
+users with bigger text **and** adds height to the two pages carrying accepted rows 14 and 16. **A3 runs no
+browser and cannot measure that trade, so it was escalated rather than guessed.** Both strings are pinned
+verbatim in `test:a3-title-strip-c3`, so the decision lands as a deliberate edit. **Still
+`BLOCKED_SOURCE_GAP` for any scale change until a screen exists.**
+
+**Ledger rows, terminal state as of 2026-09-28 03:00.** Unchanged: `QA_PASSED` 01–07, 09–26, 29–33B.
+`BLOCKED_PRODUCT_DECISION`: **08** (deselect vs unassign; A3's read remains **B** — undecided here, it
+changes what a button means to an existing user). `BLOCKED_SOURCE_GAP`: **27, 28, 34**. New: c3's sweep
+`09b8c95e`; c3's title strips `a33e0376`; **`uxc01-derived-setup-surface.test.ts` is no longer owed —
+4/4 green** (fixed by `91d327e3`/`b98d1cc3`, reachable from three committed scripts); `returnTo` recorded
+`A2-OWED`, premise still falsified.
+
+**Item 5 resolved by measurement, not capacity, dated 2026-09-28 02:50.** The named UX-R02–R05 / UX-R03c
+items are **not A3-owned unmet work**: R02 is 4/4 green, and R03a/R03b/R03e live under
+`components/timetable/__tests__/` (**A2's**). R03c has no test file. The remaining A3-owned UX work is
+the **c4 HIGH truthfulness set** (walkthrough #7, #8, #53 tiles, Building-view "n/a"), which is c4's scope.
+
+**Browser rows, dated 2026-09-28 02:40.** **B5 is CLOSED** — Lane C ran it live on `d31bfacb` (`730614bc`),
+ending a row owed for three consecutive cycles. `#52` and `#53` are Lane C's. The nine `1e417694` steps
+and both walkthrough walks remain owed to a profile holder; **exact steps for the two new streams are in
+the handoff's "Live-acceptance steps owed"**, including the rows 14/16 re-measure that A2's ~40px roster
+widening makes urgent.
+
+**FOR A2 (not mine, dated 2026-09-28 02:35).** `typecheck` on `main` is now **5** errors, not the 4 this
+lane has been quoting. The new one is `src/lib/__tests__/timetable-truth-labels-a2.test.ts:443` `TS2367`,
+from A2's `f02c693c`, present **without** my merge. A2's baseline moved.
+
+**FOR ANY LANE.** `D:\ATLAS\atlas-client\node_modules` was an **empty directory** until this session ran
+`npm ci` in it. Junctioning to it before that produces a tree where `npx` looks like it works while the
+real toolchain is absent — which is exactly how I nearly shipped an unrunnable candidate.
+
+**Worktrees, dated 2026-09-28 (all mine, all retired this cycle, junction-safe):** `lane-a3-c1-docs`,
+`lane-a3-c1-integ`, `lane-a3-c1-s-e`, `lane-a3-c1-ux`, `lane-a3-c2-chrome`, `lane-a3-c2-integ`,
+`lane-a3-c3-slate400`, `lane-a3-c3-title`, `lane-a3-c3-integ`. Branches preserved; **no branch deleted**.
+
+---
+
+## Lane A3 — overnight 2026-09-28 c4 (supersedes the c3 block above; `Live release` untouched)
+
+**Five A3 streams integrated and pushed to `main` at `ed14720c`** (branch `integration/a3-c4-20260928`).
+**A3 did not deploy, so per §6 I did not touch the `Live release` block.** A3 **ran no browser** and
+touched no `.browser-lock` (c3 change). Live is A2's release and A2 owns it.
+
+**Nothing in c4 is live.** Your 04:30 cutover is past `ed14720c`'s base `6b84a3a6`, so the **whole cycle
+ships in the next release**. 34 changed paths, **0** under `components/timetable/**`, **0** under
+`atlas-server/`, `prisma/`, `docs/`, `index.css`. Client-only, no migration, no schema, no seed.
+
+| stream | base → candidate → correction | QA |
+|---|---|---|
+| MAPS | `6b84a3a6` → `b02c5663` → `7792614a` | `ACCEPT_READY` **27/27/0/0**, one non-blocking tightened |
+| SECTIONS | `6b84a3a6` → `44f0625a` → `1394f1d2` | `CORRECTION_REQUIRED` (2 BLOCKING) → corrected |
+| TEACHING LOAD | `6b84a3a6` → `1aa31312` → `a3790627` | `CORRECTION_REQUIRED` (1 BLOCKING) → corrected |
+| COPY | `6b84a3a6` → `5218a245` | `PLANNER_DECISION_REQUIRED` (A+B accepted) |
+| SUBJECTS | `6b84a3a6` → `abfa93c6` → `86bf02ae` | `PLANNER_DECISION_REQUIRED` (3 NB corrected) |
+
+**c4's HIGH truthfulness set: three fixed, one honestly NOT_REPRODUCED, as of 2026-09-28 07:00.**
+Walkthrough **#8** (Sections "HOME ROOMS 20/20" vs 5 rows "Needs home room") was a **two-definition
+split** — the counter asked `!!s.homeRoomId`, the rows asked whether the ID *resolves*; the row's test is
+load-bearing so the counter moved to it, and a **second** fabrication was found and fixed (the fraction
+divided a client count by the server's `totalSections`). **#53** (map tiles "0% FILLED") was an
+**optional prop**: `timetable/CenterWorkspace.tsx:608` passes no `buildingOccupancy`, so `CampusMap`
+defaulted to a fabricated `0`; the tile now renders `USE N/A` and can never reach the green-at-zero fill,
+while a measured `0%` still reads `0%`. The Building-view **`n/a`** is now labelled in DOM chrome with
+frozen canvas geometry untouched. **Walkthrough #7 is `BLOCKED_NOT_REPRODUCED`** — `activeDraftCount`
+filters the draft map's *keys* and cannot be non-zero when the map is empty, independently confirmed by
+QA, so **no product change was made to a healthy path**; a row I could not reproduce is not a row I fixed.
+
+**Top 10: #1, #2 (structurally), #3, #4, #5 (3 of 4) and #10 delivered; #6, #7, #8, #9 not delivered.**
+#6 (one dialog pattern for "Review load"/"Profile") turns a navigation into a product decision and was
+**not started** — not capacity, a deliberate deferral. #7 is the NOT_REPRODUCED row above. #9 ("Open map"
+loading state) is on the Campus page, not reached.
+
+**#52 is A2's, confirmed, with the exact file — handed over in `lane-a-to-c.md`, not edited by me.**
+`components/timetable/TimetableRouteViewSync.tsx:67` and `CenterWorkspace.tsx:585-614`; A2 already has
+`components/timetable/timetable-route-loading-intent.ts:7` declaring the `/timetable/map` intent to
+apply on first render. **A2 also owns the other half of #53** — passing a real `buildingOccupancy` at
+`CenterWorkspace.tsx:608`; until then `/timetable/map` reads `USE N/A` on every wing, which is honest and
+visibly unfinished.
+
+**One real integration conflict, and I corrected it myself.** `test:a3-c4-copy` went red on the merged
+tree because its three `CROSS-LANE FOLLOWUP` controls **pinned the exact `file:line` where each raw
+Subjects string rendered** — they asserted the defect was present, right for a locator and wrong for a
+gate — and delivering the SUBJECTS fix in the same integration falsified all three. Their
+`deepEqual(found, [])` was the **F6 defect QA had already named**: an assertion of *absence* cannot prove
+discrimination, because a scanner broken to return `[]` passes it too. Fixed **additively** (test-only,
+§11): the three locators are kept as `test.skip` with the successor named, and the absence assertion is
+replaced by a **positive control** requiring the scan to FIND the strings. Proven discriminating by
+forcing the scan to match nothing. 18 tests, **15 pass, 0 fail, 3 skipped**. `ed14720c`.
+
+**The mandatory typecheck row I measured myself, dated 2026-09-28.** The bounded re-review hit its step
+limit with that row unevidenced, so I materialised `6b84a3a6` into a temp tree: **5 errors in 4 A2 files**
+(3× `TS2307 playwright`, 1 cascading `TS7006`, 1× `TS2367`). All five tips measure **5 errors, 0 in their
+own paths.** Three executors had disagreed on the baseline — one counted files, two counted errors.
+
+**Ledger, terminal state as of 2026-09-28 07:00.** Unchanged: `QA_PASSED` 01–07, 09–26, 29–33B.
+`BLOCKED_PRODUCT_DECISION`: **08** (deselect vs unassign; A3's read remains **B**; it changes what a
+button means to an existing user, so it is the operator's). `BLOCKED_SOURCE_GAP`: **27, 28, 34**. New:
+**c4 #7 → `BLOCKED_NOT_REPRODUCED`**. **`A3-C4-SUBJECTS-STATS` → `SUCCESSOR_OWED`, dated 2026-09-28, not
+started** — `components/subjects/useSubjectStats.tsx:14-16` counts a subject "Room constrained" from
+`requiredFeatures.length > 0` with no `OWNER_DEPT` filter, so `STE_ROBOTICS` is counted in warning tone
+while its row now truthfully says "Standard classroom". **The Subjects page is not internally truthful
+until that one-line predicate is fixed**; it changes a *measured* number, so it needs its own lane.
+c3's OPEN DECISION on the two title scales is **unchanged and still needs one rendered screen**.
+`returnTo` remains `A2-OWED`; its premise is still falsified.
+
+**Owed to a browser holder, dated 2026-09-28 — none of it decidable without a rendered screen:** the
+**1366×768 Dashboard pixel row** (the fix is structural: the old `h-[calc(100svh-3.5rem)]` root over-grows
+its `overflow-hidden` parent when the shell mounts the rollover notice, clipping content; every new
+assertion is labelled `STRUCTURAL ONLY`), the five `1e417694` c0 steps, both walkthrough walks, and
+**top-10 #6 and #9 if anyone picks them up**. Exact steps, origin-pinned, are in the handoff c4 section's
+"Live-acceptance steps owed", including the two runtime-supplied Subjects strings that exist in **no**
+source file and are therefore a deployment-acceptance clause, not a source row.
+
+**FOR A2 (not mine, dated 2026-09-28):** `typecheck` on `main` is **5** errors in 4 A2 files — unchanged
+by c4, confirmed at base and at all five tips. Your ~40px roster-cell widening still makes browser rows
+14/16 the rows most likely to have moved for reasons that are not A3's; **re-measure, do not assume.**
+
+**Worktrees, dated 2026-09-28 (all mine, all retired this cycle, junction-safe):** `lane-a3-c4-sections`,
+`lane-a3-c4-maps`, `lane-a3-c4-tl`, `lane-a3-c4-copy`, `lane-a3-c4-subjects`, `lane-a3-c4-integ`. Branches
+preserved; **no branch deleted**.

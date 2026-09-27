@@ -19,7 +19,7 @@ import { SubjectRow } from '@/components/subjects/SubjectRow';
 import { SubjectCoverageSheet } from '@/components/subjects/SubjectCoverageSheet';
 import { SubjectStatusBanners } from '@/components/subjects/SubjectStatusBanners';
 import { SubjectTermAuthorityBanner } from '@/components/subjects/SubjectTermAuthorityBanner';
-import { useSubjectStats, useCoverageDetail } from '@/components/subjects/useSubjectStats';
+import { useSubjectStats, useCoverageDetail, isRoomConstrainedSubject } from '@/components/subjects/useSubjectStats';
 import { subjectToFormValues } from '@/components/subjects/subject-form-utils';
 import { SubjectFilterToolbar } from '@/components/subjects/SubjectFilterToolbar';
 import { SubjectTablePagination } from '@/components/subjects/SubjectTablePagination';
@@ -280,7 +280,13 @@ export default function Subjects() {
 		// Program scope filter
 		if (programScopeFilter !== 'all') list = list.filter((s) => (s.programScopes ?? []).includes(programScopeFilter));
 		if (attentionFilter === 'missing-coverage' && coverageBySubjectId) list = list.filter((s) => s.isActive && (coverageBySubjectId.get(s.id)?.uncoveredSectionCount ?? 0) > 0);
-		if (attentionFilter === 'room-constrained') list = list.filter((s) => s.isActive && (s.preferredRoomType !== 'CLASSROOM' || s.requiredFeatures.length > 0));
+		// A3-C5: this list is the "Room constrained" tile's twin, so it filters
+		// with the SAME predicate the tile counts with. It previously carried its
+		// own inline copy of the rule, which treated an ownership marker as a
+		// room need — so the tile and this list answered different questions on
+		// the same screen. The rule now lives in one place; this page stays a
+		// delegating surface and does not interpret the mixed feature list.
+		if (attentionFilter === 'room-constrained') list = list.filter(isRoomConstrainedSubject);
 
 		// Sort
 		const sorted = [...list].sort((a, b) => {

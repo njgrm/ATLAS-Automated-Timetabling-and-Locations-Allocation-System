@@ -669,7 +669,13 @@ export default function TeachingLoad() {
 	return (
 		<TooltipProvider delayDuration={200}>
 			<div className="flex h-[calc(100svh-3.5rem)] flex-col bg-background overflow-hidden">
-				<div className="shrink-0 border-b border-border/40 px-3 py-1.5 lg:px-5">
+				{/* A3-TITLE-STRIP-C3: this band's padding + hairline were redundant
+					once WorkspaceToolbar adopted the shared full-bleed strip, and
+					keeping them would have nested one bordered bar inside another
+					and re-added the 13px this stream must not add. The strip owns the
+					inset and the hairline now; the sr-only workflow line below is
+					position:absolute and contributes no height either way. */}
+				<div className="shrink-0">
 <WorkspaceToolbar
 						realAssignedPairs={coverageHeadline.realAssigned}
 						syntheticPlaceholderPairs={coverageHeadline.syntheticAssigned}
