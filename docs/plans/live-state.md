@@ -149,9 +149,58 @@ resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs
 
 - Tailnet: `https://njgrm.buru-degree.ts.net`
 
+- **▶ LIVE: `9b28c57291ff6c34f33a434d097753b8ce16b118` — DEPLOYED 2026-09-27 20:34 +08 by Lane A2.** Cutover
+  executed with the repo's own `ops/runtime/deploy-runner.ps1` (dry run first, then `-Execute`), which enforced
+  `Assert-LiveReleaseRecorded`, re-verified target and incumbent identity, captured the task XML, and quiesced
+  the supervisor tree. Identity agrees on **all three** independent sources: machine-scope env, the scheduled
+  task action, and the listeners. `supervisor-state.json` `state=running`.
+
+  | | |
+  |---|---|
+  | **LIVE** | **`9b28c57291ff6c34f33a434d097753b8ce16b118`** |
+  | **Live dir** | `E:\ATLAS-worktrees\lane-a2-release-9b28c572` (HEAD `9b28c572`, clean) |
+  | **Listeners** | 5001 → **50228**, 5174 → **38568** |
+  | **Rollback basis** | **`c4a9960e0fccaab4a324c97e42eb56cfa10c1fa4`**, dir `E:\ATLAS-worktrees\lane-a3-release-c4a9960e` — verified present, clean, both `dist`s built. **This supersedes the packet's stale `c5a9e832` basis: rolling back to `c5a9e832` would revert Lane A3's live browser fixes.** |
+  | **Direction** | **FORWARD.** `merge-base --is-ancestor c4a9960e 9b28c572` exits 0 — the prior live release is an ancestor, so nothing was reverted and A3's fixes stayed live |
+  | **Audit trail** | `C:\ProgramData\ATLAS\release-audit\9b28c572-20260927-203408\` (plan + before/target task XML) |
+
+  **Acceptance: 9 of 12 rows PASS, 0 failed, 3 BLOCKED on one environment gate.**
+
+  | Row | Result |
+  |---|---|
+  | D1 server serves new build | **PASS** — `/health/ready` 200 `database:ok`; DB-backed `/subjects?schoolId=1` 200 (19 453 B) |
+  | D2 client host serves new build | **PASS** — `/__host/live` 200 `content-type: application/json`; `/` 200 |
+  | D3 server discriminator | **PASS, non-vacuously** — `dist/services/timetable-edit-message.js` present on the live dir, **absent from the previous live build** |
+  | D4 client discriminator | **PASS, non-vacuously** — new chunk `ScheduleReviewWorkspace-C4bvatRP.js` **200** (455 658 B) with the `ALREADY_UNDONE_EDIT_MESSAGE` literal present; **both** prior chunk names **404** (`-CxpTucmV`, `-dY-BJ1Wl`) |
+  | D5a zero-write + migrations | **PASS** — `migration.sql` **11 → 11** by the pinned `ls-tree` method; **zero** `prisma/` paths in the delta |
+  | D5b zero-write (cutover) | **PASS** — window `2026-09-27T12:31:37.298Z` → `12:35:22.615Z`: `generation_runs` 9→9, `manual_schedule_edits` 7→7, `audit_logs` **447→447**, `published_schedule_revisions` 6→6, `max(audit_logs.id)` **998→998**, and **no** audit row written inside the window. The cutover itself wrote nothing, as predicted |
+  | D6 public schedule no regression | **PASS** — 09-20→315, 09-25→317, 09-26→319, 09-27→320, 09-28→320; `servedByFallback` true/true/true/false/false; `currentPublishedRunId=320` throughout; **no 409** |
+  | D7 term guard | **PASS** — 400 without `termIndex`, 200 with |
+  | D8 swap route mounted | **PASS** — 401, not 404 |
+  | D12 public page DOM | **PASS** — `/public/schedules` renders 20 sections ("Aguinaldo GR7 40 classes Regular"), term shown `TERM 2`, full timetable, "Live publish"; **no** "Unable to load public schedule" |
+  | **D9, D10, D11** | **BLOCKED — `NEEDS_SESSION(space-bunny/opencode-default)`.** This profile holds no seeded session: both `http://127.0.0.1:5174/` and `https://njgrm.buru-degree.ts.net/timetable` redirect to `/login`. **Not deferred by choice and not claimed as passing** |
+
+  **D10's precondition was verified before the block, from the database rather than assumed:** run **321** has
+  **0** rows in `published_schedule_revisions` and run **320** has 1, and `currentPublishedRunId` is **320** on
+  every public response — so 321 is the draft and a swap on it is an ordinary draft mutation, in bounds. **D10
+  is not yet performed, so no `manual_schedule_edits` / `audit_logs` increase is authorised or recorded, and the
+  draft 321 remains at its pre-deploy warning count.** D10's swap is **not** a revert test; it must not be
+  reverted, and its resulting state must be disclosed.
+
+  **The delta that shipped, re-derived from the real incumbent** (`git diff --name-only c4a9960e 9b28c572`,
+  `docs/` excluded) = **15 non-docs paths, all Lane A2's**; A3's six client files were already in the incumbent,
+  so this is narrower than the packet's 23-path figure, which was enumerated from the older `c5a9e832`. Two are
+  `atlas-server/` production files (`services/manual-edit.service.ts` modified, `services/timetable-edit-message.ts`
+  new) plus two server tests; nine are client.
+
+  **Still not deployed, and NOT part of this cutover:** `af1451a3` (merge `b289bc05`, `strategy` allowlist +
+  single Undo surface) and `d1bf04a1` (relocation-allowlist drift row `S6`). Both are **descendants** of
+  `9b28c572` and need their own release.
+
 - **▶ LEADING TARGET FOR THE NEXT CUTOVER — `9b28c572`. Recorded 2026-09-27 by Lane A2, AHEAD of the
   cutover, which is what `Assert-LiveReleaseRecorded` requires. This is the ONLY target authorised to be
-  cut over to next.**
+  cut over to next.** **[SUPERSEDED 2026-09-27 20:34 +08 — this cutover has now EXECUTED; see the LIVE record
+  above. Preserved unaltered as the pre-cutover record.]**
 
   | | |
   |---|---|
