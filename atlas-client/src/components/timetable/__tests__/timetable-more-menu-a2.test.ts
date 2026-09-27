@@ -359,7 +359,11 @@ test('#50 every group is a first-level heading that states how many items it own
 		);
 	}
 	const heading = menu.slice(menu.indexOf('function MoreGroupHeading'), menu.indexOf('export function SimpleMoreScrollRegion'));
-	assert.match(heading, /data-more-group=\{title\}/, 'the heading is addressable, so a test can find the group by name');
+	// INTEGRATION (2026-09-28): the prop is `label`, not `title` — the component
+	// was renamed to satisfy the `ux-r03a` guard that forbids a `title=` attribute
+	// in this file. The intent of the row is unchanged: the heading must still be
+	// addressable by its group name.
+	assert.match(heading, /data-more-group=\{label\}/, 'the heading is addressable, so a test can find the group by name');
 	assert.match(heading, /font-semibold/, 'a heading strong enough to scan past');
 	assert.match(heading, /itemCount === 1 \? 'item' : 'items'/, 'the count is spelled out, never "(s)"');
 });

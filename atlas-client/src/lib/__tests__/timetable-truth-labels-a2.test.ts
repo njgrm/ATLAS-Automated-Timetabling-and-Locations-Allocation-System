@@ -882,7 +882,13 @@ test('ADOPTED (was: DEPENDENCY, recorded not satisfied): the More menu and the h
 	assert.match(actions, /data-testid="timetable-more-generate-published-note"/);
 });
 
-test('DEPENDENCY (recorded, not satisfied): the SERVER generation notification is unchanged', () => {
+// ADOPTED (was: DEPENDENCY, recorded not satisfied) at the integration boundary,
+// 2026-09-28. This row existed to FAIL LOUDLY the moment an owner adopted the
+// server copy, and it did exactly that — which is the mechanism working, not a
+// regression. The tripwire is retained in its converted form: it now asserts the
+// NEW truth on the server, and still asserts the client side, so a future
+// reversion of either is caught. Nothing was deleted.
+test('ADOPTED (was DEPENDENCY): the SERVER generation notification carries the plain outcome, once', () => {
 	const mutations = source('src/hooks/useTimetableMutations.ts');
 	// #58 CLOSED on the client by the wiring executor: one outcome message.
 	assert.match(mutations, /generationOutcomeToastSentence\(unplaced\)/, '#58: the client emits one composed outcome message');
@@ -890,9 +896,19 @@ test('DEPENDENCY (recorded, not satisfied): the SERVER generation notification i
 		resolve(CLIENT_ROOT, '../atlas-server/src/services/generation.service.ts'),
 		'utf8',
 	);
-	// U4 lives on the server, which is outside every client lane's authority, and
-	// so does the second "started" message for the same action. UNTOUCHED here.
-	assert.match(generation, /completed with \$\{summary\.unassignedCount\} session\(s\)/, 'U4: the server notification is still the pre-fix "session(s)" wording');
-	assert.match(generation, /Generation run #\$\{run\.id\} started\./, '#58: the server also emits a "started" message for the same action');
-	assert.doesNotMatch(generation, /New schedule ready\./, 'and ATLAS has not yet adopted the new sentence');
+	// U4 and the second server toast are CLOSED by A2-UX-SERVER-C2.
+	assert.match(generation, /New schedule ready\./, 'U4: the server now uses the plain outcome sentence');
+	// Scoped to the message builder, not the whole file: the two remaining
+	// occurrences of "session(s)" are COMMENTS recording the fix, and a
+	// whole-file ban would be a test that forbids its own history. The window is
+	// the builder's own 800-character body (a fixed slice, so a box-drawing
+	// comment banner downstream cannot silently truncate it to the whole file).
+	const builderStart = generation.indexOf('export function buildGenerationCompletedMessage');
+	const builder = generation.slice(builderStart, builderStart + 800);
+	assert.ok(builderStart > 0, 'the completion-message builder is present');
+	assert.doesNotMatch(builder, /session/i, 'no "session"/"session(s)" survives in the user-facing message');
+	assert.doesNotMatch(builder, /run #/, 'no run id in the user-facing message');
+	assert.doesNotMatch(generation, /Generation run #\$\{run\.id\} started\./, '#58: the second "started" message for the same action is gone');
+	// The zero claim must be truthful, not a hard-coded success.
+	assert.match(builder, /!Number\.isFinite\(unplacedCount\)/, 'an unmeasured count never claims everything is placed');
 });

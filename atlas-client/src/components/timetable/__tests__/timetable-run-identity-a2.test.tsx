@@ -261,7 +261,7 @@ test('C3 (a) a newer unfinished run over a published draft.runId is not printed 
 	const identity = runIdentityText(markup);
 	assert.equal(
 		identity,
-		`Published — this is the schedule in use · run ${PUBLISHED_RUN}`,
+		`Published — this is the schedule in use. (Run ${PUBLISHED_RUN})`,
 		'the printed run number must be the run whose publication state is printed',
 	);
 	assert.ok(
@@ -286,7 +286,7 @@ test('C3 (a2) the same holds when the newer run FAILED rather than is in flight'
 	});
 	assert.equal(
 		runIdentityText(markup),
-		`Published — this is the schedule in use · run ${PUBLISHED_RUN}`,
+		`Published — this is the schedule in use. (Run ${PUBLISHED_RUN})`,
 		'a failed newer run is still not the published run on the grid',
 	);
 	assert.equal(
@@ -335,7 +335,7 @@ test('C3 (c) the normal case still renders the run number and Published', () => 
 	const markup = renderHeader();
 	assert.equal(
 		runIdentityText(markup),
-		`Published — this is the schedule in use · run ${PUBLISHED_RUN}`,
+		`Published — this is the schedule in use. (Run ${PUBLISHED_RUN})`,
 		'the ordinary case is unchanged',
 	);
 	assert.equal(runBadgeText(markup), 'Published schedule', 'and so is its badge');
@@ -348,7 +348,7 @@ test('C3 (c2) an unpublished draft still renders the run number and Draft', () =
 	});
 	assert.equal(
 		runIdentityText(markup),
-		`Draft — not visible to teachers yet · run ${PUBLISHED_RUN}`,
+		`Draft — teachers and students cannot see it yet. (Run ${PUBLISHED_RUN})`,
 		'a draft run says Draft, and says what that means',
 	);
 	assert.equal(runBadgeText(markup), 'Draft schedule', 'and the badge agrees');
@@ -419,18 +419,24 @@ test('U1 the line is state-first: the state, what it means, then the run number'
 	);
 	assert.equal(
 		runIdentityText(renderHeader({ draft: publishedDraft(PUBLISHED_RUN, false) })),
-		`Draft — not visible to teachers yet · run ${PUBLISHED_RUN}`,
+		`Draft — teachers and students cannot see it yet. (Run ${PUBLISHED_RUN})`,
 		'a draft says what a draft MEANS for the people it affects, with the number last',
 	);
 	assert.equal(
 		runIdentityText(renderHeader({ draft: publishedDraft(PUBLISHED_RUN, true) })),
-		`Published — this is the schedule in use · run ${PUBLISHED_RUN}`,
+		`Published — this is the schedule in use. (Run ${PUBLISHED_RUN})`,
 		'a published run says it is the one in use, with the number last',
 	);
-	// The number is genuinely secondary: it is the tail, and it is lowercase.
+	// The number is genuinely secondary: it is the tail, never the lead-in.
+	// INTEGRATION (2026-09-28): the tail shape changed when the header was
+	// pointed at the single lib source. The INTENT of the original row — the
+	// number is a trailing suffix, not the opening token — is preserved and
+	// strengthened: the pattern matches the new `(Run N)` tail, and a second
+	// control now pins that the line cannot open with the number at all.
 	const line = runIdentityText(renderHeader());
-	assert.match(line, /· run \d+$/, 'the run number is a trailing suffix, not the lead-in');
+	assert.match(line, /\(Run \d+\)$/, 'the run number is a trailing suffix, not the lead-in');
 	assert.match(line, /^Published|^Draft/, 'and the state word leads');
+	assert.doesNotMatch(line, /^\d/, 'the number can never open the sentence');
 });
 
 // ── U2 — the badge carries no information ──────────────────────────────────
