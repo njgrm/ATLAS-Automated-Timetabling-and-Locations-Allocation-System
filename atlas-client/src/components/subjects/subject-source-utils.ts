@@ -309,10 +309,33 @@ const SUBJECT_MUTATION_COPY: Readonly<Record<string, SubjectMutationCopyPair>> =
  * The unmapped-code, missing-code and no-response-body answer. A FIXED constant
  * with no interpolation — see the load-bearing rule above. It must never
  * incorporate `rawMessage`.
+ *
+ * A3-C5-4 correction 2 (planner-authorised): the previous text was "Check the
+ * school connection, then try again. If it keeps failing, contact your ATLAS
+ * administrator." Both halves were fabrications, and this is the MOST-REACHED
+ * path in the whole resolver — every unmapped code, every missing code, and
+ * every no-response-body network failure lands here.
+ *
+ * What is actually true here, re-verified against the server before writing:
+ * this class is HETEROGENEOUS, and that is the whole point. It currently
+ * catches real, unrelated failures — `DUPLICATE` (subject.router.ts:182, 409
+ * "A subject with this code already exists for this school"), `MISSING_FIELDS`
+ * (:137), `CROSS_SCHOOL_YEAR_DENIED` (:405/:442/:478),
+ * `SYSTEM_TOKEN_NOT_CONFIGURED` and `INVALID_SYSTEM_TOKEN`
+ * (middleware/authenticate.ts:149/:157), plus no-response network failures, plus
+ * any code ATLAS has not yet emitted. "Check the school connection" is wrong
+ * for a duplicate code and for a school-year mismatch; "try again" is wrong for
+ * a 409 that will deterministically conflict again; and ATLAS has no escalation
+ * route, so naming one is a second fabrication — the identical defect just
+ * removed from the three mapped codes.
+ *
+ * So the honest sentence asserts only what holds for ALL of them: ATLAS could
+ * not complete the change, and could not say why, so there is no specific
+ * action. No remedy is invented, and no support path is named.
  */
 const SUBJECT_MUTATION_FALLBACK: SubjectMutationCopyPair = {
 	description: 'ATLAS could not complete that subject change.',
-	nextAction: 'Check the school connection, then try again. If it keeps failing, contact your ATLAS administrator.',
+	nextAction: 'ATLAS could not say what went wrong, so there is no specific action to take here.',
 };
 
 /**

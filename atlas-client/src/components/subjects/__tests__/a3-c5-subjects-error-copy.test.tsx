@@ -235,7 +235,33 @@ const EXPECTED_ENGINEER_COPY: ReadonlyArray<
 	],
 ];
 
-/** Everything an operator is ever shown: the three copy fields together. */
+/**
+ * The generic fallback copy, pinned in one place and asserted exactly by 4c,
+ * 4d and 4g. The unmapped/missing/no-response path is the MOST-REACHED branch
+ * of the resolver, so its two sentences are held as tightly as the mapped ones.
+ *
+ * A3-C5-4 correction 2: the previous `nextAction` was "Check the school
+ * connection, then try again. If it keeps failing, contact your ATLAS
+ * administrator." Re-verified against the server, this branch is
+ * heterogeneous — it catches `DUPLICATE` (subject.router.ts:182, a 409 that
+ * will conflict again on every retry), `MISSING_FIELDS` (:137),
+ * `CROSS_SCHOOL_YEAR_DENIED` (:405/:442/:478),
+ * `SYSTEM_TOKEN_NOT_CONFIGURED` / `INVALID_SYSTEM_TOKEN`
+ * (middleware/authenticate.ts:149/:157), no-response network failures, and
+ * future codes. "Check the school connection" is wrong for a duplicate code and
+ * for a school-year mismatch; "try again" is wrong for a deterministic 409; and
+ * ATLAS has no escalation route to name. The new sentence asserts only what
+ * holds for all of them.
+ */
+const FALLBACK_DESCRIPTION = 'ATLAS could not complete that subject change.';
+const FALLBACK_NEXT_ACTION =
+	'ATLAS could not say what went wrong, so there is no specific action to take here.';
+
+/** The fallback's first-candidate `nextAction`, kept as a mutation source. */
+const FALLBACK_NEXT_ACTION_BEFORE_CORRECTION =
+	'Check the school connection, then try again. If it keeps failing, contact your ATLAS administrator.';
+
+/** Every code an operator is ever shown: the three copy fields together. */
 function operatorVisibleText(copy: SubjectMutationErrorCopy): string {
 	return `${copy.description} ${copy.nextAction} ${copy.message}`;
 }
@@ -333,10 +359,15 @@ test('A3-C5-4c: unknown code with a hostile engineer message leaks nothing', () 
 		// Calm and generic, but still specific enough to act on.
 		assert.equal(
 			copy.description,
-			'ATLAS could not complete that subject change.',
+			FALLBACK_DESCRIPTION,
 			`${code}: unknown code must fall back to the fixed generic sentence`,
 		);
-		assert.ok(copy.nextAction.length > 20, `${code}: generic fallback still needs a next action`);
+		// A3-C5-4 correction 2: pinned EXACTLY. This is the most-reached path in
+		// the resolver, so its sentence is held as tightly as the mapped ones —
+		// a drift back to "contact your ATLAS administrator" is a test failure,
+		// not a reviewer's judgement call.
+		assert.equal(copy.nextAction, FALLBACK_NEXT_ACTION, `${code}: fallback next action drifted`);
+		assert.equal(copy.message, `${copy.description} ${copy.nextAction}`);
 	}
 });
 
@@ -347,7 +378,8 @@ test('A3-C5-4d: missing, empty and malformed codes behave sanely', () => {
 		const copy = resolveSubjectMutationErrorCopy(payload);
 		assert.equal(copy.code, null);
 		assert.equal(copy.rawMessage, '');
-		assert.equal(copy.description, 'ATLAS could not complete that subject change.');
+		assert.equal(copy.description, FALLBACK_DESCRIPTION);
+		assert.equal(copy.nextAction, FALLBACK_NEXT_ACTION, 'no-response fallback next action drifted');
 		assert.equal(copy.message, `${copy.description} ${copy.nextAction}`);
 		assert.ok(!operatorVisibleText(copy).includes(hostile));
 	}
@@ -355,7 +387,8 @@ test('A3-C5-4d: missing, empty and malformed codes behave sanely', () => {
 	for (const code of ['', '   ', 42, null, undefined, { nested: true }]) {
 		const copy = resolveSubjectMutationErrorCopy({ code, message: hostile });
 		assert.equal(copy.code, null, `code ${JSON.stringify(code)} must normalise to null`);
-		assert.equal(copy.description, 'ATLAS could not complete that subject change.');
+		assert.equal(copy.description, FALLBACK_DESCRIPTION);
+		assert.equal(copy.nextAction, FALLBACK_NEXT_ACTION, 'blank-code fallback next action drifted');
 		// The hostile message is preserved for the diagnostic but never shown.
 		assert.equal(copy.rawMessage, hostile);
 		assert.ok(!operatorVisibleText(copy).includes(hostile));
@@ -494,11 +527,18 @@ function unfalsifiableErrandsIn(text: string): string[] {
 
 test('A3-C5-4g: corrected next actions are followable and name no phantom errand', () => {
 	// 1. The three corrected sentences are pinned EXACTLY, so they cannot drift
-	//    back to a fabricated errand without this test going red.
+	//    back to a fabricated errand without this test going red. The generic
+	//    fallback is pinned here too: it is the most-reached path in the
+	 //    resolver, so it is held at the same strength, not a looser bar.
 	for (const [code, expected] of CORRECTED_NEXT_ACTIONS) {
 		const copy = resolveSubjectMutationErrorCopy({ code, message: 'server text' });
 		assert.equal(copy.nextAction, expected, `${code}: corrected next action drifted`);
 		assert.ok(copy.nextAction.length > 20, `${code}: next action must not be empty`);
+	}
+	for (const probe of [{ code: 'DUPLICATE' }, { code: 'MISSING_FIELDS' }, {}]) {
+		const copy = resolveSubjectMutationErrorCopy({ ...probe, message: 'server text' });
+		assert.equal(copy.nextAction, FALLBACK_NEXT_ACTION, `fallback (${probe.code ?? 'no code'}) drifted`);
+		assert.equal(copy.description, FALLBACK_DESCRIPTION);
 	}
 
 	// 2. None of them names a role or support route ATLAS does not have.
@@ -508,6 +548,14 @@ test('A3-C5-4g: corrected next actions are followable and name no phantom errand
 			found,
 			[],
 			`${code}: next action names an errand ATLAS cannot support: ${found.join(', ')} — "${expected}"`,
+		);
+	}
+	{
+		const found = unfalsifiableErrandsIn(FALLBACK_NEXT_ACTION);
+		assert.deepEqual(
+			found,
+			[],
+			`fallback: names an errand ATLAS cannot support: ${found.join(', ')} — "${FALLBACK_NEXT_ACTION}"`,
 		);
 	}
 
@@ -540,6 +588,10 @@ test('A3-C5-4g: corrected next actions are followable and name no phantom errand
 			'UNKNOWN_FIELD (first candidate)',
 			'Close and reopen the subject, then save again. If it keeps failing, contact your ATLAS administrator.',
 		],
+		[
+			'SUBJECT_MUTATION_FALLBACK (first candidate)',
+			FALLBACK_NEXT_ACTION_BEFORE_CORRECTION,
+		],
 	];
 	let mutantsCaught = 0;
 	for (const [label, badNextAction] of roleScanMutants) {
@@ -547,7 +599,7 @@ test('A3-C5-4g: corrected next actions are followable and name no phantom errand
 		assert.ok(found.length > 0, `${label}: the unfalsifiable sentence was NOT caught — control is vacuous`);
 		mutantsCaught += 1;
 	}
-	assert.equal(mutantsCaught, 2, 'A3-C5-4g: both phantom-role mutants must be caught');
+	assert.equal(mutantsCaught, 3, 'A3-C5-4g: all three phantom-role mutants must be caught');
 
 	// 4a. The "names a list that does not exist" defect needs its own mutant,
 	//     because the role scan above does not detect it at all. Assert BOTH
@@ -583,4 +635,20 @@ test('A3-C5-4g: corrected next actions are followable and name no phantom errand
 			`A3-C5-4g: the corrected sentence for ${code} was wrongly rejected`,
 		);
 	}
+	// And so must the fallback, under the same two scans.
+	assert.doesNotThrow(
+		() => {
+			assert.deepEqual(unfalsifiableErrandsIn(FALLBACK_NEXT_ACTION), [], 'fallback: flagged by the role scan');
+			assert.ok(!/\bfrom the list\b/.test(FALLBACK_NEXT_ACTION), 'fallback: flagged by the list scan');
+		},
+		'A3-C5-4g: the corrected fallback sentence was wrongly rejected',
+	);
+	// 4c. The list scan must genuinely MISS the fallback's first candidate, so
+	//     the two scans are provably independent rather than one implying the
+	//     other. Without this, the list scan could be doing no work at all.
+	assert.equal(
+		unfalsifiableErrandsIn(FALLBACK_NEXT_ACTION_BEFORE_CORRECTION).length > 0,
+		true,
+		'A3-C5-4g: the role scan must CATCH the fallback first candidate',
+	);
 });
