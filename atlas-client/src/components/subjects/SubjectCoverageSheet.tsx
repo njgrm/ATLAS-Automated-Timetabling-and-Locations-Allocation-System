@@ -328,7 +328,7 @@ export function SubjectCoverageSheet({
 									{subject && (subjectRoomFeatures.length > 0 || subjectFeatureSplit.ownerDepartments.length > 0) ? (
 										<AccessibleInfo
 											label={`How room features and ownership are recorded for ${subject.name}`}
-											shortHelp={subjectFeatureHelp(subject.name, subjectFeatureSplit)}
+											shortHelp={subjectFeatureHelp(subjectFeatureSplit)}
 											size="icon-xs"
 										/>
 									) : null}

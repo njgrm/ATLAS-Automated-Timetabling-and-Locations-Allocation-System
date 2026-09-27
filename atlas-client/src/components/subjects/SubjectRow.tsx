@@ -91,8 +91,8 @@ export function SubjectRow({
 	const roomFeatureCount = featureSplit.roomFeatures.length;
 	const ownerPhrase = ownerDepartmentPhrase(featureSplit.ownerDepartments);
 	const featureHelp = useMemo(
-		() => subjectFeatureHelp(subject.name, featureSplit),
-		[subject.name, featureSplit],
+		() => subjectFeatureHelp(featureSplit),
+		[featureSplit],
 	);
 
 	// Prompt 01A: isSeedable is bootstrap/seed metadata — NOT timetable inclusion.

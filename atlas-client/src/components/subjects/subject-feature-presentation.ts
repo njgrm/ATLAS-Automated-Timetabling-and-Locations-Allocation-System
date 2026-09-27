@@ -16,7 +16,8 @@
  * server's `DEPARTMENT_NORMALIZATION` (`'SOCIAL STUDIES' -> 'AP'`,
  * `'ARALING PANLIPUNAN' -> 'AP'`). A code with no glossary entry falls back to
  * the code itself: an unmapped department shows its own identifier rather than
- * a fabricated learning area.
+ * a fabricated learning area — and because there is then no learning area to
+ * name, the word "department" is withheld too (see `hasNamedOwnerDepartments`).
  *
  * The raw marker is never destroyed — every surface keeps it reachable in an
  * `@/ui` affordance (AGENTS.md §8 forbids a bare `title=`).
@@ -71,9 +72,33 @@ export function splitSubjectFeatures(
 	return { roomFeatures, ownerDepartments };
 }
 
-/** `Araling Panlipunan department` / `department` when there is more than one. */
+/**
+ * True when EVERY ownership code resolved to a canonical plain name.
+ *
+ * The word "department" is a claim that a learning area by that name exists and
+ * owns the subject. `departmentLabel` echoes the raw code back when the glossary
+ * has no entry, so an unmapped code gives `label === code` — there is no name to
+ * assert. The rule is all-or-nothing: one unmapped code in a list withholds the
+ * noun for the whole phrase rather than half-naming a department that may not
+ * exist.
+ */
+export function hasNamedOwnerDepartments(ownerDepartments: OwnerDepartmentRef[]): boolean {
+	return ownerDepartments.length > 0 && ownerDepartments.every((owner) => owner.label !== owner.code);
+}
+
+/**
+ * `Araling Panlipunan department` / `department` when there is more than one.
+ *
+ * With an unmapped code there is no learning area to name, so the phrase is the
+ * stored markers themselves and carries no "department" noun: the operator sees
+ * the identifier the data actually holds instead of prose asserting a
+ * department that the glossary cannot vouch for.
+ */
 export function ownerDepartmentPhrase(ownerDepartments: OwnerDepartmentRef[]): string {
 	if (ownerDepartments.length === 0) return '';
+	if (!hasNamedOwnerDepartments(ownerDepartments)) {
+		return ownerDepartments.map((owner) => owner.raw).join(', ');
+	}
 	const names = ownerDepartments.map((owner) => owner.label);
 	if (names.length === 1) return `${names[0]} department`;
 	return `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]} departments`;
@@ -82,8 +107,19 @@ export function ownerDepartmentPhrase(ownerDepartments: OwnerDepartmentRef[]): s
 /**
  * The calm, plain sentence for a subject's feature needs. Carries BOTH the
  * plain names and the raw codes, so the diagnostic survives the copy fix.
+ *
+ * There is deliberately NO clause about how the subject is scheduled. Nothing
+ * in this file, or anywhere on the client, reads a scheduling relationship out
+ * of `requiredFeatures`: an `OWNER_DEPT` marker records OWNERSHIP, and ATLAS
+ * schedules a section against teacher and room availability, so a subject owned
+ * by a department can legitimately be taught by another department's teacher in
+ * another department's room. A trailing "is scheduled against its owning
+ * department" therefore asserted something the data cannot support, and it was
+ * appended even for a subject with only a room feature and no owner marker at
+ * all. Ownership, where it is known, is already stated above; the honest
+ * sentence stops there.
  */
-export function subjectFeatureHelp(subjectName: string, split: SubjectFeatureSplit): string {
+export function subjectFeatureHelp(split: SubjectFeatureSplit): string {
 	const parts: string[] = [];
 	const { roomFeatures, ownerDepartments } = split;
 
@@ -93,10 +129,14 @@ export function subjectFeatureHelp(subjectName: string, split: SubjectFeatureSpl
 		);
 	}
 	if (ownerDepartments.length > 0) {
+		const raw = ownerDepartments.map((owner) => owner.raw).join(', ');
+		const counted = ownerDepartments.length === 1 ? 'this' : 'these';
 		parts.push(
-			`It is owned by the ${ownerDepartmentPhrase(ownerDepartments)}. ATLAS records ${ownerDepartments.length === 1 ? 'this' : 'these'} as ${ownerDepartments.map((owner) => owner.raw).join(', ')}.`,
+			hasNamedOwnerDepartments(ownerDepartments)
+				? `It is owned by the ${ownerDepartmentPhrase(ownerDepartments)}. ATLAS records ${counted} as ${raw}.`
+				: `ATLAS records ${counted} as ${raw}, and has no plain name for that code, so it is shown as stored.`,
 		);
 	}
 	if (parts.length === 0) return `This subject needs no special room features.`;
-	return `${parts.join(' ')} ${subjectName} is scheduled against its owning department.`.trim();
+	return parts.join(' ');
 }

@@ -317,12 +317,186 @@ test('A3-C4-1e: an unknown department code degrades to its own code, never to in
 		'ZZZ',
 		'an unknown code was given a fabricated plain-language name',
 	);
+
+	// --- A3-C4-1e CORRECTION (NB-2) ---------------------------------------
+	// QA's finding: the assertions above are satisfied by `label === code` alone.
+	// The unconditional wrapper `` `${label} department` `` still produced
+	// "It is owned by the ZZZ department." — prose asserting a department that the
+	// glossary cannot vouch for, and directly contradicting this module's own
+	// header. So the control is on the NOUN, not on the label.
+	//
+	// MUTATION that turns this red: restore the unconditional wrapper in
+	// `ownerDepartmentPhrase` (drop the `hasNamedOwnerDepartments` branch), so an
+	// unmapped code again yields "ZZZ department".
+	assert.equal(
+		m.hasNamedOwnerDepartments(split.ownerDepartments),
+		false,
+		'an unmapped code is being reported as a named department, so the noun below is unsound',
+	);
+	const phrase = m.ownerDepartmentPhrase(split.ownerDepartments);
+	assert.doesNotMatch(
+		phrase,
+		/department/i,
+		'an unmapped code still produced a "department" noun, asserting a department that may not exist',
+	);
+	assert.equal(
+		phrase,
+		'OWNER_DEPT:ZZZ',
+		'an unmapped code did not degrade to its own stored identifier',
+	);
+	assert.doesNotMatch(
+		m.subjectFeatureHelp(split),
+		/department/i,
+		'the rendered help still names a department for an unmapped code',
+	);
+	assert.doesNotMatch(
+		m.subjectFeatureHelp(split),
+		/ZZZ department/i,
+		'the rendered help fabricates a department named after an unmapped code',
+	);
+
+	// DISCRIMINATION: the noun is withheld BECAUSE the code is unmapped, not
+	// because the presenter never uses one. A control that only asserted the
+	// absence would pass a presenter that had simply stopped naming departments.
+	const mapped = m.splitSubjectFeatures(['OWNER_DEPT:AP']);
+	assert.equal(
+		m.hasNamedOwnerDepartments(mapped.ownerDepartments),
+		true,
+		'a code the glossary DOES map is no longer recognised as named',
+	);
+	assert.equal(
+		m.ownerDepartmentPhrase(mapped.ownerDepartments),
+		'Araling Panlipunan department',
+		'the friendly sentence for a MAPPED code was lost — the noun must survive where it is true',
+	);
+});
+
+/**
+ * NB-2 SIBLING. The noun is withheld all-or-nothing: one unmapped code in a list
+ * means the phrase names no department at all, rather than half-asserting one.
+ *
+ * MUTATION that turns this red: make the check per-entry (`filter` the unmapped
+ * ones out and wrap the rest), which would emit "Araling Panlipunan and ZZZ
+ * departments".
+ */
+test('A3-C4-1f: one unmapped code withholds the department noun for the whole phrase', async () => {
+	const m = await import('../subject-feature-presentation');
+	const split = m.splitSubjectFeatures(['OWNER_DEPT:AP', 'OWNER_DEPT:ZZZ']);
+	assert.equal(split.ownerDepartments.length, 2);
+	assert.equal(
+		m.hasNamedOwnerDepartments(split.ownerDepartments),
+		false,
+		'a list containing an unmapped code is reported as fully named',
+	);
+	const phrase = m.ownerDepartmentPhrase(split.ownerDepartments);
+	assert.doesNotMatch(
+		phrase,
+		/departments?/i,
+		'the plural noun survived a list that contains an unmapped code',
+	);
+	assert.doesNotMatch(
+		phrase,
+		/ZZZ department/i,
+		'an unmapped code was fused into a fabricated plural department name',
+	);
+	// Both stored markers stay visible — nothing is dropped, only the noun.
+	for (const raw of ['OWNER_DEPT:AP', 'OWNER_DEPT:ZZZ']) {
+		assert.ok(phrase.includes(raw), `the stored marker ${raw} is no longer shown at all`);
+	}
+	assert.doesNotMatch(
+		m.subjectFeatureHelp(split),
+		/departments?/i,
+		'the rendered help names a department for a list containing an unmapped code',
+	);
+});
+
+/**
+ * NB-6. The help text used to end with `<subject> is scheduled against its
+ * owning department.` appended whenever there was ANY part — so a subject with
+ * only a room feature and no owner marker rendered "... LAB_BENCH. Earth Science
+ * is scheduled against its owning department." Nothing on the client reads a
+ * scheduling relationship out of `requiredFeatures`, so that clause was a new
+ * false claim of exactly the class this stream exists to remove. It is DROPPED
+ * (not made conditional) because an owner marker proves OWNERSHIP, and ATLAS
+ * schedules a section against teacher and room availability: an owned subject
+ * can be taught by another department's teacher in another department's room.
+ *
+ * MUTATION that turns this red: restore the unconditional trailing clause in
+ * `subjectFeatureHelp` (`return `${parts.join(' ')} ${subjectName} is scheduled
+ * against its owning department.``).
+ */
+test('A3-C4-1g: the help text makes no scheduling claim, with or without an owner marker', async () => {
+	const m = await import('../subject-feature-presentation');
+
+	// The reported case: a room feature and NO owner marker at all.
+	const roomOnly = m.splitSubjectFeatures(['LAB_BENCH']);
+	assert.equal(roomOnly.ownerDepartments.length, 0, 'the fixture unexpectedly carries an owner marker');
+	const roomHelp = m.subjectFeatureHelp(roomOnly);
+	assert.match(roomHelp, /1 special room feature: LAB_BENCH\./, 'the real room-feature sentence is gone');
+	assert.doesNotMatch(
+		roomHelp,
+		/is scheduled against/i,
+		'a subject with no owner marker is still described as scheduled against a department',
+	);
+	assert.doesNotMatch(
+		roomHelp,
+		/owning department/i,
+		'a subject with no owner marker is still told about an owning department',
+	);
+	assert.doesNotMatch(
+		roomHelp,
+		/\bscheduled\b/i,
+		'the help still says anything about scheduling, which no data here supports',
+	);
+
+	// And the owner-marked case: ownership is still stated, scheduling is not.
+	const owned = m.splitSubjectFeatures(['OWNER_DEPT:AP', 'LAB_BENCH']);
+	const ownedHelp = m.subjectFeatureHelp(owned);
+	assert.match(
+		ownedHelp,
+		/It is owned by the Araling Panlipunan department\./,
+		'the true ownership sentence was lost with the false scheduling clause',
+	);
+	assert.doesNotMatch(
+		ownedHelp,
+		/\bscheduled\b/i,
+		'an owner marker is being stretched into a claim about how the subject is scheduled',
+	);
+});
+
+/**
+ * NB-6 on the PRODUCTION path, not just the unit. The clause shipped inside the
+ * row's `AccessibleInfo` help, mirrored into an `sr-only` span, so a unit-only
+ * control would miss it.
+ */
+test('A3-C4-1h: the rendered Subjects row carries no scheduling claim in its help text', async () => {
+	const roomOnly = await render(rowFor(subjectFixture({ requiredFeatures: ['LAB_BENCH'] })));
+	assert.doesNotMatch(
+		document.body.textContent ?? '',
+		/is scheduled against/i,
+		'the rendered row still tells the operator the subject is scheduled against its owning department',
+	);
+	assert.doesNotMatch(
+		document.body.textContent ?? '',
+		/Earth Science is scheduled/i,
+		'the rendered row names this subject in a scheduling claim the data does not support',
+	);
+	await unmount();
+
+	const owned = await render(rowFor(subjectFixture({ requiredFeatures: ['OWNER_DEPT:AP', 'LAB_BENCH'] })));
+	const read = document.body.textContent ?? '';
+	assert.match(
+		read,
+		/owned by the Araling Panlipunan department/i,
+		'the rendered row lost the ownership sentence that IS supported by the data',
+	);
+	assert.doesNotMatch(read, /\bscheduled against\b/i, 'the rendered row still makes a scheduling claim');
+	await unmount();
 });
 
 // ===========================================================================
 // ITEM 2 — the `STE_APPLIED_CHEM` chip must be subordinate and self-explanatory.
 // ===========================================================================
-
 /**
  * DISCRIMINATOR (failing-first): on base the chip is a loud
  * `font-bold ... uppercase ... font-bold tracking-tight` `<code>` with no
@@ -450,8 +624,98 @@ test('A3-C4-3b: every TERM_CACHE_INVALID sentence maps to calm operator copy', a
 			/[a-z]/,
 			`no operator copy at all for: ${message}`,
 		);
+
+		// --- A3-C4-3b CORRECTION (NB-1) --------------------------------------
+		// QA deleted the whole `TERM_CACHE_INVALID` entry from
+		// `subject-source-utils.ts` and this suite stayed GREEN: the generic
+		// fallback satisfies "no raw sentence" and "/[a-z]/" identically, so the
+		// control could not see a lost SPECIFIC mapping. The two assertions above
+		// are kept verbatim and these are added beside them: the operator copy is
+		// pinned to the exact sentences the mapping is supposed to produce.
+		//
+		// MUTATION that turns this red: delete the `TERM_CACHE_INVALID` entry
+		// from `TERM_AUTHORITY_COPY` (the generic fallback then serves every
+		// sentence, and the two pins below go missing).
+		assert.match(
+			banner?.textContent ?? '',
+			/could not confirm the saved school year and terms/,
+			`the specific TERM_CACHE_INVALID description is not what the operator receives: ${message}`,
+		);
+		assert.match(
+			banner?.textContent ?? '',
+			/Refresh the term data from EnrollPro/,
+			`the specific TERM_CACHE_INVALID next action is not what the operator receives: ${message}`,
+		);
 		await unmount();
 	}
+});
+
+/**
+ * NB-1 SIBLING, unit level, on the resolver itself rather than the rendered
+ * banner, so BOTH halves of the mapping (description AND nextAction) are pinned
+ * and the specific entry is proven load-bearing against the generic fallback.
+ *
+ * The last two assertions are the discrimination the original control lacked:
+ * a code with no mapping must resolve to the GENERIC copy, so the specific
+ * `TERM_CACHE_INVALID` strings cannot be satisfied by the fallback. Without
+ * them, deleting the specific entry would be invisible — which is exactly what
+ * QA observed.
+ *
+ * MUTATION that turns this red: delete the `TERM_CACHE_INVALID` entry from
+ * `TERM_AUTHORITY_COPY`.
+ */
+test('A3-C4-3b2: the TERM_CACHE_INVALID mapping is pinned specifically, and beats the fallback', async () => {
+	const { resolveTermAuthorityCopy } = await import('../subject-source-utils');
+	const sentences = [
+		'Saved term contract is not a valid object.',
+		'Saved term contract has an unsupported format.',
+		'Saved term contract has an invalid term count.',
+		'Saved term contract is missing its semantic revision.',
+		'Saved term contract has malformed, duplicate, or out-of-order terms.',
+		'Saved term contract failed its semantic revision check.',
+	];
+	const EXPECTED_DESCRIPTION =
+		'ATLAS could not confirm the saved school year and terms, so it is not using them.';
+	const EXPECTED_NEXT_ACTION =
+		'Refresh the term data from EnrollPro, then try again before scheduling into a term.';
+
+	for (const message of sentences) {
+		const copy = resolveTermAuthorityCopy(
+			authority({ code: 'TERM_CACHE_INVALID', message }) as never,
+		);
+		assert.equal(
+			copy.description,
+			EXPECTED_DESCRIPTION,
+			`the mapped description changed or was lost for: ${message}`,
+		);
+		assert.equal(
+			copy.nextAction,
+			EXPECTED_NEXT_ACTION,
+			`the mapped next action changed or was lost for: ${message}`,
+		);
+		assert.equal(copy.code, 'TERM_CACHE_INVALID', 'the raw code is no longer handed to the diagnostic');
+	}
+
+	// DISCRIMINATION — an unmapped code must land on the generic fallback, so the
+	// pins above are attributable to the specific entry and not to the fallback.
+	const unmapped = resolveTermAuthorityCopy(
+		authority({ code: 'TERM_CACHE_SOMETHING_ELSE', message: 'anything at all' }) as never,
+	);
+	assert.notEqual(
+		unmapped.description,
+		EXPECTED_DESCRIPTION,
+		'an unmapped code is producing the TERM_CACHE_INVALID copy, so the pin above proves nothing',
+	);
+	assert.notEqual(
+		unmapped.nextAction,
+		EXPECTED_NEXT_ACTION,
+		'an unmapped code is producing the TERM_CACHE_INVALID next action, so the pin above proves nothing',
+	);
+	assert.match(
+		unmapped.description,
+		/could not confirm the school year and terms it needs/i,
+		'the generic fallback copy is not what an unmapped code resolves to',
+	);
 });
 
 /** The server file is CROSS-LANE and must not have been edited. */
