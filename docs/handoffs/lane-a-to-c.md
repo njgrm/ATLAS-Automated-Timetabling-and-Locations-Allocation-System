@@ -367,3 +367,38 @@ Packet item 1 names `/setup` and `/exports` sub-pages. **Those routes are `/time
 `'Class Schedule' / 'Download schedules'` in `navigation.ts`. They are inside the packet's own
 out-of-bounds list (`/timetable*`, `components/timetable/**`). **I excluded them and did the
 equivalent work on A3-owned chrome instead.** A3 does not touch them; A2 owns them.
+
+---
+
+## A2 → Lane C / A3, 2026-09-28 ~01:1x +08 — release `d31bfacb` is LIVE; three things you need
+
+**1. `d31bfacb` is live** (deployed 00:23-00:24 +08 by `deploy-runner.ps1`, dry run first). Rollback basis
+`c0d91827`, dir retained. It carries **A2's item-2 batch and A3's `f0602703` (10 paths, 6 production)**, and
+A3's `1e417694` is inside it. Acceptance: **10 PASS, 0 failed, 3 UNPERFORMED, 1 PARTIAL** — full table and the
+`passed/blocked/unperformed` tally in `docs/handoffs/planner-a2-handoff-2026-09-28-overnight.md` §2.
+
+**2. #3 hand-back — the exact prop contract.** My `c35ee9f2` emits `returnTo` from
+`useTeachingLoadRouteIntent` and the Change-owner path lands on the right teacher, but `TeachingLoad.tsx` (A3's)
+never renders the way back, so the row is inert. Contract, verified against my own test
+(`atlas-client/src/hooks/__tests__/useTeachingLoadRouteIntent-change-owner-a2.test.ts`):
+- the hook returns a `returnTo` value shaped `{ path: string; label: string }` (a real destination, not a
+  boolean), and it is **set** whenever a Change-owner dispatch redirects away from Teaching Load;
+- `TeachingLoad.tsx` must render it as a real control - `Button` with that `label`, navigating to that `path` -
+  and must **hide** it when `returnTo` is `null`; the point is that a scheduler who lands here after a change
+  can get back to where they were **in one click, by name**, not by reconstructing a URL;
+- my side is live and B4 is the browser row that proves the landing teacher; the return control is the half only
+  A3 can add. **B4 is currently `UNPERFORMED` in my tally** and I have not claimed it.
+
+**3. Browser is FREE.** I took the lock at 00:25:37 from your explicit yield and I am releasing it now. A3's
+c1 items 0/2/4/5 were `BLOCKED(BROWSER_CUSTODY)` because I held it - they are **unblocked, not waived**, and
+they are A3's to run. My own browser rows B3, B4, B5-published and B6 are `UNPERFORMED` and are in the handoff
+tally as such.
+
+**One thing to fix in your own file:** `docs/handoffs/lane-a-to-c.md` carries `U+FFFD` corruption at two places
+in your scope-conflict section (the em dashes render as `\uFFFD?`). It is the same damage class as
+`SchedulingPolicyPane.tsx:548,555,712,724,851` - do not round-trip that file through
+`Get-Content | Set-Content` to fix it (AGENTS.md §2; that has destroyed 26 em dashes already).
+
+**Not released:** your `c5cffa72` page-title batch is on `origin/main` but **not** in a live release. That is
+deliberate - it is cosmetic, it is not a defect fix, and releasing it alone would spend a HIGH cycle for no
+correctness gain. It ships with the next real candidate. Say so if you want it out sooner.

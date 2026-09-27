@@ -149,7 +149,64 @@ resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs
 
 - Tailnet: `https://njgrm.buru-degree.ts.net`
 
-- **▶ LIVE: `c0d91827311e247ac0f2073a83cc50f5a5efcdb2` — DEPLOYED 2026-09-27 22:45 +08 by Lane A2** (audit
+- **▶ LIVE: `d31bfacbfeadb8e90bf9cf1f7a8ddcad62ab129a` — DEPLOYED 2026-09-28 00:23–00:24 +08 by Lane A2.**
+  **Supersedes the `c0d91827` LIVE record below, which superseded the false `9b28c572` record — three releases in
+  one night, and the register was wrong at the start of it.** Cutover executed with the repo's own
+  `ops/runtime/deploy-runner.ps1` (dry run exit 0, then `-Execute`), which enforced `Assert-LiveReleaseRecorded`
+  against the record commit `f27298b2`, re-verified target and incumbent identity, captured the task XML, and
+  quiesced the supervisor tree. Identity agrees on **all three** independent sources: machine-scope env, the
+  scheduled task action, and the listeners' command lines. `supervisor-state.json` `state=running`.
+
+  | | |
+  |---|---|
+  | **LIVE** | **`d31bfacbfeadb8e90bf9cf1f7a8ddcad62ab129a`** |
+  | **Live dir** | `E:\ATLAS-worktrees\lane-a2-release-d31bfacb` (HEAD `d31bfacb`, `git status --short` empty, own `npm ci` tree) |
+  | **Listeners** | 5001 → **55264** (`atlas-server\dist\server.js`), 5174 → **5988** (`ops\runtime\host.mjs`) |
+  | **Rollback basis** | **`c0d91827311e247ac0f2073a83cc50f5a5efcdb2`**, dir `E:\ATLAS-worktrees\lane-a2-release-c0d91827` — retained, one-step supervised reset. One step further back: `9b28c572`, also retained. |
+  | **Direction** | **FORWARD.** `git merge-base --is-ancestor c0d91827 d31bfacb` exits **0** |
+  | **Delta** | 17 commits, 38 unique paths, **29 non-docs**: A2 **20** + A3 **10** − 1 shared `atlas-client/package.json`. **Two `atlas-server/` production files** (`notification-inbox.service.ts`, `generation.service.ts`) — **not** a client-only release. Zero `prisma/` paths; both `package.json` changes `scripts`-only. |
+  | **Audit trail** | `C:\ProgramData\ATLAS\release-audit\d31bfacb-20260928-002328\` |
+  | **Packet** | `docs/prompts/a2-release-d31bfacb-2026-09-28.md` (corrected after one batched pre-action review, `CORRECTION_REQUIRED` 9/10, wording-only fix) |
+
+  **Acceptance: 10 rows PASS, 0 failed, 3 UNPERFORMED, 1 PARTIAL. A healthy deployed process is not acceptance.**
+
+  | Row | Result |
+  |---|---|
+  | D1 server serves new build | **PASS** — `/health/ready` 200 `database:ok`; DB-backed `/subjects?schoolId=1` 200 (19 453 B) |
+  | D2 client host serves new build | **PASS** — `/__host/live` 200 `application/json`; `/` 200; served entry `index-CIHphcTQ.js` |
+  | D3 server discriminator | **PASS, non-vacuous** — `metadataChangeIdentity` **0 → 4**; new-build-only `dist/__tests__/notification-inbox-dedupe-a2.test.js` present |
+  | D4 client discriminator | **PASS, non-vacuous** — `timetable-plain-language-BYLpdAgL.js` 200 (3 367 B) with the deciding literal; pre-cutover `-WFjDBxxH`, `-SrCPH0Zz` **and** `-DqO6YBTZ` all 404 |
+  | D5a migrations | **PASS** — 11 → 11 by the pinned `ls-tree` method; zero `prisma/` paths |
+  | D5b zero-write (cutover) | **PASS** — window `2026-09-27T16:23:02.874Z` → after: `generation_runs` 9→9, `audit_logs` 451→451 (`max(id)` 1002→1002), `published_schedule_revisions` 6→6, **no audit row in the window**. The cutover wrote nothing, as predicted |
+  | D6 public schedule | **PASS** — 09-20→315, 09-25→317, 09-26→319, 09-27/28→320; fallback true/true/true/false/false; `currentPublishedRunId` 320; **no 409** |
+  | D7 term guard | **PASS** — 400 without `termIndex`, 200 with |
+  | D8 swap route mounted | **PASS** — 401, not 404 |
+  | B1 #44/#57 one number | **PASS** (truthfulness) — the generate dialog no longer says "unassigned" anywhere; it reads "Weekly sessions with no placement yet / 1295 sessions" and says a finished run reports a *different* count. UX grade still fails (155 words, engineer-facing labels) — item (d) |
+  | **B2 batch notification** | **PASS — and it closes the previous release's open BLOCKING finding.** Swap `entry-221::t2` ↔ `entry-321::t2` on draft 321: 200, `editId` 13, run version 4→5, `manual_schedule_edits` 8→9, **`notifications` 216→218** (max 220→224), and the stored key now carries the change identity `…:timetable:321:46:**13**` where the pre-fix row reads `…:321:46`. Root cause: the dedupe key had **no change identity**, so a second edit on the same slot collided. Disclosed state change: draft 321 carries one authorised swap, **not reverted**; nothing published. |
+  | B3 / B4 | **UNPERFORMED** — no cross-term daily-load sum, and Change-owner landing teacher |
+  | B5 run line + badge | **PARTIAL** — **draft side PASS** (`Run: Run 321 · Draft`, badge `DRAFT SCHEDULE`, so **#41 is fixed and live**); **published-run side UNPERFORMED, so #51 is NOT disproven** |
+  | B6 A3's 9 steps | **UNPERFORMED** — A3's rows, owed to A3; the browser is free |
+  | B7 public page DOM | **PASS** — 20 sections, "40 published classes are shown", TERM 2, **no** "Unable to load public schedule" |
+
+  **B2's harness, stated honestly:** the swap was issued through **the app's own authenticated API from the
+  browser's session**, not by clicking two grid cells. The persistence half of the row is real; the grid gesture
+  is not exercised and is not claimed. **The ATLAS evidence origin `https://njgrm.buru-degree.ts.net` was
+  asserted on every browser row** — added to the packet by the pre-action review, which caught that the first
+  draft named no origin at all.
+
+  **Do not read this as a clean bill of health for the lane.** Items (c) #62 root cause, (d) the older-user UX
+  batch, (e) the demo walkthrough, (f) the A3 term-contract test and (g) a second release are **NOT REACHED** —
+  see `docs/handoffs/planner-a2-handoff-2026-09-28-overnight.md` §1 for what the morning does, in order.
+
+- **▶ LEADING TARGET FOR THE NEXT CUTOVER — none authorised at the time of writing (2026-09-28 ~01:1x +08).**
+  `deploy-runner.ps1` fails closed without a target prefix in this section, so **the next HIGH action must record
+  its target here first**, exactly as this block did. `d31bfacb` and `c0d91827` both still satisfy the gate's
+  prefix-*presence* test; **do not cut over to `c0d91827` or `9b28c572` — that would ship less.** A3's
+  `c5cffa72` page-title batch is on `origin/main` and is deliberately **not** authorised alone: it is cosmetic,
+  not a defect fix, and it ships with the next real candidate.
+
+- **▶ LIVE (SUPERSEDED by `d31bfacb` above, 2026-09-28 00:24 +08): `c0d91827311e247ac0f2073a83cc50f5a5efcdb2`
+  — DEPLOYED 2026-09-27 22:45 +08 by Lane A2** (audit
   `C:\ProgramData\ATLAS\release-audit\c0d91827-20260927-224517`). **RECORDED 2026-09-28 00:0x +08 by Lane A2: the
   register said `9b28c572` was LIVE and that was FALSE; this is the correction.** All three independent identity
   sources agree on `c0d91827` and were re-verified before this record was written: machine-scope
@@ -2676,20 +2733,29 @@ the acceptance rows and the section 7 term guard. Worktree `E:\ATLAS-worktrees\l
 (`work/a2-timetable-custody`), `KEEP_ACTIVE`. Never paste the credential value; never run a history purge.
 Cycle narrative and per-candidate evidence: `docs/handoffs/planner-a2-handoff-2026-09-26.md`.
 
-**2026-09-28 00:0x +08 — overnight cycle c1, fresh session. The `## Live release` block above was FALSE and is
-now corrected: live is `c0d91827` (deployed 2026-09-27 22:45 +08), not `9b28c572`; `9b28c572` is the rollback
-basis. All three identity sources agreed and were re-verified; the stale pair was in this shell's inherited
-**process** env only (§6's trap, third observation). Consequence to carry forward: any earlier session that read
-identity from `Env:` reported a displaced release and dead PIDs, and that report was wrong.
-**Leading target for the next cutover: `d31bfacb`**, rollback `c0d91827`, packet
-`docs/prompts/a2-release-d31bfacb-2026-09-28.md`. The unexecuted `a56ac86d` packet is committed as history marked
-SUPERSEDED. Item-2 QA (`ACCEPT_READY` 8/8/0/0) is now on `origin/main` instead of only in a session transcript.
-**Not a blocker but the most valuable thing found tonight:** the `9b28c572` post-action D10 finding — a committed
-swap that persisted no `notifications` row — has a **named root cause** in
-`atlas-server/src/services/notification-inbox.service.ts:174-196` (the dedupe identity was per-slot, so a
-multi-edit batch collided with the single-swap path, wrote the schedule and returned 200 with no row) and is
-**fixed** in `f9879289`/`8325834d`, which this release ships. The discriminating browser row is B2 in the
-`d31bfacb` packet, and a **failed** B2 is a real finding to report, not a harness problem.
+**2026-09-28 ~01:1x +08 — overnight cycle c1, one release done, the rest not reached. `d31bfacb` is LIVE**
+(rollback `c0d91827`), acceptance **10 PASS / 0 failed / 3 UNPERFORMED / 1 PARTIAL**, and the browser rows were
+run on the asserted Tailnet origin `https://njgrm.buru-degree.ts.net`. **The single most valuable result of the
+night: the `9b28c572` D10 finding — a committed swap that persisted no `notifications` row — is CLOSED, with a
+root cause.** `notification-inbox.service.ts:174-196` built the dedupe key with **no change identity**, so a
+second edit on the same slot collided and was dropped by `skipDuplicates`. Measured on live: `notifications`
+216 → **218** after one swap, with the stored key now carrying the change identity (`…:timetable:321:46:13`).
+**`#41` is fixed and live** (`Run: Run 321 · Draft` + `DRAFT SCHEDULE` badge); **`#44`/`#57` are fixed and live**
+(the generate dialog no longer says "unassigned" anywhere).
+**Not reached, all dated 2026-09-28: (c) #62 root cause — still OPEN and the most valuable unknown, with a new
+lead in handoff §6; (d) the older-user UX batch U1–U5, **the highest-value unfinished work and P0 for the
+Wednesday demo**, every finding already measured; (e) the demo walkthrough; (f) A3's staged term-contract test;
+(g) a second release — deliberately not done, because A3's `c5cffa72` page-title batch is cosmetic and is not
+worth a HIGH cycle alone.** **The reconcile table is partial by design:** ~18 rows adjudicated with evidence,
+the rest marked `NOT CLASSIFIED — owed` rather than given invented statuses. **The browser is free** and A3's
+c1 items 0/2/4/5 are unblocked, not waived.
+Full tally, evidence and next steps: `docs/handoffs/planner-a2-handoff-2026-09-28-overnight.md`.
+
+**The `## Live release` block above was FALSE and is now corrected — twice over.** It said `9b28c572` LIVE when
+`c0d91827` was serving; it now says `d31bfacb` LIVE. **Root cause worth carrying forward: any earlier session
+that read identity from `Env:` reported a displaced release and dead PIDs, and that report was wrong** — this
+shell's inherited *process* pair was two releases stale while machine scope, the task action and the live
+listeners all agreed. Identity is decided by machine scope + task action + listeners, never by `Env:`.
 
 **A3 - the one live-facing blocker still open, and it is currently MASKED (2026-09-27).** A **server** fault at
 `atlas-server/src/services/published-schedule.service.ts` - a frozen run resolves `active` from the publication-time
