@@ -506,8 +506,27 @@ export default function Dashboard() {
 	const SourceDecisionIcon = sourceDecision.tone === 'success' ? CheckCircle2 : sourceDecision.tone === 'info' ? RefreshCw : AlertTriangle;
 
 	return (
-		<div className='flex h-[calc(100svh-3.5rem)] min-h-0 flex-col overflow-hidden'>
-			<div className='flex-1 min-h-0 overflow-auto scrollbar-thin'>
+		// A3-C4 (walkthrough 1.1) — AGENTS.md §8 no-scroll architecture. The root
+		// INHERITS the height AppShell hands the outlet (`flex-1 min-h-0
+		// overflow-hidden`) instead of re-deriving it. The old
+		// `h-[calc(100svh-3.5rem)]` guessed the shell, and is right only while the
+		// header is exactly 3.5rem and no `rolloverNotice` is mounted; when the
+		// shell adds chrome the fixed root outgrows its `overflow-hidden` parent,
+		// so the lower regions are clipped and unreachable rather than scrollable.
+		// `h-full` resolves to exactly what the fixed height produced, so nothing
+		// visible changes. NOT the 1366x768 measurement — no browser runs here, so
+		// that pixel row is still OWED to a browser holder (see the a3-c4 handoff).
+		<div className='flex h-full min-h-0 flex-col overflow-hidden' data-testid='dashboard-root'>
+			{/* The ONE bounded scroll region. role/aria-label/tabIndex are required,
+			    not decorative: a region that scrolls must be nameable and focusable,
+			    or everything below the fold is mouse-only. */}
+			<div
+				className='flex-1 min-h-0 overflow-auto scrollbar-thin'
+				data-testid='dashboard-scroll-region'
+				role='region'
+				aria-label='Dashboard content'
+				tabIndex={0}
+			>
 
 				{/* Main content */}
 				<div className='max-w-[1440px] mx-auto w-full flex flex-col space-y-6 px-4 py-6 lg:px-8 lg:py-8 animate-fade-in'>
@@ -521,7 +540,12 @@ export default function Dashboard() {
 						<div className='relative px-6 py-6 lg:px-8 lg:py-8'>
 							<div className='flex flex-col sm:flex-row sm:items-start justify-between gap-4'>
 								<div className='min-w-0'>
-									<h1 className='text-2xl font-bold tracking-tight'>Scheduling Dashboard</h1>
+									{/* A3-C4 (walkthrough 1.4): ONE page name. This hero read
+									    "Scheduling Dashboard" while the sidebar entry and the
+									    breadcrumb leaf both read "Dashboard". The hero is
+									    aligned to the chrome, not the reverse; the A3-C1
+									    PageHeader-card exemption is untouched and still applies. */}
+									<h1 className='text-2xl font-bold tracking-tight'>Dashboard</h1>
 									<p className='mt-1 text-sm text-white/80'>Build, review, and publish the school timetable.</p>
 									<div className='flex flex-wrap items-center gap-2 mt-3'>
 										{rolloverAligned && rolloverStatus ? (
