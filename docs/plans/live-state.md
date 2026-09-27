@@ -272,7 +272,23 @@ resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs
   is no longer true and would read a false pass. The replacement is `dist/routes/manual-edit.router.js`:
   `INVALID_STRATEGY` **0 live → 1 new**, `VALID_SWAP_STRATEGIES` **0 → 3**, 11 084 B → 14 667 B. The client fix is a
   **removal**, so a filename is not a sufficient proof: `timetable-visible-undo` **2 → 1**, `Undo last change`
-  **1 → 0**, chunk `-C4bvatRP` → `-SrCPH0Zz`.
+  **1 → 0**, `timetable-header-undo` **1 → 0**, chunk `-C4bvatRP` → `-SrCPH0Zz`.
+
+  > **CORRECTION 2026-09-27 23:0x +08 — my own first discriminator draft asserted that
+  > `dist/services/timetable-edit-message.js` would be BYTE-IDENTICAL across the builds, and that was FALSE:**
+  > measured **4527 B / `E8F28998…` live → 8047 B / `EDF68E94…` new.** I had attributed the file's only change to
+  > `d1bf04a1` (whose change *is* type-level and erased) and forgotten that `af1451a3` changes the same file at
+  > **runtime** — `RELOCATING_SWAP_STRATEGIES`, `isRelocatingStrategy`, and the exclusion→allowlist guard
+  > conversion. `isRelocatingStrategy` measures **0 → 2**, `RELOCATING_SWAP_STRATEGIES` **0 → 2**. Caught by the
+  > fresh pre-action reviewer and reproduced by me before cutover. The row is corrected in the packet; the source
+  > range was never wrong. **Recorded because a false proof in a live-state bullet is exactly the kind of thing that
+  > would have been re-read as fact by a later session.**
+
+  **Record gate (pre-action review B2, BLOCKING, corrected):** `Assert-LiveReleaseRecorded` requires the **target**
+  prefix in the `## Live release` section at the ref passed as `-LiveStateRef`. Verified by running the gate's own
+  predicate: at `c0d91827` → `c0d91827 present = False` (fails closed); at this section's commit **`09a7b2a1`** →
+  **True**. **Pass `-LiveStateRef 09a7b2a1` or a descendant.** If the manual task-XML route is used instead, that
+  gate never runs — a silent fail-closed downgrade, now disclosed in the packet.
 
   **D5b baseline captured at the live release, window `2026-09-27T14:12:02.370Z`:** `generation_runs` **9**,
   `manual_schedule_edits` **8**, `audit_logs` **449** (`max(id)` 1000), `published_schedule_revisions` **6**,
