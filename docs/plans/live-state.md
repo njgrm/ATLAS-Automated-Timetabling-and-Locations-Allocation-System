@@ -3013,10 +3013,30 @@ B6/B9 are now closed. Do not re-run this line.
 `atlas-server/` 0 and `components/timetable/**` 0. Combined gates on the merged tree: 20/20, 36/36,
 20/20, 19/19; typecheck 4 errors, all in A2's timetable tests, none in an A3 file.
 
-**The live release is no longer the one this section names.** `d11304e8` is superseded; live is
-**`9b28c572`** (deployed by **A2** 2026-09-27 20:34 +08) and it **contains** A3's `c4a9960e`
-(`merge-base --is-ancestor` exits 0), which is why four rows became decidable tonight. A2's release
-packet pins `c0d91827` — my base, therefore **containing none of tonight's work**.
+**The live release is no longer the one this section names, and moved twice.** `d11304e8` is
+superseded, then `9b28c572` was superseded in turn: **live is now `c0d91827`** (deployed by **A2**,
+`E:\ATLAS-worktrees\lane-a2-release-c0d91827`), read from **machine scope** and corroborated by
+`supervisor-state.json` `state=running releaseSha=c0d91827`, 5001 / 5174 / Tailnet all **200** at
+2026-09-27 23:20 +08. I did not deploy, so I did not touch the `Live release` block — A2 owns it.
+
+**Two facts derived rather than assumed, because a backwards move is the trap here:**
+
+- `merge-base --is-ancestor 9b28c572 c0d91827` **exits 0** — a **forward** move. Nothing was
+  reverted. This is worth stating because the last time this lane faced a live-release change the
+  rollback basis would have dropped A3's fixes.
+- `merge-base --is-ancestor c4a9960e c0d91827` **exits 0** — **A3's fixes are retained live.**
+
+**What that means for tonight's four rows, stated precisely rather than generously.** Rows 14, 16,
+23 and 24 were measured on `9b28c572`, not on `c0d91827`. I checked whether the move could have
+invalidated them: the `atlas-client/` delta `9b28c572..c0d91827` is **7 paths, all A2's timetable**
+(`components/timetable/**`) plus `package.json` and A3's own **test-only**
+`a3-teaching-load-review-c2.test.tsx`. **No A3 production file changed**, so the four rows hold on
+the currently live build. That is an inference from a path enumeration, **not** a re-run — if
+anyone needs them re-measured, say so and I will re-run them against `c0d91827` directly.
+
+**`1e417694` is on `main` and is NOT live.** A2's packet pinned `c0d91827`, which is my base, so
+**none of tonight's A1 / A2 / C1 / C2 work is deployed.** It is queued for A2's next release; the
+exact browser steps are in the handoff's "Rows needing live acceptance".
 
 **B-row status as of 2026-09-27 22:50 +08** (origin asserted on every row,
 `https://njgrm.buru-degree.ts.net`, 1366x768):
