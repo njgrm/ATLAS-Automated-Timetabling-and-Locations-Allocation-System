@@ -2,7 +2,30 @@ import { History, Redo2, Undo2 } from 'lucide-react';
 
 import { Button } from '@/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip';
-import { UNDO_CONFLICT_MESSAGE, UNDO_CANNOT_BE_REDONE } from '@/components/timetable/timetableUndoRedoState';
+import { UNDO_CONFLICT_MESSAGE } from '@/components/timetable/timetableUndoRedoState';
+
+/**
+ * A2-UX-STATUS-C2 / #64 — the Redo control's own words when there is nothing to
+ * redo. Exactly this sentence, and nothing else.
+ *
+ * The pre-candidate tooltip was `${UNDO_CANNOT_BE_REDONE} This control is inert
+ * until an undoable change is the latest one.` — a sentence about UNDO, on a
+ * REDO button, followed by an implementation note ("inert") that means nothing
+ * to a scheduler. It also contradicted itself: a Redo is re-arming whenever the
+ * newest ledger row is one the server can revert, so "until an undoable change
+ * is the latest one" is a condition the reader is told they cannot observe.
+ *
+ * "Nothing to redo." states the one fact this button can actually report, and
+ * the disabled state is unchanged — a disabled control that says why is not a
+ * silent absence.
+ *
+ * DEPENDENCY: this sentence belongs beside `UNDO_CANNOT_BE_REDONE` in
+ * `timetableUndoRedoState.ts`, which this lane does not own. That module's
+ * `UNDO_CANNOT_BE_REDONE` is deliberately KEPT for the history row and the
+ * post-revert `undoNotice`, where "this undo cannot be undone" IS the true and
+ * useful fact about an undo row; the two must stay different sentences.
+ */
+export const REDO_NOTHING_TO_REDO = 'Nothing to redo.';
 
 export type UndoRedoControlState = {
 	editHistoryCount: number;
@@ -95,19 +118,20 @@ export function TimetableUndoRedoControl({
 								variant="outline"
 								size="sm"
 								className="h-8 gap-1.5"
-								disabled={revertLoading || !redoState}
-								onClick={() => void redoLastEdit()}
-								data-testid="timetable-visible-redo"
-								// The accessible name carries the reason too, so the claim does
-								// not depend on a hover being available.
-								aria-label={redoState ? 'Redo the last reverted change' : 'Redo is unavailable: this undo cannot be undone'}
-							>
-								<Redo2 className="size-3.5" aria-hidden="true" />
-								<span className="hidden sm:inline">Redo</span>
-							</Button>
-						</span>
-					</TooltipTrigger>
-					<TooltipContent>{redoState ? 'Redo the last reverted change' : `${UNDO_CANNOT_BE_REDONE} This control is inert until an undoable change is the latest one.`}</TooltipContent>
+							disabled={revertLoading || !redoState}
+							onClick={() => void redoLastEdit()}
+							data-testid="timetable-visible-redo"
+							// The accessible name carries the reason too, so the claim does
+							// not depend on a hover being available. #64: it is the same
+							// sentence the tooltip shows, and it is about REDO.
+							aria-label={redoState ? 'Redo the last reverted change' : REDO_NOTHING_TO_REDO}
+						>
+							<Redo2 className="size-3.5" aria-hidden="true" />
+							<span className="hidden sm:inline">Redo</span>
+						</Button>
+					</span>
+				</TooltipTrigger>
+				<TooltipContent data-testid="timetable-redo-blocked-tooltip">{redoState ? 'Redo the last reverted change' : REDO_NOTHING_TO_REDO}</TooltipContent>
 				</Tooltip>
 			</TooltipProvider>
 			{undoBlockedReason ? (

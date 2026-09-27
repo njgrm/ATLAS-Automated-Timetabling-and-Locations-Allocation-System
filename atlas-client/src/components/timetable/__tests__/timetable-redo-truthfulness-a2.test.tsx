@@ -100,7 +100,7 @@ type FrameAnimationFrameCallback = (time: number) => void;
 
 const { createRoot } = await import('react-dom/client');
 const { TooltipProvider } = await import('../../../ui/tooltip');
-const { TimetableUndoRedoControl } = await import('../TimetableUndoRedoControl');
+const { TimetableUndoRedoControl, REDO_NOTHING_TO_REDO } = await import('../TimetableUndoRedoControl');
 const {
 	assessRedoAfterRevert,
 	decideHeaderUndo,
@@ -551,4 +551,70 @@ test('R2 mutant: a silently disabled Undo with no reason fails the rendered cont
 	assert.doesNotMatch(silent, /nothing left to undo/, 'a bare label carries no reason');
 	assert.throws(() => assert.match(silent, /nothing left to undo/), /input did not match/);
 	assert.match(UNDO_HEAD_IS_UNDO_MESSAGE, /nothing left to undo/, 'the shipped reason does');
+});
+
+// ══════════════════════════════════════════════════════════════════════════
+// A2-UX-STATUS-C2 / #64 — the Redo tooltip is a sentence about REDO.
+//
+// Appended, not substituted: no R2 assertion above was removed or weakened.
+// ══════════════════════════════════════════════════════════════════════════
+
+test('#64 the Redo tooltip is exactly "Nothing to redo." and nothing else', () => {
+	// The pre-candidate tooltip, on a LITERAL, in this file's own `preFix…`
+	// idiom. Asserted first so the row cannot pass vacuously: the engineer text
+	// really was there, really was on a REDO control, and really did say "inert".
+	const preFixTooltip = 'This undo cannot be undone. This control is inert until an undoable change is the latest one.';
+	assert.match(preFixTooltip, /^This undo/, 'pre-fix: it opened with a sentence about UNDO');
+	assert.match(preFixTooltip, /inert/, 'pre-fix: it carried the implementation word "inert"');
+	assert.notEqual(preFixTooltip, REDO_NOTHING_TO_REDO, 'and the shipped sentence is genuinely different from it');
+
+	// The shipped sentence, exactly.
+	assert.equal(REDO_NOTHING_TO_REDO, 'Nothing to redo.', 'the replacement is exactly this and nothing more');
+	assert.doesNotMatch(REDO_NOTHING_TO_REDO, /undo/i, 'it is not a sentence about an undo');
+	assert.doesNotMatch(REDO_NOTHING_TO_REDO, /inert|disabled|enabled|control|until/i, 'and carries no implementation vocabulary');
+	assert.doesNotMatch(REDO_NOTHING_TO_REDO, /\bRun\b/, 'and no internal token');
+	// Fewer words than the pre-fix string, which is the whole point of #64.
+	assert.ok(
+		REDO_NOTHING_TO_REDO.split(/\s+/).length < preFixTooltip.split(/\s+/).length,
+		'the replacement is shorter than the sentence it replaces',
+	);
+});
+
+test('#64 the control renders that sentence as BOTH the tooltip and the accessible name', async () => {
+	const rendered = await mountControl({ redoState: null, undoNotice: null, undoBlockedReason: null });
+	const redo = document.querySelector('[data-testid="timetable-visible-redo"]') as HTMLButtonElement | null;
+	assert.ok(redo, 'the Redo control is still rendered — retained, not removed');
+	assert.equal(
+		redo?.getAttribute('aria-label'),
+		REDO_NOTHING_TO_REDO,
+		'the accessible name is the same sentence, so the claim needs no hover',
+	);
+	// The disabled state is UNCHANGED by this correction (the packet requires it).
+	assert.equal(redo?.disabled, true, 'the control is still disabled exactly as it was');
+	// And the aria-label is no longer the pre-candidate sentence.
+	assert.doesNotMatch(redo?.getAttribute('aria-label') ?? '', /cannot be undone|inert/i, 'the engineer wording is gone from the name');
+});
+
+test('#64 the tooltip source names the one sentence in both places, with no second copy', () => {
+	const control = source('src/components/timetable/TimetableUndoRedoControl.tsx');
+	// Both surfaces read the constant, so a later rename cannot leave them apart.
+	const uses = control.match(/REDO_NOTHING_TO_REDO/g) ?? [];
+	assert.ok(uses.length >= 3, `the constant is declared once and consumed by both the aria-label and the tooltip; found ${uses.length} references`);
+	assert.match(control, /export const REDO_NOTHING_TO_REDO = 'Nothing to redo\.';/, 'and it is a single exported literal, not a template');
+	assert.doesNotMatch(control, /This control is inert until an undoable change is the latest one\./, 'the pre-fix sentence cannot come back');
+	// `UNDO_CANNOT_BE_REDONE` stays in the STATE module, for the history row and
+	// the post-revert notice, where it is the true fact about an undo row.
+	assert.doesNotMatch(control, /UNDO_CANNOT_BE_REDONE`\} This control/, 'the Redo tooltip no longer concatenates the undo sentence');
+});
+
+test('#64 the undo-row and history-row wording is deliberately NOT the Redo wording', () => {
+	// Two different facts about two different rows. Merging them would blur the
+	// distinction the history exists to record, so this row pins the separation.
+	assert.notEqual(
+		UNDO_CANNOT_BE_REDONE,
+		REDO_NOTHING_TO_REDO,
+		'an undo row and a Redo button must not wear the same sentence',
+	);
+	assert.match(UNDO_CANNOT_BE_REDONE, /undo/, 'the undo row keeps its own wording');
+	assert.match(REDO_NOTHING_TO_REDO, /redo/i, 'and the Redo button says redo');
 });
