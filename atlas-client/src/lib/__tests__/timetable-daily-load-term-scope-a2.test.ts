@@ -256,12 +256,19 @@ test('L4 the soft band still warns on a single term, and is unaffected by the sc
 test('L5 termCompatibleEntry is total: same term or unscoped conflicts, another term does not', () => {
 	const inTerm2 = entry({ entryId: 't2', day: 'MONDAY', startTime: '07:30', endTime: '08:15', termIndex: 2 });
 	const inTerm1 = entry({ entryId: 't1', day: 'MONDAY', startTime: '07:30', endTime: '08:15', termIndex: 1 });
-	const unscoped = entry({ entryId: 'none', day: 'MONDAY', startTime: '07:30', endTime: '08:15', termIndex: null });
+	// `ScheduledEntry.termIndex` is `number | undefined`, so "unscoped" is
+	// expressed by OMITTING the key. The runtime also tolerates an explicit
+	// `null` (a real stored encoding), and both must resolve to the same
+	// unscoped answer, so both are asserted below rather than only the
+	// type-legal spelling.
+	const unscoped = entry({ entryId: 'none', day: 'MONDAY', startTime: '07:30', endTime: '08:15', termIndex: undefined });
+	const nullTerm = { ...entry({ entryId: 'null-term', day: 'MONDAY', startTime: '07:30', endTime: '08:15' }), termIndex: null as unknown as number };
 
 	assert.equal(termCompatibleEntry(inTerm2, 2), true, 'the same term conflicts');
 	assert.equal(termCompatibleEntry(inTerm1, 2), false, 'another term does not — the year-long repeat is intentional');
 	assert.equal(termCompatibleEntry(inTerm2, 0), true, 'an unscoped context overlaps every term');
 	assert.equal(termCompatibleEntry(unscoped, 2), true, 'an unscoped entry overlaps every term');
+	assert.equal(termCompatibleEntry(nullTerm, 2), true, 'and so does an entry whose term is an explicit null');
 	assert.equal(termCompatibleEntry(inTerm2, undefined), true, 'an absent context is unscoped, not "no term"');
 	assert.equal(termCompatibleEntry(inTerm2, 99), false, 'a term the context does not claim does not conflict');
 	// `normalizeConflictTerm` is PRE-EXISTING and maps any term below 1 to the
