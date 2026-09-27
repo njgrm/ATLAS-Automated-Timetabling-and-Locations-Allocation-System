@@ -1,19 +1,38 @@
 /**
  * A3-TEACHING-LOAD-REVIEW-C2 — the dead `Review teachers` control.
  *
- * Split out of `a3-teachers-load-c3.test.tsx`. The two `test()` registrations
- * in this block CANNOT coexist with that file's 33 in one `tsx --test` module:
- * registered together they crash the whole module at load with a `RangeError`
- * before any test runs (0 tests complete, exit 1). The fault is in the
- * REGISTRATIONS, not in these assertions, and it is already isolated — guarding
- * both behind an env flag made the module exit 0 with no RangeError, while the
- * assertion bodies themselves are sound. So isolation is the fix, and the
- * JSDOM harness below is reproduced self-contained rather than imported from
- * the sibling file.
+ * Split out of `a3-teachers-load-c3.test.tsx`, where these two `test()`
+ * registrations crash the whole module at load with a `RangeError` before any
+ * test runs (0 tests complete, exit 1). That module-load crash is real and it
+ * is why this file exists, but it is NOT the fault described below — the two
+ * were separate, and conflating them sent one diagnosis down a dead end.
  *
- * The control bodies are byte-identical to the block they came from. Nothing
- * was reworded, weakened, or dropped; the C2-2 source assertions still read
- * the real page and the real opener. See the `SUPERSEDED IN BEHAVIOUR` note in
+ * There were two faults, and isolating the registrations only exposed the second:
+ *
+ * 1. MODULE LOAD. Registering these two tests alongside the sibling file's 33
+ *    crashes the module before any test runs. Isolating them into this file
+ *    removes it, so the sibling's 33 controls now actually execute. The
+ *    registration collision is a genuine, self-contained reason for the split.
+ *
+ * 2. THE C2-1 PRECONDITION (fixed in `52b8da25`). The isolation did not make
+ *    C2-1 pass. `render()` appends to the shared `document.body` and unmounted
+ *    only in `afterEach`, so iteration 2's "no dialog may exist" precondition
+ *    correctly FAILED on iteration 1's still-mounted dialog. `assert.equal` from
+ *    `node:assert/strict` is `strictEqual`, whose failure path runs `myersDiff`
+ *    over `util.inspect` of both operands; handed a live attached Radix dialog
+ *    subtree instead of `null`, that diff is unbounded. Measured here: RSS
+ *    320 MiB -> 9.4 GiB, `heapUsed` flat at 133 MiB, `arrayBuffers` flat at
+ *    12 MiB, ending in `RangeError: Array buffer allocation failed` — which
+ *    reads exactly like a product defect and is not one. Composition bisect
+ *    cleared every candidate component (worst case 342 MiB with three roots and
+ *    two clicks, both dialogs opening correctly), and a V8 tick profile put
+ *    75% of `node.exe` samples in `ArrayPrototypeSort` under `util.inspect` and
+ *    28% of all samples in `myersDiff`. Production components are correct.
+ *
+ * The fix realises the isolation the loop comment already claimed: a per-
+ * iteration `teardown()`, and a precondition asserted on a boolean so it can
+ * only fail with a readable `false !== true` that NAMES the stray element.
+ * The control's meaning is unchanged. See the `SUPERSEDED IN BEHAVIOUR` note in
  * F26-2 for why the shape-only control there let a labelled button ship dead.
  */
 import assert from 'node:assert/strict';
