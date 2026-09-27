@@ -638,7 +638,7 @@ export function RolloverGuidanceCard({
 							</TooltipProvider>
 						) : null}
 					</div>
-					<p className="text-sm font-medium text-slate-900">
+					<p className="text-sm font-medium text-foreground">
 						{termRepairNeeded ? termAuthorityView.explanation : (status?.drift.message ?? 'Checking EnrollPro school year status.')}
 					</p>
 					<p className="text-xs text-slate-600">
@@ -734,7 +734,7 @@ export function RolloverGuidanceCard({
 					</div>
 				) : null}
 				{automation?.enabled ? (
-					<p className="text-xs text-slate-500">
+					<p className="text-xs text-muted-foreground">
 						{automationHealthy
 							? `Automatic year sync is on. Last checked ${automation.lastAttemptAt ? new Date(automation.lastAttemptAt).toLocaleString() : 'never'}.`
 							: automationBackoff
@@ -742,7 +742,7 @@ export function RolloverGuidanceCard({
 								: `Automatic year sync is running.`}
 					</p>
 				) : automationDisabled ? (
-					<p className="text-xs text-slate-500">Automatic year sync is off. Sync stays manual.</p>
+					<p className="text-xs text-muted-foreground">Automatic year sync is off. Sync stays manual.</p>
 				) : null}
 				</div>
 				<div className="flex shrink-0 flex-wrap items-center gap-2">

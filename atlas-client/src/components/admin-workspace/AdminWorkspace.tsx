@@ -175,7 +175,7 @@ export function AdminWorkspaceFrame({
 			>
 				<div className="flex min-w-0 flex-wrap items-center justify-between gap-2" data-testid="setup-compact-command-header">
 					<div className="flex min-w-0 items-center gap-2">
-						<h1 className="shrink-0 text-lg font-bold text-slate-900 lg:text-xl">{title}</h1>
+						<h1 className="shrink-0 text-lg font-bold text-foreground lg:text-xl">{title}</h1>
 						<AdminSourceStateChip state={sourceState} copy={sourceCopy} lastVerified={lastVerified} />
 						<p className="sr-only" aria-live="polite" data-testid="admin-source-truth-summary">
 							{resolvedSourceCopy.label}. {resolvedSourceCopy.description} {resolvedSourceCopy.nextAction}

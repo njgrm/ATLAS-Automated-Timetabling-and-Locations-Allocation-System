@@ -103,7 +103,7 @@ export function RolloverResetPanel({ schoolId, status, onApplied }: RolloverRese
 						{resetRows.length > 0 ? (
 							<div>
 								<Button type="button" variant="ghost" size="sm" className="min-h-11" onClick={() => setShowResetCounts((show) => !show)} aria-expanded={showResetCounts} aria-controls="rollover-reset-counts">{showResetCounts ? 'Hide what will be erased' : 'Show what will be erased'}</Button>
-								{showResetCounts ? <div id="rollover-reset-counts" className="mt-2 grid gap-2 sm:grid-cols-2">{resetRows.map((row) => <div key={row.label} className="rounded-xl border bg-white p-3"><p className="text-xs text-slate-500">{row.label}</p><p className="text-lg font-semibold">{row.value}</p></div>)}</div> : null}
+								{showResetCounts ? <div id="rollover-reset-counts" className="mt-2 grid gap-2 sm:grid-cols-2">{resetRows.map((row) => <div key={row.label} className="rounded-xl border bg-white p-3"><p className="text-xs text-muted-foreground">{row.label}</p><p className="text-lg font-semibold">{row.value}</p></div>)}</div> : null}
 							</div>
 						) : <p className="rounded-xl border bg-slate-50 p-3 text-sm">No disposable test-data records were found.</p>}
 						{resetPreview?.reset.blockers.length ? <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800" role="alert"><p className="font-semibold">Reset is blocked</p><ul className="mt-1 list-disc pl-5">{resetPreview.reset.blockers.map((blocker) => <li key={blocker.code}>{blocker.message}</li>)}</ul></div> : null}

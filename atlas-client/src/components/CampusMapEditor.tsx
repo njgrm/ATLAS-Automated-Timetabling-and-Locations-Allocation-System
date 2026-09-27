@@ -644,7 +644,7 @@ export function CampusMapEditor({
 
 					{/* Group: History */}
 					<div className="inline-flex h-8 items-center gap-1 rounded-md border border-border bg-card px-1">
-						<span className="px-1 text-[0.65rem] font-semibold text-slate-500">History</span>
+						<span className="px-1 text-[0.65rem] font-semibold text-muted-foreground">History</span>
 						<Tooltip>
 							<TooltipTrigger asChild>
 								<Button
@@ -678,7 +678,7 @@ export function CampusMapEditor({
 					<div className="flex-1" />
 
 					<div className="inline-flex h-8 items-center gap-2 rounded-md border border-border bg-card px-2" aria-label="Save state">
-						<span className="text-[0.65rem] font-semibold text-slate-500">Save</span>
+						<span className="text-[0.65rem] font-semibold text-muted-foreground">Save</span>
 						<span
 							role="status"
 							aria-live="polite"

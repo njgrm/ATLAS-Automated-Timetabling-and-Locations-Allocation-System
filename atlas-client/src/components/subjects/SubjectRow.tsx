@@ -178,7 +178,7 @@ export function SubjectRow({
 					</span>
 				) : (
 					<span className="flex items-center gap-1">
-						<Badge variant="outline" className="text-xs font-bold bg-slate-50 text-slate-500 border-slate-200 shadow-none">
+						<Badge variant="outline" className="text-xs font-bold bg-slate-50 text-muted-foreground border-slate-200 shadow-none">
 							Checking
 						</Badge>
 					</span>
