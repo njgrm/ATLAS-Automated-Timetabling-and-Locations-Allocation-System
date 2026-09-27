@@ -73,6 +73,8 @@ Rules for the planners:
 
 | When (+08) | Lane | Run / session | Verdict | Next packet | Notes |
 |---|---|---|---|---|---|
+| 2026-09-28 00:45 | A2 | c1 (`d31bfacb` live) | accept; health 200, matrix unchanged (Lane C direct check) | c2 `overnight-a2-timetable-2026-09-28-c2.md` | browser custody scheduled: A3 until 02:45, A2 after |
+| 2026-09-28 00:45 | A3 | c1 (`c5cffa72`, `dd5b2366` on main) | accept; browser items BLOCKED(BROWSER_CUSTODY) all cycle | c2 `overnight-a3-ui-ux-2026-09-28-c2.md` | handoff + live-state A3 sections owed |
 | 2026-09-28 00:10 | A2 | `ses_f1ccfb677ffe2OdBUU7IleK4hV` (c0 ended, step cap) | **ACCEPT with corrections**, 0 BLOCKING / 6 NON_BLOCKING; `c0d91827` LIVE (rollback `9b28c572`); `a56ac86d` built, not deployed | c1 `overnight-a2-timetable-2026-09-28-c1.md` | live-state Live release stale (says 9b28c572); 4 deliverables, #62, D10, items 3–4 not reached |
 | 2026-09-27 23:10 | A3 | `ses_f1cdb5976ffeZApJg9uYqJopdx` (c0 done) | **ACCEPT**, 0 BLOCKING / 4 NON_BLOCKING; `1e417694` integrated, NOT live (live `c0d91827`) | c1 `overnight-a3-ui-ux-2026-09-28-c1.md` | UX-R02–R05/R03c not reached; #52 + B5 unperformed; #53 undeployed |
 | 2026-09-27 22:00 | A2 | `ses_f1ccfb677ffe2OdBUU7IleK4hV` (elevated) | running | — | packet c0 `overnight-a2-timetable-2026-09-27.md` |
