@@ -3309,3 +3309,75 @@ surface.test.ts` (1-of-4 red since 2026-09-20) also not reached. The double poli
 **Worktrees to retire (mine, dated 2026-09-28):** `lane-a3-c1-docs`, `lane-a3-c1-integ`,
 `lane-a3-c1-s-e`, `lane-a3-c1-ux`, plus c2's `lane-a3-c2-chrome` and `lane-a3-c2-integ`. All branches
 preserved; **no branch deleted**.
+
+---
+
+## Lane A3 — overnight 2026-09-28 c3 (supersedes the c1/c2 block above; `Live release` untouched)
+
+**Two A3 streams integrated and pushed: `09b8c95e` and `a33e0376`. A3 did not deploy, so per §6 I did
+not touch the `Live release` block.** Live is A2's release and A2 owns it. A3 ran **no browser** and
+touched no `.browser-lock` (c3 change of plan).
+
+**What is live vs not, decided rather than assumed.** A2's 04:30 release pinned `e642f5e8`, whose tree
+already contains `09b8c95e` (via `d049f85d`) — so **the contrast sweep ships in that release** and the
+**title strips (`a33e0376`) land after it.** Verified by ancestry from an independent boundary.
+
+| | base | candidate | merge | QA |
+|---|---|---|---|---|
+| c3 token sweep | `39c52af7` | `f86d6bf8` | **`09b8c95e`** | `ACCEPT_READY` **8/8/0/0** |
+| c3 title strips | `e642f5e8` | `45a6fa2c` + correction `7d2231da` | **`a33e0376`** | `CORRECTION_REQUIRED` 6/8/0/0 → corrected |
+
+Both: client-only, `atlas-server/` 0, `components/timetable/**` 0, `index.css` 0, `RoomSchedules.tsx` 0.
+12 A3 suites green on the merged trees, build exit 0, `git diff --check` clean, **0 typecheck errors in
+any A3 path**.
+
+**Closes an accessibility debt, with the limit stated.** 15 `text-slate-400` text sites →
+`text-muted-foreground`; contrast on white **2.630:1 → 4.697:1** (crosses AA). On `--muted`/`--secondary`
+**2.390:1 → 4.268:1** — improved, **still below AA**. **The app does not pass WCAG AA on those two
+surfaces, before or after.** This includes the enabled-control failure at
+`BuildingGradeScopeControl.tsx:36` that c2 recorded.
+
+**A false evidence claim of mine, corrected here so it cannot propagate (dated 2026-09-28 02:20).** I
+reported that `size="sm"`'s `h-10` beats every `h-7/h-8/h-9` override, making them "inert repo-wide",
+and leaned on it for the height argument. **False:** `cn()` is `twMerge`, so competing heights are
+deduplicated before the cascade runs — the overrides are **live**. Nothing false was committed; the
+height conclusion survives on the correct basis that the row's height-driving classes are byte-identical
+before and after. Do not repeat the claim.
+
+**OPEN DECISION — needs one rendered screen, dated 2026-09-28 02:30.** The two compact title strips are
+unified in container and status affordance, but **their title scales are deliberately still different**
+(`/teachers` `text-lg lg:text-xl`, `/teaching-load` `text-sm sm:text-base`). Unifying them serves older
+users with bigger text **and** adds height to the two pages carrying accepted rows 14 and 16. **A3 runs no
+browser and cannot measure that trade, so it was escalated rather than guessed.** Both strings are pinned
+verbatim in `test:a3-title-strip-c3`, so the decision lands as a deliberate edit. **Still
+`BLOCKED_SOURCE_GAP` for any scale change until a screen exists.**
+
+**Ledger rows, terminal state as of 2026-09-28 03:00.** Unchanged: `QA_PASSED` 01–07, 09–26, 29–33B.
+`BLOCKED_PRODUCT_DECISION`: **08** (deselect vs unassign; A3's read remains **B** — undecided here, it
+changes what a button means to an existing user). `BLOCKED_SOURCE_GAP`: **27, 28, 34**. New: c3's sweep
+`09b8c95e`; c3's title strips `a33e0376`; **`uxc01-derived-setup-surface.test.ts` is no longer owed —
+4/4 green** (fixed by `91d327e3`/`b98d1cc3`, reachable from three committed scripts); `returnTo` recorded
+`A2-OWED`, premise still falsified.
+
+**Item 5 resolved by measurement, not capacity, dated 2026-09-28 02:50.** The named UX-R02–R05 / UX-R03c
+items are **not A3-owned unmet work**: R02 is 4/4 green, and R03a/R03b/R03e live under
+`components/timetable/__tests__/` (**A2's**). R03c has no test file. The remaining A3-owned UX work is
+the **c4 HIGH truthfulness set** (walkthrough #7, #8, #53 tiles, Building-view "n/a"), which is c4's scope.
+
+**Browser rows, dated 2026-09-28 02:40.** **B5 is CLOSED** — Lane C ran it live on `d31bfacb` (`730614bc`),
+ending a row owed for three consecutive cycles. `#52` and `#53` are Lane C's. The nine `1e417694` steps
+and both walkthrough walks remain owed to a profile holder; **exact steps for the two new streams are in
+the handoff's "Live-acceptance steps owed"**, including the rows 14/16 re-measure that A2's ~40px roster
+widening makes urgent.
+
+**FOR A2 (not mine, dated 2026-09-28 02:35).** `typecheck` on `main` is now **5** errors, not the 4 this
+lane has been quoting. The new one is `src/lib/__tests__/timetable-truth-labels-a2.test.ts:443` `TS2367`,
+from A2's `f02c693c`, present **without** my merge. A2's baseline moved.
+
+**FOR ANY LANE.** `D:\ATLAS\atlas-client\node_modules` was an **empty directory** until this session ran
+`npm ci` in it. Junctioning to it before that produces a tree where `npx` looks like it works while the
+real toolchain is absent — which is exactly how I nearly shipped an unrunnable candidate.
+
+**Worktrees, dated 2026-09-28 (all mine, all retired this cycle, junction-safe):** `lane-a3-c1-docs`,
+`lane-a3-c1-integ`, `lane-a3-c1-s-e`, `lane-a3-c1-ux`, `lane-a3-c2-chrome`, `lane-a3-c2-integ`,
+`lane-a3-c3-slate400`, `lane-a3-c3-title`, `lane-a3-c3-integ`. Branches preserved; **no branch deleted**.

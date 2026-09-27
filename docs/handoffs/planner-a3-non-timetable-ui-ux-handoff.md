@@ -1460,3 +1460,192 @@ on `origin/main` and none of them is live: live is `d31bfacb`. No deployment, mi
 publication, live-data write, browser session, or companion-repo action was taken at any point.** A3
 worked in registered worktrees, pushed only commits proven to be accepted ancestors, verified
 `d31bfacb` was not reverted, and deleted no branch.
+
+## 2026-09-28 c3 (Planner A3, session of 2026-09-28 01:24 → 03:00 +08)
+
+**This section is the current truth for c3.** Packet
+`docs/prompts/overnight-a3-ui-ux-2026-09-28-c3.md`. **A3 did not deploy; A2 owns every release. A3 ran
+no browser and touched no `.browser-lock`.**
+
+**Two streams integrated and pushed: `09b8c95e` (token sweep) and `a33e0376` (title strips).** Both
+are on `origin/main` and **neither is live** — A2's 04:30 release pinned `e642f5e8`, whose content
+already contains `09b8c95e` (`d049f85d`), so the sweep ships in that release and the title strips
+land after it.
+
+### Stream 1 — the step-2 token sweep: `09b8c95e`, QA `ACCEPT_READY` 8/8/0/0
+
+Base `39c52af7`, candidate `f86d6bf8`, merge `09b8c95e`, 9 paths, +758/−23. 15 `text-slate-400`
+text sites → `text-muted-foreground` across `BuildingGradeScopeControl`, `CampusMapOverview`,
+`CampusReadinessCard`, `Audit`, `Dashboard`. Ratchet pin 110 → 95. `atlas-server/` 0,
+`components/timetable/**` 0, `index.css` 0, `StackedWorkloadBar.tsx` 0 (its `bg-slate-400` is a
+**fill**, not text), `RoomSchedules.tsx` 0. **This closes the five `slate-400` sites c2 recorded as
+accessibility defects, including the enabled-control AA failure at `BuildingGradeScopeControl.tsx:36`.**
+
+**The decision to redo it, and the two things I got wrong while deciding.**
+
+*I wrongly assumed the c2 debris's "near-exact rename" framing transferred.* It does not. Measured:
+`slate-400` = Tailwind 4.2.2 `oklch(70.4% 0.04 256.788)` → `rgb(144,161,185)`;
+`--muted-foreground: 215 16% 47%` → `rgb(101,117,139)`; per-channel delta **43/44/46, max 46/255**.
+It is an **intentional darkening, not a rename** — 18% of the channel range. Had an executor copied
+the S-e `CHANNEL_TOLERANCE = 3` framing, its test would have been permanently red and the only way
+"forward" would have been widening a tolerance, which is the forbidden failure mode. My packet said
+2–3/255; the executor stopped and corrected me. **The test now asserts the darkening explicitly**, and
+c2's handoff wording is the thing that would have propagated the error.
+
+*I also provisioned a donor that was an empty directory.* I told the first executor
+`D:\ATLAS\atlas-client\node_modules` was a working junction. The junction existed; its **target held
+0 entries**. My own "toolchain green" was an artifact of `npx` fetching `tsx` on the fly, and the one
+suite I ran happened not to need `tailwindcss`. **The executor refused to proceed rather than commit a
+test it could not run** — which is the behaviour §16 wants and the reason this cost one round rather
+than a broken candidate. Fixed by `npm ci` in `D:\ATLAS\atlas-client` (154 entries, exit 0): a
+stable, never-retired donor. **Any lane trusting that path must populate it first.**
+
+I also mistyped the base SHA (`…bf177de…` for `…bf177ef…`); the executor hit `fatal: bad object` and
+named it. Recorded because three separate premise errors in one dispatch is the pattern worth seeing.
+
+**Honest limit, stated so nobody over-claims.** Contrast on white **2.630:1 → 4.697:1** (crosses AA
+4.5:1). On `--muted`/`--secondary` **2.390:1 → 4.268:1** — improved, **still below AA**. **The app
+does not pass WCAG AA on those two surfaces, before or after.** The disclosure is asserted in the
+test header and cannot be quietly deleted. A live row on a muted surface is owed.
+
+QA's one substantive note: the `delta >= 40 && delta <= 50` band is the one threshold a future session
+could widen without going red, bounded to the framing band rather than defect detection, because the
+load-bearing pins are exact-equality against live disk measurements and the AA assertions are
+absolute against 4.5.
+
+### Stream 2 — title-strip consolidation: `a33e0376`, after `CORRECTION_REQUIRED` 6/8/0/0
+
+Base `e642f5e8`, candidate `45a6fa2c`, planner correction `7d2231da`, merge `a33e0376`, 6 paths.
+
+**The route table's own words scoped this: "Consolidating strips A and B is the next stream."** So
+A (`AdminWorkspace`, 3 pages) and B (`WorkspaceToolbar`, `/teaching-load`) were unified onto a shared
+`CompactTitleStrip`, and **no strip was converted to the card pattern** — that was never in scope.
+Containers and status affordance unified; the `<h1>` stayed at each call site (forced by
+`a3-page-title-c1`, which counts `<h1` literally in both files).
+
+**The deliberate non-change, which is the most important sentence in this section: I did not unify the
+two title scales.** Strip A is `text-lg lg:text-xl`; strip B is `text-sm sm:text-base`. Unifying them
+is a genuine product trade — bigger text serves the older users this lane is graded for, and it also
+adds height to `/teachers` and `/teaching-load`, which carry **accepted browser rows 14 and 16**. **A3
+runs no browser and cannot measure that trade, so I escalated it instead of guessing.** Both scale
+strings are pinned verbatim in the new suite, so when a screen is available the decision lands as a
+deliberate edit to a pinned value rather than silent drift.
+
+**Height-neutrality, because that is what keeps rows 14/16 safe without a screen.** A: `py-1.5`+`border-b`
+= 13px → `py-1`+`border-b` = 9px (**−4**). B: band 13 + card 10 = 23px → strip 9 (**−14**). The
+direction was forced, not chosen: strip A's frame owns a viewport column with no padding, so a card
+treatment could only ever add height; hence full-bleed, and B's redundant page band had to go (the one
+`pages/TeachingLoad.tsx` edit). QA independently confirmed both figures and found **no element that
+could have grown**.
+
+**QA caught a false evidence claim of mine, and I am recording it so it cannot propagate.** I reported
+that `size="sm"`'s `h-10` beats every `h-7/h-8/h-9` override in both files, making those overrides
+"already inert repo-wide", and used it to reassure myself about the arithmetic. **That conclusion is
+false.** `cn()` is `twMerge(clsx(...))`, so competing heights are deduplicated *before the browser sees
+them*: strip A's chip emits `h-8`, and `h-10` is dropped at merge time. The CSS cascade never runs.
+The `.h-10`@25654 ordering in the built CSS is real but never competes. **The overrides are live.** The
+height conclusion survives, but on a different and correct basis: the row's height-driving classes are
+byte-identical before and after, so growth is impossible regardless of which heights win. Nothing
+false was committed in the range — the claim was only ever in my reports — but it is here so no later
+session repeats it.
+
+**The BLOCKING finding QA was right about, and the fix.** My executor reported a control that rejects
+a local re-declaration of the strip shell. QA applied the exact mutation it claimed would fail — a
+`flex items-center gap-1.5` wrapper around the status — and the suite stayed **12/12 green**; a
+stronger mutation, a verbatim local copy of the shared `leading` row, also passed. The ratchet guarding
+the unification did not ratchet, because the test only forbade **two verbatim class strings**. Shipped
+code was correct and in scope; the defect was the control. I applied the correction myself (test-only,
+additive — §16, nothing deleted): three controls added — no `COMPACT_TITLE_STRIP_CLASS` value may appear
+at either call site (catches any verbatim re-declaration of any shell part), a pinned per-file `<div>`
+ratchet (the only shape that catches an ad-hoc wrapper whose class nobody pinned), and the `status` prop
+must be a leaf control. **Both of QA's mutations now fail, each by the right control**, restored
+byte-exact. 15/15 (was 12/12); `a3-page-title-c1` 14/14; `a3-teachers-load` 36/36; blast-radius 43/43.
+**Bounded re-review per §11:** `45a6fa2c` is the parent, the four source files and `package.json` are
+byte-identical to it, and one preservation control passes.
+
+Disclosed residuals, all NON_BLOCKING: `/teaching-load` genuinely lost its card chrome and band padding
+(the consolidation, net −14px) on a page I could not view; strip A's new hover tooltip restates text its
+click-popover already shows; **strip B's status badge is a `div`, so its status is still mouse-only —
+the unification did not close that pre-existing a11y gap**, because fixing it changes the focus ring and
+I would not ship an unverifiable change.
+
+### Item 3 — `uxc01-derived-setup-surface.test.ts` is no longer owed, dated 2026-09-28 02:45
+
+It was 1-of-4 red on 2026-09-20. **It is now 4/4 green**, fixed by `91d327e3` / `b98d1cc3` (the
+derived-setup retirement), and reachable from three committed scripts. Closed with proof, not waived.
+
+### Item 4 — the `returnTo` row is `A2-OWED`, restated so it stops being re-litigated
+
+**`returnTo` does not exist on any ref in this repository** (c2's measurement stands: 0 in the hook,
+0 in the test A2 cited, `git log --all -S returnTo` empty, 0 in `d31bfacb`/`c0d91827`/`c35ee9f2`/
+`8325834d`). A3 will not invent a cross-lane URL contract at 02:00 with no partner awake, because any
+control rendering it would pass against a field the hook never emits. **A2 owns it: emit `returnTo` from
+`useTeachingLoadRouteIntent` and tell me, or drop the row.** A3's B4 stays unbuilt rather than falsely
+green. Not re-litigating this again.
+
+### Item 5 — NOT REACHED as a fresh stream, with the reason measured, dated 2026-09-28 02:50
+
+Not a deferral for capacity — I checked, and **the named items are not A3-owned unmet work.** R02
+(`ux-r02-simple-stripdown.test.ts`) is **4/4 green**. R03a, R03b and R03e live under
+`atlas-client/src/components/timetable/__tests__/` — **A2's timetable surfaces**, which the c1 route
+table already recorded as a scope conflict. R03c has no test file at all. **There is no A3-owned,
+source-verifiable, unmet item in the UX-R02–R05 / UX-R03c list.** The genuinely remaining A3-owned UX
+work is the **c4 HIGH truthfulness set** (walkthrough #7, #8, #53 map tiles, Building-view "n/a"), which
+is a different and higher-value packet that arrived mid-session. The double policy fetch remains A2's
+(`SchedulingPolicyPane`, `useScheduleReviewWorkspaceState`).
+
+### Live-acceptance steps owed — exact, for whoever holds a profile
+
+**Stream 1 (`09b8c95e`, the contrast change; only visible on a screen).** Origin
+`https://njgrm.buru-degree.ts.net`, 1366x768, assert `window.location.origin` on every row.
+1. `/audit` → the search icon and the "What is blocked" / "Why it matters" labels are visibly darker
+   than the previous release and no longer washed out. 2. `/dashboard` → the "Before generation" label,
+   the inactive step label, and the struck-through completed item are all readable. 3. **On a `--muted`
+   surface (e.g. the "What is blocked" tile in `/audit`) confirm the disclosure: still under AA, but
+   clearly better than 2.390:1.** 4. `/map` → "Select a building on the map to begin.", "No rooms match
+   filters." and the italic unknown-utilization value are readable. 5. `/sections` room picker's
+   `BuildingGradeScopeControl` chip is readable **and still clickable** (it is an enabled control — a
+   regression here is the real risk, not a colour miss).
+
+**Stream 2 (`a33e0376`, the title strips; expect a visible change).** 6. `/teaching-load` → the header
+is now a **full-bleed bar with a hairline bottom border, no rounded card and no drop shadow**, and it
+is **~14px shorter** than before; its tabs and readiness rows start at the wider page padding. 7. `/teachers`,
+`/sections`, `/subjects` → same full-bleed treatment, ~4px shorter. 8. **Rows 14 and 16, which this
+change was built to keep safe:** on `/teachers` and `/teaching-load` at 1366x768 confirm **no page
+scrollbar** (`scrollHeight === clientHeight`) and **more than one roster row visible**. 9. Hover the
+status control on both `/teachers` and `/teaching-load` → the same description + next action appear. 10.
+On `/teachers` click the status chip → the fuller click-popover still works. **A2 widened a roster cell
+by ~40px in this same window, so rows 14/16 are the two most likely to have moved for reasons that are
+not mine — re-measure them, do not assume.**
+
+**Title scale is deliberately still different** (`/teachers` larger than `/teaching-load`). If that
+reads as an inconsistency to a reviewer, that is the escalated decision, not an oversight.
+
+### Residual risks carried forward
+
+- **OPEN DECISION, needs one rendered screen** — unify the two title scales. Bigger text serves older
+  users; it costs height on the two pages carrying rows 14/16. Pinned, not guessed.
+- **OPEN, owed to a browser holder** — B5 is **CLOSED** (Lane C, live on `d31bfacb`, `730614bc`), which
+  ends a row owed for three consecutive cycles. `#52` and `#53` are Lane C's per the c3 change.
+- **NON_BLOCKING** — the app still does not pass WCAG AA on `--muted`/`--secondary` (4.268:1).
+- **NON_BLOCKING** — strip B's status is still mouse-only; the unification did not fix that a11y gap.
+- **NON_BLOCKING** — `index.css` is pinned by hash in the sweep's test, so a legitimate future global
+  token change reds that test by design and the constant must be recomputed in-session.
+- **FOR A2, not mine** — `typecheck` on `main` is now **5** errors, not the 4 this lane has been
+  quoting. The new one is `src/lib/__tests__/timetable-truth-labels-a2.test.ts:443` `TS2367`, from A2's
+  `f02c693c`, present on `main` **without** my merge. **0** of my 6 paths have any error. A2's baseline
+  moved and their own lane should know.
+- **FOR ANY LANE** — `D:\ATLAS\atlas-client\node_modules` was an **empty directory** until this session
+  ran `npm ci` in it. Junctioning to it before that gives a tree where `npx` appears to work and the
+  real toolchain is absent.
+
+### Verdict for c3
+
+**Two streams integrated and pushed — `09b8c95e` (QA `ACCEPT_READY` 8/8/0/0) and `a33e0376` (after one
+`CORRECTION_REQUIRED` 6/8/0/0 whose one real defect I corrected test-side, and one false evidence claim
+of mine I have recorded here rather than propagated). Item 3 closed with proof; item 4 recorded
+`A2-OWED`; item 5 shown not to be A3-owned unmet work. Combined gates on both merged trees: 12 A3
+suites green, build exit 0, `git diff --check` clean, 0 typecheck errors in any A3 path. **No deployment,
+migration, generation, publication, live-data write, browser session, runtime/task/env change, or
+companion-repo action was taken at any point.** A3 ran no browser and held no lock, worked only in
+registered worktrees, pushed only ranges proven to contain only accepted commits, and deleted no branch.**
