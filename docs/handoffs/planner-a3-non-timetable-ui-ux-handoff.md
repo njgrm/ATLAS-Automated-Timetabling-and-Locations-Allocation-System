@@ -355,6 +355,117 @@ for a real name **while keeping `buildingContentW` unchanged for Lane A2** — t
 be re-flowed, not the width raised, or A2's fit scale moves again; (2) wire or remove the
 banner's dead `Review teachers` control. Neither requires re-reviewing the whole range.
 
+### 2026-09-27 — RESUMABLE HANDOFF: corrections r1 implemented but UNCOMMITTED, one gate open
+
+An executor implemented both browser-acceptance corrections. **The work is real and
+load-bearing but NOT committed**, and one gate is unresolved. Two dispatches were interrupted
+mid-flight; a third attempt to finish was interrupted too. Everything below is verified state,
+not a plan.
+
+**Worktree: `E:/ATLAS-worktrees/lane-a3-corrections-r1` · branch `fix/a3-browser-findings-r1` ·
+base `d9575e83` (`origin/main` at the time) · HEAD still at base, 4 modified + 1 untracked.**
+
+```
+ M atlas-client/src/components/BuildingView.tsx                                   (+45/-10)
+ M atlas-client/src/components/sections/__tests__/a3-sections-map-layout.test.ts  (+349)
+ M atlas-client/src/components/faculty-assignments/__tests__/a3-teachers-load-c3.test.tsx (+178)
+ M atlas-client/src/pages/TeachingLoad.tsx                                         (+5/-2)
+ ?? atlas-client/src/components/faculty-assignments/teacherReviewEntry.ts        (new, 41 lines)
+```
+
+**Correction 1 — root cause found, and it is NOT what I assumed.** I hypothesised in the
+packet that a *different* text element produced the truncated `G7 Room…`. That was wrong. The
+real cause is a **units bug**: React-Konva `Text.lineHeight` is a **multiplier, not a pixel
+count** (`konva/lib/shapes/Text.js:455`, and `:306` `lineHeightPx = lineHeight() * fontSize`).
+Passing the pixel pitch `ROOM_LINE_H` (13) therefore produced a line pitch of
+**13 x 11 = 143 stage units**, 11x the intended 13px budget. Two consequences, both matching
+the live evidence exactly:
+- `_shouldHandleEllipsis` returned true after the **first** line for every name
+  (`currentHeightPx + lineHeightPx` = 286 > `maxHeightPx` = 26), so `:362
+  _tryToAddEllipsisToLastLine` replaced the rest with a single `.` — `Learning Commons`
+  rendered as `Learning.`
+- `:104/:111 translateY = lineHeightPx / 2` = **71.5**, and with `verticalAlign` defaulting to
+  TOP (`alignY` = 0) the name drew **71.5 units below its own box** — i.e. at the bottom of the
+  84px card, which is exactly where I observed the truncated label, with the type line,
+  occupancy chip and utilisation readout pushed off-card entirely.
+
+The fix exports `ROOM_LINE_RATIO = ROOM_LINE_H / ROOM_NAME_FONT` (13/11) and passes that as
+`lineHeight`, so `lineHeightPx` = 1.1818 x 11 = 13. The ratio is exact in IEEE-754
+((13/11) x 11 === 13), so two lines occupy 26 units and still fit `ROOM_NAME_BOX.height` (26)
+with no ellipsis, while a third line (39) is still rejected.
+
+**Load-bearing constraint honoured:** `ROOM_MIN_W` is still **90** and the `buildingContentW`
+formula is untouched, so Lane A2's fit scale cannot move. No box moves; `ROOM_LINE_H` stays 13
+so the disjoint-rectangle budget and every existing layout control keep their exact numbers.
+**This could only have been found in a browser** — JSDOM performs no canvas layout. It is
+direct evidence for the directive's rule that live browser evidence decides what source review
+cannot.
+
+**Correction 2 — root cause found and fixed.** The Next Step banner's `onOpenReview` was
+`() => ui.setViewMode('teacher')`, which set a view mode **that was already `teacher`** — a
+no-op. That is precisely why the click focused and opened nothing. Both entry points now call
+one shared, importable `openTeacherReview({ setViewMode, setReviewModalOpen })` from the new
+`teacherReviewEntry.ts`, which does both. Extracted into its own module for two stated reasons:
+`pages/TeachingLoad.tsx` is near the 1000-line cap, and the handler is what the acceptance
+control must import so it exercises **production wiring** rather than a retyped copy. The
+executor also retained the old shape-only control marked SUPERSEDED IN BEHAVIOUR with the
+replacement beside it, per §16 additive-correction discipline.
+
+**Gate status (literal commands, real tallies):**
+
+| Gate | Result |
+|---|---|
+| `test:a3-sections-map` | **20/20, exit 0** |
+| `test:global-scrollbars` | **1/1, exit 0** |
+| `test:ux-guardrails` | **31/31, exit 0** |
+| `test:a3-teachers-load` | **35 tests, exit 1 — `RangeError: Array buffer allocation failed`, 0 tests complete** |
+
+**THE OPEN ITEM — an unresolved test-loader crash. Do not trust a bisect here; mine was invalid.**
+Established: the **base** version of `a3-teachers-load-c3.test.tsx` at `d9575e83` runs **exit 0**,
+so the crash is introduced by the new code, and it happens at **module load** (0 tests report),
+reported by `tsx` at `1:40170` in its compiled single-line output. **All four newly imported
+modules load fine in isolation** via a temporary probe (`teacherReviewEntry` 5ms,
+`TeachingLoadRepairQueue` 155ms, `ReviewTeachersModal` 125ms,
+`useTeachingLoadRepairQueue` 15ms, probe exit 0) — so the imports are **not** the cause on their
+own. The diff has exactly **two hunks**: line 20 (`import { act, createElement }` gains
+`Fragment` and `useState`) and lines 1032-1208 appended (the C2 controls). Top-level
+`await import()` at lines 67-82 is **pre-existing**, not new.
+
+**My two bisect attempts were both invalid** because I truncated with
+`Set-Content -Encoding UTF8`, which in **PowerShell 5.1 writes a UTF-8 BOM**; those runs died on
+a BOM parse error, not on the RangeError. **The bisect is therefore still open** — nobody has yet
+isolated which change causes it. If you bisect, use the Edit tool or `git checkout` — never
+`Set-Content` (§2: it corrupts repository files).
+
+Memory is not the cause: 15.04 GiB free of 23.71 GiB at the time of the failure.
+
+**Hygiene verified after my experiments:** the test file is byte-intact (60874 bytes, 1208
+lines, first 3 bytes `2F 2A 2A` so **no BOM**, `U+FFFD` = 0), no `.a3-*` backups remain, no
+probe files remain, and `atlas-client/node_modules` is still a single junction to the donor
+which **must be removed before this worktree can be retired**.
+
+**Live runtime, independent of this work:** `c5a9e832`, healthy (5001 **200**). `origin/main`
+had moved to `3ec7637f` and then `27b36ae2` during this work. **Do not merge or rebase onto
+either** — the branch stays on `d9575e83` and integration is the planner's auto-union job.
+
+**Next actions, in order.**
+1. Isolating the module-load crash with a **valid** method (Edit-tool truncation or
+   `git checkout d9575e83 -- <file>`), then fix it. If the cause proves to be the appended
+   controls' interaction with the pre-existing top-level awaits, converting the four **new**
+   awaits to static imports matching the file's own line-16-21 convention is the first thing to
+   try.
+2. Re-run the full gate set and get `test:a3-teachers-load` green, proving the two new controls
+   **fail on base and pass on the candidate** with hash-verified byte-restore.
+3. Remove the `node_modules` junction, verify the donor unchanged, commit once.
+4. One fresh independent QA over the correction commit and its blast radius only — not the
+   whole range. `buildingContentW` and the Lane A2 timetable render are the two things it must
+   independently re-derive.
+5. Re-run browser B4 (and B5, still unperformed) against a deployed build.
+
+**Not done and not owed by this handoff:** B4's browser re-verification, B5/B7/B8, any
+deployment. The release carrying `c5a9e832` is live and healthy; these corrections are source
+only.
+
 Three streams, three worktrees, one writer each, all under `E:/ATLAS-worktrees/lane-a3-*` from base `3cfe79a8`. Consolidated pairs preserved: 13+18, 14+16, 17+23, 25+26, 33A+33B.
 
 **S1 - Sections and room map** (`work/a3-sections-map`): fixes 03, 06, 07, 10, 11, 12; 08 held.
