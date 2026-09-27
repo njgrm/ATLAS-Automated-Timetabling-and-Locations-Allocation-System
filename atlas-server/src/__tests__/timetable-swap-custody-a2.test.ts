@@ -1183,6 +1183,45 @@ test('S5 the route allowlist cannot drift from the SwapStrategy union', async ()
 	assert.match(routerSource, /'INVALID_STRATEGY'/, 'the route has a typed refusal code');
 });
 
+test('S6 the relocation allowlist cannot drift from the union minus DIRECT_SWAP', async () => {
+	const messageSource = readFileSync(new URL('../services/timetable-edit-message.ts', import.meta.url), 'utf8');
+	const serviceSource = readFileSync(new URL('../services/manual-edit.service.ts', import.meta.url), 'utf8');
+
+	// The union, read from its declaration rather than from this test's memory.
+	const unionLiteral = serviceSource.match(
+		/export type SwapStrategy = ([^;]+);/,
+	)?.[1] ?? '';
+	const members: string[] = [...unionLiteral.matchAll(/'([^']+)'/g)].map((match) => match[1]);
+	assert.ok(members.length > 0, 'the SwapStrategy union parsed from its declaration is not empty');
+
+	// The message module's relocating set, read from its declaration. The pattern
+	// accepts a bare `new Set(`, any single type argument, and a qualified one, so
+	// re-typing the constant cannot silently disarm this row.
+	const setLiteral = messageSource.match(
+		/RELOCATING_SWAP_STRATEGIES\s*(?::[^=]*)?=\s*(?:new Set(?:<[^>]*>)?\(\s*)?\[([^\]]*)\]/,
+	)?.[1] ?? '';
+	const relocating: string[] = [...setLiteral.matchAll(/'([^']+)'/g)].map((match) => match[1]);
+
+	// The invariant is exact: the relocating set IS the union minus DIRECT_SWAP.
+	// Asserting it against the union minus a hardcoded pair is what makes an ADDED
+	// union member fail here — the direction `ReadonlySet<SwapStrategy>` cannot
+	// catch at compile time, since every listed member stays a valid member.
+	const expected = members.filter((member) => member !== 'DIRECT_SWAP');
+	assert.deepEqual(
+		relocating,
+		expected,
+		'the relocation allowlist is exactly the SwapStrategy union minus DIRECT_SWAP',
+	);
+
+	// Pin the two facts the derivation above rests on, so a refactor that empties
+	// either declaration cannot make the comparison above pass vacuously.
+	assert.ok(relocating.length > 0, 'the relocation allowlist parsed from its declaration is not empty');
+	assert.ok(
+		!relocating.includes('DIRECT_SWAP'),
+		'DIRECT_SWAP relocates nothing, so it is never in the relocation allowlist',
+	);
+});
+
 // ────────────────────────────────────────────────────────────────────────────
 // Zero-residue proof
 // ────────────────────────────────────────────────────────────────────────────
