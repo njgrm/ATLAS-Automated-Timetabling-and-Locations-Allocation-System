@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
+import { PageHeader } from '@/components/app-shell/PageHeader';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/ui/card';
@@ -123,17 +124,16 @@ export default function HowItWorks() {
 			{/* Header */}
 			<div className="shrink-0 border-b border-border bg-background px-6 py-4">
 				<div className="flex items-center gap-3">
-					<div className="flex size-9 items-center justify-center rounded-lg bg-primary/10">
-						<Lightbulb className="size-5 text-primary" />
-					</div>
-					<div>
-						<span className="text-[0.65rem] font-medium text-muted-foreground uppercase tracking-wider">
-							How Timetabling Works
-						</span>
-						<p className="text-xs text-muted-foreground">
-							A plain-language guide to how ATLAS generates, scores, and publishes your schedule.
-						</p>
-					</div>
+					<PageHeader
+						title='How Scheduling Works'
+						subtitle='A plain-language guide to how ATLAS generates, scores, and publishes your schedule.'
+						source={(
+							<div className="flex size-9 items-center justify-center rounded-lg bg-primary/10">
+								<Lightbulb className="size-5 text-primary" />
+							</div>
+						)}
+						className="min-w-0 flex-1"
+					/>
 					<div className="flex-1" />
 					<Button asChild variant="outline" size="sm">
 						<Link to="/timetable">

@@ -75,10 +75,31 @@ test('dedupe key is deterministic: the same delta twice resolves to the same key
 	const rowA = toNotificationRow(first, 46);
 	const rowB = toNotificationRow(second, 46);
 	assert.equal(rowA.dedupeKey, rowB.dedupeKey, 're-raising the same delta must collapse to one key');
+	// SUPERSEDED by f9879289 (A2-TIMETABLE-CUSTODY) — retained verbatim and
+	// visibly marked, not deleted (§16: a correction is additive, and removing an
+	// assertion fails review regardless of the fix). That commit appended a
+	// seventh component to the key so a per-CHANGE identity can participate:
+	// without it every manual edit on one run resolved to the same dedupe key and
+	// `createMany({ skipDuplicates: true })` dropped every swap after the first, so
+	// a committed edit wrote the schedule, returned 200, and never moved the bell.
+	// The six-component shape below is no longer what the function returns. The
+	// seven-component shape is pinned in its place immediately after, and
+	// `notification-inbox-dedupe-a2.test.ts` proves the reason behaviourally.
+	// assert.equal(
+	// 	rowA.dedupeKey,
+	// 	`${SCHOOL}:${YEAR}:TIMETABLE_SETUP_SYNC_COMPLETED:integration:77:46`,
+	// 	'exact pinned shape schoolId:schoolYearId:type:resourceType:resourceId:actorId',
+	// );
 	assert.equal(
 		rowA.dedupeKey,
-		`${SCHOOL}:${YEAR}:TIMETABLE_SETUP_SYNC_COMPLETED:integration:77:46`,
-		'exact pinned shape schoolId:schoolYearId:type:resourceType:resourceId:actorId',
+		`${SCHOOL}:${YEAR}:TIMETABLE_SETUP_SYNC_COMPLETED:integration:77:46:-`,
+		'SUPERSEDING SHAPE (f9879289 widened the key with a per-change slot): '
+			+ 'schoolId:schoolYearId:type:resourceType:resourceId:actorId:changeId, '
+			+ 'and a sync tick carries no change identity, so the slot is the `-` sentinel',
+	);
+	assert.ok(
+		rowA.dedupeKey.startsWith(`${SCHOOL}:${YEAR}:TIMETABLE_SETUP_SYNC_COMPLETED:integration:77:46`),
+		'the superseded six-component prefix is still a strict prefix, so no earlier discriminator was reordered or dropped',
 	);
 });
 
@@ -207,6 +228,24 @@ test('a dead durable listener never breaks the publish path', () => {
 });
 
 test('buildNotificationDedupeKey pins the exact join shape', () => {
+	// SUPERSEDED by f9879289 (A2-TIMETABLE-CUSTODY) — retained verbatim and
+	// visibly marked, not deleted (§16). The commit appended a seventh component
+	// so a per-CHANGE identity can participate in the key; that is what stopped
+	// every manual edit after the first on a run from being deduped away by
+	// `createMany({ skipDuplicates: true })`. The all-nullish six-component shape
+	// below is no longer produced; the seven-component shape is pinned beside it.
+	// assert.equal(
+	// 	buildNotificationDedupeKey({
+	// 		schoolId: 1,
+	// 		schoolYearId: null,
+	// 		type: 'X',
+	// 		resourceType: null,
+	// 		resourceId: undefined,
+	// 		actorId: 2,
+	// 	}),
+	// 	'1:0:X:-:-:2',
+	// 	'nullish slots render as 0 / - in the pinned positions',
+	// );
 	assert.equal(
 		buildNotificationDedupeKey({
 			schoolId: 1,
@@ -216,7 +255,19 @@ test('buildNotificationDedupeKey pins the exact join shape', () => {
 			resourceId: undefined,
 			actorId: 2,
 		}),
-		'1:0:X:-:-:2',
-		'nullish slots render as 0 / - in the pinned positions',
+		'1:0:X:-:-:2:-',
+		'SUPERSEDING SHAPE (f9879289 widened the key with a per-change slot): '
+			+ 'nullish slots render as 0 / - in every pinned position, including the new trailing one',
+	);
+	assert.ok(
+		buildNotificationDedupeKey({
+			schoolId: 1,
+			schoolYearId: null,
+			type: 'X',
+			resourceType: null,
+			resourceId: undefined,
+			actorId: 2,
+		}).startsWith('1:0:X:-:-:2'),
+		'the superseded six-component key is still a strict prefix, so an event that carries no change identity keeps every earlier discriminator in place',
 	);
 });

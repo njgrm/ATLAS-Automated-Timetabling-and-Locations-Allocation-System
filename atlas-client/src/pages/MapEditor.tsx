@@ -5,6 +5,7 @@ import { MapPinned, MousePointer2, Pencil } from 'lucide-react';
 import { CampusMapOverview } from '@/components/campus-map/CampusMapOverview';
 import { SmartHelpTrigger } from '@/components/smart/SmartPageShell';
 import atlasApi from '@/lib/api';
+import { PageHeader } from '@/components/app-shell/PageHeader';
 import type { Building, Room } from '@/types';
 import { Button } from '@/ui/button';
 import { Skeleton } from '@/ui/skeleton';
@@ -177,6 +178,9 @@ export default function MapEditor() {
 	if (mode === 'overview') {
 		return (
 			<>
+				{/* A3-C1 S-a — the overview sub-view's page title now comes from
+				    CampusMapOverview's own canonical PageHeader, so this branch adds
+				    nothing; adding one here would have produced two h1 elements. */}
 				<div className="fixed right-6 top-32 z-30">
 					<SmartHelpTrigger
 						title="How to review rooms"
@@ -204,14 +208,7 @@ export default function MapEditor() {
 			{/* Canvas area */}
 			<div className="flex-1 min-w-0 overflow-hidden p-4">
 				<div className="mb-3 flex items-center justify-between gap-3">
-					<div>
-						<p className="text-[10px] font-bold uppercase text-primary">
-							Scheduling Portal
-						</p>
-						<h1 className="text-lg font-bold text-slate-900">
-							Campus map editor
-						</h1>
-					</div>
+					<PageHeader title='Campus map editor' eyebrow='Scheduling Portal' className="min-w-0 flex-1" />
 					<div className="flex items-center gap-2">
 						<SmartHelpTrigger
 							title="How to use the campus map editor"

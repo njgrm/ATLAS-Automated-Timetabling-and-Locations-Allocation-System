@@ -1046,7 +1046,18 @@ export async function triggerGenerationRun(
 			schoolId,
 			schoolYearId,
 			facultyId: null,
-			message: `Generation run #${run.id} completed with ${summary.unassignedCount} unassigned session(s).`,
+			// A2-TIMETABLE-CUSTODY (#57/#44): this number is the RUN's
+			// unplaced count - `summary.unassignedCount`, what the constructor
+			// could not fit into this run's grid. It is NOT the pre-generation
+			// draft board's `counts.unscheduled`, which counts this year's WEEKLY
+			// demand that has no saved draft placement yet. Both were labelled
+			// "unassigned", so a scheduler saw "1295" in the generate dialog and
+			// "0" from this toast seconds later on the same run and could not tell
+			// whether the schedule was complete. The sentence now names its own
+			// population, which is the truthful fix: the two numbers measure
+			// different things and reconciling them would have made one of them a
+			// lie.
+			message: `Generation run #${run.id} completed with ${summary.unassignedCount} session(s) this run could not place.`,
 			metadata: {
 				runId: run.id,
 				durationMs,

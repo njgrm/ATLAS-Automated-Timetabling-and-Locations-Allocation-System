@@ -315,6 +315,21 @@ export default function ScheduleReviewWorkspace() {
 
 	// R3: Teaching Load owner repair deep-links to the exact subject/section/
 	// teacher context instead of masquerading as the bulk teacher-leaving flow.
+	//
+	// A2-TIMETABLE-CUSTODY (#3): this sent `task=missing-load`, and that intent
+	// (a) makes `parseRouteIntent` DISCARD `sectionId`, so the class was never in
+	// view, and (b) applies `filterStatus: 'no-teaching'`, whose subject is a
+	// teacher with NO load. The class being re-owned HAS a teacher — the operator
+	// is asking to change that owner — so the filter selected the opposite
+	// population and the landing page showed a different teacher than the class's
+	// own. `task=change-owner` states the real intent: teacher mode on the class's
+	// OWN teacher, the class kept in view, no "no load" filter.
+	//
+	// `returnTo` carries the exact class to come back to. The parameter is emitted
+	// here (A2 owns this file); rendering it as a visible way back is
+	// `atlas-client/src/pages/TeachingLoad.tsx`, which belongs to Lane A3, so that
+	// half is reported as a cross-lane dependency rather than edited. `parseRouteIntent`
+	// ignores unknown parameters, so the link is safe to emit before A3 renders it.
 	const openSelectedOwnerRepair = () => {
 		const entry = state.selectedEntry;
 		if (!entry) return;
@@ -322,7 +337,12 @@ export default function ScheduleReviewWorkspace() {
 		if (entry.facultyId != null) params.set('facultyId', String(entry.facultyId));
 		if (entry.sectionId != null) params.set('sectionId', String(entry.sectionId));
 		if (entry.subjectId != null) params.set('subjectId', String(entry.subjectId));
-		params.set('task', 'missing-load');
+		params.set('task', 'change-owner');
+		const back = new URLSearchParams();
+		back.set('entryId', entry.entryId);
+		if (entry.sectionId != null) back.set('sectionId', String(entry.sectionId));
+		if (entry.subjectId != null) back.set('subjectId', String(entry.subjectId));
+		params.set('returnTo', `/timetable?class=${encodeURIComponent(back.toString())}`);
 		navigate(`/teaching-load?${params.toString()}`);
 	};
 

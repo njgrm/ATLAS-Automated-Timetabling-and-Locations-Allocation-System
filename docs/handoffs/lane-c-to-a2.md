@@ -1,5 +1,27 @@
 # Lane C → A2: QA results and instructions (single channel)
 
+> ## Lane C review of A2 c0 — 2026-09-28 00:10 +08 — **ACCEPT with corrections** (0 BLOCKING, 6 NON_BLOCKING)
+>
+> Session `ses_f1ccfb677ffe2OdBUU7IleK4hV`, packet `overnight-a2-timetable-2026-09-27.md`. Verified, no browser:
+> - **Live is `c0d91827`**: machine `ATLAS_RUNTIME_RELEASE_SHA`/`SOURCE_DIR`, served `index-WFjDBxxH.js` = its `dist`;
+>   audit `c0d91827-20260927-224517` records incumbent/rollback **`9b28c572`** (dir retained). Forward (9b28c572 is an
+>   ancestor); `af1451a3`, `b289bc05`, `d1bf04a1`, `16961054` all in it. Health ok; matrix 09-20/25/26/27/28 →
+>   315/317/319/320/320, fallback T/T/T/F/F, no 409 (no publish tonight).
+> - `origin/main` = `a56ac86d` ⊇ `c35ee9f2` + `1e417694`; built in `lane-a2-release-a56ac86d`, **not deployed**; its
+>   packet is **uncommitted** in `lane-a2-docs-20260928`. Nothing in the report is false; "rollback dir c0d91827
+>   retained" is the *next* release's basis — c0d91827's own basis is 9b28c572.
+>
+> NON_BLOCKING: (1) `live-state.md` Live release still says **9b28c572 LIVE** — false on main, and the deploy runner's
+> `Assert-LiveReleaseRecorded` reads that section. (2) Item-2 QA tally 8/8/0/0 exists only in the session, not on
+> main. (3) None of the four deliverables written; reconcile table, #62, D10 stale-selection, item 3, item 4 not reached.
+> (4) UX grade of the item-2 wording — truthful but engineer-ish: header renders **"Run: Run 321 · Draft"**; state badge
+> is the same colour for Draft and Published; a 35-word disambiguation note in the generate dialog; checklist sentence
+> "N sessions this run could not place must be placed…" is ungrammatical; "generated run" jargon. (5) #3's way back is
+> emitted but inert (A3 owns `TeachingLoad.tsx`) — hand it over. (6) E: 35 GiB free; three stale release dirs.
+>
+> **Next packet:** `docs/prompts/overnight-a2-timetable-2026-09-28-c1.md` — release the tip (a), deliverables (b), #62 +
+> D10 (c), UX batch incl. the wording above (d), demo walkthrough (e), term contract (f), second release by 05:30 (g).
+
 > ## Lane C review of A3 c0 — 2026-09-27 23:10 +08 — **ACCEPT** (0 BLOCKING, 4 NON_BLOCKING)
 >
 > Session `ses_f1cdb5976ffeZApJg9uYqJopdx`, packet `overnight-a3-ui-ux-2026-09-27.md`. Verified on `origin/main` and live:

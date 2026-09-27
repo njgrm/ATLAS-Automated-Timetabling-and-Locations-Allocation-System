@@ -11,6 +11,7 @@ import {
 import { toast } from 'sonner';
 
 import atlasApi from '@/lib/api';
+import { PageHeader } from '@/components/app-shell/PageHeader';
 import { getPreferredAccessToken } from '@/lib/auth';
 import { createRoomPreferenceCollaborationSocket } from '@/lib/roomPreferenceCollaboration';
 import { resolveActiveSchoolYearContext } from '@/lib/enrollpro-public-settings';
@@ -380,12 +381,12 @@ export default function OfficerRoomPreferences() {
 		<div className='flex min-h-[calc(100svh-3.5rem)] flex-col overflow-y-auto md:h-[calc(100svh-3.5rem)] md:min-h-0 md:overflow-hidden'>
 			<div className='shrink-0 space-y-4 px-6 pt-6 pb-3'>
 				<div className='flex flex-wrap items-center gap-3'>
-					<div>
-						<span className='text-[0.65rem] font-medium text-muted-foreground uppercase tracking-wider'>
-							Scheduler Room Request Queue
-						</span>
-						<p className='text-sm text-muted-foreground'>Review teacher room requests against the draft timetable before committing room changes into the active run.</p>
-					</div>
+					<PageHeader
+						title='Room Preferences'
+						eyebrow='Scheduler Room Request Queue'
+						subtitle='Review teacher room requests against the draft timetable before committing room changes into the active run.'
+						className='min-w-0 flex-1'
+					/>
 					<Button variant='outline' size='sm' className='ml-auto' onClick={() => activeSchoolYearId && void loadSummary(activeSchoolYearId, statusFilter, decisionFilter)}>
 						<RefreshCw className='mr-1.5 size-4' /> Refresh
 					</Button>

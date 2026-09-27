@@ -15,7 +15,7 @@ import {
 	resolveEntityDisplaySlots,
 	type GridDisplaySlot,
 } from '@/lib/timetable-grid-slots';
-import { buildLiveConflictIndex, createLiveConflictLookup } from '@/lib/timetable-live-conflict';
+import { buildLiveConflictIndex, createLiveConflictLookup, termCompatibleEntry } from '@/lib/timetable-live-conflict';
 import { matchesTermScope } from '@/lib/timetable-term-scope';
 import {
 	buildFacultyInitials,
@@ -1013,6 +1013,7 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 			allFacultyOptions,
 			roomId,
 			sourceEntryId,
+			termIndex,
 		} = conflictContext;
 
 		const sourceEntry = sourceEntryId
@@ -1023,17 +1024,34 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 			: 0;
 
 		const allIndex = new Map<string, ScheduledEntry[]>();
-		const facultyDailyMinutes = new Map<string, number>();
+		const facultyDayEntries = new Map<string, ScheduledEntry[]>();
 		for (const e of activeGridEntriesBase) {
 			const key = `${e.day}-${e.startTime}-${e.endTime}`;
 			const list = allIndex.get(key) ?? [];
 			list.push(e);
 			allIndex.set(key, list);
 			if (e.facultyId != null) {
+				// A2-TIMETABLE-CUSTODY (#2): index the teacher's ENTRIES for the day,
+				// not a running total. The old `facultyDailyMinutes` accumulator had
+				// no term component, so a year-long class repeating in T1/T2/T3 added
+				// its minutes three times to one day and could report a must-fix load
+				// the server's term-aware validator never raises. Summing through
+				// `termCompatibleEntry` below reproduces the server's rule exactly
+				// (`constraint-validator.ts`: "never summed across terms").
 				const dailyKey = `${e.day}:${e.facultyId}`;
-				facultyDailyMinutes.set(dailyKey, (facultyDailyMinutes.get(dailyKey) ?? 0) + minutesBetween(e.startTime, e.endTime));
+				const dayList = facultyDayEntries.get(dailyKey) ?? [];
+				dayList.push(e);
+				facultyDayEntries.set(dailyKey, dayList);
 			}
 		}
+		const dailyMinutesFor = (day: string, fid: number): number => {
+			let total = 0;
+			for (const e of facultyDayEntries.get(`${day}:${fid}`) ?? []) {
+				if (!termCompatibleEntry(e, termIndex)) continue;
+				total += minutesBetween(e.startTime, e.endTime);
+			}
+			return total;
+		};
 
 		const fName = (id: number): string => {
 			const f = facultyMap.get(id);
@@ -1122,8 +1140,7 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 					const softCap = 360;
 					const hardCap = 480;
 					for (const fid of optionsToCheck) {
-						const dailyKey = `${day}:${fid}`;
-						let existingDailyMins = facultyDailyMinutes.get(dailyKey) ?? 0;
+						let existingDailyMins = dailyMinutesFor(day, fid);
 						if (
 							sourceEntry
 							&& sourceEntry.facultyId === fid

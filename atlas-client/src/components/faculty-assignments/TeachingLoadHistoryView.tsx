@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Archive, ArrowLeft, BookOpen, Loader2, Search } from 'lucide-react';
 import { Link, useSearchParams } from 'react-router-dom';
 
+import { PageHeader } from '@/components/app-shell/PageHeader';
 import atlasApi from '@/lib/api';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
@@ -144,18 +145,16 @@ export default function TeachingLoadHistoryView() {
 	return (
 		<div className="flex h-[calc(100svh-3.5rem)] flex-col overflow-hidden bg-background" data-testid="teaching-load-history-view">
 			<div className="shrink-0 border-b bg-background px-4 py-3 lg:px-5">
-				<div className="flex flex-wrap items-center justify-between gap-3">
-					<div className="min-w-0">
-						<div className="flex items-center gap-2">
-							<Archive className="size-5 text-slate-600" />
-							<h1 className="text-lg font-bold text-foreground">Teaching Load history</h1>
-						</div>
-						<p className="mt-0.5 text-sm text-muted-foreground">Review preserved assignments from an archived school year.</p>
-					</div>
-					<Button asChild type="button" variant="outline" size="sm" className="min-h-11 gap-2">
-						<Link to="/teaching-load"><ArrowLeft className="size-4" />Current Teaching Load</Link>
-					</Button>
-				</div>
+				<PageHeader
+					title='Archived Teaching Load'
+					subtitle='Review preserved assignments from an archived school year.'
+					source={<Archive className="size-5 text-slate-600" />}
+					primaryAction={(
+						<Button asChild type="button" variant="outline" size="sm" className="min-h-11 gap-2">
+							<Link to="/teaching-load"><ArrowLeft className="size-4" />Current Teaching Load</Link>
+						</Button>
+					)}
+				/>
 				<div className="mt-3 rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950" role="status" aria-live="polite" data-testid="teaching-load-history-read-only">
 					<p className="font-bold">Read-only history{history?.yearLabel ? ` — ${history.yearLabel}` : ''}</p>
 					<p className="mt-1">This school year is archived. You can review its Teaching Load, but you cannot reconcile, suggest, reset, edit, save, or run staffing actions here.</p>
