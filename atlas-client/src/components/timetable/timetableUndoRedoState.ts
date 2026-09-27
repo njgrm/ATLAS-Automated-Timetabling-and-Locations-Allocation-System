@@ -262,10 +262,13 @@ export type HeaderUndoDecision =
  *
  * The header Undo targets `editHistory[0]`, the newest ledger row. With a REVERT
  * at the head that id is unresolvable for the server (`manual-edit.service.ts:1675`)
- * and can only 409, so it is refused here — in the shared handler, which is the
- * one place all three header Undo surfaces (the `TimetableUndoRedoControl` button,
- * `ScheduleReviewWorkspaceHeader.tsx:668`, and `TimetableAdvancedHeaderHelp`) reach.
- * Each blocked reason is named so no surface can refuse silently.
+ * and can only 409, so it is refused here — in the shared handler, which the
+ * Expert screen's single Undo surface (`TimetableUndoRedoControl`) reaches.
+ * A2-TIMETABLE-CUSTODY (Lane C finding #63) removed the two duplicates this
+ * decision used to reach — the guidance bar's `Undo last change` and the "More
+ * tools" dropdown's Undo — so there is now exactly one header Undo surface and
+ * this is the one place its blocked reasons are decided and named, so it cannot
+ * refuse silently.
  */
 export function decideHeaderUndo(
 	head: { id: number; editType: string } | null | undefined,

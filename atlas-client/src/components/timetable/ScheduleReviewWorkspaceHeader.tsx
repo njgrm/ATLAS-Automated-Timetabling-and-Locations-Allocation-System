@@ -103,13 +103,7 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 		enterPolicyView,
 		openMapWorkspace,
 		handleRefresh,
-		revertLoading,
 		editHistoryCount,
-		revertLastEdit,
-		// A2-TIMETABLE-CUSTODY-R2 — the shared Undo decision, rendered rather than
-		// re-derived, so this button cannot offer an undo the server would refuse.
-		undoBlockedReason,
-		lastEditUndoable,
 		setShowEditHistory,
 		tutorial,
 		summary,
@@ -664,31 +658,6 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 
 				<TooltipProvider>
 					<Tooltip>
-						{/* A2-TIMETABLE-CUSTODY-R2: with a `REVERT` at the head of the
-						 * ledger this button used to stay enabled and dispatch an id the
-						 * server selects with `editType: { not: 'REVERT' }`
-						 * (`manual-edit.service.ts:1675`), so it could only 409. It now
-						 * disables from the shared decision and the tooltip carries the
-						 * reason — a disabled button with no reason reads as broken. */}
-						<TooltipTrigger asChild>
-							<span className="inline-flex">
-								<Button
-									variant="outline"
-									size="sm"
-									className="h-8 gap-1.5"
-									disabled={revertLoading || editHistoryCount === 0 || !draft || !lastEditUndoable}
-									onClick={revertLastEdit}
-									data-testid="timetable-header-undo"
-								>
-									{revertLoading ? <Loader2 className="size-3.5 animate-spin" /> : <Undo2 className="size-3.5" />}
-									<span className="hidden xl:inline">Undo</span>
-								</Button>
-							</span>
-						</TooltipTrigger>
-						<TooltipContent>{undoBlockedReason ?? 'Undo last manual edit'}</TooltipContent>
-					</Tooltip>
-
-					<Tooltip>
 						<TooltipTrigger asChild>
 							<Button
 								variant="outline"
@@ -765,15 +734,17 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 					<ScheduleReviewWorkspaceTaskModes taskModes={taskModes} />
 				</div>
 				{/* B2 — the plain-language guidance is visible to sighted users here,
-				    not only to screen readers. See TimetableAdvancedHeaderHelp. */}
+				    not only to screen readers. See TimetableAdvancedHeaderHelp.
+
+				    A2-TIMETABLE-CUSTODY (Lane C finding #63): this bar no longer
+				    renders an Undo of its own. The one Undo on the Expert screen is
+				    the workspace toolbar control (`TimetableUndoRedoControl`,
+				    `ScheduleReviewWorkspace.tsx`), which sits beside `Redo` and
+				    `History`, carries a unique accessible name, and states a blocked
+				    reason visibly instead of only on hover. */}
 				<TimetableAdvancedHeaderHelp
 					mode={isPreGenerationWorkspace ? 'draft' : 'schedule'}
 					activeTaskHelper={activeTask.helper}
-					editHistoryCount={editHistoryCount}
-					revertLoading={revertLoading}
-					onRevertLastEdit={revertLastEdit}
-					lastEditUndoable={lastEditUndoable}
-					undoBlockedReason={undoBlockedReason}
 				/>
 			</div>
 
