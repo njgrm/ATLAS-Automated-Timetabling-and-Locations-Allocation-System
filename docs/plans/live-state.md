@@ -2550,10 +2550,31 @@ above did not carry, both re-derived rather than recalled:**
 Then, while waiting on elevation, the small unblocked follow-ups: **#63** (two Undo controls sharing one accessible
 name) and the **`strategy` wire-validation** allowlist.
 
-**Both follow-ups are now COMMITTED as candidate `af1451a3` (2026-09-27), awaiting independent QA — no longer
-uncommitted work.** Branch `work/a2-timetable-custody`, base `4f4e2064`, 9 paths, +844/-98, worktree clean and
-reachable from the shared repo. `af1451a3` is a **descendant** of `9b28c572`, so it is **not** in that staged
-release and needs its own review and its own release; do not assume the `9b28c572` cutover ships it.
+**Both follow-ups are now INTEGRATED (2026-09-27) as `af1451a3`, merged at `b289bc05` on `origin/main`. NOT
+DEPLOYED** — deploying them remains separately gated. Branch `work/a2-timetable-custody`, base `4f4e2064`, 9
+paths, +844/-98. `af1451a3` is a **descendant** of `9b28c572`, so it is **not** in that staged release: the
+`9b28c572` cutover will not ship it, and it needs its own release after that one.
+
+**Acceptance, stated honestly.** Fresh independent QA returned **`PLANNER_DECISION_REQUIRED`**, not
+`ACCEPT_READY`, and refused to assert one mandatory row. It confirmed all four guarantees with real
+failing-first controls (removing the route guard fails `S1` alone -> `status=200 versionBump=1
+editRowsWritten=1 eventsPublished=1`; reverting the message guard fails `S4` alone; restoring either removed Undo
+surface fails the new client suite) and independently corroborated zero-write on the configured source database
+by a byte-identical before/after signature. **The open gate was then closed by the planner**, by the comparison QA
+specified: candidate **1148/1136/12** vs base bytes **1142/1130/12** (the documented baseline, reproduced), compared
+as failing **name sets** — 12 distinct names each side, **0 regressions, 0 absent**, sets identical. Note the QA
+session's own summary arithmetic (9/13) did not match the 11 rows its results table evidenced; that discrepancy
+is unresolved and is why this is recorded as a planner-closed gate rather than a clean QA `ACCEPT_READY`.
+
+**Accepted NON_BLOCKING residuals, dated 2026-09-27 — recorded, not dropped.** **F2 (fix next):**
+`RELOCATING_SWAP_STRATEGIES` (`timetable-edit-message.ts:86-90`) is `ReadonlySet<string>` and bound to no
+constraint, so adding a union member consistently in union + route + service + `S5` leaves the suite 14/14 green
+while the message under-claims a relocation. Direction is a **lost disclosure, not the false claim** this
+candidate exists to remove, hence non-blocking. Remedy: type it against the union and add a
+union-minus-`DIRECT_SWAP` drift row beside `S5` — the candidate's own drift-control pattern already closes it.
+**F3:** the router comment credits the type annotation with catching an *added* union member; only `S5` does.
+**F5:** `undoBlockedReason` / `lastEditUndoable` plumbing is now dead in the header context. **F6:** the range
+removes **two** Undo surfaces, not one.
 
 Assessment of the previously-uncommitted tree (the handoff's two named checks, both now resolved):
 
