@@ -149,6 +149,48 @@ resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs
 
 - Tailnet: `https://njgrm.buru-degree.ts.net`
 
+- **⚠ RELEASE INTENT IS UNRECONCILED — PLANNER DECISION REQUIRED (2026-09-27, post-action QA
+  `ses_f1d359bd5ffeRQTZU1GIb7q7CL` `PLANNER_DECISION_REQUIRED` 28/33/0 blocked/3 unperformed/2 failed).**
+  **What is live is NOT the register's designated lead target, and the register already predicted this
+  exact failure.** Read this before trusting the release sequence.
+
+  The live release is **`c4a9960e`** (below, verified and proven). But elsewhere in this file — **not in
+  the `## Live release` section, at line ~2601, which is why it was missed** — a prior lane recorded
+  that **`9b28c572` supersedes `c4a9960e` as the cutover target**, and stated verbatim:
+
+  > *"**Caveat:** the gate tests prefix *presence*, not *exclusivity*, so once both prefixes are present
+  > an executor can still cut over to the superseded `c4a9960e` and ship without the six A2 candidates.
+  > State which target leads in words — the gate will not enforce it."*
+
+  **That is precisely what happened.** `Assert-LiveReleaseRecorded` passes on prefix presence, so
+  recording the staged `c4a9960e` (commit `1b68dbf4`) simultaneously satisfied the gate for the
+  superseded target, and the subsequent cutover executed it. Verified by post-action QA: `9b28c572`
+  is a **strict descendant** of `c4a9960e` (`c4a9960e` is an ancestor, `9b28c572` is **not** an
+  ancestor of `c4a9960e`), and the `9b28c572..c4a9960e` difference is **20 paths, 16 of them product**,
+  including two **server** files the live server does not have:
+  `atlas-server/src/services/manual-edit.service.ts`,
+  `atlas-server/src/services/timetable-edit-message.ts`,
+  `atlas-client/src/lib/timetable-concurrent-commit.ts`, plus
+  `ConcurrentCommitNoticeBar` / `ScheduleReviewWorkspace` / `TimetableAssignmentDialogs` /
+  `timetableUndoRedoState` / `useNotificationStream` / `useScheduleReviewWorkspaceState`.
+
+  **The running system is not suspect and nothing is lost.** History is **linear, not divergent** — no
+  commits were lost, and because `c4a9960e` is a strict ancestor, the live client cannot depend on the
+  later server behaviour, so there is **no runtime mismatch**. The `9b28c572` directory is present,
+  clean, at HEAD `9b28c572`, with `server.js` + `index.html` + `cli.mjs` — verified a **valid
+  one-step follow-up target** needing only its own prefix recorded in this section.
+
+  **The decision owed, and it is the operator's, because it changes what ships:** either **accept
+  `c4a9960e`** as the live release and record A2's `9b28c572` as the next deploy — which keeps the two
+  real browser fixes live and defers A2's six candidates — or **cut over to `9b28c572` now**, which
+  additionally ships those 16 product paths including two server services, each with their own
+  acceptance requirements. **Not decided here, and the gate will not enforce it either way.**
+
+  **The process defect, recorded so it is not repeated:** the planner read the `## Live release` section
+  to satisfy the gate and did **not** reconcile the **whole** file. A superseding target was already
+  recorded elsewhere in it, naming the exact failure mode that then occurred. `AGENTS.md` §15 requires
+  reconciling the whole file — or the newest dated handoff — **before acting on any blocker line**.
+
 - **LIVE: `c4a9960e0fccaab4a324c97e42eb56cfa10c1fa4` (full 40-char)** (Lane A3, 2026-09-27, HIGH authority;
   operator-elevated shell, `IsInRole(Administrator)=True` High Mandatory `S-1-16-12288` after the operator
   resolved an elevation blocker that had held the deploy across three sessions). Release dir
@@ -173,11 +215,14 @@ resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs
   Both defects were in the **proof specification**, not the cutover; the review confirmed the cutover
   mechanics, delta, gates and rollback needed no change. Corrections are additive — the superseded
   rows are retained here rather than deleted (§16):
-  - **SUPERSEDED — "`143` absent from the new build".** **Refuted.** `143` is **12 hits in the new build**,
-    byte-identical to the incumbent's 12: `hsl(143, 85%, 96%)`, `darkseagreen:[143,188,143]`, SVG path
-    `5.143`, Lucide keys `143bj9a`/`143wyd`. The value `143` exists only in a **source comment**
-    explaining the defect, and comments are stripped at build time, so it can **never** appear in either
-    bundle — it discriminates nothing in either direction.
+  - **SUPERSEDED — "`143` absent from the new build".** **Refuted.** `143` is present in the new build
+    and **byte-identical to the incumbent's** — measured **13 in each**, not the 12 first recorded
+    here: `ReactKonva` 8 (vendored `darkseagreen:[143,188,143]`), `index` 2 (`hsl(143, 85%, 96%)`),
+    `eye-off` 1 (SVG path `5.143`), `index.css` 1, `SchedulerPrintDialog` 1, and **0 in any other
+    js/css**. The value `143` exists only in a **source comment** explaining the defect
+    (`"13 x 11 = 143 STAGE UNITS"`, `// 143-unit line`, `assert.equal(basePitch, 143)`) plus tests, and
+    comments are stripped at build time, so it can **never** appear in either bundle — it discriminates
+    nothing in either direction. Conclusion (vacuous) is right; the count and carrier list were wrong.
   - **SUPERSEDED — the `setViewMode('teacher')` literal.** Vacuous: the minifier emits **backticks**,
     not single quotes, so the pattern returned **0 on both** builds and the two-sided check could not be
     executed. It fails closed, so it could not falsely pass — it simply proved nothing.
@@ -279,7 +324,14 @@ resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs
   rollback, not a hope. **Browser rows B4 and B5 remain owed after the cutover and B5 has never been
   performed**; both are deployment-acceptance clauses, not source rows.
 
-- **LIVE: `c5a9e8321756ee59c7795786417f6449831ecda3` (full 40-char)** (Lane A2, 2026-09-27 05:37 +08, HIGH
+- ~~LIVE: `c5a9e8321756ee59c7795786417f6449831ecda3`~~ — **SUPERSEDED 2026-09-27 20:12 +08 by Lane A3's
+  `c4a9960e` cutover**; it was LIVE from 05:37 +08 until then. **Rollback basis for the current live
+  release.** Record preserved verbatim below, unaltered. (Independent post-action QA
+  `ses_f1d359bd5ffeRQTZU1GIb7q7CL` caught this entry still asserting `LIVE:` unstruck in the same
+  section as the correct `c4a9960e` entry — the exact undated-contradictory-premise shape §15 warns
+  about, and a **recurrence** of the identical defect a prior QA corrected for `d11304e8`. Both prior
+  LIVE entries, `d11304e8` and `b0736007`, *were* struck; this one was not. §15 requires one
+  reconciled truth, so it is struck here.) (Lane A2, 2026-09-27 05:37 +08, HIGH
   authority; packet `docs/prompts/a2-release-c5a9e832-2026-09-27.md`, independent pre-action review
   **`PRE_ACTION_CLEAR` 5/5/0/0** after one `CORRECTION_REQUIRED` round). Release dir
   **`E:\ATLAS-worktrees\lane-a2-release-c5a9e832`**. **Rollback basis `d11304e8135715783455ca4cb6cfd7a9e39222e8`**
