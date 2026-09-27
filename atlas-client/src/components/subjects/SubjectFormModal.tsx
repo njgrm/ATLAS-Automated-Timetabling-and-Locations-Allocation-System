@@ -22,6 +22,8 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/t
 import { Separator } from '@/ui/separator';
 import { gradeLabel } from '@/lib/grade-labels';
 import { roomAuthoritySemantics } from '@/lib/room-authority-copy';
+import { AccessibleInfo } from '@/components/smart/AccessibleInfo';
+import { splitSubjectFeatures } from './subject-feature-presentation';
 import { Info, Clock, Settings2, ShieldCheck, Layout, X, ChevronRight, AlertTriangle, CheckCircle2, History } from 'lucide-react';
 
 export type SubjectFormValues = NewSubjectForm & {
@@ -95,6 +97,12 @@ export function SubjectFormModal({
 	}>({});
 	const codeInputRef = useRef<HTMLInputElement>(null);
 	const formId = useId();
+
+	// A3-C4: `requiredFeatures` is a mixed list — real room features plus the
+	// server's `OWNER_DEPT:<code>` ownership markers. Split it for display; the
+	// stored/transmitted value is untouched, so this is copy-only.
+	const { roomFeatures: formRoomFeatures, ownerDepartments: formOwnerDepartments } =
+		splitSubjectFeatures(form.requiredFeatures);
 
 	useEffect(() => {
 		if (open) {
@@ -765,7 +773,26 @@ export function SubjectFormModal({
 									<Button type="button" size="sm" onClick={addFeature} className="h-9 font-bold">Add</Button>
 								</div>
 								<div className="flex flex-wrap gap-1.5">
-									{form.requiredFeatures.map((f) => (
+									{/* A3-C4: the mixed `requiredFeatures` list is split before it is
+										shown. Ownership markers are chips the operator must not
+										edit as free text, and they read as a plain department; the raw
+										OWNER_DEPT code stays reachable in the @/ui tooltip. Only real
+										room features keep the add/remove editing this field owns. */}
+									{formOwnerDepartments.map((owner) => (
+										<Badge
+											key={owner.raw}
+											variant="secondary"
+											className="flex items-center gap-1 border border-border/50 bg-muted/40 py-0.5 pl-2 pr-1 text-xs font-semibold"
+										>
+											<span>Owned by {owner.label}</span>
+											<AccessibleInfo
+												label={`How this subject's owning department is recorded`}
+												shortHelp={`ATLAS records this subject as owned by the ${owner.label} department, stored as ${owner.raw}.`}
+												size="icon-xs"
+											/>
+										</Badge>
+									))}
+									{formRoomFeatures.map((f) => (
 										<Badge key={f} variant="secondary" className="pl-2 pr-1 py-0.5 text-xs font-bold flex items-center gap-1 bg-amber-50 text-amber-700 border-amber-200">
 											{f}
 											<Button
@@ -780,7 +807,7 @@ export function SubjectFormModal({
 											</Button>
 										</Badge>
 									))}
-									{form.requiredFeatures.length === 0 && (
+									{formRoomFeatures.length === 0 && formOwnerDepartments.length === 0 && (
 										<span className="text-xs text-muted-foreground italic pl-1">No special room features needed.</span>
 									)}
 								</div>

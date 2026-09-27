@@ -1,9 +1,10 @@
-import { AlertTriangle, CheckCircle2, ChevronDown } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, ChevronDown, Info } from 'lucide-react';
 
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/ui/popover';
 import { cn } from '@/lib/utils';
+import { resolveTermAuthorityCopy } from './subject-source-utils';
 import type { TermAuthority } from '@/types';
 
 /**
@@ -31,6 +32,18 @@ export function SubjectTermAuthorityBanner({ termAuthority }: Props) {
 	const isRoutineLive = termAuthority.state === 'VERIFIED_LIVE';
 	const contract = termAuthority.contract ?? null;
 	const termCount = contract?.terms.length ?? 0;
+
+	// A3-C4: `termAuthority.message` is SERVER-AUTHORED engineer prose
+	// ("Saved term contract failed its semantic revision check."). The server
+	// file is out of this stream's fence and is not edited; the client keys calm
+	// operator copy off the `code` it already receives, in the same
+	// description/nextAction tone as `resolveSubjectSourceCopy`, and keeps the
+	// raw code plus the raw message in a labelled diagnostic affordance. An
+	// empty message also falls back to calm copy rather than rendering an empty
+	// element inside a coloured exception banner.
+	const { description, nextAction, code } = resolveTermAuthorityCopy(termAuthority);
+	const rawMessage = (termAuthority.message ?? '').trim();
+	const hasDetail = Boolean(code) || rawMessage.length > 0;
 
 	if (isRoutineLive) {
 		return (
@@ -73,7 +86,9 @@ export function SubjectTermAuthorityBanner({ termAuthority }: Props) {
 									</Badge>
 								))}
 							</div>
-							<p className="text-xs leading-relaxed text-muted-foreground">{termAuthority.message}</p>
+							<p className="text-xs leading-relaxed text-muted-foreground">
+								{rawMessage || 'ATLAS is showing the school year and its ordered terms, last read from EnrollPro.'}
+							</p>
 							<p className="text-xs font-medium text-muted-foreground">
 								Participation, grade and program scope, weekly minutes, rotation, and room needs are ATLAS-owned and edited below.
 							</p>
@@ -106,7 +121,37 @@ export function SubjectTermAuthorityBanner({ termAuthority }: Props) {
 				<Badge variant="outline" className="bg-background/70 font-semibold uppercase tracking-wide">Read-only source</Badge>
 				{contract ? <Badge variant="outline">{contract.format}</Badge> : null}
 			</div>
-			<p className="mt-1 text-xs font-medium opacity-90">{termAuthority.message}</p>
+			<p className="mt-1 text-xs font-medium opacity-90">{description}</p>
+			{nextAction && <p className="mt-1 text-xs font-medium opacity-90">{nextAction}</p>}
+			{/* A3-C4: the raw code and the raw server sentence are never destroyed —
+				they move behind a labelled @/ui diagnostic, which is what AGENTS.md §8
+				requires (and forbids the `title` attribute). This is also the
+				pass-through for runtime-sourced text: whatever the runtime supplies is
+				preserved verbatim here for support, while the primary read above stays
+				calm and actionable. */}
+			{hasDetail ? (
+				<Popover>
+					<PopoverTrigger asChild>
+						<Button
+							type="button"
+							variant="ghost"
+							size="sm"
+							data-testid="subject-term-authority-detail"
+							aria-label={`Term authority details${code ? ` (${code})` : ''}`}
+							className="mt-1 h-6 gap-1 px-1.5 text-xs font-semibold text-primary hover:underline"
+						>
+							<Info className="size-3" />
+							<span className="font-mono text-[0.65rem]">{code ?? 'Details'}</span>
+						</Button>
+					</PopoverTrigger>
+					<PopoverContent align="start" className="w-80 space-y-2 p-3 text-xs leading-relaxed">
+						<p className="font-semibold uppercase tracking-wide text-muted-foreground">Technical detail</p>
+						{code ? <p><span className="font-semibold">Code</span> · <span className="font-mono">{code}</span></p> : null}
+						{rawMessage ? <p><span className="font-semibold">Server message</span> · {rawMessage}</p> : null}
+						{!code && !rawMessage ? <p>No further technical detail was supplied.</p> : null}
+					</PopoverContent>
+				</Popover>
+			) : null}
 			{contract ? (
 				<div className="mt-2">
 					<p className="text-xs font-semibold uppercase tracking-wide opacity-80">S.Y. {contract.schoolYear.yearLabel} · ordered terms from EnrollPro</p>

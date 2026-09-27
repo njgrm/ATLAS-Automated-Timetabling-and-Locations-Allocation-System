@@ -22,6 +22,8 @@ import { gradeLabel, GRADE_COLORS } from '@/lib/grade-labels';
 import { programFullLabel } from '@/lib/deped-glossary';
 import { ROOM_TYPE_LABELS } from '@/lib/subject-constants';
 import { roomAuthoritySemantics } from '@/lib/room-authority-copy';
+import { AccessibleInfo } from '@/components/smart/AccessibleInfo';
+import { splitSubjectFeatures, subjectFeatureHelp, ownerDepartmentPhrase } from './subject-feature-presentation';
 import type { Subject } from '@/types';
 
 export type SubjectCoverageDetail = {
@@ -78,6 +80,13 @@ export function SubjectCoverageSheet({
 	onRetry,
 	onClose,
 }: SubjectCoverageSheetProps) {
+	// A3-C4: `requiredFeatures` mixes real room features with the server's
+	// `OWNER_DEPT:<code>` ownership markers. Only the real room features are
+	// offered to room selection, so only they may be described as room
+	// features here; ownership is reported separately as a plain department.
+	const subjectFeatureSplit = splitSubjectFeatures(subject?.requiredFeatures);
+	const subjectRoomFeatures = subjectFeatureSplit.roomFeatures;
+	const subjectOwnerPhrase = ownerDepartmentPhrase(subjectFeatureSplit.ownerDepartments);
 	return (
 		<Dialog open={!!subject} onOpenChange={(open) => !open && onClose()}>
 			<DialogContent
@@ -293,7 +302,7 @@ export function SubjectCoverageSheet({
 								C07-R8: the wording comes from the single shared
 								room-authority copy authority. A CLASSROOM authority is
 								never labelled as an unconditional requirement. */}
-							{((subject.preferredRoomType !== 'CLASSROOM') || (subject.requiredFeatures.length > 0)) && (
+							{((subject.preferredRoomType !== 'CLASSROOM') || (subjectRoomFeatures.length > 0)) && (
 								<div className="p-4 rounded-xl bg-muted/40 border border-muted/50 flex items-start gap-3 shadow-sm">
 									<MapIcon className="size-5 text-muted-foreground shrink-0 mt-0.5" />
 									<div className="space-y-1">
@@ -303,12 +312,26 @@ export function SubjectCoverageSheet({
 											{' — '}
 											{roomAuthoritySemantics(subject.preferredRoomType)}.
 										</p>
-										{subject.requiredFeatures.length > 0 ? (
-											<p className="text-sm font-medium">
-												Needs {subject.requiredFeatures.length} room feature{subject.requiredFeatures.length === 1 ? '' : 's'}:{' '}
-												<span className="font-bold text-primary">{subject.requiredFeatures.join(', ')}</span>
-											</p>
-										) : null}
+									{subjectRoomFeatures.length > 0 ? (
+										<p className="text-sm font-medium">
+											Needs {subjectRoomFeatures.length} room feature{subjectRoomFeatures.length === 1 ? '' : 's'}:{' '}
+											<span className="font-bold text-primary">{subjectRoomFeatures.join(', ')}</span>
+										</p>
+									) : null}
+									{/* A3-C4: ownership is a department, not a room feature. The raw
+										OWNER_DEPT code stays reachable in the @/ui tooltip. */}
+									{subjectOwnerPhrase ? (
+										<p className="text-sm font-medium">
+											Owned by the <span className="font-bold text-primary">{subjectOwnerPhrase}</span>.
+										</p>
+									) : null}
+									{subject && (subjectRoomFeatures.length > 0 || subjectFeatureSplit.ownerDepartments.length > 0) ? (
+										<AccessibleInfo
+											label={`How room features and ownership are recorded for ${subject.name}`}
+											shortHelp={subjectFeatureHelp(subject.name, subjectFeatureSplit)}
+											size="icon-xs"
+										/>
+									) : null}
 										<Link to="/map" className="text-xs text-primary font-bold flex items-center gap-1 hover:underline pt-1 uppercase tracking-tight">
 											View occupancy map
 											<ChevronRight className="size-3" />
