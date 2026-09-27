@@ -34,6 +34,7 @@ import {
 import {
 	composeConcernNotes,
 	parseConcernNotes,
+	resolveConcernDriftLinks,
 	resolveConcernDriftView,
 } from '../teacher-concern-helpers';
 import { facultyNav, getVisibleNavigation, navigationNav, resolveRouteChrome } from '../../app-shell/navigation';
@@ -283,7 +284,21 @@ test('deriving the drift view delegates to the shared describeRunInputDrift', ()
 	assert.equal(view.drift.primaryHref, shared.primaryHref);
 	assert.equal(view.availabilityChanged, true);
 	assert.equal(view.regenerateHref, '/timetable');
-	assert.equal(view.revisionHref, '/schedules');
+	/*
+	 * SUPERSEDED by A3-C6/C2, not deleted. This row previously asserted
+	 * `view.revisionHref === '/schedules'` — it pinned the defect. The published-
+	 * revision surface was proven reachable from the Class Schedule (`/timetable`:
+	 * App.tsx -> ScheduleReview -> ScheduleReviewWorkspace -> CenterWorkspace ->
+	 * TacticalSandboxDock -> PublishedRevisionDialog), so `/schedules` — which
+	 * mounts `RoomSchedules`, a room/teacher/section browser with no revision
+	 * concept — was a link to an errand that could not be performed. There is no
+	 * longer a second revisions href to assert: one Class Schedule link covers
+	 * both regenerating a draft and revising a published run. The replacement
+	 * control lives in a3-c6-concerns-truthfulness.test.tsx, which also pins the
+	 * reachable chain above.
+	 */
+	assert.equal('revisionHref' in view, false, 'the dead /schedules revisions href is produced again');
+	assert.deepEqual(resolveConcernDriftLinks(view).map((link) => link.href), ['/timetable']);
 
 	const fresh = resolveConcernDriftView({ ...inputState, status: 'FRESH', changedDomains: [] } as GenerationInputComparison);
 	assert.equal(fresh.availabilityChanged, false);

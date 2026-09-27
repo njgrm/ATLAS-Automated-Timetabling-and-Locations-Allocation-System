@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AlertTriangle, RefreshCcw } from 'lucide-react';
+import { AlertTriangle, ClipboardList, RefreshCcw } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { Button } from '@/ui/button';
@@ -345,7 +345,7 @@ export default function TeacherConcerns() {
 						</Card>
 					)}
 
-					{selectedFacultyId != null && (
+					{selectedFacultyId != null ? (
 						<>
 							{loadingConcern && availability == null ? (
 								<div className='space-y-3'>
@@ -373,6 +373,34 @@ export default function TeacherConcerns() {
 							)}
 							<RunAvailabilityDriftCard inputState={inputState} facultyName={selectedFaculty ? facultyLabel(selectedFaculty) : null} />
 						</>
+					) : (
+						/*
+						 * A3-C6/C1 — an honest main panel for the no-teacher-selected case.
+						 *
+						 * There is deliberately NO concerns list here. The availability
+						 * authority is per-faculty (`faculty-availability.router.ts`
+						 * exposes get/put/post/patch only) and no endpoint lists concerns,
+						 * so a list or a count would be invented work the page cannot
+						 * actually do. This states what the page records and names the one
+						 * next step the operator can perform from right here.
+						 */
+						<Card className='rounded-2xl border-border/60 shadow-sm' data-testid='concern-no-teacher-empty-state'>
+							<CardContent className='flex items-start gap-3 p-5'>
+								<ClipboardList className='mt-0.5 size-5 shrink-0 text-primary' aria-hidden='true' />
+								<div className='min-w-0 space-y-1.5'>
+									<p className='text-sm font-semibold text-foreground'>Choose a teacher to begin</p>
+									<p className='text-xs leading-relaxed text-muted-foreground'>
+										This page records one teacher&apos;s weekly availability, notes and room requests for the active
+										term, and shows how those records bind to the run being generated.
+									</p>
+									<p className='text-xs leading-relaxed text-muted-foreground'>
+										Nothing is recorded or listed until you pick a teacher. Use the teacher picker above, then mark
+										their unavailable and preferred windows, add any notes or room requests, and save the draft
+										for review.
+									</p>
+								</div>
+							</CardContent>
+						</Card>
 					)}
 				</div>
 			</div>
