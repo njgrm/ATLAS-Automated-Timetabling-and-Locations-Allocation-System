@@ -149,7 +149,49 @@ resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs
 
 - Tailnet: `https://njgrm.buru-degree.ts.net`
 
-- **▶ LIVE: `9b28c57291ff6c34f33a434d097753b8ce16b118` — DEPLOYED 2026-09-27 20:34 +08 by Lane A2.** Cutover
+- **▶ LIVE: `c0d91827311e247ac0f2073a83cc50f5a5efcdb2` — DEPLOYED 2026-09-27 22:45 +08 by Lane A2** (audit
+  `C:\ProgramData\ATLAS\release-audit\c0d91827-20260927-224517`). **RECORDED 2026-09-28 00:0x +08 by Lane A2: the
+  register said `9b28c572` was LIVE and that was FALSE; this is the correction.** All three independent identity
+  sources agree on `c0d91827` and were re-verified before this record was written: machine-scope
+  `ATLAS_RUNTIME_SOURCE_DIR=E:\ATLAS-worktrees\lane-a2-release-c0d91827` and
+  `ATLAS_RUNTIME_RELEASE_SHA=c0d91827…`; the scheduled task action
+  `node "E:\ATLAS-worktrees\lane-a2-release-c0d91827\ops\runtime\cli.mjs" start`; and the listeners
+  **5001 → 33816**, **5174 → 53332** (PIDs re-read 2026-09-28 00:02 +08; an earlier session's PIDs are stale by
+  design). **The process-scope env pair in an agent shell still carries `9b28c572` and is 2 releases behind machine
+  scope — §6's stale-override trap, observed again; identity was never read from `Env:`.** Served client
+  `index-WFjDBxxH.js` matches the `c0d91827` `dist`; `/api/v1/health` 200 and `/health/ready` 200
+  `database:ok`; public matrix 09-20/25/26/27/28 all **200** (no 409), runs 315/317/319/320/320,
+  `servedByFallback` true/true/true/false/false, `currentPublishedRunId` 320 throughout.
+
+  | | |
+  |---|---|
+  | **LIVE** | **`c0d91827311e247ac0f2073a83cc50f5a5efcdb2`** |
+  | **Live dir** | `E:\ATLAS-worktrees\lane-a2-release-c0d91827` (HEAD `c0d91827`, clean) |
+  | **Listeners** | 5001 → **33816**, 5174 → **53332** (re-read 2026-09-28 00:02 +08) |
+  | **Rollback basis** | **`9b28c57291ff6c34f33a434d097753b8ce16b118`**, dir `E:\ATLAS-worktrees\lane-a2-release-9b28c572` — verified present, clean, both `dist`s built. **One-step supervised reset.** |
+  | **Direction** | **FORWARD.** `git merge-base --is-ancestor 9b28c572 c0d91827` exits **0** — the prior live release is an ancestor, so nothing was reverted |
+  | **D5b baseline re-derived 2026-09-28 00:05:44 +08 at this live release** | `generation_runs` **9**, `manual_schedule_edits` **8**, `audit_logs` **451** (`max(id)` **1002**), `published_schedule_revisions` **6**, `notifications` **216**. Re-derive again at cutover — a stored count is stale by definition. |
+  | **Audit trail** | `C:\ProgramData\ATLAS\release-audit\c0d91827-20260927-224517\` |
+
+- **▶ LEADING TARGET FOR THE NEXT CUTOVER — `d31bfacb`. Recorded 2026-09-28 00:0x +08 by Lane A2, AHEAD of the
+  cutover, which is what `Assert-LiveReleaseRecorded` requires.** `d31bfacb` is the ONLY target authorised to be
+  cut over to next; `c0d91827` also satisfies the gate's prefix-*presence* test, so do not cut over to it — it
+  would ship less.
+
+  | | |
+  |---|---|
+  | **Target (authorised, leading)** | **`d31bfacbfeadb8e90bf9cf1f7a8ddcad62ab129a`** (`origin/main` tip at 2026-09-28 00:0x +08) |
+  | **Target dir** | `E:\ATLAS-worktrees\lane-a2-release-d31bfacb` — created clean at the tip, own dependency tree, both `dist`s built |
+  | **Live now** | `c0d91827…`, dir `E:\ATLAS-worktrees\lane-a2-release-c0d91827` |
+  | **Rollback basis** | the `c0d91827` dir — **one-step supervised reset** |
+  | **Direction** | **FORWARD.** `git merge-base --is-ancestor c0d91827 d31bfacb` exits **0** |
+  | **Delta** | 15 commits, **29 non-docs paths**: A2 **19** (11 production, 6 test, 2 `package.json` script entries) + A3 **10** (6 production, 3 test, 1 script entry). No `prisma/`, no schema, no seed, no lockfile |
+  | **Packet** | `docs/prompts/a2-release-d31bfacb-2026-09-28.md` |
+
+- **~~▶ LIVE: `9b28c57291ff6c34f33a434d097753b8ce16b118` — DEPLOYED 2026-09-27 20:34 +08 by Lane A2.~~
+  **[SUPERSEDED 2026-09-27 22:45 +08 — this cutover executed, and `c0d91827` is now LIVE. The record below is
+  preserved unaltered as the history of the release that was live between 20:34 and 22:45 +08, and of the
+  `9b28c572` acceptance run. `9b28c572` is now the ROLLBACK BASIS, not the lead target.]** Cutover
   executed with the repo's own `ops/runtime/deploy-runner.ps1` (dry run first, then `-Execute`), which enforced
   `Assert-LiveReleaseRecorded`, re-verified target and incumbent identity, captured the task XML, and quiesced
   the supervisor tree. Identity agrees on **all three** independent sources: machine-scope env, the scheduled
@@ -2633,6 +2675,21 @@ Timetable custody (operator, 2026-09-26). A2 owns the timetable surface, its pac
 the acceptance rows and the section 7 term guard. Worktree `E:\ATLAS-worktrees\lane-a2-timetable-custody`
 (`work/a2-timetable-custody`), `KEEP_ACTIVE`. Never paste the credential value; never run a history purge.
 Cycle narrative and per-candidate evidence: `docs/handoffs/planner-a2-handoff-2026-09-26.md`.
+
+**2026-09-28 00:0x +08 — overnight cycle c1, fresh session. The `## Live release` block above was FALSE and is
+now corrected: live is `c0d91827` (deployed 2026-09-27 22:45 +08), not `9b28c572`; `9b28c572` is the rollback
+basis. All three identity sources agreed and were re-verified; the stale pair was in this shell's inherited
+**process** env only (§6's trap, third observation). Consequence to carry forward: any earlier session that read
+identity from `Env:` reported a displaced release and dead PIDs, and that report was wrong.
+**Leading target for the next cutover: `d31bfacb`**, rollback `c0d91827`, packet
+`docs/prompts/a2-release-d31bfacb-2026-09-28.md`. The unexecuted `a56ac86d` packet is committed as history marked
+SUPERSEDED. Item-2 QA (`ACCEPT_READY` 8/8/0/0) is now on `origin/main` instead of only in a session transcript.
+**Not a blocker but the most valuable thing found tonight:** the `9b28c572` post-action D10 finding — a committed
+swap that persisted no `notifications` row — has a **named root cause** in
+`atlas-server/src/services/notification-inbox.service.ts:174-196` (the dedupe identity was per-slot, so a
+multi-edit batch collided with the single-swap path, wrote the schedule and returned 200 with no row) and is
+**fixed** in `f9879289`/`8325834d`, which this release ships. The discriminating browser row is B2 in the
+`d31bfacb` packet, and a **failed** B2 is a real finding to report, not a harness problem.
 
 **A3 - the one live-facing blocker still open, and it is currently MASKED (2026-09-27).** A **server** fault at
 `atlas-server/src/services/published-schedule.service.ts` - a frozen run resolves `active` from the publication-time
