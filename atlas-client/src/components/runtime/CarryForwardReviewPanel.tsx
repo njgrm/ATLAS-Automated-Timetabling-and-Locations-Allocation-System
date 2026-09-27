@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Archive, ArrowRight, Info, Loader2, PlayCircle, ShieldCheck } from 'lucide-react';
 
 import atlasApi from '@/lib/api';
+import { BELOW_STANDARD_LABEL } from '@/lib/teaching-load-labels';
 import type { ArchivedYearSummary } from '@/lib/settings';
 import {
 	CARRY_FORWARD_APPLY_BLOCKED_MESSAGE,
@@ -200,7 +201,7 @@ export function CarryForwardReviewPanel({ schoolId, activeSchoolYearId, archived
 								<li>Over hard cap: {preview.before.distribution.overCap} → {preview.after.distribution.overCap}</li>
 								<li>Excess: {preview.before.distribution.excess} → {preview.after.distribution.excess}</li>
 								<li>At standard: {preview.before.distribution.atStandard} → {preview.after.distribution.atStandard}</li>
-								<li>Below standard: {preview.before.distribution.belowStandard} → {preview.after.distribution.belowStandard}</li>
+								<li>{BELOW_STANDARD_LABEL}: {preview.before.distribution.belowStandard} → {preview.after.distribution.belowStandard}</li>
 								<li>Zero load: {preview.before.distribution.zeroLoad} → {preview.after.distribution.zeroLoad}</li>
 							</ul>
 							<p className="mt-2 text-muted-foreground" data-testid="carry-forward-overload">{overloadText}</p>

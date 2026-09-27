@@ -11,6 +11,7 @@ import type {
 	LoadProfile,
 } from '../types';
 import { isDepartmentMatch } from './grade-labels';
+import { BELOW_STANDARD_LABEL } from './teaching-load-labels';
 
 export type { FacultyAssignmentDraft, FacultyOwnershipState, LoadStatus, SubjectSectionOwnershipIndexEntry };
 
@@ -264,7 +265,7 @@ export function deriveTeachingLoadStatus(
 	if (actualTeachingHours === standardHours) {
 		return { status: 'compliant', label: 'At standard' };
 	}
-	return { status: 'below-standard', label: 'Below standard' };
+	return { status: 'below-standard', label: BELOW_STANDARD_LABEL };
 }
 
 export interface TeachingWorkloadSummary {
@@ -482,6 +483,11 @@ export function deriveLoadStatus(actualTeachingHours: number, maxHoursPerWeek = 
 	if (actualTeachingHours === STANDARD_WEEKLY_TEACHING_HOURS) {
 		return { status: 'compliant', label: 'At standard' };
 	}
+	// PINNED: src/lib/__tests__/faculty-assignment-helpers.test.ts:22 deep-compares
+	// this exact two-word string, and :41 asserts it again transitively through
+	// `deriveWorkloadCapacity`, which delegates to this function. Moving it to
+	// BELOW_STANDARD_LABEL would break a committed contract assertion, so it
+	// stays until that test is re-baselined by its owning lane.
 	return { status: 'below-standard', label: 'Below standard' };
 }
 

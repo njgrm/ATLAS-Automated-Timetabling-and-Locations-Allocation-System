@@ -30,7 +30,7 @@ import {
 	type TeachingLoadLoadFilter,
 	type TeachingLoadFacet,
 } from '@/lib/faculty-assignment-helpers';
-import { BELOW_STANDARD_LABEL } from '@/lib/teaching-load-labels';
+import { AT_STANDARD_LABEL, BELOW_STANDARD_LABEL, EXCESS_LOAD_LABEL } from '@/lib/teaching-load-labels';
 
 type TeachingLoadFilterBarProps = {
 	searchQuery: string;
@@ -144,8 +144,8 @@ export function TeachingLoadFilterBar(props: TeachingLoadFilterBarProps) {
 					</SelectTrigger>
 					<SelectContent>
 						<SelectItem value="all" className="text-xs font-bold uppercase tracking-tight">All loads</SelectItem>
-						<SelectItem value="excess" className="text-xs font-bold uppercase tracking-tight text-amber-700" disabled={!policyReady || (loadFacetCounts.excess ?? 0) === 0}>Excess teaching load ({policyReady ? (loadFacetCounts.excess ?? 0) : '—'})</SelectItem>
-						<SelectItem value="at-standard" className="text-xs font-bold uppercase tracking-tight text-emerald-700" disabled={!policyReady || (loadFacetCounts['at-standard'] ?? 0) === 0}>At standard ({policyReady ? (loadFacetCounts['at-standard'] ?? 0) : '—'})</SelectItem>
+						<SelectItem value="excess" className="text-xs font-bold uppercase tracking-tight text-amber-700" disabled={!policyReady || (loadFacetCounts.excess ?? 0) === 0}>{EXCESS_LOAD_LABEL} ({policyReady ? (loadFacetCounts.excess ?? 0) : '—'})</SelectItem>
+						<SelectItem value="at-standard" className="text-xs font-bold uppercase tracking-tight text-emerald-700" disabled={!policyReady || (loadFacetCounts['at-standard'] ?? 0) === 0}>{AT_STANDARD_LABEL} ({policyReady ? (loadFacetCounts['at-standard'] ?? 0) : '—'})</SelectItem>
 						<SelectItem value="below-standard" className="text-xs font-bold uppercase tracking-tight text-sky-700" disabled={!policyReady || (loadFacetCounts['below-standard'] ?? 0) === 0}>{BELOW_STANDARD_LABEL} ({policyReady ? (loadFacetCounts['below-standard'] ?? 0) : '—'})</SelectItem>
 					</SelectContent>
 				</Select>

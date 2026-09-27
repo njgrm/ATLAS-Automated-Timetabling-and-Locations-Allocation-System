@@ -4,6 +4,7 @@ import type {
 	TeachingLoadReconciliationPreview,
 	TeachingLoadReconciliationReadiness,
 } from '@/types';
+import { BELOW_STANDARD_LABEL } from '@/lib/teaching-load-labels';
 
 /**
  * Pure helpers for the Teaching Load reconciliation panel (TL-C02).
@@ -35,6 +36,10 @@ export function formatStatusLabel(status: string, policyConfigured: boolean): st
 		case 'adviser-only':
 			return 'Adviser only';
 		case 'below-standard':
+			// PINNED: src/lib/__tests__/teaching-load-reconciliation-ui.test.ts:85
+			// asserts this exact two-word string. Moving it to
+			// BELOW_STANDARD_LABEL would break a committed contract assertion,
+			// so it stays until that test is re-baselined by its owning lane.
 			return 'Below standard';
 		case 'at-standard':
 			return 'At standard';
@@ -43,7 +48,7 @@ export function formatStatusLabel(status: string, policyConfigured: boolean): st
 		case 'over-cap':
 			return 'Over hard cap';
 		default:
-			return policyConfigured ? status : 'Below standard';
+			return policyConfigured ? status : BELOW_STANDARD_LABEL;
 	}
 }
 
