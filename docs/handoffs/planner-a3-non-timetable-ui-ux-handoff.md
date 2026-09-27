@@ -934,6 +934,80 @@ require an **elevated** shell this session does not have. The next session must 
 elevated or hand them to the operator. **B5 remains never-performed.** No deployment, migration,
 generation, publication, or live-data action has been taken.
 
+### 2026-09-27 addendum 9 — the deploy runner gates on the register; that gate is now CLOSED
+
+Operator is remote with no working AnyDesk and no admin PowerShell. Before accepting the blocker I
+looked for a way around it, and **there is none, now measured rather than assumed**: `cli.mjs` and
+`host.mjs` contain no `watch`, no `setInterval`, no `process.on`, no IPC, so the resident SYSTEM
+supervisor never re-reads anything — its `sourceDir` is fixed at spawn and only a task re-point or a
+tree kill can change what it serves. A second supervisor from this shell would only contend for 5001.
+
+**The repo already owns the right tool, and I should have found it first:** `ops/runtime/deploy-runner.ps1`
+— `-Execute`-gated, `Assert-Administrator` before even the dry run, `taskkill /T` tree kill, 10s
+settle, fail-closed port-clear check, and a real symmetric rollback in `catch` that restores both env
+vars, the task XML, and re-runs the task. My hand-rolled command list from addendum 8 was worse and
+is superseded by it.
+
+**`Assert-LiveReleaseRecorded` (line 198) is a fail-closed pre-mutation gate: the target's 8-char
+prefix must appear in the `## Live release` section of `docs/plans/live-state.md` read from
+`origin/main`, or the elevated run dies before it starts.** It did not — so the operator's one
+elevated window would have been spent on a gate failure. **Closed at `1b68dbf4`**, which records
+`c4a9960e` as **STAGED / NOT LIVE** with its rollback basis `c5a9e832`, the enumerated delta, the
+two-sided deploy proof, and the elevation blocker. `c5a9e832` is still recorded as LIVE, so the
+record leads the cutover without lying about it. The runner's own section-extraction logic was
+reproduced against the working copy to confirm the gate passes, not assumed.
+
+**Every non-admin runner precondition pre-flighted and passing:** target HEAD `c4a9960e` and
+incumbent HEAD `c5a9e832`, **both `git status --short` empty**, target has **no `ops/runtime/logs`**
+(the documented cause of `Get-GitIdentity` rejecting a release — the incumbent has it, but
+`.git/info/exclude` keeps its status empty), both `dist/server.js` and client `index.html` present,
+target not a reparse point, `D:\ATLAS-runtime-config\atlas-server.env` present. **Only elevation is
+missing.** The staged release is named in the register, which also protects it from a reclaim.
+
+### 2026-09-27 addendum 10 — C2-3 pins the view-mode effect; integrated `16961054`
+
+QA's accepted NON_BLOCKING residual — the bottom bar's new `setViewMode('teacher')` call with no
+control pinning it — is now closed, and the reason it was unpinned turned out to be the interesting
+part: **the C2 test host declared `useState<'teacher'|'allocation'>('teacher')`**, i.e. it started in
+the very state that made the original dead-control defect invisible. The harness reproduced the trap
+it exists to catch, so no control could observe a view-mode effect at all.
+
+Executor `ses_f1d5ae841ffeVWEXJUFoiOF0uV` → candidate `d9d5def1`, base `b3082672`, **one file**,
++113/−1 where the single deletion is the instructed `useState('teacher')` → `('allocation')` swap and
+everything else is additive (§16 holds). The host publishes its mode as
+`[data-testid="host-view-mode"]`, and new `C2-3` asserts each labelled control drives `allocation` →
+`teacher`, asserting the **scalar** so the unbounded `myersDiff` fault cannot recur.
+
+**Failing-first is the load-bearing evidence:** with only `setViewMode('teacher')` deleted from the
+production opener, the suite was **36 tests / 35 pass / 1 fail** — and **C2-1 and C2-2 still
+PASSED**, because they assert the dialog, which still opened. Only C2-3 could see the missing effect.
+Restore proven byte-exact (SHA-256 identical to the pre-mutant backup).
+
+Gates, reproduced independently by the planner: `test:a3-teachers-load` **36/36** (was 35),
+`test:a3-sections-map` **20/20** preservation, `typecheck` **4 pre-existing environmental** errors
+with **0** from this change. C2-1's boolean precondition and discovery are untouched; the probe `div`
+provably did not disturb label-based button discovery. **Test-only, so LOW tier: executor self-check
+→ planner review, no independent QA** (§11). Integrated `16961054` and pushed; push range was exactly
+the one commit plus the merge, every non-merge commit an accepted ancestor. Both worktrees retired
+with junctions unlinked via `cmd rmdir` and the donor verified at 154 packages before and after; no
+branch deleted.
+
+**Two residuals recorded, neither changed:** (1) the second mutant was **skipped, not faked** —
+`openTeacherReview` takes only `{ setViewMode, setReviewModalOpen }` with no caller discriminator, so
+a bottom-bar-only mutant is not expressible without changing the production contract under test;
+(2) C2-2's inline comment describing the *page's* historical `setViewMode('teacher')` is accurate
+history but could now be confused with the host's deliberately inverted initial state — left
+untouched, because §16 forbids rewording evidence to tidy it.
+
+**⚠ DEPLOY TARGET IS NOW BEHIND `main` (dated 2026-09-27, planner decision owed).** While this lane
+worked, **Lane A2 integrated `af1451a3`** ("validate swap strategy at the wire boundary and keep one
+Undo surface") at merge `b289bc05`, **on top of** `c4a9960e`. `origin/main` is now `16961054` and
+**no longer contains only the staged range.** Deploying `c4a9960e` as staged would ship the A3
+corrections and **not** A2's swap-strategy/Undo work. The operator must choose: deploy `c4a9960e` as
+staged (A3's fixes only), or re-pin to current `main` and rebuild the staged release so one deploy
+carries both. **Not decided here** — it changes what the operator consents to ship, and the delta
+must be re-enumerated before that consent means anything.
+
 Three streams, three worktrees, one writer each, all under `E:/ATLAS-worktrees/lane-a3-*` from base `3cfe79a8`. Consolidated pairs preserved: 13+18, 14+16, 17+23, 25+26, 33A+33B.
 
 **S1 - Sections and room map** (`work/a3-sections-map`): fixes 03, 06, 07, 10, 11, 12; 08 held.
