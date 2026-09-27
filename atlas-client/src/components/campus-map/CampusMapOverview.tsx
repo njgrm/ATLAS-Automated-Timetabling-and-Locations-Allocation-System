@@ -23,9 +23,18 @@ import { getPreferredAccessToken } from '@/lib/auth';
 import { resolveActiveSchoolYearContext } from '@/lib/enrollpro-public-settings';
 import { isVerifiedOrderedActiveTerm } from '@/lib/academic-term';
 import { UNVERIFIED_TERM_BODY, UNVERIFIED_TERM_TITLE } from '@/lib/room-schedule-term-copy';
+import {
+	ROOM_UTILIZATION_UNKNOWN_LABEL,
+	buildingScheduleState,
+	isRoomUtilizationKnown,
+	roomUtilizationBarPercent,
+	roomUtilizationColor,
+	roomUtilizationLabel,
+} from '@/lib/room-utilization-display';
 import { useActorSchoolScope } from '@/lib/actor-scope-session';
 import { pivotDraftToView } from '@/lib/schedule-pivot';
 import { parseGradeFromSectionName } from '@/components/GradeLevelBadge';
+import { cn } from '@/lib/utils';
 import type { Building, DraftReport, GenerationRun, Room, RoomScheduleView, SectionSummaryResponse, Subject } from '@/types';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
@@ -100,22 +109,10 @@ function buildingStatus(building: Building): 'ready' | 'attention' {
 	return teachingRoomCount(building) > 0 ? 'ready' : 'attention';
 }
 
-function getUtilizationColor(pct: number): string {
-	const clamped = Math.max(0, Math.min(100, pct));
-	if (clamped <= 50) {
-		const ratio = clamped / 50;
-		const r = Math.round(34 + (234 - 34) * ratio);
-		const g = Math.round(197 + (179 - 197) * ratio);
-		const b = Math.round(94 + (8 - 94) * ratio);
-		return `rgb(${r},${g},${b})`;
-	} else {
-		const ratio = (clamped - 50) / 50;
-		const r = Math.round(234 + (220 - 234) * ratio);
-		const g = Math.round(179 + (38 - 179) * ratio);
-		const b = Math.round(8 + (38 - 8) * ratio);
-		return `rgb(${r},${g},${b})`;
-	}
-}
+/** A3: the body moved verbatim to `@/lib/room-utilization-display`, which now
+ *  owns it for all three duplicated map components. Thresholds, interpolation
+ *  and signature unchanged. */
+const getUtilizationColor = roomUtilizationColor;
 
 export function CampusMapOverview({ buildings, campusImageUrl }: CampusMapOverviewProps) {
 	const [activeView, setActiveView] = useState<'map' | 'building'>('map');
@@ -293,10 +290,19 @@ const [verifiedTermIndex, setVerifiedTermIndex] = useState<number | null>(null);
 		return utilization;
 	}, [buildings, scheduleReport, subjectMap, verifiedTermIndex]);
 
-	const selectedHasSchedule = Boolean(selectedBuilding?.rooms?.some((room) => (roomUtilization.get(room.id) ?? 0) > 0));
+	// A3: the pre-fix test here defaulted every absent reading to zero and asked
+	// whether it was above zero, which folded "no measurement exists" into "no
+	// timetable" — so an unresolved term or a missing report, the exact state the
+	// memo returns an empty map for, announced "No <year> timetable yet".
+	// Tri-state now: only a measured zero may claim the empty state.
+	const selectedScheduleState = buildingScheduleState(
+		roomUtilization,
+		(selectedBuilding?.rooms ?? []).map((room) => room.id),
+	);
 	const scheduleEmptyLabel = activeSchoolYearLabel
 		? `No ${activeSchoolYearLabel} timetable yet`
 		: 'No current-year timetable yet';
+	const scheduleUnknownLabel = ROOM_UTILIZATION_UNKNOWN_LABEL;
 
 	const roomScheduleIndicators = useMemo(() => {
 		const occupancy = new Map<number, string>();
@@ -537,7 +543,7 @@ const [verifiedTermIndex, setVerifiedTermIndex] = useState<number | null>(null);
 												<ReadinessChip label="Floors" value={selectedFloors.toString()} />
 												<ReadinessChip label="Schedules" value={verifiedTermIndex == null
 				? UNVERIFIED_TERM_TITLE
-				: selectedHasSchedule ? 'Available' : scheduleLoading ? 'Checking' : scheduleEmptyLabel} />
+				: selectedScheduleState === 'scheduled' ? 'Available' : scheduleLoading ? 'Checking' : selectedScheduleState === 'empty' ? scheduleEmptyLabel : scheduleUnknownLabel} />
 											</div>
 										) : null}
 
@@ -613,8 +619,12 @@ const [verifiedTermIndex, setVerifiedTermIndex] = useState<number | null>(null);
 													No rooms match filters.
 												</div>
 											) : (
-												filteredRooms.map((room) => {
-													const utilization = roomUtilization?.get(room.id) ?? 0;
+											filteredRooms.map((room) => {
+												// A3: the unknown case keeps its own readout instead of
+												// being drawn as a measured 0%. `utilization` is bar
+												// geometry only; the label is what the user reads.
+												const utilizationKnown = isRoomUtilizationKnown(roomUtilization, room.id);
+												const utilization = roomUtilizationBarPercent(roomUtilization, room.id);
 													const sectionData = roomScheduleIndicators.sectionData.get(room.id);
 													const occupancy = sectionData?.sectionName ?? roomScheduleIndicators.occupancy.get(room.id);
 													const isFocused = focusedRoomId === room.id;
@@ -649,26 +659,41 @@ const [verifiedTermIndex, setVerifiedTermIndex] = useState<number | null>(null);
 																</Badge>
 															</div>
 
-															{room.isTeachingSpace && (
-																<div className="w-full space-y-0.5">
+											{room.isTeachingSpace && (
+												<div className="w-full space-y-0.5" data-utilization={utilizationKnown ? 'measured' : 'unknown'}>
 													<div className="flex items-center justify-between text-xs font-semibold text-slate-500">
-																		<span className="flex items-center gap-0.5">
-																			<TrendingUp className="size-2.5" />
-																			Utilization
-																		</span>
-																		<span className="tabular-nums">{Math.round(utilization)}%</span>
-																	</div>
-																	<div className="h-1 w-full bg-slate-100 rounded-full overflow-hidden">
-																		<div 
-																			className="h-full transition-all duration-300"
-																			style={{ 
-																				width: `${utilization}%`, 
-																				backgroundColor: getUtilizationColor(utilization) 
-																			}} 
-																		/>
-																	</div>
-																</div>
-															)}
+														<span className="flex items-center gap-0.5">
+															<TrendingUp className="size-2.5" />
+															Utilization
+														</span>
+														<span
+															className={cn('tabular-nums', !utilizationKnown && 'italic text-slate-400')}
+															aria-label={utilizationKnown ? undefined : 'Weekly utilization not available'}
+														>
+															{roomUtilizationLabel(roomUtilization, room.id)}
+														</span>
+													</div>
+													{/* A3: an unknown track is striped, so an empty bar is never
+													 * read as a measured zero. The geometry is unchanged. */}
+													<div
+														className={cn(
+															'h-1 w-full rounded-full overflow-hidden',
+															utilizationKnown ? 'bg-slate-100' : 'bg-[repeating-linear-gradient(45deg,#e2e8f0_0_3px,#f8fafc_3px_6px)]',
+														)}
+														aria-hidden="true"
+													>
+														{utilizationKnown && (
+															<div
+																className="h-full transition-all duration-300"
+																style={{
+																	width: `${utilization}%`,
+																	backgroundColor: getUtilizationColor(utilization)
+																}}
+															/>
+														)}
+													</div>
+												</div>
+											)}
 
 															{occupancy && (
 																<div className="flex flex-wrap gap-1 mt-0.5">
@@ -700,9 +725,11 @@ const [verifiedTermIndex, setVerifiedTermIndex] = useState<number | null>(null);
 													</div>
 											<div className="space-y-0.5 text-xs text-slate-600">
 														<p>Capacity: <strong className="text-slate-800">{focusedRoom.capacity ?? '—'} students</strong></p>
-														{focusedRoom.isTeachingSpace ? (
-															<p>Weekly Utilization: <strong className="text-slate-800">{Math.round(roomUtilization?.get(focusedRoom.id) ?? 0)}%</strong></p>
-														) : (
+													{focusedRoom.isTeachingSpace ? (
+														<p data-utilization={isRoomUtilizationKnown(roomUtilization, focusedRoom.id) ? 'measured' : 'unknown'}>
+															Weekly Utilization: <strong className="text-slate-800">{roomUtilizationLabel(roomUtilization, focusedRoom.id)}</strong>
+														</p>
+													) : (
 															<p className="text-amber-600 font-medium">Non-teaching space</p>
 														)}
 													</div>

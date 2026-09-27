@@ -5,6 +5,13 @@ import { DoorOpen, Minus, Plus, RotateCcw } from 'lucide-react';
 import type { Building, Room, RoomType } from '@/types';
 import { getPrimaryCanvasColor } from '@/components/campus-map/campusMapPalette';
 import { ROOM_TYPE_LABELS } from '@/lib/room-type-labels';
+import {
+	ROOM_UTILIZATION_UNKNOWN_FILL,
+	isRoomUtilizationKnown,
+	roomUtilizationBarPercent,
+	roomUtilizationColor,
+	roomUtilizationCompactLabel,
+} from '@/lib/room-utilization-display';
 import { cn } from '@/lib/utils';
 import { Button } from '@/ui/button';
 import { Badge } from '@/ui/badge';
@@ -168,23 +175,11 @@ const ROOM_TYPE_SHORT_LABEL: Record<RoomType, string> = {
 	OTHER: 'Other',
 };
 
-/** Returns a color based on utilization percentage (green → yellow → red) */
-function getUtilizationColor(pct: number): string {
-	const clamped = Math.max(0, Math.min(100, pct));
-	if (clamped <= 50) {
-		const ratio = clamped / 50;
-		const r = Math.round(34 + (234 - 34) * ratio);
-		const g = Math.round(197 + (179 - 197) * ratio);
-		const b = Math.round(94 + (8 - 94) * ratio);
-		return `rgb(${r},${g},${b})`;
-	} else {
-		const ratio = (clamped - 50) / 50;
-		const r = Math.round(234 + (220 - 234) * ratio);
-		const g = Math.round(179 + (38 - 179) * ratio);
-		const b = Math.round(8 + (38 - 8) * ratio);
-		return `rgb(${r},${g},${b})`;
-	}
-}
+/** Returns a color based on utilization percentage (green → yellow → red).
+ *  A3: the body moved verbatim to `@/lib/room-utilization-display`, which now
+ *  owns it for all three duplicated map components. The thresholds, the
+ *  interpolation and the signature are unchanged. */
+const getUtilizationColor = roomUtilizationColor;
 
 export type RoomSectionMetadata = {
 	sectionName: string;
@@ -402,7 +397,12 @@ export function BuildingView({
 				{rooms.map((room, ri) => {
 					const colors = ROOM_FILLS[room.type] ?? ROOM_FILLS.OTHER;
 					const roomX = FLOOR_LABEL_W + FLOOR_PAD_X + ri * (ROOM_MIN_W + ROOM_GAP);
-					const utilization = roomUtilization?.get(room.id) ?? 0;
+					// A3: `?? 0` here rendered "we could not compute this" as a
+					// confident 0%, because `roomUtilization` omits a room whose
+					// draft has no single-term identity. The unknown case now keeps
+					// its own readout; `utilization` is bar geometry only.
+					const utilizationKnown = isRoomUtilizationKnown(roomUtilization, room.id);
+					const utilization = roomUtilizationBarPercent(roomUtilization, room.id);
 					
 					const sectionData = roomSectionData?.get(room.id);
 					const occupancy = sectionData?.sectionName ?? roomOccupancy?.get(room.id);
@@ -561,29 +561,33 @@ export function BuildingView({
 								strokeWidth={0.5}
 								cornerRadius={2}
 							/>
-							{utilization > 0 && (
-								<Rect
-									x={ROOM_UTILIZATION_BAR_BOX.x + 1}
-									y={ROOM_UTILIZATION_BAR_BOX.y + ROOM_UTILIZATION_BAR_BOX.height - 2 - (ROOM_UTILIZATION_BAR_BOX.height - 4) * (utilization / 100)}
-									width={ROOM_UTILIZATION_BAR_BOX.width - 2}
-									height={(ROOM_UTILIZATION_BAR_BOX.height - 4) * (utilization / 100)}
-									fill={getUtilizationColor(utilization)}
-									opacity={0.85}
-									cornerRadius={[0, 0, 1, 1]}
-								/>
-							)}
-							<Text
-								x={ROOM_UTILIZATION_TEXT_BOX.x}
-								y={ROOM_UTILIZATION_TEXT_BOX.y}
-								width={ROOM_UTILIZATION_TEXT_BOX.width}
-								height={ROOM_UTILIZATION_TEXT_BOX.height}
-								text={`${Math.round(utilization)}%`}
-								fontSize={ROOM_LABEL_FONT}
-								lineHeight={ROOM_LINE_RATIO}
-								fontStyle="bold"
+						{utilizationKnown && utilization > 0 && (
+							<Rect
+								x={ROOM_UTILIZATION_BAR_BOX.x + 1}
+								y={ROOM_UTILIZATION_BAR_BOX.y + ROOM_UTILIZATION_BAR_BOX.height - 2 - (ROOM_UTILIZATION_BAR_BOX.height - 4) * (utilization / 100)}
+								width={ROOM_UTILIZATION_BAR_BOX.width - 2}
+								height={(ROOM_UTILIZATION_BAR_BOX.height - 4) * (utilization / 100)}
 								fill={getUtilizationColor(utilization)}
-								align="left"
+								opacity={0.85}
+								cornerRadius={[0, 0, 1, 1]}
 							/>
+						)}
+						{/* A3: the label is the discriminator between a measured 0%
+						 * and an unknown. An unknown readout is neutral grey and
+						 * never passes through `getUtilizationColor`, whose
+						 * green-at-zero is a measured-zero signal. */}
+						<Text
+							x={ROOM_UTILIZATION_TEXT_BOX.x}
+							y={ROOM_UTILIZATION_TEXT_BOX.y}
+							width={ROOM_UTILIZATION_TEXT_BOX.width}
+							height={ROOM_UTILIZATION_TEXT_BOX.height}
+							text={roomUtilizationCompactLabel(roomUtilization, room.id)}
+							fontSize={ROOM_LABEL_FONT}
+							lineHeight={ROOM_LINE_RATIO}
+							fontStyle="bold"
+							fill={utilizationKnown ? getUtilizationColor(utilization) : ROOM_UTILIZATION_UNKNOWN_FILL}
+							align="left"
+						/>
 						</Group>
 					);
 				})}
@@ -591,7 +595,14 @@ export function BuildingView({
 					<Text
 						x={FLOOR_LABEL_W + FLOOR_PAD_X}
 						y={floorTotalH / 2 - 6}
-						text="Empty floor"
+						/* A3 C1 — one word for the empty-floor state. The label is
+						 * already drawn inside this floor's own band, to the right of
+						 * its `F<n>` tag, so "floor" restated what the position
+						 * already says. "Empty" is the word the repo already uses for
+						 * an empty container (`room-schedules/OccupancyTemplatePreview`),
+						 * so choosing it settles inventory rows 249/250 without editing
+						 * that file, and it keeps the meaning: this floor has no rooms. */
+						text="Empty"
 						fontSize={11}
 						fill="#9ca3af"
 						fontStyle="italic"

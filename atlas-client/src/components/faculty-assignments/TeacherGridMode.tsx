@@ -26,6 +26,7 @@ import {
 } from '@/lib/faculty-assignment-helpers';
 import type { FacultySummary, FacultyAssignmentDraft, Subject, ExternalSection, LoadProfile } from '@/types';
 import { SubjectRow } from './SubjectRow';
+import { TeacherLoadReadout } from './TeacherLoadReadout';
 import { TeachingLoadFilterBar } from './TeachingLoadFilterBar';
 import { formatFacultyDisplayName } from '@/components/faculty/teacherNameDisplay';
 import { countDistinctSections } from '@/lib/teaching-load-counts';
@@ -336,21 +337,18 @@ export function TeacherGridMode({
 													{/* Load Signals: compact on mobile, full on desktop */}
 													<div className="flex items-center gap-3 shrink-0 sm:gap-6 sm:px-4">
 														<div className="text-right">
-															<Tooltip>
-																<TooltipTrigger asChild>
-																	<p className={cn(
-																		"text-xs font-semibold tabular-nums cursor-help",
-																		!policyReady || teachingStandardHours == null
-																			? "text-muted-foreground"
-																			: displayHours > member.maxHoursPerWeek ? "text-rose-600" : displayHours > teachingStandardHours ? "text-amber-600" : "text-emerald-600"
-																	)}>
-																		{member.isPlaceholder || utilization == null ? `${displayHours.toFixed(1)}h` : `${displayHours.toFixed(1)}h · ${utilization}%`}
-																	</p>
-																</TooltipTrigger>
-																<TooltipContent side="bottom" className="max-w-64 p-3">
-																	<p className="text-xs font-medium">{policyReady && teachingStandardHours != null ? `Teaching hours a week in this teacher's busiest term, compared with the ${teachingStandardHours}h standard. Adviser and other-duty credit is counted separately.` : 'The standard load is not set for this school year, so the percentage cannot be shown.'}</p>
-																</TooltipContent>
-															</Tooltip>
+															{/* A3 A1: the percentage now carries a visible label beside
+															 * it, and the withheld-percentage case has its own honest
+															 * state. The bar/colour treatment and the long-form tooltip
+															 * are unchanged. See TeacherLoadReadout. */}
+															<TeacherLoadReadout
+																displayHours={displayHours}
+																utilization={utilization}
+																isPlaceholder={member.isPlaceholder}
+																standardHours={teachingStandardHours}
+																policyReady={policyReady}
+																maxHoursPerWeek={member.maxHoursPerWeek}
+															/>
 															<p className="text-xs font-bold text-muted-foreground uppercase tracking-tight hidden sm:block">Hours / week</p>
 														</div>
 														<div className="text-right min-w-10 hidden sm:block">
