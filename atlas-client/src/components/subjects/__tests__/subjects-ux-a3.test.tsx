@@ -274,10 +274,17 @@ function termAuthority(state: TermAuthority['state']): TermAuthority {
 test('A3-20: the form states saved / stale / failed as three DISTINCT in-dialog outcomes', async () => {
 	const outcomes: SubjectSaveOutcome[] = [
 		{ status: 'saved' },
-		// The REAL production string from Subjects.handleModalSave's STALE_WRITE
-		// branch — a control fixture must come from the surface it is about
-		// (AGENTS.md §11), not from an invented one.
-		{ status: 'stale', message: 'This subject was modified by another user. Your edit was not written — close and reopen it to load the newer version.' },
+		// The REAL production string, and A3-C6 INTEGRATION CORRECTION: this
+		// fixture previously carried the PRE-c5 wording ("Your edit was not
+		// written — close and reopen it to load the newer version."), which the
+		// page emitted until c5 moved the stale copy out of `Subjects.tsx` and
+		// into the resolver. A control fixture must come from the real surface it
+		// is about (AGENTS.md §11) — an invented or stale fixture is the
+		// documented failure mode, and this one had been left behind by c5 while
+		// the page moved on. The string below is exactly what
+		// `resolveSubjectMutationErrorCopy` composes for `STALE_WRITE`
+		// (subject-source-utils.ts:406 = `${description} ${nextAction}`).
+		{ status: 'stale', message: 'Subject was modified by another user. Refresh and retry. Your change was not written — close and reopen the subject to load the newer version, then make your change again.' },
 		{ status: 'failed', message: 'Subject code MATH10 already exists.' },
 	];
 	const seen: Array<{ role: string | null; status: string | null; text: string }> = [];
@@ -325,7 +332,17 @@ test('A3-20: the form states saved / stale / failed as three DISTINCT in-dialog 
 	// No outcome is announced by a raw title attribute (AGENTS.md §8).
 	assert.ok(!seen.some((s) => /title=/.test(s.text)));
 	// The stale copy the page supplies must not be silently reworded away.
-	assert.match(code('src/pages/Subjects.tsx'), /Your edit was not written/);
+	// A3-C6 INTEGRATION CORRECTION: this scan read `src/pages/Subjects.tsx` for
+	// the pre-c5 literal, which has been false since c5 commit b52aa976 moved
+	// the stale copy into the resolver, leaving `test:a3-subjects` RED at base
+	// 1df69b03 — a shipped gate failing, found by the A3-C6 stream-2 QA. The
+	// intent is preserved and the target re-pointed at the file the string now
+	// actually ships in, so the control still fails if the copy is reworded away.
+	assert.match(code('src/components/subjects/subject-source-utils.ts'), /Your change was not written/);
+	assert.ok(
+		!/Your edit was not written/.test(code('src/pages/Subjects.tsx')),
+		'the superseded pre-c5 stale copy must not have returned to Subjects.tsx',
+	);
 });
 
 // ===========================================================================

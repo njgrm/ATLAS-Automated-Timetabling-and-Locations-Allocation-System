@@ -263,7 +263,44 @@ function scanForNeedles(files: Map<string, string>, needles: string[]): Hit[] {
 	return hits;
 }
 
-/** The real tree: every .ts/.tsx under src, excluding this file only. */
+/**
+ * A TEST FILE is not a live reference site.
+ *
+ * A3-C6 INTEGRATION CORRECTION: this scan originally covered every `.ts`/`.tsx`
+ * under `src` except this one file, and on the MERGED tree it went red — not
+ * because either stream was wrong, but because stream 1's own new test
+ * (`a3-c6-concerns-truthfulness.test.tsx`) names `WeeklyScheduleGrid` inside a
+ * NEGATIVE control that proves the deleted class grid is absent from the page.
+ * Two independently-authored lanes collided, and neither lane's reviewer could
+ * see it: each range is correct alone.
+ *
+ * The distinction that resolves it is the one that was always true: a deleted
+ * module is "referenced again" when a SOURCE file imports, dynamically imports
+ * or re-exports it. A control that merely mentions the name in order to assert
+ * its ABSENCE is evidence about the deletion, not a consumer of it. Excluding
+ * test files therefore removes a false positive without weakening the control —
+ * and the planted-reference control below proves a real reference in a source
+ * file is still caught.
+ */
+function isTestFile(reported: string): boolean {
+	return /\.test\.tsx?$/.test(reported) || reported.includes('/__tests__/');
+}
+
+/**
+ * The one filter, used by BOTH the real tree walk and the discrimination
+ * control below, so the control cannot pass while the real scan behaves
+ * differently.
+ */
+function readSourceTreeLike(files: Map<string, string>): Hit[] {
+	const live = new Map<string, string>();
+	for (const [file, text] of files) {
+		if (isTestFile(file)) continue;
+		live.set(file, text);
+	}
+	return scanForNeedles(live, DEAD_MODULE_NEEDLES);
+}
+
+/** The real tree: every non-test .ts/.tsx under src, excluding this file only. */
 function readSourceTree(): Map<string, string> {
 	const files = new Map<string, string>();
 	const walk = (dir: string): void => {
@@ -276,6 +313,7 @@ function readSourceTree(): Map<string, string> {
 			if (!/\.tsx?$/.test(entry.name)) continue;
 			const reported = relative(CLIENT_ROOT, absolute).replace(/\\/g, '/');
 			if (reported === SELF) continue;
+			if (isTestFile(reported)) continue;
 			files.set(reported, readFileSync(absolute, 'utf8'));
 		}
 	};
@@ -440,6 +478,35 @@ test('the reference scanner is discriminating, not a tautology', () => {
 		scanForNeedles(clean, DEAD_MODULE_NEEDLES),
 		[],
 		'the scanner must report nothing for a clean tree',
+	);
+});
+
+test('the test-file exclusion removes a false positive without hiding a real reference', () => {
+	// The collision this correction exists for: stream 1's control MENTIONS the
+	// deleted grid to prove it is absent from the page. That is evidence about
+	// the deletion, not a consumer of it.
+	const controlMention = new Map<string, string>([
+		['src/components/faculty-shared/__tests__/a3-c6-concerns-truthfulness.test.tsx', "assert.ok(!html.includes('WeeklyScheduleGrid'));"],
+	]);
+	assert.ok(isTestFile('src/components/faculty-shared/__tests__/a3-c6-concerns-truthfulness.test.tsx'), 'a __tests__ file is a test file');
+	assert.ok(isTestFile('src/lib/__tests__/gate-reachability.test.ts'), 'a .test.ts file is a test file');
+	assert.ok(!isTestFile('src/pages/Subjects.tsx'), 'a page is not a test file');
+	assert.ok(!isTestFile('src/components/faculty-shared/WeeklyScheduleGrid.tsx'), 'the deleted module was not itself a test file');
+	assert.deepEqual(
+		readSourceTreeLike(controlMention),
+		[],
+		'a mention inside a test file must not be scanned as a live reference',
+	);
+
+	// The half that must NOT be relaxed: the identical text in a SOURCE file is
+	// a real reference and must still be reported.
+	const realReference = new Map<string, string>([
+		['src/pages/Subjects.tsx', "import Grid from '@/components/faculty-shared/WeeklyScheduleGrid';"],
+	]);
+	assert.deepEqual(
+		readSourceTreeLike(realReference),
+		[{ file: 'src/pages/Subjects.tsx', needle: 'WeeklyScheduleGrid' }],
+		'a real source reference must still be caught',
 	);
 });
 

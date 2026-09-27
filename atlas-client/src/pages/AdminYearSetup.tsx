@@ -109,9 +109,11 @@ export default function AdminYearSetup() {
 
 			<div className="flex-1 min-h-0 overflow-auto px-4 py-4 lg:px-5">
 				<div className="mx-auto max-w-3xl space-y-4">
-					{/* A3-C1 S-a — no title of any kind before this. The thin utility
-					    strip above keeps its back controls; the title goes at the top of
-					    the content. No subtitle is invented. */}
+				{/* A3-C1 S-a — no title of any kind before this. The thin utility
+				    strip above keeps its back control; the title goes at the top of
+				    the content. No subtitle is invented. A3-C6 D2 removed the
+				    duplicate icon-only ghost that stood beside it, leaving the one
+				    labelled control — so this reads in the singular on purpose. */}
 					<PageHeader title='School Year Setup' />
 					<p className="text-sm text-muted-foreground" data-testid="admin-year-setup-intro">
 						This page moves the old school year to read-only history (Archive and sync) and syncs the new school year from EnrollPro. Normal setup pages link here so year actions never appear beside routine work. The advanced destructive reset is reserved for genuinely disposable test data only.
