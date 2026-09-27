@@ -19,6 +19,7 @@ import { toast } from 'sonner';
 import { AnimatePresence, motion } from 'motion/react';
 
 import atlasApi from '@/lib/api';
+import { PageHeader } from '@/components/app-shell/PageHeader';
 import { getPreferredAccessToken } from '@/lib/auth';
 import { resolveActiveSchoolYearContext } from '@/lib/enrollpro-public-settings';
 import { useActorSchoolScope } from '@/lib/actor-scope-session';
@@ -393,6 +394,11 @@ export default function OfficerPreferences() {
 			</AnimatePresence>
 	
 			<div className='shrink-0 px-6 pt-6 pb-2 space-y-6'>
+
+				{/* A3-C1 S-a — this page had no title of any kind, so on desktop
+				    only the breadcrumb named it. No subtitle is invented: the page
+				    had no descriptive sentence to reuse. */}
+				<PageHeader title='Faculty Preferences' />
 
 				{/* Filters + Toolbar */}
 				<div className='flex flex-wrap items-center gap-3'>
