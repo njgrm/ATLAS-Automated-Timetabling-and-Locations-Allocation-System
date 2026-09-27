@@ -43,6 +43,45 @@
  * A note on the `<h1>` in Audit: it was a transient "Checking readiness..."
  * splash, so the LOADED page had no title at all. The splash is now a <p> and
  * the loaded branch owns the single h1 — a page never shows two.
+ *
+ * THE RULE, STATED HONESTLY (A3-C1 correction 2 — QA findings F1 and F4)
+ *
+ * A non-timetable page must have exactly ONE real, page-level `<h1>`. It adopts
+ * the canonical `PageHeader` card when it had no title of its own, and it KEEPS
+ * a title that is already properly placed inside a branded hero or a compact
+ * workspace strip. Two surfaces are exempt on that second branch, and each is
+ * pinned as exempt-with-reason below rather than merely left alone:
+ *
+ *   `/`                     -> the gradient hero already owned `<h1>Scheduling
+ *                             Dashboard</h1>`. The PageHeader card was reverted:
+ *                             it added ~66px of card plus a 24px space-y-6 gap at
+ *                             the very top of a SCROLLING region, pushing the
+ *                             rollover chips, source-decision chip and hero
+ *                             actions ~90px down the screen the demo opens on.
+ *   Sections/Subjects/      -> AdminWorkspaceFrame and WorkspaceToolbar each own
+ *   Faculty/TeachingLoad       one h1 inside a compact strip.
+ *
+ * Because `/` is exempt, its rendered h1 ("Scheduling Dashboard") deliberately
+ * does NOT equal its breadcrumb leaf ("Dashboard"). That is the exemption, not a
+ * gap, and the exemption test says so out loud.
+ *
+ * F1 (this correction): the test that used to be named "the previously ad-hoc
+ * titles now equal their breadcrumb leaf" compared hardcoded literals against
+ * `resolveRouteChrome(...)` — the REGISTRY, not the rendered DOM. QA proved it by
+ * mutating a page title to 'Room Preferences MUTANT': the rendered-DOM test went
+ * red, that one stayed green. Its registry control is preserved below under a
+ * name that says what it checks, and the leaf-agreement claim now runs against
+ * the RENDERED h1, per route.
+ *
+ * F3 (recorded, not changed): PageHeader renders `primaryAction` before
+ * `secondaryActions`, so `/map` reads `Edit rooms` then `Open/Hide map`. That is
+ * the canonical contract and is pinned below rather than left silent.
+ *
+ * F6 (recorded, not reverted): the old "How Timetabling Works" string is gone.
+ * `/timetabling/how-it-works` now titles itself from the canonical component with
+ * its breadcrumb leaf, replacing a `text-[0.65rem]` label (10.4px, below the 12px
+ * chrome floor the committed ux-r01-shared-chrome suite enforces). Do not
+ * restore it.
  */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -186,29 +225,46 @@ function assertCanonicalTitle(html: string, label: string, title: string, maxPri
 
 // --- 1. Rendered surfaces ----------------------------------------------------
 
+/**
+ * In-scope routes this file renders, the component that serves them, and the
+ * title the page is REQUIRED to show. The literal is what catches a rename; the
+ * rendered-vs-registry agreement in section 2 is what catches registry drift.
+ * Neither control subsumes the other, so neither carries a hardcoded-only
+ * comparison dressed up as the other.
+ */
+const renderedSurfaces: [string, string, () => unknown, string, number][] = [
+	['/map (overview)', '/map', MapEditor, 'Campus & Rooms', 1],
+	['/audit', '/audit', Audit, 'Audit', 1],
+	['/faculty/preferences', '/faculty/preferences', OfficerPreferences, 'Faculty Preferences', 0],
+	['/faculty/room-preferences', '/faculty/room-preferences', OfficerRoomPreferences, 'Room Preferences', 0],
+	['/timetabling/how-it-works', '/timetabling/how-it-works', HowItWorks, 'How Scheduling Works', 0],
+	['/teaching-load/history', '/teaching-load/history', TeachingLoadHistoryView, 'Archived Teaching Load', 1],
+];
+
 test('rendered A3 surfaces each emit exactly one canonical h1 and at most one primary action', async () => {
-	const jsdomSurfaces: [string, string, () => unknown, string, number][] = [
-		['/map (overview)', '/map', MapEditor, 'Campus & Rooms', 1],
-		['/audit', '/audit', Audit, 'Audit', 1],
-		['/faculty/preferences', '/faculty/preferences', OfficerPreferences, 'Faculty Preferences', 0],
-		['/faculty/room-preferences', '/faculty/room-preferences', OfficerRoomPreferences, 'Room Preferences', 0],
-		['/timetabling/how-it-works', '/timetabling/how-it-works', HowItWorks, 'How Scheduling Works', 0],
-		['/teaching-load/history', '/teaching-load/history', TeachingLoadHistoryView, 'Archived Teaching Load', 1],
-	];
-	for (const [label, path, Component, title, max] of jsdomSurfaces) {
+	for (const [label, path, Component, title, max] of renderedSurfaces) {
 		assertCanonicalTitle(await renderInJsdom(path, Component), label, title, max);
 	}
-	// Dashboard mounts a chart that needs layout JSDOM does not perform
-	// (measured: null.scale). renderToStaticMarkup runs the component body
-	// without effects and reaches the real header, so the h1 below is the
-	// shipped one, not a fallback.
-	assertCanonicalTitle(renderStatic('/', Dashboard), '/ (Dashboard)', 'Dashboard', 0);
+	// SUPERSEDED (A3-C1 correction 2, QA F4): this test used to end with
+	//   assertCanonicalTitle(renderStatic('/', Dashboard), '/ (Dashboard)', 'Dashboard', 0)
+	// `/` is now EXEMPT from the PageHeader card — its hero already owned a real
+	// page-level <h1> and the card cost ~90px on the demo's first screen. The
+	// Dashboard assertions were NOT deleted; they are re-anchored to the hero's
+	// own title in the "/ is exempt" test below, which also pins that
+	// Dashboard.tsx renders no PageHeader at all.
 });
 
 // --- 2. The three previously ad-hoc pages no longer own a raw h1 -------------
 
+/**
+ * SUPERSEDED (A3-C1 correction 2, QA F4): this array was
+ *   'src/pages/Dashboard.tsx'  ... 'src/components/faculty-assignments/TeachingLoadHistoryView.tsx'
+ * `/` is EXEMPT from the PageHeader card and legitimately owns a raw hero <h1>,
+ * so it is no longer a member. The row was not deleted silently: the "/ is
+ * exempt" test in section 3 now pins Dashboard's single h1, pins that it is the
+ * hero's, and pins that Dashboard.tsx contains no PageHeader.
+ */
 const pageFilesWithNoRawH1 = [
-	'src/pages/Dashboard.tsx',
 	'src/pages/MapEditor.tsx',
 	'src/pages/Audit.tsx',
 	'src/pages/OfficerPreferences.tsx',
@@ -236,10 +292,14 @@ test('each in-scope page file routes its title through PageHeader', () => {
 	}
 });
 
-test('the previously ad-hoc titles now equal their breadcrumb leaf', () => {
-	// Rule 3 of the packet: where the ad-hoc wording duplicated the breadcrumb
-	// leaf, use the leaf so page and breadcrumb agree. Audit had no loaded
-	// title at all (its h1 was a loading splash).
+test('the navigation registry still carries the intended title for each converted route', () => {
+	// PRESERVED verbatim from the test this correction split (A3-C1 correction 2,
+	// QA F1). What it checks: the registry, against a hardcoded intent. It never
+	// rendered anything, so it is renamed to say so — it is NOT the leaf-agreement
+	// control, which is the rendered test immediately below.
+	//
+	// `/` stays in this list: the registry title for `/` is 'Dashboard' and the
+	// revert did not touch the registry. The *page* is exempt, not the registry.
 	const expectations: [string, string][] = [
 		['/', 'Dashboard'],
 		['/map', 'Campus & Rooms'],
@@ -255,9 +315,78 @@ test('the previously ad-hoc titles now equal their breadcrumb leaf', () => {
 	}
 	assert.equal(source('src/pages/AdminYearSetup.tsx').includes("title='School Year Setup'"), true);
 	assert.equal(source('src/components/campus-map/CampusMapOverview.tsx').includes("title='Campus & Rooms'"), true);
+	// F6, recorded not reverted: the pre-candidate "How Timetabling Works" label
+	// was a `text-[0.65rem]` span (10.4px, under the 12px chrome floor) that also
+	// disagreed with its breadcrumb leaf. It must not come back.
+	assert.equal(
+		(source('src/pages/HowItWorks.tsx').match(/How Timetabling Works/g) ?? []).length,
+		0,
+		'the sub-12px "How Timetabling Works" label must stay retired',
+	);
+});
+
+test('every RENDERED in-scope page h1 equals resolveRouteChrome(route).title', async () => {
+	// A3-C1 correction 2, QA F1. This is the control the old test only claimed to
+	// be: it reads the h1 out of the RENDERED DOM, per route, and compares it to
+	// the registry. Mutating a page's title so it no longer matches its breadcrumb
+	// leaf therefore turns THIS test red — the old registry-only comparison stayed
+	// green through exactly that mutation.
+	//
+	// Routes not in `renderedSurfaces`, and why (no pretending they rendered):
+	//   `/`                  EXEMPT by decision — hero already owns the h1, and the
+	//                         PageHeader card cost ~90px on the demo's first
+	//                         screen. Pinned in the "/ is exempt" test below. Its
+	//                         h1 is intentionally NOT the breadcrumb leaf.
+	//   `/map?mode=editor`   react-konva needs a real canvas; JSDOM has none
+	//                         (measured: "Cannot read properties of null (reading
+	//                         'scale')"). Source-pinned in section 3.
+	//   `/admin/year-setup`  gated on `verifySessionToken()` returning an admin
+	//                         user, else it renders <Navigate to="/login"> and
+	//                         nothing at all. Source-pinned in section 3.
+	for (const [label, path, Component] of renderedSurfaces) {
+		const html = await renderInJsdom(path, Component);
+		assert.equal(
+			h1Text(html),
+			resolveRouteChrome(path).title,
+			`${label} rendered h1 must equal its breadcrumb leaf (${resolveRouteChrome(path).title})`,
+		);
+	}
 });
 
 // --- 3. Source-pinned surfaces, each with its reason recorded ----------------
+
+test('"/" is EXEMPT from the PageHeader card: one h1, it is the hero h1, and no PageHeader exists', () => {
+	// A3-C1 correction 2, QA F4. This is the control that replaced the
+	// Dashboard-in-PageHeader assertions. All three parts are load-bearing:
+	// re-inserting the card breaks the h1 count, the source pins AND the position
+	// check, so the exemption cannot be undone silently.
+	const html = renderStatic('/', Dashboard);
+	assert.equal(h1Count(html), 1, `"/" must render exactly one h1, saw ${h1Count(html)}`);
+	// The hero's own title. It is deliberately NOT the breadcrumb leaf: the hero is
+	// a branded surface that already had a real page-level heading before this
+	// stream, so it keeps it.
+	assert.equal(h1Text(html), 'Scheduling Dashboard', 'the single h1 on "/" must be the hero h1');
+	assert.equal(primaryActionCount(html), 0, 'the exemption must not smuggle a primary-action slot back in');
+
+	const dashboard = source('src/pages/Dashboard.tsx');
+	assert.doesNotMatch(
+		dashboard,
+		/<PageHeader/,
+		'Dashboard.tsx must not render the PageHeader card: "/" is exempt (QA F4)',
+	);
+	assert.doesNotMatch(
+		dashboard,
+		/app-shell\/PageHeader/,
+		'Dashboard.tsx must not even import the PageHeader while it is exempt',
+	);
+	// And the h1 must live INSIDE the branded hero, not above it — that placement
+	// is the whole reason the card is unwanted here.
+	const heroAt = dashboard.indexOf('bg-[linear-gradient(145deg');
+	const h1At = dashboard.indexOf('<h1');
+	assert.ok(heroAt > 0, 'the gradient hero must still exist');
+	assert.ok(h1At > heroAt, 'the h1 must sit inside the hero, below its gradient wrapper');
+	assert.match(dashboard, /<p className='mt-1 text-sm text-white\/80'>Build, review, and publish the school timetable\.<\/p>/);
+});
 
 test('the /map editor sub-view is source-pinned because react-konva needs a canvas JSDOM lacks', () => {
 	const mapEditor = source('src/pages/MapEditor.tsx');
@@ -280,20 +409,59 @@ test('AdminYearSetup is source-pinned because it renders nothing without an admi
 	assert.match(page, /<Navigate to="\/login"/, 'the auth gate this pin works around is still present');
 });
 
-test('the four wrapper-owned pages are unchanged and still emit one h1 through their own frame', () => {
-	// These already had exactly one h1 before this stream and still do. They
-	// are pinned as unchanged so a later stream cannot quietly add a second.
+test('the four wrapper-owned pages are EXEMPT (they already own one h1 in a compact strip) and still emit exactly one', () => {
+	// EXEMPT WITH REASON, not merely "unchanged" (A3-C1 correction 2, QA F4).
+	// Sections/Subjects/Faculty own their h1 inside AdminWorkspaceFrame and
+	// TeachingLoad owns it inside WorkspaceToolbar. Both wrappers render in the
+	// page body, so these pages were never affected by the desktop-title gap, and
+	// the card-style PageHeader would add real vertical space to /teachers and
+	// /teaching-load — the pages protected by accepted browser rows 14 and 16,
+	// which no harness in this stream can measure.
 	const frame = source('src/components/admin-workspace/AdminWorkspace.tsx');
 	assert.equal((frame.match(/<h1/g) ?? []).length, 1, 'AdminWorkspaceFrame owns exactly one h1');
+	assert.doesNotMatch(frame, /<PageHeader/, 'the frame is the strip owner; it must not grow a PageHeader card');
 	const toolbar = source('src/components/faculty-assignments/WorkspaceToolbar.tsx');
 	assert.equal((toolbar.match(/<h1/g) ?? []).length, 1, 'WorkspaceToolbar owns exactly one h1');
+	assert.doesNotMatch(toolbar, /<PageHeader/, 'the toolbar is the strip owner; it must not grow a PageHeader card');
 
 	for (const path of ['src/pages/Sections.tsx', 'src/pages/Subjects.tsx', 'src/pages/Faculty.tsx']) {
 		assert.equal((source(path).match(/<h1/g) ?? []).length, 0, `${path} adds no h1 of its own`);
+		assert.doesNotMatch(source(path), /<PageHeader/, `${path} is exempt: it must not adopt the PageHeader card`);
 		assert.match(source(path), /<AdminWorkspaceFrame/, `${path} still renders the shared frame`);
 	}
 	assert.equal((source('src/pages/TeachingLoad.tsx').match(/<h1/g) ?? []).length, 0);
+	assert.doesNotMatch(source('src/pages/TeachingLoad.tsx'), /<PageHeader/, 'TeachingLoad is exempt for the same reason');
 	assert.match(source('src/pages/TeachingLoad.tsx'), /<WorkspaceToolbar/);
+});
+
+test('PageHeader renders primaryAction before secondaryActions, and /map depends on that order', () => {
+	// A3-C1 correction 2, QA F3 — RECORDED, NOT CHANGED. PageHeader.tsx renders
+	// `primaryAction` first and `secondaryActions` second, which is the canonical
+	// contract (it is not editable by this stream). On /map that means the
+	// tab/reading order is `Edit rooms` then `Open map` / `Hide map`, changed from
+	// the pre-candidate `Open/Hide map` then `Edit rooms`. Reviewed and accepted:
+	// `Edit rooms` is the primary-styled action and primary-first is the contract.
+	// This assertion exists so the order is captured rather than silent — if a
+	// future stream edits PageHeader, this goes red instead of the order shifting
+	// again without a record.
+	const overview = source('src/components/campus-map/CampusMapOverview.tsx');
+	const primaryAt = overview.indexOf('primaryAction={(');
+	const secondaryAt = overview.indexOf('secondaryActions={(');
+	assert.ok(primaryAt > 0 && secondaryAt > primaryAt, '/map must pass the room editor as primaryAction and the map toggle as secondaryActions');
+	assert.match(overview.slice(primaryAt, secondaryAt), /Edit rooms/);
+	assert.match(overview.slice(secondaryAt), /showExplorer \? 'Hide map' : 'Open map'/);
+
+	const html = renderToStaticMarkup(createElement(PageHeader, {
+		title: 'Campus & Rooms',
+		primaryAction: createElement('button', { type: 'button' }, 'Edit rooms'),
+		secondaryActions: createElement('button', { type: 'button' }, 'Open map'),
+	}));
+	assert.equal(h1Count(html), 1);
+	assert.equal(primaryActionCount(html), 1);
+	assert.ok(
+		html.indexOf('Edit rooms') < html.indexOf('Open map'),
+		'the primary action must render before the secondary actions',
+	);
 });
 
 // --- 4. The boundary this stream was told not to cross -----------------------
