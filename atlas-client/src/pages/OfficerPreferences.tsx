@@ -20,6 +20,15 @@ import { AnimatePresence, motion } from 'motion/react';
 
 import atlasApi from '@/lib/api';
 import { PageHeader } from '@/components/app-shell/PageHeader';
+// A3-C6-F2: the local `statusBadge(status: string)` rendered its `default:`
+// branch VERBATIM — a secondary Badge whose only child was the `{status}`
+// interpolation — so any value the network delivered appeared as a raw enum on
+// a scheduler's screen. It is replaced by a component whose fallback cannot
+// render the raw value and keeps it reachable in an `@/ui` popover (§8). The
+// three known states keep their exact labels and tones. The literal form of the
+// removed branch is deliberately NOT quoted here, because
+// a3-c6-duplicate-copy.test.tsx scans this file for it.
+import { PreferenceStatusBadge } from '@/components/officer-preferences/PreferenceStatusBadge';
 import { getPreferredAccessToken } from '@/lib/auth';
 import { resolveActiveSchoolYearContext } from '@/lib/enrollpro-public-settings';
 import { useActorSchoolScope } from '@/lib/actor-scope-session';
@@ -53,19 +62,6 @@ const TAB_OPTIONS: { value: StatusFilter; label: string }[] = [
 	{ value: 'MISSING', label: 'Missing' },
 	{ value: 'ALL', label: 'All' },
 ];
-
-function statusBadge(status: string) {
-	switch (status) {
-		case 'SUBMITTED':
-			return <Badge variant='success'>Submitted</Badge>;
-		case 'DRAFT':
-			return <Badge variant='warning'>Draft</Badge>;
-		case 'MISSING':
-			return <Badge variant='danger'>Missing</Badge>;
-		default:
-			return <Badge variant='secondary'>{status}</Badge>;
-	}
-}
 
 function reviewBadge(status: ReviewStatus | null) {
 	switch (status) {
@@ -540,8 +536,8 @@ export default function OfficerPreferences() {
 													{f.department ?? '—'}
 												</td>
 												<td className='px-3 py-2.5'>
-													{statusBadge(f.preferenceStatus)}
-												</td>
+											<PreferenceStatusBadge status={f.preferenceStatus} />
+											</td>
 												<td className='px-3 py-2.5'>
 													{f.preferenceStatus === 'SUBMITTED' ? reviewBadge(f.reviewStatus) : <span className='text-muted-foreground'>—</span>}
 												</td>
@@ -651,7 +647,7 @@ export default function OfficerPreferences() {
 							<div className='grid grid-cols-2 gap-3 text-sm'>
 								<div>
 									<p className='text-muted-foreground text-xs'>Status</p>
-									<div className='mt-1'>{statusBadge(reviewDetail.status)}</div>
+									<div className='mt-1'><PreferenceStatusBadge status={reviewDetail.status} /></div>
 								</div>
 								<div>
 									<p className='text-muted-foreground text-xs'>Version</p>
