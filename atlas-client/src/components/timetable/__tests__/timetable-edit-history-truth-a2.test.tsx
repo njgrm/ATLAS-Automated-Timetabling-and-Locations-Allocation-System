@@ -167,7 +167,7 @@ test('R1 D1: a REVERT row names the edit it undid', async () => {
 	);
 	assert.match(
 		rowText(0),
-		/Swapped two sessions/,
+		/Swapped two classes/,
 		'it names the undone edit by what that edit DID, read through the one plain-language map',
 	);
 	// The target row is itself on screen, so the name must be resolvable to it
@@ -237,7 +237,7 @@ test('R1 D1 negative control: an unidentifiable REVERT row claims no edit', asyn
 	);
 	assert.doesNotMatch(
 		rowText(0),
-		/Swapped two sessions/,
+		/Swapped two classes/,
 		'it must NOT borrow the neighbouring row\'s action — that would be a false claim',
 	);
 	assert.doesNotMatch(
@@ -260,7 +260,7 @@ test('R1 D1 negative control: a target id outside the list falls back to the rec
 		/Undid: Changed the room · /,
 		'it must not attach a timestamp to a row it cannot resolve',
 	);
-	assert.doesNotMatch(rowText(0), /Swapped two sessions/, 'and it must not name the neighbouring row instead');
+	assert.doesNotMatch(rowText(0), /Swapped two classes/, 'and it must not name the neighbouring row instead');
 });
 
 test('R1 D1/D3: the undone edit is named in plain words, never as an engine token', async () => {

@@ -6,9 +6,12 @@ import {
 	describeLifecycle,
 	describeNewerDraft,
 	describePublication,
+	deriveRunFreshness,
 	deriveScheduleLifecycle,
 	hasPublication,
 	isLive,
+	runDriftClaimSentence,
+	runFreshnessUnverifiedSentence,
 	type LifecycleInput,
 } from '../schedule-lifecycle';
 
@@ -148,4 +151,91 @@ test('MUTANT: if isLive stopped consulting the publication, the draft cases woul
 	assert.equal(isLive(draftOnly), false, 'the real predicate says a draft is not live');
 	assert.equal(brokenIsLive(draftOnly), true, 'a predicate that only checks for uncertainty would wrongly say live');
 	assert.equal(isLive(deriveScheduleLifecycle({ publication: PUBLISHED_317 })), true);
+});
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * A2-UX-COPY-C2 (#59 / #17) — a drift verdict must be ABOUT the run on screen.
+ *
+ * The recorded defect: "Schedule information changed. Regenerate to apply" could
+ * appear on a run generated seconds ago, because the comparison it reads is a
+ * CACHED value and a comparison taken before the run existed still satisfies
+ * `status: 'STALE'`. These rows are the guard, and the middle one is the negative
+ * control that would have caught it: a brand-new run must never be told its
+ * setup changed.
+ *
+ * ADDITIVE: nothing above this block changed, so every C01 row still holds.
+ * Run: `npm run test:schedule-lifecycle-c01`.
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+/** A run that finished 10 seconds ago, checked 60 seconds ago (a stale cache). */
+const JUST_GENERATED = { runFinishedAt: '2026-09-28T10:00:00.000Z', checkedAt: '2026-09-28T09:59:50.000Z' };
+
+test('#59/#17 a comparison taken BEFORE the run finished cannot speak about that run', () => {
+	// The defect, exactly: STALE, one run old, ten seconds after generation.
+	const defect = deriveRunFreshness({ ...JUST_GENERATED, status: 'STALE' });
+	assert.equal(defect.trustworthy, false, 'a verdict computed before the run existed is not evidence about it');
+	assert.equal(defect.trustworthy === false && defect.reason, 'COMPARISON_PREDATES_RUN');
+	// THE negative control: the drift sentence is impossible on a fresh run.
+	assert.equal(runDriftClaimSentence(defect), null, 'a run generated seconds ago can never be told "Regenerate to apply"');
+	assert.ok(
+		runFreshnessUnverifiedSentence(defect),
+		'and the caller is given an honest sentence instead of silence',
+	);
+	// The same facts, checked after the run finished: the claim is available again.
+	const after = deriveRunFreshness({ runFinishedAt: '2026-09-28T10:00:00.000Z', checkedAt: '2026-09-28T10:00:20.000Z', status: 'STALE' });
+	assert.equal(after.trustworthy, true, 'a comparison made after the run finished may speak about it');
+	assert.equal(runDriftClaimSentence(after), 'Schedule information changed. Regenerate to apply', 'and the drift sentence is available');
+	assert.equal(runFreshnessUnverifiedSentence(after), null, 'with no substitute sentence competing for the same slot');
+});
+
+test('#59/#17 the guard is a function of run freshness on every axis, not a hardcoded false', () => {
+	// Exactly equal timestamps: the comparison ran in the same instant the run
+	// finished, which is still a comparison of THIS run's inputs.
+	const equal = deriveRunFreshness({ runFinishedAt: '2026-09-28T10:00:00.000Z', checkedAt: '2026-09-28T10:00:00.000Z', status: 'STALE' });
+	assert.equal(equal.trustworthy, true, 'an equal timestamp is not "before the run"');
+
+	// A run with no finish time falls back to its creation time.
+	const byCreated = deriveRunFreshness({ runCreatedAt: '2026-09-28T10:00:00.000Z', checkedAt: '2026-09-28T09:00:00.000Z', status: 'STALE' });
+	assert.equal(byCreated.trustworthy, false, 'runCreatedAt is the fallback, and it fails the same way');
+	const byCreatedOk = deriveRunFreshness({ runCreatedAt: '2026-09-28T10:00:00.000Z', checkedAt: '2026-09-28T10:00:05.000Z', status: 'STALE' });
+	assert.equal(byCreatedOk.trustworthy, true, 'and passes the same way');
+
+	// No run timestamp at all: the verdict cannot be proven wrong, so it is kept
+	// rather than silently hiding real drift on an un-timed run.
+	const untimedRun = deriveRunFreshness({ checkedAt: '2026-09-28T10:00:00.000Z', status: 'STALE' });
+	assert.equal(untimedRun.trustworthy, true, 'an untimed run is not treated as a stale comparison');
+	assert.equal(untimedRun.trustworthy === true && untimedRun.runFinishedAt, null, 'and the fact is recorded, not invented');
+
+	// An untimed or absent COMPARISON is never trustworthy: it has no moment to be
+	// newer than anything.
+	for (const checkedAt of [null, undefined, '', 'not-a-date']) {
+		const verdict = deriveRunFreshness({ runFinishedAt: '2026-09-28T10:00:00.000Z', checkedAt, status: 'STALE' });
+		assert.equal(verdict.trustworthy, false, `an untimed comparison (${String(checkedAt)}) is not trustworthy`);
+		assert.equal(verdict.trustworthy === false && verdict.reason, 'UNTIMED_COMPARISON');
+		assert.equal(runDriftClaimSentence(verdict), null, 'and it can never print the drift claim');
+	}
+
+	// An absent comparison, and a status the server did not send.
+	const none = deriveRunFreshness({ runFinishedAt: '2026-09-28T10:00:00.000Z', status: null });
+	assert.equal(none.trustworthy === false && none.reason, 'NO_COMPARISON');
+	const unknown = deriveRunFreshness({ runFinishedAt: '2026-09-28T10:00:00.000Z', checkedAt: '2026-09-28T10:00:05.000Z', status: 'SOMETHING_NEW' });
+	assert.equal(unknown.trustworthy, false, 'an out-of-union status is not treated as a verdict');
+	assert.equal(unknown.status, null, 'and is not passed through as if it were one');
+});
+
+test('#59/#17 only a STALE verdict ever produces the regenerate claim', () => {
+	const fresh = deriveRunFreshness({ runFinishedAt: '2026-09-28T10:00:00.000Z', checkedAt: '2026-09-28T10:00:05.000Z', status: 'FRESH' });
+	assert.equal(runDriftClaimSentence(fresh), null, 'a FRESH run never asks to be regenerated');
+	const unknown = deriveRunFreshness({ runFinishedAt: '2026-09-28T10:00:00.000Z', checkedAt: '2026-09-28T10:00:05.000Z', status: 'UNKNOWN' });
+	assert.equal(runDriftClaimSentence(unknown), null, 'an UNKNOWN comparison never asks to be regenerated');
+	// A trustworthy UNKNOWN is a legitimate "we checked and could not tell", not a
+	// freshness problem, so this module adds no substitute sentence for it — the
+	// caller already owns the UNKNOWN copy. What it must never do is print the
+	// drift claim.
+	assert.equal(unknown.trustworthy, true, 'an UNKNOWN comparison made after the run is freshness-sound');
+	assert.equal(runFreshnessUnverifiedSentence(unknown), null, 'so no freshness substitute competes with the UNKNOWN copy');
+	// The claim is a single fixed sentence, so the banner title and body cannot
+	// drift into two different versions of it.
+	const stale = deriveRunFreshness({ runFinishedAt: '2026-09-28T10:00:00.000Z', checkedAt: '2026-09-28T10:00:05.000Z', status: 'STALE' });
+	assert.equal(runDriftClaimSentence(stale), 'Schedule information changed. Regenerate to apply');
 });

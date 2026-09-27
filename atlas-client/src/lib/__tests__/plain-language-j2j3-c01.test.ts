@@ -520,7 +520,7 @@ test('T4 mutant: the engine-phrase assertion fires on the old dialog title', () 
 /* ====================== T5 — the session-unit truth ====================== */
 
 test('T5: no zero-unassigned surface says "classes"; the canonical session wording is used', () => {
-	assert.equal(ALL_SESSIONS_PLACED_LABEL, 'All sessions placed');
+	assert.equal(ALL_SESSIONS_PLACED_LABEL, 'All classes placed');
 
 	// Both real panels that render this state, from the real files.
 	for (const path of [
