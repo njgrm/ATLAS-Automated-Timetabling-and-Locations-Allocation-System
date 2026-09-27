@@ -590,13 +590,27 @@ test('DEPENDENCY (recorded, not satisfied): the generate dialog component still 
 	assert.doesNotMatch(dialogs, /buildGenerateDialogCopy/, 'it has not yet adopted buildGenerateDialogCopy');
 });
 
-test('DEPENDENCY (recorded, not satisfied): the More menu and header still carry the pre-fix generate label', () => {
+test('ADOPTED (was: DEPENDENCY, recorded not satisfied): the More menu and the header carry BUILD_NEW_DRAFT_LABEL', () => {
+	// This row was recorded as an OPEN dependency at b7fa0ce3: it asserted that
+	// the More menu and the header still carried the PRE-FIX generate label
+	// ("New version" / "Build a new version") and had not adopted
+	// BUILD_NEW_DRAFT_LABEL. A2-UX-MENU-C2 (#56) is the owning executor for those
+	// two files and has adopted it, so the row is restated as the NEW TRUTH
+	// rather than deleted — the concern it protects (#56 landing everywhere) is
+	// unchanged, and it now fails if either file drifts back.
 	const helpers = source('src/components/timetable/simple/SimpleHeaderHelpers.tsx');
-	assert.match(helpers, /PUBLISHED_GENERATE_LABEL = 'New version'/, '#56: the More menu still says "New version"');
-	assert.doesNotMatch(helpers, /BUILD_NEW_DRAFT_LABEL/, 'it has not yet adopted BUILD_NEW_DRAFT_LABEL');
+	assert.match(helpers, /export const PUBLISHED_GENERATE_LABEL = BUILD_NEW_DRAFT_LABEL;/, '#56: the More label is the copy module\'s one verb');
+	assert.match(
+		helpers,
+		/export const PUBLISHED_GENERATE_DESCRIPTION = `\$\{BUILD_NEW_DRAFT_LABEL\}\. \$\{PUBLISHED_SCHEDULE_STAYS_IN_USE\}`;/,
+		'#56: and the sentence says the published schedule stays in use',
+	);
 	const actions = source('src/components/timetable/simple/SimpleHeaderActions.tsx');
-	assert.match(actions, /Build a new version/, '#56: the header aria-label still says "Build a new version"');
-	assert.doesNotMatch(actions, /BUILD_NEW_DRAFT_LABEL/, 'it has not yet adopted BUILD_NEW_DRAFT_LABEL');
+	assert.match(actions, /BUILD_NEW_DRAFT_LABEL/, '#56: the More menu adopts it');
+	assert.doesNotMatch(actions, /Build a new version/, '#56: and the retired phrase is gone');
+	// A published run is still unambiguous on the surface, not only in the
+	// dialog: the item says, beside the label, that nothing in use changes.
+	assert.match(actions, /data-testid="timetable-more-generate-published-note"/);
 });
 
 test('DEPENDENCY (recorded, not satisfied): the generation toasts and the server notification are unchanged', () => {

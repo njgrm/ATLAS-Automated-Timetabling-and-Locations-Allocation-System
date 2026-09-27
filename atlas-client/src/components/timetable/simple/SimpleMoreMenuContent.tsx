@@ -1,6 +1,7 @@
 import {
 	ArrowRightLeft,
 	Building2,
+	ChevronDown,
 	CircleHelp,
 	ClipboardCheck,
 	HeartHandshake,
@@ -14,7 +15,7 @@ import {
 } from 'lucide-react';
 
 import { Link } from 'react-router-dom';
-import type { ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { runAnchorLabel } from '@/lib/timetable-plain-language';
 import { cn } from '@/lib/utils';
 import { Button } from '@/ui/button';
@@ -54,7 +55,107 @@ export type SimpleMoreMenuContentProps = {
 	 * "Unassigned sessions (N)" entry leads the daily tasks.
 	 */
 	unassignedEntry?: ReactNode;
+	/**
+	 * Row 46 — the menu closes itself when the names are refreshed, so the cue
+	 * that the refresh happened cannot live inside the menu. This tells the
+	 * header to show it in the status region directly above the action row.
+	 */
+	onSchoolNamesRefreshed?: () => void;
 };
+
+/**
+ * #50 — a group heading, at the strength a first-level list item needs, with the
+ * number of rows under it.
+ *
+ * The recorded measurement was 25+ items in a 510px scrolling box whose content
+ * was 1464px, with a thin scrollbar and no "more below" cue; one runner read the
+ * top eight rows and concluded the rest did not exist. A heading that says how
+ * many rows it owns is the cheapest honest fix for the "is this all of it?"
+ * question, and it survives the rows that are currently scrolled out of sight.
+ */
+function MoreGroupHeading({ label, itemCount }: { label: string; itemCount: number }) {
+	return (
+		<DropdownMenuLabel
+			className="flex items-baseline gap-2 px-0 py-0 text-sm font-semibold text-foreground"
+			data-more-group={label}
+		>
+			<span>{label}</span>
+			<span className="text-xs font-normal text-muted-foreground">
+				{itemCount} {itemCount === 1 ? 'item' : 'items'}
+			</span>
+		</DropdownMenuLabel>
+	);
+}
+
+/**
+ * #50 — the scrolling region of the More menu, with an explicit overflow cue.
+ *
+ * The recorded measurement: 25+ items, a 510px visible box, 1464px of content, a
+ * 6px scrollbar and no "more below" cue — so Help & display, Tools and Schedule
+ * data all sat below an unmarked fold, and one runner reported the rest of the
+ * menu as not existing. Three changes, all here:
+ *
+ *   1. the visible cap rises from `min(82svh, 32rem)` to `min(88svh, 44rem)`,
+ *      so 704px of the list is on screen instead of 512px;
+ *   2. the 6px `scrollbar-thin` utility is dropped here, because a scrollbar you
+ *      cannot see is the same defect as no cue;
+ *   3. a sticky cue says so in words, and MEASURES it: it appears only when the
+ *      content really is taller than the box, so it can never claim an overflow
+ *      that is not there, and it changes to "end of list" at the bottom.
+ *
+ * The region is a menu, not a page, so it keeps its own bounded height and the
+ * no-scroll architecture (no root scrollbar is introduced).
+ */
+export function SimpleMoreScrollRegion({ children }: { children: ReactNode }) {
+	const scrollRef = useRef<HTMLDivElement>(null);
+	const [overflow, setOverflow] = useState<'fits' | 'more' | 'end'>('fits');
+
+	useEffect(() => {
+		const element = scrollRef.current;
+		if (!element) return;
+		const measure = () => {
+			const hidden = element.scrollHeight - element.clientHeight;
+			if (hidden <= 4) {
+				setOverflow('fits');
+				return;
+			}
+			setOverflow(element.scrollTop + element.clientHeight >= element.scrollHeight - 4 ? 'end' : 'more');
+		};
+		measure();
+		element.addEventListener('scroll', measure, { passive: true });
+		// jsdom has no ResizeObserver; the guard keeps the measurement honest
+		// instead of crashing a test that renders the menu.
+		const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(measure);
+		observer?.observe(element);
+		return () => {
+			element.removeEventListener('scroll', measure);
+			observer?.disconnect();
+		};
+	}, [children]);
+
+	return (
+		<div
+			ref={scrollRef}
+			className="max-h-[min(88svh,44rem)] overflow-y-auto p-2"
+			data-testid="timetable-simple-more-scroll"
+		>
+			{overflow === 'fits' ? null : (
+				<p
+					role="status"
+					data-testid="timetable-simple-more-overflow-cue"
+					data-overflow-state={overflow}
+					className="sticky top-0 z-10 mb-1 flex items-center gap-1.5 rounded border border-border bg-background/95 px-2 py-1 text-xs font-medium text-foreground"
+				>
+					<ChevronDown className="size-3.5 shrink-0" aria-hidden="true" />
+					{overflow === 'end'
+						? 'End of this list. Scroll up for the first items.'
+						: 'More items below. Scroll down to see all of them.'}
+				</p>
+			)}
+			{children}
+		</div>
+	);
+}
 
 export function SimpleMoreMenuContent({
 	context,
@@ -66,14 +167,26 @@ export function SimpleMoreMenuContent({
 	onOpenRequests,
 	onLayoutModeChange,
 	onOpenTutorial,
+	onSchoolNamesRefreshed,
 	unassignedEntry = null,
 }: SimpleMoreMenuContentProps) {
+	// #50 — the item counts behind each heading. They are derived from the SAME
+	// conditions that render the rows, so a heading can never claim a row count
+	// the group does not have.
+	const hasUnassignedRunTasks = (context.summary?.unassignedCount ?? 0) > 0;
+	const hasPendingRequests = context.requestPendingCount > 0;
+	const dailyTaskCount = 1 + 1 + 1 + (unassignedEntry ? 1 : 0)
+		+ (hasUnassignedRunTasks ? 1 : 0)
+		+ (hasPendingRequests ? 1 : 0);
+	const expertToolCount = (hideReviewIssues ? 0 : 1) + 3;
+	const dayOptionsVisible = Boolean(context.policyAlignmentWarning) || context.hiddenRowCount > 0;
+	const helpAndDisplayCount = (onOpenTutorial ? 1 : 0) + (dayOptionsVisible ? 1 : 0) + 1;
 	return (
 		<div className="space-y-2">
 			<div className="space-y-1 rounded-md border border-border bg-muted/20 p-2" data-testid="timetable-simple-more-daily-tasks">
-				<DropdownMenuLabel className="px-0 py-0 text-xs">Daily tasks</DropdownMenuLabel>
+				<MoreGroupHeading label="Daily tasks" itemCount={dailyTaskCount} />
 				{unassignedEntry}
-				{(context.summary?.unassignedCount ?? 0) > 0 ? <DropdownMenuItem className="h-9 gap-2 text-xs" disabled={!runToolsAvailable} data-testid="timetable-more-place-unresolved" onSelect={(event) => { event.preventDefault(); onClose(); void onStartTask('place-unresolved'); }}>
+				{hasUnassignedRunTasks ? <DropdownMenuItem className="h-9 gap-2 text-xs" disabled={!runToolsAvailable} data-testid="timetable-more-place-unresolved" onSelect={(event) => { event.preventDefault(); onClose(); void onStartTask('place-unresolved'); }}>
 					<ClipboardCheck className="size-3.5" aria-hidden="true" />
 					Place unresolved sessions
 					{!runToolsAvailable && <span className="sr-only"> Unavailable: no generated run yet.</span>}
@@ -105,7 +218,7 @@ export function SimpleMoreMenuContent({
 				</DropdownMenuItem> : null}
 			</div>
 			<div className="space-y-1 rounded-md border border-border bg-muted/20 p-2" data-testid="timetable-simple-more-expert-tools">
-				<DropdownMenuLabel className="px-0 py-0 text-xs">Expert tools</DropdownMenuLabel>
+				<MoreGroupHeading label="Expert tools" itemCount={expertToolCount} />
 				{hideReviewIssues ? null : (
 					<DropdownMenuItem className="h-9 gap-2 text-xs" disabled={!runToolsAvailable} data-testid="timetable-more-review-issues" onSelect={(event) => { event.preventDefault(); onClose(); void onStartTask('review-issues'); }}>
 						<ListChecks className="size-3.5" aria-hidden="true" />
@@ -135,7 +248,20 @@ export function SimpleMoreMenuContent({
 				</DropdownMenuItem>
 			{/* UX-R03a — policy editing stays Advanced; Simple links to the nested
 			    policy route. The route→view sync drives the existing guarded
-			    centerView state, so no state workaround is needed here. */}
+			    centerView state, so no state workaround is needed here.
+
+			    #49 (a) — the link used to ALSO save the Expert layout in the
+			    browser (`onLayoutModeChange('advanced')` → `setLayoutMode` →
+			    localStorage). The policy page renders no scheduler chrome at all
+			    (`isTimetableSchedulerView('policy') === false`), so that write was
+			    invisible: the user opened a policy page, found no header, and every
+			    later /timetable load — including a new tab — opened "GENERATED
+			    TIMETABLE" in Expert view with a different More menu, and the only
+			    way out was a 12px button one runner could not find and another
+			    could only reach on the second click.
+
+			    Navigation here now mutates NOTHING but the URL. Staying in Expert
+			    is a separate, explicit choice: the `Expert view` item below. */}
 			<DropdownMenuItem
 				asChild
 				className="h-9 gap-2 text-xs"
@@ -143,12 +269,17 @@ export function SimpleMoreMenuContent({
 			>
 				<Link
 					to="/timetable/policies"
-					onClick={() => { onClose(); onLayoutModeChange('advanced'); }}
+					onClick={onClose}
 				>
 					<Settings2 className="size-3.5" aria-hidden="true" />
 					Advanced rules
 				</Link>
 			</DropdownMenuItem>
+				{/* #49 (a) — this is the ONE place in More that deliberately changes
+				    and SAVES the layout, because the user chose it by name. The
+				    tutorial points at More ▸ Expert tools, never here by testid, so
+				    no step can promise a highlight that only exists while the menu
+				    is open. */}
 				<DropdownMenuItem
 					className="h-9 gap-2 text-xs"
 					onSelect={(event) => { event.preventDefault(); onClose(); onLayoutModeChange('advanced'); }}
@@ -162,7 +293,7 @@ export function SimpleMoreMenuContent({
 			    row into More, so the header keeps one status region and one action
 			    row. One STATUS_ITEMS source is shared with the grid legend. */}
 			<div className="space-y-1 rounded-md border border-border bg-muted/20 p-2" data-testid="timetable-simple-more-help">
-				<DropdownMenuLabel className="px-0 py-0 text-xs">Help &amp; display</DropdownMenuLabel>
+				<MoreGroupHeading label="Help & display" itemCount={helpAndDisplayCount} />
 				{onOpenTutorial ? (
 					<DropdownMenuItem
 						className="h-9 gap-2 text-xs"
@@ -173,8 +304,7 @@ export function SimpleMoreMenuContent({
 						Tutorial
 					</DropdownMenuItem>
 				) : null}
-				{(context.policyAlignmentWarning || context.hiddenRowCount > 0) ? (
-					<div className="rounded-md border border-border/60 bg-background p-2" data-testid="timetable-more-day-options">
+				{(context.policyAlignmentWarning || context.hiddenRowCount > 0) ? (					<div className="rounded-md border border-border/60 bg-background p-2" data-testid="timetable-more-day-options">
 						<p className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Day options</p>
 						<SimpleDayOptions
 							inline
@@ -205,7 +335,7 @@ export function SimpleMoreMenuContent({
 			{/* A5 — /map, /manual-edit and /building stay in-flow tools, but each is
 			    now reachable from a labelled control on the index (no orphan route). */}
 			<div className="space-y-1 rounded-md border border-border bg-muted/20 p-2" data-testid="timetable-simple-more-tools">
-				<DropdownMenuLabel className="px-0 py-0 text-xs">Tools</DropdownMenuLabel>
+				<MoreGroupHeading label="Tools" itemCount={4} />
 				{/* S2 — the scheduler concern workspace is reachable from Simple's More
 				    menu as a real link (no state dispatch, no header prop change). */}
 				<DropdownMenuItem asChild className="h-9 gap-2 text-xs" data-testid="timetable-more-teacher-concerns">
@@ -234,7 +364,7 @@ export function SimpleMoreMenuContent({
 				</DropdownMenuItem>
 			</div>
 			<div className="space-y-1 rounded-md border border-border bg-muted/20 p-2" data-testid="timetable-simple-more-schedule-data">
-				<DropdownMenuLabel className="px-0 py-0 text-xs">Schedule data</DropdownMenuLabel>
+				<MoreGroupHeading label="Schedule data" itemCount={3} />
 				<Select value={context.selectedRunId} onValueChange={context.handleRunChange} disabled={context.runs.length === 0 || context.centerView === 'pre-generation'}>
 					<SelectTrigger className="h-9 text-xs">
 						<SelectValue placeholder={context.runs.length === 0 ? 'No generated run yet' : 'Run to review'} />
@@ -257,8 +387,16 @@ export function SimpleMoreMenuContent({
 						Refresh timetable
 					</Button>
 					{/* UX-R03e (setup) — one shared refresh implementation with the
-					    `/timetable/setup` pane; the menu-close stays here. */}
-					<RefreshSetupNamesButton onRefreshNames={() => { onClose(); context.refreshReferenceLabels(); }} />
+					    `/timetable/setup` pane; the menu-close stays here. Row 46: the
+					    close is also why the "it happened" cue is the header's — see
+					    `onSchoolNamesRefreshed`. */}
+					<RefreshSetupNamesButton
+						onRefreshNames={() => {
+							onClose();
+							context.refreshReferenceLabels();
+							onSchoolNamesRefreshed?.();
+						}}
+					/>
 				</div>
 			</div>
 		</div>

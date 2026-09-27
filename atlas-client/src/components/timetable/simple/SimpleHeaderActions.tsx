@@ -18,6 +18,7 @@ import { CalendarClock, ClipboardList, Download, Play, RefreshCw, Settings2, Und
 import { Link } from 'react-router-dom';
 
 import { cn } from '@/lib/utils';
+import { BUILD_NEW_DRAFT_LABEL, PUBLISHED_SCHEDULE_STAYS_IN_USE } from '@/lib/timetable-plain-language';
 import { Button } from '@/ui/button';
 import { DropdownMenuItem, DropdownMenuLabel } from '@/ui/dropdown-menu';
 import type { SimpleLifecycleKind } from '@/lib/simple-timetable-state';
@@ -206,7 +207,7 @@ export function SimpleMoreScheduleActions({
 					className={cn('gap-2 text-xs', generate.disabled ? 'h-auto min-h-9 items-start py-1.5 data-[disabled]:opacity-100' : 'h-9')}
 					disabled={generate.disabled}
 					onSelect={(event) => { event.preventDefault(); onClose(); generate.onSelect(); }}
-					aria-label={generate.reason ? `${generate.published ? 'Build a new version' : 'Generate schedule'} — ${generate.reason}` : undefined}
+					aria-label={generate.reason ? `${generate.published ? BUILD_NEW_DRAFT_LABEL : 'Generate schedule'} — ${generate.reason}` : undefined}
 					data-testid="timetable-more-generate"
 				>
 					<Play className={cn('size-3.5', generate.disabled && 'mt-0.5 text-muted-foreground')} aria-hidden="true" />
@@ -214,6 +215,17 @@ export function SimpleMoreScheduleActions({
 						<span className="flex flex-col">
 							<span className="text-muted-foreground">{generate.published ? PUBLISHED_GENERATE_LABEL : 'Generate'}</span>
 							<span className="text-xs text-muted-foreground" data-testid="timetable-more-generate-reason">{generate.reason}</span>
+						</span>
+					) : generate.published ? (
+						/* #56 — the label now names a DRAFT, so the row also says, in
+						 * words next to it, that the schedule in use is untouched.
+						 * That is the whole point of the rename: "New version" could be
+						 * read as editing the published one. */
+						<span className="flex flex-col">
+							<span>{PUBLISHED_GENERATE_LABEL}</span>
+							<span className="text-xs text-muted-foreground" data-testid="timetable-more-generate-published-note">
+								{PUBLISHED_SCHEDULE_STAYS_IN_USE}
+							</span>
 						</span>
 					) : (
 						<span>{generate.published ? PUBLISHED_GENERATE_LABEL : 'Generate'}</span>

@@ -64,7 +64,7 @@ import {
 import { SimpleDriftBanner } from '@/components/timetable/simple/SimpleDriftBanner';
 import { SimpleGenerationBlockerSheet } from '@/components/timetable/simple/SimpleGenerationBlockerSheet';
 import { describeRunInputDrift } from '@/components/timetable/timetableDriftRouting';
-import { SimpleMoreMenuContent } from '@/components/timetable/simple/SimpleMoreMenuContent';
+import { SimpleMoreMenuContent, SimpleMoreScrollRegion } from '@/components/timetable/simple/SimpleMoreMenuContent';
 import { resolveTermAuthorityNotice } from '@/hooks/useTimetableData';
 import { ExportPresentationSettingsDialog } from '@/components/timetable/simple/ExportPresentationSettingsDialog';
 import { SchedulerPrintDialog } from '@/components/timetable/simple/SchedulerPrintDialog';
@@ -251,6 +251,14 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 		return () => { cancelled = true; };
 	}, [context.schoolId]);
 	const [lastEntityByMode, setLastEntityByMode] = useState<Partial<Record<SimpleViewMode, string>>>({});
+	// Row 46 — "Refresh school names" has no visible effect, so the refresh is
+	// acknowledged in the status region above the action row. It is cleared when
+	// the run on screen changes, so the cue can never claim a refresh that
+	// belongs to a different schedule.
+	const [schoolNamesRefreshed, setSchoolNamesRefreshed] = useState(false);
+	useEffect(() => {
+		setSchoolNamesRefreshed(false);
+	}, [context.draft?.runId]);
 	useEffect(() => {
 		if (layoutMode === 'simple') resetSimpleWorkspaceFilters(context);
 	// Clear stale filters when entering Simple, not on every filter state update:
@@ -653,8 +661,16 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 						{publishBlockTruth.nonBlockingHardCount} rule break{publishBlockTruth.nonBlockingHardCount === 1 ? '' : 's'} did not stop publishing, but {publishBlockTruth.nonBlockingHardCount === 1 ? 'it is' : 'they are'} still worth reviewing.
 					</p>
 				) : null}
-				{setupBlockedDiagnostic ? (
-					<TooltipProvider delayDuration={200}>
+				{schoolNamesRefreshed ? (
+					<p
+						role="status"
+						className="min-w-0 text-xs font-medium text-emerald-800"
+						data-testid="timetable-school-names-refreshed"
+					>
+						School names refreshed. The schedule did not change.
+					</p>
+				) : null}
+				{setupBlockedDiagnostic ? (					<TooltipProvider delayDuration={200}>
 						<Tooltip>
 							<TooltipTrigger asChild>
 								<p
@@ -743,8 +759,12 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 								<span className="hidden sm:inline">More</span>
 							</Button>
 						</DropdownMenuTrigger>
-						<DropdownMenuContent align="end" className="max-h-[min(82svh,32rem)] w-80 overflow-y-auto scrollbar-thin p-2">
-							<div className="space-y-2">
+					{/* #50 — the scroll region, its height and its overflow cue all live
+					    in `SimpleMoreScrollRegion`, so the menu has one owner for "how
+					    much of this list can the scheduler see". */}
+					<DropdownMenuContent align="end" className="w-80 p-0">
+						<SimpleMoreScrollRegion>
+						<div className="space-y-2">
 								<SimpleMoreScheduleActions
 									onClose={() => setMoreOpen(false)}
 									downloadAvailable={hasGeneratedRun}
@@ -778,6 +798,7 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 									onOpenRequests={openRequestsTask}
 									onLayoutModeChange={onLayoutModeChange}
 									onOpenTutorial={() => { setMoreOpen(false); setTutorialOpen(true); }}
+									onSchoolNamesRefreshed={() => setSchoolNamesRefreshed(true)}
 									unassignedEntry={(
 										<SimpleUnassignedSessionsItem
 											count={unassignedForTerm}
@@ -786,10 +807,11 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 											onClose={() => setMoreOpen(false)}
 											onOpen={() => { void startTask('unassigned-sessions'); }}
 										/>
-									)}
-								/>
-							</div>
-						</DropdownMenuContent>
+								)}
+							/>
+						</div>
+						</SimpleMoreScrollRegion>
+					</DropdownMenuContent>
 					</DropdownMenu>
 				</div>
 			</div>

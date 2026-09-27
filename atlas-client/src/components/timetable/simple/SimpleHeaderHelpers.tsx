@@ -1,20 +1,23 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import { ArrowRightLeft, BookOpen, CalendarClock, CheckCircle2, ChevronDown, ClipboardCheck, Download, GraduationCap, ListChecks, Play, Send, Settings2, SlidersHorizontal, Sun, type LucideIcon } from 'lucide-react';
+import { useMemo, type ReactNode } from 'react';
+import { ArrowRightLeft, CalendarClock, CheckCircle2, ChevronDown, ClipboardCheck, GraduationCap, ListChecks, Play, Send, SlidersHorizontal, type LucideIcon } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
-import { mustFixCountLabel } from '@/lib/timetable-plain-language';
-import { Badge } from '@/ui/badge';
+import { BUILD_NEW_DRAFT_LABEL, mustFixCountLabel, PUBLISHED_SCHEDULE_STAYS_IN_USE } from '@/lib/timetable-plain-language';
 import { Button } from '@/ui/button';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui/select';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from '@/ui/sheet';
 import { SearchableSelect } from '@/ui/searchable-select';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip';
-import type { TimetableCapabilities, TimetableLifecycleState } from '@/lib/timetable-capabilities';
+import type { TimetableCapabilities } from '@/lib/timetable-capabilities';
 import type { SimpleLifecycleKind } from '@/lib/simple-timetable-state';
 import { formatCheckedAtAge } from '@/components/timetable/timetableWorkspaceTruth';
 import type { ScheduleReviewWorkspaceHeaderContext } from '@/components/timetable/buildScheduleReviewWorkspaceContexts';
 import type { TimetableSimpleTask } from '@/components/timetable/TimetableSimpleTypes';
+/* ROW 37 / A2-UX-MENU-C2 — the tutorial moved to its own module so this file
+ * stays inside the 1000-line component budget. Both exports are re-exported here
+ * so `TimetableSimpleHeader`, the committed source contracts and every existing
+ * importer keep their current import path unchanged. */
+export { SimpleTutorialControl, simpleTutorialSteps } from '@/components/timetable/simple/SimpleTutorial';
 
 type SimpleTaskDefinition = {
 	id: TimetableSimpleTask;
@@ -38,133 +41,6 @@ export function resetSimpleWorkspaceFilters(context: Pick<ScheduleReviewWorkspac
 	if (context.programFilter !== 'all') context.setProgramFilter('all');
 	if (context.entryKindFilter !== 'all') context.setEntryKindFilter('all');
 	if (context.severityFilter !== 'all') context.setSeverityFilter('all');
-}
-
-type SimpleTutorialStep = {
-	title: string;
-	body: string;
-	target: string;
-	targetTestId: string;
-	icon: LucideIcon;
-};
-
-const SCHEDULE_SWITCHER_STEP: SimpleTutorialStep = {
-	title: 'Choose whose schedule to see',
-	body: 'Use the schedule switcher to switch between Section, Teacher, and Room views without leaving Simple mode.',
-	target: 'Schedule switcher',
-	targetTestId: 'timetable-simple-schedule-switcher',
-	icon: CalendarClock,
-};
-
-const NO_RUN_STEPS: readonly SimpleTutorialStep[] = [
-	SCHEDULE_SWITCHER_STEP,
-	{
-		title: 'Check the lifecycle action',
-		// DRAFT-UX-C01 — with no generated run, Generate is the header's one primary.
-		body: 'With no timetable yet, Generate is the main button: generate a timetable, or open Year Setup from More > Schedule actions > Next step if setup is not ready (Generate then says why it is unavailable).',
-		target: 'Generate action',
-		targetTestId: 'timetable-simple-generate-action',
-		icon: Send,
-	},
-	{
-		title: 'Confirm before generating',
-		body: 'Generating opens a confirmation that lists your school year, terms, expected sessions, and saved draft anchors. Nothing is published by generating.',
-		target: 'Generate confirmation',
-		targetTestId: 'timetable-simple-generate-action',
-		icon: ListChecks,
-	},
-	{
-		title: 'Repair setup on Year Setup',
-		body: 'If the active year, ordered terms, or Subject scheduling metadata are missing or out of sync, More > Schedule actions > Next step sends you to Year Setup and Subjects.',
-		target: 'More menu',
-		targetTestId: 'timetable-simple-more-trigger',
-		icon: ClipboardCheck,
-	},
-	{
-		title: 'Use Expert tools for specialist repair',
-		body: 'Expert view is for tools like policy, map, diagnostics, and full manual-edit panels. Simple mode covers daily scheduling once a run exists.',
-		target: 'Expert view',
-		targetTestId: 'timetable-layout-toggle',
-		icon: Settings2,
-	},
-];
-
-const GENERATED_STEPS: readonly SimpleTutorialStep[] = [
-	SCHEDULE_SWITCHER_STEP,
-	{
-		title: 'Generate or re-generate the timetable',
-		// DRAFT-UX-C01 — once a run exists, Publish is the primary and Generate is in More.
-		body: 'Use More > Schedule actions > Generate to build a fresh run after setup or data changes. Once a run exists, Publish schedule is the main button, and the status chip shows whether the schedule is clean, blocked, or published.',
-		target: 'More menu',
-		targetTestId: 'timetable-simple-more-trigger',
-		icon: Play,
-	},
-	{
-		title: 'Understand publish blockers',
-		body: 'If the readiness chip shows blockers, tap it to see which sessions need fixing and why the schedule cannot be published yet.',
-		target: 'Readiness chip',
-		targetTestId: 'timetable-simple-readiness-chip',
-		icon: ListChecks,
-	},
-	{
-		title: 'Select a class to repair it',
-		body: 'Tap a scheduled class on the grid to open its actions: Move, Change room, Swap, or class details. Teacher leaving stays a separate bulk task.',
-		target: 'Selected class',
-		targetTestId: 'timetable-selection-strip',
-		icon: ClipboardCheck,
-	},
-	{
-		title: 'Preview then save or undo',
-		body: 'A clean placement is labelled as a one-click action and shows a prominent Undo right after saving. Warning or occupied moves always ask you to review first.',
-		target: 'Selected class action',
-		targetTestId: 'simple-selected-primary-action',
-		icon: ClipboardCheck,
-	},
-	{
-		title: 'Show full day when needed',
-		body: 'If earlier rows are hidden, tap "Show full day" to see the complete schedule including shifted time slots.',
-		target: 'Show full day',
-		targetTestId: 'timetable-show-full-day-toggle',
-		icon: Sun,
-	},
-	{
-		title: 'Export workbook for review',
-		body: 'Use More > Schedule data > Export workbook to download a summary for offline review or printing.',
-		target: 'More menu',
-		targetTestId: 'timetable-simple-more-trigger',
-		icon: Download,
-	},
-];
-
-const PUBLISHED_STEPS: readonly SimpleTutorialStep[] = [
-	SCHEDULE_SWITCHER_STEP,
-	{
-		title: 'This timetable is published',
-		body: 'Published schedules are read-only history. Review the grid, use Generate to build a new run from current data, or export an offline copy.',
-		target: 'Published state',
-		targetTestId: 'timetable-simple-published-state',
-		icon: CheckCircle2,
-	},
-	{
-		title: 'Export workbook for review',
-		body: 'Use More > Schedule data > Export workbook to download a summary for offline review or printing.',
-		target: 'More menu',
-		targetTestId: 'timetable-simple-more-trigger',
-		icon: Download,
-	},
-	{
-		title: 'Use Expert tools for specialist repair',
-		body: 'Expert view is for tools like policy, map, diagnostics, and full manual-edit panels.',
-		target: 'Expert view',
-		targetTestId: 'timetable-layout-toggle',
-		icon: Settings2,
-	},
-];
-
-export function simpleTutorialSteps(lifecycle: TimetableLifecycleState | undefined): readonly SimpleTutorialStep[] {
-	if (lifecycle === 'published') return PUBLISHED_STEPS;
-	if (lifecycle === 'generated-issues' || lifecycle === 'generated-reviewable' || lifecycle === 'pre-generation') return GENERATED_STEPS;
-	return NO_RUN_STEPS;
 }
 
 export function taskCount(count: number, noun: string) {
@@ -268,6 +144,10 @@ export function SimpleScheduleControls({
 			aria-label="Choose timetable view and entity"
 			data-view-mode={context.viewMode}
 			data-entity-filter={context.entityFilter}
+			/* ROW 37: a tutorial step points at this control, and a plain <div>
+			 * cannot take programmatic focus, so "Show me" scrolled and did
+			 * nothing visible. Focusable programmatically, still not a tab stop. */
+			tabIndex={-1}
 		>
 			{/* LANE-C-PLAIN-LANGUAGE-C03 (J5) — the two highest-traffic controls get
 			    plain visible labels again, as NON-INTERACTIVE <span>s. DRAFT-UX-C01
@@ -418,126 +298,6 @@ export function SimpleFiltersContent({ context }: { context: ScheduleReviewWorks
 	);
 }
 
-export function SimpleTutorialControl({ open, onOpenChange, lifecycle, triggerless = false }: { open: boolean; onOpenChange: (open: boolean) => void; lifecycle?: TimetableLifecycleState; triggerless?: boolean }) {
-	const [stepIndex, setStepIndex] = useState(0);
-	const [unavailableMessage, setUnavailableMessage] = useState<string | null>(null);
-	const steps = useMemo(() => simpleTutorialSteps(lifecycle), [lifecycle]);
-	const step = steps[Math.min(stepIndex, steps.length - 1)];
-	const StepIcon = step.icon;
-	const isLast = stepIndex >= steps.length - 1;
-
-	useEffect(() => {
-		if (open) setStepIndex(0);
-	}, [open]);
-
-	useEffect(() => {
-		setStepIndex((value) => Math.min(value, steps.length - 1));
-	}, [steps.length]);
-
-	useEffect(() => {
-		setUnavailableMessage(null);
-	}, [stepIndex]);
-
-	const focusStepTarget = () => {
-		const target = document.querySelector<HTMLElement>(`[data-testid="${step.targetTestId}"]`);
-		if (!target) {
-			setUnavailableMessage(`"${step.target}" is not available in the current view. ${step.body}`);
-			return;
-		}
-		setUnavailableMessage(null);
-		target.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
-		target.focus({ preventScroll: true });
-		target.classList.add('ring-2', 'ring-primary', 'ring-offset-2');
-		window.setTimeout(() => target.classList.remove('ring-2', 'ring-primary', 'ring-offset-2'), 1400);
-	};
-
-	return (
-		<Dialog open={open} onOpenChange={onOpenChange}>
-			{/* A3 — the tutorial trigger moved to More, so the dialog can render
-			    without an inline trigger while the More item owns the opening. */}
-			{triggerless ? null : (
-				<DialogTrigger asChild>
-					<Button
-						type="button"
-						variant="outline"
-						size="sm"
-						className="h-8 min-h-11 min-w-11 gap-1.5 px-1.5 text-xs sm:min-h-0 sm:min-w-0 sm:px-2.5"
-						aria-label="Open timetable tutorial"
-						data-testid="timetable-simple-tutorial-trigger"
-					>
-						<BookOpen className="size-3.5" aria-hidden="true" />
-						<span className="hidden sm:inline">Tutorial</span>
-					</Button>
-				</DialogTrigger>
-			)}
-			<DialogContent className="max-w-md" data-testid="timetable-simple-tutorial">
-				<DialogHeader>
-					<DialogTitle>Simple timetable tutorial</DialogTitle>
-					<DialogDescription>
-						Step {stepIndex + 1} of {steps.length}
-					</DialogDescription>
-				</DialogHeader>
-				<div className="space-y-3" data-testid="timetable-simple-tutorial-step" aria-live="polite">
-					<div className="flex gap-1" aria-hidden="true">
-						{steps.map((_, index) => (
-							<div
-								key={index}
-								className={cn('h-1 flex-1 rounded-full', index <= stepIndex ? 'bg-primary' : 'bg-border')}
-							/>
-						))}
-					</div>
-					<div className="grid gap-3 rounded-xl border border-border bg-muted/20 p-3 sm:grid-cols-[auto_1fr]" data-testid="simple-visual-help-step">
-						<div className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary" aria-hidden="true">
-							<StepIcon className="size-5" />
-						</div>
-						<div className="min-w-0">
-							<Badge variant="outline" className="mb-2 h-6 max-w-full text-xs">
-								<span className="truncate">Look for: {step.target}</span>
-							</Badge>
-							<p className="text-sm font-semibold text-foreground">{step.title}</p>
-							<p className="mt-1 text-sm leading-relaxed text-muted-foreground">{step.body}</p>
-							<Button type="button" variant="secondary" size="sm" className="mt-3 h-8 text-xs" onClick={focusStepTarget}>
-								Show me
-							</Button>
-							{unavailableMessage ? (
-								<p
-									role="status"
-									data-testid="timetable-simple-tutorial-unavailable"
-									className="mt-2 text-xs font-medium text-amber-700"
-								>
-									{unavailableMessage}
-								</p>
-							) : null}
-						</div>
-					</div>
-				</div>
-				<DialogFooter className="gap-2 sm:gap-0">
-					<Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>Close</Button>
-					<Button
-						type="button"
-						variant="outline"
-						disabled={stepIndex === 0}
-						onClick={() => setStepIndex((value) => Math.max(0, value - 1))}
-						data-testid="timetable-simple-tutorial-back"
-					>
-						Back
-					</Button>
-					<Button
-						type="button"
-						onClick={() => {
-							if (isLast) onOpenChange(false);
-							else setStepIndex((value) => Math.min(steps.length - 1, value + 1));
-						}}
-						data-testid="timetable-simple-tutorial-next"
-					>
-						{isLast ? 'Finish' : 'Next'}
-					</Button>
-				</DialogFooter>
-			</DialogContent>
-		</Dialog>
-	);
-}
-
 /**
  * UX-QUICKFIX-C01 — the Simple header action cluster.
  *
@@ -582,9 +342,21 @@ function GatedAction({ disabled, reason, children }: { disabled: boolean; reason
  * its gate-derived disabled state, its truthful aria-label, and the
  * `shouldDispatchSimpleGenerate` guard ahead of dispatch.
  */
-/** LANE-C C03 (B4) — Generate beside a published schedule makes a new version. */
-export const PUBLISHED_GENERATE_LABEL = 'New version';
-export const PUBLISHED_GENERATE_DESCRIPTION = 'Build a new version of the schedule. Teachers keep seeing the published schedule until you publish the new one.';
+/**
+ * #56 — ONE verb, from the copy module, for "make a new schedule from a
+ * published one".
+ *
+ * It was `'New version'` here and `'Build a new version'` in the header
+ * aria-label while the dialog the item opens already asked "Build a new
+ * draft?" and warned that the published schedule stays in use. Three names for
+ * one action on one screen, and the two shortest implied an edit to the LIVE
+ * schedule. Both the constant and the sentence are now DERIVED from
+ * `timetable-plain-language`, so a future rename in the copy module cannot
+ * leave this surface behind — and the exported name is kept because
+ * `SimpleHeaderActions` and the committed label contract both import it.
+ */
+export const PUBLISHED_GENERATE_LABEL = BUILD_NEW_DRAFT_LABEL;
+export const PUBLISHED_GENERATE_DESCRIPTION = `${BUILD_NEW_DRAFT_LABEL}. ${PUBLISHED_SCHEDULE_STAYS_IN_USE}`;
 
 export function SimpleGenerateAction({
 	disabled,
@@ -597,9 +369,9 @@ export function SimpleGenerateAction({
 	disabledReason: string | null;
 	onClick: () => void;
 	/**
-	 * LANE-C C03 (B4) — on a published schedule a bare "Generate" beside the
-	 * published chip read as "regenerate what teachers see". It builds a new
-	 * version instead, and says so.
+	 * #56 — on a published schedule a bare "Generate" beside the published chip
+	 * read as "regenerate what teachers see". It builds a new DRAFT instead, and
+	 * the label and the aria-label both say so, in the one verb the dialog uses.
 	 */
 	published?: boolean;
 	/**
@@ -619,7 +391,7 @@ export function SimpleGenerateAction({
 				size="sm"
 				className={primary ? 'h-11 min-w-28 gap-1.5 px-3 text-sm' : 'h-8 gap-1.5 px-2.5 text-xs'}
 				disabled={disabled}
-				aria-label={reason ? `${published ? 'Build a new version' : 'Generate schedule'} — ${reason}` : name}
+				aria-label={reason ? `${published ? BUILD_NEW_DRAFT_LABEL : 'Generate schedule'} — ${reason}` : name}
 				onClick={onClick}
 				data-testid="timetable-simple-generate-action"
 			>

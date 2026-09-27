@@ -148,10 +148,17 @@ test('B4 the lifecycle label for a published schedule is honest too', () => {
 	assert.match(capabilities.lifecycleLabel, /changes start on a date you choose/);
 });
 
-test('B4 beside a published schedule, Generate says it builds a new version', () => {
+test('B4 beside a published schedule, Generate says it builds a new draft, not a new version', () => {
 	const published = renderToStaticMarkup(createElement(SimpleGenerateAction, { disabled: false, disabledReason: null, onClick: () => {}, published: true }));
 	assert.match(published, new RegExp(`>${PUBLISHED_GENERATE_LABEL}<`));
-	assert.match(published, /aria-label="Build a new version of the schedule\. Teachers keep seeing the published schedule until you publish the new one\."/);
+	// A2-UX-MENU-C2 (#56): the aria-label is now the copy module's one verb plus
+	// its one reassurance. The pre-fix string said "Build a new version of the
+	// schedule. Teachers keep seeing the published schedule until you publish the
+	// new one." — two sentences, and "new version" is the phrase this item was
+	// retired for, because it reads as an edit to the live schedule.
+	assert.match(published, /aria-label="Build a new draft\. Your published schedule stays in use\."/);
+	assert.doesNotMatch(published, /new version/i);
+	assert.equal(PUBLISHED_GENERATE_LABEL, 'Build a new draft', 'the label is the copy module\'s one verb, not a second string');
 	const ordinary = renderToStaticMarkup(createElement(SimpleGenerateAction, { disabled: false, disabledReason: null, onClick: () => {} }));
 	assert.match(ordinary, />Generate</);
 	// SUPERSEDED (DRAFT-UX-C01, operator 2026-09-25): beside a run, Generate is the More entry; it carries the same flag.

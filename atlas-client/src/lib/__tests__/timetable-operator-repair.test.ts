@@ -83,22 +83,32 @@ test('R5 generated swap blocked state lists blockers and hides commit', () => {
 // --- R7 state-aware tutorial ---
 
 test('R7 tutorial content is state-aware and honest about write behavior', () => {
-	const helpers = source('src/components/timetable/simple/SimpleHeaderHelpers.tsx');
-	assert.match(helpers, /export function simpleTutorialSteps/);
-	assert.match(helpers, /NO_RUN_STEPS/);
-	assert.match(helpers, /GENERATED_STEPS/);
-	assert.match(helpers, /PUBLISHED_STEPS/);
+	// A2-UX-MENU-C2: the tutorial moved to `SimpleTutorial.tsx` so
+	// `SimpleHeaderHelpers` stays inside the 1000-line component budget, and it is
+	// re-exported from there. The intent of this row is unchanged — one step set
+	// per lifecycle, honest about what generating does, and still describing the
+	// real one-click + Undo contract — and the header keeps owning the dialog.
+	const tutorial = source('src/components/timetable/simple/SimpleTutorial.tsx');
+	assert.match(tutorial, /export function simpleTutorialSteps/);
+	assert.match(tutorial, /NO_RUN_STEPS/);
+	assert.match(tutorial, /GENERATED_STEPS/);
+	assert.match(tutorial, /PUBLISHED_STEPS/);
 	// No-run help must not teach placement steps that are impossible.
-	assert.match(helpers, /generate a timetable, or open Year Setup/);
+	assert.match(tutorial, /generate a timetable, or open Year Setup/);
 	// Generated help must describe the real one-click + Undo contract.
-	assert.match(helpers, /one-click action and shows a prominent Undo/);
+	assert.match(tutorial, /one-click action and shows a prominent Undo/);
 	const header = source('src/components/timetable/TimetableSimpleHeader.tsx');
 	assert.match(header, /lifecycle=\{capabilities\.lifecycle\}/);
+	assert.match(
+		source('src/components/timetable/simple/SimpleHeaderHelpers.tsx'),
+		/export \{ SimpleTutorialControl, simpleTutorialSteps \} from/,
+		'the helpers module re-exports the tutorial, so every existing importer is unchanged',
+	);
 });
 
 test('R7 tutorial never references the superseded requirements page', () => {
-	const helpers = source('src/components/timetable/simple/SimpleHeaderHelpers.tsx');
-	assert.doesNotMatch(helpers, /curriculum-requirements/);
+	const tutorial = source('src/components/timetable/simple/SimpleTutorial.tsx');
+	assert.doesNotMatch(tutorial, /curriculum-requirements/);
 });
 
 // --- R1 QA F1 correction: no run-only control may be usable without a run ---
