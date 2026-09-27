@@ -20,6 +20,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/t
 import { ROOM_TYPE_LABELS } from '@/lib/subject-constants';
 import { AccessibleInfo } from '@/components/smart/AccessibleInfo';
 import { programFullLabel } from '@/lib/deped-glossary';
+import { splitSubjectFeatures, subjectFeatureHelp, ownerDepartmentPhrase } from './subject-feature-presentation';
 import type { Subject, SubjectCoverageRow } from '@/types';
 
 interface SubjectRowProps {
@@ -78,6 +79,22 @@ export function SubjectRow({
 		: `${programScopes.length} programs`;
 
 	const isArchived = !subject.isActive;
+
+	// A3-C4: `requiredFeatures` mixes real room features with the server's
+	// `OWNER_DEPT:<code>` ownership markers. Count and describe only the real
+	// room features here, and surface ownership separately as a plain
+	// department name — the marker is an enum, not a room requirement.
+	const featureSplit = useMemo(
+		() => splitSubjectFeatures(subject.requiredFeatures),
+		[subject.requiredFeatures],
+	);
+	const roomFeatureCount = featureSplit.roomFeatures.length;
+	const ownerPhrase = ownerDepartmentPhrase(featureSplit.ownerDepartments);
+	const featureHelp = useMemo(
+		() => subjectFeatureHelp(featureSplit),
+		[featureSplit],
+	);
+
 	// Prompt 01A: isSeedable is bootstrap/seed metadata — NOT timetable inclusion.
 	// Generation schedules by isActive; the old "Excluded/Available" badges made
 	// a false claim about scheduling. Catalog active state is the status shown.
@@ -94,7 +111,31 @@ export function SubjectRow({
 				<div className="flex flex-col min-w-0">
 					<span className="font-bold text-foreground leading-tight truncate">{subject.name}</span>
 					<div className="mt-1 flex flex-wrap items-center gap-1.5">
-						<code className="text-[0.7rem] font-mono text-muted-foreground uppercase px-1 py-0.5 bg-muted/30 rounded border border-border/40 font-bold tracking-tight">{subject.code}</code>
+						{/* A3-C4: the subject code is a real, cross-referenced identifier
+							(it is the key curriculum requirements and EnrollPro records use),
+							so it stays — but it is demoted to a subordinate, focusable,
+							plainly-described chip. It deliberately does NOT repeat the
+							subject name, which is already the row's bold title one line
+							above. The @/ui Tooltip carries the code and what it is for;
+							AGENTS.md §8 forbids a `title` attribute. */}
+						<TooltipProvider delayDuration={200}>
+							<Tooltip>
+								<TooltipTrigger asChild>
+									<code
+										tabIndex={0}
+										aria-label={`Subject code ${subject.code}. Use the subject name above when scheduling; the code is the identifier used in curriculum requirements and EnrollPro records.`}
+										className="cursor-help rounded border border-border/40 bg-muted/30 px-1 py-0.5 font-mono text-[0.7rem] tracking-tight text-muted-foreground"
+									>
+										{subject.code}
+									</code>
+								</TooltipTrigger>
+								<TooltipContent side="top" className="max-w-64 text-xs leading-relaxed">
+									<span className="font-semibold">Subject code</span> · {subject.code}. This is the identifier
+									curriculum requirements and EnrollPro records use. Use{' '}
+									<span className="font-semibold">{subject.name}</span> when scheduling.
+								</TooltipContent>
+							</Tooltip>
+						</TooltipProvider>
 						{isArchived && (
 							<Badge className="h-4 px-1.5 text-[0.65rem] font-bold bg-amber-100 text-amber-700 border border-amber-200 shadow-none">Archived</Badge>
 						)}
@@ -133,10 +174,24 @@ export function SubjectRow({
 			<td className="px-4 py-3">
 				<div className="flex flex-col">
 					<span className="text-xs font-medium text-foreground">{roomNeedLabel}</span>
-					{subject.requiredFeatures.length > 0 ? (
+					{/* A3-C4: ownership is a department, not a room feature. The plain
+						learning-area name is the primary read; the raw OWNER_DEPT code
+						stays reachable in the AccessibleInfo mirror (an @/ui tooltip, not
+						a `title` attribute). */}
+					{ownerPhrase && (
+						<span className="text-[0.7rem] text-muted-foreground">Owned by {ownerPhrase}</span>
+					)}
+					{featureSplit.ownerDepartments.length > 0 && roomFeatureCount === 0 ? (
+						<AccessibleInfo
+							label={`Room features and owning department for ${subject.name}`}
+							shortHelp={featureHelp}
+							size="icon-xs"
+						/>
+					) : null}
+					{roomFeatureCount > 0 ? (
 						<AccessibleInfo
 							label={`Room features required by ${subject.name}`}
-							shortHelp={`This subject needs ${subject.requiredFeatures.length} special room feature${subject.requiredFeatures.length === 1 ? '' : 's'}: ${subject.requiredFeatures.join(', ')}.`}
+							shortHelp={featureHelp}
 						>
 							<Button
 								type="button"
@@ -144,7 +199,7 @@ export function SubjectRow({
 								size="sm"
 								className="mt-0.5 self-start h-auto p-0 text-[0.7rem] text-amber-600 font-semibold uppercase cursor-help hover:underline"
 							>
-								+{subject.requiredFeatures.length} feature{subject.requiredFeatures.length === 1 ? '' : 's'}
+								+{roomFeatureCount} feature{roomFeatureCount === 1 ? '' : 's'}
 							</Button>
 						</AccessibleInfo>
 					) : null}
