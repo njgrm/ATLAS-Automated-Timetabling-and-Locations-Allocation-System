@@ -149,6 +149,52 @@ resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs
 
 - Tailnet: `https://njgrm.buru-degree.ts.net`
 
+- **STAGED / NOT LIVE — `c4a9960e0fccaab4a324c97e42eb56cfa10c1fa4` (Lane A3, recorded 2026-09-27).**
+  Built and verified on disk; **not cut over**. `c5a9e832` remains LIVE until the cutover executes.
+  Release dir **`E:\ATLAS-worktrees\lane-a3-release-c4a9960e`** (registered worktree, detached, clean).
+  **Rollback basis `c5a9e8321756ee59c7795786417f6449831ecda3`**, dir
+  `E:\ATLAS-worktrees\lane-a2-release-c5a9e832` — verified clean, HEAD `c5a9e832`, both `dist`s built,
+  real non-junction `node_modules` (154 packages), so rollback is a one-step supervised reset.
+  **This entry exists to lead the cutover, not to claim it:** `ops/runtime/deploy-runner.ps1`
+  `Assert-LiveReleaseRecorded` fails closed unless this section names the target's 8-char prefix, so the
+  record is written *before* the cutover by design.
+
+  **What it ships, by enumeration** (`git diff --name-only c5a9e832..c4a9960e` = 22 paths,
+  19 commits): **6 client behaviour files + `atlas-client/package.json`, all Lane A3** — the Konva
+  `lineHeight` **ratio** fix (it is a ratio, not pixels; the old value drew names 71.5 units below their
+  own box) and the shared `openTeacherReview` (the Next Step banner's old
+  `onOpenReview: () => ui.setViewMode('teacher')` was dead because the mode was already `teacher`).
+  **Plus 2 lane-A2 server paths** — `atlas-server/package.json` and
+  `src/__tests__/timetable-swap-revert-enumeration-a2.test.ts` — which **do compile into `dist`**
+  (`tsconfig` is `include: ["src"]`) but carry **zero runtime behaviour change**: `server.ts` never
+  imports `__tests__`, and the file is a disposable-PostgreSQL harness. **Not client-only in build
+  output; client-only in behaviour.** Plus 14 `docs/` paths, no runtime effect. **No
+  `prisma/schema.prisma` or `prisma/migrations/` path in the range, so no schema command is
+  authorised or implied.** No generation, publication, term-cache, or Teaching Load apply.
+
+  **Both corrections remain LIVE-BUGGY until this cuts over** — `git diff c5a9e832 d9575e83` on both
+  production files is empty, so the running build still carries both defects.
+
+  **Deploy proof, verified two-sided BEFORE cutover** (a health check is not proof — it looks
+  identical on either release): served `BuildingView` chunk must contain **`13/11`** with **`143`
+  absent** (the live chunk hardcodes `lineHeight:13` against `fontSize:11`); the
+  `onOpenReview: () => …setViewMode('teacher')` pattern must be **absent** (present in live
+  `TeachingLoad-CN1rcdXS.js`); and `dist/__tests__/timetable-swap-revert-enumeration-a2.test.js`
+  present. `TeachingLoad` 188,730→188,871 B and `BuildingView` 11,160→11,190 B, hashes differ.
+  **`dist/server.js` is byte-identical across both builds** (3,070 B stub) — never use it as the sole
+  proof. Also verify a **DB-backed** `GET /api/v1/subjects?schoolId=1`, not just `/api/v1/health`, and
+  that 5001/5174 PIDs differ from the incumbent's 43192/43744.
+
+  **BLOCKED: the cutover needs an elevated shell.** `IsInRole(Administrator) = False` and the
+  supervisor is **SYSTEM**; `deploy-runner.ps1` calls `Assert-Administrator` before even its dry run, and
+  the resident supervisor has no watcher, signal handler, or IPC, so there is no non-admin path. The
+  operator was remote with no working AnyDesk on 2026-09-27. **Run from an elevated shell:**
+  `deploy-runner.ps1 -TargetSha c4a9960e0fccaab4a324c97e42eb56cfa10c1fa4 -TargetSourceDir E:\ATLAS-worktrees\lane-a3-release-c4a9960e -IncumbentSha c5a9e8321756ee59c7795786417f6449831ecda3 -IncumbentSourceDir E:\ATLAS-worktrees\lane-a2-release-c5a9e832 -EnvFile D:\ATLAS-runtime-config\atlas-server.env`
+  **without `-Execute` first** (dry run, emits `deployment-plan.json` for review), then with `-Execute`.
+  The runner's `catch` restores both env vars, the task XML, and re-runs the task — it is a real
+  rollback, not a hope. **Browser rows B4 and B5 remain owed after the cutover and B5 has never been
+  performed**; both are deployment-acceptance clauses, not source rows.
+
 - **LIVE: `c5a9e8321756ee59c7795786417f6449831ecda3` (full 40-char)** (Lane A2, 2026-09-27 05:37 +08, HIGH
   authority; packet `docs/prompts/a2-release-c5a9e832-2026-09-27.md`, independent pre-action review
   **`PRE_ACTION_CLEAR` 5/5/0/0** after one `CORRECTION_REQUIRED` round). Release dir
