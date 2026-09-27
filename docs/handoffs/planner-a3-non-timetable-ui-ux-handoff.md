@@ -571,6 +571,45 @@ outside the worktree.
 **Live runtime unchanged:** `c5a9e832`, 5001 **200**. Nothing committed; both corrections remain
 uncommitted but intact.
 
+### 2026-09-27 addendum 2 — module scope in the appended block is fully ENUMERATED
+
+Scanned the appended block (lines 1032-1208 of the executor's version) for **zero-indent
+executable** statements. There are exactly **ten**, and every one is now accounted for:
+
+| Line | Statement | Status |
+|---|---|---|
+| 1050-1051 | `let teacherReviewEntry`, `let teacherReviewEntryError` | inert declarations |
+| 1052 | `try {` | opens the defensive import |
+| 1057-1059 | three `const { … } = await import(…)` | **ruled out** — do not crash alone, do not crash co-located with the seventeen originals |
+| 1061 | `const REVIEW_TITLE = 'Teacher workload: Dela Cruz, Maria'` | inert string |
+| 1074 | `function TeachingLoadReviewHost() {` | function declaration, hoisted and inert at eval |
+| 1124 | `test('C2-1 every control labelled \`Review teachers\` actually opens the review dialog', …)` | **NOT YET EXAMINED** |
+| 1174 | `test('C2-2 both \`onOpenReview\` sites in the page bind the one production opener', …)` | **NOT YET EXAMINED** |
+
+**This is the narrowest the search has got.** Test bodies do not execute at module load, so the
+crash cannot be inside them — but a `test()` **registration** does execute, and
+`node:test` does real work per registration. With every other module-scope statement eliminated,
+the two `test()` calls at 1124 and 1174 are the only remaining unexamined module-scope
+execution in the block.
+
+**The next concrete step, in order:**
+1. Suppress the two `test()` registrations (keep the imports, `REVIEW_TITLE` and
+   `TeachingLoadReviewHost` in place) and run. If the RangeError clears, the cause is
+   `node:test` registration work — most likely the large inline arrow bodies, the
+   `assert.match`/`RegExp` construction at 1168, or the four `read(...)` source-file reads at
+   1175/1197/1202 that execute inside the registered closures' scope setup.
+2. If it persists, the block is not the cause after all and the earlier bisect needs redoing
+   from a **clean** checkout, because a `git checkout` that partially failed would also explain
+   a misattributed result.
+3. Whichever it is, prefer the structural fix — move the C2 controls into their own test file
+   with its own JSDOM setup, registered in `package.json` (§11) — over continuing to bisect a
+   1200-line shared test file whose module-scope surface is this coupled to JSDOM ordering.
+
+**Method requirements, carried from the two failed attempts:** truncate with the **Edit tool** or
+`git checkout`, **never** `Set-Content` (BOM in PowerShell 5.1); back up to an **absolute path
+outside** the worktree and **assert the byte size** before any destructive checkout; and confirm
+each variant's file size before trusting its result.
+
 Three streams, three worktrees, one writer each, all under `E:/ATLAS-worktrees/lane-a3-*` from base `3cfe79a8`. Consolidated pairs preserved: 13+18, 14+16, 17+23, 25+26, 33A+33B.
 
 **S1 - Sections and room map** (`work/a3-sections-map`): fixes 03, 06, 07, 10, 11, 12; 08 held.
