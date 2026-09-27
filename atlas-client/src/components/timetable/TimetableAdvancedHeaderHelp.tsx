@@ -1,7 +1,3 @@
-import { Loader2, Undo2 } from 'lucide-react';
-
-import { Button } from '@/ui/button';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip';
 import { TimetableStatusLegend } from '@/components/timetable/TimetableStatusLegend';
 
 /**
@@ -11,6 +7,19 @@ import { TimetableStatusLegend } from '@/components/timetable/TimetableStatusLeg
  * sighted operators see it without opening the 7-step tutorial. It is
  * deliberately NOT `sr-only`: the `#timetable-foolproof-help` id stays on the
  * visible element so every task button's `aria-describedby` still resolves.
+ *
+ * A2-TIMETABLE-CUSTODY (Lane C finding #63): this bar used to carry its own
+ * `Undo last change` button. It was a duplicate of the workspace toolbar's Undo —
+ * the same `timetable-visible-undo` test hook and the same `Undo last manual
+ * timetable change` accessible name — so a screen reader heard one name twice
+ * and an operator could not tell the two apart. The toolbar control
+ * (`TimetableUndoRedoControl`) is the one that was kept: it sits beside `Redo`
+ * and `History`, it is the surface the shared Undo decision
+ * (`decideHeaderUndo`) documents, and it renders the blocked reason VISIBLY in a
+ * `role="status"` element rather than only in a hover, so removing this copy lost
+ * no information. The undo-only props this component used to take are gone with
+ * the control — no orphan handler, selector, test hook or `aria-label` is left
+ * behind.
  */
 export type AdvancedHeaderHelpMode = 'schedule' | 'draft';
 
@@ -28,32 +37,11 @@ export type TimetableAdvancedHeaderHelpProps = {
 	mode: AdvancedHeaderHelpMode;
 	/** The currently active task's helper line, shown on small screens. */
 	activeTaskHelper: string;
-	editHistoryCount: number;
-	revertLoading: boolean;
-	onRevertLastEdit: () => void;
-	/**
-	 * A2-TIMETABLE-CUSTODY-R2 — the shared Undo decision, read not re-derived. With a
-	 * `REVERT` at the head of the ledger this button used to stay enabled and dispatch
-	 * an id the server cannot select as a target
-	 * (`editType: { not: 'REVERT' }`, `manual-edit.service.ts:1675`), so it could
-	 * only 409. It now disables, and `undoBlockedReason` is the reason shown.
-	 *
-	 * Both are OPTIONAL and default FAIL-CLOSED (`false` / `null`): a caller that
-	 * omits the shared decision gets a disabled Undo, never a button that can only
-	 * fail. Every production call site passes both.
-	 */
-	lastEditUndoable?: boolean;
-	undoBlockedReason?: string | null;
 };
 
 export function TimetableAdvancedHeaderHelp({
 	mode,
 	activeTaskHelper,
-	editHistoryCount,
-	revertLoading,
-	onRevertLastEdit,
-	lastEditUndoable = false,
-	undoBlockedReason = null,
 }: TimetableAdvancedHeaderHelpProps) {
 	const guidance = resolveAdvancedHeaderGuidance(mode);
 	return (
@@ -67,33 +55,10 @@ export function TimetableAdvancedHeaderHelp({
 				<span className="hidden md:inline">{guidance}</span>
 				<span className="md:hidden">{activeTaskHelper}</span>
 			</p>
+			{/* `shrink-0` keeps the legend from being squeezed by the long guidance
+			 * sentence; the row itself is unchanged apart from losing the Undo. */}
 			<div className="flex shrink-0 items-center gap-2">
 				<TimetableStatusLegend />
-				{editHistoryCount > 0 && mode === 'schedule' && (
-					<TooltipProvider>
-						<Tooltip>
-							<TooltipTrigger asChild>
-								<span className="inline-flex">
-									<Button
-										type="button"
-										variant="outline"
-										size="sm"
-										className="hidden h-8 gap-1.5 border-emerald-300 bg-white text-emerald-900 hover:bg-emerald-100 md:inline-flex"
-										onClick={onRevertLastEdit}
-										disabled={revertLoading || !lastEditUndoable}
-										data-testid="timetable-visible-undo"
-										aria-label="Undo last manual timetable change"
-									>
-										{revertLoading ? <Loader2 className="size-3.5 animate-spin" aria-hidden="true" /> : <Undo2 className="size-3.5" aria-hidden="true" />}
-										<span className="hidden sm:inline">Undo last change</span>
-										<span className="sm:hidden">Undo</span>
-									</Button>
-								</span>
-							</TooltipTrigger>
-							<TooltipContent>{undoBlockedReason ?? 'Undo the last manual timetable change'}</TooltipContent>
-						</Tooltip>
-					</TooltipProvider>
-				)}
 			</div>
 		</div>
 	);

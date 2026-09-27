@@ -37,6 +37,7 @@
  */
 
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import test, { after, before } from 'node:test';
 
 import {
@@ -171,6 +172,13 @@ before(async () => {
 });
 
 after(async () => {
+	// A2-TIMETABLE-CUSTODY (Part 2): the S-rows mount the real router on an
+	// ephemeral port, so that listener is closed here. Additive: nothing existing
+	// is removed, and a leaked handle would keep the run alive.
+	if (routeHarness) {
+		await routeHarness.close().catch(() => undefined);
+		routeHarness = null;
+	}
 	if (prisma) {
 		if (fixture) await teardownCanonicalFixture(prisma, fixture.schoolId);
 		await prisma.$disconnect().catch(() => undefined);
@@ -783,6 +791,396 @@ test('M: the published swap message names the change and carries no entry id', {
 	// break that, so this row pins the separation rather than the removal.
 	assert.equal(swapEvent.metadata.entryIdA, 'A-G7-MAPEH-MON0730', 'metadata keeps entryIdA for the client');
 	assert.equal(swapEvent.metadata.entryIdB, 'B-G7-ESP-WED0815', 'metadata keeps entryIdB for the client');
+});
+
+// ────────────────────────────────────────────────────────────────────────────
+// A2-TIMETABLE-CUSTODY (Part 2) — `strategy` is a closed union ON THE WIRE
+//
+// Finding: `manual-edit.router.ts` destructured `req.body.strategy` and passed it
+// through with no validation, so an unrecognised value reached
+// `swapManualEntries`, whose only test of it is
+//
+//     if (strategy === 'AUTO_FIX_MOVE_BLOCKING' || strategy === 'AUTO_FIX_MOVE_SOURCE')
+//
+// — false for anything unknown, so the commit fell through to the plain-swap
+// branch and COMMITTED. Simultaneously the published message guard was
+// EXCLUSION-based (`strategy && strategy !== 'DIRECT_SWAP'`), so the same
+// unrecognised value also satisfied "not a direct swap" and the message claimed
+// a relocation that never happened ("One of them was also relocated to a
+// different time."). One bad value produced both a wrong commit and a false
+// claim.
+//
+// These rows drive the REAL router over REAL HTTP against the mounted fixture,
+// because the defect is at the wire boundary: a service-level control would have
+// passed while the route still accepted the value. Purely additive — no existing
+// row is removed or weakened.
+//
+// DECISION, and its evidence — an ABSENT `strategy` still means `DIRECT_SWAP`:
+//   * `swapManualEntries` declares `strategy: SwapStrategy = 'DIRECT_SWAP'`
+//     (`manual-edit.service.ts:2341`) — a documented, load-bearing default, and
+//     `previewManualSwapEntries` recommends exactly `'DIRECT_SWAP'` (`:2301`).
+//   * JS default-parameter semantics apply to an explicitly-passed `undefined`,
+//     which is what the router has always sent for an absent key, so absent ≡
+//     `DIRECT_SWAP` is the CURRENT wire contract, not a new invention.
+//   * The one in-process caller, `room-preference.service.ts:1415-1424`, passes
+//     the literal `'DIRECT_SWAP'`; no in-process caller relies on the default.
+//   * The React caller always sends a member: `useTimetableMutations.ts:1881`
+//     falls back to `'DIRECT_SWAP'` and `:1903` always includes the key.
+//   S2 pins that equivalence behaviourally (absent and explicit `DIRECT_SWAP`
+//   must produce byte-identical responses), so the default cannot be changed
+//   silently. An absent value is the ABSENCE of a strategy, not an unrecognised
+//   one; only a PRESENT, non-member value is refused.
+// ────────────────────────────────────────────────────────────────────────────
+
+/**
+ * A fresh, ISOLATED run carrying the `legalRun` seed shape.
+ *
+ * The Part 2 rows need a run nobody else mutates. `reproRun` is read-only but has
+ * no legal in-shift auto-fix target BY DESIGN (that is the live defect shape), and
+ * `legalRun` is consumed by the D2 → D3 → M narrative above, so neither can host a
+ * positive commit. This builds the same shape on a new run, which also makes the
+ * rows independent of declaration order.
+ */
+async function createIsolatedRun(seeds: EntrySeed[] = [...SWAP_PAIR, BLOCKER, CROSS_TERM, IN_SHIFT]): Promise<number> {
+	const toEntry = (seed: EntrySeed) => ({
+		entryId: seed.entryId,
+		facultyId: fixture.faculty[seed.facultyExternalId],
+		roomId: fixture.rooms[seed.roomName],
+		subjectId: fixture.subjects[seed.subjectCode],
+		sectionId: seed.sectionExternalId,
+		day: seed.day,
+		startTime: seed.startTime,
+		endTime: seed.endTime,
+		durationMinutes: toMinutes(seed.endTime) - toMinutes(seed.startTime),
+		termIndex: seed.termIndex,
+		entryKind: 'SECTION' as const,
+		programType: 'REGULAR' as const,
+	});
+	const draftEntries = seeds.map(toEntry);
+	const run = await prisma.generationRun.create({
+		data: {
+			schoolId: fixture.schoolId,
+			schoolYearId: fixture.schoolYearId,
+			status: 'COMPLETED',
+			runType: 'FULL',
+			triggeredBy: 1,
+			startedAt: new Date(),
+			finishedAt: new Date(),
+			draftEntries,
+			unassignedItems: [],
+			violations: [],
+			summary: { draft: draftEntries.length, unassigned: 0 },
+			version: 1,
+		},
+	});
+	return run.id as number;
+}
+
+type SwapHttp = { status: number; body: any };
+
+let routeHarness: { origin: string; headers: Record<string, string>; close: () => Promise<void> } | null = null;
+
+/** Mount the REAL manual-edit router on an ephemeral port and mint a scheduler token. */
+async function swapRoute(): Promise<NonNullable<typeof routeHarness>> {
+	if (routeHarness) return routeHarness;
+	// Imported dynamically and AFTER `DATABASE_URL` points at the disposable
+	// database: the service reads the Prisma singleton's datasource at import time.
+	const [{ default: manualEditRouter }, { errorHandler }, expressMod, jwtMod, httpMod] = await Promise.all([
+		import('../routes/manual-edit.router.js'),
+		import('../middleware/errorHandler.js'),
+		import('express'),
+		import('jsonwebtoken'),
+		import('node:http'),
+	]);
+	const app = expressMod.default();
+	app.use(expressMod.json());
+	app.use('/manual-edits', manualEditRouter);
+	// The REAL error handler, mounted exactly as `app.ts:159` does. Without it a
+	// service `err(422, 'HARD_VIOLATION_BLOCK', …)` reaches Express's default
+	// handler, which answers an HTML stack page — so the wire would look nothing
+	// like production and the rows below could not read a typed code at all.
+	app.use(errorHandler);
+	const server = httpMod.createServer(app);
+	await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+	const address = server.address() as { port: number };
+	const token = jwtMod.default.sign(
+		{ userId: 1, schoolId: fixture.schoolId, role: 'scheduler' },
+		process.env.JWT_SECRET as string,
+		{ expiresIn: '10m' },
+	);
+	routeHarness = {
+		origin: `http://127.0.0.1:${address.port}`,
+		headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+		close: () => new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve()))),
+	};
+	return routeHarness;
+}
+
+async function postSwap(runId: number, body: Record<string, unknown>): Promise<SwapHttp> {
+	const route = await swapRoute();
+	const response = await fetch(
+		`${route.origin}/manual-edits/${fixture.schoolId}/${fixture.schoolYearId}/runs/${runId}/manual-edits/swap`,
+		{ method: 'POST', headers: route.headers, body: JSON.stringify(body) },
+	);
+	return { status: response.status, body: await response.json() as any };
+}
+
+/** A snapshot of every surface a swap could write, so "zero writes" is measured. */
+async function writeFingerprint(runId: number): Promise<{ version: number; edits: number; audits: number; draft: string }> {
+	return {
+		version: await runVersion(runId),
+		edits: (await editRows(runId)).length,
+		audits: await auditCount(fixture.schoolId),
+		draft: JSON.stringify((await prisma.generationRun.findUnique({ where: { id: runId } })).draftEntries),
+	};
+}
+
+test('S1 an unrecognised strategy is REFUSED with a typed 4xx and ZERO writes', { skip: RUNNABLE ? false : 'DATABASE_URL is not configured' }, async () => {
+	const { onTimetableEvent } = await import('../services/timetable-events.service.js');
+	const published: any[] = [];
+	const stop = onTimetableEvent((event: any) => published.push(event));
+
+	// A run only this file's Part 2 rows touch, so the zero-write measurement is
+	// unambiguous.
+	//
+	// Seeded with the SWAP PAIR ALONE, deliberately: the blocker/filler entries are
+	// what make a plain swap illegal on the other rows, and a run where a plain
+	// swap is LEGAL is the only shape on which the pre-fix defect is observable as
+	// a COMMIT. With a blocker present an unrecognised strategy would merely 422
+	// like a direct swap, which would hide the very thing being proved.
+	const runId = await createIsolatedRun([...SWAP_PAIR]);
+	const before = await writeFingerprint(runId);
+	const version = before.version;
+
+	// Every non-member shape, including the two that are NOT strings: a bare
+	// allowlist written as `Set.has` must refuse those too, not coerce them.
+	const UNKNOWN_STRATEGIES: unknown[] = [
+		'SOMETHING_NEW',
+		'direct_swap',
+		'DIRECT_SWAP ',
+		'AUTO_FIX_MOVE_OTHER',
+		42,
+		['DIRECT_SWAP'],
+		{ strategy: 'DIRECT_SWAP' },
+		true,
+	];
+
+	// The FIRST unknown strategy is dispatched and its outcome logged BEFORE any
+	// assertion, so the pre-fix COMMIT is on the record even though the row then
+	// fails (same convention as `[A2-D1]` / `[A2-D3]` above).
+	const first = await postSwap(runId, {
+		entryIdA: 'A-G7-MAPEH-MON0730',
+		entryIdB: 'B-G7-ESP-WED0815',
+		expectedVersion: version,
+		strategy: UNKNOWN_STRATEGIES[0],
+	});
+	const firstFingerprint = await writeFingerprint(runId);
+	const committedEvents = published.filter((event) => event.type === 'TIMETABLE_EDIT_COMMITTED');
+	console.log(
+		`[A2-S1] unknownStrategy=${JSON.stringify(UNKNOWN_STRATEGIES[0])} status=${first.status}`
+		+ ` code=${first.body?.code}`
+		+ ` versionBump=${firstFingerprint.version - before.version}`
+		+ ` editRowsWritten=${firstFingerprint.edits - before.edits}`
+		+ ` auditRowsWritten=${firstFingerprint.audits - before.audits}`
+		+ ` eventsPublished=${committedEvents.length}`
+		+ (committedEvents.length ? ` message=${JSON.stringify(committedEvents[0].message)}` : ''),
+	);
+
+	let response: SwapHttp | null = first;
+	try {
+		for (const strategy of UNKNOWN_STRATEGIES) {
+			response = await postSwap(runId, {
+				entryIdA: 'A-G7-MAPEH-MON0730',
+				entryIdB: 'B-G7-ESP-WED0815',
+				expectedVersion: version,
+				strategy,
+			});
+			assert.equal(response.status, 400, `${JSON.stringify(strategy)} is refused with 400, not ${response.status}`);
+			assert.equal(response.body.code, 'INVALID_STRATEGY', `${JSON.stringify(strategy)} is refused with a typed code`);
+		}
+	} finally {
+		stop();
+	}
+
+	// The refusal is a real contract, not a silent coercion: it names the union.
+	const last = response as SwapHttp;
+	assert.match(
+		last.body.message,
+		/DIRECT_SWAP/,
+		'the refusal message names the closed union, so a caller can correct itself',
+	);
+	assert.match(last.body.message, /AUTO_FIX_MOVE_BLOCKING/);
+	assert.match(last.body.message, /AUTO_FIX_MOVE_SOURCE/);
+
+	// ZERO WRITES, measured on every surface a swap could touch.
+	const after = await writeFingerprint(runId);
+	assert.equal(after.version, before.version, 'ZERO WRITE: no run version bump');
+	assert.equal(after.edits, before.edits, 'ZERO WRITE: no manual_schedule_edits row');
+	assert.equal(after.audits, before.audits, 'ZERO WRITE: no audit_logs row');
+	assert.equal(after.draft, before.draft, 'ZERO WRITE: the draft is byte-identical');
+	assert.equal(
+		published.filter((event) => event.type === 'TIMETABLE_EDIT_COMMITTED').length,
+		0,
+		'ZERO WRITE: no TIMETABLE_EDIT_COMMITTED event was published',
+	);
+	assert.equal(published.length, 0, 'ZERO WRITE: no event of any kind was published');
+});
+
+test('S2 an ABSENT strategy means DIRECT_SWAP, exactly as an explicit DIRECT_SWAP does', { skip: RUNNABLE ? false : 'DATABASE_URL is not configured' }, async () => {
+	// The equivalence IS the decision. If absent ever stops meaning DIRECT_SWAP,
+	// these two responses diverge and this row fails.
+	const runId = await createIsolatedRun();
+	const before = await writeFingerprint(runId);
+	const version = before.version;
+	const base = {
+		entryIdA: 'A-G7-MAPEH-MON0730',
+		entryIdB: 'B-G7-ESP-WED0815',
+		expectedVersion: version,
+	};
+
+	const absent = await postSwap(runId, base);
+	const explicit = await postSwap(runId, { ...base, strategy: 'DIRECT_SWAP' });
+
+	// Both reached the DOMAIN layer, which refuses a direct swap on this fixture
+	// because its BLOCKER occupies Monday 07:30. Naming that code is the proof
+	// that neither request was stopped by strategy validation.
+	assert.equal(absent.status, 422, `the absent-strategy request reached the domain layer (got ${absent.status})`);
+	assert.equal(absent.body.code, 'HARD_VIOLATION_BLOCK', `and was refused for its own reason (got ${absent.body.code})`);
+	assert.notEqual(absent.body.code, 'INVALID_STRATEGY', 'absence is NOT treated as an unrecognised strategy');
+
+	// Byte-identical responses: the two requests are indistinguishable downstream.
+	assert.deepEqual(absent, explicit, 'absent and explicit DIRECT_SWAP are indistinguishable, so absence keeps meaning DIRECT_SWAP');
+
+	// Both refused, so both wrote nothing.
+	const after = await writeFingerprint(runId);
+	assert.equal(after.version, before.version, 'ZERO WRITE: no version bump from either request');
+	assert.equal(after.edits, before.edits, 'ZERO WRITE: no edit row from either request');
+	assert.equal(after.draft, before.draft, 'ZERO WRITE: the draft is byte-identical');
+});
+
+test('S3 a VALID strategy still commits end to end through the same route (non-vacuity)', { skip: RUNNABLE ? false : 'DATABASE_URL is not configured' }, async () => {
+	const { onTimetableEvent } = await import('../services/timetable-events.service.js');
+	const published: any[] = [];
+	const stop = onTimetableEvent((event: any) => published.push(event));
+
+	// If S1's allowlist were catching everything, this row would fail — so it is
+	// the control that makes S1's refusals mean something.
+	const runId = await createIsolatedRun();
+	const previewed = (await previewSwap(runId)).autoFixBlockingTarget;
+	assert.ok(previewed, 'a previewed auto-fix target exists for this commit');
+	const version = await runVersion(runId);
+
+	let result: SwapHttp | null = null;
+	try {
+		result = await postSwap(runId, {
+			entryIdA: 'A-G7-MAPEH-MON0730',
+			entryIdB: 'B-G7-ESP-WED0815',
+			expectedVersion: version,
+			strategy: 'AUTO_FIX_MOVE_BLOCKING',
+			autoFixTarget: previewed,
+		});
+	} finally {
+		stop();
+	}
+
+	assert.equal(result.status, 200, `a valid strategy is accepted, not refused (got ${result.status})`);
+	assert.equal((result as SwapHttp).body.newVersion, version + 1, 'the accepted commit advanced the run version once');
+	assert.equal(await runVersion(runId), version + 1, 'and the version really moved in the database');
+	assert.equal(
+		(await editRows(runId)).some((row: any) => row.editType === 'SWAP_ENTRIES'),
+		true,
+		'and a SWAP_ENTRIES row was really written',
+	);
+	const event = published.find((e) => e.type === 'TIMETABLE_EDIT_COMMITTED');
+	assert.ok(event, 'and the commit published its event');
+	assert.match(event.message, /relocated to a different time/, 'an auto-fix commit still discloses the relocation');
+});
+
+test('S4 the message guard is an ALLOWLIST: an unknown strategy claims no relocation', async () => {
+	const { describeSwapCommitMessage } = await import('../services/timetable-edit-message.js');
+	const NAMED = {
+		subjectA: 'MAPEH',
+		subjectB: 'ESP',
+		slotA: { day: 'MONDAY', startTime: '07:30', endTime: '08:15' },
+		slotB: { day: 'WEDNESDAY', startTime: '08:15', endTime: '09:00' },
+	} as const;
+
+	// RETAINED: both auto-fix members still disclose, and a direct swap still does not.
+	for (const strategy of ['AUTO_FIX_MOVE_BLOCKING', 'AUTO_FIX_MOVE_SOURCE']) {
+		assert.match(
+			describeSwapCommitMessage({ ...NAMED, strategy } as never),
+			/relocated to a different time/,
+			`${strategy} still discloses the relocation`,
+		);
+	}
+	for (const strategy of [undefined, null, '', 'DIRECT_SWAP'] as const) {
+		assert.doesNotMatch(
+			describeSwapCommitMessage({ ...NAMED, strategy } as never),
+			/relocated/,
+			`${JSON.stringify(strategy)} relocates nothing and claims no relocation`,
+		);
+	}
+
+	// THE FIX: the guard is no longer exclusion-based, so an unrecognised value
+	// claims nothing instead of claiming a relocation it cannot prove.
+	for (const unknown of ['SOMETHING_NEW', 'direct_swap', 'AUTO_FIX_MOVE_OTHER', 42, 'BLOCKED']) {
+		const message = describeSwapCommitMessage({ ...NAMED, strategy: unknown } as never);
+		assert.doesNotMatch(
+			message,
+			/relocated/,
+			`${JSON.stringify(unknown)} is not a member of the union, so the message claims no relocation (got ${JSON.stringify(message)})`,
+		);
+		// It still states the one thing that is true.
+		assert.match(message, /exchanged their times/, `${JSON.stringify(unknown)} still names the exchange it can prove`);
+	}
+
+	// And the guard's own source states the allowlist, so a future edit cannot
+	// silently widen it back to an exclusion.
+	const source = readFileSync(
+		new URL('../services/timetable-edit-message.ts', import.meta.url),
+		'utf8',
+	);
+	assert.doesNotMatch(source, /!== 'DIRECT_SWAP'/, 'the exclusion-based branch is gone');
+	assert.match(source, /AUTO_FIX_MOVE_BLOCKING/);
+	assert.match(source, /AUTO_FIX_MOVE_SOURCE/);
+});
+
+test('S5 the route allowlist cannot drift from the SwapStrategy union', async () => {
+	const routerSource = readFileSync(new URL('../routes/manual-edit.router.ts', import.meta.url), 'utf8');
+	const serviceSource = readFileSync(new URL('../services/manual-edit.service.ts', import.meta.url), 'utf8');
+
+	// The union, read from its declaration rather than from this test's memory.
+	const unionLiteral = serviceSource.match(
+		/export type SwapStrategy = ([^;]+);/,
+	)?.[1] ?? '';
+	const members = [...unionLiteral.matchAll(/'([^']+)'/g)].map((match) => match[1]);
+	assert.deepEqual(
+		members,
+		['DIRECT_SWAP', 'AUTO_FIX_MOVE_BLOCKING', 'AUTO_FIX_MOVE_SOURCE'],
+		'the closed union is exactly the three members read from its declaration',
+	);
+
+	// The route's allowlist is the same three, derived from the same declaration.
+	//
+	// A2-TIMETABLE-CUSTODY (Part 2) CORRECTION: the pattern used to require a
+	// literal `new Set<string>(` before the member list. The declaration is
+	// actually `new Set<manualEditService.SwapStrategy>(`, so the optional group
+	// never matched, the whole alternation failed, and `allowlist` silently parsed
+	// as `[]` — which made this row fail for a reason that had nothing to do with
+	// drift. The assertion below is unchanged and still decisive: it now compares
+	// the members the route really declares against the members the service's union
+	// really declares. `new Set(?:<[^>]*>)?\(` accepts a bare `new Set(`, any
+	// single type argument, and a qualified one like
+	// `new Set<manualEditService.SwapStrategy>(`, so a future re-typing of the
+	// constant does not silently disarm this row again.
+	const allowlistLiteral = routerSource.match(
+		/VALID_SWAP_STRATEGIES\s*(?::[^=]*)?=\s*(?:new Set(?:<[^>]*>)?\(\s*)?\[([^\]]*)\]/,
+	)?.[1] ?? '';
+	const allowlist = [...allowlistLiteral.matchAll(/'([^']+)'/g)].map((match) => match[1]);
+	assert.deepEqual(allowlist, members, 'the route allowlist and the SwapStrategy union are the same members');
+
+	// The refusal is typed and names itself.
+	assert.match(routerSource, /'INVALID_STRATEGY'/, 'the route has a typed refusal code');
 });
 
 // ────────────────────────────────────────────────────────────────────────────

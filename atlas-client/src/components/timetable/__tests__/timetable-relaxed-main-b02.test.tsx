@@ -393,9 +393,6 @@ function renderAdvancedHelp(mode: 'schedule' | 'draft' = 'schedule'): string {
 		createElement(TimetableAdvancedHeaderHelp, {
 			mode,
 			activeTaskHelper: 'Choose one unresolved session, then choose a green slot on the grid.',
-			editHistoryCount: 0,
-			revertLoading: false,
-			onRevertLastEdit: () => {},
 		}),
 	);
 }

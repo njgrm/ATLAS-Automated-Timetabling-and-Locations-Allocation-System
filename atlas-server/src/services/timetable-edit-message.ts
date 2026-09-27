@@ -78,6 +78,18 @@ function readSlot(slot: SwapCommitSlot): string | null {
 }
 
 /**
+ * The only `SwapStrategy` values under which the service actually relocates a
+ * session. A relocation claim is made iff the strategy is in this set — see the
+ * `describeSwapCommitMessage` comment for why the guard is an allowlist and not an
+ * exclusion. The members mirror `SwapStrategy` (`manual-edit.service.ts:1954`);
+ * `DIRECT_SWAP` is deliberately absent because it relocates nothing.
+ */
+const RELOCATING_SWAP_STRATEGIES: ReadonlySet<string> = new Set<string>([
+	'AUTO_FIX_MOVE_BLOCKING',
+	'AUTO_FIX_MOVE_SOURCE',
+]);
+
+/**
  * The plain-language message for a committed swap, or `null` only if the input
  * cannot yield even the unnamed sentence (which cannot happen for a committed
  * swap — the service has already proven both entries exist).
@@ -101,8 +113,22 @@ export function describeSwapCommitMessage(input: SwapCommitMessageInput): string
 
 	// An auto-fix relocates exactly one class beyond the exchange
 	// (`getRelocatedClassCount` in the accepted client layer agrees). Both
-	// strategies relocate one, so the clause is the same either way.
-	const relocation = input.strategy && input.strategy !== 'DIRECT_SWAP'
+	// auto-fix strategies relocate one, so the clause is the same either way.
+	//
+	// A2-TIMETABLE-CUSTODY (Part 2): this guard used to be EXCLUSION-based — it
+	// tested only that the value was NOT the direct-swap member, so ANY value that
+	// was merely something else, including an unrecognised one, earned the
+	// relocation claim. Paired with a route that passed `strategy` through
+	// unvalidated, an unknown value committed as a plain swap (nothing was
+	// relocated) and then published a message asserting that one of the sessions
+	// had been. The claim is now made on a POSITIVE allowlist of the two
+	// strategies that actually relocate, so the branch cannot be entered by
+	// omission, and an unrecognised value now claims nothing — which is the honest
+	// answer, since the service is the only thing that knows whether anything
+	// moved. The route refuses an unknown value outright (`manual-edit.router.ts`,
+	// `INVALID_STRATEGY`); this narrowing means even a caller that reaches the
+	// message with an unvalidated value cannot publish a false claim.
+	const relocation = input.strategy && RELOCATING_SWAP_STRATEGIES.has(input.strategy)
 		? ' One of them was also relocated to a different time.'
 		: '';
 
