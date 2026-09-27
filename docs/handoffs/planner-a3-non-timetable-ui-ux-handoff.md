@@ -542,6 +542,35 @@ DOM-dependent F30/F22/F23 tests green, then complete the handoff's earlier steps
 set with fail-on-base / pass-on-candidate proof, junction removal, one commit, one fresh
 independent QA on the correction commit only, then browser B4 and the still-unperformed B5).
 
+### 2026-09-27 addendum — direction 1 (await interleaving) is DISPROVEN; worktree restored
+
+Tested the "second top-level-await phase" hypothesis by moving the four new dynamic imports out
+of the appended block and co-locating them inside the **single existing** await phase, right
+after `@/components/timetable/simple/SimpleBeneficiaryControls`, preserving post-JSDOM ordering.
+**The RangeError persists unchanged.** Hypothesis disproven; reverted, so the worktree again
+holds the executor's original (60874 bytes, no BOM, `U+FFFD` 0, 5 dirty files).
+
+What this eliminates and what it leaves:
+
+- **Eliminated:** the await-phase interleaving theory. The four imports co-located with the
+  seventeen originals still crash the module, so "a second await phase" is not the variable.
+- **Still true:** base passes; the line-20 import change passes; the four imports **alone** do
+  not crash; only the appended block does. Since the imports are now ruled out as the cause in
+  both positions tried (alone, and co-located), the cause lies in the **appended C2 control
+  bodies and the `TeachingLoadReviewHost` component definition**, which remain unbisected.
+- **Also still true:** static imports are a dead end (hoisting breaks F30/F22/F23), and
+  top-level `await import` is mandatory to keep "imported after globals" semantics.
+
+**Remaining paths, in order:** (2) register the C2 controls through `node:test`'s programmatic
+`run()` from inside an existing test, so the modules load after globals with **no** new top-level
+await; or (3) move the C2 controls into their own test file with its own JSDOM setup, registered
+in `package.json` (§11) — cleanest isolation, one more script entry. **Bisect the appended
+bodies next**, in halves, using `git checkout` + the Edit tool and **absolute-path** backups
+outside the worktree.
+
+**Live runtime unchanged:** `c5a9e832`, 5001 **200**. Nothing committed; both corrections remain
+uncommitted but intact.
+
 Three streams, three worktrees, one writer each, all under `E:/ATLAS-worktrees/lane-a3-*` from base `3cfe79a8`. Consolidated pairs preserved: 13+18, 14+16, 17+23, 25+26, 33A+33B.
 
 **S1 - Sections and room map** (`work/a3-sections-map`): fixes 03, 06, 07, 10, 11, 12; 08 held.
