@@ -727,6 +727,85 @@ remains the planner's auto-union job.
 remaining component suspects, using the instrumented RSS/heap sampling method the last step
 already proved works. Not a gate-green claim, not QA, not browser.
 
+### 2026-09-27 addendum 5 — root cause found, gate GREEN, QA `CORRECTION_REQUIRED` then corrected at `97ee76e9`
+
+**The memory fault was NOT a product defect.** Executor `ses_f1f6a9c05ffeWt922wx5RXiffN` bisected
+it by composition: all five scenarios clean (worst case 342 MiB with three roots and two clicks,
+**both dialogs opening correctly**). `assert.equal` from `node:assert/strict` **is**
+`strictEqual`, whose failure path runs `myersDiff` over `util.inspect` of *both* operands — so
+handing it a live attached Radix dialog subtree instead of `null` makes the diff unbounded. The
+real defect underneath was a **genuine isolation gap**: `render()` appends to the shared
+`document.body` and unmounted only in `afterEach`, so iteration 2's precondition *correctly*
+failed on iteration 1's still-mounted dialog. Fix `52b8da25` realises the isolation the loop
+comment already claimed: a per-iteration `teardown()`, plus a precondition asserted on a
+**boolean** so it can only fail with a readable `false !== true` naming the stray element. Gate
+went 35/34 to **35/35, exit 0**, peak RSS 868 MiB, with a discriminating negative control (teardown
+removed → fails in 131 ms and prints a message the old form could never produce).
+
+**Failing-first proof, executor `ses_f1f5f5eebffeeSaVQDSl9sC0WM`: C2-1 and C2-2 each FAIL on base
+`d9575e83` and PASS on the candidate**; all 33 sibling controls pass on both. `lineHeight` is
+covered after all — **four** controls in `a3-sections-map-layout.test.ts` under
+`test:a3-sections-map` (base 16/20 with the four live symptoms verbatim, including
+`"G7 Room 203"` rendering as `"G7 Room."`; candidate 20/20). Restore proven: `git status --short`
+empty, `git diff --quiet` exit 0, all three blobs `git hash-object`-matched.
+
+**Fresh QA `ses_f1f5aac59ffeverXxPOh9j8oVT` → `CORRECTION_REQUIRED`, 25/26 passed, 0 blocked,
+1 unperformed.** It re-derived the Konva semantics against konva **10.2.3**
+(`Text.js:102/306/401` `lineHeightPx = lineHeight() * fontSize`; `:455` default 1) and reproduced
+all four base failures verbatim, and it **independently reproduced the memory fault to the same
+`RangeError` at 16.74 GiB / 52.6 s** on a 55,987-node graph while `strictEqual(bool, true)` stayed
+flat — so it is a diff-blow-up, not a product fault, and the boolean form is a **strengthening**
+(identical proposition, primitive operands, richer message).
+
+**B1 — the one blocking finding, and the suites had masked it:** `npm run typecheck` failed on
+the range's own new test file. `a3-teaching-load-review-c2.test.tsx:222` passed
+`{ subjectId: 1, weeklyHours: 4 }`, but `FacultyAssignmentDraft` never had `weeklyHours` and
+requires `gradeLevels`/`sectionIds`. **A green test suite is not a green typecheck** — `tsx` does
+not typecheck. Corrected at `97ee76e9` to `{ subjectId: 1, sectionIds: [1], gradeLevels: [7] }`;
+the hook reads only `.length` (lines 60/74/131), so behaviour is unchanged. Planner-verified:
+typecheck errors **5 → 4**, the a3 file gone, and all 4 remaining proven **outside** the 7-path
+diff and environmental (playwright **ABSENT** from the donor `node_modules`; 3× TS2307 + 1
+cascading TS7006). `test:a3-teachers-load` **35/35** and `test:a3-sections-map` **20/20**, exit 0.
+Blast radius of the correction is **one file**; the other six paths are byte-identical to the
+QA-reviewed candidate and all four prior commits remain ancestors (§11 bounded-correction rule).
+
+### 2026-09-27 addendum 6 — source cycle CLOSED and accepted; two carry-forward facts
+
+**Accepted.** Range `d9575e83..97ee76e9`, 4 commits, 7 paths. QA's one `UNPERFORMED` row is the
+**live-browser reproduction**, which QA correctly labelled a deployment/browser-acceptance clause
+rather than a source row (§11) — it belongs to the release acceptance owner, not to this cycle.
+
+**FACT 1 — the live release still carries the defect.** `git diff c5a9e832 d9575e83` on both
+production files is **empty**: the base carries the live bytes exactly, and live `c5a9e832` still
+has all six `lineHeight={ROOM_LINE_H}`. The 143-unit pitch and the dead `Review teachers` banner
+are **live right now**. This fix is **undeployed source**.
+
+**FACT 2 — the C2 controls have a real coverage gap.** Three concrete edits would pass **both**
+controls and ship a dead labelled button again: (a) a **third** page control labelled
+`Review teachers` with any other binding (C2-2 only counts opener occurrences `=== 2`; C2-1 never
+sees the page); (b) `TeachingLoadModals` ceasing to forward `open` to `ReviewTeachersModal`;
+(c) a scope-reset effect closing the review dialog. **No test in the repo renders the real
+`TeachingLoad` page** — composed hosts plus source-text pinning is the established pattern, and
+QA verified the product chain correct by direct reading. The fix is right; the *proof* has a gap.
+Follow-up: a page-level render control.
+
+**Other accepted residuals (all NON_BLOCKING, QA-adjudicated):** the 43-byte CRLF delta on
+`teacherReviewEntry.ts` (`hash-object` `93c39a59…` = candidate blob exactly; the CRLF form is what
+keeps `git status --short` empty, §10.9); C2-2's whole-file `doesNotMatch` (~41 KB bounded and
+node-truncated on failure — five orders of magnitude from the 16.74 GiB fault); the bottom bar
+now also calls `setViewMode('teacher')`, a behaviour change beyond the minimum fix that **no
+control pins**; and my own diffstat in addendum 4 was wrong (actual **+812/−10**, not +756/−10).
+`git stash list` performed by QA: 3 entries, all unrelated branches, **zero A3 residue**.
+
+**Integration is clean and ready, not yet done.** `origin/main` has advanced **12 commits** to
+`c7428d76` since `d9575e83` and touches **none** of the 7 paths, so the merge is a clean
+auto-union. Integration + push to `main` is the next action; it needs no HIGH approval (§: ordinary
+accepted work). **Not done and still blocked, both dated 2026-09-27:** browser **B4** and the
+never-performed **B5** (the load-bearing swap-Cancel zero-change control) both need a **deployed**
+build, and this correction is undeployed — so they sit behind a HIGH deployment decision that is
+**not granted**. No deployment, migration, generation, publication, or live-data action was taken.
+Live remains `c5a9e832`, 5001/5174 on 43192/43744.
+
 Three streams, three worktrees, one writer each, all under `E:/ATLAS-worktrees/lane-a3-*` from base `3cfe79a8`. Consolidated pairs preserved: 13+18, 14+16, 17+23, 25+26, 33A+33B.
 
 **S1 - Sections and room map** (`work/a3-sections-map`): fixes 03, 06, 07, 10, 11, 12; 08 held.
