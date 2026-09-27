@@ -265,7 +265,16 @@ test('UX-R03e setup row 2: header menu and pane share one refresh implementation
 	assert.match(shared, /data-testid="timetable-refresh-setup-names"/);
 	const menu = source('src/components/timetable/simple/SimpleMoreMenuContent.tsx');
 	assert.match(menu, /<RefreshSetupNamesButton/);
-	assert.match(menu, /onRefreshNames=\{\(\) => \{ onClose\(\); context\.refreshReferenceLabels\(\); \}\}/);
+	assert.match(menu, /onRefreshNames=\{\(\) => \{[\s\S]{0,160}?onClose\(\);[\s\S]{0,160}?context\.refreshReferenceLabels\(\);[\s\S]{0,160}?\}/);
+	// A2-UX-MENU-C2 (row 46): the menu still closes and still calls the one shared
+	// refresh; it now ALSO reports that it did, so the header can show a visible
+	// cue. The intent of this row — one refresh implementation, reached from both
+	// the menu and the pane — is unchanged; only the call gained a third line.
+	assert.match(
+		menu,
+		/onRefreshNames=\{\(\) => \{[\s\S]{0,240}?onSchoolNamesRefreshed\?\.\(\);[\s\S]{0,40}?\}\}/,
+		'the menu entry acknowledges the refresh to the header',
+	);
 	// The inline refresh button is gone from the menu: the testid lives in the
 	// shared module now, and the menu keeps its refresh entry point.
 	assert.doesNotMatch(menu, /timetable-refresh-setup-names/);

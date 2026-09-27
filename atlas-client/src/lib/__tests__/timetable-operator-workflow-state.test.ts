@@ -480,15 +480,34 @@ test('TTX-06 empty entity selector is disabled with a reason', () => {
 });
 
 test('TTX-07 tutorial reports an unavailable target instead of a silent no-op', () => {
+	// A2-UX-MENU-C2: the tutorial moved to its own module so
+	// `SimpleHeaderHelpers` stays inside the 1000-line component budget, and it is
+	// re-exported from there. The intent of this row — the tutorial SAYS when it
+	// cannot point at its target, instead of doing nothing quietly — is unchanged
+	// and now also covers the "Show me" resolution, which walks the step's
+	// alternate target face before giving up.
+	const tutorial = source('src/components/timetable/simple/SimpleTutorial.tsx');
+	assert.match(tutorial, /timetable-simple-tutorial-unavailable/);
+	assert.match(tutorial, /if \(!target\)/);
+	assert.match(tutorial, /is not on this page/, 'the message says plainly that the control is absent');
+	assert.match(
+		tutorial,
+		/\[step\.targetTestId, step\.altTargetTestId\]/,
+		'both faces of a control are tried before the step is called unavailable',
+	);
+	// The header still re-exports it, so every existing importer is unchanged.
 	const helpers = source('src/components/timetable/simple/SimpleHeaderHelpers.tsx');
-	assert.match(helpers, /timetable-simple-tutorial-unavailable/);
-	assert.match(helpers, /if \(!target\)/);
+	assert.match(helpers, /export \{ SimpleTutorialControl, simpleTutorialSteps \} from/);
 });
 
 test('TTX-08 tutorial trigger has an accessible name and 44px mobile target', () => {
+	// Same move as TTX-07: the trigger now lives in the tutorial module, and the
+	// accessible name and the 44px touch target are asserted there. The
+	// schedule-sheet trigger it also pins is still in the header helpers.
+	const tutorial = source('src/components/timetable/simple/SimpleTutorial.tsx');
+	assert.match(tutorial, /aria-label="Open timetable tutorial"/);
+	assert.match(tutorial, /min-h-11/);
 	const helpers = source('src/components/timetable/simple/SimpleHeaderHelpers.tsx');
-	assert.match(helpers, /aria-label="Open timetable tutorial"/);
-	assert.match(helpers, /min-h-11/);
 	assert.match(
 		helpers,
 		/data-testid="timetable-simple-schedule-sheet-trigger"[\s\S]{0,80}min-h-11 min-w-11|min-h-11 min-w-11[\s\S]{0,200}data-testid="timetable-simple-schedule-sheet-trigger"/,
