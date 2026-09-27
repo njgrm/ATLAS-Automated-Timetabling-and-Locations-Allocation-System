@@ -631,6 +631,35 @@ export function buildUnassignedBySubjectGrade(unassignedItems: UnassignedItem[],
 	return [...agg.values()].sort((left, right) => right.count - left.count || left.gradeLevel - right.gradeLevel || left.subjectCode.localeCompare(right.subjectCode));
 }
 
+/**
+ * A2-UX-SERVER-C2 (U4) — the operator-facing completion sentence.
+ *
+ * Pure: it takes the count the caller ALREADY computed and formats it. It never
+ * recomputes, clamps, or substitutes a number, so the figure on screen is the
+ * figure the server measured.
+ *
+ * The three arms exist so the zero claim can only be made from a real zero:
+ *   - a finite zero says "All classes placed";
+ *   - a finite positive count names that many classes still needing a time slot;
+ *   - anything not finite (absent, NaN, Infinity) or negative says only that
+ *     the schedule is ready. An unmeasured count is never announced as 0, which
+ *     would be the worst possible lie: a scheduler reading "All classes placed"
+ *     stops looking for the classes that have no slot.
+ *
+ * One noun ("class") and one verb form. No run id, no "session(s)", no
+ * "unassigned" — the operator noun is the client noun.
+ */
+export function buildGenerationCompletedMessage(unplacedCount: number): string {
+	if (!Number.isFinite(unplacedCount) || unplacedCount < 0) {
+		return 'New schedule ready.';
+	}
+	if (unplacedCount === 0) {
+		return 'New schedule ready. All classes placed.';
+	}
+	const plural = unplacedCount === 1;
+	return `New schedule ready. ${unplacedCount} ${plural ? 'class still needs' : 'classes still need'} a time slot.`;
+}
+
 // ─── Trigger ───
 
 export async function triggerGenerationRun(
@@ -762,23 +791,23 @@ export async function triggerGenerationRun(
 		where: { id: run.id },
 		data: { status: 'RUNNING', startedAt },
 	});
-	publishNotificationEvent({
-		type: 'GENERATION_RUN_STARTED',
-		domain: 'generation',
-		severity: 'info',
-		audience: 'PRIVILEGED',
-		schoolId,
-		schoolYearId,
-		facultyId: null,
-		message: `Generation run #${run.id} started.`,
-		metadata: {
-			runId: run.id,
-			actorId,
-			roomerStrategy: options?.roomerStrategy ?? 'HOME_ROOM_FIRST',
-			gateOverrideUsed: Boolean(options?.ignoreRoomRequestGate),
-			shiftWindowPolicy: options?.enforceShiftWindows === true ? 'ENFORCED' : 'DISABLED',
-		},
-	});
+	// A2-UX-SERVER-C2 (#58) — the in-flight `GENERATION_RUN_STARTED` publish is
+	// GONE. It was a user-facing notification row, not an internal log or event:
+	// `publishNotificationEvent` (notification-events.service.ts:107) buffers the
+	// event, fans it to every SSE subscriber, and hands it to the durable inbox
+	// listener, which writes one `prisma.notification` row per recipient with
+	// `title = event.message` (notification-inbox.service.ts:290,315). The
+	// client then toasted it globally — `generation` is in
+	// `GLOBAL_TOAST_DOMAINS` (useNotificationStream.ts:30) and the type is in
+	// `NOTIFICATION_EVENT_TYPES` (:34), so severity `info` took the
+	// `toast.info` default arm (:96). One generation therefore produced a
+	// started toast, a client loading toast, and a completed toast.
+	//
+	// Only the DUPLICATE in-flight row is removed. The run's `QUEUED` ->
+	// `RUNNING` transition, `startedAt`, and the whole completion/failure
+	// lifecycle are untouched, and the completion notification — the one that
+	// says the work is ready — still ships. A client allowlist entry naming this
+	// type is now inert; the client half is not this file's concern.
 
 	let stage = 'init';
 	try {
@@ -1073,7 +1102,16 @@ export async function triggerGenerationRun(
 			// population, which is the truthful fix: the two numbers measure
 			// different things and reconciling them would have made one of them a
 			// lie.
-			message: `Generation run #${run.id} completed with ${summary.unassignedCount} session(s) this run could not place.`,
+			//
+			// A2-UX-SERVER-C2 (U4): the engine-facing sentence becomes plain
+			// language. It printed "Generation run #N completed with N
+			// session(s) this run could not place" — a run id and a plural
+			// placeholder a scheduler has to decode. The count itself is NOT
+			// re-derived: `buildGenerationCompletedMessage` receives the same
+			// `summary.unassignedCount` the metadata and the persisted summary
+			// already carry, so the number on screen is the number the server
+			// computed. The noun is "class" to match the client.
+			message: buildGenerationCompletedMessage(summary.unassignedCount),
 			metadata: {
 				runId: run.id,
 				durationMs,
