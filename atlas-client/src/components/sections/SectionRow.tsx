@@ -4,6 +4,7 @@ import {
 	ClipboardList,
 	Home,
 	AlertTriangle,
+	Map as MapIcon,
 } from 'lucide-react';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
@@ -16,6 +17,7 @@ import {
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip';
 import { Link } from 'react-router-dom';
 import { SectionRoomPicker, type RoomOption } from './SectionRoomPicker';
+import { resolveHomeRoom } from './home-room-readiness';
 import { gradeCompact } from '@/lib/deped-glossary';
 import type { ExternalSection } from '@/types';
 
@@ -62,6 +64,8 @@ interface SectionRowProps {
 	isSaving: boolean;
 	onHomeRoomChange: (section: SectionDetail, value: number | null) => void;
 	onShowDetails: (section: SectionDetail) => void;
+	/** A3 C4: opens the existing room map scoped to THIS section. */
+	onShowRoomMap: (section: SectionDetail) => void;
 	schoolId: number;
 	roomOccupancy?: Map<number, string>;
 }
@@ -73,6 +77,7 @@ export function SectionRow({
 	isSaving,
 	onHomeRoomChange,
 	onShowDetails,
+	onShowRoomMap,
 	schoolId,
 	roomOccupancy,
 }: SectionRowProps) {
@@ -82,7 +87,12 @@ export function SectionRow({
 	// Phase 0C.2 / Decision 5: compact grade label is GR{grade}, never G{grade}.
 	const gradeMatch = section.gradeLevelName.match(/\d+/);
 	const gradeLabel = gradeMatch ? gradeCompact(Number(gradeMatch[0])) : section.gradeLevelName;
-	const selectedRoom = homeRoomOptions.find((room) => room.id === section.homeRoomId);
+	// A3 C4 (defect A): the one shared definition of "this section has a home
+	// room". The page's stat tile counts with the same predicate, so the tile
+	// can no longer claim a section is assigned while this row says it needs one.
+	// It is `null` both when there is no id and when the id names no room in the
+	// current options — the same truth to the operator in either case.
+	const selectedRoom = resolveHomeRoom(section, homeRoomOptions);
 
 	return (
 		<tr className="border-b last:border-0 hover:bg-muted/30 transition-colors group">
@@ -190,6 +200,31 @@ export function SectionRow({
 						The kebab is the only icon; the section-name button above
 						acts as the primary "View" entry point and carries a visible
 						Tooltip ("View section details"). */}
+					{/* A3 C4 (top-10 #3): the map is now one visible click away instead
+						of two clicks deep inside the home-room dropdown. It sits here,
+						beside the kebab, deliberately: this cell is `text-right` with
+						`items` already 32px tall, so the control adds ZERO vertical
+						height to a row on a page graded for density at 1366x768. It is a
+						labelled icon button (real aria-label naming the section +
+						Tooltip), never a bare icon, and it does not touch the kebab or
+						the onHomeRoomChange path. */}
+					<TooltipProvider delayDuration={200}>
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<Button
+									type="button"
+									variant="ghost"
+									size="icon"
+									className="size-8 text-muted-foreground"
+									aria-label={`View room map for ${section.name}`}
+									onClick={() => onShowRoomMap(section)}
+								>
+									<MapIcon className="size-4" aria-hidden="true" />
+								</Button>
+							</TooltipTrigger>
+							<TooltipContent side="left">View room map</TooltipContent>
+						</Tooltip>
+					</TooltipProvider>
 					<DropdownMenu>
 						<DropdownMenuTrigger asChild>
 							<Button variant="ghost" size="icon" className="size-8 text-muted-foreground" aria-label={`More actions for ${section.name}`}>

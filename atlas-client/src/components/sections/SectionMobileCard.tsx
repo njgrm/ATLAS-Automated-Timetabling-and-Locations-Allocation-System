@@ -1,8 +1,10 @@
 import { Link } from 'react-router-dom';
-import { AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Map as MapIcon } from 'lucide-react';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip';
 import { SectionRoomPicker, type RoomOption as HomeRoomOption } from '@/components/sections/SectionRoomPicker';
+import { resolveHomeRoom } from '@/components/sections/home-room-readiness';
 import { cn } from '@/lib/utils';
 import { gradeCompact } from '@/lib/deped-glossary';
 import type { Room } from '@/types';
@@ -29,12 +31,17 @@ type Props = {
 	roomOccupancy: Map<number, string>;
 	onHomeRoomChange: (section: SectionDetail, roomId: number | null) => void;
 	onShowDetails: (section: SectionDetail) => void;
+	/** A3 C4: opens the existing room map scoped to THIS section. */
+	onShowRoomMap: (section: SectionDetail) => void;
 };
 
-export function SectionMobileCard({ section, homeRoomOptions, isReadOnly, isSaving, schoolId, roomOccupancy, onHomeRoomChange, onShowDetails }: Props) {
+export function SectionMobileCard({ section, homeRoomOptions, isReadOnly, isSaving, schoolId, roomOccupancy, onHomeRoomChange, onShowDetails, onShowRoomMap }: Props) {
 	const fill = section.maxCapacity > 0 ? Math.round((section.enrolledCount / section.maxCapacity) * 100) : 0;
 	const gKey = gradeKey(section.gradeLevelName);
-	const selectedRoom = homeRoomOptions.find((room) => room.id === section.homeRoomId);
+	// A3 C4 (defect A): the same shared predicate the desktop row and the stat
+	// tile use, so the mobile card cannot say "Needs room" for a section the
+	// counter is calling assigned.
+	const selectedRoom = resolveHomeRoom(section, homeRoomOptions);
 	const fillTone = fill >= 95
 		? 'border-slate-800 bg-slate-800 text-white'
 		: fill >= 85
@@ -102,6 +109,29 @@ export function SectionMobileCard({ section, homeRoomOptions, isReadOnly, isSavi
 				<Button type="button" size="sm" variant="outline" className="h-11 flex-1 font-bold" onClick={() => onShowDetails(section)}>
 					View details
 				</Button>
+				{/* A3 C4 (top-10 #3): the same visible map entry point the desktop
+					row has, so the capability is not desktop-only. Third action in
+					the existing `flex-wrap` row. It is a full-width-class button
+					with real text — no icon-only control, so the label is visible at
+					any width and needs no tooltip to be understood. */}
+				<TooltipProvider delayDuration={200}>
+					<Tooltip>
+						<TooltipTrigger asChild>
+							<Button
+								type="button"
+								size="sm"
+								variant="outline"
+								className="h-11 flex-1 font-bold"
+								aria-label={`View room map for ${section.name}`}
+								onClick={() => onShowRoomMap(section)}
+							>
+								<MapIcon className="size-4" aria-hidden="true" />
+								Room map
+							</Button>
+						</TooltipTrigger>
+						<TooltipContent>Pick a home room on the interactive map</TooltipContent>
+					</Tooltip>
+				</TooltipProvider>
 				<Button asChild size="sm" className="h-11 flex-1 font-bold">
 					<Link to={`/teaching-load?sectionId=${section.id}`}>Teaching Load</Link>
 				</Button>

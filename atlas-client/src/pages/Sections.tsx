@@ -50,6 +50,11 @@ import { SectionRoomMapModal } from '@/components/sections/SectionRoomMapModal';
 import { HomeRoomAutoAssignDialog } from '@/components/sections/HomeRoomAutoAssignDialog';
 import { SectionsHomeRoomActions } from '@/components/sections/SectionsHomeRoomActions';
 import { SectionMobileCard } from '@/components/sections/SectionMobileCard';
+import {
+	isHomeRoomResolved,
+	resolveHomeRoom,
+	summarizeHomeRoomReadiness,
+} from '@/components/sections/home-room-readiness';
 import { SectionsFilterToolbar } from '@/components/sections/SectionsFilterToolbar';
 import {
 	persistHomeRoomAssignment,
@@ -171,6 +176,14 @@ export default function Sections() {
 	const [showFilters, setShowFilters] = useState(false);
 	const [pendingAssignment, setPendingAssignment] = useState<PendingAssignment | null>(null);
 	const [globalBrowseModalOpen, setGlobalBrowseModalOpen] = useState(false);
+	// A3 C4 (top-10 #3): the room map was only reachable by opening a row's
+	// home-room dropdown and choosing "Browse Interactive Map" — two clicks
+	// deep, so the map read as absent. Each row now carries a visible,
+	// labelled control that opens the SAME `SectionRoomMapModal` for that row's
+	// section. `null` means closed; a section means "open for this section".
+	// Distinct from `globalBrowseModalOpen`, which stays the school-wide
+	// browse surface and keeps its own sectionId={0} / currentRoomId={null}.
+	const [mapTarget, setMapTarget] = useState<SectionDetail | null>(null);
 	const [autoAssignOpen, setAutoAssignOpen] = useState(false);
 	const [buildings, setBuildings] = useState<Building[]>([]);
 
@@ -188,6 +201,7 @@ export default function Sections() {
 		setActiveSchoolYearId(null);
 		setDetailTarget(null);
 		setGlobalBrowseModalOpen(false);
+		setMapTarget(null);
 		setAutoAssignOpen(false);
 	}, [actorSchoolId]);
 
@@ -580,10 +594,28 @@ export default function Sections() {
 
 	useEffect(() => { setPage(1); }, [searchQuery, gradeFilter, programFilter, pageSize]);
 
-	const { paged, totalFiltered, totalPages, assignedCount } = useMemo(() => {
-		if (state.status !== 'ok') return { paged: [], totalFiltered: 0, totalPages: 1, assignedCount: 0 };
+	const { paged, totalFiltered, totalPages, homeRoomReadiness } = useMemo(() => {
+		if (state.status !== 'ok') {
+			return {
+				paged: [] as SectionDetail[],
+				totalFiltered: 0,
+				totalPages: 1,
+				homeRoomReadiness: summarizeHomeRoomReadiness([], []),
+			};
+		}
+		// A3 C4 (defect A): the counter asks the SAME question the row asks, via
+		// the one shared predicate. It used to ask only whether an id was present
+		// (the section's homeRoomId coerced straight to a boolean), which counted
+		// a stale/deleted id as assigned and so printed "HOME ROOMS 20/20" beside
+		// five rows reading "Needs home room".
+		//
+		// It is computed over the UNFILTERED list, before any search/grade/
+		// program/home-room filter runs, because the start-here banner and the
+		// stat tile describe the whole roster. Narrowing the counter to the
+		// visible page would have been the same class of fabrication one level
+		// down: the banner would claim to cover 20 sections while counting 25.
+		const ac = summarizeHomeRoomReadiness(state.data.sections, homeRoomOptions);
 		let list = state.data.sections;
-		const ac = list.filter(s => !!s.homeRoomId).length;
 
 		if (searchQuery.trim()) {
 			const q = searchQuery.toLowerCase();
@@ -594,8 +626,13 @@ export default function Sections() {
 			if (programFilter === 'REGULAR') list = list.filter((s) => !s.isSpecialProgram);
 			else list = list.filter((s) => s.programType === programFilter);
 		}
-		if (homeRoomFilter === 'missing') list = list.filter((section) => !section.homeRoomId);
-		if (homeRoomFilter === 'assigned') list = list.filter((section) => Boolean(section.homeRoomId));
+		// The filter asks the shared question too, or "Assigned" would show a
+		// row that the row below then calls unresolved — the toolbar's copy of
+		// the same defect. `!isHomeRoomResolved` is a strict superset of
+		// `!homeRoomId`, so "missing" only ever GAINS dangling-id rows and
+		// never drops one it used to show.
+		if (homeRoomFilter === 'missing') list = list.filter((section) => !isHomeRoomResolved(section, homeRoomOptions));
+		if (homeRoomFilter === 'assigned') list = list.filter((section) => isHomeRoomResolved(section, homeRoomOptions));
 
 		const sorted = [...list].sort((a, b) => {
 			let cmp = 0;
@@ -617,13 +654,14 @@ export default function Sections() {
 		const tf = sorted.length;
 		const tp = Math.max(1, Math.ceil(tf / pageSize));
 		const start = (page - 1) * pageSize;
-		return { paged: sorted.slice(start, start + pageSize), totalFiltered: tf, totalPages: tp, assignedCount: ac };
-	}, [state, searchQuery, gradeFilter, programFilter, homeRoomFilter, sortField, sortDir, page, pageSize]);
+		return { paged: sorted.slice(start, start + pageSize), totalFiltered: tf, totalPages: tp, homeRoomReadiness: ac };
+	}, [state, searchQuery, gradeFilter, programFilter, homeRoomFilter, sortField, sortDir, page, pageSize, homeRoomOptions]);
 
 	const hasActiveFilters = gradeFilter !== 'all' || searchQuery.trim() !== '' || programFilter !== 'all' || homeRoomFilter !== 'all';
 	// Phase 1.1: top-level "sections needing rooms" count for the start-here
-	// banner above the table. Mirrors the same value used inside sectionStats.
-	const sectionsNeedingRooms = state.status === 'ok' ? Math.max(0, state.data.totalSections - assignedCount) : 0;
+	// banner above the table. Same value, same predicate, same population as
+	// the stat tile — one source, so the banner and the tile cannot disagree.
+	const sectionsNeedingRooms = state.status === 'ok' ? homeRoomReadiness.needing : 0;
 
 	const buildingOccupancy = useMemo(() => {
 		const map = new Map<number, number>();
@@ -733,19 +771,30 @@ export default function Sections() {
 			];
 		}
 
-		const assignmentPct = state.data.totalSections > 0 ? Math.round((assignedCount / state.data.totalSections) * 100) : 0;
-		const sectionsNeedingRooms = Math.max(0, state.data.totalSections - assignedCount);
+		// A3 C4 (defect A): BOTH ends of the fraction now come from the list
+		// that is actually rendered. It used to divide a count computed over the
+		// client array by the SERVER's declared section total. The two agree today
+		// only because the server happens to derive one from the other
+		// (atlas-server/src/services/section.service.ts:413 sets
+		// `totalSections: sections.length`), which is another service's
+		// implementation detail, not a client invariant. A fraction across two
+		// populations is a fabrication the moment they diverge, and the sibling
+		// "Sections" tile would have shown the server's number beside the
+		// client's — e.g. "20" next to "18/19".
+		const { assigned, total, needing, assignmentPct } = homeRoomReadiness;
 		return [
-			{ label: 'Sections', value: state.data.totalSections, tone: 'brand' as const, helpText: 'Total section rosters available for the active school year.' },
+			{ label: 'Sections', value: total, tone: 'brand' as const, helpText: 'Total section rosters available for the active school year.' },
 			{
-				label: sectionsNeedingRooms === 0 ? 'Home rooms' : 'Need rooms',
-				value: sectionsNeedingRooms === 0 ? `${assignedCount}/${state.data.totalSections}` : sectionsNeedingRooms,
-				tone: sectionsNeedingRooms === 0 ? 'success' as const : 'warning' as const,
-				helpText: sectionsNeedingRooms === 0 ? `${assignmentPct}% of sections already have a home room.` : 'Assign these sections before schedule generation.',
+				label: needing === 0 ? 'Home rooms' : 'Need rooms',
+				value: needing === 0 ? `${assigned}/${total}` : needing,
+				tone: needing === 0 ? 'success' as const : 'warning' as const,
+				helpText: needing === 0
+					? `${assignmentPct}% of sections already have a home room.`
+					: 'Assign these sections before schedule generation. A section counts as needing a room until its home room resolves to a room you can be shown.',
 			},
 			...(queuedHomeRoomEdits.length > 0 ? [{ label: 'Queued', value: queuedHomeRoomEdits.length, tone: 'info' as const, helpText: 'Home-room changes saved locally and waiting to sync.' }] : []),
 		];
-	}, [assignedCount, queuedHomeRoomEdits.length, state]);
+	}, [homeRoomReadiness, queuedHomeRoomEdits.length, state.status]);
 
 	const homeRoomEditStatus = useMemo(
 		() => deriveHomeRoomEditStatus({
@@ -889,7 +938,7 @@ export default function Sections() {
 									/>
 								</div>
 							) : scopedSchoolId == null ? null : (
-								paged.map((section) => <SectionMobileCard key={section.id} section={section} homeRoomOptions={homeRoomOptions} isReadOnly={isReadOnlyMode} isSaving={savingMirrorId === section.id} schoolId={scopedSchoolId} roomOccupancy={roomOccupancyMap} onHomeRoomChange={handleHomeRoomChange} onShowDetails={(s) => setDetailTarget(s)} />)
+								paged.map((section) => <SectionMobileCard key={section.id} section={section} homeRoomOptions={homeRoomOptions} isReadOnly={isReadOnlyMode} isSaving={savingMirrorId === section.id} schoolId={scopedSchoolId} roomOccupancy={roomOccupancyMap} onHomeRoomChange={handleHomeRoomChange} onShowDetails={(s) => setDetailTarget(s)} onShowRoomMap={(s) => setMapTarget(s)} />)
 							)}
 						</div>
 						<table className="hidden w-full text-sm md:table">
@@ -921,37 +970,69 @@ export default function Sections() {
 									<tr><td colSpan={7} className="px-4 py-20 text-center text-sm text-muted-foreground">Waiting for your school scope…</td></tr>
 								) : (
 									paged.map((s) => (
-										<SectionRow key={s.id} section={s} homeRoomOptions={homeRoomOptions} isReadOnly={isReadOnlyMode} isSaving={savingMirrorId === s.id} onHomeRoomChange={handleHomeRoomChange} onShowDetails={(section) => setDetailTarget(section)} schoolId={scopedSchoolId} roomOccupancy={roomOccupancyMap} />
+										<SectionRow key={s.id} section={s} homeRoomOptions={homeRoomOptions} isReadOnly={isReadOnlyMode} isSaving={savingMirrorId === s.id} onHomeRoomChange={handleHomeRoomChange} onShowDetails={(section) => setDetailTarget(section)} onShowRoomMap={(section) => setMapTarget(section)} schoolId={scopedSchoolId} roomOccupancy={roomOccupancyMap} />
 									))
 								)}
 							</tbody>
 						</table>
 			</AdminTableShell>
 
+			{/* A3 C4: routed through the shared resolver rather than a private
+				optional-chain-then-lookup of its own. Same answer today — null
+				when the id does not resolve — but now it cannot drift from the
+				row if the definition of "resolves" ever changes. */}
 			<SectionDetailsSheet
 				sectionId={detailTarget?.id ?? null}
 				sectionName={detailTarget?.name ?? null}
 				section={detailTarget}
-				homeRoom={detailTarget?.homeRoomId ? homeRoomOptions.find((room) => room.id === detailTarget.homeRoomId) ?? null : null}
+				homeRoom={detailTarget ? resolveHomeRoom(detailTarget, homeRoomOptions) : null}
 				schoolYearId={activeSchoolYearId}
 				open={detailTarget !== null}
 				onOpenChange={(open) => !open && setDetailTarget(null)}
 			/>
 
-			{scopedSchoolId != null && (
-				<SectionRoomMapModal
-					open={globalBrowseModalOpen}
-					onOpenChange={setGlobalBrowseModalOpen}
-					sectionName="Global Browse"
-					sectionId={0}
-					currentRoomId={null}
-					onSelect={() => {}}
-					schoolId={scopedSchoolId}
-					roomOccupancy={roomOccupancyMap}
-					roomSectionData={roomSectionDataMap}
-					buildingOccupancy={buildingOccupancy}
-				/>
-			)}
+		{scopedSchoolId != null && (
+			<SectionRoomMapModal
+				open={globalBrowseModalOpen}
+				onOpenChange={setGlobalBrowseModalOpen}
+				sectionName="Global Browse"
+				sectionId={0}
+				currentRoomId={null}
+				onSelect={() => {}}
+				schoolId={scopedSchoolId}
+				roomOccupancy={roomOccupancyMap}
+				roomSectionData={roomSectionDataMap}
+				buildingOccupancy={buildingOccupancy}
+			/>
+		)}
+
+		{/* A3 C4 (top-10 #3): the row's "View room map" control lands here. It
+			reuses the existing modal component and feeds its `onSelect` into the
+			SAME `handleHomeRoomChange` the dropdown uses, so a room picked on the
+			map goes through the identical confirm/queue/swap path and cannot
+			bypass it. Mounted only under a resolved actor school, matching the
+			ACTOR-SCOPE-C01 fail-closed rule the modal itself enforces. */}
+		{scopedSchoolId != null && mapTarget != null && (
+			<SectionRoomMapModal
+				open
+				onOpenChange={(open) => { if (!open) setMapTarget(null); }}
+				sectionName={mapTarget.name}
+				sectionId={mapTarget.id}
+				currentRoomId={mapTarget.homeRoomId ?? null}
+				onSelect={(roomId) => {
+					if (roomId === (mapTarget.homeRoomId ?? null)) {
+						setMapTarget(null);
+						return;
+					}
+					setMapTarget(null);
+					handleHomeRoomChange(mapTarget, roomId);
+				}}
+				schoolId={scopedSchoolId}
+				roomOccupancy={roomOccupancyMap}
+				roomSectionData={roomSectionDataMap}
+				buildingOccupancy={buildingOccupancy}
+			/>
+		)}
 
 		{pendingAssignment && (
 			<HomeRoomConfirmDialogs
