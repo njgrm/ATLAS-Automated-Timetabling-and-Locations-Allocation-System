@@ -251,7 +251,36 @@ resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs
   single Undo surface) and `d1bf04a1` (relocation-allowlist drift row `S6`). Both are **descendants** of
   `9b28c572` and need their own release.
 
-- **▶ LEADING TARGET FOR THE NEXT CUTOVER — `9b28c572`. Recorded 2026-09-27 by Lane A2, AHEAD of the
+- **▶ LEADING TARGET FOR THE NEXT CUTOVER — `c0d91827`. Recorded 2026-09-27 22:3x +08 by Lane A2, AHEAD of the
+  cutover, which is what `Assert-LiveReleaseRecorded` requires. This is the ONLY target authorised to be cut over
+  to next** (the gate tests prefix *presence*, not exclusivity, so `9b28c572` also remains nameable — do not cut
+  over to it, it would revert nothing but would ship less).
+
+  | | |
+  |---|---|
+  | **Target (authorised, leading)** | **`c0d91827311e247ac0f2073a83cc50f5a5efcdb2`** (`origin/main` tip at 2026-09-27 22:2x +08) |
+  | **Target dir** | `E:\ATLAS-worktrees\lane-a2-release-c0d91827` — created clean, both `dist`s built, worktree clean |
+  | **Live now** | `9b28c57291ff6c34f33a434d097753b8ce16b118`, dir `E:\ATLAS-worktrees\lane-a2-release-9b28c572` — verified present, clean, both `dist`s built |
+  | **Rollback basis** | the `9b28c572` dir — **one-step supervised reset** |
+  | **Direction** | **FORWARD.** `merge-base --is-ancestor 9b28c572 c0d91827` exits **0** |
+  | **Delta** | 20 commits, 17 paths, **10 non-docs**: 9 Lane A2 (2 server production, 1 server test, 5 client + 1 client test script entry) + 1 Lane A3 **test-only** (`d9d5def1` via merge `16961054`). No `prisma/`, no schema, no seed, no lockfile |
+  | **Packet** | `docs/prompts/a2-release-c0d91827-2026-09-28.md` |
+  | **Authority** | Overnight operator authorization via Lane C, 2026-09-27 ("go, deploys authorised overnight") + standing authorization 2026-09-20. Approval round-trip waived; **no gate waived** |
+
+  **The previous release's server discriminator is now VACUOUS and is replaced, not reused.**
+  `dist/services/timetable-edit-message.js` exists in the incumbent `9b28c572`, so an "absent from live" assertion
+  is no longer true and would read a false pass. The replacement is `dist/routes/manual-edit.router.js`:
+  `INVALID_STRATEGY` **0 live → 1 new**, `VALID_SWAP_STRATEGIES` **0 → 3**, 11 084 B → 14 667 B. The client fix is a
+  **removal**, so a filename is not a sufficient proof: `timetable-visible-undo` **2 → 1**, `Undo last change`
+  **1 → 0**, chunk `-C4bvatRP` → `-SrCPH0Zz`.
+
+  **D5b baseline captured at the live release, window `2026-09-27T14:12:02.370Z`:** `generation_runs` **9**,
+  `manual_schedule_edits` **8**, `audit_logs` **449** (`max(id)` 1000), `published_schedule_revisions` **6**,
+  `notifications` **216**. **Re-derive at cutover** — the draft is being actively edited by another lane.
+  **D6 baseline captured and identical to expectation:** 09-20→315 `true` · 09-25→317 `true` · 09-26→319 `true` ·
+  09-27/28→320 `false`; **no 409**. Migrations **11 → 11** by the pinned `ls-tree` method.
+
+- **▶ PREVIOUS LEADING TARGET — `9b28c572`. Recorded 2026-09-27 by Lane A2, AHEAD of the
   cutover, which is what `Assert-LiveReleaseRecorded` requires. This is the ONLY target authorised to be
   cut over to next.** **[SUPERSEDED 2026-09-27 20:34 +08 — this cutover has now EXECUTED; see the LIVE record
   above. Preserved unaltered as the pre-cutover record.]**
