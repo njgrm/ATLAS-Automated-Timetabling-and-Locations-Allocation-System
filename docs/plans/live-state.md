@@ -242,13 +242,40 @@ resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs
 
 **Queue after this, all dated 2026-09-27, none blocking:**
 
-1. **#61 (HIGH)** - a concurrent commit lands mid-action, the toast names **engineer ids** (*"Manual swap committed
-   between entries entry-321::t2 and entry-421::t2"*), the grid changes underneath, and **the selection banner
-   stays armed on a class that just moved**. It was **my** swap that landed under Lane C's runner. Must name what
-   changed in words, and cancel or re-check a selection whose class moved.
-2. **#63 (MEDIUM)** - two Undo controls on one Expert screen sharing one accessible name; this is the `DUPLICATE`
+1. **#63 (MEDIUM)** - two Undo controls on one Expert screen sharing one accessible name; this is the `DUPLICATE`
    class from my own inventory, now confirmed live.
-3. **The 159 -> 68 -> 69 discrepancy - OPEN, mechanism UNKNOWN** (the payload-omission theory is refuted).
+2. **The 159 -> 68 -> 69 discrepancy - OPEN, mechanism UNKNOWN.** Re-anchored (see below).
+3. **A publish-gate truthfulness defect, CONFIRMED, separate lane.** `blockingHardViolationCount` is in the edit
+   path's **preserve** list (`manual-edit.service.ts:852`, "run-wide publication truth the edit does not recompute")
+   so every manual edit carries the generation-time value forward, while `hardViolationCount` **is** recomputed;
+   `timetableWorkspaceTruth.ts:110` then **prefers the stale field**
+   (`summaryBlockingHard ?? summaryHard ?? displayHard`). The client gates publish on that number
+   (`ScheduleReviewWorkspaceHeader.tsx:467,482`) while the server recomputes independently
+   (`publication-contract.service.ts:329`, `countBlockingHardViolations`) and throws 422. **The two gates read
+   different numbers.** Severity qualifier: the client is the *stale* one, so this errs toward a **false block** -
+   refusing to publish when the server would allow. **It cannot cause an unsafe publication.**
+4. **18 files carry a committed UTF-8 BOM** - independently confirmed by my own byte census, matching QA's sweep
+   exactly. Four are production: `atlas-client/src/components/runtime/RolloverGuidanceCard.tsx`,
+   `atlas-client/src/components/timetable/TimetableTaskDrawer.tsx`,
+   `atlas-server/src/services/generation.service.ts`, `atlas-server/src/routes/subject.router.ts`. **All
+   pre-existing**; the one this lane touched (`ConcurrentCommitNoticeBar.tsx`) is now clean. **This corrects an
+   executor report that claimed "no other repo file carries one" - that claim was false and is struck.**
+5. **8 committed `atlas-server/check*.cjs` / `fix_ict_seedable.cjs` scratch scripts are a live section 2
+   violation** - leftover bulk-edit helpers in the repository, which section 2 forbids. Named for a cleanup
+   backlog item. (The candidate's own `check`-adjacent residue was cleaned; these are older.)
+6. **`strategy` is not validated on the wire** - `manual-edit.router.ts` passes `req.body.strategy` through
+   unvalidated, and the new message guard is **exclusion-based** (`strategy && strategy !== 'DIRECT_SWAP'`). A
+   garbage strategy would commit as a plain swap and the message would falsely claim a relocation. Reachable only
+> by a malformed request from an already-privileged scheduler, with no safety or data impact, and it says something
+> false only about the requester's own action. A one-line explicit allowlist is the fix.
+
+**On item 2 — do not close it on the volunteered mechanism.** QA confirmed the publish-gate chain above exactly
+(as item 3), but **rejected its sufficiency**: a preserved, preferred value would hold `blockingHardCount` *stuck*
+at its generation number, not drop 159 -> 68. For the display to fall, `summaryBlockingHard` must be **absent** and
+the chain must fall through to the recomputed `summaryHard`. The better-supported lead: the edit path recomputes via
+`validateHardConstraints` (`constraint-validator.ts:668-670`), which is **HARD-only, single-family**, while
+generation counted the **merged** result across families - so the two figures are **not comparable** across an edit
+or a revert, which is the shape that yields a ~90 drop and also explains 68 -> **69** on revert.
 
   **RESIDUE, DISCLOSED (2026-09-27): draft run 321 is left at 69 warnings, not the 159 it started at.** The
   swap-plus-revert pair was net-non-neutral on the draft; that is the cost of the acceptance test. **The published
