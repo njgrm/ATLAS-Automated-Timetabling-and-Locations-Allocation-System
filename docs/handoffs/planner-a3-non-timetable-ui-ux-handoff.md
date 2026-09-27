@@ -466,6 +466,82 @@ either** — the branch stays on `d9575e83` and integration is the planner's aut
 deployment. The release carrying `c5a9e832` is live and healthy; these corrections are source
 only.
 
+### 2026-09-27 — bisect of the open crash COMPLETED; fix attempted and REVERTED, worktree restored
+
+**Worktree is back to the executor's original, unmodified state** (4 modified + 1 untracked,
+test file 60874 bytes, first bytes `2F 2A 2A` so no BOM, `U+FFFD` 0). Nothing is half-applied.
+
+**The bisect is now VALID and complete.** The earlier one was not — it truncated with
+`Set-Content -Encoding UTF8`, which writes a BOM in PowerShell 5.1 and made both runs die on a
+parse error rather than on the RangeError. Redone with `git checkout` plus the Edit tool:
+
+| Variant | Result |
+|---|---|
+| base `d9575e83` test file | **33 tests, 0 fail, exit 0**, no RangeError |
+| base + the line-20 React import change | **33 tests, 0 fail, exit 0**, no RangeError |
+| base + the 4 new imports only, no new test bodies | no RangeError (did not crash) |
+| full file with the appended block 1032-1208 | **RangeError, 0 tests complete, exit 1** |
+
+So the line-20 import is innocent, the four new imports are innocent on their own, and the
+appended block is the cause. The distinguishing feature is that the block adds four **top-level
+`await import()`** calls to a module that already carries **seventeen** others, interleaving a
+second await phase after the first.
+
+**A fix was attempted, it worked on the crash and broke six other tests, and it is REVERTED.**
+Converting the four new dynamic imports to static imports **did** eliminate the RangeError — the
+suite loaded and ran for the first time. It then failed `F30-1`, `F30-2`, `F30-3`, `F22-2`,
+`F23-1`, `F23-2`, and the base version passes `F30-1/2/3` (556 ms / 186 ms / 154 ms), so those
+were **my regression, not pre-existing**.
+
+**Root cause of my regression, and it is the key insight for whoever finishes this.**
+**Static imports are hoisted.** They execute before *any* statement in the module body. This
+file builds its DOM in a specific order:
+
+```
+line 23   const dom = new JSDOM(...)
+line 26   Object.assign(globalThis, { ... })     <- window/document installed here
+line 61   Object.defineProperty(globalThis, 'navigator', ...)
+line 70   const { Select, ... } = await import('@/ui/select')   <- base imports Select AFTER globals
+```
+
+`await import()` at the top level is **not** hoisted, which is precisely why the base's own
+line-70 import works. Static-importing `TeachingLoadRepairQueue`, `ReviewTeachersModal`,
+`teacherReviewEntry` and `useTeachingLoadRepairQueue` — even though written at line ~1063 —
+executes at the very top, **before JSDOM exists at line 23**, so every module that touches
+`document`/`window` at import scope breaks. That is exactly the F30 (Select), F22-2 and F23
+(dialog) failure set.
+
+**Therefore the fix must NOT be static imports.** Whatever resolves the RangeError has to
+preserve "imported after globals" semantics. Viable directions, in order of preference:
+1. Keep all four as top-level `await import()` — the correct semantics — and find what about
+   the *interleaving* of a second await phase triggers the RangeError. Interleaving is the only
+   variable the bisect actually isolated.
+2. Wrap the C2 controls in a lazily-imported sibling test file registered through
+   `node:test`'s programmatic `run()` from inside a test, so the modules load after globals
+   without adding top-level awaits.
+3. Move the C2 controls into their own new test file (`a3-teaching-load-review-c2.test.tsx`)
+   with its own JSDOM setup, and register it in `package.json` (§11). Cleanest isolation, at the
+   cost of one more script entry.
+
+**Do not re-attempt the static-import route.** It is a dead end with a precise reason, recorded
+so it is not tried a third time.
+
+**Operational lesson, recorded because it cost real work.** Mid-diagnosis I ran
+`Copy-Item $f ...` with `$f` as a **repo-relative path after `cd`-ing into `atlas-client`**, so
+the backup silently failed while the `git checkout` in the same command — which git resolves
+from the repo root — **succeeded**. The base test file overwrote my edits and the static-import
+fix was lost. The original survived only because an earlier byte-exact backup existed outside
+the repo. **Back up with an absolute path, outside any worktree, and assert the backup size
+before running any destructive `git checkout` in the same command.** `git checkout -- <path>` in
+the same breath as a relative-path `Copy-Item` is a data-loss pattern.
+
+**Live runtime unchanged throughout:** `c5a9e832`, 5001 **200**.
+
+**Next action:** pick one of the three directions above for the RangeError, keeping the
+DOM-dependent F30/F22/F23 tests green, then complete the handoff's earlier steps 2-5 (full gate
+set with fail-on-base / pass-on-candidate proof, junction removal, one commit, one fresh
+independent QA on the correction commit only, then browser B4 and the still-unperformed B5).
+
 Three streams, three worktrees, one writer each, all under `E:/ATLAS-worktrees/lane-a3-*` from base `3cfe79a8`. Consolidated pairs preserved: 13+18, 14+16, 17+23, 25+26, 33A+33B.
 
 **S1 - Sections and room map** (`work/a3-sections-map`): fixes 03, 06, 07, 10, 11, 12; 08 held.
