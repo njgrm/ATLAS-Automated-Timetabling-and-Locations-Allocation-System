@@ -1,0 +1,1215 @@
+# Planner A3 — non-timetable UI/UX remediation handoff
+
+**Disposition:** `KEEP_ACTIVE` as the stream's only writable record. The three candidate worktrees and the integration boundary were retired on 2026-09-27 in the closure that pushed them; all branches are preserved. The earlier Codex-managed copy remains `PRESERVE_FOR_DECISION` and must not be modified.
+
+**Writable home:** `E:/ATLAS-worktrees/lane-a3-ui-ux-ledger`, branch `docs/a3-ui-ux-ledger`. The earlier Codex-managed copy at `C:/Users/njgro/.codex/worktrees/lane-a3-ui-ux-handoff/ATLAS` is frozen as history and must not be modified; see the 2026-09-27 relocation entry in the Progress log.
+
+## Purpose and source of truth
+
+This is A3's working progress record for the non-timetable UI/UX findings verified on the live Tailnet on 2026-09-27. The full requirement ledger remains the user-supplied file:
+
+- `D:/ATLAS/ATLAS-FIXES-CODEX-PLANNER-HANDOFF.md`
+
+That root file is user-owned and currently untracked in the shared checkout. Do not edit it from an implementation lane. A3 must record progress **in this file** after each verification or implementation milestone, preserving the baseline below.
+
+## Ownership boundary — A3 only
+
+### In scope
+
+- Sections and room-map UI: Fixes 01–12.
+- Subjects UI: Fixes 09, 15, 17, 19, 20, 31, 32, 33A, 33B.
+- Teachers and Teaching Load UI: Fixes 13, 14, 16, 18, 21–26, 29, 30.
+
+### Explicitly out of scope — A2 timetable ownership
+
+Do not edit, plan, test, or change:
+
+- `/timetable`, Class Schedule, Room Schedules, published schedules, exports, generation, publication, revisions, or schedule reads.
+- `atlas-client/src/pages/Timetable*` or `atlas-client/src/components/timetable/**`.
+- Server timetable/generation routes, term-selection logic, run state, published-run data, or timetable query shape.
+- A shared UI component when its change would alter timetable behavior or styling, unless A2 accepts that dependency in writing.
+
+Specific fences:
+
+- Fix 22 applies only to Teachers and Teaching Load; Class Schedule name rendering stays with A2.
+- Fix 26 must not add or alter a “Proceed to Timetable” action.
+- Fix 33B is presentational only. Preserve rotation/shared-session data, persistence, and scheduling semantics.
+
+## Baseline evidence
+
+- Live origin: `https://njgrm.buru-degree.ts.net`
+- Live release observed: `0da104f96696aef7de7016e5364f29b50d0ed00f`
+- Primary QA viewport: desktop `1366×768`; only a brief `390×844` Subjects smoke was performed.
+- No records, assignments, swaps, saves, publications, or timetable data were changed during the audit.
+- Browser console: no errors on the exercised Sections, Subjects, Teachers, Teaching Load, and Map routes. Authenticated API requests returned 200 in the captured desktop session.
+- Focused test: `npm --prefix atlas-client run test:teaching-load-clarity` passed 8/8.
+- Do not treat `test:visual:faculty` as a passing gate: it references a missing Playwright spec. The Teaching Load visual script was blocked by its separate terminal credential requirement.
+
+## Current finding ledger
+
+Status meaning: `REPRODUCED` was observed on the current desktop runtime; `VERIFIED_FIXED` was exercised without the historical defect; `SOURCE_CONFIRMED` is exact deployed-source evidence needing a targeted interaction; `PARTIAL` is partly resolved; `NEEDS_REPRO` needs a specific scenario; `SOURCE_GAP` has no valid requirement.
+
+| Fix | Baseline status | A3 next action | A3 progress |
+|---|---|---|---|
+| 01 | VERIFIED_FIXED | Preserve; regression-test picker scroll containment. | QA_PASSED |
+| 02 | VERIFIED_FIXED | Preserve; regression-test one picker layer. | QA_PASSED |
+| 03 | REPRODUCED | Widen/reflow picker occupancy text; test long occupant name. | QA_PASSED |
+| 04 | SOURCE_CONFIRMED | Exercise occupied-room change; retain confirmation and zero-write Cancel control. | QA_PASSED |
+| 05 | SOURCE_CONFIRMED | Verify direct map entry; do not regress it. | QA_PASSED |
+| 06 | NEEDS_REPRO | Test BuildingView pan/zoom on floor-level state before changing bounds. | QA_PASSED |
+| 07 | SOURCE_CONFIRMED | Audit interior room-card overlap at usable zoom. | QA_PASSED |
+| 08 | PARTIAL | Obtain product decision: deselect versus unassign. | BLOCKED_PRODUCT_DECISION |
+| 09 | REPRODUCED | Replace oversized technical Subjects warning with calm, actionable state copy. | QA_PASSED |
+| 10 | SOURCE_CONFIRMED | Increase map typography and badge legibility. | QA_PASSED |
+| 11 | SOURCE_CONFIRMED | Rework premature room-name truncation. | QA_PASSED |
+| 12 | SOURCE_CONFIRMED | Add persistence-aware success/error feedback; distinguish queued from saved. | QA_PASSED |
+| 13 | PARTIAL | Use grade display treatment in workload detail without changing timetable surfaces. | QA_PASSED |
+| 14 | PARTIAL | Improve Teaching Load desktop density without page-level scroll. | QA_PASSED |
+| 15 | REPRODUCED | Make primary Subjects filters directly visible. | QA_PASSED |
+| 16 | REPRODUCED | Reduce Teaching Load click/load density; keep controls mouse-first. | QA_PASSED |
+| 17 | REPRODUCED | Convert targeted desktop review drawers to responsive dialogs; preserve mobile sheets where useful. | QA_PASSED |
+| 18 | PARTIAL | Standardize grade treatment only in A3-owned routes. | QA_PASSED |
+| 19 | SOURCE_CONFIRMED | Prevent wrapping/clipping in A3-owned action menus; avoid broad primitive change. | QA_PASSED |
+| 20 | PARTIAL | Add truthful post-save feedback and maintain internal dialog scrolling. | QA_PASSED |
+| 21 | REPRODUCED | Remove redundant Next Teacher strip and reclaim roster space. | QA_PASSED |
+| 22 | REPRODUCED | Standardize display casing in A3-owned Teacher/Load UI only. | QA_PASSED |
+| 23 | REPRODUCED | Use Fix 17 dialog pattern for Teacher profile detail. | QA_PASSED |
+| 24 | REPRODUCED | Update Teachers menu copy and keep labels on one line. | QA_PASSED |
+| 25 | REPRODUCED | Replace default navigation with in-page workload review dialog. | QA_PASSED |
+| 26 | REPRODUCED | Remove permanent desktop inspector; reuse workload content in an audit modal. | QA_PASSED |
+| 27 | SOURCE_GAP | Do not implement. | BLOCKED_SOURCE_GAP |
+| 28 | SOURCE_GAP | Do not implement. | BLOCKED_SOURCE_GAP |
+| 29 | SOURCE_CONFIRMED | Restrict swap to a dedicated control and require confirmation; prove Cancel = zero draft change. | QA_PASSED |
+| 30 | SOURCE_CONFIRMED | Separate Select checked and hover states in a route-safe way. | QA_PASSED |
+| 31 | REPRODUCED | Display `BEC` for persisted `REGULAR`; do not migrate enum/schema. | QA_PASSED |
+| 32 | REPRODUCED | Filter Faculty Room/Office only from Subject room-need options. | QA_PASSED |
+| 33A | REPRODUCED | Make Advanced Scheduling Rules always visible. | QA_PASSED |
+| 33B | REPRODUCED | Hide Shared class session UI while preserving logic/schema; elevate Rotates by term. | QA_PASSED |
+| 34 | SOURCE_GAP | Do not implement. | BLOCKED_SOURCE_GAP |
+
+**Why 14, 16, 23 and 24 were not `QA_PASSED`.** *(SUPERSEDED 2026-09-27 22:50 +08 — all four are now `QA_PASSED`; see the "2026-09-28 overnight" section. The original text is kept because the reason it gives is the reason they were genuinely blocked, not an excuse.)* Their source rows are accepted and integrated, but each carries a browser-acceptance row that no available harness can decide and that was not waived: 24 needs the 1366x768 pixel fit for the desktop and mobile menu variants with the longest faculty name, 14 and 16 need the density pixel assertion, and 23 needs pointerdown-outside dismissal. `IMPLEMENTED_PENDING_QA` is the honest state until a deployed build closes them.
+
+**Why 01 and 02 were still `TODO`.** *(SUPERSEDED 2026-09-27 22:50 +08 — both are now `QA_PASSED`; dedicated controls were written and run against a real base worktree.)* They were baseline `VERIFIED_FIXED` and required preservation controls only. The S1 executor added no dedicated control for either, and neither the executor nor review performed one. They are not promoted on the strength of adjacent tests.
+
+## Required progress discipline
+
+After every meaningful A3 action, update the corresponding **A3 progress** cell and append a dated entry below. Do not replace baseline evidence with an unsupported claim.
+
+Allowed progress values:
+
+- `TODO`
+- `REPRODUCED`
+- `VERIFIED_FIXED`
+- `IMPLEMENTED_PENDING_QA`
+- `QA_PASSED`
+- `BLOCKED_<reason>`
+- `SUPERSEDED_<reason>`
+
+Each dated entry must contain:
+
+1. Fix IDs and intended outcome.
+2. Base SHA and candidate SHA, when a candidate exists.
+3. Exact changed paths.
+4. Focused test command/result.
+5. Desktop browser result at `1366×768`, including accessibility, console, and network status.
+6. For a mutation-capable flow: a negative control proving Cancel/non-action made zero changes.
+7. Any A2 dependency or explicitly retained risk.
+
+## Progress log
+
+### 2026-09-27 — live baseline captured
+
+- Owner: Planner A3 (handoff prepared; no implementation started).
+- Evidence: live desktop audit and exact deployed-source inspection.
+- Outcome: 01 and 02 verified fixed; 03, 09, 15–17, 21–26, 31–33B reproduced; 27, 28, and 34 remain source gaps; remaining rows are targeted source/interaction follow-ups.
+- A2 dependency: none permitted without an explicit ownership transfer.
+
+### 2026-09-27 — source-level root-cause re-confirmation at `3cfe79a8`
+
+1. **Fixes/IDs and intended outcome.** Read-only re-derivation against the current base, not the audited release `0da104f9`. Eight `SOURCE_CONFIRMED` rows upgraded to source-confirmed `REPRODUCED` with exact root causes: 04 (`pages/Sections.tsx:467-495,965-970`), 05 (`pages/Sections.tsx:794-805`), 10 (`components/sections/SectionRoomMapModal.tsx:171-388`; `components/BuildingView.tsx:491-599`), 11 (`components/BuildingView.tsx:321-331`), 12 (`pages/Sections.tsx:967-968` crossed with `386-441`), 19 (`ui/dropdown-menu.tsx:66,85`), 29 (`components/faculty-assignments/SubjectRow.tsx:489-496`), 30 (`ui/select.tsx:117`). 07 proven by geometry (`BuildingView.tsx:321-331,382-400,414-434`: room name occupies x4-86/y6-18, program badge x66-86/y6-16, utilization bar x76-86/y8-58, inside a 90x70 card; name-badge and badge-bar both overlap). Also located: 13 (`components/faculty-assignments/WorkloadInspector.tsx:224`), 14 (`pages/TeachingLoad.tsx:628,670,672,725`), 15 (`components/admin-workspace/AdminWorkspace.tsx:264`), 16 (`components/faculty-assignments/TeacherGridMode.tsx:229-236,284`), 17/23 (`components/subjects/SubjectCoverageSheet.tsx:65-66`; `components/faculty/FacultyProfileSheet.tsx:75-76`), 21/24/25 (`pages/Faculty.tsx:647-674,791-812,901`), 26 (`pages/TeachingLoad.tsx:811-834`), 31 (`lib/subject-constants.ts:19`), 32 (`components/subjects/SubjectFormModal.tsx:475`), 33A/33B (`SubjectFormModal.tsx:71,84,206,632-660,665`).
+2. **Base SHA.** `3cfe79a883df92a24e3436a42f7e180bb2d768b8` (`main`, clean apart from the untracked user-owned root ledger). **Candidate SHA:** none; no implementation started. This ledger now lives in worktree `E:/ATLAS-worktrees/lane-a3-ui-ux-ledger` on branch `docs/a3-ui-ux-ledger` at `d22c7f21`, clean.
+3. **Exact changed paths.** Product paths: none. This entry changed only `docs/handoffs/planner-a3-non-timetable-ui-ux-handoff.md`.
+4. **Focused test command/result.** None run this session. The 2026-09-27 baseline result `npm --prefix atlas-client run test:teaching-load-clarity` (8/8) stands unchanged. `test:visual:faculty` remains invalid (missing Playwright spec) and is not cited as a gate.
+5. **Desktop browser result at 1366x768.** **Not performed this session.** No accessibility, console, or network capture. Every status in this entry is source-level only and must be runtime-confirmed before implementation acceptance. Nothing was promoted to `VERIFIED_FIXED`.
+6. **Negative control.** Not performed; no mutation-capable flow was exercised. `pages/Sections.tsx:467-495` shows the Cancel path is structurally zero-write (`setPendingAssignment(null)` with no `performHomeRoomUpdate` call), but that is a source reading, not an executed control.
+7. **A2 dependency / explicitly retained risk.**
+   - **Fix 30 requires an A2 dependency handoff.** `ui/select.tsx` has four A2-owned consumers: `components/timetable/simple/SchedulerExportCenterDialog.tsx`, `SimpleBeneficiaryControls.tsx`, `SimpleHeaderHelpers.tsx`, `SimpleMoreMenuContent.tsx`. Held. Route-scoped `SelectItem` mitigation planned in A3-owned routes instead. The primitive fix would restore the `data-[state=checked]:bg-accent` pairing that `ui/dropdown-menu.tsx:101` already demonstrates.
+   - **Fix 19** planned route-scoped (`whitespace-nowrap` at A3 call sites) for the same reason; `ui/dropdown-menu.tsx` stays untouched.
+   - **Fix 18 must not create a third grade palette.** Two exist: `GRADE_COLORS` (`lib/grade-labels.ts:17`, used by `pages/Subjects.tsx:30,815,867`) and `GRADE_BADGE` (`components/ManualEditPanel.tsx:167`). Owner of `ManualEditPanel` to be confirmed with A2. Mitigating evidence: only 4 `dark:` occurrences exist across the client, so the app is effectively light-only and `GRADE_COLORS` is safe to adopt as-is. Recorded as measured, not assumed.
+   - **Fix 08 remains `BLOCKED_PRODUCT_DECISION`**, now with a materially narrower brief: `SectionRoomMapModal.tsx:142-145` passes a possibly-null `selectedRoomId` to `onSelect`, and `pages/Sections.tsx:470-478` routes that to `UnassignConfirmationModal`, so the review's "Confirm Assignment silently behaves as a destructive unassign" case is already unreachable. The residual is naming and semantics only, narrowing the decision to Option A versus Option B.
+   - **AGENTS.md section 8 line cap is the top execution risk.** `pages/Subjects.tsx` 989/1000, `pages/Faculty.tsx` 990/1000, `pages/Sections.tsx` 983/1000, `pages/TeachingLoad.tsx` 925/1000. Extraction of a sub-component is mandatory before editing these four, not optional.
+   - **Test-gate reachability (section 11).** No A3-owned test script exists yet. Each stream must register its new test in `atlas-client/package.json` in the same commit, or the evidence does not count.
+   - **`BuildingView` has exactly one consumer** (`pages/Sections.tsx`), so the Fix 07/11/10 card-layout pass carries no timetable blast radius. `ROOM_TYPE_LABELS` is also read by `pages/Subjects.tsx`, so room-type changes must be additive.
+
+**Verdict:** baseline statuses re-confirmed and made actionable at `3cfe79a8`. Two rows are blocked on an A2 dependency decision (30 firm, 19 soft). No browser evidence obtained this session.
+
+### 2026-09-27 — ledger relocated; two planner corrections
+
+- **Ledger home.** This file moved from the Codex-managed worktree `C:/Users/njgro/.codex/worktrees/lane-a3-ui-ux-handoff/ATLAS` (branch `work/planner-a3-ui-ux-handoff`, `d22c7f21`) to a planner-provisioned worktree `E:/ATLAS-worktrees/lane-a3-ui-ux-ledger` (branch `docs/a3-ui-ux-ledger`, `d22c7f21`). Reason: the session's write permission resolves to `D:/ATLAS`, `D:/ATLAS-worktrees`, `E:/ATLAS-worktrees` and opencode config paths only, so the Codex-managed copy was not writable. The old checkout is a **Codex-managed worktree** and is listed in `docs/reference/agent-worktree-lifecycle.md` under "Never retire or modify", so it was **not** moved or removed; it is frozen as history and this branch is the single writable successor. Disposition of the old checkout: `PRESERVE_FOR_DECISION`.
+- **Correction 1 (withdrawn claim).** The previous planner turn reported the AGENTS.md section 3 cap of 12 task worktrees as exceeded (~22 `lane-*` registrations) and raised it as a blocker. That reading is wrong and is withdrawn. The lifecycle reference states the cap is on *active* worktrees, never the registered total, because `git worktree list` necessarily includes Codex-managed worktrees and retained release trees; a registry count above 12 is explicitly not a blocker. This is the same misreading recorded on 2026-09-21. No capacity gate applies to A3 stream provisioning. Measured free space for the record: E: 49.20 GiB before this worktree, 48.62 GiB after (588 MiB checkout), both far above the 25 GiB warning line.
+- **Correction 2 (relocation was never available).** A straight relocation was assessed and rejected as prohibited, not merely unavailable, per the same lifecycle reference.
+
+### 2026-09-27 — Fix 30 dependency resolved: primitive-wide (operator decision)
+
+- **Decision.** Fix 30 is authorized **primitive-wide**: A3 will edit `ui/select.tsx` itself rather than applying route-scoped `SelectItem` overrides in A3-owned routes.
+- **Authority relied on.** Explicit operator instruction to Planner A3 on 2026-09-27 ("primitive wide, commit, and proceed"). This is the A2-accepted dependency handoff required by `AGENTS.md` section 3 of the A3 ownership boundary, granted at operator level rather than by A2 directly.
+- **Blast radius, stated up front.** `ui/select.tsx` is consumed by four A2-owned timetable files: `components/timetable/simple/SchedulerExportCenterDialog.tsx`, `SimpleBeneficiaryControls.tsx`, `SimpleHeaderHelpers.tsx`, `SimpleMoreMenuContent.tsx`, plus 7 pages and 3 other components app-wide. The change is confined to the `SelectItem` class list at `ui/select.tsx:117`: add the `data-[state=checked]:bg-accent` (and matching `data-[state=checked]:text-accent-foreground` if the existing token pairing needs it) that `ui/dropdown-menu.tsx:101` already demonstrates for the sibling primitive. No prop, API, or exported-name change.
+- **Retained risk carried by the executor.** The selected-item state must remain visibly distinct from the highlighted state, since the historical defect was precisely that checked had a foreground but no background. A route-scoped regression control in A3 routes is not sufficient evidence on its own; a control must assert the state against a timetable `Select` consumer too, or the primitive change is unproven. A3 does not edit those timetable files; the control only renders them.
+- **Fix 19 unchanged.** Still route-scoped. `ui/dropdown-menu.tsx` is not in scope for this decision and is not edited.
+- **Status effect.** Fix 30 moves from A2-dependency-blocked to dispatchable. Fix 19 remains the only soft dependency, and it is resolved by scoping, not by an approval.
+
+### 2026-09-27 — three candidates produced; three planner premises refuted by the executors
+
+1. **Fixes/IDs and outcome.** 29 of 34 rows now `IMPLEMENTED_PENDING_QA` across three candidates, all from base `3cfe79a8`. Unchanged: 01 and 02 (`TODO`, preservation controls only), 08 (`BLOCKED_PRODUCT_DECISION`), 27/28/34 (`BLOCKED_SOURCE_GAP`).
+2. **Base SHA and candidate SHAs.** Base `3cfe79a883df92a24e3436a42f7e180bb2d768b8`.
+   - S1 Sections and room map: **`13f1f189`**, 12 paths. Worktree `E:/ATLAS-worktrees/lane-a3-sections-map`, branch `work/a3-sections-map`.
+   - S2 Subjects: **`6ba386dc`**, 10 paths. Worktree `E:/ATLAS-worktrees/lane-a3-subjects`, branch `work/a3-subjects`.
+   - S3 Teachers and Teaching Load: **`f56ef29e`**, 19 paths. Worktree `E:/ATLAS-worktrees/lane-a3-teachers-load`, branch `work/a3-teachers-load`.
+   All three confirmed reachable from the integration boundary with `git cat-file -t`. None pushed. All three worktrees clean, unintegrated, `PRESERVE_FOR_DECISION`.
+3. **Exact changed paths.** Streams are disjoint except `atlas-client/package.json`, where each adds exactly one distinct script key (`test:a3-sections-map`, `test:a3-subjects`, `test:a3-teachers-load`). Pure single-line additions, so the three will auto-union at integration. Every new test file is reachable from a committed script in the same commit, per section 11.
+4. **Focused test command/result.** S1 `test:a3-sections-map` 15/15, `test:global-scrollbars` exit 0, build exit 0. S2 `test:a3-subjects` 19/19, `test:global-scrollbars` 1/1, `test:client-quality` 34/34, `test:ux-guardrails` 31/31, build exit 0. S3 `test:a3-teachers-load` 33/33, `test:global-scrollbars` exit 0, `test:ux-guardrails` 31/31 including `gate-reachability.test.ts`, build exit 0. All `git diff --check` clean.
+5. **Desktop browser result at 1366x768.** **Not performed for any stream.** No accessibility, console or network capture exists yet. Every pixel-density, legibility and contrast claim in all three commit messages is structural only and is labelled as such. S1 discloses that effective card text is 9.0px for five-floor buildings (11 to 15.4px for up to three floors) because the authored size is 11px and the fit scale is width/height bound. S3 discloses its density claim is structural only. These are browser-acceptance rows, not source rows.
+6. **Negative control.** Failing-first controls were proven, not assumed. S1 proved the Fix 12 control fails on the current shape and passes after. S2 restored the base `SubjectFormModal` via `git restore --source=3cfe79a8 --worktree`, observed 2 controls fail including `no result region rendered for outcome saved`, then byte-restored and verified the SHA. S3 proved the Fix 29 swap control failing-first at base with `actual: [[41, 700, 4, 9]]`, a real transfer dispatched by a body click, going from 1 pass/4 fail to 5/5, restore verified by SHA-256. Mutation-capable flows (Fix 12 home-room, Fix 29 swap, Fix 25/26 return path, Fix 20 cancel) all carry zero-change Cancel controls as required.
+7. **A2 dependency and explicitly retained risk.**
+   - **BLOCKING, needs an A2 or operator decision: the Fix 07/11 card re-layout reaches A2-owned code.** See the premise-failure record below. `BuildingView` is rendered by `timetable/CenterWorkspace.tsx`, which A3 must not change the behaviour of. The candidate does not edit that file, but it changes the rendering contract underneath it. This must be adjudicated before integration, not after.
+   - **S3 Fix 30 deviation accepted and better than the packet.** The packet told the executor to copy `ui/dropdown-menu.tsx:101` (`bg-accent`/`text-accent-foreground`). The executor proved at source that `--accent` aliases `--primary` and `--accent-foreground` is white, so that pairing would render checked pixel-identical to highlighted, reintroducing the exact defect. It used `--secondary` instead, and proved the state against the A2-owned `SimpleBeneficiaryControls` without editing it.
+   - **S3 Fix 25 deviation accepted.** `Faculty.tsx:901` row navigation is deliberately left in place: it carries a `task=` intent consumed by `useTeachingLoadRouteIntent`, which is not an A3 file, and it drives the repair queue. The two page-level `Review load` links were converted in place, which is the Fix 25 scope.
+   - **S2 scope note, NON_BLOCKING.** `programFullLabel` in `deped-glossary.ts:33` still renders "Regular Program" inside the coverage dialog. That file is shared and outside Fix 31's stated scope, and a primitive-wide change has no authority here.
+   - **Two evidence-integrity items carried into QA, both disclosed rather than hidden.** S3 made a whitespace-only edit at `SubjectRow.tsx:582` AFTER its gate runs, with staged and stripped SHA-256s recorded and the lines proven token-identical; QA must confirm the committed bytes are the tested bytes. S3 also demoted control F23-4, which no longer claims pointerdown-outside dismissal because Radix routes it through `dispatchDiscreteCustomEvent` and it is unreachable from a JSDOM-dispatched event; the row names it a browser-acceptance item rather than deleting it. Under section 16 a correction must be additive, so QA must confirm both rows still exist and carry their limits.
+   - **Pre-existing failures, proven not regressions.** 12 `test:client-suite` failures and 4 typecheck errors (an undeclared `playwright` import in A2 timetable tests) exist at base and reference none of the changed paths. S3 additionally reduced its own client-suite to 1 failure by running after the others; `SchedulingPolicyPane.tsx` is blob `ab49e4ae5d75ad9284f878ac4ce7cedc5a95ac48` at base and in the candidate.
+   - **Donor verification, S3.** The `node_modules` copy was removed and the donor proven unchanged: 156 top-level entries, 17,348 files, 229,100,225 bytes and a recursive path|length|mtime manifest SHA-256 `ECBD1506…03D5` identical before and after. Donor reparse points 0, worktree reparse points 0, junction-free.
+
+#### Planner premise failures — recorded because they changed the work
+
+Three claims the planner asserted as verified evidence were false. Both executors caught them independently and were right. The cause was the same: a `Select-String` glob (`atlas-client\src\**\*.tsx`) that does not recurse, so the searches measured almost nothing while reporting a confident number.
+
+1. **"BuildingView has exactly one consumer."** False. It has four: `sections/SectionRoomMapModal.tsx`, `dashboard/CampusReadinessCard.tsx`, `campus-map/CampusMapOverview.tsx`, and A2-owned `timetable/CenterWorkspace.tsx`. The search matched only `from '@/components/BuildingView'` and missed every `lazy(() => import('@/components/BuildingView')...)` form. This is the cause of the BLOCKING item above, and it is why the packet asserted the card re-layout had no timetable blast radius.
+2. **"Only 4 `dark:` occurrences exist across the client, so the app is effectively light-only and `GRADE_COLORS` is safe to adopt as-is. Recorded as measured, not assumed."** False and doubly misleading: it was 15 across 5 files, and the claim was dressed as a measurement when it was an artefact of the broken glob. A2 timetable files carry full dark variants. Presenting a broken search as verified evidence is the specific failure section 11 warns about, and it is recorded here so the pattern is not repeated.
+3. **"`GRADE_COLORS` uses `amber` for G8 where the directive says yellow" and "two grade palettes exist."** Both false. G8 is `yellow-100/700` in `lib/grade-labels.ts` and in `components/GradeLevelBadge.tsx`, so no reconciliation was ever needed. Six palettes exist, and `components/GradeLevelBadge.tsx` already is the DepEd-correct, dark-aware badge Fix 18 asked for. The S3 packet pushed the executor toward creating the very duplicate palette it was told to avoid. The bounded correction reversed it: `components/faculty/GradeBadge.tsx` on `GRADE_COLORS` was deleted and replaced with a zero-palette adapter in `components/faculty-assignments/GradeBadge.tsx` that imports `GradeLevelBadge` and contributes only `aria-label` and data attributes. One palette is now in play across `WorkloadInspector` and `FacultyProfileSheet`, asserted at source, with dark variants verified for all four grades.
+
+**Verdict:** three candidates exist and are reachable; nothing is pushed or integrated. 29 rows are `IMPLEMENTED_PENDING_QA`; no row was promoted to `QA_PASSED` because no independent review has run and no browser evidence exists. One BLOCKING cross-lane decision is outstanding.
+
+### 2026-09-27 — all three streams reviewed, corrected, integrated and pushed to `main`
+
+Final state: **`origin/main` = `f426f4659413ec07ea6d54f2c97630e35f635b29`**. 25 of 34 rows are `QA_PASSED` and integrated; 4 are `IMPLEMENTED_PENDING_QA` on open browser rows; 2 are `TODO`; 4 are blocked. Nothing in this stream is deployed.
+
+**1. Fixes and outcome.** Three streams, disjoint except `atlas-client/package.json`, base `3cfe79a8`.
+
+| Stream | Candidate | QA verdict | Integrated |
+|---|---|---|---|
+| S1 Sections and room map | `13f1f189` then correction `af239b49` | `CORRECTION_REQUIRED` 32/32 with 2 BLOCKING, then `ACCEPT_READY` **10/10/0/0** on bounded re-review | `3e5f51bd..0d39abb2` |
+| S2 Subjects | `6ba386dc` | `ACCEPT_READY` **36/36/0/0** first pass | `b0736007..af8ec0fd` |
+| S3 Teachers and Teaching Load | `f56ef29e` then correction `d608c62d` | `PLANNER_DECISION_REQUIRED` 33/37/0/4, then 8/12/0/4 on re-review | `0d39abb2..f426f465` |
+
+**2. Base and candidate SHAs.** Base `3cfe79a883df92a24e3436a42f7e180bb2d768b8`. Candidates `af239b4981b7445b22e334334c5253dc3add43f2`, `6ba386dcf5471cb027993138b5cc3aebe479e022`, `d608c62d8c57de5e37eb22f3424191e32f386845`. Integration branch `integration/a3-20260927`, merge `f426f465`.
+
+**3. Exact changed paths.** S1 12, S2 10, S3 19. `atlas-client/package.json` is the single shared file; each stream added exactly one gate script and the resolution is a clean additive union of all three (`test:a3-subjects`, `test:a3-sections-map`, `test:a3-teachers-load`), valid JSON, 50 scripts, every other lane's script intact. No timetable path, and no `components/GradeLevelBadge.tsx`, in any diff.
+
+**4. Focused test command/result, at integration on the merged tree.** `test:a3-subjects` 19/0 · `test:a3-sections-map` 16/0 · `test:a3-teachers-load` 33/0 · `test:global-scrollbars` 1/0 · `test:ux-guardrails` 31/0, all exit 0. `test:client-suite` 1142 tests / 12 fail, the same pre-existing set, with **no A3 module appearing anywhere in the failure output**. `tsc --noEmit --incremental false` exit 2 with exactly the 4 pre-existing `playwright` `TS2307`/`TS7006` errors in `components/timetable/__tests__/*`. Production build exit 0 with `VITE_ENROLLPRO_URL` set process-locally and confirmed empty at process, Machine and User scope afterwards. `git diff --check` clean.
+
+**5. Desktop browser result at 1366x768.** **Still not performed, for any row, by anyone.** No accessibility, console or network capture exists for this stream. Every density, fit, legibility and contrast claim in all three merge messages is labelled structural. This is the single largest evidence gap in the stream and it cannot be closed from source: the live release is `b0736007`, none of this source is deployed, and browser evidence against a different release could not prove these bytes.
+
+**6. Negative control.** All failing-first claims were independently reproduced by review, not accepted from the executor.
+- S1 Fix 12: review extracted a real base tree at `3cfe79a8` and ran the identical requirement list against the base `SwapConfirmationModal` and base confirm handler (`Sections.tsx:967` verified verbatim). Base failed three named checks; candidate 15/15. Reviewer never wrote to the worktree; `BuildingView.tsx` SHA-256 identical before and after.
+- S1 width contract: reviewer mutated `ROOM_MIN_W` 90 to 110 itself, got `actual: 110, expected: 90` with the other 15 tests still green, and hash-verified the restore.
+- S2 Fix 20: reviewer wrote the base blob `a01ad344` into a verified tree, got 19 tests / 15 pass / **4 fail** including the exact named assertion `no result region rendered for outcome "saved"`, then restored to `549ce24a` with `RESTORE EXACT: True` and 19/19.
+- S3 Fix 29: reviewer reverted only `SubjectRow.tsx` to base and reproduced `actual: [ [ 41, 700, 4, 9 ] ]` — a real ownership transfer from a body click — 5 tests / 1 pass / 4 fail, restore hash-verified.
+
+**7. A2 dependency, accepted residuals, and carried rows.**
+
+- **Accepted cross-lane residual, S1.** The required 84px card height costs A2's timetable centre view **0.0 % on the width term in all 12 measured cases**, but **-4.3 % at 4f x 6r / 616px** and up to **-13.5 % at the 872px collapsed container**, where rendered card text goes 7.92px to 6.85px. Reviewer recomputed the whole table independently and confirmed it. 84 is provably the minimum height holding the disjoint budget, the sub-11px condition it deepens already existed at base, and eliminating it needs a budget redesign, not another width or height tweak. Recorded in the merge message.
+- **Two BLOCKING findings closed, both on the planner's own false premise.** `ROOM_MIN_W` 90 to 110 changed what A2's timetable centre view renders, measured at -13.4 % to -16.8 % fit scale; and a committed comment at `BuildingView.tsx:64-68` justified that cross-lane reach with reasoning the component's own arithmetic refutes. Both corrected. `buildingContentW` is now byte-identical to base with delta 0 at every room count from 1 to 24.
+- **Open browser-acceptance rows, carried not waived.** U1/U2 Fix 24 pixel fit at 1366x768 for the desktop and mobile menu variants with the longest faculty name; U3 Fix 14/16 density; U4 Fix 23 pointerdown-outside dismissal, which Radix routes through `dispatchDiscreteCustomEvent` to `ReactDOM.flushSync` and is therefore unreachable from a JSDOM-dispatched event, verified against installed `@radix-ui/react-dismissable-layer@1.1.11` source. These require a deployed build. A reviewer grepped the correction for pixel-measurement substitutes and found zero, so no row was faked.
+- **A reviewer's finding that overturned an executor's self-report.** The S3 executor disclosed that control F24-1 was weak. Reviewer proved the opposite: F24-1 reads the *rendered merged* class and fails under the decisive double-source mutation (4 call-site tokens to 0, exit 1, 26 pass / 2 fail). Opening a correction there would have been fixing a non-defect. Left alone deliberately.
+- **Two additive follow-ups, neither blocking, neither fixed here.** `BuildingView.tsx:81-83` restates the vertical budget as 78px when the true minimum is 84 (box sum 71 + 5px gaps + 8px padding). The S3 F24-2 `min-w-0` precondition uses substring matching, which review showed passes under the real Tailwind class `min-w-0.5`; a `\bmin-w-0\b` token check would close it.
+- **Cosmetic, recorded not hidden.** Commit `af239b49`'s subject carries a UTF-8 BOM. Commit bodies are not amendable under the additive-correction rule and the defect is cosmetic only.
+- **Two push-window events, both handled.** `origin/main` advanced twice under A3 during the closure (A2's publication work at `51563739`/`b0736007`, then a docs-only Lane C push at `3e5f51bd`). Neither touched an A3-owned path. The first boundary was rebuilt from the new `origin/main` before any push; the second was absorbed by merging `origin/main` into the integration branch, then re-verified as a fast-forward. Every push range was enumerated before pushing and contained only accepted candidates plus merges.
+- **A2 and Lane C work verified preserved** on final `main`: `atlas-server/src/services/published-schedule.service.ts`, `docs/plans/live-state.md`, `docs/prompts/a2-release-b0736007-2026-09-27.md`, and both A2 gate scripts.
+- **Donor discipline.** Integration gates ran through a single junction to the machine-scope live dependency source `E:\ATLAS-worktrees\lane-a2-release-0da104f9\atlas-client\node_modules`, resolved from `[Environment]::GetEnvironmentVariable(...,'Machine')` and never from `Env:`. Donor verified at 156 top-level entries before and after, `tsx` intact, 0 reparse points, junction removed with `rmdir` and never `Remove-Item -Recurse`, worktree-wide reparse count 0.
+
+**Verdict:** all three streams integrated and pushed. 25 rows `QA_PASSED`. 4 rows `IMPLEMENTED_PENDING_QA` on open browser rows. No row was promoted without its own executed control. No browser evidence exists for this stream and none was claimed.
+
+### 2026-09-27 — deploy prepared, pre-action review returned `CORRECTION_REQUIRED`, cutover HELD at the session gate
+
+**Outcome: NOT DEPLOYED.** The release artifact is built, verified and reproducible; the cutover is one command away once a browser session exists.
+
+**1. A2 reconciliation first, as directed.** A2's active lane is fully contained in `main`: `origin/work/a2-timetable-custody` and `origin/docs/lane-a2-timetable-custody` are both 0 commits ahead of `origin/main` and ancestors of it. **Nothing needed merging from A2.** The unmerged remote branches (`timetable-live-term-authority-c01` +5/+7, `timetable-scheduler-simplicity-c01` +1) are 677-723 commits stale historical lanes, not A2's current work.
+
+**2. Two traps caught before anything was touched.**
+- *Stale inherited env.* The agent shell inherits `ATLAS_RUNTIME_SOURCE_DIR=lane-a2-release-0da104f9` / `RELEASE_SHA=0da104f9`, **two releases stale**. Machine scope, the `schtasks` task action, the supervisor command line and the active `supervisor-state.json` all agree on **`b0736007`**. An independent reviewer reproduced the same staleness in its own process scope. Every `cli.mjs` invocation must therefore carry explicit overrides.
+- *Stale local branch.* `git rev-parse main` in `D:/ATLAS` returns `51563739`, behind `origin/main`. The first delta enumeration accidentally used it and returned a 2-commit, 0-path range. Deploying from that ref would have shipped a release with **none** of the A3 work. Target is read from `origin/main` after `fetch --prune`.
+- I also misread a `Select-String`/formatting result as "no listeners on 5001/5174" and briefly believed the runtime was down. It is healthy: supervisor 14804, server 25644 on 5001, host 41332 on 5174, health 200.
+
+**3. Delta, enumerated.** `git diff --name-only b0736007 5691e663` -> **42 paths**, `atlas-server/` **zero**. Client-only; no schema, migration, server route, generation or publication. Foreign content is one commit, Lane A2's `445fa39a docs(deploy)`, verified docs-only across three `docs/` files. 11 commits above the pin: the three A3 candidates, four A3 merges, A2's docs commit and its merge.
+
+**4. Release artifact built and verified** at `E:\ATLAS-worktrees\lane-a3-release-f426f465`. Independent dependency **copies** (client 155, server 209, zero reparse points) rather than junctions, because the live release is retirable and a junction to it would break this release. `prisma generate` exit 0 (6.19.2), server `tsc --incremental false` **exit 0**, server build exit 0, client build exit 0 with `VITE_ENROLLPRO_URL` process-local only and confirmed empty at process, Machine and User scope. Baked EnrollPro origin identical to the live bundle. Capacity recorded: E: 45.56 GiB, D: 39.44 GiB.
+
+**5. Discriminator proven to differ before cutover.** Five **two-sided** content literals spanning all three streams: `Refresh roster` (new only), `Refresh teacher roster` (old only), `subjects-form-result` (new only), `Show advanced` (old only), `Keep queued` (new only). Filename hashes were **rejected** as proof — a full rebuild changes every asset hash, so a hash difference is not attributable. The 3,070-byte `atlas-server/dist/server.js` stub is explicitly not used; the directive records that exact artifact being byte-identical across builds and reporting a false "no difference". Reviewer independently re-derived all five and ran a failing-first control by fetching the **currently served** old chunk over HTTP, which correctly reported a failed deploy.
+
+**6. Pre-action review: `CORRECTION_REQUIRED`, 30/36 passed, 3 blocking.** All fixed.
+- **B1 — the register update would have destroyed Lane A2's content.** The release worktree sat at `f426f465`, whose `live-state.md` predates `b97706e3` and `5691e663` by 40 insertions / 14 deletions. Writing from it would have reverted the lines naming A2's acceptance blocker and their refusal of this very deploy, during an otherwise successful cutover. Now a targeted commit on a docs branch based on current `origin/main`, preserving A2's text verbatim, and never dirtying a live release directory.
+- **B2 — stale target pin.** `origin/main` advanced 3 docs-only commits during review. Re-pinned to `5691e663`; the product tree is byte-identical, so the build was **not** repeated. Release worktree fast-forwarded.
+- **B3 — Lane A2's recorded decline was neither acknowledged nor pre-checked.** Commit `5691e663` records A2 deliberately declining this exact deploy: doing so "would knowingly add 4 more unperformable rows to acceptance debt I already cannot close. Ship it when the session exists, so the rows are decidable on arrival."
+- Nine non-blocking findings also corrected: the first draft claimed a non-existent untracked `.a2-counts.cjs`; named no exact URLs for the health row while `5001 /` returns 404 on a healthy release (a spurious-rollback risk); omitted the `audit_logs` baseline; listed four shared files when `lib/grade-labels.ts` is not in the diff; undercounted merges; carried no capacity record; treated the packet file as clean while it was untracked; and probed the served bundle without requiring 200 + `text/javascript`. A **new browser row B12** was added for a live sweep of A2's timetable surfaces, which consume the shared `ui/select.tsx` primitive that Fix 30 changed.
+
+**7. Why the cutover is held, and why standing authorization does not override it.** Gate **G1 (browser session)** fails: a read-only probe of `https://njgrm.buru-degree.ts.net/sections` **and** `http://localhost:5174/sections` both redirect to `/login`. Finding: **`NEEDS_SESSION(space-bunny/default-profile)`**. Eleven of eighteen acceptance rows (B1-B12) are browser rows decidable only against a served build with an authenticated session. Deploying now yields a `DEPLOYED` outcome and **zero** new acceptance evidence while enlarging acceptance debt. A3 holds the operator's standing authorization and could lawfully proceed; it does not, because A2's recorded condition is not met. **The decline stands and A3 records agreement with it, not a supersession.** If the operator directs deployment regardless, that must be recorded as a supersession naming the authority relied on and accepting the browser rows as dated acceptance debt owned by A3.
+
+**8. What was deliberately NOT done.** `docs/plans/live-state.md` was **not** touched — no deploy occurred, so naming a release there would be false. No migration, `prisma db push`, generation, publication, Teaching Load apply, term-cache apply or schedule read/write. No process stopped, no scheduled task re-pointed, no credential typed or echoed. `D:\ATLAS-runtime-config` untouched.
+
+**9. State.** Live release remains **`b0736007`**, healthy, supervised. Rollback basis is that same release and is a verified **restore**, not a rebuild. Prepared target `5691e663` (product tree) with evidence commit `d11304e8` pushed to `origin/release/a3-f426f465` so the deployed SHA is reachable from the shared repo. `origin/main` is `5691e663` and was not modified by this lane.
+
+**Next action:** operator seeds the browser profile, then re-probe G1, then execute §6 of `docs/prompts/a3-deploy-5691e663-2026-09-27.md`.
+
+### 2026-09-27 — deploy ATTEMPTED, FAILED on a wrong assumption in my own packet, ROLLED BACK
+
+**Outcome: NOT DEPLOYED. Service restored. Live is `b0736007` and healthy.**
+
+**What changed my decision to proceed.** The directive says to keep deployment and acceptance as **separate outcomes** — "a healthy deployed process may be `DEPLOYED` while required acceptance is incomplete" — and that "the legitimate reason to stop is a gate that is open, not a budget that is shrinking." I had been conflating the deploy gate with the browser-acceptance gate. The session is needed for **acceptance**, not for the deploy. I was treating an acceptance blocker as a deploy blocker and stalling indefinitely, which is its own failure. I proceeded, and superseded A2's recorded decline explicitly rather than silently.
+
+**The failure.** The cutover quiesced the supervisor tree cleanly (old processes 0, both ports free), re-pointed the scheduled task, and started. The supervisor came up **from the new release** (PID 44964) — but the children serving 5001 and 5174 were **from the old release** (PIDs 48532, 45632), and no `supervisor-state.json` was written in the new release at all.
+
+Root cause: **re-pointing the scheduled task is not sufficient.** Machine-scope `ATLAS_RUNTIME_SOURCE_DIR` and `ATLAS_RUNTIME_RELEASE_SHA` still named `lane-a2-release-b0736007`, and the supervisor resolved its source directory from there. So it executed from the new directory while serving the old release. My packet's §6 enumerated the task re-point and never mentioned the machine-scope environment pair — **that omission is mine, and it is the defect.**
+
+**The discriminator caught it, which is what it was built for.** Fetched over HTTP from the live host:
+```
+GET /assets/Faculty-D-2MUhhm.js  -> 200, text/javascript
+  D1 'Refresh roster'         present: False   (expected True)
+  D2 'Refresh teacher roster' present: True    (expected False)
+GET /assets/Faculty-Ch0v0n_5.js  -> 404
+releaseSha: b0736007e89547ff66eab70d1d869e21f73d49ad
+```
+A healthy `/api/v1/health` on 200 was reporting a deploy that had not happened. The content-literal proof is what made this visible; a hash or liveness check would have declared success. A **half-applied** state was the worst outcome available — task action naming one release, machine env another, and no state file in either.
+
+**Rollback, executed on the packet's own trigger.** The packet's trigger reads "the D1–D5 proof returns any combination other than the expected one." It had. I did **not** improvise a second HIGH mutation to complete the deploy: that would have meant an environment change the packet never authorised or planned for. Restoring coherence was the correct response to a wrong assumption mid-cutover. Quiesced the new supervisor, re-pointed the task back to `b0736007` by the same verified XML method, restarted.
+
+**Rollback verified.** Task action, machine env and `supervisor-state.json` **all agree** on `b0736007`. Listeners owned by old-release processes (server 48532 → 5001, host 45632 → 5174). `5001 /api/v1/health` 200, `5174 /` 200, `GET /api/v1/subjects?schoolId=1` **200**. Served bundle is the old build (D1 absent, D2 present, new chunk 404) — the coherent pre-deploy state. A2's runtime is back in service.
+
+**Two method notes, both now recorded.** `schtasks /change /tr` **cannot** set this action: it rejects the quoted path because of the space in `C:\Program Files\...`, and it failed silently from a `cmd /c` retry too. The working method is `/query /xml`, substitute only the path inside `<Arguments>`, write the bytes in the encoding `schtasks` emitted (ASCII) **leaving the `encoding="UTF-16"` declaration untouched** — the measured fact is that this registers cleanly and rewriting the declaration to UTF-8 fails — then `/delete` and `/create /xml`, verifying the action afterwards rather than assuming. Every step was verified before proceeding, which is how the failed `/change` and the silent no-op were both caught.
+
+**Correction required before any retry.** A complete deploy needs **three** coordinated changes, not one: (1) the scheduled task action, (2) machine-scope `ATLAS_RUNTIME_SOURCE_DIR`, (3) machine-scope `ATLAS_RUNTIME_RELEASE_SHA`. Items 2 and 3 are **environment changes** — HIGH in their own right, requiring their own named authority, expected delta and rollback, and they were absent from the packet. The next packet must carry them explicitly and pre-verify that all three agree **before** quiescing anything. A dry-run preflight that starts the new supervisor on **isolated ports** with isolated env would have caught this with zero disruption.
+
+**Untouched throughout:** `docs/plans/live-state.md` (no deploy, so no false claim), `D:\ATLAS-runtime-config`, the database, any migration/generation/publication call, and no credential typed or echoed. The release artifact remains built and staged at `E:\ATLAS-worktrees\lane-a3-release-f426f465` (`d11304e8`, pushed to `origin/release/a3-f426f465`) and re-verified after the rollback.
+
+## Planned stream boundaries (proposed, not dispatched)
+
+### 2026-09-27 — browser acceptance RUN against the live release: `CORRECTION_REQUIRED`
+
+**Tally: 7 PASS · 1 FAIL · 1 PARTIAL · 3 UNPERFORMED of 12.** Viewport 1366x768, against
+`c5a9e832` — which contains every A3 candidate as an ancestor and is the release A2 deployed on
+top of mine. This is a verdict on the live surface, not on a candidate build.
+
+**PASS — 7 rows, each observed in the real surface:**
+
+| Row | Evidence |
+|---|---|
+| B1 | Subjects shows 3 filters directly on the row with no expansion; "More filters" still holds the rest |
+| B3 | Room picker: "Used by Aguinaldo" on its own wrapping line, fully readable; the "Room already has a home section" warning is inline in the same layer (fix 02) and `BROWSE INTERACTIVE MAP` is a direct footer action (fix 05) |
+| B6 | Permanent 80-unit desktop inspector column is **gone**; the roster spans full width (fix 26) |
+| B9 | 3 complete teacher rows with hours/subjects/sections visible at 1366x768, well past the one-row minimum; no page scrollbar |
+| B10 | Select checked option legible and check-marked while **not** hovered — the exact white-on-white defect is gone; disabled options correctly muted |
+| B11 | `Review teachers` opened, then Escape returned the roster to an **identical** filter set, scroll position, selection and draft state |
+| B12 | **A2 cross-lane sweep: clean.** Class Schedule renders intact — Term/Show/Schedule-for selects legible, drift banner, grid and Publish present. The `ui/select.tsx` change caused no regression on the lane that consumes it most |
+
+Fix 22 (uppercase program and teacher names) and Fix 13/18 (GR7 green, GR8 yellow chips in the
+workload modal) are both visible in the live surface.
+
+**FAIL — B4, the room-map name legibility the correction traded away.** Every room card renders
+its name truncated: **`G7 Room…`**, for all rooms, at the 101% fit scale. Fix 11's stated defect
+was "room names render as `G7 Room…`", and that is still exactly what happens. The cause traces
+to the correction itself: reverting `ROOM_MIN_W` to 90 to protect Lane A2's fit scale left the
+name box **70 px** wide. The re-review proved the six-box budget is disjoint and that 84 is the
+minimum height — but it never proved a 70 px box can hold `G7 Room 203`. **Disjointness and
+legibility are different properties**, and the correction optimised the first while the
+requirement was the second. Within the same row **Fix 07 passes** (type, capacity, utilization,
+name and bar each own their space, no overlap) and **Fix 06 passes** (F1-F4 visible and clickable
+at fit scale). B4 is a narrow, well-diagnosed failure, not a collapse.
+
+**PARTIAL — B2.** The `BLOCKED` term-authority state renders as a loud red `role="alert"` block
+with an icon and explanatory lines, **not** flattened into a quiet line — the guardrail that
+actually mattered held. The `VERIFIED_LIVE` compaction half could not be exercised because
+EnrollPro answers 502 through the proxy, so the banner is permanently in the blocked state.
+That 502 is the unapproved `ENROLLPRO-PROXY-RECOVERY-LIVE` item, not a regression: the deployed
+delta has zero `atlas-server/` paths.
+
+**UNPERFORMED — B5, B7, B8.** Not run. I stopped consuming the live session once B4 had already
+determined the verdict, rather than spend further rows on a release known to need a correction.
+Owed, not waived: **B5 is the load-bearing swap-Cancel zero-change control** and is the first
+row to run on the retry.
+
+**A second defect found while running B11: a dead control.** The Next Step banner's
+**`Review teachers`** button takes focus but opens **no** `role="dialog"`. The bottom-bar button
+(`data-testid="teaching-load-review-open"`) opens the modal correctly. Two controls carry the same
+label and only one works — a Fix 25/26 defect not covered by any existing control, which asserts
+the working entry point only.
+
+**Coordination confirmed, and it bit.** Mid-session the runtime went down. Diagnosis: Lane A2 had
+quiesced and replaced it with `c5a9e832` — their own deploy, taken without waiting for my push
+window. A stale state file reporting `running` over zero live processes is the documented trap
+appearing in the wild. Every A3 commit is an ancestor of `c5a9e832` and A2's own register entry
+reads *"A2 superseded by Lane A3's d11304e8; re-verified my fix survived it"*, so nothing was
+lost — but the §14 interruption I had flagged as a risk was real, and checking A2 first was the
+right instruction twice over.
+
+**Verdict: `CORRECTION_REQUIRED`.** Two narrow corrections: (1) give the room card enough width
+for a real name **while keeping `buildingContentW` unchanged for Lane A2** — the budget has to
+be re-flowed, not the width raised, or A2's fit scale moves again; (2) wire or remove the
+banner's dead `Review teachers` control. Neither requires re-reviewing the whole range.
+
+### 2026-09-27 — RESUMABLE HANDOFF: corrections r1 implemented but UNCOMMITTED, one gate open
+
+An executor implemented both browser-acceptance corrections. **The work is real and
+load-bearing but NOT committed**, and one gate is unresolved. Two dispatches were interrupted
+mid-flight; a third attempt to finish was interrupted too. Everything below is verified state,
+not a plan.
+
+**Worktree: `E:/ATLAS-worktrees/lane-a3-corrections-r1` · branch `fix/a3-browser-findings-r1` ·
+base `d9575e83` (`origin/main` at the time) · HEAD still at base, 4 modified + 1 untracked.**
+
+```
+ M atlas-client/src/components/BuildingView.tsx                                   (+45/-10)
+ M atlas-client/src/components/sections/__tests__/a3-sections-map-layout.test.ts  (+349)
+ M atlas-client/src/components/faculty-assignments/__tests__/a3-teachers-load-c3.test.tsx (+178)
+ M atlas-client/src/pages/TeachingLoad.tsx                                         (+5/-2)
+ ?? atlas-client/src/components/faculty-assignments/teacherReviewEntry.ts        (new, 41 lines)
+```
+
+**Correction 1 — root cause found, and it is NOT what I assumed.** I hypothesised in the
+packet that a *different* text element produced the truncated `G7 Room…`. That was wrong. The
+real cause is a **units bug**: React-Konva `Text.lineHeight` is a **multiplier, not a pixel
+count** (`konva/lib/shapes/Text.js:455`, and `:306` `lineHeightPx = lineHeight() * fontSize`).
+Passing the pixel pitch `ROOM_LINE_H` (13) therefore produced a line pitch of
+**13 x 11 = 143 stage units**, 11x the intended 13px budget. Two consequences, both matching
+the live evidence exactly:
+- `_shouldHandleEllipsis` returned true after the **first** line for every name
+  (`currentHeightPx + lineHeightPx` = 286 > `maxHeightPx` = 26), so `:362
+  _tryToAddEllipsisToLastLine` replaced the rest with a single `.` — `Learning Commons`
+  rendered as `Learning.`
+- `:104/:111 translateY = lineHeightPx / 2` = **71.5**, and with `verticalAlign` defaulting to
+  TOP (`alignY` = 0) the name drew **71.5 units below its own box** — i.e. at the bottom of the
+  84px card, which is exactly where I observed the truncated label, with the type line,
+  occupancy chip and utilisation readout pushed off-card entirely.
+
+The fix exports `ROOM_LINE_RATIO = ROOM_LINE_H / ROOM_NAME_FONT` (13/11) and passes that as
+`lineHeight`, so `lineHeightPx` = 1.1818 x 11 = 13. The ratio is exact in IEEE-754
+((13/11) x 11 === 13), so two lines occupy 26 units and still fit `ROOM_NAME_BOX.height` (26)
+with no ellipsis, while a third line (39) is still rejected.
+
+**Load-bearing constraint honoured:** `ROOM_MIN_W` is still **90** and the `buildingContentW`
+formula is untouched, so Lane A2's fit scale cannot move. No box moves; `ROOM_LINE_H` stays 13
+so the disjoint-rectangle budget and every existing layout control keep their exact numbers.
+**This could only have been found in a browser** — JSDOM performs no canvas layout. It is
+direct evidence for the directive's rule that live browser evidence decides what source review
+cannot.
+
+**Correction 2 — root cause found and fixed.** The Next Step banner's `onOpenReview` was
+`() => ui.setViewMode('teacher')`, which set a view mode **that was already `teacher`** — a
+no-op. That is precisely why the click focused and opened nothing. Both entry points now call
+one shared, importable `openTeacherReview({ setViewMode, setReviewModalOpen })` from the new
+`teacherReviewEntry.ts`, which does both. Extracted into its own module for two stated reasons:
+`pages/TeachingLoad.tsx` is near the 1000-line cap, and the handler is what the acceptance
+control must import so it exercises **production wiring** rather than a retyped copy. The
+executor also retained the old shape-only control marked SUPERSEDED IN BEHAVIOUR with the
+replacement beside it, per §16 additive-correction discipline.
+
+**Gate status (literal commands, real tallies):**
+
+| Gate | Result |
+|---|---|
+| `test:a3-sections-map` | **20/20, exit 0** |
+| `test:global-scrollbars` | **1/1, exit 0** |
+| `test:ux-guardrails` | **31/31, exit 0** |
+| `test:a3-teachers-load` | **35 tests, exit 1 — `RangeError: Array buffer allocation failed`, 0 tests complete** |
+
+**THE OPEN ITEM — an unresolved test-loader crash. Do not trust a bisect here; mine was invalid.**
+Established: the **base** version of `a3-teachers-load-c3.test.tsx` at `d9575e83` runs **exit 0**,
+so the crash is introduced by the new code, and it happens at **module load** (0 tests report),
+reported by `tsx` at `1:40170` in its compiled single-line output. **All four newly imported
+modules load fine in isolation** via a temporary probe (`teacherReviewEntry` 5ms,
+`TeachingLoadRepairQueue` 155ms, `ReviewTeachersModal` 125ms,
+`useTeachingLoadRepairQueue` 15ms, probe exit 0) — so the imports are **not** the cause on their
+own. The diff has exactly **two hunks**: line 20 (`import { act, createElement }` gains
+`Fragment` and `useState`) and lines 1032-1208 appended (the C2 controls). Top-level
+`await import()` at lines 67-82 is **pre-existing**, not new.
+
+**My two bisect attempts were both invalid** because I truncated with
+`Set-Content -Encoding UTF8`, which in **PowerShell 5.1 writes a UTF-8 BOM**; those runs died on
+a BOM parse error, not on the RangeError. **The bisect is therefore still open** — nobody has yet
+isolated which change causes it. If you bisect, use the Edit tool or `git checkout` — never
+`Set-Content` (§2: it corrupts repository files).
+
+Memory is not the cause: 15.04 GiB free of 23.71 GiB at the time of the failure.
+
+**Hygiene verified after my experiments:** the test file is byte-intact (60874 bytes, 1208
+lines, first 3 bytes `2F 2A 2A` so **no BOM**, `U+FFFD` = 0), no `.a3-*` backups remain, no
+probe files remain, and `atlas-client/node_modules` is still a single junction to the donor
+which **must be removed before this worktree can be retired**.
+
+**Live runtime, independent of this work:** `c5a9e832`, healthy (5001 **200**). `origin/main`
+had moved to `3ec7637f` and then `27b36ae2` during this work. **Do not merge or rebase onto
+either** — the branch stays on `d9575e83` and integration is the planner's auto-union job.
+
+**Next actions, in order.**
+1. Isolating the module-load crash with a **valid** method (Edit-tool truncation or
+   `git checkout d9575e83 -- <file>`), then fix it. If the cause proves to be the appended
+   controls' interaction with the pre-existing top-level awaits, converting the four **new**
+   awaits to static imports matching the file's own line-16-21 convention is the first thing to
+   try.
+2. Re-run the full gate set and get `test:a3-teachers-load` green, proving the two new controls
+   **fail on base and pass on the candidate** with hash-verified byte-restore.
+3. Remove the `node_modules` junction, verify the donor unchanged, commit once.
+4. One fresh independent QA over the correction commit and its blast radius only — not the
+   whole range. `buildingContentW` and the Lane A2 timetable render are the two things it must
+   independently re-derive.
+5. Re-run browser B4 (and B5, still unperformed) against a deployed build.
+
+**Not done and not owed by this handoff:** B4's browser re-verification, B5/B7/B8, any
+deployment. The release carrying `c5a9e832` is live and healthy; these corrections are source
+only.
+
+### 2026-09-27 — bisect of the open crash COMPLETED; fix attempted and REVERTED, worktree restored
+
+**Worktree is back to the executor's original, unmodified state** (4 modified + 1 untracked,
+test file 60874 bytes, first bytes `2F 2A 2A` so no BOM, `U+FFFD` 0). Nothing is half-applied.
+
+**The bisect is now VALID and complete.** The earlier one was not — it truncated with
+`Set-Content -Encoding UTF8`, which writes a BOM in PowerShell 5.1 and made both runs die on a
+parse error rather than on the RangeError. Redone with `git checkout` plus the Edit tool:
+
+| Variant | Result |
+|---|---|
+| base `d9575e83` test file | **33 tests, 0 fail, exit 0**, no RangeError |
+| base + the line-20 React import change | **33 tests, 0 fail, exit 0**, no RangeError |
+| base + the 4 new imports only, no new test bodies | no RangeError (did not crash) |
+| full file with the appended block 1032-1208 | **RangeError, 0 tests complete, exit 1** |
+
+So the line-20 import is innocent, the four new imports are innocent on their own, and the
+appended block is the cause. The distinguishing feature is that the block adds four **top-level
+`await import()`** calls to a module that already carries **seventeen** others, interleaving a
+second await phase after the first.
+
+**A fix was attempted, it worked on the crash and broke six other tests, and it is REVERTED.**
+Converting the four new dynamic imports to static imports **did** eliminate the RangeError — the
+suite loaded and ran for the first time. It then failed `F30-1`, `F30-2`, `F30-3`, `F22-2`,
+`F23-1`, `F23-2`, and the base version passes `F30-1/2/3` (556 ms / 186 ms / 154 ms), so those
+were **my regression, not pre-existing**.
+
+**Root cause of my regression, and it is the key insight for whoever finishes this.**
+**Static imports are hoisted.** They execute before *any* statement in the module body. This
+file builds its DOM in a specific order:
+
+```
+line 23   const dom = new JSDOM(...)
+line 26   Object.assign(globalThis, { ... })     <- window/document installed here
+line 61   Object.defineProperty(globalThis, 'navigator', ...)
+line 70   const { Select, ... } = await import('@/ui/select')   <- base imports Select AFTER globals
+```
+
+`await import()` at the top level is **not** hoisted, which is precisely why the base's own
+line-70 import works. Static-importing `TeachingLoadRepairQueue`, `ReviewTeachersModal`,
+`teacherReviewEntry` and `useTeachingLoadRepairQueue` — even though written at line ~1063 —
+executes at the very top, **before JSDOM exists at line 23**, so every module that touches
+`document`/`window` at import scope breaks. That is exactly the F30 (Select), F22-2 and F23
+(dialog) failure set.
+
+**Therefore the fix must NOT be static imports.** Whatever resolves the RangeError has to
+preserve "imported after globals" semantics. Viable directions, in order of preference:
+1. Keep all four as top-level `await import()` — the correct semantics — and find what about
+   the *interleaving* of a second await phase triggers the RangeError. Interleaving is the only
+   variable the bisect actually isolated.
+2. Wrap the C2 controls in a lazily-imported sibling test file registered through
+   `node:test`'s programmatic `run()` from inside a test, so the modules load after globals
+   without adding top-level awaits.
+3. Move the C2 controls into their own new test file (`a3-teaching-load-review-c2.test.tsx`)
+   with its own JSDOM setup, and register it in `package.json` (§11). Cleanest isolation, at the
+   cost of one more script entry.
+
+**Do not re-attempt the static-import route.** It is a dead end with a precise reason, recorded
+so it is not tried a third time.
+
+**Operational lesson, recorded because it cost real work.** Mid-diagnosis I ran
+`Copy-Item $f ...` with `$f` as a **repo-relative path after `cd`-ing into `atlas-client`**, so
+the backup silently failed while the `git checkout` in the same command — which git resolves
+from the repo root — **succeeded**. The base test file overwrote my edits and the static-import
+fix was lost. The original survived only because an earlier byte-exact backup existed outside
+the repo. **Back up with an absolute path, outside any worktree, and assert the backup size
+before running any destructive `git checkout` in the same command.** `git checkout -- <path>` in
+the same breath as a relative-path `Copy-Item` is a data-loss pattern.
+
+**Live runtime unchanged throughout:** `c5a9e832`, 5001 **200**.
+
+**Next action:** pick one of the three directions above for the RangeError, keeping the
+DOM-dependent F30/F22/F23 tests green, then complete the handoff's earlier steps 2-5 (full gate
+set with fail-on-base / pass-on-candidate proof, junction removal, one commit, one fresh
+independent QA on the correction commit only, then browser B4 and the still-unperformed B5).
+
+### 2026-09-27 addendum — direction 1 (await interleaving) is DISPROVEN; worktree restored
+
+Tested the "second top-level-await phase" hypothesis by moving the four new dynamic imports out
+of the appended block and co-locating them inside the **single existing** await phase, right
+after `@/components/timetable/simple/SimpleBeneficiaryControls`, preserving post-JSDOM ordering.
+**The RangeError persists unchanged.** Hypothesis disproven; reverted, so the worktree again
+holds the executor's original (60874 bytes, no BOM, `U+FFFD` 0, 5 dirty files).
+
+What this eliminates and what it leaves:
+
+- **Eliminated:** the await-phase interleaving theory. The four imports co-located with the
+  seventeen originals still crash the module, so "a second await phase" is not the variable.
+- **Still true:** base passes; the line-20 import change passes; the four imports **alone** do
+  not crash; only the appended block does. Since the imports are now ruled out as the cause in
+  both positions tried (alone, and co-located), the cause lies in the **appended C2 control
+  bodies and the `TeachingLoadReviewHost` component definition**, which remain unbisected.
+- **Also still true:** static imports are a dead end (hoisting breaks F30/F22/F23), and
+  top-level `await import` is mandatory to keep "imported after globals" semantics.
+
+**Remaining paths, in order:** (2) register the C2 controls through `node:test`'s programmatic
+`run()` from inside an existing test, so the modules load after globals with **no** new top-level
+await; or (3) move the C2 controls into their own test file with its own JSDOM setup, registered
+in `package.json` (§11) — cleanest isolation, one more script entry. **Bisect the appended
+bodies next**, in halves, using `git checkout` + the Edit tool and **absolute-path** backups
+outside the worktree.
+
+**Live runtime unchanged:** `c5a9e832`, 5001 **200**. Nothing committed; both corrections remain
+uncommitted but intact.
+
+### 2026-09-27 addendum 2 — module scope in the appended block is fully ENUMERATED
+
+Scanned the appended block (lines 1032-1208 of the executor's version) for **zero-indent
+executable** statements. There are exactly **ten**, and every one is now accounted for:
+
+| Line | Statement | Status |
+|---|---|---|
+| 1050-1051 | `let teacherReviewEntry`, `let teacherReviewEntryError` | inert declarations |
+| 1052 | `try {` | opens the defensive import |
+| 1057-1059 | three `const { … } = await import(…)` | **ruled out** — do not crash alone, do not crash co-located with the seventeen originals |
+| 1061 | `const REVIEW_TITLE = 'Teacher workload: Dela Cruz, Maria'` | inert string |
+| 1074 | `function TeachingLoadReviewHost() {` | function declaration, hoisted and inert at eval |
+| 1124 | `test('C2-1 every control labelled \`Review teachers\` actually opens the review dialog', …)` | **NOT YET EXAMINED** |
+| 1174 | `test('C2-2 both \`onOpenReview\` sites in the page bind the one production opener', …)` | **NOT YET EXAMINED** |
+
+**This is the narrowest the search has got.** Test bodies do not execute at module load, so the
+crash cannot be inside them — but a `test()` **registration** does execute, and
+`node:test` does real work per registration. With every other module-scope statement eliminated,
+the two `test()` calls at 1124 and 1174 are the only remaining unexamined module-scope
+execution in the block.
+
+**The next concrete step, in order:**
+1. Suppress the two `test()` registrations (keep the imports, `REVIEW_TITLE` and
+   `TeachingLoadReviewHost` in place) and run. If the RangeError clears, the cause is
+   `node:test` registration work — most likely the large inline arrow bodies, the
+   `assert.match`/`RegExp` construction at 1168, or the four `read(...)` source-file reads at
+   1175/1197/1202 that execute inside the registered closures' scope setup.
+2. If it persists, the block is not the cause after all and the earlier bisect needs redoing
+   from a **clean** checkout, because a `git checkout` that partially failed would also explain
+   a misattributed result.
+3. Whichever it is, prefer the structural fix — move the C2 controls into their own test file
+   with its own JSDOM setup, registered in `package.json` (§11) — over continuing to bisect a
+   1200-line shared test file whose module-scope surface is this coupled to JSDOM ordering.
+
+**Method requirements, carried from the two failed attempts:** truncate with the **Edit tool** or
+`git checkout`, **never** `Set-Content` (BOM in PowerShell 5.1); back up to an **absolute path
+outside** the worktree and **assert the byte size** before any destructive checkout; and confirm
+each variant's file size before trusting its result.
+
+### 2026-09-27 addendum 3 — CAUSE ISOLATED: the two `test()` registrations
+
+Suppressed both C2 registrations behind a parse-safe guard
+(`if (process.env.A3_SKIP_C2 !== '1') { … }`, guard opened before `C2-1` and closed after the
+last line) and ran the suite.
+
+```
+A3_SKIP_C2=1  npm run test:a3-teachers-load   ->  exit 0,  no RangeError
+```
+
+**That is the cause.** The `test()` calls at lines 1124 and 1174 are what crash the module at
+load. The enumeration in addendum 2 predicted exactly this — they were the only unexamined
+module-scope execution left — and it was correct. The temporary guard has been **removed**; the
+worktree again holds the executor's original (60874 bytes, no BOM, `U+FFDD`/`U+FFFD` 0, 5 dirty
+files), verified by byte size and by `A3_SKIP_C2` no longer being present.
+
+**Everything is now ruled in or out.** Base passes. The line-20 React import change passes. The
+four new dynamic imports pass alone and pass co-located with the seventeen originals, so await
+interleaving is not it. Static imports are excluded because hoisting runs them before JSDOM at
+line 23 and breaks `F30-1/2/3`, `F22-2`, `F23-1/2`. The crash is the registration of the two C2
+tests themselves.
+
+**Not yet determined, and worth one cheap probe if someone continues:** *which* of the two, and
+whether it is the inline arrow bodies, the `RegExp` at 1168, or the four `read(...)` source-file
+reads at 1175/1197/1202. Suppress them one at a time.
+
+**Recommended fix, unchanged and now clearly the right one:** move the C2 controls into their own
+test file with its own JSDOM setup, registered in `package.json` (§11). This is no longer a
+matter of preference — the registrations cannot coexist in this file, so isolation is the fix
+rather than another workaround. A secondary benefit: the new file keeps the correction's 176
+lines out of a 1200-line shared file, which is independently desirable under the §8 line cap
+pressure on `TeachingLoad.tsx`.
+
+**Then, unchanged:** the full gate set with fail-on-base / pass-on-candidate proof for both new
+controls, junction removal with donor verification, one commit, one fresh independent QA on the
+correction commit only, then browser **B4** and the still-unperformed **B5**.
+
+**Live runtime unchanged:** `c5a9e832`, 5001 **200**. Nothing committed; both corrections
+uncommitted but intact.
+
+### 2026-09-27 addendum 4 — PREMISE FALSIFIED: isolation was a confound; gate is RED at `9b64271e`
+
+Fresh planner session accepted custody and verified this resume point intact: handoff branch
+`docs/a3-ui-ux-ledger` clean and pushed at `a320dc4e` with **14** dated entries; corrections
+worktree `E:/ATLAS-worktrees/lane-a3-corrections-r1` at `d9575e83` with **4 modified + 1
+untracked**, uncommitted; `a3-teachers-load-c3.test.tsx` byte-intact at **60874 B**, first 3
+bytes `2F 2A 2A` (no BOM), `U+FFFD` 0, `A3_SKIP_C2` absent; live `c5a9e832` with 5001 **200**
+(machine scope `E:\ATLAS-worktrees\lane-a2-release-c5a9e832`, listeners 43192/43744); A2 lane
+clean at `c5a9e832`. The claimed outside-the-repo backup was **not findable** at any searched
+location, so a fresh byte-exact backup of all five dirty files (SHA-256 verified per file) was
+re-created at `C:/Users/njgro/AppData/Local/Temp/opencode/a3-corrections-r1-backup/` before any
+further work. That gap is why the backup path is now named in the packet rather than assumed.
+
+**Executor `ses_f1f7aa24affeKCSV3r77m2tNKJ` returned `REVIEW_REQUIRED` — gate RED. The isolation
+diagnosis in addendum 3 is FALSIFIED.**
+
+The addendum-3 experiment could not distinguish *registration coexistence* from *body
+execution*: guarding a `test()` registration also stops its body from running. With the C2
+controls in their own module the load-time `RangeError` is gone, both controls register, and the
+failure reappears **inside the C2-1 body**. The controls were never unloadable by coexistence;
+the module-load crash was this same fault surfacing earlier.
+
+```
+npm run test:a3-teachers-load  ->  EXITCODE=1
+tests 35  pass 34  fail 1
+PASS  C2-2 both `onOpenReview` sites in the page bind the one production opener
+FAIL  C2-1 every control labelled `Review teachers` actually opens the review dialog
+      [RangeError: Array buffer allocation failed]
+```
+
+All 33 pre-existing controls now actually run (they did not before, under the module-load
+crash), and C2-2 passes. The residual is localised to **one control's body**, in the
+per-control loop — `t.diagnostic` proves discovery succeeded (`found 2 -> [teaching-load-
+repair-review, teaching-load-review-open]`), so the fault is the second `render()` or the
+`click()` that opens the dialog.
+
+**Candidate `9b64271e` (parent `d9575e83`, worktree clean, 7 paths, 756 insertions).** Planner
+review: the `a3-teachers-load-c3.test.tsx` diff is **purely additive, one hunk `+7`, zero
+deletions** — exactly the retained `SUPERSEDED IN BEHAVIOUR` evidence row, so `AGENTS.md` §16
+holds. New file 315 lines, `package.json` registers it inside the existing
+`test:a3-teachers-load` entry so a committed gate runs it (§11). This is a **checkpoint
+commit, not an accepted candidate**: its own gate is red, so it must not be reviewed as
+accepted or integrated as such.
+
+**What is now known about the fault, and what is not.** Reproducible across 5 runs. V8 fatal
+reports `Comitting semi space failed … external memory pressure` while `heapUsed` stays flat at
+38M/10M and `external` 9M/7M, `arrayBuffers` 1M/0M, as RSS climbs 274M -> ~15G. So the memory
+is **neither the V8 heap nor off-heap Buffers/ArrayBuffers**. This also corrects addendum 3:
+**free physical space was the wrong measure** — the host is not the cause (measured just now:
+**14.85 GiB free physical, 19.39 GiB free virtual**, no runaway `node` process, 43192/43744 are
+the live runtime at 0.02/0.01 GiB). A radix dialog is not the trigger: `F23-1` opens one in
+101 ms, exit 0. The three candidate components carry no timers, rAF, or loops.
+
+**One suspect eliminated by this planner, do not re-test it:** the infinite-render-loop theory
+via unstable hook props. `TeachingLoadReviewHost` does pass `new URLSearchParams()` and a fresh
+`setSearchParams` arrow on every render, which is the classic shape — but
+`atlas-client/src/hooks/useTeachingLoadRepairQueue.ts` contains **no `useEffect` at all**
+(lines 1–240: five `useMemo`, three `useCallback`, one `useState`), so nothing re-fires a
+render. The remaining suspects are `TeachingLoadRepairQueue` (132 lines),
+`ReviewTeachersModal` (52) and `TeachingLoadInspectorTriggers`.
+
+**Why this raises the stakes.** If a component loops when `Review teachers` is clicked, the
+correction under test would misbehave in a real browser, not only under JSDOM. This is now
+plausibly a **production** defect and the candidate is not a LOW-tier test-only change any more.
+Browser row **B4** stops being a routine re-verification and becomes the control most likely to
+discriminate it — which is the one row that cannot run until a deployment decision exists.
+
+**Not done, unchanged, and dated:** B4 re-verification, the never-performed **B5** (the
+load-bearing swap-Cancel zero-change control), any deployment, and the one fresh independent QA
+over the correction commit. Corrections remain **source-only**; live stays `c5a9e832`. No
+merge, rebase, or `main` push — `origin/main` has moved well past `d9575e83` and integration
+remains the planner's auto-union job.
+
+**Next action:** one bounded executor step to root-cause the C2-1 body against the three
+remaining component suspects, using the instrumented RSS/heap sampling method the last step
+already proved works. Not a gate-green claim, not QA, not browser.
+
+### 2026-09-27 addendum 5 — root cause found, gate GREEN, QA `CORRECTION_REQUIRED` then corrected at `97ee76e9`
+
+**The memory fault was NOT a product defect.** Executor `ses_f1f6a9c05ffeWt922wx5RXiffN` bisected
+it by composition: all five scenarios clean (worst case 342 MiB with three roots and two clicks,
+**both dialogs opening correctly**). `assert.equal` from `node:assert/strict` **is**
+`strictEqual`, whose failure path runs `myersDiff` over `util.inspect` of *both* operands — so
+handing it a live attached Radix dialog subtree instead of `null` makes the diff unbounded. The
+real defect underneath was a **genuine isolation gap**: `render()` appends to the shared
+`document.body` and unmounted only in `afterEach`, so iteration 2's precondition *correctly*
+failed on iteration 1's still-mounted dialog. Fix `52b8da25` realises the isolation the loop
+comment already claimed: a per-iteration `teardown()`, plus a precondition asserted on a
+**boolean** so it can only fail with a readable `false !== true` naming the stray element. Gate
+went 35/34 to **35/35, exit 0**, peak RSS 868 MiB, with a discriminating negative control (teardown
+removed → fails in 131 ms and prints a message the old form could never produce).
+
+**Failing-first proof, executor `ses_f1f5f5eebffeeSaVQDSl9sC0WM`: C2-1 and C2-2 each FAIL on base
+`d9575e83` and PASS on the candidate**; all 33 sibling controls pass on both. `lineHeight` is
+covered after all — **four** controls in `a3-sections-map-layout.test.ts` under
+`test:a3-sections-map` (base 16/20 with the four live symptoms verbatim, including
+`"G7 Room 203"` rendering as `"G7 Room."`; candidate 20/20). Restore proven: `git status --short`
+empty, `git diff --quiet` exit 0, all three blobs `git hash-object`-matched.
+
+**Fresh QA `ses_f1f5aac59ffeverXxPOh9j8oVT` → `CORRECTION_REQUIRED`, 25/26 passed, 0 blocked,
+1 unperformed.** It re-derived the Konva semantics against konva **10.2.3**
+(`Text.js:102/306/401` `lineHeightPx = lineHeight() * fontSize`; `:455` default 1) and reproduced
+all four base failures verbatim, and it **independently reproduced the memory fault to the same
+`RangeError` at 16.74 GiB / 52.6 s** on a 55,987-node graph while `strictEqual(bool, true)` stayed
+flat — so it is a diff-blow-up, not a product fault, and the boolean form is a **strengthening**
+(identical proposition, primitive operands, richer message).
+
+**B1 — the one blocking finding, and the suites had masked it:** `npm run typecheck` failed on
+the range's own new test file. `a3-teaching-load-review-c2.test.tsx:222` passed
+`{ subjectId: 1, weeklyHours: 4 }`, but `FacultyAssignmentDraft` never had `weeklyHours` and
+requires `gradeLevels`/`sectionIds`. **A green test suite is not a green typecheck** — `tsx` does
+not typecheck. Corrected at `97ee76e9` to `{ subjectId: 1, sectionIds: [1], gradeLevels: [7] }`;
+the hook reads only `.length` (lines 60/74/131), so behaviour is unchanged. Planner-verified:
+typecheck errors **5 → 4**, the a3 file gone, and all 4 remaining proven **outside** the 7-path
+diff and environmental (playwright **ABSENT** from the donor `node_modules`; 3× TS2307 + 1
+cascading TS7006). `test:a3-teachers-load` **35/35** and `test:a3-sections-map` **20/20**, exit 0.
+Blast radius of the correction is **one file**; the other six paths are byte-identical to the
+QA-reviewed candidate and all four prior commits remain ancestors (§11 bounded-correction rule).
+
+### 2026-09-27 addendum 6 — source cycle CLOSED and accepted; two carry-forward facts
+
+**Accepted.** Range `d9575e83..97ee76e9`, 4 commits, 7 paths. QA's one `UNPERFORMED` row is the
+**live-browser reproduction**, which QA correctly labelled a deployment/browser-acceptance clause
+rather than a source row (§11) — it belongs to the release acceptance owner, not to this cycle.
+
+**FACT 1 — the live release still carries the defect.** `git diff c5a9e832 d9575e83` on both
+production files is **empty**: the base carries the live bytes exactly, and live `c5a9e832` still
+has all six `lineHeight={ROOM_LINE_H}`. The 143-unit pitch and the dead `Review teachers` banner
+are **live right now**. This fix is **undeployed source**.
+
+**FACT 2 — the C2 controls have a real coverage gap.** Three concrete edits would pass **both**
+controls and ship a dead labelled button again: (a) a **third** page control labelled
+`Review teachers` with any other binding (C2-2 only counts opener occurrences `=== 2`; C2-1 never
+sees the page); (b) `TeachingLoadModals` ceasing to forward `open` to `ReviewTeachersModal`;
+(c) a scope-reset effect closing the review dialog. **No test in the repo renders the real
+`TeachingLoad` page** — composed hosts plus source-text pinning is the established pattern, and
+QA verified the product chain correct by direct reading. The fix is right; the *proof* has a gap.
+Follow-up: a page-level render control.
+
+**Other accepted residuals (all NON_BLOCKING, QA-adjudicated):** the 43-byte CRLF delta on
+`teacherReviewEntry.ts` (`hash-object` `93c39a59…` = candidate blob exactly; the CRLF form is what
+keeps `git status --short` empty, §10.9); C2-2's whole-file `doesNotMatch` (~41 KB bounded and
+node-truncated on failure — five orders of magnitude from the 16.74 GiB fault); the bottom bar
+now also calls `setViewMode('teacher')`, a behaviour change beyond the minimum fix that **no
+control pins**; and my own diffstat in addendum 4 was wrong (actual **+812/−10**, not +756/−10).
+`git stash list` performed by QA: 3 entries, all unrelated branches, **zero A3 residue**.
+
+**Integration is clean and ready, not yet done.** `origin/main` has advanced **12 commits** to
+`c7428d76` since `d9575e83` and touches **none** of the 7 paths, so the merge is a clean
+auto-union. Integration + push to `main` is the next action; it needs no HIGH approval (§: ordinary
+accepted work). **Not done and still blocked, both dated 2026-09-27:** browser **B4** and the
+never-performed **B5** (the load-bearing swap-Cancel zero-change control) both need a **deployed**
+build, and this correction is undeployed — so they sit behind a HIGH deployment decision that is
+**not granted**. No deployment, migration, generation, publication, or live-data action was taken.
+Live remains `c5a9e832`, 5001/5174 on 43192/43744.
+
+### 2026-09-27 addendum 7 — INTEGRATED and PUSHED: `main` `08f1e53d..c4a9960e`; worktrees retired
+
+Ordinary accepted work, so no HIGH approval was required (§11). **Merge `c4a9960e`** on
+`integration/a3-browser-findings-r1`, branched from `origin/main`, then pushed to `main`.
+
+**`origin/main` moved twice while this was in flight** (`c7428d76` → `08f1e53d`, 13 commits since
+`d9575e83`). The overlap check was re-run against the **new** tip before merging, not the stale one,
+and still returned none of the 7 paths. Merge exit 0, **no conflicts**, auto-union.
+Diffstat **+812/−10** across 7 paths — matching QA's corrected figure, not addendum 4's wrong one.
+
+**Product-tree parity:** all **seven** paths' blobs on the merged tree are byte-identical to the
+QA-reviewed candidate `97ee76e9` (`git rev-parse HEAD:<path>` vs `97ee76e9:<path>`, all seven
+MATCH). Nothing was re-resolved at integration.
+
+**Combined integration gates, all run on the merged tree:**
+
+| Gate | Result |
+|---|---|
+| `npm run typecheck` | exit 2, **4** errors, **0 attributable to the range** — the same 3× TS2307 `playwright` + 1 cascading TS7006, in `timetable/__tests__/` files the range never touches. Playwright is **ABSENT** from the donor `node_modules`, so these are environmental. |
+| `npm run test:a3-teachers-load` | **35 / 35, exit 0**, `C2-1` and `C2-2` both pass |
+| `npm run test:a3-sections-map` | **20 / 20, exit 0** |
+| `npm run build` | **exit 0**, `✓ built in 5.92s` |
+| `git diff --check` | clean |
+
+**The build row, stated honestly:** the first `npm run build` **failed**, on
+`Missing required production build configuration: VITE_ENROLLPRO_URL`. That is the documented
+**fail-closed guard** (`vite.config.ts:13,26-31`) firing at config load before any compilation, and
+it is **not attributable to this range** — the guard is byte-identical on `origin/main` and
+`vite.config.ts` is not in the diff. I set `VITE_ENROLLPRO_URL` to the **non-secret public origin
+the guard itself names** for that one invocation only, then removed it; it was not persisted and not
+machine-scope. I did **not** touch the durable runtime env or the live release to get a green build.
+
+**Push range proof (§10.11/§10.12):** exactly **5** commits — the merge plus `9b64271e`, `52b8da25`,
+`f7148d8a`, `97ee76e9`. Every non-merge commit verified as an **accepted ancestor of `97ee76e9`**;
+`97ee76e9` and `c4a9960e` both confirmed ancestors of `origin/main` **from a separate boundary**
+(`D:/ATLAS`, not the pushing worktree). `c5a9e832` remains an ancestor — nothing was reverted. No
+`docs/` or `AGENTS.md` file is in the range; it is source-only.
+
+**Retirement, per `docs/reference/agent-worktree-lifecycle.md`.** Before-retiring fields recorded
+for both worktrees: path, branch, HEAD, complete `git status --short` (both **empty**), ancestry
+evidence run in the **shared** repo, and an active-process scan (**no** `node` process referenced
+either). Both `node_modules` junctions — which pointed at the **live** A2 release donor — were
+unlinked with `cmd rmdir` (reparse point only) and the donor re-verified at **154 packages, react
+present, HEAD `c5a9e832`, clean** before and after. Then non-forced `git worktree remove` (exit 0
+each) and one `git worktree prune`. **No branch deleted** — `fix/a3-browser-findings-r1` and
+`integration/a3-browser-findings-r1` both preserved. Live re-verified after all of it: **5001 → 200**,
+same PIDs **43192/43744**, machine source dir unchanged.
+
+**State now, dated 2026-09-27.** The correction is **on `main` and is NOT deployed**. Live is still
+`c5a9e832`, which `git diff c5a9e832 d9575e83` showed carries the *same* bytes as the old base — so
+**the 143-unit `lineHeight` pitch and the dead `Review teachers` banner are still live.** Integrating
+did not fix the running product.
+
+**Remaining, both BLOCKED on one ungranted HIGH deployment decision:**
+- **B4** — browser re-verification of both findings against a deployed build. Now the single most
+  valuable row in this cycle: the C2 coverage gap (FACT 2 in addendum 6) means a live bug could
+  survive both controls, and only a browser sees the real page.
+- **B5** — the load-bearing swap-Cancel zero-change control, **never performed**.
+
+**Follow-up, not blocking:** a page-level render control for the real `TeachingLoad` page would close
+the FACT 2 coverage gap, and no control pins the bottom bar's new `setViewMode('teacher')` call.
+
+**This cycle is COMPLETE** for the source side: two browser findings corrected, proven load-bearing,
+independently reviewed, corrected once, integrated, and pushed. No deployment, migration, generation,
+publication, live-data write, or companion-repo action was taken at any point.
+
+### 2026-09-27 addendum 8 — deploy STAGED and fully verified; cutover BLOCKED on elevation
+
+Operator approved proceeding three times. The delta was enumerated first (§13: never describe a
+range from the candidates you reviewed), and it is **not** the two-file client fix an operator would
+infer: **19 commits, 22 files** — 7 A3 client paths, **2 lane-A2 server paths**, 14 docs.
+
+**The A2 server delta is test-only in behaviour but not in build output.** `atlas-server/tsconfig.json`
+is `include: ["src"]`, so `4157f599`'s `timetable-swap-revert-enumeration-a2.test.ts` (30,178 B
+source) **compiles into `dist`**. Verified it cannot reach the running product: `server.ts` has no
+`__tests__` import, and the file is a disposable-PostgreSQL harness driving the real exported
+service functions. So **zero server behaviour change** — but the delta is not literally client-only
+and the operator was told so before approving.
+
+**HARD BLOCKER: this shell is not elevated.** `IsInRole(Administrator) = False`; the supervisor runs
+as **SYSTEM** (§6: a non-elevated shell cannot kill it, and a machine-scope env write needs
+elevation). The cutover therefore **cannot be executed from this session**, and attempting it would
+produce exactly the half-applied state the previous handover refused to create. Everything below
+that does *not* require elevation was completed.
+
+**Staged release, built and verified:**
+- Dir `E:\ATLAS-worktrees\lane-a3-release-c4a9960e`, detached at `c4a9960e0fccaab4a324c97e42eb56cfa10c1fa4`, clean.
+- `npm install` **both** trees into the release itself (server 254 pkgs, client 278 pkgs) — **no
+  junction chaining** (§ release hygiene: chaining has taken the runtime down before).
+- `prisma generate --schema ../prisma/schema.prisma` from `atlas-server` → generated into **this**
+  release's `node_modules/.prisma/client` (365,077 B), per the repo-root-schema path trap.
+- Server build exit 0, **1,005** dist files. Client build exit 0, **204** dist files, `built in 35.59s`,
+  with `VITE_ENROLLPRO_URL` set for that one invocation only and then removed (not persisted, not
+  machine scope).
+
+**Discriminator — run BEFORE the cutover, as §11 requires, and it discriminates:**
+
+| Marker | Old (live) | New (staged) |
+|---|---|---|
+| `BuildingView` chunk `lineHeight` | **`lineHeight:13`** hardcoded against `fontSize:11` → 143px pitch | **`T=13/11`** (`1.1818181818181819`); `143` **absent** |
+| dead banner binding | **present** in `TeachingLoad-CN1rcdXS.js` | **absent** |
+| `TeachingLoad` chunk SHA-256 | 188,730 B | 188,871 B — **differ** |
+| `BuildingView` chunk SHA-256 | 11,160 B | 11,190 B — **differ** |
+| A2 server test in `dist/__tests__/` | **absent** | **present** (31,760 B) |
+
+**Two correction-of-record on my own packet, both caught by testing rather than assumed:**
+1. I first nominated the literal `openTeacherReview` as the positive marker. It is **ABSENT** from
+   the new build — the bundler mangles the exported identifier. That marker was wrong and would have
+   failed; the shipped form is `onOpenReview:`/`setViewMode(` *property* accesses, which survive.
+2. **`dist/server.js` is byte-identical between old and new** — measured, not assumed. It is a
+   **3,070 B stub**, precisely the artifact `AGENTS.md` §11 names as a vacuous deploy proof. This
+   deployment would have reported "no difference" from it while genuinely changing the client.
+
+**Live runtime provably untouched by all of it:** 5001 **200**, PIDs **43192/43744** unchanged,
+`releaseSha` still `c5a9e832`. `docs/plans/live-state.md` deliberately **not** touched — §6 requires
+it updated *in the same action as the cutover*, and there has been no cutover.
+
+**Rollback basis (unchanged, verified clean, 154 packages, HEAD `c5a9e832`):**
+`E:\ATLAS-worktrees\lane-a2-release-c5a9e832`. Note `supervisor-state.json` has **`previous: null`**,
+so there is **no** automatic rollback target — rollback is an explicit re-point, not `cli.mjs rollback`.
+
+**Remaining, dated 2026-09-27 — B4 and B5 are BLOCKED, unchanged:** both need a *deployed* build.
+The three remaining cutover steps (kill the SYSTEM supervisor tree, machine-scope
+`ATLAS_RUNTIME_SOURCE_DIR` + `ATLAS_RUNTIME_RELEASE_SHA`, re-point the scheduled task action) all
+require an **elevated** shell this session does not have. The next session must either run them
+elevated or hand them to the operator. **B5 remains never-performed.** No deployment, migration,
+generation, publication, or live-data action has been taken.
+
+### 2026-09-27 addendum 9 — the deploy runner gates on the register; that gate is now CLOSED
+
+Operator is remote with no working AnyDesk and no admin PowerShell. Before accepting the blocker I
+looked for a way around it, and **there is none, now measured rather than assumed**: `cli.mjs` and
+`host.mjs` contain no `watch`, no `setInterval`, no `process.on`, no IPC, so the resident SYSTEM
+supervisor never re-reads anything — its `sourceDir` is fixed at spawn and only a task re-point or a
+tree kill can change what it serves. A second supervisor from this shell would only contend for 5001.
+
+**The repo already owns the right tool, and I should have found it first:** `ops/runtime/deploy-runner.ps1`
+— `-Execute`-gated, `Assert-Administrator` before even the dry run, `taskkill /T` tree kill, 10s
+settle, fail-closed port-clear check, and a real symmetric rollback in `catch` that restores both env
+vars, the task XML, and re-runs the task. My hand-rolled command list from addendum 8 was worse and
+is superseded by it.
+
+**`Assert-LiveReleaseRecorded` (line 198) is a fail-closed pre-mutation gate: the target's 8-char
+prefix must appear in the `## Live release` section of `docs/plans/live-state.md` read from
+`origin/main`, or the elevated run dies before it starts.** It did not — so the operator's one
+elevated window would have been spent on a gate failure. **Closed at `1b68dbf4`**, which records
+`c4a9960e` as **STAGED / NOT LIVE** with its rollback basis `c5a9e832`, the enumerated delta, the
+two-sided deploy proof, and the elevation blocker. `c5a9e832` is still recorded as LIVE, so the
+record leads the cutover without lying about it. The runner's own section-extraction logic was
+reproduced against the working copy to confirm the gate passes, not assumed.
+
+**Every non-admin runner precondition pre-flighted and passing:** target HEAD `c4a9960e` and
+incumbent HEAD `c5a9e832`, **both `git status --short` empty**, target has **no `ops/runtime/logs`**
+(the documented cause of `Get-GitIdentity` rejecting a release — the incumbent has it, but
+`.git/info/exclude` keeps its status empty), both `dist/server.js` and client `index.html` present,
+target not a reparse point, `D:\ATLAS-runtime-config\atlas-server.env` present. **Only elevation is
+missing.** The staged release is named in the register, which also protects it from a reclaim.
+
+### 2026-09-27 addendum 10 — C2-3 pins the view-mode effect; integrated `16961054`
+
+QA's accepted NON_BLOCKING residual — the bottom bar's new `setViewMode('teacher')` call with no
+control pinning it — is now closed, and the reason it was unpinned turned out to be the interesting
+part: **the C2 test host declared `useState<'teacher'|'allocation'>('teacher')`**, i.e. it started in
+the very state that made the original dead-control defect invisible. The harness reproduced the trap
+it exists to catch, so no control could observe a view-mode effect at all.
+
+Executor `ses_f1d5ae841ffeVWEXJUFoiOF0uV` → candidate `d9d5def1`, base `b3082672`, **one file**,
++113/−1 where the single deletion is the instructed `useState('teacher')` → `('allocation')` swap and
+everything else is additive (§16 holds). The host publishes its mode as
+`[data-testid="host-view-mode"]`, and new `C2-3` asserts each labelled control drives `allocation` →
+`teacher`, asserting the **scalar** so the unbounded `myersDiff` fault cannot recur.
+
+**Failing-first is the load-bearing evidence:** with only `setViewMode('teacher')` deleted from the
+production opener, the suite was **36 tests / 35 pass / 1 fail** — and **C2-1 and C2-2 still
+PASSED**, because they assert the dialog, which still opened. Only C2-3 could see the missing effect.
+Restore proven byte-exact (SHA-256 identical to the pre-mutant backup).
+
+Gates, reproduced independently by the planner: `test:a3-teachers-load` **36/36** (was 35),
+`test:a3-sections-map` **20/20** preservation, `typecheck` **4 pre-existing environmental** errors
+with **0** from this change. C2-1's boolean precondition and discovery are untouched; the probe `div`
+provably did not disturb label-based button discovery. **Test-only, so LOW tier: executor self-check
+→ planner review, no independent QA** (§11). Integrated `16961054` and pushed; push range was exactly
+the one commit plus the merge, every non-merge commit an accepted ancestor. Both worktrees retired
+with junctions unlinked via `cmd rmdir` and the donor verified at 154 packages before and after; no
+branch deleted.
+
+**Two residuals recorded, neither changed:** (1) the second mutant was **skipped, not faked** —
+`openTeacherReview` takes only `{ setViewMode, setReviewModalOpen }` with no caller discriminator, so
+a bottom-bar-only mutant is not expressible without changing the production contract under test;
+(2) C2-2's inline comment describing the *page's* historical `setViewMode('teacher')` is accurate
+history but could now be confused with the host's deliberately inverted initial state — left
+untouched, because §16 forbids rewording evidence to tidy it.
+
+**⚠ DEPLOY TARGET IS NOW BEHIND `main` (dated 2026-09-27, planner decision owed).** While this lane
+worked, **Lane A2 integrated `af1451a3`** ("validate swap strategy at the wire boundary and keep one
+Undo surface") at merge `b289bc05`, **on top of** `c4a9960e`. `origin/main` is now `16961054` and
+**no longer contains only the staged range.** Deploying `c4a9960e` as staged would ship the A3
+corrections and **not** A2's swap-strategy/Undo work. The operator must choose: deploy `c4a9960e` as
+staged (A3's fixes only), or re-pin to current `main` and rebuild the staged release so one deploy
+carries both. **Not decided here** — it changes what the operator consents to ship, and the delta
+must be re-enumerated before that consent means anything.
+
+Three streams, three worktrees, one writer each, all under `E:/ATLAS-worktrees/lane-a3-*` from base `3cfe79a8`. Consolidated pairs preserved: 13+18, 14+16, 17+23, 25+26, 33A+33B.
+
+**S1 - Sections and room map** (`work/a3-sections-map`): fixes 03, 06, 07, 10, 11, 12; 08 held.
+Paths: `components/sections/SectionRoomPicker.tsx` (304), `components/sections/SectionRoomMapModal.tsx` (417), `components/BuildingView.tsx` (612), `components/sections/SectionHomeRoomModals.tsx` (210), `pages/Sections.tsx` (983, extract first), plus new extraction modules.
+
+**S2 - Subjects** (`work/a3-subjects`): fixes 09, 15, 17, 19, 20, 31, 32, 33A, 33B; 23 lands with S3's dialog pattern.
+Paths: `components/subjects/SubjectFormModal.tsx` (806), `SubjectFilterToolbar.tsx` (124), `SubjectCoverageSheet.tsx` (293), `SubjectRow.tsx` (239), `lib/subject-constants.ts`, `components/admin-workspace/AdminWorkspace.tsx` (301), `pages/Subjects.tsx` (989, extract first).
+
+**S3 - Teachers and Teaching Load** (`work/a3-teachers-load`): fixes 13, 14, 16, 18, 21, 22, 23, 24, 25, 26, 29, and 30 route-scoped only.
+Paths: `components/faculty-assignments/WorkloadInspector.tsx` (387), `SubjectRow.tsx` (651), `TeacherGridMode.tsx` (604), `TeachingLoadModals.tsx` (71), `components/faculty/FacultyProfileSheet.tsx` (293), `components/faculty/FacultyRow.tsx` (651), `lib/grade-labels.ts` (167), `pages/TeachingLoad.tsx` (925, extract first), `pages/Faculty.tsx` (990, extract first).
+
+## Execution sequence
+
+1. Reconfirm the baseline in a clean A3 worktree and close 01, 02, 04, 05, 06, and 14 before proposing changes.
+2. Plan Sections/Map as one stream: 03, 07, 08, 10–12.
+3. Plan Subjects as one stream: 09, 15, 17, 19, 20, 31, 32, 33A/B.
+4. Plan Teachers/Teaching Load as one stream: 13, 16, 18, 21–26, 29, 30.
+5. Keep 13+18, 14+16, 17+23, 25+26, and 33A+33B as consolidated changes rather than independent patches.
+
+## Handoff completion condition
+
+Return one compact ledger update against this file with every row in a terminal or explicitly blocked state. Include the candidate range, exact changed paths, decisive tests, browser evidence, known risks, and a clear verdict. Do not claim timetable acceptance, deployment, publication, or data mutation evidence.
+
+---
+
+## 2026-09-28 overnight (session of 2026-09-27 22:00 → 23:00 +08)
+
+**This section is the current truth. Everything above it is dated history.**
+
+Packet: `docs/prompts/overnight-a3-ui-ux-2026-09-27.md` (`c0d91827`). Standing HIGH authority
+retained with every gate; **A3 did not deploy** — A2 owns every release.
+
+### The owed decision is closed, and it closed itself
+
+The packet superseded it, and the register confirms it: `c4a9960e` **is** an ancestor of live
+`9b28c572` (`merge-base --is-ancestor c4a9960e 9b28c572` exits 0), and A2 deployed `9b28c572` at
+2026-09-27 20:34 +08. So "deploy `c4a9960e` as staged vs re-pin to `main`" no longer has a live
+option — the question dissolved when A2 released on top of it. **Closed, no decision needed.**
+
+That fact is also what unblocked the four rows below: for the first time there was a **deployed**
+build containing A3's corrections, and a **seeded** session, so `IMPLEMENTED_PENDING_QA` was
+finally decidable.
+
+### Integrated — `1e417694` on `origin/main`, NOT deployed
+
+| | |
+|---|---|
+| Source candidate | `f0602703` (one commit, single parent `8591f94a`) |
+| Planner evidence | `8591f94a` — `docs/reviews/a3-browser-acceptance-20260927/evidence.md` |
+| Merge / re-merge | `e6a60967` over A2's docs delta `7d71ecae`; `1e417694` over `94fa8136` |
+| Fresh independent QA | `ses_f1cb8685effeplQp18s4evf3uW` — **`ACCEPT_READY` 14/14/0/0, no BLOCKING** |
+| Scope | 10 paths, +1450/−137; `atlas-server/` **0**, `components/timetable/**` **0**, `pages/Timetable*` **0** |
+
+Combined gates on the **merged** tree: `test:a3-truthful-numbers` **20/20**,
+`test:a3-teachers-load` **36/36**, `test:a3-sections-map` **20/20**, `test:a3-subjects` **19/19**;
+`typecheck` **4 errors**, all in A2's `components/timetable/__tests__/`, **0** in an A3 file.
+
+**What changed and why**
+
+- **A1** — `TeacherGridMode.tsx:347` rendered `15.0h · 50%` with the meaning only in a
+  `cursor-help` tooltip. Extracted `TeacherLoadReadout.tsx`; the label `OF STANDARD` is now in the
+  rendered text (not `hidden`, not `sr-only`, opacity 0.8), and the withheld cases became two
+  distinct visible states, `no standard set` and `temporary`, instead of silently dropping the
+  number. The over/under colour expression is character-for-character unchanged from base.
+- **A2** — the load-bearing fix. `roomUtilization` is populated only when `pivotDraftToView`
+  returns ok, and all six read sites used `?? 0`, so **"cannot compute" rendered as a measured
+  0%**. New `atlas-client/src/lib/room-utilization-display.ts` owns a tri-state; a genuinely
+  measured 0% still shows 0%, unknown shows `Not available` (DOM) / `n/a` (Konva) with the fill
+  element **not rendered at all**, and `selectedHasSchedule` became a `scheduled|empty|unknown`
+  state so unknown never claims "No timetable yet". Six sites fixed, including both
+  near-duplicate components, so the two screens cannot disagree again.
+- **A3** — `getUtilizationColor` was triplicated. Chose extraction to `roomUtilizationColor`;
+  bodies hash-identical, and QA **executed** base vs new across 24 points including both clamps:
+  **0 differences**, branch boundary unmoved.
+- **C1** — `Empty floor` → `Empty`. The marker already sits inside that floor's own band beside its
+  `F<n>` tag, so "floor" was redundant; it matches the word `OccupancyTemplatePreview.tsx` already
+  used, which settles inventory rows 249/250 **without editing that file**.
+- **C2** — the first dedicated controls for rows 01 and 02, and they are real preservation, not
+  description: QA ran them against a **base worktree** where they pass **2/2**, and showed each is
+  load-bearing by mutating the property it pins (scroll containment, single layer) and watching the
+  matching control fail while the other still passed.
+
+**Failing-first, all restored byte-exact by hash:** A1 label removed → 18/20; A2 reverted to
+`?? 0` at both production sites → 17/20 (3 controls fail); A3 knee moved 50→40 → 19/20. QA
+reproduced all three independently and did not take the executor's word for any of them.
+
+**§11 gate reachability:** `test:a3-truthful-numbers` is registered in the committed
+`atlas-client/package.json` **in the same commit**, and its file list is exactly the three new test
+files — running the script executes 7 + 2 + 11 = 20.
+
+### Browser rows closed tonight — origin `https://njgrm.buru-degree.ts.net` asserted on every row
+
+| Fix / row | Verdict | The decisive measurement |
+|---|---|---|
+| 14, 16 / B6, B9 | **PASS** | `scrollHeight 768 === clientHeight 768` → no page scrollbar; roster region 328px, **6** teacher rows visible at once |
+| 23 / B8 | **PASS** | Real `role="dialog"`; a **genuine** outside pointer-down at (100,400) closed it, count 1 → 0 |
+| 24 / B7 | **PASS** | 1 line box per label at **1366x768** and **390x844**; longest name `FERNANDEZ, JANELLA MARIE` (41 chars) |
+
+Full method, including two measurement mistakes I made and corrected on the page, is in
+`docs/reviews/a3-browser-acceptance-20260927/evidence.md`. The two that cost time and are worth not
+repeating: an element's **height is not a wrap detector** (a 40px button with a 19px line height is
+one line plus padding, and my first pass called it a wrap), and `assert.equal(domNode, null)` in
+jsdom makes Node serialise the element and die with `RangeError: Array buffer allocation failed`
+after ~35s instead of reporting — **compare counts**.
+
+### Lane C findings — what closed, what did not
+
+| Finding | State | Note |
+|---|---|---|
+| **#53** the "0%" on the campus map tile and in Building view | **FIXED, integrated** | Root cause source-confirmed at six sites; mechanism is the literal `?? 0`. **I did not observe the live 0% myself** — `/map` rendered 0 canvases on my pass — so the browser reproduction is `UNPERFORMED` even though the fabrication is proven in source. |
+| **#53** the unlabelled "50%" | **FIXED, integrated** | Located empirically, not assumed: it is `TeacherGridMode.tsx:347`, and the data settles what it is (15.0/30, 18.8/30, 22.5/30 — utilisation of the teaching-hours standard). The number was real; the presentation was the defect. |
+| **#52** Building view first render from `More` | **`UNPERFORMED`** | Not fixed, not disproven. See below. |
+| **Inventory 249/250** `Empty floor` vs `Empty` | **CLOSED** | Chose `Empty`; the two words now agree with no cross-file edit. |
+| **Row 40** `/faculty/concerns` class grid | **NOT ATTEMPTED** | Conditional on A2 handing it over. A2 did not. |
+
+**#52, honestly.** I could not locate the `More` entry: `selectBuilding` fires from
+`onSelectBuilding` on the campus-map canvas, and "Building Details" is a **view tab, not the
+switcher**. **Precondition established for whoever picks this up: `/map` renders 0 canvases until
+"Open map" is clicked** (canvas is then 616x500; building A = G10, canvas FNV hash `a98e124b`, 20
+sidebar rooms). Two suspects already ruled out so they are not re-checked: `roomScheduleIndicators`
+is memoised on `[scheduleReport, sectionMap]` and is **global, not per-building**;
+`selectBuilding` and `focusedRoom` already reset and re-resolve correctly. Remaining suspect is a
+first-render transient in the `BuildingView` prop path, where `roomOccupancy` and
+`roomSectionData` are global `roomId`-keyed maps passed straight through at
+`CampusMapOverview.tsx:492-493`. **No speculative refactor was made** — the range leaves
+`BuildingView`'s top-level declaration count at 33 → 33.
+
+### Not reached, with the reason (dated 2026-09-27)
+
+- **`UX-R02`–`UX-R05` and the non-timetable part of `UX-R03c`** — not started. The browser budget
+  went to closing four owed rows instead, because those rows gate a release A2 is actively
+  preparing and these do not.
+- **Double policy fetch** — not taken. `SchedulingPolicyPane.tsx` and
+  `useScheduleReviewWorkspaceState.ts` are **timetable surfaces on A2's side**, so the packet's
+  "only if its owner is on your side" condition is not met. This is a deferral, not a blocker.
+- **`uxc01-derived-setup-surface.test.ts`** 1-of-4 red (open since 2026-09-20) — not reached.
+- **Still `BLOCKED_SOURCE_GAP` and deliberately untouched:** 27, 28, 34.
+- **Still `BLOCKED_PRODUCT_DECISION`:** 08. The two options are in `live-state.md` → Lane A3, three
+  lines each, with my read recorded — **not decided here**, because it changes what a button means
+  to an existing user.
+
+### Residual risks carried forward
+
+- **NON_BLOCKING** — the `OF STANDARD` label widens the roster's right-hand cell by ~40px, so long
+  faculty names may truncate more at narrow viewports. **Row 14's six-visible-rows and
+  no-page-scroll acceptance must be re-checked in browser QA after deployment**, not assumed to
+  survive it.
+- **NON_BLOCKING (QA's, disclosed)** — row 5's DOM assertion has no component-level render behind
+  it: `CampusMapOverview`/`CampusReadinessCard` cannot render in jsdom because their room list
+  shares a branch with a `react-konva` `<Stage>` and jsdom has no canvas. A2's DOM claim rests on
+  the shared label function under a real `pivotDraftToView` fixture, the source contract, a
+  line-by-line read, and the passing mutation control. A coverage residual, not a proven defect.
+- **NON_BLOCKING (QA's, disclosed)** — base attribution for the 4 typecheck errors was proven **by
+  mechanism** (`playwright` absent from `node_modules` in two independent checkouts) plus path
+  containment, not by executing `typecheck` at base.
+- **NON_BLOCKING, against my own QA** — my QA destroyed the candidate worktree's `node_modules`: it
+  junctioned two scratch worktrees' `node_modules` at the live candidate and `git worktree remove`
+  **followed the junction**. Rebuilt with `npm ci` from the committed lockfile and every gate
+  re-run green, so the tree is functionally correct but **re-materialised, not byte-restored**.
+  Earned rule: **never junction a disposable worktree's `node_modules` at a worktree you intend to
+  keep, and never `git worktree remove` one that has a junction into another worktree.** The
+  documented `cmd /c rmdir` link-only rule protects the *target*; this is the *source* side.
+- **NON_BLOCKING** — the five new files are committed as CRLF blobs. That matches
+  `core.autocrlf=true` and the root `.gitattributes` LF policy, which covers only hash-pinned doc
+  paths and not `atlas-client/src/**`. Base `BuildingView.tsx` is also 766/766 CRLF. Not a
+  violation; recorded so a future session does not "fix" it.
+
+### Rows needing live acceptance, with exact steps — for A2's browser pass
+
+The integrated work is **not deployed**. After A2 deploys a release containing `1e417694`:
+
+1. **Origin** — `https://njgrm.buru-degree.ts.net`. Assert `window.location.origin` on every row.
+   `http://127.0.0.1:5174` is a different origin and is never ATLAS acceptance.
+2. **Viewports** — 1366x768, plus 390x844 for step 6.
+3. **A1 label visible** — `/teaching-load`. A roster card must read `15.0h · 50% OF STANDARD`.
+   Assert the label is in `document.body.innerText` and is **not** inside a `hidden`/`sr-only`/
+   `aria-hidden` node. Then find a teacher with no standard set: it must read `no standard set`,
+   not a bare `15.0h`.
+4. **A2 tri-state on the map** — `/map`, click **"Open map"** first (it renders 0 canvases until
+   then). Open a building and read the room cards. A teaching room must show `Not available` or a
+   real `NN%`; **a room that was never computed must never read `0%`**, and the unknown case must
+   show **no bar fill at all**. Repeat on the dashboard's Campus Readiness card and confirm the two
+   screens agree.
+5. **A2 does not over-correct** — a room with a genuine 0% must still read `0%`. The distinction is
+   the whole fix; if everything shows `Not available`, the fix went too far.
+6. **C1 and A1 at 390x844** — confirm the roster still reads and the `Empty` marker is not clipped.
+7. **Re-check row 14** — no page scrollbar, and >1 teacher row visible, now that the label is ~40px
+   wider. This is the one row most likely to have regressed.
+8. **Re-run rows 23 and 24** — they were `PASS` on `9b28c572`; confirm they still are, since A1 and
+   A2 changed sibling files on the same pages.
+9. **B5 remains never performed** — Cancel on a confirmed swap makes zero changes. Still the single
+   most valuable unperformed row in this lane.
+
+### Ledger rows — terminal state as of 2026-09-27 23:00 +08
+
+`QA_PASSED`: 01, 02, 03, 04, 05, 06, 07, 09, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22,
+23, 24, 25, 26, 29, 30, 31, 32, 33A, 33B. `BLOCKED_PRODUCT_DECISION`: 08. `BLOCKED_SOURCE_GAP`: 27,
+28, 34. New this cycle: #53 **fixed and integrated**; #52 **`UNPERFORMED`**; inventory 249/250
+**closed**; row 40 **not attempted** (A2 never handed it over).
+
+**Verdict for this cycle: source COMPLETE and integrated at `1e417694`; browser acceptance for the
+integrated work is owed to A2's next release, with the nine steps above. No deployment, migration,
+generation, publication, live-data write, or companion-repo action was taken at any point.** A3
+worked entirely in registered worktrees, pushed only commits proven to be accepted ancestors, and
+deleted no branch.

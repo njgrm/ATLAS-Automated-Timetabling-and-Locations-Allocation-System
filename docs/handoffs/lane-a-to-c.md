@@ -23,6 +23,74 @@ if I tell you exactly which single observation decides each fix instead of leavi
 
 ---
 
+## A3 INTEGRED FOR RELEASE at `1e417694` — 2026-09-27 22:55 +08 (Planner A3, non-timetable UI/UX)
+
+`A3 integrated for release at 1e417694`. On `origin/main`. **Not deployed** — A2 owns every release.
+Two commits: `f0602703` (source) + `8591f94a` (my browser evidence), merged at `e6a60967` and
+re-merged over A2's docs delta at `1e417694`. Fresh independent QA `ACCEPT_READY` **14/14/0/0**,
+no BLOCKING findings. Ten paths, all non-timetable; `atlas-server/` 0, `components/timetable/**` 0.
+
+**Your #53 and the unlabelled percentage were the same defect class, and both are now fixed.** I
+measured rather than assumed, and the measurement is in
+`docs/reviews/a3-browser-acceptance-20260927/evidence.md`:
+
+- **The unlabelled "50%" is `TeacherGridMode.tsx:347`**, live on the Teaching Load roster as
+  `15.0h · 50%` in an 85x16px `<p>` whose only explanation was a `cursor-help` tooltip. Deriving the
+  denominator from the data settles it: 15.0/30, 18.8/30, 22.5/30 — it is **utilisation of the
+  teacher's teaching-hours standard**, so the number was real and the *presentation* was the defect.
+  It now reads `OF STANDARD` in the rendered text, and the two withheld cases (no standard set /
+  placeholder) each get their own honest visible state instead of silently dropping the number.
+  The dashboard already labelled the same metric `% staffed`, so the two screens disagreed and the
+  roster was the bare one — that inconsistency is what made it a defect rather than a house style.
+- **The room "0%" was a fabrication, and the mechanism was literal.** `roomUtilization` is a `Map`
+  populated only when `pivotDraftToView` returns ok, and all six read sites used `?? 0` — so
+  "we cannot compute this" rendered as a confident measured zero. Six sites across two
+  near-duplicate components (`BuildingView`, `CampusMapOverview`, `CampusReadinessCard`). It is now
+  a tri-state: a genuinely measured 0% still shows 0%, unknown shows `Not available` with **no bar
+  at all**, and the derived "has a timetable" flag no longer treats unknown as empty. QA proved it
+  load-bearing by reverting both production sites to `?? 0` — 3 controls fail — then restoring
+  byte-exact.
+
+**Four of my own rows closed tonight against your deployed `9b28c572`** (it contains my `c4a9960e`),
+at `1366x768` on `https://njgrm.buru-degree.ts.net`, origin asserted on every row: **14 and 16**
+(no page scrollbar, 6 teacher rows visible at once), **23** (profile is a real dialog AND a genuine
+outside pointer-down at (100,400) closes it), **24** (menu labels one line box at both 1368x768 and
+390x844, longest name `FERNANDEZ, JANELLA MARIE`).
+
+**Three things I did NOT close, so nobody counts them:**
+
+- **Your #52 is `UNPERFORMED`, not fixed and not disproven.** I could not locate the "More" entry —
+  `selectBuilding` fires from `onSelectBuilding` on the campus-map canvas, and "Building Details" is
+  a view tab, not the switcher. I also established a precondition your next session needs:
+  **`/map` renders 0 canvases until "Open map" is clicked** (after which the Konva canvas is
+  616x500). I ruled out two suspects so you need not: `roomScheduleIndicators` is memoised
+  globally, not per-building, and `selectBuilding`/`focusedRoom` already reset correctly. Because
+  the class grid is painted to canvas, reproduction needs per-frame pixel sampling cross-referenced
+  against the sidebar's building identity. **No speculative refactor was made.**
+- **Inventory rows 249/250: I chose the word `Empty`**, dropping "floor" because the marker already
+  sits inside that floor's own band beside its `F<n>` tag. It needed no edit to
+  `OccupancyTemplatePreview.tsx`, which already said `Empty` — so your two rows converge. Note
+  `CenterWorkspace.tsx`'s bare `Empty` is **A2's** and I did not touch it.
+- **Your double policy fetch is not mine.** `SchedulingPolicyPane.tsx` and
+  `useScheduleReviewWorkspaceState.ts` are timetable surfaces on A2's side; the packet's "only if its
+  owner is on your side" condition is not met, so I left it.
+
+**One disclosure against my own QA, because it is a trap worth propagating.** My QA destroyed the
+candidate worktree's `node_modules` — it created two scratch worktrees, junctioned their
+`node_modules` to the live candidate's, and `git worktree remove` **followed the junction and
+deleted the contents**. It rebuilt with `npm ci` and re-ran every gate green, so the tree is
+functionally correct but its dependency tree was re-materialised rather than restored. The rule
+this earns: **never junction a scratch or disposable worktree's `node_modules` at a worktree you
+intend to keep, and never `git worktree remove` one that has a junction into another worktree.** The
+`cmd /c rmdir` link-only rule is about the *target*; this is the *source* side of the same hazard.
+
+**A2's release packet pins `c0d91827`, which is my base and therefore does not contain any of the
+above.** If tonight's release ships `c0d91827`, none of tonight's A3 work is in it. The delta A2
+must enumerate for a re-pin is `c0d91827..1e417694` — 4 A3 client paths plus 3 A3 test files, one
+evidence doc, and A2's own docs. I do not deploy and I am not touching the packet.
+
+---
+
 ## OPEN 2026-09-27 - Re-test of the "Change room" fix, including a path I could not prove
 
 **Status: awaiting your run.** Fix integrated as `c50b15ff` on `main` (not deployed; a release packet comes

@@ -3000,6 +3000,74 @@ was disclosed rather than absorbed. A3 does not claim to close Lane A2's accepta
    `Select-String` glob behind a confident consumer count, a "4 `dark:` occurrences" figure
    presented as a measurement, and a "no listeners" reading that was a formatting artefact.
 
-**Next action (2026-09-27):** operator seeds the browser profile, then A3 re-probes the session
-and runs B1-B12 against this deployed release. The release artifact, the rollback basis
-(`b0736007`) and the corrected packet are all in place; nothing else is owed by A3.
+**Next action (2026-09-27):** SUPERSEDED by the overnight block below — the session was seeded and
+B6/B9 are now closed. Do not re-run this line.
+
+---
+
+## Lane A3 — overnight 2026-09-27/28 (the live release moved; this block supersedes the section above)
+
+**A3 integrated for release at `1e417694`. NOT DEPLOYED — A2 owns every release.** Source
+`f0602703`, planner evidence `8591f94a`, merge `e6a60967` re-merged over A2's docs delta at
+`1e417694`. Fresh independent QA **`ACCEPT_READY` 14/14/0/0, no BLOCKING findings**. Ten paths,
+`atlas-server/` 0 and `components/timetable/**` 0. Combined gates on the merged tree: 20/20, 36/36,
+20/20, 19/19; typecheck 4 errors, all in A2's timetable tests, none in an A3 file.
+
+**The live release is no longer the one this section names.** `d11304e8` is superseded; live is
+**`9b28c572`** (deployed by **A2** 2026-09-27 20:34 +08) and it **contains** A3's `c4a9960e`
+(`merge-base --is-ancestor` exits 0), which is why four rows became decidable tonight. A2's release
+packet pins `c0d91827` — my base, therefore **containing none of tonight's work**.
+
+**B-row status as of 2026-09-27 22:50 +08** (origin asserted on every row,
+`https://njgrm.buru-degree.ts.net`, 1366x768):
+
+| Row | Status |
+|---|---|
+| **B6, B9** (14/16 density) | **CLOSED PASS** — no page scrollbar (`scrollHeight 768 === clientHeight 768`); 6 teacher rows visible at once in a 328px roster region |
+| **B8** (23 profile dialog) | **CLOSED PASS** — real `role="dialog"`; a genuine outside pointer-down at (100,400) closed it, count 1 → 0 |
+| **B7** (24 one-line labels) | **CLOSED PASS** — 1 line box per label at both 1366x768 and 390x844, longest name `FERNANDEZ, JANELLA MARIE` |
+| B1, B2, B3, B4, B10, B11 | **OPEN** — not attempted tonight; source halves already covered by committed suites |
+| **B5** (swap Cancel = zero change) | **OPEN, never performed.** Still the load-bearing unperformed row in this lane |
+| B12 (A2 cross-lane sweep) | **OPEN** — A2's timetable surfaces vs the shared `ui/select.tsx` primitive fix 30 changed |
+
+Evidence: `docs/reviews/a3-browser-acceptance-20260927/evidence.md`.
+
+**Still UNPERFORMED, dated 2026-09-27 — not a defect, an unfinished search.** Lane C finding **#52**
+(Building view first render from `More` keeps the previous section's class grid). The `More` entry
+was never located: `selectBuilding` fires from `onSelectBuilding` on the campus-map canvas, and
+"Building Details" is a view tab, not the switcher. **Precondition for the next session: `/map`
+renders 0 canvases until "Open map" is clicked** (canvas is then 616x500). Two suspects already
+ruled out: `roomScheduleIndicators` is memoised globally, not per-building; `selectBuilding` and
+`focusedRoom` already reset correctly. **No speculative refactor was made.** The class grid is
+painted to canvas, so reproduction needs per-frame pixel sampling cross-referenced against the
+sidebar's building identity.
+
+**BLOCKED_PRODUCT_DECISION — fix 08, for the morning (packet asked for ≤3 lines each).**
+*Option A (deselect):* clicking an occupied room clears the section↔room link and leaves the room
+free; the room then shows as available. Simple, and it makes "unassign" the only way to change an
+assignment. *Option B (unassign):* the same click removes the section's room allocation entirely
+and the section returns to the "needs a room" state, forcing a deliberate re-pick. Stronger
+authority, more friction, and it can strand a section mid-flow. **My read: B**, because a silent
+deselect leaves the operator believing the room is theirs. **Not decided here** — it changes what
+the button means to an existing user.
+
+**Deferred with the reason, dated 2026-09-27.** `UX-R02`–`UX-R05` whole-site cohesion was **not
+reached** tonight — the browser was spent closing four owed rows instead, which is the higher-value
+work because those rows gate a release A2 is preparing. The double policy fetch was **not taken**:
+`SchedulingPolicyPane.tsx` and `useScheduleReviewWorkspaceState.ts` are timetable surfaces on A2's
+side, so the packet's "only if its owner is on your side" condition is not met. `uxc01-derived-
+setup-surface.test.ts` (1-of-4 red, as of 2026-09-20) also not reached.
+
+**One earned rule, against my own QA.** My QA destroyed the candidate worktree's `node_modules`: it
+junctioned two scratch worktrees' `node_modules` at the live candidate and `git worktree remove`
+followed the junction. Rebuilt with `npm ci`, all gates re-run green, so the tree is functionally
+correct but re-materialised rather than byte-restored. **Rule: never junction a disposable
+worktree's `node_modules` at a worktree you intend to keep, and never `git worktree remove` one
+that has a junction into another worktree.** The documented `cmd /c rmdir` rule protects the
+*target*; this is the *source* side of the same hazard.
+
+**Worktrees (both mine, both dated 2026-09-27):** `lane-a3-truthful-numbers-20260928`
+(`RETIRE_AFTER_INTEGRATION`, now pushable) and `lane-a3-integration-20260928`
+(`RETIRE_AFTER_INTEGRATION`). Branches `work/a3-truthful-numbers` and
+`integration/a3-truthful-numbers-20260928` preserved; **no branch deleted**. The
+`docs/a3-ui-ux-ledger` branch and its worktree remain the lane's writable record.
