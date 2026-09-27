@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { toast } from 'sonner';
 
 import { getPreferredAccessToken } from '@/lib/auth';
+import { isSwapCommitEvent, publishConcurrentCommitEvent } from '@/lib/timetable-concurrent-commit';
 
 type NotificationSeverity = 'info' | 'success' | 'warning' | 'error';
 type NotificationDomain =
@@ -80,6 +81,13 @@ export function createEventDeduper(maxEntries: number = MAX_DEDUPED_EVENTS) {
 
 function notify(event: NotificationStreamEvent) {
 	if (!GLOBAL_TOAST_DOMAINS.has(event.domain)) return;
+	// A2-TIMETABLE-CUSTODY (#61) — a swap commit's `message` is server-rendered
+	// from the two raw entry ids, so toasting it verbatim is what put
+	// "Manual swap committed between entries entry-321::t2 and entry-421::t2" in
+	// front of an operator. That event is not dropped: the timetable workspace
+	// takes it over and names the change in words (or says it could not name it).
+	// Every OTHER timetable event keeps this exact toast path, unchanged.
+	if (isSwapCommitEvent(event)) return;
 	const options = { id: `notification-${event.schoolId}-${event.id}` };
 	switch (event.severity) {
 		case 'success': toast.success(event.message, options); break;
@@ -195,6 +203,10 @@ export function useNotificationStream(params: {
 	const schoolUrl = params.schoolId ? `${apiBase}/notifications/${params.schoolId}/events` : null;
 	const deliver = (event: NotificationStreamEvent) => {
 		if (!deduperRef.current.shouldDeliver(event)) return;
+		// The workspace subscriber sees the event through the `onEvent` callback
+		// below; this publish is what lets the timetable surface the named notice
+		// (and release a stale armed swap) without a second SSE connection.
+		publishConcurrentCommitEvent(event);
 		notify(event);
 		callbackRef.current?.(event);
 	};

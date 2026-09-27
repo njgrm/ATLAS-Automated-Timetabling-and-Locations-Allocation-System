@@ -27,6 +27,7 @@ import { setTimetableEntryReadOnly } from '@/components/timetable/TimetableDragg
 import { TimetableUndoRedoControl } from '@/components/timetable/TimetableUndoRedoControl';
 import { dispatchUndoByLedger, UNDO_CONFLICT_MESSAGE } from '@/components/timetable/timetableUndoRedoState';
 import { createSwapArmHandler } from '@/components/timetable/timetableSwapArming';
+import ConcurrentCommitNoticeBar from '@/components/timetable/ConcurrentCommitNoticeBar';
 import { buildScopeKey, clearScopeState, shouldClearForScopeChange } from '@/components/timetable/timetableScopeHygiene';
 import { YEAR_SETUP_HREF } from '@/lib/timetable-capabilities';
 
@@ -387,6 +388,15 @@ export default function ScheduleReviewWorkspace() {
 		    Links only: the nested children are element-less, so this never
 		    remounts the workspace or refetches the grid. */}
 		<TimetableSubNav />
+		{/* A2-TIMETABLE-CUSTODY (#61) — the concurrent-commit notice. A row above
+		    the grid, not a floating overlay: the defect was a change the operator
+		    could not see, and it must not cover the grid it is describing. It
+		    adds no scroll surface — the grid's own overflow region is untouched.
+		    A null notice renders nothing, so the single-user path stays silent. */}
+		<ConcurrentCommitNoticeBar
+			notice={state.concurrentCommitNotice}
+			onDismiss={state.dismissConcurrentCommit}
+		/>
 			{/* LANE-C C03 (B8) — the status floats over the top edge of the grid
 			    instead of taking a row in the layout. As a row it pushed the grid
 			    down after the first swap pick, so the second click could land on
