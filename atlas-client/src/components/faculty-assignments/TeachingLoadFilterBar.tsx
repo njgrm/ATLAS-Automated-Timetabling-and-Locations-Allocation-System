@@ -30,6 +30,7 @@ import {
 	type TeachingLoadLoadFilter,
 	type TeachingLoadFacet,
 } from '@/lib/faculty-assignment-helpers';
+import { BELOW_STANDARD_LABEL } from '@/lib/teaching-load-labels';
 
 type TeachingLoadFilterBarProps = {
 	searchQuery: string;
@@ -145,7 +146,7 @@ export function TeachingLoadFilterBar(props: TeachingLoadFilterBarProps) {
 						<SelectItem value="all" className="text-xs font-bold uppercase tracking-tight">All loads</SelectItem>
 						<SelectItem value="excess" className="text-xs font-bold uppercase tracking-tight text-amber-700" disabled={!policyReady || (loadFacetCounts.excess ?? 0) === 0}>Excess teaching load ({policyReady ? (loadFacetCounts.excess ?? 0) : '—'})</SelectItem>
 						<SelectItem value="at-standard" className="text-xs font-bold uppercase tracking-tight text-emerald-700" disabled={!policyReady || (loadFacetCounts['at-standard'] ?? 0) === 0}>At standard ({policyReady ? (loadFacetCounts['at-standard'] ?? 0) : '—'})</SelectItem>
-						<SelectItem value="below-standard" className="text-xs font-bold uppercase tracking-tight text-sky-700" disabled={!policyReady || (loadFacetCounts['below-standard'] ?? 0) === 0}>Below standard ({policyReady ? (loadFacetCounts['below-standard'] ?? 0) : '—'})</SelectItem>
+						<SelectItem value="below-standard" className="text-xs font-bold uppercase tracking-tight text-sky-700" disabled={!policyReady || (loadFacetCounts['below-standard'] ?? 0) === 0}>{BELOW_STANDARD_LABEL} ({policyReady ? (loadFacetCounts['below-standard'] ?? 0) : '—'})</SelectItem>
 					</SelectContent>
 				</Select>
 
@@ -182,7 +183,7 @@ export function TeachingLoadFilterBar(props: TeachingLoadFilterBarProps) {
 					)}
 					{loadFilter !== 'all' && (
 						<Badge variant="secondary" className="gap-1 text-[11px] font-bold">
-							{loadFilter === 'excess' ? 'Excess teaching load' : loadFilter === 'at-standard' ? 'At standard' : 'Below standard'}
+							{loadFilter === 'excess' ? 'Excess teaching load' : loadFilter === 'at-standard' ? 'At standard' : BELOW_STANDARD_LABEL}
 						</Badge>
 					)}
 					<Button type="button" variant="ghost" size="sm" className="h-7 gap-1 px-2 text-[11px] font-bold uppercase" onClick={onClearTeachingLoadFilters}>
