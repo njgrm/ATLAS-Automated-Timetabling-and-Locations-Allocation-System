@@ -1,8 +1,10 @@
 # Lane C overnight manager — standing handoff (read this first, every cycle)
 
-Written 2026-09-27 22:40 +08. Each review cycle runs in a **fresh headless Claude Code** process that reads this file,
-does one cycle, updates the Cycle log and exits. A thin relay session (the operator's Claude desktop session)
-launches the reviewers and dispatches the planners.
+Written 2026-09-27 22:40 +08. Each review cycle runs in a **fresh-context reviewer subagent** (`atlas-reviewer-high`, Opus 5.5 · high) that the
+relay session (the operator's Claude desktop session, bypass permissions) dispatches when a planner run exits. The
+reviewer reads this file, does one cycle, updates the Cycle log and returns a short verdict plus the `DISPATCH:` line.
+The relay runs the dispatch in the background, so the next exit wakes it. Hourly heartbeat at :17 in the relay.
+(`claude -p` is not usable here: the CLI is not logged in and does not know Opus 5.5, tested 2026-09-27 22:45.)
 
 ## Mandate (operator, 2026-09-27 night, in chat)
 
@@ -37,7 +39,7 @@ Rules for the planners:
   The Lane C Chrome profile is separate (Claude in Chrome, `atlas-browser-qa` agent); the Codex chrome-devtools profile
   is separate again.
 
-## A review cycle (what the fresh reviewer does)
+## A review cycle (what the fresh reviewer subagent does)
 
 1. `git fetch`; read this file, then `docs/plans/live-state.md` → Live release, the finished lane's overnight handoff
    (`docs/handoffs/planner-a2-handoff-2026-09-28-overnight.md` or A3's ledger "2026-09-28 overnight"), and the new
