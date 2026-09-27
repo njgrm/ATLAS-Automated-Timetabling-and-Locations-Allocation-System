@@ -650,6 +650,83 @@ correction commit only, then browser **B4** and the still-unperformed **B5**.
 **Live runtime unchanged:** `c5a9e832`, 5001 **200**. Nothing committed; both corrections
 uncommitted but intact.
 
+### 2026-09-27 addendum 4 — PREMISE FALSIFIED: isolation was a confound; gate is RED at `9b64271e`
+
+Fresh planner session accepted custody and verified this resume point intact: handoff branch
+`docs/a3-ui-ux-ledger` clean and pushed at `a320dc4e` with **14** dated entries; corrections
+worktree `E:/ATLAS-worktrees/lane-a3-corrections-r1` at `d9575e83` with **4 modified + 1
+untracked**, uncommitted; `a3-teachers-load-c3.test.tsx` byte-intact at **60874 B**, first 3
+bytes `2F 2A 2A` (no BOM), `U+FFFD` 0, `A3_SKIP_C2` absent; live `c5a9e832` with 5001 **200**
+(machine scope `E:\ATLAS-worktrees\lane-a2-release-c5a9e832`, listeners 43192/43744); A2 lane
+clean at `c5a9e832`. The claimed outside-the-repo backup was **not findable** at any searched
+location, so a fresh byte-exact backup of all five dirty files (SHA-256 verified per file) was
+re-created at `C:/Users/njgro/AppData/Local/Temp/opencode/a3-corrections-r1-backup/` before any
+further work. That gap is why the backup path is now named in the packet rather than assumed.
+
+**Executor `ses_f1f7aa24affeKCSV3r77m2tNKJ` returned `REVIEW_REQUIRED` — gate RED. The isolation
+diagnosis in addendum 3 is FALSIFIED.**
+
+The addendum-3 experiment could not distinguish *registration coexistence* from *body
+execution*: guarding a `test()` registration also stops its body from running. With the C2
+controls in their own module the load-time `RangeError` is gone, both controls register, and the
+failure reappears **inside the C2-1 body**. The controls were never unloadable by coexistence;
+the module-load crash was this same fault surfacing earlier.
+
+```
+npm run test:a3-teachers-load  ->  EXITCODE=1
+tests 35  pass 34  fail 1
+PASS  C2-2 both `onOpenReview` sites in the page bind the one production opener
+FAIL  C2-1 every control labelled `Review teachers` actually opens the review dialog
+      [RangeError: Array buffer allocation failed]
+```
+
+All 33 pre-existing controls now actually run (they did not before, under the module-load
+crash), and C2-2 passes. The residual is localised to **one control's body**, in the
+per-control loop — `t.diagnostic` proves discovery succeeded (`found 2 -> [teaching-load-
+repair-review, teaching-load-review-open]`), so the fault is the second `render()` or the
+`click()` that opens the dialog.
+
+**Candidate `9b64271e` (parent `d9575e83`, worktree clean, 7 paths, 756 insertions).** Planner
+review: the `a3-teachers-load-c3.test.tsx` diff is **purely additive, one hunk `+7`, zero
+deletions** — exactly the retained `SUPERSEDED IN BEHAVIOUR` evidence row, so `AGENTS.md` §16
+holds. New file 315 lines, `package.json` registers it inside the existing
+`test:a3-teachers-load` entry so a committed gate runs it (§11). This is a **checkpoint
+commit, not an accepted candidate**: its own gate is red, so it must not be reviewed as
+accepted or integrated as such.
+
+**What is now known about the fault, and what is not.** Reproducible across 5 runs. V8 fatal
+reports `Comitting semi space failed … external memory pressure` while `heapUsed` stays flat at
+38M/10M and `external` 9M/7M, `arrayBuffers` 1M/0M, as RSS climbs 274M -> ~15G. So the memory
+is **neither the V8 heap nor off-heap Buffers/ArrayBuffers**. This also corrects addendum 3:
+**free physical space was the wrong measure** — the host is not the cause (measured just now:
+**14.85 GiB free physical, 19.39 GiB free virtual**, no runaway `node` process, 43192/43744 are
+the live runtime at 0.02/0.01 GiB). A radix dialog is not the trigger: `F23-1` opens one in
+101 ms, exit 0. The three candidate components carry no timers, rAF, or loops.
+
+**One suspect eliminated by this planner, do not re-test it:** the infinite-render-loop theory
+via unstable hook props. `TeachingLoadReviewHost` does pass `new URLSearchParams()` and a fresh
+`setSearchParams` arrow on every render, which is the classic shape — but
+`atlas-client/src/hooks/useTeachingLoadRepairQueue.ts` contains **no `useEffect` at all**
+(lines 1–240: five `useMemo`, three `useCallback`, one `useState`), so nothing re-fires a
+render. The remaining suspects are `TeachingLoadRepairQueue` (132 lines),
+`ReviewTeachersModal` (52) and `TeachingLoadInspectorTriggers`.
+
+**Why this raises the stakes.** If a component loops when `Review teachers` is clicked, the
+correction under test would misbehave in a real browser, not only under JSDOM. This is now
+plausibly a **production** defect and the candidate is not a LOW-tier test-only change any more.
+Browser row **B4** stops being a routine re-verification and becomes the control most likely to
+discriminate it — which is the one row that cannot run until a deployment decision exists.
+
+**Not done, unchanged, and dated:** B4 re-verification, the never-performed **B5** (the
+load-bearing swap-Cancel zero-change control), any deployment, and the one fresh independent QA
+over the correction commit. Corrections remain **source-only**; live stays `c5a9e832`. No
+merge, rebase, or `main` push — `origin/main` has moved well past `d9575e83` and integration
+remains the planner's auto-union job.
+
+**Next action:** one bounded executor step to root-cause the C2-1 body against the three
+remaining component suspects, using the instrumented RSS/heap sampling method the last step
+already proved works. Not a gate-green claim, not QA, not browser.
+
 Three streams, three worktrees, one writer each, all under `E:/ATLAS-worktrees/lane-a3-*` from base `3cfe79a8`. Consolidated pairs preserved: 13+18, 14+16, 17+23, 25+26, 33A+33B.
 
 **S1 - Sections and room map** (`work/a3-sections-map`): fixes 03, 06, 07, 10, 11, 12; 08 held.
