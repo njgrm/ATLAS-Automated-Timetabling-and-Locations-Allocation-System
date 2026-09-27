@@ -17,6 +17,7 @@ import { cn } from '@/lib/utils';
 import type { FacultySummary, LoadProfile, RotationFamilyTermBreakdown } from '@/types';
 import { GradeBadge } from '@/components/faculty-assignments/GradeBadge';
 import { formatFacultyDisplayName } from '@/components/faculty/teacherNameDisplay';
+import { BELOW_STANDARD_LABEL } from '@/lib/teaching-load-labels';
 import { StackedWorkloadBar } from './StackedWorkloadBar';
 
 type WorkloadInspectorProps = {
@@ -39,6 +40,26 @@ const STATUS_COLORS: Record<string, { bg: string; text: string; border: string; 
 	'overload-allowed': { bg: 'bg-orange-50', text: 'text-orange-700', border: 'border-orange-200', icon: AlertTriangle },
 	'over-cap': { bg: 'bg-rose-50', text: 'text-rose-700', border: 'border-rose-200', icon: AlertTriangle },
 };
+
+/**
+ * The badge text for the current load status.
+ *
+ * `loadProfile.statusLabel` is produced by the data layer
+ * (`lib/faculty-assignment-helpers.ts`), which is OUTSIDE this stream's fence.
+ * Rather than edit that shared module to rename one label (which would churn
+ * every consumer and every pinned test across the client), the ONE in-fence
+ * surface that displays the below-standard wording maps it here, at the render
+ * site, to the canonical one-word constant.
+ *
+ * The data-layer `statusLabel` for every other status is passed through
+ * untouched, so only the below-standard wording changes. The help/guidance
+ * copy below still states the standard in hours ("below the 20h standard",
+ * "can take more classes (up to the 20h standard)"), so the shortened label
+ * loses no information.
+ */
+function statusBadgeLabel(loadProfile: LoadProfile): string {
+	return loadProfile.status === 'below-standard' ? BELOW_STANDARD_LABEL : loadProfile.statusLabel;
+}
 
 export function WorkloadInspector({
 	selected,
@@ -112,7 +133,7 @@ export function WorkloadInspector({
 						<Tooltip>
 							<TooltipTrigger asChild>
 								<Badge variant="outline" className={cn("h-5 font-semibold uppercase tracking-tighter shadow-none text-xs whitespace-nowrap cursor-help", status.bg, status.text, status.border)}>
-									{loadProfile.statusLabel}
+									{statusBadgeLabel(loadProfile)}
 								</Badge>
 							</TooltipTrigger>
 							<TooltipContent side="bottom" className="max-w-xs p-3">
@@ -121,7 +142,7 @@ export function WorkloadInspector({
 						</Tooltip>
 					) : (
 						<Badge variant="outline" className={cn("h-5 font-semibold uppercase tracking-tighter shadow-none text-xs whitespace-nowrap", status.bg, status.text, status.border)}>
-							{loadProfile.statusLabel}
+							{statusBadgeLabel(loadProfile)}
 						</Badge>
 					)}
 				</div>
