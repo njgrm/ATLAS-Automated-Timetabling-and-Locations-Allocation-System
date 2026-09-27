@@ -29,12 +29,20 @@ that records this target, because `Assert-LiveReleaseRecorded` reads that sectio
 
 ## 2. Exact delta — 29 non-docs paths, enumerated by `git log c0d91827..d31bfacb --name-only`
 
-15 commits, 38 unique paths, **29 non-docs** (`docs/` + `AGENTS.md` excluded). **This is not a client-only
+**17 commits** (`git rev-list --count c0d91827..d31bfacb` = 17; 2 A2 source, 1 test-only, 1 A3 source, 3 merges,
+10 docs), 38 unique paths, **29 non-docs** (`docs/` + `AGENTS.md` excluded). **This is not a client-only
 release:** two `atlas-server/` production files are in it. No `prisma/` path, no migration, no schema, no seed,
 no root `package.json`, no `package-lock.json`, no `.env`, no `vite.config.ts`, no `tsconfig`. The two
 `package.json` changes are `scripts` entries only.
 
-### 2a. Lane A2 — 19 paths, independently reviewed
+> **The split is `A2 20 + A3 10 − 1 shared = 29`, not `19 + 10` (pre-action review NON_BLOCKING-2).**
+> `atlas-client/package.json` is touched by **both** lanes and appears in both tables below, so summing the two
+> table sizes double-counts it once. The unique total **29** is the load-bearing number and is independently
+> correct; the per-lane split is stated the way it is arithmetically true. A short split on a tripwire is the
+> §11 "count the rows against the list it protects" defect class, and it is recorded here rather than smoothed
+> over.
+
+### 2a. Lane A2 — 19 paths in this table, 20 unique with the shared `package.json` (see §2)
 
 | Path | Commit | QA on record |
 |---|---|---|
@@ -73,10 +81,11 @@ no root `package.json`, no `package-lock.json`, no `.env`, no `vite.config.ts`, 
 | 3 test files | `f0602703` | `a3-teacher-load-readout-a1`, `a3-room-picker-rows-01-02`, `room-utilization-display-a3` — A3's own gate, `test:a3-truthful-numbers` |
 | `atlas-client/package.json` | `f0602703` | that script entry only |
 
-**A2 19 + A3 10 = 29.** A3 reviewed its own range under its own lane process and posted
+**A2 19 + A3 10 = 29** (see the arithmetic note in §2: the split is `20 + 10 − 1 shared`). A3 reviewed its own range under its own lane process and posted
 `A3 integrated for release at 1e417694` in `lane-a-to-c.md`; the merge `e6a60967` carries the source. **A3 is a
-foreign lane in this release: its 9 live-acceptance steps are executed in this cycle (browser rows B1–B9 below),
-and its rows are reported as A3's, not as A2's.** A3's `1e417694` is in the range; its earlier `d9d5def1`
+foreign lane in this release: its 9 live-acceptance steps are executed in this cycle as row B6 below** (not as
+"B1–B9", which was a dangling reference to rows this packet does not define — pre-action review NON_BLOCKING-4),
+**and its rows are reported as A3's, not as A2's.** A3's `1e417694` is in the range; its earlier `d9d5def1`
 test-only pin is already inside the incumbent.
 
 > **Enumeration was run for real, not described from the candidates this lane reviewed** (§13). The count above
@@ -96,15 +105,20 @@ before any cutover, and the measured numbers are the assertion.
    already exists in the incumbent and an "absent from live" assertion on it would read a false pass.)
    Secondary: the new build carries a file the incumbent does not —
    `atlas-server/dist/__tests__/notification-inbox-dedupe-a2.test.js` (only-new in the whole `dist` file list).
-2. **Client — a new shared chunk, `assets/timetable-plain-language-*.js`.** `timetable-plain-language.ts` is
-   **new in this release**, so the chunk is new. Measured: new chunk
-   `timetable-plain-language-BYLpdAgL.js`, **3 367 B**, and the literal `weekly sessions not yet placed` occurs
-   **0 times across every chunk in the live build** and **once in the new chunk**. The served entry also changed
-   (`index-WFjDBxxH.js` live → `index-CIHphcTQ.js` new) and the workspace chunk changed
-   (`ScheduleReviewWorkspace-SrCPH0Zz.js` live → `ScheduleReviewWorkspace-BmIuPk5g.js` new) — those are recorded as
-   corroboration, **not** as the proof, because a filename cannot prove a *removal* or a shared-chunk change.
-   Note the new build's entry chunk is `index-CIHphcTQ.js`, the same name A2's unexecuted `a56ac86d` build
-   produced, which independently confirms the `a56ac86d → d31bfacb` delta is docs-only.
+2. **Client — the `timetable-plain-language` chunk, with the literal count as the deciding assertion.**
+   - ⚠ **The chunk is MODIFIED, not new (pre-action review NON_BLOCKING-3, correcting this packet's own premise).**
+     `timetable-plain-language.ts` exists at `c0d91827`, and the live build already ships
+     `timetable-plain-language-DqO6YBTZ.js` (2 660 B). **So the glob `timetable-plain-language-*.js` matches
+     before the cutover too, and the glob alone is NOT a discriminator.** It is recorded here precisely so that
+     nobody later "simplifies" this row down to a filename. **The deciding assertions are the literal and the
+     404s**, both measured below.
+   - **Deciding assertion, measured:** the literal `weekly sessions not yet placed` occurs **0 times across every
+     chunk in the live build** and **1 time in the new** `timetable-plain-language-BYLpdAgL.js` (3 367 B).
+   - **Corroborating 404s, measured:** the pre-cutover entry chunk `index-WFjDBxxH.js` and workspace chunk
+     `ScheduleReviewWorkspace-SrCPH0Zz.js` are both **404** on the new host; the new entry is
+     `index-CIHphcTQ.js` and the new workspace chunk is `ScheduleReviewWorkspace-BmIuPk5g.js`.
+   - Note the new build's entry chunk is `index-CIHphcTQ.js`, the same name A2's unexecuted `a56ac86d` build
+     produced, which independently confirms the `a56ac86d → d31bfacb` delta is docs-only.
 
 ## 4. Zero-write and migrations
 
@@ -127,6 +141,23 @@ before any cutover, and the measured numbers are the assertion.
 
 ## 5. Acceptance rows — every row names its harness
 
+> ### ⚠ THE ATLAS EVIDENCE ORIGIN IS NAMED HERE, AND IT IS NOT `127.0.0.1` (pre-action review, BLOCKING-1)
+>
+> **Every browser row in this packet — B1, B2, B3, B4, B5, B6, B7 — is performed on
+> `https://njgrm.buru-degree.ts.net`, and every one of them asserts `window.location.origin` before the row is
+> recorded.** Not `http://127.0.0.1:5174`, not `localhost`, not "whatever the host serves".
+>
+> **Why this is a blocking row and not a footnote:** `127.0.0.1:5174` reaches the same supervisor-served release
+> but is a **different origin**. An ATLAS login cookie is **not sent to it**, so the seeded session is invisible
+> there and every authenticated row — **including B2, the row that proves this release's headline fix on real
+> data** — becomes unperformable and would be reported `BLOCKED(AUTH_SESSION_REQUIRED)` for a reason that has
+> nothing to do with the product. This is not hypothetical on this program: on 2026-09-27 a session opened
+> `127.0.0.1:5174` for a Tailnet acceptance row **because the packet named no origin at all**, and the environment
+> had to be guessed. That is why the row is written this way.
+>
+> **If the row cannot be performed on the Tailnet origin, report it `BLOCKED` or `UNPERFORMED` with that reason.
+> Do not substitute the loopback origin and do not declare a row applicable-and-passing without performing it.**
+
 **A healthy deployed process is not acceptance** (§13). D1/D2/D3 prove the process; the rest are the acceptance.
 
 | # | Row | Harness | Expectation |
@@ -148,10 +179,26 @@ before any cutover, and the measured numbers are the assertion.
 | **B6** | **A3's remaining rows** | **browser** | the 9 steps in `planner-a3-non-timetable-ui-ux-handoff.md` → "Rows needing live acceptance". `#52` stays **UNPERFORMED** unless actually performed |
 | B7 | public page DOM | **browser** `/public/schedules` | sections render, term shown, **no** "Unable to load public schedule" |
 
-**B2's precondition is checked, not assumed:** before the swap, confirm **authenticated** that run **321** is a
-**draft** (`published_schedule_revisions` has 0 rows for 321; `currentPublishedRunId` is 320). If the draft is not
-321, **stop and report** — the row would be a published-run mutation and out of bounds. B2 is a **draft** swap
-and is authorised; it is **not** a revert test, must not be reverted, and its resulting state is disclosed.
+**B2's precondition is checked, not assumed — and the check is named precisely** (pre-action review
+NON_BLOCKING-6). Run **321 is not a "draft" by status**: `GenerationRunStatus` has **no** `DRAFT` member and run
+321's status is `COMPLETED`. It is a *draft* in the operational sense that decides this row, and the check is:
+**`SELECT count(*) FROM published_schedule_revisions WHERE "sourceRunId" = 321` = 0, and the maximum
+`sourceRunId` in that table is 320, and the live `currentPublishedRunId` is 320** — the column is
+**`sourceRunId`**, not `run_id` and not `generationRunId`. An executor grepping `status = 'DRAFT'` will find
+nothing and may wrongly conclude the row is unperformable. Verified at review time: 321 → 0 rows, max 320.
+If the precondition does not hold, **stop and report** — the row would be a published-run mutation and out of
+bounds. B2 is a **draft** swap and is authorised; it is **not** a revert test, must not be reverted, and its
+resulting state is disclosed.
+
+**B2's attribution is precise about which path it exercises** (pre-action review NON_BLOCKING-7).
+`manual-edit.service.ts:1651-1652` publishes **both** `editId` (singular) and `editIds` (plural), and
+`metadataChangeIdentity` reads `editId` first — so **a single swap takes the singular branch** and the
+batch/plural branch (`:201-216`) is covered by the committed unit test
+(`notification-inbox-dedupe-a2.test.ts:156-316`), not by B2. B2 is still the right live row and it does
+discriminate: on the **live** build the key is `schoolId:schoolYearId:type:resourceType:resourceId:actorId` with
+**no change identity at all**, so a *second* swap collides and `skipDuplicates` drops it — exactly the recorded
+`9b28c572` D10 finding, `notifications` 216 → 216. The new build adds the identity, so a second distinct swap
+persists. **A failed B2 is therefore a real finding to report, not a harness problem.**
 
 **B1–B7 are browser rows and are labelled as browser rows** (§11). Browser custody is taken with
 `E:/ATLAS-worktrees/.browser-lock` before B1 and released after; A3 held the lock at 2026-09-27 23:49:59 +08, and
@@ -199,7 +246,43 @@ a lock naming A3 younger than 45 minutes means **wait and do other work**.
   live nor rollback and are retired **after** this cutover succeeds, not before it — retiring rollback-adjacent
   directories before proving the new rollback basis is startable would remove the safety net first.
 
-## 7. Not authorised by this packet
+---
+
+## 7. Pre-action review record
+
+**Reviewer:** fresh independent read-only reviewer, one batched dispatch covering **all** pre-action gates — the
+source range, the delta enumeration, both discriminators re-measured, the `Assert-LiveReleaseRecorded` predicate
+run against this packet's own commit, the D-row satisfiability lint, migrations, the authority boundary, candidate
+reachability, elevation and capacity. §11 allows one pre-action dispatch; it is used here, and it earned its keep.
+
+**Verdict: `CORRECTION_REQUIRED` — 10 mandatory rows, 9 passed, 0 blocked, 0 unperformed, 1 failed (§5
+satisfiability). One BLOCKING finding, corrected in this revision.**
+
+| Row | Result |
+|---|---|
+| R1 live-record truth | **PASS** — machine scope, task action and listeners all `c0d91827`; served entry `index-WFjDBxxH.js` matches live; the reviewer's own process env was *also* stale at `9b28c572` and was not used |
+| R2 direction | **PASS** — both `--is-ancestor` exit 0 |
+| R3 delta enumeration | **PASS on substance** — 29 non-docs, exactly 2 server production files, 0 `prisma/`, both `package.json` diffs `scripts`-only, no test/production misclassification; three count errors folded in as NON_BLOCKING-1/-2 |
+| R4 discriminators | **PASS** — reviewer re-measured both sides independently: `metadataChangeIdentity` 0 → 4, file hashes differ; client literal 0 → 1; dist census fully explained, nothing unexplained ships |
+| R5 gate predicate | **PASS** — `PRESENT = True` at this packet's commit; the manual-route bypass is disclosed; the runner resolves its own root via `git rev-parse --git-common-dir` |
+| R6 satisfiability | **FAIL → corrected** — D1/D2/D6/D7/D8 all verified against the live service, D6 an **exact** match; B2 held up under scrutiny; **BLOCKING-1: no ATLAS evidence origin named for any of B1–B7** |
+| R7 migrations | **PASS** — 11 → 11 by the pinned method, full `prisma/migrations` trees byte-identical |
+| R8 authority | **PASS** — §7 narrow and complete; the `fix/committed-credential-scrub-20260926` prohibition is moot because it is already an ancestor of the target |
+| R9 reachability | **PASS** — every introducing commit is an ancestor of both the target and `origin/main`; `cat-file -t` resolves; nothing lives only in a clone |
+| R10 elevation/capacity | **PASS** — `IsInRole(Administrator)` = True; E: 32.03 GiB, D: 39.37 GiB, above the warn line; deferring the three stale release dirs until after the cutover is **safe** because the safety net (`c0d91827` live and retained) is untouched |
+
+**What the correction changed, and what it did not.** It changed **wording only**: it names the Tailnet origin
+and a per-row `window.location.origin` assertion, and it corrects three counts, one dangling row reference, one
+false premise about the client discriminator, and two pieces of row-precision about `sourceRunId` and which
+notification path B2 exercises. **It moved no gate, changed no byte of source, altered no authority boundary and
+added no write.** Per §11, a documentation-only correction whose defect is wording and which neither grants
+authority nor contains a HIGH approval boundary is applied and verified by the planner directly — **no second
+review round, and no re-review of the source range or the discriminators**, which the reviewer explicitly said
+were clean and need no repetition. **A finding is never closed by deleting evidence:** every one of the ten rows,
+including the failed one, is preserved above with its result.
+
+
+## 8. Not authorised by this packet
 
 No migration. No data backfill. No generation. No publication. No term-cache or Teaching Load apply. No revert
 test. No companion (EnrollPro/SMART/AIMS) write. No `ATLAS_SYSTEM_TOKEN` rotation. No history rewrite. No
