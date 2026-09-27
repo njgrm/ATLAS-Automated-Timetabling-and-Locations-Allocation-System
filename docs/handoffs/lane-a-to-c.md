@@ -471,3 +471,73 @@ session. **The blocker is that process, not the lock file, and nothing in ATLAS 
 gone before you take the browser after 02:45, **B5 is the row to run first** — the swap-Cancel
 zero-change control, now owed for a third consecutive overnight cycle, A3-owned, needing the rows/ids
 the dialog would touch plus `audit_logs` max id.
+
+---
+
+## c3 (Planner A3, 2026-09-28 01:24 → 02:0x +08) — source-only, no browser
+
+**A3 integrated for release at `09b8c95e`. NOT DEPLOYED — A2 owns every release.** My `main` push window
+was 01:56–02:00 +08, well clear of your ~04:30 release.
+
+### The c3 token sweep — merged at `09b8c95e`, QA `ACCEPT_READY` 8/8/0/0
+
+| | |
+|---|---|
+| Base | `39c52af704b4bf177efa295ec3c7a187505790d4` |
+| Candidate | `f86d6bf80e7f061c041be968369fd93b1e0fea4a` — 9 paths, +758/−23 |
+| Merge | `09b8c95e` on `integration/a3-c3-slate400-20260928` |
+| Executor | two attempts: the first stopped `BLOCKED`, the second returned `REVIEW_REQUIRED` |
+| Fresh QA | **`ACCEPT_READY`, 8/8/0/0, no BLOCKING findings** |
+
+15 `text-slate-400` text sites → `text-muted-foreground` across 5 non-timetable files
+(`BuildingGradeScopeControl`, `CampusMapOverview`, `CampusReadinessCard`, `Audit`, `Dashboard`).
+`atlas-server/` 0, `components/timetable/**` 0, `index.css` 0, `StackedWorkloadBar.tsx` 0 (its
+`bg-slate-400` is a **fill**, not text), `RoomSchedules.tsx` 0. Ratchet pin 110 → 95.
+**This closes the five `slate-400` sites recorded in c2 as accessibility defects, including the
+enabled-control AA failure at `BuildingGradeScopeControl.tsx:36`.**
+
+### Three corrections I owe you, because two of them were mine
+
+1. **My "2–3/255 near-exact rename" premise was false and the executor caught it.** Measured:
+   `slate-400` = Tailwind 4.2.2 `oklch(70.4% 0.04 256.788)` → `rgb(144,161,185)`;
+   `--muted-foreground: 215 16% 47%` → `rgb(101,117,139)`; delta **43/44/46, max 46/255**. It is an
+   **intentional darkening, not a rename** — 18% of the channel range and visually obvious. Had an
+   executor copied the S-e `CHANNEL_TOLERANCE = 3` framing it would have been permanently red, and
+   widening a tolerance to force green is the forbidden failure mode. The test now asserts the
+   darkening explicitly. Recorded because c2's handoff wording invites exactly this error.
+2. **My provisioning was wrong, and the executor refused to proceed rather than commit an unrun test.**
+   I stated `D:\ATLAS\atlas-client\node_modules` was a working junction. The junction was real but its
+   **target was an empty directory (0 entries)**; my "toolchain green" was an artifact of `npx`
+   fetching `tsx` on the fly. Fixed by `npm ci` in `D:\ATLAS\atlas-client` (154 entries, exit 0) — a
+   stable, never-retired donor. **If another lane trusts that path, populate it first.**
+3. **My base SHA had a transposed character** (`…bf177de…` for `…bf177ef…`); the executor hit
+   `fatal: bad object` and named it. Harmless, but it is why QA quotes `39c52af7`.
+
+### Honest limit, stated so nobody over-claims
+
+Contrast on white **2.630:1 → 4.697:1** (crosses AA 4.5:1). On `--muted`/`--secondary`
+**2.390:1 → 4.268:1** — improved, **still below AA**. **The app does not pass WCAG AA on those two
+surfaces, before or after.** The disclosure is asserted in the test header and cannot be quietly
+deleted. A live row on a muted surface is still owed.
+
+### Item 4, the `returnTo` row: formally `A2-OWED`, not `WONTFIX`
+
+Restating c2's finding as a terminal state so it stops being re-litigated: **`returnTo` does not exist
+on any ref in this repository.** A3 will not invent a cross-lane URL contract at 02:00 with no partner
+awake, because any control rendering it would pass against a field the hook never emits — the worst
+available outcome. **A2 owns the decision: emit `returnTo` from `useTeachingLoadRouteIntent` and tell
+me, or drop the row.** A3's B4 stays unbuilt rather than falsely green.
+
+### The browser — I am running none, per the c3 change
+
+Confirmed: I touched no browser and no `.browser-lock`. **B5 passed live on `d31bfacb`** per your
+`730614bc`, which closes the row owed for three consecutive cycles — that was the load-bearing
+unperformed row, and thank you for taking it. `#52` and `#53` are yours.
+
+### For A2's release: what is in `09b8c95e` and is not yet live
+
+Client-only, 9 paths, no migration, no `atlas-server/` path, no timetable path. **Nothing here needs a
+migration or a schema change, so it is a low-risk item for your 04:30 cutover** — but the contrast
+change is only visible on a screen, and nobody has seen it rendered. The exact live-acceptance steps
+are in my handoff's c3 section. If you release before they run, say so and I will mark the rows owed
+rather than passed.
