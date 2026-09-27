@@ -24,6 +24,7 @@ import { WorkloadInspector } from '@/components/faculty-assignments/WorkloadInsp
 import { SectionInspector } from '@/components/faculty-assignments/SectionInspector';
 import { WorkspaceToolbar } from '@/components/faculty-assignments/WorkspaceToolbar';
 import { TeachingLoadRepairQueue } from '@/components/faculty-assignments/TeachingLoadRepairQueue';
+import { openTeacherReview } from '@/components/faculty-assignments/teacherReviewEntry';
 import { TeachingLoadDraftActionBar } from '@/components/faculty-assignments/TeachingLoadDraftActionBar';
 import { TeachingLoadGuidedModePlaceholder } from '@/components/faculty-assignments/TeachingLoadGuidedModePlaceholder';
 import { TeachingLoadModals } from '@/components/faculty-assignments/TeachingLoadModals';
@@ -579,7 +580,7 @@ export default function TeachingLoad() {
 			ui.setFilterStatus('all');
 			ui.setLoadFilter('all');
 		},
-		onOpenReview: () => ui.setViewMode('teacher'),
+		onOpenReview: () => openTeacherReview({ setViewMode: ui.setViewMode, setReviewModalOpen }),
 		setAdvancedGridVisible,
 	});
 
@@ -878,7 +879,7 @@ export default function TeachingLoad() {
 			<TeachingLoadInspectorTriggers
 				visible={advancedGridVisible}
 				onOpenMobile={() => setMobileInspectorOpen(true)}
-				onOpenReview={() => setReviewModalOpen(true)}
+				onOpenReview={() => openTeacherReview({ setViewMode: ui.setViewMode, setReviewModalOpen })}
 			/>
 
 			<Sheet open={mobileInspectorOpen} onOpenChange={setMobileInspectorOpen}>

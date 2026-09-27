@@ -88,13 +88,44 @@ const UTILIZATION_BAR_W = 10;
  * both are measured in that control. */
 export const ROOM_NAME_FONT = 11;
 export const ROOM_LABEL_FONT = 11;
+/** The line PITCH in stage units, i.e. the height budget one text line may use. */
 export const ROOM_LINE_H = 13;
+
+/**
+ * A3 fix 11 (second correction) — the value actually handed to Konva.
+ *
+ * Konva's `lineHeight` is a MULTIPLIER, not a pixel count
+ * (`konva/lib/shapes/Text.js:455` `addGetterSetter(Text, 'lineHeight', 1)`,
+ * and `:306` `lineHeightPx = this.lineHeight() * fontSize`). Passing the pixel
+ * pitch `ROOM_LINE_H` (13) therefore produced a line pitch of
+ * 13 x 11 = 143 STAGE UNITS, 11x the 13px budget, which is the whole fix-11
+ * defect:
+ *
+ *  - `:400-404 _shouldHandleEllipsis` returns true after the FIRST line for
+ *    every name, because `currentHeightPx + lineHeightPx` (286) exceeds
+ *    `maxHeightPx` (26), so `:362 _tryToAddEllipsisToLastLine` replaces the rest
+ *    of the name with a single "." — "Learning Commons" rendered as "Learning."
+ *  - `:104/:111 translateY = lineHeightPx / 2` = 71.5, with `verticalAlign`
+ *    defaulting to TOP so `alignY` is 0, so the name was drawn 71.5 units BELOW
+ *    its own box — i.e. at the BOTTOM of the 84px card, which is exactly where
+ *    the truncated label was observed, with the type line, occupancy chip and
+ *    utilisation readout pushed off-card entirely.
+ *
+ * The ratio below is exact: (13/11) x 11 === 13 in IEEE-754, so a two-line name
+ * occupies 26 units and still fits `ROOM_NAME_BOX.height` (26) with no ellipsis,
+ * while a third line (39) is still rejected. `ROOM_LINE_H` itself is unchanged
+ * at 13 so the disjoint-rectangle budget above and every existing layout control
+ * keep their exact numbers, and no box moves.
+ */
+export const ROOM_LINE_RATIO = ROOM_LINE_H / ROOM_NAME_FONT;
 
 /** The card frame, exported so the A3 layout control measures what is drawn. */
 export const ROOM_CARD_W = ROOM_MIN_W;
 export const ROOM_CARD_H = ROOM_H;
 
-/** Room name: two wrapped lines before ellipsis (fix 11). */
+/** Room name: two wrapped lines before ellipsis (fix 11). Now actually true —
+ *  the two lines are 2 x ROOM_LINE_RATIO x ROOM_NAME_FONT = 26 units, which
+ *  equals this box height exactly, because `lineHeight` is a Konva ratio. */
 export const ROOM_NAME_BOX = { x: 4, y: 4, width: 70, height: 26 } as const;
 /** Room type (or the non-teaching marker) on its own line. */
 export const ROOM_TYPE_BOX = { x: 4, y: 31, width: 70, height: 14 } as const;
@@ -429,7 +460,7 @@ export function BuildingView({
 								height={ROOM_NAME_BOX.height}
 								text={room.name}
 								fontSize={ROOM_NAME_FONT}
-								lineHeight={ROOM_LINE_H}
+								lineHeight={ROOM_LINE_RATIO}
 								fontStyle="bold"
 								fill={gradeColor || colors.text}
 								wrap="word"
@@ -442,7 +473,7 @@ export function BuildingView({
 								height={ROOM_TYPE_BOX.height}
 								text={room.isTeachingSpace ? ROOM_TYPE_SHORT_LABEL[room.type] : 'Non-teaching'}
 								fontSize={ROOM_LABEL_FONT}
-								lineHeight={ROOM_LINE_H}
+								lineHeight={ROOM_LINE_RATIO}
 								fontStyle={room.isTeachingSpace ? 'normal' : 'italic'}
 								fill={room.isTeachingSpace ? '#6b7280' : '#b45309'}
 								wrap="none"
@@ -472,7 +503,7 @@ export function BuildingView({
 										height={ROOM_OCCUPANCY_BOX.height - 4}
 										text={occupancy}
 										fontSize={ROOM_LABEL_FONT}
-										lineHeight={ROOM_LINE_H}
+										lineHeight={ROOM_LINE_RATIO}
 										fontStyle="bold"
 										fill={isInspected ? colors.text : (gradeColor || "#047857")}
 										wrap="word"
@@ -487,7 +518,7 @@ export function BuildingView({
 									height={ROOM_OCCUPANCY_BOX.height}
 									text={`Capacity: ${room.capacity}`}
 									fontSize={ROOM_LABEL_FONT}
-									lineHeight={ROOM_LINE_H}
+									lineHeight={ROOM_LINE_RATIO}
 									fill="#6b7280"
 									wrap="none"
 									ellipsis
@@ -512,7 +543,7 @@ export function BuildingView({
 										verticalAlign="middle"
 										text={sectionData.programCode}
 										fontSize={ROOM_LABEL_FONT}
-										lineHeight={ROOM_LINE_H}
+										lineHeight={ROOM_LINE_RATIO}
 										fontStyle="bold"
 										fill="#ffffff"
 										align="center"
@@ -548,7 +579,7 @@ export function BuildingView({
 								height={ROOM_UTILIZATION_TEXT_BOX.height}
 								text={`${Math.round(utilization)}%`}
 								fontSize={ROOM_LABEL_FONT}
-								lineHeight={ROOM_LINE_H}
+								lineHeight={ROOM_LINE_RATIO}
 								fontStyle="bold"
 								fill={getUtilizationColor(utilization)}
 								align="left"
