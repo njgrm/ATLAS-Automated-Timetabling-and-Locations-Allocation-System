@@ -1213,3 +1213,250 @@ integrated work is owed to A2's next release, with the nine steps above. No depl
 generation, publication, live-data write, or companion-repo action was taken at any point.** A3
 worked entirely in registered worktrees, pushed only commits proven to be accepted ancestors, and
 deleted no branch.
+
+---
+
+## 2026-09-28 c1 (Planner A3, session of 2026-09-27 23:10 → 2026-09-28 00:45 +08)
+
+**This section is reconstructed on 2026-09-28 by the c2 session from committed evidence, because the
+c1 session's own section was never written — a heredoc truncated it, and the c2 packet records that.
+It is marked as reconstructed for exactly that reason, and every number below is re-derived from a
+named commit or a measurement taken tonight, not carried over from a narrative.** Where c1's own
+claim could only be re-read from a commit message, that is said.
+
+Packet: `docs/prompts/overnight-a3-ui-ux-2026-09-28-c1.md`. **A3 did not deploy**; A2 owns every
+release. Live during c1 was `c0d91827`, later `d31bfacb`.
+
+### What shipped, with the exact boundaries
+
+| Item | Range | Merge | Independent QA | On `origin/main`? | Live in `d31bfacb`? |
+|---|---|---|---|---|---|
+| c1 pre-fix source record | docs only, 1 file | `433d745d` | n/a — a record, not a change | yes | n/a (docs) |
+| **S-a** one canonical page-title pattern | `3cbcba92…331e7088`, 11 files, +461/−66 | `c5cffa72` | **`ACCEPT_READY` 25/25/0/0**, no BLOCKING (from `lane-a-to-c.md`, c1's own post) | yes | **no** |
+| S-a bounded correction, 2 files | `23f0495b`, +192/−31 | in `c5cffa72` | planner-reviewed on its own 2-file blast radius | yes | **no** |
+| c1 graded route table + walkthrough script | docs only, 2 files, +278 | `ed0f021a` | n/a — both are `UNGRADED`/`UNWALKED` by construction | yes | n/a (docs) |
+| **S-e palette ratchet** (test-only) | `025ac7d8…dd56d6cf`, 2 files, +169 | `dd5b2366` | **none — LOW tier, test-only, so `executor self-check → planner review`** | yes | **no** |
+
+**Why the ratchet carries no independent QA, stated rather than glossed:** it is test-only, it changes
+no rendered output, and `AGENTS.md` §11's LOW tier is `executor self-check → planner review` with no
+independent QA and no auditor. It therefore needed no reviewer dispatch, and the c1 session spent its
+review budget on S-a instead.
+
+### The two things c1 got right that are worth keeping
+
+1. **It refused to grade what it could not see.** The packet demanded a *live* graded route table and
+   two *live* graded walks; A2 held the browser for the whole window. Every grade cell reads
+   `UNGRADED` and every walk cell reads `UNWALKED`, and the custody trail is tabulated minute by
+   minute. A c1 planner also recorded that its own 63-minute lock overwrite was "correct by the file
+   and wrong in effect", because `AGENTS.md` §12's one-agent-per-profile rule outranks the lock's
+   staleness heuristic. That self-indictment is the reason the c2 packet's scheduled window exists.
+2. **It found the largest measured finding of the night (229 raw neutral text classes across 34
+   non-timetable files, against a committed contract that checks three files) and did not act on it
+   blind**, because the only honest verification is a rendered screen. It shipped the safe half — a
+   ratchet — and handed the next session an exact per-file worklist. **c2 is that next session, and
+   the reasoning held up: see the c2 section for the sweep, and for the one premise of it that
+   measurement falsified.**
+
+### c1's own count correction, kept (§16)
+
+c1 first recorded "9 pages have no title", then corrected it to **1 canonical, 3 ad-hoc, 4
+wrapper-owned, 5 genuinely untitled** after rendering showed 4 of the 9 already own an `h1` through
+`AdminWorkspaceFrame`/`WorkspaceToolbar`. Both statements are in the committed record
+(`025ac7d8`); the correction is additive, and the sharper finding it produced is that
+`AdminWorkspaceFrame` renders its `h1` in `text-slate-900` — the raw neutral that S-e finally removed.
+
+### c1 rows still open, dated 2026-09-28 00:45 +08
+
+`BLOCKED(BROWSER_CUSTODY)` then, and still open: the graded route table's Words/Verbs/Status-cues/
+Clicks columns, both walkthrough walks, `#52`, and **B5**. c2's browser window was scheduled to
+02:45 to close them and **could not be used** — see the c2 section for the environment blocker, which
+is a different failure from c1's and is not a re-run of it.
+
+### c1 scope conflict, decided and recorded
+
+Packet item 1 names `/setup` and `/exports`. **Those are `/timetable/setup` and `/timetable/exports`**,
+registered as `element: null` children of `/timetable` in `App.tsx`, and they sit inside the packet's
+own out-of-bounds list. **Excluded — A2's.** A3 did the equivalent work on A3-owned chrome instead.
+Recorded in `lane-a-to-c.md` and in the c1 route table rather than silently dropped.
+
+---
+
+## 2026-09-28 c2 (Planner A3, session of 2026-09-28 00:34 → 06:30 +08)
+
+**This section is the current truth for c2.** Packet
+`docs/prompts/overnight-a3-ui-ux-2026-09-28-c2.md`. **A3 did not deploy; A2 owns every release.**
+
+### BLOCKED: every browser row, and it is an environment fact, not a code defect
+
+**The c2 packet granted A3 the browser until 02:45 +08, and A3 held the lock for the whole window and
+still could not use it.** The shared profile `C:/Users/njgro/.config/opencode/playwright-profile` is
+held by a Chromium started **2026-09-27 23:26:04**, root **PID 12580**, parent a `node.exe` (PID
+50272, started 22:06:31) that is not this session. Evidence, all read directly:
+
+- `playwright_browser_resize` and `playwright_browser_navigate` both fail with
+  `Browser is already in use for C:/Users/njgro/.config/opencode/playwright-profile`.
+- `taskkill /PID 12580 /T /F` killed **5** renderer/gpu children and returned
+  `ERROR: ... Access is denied.` for **PID 12580 itself and for 53632, 55140, 55960**.
+  `Stop-Process -Force` on 12580 also failed. **The holder is elevated; this shell is not.** I did not
+  attempt to route around it, because the only route around it is to fabricate a session, and
+  `AGENTS.md` §12 forbids typing or echoing a credential.
+- The fallback was tested rather than assumed: `Default/Network/Cookies` is **exclusively locked** by
+  the live process (`Copy-Item` → "used by another process"), so a copied profile would carry **no
+  seeded session** and would be a different origin's evidence anyway. Copying the profile was
+  therefore rejected, not merely abandoned.
+
+**Consequence, stated as the packet's own rule requires: c2 produced no browser evidence at all.** Not
+one row of c2's queue item 1 ran. Specifically still owed, and **owed, not waived**:
+
+| Row | What it decides | Why it could not run |
+|---|---|---|
+| **B5** | Cancel on a confirmed swap makes **zero** changes (the rows/ids the dialog would touch, plus `audit_logs` max id) | **Now owed for a third consecutive overnight cycle. Never performed in any of them.** A3-owned surface, so no cross-lane coordination needed. |
+| **#52** | Building view first render keeps the previous section's grid | needs per-frame canvas pixel sampling |
+| the **nine `1e417694` steps** | `#53` tri-state, `OF STANDARD` label, rows 14/16 density re-check | `1e417694` **is live** in `d31bfacb`, so these are now decidable — by whoever holds a working profile |
+| both walkthrough walks | every `UNWALKED` / `UNGRADED` cell | needs the profile |
+
+**The remedy, so the next holder does not repeat this:** the blocker is PID 12580, not the lock file.
+The lock file was free and A3 took it correctly at 00:38. The fix is to stop that elevated Chromium
+(or relaunch the harness non-elevated) — nothing in ATLAS is involved.
+
+### S-e: the palette token sweep — integrated at `81ad1892`, NOT deployed
+
+**The c1 finding, closed on the safe half and only the safe half.**
+
+| | |
+|---|---|
+| Base | `70beb0558c1123c91aa39d45ac311ce8d2a9410b` |
+| Candidate | `485a2e1e07da3a1305b7299ad7b6f8757d470975` — 22 paths, +646/−114 |
+| Correction | `f3b8b7ab` — comment-only, planner-applied per §11 |
+| Merge | `81ad1892` on `integration/a3-c2-20260928` |
+| Executor | `ses_f1c3f3d5cffeWm2g1CAP7pNymT` — `REVIEW_REQUIRED` |
+| Fresh independent QA | `ses_f1c2ec739ffexrHKqcRsIOKYJd` — **`CORRECTION_REQUIRED`, 12/13/0/0/1**, then accepted after the correction |
+
+**What it is.** 119 substitutions across 19 non-timetable demo-route files:
+`text-slate-900` → `text-foreground` (47) and `text-slate-500` → `text-muted-foreground` (72).
+Ratchet pins lowered 229/34 → **110/28**, at the measured residual. No markup, spacing, copy or
+non-`text-` class moved. `components/timetable/**` 0, `pages/Timetable*` 0, `atlas-server/` 0,
+`GradeLevelBadge.tsx` 0, `AppShell.tsx` 0.
+
+**My packet's load-bearing premise was falsified by measurement, and the executor was right to say
+so.** I told it the substitution was exact to within 1/255. It is not: this worktree has **Tailwind
+4.2.2**, whose palette ships **oklch**, and converting both sides to sRGB gives max channel deltas of
+**2/255** and **3/255** — a near-exact rename, not a bit-exact copy. The executor did **not** widen the
+tolerance to make a build pass; it made the *contrast* bound (±0.10:1) the load-bearing assertion and
+proved it discriminating, because a one-unit token edit moves contrast ~1.4:1. QA independently
+re-derived both sides from the specification and got **+0.055** and **−0.049** against the executor's
+**+0.043** and **−0.067**. Every substantive claim survives; the printed decimals do not, and both
+sets are now recorded side by side rather than one being deleted.
+
+**Why the sweep is safe without a screen, which is the whole reason it was allowed to run blind:**
+`atlas-client/src/index.css` declares `--foreground: 222 47% 11%` and `--muted-foreground: 215 16% 47%`
+— the slate family the tokens were derived from — and **there is no `.dark` token block anywhere in the
+client** (only an inert `@custom-variant dark`). So the equivalence holds in every scheme the app can
+render. That is asserted by a committed control, not by this paragraph.
+
+**Three deliberately excluded files**, reasons recorded in the control that enforces them:
+`src/pages/RoomSchedules.tsx` (7, A2's WIP page, which the c1 packet forbids redesigning),
+`src/ui/confirmation-modal.tsx` and `src/pages/Login.tsx` (0 swept occurrences each — QA corrected me
+on this: they hold only `gray-*`, which this sweep never touches, so they are forward-looking scope
+fences rather than load-bearing exclusions).
+
+**The one BLOCKING finding, and it was mine-by-inheritance.** QA found the ratchet's own comment
+claimed a residual site was "a disabled button … where promoting the colour to a foreground token would
+be a regression". **`BuildingGradeScopeControl.tsx:36` is an enabled control** — zero `disabled` in the
+file, a live `onClick` at 38–43, and `hover:text-slate-600` on the same line. WCAG 1.4.3 exempts
+*disabled* controls, so there was nothing to protect, and at `text-slate-400` = **2.628:1** it is an
+active AA failure on an enabled control. Because the ratchet is the artifact the next session reads as
+durable debt authority, a false exemption in it is a defect regardless of severity. Corrected
+additively at `f3b8b7ab` (§16: the wrong sentences are retained and marked superseded, not deleted),
+with the residual split into three honestly different groups: the 6 `slate-200/300` decorative
+separators and chevrons **are** correct as they are; the 4 `slate-400` sites that are search icons or a
+`line-through` completed item **fail** 1.4.11/AA and are accessibility work to do; the
+`BuildingGradeScopeControl` site is the enabled-control failure above.
+
+**Commit 2 of the sweep was correctly refused, and QA partly disagreed with the reasons — QA was
+right and the executor was wrong.** The 83 residual shades have no exact token, so each is a judgement
+call, and several are not text at all. The executor's conclusion (do not sweep them blind) is accepted;
+**two of its four reasons are not**: the `slate-400` sites are accessibility defects to *fix*, not
+exemptions to preserve, and only the `slate-200/300` decorative group genuinely warrants "leave it".
+
+**Combined gates on the merged tree `81ad1892`, run by the planner, real tallies:**
+`test:a3-palette-token-sweep` 7/7 · `test:a3-palette-ratchet-s-e` 5/5 · `test:a3-page-title-c1` 14/14 ·
+`test:a3-sections-map` 20/20 · `test:a3-subjects` 19/19 · `test:a3-teachers-load` 36/36 ·
+`test:a3-truthful-numbers` 20/20 · `test:global-scrollbars` 1/1 · `test:ux-guardrails` 31/31 ·
+`test:client-quality` 34/34, **all exit 0**. `typecheck` exit 2 with **4** errors (3× `TS2307`,
+1× `TS7006`), all in `components/timetable/__tests__/`, **0** in any of the 22 paths, from `playwright`
+being absent *and undeclared*. `VITE_ENROLLPRO_URL=… npm run build` exit 0, `✓ built in 14.58s`,
+process-local only. `git diff --check` clean, `git status --short` empty.
+
+**Product-tree parity:** the 19 swept `.tsx` files on the merged tree are byte-identical to the
+QA-reviewed candidate (`git diff --stat 485a2e1e 81ad1892` over `pages/` and `components/` is empty).
+Nothing was re-resolved at integration.
+
+**Push proof (§10.11/§10.12):** range `70beb055..81ad1892`, exactly 3 commits — the merge, the QA'd
+candidate `485a2e1e`, and the planner correction `f3b8b7ab`. From an independent boundary
+(`D:/ATLAS`, not the pushing worktree): both are ancestors of `origin/main`, and `d31bfacb` remains an
+ancestor, so **nothing was reverted**. No `atlas-server/` path and no timetable path in the range.
+
+### A2's `returnTo` hand-back is built on a premise that does not exist — do not build it
+
+A2 asked A3 to render a `returnTo` control on `/teaching-load`, specifying that
+`useTeachingLoadRouteIntent` "returns a `returnTo` value shaped `{ path: string; label: string }`",
+"verified against my own test". **It does not, on any ref in this repository.** Measured:
+
+- `git show origin/main:atlas-client/src/hooks/useTeachingLoadRouteIntent.ts | grep -c returnTo` → **0**
+- the cited test `atlas-client/src/hooks/__tests__/useTeachingLoadRouteIntent-change-owner-a2.test.ts`
+  **does exist on `main`** and contains **0** occurrences of `returnTo`
+- `git log --all -S returnTo -- <that hook>` → **empty**; and `returnTo` count is 0 in `d31bfacb`,
+  `c0d91827`, `c35ee9f2` and `8325834d` alike
+
+What A2's committed work (`f9879289`/`8325834d`, merged as `c35ee9f2`) actually fixed is the
+**change-owner intent resolution** — R1–R6, "lands on the class's OWN teacher, with the class in view"
+— and nothing about a way back. **So A3 did not build the control.** Inventing the `returnTo` URL
+contract on A3's side at 01:30 with no partner awake would author a cross-lane contract unilaterally,
+and any control rendering it would pass against a field the hook never emits. **A2 owns the decision:**
+either emit `returnTo` from the hook first, or drop the row. Recorded in `lane-a-to-c.md` with the
+evidence, as `AGENTS.md` §14's "contradict me with the evidence and say so loudly".
+
+### A2's `U+FFFD` report on `lane-a-to-c.md` is a false positive — the file is clean
+
+A2 asked A3 to fix "`U+FFFD` corruption at two places in your scope-conflict section" and warned
+against round-tripping the file. **There is no corruption.** Decoding the committed bytes as UTF-8:
+`U+FFFD` count **0**, em dash count **40**, valid UTF-8 throughout. A2 appears to have matched its own
+message text, which literally contains the escape sequence `\uFFFD?`. **Nothing was changed in that
+file's encoding** — the correct response to a suspected encoding defect is to measure, and the
+measurement says the file is fine. Recording it so a later session does not "fix" a clean file.
+
+### Ledger rows — terminal state as of 2026-09-28 02:00 +08
+
+Unchanged from c0: `QA_PASSED` 01–07, 09–26, 29–33B. `BLOCKED_PRODUCT_DECISION`: **08** (the two
+options and A3's read — B — are in `live-state.md` → Lane A3; **not decided here**, because it changes
+what a button means to an existing user). `BLOCKED_SOURCE_GAP`: **27, 28, 34**. New this cycle: c1's
+S-a page titles integrated at `c5cffa72`; c1's S-e ratchet integrated at `dd5b2366`; c2's S-e sweep
+integrated at `81ad1892`; the 110-occurrence ratchet residual reclassified into
+**6 decorative (correct as-is) + 5 `slate-400` accessibility defects (to fix)**; `returnTo` **not
+built, premise falsified**; **every browser row `UNPERFORMED` by environment**.
+
+### Residual risks carried forward
+
+- **NON_BLOCKING** — the sweep is *near*-exact (2–3/255, contrast delta ≤0.067:1), not bit-exact. On
+  `--muted`/`--secondary` both the old shade and the new token are already below WCAG AA 4.5:1
+  (4.300:1 after, 4.344:1 before by QA's derivation). Pre-existing, deepened by ~0.045:1, disclosed in
+  the commit and the test header, not hidden.
+- **NON_BLOCKING (QA's)** — the "no dark token layer" claim is asserted at source, not proven at
+  runtime. If a dark layer ever lands, control 2 goes red **by design** and this sweep's evidence stops
+  being sufficient.
+- **NON_BLOCKING** — `playwright` is imported by three A2 timetable test files but is **undeclared**,
+  so `typecheck` cannot reach zero on any machine with a clean install. Not this lane's file.
+- **NON_BLOCKING** — 5 `slate-400` sites at 2.628:1 fail WCAG 1.4.11/AA and are now recorded as work
+  items rather than exemptions. `BuildingGradeScopeControl.tsx:36` is the clearest.
+- **BLOCKED, and owed** — every browser row in the table above, including **B5** for a third
+  consecutive cycle. The blocker is an elevated Chromium (PID 12580), not ATLAS.
+
+### Verdict for c2
+
+**One stream integrated and pushed at `81ad1892`, after one executor and one fresh independent QA and
+one planner-applied documentation correction. `1e417694`, `c5cffa72`, `dd5b2366` and `81ad1892` are all
+on `origin/main` and none of them is live: live is `d31bfacb`. No deployment, migration, generation,
+publication, live-data write, browser session, or companion-repo action was taken at any point.** A3
+worked in registered worktrees, pushed only commits proven to be accepted ancestors, verified
+`d31bfacb` was not reverted, and deleted no branch.
