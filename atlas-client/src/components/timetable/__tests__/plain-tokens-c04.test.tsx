@@ -310,7 +310,7 @@ test('J2 P2 the right panel states the room-request decision in plain words and 
 	}] } }));
 	const rendered = text();
 	assert.match(rendered, /Decision: Not approved/, 'the decision is a plain state');
-	assert.match(rendered, /The request was declined, so this session keeps the room and time it already had\./, 'the copy says what happens next');
+	assert.match(rendered, /The request was declined, so this class keeps the room and time it already had\./, 'the copy says what happens next');
 	assert.match(rendered, /Appeals: 3 raised, 1 still open/, 'the appeal counts read as counts');
 	assert.match(rendered, /latest appeal is being looked at now/, 'the appeal state is plain');
 	assert.doesNotMatch(rendered, /REJECTED|UNDER_REVIEW|SUBMITTED/, 'no raw enum may render');
@@ -450,7 +450,7 @@ test('J2 P4 the edit history reads as plain actions, names no actor id, and uses
 		} as never,
 	})));
 	const rendered = text();
-	assert.match(rendered, /Gave an unplaced session a slot/, 'the action reads as what it did');
+	assert.match(rendered, /Gave a class without a time a time/, 'the action reads as what it did');
 	assert.match(rendered, /Changed the room/);
 	assert.doesNotMatch(rendered, /PLACE UNASSIGNED|PLACE_UNASSIGNED/, 'the raw editType is gone');
 	assert.doesNotMatch(rendered, /by user/, 'the bare actor id attribution is gone');
@@ -523,7 +523,7 @@ test('D2 mutant: a row with no attribution affordance fails the D2 control', () 
 	// again and the suite would stay green, which is precisely the regression the
 	// finding was raised for.
 	const D2_PATTERN = /Changed by a signed-in account\. This record does not show which person\./;
-	const preD2Text = 'Gave an unplaced session a slot 2026-09-26 All serious problems: 2, warnings: 1 Revert this edit';
+	const preD2Text = 'Gave a class without a time a time 2026-09-26 All serious problems: 2, warnings: 1 Revert this edit';
 	assert.doesNotMatch(preD2Text, D2_PATTERN, 'the pre-D2 row really carried no attribution');
 	assert.throws(() => assert.match(preD2Text, D2_PATTERN), /input did not match/);
 	// And the affordance is load-bearing rather than incidentally matching: it must

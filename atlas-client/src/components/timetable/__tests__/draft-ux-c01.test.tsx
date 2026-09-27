@@ -1244,9 +1244,11 @@ test('PL-J4.1R the real blocking chip states the publish consequence, so "3 unre
 	assert.match(chip.innerHTML, /lucide-info/, 'still the neutral info sign');
 });
 
-test('PL-J4.1S an unassigned-only block names SESSIONS on the chip, the same unit as every other surface', async () => {
-	// J1r (QA F3/F6 follow-through): the unassigned count is sessions, so the
-	// chip's own consequence sentence says so too.
+test('PL-J4.1S an unplaced-only block names CLASSES on the chip, the one unit every other surface now uses', async () => {
+	// J1r (QA F3/F6 follow-through): the chip's own consequence sentence uses the
+	// same unit as every other surface, and that unit is now the one noun
+	// "class" (A2-UX-COPY-C2). The row's INTENT is unchanged and is the stronger
+	// claim now: the chip cannot reach for the retired word at all.
 	const { chip } = await renderRealReadinessChip({
 		blockingHardCount: 0,
 		hardCount: 0,
@@ -1255,8 +1257,8 @@ test('PL-J4.1S an unassigned-only block names SESSIONS on the chip, the same uni
 		draft: draft([unassignedItem(2, 701, 1), unassignedItem(2, 702, 1), unassignedItem(2, 703, 1)], { hardViolationCount: 0, unassignedCount: 3 }),
 	});
 	const text = chip.textContent ?? '';
-	assert.match(text, /3 sessions still need fixing — this schedule cannot be published yet\./, 'the unplaced clause names sessions');
-	assert.doesNotMatch(text, /classes/, 'the chip never calls the session count "classes"');
+	assert.match(text, /3 classes still need a time — this schedule cannot be published yet\./, 'the unplaced clause names classes');
+	assert.doesNotMatch(text, /session/i, 'the chip never falls back to the retired noun');
 });
 
 test('PL-J4.1T the blocking and the non-blocking chip are distinguishable by TEXT and by a greyscale-visible border, not by colour or the data attribute', async () => {

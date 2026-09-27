@@ -232,16 +232,20 @@ test('C3 (a) a newer unfinished run over a published draft.runId is not printed 
 	const identity = runIdentityText(markup);
 	assert.equal(
 		identity,
-		`Run ${PUBLISHED_RUN} · Published`,
-		'the printed run number must be the run whose publication state is printed',
+		'Published — this is the schedule in use. (Run 321)',
+		'the printed run number must be the run whose publication state is printed, and the state now leads',
 	);
 	assert.ok(
 		!identity.includes(`Run ${NEWER_RUN}`),
 		`the newer unfinished run #${NEWER_RUN} must not be printed at all (got "${identity}")`,
 	);
 	assert.ok(
-		!new RegExp(`Run ${NEWER_RUN}[^<]*Published`).test(markup),
-		'the false pairing "Run 322 · Published" must not appear anywhere in the header',
+		!/^Run/.test(identity),
+		`the run number is secondary and never the subject of the sentence (got "${identity}")`,
+	);
+	assert.ok(
+		!new RegExp(`${NEWER_RUN}[^<]*Published`).test(markup),
+		'the false pairing "322 … Published" must not appear anywhere in the header',
 	);
 });
 
@@ -257,7 +261,7 @@ test('C3 (a2) the same holds when the newer run FAILED rather than is in flight'
 	});
 	assert.equal(
 		runIdentityText(markup),
-		`Run ${PUBLISHED_RUN} · Published`,
+		'Published — this is the schedule in use. (Run 321)',
 		'a failed newer run is still not the published run on the grid',
 	);
 	assert.equal(
@@ -280,7 +284,7 @@ test('C3 (b) a FAILED-only run list with no draft renders the empty state, not "
 	});
 	assert.equal(
 		runBadgeText(markup),
-		'No generated run yet',
+		'No schedule yet',
 		'with no draft there is no run on the grid, so the badge must not claim a draft schedule',
 	);
 	// `runStateSentence` returns null when there is nothing to name, and the
@@ -295,7 +299,11 @@ test('C3 (b) a FAILED-only run list with no draft renders the empty state, not "
 		'the pre-fix "Draft schedule" over a FAILED-only run list is gone',
 	);
 	assert.ok(
-		!new RegExp(`Run ${NEWER_RUN}\\s*·`).test(markup),
+		!/No generated run yet/.test(markup),
+		'U5: the empty badge says what is missing, not what the engine has not produced',
+	);
+	assert.ok(
+		!new RegExp(`${NEWER_RUN}\\s*[·(]`).test(markup),
 		'and the FAILED run that is not on the grid is never printed as the run in view',
 	);
 });
@@ -304,7 +312,11 @@ test('C3 (b) a FAILED-only run list with no draft renders the empty state, not "
 
 test('C3 (c) the normal case still renders the run number and Published', () => {
 	const markup = renderHeader();
-	assert.equal(runIdentityText(markup), `Run ${PUBLISHED_RUN} · Published`, 'the ordinary case is unchanged');
+	assert.equal(
+		runIdentityText(markup),
+		'Published — this is the schedule in use. (Run 321)',
+		'the ordinary case still names the run, and the state now leads the sentence',
+	);
 	assert.equal(runBadgeText(markup), 'Published schedule', 'and so is its badge');
 });
 
@@ -313,7 +325,11 @@ test('C3 (c2) an unpublished draft still renders the run number and Draft', () =
 		draft: publishedDraft(PUBLISHED_RUN, false),
 		activeGeneratedRunId: PUBLISHED_RUN,
 	});
-	assert.equal(runIdentityText(markup), `Run ${PUBLISHED_RUN} · Draft`, 'a draft run says Draft');
+	assert.equal(
+		runIdentityText(markup),
+		'Draft — teachers and students cannot see it yet. (Run 321)',
+		'a draft run leads with Draft and says what a draft means',
+	);
 	assert.equal(runBadgeText(markup), 'Draft schedule', 'and the badge agrees');
 });
 
@@ -326,6 +342,7 @@ test('C3 (c3) the pre-generation planner keeps its own line and never claims a r
 		runs: [],
 		summary: null,
 	});
-	assert.equal(runIdentityText(markup), 'Planning draft — no generated run yet', 'the planner keeps its own words');
-	assert.equal(runBadgeText(markup), 'Planning draft', 'and its own badge');
+	assert.equal(runIdentityText(markup), 'No schedule made yet.', 'the planner says what is missing, in three words');
+	assert.equal(runBadgeText(markup), 'No schedule yet', 'and the badge agrees with it');
+	assert.ok(!/Run/.test(runIdentityText(markup)), 'the planner line never claims a run it does not have');
 });

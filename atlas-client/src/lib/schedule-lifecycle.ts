@@ -212,3 +212,119 @@ export function describeForAudience(lifecycle: ScheduleLifecycle, audience: Life
 	};
 	return `${base} ${audienceNote[audience]}`;
 }
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * A2-UX-COPY-C2 (#59 / #17) — a drift verdict must be about the run on screen.
+ *
+ * THE DEFECT. "Schedule information changed. Regenerate to apply" is a claim
+ * about a run: it says the setup this run was built from is no longer the setup
+ * you have. It cannot be true of a run that was generated seconds ago, and it was
+ * able to appear on one. The drift surface resolves `status` from
+ * `GenerationInputComparison` alone, and that comparison is a CACHED value: the
+ * run-data cache can hold one for its TTL, and a comparison taken BEFORE a run
+ * existed still satisfies `status: 'STALE'`. A scheduler generated a draft, the
+ * banner immediately said the setup had changed, and the only way to clear it was
+ * to regenerate — for a difference the comparison had measured against a run that
+ * did not yet exist.
+ *
+ * THE RULE. A comparison may only speak about a run if it was made AT OR AFTER
+ * that run finished. `checkedAt` before the run's own `finishedAt`/`createdAt`
+ * means the comparison describes a different, earlier state, and its verdict is
+ * not evidence about this run.
+ *
+ * WHEN THE FACTS ARE INSUFFICIENT the verdict is NOT TRUSTWORTHY, and the caller
+ * is told so rather than shown a drift claim it cannot support. That is this
+ * module's standing rule, applied to freshness for the first time: ignorance is
+ * reported, never resolved in favour of a confident sentence.
+ *
+ * ADDITIVE: nothing above this block changed, and `RunFreshnessVerdict` is a new
+ * type, so every existing caller and test of this module is untouched.
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+export type RunInputFreshnessStatus = 'FRESH' | 'STALE' | 'UNKNOWN';
+
+export type RunFreshnessFacts = {
+	/** ISO time the run finished generating. Preferred over `runCreatedAt`. */
+	runFinishedAt?: string | null;
+	/** ISO time the run was created, used when the finish time is unknown. */
+	runCreatedAt?: string | null;
+	/** ISO time the server compared this run's inputs with the live setup. */
+	checkedAt?: string | null;
+	/** The comparison's own verdict, exactly as the server sent it. */
+	status?: RunInputFreshnessStatus | string | null;
+};
+
+export type RunFreshnessVerdict =
+	| { trustworthy: true; status: RunInputFreshnessStatus; checkedAt: string; runFinishedAt: string | null }
+	| {
+			trustworthy: false;
+			reason: 'NO_COMPARISON' | 'UNTIMED_COMPARISON' | 'COMPARISON_PREDATES_RUN';
+			status: RunInputFreshnessStatus | null;
+	  };
+
+function parseIso(value: string | null | undefined): number | null {
+	if (typeof value !== 'string' || value.trim().length === 0) return null;
+	const parsed = new Date(value).getTime();
+	return Number.isNaN(parsed) ? null : parsed;
+}
+
+function asFreshnessStatus(value: string | null | undefined): RunInputFreshnessStatus | null {
+	return value === 'FRESH' || value === 'STALE' || value === 'UNKNOWN' ? value : null;
+}
+
+/**
+ * #59 / #17 — may this comparison's verdict be shown as drift for this run?
+ *
+ * `trustworthy` is false whenever the comparison cannot be tied to the run on
+ * screen. Every false case names WHY, so a caller can say something honest rather
+ * than silently suppressing a real warning.
+ */
+export function deriveRunFreshness(facts: RunFreshnessFacts): RunFreshnessVerdict {
+	const status = asFreshnessStatus(facts.status);
+	if (status === null) {
+		return { trustworthy: false, reason: facts.status == null ? 'NO_COMPARISON' : 'UNTIMED_COMPARISON', status: null };
+	}
+	const checkedAt = parseIso(facts.checkedAt);
+	if (checkedAt === null) {
+		return { trustworthy: false, reason: 'UNTIMED_COMPARISON', status };
+	}
+	// The run's own end time; `finishedAt` when known, else its creation.
+	const runFinishedAt = parseIso(facts.runFinishedAt) ?? parseIso(facts.runCreatedAt);
+	if (runFinishedAt === null) {
+		// No run timestamp to compare against. The verdict cannot be proven wrong,
+		// so it is kept — refusing every untimed run would hide real drift on a
+		// surface that has not started recording finish times.
+		return { trustworthy: true, status, checkedAt: facts.checkedAt as string, runFinishedAt: null };
+	}
+	if (checkedAt < runFinishedAt) {
+		return { trustworthy: false, reason: 'COMPARISON_PREDATES_RUN', status };
+	}
+	return { trustworthy: true, status, checkedAt: facts.checkedAt as string, runFinishedAt: new Date(runFinishedAt).toISOString() };
+}
+
+/**
+ * The one honest sentence for an untrustworthy comparison. `null` when the
+ * verdict may be shown, so a caller has a single place to decide between "print
+ * the drift claim" and "print this instead" — and cannot print both.
+ */
+export function runFreshnessUnverifiedSentence(verdict: RunFreshnessVerdict): string | null {
+	if (verdict.trustworthy) return null;
+	switch (verdict.reason) {
+		case 'COMPARISON_PREDATES_RUN':
+		case 'NO_COMPARISON':
+		case 'UNTIMED_COMPARISON':
+		default:
+			return 'ATLAS has not re-checked this schedule against your latest setup data.';
+	}
+}
+
+/**
+ * The drift claim itself, in one place, so the banner's title and its body can
+ * never disagree. `null` when the comparison is not trustworthy about this run —
+ * this is the guard that makes "Regenerate to apply" impossible to show on a run
+ * that was generated seconds ago.
+ */
+export function runDriftClaimSentence(verdict: RunFreshnessVerdict): string | null {
+	if (!verdict.trustworthy || verdict.status !== 'STALE') return null;
+	return 'Schedule information changed. Regenerate to apply';
+}

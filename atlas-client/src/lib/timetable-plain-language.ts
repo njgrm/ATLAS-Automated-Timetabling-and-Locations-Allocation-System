@@ -105,7 +105,7 @@ export function publishBlockedSentence(input: {
 }): string {
 	const unplaced = input.unassignedCount;
 	const tail = unplaced > 0
-		? `${unplaced} session${unplaced === 1 ? ' still needs' : 's still need'} fixing`
+		? `${unplaced} class${unplaced === 1 ? ' still needs' : 'es still need'} a time`
 		: mustFixCountLabel(input.blockingHardCount);
 	return `${tail} — this schedule cannot be published yet.`;
 }
@@ -166,7 +166,7 @@ const ROOM_REQUEST_DECISION_STATES: Record<RoomPreferenceDecisionStatus, PlainRo
 	},
 	REJECTED: {
 		label: 'Not approved',
-		next: 'The request was declined, so this session keeps the room and time it already had.',
+		next: 'The request was declined, so this class keeps the room and time it already had.',
 	},
 };
 
@@ -270,33 +270,49 @@ export function runAnchorLabel(runId: number, humanAnchor?: string | null): stri
  */
 
 /** Names the pre-generation population: weekly demand with no saved placement. */
-export const WEEKLY_UNPLACED_LABEL = 'Weekly sessions with no placement yet';
+export const WEEKLY_UNPLACED_LABEL = 'Weekly demand with no time yet';
 
-/** The one clarification of which number is which, shown once beside them. */
+/**
+ * The ONE clarification of which number is which, now one short sentence.
+ *
+ * A2-UX-COPY-C2 (U3a): this was 35 words of explanation ("…counts this year's
+ * weekly demand that has no saved placement yet. A finished run reports a
+ * different count: the sessions that run could not place in its own grid.") and
+ * the generate dialog it sat in was 155 words. Both populations are still named —
+ * that was the #57/#44 point and it is not given up — but the names now come
+ * from the row labels themselves, so the sentence only has to say that a new
+ * draft measures something else. 20 words, and it still contains the shared
+ * label so the two can never drift apart.
+ */
 export const UNPLACED_COUNT_DISAMBIGUATION =
-	`"${WEEKLY_UNPLACED_LABEL}" counts this year's weekly demand that has no saved placement yet. `
-	+ 'A finished run reports a different count: the sessions that run could not place in its own grid.';
+	`"${WEEKLY_UNPLACED_LABEL}" is this year's demand. A new draft counts the classes it could not place.`;
 
 /** The short badge form of the same population, for a space-limited badge. */
-export const WEEKLY_UNPLACED_BADGE_LABEL = 'weekly sessions not yet placed';
+export const WEEKLY_UNPLACED_BADGE_LABEL = 'classes with no time yet';
 
-/** Names the run population: sessions a specific run could not place. */
+/** Names the run population: classes a specific schedule could not place. */
 export function runUnplacedSentence(count: number): string {
-	return `${count} session${count === 1 ? '' : 's'} this run could not place`;
+	return `${count} class${count === 1 ? '' : 'es'} this schedule could not place`;
 }
 
 /**
- * #41 — the one plain line that says which run is on screen and whether it is
- * Draft or Published.
+ * #41 / A2-UX-COPY-C2 (U1, U5) — the one plain line that says what the schedule
+ * on screen actually IS.
  *
- * The Expert header showed "Active Term: T2 / Active year: 2031-2032" with no run
- * number and no state, while Simple already published a state through
- * `readinessLabel`. This is the shared sentence so both layouts can say it once.
+ * It used to be `Run 321 · Draft`: the run number was the SUBJECT, the state was
+ * a suffix behind a middot, and the doubled "Run" collided with the header's own
+ * `Run:` cell label to produce "Run: Run 321". It said nothing about what Draft
+ * MEANS, which is the only thing a scheduler needs from it — a draft is invisible
+ * to teachers and students, a published schedule is the one they are using.
  *
- * `null` when there is genuinely nothing to name (the pre-generation planner has
- * no run yet) so a caller can omit the line rather than print a placeholder. The
- * pre-generation case still gets a line, because "Planning draft" IS the state
- * of that surface.
+ * So the sentence is now STATE-FIRST and says the consequence. The run number
+ * survives as a quiet trailing reference, because #41 (the screen must name the
+ * run it is showing) is accepted committed behaviour and the number is what makes
+ * a second, different run distinguishable — but it is no longer the subject, and
+ * it can never be the first word.
+ *
+ * `null` when there is genuinely nothing to name, so a caller omits the line
+ * rather than printing a placeholder.
  */
 export function runStateSentence(input: {
 	isPreGeneration: boolean;
@@ -304,24 +320,33 @@ export function runStateSentence(input: {
 	runId: number | null | undefined;
 	isPublished: boolean;
 }): string | null {
-	if (input.isPreGeneration) return 'Planning draft — no generated run yet';
+	// U5: the empty state. "Planning draft — no generated run yet" described the
+	// surface's own implementation and then said nothing had been made.
+	if (input.isPreGeneration) return 'No schedule made yet.';
 	if (!input.hasRun || input.runId == null || !Number.isFinite(input.runId)) return null;
-	return `Run ${input.runId} · ${input.isPublished ? 'Published' : 'Draft'}`;
+	const meaning = input.isPublished
+		? 'Published — this is the schedule in use.'
+		: 'Draft — teachers and students cannot see it yet.';
+	return `${meaning} (Run ${input.runId})`;
 }
 
 /**
  * #51 — the Expert heading badge, which read "Generated timetable" over a
- * PUBLISHED run and so never said what the run actually was. The badge now
- * carries the same Draft/Published word as `runStateSentence`, so the two cannot
+ * PUBLISHED run and so never said what the run actually was. The badge carries
+ * the same Draft/Published word as `runStateSentence`, so the two cannot
  * disagree, and the run number stays in the one plain line beside it.
+ *
+ * A2-UX-COPY-C2 (U5): the two "nothing here yet" branches now share ONE label
+ * that says what is missing, instead of "Planning draft" (which described the
+ * screen) and "No generated run yet" (which described the engine). One noun, one
+ * verb-free label, so the badge is scannable at a glance.
  */
 export function runStateBadgeLabel(input: {
 	isPreGeneration: boolean;
 	hasRun: boolean;
 	isPublished: boolean;
 }): string {
-	if (input.isPreGeneration) return 'Planning draft';
-	if (!input.hasRun) return 'No generated run yet';
+	if (input.isPreGeneration || !input.hasRun) return 'No schedule yet';
 	return input.isPublished ? 'Published schedule' : 'Draft schedule';
 }
 
@@ -343,12 +368,12 @@ export function runStateBadgeLabel(input: {
  * about it, so the two cannot drift.
  */
 const MANUAL_EDIT_ACTION_LABELS: Record<ManualEditType, string> = {
-	PLACE_UNASSIGNED: 'Gave an unplaced session a slot',
-	MOVE_ENTRY: 'Moved a session',
+	PLACE_UNASSIGNED: 'Gave a class without a time a time',
+	MOVE_ENTRY: 'Moved a class',
 	CHANGE_ROOM: 'Changed the room',
 	CHANGE_FACULTY: 'Changed the teacher',
 	CHANGE_TIMESLOT: 'Changed the time',
-	SWAP_ENTRIES: 'Swapped two sessions',
+	SWAP_ENTRIES: 'Swapped two classes',
 	REVERT: 'Undone change',
 };
 
@@ -445,17 +470,199 @@ export function plainGenerationRunStatus(value: string | null | undefined): stri
 
 /**
  * The canonical wording for "nothing is waiting to be placed", in the one unit
- * every other surface already uses for that count: sessions.
+ * every other surface already uses for that count: classes.
  *
  * PLAIN-LANGUAGE-J2J3-C01 (J3) — this state read "All classes assigned
  * successfully" in two places. That sentence is not merely jargon: `classes`
- * is the WRONG UNIT. The count behind it is `unassignedCount`, which the
- * resolver, five other consumers and the J1 publish checklist all call
- * sessions, and an "assigned class" is a subject-period pair rather than
- * anything a scheduler places. So the sentence was wrong twice over — wrong
- * vocabulary, and a promise ("successfully") the surface cannot make, since
- * zero unplaced sessions says nothing about whether the schedule can be
- * published. It is the positive counterpart of the checklist's "N sessions need
- * placement", and it is stated once here so the two cannot drift.
+ * there was the WRONG UNIT paired with a promise ("successfully") the surface
+ * cannot make, since zero unplaced classes says nothing about whether the
+ * schedule can be published. The count behind it is `unassignedCount`, which the
+ * resolver, five other consumers and the J1 publish checklist all count in
+ * classes, and a "class" is the unit a scheduler actually places.
+ *
+ * A2-UX-COPY-C2 (NOUN RULE): "All sessions placed" is the last user-facing
+ * "session" in this module and it is now "All classes placed". It is the positive
+ * counterpart of the checklist's "12 classes still need a time slot", and it is
+ * stated once here so the two cannot drift.
  */
-export const ALL_SESSIONS_PLACED_LABEL = 'All sessions placed';
+export const ALL_SESSIONS_PLACED_LABEL = 'All classes placed';
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * A2-UX-COPY-C2 — the Wednesday-demo copy pass for an older, mouse-first
+ * scheduler. Fewer words · one verb per action · less is more.
+ *
+ * EVERY string below is user-facing and lives here, in the module that already
+ * owns "one plain word for one idea", so a component that does not own its copy
+ * can import the correct sentence rather than retyping one. The components that
+ * must adopt these are named as DEPENDENCY rows in the c2 handoff: the generate
+ * dialog (`modals/TimetableWorkflowDialogs.tsx`), the More-menu entry and its
+ * aria-label (`simple/SimpleHeaderHelpers.tsx`, `simple/SimpleHeaderActions.tsx`),
+ * the drift banner (`simple/SimpleDriftBanner.tsx`), and the generation toasts
+ * (`hooks/useTimetableMutations.ts`).
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+/** The ONE noun for the unit a scheduler places. Nothing user-facing says "session". */
+export const CLASS_NOUN = 'class';
+
+/** `classesNeedingTime(1)` -> `"1 class still needs a time"`, plural otherwise. */
+export function classesNeedingTime(count: number): string {
+	return `${count} ${count === 1 ? CLASS_NOUN : `${CLASS_NOUN}es`} still ${count === 1 ? 'needs' : 'need'} a time`;
+}
+
+/* ── U3a / #43 — the generate dialog, cut from 155 words to a 30-word budget ── */
+
+/** The headline. One line, the number, no explanation. */
+export const GENERATE_DIALOG_HEADLINE_LABEL = 'Classes to schedule';
+
+/** "Actor school year" was an engine term for a plain fact. */
+export const GENERATE_DIALOG_YEAR_LABEL = 'School year';
+
+/** "Term authority" was the internal name of the saved term setup. */
+export const GENERATE_DIALOG_TERM_LABEL = 'Term setup';
+
+/** Plain wording for the saved term setup, per source. */
+export const GENERATE_DIALOG_TERM_SAVED = 'Saved in ATLAS';
+export const GENERATE_DIALOG_TERM_VERIFIED = 'Confirmed with EnrollPro';
+export const GENERATE_DIALOG_TERM_UNCONFIRMED = 'Not confirmed';
+
+/** "Retained draft anchors: 0 locked sessions" -> plain, one noun, no "(s)". */
+export const GENERATE_DIALOG_LOCKED_LABEL = 'Locked classes kept';
+
+/**
+ * The ONE sentence about unavailable setup data (U3a caps it at 20 words; this
+ * is 14). It replaces the 35-word "why two different numbers appear" note, which
+ * the two row labels now carry by construction.
+ */
+export const GENERATE_SETUP_UNAVAILABLE_SENTENCE =
+	'If the setup data is missing, nothing is scheduled and ATLAS says what to fix.';
+
+/** What generating does NOT do, in six words. The reassurance a scheduler needs. */
+export const GENERATE_PUBLISHES_NOTHING_SENTENCE = 'Nothing is published until you publish it.';
+
+export type GenerateDialogTermSource = 'atlas' | 'enrollpro' | 'enrollpro-verified' | string | null | undefined;
+
+/** The term-setup value word. An unknown source is reported, never assumed. */
+export function generateDialogTermSourceWord(source: GenerateDialogTermSource): string {
+	if (source === 'enrollpro-verified' || source === 'enrollpro') return GENERATE_DIALOG_TERM_VERIFIED;
+	if (source === 'atlas') return GENERATE_DIALOG_TERM_SAVED;
+	return GENERATE_DIALOG_TERM_UNCONFIRMED;
+}
+
+export type GenerateDialogCopyInput = {
+	/** The active school year label, when the caller has one. */
+	schoolYearLabel?: string | null;
+	/** The resolved term-setup source, per `generateDialogTermSourceWord`. */
+	termSource?: GenerateDialogTermSource;
+	/** Locked draft placements carried into the new draft. */
+	lockedClassCount?: number | null;
+	/** This year's weekly demand with no time yet — the headline number. */
+	classesToSchedule?: number | null;
+};
+
+export type GenerateDialogCopy = {
+	headline: string;
+	rows: ReadonlyArray<{ label: string; value: string }>;
+	unavailability: string;
+	publishesNothing: string;
+	/** Every word above, joined, so one caller can budget the whole dialog. */
+	plainText: string;
+};
+
+function countOrZero(value: number | null | undefined): number {
+	return typeof value === 'number' && Number.isFinite(value) ? value : 0;
+}
+
+/**
+ * U3a / #43 — the generate dialog's ENTIRE copy, composed in one place.
+ *
+ * It is a function rather than five constants so the word budget is enforceable:
+ * `plainText` is every word the dialog shows, and the c2 regression asserts it is
+ * at or under 45 words, carries no "unassigned", no "session(s)" and no "run #",
+ * and names each of its numbers exactly once. The headline carries the demand
+ * count, so the former fourth row that repeated it under the ambiguous word is
+ * gone rather than kept.
+ */
+export function buildGenerateDialogCopy(input: GenerateDialogCopyInput): GenerateDialogCopy {
+	const classesToSchedule = countOrZero(input.classesToSchedule);
+	const locked = countOrZero(input.lockedClassCount);
+	const year = input.schoolYearLabel?.trim();
+	const headline = `${GENERATE_DIALOG_HEADLINE_LABEL}: ${classesToSchedule}`;
+	const rows = [
+		{ label: GENERATE_DIALOG_YEAR_LABEL, value: year && year.length > 0 ? year : 'Not set' },
+		{ label: GENERATE_DIALOG_TERM_LABEL, value: generateDialogTermSourceWord(input.termSource) },
+		{ label: GENERATE_DIALOG_LOCKED_LABEL, value: String(locked) },
+	];
+	const plainText = [headline, ...rows.map((row) => `${row.label} ${row.value}`), GENERATE_SETUP_UNAVAILABLE_SENTENCE]
+		.join(' ');
+	return {
+		headline,
+		rows,
+		unavailability: GENERATE_SETUP_UNAVAILABLE_SENTENCE,
+		publishesNothing: GENERATE_PUBLISHES_NOTHING_SENTENCE,
+		plainText,
+	};
+}
+
+/* ── #56 — ONE verb for "generate", on a published schedule ─────────────────── */
+
+/**
+ * The single verb. It was four different ones for one action: the More menu said
+ * "New version", the dialog asked "Generate updated schedule?", and the button
+ * said "Generate schedule" — beside dated "Change after publishing" semantics,
+ * so a scheduler could not tell whether they were editing the LIVE schedule or
+ * building a throwaway draft. "Build a new draft" answers that: it is a verb, it
+ * names the artefact, and it cannot be read as an edit to the published one.
+ */
+export const BUILD_NEW_DRAFT_LABEL = 'Build a new draft';
+
+/** The reassurance that belongs on the dialog's first line when one is published. */
+export const PUBLISHED_SCHEDULE_STAYS_IN_USE = 'Your published schedule stays in use.';
+
+/** The dialog title beside `BUILD_NEW_DRAFT_LABEL`. */
+export function buildNewDraftDialogTitle(isPublished: boolean): string {
+	return isPublished ? 'Build a new draft?' : BUILD_NEW_DRAFT_LABEL;
+}
+
+/* ── #58 / U4 — ONE outcome message for one generation ─────────────────────── */
+
+/**
+ * The single completion message, replacing a started toast, a completed toast and
+ * a loading toast for one action (#58). It names the real number of classes still
+ * without a time, drops "run #" and "session(s)", and tells the reader the next
+ * step. The zero case keeps the count visible rather than implying the number is
+ * absent, because "0" beside the same number on the dialog is what lets a
+ * scheduler trust it.
+ */
+export function generationOutcomeToastSentence(unplacedCount: number): string {
+	const unplaced = countOrZero(unplacedCount);
+	const outstanding = unplaced === 0 ? `${unplaced} classes left to place` : classesNeedingTime(unplaced);
+	const review = unplaced === 0 ? 'Review it, then publish.' : 'Review them, then publish.';
+	return `Draft schedule ready — ${outstanding}. ${review}`;
+}
+
+/**
+ * U4 — the generation notification's replacement. It used to read "Generation run
+ * #N completed with N session(s) this run could not place.", which spent five
+ * words on the run id, used a banned "(s)" form, and said nothing about what to
+ * do. The non-zero case names the real number of classes that still need a time
+ * slot rather than a count of something the reader cannot act on.
+ */
+export function generationNotificationSentence(unplacedCount: number): string {
+	const unplaced = countOrZero(unplacedCount);
+	if (unplaced === 0) return `New schedule ready. ${ALL_SESSIONS_PLACED_LABEL}.`;
+	return `New schedule ready. ${classesNeedingTime(unplaced)}.`;
+}
+
+/* ── the publish-checklist sentence ────────────────────────────────────────── */
+
+/**
+ * The ungrammatical checklist sentence, corrected. It read "3 sessions this run
+ * could not place must be placed before this schedule can be published." — two
+ * verbs, a banned noun, the count stated twice, and a stacked obligation on top of
+ * a modal that was already open. One noun, present tense, one verb, count once.
+ */
+export function publishPlacementBlockedSentence(count: number): string {
+	const unplaced = countOrZero(count);
+	if (unplaced === 0) return `${ALL_SESSIONS_PLACED_LABEL}.`;
+	return `${classesNeedingTime(unplaced)}. Place them before you publish.`;
+}
