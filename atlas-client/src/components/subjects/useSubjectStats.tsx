@@ -9,7 +9,15 @@ type SubjectStatsInput = {
 };
 
 /**
- * A3-C5-SUBJECTS-STATS: how many ACTIVE subjects need a specialized room.
+ * A3-C5-SUBJECTS-STATS: does this subject need a specialized room?
+ *
+ * ONE definition, TWO consumers. The "Room constrained" TILE on this page is a
+ * count, and the `room-constrained` ATTENTION FILTER beside it is a list of the
+ * same concept — so the two must answer with the same question, or the operator
+ * reads a number and a row list that disagree on the same screen. The predicate
+ * below is that single question; `countRoomConstrainedSubjects` is derived from
+ * it, and `Subjects.tsx` filters with it directly. There is no second place
+ * where the rule is written down.
  *
  * A subject qualifies on either of two independent grounds, and the tile's own
  * help text ("Active subjects that need a specialized room type or room
@@ -31,21 +39,25 @@ type SubjectStatsInput = {
  * repository's single definition of the partition and the one the row and the
  * coverage sheet already consume; a second `.filter(f => !f.startsWith(...))`
  * is exactly the two-definition defect class AGENTS.md §11 records, and it would
- * drift the moment the marker prefix is normalised. Reuse, so all three surfaces
- * move together.
+ * drift the moment the marker prefix is normalised. Reuse, so every surface
+ * moves together.
  *
  * Exported and pure so the acceptance suite can drive it with controlled
  * inputs. An earlier stream shipped a source-shape ratchet that QA defeated
  * while the defect was fully back; a control only discriminates when it
  * exercises the value, not the text.
  */
+export function isRoomConstrainedSubject(subject: Subject): boolean {
+	return (
+		subject.isActive &&
+		(subject.preferredRoomType !== 'CLASSROOM' ||
+			splitSubjectFeatures(subject.requiredFeatures).roomFeatures.length > 0)
+	);
+}
+
+/** The tile's number. Derived from the predicate, never written out again. */
 export function countRoomConstrainedSubjects(subjects: Subject[]): number {
-	return subjects.filter(
-		(s) =>
-			s.isActive &&
-			(s.preferredRoomType !== 'CLASSROOM' ||
-				splitSubjectFeatures(s.requiredFeatures).roomFeatures.length > 0),
-	).length;
+	return subjects.filter(isRoomConstrainedSubject).length;
 }
 
 export function useSubjectStats({ subjects, coverageBySubjectId }: SubjectStatsInput) {

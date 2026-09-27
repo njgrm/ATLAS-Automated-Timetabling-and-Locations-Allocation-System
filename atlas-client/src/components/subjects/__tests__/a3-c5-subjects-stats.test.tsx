@@ -42,7 +42,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { test } from 'node:test';
 
-import { countRoomConstrainedSubjects } from '../useSubjectStats';
+import { countRoomConstrainedSubjects, isRoomConstrainedSubject } from '../useSubjectStats';
 import { splitSubjectFeatures } from '../subject-feature-presentation';
 import type { Subject } from '../../../types';
 
@@ -326,5 +326,190 @@ test('A3-C5-6d: the count consumes the shared splitter rather than re-testing th
 		source,
 		/Active subjects that need a specialized room type or room feature\./,
 		'the tile help text was altered — the fix belongs in the count, not the copy',
+	);
+});
+
+// ===========================================================================
+// ONE definition, TWO consumers: the tile and its list twin must agree.
+//
+// `Subjects.tsx` filters the `room-constrained` attention filter with
+// `isRoomConstrainedSubject`, and the tile counts with
+// `countRoomConstrainedSubjects`, which is derived from that same predicate.
+// Before this the page carried its own inline copy of the rule, so the counter
+// and its list asked different questions on the same rendered screen.
+// ===========================================================================
+
+/**
+ * THE TILE/LIST AGREEMENT CONTROL, pinned to an exact integer.
+ *
+ * `countRoomConstrainedSubjects` is the number the "Room constrained" tile
+ * renders; `subjects.filter(isRoomConstrainedSubject)` is literally what the
+ * `room-constrained` attention filter does to the same array. If those two ever
+ * disagree, the operator reads "3" beside a four-row list.
+ *
+ * BEHAVIOURAL CONTROL, not a wiring ratchet: it drives both functions with
+ * controlled inputs, so it goes red whenever the shared definition itself drifts
+ * (a marker admitted, the `isActive` gate dropped, a ground lost).
+ *
+ * LIMITATION, stated plainly because it bounds what this control is worth: this
+ * control exercises the two EXPORTED functions, so it cannot see whether
+ * `Subjects.tsx` actually calls the predicate. Someone re-inlining
+ * `requiredFeatures.length > 0` at the call site would leave this test GREEN.
+ * That specific regression is caught by `A3-C5-7d` below, which is a ratchet and
+ * is labelled as one. `7d` exists to cover the gap `7a` cannot; neither alone
+ * is the whole proof, and the failing-first record in the executor handoff shows
+ * this control staying green under that exact mutation.
+ */
+test('A3-C5-7a: the tile count and the filter predicate agree, at an exact integer', () => {
+	const tile = countRoomConstrainedSubjects(MIXED_CATALOGUE);
+	const list = MIXED_CATALOGUE.filter(isRoomConstrainedSubject).length;
+
+	assert.equal(tile, 3, 'the tile count over the mixed catalogue is not the expected 3');
+	assert.equal(list, 3, 'the filter predicate selected a different number of rows than the tile shows');
+	assert.equal(
+		tile,
+		list,
+		'THE TILE AND ITS LIST TWIN DISAGREE: the "Room constrained" tile would render a ' +
+			'number the room-constrained attention filter does not reproduce',
+	);
+	// The surviving rows are named, so a silent swap of WHICH subjects qualify is
+	// also visible — agreement of totals alone would not catch it.
+	assert.deepEqual(
+		MIXED_CATALOGUE.filter(isRoomConstrainedSubject).map((s) => s.id),
+		[42, 43, 44],
+		'the filter kept a different SET of subjects than the tile implies',
+	);
+});
+
+/**
+ * Agreement is also required on the degenerate and extreme shapes, where a count
+ * and a filter most easily drift apart.
+ */
+test('A3-C5-7b: tile and list agree on empty, all-archived, and all-constrained catalogues', () => {
+	const CASES: { name: string; subjects: Subject[]; expected: number }[] = [
+		{ name: 'empty', subjects: [], expected: 0 },
+		{
+			name: 'all archived',
+			subjects: [
+				subjectFixture({ id: 1, isActive: false, preferredRoomType: 'LABORATORY' }),
+				subjectFixture({ id: 2, isActive: false, requiredFeatures: ['LAB_BENCH'] }),
+			],
+			expected: 0,
+		},
+		{
+			name: 'every active subject needs a room',
+			subjects: [
+				subjectFixture({ id: 1, preferredRoomType: 'COMPUTER_LAB' }),
+				subjectFixture({ id: 2, code: 'MATH10', requiredFeatures: ['PROJECTOR'] }),
+				subjectFixture({ id: 3, code: 'PE10', preferredRoomType: 'GYMNASIUM', requiredFeatures: ['OWNER_DEPT:AP'] }),
+			],
+			expected: 3,
+		},
+	];
+	for (const { name, subjects, expected } of CASES) {
+		assert.equal(
+			countRoomConstrainedSubjects(subjects),
+			expected,
+			`the tile count is wrong for the "${name}" catalogue`,
+		);
+		assert.equal(
+			subjects.filter(isRoomConstrainedSubject).length,
+			expected,
+			`the filter selected a different number of rows than the tile for the "${name}" catalogue`,
+		);
+		assert.equal(
+			countRoomConstrainedSubjects(subjects),
+			subjects.filter(isRoomConstrainedSubject).length,
+			`the tile and its list twin disagree on the "${name}" catalogue`,
+		);
+	}
+});
+
+/**
+ * The filter must keep BOTH qualifying grounds and the archived exclusion, the
+ * same as the tile. Asserted one subject at a time, so a lost ground is
+ * attributed to a named case instead of to a changed total.
+ */
+test('A3-C5-7c: the filter keeps both grounds and still excludes archived subjects', () => {
+	const CASES: { name: string; subject: Subject; expected: boolean }[] = [
+		{ name: 'ownership marker only, CLASSROOM', subject: subjectFixture({ requiredFeatures: ['OWNER_DEPT:AP'] }), expected: false },
+		{ name: 'a real room feature', subject: subjectFixture({ requiredFeatures: ['LAB_BENCH'] }), expected: true },
+		{ name: 'a real feature beside a marker', subject: subjectFixture({ requiredFeatures: ['OWNER_DEPT:AP', 'LAB_BENCH'] }), expected: true },
+		{ name: 'non-CLASSROOM room with an empty feature list', subject: subjectFixture({ preferredRoomType: 'LABORATORY', requiredFeatures: [] }), expected: true },
+		{ name: 'a plain CLASSROOM subject with no features', subject: subjectFixture(), expected: false },
+		{ name: 'archived, with a real room feature', subject: subjectFixture({ isActive: false, requiredFeatures: ['LAB_BENCH'] }), expected: false },
+		{ name: 'archived, non-CLASSROOM room', subject: subjectFixture({ isActive: false, preferredRoomType: 'LABORATORY' }), expected: false },
+		{ name: 'archived, marker only', subject: subjectFixture({ isActive: false, requiredFeatures: ['OWNER_DEPT:AP'] }), expected: false },
+	];
+	for (const { name, subject, expected } of CASES) {
+		assert.equal(
+			isRoomConstrainedSubject(subject),
+			expected,
+			`the filter's answer changed for: ${name}`,
+		);
+		// The tile must reach the same verdict for this single subject, or the
+		// count and the list would disagree the moment a catalogue held only it.
+		assert.equal(
+			countRoomConstrainedSubjects([subject]),
+			expected ? 1 : 0,
+			`the tile and the filter disagree for a single-subject catalogue: ${name}`,
+		);
+	}
+});
+
+/**
+ * WIRING RATCHET — EXPLICITLY NOT THE PRIMARY PROOF.
+ *
+ * The behavioural controls above call the exported functions and therefore
+ * cannot observe `Subjects.tsx` at all. This control covers exactly that gap.
+ * Its nature must not be overstated: it asserts on the TEXT of the call site.
+ * An earlier stream in this lane shipped a source-shape ratchet that QA
+ * defeated while the defect was fully back, so this one carries a POSITIVE
+ * CONTROL proving the scan can find a literal that is genuinely present, rather
+ * than passing vacuously by finding nothing.
+ *
+ * FAILING-FIRST for this control alone: restoring the base inline predicate at
+ * the call site (`requiredFeatures.length > 0`) turns it red. The behavioural
+ * controls 7a/7b/7c stay GREEN under that mutation — the limitation stated in
+ * 7a, demonstrated rather than merely described.
+ */
+test('A3-C5-7d: the Subjects page filters with the shared predicate, not a second inline copy (WIRING RATCHET)', () => {
+	const page = readFileSync(resolve(import.meta.dirname, '../../../pages/Subjects.tsx'), 'utf8');
+
+	// POSITIVE CONTROL — the scan is not vacuously empty. Without this, a scan
+	// broken to find nothing would satisfy every negative below.
+	assert.ok(
+		page.includes('useSubjectStats'),
+		'DISCRIMINATION FAILURE: the scan cannot find a literal that is definitely present in Subjects.tsx',
+	);
+
+	// NEGATIVE CONTROL — the naive predicate must not survive in the page's CODE.
+	//
+	// Comments are stripped first, and deliberately so: the fix's own explanatory
+	// comment quotes the bad expression (`requiredFeatures.length > 0`) in order
+	// to say what it replaced. An earlier revision of this control scanned raw
+	// text and went red on that documentation — a ratchet that its own
+	// explanation can trip is a ratchet that gets deleted instead of fixed. The
+	// rule being policed is executable code, so only code is scanned.
+	const code = page
+		.replace(/\/\*[\s\S]*?\*\//g, '')
+		.replace(/(^|[^:])\/\/.*$/gm, '$1');
+	assert.doesNotMatch(
+		code,
+		/requiredFeatures\.length\s*>\s*0/,
+		'Subjects.tsx still carries its own inline copy of the room-constrained rule, so the ' +
+			'"Room constrained" tile and the room-constrained attention filter can answer differently',
+	);
+
+	// POSITIVE CONTROL for the fix itself — the call site must consume the export.
+	assert.match(
+		code,
+		/list\s*=\s*list\.filter\(isRoomConstrainedSubject\)/,
+		'the room-constrained attention filter is not calling the shared predicate',
+	);
+	assert.match(
+		code,
+		/import\s*\{[^}]*\bisRoomConstrainedSubject\b[^}]*\}\s*from\s*'@\/components\/subjects\/useSubjectStats'/,
+		'Subjects.tsx does not import the shared predicate from useSubjectStats',
 	);
 });
