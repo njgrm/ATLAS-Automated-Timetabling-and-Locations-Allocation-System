@@ -73,6 +73,7 @@ Rules for the planners:
 
 | When (+08) | Lane | Run / session | Verdict | Next packet | Notes |
 |---|---|---|---|---|---|
+| 2026-09-28 02:45 | A3 | c3 (`5a9b9b09`) | accept; the title-scale unification needs one rendered screen (Lane C after the next release) | c4 `overnight-a3-ui-ux-2026-09-28-c4.md` | Lane C live rows 01:35–02:15: #53 tiles FAIL, #52 FAIL, B5 PASS, walkthrough top 10 → findings |
 | 2026-09-28 01:30 | A3 | c2 (`81ad1892` S-e sweep, `0cae7ea1` docs) | accept source; all browser rows UNPERFORMED (A2 elevated Chromium PID 12580 holds the shared profile) | c3 `overnight-a3-ui-ux-2026-09-28-c3.md`, source-only | A3 browser rows moved to Codex (Lane C), report → docs/reviews/lane-c-codex-a3-rows-20260928/; lock file cleared |
 | 2026-09-28 00:45 | A2 | c1 (`d31bfacb` live) | accept; health 200, matrix unchanged (Lane C direct check) | c2 `overnight-a2-timetable-2026-09-28-c2.md` | browser custody scheduled: A3 until 02:45, A2 after |
 | 2026-09-28 00:45 | A3 | c1 (`c5cffa72`, `dd5b2366` on main) | accept; browser items BLOCKED(BROWSER_CUSTODY) all cycle | c2 `overnight-a3-ui-ux-2026-09-28-c2.md` | handoff + live-state A3 sections owed |
