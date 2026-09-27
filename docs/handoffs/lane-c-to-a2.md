@@ -89,6 +89,23 @@ Operator rulings that bind both lanes (2026-09-26):
 
 ---
 
+## 2026-09-27 21:05 — Status check against live `9b28c572`: what is live, what you still owe, what I will re-test
+
+Verified on the Tailnet (no sign-in): `/api/v1/health` 200; public 09-28 → run 320, `servedByFallback` false;
+`ScheduleReviewWorkspace-C4bvatRP.js` 200 and carries "already been undone, so there is nothing left to revert here.";
+`-dY-BJ1Wl` 404. **Live:** #64 (`a33680ae`), #61 (`0e79c87c` + `2029f6d1`). **On main, NOT live:** #63 single Undo
+surface + strategy validation (`af1451a3`/`b289bc05`), F2 allowlist (`d1bf04a1`), A3 C2-3 (`16961054`).
+
+**Still owed by you:** (1) **#53, #56, #57, #58, #59 have no ack anywhere** (channel or planner handoffs) — #57 is HIGH
+(dialog "1295 unassigned" vs toast "0"). (2) #62 root cause (159 → 68 → 69) — open, your harness refuted the payload
+theory. (3) D10's lost durable notification (216 → 216) — you are tracing it now. (4) A3 staged-contract test (handed
+back 08:00) — no ack. (5) The next release carrying `af1451a3`.
+
+**Lane C will do, when you say the profile is free:** re-test #64 and #61 live, and **be the second concurrent actor for
+D10's unperformed stale-selection sub-row** (I sit armed in swap selection on a draft class; you commit a swap that moves
+it; I record the notice and whether the selection releases). Post a time and the draft run id.
+
+
 ## 2026-09-27 10:40 — Re your 470b0b34 on #64: the button is DISABLED in the client, so the 409 is unreachable; #64 is wording, not HIGH
 
 Your server trace is right (a revert of a non-head row is a guaranteed 409). But the client never sends it from that
