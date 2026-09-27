@@ -81,6 +81,15 @@ const STRIP_A_FILE = 'src/components/admin-workspace/AdminWorkspace.tsx';
 const STRIP_B_FILE = 'src/components/faculty-assignments/WorkspaceToolbar.tsx';
 const SHARED_FILE = 'src/components/app-shell/CompactTitleStrip.tsx';
 
+/**
+ * Pinned <div> counts for the two call sites. These are a ratchet, not a style
+ * rule: a call site passes PROPS to the shared strip, so it has no business
+ * growing a wrapper <div> around them. Each count was read off the unified
+ * candidate and every addition to it is a deliberate decision.
+ */
+const STRIP_A_DIV_COUNT = 20;
+const STRIP_B_DIV_COUNT = 4;
+
 // --- the height model ----------------------------------------------------------
 
 /** Tailwind v4 default spacing scale: 1 unit = 0.25rem = 4px. */
@@ -243,6 +252,67 @@ test('neither call site re-declares the strip shell locally', () => {
 	const shared = source(SHARED_FILE);
 	for (const [key, value] of Object.entries(COMPACT_TITLE_STRIP_CLASS)) {
 		assert.ok(shared.includes(value), 'the shared module must own the ' + key + ' class string');
+	}
+});
+
+test('shell ownership: no strip class string may appear at either call site', () => {
+	// The two doesNotMatch rules above pin exactly TWO literal strings, which is
+	// why a verbatim copy of `leading` or `trailing` slipped past them. This rule
+	// generalises: EVERY class string the shared contract owns is forbidden at a
+	// call site, so any verbatim re-declaration of any shell part is red.
+	for (const path of [STRIP_A_FILE, STRIP_B_FILE]) {
+		const text = source(path);
+		for (const [key, value] of Object.entries(COMPACT_TITLE_STRIP_CLASS)) {
+			assert.ok(
+				!text.includes(value),
+				path + ' must not carry a local copy of the shared ' + key + ' class string; it lives only in ' + SHARED_FILE,
+			);
+		}
+	}
+});
+
+test('a call site may not grow a local wrapper div around the strip', () => {
+	// Both mutations that defeated the original guard were the same mistake in
+	// different clothes: wrapping the caller's own content in a NEW <div> so the
+	// call site once again owns layout. A verbatim class ban cannot see that,
+	// because the wrapper carries an ad-hoc class nobody pinned. Counting the
+	// elements does see it.
+	//
+	// The counts are a ratchet, in the same spirit as the palette ratchet: a new
+	// wrapper div at a call site is the re-declaration risk this whole test
+	// exists to catch, so adding one must be a deliberate edit to this constant
+	// rather than a silent drift.
+	for (const [path, expected] of [
+		[STRIP_A_FILE, STRIP_A_DIV_COUNT],
+		[STRIP_B_FILE, STRIP_B_DIV_COUNT],
+	] as const) {
+		const text = source(path);
+		const actual = (text.match(/<div/g) ?? []).length;
+		assert.equal(
+			actual,
+			expected,
+			path + ' has ' + actual + ' <div> elements but ' + expected + ' are pinned. A new wrapper div here is a local re-declaration of the strip shell; if it is genuinely needed, change STRIP_*_DIV_COUNT deliberately and say why.',
+		);
+	}
+});
+
+test('the status prop is a leaf control, not a layout wrapper', () => {
+	// `status` is handed to the shared strip, which already wraps it in the
+	// hover target. A <div> inside the prop therefore means the call site has
+	// re-imposed its own layout around the status, which is the third shape of
+	// the same re-declaration.
+	for (const path of [STRIP_A_FILE, STRIP_B_FILE]) {
+		const text = source(path);
+		const start = text.indexOf('status={');
+		assert.notEqual(start, -1, path + ' must pass a status prop to the shared strip');
+		const end = text.indexOf('actions={', start);
+		assert.notEqual(end, -1, path + ' must pass an actions prop after status');
+		const statusProp = text.slice(start, end);
+		assert.doesNotMatch(
+			statusProp,
+			/<div/,
+			path + ' must not wrap its status in a <div>; the shared strip already owns that layout',
+		);
 	}
 });
 
