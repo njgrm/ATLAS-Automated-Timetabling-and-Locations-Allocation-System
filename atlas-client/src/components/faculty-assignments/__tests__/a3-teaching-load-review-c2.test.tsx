@@ -219,7 +219,7 @@ function TeachingLoadReviewHost() {
 		searchParams: new URLSearchParams(),
 		setSearchParams: () => {},
 		faculty: [FACULTY],
-		effectiveAssignmentsByFaculty: { 9: [{ subjectId: 1, weeklyHours: 4 }] },
+		effectiveAssignmentsByFaculty: { 9: [{ subjectId: 1, sectionIds: [1], gradeLevels: [7] }] },
 		activeDraftCount: 0,
 		isReadOnlyMode: false,
 		selectedId: 9,
