@@ -149,9 +149,93 @@ resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs
 
 - Tailnet: `https://njgrm.buru-degree.ts.net`
 
-- **STAGED / NOT LIVE — `c4a9960e0fccaab4a324c97e42eb56cfa10c1fa4` (Lane A3, recorded 2026-09-27).**
-  Built and verified on disk; **not cut over**. `c5a9e832` remains LIVE until the cutover executes.
-  Release dir **`E:\ATLAS-worktrees\lane-a3-release-c4a9960e`** (registered worktree, detached, clean).
+- **LIVE: `c4a9960e0fccaab4a324c97e42eb56cfa10c1fa4` (full 40-char)** (Lane A3, 2026-09-27, HIGH authority;
+  operator-elevated shell, `IsInRole(Administrator)=True` High Mandatory `S-1-16-12288` after the operator
+  resolved an elevation blocker that had held the deploy across three sessions). Release dir
+  **`E:\ATLAS-worktrees\lane-a3-release-c4a9960e`**. **Rollback basis `c5a9e8321756ee59c7795786417f6449831ecda3`**,
+  dir `E:\ATLAS-worktrees\lane-a2-release-c5a9e832` — verified startable, `cli.mjs` + both `dist`s present,
+  208 dependency dirs, HEAD `c5a9e832` — so rollback is a one-step supervised reset. Rollback is the
+  argument-swapped runner invocation (target `c5a9e832`, incumbent `c4a9960e`); changing only one pair
+  fails closed at `GetMachineIdentity` and `Replace-TaskSourceBytes`.
+
+  **Cutover EXECUTED and verified by command.** Runner returned **`CUTOVER_STARTED`**, execute audit
+  `C:\ProgramData\ATLAS\release-audit\c4a9960e-20260927-201234` (preceded by dry-run audit
+  `…-201212`, `mutates:false`, `secretsPrinted:false`). Machine-scope `ATLAS_RUNTIME_SOURCE_DIR` =
+  the new dir and `ATLAS_RUNTIME_RELEASE_SHA` = `c4a9960e0fccaab4a324c97e42eb56cfa10c1fa4`; the
+  scheduled-task action now names the new `ops\runtime\cli.mjs` (it previously named the incumbent);
+  **5001 → PID 29556**, **5174 → PID 7948** (the incumbent's 43192/43744 are gone); the **new**
+  release's `supervisor-state.json` reads `state=running releaseSha=c4a9960e…`. Reads:
+  `/api/v1/health` **200**, `/api/v1/health/ready` **200**, **DB-backed** `GET /api/v1/subjects?schoolId=1`
+  **200** (not liveness), `5174 /` **200**.
+
+  **⚠ TWO DEPLOY-PROOF MARKERS FROM THE PRE-CUTOVER PLAN WERE VACUOUS AND ARE SUPERSEDED (2026-09-27,
+  independent pre-action review `ses_f1d3e9dffffekYffce3EvFiltc` `CORRECTION_REQUIRED` 28/30/0/0).**
+  Both defects were in the **proof specification**, not the cutover; the review confirmed the cutover
+  mechanics, delta, gates and rollback needed no change. Corrections are additive — the superseded
+  rows are retained here rather than deleted (§16):
+  - **SUPERSEDED — "`143` absent from the new build".** **Refuted.** `143` is **12 hits in the new build**,
+    byte-identical to the incumbent's 12: `hsl(143, 85%, 96%)`, `darkseagreen:[143,188,143]`, SVG path
+    `5.143`, Lucide keys `143bj9a`/`143wyd`. The value `143` exists only in a **source comment**
+    explaining the defect, and comments are stripped at build time, so it can **never** appear in either
+    bundle — it discriminates nothing in either direction.
+  - **SUPERSEDED — the `setViewMode('teacher')` literal.** Vacuous: the minifier emits **backticks**,
+    not single quotes, so the pattern returned **0 on both** builds and the two-sided check could not be
+    executed. It fails closed, so it could not falsely pass — it simply proved nothing.
+  - **REPLACEMENT, measured two-sided on the artifacts and then over HTTP from the live host:**
+    `13/11` **target 1 / incumbent 0**; `lineHeight:13` **target 0 / incumbent 6**; `setReviewModalOpen`
+    **target 3 / incumbent 0**; `onOpenReview:()=>C(!0)` **target 0 / incumbent 1**;
+    `onOpenReview:()=>r.setViewMode(` **target 0 / incumbent 1**. All five discriminate.
+    `13/11` survives minification because the ratio is a non-integer division the minifier will not
+    constant-fold — folding would destroy the exact IEEE-754 property the source depends on.
+  - **The stub trap, measured not assumed:** `atlas-server/dist/server.js` is **3,070 B and
+    byte-identical** across both releases (SHA-256 `5018571A…7F21`). **No server chunk discriminates,
+    because there is no server change** — the entire deployed server `dist` is byte-identical across
+    the two releases except three inert `__tests__` artefacts from Lane A2's new harness. The proof is
+    therefore client-side, and `dist/server.js` is a usable **negative control only**.
+  - **Served proof, fetched over HTTP from `5174`, not read off disk:** `assets/BuildingView-C7brU0Hv.js`
+    11,188 B `text/javascript` with `13/11` **1** and `lineHeight:13` **0**;
+    `assets/TeachingLoad-CL-964Kx.js` 188,846 B with `setReviewModalOpen` **3** and both old-only dead
+    bindings **0**. **Both superseded chunk names now `404`**
+    (`BuildingView-DkzDKr0M.js`, `TeachingLoad-CN1rcdXS.js`).
+
+  **Both live bugs are now fixed in production.** Konva `lineHeight` ships as the **13/11 ratio** where
+  the live build hardcoded `13` against `fontSize:11` (the 71.5-unit offset); and the dead
+  `Review teachers` banner is gone — both `onOpenReview` sites now bind the one shared opener, so no
+  labelled affordance is dead.
+
+  **No schema command ran and none is implied:** `prisma/migrations` is **11 `.sql` files in both
+  releases**, and `git diff --name-only c5a9e832..c4a9960e -- prisma/` is **empty**. No generation,
+  publication, term-cache, or Teaching Load apply. `DATABASE` state untouched by the cutover.
+
+  **CORRECTION TO MY OWN ENUMERATION (2026-09-27):** the pre-cutover packet said "10 non-docs + 14 docs"
+  against a stated total of 22, which does not sum. The correct figures are **9 non-docs (7 client +
+  2 server) + 13 docs = 22**. Arithmetic only — no path was hidden, and the review re-enumerated the
+  full 22 independently.
+
+  **⚠ OPERATOR CAVEAT — a port-clear failure means MANUAL recovery, not automatic.** On that branch the
+  runner restores both env vars and the task XML but **deliberately skips `schtasks /run`**, leaving
+  the runtime **down**. It is fail-closed on purpose (re-running while a zombie holds 5001 would produce a
+  confused state) and `plan.rollback` states it accurately — but recovery is a manual re-run with the
+  argument pair swapped. **This did not occur: the port-clear check passed.** Also note the runner
+  force-kills the server tree (`taskkill /T /F`, no graceful drain), which drops in-flight requests and
+  severs the Prisma pool. Bounded here because **the killed bytes were byte-identical to the
+  incumbent's** (no new server failure mode) and the range contains no write path.
+
+  **⚠ HOST CAVEAT, inherited and not committed:** `ops/runtime/logs/` is ignored only via the
+  **uncommitted, local** `D:/ATLAS/.git/info/exclude:8`. That is what keeps a started release
+  `git status --short`-clean and therefore usable as a `Get-GitIdentity` target and rollback basis. A
+  release directory on a **fresh clone** would fail `Get-GitIdentity` for this reason.
+
+  **Not in this release, by design:** **`C2-3`** (the view-mode control, merge `16961054`) is
+  **test-only** and landed on `main` *after* this release was staged, so it is not in the deployed tree.
+  It ships with the next release. That is why this release is deployed but does not yet carry the
+  control that pins the view-mode effect.
+
+  **Browser acceptance: rows B4 and B5 are OWED and remain open.** **B5 — the load-bearing swap-Cancel
+  zero-change control — has NEVER been performed.** Both are deployment-acceptance clauses, not source
+  rows, and both need the browser. **Acceptance owner: the seeded-profile browser agent.** Until they
+  close, this release is **`DEPLOYED` / `ACCEPTANCE_INCOMPLETE`** — a healthy process is `DEPLOYED`, not
+  accepted.
   **Rollback basis `c5a9e8321756ee59c7795786417f6449831ecda3`**, dir
   `E:\ATLAS-worktrees\lane-a2-release-c5a9e832` — verified clean, HEAD `c5a9e832`, both `dist`s built,
   real non-junction `node_modules` (154 packages), so rollback is a one-step supervised reset.
