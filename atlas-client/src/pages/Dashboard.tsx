@@ -21,6 +21,7 @@ import { useDashboardData, type DashboardDerivedDemandState, type DashboardReadi
 import type { RolloverStatus } from '@/lib/settings';
 import { RolloverGuidanceCard } from '@/components/runtime/RolloverGuidanceCard';
 import { SmartHelpTrigger } from '@/components/smart/SmartPageShell';
+import { PageHeader } from '@/components/app-shell/PageHeader';
 
 const CampusReadinessCard = lazy(() => import('@/components/dashboard/CampusReadinessCard').then((module) => ({ default: module.CampusReadinessCard })));
 
@@ -512,6 +513,14 @@ export default function Dashboard() {
 				{/* Main content */}
 				<div className='max-w-[1440px] mx-auto w-full flex flex-col space-y-6 px-4 py-6 lg:px-8 lg:py-8 animate-fade-in'>
 
+					{/* A3-C1 S-a — one canonical page-title pattern. The title and its
+					    sentence moved up out of the gradient hero verbatim; the hero keeps
+					    the status chips and actions it always had. */}
+					<PageHeader
+						title='Dashboard'
+						subtitle='Build, review, and publish the school timetable.'
+					/>
+
 					{/* Hero card - disconnected rounded card */}
 					<div className='relative rounded-2xl overflow-hidden bg-[linear-gradient(145deg,hsl(var(--primary)),hsl(var(--primary)/0.8))] text-primary-foreground'>
 						<div className='absolute inset-0 pointer-events-none aria-hidden'>
@@ -521,8 +530,6 @@ export default function Dashboard() {
 						<div className='relative px-6 py-6 lg:px-8 lg:py-8'>
 							<div className='flex flex-col sm:flex-row sm:items-start justify-between gap-4'>
 								<div className='min-w-0'>
-									<h1 className='text-2xl font-bold tracking-tight'>Scheduling Dashboard</h1>
-									<p className='mt-1 text-sm text-white/80'>Build, review, and publish the school timetable.</p>
 									<div className='flex flex-wrap items-center gap-2 mt-3'>
 										{rolloverAligned && rolloverStatus ? (
 											<Popover>

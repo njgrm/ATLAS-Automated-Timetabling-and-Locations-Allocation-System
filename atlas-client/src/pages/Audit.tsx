@@ -17,6 +17,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 
 import atlasApi from '@/lib/api';
+import { PageHeader } from '@/components/app-shell/PageHeader';
 import { resolveActiveSchoolYearContext } from '@/lib/enrollpro-public-settings';
 import { useActorSchoolScope } from '@/lib/actor-scope-session';
 import { assessSectionCoverage, type SectionCoverageAssessment } from '@/lib/audit-section-coverage';
@@ -620,7 +621,7 @@ export default function Audit() {
 									<Loader2 className="size-6 animate-spin" />
 								</div>
 								<div>
-									<h1 className="text-2xl font-bold text-slate-900">Checking readiness...</h1>
+									<p className="text-2xl font-bold text-slate-900">Checking readiness...</p>
 									<p className="mt-2 text-sm text-slate-500">ATLAS is checking the setup evidence officers need before scheduling review.</p>
 									<div className="mt-4 grid gap-2 sm:grid-cols-2">
 										{AUDIT_DOMAINS.map((domain) => (
@@ -642,23 +643,22 @@ export default function Audit() {
 	return (
 		<div className="flex h-[calc(100svh-3.5rem)] flex-col overflow-hidden bg-primary/5">
 			<header className="shrink-0 px-6 pt-5 lg:px-8">
-				<div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-					<div>
-						<p className="text-xs font-semibold uppercase tracking-wider text-primary">Review and publish</p>
-						<p className="mt-1 max-w-2xl text-sm leading-relaxed text-slate-500">
-							See what ATLAS checked, what blocks readiness, and which setup page fixes each issue.
-						</p>
-					</div>
-					<div className="flex flex-wrap items-center gap-2">
+				<PageHeader
+					title='Audit'
+					eyebrow='Review and publish'
+					subtitle='See what ATLAS checked, what blocks readiness, and which setup page fixes each issue.'
+					source={(
 						<Badge variant="outline" className="rounded-full border-primary/20 bg-white px-3 py-1 text-primary">
 							{sourceLabel}
 						</Badge>
+					)}
+					primaryAction={(
 						<Button variant="outline" size="sm" className="h-9 rounded-xl bg-white shadow-sm" onClick={loadData}>
 							<RefreshCw className="mr-1 size-3.5" />
 							Refresh report
 						</Button>
-					</div>
-				</div>
+					)}
+				/>
 
 				<div className="mt-4 flex flex-wrap items-center gap-4 overflow-x-auto rounded-2xl border border-primary/10 bg-white px-4 py-3 text-sm shadow-soft scrollbar-none">
 					<span className="font-semibold text-slate-900">Checked: <span className="font-normal text-slate-500">{AUDIT_DOMAINS.length} domains</span></span>
