@@ -3,6 +3,13 @@ import { History, RotateCcw } from 'lucide-react';
 import type { ScheduleReviewDialogsContext } from '@/components/timetable/timetableContexts.types';
 import type { ManualEditRecord } from '@/types';
 import { manualEditActionLabel } from '@/lib/timetable-plain-language';
+import {
+	ALREADY_UNDONE_EDIT_MESSAGE,
+	REVERT_EDIT_TYPE,
+	UNDO_CANNOT_BE_REDONE,
+	isEditUndoneInHistory,
+	readRevertedEditId,
+} from '@/components/timetable/timetableUndoRedoState';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/ui/dialog';
@@ -19,7 +26,9 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/t
  * edits of the same kind stay distinguishable.
  *
  * `validationSummary` is typed `unknown` on the client, so both fields are
- * PROBED rather than cast, and a value of the wrong shape is treated as absent.
+ * PROBED rather than cast, through `readRevertedEditId` — the one place in the
+ * client that decides whether a recorded value is an identity — and a value of the
+ * wrong shape is treated as absent.
  *
  * WHY THERE IS NO "Redo" HERE: a real redo is a NEW server operation that
  * re-applies the reverted edit's `afterPayload`. Nothing in the contract does
@@ -36,12 +45,12 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/t
  */
 function undoneEditLabel(edit: ManualEditRecord, editHistory: ManualEditRecord[]): string | null {
 	const summary = (edit.validationSummary ?? {}) as Record<string, unknown>;
-	const revertedEditId = summary.revertedEditId;
 	const revertedEditType = summary.revertedEditType;
 
-	const target = typeof revertedEditId === 'number'
-		? editHistory.find((candidate) => candidate.id === revertedEditId)
-		: undefined;
+	const revertedEditId = readRevertedEditId(summary);
+	const target = revertedEditId === null
+		? undefined
+		: editHistory.find((candidate) => candidate.id === revertedEditId);
 	if (target) {
 		return `${manualEditActionLabel(target.editType)} · ${new Date(target.createdAt).toLocaleString()}`;
 	}
@@ -74,6 +83,20 @@ function undoneEditLabel(edit: ManualEditRecord, editHistory: ManualEditRecord[]
  *   state, and substituting the header's current number on every historical row
  *   would be a second falsehood (implying each edit produced it). The traced
  *   fact is kept here so the line is not re-added.
+ *
+ * R2 (D1 continued) removes the SAME affordance from the other row that could
+ * only fail: the edit an undo row NAMES. On live draft run 321 the dialog showed
+ * an honest "Undone change" row directly above a "Swapped two sessions" row that
+ * still offered "Revert this edit". The control was disabled rather than enabled
+ * (it needs the row to be the head), but its stated reason was "Only the latest
+ * edit can be reverted" — which tells the operator to wait for a newer edit, when
+ * the truth is that this edit can NEVER be reverted again: the head is the undo
+ * row and `assertUndoHead` requires the target to BE the head
+ * (`timetable-undo-contract.ts:22`; `headEdit` carries no `editType` filter at
+ * `manual-edit.service.ts:1676`). `isEditUndoneInHistory` derives the fact from the
+ * same list this dialog renders and the same id equality the server refuses on, and
+ * the absence is STATED with `ALREADY_UNDONE_EDIT_MESSAGE` rather than left silent,
+ * for the reason given on the `REVERT` row below.
  */
 export function TimetableAssignmentDialogs({ context }: { context: ScheduleReviewDialogsContext }) {
 	const {
@@ -102,9 +125,16 @@ export function TimetableAssignmentDialogs({ context }: { context: ScheduleRevie
 						// no affordance at all rather than a disabled one. A greyed
 						// "Revert this edit" on an undo is the affordance QA named as
 						// a redo wearing the wrong label.
-						const isRevert = edit.editType === 'REVERT';
+						const isRevert = edit.editType === REVERT_EDIT_TYPE;
+						// R2 (D1 continued): the row an undo NAMES is in the same state,
+						// for the same reason, and the ledger already proves it. The
+						// derivation is the server's own refusal test, so the control is
+						// removed exactly when the server would refuse it — and kept
+						// whenever the proof is absent, because hiding a control that
+						// still works is the worse error.
+						const isUndone = !isRevert && isEditUndoneInHistory(edit.id, editHistory);
 						const undone = isRevert ? undoneEditLabel(edit, editHistory) : null;
-						const canRevert = !isRevert && isHead && currentRunVersion != null && !revertLoading;
+						const canRevert = !isRevert && !isUndone && isHead && currentRunVersion != null && !revertLoading;
 						const revertReason = isHead ? 'Revert this edit' : 'Only the latest edit can be reverted';
 						return (
 							<div key={edit.id} className="rounded-md border p-3 text-xs" data-testid="timetable-edit-history-row">
@@ -158,15 +188,30 @@ export function TimetableAssignmentDialogs({ context }: { context: ScheduleRevie
 									 * traced to `editType: { not: 'REVERT' }` at
 									 * `manual-edit.service.ts:1675` — see `undoneEditLabel`. */
 									<p className="mt-1 text-muted-foreground" data-testid="timetable-edit-history-no-redo">
-										This undo cannot be undone.
+										{UNDO_CANNOT_BE_REDONE}
 									</p>
 								)}
-								{!isRevert && (
+								{isUndone && (
+									/* R2 (D1 continued). The same rule, applied to the row the
+									 * undo NAMES, and the same obligation to say why: the control
+									 * is gone because the ledger records this edit as already
+									 * undone, and the sentence is the shared one from
+									 * `timetableUndoRedoState`, so this surface and the undo/redo
+									 * surfaces cannot drift. Deliberately NOT the REVERT row's
+									 * sentence — these are two different facts about two different
+									 * rows, and merging them would blur the distinction. The undo
+									 * row above already names this edit and its own timestamp, so
+									 * the pair reads as a pair. */
+									<p className="mt-1 text-muted-foreground" data-testid="timetable-edit-history-already-undone">
+										{ALREADY_UNDONE_EDIT_MESSAGE}
+									</p>
+								)}
+								{!isRevert && !isUndone && (
 									<div className="mt-2 flex items-center justify-end">
 										{/* J2 (P4) + AGENTS.md section 8: the native `title`
-										 * attribute is forbidden for extra information. The
-										 * explanation moves to the @/ui Tooltip primitive and
-										 * stays available on the disabled button. */}
+									 * attribute is forbidden for extra information. The
+									 * explanation moves to the @/ui Tooltip primitive and
+									 * stays available on the disabled button. */}
 										<TooltipProvider>
 											<Tooltip>
 												<TooltipTrigger asChild>

@@ -180,16 +180,31 @@ test('R1 D1: a REVERT row names the edit it undid', async () => {
 });
 
 test('R1 D1: a REVERT row does not offer a "Revert this edit" that can only 409', async () => {
-	await mountDialog([REVERT_ROW, SWAP_ROW]);
+	// SUPERSEDED FIXTURE, ADDITIVELY (A2-TIMETABLE-CUSTODY-R2): this test's fixture
+	// paired the undo row with the very swap it undid, then asserted that swap "keeps
+	// its affordance". R2 proved that row's control can only 409 — the head is the undo
+	// row and `assertUndoHead` requires the target to BE the head — so that assertion
+	// was pinning the defect, not a contract. The claim itself is UNCHANGED and now
+	// STRONGER: a third row, an ordinary edit no undo names, carries the assertion, and
+	// the row the undo DOES name is asserted alongside it (R2's own suite carries the
+	// full three-kind matrix). Nothing is deleted; the control is re-pointed at a row
+	// where it is true, and the undone row's state is added, not subtracted.
+	const NOT_UNDONE_ROW = { ...SWAP_ROW, id: 45 } as unknown as ManualEditRecord;
+	await mountDialog([REVERT_ROW, SWAP_ROW, NOT_UNDONE_ROW]);
 	assert.equal(
 		revertButtonsIn(0),
 		0,
 		'the REVERT row must not offer "Revert this edit" (the server selects its target with editType { not: \'REVERT\' }, so the call can only UNDO_CONFLICT)',
 	);
 	assert.equal(
-		revertButtonsIn(1),
+		revertButtonsIn(2),
 		1,
 		'an ordinary row keeps its affordance — the removal is scoped to the REVERT row, not to the dialog',
+	);
+	assert.equal(
+		revertButtonsIn(1),
+		0,
+		'R2: and the removal is now scoped to every row the ledger records as undone — this one is named by the undo above, and the server refuses it for the same reason',
 	);
 	assert.doesNotMatch(rowText(0), /Revert this edit/, 'no misleading "Revert this edit" text on a REVERT row');
 	// The absence must be explained, or a button that silently vanishes on one row
@@ -199,7 +214,14 @@ test('R1 D1: a REVERT row does not offer a "Revert this edit" that can only 409'
 		/cannot be undone/,
 		'the REVERT row says why there is nothing to press, rather than going silent',
 	);
+	// R2: the same obligation on the other row that lost its control.
+	assert.match(
+		rowText(1),
+		/already been undone/,
+		'the undone row states its own reason, in the shared wording, so the removal is never silent',
+	);
 });
+
 
 test('R1 D1 negative control: an unidentifiable REVERT row claims no edit', async () => {
 	// A REVERT row whose summary names no target at all (no `revertedEditId`, no
