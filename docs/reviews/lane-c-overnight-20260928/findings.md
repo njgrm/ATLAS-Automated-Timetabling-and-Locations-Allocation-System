@@ -38,3 +38,11 @@ cues; 5.2 Campus & Rooms rooms read "Unavailable", not a bare 0% (contrast: the 
 8. **Sections "HOME ROOMS 20/20" while 5 rows read "Needs home room".** The counter and the rows disagree. (HIGH)
 9. Campus "Open map": a loading state and a faster first paint.
 10. One word for "not enough hours" (the page mixes "Below standard", "% OF STANDARD" and "wide span").
+
+## After the `a1db27d5` cutover (07:00)
+
+| # | Finding | Severity |
+|---|---|---|
+| L1 | **A cutover appears to sign every browser out.** Both the A2 Playwright profile (B9–B22 all NEEDS_SESSION after `a1db27d5`) and Lane C's Chrome profile (redirected to `/login` at 07:00, signed in at 01:35) lost their "remember me" session across the cutover. Lane C saw the same after `c5a9e832` on 2026-09-27. If sessions do not survive a server restart, a deploy during the demo signs the presenter out. A2: confirm whether the session store or signing secret changes per release. | HIGH (demo risk; verify) |
+
+Rows B9–B22 on `a1db27d5` are UNPERFORMED (no session in either profile). `subagent_tokens` 65,581.

@@ -149,6 +149,65 @@ resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs
 
 - Tailnet: `https://njgrm.buru-degree.ts.net`
 
+- **▶ LIVE: `a1db27d5a9c270c875868436988f5d8cef38af04` — DEPLOYED 2026-09-28 06:41 +08 by Lane A2 (packet c4).
+  ACKNOWLEDGES: DEPLOYED, browser acceptance INCOMPLETE (`AUTH_SESSION_REQUIRED`) — a healthy process is not
+  acceptance.** The `d31bfacb` record below is now the rollback basis. Cutover executed with the repo's own
+  `ops/runtime/deploy-runner.ps1` against `-LiveStateRef f4cf1559` — dry run **exit 0** (`mutates: false`,
+  `secretsPrinted: false`, audit `…\a1db27d5-20260928-063849`), then `-Execute` returned `CUTOVER_STARTED`
+  (audit `C:\ProgramData\ATLAS\release-audit\a1db27d5-20260928-064106`). The runner's fail-closed
+  `Assert-LiveReleaseRecorded` gate passed against the record commit, so the register led the cutover rather than
+  lagging it.
+
+  | | |
+  |---|---|
+  | **LIVE** | **`a1db27d5a9c270c875868436988f5d8cef38af04`** |
+  | **Live dir** | `E:\ATLAS-worktrees\lane-a2-release-a1db27d5` (HEAD `a1db27d5`, `git status --short` empty, 0 reparse points) |
+  | **Listeners** | 5001 → **54908** (`atlas-server\dist\server.js`), 5174 → **56752** (`ops\runtime\host.mjs`) |
+  | **Rollback basis** | **`d31bfacbfeadb8e90bf9cf1f7a8ddcad62ab129a`**, dir `E:\ATLAS-worktrees\lane-a2-release-d31bfacb` — retained, clean, startable, one-step supervised reset. One step further back: `c0d91827`. |
+  | **Direction** | **FORWARD.** `git merge-base --is-ancestor d31bfacb a1db27d5` exits **0** |
+  | **Delta** | 70 commits, 123 unique paths, 105 non-docs (100 `atlas-client` / 5 `atlas-server` / 18 docs), 2 server production files. **Zero `prisma/` paths**, zero schema, zero lockfile, zero seed. **NOT re-pinned, deliberately** — see the handoff. |
+  | **Identity, three sources** | machine-scope `ATLAS_RUNTIME_SOURCE_DIR`/`RELEASE_SHA`; task action `…\a1db27d5\ops\runtime\cli.mjs start`; both listener command lines. **All three agree.** §6's stale-override trap was live: this shell's inherited `Env:` read `9b28c572`, two releases behind machine scope, and was never used. |
+  | **Supervisor** | `state=running`, `releaseSha=a1db27d5…`, `startedAt=2026-09-27T22:41:40.945Z` (inside the window); log: "All targets healthy (liveness and dependency readiness)", "DB connected, 2 school(s) found", rollover automation **disabled** |
+  | **Audit trail** | dry `…\a1db27d5-20260928-063849\` · execute `…\a1db27d5-20260928-064106\` |
+  | **Packet** | `docs/prompts/a2-release-d049f85d-2026-09-28.md` (reviewed source); cutover ordered by `docs/prompts/overnight-a2-timetable-2026-09-28-c4.md` |
+
+  **D-rows: 9 PASS, 0 failed (planner-measured, then independently re-derived by post-action QA).**
+
+  | Row | Result |
+  |---|---|
+  | D1 server serves new build | **PASS** — `/health/ready` 200 `database:ok`; DB-backed `/subjects?schoolId=1` 200 (19 453 B) |
+  | D2 client host serves new build | **PASS** — `/__host/live` 200 `application/json`; `/` 200; served entry `index-CZyHbCus.js` = the new build's own `dist/index.html` |
+  | D3 server discriminator | **PASS, non-vacuous** — `manual-edit.service.js` `softViolationCount:` **0 → 1**; `generation.service.js` unquoted `All classes placed.` **0 → 1**; both files byte-differ. **`dist/server.js` deliberately not used** — QA proved it byte-identical across builds, i.e. a vacuous proof |
+  | D4 client discriminator | **PASS, non-vacuous** — `timetable-plain-language-CM4wu1FP.js` 200 (4 563 B) carrying `No schedule made yet.` and `Build a new draft`; old `-BYLpdAgL` **404**. Measured on disk pre-cutover: new 1/2/0, old 0/0/2 |
+  | D5a migrations | **PASS** — 11 → 11 by the pinned `ls-tree` method (12 raw entries each = 11 dirs + `migration_lock.toml`); `git diff … -- prisma/` = 0 paths |
+  | D5b zero-write (cutover) | **PASS** — window `2026-09-27T22:40:57.587Z` → `22:43:06.407Z`: `generation_runs` 9→9, `manual_schedule_edits` 9→9, `audit_logs` 451→451 (`max(id)` 1002→1002), `published_schedule_revisions` 6→6, `notifications` 218→218. **0 audit rows inside the window**, and QA found `audit_logs WHERE id > 1002` empty, so nothing was written inside *or* after it |
+  | D6 public schedule | **PASS** — 09-20→315/42, 09-25→317/43, 09-26→319/44, 09-27/28→320/46; `servedByFallback` true/true/true/false/false; `currentPublishedRunId` 320; **no 409**. Values read from the `source` object, not top level |
+  | D6b term guard, D6 route | **PASS** — `/schools/1/schedules/published` without `termIndex` → **200**, `termIndex=2` (`requireActiveTermSelection` defaults to `'active'`) |
+  | D7 term guard, school-year family | **PASS** — `/schools/1/school-years/10/schedules/published` → **400 `TERM_SELECTION_REQUIRED`**, with `?termIndex=2` → **200**. A **different route** from D6; the D6 route can never produce the 400 |
+  | D8 swap route mounted | **PASS** — 401 `NO_TOKEN`, not 404; QA added a 404 control on a bogus sub-path so the 401 is provably auth answering on a mounted route |
+
+  **Post-action QA (fresh, independent, read-only): `ACCEPT_READY` — mandatory 13/13, blocked 0, unperformed 0.**
+  Every HTTP row was executed against `https://njgrm.buru-degree.ts.net` (origin asserted; **no** loopback rows, so
+  nothing is labelled `isolated`). It re-derived every D-row independently rather than trusting this table, proved
+  both discriminators non-vacuous *including* a control showing the forbidden `dist/server.js` stub is byte-identical
+  across builds, confirmed the live task XML differs from the captured one **only** in the two release-dir lines
+  (no trigger/principal/privilege drift), and found zero residue: both trees clean, 0 reparse points, no deploy
+  stash. Five NON_BLOCKING observational items only: the ancestor-valid `productPin`/`releaseLabel` still reading
+  `d44f29e0` (a designed floor, verified `is-ancestor` true — **not** live identity), the plan's PIDs being the
+  pre-cutover incumbent, `secretsPrinted` corroborated by key-names-only logging, 3 pre-existing unrelated stashes
+  dated 2026-09-18/19, and `D:` headroom at 39.17 GiB.
+
+  **⚠ Browser acceptance is INCOMPLETE — all 14 rows B9–B22 BLOCKED on `NEEDS_SESSION(A2/playwright-profile)`.**
+  The profile held no ATLAS session (`/api/v1/auth/me` 401, empty `document.cookie`, no token in local/session
+  storage, both `/` and `/timetable` redirect to `/login`), so no wording row could be evidenced on screen. The
+  runner correctly refused to quote strings from source. Unauthenticated `/public/schedules` is healthy ("40
+  published classes are shown", Aguinaldo GR7 TERM 2) and the served entry is `index-CZyHbCus.js`, so the release
+  itself is serving correctly — the failure is the absent session alone. **Owner: Lane A2, immediately after the
+  operator re-seeds the profile (~1 minute).** Tally **0 passed / 15 blocked / 2 unperformed**. The **D10**
+  grid-gesture half and the stale-selection **swap-commit** half are `UNPERFORMED` by instruction: both are writes
+  and sit behind separate gated HIGH steps. **Generation and publication were NOT executed** — they remain
+  separate HIGH steps whose authority is intact but which this cutover did not and may not perform.
+
 - **▶ LIVE: `d31bfacbfeadb8e90bf9cf1f7a8ddcad62ab129a` — DEPLOYED 2026-09-28 00:23–00:24 +08 by Lane A2.**
   **Supersedes the `c0d91827` LIVE record below, which superseded the false `9b28c572` record — three releases in
   one night, and the register was wrong at the start of it.** Cutover executed with the repo's own
@@ -198,11 +257,15 @@ resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs
   batch, (e) the demo walkthrough, (f) the A3 term-contract test and (g) a second release are **NOT REACHED** —
   see `docs/handoffs/planner-a2-handoff-2026-09-28-overnight.md` §1 for what the morning does, in order.
 
-- **▶ LEADING TARGET FOR THE NEXT CUTOVER — `a1db27d5a9c270c875868436988f5d8cef38af04`, re-pinned
-  2026-09-28 05:40 +08 by Lane A2. STAGED, NOT EXECUTED — two independent reviews have not yet returned
-  `ACCEPT_READY` on this exact pin.** `deploy-runner.ps1` fails closed without a target prefix in this section, so
-  **the next HIGH action must have its target recorded here first**; `a1db27d5` now satisfies that gate. **Do not cut
-  over to `d31bfacb`, `c0d91827` or `9b28c572` — that would ship less.** The earlier `d049f85d` record is
+- **▶ TARGET, NOW LIVE — `a1db27d5a9c270c875868436988f5d8cef38af04`, re-pinned 2026-09-28 05:40 +08 by Lane A2,
+  REVIEW-CLEAR (three bounded reviews on this exact pin: `CORRECTION_REQUIRED` 2/4/0/0, `CORRECTION_REQUIRED`
+  2/5/0/0, then `ACCEPT_READY` 4/4/0/0, residuals NON_BLOCKING and corrected at `d1f66075`), and
+  **CUT OVER 2026-09-28 06:41 +08 — see the LIVE entry at the top of this section.** This block is retained as the
+  build/authority record; the `Target dir` cell below describes the release that is now serving.** `deploy-runner.ps1`
+  fails closed without a target prefix in this section, so **the next HIGH action must have its target recorded here
+  first** — `a1db27d5` is now satisfied and is **live**; a further cutover would target a *newer* pin.
+  **Do not cut over to `d31bfacb`, `c0d91827` or `9b28c572` — that would ship less**; `d31bfacb` is the rollback
+  basis, not a target. The earlier `d049f85d` record is
   **SUPERSEDED**: it is two commits below the source corrections `2de11790`, so a cutover to it would have shipped a
   build with B1, B2 and B7 still open while the packet claimed them closed.
 
@@ -214,6 +277,7 @@ resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs
   | **Rollback basis** | the `d31bfacb` dir — **one-step supervised reset** (verified present, clean, both `dist`s built) |
   | **Direction** | **FORWARD.** `git merge-base --is-ancestor d31bfacb a1db27d5` exits **0** |
   | **Authority** | **The cutover is DEPLOYMENT ONLY.** Generation and publication are separate HIGH steps from the cutover (packet §9.3) — **but their authority is NOT struck**: the 2026-09-20 standing authorization plus the 2026-09-27 overnight grant authorise them, and each keeps its own pre-action review and post-action QA. See packet **§9.6**, which corrects §9.3 (N3) |
+  | **No re-pin** | **Deliberate, dated 2026-09-28.** `origin/main` advanced past this pin while the reviews ran (A3 pushed `c3edbf0e`, 6 non-docs Subjects paths, plus these lane's own docs commits). The c3 packet permits a re-pin only "if A3 posted a newer `A3 integrated for release at <sha>` **before your review starts**" — which did not happen, and re-pinning would invalidate an already-built target and its pre-cutover proof. **This release therefore ships LESS than the current tip**, which is the safe direction. A3's post-`a1db27d5` work is named in the packet §9.8 and is a successor, not a gap |
   | **Packet** | `docs/prompts/a2-release-d049f85d-2026-09-28.md` §9 records both reviews' findings and every correction |
 
 - **▶ LIVE (SUPERSEDED by `d31bfacb` above, 2026-09-28 00:24 +08): `c0d91827311e247ac0f2073a83cc50f5a5efcdb2`
@@ -2744,6 +2808,33 @@ the acceptance rows and the section 7 term guard. Worktree `E:\ATLAS-worktrees\l
 (`work/a2-timetable-custody`), `KEEP_ACTIVE`. Never paste the credential value; never run a history purge.
 Cycle narrative and per-candidate evidence: `docs/handoffs/planner-a2-handoff-2026-09-26.md`.
 
+**2026-09-28 06:41 +08 - packet c4, ONE job, DONE: `a1db27d5a9c270c875868436988f5d8cef38af04` is LIVE**
+(rollback `d31bfacb`, retained/clean/startable), superseding the `d31bfacb` record above. Dry run **exit 0**
+(`mutates:false`, `secretsPrinted:false`, audit `a1db27d5-20260928-063849`), then `-Execute` returned
+`CUTOVER_STARTED` (audit `a1db27d5-20260928-064106`) with the runner's fail-closed `Assert-LiveReleaseRecorded`
+gate passing against `-LiveStateRef f4cf1559`. Identity agrees on **all three** sources (machine scope, task
+action, both listener command lines) - and **the stale-`Env:` trap was live again**: this shell's inherited pair
+read `9b28c572`, two releases behind, and was never used. Listeners **5001 -> 54908**, **5174 -> 56752**;
+`supervisor-state.json` `state=running`; rollover automation disabled.
+
+- **D-rows 9/9 PASS** (D1-D8 + D6b), measured by me and independently re-derived by fresh post-action QA:
+  **`ACCEPT_READY` mandatory 13/13, blocked 0, unperformed 0**, every HTTP row on the asserted Tailnet origin with
+  **no** loopback rows. Both discriminators proven **non-vacuous** - QA additionally proved the forbidden
+  `dist/server.js` stub is byte-identical across builds, i.e. it would have been a vacuous proof. D5b zero-write
+  holds with a real before/after across `2026-09-27T22:40:57.587Z` -> `22:43:06.407Z`: all five tables delta 0,
+  `max(id)` unchanged, **0 audit rows inside the window** and `audit_logs WHERE id > 1002` empty after it too.
+- **Browser acceptance INCOMPLETE: 0 passed / 15 blocked / 2 unperformed.** All 14 rows B9-B22 are
+  `NEEDS_SESSION(A2/playwright-profile)` - no session in the profile, so **no wording row could be evidenced on
+  screen** and the runner correctly refused to quote strings from source. Unauthenticated `/public/schedules` is
+  healthy and the release serves the right build, so the failure is the session alone. **Owner: Lane A2, right
+  after the operator re-seeds (~1 min).** D10's gesture half and the stale-selection swap-commit half are
+  `UNPERFORMED` by instruction - both are writes behind separate gated HIGH steps.
+- **Generation and publication NOT executed.** They remain separate HIGH steps; their authority is intact but this
+  cutover neither performed nor may perform them.
+- **NOT re-pinned, deliberately** (`origin/main` passed the pin while reviews ran; A3 had not posted before review
+  start; re-pinning would have invalidated a built target and its pre-cutover proof). Shipping less than the tip is
+  the safe direction. **A3's post-pin work is a named successor**, not a gap - `origin/main` is now ahead of live.
+- Handoff: `docs/handoffs/planner-a2-handoff-2026-09-28-overnight.md` (c3 + c4 sections).
 **2026-09-28 ~01:1x +08 — overnight cycle c1, one release done, the rest not reached. `d31bfacb` is LIVE**
 (rollback `c0d91827`), acceptance **10 PASS / 0 failed / 3 UNPERFORMED / 1 PARTIAL**, and the browser rows were
 run on the asserted Tailnet origin `https://njgrm.buru-degree.ts.net`. **The single most valuable result of the

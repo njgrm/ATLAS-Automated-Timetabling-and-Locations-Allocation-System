@@ -299,3 +299,39 @@ never below the 25 GiB warn line at any build.
 **`lane-a2-release-0da104f9` PRESERVE_FOR_DECISION** - its `atlas-server/node_modules` is the active dependency
 donor for the `KEEP_ACTIVE` custody worktree, and capacity was never pressing. Reclaiming it would have broken that
 stream for 1.47 GiB. Recorded rather than taken.
+---
+
+# c3 — Planner A2, 2026-09-28 06:40 +08 (packet `overnight-a2-timetable-2026-09-28-c3.md`)
+
+1. **c3 ran the re-pin gate and closed it.** The morning's first owed act - one bounded review of the re-pin to `a1db27d5` and the three amended clauses - returned **ACCEPT_READY 4/4/0/0**; the two earlier rounds on this exact pin were CORRECTION_REQUIRED 2/4/0/0 and 2/5/0/0, and all four residual findings were non-blocking and corrected at `d1f66075`.
+2. **That verdict is recorded on `origin/main` at `f4cf1559`**, replacing the false "two independent reviews have not yet returned ACCEPT_READY on this exact pin" wording, so the record is not a false statement at cutover time (`deploy-runner.ps1` `Assert-LiveReleaseRecorded` reads it).
+3. **NOT re-pinned, deliberately.** c3 permits a re-pin only if A3 posted `A3 integrated for release at <sha>` before the review started; A3 had not, and re-pinning would have invalidated an already-built target and its pre-cutover proof. Shipping less than the current tip is the safe direction; A3's post-pin work is a named successor.
+4. **The release was built and staged, not cut over** - `E:\ATLAS-worktrees\lane-a2-release-a1db27d5` at `a1db27d5a9c2…`, clean and detached, dry run and D1-D8 deliberately unspent because the planner hit the 120-step cap twice on gate work.
+5. **The cutover of `a1db27d5` is the sole remaining job** and is packet c4's one job: dry run -> `-Execute` -> D1-D8/D6b -> delegated post-action QA -> delegated browser rows B9-B22. Live release at the time of writing is still `d31bfacb`, the rollback basis.
+
+---
+
+# c4 - Planner A2, 2026-09-28 06:40 +08 - THE CUTOVER IS DONE (packet `overnight-a2-timetable-2026-09-28-c4.md`)
+
+1. **LIVE is now `a1db27d5a9c270c875868436988f5d8cef38af04`**; rollback basis `d31bfacb` (retained, clean,
+   startable). Dry run **exit 0** (`mutates:false`, `secretsPrinted:false`, audit `a1db27d5-20260928-063849`), then
+   `-Execute` -> `CUTOVER_STARTED` (audit `a1db27d5-20260928-064106`). Listeners **5001 -> 54908**,
+   **5174 -> 56752**; `supervisor-state.json` `state=running`; rollover automation disabled.
+2. **Identity agreed on all three sources.** The `Env:` trap was live again - this shell's inherited
+   `ATLAS_RUNTIME_SOURCE_DIR` read `9b28c572`, **two releases stale**, and was never used for any decision.
+3. **D-rows 9/9 PASS** (D1-D8 + D6b). D3/D4 re-derived from the built artefacts **before** the cutover, so both
+   were non-vacuous; D5b zero-write proved with a real before/after over
+   `2026-09-27T22:40:57.587Z` -> `22:43:06.407Z` (five tables delta 0, `max(id)` unchanged, 0 audit rows inside
+   the window). D7 was run on the **school-year family** route (`400 TERM_SELECTION_REQUIRED`, then 200 with
+   `?termIndex=2`) - my first attempt used the wrong route and returned 401; the packet's own B2 finding explains
+   why the D6 route can never produce that 400.
+4. **Post-action QA: `ACCEPT_READY`, mandatory 13/13, blocked 0, unperformed 0** - every HTTP row on the asserted
+   Tailnet origin, no loopback rows, all D-rows re-derived independently, both discriminators proven
+   non-vacuous (QA also proved the forbidden `dist/server.js` stub is byte-identical across builds, i.e. a
+   vacuous proof), task XML differing only in the two release-dir lines, zero residue. Five NON_BLOCKING
+   observational items only.
+5. **Browser rows B9-B22: 0 passed / 15 blocked / 2 unperformed - all `NEEDS_SESSION(A2/playwright-profile)`.**
+   The profile had no ATLAS session, so **not one wording row could be evidenced on screen**; the runner
+   correctly refused to quote strings from source. Unauthenticated `/public/schedules` is healthy and the release
+   serves `index-CZyHbCus.js`, so the release is fine and only the session is missing. **Generation and
+   publication were NOT executed** - separate HIGH steps, authority intact, not performed by this cutover.
