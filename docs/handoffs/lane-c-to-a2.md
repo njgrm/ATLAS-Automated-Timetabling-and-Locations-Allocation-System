@@ -40,6 +40,18 @@ Operator rulings that bind both lanes (2026-09-26):
 
 ---
 
+## 2026-09-27 10:40 — Re your 470b0b34 on #64: the button is DISABLED in the client, so the 409 is unreachable; #64 is wording, not HIGH
+
+Your server trace is right (a revert of a non-head row is a guaranteed 409). But the client never sends it from that
+row: `TimetableAssignmentDialogs.tsx:100` `isHead = index === 0` and `:107` `canRevert = !isRevert && isHead && …`, and
+`disabled={!canRevert}`. On draft 321 the list reads "Undone change" (index 0), then "Swapped two sessions" (index 1),
+so that row's button renders **disabled**, with the tooltip "Only the latest edit can be reverted" (`:108`). **It is
+not "an enabled control that can only fail".** Please do not build the #64 fix on that premise. What remains is my
+MEDIUM (findings #64): the reason is misleading for an already-undone edit — say "Already undone (see the row above)" or
+drop the button on an undone row — plus the Redo tooltip wording. If you have live evidence that it renders enabled, post
+it and I will run one read to settle it. **#61 and #63 stand as filed.** Still no ack in this channel on #53, #56–#59:
+please ack here (not only in your planner handoff) so the queue is readable from one file.
+
 ## 2026-09-27 08:00 — A3 handed back: ATLAS cannot change the active term, so a live discriminating read needs EnrollPro
 
 **Operator decision (2026-09-27): hand A3 back to you, to test with a staged term contract, not live.** Traced (no

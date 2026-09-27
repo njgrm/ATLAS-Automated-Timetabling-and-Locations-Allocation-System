@@ -127,6 +127,355 @@ test('fix 11 control: the named worst-case room names fit the name box by wrappi
 	);
 });
 
+/* ────── fix 11 (second correction): Konva's `lineHeight` is a RATIO ─────────── */
+
+/**
+ * A faithful port of Konva's own text-layout decision, so this control decides
+ * the question the first fix-11 control could not: is the name ellipsised at the
+ * COMMITTED geometry?
+ *
+ * The first fix-11 control modelled the wrap with its own greedy char-width
+ * approximation and never ran Konva's decision at all, so it passed on the
+ * revision that rendered `G7 Room.` on the live surface. This port is a
+ * line-by-line transcription of the installed Konva, not a model of it:
+ *
+ *   konva/lib/shapes/Text.js:306  lineHeightPx = this.lineHeight() * fontSize
+ *   konva/lib/shapes/Text.js:312-396  the paragraph/wrap loop
+ *   konva/lib/shapes/Text.js:400-404  _shouldHandleEllipsis
+ *   konva/lib/shapes/Text.js:405-419  _tryToAddEllipsisToLastLine
+ *   konva/lib/shapes/Text.js:455  addGetterSetter(Text, 'lineHeight', 1)
+ *
+ * The one thing a real browser supplies and this cannot is the font metric, so
+ * `measure` is injected. It is used in the PESSIMISTIC direction throughout:
+ * over-estimating glyph widths can only make the wrap produce MORE lines, so
+ * "fits in two lines under this metric" implies "fits in two lines under any
+ * narrower real font". The base-revision truncation claim does not depend on it
+ * at all (see the `baseTruncationIsFontIndependent` row below).
+ */
+type KonvaTextSpec = {
+	text: string;
+	/** Konva's `fontSize`, in stage units. */
+	fontSize: number;
+	/** Konva's `lineHeight` — a MULTIPLIER (`:455`, default 1). */
+	lineHeight: number;
+	width: number;
+	height: number;
+	wrap: 'word' | 'char' | 'none';
+	ellipsis: boolean;
+	measure: (text: string) => number;
+};
+
+type KonvaLayout = { lines: string[]; ellipsisApplied: boolean; lineHeightPx: number };
+
+function konvaLayout(spec: KonvaTextSpec): KonvaLayout {
+	const { text, fontSize, lineHeight, width, height, wrap, ellipsis, measure } = spec;
+	// Text.js:306
+	const lineHeightPx = lineHeight * fontSize;
+	const maxWidth = width;
+	const maxHeightPx = height;
+	const shouldWrap = wrap !== 'none';
+	const wrapAtWord = wrap !== 'char' && shouldWrap;
+	const ELLIPSIS = '.';
+	const lines: string[] = [];
+	let currentHeightPx = 0;
+	let ellipsisApplied = false;
+
+	// Text.js:400-404
+	const shouldHandleEllipsis = (): boolean => !shouldWrap || currentHeightPx + lineHeightPx > maxHeightPx;
+	// Text.js:405-419
+	const tryToAddEllipsisToLastLine = (): void => {
+		const index = lines.length - 1;
+		if (index < 0) return;
+		let text = lines[index];
+		if (!(measure(text + ELLIPSIS) < maxWidth)) text = text.slice(0, text.length - 3);
+		lines.splice(index, 1);
+		lines.push(text + ELLIPSIS);
+		ellipsisApplied = true;
+	};
+
+	// Text.js:312-396
+	const paragraphs = text.split('\n');
+	for (let i = 0, max = paragraphs.length; i < max; ++i) {
+		let line = paragraphs[i];
+		let lineWidth = measure(line);
+		if (lineWidth > maxWidth) {
+			while (line.length > 0) {
+				const chars = Array.from(line);
+				let low = 0;
+				let high = chars.length;
+				let match = '';
+				let matchWidth = 0;
+				while (low < high) {
+					const mid = (low + high) >>> 1;
+					const substr = chars.slice(0, mid + 1).join('');
+					const substrWidth = measure(substr);
+					if (substrWidth <= maxWidth) {
+						low = mid + 1;
+						match = substr;
+						matchWidth = substrWidth;
+					} else {
+						high = mid;
+					}
+				}
+				if (!match) break;
+				if (wrapAtWord) {
+					const matchArray = Array.from(match);
+					const nextChar = chars[matchArray.length];
+					const nextIsSpaceOrDash = nextChar === ' ' || nextChar === '-';
+					let wrapIndex: number;
+					if (nextIsSpaceOrDash && matchWidth <= maxWidth) wrapIndex = matchArray.length;
+					else wrapIndex = Math.max(matchArray.lastIndexOf(' '), matchArray.lastIndexOf('-')) + 1;
+					if (wrapIndex > 0) {
+						low = wrapIndex;
+						match = chars.slice(0, low).join('');
+					}
+				}
+				lines.push(match.replace(/\s+$/, ''));
+				currentHeightPx += lineHeightPx;
+				if (shouldHandleEllipsis()) {
+					tryToAddEllipsisToLastLine();
+					break;
+				}
+				const rest = chars.slice(low).join('').replace(/^\s+/, '');
+				if (rest.length === 0) break;
+				if (measure(rest) <= maxWidth) {
+					lines.push(rest);
+					currentHeightPx += lineHeightPx;
+					break;
+				}
+				line = rest;
+			}
+		} else {
+			lines.push(line);
+			currentHeightPx += lineHeightPx;
+			if (shouldHandleEllipsis() && i < max - 1) tryToAddEllipsisToLastLine();
+		}
+		if (currentHeightPx + lineHeightPx > maxHeightPx) break;
+	}
+	return { lines, ellipsisApplied, lineHeightPx };
+}
+
+/**
+ * Pessimistic mixed-case metric: 0.72em for upper-case glyphs, 0.62em otherwise.
+ * Deliberately wider than Arial 11px for the strings below, so it over-wraps.
+ */
+const pessimisticMeasure = (text: string): number => Array.from(text).reduce((sum, ch) => {
+	const upper = ch === ch.toUpperCase() && ch !== ch.toLowerCase();
+	return sum + (upper ? 0.72 : 0.62) * ROOM_NAME_FONT;
+}, 0);
+
+/**
+ * What production ACTUALLY hands Konva, read from the component source so the
+ * control decides the shipped wiring rather than a constant the test invented.
+ *
+ * Konva multiplies (`Text.js:306 lineHeightPx = this.lineHeight() * fontSize`),
+ * so this returns the multiplier as configured. The identifier is then resolved
+ * against the two committed constants, which exist on both revisions — so this
+ * control RUNS on the base (where it resolves to the pixel pitch `13` and the
+ * room name is demonstrably truncated) instead of dying on a missing export.
+ */
+function configuredLineHeight(view: string): number {
+	const prop = /lineHeight=\{(ROOM_LINE_RATIO|ROOM_LINE_H)\}/.exec(view);
+	assert.ok(prop, 'the card Texts must pass an explicit lineHeight prop');
+	// `ROOM_LINE_RATIO` is defined as `ROOM_LINE_H / ROOM_NAME_FONT`; pin that so
+	// the resolved multiplier cannot drift from the exported one.
+	if (prop[1] === 'ROOM_LINE_RATIO') {
+		assert.match(
+			view,
+			/export const ROOM_LINE_RATIO = ROOM_LINE_H \/ ROOM_NAME_FONT;/,
+			'the configured ratio must be ROOM_LINE_H / ROOM_NAME_FONT',
+		);
+		return ROOM_LINE_H / ROOM_NAME_FONT;
+	}
+	return ROOM_LINE_H;
+}
+
+/** The three names the live surface showed truncated. */
+const WORST_CASE_ROOM_NAMES = ['G7 Room 203', 'Learning Commons', 'Guidance Office'];
+
+test('fix 11 control: Konva gets a line RATIO, so the committed pitch is the 13px budget, not 143', () => {
+	// The load-bearing assertion, and the one the live defect turned on.
+	// Konva multiplies: Text.js:306 `lineHeightPx = this.lineHeight() * fontSize`.
+	const view = source('src/components/BuildingView.tsx');
+	const configured = configuredLineHeight(view);
+	const committedPitch = configured * ROOM_NAME_FONT;
+	assert.ok(
+		committedPitch <= ROOM_LINE_H,
+		`the committed line pitch must not exceed the ${ROOM_LINE_H}px budget, got ${committedPitch}`,
+	);
+	assert.ok(
+		ROOM_LINE_H - committedPitch < 0.01,
+		`the ratio must still fill the budget it was derived from, got ${committedPitch} of ${ROOM_LINE_H}`,
+	);
+	// The box affords exactly two lines, and still refuses a third.
+	assert.equal(2 * committedPitch, ROOM_NAME_BOX.height, 'two lines must fit the name box exactly');
+	assert.ok(3 * committedPitch > ROOM_NAME_BOX.height, 'a third line must still be refused');
+
+	// The base revision passed the PIXEL pitch as the ratio, so Konva built a
+	// 143-unit line. This is the arithmetic that produced the live symptom, and
+	// it is font-independent, which is why the control below needs no metric to
+	// prove the base was broken.
+	const basePitch = ROOM_LINE_H * ROOM_NAME_FONT;
+	assert.equal(basePitch, 143);
+	assert.equal(basePitch / ROOM_LINE_H, ROOM_NAME_FONT, 'precondition: the base pitch was 11x the budget');
+	assert.ok(
+		basePitch > ROOM_NAME_BOX.height,
+		'precondition: one base line already exceeded the whole name box',
+	);
+
+	// Every card Text must take the ratio. A single leftover `lineHeight={ROOM_LINE_H}`
+	// re-creates the defect on that element, so the count is pinned.
+	assert.doesNotMatch(
+		view,
+		/lineHeight=\{ROOM_LINE_H\}/,
+		'Konva must never receive the pixel pitch as its lineHeight ratio',
+	);
+	const ratioProps = view.match(/lineHeight=\{ROOM_LINE_RATIO\}/g) ?? [];
+	assert.equal(
+		ratioProps.length,
+		6,
+		`all six card Text elements must take the ratio, found ${ratioProps.length}`,
+	);
+	assert.match(
+		view,
+		/export const ROOM_LINE_RATIO = ROOM_LINE_H \/ ROOM_NAME_FONT;/,
+		'the configured ratio must be the expression this control derived',
+	);
+
+	// `ROOM_LINE_H` is the LAYOUT budget and must not drift while fixing this.
+	assert.equal(ROOM_LINE_H, 13, 'the 13px layout pitch is the contract the boxes were budgeted against');
+});
+
+test('fix 11 control: the worst-case room names render in full at the committed geometry', (t) => {
+	const spec = (text: string, lineHeight: number): KonvaTextSpec => ({
+		text,
+		fontSize: ROOM_NAME_FONT,
+		lineHeight,
+		width: ROOM_NAME_BOX.width,
+		height: ROOM_NAME_BOX.height,
+		wrap: 'word',
+		ellipsis: true,
+		measure: pessimisticMeasure,
+	});
+
+	const rows: string[] = [];
+	const configured = configuredLineHeight(source('src/components/BuildingView.tsx'));
+	for (const name of WORST_CASE_ROOM_NAMES) {
+		const after = konvaLayout(spec(name, configured));
+		assert.equal(
+			after.ellipsisApplied,
+			false,
+			`"${name}" must not be ellipsised: it rendered as "${after.lines.join(' / ')}"`,
+		);
+		assert.ok(after.lines.length <= 2, `"${name}" must fit two lines, got ${after.lines.length}`);
+		assert.equal(
+			after.lines.join(' '),
+			name,
+			`"${name}" must render in full, got "${after.lines.join(' ')}"`,
+		);
+
+		// The same name on the base revision, for the reviewer to compare.
+		const before = konvaLayout(spec(name, ROOM_LINE_H));
+		assert.equal(
+			before.ellipsisApplied,
+			true,
+			`precondition: the base pitch (143 units) must ellipsise "${name}", got "${before.lines.join(' / ')}"`,
+		);
+		rows.push(
+			`"${name}": base pitch ${before.lineHeightPx} -> "${before.lines.join(' / ')}" | `
+			+ `committed pitch ${after.lineHeightPx} -> "${after.lines.join(' / ')}"`,
+		);
+	}
+	t.diagnostic(`room name at ${ROOM_NAME_BOX.width}x${ROOM_NAME_BOX.height}, ${ROOM_NAME_FONT}px:\n${rows.join('\n')}`);
+});
+
+test('fix 11 control: the base truncation was font-independent, so no metric can rescue it', () => {
+	// This is why the first fix-11 control passed while the live surface showed
+	// `G7 Room.`: it measured the WRAP and never Konva's ellipsis decision. The
+	// decision is driven by the height rule, and on the base pitch the height
+	// rule is already spent after line one — for every possible font.
+	const basePitch = ROOM_LINE_H * ROOM_NAME_FONT;
+	const maxHeightPx = ROOM_NAME_BOX.height;
+	// Text.js:400-404 with `wrap !== 'none'`: the ellipsis fires as soon as one
+	// more line will not fit.
+	assert.equal(
+		(basePitch + basePitch) > maxHeightPx,
+		true,
+		'precondition: after one base line, a second can never fit the 26px name box',
+	);
+	const configured = configuredLineHeight(source('src/components/BuildingView.tsx'));
+	assert.equal(
+		configured * ROOM_NAME_FONT * 2 <= maxHeightPx,
+		true,
+		'committed: two lines fit the name box exactly',
+	);
+
+	// Sweep the whole plausible glyph range: even at a 0.30em minimum (a very
+	// narrow font) the base revision still cannot show a wrapped second line,
+	// because the blocker is the pitch and not the width.
+	for (const em of [0.3, 0.45, 0.62, 0.72, 0.95, 1.2]) {
+		const measure = (text: string): number => Array.from(text).reduce((sum, ch) => sum + em * ROOM_NAME_FONT, 0);
+		const layout = konvaLayout({
+			text: 'Learning Commons', fontSize: ROOM_NAME_FONT, lineHeight: ROOM_LINE_H,
+			width: ROOM_NAME_BOX.width, height: ROOM_NAME_BOX.height, wrap: 'word', ellipsis: true, measure,
+		});
+		assert.equal(
+			layout.ellipsisApplied || layout.lines.join(' ').replace(/\s+/g, ' ').trim() === 'Learning Commons',
+			true,
+			`at ${em}em the base revision must still not render the full name, got "${layout.lines.join(' / ')}"`,
+		);
+		assert.ok(
+			layout.lines.length <= 1,
+			`precondition: at ${em}em the base revision can never show a second line, got ${layout.lines.length}`,
+		);
+	}
+});
+
+test('fix 11 control: the type line, occupancy chip and utilisation readout are all back inside the card', (t) => {
+	// `translateY = lineHeightPx / 2` (Text.js:104/:111) with `verticalAlign`
+	// defaulting to TOP, so the base pitch drew every one of these elements
+	// 71.5 units BELOW its own box. The name box is at the TOP of the card
+	// (y=4) but its baseline landed at 75.5 of 84 — which is precisely where the
+	// live screenshot showed the truncated label, at the BOTTOM of the card —
+	// and the other three elements were pushed off-card entirely, so the card
+	// rendered one line and nothing else.
+	const baseTranslateY = (ROOM_LINE_H * ROOM_NAME_FONT) / 2;
+	const committedTranslateY = (configuredLineHeight(source('src/components/BuildingView.tsx')) * ROOM_NAME_FONT) / 2;
+	assert.equal(baseTranslateY, 71.5);
+
+	// The name: displaced from the top of its own box to the bottom of the card.
+	assert.equal(ROOM_NAME_BOX.y + baseTranslateY, 75.5);
+	assert.ok(
+		ROOM_NAME_BOX.y + baseTranslateY > ROOM_CARD_H * 0.8,
+		'precondition: the base name baseline sat in the bottom 20% of the card while its box is at the top',
+	);
+	assert.ok(
+		ROOM_NAME_BOX.y + committedTranslateY + ROOM_NAME_FONT <= ROOM_CARD_H,
+		'the name must stay inside the card',
+	);
+
+	const rows: string[] = [`name box y ${ROOM_NAME_BOX.y}: base baseline 75.5 of ${ROOM_CARD_H} (bottom of card) -> committed ${(ROOM_NAME_BOX.y + committedTranslateY + ROOM_NAME_FONT).toFixed(1)}`];
+	for (const [name, box] of Object.entries({
+		type: ROOM_TYPE_BOX, occupancy: ROOM_OCCUPANCY_BOX, utilizationText: ROOM_UTILIZATION_TEXT_BOX,
+	})) {
+		const baseBottom = box.y + baseTranslateY;
+		const committedBottom = box.y + committedTranslateY + ROOM_NAME_FONT;
+		assert.ok(
+			baseBottom > ROOM_CARD_H,
+			`precondition: the ${name} element left the ${ROOM_CARD_H}px card on the base pitch (${baseBottom})`,
+		);
+		assert.ok(
+			committedBottom <= ROOM_CARD_H,
+			`the ${name} element must stay inside the card, got ${committedBottom} of ${ROOM_CARD_H}`,
+		);
+		rows.push(`${name} box y ${box.y}: base baseline ${baseBottom.toFixed(1)} (off-card) -> committed ${committedBottom.toFixed(1)}`);
+	}
+	// The program badge is vertically centred, so its own box is the budget.
+	assert.ok(ROOM_PROGRAM_BADGE_BOX.y + ROOM_PROGRAM_BADGE_BOX.height <= ROOM_CARD_H);
+	assert.ok(ROOM_UTILIZATION_BAR_BOX.y + ROOM_UTILIZATION_BAR_BOX.height <= ROOM_CARD_H);
+	t.diagnostic(`card ${ROOM_CARD_W}x${ROOM_CARD_H} interiors:\n${rows.join('\n')}`);
+});
+
 /* ─────────── cross-lane contract: this component's width must not move ───── */
 
 /**

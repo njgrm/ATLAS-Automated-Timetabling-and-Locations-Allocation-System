@@ -1029,4 +1029,11 @@ test('F26-2 the Review teachers control is desktop-only and opens the modal', ()
 	assert.match(review.getAttribute('class') ?? '', /lg:inline-flex/);
 	assert.match(review.getAttribute('class') ?? '', /hidden/, 'it must not appear on mobile');
 	assert.match(review.textContent ?? '', /Review teachers/);
+	// SUPERSEDED IN BEHAVIOUR, retained as evidence (AGENTS.md §16: corrections are
+	// additive, never subtractive). This control is SHAPE-ONLY — it renders the
+	// one control that already worked, with a STUB `onOpenReview`, and never
+	// clicks it. That is precisely how the dead Next Step banner shipped: the
+	// page's second control, carrying the identical `Review teachers` label, was
+	// never exercised by any test. C2-1 below renders BOTH controls in one tree,
+	// binds the PRODUCTION opener to both, clicks each, and requires a dialog.
 });
