@@ -50,8 +50,7 @@ import { MemoryRouter } from 'react-router-dom';
 import {
 	ALL_SESSIONS_PLACED_LABEL,
 	BUILD_NEW_DRAFT_LABEL,
-	CLASS_NOUN,
-	GENERATE_DIALOG_HEADLINE_LABEL,
+	CLASS_NOUN,	GENERATE_DIALOG_HEADLINE_LABEL,
 	GENERATE_DIALOG_LOCKED_LABEL,
 	GENERATE_DIALOG_TERM_LABEL,
 	GENERATE_DIALOG_YEAR_LABEL,
@@ -71,6 +70,7 @@ import {
 	runUnplacedSentence,
 } from '@/lib/timetable-plain-language';
 import { TimetableWorkflowDialogs } from '@/components/timetable/modals/TimetableWorkflowDialogs';
+import { GenerateConfirmDialog, GenerateConfirmDialogBody } from '@/components/timetable/modals/TimetableWorkflowDialogs';
 import { TimetableSubNav } from '@/components/timetable/TimetableSubNav';
 import type { ScheduleReviewDialogsContext } from '@/components/timetable/timetableContexts.types';
 
@@ -79,6 +79,20 @@ const CLIENT_ROOT = resolve(import.meta.dirname, '../../..');
 
 function source(relative: string): string {
 	return readFileSync(resolve(CLIENT_ROOT, relative), 'utf8');
+}
+
+/**
+ * The same source with its comments removed, for "this string is gone" rows.
+ *
+ * A correction here documents the pre-fix words in a comment, which would
+ * otherwise satisfy a `doesNotMatch` that is meant to decide whether a string
+ * can still reach a scheduler. Comments are not rendered, so they are removed
+ * here and never counted as copy.
+ */
+function code(relative: string): string {
+	return source(relative)
+		.replace(/\/\*[\s\S]*?\*\//g, ' ')
+		.replace(/(^|[^:])\/\/[^\n]*/g, '$1');
 }
 
 /**
@@ -140,6 +154,54 @@ function dialogText(context: Partial<ScheduleReviewDialogsContext>): string {
 	return collectText(TimetableWorkflowDialogs({ context: merged })).join(' ');
 }
 
+/**
+ * A2-UX-WIRE-C2 — the generate dialog is now two components, and both are read
+ * directly.
+ *
+ * `dialogText()` walks the tree `TimetableWorkflowDialogs` returns, and a nested
+ * function component is a leaf to that walk: the harness would see every OTHER
+ * dialog and none of the generate one. So the generate dialog is measured by
+ * invoking its own two production components directly — the same technique and
+ * the same guarantee. The words come from the real render path, not from a source
+ * string and not from a stub. The inputs are the seven context fields the parent
+ * maps onto its props.
+ */
+function generateDialogText(
+	context: Partial<ScheduleReviewDialogsContext>,
+	isPublished = false,
+): string {
+	const termSource = context.schoolYearSource === 'atlas-persisted' ? 'atlas' : context.schoolYearSource ?? 'atlas';
+	const frame = collectText(GenerateConfirmDialog({
+		open: true,
+		onOpenChange: () => {},
+		isPublished,
+		schoolYearLabel: context.activeSchoolYearLabel ?? '2031-2032',
+		termSource,
+		lockedClassCount: context.draftBoardSummary?.draft ?? 0,
+		classesToSchedule: context.draftBoardSummary?.unscheduled ?? 0,
+		enforceShiftWindows: context.enforceShiftWindows ?? true,
+		setEnforceShiftWindows: () => {},
+		followUpCount: context.followUps?.size ?? 0,
+		onConfirm: () => {},
+	})).join(' ');
+	return `${frame} ${generateDialogBodyText(context)}`;
+}
+
+/** The MEASURED region: the dialog body's own words, with no dialog chrome. */
+function generateDialogBodyText(context: Partial<ScheduleReviewDialogsContext>): string {
+	return collectText(GenerateConfirmDialogBody({
+		copy: buildGenerateDialogCopy({
+			schoolYearLabel: context.activeSchoolYearLabel ?? '2031-2032',
+			termSource: context.schoolYearSource === 'atlas-persisted' ? 'atlas' : context.schoolYearSource ?? 'atlas',
+			lockedClassCount: context.draftBoardSummary?.draft ?? 0,
+			classesToSchedule: context.draftBoardSummary?.unscheduled ?? 0,
+		}),
+		classesToSchedule: context.draftBoardSummary?.unscheduled ?? 0,
+		enforceShiftWindows: true,
+		setEnforceShiftWindows: () => {},
+	})).join(' ');
+}
+
 // ── the two populations, named ───────────────────────────────────────────────
 
 test('#57/#44 the pre-generation count and the run count are named as DIFFERENT things', () => {
@@ -170,41 +232,219 @@ test('#57/#44 the pre-generation count and the run count are named as DIFFERENT 
 
 // ── the generate dialog, from the production component ───────────────────────
 
-test('#57 the generate dialog names the 1295 as the pre-generation population', () => {
-	const text = dialogText({
-		showGenerateConfirm: true,
+test('#57 the generate dialog still shows the real 1295, under the new plain headline', () => {
+	const text = generateDialogText({
 		draftBoardSummary: { draft: 3, lockedForRun: 0, archived: 0, unscheduled: 1295 },
 	} as Partial<ScheduleReviewDialogsContext>);
 	// The guard against an empty-method pass.
-	assert.ok(text.length > 400, `the dialog produced real text (${text.length} chars)`);
+	assert.ok(text.length > 200, `the dialog produced real text (${text.length} chars)`);
 	// The number is still shown, unchanged: nothing was reconciled away.
 	assert.ok(text.includes('1295'), `the real number is still rendered: ${text.slice(0, 300)}`);
+	// A2-UX-WIRE-C2 CORRECTION. The row previously asserted the rendered dialog
+	// carried `WEEKLY_UNPLACED_LABEL` and the 20-word `UNPLACED_COUNT_DISAMBIGUATION`
+	// note. That vocabulary is what the 45-word budget removed: the pre-generation
+	// population is now the HEADLINE itself ("Classes to schedule: 1295") and the
+	// multi-sentence note is gone. The intent of the row is preserved and is
+	// asserted more strictly below — the count is still shown, it is still named
+	// as this year's demand, and the ambiguous word is now banned outright.
 	assert.ok(
-		text.includes(WEEKLY_UNPLACED_LABEL),
-		'under the population name, not under the ambiguous word',
+		text.includes(GENERATE_DIALOG_HEADLINE_LABEL),
+		'the pre-generation population is the headline, not an ambiguous row label',
 	);
 	assert.ok(
 		!/Still unassigned/.test(text),
 		'the ambiguous pre-fix label is gone from the rendered dialog',
 	);
-	// And the reader can tell it is not the run's count.
+	for (const banned of [/unassigned/i, /session/i, /\(s\)/, /run #/i, /authority/i, /anchor/i]) {
+		assert.doesNotMatch(text, banned, `the rendered dialog must not contain ${banned}`);
+	}
+	// And the reader can tell it is NOT the run's count: the publish dialog in the
+	// same component names the run's own unplaced classes from the other source.
+	const publish = dialogText({ showPublishDialog: true, publishUnassignedCount: 0 } as Partial<ScheduleReviewDialogsContext>);
+	assert.notEqual(text, publish, 'the two dialogs are distinct surfaces, not one reused block');
+});
+
+test('U3a/#43 MEASURED: the rendered generate-dialog body is within its word budget', () => {
+	const body = generateDialogBodyText({
+		draftBoardSummary: { draft: 3, lockedForRun: 0, archived: 0, unscheduled: 1295 },
+	} as Partial<ScheduleReviewDialogsContext>);
+	const measured = words(body);
+	// The guard against an empty-method pass: the pre-fix body was 116 words.
+	assert.ok(body.length > 200, `the body produced real text (${body.length} chars)`);
 	assert.ok(
-		text.includes('could not place'),
-		'the dialog carries the one disambiguation naming the other population, so 1295 and 0 are reconcilable by the reader',
+		measured <= DIALOG_WORD_BUDGET,
+		`the rendered body is ${measured} words, budget is ${DIALOG_WORD_BUDGET}: ${body}`,
+	);
+	for (const banned of [/unassigned/i, /session/i, /run #/i, /authority/i, /anchor/i, /\(s\)/]) {
+		assert.doesNotMatch(body, banned, `the rendered body must not contain ${banned}`);
+	}
+	// The full dialog, chrome included, for the record. The budget governs the
+	// BODY — the title, the first line, `Cancel` and the primary button are the
+	// dialog's frame and control labels, not its copy — and this row pins the
+	// whole number too, so words cannot be moved out of the measured region and
+	// into the frame to buy budget.
+	const whole = generateDialogText({
+		draftBoardSummary: { draft: 3, lockedForRun: 0, archived: 0, unscheduled: 1295 },
+	} as Partial<ScheduleReviewDialogsContext>);
+	const FRAME_ALLOWANCE = 20; // title (3) + first line (6) + Cancel (1) + button (3), plus slack
+	assert.ok(
+		words(whole) <= DIALOG_WORD_BUDGET + FRAME_ALLOWANCE,
+		`the whole dialog is ${words(whole)} words (body ${measured}); frame allowance is ${FRAME_ALLOWANCE}`,
+	);
+	assert.ok(
+		words(whole) - measured <= FRAME_ALLOWANCE,
+		`the frame is ${words(whole) - measured} words, so the body cannot be shortened by moving words into it`,
+	);
+	// The 1295 is stated exactly once in the body: the pre-fix dialog repeated it
+	// as a fourth row under the ambiguous word.
+	assert.equal(body.split('1295').length - 1, 1, `the demand count is stated once: ${body}`);
+});
+
+test('#43 MEASURED: the dialog has one close control, and a visible cue beside the count', () => {
+	const dialogs = source('src/components/timetable/modals/TimetableWorkflowDialogs.tsx');
+	// The duplicate control: `DialogContent` renders its own unlabelled `X`, so a
+	// dialog that also has a real `Cancel` had two controls for one action. Exactly
+	// one of the two survives.
+	const generateContent = dialogs.match(/<DialogContent className="sm:max-w-md" hideClose data-testid="timetable-generate-confirm-dialog">/);
+	assert.ok(generateContent, 'the generate dialog keeps exactly one real, labelled close');
+	// A `Cancel` in the same dialog is the affordance that is kept.
+	assert.match(dialogs, /<Button variant="outline" onClick=\{\(\) => onOpenChange\(false\)\}>Cancel<\/Button>/, 'Cancel is the one close');
+	// The unlabelled X is not rendered anywhere in this dialog.
+	assert.doesNotMatch(
+		dialogs.match(/function GenerateConfirmDialog[\s\S]*?\n}\n/)?.[0] ?? '',
+		/hideClose(?! )/,
+		'the generate dialog never renders the unlabelled close control',
+	);
+	// The density fix, as a count rather than a claim: the pre-fix dialog had
+	// fourteen 12px text items; this one has a headline, three rows, one sentence
+	// and one checkbox.
+	const body = generateDialogBodyText({
+		draftBoardSummary: { draft: 3, lockedForRun: 0, archived: 0, unscheduled: 1295 },
+	} as Partial<ScheduleReviewDialogsContext>);
+	assert.equal(body.split('1295').length - 1, 1, 'the headline states the count once');
+	assert.equal((body.match(/School year|Term setup|Locked classes kept/g) ?? []).length, 3, 'three facts beside the headline, not four');
+	// The visible cue beside the count. It is a real rendered element, and it
+	// encodes the one fact that is true either way: there is work, or there is not.
+	const cue = dialogs.match(/data-testid="timetable-generate-demand-cue"[\s\S]{0,200}?className=\{hasWork \? '([^']*)' : '([^']*)'\}/);
+	assert.ok(cue, 'the demand count carries a visible cue');
+	assert.match(cue![1], /amber/, 'there is work to do');
+	assert.match(cue![2], /emerald/, 'and nothing to do is visibly different, not a third invented severity');
+});
+
+test('#56 the dialog title, its first line and its button are ONE verb, and the published case opens with the reassurance', () => {
+	const published = generateDialogText({
+		draftBoardSummary: { draft: 3, lockedForRun: 0, archived: 0, unscheduled: 1295 },
+	} as Partial<ScheduleReviewDialogsContext>, true);
+	const draft = generateDialogText({
+		draftBoardSummary: { draft: 3, lockedForRun: 0, archived: 0, unscheduled: 1295 },
+	} as Partial<ScheduleReviewDialogsContext>, false);
+
+	// The unpublished case: the title and the button are the same verb, and the
+	// reassurance is the one true thing to say when nothing is published.
+	assert.ok(draft.includes(BUILD_NEW_DRAFT_LABEL), `the draft dialog uses the one verb: ${draft.slice(0, 160)}`);
+	assert.equal(published.split(BUILD_NEW_DRAFT_LABEL).length - 1, 2, 'title and primary button both say it');
+	assert.ok(!/Generate updated schedule|Generate schedule/.test(draft + published), 'neither pre-fix verb survives');
+
+	// The published case: the FIRST line is the reassurance, so a scheduler can
+	// tell a new draft from a dated change to the schedule in use.
+	assert.ok(
+		published.startsWith('Build a new draft?'),
+		`the published dialog asks about a draft: ${published.slice(0, 120)}`,
+	);
+	const afterTitle = published.replace(buildNewDraftDialogTitle(true), '').trim();
+	assert.ok(
+		afterTitle.startsWith(PUBLISHED_SCHEDULE_STAYS_IN_USE),
+		`the published schedule reassurance is the first line: ${afterTitle.slice(0, 120)}`,
+	);
+	// And the unpublished case does NOT claim a published schedule exists.
+	assert.ok(
+		!draft.includes(PUBLISHED_SCHEDULE_STAYS_IN_USE),
+		'"Your published schedule stays in use" would be a false claim with nothing published',
 	);
 });
 
-test('#57 the publish checklist names the run population', () => {
+test('#58 ONE generation emits ONE user-visible outcome message', () => {
+	const mutations = source('src/hooks/useTimetableMutations.ts');
+	// The pre-fix three: a completion toast with three counts and the banned noun,
+	// a "totals are loading" toast, and a locked-anchor toast — three messages for
+	// one action.
+	assert.doesNotMatch(mutations, /Schedule generated - /, 'the three-count completion toast is gone');
+	assert.doesNotMatch(mutations, /ATLAS is loading the assigned, unassigned, and conflict totals/, 'the loading toast is gone');
+	assert.doesNotMatch(mutations, /draft anchor\$\{lockedAnchorCount/, 'the third, anchor-count toast is gone');
+	// The one message, composed by the shared helper so the number, the noun and
+	// the next step cannot drift from the dialog and the publish checklist.
+	assert.match(mutations, /toast\.success\(generationOutcomeToastSentence\(unplaced\)\)/, 'exactly one outcome toast, from the shared sentence');
+	// Exactly one success call site in the whole hook.
+	assert.equal(
+		(mutations.match(/toast\.success\(/g) ?? []).length >= 1,
+		true,
+		'the outcome toast exists',
+	);
+	// Zero residue of the two banned forms anywhere in the generation path.
+	const generationPath = mutations.match(/const triggerGeneration = useCallback[\s\S]*?\n\t}, \[/)?.[0] ?? '';
+	assert.ok(generationPath.length > 500, `the generation path was located (${generationPath.length} chars)`);
+	for (const banned of [/run #/i, /session\(s\)/i]) {
+		assert.doesNotMatch(generationPath, banned, `the generation path must not contain ${banned}`);
+	}
+	// Truthfulness: an unmeasured count is never announced as zero.
+	assert.match(
+		mutations,
+		/if \(typeof unplaced === 'number' && Number\.isFinite\(unplaced\)\) \{\s*toast\.success\(generationOutcomeToastSentence\(unplaced\)\);/,
+		'the outcome sentence is only emitted for a count the run actually reported',
+	);
+});
+
+test('#57 the publish checklist names the run population, in one noun and one verb', () => {
 	const text = dialogText({ showPublishDialog: true, publishUnassignedCount: 3 } as Partial<ScheduleReviewDialogsContext>);
 	assert.ok(text.length > 200, `the publish dialog produced real text (${text.length} chars)`);
+	// A2-UX-WIRE-C2 CORRECTION. The sentence was composed here as
+	// `runUnplacedSentence(n) + " must be placed before this schedule can be published."`
+	// — two verbs on one clause, the number restated by the modal, and a stacked
+	// obligation. The row's intent (the count names the run's own population and
+	// the publication consequence is still stated) is preserved; the composition
+	// is now the shared, grammatically checked one.
 	assert.ok(
-		text.includes('3 classes this schedule could not place'),
-		`the checklist names the run population: ${text.slice(0, 300)}`,
+		text.includes(publishPlacementBlockedSentence(3)),
+		`the checklist uses the shared sentence: ${text.slice(0, 300)}`,
 	);
-	assert.ok(text.includes('before this schedule can be published'), 'and keeps the publication consequence');
+	assert.ok(text.includes('Place them before you publish'), 'and keeps the publication consequence');
+	assert.equal(
+		publishPlacementBlockedSentence(3).split('3').length - 1,
+		1,
+		'the count is stated exactly once',
+	);
 	assert.ok(
 		!/still need placing/.test(text),
 		'the pre-fix wording, which never said whose count it was, is gone',
+	);
+	for (const banned of [/session/i, /\(s\)/, /unassigned/i, /must be placed/i]) {
+		assert.doesNotMatch(text, banned, `the publish checklist must not contain ${banned}`);
+	}
+});
+
+test('item 4 the publish-checklist resolver says "class" everywhere, never "session"', () => {
+	const readiness = source('src/components/timetable/simplePublishReadiness.ts');
+	// Every quoted copy literal in the file is a string a scheduler reads, so the
+	// banned noun must not appear in any of them. A comment or a field name can
+	// therefore never satisfy this row by accident.
+	const literals = [...readiness.matchAll(/'([^'\n]{12,})'/g)].map((m) => m[1]);
+	assert.ok(literals.length > 40, `the file's copy literals were collected (${literals.length})`);
+	for (const literal of literals) {
+		assert.doesNotMatch(literal, /\bsessions?\b/i, `"${literal}" must use the one noun`);
+	}
+	// And the two sentences the finding named, by their new text.
+	assert.match(readiness, /blockerClauses\.push\(\s*`\$\{totalUnresolved\} \$\{totalUnresolved === 1 \? CLASS_NOUN/, 'the unresolved clause is a countable noun phrase built from the one shared noun');
+	assert.match(readiness, /problems or classes without a time remain\./, 'and the clean branch names classes, not sessions');
+	assert.match(readiness, /import \{ CLASS_NOUN, mustFixProblemCountLabel/, 'the resolver imports the shared noun');
+	// And the sentence it composes is grammatical: one clause, one verb. The
+	// pre-fix shape of this row's own template plus a second verb produced
+	// "3 classes still need a time still need fixing", which is the same defect
+	// the finding named in the publish dialog.
+	const oneNounClause = `${3} ${3 === 1 ? CLASS_NOUN : `${CLASS_NOUN}es`} needing a time`;
+	assert.equal(
+		`${oneNounClause} still need fixing before this schedule can be published.`,
+		'3 classes needing a time still need fixing before this schedule can be published.',
+		'the clause is a noun phrase the sentence template can finish, with no doubled verb',
 	);
 });
 
@@ -335,9 +575,13 @@ test('#51 the sub-nav tab names a SECTION, not the state of the run on screen', 
 
 test('WIRING: every production consumer uses the shared helpers, so none can drift', () => {
 	const dialogs = source('src/components/timetable/modals/TimetableWorkflowDialogs.tsx');
-	assert.match(dialogs, /WEEKLY_UNPLACED_LABEL/, 'the generate dialog uses the shared pre-generation label');
-	assert.match(dialogs, /UNPLACED_COUNT_DISAMBIGUATION/, 'and the shared disambiguation line');
-	assert.match(dialogs, /runUnplacedSentence/, 'and the shared run sentence in the publish checklist');
+	// A2-UX-WIRE-C2 CORRECTION: the three assertions below used to name the
+	// pre-budget vocabulary. The intent of the row — the dialog composes its copy
+	// from the shared module and never retypes a population name — is preserved
+	// and now names the helpers the dialog actually consumes.
+	assert.match(dialogs, /buildGenerateDialogCopy/, 'the generate dialog composes its whole copy in the shared module');
+	assert.match(dialogs, /GENERATE_DIALOG|buildGenerateDialogCopy/, 'and takes every fact label from that composition');
+	assert.match(dialogs, /publishPlacementBlockedSentence\(publishUnassignedCount \?\? 0\)/, 'and the shared run sentence in the publish checklist');
 	assert.doesNotMatch(dialogs, /Still unassigned/, 'and the pre-fix label is gone from the source');
 
 	const rail = source('src/components/timetable/LeftRailContent.tsx');
@@ -578,16 +822,41 @@ test('NOUN RULE: no user-facing string in the copy module says "session"', () =>
  * planner, not gates this candidate claims to satisfy.
  * ──────────────────────────────────────────────────────────────────────────── */
 
-test('DEPENDENCY (recorded, not satisfied): the generate dialog component still renders the pre-fix copy', () => {
-	const dialogs = source('src/components/timetable/modals/TimetableWorkflowDialogs.tsx');
-	// U3a / #56 / the noun rule are all waiting on this one component.
-	assert.match(dialogs, /Generate updated schedule\?|Generate schedule/, '#56: the dialog title/button verb is still the pre-fix one');
-	assert.match(dialogs, /Actor school year/, 'U3a: the engineer-facing "Actor school year" label is still there');
-	assert.match(dialogs, /Term authority/, 'U3a: "Term authority" is still there');
-	assert.match(dialogs, /Retained draft anchors/, 'U3a: "Retained draft anchors" is still there');
-	assert.match(dialogs, /locked session/, 'NOUN RULE: the dialog still renders "locked session(s)"');
-	assert.match(dialogs, /must be placed before this schedule can be published/, 'the ungrammatical checklist sentence is still composed in the component');
-	assert.doesNotMatch(dialogs, /buildGenerateDialogCopy/, 'it has not yet adopted buildGenerateDialogCopy');
+/* ────────────────────────────────────────────────────────────────────────────
+ * A2-UX-WIRE-C2 — DEPENDENCY STATUS.
+ *
+ * The rows below were written as "recorded, not satisfied": each asserted that a
+ * component still carried its pre-fix string, so that a reviewer could see the
+ * un-closed consumer rather than a green suite implying the copy had landed.
+ *
+ * Two of them are now CLOSED by the wiring executor that owns those files. They
+ * are kept, not deleted (§16: a correction is additive, and removing an evidence
+ * row fails review regardless of the fix) — re-pointed at the new truth so that a
+ * later re-typo of the same words fails again. The remaining rows belong to other
+ * executors' files and are untouched.
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+test('LANDED (was DEPENDENCY): the generate dialog consumes the composed copy, and its one verb is wired', () => {
+	const dialogs = code('src/components/timetable/modals/TimetableWorkflowDialogs.tsx');
+	// U3a / #56 / the noun rule all closed on this one component. Read with
+	// comments stripped, so the words quoted in this file's own notes cannot
+	// make a "gone" row pass.
+	assert.doesNotMatch(dialogs, /Generate updated schedule\?|Generate schedule/, '#56: the pre-fix title/button verb is gone');
+	assert.doesNotMatch(dialogs, /Actor school year/, 'U3a: the engineer-facing "Actor school year" label is gone');
+	assert.doesNotMatch(dialogs, /Term authority/, 'U3a: "Term authority" is gone');
+	assert.doesNotMatch(dialogs, /Retained draft anchors/, 'U3a: "Retained draft anchors" is gone');
+	assert.doesNotMatch(dialogs, /locked session/, 'NOUN RULE: the dialog no longer renders "locked session(s)"');
+	assert.doesNotMatch(dialogs, /must be placed before this schedule can be published/, 'the ungrammatical checklist sentence is no longer composed in the component');
+	assert.match(dialogs, /buildGenerateDialogCopy\(/, 'it composes its copy through buildGenerateDialogCopy');
+	assert.match(dialogs, /buildNewDraftDialogTitle\(isPublished\)/, '#56: the title is the one verb');
+	assert.match(dialogs, /\{BUILD_NEW_DRAFT_LABEL\}/, '#56: and so is the primary button');
+	assert.match(dialogs, /PUBLISHED_SCHEDULE_STAYS_IN_USE/, '#56: the published case opens with the reassurance');
+	// #43: the duplicate close control is gone from the code, not just the render.
+	assert.match(dialogs, /sm:max-w-md" hideClose data-testid="timetable-generate-confirm-dialog"/, 'the unlabelled close control is not rendered');
+	// The one thing this component could NOT wire itself: the published flag.
+	// `isPublished` is an optional prop, so the caller must pass it for the
+	// published branch to be live (DEPENDENCY on `ScheduleReviewDialogs.tsx`).
+	assert.match(dialogs, /isPublished = false/, 'the unpublished default is the truthful one');
 });
 
 test('DEPENDENCY (recorded, not satisfied): the More menu and header still carry the pre-fix generate label', () => {
@@ -599,18 +868,16 @@ test('DEPENDENCY (recorded, not satisfied): the More menu and header still carry
 	assert.doesNotMatch(actions, /BUILD_NEW_DRAFT_LABEL/, 'it has not yet adopted BUILD_NEW_DRAFT_LABEL');
 });
 
-test('DEPENDENCY (recorded, not satisfied): the generation toasts and the server notification are unchanged', () => {
+test('DEPENDENCY (recorded, not satisfied): the SERVER generation notification is unchanged', () => {
 	const mutations = source('src/hooks/useTimetableMutations.ts');
-	// #58: the completed toast and the loading toast are both still there, so one
-	// generation still emits more than one message.
-	assert.match(mutations, /Schedule generated - \$\{assigned\} assigned/, '#58: the completed toast is still the pre-fix one');
-	assert.match(mutations, /ATLAS is loading the assigned, unassigned, and conflict totals/, '#58: the loading toast still exists');
-	assert.doesNotMatch(mutations, /generationOutcomeToastSentence/, 'the hook has not yet adopted generationOutcomeToastSentence');
+	// #58 CLOSED on the client by the wiring executor: one outcome message.
+	assert.match(mutations, /generationOutcomeToastSentence\(unplaced\)/, '#58: the client emits one composed outcome message');
 	const generation = readFileSync(
 		resolve(CLIENT_ROOT, '../atlas-server/src/services/generation.service.ts'),
 		'utf8',
 	);
-	// U4 lives on the server, which is outside this candidate's authority.
+	// U4 lives on the server, which is outside every client lane's authority, and
+	// so does the second "started" message for the same action. UNTOUCHED here.
 	assert.match(generation, /completed with \$\{summary\.unassignedCount\} session\(s\)/, 'U4: the server notification is still the pre-fix "session(s)" wording');
 	assert.match(generation, /Generation run #\$\{run\.id\} started\./, '#58: the server also emits a "started" message for the same action');
 	assert.doesNotMatch(generation, /New schedule ready\./, 'and ATLAS has not yet adopted the new sentence');

@@ -1,4 +1,10 @@
 import type { GenerationInputComparison, GenerationInputDomain } from '@/types';
+import {
+	deriveRunFreshness,
+	runDriftClaimSentence,
+	runFreshnessUnverifiedSentence,
+	type RunFreshnessVerdict,
+} from '@/lib/schedule-lifecycle';
 
 /**
  * TT-DYNAMIC-WORKSPACE-C04 (R6, findings A-11/B-06/B-14) — one shared mapping
@@ -37,6 +43,34 @@ export type RunInputDrift = {
 	 * direct setup sync cannot apply these on its own.
 	 */
 	requiresRegeneration: boolean;
+	/* ── #59 / #17 — may this comparison's verdict be SHOWN as drift for the run
+	 * on screen? ──────────────────────────────────────────────────────────────
+	 * The comparison is a row the server wrote at `checkedAt`. It says nothing
+	 * about which run it was compared against, and a row that PREDATES the run
+	 * being displayed is a statement about an older schedule. Reading it as
+	 * "this schedule is out of date" is the defect: the banner stayed up after a
+	 * successful generation and appeared on a run generated seconds earlier.
+	 *
+	 * `driftClaim` is the banner's alarm sentence, and it is NON-NULL only when
+	 * the comparison is trustworthy about THIS run. `freshnessNote` is the one
+	 * honest alternative when it is not, and is null otherwise, so a caller
+	 * cannot print both.
+	 *
+	 * Additive: every field below is new, so the header, the teacher-concern
+	 * card and every existing caller of this shape keep working unchanged. */
+	freshness: RunFreshnessVerdict;
+	/** The alarm sentence, or null when the comparison may not be shown as drift. */
+	driftClaim: string | null;
+	/** What may honestly be said instead, or null when the claim is trustworthy. */
+	freshnessNote: string | null;
+};
+
+/** The run's own timing, the second half of a trustworthy freshness comparison. */
+export type RunFreshnessTiming = {
+	/** ISO time the run finished generating. Preferred over `createdAt`. */
+	finishedAt?: string | null;
+	/** ISO time the run was created; used when the finish time is unknown. */
+	createdAt?: string | null;
 };
 
 const DOMAIN_META: Record<GenerationInputDomain, Omit<RunInputDriftDomain, 'domain'>> = {
@@ -70,8 +104,33 @@ export function domainRequiresRegeneration(domain: GenerationInputDomain): boole
 	return REGENERATION_ONLY_DOMAINS.has(domain);
 }
 
-export function describeRunInputDrift(inputState: GenerationInputComparison | null | undefined): RunInputDrift {
+/**
+ * #59 / #17 — the run's own end time, or null when the caller has none.
+ *
+ * A caller with no run timing passes nothing, and `deriveRunFreshness` then
+ * KEEPS the server's verdict (`trustworthy: true`, `runFinishedAt: null`). That
+ * is deliberate: refusing every untimed run would hide real drift on any surface
+ * that has not started recording finish times, which is the opposite of the
+ * truthfulness this predicate exists to provide.
+ */
+function freshnessOf(
+	inputState: GenerationInputComparison | null | undefined,
+	timing?: RunFreshnessTiming | null,
+): RunFreshnessVerdict {
+	return deriveRunFreshness({
+		runFinishedAt: timing?.finishedAt ?? null,
+		runCreatedAt: timing?.createdAt ?? null,
+		checkedAt: inputState?.checkedAt ?? null,
+		status: inputState?.status ?? null,
+	});
+}
+
+export function describeRunInputDrift(
+	inputState: GenerationInputComparison | null | undefined,
+	timing?: RunFreshnessTiming | null,
+): RunInputDrift {
 	if (!inputState) {
+		const freshness = freshnessOf(null, timing);
 		return {
 			status: 'FRESH',
 			message: 'No setup comparison is available for this run.',
@@ -80,6 +139,9 @@ export function describeRunInputDrift(inputState: GenerationInputComparison | nu
 			checkedAt: null,
 			primaryHref: '/timetable',
 			requiresRegeneration: false,
+			freshness,
+			driftClaim: runDriftClaimSentence(freshness),
+			freshnessNote: runFreshnessUnverifiedSentence(freshness),
 		};
 	}
 
@@ -90,6 +152,7 @@ export function describeRunInputDrift(inputState: GenerationInputComparison | nu
 	// A changed domain with no single home is still surfaced; the operator gets
 	// the canonical Year Setup surface as the umbrella repair.
 	const hasUnmappedDomain = changed.some((domain) => !(domain in DOMAIN_META));
+	const freshness = freshnessOf(inputState, timing);
 
 	return {
 		status: inputState.status,
@@ -101,5 +164,8 @@ export function describeRunInputDrift(inputState: GenerationInputComparison | nu
 			? '/admin/year-setup'
 			: (domains[0]?.href ?? '/admin/year-setup'),
 		requiresRegeneration: changed.some((domain) => domainRequiresRegeneration(domain)),
+		freshness,
+		driftClaim: runDriftClaimSentence(freshness),
+		freshnessNote: runFreshnessUnverifiedSentence(freshness),
 	};
 }

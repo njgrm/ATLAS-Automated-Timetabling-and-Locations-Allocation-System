@@ -53,7 +53,16 @@ function draftWithInputState(inputState: GenerationInputComparison): DraftReport
 		inputState,
 		version: 3,
 		finishedAt: null,
-		createdAt: '2031-01-01T00:00:00.000Z',
+		// A2-UX-WIRE-C2 (#59/#17): the run's own timestamp is corrected to the
+		// production shape. Every `inputState` fixture in this file is stamped
+		// `2026-09-13`, and a comparison the server writes FOR a run is stamped
+		// after that run exists — so the run cannot have been created in 2031, four
+		// years after the comparison that describes it. With that impossible
+		// ordering, `deriveRunFreshness` correctly refuses to read the comparison as
+		// a drift claim about this run, and the two rows that assert the
+		// regeneration affordance lose it. The pre-fix, impossible ordering is kept
+		// as a control in `timetable-drift-banner-390-a2.test.tsx`.
+		createdAt: '2026-09-12T00:00:00.000Z',
 	} as unknown as DraftReport;
 }
 

@@ -27,6 +27,8 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { MemoryRouter } from 'react-router-dom';
 
 import { SimpleDriftBanner } from '../simple/SimpleDriftBanner';
+import { describeRunInputDrift } from '../timetableDriftRouting';
+import { deriveRunFreshness, runDriftClaimSentence } from '../../../lib/schedule-lifecycle';
 import { deriveTimetableCapabilities } from '../../../lib/timetable-capabilities';
 import type { DraftReport, GenerationInputComparison } from '../../../types';
 
@@ -50,25 +52,47 @@ const READY_CAPABILITIES = deriveTimetableCapabilities({
 	requestPendingCount: 0,
 });
 
+/**
+ * A2-UX-WIRE-C2 — the fixture is corrected to the REAL wire shape.
+ *
+ * `GenerationInputComparison.checkedAt` is a required `string` on the wire
+ * (`src/types.ts`), and the comparison it describes is written by the server
+ * after the run it compares against exists. The pre-fix fixture set it to
+ * `null`, which is not a shape the server can send — and that invented shape is
+ * what made the banner's drift claim look trustworthy when it was not. The run's
+ * own end time is `2031-01-01T00:00:00.000Z` and the comparison is `T00:05`,
+ * five minutes AFTER the run finished: the honest, production-shaped case, and
+ * the one every layout assertion below is really about.
+ */
+const RUN_FINISHED_AT = '2031-01-01T00:00:00.000Z';
+const CHECKED_AFTER_RUN = '2031-01-01T00:05:00.000Z';
+
 const STALE_INPUT = {
 	status: 'STALE',
 	message: 'Rooms changed.',
 	actionHint: 'Review the rooms that changed.',
 	changedDomains: ['rooms', 'faculty'],
-	checkedAt: null,
+	checkedAt: CHECKED_AFTER_RUN,
 } as unknown as GenerationInputComparison;
 
-function staleDraft(changedDomains: string[] = ['rooms', 'faculty']): DraftReport {
+function staleDraft(
+	changedDomains: string[] = ['rooms', 'faculty'],
+	timing: { checkedAt?: string | null; finishedAt?: string | null } = {},
+): DraftReport {
 	return {
 		runId: 42,
 		status: 'COMPLETED',
 		entries: [],
 		unassignedItems: [],
 		summary: { hardViolationCount: 0, softViolationCount: 0, unassignedCount: 0 },
-		inputState: { ...STALE_INPUT, changedDomains } as unknown as GenerationInputComparison,
+		inputState: {
+			...STALE_INPUT,
+			changedDomains,
+			checkedAt: timing.checkedAt === undefined ? CHECKED_AFTER_RUN : timing.checkedAt,
+		} as unknown as GenerationInputComparison,
 		version: 3,
-		finishedAt: null,
-		createdAt: '2031-01-01T00:00:00.000Z',
+		finishedAt: timing.finishedAt === undefined ? RUN_FINISHED_AT : timing.finishedAt,
+		createdAt: RUN_FINISHED_AT,
 	} as unknown as DraftReport;
 }
 
@@ -220,7 +244,11 @@ test('A2-5 item 5: the regeneration guard is byte-for-byte the pre-change contra
 	assert.match(pane, /const handleRegenerate = \(\) => \{[\s\S]*if \(isPublished\) return;[\s\S]*if \(!regenerationEnabled\) return;[\s\S]*if \(activeGeneratedRunId == null\) return;[\s\S]*onRegenerate\?\.\(\);[\s\S]*\};/);
 	// The action is mounted only for a caller that can regenerate, on an
 	// unpublished run, with real drift to apply.
-	assert.match(pane, /const showRegenerateAction = Boolean\(onRegenerate\) && !isPublished && showRunDrift;/);
+	// A2-UX-WIRE-C2: the last term is new and load-bearing. "Regenerate to apply"
+	// applies a drift, and #59/#17 established that a comparison which predates
+	// the run on screen is not a drift claim about that run. The other three
+	// guards are byte-for-byte unchanged.
+	assert.match(pane, /const showRegenerateAction = Boolean\(onRegenerate\) && !isPublished && showRunDrift && driftClaimed;/);
 	// The disabled set is unchanged: in flight, loading, capability denied, or
 	// no run to regenerate.
 	assert.match(
@@ -240,4 +268,121 @@ test('A2-5 item 5: the regeneration guard is byte-for-byte the pre-change contra
 	assert.match(pane, /onClick=\{\(\) => setShowRegenerateImpact\(true\)\}/);
 	// And the preservation note the operator relies on is still there.
 	assert.match(pane, /data-testid="timetable-simple-regenerate-preservation-note"/);
+});
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * A2-UX-WIRE-C2 — #59 / #17, the truthfulness half.
+ *
+ * The recorded defect: "Schedule information changed. Regenerate to apply" stayed
+ * up after a successful generation, and appeared on a run generated seconds
+ * earlier. The banner read the server's freshness row on its own, and that row
+ * says nothing about WHICH run it was compared against — so a comparison written
+ * before this run finished was read as a claim about this run.
+ *
+ * These rows are behavioural (rendered markup from the real component) and each
+ * carries a failing-first mutant, so they cannot rot into tautologies.
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+test('#59/#17 the drift claim is shown only when the comparison is trustworthy about THIS run', () => {
+	// 1. The comparison AFTER the run finished: the claim is earned, and the
+	//    whole existing surface — alarm styling, message, repair links and the
+	//    regeneration affordance — is present.
+	const claimed = renderBanner();
+	assert.match(claimed, /data-drift-claimable="true"/, 'a comparison later than the run may be shown as drift');
+	assert.match(claimed, /Schedule information changed/, 'and the alarm title is rendered');
+	assert.match(claimed, /data-testid="timetable-simple-regenerate-to-apply"/, 'and the regeneration affordance is mounted');
+
+	// 2. The defect itself: the comparison was written BEFORE this run finished,
+	//    so it describes an older schedule. The run on screen is fresh.
+	const fresh = renderBanner({ draft: staleDraft(['rooms'], { checkedAt: '2030-12-31T23:59:00.000Z' }) });
+	assert.match(fresh, /data-drift-status="STALE"/, "the server's own verdict is still reported verbatim");
+	assert.match(fresh, /data-drift-claimable="false"/, 'but it may not be shown as a drift claim about this run');
+	assert.doesNotMatch(fresh, /Schedule information changed/, 'the alarm title is not shown on a run generated seconds ago');
+	assert.doesNotMatch(fresh, /Regenerate to apply/, 'and there is nothing to apply, so the affordance is not offered');
+	// The claim is suppressed; the DRIFT IS NOT. The changed domain, its repair
+	// control and one honest sentence all still render, because "not proven" is
+	// not "nothing is wrong".
+	assert.match(fresh, /data-testid="timetable-simple-repair-rooms"/, 'the changed domain is still surfaced');
+	assert.match(fresh, /data-testid="timetable-simple-review-draft-changes"/, 'and so is the review control');
+	assert.match(
+		fresh,
+		/ATLAS has not re-checked this schedule against your latest setup data\./,
+		'and the one sentence that may honestly be said is said',
+	);
+	// Amber is reserved for a claim ATLAS can back.
+	assert.doesNotMatch(classListOf(fresh, 'timetable-simple-input-drift'), /amber/, 'an unproven comparison wears no alarm styling');
+});
+
+test('#59/#17 a run with NO comparable timing is not failed, and real drift is not hidden', () => {
+	// No finish time at all: the comparison cannot be tied to the run, but the
+	// server's STALE verdict may still be true, so it is KEPT rather than
+	// refused. Refusing every untimed run would hide real drift.
+	const untimed = renderBanner({ draft: staleDraft(['rooms'], { finishedAt: null, checkedAt: null }) });
+	assert.match(untimed, /data-drift-status="STALE"/, 'the drift is still reported');
+	assert.match(untimed, /Rooms/, 'and the changed domain is still named');
+	assert.match(untimed, /data-testid="timetable-simple-repair-rooms"/, 'and its repair control is still mounted');
+	// A run whose comparison is later than it still gets the full claim, so the
+	// guard cannot be satisfied by suppressing everything.
+	const later = renderBanner();
+	assert.match(later, /data-drift-claimable="true"/, 'a timed, later comparison still yields the claim');
+});
+
+test('#59/#17 FAILING-FIRST: the pre-fix rule shows the claim on the run it must not', () => {
+	const RUN_END = RUN_FINISHED_AT;
+	const BEFORE_RUN = '2030-12-31T23:59:00.000Z';
+	// The pre-fix predicate, verbatim: the server's status and nothing else.
+	const preFixClaim = (status: string): string | null =>
+		status === 'STALE' ? 'Schedule information changed. Regenerate to apply' : null;
+	// The shipped predicate, through the production resolver.
+	const shipped = (checkedAt: string, finishedAt: string): string | null =>
+		runDriftClaimSentence(deriveRunFreshness({ status: 'STALE', checkedAt, runFinishedAt: finishedAt }));
+
+	// The pre-fix rule claims drift on a run generated AFTER the comparison —
+	// exactly the recorded defect.
+	assert.equal(
+		preFixClaim('STALE'),
+		'Schedule information changed. Regenerate to apply',
+		'the pre-fix rule ships the false claim on a fresh run',
+	);
+	// The shipped rule does not, and the rendered banner agrees.
+	assert.equal(shipped(BEFORE_RUN, RUN_END), null, 'the shipped rule refuses the comparison that predates the run');
+	assert.doesNotMatch(
+		renderBanner({ draft: staleDraft(['rooms'], { checkedAt: BEFORE_RUN }) }),
+		/Regenerate to apply/,
+		'and the rendered banner agrees with the predicate',
+	);
+	// It is not "refuse everything": the same rule still claims a real drift.
+	assert.equal(
+		shipped(CHECKED_AFTER_RUN, RUN_END),
+		'Schedule information changed. Regenerate to apply',
+		'the shipped rule still claims a drift the comparison can support',
+	);
+});
+
+test('#59/#17 the drift resolver exposes the verdict, and the unverified note is exclusive of the claim', () => {
+	const routing = source('src/components/timetable/timetableDriftRouting.ts');
+	assert.match(routing, /deriveRunFreshness\(/, 'the shared resolver times the comparison against the run');
+	assert.match(routing, /driftClaim: runDriftClaimSentence\(freshness\)/, 'the claim comes from the one predicate');
+	assert.match(routing, /freshnessNote: runFreshnessUnverifiedSentence\(freshness\)/, 'and so does the honest alternative');
+	// Mutually exclusive by construction, so no surface can print both.
+	for (const checkedAt of ['2030-12-31T23:59:00.000Z', CHECKED_AFTER_RUN, '']) {
+		const drift = describeRunInputDrift(
+			{ status: 'STALE', message: '', actionHint: '', changedDomains: ['rooms'], checkedAt } as never,
+			{ finishedAt: RUN_FINISHED_AT, createdAt: RUN_FINISHED_AT },
+		);
+		assert.ok(
+			!(drift.driftClaim && drift.freshnessNote),
+			`the claim and the unverified note are never both present (checkedAt=${checkedAt || 'absent'})`,
+		);
+	}
+	// And every prior field of the shape is still returned, unchanged: the new
+	// fields are additive, so the header and the teacher-concern card are intact.
+	const drift = describeRunInputDrift(
+		{ status: 'STALE', message: 'Rooms changed.', actionHint: 'h', changedDomains: ['rooms'], checkedAt: CHECKED_AFTER_RUN } as never,
+		{ finishedAt: RUN_FINISHED_AT, createdAt: RUN_FINISHED_AT },
+	);
+	assert.equal(drift.status, 'STALE', 'status is still the server verdict');
+	assert.equal(drift.checkedAt, CHECKED_AFTER_RUN, 'checkedAt is still passed through');
+	assert.equal(drift.primaryHref, '/map', 'the repair home is unchanged');
+	assert.equal(drift.requiresRegeneration, false, 'and the regeneration-only set is unchanged');
 });

@@ -379,19 +379,24 @@ test('publish stays disabled with unresolved sessions across surfaces', () => {
 	assert.match(advanced, /unassignedCount > 0 \|\| centerView === 'pre-generation'/);
 	const dialog = source('src/components/timetable/modals/TimetableWorkflowDialogs.tsx');
 	assert.match(dialog, /publishUnassignedCount/);
-	// SUPERSEDED by f9879289 (A2-TIMETABLE-CUSTODY) — retained verbatim and
-	// visibly marked, not deleted (§16: a correction is additive, and removing an
-	// assertion fails review regardless of the fix). That commit replaced the bare
-	// count sentence with `runUnplacedSentence(n) + " must be placed before …"`, so
-	// the count names the population it measures (the sessions THAT RUN could not
-	// place) rather than the ambiguous word "unassigned" that a second, different
-	// population also used. The gate the row is really about is unchanged, and the
-	// three assertions below prove the gate survived the rewording rather than
-	// that the sentence kept its old wording.
+	// SUPERSEDED TWICE, retained verbatim and visibly marked, never deleted
+	// (§16: a correction is additive, and removing an assertion fails review
+	// regardless of the fix).
+	//
+	// R1 — f9879289 (A2-TIMETABLE-CUSTODY) replaced the bare count sentence with
+	// `runUnplacedSentence(n) + " must be placed before …"`, so the count named the
+	// population it measures. R2 — A2-UX-WIRE-C2 replaced that with
+	// `publishPlacementBlockedSentence(n)`, which keeps the population and fixes the
+	// grammar: the pre-fix pair was two verbs on one clause with the number restated
+	// by a stacked modal. The gate the row is really about is unchanged, and the
+	// three assertions below prove the gate survived BOTH rewrites rather than that
+	// the sentence kept its old wording.
 	// assert.match(dialog, /still need placing before this schedule can be published/);
-	assert.match(dialog, /runUnplacedSentence\(publishUnassignedCount \?\? 0\)/, 'the count is still the gate, now naming its population');
-	assert.match(dialog, /must be placed before this schedule can be published/, 'the publication consequence the old sentence carried is still present');
-	assert.match(dialog, /\(publishUnassignedCount \?\? 0\) > 0/, 'and the same > 0 condition still gates it');
+	// assert.match(dialog, /runUnplacedSentence\(publishUnassignedCount \?\? 0\)/);
+	// assert.match(dialog, /must be placed before this schedule can be published/);
+	assert.match(dialog, /publishPlacementBlockedSentence\(publishUnassignedCount \?\? 0\)/, 'the count is still the gate, now naming its population in one noun and one verb');
+	assert.match(dialog, /publishUnassignedCount \?\? 0\) > 0 \|\| \(softCount > 0 && !publishAcknowledged\)/, 'the same > 0 condition still gates the Publish button');
+	assert.doesNotMatch(dialog, /must be placed before this schedule can be published/, 'and the ungrammatical pre-fix composition is gone');
 });
 
 test('drawer blocker items carry plain-language next steps, never raw codes', () => {

@@ -41,12 +41,21 @@ const ORDERED_TERMS: OrderedAcademicTerm[] = [
 ];
 
 function staleRoomsInputState(): GenerationInputComparison {
+	// A2-UX-WIRE-C2: the comparison time is corrected to the production shape. The
+	// run this fixture's draft belongs to was created at `2031-01-01T00:00:00.000Z`
+	// (see `draftWithSummary`), and a STALE comparison the server writes for THAT
+	// run is stamped after it exists. The pre-fix value, `2026-09-13`, predates the
+	// run by four years, so #59/#17 correctly refuses to read it as a drift claim
+	// about a 2031 schedule — the assertion this fixture exists for (the notice
+	// states the no-change promise) is about the STALE branch, so the comparison is
+	// put where the server would put it. The pre-fix, impossible ordering is kept
+	// as a control in `timetable-drift-banner-390-a2.test.tsx`.
 	return {
 		status: 'STALE',
 		message: 'Rooms changed.',
 		actionHint: 'Review rooms.',
 		changedDomains: ['rooms'],
-		checkedAt: '2026-09-13T00:00:00.000Z',
+		checkedAt: '2031-01-01T00:05:00.000Z',
 	} as unknown as GenerationInputComparison;
 }
 
