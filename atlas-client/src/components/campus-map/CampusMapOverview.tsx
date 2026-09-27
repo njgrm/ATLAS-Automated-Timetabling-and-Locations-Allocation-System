@@ -18,6 +18,7 @@ import { type RoomSectionMetadata } from '@/components/BuildingView';
 import { ROOM_TYPE_LABELS } from '@/lib/room-type-labels';
 import { RoomScheduleOverlay } from '@/components/RoomScheduleOverlay';
 import { RoomReadinessList } from '@/components/campus-map/RoomReadinessList';
+import { PageHeader } from '@/components/app-shell/PageHeader';
 import atlasApi from '@/lib/api';
 import { getPreferredAccessToken } from '@/lib/auth';
 import { resolveActiveSchoolYearContext } from '@/lib/enrollpro-public-settings';
@@ -372,10 +373,11 @@ const [verifiedTermIndex, setVerifiedTermIndex] = useState<number | null>(null);
 	return (
 		<div className="h-[calc(100svh-3.5rem)] overflow-auto bg-primary/5 scrollbar-thin">
 			<div className="mx-auto flex w-full max-w-7xl flex-col gap-3 px-4 py-3 lg:px-5">
-				<header className="flex shrink-0 flex-col gap-2 rounded-2xl border border-primary/10 bg-white px-3 py-2.5 shadow-soft lg:flex-row lg:items-center lg:justify-between">
-					<div className="min-w-0">
-						<div className="flex flex-wrap items-center gap-2">
-							<h1 className="text-xl font-bold text-slate-900">Campus and rooms</h1>
+				<PageHeader
+					title='Campus & Rooms'
+					subtitle='Check room readiness first. Open the map only when you need room details.'
+					source={(
+						<>
 							<Badge
 								data-source-state={sourceState}
 								variant="outline"
@@ -386,24 +388,24 @@ const [verifiedTermIndex, setVerifiedTermIndex] = useState<number | null>(null);
 							<Badge variant="outline" className={attentionCount > 0 ? 'h-7 rounded-full border-amber-200 bg-amber-50 text-xs font-bold text-amber-700' : 'h-7 rounded-full border-emerald-200 bg-emerald-50 text-xs font-bold text-emerald-700'}>
 								{nextAction}
 							</Badge>
-						</div>
-						<p className="mt-1 truncate text-xs font-medium text-slate-500">
-							Check room readiness first. Open the map only when you need room details.
-						</p>
-					</div>
-					<div className="flex shrink-0 flex-wrap items-center gap-2">
-						<Button type="button" variant="outline" size="sm" className="h-9 gap-2 font-bold" onClick={() => setShowExplorer((value) => !value)}>
-							<MapPinned className="size-4" />
-							{showExplorer ? 'Hide map' : 'Open map'}
-						</Button>
+						</>
+					)}
+					primaryAction={(
 						<Button asChild size="sm" className="h-9 gap-2 rounded-xl bg-primary font-semibold text-primary-foreground shadow-primary-glow hover:bg-primary/90">
 							<Link to="/map?mode=editor">
 								<Pencil className="size-4" />
 								Edit rooms
 							</Link>
 						</Button>
-					</div>
-				</header>
+					)}
+					secondaryActions={(
+						<Button type="button" variant="outline" size="sm" className="h-9 gap-2 font-bold" onClick={() => setShowExplorer((value) => !value)}>
+							<MapPinned className="size-4" />
+							{showExplorer ? 'Hide map' : 'Open map'}
+						</Button>
+					)}
+					className="shrink-0"
+				/>
 
 				<RoomReadinessList buildings={buildings} roomOccupancy={scheduleReport ? roomScheduleIndicators.occupancy : undefined} />
 
