@@ -121,7 +121,11 @@ export function DeleteSubjectDialog({ target, onClose, onDeleted, onEnsureSchool
 		} catch (err: any) {
 			// A3-C5-4: one resolver for both non-drift outcomes. `DEPENDENCY_DRIFT`
 			// keeps its own coupled copy because it is not a message — it is the
-			// trigger to re-run the preview.
+			// trigger to re-run the preview. A3-C5-4 record: no server currently
+			// emits `DEPENDENCY_DRIFT` (`grep -rn "DEPENDENCY_DRIFT" atlas-server/`
+			// returns zero), so this branch is dead. It is pre-existing and
+			// behaviour-coupled, so it is KEPT — but do not read it as live
+			// authority.
 			const copy = resolveSubjectMutationErrorCopy(err?.response?.data);
 			setMutationDetail({
 				code: copy.code,
@@ -187,9 +191,9 @@ export function DeleteSubjectDialog({ target, onClose, onDeleted, onEnsureSchool
 						<Button variant="ghost" size="sm" onClick={onClose} disabled={loading}>
 							Cancel
 						</Button>
-							<Button variant="destructive" size="sm" disabled={loading} onClick={handlePreview}>
-								{loading ? <><Spinner />Checking...</> : 'Check dependencies'}
-							</Button>
+					<Button variant="destructive" size="sm" disabled={loading} onClick={handlePreview}>
+						{loading ? <><Spinner />Checking...</> : 'Check dependencies'}
+					</Button>
 						</DialogFooter>
 					</>
 				)}

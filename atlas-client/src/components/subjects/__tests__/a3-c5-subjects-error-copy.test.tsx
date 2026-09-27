@@ -196,7 +196,7 @@ const EXPECTED_ENGINEER_COPY: ReadonlyArray<
 	[
 		'PROTECTED_SCHEDULING_DISPOSITION',
 		SERVER_ENVELOPES.PROTECTED_SCHEDULING_DISPOSITION,
-		'This subject carries a scheduling setting that ATLAS maintains for you, so it cannot be changed here.',
+		'This subject carries a scheduling setting that ATLAS set when the school was set up, and it is not an editable setting.',
 	],
 	[
 		'PROTECTED_TERM_AUTHORITY',
@@ -422,4 +422,165 @@ test('A3-C5-4f: the raw code and raw message stay reachable (diagnostic preserve
 	const none = resolveSubjectMutationErrorCopy({ code: 'PROTECTED_FIELD' });
 	assert.equal(none.rawMessage, '');
 	assert.equal(none.code, 'PROTECTED_FIELD');
+});
+
+/**
+ * A3-C5-4 correction: next actions must be FOLLOWABLE, not merely safe.
+ *
+ * The first candidate passed QA 15/15 and still told an operator to do three
+ * things the system cannot support. A next action an operator cannot carry out
+ * is a new fabrication, and this stream exists to remove fabrications — so
+ * introducing one while claiming to remove others is worse than the defect it
+ * fixes. QA graded these NON_BLOCKING because none leaked a server string and
+ * none weakened a gate; both true, and neither is the bar for a truthfulness
+ * stream. A sentence has to be TRUE.
+ *
+ * THE THREE DEFECTS, each verified against the real surface first:
+ *
+ *  - `PROTECTED_SCHEDULING_DISPOSITION` said "ask a school administrator to
+ *    review the scheduling setup". There is no such path: subject.service.ts
+ *    :550-556 records that `schedulingDisposition` is written ONLY by
+ *    controlled bootstrap/migration authority (exact code `HG`), is "NOT yet
+ *    an operative operator control", and has no admin CRUD route.
+ *  - `INVALID_QUALIFICATION_PRIORITY` said "Choose a qualification priority
+ *    from the list, then save." There is no list and no control: the only
+ *    client mentions are subject-form-utils.ts:15 (defaults it to
+ *    `DEPARTMENT_FIRST`) and types.ts:59 (types it as that single literal).
+ *    The two cases that DO say "from the list" —
+ *    `INVALID_ROOM_TYPE` (SubjectFormModal.tsx:512 `Select`) and
+ *    `INVALID_PROGRAM_SCOPES` (SubjectFormModal.tsx:658 toggles) — are backed
+ *    by real controls, are correct, and must stay exactly as they are.
+ *  - `UNKNOWN_FIELD` said "Close and reopen the subject, then save again. If it
+ *    keeps failing, contact your ATLAS administrator." Reopening cannot change
+ *    a payload-level rejection, and ATLAS has no escalation route to name.
+ */
+const CORRECTED_NEXT_ACTIONS: ReadonlyArray<readonly [string, string]> = [
+	[
+		'PROTECTED_SCHEDULING_DISPOSITION',
+		'There is nothing to change here. This setting is not editable anywhere in ATLAS, and you do not need to do anything to keep it.',
+	],
+	[
+		'INVALID_QUALIFICATION_PRIORITY',
+		'There is no setting to change here. ATLAS sets this value itself, so there is nothing to choose.',
+	],
+	[
+		'UNKNOWN_FIELD',
+		'There is nothing to change here. This is a problem with what ATLAS sent, not with what you entered, so re-entering it will not help.',
+	],
+];
+
+/**
+ * Named human roles and support routes ATLAS does not actually have. Naming one
+ * is the fabrication this control exists to reject.
+ */
+const UNFALSIFIABLE_ERRANDS: ReadonlyArray<string> = [
+	'administrator',
+	'admin',
+	'contact support',
+	'contact it',
+	'support team',
+	'help desk',
+	'it department',
+	'call us',
+	'raise a ticket',
+	'submit a ticket',
+];
+
+/** The predicate under test. Deliberately small and mechanical. */
+function unfalsifiableErrandsIn(text: string): string[] {
+	const lower = text.toLowerCase();
+	return UNFALSIFIABLE_ERRANDS.filter((phrase) => lower.includes(phrase));
+}
+
+test('A3-C5-4g: corrected next actions are followable and name no phantom errand', () => {
+	// 1. The three corrected sentences are pinned EXACTLY, so they cannot drift
+	//    back to a fabricated errand without this test going red.
+	for (const [code, expected] of CORRECTED_NEXT_ACTIONS) {
+		const copy = resolveSubjectMutationErrorCopy({ code, message: 'server text' });
+		assert.equal(copy.nextAction, expected, `${code}: corrected next action drifted`);
+		assert.ok(copy.nextAction.length > 20, `${code}: next action must not be empty`);
+	}
+
+	// 2. None of them names a role or support route ATLAS does not have.
+	for (const [code, expected] of CORRECTED_NEXT_ACTIONS) {
+		const found = unfalsifiableErrandsIn(expected);
+		assert.deepEqual(
+			found,
+			[],
+			`${code}: next action names an errand ATLAS cannot support: ${found.join(', ')} — "${expected}"`,
+		);
+	}
+
+	// 3. The two list-backed cases MUST keep "from the list" — they are backed by
+	//    real controls, so a blanket "no list" rule would be wrong. This is the
+	//    control that stops the correction from over-reaching.
+	for (const code of ['INVALID_ROOM_TYPE', 'INVALID_PROGRAM_SCOPES']) {
+		const copy = resolveSubjectMutationErrorCopy({ code, message: 'server text' });
+		assert.ok(
+			copy.nextAction.includes('from the list'),
+			`${code}: a list-backed case lost its correct "from the list" wording`,
+		);
+	}
+
+	// 4. POSITIVE CONTROL (F6) — the predicate is not vacuous. Each ORIGINAL,
+	//    unfalsifiable sentence must be CAUGHT, and each corrected sentence must
+	//    NOT be. This is the 4b forced-mutant pattern.
+	//
+	//    Two DIFFERENT defects need two DIFFERENT mutants, and that is the point:
+	//    the two phantom-role sentences are caught by the role scan, while the
+	//    phantom-list sentence contains NO role phrase at all. A role-only grep
+	//    would have missed it entirely — which is why the list scan exists as a
+	//    separate assertion rather than as a hopeful extension of the first.
+	const roleScanMutants: ReadonlyArray<readonly [string, string]> = [
+		[
+			'PROTECTED_SCHEDULING_DISPOSITION (first candidate)',
+			'Leave that setting alone. If it must change, ask a school administrator to review the scheduling setup.',
+		],
+		[
+			'UNKNOWN_FIELD (first candidate)',
+			'Close and reopen the subject, then save again. If it keeps failing, contact your ATLAS administrator.',
+		],
+	];
+	let mutantsCaught = 0;
+	for (const [label, badNextAction] of roleScanMutants) {
+		const found = unfalsifiableErrandsIn(badNextAction);
+		assert.ok(found.length > 0, `${label}: the unfalsifiable sentence was NOT caught — control is vacuous`);
+		mutantsCaught += 1;
+	}
+	assert.equal(mutantsCaught, 2, 'A3-C5-4g: both phantom-role mutants must be caught');
+
+	// 4a. The "names a list that does not exist" defect needs its own mutant,
+	//     because the role scan above does not detect it at all. Assert BOTH
+	//     that the bad sentence is caught AND that the live, corrected output
+	//     is not — so the mutant cannot pass by the predicate rejecting
+	//     everything.
+	const listClaimMutant: readonly [string, string] = [
+		'INVALID_QUALIFICATION_PRIORITY (first candidate)',
+		'Choose a qualification priority from the list, then save.',
+	];
+	assert.throws(
+		() => {
+			assert.ok(
+				!/\bfrom the list\b/.test(listClaimMutant[1]),
+				`${listClaimMutant[0]}: names a list that does not exist — "${listClaimMutant[1]}"`,
+			);
+		},
+		`A3-C5-4g: the phantom-list mutant was NOT caught for ${listClaimMutant[0]}`,
+	);
+	assert.equal(
+		unfalsifiableErrandsIn(listClaimMutant[1]).length,
+		0,
+		'A3-C5-4g: the role scan must MISS the phantom-list mutant, proving the two scans are independent',
+	);
+
+	// 4b. The corrected strings must pass BOTH predicates.
+	for (const [code, expected] of CORRECTED_NEXT_ACTIONS) {
+		assert.doesNotThrow(
+			() => {
+				assert.deepEqual(unfalsifiableErrandsIn(expected), [], `${code}: flagged by the role scan`);
+				assert.ok(!/\bfrom the list\b/.test(expected), `${code}: flagged by the list scan`);
+			},
+			`A3-C5-4g: the corrected sentence for ${code} was wrongly rejected`,
+		);
+	}
 });

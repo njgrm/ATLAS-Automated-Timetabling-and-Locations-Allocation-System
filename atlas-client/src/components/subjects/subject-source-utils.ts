@@ -202,8 +202,8 @@ const SUBJECT_MUTATION_COPY: Readonly<Record<string, SubjectMutationCopyPair>> =
 	// --- Engineer strings the server authors for a scheduler, not an operator. ---
 	// subject.service.ts:699
 	PROTECTED_SCHEDULING_DISPOSITION: {
-		description: 'This subject carries a scheduling setting that ATLAS maintains for you, so it cannot be changed here.',
-		nextAction: 'Leave that setting alone. If it must change, ask a school administrator to review the scheduling setup.',
+		description: 'This subject carries a scheduling setting that ATLAS set when the school was set up, and it is not an editable setting.',
+		nextAction: 'There is nothing to change here. This setting is not editable anywhere in ATLAS, and you do not need to do anything to keep it.',
 	},
 	// subject.service.ts:709, :1669
 	PROTECTED_TERM_AUTHORITY: {
@@ -218,7 +218,12 @@ const SUBJECT_MUTATION_COPY: Readonly<Record<string, SubjectMutationCopyPair>> =
 	// subject.service.ts:730
 	UNKNOWN_FIELD: {
 		description: 'ATLAS received a subject setting it does not recognise.',
-		nextAction: 'Close and reopen the subject, then save again. If it keeps failing, contact your ATLAS administrator.',
+		// A3-C5-4 correction (F-A3b): the previous text said "Close and reopen
+		// the subject, then save again. If it keeps failing, contact your ATLAS
+		// administrator." Both halves were fabricated. Reopening does not change
+		// the payload, so it cannot fix a payload-level rejection; and ATLAS has
+		// no escalation route to name, so naming one is a second fabrication.
+		nextAction: 'There is nothing to change here. This is a problem with what ATLAS sent, not with what you entered, so re-entering it will not help.',
 	},
 	// subject.service.ts:617, :620
 	INVALID_MIN_MINUTES_PER_WEEK: {
@@ -268,7 +273,15 @@ const SUBJECT_MUTATION_COPY: Readonly<Record<string, SubjectMutationCopyPair>> =
 	// subject.service.ts:822
 	INVALID_QUALIFICATION_PRIORITY: {
 		description: 'The qualification priority for this subject is not one ATLAS recognises.',
-		nextAction: 'Choose a qualification priority from the list, then save.',
+		// A3-C5-4 correction (F-A3a): the previous text said "Choose a
+		// qualification priority from the list, then save." There IS no list and
+		// no control — `subject-form-utils.ts:15` is the only client mention and
+		// merely defaults the value to `DEPARTMENT_FIRST`, and `types.ts:59` types
+		// the field as that single literal. Compare `INVALID_ROOM_TYPE`
+		// (SubjectFormModal.tsx:512 `Select`) and `INVALID_PROGRAM_SCOPES`
+		// (SubjectFormModal.tsx:658 toggles), which say "from the list" and are
+		// backed by real controls. This one has no errand to name.
+		nextAction: 'There is no setting to change here. ATLAS sets this value itself, so there is nothing to choose.',
 	},
 	// subject.service.ts:827
 	INVALID_TERM_METADATA: {
