@@ -83,10 +83,18 @@ export default function AdminYearSetup() {
 		<div className="flex h-[calc(100svh-3.5rem)] flex-col overflow-hidden">
 			<div className="shrink-0 border-b bg-background/85 px-4 py-1.5 backdrop-blur-md lg:px-5" data-testid="admin-year-setup-header">
 				<div className="flex min-w-0 items-center justify-between gap-2">
+					{/* A3-C6 D2 — this strip used to render TWO back-to-dashboard
+					    controls with one destination: an icon-only ghost button
+					    (aria-label only) on the left and this labelled outline button
+					    on the right. The labelled one is kept, because every other
+					    back affordance in the app that sits in a utility strip is
+					    labelled (`ManualEditPanel`, `SchedulingPolicyPane`,
+					    `CampusMapOverview`, `CampusReadinessCard` all pair the arrow
+					    with visible text), and a labelled control is discoverable
+					    without hovering or knowing the icon. The icon-only control had
+					    no advantage here: it duplicated the destination and added a
+					    second focus stop for no added meaning. */}
 					<div className="flex min-w-0 items-center gap-2">
-						<Button type="button" variant="ghost" size="icon-sm" className="shrink-0" aria-label="Back to dashboard" onClick={() => navigate('/', { replace: false })}>
-							<ArrowLeft className="size-4" />
-						</Button>
 						<span className="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-2.5 text-[0.65rem] font-bold uppercase tracking-wide text-amber-700">
 							<ShieldAlert className="size-3.5" />
 							Admin only
