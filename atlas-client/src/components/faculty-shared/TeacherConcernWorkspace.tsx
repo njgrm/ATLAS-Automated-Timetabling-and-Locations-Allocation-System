@@ -78,7 +78,15 @@ export default function TeacherConcernWorkspace({
 						<h2 className='text-sm font-semibold text-foreground'>Availability grid</h2>
 					</div>
 					<p className='text-xs leading-relaxed text-muted-foreground'>
-						Paint the teacher&apos;s {facultyName ? `${facultyName}'s ` : ''}weekly windows. <strong>Unavailable</strong> is a
+						{/*
+						 * A3-C6: the old template read `Paint the teacher's {name}'s
+						 * weekly windows.`, which rendered "the teacher's Dela Cruz's".
+						 * One possessive now, chosen by whether a teacher is selected.
+						 */}
+						{facultyName
+							? `Paint ${facultyName}'s weekly windows.`
+							: 'Paint the teacher\'s weekly windows.'}{' '}
+						<strong>Unavailable</strong> is a
 						hard exclusion; <strong>Preferred</strong> is a soft signal. Only a reviewed authority binds generation.
 					</p>
 					<AvailabilityPicker slots={pickerSlots} onChange={onPickerChange} disabled={facultyName == null} />
