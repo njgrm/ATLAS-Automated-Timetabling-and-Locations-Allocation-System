@@ -149,7 +149,38 @@ resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs
 
 - Tailnet: `https://njgrm.buru-degree.ts.net`
 
-- **⚠ RELEASE INTENT IS UNRECONCILED — PLANNER DECISION REQUIRED (2026-09-27, post-action QA
+- **▶ LEADING TARGET FOR THE NEXT CUTOVER — `9b28c572`. Recorded 2026-09-27 by Lane A2, AHEAD of the
+  cutover, which is what `Assert-LiveReleaseRecorded` requires. This is the ONLY target authorised to be
+  cut over to next.**
+
+  | | |
+  |---|---|
+  | **Target (authorised, leading)** | **`9b28c57291ff6c34f33a434d097753b8ce16b118`** |
+  | **Target dir** | `E:\ATLAS-worktrees\lane-a2-release-9b28c572` |
+  | **Rollback basis (current live)** | `c4a9960e0fccaab4a324c97e42eb56cfa10c1fa4`, dir `E:\ATLAS-worktrees\lane-a3-release-c4a9960e` — verified present, clean, HEAD `c4a9960e`, both `dist`s built |
+  | **Direction** | **FORWARD.** `git merge-base --is-ancestor c4a9960e 9b28c572` exits **0** — the live release is an **ancestor** of the target, so this is not a rollback and reverts nothing |
+  | **Decision** | Operator authorised this cutover on 2026-09-27, resolving the `PLANNER_DECISION_REQUIRED` below. Lane A3's fixes are **already inside `9b28c572`** and stay live |
+
+  **⚠ `c4a9960e` appears elsewhere in this section as the CURRENT LIVE and as the ROLLBACK BASIS. It is
+  NOT the lead target. Do not cut over to it again** — deploying it is what stranded A2's six candidates
+  the first time, because the gate tests prefix *presence*, not *exclusivity*. **In words: `9b28c572`
+  leads; `c4a9960e` is what we roll back TO, never what we roll forward to.**
+
+  **Delta, re-derived by the planner from the real incumbent, not copied from the packet**
+  (`git diff --name-only c4a9960e 9b28c572`, 4 `docs/` paths excluded) = **15 non-docs paths, all Lane
+  A2's own** — A3's six client files are already in the incumbent, so the delta is **narrower** than the
+  packet's 23-path figure, which was enumerated from the older incumbent `c5a9e832`. Two are
+  **`atlas-server/` production** files (`services/manual-edit.service.ts` modified,
+  `services/timetable-edit-message.ts` new) plus two server tests and `atlas-server/package.json`; the
+  other nine are client. **Zero `prisma/` paths**, and `migration.sql` count **11 → 11** by the pinned
+  method, so no migration is authorised or implied.
+
+- **RESOLVED 2026-09-27 — the unreconciled-release-intent block immediately below is CLOSED by the record
+  above.** It is preserved unaltered as the history of how the register briefly named a superseded target.
+  Its 2 failed rows were **record defects, not product defects** (a stale unstruck `LIVE:` line, and a
+  vacuous `143` build marker), and the running system was never at risk.
+
+- **⚠ RELEASE INTENT WAS UNRECONCILED — RESOLVED 2026-09-27 by the record above (post-action QA
   `ses_f1d359bd5ffeRQTZU1GIb7q7CL` `PLANNER_DECISION_REQUIRED` 28/33/0 blocked/3 unperformed/2 failed).**
   **What is live is NOT the register's designated lead target, and the register already predicted this
   exact failure.** Read this before trusting the release sequence.
