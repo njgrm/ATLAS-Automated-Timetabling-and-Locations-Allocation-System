@@ -36,16 +36,38 @@ function parseNumericParam(value: string | null): number | null {
  *
  * Precedence rules (highest to lowest):
  * 1. `view=subjects` (explicit, no facultyId) → subjects mode
- * 2. `task=missing-load` WITHOUT `facultyId` → subjects mode (school-wide)
- * 3. `task=missing-load` WITH `facultyId` → teacher mode (teacher-specific)
- * 4. `sectionId` present → allocation mode
- * 5. `facultyId` present → teacher mode
- * 6. Task-only (e.g., review-placeholders, over-cap) → teacher mode
- * 7. No recognized intent → null (caller keeps current state)
+ * 2. `task=change-owner` WITH `facultyId` → teacher mode on that teacher, with
+ *    `sectionId`/`subjectId` KEPT (A2-TIMETABLE-CUSTODY, finding #3)
+ * 3. `task=missing-load` WITHOUT `facultyId` → subjects mode (school-wide)
+ * 4. `task=missing-load` WITH `facultyId` → teacher mode (teacher-specific)
+ * 5. `sectionId` present → allocation mode
+ * 6. `facultyId` present → teacher mode
+ * 7. Task-only (e.g., review-placeholders, over-cap) → teacher mode
+ * 8. No recognized intent → null (caller keeps current state)
  *
  * Incompatible parameters are normalized: if `view=subjects` and `sectionId`
  * are both present, `view=subjects` wins. If `facultyId` and `sectionId` are
  * both present without `view=subjects`, `sectionId` wins (allocation mode).
+ *
+ * ── A2-TIMETABLE-CUSTODY: why `change-owner` exists (finding #3) ─────────────
+ * The timetable's "Change owner" action linked to
+ * `/teaching-load?facultyId=<class teacher>&sectionId=<class>&subjectId=<class>&task=missing-load`.
+ * Two source-level defects made that landing page show a different teacher than
+ * the class's own, with no route back to the class:
+ *
+ *   a) rule 4 (above) DISCARDS `sectionId` and returns `sectionId: null`, so the
+ *      `sectionId` the timetable carefully put in the URL was thrown away and the
+ *      class was never in view;
+ *   b) `task=missing-load` applies `filterStatus: 'no-teaching'` (see
+ *      `useTeachingLoadRouteIntent`'s task block), whose canonical subject is a
+ *      teacher who has NO load. The class being repaired HAS a teacher — the
+ *      operator was asking to CHANGE that owner — so the filter selected the
+ *      opposite population and surfaced teachers such as the one in the finding
+ *      instead of the class's own.
+ *
+ * `change-owner` states the actual intent: teacher mode on the class's own
+ * teacher, the class in view, and NO "no teaching load" filter, because this
+ * action is about a teacher who already has the load.
  */
 export function parseRouteIntent(searchParams: URLSearchParams): ParsedRouteIntent {
 	const viewParam = searchParams.get('view');
@@ -61,6 +83,21 @@ export function parseRouteIntent(searchParams: URLSearchParams): ParsedRouteInte
 			viewMode: 'allocation',
 			facultyId: null,
 			sectionId: null,
+			subjectId: subjectIdParam,
+			task: taskParam,
+		};
+	}
+
+	// A2-TIMETABLE-CUSTODY (#3): the timetable's "Change owner" intent. Placed
+	// ABOVE the `missing-load` rules so it cannot be swallowed by them, and it
+	// KEEPS sectionId/subjectId so the class the operator came from stays in
+	// view — the discarded sectionId was one of the two reasons that link landed
+	// on an unrelated teacher with no way back to the class.
+	if (taskParam === 'change-owner' && facultyIdParam != null) {
+		return {
+			viewMode: 'teacher',
+			facultyId: facultyIdParam,
+			sectionId: sectionIdParam,
 			subjectId: subjectIdParam,
 			task: taskParam,
 		};
@@ -195,6 +232,14 @@ export function useTeachingLoadRouteIntent(
 			apply.setFilterStatus('all');
 		} else if (intent.task === 'missing-load') {
 			apply.setFilterStatus('no-teaching');
+			apply.setLoadFilter('all');
+		} else if (intent.task === 'change-owner') {
+			// A2-TIMETABLE-CUSTODY (#3): deliberately NO filter. This action
+			// targets a teacher who already has the load, so the `no-teaching`
+			// filter that `missing-load` applies would select the opposite
+			// population and hide the very teacher being repaired. The class
+			// itself arrives via `sectionId` above and is in view.
+			apply.setFilterStatus('all');
 			apply.setLoadFilter('all');
 		} else if (intent.task === 'review-placeholders') {
 			apply.setShowTemporaryRoles(true);

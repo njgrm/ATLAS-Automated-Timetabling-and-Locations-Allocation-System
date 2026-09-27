@@ -35,6 +35,25 @@ export type RecipientResolution = {
  * D1b — the dedupe key is content-stable, not event-identity-stable. The
  * in-memory `NotificationEvent.id` and `timestamp` are deliberately excluded
  * so re-raising the same delta resolves to the same key.
+ *
+ * A2-TIMETABLE-CUSTODY (20:59 trace) — `editId` is ALSO content-stable, and its
+ * absence was a silent data-loss defect rather than over-deduping. For
+ * `TIMETABLE_EDIT_COMMITTED` the only `resourceId` pointer present is `runId`
+ * (`toNotificationRow` reads `runId` first), so the pre-fix key for every manual
+ * edit on a run was `school:year:TYPE:timetable:<runId>:<actorId>` — identical
+ * for the first swap and the second. `persistNotificationEvent` calls
+ * `createMany({ skipDuplicates: true })`, so every swap after the first was
+ * dropped before it reached the table: a committed swap wrote
+ * `manual_schedule_edits` and bumped `generation_runs.version`, returned 200, and
+ * left `notifications` unchanged. Traced three ways (bell DOM, the
+ * `notification-inbox` route, and a direct count) because one empty surface
+ * proves nothing.
+ *
+ * Why `editId` is the RIGHT discriminator and not `event.id`/`timestamp`:
+ * `editId` names the committed change, so re-delivering the SAME edit still
+ * collapses to one row (the D1b property is preserved) while two DIFFERENT
+ * swaps are two different changes and each persists. Using the in-memory event
+ * id instead would have re-broken D1b on every redelivery.
  */
 export function buildNotificationDedupeKey(input: {
 	schoolId: number;
@@ -43,6 +62,12 @@ export function buildNotificationDedupeKey(input: {
 	resourceType: string | null | undefined;
 	resourceId: string | null | undefined;
 	actorId: number;
+	/**
+	 * The per-change identity when the event names one (a committed manual edit).
+	 * `null`/absent contributes the `-` sentinel, so an event that carries no
+	 * change identity keeps exactly its previous key.
+	 */
+	editId?: string | null;
 }): string {
 	return [
 		input.schoolId,
@@ -51,6 +76,7 @@ export function buildNotificationDedupeKey(input: {
 		input.resourceType ?? '-',
 		input.resourceId ?? '-',
 		input.actorId,
+		input.editId ?? '-',
 	].join(':');
 }
 
@@ -143,6 +169,12 @@ function firstMetadataString(metadata: Record<string, unknown> | undefined, keys
  * - `title` ← the event message (capped at the column width);
  * - `body` ← null (the message is the title; no second text exists on the event);
  * - `data` ← the full event metadata so nothing the publisher sent is dropped.
+ *
+ * A2-TIMETABLE-CUSTODY: `editId` is read for the DEDUPE KEY only, never for
+ * `resourceId`. `resourceId` stays `runId` because the client inbox routes on
+ * it (M6 in `timetable-swap-notification-message-a2.test.ts` asserts the entry
+ * ids stay in `data` and the inbox routes on the run), so folding `editId` into
+ * `resourceId` would have fixed the collision by breaking routing.
  */
 export function toNotificationRow(
 	event: NotificationEvent,
@@ -184,6 +216,7 @@ export function toNotificationRow(
 			resourceType,
 			resourceId,
 			actorId,
+			editId: firstMetadataString(event.metadata, ['editId']),
 		}),
 	};
 }

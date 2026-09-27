@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
 import atlasApi from '@/lib/api';
 import type { RolloverStatus } from '@/lib/settings';
-import { MUST_FIX_LABEL, runAnchorLabel } from '@/lib/timetable-plain-language';
+import { MUST_FIX_LABEL, runAnchorLabel, runStateBadgeLabel, runStateSentence } from '@/lib/timetable-plain-language';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
@@ -375,20 +375,40 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 		? runOptions.find((r) => String(r.id) === selectedRunId || (selectedRunId === 'latest' && r.id === runOptions[0]?.id))?.durationMs ?? null
 		: null;
 
+	// A2-TIMETABLE-CUSTODY (#41/#51). The orientation strip named the term and the
+	// scope but never the RUN, so a scheduler could not say which schedule was on
+	// screen; and the heading badge read "Generated timetable" over a PUBLISHED
+	// run, so it never said what the run actually was. Both are resolved by the
+	// one shared sentence in `timetable-plain-language`, so the two lines cannot
+	// disagree with each other or with Simple's `readinessLabel`.
+	const runState = runStateSentence({
+		isPreGeneration: isPreGenerationWorkspace,
+		hasRun: Boolean(activeGeneratedRunId),
+		runId: activeGeneratedRunId,
+		isPublished: isRunPublished,
+	});
+	const runBadgeLabel = runStateBadgeLabel({
+		isPreGeneration: isPreGenerationWorkspace,
+		hasRun: activeGeneratedRunId != null,
+		isPublished: isRunPublished,
+	});
+
 	return (
 		<Profiler id="Header" onRender={onProfilerRender}>
 			<div className="shrink-0 border-b border-border bg-background">
 			<div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-b border-border/60 bg-muted/20 px-4 py-1.5 text-xs text-muted-foreground" data-testid="timetable-scheduler-orientation">
 				<span><span className="font-semibold text-foreground">Term:</span> {activeTermLabel ?? 'Term setup required'}</span>
 				<span><span className="font-semibold text-foreground">Scope:</span> {termFilter === 'all' ? 'All terms' : (termOptions.find((option) => option.value === String(termFilter))?.label ?? 'Selected term')}</span>
+				{runState ? <span data-testid="timetable-run-identity"><span className="font-semibold text-foreground">Run:</span> {runState}</span> : null}
 				<span><span className="font-semibold text-foreground">Next:</span> {nextActionLabel}</span>
 			</div>
 			<div className="flex items-center gap-2 overflow-x-auto scrollbar-thin px-4 pt-2 pb-1.5 [@media(max-height:500px)]:pt-1 [@media(max-height:500px)]:pb-1">
 				<Badge
 					variant={isPreGenerationWorkspace ? 'secondary' : 'default'}
 					className={cn('h-7 shrink-0 px-2.5 text-xs font-semibold uppercase', isPreGenerationWorkspace ? 'border border-border bg-muted text-muted-foreground' : 'bg-primary text-primary-foreground')}
+					data-testid="timetable-run-state-badge"
 				>
-					{isPreGenerationWorkspace ? 'Planning draft' : activeGeneratedRunId != null ? 'Generated timetable' : 'No generated run yet'}
+					{runBadgeLabel}
 				</Badge>
 
 				{newerFailedRunNotice && (

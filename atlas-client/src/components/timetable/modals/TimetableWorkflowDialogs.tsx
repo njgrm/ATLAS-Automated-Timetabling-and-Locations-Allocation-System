@@ -2,6 +2,7 @@ import { CheckCircle2, Clock, Loader2, Send } from 'lucide-react';
 
 import type { ScheduleReviewDialogsContext } from '@/components/timetable/timetableContexts.types';
 import { plainRoomAppealStatus } from '@/lib/timetable-plain-language';
+import { UNPLACED_COUNT_DISAMBIGUATION, WEEKLY_UNPLACED_LABEL, runUnplacedSentence } from '@/lib/timetable-plain-language';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import { Checkbox } from '@/ui/checkbox';
@@ -61,10 +62,19 @@ export function TimetableWorkflowDialogs({ context }: { context: ScheduleReviewD
 							<span className="font-semibold text-foreground">{draftBoardSummary?.draft ?? 0} locked session{(draftBoardSummary?.draft ?? 0) === 1 ? '' : 's'}</span>
 						</div>
 						<div className="flex items-center justify-between gap-2">
-							<span className="text-muted-foreground">Still unassigned</span>
+							<span className="text-muted-foreground">{WEEKLY_UNPLACED_LABEL}</span>
 							<span className="font-semibold text-foreground" data-testid="timetable-generate-confirm-unassigned">{draftBoardSummary?.unscheduled ?? 0} session{(draftBoardSummary?.unscheduled ?? 0) === 1 ? '' : 's'}</span>
 						</div>
 					</div>
+					{/* A2-TIMETABLE-CUSTODY (#57/#44): the count above and the count the
+					    finish toast reports are DIFFERENT populations, and both were
+					    labelled "unassigned". The generate dialog reads the
+					    pre-generation draft board's `counts.unscheduled` (this year's
+					    weekly demand with no saved placement); the toast reads the new
+					    run's `summary.unassignedCount` (what that run could not place).
+					    The number is not wrong and is not reconciled away — it is named,
+					    once, here. */}
+					<p className="text-xs text-muted-foreground" data-testid="timetable-generate-confirm-unplaced-note">{UNPLACED_COUNT_DISAMBIGUATION}</p>
 					<div className="rounded-md border p-3 text-xs text-muted-foreground" data-testid="timetable-generate-confirm-effects">
 						<p className="font-semibold text-foreground">What this does</p>
 						<p className="mt-1">Creates a new reviewable draft run from the current Teaching Load, term setup, and saved anchors.</p>
@@ -118,8 +128,14 @@ export function TimetableWorkflowDialogs({ context }: { context: ScheduleReviewD
 				<DialogHeader>
 					<DialogTitle>{canRequestPublication ? 'Request schedule publication' : 'Publish schedule'}</DialogTitle>
 					<DialogDescription>
+						{/* A2-TIMETABLE-CUSTODY (#57/#44): `publishUnassignedCount` is
+						    `summary.unassignedCount` — the SAME source the finish toast
+						    reads — so these two were already one number. The sentence now
+						    names its population, which is the other half of the fix: the
+						    generate dialog's "unassigned" was a different population
+						    entirely. */}
 						{(publishUnassignedCount ?? 0) > 0
-							? `${publishUnassignedCount} session${publishUnassignedCount === 1 ? '' : 's'} still need placing before this schedule can be published.`
+							? `${runUnplacedSentence(publishUnassignedCount ?? 0)} must be placed before this schedule can be published.`
 							: softCount > 0
 								? `${softCount} warning${softCount === 1 ? '' : 's'} must be acknowledged before ${canRequestPublication ? 'requesting approval' : 'publishing'}.`
 								: canRequestPublication
