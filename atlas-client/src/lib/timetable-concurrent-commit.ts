@@ -33,6 +33,21 @@
  *   - an id that cannot be resolved produces an explicit "we could not name it"
  *     notice, never a confident wrong sentence;
  *   - the operator's own commit produces nothing at all;
+ *
+ * ON THAT FIRST CLAIM, which was FALSE until the #61 correction. This module
+ * removed the raw-id TOAST, but the identical string was still authored by the
+ * server and still reached the operator through a surface this client does not
+ * own: `notification-events.service.ts` calls `notifyDurableListeners`
+ * unconditionally, which reaches `persistNotificationEvent` and stores
+ * `title: event.message.slice(0, 200)`, and `NotificationBell` renders that title
+ * app-wide. The claim is true now because the SOURCE is fixed, not because this
+ * module was thorough. Two controls hold it, and both are required:
+ *   - F9 here, for this module's own output;
+ *   - `atlas-server/src/__tests__/timetable-swap-notification-message-a2.test.ts`
+ *     and the `M` row in `timetable-swap-custody-a2.test.ts`, which assert on the
+ *     message the SERVICE publishes and on the row the durable inbox would store.
+ *     Those are the rows that would fail if the server regressed, because F9
+ *     alone cannot see the server's string.
  *   - an action armed on a class that moved is released, and the operator is told.
  */
 

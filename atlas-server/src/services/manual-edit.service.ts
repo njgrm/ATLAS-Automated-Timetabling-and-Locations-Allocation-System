@@ -7,6 +7,7 @@
 import { prisma } from '../lib/prisma.js';
 import type { Prisma, PrismaClient } from '@prisma/client';
 import { publishTimetableEvent } from './timetable-events.service.js';
+import { describeSwapCommitMessage } from './timetable-edit-message.js';
 import {
 	validateHardConstraints,
 	type ValidatorContext,
@@ -2478,7 +2479,22 @@ export async function swapManualEntries(
 		schoolYearId,
 		runId,
 		actorId,
-		message: `Manual swap committed between entries ${entryIdA} and ${entryIdB}`,
+		// A2-TIMETABLE-CUSTODY (#61 correction): the message is PERSISTED, not
+		// just displayed. `notification-events.service.ts` calls
+		// `notifyDurableListeners` unconditionally, which reaches
+		// `persistNotificationEvent` -> `toNotificationRow`'s
+		// `title: event.message.slice(0, 200)`, and the bell renders that title.
+		// An entry id here was therefore stored in the durable inbox. The
+		// human-readable message is now id-free at the source; the entry ids stay
+		// in `metadata`, where the client resolves its labels and the inbox
+		// routes on `runId`. See `timetable-edit-message.ts`.
+		message: describeSwapCommitMessage({
+			strategy,
+			subjectA: refData.subjectNameMap.get(entryA.subjectId) ?? null,
+			subjectB: refData.subjectNameMap.get(entryB.subjectId) ?? null,
+			slotA: { day: entryA.day, startTime: entryA.startTime, endTime: entryA.endTime },
+			slotB: { day: entryB.day, startTime: entryB.startTime, endTime: entryB.endTime },
+		}),
 		metadata: {
 			editId: editRecord.id,
 			strategy,

@@ -1,4 +1,4 @@
-﻿/**
+/**
  * A2-TIMETABLE-CUSTODY (Lane C finding #61) — the concurrent-commit notice.
  *
  * The notice has to survive a re-render, be dismissible, and be announced rather

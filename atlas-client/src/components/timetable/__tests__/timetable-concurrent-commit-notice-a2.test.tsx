@@ -416,6 +416,15 @@ test('F8 the notice is announced, dismissible through @/ui, and id-free', () => 
 // ── F9 the id-leak sweep ────────────────────────────────────────────────────
 
 test('F9 no internal id reaches an operator-facing string on ANY path', () => {
+	// SCOPE, STATED PLAINLY because this row's name overclaims on its own: F9 can
+	// only see what THIS MODULE produces. When it was first written the claim it
+	// names was false, because the server authored a raw-id string that reached
+	// the operator through the durable inbox — a path no client assertion can
+	// observe. The claim is true now because the SOURCE was fixed, and the rows
+	// that would actually catch a server regression are:
+	//   atlas-server/src/__tests__/timetable-swap-notification-message-a2.test.ts
+	//   atlas-server/src/__tests__/timetable-swap-custody-a2.test.ts  (the M row)
+	// This row is kept and still sweeps every string this module can produce.
 	const strings = operatorFacingStrings();
 	assert.ok(strings.length > 0, 'the sweep actually produced strings to check');
 	for (const value of strings) {
