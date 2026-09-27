@@ -78,6 +78,27 @@ import test from 'node:test';
  *    zero `text-slate-500`; all of their raw neutrals are `gray-*`, which this sweep never touches.
  *    They are forward-looking scope fences — correct to keep, and still correct for the reason
  *    recorded — but a reader must not expect "3 and 13 swept occurrences" from them.
+ *
+ * ## STEP 2 (S-f, 2026-09-28) — read this before reusing anything above
+ *
+ * A later session replaced the remaining raw neutral TEXT colour, `text-slate-400`, with
+ * `text-muted-foreground` at 15 sites across 5 of these same 19 files, taking the ratchet from
+ * **110 to 95** (`EXPECTED_TOTAL`, `EXPECTED_IN_SCOPE_RESIDUAL`, and the ratchet's `PINNED_TOTAL`
+ * are all lowered accordingly; the file count stays 28 because no file emptied). The pins and the
+ * arithmetic that connects them are recorded at `PRE_STEP_2_TOTAL` and `STEP_2_SUBSTITUTIONS`.
+ *
+ * **Step 2 is NOT a rename, and nothing in this file justifies applying `CHANNEL_TOLERANCE = 3` to
+ * it.** This sweep's two mappings are renames of 2-3/255; the step-2 mapping is a deliberate
+ * accessibility darkening of **46/255** (oklch(70.4% 0.04 256.788) -> 215 16% 47%, sRGB
+ * rgb(144,161,185) -> rgb(101,117,139)). It carries its own tolerances, its own contrast
+ * assertions and its own disclosure in `palette-slate400-step2-a3-s-f.test.ts`. Do not merge the two
+ * contracts, and do not lower this file's pins further on step 2's behalf.
+ *
+ * One consequence is recorded here because it corrects a claim in this file's own history: the
+ * residual this file once described as needing "a browser-verified pass" now has **15 fewer**
+ * accessibility defects in it, but that removal is a source-level darkening, not a rendered-screen
+ * verification. The `--muted`/`--secondary` surfaces still sit below AA (4.268:1) and still need a
+ * browser row.
  */
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -142,11 +163,37 @@ const SUBSTITUTED: ReadonlyArray<readonly [string, string, string, number]> = [
 /** The ratchet total immediately before this sweep, and what it must have fallen to. */
 const PRE_SWEEP_TOTAL = 229;
 const PRE_SWEEP_FILES = 34;
-const EXPECTED_TOTAL = 110;
+
+/**
+ * Step 2 (S-f, 2026-09-28) then replaced the remaining raw neutral TEXT colour `text-slate-400`
+ * with `text-muted-foreground` at 15 sites in 5 of these same 19 files, which took the ratchet from
+ * 110 to 95. Recorded here additively rather than folded into the numbers above, because it is a
+ * different kind of change: the S-e sweep was a RENAME (2-3/255), while step 2 is a deliberate
+ * ACCESSIBILITY DARKENING of 46/255, and its own contract, its contrast figures and its
+ * `--muted` disclosure live in `palette-slate400-step2-a3-s-f.test.ts`. Read that file before
+ * reusing the tolerances in this one; the `CHANNEL_TOLERANCE` of 3 below does NOT apply to it.
+ */
+const PRE_STEP_2_TOTAL = 110;
+const STEP_2_SUBSTITUTIONS = 15;
+const EXPECTED_TOTAL = 95;
 const EXPECTED_FILE_COUNT = 28;
-/** 110 splits into 83 that are this stream's future work and 27 that sit in the three exclusions. */
-const EXPECTED_IN_SCOPE_RESIDUAL = 83;
+/** 95 splits into 68 that are this stream's future work and 27 that sit in the three exclusions. */
+const EXPECTED_IN_SCOPE_RESIDUAL = 68;
 const EXPECTED_EXCLUDED_RESIDUAL = 27;
+
+/**
+ * Step 2 emptied no file, which is why `EXPECTED_FILE_COUNT` is unchanged at 28. These are the raw
+ * neutrals each of its 5 files still holds, measured on the candidate: 1 / 10 / 11 / 8 / 3, against
+ * 2 / 14 / 15 / 11 / 6 on the base, i.e. exactly the 1 / 4 / 4 / 3 / 3 substitutions it made.
+ */
+const STEP_2_SURVIVING_RESIDUALS: ReadonlyArray<readonly [string, number]> = [
+	['src/components/campus-map/BuildingGradeScopeControl.tsx', 1],
+	['src/components/campus-map/CampusMapOverview.tsx', 10],
+	['src/components/dashboard/CampusReadinessCard.tsx', 11],
+	['src/pages/Audit.tsx', 8],
+	['src/pages/Dashboard.tsx', 3],
+];
+
 
 // ───────────────────────── colour maths (no library rounding is trusted) ─────────────────────────
 
@@ -395,11 +442,37 @@ test('control 4: the exclusions are deliberate, not forgotten', () => {
 test('control 5: the ratchet fell for exactly the reason this file states', () => {
 	const substitutions = SUBSTITUTED.reduce((sum, [, , , n]) => sum + n, 0);
 	assert.equal(substitutions, 119, 'the stated substitution count changed; update the header table too');
+	// The chain, made arithmetic rather than assertion of convenience. 229 - 119 = 110, which is the
+	// total step 2 started from; 110 - 15 = 95, which is where the ratchet now pins.
+	assert.equal(
+		PRE_SWEEP_TOTAL - substitutions,
+		PRE_STEP_2_TOTAL,
+		'the S-e sweep did not land on the total step 2 recorded as its starting point',
+	);
 	assert.equal(
 		EXPECTED_TOTAL,
-		PRE_SWEEP_TOTAL - substitutions,
-		'the expected ratchet total is not the pre-sweep total minus the substitutions',
+		PRE_STEP_2_TOTAL - STEP_2_SUBSTITUTIONS,
+		'the expected ratchet total is not the pre-step-2 total minus the step-2 substitutions',
 	);
+	assert.equal(
+		EXPECTED_TOTAL,
+		PRE_SWEEP_TOTAL - substitutions - STEP_2_SUBSTITUTIONS,
+		'the expected ratchet total is not the pre-sweep total minus both substitutions',
+	);
+	// Step 2 emptied no file, so the file count is unchanged. Asserted from source, because that is
+	// the only reason 28 is still true.
+	for (const [rel, expected] of STEP_2_SURVIVING_RESIDUALS) {
+		const count = (readFileSync(join(CLIENT_ROOT, rel), 'utf8').match(/\btext-(?:slate|zinc|gray|neutral|stone)-\d{2,3}\b/g) ?? []).length;
+		assert.ok(
+			count > 0,
+			`${rel} no longer holds any raw neutral, so step 2 emptied it and EXPECTED_FILE_COUNT must fall.`,
+		);
+		assert.equal(
+			count,
+			expected,
+			`${rel} holds ${count} raw neutrals, this file states ${expected}. Re-measure and update the list.`,
+		);
+	}
 	assert.equal(
 		EXPECTED_FILE_COUNT,
 		PRE_SWEEP_FILES - 6,
@@ -422,8 +495,8 @@ test('control 5: the ratchet fell for exactly the reason this file states', () =
 		`ratchet-scope residual file count is ${ratchet.files.length}, this file states ${EXPECTED_FILE_COUNT}.`,
 	);
 
-	// And the three scopes must add up, so no occurrence is unaccounted for. 83 in scope + 27 that
-	// belong to the deliberate exclusions = the 110 the ratchet pins.
+	// And the three scopes must add up, so no occurrence is unaccounted for. 68 in scope + 27 that
+	// belong to the deliberate exclusions = the 95 the ratchet pins.
 	const inScope = inScopeResidual();
 	assert.equal(
 		inScope.total,

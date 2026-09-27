@@ -454,7 +454,7 @@ const [verifiedTermIndex, setVerifiedTermIndex] = useState<number | null>(null);
 									</div>
 								</div>
 							) : (
-								<div className="flex flex-col items-center justify-center py-12 text-center text-slate-400">
+								<div className="flex flex-col items-center justify-center py-12 text-center text-muted-foreground">
 									<Building2 className="size-12 opacity-35 animate-pulse" />
 									<p className="mt-2 text-sm">Select a building on the map to begin.</p>
 								</div>
@@ -539,7 +539,7 @@ const [verifiedTermIndex, setVerifiedTermIndex] = useState<number | null>(null);
 									{/* Search & Filters */}
 									<div className="flex flex-col gap-2 mb-3 shrink-0">
 										<div className="relative">
-											<Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-slate-400" />
+											<Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
 											<Input
 												placeholder="Search rooms..."
 												value={roomSearch}
@@ -564,7 +564,7 @@ const [verifiedTermIndex, setVerifiedTermIndex] = useState<number | null>(null);
 									<ScrollArea className="flex-1 min-h-0 pr-1 -mr-2">
 										<div className="space-y-1.5 pb-2">
 											{filteredRooms.length === 0 ? (
-												<div className="text-center py-8 text-xs text-slate-400 border border-dashed rounded-xl">
+												<div className="text-center py-8 text-xs text-muted-foreground border border-dashed rounded-xl">
 													No rooms match filters.
 												</div>
 											) : (
@@ -617,7 +617,7 @@ const [verifiedTermIndex, setVerifiedTermIndex] = useState<number | null>(null);
 															Utilization
 														</span>
 														<span
-															className={cn('tabular-nums', !utilizationKnown && 'italic text-slate-400')}
+															className={cn('tabular-nums', !utilizationKnown && 'italic text-muted-foreground')}
 															aria-label={utilizationKnown ? undefined : 'Weekly utilization not available'}
 														>
 															{roomUtilizationLabel(roomUtilization, room.id)}

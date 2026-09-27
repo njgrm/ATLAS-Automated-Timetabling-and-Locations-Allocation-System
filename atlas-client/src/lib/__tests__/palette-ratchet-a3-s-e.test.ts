@@ -98,8 +98,30 @@ import test from 'node:test';
  * A later session must therefore **not** read this pin as blanket permission to leave the residual
  * alone: of the 110, the 6 decorative `slate-200/300` sites are correct as they are, and the 5
  * `slate-400` sites listed above are accessibility defects to fix, not exemptions.
+ *
+ * **LOWERED AGAIN 2026-09-28 by the S-f step-2 sweep: 110 -> 95, 28 -> 28 files.**
+ *
+ * All 15 `text-slate-400` sites in the c2 correction's item 2 and item 3 were replaced with
+ * `text-muted-foreground` across 5 non-timetable demo-route files. The fall is exactly those 15
+ * substitutions and nothing else; no file emptied, which is why the file count is unchanged.
+ *
+ * **This was a deliberate ACCESSIBILITY DARKENING, not a rename, and the pin must not be read as
+ * evidence that appearance was preserved.** Measured against the installed Tailwind 4.2.2 palette,
+ * `text-slate-400` = oklch(70.4% 0.04 256.788) = sRGB rgb(144, 161, 185) and `--muted-foreground` =
+ * `215 16% 47%` = sRGB rgb(101, 117, 139), a per-channel delta of 43 / 44 / 46, **max 46 of 255**.
+ * That is the opposite of the S-e sweep's 2-3/255 rename. Its own contract, tolerances and evidence
+ * are in `src/lib/__tests__/palette-slate400-step2-a3-s-f.test.ts`.
+ *
+ * **DISCLOSED SHORTFALL, unchanged in kind by this sweep: on `--muted` and `--secondary` the token
+ * is 4.268:1, still under WCAG AA 4.5:1.** The sweep is a strict improvement on every surface
+ * (+2.067:1 on white from 2.630:1, +1.878:1 on `--muted` from 2.390:1) and a full AA pass only on
+ * white and near-white surfaces. **Nothing here may be read as a claim that the app passes AA.**
+ *
+ * The c2 correction's item 3 — that `BuildingGradeScopeControl.tsx:36` is an ENABLED control with
+ * no WCAG 1.4.3 exemption — is **confirmed and now acted on**: that site is one of the 15 swept.
+ * No `text-slate-400` site is an exemption, and this pin is not a licence to leave the rest.
  */
-const PINNED_TOTAL = 110;
+const PINNED_TOTAL = 95;
 const PINNED_FILE_COUNT = 28;
 
 const here = dirname(fileURLToPath(import.meta.url));
