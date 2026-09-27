@@ -58,6 +58,26 @@ import test from 'node:test';
  * asserted alongside `CONTRAST_TOLERANCE` which is the load-bearing perceptual bound: a
  * one-unit lightness change to a token moves contrast by ~1.4:1, which is what makes control 1
  * discriminating rather than decorative.
+ *
+ * **Two corrections added by the planner after QA `ses_f1c2ec739ffexrHKqcRsIOKYJd`; neither
+ * touches a control, a pin or a tolerance, and the figures above are kept as recorded.**
+ *
+ * 1. **The contrast figures above are not reproducible from the spec-derived conversion this file
+ *    implements, and QA's independent derivation is the one to read.** QA converted oklch and HSL
+ *    to sRGB from the specification and measured `slate-900`->`--foreground` at 17.845 -> 17.899
+ *    (**+0.055**) and `slate-500`->`--muted-foreground` at 4.767 -> 4.718 (**-0.049**), against the
+ *    17.831 -> 17.874 (+0.043) and 4.764 -> 4.697 (-0.067) printed above; and on
+ *    `--muted`/`--secondary` it measured **4.300:1** against the 4.268 above. Every substantive
+ *    claim survives: sub-4.5:1 on **both** sides of the `--muted` pair, the same direction, and a
+ *    magnitude far inside the +-0.10 rename bound. Only the printed decimals differ, and they are
+ *    retained above rather than replaced because the difference is a fact about two conversion
+ *    implementations, not an error to be tidied away.
+ * 2. **Two of the three deliberate exclusions are precautionary, not load-bearing.** Only
+ *    `src/pages/RoomSchedules.tsx` actually holds occurrences of the two swept classes (7).
+ *    `src/ui/confirmation-modal.tsx` and `src/pages/Login.tsx` hold **zero** `text-slate-900` and
+ *    zero `text-slate-500`; all of their raw neutrals are `gray-*`, which this sweep never touches.
+ *    They are forward-looking scope fences — correct to keep, and still correct for the reason
+ *    recorded — but a reader must not expect "3 and 13 swept occurrences" from them.
  */
 
 const here = dirname(fileURLToPath(import.meta.url));
