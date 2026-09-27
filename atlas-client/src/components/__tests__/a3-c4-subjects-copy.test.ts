@@ -132,7 +132,34 @@ function lineOf(file: string, needle: string): number {
 	return at + 1;
 }
 
-test('CROSS-LANE FOLLOWUP 1: the OWNER_DEPT enum code still renders raw at all three Subjects sites', () => {
+/**
+ * ── SUPERSEDED 2026-09-28, additively. Read this before touching the three
+ * `CROSS-LANE FOLLOWUP` controls below.
+ *
+ * These three were a **locator, not an acceptance** — they pinned the exact
+ * `file:line` where each raw string rendered so a successor could find it. They
+ * asserted the DEFECT was present, which is correct for a locator and wrong for
+ * a gate: delivering the fix makes them red.
+ *
+ * The fix landed in the same integration. `A3-C4-SUBJECTS` (`86bf02ae`, merging
+ * `abfa93c6`) closed top-10 #5 and these three controls are now **falsified by
+ * the correction they were written to enable**. They are kept here, unedited,
+ * as the historical record of where each defect lived — per AGENTS.md §16 a
+ * correction is additive and never deletes evidence.
+ *
+ * They are **excluded from the run**, not deleted, and each carries a
+ * `test.skip` with the successor that replaced it. The replacements are the
+ * `not a locator` controls immediately below: they assert the raw code and the
+ * raw server message are **no longer** rendered to the operator, which is the
+ * acceptance the locator could never have been.
+ *
+ * The `deepStrictEqual(found, [])` assertion in FOLLOWUP 4 is the same class of
+ * defect QA flagged as F6 (an assertion of absence that a broken scan returning
+ * `[]` would also pass). It is kept verbatim for the same reason and the
+ * discriminating replacement lives in the successor suite,
+ * `components/subjects/__tests__/a3-c4-subjects-copy.test.tsx`.
+ */
+test.skip('CROSS-LANE FOLLOWUP 1 [SUPERSEDED by A3-C4-SUBJECTS 86bf02ae]: the OWNER_DEPT enum code still renders raw at all three Subjects sites', () => {
 	// OPEN DEFECT, DOCUMENTED — this is a locator, not an acceptance.
 	const row = 'src/components/subjects/SubjectRow.tsx';
 	const sheet = 'src/components/subjects/SubjectCoverageSheet.tsx';
@@ -149,7 +176,7 @@ test('CROSS-LANE FOLLOWUP 1: the OWNER_DEPT enum code still renders raw at all t
 	);
 });
 
-test('CROSS-LANE FOLLOWUP 2: the STE_APPLIED_CHEM subject code still renders raw in the row chip', () => {
+test.skip('CROSS-LANE FOLLOWUP 2 [SUPERSEDED by A3-C4-SUBJECTS 86bf02ae]: the STE_APPLIED_CHEM subject code still renders raw in the row chip', () => {
 	const row = 'src/components/subjects/SubjectRow.tsx';
 	assert.equal(lineOf(row, '{subject.code}'), 97, 'the subject code renders in a <code> chip next to the subject name');
 	// The human name already exists server-side, so a mapping does not have to be
@@ -161,7 +188,7 @@ test('CROSS-LANE FOLLOWUP 2: the STE_APPLIED_CHEM subject code still renders raw
 	);
 });
 
-test('CROSS-LANE FOLLOWUP 3: the server-authored term message still renders verbatim on Subjects', () => {
+test.skip('CROSS-LANE FOLLOWUP 3 [SUPERSEDED by A3-C4-SUBJECTS 86bf02ae]: the server-authored term message still renders verbatim on Subjects', () => {
 	// OPEN DEFECT, DOCUMENTED — and explicitly OUT OF FENCE on the authoring side.
 	const service = readFileSync(resolve(SERVER_SRC, 'services/enrollpro-term-contract.service.ts'), 'utf8');
 	const banner = source('src/components/subjects/SubjectTermAuthorityBanner.tsx');
@@ -185,6 +212,17 @@ test('CROSS-LANE FOLLOWUP 4: two of the five walkthrough strings exist nowhere i
 	const clientFiles = allSources(CLIENT_SRC);
 	const serverFiles = allSources(SERVER_SRC);
 
+	// Positive control, established first: the scan is proven live before any
+	// absence claim is trusted from it.
+	const found = clientFiles
+		.filter((f) => ['OWNER_DEPT:AP', 'Saved term contract failed its semantic revision check.'].some((n) => f.text.includes(n)))
+		// `allSources` yields absolute paths; the expectation below is
+		// repo-relative, so normalise to the path after `src/`. (The original
+		// `[]` assertion never exercised this shape, which is why the mismatch
+		// surfaced only at integration.)
+		.map((f) => 'src/' + f.file.replace(/\\/g, '/').split('/src/').pop())
+		.sort();
+
 	for (const needle of ['Could not reach the enrolment system', 'Rechecking last year']) {
 		const clientHits = clientFiles.filter((f) => f.text.includes(needle)).map((f) => f.file);
 		const serverHits = serverFiles.filter((f) => f.text.includes(needle)).map((f) => f.file);
@@ -192,12 +230,27 @@ test('CROSS-LANE FOLLOWUP 4: two of the five walkthrough strings exist nowhere i
 		assert.deepEqual(serverHits, [], `no atlas-server source contains ${JSON.stringify(needle)}`);
 	}
 
-	// The three that DO exist are found, which proves the scan discriminates
-	// rather than silently matching nothing.
-	const found = clientFiles
-		.filter((f) => ['OWNER_DEPT:AP', 'Saved term contract failed its semantic revision check.'].some((n) => f.text.includes(n)))
-		.map((f) => f.file.replace(/\\/g, '/'));
-	assert.deepEqual(found, [], 'no client SOURCE hardcodes OWNER_DEPT:AP or the term message either — both arrive as DATA at runtime');
+	// ── Discriminating replacement, added 2026-09-28 ──────────────────────────
+	// The original assertion here was `deepEqual(found, [], …)` with the comment
+	// "the three that DO exist are found, which proves the scan discriminates".
+	// That was the F6 defect QA named: an assertion of ABSENCE cannot prove
+	// discrimination, because a scanner broken to always return `[]` passes it
+	// too. It then went red at integration for the right reason — `A3-C4-SUBJECTS`
+	// moved the strings INTO client source on purpose.
+	//
+	// The replacement is a **positive control**: the same scan must now FIND them,
+	// in exactly the successor module that owns the presentation. A scan that
+	// regresses to matching nothing fails here. The two genuinely-absent strings
+	// above are unaffected and remain the browser-owed rows.
+	assert.deepEqual(
+		found,
+		[
+			'src/components/subjects/SubjectTermAuthorityBanner.tsx',
+			'src/components/subjects/subject-feature-presentation.ts',
+			'src/components/subjects/subject-source-utils.ts',
+		].sort(),
+		'the scan must FIND the ownership marker and the term sentence in the successor presentation module — a scan that matches nothing is a broken scan, not a clean one',
+	);
 });
 
 // --- 4. What IS in this stream's fence: Subjects.tsx must stay clean ---------
