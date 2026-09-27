@@ -1,18 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-	AlertTriangle,
-	ArrowDown,
-	ArrowUp,
-	ArrowUpDown,
 	ChevronLeft,
 	ChevronRight,
-	RefreshCw,
 	Users,
 	ChevronsLeft,
 	ChevronsRight,
 	Map as MapIcon,
-	WifiOff,
-	CheckCircle2,
 } from 'lucide-react';
 
 import atlasApi from '@/lib/api';
@@ -51,11 +44,22 @@ import { HomeRoomAutoAssignDialog } from '@/components/sections/HomeRoomAutoAssi
 import { SectionsHomeRoomActions } from '@/components/sections/SectionsHomeRoomActions';
 import { SectionMobileCard } from '@/components/sections/SectionMobileCard';
 import {
+	buildHomeRoomsStat,
 	isHomeRoomResolved,
 	resolveHomeRoom,
 	summarizeHomeRoomReadiness,
 } from '@/components/sections/home-room-readiness';
 import { SectionsFilterToolbar } from '@/components/sections/SectionsFilterToolbar';
+import { SortableSectionHeader, type SortDir, type SortField } from '@/components/sections/SectionsSortableHeader';
+import { SectionsStatusBanners } from '@/components/sections/SectionsStatusBanners';
+import { deriveBuildingOccupancy } from '@/components/sections/buildingOccupancy';
+import {
+	applyQueuedHomeRoomEdits,
+	mergeQueuedHomeRoomEdit,
+	readQueuedHomeRoomEdits,
+	writeQueuedHomeRoomEdits,
+	type HomeRoomQueueEntry,
+} from '@/components/sections/homeRoomEditQueue';
 import {
 	persistHomeRoomAssignment,
 	resolveHomeRoomIntent,
@@ -63,19 +67,14 @@ import {
 } from '@/components/sections/homeRoomPersistence';
 import { HomeRoomConfirmDialogs, type PendingAssignment } from '@/components/sections/HomeRoomConfirmDialogs';
 import { deriveHomeRoomEditStatus } from '@/components/sections/homeRoomEditStatus';
-import { cn } from '@/lib/utils';
 import type { RoomSectionMetadata } from '@/components/BuildingView';
 import type { Building, SectionSummaryResponse } from '@/types';
 import { ActorScopedRolloverGuidanceCard } from '@/components/runtime/RolloverGuidanceCard';
 
 /* ─── Constants ─── */
 const PAGE_SIZES = [10, 25, 50, 100];
-const HOME_ROOM_QUEUE_CACHE_PREFIX = 'atlas:sections-home-room-queue:v1';
 
 /* ─── Types ─── */
-type SortField = 'name' | 'gradeLevelId' | 'enrolledCount' | 'maxCapacity' | 'fill';
-type SortDir   = 'asc' | 'desc';
-
 type SectionSummary = SectionSummaryResponse;
 
 type FetchState =
@@ -84,71 +83,18 @@ type FetchState =
 	| { status: 'unavailable'; message: string }
 	| { status: 'no-year'; message: string };
 
-type HomeRoomQueueEntry = {
-	sectionId: number;
-	homeRoomId: number | null;
-	queuedAt: string;
-};
-
 /* A3 fix 12 — PendingAssignment now lives with the confirmation surface that
  * owns it (components/sections/HomeRoomConfirmDialogs.tsx), so the escalation
- * and the write it performs cannot drift apart. */
+ * and the write it performs cannot drift apart. A3 C4 (B1) — the offline edit
+ * queue and the sortable column header likewise moved to
+ * components/sections/homeRoomEditQueue.ts and SectionsSortableHeader.tsx, and
+ * the status banners to SectionsStatusBanners.tsx; the page is a coordinator
+ * again, and the explanatory notes moved with the code they describe. */
 
 /* ─── Helpers ─── */
 function gradeKey(name: string) {
 	const m = name.match(/\d+/);
 	return m ? m[0] : '';
-}
-
-function homeRoomQueueKey(schoolId: number, schoolYearId: number): string {
-	return `${HOME_ROOM_QUEUE_CACHE_PREFIX}:${schoolId}:${schoolYearId}`;
-}
-
-function readQueuedHomeRoomEdits(schoolId: number, schoolYearId: number): HomeRoomQueueEntry[] {
-	try {
-		const raw = localStorage.getItem(homeRoomQueueKey(schoolId, schoolYearId));
-		if (!raw) return [];
-		const parsed = JSON.parse(raw) as HomeRoomQueueEntry[];
-		if (!Array.isArray(parsed)) return [];
-		return parsed.filter((item) => typeof item.sectionId === 'number');
-	} catch {
-		return [];
-	}
-}
-
-function writeQueuedHomeRoomEdits(schoolId: number, schoolYearId: number, entries: HomeRoomQueueEntry[]): void {
-	try {
-		if (entries.length === 0) {
-			localStorage.removeItem(homeRoomQueueKey(schoolId, schoolYearId));
-			return;
-		}
-		localStorage.setItem(homeRoomQueueKey(schoolId, schoolYearId), JSON.stringify(entries));
-	} catch {
-		// Ignore storage restrictions.
-	}
-}
-
-function mergeQueuedHomeRoomEdit(
-	current: HomeRoomQueueEntry[],
-	sectionId: number,
-	homeRoomId: number | null,
-): HomeRoomQueueEntry[] {
-	const next = current.filter((entry) => entry.sectionId !== sectionId);
-	next.push({ sectionId, homeRoomId, queuedAt: new Date().toISOString() });
-	return next;
-}
-
-function applyQueuedHomeRoomEdits(sections: SectionDetail[], queued: HomeRoomQueueEntry[]): SectionDetail[] {
-	if (queued.length === 0) return sections;
-	const homeRoomBySection = new Map<number, number | null>(queued.map((entry) => [entry.sectionId, entry.homeRoomId]));
-	return sections.map((section) => {
-		if (!section.id) return section;
-		if (!homeRoomBySection.has(section.id)) return section;
-		return {
-			...section,
-			homeRoomId: homeRoomBySection.get(section.id) ?? null,
-		};
-	});
 }
 
 /* ─── Component ─── */
@@ -663,82 +609,14 @@ export default function Sections() {
 	// the stat tile — one source, so the banner and the tile cannot disagree.
 	const sectionsNeedingRooms = state.status === 'ok' ? homeRoomReadiness.needing : 0;
 
-	const buildingOccupancy = useMemo(() => {
-		const map = new Map<number, number>();
-		buildings.forEach(b => {
-			if (!b.rooms || b.rooms.length === 0) {
-				map.set(b.id, 0);
-				return;
-			}
-			// Be robust: treat as teaching space if explicitly true or if type is a standard teaching type
-			const teachingRooms = b.rooms.filter((r: import('@/types').Room) => 
-				r.isTeachingSpace === true || 
-				(!['LIBRARY', 'FACULTY_ROOM', 'OFFICE', 'OTHER'].includes(r.type))
-			);
-			
-			if (teachingRooms.length === 0) { 
-				map.set(b.id, 0); 
-				return; 
-			}
-			
-			const occupiedCount = teachingRooms.filter((r: import('@/types').Room) => roomOccupancyMap.has(r.id)).length;
-			const pct = (occupiedCount / teachingRooms.length) * 100;
-			map.set(b.id, pct);
-		});
-		return map;
-	}, [buildings, roomOccupancyMap]);
+	const buildingOccupancy = useMemo(
+		() => deriveBuildingOccupancy(buildings, roomOccupancyMap),
+		[buildings, roomOccupancyMap],
+	);
 
 	const toggleSort = (field: SortField) => {
 		if (sortField === field) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
 		else { setSortField(field); setSortDir('asc'); }
-	};
-
-	const SortIcon = ({ field }: { field: SortField }) => {
-		if (sortField !== field) return <ArrowUpDown className="size-3 text-muted-foreground/50" />;
-		return sortDir === 'asc' ? <ArrowUp className="size-3" /> : <ArrowDown className="size-3" />;
-	};
-	// Phase 1.5: aria-sort + plain-language accessible name + visible Tooltip on
-	// every sortable column header. The aria-sort value is the WCAG-standard
-	// "ascending" / "descending" / "none" so screen readers and voice control
-	// both perceive current sort state.
-	const SortableSectionHeader = ({
-		field,
-		label,
-		align = 'left',
-	}: {
-		field: SortField;
-		label: string;
-		align?: 'left' | 'right';
-	}) => {
-		const isActive = sortField === field;
-		const direction = isActive ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none';
-		const ariaLabel = `Sort by ${label}, currently ${direction}`;
-		return (
-			<th
-				className={cn('px-4 py-3 text-left', align === 'right' && 'text-right')}
-				aria-sort={direction as 'ascending' | 'descending' | 'none'}
-			>
-				<TooltipProvider delayDuration={200}>
-					<Tooltip>
-						<TooltipTrigger asChild>
-							<Button
-								variant="ghost"
-								size="sm"
-								onClick={() => toggleSort(field)}
-								aria-label={ariaLabel}
-								className={cn(
-									'h-auto px-0 py-0 font-semibold text-muted-foreground hover:text-foreground',
-									align === 'right' && 'ml-auto',
-								)}
-							>
-								{label} <SortIcon field={field} />
-							</Button>
-						</TooltipTrigger>
-						<TooltipContent side="top" className="text-xs">{ariaLabel}</TooltipContent>
-					</Tooltip>
-				</TooltipProvider>
-			</th>
-		);
 	};
 
 	const availableGrades = useMemo(() => {
@@ -773,28 +651,39 @@ export default function Sections() {
 
 		// A3 C4 (defect A): BOTH ends of the fraction now come from the list
 		// that is actually rendered. It used to divide a count computed over the
-		// client array by the SERVER's declared section total. The two agree today
-		// only because the server happens to derive one from the other
+		// client array by the SERVER's declared section total. The two agree
+		// today only because the server happens to derive one from the other
 		// (atlas-server/src/services/section.service.ts:413 sets
 		// `totalSections: sections.length`), which is another service's
 		// implementation detail, not a client invariant. A fraction across two
 		// populations is a fabrication the moment they diverge, and the sibling
 		// "Sections" tile would have shown the server's number beside the
 		// client's — e.g. "20" next to "18/19".
-		const { assigned, total, needing, assignmentPct } = homeRoomReadiness;
+		//
+		// REVIEW FINDING B2 (2026-09-28): the label/value/helpText triple used
+		// to be inlined HERE, which left a source-shape scan as the only guard
+		// on a HIGH truthfulness fix — and the scan was defeated by a mutation
+		// that rebuilt the summary from a plain "is a homeRoomId present"
+		// count. The printing now lives in `buildHomeRoomsStat`, which the
+		// behavioural control calls directly with a controlled list, so the
+		// claim is decided by what that function RETURNS rather than by how
+		// this file spells anything. This array places that return value in
+		// the tile verbatim, and the page no longer holds a local
+		// re-derivation of the fraction that could override it.
+		const sectionsTile = {
+			label: 'Sections',
+			value: homeRoomReadiness.total,
+			tone: 'brand' as const,
+			helpText: 'Total section rosters available for the active school year.',
+		};
+		const homeRoomsTile = buildHomeRoomsStat(state.data.sections, homeRoomOptions, homeRoomReadiness);
 		return [
-			{ label: 'Sections', value: total, tone: 'brand' as const, helpText: 'Total section rosters available for the active school year.' },
-			{
-				label: needing === 0 ? 'Home rooms' : 'Need rooms',
-				value: needing === 0 ? `${assigned}/${total}` : needing,
-				tone: needing === 0 ? 'success' as const : 'warning' as const,
-				helpText: needing === 0
-					? `${assignmentPct}% of sections already have a home room.`
-					: 'Assign these sections before schedule generation. A section counts as needing a room until its home room resolves to a room you can be shown.',
-			},
+			sectionsTile,
+			homeRoomsTile,
 			...(queuedHomeRoomEdits.length > 0 ? [{ label: 'Queued', value: queuedHomeRoomEdits.length, tone: 'info' as const, helpText: 'Home-room changes saved locally and waiting to sync.' }] : []),
 		];
-	}, [homeRoomReadiness, queuedHomeRoomEdits.length, state.status]);
+	}, [homeRoomReadiness, homeRoomOptions, queuedHomeRoomEdits.length, state]);
+
 
 	const homeRoomEditStatus = useMemo(
 		() => deriveHomeRoomEditStatus({
@@ -882,35 +771,22 @@ export default function Sections() {
 				<ActorScopedRolloverGuidanceCard compact />
 			</div>
 
-			{/* Status Banners */}
-			{state.status === 'no-year' && (
-				<div className="shrink-0 mx-4 mt-2 flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-900 shadow-sm animate-in fade-in duration-300 lg:mx-5">
-					<AlertTriangle className="size-4 shrink-0 text-blue-600" />
-					<span className="flex-1 font-semibold">No active school year. {state.message}</span>
-				</div>
-			)}
-			{(state.status === 'unavailable' || syncError) && (
-				<div className="shrink-0 mx-4 mt-2 flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900 shadow-sm animate-in fade-in duration-300 lg:mx-5">
-					<AlertTriangle className="size-4 shrink-0 text-amber-600" />
-					<span className="flex-1 font-semibold text-amber-900">{cacheNotice ?? (syncError ? 'EnrollPro is temporarily unavailable.' : 'Enrollment service unavailable.')}</span>
-					<Button size="sm" variant="outline" onClick={handleSync} disabled={syncing || !isOnline} className="shrink-0 h-7 border-amber-300 hover:bg-amber-100 text-amber-900 font-bold"><RefreshCw className={`mr-1.5 size-3 ${syncing ? 'animate-spin' : ''}`} /> Retry Sync</Button>
-				</div>
-			)}
-{state.status === 'ok' && homeRoomEditStatus.tone !== 'ready' && (
-			<div
-				role={homeRoomEditStatus.tone === 'blocked' ? 'alert' : 'status'}
-				className={cn(
-					"pointer-events-none shrink-0 mx-4 mt-2 flex items-center gap-2 rounded-lg border px-3 py-2 text-sm shadow-sm animate-in fade-in duration-300 lg:mx-5",
-					homeRoomEditStatus.tone === 'queued' && 'border-sky-200 bg-sky-50 text-sky-900',
-					homeRoomEditStatus.tone === 'checking' && 'border-amber-200 bg-amber-50 text-amber-900',
-					// Phase 0C.1: blocked uses the destructive semantic token so the
-					// G9 grade red stays reserved for grade-level meaning only.
-					homeRoomEditStatus.tone === 'blocked' && 'border-destructive/30 bg-destructive/10 text-destructive',
-				)}>
-				{homeRoomEditStatus.tone === 'queued' ? <WifiOff className="size-4 shrink-0" /> : <AlertTriangle className="size-4 shrink-0" />}
-				<span className="flex-1 font-semibold">{homeRoomEditStatus.message}</span>
-			</div>
-		)}
+			{/* Status Banners — extracted to components/sections/SectionsStatusBanners.tsx
+				(A3 C4 B1) to bring this page back under the 1000-line §8 cap. The
+				copy, the ordering, the pointer-events-none guard and the destructive
+				token choice all moved with it. Only the 'unavailable' and 'no-year'
+				states carry a message; the other two are narrowed off at the
+				call site so the prop is always a string. */}
+			<SectionsStatusBanners
+				stateStatus={state.status}
+				stateMessage={state.status === 'unavailable' || state.status === 'no-year' ? state.message : ''}
+				syncError={syncError}
+				cacheNotice={cacheNotice}
+				syncing={syncing}
+				isOnline={isOnline}
+				onSync={handleSync}
+				editStatus={homeRoomEditStatus}
+			/>
 
 			<AdminTableShell
 				footer={state.status === 'ok' && state.data.sections.length > 0 ? (
@@ -944,17 +820,19 @@ export default function Sections() {
 						<table className="hidden w-full text-sm md:table">
 							<thead className="sticky top-0 z-10 bg-muted/90 backdrop-blur-md">
 								<tr className="border-b">
-									{/* Phase 1.5: each sortable column exposes aria-sort and a
-										plain-language accessible name; the sort button has a
-										visible Tooltip. aria-sort values: "ascending" /
-										"descending" / "none". The SortableSectionHeader helper
-										closes over sortField/sortDir/toggleSort from the
-										component scope. */}
-									<SortableSectionHeader field="name" label="Section" />
-									<SortableSectionHeader field="gradeLevelId" label="Grade" />
-									<SortableSectionHeader field="enrolledCount" label="Enrolled" align="right" />
-									<SortableSectionHeader field="maxCapacity" label="Capacity" align="right" />
-									<SortableSectionHeader field="fill" label="% Full" align="right" />
+								{/* Phase 1.5: each sortable column exposes aria-sort and a
+									plain-language accessible name; the sort button has a
+									visible Tooltip. aria-sort values: "ascending" /
+									"descending" / "none". The header itself moved to
+									components/sections/SectionsSortableHeader.tsx (A3 C4 B1);
+									it no longer closes over the page's state and takes
+									sortField/sortDir/onToggleSort as props. */}
+									<SortableSectionHeader field="name" label="Section" sortField={sortField} sortDir={sortDir} onToggleSort={toggleSort} />
+									<SortableSectionHeader field="gradeLevelId" label="Grade" sortField={sortField} sortDir={sortDir} onToggleSort={toggleSort} />
+									<SortableSectionHeader field="enrolledCount" label="Enrolled" align="right" sortField={sortField} sortDir={sortDir} onToggleSort={toggleSort} />
+									<SortableSectionHeader field="maxCapacity" label="Capacity" align="right" sortField={sortField} sortDir={sortDir} onToggleSort={toggleSort} />
+									<SortableSectionHeader field="fill" label="% Full" align="right" sortField={sortField} sortDir={sortDir} onToggleSort={toggleSort} />
+
 									<th className="px-4 py-3 text-left font-semibold text-muted-foreground uppercase tracking-wider text-xs">Home room</th>
 									<th className="px-4 py-3 text-right font-semibold text-muted-foreground uppercase tracking-wider text-xs">Details</th>
 								</tr>
@@ -1011,7 +889,15 @@ export default function Sections() {
 			SAME `handleHomeRoomChange` the dropdown uses, so a room picked on the
 			map goes through the identical confirm/queue/swap path and cannot
 			bypass it. Mounted only under a resolved actor school, matching the
-			ACTOR-SCOPE-C01 fail-closed rule the modal itself enforces. */}
+			ACTOR-SCOPE-C01 fail-closed rule the modal itself enforces.
+
+			A3 C4 review finding N2: browsing the map is a legitimate READ, so the
+			control stays enabled in read-only mode rather than being disabled like
+			the sibling picker. The dead end that motivated the finding is closed
+			here instead: in read-only, a room tap leaves the modal OPEN rather than
+			closing it and silently doing nothing, because `handleHomeRoomChange`
+			would return without writing. The row and the control both say the truth
+			before the operator gets this far. */}
 		{scopedSchoolId != null && mapTarget != null && (
 			<SectionRoomMapModal
 				open
@@ -1020,6 +906,7 @@ export default function Sections() {
 				sectionId={mapTarget.id}
 				currentRoomId={mapTarget.homeRoomId ?? null}
 				onSelect={(roomId) => {
+					if (isReadOnlyMode) return;
 					if (roomId === (mapTarget.homeRoomId ?? null)) {
 						setMapTarget(null);
 						return;

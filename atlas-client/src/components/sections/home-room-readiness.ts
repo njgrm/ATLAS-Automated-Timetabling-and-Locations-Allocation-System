@@ -96,9 +96,19 @@ export function isHomeRoomResolved(
  *
  * The filter uses the same function, which is why the toolbar cannot show the
  * operator a row under "Assigned" that the row below then calls unresolved.
- * `!resolved` is a strict SUPERSET of `!homeRoomId` (an absent ID also fails
- * to resolve), so the "missing" filter only ever GAINS the dangling-ID rows and
- * never drops one it used to show.
+ * `!resolved` is a SUPERSET of `!homeRoomId` for every id >= 1 (an absent id
+ * also fails to resolve), so the "missing" filter only ever GAINS the
+ * dangling-ID rows and never drops one it used to show.
+ *
+ * CORRECTION (A3 C4 review, 2026-09-28): an earlier revision of this comment
+ * claimed a STRICT superset with no qualification. That is literally false at
+ * `homeRoomId === 0` — the old `!s.homeRoomId` test calls 0 "missing" (0 is
+ * falsy) while `!isHomeRoomResolved(...)` calls it assigned IF any option
+ * carries `id: 0`, so the row would move OUT of "missing" at that id alone.
+ * `homeRoomId` is a Room foreign key whose ids are >= 1, and `0` is the
+ * Global-Browse sentinel the page passes to the room map for a school-wide
+ * browse rather than a section, so the divergent input is unreachable and the
+ * behaviour is right. Only the comment overstated it; no behaviour changed.
  */
 export function summarizeHomeRoomReadiness(
 	sections: readonly HomeRoomBearing[],
@@ -114,5 +124,81 @@ export function summarizeHomeRoomReadiness(
 		total,
 		needing: Math.max(0, total - assigned),
 		assignmentPct: total > 0 ? Math.round((assigned / total) * 100) : 0,
+	};
+}
+
+/* ───────────────── the stat tile's own label / value / help text ───────────────── */
+
+/**
+ * The three strings the home-rooms stat tile PRINTS, derived from the same
+ * {@link summarizeHomeRoomReadiness} snapshot the banner count and the filter
+ * use. This is the function the A3 C4 control calls directly.
+ *
+ * WHY THE TILE'S PRINTING LIVES HERE (review finding B2, 2026-09-28): when the
+ * label, the value and the help text were inlined in the page's `useMemo`, the
+ * only thing guarding the HIGH truthfulness fix was a source-shape scan over
+ * the page's text. That scan was defeated: a mutation that rebuilt the summary
+ * from a plain "is a `homeRoomId` present" count contained the identifier
+ * `homeRoomId` but matched none of the scan's boolean-coercion spellings, so
+ * the whole suite stayed green (17/17, exit 0) while the tile printed
+ * "Home rooms 3/3 (33%)" beside two rows reading "Needs home room".
+ *
+ * Moving the printing here makes the claim BEHAVIOURAL: a control calls this
+ * function with a controlled list and asserts on what comes back. No identifier
+ * spelling, import list or re-derivation on the page can satisfy it, because
+ * the numbers it asserts are the numbers this function returned.
+ *
+ * The `readiness` argument is optional purely as an optimisation — the page
+ * already holds the snapshot, so recomputing it would be wasted work. It is NOT
+ * a second source of truth: every number printed below is read out of the
+ * snapshot and never recomputed, so a caller cannot widen one end of the
+ * fraction relative to the other by passing a mismatched list. Omit it and the
+ * snapshot is derived from `sections` and `homeRoomOptions` here, which is how
+ * the behavioural control calls it — one call, a fully controlled list, and no
+ * hand-built snapshot a mutation could hide inside.
+ */
+export type HomeRoomsStat = {
+	/** "Home rooms" once nothing needs one, otherwise "Need rooms". */
+	label: string;
+	/**
+	 * Either the `assigned/total` fraction — whose BOTH ends come from
+	 * `readiness.total` — or the bare `needing` count. Never a numerator and a
+	 * denominator drawn from different populations.
+	 */
+	value: string | number;
+	/** The stat tile's semantic tone for this state. */
+	tone: 'success' | 'warning';
+	/** The operator-facing explanation of what the number means. */
+	helpText: string;
+};
+
+export function buildHomeRoomsStat(
+	sections: readonly HomeRoomBearing[],
+	homeRoomOptions: readonly RoomOption[],
+	readiness: HomeRoomReadiness = summarizeHomeRoomReadiness(sections, homeRoomOptions),
+): HomeRoomsStat {
+	const { assigned, total, needing, assignmentPct } = readiness;
+	// The fraction and the success tone require a NON-EMPTY roster as well as a
+	// fully assigned one. `total > 0` is load-bearing: with an empty roster
+	// `needing` is 0, so without it the tile would print a green "Home rooms
+	// 0/0 (0%)" — a confident success claim about a list that does not exist.
+	// The B2 control `an empty roster ... never as done` caught exactly this
+	// when the control was first written, and it is why the guard is here
+	// rather than an assumption.
+	if (total > 0 && needing === 0) {
+		return {
+			label: 'Home rooms',
+			// Both ends of this fraction are `readiness.total`'s own population.
+			value: `${assigned}/${total}`,
+			tone: 'success',
+			helpText: `${assignmentPct}% of sections already have a home room.`,
+		};
+	}
+	return {
+		label: 'Need rooms',
+		value: needing,
+		tone: 'warning',
+		helpText:
+			'Assign these sections before schedule generation. A section counts as needing a room until its home room resolves to a room you can be shown.',
 	};
 }

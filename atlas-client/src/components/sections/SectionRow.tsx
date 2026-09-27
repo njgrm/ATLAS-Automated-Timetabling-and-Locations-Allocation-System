@@ -207,7 +207,21 @@ export function SectionRow({
 						height to a row on a page graded for density at 1366x768. It is a
 						labelled icon button (real aria-label naming the section +
 						Tooltip), never a bare icon, and it does not touch the kebab or
-						the onHomeRoomChange path. */}
+						the onHomeRoomChange path.
+
+						A3 C4 review finding N2: this control is deliberately NOT
+						`disabled` in read-only mode, while the sibling
+						`SectionRoomPicker` IS. Disabling it would remove a legitimate
+						READ capability in exactly the degraded state where the operator
+						most needs to see where the rooms are, and a `disabled` button is
+						not keyboard reachable — it would drop out of the tab order and
+						out of the screen reader's list of controls on the row. Instead
+						the read-only truth is carried in the Tooltip, which is the
+						affordance AGENTS.md §8 requires for this kind of help, so the
+						operator learns BEFORE opening that picking is paused. The
+						`aria-label` is unchanged: the control's accessible name is its
+						purpose, not its current permission, and the tooltip states the
+						permission. */}
 					<TooltipProvider delayDuration={200}>
 						<Tooltip>
 							<TooltipTrigger asChild>
@@ -222,7 +236,9 @@ export function SectionRow({
 									<MapIcon className="size-4" aria-hidden="true" />
 								</Button>
 							</TooltipTrigger>
-							<TooltipContent side="left">View room map</TooltipContent>
+							<TooltipContent side="left">
+								{isReadOnly ? 'View room map (read-only: picking a room is paused)' : 'View room map'}
+							</TooltipContent>
 						</Tooltip>
 					</TooltipProvider>
 					<DropdownMenu>

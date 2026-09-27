@@ -155,7 +155,7 @@ function rowTextFor(s: Section, extra: Record<string, unknown> = {}) {
 	return renderRow(s, extra).textContent ?? '';
 }
 
-function renderCard(s: Section) {
+function renderCard(s: Section, extra: Record<string, unknown> = {}): HTMLElement {
 	const el = mount(createElement(
 		MemoryRouter,
 		null,
@@ -169,6 +169,7 @@ function renderCard(s: Section) {
 			onHomeRoomChange: NOOP,
 			onShowDetails: NOOP,
 			onShowRoomMap: NOOP,
+			...extra,
 		} as never),
 	));
 	return el;
@@ -283,4 +284,101 @@ test('the room-map control does not disturb the home-room edit path', () => {
 	assert.equal(changed, 0, 'opening the map is not an assignment');
 	// And the picker trigger is still a combobox, not a raw control.
 	assert.ok(el.querySelector('[role="combobox"]'), 'the home-room picker is intact');
+});
+
+/* ───────────────── C: the read-only truth on the map control (review N2) ─────── */
+
+test('a read-only row still opens the map, and says picking is paused', () => {
+	// The contract chosen for N2, and the reason it is this one: browsing the
+	// map is a legitimate READ, and disabling the control would remove it in
+	// exactly the degraded state where the operator most needs to see where the
+	// rooms are. So the control stays enabled, keeps its aria-label, and states
+	// the read-only truth in its Tooltip — before the operator opens anything.
+	//
+	// The read-only truth is asserted by FOCUSING the control and reading the
+	// tooltip content that Radix then puts in the document. That is the
+	// observable path a keyboard or screen-reader user takes, and it is what
+	// makes this control discriminate: against the pre-correction row the
+	// tooltip read only "View room map" and the read-only wording was absent
+	// entirely, so the assertion below fails there. (Keyboard reachability alone
+	// would NOT have discriminated — that property already held at 44f0625a,
+	// which is why the earlier draft of this control was not evidence.)
+	const opened: number[] = [];
+	const el = renderRow(RESOLVED, { isReadOnly: true, onShowRoomMap: (s: Section) => { opened.push(s.id); } });
+	const control = el.querySelector<HTMLButtonElement>('button[aria-label="View room map for G7 - Rizal"]');
+
+	assert.ok(control, 'the control still exists in read-only mode');
+	// Keyboard reachable: NOT disabled, no tabindex escape, not hidden from AT.
+	// This is the specific reason the sibling picker is not a good model here —
+	// `disabled` would take it out of the tab order and out of the AT list.
+	assert.equal(control!.hasAttribute('disabled'), false, 'read-only browsing must stay keyboard reachable');
+	assert.equal(control!.getAttribute('tabindex'), null);
+	assert.notEqual(control!.getAttribute('aria-hidden'), 'true');
+	// The accessible name is unchanged: the control's name is its purpose.
+	assert.equal(control!.getAttribute('aria-label'), 'View room map for G7 - Rizal');
+
+	// Focus it — the keyboard path — and read what the operator is told.
+	act(() => { control!.focus(); });
+	const announced = dom.window.document.body.textContent ?? '';
+	assert.ok(announced.includes('View room map'), 'the control still names its purpose');
+	assert.ok(
+		announced.includes('read-only') && announced.includes('paused'),
+		`a read-only row must say picking is paused, not just silently do nothing: ${announced.slice(0, 300)}`,
+	);
+	act(() => { (control as HTMLButtonElement).blur(); });
+
+	// And it still opens, because browsing is not gated.
+	act(() => { control!.click(); });
+	assert.deepEqual(opened, [RESOLVED.id], 'read-only browsing still opens the map');
+
+	// The sibling picker, by contrast, IS disabled in read-only — asserted so
+	// the two controls' divergence is deliberate and visible rather than a bug.
+	const picker = el.querySelector<HTMLButtonElement>('[role="combobox"]');
+	assert.equal(picker!.hasAttribute('disabled'), true, 'the sibling picker keeps its read-only disable');
+});
+
+test('a writable row does NOT claim picking is paused', () => {
+	// The mirror of the control above, so the tooltip cannot pass by always
+	// printing the read-only wording.
+	const el = renderRow(RESOLVED, { isReadOnly: false });
+	const control = el.querySelector<HTMLButtonElement>('button[aria-label="View room map for G7 - Rizal"]')!;
+	act(() => { control.focus(); });
+	const announced = dom.window.document.body.textContent ?? '';
+	assert.ok(announced.includes('View room map'), 'the purpose is still announced');
+	assert.equal(announced.includes('paused'), false, 'a writable row must not be told picking is paused');
+	act(() => { control.blur(); });
+});
+
+test('the read-only row still tells the operator the room is needed', () => {
+	// The point of N2: making a control honest must not soften the reason the
+	// control is limited. A read-only unresolved row still says so.
+	const text = rowTextFor(DANGLING, { isReadOnly: true });
+	assert.ok(text.includes('Needs home room. Edits paused.'), 'the read-only wording is preserved');
+	// And the map control is still reachable on exactly that row.
+	assert.ok(
+		renderRow(DANGLING, { isReadOnly: true }).querySelector('button[aria-label="View room map for G7 - Mabini"]'),
+		'a read-only unresolved row still offers the map',
+	);
+});
+
+test('the mobile card reflects read-only on its map control too', () => {
+	const card = renderCard(RESOLVED, { isReadOnly: true });
+	const control = card.querySelector<HTMLButtonElement>('button[aria-label="View room map for G7 - Rizal"]');
+	assert.ok(control, 'the card keeps the control in read-only mode');
+	assert.equal(control!.hasAttribute('disabled'), false, 'and keeps it keyboard reachable');
+	// The same observable contract as the desktop row: focus it and the truth
+	// about picking must be announced, not merely implied.
+	act(() => { control!.focus(); });
+	const announced = dom.window.document.body.textContent ?? '';
+	assert.ok(
+		announced.includes('read-only') && announced.includes('paused'),
+		`the card must announce that picking is paused in read-only mode: ${announced.slice(0, 300)}`,
+	);
+	act(() => { (control as HTMLButtonElement).blur(); });
+	// The card's own unresolved wording is untouched by the N2 change.
+	const unresolved = renderCard(DANGLING, { isReadOnly: true });
+	assert.ok(
+		(unresolved.textContent ?? '').includes('Needs home room. Edits are paused.'),
+		'the card keeps its read-only wording',
+	);
 });

@@ -109,29 +109,39 @@ export function SectionMobileCard({ section, homeRoomOptions, isReadOnly, isSavi
 				<Button type="button" size="sm" variant="outline" className="h-11 flex-1 font-bold" onClick={() => onShowDetails(section)}>
 					View details
 				</Button>
-				{/* A3 C4 (top-10 #3): the same visible map entry point the desktop
-					row has, so the capability is not desktop-only. Third action in
-					the existing `flex-wrap` row. It is a full-width-class button
-					with real text — no icon-only control, so the label is visible at
-					any width and needs no tooltip to be understood. */}
-				<TooltipProvider delayDuration={200}>
-					<Tooltip>
-						<TooltipTrigger asChild>
-							<Button
-								type="button"
-								size="sm"
-								variant="outline"
-								className="h-11 flex-1 font-bold"
-								aria-label={`View room map for ${section.name}`}
-								onClick={() => onShowRoomMap(section)}
-							>
-								<MapIcon className="size-4" aria-hidden="true" />
-								Room map
-							</Button>
-						</TooltipTrigger>
-						<TooltipContent>Pick a home room on the interactive map</TooltipContent>
-					</Tooltip>
-				</TooltipProvider>
+			{/* A3 C4 (top-10 #3): the same visible map entry point the desktop
+				row has, so the capability is not desktop-only. Third action in
+				the existing `flex-wrap` row. It is a full-width-class button
+				with real text — no icon-only control, so the label is visible at
+				any width and needs no tooltip to be understood.
+
+				A3 C4 review finding N2: as on the desktop row, this is
+				deliberately NOT `disabled` in read-only mode. Browsing the map
+				is a read and stays available when the roster is degraded, and
+				`disabled` would remove the control from the tab order. The
+				read-only truth is carried in the Tooltip so it is known before
+				opening; the `aria-label` is unchanged. */}
+			<TooltipProvider delayDuration={200}>
+				<Tooltip>
+					<TooltipTrigger asChild>
+						<Button
+							type="button"
+							size="sm"
+							variant="outline"
+							className="h-11 flex-1 font-bold"
+							aria-label={`View room map for ${section.name}`}
+							onClick={() => onShowRoomMap(section)}
+						>
+							<MapIcon className="size-4" aria-hidden="true" />
+							Room map
+						</Button>
+					</TooltipTrigger>
+					<TooltipContent>
+						{isReadOnly ? 'View room map (read-only: picking a room is paused)' : 'Pick a home room on the interactive map'}
+					</TooltipContent>
+				</Tooltip>
+			</TooltipProvider>
+
 				<Button asChild size="sm" className="h-11 flex-1 font-bold">
 					<Link to={`/teaching-load?sectionId=${section.id}`}>Teaching Load</Link>
 				</Button>
