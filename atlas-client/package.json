@@ -56,6 +56,7 @@
     "test:generation-blockers-c02": "tsx --test src/components/timetable/__tests__/generation-blockers-c02.test.tsx",
     "test:a3-subjects": "tsx --test src/components/subjects/__tests__/subjects-ux-a3.test.tsx",
     "test:a3-page-title-c1": "tsx --test src/components/__tests__/a3-canonical-page-title-c1.test.tsx",
+    "test:a3-title-strip-c3": "tsx --test src/components/app-shell/__tests__/compact-title-strip-c3.test.tsx",
     "test:a3-palette-ratchet-s-e": "tsx --test src/lib/__tests__/palette-ratchet-a3-s-e.test.ts",
     "test:a3-palette-token-sweep": "tsx --test src/lib/__tests__/palette-token-sweep-a3-s-e.test.ts",
     "test:a3-palette-slate400-s-f": "tsx --test src/lib/__tests__/palette-slate400-step2-a3-s-f.test.ts",
