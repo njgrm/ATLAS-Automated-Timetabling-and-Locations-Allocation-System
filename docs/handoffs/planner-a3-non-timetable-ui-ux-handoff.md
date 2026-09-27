@@ -1649,3 +1649,220 @@ suites green, build exit 0, `git diff --check` clean, 0 typecheck errors in any 
 migration, generation, publication, live-data write, browser session, runtime/task/env change, or
 companion-repo action was taken at any point.** A3 ran no browser and held no lock, worked only in
 registered worktrees, pushed only ranges proven to contain only accepted commits, and deleted no branch.**
+
+---
+
+## 2026-09-28 c4 (Planner A3, session of 2026-09-28 02:30 → 07:00 +08)
+
+**This section is the current truth for c4.** Packet `docs/prompts/overnight-a3-ui-ux-2026-09-28-c4.md`.
+**A3 did not deploy; A2 owns every release. A3 ran no browser and touched no `.browser-lock` (c3 change).**
+
+**Five streams integrated and pushed: `ed14720c`** on `main` (branch `integration/a3-c4-20260928`),
+34 changed paths, **0** under `components/timetable/**`, **0** under `atlas-server/`, `prisma/`, `docs/`,
+`index.css`. **None of it is live** — your 04:30 cutover is past `ed14720c`'s base `6b84a3a6`, so the
+whole cycle ships in the next release.
+
+| stream | base → candidate → correction | QA |
+|---|---|---|
+| MAPS | `6b84a3a6` → `b02c5663` → `7792614a` | `ACCEPT_READY` **27/27/0/0** → bounded re-review |
+| SECTIONS | `6b84a3a6` → `44f0625a` → `1394f1d2` | `CORRECTION_REQUIRED` (2 BLOCKING) → corrected |
+| TEACHING LOAD | `6b84a3a6` → `1aa31312` → `a3790627` | `CORRECTION_REQUIRED` (1 BLOCKING) → corrected |
+| COPY | `6b84a3a6` → `5218a245` | `PLANNER_DECISION_REQUIRED` (A+B accepted) |
+| SUBJECTS | `6b84a3a6` → `abfa93c6` → `86bf02ae` | `PLANNER_DECISION_REQUIRED` (3 NB corrected) |
+
+### The four HIGH truthfulness items: three fixed, one honestly NOT_REPRODUCED
+
+**#8 Sections "20/20" vs 5 rows — FIXED, and the root cause was a two-definition split, not a bad
+number.** The counter asked `!!s.homeRoomId` (an ID is present) while the rows asked
+`homeRoomOptions.find(r => r.id === section.homeRoomId)` (does it resolve). A dangling ID was counted
+assigned *and* told "Needs home room". **My decision, which QA upheld: the row's test is load-bearing
+so the counter moved to it** — a home room that resolves to no nameable room is not a usable one, and
+printing the dangling ID would show an operator a room they cannot select. One shared predicate
+(`home-room-readiness.ts`) now serves counter, banner, filter and both renderers. I also found a
+**second** fabrication the packet only hinted at: the fraction divided a client-array count by the
+**server-declared** `totalSections`. They agreed only because `section.service.ts:413` happens to set
+`totalSections: sections.length` — another service's detail, not a client invariant. Both ends now
+come from one list.
+
+**#53 map tiles "0% FILLED" — FIXED at the source, and the real cause was an optional prop.**
+`CampusMap.tsx:144` printed `${Math.round(occupancy)}% FILLED` from an **optional** `buildingOccupancy`.
+Its two callers: the Sections modal supplies it; `timetable/CenterWorkspace.tsx:608` passes nothing, so
+`occupancy` fell back to `0` and the tile asserted a confident zero for a fully-occupied wing. That is
+the exact fabrication `room-utilization-display.ts` was written in c0 to kill — **`CampusMap.tsx` was
+simply never converted to the tri-state.** Now an absent reading renders `USE N/A` and can never reach
+the green-at-zero fill; a genuine measured `0%` still reads `0%`. **A2's half remains** — supplying a
+real map — and is handed over in `lane-a-to-c.md` with the exact file. Until then `/timetable/map` reads
+`USE N/A` on every wing: honest, and visibly unfinished.
+
+I chose **`USE N/A`** over the packet's "Use: not available yet" and the reason is worth keeping: the
+binding constraint is **vertical, not horizontal**. A Konva `Text` with a `width` *wraps*, and a second
+line at `fontSize 7` inside the 12-unit group runs off the bottom of the building. Narrowest seeded
+building is 180 units → a 168-unit track; `USE N/A` is ~30 units and `0% FILLED` ~39, both one line.
+
+**Building-view "n/a" — FIXED by labelling, not by moving frozen geometry.** `ROOM_UTILIZATION_TEXT_BOX`
+is 36×14 stage units and other work depends on it, so the words went into **DOM chrome** (the existing
+toolbar row, `0px` added to all four panes). QA confirmed `CampusMapOverview.tsx` needed no edit — its
+room card already renders use from the same source — so the item is fully delivered, not half.
+
+**Walkthrough #7, draft-on-dialog-open — `NOT_REPRODUCED`, and I am not shipping a patch to a healthy
+path.** The save gate is `activeDraftCount === 0` (`TeachingLoadDraftActionBar.tsx:28`), and
+`activeDraftCount` counts the keys of a map that is a **filter over `draftAssignmentsByFaculty`**, not a
+producer: empty in ⇒ zero out, whatever else happens. Both the draft side and the saved side are
+normalised through the same `sectionMap` in the same memo pass, so a background refresh can *remove* a
+stale draft but never manufacture one. QA independently reproduced this. **The row stays open as
+`BLOCKED_NOT_REPRODUCED`, dated 2026-09-28** — if Lane C's observation was real it was a *transient*
+state left by a prior edit, and reproducing it needs the exact interaction sequence, which the
+walkthrough does not record. Recorded as evidence: the control is real (QA re-derived the probe and
+watched it discriminate), and a row I could not reproduce is not a row I fixed.
+
+### Three corrections, and what each one was really about
+
+**SECTIONS B1 was a constraint bypass, not a bug.** QA found `Sections.tsx` at 982 lines at base and
+**1063** at candidate — the stream pushed a *compliant* file past the mandatory §8 1000-line cap. Four
+coherent units came out (the device-local edit queue, the sortable header, the status banners, the
+occupancy derivation) → **950**, and `home-room-readiness.ts` 118 → 204.
+
+**SECTIONS B2 is the most important sentence in this section.** The only tripwire on a HIGH truthfulness
+fix was a source-shape ratchet, and QA **defeated it while the defect was fully back**: a 3-line
+plausible refactor recomputing `assigned` with `s.homeRoomId != null` escaped the boolean-coercion scan
+and the suite returned **17/17 green, exit 0** while the tile printed `Home rooms 3/3` beside two rows
+reading "Needs home room". That is the recorded 20/20 defect at 3-section scale. A shape ratchet is not
+acceptable evidence for a load-bearing claim. The fix moved the tile's label/value into an exported
+pure function the test calls with a controlled input; QA's exact mutation then went red (1 failed/25
+passed) and a worst-case mutation *inside* the function went red 8/17 while all three scans stayed
+green. **The scans are no longer load-bearing and are now only wiring ratchets.**
+
+**Teaching Load F1: six green-on-base controls that were green because no data existed.** QA
+instrumented the hook and saw `faculty=0 sectionMapSize=0 readOnly=true` on every render — so Save was
+disabled by *read-only mode*, not the draft gate, and A5's seeded sections never arrived. The cause was
+two fixture defects, not production: JSDOM never exposed `sessionStorage` so `getPreferredAccessToken`
+failed silently, and the `/auth/me` stub lacked the `data.user.schoolId` envelope `resolveActorSchoolId`
+reads. With both fixed the probe is `faculty=2 sectionMapSize=2 readOnly=false`, and QA's mutation now
+takes A5 red. **`useTeachingLoadData.ts` is byte-identical across the whole range — Defect A has no
+product change, as it should when the code is right.**
+
+### The one integration conflict, and the defect class behind it
+
+`test:a3-c4-copy` went red on the merged tree while every other suite was green. Cause: that suite's
+three `CROSS-LANE FOLLOWUP` controls **pinned the exact `file:line` where each raw Subjects string
+rendered** — they asserted the DEFECT was present, which is right for a locator and wrong for a gate.
+Delivering the fix in the same integration falsified all three. Worse, their `deepEqual(found, [])` was
+the **F6 defect QA had already named**: an assertion of *absence* cannot prove discrimination, because a
+scanner broken to always return `[]` passes it too. I corrected it myself (§11: a test-only correction
+is the planner's) **additively** — the three locators are kept verbatim as `test.skip` with the successor
+named, and the absence assertion is replaced by a **positive control** requiring the scan to FIND the
+strings in the successor module. Proven discriminating: forcing the scan to match nothing now fails with
+"a scan that matches nothing is a broken scan, not a clean one". 18 tests, **15 pass, 0 fail, 3 skipped**.
+
+### What I decided, with no operator asleep
+
+- **Top-10 #5 was mis-fenced, not out of scope.** The COPY stream treated `components/subjects/**` as
+  outside its fence and delivered 0 of 4. A3's own ownership boundary names "Subjects UI" explicitly,
+  so the self-imposed fence was wrong. I opened a successor; it delivered 3 of 4 and the fourth is
+  honestly owed (below).
+- **"Under" for below-standard** — one plain word; the existing help text already supplies the standard.
+  Two pinned literals remain (`faculty-assignment-helpers.ts`, `teaching-load-reconciliation-helpers.ts:43`)
+  because committed tests deep-compare them; control `B6` fails loudly if either moves.
+- **The Dashboard scroll fix is structural, and the pixel row stays owed.** Root cause was a hard-coded
+  `h-[calc(100svh-3.5rem)]` on the page root, which over-grows its `overflow-hidden` parent when the
+  shell mounts the rollover notice — clipping content rather than scrolling. `h-full` fixes it. Every
+  new assertion is labelled `STRUCTURAL ONLY`; jsdom has no layout engine and the Fix 24 /
+  `test:visual:faculty` precedent is cited in the header. **A browser holder must measure it.**
+- **The typecheck baseline I measured myself.** The bounded re-review hit its step limit with that
+  mandatory row unevidenced, so I materialised `6b84a3a6` into a temp tree and ran it: **5 errors in 4
+  A2 files** (3× `TS2307 playwright`, 1 cascading `TS7006`, 1× `TS2367`). All five candidate tips
+  measure **5 errors, 0 in their own paths.** Three executors had disagreed on the baseline because one
+  counted files and two counted errors.
+
+### Ledger, terminal state as of 2026-09-28 07:00
+
+Unchanged: `QA_PASSED` 01–07, 09–26, 29–33B. `BLOCKED_PRODUCT_DECISION`: **08** (deselect vs unassign;
+A3's read remains **B** — it changes what a button means to an existing user, so it is the operator's).
+`BLOCKED_SOURCE_GAP`: **27, 28, 34**. New: **c4 item 7 → `BLOCKED_NOT_REPRODUCED`** (dated above).
+`useSubjectStats.tsx:14-16` → **`SUCCESSOR_OWED`**, dated 2026-09-28, not started, one-line predicate
+plus a two-line control, needs its own lane because it changes a measured number.
+c3's OPEN DECISION on the two title scales is **unchanged and still needs one rendered screen**.
+
+### Live-acceptance steps owed — for whoever holds a profile
+
+**Stream MAPS (`7792614a`).** Origin `https://njgrm.buru-degree.ts.net`, assert
+`window.location.origin`, 1366×768. 1. More › Tools › "Campus map": every wing reads **`USE N/A`**, not
+`0% FILLED`; a genuinely empty wing still reads `0%`. 2. Select a building: rooms show a **"Use"** row
+beside **Capacity**, and the same building cannot read `0%` on the tile and something else on the card.
+3. The toolbar legend reads "Use = share of periods in use" and `"n/a" = use not available yet`, and is
+**visible without hovering** (the full sentence is also in a Tooltip). 4. Hover a room card and confirm
+the full detail layer still shows `Not available` rather than a number.
+
+**Stream SECTIONS (`1394f1d2`).** 5. `/sections` with a real roster: the home-rooms tile and the rows
+**agree** — count the rows reading "Needs home room" and confirm the tile's "Need rooms" value matches;
+with none outstanding it reads `N/N` and the banner agrees. 6. Each row has a visible **room-map**
+control at 32px beside the kebab; **confirm the row height did not change** (A2 widened a roster cell by
+~40px in this window, so rows 14/16 must be re-measured, not assumed). 7. In read-only mode, open the
+map and select a room: the map **stays open** and the Tooltip says edits are paused — no silent no-op.
+8. Confirm the status banners render unchanged after the four extractions.
+
+**Stream COPY (`5218a245`).** 9. `/` — the hero h1, the sidebar entry and the breadcrumb leaf all read
+**"Dashboard"**; the PageHeader card is still absent (that exemption is load-bearing and still asserted).
+10. **At 1366×768, on the Dashboard: `document.documentElement.scrollHeight <= clientHeight` AND
+`document.body.scrollHeight <= window.innerHeight`. Record both numbers, not a boolean.** 11. Confirm
+`[data-testid="dashboard-scroll-region"]` has `role="region"`, `aria-label="Dashboard content"`,
+`tabindex="0"`, and that `ArrowDown` scrolls it. 12. Scroll to the bottom: the **Campus map** card and
+all **10 Setup readiness** items are reachable, not clipped. **13. Repeat 10 with the rollover notice
+visible** — that is the state the old fixed height actually broke.
+
+**Stream SUBJECTS (`86bf02ae`).** 14. `/subjects`: the ownership row reads **"Owned by Araling Panlipunan
+department"** and hovering the info icon shows the raw `OWNER_DEPT:AP`. 15. The term-authority error
+reads **"ATLAS could not confirm the saved school year and terms, so it is not using them."** with
+**"Refresh the term data from EnrollPro, then try again before scheduling into a term."**, and the raw
+sentence survives under a **Technical detail** popover. 16. The subject-code chip is no longer shouting
+`font-bold uppercase`; hovering gives the plain-English explanation. 17. **Walkthrough 3.1 (filters
+visible) still passes.**
+
+**The two runtime-supplied strings — a deployment-acceptance clause, not a source row.** `Could not
+reach the enrolment system` and `Rechecking last year's schedule data` were re-proved by two
+independent scans to exist in **no** client or server source file. No source-level row can decide them.
+18. Reproduce the enrolment failure (stop EnrollPro or cut its route) and record the **exact literal**
+plus the element and surface it sits in. 19. Do the same for the "Rechecking" label; note whether it
+polls. 20. **Attribute each string: ATLAS source, the ATLAS API envelope, or EnrollPro's own response
+proxied through ATLAS.** That attribution decides where the fix belongs — client here, API envelope, or
+an EnrollPro developer handoff (§4, `READ_ONLY`). Report verbatim; do not paraphrase.
+
+### Residual risks carried forward
+
+- **OWED to a browser holder, dated 2026-09-28** — the 1366×768 Dashboard row (12/13 above), the five
+  `1e417694` c0 steps, and both walkthrough walks. A3 ran no browser and cannot measure any of them.
+- **NON_BLOCKING** — the app still does not pass WCAG AA on `--muted`/`--secondary` (4.268:1), unchanged
+  by c4.
+- **NON_BLOCKING** — the SECTIONS wiring ratchet's *stated* purpose is still slightly overstated: QA
+  defeated a third variant with a **`.reduce`-spelled** page-side override of `buildHomeRoomsStat`
+  (the `.filter` spelling is caught). `buildHomeRoomsStat` itself is a genuine behavioural control and
+  the shipped code contains no such override; the ratchet is a wiring guard, not a behaviour guard, and
+  I am recording that rather than claiming otherwise.
+- **NON_BLOCKING** — `pages/Sections.tsx` is still never mounted in a test (supervised fetch, year
+  context, cache, Rollover card). It **is** live — `App.tsx:196-198` routes `/sections` to it — so the
+  gap is "never mounted *in a test*", not "dead code". A successor could extract a presentational
+  container the test can mount.
+- **NON_BLOCKING** — pre-existing §8 violations in files c4 edited but did not introduce:
+  `CampusMap.tsx:53,59,65` (3 raw `<button>`) and `Sections.tsx:829` (a `title=`).
+- **NON_BLOCKING** — `Dashboard.tsx` is 966/1000; the next lane editing it hits the §8 cap and must extract.
+- **NON_BLOCKING** — the two pinned "Below standard" literals need their owning lanes to re-baseline
+  two committed tests; `B6` fails loudly if either moves.
+- **FOR ANY LANE** — `D:\ATLAS\atlas-client\node_modules` is populated and is the junction donor for
+  every A3 worktree this cycle; all five measured 152 entries and a real local `tsx` run.
+
+### Verdict for c4
+
+**Five streams integrated and pushed at `ed14720c`; three HIGH truthfulness items fixed and one honestly
+`NOT_REPRODUCED`; top-10 #1, #2 (structurally), #3, #4, #5 (3 of 4) and #10 delivered; #52 handed to A2
+with the exact file.** Three `CORRECTION_REQUIRED` verdicts were worked and re-reviewed, and the
+`PLANNER_DECISION_REQUIRED` pair were decided rather than deferred. Combined gates on the merged tree:
+26/11/13/18/19/20/20/14/19/15/36/5/7/6, **0 fail**, 3 superseded locators skipped; **typecheck 5 errors,
+0 in any A3 path**, measured against a base I materialised myself; build exit 0; `git diff --check` clean;
+**0 forbidden paths across all 34**. **No deployment, migration, generation, publication, live-data
+write, browser session, runtime/task/env change, or companion-repo action was taken at any point.** A3
+ran no browser and held no lock, worked only in registered worktrees, pushed a range proven to contain
+only accepted commits, and deleted no branch.
+
+**Worktrees (all mine, retired this cycle, junction-safe):** `lane-a3-c4-sections`, `lane-a3-c4-maps`,
+`lane-a3-c4-tl`, `lane-a3-c4-copy`, `lane-a3-c4-subjects`, `lane-a3-c4-integ`. All branches preserved;
+**no branch deleted**.

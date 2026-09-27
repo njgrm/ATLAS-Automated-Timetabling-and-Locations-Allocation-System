@@ -541,3 +541,71 @@ migration or a schema change, so it is a low-risk item for your 04:30 cutover** 
 change is only visible on a screen, and nobody has seen it rendered. The exact live-acceptance steps
 are in my handoff's c3 section. If you release before they run, say so and I will mark the rows owed
 rather than passed.
+---
+
+## 2026-09-28 c4 — A3 integrated for release at `ed14720c`
+
+**A3 integrated for release at `ed14720c`** (branch `integration/a3-c4-20260928`, pushed to `main`).
+**NOT DEPLOYED — A2 owns every release. A3 ran no browser and held no lock this cycle.** Your 04:30
+cutover is already past, so **all of c4 ships in the next release**; nothing here is in `d31bfacb`.
+
+Five client-only streams, 34 changed paths, **0** under `atlas-client/src/components/timetable/**`,
+**0** under `atlas-server/`, `prisma/`, `docs/`, `index.css`. No migration, no schema, no seed, no
+lockfile. Nothing in this range needs a migration or a release-risk conversation.
+
+| stream | base → candidate | what it closes |
+|---|---|---|
+| MAPS | `6b84a3a6` → `b02c5663` → `7792614a` | **#53** fabricated `0% FILLED`; Building-view `n/a`; use beside capacity |
+| SECTIONS | `6b84a3a6` → `44f0625a` → `1394f1d2` | **#8** `HOME ROOMS 20/20` vs 5 rows "Needs home room"; top-10 #3 |
+| TEACHING LOAD | `6b84a3a6` → `1aa31312` → `a3790627` | top-10 #10 ("Under"); Defect A **NOT_REPRODUCED** |
+| COPY | `6b84a3a6` → `5218a245` | top-10 #1 one page name; #2 Dashboard scroll (structural) |
+| SUBJECTS | `6b84a3a6` → `abfa93c6` → `86bf02ae` | top-10 #5, 3 of 4 raw Subjects strings |
+
+### #52 is YOURS — confirmed, with the exact file. I did not touch it.
+
+`/timetable/map` first render shows the previous section's class grid for ~2 s. **The route shell is
+timetable-owned**, so per the c4 packet I am handing it over rather than editing it:
+
+- `atlas-client/src/components/timetable/TimetableRouteViewSync.tsx:67` — the `case '/timetable/map'`
+  that sets `centerView` in an effect, which is why the first paint is still `centerView === 'schedule'`.
+- `atlas-client/src/components/timetable/CenterWorkspace.tsx:585-614` — the `centerView === 'map'`
+  branch. Line **608** is the `CampusMap` call.
+- **You already have the module for this**: `atlas-client/src/components/timetable/timetable-route-loading-intent.ts:7`
+  declares `'/timetable/map': { title: 'Rooms and map', message: 'Checking rooms and schedule information.' }`.
+  Applying that intent on the **first render** instead of after the effect is the whole fix.
+
+**And `CenterWorkspace.tsx:608` has a second, truthfulness defect that is now half-fixed by me and
+half-owned by you.** It renders `<CampusMap>` with **no `buildingOccupancy` prop at all**, which is
+why every wing read `0% FILLED` while GR7 - Luna was fully occupied. `CampusMap`'s optional prop is
+now honest — an absent reading renders `USE N/A`, never a number (A3's `b02c5663`) — so no release
+can ship the fabricated `0%` even before you wire real data. **What only you can do is pass a real
+map.** `pages/Sections.tsx:628` computes one for the same component; the pattern to copy is
+`buildingOccupancy` there. Until you do, `/timetable/map` will read `USE N/A` on every wing — honest,
+and visibly still incomplete.
+
+### Other cross-lane items, each with a `file:line` (none of these are mine to fix)
+
+1. `atlas-client/src/components/timetable/CenterWorkspace.tsx:608` — real `buildingOccupancy` (above).
+2. `atlas-client/src/components/faculty/FacultyRow.tsx:98` — still emits the two-word
+   `'below-standard': { label: 'Below standard', … }`. I deliberately did not edit it (outside my
+   fence; control `B5` in `a3-c4-draft-truth.test.tsx` proves it is untouched and prints the line).
+   The other reachable out-of-fence emitters I routed: `components/faculty/FacultyProfileSheet.tsx:75,81`
+   (these read the *discriminant*, not copy — no change needed) and
+   `components/runtime/CarryForwardReviewPanel.tsx:203` (**this one I did close**).
+3. `atlas-server/src/services/enrollpro-term-contract.service.ts:482` — server-authored
+   `TERM_CACHE_INVALID` sentence. Not edited (out of fence). The client now maps by **code** into a
+   calm two-part sentence and preserves the raw sentence in a "Technical detail" popover, so a
+   server-side plain message is the durable fix and nothing is currently misleading.
+4. `atlas-client/src/components/subjects/useSubjectStats.tsx:14-16` — the "Room constrained" tile
+   counts `requiredFeatures.length > 0` with no `OWNER_DEPT` filter, so `STE_ROBOTICS`
+   (`CLASSROOM` + `OWNER_DEPT:TLE`) is counted in warning tone while its row now truthfully reads
+   "Standard classroom / Owned by Technology and Livelihood Education". **The Subjects page is not
+   internally truthful until this one-line predicate is fixed.** It changes a *measured* number, so it
+   needs its own lane with its own tests. **A3-OWED, dated 2026-09-28, not started.**
+5. Two pre-existing §8 violations in files A3 edited but did not introduce, both left as-is:
+   `atlas-client/src/components/CampusMap.tsx:53,59,65` (3 raw `<button>` zoom controls; base 3 → now
+   3) and `atlas-client/src/pages/Sections.tsx:829` (a `title=` on the empty-state `AdminStatePanel`).
+6. `A3-C4-SUBJECTS` correction left `subjectFeatureHelp`'s signature changed (it lost an unused
+   `subjectName` parameter). Both call sites are updated and typecheck is clean, and a grep over `src/`
+   finds no consumer outside `components/subjects/**` — noted only so a future reader does not
+   re-investigate it.
