@@ -34,6 +34,23 @@
  * only fail with a readable `false !== true` that NAMES the stray element.
  * The control's meaning is unchanged. See the `SUPERSEDED IN BEHAVIOUR` note in
  * F26-2 for why the shape-only control there let a labelled button ship dead.
+ *
+ * 3. THE HARNESS INITIAL STATE (fixed here). C2-1 proved each control OPENS a
+ *    dialog. Nothing proved a control changes the VIEW MODE, and the host made
+ *    that unobservable rather than merely unpinned: it started at
+ *    `useState('teacher')` — precisely the state that hid the original defect.
+ *    `openTeacherReview` calls `setViewMode('teacher')`, so a host already in
+ *    `teacher` cannot distinguish a working view-mode switch from a missing
+ *    one, and the banner's dead `setViewMode('teacher')` looked correct under
+ *    it. The harness reproduced the very trap it exists to catch.
+ *    Independent QA of `d9575e83..c4a9960e` recorded the added
+ *    `setViewMode('teacher')` as an accepted NON_BLOCKING residual precisely
+ *    because no control pinned it; this fault is why none could.
+ *
+ *    The host now starts at `allocation` and publishes its live mode as
+ *    `[data-testid="host-view-mode"]`, so C2-3's `allocation` precondition is
+ *    itself the guard: had the host kept the old initial state, C2-3 would fail
+ *    on its precondition instead of passing vacuously.
  */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -211,7 +228,12 @@ const REVIEW_TITLE = 'Teacher workload: Dela Cruz, Maria';
  * `Review teachers` — the label the live surface showed on the dead control.
  */
 function TeachingLoadReviewHost() {
-	const [viewMode, setViewMode] = useState<'teacher' | 'allocation'>('teacher');
+	// The host must start OFF the teacher view. `openTeacherReview` calls
+	// `setViewMode('teacher')`, so a host already in `teacher` cannot tell a
+	// working view-mode switch from a missing one — the very state in which the
+	// original banner handler set the mode it already had and looked correct.
+	// C2-3's `allocation` precondition below is only meaningful because of this.
+	const [viewMode, setViewMode] = useState<'teacher' | 'allocation'>('allocation');
 	const [reviewModalOpen, setReviewModalOpen] = useState(false);
 	const [advancedGridVisible, setAdvancedGridVisible] = useState(true);
 	const open = () => teacherReviewEntry.openTeacherReview({ setViewMode, setReviewModalOpen });
@@ -239,6 +261,10 @@ function TeachingLoadReviewHost() {
 	return createElement(
 		Fragment,
 		null,
+		// A `div`, not a `button`: publishing the live mode this way cannot
+		// disturb C2-1's label-based discovery, which enumerates `button`
+		// elements only. Verified by running the suite, not by reasoning.
+		createElement('div', { 'data-testid': 'host-view-mode' }, viewMode),
 		createElement(TeachingLoadRepairQueue as any, {
 			items: queue.repairQueueItems,
 			activeItemId: queue.activeRepairId,
@@ -368,4 +394,90 @@ test('C2-2 both `onOpenReview` sites in the page bind the one production opener'
 		/else onOpenReview\(\);/,
 		'the review-ready primary action must call the shared opener',
 	);
+});
+
+/* ───────────────── A3 correction 3 — the unpinned view-mode effect ────── */
+
+/**
+ * Each `Review teachers` control must ALSO drive the view mode to `teacher`.
+ *
+ * Independent QA of `d9575e83..c4a9960e` accepted the bottom bar's added
+ * `setViewMode('teacher')` as a NON_BLOCKING residual: it is a behaviour change
+ * beyond the minimum fix and no control pinned it. C2-1 could not, because the
+ * host started in `teacher` — the mode the original dead banner handler
+ * redundantly re-set, which is exactly why that handler looked fine. The host
+ * now starts in `allocation` (see fault 3 in the file header) and publishes its
+ * live mode, so a click's view-mode effect is observable.
+ *
+ * Additive to C2-1 and C2-2, which are unchanged: this asserts the view-mode
+ * half of the same opener, not a replacement for the dialog assertion.
+ *
+ * Both controls are exercised, each from a clean document via the existing
+ * per-iteration `teardown()`.
+ */
+test('C2-3 every control labelled `Review teachers` drives the view mode to `teacher`', (t) => {
+	assert.equal(
+		teacherReviewEntryError,
+		null,
+		`the single production opener must exist and be importable: ${teacherReviewEntryError}`,
+	);
+	assert.equal(typeof teacherReviewEntry.openTeacherReview, 'function');
+
+	const host = render(createElement(TeachingLoadReviewHost as any));
+	// Enumerated by LABEL, for the same reason as C2-1: the defect was two
+	// controls sharing one label, so a control keyed on known test ids would
+	// miss a third.
+	const labelled = buttonsIn(host).filter((b) => (b.textContent ?? '').trim() === 'Review teachers');
+	const testIds = labelled.map((b) => b.getAttribute('data-testid') ?? '(no test id)');
+	assert.ok(
+		labelled.length >= 2,
+		`the page must expose both the Next Step banner and the bottom bar under this label, found ${labelled.length}: [${testIds.join(', ')}]`,
+	);
+	assert.deepEqual(
+		[...new Set(testIds)].sort(),
+		['teaching-load-repair-review', 'teaching-load-review-open'],
+		'the two controls found must be the banner and the bottom bar',
+	);
+
+	for (const testId of testIds) {
+		teardown();
+		const fresh = render(createElement(TeachingLoadReviewHost as any));
+		const control = fresh.querySelector(`[data-testid="${testId}"]`) as HTMLButtonElement | null;
+		assert.ok(control, `control ${testId} must render`);
+
+		// Preconditions, in the same order C2-1 uses: a clean document, and the
+		// host demonstrably NOT already in the teacher view. The second is the
+		// load-bearing one — without it this control would pass vacuously.
+		const strayDialog = dom.window.document.querySelector('[role="dialog"]');
+		assert.equal(
+			strayDialog === null,
+			true,
+			`precondition: no dialog may exist before ${testId} is clicked; found ${strayDialog?.getAttribute('data-testid') ?? '(untagged dialog)'}`,
+		);
+		const probe = fresh.querySelector('[data-testid="host-view-mode"]');
+		assert.ok(probe, `the host must publish its live view mode for ${testId}`);
+		const before = (probe.textContent ?? '').trim();
+		assert.equal(
+			before,
+			'allocation',
+			`precondition: the host must start OFF the teacher view before ${testId} is clicked, otherwise a view-mode effect is unobservable; found "${before}"`,
+		);
+		t.diagnostic(`${testId}: precondition clean — no [role="dialog"], and view mode starts "${before}"`);
+
+		click(control);
+
+		// Read the SCALAR, never the node, for the same reason C2-1 does: a
+		// failing `assert.equal` (`strictEqual`) runs `myersDiff` over
+		// `util.inspect` of both operands, which is unbounded if one operand is
+		// a live attached DOM subtree. `textContent` yields a short string.
+		const after = fresh.querySelector('[data-testid="host-view-mode"]');
+		assert.ok(after, `the host must still publish its live view mode after ${testId} is clicked`);
+		const mode = (after.textContent ?? '').trim();
+		assert.equal(
+			mode,
+			'teacher',
+			`the control labelled "Review teachers" at ${testId} did NOT drive the view mode to "teacher" — it left it at "${mode}"`,
+		);
+		t.diagnostic(`${testId}: view mode "${before}" -> "${mode}"`);
+	}
 });
