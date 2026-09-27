@@ -392,7 +392,7 @@ const [verifiedTermIndex, setVerifiedTermIndex] = useState<number | null>(null);
 			</div>
 
 			<CardContent className="p-0">
-				<Suspense fallback={<div className="flex min-h-40 items-center justify-center text-sm text-slate-500">Loading room view…</div>}>
+				<Suspense fallback={<div className="flex min-h-40 items-center justify-center text-sm text-muted-foreground">Loading room view…</div>}>
 				{loading ? (
 					<div className="grid gap-5 p-6 xl:grid-cols-[minmax(0,1.45fr)_minmax(360px,0.55fr)]">
 						<Skeleton className="h-128 rounded-2xl" />
@@ -427,7 +427,7 @@ const [verifiedTermIndex, setVerifiedTermIndex] = useState<number | null>(null);
 											<Button
 												variant="ghost"
 												size="sm"
-												className="h-8 gap-1 pl-1 text-slate-500 hover:text-slate-900"
+												className="h-8 gap-1 pl-1 text-muted-foreground hover:text-foreground"
 												onClick={() => setActiveView('map')}
 											>
 												<ArrowLeft className="size-4" />
@@ -473,10 +473,10 @@ const [verifiedTermIndex, setVerifiedTermIndex] = useState<number | null>(null);
 												</div>
 												<div>
 											<p className="text-xs font-bold uppercase text-primary">Campus readiness</p>
-													<h3 className="text-lg font-bold text-slate-900">Buildings and rooms</h3>
+													<h3 className="text-lg font-bold text-foreground">Buildings and rooms</h3>
 												</div>
 											</div>
-											<p className="mt-3 text-sm leading-relaxed text-slate-500">
+											<p className="mt-3 text-sm leading-relaxed text-muted-foreground">
 												Select a building, inspect rooms, and view the latest room schedules without leaving the dashboard.
 											</p>
 											<div className="mt-4 grid grid-cols-2 gap-3">
@@ -496,9 +496,9 @@ const [verifiedTermIndex, setVerifiedTermIndex] = useState<number | null>(null);
 										</div>
 
 										<div className="rounded-xl border border-slate-100 bg-slate-50 p-4">
-											<p className="text-xs font-semibold text-slate-500">Selected building</p>
-											<p className="mt-1 truncate text-base font-bold text-slate-900">{selectedBuilding?.name ?? 'No building selected'}</p>
-											<p className="mt-1 text-xs text-slate-500">
+											<p className="text-xs font-semibold text-muted-foreground">Selected building</p>
+											<p className="mt-1 truncate text-base font-bold text-foreground">{selectedBuilding?.name ?? 'No building selected'}</p>
+											<p className="mt-1 text-xs text-muted-foreground">
 												{selectedBuilding ? `${selectedTeachingRooms} teaching room${selectedTeachingRooms === 1 ? '' : 's'} ready` : 'Open the map editor to draw buildings.'}
 											</p>
 											{selectedBuilding && (
@@ -532,8 +532,8 @@ const [verifiedTermIndex, setVerifiedTermIndex] = useState<number | null>(null);
 							) : selectedBuilding ? (
 								<div className="flex flex-col h-full min-h-0">
 									<div className="mb-3 shrink-0">
-										<h3 className="text-sm font-bold text-slate-900">Room Directory</h3>
-										<p className="text-xs text-slate-500 truncate mt-0.5">{selectedBuilding.name} · {selectedTeachingRooms} Teaching Rooms</p>
+										<h3 className="text-sm font-bold text-foreground">Room Directory</h3>
+										<p className="text-xs text-muted-foreground truncate mt-0.5">{selectedBuilding.name} · {selectedTeachingRooms} Teaching Rooms</p>
 									</div>
 
 									{/* Search & Filters */}
@@ -602,7 +602,7 @@ const [verifiedTermIndex, setVerifiedTermIndex] = useState<number | null>(null);
 															<div className="flex items-center justify-between w-full">
 																<div className="min-w-0">
 																	<span className="font-bold text-xs text-slate-800 truncate block">{room.name}</span>
-															<span className="text-xs text-slate-500">{ROOM_TYPE_LABELS[room.type] ?? room.type}</span>
+															<span className="text-xs text-muted-foreground">{ROOM_TYPE_LABELS[room.type] ?? room.type}</span>
 																</div>
 														<Badge variant="secondary" className="h-5 shrink-0 px-1.5 py-0 text-xs">
 																	Cap: {room.capacity ?? '—'}
@@ -611,7 +611,7 @@ const [verifiedTermIndex, setVerifiedTermIndex] = useState<number | null>(null);
 
 											{room.isTeachingSpace && (
 												<div className="w-full space-y-0.5" data-utilization={utilizationKnown ? 'measured' : 'unknown'}>
-													<div className="flex items-center justify-between text-xs font-semibold text-slate-500">
+													<div className="flex items-center justify-between text-xs font-semibold text-muted-foreground">
 														<span className="flex items-center gap-0.5">
 															<TrendingUp className="size-2.5" />
 															Utilization
@@ -693,7 +693,7 @@ const [verifiedTermIndex, setVerifiedTermIndex] = useState<number | null>(null);
 												</Button>
 											</div>
 										) : (
-										<p className="py-1.5 text-center text-xs text-slate-500">
+										<p className="py-1.5 text-center text-xs text-muted-foreground">
 												Select a room to view weekly schedule.
 											</p>
 										)}
@@ -728,8 +728,8 @@ function MiniStat({ icon: Icon, label, value }: { icon: LucideIcon; label: strin
 	return (
 		<div className="rounded-xl border border-slate-100 bg-white p-3">
 			<Icon className="size-4 text-primary animate-pulse" />
-			<p className="mt-2 text-xs font-semibold uppercase text-slate-500">{label}</p>
-			<p className="mt-1 text-lg font-bold tabular-nums text-slate-900">{value}</p>
+			<p className="mt-2 text-xs font-semibold uppercase text-muted-foreground">{label}</p>
+			<p className="mt-1 text-lg font-bold tabular-nums text-foreground">{value}</p>
 		</div>
 	);
 }

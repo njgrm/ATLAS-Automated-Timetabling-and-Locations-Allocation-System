@@ -384,7 +384,7 @@ export function RunBlockerTile(props: {
 		return (
 			<div className='flex items-center gap-2.5 text-sm'>
 				<AlertTriangle className='w-4 h-4 shrink-0 text-amber-500' />
-				<span className='text-slate-900 font-medium'>Run status unavailable</span>
+				<span className='text-foreground font-medium'>Run status unavailable</span>
 			</div>
 		);
 	}
@@ -393,7 +393,7 @@ export function RunBlockerTile(props: {
 		return (
 			<div className='flex items-center gap-2.5 text-sm'>
 				<AlertTriangle className='w-4 h-4 shrink-0 text-amber-500' />
-				<span className='text-slate-900 font-medium'>Hard-violation count unavailable</span>
+				<span className='text-foreground font-medium'>Hard-violation count unavailable</span>
 			</div>
 		);
 	}
@@ -401,7 +401,7 @@ export function RunBlockerTile(props: {
 		return (
 			<div className='flex items-center gap-2.5 text-sm'>
 				<AlertTriangle className='w-4 h-4 shrink-0 text-amber-500' />
-				<span className='text-slate-900 font-medium'>{hardViolationCount} run-wide review blocker{hardViolationCount === 1 ? '' : 's'}</span>
+				<span className='text-foreground font-medium'>{hardViolationCount} run-wide review blocker{hardViolationCount === 1 ? '' : 's'}</span>
 			</div>
 		);
 	}
@@ -411,7 +411,7 @@ export function RunBlockerTile(props: {
 	return (
 		<div className='flex items-center gap-2.5 text-sm'>
 			<CheckCircle2 className='w-4 h-4 shrink-0 text-emerald-500' />
-			<span className='text-slate-500'>{cleanLabel}</span>
+			<span className='text-muted-foreground'>{cleanLabel}</span>
 		</div>
 	);
 }
@@ -534,9 +534,9 @@ export default function Dashboard() {
 												</PopoverTrigger>
 												<PopoverContent align='end' className='w-72 rounded-xl p-3 text-sm'>
 													<p className='text-xs font-bold uppercase tracking-wide text-muted-foreground'>School year status</p>
-													<p className='mt-1 font-semibold text-slate-900'>{rolloverStatus.drift.message}</p>
+													<p className='mt-1 font-semibold text-foreground'>{rolloverStatus.drift.message}</p>
 													{rolloverStatus.enrollProActiveYear?.yearLabel ? (
-														<p className='mt-1 text-xs leading-relaxed text-slate-500'>EnrollPro {rolloverStatus.enrollProActiveYear.yearLabel} is the active school year.</p>
+														<p className='mt-1 text-xs leading-relaxed text-muted-foreground'>EnrollPro {rolloverStatus.enrollProActiveYear.yearLabel} is the active school year.</p>
 													) : null}
 												</PopoverContent>
 											</Popover>
@@ -603,7 +603,7 @@ export default function Dashboard() {
 														<SourceDecisionIcon className='h-4 w-4' />
 													</div>
 													<div className='min-w-0'>
-														<h3 className='text-sm font-bold text-slate-900'>{sourceDecision.title}</h3>
+														<h3 className='text-sm font-bold text-foreground'>{sourceDecision.title}</h3>
 														<p data-testid='dashboard-source-decision' className='mt-1 text-sm text-slate-600'>{sourceDecision.sentence}</p>
 														<p className='mt-1 text-xs text-muted-foreground leading-relaxed'>{sourceDecision.helper}</p>
 													</div>
@@ -651,8 +651,8 @@ export default function Dashboard() {
 					{actorScopeBlocked ? (
 						<Card data-testid='dashboard-scope-blocked'>
 							<CardContent className='p-6'>
-								<h2 className='text-lg font-bold text-slate-900'>We could not confirm your school</h2>
-								<p className='mt-2 text-sm leading-relaxed text-slate-500'>{actorScopeBlocked} Sign in again, then try once more.</p>
+								<h2 className='text-lg font-bold text-foreground'>We could not confirm your school</h2>
+								<p className='mt-2 text-sm leading-relaxed text-muted-foreground'>{actorScopeBlocked} Sign in again, then try once more.</p>
 								<div className='mt-4'>
 									<Button type='button' onClick={retryActorScope} className='h-10 rounded-xl px-4 text-sm font-semibold'>
 										Try again
@@ -745,7 +745,7 @@ export default function Dashboard() {
 								<CardHeader className='border-b border-slate-100 bg-zinc-50/60 px-6 py-4'>
 									<div className='flex items-center justify-between'>
 										<div>
-											<CardTitle className='text-lg flex items-center gap-2 text-slate-900'>
+											<CardTitle className='text-lg flex items-center gap-2 text-foreground'>
 												<Wand2 className='w-5 h-5 text-primary' />
 												Your next step
 											</CardTitle>
@@ -760,8 +760,8 @@ export default function Dashboard() {
 									</div>
 								</CardHeader>
 								<CardContent className='p-6'>
-									<h2 className='text-xl font-bold text-slate-900'>{next.title}</h2>
-									<p className='mt-2 text-sm leading-relaxed text-slate-500'>{next.body}</p>
+									<h2 className='text-xl font-bold text-foreground'>{next.title}</h2>
+									<p className='mt-2 text-sm leading-relaxed text-muted-foreground'>{next.body}</p>
 									<p className='mt-2 text-sm font-medium text-slate-600'>{readinessSourceMessage}</p>
 									<div className='mt-4'>
 										<Link to={next.href} data-repair-target='next-step'>
@@ -780,7 +780,7 @@ export default function Dashboard() {
 								<CardHeader className='border-b border-slate-100 bg-zinc-50/60 px-6 py-4'>
 									<div className='flex items-center justify-between'>
 										<div>
-											<CardTitle className='text-lg flex items-center gap-2 text-slate-900'>Scheduling lifecycle</CardTitle>
+											<CardTitle className='text-lg flex items-center gap-2 text-foreground'>Scheduling lifecycle</CardTitle>
 											<CardDescription>Move through every phase before students see a published schedule.</CardDescription>
 										</div>
 										<Badge variant='outline' className='bg-primary/5 text-primary gap-1.5 px-3 py-1.5'>
@@ -799,8 +799,8 @@ export default function Dashboard() {
 												</div>
 												<div className='min-w-0'>
 													<p className='text-xs font-bold uppercase tracking-wider text-primary'>Current phase</p>
-													<p className='text-lg font-bold text-slate-900 mt-0.5'>{LIFECYCLE_STEPS[currentIdx]?.label ?? 'Setup'}</p>
-													<p className='text-sm text-slate-500 mt-1 leading-relaxed'>{LIFECYCLE_STEPS[currentIdx]?.helper}</p>
+													<p className='text-lg font-bold text-foreground mt-0.5'>{LIFECYCLE_STEPS[currentIdx]?.label ?? 'Setup'}</p>
+													<p className='text-sm text-muted-foreground mt-1 leading-relaxed'>{LIFECYCLE_STEPS[currentIdx]?.helper}</p>
 												</div>
 											</div>
 											<div>
@@ -821,7 +821,7 @@ export default function Dashboard() {
 													) : (
 														<CheckCircle2 className='w-4 h-4 shrink-0 text-emerald-500' />
 													)}
-													<span className={!domainAvailability.subjects || (unassignedSubjectCount ?? 0) > 0 ? 'text-slate-900 font-medium' : 'text-slate-500'}>
+													<span className={!domainAvailability.subjects || (unassignedSubjectCount ?? 0) > 0 ? 'text-foreground font-medium' : 'text-muted-foreground'}>
 														{!domainAvailability.subjects ? 'Coverage unavailable' : (unassignedSubjectCount ?? 0) > 0 ? `${unassignedSubjectCount} unassigned` : 'Subjects assigned'}
 													</span>
 												</div>
@@ -831,7 +831,7 @@ export default function Dashboard() {
 													) : (
 														<AlertTriangle className='w-4 h-4 shrink-0 text-amber-500' />
 													)}
-													<span className={domainAvailability.campus && buildingSetupStatus.done ? 'text-slate-500' : 'text-slate-900 font-medium'}>{!domainAvailability.campus ? 'Rooms unavailable' : 'Rooms ready'}</span>
+													<span className={domainAvailability.campus && buildingSetupStatus.done ? 'text-muted-foreground' : 'text-foreground font-medium'}>{!domainAvailability.campus ? 'Rooms unavailable' : 'Rooms ready'}</span>
 												</div>
 												<RunBlockerTile generationAvailable={domainAvailability.generation} hardViolationCount={runWideHardViolationCount} softViolationCount={runWideSoftViolationCount} />
 												<div className='flex items-center gap-2.5 text-sm'>
@@ -840,7 +840,7 @@ export default function Dashboard() {
 													) : (
 														<AlertTriangle className='w-4 h-4 shrink-0 text-amber-500' />
 													)}
-													<span className={lifecyclePhase === 'PUBLISHED' ? 'text-slate-500' : 'text-slate-900 font-medium'}>
+													<span className={lifecyclePhase === 'PUBLISHED' ? 'text-muted-foreground' : 'text-foreground font-medium'}>
 														{lifecyclePhase === 'PUBLISHED' ? 'Published' : 'Publish locked'}
 													</span>
 												</div>
@@ -871,7 +871,7 @@ export default function Dashboard() {
 								<CardHeader className='border-b border-slate-100 px-6 py-4'>
 									<div className='flex items-start justify-between gap-3'>
 										<div>
-											<CardTitle className='text-lg text-slate-900'>Setup readiness</CardTitle>
+											<CardTitle className='text-lg text-foreground'>Setup readiness</CardTitle>
 											<CardDescription>{doneCount} of {checklist.length} ready</CardDescription>
 										</div>
 										<Badge className='border-0 bg-emerald-50 text-emerald-700 hover:bg-emerald-50'>
@@ -898,7 +898,7 @@ export default function Dashboard() {
 																</div>
 															)}
 															<div className='flex-1 min-w-0'>
-																<p className={`text-sm font-medium ${item.done ? 'text-slate-400 line-through' : 'text-slate-900'}`}>{item.label}</p>
+																<p className={`text-sm font-medium ${item.done ? 'text-slate-400 line-through' : 'text-foreground'}`}>{item.label}</p>
 																{item.hint ? (
 																	<p className='flex items-center gap-1 text-xs text-amber-600 mt-1'>
 																		<AlertTriangle className='w-3 h-3' />
@@ -925,7 +925,7 @@ export default function Dashboard() {
 					</div>
 
 					{/* Campus Map & Rooms – full-width */}
-					<Suspense fallback={<Card><CardContent className='p-6 text-sm text-slate-500'>Loading campus map…</CardContent></Card>}>
+					<Suspense fallback={<Card><CardContent className='p-6 text-sm text-muted-foreground'>Loading campus map…</CardContent></Card>}>
 						<CampusReadinessCard
 							loading={loading}
 							buildings={buildings}

@@ -48,9 +48,9 @@ export function RoomReadinessList({ buildings, roomOccupancy, compact = false }:
 				<div>
 					<div className="flex items-center gap-2">
 						<DoorOpen className="size-4 text-primary" aria-hidden="true" />
-						<h2 id="room-readiness-title" className="text-sm font-bold text-slate-900">Room readiness</h2>
+						<h2 id="room-readiness-title" className="text-sm font-bold text-foreground">Room readiness</h2>
 					</div>
-					<p className="mt-1 text-xs text-slate-500">Fix the items marked for attention before generating.</p>
+					<p className="mt-1 text-xs text-muted-foreground">Fix the items marked for attention before generating.</p>
 				</div>
 				<div className="flex flex-wrap gap-1.5" aria-label="Room readiness totals">
 					{(Object.keys(STATUS_COPY) as RoomReadinessStatus[]).map((status) => counts[status] > 0 ? (
@@ -61,7 +61,7 @@ export function RoomReadinessList({ buildings, roomOccupancy, compact = false }:
 				</div>
 			</div>
 			{rooms.length === 0 ? (
-				<p className="mt-4 rounded-xl border border-dashed border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">No rooms yet. Open Edit campus map to add the first teaching room.</p>
+				<p className="mt-4 rounded-xl border border-dashed border-slate-200 bg-slate-50 p-4 text-sm text-muted-foreground">No rooms yet. Open Edit campus map to add the first teaching room.</p>
 			) : (
 				<div className={`mt-4 grid gap-2 ${compact ? 'max-h-44 overflow-auto pr-1 sm:grid-cols-2' : 'sm:grid-cols-2 lg:grid-cols-3'}`}>
 					{rooms.map(({ building, room, status }) => {
@@ -70,7 +70,7 @@ export function RoomReadinessList({ buildings, roomOccupancy, compact = false }:
 							<div key={room.id} className="flex min-w-0 items-center justify-between gap-2 rounded-xl border border-slate-100 bg-slate-50/70 px-3 py-2" data-room-status={status}>
 								<div className="min-w-0">
 									<p className="truncate text-xs font-semibold text-slate-800">{room.name}</p>
-									<p className="truncate text-[11px] text-slate-500">{building.name} · {room.capacity ? `${room.capacity} seats` : 'Capacity missing'}</p>
+									<p className="truncate text-[11px] text-muted-foreground">{building.name} · {room.capacity ? `${room.capacity} seats` : 'Capacity missing'}</p>
 								</div>
 								<Badge variant="outline" className={`shrink-0 gap-1 text-[11px] ${copy.className}`}><StatusIcon status={status} />{copy.label}</Badge>
 							</div>

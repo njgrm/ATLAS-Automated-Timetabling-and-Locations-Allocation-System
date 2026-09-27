@@ -621,8 +621,8 @@ export default function Audit() {
 									<Loader2 className="size-6 animate-spin" />
 								</div>
 								<div>
-									<p className="text-2xl font-bold text-slate-900">Checking readiness...</p>
-									<p className="mt-2 text-sm text-slate-500">ATLAS is checking the setup evidence officers need before scheduling review.</p>
+									<p className="text-2xl font-bold text-foreground">Checking readiness...</p>
+									<p className="mt-2 text-sm text-muted-foreground">ATLAS is checking the setup evidence officers need before scheduling review.</p>
 									<div className="mt-4 grid gap-2 sm:grid-cols-2">
 										{AUDIT_DOMAINS.map((domain) => (
 											<div key={domain} className="flex items-center gap-2 rounded-xl bg-slate-50 px-3 py-2 text-sm font-medium text-slate-600">
@@ -661,13 +661,13 @@ export default function Audit() {
 				/>
 
 				<div className="mt-4 flex flex-wrap items-center gap-4 overflow-x-auto rounded-2xl border border-primary/10 bg-white px-4 py-3 text-sm shadow-soft scrollbar-none">
-					<span className="font-semibold text-slate-900">Checked: <span className="font-normal text-slate-500">{AUDIT_DOMAINS.length} domains</span></span>
+					<span className="font-semibold text-foreground">Checked: <span className="font-normal text-muted-foreground">{AUDIT_DOMAINS.length} domains</span></span>
 					<span className="text-slate-200">|</span>
-					<span className="font-semibold text-slate-900">Blockers: <span className={blockerCount > 0 ? 'font-normal text-red-600' : 'font-normal text-emerald-600'}>{blockerCount}</span></span>
+					<span className="font-semibold text-foreground">Blockers: <span className={blockerCount > 0 ? 'font-normal text-red-600' : 'font-normal text-emerald-600'}>{blockerCount}</span></span>
 					<span className="text-slate-200">|</span>
-					<span className="font-semibold text-slate-900">Warnings: <span className="font-normal text-amber-600">{warningCount}</span></span>
+					<span className="font-semibold text-foreground">Warnings: <span className="font-normal text-amber-600">{warningCount}</span></span>
 					<span className="text-slate-200">|</span>
-					<span className="font-semibold text-slate-900">Average roster load: <span className="font-normal text-slate-500">{avgLoad.toFixed(1)}%</span></span>
+					<span className="font-semibold text-foreground">Average roster load: <span className="font-normal text-muted-foreground">{avgLoad.toFixed(1)}%</span></span>
 				</div>
 			</header>
 
@@ -702,8 +702,8 @@ export default function Audit() {
 							<div className="flex items-start gap-3">
 								<AlertTriangle className="mt-0.5 size-5 shrink-0 text-amber-600" />
 								<div>
-									<p className="font-bold text-slate-900">No complete readiness evidence is available.</p>
-									<p className="mt-1 text-sm text-slate-500">Refresh this report, then check Sections, Subjects, Teachers, and Teaching Load if evidence is still missing.</p>
+									<p className="font-bold text-foreground">No complete readiness evidence is available.</p>
+									<p className="mt-1 text-sm text-muted-foreground">Refresh this report, then check Sections, Subjects, Teachers, and Teaching Load if evidence is still missing.</p>
 									<div className="mt-3 flex flex-wrap gap-2">
 										<Button asChild variant="outline" size="sm"><Link to="/subjects">Check Subjects</Link></Button>
 										<Button asChild variant="outline" size="sm"><Link to="/teachers">Check Teachers</Link></Button>
@@ -717,15 +717,15 @@ export default function Audit() {
 					{priorityFindings.length > 0 && (
 						<section aria-labelledby="priority-findings-heading" className="rounded-2xl border border-primary/10 bg-white p-4 shadow-soft">
 							<div className="mb-3">
-								<h2 id="priority-findings-heading" className="text-lg font-bold text-slate-900">Fix these first</h2>
-								<p className="text-sm text-slate-500">Start with the highest-impact issues before reviewing the full report.</p>
+								<h2 id="priority-findings-heading" className="text-lg font-bold text-foreground">Fix these first</h2>
+								<p className="text-sm text-muted-foreground">Start with the highest-impact issues before reviewing the full report.</p>
 							</div>
 							<div className="grid gap-2 lg:grid-cols-3">
 								{priorityFindings.map((finding) => (
 									<div key={finding.id} className="flex min-h-28 flex-col justify-between rounded-xl border border-slate-100 bg-slate-50 p-3">
 										<div>
 											<Badge variant="outline" className={`rounded-full ${severityClassName(finding.severity)}`}>{severityLabel(finding.severity)}</Badge>
-											<p className="mt-2 text-sm font-bold text-slate-900">{finding.title}</p>
+											<p className="mt-2 text-sm font-bold text-foreground">{finding.title}</p>
 										</div>
 										<Button asChild variant="outline" size="sm" className="mt-3 justify-between rounded-xl bg-white">
 											<Link to={finding.route} data-repair-target={`${finding.repairTarget}-priority`}>
@@ -741,8 +741,8 @@ export default function Audit() {
 					<div className="rounded-2xl bg-white p-4 shadow-soft-xl">
 						<div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
 							<div>
-								<h2 className="text-lg font-bold text-slate-900">Findings by next action</h2>
-								<p className="text-sm text-slate-500">Open each group to see what is wrong, why it matters, and where to fix it.</p>
+								<h2 className="text-lg font-bold text-foreground">Findings by next action</h2>
+								<p className="text-sm text-muted-foreground">Open each group to see what is wrong, why it matters, and where to fix it.</p>
 							</div>
 							<div className="relative w-full max-w-sm">
 								<Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
@@ -775,14 +775,14 @@ export default function Audit() {
 									<TabsContent key={group.id} value={group.id} className="mt-4 focus-visible:ring-0">
 										<div className="rounded-2xl border border-slate-100 bg-slate-50/70">
 											<div className="border-b border-slate-100 px-4 py-3">
-												<p className="font-bold text-slate-900">{group.label}</p>
-												<p className="text-sm text-slate-500">{group.description}</p>
+												<p className="font-bold text-foreground">{group.label}</p>
+												<p className="text-sm text-muted-foreground">{group.description}</p>
 											</div>
 											<div className="grid gap-3 border-b border-slate-100 bg-white px-4 py-4 lg:grid-cols-[1fr_auto] lg:items-center">
 												<div className="grid gap-3 text-sm md:grid-cols-2">
 													<div className="rounded-xl bg-slate-50 px-3 py-2">
 														<p className="text-[0.68rem] font-bold uppercase tracking-wide text-slate-400">What is blocked</p>
-														<p className="mt-1 font-semibold text-slate-900">{group.blockedLabel}</p>
+														<p className="mt-1 font-semibold text-foreground">{group.blockedLabel}</p>
 													</div>
 													<div className="rounded-xl bg-slate-50 px-3 py-2">
 														<p className="text-[0.68rem] font-bold uppercase tracking-wide text-slate-400">Why it matters</p>
@@ -810,8 +810,8 @@ export default function Audit() {
 													{visibleFindings.length === 0 ? (
 														<div className="px-6 py-16 text-center">
 															<ShieldCheck className="mx-auto mb-3 size-10 text-emerald-500/40" />
-															<p className="font-bold text-slate-900">{searchQuery ? 'No matching findings' : group.emptyTitle}</p>
-															<p className="mx-auto mt-1 max-w-lg text-sm text-slate-500">{searchQuery ? 'Clear the search to see the full report.' : group.emptyBody}</p>
+															<p className="font-bold text-foreground">{searchQuery ? 'No matching findings' : group.emptyTitle}</p>
+															<p className="mx-auto mt-1 max-w-lg text-sm text-muted-foreground">{searchQuery ? 'Clear the search to see the full report.' : group.emptyBody}</p>
 														</div>
 													) : (
 														<Accordion type="single" collapsible className="w-full divide-y divide-slate-100">
@@ -820,15 +820,15 @@ export default function Audit() {
 																	<AccordionTrigger className="px-4 py-4 hover:no-underline [&[data-state=open]]:bg-muted/10">
 																		<div className="flex flex-wrap items-center gap-2">
 																			<Badge variant="outline" className={`rounded-full ${severityClassName(finding.severity)}`}>{severityLabel(finding.severity)}</Badge>
-																			<span className="font-bold text-slate-900 text-sm text-left">{finding.title}</span>
+																			<span className="font-bold text-foreground text-sm text-left">{finding.title}</span>
 																		</div>
 																	</AccordionTrigger>
 																	<AccordionContent className="px-4 pb-4 pt-1 bg-muted/5">
 																		<div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
 																			<div className="space-y-1.5 max-w-2xl">
 																				<p className="text-sm text-slate-600 leading-relaxed">{finding.detail}</p>
-																				<p className="text-xs font-semibold text-slate-600">What is blocked: <span className="font-normal text-slate-500">{finding.blockedLabel}</span></p>
-																				<p className="text-xs font-semibold text-slate-600">Why it matters: <span className="font-normal text-slate-500">{finding.why}</span></p>
+																				<p className="text-xs font-semibold text-slate-600">What is blocked: <span className="font-normal text-muted-foreground">{finding.blockedLabel}</span></p>
+																				<p className="text-xs font-semibold text-slate-600">Why it matters: <span className="font-normal text-muted-foreground">{finding.why}</span></p>
 																			</div>
 																			<Button asChild variant="outline" size="sm" className="h-9 shrink-0 rounded-xl bg-white shadow-sm mt-2 lg:mt-0">
 																				<Link to={finding.route} data-repair-target={finding.repairTarget}>

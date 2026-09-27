@@ -326,7 +326,7 @@ export function BuildingPanel({
 			<div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
 				<div>
 					<p className="text-[0.65rem] font-bold uppercase text-primary">Campus setup</p>
-					<h3 className="text-sm font-bold text-slate-900">Building summary</h3>
+					<h3 className="text-sm font-bold text-foreground">Building summary</h3>
 				</div>
 				<Button type="button" variant="ghost" size="icon-xs" onClick={onClose} aria-label="Close building details">
 					<X className="size-4" />
@@ -338,7 +338,7 @@ export function BuildingPanel({
 					<>
 						{/* Name */}
 						<div>
-							<label className="text-[0.72rem] font-semibold text-slate-500">
+							<label className="text-[0.72rem] font-semibold text-muted-foreground">
 								Building name
 							</label>
 							<Input
@@ -349,7 +349,7 @@ export function BuildingPanel({
 						</div>
 
 						<div>
-							<label className="text-[0.72rem] font-semibold text-slate-500">
+							<label className="text-[0.72rem] font-semibold text-muted-foreground">
 								Room label prefix
 							</label>
 							<Input
@@ -368,7 +368,7 @@ export function BuildingPanel({
 
 						{/* Color */}
 						<div>
-							<label className="text-[0.72rem] font-semibold text-slate-500">
+							<label className="text-[0.72rem] font-semibold text-muted-foreground">
 								Map color
 							</label>
 							<TooltipProvider delayDuration={250}>
@@ -406,7 +406,7 @@ export function BuildingPanel({
 
 						{/* Floor count */}
 						<div>
-							<label className="text-[0.72rem] font-semibold text-slate-500">
+							<label className="text-[0.72rem] font-semibold text-muted-foreground">
 								Number of floors
 							</label>
 							<Input
@@ -437,7 +437,7 @@ export function BuildingPanel({
 									}}
 									disabled={togglingTeaching}
 								/>
-								<label className="text-[0.72rem] text-slate-500">
+								<label className="text-[0.72rem] text-muted-foreground">
 									Not used for scheduling
 								</label>
 							</div>

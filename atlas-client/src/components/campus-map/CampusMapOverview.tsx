@@ -413,8 +413,8 @@ const [verifiedTermIndex, setVerifiedTermIndex] = useState<number | null>(null);
 					<Card className="rounded-2xl border-0 bg-white p-0 shadow-soft">
 						<CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
 							<div className="min-w-0">
-								<p className="text-sm font-bold text-slate-900">Map is available when needed</p>
-								<p className="mt-1 text-xs leading-relaxed text-slate-500">Most scheduling setup starts with readiness above. Open the map when you need to inspect a building or room.</p>
+								<p className="text-sm font-bold text-foreground">Map is available when needed</p>
+								<p className="mt-1 text-xs leading-relaxed text-muted-foreground">Most scheduling setup starts with readiness above. Open the map when you need to inspect a building or room.</p>
 							</div>
 							<Button type="button" variant="outline" className="h-10 shrink-0 gap-2 font-bold" onClick={() => setShowExplorer(true)}>
 								<MapPinned className="size-4" />
@@ -428,7 +428,7 @@ const [verifiedTermIndex, setVerifiedTermIndex] = useState<number | null>(null);
 					<Card className="overflow-hidden rounded-2xl border-0 bg-white p-0 shadow-soft-xl">
 						<div className="flex items-center justify-between gap-3 border-b border-slate-100 px-5 py-3.5 bg-slate-50/50">
 							<div>
-								<h2 className="text-sm font-bold text-slate-900">Campus Explorer</h2>
+								<h2 className="text-sm font-bold text-foreground">Campus Explorer</h2>
 							</div>
 							{selectedBuilding && (
 								<div className="flex items-center gap-1 rounded-lg border bg-background p-0.5" role="tablist">
@@ -455,7 +455,7 @@ const [verifiedTermIndex, setVerifiedTermIndex] = useState<number | null>(null);
 						</div>
 
 						<div className="bg-stone-50 p-4 lg:p-5 flex flex-col justify-center min-h-[560px]">
-							<Suspense fallback={<div className="flex min-h-[520px] items-center justify-center text-sm text-slate-500">Loading the campus view…</div>}>
+							<Suspense fallback={<div className="flex min-h-[520px] items-center justify-center text-sm text-muted-foreground">Loading the campus view…</div>}>
 							{activeView === 'map' ? (
 								<CampusMapCanvasPreview
 									buildings={buildings}
@@ -476,7 +476,7 @@ const [verifiedTermIndex, setVerifiedTermIndex] = useState<number | null>(null);
 											<Button
 												variant="ghost"
 												size="sm"
-												className="h-8 gap-1 pl-1 text-slate-500 hover:text-slate-900"
+												className="h-8 gap-1 pl-1 text-muted-foreground hover:text-foreground"
 												onClick={() => setActiveView('map')}
 											>
 												<ArrowLeft className="size-4" />
@@ -524,7 +524,7 @@ const [verifiedTermIndex, setVerifiedTermIndex] = useState<number | null>(null);
 								<Card className="rounded-2xl border-0 bg-white p-0 shadow-soft-xl flex-1 overflow-auto">
 									<CardContent className="p-5">
 										<div className="flex items-center justify-between gap-2">
-											<p className="text-xs font-semibold uppercase text-slate-500">Selected building</p>
+											<p className="text-xs font-semibold uppercase text-muted-foreground">Selected building</p>
 											{selectedBuilding ? (
 												<Badge variant="outline" className={selectedStatus === 'ready' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-amber-200 bg-amber-50 text-amber-700'}>
 													{selectedStatus === 'ready' ? <CheckCircle2 className="size-3" /> : <AlertTriangle className="size-3" />}
@@ -532,8 +532,8 @@ const [verifiedTermIndex, setVerifiedTermIndex] = useState<number | null>(null);
 												</Badge>
 											) : null}
 										</div>
-										<h3 className="mt-2 truncate text-xl font-bold text-slate-900">{selectedBuilding?.name ?? 'No building selected'}</h3>
-										<p className="mt-2 text-sm text-slate-500">
+										<h3 className="mt-2 truncate text-xl font-bold text-foreground">{selectedBuilding?.name ?? 'No building selected'}</h3>
+										<p className="mt-2 text-sm text-muted-foreground">
 											{selectedBuilding
 												? `${selectedTeachingRooms} teaching room${selectedTeachingRooms === 1 ? '' : 's'} out of ${selectedTotalRooms} total rooms.`
 												: 'Open editor mode to draw buildings and add rooms.'}
@@ -585,8 +585,8 @@ const [verifiedTermIndex, setVerifiedTermIndex] = useState<number | null>(null);
 							<Card className="rounded-2xl border-0 bg-white p-0 shadow-soft-xl flex-1 flex flex-col min-h-0">
 								<CardContent className="p-5 flex flex-col h-full min-h-0">
 									<div className="mb-3 shrink-0">
-										<h3 className="text-sm font-bold text-slate-900">Room Directory</h3>
-										<p className="text-xs text-slate-500 truncate mt-0.5">{selectedBuilding.name} · {selectedTeachingRooms} Teaching Rooms</p>
+										<h3 className="text-sm font-bold text-foreground">Room Directory</h3>
+										<p className="text-xs text-muted-foreground truncate mt-0.5">{selectedBuilding.name} · {selectedTeachingRooms} Teaching Rooms</p>
 									</div>
 
 									{/* Search & Filters */}
@@ -654,7 +654,7 @@ const [verifiedTermIndex, setVerifiedTermIndex] = useState<number | null>(null);
 															<div className="flex items-center justify-between w-full">
 																<div className="min-w-0">
 																	<span className="font-bold text-xs text-slate-800 truncate block">{room.name}</span>
-															<span className="text-xs text-slate-500">{ROOM_TYPE_LABELS[room.type] ?? room.type}</span>
+															<span className="text-xs text-muted-foreground">{ROOM_TYPE_LABELS[room.type] ?? room.type}</span>
 																</div>
 														<Badge variant="secondary" className="h-5 shrink-0 px-1.5 py-0 text-xs">
 																	Cap: {room.capacity ?? '—'}
@@ -663,7 +663,7 @@ const [verifiedTermIndex, setVerifiedTermIndex] = useState<number | null>(null);
 
 											{room.isTeachingSpace && (
 												<div className="w-full space-y-0.5" data-utilization={utilizationKnown ? 'measured' : 'unknown'}>
-													<div className="flex items-center justify-between text-xs font-semibold text-slate-500">
+													<div className="flex items-center justify-between text-xs font-semibold text-muted-foreground">
 														<span className="flex items-center gap-0.5">
 															<TrendingUp className="size-2.5" />
 															Utilization
@@ -745,7 +745,7 @@ const [verifiedTermIndex, setVerifiedTermIndex] = useState<number | null>(null);
 												</Button>
 											</div>
 										) : (
-										<p className="py-1.5 text-center text-xs text-slate-500">
+										<p className="py-1.5 text-center text-xs text-muted-foreground">
 												Select a room to view weekly schedule.
 											</p>
 										)}
@@ -781,8 +781,8 @@ function SummaryStat({ label, value, icon: Icon }: { label: string; value: strin
 	return (
 		<div className="rounded-2xl bg-white p-4 shadow-soft">
 			<Icon className="size-4 text-primary animate-pulse" />
-			<p className="mt-2 text-xs font-semibold uppercase text-slate-500">{label}</p>
-			<p className="mt-1 text-2xl font-bold tabular-nums text-slate-900">{value}</p>
+			<p className="mt-2 text-xs font-semibold uppercase text-muted-foreground">{label}</p>
+			<p className="mt-1 text-2xl font-bold tabular-nums text-foreground">{value}</p>
 		</div>
 	);
 }
@@ -790,8 +790,8 @@ function SummaryStat({ label, value, icon: Icon }: { label: string; value: strin
 function ReadinessChip({ label, value }: { label: string; value: string }) {
 	return (
 		<div className="rounded-xl border border-slate-100 bg-slate-50 px-2 py-2">
-			<p className="text-xs font-semibold uppercase text-slate-500">{label}</p>
-			<p className="mt-1 truncate text-xs font-bold text-slate-900">{value}</p>
+			<p className="text-xs font-semibold uppercase text-muted-foreground">{label}</p>
+			<p className="mt-1 truncate text-xs font-bold text-foreground">{value}</p>
 		</div>
 	);
 }

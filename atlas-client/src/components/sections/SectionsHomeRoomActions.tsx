@@ -48,7 +48,7 @@ export function SectionsHomeRoomActions({
 						</Badge>
 					</PopoverTrigger>
 					<PopoverContent align="start" className="w-72 rounded-xl p-3 text-sm">
-						<p className="font-semibold text-slate-900">Sections needing home rooms</p>
+						<p className="font-semibold text-foreground">Sections needing home rooms</p>
 						<p className="mt-1 text-xs leading-relaxed text-slate-600">
 							Use &quot;Auto-assign rooms&quot; or the &quot;Choose home room&quot; control on each row.
 						</p>

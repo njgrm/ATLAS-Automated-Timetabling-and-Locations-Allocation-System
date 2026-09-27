@@ -227,7 +227,7 @@ export default function MapEditor() {
 						}} />
 					</div>
 				</div>
-				<Suspense fallback={<div className="flex h-full items-center justify-center text-sm text-slate-500">Loading map editor…</div>}>
+				<Suspense fallback={<div className="flex h-full items-center justify-center text-sm text-muted-foreground">Loading map editor…</div>}>
 				<CampusMapEditor
 					schoolId={DEFAULT_SCHOOL_ID}
 					buildings={buildings}
@@ -247,7 +247,7 @@ export default function MapEditor() {
 
 			{/* Side panel — always visible */}
 			<div className="w-88 shrink-0 border-l border-slate-200 bg-white overflow-y-auto scrollbar-thin shadow-soft">
-				<Suspense fallback={<div className="p-6 text-sm text-slate-500">Loading room editor…</div>}>
+				<Suspense fallback={<div className="p-6 text-sm text-muted-foreground">Loading room editor…</div>}>
 				{selectedBuilding ? (
 					<BuildingPanel
 						building={selectedBuilding}
@@ -263,7 +263,7 @@ export default function MapEditor() {
 					<div className="flex h-full items-center justify-center p-6 text-center">
 						<div>
 							<MapPinned className="mx-auto size-10 text-primary/30" />
-							<p className="mt-2 text-sm text-slate-500">
+							<p className="mt-2 text-sm text-muted-foreground">
 								{buildings.length === 0
 									? 'Choose Draw building to add the first campus building.'
 									: 'Select a building on the map to edit rooms and readiness.'}

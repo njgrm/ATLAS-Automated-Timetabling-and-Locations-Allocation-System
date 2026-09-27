@@ -53,9 +53,26 @@ import test from 'node:test';
  * measurement and not an estimate — an earlier guess of 226 was caught red by this very control on
  * its first run, which is the behaviour a ratchet is supposed to have. Lower these as the sweep
  * lands, with the reason in the commit.
+ *
+ * **Lowered 2026-09-28 by the S-e exact-substitution sweep: 229 -> 110, 34 -> 28 files.**
+ *
+ * The fall is exactly the 119 substitutions that sweep made (47 `text-slate-900` ->
+ * `text-foreground`, 72 `text-slate-500` -> `text-muted-foreground`) across 19 non-timetable
+ * demo-route files, and nothing else: no markup, spacing, copy or non-`text-` class moved, proven
+ * by a whole-file comparison against `HEAD` in `palette-token-sweep-a3-s-e.test.ts` control 5.
+ * The 6-file drop is those six in-scope files whose only raw neutrals were the two swept shades,
+ * so they left the count entirely.
+ *
+ * **The residual 110 is deliberately left for a browser-verified pass, not an oversight.** Those
+ * occurrences are shades with no exact token (`slate-200/300/400/600/700/800`, `gray-*`), and
+ * mapping them is a design judgement, not a rename: several are not text at all but decorative
+ * `|` separators, chevrons, search icons, a disabled button and `line-through` completed items,
+ * where promoting the colour to a foreground token would be a regression. Their measured contrast
+ * and per-file inventory are recorded in the S-e handoff as the input the next browser holder
+ * needs. Do not lower these pins again without a rendered screen at 1366x768.
  */
-const PINNED_TOTAL = 229;
-const PINNED_FILE_COUNT = 34;
+const PINNED_TOTAL = 110;
+const PINNED_FILE_COUNT = 28;
 
 const here = dirname(fileURLToPath(import.meta.url));
 const CLIENT_ROOT = resolve(here, '..', '..', '..');

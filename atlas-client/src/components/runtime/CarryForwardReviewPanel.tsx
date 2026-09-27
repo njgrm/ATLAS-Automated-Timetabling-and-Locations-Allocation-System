@@ -87,7 +87,7 @@ export function CarryForwardReviewPanel({ schoolId, activeSchoolYearId, archived
 		return (
 			<div className="rounded-xl border border-dashed border-slate-200 bg-white/70 p-4" data-testid="carry-forward-empty">
 				<div className="flex items-center gap-2 text-sm font-semibold text-slate-800">
-					<Archive className="size-4 text-slate-500" />
+					<Archive className="size-4 text-muted-foreground" />
 					Start from last year (optional)
 				</div>
 				<p className="mt-1 text-xs text-muted-foreground">
@@ -102,7 +102,7 @@ export function CarryForwardReviewPanel({ schoolId, activeSchoolYearId, archived
 	return (
 		<div className="rounded-xl border bg-white/80 p-4" data-testid="carry-forward-panel">
 			<div className="flex items-center gap-1.5 text-sm font-semibold text-slate-800">
-				<Archive className="size-4 text-slate-500" />
+				<Archive className="size-4 text-muted-foreground" />
 				Start from last year (optional)
 			</div>
 			<p className="mt-1 text-xs text-muted-foreground">

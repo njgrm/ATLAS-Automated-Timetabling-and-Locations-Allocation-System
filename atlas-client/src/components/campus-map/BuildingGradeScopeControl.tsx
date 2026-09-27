@@ -15,7 +15,7 @@ const GRADE_OPTIONS = [
 export function BuildingGradeScopeControl({ gradeScope, onGradeScopeChange }: BuildingGradeScopeControlProps) {
 	return (
 		<div>
-			<label className="text-[0.72rem] font-semibold text-slate-500">
+			<label className="text-[0.72rem] font-semibold text-muted-foreground">
 				Grade scope
 			</label>
 			<p className="mt-0.5 mb-1.5 text-[0.6875rem] text-muted-foreground">
