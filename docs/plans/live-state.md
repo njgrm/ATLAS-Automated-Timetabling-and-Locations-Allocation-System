@@ -2469,9 +2469,24 @@ acceptance debt I already cannot close. **Ship it when the session exists, so th
 It also needs its own packet and its own client-only delta enumeration; do not fold it into a future release
 implicitly.
 
-**Next action (2026-09-27):** the small unblocked lane-A2 follow-up Lane C explicitly specified — the **amber icon
-and the "Swap + move 3 classes" button label**, which complete their (i)-bounded-by-(ii) auto-fix rule and are
-the only remaining presentation gap in code that already ships. Everything else is behind the session.
+**Next action (2026-09-27):** **release `9b28c572` is BUILT, VERIFIED and STAGED, but the cutover is BLOCKED ON
+ELEVATION — an elevated shell is the only thing between here and live.** Packet
+`docs/prompts/a2-release-9b28c572-2026-09-27.md` passed independent pre-action review
+(**`PRE_ACTION_CLEAR` 11/14 passed, 0 blocked, 2 unperformed**) after one `CORRECTION_REQUIRED` 19/24 whose three
+blocking findings were all **packet-document** defects — the source range needed no change. Execution proved **both
+discriminators non-vacuously** — `timetable-edit-message.js` **absent from the live build, present in the new one**,
+and the `ALREADY_UNDONE_EDIT_MESSAGE` literal **present in the new client chunk, absent from the live one** — then
+**stopped**: `IsInRole(Administrator)` was `False` and `SetEnvironmentVariable(…,'Machine')` threw *"Requested
+registry access is not allowed."* **No partial cutover was attempted.** Live is untouched — `c5a9e832`, 5001 → 43192,
+5174 → 43744, ready. The built dir `E:\ATLAS-worktrees\lane-a2-release-9b28c572` is **retained and clean**: a finished
+artefact, not residue.
+
+**Whoever resumes must re-derive the D5b/D6 baselines at that moment** — `manual_schedule_edits` was already **7**
+at capture, up from 5 earlier, because a concurrent lane is actively editing the draft. A stored count is stale by
+the time anyone resumes; the window, not the number, is the authority.
+
+Then, while waiting on elevation, the small unblocked follow-ups: **#63** (two Undo controls sharing one accessible
+name) and the **`strategy` wire-validation** allowlist.
 ## Lane A3 - current lane (written only by Planner A3)
 
 ### Live release `d11304e8` is DEPLOYED; browser acceptance is INCOMPLETE and BLOCKED
