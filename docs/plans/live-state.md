@@ -178,7 +178,61 @@ resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs
   | D7 term guard | **PASS** — 400 without `termIndex`, 200 with |
   | D8 swap route mounted | **PASS** — 401, not 404 |
   | D12 public page DOM | **PASS** — `/public/schedules` renders 20 sections ("Aguinaldo GR7 40 classes Regular"), term shown `TERM 2`, full timetable, "Live publish"; **no** "Unable to load public schedule" |
-  | **D9, D10, D11** | **BLOCKED — `NEEDS_SESSION(space-bunny/opencode-default)`.** This profile holds no seeded session: both `http://127.0.0.1:5174/` and `https://njgrm.buru-degree.ts.net/timetable` redirect to `/login`. **Not deferred by choice and not claimed as passing** |
+  | **D9, D10, D11** | **SUPERSEDED by the browser acceptance below — the session was seeded 2026-09-27 and these three rows were performed. The prior BLOCKED record is preserved immediately below.** |
+
+  ### Browser acceptance, performed 2026-09-27 after the operator seeded the session
+
+  **Origin asserted on every row: `https://njgrm.buru-degree.ts.net`** (per the S12 rule naming the Tailnet
+  origin). The earlier D12 row was gathered on `127.0.0.1:5174` and was therefore an *isolated* check, not
+  ATLAS acceptance; it was **re-run on the canonical origin and passes there**.
+
+  | Row | Result |
+  |---|---|
+  | D9 **#64 rendered** | **PASS.** `Manual edit history` shows 3 edits. The **undone** row (9/27 5:54:10 AM) states *"This change has already been undone, so there is nothing left to revert here."* and carries **no Revert control at all**; the undo row states *"This undo cannot be undone."* and has none; the **live** row (my 8:50:29 PM swap) keeps exactly **one** working `timetable-edit-history-revert`, `disabled: false`. Exactly one Revert button exists in the dialog |
+  | D10 **#61 rendered** | **PARTIAL — one sub-row PASS, one UNPERFORMED, and a BLOCKING finding attached.** See below |
+  | D11 **A3's two fixes** | **PASS, with exact geometry.** Konva stage traversed: **"Admin and Learning Commons" renders in full** — the complete string, **not** truncated to `"Learning."` — text box `y 304→391` inside a card at `y 297→411`, leaving **~20 units** of bottom margin, i.e. **not** pushed to the card's bottom edge and with **no 71.5-unit overflow**. Second half: the Next Step banner's `teaching-load-repair-review` produced an **observable** state change — added `teaching-load-review-modal`, `teaching-load-review-modal-title` and four `workload-class-subject` rows, **+612** chars — so the control is **not** dead |
+
+  **D10 detail, precisely. Pre-swap warning count recorded as 69**; the committed swap was on the **draft** (321,
+  proven above: 0 published revisions, `currentPublishedRunId` 320). The preview stated the relocation outright —
+  *"Committing also relocates Class A beyond the two classes' current times: Class A leaves MONDAY 6:00 AM–6:45 AM
+  and goes to MONDAY 12:15 PM–1:00 PM"* — and the commit button read **"Swap + move 1 class"**.
+
+  - **PASS — the notice names the change in words and claims the relocation that actually happened:** *"Sessions
+    switched. ATLAS also moved the source session to the nearest valid slot."* **Zero** `entry-`/`::t`/`entryId`
+    matches in the page body. This is the `timetable-edit-message.ts` positive-allowlist fix working end to end:
+    the relocation clause is claimed for a strategy that relocates, and withheld otherwise.
+  - **UNPERFORMED — "a stale selection is released with an explanation."** This needs a *concurrent* commit by a
+    second actor while a class is selected. No second actor was available, so the row was **not** performed and is
+    **not** claimed as passing.
+  - **⚠ BLOCKING FINDING — a committed swap produced NO durable notification row.** The swap wrote
+    `manual_schedule_edits` **id 12** (actor 46, `SWAP_ENTRIES`, `2026-09-27 12:50:29.834Z`) and bumped
+    `generation_runs.version` for run 321 **3 → 4**, and the route returned **200**. But `notifications` went
+    **216 → 216**: `SELECT count(*) FROM notifications WHERE created_at > '2026-09-27T12:00:00Z'` = **0**. The
+    pre-fix swap on 2026-09-26 21:54 produced **two** rows (id 217 for actor 46, id 218 for the affected
+    teacher), so a swap demonstrably used to notify and did not this time. Verified from three independent
+    angles: the bell DOM, `GET /api/v1/notification-inbox` (newest still id 219), and the database.
+    **Consequence: the release's headline guarantee — that no operator id reaches the *persisted* inbox string —
+    is UNTESTED at its actual destination, because for this event that row does not exist.** A possible
+    lost-notification defect is open. **Not established as a regression from this release**; it is one observation
+    against a pre-fix comparison, and needs its own investigation before any claim is made either way.
+
+  **Two corrections to the packet's own instructions, found by executing them:**
+
+  1. **"D10's audit id is recorded" is UNSATISFIABLE as written.** A swap commit writes **no `audit_logs` row** —
+    not this one, and not historically. The action histogram for `%SWAP%`/`%MANUAL%` contains only
+    `MANUAL_SCHEDULE_EDIT_REVERT` (×3); there is no swap-commit action at all. The attributable identifiers for
+    this swap are `manual_schedule_edits.id = 12` and the run version bump, **not** an audit id. The `audit_logs`
+    increase 447 → **448** is attributable **entirely** to the operator's own `LOCAL_LOGIN_SUCCESS` (id 999, actor
+    46, `12:43:48.177Z`) when the session was seeded — i.e. **before** the swap, and not caused by it.
+  2. **The packet's client-chunk baseline was stale** for a second reason beyond the incumbent moving: the
+    pre-cutover record named `-dY-BJ1Wl`, but A3's rebuild made the live chunk `-CxpTucmV`. Both now 404, and the
+    new `-C4bvatRP` serves 200.
+
+  **Final D5b after-snapshot, D10 included:** `generation_runs` 9 → **9**, `manual_schedule_edits` 7 → **8** (the
+  one authorised swap), `audit_logs` 447 → **448** (the operator's login, attributable), `published_schedule_
+  revisions` 6 → **6**, `notifications` 216 → **216** (the finding above). **No decrease in any table.** D5b's own
+  attribution rule is satisfied: every increase traces to actor 46 inside the window, and the swap's own
+  `SWAP_ENTRIES` increase is attributable by construction.
 
   **D10's precondition was verified before the block, from the database rather than assumed:** run **321** has
   **0** rows in `published_schedule_revisions` and run **320** has 1, and `currentPublishedRunId` is **320** on
