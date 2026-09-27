@@ -25,7 +25,8 @@ import { SubjectFilterToolbar } from '@/components/subjects/SubjectFilterToolbar
 import { SubjectTablePagination } from '@/components/subjects/SubjectTablePagination';
 import { SortableHeader } from '@/components/subjects/SortableHeader';
 import type { SortField, SortDir } from '@/components/subjects/SortableHeader';
-import { resolveSubjectSourceCopy } from '@/components/subjects/subject-source-utils';
+import { resolveSubjectSourceCopy, resolveSubjectMutationErrorCopy } from '@/components/subjects/subject-source-utils';
+import { SubjectMutationDetailPopover } from '@/components/subjects/SubjectMutationDetailPopover';
 import { SubjectMobileList } from '@/components/subjects/SubjectMobileList';
 import { resolveActiveSchoolYearContext } from '@/lib/enrollpro-public-settings';
 import { useActorSchoolScope } from '@/lib/actor-scope-session';
@@ -89,6 +90,15 @@ export default function Subjects() {
 	// "no teachers assigned" from "the coverage fetch failed" (audit Sub-5).
 	const [coverageError, setCoverageError] = useState<Map<number, string>>(new Map());
 	const [subjectCoverageSummary, setSubjectCoverageSummary] = useState<SubjectCoverageSummary | null>(null);
+
+	// A3-C5-4: the most recent mutation failure's RAW server code + sentence, so
+	// the diagnostic stays reachable behind a `@/ui` Popover once the toast has
+	// faded and the calm copy has replaced the engineer string. Null on success.
+	const [mutationDetail, setMutationDetail] = useState<{
+		code: string | null;
+		rawMessage: string;
+		context: string;
+	} | null>(null);
 
 	// Sorting
 	const [sortField, setSortField] = useState<SortField>('code');
@@ -218,13 +228,22 @@ export default function Subjects() {
 				[subjectId]: { assigned } 
 			}));
 		} catch (err: any) {
-			const message = err?.response?.data?.message ?? err?.message ?? 'Failed to load teacher coverage';
+			// A3-C5-4: the server authors this sentence for a scheduler, so it is
+			// resolved to calm copy and the raw pair is parked for the popover.
+			const copy = resolveSubjectMutationErrorCopy(
+				err?.response?.data ?? { message: err?.message },
+			);
 			setCoverageError((prev) => {
 				const next = new Map(prev);
-				next.set(subjectId, message);
+				next.set(subjectId, copy.message);
 				return next;
 			});
-			toast.error(message);
+			setMutationDetail({
+				code: copy.code,
+				rawMessage: copy.rawMessage,
+				context: 'Load teacher coverage',
+			});
+			toast.error(copy.message);
 		} finally {
 			setCoverageLoading(false);
 		}
@@ -378,18 +397,26 @@ export default function Subjects() {
 			setModalMode(null);
 			setModalSubject(null);
 			setModalSubjectMeta(null);
+			setMutationDetail(null);
 			await fetchSubjects();
 			return { status: 'saved' };
 		} catch (err: any) {
-			const code = err?.response?.data?.code;
-			const msg = err?.response?.data?.message ?? 'Failed to save subject.';
-			if (code === 'STALE_WRITE') {
-				const message = 'This subject was modified by another user. Your edit was not written — close and reopen it to load the newer version.';
-				toast.error(message);
-				return { status: 'stale', message };
+			// A3-C5-4: one resolver for every outcome, including the two that
+			// already had specific copy. `STALE_WRITE` still returns `stale` (the
+			// modal stays open and states it inline) — only the string now comes
+			// from the shared table instead of a second inline copy.
+			const copy = resolveSubjectMutationErrorCopy(err?.response?.data);
+			setMutationDetail({
+				code: copy.code,
+				rawMessage: copy.rawMessage,
+				context: 'Save subject',
+			});
+			if (copy.code === 'STALE_WRITE') {
+				toast.error(copy.message);
+				return { status: 'stale', message: copy.message };
 			}
-			toast.error(msg);
-			return { status: 'failed', message: msg };
+			toast.error(copy.message);
+			return { status: 'failed', message: copy.message };
 		} finally {
 			setSaving(false);
 		}
@@ -411,18 +438,26 @@ export default function Subjects() {
 			await atlasApi.post(`/subjects/${target.id}/archive`, { expectedUpdatedAt });
 			toast.success(`"${target.name}" archived.`);
 			setArchiveTarget(null);
+			setMutationDetail(null);
 			await fetchSubjects();
 		} catch (err: any) {
-			const code = err?.response?.data?.code;
-			const msg = err?.response?.data?.message ?? 'Failed to archive subject.';
-			if (code === 'ALREADY_ARCHIVED') {
-				toast.info('Subject is already archived.');
+			// A3-C5-4: same resolver as save. The `ALREADY_ARCHIVED` no-op still
+			// closes the dialog and refetches, and still uses `toast.info` — only
+			// the sentence is now shared rather than duplicated here.
+			const copy = resolveSubjectMutationErrorCopy(err?.response?.data);
+			setMutationDetail({
+				code: copy.code,
+				rawMessage: copy.rawMessage,
+				context: 'Archive subject',
+			});
+			if (copy.code === 'ALREADY_ARCHIVED') {
+				toast.info(copy.description);
 				setArchiveTarget(null);
 				await fetchSubjects();
-			} else if (code === 'STALE_WRITE') {
-				toast.error('This subject was modified by another user. Refresh and retry.');
+			} else if (copy.code === 'STALE_WRITE') {
+				toast.error(copy.message);
 			} else {
-				toast.error(msg);
+				toast.error(copy.message);
 			}
 		} finally {
 			setArchivingLoading(false);
@@ -438,17 +473,23 @@ export default function Subjects() {
 			const expectedUpdatedAt = currentSubject?.updatedAt ?? target.updatedAt;
 			await atlasApi.post(`/subjects/${target.id}/reactivate`, { expectedUpdatedAt });
 			toast.success(`${target.name} reactivated.`);
+			setMutationDetail(null);
 			await fetchSubjects();
 		} catch (err: any) {
-			const code = err?.response?.data?.code;
-			const msg = err?.response?.data?.message ?? 'Failed to reactivate subject.';
-			if (code === 'ALREADY_ACTIVE') {
-				toast.info('Subject is already active.');
+			// A3-C5-4: same resolver as save/archive.
+			const copy = resolveSubjectMutationErrorCopy(err?.response?.data);
+			setMutationDetail({
+				code: copy.code,
+				rawMessage: copy.rawMessage,
+				context: 'Reactivate subject',
+			});
+			if (copy.code === 'ALREADY_ACTIVE') {
+				toast.info(copy.description);
 				await fetchSubjects();
-			} else if (code === 'STALE_WRITE') {
-				toast.error('This subject was modified by another user. Refresh and retry.');
+			} else if (copy.code === 'STALE_WRITE') {
+				toast.error(copy.message);
 			} else {
-				toast.error(msg);
+				toast.error(copy.message);
 			}
 		}
 	};
@@ -546,6 +587,20 @@ stats={subjectStats}
 			VERIFIED_LIVE state can be a one-line inline status while BLOCKED and
 			VERIFIED_CACHED keep the loud, uncompacted treatment. */}
 		<SubjectTermAuthorityBanner termAuthority={termAuthority} />
+
+		{/* A3-C5-4: the last failed subject change. The toast carried the calm
+			operator copy; the raw code and the raw server sentence stay reachable
+			here in a `@/ui` Popover (AGENTS.md §8 forbids a bare `title=`) so
+			nothing is destroyed by the rewrite. */}
+		{mutationDetail ? (
+			<div className="mx-4 mt-2">
+				<SubjectMutationDetailPopover
+					code={mutationDetail.code}
+					rawMessage={mutationDetail.rawMessage}
+					context={mutationDetail.context}
+				/>
+			</div>
+		) : null}
 
 		{/* SCA-01.1: while the actor school scope is unresolved, no catalog
 			request has been issued — show a bounded scope state instead of an

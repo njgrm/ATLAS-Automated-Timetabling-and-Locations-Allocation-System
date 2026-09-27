@@ -13,6 +13,8 @@ import {
 	DialogTitle,
 } from '@/ui/dialog';
 import type { Subject } from '@/types';
+import { resolveSubjectMutationErrorCopy } from './subject-source-utils';
+import { SubjectMutationDetailPopover } from './SubjectMutationDetailPopover';
 
 type DeletePreview = {
 	subjectId: number;
@@ -55,9 +57,20 @@ export function DeleteSubjectDialog({ target, onClose, onDeleted, onEnsureSchool
 	const [phase, setPhase] = useState<Phase>({ id: 'confirm' });
 	const [loading, setLoading] = useState(false);
 
+	// A3-C5-4: raw server code + sentence for the last failure in this dialog,
+	// kept reachable behind a `@/ui` Popover after the calm copy takes the toast.
+	const [mutationDetail, setMutationDetail] = useState<{
+		code: string | null;
+		rawMessage: string;
+		context: string;
+	} | null>(null);
+
 	// Reset phase each time a new target opens
 	useEffect(() => {
-		if (target) setPhase({ id: 'confirm' });
+		if (target) {
+			setPhase({ id: 'confirm' });
+			setMutationDetail(null);
+		}
 	}, [target?.id]);
 
 	const handlePreview = useCallback(async () => {
@@ -75,8 +88,17 @@ export function DeleteSubjectDialog({ target, onClose, onDeleted, onEnsureSchool
 			} else {
 				setPhase({ id: 'blocked', preview });
 			}
+			setMutationDetail(null);
 		} catch (err: any) {
-			toast.error(err?.response?.data?.message ?? 'Failed to preview deletion.');
+			// A3-C5-4: the server authors this sentence for a scheduler; resolve
+			// it to calm copy and keep the raw pair for the popover.
+			const copy = resolveSubjectMutationErrorCopy(err?.response?.data);
+			setMutationDetail({
+				code: copy.code,
+				rawMessage: copy.rawMessage,
+				context: 'Preview deletion',
+			});
+			toast.error(copy.message);
 		} finally {
 			setLoading(false);
 		}
@@ -97,17 +119,24 @@ export function DeleteSubjectDialog({ target, onClose, onDeleted, onEnsureSchool
 			onDeleted();
 			onClose();
 		} catch (err: any) {
-			const code = err?.response?.data?.code;
-			const msg = err?.response?.data?.message ?? 'Failed to delete subject.';
-			if (code === 'DEPENDENCY_DRIFT') {
+			// A3-C5-4: one resolver for both non-drift outcomes. `DEPENDENCY_DRIFT`
+			// keeps its own coupled copy because it is not a message — it is the
+			// trigger to re-run the preview.
+			const copy = resolveSubjectMutationErrorCopy(err?.response?.data);
+			setMutationDetail({
+				code: copy.code,
+				rawMessage: copy.rawMessage,
+				context: 'Delete subject',
+			});
+			if (copy.code === 'DEPENDENCY_DRIFT') {
 				toast.error('Dependencies changed. Re-running preview...');
 				setPhase({ id: 'confirm' });
 				await handlePreview();
-			} else if (code === 'STALE_WRITE') {
-				toast.error('Subject was modified by another user. Refresh and retry.');
+			} else if (copy.code === 'STALE_WRITE') {
+				toast.error(copy.message);
 				setPhase({ id: 'confirm' });
 			} else {
-				toast.error(msg);
+				toast.error(copy.message);
 				setPhase({ id: 'confirm' });
 			}
 		} finally {
@@ -142,10 +171,22 @@ export function DeleteSubjectDialog({ target, onClose, onDeleted, onEnsureSchool
 								</div>
 							</DialogDescription>
 						</DialogHeader>
-						<DialogFooter className="gap-2">
-							<Button variant="ghost" size="sm" onClick={onClose} disabled={loading}>
-								Cancel
-							</Button>
+					<DialogFooter className="gap-2">
+						{/* A3-C5-4: raw code + raw server sentence stay reachable in a
+							`@/ui` Popover (AGENTS.md §8 forbids a bare `title=`), so
+							resolving the toast to calm copy destroys nothing. */}
+						{mutationDetail ? (
+							<div className="mr-auto">
+								<SubjectMutationDetailPopover
+									code={mutationDetail.code}
+									rawMessage={mutationDetail.rawMessage}
+									context={mutationDetail.context}
+								/>
+							</div>
+						) : null}
+						<Button variant="ghost" size="sm" onClick={onClose} disabled={loading}>
+							Cancel
+						</Button>
 							<Button variant="destructive" size="sm" disabled={loading} onClick={handlePreview}>
 								{loading ? <><Spinner />Checking...</> : 'Check dependencies'}
 							</Button>
