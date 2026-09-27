@@ -199,8 +199,10 @@ resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs
   see `docs/handoffs/planner-a2-handoff-2026-09-28-overnight.md` §1 for what the morning does, in order.
 
 - **▶ LEADING TARGET FOR THE NEXT CUTOVER — `a1db27d5a9c270c875868436988f5d8cef38af04`, re-pinned
-  2026-09-28 05:40 +08 by Lane A2. STAGED, NOT EXECUTED — two independent reviews have not yet returned
-  `ACCEPT_READY` on this exact pin.** `deploy-runner.ps1` fails closed without a target prefix in this section, so
+  2026-09-28 05:40 +08 by Lane A2. REVIEW-CLEAR as of 2026-09-28 07:0x +08 — three independent bounded
+  reviews on this exact pin: `CORRECTION_REQUIRED` 2/4/0/0, `CORRECTION_REQUIRED` 2/5/0/0, then
+  `ACCEPT_READY` 4/4/0/0 with all four residual findings NON_BLOCKING and since corrected (`d1f66075`).
+  Executed below.** `deploy-runner.ps1` fails closed without a target prefix in this section, so
   **the next HIGH action must have its target recorded here first**; `a1db27d5` now satisfies that gate. **Do not cut
   over to `d31bfacb`, `c0d91827` or `9b28c572` — that would ship less.** The earlier `d049f85d` record is
   **SUPERSEDED**: it is two commits below the source corrections `2de11790`, so a cutover to it would have shipped a
@@ -214,6 +216,7 @@ resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs
   | **Rollback basis** | the `d31bfacb` dir — **one-step supervised reset** (verified present, clean, both `dist`s built) |
   | **Direction** | **FORWARD.** `git merge-base --is-ancestor d31bfacb a1db27d5` exits **0** |
   | **Authority** | **The cutover is DEPLOYMENT ONLY.** Generation and publication are separate HIGH steps from the cutover (packet §9.3) — **but their authority is NOT struck**: the 2026-09-20 standing authorization plus the 2026-09-27 overnight grant authorise them, and each keeps its own pre-action review and post-action QA. See packet **§9.6**, which corrects §9.3 (N3) |
+  | **No re-pin** | **Deliberate, dated 2026-09-28.** `origin/main` advanced past this pin while the reviews ran (A3 pushed `c3edbf0e`, 6 non-docs Subjects paths, plus these lane's own docs commits). The c3 packet permits a re-pin only "if A3 posted a newer `A3 integrated for release at <sha>` **before your review starts**" — which did not happen, and re-pinning would invalidate an already-built target and its pre-cutover proof. **This release therefore ships LESS than the current tip**, which is the safe direction. A3's post-`a1db27d5` work is named in the packet §9.8 and is a successor, not a gap |
   | **Packet** | `docs/prompts/a2-release-d049f85d-2026-09-28.md` §9 records both reviews' findings and every correction |
 
 - **▶ LIVE (SUPERSEDED by `d31bfacb` above, 2026-09-28 00:24 +08): `c0d91827311e247ac0f2073a83cc50f5a5efcdb2`
