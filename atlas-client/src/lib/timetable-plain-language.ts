@@ -244,6 +244,87 @@ export function runAnchorLabel(runId: number, humanAnchor?: string | null): stri
 	return anchor ? `${anchor} · run ${runId}` : `Generated schedule · run ${runId}`;
 }
 
+/* ────────────────────────────────────────────────────────────────────────────
+ * A2-TIMETABLE-CUSTODY — one meaning for "not placed yet", and one line that
+ * says WHICH run is on screen.
+ *
+ * #57/#44: two numbers shared the word "unassigned" and meant two different
+ * populations. Traced, not assumed:
+ *   - the pre-generation draft board's `counts.unscheduled`
+ *     (`pre-generation-draft.service.ts`, the `counts.unscheduled++` in the
+ *     demand-vs-saved-placement loop) counts this year's WEEKLY demand sessions
+ *     that have no saved draft placement yet;
+ *   - a run's `summary.unassignedCount` (`generation.service.ts`, from the
+ *     constructor result) counts the sessions that run could not place in its
+ *     own grid.
+ * Both are truthful about their own population. Neither is "wrong". The defect
+ * was the shared word, so a scheduler read "Still unassigned: 1295" in the
+ * generate dialog and "0" from the finish toast seconds later on the same run
+ * and could not tell whether the schedule was complete.
+ *
+ * The fix is therefore to NAME each population, not to reconcile the numbers:
+ * a truthful 1295 of a different thing beats a silently reconciled wrong 0.
+ * These two constants are the single source for those names, so the generate
+ * dialog, the left-rail badge, the publish checklist and the finish toast cannot
+ * drift back into one word for two things.
+ */
+
+/** Names the pre-generation population: weekly demand with no saved placement. */
+export const WEEKLY_UNPLACED_LABEL = 'Weekly sessions with no placement yet';
+
+/** The one clarification of which number is which, shown once beside them. */
+export const UNPLACED_COUNT_DISAMBIGUATION =
+	`"${WEEKLY_UNPLACED_LABEL}" counts this year's weekly demand that has no saved placement yet. `
+	+ 'A finished run reports a different count: the sessions that run could not place in its own grid.';
+
+/** The short badge form of the same population, for a space-limited badge. */
+export const WEEKLY_UNPLACED_BADGE_LABEL = 'weekly sessions not yet placed';
+
+/** Names the run population: sessions a specific run could not place. */
+export function runUnplacedSentence(count: number): string {
+	return `${count} session${count === 1 ? '' : 's'} this run could not place`;
+}
+
+/**
+ * #41 — the one plain line that says which run is on screen and whether it is
+ * Draft or Published.
+ *
+ * The Expert header showed "Active Term: T2 / Active year: 2031-2032" with no run
+ * number and no state, while Simple already published a state through
+ * `readinessLabel`. This is the shared sentence so both layouts can say it once.
+ *
+ * `null` when there is genuinely nothing to name (the pre-generation planner has
+ * no run yet) so a caller can omit the line rather than print a placeholder. The
+ * pre-generation case still gets a line, because "Planning draft" IS the state
+ * of that surface.
+ */
+export function runStateSentence(input: {
+	isPreGeneration: boolean;
+	hasRun: boolean;
+	runId: number | null | undefined;
+	isPublished: boolean;
+}): string | null {
+	if (input.isPreGeneration) return 'Planning draft — no generated run yet';
+	if (!input.hasRun || input.runId == null || !Number.isFinite(input.runId)) return null;
+	return `Run ${input.runId} · ${input.isPublished ? 'Published' : 'Draft'}`;
+}
+
+/**
+ * #51 — the Expert heading badge, which read "Generated timetable" over a
+ * PUBLISHED run and so never said what the run actually was. The badge now
+ * carries the same Draft/Published word as `runStateSentence`, so the two cannot
+ * disagree, and the run number stays in the one plain line beside it.
+ */
+export function runStateBadgeLabel(input: {
+	isPreGeneration: boolean;
+	hasRun: boolean;
+	isPublished: boolean;
+}): string {
+	if (input.isPreGeneration) return 'Planning draft';
+	if (!input.hasRun) return 'No generated run yet';
+	return input.isPublished ? 'Published schedule' : 'Draft schedule';
+}
+
 /**
  * What a manual edit actually DID, in the words a scheduler would use. Every
  * `ManualEditType` member has an entry; an unknown member degrades to a plain

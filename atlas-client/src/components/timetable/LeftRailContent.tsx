@@ -19,7 +19,7 @@ import { DraggablePlacementPin, DraggableQueuePin, PinnedRailDropZone, UnassignD
 import { GeneratedViolationsPanel } from '@/components/timetable/GeneratedRunRailPanels';
 import { GeneratedUnassignedPanel, renderUnassignedReasonBadgeFor } from '@/components/timetable/GeneratedUnassignedPanel';
 import { sortViolationGroupsHardFirst } from '@/lib/violation-presentation';
-import { plainRoomDecisionStatus } from '@/lib/timetable-plain-language';
+import { plainRoomDecisionStatus, WEEKLY_UNPLACED_BADGE_LABEL, WEEKLY_UNPLACED_LABEL } from '@/lib/timetable-plain-language';
 import type { LeftRailContentContext } from '@/components/timetable/timetableContexts.types';
 import { onProfilerRender } from '@/components/timetable/ScheduleReviewWorkspace';
 
@@ -200,9 +200,15 @@ function LeftRailContentImpl({ context }: LeftRailContentProps) {
 							<TooltipProvider>
 								<Tooltip>
 									<TooltipTrigger asChild>
-										<Badge variant="secondary" className="h-5 px-2 text-xs cursor-default">{draftBoard?.counts.unscheduled ?? 0} unassigned</Badge>
+										{/* A2-TIMETABLE-CUSTODY (#57/#44): this badge read "N
+										    unassigned" — the same pre-generation number as the generate
+										    dialog under the same ambiguous word, on the same page as a
+										    publish checklist reading 0. The word is now the shared
+										    constant, so the badge can no longer be mistaken for the
+										    run's unplaced count. */}
+										<Badge variant="secondary" className="h-5 px-2 text-xs cursor-default">{draftBoard?.counts.unscheduled ?? 0} {WEEKLY_UNPLACED_BADGE_LABEL}</Badge>
 									</TooltipTrigger>
-									<TooltipContent className="max-w-48 text-xs">Sessions not yet placed in the pre-generation draft grid.</TooltipContent>
+									<TooltipContent className="max-w-48 text-xs">{WEEKLY_UNPLACED_LABEL}. A finished run reports a different count: the sessions that run could not place.</TooltipContent>
 								</Tooltip>
 							</TooltipProvider>
 							<TooltipProvider>

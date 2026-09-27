@@ -23,7 +23,16 @@ const SUB_NAV_ITEMS: TimetableSubNavItem[] = [
 	{ key: 'schedule', label: 'Schedule', to: '/timetable', end: true },
 	// A5 — the pre-generation draft surface gets a real sub-nav home instead of
 	// being reachable only by typing the URL.
-	{ key: 'draft', label: 'Draft', to: '/timetable/pre-generation' },
+	//
+	// A2-TIMETABLE-CUSTODY (#51): the label was "Draft", which on a PUBLISHED run
+	// sat beside a generated schedule and read as that run's state. This link is a
+	// SECTION, not a run state, so it is named for the section. The run's own
+	// Draft/Published word now comes from one place —
+	// `runStateSentence` in the header's orientation strip — so a section name and
+	// a run state can no longer be read as the same claim. `key` is unchanged, so
+	// the `timetable-sub-nav-draft` testid and every existing assertion on it
+	// still hold.
+	{ key: 'draft', label: 'Planning', to: '/timetable/pre-generation' },
 	{ key: 'setup', label: 'Setup', to: '/timetable/setup' },
 	{ key: 'policies', label: 'Policies', to: '/timetable/policies' },
 	{ key: 'runs', label: 'Runs', to: '/timetable/runs' },

@@ -31,6 +31,35 @@ function normalizeConflictTerm(value: unknown): number {
 	return 0;
 }
 
+/**
+ * THE one term predicate, exported so no surface can invent a second one.
+ *
+ * A2-TIMETABLE-CUSTODY (#2): the daily-load cap was the only check in this module
+ * that did NOT use it. `buildLiveConflictIndex` accumulated
+ * `facultyDailyMinutes` keyed only by `${day}:${facultyId}` across EVERY term, so
+ * a year-long teacher repeating the same block in T1, T2 and T3 accumulated three
+ * copies of one day. The finding's arithmetic proves it: a swap on a day running
+ * 06:00–12:15 reported "Daily load hard cap: I. GARCIA would reach 11.3h (max
+ * 8h)". 11.3h is 678 minutes inside a 375-minute window, so it is not a possible
+ * single-term day — it is a three-term sum.
+ *
+ * The server was already right, and said so in source:
+ * `constraint-validator.ts` groups by `facultyDayTermKey` with the comment
+ * "Term identity is mandatory: a year-long entry repeating in every term must
+ * contribute its minutes once per term, never summed across terms." So the
+ * client preview raised a MUST-FIX the authoritative validator would never
+ * report — the same false-conflict class as the shipped Room Schedules and
+ * published-swap defects, and the reason the same preview could show a "Must
+ * fix" line directly above a truthful "Safe to review · No blocking conflict"
+ * (that banner is driven by the SERVER preview's hard violations).
+ */
+export function termCompatibleEntry(
+	entry: ScheduledEntry,
+	contextTerm: number | null | undefined,
+): boolean {
+	return conflictTermsOverlap(normalizeConflictTerm(entry.termIndex), normalizeConflictTerm(contextTerm));
+}
+
 export type TimetableConflictSlot = {
 	startTime: string;
 	endTime: string;
@@ -55,7 +84,17 @@ type LiveConflictIndex = {
 	sectionEntriesByDay: Map<string, ScheduledEntry[]>;
 	roomEntriesByDay: Map<string, ScheduledEntry[]>;
 	facultyEntriesByDay: Map<string, ScheduledEntry[]>;
-	facultyDailyMinutes: Map<string, number>;
+	/**
+	 * A2-TIMETABLE-CUSTODY (#2): the term-blind `facultyDailyMinutes` aggregate is
+	 * GONE from this index, not merely unused. It was keyed only by
+	 * `${day}:${facultyId}`, so a year-long entry repeating in three terms
+	 * contributed its minutes three times to one day, and it was the only
+	 * quantity in the index with no term component. `facultyEntriesByDay` plus
+	 * `entryMinutesById` carry everything a term-scoped daily total needs, and
+	 * `dailyMinutesFor` in `createLiveConflictInspector` derives it through the one
+	 * `termCompatibleEntry` predicate. Leaving the aggregate in place would have
+	 * been a landmine for the next reader, so it is removed at the source.
+	 */
 };
 
 export type LiveConflictCompactKind = 'clean' | 'warning' | 'blocked' | 'self';
@@ -171,7 +210,6 @@ export function buildLiveConflictIndex(
 	const sectionEntriesByDay = new Map<string, ScheduledEntry[]>();
 	const roomEntriesByDay = new Map<string, ScheduledEntry[]>();
 	const facultyEntriesByDay = new Map<string, ScheduledEntry[]>();
-	const facultyDailyMinutes = new Map<string, number>();
 	const entryMinutesById = new Map<string, { start: number; end: number }>();
 	for (const entry of entries) {
 		const entryMinutes = {
@@ -183,16 +221,11 @@ export function buildLiveConflictIndex(
 		pushIndexedEntry(sectionEntriesByDay, dayEntityKey(entry.day, entry.sectionId), entry);
 		pushIndexedEntry(roomEntriesByDay, dayEntityKey(entry.day, entry.roomId), entry);
 		if (entry.facultyId != null) {
-			const dailyKey = dayEntityKey(entry.day, entry.facultyId);
-			pushIndexedEntry(facultyEntriesByDay, dailyKey, entry);
-			facultyDailyMinutes.set(
-				dailyKey,
-				(facultyDailyMinutes.get(dailyKey) ?? 0) + Math.max(0, entryMinutes.end - entryMinutes.start),
-			);
+			pushIndexedEntry(facultyEntriesByDay, dayEntityKey(entry.day, entry.facultyId), entry);
 		}
 	}
 
-	return { slotByKey, slotMinutesByKey, entryMinutesById, entriesByDay, sectionEntriesByDay, roomEntriesByDay, facultyEntriesByDay, facultyDailyMinutes };
+	return { slotByKey, slotMinutesByKey, entryMinutesById, entriesByDay, sectionEntriesByDay, roomEntriesByDay, facultyEntriesByDay };
 }
 
 /**
@@ -225,13 +258,36 @@ export function createLiveConflictInspector(
 	const sourceEntryDuration = sourceEntry
 		? minutesBetween(sourceEntry.startTime, sourceEntry.endTime)
 		: 0;
-	const { slotByKey, slotMinutesByKey, entryMinutesById, sectionEntriesByDay, roomEntriesByDay, facultyEntriesByDay, facultyDailyMinutes } = preparedIndex
+	const { slotByKey, slotMinutesByKey, entryMinutesById, sectionEntriesByDay, roomEntriesByDay, facultyEntriesByDay } = preparedIndex
 		?? buildLiveConflictIndex(entries, timeSlots);
 
 	// Term-aware conflict identity: only same-term (or unscoped) entries conflict.
 	const contextTerm = normalizeConflictTerm(context.termIndex ?? sourceEntry?.termIndex);
-	const termCompatible = (entry: ScheduledEntry): boolean =>
-		conflictTermsOverlap(normalizeConflictTerm(entry.termIndex), contextTerm);
+	const termCompatible = (entry: ScheduledEntry): boolean => termCompatibleEntry(entry, contextTerm);
+
+	/**
+	 * A2-TIMETABLE-CUSTODY (#2): the teacher's teaching minutes on `day`, counted
+	 * over the SAME term-compatible entry list every other check in this function
+	 * uses. This replaces a prebuilt `${day}:${facultyId}` aggregate that had no
+	 * term component, so it summed one day's teaching once per term.
+	 *
+	 * It is computed per call rather than memoised on purpose: the list is one
+	 * teacher's one day, not the whole board, and deriving it from
+	 * `facultyEntriesByDay` makes it structurally impossible for the daily-load
+	 * number to disagree with the overlap checks about which entries exist.
+	 */
+	const dailyMinutesFor = (day: string, facultyId: number): number => {
+		let total = 0;
+		for (const entry of facultyEntriesByDay.get(dayEntityKey(day, facultyId)) ?? []) {
+			if (!termCompatible(entry)) continue;
+			const minutes = entryMinutesById.get(entry.entryId);
+			const duration = minutes
+				? Math.max(0, minutes.end - minutes.start)
+				: Math.max(0, minutesFromMidnight(entry.endTime) - minutesFromMidnight(entry.startTime));
+			total += duration;
+		}
+		return total;
+	};
 
 	const overlapsTarget = (entry: ScheduledEntry, targetStart: number, targetEnd: number) => {
 		const minutes = entryMinutesById.get(entry.entryId);
@@ -333,7 +389,7 @@ export function createLiveConflictInspector(
 		const sessionDuration = Math.max(0, targetEnd - targetStart);
 		if (sessionDuration > 0) {
 			for (const facultyId of facultyOptions) {
-				let existingDailyMinutes = facultyDailyMinutes.get(dayEntityKey(day, facultyId)) ?? 0;
+				let existingDailyMinutes = dailyMinutesFor(day, facultyId);
 				if (sourceEntry && sourceEntry.facultyId === facultyId && sourceEntry.day === day) {
 					existingDailyMinutes = Math.max(0, existingDailyMinutes - sourceEntryDuration);
 				}
@@ -477,7 +533,7 @@ export function createLiveConflictInspector(
 		const sessionDuration = Math.max(0, targetEnd - targetStart);
 		if (sessionDuration > 0) {
 			for (const facultyId of facultyOptions) {
-				let existingDailyMinutes = facultyDailyMinutes.get(`${day}:${facultyId}`) ?? 0;
+				let existingDailyMinutes = dailyMinutesFor(day, facultyId);
 				if (sourceEntry && sourceEntry.facultyId === facultyId && sourceEntry.day === day) {
 					existingDailyMinutes = Math.max(0, existingDailyMinutes - sourceEntryDuration);
 				}
