@@ -312,3 +312,58 @@ Recorded so you can see they did not fall on the floor:
 - If something I wrote here is wrong, **contradict me with the evidence and say so loudly.** Three of the four
   mistakes in my own last three sessions were caught by independent reviewers, not by me; that is the system
   working, and this channel is part of it.
+
+---
+
+## 2026-09-28 00:58 +08 — A3 integrated for release at `c5cffa72`
+
+**`A3 integrated for release at c5cffa72`.** For the night's second release. Not deployed — A2 owns
+every release, per the packet.
+
+- **Range:** `3cbcba92..23f0495b`, merged as `c5cffa72` on `origin/main`. Merge is a clean
+  auto-union; `atlas-client/package.json` was the only shared file and both sides were single
+  additive script lines.
+- **What it is:** one canonical page-title pattern on the A3-owned non-timetable pages. Six pages
+  that had **no** page title now have a real `<h1>` via the existing `PageHeader` component —
+  `/faculty/preferences`, `/faculty/room-preferences`, `/timetabling/how-it-works`,
+  `/admin/year-setup`, `/teaching-load/history`, `/map`. Three ad-hoc titles were made canonical.
+  `/` and the four `AdminWorkspaceFrame`/`WorkspaceToolbar` pages are **exempt with a stated reason**
+  (see the additive correction in `docs/reviews/a3-c1-audit-20260928/pre-fix-source-record.md`).
+- **Fresh independent QA `ACCEPT_READY` 25/25/0/0**, no BLOCKING; then a bounded correction `23f0495b`
+  for two of its NON_BLOCKING findings, planner-reviewed on its own 2-file blast radius.
+- **Gates on the merged tree:** 14/14, 35/35, 1/1, 31/31, 19/19, 20/20, 36/36, 20/20, all exit 0;
+  typecheck 4 errors (all the known `playwright`-absent baseline in A2's `timetable/__tests__/`,
+  none in an A3 file); `git diff --check` clean. **No timetable path, no `AppShell.tsx`, no
+  `atlas-server/` path, no `PageHeader.tsx`, no `ui/` primitive in the diff.**
+- **Still NOT deployed, and none of it is verified live.** Browser acceptance is owed to A2's pass;
+  the exact steps are in my handoff's "Rows needing live acceptance".
+
+### The timetable half's entry point, for the walkthrough (packet item 2, one line)
+
+From the non-timetable Dashboard, the click into the timetable is the sidebar group
+**Class Schedule → Class Schedule** (`/timetable`, `navigation.ts` `timetableNav`). A2 owns every
+word on that screen.
+
+### Two things for A2, and one is a defect on `main` that is A2's
+
+1. **`atlas-client/package.json` on `main` has a doubled test-runner prefix.** Commit `8325834d`
+   wrote `"test:client-suite": "tsx --test tsx --test …"`, so node's test runner is handed a bogus
+   positional argument `tsx` on every invocation. **I measured it and it is not fatal today** —
+   `npx tsx --test tsx --test <file>` still runs the file and exits 0 — so this is a latent trap,
+   not an outage, and I am not touching A2's file. Fix is one token: drop the second `tsx --test`.
+   It is already on `origin/main` (`d31bfacb`), so it predates my merge and my auto-union did not
+   introduce it. I nearly filed it as "broken"; the probe corrected me, which is the record worth
+   having.
+2. **My c0 work `1e417694` is still undeployed** and remains on the release queue ahead of tonight's
+   `c5cffa72`. The nine live-acceptance steps for it are unchanged in my handoff. Separately, the
+   `#53` fix from `1e417694` is the thing that decides whether `/map` shows a wall of `Not available`
+   or a measured percentage in the demo — worth knowing before Wednesday.
+
+### A scope conflict in the c1 packet, decided and recorded
+
+Packet item 1 names `/setup` and `/exports` sub-pages. **Those routes are `/timetable/setup` and
+`/timetable/exports`** — registered as `element: null` children of the `/timetable` route in
+`App.tsx:234,232`, with chrome overrides `'Class Schedule' / 'Setup'` and
+`'Class Schedule' / 'Download schedules'` in `navigation.ts`. They are inside the packet's own
+out-of-bounds list (`/timetable*`, `components/timetable/**`). **I excluded them and did the
+equivalent work on A3-owned chrome instead.** A3 does not touch them; A2 owns them.

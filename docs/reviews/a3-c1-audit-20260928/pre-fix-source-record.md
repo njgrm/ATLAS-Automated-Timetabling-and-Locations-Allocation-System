@@ -96,3 +96,52 @@ Item 6 (debt) was checked first and is **already closed**: `npm run test:derived
 The packet's "1-of-4 red on a `navigation.ts` substring assertion (as of 2026-09-20)" is **stale** —
 the `resolveRouteChrome` extraction in `components/app-shell/navigation.ts` retired that assertion.
 No test correction is needed and none was made.
+
+---
+
+## ADDITIVE CORRECTION 2026-09-28 00:55 +08 — my "9 pages with no title" count was WRONG
+
+`AGENTS.md` §16: corrections are additive. The table above and the "9 with no title at all" line
+stand as written; this section supersedes the count and does not delete it.
+
+**What was wrong.** I measured with a per-file `grep -c "<h1"` and read a file-level zero as a
+page-level zero. The executor refuted it by **rendering** the pages, and I then verified the
+refutation myself at source:
+
+| Page | My claim | Actual | Who owns the `<h1>` |
+|---|---|---|---|
+| `pages/Sections.tsx` | 0 `<h1>`, no title | **renders 1** | `AdminWorkspaceFrame` — `components/admin-workspace/AdminWorkspace.tsx:145`, `<h1>` at `:178`, rendered by `Sections.tsx:762` |
+| `pages/Subjects.tsx` | 0 `<h1>`, no title | **renders 1** | same component, `Subjects.tsx:475` |
+| `pages/Faculty.tsx` | 0 `<h1>`, no title | **renders 1** | same component, `Faculty.tsx:639` |
+| `pages/TeachingLoad.tsx` | 0 `<h1>`, no title | **renders 1** | `WorkspaceToolbar` — `components/faculty-assignments/WorkspaceToolbar.tsx:51`, `<h1>` at `:166`, rendered by `TeachingLoad.tsx:673` |
+
+**Corrected count: 1 canonical · 3 ad-hoc own `<h1>` · 4 wrapper-owned `<h1>` · 5 with no title.**
+The five with genuinely no title were `OfficerPreferences`, `OfficerRoomPreferences`,
+`HowItWorks`, `AdminYearSetup`, and `TeachingLoadHistory` (which had an ad-hoc one, corrected).
+
+**Why this still leaves a real, and larger, defect — and why the stream was right to run.** The
+finding is not "pages have no title". It is **three different title patterns across 13 pages**, of
+which the committed canonical one was used once, and the other two are:
+- a **card** pattern (`PageHeader`), and
+- two **unbranded compact-strip** patterns (`AdminWorkspaceFrame` at `text-lg font-bold`, and
+  `WorkspaceToolbar` at `text-sm font-bold`) that sit inside a toolbar rather than in a header.
+
+And `AdminWorkspaceFrame.tsx:178` uses `text-slate-900`, a raw neutral colour that the committed
+`ux-r01-shared-chrome` contract explicitly forbids
+(`assert.doesNotMatch(html, /text-(?:slate|zinc|gray)-/)`). So the four highest-traffic A3 pages
+violate the token contract the repo already enforces, and no test covers it. **That is a sharper
+finding than the one I wrote, and it is the one the stream was actually scoped against.**
+
+**The error class, named so it is not repeated.** I ran a per-file text search and reported it as a
+rendered-DOM fact, in a file whose own purpose is to justify a fix. This is the same failure the
+lane's c0 handoff records twice already (a non-recursive PowerShell glob dressed as a measurement,
+and a `grep` that missed four `lazy()` import forms). **A per-file `grep` is not a rendered-DOM
+measurement, and a title that lives in a shared wrapper will never appear in the page's own file.**
+
+**What the S-a executor did about it** (accepted, and its judgement was better than my packet's):
+it left the four wrapper-owned pages alone and **pinned them as deliberately unchanged**, because
+converting a compact strip into a `PageHeader` card would add vertical space to `/teachers` and
+`/teaching-load` — the two pages behind accepted browser rows 14/16 — which cannot be measured
+without a browser. The correction `23f0495b` then re-pinned them as **exempt with a stated reason**
+rather than merely unchanged. `/` (Dashboard) was made exempt on the same reasoning, after review
+found the first attempt had added ~90px above the hero on the demo's opening screen.
