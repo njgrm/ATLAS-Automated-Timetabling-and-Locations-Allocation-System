@@ -79,12 +79,25 @@ const read = (relative: string) => readFileSync(resolve(clientRoot, relative), '
 
 const roots: any[] = [];
 const hosts: HTMLElement[] = [];
-afterEach(() => {
+
+/**
+ * Unmount every root this module mounted and empty the shared JSDOM body.
+ *
+ * Called from `afterEach` AND from the top of each C2-1 iteration. `render()`
+ * appends a NEW host div to the SAME `document.body`, so a fresh render is not
+ * a fresh document: without a per-iteration teardown the previous iteration's
+ * dialog is still mounted when the next one asserts its precondition, the
+ * precondition correctly fails, and the failure is then reported by handing a
+ * live Radix dialog subtree to `assert.equal` — see the `C2-1 ISOLATION` note
+ * in the loop below for what that costs.
+ */
+function teardown() {
 	for (const root of roots.splice(0)) act(() => root.unmount());
 	for (const host of hosts.splice(0)) host.remove();
 	dom.window.document.body.innerHTML = '';
 	dom.window.document.body.removeAttribute('style');
-});
+}
+afterEach(teardown);
 
 /**
  * MemoryRouter is REQUIRED, not cosmetic: `FacultyProfileSheet` falls back to a
@@ -255,21 +268,45 @@ test('C2-1 every control labelled `Review teachers` actually opens the review di
 
 	// Each control is exercised in its OWN render, so a dialog opened by the
 	// previous iteration can never be mistaken for this one.
+	//
+	// C2-1 ISOLATION: "its OWN render" was not enough, and the two halves below
+	// are what make the claim true. `render()` appends to the shared
+	// `document.body`, so without the teardown the previous root stays mounted
+	// and its dialog stays in the document.
 	for (const testId of testIds) {
+		teardown();
 		const fresh = render(createElement(TeachingLoadReviewHost as any));
 		const control = fresh.querySelector(`[data-testid="${testId}"]`) as HTMLButtonElement | null;
 		assert.ok(control, `control ${testId} must render`);
+
+		// Assert on a SCALAR, never on the node. `assert.equal` from
+		// `node:assert/strict` is `strictEqual`, and a failing `strictEqual`
+		// builds its `AssertionError` by running `myersDiff` over
+		// `util.inspect` of BOTH operands. Handing it an attached Radix dialog
+		// subtree rather than `null` makes that diff unbounded: measured on this
+		// host it drove RSS 320 MiB -> 9.4 GiB with `heapUsed` flat at 133 MiB
+		// and `arrayBuffers` flat at 12 MiB, ending in `RangeError: Array buffer
+		// allocation failed` — which reads as a product defect and is not one.
+		// A V8 tick profile put 75% of `node.exe` samples in
+		// `ArrayPrototypeSort` under `util.inspect` and 28% of all samples in
+		// `myersDiff`. The control keeps its exact meaning — "no dialog may
+		// exist before this control is clicked" — and can now only fail with a
+		// readable `false !== true`.
+		const strayDialog = dom.window.document.querySelector('[role="dialog"]');
 		assert.equal(
-			dom.window.document.querySelector('[role="dialog"]'),
-			null,
-			`precondition: no dialog may exist before ${testId} is clicked`,
+			strayDialog === null,
+			true,
+			`precondition: no dialog may exist before ${testId} is clicked; found ${strayDialog?.getAttribute('data-testid') ?? '(untagged dialog)'}`,
 		);
+		t.diagnostic(`${testId}: precondition clean — no [role="dialog"] in the document before the click`);
+
 		click(control);
 		const dialog = dom.window.document.querySelector('[role="dialog"]');
 		assert.ok(
 			dialog,
 			`the control labelled "Review teachers" at ${testId} opened NO dialog — a labelled control that does nothing`,
 		);
+		t.diagnostic(`${testId}: opened ${dialog.getAttribute('data-testid') ?? '(untagged dialog)'}`);
 		assert.match(
 			(dialog as HTMLElement).textContent ?? '',
 			new RegExp(REVIEW_TITLE),
