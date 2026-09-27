@@ -198,12 +198,23 @@ resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs
   batch, (e) the demo walkthrough, (f) the A3 term-contract test and (g) a second release are **NOT REACHED** —
   see `docs/handoffs/planner-a2-handoff-2026-09-28-overnight.md` §1 for what the morning does, in order.
 
-- **▶ LEADING TARGET FOR THE NEXT CUTOVER — none authorised at the time of writing (2026-09-28 ~01:1x +08).**
-  `deploy-runner.ps1` fails closed without a target prefix in this section, so **the next HIGH action must record
-  its target here first**, exactly as this block did. `d31bfacb` and `c0d91827` both still satisfy the gate's
-  prefix-*presence* test; **do not cut over to `c0d91827` or `9b28c572` — that would ship less.** A3's
-  `c5cffa72` page-title batch is on `origin/main` and is deliberately **not** authorised alone: it is cosmetic,
-  not a defect fix, and it ships with the next real candidate.
+- **▶ LEADING TARGET FOR THE NEXT CUTOVER — `d049f85dabbb80773100791966bfd8d6718aa44f`, recorded
+  2026-09-28 ~02:30 +08 by Lane A2, AHEAD of the cutover** (which is what `deploy-runner.ps1`'s
+  `Assert-LiveReleaseRecorded` requires: the 8-char prefix `d049f85d` must appear in THIS section, read from
+  `origin/main`, before any mutation). **This supersedes the "none authorised" line that stood here at 01:1x +08.**
+  `d31bfacb` and `c0d91827` still satisfy the gate's prefix-*presence* test; **do not cut over to either — that
+  would ship less.** A3's `c5cffa72` page-title batch and its later `81ad1892` / `09b8c95e` palette-token work are
+  now **inside** this target, carried by the re-pin.
+
+  | | |
+  |---|---|
+  | **Target (authorised, leading)** | **`d049f85dabbb80773100791966bfd8d6718aa44f`** |
+  | **Target dir** | `E:\ATLAS-worktrees\lane-a2-release-d049f85d` — created clean at the tip, own dependency tree, both `dist`s built |
+  | **Live now** | `d31bfacb…`, dir `E:\ATLAS-worktrees\lane-a2-release-d31bfacb` |
+  | **Rollback basis** | the `d31bfacb` dir — **one-step supervised reset** |
+  | **Direction** | **FORWARD.** `git merge-base --is-ancestor d31bfacb d049f85d` exits **0** |
+  | **Delta** | enumerated from the real incumbent in `docs/prompts/a2-release-d049f85d-2026-09-28.md` §2, per §13's "enumerate the range, never describe the candidates you reviewed" |
+  | **Packet** | `docs/prompts/a2-release-d049f85d-2026-09-28.md` |
 
 - **▶ LIVE (SUPERSEDED by `d31bfacb` above, 2026-09-28 00:24 +08): `c0d91827311e247ac0f2073a83cc50f5a5efcdb2`
   — DEPLOYED 2026-09-27 22:45 +08 by Lane A2** (audit
