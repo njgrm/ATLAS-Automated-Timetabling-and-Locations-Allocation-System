@@ -299,3 +299,12 @@ never below the 25 GiB warn line at any build.
 **`lane-a2-release-0da104f9` PRESERVE_FOR_DECISION** - its `atlas-server/node_modules` is the active dependency
 donor for the `KEEP_ACTIVE` custody worktree, and capacity was never pressing. Reclaiming it would have broken that
 stream for 1.47 GiB. Recorded rather than taken.
+---
+
+# c3 — Planner A2, 2026-09-28 06:40 +08 (packet `overnight-a2-timetable-2026-09-28-c3.md`)
+
+1. **c3 ran the re-pin gate and closed it.** The morning's first owed act - one bounded review of the re-pin to `a1db27d5` and the three amended clauses - returned **ACCEPT_READY 4/4/0/0**; the two earlier rounds on this exact pin were CORRECTION_REQUIRED 2/4/0/0 and 2/5/0/0, and all four residual findings were non-blocking and corrected at `d1f66075`.
+2. **That verdict is recorded on `origin/main` at `f4cf1559`**, replacing the false "two independent reviews have not yet returned ACCEPT_READY on this exact pin" wording, so the record is not a false statement at cutover time (`deploy-runner.ps1` `Assert-LiveReleaseRecorded` reads it).
+3. **NOT re-pinned, deliberately.** c3 permits a re-pin only if A3 posted `A3 integrated for release at <sha>` before the review started; A3 had not, and re-pinning would have invalidated an already-built target and its pre-cutover proof. Shipping less than the current tip is the safe direction; A3's post-pin work is a named successor.
+4. **The release was built and staged, not cut over** - `E:\ATLAS-worktrees\lane-a2-release-a1db27d5` at `a1db27d5a9c2…`, clean and detached, dry run and D1-D8 deliberately unspent because the planner hit the 120-step cap twice on gate work.
+5. **The cutover of `a1db27d5` is the sole remaining job** and is packet c4's one job: dry run -> `-Execute` -> D1-D8/D6b -> delegated post-action QA -> delegated browser rows B9-B22. Live release at the time of writing is still `d31bfacb`, the rollback basis.
