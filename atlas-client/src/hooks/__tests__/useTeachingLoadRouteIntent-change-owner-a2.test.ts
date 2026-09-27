@@ -36,8 +36,11 @@
  *   R6 the repair queue opens nothing for change-owner, so a class with a teacher
  *      is not filed as a "teacher missing load" repair.
  *
- * Run: `npm run test:a2-change-owner-intent` (wired in atlas-client/package.json in
- * this same commit, and added to `test:client-suite`).
+ * Run: `npm run test:a2-timetable-truth-labels` (wired in atlas-client/package.json in
+ * this same commit, and added to `test:client-suite`). The script this file
+ * previously named, `test:a2-change-owner-intent`, was never committed — the
+ * three files these rows live in are registered under the one script above, so
+ * the docblock now names the script that actually runs them.
  */
 import assert from 'node:assert/strict';
 import test from 'node:test';

@@ -381,15 +381,43 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 	// run, so it never said what the run actually was. Both are resolved by the
 	// one shared sentence in `timetable-plain-language`, so the two lines cannot
 	// disagree with each other or with Simple's `readinessLabel`.
+	//
+	// A2-TIMETABLE-CUSTODY-R1 (QA C3, BLOCKING). The first version of this line
+	// passed `runId: activeGeneratedRunId` next to `isPublished: isRunPublished`,
+	// and those are two DIFFERENT runs' worth of state. `isRunPublished` is
+	// `isDraftPublishedStrict(draft)` — the state of `draft.summary`, i.e. of
+	// `draft.runId`. `activeGeneratedRunId` (`useTimetableData.ts:1370-1375`)
+	// resolves under `selectedRunId === 'latest'` to `runs[0]?.id`, the NEWEST run
+	// whether or not it finished. So with a published 321 and an in-flight 322 the
+	// header said "Run: Run 322 · Published" while its own
+	// `newerFailedRunNotice` (line 352) said the grid was 321 — a false pairing
+	// the base never had, because the base named no run at all.
+	//
+	// The fix is the IDENTITY, not the state derivation: the run number printed
+	// must be read from the run whose publication state is printed, and both must
+	// come from one value so they cannot drift apart again. `draft.runId` is that
+	// run — the same value this file's `hasGeneratedRun: Boolean(draft)` and
+	// `selectedDurationMs` already treat as "the run on the grid", and the same
+	// one `newerFailedRunNotice` names as `#${draft.runId}`. Reading
+	// `activeGeneratedRunId` here is left untouched for the quick-place/sync
+	// request targets, which are a separate question from what this line prints.
+	//
+	// It also repairs the EMPTY state: with `draft == null` and
+	// `runOptions[0].status === 'FAILED'` — a state this file contemplates at line
+	// 234 — `activeGeneratedRunId` is non-null, so `hasRun: true` rendered
+	// "Draft schedule" over a workspace with no schedule on it. With the identity
+	// taken from `draft`, `hasRun` is false there and the badge says the truthful
+	// "No generated run yet", as it did before the candidate.
+	const runOnScreenId = draft?.runId ?? null;
 	const runState = runStateSentence({
 		isPreGeneration: isPreGenerationWorkspace,
-		hasRun: Boolean(activeGeneratedRunId),
-		runId: activeGeneratedRunId,
+		hasRun: runOnScreenId != null,
+		runId: runOnScreenId,
 		isPublished: isRunPublished,
 	});
 	const runBadgeLabel = runStateBadgeLabel({
 		isPreGeneration: isPreGenerationWorkspace,
-		hasRun: activeGeneratedRunId != null,
+		hasRun: runOnScreenId != null,
 		isPublished: isRunPublished,
 	});
 

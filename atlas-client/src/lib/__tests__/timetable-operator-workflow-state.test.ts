@@ -379,7 +379,19 @@ test('publish stays disabled with unresolved sessions across surfaces', () => {
 	assert.match(advanced, /unassignedCount > 0 \|\| centerView === 'pre-generation'/);
 	const dialog = source('src/components/timetable/modals/TimetableWorkflowDialogs.tsx');
 	assert.match(dialog, /publishUnassignedCount/);
-	assert.match(dialog, /still need placing before this schedule can be published/);
+	// SUPERSEDED by f9879289 (A2-TIMETABLE-CUSTODY) — retained verbatim and
+	// visibly marked, not deleted (§16: a correction is additive, and removing an
+	// assertion fails review regardless of the fix). That commit replaced the bare
+	// count sentence with `runUnplacedSentence(n) + " must be placed before …"`, so
+	// the count names the population it measures (the sessions THAT RUN could not
+	// place) rather than the ambiguous word "unassigned" that a second, different
+	// population also used. The gate the row is really about is unchanged, and the
+	// three assertions below prove the gate survived the rewording rather than
+	// that the sentence kept its old wording.
+	// assert.match(dialog, /still need placing before this schedule can be published/);
+	assert.match(dialog, /runUnplacedSentence\(publishUnassignedCount \?\? 0\)/, 'the count is still the gate, now naming its population');
+	assert.match(dialog, /must be placed before this schedule can be published/, 'the publication consequence the old sentence carried is still present');
+	assert.match(dialog, /\(publishUnassignedCount \?\? 0\) > 0/, 'and the same > 0 condition still gates it');
 });
 
 test('drawer blocker items carry plain-language next steps, never raw codes', () => {

@@ -43,6 +43,16 @@
  *      A second swap must persist.
  *   D7 MOUNTED, redelivery: re-persisting the SAME edit adds no second row.
  *   D8 zero residue: the mounted rows drop everything they created.
+ *   D9 (QA C4) the BATCH commit path: two distinct `metadata.editIds` batches on
+ *      one run by one actor are two rows, and a redelivery of the SAME batch
+ *      still collapses to one. This is the same drop path as D1-D8, one call
+ *      site over: `commitManualEditBatch` publishes `editIds` (plural), which
+ *      `f9879289` did not read, so the key's change slot fell back to the `-`
+ *      sentinel and both batches produced `1:1:TIMETABLE_EDIT_COMMITTED:timetable:321:46:-`.
+ *   D10 (QA C4) MOUNTED: the batch guarantee against a real database, and the
+ *      same redelivery check through `persistNotificationEvent`.
+ *   D11 (QA C4) a batch larger than the column width still yields a key that
+ *      fits `dedupe_key VARCHAR(255)`, and two such large batches stay distinct.
  *
  * Run: npm run test:notification-inbox-dedupe-a2 (wired in atlas-server/package.json
  * in this same commit).
@@ -131,6 +141,43 @@ function swapEvent(editId: number, schoolId = SCHOOL_ID): NotificationEvent {
 function durableRow(editId: number, schoolId = SCHOOL_ID) {
 	if (!inboxModule) throw new Error('inbox module not loaded; await inbox() first');
 	return inboxModule.toNotificationRow(swapEvent(editId, schoolId), ACTOR_ID);
+}
+
+/** The two batch identities QA measured colliding on `…:321:46:-`. */
+const BATCH_ONE = [20, 21, 22];
+const BATCH_TWO = [30, 31];
+
+/**
+ * A batch-commit event exactly as `commitManualEditBatch`
+ * (`manual-edit.service.ts:1609-1629`) publishes it: `metadata.editIds` (the
+ * PLURAL form, which the singular fix in `f9879289` did not read), the same run,
+ * actor and type as a single swap, and the real message the publisher builds.
+ */
+function batchEvent(editIds: number[], schoolId = SCHOOL_ID): NotificationEvent {
+	return {
+		id: 8000 + editIds[0]!,
+		type: 'TIMETABLE_EDIT_COMMITTED',
+		timestamp: '2026-09-27T00:00:00.000Z',
+		domain: 'timetable',
+		severity: 'warning',
+		audience: 'PRIVILEGED',
+		schoolId,
+		schoolYearId: 1,
+		facultyId: null,
+		message: `Batch manual edits committed (${editIds.length} changes)`,
+		metadata: {
+			runId: RUN_ID,
+			actorId: ACTOR_ID,
+			editIds,
+			batchSize: editIds.length,
+			entryIds: ['entry-321::t2', 'entry-421::t2'],
+		},
+	} as unknown as NotificationEvent;
+}
+
+function batchRow(editIds: number[], schoolId = SCHOOL_ID) {
+	if (!inboxModule) throw new Error('inbox module not loaded; await inbox() first');
+	return inboxModule.toNotificationRow(batchEvent(editIds, schoolId), ACTOR_ID);
 }
 
 // ── D1 two swaps on one run are two different durable rows ───────────────────
@@ -241,6 +288,131 @@ test('D5 MUTANT: the pre-fix key is IDENTICAL for both swaps, so D1 discriminate
 		durableRow(FIRST_EDIT_ID).dedupeKey,
 		durableRow(SECOND_EDIT_ID).dedupeKey,
 		'while the fixed key separates them, which is what makes D1 a real control',
+	);
+});
+
+// ── D9/D10/D11 (QA C4) the BATCH commit path ─────────────────────────────────
+
+test('D9 two distinct batches on one run by one actor produce DIFFERENT dedupe keys', async () => {
+	await inbox();
+	const first = batchRow(BATCH_ONE);
+	const second = batchRow(BATCH_TWO);
+	// MUTANT / PRECONDITION: the key `f9879289` produced for both of these,
+	// reconstructed verbatim from the pre-C4 read — `editId` (singular) only, so
+	// the batch publishers' `editIds` (plural) contributed nothing. This is the
+	// value QA measured on two distinct batch commits.
+	const preC4Shape = '1:1:TIMETABLE_EDIT_COMMITTED:timetable:321:46:-';
+	const preC4 = (editIds: number[]) => {
+		const metadata = batchEvent(editIds).metadata as Record<string, unknown>;
+		const singular = metadata['editId'];
+		return inboxModule!.buildNotificationDedupeKey({
+			schoolId: SCHOOL_ID,
+			schoolYearId: 1,
+			type: 'TIMETABLE_EDIT_COMMITTED',
+			resourceType: 'timetable',
+			resourceId: String(RUN_ID),
+			actorId: ACTOR_ID,
+			// The pre-C4 read: firstMetadataString(metadata, ['editId']) only.
+			editId: typeof singular === 'number' ? String(singular) : null,
+		});
+	};
+	assert.equal(preC4(BATCH_ONE), preC4Shape, 'precondition: the pre-C4 read collides on the sentinel for the first batch');
+	assert.equal(preC4(BATCH_TWO), preC4Shape, 'precondition: and for the second batch — the silent drop QA measured');
+	assert.equal(
+		preC4(BATCH_ONE),
+		preC4(BATCH_TWO),
+		'precondition: those two keys are identical, which is exactly what createMany({ skipDuplicates: true }) drops',
+	);
+	assert.equal(
+		first.resourceId,
+		String(RUN_ID),
+		'precondition: routing is still the run, so this is not fixed by moving the pointer',
+	);
+	assert.notEqual(
+		first.dedupeKey,
+		second.dedupeKey,
+		'a second batch commit is a second set of changes and must not collide with the first',
+	);
+	assert.ok(
+		!first.dedupeKey.endsWith(':-'),
+		`the first batch key names its changes rather than the sentinel: ${first.dedupeKey}`,
+	);
+	assert.ok(
+		!second.dedupeKey.endsWith(':-'),
+		`the second batch key names its changes rather than the sentinel: ${second.dedupeKey}`,
+	);
+	// The single-edit rows from D1 are untouched by the batch read.
+	assert.equal(
+		durableRow(FIRST_EDIT_ID).dedupeKey,
+		`1:1:TIMETABLE_EDIT_COMMITTED:timetable:${RUN_ID}:${ACTOR_ID}:${FIRST_EDIT_ID}`,
+		'the singular `editId` path still keys on the single id, exactly as f9879289 did',
+	);
+});
+
+test('D9 (b) a redelivery of the SAME batch still collapses to ONE key (D1b preserved)', async () => {
+	await inbox();
+	const firstDelivery = batchRow(BATCH_ONE);
+	// A different in-memory event id and timestamp, the same committed changes.
+	const secondDelivery = inboxModule!.toNotificationRow(
+		{ ...batchEvent(BATCH_ONE), id: 313131, timestamp: '2026-09-27T13:00:00.000Z' } as NotificationEvent,
+		ACTOR_ID,
+	);
+	assert.equal(
+		secondDelivery.dedupeKey,
+		firstDelivery.dedupeKey,
+		'the in-memory event identity is excluded, so a re-raised batch writes no second row',
+	);
+	// The identity is the SET of changes, not the order the publisher listed them
+	// in, so a re-delivery that lists the same changes in another order is still
+	// the same batch and still collapses.
+	const thirdDelivery = inboxModule!.toNotificationRow(
+		{ ...batchEvent([...BATCH_ONE].reverse()), id: 313132 } as NotificationEvent,
+		ACTOR_ID,
+	);
+	assert.equal(
+		thirdDelivery.dedupeKey,
+		firstDelivery.dedupeKey,
+		'and a re-raised batch listing the same changes in another order is still one batch',
+	);
+	// A batch that SHARES one id with another batch is a different set and must
+	// still be distinguished — otherwise the fix over-dedupes the common case of
+	// a scheduler extending a batch with one more change.
+	assert.notEqual(
+		batchRow([...BATCH_ONE, 23]).dedupeKey,
+		firstDelivery.dedupeKey,
+		'one additional change in the batch is a different batch',
+	);
+});
+
+test('D11 a batch larger than the column width still yields a key that FITS dedupe_key VARCHAR(255)', async () => {
+	await inbox();
+	// 60 committed ids is well past the ~20 that fit once the fixed prefix is
+	// counted, so this row fails if the change slot is joined unbounded.
+	const wideA = Array.from({ length: 60 }, (_, index) => 1000 + index);
+	const wideB = [...wideA.slice(1), 9999];
+	const keyA = batchRow(wideA).dedupeKey;
+	const keyB = batchRow(wideB).dedupeKey;
+	assert.ok(
+		keyA.length <= inboxModule!.NOTIFICATION_DEDUPE_KEY_MAX_LENGTH,
+		`an over-long key would be an insert that throws, not a truncation (${keyA.length})`,
+	);
+	assert.ok(
+		keyB.length <= inboxModule!.NOTIFICATION_DEDUPE_KEY_MAX_LENGTH,
+		`and for the second large batch (${keyB.length})`,
+	);
+	assert.notEqual(keyA, keyB, 'two large batches remain distinct after digesting');
+	// The digest is a function of the change identity alone, so it is stable
+	// across deliveries: redelivery still collapses.
+	assert.equal(
+		batchRow(wideA).dedupeKey,
+		keyA,
+		'and the digest is deterministic, so a redelivery of a large batch still collapses',
+	);
+	// A key that already fits is byte-identical to the joined form, so nothing
+	// that worked before this correction moved.
+	assert.ok(
+		batchRow(BATCH_ONE).dedupeKey.endsWith(':20,21,22'),
+		`a small batch keeps its readable joined identity: ${batchRow(BATCH_ONE).dedupeKey}`,
 	);
 });
 
@@ -355,5 +527,73 @@ describe(`D6-D8 mounted durable persistence (${RUNNABLE ? 'available' : 'unavail
 		} as NotificationEvent);
 		const after = await prisma.notification.count({ where: { schoolId: SAND_SCHOOL } });
 		assert.equal(after, before, 'a re-raised identical change adds no row, so the fix is not over-deduping');
+	});
+
+	test('D10 MOUNTED: two distinct batch commits PERSIST two rows, and a redelivery of one still collapses', async (t) => {
+		if (!RUNNABLE || !harness || !prisma) {
+			t.skip('disposable PostgreSQL harness unavailable');
+			return;
+		}
+		const { persistNotificationEvent } = await import('../services/notification-inbox.service.js');
+
+		const beforeBatches = await prisma.notification.count({ where: { schoolId: SAND_SCHOOL } });
+		const first = await persistNotificationEvent(batchEvent(BATCH_ONE, SAND_SCHOOL));
+		assert.ok(first.inserted >= 1, 'the first batch commit wrote its row');
+		const afterFirstBatch = await prisma.notification.count({ where: { schoolId: SAND_SCHOOL } });
+		assert.equal(
+			afterFirstBatch,
+			beforeBatches + 1,
+			`the first batch is really in the table (${beforeBatches} -> ${afterFirstBatch})`,
+		);
+
+		// THE ROW THAT MATTERS. Same run, same actor, same type, same audience: only
+		// the committed changes differ. Before the C4 correction this call reported
+		// `inserted: 0` and the count did not move — QA measured both batches
+		// producing `1:1:TIMETABLE_EDIT_COMMITTED:timetable:321:46:-`.
+		const second = await persistNotificationEvent(batchEvent(BATCH_TWO, SAND_SCHOOL));
+		assert.ok(
+			second.inserted >= 1,
+			'a SECOND batch commit on the same run by the same actor must persist a row - it was silently dropped before',
+		);
+		const afterSecondBatch = await prisma.notification.count({ where: { schoolId: SAND_SCHOOL } });
+		assert.equal(
+			afterSecondBatch,
+			afterFirstBatch + 1,
+			`the second batch added exactly one durable row (${afterFirstBatch} -> ${afterSecondBatch})`,
+		);
+
+		// And redelivering one of them must NOT add a row: the guarantee is two
+		// DISTINCT batches persist, not that every delivery persists.
+		await persistNotificationEvent({
+			...batchEvent(BATCH_ONE, SAND_SCHOOL),
+			id: 515151,
+			timestamp: '2026-09-27T15:00:00.000Z',
+		} as NotificationEvent);
+		const afterRedelivery = await prisma.notification.count({ where: { schoolId: SAND_SCHOOL } });
+		assert.equal(
+			afterRedelivery,
+			afterSecondBatch,
+			'a redelivered batch adds no row, so the fix did not over-correct into re-notifying',
+		);
+
+		// Read the two batch rows back out and prove they are two different sets of
+		// changes, not one row counted twice.
+		const batchRows = await prisma.notification.findMany({
+			where: { schoolId: SAND_SCHOOL, type: 'TIMETABLE_EDIT_COMMITTED' },
+			orderBy: { id: 'asc' },
+		});
+		const batchIdSets = batchRows
+			.map((row: any) => JSON.stringify((row.data as Record<string, unknown>).editIds ?? null))
+			.filter((value: string) => value !== 'null');
+		assert.deepEqual(
+			batchIdSets,
+			[JSON.stringify(BATCH_ONE), JSON.stringify(BATCH_TWO)],
+			'the two persisted batch rows carry two different sets of committed edits',
+		);
+		assert.equal(
+			new Set(batchRows.map((row: any) => row.dedupeKey)).size,
+			batchRows.length,
+			'and every persisted row carries a distinct dedupe key',
+		);
 	});
 });
