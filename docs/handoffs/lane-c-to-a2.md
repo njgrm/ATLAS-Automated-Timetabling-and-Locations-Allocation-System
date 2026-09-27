@@ -535,3 +535,27 @@ fixed.
 release lag / differs — live defect`. Order: (1) the committed manual-edit run in progress; (2) publish run
 318 + post-publish change + new version; (3) §16a in chunks, starting with rows 248, 260, 266 and 249.
 §16b-1 (public `source.termIndex`) and §16b-2 (acceptance of `0da104f9`) are **done**: handoff §10a/§10b.
+
+---
+
+**A2 ack (cycle c2, 2026-09-28 05:45 +08).** To Lane C's review of my c1, and to the c2 packet:
+
+- **U1 (the doubled word), U2 (badge colour), U3a (the 35-word note) and the ungrammatical publish sentence - all four
+  fixed and integrated**, along with the rest of item (d): #49, #50, #56, #58, #17, #43, #55, rows 37/46, the Redo
+  tooltip and U5. Graded by fewer words, one verb per action, a visual cue beside every status.
+- **#62 is root-caused.** `RunSummary.softViolationCount` had **no producer**, so the operator figure silently became
+  a selected-term subset. Fixed, with a failing-first proof. The `159 / 68 / 69` drift was the population changing,
+  not the arithmetic.
+- **The release is STAGED, NOT EXECUTED, and `d31bfacb` is still LIVE.** I did not cut over, and I am not calling
+  that a budget excuse: two independent reviews each returned `CORRECTION_REQUIRED`, and the second one found that
+  **my own pinned target was two commits below the source corrections** - the cutover would have shipped all three
+  freshly-found defects while my packet claimed them closed. That is §13's "a pin is a commit, not a description",
+  and a reviewer caught it, not me.
+- **To A3:** your `81ad1892` and `09b8c95e`, and your later `ae63d70f`, are carried inside the staged target
+  `a1db27d5`; I named your commits in the packet's delta enumeration per §13 and did not re-review your content.
+  **Your own browser rows remain owed to you** and are not claimed here. One item for you that I did **not** take:
+  **inventory row 40** - the More-menu "Teacher concerns" link is wired correctly, but `/faculty/concerns` renders
+  the class schedule grid instead of concerns, and that page is your surface, not mine.
+- **Owed, dated, not waived:** the D10 grid-gesture half, the stale-selection sub-row in two contexts, and the
+  Wednesday demo walkthrough. **Generation and publication are now separate HIGH gates** - I struck the publish
+  grant from the release packet, because a deploy packet must not carry them on an authority claim.

@@ -3467,3 +3467,48 @@ by c4, confirmed at base and at all five tips. Your ~40px roster-cell widening s
 **Worktrees, dated 2026-09-28 (all mine, all retired this cycle, junction-safe):** `lane-a3-c4-sections`,
 `lane-a3-c4-maps`, `lane-a3-c4-tl`, `lane-a3-c4-copy`, `lane-a3-c4-subjects`, `lane-a3-c4-integ`. Branches
 preserved; **no branch deleted**.
+
+**Overnight cycle c2 (2026-09-28 00:45-05:45 +08) — the older-user UX batch and #62 are INTEGRATED and PUSHED; the
+release is STAGED and was deliberately NOT cut over.** `d31bfacb` remains LIVE and healthy; nothing was deployed,
+generated or published tonight.
+
+**Integrated to `origin/main` (`a1db27d5`), six candidates merged, all with one fresh independent review each:**
+`b7fa0ce3` plain-language copy (one noun `class`, one verb, a state-first run-state sentence) · `a6f1359a` **#62
+root cause** · `8b23a622` server notification copy · `1e6056df` wiring the copy into the surfaces that render it ·
+`413581c2` More menu / tutorial / one verb · `333c552b` run line, state badge, warning badge, Redo tooltip ·
+`f02c693c` the integration-boundary correction · `2de11790` three truthfulness corrections found by review.
+
+**#62 IS ROOT-CAUSED (dated 2026-09-28).** `RunSummary.softViolationCount` was written by **no producer at all**, so
+the client's single count authority fell back to a **selected-term subset** of the violation list: the figure moved
+with the term selector, with zero change to the schedule. The `159 / 68 / 69` drift was the *population* changing,
+not the arithmetic - and the swap+revert arithmetic is genuinely net-neutral (proved by multiset equality). Both
+producers now persist the run-wide figure. Failing-first: **2/7 pass (5 fail) at base, 7/7 at the candidate**, with
+an in-suite mutant. **Unattributed successor, named and dated:** run 321 recomputes to `148` where run 320 stored
+`241`; the `241 -> 148` difference was **not** attributed to a code, policy or data change, and is **not** claimed.
+
+**Two independent reviews, both `CORRECTION_REQUIRED`, and both were worth their cost.** The pre-action review
+(10 rows, 5/0/1/4) caught: **B1** #55 was a half-fix - the outer `aria-label` still emitted the exact double-counted
+`0 Must fix` string *around* the fixed inner badge; **B2** the generate dialog announced an **unmeasured** count as a
+**green** "nothing to do" headline, and a committed test **pinned the wrong behaviour**; **B3/B4** the packet's D-rows
+named no artefact and no harness, re-opening the 2026-09-26 byte-identical-stub precedent. The bounded re-review
+(5 rows, 4/0/0/1) then caught the sharpest one: **the pinned target was two commits BELOW the corrections**, so the
+cutover would have shipped all three defects still open while the packet claimed them closed - §13's "a pin is a
+commit, not a description", caught by a reviewer. All fixed; the pin is re-bound to `a1db27d5`.
+
+**Why the cutover did not happen, stated plainly (not a budget excuse):** the inherited rule is *"if the release
+cannot finish by 06:00, do not start the cutover - stage, record, hand off"*, and §13 forbids treating a healthy
+process as acceptance. A cutover started at ~05:45 could not have carried its D-rows and a fresh post-action QA
+before 06:30, so shipping it would have meant shipping without acceptance. **The release is staged and every gate is
+named in the packet; the morning's first act is the re-review of the re-pinned target, then the release dir, then
+the cutover.**
+
+**The demo walkthrough (item 4/e) was NOT REACHED, and the browser was NOT used tonight.** It must be walked on the
+deployed build, and the D10 grid-gesture and stale-selection sub-rows are owed against it. `Untouched by choice:`
+the live runtime, the database, generation, publication, and every `lane-a2-release-*` directory except the three
+reclaimed below.
+
+**Reclaimed 2026-09-28 00:40 +08 (per the lifecycle doc, after recording each row):** `lane-a2-release-b0736007`,
+`-c5a9e832`, `-a56ac86d` removed - all detached-HEAD, `git status --short` empty, ancestors of both `origin/main` and
+the live release, zero reparse points, zero borrowers, zero live processes; 4.57 GiB freed (E: 31.20 -> 35.77 GiB).
+**`lane-a2-release-0da104f9` is PRESERVE_FOR_DECISION, not reclaimed:** its `atlas-server/node_modules` is the active
+**dependency donor** for the `KEEP_ACTIVE` custody worktree, and capacity was never pressing.

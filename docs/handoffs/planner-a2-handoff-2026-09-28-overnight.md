@@ -192,3 +192,110 @@ the response bodies, not from the header.** That is item (c) and it is not done.
   was merged in first and the union was clean; A3 touched no live-state file in that range.
 - **A3's line for the next release:** `A3 integrated for release at c5cffa72` (page titles, 10 client paths,
   no server, no `prisma/`). A2 has not released a release carrying it; the reason is in §1 step 7.
+
+---
+
+# Cycle c2 (2026-09-28 00:45 - 06:30 +08) - the UX batch and #62 are integrated; the release is STAGED, NOT cut over
+
+Session: fresh Planner A2, packet `docs/prompts/overnight-a2-timetable-2026-09-28-c2.md`. Operator asleep; no
+question was asked. Authority: the c1 Authority and Coordination rules, adopted unchanged. **No gate was waived.**
+**Live release is unchanged: `d31bfacb`. Nothing was deployed, generated or published tonight.**
+
+## 1. What the morning must do, in order
+
+1. **Re-review the re-pinned target, then release it.** The staged target is
+   **`a1db27d5a9c270c875868436988f5d8cef38af04`** and the packet is
+   `docs/prompts/a2-release-d049f85d-2026-09-28.md` (its §9 is the corrections record). The morning's first act is
+   **one bounded review of the re-pin and the three amended clauses only** - the re-reviewer's own closing words:
+   *"tell me which SHA to bind and I will re-review only the changed pin and the three amended clauses."* That is
+   owed, not waived: the packet touches a HIGH approval boundary, so §11's planner-applies-directly exception does
+   not cover it.
+2. **Create the target dir and build.** `E:\ATLAS-worktrees\lane-a2-release-a1db27d5` **does not exist**. Create it
+   at the pin, `npm ci`, `prisma generate` from `atlas-server` with the **repo-root** schema, build both `dist`s.
+   **D3 cannot be decided until this exists** - the `new != old` comparison must run *before* the cutover, and if
+   the two builds are identical that is the wrong artefact, not a passing proof.
+3. **Then:** dry run -> `-Execute` -> D1-D8 -> one fresh post-action QA -> the labelled browser rows B9-B22 on
+   `https://njgrm.buru-degree.ts.net`.
+4. **The demo walkthrough (item 4/e) is NOT REACHED and is P0 for Wednesday.** The browser was deliberately unused
+   tonight. Walk it on the deployed build: review -> fix a conflict -> swap/move -> undo -> public view -> exports.
+   **Generation and publication are separate HIGH gates** (§9.3); the walkthrough's publish step is its own gate.
+5. **Owed browser rows from c1 and c2**, none performed tonight: the **D10 grid-gesture half** (c1's B2 was issued
+   through the API, not by clicking two cells - stated there, not smoothed over), the **stale-selection sub-row in two
+   contexts**, and A3's own rows.
+
+## 2. Per-item record
+
+| Item | Candidate | Merge / tip | Review | Result |
+|---|---|---|---|---|
+| 1 Reclaim | - | - | - | **DONE** - 3 retired, 1 preserved (below) |
+| 2 Older-user UX batch | `b7fa0ce3`, `333c552b`, `1e6056df`, `413581c2`, `8b23a622` | on `integration/a2-ux-c2` | one batched pre-action + one bounded re-review | **INTEGRATED, review-gated corrections applied** |
+| 3 #62 root cause | `a6f1359a` | same | rows 2 of both reviews **PASS** | **ROOT-CAUSED AND FIXED** |
+| 4 Browser: D10 gesture, stale selection, walkthrough | - | - | - | **NOT REACHED** - browser deliberately unused |
+| 5 Release at ~04:30 | - | - | pre-action `CORRECTION_REQUIRED`; re-review `CORRECTION_REQUIRED` | **STAGED, NOT EXECUTED** |
+| 6 A3 term-contract test (item f) | - | - | - | **NOT REACHED** |
+| 7 Deliverables | this file + acks + live-state | `2d824600` | - | **DONE** |
+
+**Two planner-owned corrections at the integration boundary**, both recorded in place and neither a deletion:
+`f02c693c` closed a two-source-of-truth hazard (S2 had defined a local run-state line and correctly reported the
+duplication as a `DEPENDENCY`; the header now consumes the single lib export, which also picked up the U5 fix the
+header had been missing), and it converted **two fired DEPENDENCY tripwires** into `ADOPTED` rows. Those tripwires
+exist to fail loudly when an owner adopts the copy, and both fired. The re-review verified: no `test()` was removed
+anywhere, one assertion row was **strengthened**, and the conversions assert real non-tautological content.
+
+## 3. What each review caught - the reason two reviews were worth their cost
+
+**Pre-action, 10 rows, 5 passed / 0 blocked / 1 unperformed / 4 failed.** B1: **#55 was a half-fix** - the inner
+badge was fixed but `TimetableGrid`'s outer `aria-label` still emitted the exact double-counted
+`1 warning, 0 Must fix, 1 Schedule note` string *around* it, so the fix was invisible to a screen reader and B21 was
+unsatisfiable as written. B2: the generate dialog rendered **`Classes to schedule: 0` with a green "nothing to do"
+cue for a count that was never measured** (the board-summary fetch returns `null` on 502 and the return was never
+checked) - while the same release wrote on the server that announcing an unmeasured zero "would be the worst
+possible lie". A committed test **pinned that wrong behaviour**. B3/B4: the D-rows named **no artefact and no
+harness**, which re-opened the 2026-09-26 precedent where `dist/server.js` is a 3 KB stub byte-identical across
+builds. B5: the packet bundled generation and publication into a deploy packet on an authority claim the reviewer
+could not verify.
+
+**Bounded re-review, 5 rows, 4 passed / 0 blocked / 0 unperformed / 1 failed** - and its single failure was the
+sharpest finding of the night: **the pinned target was two commits below the corrections.** Deploying `d049f85d`
+would have shipped a build with B1, B2 and B7 still open while the packet claimed them closed. That is §13's "a pin
+is a commit, not a description", caught by a reviewer and not by me. It also caught that D3's deciding literal
+`softViolationCount:` is **already present at line 814** of the incumbent's `generation.service.js`, so that literal
+does not discriminate for that file; the row is now scoped per file and pairs `generation.service.js` with
+`'All classes placed.'`.
+
+## 4. Corrections applied, with the evidence
+
+| Finding | Fix | Failing-first |
+|---|---|---|
+| B1 outer `aria-label` double-counted | new `entryAccessibleName()` beside the existing `severitySummary()`; one call, both channels; no third variant. `TimetableGrid.tsx` was at **exactly 1000 lines**, so the composition was extracted, not inlined - now **995** | 21/22 at base -> **22/22** |
+| B2 unmeasured zero announced green | `null` threaded instead of `0`; honest `Not checked` headline; a third **neutral** cue state, emerald only for a measured `0`; the pinning row **updated, not removed** (intent "never render NaN, never invent a number" preserved, and a `0` *is* an invented number) | base headline measured: `Classes to schedule: 0` |
+| B7 neutral drift note denied a real check | wording only, **predicate untouched**; `NO_COMPARISON` keeps "has not checked" because there it is true; a genuine stale comparison still alarms | 3 rows failing at base -> green |
+| B3/B4/B5/B6 packet | harness+artefact per D-row, per-file discriminator literals, the demo walkthrough marked post-deployment, the **Authority cell reduced to DEPLOYMENT ONLY**, the publish grant struck from §7, and the pre-existing red suites recorded with base-parity so they cannot be misattributed | n/a - docs |
+
+**Residual, disclosed, not hidden (R1):** `Locked classes kept` can still print an unmeasured `0` via `?? 0` when
+the board summary is absent. Secondary grey row, not a coloured headline; predates this range. **Named successor.**
+
+## 5. Tally and what is NOT claimed
+
+- **Deployment acceptance: `UNPERFORMED` - 0 rows run.** No cutover, so there is no tally to report. The staging
+  tally is: **14 source rows reviewed across two reviews, 10 closed, 4 packet rows corrected and awaiting the
+  owed re-review of the re-pin.**
+- **`test:client-suite` (12 failing files) and `test:server-suite` (4, all in `tt-output-c03r`) are red at base
+  `d31bfacb` and at the candidate with an identical file set**, independently reproduced by both reviewers.
+  **No green suite is cited as evidence for this release.** `tt-output-c03r` is a **real production-data export
+  defect** - the class-program workbook drops `TEACHER` and `No. of Learners - MALE:` columns (`A1:G29` against an
+  expected `A1:H`) - unowned, predating this range, and **not** a timetable-screen defect, so it is a successor for
+  its own lane, not a blocker here.
+- **No browser row is claimed.** The browser was deliberately unused; the profile session is untouched.
+
+## 6. Reclaim, exactly as recorded before retiring
+
+Retired: `lane-a2-release-b0736007`, `-c5a9e832`, `-a56ac86d` - each a **registered worktree** (`.git` file, not a
+clone), detached HEAD, `git status --short` **empty**, `merge-base --is-ancestor` exit **0** against both
+`origin/main` and the live release, **0** reparse points inside, **0** borrowers, **0** live processes.
+`git worktree remove` (never `--force`) then `git worktree prune`. 4.57 GiB freed; **E: 31.20 -> 35.77 GiB**,
+never below the 25 GiB warn line at any build.
+
+**`lane-a2-release-0da104f9` PRESERVE_FOR_DECISION** - its `atlas-server/node_modules` is the active dependency
+donor for the `KEEP_ACTIVE` custody worktree, and capacity was never pressing. Reclaiming it would have broken that
+stream for 1.47 GiB. Recorded rather than taken.
