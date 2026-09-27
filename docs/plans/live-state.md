@@ -198,23 +198,23 @@ resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs
   batch, (e) the demo walkthrough, (f) the A3 term-contract test and (g) a second release are **NOT REACHED** —
   see `docs/handoffs/planner-a2-handoff-2026-09-28-overnight.md` §1 for what the morning does, in order.
 
-- **▶ LEADING TARGET FOR THE NEXT CUTOVER — `d049f85dabbb80773100791966bfd8d6718aa44f`, recorded
-  2026-09-28 ~02:30 +08 by Lane A2, AHEAD of the cutover** (which is what `deploy-runner.ps1`'s
-  `Assert-LiveReleaseRecorded` requires: the 8-char prefix `d049f85d` must appear in THIS section, read from
-  `origin/main`, before any mutation). **This supersedes the "none authorised" line that stood here at 01:1x +08.**
-  `d31bfacb` and `c0d91827` still satisfy the gate's prefix-*presence* test; **do not cut over to either — that
-  would ship less.** A3's `c5cffa72` page-title batch and its later `81ad1892` / `09b8c95e` palette-token work are
-  now **inside** this target, carried by the re-pin.
+- **▶ LEADING TARGET FOR THE NEXT CUTOVER — `a1db27d5a9c270c875868436988f5d8cef38af04`, re-pinned
+  2026-09-28 05:40 +08 by Lane A2. STAGED, NOT EXECUTED — two independent reviews have not yet returned
+  `ACCEPT_READY` on this exact pin.** `deploy-runner.ps1` fails closed without a target prefix in this section, so
+  **the next HIGH action must have its target recorded here first**; `a1db27d5` now satisfies that gate. **Do not cut
+  over to `d31bfacb`, `c0d91827` or `9b28c572` — that would ship less.** The earlier `d049f85d` record is
+  **SUPERSEDED**: it is two commits below the source corrections `2de11790`, so a cutover to it would have shipped a
+  build with B1, B2 and B7 still open while the packet claimed them closed.
 
   | | |
   |---|---|
-  | **Target (authorised, leading)** | **`d049f85dabbb80773100791966bfd8d6718aa44f`** |
-  | **Target dir** | `E:\ATLAS-worktrees\lane-a2-release-d049f85d` — created clean at the tip, own dependency tree, both `dist`s built |
+  | **Target (authorised, leading)** | **`a1db27d5a9c270c875868436988f5d8cef38af04`** |
+  | **Target dir** | `E:\ATLAS-worktrees\lane-a2-release-a1db27d5` — **NOT YET CREATED.** Creating it, owning its dependency tree and building both `dist`s is the morning's first step, and D3's pre-cutover `new ≠ old` comparison cannot run until it exists. |
   | **Live now** | `d31bfacb…`, dir `E:\ATLAS-worktrees\lane-a2-release-d31bfacb` |
-  | **Rollback basis** | the `d31bfacb` dir — **one-step supervised reset** |
-  | **Direction** | **FORWARD.** `git merge-base --is-ancestor d31bfacb d049f85d` exits **0** |
-  | **Delta** | enumerated from the real incumbent in `docs/prompts/a2-release-d049f85d-2026-09-28.md` §2, per §13's "enumerate the range, never describe the candidates you reviewed" |
-  | **Packet** | `docs/prompts/a2-release-d049f85d-2026-09-28.md` |
+  | **Rollback basis** | the `d31bfacb` dir — **one-step supervised reset** (verified present, clean, both `dist`s built) |
+  | **Direction** | **FORWARD.** `git merge-base --is-ancestor d31bfacb a1db27d5` exits **0** |
+  | **Authority** | **DEPLOYMENT ONLY.** Generation and publication are separate HIGH actions (§9.3 of the packet) |
+  | **Packet** | `docs/prompts/a2-release-d049f85d-2026-09-28.md` §9 records both reviews' findings and every correction |
 
 - **▶ LIVE (SUPERSEDED by `d31bfacb` above, 2026-09-28 00:24 +08): `c0d91827311e247ac0f2073a83cc50f5a5efcdb2`
   — DEPLOYED 2026-09-27 22:45 +08 by Lane A2** (audit
