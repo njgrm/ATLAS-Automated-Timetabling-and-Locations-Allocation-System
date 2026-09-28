@@ -7,7 +7,7 @@ import {
 	STANDARD_WEEKLY_TEACHING_HOURS,
 } from '@/lib/faculty-assignment-helpers';
 import { GRADE_COLORS, gradeLabel } from '@/lib/grade-labels';
-import { formatFacultyDisplayName } from '@/components/faculty/teacherNameDisplay';
+import { formatFacultyDisplayName, formatFacultyInitials } from '@/components/faculty/teacherNameDisplay';
 import { cn } from '@/lib/utils';
 import { Button } from '@/ui/button';
 import { Badge } from '@/ui/badge';
@@ -121,7 +121,9 @@ export function FacultyIdentityCell({ faculty }: { faculty: FacultySummary }) {
 	return (
 		<div className="flex min-w-0 items-center gap-3">
 			<div className={`flex size-9 shrink-0 items-center justify-center rounded-full border text-xs font-bold shadow-sm ${isPlaceholder ? 'border-violet-200 bg-violet-50 text-violet-700' : 'border-primary/10 bg-primary/10 text-primary'}`}>
-				{faculty.firstName?.[0] ?? ''}{faculty.lastName?.[0] ?? ''}
+				{/* Fix 22: avatar initials are part of the same uppercase display
+				    standard. Reads stored fields; renders display-only. */}
+				{formatFacultyInitials(faculty)}
 			</div>
 			<div className="min-w-0">
 				<div className="flex min-w-0 items-center gap-2">
@@ -130,7 +132,7 @@ export function FacultyIdentityCell({ faculty }: { faculty: FacultySummary }) {
 						<>
 							<Badge variant="outline" className="h-4 px-1.5 text-[0.65rem] font-bold border-violet-200 bg-violet-50 text-violet-700">Temporary</Badge>
 							<AccessibleInfo
-								label={`Temporary teacher ${faculty.lastName}, ${faculty.firstName}`}
+								label={`Temporary teacher ${formatFacultyDisplayName(faculty)}`}
 								shortHelp={`${TEACHER_X_LABEL}. Replace this temporary record before publishing the timetable.`}
 								size="icon-xs"
 							/>
@@ -352,8 +354,8 @@ export function FacultyPreferredGradesControl({ faculty }: { faculty: FacultySum
 			setOpen(false);
 			toast.success(
 				saved.length > 0
-					? `Preferred grades saved for ${faculty.lastName}, ${faculty.firstName}.`
-					: `Grade preference cleared for ${faculty.lastName}, ${faculty.firstName}.`,
+					? `Preferred grades saved for ${formatFacultyDisplayName(faculty)}.`
+					: `Grade preference cleared for ${formatFacultyDisplayName(faculty)}.`,
 			);
 		} catch (err: any) {
 			toast.error(err?.response?.data?.message ?? 'Could not save the grade preference.');
