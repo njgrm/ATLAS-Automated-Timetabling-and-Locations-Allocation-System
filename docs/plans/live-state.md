@@ -4362,6 +4362,88 @@ decidable from source. Worktrees `lane-a3-c10-{s1-sections,s3-tldensity,s4-teach
 
 ## Lane A5 — current lane (written only by Planner A5)
 
+- **Stream (current):** `A5-C3-20260929` — `/subjects` table + one-look-per-control picker sweep
+  (operator packet `docs/prompts/a5-subjects-table-2026-09-29.md`; routing
+  `docs/handoffs/lane-c-to-a2.md` 2026-09-29 00:10/00:15). **0 fixes live and seen. Slice A has
+  a candidate that has NOT passed review. Slice B not started.**
+- **Where it is.** Worktree `E:\ATLAS-worktrees\lane-a5-c3-20260929`, branch
+  `work/a5-c3-20260929`, **candidate `2dc89610`** (base `origin/main` `2fc6f75c`). Packet R1
+  `d131868c` + amendments R2 `44f120be`, R3 `7b638132`. Client-only: 0 `atlas-server/`, 0
+  `prisma/`, 0 `ops/`, no lockfile, no `AGENTS.md` edit by the executor (the one `AGENTS.md` entry
+  in the range is the planner's merge of `origin/main`'s directive commit).
+- **⚠ `AGENTS.md` §11 gained a "Design judgement gate" mid-cycle (`2fc6f75c`) and it names this
+  exact slice as one of the four live defects it was written about** — "Subjects filters as pills
+  beside rectangular pickers, two reading `All...`, spelled-out program names, raw `OWNER_DEPT:`
+  strings. Each passed its tests, its QA and a screenshot." Every user-facing change now owes a
+  layout note + subtraction ledger **before** the JSX, and a `REJECT_UX` judgement by a reviewer
+  who did not build it. The rubric is `ux-communication-rubric` (a memory, not a file); its axes
+  are listed in packet R2 §1.1.
+- **The planner's own error, recorded because §16 says a correction that removes evidence fails
+  review regardless of whether the fix is correct:** my R1 packet over-specified the filter labels
+  as `Grade: All grades` when the operator's own words are `Grade: All`. That over-specification
+  made the cluster wrap 3+2 at 1366. R3 restored the operator's spec. A planner-authored brief can
+  cause the very defect the brief exists to prevent.
+- **QA round 1: `CORRECTION_REQUIRED`, mandatory 20 / passed 16 / blocked 3 / unperformed 1.**
+  Independently reproduced, not taken on trust: failing-first is **genuine** (15 tests / 3 pass /
+  **12 fail** at base with production files reverted, no `ERR_MODULE_NOT_FOUND`). Confirmed sound
+  and *not* to be redone: the `FilterPicker` / `SearchableSelect` design, default-off with
+  `/timetable` provably untouched, the J6/J7 re-pointing (update-and-add, superseded assertions
+  retained), the R2-5 threshold rule, the R3 label rule, and the `A5-C2B-7a` deviation.
+  - **B1** `test:a3-subjects` was red on **4 of 6** runs at HEAD and green 6/6 at base — a flake
+    this candidate introduced, from a `pressEscape()` band-aid racing a modal Radix popover.
+  - **B2** a `total < available` one-line-fit guard was **deleted and replaced by a tautology**
+    (`total > 0 && available > 0`) on a false `w-52`/13rem/1420px premise, in a test whose own
+    comment contradicted the committed layout note. Evidence removed, not corrected.
+  - **B3** **both committed "after" screenshots are error-boundary pages** — *"Cannot read
+    properties of undefined (reading 'length')"*, a `Reload page` button — not `/subjects`. My
+    `rendered-evidence.md` cited one of them as a PASS. **That citation was false and is
+    withdrawn**, not quietly edited.
+  - **B4** therefore the §11 rule-4 design gate was **unjudgeable**: the reviewer withheld every
+    rubric axis and the table-row verdict rather than score a blank page.
+  - **B5** the shared width token was **inert**: `searchable-select.tsx` composed `min-w-[160px]`
+    ahead of `w-32`, and CSS `min-width` beat `width`, so every trigger rendered at 160px
+    regardless of variant. `A1b` could not see it because it asserts class uniformity, not
+    rendered width. Consequence: the ledger's "1010px, 52px slack, one line" was **false** — the
+    real total was ~1170px against ~1062px available. **The reviewer's 160px measurement was right
+    and the executor's arithmetic was wrong; both are now corrected.**
+- **Correction round 1 committed at `2dc89610`** (additive, no amend/rebase/force, not pushed):
+  the inert width token fixed **in the shared primitive**, not by a page-local override, so the
+  width actually governs; per trigger now **128px**, cluster **1010px**, **fits one line with 52px
+  slack**; both deleted guards **restored** with the superseded claims quoted in place; the flake
+  closed deterministically with `test:a3-subjects` green **6/6**; the B3 renders **withdrawn** in
+  the evidence file; `filter-picker` hardened with `options ?? []` so a partial load degrades
+  instead of taking the page to `Reload page` — recorded as **hardening, not a proven fix**.
+  Tally: `a5-c3-subjects-calm-surface` 18/18, `a3-subjects` 32/32 ×6, `a5-subjects-c1` 14/14,
+  `a5-c2b-surface-truth` 16/16, `a5-c2a-term-truth` 11/11, `ux-guardrails` 31/31,
+  `client-quality` 34/34, `a3-c4/c5-subjects` 33/33, `tsc` the same 5 pre-existing errors, build
+  exit 0, `git diff --check` clean. `test:a3-c4-copy` **18/14/1/3 — the 1 is pre-existing**
+  (`SubjectFormModal.tsx` raw `title=`, the named out-of-scope file), identical at base.
+- **⚠ Still owed and NOT claimed: the rendered `after` images, and therefore the §11 `REJECT_UX`
+  gate.** The filter row's measurements are real but were captured in a session whose screenshots
+  crashed, so they stand uncorroborated until re-taken. **The subject table row — program chips,
+  `Owned by AP, MAPEH`, absent code chip — has no rendered proof at all and stays
+  `UNPERFORMED`**: under a mocked `/api/v1` the catalogue loader is gated on
+  `resolveActiveSchoolYearContext()` and `/subjects/scheduling-authority` is never dispatched. The
+  cheapest fix for both is a **real-data render against staging** (A4's copy of live), not another
+  mocked one.
+- **Dated harness findings 2026-09-29, NON_BLOCKING backlog, not fixed here:** a test that throws
+  with a React tree still mounted leaves the child at exit `-1` with a bare `test failed`; an open
+  Radix `Popover` is modal and `aria-hidden`s its siblings, silently emptying the next test's DOM.
+  **`vite preview` applies the dev proxy, so an unmocked `/api/v1` path on a loopback preview is
+  proxied to the live server on 5001** — a loopback evidence run needs a catch-all `abort()`.
+  Observed live here as a read-only `401`; no write, no live mutation.
+- **⚠ Browser custody, dated 2026-09-29.** The one Playwright profile was **shared** — a second
+  tab belonging to another lane was open in it during this run. `AGENTS.md` §12: one agent per
+  profile at a time. Flagged to the lanes; the re-take must use a dedicated profile.
+- **E: is 25.66 GiB — just above the §3 25 GiB warn line and falling.** A4 owns the reclaim before
+  the next release build; do not add worktrees here without it. A5's c2 worktrees remain
+  `RETIRE_AFTER_INTEGRATION`, left for A4.
+- **Next action (single):** re-take the `after` renders on a **dedicated** profile with a catch-all
+  `abort()`, land real `after-*.png`, then dispatch the **second and final** QA round covering
+  B1/B2/B3/B5 closure **and** the §11 rule-4 `REJECT_UX` judgement. Slice B waits on that verdict.
+  Do not push and do not deploy: A4 merges the pinned release.
+
+
 - **Stream (superseded 2026-09-29):** `A5-SUBJECTS-C1` — **INTEGRATED at `c5aba703`, NOT deployed.**
   Retained below for its Tailnet obligations. Its claim that `SubjectFormModal.tsx:983` `title=` is an
   AGENTS.md §8 raw-`title` violation is **WITHDRAWN**: it is a React prop on `@/ui` `ConfirmationModal`,
