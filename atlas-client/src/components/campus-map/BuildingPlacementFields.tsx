@@ -18,7 +18,7 @@ export function BuildingPlacementFields({ x, y, width, height, onUpdate }: Build
 				</AccordionTrigger>
 				<AccordionContent className="grid grid-cols-2 gap-2 pb-3">
 					<div>
-						<label className="text-[0.68rem] font-semibold text-muted-foreground">X</label>
+						<label className="text-[0.6875rem] font-semibold text-muted-foreground">X</label>
 						<Input
 							type="number"
 							value={Math.round(x)}
@@ -27,7 +27,7 @@ export function BuildingPlacementFields({ x, y, width, height, onUpdate }: Build
 						/>
 					</div>
 					<div>
-						<label className="text-[0.68rem] font-semibold text-muted-foreground">Y</label>
+						<label className="text-[0.6875rem] font-semibold text-muted-foreground">Y</label>
 						<Input
 							type="number"
 							value={Math.round(y)}
@@ -36,7 +36,7 @@ export function BuildingPlacementFields({ x, y, width, height, onUpdate }: Build
 						/>
 					</div>
 					<div>
-						<label className="text-[0.68rem] font-semibold text-muted-foreground">Width</label>
+						<label className="text-[0.6875rem] font-semibold text-muted-foreground">Width</label>
 						<Input
 							type="number"
 							min={60}
@@ -46,7 +46,7 @@ export function BuildingPlacementFields({ x, y, width, height, onUpdate }: Build
 						/>
 					</div>
 					<div>
-						<label className="text-[0.68rem] font-semibold text-muted-foreground">Height</label>
+						<label className="text-[0.6875rem] font-semibold text-muted-foreground">Height</label>
 						<Input
 							type="number"
 							min={40}
