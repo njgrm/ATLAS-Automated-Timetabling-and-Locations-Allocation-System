@@ -1320,3 +1320,7 @@ Routing:
 - **A2** (after the past-year view lands, same train if possible): `/timetable` header to the Header budget — row 1 title/tabs/one status chip/Generate/More, row 2 Term/Show/Schedule for; `468 setup items to fix` as one link; no truncation; hide idle draft/undo/history. Rendered proof at 1366x768 and 1920x1080 on a no-schedule year and a draft year.
 - **A6** (after c3 Guided-mode removal): Teaching Load header to the same budget — undo the row-squeeze; calm two rows.
 - **A5** (next run): control-consistency sweep — every Section/Teacher/Subject/Room/Term picker across Timetable, Teaching Load, Subjects, Sections, Faculty uses the same `@/ui` picker and variant; add a vitest guard that fails on a picker built outside it or with look-changing overrides. Report a before/after table of each page's pickers.
+
+### 00:15 addendum — A5 sweep starts on `/subjects` (operator screenshot)
+
+Subjects filter row is the named offender: filters are pill-shaped (rounded-full) while the search box and the Section/Teacher pickers elsewhere are rounded rectangles; two filters read only `All...` (truncated, no label — nobody can tell what they filter); widths are uneven. Fix: same `@/ui` picker as Timetable/Teaching Load, each filter shows its name (e.g. `Grade: All`, `Program: All`) untruncated at 1366 wide, same height as the search box. Then carry the same treatment to every other page in the sweep.
