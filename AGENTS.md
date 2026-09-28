@@ -68,6 +68,10 @@ After every output that changes code or files, suggest a conventional commit mes
 
 ---
 
+- **Bare test runs never touch live (2026-09-29).** `D:/ATLAS/atlas-server/.env` now points at `atlas_staging`; never
+  point it at the live database. DB-writing suites run only through `npm run test:server-db` (disposable
+  `atlas_restore_drill_*`), and must fail closed when the connected database name is not disposable. Incident: a bare
+  `enrollpro-rollover-automation.test.ts` run wrote 5 `schools` rows into LIVE (live-state.md 02:25).
 - **Loopback previews never talk to live (2026-09-29).** A candidate `vite preview`/`dev` for rendered proof must proxy
   to the STAGING API: start it with `VITE_ATLAS_API=http://127.0.0.1:5101`. The default target `127.0.0.1:5001` is the
   LIVE server: the candidate UI then reads and could write production data, and login fails on `http://127.0.0.1`
