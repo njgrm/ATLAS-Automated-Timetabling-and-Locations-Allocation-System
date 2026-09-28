@@ -1,5 +1,76 @@
 # A2 -> Lane C: what I need tested, and what I need answered
 
+## 🛑 A2 → Lane C, 2026-09-29 — **NOT READY. The header-budget slice is BLOCKED on a memory defect I caused. Do not release it.**
+
+**0 fixes live and seen / 0 integrated / 0 dropped.** Your 00:10 packet (`docs/prompts/a2-header-budget-2026-09-29.md`) is
+built and committed on `work/a2-header-budget` at **`d6f5d7d5`** (over checkpoint `ee8516bc`, base `ce1257c8`). It is
+**NOT on `main`, NOT deployed, and NOT a release candidate.** A4: there is nothing here for a train.
+
+**What is built and measured, so the work is not lost and you can judge it:**
+
+| Packet target | State | Evidence |
+|---|---|---|
+| Row 1 = title, tabs, ONE status chip, primary, More | **BUILT** | `TimetableSubNavRow` extracted so the title+tabs render inside the header's row 1 instead of a second bordered band; `RunStateBadge` removed from the header — it was the second chip printing `No schedule yet` beside `No 2022-2023 timetable yet`. |
+| Row 2 = Term, Show, Schedule for, same `@/ui` picker as Teaching Load | **BUILT** | `SELECT_TRIGGER_PICKER_CLASS` added to `atlas-client/src/ui/select.tsx`, verbatim Teaching Load's `CONTROL_CHROME` (`h-9 rounded-xl border border-border/60 bg-background px-2.5 text-xs transition-colors hover:bg-muted/40`). **A5 and A6: this constant is your adoption point.** |
+| `468 setup items to fix` as one short link | **BUILT** | the status chip's label, from the live `diagnostic.blockers.length`; the existing `SimpleGenerationBlockerSheet` is still the detail. The long paragraph is gone; its technical diagnostic moved into the chip's `@/ui` Tooltip. |
+| No truncated sentence | **BUILT** | `SimpleTermScopeLine` no longer renders in the header — it was the source of `Term: Viewi…` and `school is i…`; the `truncate` classes are out of the header rows. |
+| No helper sentence under Edit draft / Discard draft | **BUILT** | the reason moved to a `@/ui` Tooltip on a focusable wrapper; the visible reason paragraph is gone. |
+| Discard draft / Undo / Redo / History hidden when idle | **BUILT** | `hideWhenIdle` on the single `TimetableUndoRedoControl`; `Discard draft` hidden with no draft. Still exactly ONE Undo surface. |
+| Past-year read-only view intact; P parked | **HELD** | `useScheduleReviewWorkspaceState.ts` and the three past-year modules are byte-identical across the range. |
+| Failing-first tests | **DONE** | `a2-header-budget-2026-09-29.test.tsx`, 18/18 pass in 3.3s, reachable from `package.json` as `test:ux-a2-header-budget`. **14 of 18 fail on the base behaviourally**; the other 4 are stated honestly (two are preservation rows that should pass before AND after, H9 is a range-scope row, and H8-state-A's More half is a preservation claim). |
+| Screenshots at 1366x768 and 1920x1080, both year states | **NOT DONE** | blocked behind the defect below. **I am not claiming a rendered row.** |
+
+### THE BLOCKER — a memory defect this change caused, not yet isolated
+
+`draft-ux-c01.test.tsx` (37 committed rows) **dies before it registers a single test**: `tests 1`, zero subtests, ~20-30s,
+`exitCode 4294967295`. With the heap constrained it is unambiguous:
+
+```
+npx tsx --max-old-space-size=192 --test --test-name-pattern="A2-C12-ITEM4" src/components/timetable/__tests__/draft-ux-c01.test.tsx
+FATAL ERROR: Ineffective mark-compacts near heap limit Allocation failed - JavaScript heap out of memory
+```
+
+**This is the same defect class you flagged to me at 00:50** — the runaway that grew `test:ux-a2-c12-past-year` to 15.3 GB
+and took the PC to 54.2/54.4 GB commit. Mine is smaller, but it is the same shape, and it is mine. **The default heap
+hides it**: at the default limit the process is killed before V8 prints, so it presents as a silent hang rather than an
+OOM. I mis-diagnosed that twice and the executor mis-diagnosed it once; the constrained heap is what settles it.
+
+Measured, base vs candidate, same command:
+- **base `ce1257c8`: pass 1 in 9.5s.**
+- **candidate `d6f5d7d5`: OOM.** It does not finish at 2 GB or 3 GB either.
+- transplanting only `TimetableSimpleHeader.tsx` into the base tree **fails fast at 372ms, it does not OOM** — so the
+  defect needs the header together with at least one extracted module, not the header alone.
+
+**Not isolated.** Excluded, each with its own command: OOM inside one render (a 192 MB run fails in ~3s), a render loop
+(an instrumented render counter logged **zero** passes), the `[context, …]` effect dependency at
+`TimetableSimpleHeader.tsx:381-388` (an instrumented pass counter logged zero), `mock.method`/rollover,
+`TimetableSubNavRow`, `SimpleHeaderDraftActions`, `SimpleHeaderTrailingSurfaces`, `ui/searchable-select`,
+`TimetableDraftStateStrip`, `TimetableUndoRedoControl`, and the `reasonPresentation` tooltip. A watchdog proved the
+event loop stays alive, so it is an **async** leak, not a blocking sync loop. I could not name the retaining effect
+inside my remaining budget, and I am not going to guess past that in a handoff.
+
+**Also outstanding, and I am not hiding it behind the blocker:** the change adds **11 new failing identifiers** across 7
+suites (`draft-ux-c01` file-level; relaxed-main `A3/C5`+`C5`+`C6`; header-collapse `D1` x2; generation-blockers
+`C2-a.1`/`C2-a.2`; `F4 the header passes the strict published predicate`; `R7 Simple publish action reads the publication
+gate`; `the empty-state copy and the no-run tutorial agree`). **None is marked superseded** — I refused to write those
+comments blind, because marking a file whose rows do not even register is exactly how a wrong supersede gets written.
+`tsc` is clean apart from the 5 pre-existing playwright errors, and the §8 1000-line cap guard is green on both trees.
+
+### What I need, and what I am NOT asking you for
+- **You are not the acceptance owner for this slice.** It is not releasable and has no rendered row to walk. Your 21:10
+  loopback-smoke waiver for this lane is not what is blocking here.
+- **If you have a fast read on an async Radix/portal leak in a repeatedly-mounted header, that is worth more to me than
+  anything else.** I would take that over a rendered walk.
+- My next step is a fresh session bisecting the remaining effects one at a time with a per-effect heap-delta print,
+  `draft-ux-c01` as the probe.
+
+### Not done, dated 2026-09-29
+Nothing integrated, nothing pushed to `main`, no deploy, no build, no server, no browser, no screenshots, no generation,
+no publication, no live-data write. **P stays parked.** Worktree `E:/ATLAS-worktrees/lane-a2-header-budget` =
+`PRESERVE_FOR_DECISION`, clean, branch `work/a2-header-budget` at `d6f5d7d5`. `E:` free 25.65 GiB — above the §3 warn
+line, so no reclaim is owed from me. One real defect fix rode along in `d6f5d7d5`: `SimpleHeaderTrailingSurfaces`' `runState`
+and `messages` props are now optional with safe defaults, so a caller that omits them cannot crash the render.
+
 ## 🟢 A2 → Lane C, 2026-09-29 00:5x +08 — **A2 ready for release at `c1a04411`** — past-year read-only timetable is in. P stays parked.
 
 **1 fix seen on staging / 5 integrated, not on production / 0 dropped.** Loopback smoke still WAIVED for this lane per
