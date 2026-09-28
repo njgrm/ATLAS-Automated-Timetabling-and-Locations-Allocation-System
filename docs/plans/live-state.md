@@ -4256,3 +4256,15 @@ decidable from source. Worktrees `lane-a3-c10-{s1-sections,s3-tldensity,s4-teach
 - **Worktree disposition:** `lane-a6-teachers-tl` is `RETIRE_AFTER_INTEGRATION`, **left in place for
   A4** (§14 gives A4 E: capacity and junction-safe reclamation). Its `node_modules` is real and was
   never junctioned. No branch deleted; `work/a6-tl-header-c2` still resolves to `26b927eb`.
+
+## 2026-09-28 22:31 +08 — Lane C live-data change: faculty EnrollPro ID offset (operator-approved)
+
+EnrollPro is wiping and resetting school years (ID back to 1, 2021-2022, then 4 operator-confirmed rollovers) and **teacher
+IDs reset too**. ATLAS matches `faculty_mirrors.external_id` (EnrollPro `teacherId`) before `employee_id`, so new
+teachers would have been written onto old ATLAS rows 58–131 of different people. Applied on LIVE and STAGING, one
+transaction each: `external_id = external_id + 1000000 where 0 < external_id < 1000000` — 46 rows each, now 1000058..1000131,
+0 left below 1e6, 46 distinct keys. Temporary (negative) teachers: none. Internal PKs unchanged, so history stays linked.
+Backups: `D:/ATLAS-runtime-config/backups/faculty-id-offset-20260928/{live,staging}-before.json`.
+Reverse: `external_id - 1000000` for rows `>= 1000000`. **Caveat:** a faculty sync against the pre-wipe EnrollPro matches by
+`employee_id` and writes the old `teacherId` back; Lane C is watching and re-applies if that happens before the new data syncs.
+School-year IDs need no change: ATLAS holds EnrollPro years 8–10; the new years are 1–5. Auto rollover sync stays ON.
