@@ -1,0 +1,405 @@
+/**
+ * A5 — operator fixes 2026-09-28, lane `a5-subjects-c1`.
+ *
+ * Source of the requirements, graded against the operator's own words:
+ *   - item 34 / 35  clipped + illegible sortable column-header tooltips
+ *                   (`Sections`, `Subjects`, `Teachers`, shared headers)
+ *   - item 9.1 / 41 Subjects filter row: one compact row, one `All Status`
+ *   - item 17.1    Subject coverage dialog: resizable, and a section chip that
+ *                   carries the grade in a colour pill instead of repeating
+ *                   `GRx Name` text
+ *
+ * HARNESS NOTE (AGENTS.md §11, "a proof artefact must actually discriminate"):
+ * every control below renders the REAL production component through jsdom and
+ * asserts the REAL DOM. jsdom has no layout engine, so no row here claims a
+ * measured pixel result — the rows that concern the clipped bubble assert the
+ * thing that actually causes the clip (where the bubble is mounted, and which
+ * ancestors can clip it), which is a structural property jsdom can decide.
+ * Controls whose name says MUTANT carry a simulated pre-fix shape so the
+ * assertion is shown not to be vacuous.
+ */
+import assert from 'node:assert/strict';
+import { after, test } from 'node:test';
+import { act } from 'react';
+import type { Root } from 'react-dom/client';
+import { JSDOM } from 'jsdom';
+
+const dom = new JSDOM('<!doctype html><html><body><div id="root"></div></body></html>', { url: 'http://localhost/subjects' });
+Object.assign(globalThis, {
+	window: dom.window,
+	document: dom.window.document,
+	HTMLElement: dom.window.HTMLElement,
+	Element: dom.window.Element,
+	Node: dom.window.Node,
+	Event: dom.window.Event,
+	CustomEvent: dom.window.CustomEvent,
+	FocusEvent: dom.window.FocusEvent,
+	KeyboardEvent: dom.window.KeyboardEvent,
+	MouseEvent: dom.window.MouseEvent,
+	PointerEvent: (dom.window as unknown as { PointerEvent?: unknown }).PointerEvent ?? dom.window.MouseEvent,
+	NodeFilter: dom.window.NodeFilter,
+	DocumentFragment: dom.window.DocumentFragment,
+	ShadowRoot: dom.window.ShadowRoot,
+	SVGElement: dom.window.SVGElement,
+	HTMLInputElement: dom.window.HTMLInputElement,
+	HTMLTextAreaElement: dom.window.HTMLTextAreaElement,
+	HTMLButtonElement: dom.window.HTMLButtonElement,
+	HTMLSelectElement: dom.window.HTMLSelectElement,
+	HTMLLabelElement: dom.window.HTMLLabelElement,
+	HTMLFormElement: dom.window.HTMLFormElement,
+	HTMLAnchorElement: dom.window.HTMLAnchorElement,
+	HTMLOListElement: dom.window.HTMLOListElement,
+	DOMParser: dom.window.DOMParser,
+	NodeList: dom.window.NodeList,
+	AbortController: dom.window.AbortController,
+	MutationObserver: dom.window.MutationObserver,
+	getComputedStyle: dom.window.getComputedStyle.bind(dom.window),
+	requestAnimationFrame: (callback: FrameRequestCallback) => setTimeout(() => callback(Date.now()), 0),
+	cancelAnimationFrame: (id: number) => clearTimeout(id),
+	ResizeObserver: class { observe() {} unobserve() {} disconnect() {} },
+	IntersectionObserver: class { observe() {} unobserve() {} disconnect() {} takeRecords() { return []; } },
+	DOMRect: dom.window.DOMRect,
+	IS_REACT_ACT_ENVIRONMENT: true,
+});
+Object.defineProperty(globalThis, 'navigator', { value: dom.window.navigator, configurable: true });
+(dom.window as unknown as { innerWidth: number }).innerWidth = 1366;
+(dom.window as unknown as { innerHeight: number }).innerHeight = 768;
+(dom.window.HTMLElement.prototype as unknown as { scrollIntoView: () => void }).scrollIntoView = () => {};
+(dom.window.HTMLElement.prototype as unknown as { hasPointerCapture: () => boolean }).hasPointerCapture = () => false;
+(dom.window.HTMLElement.prototype as unknown as { releasePointerCapture: () => void }).releasePointerCapture = () => {};
+(dom.window.HTMLElement.prototype as unknown as { setPointerCapture: () => void }).setPointerCapture = () => {};
+(dom.window as unknown as { PointerEvent: typeof MouseEvent }).PointerEvent = dom.window.MouseEvent;
+
+const { createRoot } = await import('react-dom/client');
+const { MemoryRouter } = await import('react-router-dom');
+const { SortableHeader } = await import('../SortableHeader');
+const {
+	sortableColumnAriaLabel,
+	sortableColumnDirection,
+	sortableColumnTooltipText,
+} = await import('../../table/SortableColumnHeader');
+const { SortableSectionHeader } = await import('../../sections/SectionsSortableHeader');
+const { AdminDataTable } = await import('../../admin-workspace/AdminDataTable');
+
+let root: Root | null = null;
+let hostEl: HTMLElement | null = null;
+after(async () => {
+	if (root) await act(async () => { root?.unmount(); });
+	hostEl?.remove();
+	dom.window.close();
+});
+
+async function render(node: React.ReactNode): Promise<HTMLElement> {
+	await unmount();
+	hostEl = document.createElement('div');
+	document.body.appendChild(hostEl);
+	root = createRoot(hostEl);
+	await act(async () => { root?.render(node); });
+	return hostEl;
+}
+
+async function unmount(): Promise<void> {
+	if (root) await act(async () => { root?.unmount(); });
+	root = null;
+	hostEl?.remove();
+	hostEl = null;
+}
+
+/**
+ * The one VISIBLE Radix tooltip bubble.
+ *
+ * Radix renders TWO nodes for one open tooltip: the styled bubble, and inside
+ * it a visually hidden accessible copy carrying `role="tooltip"` (inline
+ * `clip: rect(0,0,0,0)`). `document.querySelector('[role="tooltip"]')` returns
+ * that 1px accessibility span, so a control written that way asserts against a
+ * node that is NOT the bubble. The bubble is its PARENT — a structural
+ * relationship, deliberately not a class filter, because a class filter would
+ * make "the bubble carries the dark class" vacuous.
+ */
+function bubble(): HTMLElement {
+	const hidden = Array.from(document.body.querySelectorAll('[role="tooltip"]'))
+		.find((el) => (el as HTMLElement).style.clip);
+	assert.ok(hidden, 'no tooltip is open — the trigger was not activated');
+	const content = hidden.parentElement as HTMLElement;
+	assert.ok(content && content !== document.body && content !== hidden, 'the tooltip content is not a real bubble element');
+	return content;
+}
+
+/** Focus is the operator's keyboard path AND the established open gesture. */
+async function openTooltip(trigger: HTMLElement): Promise<void> {
+	await act(async () => { trigger.focus(); });
+}
+
+/** Any ancestor that can cut a bubble off. This is the clip predicate. */
+const CLIPPING = /(^|\s)overflow-(hidden|auto|scroll|x-auto|x-scroll|y-auto|y-scroll)(\s|$)/;
+
+/**
+ * The bubble's VISIBLE text.
+ *
+ * `textContent` includes Radix's visually hidden `role="tooltip"` span, so the
+ * raw value reads the sentence twice. The a11y span is stripped from a clone
+ * (the live node is never mutated) and the operator-visible words are what is
+ * asserted.
+ */
+function visibleText(node: Element): string {
+	const clone = node.cloneNode(true) as Element;
+	for (const hidden of Array.from(clone.querySelectorAll('[style*="clip"]'))) hidden.remove();
+	return (clone.textContent ?? '').trim();
+}
+
+/**
+ * Exact class membership.
+ *
+ * A substring test would call `py-1.5` a `py-1` and the pre-fix white pill a
+ * `z-50`-free bubble in a way that hides which token actually changed, so the
+ * style checks compare whole class tokens.
+ */
+function hasClass(node: Element, token: string): boolean {
+	return (node.className || '').split(/\s+/).filter(Boolean).includes(token);
+}
+
+/** Ancestors from `node` up to (not including) `document.body`. */
+function ancestorsToBody(node: Element): Element[] {
+	const chain: Element[] = [];
+	let current = node.parentElement;
+	while (current && current !== document.body) {
+		chain.push(current);
+		current = current.parentElement;
+	}
+	return chain;
+}
+
+/** The first clipping ancestor's class list, or null when nothing can clip. */
+function clippingAncestorClass(node: Element): string | null {
+	for (const ancestor of ancestorsToBody(node)) {
+		if (CLIPPING.test(ancestor.className)) return ancestor.className;
+	}
+	return null;
+}
+
+test('A5-34/35: the Subjects column-header bubble renders on document.body, outside the header cell, in the dark readable style', async () => {
+	const host = await render(
+		<table>
+			<thead>
+				<tr>
+					<SortableHeader
+						field="code"
+						label="Code"
+						sortField="name"
+						sortDir="asc"
+						onToggleSort={() => {}}
+					/>
+				</tr>
+			</thead>
+		</table>,
+	);
+	const cell = document.body.querySelector('th[aria-sort]') as HTMLElement;
+	assert.ok(cell, 'no sortable header cell rendered');
+	await openTooltip(cell.querySelector('button') as HTMLElement);
+	const node = bubble();
+
+	// WHERE IT IS MOUNTED. The pre-fix bubble rendered inside the header, so the
+	// table's scroll box cut it at the top edge. Asserted as: not inside the
+	// cell, not inside the table, not inside this render's container, and some
+	// ancestor sits directly on `document.body` (Radix's portal container).
+	assert.equal(cell.contains(node), false, 'the bubble is still mounted inside the header cell, so the container clips it');
+	assert.equal(cell.closest('table')!.contains(node), false, 'the bubble is still mounted inside the table');
+	assert.equal(host.contains(node), false, 'the bubble is still mounted inside the React render container');
+	const portalRoot = ancestorsToBody(node).reverse().find((el) => el.parentElement === document.body);
+	assert.ok(portalRoot, 'the bubble is not mounted on a document.body portal container');
+	assert.notEqual(portalRoot, host, 'the "portal container" is just the render root, which clips exactly like the table did');
+
+	// NOT CLIPPABLE. Every ancestor between the bubble and body is overflow-free.
+	assert.equal(
+		clippingAncestorClass(node),
+		null,
+		'a clipping ancestor still sits between the bubble and document.body',
+	);
+
+	// THE DARK, READABLE STYLE (operator item 34: the previous
+	// `bg-popover text-popover-foreground` was a white pill on a white card).
+	for (const token of ['z-50', 'bg-slate-900', 'text-white', 'font-medium', 'text-xs', 'px-2.5', 'py-1', 'rounded-md', 'shadow-md', 'pointer-events-none', 'whitespace-nowrap']) {
+		assert.ok(hasClass(node, token), `the bubble is missing the standard tooltip token "${token}"`);
+	}
+	// It still carries a real pair of background/foreground classes, i.e. the
+	// content is not white-on-white whatever the theme.
+	assert.match(node.className, /bg-slate-900/);
+	assert.match(node.className, /text-white/);
+	assert.ok(!/bg-popover/.test(node.className), 'the white popover surface is back, so the text is unreadable again');
+});
+
+test('A5-34/35: the bubble names the column AND the sort action, and is not a restatement of the accessible name', async () => {
+	// Exact strings, pinned here and produced by the exported pure helpers.
+	assert.equal(sortableColumnTooltipText('Section', 'none'), 'Sort by Section');
+	assert.equal(sortableColumnTooltipText('Section', 'ascending'), 'Sort ascending by Section');
+	assert.equal(sortableColumnTooltipText('Section', 'descending'), 'Sort descending by Section');
+	// The accessible name keeps the established plain-language contract.
+	assert.equal(sortableColumnAriaLabel('Section', 'none'), 'Sort by Section, currently none');
+	assert.equal(sortableColumnAriaLabel('Section', 'ascending'), 'Sort by Section, currently ascending');
+
+	// And the same strings are what actually RENDER, in the inactive state and
+	// in the ascending state.
+	const inactive = await render(
+		<table><thead><tr>
+			<SortableHeader field="code" label="Code" sortField="name" sortDir="asc" onToggleSort={() => {}} />
+		</tr></thead></table>,
+	);
+	await openTooltip(document.body.querySelector('th[aria-sort] button') as HTMLElement);
+	assert.equal(visibleText(bubble()), 'Sort by Code', 'the rendered bubble does not name the column');
+	const inactiveAria = (document.body.querySelector('th[aria-sort] button') as HTMLElement).getAttribute('aria-label');
+	assert.equal(inactiveAria, 'Sort by Code, currently none');
+	assert.notEqual(visibleText(bubble()), inactiveAria, 'the bubble is the aria-label restated, not an action sentence');
+	void inactive;
+
+	const ascending = await render(
+		<table><thead><tr>
+			<SortableHeader field="code" label="Code" sortField="code" sortDir="asc" onToggleSort={() => {}} />
+		</tr></thead></table>,
+	);
+	await openTooltip(document.body.querySelector('th[aria-sort] button') as HTMLElement);
+	assert.equal(visibleText(bubble()), 'Sort ascending by Code', 'the rendered bubble does not name the active sort action');
+	assert.equal(
+		(document.body.querySelector('th[aria-sort] button') as HTMLElement).getAttribute('aria-label'),
+		'Sort by Code, currently ascending',
+	);
+	void ascending;
+});
+
+test('A5-34/35: aria-sort and the button accessible name carry the sort state in all three states', async () => {
+	assert.equal(sortableColumnDirection('code', 'name', 'asc'), 'none');
+	assert.equal(sortableColumnDirection('code', 'code', 'asc'), 'ascending');
+	assert.equal(sortableColumnDirection('code', 'code', 'desc'), 'descending');
+
+	const states: Array<[SortFieldish, 'asc' | 'desc', string]> = [
+		[{ field: 'name', sortField: 'code' } as SortFieldish, 'asc', 'none'],
+		[{ field: 'code', sortField: 'code' } as SortFieldish, 'asc', 'ascending'],
+		[{ field: 'code', sortField: 'code' } as SortFieldish, 'desc', 'descending'],
+	];
+	for (const [state, dir, expected] of states) {
+		await render(
+			<table><thead><tr>
+				<SortableHeader
+					field={state.field}
+					label="Subject"
+					sortField={state.sortField}
+					sortDir={dir}
+					onToggleSort={() => {}}
+				/>
+			</tr></thead></table>,
+		);
+		const cell = document.body.querySelector('th[aria-sort]') as HTMLElement;
+		assert.equal(cell.getAttribute('aria-sort'), expected, `aria-sort is wrong for ${JSON.stringify(state)}/${dir}`);
+		const trigger = cell.querySelector('button') as HTMLElement;
+		assert.equal(trigger.tagName, 'BUTTON', 'the header trigger is not a real <button> (AGENTS.md §8)');
+		assert.equal(
+			trigger.getAttribute('aria-label'),
+			`Sort by Subject, currently ${expected}`,
+			'the accessible name no longer carries the column and the direction',
+		);
+		assert.equal(trigger.getAttribute('title'), null, 'the header carries a title= attribute (AGENTS.md §8)');
+		assert.equal(cell.querySelector('details'), null, 'the header uses a raw <details> (AGENTS.md §8)');
+	}
+});
+
+test('A5-34/35 PRESERVATION: the Sections table header — a file this lane did not edit — now gets the same portalled dark bubble', async () => {
+	// `sections/SectionsSortableHeader.tsx` is NOT in this lane's owned paths and
+	// was not touched. This row is the rendered proof that the shared primitive
+	// fixed the operator's `/sections` report anyway.
+	const host = await render(
+		<table><thead><tr>
+			<SortableSectionHeader
+				field="name"
+				label="Section"
+				sortField="enrolledCount"
+				sortDir="desc"
+				onToggleSort={() => {}}
+			/>
+		</tr></thead></table>,
+	);
+	const cell = document.body.querySelector('th[aria-sort]') as HTMLElement;
+	await openTooltip(cell.querySelector('button') as HTMLElement);
+	const node = bubble();
+	assert.equal(cell.contains(node), false, 'the Sections bubble is still inside the header cell');
+	assert.equal(host.contains(node), false, 'the Sections bubble is still inside the render container');
+	assert.equal(clippingAncestorClass(node), null, 'a clipping ancestor still sits above the Sections bubble');
+	for (const token of ['z-50', 'bg-slate-900', 'text-white', 'font-medium']) {
+		assert.ok(hasClass(node, token), `the Sections bubble is missing "${token}"`);
+	}
+});
+
+test('A5-34/35 PRESERVATION + MUTANT CONTROL: the shared AdminDataTable header path is fixed, and the pre-fix placement is provably clipped', async () => {
+	// `AdminDataTable` is the shell every admin table renders inside, including
+	// Teachers. This row renders the REAL `AdminTableShell` — the `Card
+	// overflow-hidden` + `flex-1 min-h-0 overflow-auto` scroll box that caused
+	// items 34 and 35 — and proves two things:
+	//   1. the real bubble is portalled out of that scroll box, and
+	//   2. the clip predicate is not vacuous: the SAME bubble, cloned back into
+	//      the header cell inside that shell, IS inside a clipping ancestor.
+	// Row 2 is the mutant control — it fails the moment the fix is reverted,
+	// and it fails loudly if the predicate were trivially true.
+	await render(
+		<AdminDataTable
+			data={[{ id: 1, name: 'Bonifacio' }]}
+			columns={[
+				{ id: 'name', label: 'Section', cellRole: 'identity', sortKey: 'name', render: (row) => row.name },
+			]}
+			getRowKey={(row) => String(row.id)}
+			sort={{ key: 'name', direction: 'asc' }}
+			onSortChange={() => {}}
+			emptyState={{ icon: null, title: 'No sections', description: 'Nothing yet.' }}
+			noResultsState={{ icon: null, title: 'No matches', description: 'Nothing matched.' }}
+		/>,
+	);
+	const cell = document.body.querySelector('th[data-column-id="name"]') as HTMLElement;
+	assert.ok(cell, 'the AdminDataTable header did not render');
+	await openTooltip(cell.querySelector('button') as HTMLElement);
+	const node = bubble();
+	assert.equal(cell.contains(node), false, 'the AdminDataTable bubble is still inside the header cell');
+	assert.equal(clippingAncestorClass(node), null, 'a clipping ancestor still sits above the AdminDataTable bubble');
+	for (const token of ['z-50', 'bg-slate-900', 'text-white']) {
+		assert.ok(hasClass(node, token), `the AdminDataTable bubble is missing "${token}"`);
+	}
+
+	// MUTANT: the pre-fix shape. The bubble lives where it used to live.
+	const preFix = node.cloneNode(true) as HTMLElement;
+	cell.appendChild(preFix);
+	const shell = document.body.querySelector('.overflow-hidden') as HTMLElement;
+	assert.ok(shell, 'the real AdminTableShell overflow-hidden card is not in the DOM, so this row proves nothing');
+	assert.ok(
+		clippingAncestorClass(preFix) !== null,
+		'MUTANT CONTROL DID NOT FIRE: cloning the bubble back into the header cell is not detected as clipped, so the "no clipping ancestor" assertion is vacuous',
+	);
+	preFix.remove();
+});
+
+/** The Subjects `SortField` union, as the two-state table above indexes it. */
+type SortFieldish = { field: 'code' | 'name'; sortField: 'code' | 'name' };
+
+test('A5-34/35 MUTANT CONTROL: the PRE-FIX bubble class list is rejected by the rendered-style check, so that check is not vacuous', async () => {
+	// The base `TooltipContent` class list, verbatim. Item 34 asked for `z-50`
+	// and the standard dark style; the base was `z-[9999]` with a
+	// `bg-popover text-popover-foreground` white pill.
+	const PRE_FIX = 'z-[9999] overflow-hidden rounded-md border bg-popover px-3 py-1.5 text-xs text-popover-foreground shadow-md animate-in';
+	const REQUIRED = ['z-50', 'bg-slate-900', 'text-white', 'font-medium', 'text-xs', 'px-2.5', 'py-1', 'rounded-md', 'shadow-md', 'pointer-events-none', 'whitespace-nowrap'];
+
+	// The same predicate row 1 applies to the rendered bubble.
+	const missing = (className: string) => {
+		const tokens = className.split(/\s+/).filter(Boolean);
+		return REQUIRED.filter((token) => !tokens.includes(token));
+	};
+	assert.deepEqual(
+		missing(PRE_FIX),
+		['z-50', 'bg-slate-900', 'text-white', 'font-medium', 'px-2.5', 'py-1', 'pointer-events-none', 'whitespace-nowrap'],
+		'MUTANT CONTROL DID NOT FIRE: the pre-fix class list no longer fails the style check, so row 1 is asserting nothing',
+	);
+
+	// And the LIVE bubble passes it — the same predicate, opposite outcome.
+	await render(
+		<table><thead><tr>
+			<SortableHeader field="code" label="Code" sortField="name" sortDir="asc" onToggleSort={() => {}} />
+		</tr></thead></table>,
+	);
+	await openTooltip(document.body.querySelector('th[aria-sort] button') as HTMLElement);
+	assert.deepEqual(missing(bubble().className), [], 'the live bubble does not carry the required tooltip style');
+	assert.ok(hasClass(bubble(), 'py-1'), 'the live bubble is not the compact `py-1` inset');
+});
