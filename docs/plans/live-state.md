@@ -26,7 +26,34 @@ rules are what make that safe:
    `docs/handoffs/planner-session-handoff.md`, Lane B in its own handoff file, Lane C in its
    section below until a stream needs a handoff.
 
+## Lane A4 — release lane, 2026-09-29 (train 5 SHIPPED to production; trains 1–4 below as history)
+
+- **TRAIN 5 IS LIVE at `ce1257c8`** (full table in the `## Live release` block). Cutover 00:37 +08 on Lane C's
+  GO 00:55 → `CUTOVER_STARTED`, audit `C:\ProgramData\ATLAS\release-audit\ce1257c8-20260929-003720\`.
+  Rollback basis `c9be17fe`. The staging leg ran first at the same pin and Lane C's Codex walk found nothing
+  regressed. Listeners 5001 → **36980**, 5174 → **17236**.
+- **Guided mode is NOT removed in this train.** The packet's A6 line was wrong: `a2c4c135` is a **docs-only**
+  merge, and `TeachingLoad.tsx:895` still renders `TeachingLoadGuidedModePlaceholder`. A6's real c3 work is
+  `46f050c7`. I repeated the packet's claim in my own staging record before this was caught; both corrected.
+- **⚠ `faculty_mirrors` changed outside the application path (as of 2026-09-29 00:41 +08).** `count` 46 and
+  `max(id)` 536 unchanged, content checksum differs. **Not a Prisma write, not the cutover** — `max(updatedAt)`
+  `2026-09-28 15:53:40`, `max(last_synced_at)` `2026-09-28 14:40:42`, `max(version)` 3,
+  `rows_with_updatedAt_today = 0`. **What proves it:** those four readings. Most likely Lane C's raw-SQL
+  "live dept set for 3 teachers" (`c8983eb9`). **If it is not Lane C's, it is an incident and I re-open it.**
+- **S-Z1 is 16/17 clean — I do not claim 17/17.** The other 16 tables are byte-identical. **S-R2 is clean:**
+  `audit_logs` **0 rows today**, max ids unchanged (`1038` / `324` / `321`) — no generation, publication,
+  migration or term-cache write on boot. **My first checksum formula was broken** (it cast the table *name*,
+  not each row); it is replaced with a per-row content hash, and the reported delta comes from a deterministic
+  re-read, not from that formula.
+- **A5's `bf1a7913` is NOT in this train.** `origin/main` moved twice after the pin. A pinned release is never
+  reopened because `main` moved (§14) — A5 waits for train 6.
+- **Next action (single):** Lane C runs the live browser smoke at `https://njgrm.buru-degree.ts.net` as the named
+  acceptance owner, and confirms the `faculty_mirrors` delta is its own edit. **Do not expect Guided mode gone.**
+
 ## Lane A4 — release lane, 2026-09-28 (train 4; trains 1–3 below as history)
+
+- **SUPERSEDED — train 4 WAS live until 00:37 +08 on 2026-09-29 and is now the ROLLBACK BASIS. Its staging
+  copy was replaced by train 5's.**
 
 - **STAGING IS UP at `c9be17fe` (train 4) — isolated ATLAS on 5101 (API) / 5274 (client).**
   `http://127.0.0.1:5274` and `https://njgrm.buru-degree.ts.net:8443`. Branch `release/2026-09-28-4`,
@@ -310,15 +337,34 @@ resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs
 
 - Tailnet: `https://njgrm.buru-degree.ts.net`
 
-- **▶ CUTOVER TARGET (recorded BEFORE the cutover, per `deploy-runner.ps1` `Assert-LiveReleaseRecorded`):
-  `ce1257c815e4393f638e0c3cd19c71c561c2d1d1`, rollback basis
-  `c9be17feccd08e20e6c5110be041a72dc89ee2c6` (current live). Lane A4, train 5, on Lane C's GO 00:55 +08.
-  This block leads the cutover and is replaced by a `LIVE:` block when it completes. The `LIVE: c9be17fe`
-  block below is the incumbent until then.**
+- **▶ LIVE: `ce1257c815e4393f638e0c3cd19c71c561c2d1d1` — DEPLOYED TO PRODUCTION 2026-09-29 00:37 +08 by
+  Lane A4 (train 5, `release/2026-09-29-5-prod`) on Lane C's GO 00:55 +08. Rollback basis
+  `c9be17feccd08e20e6c5110be041a72dc89ee2c6`.**
 
-- **LIVE (until the cutover completes): `c9be17feccd08e20e6c5110be041a72dc89ee2c6` — DEPLOYED TO PRODUCTION 2026-09-29 00:3x +08 by
-  Lane A4 (train 4, `release/2026-09-28-4`). This supersedes the `CUTOVER TARGET` block below, which led the
-  cutover and is now history, and the `LIVE: 9ca7f629` block, which is the rollback basis.**
+  | | |
+  |---|---|
+  | **LIVE** | **`ce1257c815e4393f638e0c3cd19c71c561c2d1d1`** |
+  | **Live dir** | `E:\ATLAS-worktrees\lane-a4-release-20260929-5`, branch `release/2026-09-29-5-prod`, HEAD == pin, `status --short` empty |
+  | **Listeners** | 5001 → **36980**, 5174 → **17236** (were 35284 / 32376 under `c9be17fe`) |
+  | **Machine scope** | both runtime variables repointed; task action `…\lane-a4-release-20260929-5\ops\runtime\cli.mjs start`, Running |
+  | **Rollback basis** | **`c9be17feccd08e20e6c5110be041a72dc89ee2c6`**, dir `E:\ATLAS-worktrees\lane-a4-release-20260928-4prod` — clean, both `dist`s, invariant `false` |
+  | **Scope** | 51 paths vs `c9be17fe`; **0 `prisma/`** → no migration. A5's `bf1a7913` is **not** in this train (main moved after the pin; a pin is not reopened) |
+  | **Cutover** | `deploy-runner.ps1` dry run (`mutates: false`, `Assert-LiveReleaseRecorded` passed) → `-Execute` → `CUTOVER_STARTED`. Audit `C:\ProgramData\ATLAS\release-audit\ce1257c8-20260929-003720\`, evidence `E:\ATLAS-staging\audit\train5-prod-20260929-003459\` |
+  | **Acceptance** | **DEPLOYED.** S-W1, S-H1, S-Z2, S-R1, S-R2, S-D1, S-B1 **PASS**; S-Z1 **16/17 clean, 1 explained**; browser rows **deferred to Lane C** |
+  | **Evidence** | `docs/handoffs/lane-c-to-a2.md`, "A4 LIVE at `ce1257c8`" |
+
+  **⚠ Two open items, both dated 2026-09-29, both carried to Lane C.**
+  (1) **`faculty_mirrors` changed outside the application path.** `count` 46 and `max(id)` 536 unchanged, content
+  checksum differs. **No row carries a today timestamp** — `max(updatedAt)` `2026-09-28 15:53:40`,
+  `max(last_synced_at)` `2026-09-28 14:40:42`, `max(version)` 3 — so it was **not** a Prisma write and not the
+  cutover. Most likely Lane C's own raw-SQL "live dept set for 3 teachers" (`c8983eb9`). **What proves it:** the
+  three timestamps above plus `rows_with_updatedAt_today = 0`. **If it is not Lane C's, this is an incident.**
+  (2) **Guided mode is NOT removed in this train** — the packet's A6 line was wrong and `a2c4c135` is a docs-only
+  merge. **What proves it:** `a2c4c135` touches 2 `docs/` files only, and
+  `TeachingLoad.tsx:895` still renders `TeachingLoadGuidedModePlaceholder`.
+
+- **SUPERSEDED (train 4, was live until 00:37 +08 2026-09-29): `c9be17feccd08e20e6c5110be041a72dc89ee2c6`,
+  dir `E:\ATLAS-worktrees\lane-a4-release-20260928-4prod` — still present, clean, and now the ROLLBACK BASIS.**
 
   | | |
   |---|---|
