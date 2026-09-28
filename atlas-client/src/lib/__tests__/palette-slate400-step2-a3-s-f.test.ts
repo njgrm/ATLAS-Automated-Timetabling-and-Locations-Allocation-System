@@ -351,6 +351,33 @@ const INDEX_CSS_LF_SHA256_SUPERSEDED_A3C9_CORRECTION = '209ad24c199373ad02f9f145
  */
 const INDEX_CSS_LF_SHA256_REPINNED = 'c716be676f181e091ea6cd7c86568b7c368954d188edc35c4e5b0428b99c4e7a';
 
+/**
+ * A3-C9 CORRECTION 2 (2026-09-28), fourth firing of this byte-detector in the A3-C9 range, on a
+ * COMMENT-ONLY edit. The prior value is retained here verbatim as the value this one replaces, and
+ * INDEX_CSS_LF_SHA256_REPINNED above is retained unchanged as the value that one replaced.
+ *
+ * Why the pin moved, and what did NOT move: src/index.css gained 54 lines and lost none. The edits
+ * are (a) the C4 record of the corrected call-site population and the ui/dialog.tsx:42 defect, and
+ * (b) the C5 record that all four restated ring figures reproduce, with the 8-bit serialisation
+ * stated and the exact-158.5 green-channel tie that makes 2.837:1 and a reviewer's 2.866:1 the same
+ * composite read two ways. No `--token: value` declaration was touched, and no token value changed.
+ * Proof for a reviewer who should not take this comment's word for it:
+ *   git diff -- atlas-client/src/index.css | Select-String -Pattern "^[+-]\s*--[a-z-]+:"
+ *   -> no output; and the numstat is "54  0", i.e. insertions only.
+ *
+ * Recomputed in the same session that changed the file, with the `lfSha256` method above:
+ *   node -e "const{createHash}=require('crypto'),fs=require('fs');
+ *            const b=fs.readFileSync('src/index.css');
+ *            console.log(createHash('sha256')
+ *              .update(Buffer.from(b.toString('utf8').replace(/\r\n/g,'\n'),'utf8'))
+ *              .digest('hex'));"
+ *   -> 767cf9efea74084e846dd1f881f30d0d3bf5e2e182b7cbca41b545c507b50f10
+ *   (raw, un-normalised, for completeness: 6d1157f4844a23cbc91fd146bffd05ef6a257dfbda694d80883bfd8f40c1d9d6)
+ * Bound to this revision only (AGENTS.md §11: a computed artifact is valid only for the revision and
+ * moment that produced it).
+ */
+const INDEX_CSS_LF_SHA256_REPINNED_A3C9_CORRECTION2 = '767cf9efea74084e846dd1f881f30d0d3bf5e2e182b7cbca41b545c507b50f10';
+
 const AA = 4.5;
 /** The S-e rename ceiling. Asserted to be EXCEEDED below, so nobody can widen their way to green. */
 const S_E_RENAME_CEILING = 3;
@@ -996,10 +1023,18 @@ test('control 4 (REPLACEMENT, A3-C8r2): index.css is byte-identical to the re-pi
 	const actual = lfSha256(INDEX_CSS);
 	assert.equal(
 		actual,
-		INDEX_CSS_LF_SHA256_REPINNED,
-		'src/index.css changed again since A3-C8r2. --muted-foreground is global and shared with the ' +
+		INDEX_CSS_LF_SHA256_REPINNED_A3C9_CORRECTION2,
+		'src/index.css changed again since A3-C9 correction 2. --muted-foreground is global and shared with the ' +
 			'timetable and login surfaces, so changing it is not local to any one stream. Re-measure and ' +
 			'rewrite this file and the handoff in the same commit if a global token change is genuinely intended.',
+	);
+	// Every prior pin in this range is retained, not overwritten, so the provenance chain stays
+	// readable and no correction closes a finding by removing evidence (AGENTS.md §16).
+	assert.notEqual(actual, INDEX_CSS_LF_SHA256_REPINNED, 'the correction-2 pin must differ from the pin it replaces');
+	assert.notEqual(
+		INDEX_CSS_LF_SHA256_REPINNED,
+		INDEX_CSS_LF_SHA256_SUPERSEDED_A3C9_CORRECTION,
+		'the A3-C9 correction pin must differ from the pin it replaces',
 	);
 	// The A3-C8r2 commit was documentation-only. This row is the machine proof, and it is why the
 	// r2 pin is not simply "moved again": it must be a DIFFERENT hash from the r1 pin, and the only

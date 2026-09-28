@@ -858,3 +858,65 @@ away. Corrected additively, with the false wording retained as the record and a 
 **Nothing is deployed, nothing is browser-verified, and no token value changed in this correction.** What you should
 look for, if you take one rendered row: the `How It Works` link in the schedule-review menu, in its **hover** state —
 it should now read as **white text on the emerald fill** rather than dark navy on emerald.
+
+---
+
+### 2026-09-28 — CORRECTION 2 to the entry above (A3 bounded correction, planner-authorised)
+
+**A2: this one edits ONE class token of ONE line of a SECOND shared `@/ui` primitive, and it is worse than the
+`ScheduleReviewWorkspaceHeader.tsx:780` line you were already told about.** `src/ui/dialog.tsx:42` — the close `X` on
+every dialog in the app. `data-[state=open]:text-muted-foreground` becomes `data-[state=open]:text-accent-foreground`.
+Nothing else on that element changed, no other file, and no comment was added to `dialog.tsx`. Planner authorised this
+one line explicitly; the reasoning is the same as last time — the defect is *created by* the `--accent` darkening this
+stream was told to make, and refusing to edit it ships an invisible close button. Every dialog you render is affected,
+so this is a wider blast radius than line 780 was, and it is yours to know about.
+
+**Measured, 8-bit sRGB, my own recomputation this session.** `--muted-foreground` is `215 16% 42%` = `rgb(90,104,124)`;
+`--accent` is `158 64% 29%` = `rgb(27,121,87)`. The pair on the close X measured **1.058:1** — and note the direction:
+the same pair on the OLD `158 64% 40%` accent measured **1.854:1**. So this range made the close X **worse**, and both
+are far below the **3:1** floor of WCAG 1.4.11 / 2.4.7. It was effectively invisible. After the fix it is white
+(`0 0% 100%`) on accent = **5.358:1**. The same-line siblings I checked and did **not** need to change, because none
+of them pairs a label colour with a solid accent/primary fill: `hover:opacity-100`, `focus:outline-none`,
+`focus:ring-2` / `focus:ring-ring` / `focus:ring-offset-2`, `ring-offset-background`, `disabled:pointer-events-none`.
+There is no `data-[state=closed]` prefix on that element.
+
+**Now the false claim in the entry above, corrected additively.** Retained verbatim from the lines above:
+
+> there are **12** solid `hover|focus|active|aria-selected:bg-accent|bg-primary` sites. **11 pair a light/white label
+> and measure 5.358:1.** The one exception was line 780. There is **no second site** — so the packet's claim of a
+> single affected site is confirmed independently.
+
+**That is wrong, and "there is no second site" is the sentence that caused this correction.** Both halves fail for the
+same reason: the scan's regex could only see four pseudo-classes — `hover|focus|active|aria-selected` — so it was blind
+to `data-[state=open]`, `data-[state=checked]`, `data-[state=active]`, `data-[highlighted]`, `data-[isActive=true]`,
+`group-hover` and every **unprefixed** `bg-accent` / `bg-primary`. `dialog.tsx:42` is `data-[state=open]:bg-accent`,
+which is exactly the prefix that hid it. The true figure, now the number the committed control actually enforces:
+**64** solid accent/primary sites across the same 583 tracked client `.ts`/`.tsx` files, **63** pairing a light label
+and **exactly 1** not — `dialog.tsx:42`. The counting unit is one scanned line, excluding only comment prose and the
+control's own marked fixture. A second wrong figure ("17") was produced and discarded mid-session from the same class
+of regex bug: a prefix-optional group written `(?:PREFIX)?:bg-` still *demands* the colon, so it excluded every
+unprefixed site. A prefix-optional group has to own its colon: `(?:PREFIX:)?bg-`.
+
+**The guard itself was blind on two independent counts, and both are fixed.** Its `DARK_TEXT_TOKENS` omitted
+`muted-foreground` entirely — the exact token on that line — and its regex missed the `data-[state=…]` family. So a
+control that existed to catch this could not see the defect it was written for. Both are now covered, nothing was
+narrowed (the solid-only scope, the `git ls-files` source and the >400-file anti-vacuity assertion all stand), and a
+**discrimination control** was added: the pre-fix `dialog.tsx:42` class string must be flagged and the post-fix one
+must not, or the row fails. Proven failing-first — at the pre-fix state the extended guard failed naming exactly
+`src/ui/dialog.tsx:42` / `muted-foreground`, and passed after the one-token fix.
+
+**One restated figure, recomputed.** The `--accent-ring @0.7 alpha` paragraph in `index.css` (and its twin in the test)
+says the restated "before" figures "differ from the superseded line's 1.986:1 and 2.156:1 by about 0.009". True for one
+pair — `|2.165 - 2.156| = 0.009` — but off by more than four times for the other: `|2.026 - 1.986| = 0.040`. Those two
+pairs also differ by **surface**, not only by rounding. Retained verbatim, marked superseded, corrected beside it.
+**All four restated figures reproduce exactly** (2.026, 2.837, 2.165, 3.023) under 8-bit sRGB compositing, round half
+up, over `#eff6f3` and over white. A reviewer who recomputed **2.866:1** is measuring the *same* composite, not a
+different surface: the green channel is `0.7 x 121 + 0.3 x 246 = 158.5` **exactly**, an exact .5 tie. Round half up
+(this file's stated convention, and what a browser paints) gives 159 and **2.837:1**; .NET's default banker's
+`Math.Round` gives 158 and 2.866:1. For completeness: float composite with no quantise 2.854:1, truncation 2.873:1,
+raw ring token with no alpha 4.885:1. **No token value changed, no verdict changes**, and the sub-3:1 ring debt stays
+a recorded **shortfall, not a pass** — `index.css` was re-pinned additively because these are comment-only edits.
+
+**Still nothing deployed and still not browser-verified.** If you take one rendered row for this one, it is any dialog
+you open — press `Esc` or click the `X` in the corner, which is visible in its default open state — and it should now
+read as a **white X on the emerald fill** instead of a near-invisible grey X.

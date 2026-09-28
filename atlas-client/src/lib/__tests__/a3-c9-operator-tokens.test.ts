@@ -355,25 +355,167 @@ test('CALL-SITE: no state background paints a dark text colour on the solid acce
 	// the solid fill, and a dark text colour on a tint is the ordinary, correct case. Verified
 	// across all 583 tracked .ts/.tsx files, there are 12 solid state-background sites and every
 	// one now pairs a light label.
+	//
+	// A3-C9 CORRECTION 2 (2026-09-28). BOTH claims in the paragraph quoted verbatim above are
+	// FALSE, and this is the record of why. The 583 file count was right; the rest was not.
+	//
+	//   SUPERSEDED: "there are 12 solid state-background sites and every one now pairs a light
+	//   label."
+	//   REASON: the count came from a regex that could only see `hover|focus|focus-visible|
+	//   active|aria-selected`, so it was blind to every `data-[state=…]`, `data-[highlighted]`,
+	//   `data-[isActive=true]`, `group-hover` and UNPREFIXED site — and the second clause was
+	//   not a measurement at all. The row below now asserts the real population, 64 sites, over
+	//   the same 583 files, one line per element; 63 pair a light label and exactly 1 did not.
+	//
+	//   ON THE COUNTING BASIS, because two wrong figures have already been published from this
+	//   row and a third would be worse than either. The unit is one SCANNED LINE, and the
+	//   exclusions are only comment prose and this file's own marked fixture. An intermediate
+	//   count of "17" was also wrong, and for the same class of reason: its regex was written
+	//   `(?:PREFIX)?:bg-…`, which still demands the colon, so it excluded every unprefixed
+	//   `bg-accent`/`bg-primary` — most of the 64. A prefix-optional group has to own its own
+	//   colon, `(?:PREFIX:)?bg-…`. The pinned 64 is the number this file actually enforces.
+	//
+	// A3-C9 CORRECTION 2, the guard's own two blind spots, both of which are why it could not see
+	// the very defect it was written for:
+	//   1. The old regex listed four pseudo-classes and no `data-[state=…]` variant, no
+	//      `data-[highlighted]`, no `data-[isActive=true]`, no `group-hover`/`peer-focus` and no
+	//      unprefixed `bg-accent`. ui/dialog.tsx:42 is `data-[state=open]:bg-accent`, so the row
+	//      never even evaluated that line. It now covers the whole state-prefix class.
+	//   2. DARK_TEXT_TOKENS omitted `muted-foreground` entirely, which is the exact token on that
+	//      line. So even a correct prefix match would have been scored "no dark label".
+	// Both are fixed below. Nothing was narrowed: the solid-only scope, the dark-on-solid
+	// semantics, the `git ls-files` source and the >400 anti-vacuity assertion are all unchanged,
+	// and the enumeration is strictly WIDER than the guard it replaces.
 
-	const DARK_TEXT_TOKENS = ['foreground', 'card-foreground', 'popover-foreground', 'secondary-foreground'];
-	const LIGHT_TEXT_TOKENS = ['accent-foreground', 'primary-foreground', 'white'];
-	const solidStateBackground = /(hover|focus|focus-visible|active|aria-selected):bg-(accent|primary)(?![\w/-])/g;
+	// Every state prefix this codebase actually uses, plus the unprefixed case. The negative
+	// lookahead keeps translucent fills (`bg-primary/10`) out of scope, as before.
+	const STATE_PREFIX =
+		'(?:hover|focus|focus-visible|active|aria-selected|aria-checked|group-hover|peer-focus' +
+		'|data-\\[state=(?:open|closed|checked|unchecked|active|selected|inactive|on|off)\\]' +
+		'|data-\\[highlighted\\]|data-\\[isActive=true\\])';
+	const DARK_TEXT_TOKENS = [
+		'foreground',
+		// ADDED in correction 2: this is the token on ui/dialog.tsx:42. Its absence is why the
+		// row could not see an invisible close button sitting in a shared @/ui primitive.
+		'muted-foreground',
+		'destructive-foreground',
+		'card-foreground',
+		'popover-foreground',
+		'secondary-foreground',
+	];
+	const LIGHT_TEXT_TOKENS = ['accent-foreground', 'primary-foreground', 'background', 'white'];
+	const solidStateBackground = new RegExp(`(?:${STATE_PREFIX}:)?bg-(accent|primary)(?![\\w/-])`, 'g');
+
+	/** The dark text tokens a single line paints on a solid accent/primary background, if any. */
+	const darkLabelOnSolidStateBackground = (line: string): string[] => {
+		if (!solidStateBackground.test(line)) return [];
+		solidStateBackground.lastIndex = 0;
+		// Only the solid accent/primary fill, and only a text token that is DARK on it.
+		const dark = DARK_TEXT_TOKENS.filter((t) => new RegExp(`\\btext-${t}\\b`).test(line));
+		const light = LIGHT_TEXT_TOKENS.filter((t) => new RegExp(`\\btext-${t}\\b`).test(line));
+		return dark.length > 0 && light.length === 0 ? dark : [];
+	};
+
+	// DISCRIMINATION CONTROL. A guard that cannot see the defect it exists to catch has not
+	// discharged its purpose, so prove the detector can see the exact defect: the pre-fix
+	// ui/dialog.tsx:42 class string must be flagged, and the post-fix one must not. Before
+	// correction 2 this row would have passed vacuously on the real file while being blind to it.
+	const preFixDialogClose =
+		'absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity ' +
+		'hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 ' +
+		'disabled:pointer-events-none data-[state=open]:bg-accent data-[state=open]:text-muted-foreground'; // A3-C9-CALLSITE-FIXTURE
+	const postFixDialogClose = preFixDialogClose.replace('text-muted-foreground', 'text-accent-foreground');
+	assert.deepEqual(
+		darkLabelOnSolidStateBackground(preFixDialogClose),
+		['muted-foreground'],
+		'discrimination control: the detector is still blind to dark text on a data-[state=open] ' +
+			'accent background, which is the exact defect of ui/dialog.tsx:42',
+	);
+	assert.deepEqual(
+		darkLabelOnSolidStateBackground(postFixDialogClose),
+		[],
+		'discrimination control: the corrected pairing must be clean',
+	);
+	// Every prefix the extended regex claims to cover must actually match, so the list cannot rot
+	// into a narrower one without this row failing.
+	for (const prefix of [
+		'',
+		'hover:',
+		'focus:',
+		'focus-visible:',
+		'active:',
+		'aria-selected:',
+		'aria-checked:',
+		'group-hover:',
+		'peer-focus:',
+		'data-[state=open]:',
+		'data-[state=checked]:',
+		'data-[state=active]:',
+		'data-[state=selected]:',
+		'data-[highlighted]:',
+		'data-[isActive=true]:',
+	]) {
+		assert.ok(
+			solidStateBackground.test(`${prefix}bg-accent`),
+			`discrimination control: the extended regex does not cover the "${prefix || '(none)'}" state prefix`,
+		);
+		solidStateBackground.lastIndex = 0;
+	}
+	// A tint is still out of scope: the solid-only rule must not have been widened by accident.
+	assert.equal(solidStateBackground.test('bg-primary/10 text-muted-foreground'), false, 'a tint is not a solid fill');
+	solidStateBackground.lastIndex = 0;
+
+	// Two kinds of line are excluded, and ONLY these two, so the scan still covers every real
+	// element. Both exclusions are about text that paints nothing, and both are asserted below so
+	// they cannot quietly become a wider blind spot:
+	//   1. PROSE. A class token inside a `//` or block comment is documentation, not a call site.
+	//      Without this, the pre-existing comment at this file's CONTRAST row ("A
+	//      `bg-destructive`/`bg-accent` button carries `text-destructive-foreground`…") reads as
+	//      an offender. It never painted anything.
+	//   2. This file's own discrimination fixture, which by construction contains the defect.
+	//      It is marked with a sentinel, and the assertion proves the marker is still present.
+	const FIXTURE_SENTINEL = 'A3-C9-CALLSITE-FIXTURE';
+	const isScannableLine = (line: string): boolean => {
+		const t = line.trim();
+		if (t.startsWith('//') || t.startsWith('*') || t.startsWith('/*') || t.startsWith('{/*')) return false;
+		if (t.includes(FIXTURE_SENTINEL)) return false;
+		return true;
+	};
 
 	const offenders: string[] = [];
+	let siteCount = 0;
 	for (const rel of trackedSourceFiles()) {
 		const text = readFileSync(join(CLIENT_ROOT, rel), 'utf8');
 		text.split(/\r?\n/).forEach((line, i) => {
+			if (!isScannableLine(line)) return;
 			if (!solidStateBackground.test(line)) return;
-			// Only the solid accent/primary fill, and only a text token that is DARK on it.
-			const dark = DARK_TEXT_TOKENS.filter((t) => new RegExp(`\\btext-${t}\\b`).test(line));
-			const light = LIGHT_TEXT_TOKENS.filter((t) => new RegExp(`\\btext-${t}\\b`).test(line));
-			if (dark.length > 0 && light.length === 0) {
+			solidStateBackground.lastIndex = 0;
+			siteCount += 1;
+			const dark = darkLabelOnSolidStateBackground(line);
+			if (dark.length > 0) {
 				offenders.push(`${rel}:${i + 1} paints ${dark.join('+')} on a solid accent/primary state background`);
 			}
 		});
-		solidStateBackground.lastIndex = 0;
 	}
+	// The fixture must still be marked, or the exclusion above has become a silent no-op and this
+	// row would start flagging its own control.
+	assert.ok(
+		readFileSync(join(CLIENT_ROOT, 'src/lib/__tests__/a3-c9-operator-tokens.test.ts'), 'utf8').includes(
+			FIXTURE_SENTINEL,
+		),
+		`the call-site fixture sentinel ${FIXTURE_SENTINEL} is gone; the fixture exclusion has become a no-op`,
+	);
+	// The superseded population figures ("12 sites", and an intermediate "17") are replaced by a
+	// pinned 64, so the real population cannot silently shrink back into a blind spot. Counted as
+	// one per scanned line, over the same 583 tracked files, excluding only comment prose and the
+	// marked fixture above.
+	assert.equal(
+		siteCount,
+		64,
+		`the solid accent/primary state-background population is ${siteCount}, not the recorded 64. ` +
+			'A new site is a real change worth a look; a REMOVED site means a prefix stopped being ' +
+			'matched and this row has gone blind again.',
+	);
 	assert.deepEqual(
 		offenders,
 		[],
@@ -662,7 +804,31 @@ test('the focus ring is a UI affordance, measured through the alpha :focus-visib
 	//   TRUE,      over #eff6f3 [239,246,243] : new 2.837:1 | old 2.026:1
 	//   white                                            : new 3.023:1 | old 2.165:1
 	// The shortfall below the 3:1 floor is unchanged in direction, so the carried debt stands.
+	//
+	// A3-C9 CORRECTION 2 (2026-09-28): all four figures in the two lines above were recomputed and
+	// ALL FOUR REPRODUCE, so none of them is corrected and no verdict changes. Recorded here with
+	// the serialization they depend on, because a reviewer recomputed 2.866:1 for the wash row and
+	// could not obtain 2.837:1. The difference is one exact .5 tie in the green channel:
+	//   0.7 x 121 + 0.3 x 246 = 158.5 exactly.
+	// `composite` here rounds half up, which is what `composite`'s own doc comment declares and
+	// what a browser paints, giving 159 and 2.837:1. .NET's default banker's Math.Round gives 158
+	// and 2.866:1; a float composite with no 8-bit quantise gives 2.854:1; truncation gives
+	// 2.873:1; and the raw ring token with no alpha at all gives 4.885:1. 2.837:1 is the figure of
+	// record under the convention this file states, and the sub-3:1 ring debt stays a recorded
+	// shortfall, not a pass.
 	const onWash = composite(tokenRgb('--primary'), bodyWashAlphas[1], CANVAS_WHITE);
+	const washNew = composite(tokenRgb('--accent-ring'), outlineAlpha, onWash);
+	assert.deepEqual(
+		washNew,
+		[91, 159, 134] as unknown as Rgb,
+		'the 0.7 ring composite on the true 100% wash stop is rgb(91,159,134); the green channel is ' +
+			'an exact 158.5 tie rounded half up, which is what the 2.837:1 figure in index.css rests on',
+	);
+	assert.equal(
+		contrastRatio(washNew, onWash).toFixed(3),
+		'2.837',
+		"the published wash figure in index.css no longer reproduces under this file's own composite",
+	);
 	for (const [label, bg] of [['wash 100%', onWash], ['white', tokenRgb('--background')]] as const) {
 		const now = contrastRatio(composite(tokenRgb('--accent-ring'), outlineAlpha, bg), bg);
 		const before = contrastRatio(composite(hslToSrgb(158, 64, 40), outlineAlpha, bg), bg);

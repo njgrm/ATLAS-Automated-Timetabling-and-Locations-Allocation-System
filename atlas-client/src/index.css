@@ -296,6 +296,32 @@
 	   the pairing already used by src/ui/searchable-select.tsx, which measures
 	   5.358:1 white-on-accent. All 13 other solid bg-accent / bg-primary sites
 	   already pair white and therefore IMPROVE with this darkening.
+	   ── A3-C9 CORRECTION 2 (2026-09-28). The two sentences quoted verbatim above
+	   are FALSE as counts, and this is the record. Both are retained unaltered.
+	     SUPERSEDED: "Exactly one call site painted a dark text colour on a solid
+	     accent state background" and "All 13 other solid bg-accent / bg-primary
+	     sites already pair white and therefore IMPROVE with this darkening."
+	     REASON: both were read off a scan whose regex only matched four
+	     pseudo-classes — `hover|focus|focus-visible|active|aria-selected` — so it
+	     could not see any `data-[state=…]`, `data-[highlighted]`,
+	     `data-[isActive=true]`, `group-hover` or unprefixed site, and "one" and
+	     "13 other" were never a measurement. `data-[state=open]:bg-accent` is
+	     precisely the prefix that hid the second offender.
+	     TRUE: the corrected scan, now the enforced control in
+	     src/lib/__tests__/a3-c9-operator-tokens.test.ts, finds 64 solid
+	     bg-accent/bg-primary sites across the 583 tracked client .ts/.tsx files,
+	     counted one per scanned line, excluding only comment prose and that
+	     control's own marked fixture. BEFORE this correction 63 paired a light
+	     label and exactly ONE did not, and it was a real defect:
+	     src/ui/dialog.tsx:42 carried `data-[state=open]:text-muted-foreground` on
+	     `data-[state=open]:bg-accent`, i.e. muted-foreground rgb(90,104,124) on
+	     solid accent rgb(27,121,87) = 1.058:1, which is worse than the 1.854:1 the
+	     same pair read at the old 40% and far below the 3:1 of 1.4.11/2.4.7. The
+	     close X was effectively invisible. It is now `text-accent-foreground`,
+	     white on accent = 5.358:1, the same pairing the rest of the app uses, so
+	     AFTER this correction all 64 sites pair a light label and the control
+	     asserts exactly that. The 63 clean sites do IMPROVE with this darkening,
+	     which is the one part of the superseded wording that survives.
 
 	   --accent-ring is moved in step with it, because in this file the two have
 	   always carried the SAME value and splitting them would leave a focus ring
@@ -323,6 +349,34 @@
 	   file says to read.
 	     --accent-ring @0.7 alpha   2.026:1 -> 2.837:1 on the 100% body-wash stop
 	                                2.165:1 -> 3.023:1 on --background
+	   ── A3-C9 CORRECTION 2 (2026-09-28). Every figure in the restated pair above was
+	   recomputed and ALL FOUR REPRODUCE, so none of them is changed here. What does not
+	   reproduce is the "by about 0.009" clause, which is retained verbatim above and
+	   marked superseded.
+	     SUPERSEDED: "its 'before' figures differ from the superseded line's 1.986:1 and
+	     2.156:1 by about 0.009".
+	     REASON: it is true for one pair and off by more than four times for the other.
+	     |2.165 - 2.156| = 0.009, but |2.026 - 1.986| = 0.040. A single "about 0.009"
+	     cannot describe both. The two pairs also differ by SURFACE, not only by
+	     rounding: 1.986:1/2.156:1 were measured on the superseded wash model, 2.026:1/
+	     2.165:1 on the true #eff6f3 stop and on --background respectively.
+	     TRUE, and the figures that are now pinned to a stated convention: the composite is
+	     the 0.7 `:focus-visible` alpha of --accent-ring composited in 8-BIT sRGB over the
+	     surface, ROUND HALF UP per the MEASUREMENT NOTE, then WCAG 2.x relative luminance.
+	       0.7 x rgb(27,121,87)   + 0.3 x rgb(239,246,243) = rgb(91,159,134)  -> 2.837:1
+	       0.7 x rgb(37,167,119) + 0.3 x rgb(239,246,243) = rgb(98,191,156) -> 2.026:1
+	       0.7 x rgb(27,121,87)   + 0.3 x rgb(255,255,255) = rgb(95,161,137)  -> 3.023:1
+	       0.7 x rgb(37,167,119) + 0.3 x rgb(255,255,255) = rgb(102,193,160)-> 2.165:1
+	     All four match the pair above to the published precision. The 2.795:1 and 2.026:1
+	     figures were independently reproduced and stand.
+	     ONE ROUNDING IS WORTH NAMING, because a reviewer recomputed 2.866:1 and could
+	     not obtain 2.837:1 under any convention tried. It is the same composite, not a
+	     different surface: the green channel is 0.7 x 121 + 0.3 x 246 = 158.5 exactly, an
+	     exact .5 tie. Round half up (this file's stated convention, and what a browser
+	     paints) gives 159 and 2.837:1; .NET's default banker's `Math.Round` gives 158 and
+	     2.866:1. For completeness the other readings are 2.854:1 for a float composite
+	     with no 8-bit quantise, 2.873:1 for truncation, and 4.885:1 for the raw ring token
+	     with no alpha at all. 2.837:1 is retained as the figure of record.
 	   Every corrected figure is HIGHER, so the direction is conservative: the
 	   carried 3:1 shortfall and the AA conclusion are both unchanged.
 
