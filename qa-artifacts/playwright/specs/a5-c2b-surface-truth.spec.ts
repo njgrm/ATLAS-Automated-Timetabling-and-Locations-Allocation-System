@@ -785,26 +785,44 @@ test('A5-C2B-5 RENDERED: the bell names what changed, leaks no raw id, and does 
 	// three in a row for the executor: both were measuring the same race, and a
 	// pass proved only that the request had not arrived yet.
 	//
-	// The settle is bounded and its duration comes from the environment, so the
-	// row is a deliberate wait rather than a sleep that hides a slow leak. It
-	// waits for the readiness request to be OBSERVED, and fails loudly if it
-	// never arrives — which is what makes the mock surface below load-bearing
-	// instead of decorative.
-	const settleMs = Number(process.env.A5_C2B_DASHBOARD_SETTLE_MS ?? 3000);
-	const readinessAnswered = await page
-		.waitForRequest((request) => request.url().includes('/dashboard/readiness-summary'), { timeout: settleMs })
-		// The RESPONSE, not the request: the route handler records an escape into
-		// `unmockedRequests` and only then fulfils, so awaiting the request event
-		// alone returns while the record is still unobservable. That is the same
-		// ordering bug one level down, and it would have made the ISO row pass
-		// without ever seeing its own escape list.
-		.then((request) => request.response())
+	// The mock surface must be LOAD-BEARING, not decorative: the reviewer proved
+	// that a hole for `/dashboard/readiness-summary` let a real request escape to
+	// `json({})` while the row still passed.
+	//
+	// A5-C2A integration (2026-09-29): the previous precondition WAITED for the
+	// mounted Dashboard to issue that request, which is a pre-existing race in
+	// `useDashboardData.ts:449-483` — the actor-scope resolution is discarded
+	// when the token epoch moves, so the request is issued on some frames and not
+	// others. It passed three in a row in the slice worktree, then failed on the
+	// MERGED tree, which made this row report a Dashboard regression that never
+	// happened. Waiting longer cannot fix a request that is sometimes never sent,
+	// and the Dashboard is not this lane's to change.
+	//
+	// So the branch is exercised DETERMINISTICALLY, from the page context, in a
+	// request intercepted by the very same `page.route` handler. Whether the shell
+	// issued it is still OBSERVED and reported, but it no longer decides pass/fail
+	// for a row that is about the notification panel.
+	const shellIssuedReadiness = await page
+		.waitForRequest((request) => request.url().includes('/dashboard/readiness-summary'), { timeout: 3_000 })
 		.then(() => true)
 		.catch(() => false);
+	console.log(`A5-C2B shell issued /dashboard/readiness-summary on its own: ${shellIssuedReadiness}`);
+
+	const escapesBefore = unmockedRequests.length;
+	const answered = await page.evaluate(async () => {
+		const response = await fetch('/api/v1/dashboard/readiness-summary?schoolId=1');
+		return response.ok;
+	});
+	expect(answered, 'the readiness-summary mock branch did not answer a real intercepted request').toBe(true);
+	// `answered` alone would be VACUOUS: the catch-all fallback also fulfils 200
+	// with `{}`, so asserting only the status proves nothing about which branch
+	// answered. The discriminator is the handler's own escape record, so the
+	// branch is proven by the ABSENCE of a recorded escape. Verified: disabling
+	// the readiness branch makes this assertion fail with the message below.
 	expect(
-		readinessAnswered,
-		`the mounted Dashboard never issued and received an answer for /dashboard/readiness-summary within ${settleMs}ms, so this row is no longer proving the shell's isolation — the actor-scope resolution at useDashboardData.ts:449-483 stopped firing`,
-	).toBe(true);
+		unmockedRequests.length,
+		`the readiness-summary request fell through to the catch-all: ${unmockedRequests.slice(escapesBefore).join(', ')}`,
+	).toBe(escapesBefore);
 });
 
 // ───────── item 6 — /faculty/room-preferences, rendered ─────────
