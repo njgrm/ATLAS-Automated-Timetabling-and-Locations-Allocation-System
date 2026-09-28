@@ -37,10 +37,20 @@ import {
 	type TeacherWorkloadAuditFilter,
 } from './teacherWorkloadAudit';
 
-/** The visual treatment per bucket. One chip, one meaning, reused by count and row. */
+/**
+ * The visual treatment per bucket. One chip, one meaning, reused by count and row.
+ *
+ * A3-C10 planner correction: `underloaded` was authored with a raw Tailwind
+ * amber pair (a 200 border, a 50 surface, a 700 label), which put a BRAND NEW
+ * file into the raw-amber corpus the c8 gate exists to converge on, and did it
+ * at roughly 4.9:1. The measured `--warning` family is the same signal at
+ * 8.415:1 on `--warning-muted` (`index.css:234`), so this file enters the corpus
+ * with zero raw amber instead of arriving with a re-pin. The rose and emerald
+ * buckets are outside that ratchet, so they are unchanged.
+ */
 const BUCKET_STYLES: Record<TeacherWorkloadAuditBucket, { chip: string; row: string }> = {
 	overloaded: { chip: 'border-rose-200 bg-rose-50 text-rose-700', row: 'hover:border-rose-200 hover:bg-rose-50/40' },
-	underloaded: { chip: 'border-amber-200 bg-amber-50 text-amber-700', row: 'hover:border-amber-200 hover:bg-amber-50/40' },
+	underloaded: { chip: 'border-warning-border bg-warning-muted text-warning-foreground', row: 'hover:border-warning-border hover:bg-warning-muted' },
 	balanced: { chip: 'border-emerald-200 bg-emerald-50 text-emerald-700', row: 'hover:border-emerald-200 hover:bg-emerald-50/40' },
 };
 
@@ -221,8 +231,8 @@ function AuditExplanation({ snapshot }: { snapshot: ReturnType<typeof useTeacher
 	}
 	if (snapshot.standardHours == null || !snapshot.policyReady) {
 		return (
-			<p className="flex items-start gap-2 text-xs font-medium text-amber-800" data-testid="workload-audit-note">
-				<AlertTriangle className="mt-0.5 size-3.5 shrink-0 text-amber-600" aria-hidden="true" />
+			<p className="flex items-start gap-2 text-xs font-medium text-warning-foreground" data-testid="workload-audit-note">
+				<AlertTriangle className="mt-0.5 size-3.5 shrink-0 text-warning" aria-hidden="true" />
 				<span>
 					The teaching standard is not set for this school year, so no teacher can be judged balanced,
 					underloaded, or overloaded. Those counts are withheld on purpose rather than guessed — the
