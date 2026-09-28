@@ -29,28 +29,59 @@
  * `h-[calc(100svh-3.5rem)]` section and this renders INSIDE the center
  * resizable panel, where a viewport-height block would fight the no-scroll
  * architecture (AGENTS.md §8).
+ *
+ * ── WHY THE FRAME IS NOT INSIDE `AnimatePresence` ──────────────────────────
+ *
+ * A first attempt put the pending branch as the FIRST TERNARY ARM inside
+ * `<AnimatePresence mode="wait">`. That does not work, and QA caught it: with
+ * `mode="wait"` AnimatePresence KEEPS THE EXITING CHILD MOUNTED and defers the
+ * incoming child's mount for the exit duration. The previous-section grid was
+ * therefore still in the DOM for the ~180 ms exit — the exact thing this item
+ * exists to prevent, merely deprioritised rather than absent.
+ *
+ * So the pending state BYPASSES the animated chain entirely: no exit animation
+ * is started, so nothing lingers, so no class cell is ever in the DOM while the
+ * route says map. {@link resolveCenterPane} is the single decision
+ * `CenterWorkspace` consults, and it is exported so a test can exercise the
+ * REAL decision rather than a parallel reimplementation of it.
  */
 import { Loader2 } from 'lucide-react';
+import { motion } from 'motion/react';
 
 import { resolveTimetableRouteView } from '@/components/timetable/TimetableRouteViewSync';
 import { resolveTimetableLoadingIntent } from '@/components/timetable/timetable-route-loading-intent';
 
 /**
- * True on every render where the ROUTE already resolves to the map view but
- * `centerView` has not caught up yet — precisely the window in which the base
- * code painted the previous view's grid.
+ * The decision `CenterWorkspace` actually makes: render the pending map intent,
+ * or enter the normal animated chain.
+ *
+ * Returned as a discriminated value rather than a boolean so the consuming JSX
+ * reads as the branch it is, and so a test can assert the exact state the render
+ * will take.
  *
  * Deliberately derived from {@link resolveTimetableRouteView}, the existing
  * single route→view authority, rather than a second path comparison. Two
  * predicates for one route is the hazard the shared mappers exist to prevent.
  *
- * It is scoped to the map view on purpose. The other six routed views have the
- * same asynchronous entry, but the recorded defect is a grid of real-looking
- * class cells preceding a map; widening this to every view would blank the
- * schedule on unrelated navigations.
+ * Scoped to the map view on purpose. The other six routed views have the same
+ * asynchronous entry, but the recorded defect is a grid of real-looking class
+ * cells preceding a map; widening this to every view would blank the schedule
+ * on unrelated navigations.
  */
+export type CenterPaneDecision =
+	| { readonly kind: 'pending-map-intent' }
+	| { readonly kind: 'center-view'; readonly view: string };
+
+export function resolveCenterPane(pathname: string, centerView: string): CenterPaneDecision {
+	if (resolveTimetableRouteView(pathname) === 'map' && centerView !== 'map') {
+		return { kind: 'pending-map-intent' };
+	}
+	return { kind: 'center-view', view: centerView };
+}
+
+/** True only on the renders where the route says map and the view has not moved. */
 export function isMapRouteTransitionPending(pathname: string, centerView: string): boolean {
-	return resolveTimetableRouteView(pathname) === 'map' && centerView !== 'map';
+	return resolveCenterPane(pathname, centerView).kind === 'pending-map-intent';
 }
 
 /**
@@ -60,10 +91,10 @@ export function isMapRouteTransitionPending(pathname: string, centerView: string
  */
 export function MapRouteTransitionIntent({ pathname }: { pathname: string }) {
 	const intent = resolveTimetableLoadingIntent(pathname);
-	// Defensive only: `isMapRouteTransitionPending` already guarantees the route
-	// resolves to `/timetable/map`, which always has an intent. If that ever
-	// stopped being true the honest answer is an EMPTY panel, never a grid and
-	// never invented copy.
+	// Defensive only: `resolveCenterPane` already guarantees the route resolves to
+	// `/timetable/map`, which always has an intent. If that ever stopped being
+	// true the honest answer is an EMPTY panel, never a grid and never invented
+	// copy.
 	if (!intent) return null;
 	return (
 		<div
@@ -80,5 +111,25 @@ export function MapRouteTransitionIntent({ pathname }: { pathname: string }) {
 				</p>
 			</div>
 		</div>
+	);
+}
+
+/**
+ * The pending pane exactly as the center workspace renders it — deliberately
+ * NOT wrapped in `AnimatePresence`, so no exit animation runs and the previous
+ * view's grid is never mounted beside it.
+ */
+export function MapRouteTransitionFrame({ pathname }: { pathname: string }) {
+	return (
+		<motion.div
+			key="map-route-pending"
+			initial={{ opacity: 0 }}
+			animate={{ opacity: 1 }}
+			exit={{ opacity: 0 }}
+			transition={{ duration: 0.18 }}
+			className="flex min-h-0 flex-1 flex-col"
+		>
+			<MapRouteTransitionIntent pathname={pathname} />
+		</motion.div>
 	);
 }

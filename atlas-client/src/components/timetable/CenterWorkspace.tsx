@@ -6,7 +6,7 @@ import { onProfilerRender } from './ScheduleReviewWorkspace';
 import { isDraftPublishedStrict } from '@/components/timetable/timetableWorkspaceTruth';
 
 import { ClassProgramMatrixView } from '@/components/timetable/ClassProgramMatrixView';
-import { MapRouteTransitionIntent, isMapRouteTransitionPending } from '@/components/timetable/MapRouteTransitionIntent';
+import { MapRouteTransitionFrame, resolveCenterPane } from '@/components/timetable/MapRouteTransitionIntent';
 import { GridScrollMemory } from '@/components/timetable/GridScrollMemory';
 import { TimetableGrid } from '@/components/timetable/TimetableGrid';
 import { ROOM_TYPE_LABELS } from '@/lib/subject-constants';
@@ -436,11 +436,13 @@ export const CenterWorkspace = memo(function CenterWorkspace(props: CenterWorksp
 	const isDraftPublished = isDraftPublishedStrict(draft);
 	// A2 C5 item 2 — the route→view sync runs in an effect, so on the render that
 	// first reaches the DOM for `/timetable/map` the view is still `schedule` and
-	// the chain below would paint the PREVIOUS section's grid. This branch is
-	// FIRST, ahead of every `centerView ===` test including the schedule and
-	// matrix branches, so the map entry never renders class cells. See
+	// the chain below would paint the PREVIOUS section's grid. This decision is
+	// taken with `resolveCenterPane` and the pending branch is rendered OUTSIDE
+	// the `AnimatePresence` below, because with `mode="wait"` AnimatePresence
+	// keeps the exiting child mounted for the exit duration — an in-chain branch
+	// would leave the stale grid in the DOM for ~180 ms. See
 	// MapRouteTransitionIntent for the recorded cause and the no-new-copy rule.
-	const mapRoutePending = isMapRouteTransitionPending(pathname, centerView);
+	const centerPane = resolveCenterPane(pathname, centerView);
 
 	return (
 		<ResizablePanel
@@ -452,22 +454,16 @@ export const CenterWorkspace = memo(function CenterWorkspace(props: CenterWorksp
 			data-tutorial="center-grid"
 			data-testid="timetable-center-panel"
 		>
+			{/* A2 C5 item 2 (M2-A) — the pending map route BYPASSES the animated
+			    chain. With `mode="wait"`, AnimatePresence keeps the exiting child
+			    mounted and defers the incoming one, so an in-chain branch would leave
+			    the previous section's class cells in the DOM for the exit duration.
+			    No exit animation is started here, so nothing lingers. */}
+			{centerPane.kind === 'pending-map-intent' ? (
+				<MapRouteTransitionFrame pathname={pathname} />
+			) : (
 			<AnimatePresence mode="wait">
-				{mapRoutePending ? (
-					// A2 C5 item 2 (M2-A) — the route says map, the view has not
-					// caught up. Render the map's own loading intent rather than
-					// falling through to the schedule/matrix grid below.
-					<motion.div
-						key="map-route-pending"
-						initial={{ opacity: 0 }}
-						animate={{ opacity: 1 }}
-						exit={{ opacity: 0 }}
-						transition={{ duration: 0.18 }}
-						className="flex min-h-0 flex-1 flex-col"
-					>
-						<MapRouteTransitionIntent pathname={pathname} />
-					</motion.div>
-				) : centerView === 'policy' ? (
+				{centerView === 'policy' ? (
 					<motion.div
 						key="policy"
 						initial={{ opacity: 0, y: 8 }}
@@ -948,6 +944,7 @@ export const CenterWorkspace = memo(function CenterWorkspace(props: CenterWorksp
 					</motion.div>
 				)}
 			</AnimatePresence>
+			)}
 			{shouldMountTacticalSandbox ? (
 				<Suspense fallback={null}>
 					<Profiler id="Tactical Sandbox" onRender={onProfilerRender}>

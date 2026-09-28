@@ -208,14 +208,21 @@ test('class-program layout emits per-section weekday columns with exact per-day 
 		{ entryId: 'wed-ap', sectionId: 701, subjectId: 13, facultyId: 501, roomId: 601, day: 'WEDNESDAY', startTime: '06:00', endTime: '06:45', durationMinutes: 45 },
 	]);
 	// SUPERSEDED (a2-c5-map 4b) — the eight-column header ending in `TEACHER`, and
-	// the day-tagged aggregate attribution read from column 8, both came from
-	// d3900520 (2026-09-24 01:38), which specified an eighth column this writer
-	// never implemented. 2558d322 (2026-09-24 16:50) superseded it for the
-	// mounted route suite: the weekday cell already renders `subject\nteacher`, so
-	// the teacher appears exactly once and a day-tagged aggregate column is
-	// redundant. Restated at the seven-column truth, not deleted (§16). The
-	// per-day teacher attribution this row really protects is asserted two lines
-	// below, in the weekday cells.
+	// the day-tagged aggregate attribution read from column 8. Both came from
+	// d3900520 (2026-09-24 01:38), which IMPLEMENTED column 8 in the writer
+	// (`headerRow.getCell(8).value = 'TEACHER'`, the per-row attribution cell, and
+	// `printArea = A1:H...`). 2558d322 (2026-09-24 16:50) then removed the eighth
+	// column from the MOUNTED ROUTE test, and 1b272c3e (2026-09-24 17:00, "add
+	// official program exports") removed it from the WRITER ten minutes later —
+	// because the weekday cell already renders `subject\nteacher`, so the teacher
+	// appears exactly once and a day-tagged aggregate column is redundant. Those
+	// two commits are the two halves of ONE decision, and this unit file was never
+	// updated by either, which is why it stayed red. Restated at the seven-column
+	// truth, not deleted (§16). An earlier draft of this note claimed d3900520
+	// "specified a column the writer never implemented", citing only the 16:50 test
+	// commit and omitting the 17:00 writer commit; that claim was FALSE.
+	// The per-day teacher attribution this row really protects is asserted two
+	// lines below, in the weekday cells.
 	assert.deepEqual(
 		[1, 2, 3, 4, 5, 6, 7].map((col) => cellText(sheet, HEADER_ROW, col)),
 		['TIME', 'MINUTES', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY'],
@@ -283,14 +290,15 @@ test('class-program workbook emits per-section weekday columns with exact per-da
 	// SUPERSEDED (a2-c5-map 4b) — this row previously asserted EIGHT header
 	// columns ending in a dedicated `TEACHER`, and a separate assertion read the
 	// teacher from column 8. Both came from d3900520 (2026-09-24 01:38, "add
-	// verified learner totals to class exports"), which specified an eighth
-	// column the writer never implemented. 2558d322 ("test(timetable): assert
-	// readable working workbook layout", 2026-09-24 16:50) superseded it for the
-	// mounted route suite: there is no aggregate teacher column, because the
-	// weekday cell ALREADY renders `subject\nteacher` and the teacher must appear
-	// exactly once. The row is restated at the seven-column truth rather than
-	// deleted (§16), so a future re-introduction of a redundant column, or a
-	// regression that drops the teacher from the weekday cell, fails again.
+	// verified learner totals to class exports"), which IMPLEMENTED that eighth
+	// column in the writer. 2558d322 (2026-09-24 16:50) removed it from the
+	// mounted route test and 1b272c3e (2026-09-24 17:00) removed it from the
+	// writer, because the weekday cell ALREADY renders `subject\nteacher` and the
+	// teacher must appear exactly once. The row is restated at the seven-column
+	// truth rather than deleted (§16), so a future re-introduction of a redundant
+	// column, or a regression that drops the teacher from the weekday cell, fails
+	// again. An earlier draft of this note said d3900520 "specified a column the
+	// writer never implemented"; that was FALSE — it did, and 1b272c3e took it out.
 	assert.deepEqual(
 		[1, 2, 3, 4, 5, 6, 7].map((col) => cellText(sheet, HEADER_ROW, col)),
 		['TIME', 'MINUTES', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY'],
@@ -392,18 +400,24 @@ test('class-program layout emits reconciled learner totals, unmerged break cells
 	// Learner counts are current transient M/F/T aggregates reconciled server-side.
 	const identityRow = EXPORT_FIRST_BLOCK_ROW;
 	assert.match(cellText(sheet, identityRow, 1), /^GRADE 7 — SECTION: 7-Rizal$/);
-	// a2-c5-map 4b — the LABEL set is the C05 reference copy (f29a9667) and the
-	// shipped writer had drifted to a bare `MALE`. Restored in the service.
-	assert.equal(cellText(sheet, identityRow, 3), 'No. of Learners — MALE:');
+	// SUPERSEDED (a2-c5-map 4b) — this previously asserted the C05 long labels
+	// `No. of Learners — MALE:` and `FEMALE:`. Those came from f29a9667 and were
+	// deliberately REPLACED with the bare `MALE` / `FEMALE` by 1b272c3e
+	// (2026-09-24 17:00, "add official program exports") as part of the official
+	// program design. An earlier draft of this candidate RESTORED the long form,
+	// which is a revert of an intentional, later decision on an OFFICIAL export
+	// with no packet row mandating it. The row is restated at the shipped truth,
+	// not deleted (§16); the long-form analysis is preserved as a named successor
+	// in docs/handoffs/a2-c5-building-occupancy-and-workbook-labels.md.
+	assert.equal(cellText(sheet, identityRow, 3), 'MALE');
 	assert.equal(sheet.getRow(identityRow).getCell(4).value, 18);
-	assert.equal(cellText(sheet, identityRow, 5), 'FEMALE:');
+	assert.equal(cellText(sheet, identityRow, 5), 'FEMALE');
 	assert.equal(sheet.getRow(identityRow).getCell(6).value, 17);
 	// SUPERSEDED (a2-c5-map 4b) — this previously asserted a split `TOTAL:` label
-	// in column 7 and a numeric total in column 8. The shipped, mounted
-	// route-tested form folds the figure into the label (`TOTAL: 35`) in column 7,
-	// which is also the shape `tt-output-c03r-route.test.ts` pins against a real
-	// HTTP export. Splitting it would change an official export with no authority
-	// to do so, so the row is restated at the shipped truth, not deleted (§16).
+	// in column 7 and a numeric total in column 8. `1b272c3e` folds the figure into
+	// the label (`TOTAL: 35`) in column 7, which is also the shape
+	// `tt-output-c03r-route.test.ts` pins against a real HTTP export. The row is
+	// restated at the shipped truth, not deleted (§16).
 	assert.equal(cellText(sheet, identityRow, 7), 'TOTAL: 35');
 	assert.equal(cellText(sheet, identityRow, 8), '', 'and the folded total owns no eighth column');
 
@@ -414,11 +428,28 @@ test('class-program layout emits reconciled learner totals, unmerged break cells
 	const breakRow = FIRST_DATA_ROW + 3;
 	assert.deepEqual([3, 4, 5, 6, 7].map((col) => cellText(sheet, breakRow, col)), Array(5).fill('HEALTH BREAK'));
 
-	// Daily totals row: 3 class periods × 45 minutes reconcile exactly.
+	// Daily totals row.
 	const totalsRow = breakRow + 1;
 	assert.equal(cellText(sheet, totalsRow, 1), 'TOTAL MINUTES PER DAY');
-	assert.equal(sheet.getRow(totalsRow).getCell(2).value, 135);
-	assert.equal(sheet.getRow(totalsRow).getCell(3).value, 135);
+	// SUPERSEDED (a2-c5-map 4b) — this row's own comment used to read "3 class
+	// periods × 45 minutes reconcile exactly" and asserted 135 in both cells, i.e.
+	// the CONFIGURED period structure. The shipped writer sums the PLACED entries
+	// (`entry.minutes`), and this fixture places exactly two 45-minute lessons,
+	// both on Monday, so both cells are 90. This assertion was unreachable at base
+	// because an earlier failing assertion stopped the test first, which is how an
+	// expectation the writer never satisfied survived.
+	//
+	// A candidate DID change the writer to the period structure and reached 135
+	// here. QA rejected it: `getCell(2) === 135` and `getCell(3) === 135` are
+	// arithmetically IDENTICAL under both implementations, so no test discriminated
+	// and the arithmetic change to an OFFICIAL export was unasserted. Base
+	// behaviour is therefore what is asserted, and the reconciliation question is a
+	// named successor with its measured numbers.
+	assert.equal(sheet.getRow(totalsRow).getCell(2).value, 90, 'column 2 is the five-day sum of the placed lessons');
+	assert.equal(sheet.getRow(totalsRow).getCell(3).value, 90, 'column 3 is Monday alone, which is where both lessons sit');
+	// The two are equal only because every lesson in this fixture is on Monday;
+	// a second-day lesson would separate them, which is exactly the ambiguity the
+	// successor records.
 
 	// Approval block after the section block with the contract role labels.
 	const approvalRow = totalsRow + 2;
@@ -448,11 +479,14 @@ test('class-program workbook stays unmerged and includes grade-color and print s
 	assert.deepEqual(merges, [], 'paste-ready schedule cells are never merged');
 	assert.equal(sheets.get('Grade 7').properties.tabColor.argb, '70AD47');
 	assert.equal(sheets.get('Grade 7').pageSetup.orientation, 'landscape');
-	// SUPERSEDED (a2-c5-map 4b) — this previously asserted `^A1:H`. The `H` came
-	// from the never-implemented eighth `TEACHER` column of d3900520, superseded
-	// by 2558d322; the printed grid is seven columns wide, so the print area is
-	// `A1:G`. Restated rather than deleted (§16) so the print area can never
-	// silently narrow below the widest rendered cell again.
+	// SUPERSEDED (a2-c5-map 4b) — this previously asserted `^A1:H`. That `H` came
+	// from the eighth `TEACHER` column, which d3900520 (2026-09-24 01:38) DID
+	// implement in this writer and 1b272c3e (2026-09-24 17:00) removed from it;
+	// 2558d322 (16:50) had already removed it from the route test. The printed grid
+	// is seven columns wide, so the print area is `A1:G`. Restated rather than
+	// deleted (§16) so the print area can never silently narrow below the widest
+	// rendered cell again. An earlier draft of this note called the eighth column
+	// "never-implemented"; that was FALSE.
 	assert.match(sheets.get('Grade 7').pageSetup.printArea, /^A1:G/);
 	assert.equal(sheets.get('Grade 7').pageSetup.printArea, 'A1:G29', 'and the printed area spans the whole rendered block');
 });
