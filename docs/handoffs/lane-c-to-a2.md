@@ -1321,6 +1321,70 @@ Routing:
 - **A6** (after c3 Guided-mode removal): Teaching Load header to the same budget — undo the row-squeeze; calm two rows.
 - **A5** (next run): control-consistency sweep — every Section/Teacher/Subject/Room/Term picker across Timetable, Teaching Load, Subjects, Sections, Faculty uses the same `@/ui` picker and variant; add a vitest guard that fails on a picker built outside it or with look-changing overrides. Report a before/after table of each page's pickers.
 
+## A4 STAGING at `ce1257c8` — release train 2026-09-29 #5, step 2. Live untouched at `c9be17fe`.
+
+**0 fixes live and seen / 12 integrated (A2 x2, A7, A6, Lane C hotfix) / 0 dropped.**
+
+Pin `ce1257c815e4393f638e0c3cd19c71c561c2d1d1` — `origin/main` tip at pin time, branch `release/2026-09-29-5`,
+release worktree `E:\ATLAS-worktrees\lane-a4-release-20260929-5`. **`origin/main` advanced one commit during
+my fetch** (`95c7522e` → `cabc700e` → `ce1257c8`, all docs-only packets), so the pin is the tip, not the
+`95c7522e` the packet named. A pinned release is not reopened for that.
+
+**Included SHAs:** A2 `6d034431` + `c1a04411` (past-year read-only `/timetable?schoolYearId=`), A7 `c9dd5f05`
+(School Year Setup plain words), A6 `a2c4c135` (Guided mode removed from Teaching Load), Lane C hotfix `5bccb65d`
+(merge `62a87520`, TL headline). 51 paths, **0 prisma** (`git diff --name-only c9be17fe ce1257c8 -- '*prisma*'`
+empty; 11 migration dirs before and after).
+
+**Gate — one pass, MEDIUM/HIGH by tier, no fresh reviewer dispatched:** every lane carried independent QA, and
+I verified the one claim no QA artefact covered myself rather than re-running a reviewer.
+- `test:staging-guards` **20/20**.
+- server `tsc` build clean; client `vite` build clean (the `VITE_ENROLLPRO_URL` fail-closed guard fired first,
+  as designed — the deploy script's own non-secret origin `https://dev-jegs.buru-degree.ts.net` builds it).
+- server suite **tests 371 / pass 371 / fail 0**. (Confirms the train-4 correction: **388 is not reproducible**.)
+- New authenticated read route, verified by reading it, not by trusting the packet: `published-schedule.router.ts:678`
+  `GET /schools/:schoolId/school-years/:schoolYearId/schedules/published/history`, gated by `authenticate`, one
+  segment deeper than the public family so it cannot shadow it, single GET registration, and scope is the
+  **actor's** — `resolvePastYearReadScope` is fed `actorSchoolId` from `req.user`, never the path `schoolId`, with
+  the cross-school check load-bearing on a year list keyed to the actor. A2's QA covered auth scope; I confirmed
+  the shape in source. **No fresh reviewer needed.**
+- The dry-run script `atlas-server/src/scripts/copy-year-setup-shift-windows-events.mjs` is **not imported at
+  runtime** (zero references from `src`), and **not run** by this release.
+
+**Deployment rows (A4-measured, staging)** — deploy 75.3 s, `STAGING_DEPLOYED`, `E:\ATLAS-staging\ce1257c8…`
+
+| Row | Result |
+| --- | --- |
+| S1 health / ready / host | **PASS** — `/api/v1/health` 200, `/api/v1/health/ready` 200, `/` 200 (3 838 B) on loopback **and** on the tailnet staging host `:8443` |
+| S1b served shell is the new build | **PASS** — the `index.html` served over `:8443` is **byte-equal** to the pin's `dist/index.html`; a stale shell would also 200 |
+| S2 DB-backed read | **PASS** — `GET /api/v1/subjects?schoolId=1` 200, **19 509 B** on both origins |
+| S3 staging DB refreshed from live | **PASS** — `SNAPSHOT_REFRESHED`, live `1037\|486\|11` before **and** after, staging `1037\|486\|11`, `liveUnchanged: true`, archive never written to disk, no migration applied |
+| S4 **server** discriminator | **PASS, non-vacuous** — `atlas-server/dist/services/past-year-timetable-scope.js` **PRESENT 5 044 B** in the pin's build, **ABSENT** in `c9be17fe`'s build; proven *before* cutover, and the deployed `published-schedule.router.js` really imports it |
+| S4b **client** discriminator | **PASS, non-vacuous** — client chunks are hash-renamed, so filename diffing is vacuous; I diffed by **content hash** instead. `AdminYearSetup-DAXETajy.js` (A7) is new **by content**, fetches **200 (21 376 B)** on `:8443`, and a stale hash **404s**. 49 chunks are new by content. |
+| S5 rollover invariance post-restart | **PASS** — staging `cli.mjs status` reports `ROLLOVER_AUTO_SYNC_ENABLED: "false"`, `releaseSha: ce1257c8…` (the contract invariant decides, not the env file) |
+| S6 **live untouched, measured not asserted** | **PASS** — identical to the pre-deploy baseline on `live-source-dir`, `live-release-sha`, `live-head`, empty `live-git-status`, `live-ready`, and the DB-backed read (**19 509 B** before and after). Live **5001 → 35284** and **5174 → 32376** — **the same PIDs as before the cutover**. Only 5101/5274 moved. |
+| S-B1 rollback ready | **PASS** — `E:\ATLAS-worktrees\lane-a4-release-20260928-4prod` at `c9be17fe`, clean, both `dist`s present, contract invariant `false`. One-step supervised reset. |
+
+Baseline: **`E:\ATLAS-staging\audit\train5-20260929-002305\`**, captured before any mutation.
+**Live is `c9be17fe` and was not touched. Step 3 (production) is NOT executed and awaits your GO.**
+
+**Browser rows are yours, not mine** (`AGENTS.md` §11: a row needing a browser is a deployment-acceptance row with
+a named owner). The host returns the same 3.8 KB shell for any path, so `curl` cannot decide `/timetable` or
+`/teaching-load`. Your Codex walk on staging should cover: the **past-year** surface at
+`/timetable?schoolYearId=<id>` including the empty-`schoolYearId` case (renders the current year — A2 flagged and
+I accepted it), the **School Year Setup** plain-words page, **Teaching Load without Guided mode**, and the TL
+modal headline ("N classes still need a real teacher" over rows, not "No classes to fill").
+
+**Two capacity items, both now closed, neither needed an operator exception:** `E:` was **21.67 GiB**, below the
+§3 warn line, so the retention reclaim ran before the build. I retired 4 clean ancestor-of-main A4 worktrees
+(3.3 GiB) and reclaimed 4 superseded staging clones (6.0 GiB) — none running, all reproducible from pushed
+branches, no reparse points, no live tree touched, `c9be17fe` staging copy kept running throughout. `E:` is
+**28.45 GiB** after the deploy. The one reclaim the prior train handed me is discharged.
+
+**A4 carry-over, still open, non-blocking:** A3 `c11` (`13d75ce6`) has still never had an independent review —
+its only recorded acceptance is a staging walk that recorded A3 as FAIL. Its bytes are already in `main`, so this
+is context, not a blocker to this train; it needs a review pass by someone who is not its author before anyone
+treats it as accepted.
+
 ### 00:15 addendum — A5 sweep starts on `/subjects` (operator screenshot)
 
 Subjects filter row is the named offender: filters are pill-shaped (rounded-full) while the search box and the Section/Teacher pickers elsewhere are rounded rectangles; two filters read only `All...` (truncated, no label — nobody can tell what they filter); widths are uneven. Fix: same `@/ui` picker as Timetable/Teaching Load, each filter shows its name (e.g. `Grade: All`, `Program: All`) untruncated at 1366 wide, same height as the search box. Then carry the same treatment to every other page in the sweep.
