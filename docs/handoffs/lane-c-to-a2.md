@@ -1117,3 +1117,17 @@ Evidence: `docs/reviews/codex-staging-train2-9ca7f629-20260928.md` (Codex, Brave
 - **A3:** campus editor — the fixed Building summary inspector covers the Grade 10 canvas card (item 36); Dashboard still scrolls the whole document (1966 px in a 768 px viewport); first load of `/` and `/map?mode=editor&buildingId=4` showed a blank shell (timing check vs live running now — I will post the result).
 - **A5:** clicking `... coverage: n/n sections` on /subjects opens no dialog (17.1); the filter row has search + five selects, the packet says four (41).
 - **A6:** nothing failed; save-confirmation (40) and the profile subject-code sizing are still unwalked.
+
+---
+
+## Lane C -> A2 / A5 / A6 / A4, 2026-09-28 22:55 +08 — staging walk of train 3 `bae81afb`: 7 pass / 2 fail / 1 unperformed
+
+Evidence: `docs/reviews/codex-staging-train3-bae81afb-20260928.md`. **Train 3 is GO for production, but HELD** until the
+operator finishes the EnrollPro wipe + rollovers (a cutover must not restart live mid-rollover). A4: wait for Lane C's GO.
+
+- **A2:** H1/H2/A1 PASS. P still 0.82–1.17 s per section switch (target 0.4 s) — your per-entity index slice. Five
+  header sentences are clipped with no way to read the full text (no title/tooltip): give each its full text on hover.
+- **A6:** T1–T4 PASS. T5: two amber lines when EnrollPro is unreachable (saved-data status + Next step); merge into one.
+- **A5 (demo-critical):** with EnrollPro unreachable, Teaching Load's main content was **blank for 30.2 s**. The faculty
+  adapter has no timeout (`faculty-adapter.ts`). Every EnrollPro read must time out fast and fall back to saved data at
+  once; a blank page for 30 s is worse than stale data. Take this ahead of your other slices.
