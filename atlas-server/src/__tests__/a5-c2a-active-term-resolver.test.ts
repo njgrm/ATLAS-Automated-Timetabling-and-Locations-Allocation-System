@@ -20,10 +20,15 @@
  *  5. live contract-invalid (reachable)            → null, no saved fallback
  *  6. live unreachable + snapshot                  → saved term, degraded, cachedAt
  *  7. live unreachable + no snapshot               → null, never Term 1
+ * 11. live STRUCTURE unverifiable (`liveStructureVerified === false`) while the
+ *     non-canonical active-term adapter would name a term → the read surface
+ *     reports the same thing the availability WRITE authority accepts, and never
+ *     an unlabelled term (B1, the correction of a partially closed defect).
  *
  * Run: `npm --prefix atlas-server run test:a5-c2a-term-truth`
  */
 import assert from 'node:assert/strict';
+import { createServer } from 'node:http';
 import test from 'node:test';
 
 import {
@@ -34,6 +39,10 @@ import {
 } from '../services/active-term-resolver.service.js';
 import type { TermContractFetchResult } from '../services/enrollpro-term-contract.service.js';
 import { resolveActiveOrderedTermIndexLive, type ActiveOrderedTermProvider } from '../services/academic-term.service.js';
+import { withDataContext } from '../lib/data-context.js';
+import { resolveRuntimeContext } from '../services/runtime-context.service.js';
+import { resolveActiveAvailabilityTermIndex } from '../services/faculty-availability.service.js';
+import { fetchEnrollProActiveTerm } from '../services/active-term-adapter.service.js';
 
 const SCHOOL_ID = 41;
 const SCHOOL_YEAR_ID = 8;
@@ -250,4 +259,156 @@ test('A5-C2A 10: the availability authority and the runtime context resolve the 
 	assert.equal(authorityTermIndex, 2, 'the availability write path resolves T2');
 	assert.equal(contextTermIndex, 2, 'the client runtime context resolves T2');
 	assert.equal(authorityTermIndex, contextTermIndex, 'one source of truth: read and write cannot disagree');
+});
+
+// ─── B1: the same invariant on the `liveStructureVerified === false` branch ───
+//
+// Row 10 above covers the structurally VERIFIED branch. Before this row it did
+// not cover the other one, and that gap was a real defect: when the live
+// ORDERED STRUCTURE could not be verified, the runtime context substituted the
+// non-canonical `fetchEnrollProActiveTerm` answer and could report
+// `verified: true` + `degraded: false` for a term the availability WRITE
+// authority refuses with 409 `TERM_AUTHORITY_UNRESOLVED`. The page then painted
+// a term as live with no saved-data label while every write was rejected — the
+// read/write disagreement this whole slice exists to eliminate.
+
+/** The live ordered structure cannot be verified: the school-year payload is unusable. */
+const STRUCTURAL_FAILURE: TermContractFetchResult = {
+	ok: false,
+	error: { code: 'SCHOOL_YEAR_CONTRACT_INVALID', message: 'EnrollPro school-year response is missing its data object.' },
+};
+
+/**
+ * A saved VERIFIED snapshot that DOES name T2. Deliberately adversarial: a
+ * structural failure must fail closed identically on both sides, and must not be
+ * papered over by saved data that happens to be sitting there.
+ */
+const SAVED_CONTRACT = {
+	schoolId: SCHOOL_ID,
+	schoolYear: { id: SCHOOL_YEAR_ID, yearLabel: '2031-2032' },
+	format: 'TRIMESTER',
+	terms: TERMS,
+	semanticRevision: SAVED_REVISION,
+	activeTerm: { identity: 'T2', displayLabel: 'Term 2', order: 2 },
+	activeTermState: { availability: 'UNRESOLVED', code: 'ACTIVE_TERM_UNRESOLVED', message: 'fixture', reachable: true, identity: null },
+};
+
+/**
+ * Every read `resolveRuntimeContext` performs, with one active mirror that
+ * carries a valid saved ordered-term contract. `fetchEnrollProActiveSchoolYear`
+ * sees `id: 0`, which it rejects, so no year-conflict probe (which would use the
+ * global Prisma client) is reached: this control is hermetic and touches no
+ * database.
+ */
+function structuralFailureDataClient() {
+	const mirror = {
+		enrollProSchoolYearId: SCHOOL_YEAR_ID,
+		yearLabel: '2031-2032',
+		lastVerifiedAt: new Date(CAPTURED_AT),
+		lastSyncedAt: new Date(CAPTURED_AT),
+		isActive: true,
+		facultyCount: 0,
+		sectionCount: 0,
+		syncStatus: 'OK',
+		lastFailureSummary: null,
+		termContractCache: SAVED_CONTRACT,
+		termContractCachedAt: new Date(CAPTURED_AT),
+	};
+	return {
+		enrollProSchoolYearMirror: {
+			findFirst: async () => mirror,
+			findMany: async () => [],
+			findUnique: async () => ({
+				isActive: true,
+				isArchived: false,
+				termContractCache: mirror.termContractCache,
+				termContractCachedAt: mirror.termContractCachedAt,
+			}),
+		},
+		schedulingPolicy: { findFirst: async () => null },
+		sectionMirror: { findFirst: async () => null, findMany: async () => [] },
+		sectionSnapshot: { findFirst: async () => null },
+		facultySnapshot: { findFirst: async () => null },
+		generationRun: { findFirst: async () => null, findMany: async () => [] },
+		publishedScheduleRevision: { count: async () => 0 },
+	};
+}
+
+/** Local EnrollPro stand-in. The school-year payload is UNVERIFIABLE; active-term names T2. */
+async function withEnrollProFixture(run: (baseUrl: string) => Promise<void>): Promise<void> {
+	const server = createServer((req, res) => {
+		const path = req.url?.split('?')[0] ?? '';
+		const response = path === '/integration/v1/school-year'
+			? { status: 200, body: { data: { id: 0, yearLabel: '2031-2032' } } }
+			: { status: 200, body: { data: { activeTerm: 'T2', schoolYearId: SCHOOL_YEAR_ID } } };
+		res.statusCode = response.status;
+		res.setHeader('content-type', 'application/json');
+		res.end(JSON.stringify(response.body));
+	});
+	await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+	const address = server.address();
+	assert.ok(address && typeof address === 'object');
+	try {
+		await run(`http://127.0.0.1:${address.port}`);
+	} finally {
+		await new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())));
+	}
+}
+
+test('A5-C2A 11: on an unverifiable live structure the read surface reports exactly what the write authority accepts', async () => {
+	const previousApi = process.env.ENROLLPRO_API;
+	const previousToken = process.env.ENROLLPRO_SERVICE_TOKEN;
+	const client = structuralFailureDataClient();
+	try {
+		await withEnrollProFixture(async (baseUrl) => {
+			process.env.ENROLLPRO_API = baseUrl;
+			process.env.ENROLLPRO_SERVICE_TOKEN = 'fixture-token';
+
+			// ── The write authority, on this exact branch ──
+			const provider: ActiveOrderedTermProvider = async () => STRUCTURAL_FAILURE;
+			const writeTermIndex = await resolveActiveOrderedTermIndexLive(
+				SCHOOL_ID, SCHOOL_YEAR_ID, { provider, now: NOW, client: client as never },
+			);
+			assert.equal(writeTermIndex, null, 'the write authority resolves NO term when the structure is unverifiable');
+
+			await assert.rejects(
+				() => resolveActiveAvailabilityTermIndex(SCHOOL_ID, SCHOOL_YEAR_ID, client, { provider, now: NOW }),
+				(error: any) => error?.code === 'TERM_AUTHORITY_UNRESOLVED' && error?.statusCode === 409,
+				'the availability write is refused fail-closed, not silently retargeted',
+			);
+
+			// ── The read surface, on the same fixture ──
+			const context = await withDataContext(client, () => resolveRuntimeContext(SCHOOL_ID, 'fixture-token'));
+			assert.ok(context, 'the runtime context still resolves from the saved mirror');
+
+			// The control is not vacuous: the NON-canonical adapter really does
+			// name a term here. That answer is simply not authority.
+			const legacy = await fetchEnrollProActiveTerm('fixture-token', SCHOOL_YEAR_ID);
+			assert.equal(legacy.termIndex, 2, 'the non-canonical adapter would have named T2');
+			assert.equal(legacy.verified, true);
+
+			// ── B1: read must equal write ──
+			assert.equal(
+				context!.activeTerm.termIndex, null,
+				'the context must not name a term the write authority refuses',
+			);
+			assert.equal(context!.activeTerm.termIndex, writeTermIndex, 'one source of truth on the structural-failure branch');
+			assert.equal(context!.activeTerm.verified, false, 'a withheld term is never reported as verified');
+			assert.notEqual(context!.activeTerm.termIndex, 1, 'never defaults to Term 1');
+			assert.equal(context!.activeTerm.activeTerm, null, 'no term identity is exposed either');
+
+			// ── No unlabelled term: a term may never ride along with degraded !== true ──
+			assert.ok(
+				!(context!.activeTerm.termIndex != null && context!.activeTerm.degraded !== true),
+				'a term must never be carried while claiming not to be degraded saved data',
+			);
+			assert.equal(
+				context!.activeTerm.degraded, false,
+				'no term is served from saved data here, so the answer is not degraded',
+			);
+		});
+	} finally {
+		if (previousApi === undefined) delete process.env.ENROLLPRO_API; else process.env.ENROLLPRO_API = previousApi;
+		if (previousToken === undefined) delete process.env.ENROLLPRO_SERVICE_TOKEN; else process.env.ENROLLPRO_SERVICE_TOKEN = previousToken;
+	}
 });

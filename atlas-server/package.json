@@ -32,6 +32,7 @@
     "test:faculty-availability": "tsx --test src/__tests__/faculty-availability-s1.test.ts",
     "test:active-term-live-resolution": "tsx --test src/__tests__/active-term-live-resolution-c01.test.ts",
     "test:a5-c2a-term-truth": "tsx --test src/__tests__/a5-c2a-active-term-resolver.test.ts",
+    "test:a5-c2a-term-truth-readwrite": "tsx --test src/__tests__/a5-c2a-active-term-resolver.test.ts",
     "test:active-term-live-resolution-c02": "tsx --test src/__tests__/active-term-live-resolution-c02.test.ts",
     "test:active-term-live-resolution-c02-postgres": "tsx src/__tests__/active-term-live-resolution-c02-postgres.test.ts",
     "test:published-revision-identity": "tsx --test src/__tests__/published-revision-identity-s4.test.ts",

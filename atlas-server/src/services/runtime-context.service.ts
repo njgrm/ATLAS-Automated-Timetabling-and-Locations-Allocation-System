@@ -2,10 +2,11 @@ import { getDataContext } from '../lib/data-context.js';
 import { findMappingConflicts, fetchSectionExternalIds, resolveMappingConflictAction } from './enrollpro-rollover.service.js';
 import { fetchEnrollProActiveSchoolYear } from './section-adapter.js';
 // A5-C2A: the runtime context resolves the active term through the ONE canonical
-// resolver. `fetchEnrollProActiveTerm` is still used for exactly one case — when
-// the live ORDERED STRUCTURE cannot be verified, a structural failure is not a
-// verdict about which term is active, so the active-term-only adapter remains
-// the authority for that one field.
+// resolver. `fetchEnrollProActiveTerm` is used for exactly one field — the
+// reachability / typed-code DIAGNOSTIC when the live ORDERED STRUCTURE cannot be
+// verified. It is NOT authority for the term itself: a term named outside a
+// verified structure is discarded so this surface can never report a term the
+// availability write authority refuses. See `resolveRuntimeActiveTerm`.
 import { fetchEnrollProActiveTerm, type ActiveTermResult } from './active-term-adapter.service.js';
 import { normalizePersistedTermStructure } from './derived-demand.service.js';
 // A5-C2A — the ONE canonical active-term resolver, shared with the availability
@@ -49,25 +50,46 @@ async function resolveRuntimeActiveTerm(
 		},
 	);
 
-	// A structural failure is not a term verdict. When the live ORDERED STRUCTURE
-	// could not be verified (an unverifiable `school-year` payload, a year or
-	// school mismatch, an unsupported format), the active-term-only adapter is
-	// still the authority for "which term is active", so its typed answer is
-	// reported rather than the structural code. This is the pre-change
-	// behaviour and it is preserved deliberately: `dashboard-stale-readiness`
-	// pins a school-year 200 + active-term 409 reporting exactly
-	// `ACTIVE_TERM_UNRESOLVED`.
+	// A structural failure is not a verdict about which term is active — but it
+	// IS the verdict for the term FIELD here, because the availability/generation
+	// write authority never consults the active-term-only adapter. It resolves
+	// through this same canonical resolver and, on `liveStructureVerified ===
+	// false`, returns `termIndex: null` and rejects the write with 409
+	// `TERM_AUTHORITY_UNRESOLVED` (faculty-availability.service.ts ->
+	// resolveActiveAvailabilityTermIndex -> resolveActiveOrderedTermIndexLive).
+	//
+	// B1: this branch used to SUBSTITUTE the non-canonical
+	// `fetchEnrollProActiveTerm` answer, so a legacy adapter that named a term
+	// made this surface report `verified: true` + `degraded: false` for a term
+	// the write path refuses — the page painted a term as live with no
+	// saved-data label while every write was rejected. The read/write
+	// disagreement this module exists to remove, on the one branch the existing
+	// control did not cover.
+	//
+	// Option (a) is applied: the canonical structural-failure verdict is
+	// AUTHORITATIVE for the term field, so the term is WITHHELD
+	// (`termIndex: null`). The legacy adapter is still consulted for exactly one
+	// thing — the reachability and typed-code DIAGNOSTIC — which is preserved
+	// deliberately: `dashboard-stale-readiness` pins a school-year 200 +
+	// active-term 409 reporting exactly `ACTIVE_TERM_UNRESOLVED`, and a
+	// structural failure that swallowed a reachable upstream answer would report
+	// the healthy upstream as an outage. Its term is discarded because a term
+	// named outside a verified ordered structure cannot be scoped to one, and
+	// the write authority would refuse it in any case.
 	if (resolution.liveStructureVerified) return resolution;
 
 	const legacy = await fetchEnrollProActiveTerm(authToken, resolvedYearId);
 	return {
-		termIndex: legacy.termIndex,
-		termIdentity: legacy.activeTerm,
+		// Canonical term field: withheld, never taken from the legacy adapter.
+		termIndex: null,
+		termIdentity: null,
 		source:
 			legacy.source === 'enrollpro-verified' ? 'enrollpro-verified'
 				: legacy.source === 'enrollpro-unresolved' ? 'enrollpro-unresolved'
 					: legacy.source === 'enrollpro-contract-drift' ? 'enrollpro-contract-drift'
 						: 'enrollpro-unreachable',
+		// No term is served, so nothing here comes from saved data and the
+		// client owes the operator no saved-data label.
 		degraded: false,
 		cachedAt: null,
 		cachedBeyondTtl: false,
