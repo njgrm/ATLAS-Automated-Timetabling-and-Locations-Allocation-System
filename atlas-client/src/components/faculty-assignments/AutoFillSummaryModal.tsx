@@ -27,6 +27,7 @@ import {
 import { TeachingLoadCandidateDiagnostics } from '@/components/faculty-assignments/TeachingLoadCandidateDiagnostics';
 import {
 	NO_DEMAND_DESCRIPTION,
+	stillNeedRealTeacherNote,
 	resolveSuggestionPreviewState,
 	suggestionDemandRowCount,
 	type SuggestionPreviewState,
@@ -223,7 +224,7 @@ export function AutoFillSummaryModal({
 	const previewState = resolveSuggestionPreviewState({
 		reviewOnly,
 		hasResult,
-		hasShortage,
+		hasShortage: hasShortage || breakdown.substituteRows > 0,
 		distributionEvaluated,
 		balanced: distribution?.summary.balanced === true,
 		demandRowCount: suggestionDemandRowCount(result),
@@ -246,7 +247,7 @@ export function AutoFillSummaryModal({
 					if (breakdown.realTeacherRows > 0) parts.push(`suggest ${breakdown.realTeacherRows} real-teacher assignment${breakdown.realTeacherRows === 1 ? '' : 's'}`);
 					if (breakdown.substituteRows > 0) parts.push(`use ${breakdown.substituteRows} temporary substitute row${breakdown.substituteRows === 1 ? '' : 's'}`);
 					const summary = parts.length > 0 ? `ATLAS will ${parts.join(', ')}.` : `ATLAS can suggest ${suggestedRows} assignment row${suggestedRows === 1 ? '' : 's'}.`;
-					const unresolvedNote = breakdown.unresolvedRows > 0 ? ` ${breakdown.unresolvedRows} row${breakdown.unresolvedRows === 1 ? '' : 's'} remain${breakdown.unresolvedRows === 1 ? 's' : ''} unresolved.` : ' 0 rows remain unresolved.';
+					const unresolvedNote = stillNeedRealTeacherNote(breakdown.substituteRows, breakdown.unresolvedRows);
 					return `${summary}${unresolvedNote} Dominant shortage bucket: ${dominantDepartment}.`;
 				})()
 				: (() => {
@@ -255,7 +256,7 @@ export function AutoFillSummaryModal({
 					if (breakdown.realTeacherRows > 0) parts.push(`suggest ${breakdown.realTeacherRows} real-teacher assignment${breakdown.realTeacherRows === 1 ? '' : 's'}`);
 					if (breakdown.substituteRows > 0) parts.push(`use ${breakdown.substituteRows} temporary substitute row${breakdown.substituteRows === 1 ? '' : 's'}`);
 					const summary = parts.length > 0 ? `ATLAS will ${parts.join(', ')}.` : `ATLAS can suggest ${suggestedRows} assignment row${suggestedRows === 1 ? '' : 's'} for review.`;
-					const unresolvedNote = breakdown.unresolvedRows > 0 ? ` ${breakdown.unresolvedRows} row${breakdown.unresolvedRows === 1 ? '' : 's'} remain${breakdown.unresolvedRows === 1 ? 's' : ''} unresolved.` : ' 0 rows remain unresolved.';
+					const unresolvedNote = stillNeedRealTeacherNote(breakdown.substituteRows, breakdown.unresolvedRows);
 					return `${summary}${unresolvedNote}`;
 				})();
 	const specialProgramApprovalQueue = result?.specialProgramApprovalQueue ?? [];

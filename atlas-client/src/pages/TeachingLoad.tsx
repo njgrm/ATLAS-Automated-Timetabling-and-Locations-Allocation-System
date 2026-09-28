@@ -14,6 +14,7 @@ import {
 	resolveEffectiveLoadBaselineHours,
 } from '@/lib/faculty-assignment-helpers';
 import { COVERAGE_MODE_CONFIG, formatTeachingLoadSaveError, buildSectionsBySubject, transferExactSectionPair, buildSaveCommitReceipt } from '@/lib/teaching-load-helpers';
+import { appliedSuggestionMessage } from '@/lib/teaching-load-suggestion-presentation';
 import { TooltipProvider } from '@/ui/tooltip';
 import { createScopeEpoch, captureEpoch } from '@/lib/scope-request-epoch';
 import { useTeachingLoadData } from '@/hooks/useTeachingLoadData';
@@ -351,9 +352,9 @@ export default function TeachingLoad() {
 				suggestedAssignmentBreakdown: result.proposal.suggestedAssignmentBreakdown,
 			});
 			const unresolvedCount = (result.applyResult ?? displayResult).unresolved ?? 0;
-			const message = unresolvedCount > 0
-				? `Suggested Teaching Load applied with ${unresolvedCount} class row${unresolvedCount === 1 ? '' : 's'} still needing review.`
-				: 'Suggested Teaching Load applied. Review the saved load before creating the timetable.';
+			// `unresolved` on the apply result counts temporary-substitute rows,
+			// which are never saved: they are the classes still without a teacher.
+			const message = appliedSuggestionMessage(unresolvedCount);
 			setDraftStatusMessage(message);
 			setSuggestionProposalId(null);
 			toast.success(message, { id: toastId });
