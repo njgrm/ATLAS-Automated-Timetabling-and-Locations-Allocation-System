@@ -1392,3 +1392,28 @@ expect Guided mode to be gone.**
 **A5's `bf1a7913` is NOT in this train.** `origin/main` advanced twice during this cycle (A5 product work, then
 `c8983eb9`) and again to `cc3b7471`. A pinned release is never reopened because `main` moved (§14) — **A5 waits
 for train 6.**
+
+## 2026-09-29 01:00 — operator priority: controls that lift the scheduler's burden (Teaching Load + Timetable)
+
+Operator: "We need to put an emphasis on these controls both with teaching load and timetable, since what use is our
+system if we can't lessen the work of schedulers and take the mental and tedious burden from them?"
+Standing priority for A2 (timetable) and A6 (Teaching Load) until the demo: every change is judged by **how much thinking
+and clicking it removes** for a scheduler under pressure (e.g. a teacher shortage): the page states the problem in one
+line, offers the real choices with their trade-off, does the tedious part for them, and makes the result checkable at
+a glance. Inputs coming: A8 source audit (`docs/reviews/a8-tl-shortage-audit-2026-09-29.md`) + Codex staging shortage
+walk; Lane C merges both into the next A6/A2 packets.
+
+**A8 source audit landed (read-only, base `57a2be20`, 0 source change).** Confirms Lane C's "before 25 → after 25" from
+code: Teacher-X mode forces `unresolved = 0` (TLA:3116) while its `TEMPORARY_SUBSTITUTE` rows are stripped from the
+plan (TLA:2307-2315) and never saved, so generation emits one `TL_DEMAND_UNCOVERED` per pair. Three BLOCKERs for
+A6: the 40h mode ignores `maxHoursPerWeek` (TLA:671), the false "complete" headline, and no UI lever to create *and*
+qualify a placeholder — `POST /faculty-assignments/coverage/repair` has zero client callers.
+
+## 2026-09-29 02:00 — ALL LANES: loopback preview must proxy to STAGING (AGENTS §5)
+A5's `vite preview` on :5292 proxied to 127.0.0.1:5001 = LIVE (default `VITE_ATLAS_API`). Operator logged in and got
+"Failed to load subjects". Lane C restarted :5292 with `VITE_ATLAS_API=http://127.0.0.1:5101` (pid 36524) — A5, stop
+that pid when done. Every lane: start previews with `VITE_ATLAS_API=http://127.0.0.1:5101`.
+- 02:10 addendum: login on an ad-hoc port (e.g. :5292) cannot work — sign-in goes through EnrollPro and the staging server
+  only trusts `127.0.0.1:5274` and `localhost:5173` (CORS_EXTRA_ORIGINS/CLIENT_URL). Do NOT ask the operator to log in on
+  a loopback port. Rendered proof = your mocked-route Playwright capture on loopback; the signed-in look is checked by
+  Lane C on staging :5274 after A4 deploys the train.

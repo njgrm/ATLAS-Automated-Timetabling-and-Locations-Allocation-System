@@ -4654,3 +4654,17 @@ faculty_mirrors id 3 Melchora Aquino → SCI, id 20 Apolinario Mabini → SCI, i
 chosen from their faculty_subjects). Live AND staging. Backups: `D:/ATLAS-runtime-config/backups/faculty-dept-20260929/{live,staging}-before.json`
 (revert = set department NULL for those ids). **Not durable:** faculty sync (`faculty.service.ts` ~L604-647) copies
 EnrollPro's `department` (null) back on the next sync / rollover. Durable fix = EnrollPro sets their department, or A6 c5 item 2.
+
+## 2026-09-29 01:50 — department injection REVERTED (operator: they are not teachers)
+ids 3/20/33 department set back to NULL on live and staging (conditional on the injected value). Per
+`docs/reference/enrollpro-teaching-personnel-api-2026-09-29.md` they are non-teaching personnel fetched because ATLAS omits
+`?personnelType=TEACHING`; A9 fixes the fetch. Year 1 ownerships: 0. Years 8-10 hold 41 historical ownerships (kept).
+
+## 2026-09-29 02:25 — INCIDENT closed: bare test run wrote to LIVE DB (A9 QA)
+Cause: `D:/ATLAS/atlas-server/.env` DATABASE_URL pointed at the LIVE database (`atlas_recovery_clean_rebuild_20260905`);
+any bare `tsx --test` run from D:\ATLAS or a worktree junctioned to its node_modules used it. `enrollpro-rollover-automation.test.ts`
+created 5 `schools` rows "ROLLOVER-AUTOMATION DISPOSABLE PREMISE — SAFE TO DELETE" (ids 286,299,308,317,318, 2026-09-29
+01:58-02:04 +08); no child rows in any `school_id` table. Lane C deleted those 5 (backup
+`D:/ATLAS-runtime-config/backups/test-pollution-20260929/live-schools-before.json`) and repointed the dev `.env` to
+`atlas_staging` (backup `atlas-server-dotenv.before` there). Live and staging runtimes do not read that file (supervisor
+injects D:/ATLAS-runtime-config). Older residue kept: school 261 "C01R2 … Quarterly" (2026-09-12) on live and staging.
