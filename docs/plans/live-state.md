@@ -3916,3 +3916,67 @@ unchanged, 23–27 are c6's unchanged, **28–33 are new**. None is decidable fr
 **source-accepted only, not browser-accepted**. A3 does not deploy; the next c8 delta rides whatever release A2 ships
 next. Worktrees `lane-a3-c8-{token,reach,audit,integ}` `RETIRE_AFTER_INTEGRATION`, junction-safe; 4 branches preserved,
 none deleted.
+
+### A3 c10 — 2026-09-28 ~16:0x +08 — integrated `99200804`, **NOT deployed, NOT in the pinned release**
+
+`Live release` untouched. The deployment-pending target is **`4c35cc8f`** (A2 c12 / A4), which does **not** contain
+this cycle — `99200804` is **new source on `main` after that pin**, so nothing here ships until a later release names
+it. A3 does not deploy.
+
+**What landed.** 13 FIX items against the **original** criteria, 36 paths, 19 commits, one push `ebe6331c4..99200804`.
+Fifteen gates green on the merged tree, 0 failures. Typecheck 5 errors, all A2-owned, **base is also 5** (my c9 note
+saying "1 error" was one executor's wrong report; corrected in the handoff). **Zero `/timetable` file in the push** —
+A2's c11 fence held.
+
+**The cycle's actual finding is a grading defect, not a layout defect.** Re-baselining all 34 items against the
+ORIGINAL text showed **4 of the 11 rows I had marked `QA_PASSED` were never met at all**, because I graded each against
+my own narrowed rewrite: FIX-24 (I shortened two strings the original quotes verbatim), FIX-22 (I removed the uppercase
+the original asks for), FIX-15 (a popover is still a disclosure), FIX-26 (I passed an item on half of it). Full
+re-baseline with per-row verdicts and evidence paths:
+`docs/reviews/a3-c10-original-criteria-rebaseline-20260928.md`.
+
+**A premise correction that affects anyone re-reading the scorecard:** the live release `a1db27d5` is **103 commits
+behind `origin/main`**, so it never contained c9's one-row `/subjects` toolbar. "Room Type and Program still behind
+More filters" was measured on a build that predates the fix. Do not re-run that row expecting the old build.
+
+**Verification.** Fresh independent QA over `ebe6331c4..b3201d65`: `PLANNER_DECISION_REQUIRED`, **28/30, blocked 0,
+unperformed 2, zero BLOCKING**, nine findings all NON_BLOCKING. Three fixed on the tip: a docstring describing the
+opposite of its code, a **display value used as a sort key**, an assertion that could never fail. Two planner
+corrections on the tip: S5's `DELETE-ON-S4-MERGE` initials stand-in discharged (one convention, not two), and the new
+audit summary **converged** onto the `--warning` token rather than re-pinning the c8 raw-amber ratchet, so the gate
+holds at its pinned **68 files / 230 lines** with both literals untouched.
+
+**0 of the 13 are verified rendered.** jsdom does no layout; every claim is token and geometry arithmetic over
+committed constants. I deliberately did **not** manufacture a loopback screenshot — a fixture-data render at a different
+origin is explicitly not ATLAS acceptance, and an image that could be mistaken for one is the failure the rules name.
+**Reported UNPERFORMED, not closed.** Seven rendered groups are owed on `https://njgrm.buru-degree.ts.net` at
+1366×768, plus five exact live steps for the items Lane C could not perform (06, 08, 12, 20, 29) and the 08 decision
+gate restated in three lines. All in §4 of the re-baseline file; posted in `docs/handoffs/lane-a-to-c.md`.
+
+**BLOCKING (named, not open): 08 `Clear Selection` is a product decision the original forbids guessing** — "Codex must
+not implement both branches". Options A/B/C restated in §2.2 of the re-baseline. **20**'s save confirmation was never
+built and the original's own note flags it as conflicting with FIX-16's "less clicks" goal, so scoping it is also the
+operator's call.
+
+**Handoff to A2, verified still open at `ebe6331c4`:** FIX-22's audit list reaches Class Schedule cells, which are
+`/timetable` and A2's fence. `src/lib/timetable-reference-labels.ts:49-59` leaves `lastName` stored-cased, so cells
+read `C. Aguilar` beside `R. Alcantara`; `TimetableGrid.tsx:498` is the cell. A pinned test asserts the mixed case
+(`timetable-cell-info.test.ts:125-127`) and must be superseded additively. The helper already exists.
+
+**Dated backlog (none blocking):** the 11px ratchet's marker sweep stops at a directory boundary and would newly catch
+**22 pre-existing** sub-11px sites in the faculty surfaces (`TeacherGridMode.tsx:309`, `FacultyRow.tsx` ×8,
+`FacultyProfileSheet.tsx` ×13) — byte-identical base→tip, **not a regression**; the sweep's anti-vacuity pin is a floor
+so its reach can narrow silently; `sameSnapshot` overstates its guarantee; three test files are now large enough to
+hide a completeness claim (1856 / 1290 / 1273 lines).
+
+**A custody defect I caused and corrected, recorded rather than hidden.** I committed the lane post **directly on
+`main` in `D:\ATLAS`**, which §10.2 forbids, and because that local `main` had never been advanced past `ebe6331c4`
+the commit did not contain this cycle's work. Cherry-picked onto `integration/a3-c10-20260928` and pushed from there;
+`D:\ATLAS` restored to a clean `main` at `99200804` with the stray commit correctly orphaned. No product bytes were
+involved and nothing was lost, but the lesson is that the §14 fetch+ff step is load-bearing precisely when it is
+skipped.
+
+**Next action: A3 awaits nothing.** The 7 rendered groups belong to Lane C / A4 on the next release, and none is
+decidable from source. Worktrees `lane-a3-c10-{s1-sections,s3-tldensity,s4-teachers,s5-auditmodal,s6-subjects}` and
+`lane-a3-c10-s2-roomcards` (the dirty one, PRESERVE_FOR_DECISION) `RETIRE_AFTER_INTEGRATION`, junction-safe;
+`lane-a3-c10-s2b-roomcards` and `lane-a3-c10-integ` `KEEP_ACTIVE` until the rendered rows report. No branch deleted.
