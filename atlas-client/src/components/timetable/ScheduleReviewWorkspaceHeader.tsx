@@ -31,9 +31,12 @@ import type { EntryKindFilter, ProgramFilter } from '@/lib/schedule-review-helpe
 import { onProfilerRender } from '@/components/timetable/ScheduleReviewWorkspace';
 import { isDraftPublishedStrict } from '@/components/timetable/timetableWorkspaceTruth';
 // A2-C6-TRUTH (T3a): the run identity, shared with Simple view.
-import { describeRunState, RunIdentityLine, RunStateBadge } from '@/components/timetable/RunStateBadge';
+import { describeRunState, RunStateBadge } from '@/components/timetable/RunStateBadge';
 import { resolveExpertPublishGate, TimetableExpertPublishControl } from '@/components/timetable/TimetableExpertPublishControl';
-import { resolveDraftStripPublishPlan, TimetableDraftStateStrip } from '@/components/timetable/TimetableDraftStateStrip';
+import { resolveDraftStripPublishPlan } from '@/components/timetable/TimetableDraftStateStrip';
+import { SimpleHeaderOrientationRow } from '@/components/timetable/simple/SimpleHeaderStatusStrip';
+import { useRunChangeNotice } from '@/components/timetable/simple/SimpleHeaderChangeNoticeSlot';
+import { ExpertGenerationControl } from '@/components/timetable/ExpertGenerationControl';
 import { TimetableExpertDraftActions } from '@/components/timetable/TimetableDraftActionsSurface';
 import { ScheduleReviewInputStateBanner } from '@/components/timetable/ScheduleReviewInputStateBanner';
 import { TimetableAdvancedHeaderHelp } from '@/components/timetable/TimetableAdvancedHeaderHelp';
@@ -469,21 +472,28 @@ function ScheduleReviewWorkspaceHeaderImpl({ context, onEditDraft, onDiscardDraf
 	return (
 		<Profiler id="Header" onRender={onProfilerRender}>
 			<div className="shrink-0 border-b border-border bg-background">
-			<div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-b border-border/60 bg-muted/20 px-4 py-1.5 text-xs text-muted-foreground" data-testid="timetable-scheduler-orientation">
-				<span><span className="font-semibold text-foreground">Term:</span> {activeTermLabel ?? 'Term setup required'}</span>
-				<span><span className="font-semibold text-foreground">Scope:</span> {termFilter === 'all' ? 'All terms' : (termOptions.find((option) => option.value === String(termFilter))?.label ?? 'Selected term')}</span>
-				<RunIdentityLine isPreGeneration={isPreGenerationWorkspace} runId={runOnScreenId} isPublished={isRunPublished} className="text-xs text-muted-foreground" />
-				{/* C11 D, correction 2 (QA-B2) — the SAME persistent draft-state SENTENCE the
-				    Simple header renders, in the orientation row this header already has, so
-				    the two views of one run cannot disagree about whether it is a draft. The
-				    strip's three buttons were what took Simple from six visible controls to
-				    nine and put two publication controls on screen; the actions resolve onto
-				    controls this header already has — `Publish` is
-				    `TimetableExpertPublishControl` below, and Edit/Discard are in "More
-				    tools" beside them. */}
-				<TimetableDraftStateStrip visibility={runStateDescription.visibility} />
-				<span><span className="font-semibold text-foreground">Next:</span> {nextActionLabel}</span>
-			</div>
+			{/* C11 S2 (item 2) — the orientation row is extracted to
+			    `SimpleHeaderOrientationRow` because this file stood at 999 lines, two
+			    under the §8 cap, and the change notice had to be added to BOTH layouts.
+			    The same component carries the change notice, so the Expert and Simple
+			    layouts cannot drift onto two different banners. */}
+			<SimpleHeaderOrientationRow
+				activeTermLabel={activeTermLabel}
+				scopeLabel={termFilter === 'all' ? 'All terms' : (termOptions.find((option) => option.value === String(termFilter))?.label ?? 'Selected term')}
+				visibility={runStateDescription.visibility}
+				isPreGenerationWorkspace={isPreGenerationWorkspace}
+				runOnScreenId={runOnScreenId}
+				isPublished={isRunPublished}
+				nextActionLabel={nextActionLabel}
+				/* C11 S2 (item 1/2) — the change notice comes from the ONE shared gate,
+				 * so the Expert layout cannot drift onto a different banner (or, as it
+				 * did, onto no banner at all) and T3c's timing rule lives in one place. */
+				changeNotice={useRunChangeNotice({
+					context, capabilities, isPublished: isRunPublished,
+					generationEnabled: generationGate.enabled,
+					onRegenerate: context.handleTriggerGenerate,
+				}).node}
+			/>
 			<div className="flex items-center gap-2 overflow-x-auto scrollbar-thin px-4 pt-2 pb-1.5 [@media(max-height:500px)]:pt-1 [@media(max-height:500px)]:pb-1">
 				{/* U2/#51 — the appearance follows the RUN, and A2-C6-TRUTH (T3a) made
 				 * the renderer shared with Simple view, so the two views of one run
@@ -626,37 +636,15 @@ function ScheduleReviewWorkspaceHeaderImpl({ context, onEditDraft, onDiscardDraf
 					</DropdownMenuTrigger>
 					<DropdownMenuContent align="start" className="w-72 p-2">
 						<div className="grid gap-1" onClick={() => setMoreOpen(false)}>
-				<TooltipProvider>
-					<Tooltip>
-						<TooltipTrigger asChild>
-							{generationRepairHref ? (
-								<Button asChild variant="default" size="sm" className="h-8 gap-1.5" data-testid="timetable-advanced-generate-repair">
-									<Link to={generationRepairHref}>
-										<Wrench className="size-3.5" />
-										{generationRepairLabel}
-									</Link>
-								</Button>
-							) : (
-								<Button
-									variant="default"
-									size="sm"
-									className="h-8 gap-1.5"
-									disabled={!generationGate.enabled || loading}
-									onClick={handleGenerationTrigger}
-									data-testid="timetable-advanced-generate"
-								>
-									{generating ? <Loader2 className="size-3.5 animate-spin" /> : <Play className="size-3.5" />}
-									{generating ? 'Generating…' : 'Generate'}
-								</Button>
-							)}
-						</TooltipTrigger>
-						<TooltipContent>
-							{generationGate.enabled
-								? 'Trigger a new schedule generation run'
-								: (generationGate.reason ?? 'Generation is not available yet.')}
-						</TooltipContent>
-					</Tooltip>
-				</TooltipProvider>
+				<ExpertGenerationControl
+					repairHref={generationRepairHref}
+					repairLabel={generationRepairLabel}
+					enabled={generationGate.enabled}
+					blockedReason={generationGate.reason ?? 'Generation is not available yet.'}
+					generating={generating}
+					loading={loading}
+					onTrigger={handleGenerationTrigger}
+				/>
 
 				<TooltipProvider>
 					<Tooltip>

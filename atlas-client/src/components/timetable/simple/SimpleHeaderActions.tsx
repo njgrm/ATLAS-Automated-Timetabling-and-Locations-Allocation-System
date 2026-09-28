@@ -22,7 +22,6 @@ import { BUILD_NEW_DRAFT_LABEL, PUBLISHED_SCHEDULE_STAYS_IN_USE } from '@/lib/ti
 import { Button } from '@/ui/button';
 import { DropdownMenuItem, DropdownMenuLabel } from '@/ui/dropdown-menu';
 import type { SimpleLifecycleKind } from '@/lib/simple-timetable-state';
-import { PUBLISHED_GENERATE_LABEL } from '@/components/timetable/simple/SimpleHeaderHelpers';
 
 /* ------------------------------------------------------------------ *
  * Pure decisions
@@ -174,6 +173,30 @@ export function SimpleWarningsControl({
  * More → "Schedule actions"
  * ------------------------------------------------------------------ */
 
+/*
+ * C11 S2 (T3b) — ONE verb for this action, everywhere it is named.
+ *
+ * The recorded defect: the More row said "Generate" while the dialog that row
+ * opens says "Build a new draft". An older scheduler saw two names for one action
+ * and had to guess whether the second one was a different action.
+ *
+ * `PUBLISHED_GENERATE_LABEL` IS `BUILD_NEW_DRAFT_LABEL` (#56 collapsed the
+ * published branch onto it), so the remaining branch was the only one still saying
+ * "Generate" — and it was saying it in the state a scheduler spends most of their
+ * time in: a draft run, not yet published.
+ *
+ * The aria-label carried the same split ("Generate schedule" beside "Build a new
+ * draft"), which is worse than the visible text: the accessible name and the label
+ * the scheduler reads could differ for one control. Both now read the constant.
+ *
+ * Three source-regex rows pinned the old wording
+ * (`timetable-header-collapse-c01`, `ux-audit-findings-c01`,
+ * `schedule-clarity-c03`). They are marked superseded in place; the intent each
+ * encoded — a published run is never offered a destructive-sounding verb — is now
+ * carried by the single constant and asserted RENDERED on the real More menu in
+ * `a2-c11-s2-header-banners.test.tsx`.
+ */
+
 export type SimpleMoreScheduleActionsProps = {
 	onClose: () => void;
 	/** Download schedules — only once a generated run exists (unchanged). */
@@ -229,13 +252,13 @@ export function SimpleMoreScheduleActions({
 					className={cn('gap-2 text-xs', generate.disabled ? 'h-auto min-h-9 items-start py-1.5 data-[disabled]:opacity-100' : 'h-9')}
 					disabled={generate.disabled}
 					onSelect={(event) => { event.preventDefault(); onClose(); generate.onSelect(); }}
-					aria-label={generate.reason ? `${generate.published ? BUILD_NEW_DRAFT_LABEL : 'Generate schedule'} — ${generate.reason}` : undefined}
+					aria-label={generate.reason ? `${BUILD_NEW_DRAFT_LABEL} — ${generate.reason}` : undefined}
 					data-testid="timetable-more-generate"
 				>
 					<Play className={cn('size-3.5', generate.disabled && 'mt-0.5 text-muted-foreground')} aria-hidden="true" />
 					{generate.disabled && generate.reason ? (
 						<span className="flex flex-col">
-							<span className="text-muted-foreground">{generate.published ? PUBLISHED_GENERATE_LABEL : 'Generate'}</span>
+							<span className="text-muted-foreground">{BUILD_NEW_DRAFT_LABEL}</span>
 							<span className="text-xs text-muted-foreground" data-testid="timetable-more-generate-reason">{generate.reason}</span>
 						</span>
 					) : generate.published ? (
@@ -244,13 +267,13 @@ export function SimpleMoreScheduleActions({
 						 * That is the whole point of the rename: "New version" could be
 						 * read as editing the published one. */
 						<span className="flex flex-col">
-							<span>{PUBLISHED_GENERATE_LABEL}</span>
+							<span>{BUILD_NEW_DRAFT_LABEL}</span>
 							<span className="text-xs text-muted-foreground" data-testid="timetable-more-generate-published-note">
 								{PUBLISHED_SCHEDULE_STAYS_IN_USE}
 							</span>
 						</span>
 					) : (
-						<span>{generate.published ? PUBLISHED_GENERATE_LABEL : 'Generate'}</span>
+						<span>{BUILD_NEW_DRAFT_LABEL}</span>
 					)}
 				</DropdownMenuItem>
 			) : null}

@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ExternalLink, RotateCw, SearchCheck } from 'lucide-react';
+import { ExternalLink, SearchCheck } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
 import { Badge } from '@/ui/badge';
@@ -9,7 +9,11 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { RolloverGuidanceCard } from '@/components/runtime/RolloverGuidanceCard';
 import { SetupImpactDialog } from '@/components/timetable/ScheduleReviewWorkspaceDialogs';
 import { describeRunInputDrift, type RunInputDrift } from '@/components/timetable/timetableDriftRouting';
-import { formatCheckedAtAge } from '@/components/timetable/timetableWorkspaceTruth';
+import {
+	CHANGE_NOTICE_UNVERIFIED_SENTENCE,
+	changeNoticeSentence,
+	SimpleChangeNotice,
+} from '@/components/timetable/simple/SimpleChangeNotice';
 import type { TimetableCapabilities } from '@/lib/timetable-capabilities';
 import type { RolloverStatus } from '@/lib/settings';
 import type { DraftReport } from '@/types';
@@ -143,112 +147,71 @@ export function SimpleDriftBanner({
 	 * ("nothing is known to have changed") is the honest sentence for that; the
 	 * unverified note would restate the same fact in a second wording. */
 	const unverifiedNote = drift.status === 'STALE' && !driftClaimed ? drift.freshnessNote : null;
-	/* "Regenerate to apply" applies a drift. With no trustworthy drift there is
+	/* "Update schedule" applies a drift. With no trustworthy drift there is
 	 * nothing to apply, so the affordance is not mounted — the pre-existing
 	 * published/regenerating guards are unchanged. */
 	const showRegenerateAction = Boolean(onRegenerate) && !isPublished && showRunDrift && driftClaimed;
 	const regenerateDisabled = regenerating || loading || !regenerationEnabled || activeGeneratedRunId == null;
+	/* A2 C11 S2 (item 1) — the ONE sentence, derived once. A trustworthy, claimed
+	 * comparison NAMES the changed areas; an unproven one may not, so it keeps the
+	 * server's own honest note. `checkedAt` is deliberately NOT read here: a
+	 * relative age is not a fact about a schedule. */
+	const domainLabels = drift.domains.map((domain) => domain.label);
+	const changeSentence = driftClaimed
+		? changeNoticeSentence(domainLabels)
+		: unverifiedNote ?? CHANGE_NOTICE_UNVERIFIED_SENTENCE;
 
 	return (
 		<>
 			{showRunDrift ? (
-				/* J4.3/J4.4 — two different confidences must not share one alarm.
-				 * `UNKNOWN` (could not be checked) is now a calm neutral notice and a
-				 * confirmed `STALE` keeps the amber. J4.4 — the band no longer wraps a
-				 * reassurance in alarm styling when there is nothing actionable to do
-				 * yet: the "schedule stays unchanged" wording is a promise, and it is
-				 * now presented as one. Wording and colour both distinguish the two
-				 * cases, so the difference survives a monochrome or colour-blind read. */
+				<>
+			{/* A2 C11 S2 (item 1, Lane C's spec) — the row itself lives in
+				 * `SimpleChangeNotice`, so the Simple header, the Expert header and
+				 * the `/timetable/setup` strip cannot drift onto two different
+				 * banners. What stays HERE is what only this component knows: the
+				 * drift predicate, the published-run guard, and the per-domain repair
+				 * controls that belong to the setup strip.
+				 *
+				 * WHAT CHANGED, and why each part had to go:
+				 *  - the bold `Schedule information changed` TITLE is gone. It said
+				 *    the same thing as the sentence beside it, so the row read as two
+				 *    titles; the sentence now names WHAT changed instead.
+				 *  - the ` · checked 10s ago` tail is gone. A relative age is not a
+				 *    fact about the schedule and it moved every ten seconds.
+				 *  - the amber/red alarm styling is gone. Nothing is wrong yet: the
+				 *    run on screen is unchanged, and the change is a notice. The two
+				 *    surviving confidences still differ — by SENTENCE, which survives
+				 *    a monochrome read — so the #17/#59 distinction is intact.
+				 *  - the visible per-domain CHIPS are gone. They are the names, and
+				 *    the names are in the sentence now; at 390 px they were what
+				 *    squeezed the sentence into a one-word column. They remain in the
+				 *    DOM as `sr-only` text and in the detail dialog.
+				 *  - `Preview impact` + `Regenerate to apply` became ONE secondary
+				 *    (`See what changed`) and ONE primary (`Update schedule`), the
+				 *    primary being `variant="outline"` so DRAFT-UX-C01's single solid
+				 *    primary (`Publish schedule`) is not joined by a second. */}
+			<SimpleChangeNotice
+				sentence={changeSentence}
+				changedAreas={domainLabels}
+				layout={layout}
+				status={drift.status}
+				claimable={driftClaimed}
+				tone={alarming ? 'neutral' : 'calm-note'}
+				onShowDetail={() => setShowImpactPreview(true)}
+				onApply={showRegenerateAction ? () => setShowRegenerateImpact(true) : undefined}
+				applyDisabled={regenerateDisabled}
+				applyDisabledReason={regenerationEnabled ? null : 'Generation is not available'}
+			/>
+			{/* The per-domain REPAIRS stay exactly where they were — on the setup
+				 * strip, one click from the area they repair. They are deliberately
+				 * NOT on the header row: the header gets one sentence and one pair
+				 * of actions, and the setup pane is where the per-area repairs live. */}
+			{showActions ? (
 				<div
-					role="status"
-					data-testid="timetable-simple-input-drift"
-					data-drift-status={drift.status}
-					data-drift-claimable={driftClaimed ? 'true' : 'false'}
-					className={cn(
-						layout === 'inline'
-							? 'flex min-w-0 flex-wrap items-center gap-1.5 text-xs'
-							: 'flex min-h-8 flex-wrap items-center gap-1.5 border-b px-3 py-1 text-xs',
-						alarming ? 'border-amber-200 bg-amber-50 text-amber-900' : 'border-border bg-muted/40 text-muted-foreground',
-					)}
+					data-testid="timetable-simple-drift-repairs"
+					className="flex min-h-8 flex-wrap items-center gap-1.5 border-b px-3 py-1 text-xs"
 				>
-					<span className="shrink-0 font-semibold">
-						{alarming ? 'Schedule information changed' : 'Schedule information could not be checked'}
-					</span>
-					{/* Informational domain chips stay next to the actionable repair control. */}
-					{showActions ? drift.domains.map((domain) => (
-						<Badge key={domain.domain} variant="outline" className={cn(
-							'h-5 px-1.5 text-xs font-bold',
-							alarming ? 'border-amber-300 bg-white/70 text-amber-800' : 'border-border bg-background/70 text-muted-foreground',
-						)}>
-							{domain.label}
-						</Badge>
-					)) : null}
-					{/* A2-C6-TRUTH (T3e) — the message span is addressable on its own, so the
-					 * word-budget row measures the OPERATOR'S SENTENCE and not the whole
-					 * band. The band also carries a bold status label ("Schedule
-					 * information changed" / "Schedule information could not be checked")
-					 * and one chip per changed domain; counting those together with the
-					 * sentence would measure the banner, not the claim. Wording/attribute
-					 * only — no predicate, no visibility change. */}
-					<span data-testid="timetable-simple-drift-message" className={cn(
-						/* A2-DRIFT-BANNER-390 (item 5) — at 390x844 this band was one
-						 * wrapping flex row whose `shrink-0` action buttons and domain
-						 * chips left the message a near one-word column, so the
-						 * explanation and the actions competed for the same line.
-						 * `w-full basis-full` gives the message its own line below the
-						 * `sm` breakpoint and the parent `flex-wrap` moves the actions
-						 * onto the rows after it, so every label keeps its intrinsic
-						 * width and stays readable and tappable. `sm:w-auto sm:flex-1`
-						 * restores the existing inline share from `sm` up, so no larger
-						 * viewport moves. This is the same idiom the neighbouring Simple
-						 * filter row already uses (`SimpleFilterControls.tsx`).
-						 *
-						 * `sm:basis-auto` is deliberately absent: `cn()` is `twMerge`,
-						 * and `sm:flex-1` also sets `flex-basis`, so twMerge drops a
-						 * `sm:basis-auto` written before it. `sm:flex-1` alone is exactly
-						 * this element's pre-change `flex-1`, which is what `sm:w-auto`
-						 * pairs with, so nothing is lost and nothing is silently
-						 * reordered. No overflow container is added, so the no-scroll
-						 * architecture is untouched. */
-						'min-w-0 w-full basis-full break-words whitespace-normal sm:w-auto sm:flex-1',
-						alarming ? 'text-amber-800' : 'text-muted-foreground',
-					)}>
-					{/* A2-C6-TRUTH (T3e) — 7 and 8 words, not 21 and 25.
-					 *
-					 * The measured banner on run 321 carried a 21-word alarm plus a
-					 * `checked Nm ago` tail, and the calm copy 25; an older reader got
-					 * three clauses of subordination before the one fact.
-					 *
-					 * WORDING ONLY. `alarming`, `driftClaimed`, `unverifiedNote` and
-					 * `showRegenerateAction` are untouched, so #17/#59 semantics are
-					 * unchanged: a genuine stale comparison still alarms, and the calm
-					 * branch still says nothing is known rather than claiming a check
-					 * that never ran. The "this schedule is unchanged" reassurance that
-					 * DRAFT-UX-C01 added is KEPT in both branches — it is a truthful
-					 * promise, and dropping it to save four words would have been
-					 * another small loss of meaning.
-					 *
-					 * A2-C7 budget correction (item 5, "a truthful drift banner of 12
-					 * words or fewer"). The 10-word alarm plus its ` · checked 0s ago`
-					 * tail measured 14 in the rendered span, over the line under the
-					 * strictest reading — count the whole visible claim, not the
-					 * sentence alone. Both branches are now 7 and 8, so the span reads
-					 * 11 alarming (with the age) and 8 calm (the calm branch carries no
-					 * `checkedAt`, so it has no tail to add). "until you rebuild" is
-					 * the four words given up: the alarming branch always renders the
-					 * adjacent `Regenerate to apply` control, so the action is stated
-					 * by a button rather than by a subordinate clause.
-					 *
-					 * The `unverifiedNote` case is the server's own sentence and is
-					 * passed through as-is rather than reworded here. */}
-					{alarming
-						? 'School information changed. This schedule is unchanged.'
-						: unverifiedNote ?? 'Could not check school information. This schedule is unchanged.'}
-						{/* The age is only stated when the comparison carries a time, which is
-						    exactly when `deriveRunFreshness` could tie it to this run. */}
-						{formatCheckedAtAge(drift.checkedAt) ? ` · ${formatCheckedAtAge(drift.checkedAt)}` : ''}
-					</span>
-					{showActions ? (isPublished ? (
+				{isPublished ? (
 					<>
 						<span
 							className="shrink-0 rounded border border-amber-300 bg-white/70 px-2 py-0.5 font-semibold text-amber-900"
@@ -313,45 +276,15 @@ export function SimpleDriftBanner({
 							</Link>
 						</Button>
 					) : null}
-					<Button type="button" variant="outline" size="sm" className="h-7 shrink-0 gap-1 px-2 text-xs" onClick={() => setShowImpactPreview(true)} data-testid="timetable-simple-impact-preview">
+					<Button type="button" variant="outline" size="sm" className="h-7 shrink-0 gap-1 px-2 text-xs" onClick={() => setShowImpactPreview(true)} data-testid="timetable-simple-repair-preview-impact">
 						<SearchCheck className="size-3" />
 						Preview impact
 					</Button>
 					</>
-					)) : null}
-					{/* D5 — the explicit regeneration affordance. It is mounted whenever a
-					    caller can regenerate and the run is not published, so the operator
-					    has one honest way to apply policy / availability / derived-demand
-					    changes without a silent automatic rebuild. */}
-					{showRegenerateAction ? (
-						<>
-							<Button
-								type="button"
-								variant="outline"
-								size="sm"
-								className="h-7 shrink-0 gap-1 px-2 text-xs"
-								onClick={() => setShowRegenerateImpact(true)}
-								data-testid="timetable-simple-regenerate-impact"
-							>
-								<SearchCheck className="size-3" />
-								Preview impact
-							</Button>
-							<Button
-								type="button"
-								variant="default"
-								size="sm"
-								className="h-7 shrink-0 gap-1 px-2 text-xs font-semibold"
-								onClick={() => setShowRegenerateImpact(true)}
-								disabled={regenerateDisabled}
-								aria-label={!regenerationEnabled ? 'Regenerate to apply — generation is not available' : 'Regenerate to apply'}
-								data-testid="timetable-simple-regenerate-to-apply"
-							>
-								<RotateCw className="size-3" />
-								Regenerate to apply
-							</Button>
-						</>
-					) : null}
+					)}
 				</div>
+			) : null}
+				</>
 			) : null}
 			{showRolloverGuidance ? (
 				<RolloverGuidanceCard compact schoolId={schoolId} onApplied={() => onRefresh()} onStatus={onRolloverStatus} />
@@ -401,10 +334,10 @@ function RegenerateImpactDialog({
 		<Dialog open={open} onOpenChange={onOpenChange}>
 			<DialogContent className="sm:max-w-md" data-testid="timetable-simple-regenerate-impact-dialog">
 				<DialogHeader>
-					<DialogTitle>Regenerate to apply setup changes</DialogTitle>
+					<DialogTitle>Update this schedule</DialogTitle>
 					<DialogDescription>
 						{status === 'STALE'
-							? 'Nothing has changed yet. ATLAS rebuilds this draft only when you choose Regenerate to apply.'
+							? 'Nothing has changed yet. ATLAS rebuilds this draft only when you choose Update schedule.'
 							: 'ATLAS could not prove this draft matches current setup. Regenerate to rebuild it against the latest data.'}
 					</DialogDescription>
 				</DialogHeader>
@@ -438,7 +371,7 @@ function RegenerateImpactDialog({
 						disabled={!generationEnabled}
 						data-testid="timetable-simple-regenerate-confirm"
 					>
-						Regenerate to apply
+						Update schedule
 					</Button>
 				</DialogFooter>
 			</DialogContent>

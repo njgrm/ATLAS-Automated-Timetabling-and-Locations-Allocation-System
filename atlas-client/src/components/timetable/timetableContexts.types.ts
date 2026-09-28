@@ -312,6 +312,19 @@ export type ScheduleReviewDialogsContext = {
 	 * pre-existing behaviour rather than to a blank.
 	 */
 	editHistoryReadState?: EditHistoryReadState;
+	/**
+	 * C11 S2 (T2) — the class NAME behind a recorded `entryId`, or `null`.
+	 *
+	 * A committed swap's payload records `entryIdA` / `entryIdB` and no section id,
+	 * so the ledger row that reports a corrective auto-fix can only name the class
+	 * the operator lost from a cell if the workspace resolves the entry. The
+	 * workspace holds the run's entries and the section label map; this dialog did
+	 * not, which is why the row said "Class A" — a dialog handle, not a class.
+	 *
+	 * Optional and fail-closed: an absent or `null`-returning resolver makes the row
+	 * fall back to the pre-existing un-named sentence rather than invent a name.
+	 */
+	editHistoryEntryClassName?: (entryId: string) => string | null;
 	/** R4 — operation-bound undo used by the per-row history revert affordance. */
 	revertEditById: (operationId: number, expectedVersion: number) => Promise<boolean>;
 	revertLoading: boolean;
