@@ -8,6 +8,15 @@
  * The banner is the ONE visible signal that a two-class swap is half-armed, and it
  * is also one of the two surfaces whose Cancel must run the single reset
  * (`timetableSwapArming.resetSwapClassTimes`). Its own wording is unchanged.
+ *
+ * A2 C12 / ITEM H — `shrink-0` is new, and it is a consequence of the MOVE rather
+ * than a redesign. The banner used to be a child of the `shrink-0` `<header>`, so
+ * it could never be compressed. It is now a sibling of that header in the
+ * workspace's own `flex flex-col h-[calc(100svh-3.5rem)]` column, where a
+ * shrinkable sibling CAN be compressed by vertical pressure. `shrink-0` restores
+ * exactly the behaviour it had inside the header, so an armed swap stays visible.
+ * Nothing else about the banner changed: same words, same testids, same
+ * `role="status"`, same single-reset Cancel.
  */
 import { Button } from '@/ui/button';
 
@@ -23,7 +32,7 @@ export function TimetableSwapClassTimesBanner({
 			role="status"
 			aria-live="polite"
 			data-testid="timetable-swap-class-times-banner"
-			className="border-b border-blue-200 bg-blue-50/80 px-3 py-2 text-sm"
+			className="shrink-0 border-b border-blue-200 bg-blue-50/80 px-3 py-2 text-sm"
 		>
 			<div className="flex items-center justify-between gap-2">
 				<p className="min-w-0 truncate">

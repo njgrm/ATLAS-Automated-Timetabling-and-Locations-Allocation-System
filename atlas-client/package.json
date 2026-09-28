@@ -48,6 +48,7 @@
     "test:a3-c4-tl-truth": "node --experimental-test-module-mocks --import tsx --test src/components/faculty-assignments/__tests__/a3-c4-draft-truth.test.tsx",
     "test:timetable-lifecycle-loading": "node --experimental-test-module-mocks --import tsx --test src/components/timetable/__tests__/timetable-lifecycle-loading-render-c03.test.tsx",
     "test:ux-a2-c12-310fix": "node --experimental-test-module-mocks --import tsx --test src/components/timetable/__tests__/a2-c12-s2-310fix.test.tsx",
+    "test:ux-a2-c12-header-rows": "tsx --max-old-space-size=6144 --test src/components/timetable/__tests__/a2-c12-header-two-rows.test.tsx",
     "test:timetable-scheduling-quality-c03": "tsx --test src/components/timetable/__tests__/timetable-scheduling-quality-c03.test.tsx",
     "test:retired-faculty-portal": "tsx --test src/lib/__tests__/retired-faculty-portal-custody.test.tsx",
     "test:notification-inbox": "tsx --test src/__tests__/notification-inbox.test.ts",

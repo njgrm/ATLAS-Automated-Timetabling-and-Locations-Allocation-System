@@ -55,7 +55,10 @@ import { SimpleTermSwitcher } from '@/components/timetable/simple/SimpleBenefici
 // A2-C6-TRUTH (T3a/T3b/T3c/T3f): the shared run identity, the one term line, and
 // the capped status region.
 import { resolveDraftStripProps, resolveDraftStripPublishPlan } from '@/components/timetable/TimetableDraftStateStrip';
-import { TimetableSwapClassTimesBanner } from '@/components/timetable/TimetableSwapClassTimesBanner';
+// A2 C12 / ITEM H — the armed-swap band and the generation-blocker sheet now
+// render as SIBLINGS of the `<header>` element, not as children of it. The banner
+// is still rendered, unchanged, whenever a swap is armed.
+import { SimpleHeaderTrailingSurfaces } from '@/components/timetable/simple/SimpleHeaderTrailingSurfaces';
 import { buildSimpleHeaderMessages } from '@/components/timetable/simple/SimpleHeaderMessages';
 import { SimpleHeaderStatusStrip } from '@/components/timetable/simple/SimpleHeaderStatusStrip';
 import {
@@ -68,7 +71,6 @@ import {
 	SimpleWarningsControl,
 } from '@/components/timetable/simple/SimpleHeaderActions';
 import { resolveSimpleDraftMenuActions } from '@/components/timetable/TimetableDraftActionsSurface';
-import { SimpleGenerationBlockerSheet } from '@/components/timetable/simple/SimpleGenerationBlockerSheet';
 import { useRunChangeNotice } from '@/components/timetable/simple/SimpleHeaderChangeNoticeSlot';
 import { SimpleMoreMenuContent, SimpleMoreScrollRegion } from '@/components/timetable/simple/SimpleMoreMenuContent';
 import { resolveTermAuthorityNotice } from '@/hooks/useTimetableData';
@@ -681,7 +683,32 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 		context.setPresentationMode('workflow');
 	};
 
+	/* ── A2 C12 / ITEM H — the header BOX is the two rows and nothing else ─────
+	 *
+	 * Lane C measured this header in a real browser at 1366×768 in the operator's
+	 * own state (a resolved run, 3 must-fix, 145 advisories, term authority
+	 * unverified) and found SEVEN text bands / 204 px, against an accepted target
+	 * of at most TWO rows. The structural work was already done (`SimpleHeaderStatusStrip`
+	 * plus one control row in `timetable-simple-header-row`); the surplus came from
+	 * two surfaces still rendered INSIDE the `<header>` element.
+	 *
+	 * THE OPERATOR'S INSTRUCTION, verbatim: "move blocker sheet and swap banner out
+	 * of the header box". `SimpleHeaderTrailingSurfaces` below now renders both,
+	 * immediately after `</header>`, as siblings. Its doc comment is the record of
+	 * what moved, what deliberately did not, which band Lane C called the "blocker
+	 * line", and why a JSDOM row is DOM-shape rather than a 1366×768 pixel count.
+	 *
+	 * It is a sub-component rather than an in-file move because this file stood at
+	 * 971 physical lines and the move leaves it at 993 — under the §8 1000-line cap,
+	 * but with nine lines of headroom, and a record this size does not belong in
+	 * those last nine. §8's answer is to EXTRACT, never to delete a comment. NO state
+	 * and NO handler moved: `blockerSheetOpen`, `setBlockerSheetOpen`,
+	 * `swapClassTimesMode` and `onSwapClassTimesCancel` stay here, so this component
+	 * remains the logical owner of both surfaces and only their JSX position
+	 * changed. The fragment wrapper is what makes them siblings of the `<header>`
+	 * rather than children. */
 	return (
+		<>
 		<header className="shrink-0 border-b border-border bg-background" data-testid="timetable-simple-header">
 			{/* DRAFT-UX-C01 — one status region (drift / term / failure / setup notices)
 			    and one action row: Term · View · picker · warnings · primary · More.
@@ -901,20 +928,6 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 			    inline trigger so the header keeps one action row. */}
 			<SimpleTutorialControl triggerless open={tutorialOpen} onOpenChange={setTutorialOpen} lifecycle={capabilities.lifecycle} />
 
-		{/* C2-a — the real blocker list, with a real repair for every row. It
-		    renders in a portal, so the header keeps its six-control cap and its
-		    exactly-one-solid-primary contract, and the entry point is the
-		    EXISTING merged warnings control (which is disabled in this state
-		    without it) rather than a new seventh control. */}
-		<SimpleGenerationBlockerSheet
-			open={blockerSheetOpen}
-			onOpenChange={setBlockerSheetOpen}
-			diagnostic={context.curriculumReadiness?.state === 'blocked' ? context.curriculumReadiness.diagnostic : null}
-			onRetry={context.handleRefresh}
-			labelForSection={context.sectionLabel}
-			labelForSubject={context.subjectLabel}
-		/>
-
 			<SimplePublishReadinessSheet
 				open={readinessSheetOpen}
 				onOpenChange={setReadinessSheetOpen}
@@ -950,14 +963,23 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 				});
 			}}
 			/>
-			{/* C11 M4 — extracted to `TimetableSwapClassTimesBanner.tsx`: this file
-			    reached the 1000-line cap (AGENTS.md §8) taking the draft strip, and the
-			    banner is one of the two surfaces whose Cancel runs the single swap
-			    reset. Wording and testids are unchanged. */}
-			{swapClassTimesMode != null ? (
-				<TimetableSwapClassTimesBanner mode={swapClassTimesMode} onCancel={() => onSwapClassTimesCancel?.()} />
-			) : null}
 		</header>
+		{/* A2 C12 / ITEM H — out of the header box. See
+		    `simple/SimpleHeaderTrailingSurfaces.tsx` for the full record: what
+		    moved, what did not, and which band Lane C called the "blocker line".
+		    The armed-swap band PAINTS, so it is the first of the two; the blocker
+		    sheet is portal-mounted and paints nothing while closed. */}
+		<SimpleHeaderTrailingSurfaces
+			swapClassTimesMode={swapClassTimesMode}
+			onSwapClassTimesCancel={onSwapClassTimesCancel}
+			blockerSheetOpen={blockerSheetOpen}
+			onBlockerSheetOpenChange={setBlockerSheetOpen}
+			diagnostic={context.curriculumReadiness?.state === 'blocked' ? context.curriculumReadiness.diagnostic : null}
+			onRetry={context.handleRefresh}
+			labelForSection={context.sectionLabel}
+			labelForSubject={context.subjectLabel}
+		/>
+		</>
 	);
 }
 
