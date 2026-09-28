@@ -27,7 +27,7 @@ import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import { DialogClose, DialogFooter } from '@/ui/dialog';
 import { cn } from '@/lib/utils';
-import { formatTeacherWorkloadInitials } from './facultyInitials';
+import { formatFacultyInitials } from '@/components/faculty/teacherNameDisplay';
 import { TeacherLoadReadout } from './TeacherLoadReadout';
 import {
 	TEACHER_WORKLOAD_AUDIT_FILTERS,
@@ -150,7 +150,7 @@ export function TeacherWorkloadAuditSummary({ onSelectTeacher }: { onSelectTeach
 										aria-hidden="true"
 										className="flex size-8 shrink-0 items-center justify-center rounded-full border border-primary/20 bg-primary/10 text-xs font-semibold text-primary"
 									>
-										{formatTeacherWorkloadInitials({ firstName: row.firstName, lastName: row.lastName })}
+										{formatFacultyInitials({ firstName: row.firstName, lastName: row.lastName })}
 									</span>
 									<span className="min-w-0 flex-1">
 										<span className="flex items-center gap-2">

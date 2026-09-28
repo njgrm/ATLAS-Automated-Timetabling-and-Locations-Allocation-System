@@ -17,7 +17,7 @@ import { cn } from '@/lib/utils';
 import type { FacultySummary, LoadProfile, RotationFamilyTermBreakdown } from '@/types';
 import { GradeBadge } from '@/components/faculty-assignments/GradeBadge';
 import { formatFacultyDisplayName } from '@/components/faculty/teacherNameDisplay';
-import { formatTeacherWorkloadInitials } from '@/components/faculty-assignments/facultyInitials';
+import { formatFacultyInitials } from '@/components/faculty/teacherNameDisplay';
 import { BELOW_STANDARD_LABEL } from '@/lib/teaching-load-labels';
 import { StackedWorkloadBar } from './StackedWorkloadBar';
 
@@ -93,7 +93,7 @@ export function WorkloadInspector({
 					<h3 className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground/60">Teacher Workload</h3>
 					<div className="flex items-center gap-4">
 					<div className="size-12 rounded-full bg-primary/10 flex items-center justify-center text-lg font-semibold text-primary border border-primary/20">
-						{formatTeacherWorkloadInitials(selected)}
+						{formatFacultyInitials(selected)}
 					</div>
 						<div className="min-w-0">
 							{/* Fix 22: one casing convention. The stored first/last name is
@@ -150,7 +150,7 @@ export function WorkloadInspector({
 
 				<div className="flex items-center gap-4">
 					<div className="size-12 rounded-full bg-primary/10 flex items-center justify-center text-lg font-semibold text-primary border border-primary/20 relative">
-					{formatTeacherWorkloadInitials(selected)}
+					{formatFacultyInitials(selected)}
 					{selected.isClassAdviser && (
 							<div className="absolute -bottom-1 -right-1 size-5 rounded-full bg-amber-100 border border-amber-200 flex items-center justify-center shadow-sm">
 								<Star className="size-3 text-amber-600 fill-amber-600" />

@@ -90,7 +90,13 @@ const audit = await optional<any>('@/components/faculty-assignments/teacherWorkl
 const summary = await optional<any>('@/components/faculty-assignments/TeacherWorkloadAuditSummary');
 const modal = await optional<any>('@/components/faculty-assignments/ReviewTeachersModal');
 const inspector = await optional<any>('@/components/faculty-assignments/WorkloadInspector');
-const initials = await optional<any>('@/components/faculty-assignments/facultyInitials');
+// A3-C10 planner correction: S5 shipped a TEMPORARY local helper here with an
+// explicit DELETE-ON-S4-MERGE note, because S4's canonical helper was unmerged
+// parallel work at the time. S4 has now merged, so the record in that file's own
+// header is discharged: there is exactly ONE avatar-initials convention, S4's
+// ormatFacultyInitials in @/components/faculty/teacherNameDisplay. The rows
+// below are repointed at it; the assertions themselves are unchanged.
+const initials = await optional<any>('@/components/faculty/teacherNameDisplay');
 const canonical = await optional<any>('@/lib/faculty-assignment-helpers');
 
 const clientRoot = resolve(import.meta.dirname, '../../../..');
@@ -516,16 +522,17 @@ test('S5-12 focus returns to the `Review teachers` trigger after the dialog clos
 
 /* ── S5-10 the avatar-initials fix ────────────────────────────────────── */
 
-test('S5-10 WorkloadInspector renders initials through the shared local helper, not inline indexing', () => {
+test('S5-10 WorkloadInspector renders initials through the ONE shared helper, not inline indexing', () => {
 	assert.equal(inspector.module === null, false, `WorkloadInspector must exist: ${inspector.error}`);
-	assert.equal(initials.module === null, false, `facultyInitials must exist: ${initials.error}`);
-	const { formatTeacherWorkloadInitials } = initials.module;
+	assert.equal(initials.module === null, false, `the shared teacherNameDisplay module must exist: ${initials.error}`);
+	const { formatFacultyInitials: sharedInitials } = initials.module;
+	assert.equal(typeof sharedInitials, 'function', 'the one canonical helper must be exported');
 
 	// Behaviour: the helper is total, where `{firstName[0]}{lastName[0]}` was not.
-	assert.equal(formatTeacherWorkloadInitials({ firstName: 'Maria', lastName: 'Dela Cruz' }), 'MD');
-	assert.equal(formatTeacherWorkloadInitials({ firstName: '  ', lastName: 'Lim' }), 'L', 'a blank given name contributes nothing');
-	assert.equal(formatTeacherWorkloadInitials({ firstName: 'ma. Ana', lastName: 'reyes' }), 'MR', 'the real first character of each word, uppercased');
-	assert.equal(formatTeacherWorkloadInitials(null), '');
+	assert.equal(sharedInitials({ firstName: 'Maria', lastName: 'Dela Cruz' }), 'MD');
+	assert.equal(sharedInitials({ firstName: '  ', lastName: 'Lim' }), 'L', 'a blank given name contributes nothing');
+	assert.equal(sharedInitials({ firstName: 'ma. Ana', lastName: 'reyes' }), 'MR', 'the real first character of each word, uppercased');
+	assert.equal(sharedInitials(null), '');
 
 	// Rendered: the inspector shows the helper's output.
 	render(createElement(inspector.module.WorkloadInspector, {
@@ -553,8 +560,8 @@ test('S5-11 SOURCE GUARD: the inline initials pattern is gone and the summary is
 		/\{selected\.firstName\[0\]\}\{selected\.lastName\[0\]\}/,
 		'WorkloadInspector must not render initials by inline indexing',
 	);
-	assert.match(inspectorSource, /formatTeacherWorkloadInitials\(selected\)/,
-		'WorkloadInspector must use the one shared helper');
+	assert.match(inspectorSource, /formatFacultyInitials\(selected\)/,
+		'WorkloadInspector must use the one shared helper (faculty/teacherNameDisplay)');
 
 	// The roster row and the audit row must not be a second convention: with a
 	// helper in the fence, the inline pattern must be gone from every surface
@@ -562,8 +569,8 @@ test('S5-11 SOURCE GUARD: the inline initials pattern is gone and the summary is
 	const gridSource = read('src/components/faculty-assignments/TeacherGridMode.tsx');
 	assert.doesNotMatch(gridSource, /firstName\?\.\[0\]/,
 		'TeacherGridMode must not render roster avatars by inline indexing');
-	assert.match(gridSource, /formatTeacherWorkloadInitials\(member\)/,
-		'TeacherGridMode must use the same helper as the inspector and the summary');
+	assert.match(gridSource, /formatFacultyInitials\(member\)/,
+		'TeacherGridMode must use the same canonical helper as the inspector and the summary');
 
 	const modalSource = read('src/components/faculty-assignments/ReviewTeachersModal.tsx');	assert.match(modalSource, /overflow-hidden/, 'the dialog body must not scroll as a whole page');
 	assert.match(modalSource, /min-h-0 flex-1 overflow-y-auto/,

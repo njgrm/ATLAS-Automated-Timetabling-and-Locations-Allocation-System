@@ -31,6 +31,7 @@
  */
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
+import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { after, afterEach, test } from 'node:test';
@@ -80,6 +81,28 @@ type RoomOption = import('../SectionRoomPicker').RoomOption;
 
 const clientRoot = resolve(import.meta.dirname, '../../../..');
 const source = (relative: string) => readFileSync(resolve(clientRoot, relative), 'utf8');
+
+/**
+ * The bytes as COMMITTED, not as checked out.
+ *
+ * A3-C10 planner correction: the LF row below originally read the WORKING TREE,
+ * which `core.autocrlf=true` checks out as CRLF on every fresh clone and every
+ * fresh `git worktree add` — including any integration boundary. It therefore
+ * passed only in the one worktree whose checkout the author had not refreshed,
+ * and failed on the merged integration tree while the committed blob it claimed
+ * to be checking was in fact LF (measured: 0 CR bytes, same as the base blob).
+ * A control that reports the checkout filter instead of the change is not
+ * evidence, so this row now reads the committed bytes it names.
+ */
+const committedBlob = (relative: string): string => {
+	const repoPath = relative.replace(/^src\//, 'atlas-client/src/');
+	const out = execFileSync('git', ['cat-file', '-p', `HEAD:${repoPath}`], {
+		cwd: resolve(clientRoot, '..'),
+		encoding: 'utf8',
+		maxBuffer: 32 * 1024 * 1024,
+	});
+	return out;
+};
 
 /* ═══════════════ the deterministic text-stack model (no layout engine) ═══════════════ */
 
@@ -583,10 +606,15 @@ test('a3 c10 control: the picker introduces no global browser scrollbar and no r
 	assert.doesNotMatch(src, /document\.body\.style\.overflow/, 'the component must not manipulate body overflow');
 });
 
-/** Recorded so the handoff can cite the exact bytes the failing-first run used. */
+/** Recorded so the handoff can cite the exact bytes the failing-first run used.
+ *
+ * A3-C10 planner correction: this asserts the COMMITTED blob, not the checkout.
+ * It read the working tree before, and core.autocrlf=true checks that out as
+ * CRLF in every fresh worktree, so it failed on the integration tree while the blob
+ * it named was LF. See committedBlob() above. */
 test('a3 c10 control: the file under test is the committed one, LF-normalised', () => {
-	const src = source('src/components/sections/SectionRoomPicker.tsx');
-	assert.equal(src.includes('\r\n'), false, 'the component must stay LF, as the committed blob is');
+	const src = committedBlob('src/components/sections/SectionRoomPicker.tsx');
+	assert.equal(src.includes('\r\n'), false, 'the committed component blob must be LF');
 	assert.ok(src.length > 0);
 	// A cheap, stable anchor for the handoff's SHA-256 line.
 	assert.equal(typeof createHash('sha256').update(src).digest('hex'), 'string');

@@ -29,7 +29,7 @@ import { SubjectRow } from './SubjectRow';
 import { TeacherLoadReadout } from './TeacherLoadReadout';
 import { TeachingLoadFilterBar } from './TeachingLoadFilterBar';
 import { formatFacultyDisplayName } from '@/components/faculty/teacherNameDisplay';
-import { formatTeacherWorkloadInitials } from '@/components/faculty-assignments/facultyInitials';
+import { formatFacultyInitials } from '@/components/faculty/teacherNameDisplay';
 import { countDistinctSections } from '@/lib/teaching-load-counts';
 import {
 	buildTeacherWorkloadAuditSnapshot,
@@ -354,11 +354,15 @@ export function TeacherGridMode({
 													onClick={() => handleTeacherClick(member.id)}
 												>
 													<div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary border border-primary/10">
-														{/* Same helper as `WorkloadInspector` and the audit rows. The
-								    inline `[0]` indexing this replaces read as empty text for a
-								    blank given name; the helper is total. See
-								    `facultyInitials.ts` for why it is local for now. */}
-												{formatTeacherWorkloadInitials(member)}
+														{/* The ONE canonical helper, `formatFacultyInitials` in
+								    `@/components/faculty/teacherNameDisplay` — the same one
+								    `WorkloadInspector`, the audit rows and the Teachers roster
+								    use. The inline `[0]` indexing this replaces read as empty
+								    text for a blank given name; the helper is total. A local
+								    stand-in briefly lived here with a DELETE-ON-MERGE note and
+								    was discharged on merge: two conventions for one avatar is
+								    the defect Fix 22's audit row exists to prevent. */}
+												{formatFacultyInitials(member)}
 													</div>
 													
 													{/* Name + department: always visible, never collapsed behind initials */}
