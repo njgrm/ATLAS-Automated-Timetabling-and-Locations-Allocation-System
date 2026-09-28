@@ -1309,3 +1309,14 @@ worktree `lane-a2-c12-s2fix`) grew to **15.3 GB** and took the PC to 54.2/54.4 G
 in the past-year view or its test harness (e.g. a state set during render, an effect whose dependency is a fresh object
 each render, or a fail-closed branch that re-requests). Find and fix the loop; the test must finish in seconds with
 bounded memory. A Lane C memory guard now kills any node test process over 4 GB — if yours is killed, that is this bug.
+
+## 2026-09-29 00:10 — Lane C: header regression + control consistency (operator, screenshot)
+
+Operator verdict on live `/timetable` (Active year 2022-2023): the header "has regressed … messy"; wants a relaxed, less-is-more header. Same for the Teaching Load header: "compaction to less vertical rows is not graceful nor practical". Subject dropdowns look different from the Section and Teacher dropdowns. New AGENTS.md §8 rules: **One look per control** and **Header budget** — read them before touching any header.
+
+Defects seen on `/timetable` at 1366 wide: helper sentences under Edit draft / Discard draft; `Term: Viewi…` and `school is i…` truncated; the 468-items sentence truncated; `No schedule yet` and `No 2022-2023 timetable yet` both shown; disabled Undo/Redo/History on a year with no schedule.
+
+Routing:
+- **A2** (after the past-year view lands, same train if possible): `/timetable` header to the Header budget — row 1 title/tabs/one status chip/Generate/More, row 2 Term/Show/Schedule for; `468 setup items to fix` as one link; no truncation; hide idle draft/undo/history. Rendered proof at 1366x768 and 1920x1080 on a no-schedule year and a draft year.
+- **A6** (after c3 Guided-mode removal): Teaching Load header to the same budget — undo the row-squeeze; calm two rows.
+- **A5** (next run): control-consistency sweep — every Section/Teacher/Subject/Room/Term picker across Timetable, Teaching Load, Subjects, Sections, Faculty uses the same `@/ui` picker and variant; add a vitest guard that fails on a picker built outside it or with look-changing overrides. Report a before/after table of each page's pickers.
