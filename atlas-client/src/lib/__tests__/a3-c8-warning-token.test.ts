@@ -310,7 +310,7 @@ test('CONTROL: the grade exemption is load-bearing, not a hole in the detector',
 	);
 });
 
-test('repo-wide remaining raw amber/yellow count is pinned at 68 files / 232 lines', () => {
+test('repo-wide remaining raw amber/yellow count is pinned (files and lines; derivation below)', () => {
 	// Derivation, pinned rather than remembered: baseline at 4c683e1f3 was 82 files /
 	// 333 lines repo-wide and 95 lines inside these 13, so sweeping all 13 to zero leaves
 	// 82 - 13 = 69 files and 333 - 95 = 238 lines. Moving either literal is a deliberate
@@ -336,8 +336,30 @@ test('repo-wide remaining raw amber/yellow count is pinned at 68 files / 232 lin
 	// constant to make a red row green. If a file had to be EXEMPTED to make this row pass,
 	// that exemption is the defect and belongs in a report, not in this file. A pin that is
 	// merely consistent with the tree is a description, not evidence.
+	//
+	// ── RE-PINNED 2026-09-28 by stream `a3-c9-sections` (packet c9 item 6) ─────────────
+	//   files  68 -> 68   (unchanged)
+	//   lines 232 -> 230
+	// Derivation, measured over the same corpus in the same working tree as the gate run and
+	// not carried from a handoff: `git diff --name-only a7ccb738..HEAD` under the corpus roots
+	// reduces to `components/sections/SectionRoomPicker.tsx`, `components/sections/__tests__/
+	// a3-sections-map-picker-occupant.test.tsx`, `components/sections/__tests__/
+	// a3-room-picker-uniform-rows.test.tsx` and `package.json`. The two test files and
+	// `package.json` are not corpus source, so the sole measured movement is the picker.
+	// Per-file, counted with the same class-token shape as `countRawWarningLines`:
+	//   components/sections/SectionRoomPicker.tsx   3 -> 1   (delta -2)
+	// The two lines that left were the option-row occupancy treatment item 6 replaced: the
+	// `bg-amber-50 text-amber-700 ... border-amber-200` occupant badge and the duplicate
+	// `text-amber-700/80` "Room already has a home section" sentence that occupied a second
+	// line inside the option. Both are now the measured `--warning` family
+	// (`bg-warning-muted` / `text-warning-foreground` / `border-warning-border`), which is the
+	// token family this gate exists to converge on. The file REMAINS in the corpus on its
+	// merits: the pre-existing `room-picker-occupied-hint` banner still carries one raw amber
+	// line, and it is a surface item 6 does not govern. That is why the file pin is unmoved
+	// and only the line literal moves. No exemption was added, no scope was widened, and no
+	// other constant was touched.
 	const PINNED_REMAINING_FILES = 68;
-	const PINNED_REMAINING_LINES = 232;
+	const PINNED_REMAINING_LINES = 230;
 
 	const files = remainingFiles();
 	const lines = files.reduce(
