@@ -65,8 +65,10 @@ import {
 	resolveHomeRoomIntent,
 	type HomeRoomUpdateResult,
 } from '@/components/sections/homeRoomPersistence';
-import { HomeRoomConfirmDialogs, type PendingAssignment } from '@/components/sections/HomeRoomConfirmDialogs';
+import { HomeRoomConfirmDialogs, homeRoomResultCopy, type PendingAssignment } from '@/components/sections/HomeRoomConfirmDialogs';
 import { deriveHomeRoomEditStatus } from '@/components/sections/homeRoomEditStatus';
+import { homeRoomWriteAvailability } from '@/components/sections/homeRoomWriteAvailability';
+import { toast } from 'sonner';
 import type { RoomSectionMetadata } from '@/components/BuildingView';
 import type { Building, SectionSummaryResponse } from '@/types';
 import { ActorScopedRolloverGuidanceCard } from '@/components/runtime/RolloverGuidanceCard';
@@ -346,6 +348,30 @@ export default function Sections() {
 
 	/* A3 fix 12 — the owner of the mutation reports the final result, so the
 	 * confirmation surface can stay open and tell the truth about it. */
+
+	/**
+	 * A3 c11 FIX-12 — the ONE writability gate for a home-room change, plus the
+	 * sentence the operator reads when the change cannot be written. Before this,
+	 * `handleHomeRoomChange` returned on this condition with no user-visible
+	 * outcome: the room map's Confirm click closed the dialog and nothing
+	 * happened, so an unwritable click and a successful save were identical.
+	 *
+	 * `canWrite` travels to the map modal, where the Confirm control is disabled
+	 * AND states the reason (a disabled primary action is never inert), and
+	 * `notSavedNotice` is what the handler reports if a pick still arrives from
+	 * another surface. `isReadOnlyMode` below is derived from it, so the row's
+	 * own gate and this one cannot drift apart.
+	 */
+	const homeRoomWrite = useMemo(
+		() => homeRoomWriteAvailability({
+			hasActiveSchoolYear: Boolean(activeSchoolYearId),
+			rosterStatus: state.status,
+			dataSource,
+			isOnline,
+		}),
+		[activeSchoolYearId, dataSource, isOnline, state.status],
+	);
+
 	const performHomeRoomUpdate = useCallback(async (
 		section: SectionDetail,
 		nextHomeRoomId: number | null,
@@ -425,7 +451,24 @@ export default function Sections() {
 	}, [state]);
 
 	const handleHomeRoomChange = useCallback(async (section: SectionDetail, nextHomeRoomId: number | null) => {
-		if (!section.id || !activeSchoolYearId || state.status !== 'ok' || dataSource === 'none' || dataSource === 'refreshing') return;
+		// A3 c11 FIX-12 — the blocked case used to `return` here with nothing at
+		// all: no write, no notice, no toast, and the room map had already closed.
+		// It now reports the same not-saved sentence the disabled control shows,
+		// through BOTH channels, so no path can end in silence.
+		if (!homeRoomWrite.canWrite) {
+			const notice = homeRoomWrite.notSavedNotice ?? 'Home-room change not saved. Nothing was changed.';
+			setCacheNotice(notice);
+			toast.error('Home-room change not saved', { description: notice });
+			return;
+		}
+		if (!section.id || !activeSchoolYearId || state.status !== 'ok' || dataSource === 'none' || dataSource === 'refreshing') {
+			// The residual per-section guard (a section without an id cannot be
+			// written either), reported rather than dropped.
+			const notice = 'Home-room change not saved. This section has no writable identity yet, so nothing was changed.';
+			setCacheNotice(notice);
+			toast.error('Home-room change not saved', { description: notice });
+			return;
+		}
 
 		/* A3 fix 12 — the escalation decision is production code
 		 * (homeRoomPersistence), so the confirm-and-cancel path is exercised
@@ -461,9 +504,24 @@ export default function Sections() {
 
 		// A3 fix 12 — a plain write still reports its outcome through the same
 		// typed result, so the row's saving state and the notice stay truthful.
+		// FIX-12 addition: this path has no confirmation dialog, so the toast is
+		// the ONLY place the operator learns the result. It uses the same
+		// three-way wording the confirmation surface uses, so a persisted change
+		// reads as saved and NOTHING else ever does.
 		const result = await performHomeRoomUpdate(section, nextHomeRoomId);
-		if (result.status === 'failed') setCacheNotice(result.detail);
-	}, [activeSchoolYearId, dataSource, homeRoomOptions, roomOccupancyMap, state.status, performHomeRoomUpdate]);
+		const roomName = nextHomeRoomId === null
+			? 'no home room'
+			: (homeRoomOptions.find((r) => r.id === nextHomeRoomId)?.name ?? 'the selected room');
+		if (result.status === 'saved') {
+			// The page notice is NOT cleared here: it may be carrying a truthful
+			// "N changes are waiting to sync" line, and one success does not make
+			// that untrue.
+			toast.success('Home room saved', { description: `${section.name} now uses ${roomName}.` });
+		} else {
+			if (result.status === 'queued') setCacheNotice(result.detail);
+			toast.error(homeRoomResultCopy(result).headline, { description: result.status === 'failed' ? result.detail : `${section.name} — ${result.detail}` });
+		}
+	}, [activeSchoolYearId, dataSource, homeRoomOptions, homeRoomWrite, roomOccupancyMap, state.status, performHomeRoomUpdate]);
 
 	const handleSync = async () => {
 		if (!isOnline) {
@@ -633,7 +691,7 @@ export default function Sections() {
 		return Array.from(types).sort();
 	}, [state]);
 
-	const isReadOnlyMode = state.status !== 'ok' || dataSource === 'none' || dataSource === 'refreshing' || !activeSchoolYearId;
+	const isReadOnlyMode = !homeRoomWrite.canWrite;
 
 	const sectionSourceState = useMemo<AdminSourceState>(() => {
 		if (dataSource === 'live') return 'verified-live';
@@ -881,6 +939,8 @@ export default function Sections() {
 				roomOccupancy={roomOccupancyMap}
 				roomSectionData={roomSectionDataMap}
 				buildingOccupancy={buildingOccupancy}
+				canWrite={false}
+				writeBlockedReason="This is the school-wide browse view. Open a section's room map to assign a home room."
 			/>
 		)}
 
@@ -893,11 +953,13 @@ export default function Sections() {
 
 			A3 C4 review finding N2: browsing the map is a legitimate READ, so the
 			control stays enabled in read-only mode rather than being disabled like
-			the sibling picker. The dead end that motivated the finding is closed
-			here instead: in read-only, a room tap leaves the modal OPEN rather than
-			closing it and silently doing nothing, because `handleHomeRoomChange`
-			would return without writing. The row and the control both say the truth
-			before the operator gets this far. */}
+			the sibling picker. FIX-12 closes the dead end that finding left: the
+			modal is told the write gate, so its Confirm control is disabled and
+			states the reason, and the read-only `onSelect` below now REPORTS the
+			not-saved outcome instead of returning silently (N2's own note said
+			the dead end "leaves the modal OPEN rather than closing it and silently
+			doing nothing" — the truth is better served by saying the click cannot
+			be saved, and the modal says so before the click). */}
 		{scopedSchoolId != null && mapTarget != null && (
 			<SectionRoomMapModal
 				open
@@ -906,7 +968,14 @@ export default function Sections() {
 				sectionId={mapTarget.id}
 				currentRoomId={mapTarget.homeRoomId ?? null}
 				onSelect={(roomId) => {
-					if (isReadOnlyMode) return;
+					if (!homeRoomWrite.canWrite) {
+						// FIX-08 routes the unassign here as `null`; FIX-12 says a
+						// click that cannot be written says so instead of closing.
+						const notice = homeRoomWrite.notSavedNotice ?? 'Home-room change not saved. Nothing was changed.';
+						setCacheNotice(notice);
+						toast.error('Home-room change not saved', { description: notice });
+						return;
+					}
 					if (roomId === (mapTarget.homeRoomId ?? null)) {
 						setMapTarget(null);
 						return;
@@ -918,6 +987,8 @@ export default function Sections() {
 				roomOccupancy={roomOccupancyMap}
 				roomSectionData={roomSectionDataMap}
 				buildingOccupancy={buildingOccupancy}
+				canWrite={homeRoomWrite.canWrite}
+				writeBlockedReason={homeRoomWrite.notSavedNotice}
 			/>
 		)}
 

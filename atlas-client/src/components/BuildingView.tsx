@@ -68,6 +68,11 @@ const ROOM_H = 84;
 const FLOOR_PAD_X = 8;
 const FLOOR_PAD_Y = 6;
 const ROOF_H = 32;
+/** A3 c11 FIX-06 — one floor band, and one pitch between bands. Both the render
+ *  loop and `buildingFloorRowTop` below read these, so a control can measure the
+ *  floor the operator actually sees without restating the arithmetic. */
+const FLOOR_ROW_H = ROOM_H + FLOOR_PAD_Y * 2;
+const FLOOR_ROW_PITCH = FLOOR_ROW_H + FLOOR_GAP;
 const ROOF_OVERHANG = 14;
 const UTILIZATION_BAR_W = 10;
 
@@ -270,6 +275,112 @@ type BuildingViewProps = {
 /** The host pane's 1px top+bottom border, so the canvas never overflows it. */
 const HOST_BORDER_PX = 2;
 
+/* ─── A3 c11 FIX-06 — the pan bound, as one pure function ────────────────
+ *
+ * The recorded defect: "Building canvas cannot pan far enough to Floor 1 at
+ * usable zoom." The clamp and the pane-measured stage were already correct, but
+ * they lived inside the component, so the review's own verification matrix — 3+
+ * floor counts x 60/80/100% x two pane heights — could not be decided without
+ * a browser and a seeded 5-floor building, which is why the staging auditor
+ * could not finish the row.
+ *
+ * `clampBuildingPan` is that same arithmetic, unchanged and used by the render
+ * path (`clampPosition` below is now a one-line wrapper over it), exported so the
+ * matrix is decidable. It is the ONLY pan bound in this component: there is no
+ * second clamp for another page, which is what the "fix applies through the
+ * shared component" criterion asks for.
+ *
+ * Why it is decidable without a browser: every input is either a constant
+ * (`buildingFloorRowTop`, the padding) or a number the component measures
+ * (`content`/`pane`). jsdom runs no layout, so the control supplies those
+ * measured sizes directly rather than inventing them.
+ */
+export const BUILDING_PAN_PADDING_PX = 16;
+export const BUILDING_FIT_MAX_SCALE = 1.4;
+export const BUILDING_FIT_MIN_SCALE = 0.3;
+
+export type BuildingPanContent = { width: number; height: number };
+export type BuildingPanPane = { width: number; height: number };
+export type BuildingPanPosition = { x: number; y: number };
+
+/**
+ * The content box, from the SAME constants the component lays out with. The
+ * component keeps its own inline expressions (the width one is pinned by
+ * `a3-sections-map-layout.test.ts` as a cross-lane contract), so this control
+ * re-derives the committed expressions from source and fails if the two ever
+ * disagree.
+ */
+export function buildingContentWidth(maxRoomsOnFloor: number): number {
+	return FLOOR_LABEL_W + FLOOR_PAD_X * 2 + maxRoomsOnFloor * ROOM_MIN_W + (maxRoomsOnFloor - 1) * ROOM_GAP;
+}
+
+export function buildingContentHeight(floorCount: number): number {
+	return ROOF_H + floorCount * FLOOR_ROW_H + (floorCount - 1) * FLOOR_GAP;
+}
+
+/**
+ * The stage-space top edge of a floor row, measured from the top of the stage
+ * (the roof is part of the content). Floor 1 is the BOTTOM-most row, so
+ * `buildingFloorRowTop(1, n)` is the top of the floor the operator could not
+ * reach. The render loop calls this, so the control and the pixels cannot
+ * disagree about where that floor is.
+ */
+export function buildingFloorRowTop(floorNumber: number, floorCount: number): number {
+	return ROOF_H + (floorCount - floorNumber) * FLOOR_ROW_PITCH;
+}
+
+/** The auto-fit scale: the smaller of the two axis fits, capped, never below 0.3. */
+export function buildingFitScale(
+	canvasWidth: number,
+	canvasHeight: number,
+	contentWidth: number,
+	contentHeight: number,
+): number {
+	const sx = (canvasWidth - 32) / contentWidth;
+	const sy = (canvasHeight - 32) / contentHeight;
+	const fitScale = Math.min(sx, sy, 1.4);
+	return Math.max(0.3, fitScale);
+}
+
+/** Where the content's centre sits in pane coordinates at a given scale. */
+export function buildingPanCenter(
+	nextScale: number,
+	content: BuildingPanContent,
+	pane: BuildingPanPane,
+): BuildingPanPosition {
+	return {
+		x: (pane.width - content.width * nextScale) / 2,
+		y: (pane.height - content.height * nextScale) / 2,
+	};
+}
+
+/* clamp-building-pan:begin — the control compiles exactly this text, so the
+ * matrix below fails if this function's arithmetic ever changes. */
+export function clampBuildingPan(
+	nextPosition: BuildingPanPosition,
+	nextScale: number,
+	content: BuildingPanContent,
+	pane: BuildingPanPane,
+): BuildingPanPosition {
+	const canvasWidth = pane.width;
+	const canvasHeight = pane.height;
+	const scaledWidth = content.width * nextScale;
+	const scaledHeight = content.height * nextScale;
+	const center = buildingPanCenter(nextScale, content, pane);
+	// Smaller than the pane on an axis: centre it, because there is no pan to
+	// make. Larger: keep 16px of the pane on every side, which is both the
+	// reachability guarantee and the infinite-drag bound.
+	const x = scaledWidth <= canvasWidth
+		? center.x
+		: Math.min(16, Math.max(canvasWidth - scaledWidth - 16, nextPosition.x));
+	const y = scaledHeight <= canvasHeight
+		? center.y
+		: Math.min(16, Math.max(canvasHeight - scaledHeight - 16, nextPosition.y));
+
+	return { x, y };
+}
+/* clamp-building-pan:end */
+
 export function BuildingView({ 
 	building, 
 	height: fixedHeight = 400, 
@@ -319,29 +430,28 @@ export function BuildingView({
 	);
 
 	const buildingContentW = FLOOR_LABEL_W + FLOOR_PAD_X * 2 + maxRoomsOnFloor * ROOM_MIN_W + (maxRoomsOnFloor - 1) * ROOM_GAP;
-	const floorTotalH = ROOM_H + FLOOR_PAD_Y * 2;
+	const floorTotalH = FLOOR_ROW_H;
 	const buildingContentH = ROOF_H + floorsAsc.length * floorTotalH + (floorsAsc.length - 1) * FLOOR_GAP;
 
+	// A3 c11 FIX-06 — the centre, the clamp and the fit are the exported pure
+	// functions above, so the review's floor x zoom x pane-height matrix decides
+	// the same numbers the canvas draws. No arithmetic is restated here.
 	const calculateCenter = useCallback((w: number, h: number, s: number) => {
-		return {
-			x: (w - buildingContentW * s) / 2,
-			y: (h - buildingContentH * s) / 2
-		};
+		return buildingPanCenter(
+			s,
+			{ width: buildingContentW, height: buildingContentH },
+			{ width: w, height: h },
+		);
 	}, [buildingContentW, buildingContentH]);
 
 	const clampPosition = useCallback((nextPosition: { x: number; y: number }, nextScale: number) => {
-		const scaledWidth = buildingContentW * nextScale;
-		const scaledHeight = buildingContentH * nextScale;
-		const center = calculateCenter(containerW, canvasHeight, nextScale);
-		const x = scaledWidth <= containerW
-			? center.x
-			: Math.min(16, Math.max(containerW - scaledWidth - 16, nextPosition.x));
-		const y = scaledHeight <= canvasHeight
-			? center.y
-			: Math.min(16, Math.max(canvasHeight - scaledHeight - 16, nextPosition.y));
-
-		return { x, y };
-	}, [buildingContentH, buildingContentW, calculateCenter, canvasHeight, containerW]);
+		return clampBuildingPan(
+			nextPosition,
+			nextScale,
+			{ width: buildingContentW, height: buildingContentH },
+			{ width: containerW, height: canvasHeight },
+		);
+	}, [buildingContentH, buildingContentW, canvasHeight, containerW]);
 
 	const zoomTo = useCallback((nextScale: number, anchor?: { x: number; y: number }) => {
 		const boundedScale = Math.max(0.2, Math.min(3, nextScale));
@@ -392,19 +502,13 @@ export function BuildingView({
 	}, [canvasHeight, scale, calculateCenter, clampPosition]);
 
 	useEffect(() => {
-		const sx = (containerW - 32) / buildingContentW;
-		const sy = (canvasHeight - 32) / buildingContentH;
-		const fitScale = Math.min(sx, sy, 1.4);
-		const s = Math.max(0.3, fitScale);
+		const s = buildingFitScale(containerW, canvasHeight, buildingContentW, buildingContentH);
 		setScale(s);
 		setPos(clampPosition(calculateCenter(containerW, canvasHeight, s), s));
 	}, [containerW, canvasHeight, buildingContentW, buildingContentH, calculateCenter, clampPosition, building.id]);
 
 	const resetView = useCallback(() => {
-		const sx = (containerW - 32) / buildingContentW;
-		const sy = (canvasHeight - 32) / buildingContentH;
-		const fitScale = Math.min(sx, sy, 1.4);
-		const s = Math.max(0.3, fitScale);
+		const s = buildingFitScale(containerW, canvasHeight, buildingContentW, buildingContentH);
 		setScale(s);
 		setPos(clampPosition(calculateCenter(containerW, canvasHeight, s), s));
 	}, [containerW, canvasHeight, buildingContentW, buildingContentH, calculateCenter, clampPosition]);
@@ -418,9 +522,12 @@ export function BuildingView({
 		);
 	}
 
-	const floorsRendered = floorsAsc.map((floorNum, idx) => {
+	const floorsRendered = floorsAsc.map((floorNum) => {
 		const rooms = floorMap.get(floorNum) ?? [];
-		const floorY = (floorsAsc.length - 1 - idx) * (floorTotalH + FLOOR_GAP);
+		// A3 c11 FIX-06 — measured from the stage top, then moved into the
+		// roof-offset group this is drawn in, so the exported
+		// `buildingFloorRowTop` is the same number the pixels use.
+		const floorY = buildingFloorRowTop(floorNum, floorsAsc.length) - ROOF_H;
 
 		return (
 			<Group key={floorNum} x={0} y={floorY}>

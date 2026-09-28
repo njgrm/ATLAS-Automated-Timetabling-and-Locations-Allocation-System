@@ -15,7 +15,8 @@ import {
 	CheckCircle2,
 	ChevronRight,
 	AlertCircle,
-	X,
+	WifiOff,
+	RefreshCw,
 	Users,
 	ChevronLeft,
 	DoorOpen,
@@ -39,6 +40,14 @@ interface SectionRoomMapModalProps {
 	roomOccupancy?: Map<number, string>; // roomId -> sectionName
 	roomSectionData?: Map<number, import('@/components/BuildingView').RoomSectionMetadata>;
 	buildingOccupancy?: Map<number, number>;
+	/**
+	 * A3 c11 FIX-12 — can this pick be written at all? The owner of the write
+	 * (`pages/Sections.tsx`) decides, and passes its own not-saved sentence, so
+	 * the header can make the control visibly unavailable instead of accepting a
+	 * click that would be dropped without a word.
+	 */
+	canWrite?: boolean;
+	writeBlockedReason?: string | null;
 }
 
 /**
@@ -55,6 +64,23 @@ export async function fetchSectionRoomMapBuildings(schoolId: number): Promise<Bu
 	return data.buildings ?? [];
 }
 
+/**
+ * A3 c11 FIX-12 — the one wording for "we could not reach ATLAS", kept out of
+ * the render so the pane and the sidebar cannot word it differently.
+ *
+ * The recorded defect: going Offline made this dialog claim "No buildings found
+ * on campus map" — a false statement about the school's inventory, produced by
+ * a request that never reached the server. An empty result the SERVER reported
+ * and a result the DEVICE could not fetch are different facts, and they now
+ * have different sentences.
+ */
+export const ROOM_MAP_OFFLINE_MESSAGE =
+	'ATLAS could not reach the server to load buildings. Nothing is wrong with your school layout — this is a connection problem.';
+export const ROOM_MAP_OFFLINE_HINT = 'Reconnect and try again. The room list will load once ATLAS is back online.';
+
+/** The genuine empty state, which this change must not alter. */
+export const ROOM_MAP_EMPTY_TITLE = 'No buildings found on campus map.';
+
 export function SectionRoomMapModal({
 	open,
 	onOpenChange,
@@ -66,9 +92,19 @@ export function SectionRoomMapModal({
 	roomOccupancy,
 	roomSectionData,
 	buildingOccupancy,
+	canWrite = true,
+	writeBlockedReason = null,
 }: SectionRoomMapModalProps) {
 	const [buildings, setBuildings] = React.useState<Building[]>([]);
 	const [loading, setLoading] = React.useState(true);
+	/**
+	 * A3 c11 FIX-12 — `null` means "the server answered". A string means the
+	 * request never produced an answer, which is a different fact from an empty
+	 * campus and gets its own sentence. The base code collapsed both into
+	 * `buildings.length === 0`, so a connection failure announced itself as
+	 * "No buildings found on campus map."
+	 */
+	const [loadFailure, setLoadFailure] = React.useState<string | null>(null);
 	const [activeBuildingId, setActiveBuildingId] = React.useState<number | null>(null);
 	const [selectedRoomId, setSelectedRoomId] = React.useState<number | null>(currentRoomId);
 	const [viewMode, setViewMode] = React.useState<'campus' | 'building'>('campus');
@@ -78,6 +114,7 @@ export function SectionRoomMapModal({
 	// Load campus data
 	const loadMapData = React.useCallback(async () => {
 		setLoading(true);
+		setLoadFailure(null);
 		try {
 			const loadedBuildings = await fetchSectionRoomMapBuildings(schoolId);
 			if (loadedBuildings == null) {
@@ -105,7 +142,12 @@ export function SectionRoomMapModal({
 				setActiveBuildingId(sortedBuildings[0].id);
 			}
 		} catch (err) {
+			// A3 c11 FIX-12: the request failed, so ATLAS knows NOTHING about this
+			// campus. The old handler logged and left `buildings` empty, and the
+			// pane then stated that no buildings exist.
 			console.error('Failed to load map data:', err);
+			setBuildings([]);
+			setLoadFailure(ROOM_MAP_OFFLINE_MESSAGE);
 		} finally {
 			setLoading(false);
 		}
@@ -139,9 +181,59 @@ export function SectionRoomMapModal({
 		return null;
 	}, [buildings, selectedRoomId]);
 
+	/**
+	 * A3 c11 FIX-08 — Option C, decided by Planner A3 and recorded here so the
+	 * choice is not re-litigated in review:
+	 *
+	 *  - The base header carried a `Clear Selection` button that only reset
+	 *    LOCAL staged state. The review found it ambiguous ("does this mean local
+	 *    deselection or permanent unassignment?") and the reviewer was forbidden
+	 *    from implementing both readings, so exactly ONE branch ships:
+	 *    `Unassign Room` — the destructive, confirmed, PERSISTED action — plus a
+	 *    Confirm control that is disabled unless a real change is staged.
+	 *    Option A (remove the ambiguity by removing the control) and Option B
+	 *    (rename it `Deselect Room`) are therefore both deliberately NOT
+	 *    shipped, because shipping either alongside C would be the prohibited
+	 *    "both branches".
+	 *  - Option C is the only branch that keeps the product's ONLY unassign
+	 *    capability: `pages/Sections.tsx` reaches `intent.kind === 'unassign'`
+	 *    only through `handleHomeRoomChange(section, null)`, so dropping the path
+	 *    would delete unassignment entirely.
+	 *  - Local deselection is no longer needed as a control at all: Cancel
+	 *    discards the staged pick, and picking another room replaces it.
+	 */
+	const hasCurrentRoom = currentRoomId !== null && currentRoomId !== undefined;
+	/** A staged pick is only a change if it exists and differs from what is saved. */
+	const isStagedChange = selectedRoomId !== null && selectedRoomId !== currentRoomId;
+	const confirmDisabledReason = !canWrite
+		? (writeBlockedReason ?? 'Home-room changes cannot be saved right now.')
+		: selectedRoomId === null
+			? 'Pick a room on the map to assign it.'
+			: selectedRoomId === currentRoomId
+				? 'That is the room already assigned. Pick a different room to change it.'
+				: null;
+
 	const handleConfirm = () => {
+		// The guard is repeated in code, not only in `disabled`: a header that
+		// offers a destructive-looking primary action must not be able to fire
+		// one, and a null selection must never be read as "unassign".
+		if (!canWrite || !isStagedChange) return;
 		onSelect(selectedRoomId);
 		onOpenChange(false);
+	};
+
+	/**
+	 * The unassign request. It does NOT write: it hands `null` to the page's own
+	 * `onSelect`, which routes it through the existing `resolveHomeRoomIntent`
+	 * and the existing `UnassignConfirmationModal`. A second confirmation
+	 * component, or a write from here, would be the ambiguity this fix removes.
+	 */
+	const handleUnassignRequest = () => {
+		if (!canWrite) return;
+		// The staged pick is not part of an unassign; drop it so the control
+		// cannot read as "this room will be assigned" while it is being removed.
+		setSelectedRoomId(currentRoomId);
+		onSelect(null);
 	};
 
 	const handleBuildingToggle = (id: number) => {
@@ -155,7 +247,12 @@ export function SectionRoomMapModal({
 	};
 
 	const handleRoomSelectFromMap = (room: Room | null) => {
-		setSelectedRoomId(room?.id ?? null);
+		// A3 c11 FIX-08: `BuildingView` reports a click on the ALREADY-selected
+		// room as `null` (its inspect toggle). Acting on that would reintroduce
+		// the ambiguous deselect this fix removes, so a null pick is ignored and
+		// a real pick replaces the staged one.
+		if (!room) return;
+		setSelectedRoomId(room.id);
 	};
 
 	return (
@@ -176,16 +273,58 @@ export function SectionRoomMapModal({
 									Selecting for section <span className="text-foreground font-bold">{sectionName}</span>
 								</DialogDescription>
 							</div>
-							<div className="flex items-center gap-3 mr-12">
-								<Button variant="outline" size="sm" onClick={() => setSelectedRoomId(null)} disabled={selectedRoomId === null} className="h-9 gap-2 font-bold uppercase text-xs tracking-widest border-muted-foreground/20 hover:bg-destructive/5 hover:text-destructive hover:border-destructive/30">
-									<X className="size-3.5" /> Clear Selection
+						<div className="flex items-center gap-3 mr-12">
+							{/* A3 c11 FIX-08 (Option C): the ONLY removal control, and it
+							 * is rendered only when there is something to remove. It
+							 * uses the repository's destructive pattern — a
+							 * destructive-foreground outline button with the warning
+							 * icon the unassign confirmation itself uses — and it asks
+							 * for confirmation through the EXISTING
+							 * `UnassignConfirmationModal`; it never writes. */}
+							{hasCurrentRoom && (
+								<Button
+									type="button"
+									variant="outline"
+									size="sm"
+									onClick={handleUnassignRequest}
+									disabled={!canWrite}
+									data-testid="room-map-unassign"
+									className="h-9 gap-2 rounded-xl font-bold uppercase text-xs tracking-widest border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
+								>
+									<AlertCircle className="size-3.5" /> Unassign Room
 								</Button>
-								<Button size="sm" onClick={handleConfirm} className="h-9 gap-2 font-bold uppercase text-xs tracking-widest shadow-lg shadow-primary/20">
-									<CheckCircle2 className="size-3.5" /> Confirm Assignment
-								</Button>
-							</div>
+							)}
+							<Button
+								type="button"
+								size="sm"
+								onClick={handleConfirm}
+								disabled={confirmDisabledReason !== null}
+								data-testid="room-map-confirm"
+								aria-describedby={confirmDisabledReason ? 'room-map-confirm-reason' : undefined}
+								className="h-9 gap-2 rounded-xl font-bold uppercase text-xs tracking-widest shadow-lg shadow-primary/20"
+							>
+								<CheckCircle2 className="size-3.5" /> Confirm Assignment
+							</Button>
 						</div>
 					</div>
+					{/* The reason travels with the control, not on a raw `title`
+					 * (AGENTS.md §8), so a disabled primary action is never inert
+					 * without saying why. It is a live region because a change of
+					 * reason is information, not decoration. */}
+					{confirmDisabledReason && (
+						<p
+							id="room-map-confirm-reason"
+							data-testid="room-map-confirm-reason"
+							role="status"
+							aria-live="polite"
+							className="mt-2 flex items-start gap-1.5 text-xs font-semibold text-destructive"
+						>
+							<AlertCircle className="mt-px size-3.5 shrink-0" />
+							<span>{confirmDisabledReason}</span>
+						</p>
+					)}
+				</div>
+
 
 					<div className="flex-1 flex min-h-0">
 						{/* Sidebar Room List */}
@@ -260,6 +399,19 @@ export function SectionRoomMapModal({
 												</div>
 											</div>
 										))
+									) : loadFailure ? (
+										/* A3 c11 FIX-12: the list must not read as empty
+										 * when ATLAS never got an answer. Same recovery as
+										 * the pane: say what failed and offer the retry. */
+										<div role="alert" data-testid="room-map-sidebar-load-failure" className="m-2 flex flex-col items-start gap-2 rounded-xl border border-destructive/40 bg-destructive/10 p-3 text-xs font-semibold text-destructive">
+											<span className="flex items-start gap-1.5">
+												<WifiOff className="mt-px size-3.5 shrink-0" />
+												<span>{loadFailure}</span>
+											</span>
+											<Button type="button" size="sm" variant="outline" onClick={() => { void loadMapData(); }} data-testid="room-map-sidebar-retry" className="h-7 gap-1.5 rounded-lg border-destructive/40 font-bold text-destructive hover:bg-destructive/10">
+												<RefreshCw className="size-3" /> Try again
+											</Button>
+										</div>
 									) : (
 									buildings.map((b) => (
 										<div key={b.id} className="space-y-1">
@@ -374,18 +526,38 @@ export function SectionRoomMapModal({
 
 						{/* Main Map/Building View */}
 						<div className="flex-1 bg-muted/10 p-6 flex flex-col overflow-hidden">
-							{loading ? (
-								<div className="flex-1 flex flex-col gap-4">
-									<Skeleton className="h-8 w-64" />
-									<Skeleton className="flex-1 w-full rounded-xl" />
-								</div>
-							) : buildings.length === 0 ? (
-								<div className="flex-1 flex flex-col items-center justify-center text-muted-foreground text-center p-12 border-2 border-dashed rounded-2xl">
-									<MapIcon className="size-12 opacity-20 mb-4" />
-									<p className="font-bold">No buildings found on campus map.</p>
-									<p className="text-sm max-w-xs mt-1">Visit the Map Editor to define your school layout before assigning home rooms.</p>
-								</div>
-							) : viewMode === 'campus' ? (
+						{loading ? (
+							<div className="flex-1 flex flex-col gap-4">
+								<Skeleton className="h-8 w-64" />
+								<Skeleton className="flex-1 w-full rounded-xl" />
+							</div>
+						) : loadFailure ? (
+							/* A3 c11 FIX-12 — the recorded staging failure. Going
+							 * Offline made this pane claim "No buildings found on
+							 * campus map", a statement about the school's inventory
+							 * that ATLAS had no way to know. The genuine empty state
+							 * below is unchanged; only the unreachable case is new,
+							 * and it names the connection problem and offers the
+							 * retry that actually clears it. */
+							<div
+								role="alert"
+								data-testid="room-map-load-failure"
+								className="flex-1 flex flex-col items-center justify-center text-center p-12 border-2 border-dashed rounded-2xl border-destructive/40 bg-destructive/5"
+							>
+								<WifiOff className="size-12 opacity-40 mb-4 text-destructive" />
+								<p className="font-bold text-destructive">{loadFailure}</p>
+								<p className="text-sm max-w-sm mt-1">{ROOM_MAP_OFFLINE_HINT}</p>
+								<Button type="button" size="sm" variant="outline" onClick={() => { void loadMapData(); }} data-testid="room-map-retry" className="mt-4 h-9 gap-2 rounded-xl border-destructive/40 font-bold text-destructive hover:bg-destructive/10">
+									<RefreshCw className="size-3.5" /> Try again
+								</Button>
+							</div>
+						) : buildings.length === 0 ? (
+							<div className="flex-1 flex flex-col items-center justify-center text-muted-foreground text-center p-12 border-2 border-dashed rounded-2xl">
+								<MapIcon className="size-12 opacity-20 mb-4" />
+								<p className="font-bold" data-testid="room-map-empty">{ROOM_MAP_EMPTY_TITLE}</p>
+								<p className="text-sm max-w-xs mt-1">Visit the Map Editor to define your school layout before assigning home rooms.</p>
+							</div>
+						) : viewMode === 'campus' ? (
 								<div className="flex-1 flex flex-col min-h-0 relative">
 									<div className="shrink-0 mb-4 flex items-center justify-between">
 										<div className="flex items-center gap-2">
