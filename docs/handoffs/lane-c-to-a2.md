@@ -1417,3 +1417,109 @@ that pid when done. Every lane: start previews with `VITE_ATLAS_API=http://127.0
   only trusts `127.0.0.1:5274` and `localhost:5173` (CORS_EXTRA_ORIGINS/CLIENT_URL). Do NOT ask the operator to log in on
   a loopback port. Rendered proof = your mocked-route Playwright capture on loopback; the signed-in look is checked by
   Lane C on staging :5274 after A4 deploys the train.
+
+## A4 -> Lane C, 2026-09-29 06:3x +08 - **A4 STAGING at `24e268fb`** - train 6, STAGING only, live untouched
+
+Pin **`24e268fbe72c06d2ff95e965f80e5584eef09739`** (branch `release/2026-09-29-6` = `origin/main` `316534f2`
+**+ one test-only merge**). Staging on `http://127.0.0.1:5274` and `https://njgrm.buru-degree.ts.net:8443`.
+Deploy **86.3 s**. **LIVE did not move** - see the measured proof below.
+
+**Why the pin is not `316534f2`:** the pre-action reviewer returned `CORRECTION_REQUIRED` with two BLOCKING
+findings, one of which I could not close myself. `origin/main` has since advanced to `d4120d50` (A7 c2
+school-year-setup) which your packet **excludes** from this train, so the correction was based on the pin, not on the
+new main. A pinned release is not reopened because `main` moved (A14).
+
+### Gate: `CORRECTION_REQUIRED` -> corrected -> staging deployed. 25 rows / 22 pass / 0 blocked / 3 unperformed.
+
+One fresh independent reviewer, batched over the source range **and** the packet's satisfiability lint in a single
+dispatch (A11). Its two BLOCKINGs, and what I did about each:
+
+**1. Auth boundary, no route-level proof - REAL, and it is now closed.** Your packet did not flag it: A8 c2 changed
+`POST /faculty-assignments/coverage/repair` from `authenticateWithSystemToken` to `authenticate`. A repo-wide
+search found **zero** tests touching that route's guard, so reverting it left the whole suite green - a regression
+re-instating the machine-token writer would have shipped silently. The reviewer judged the *behaviour* sound (it is a
+narrowing; `requirePrivileriedRole` plus `rejectCapabilityOverrideScope` plus a service-layer
+`assertTeachingLoadWriteAuthority` all still apply) but correctly refused to accept an auth-boundary write with no
+discriminating control. Fixed by a **test-only** commit `e85ee949`, merged as `24e268fb`: 6 rows added to the
+already-reachable `teaching-load-write-authority.test.ts`, **171 insertions, 0 deletions**, no product byte touched.
+
+**I reproduced its discrimination control myself rather than taking the executor's word:** reverting the guard to
+`authenticateWithSystemToken` fails **exactly the 2 machine-token rows** and leaves the other 4 green (6/6 -> 4/6,
+exit 1); restoring the file returns **sha256 `5ED58F42...FCF97`, byte-identical**, and 6/6 pass again. The control
+isolates the auth-boundary claim instead of failing indiscriminately. **No product path in the delta:** `git diff
+316534f2 24e268fb` is one test file, and the product tree diff is empty.
+
+**2. The `Audit.tsx` 1000-line cap - your waiver STANDS, but its owner is wrong.** `pages/Audit.tsx` is 1003 lines
+and that breach is real and inside this train: 934 at `ce1257c8`, 1003 at the pin, sole cause `ac8adf09`. But
+`ac8adf09` is **A5 c2 slice B**, not A3 - your packet (and the baseline it cites) attribute it to A3. The waiver
+itself is sound and I am honouring it: you measured the exact figure at `9f8028e2` and called it size hygiene, not
+user-facing, and this is a **staging** deploy where a 3-line overage cannot be seen by an operator. **Corrected
+attribution: owner is A5 (Planner A5, c2 slice B).** It needs a ~4-line extraction in an A5 cycle, not an A3 one. I
+did not fix it - A4 never edits product code (A14).
+
+### Client-suite gate: 39 fail vs the 38 KNOWN_RED baseline - delta is EXACTLY ONE, the waived B5 cap.
+
+`tests 1220 / pass 1181 / fail 39` at the pin. The one new failure is the `B5 cap guard` on
+`src/pages/Audit.tsx` (1003 lines) - the row you waived. **Nothing else.** The apparent second delta, `C2-a.7`, is
+the *same* test: the baseline file's copy of that line carries a mojibake `<=` where the live output has `<=`, so
+a byte comparison reports it as both added and removed. It is not a new failure.
+
+### Three of your four shipped-vs-claimed discriminator rows were VACUOUS. Corrected, and all four now discriminate.
+
+Your rows were checked against both built `dist`s (pin vs the live `ce1257c8` build), per A11's rule that a proof
+artefact must actually discriminate:
+
+| Your row | Measured | Verdict | Corrected discriminator |
+|---|---|---|---|
+| `TeachingLoadGuidedModePlaceholder` absent | **0 in the pin AND 0 in live** | **VACUOUS** - the identifier is tree-shaken in both | user-visible literal `Guided mode is active`: **1 live -> 0 pin** |
+| no `OWNER_DEPT:` in `dist` | **1 in the pin AND 1 in live** | **VACUOUS and slightly wrong** - what survives is the `startsWith` parser constant, never a display literal | user-visible literal `Use the subject name above when scheduling`: **1 live -> 0 pin**; the storage constant correctly remains, 0 template interpolations, 0 quoted display literals in either build |
+| `coverage/repair` route registered | present in **BOTH** builds - it predates `ce1257c8` | **VACUOUS** | `dist/services/active-term-resolver.service.js` **14,106 B** and `dist/services/teaching-load-capacity.service.js` **4,058 B**: present in the pin, **absent in live** |
+| A9 `personnelType=TEACHING` in the server build | **3 in pin, 0 in live** | **PASS, discriminates** | unchanged - it is already the right check |
+
+So **no claim is `NOT IN TRAIN`.** All four are present and all four now have a non-vacuous proof.
+
+### Staging acceptance rows - every one executed, none deferred, none unperformed
+
+- **S-H1** health **200**, ready **200**, **DB-backed** `/api/v1/subjects?schoolId=1` **200 (19,509 B)** - health is
+  liveness only, so the DB-backed read is the load-bearing part.
+- **S-W1** served entry on `:8443` is `/assets/index-DedsTjfy.js`, **equal to the pin's own `dist/index.html`** -
+  a stale index would also 200, so this is what makes "warm" mean warm.
+- **S-D1** non-vacuous over the Tailnet: `TimetableSimpleHeader-CZ-eukHp.js` **200 (181,824 B)**,
+  old `-C83KFg_n.js` **404**. Different on disk before the cutover, so the proof discriminates.
+- **S-Z1 zero-write: 0 of 51 tables changed.** Baseline captured **BEFORE** the quiesce, on the correct live database
+  (`atlas_recovery_clean_rebuild_20260905`). `audit_logs` 490 / max id 1041 identical both sides - no generation,
+  publication, migration or term-cache write. **What proves it:** `E:\ATLAS-staging\audit\train6-live-baseline-before.txt`.
+  *Note the count: your packet and the train-4 table list 17 tables; the live schema actually has **51**. I took the
+  baseline from `information_schema` rather than the 17, so this row is stronger than the earlier ones, not weaker.*
+- **S-Z2** `git diff --name-only ce1257c8 24e268fb -- '*prisma*'` is **empty**; `_prisma_migrations` **11**
+  before and after. No migration, no schema change.
+- **S-R1** the staging runtime's own `cli.mjs status` reports `ROLLOVER_AUTO_SYNC_ENABLED: "false"` - the contract
+  invariant, not the env file, and re-read **after** the restart. `ops/` is untouched by this range.
+- **M3** the supervisor log's `Environment reference:` line proves the running server read
+  `atlas-staging.env` and the pin's own release dir (`keyCount` 18) - a server that silently fell back to the
+  live env file would otherwise look perfectly healthy.
+
+### LIVE UNTOUCHED, measured after the cutover (not asserted)
+
+Listeners **5001 -> 36980** and **5174 -> 17236** - the **same PIDs** as before, same command lines, both still
+`E:\ATLAS-worktrees\lane-a4-release-20260929-5`. Machine scope still `...lane-a4-release-20260929-5` /
+`ce1257c8`; `ATLAS-Runtime-Supervisor` **Running**; live Tailnet health **200** and the DB-backed subjects read
+**200 (19,509 B)**; live release tree clean. Only 5101/5274 moved (now **38172** / **28712**).
+
+### Capacity
+
+9 `atlas_restore_drill_*` databases dropped (count re-measured **0**). Release worktrees `-20260928-2`, `-3`,
+`-4` removed by **non-forced** `git worktree remove` + `git worktree prune` (exit 0 each, 0 reparse points, 0
+dirty lines each, no dependent junctions, no running process - your packet said `--force`; the lifecycle reference
+forbids it and it was not needed). `E:` free **24.65 -> 27.37** after the reclaim, then **25.83** after seeding,
+**24.31** after both builds, and **22.77 GiB** now with the new staging release on disk - **below the 25 GiB warn
+line again**, so a reclaim is owed before the next release build. Rollback bases kept: `-20260928-4prod`
+(`c9be17fe`) and `-20260929-5` (live `ce1257c8`, and the dependency donor for both new trees).
+
+### What I need from Lane C
+
+Run the Codex walk on **staging** `https://njgrm.buru-degree.ts.net:8443` and the two A5 release conditions A5 named
+(`/subjects` TABLE ROW rendered, and truncation on `/sections`/`/faculty`/`/teaching-load` at 1366). Then
+resume me with **GO** and I run the production cutover of this **same pin** `24e268fb` per the train-4 harness table,
+rolling back to `ce1257c8` on failure. A5 c2 `bf1a7913` **is** in this train. A2's header and **A7 c2 are
+deliberately not** - A7 c2 landed on `main` after the pin and waits for train 7.

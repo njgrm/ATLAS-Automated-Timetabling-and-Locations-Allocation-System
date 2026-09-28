@@ -26,6 +26,53 @@ rules are what make that safe:
    `docs/handoffs/planner-session-handoff.md`, Lane B in its own handoff file, Lane C in its
    section below until a stream needs a handoff.
 
+## Lane A4 — release lane, 2026-09-29 (train 6 on STAGING; train 5 is LIVE; older trains below as history)
+
+- **TRAIN 6 IS ON STAGING at `24e268fb`** (2026-09-29 06:3x +08). Branch `release/2026-09-29-6` = `origin/main`
+  `316534f2` **+ one test-only merge**. Staging `http://127.0.0.1:5274` / `https://njgrm.buru-degree.ts.net:8443`,
+  listeners 5101 → **38172**, 5274 → **28712**, deploy **86.3 s**. **LIVE did not move** (proof below).
+  Post: `docs/handoffs/lane-c-to-a2.md`, "A4 STAGING at `24e268fb`".
+- **The pin is not `316534f2`.** The pre-action reviewer returned `CORRECTION_REQUIRED` and found an **auth-boundary**
+  change with **zero** route-level test coverage: A8 c2 moved `POST /coverage/repair` from
+  `authenticateWithSystemToken` to `authenticate`, and reverting it left the suite green. Closed by test-only
+  `e85ee949`, merged as `24e268fb` (6 rows, 171 insertions, **0 deletions**, no product path).
+  **What proves it:** I reproduced the discrimination control — reverting the guard fails exactly the 2 machine-token
+  rows (6/6 → 4/6, exit 1) and leaves the other 4 green; restoring gives sha256 `5ED58F42…`FCF97, byte-identical, 6/6.
+- **`origin/main` is now `d4120d50` (A7 c2) and A7 c2 is deliberately NOT in this train** — the packet excludes it
+  and a pinned release is not reopened because `main` moved (§14). A7 c2 and A2's header wait for **train 7**.
+  **A5 c2 `bf1a7913` IS in this train** (train 5's omission is now closed).
+- **THREE of the packet's four shipped-vs-claimed discriminator rows were VACUOUS** — each was 0/0 or 1/1 across the
+  two builds. `TeachingLoadGuidedModePlaceholder` and `coverage/repair` are absent/present in **both**;
+  `OWNER_DEPT:` is **1 in each** (the `startsWith` parser constant, not a display literal). Corrected
+  discriminators, all non-vacuous: `Guided mode is active` **1 live → 0 pin**; `Use the subject name above when
+  scheduling` **1 → 0**; `active-term-resolver.service.js` (14,106 B) and
+  `teaching-load-capacity.service.js` (4,058 B) **present/absent**. **No claim is `NOT IN TRAIN`.** Corrected packet
+  wording is appended to `docs/prompts/a4-train-2026-09-29-6.md`.
+- **The `Audit.tsx`  cap breach is real and is in this train** (934 → 1003 lines, sole cause `ac8adf09`).
+  The packet's waiver is honoured (size hygiene, and a 3-line overage is invisible on staging), but its **owner is
+  wrong: `ac8adf09` is A5 c2 slice B, not A3.** **Follow-up owner: Planner A5**, ~4-line extraction. A4 did not fix
+  it (A4 never edits product code, §14). What proves it: `git log ce1257c8..<pin> -- atlas-client/src/pages/Audit.tsx`.
+- **Client-suite delta = EXACTLY ONE new failure**, the waived `B5 cap guard`. `tests 1220 / pass 1181 / fail 39`
+  against a 38-fail baseline. The apparent second delta, `C2-a.7`, is the same test with a mojibake character in the
+  baseline file — a byte-compare artifact, not a failure.
+- **S-Z1 zero-write: 0 of 51 tables changed**, baseline captured **BEFORE** the quiesce on the correct live DB
+  (`atlas_recovery_clean_rebuild_20260905`); `audit_logs` 490 / max id 1041 both sides. **The 17-table list in the
+  train-4/6 tables is stale — the live schema has 51 base tables**; I took the baseline from `information_schema`.
+  Evidence `E:\ATLAS-staging\audit\train6-live-baseline-before.txt`.
+- **LIVE UNTOUCHED, measured after the cutover (2026-09-29 06:4x +08):** 5001 → **36980**, 5174 → **17236** — the
+  **same PIDs** as before, same command lines, both still `lane-a4-release-20260929-5`. Machine scope still
+  `ce1257c8`; task Running; live Tailnet health 200 and DB-backed subjects read 200 (19,509 B); live tree clean.
+- **⚠ `E:` is 22.77 GiB — below the 25 GiB warn line again.** 24.65 → 27.37 (reclaim) → 25.83 (seed)
+  → 24.31 (builds) → **22.77** (new staging release). A  reclaim is owed before the next release build; the
+  superseded staging copies `E:\ATLAS-staging\{c9be17fe…, ce1257c8…\}` are the candidates (~2.9 GiB).
+  **Never touch** `lane-a4-release-20260928-4prod` (rollback basis) or `lane-a4-release-20260929-5` (LIVE and the
+  dependency donor).
+- **Rollback basis for train 6 remains `ce1257c8`** (`lane-a4-release-20260929-5`, live, clean) with `c9be17fe`
+  (`-20260928-4prod`) one step back.
+- **Next action (single):** Lane C runs the Codex walk on staging `:8443` plus A5's two release conditions
+  (`/subjects` TABLE ROW rendered; truncation on `/sections`, `/faculty`, `/teaching-load` at 1366), then resumes
+  me with **GO**. At that GO I run the production cutover of this **same pin** `24e268fb` per the train-4 harness
+  table, rolling back to `ce1257c8` on failure.
 ## Lane A4 — release lane, 2026-09-29 (train 5 SHIPPED to production; trains 1–4 below as history)
 
 - **TRAIN 5 IS LIVE at `ce1257c8`** (full table in the `## Live release` block). Cutover 00:37 +08 on Lane C's
@@ -4610,6 +4657,114 @@ Rule from now: live browser QA never saves Subjects/setup/policy; mutation rows 
   deleted. Zero residue: clean `git status --short`, no stash created, reflog is this cycle only.
 - **Next action (single):** A4 merges `c9dd5f05` into the next release train and runs one browser smoke row for
   `/admin/year-setup` at 1366×768; Lane C takes the rendered before/after on that train.
+
+### A7 c2 — INTEGRATED and PUSHED at `4104c65a` (2026-09-29 ~06:0x +08)
+
+- **`0 fixes live and seen / 2 integrated, not on production / 0 dropped`** (c1 + c2). **NOT deployed; A4 owns
+  every deploy.** Source `ecfce51b` + `3ce60260`, correction `3f7ec3fd`, merge `4104c65a`; `origin/main`
+  confirmed.
+- **Lane C's 23:20 BLOCKER is closed.** Root cause: `listArchivedYears()` filtered `isArchived: true`, so years
+  **9 (2030-31) and 10 (2031-32) — neither active nor archived — had no row on any page**. Now every mirrored
+  year is listed with a plain status: *the year ATLAS is using now* / *already kept as history* / *a past year
+  you have not kept as history yet*, each with read-only **Teaching Load** and a read-only **Timetable** link.
+- **The three leftovers I routed in c1 are closed:** the ordered-terms sentence is plain (the
+  `SAVE_TERM_AUTHORITY_1_9` interlock and its server comparison are **byte-identical** — R5), the carry block
+  reads `2 would be copied · 2 would not be copied` and `1 teacher would be over the allowed teaching hours`,
+  and the jargon guard now catches bare `carry` and `hard cap`, not just hyphenated `carry-forward`.
+- **R3 — the "existing archive endpoint" could not be reused as Lane C worded it, and I ruled on it.** The
+  existing `POST /rollover-archive/apply` calls `archiveAndSyncActiveYear()`, which archives **the active year**
+  and syncs, and takes **no `schoolYearId`**. Wiring the per-year button to it would have archived the wrong
+  year in front of an audience. So two thin routes were added over the **existing, already-shipped**
+  `archiveSchoolYear()` service (explicit year id, refuses the EnrollPro active year, idempotent, deletes
+  nothing). No new archive logic, no new write path, no sync reachable from either.
+- **QA: `PLANNER_DECISION_REQUIRED`, 14 rows, 13 pass / 0 blocked / 1 unperformed, no BLOCKING.** Every R3/R4/R5/R6
+  guard was proven to discriminate by QA's own failing-first controls (active-year guard, gate bypass,
+  `requirePrivileged:false`, blinded mutation recorder, injected jargon, removed preview POST, flipped
+  fail-closed flag). **Accepted on that basis.** The 1 unperformed row is a *rendered* judgement — the
+  1366×768 budget of the new per-year list — which §11 classifies as a **deployment-acceptance clause, not a
+  source row**, and which Lane C already owns after A4 deploys. It is routed, not closed.
+- **My own correction `3f7ec3fd` closed the one real hole QA found (N1):** QA deleted `schoolYears` from the
+  **fourth** status site (`composeResumedRecoveryPreview`, module-private) and the suite stayed 12/12 green — the
+  field was present but **unguarded**, so years 9/10 would have vanished from that path again with nothing red.
+  Now a narrow structural guard covers it, and my first two versions of that guard were **wrong and I discarded
+  them**: an annotation-anchored regex matched 1 of 4 sites and an `archivedYears` anchor matched 2 of 4, both
+  reporting false counts. Failing-first verified: private site loses the field → `EXIT=1` naming the hole;
+  restored → `EXIT=0`, 13/13, **1.33 s**, 0 surviving processes. The recorded site count is **3, not 4** (the
+  fourth surface delegates), noted in-code so nobody "fixes" it and weakens the guard.
+- **The 5-hour hang is fixed at the root, and the cause was worth naming.** The draft test imported the real
+  `../lib/prisma.js` — which constructs a PrismaClient and spawns the query-engine child — and put cleanup in a
+  parent `finally`, so **any unsettled subtest skipped cleanup** and leaked two `http.Server` handles, the
+  keep-alive sockets and the engine forever. Fixed with `mock.module` under
+  `node --experimental-test-module-mocks`, all cleanup in `t.after`, `server.unref()`, and a 10 s bound on every
+  request. `E:` is back to **25.85 GiB**, just above the §3 warn line — **a reclaim is still owed before the next
+  release build, and it is A4's call.**
+- **Two-owner conflict, resolved as a union, not a winner-takes-all.** A5-C2A independently changed
+  `AdminYearSetup.tsx` (its `YearTruthBanner` term-truth block, landed as `9f8028e2`). I took A5's file as the
+  base and applied my five changes to it, so **A5's banner, its `adminHref={null}` fix and its
+  `yearTruthNonce` state are all preserved** alongside `SchoolYearListCard` and `reloadSignal`. Verified
+  post-merge by reading both sides' markers back. `rollover-ui-guardrails` caught my own *comment* for
+  containing the request helper's name — reworded the comment rather than weaken the guard.
+- **⚠ A2 coordinate, still open — the Timetable link is deliberately NOT rendered.** It is fail-closed behind
+  `TIMETABLE_READS_SCHOOL_YEAR_PARAM = false` in `atlas-client/src/components/runtime/rollover-plain-copy.ts`,
+  and the page says so in plain words. **A2 must flip it to `true` in the same commit that makes
+  `/timetable?schoolYearId=<enrollProSchoolYearId>` honour the parameter** (the same id the existing
+  `/teaching-load/history?schoolYearId=` uses). Flipping it before that route exists turns a test red rather
+  than shipping a lying link. Until then the demo shows the fail-closed sentence, not a broken link.
+- **Still open for the operator, not mine:** dropping the `SAVE_TERM_AUTHORITY_1_9` typed interlock on the
+  ordered-terms save. It is the human gate on a live-data write (`AGENTS.md` §13), so I made the sentence plain
+  and left the interlock byte-identical. **Lane C: that ruling is yours to make.**
+- **Merged-tree gates:** `test:archive-school-year-a7c2` 13/13 · `test:a7-year-setup-plain-words` 16/16 ·
+  `test:ux-guardrails` 31/31 · `test:client-quality` 34/34 · `test:dup-read-callers` 75/75 · **server `tsc` 0
+  errors** (the executor's 1048 was the missing generated client — I ran `prisma generate` and it reconciled; it
+  was right not to call that green) · client `tsc` **1** error, the pre-existing A2
+  `timetable-truth-labels-a2.test.ts` TS2367, byte-identical at base and not in this range.
+- **Worktree:** `E:/ATLAS-worktrees/lane-a7-school-year-setup` = `RETIRE_AFTER_INTEGRATION`, left in place for
+  A4 (real `node_modules`, never junctioned). Branches `work/a7-school-year-setup-c2` and
+  `integration/a7-c2-20260929` resolve; no branch deleted. Zero residue: clean status, no stash created.
+- **Next action (single):** A4 merges `4104c65a` into the next train; A2 delivers the `schoolYearId` timetable
+  route and flips the flag; Lane C takes the 1366×768 rendered row for the per-year list.
+
+### A7 c3 — INTEGRATED and PUSHED at `d4120d50` (2026-09-29 ~07:0x +08): the past-year Timetable link is LIVE
+
+- **`6ce585f9` (feature) + `d4120d50` (correction) on `origin/main`; confirmed. NOT deployed — A4 owns deploys.**
+  6 paths. Lane C reported A2's past-year route live from train 5 (`31e4015f`), so
+  **`TIMETABLE_READS_SCHOOL_YEAR_PARAM` is now `true`** and the year rows link to
+  `/timetable?schoolYearId=<enrollProSchoolYearId>` instead of saying it is unavailable.
+- **I verified all three halves of Lane C's claim in this tree rather than taking it on trust**, because the
+  failure mode is an operator reading *today's* schedule as last year's: the client reads the param
+  (`ScheduleReviewWorkspace.tsx:350`), the server gates it (`resolvePastYearReadScope`), and — the part that
+  decides everything — **the id spaces match**: the route builds its allowed set from
+  `row.enrollProSchoolYearId`, the same id the year list and the existing Teaching Load link use, not the
+  internal mirror primary key. My first grep said the client did *not* read the param; that grep was too narrow
+  and the claim was wrong. Verified twice before acting.
+- **Fresh bounded QA returned `CORRECTION_REQUIRED` 7/8 with two BLOCKING findings, both in my evidence rather
+  than the shipped behaviour. Both are closed in `d4120d50`:**
+  - **B1:** the new id-space test validated a **test-local copy** of the router's expression, so QA switching the
+    real route to the internal key left the row named *"the past-year link id and the id the server accepts are
+    the same number"* **green** — only a substring grep went red, and a grep cannot tell code from a comment
+    quoting it. Fixed by naming and exporting the route's own `buildActorSchoolYearIds` and importing it.
+    **Failing-first after the fix: the route's helper returning the internal key now turns the EnrollPro-id row
+    red** — the exact row that had been vacuous. The old grep row is retained, marked superseded, and narrowed to
+    a naming/call-site tripwire.
+  - **B2:** the past-year-only guard shipped a comment claiming the current year "answers with a notice rather
+    than a timetable". **That was false** — `pastYearViewState` returns `kind: 'current-year'` and renders a
+    usable current-year timetable, and the client never surfaces the server's typed 409. The comment now states
+    the truth: the current year is omitted because it is one nav click away on the ordinary `/timetable` and the
+    past-year scope refuses it server-side, so the link would spend a doomed request. **A tidiness cut, not a
+    capability cut.** The lesson worth keeping: a comment that explains *why* is a behavioural claim, and QA
+    graded it as one.
+- **Open follow-up row, not claimed:** the retained fail-closed guard is still a **source assertion**; it now
+  pins that the card branches on the helper's return value and does not read the flag itself, but a full scoped
+  re-render with the flag mocked to `false` is owed. `mock.module` is process-wide and this file has 17 tests,
+  so doing it unsafely risks poisoning them; it belongs in a session with room to do it properly.
+- **Gates on the corrected tree:** `test:a7-year-setup-plain-words` 17/17 · `test:ux-guardrails` 31/31 ·
+  `test:past-year-id-space-c2` 5/5 · `test:past-year-timetable-scope-c12` 8/8 (preservation) ·
+  `test:archive-school-year-a7c2` 13/13 (preservation) · **server `tsc` 0 errors** · client `tsc` unchanged at
+  the 1 pre-existing A2 error.
+- **Worktree:** `E:/ATLAS-worktrees/lane-a7-school-year-setup` = `RETIRE_AFTER_INTEGRATION`, left for A4.
+  Zero residue: clean status, no stash created.
+- **Next action (single):** A4 includes `d4120d50` in the next train; Lane C's existing rendered rows for
+  `/admin/year-setup` now cover the link as well.
 
 ## 2026-09-29 00:18 — year 2022-2023 per-year setup copied (operator approved)
 Script `atlas-server/src/scripts/copy-year-setup-shift-windows-events.mjs --school 1 --from 10 --to 1 --apply`: +20
