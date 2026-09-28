@@ -11,7 +11,7 @@ import type { ScheduleReviewWorkspaceBodyContext } from '@/components/timetable/
 import type { TimetableLayoutMode, TimetableSimpleTask } from '@/components/timetable/TimetableSimpleTypes';
 import { onProfilerRender } from './ScheduleReviewWorkspace';
 
-type ScheduleReviewWorkspaceBodyProps = {
+export type ScheduleReviewWorkspaceBodyProps = {
 	context: ScheduleReviewWorkspaceBodyContext;
 	layoutMode?: TimetableLayoutMode;
 	activeSimpleTask?: TimetableSimpleTask | null;
@@ -136,7 +136,65 @@ function ScheduleReviewWorkspaceBodyImpl({
 	);
 }
 
-function arePropsEqual(prevProps: ScheduleReviewWorkspaceBodyProps, nextProps: ScheduleReviewWorkspaceBodyProps) {
+/**
+ * A2-C12 ITEM P (P3): the context keys this body's comparator watches.
+ *
+ * The comparator used to call `Object.keys` on both context objects on every
+ * comparison, allocating two key arrays on every render of the body, and then
+ * scan every key. The list is hoisted here so no array is allocated per render.
+ *
+ * It is NOT shrunk. `ScheduleReviewWorkspaceBodyImpl` reads ALL TWENTY-TWO keys
+ * of `ScheduleReviewWorkspaceBodyContext`: eighteen in the destructure at the
+ * top of the component, plus `activeGeneratedRunId`, `sectionLabel`,
+ * `subjectLabel` and `facultyLabel` in the simple-mode task drawer, plus
+ * `violations` again at the drawer. There is no key the body does not read, so
+ * "the subset the body reads" IS the full key set and shrinking it would buy
+ * nothing while risking a skipped key. The exhaustive check below makes that
+ * claim a compile error rather than a comment if the type ever grows.
+ */
+const CONTEXT_COMPARED_KEYS = [
+	'leftPanelRef',
+	'setIsLeftCollapsed',
+	'isLeftCollapsed',
+	'isDesktop',
+	'isPreGenerationWorkspace',
+	'leftTab',
+	'setLeftTab',
+	'violations',
+	'hardCount',
+	'blockingHardCount',
+	'softCount',
+	'violationScopeLabel',
+	'summary',
+	'roomRequestSummary',
+	'openPublishDialog',
+	'activeGeneratedRunId',
+	'sectionLabel',
+	'subjectLabel',
+	'facultyLabel',
+	'leftRailContentContext',
+	'centerWorkspaceContext',
+	'rightPanelContext',
+] as const satisfies readonly (keyof ScheduleReviewWorkspaceBodyContext)[];
+
+/**
+ * Exhaustive by construction: every key of the context type is watched, so
+ * adding a key to the type without adding it to the list above fails `tsc`
+ * instead of silently falling outside the comparator. `noUnusedLocals` is not
+ * enabled, but the reference keeps the intent readable.
+ */
+type UnwatchedContextKey = Exclude<keyof ScheduleReviewWorkspaceBodyContext, (typeof CONTEXT_COMPARED_KEYS)[number]>;
+const CONTEXT_COMPARISON_IS_EXHAUSTIVE: UnwatchedContextKey extends never ? true : false = true;
+void CONTEXT_COMPARISON_IS_EXHAUSTIVE;
+
+/** The watched key set, exported so a test can pin it. */
+export const SCHEDULE_REVIEW_WORKSPACE_BODY_COMPARED_KEYS = CONTEXT_COMPARED_KEYS;
+
+/** Exported so the comparator itself is directly testable. */
+export function areScheduleReviewWorkspaceBodyPropsEqual(
+	prevProps: ScheduleReviewWorkspaceBodyProps,
+	nextProps: ScheduleReviewWorkspaceBodyProps,
+) {
 	if (prevProps.layoutMode !== nextProps.layoutMode) return false;
 	if (prevProps.activeSimpleTask !== nextProps.activeSimpleTask) return false;
 	if (prevProps.onSimpleTaskChange !== nextProps.onSimpleTaskChange) return false;
@@ -147,13 +205,13 @@ function arePropsEqual(prevProps: ScheduleReviewWorkspaceBodyProps, nextProps: S
 	if (prevProps.onSetupSetRepairOrigin !== nextProps.onSetupSetRepairOrigin) return false;
 	if (prevProps.onWarningEntrySelect !== nextProps.onWarningEntrySelect) return false;
 	if (!prevProps.context || !nextProps.context) return prevProps.context === nextProps.context;
-	const prevKeys = Object.keys(prevProps.context);
-	const nextKeys = Object.keys(nextProps.context);
-	if (prevKeys.length !== nextKeys.length) return false;
-	for (const key of prevKeys) {
-		if ((prevProps.context as any)[key] !== (nextProps.context as any)[key]) return false;
+	// Fixed-length scan over a module constant: no `Object.keys` allocation, and
+	// a key missing on either side reads as `undefined` and fails toward a
+	// re-render, which is the safe direction.
+	for (const key of CONTEXT_COMPARED_KEYS) {
+		if (prevProps.context[key] !== nextProps.context[key]) return false;
 	}
 	return true;
 }
 
-export const ScheduleReviewWorkspaceBody = memo(ScheduleReviewWorkspaceBodyImpl, arePropsEqual);
+export const ScheduleReviewWorkspaceBody = memo(ScheduleReviewWorkspaceBodyImpl, areScheduleReviewWorkspaceBodyPropsEqual);
