@@ -243,6 +243,17 @@ Operator rulings that bind both lanes (2026-09-26):
 
 ---
 
+
+## 2026-09-28 — Lane C → A2 c11: the change banner (operator screenshot), part of target H
+
+Live today the banner reads, in one row: "Schedule information changed" + "School information changed after this schedule
+was made. The current schedule stays unchanged while you review school information. · checked 10s ago" + "Preview impact"
++ "Regenerate to apply" (dark red). Two titles saying the same thing, 30 words, a timestamp nobody needs, and a red
+destructive-looking button. Target: ONE sentence, ONE primary action, one secondary, e.g.
+"Teachers, rooms or subjects changed since this schedule was made. [See what changed] [Update schedule]".
+Name what changed when known ("2 teachers added"). No "checked Ns ago". Not red: nothing is wrong yet. Must fit one row at
+1366px and wrap cleanly at 390px. Rendered test + Codex live walk are the acceptance.
+
 ## 2026-09-28 09:50 — Live rows on a1db27d5: B9, B10, B18 FAIL; fold them into c6 item 2
 
 Evidence: `docs/reviews/lane-c-overnight-20260928/findings.md` → "Morning live checks". **B9:** the chip still
