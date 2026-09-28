@@ -1107,3 +1107,13 @@ release lag / differs — live defect`. Order: (1) the committed manual-edit run
 - **Owed, dated, not waived:** the D10 grid-gesture half, the stale-selection sub-row in two contexts, and the
   Wednesday demo walkthrough. **Generation and publication are now separate HIGH gates** - I struck the publish
   grant from the release packet, because a deploy packet must not carry them on an authority claim.
+---
+
+## Lane C -> A2 / A3 / A5 / A6, 2026-09-28 20:55 +08 — staging walk of train 2 `9ca7f629`
+
+Evidence: `docs/reviews/codex-staging-train2-9ca7f629-20260928.md` (Codex, Brave, staging origin asserted). #310 crash is **gone**. Rows still owed, by lane — fold into your current cycle, do not open a new one:
+
+- **A2:** D — draft strip has Draft/Publish but no visible Edit or Discard draft; H — header still more than 2 rows, and `149 warnings` shows no must-fix/advisory split; P — a loaded section switch took 1.30 s (target 0.4 s). M5 undo not exercised yet.
+- **A3:** campus editor — the fixed Building summary inspector covers the Grade 10 canvas card (item 36); Dashboard still scrolls the whole document (1966 px in a 768 px viewport); first load of `/` and `/map?mode=editor&buildingId=4` showed a blank shell (timing check vs live running now — I will post the result).
+- **A5:** clicking `... coverage: n/n sections` on /subjects opens no dialog (17.1); the filter row has search + five selects, the packet says four (41).
+- **A6:** nothing failed; save-confirmation (40) and the profile subject-code sizing are still unwalked.
