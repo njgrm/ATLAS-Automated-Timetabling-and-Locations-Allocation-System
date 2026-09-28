@@ -159,6 +159,11 @@ function byLabel(_host: HTMLElement, label: string): HTMLElement | null {
 	return document.body.querySelector(`[aria-label="${label}"]`);
 }
 
+/** `query`, but named so a DOM-node comparison reads as one on purpose. */
+function byTestId(host: HTMLElement, testid: string): HTMLElement | null {
+	return query(host, testid);
+}
+
 /** A query scoped to the current render's own container (non-portalled parts). */
 function local(host: HTMLElement, selector: string): HTMLElement | null {
 	return document.body.querySelector(selector);
@@ -1015,6 +1020,11 @@ test('A3-C10: Room Type and Program are direct filters — one click on the filt
 	assert.ok(row.contains(programTrigger), 'Program scope is not in the always-visible row');
 	// They are two distinct controls, not one control rendered twice.
 	assert.notEqual(roomTrigger, programTrigger, 'Room Type and Program are the same control, so one of them is still grouped');
+	// Each keeps its own handle, the replacement for the one combined
+	// `subjects-catalog-filter-trigger` the base used — a live-acceptance row can
+	// select each filter on its own without a grouping step.
+	assert.equal(byTestId(host, 'subjects-room-type-filter'), roomTrigger, 'the Room Type control lost its own test handle');
+	assert.equal(byTestId(host, 'subjects-program-filter'), programTrigger, 'the Program control lost its own test handle');
 	// Neither is aria-hidden, disabled, or wrapped in a disclosure.
 	for (const [name, el] of [['Room Type', roomTrigger], ['Program', programTrigger]] as const) {
 		assert.equal(el.getAttribute('aria-hidden'), null, `${name} is aria-hidden`);
