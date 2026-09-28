@@ -78,3 +78,17 @@ reads as the list jumping. **Fix (A3):** one row height for every option, and oc
 badge (e.g. "Used by Aguinaldo") with a calm cue, not a second line; keep the confirmation on selecting an occupied
 room. If the operator still sees a flicker with a real mouse, capture a short screen recording; synthetic hover may
 miss pointer-driven re-renders. (ss_50077xaye, ss_6805zs8uv; `subagent_tokens` 78,809)
+
+## Advisers (11:05–11:15, live `a1db27d5`)
+
+Cause (A2 read-only diagnostic): EnrollPro's `integration/v1/faculty` serves 46 active teachers, 20 of them advisers;
+ATLAS's `faculty_mirrors` was last synced **2026-09-17**, before EnrollPro emitted the advisory fields, so it held 0
+advisers. There is no mapping or filter defect (`faculty-adapter.ts:191,196-197`, `faculty.service.ts:607,613-614`,
+`FacultyProfileSheet.tsx:310-314`). **Fixed by one roster refresh** (Teachers › More › "Refresh roster", 11:10, Lane C
+runner, operator-authorised test data): toast "Faculty roster synced from EnrollPro."; active teachers 42 → 46; profiles
+now read e.g. "Class adviser for Mabini."; the list shows "Adviser: <Section>" badges (12 on page 1).
+
+Follow-ups (A3, older-user clarity): (1) the profile showed no "out of date" warning on 11-day-old roster data; show when
+the roster was last synced and flag it when stale. (2) "Refresh roster" has no explanation, and its toast does not say what
+changed: say "Roster updated: 4 teachers added, 20 advisers." (3) 4 new teachers arrived without load (42/46 with load):
+Teaching Load must make them visible as "needs load".
