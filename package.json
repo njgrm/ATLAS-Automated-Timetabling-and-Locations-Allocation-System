@@ -42,6 +42,7 @@
     "test:visual:teaching-load-remediation": "playwright test -c playwright.config.ts qa-artifacts/playwright/specs/teaching-load-post-qa-remediation.spec.ts",
     "test:visual:timetable-simplicity-lifecycle": "playwright test -c playwright.timetable-scheduler-simplicity-lifecycle.config.ts qa-artifacts/playwright/specs/timetable-scheduler-simplicity-lifecycle.spec.ts",
     "test:visual:carry-forward": "playwright test -c playwright.carry-forward.config.ts",
+    "test:visual:a5-subjects-c1": "playwright test -c playwright.a5-subjects.config.ts",
     "test": "echo \"Error: no test specified\" && exit 1",
     "db:generate": "npx prisma generate",
     "db:migrate": "npx prisma migrate dev --name init",
