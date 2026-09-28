@@ -501,8 +501,11 @@ export function WorkspaceToolbar({
 	 * test id and tone, and putting the same words in both places printed them
 	 * twice.
 	 *
-	 * It is `truncate`d, never wrapped: the height budget is 2 band rows and
-	 * 70px, so a longer sentence loses its tail rather than becoming a third row.
+	 * It WRAPS, it is not `truncate`d. A6 c4 (G2.3) replaced `truncate` with
+	 * `flex-wrap` on the band: AGENTS.md §8 forbids a sentence ending in an
+	 * ellipsis, and a truncated sentence is that defect in a different guise.
+	 * Row 2 grows instead of clipping. Do not reintroduce `truncate` here — the
+	 * comment that used to justify it is what made the defect look deliberate.
 	 */
 	const statusSentence = useMemo(() => {
 		// A6 c4 (G2.3): the trailing `…` is GONE. AGENTS.md §8 — "No sentence is
