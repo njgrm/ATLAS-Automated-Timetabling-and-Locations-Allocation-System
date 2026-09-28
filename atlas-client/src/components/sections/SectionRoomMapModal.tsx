@@ -229,10 +229,27 @@ export function SectionRoomMapModal({
 									<Building2 className="size-4" />
 									Building Explorer
 								</h3>
+								{/* A3 c11 fix 10.1 — the list was the smallest,
+								 * lightest type in the dialog: `text-xs` inside a
+								 * muted idle state, on `space-y-4` rows, so a building
+								 * name read as less important than the room badges
+								 * nested under it. The operator's own request is
+								 * `text-sm` (14px), medium-or-stronger, dark, on a
+								 * `py-2.5 px-3` row that feels solid, with the
+								 * chevron vertically centred — all applied here, and
+								 * the selected parent KEEPS that weight and size so
+								 * the expanded state does not read as a different
+								 * control from the collapsed one. */}
 							</div>
-							
+
 							<ScrollArea className="flex-1" ref={scrollAreaRef}>
-								<div className="p-2 space-y-4">
+								{/* `space-y-1` replaces `space-y-4`: the operator named
+								 * the "excessive vertical padding and empty white
+								 * space around each row" as part of the defect, and the
+								 * tighter gap is what lets 14px type sit on a
+								 * `py-2.5` row without the list growing past the
+								 * pane. */}
+								<div className="p-2 space-y-1">
 									{loading ? (
 										Array.from({ length: 4 }).map((_, i) => (
 											<div key={i} className="space-y-2 p-2">
@@ -244,22 +261,35 @@ export function SectionRoomMapModal({
 											</div>
 										))
 									) : (
-										buildings.map((b) => (
-											<div key={b.id} className="space-y-1">
-												<Button
-													type="button"
-													variant="ghost"
-													onClick={() => handleBuildingToggle(b.id)}
-													className={cn(
-														"w-full justify-between px-3 py-2 rounded-lg text-left transition-all",
-														activeBuildingId === b.id 
-															? "bg-primary/5 text-primary font-bold shadow-sm" 
-															: "hover:bg-muted text-muted-foreground font-medium"
-													)}
-												>
-													<span className="text-xs">{b.name}</span>
-													<ChevronRight className={cn("size-3.5 transition-transform", activeBuildingId === b.id && "rotate-90")} />
-												</Button>
+									buildings.map((b) => (
+										<div key={b.id} className="space-y-1">
+											<Button
+												type="button"
+												variant="ghost"
+												onClick={() => handleBuildingToggle(b.id)}
+												aria-expanded={activeBuildingId === b.id}
+												className={cn(
+													"group w-full items-center justify-between gap-2 rounded-lg px-3 py-2.5 text-left transition-colors",
+													activeBuildingId === b.id
+														? "bg-primary/10 text-slate-900 shadow-sm"
+														: "text-slate-800 hover:bg-slate-100/70 hover:text-slate-900"
+												)}
+											>
+												{/* fix 10.1: `text-sm` (14px) with `font-medium`,
+												 * `font-semibold` while expanded, and a dark
+												 * `text-slate-800` idle colour instead of the
+												 * washed-out muted grey. `min-w-0` +
+												 * `break-words` keeps a long building name
+												 * wrapping INSIDE the row rather than pushing
+												 * the chevron out of the trigger. */}
+												<span className={cn(
+													"min-w-0 text-sm break-words",
+													activeBuildingId === b.id ? "font-semibold" : "font-medium"
+												)}>
+													{b.name}
+												</span>
+												<ChevronRight className={cn("size-4 shrink-0 text-slate-500 transition-transform", activeBuildingId === b.id && "rotate-90")} />
+											</Button>
 												
 												{activeBuildingId === b.id && (
 													<div className="grid grid-cols-1 gap-1 px-1 py-1 animate-in fade-in slide-in-from-top-1 duration-200">

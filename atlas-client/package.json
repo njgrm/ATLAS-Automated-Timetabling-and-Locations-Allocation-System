@@ -36,6 +36,8 @@
     "test:a2-undo-single-surface-a2": "tsx --test src/components/timetable/__tests__/timetable-undo-single-surface-a2.test.tsx",
     "test:timetable-swap-custody-a2": "tsx --test src/components/timetable/__tests__/timetable-swap-custody-a2.test.tsx",
     "test:timetable-redo-truthfulness-a2": "tsx --test src/components/timetable/__tests__/timetable-redo-truthfulness-a2.test.tsx",
+    "test:a3-c11-room-card": "tsx --test src/components/__tests__/a3-c11-room-card-pill-and-meter.test.tsx",
+    "test:a3-c11-explorer": "node --experimental-test-module-mocks --import tsx --test src/components/sections/__tests__/a3-c11-building-explorer-list.test.tsx",
     "test:a3-sections-map": "tsx --test src/components/sections/__tests__/a3-sections-map-layout.test.ts src/components/sections/__tests__/a3-sections-map-picker-occupant.test.tsx src/components/sections/__tests__/a3-sections-map-home-room-persist.test.tsx src/components/sections/__tests__/a3-room-picker-uniform-rows.test.tsx src/components/sections/__tests__/a3-c10-room-picker-anchor-width-names.test.tsx",
     "test:a3-c4-sections": "tsx --test src/components/sections/__tests__/a3-c4-home-room-truth.test.ts src/components/sections/__tests__/a3-c4-sections-surface.test.tsx",
     "test:a3-c10-teacher-surface": "tsx --test src/components/faculty/__tests__/a3-c10-teacher-surface.test.tsx",

@@ -7,6 +7,7 @@ import { getPrimaryCanvasColor } from '@/components/campus-map/campusMapPalette'
 import { ROOM_TYPE_LABELS } from '@/lib/room-type-labels';
 import {
 	ROOM_UTILIZATION_LEGEND_TEXT,
+	ROOM_UTILIZATION_METER_SENTENCE_PREFIX,
 	ROOM_UTILIZATION_UNKNOWN_FILL,
 	ROOM_UTILIZATION_UNKNOWN_LEGEND_TEXT,
 	isRoomUtilizationKnown,
@@ -14,6 +15,7 @@ import {
 	roomUtilizationColor,
 	roomUtilizationCompactLabel,
 	roomUtilizationLabel,
+	roomUtilizationMeterLabel,
 } from '@/lib/room-utilization-display';
 import { cn } from '@/lib/utils';
 import { Button } from '@/ui/button';
@@ -136,17 +138,66 @@ export const ROOM_CARD_H = ROOM_H;
 /** Room name: two wrapped lines before ellipsis (fix 11). Now actually true —
  *  the two lines are 2 x ROOM_LINE_RATIO x ROOM_NAME_FONT = 26 units, which
  *  equals this box height exactly, because `lineHeight` is a Konva ratio. */
-export const ROOM_NAME_BOX = { x: 4, y: 4, width: 70, height: 26 } as const;
+export const ROOM_NAME_BOX = { x: 2, y: 4, width: 74, height: 26 } as const;
 /** Room type (or the non-teaching marker) on its own line. */
-export const ROOM_TYPE_BOX = { x: 4, y: 31, width: 70, height: 14 } as const;
+export const ROOM_TYPE_BOX = { x: 2, y: 31, width: 74, height: 14 } as const;
 /** Occupant / capacity chip. */
-export const ROOM_OCCUPANCY_BOX = { x: 4, y: 47, width: 70, height: 17 } as const;
+export const ROOM_OCCUPANCY_BOX = { x: 2, y: 47, width: 74, height: 17 } as const;
+/**
+ * A3 c11 fix 7.1 — the section-name label inside the occupant chip.
+ *
+ * THE MEASURED DEFECT, to two decimals, because "it looked tight" is not a
+ * reason to move a box. Konva's default font is Arial (`Text.js:448`) and the
+ * pill is `fontStyle="bold"`, so the glyph advances are the Arial Bold table:
+ *
+ *   "Sampaguita" = S667 a556 m889 p611 a556 g611 u611 i278 t333 a556
+ *               = 5668/1000 em -> 62.35px at 11px
+ *   "Sampaguita." = 5946/1000 em -> 65.41px
+ *
+ * The base label box was `ROOM_OCCUPANCY_BOX.width - 8` = 62 units wide, so the
+ * NAME ITSELF was 0.35px wider than its box. Konva keeps a last line whole only
+ * when `measureText(line + '\u2026') < maxWidth` (`Text.js:411-413`); both tests
+ * fail, so Konva slices three characters and paints `Sampag\u2026` — the exact
+ * string the 2026-09-28 live audit recorded on `G9 Room 401`.
+ *
+ * THE FIX is therefore WIDTH, not a smaller font. A 10px authored size was
+ * available and was rejected on evidence: at 10px the name is 56.7px and still
+ * needs a 59.5px box, so dropping the size costs legibility and buys nothing,
+ * while an authored size below 11px is forbidden by the fix-10 ratchet
+ * (`a3-sections-map-layout.test.ts`, "no text below 11px remains in the files
+ * this stream owns"). The card is frozen at 90x84 for every consumer
+ * (the width-regression control in the same file), so the room comes from the
+ * 2px the text column was wasting on its left inset, uniformly across the name,
+ * type and occupant rows: 74 units of column, 74 - 3 - 2 = 69 units of label.
+ * 69 - 62.35 = 6.65px of slack.
+ */
+export const ROOM_OCCUPANCY_TEXT_BOX = { x: 3, y: 2, width: 69, height: 13 } as const;
 /** Utilization percentage, left of the footer strip. */
 export const ROOM_UTILIZATION_TEXT_BOX = { x: 4, y: 66, width: 36, height: 14 } as const;
 /** Program badge, right of the footer strip. Its own space, clear of the name. */
 export const ROOM_PROGRAM_BADGE_BOX = { x: 44, y: 66, width: 30, height: 14 } as const;
 /** Utilization bar, right-hand column. Never overlaps the text column. */
 export const ROOM_UTILIZATION_BAR_BOX = { x: 78, y: 5, width: 10, height: 62 } as const;
+/**
+ * A3 c11 fix 7.1 — the meter's permanent track, slate-300. Exported so the
+ * rendered control measures the committed value rather than a constant the
+ * control invented.
+ *
+ * The base value was slate-100 (`#f1f5f9`), which on the lightest card fill in
+ * the palette (`CLASSROOM` `#eff6ff`) is **1.01:1** — the same colour to the eye,
+ * which is why the rooms the operator named as showing no track (`G9 Room 402`,
+ * `G9 Room 403`) showed none. slate-300 is 1.36:1 against that same fill and
+ * 1.41:1 against the darkest (`FACULTY_ROOM` `#fff1f2`): a soft neutral slot that
+ * is unmistakably present, which is what "permanent subtle background track"
+ * asks for, and still not a border. The fix's own DOM example was
+ * `bg-slate-200/70`, which composites to 1.14:1 over the same card — one step
+ * short of being recognisable, so one step darker was taken deliberately.
+ * `ROOM_UTILIZATION_BAR_BOX.width / 2` is what `rounded-full` resolves to on a
+ * 10-unit-wide column, and the control asserts that equality so the track cannot
+ * silently become a different shape.
+ */
+export const ROOM_UTILIZATION_TRACK_FILL = '#cbd5e1';
+export const ROOM_UTILIZATION_TRACK_RADIUS = ROOM_UTILIZATION_BAR_BOX.width / 2;
 
 /* ─── Grade-level color tokens (matching Sections.tsx) ─── */
 const GRADE_ROOM_COLORS: Record<string, string> = {
@@ -500,10 +551,10 @@ export function BuildingView({
 										/>
 									)}
 									<Text
-										x={sectionData?.programCode ? 6 : 4}
-										y={2}
-										width={ROOM_OCCUPANCY_BOX.width - 8}
-										height={ROOM_OCCUPANCY_BOX.height - 4}
+										x={ROOM_OCCUPANCY_TEXT_BOX.x}
+										y={ROOM_OCCUPANCY_TEXT_BOX.y}
+										width={ROOM_OCCUPANCY_TEXT_BOX.width}
+										height={ROOM_OCCUPANCY_TEXT_BOX.height}
 										text={occupancy}
 										fontSize={ROOM_LABEL_FONT}
 										lineHeight={ROOM_LINE_RATIO}
@@ -554,16 +605,31 @@ export function BuildingView({
 								</Group>
 							)}
 
-							<Rect
-								x={ROOM_UTILIZATION_BAR_BOX.x}
-								y={ROOM_UTILIZATION_BAR_BOX.y}
-								width={ROOM_UTILIZATION_BAR_BOX.width}
-								height={ROOM_UTILIZATION_BAR_BOX.height}
-								fill="#f1f5f9"
-								stroke="#e2e8f0"
-								strokeWidth={0.5}
-								cornerRadius={2}
-							/>
+						{/* A3 c11 fix 7.1 — the meter TRACK is permanent.
+						 * The base painted `fill="#f1f5f9"` (slate-100) with a
+						 * `#e2e8f0` 0.5px stroke. slate-100 is 1.01:1 against a
+						 * CLASSROOM card (`#eff6ff`), i.e. the same colour to the
+						 * eye, so the "empty" rooms the operator named — `G9 Room
+						 * 402`, `G9 Room 403` — showed no track at all; that is why
+						 * the live audit recorded "neither the requested permanent
+						 * meter track nor 0% tooltip" on exactly those cards. The
+						 * stroke was also the "harsh border outline" the fix asks to
+						 * be replaced by a soft neutral track, so it is gone.
+						 *
+						 * The track is drawn UNCONDITIONALLY, so a room at a measured
+						 * 0% and a room whose utilisation is UNKNOWN now differ by the
+						 * FILL alone (absent vs present) instead of by the whole
+						 * widget. The label under the track is what separates those
+						 * two readings in words (`0%` vs `n/a`); the track itself
+						 * says only "this is the meter slot". */}
+						<Rect
+							x={ROOM_UTILIZATION_BAR_BOX.x}
+							y={ROOM_UTILIZATION_BAR_BOX.y}
+							width={ROOM_UTILIZATION_BAR_BOX.width}
+							height={ROOM_UTILIZATION_BAR_BOX.height}
+							fill={ROOM_UTILIZATION_TRACK_FILL}
+							cornerRadius={ROOM_UTILIZATION_TRACK_RADIUS}
+						/>
 						{utilizationKnown && utilization > 0 && (
 							<Rect
 								x={ROOM_UTILIZATION_BAR_BOX.x + 1}
@@ -776,12 +842,25 @@ export function BuildingView({
 								 * words here rather than left as the canvas-only `n/a` token:
 								 * c0's header comment claimed this hover layer was the
 								 * full-detail surface, and it did not mention use at all. */}
-								<div className="flex justify-between gap-4" data-utilization={isRoomUtilizationKnown(roomUtilization, r.id) ? 'measured' : 'unknown'}>
-									<span className="text-muted-foreground uppercase font-bold text-xs tracking-wide">Use</span>
-									<span className={cn('font-bold tabular-nums', !isRoomUtilizationKnown(roomUtilization, r.id) && 'italic')}>
-										{roomUtilizationLabel(roomUtilization, r.id)}
-									</span>
-								</div>
+							<div className="flex justify-between gap-4" data-utilization={isRoomUtilizationKnown(roomUtilization, r.id) ? 'measured' : 'unknown'}>
+								<span className="text-muted-foreground uppercase font-bold text-xs tracking-wide">Use</span>
+								<span className={cn('font-bold tabular-nums', !isRoomUtilizationKnown(roomUtilization, r.id) && 'italic')}>
+									{roomUtilizationLabel(roomUtilization, r.id)}
+								</span>
+							</div>
+							{/* A3 c11 fix 7.1 — the meter's own sentence.
+							 * Konva cannot hang a tooltip on ONE node, and the
+							 * room card deliberately has a single full-detail hover
+							 * surface (stated in the fix 07/11 comment above), so
+							 * the operator's requested "share of periods in use: X%"
+							 * lives on that surface, one line under the figure. It
+							 * reads as the MEANING of the figure above it, which is
+							 * what an operator reading a `0%` on an apparently empty
+							 * room actually needs: the number, then what it counts. */}
+							<div className="flex justify-between gap-4" data-meter="true">
+								<span className="text-muted-foreground uppercase font-bold text-xs tracking-wide">Meter</span>
+								<span className="text-right text-muted-foreground">{roomUtilizationMeterLabel(roomUtilization, r.id)}</span>
+							</div>
 								{meta && (
 									<div className="mt-1 pt-1 border-t flex flex-col gap-1">
 										<div className="flex items-center gap-1.5">

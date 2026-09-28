@@ -160,6 +160,13 @@ export const ROOM_UTILIZATION_UNKNOWN_LEGEND_TEXT =
 	`"${ROOM_UTILIZATION_UNKNOWN_LABEL_COMPACT}" = use not available yet`;
 
 /**
+ * A3 c11 fix 7.1 — the fixed half of the meter's hover sentence. It is the
+ * legend's own phrase ({@link ROOM_UTILIZATION_LEGEND_TEXT}) without the `=`, so
+ * the toolbar and the hover card cannot describe "use" two different ways.
+ */
+export const ROOM_UTILIZATION_METER_SENTENCE_PREFIX = 'Share of periods in use';
+
+/**
  * Read one room's utilisation without collapsing the unknown case into a zero.
  *
  * `Map.get` returning `undefined` is the unknown case. A stored `0` is a real
@@ -203,6 +210,29 @@ export function roomUtilizationCompactLabel(
 	return reading.kind === 'measured'
 		? `${Math.round(reading.percent)}%`
 		: ROOM_UTILIZATION_UNKNOWN_LABEL_COMPACT;
+}
+
+/**
+ * A3 c11 fix 7.1 — the SENTENCE behind the vertical meter, in the operator's own
+ * words ("`share of periods in use: X%`", and the zero case reading "0%" rather
+ * than an empty slot).
+ *
+ * It is a separate function from {@link roomUtilizationLabel} rather than a new
+ * argument, because the two answers are asked in two places: the figure belongs
+ * in a `tabular-nums` cell, and the sentence does not. The unknown case reuses
+ * the ONE unknown vocabulary this module already owns instead of inventing a
+ * third wording, so a reader who has learned "not available" needs to learn
+ * nothing new — and so `a3-c4-map-truth.test.ts`'s vocabulary ratchet, which
+ * greps these files for stray utilisation wording, still passes.
+ */
+export function roomUtilizationMeterLabel(
+	map: ReadonlyMap<number, number> | null | undefined,
+	roomId: number,
+): string {
+	const reading = readRoomUtilization(map, roomId);
+	return reading.kind === 'measured'
+		? `${ROOM_UTILIZATION_METER_SENTENCE_PREFIX}: ${Math.round(reading.percent)}%`
+		: `${ROOM_UTILIZATION_METER_SENTENCE_PREFIX}: ${ROOM_UTILIZATION_UNKNOWN_LABEL.toLowerCase()}`;
 }
 
 /**
