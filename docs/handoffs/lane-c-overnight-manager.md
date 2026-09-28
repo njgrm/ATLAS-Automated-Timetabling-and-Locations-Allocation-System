@@ -69,6 +69,22 @@ Rules for the planners:
 - Before Wednesday: a **demo walkthrough script** (the operator's path through the product) walked end to end on live,
   graded for older users, with every stumble fixed or listed.
 
+## CHECKPOINT 2026-09-28 20:00 (supersedes earlier checkpoints)
+
+Live `7590d485` (rollback `4c35cc8f`). Staging `e59b8ba1` (BROKEN: /timetable React #310) at http://127.0.0.1:5274 and
+https://njgrm.buru-degree.ts.net:8443. Lanes: A2 timetable · A3 Sections/maps/Dashboard · A5 Subjects+shared tooltip ·
+A6 Teachers/Teaching Load · A4 release+staging (elevated, :4097, restarted 19:00 with new config). AGENTS rules added today:
+A4 §14, Throughput rules §11 (2 rounds, original words, fixes-live metric, staging first, real-route smoke 30074e02).
+Launch: `scratchpad/launch.ps1 -Name <run> -Prompt '<no double quotes>' [-Elevated]` (detached); wait
+`bash scratchpad/await.sh <run>` (background); status `bash scratchpad/status.sh`; heartbeat scheduled task
+`atlas-planner-heartbeat` every 30 min notifies this session. Codex: `codex exec --dangerously-bypass-approvals-and-sandbox
+--skip-git-repo-check -o final.md "<prompt>" < /dev/null`, @Brave "Your Brave" (live signed in 7 d; staging signed in on 5274).
+Running: a2-c12b (fix #310 first, then H 2 rows, then P speed) · a3-c11r2 (c11 + FIX-06/08/12) · a6-c2 (Teaching Load
+header spec 19:05) · Codex demo-path walk (non-timetable pages → A5 c2 backlog).
+Ready, waiting for the train: A5 `c5aba703`, A6 `6498c322` (both on main). Next train: when A2 posts the #310 fix →
+A4 deploys main tip to staging → Codex walks A2 targets + A5/A6 rows → A4 ships to production → Codex smoke.
+Metrics: `docs/handoffs/workflow-metrics.md` (trend review 1 at 19:55). Demo: Wednesday 2026-09-30 morning.
+
 ## CHECKPOINT 2026-09-28 11:25 +08 (read this first)
 
 - **Live** `a1db27d5` (health 200). The admin `opencode serve` on 127.0.0.1:4097 is still on **120 steps**; restart it
