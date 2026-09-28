@@ -53,7 +53,7 @@ import { getTemplatePeriodProfiles } from './class-template.service.js';
 import {
 	readCanonicalClassProgramSlotsCoverage,
 	resolveClassProgramSlots,
-	normalizeInternalGradeId,
+	resolveSectionGradeLevel,
 	type CanonicalTemplateCoverage,
 } from './class-program-slot.service.js';
 import { buildRunTimetableShapeContracts, normalizeProgramType } from './generation-shape-assembly.service.js';
@@ -299,8 +299,8 @@ export function classifyShapePolicyBlocker(blocker: TimetableShapePolicyBlocker)
 export function buildSectionScopeMap(sectionsByGrade: ConstructorInput['sectionsByGrade']): Map<number, { gradeLevel: number; programType: string }> {
 	const map = new Map<number, { gradeLevel: number; programType: string }>();
 	for (const grade of sectionsByGrade) {
-		// Section gradeLevelId is an EnrollPro internal ID.
-		const gradeLevel = normalizeInternalGradeId(grade.gradeLevelId);
+		// Grade NAME is authoritative; gradeLevelId is a re-minted EnrollPro id.
+		const gradeLevel = resolveSectionGradeLevel(grade);
 		for (const section of grade.sections) {
 			map.set(section.id, { gradeLevel, programType: normalizeProgramType((section as { programType?: string | null }).programType) });
 		}
@@ -525,7 +525,7 @@ async function loadReadOnlySectionsByGrade(schoolId: number, schoolYearId: numbe
 function collectDetectedScopes(sectionsByGrade: ConstructorInput['sectionsByGrade']): Array<{ gradeLevel: number; programType: string }> {
 	const scopes = new Map<string, { gradeLevel: number; programType: string }>();
 	for (const grade of sectionsByGrade) {
-		const gradeLevel = normalizeInternalGradeId(grade.gradeLevelId);
+		const gradeLevel = resolveSectionGradeLevel(grade);
 		for (const section of grade.sections) {
 			const programType = normalizeProgramType(section.programType);
 			const key = `${gradeLevel}:${programType}`;
@@ -1159,7 +1159,7 @@ async function buildGenerationPreflightWithContext(
 			},
 			validateShiftWindows: enforceShiftWindows,
 			shiftWindows: (gradeWindows as any[]).map((window) => ({ gradeLevel: window.gradeLevel, programType: normalizeProgramType(window.programType), startTime: window.startTime, endTime: window.endTime })),
-			sections: sectionsByGrade.flatMap((grade) => grade.sections.map((section) => ({ id: section.id, gradeLevel: normalizeInternalGradeId(grade.gradeLevelId), programType: normalizeProgramType(section.programType) }))),
+			sections: sectionsByGrade.flatMap((grade) => grade.sections.map((section) => ({ id: section.id, gradeLevel: resolveSectionGradeLevel(grade), programType: normalizeProgramType(section.programType) }))),
 			shapes: timetableShapeContracts,
 			rooms,
 			subjects: subjects.map((subject: any) => ({ id: subject.id, code: subject.code, schedulingDisposition: subject.schedulingDisposition })),
@@ -1452,7 +1452,7 @@ export function buildPreflightValidatorContext(
 		sections: assembly.sectionsByGrade.flatMap((grade) =>
 			grade.sections.map((section) => ({
 				id: section.id,
-				gradeLevel: normalizeInternalGradeId(grade.gradeLevelId),
+				gradeLevel: resolveSectionGradeLevel(grade),
 				programType: (section as { programType?: string | null }).programType ?? null,
 			})),
 		),

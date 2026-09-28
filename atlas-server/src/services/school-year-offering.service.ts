@@ -11,7 +11,7 @@ import { getDataContext } from '../lib/data-context.js';
 import { canonicalStringify } from '../lib/canonical-json.js';
 import { type OfferingClassification, type TermMode, type ProgramType } from '@prisma/client';
 import { getTermConfig, type TermConfigData } from './term-config.service.js';
-import { normalizeGradeLevelSync } from './class-program-slot.service.js';
+import { resolveSectionGradeLevel } from './grade-level-resolver.js';
 import { assertSchoolYearAuthority } from './school-year-authority.service.js';
 
 const db = () => getDataContext();
@@ -791,8 +791,8 @@ export function requirementScopeKey(row: {
 
 /**
  * SCA-02R: expected base-scope inventory built from same-school/year
- * active, non-stale section mirrors. Grade numbers come from
- * `normalizeGradeLevelSync`; programs outside the requirement vocabulary
+ * active, non-stale section mirrors. Grade numbers come from the EnrollPro
+ * grade name (`resolveSectionGradeLevel`); programs outside the requirement vocabulary
  * (REGULAR/STE/SPA/SPS/OTHER) fold to OTHER, matching the section-adapter
  * fallback for unknown program metadata.
  */
@@ -815,11 +815,11 @@ export async function buildExpectedScopes(
 ): Promise<ExpectedScope[]> {
   const mirrors = await db().sectionMirror.findMany({
     where: { schoolId, schoolYearId, isActiveForScheduling: true, isStale: false },
-    select: { gradeLevelId: true, programType: true },
+    select: { gradeLevelId: true, gradeLevelName: true, programType: true },
   });
   const seen = new Map<string, ExpectedScope>();
   for (const mirror of mirrors) {
-    const gradeLevel = normalizeGradeLevelSync(mirror.gradeLevelId);
+    const gradeLevel = resolveSectionGradeLevel(mirror, null, 'grade-first');
     if (!VALID_GRADE_LEVELS.has(gradeLevel)) continue;
     const programType = expectedProgramForSection(mirror.programType);
     const scopeKey = `G${gradeLevel}:${programType}:-:-`;

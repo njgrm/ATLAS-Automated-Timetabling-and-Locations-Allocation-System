@@ -15,124 +15,15 @@ import type { ProgramType, ClassProgramSlotKind } from '@prisma/client';
 const db = () => getDataContext();
 
 // ─── Grade Normalization ───
+//
+// One implementation lives in `grade-level-resolver.ts`. These re-exports keep
+// existing import paths working; they carry no mapping of their own.
 
-/**
- * Normalize a grade level ID or name to the actual grade number (7, 8, 9, or 10).
- *
- * EnrollPro uses internal grade_level_ids that do NOT match actual grade numbers.
- * For example, grade_level_id=7 is Grade 9, not Grade 7.
- *
- * This helper extracts the actual grade number from:
- * - Grade level names like "Grade 7", "Grade 10"
- * - Grade level IDs by looking up the name in the database
- */
-export async function normalizeGradeLevelForSlots(
-	gradeLevelIdOrName: number | string,
-	schoolId?: number,
-): Promise<number> {
-	// If it's a string like "Grade 9", extract the number
-	if (typeof gradeLevelIdOrName === 'string') {
-		const match = gradeLevelIdOrName.match(/Grade\s+(\d+)/i);
-		if (match) return parseInt(match[1], 10);
-		// Try parsing as number
-		const num = parseInt(gradeLevelIdOrName, 10);
-		if (!isNaN(num)) return num;
-		return NaN;
-	}
-
-	const id = gradeLevelIdOrName;
-
-	// Known mapping for this school (grade_level_id -> actual grade number)
-	// This is the canonical mapping from the database
-	const KNOWN_MAPPINGS: Record<number, number> = {
-		5: 7,  // grade_level_id 5 -> Grade 7
-		6: 8,  // grade_level_id 6 -> Grade 8
-		7: 9,  // grade_level_id 7 -> Grade 9
-		8: 10, // grade_level_id 8 -> Grade 10
-		17: 7, // current EnrollPro feed ID 17 -> Grade 7
-		18: 8, // current EnrollPro feed ID 18 -> Grade 8
-		19: 9, // current EnrollPro feed ID 19 -> Grade 9
-		20: 10, // current EnrollPro feed ID 20 -> Grade 10
-	};
-
-	if (id in KNOWN_MAPPINGS) return KNOWN_MAPPINGS[id];
-
-	// If ID is already a valid grade number (7-10), return it directly
-	if (id >= 7 && id <= 10) return id;
-
-	// If ID >= 100, use the existing normalization (value % 100)
-	if (id >= 100) {
-		const normalized = id % 100;
-		if (normalized >= 1 && normalized <= 12) return normalized;
-	}
-
-	// Last resort: try to look up the grade level name from the database
-	if (schoolId) {
-		const gradeLevel = await db().sectionMirror.findFirst({
-			where: { schoolId, gradeLevelId: id },
-			select: { gradeLevelName: true },
-		});
-		if (gradeLevel?.gradeLevelName) {
-			const match = gradeLevel.gradeLevelName.match(/Grade\s+(\d+)/i);
-			if (match) return parseInt(match[1], 10);
-		}
-	}
-
-	// Return the ID as-is if no normalization possible
-	return id;
-}
-
-/**
- * Normalize an EnrollPro internal grade_level_id to an actual grade number.
- *
- * EnrollPro uses internal IDs that do NOT match actual grade numbers:
- * - grade_level_id 5 -> Grade 7
- * - grade_level_id 6 -> Grade 8
- * - grade_level_id 7 -> Grade 9
- * - grade_level_id 8 -> Grade 10
- * - current feed IDs 17-20 -> Grades 7-10
- *
- * Use this function when you have an internal EnrollPro ID.
- */
-export function normalizeInternalGradeId(gradeLevelId: number): number {
-	const KNOWN_MAPPINGS: Record<number, number> = {
-		5: 7,  // grade_level_id 5 -> Grade 7
-		6: 8,  // grade_level_id 6 -> Grade 8
-		7: 9,  // grade_level_id 7 -> Grade 9
-		8: 10, // grade_level_id 8 -> Grade 10
-		17: 7, // current EnrollPro feed ID 17 -> Grade 7
-		18: 8, // current EnrollPro feed ID 18 -> Grade 8
-		19: 9, // current EnrollPro feed ID 19 -> Grade 9
-		20: 10, // current EnrollPro feed ID 20 -> Grade 10
-	};
-
-	if (gradeLevelId in KNOWN_MAPPINGS) return KNOWN_MAPPINGS[gradeLevelId];
-	if (gradeLevelId >= 7 && gradeLevelId <= 10) return gradeLevelId;
-	if (gradeLevelId >= 100) {
-		const normalized = gradeLevelId % 100;
-		if (normalized >= 1 && normalized <= 12) return normalized;
-	}
-	return gradeLevelId;
-}
-
-/**
- * Normalize a grade level value to an actual grade number.
- *
- * This function handles both:
- * 1. Actual grade numbers (7, 8, 9, 10) -> pass through
- * 2. Internal EnrollPro IDs (5, 6, 7, 8) -> map to actual grades
- *
- * Since internal ID 7 conflicts with actual grade 7, this function
- * checks if the value is a valid actual grade first, then falls back
- * to internal ID mapping.
- */
-export function normalizeGradeLevelSync(gradeLevelId: number): number {
-	// If it's already a valid actual grade number (7-10), return as-is
-	if (gradeLevelId >= 7 && gradeLevelId <= 10) return gradeLevelId;
-
-	// Known mapping for internal EnrollPro grade_level_ids
-	return normalizeInternalGradeId(gradeLevelId);
-}
+export {
+	legacyGradeFromInternalId as normalizeInternalGradeId,
+	normalizeGradeNumberOrLegacyId as normalizeGradeLevelSync,
+	resolveSectionGradeLevel,
+} from './grade-level-resolver.js';
 
 // ─── Types ───
 

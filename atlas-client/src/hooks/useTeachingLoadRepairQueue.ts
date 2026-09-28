@@ -5,6 +5,11 @@ import { getFacultyComparableLoadHours } from '@/lib/faculty-assignment-helpers'
 import type { FacultyAssignmentDraft, FacultySummary } from '@/types';
 import type { TeachingLoadRepairQueueItem } from '@/components/faculty-assignments/TeachingLoadRepairQueue';
 import { STAFF_WORKLOAD_REVIEW_LABEL } from '@/components/faculty-assignments/teacherReviewEntry';
+import {
+	isTeachingLoadSourceUnverified,
+	teachingLoadUnverifiedReason,
+	teachingLoadUnverifiedStatus,
+} from '@/components/faculty-assignments/WorkspaceToolbar';
 
 type UseTeachingLoadRepairQueueParams = {
 	searchParams: URLSearchParams;
@@ -31,6 +36,26 @@ type UseTeachingLoadRepairQueueParams = {
 	 * path that can render an unlabelled number, whatever a caller passes it.
 	 */
 	sourceDegraded: boolean;
+	/**
+	 * A6 C3 (N-1 / N-3) — the SOURCE STATE ITSELF, threaded next to
+	 * `sourceDegraded` rather than replacing it.
+	 *
+	 * `sourceDegraded` answers "is there something wrong worth an amber line?",
+	 * which is deliberately `false` while `refreshing`; the queue's question is the
+	 * wider "are these figures confirmed?", which is `false` for `refreshing` too.
+	 * Both answers are needed and they are not the same answer, so the page hands
+	 * over the STATE and this hook derives the second one itself, through the same
+	 * shared module the header uses. A page that passed a second boolean would be a
+	 * second copy of the rule, which is the defect A6 C2 already had to correct
+	 * once.
+	 *
+	 * REQUIRED for the reason `sourceDegraded` is: an omitted argument must not
+	 * make the queue publish snapshot figures as if they were live.
+	 */
+	sourceState: {
+		dataSource: 'live' | 'cached' | 'refreshing' | 'none';
+		isOnline: boolean;
+	};
 	writeBlockedReason: string | null;
 	onSelectFaculty: (facultyId: number) => void;
 	onSave: () => void;
@@ -47,16 +72,6 @@ function formatTeacherName(member: { firstName: string; lastName: string }) {
 }
 
 /**
- * A6 C2 CORRECTION — what replaces every derived figure while the source is
- * unverified. It NAMES the cause and says the figure is withheld, so no reader
- * is left holding a bare number and no reader is told a false one. The queue's
- * component renders this string as-is beside the one amber line, so the row
- * states its own uncertainty instead of relying on the reader to remember the
- * banner at the far end of it.
- */
-const UNVERIFIED_STATUS = 'Unverified — EnrollPro is not reachable, so this figure is withheld.';
-
-/**
  * The `review-ready` item, in the two forms it can honestly take.
  *
  * The defect, as rendered: with the REAL queue in the REAL `CACHED` header,
@@ -69,9 +84,16 @@ const UNVERIFIED_STATUS = 'Unverified — EnrollPro is not reachable, so this fi
  *
  * Both keep the same `id`, `kind` and `actionLabel`, so routing, the chip tone
  * and the ONE primary action are byte-identical between the two states; only the
- * claims change. The degraded form does not print `23 of 24` labelled either:
+ * claims change. The unverified form does not print `23 of 24` labelled either:
  * that number describes the last saved snapshot, and a completeness-shaped
  * figure on the row is the defect even when it is honestly caveated.
+ *
+ * A6 C3 (N-1 / N-3): the gate is now `sourceUnverified`, not `sourceDegraded`, so
+ * this item refuses to claim readiness while `refreshing` too. The withheld
+ * string and the reason both come from the shared module, which means the
+ * description can name the ACTUAL cause instead of always saying "cannot reach
+ * EnrollPro" — false when ATLAS itself is offline, and false when there is no
+ * source at all.
  *
  * WHY THIS LIVES IN THE HOOK AND NOT IN THE COMPONENT. The component receives
  * already-authored `title` / `status` / `countLabel` strings. Deciding there
@@ -80,17 +102,23 @@ const UNVERIFIED_STATUS = 'Unverified — EnrollPro is not reachable, so this fi
  * The hook is the authority that WRITES those strings, so it is the only place
  * that can withhold a figure without reading it back.
  */
-function buildReviewReadyItem(coverageAssigned: number, coverageTotal: number, sourceDegraded: boolean): TeachingLoadRepairQueueItem {
-	if (sourceDegraded) {
+function buildReviewReadyItem(
+	coverageAssigned: number,
+	coverageTotal: number,
+	sourceUnverified: boolean,
+	withheldStatus: string,
+	unverifiedReason: string,
+): TeachingLoadRepairQueueItem {
+	if (sourceUnverified) {
 		return {
 			id: 'review-ready',
 			kind: 'review-ready',
 			// Not `Teaching Load looks ready`: the title is the strongest claim
-			// on the row, and while the source is unreachable the honest claim
+			// on the row, and while the figures are unconfirmed the honest claim
 			// is that ATLAS cannot tell.
 			title: 'Teaching Load not verified',
-			description: 'ATLAS cannot reach EnrollPro, so it cannot confirm whether any class, over-cap teacher, or temporary substitute still needs review. Treat the last saved data as unverified until the source is reachable again.',
-			status: UNVERIFIED_STATUS,
+			description: `ATLAS cannot confirm this because ${unverifiedReason}, so it cannot say whether any class, over-cap teacher, or temporary substitute still needs review. Treat the last saved data as unverified until the source is confirmed again.`,
+			status: withheldStatus,
 			actionLabel: STAFF_WORKLOAD_REVIEW_LABEL,
 		};
 	}
@@ -129,6 +157,7 @@ export function useTeachingLoadRepairQueue({
 	coverageTotal,
 	coverageUnassigned,
 	sourceDegraded,
+	sourceState,
 	writeBlockedReason,
 	onSelectFaculty,
 	onSave,
@@ -141,6 +170,22 @@ export function useTeachingLoadRepairQueue({
 }: UseTeachingLoadRepairQueueParams) {
 	const [activeRepairId, setActiveRepairId] = useState<string | null>(null);
 	const teacherRepairIntent = searchParams.get('task');
+
+	/*
+	 * A6 C3 (N-1 / N-3) — the two strings this page's rows print instead of a
+	 * figure, and the flag that gates both.
+	 *
+	 * They are derived HERE, inside the hook, from the state the page threaded —
+	 * not from a second boolean the page computed, and not from a module-level
+	 * constant as the previous version was. The constant is the defect this
+	 * replaces: one fixed sentence claiming one fixed cause, printed in states
+	 * where that cause is false. `cached` + online still produces the exact same
+	 * string it always did, so the common case is unchanged, while `OFFLINE` and
+	 * `NONE` now name what is actually wrong.
+	 */
+	const sourceUnverified = isTeachingLoadSourceUnverified(sourceState);
+	const withheldStatus = teachingLoadUnverifiedStatus(sourceState);
+	const unverifiedReason = teachingLoadUnverifiedReason(sourceState);
 
 	const teachersWithoutLoad = useMemo(
 		() => faculty
@@ -228,28 +273,64 @@ export function useTeachingLoadRepairQueue({
 			});
 		}
 		if (items.length === 0) {
-			items.push(buildReviewReadyItem(coverageAssigned, coverageTotal, sourceDegraded));
+			items.push(buildReviewReadyItem(coverageAssigned, coverageTotal, sourceUnverified, withheldStatus, unverifiedReason));
 		}
 		/*
-		 * A6 C2 CORRECTION — withhold every UPSTREAM-derived figure while the
-		 * source is unverified. `missing-load` ("2 section-subject pairs need a
-		 * teacher"), `over-cap` ("26.0h used / 40h max"), `placeholder` ("3
-		 * subject groups assigned") and their `countLabel` badges are all read
-		 * off the same snapshot as `23 of 24`, so suppressing the header's
-		 * sentence while leaving these on the row would close the finding on one
-		 * branch and leave it open on the others. `save-draft` is excluded for
-		 * the reason on `LOCAL_DRAFT_ITEM_IDS`.
+		 * A6 C3 (N-2) — WITHHOLD EVERY SNAPSHOT-DERIVED FIGURE, EXPLICITLY.
 		 *
-		 * The item's TASK, its `actionLabel`, its `id` and its `disabledReason`
-		 * are untouched, so the queue still says what to do and the ONE primary
-		 * action still works. That is deliberate: a degraded row must not become
-		 * a dead row.
+		 * A6 C2 did this with one blanket loop keyed on `sourceDegraded`, which
+		 * had two defects this replaces rather than edits.
+		 *
+		 * FIRST, it was too NARROW in one state. `sourceDegraded` is `false` while
+		 * `refreshing`, so mid-check the queue printed `Teaching Load looks ready`
+		 * and `23 of 24 classes have a teacher` beside the header's own
+		 * `Checking EnrollPro for the latest roster…`. Both numbers describe the
+		 * last saved snapshot; the wider `sourceUnverified` gate covers this.
+		 *
+		 * SECOND, it was too WIDE in one item. The blanket loop withheld
+		 * EVERYTHING that was not a local draft, including
+		 * `${department} department` — a label on a record already on screen
+		 * above, not a figure derived from the snapshot. Replacing a known
+		 * department with "Unverified" tells the scheduler less, and withholds
+		 * nothing they could not already read. Over-reach is its own kind of lie.
+		 *
+		 * SO THE POLICY IS PER ITEM, AND EXPLICIT:
+		 *   1. `save-draft` is untouched — see `LOCAL_DRAFT_ITEM_IDS`.
+		 *   2. `teacher-missing-load` keeps its department status, for the reason
+		 *      above.
+		 *   3. Every other kind (`missing-load`, `over-cap`, `placeholder`) has its
+		 *      snapshot-derived status REPLACED and its `countLabel` deleted, since
+		 *      both are read off the same snapshot as the withheld header figures.
+		 *   4. And their TITLES are prefixed too. Withholding the figure while
+		 *      leaving `… is over the weekly max` / `… has no load` printed flatly
+		 *      leaves a snapshot-derived state asserted on the row as if it were
+		 *      current — the same defect one string over. `review-ready` is NOT
+		 *      prefixed: its unverified title is already a non-claim, so a prefix
+		 *      would only add words to a sentence that claims nothing.
+		 *   5. `id`, `kind`, `actionLabel`, `facultyId`, `disabledReason` and every
+		 *      `description` are untouched, so a withheld row is still a row that
+		 *      says what to do. A degraded row must never become a dead row.
 		 */
-		if (sourceDegraded) {
+		if (sourceUnverified) {
 			for (const item of items) {
 				if (LOCAL_DRAFT_ITEM_IDS.has(item.id)) continue;
-				item.status = UNVERIFIED_STATUS;
-				delete item.countLabel;
+				// 2. `teacher-missing-load` is the ONE exception, and it is an
+				// exception to the STATUS only. Its department is a label on a
+				// record already on screen, not a figure derived from the
+				// snapshot, so replacing it with `Unverified` told the scheduler
+				// less and withheld nothing they could not already read. Its
+				// TITLE still asserts a snapshot-derived state (`… has no
+				// load`), so it is qualified below like every other.
+				if (item.kind !== 'teacher-missing-load') {
+					item.status = withheldStatus;
+					delete item.countLabel;
+				}
+				// 4. `review-ready` is NOT prefixed: its unverified title is
+				// already a non-claim, so a prefix would only add words to a
+				// sentence that claims nothing.
+				if (item.kind !== 'review-ready') {
+					item.title = `Last saved data — ${item.title}`;
+				}
 			}
 		}
 		return items;
@@ -263,6 +344,10 @@ export function useTeachingLoadRepairQueue({
 		overCapTeachers,
 		placeholderTeachers,
 		sourceDegraded,
+		sourceState,
+		sourceUnverified,
+		withheldStatus,
+		unverifiedReason,
 		teachersWithoutLoad,
 		writeBlockedReason,
 	]);

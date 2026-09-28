@@ -71,6 +71,13 @@ import type {
 	ViolationReport,
 } from '@/types';
 import { resolveViolationTitle } from '@/lib/violation-presentation';
+import {
+	buildEntityEntryIndex,
+	buildRoomSortRanks,
+	resolveGridEntries,
+	sectionFocusDependencyForMode,
+	sortRoomIdsByRank,
+} from '@/lib/timetable-entity-index';
 
 /**
  * A6 — a superseded/obsolete school-year resolution is not a missing school
@@ -1293,6 +1300,15 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 	}, [filteredDraftEntries]);
 	const sectionIds = useStablePrimitiveArray(rawSectionIds);
 
+	// A2-C12 ITEM P (P2): the room list's building-then-name order is resolved
+	// ONCE per roomMap into an integer rank, so a section switch no longer runs
+	// a toLowerCase/localeCompare comparator over the ids.
+	const roomSortRanks = useMemo(() => buildRoomSortRanks(roomMap), [roomMap]);
+	// A2-C12 ITEM P (P2): only the section branch reads sectionFocusId, so the
+	// dependency is scoped to that mode and a section switch cannot invalidate
+	// the room or faculty id lists.
+	const sectionFocusDependency = sectionFocusDependencyForMode(viewMode, sectionFocusId);
+
 	const rawPivotEntityIds = useMemo(() => {
 		const entries = filteredDraftEntries;
 		const isPreGen = centerView === 'pre-generation';
@@ -1320,26 +1336,19 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 		for (const [id, room] of roomMap.entries()) {
 			if (room.isTeachingSpace) ids.add(id);
 		}
-		return Array.from(ids).sort((a, b) => {
-			const ra = roomMap.get(a);
-			const rb = roomMap.get(b);
-			if (!ra || !rb) return a - b;
-			const bldgA = (ra.buildingShortCode || ra.buildingName).toLowerCase();
-			const bldgB = (rb.buildingShortCode || rb.buildingName).toLowerCase();
-			if (bldgA !== bldgB) return bldgA.localeCompare(bldgB);
-			return ra.name.localeCompare(rb.name);
-		});
-	}, [filteredDraftEntries, facultyMap, programKindFilteredUnassignedItems, roomMap, sectionFocusId, sectionIds, sectionMap, viewMode, centerView]);
+		return sortRoomIdsByRank(ids, roomSortRanks);
+	}, [filteredDraftEntries, facultyMap, programKindFilteredUnassignedItems, roomMap, roomSortRanks, sectionFocusDependency, sectionIds, sectionMap, viewMode, centerView]);
 	const pivotEntityIds = useStablePrimitiveArray(rawPivotEntityIds);
 
-	const gridEntries = useMemo(() => {
-		const entries = filteredDraftEntries;
-		const id = Number(entityFilter);
-		if (!id) return [];
-		if (viewMode === 'section') return entries.filter((e) => e.sectionId === id);
-		if (viewMode === 'faculty') return entries.filter((e) => e.facultyId === id);
-		return entries.filter((e) => e.roomId === id);
-	}, [entityFilter, filteredDraftEntries, viewMode]);
+	// A2-C12 ITEM P (P1): one pass over the filtered entries indexes them by
+	// section, faculty and room, so selecting an entity is a map lookup instead
+	// of an O(n) filter over the whole run. Keyed on the entries alone.
+	const entityEntryIndex = useMemo(() => buildEntityEntryIndex(filteredDraftEntries), [filteredDraftEntries]);
+
+	const gridEntries = useMemo(
+		() => resolveGridEntries(entityEntryIndex, viewMode, entityFilter),
+		[entityFilter, viewMode, entityEntryIndex],
+	);
 
 	const gridIndex = useMemo(() => {
 		const index = new Map<string, ScheduledEntry[]>();

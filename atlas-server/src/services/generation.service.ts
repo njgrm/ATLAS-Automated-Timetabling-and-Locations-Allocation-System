@@ -306,35 +306,6 @@ export interface RunSummary {
 	derivedDemandRevision?: string;
 }
 
-function normalizeGradeLevel(value: number): number {
-	if (!Number.isFinite(value)) return value;
-
-	// If it's already a valid actual grade number (7-10), return as-is
-	if (value >= 7 && value <= 10) return value;
-
-	// EnrollPro internal grade_level_id -> actual grade number mapping
-	const ENROLLPRO_MAPPINGS: Record<number, number> = {
-		5: 7,
-		6: 8,
-		7: 9,
-		8: 10,
-		17: 7,
-		18: 8,
-		19: 9,
-		20: 10,
-	};
-
-	if (value in ENROLLPRO_MAPPINGS) return ENROLLPRO_MAPPINGS[value];
-
-	// If value >= 100, use modulo normalization
-	if (value >= 100) {
-		const normalized = value % 100;
-		if (normalized >= 1 && normalized <= 12) return normalized;
-	}
-
-	return value;
-}
-
 function selectPrimaryTimetableShapeContract(contracts: TimetableShapeContract[]): TimetableShapeContract | null {
 	if (contracts.length === 0) return null;
 	return contracts.find((contract) => contract.programType === 'REGULAR') ?? contracts[0] ?? null;

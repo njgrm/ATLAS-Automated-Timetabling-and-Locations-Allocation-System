@@ -26,13 +26,16 @@ import {
 } from '@/lib/teaching-load-suggestion-diagnostics';
 import { TeachingLoadCandidateDiagnostics } from '@/components/faculty-assignments/TeachingLoadCandidateDiagnostics';
 import {
+	NO_DEMAND_DESCRIPTION,
 	resolveSuggestionPreviewState,
+	suggestionDemandRowCount,
 	type SuggestionPreviewState,
 } from '@/lib/teaching-load-suggestion-presentation';
 
 const SUGGESTION_PREVIEW_TITLES: Record<SuggestionPreviewState, string> = {
 	'review-only': 'Review saved Teaching Load coverage',
 	loading: 'Checking Teaching Load suggestion',
+	'no-demand': 'No classes to fill for this school year',
 	shortage: 'Review suggested Teaching Load draft',
 	imbalance: 'Coverage complete, rebalance proposed',
 	unevaluated: 'Coverage complete, balance not evaluated',
@@ -223,6 +226,7 @@ export function AutoFillSummaryModal({
 		hasShortage,
 		distributionEvaluated,
 		balanced: distribution?.summary.balanced === true,
+		demandRowCount: suggestionDemandRowCount(result),
 	});
 	// Single authoritative state drives the header. An unevaluated proposal can
 	// never reach the `balanced` state.
@@ -231,6 +235,8 @@ export function AutoFillSummaryModal({
 		? 'Review the current saved Teaching Load assignments, unassigned pairs, and warnings. Use Suggest Teaching Load draft to prepare new assignments.'
 		: !hasResult
 			? 'ATLAS is reading the current EnrollPro setup and checking which Teaching Load rows can be suggested. Nothing is being saved.'
+			: previewState === 'no-demand'
+				? NO_DEMAND_DESCRIPTION
 			: hasImbalance && distribution && !hasShortage
 				? `All ${distribution.summary.coveredRows} subject-section pairs have an owner, but ${distribution.summary.aboveStandardFaculty} teacher${distribution.summary.aboveStandardFaculty === 1 ? ' is' : 's are'} above the teaching standard. ATLAS proposes ${distribution.summary.proposedMoves} exact move${distribution.summary.proposedMoves === 1 ? '' : 's'} to qualified same-department receivers${distribution.summary.unresolvedImbalance > 0 ? `, with ${distribution.summary.unresolvedImbalance} still unresolved` : ''}. Review every move before applying.`
 			: hasShortage
@@ -276,7 +282,7 @@ export function AutoFillSummaryModal({
 					<div className="relative z-10 flex flex-col items-start gap-3">
 						<div className="bg-white/20 p-2 rounded-xl backdrop-blur-md border border-white/20">
 							{previewState === 'loading' ? <Zap className="size-6 animate-pulse" />
-								: previewState === 'shortage' || previewState === 'imbalance' ? <AlertTriangle className="size-6" />
+								: previewState === 'shortage' || previewState === 'imbalance' || previewState === 'no-demand' ? <AlertTriangle className="size-6" />
 									: previewState === 'balanced' ? <BadgeCheck className="size-6" />
 										: <Info className="size-6" />}
 						</div>
