@@ -37,11 +37,12 @@ export const teachersAndRoomsNav: NavItemDef[] = [
 	{ label: 'Teacher Concerns', to: '/faculty/concerns', icon: HeartHandshake, adminOnly: true, schedulerAccess: true },
 	// A3-C8 REACHABILITY — `/faculty/room-preferences` is a real, fully built
 	// review queue (620-line `OfficerRoomPreferences`, live summary read, preview
-	// and review actions) that the shell already titled correctly at line 117,
-	// yet had ZERO inbound links, so no operator could reach it.
+	// and review actions) that the shell already titled correctly via the
+	// `routeChromeOverrides` entry for that path, yet had ZERO inbound links, so
+	// no operator could reach it.
 	//
 	// `schedulerAccess` is DELIBERATELY ABSENT and load-bearing. The server
-	// (`routes/room-preference.router.ts`) guards both the review POST and the
+	// (`routes/room-preference.router.ts`) guards both the review PATCH and the
 	// appeal-status PATCH with `PRIVILEGED_ROLES = {admin, officer,
 	// SYSTEM_ADMIN}` and answers 403 FORBIDDEN — "Only admin, officer, or
 	// SYSTEM_ADMIN can review room preferences." This item is `adminOnly` and

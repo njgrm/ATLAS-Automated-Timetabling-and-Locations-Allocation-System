@@ -16,7 +16,7 @@
  *     BREADCRUMB/TITLE map, NOT a nav item. That is precisely why the page
  *     rendered a correct shell title while having zero inbound links.
  *   - `atlas-server/src/routes/room-preference.router.ts` guards the review
- *     POST and the appeal-status PATCH with
+ *     PATCH and the appeal-status PATCH with
  *     `PRIVILEGED_ROLES = {admin, officer, SYSTEM_ADMIN}`, answering
  *     403 FORBIDDEN / "Only admin, officer, or SYSTEM_ADMIN can review room
  *     preferences."
@@ -156,12 +156,19 @@ test('R3a: the item is adminOnly and carries NO schedulerAccess, matching server
 });
 
 test('R3b: a scheduler with only timetable:read does NOT see the item, while officer/admin/SYSTEM_ADMIN DO', () => {
+	// Non-vacuity, for real. The previous form of this row asserted
+	// `itemsAt.length > 0`, which is the helper's ARITY and is therefore always
+	// true — it did not check what its message claimed (§11: a control must
+	// discriminate). This asserts the admin probe actually resolves the item,
+	// so a failure below can only mean the authority check flipped, never that
+	// the probe silently found nothing.
+	const adminProbe = itemsAt(ROOM_PREFERENCES_ROUTE);
 	assert.equal(
-		itemsAt.length > 0,
-		true,
-		'sanity: the admin probe used by this file must be non-vacuous',
+		adminProbe.length,
+		1,
+		'sanity: the admin probe used by this file must resolve exactly one item, or the authority assertion below is vacuous',
 	);
-	const schedulerSees = canSeeNavItem(scheduler, itemsAt(ROOM_PREFERENCES_ROUTE)[0]!);
+	const schedulerSees = canSeeNavItem(scheduler, adminProbe[0]!);
 	assert.equal(
 		schedulerSees,
 		false,
