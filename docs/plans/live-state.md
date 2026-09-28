@@ -26,6 +26,40 @@ rules are what make that safe:
    `docs/handoffs/planner-session-handoff.md`, Lane B in its own handoff file, Lane C in its
    section below until a stream needs a handoff.
 
+## Lane A4 — release lane, 2026-09-28 (train 3; trains 1 and 2 below as history)
+
+- **STAGING IS UP at `bae81afb` (train 3) — second, isolated ATLAS on 5101 (API) / 5274 (client).**
+  `http://127.0.0.1:5274` and **`https://njgrm.buru-degree.ts.net:8443`**. Release dir
+  `E:\ATLAS-staging\bae81afb…`; branch `release/2026-09-28-3`; deploy 91.1 s; DB refreshed from live
+  (`SNAPSHOT_REFRESHED`, `1021|470|11` before and after, live unchanged). Baselines **before** any mutation:
+  `E:\ATLAS-staging\audit\train3-20260928-220727\` — the `C:\ProgramData\ATLAS\staging-audit` write was
+  rejected by the permission layer, so this train's baselines live on `E:`.
+- **⚠⚠ 2026-09-28 22:0x — `origin/main` IS BEHIND LIVE, AND IT WILL REVERT A3 c11.** Train 2 pinned
+  `release/2026-09-28-2`, deployed `9ca7f629`, and **never merged the release line into `main`**:
+  `git merge-base --is-ancestor 9ca7f629 origin/main` exits **1** and so does
+  `git merge-base --is-ancestor c45d7455 origin/main`. Pinning the `origin/main` tip (`7bb85d13`) as the
+  packet instructed shows A3 c11 as **11 DELETED paths** — `campus-map/campusEditorCanvas.ts`,
+  `sections/homeRoomWriteAvailability.ts`, `sections/SectionsHomeRoomMapModals.tsx`,
+  `__tests__/konva-dom-render-harness.ts` + 4 test files incl. `a3-c12-truthful-confirm.test.tsx`.
+  **I refused that pin** and based train 3 on the incumbent `9ca7f629`, merging A2 `24c6242c` into it
+  (clean, 0 conflicts, all 5 c11 production paths re-verified present). **What proves it:** the two
+  `is-ancestor` exits above, and `git diff --name-status 9ca7f629 7bb85d13` listing `D` for those paths.
+  **Unresolved: the release line is still not on `main`.** `release/2026-09-28-3` is **pushed as a branch
+  only.** Until a release line is merged to `main`, the next A4 train hits the same trap.
+- **Train 3 gate:** VISUAL tier (client rendering only; 0 `atlas-server/`, `prisma/`, `ops/`, lockfile) →
+  `npm run test:staging-guards` **20/20** + rendered evidence, per §11. Deploy dry run clean
+  (`mutates/secretsPrinted/writesLiveDb/touchesLiveTask/writesMachineEnv` all false). Chunk discriminator
+  non-vacuous: `TimetableSimpleHeader-D4jbMH30.js` 200 (181 153 B), old `-CPRshG2N.js` **404**.
+- **LIVE UNTOUCHED, measured (2026-09-28 22:0x +08):** 5001 → **15996**, 5174 → **13824** — same PIDs, same
+  command lines before and after; machine scope, live tree (CLEAN at `9ca7f629`) and the DB-backed read
+  (19 517 B) byte-identical. Only 5101/5274 moved. Live task Running on `lane-a4-release-20260928-2`.
+- **Next action (single):** Lane C walks staging at `bae81afb` and continues this session with the
+  production GO/NO-GO. At that GO/NO-GO, A4 must first **land the release line on `main`**, or train 4
+  reverts c11.
+- **Capacity:** `E:` **28.31 GiB** after the train-3 deploy (was 30.43), above the §3 25 GiB warn line, so no
+  reclaim is owed. `E:\ATLAS-staging` now holds **4** release dirs (~5.9 GiB); A4 reclaims the superseded ones
+  before it crosses the line. `D:` 39.42 GiB.
+
 ## Lane A4 — release lane, 2026-09-28 (first A4 train)
 
 - **STAGING IS UP at `7590d485` — a second, isolated ATLAS on 5101 (API) / 5274 (client).**
@@ -263,17 +297,37 @@ resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs
 
 - Tailnet: `https://njgrm.buru-degree.ts.net`
 
-- **▶ STAGING (second, isolated ATLAS) is up at `7590d485` on 5101/5274 since 2026-09-28 ~17:35 +08 by
-  Lane A4 — this does NOT change the LIVE release named below.** Loopback only: `http://127.0.0.1:5274`.
-  Own env file, own `atlas_staging` database (a dump snapshot of live), own scheduled task, own dependency
-  trees, and its own `JWT_SECRET` so no session crosses the two origins. **Two gates are still open — the
-  independent post-action QA dispatch was declined and the operator has not signed in — so staging is
-  NOT QA-verified.** Detail and rows: `docs/reviews/a4-staging-20260928/pre-action.md`; operator steps:
-  `docs/runbooks/staging.md`; source on branch `work/a4-staging-20260928` at `834f1ad3` (pushed, not yet
-  merged to `main`). Live listeners, machine scope, release tree and the live `audit_logs` signature
-  `1010|459|11` were all measured unchanged across the staging cutover.
+- **▶ STAGING is up at `bae81afb` on 5101/5274 since 2026-09-28 22:0x +08 by Lane A4 (train 3) — this does
+  NOT change the LIVE release named below.** `http://127.0.0.1:5274` and `https://njgrm.buru-degree.ts.net:8443`.
+  Own env file, own `atlas_staging` database (refreshed from live: `SNAPSHOT_REFRESHED`, `1021|470|11` both
+  sides), own scheduled task, own dependency trees, own `JWT_SECRET`. Pin `bae81afb` = merge of the incumbent
+  `9ca7f629` with **A2 `24c6242c`** (H header bands at 1366 / D Edit+Discard draft in the strip / named
+  combobox), **plus A3 c11 retained via the base**. Client-only, 43 files, 0 `atlas-server/`/`prisma/`/`ops/`.
+  Gate `test:staging-guards` 20/20; non-vacuous chunk discriminator `-D4jbMH30.js` 200 / old `-CPRshG2N.js` 404.
+  **Live measured untouched**: 5001 → 15996, 5174 → 13824, same PIDs and command lines, machine scope and
+  live tree unchanged, DB-backed read 19 517 B byte-identical. **Still open:** no authenticated staging row has
+  run (needs a one-time sign-in at `:8443`), so staging is **not** QA-verified; and **`origin/main` is behind
+  live** — train 2 was deployed but never merged to `main`, so pinning the main tip would revert A3 c11 (see
+  the Lane A4 section). Baselines: `E:\ATLAS-staging\audit\train3-20260928-220727\`.
 
-- **▶ LIVE: `7590d485974337f834aa3972bb128090e6067b8d` — DEPLOYED 2026-09-28 ~16:40 +08 by Lane A4
+- **▶ LIVE: `9ca7f629a7e43a0e31c6b9fada97152541c2a877` — DEPLOYED 2026-09-28 ~20:2x +08 by Lane A4
+  (train 2, `a4-release-2026-09-28-2`).** **This corrects the `7590d485` "LIVE" entry below, which is now
+  history; what proves it:** machine-scope `ATLAS_RUNTIME_RELEASE_SHA=9ca7f629…` and
+  `ATLAS_RUNTIME_SOURCE_DIR=E:\ATLAS-worktrees\lane-a4-release-20260928-2`, the `ATLAS-Runtime-Supervisor`
+  task action, and both listener command lines — all four agree, re-measured 2026-09-28 22:0x +08.
+  Listeners 5001 → **15996**, 5174 → **13824**; rollback basis `4c35cc8f`. **⚠ Its release line was never
+  merged to `origin/main`** — see the Lane A4 section; that is an open integration debt, not a live incident.
+
+- **▶ SUPERSEDED by the `9ca7f629` block above — the following `LIVE: 7590d485` entry is now history.**
+  It is preserved unaltered as the record of the release that was live between ~16:40 and ~20:2x +08.
+
+- **▶ SUPERSEDED by the `7590d485` block above — the DEPLOYMENT-PENDING line that follows is now history.**
+
+- **▶ SUPERSEDED: the `LIVE: 7590d485…` entry that follows describes the release that was live between
+  ~16:40 and ~20:2x +08 on 2026-09-28. LIVE is now `9ca7f629` — see the block above.**
+
+- **▶ LIVE (SUPERSEDED 2026-09-28 ~20:2x +08, replaced by `9ca7f629`): `7590d485974337f834aa3972bb128090e6067b8d`**
+  — DEPLOYED 2026-09-28 ~16:40 +08 by Lane A4
   (`a4-release-2026-09-28-1`, the first A4 train). Merge of the incumbent `4c35cc8f` with **A3 `7caadf2d`
   (c9 + c10)**. A2 had nothing ready; its c11 rides the next train. Recorded by A4 in the same action as the
   cutover, as §6 requires.**

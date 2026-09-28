@@ -1117,3 +1117,68 @@ Evidence: `docs/reviews/codex-staging-train2-9ca7f629-20260928.md` (Codex, Brave
 - **A3:** campus editor — the fixed Building summary inspector covers the Grade 10 canvas card (item 36); Dashboard still scrolls the whole document (1966 px in a 768 px viewport); first load of `/` and `/map?mode=editor&buildingId=4` showed a blank shell (timing check vs live running now — I will post the result).
 - **A5:** clicking `... coverage: n/n sections` on /subjects opens no dialog (17.1); the filter row has search + five selects, the packet says four (41).
 - **A6:** nothing failed; save-confirmation (40) and the profile subject-code sizing are still unwalked.
+
+---
+
+## A4 -> Lane C, 2026-09-28 22:1x +08 - **A4 STAGING at `bae81afb`** - train 3, STAGING only, live untouched
+
+Pin **`bae81afbec8eb4bc82fbd246f0db4a5f2f5a1799`** (`release/2026-09-28-3`, parents `9ca7f629` + `24c6242c`).
+Staging `http://127.0.0.1:5274` and `https://njgrm.buru-degree.ts.net:8443` are serving it. **LIVE did not move.**
+
+**Read this before you walk: I did not pin the `origin/main` tip, on purpose, and the reason is yours to fix.**
+
+The packet said "build the train from the `origin/main` tip at the moment you start". The tip was `7bb85d13`.
+**`origin/main` does not contain A3 c11.** `git merge-base --is-ancestor c45d7455 origin/main` exits **1**, and
+`git merge-base --is-ancestor 9ca7f629 origin/main` exits **1** — train 2's release merge was deployed but
+**never landed on main**. So `git diff --name-status 9ca7f629 7bb85d13` shows A3 c11 as **eleven DELETED paths**:
+`campus-map/campusEditorCanvas.ts`, `sections/homeRoomWriteAvailability.ts`,
+`sections/SectionsHomeRoomMapModals.tsx`, `components/__tests__/konva-dom-render-harness.ts` and four test files
+(including `a3-c12-truthful-confirm.test.tsx`).
+
+Deploying the tip to staging would have **reverted a fix that is on staging right now** — your train-2 walk saw it.
+I based the train on the **incumbent `9ca7f629`** instead and merged A2's `24c6242c` into it. The merge is clean:
+**zero conflicts**, `atlas-client/package.json` is a scripts-only union, and I re-verified all five c11 production
+paths are `UNCHANGED (present)` in the merged tree. Client-only: **43 files, 0** under `atlas-server/`, `prisma/`,
+`ops/` or any lockfile.
+
+**What is in this train**
+
+| Lane | SHA | What |
+| --- | --- | --- |
+| A2 | `24c6242c` | H header two element bands at 1366, D Edit/Discard draft in the strip, named combobox (`searchable-select.tsx`) |
+| A3 | via base `9ca7f629` | c11 campus editor canvas + Sections room-map modals, **retained, not re-reviewed by me** |
+| A6 | via the `24c6242c` line | Teaching Load two-row header / vertical Load summary / withheld derived figures |
+
+**Gate:** `npm run test:staging-guards` **20/20** on the pin. Deploy dry run first: `mutates: false`,
+`secretsPrinted: false`, `writesLiveDb: false`, `touchesLiveTask: false`, `writesMachineEnv: false`. This is a
+**VISUAL-tier** delta (client rendering only — no data, state, auth, route-target or API change), so per §11 there
+is no separate source review round: rendered evidence is the gate, and that is your walk. Deploy **91.1 s**.
+
+**Deployment rows (A4-measured, staging)**
+
+| Row | Result |
+| --- | --- |
+| S1 staging health / ready / host | **PASS** — `/api/v1/health` 200, `/api/v1/health/ready` 200, `/` 200 (3 838 B) |
+| S2 DB-backed read | **PASS** — `/api/v1/subjects?schoolId=1` 200, **19 517 B**, on loopback **and** on `:8443` |
+| S3 staging DB refreshed from live | **PASS** — `SNAPSHOT_REFRESHED`, live `1021\|470\|11` before **and** after, staging `1021\|470\|11`, `liveUnchanged: true`, archive never written to disk |
+| S4 non-vacuous chunk discriminator | **PASS** — `TimetableSimpleHeader-D4jbMH30.js` **200 (181 153 B)**, old `-CPRshG2N.js` **404**; same logical chunk, 179 866 → 181 153 B, SHA differs. 49 assets new-only / 49 old-only |
+| S5 **live untouched, measured not asserted** | **PASS** — before/after **identical** on `live-source-dir`, `live-release-sha`, `live-head`, `live-status` (CLEAN), `live-db-backed-read` (19 517 B), `live-ready`. Listeners: live **5001 → 15996** and **5174 → 13824** — **same PIDs, same command lines**. Only 5101/5274 moved. Live task still Running on `lane-a4-release-20260928-2`. |
+
+Baselines are in **`E:\ATLAS-staging\audit\train3-20260928-220727\`** (the earlier `C:\ProgramData\ATLAS\staging-audit`
+write was rejected by the permission layer, so this train's baselines live on `E:`). Captured **before** any
+mutation — that is the train-1 D7 `PARTIAL` lesson, discharged.
+
+**Owed, dated 2026-09-28, and it is the thing that matters most here:** **`origin/main` is behind live.** Train 2
+landed on `release/2026-09-28-2` and shipped, but was never merged to `main`, so main is missing A3 c11. I have
+pushed `release/2026-09-28-3` — **the branch, not main**. Until the release line is merged into `main`, **the next
+A4 train will hit exactly the same trap** and the train after this one will silently revert c11 again. That is an
+A4 integration decision at the next production GO/NO-GO, not something I will do from a staging walk.
+
+Also still open, unchanged: no authenticated staging row has run (needs a one-time sign-in at `:8443`; sessions are
+origin-bound), and the live Dashboard §8 global-scroll defect is **not** fixed by this train — it is pre-existing
+and belongs to a product lane.
+
+**Worktrees:** `lane-a4-release-20260928-3` = **`KEEP_ACTIVE`** (it is the staging deploy source and the release
+boundary). `E:` **28.31 GiB** after the deploy, above the §3 25 GiB warn line, so no reclaim is owed — but
+`E:\ATLAS-staging` now holds four release dirs (~5.9 GiB); A4 will reclaim the superseded ones before it crosses
+the line.
