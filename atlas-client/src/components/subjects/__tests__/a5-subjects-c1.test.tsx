@@ -80,6 +80,10 @@ const {
 } = await import('../../table/SortableColumnHeader');
 const { SortableSectionHeader } = await import('../../sections/SectionsSortableHeader');
 const { AdminDataTable } = await import('../../admin-workspace/AdminDataTable');
+const { SubjectFilterToolbar } = await import('../SubjectFilterToolbar');
+type SubjectStatusFilter = import('../SubjectFilterToolbar').SubjectStatusFilter;
+const { AdminSearchFilterToolbar } = await import('../../admin-workspace/AdminWorkspace');
+const constants = await import('../../../lib/subject-constants');
 
 let root: Root | null = null;
 let hostEl: HTMLElement | null = null;
@@ -402,4 +406,229 @@ test('A5-34/35 MUTANT CONTROL: the PRE-FIX bubble class list is rejected by the 
 	await openTooltip(document.body.querySelector('th[aria-sort] button') as HTMLElement);
 	assert.deepEqual(missing(bubble().className), [], 'the live bubble does not carry the required tooltip style');
 	assert.ok(hasClass(bubble(), 'py-1'), 'the live bubble is not the compact `py-1` inset');
+});
+
+// ---------------------------------------------------------------------------
+// A5 slice 2 — items 9.1 + 41: the Subjects filter row.
+// ---------------------------------------------------------------------------
+
+/** Radix Select opens on pointerdown, not on click. */
+async function click(el: Element | null): Promise<void> {
+	await act(async () => {
+		const target = el as HTMLElement;
+		const init = { bubbles: true, cancelable: true, button: 0, ctrlKey: false };
+		target.dispatchEvent(new dom.window.MouseEvent('pointerdown', { ...init, pointerType: 'mouse' } as never));
+		target.dispatchEvent(new dom.window.MouseEvent('mousedown', init));
+		target.dispatchEvent(new dom.window.MouseEvent('pointerup', { ...init, pointerType: 'mouse' } as never));
+		target.dispatchEvent(new dom.window.MouseEvent('mouseup', init));
+		target.dispatchEvent(new dom.window.MouseEvent('click', init));
+	});
+}
+
+const TERM_OPTIONS = [
+	{ value: 'all', label: 'All terms', kind: 'all' as const },
+	{ value: 'rank:1', label: 'Term 1', kind: 'term' as const },
+];
+
+type ToolbarProps = React.ComponentProps<typeof SubjectFilterToolbar>;
+
+const TOOLBAR: ToolbarProps = {
+	searchQuery: '',
+	onSearchChange: () => {},
+	hasActiveFilters: false,
+	subjectStatusFilter: 'all',
+	onSubjectStatusFilterChange: () => {},
+	roomTypeFilter: 'all',
+	onRoomTypeFilterChange: () => {},
+	gradeLevelFilter: 'all',
+	onGradeLevelFilterChange: () => {},
+	programScopeFilter: 'all',
+	onProgramScopeFilterChange: () => {},
+	termFilter: 'all',
+	onTermFilterChange: () => {},
+	termOptions: TERM_OPTIONS,
+	onResetFilters: () => {},
+};
+
+/** Open a select and return its rendered options, in order. */
+async function openSelect(trigger: Element | null): Promise<Element[]> {
+	await click(trigger);
+	const listbox = document.body.querySelector('[role="listbox"]');
+	assert.ok(listbox, 'the select did not open its listbox');
+	return Array.from(listbox.querySelectorAll('[role="option"]'));
+}
+
+async function chooseOption(options: Element[], label: string): Promise<void> {
+	const option = options.find((o) => (o.textContent ?? '').trim() === label);
+	assert.ok(option, `option "${label}" is not offered`);
+	await click(option);
+}
+
+/** Every `role=combobox` trigger inside the one wrapping cluster, in order. */
+function clusterTriggers(): HTMLElement[] {
+	const cluster = document.body.querySelector('[data-testid="subjects-filter-cluster"]');
+	assert.ok(cluster, 'the wrapping filter cluster is gone');
+	return Array.from(cluster.querySelectorAll('[role="combobox"]'));
+}
+
+test('A5-9.1/41: the filter row is ONE cluster with exactly one All Status control, and nothing left to disclose', async () => {
+	await render(<MemoryRouter><SubjectFilterToolbar {...TOOLBAR} hasActiveFilters /></MemoryRouter>);
+
+	// One row: the shared inline row, with no second always-visible row beside it.
+	assert.ok(document.body.querySelector('[data-testid="admin-inline-filter-row"]'), 'the single filter row is gone');
+	assert.equal(document.body.querySelector('[data-testid="admin-primary-filter-row"]') === null, true, 'a second always-visible filter row is back');
+
+	// One wrapping cluster carrying the whole row, at the operator's spacing.
+	const cluster = document.body.querySelector('[data-testid="subjects-filter-cluster"]') as HTMLElement;
+	for (const token of ['flex', 'flex-wrap', 'items-center', 'gap-2.5']) {
+		assert.ok(hasClass(cluster, token), `the cluster is missing "${token}"`);
+	}
+
+	// EXACTLY ONE status-looking trigger, and its resting label is the
+	// operator's `All Status` — the duplicate `All statuses` dropdown is gone.
+	const triggers = clusterTriggers();
+	const statusish = triggers.filter((t) => /status/i.test(`${t.getAttribute('aria-label') ?? ''} ${t.textContent ?? ''}`));
+	assert.equal(statusish.length, 1, `expected exactly one status control, found ${statusish.length}: ${statusish.map((t) => t.getAttribute('aria-label')).join(', ')}`);
+	assert.equal((statusish[0].textContent ?? '').trim(), 'All Status', 'the merged status control does not read "All Status"');
+	assert.equal(statusish[0].getAttribute('aria-label'), 'Filter by subject status');
+	assert.equal(/All statuses/.test(document.body.textContent ?? ''), false, 'the lowercase-plural duplicate label is back');
+
+	// The operator's four filters are all directly present, plus the retained
+	// term filter. Nothing is behind a disclosure, and no second row exists.
+	assert.equal(triggers.length, 5, `expected 5 direct filters (Status, Grades, Programs, Room Types, Term), found ${triggers.length}`);
+	for (const label of [
+		'Filter by subject status',
+		'Filter by grade level',
+		'Filter by program scope',
+		'Filter by room type',
+		'Filter by rotation term',
+	]) {
+		assert.ok(document.body.querySelector(`[aria-label="${label}"]`), `filter "${label}" is not directly visible`);
+	}
+	// The operator's resting labels, verbatim.
+	for (const label of ['All Status', 'All Grades', 'All Programs', 'All Room Types']) {
+		assert.ok(triggers.some((t) => (t.textContent ?? '').trim() === label), `no trigger reads "${label}"`);
+	}
+
+	// NOTHING to disclose: no "More filters" control, and the green EnrollPro
+	// strip (item 9.1(1)) is not in the DOM.
+	assert.equal(
+		Array.from(document.body.querySelectorAll('button')).filter((b) => /more filters/i.test(b.textContent ?? '')).length,
+		0,
+		'a "More filters" disclosure is back',
+	);
+	assert.equal(/EnrollPro year and terms verified live/.test(document.body.textContent ?? ''), false, 'the green EnrollPro notice strip is back');
+
+	// The handles A3-C10 introduced are preserved.
+	assert.ok(document.body.querySelector('[data-testid="subjects-room-type-filter"]'), 'the Room Type handle is gone');
+	assert.ok(document.body.querySelector('[data-testid="subjects-program-filter"]'), 'the Program handle is gone');
+	assert.ok(document.body.querySelector('[data-testid="subjects-reset-filters"]'), 'Reset is not offered while a filter is active');
+});
+
+test('A5-9.1/41: the search box is the fixed compact width, and every select carries the same compact dimensions', async () => {
+	await render(<MemoryRouter><SubjectFilterToolbar {...TOOLBAR} /></MemoryRouter>);
+
+	const search = document.body.querySelector('input[placeholder="Search name or code..."]') as HTMLInputElement | null;
+	assert.ok(search, 'the search box is gone');
+	assert.equal(search.placeholder, 'Search name or code...', 'the search placeholder is not the operator text');
+	const wrapper = search.parentElement as HTMLElement;
+	assert.ok(hasClass(wrapper, 'w-[240px]'), `the search wrapper is not w-[240px]: ${wrapper.className}`);
+	assert.ok(hasClass(wrapper, 'max-w-[240px]'), 'the search box can still grow past the compact width');
+	for (const token of ['h-9', 'text-xs']) {
+		assert.ok(hasClass(search, token), `the search input is missing "${token}"`);
+	}
+
+	// The operator's exact trigger dimensions, on EVERY select.
+	const triggers = clusterTriggers();
+	assert.ok(triggers.length >= 4, 'no select triggers rendered');
+	for (const trigger of triggers) {
+		for (const token of ['h-9', 'text-xs', 'px-3', 'rounded-xl', 'border', 'border-slate-200', 'bg-white', 'hover:bg-slate-50', 'transition-colors']) {
+			assert.ok(hasClass(trigger, token), `a select trigger is missing "${token}": ${trigger.getAttribute('aria-label')}`);
+		}
+	}
+
+	// Grades use the shared compact DepEd form, not `Grade 7`.
+	const options = await openSelect(document.body.querySelector('[aria-label="Filter by grade level"]'));
+	const labels = options.map((o) => (o.textContent ?? '').trim());
+	assert.equal(labels[0], 'All Grades', 'the grade filter has no "All Grades" reset option');
+	for (const grade of constants.GRADE_OPTIONS) {
+		assert.ok(labels.includes(`GR${grade}`), `the grade option is not the shared compact GR${grade} form`);
+	}
+	assert.equal(labels.includes('Grade 7'), false, 'the grade options use a second spelling');
+	assert.equal(labels.length, constants.GRADE_OPTIONS.length + 1, 'the grade list lost an option');
+});
+
+test('A5-9.1/41 LOAD-BEARING: the one status control reaches BOTH axes — lifecycle and coverage attention', async () => {
+	// The merge must not have dropped the coverage-attention axis. Every option
+	// the two old dropdowns offered is offered by the one control, and each
+	// choice reaches the page with the value the existing predicates read.
+	const fired: string[] = [];
+	const reset = () => { fired.push('reset'); };
+	await render(
+		<MemoryRouter>
+			<SubjectFilterToolbar
+				{...TOOLBAR}
+				hasActiveFilters
+				onSubjectStatusFilterChange={(v: SubjectStatusFilter) => { fired.push(`status:${v}`); }}
+				onResetFilters={reset}
+			/>
+		</MemoryRouter>,
+	);
+	const options = await openSelect(document.body.querySelector('[aria-label="Filter by subject status"]'));
+	const labels = options.map((o) => (o.textContent ?? '').trim());
+	assert.deepEqual(
+		labels,
+		['All Status', 'Active', 'Archived', 'Missing teacher coverage', 'Room-constrained subjects'],
+		'the merged status control does not offer the full union of the two old dropdowns',
+	);
+
+	// Lifecycle axis, then the coverage-attention axis the duplicate control
+	// used to carry — the whole point of merging rather than deleting. Each
+	// choice re-opens the control, because picking closes the listbox.
+	for (const label of ['Active', 'Missing teacher coverage', 'Room-constrained subjects', 'Archived']) {
+		const options = await openSelect(document.body.querySelector('[aria-label="Filter by subject status"]'));
+		await chooseOption(options, label);
+	}
+	assert.deepEqual(
+		fired,
+		['status:active', 'status:missing-coverage', 'status:room-constrained', 'status:inactive'],
+		`a chosen status did not reach the page, or an axis was lost (got ${fired.join(',')})`,
+	);
+
+	// Reset still reaches the page, and is offered only while a filter is active
+	// (A3-C10's rule, unchanged).
+	await render(
+		<MemoryRouter><SubjectFilterToolbar {...TOOLBAR} hasActiveFilters onResetFilters={reset} /></MemoryRouter>,
+	);
+	await click(document.body.querySelector('[data-testid="subjects-reset-filters"]'));
+	assert.equal(fired[fired.length - 1], 'reset', 'Reset did not reach the page');
+	await render(<MemoryRouter><SubjectFilterToolbar {...TOOLBAR} hasActiveFilters={false} /></MemoryRouter>);
+	assert.equal(
+		document.body.querySelector('[data-testid="subjects-reset-filters"]') === null,
+		true,
+		'Reset is offered with no filter active',
+	);
+});
+
+test('A5-9.1/41 PRESERVATION: a consumer that passes no search override still renders the shared h-8 input', async () => {
+	// `AdminSearchFilterToolbar` is shared by Sections and Faculty, which pass
+	// neither `searchMaxWidthClassName` nor `searchInputClassName`. The new prop
+	// is default-off, so their toolbar must render what it rendered before.
+	await render(
+		<AdminSearchFilterToolbar
+			searchValue=""
+			onSearchChange={() => {}}
+			searchPlaceholder="Search sections..."
+			filtersOpen={false}
+			onToggleFilters={() => {}}
+			hasActiveFilters={false}
+		/>,
+	);
+	const search = document.body.querySelector('input[placeholder="Search sections..."]') as HTMLInputElement | null;
+	assert.ok(search, 'the default search input did not render');
+	assert.ok(hasClass(search, 'h-8'), `the default input lost h-8: ${search.className}`);
+	assert.ok(hasClass(search, 'pl-9'), 'the default input lost the icon inset');
+	assert.equal(hasClass(search, 'h-9'), false, 'the Subjects compact height leaked into the shared default');
+	const wrapper = search.parentElement as HTMLElement;
+	assert.ok(hasClass(wrapper, 'sm:max-w-sm'), `the default search width changed: ${wrapper.className}`);
 });

@@ -243,6 +243,7 @@ export function AdminSearchFilterToolbar({
 	primaryFilterCount,
 	primaryFilterLayout,
 	searchMaxWidthClassName,
+	searchInputClassName,
 	children,
 }: {
 	searchValue: string;
@@ -286,6 +287,19 @@ export function AdminSearchFilterToolbar({
 	 * search box to keep the single row inside 1366px.
 	 */
 	searchMaxWidthClassName?: string;
+	/**
+	 * A5 (additive, default-off): the size classes on the search INPUT itself.
+	 * Defaults to `'h-8 pl-9'`, which is what an omitted prop renders, so
+	 * `Sections` and `Faculty` — the only other consumers, and neither of which
+	 * passes it — are unchanged.
+	 *
+	 * It is separate from `searchMaxWidthClassName` because a compact filter row
+	 * (operator items 9.1 / 41: `h-9 text-xs` beside `h-9 text-xs` selects) needs
+	 * the input to match its neighbours' height, and widening a shared input's
+	 * default would change every other page's toolbar. Merged after the base
+	 * classes with `cn`, so a caller's value wins.
+	 */
+	searchInputClassName?: string;
 	children?: ReactNode;
 }) {
 	// A3-15: split the children into the always-visible primary group and the
@@ -309,7 +323,7 @@ export function AdminSearchFilterToolbar({
 							placeholder={searchPlaceholder}
 							value={searchValue}
 							onChange={(event) => onSearchChange(event.target.value)}
-							className="h-8 pl-9"
+							className={cn('h-8 pl-9', searchInputClassName)}
 						/>
 					</div>
 					{/* A3-C9 inline layout. `flex-nowrap` + `min-w-0` on the children
