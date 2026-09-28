@@ -84,8 +84,9 @@ the operator saw it still live.)
 **A shell call must return.** Never start a server or browser inside a tool call that waits for it: no
 `Start-Process -PassThru` for vite without redirected output, and never run `chrome.exe` directly (`--version` opens a
 browser and never exits). `Start-Process` in any form keeps the call open, even with redirected output (A6 proved it
-at 05:45). Start a preview only with `powershell -File scripts/dev/start-preview.ps1 -ClientDir <dir> -Port <p>`;
-it detaches, proxies to staging and waits at most 60 s. Take renders only
+at 05:45), and so do `[Diagnostics.Process]::Start` and `&` (A8, 07:20). Start a vite preview only with
+`scripts/dev/start-preview.ps1 -ClientDir <dir> -Port <p>` (it proxies to staging). Start ANY other long-lived process
+(a server, a profiler, a watcher) only with `scripts/dev/start-detached.ps1 -Dir -Command -Log [-Env] [-Port]`. Take renders only
 with the Playwright MCP, which now gives each run its own headless browser. The tool's own `timeout` does not end a
 hung call on Windows while a grandchild holds the output. On timeout, run `taskkill /T /F /PID <pid>` to end the whole
 tree, not `$p.Kill()`. A test that never exits usually leaves a DB pool or server open; fix that in the test. (2026-09-29:
