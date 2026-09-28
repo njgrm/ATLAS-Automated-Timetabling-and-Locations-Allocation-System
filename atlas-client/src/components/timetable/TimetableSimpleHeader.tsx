@@ -546,6 +546,8 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 	const stripDraftActions = {
 		edit: simpleDraftMenuActions.edit,
 		discard: simpleDraftMenuActions.discard,
+		/* correction 2 / F4: the same fact, named for the row-2 visibility decision. */
+		hasDraft: draftStrip.discardEnabled,
 	};
 	const runState = describeRunState({
 		isPreGeneration: context.isPreGenerationWorkspace,

@@ -262,11 +262,55 @@ test('readiness chip keeps blockers first and stays honest when clean', () => {
 
 test('readiness chip distinguishes published follow-ups from clean published', () => {
 	const draft = generatedDraft({ summary: { isPublished: true } });
+	/* SUPERSEDED IN PLACE — A2 HEADER-BUDGET, CORRECTION 2 (F3, 2026-09-29).
+	 * The original assertion is retained VERBATIM as a comment and is NOT run as
+	 * pass/fail (AGENTS.md §16 forbids closing a finding by editing the row that
+	 * found it):
+	 *
+	 *   assert.equal(
+	 *     readinessLabel(headerContext({ draft, summary: { unassignedCount: 2 } })),
+	 *     'Published with 2 follow-up items',
+	 *   );
+	 *
+	 * WHY IT IS SUPERSEDED, AND IT IS A DUPLICATE, NOT A LOSS. The design-judgement
+	 * reviewer (AGENTS.md §11 gate item 4) returned REJECT_UX on the header budget
+	 * with one rubric item failing — "one status per fact" — and measured the
+	 * published state at 1366×768: a small pill reading `Published with 2 follow-up
+	 * items`, and 30 px to its right the green primary surface reading `Published
+	 * schedule — 2 follow-up items remain`. The count, twice, side by side, in one
+	 * row. The operator's own complaint was two elements claiming the same thing, so
+	 * the header budget had moved that disease rather than removed it.
+	 *
+	 * The count now lives on the published PRIMARY surface alone
+	 * (`SimplePublishedState`, the dominant `h-11` emerald object that
+	 * `resolveSimpleHeaderPrimary` puts in the lifecycle primary slot, and the
+	 * surface a scheduler reads first). The chip says the state and nothing more.
+	 * Nothing is lost: the chip reaches this branch only when `context.draft` exists
+	 * and `summary.isPublished === true` — the same predicate `isRunPublishedStrict`
+	 * uses — so the published primary surface is on screen in every state that can
+	 * read "Published" here.
+	 *
+	 * THE REPLACEMENT below asserts the SURVIVING claim, and asserts it as a rule
+	 * rather than as one string, so it can still catch the duplicate returning: the
+	 * chip must name the STATE, must not name a COUNT, and must be identical for a
+	 * published run with and without follow-ups. The rendered, in-header evidence —
+	 * including the exact published-surface copy that `ux-quickfix-c01`,
+	 * `schedule-clarity-c03`, `timetable-header-collapse-c01` and
+	 * `a2-header-budget-2026-09-29` still pin — lives in
+	 * `a2-header-budget-2026-09-29.test.tsx`, row `H12 F3 state C+`. */
 	assert.equal(
 		readinessLabel(headerContext({ draft, summary: { unassignedCount: 2 } })),
-		'Published with 2 follow-up items',
+		'Published',
+		'SUPERSEDED REPLACEMENT: a published run with follow-ups reads `Published` on the chip — the count belongs to the published primary surface, once',
 	);
 	assert.equal(readinessLabel(headerContext({ draft, summary: { unassignedCount: 0 } })), 'Published');
+	assert.equal(readinessLabel(headerContext({ draft, summary: { unassignedCount: 12 } })), 'Published',
+		'and the chip is identical for 2, 0 and 12 follow-ups, which is the rule: the chip never names a count');
+	assert.doesNotMatch(
+		readinessLabel(headerContext({ draft, summary: { unassignedCount: 2 } })),
+		/\d/,
+		'the readiness chip states the run\'s state and no number at all',
+	);
 	assert.equal(readinessLabel(headerContext({ isPreGenerationWorkspace: true })), 'Working schedule draft');
 });
 

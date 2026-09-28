@@ -978,3 +978,212 @@ test('H11 SOURCE-SHAPE ROW: the draft-ux-c01 statement that OOMed on 2026-09-29 
 	assert.match(text, /querySelector\(`\[data-testid="\$\{id\}"\]`\) === null, true/,
 		'the boolean form is present in draft-ux-c01 (this is the fix H10 measures)');
 });
+
+// ═══ H12 — CORRECTION 2 (2026-09-29): ONE STATUS PER FACT ═════════════════════
+//
+// The design-judgement reviewer (AGENTS.md §11 gate item 4) returned REJECT_UX on
+// this slice with SIX of SEVEN rubric items passing and ONE failing: "One status
+// per fact". The operator's complaint was two elements claiming the same thing, and
+// the header budget had moved the disease rather than removed it. These four rows
+// are the slice's answer, one per named finding, and every one of them renders the
+// REAL header in the state the reviewer measured.
+
+/** H12/F1 — the run's state is said ONCE. The reviewer's words, on the rendered
+ * 1366×768 state B: "`State: Draft — teachers and students cannot see it yet.
+ * (Run 321)` in grey is followed 14px later, with no separator and no line break,
+ * by bold `Draft — not visible to teachers until you publish`. Same fact, same
+ * strip, said twice. It reads as one run-on sentence with a font change in the
+ * middle."
+ *
+ * The row therefore asserts BOTH halves of "once": the surviving sentence is there
+ * with its RUN NUMBER (the one thing a scheduler can act on — `History 3` gives
+ * them the list, and #41 requires the screen to name the run it is showing), and
+ * the restatement is GONE from this band.
+ *
+ * DISCRIMINATION: putting the `visibility` span back is a one-line change and this
+ * row fails on it. */
+test('H12 F1 state B: the run\'s state is stated ONCE in the band — the sentence survives with its run number, the restatement is gone', () => {
+	const host = headerTree(headerMarkup(stateBContext(), undoControl()));
+	const band = q(host, 'timetable-simple-status-band');
+	assert.ok(band, 'the trailing status band is on screen (otherwise this row is vacuous)');
+	const identity = q(band, 'timetable-run-identity');
+	assert.ok(identity, 'the run-identity clause is on screen');
+	assert.match(visibleText(identity), /Draft — teachers and students cannot see it yet\. \(Run 321\)/,
+		'the surviving sentence keeps both halves: what a draft MEANS, and WHICH run it is');
+	// THE RESTATEMENT IS GONE FROM THIS BAND. `timetable-draft-visibility` is the
+	// OTHER surface's testid — `DraftVisibilityState` inside
+	// `TimetableDraftStateStrip`, used by the EXPERT header — and that surface is
+	// untouched; `a2-c11-draft-actions.test.tsx:173,239` still assert its copy.
+	// What this row decides is that the SIMPLE band does not render it as well.
+	assert.equal(q(band, 'timetable-draft-visibility'), null,
+		'the band states the run\'s state once — the visibility restatement is not rendered beside it');
+	assert.doesNotMatch(visibleText(band), /not visible to teachers/,
+		'and no element in the band repeats who can see this run');
+	// …and the band's own text is ONE sentence about the run, not two clauses with
+	// a font change in the middle.
+	assert.equal((visibleText(band).match(/cannot see it yet/g) ?? []).length, 1,
+		'exactly one statement of "nobody can see this run yet" in the whole band');
+});
+
+/** H12/F2 — a REAL separator before the amber term clause. The reviewer's words:
+ * "The band already has `gap-x-2 gap-y-1` on its container, so spacing alone is not
+ * enough — the reviewer asked for a visible separator. … Once the duplicate is
+ * gone and a separator (a middot, a bullet, or a line of its own) sits between the
+ * draft state and the term warning, the amber reads as a warning about terms,
+ * which is what it is."
+ *
+ * The row asserts the separator EXISTS, that it sits BETWEEN the two facts in DOM
+ * order, that it is its own element rather than punctuation inside either clause,
+ * and that it is hidden from assistive technology — `visibleText` strips
+ * `aria-hidden`, so asserting on `visibleText(band)` proves the bullet is not read
+ * as part of either sentence.
+ *
+ * DISCRIMINATION: deleting the separator is a one-line change and this row fails. */
+test('H12 F2 state B: a real separator sits BETWEEN the run clause and the amber term notice, and belongs to neither', () => {
+	const host = headerTree(headerMarkup(stateBContext(), undoControl()));
+	const band = q(host, 'timetable-simple-status-band');
+	assert.ok(band, 'the trailing status band is on screen');
+	const identity = q(band, 'timetable-run-identity');
+	const notice = q(band, 'timetable-term-authority-unverified');
+	// NON-VACUITY: the separator row is only meaningful with BOTH facts on screen,
+	// which is the state the reviewer measured. If either were absent the row would
+	// pass for the wrong reason.
+	assert.ok(identity, 'the run clause is on screen');
+	assert.ok(notice, 'the amber term-authority notice is on screen in this state');
+	assert.match((notice.getAttribute('class') ?? ''), /text-amber-800/,
+		'and the notice keeps its attention colour — it is a warning about TERMS, not a tail on the draft sentence');
+
+	const separator = q(band, 'timetable-status-band-separator');
+	assert.ok(separator, 'a visible separator sits between the two facts');
+	// IT IS ITS OWN ELEMENT, BETWEEN THEM, not a character inside either clause.
+	const order = [...band.children].indexOf(separator);
+	assert.ok(order > [...band.children].indexOf(identity) && order < [...band.children].indexOf(notice),
+		'the separator is a SIBLING positioned after the run clause and before the term notice');
+	assert.equal((identity.textContent ?? '').includes('·'), false,
+		'and the run clause itself contains no separator character');
+	assert.equal((notice.textContent ?? '').includes('·'), false,
+		'and neither does the amber notice');
+	// IT IS NOT SPOKEN: a screen reader hears the two facts, not a bullet.
+	assert.equal(separator.getAttribute('aria-hidden'), 'true',
+		'the separator is aria-hidden, so assistive technology reads two facts and no mark');
+	// …and it is not READ either. `visibleText` strips `aria-hidden` descendants, so
+	// asking about the BAND (not about the separator itself) is what proves the mark
+	// never joins the two sentences in the text a scheduler actually reads.
+	assert.equal(visibleText(band).includes('·'), false,
+		'and the band\'s readable text contains no separator character joining the two facts');
+});
+
+/** H12/F3 — the follow-up count is said ONCE. The reviewer's words: "a small pill
+ * reading `Published with 2 follow-up items`, and 30px to its right the green
+ * primary surface `Published schedule — 2 follow-up items remain`. The follow-up
+ * count is stated twice, side by side, in the same row."
+ *
+ * The count moves OFF the chip and STAYS on the published primary surface, which
+ * is the dominant object in that state (`h-11`, emerald, and the lifecycle PRIMARY
+ * slot). The row asserts the count appears exactly once across the whole header,
+ * and that it is on the primary — not merely that some element stopped repeating it.
+ *
+ * `schedule-clarity-c03`'s exact no-follow-ups `aria-label` is asserted here too,
+ * so the case with no count is decided on the REAL header and not only in that
+ * suite's own render.
+ *
+ * DISCRIMINATION: putting the count back into `readinessLabel` is a one-line change
+ * and this row fails. */
+test('H12 F3 state C+ (PUBLISHED, 2 follow-ups): the follow-up count is stated ONCE, on the published primary surface', () => {
+	const host = headerTree(headerMarkup(stateCFollowUpsContext(), undoControl()));
+	const header = host.querySelector('[data-testid="timetable-simple-header"]') as HTMLElement;
+	const chip = q(header, 'timetable-simple-readiness-chip');
+	const published = q(header, 'timetable-simple-published-state');
+	assert.ok(chip, 'the readiness chip is on screen');
+	assert.ok(published, 'the published primary surface is on screen');
+	assert.equal(published.getAttribute('data-published-follow-ups'), '2', 'the fixture really is the follow-up state');
+	// THE CHIP NAMES THE STATE AND NOTHING ELSE.
+	assert.equal(visibleText(chip).trim(), 'Published',
+		'the status chip says the state, and no number — it is one fact in one role');
+	assert.doesNotMatch(visibleText(chip), /follow-up/,
+		'the chip does not restate the follow-up count beside the surface that owns it');
+	// THE PRIMARY SURFACE OWNS THE COUNT.
+	assert.match(visibleText(published), /2 follow-up items remain/,
+		'the dominant green surface keeps the count a scheduler acts on');
+	// …AND THE WHOLE HEADER SAYS IT ONCE. One element, one mention: the general
+	// form of the finding, so a future third claimant fails here too. The INNERMOST
+	// filter must compare against the CANDIDATE set, not against every testid'd
+	// element — otherwise a candidate is dropped merely for containing an unrelated
+	// labelled descendant, which is the same over-correction `a2-c12-header-rows2`
+	// warns about.
+	const candidates = [...host.querySelectorAll<HTMLElement>('[data-testid]')]
+		.filter((element) => /follow-up/.test(visibleText(element)));
+	const claimants = candidates.filter((element) => !candidates
+		.some((other) => other !== element && element.contains(other)));
+	assert.deepEqual(claimants.map((element) => element.getAttribute('data-testid')),
+		['timetable-simple-published-state'],
+		`exactly ONE element in the header names the follow-up count; ${candidates.length} candidates: ${candidates.map((e) => e.getAttribute('data-testid')).join(' | ')}`);
+});
+
+test('H12 F3 state C (PUBLISHED, no follow-ups): the exact `schedule-clarity-c03` accessible name survives the deduplication', () => {
+	const host = headerTree(headerMarkup(stateCContext(), undoControl()));
+	const published = q(host, 'timetable-simple-published-state');
+	assert.ok(published, 'the published primary surface is on screen');
+	assert.equal(published.getAttribute('aria-label'),
+		'Published schedule. Changes start on a date you choose.',
+		'the no-follow-ups accessible name is byte-identical to the one `schedule-clarity-c03` pins');
+	assert.equal(visibleText(q(host, 'timetable-simple-readiness-chip')!).trim(), 'Published',
+		'and the chip agrees with it, which is the point: one state, one surface saying it');
+});
+
+/** H12/F4 — no control with nothing to do on row 2. The reviewer's words: "The
+ * disabled `Edit draft` on row 2 in state A — it should not be there. … In the base
+ * it was `Edit draft` (grey) + a printed sentence explaining why it was dead. This
+ * slice deleted the sentence and kept the dead button. That is the worst half of
+ * the pair kept and the better half removed. Hide it in state A, or move it under
+ * `More`."
+ *
+ * The rule asserted is the general one — "no control with nothing to do is rendered
+ * on row 2" — in BOTH directions: absent with no draft, present with one. The
+ * second half is what stops a lazy fix that simply deletes `Edit draft` everywhere,
+ * and the `More` menu's own row is what stops a fix that hides the action instead
+ * of the dead control.
+ *
+ * DISCRIMINATION: removing `hideEditWhenAbsent` from `SimpleHeaderDraftActions` (or
+ * gating the control on `actions.edit.enabled` instead of `actions.hasDraft`) fails
+ * one of the two halves: the state-A row for the former, the state-B row for the
+ * latter, because `edit.enabled` is false in state B with nothing selected. */
+test('H12 F4 state A: row 2 renders NO draft control at all — with no draft on screen there is nothing to edit or discard', () => {
+	const host = headerTree(headerMarkup(stateAContext(), undoControl()));
+	// DISCRIMINATION, PART 1: state A really is the no-draft state, so this row is
+	// not passing because the strip rendered nothing for an unrelated reason.
+	assert.equal(q(host, 'timetable-run-identity'), null,
+		'there is no run on screen in state A, so there is no draft to act on');
+	assert.equal(q(host, 'timetable-draft-strip-edit'), null,
+		'`Edit draft` renders NOTHING in state A — the dead button the reviewer named is gone');
+	assert.equal(q(host, 'timetable-draft-strip-edit-reason'), null,
+		'and so is any reason that might have explained it');
+	// `Discard draft` is absent too, but on ITS OWN signal and for its own honest
+	// reason, and that difference is deliberate rather than an accident: the
+	// committed `draft-ux-c01` `A2-C12-ITEM4R` rows (4) and (5) require
+	// `Discard draft` to be hidden when the surface supplies no handler even with a
+	// draft on screen, and to return as soon as one is. So `Discard draft` reads
+	// `discard.enabled` and `Edit draft` reads `hasDraft`; this row only has to
+	// decide that in state A neither control is on screen.
+	assert.equal(q(host, 'timetable-draft-strip-discard'), null,
+		'`Discard draft` is absent as well, so row 2 carries no dead draft control at all');
+	// NOTHING IS LOST: the `More` menu keeps both entries, disabled, with their
+	// visible reasons — so the action is still one click away.
+	assert.ok(q(host, 'timetable-simple-more-trigger'), '`More` is on screen — the menu is never the thing that disappears');
+	assert.equal(headerTree(headerMarkup(stateAContext(), undoControl()))
+		.querySelectorAll('[data-testid="timetable-draft-strip-edit"], [data-testid="timetable-draft-strip-discard"]').length, 0,
+		'and row 2 introduces no other draft control in its place');
+});
+
+test('H12 F4 state B: a draft IS on screen, so BOTH draft controls stay — the fix hides the dead one, not the verb', () => {
+	const host = headerTree(headerMarkup(stateBContext(), undoControl()));
+	assert.ok(q(host, 'timetable-draft-strip-edit'),
+		'`Edit draft` is still on screen in state B (a real draft is there to edit)');
+	assert.ok(q(host, 'timetable-draft-strip-discard'),
+		'and so is `Discard draft`');
+	// It is the DISABLED shape the reviewer accepted for state B, with the reason in
+	// a `@/ui` tooltip and the aria-label — H6 above already owns the tooltip half;
+	// this row owns only "present, and disabled rather than hidden".
+	assert.equal(q(host, 'timetable-draft-strip-edit')!.hasAttribute('disabled'), true,
+		'`Edit draft` is present and disabled, not hidden — no class is selected in this fixture');
+});

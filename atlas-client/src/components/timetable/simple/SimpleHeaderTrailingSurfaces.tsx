@@ -86,14 +86,22 @@ export type SimpleHeaderTrailingSurfacesProps = {
 	/**
 	 * A2 HEADER-BUDGET (operator, 2026-09-29) — the ONE derivation of which run is
 	 * on screen. It is passed IN, already derived by the header from
-	 * `describeRunState`, and rendered here as the run identity plus the
-	 * draft-visibility sentence. Nothing is re-derived: this component reads the
-	 * same `sentence` / `visibility` values the badge and `RunIdentityLine` read,
-	 * so a run cannot be named two different ways on one screen.
+	 * `describeRunState`, and rendered here as the run identity. Nothing is
+	 * re-derived: this component reads the same values the badge and
+	 * `RunIdentityLine` read, so a run cannot be named two different ways on one
+	 * screen.
+	 *
+	 * CORRECTION 2 (F1, 2026-09-29) — `visibility` is NO LONGER RENDERED here. It
+	 * stays in the TYPE on purpose: the header passes the whole `describeRunState`
+	 * result, so the band cannot drift from the badge by receiving a re-derived
+	 * half of it, and the type keeps saying "this is one derivation, not two
+	 * arguments". The band deliberately ignores the field, and the F1 comment in
+	 * the JSX records why the restatement was deleted rather than reworded.
 	 */
 	runState?: {
 		/** `null` for a pre-generation workspace or an empty grid — nothing to name. */
 		sentence: string | null;
+		/** Accepted, not rendered. See the F1 note above. */
 		visibility: string | null;
 	};
 	/**
@@ -151,7 +159,20 @@ function SimpleHeaderStatusBand({
 	messages: readonly SimpleHeaderMessage[];
 	termAuthorityNotice: string | null;
 }) {
-	const hasIdentity = runState.sentence != null || runState.visibility != null;
+	/**
+	 * A2 HEADER-BUDGET, correction 2 (F1, 2026-09-29) — `sentence` ALONE decides
+	 * whether the band has a run to name.
+	 *
+	 * This used to be `sentence != null || visibility != null`, because the band
+	 * rendered BOTH sentences. It no longer does (see the JSX below), and the OR
+	 * would now be a latent bug: `runStateKeyOf` returns `null` visibility for
+	 * exactly the two keys whose sentence is also `null` (`planning` and `empty`),
+	 * so `visibility != null` IMPLIES a run exists, which implies
+	 * `runStateSentence` returned a sentence (`RunStateBadge.tsx:94-100` against
+	 * `timetable-plain-language.ts:325-330`). The OR is therefore dead, and if it
+	 * ever came alive it would paint an EMPTY band rather than say nothing.
+	 */
+	const hasIdentity = runState.sentence != null;
 	// The cap is the SAME `SIMPLE_HEADER_MESSAGE_LIMIT` the in-header list used, and
 	// the remainder is still COUNTED rather than silently dropped.
 	const shown = messages.slice(0, SIMPLE_HEADER_MESSAGE_LIMIT);
@@ -176,9 +197,59 @@ function SimpleHeaderStatusBand({
 					<span className="font-semibold text-foreground">State:</span> {runState.sentence}
 				</span>
 			) : null}
-			{runState.visibility != null ? (
-				<span data-testid="timetable-draft-visibility" className="font-semibold text-foreground">
-					{runState.visibility}
+			{/* A2 HEADER-BUDGET, CORRECTION 2 (F1 + F2, 2026-09-29) — ONE sentence
+			    about the run, and a REAL separator before the term notice.
+
+			    THE DEFECT, in the reviewer's words on the rendered 1366×768 state B:
+			    "State: Draft — teachers and students cannot see it yet. (Run 321) in
+			    grey is followed 14px later, with no separator and no line break, by
+			    bold `Draft — not visible to teachers until you publish`. Same fact,
+			    same strip, said twice. It reads as one run-on sentence with a font
+			    change in the middle." §11's design gate scores that as a FAIL on "one
+			    status per fact", and the operator's own complaint was two elements
+			    claiming the same thing, so the disease had simply moved.
+
+			    F1 — WHICH OF THE TWO SURVIVES, AND WHY. `runState.sentence` survives;
+			    `runState.visibility` is deleted from this band. Both come from the ONE
+			    `describeRunState` call (`RunStateBadge.tsx:103`) and both derive from
+			    the same `runStateKeyOf`, so they are the same fact by construction:
+			    - `sentence`      = "Draft — teachers and students cannot see it yet. (Run 321)"
+			    - `visibility`    = "Draft — not visible to teachers until you publish"
+			    The surviving sentence EARNITS its place on a ground the other cannot
+			    reach: it carries the RUN NUMBER, and #41 (the screen must name the run
+			    it is showing) is accepted committed behaviour. The number is the one
+			    thing here a scheduler can act on — it is what `History 3` lists — and
+			    after the run number the sentence also states the CONSEQUENCE, which is
+			    what a mouse-first scheduler needs from a state word. `visibility` in
+			    this band is pure restatement with nothing added, and it is the
+			    WORDIER of the two.
+
+			    WHY DELETING IT HERE LOSES NOTHING, AND IS NOT A REWORD. The OTHER
+			    surface that renders `timetable-draft-visibility` — `DraftVisibilityState`
+			    inside `TimetableDraftStateStrip`, used by the EXPERT header — is
+			    untouched, and `a2-c11-draft-actions.test.tsx:173,239` still assert its
+			    copy byte-for-byte. In the SIMPLE header that strip is rendered with
+			    `visibility={null}` (`SimpleHeaderDraftActions.tsx`), so the run's
+			    audience was already stated in exactly one place after this change: the
+ band's `sentence`.
+
+			    F2 — THE SEPARATOR. The amber term notice is a DIFFERENT fact about a
+			    different thing (term authority, not draft visibility), and
+			    `text-amber-800` made it read as the tail of the draft sentence. The
+			    container's `gap-x-2` was not enough, because 8 px of white space is a
+			    pause, not a boundary. This is a visible middot in its own span: it is
+			    `aria-hidden` (a screen reader reads the two facts, not a bullet),
+			    `select-none`, at 60% muted foreground so it is quieter than either
+			    sentence, and it carries `px-1` so the band reads as "A · B" rather than
+			    as one clause with a mark in it. Its own `data-testid` is what the
+			    correction-2 row reads, so this separator is asserted, not assumed. */}
+			{runState.sentence != null && termAuthorityNotice ? (
+				<span
+					aria-hidden="true"
+					data-testid="timetable-status-band-separator"
+					className="select-none px-1 text-muted-foreground/60"
+				>
+					·
 				</span>
 			) : null}
 			{termAuthorityNotice ? (

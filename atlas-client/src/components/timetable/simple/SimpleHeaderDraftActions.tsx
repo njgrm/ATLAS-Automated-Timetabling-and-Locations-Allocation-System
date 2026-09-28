@@ -10,19 +10,20 @@
  *
  * WHAT IT IS: §8's "Header budget" rule, the second half — "row 2 = the pickers,
  * plus only the actions that still have something to act on". The two draft
- * actions are right-aligned on row 2, `Discard draft` is absent when there is no
- * draft, and a disabled control states its reason in a `@/ui` Tooltip rather than
+ * actions are right-aligned on row 2, each is absent when it has nothing to act
+ * on, and a disabled control states its reason in a `@/ui` Tooltip rather than
  * as a sentence printed beneath it.
  *
  * WHAT IT DELIBERATELY IS NOT: a second gate. It renders the ALREADY-RESOLVED
  * `DraftStripActionPair` the header derived once from `resolveSimpleDraftMenuActions`
  * — the very object the `More` menu renders, so "one derivation, two renderers"
  * still holds and the two surfaces cannot disagree about whether an action is
- * available. `hideDiscardWhenAbsent` and `reasonPresentation="tooltip"` are
+ * available. The two `hide*` props and `reasonPresentation="tooltip"` are
  * presentation decisions the caller makes, not gates it re-derives; the header
- * passes `draftStrip.discardEnabled`-shaped information by handing over the pair
- * it already resolved. See `TimetableDraftStateStrip` for why the discard
- * visibility is a restatement of the same `resolveDraftStripProps` decision.
+ * passes `actions.hasDraft` by handing over the pair it already resolved, where
+ * `hasDraft` IS `draftStrip.discardEnabled` — the very fact `resolveDraftStripProps`
+ * defines as "there is a draft". See `TimetableDraftStateStrip` for why each
+ * control reads the signal its own committed row requires.
  */
 import { TimetableDraftStateStrip, type DraftStripActionPair } from '@/components/timetable/TimetableDraftStateStrip';
 
@@ -38,6 +39,14 @@ export function SimpleHeaderDraftActions({ actions }: { actions: DraftStripActio
 				actions={actions}
 				reasonPresentation="tooltip"
 				hideDiscardWhenAbsent
+				/* A2 HEADER-BUDGET correction 2 (F4, 2026-09-29) — THE MISSING HALF OF
+				 * THE RULE. `hideDiscardWhenAbsent` alone left the reviewer's state-A
+				 * render exactly as it was: a greyed `Edit draft` alone on the right of an
+				 * otherwise empty row, the half of the old control pair the header budget
+				 * deleted the sentence from but kept the button of. The signal is
+				 * `actions.hasDraft`, handed across by the header and not re-derived here —
+				 * `edit.enabled` would also hide a reachable control in state B. */
+				hideEditWhenAbsent
 			/>
 		</div>
 	);

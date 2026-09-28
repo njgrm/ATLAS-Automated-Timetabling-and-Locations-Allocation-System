@@ -82,8 +82,43 @@ export function readinessLabel(context: ScheduleReviewWorkspaceHeaderContext) {
 	const summaryRaw = context.draft.summary as unknown as Record<string, unknown> | null;
 	const isPublished = summaryRaw?.isPublished === true;
 	if (isPublished) {
-		const unassigned = context.summary?.unassignedCount ?? 0;
-		if (unassigned > 0) return `Published with ${unassigned} follow-up item${unassigned === 1 ? '' : 's'}`;
+		/* A2 HEADER-BUDGET, CORRECTION 2 (F3, 2026-09-29) — THE FOLLOW-UP COUNT IS
+		 * STATED ONCE, and this chip is the surface that stops naming it.
+		 *
+		 * THE DEFECT, measured on the rendered 1366×768 published state: a small
+		 * pill reading `Published with 2 follow-up items`, and 30 px to its right
+		 * the green primary surface reading `Published schedule — 2 follow-up
+		 * items remain`. The count twice, side by side, in one row. §11's design
+		 * gate fails that on "one status per fact", and a header that states a
+		 * number twice reads as the system disagreeing with itself — a worse
+		 * feeling for this audience than the crowding it replaced.
+		 *
+		 * WHICH SURFACE KEEPS THE COUNT, AND WHY IT IS NOT THIS ONE. The count
+		 * belongs to `SimplePublishedState`, for three reasons that all point the
+		 * same way:
+		 *   1. It is the DOMINANT object in the state — `h-11`, emerald, and the
+		 *      lifecycle PRIMARY slot (`resolveSimpleHeaderPrimary` returns
+		 *      `'published'` for exactly the runs whose `summary.isPublished` is
+		 *      true, which is the very predicate this branch reads). A scheduler
+		 *      reads the big green surface first, so the number the scheduler acts
+		 *      on has to be on it.
+		 *   2. It is the surface that says the state. A STATUS CHIP that says
+		 *      "Published" and the primary that says "Published schedule" are one
+		 *      fact in one role each; a chip that also carries the count is a
+		 *      second summary of the sentence beside it.
+		 *   3. Nothing is lost. `isRunPublishedStrict` (`timetableWorkspaceTruth.ts:26`)
+		 *      is `summary.isPublished === true`, the same test this branch uses,
+		 *      and this branch is only reached when `context.draft` exists, which
+		 *      is `hasGeneratedRun`. So the published primary surface is on screen
+		 *      in EVERY state whose chip reaches this line — the count cannot
+		 *      appear without somewhere for it to appear.
+		 *
+		 * This is a DUPLICATE removed, not a fact removed: before, the follow-up
+		 * count was correct and said twice; now it is correct and said once. The
+		 * pinning row in `timetable-operator-workflow-state.test.ts` is marked
+		 * SUPERSEDED in place, with the claim it used to make retained beside its
+		 * replacement (AGENTS.md §16 forbids closing a finding by editing the row
+		 * that found it). */
 		return 'Published';
 	}
 	/* C11 S2 (item 2) — the chip shows SEVERITY, not one number. It used to

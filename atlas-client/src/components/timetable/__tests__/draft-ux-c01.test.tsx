@@ -1032,15 +1032,61 @@ test('S1R at most 7 ACTION controls plus the 5 sub-nav tabs §8 places in row 1,
 	// arrived or the one that went.
 	viewportWidth = 1366;
 	const noRun = splitHeaderControls(await renderHeader(headerContext()));
+	// `openHeaderMore` reads the CURRENT mount, so the no-run state's menu is opened
+	// here — before `withRun` replaces it.
+	const noRunMore = await openHeaderMore();
 	viewportWidth = 1366;
 	const withRun = splitHeaderControls(await renderHeader(withRunContext()));
 	const names = (set: { actions: HTMLElement[] }) => set.actions
 		.map(describeControl)
 		.map((name) => name.replace('timetable-simple-generate-action', 'LIFECYCLE-PRIMARY').replace('timetable-simple-publish-action', 'LIFECYCLE-PRIMARY'));
-	assert.deepEqual(names(withRun), names(noRun),
-		`the action set does not change shape between "no run" and "run present" — got ${names(noRun).join(' | ')} vs ${names(withRun).join(' | ')}`);
+	/* SUPERSEDED IN PLACE — A2 HEADER-BUDGET, CORRECTION 2 (F4, 2026-09-29).
+	 * The original assertion is retained VERBATIM as a comment and is NOT run as
+	 * pass/fail (AGENTS.md §16 forbids closing a finding by editing the row that
+	 * found it):
+	 *
+	 *   assert.deepEqual(names(withRun), names(noRun),
+	 *     `the action set does not change shape between "no run" and "run present" — got ${names(noRun).join(' | ')} vs ${names(withRun).join(' | ')}`);
+	 *
+	 * WHY IT IS SUPERSEDED, AND IT IS A CONFLICT, NOT AN IMPROVEMENT. This row's
+	 * premise is that the action set is IDENTICAL in both run states. The
+	 * design-judgement reviewer (AGENTS.md §11 gate item 4) returned REJECT_UX on
+	 * the header budget with one rubric item failing, and ruled on the very control
+	 * this equality pinned: "The disabled `Edit draft` on row 2 in state A — it
+	 * should not be there. … This slice deleted the sentence and kept the dead
+	 * button. That is the worst half of the pair kept and the better half removed.
+	 * Hide it in state A, or move it under `More`." Hiding it in state A makes the
+	 * two sets differ by exactly that one control, which is the change the reviewer
+	 * required, so the equality and the ruling cannot both stand. The ruling wins:
+	 * it is the blocking finding, and this row is a consequence of the defect it
+	 * names rather than a contract about it.
+	 *
+	 * WHAT SURVIVES, asserted immediately below: the CAP in every state, the exact
+	 * seven names in the run state, one solid primary, and — the part that matters
+	 * most — that the difference is EXACTLY the dead control and nothing else, and
+	 * that the action is still reachable in `More`. A header that dropped a
+	 * reachable verb, or that grew a control anywhere, still fails there. */
 	assert.equal(withRun.actions.length, 7,
 		`the seven §8 action controls, named: ${budgetMessage(withRun.actions)}`);
+	assert.equal(noRun.actions.length, 6,
+		`the no-run state carries the SAME six, minus the one control with nothing to do: ${budgetMessage(noRun.actions)}`);
+	// …and the difference between the two states is EXACTLY `Edit draft`, nothing
+	// else: no control arrived, and none but that one went.
+	assert.deepEqual(
+		names(withRun).filter((name) => !names(noRun).includes(name)),
+		['timetable-draft-strip-edit'],
+		'the ONLY control that appears when a run is on screen is `Edit draft` — the verb that was dead without one',
+	);
+	assert.deepEqual(
+		names(noRun).filter((name) => !names(withRun).includes(name)),
+		[],
+		'nothing disappears when a run is on screen',
+	);
+	// The action is NOT lost: with no draft on screen it is one `More` click away,
+	// which is the other half §8 allows ("hidden OR live under `More`"). This is
+	// the row's own `More` vocabulary — the draft's verb is the `Manual edit` entry.
+	assert.ok(noRunMore.querySelector('[data-testid="timetable-more-manual-edit"]'),
+		'`Edit draft` is still reachable from `More` in the no-run state — hidden on row 2, not deleted');
 	assert.equal(
 		names(withRun).filter((name) => name === 'LIFECYCLE-PRIMARY').length,
 		1,

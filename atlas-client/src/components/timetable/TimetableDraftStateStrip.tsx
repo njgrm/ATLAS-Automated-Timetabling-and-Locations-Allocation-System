@@ -184,6 +184,25 @@ export type DraftMenuAction = {
 export type DraftStripActionPair = {
 	edit: DraftMenuAction;
 	discard: DraftMenuAction;
+	/**
+	 * A2 HEADER-BUDGET, CORRECTION 2 (F4, 2026-09-29) — IS THERE A DRAFT ON SCREEN?
+	 *
+	 * This is the CALLER'S OWN already-resolved fact, handed across, never derived
+	 * here: `resolveDraftStripProps` takes `hasDraft` as its input and already
+	 * defines `discardEnabled` from it, and the header's `stripDraftActions` object
+	 * is built beside the `resolveSimpleDraftMenuActions` call that produced the
+	 * two actions. Passing it as data rather than re-deriving it is what keeps "one
+	 * derivation, two renderers" true across the boundary.
+	 *
+	 * WHY THE STRIP NEEDS IT AT ALL, given `DraftMenuAction.enabled` already
+	 * exists. `enabled` cannot answer "is there anything to edit": it is
+	 * `hasSelectedClass && onEdit !== null`, and BOTH are false in a perfectly good
+	 * state-B screen where a draft is on screen and no class happens to be selected.
+	 * Gating visibility on `enabled` would therefore hide a perfectly reachable
+	 * control. `hasDraft` is the fact the question actually asks: with no draft on
+	 * screen there is no draft to edit, discard, or undo.
+	 */
+	hasDraft: boolean;
 };
 
 /**
@@ -276,6 +295,7 @@ export function DraftStripActions({
 	discardTestId,
 	reasonPresentation = 'visible',
 	hideDiscardWhenAbsent = false,
+	hideEditWhenAbsent = false,
 }: {
 	actions: DraftStripActionPair;
 	editTestId: string;
@@ -295,15 +315,58 @@ export function DraftStripActions({
 	 * The caller passes `true` together with the `actions` it already resolved from
 	 * `resolveDraftStripProps`, whose `discard` gate IS "there is a draft". This
 	 * prop therefore restates the caller's own decision; it derives nothing.
+	 *
+	 * ── CORRECTION 2 (F4) — THIS PROP IS UNCHANGED, AND THAT IS A FINDING ────────
+	 * The first attempt at F4 replaced this half-rule with one `hasDraft` signal for
+	 * both controls, on the theory that they are the draft's own verbs and should
+	 * appear and disappear together. That theory is wrong for `Discard draft`, and
+	 * a COMMITTED ROW said so before the change could ship: `draft-ux-c01`'s
+	 * `A2-C12-ITEM4R` renders the header WITHOUT an `onDiscardDraft` handler and
+	 * asserts (4) "`Discard draft` is hidden on row 2 when it has nothing to act
+	 * on (§8)", then asserts (5) that it RETURNS as soon as a handler is supplied.
+	 * `hasDraft` is true in that fixture, so the one-signal rule would have kept the
+	 * control on screen, failed (4) — and failed it in the bare-node
+	 * `assert.equal(querySelector(...), null)` form, which is the exact statement
+	 * H10 of `a2-header-budget-2026-09-29.test.tsx` exists to catch, and took the
+	 * whole 256 MB child process down with it. So `discard.enabled` — "the caller
+	 * permits it AND supplied a handler" — IS the honest signal for the DISCARD
+	 * verb, and the committed row keeps it verbatim.
 	 */
 	hideDiscardWhenAbsent?: boolean;
+	/**
+	 * A2 HEADER-BUDGET, CORRECTION 2 (F4, 2026-09-29) — `Edit draft` renders
+	 * NOTHING when there is no draft on screen. The reviewer's 1366×768 state-A
+	 * render is what the missing half of the rule produced: a greyed `Edit draft`
+	 * alone on the right of an otherwise empty row 2, the half of the old control
+	 * pair the header budget should have removed and did not.
+	 *
+	 * WHY `actions.hasDraft` AND NOT `actions.edit.enabled`, for the same reason the
+	 * prop above keeps `discard.enabled`. `edit.enabled` is
+	 * `hasSelectedClass && onEdit !== null`, and it is FALSE in a perfectly good
+	 * state-B screen where a draft is on screen and no class happens to be selected
+	 * — so gating visibility on it would hide a genuinely reachable control, and
+	 * `a2-header-budget`'s H6 row (which renders exactly that state and requires
+	 * the disabled `Edit draft` to be on screen) would fail. `hasDraft` answers the
+	 * question the control actually raises: with nothing on the grid, there is
+	 * nothing to select and therefore nothing to edit.
+	 *
+	 * IT HIDES NOTHING THAT IS LOST: the `More` menu keeps `Edit draft` in every
+	 * state, unchanged, so the action is always one click away.
+	 */
+	hideEditWhenAbsent?: boolean;
 }) {
+	/* TWO SIGNALS, ONE PER CONTROL, and each was checked against a committed row
+	 * before it was chosen — see the two prop comments above. `Discard draft` reads
+	 * the caller's handler decision; `Edit draft` reads "is there a draft at all". */
 	const discard = hideDiscardWhenAbsent
 		? { ...actions.discard, visible: actions.discard.enabled }
 		: actions.discard;
+	const edit = hideEditWhenAbsent && !actions.hasDraft
+		? { ...actions.edit, visible: false }
+		: actions.edit;
 	return (
 		<>
-			<DraftActionButton action={actions.edit} icon="edit" label="Edit draft" testId={editTestId} reasonPresentation={reasonPresentation} />
+			<DraftActionButton action={edit} icon="edit" label="Edit draft" testId={editTestId} reasonPresentation={reasonPresentation} />
 			<DraftActionButton action={discard} icon="discard" label="Discard draft" testId={discardTestId} reasonPresentation={reasonPresentation} />
 		</>
 	);
@@ -439,6 +502,7 @@ export function TimetableDraftStateStrip({
 	children,
 	reasonPresentation = 'visible',
 	hideDiscardWhenAbsent = false,
+	hideEditWhenAbsent = false,
 }: {
 	visibility: string | null;
 	/**
@@ -461,6 +525,8 @@ export function TimetableDraftStateStrip({
 	reasonPresentation?: 'visible' | 'tooltip';
 	/** A2 HEADER-BUDGET — see `DraftStripActions`. */
 	hideDiscardWhenAbsent?: boolean;
+	/** A2 HEADER-BUDGET correction 2 (F4) — see `DraftStripActions`. */
+	hideEditWhenAbsent?: boolean;
 }) {
 	return (
 		<>
@@ -485,6 +551,7 @@ export function TimetableDraftStateStrip({
 					discardTestId="timetable-draft-strip-discard"
 					reasonPresentation={reasonPresentation}
 					hideDiscardWhenAbsent={hideDiscardWhenAbsent}
+					hideEditWhenAbsent={hideEditWhenAbsent}
 				/>
 			) : null}
 		</>
