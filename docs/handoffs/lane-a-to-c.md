@@ -1,5 +1,58 @@
 # A2 -> Lane C: what I need tested, and what I need answered
 
+## 🟢 A2 → Lane C, 2026-09-28 ~22:0x +08 — **A2 ready for release at `24c6242c`** — H and D land; P next
+
+**1 fix seen on staging / 3 integrated, not on production / 0 dropped.** **Loopback smoke gate WAIVED for this
+lane by your 21:10 ruling: your staging walk after A4 deploys is the real-route smoke, and that is the row I am
+routing every browser claim below.** A4 owns the deploy; A2 has not deployed and will not.
+
+| Item | Status | What the operator sees | Decided by |
+|---|---|---|---|
+| **H — two visual rows at 1366** | **DONE in source, pixel row is yours** | The control row, the primary/Undo/More cluster and the status line no longer wrap from `lg` up; narrow and 390 px layouts are untouched. | Independent QA `ACCEPT_READY` 7/7/0/0; mutant killed 8/6/2 with its output matching QA's reproduction character for character |
+| **D — visible Edit / Discard draft** | **DONE** | Both are visible in the draft strip, in the same row as the draft sentence, and each states its reason in visible text when it cannot act. | Same QA: one derivation, no duplicated handler, one solid primary, native focusable buttons |
+| **Entity picker had no accessible name** | **DONE** (your walk would not have caught it) | The entity picker is named in every state, including the `all` default. | Same QA, probing the real DOM, not the fixture |
+| **Warnings split in plain words** | **ALREADY ON `main` — no change made** | The bare `149 warnings` you saw was from `9ca7f629`. `main` renders `3 Must fix, 145 advisories — this schedule cannot be published yet.` | QA enumerated every `readinessLabel` branch at the base and found no reachable un-split state; I did not invent a change |
+| **P — speed** | **NOT STARTED** | Nothing changed yet. | Next slice, immediately after this one |
+
+**Three browser rows for you, and they are the acceptance for this candidate** — assert
+`window.location.origin` on each:
+1. **The 1366×768 band count.** This is the row that decides whether H is actually finished. Independent QA
+   confirmed the header box now holds exactly **two** element bands (the status region and the control row) and
+   that every `lg:flex-nowrap` retains its base `flex-wrap`. JSDOM cannot lay out, so the visual count is yours.
+2. **A NEW ROW, and please do not skip it: the change-notice sentence is now truncated, not wrapped.** It gains
+   `lg:truncate lg:whitespace-nowrap` at ≥1024 px, so at 1366 px a sighted scheduler reads the drift sentence
+   **plus an ellipsis** where it used to wrap across lines. The full text is still in the DOM (`role="status"`, so
+   a screen reader reads it whole) and `See what changed` surfaces the detail — but the tail is no longer visible on
+   screen. That is a real trade, it is mine, and QA confirmed **nothing in the source records it as a loss** — only
+   as a mechanism. If the ellipsis reads badly with a real sentence, say so and I will rebalance.
+3. **`/timetable` cold load through to resolved data, no error boundary**, to confirm `#310` is still gone on this
+   delta.
+
+**Four things I am handing on rather than quietly closing:**
+- **`TimetableSimpleHeader.tsx` is at exactly 1000/1000 lines.** The next line added there breaks §8, and item 4
+  only fitted by shortening a comment. The next slice must extract a sub-component from that file first.
+- **Four committed test rows were superseded, not deleted, and I want you to see the judgement.** Your ruling that
+  Edit/Discard must be visible forces the header's control total from 6 to 8. Rather than relax the accepted
+  "≤6 visible controls" rows, I **retained each one**, marked it superseded in place with the authority and the date,
+  and **added a replacement row beside them** asserting the claim the cap actually protected: the *control row* still
+  carries its own six, both draft actions are in the strip and asserted absent from the control row, and exactly one
+  `bg-primary` exists and is not a draft action. QA audited that in both directions and agreed it is justified, not a
+  quiet legalisation — but it is a contract change, so it is yours to overrule.
+- **Two stale bare-wording rows remain** at `src/lib/__tests__/timetable-operator-workflow-state.test.ts:220,241`: they
+  import the same `readinessLabel` and still assert `'2 Must fix'` while the function returns
+  `'2 Must fix, 9 advisories'`. That is the red row in `test:timetable-operator-ux` you have been seeing. Pre-existing
+  and identical at the base — it is a stale test, not a stale surface.
+- **The 2 `draft-ux-c01` "amber register" failures are still red on `main`** (pre-existing, identical at the base),
+  and **`test:a2-timetable-custody` is 6-failing** at base and candidate alike, covering the 390 px drift banner in
+  this delta's blast radius. Neither is from these commits; both are worth a slot.
+
+**P, and how I will work it.** Your numbers are the target: cold `/timetable` to a usable grid about **1.2 s**, one
+loaded section switch **1.30 s** against a **0.4 s** target, live 1.7–2.9 s cold. I will work it from code and
+network analysis as you asked — which requests fire on a section switch, what is cacheable or reusable, and what
+renders twice — with no credential and no Playwright install. **I am not going to claim a speed number I have not
+measured on a real surface**; the slice will name the request and render work it removes, and the timing claim stays a
+browser row on your staging walk.
+
 ## 🟡 A2 → Lane C, 2026-09-28 ~21:0x +08 — **A2 ready for release at `cdd7610c`** — 1 seen on staging / 2 integrated / 1 partial / 1 not started
 
 **1 fix live and seen / 2 integrated, not on production / 0 dropped.** A4 owns the deploy; A2 has not deployed and
