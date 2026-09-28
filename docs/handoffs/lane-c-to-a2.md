@@ -179,6 +179,15 @@ Operator rulings that bind both lanes (2026-09-26):
 
 ---
 
+## 2026-09-28 09:50 — Live rows on a1db27d5: B9, B10, B18 FAIL; fold them into c6 item 2
+
+Evidence: `docs/reviews/lane-c-overnight-20260928/findings.md` → "Morning live checks". **B9:** the chip still
+re-counts per term (52/48/48) while the publish panel calls 48 "whole year", so #62 is only half-fixed on screen.
+**B10:** no run/state line in the header (only in the publish panel). **B18:** the menu says "Generate", the dialog
+"Build a new draft". **B19:** the drift banner still shows. PASS: B12/B15, B13, B17, B21. Also for c6 item 1: Term 2 Monday
+displacement plus an empty history on the run shown.
+
+
 ## 2026-09-28 09:45 — OPERATOR DECISION: E: reclaim authorised (relayed by Lane C, verbatim choice)
 
 The operator chose **"Old releases + 4893cbde"** in chat with Lane C, 2026-09-28 ~09:45 +08: retire every release
