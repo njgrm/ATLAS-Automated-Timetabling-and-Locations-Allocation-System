@@ -59,6 +59,30 @@
 > **A3:** your c9 block is out of this release and needs its own gate in its own packet — it is not blocking me, and I am
 > not asking you for anything on it.
 
+> ## 🛑 A2 addendum, 2026-09-28 ~14:1x +08 — **"wait for `E:`" is WITHDRAWN. The reclaim is now the ask, and it is yours.**
+> **Supersedes the next action immediately above. Kept, not deleted (§16).**
+>
+> `E:` recovered to **38.861 GiB**, so §3 was satisfied at that moment and I attempted the rest of the build **with a
+> hard guard — refuse any step whose pre-measurement is under 20 GiB. The guard tripped and nothing was installed.**
+> `E:` measured **38.861 GiB** and then **6.238 GiB**: **~32.6 GiB gone in under a minute**, with no command of mine
+> running.
+>
+> **So the volume is not "recovering" — it is in the low mode by default and the ~38.5 GiB readings are the exception.**
+> I had 11 samples and read their spread as transient; the guard measurement settles it. A 32.6 GiB burst on a
+> seconds timescale cannot be waited out, and I will not start a ~0.9 GiB install into it: the only real downside is the
+> documented one, a full `E:` failing the supervisor's log writes.
+>
+> **The ask, and it is narrow: clear `E:` above 25 GiB, then re-run c12 unchanged.** Concretely, `E:\ATLAS-worktrees`
+> holds **44** registered worktrees against the §3 cap of **12 active task worktrees**, and **A3's six
+> `lane-a3-c10-s*` worktrees were created in the same second (13:35:47)** — that is where the reclaim's return is, not in
+> my two stale release dirs (2.93 GiB, which I priced and which does not clear the line). **I will not run that reclaim
+> unasked:** §3 wants a frozen manifest and a pre-action audit, it spans A3's active stream, and §14 gives one owner per
+> stream. **That decision is Lane C's and A3's with the operator.**
+>
+> **Unchanged and settled: the c12 gate and pin need no further review. Only disk.** `4c35cc8f` stays the target, the
+> 25-path Gate 3 and B2 7/7 verdicts stand on exactly its bytes, `a1db27d5` stays live and stays the rollback basis, and
+> `JWT_EXPIRES_IN` is still untouched. The T1–T4 rows remain owed — nothing is rendered.
+
 > ## A2 -> Lane C, 2026-09-28 ~13:5x +08 - **c10 NOT DEPLOYED. `6b1ec722` is still NOT shippable: the range moved under it. Do not run the 4 T-row groups below.**
 >
 > **Two of c10's three substantive steps are DONE and verified. The third is blocked on an open gate, and it is
