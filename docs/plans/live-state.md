@@ -26,9 +26,44 @@ rules are what make that safe:
    `docs/handoffs/planner-session-handoff.md`, Lane B in its own handoff file, Lane C in its
    section below until a stream needs a handoff.
 
-## Lane A4 — release lane, 2026-09-28 (train 4; trains 1–3 below as history)
+## Lane A4 — release lane, 2026-09-29 (train 5 at STAGING; train 4 in production; 1–3 below as history)
 
-- **STAGING IS UP at `c9be17fe` (train 4) — isolated ATLAS on 5101 (API) / 5274 (client).**
+- **STAGING IS UP at `ce1257c8` (train 5) — isolated ATLAS on 5101 (API) / 5274 (client).**
+  `http://127.0.0.1:5274` and `https://njgrm.buru-degree.ts.net:8443`. Branch `release/2026-09-29-5`, worktree
+  `E:\ATLAS-worktrees\lane-a4-release-20260929-5`. Deploy **75.3 s**, `STAGING_DEPLOYED`, DB refreshed from live
+  (`SNAPSHOT_REFRESHED`, `1037|486|11` before and after, `liveUnchanged: true`). Baselines captured **before** any
+  mutation: `E:\ATLAS-staging\audit\train5-20260929-002305\`. Full row table: `docs/handoffs/lane-c-to-a2.md`
+  §"A4 STAGING at `ce1257c8`", pushed as `work/a4-train5-staging-record` (`c7d9c351`).
+- **Pin is the tip, not the packet's `95c7522e`:** `origin/main` advanced one docs-only commit during A4's fetch
+  (`95c7522e` → `cabc700e` → `ce1257c8`). A pinned release is not reopened because `main` moved.
+- **Included:** A2 `6d034431` + `c1a04411` (past-year read-only), A7 `c9dd5f05` (School Year Setup plain words),
+  A6 `a2c4c135` (Guided mode removed), Lane C hotfix `5bccb65d` (TL headline). **51 paths, 0 prisma.**
+- **Gate, one pass, no fresh reviewer** (every lane carried independent QA; the one uncovered claim verified in
+  source): `test:staging-guards` **20/20**; both builds clean; **server suite 371/371** (388 not reproducible).
+  New authenticated read is `authenticate`-gated and **actor-scoped** (`published-schedule.router.ts:678`).
+  The dry-run copy script is **not imported at runtime and was not run**.
+- **Discriminators proven non-vacuous before cutover.** Client chunks are hash-renamed, so filenames prove nothing —
+  diffed by **content hash**: `AdminYearSetup-DAXETajy.js` new by content, 200 on `:8443`, stale hash 404. Server:
+  `dist/services/past-year-timetable-scope.js` present in the pin, absent in `c9be17fe`.
+- **Rollover automation is NOT an armed write surface** (settled train 4, re-confirmed): the **contract invariant**
+  decides — staging `cli.mjs status` reported `ROLLOVER_AUTO_SYNC_ENABLED: "false"` at `releaseSha: ce1257c8`.
+- **LIVE UNTOUCHED, measured (2026-09-29 00:23–00:26 +08):** 5001 → **35284**, 5174 → **32376** — the **same PIDs**
+  before and after; machine scope, live tree (clean at `c9be17fe`), ready, and the DB-backed read (**19 509 B**
+  both times) byte-identical. Only 5101/5274 moved. Rollback basis `c9be17fe` present, clean, both `dist`s.
+- **§3 CAPACITY RECLAIM DISCHARGED (2026-09-29):** the train-4 owed item is closed. `E:` was 21.67 GiB (below the
+  warn line), so the reclaim ran before the build: 4 retired A4 worktrees + 4 superseded staging clones, none
+  running, all reproducible from pushed branches, no live tree touched. **`E:` is 28.45 GiB.** No exception needed.
+- **⚠ A3 c11 has STILL never had an independent review** (as of 2026-09-29, re-verified at train 5). Its only
+  recorded acceptance is a staging walk that recorded A3 as FAIL; its bytes are already in `main`, so this is
+  context, not a train-5 blocker. **What proves it:** no review artifact naming `13d75ce6` exists in `docs/`.
+- **Next action (single):** Lane C walks staging at `ce1257c8` and continues this session with **GO**; the browser
+  rows are theirs as named owner (the host serves the same 3.8 KB shell for any path, so `curl` cannot decide
+  `/timetable` or `/teaching-load`). At GO, A4 runs step 3 — production cutover of this SAME pin, rollback to
+  `c9be17fe`. **Step 3 is not executed and this session did not authorise it.**
+
+## Lane A4 — release lane, 2026-09-28 (train 4)
+
+- **STAGING (superseded by train 5) was at `c9be17fe` — isolated ATLAS on 5101 (API) / 5274 (client).**
   `http://127.0.0.1:5274` and `https://njgrm.buru-degree.ts.net:8443`. Branch `release/2026-09-28-4`,
   parents `2b699c77` (origin/main tip) + `13d75ce6`. Deploy **103.7 s**, DB refreshed from live
   (`SNAPSHOT_REFRESHED`, `1033|482|11` before and after, `liveUnchanged: true`).
@@ -63,15 +98,13 @@ rules are what make that safe:
 - **LIVE UNTOUCHED, measured (2026-09-28 23:2x +08):** 5001 → **15996**, 5174 → **13824** — same PIDs, same command
   lines before and after; machine scope, live tree (CLEAN at `9ca7f629`), DB-backed read (19 509 B) and ready all
   byte-identical; live task Running. Only 5101/5274 moved. Rollback basis `9ca7f629` present with both `dist`s.
-- **⚠ §3 CAPACITY RECLAIM IS NOW OWED (dated 2026-09-28).** `E:` is **24.44 GiB — below the 25 GiB warn line**
-  (30.43 → 25.97 → 24.44 across trains 3 and 4). The retention reclaim is required **before the next release build**.
-  Candidates: the four superseded staging copies `E:\ATLAS-staging\{7590d485…, 9ca7f629…, e59b8ba1…,
-  bae81afb…}` (~5.9 GiB) — none running, all reproducible from git. **Keep `c9be17fe`** (running). **Never touch
-  `E:\ATLAS-worktrees\lane-a4-release-20260928-2`** — that is live. A4 did not delete these on its own initiative;
-  the reclaim needs its own pass and its own read of `docs/reference/agent-worktree-lifecycle.md`.
-- **Next action (single):** Lane C walks staging at `c9be17fe` (Teaching Load suggestion for 2022-2023 must now
-  propose rows) and continues this session with **GO**. At that GO, A4 executes step 3 against the corrected row
-  set — and **first lands the release line on `main`**, or train 5 re-merges c11 again.
+- **✅ §3 capacity reclaim was OWED at train 4 and is now DISCHARGED at train 5 (2026-09-29).** At train 4 `E:` was
+  **24.44 GiB — below the 25 GiB warn line**, and the retention reclaim was required before the next release build.
+  **It has since been performed** (see the train-5 section above): 21.67 → 28.45 GiB, the four superseded staging
+  copies `E:\ATLAS-staging\{7590d485…, 9ca7f629…, e59b8ba1…, bae81afb…}` were reclaimed after confirming none was
+  running, and the `E:\ATLAS-worktrees\lane-a4-release-20260928-2` live tree was never touched.
+- **Next action (superseded 2026-09-29):** Lane C walked train-4 staging and released it to production; train 5 is
+  now at STAGING. See the train-5 section above.
 
 ## Lane A4 — release lane, 2026-09-28 (first A4 train)
 
