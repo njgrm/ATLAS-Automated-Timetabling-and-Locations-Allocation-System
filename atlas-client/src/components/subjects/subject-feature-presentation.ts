@@ -105,6 +105,39 @@ export function ownerDepartmentPhrase(ownerDepartments: OwnerDepartmentRef[]): s
 }
 
 /**
+ * A5-C2B / demo-walk item 7: the operator's **primary** read of ownership.
+ *
+ * `ownerDepartmentPhrase` above is deliberately the STORED-MARKER phrase — it
+ * yields `OWNER_DEPT:MAPEH` for a code the glossary cannot expand, and A3-C4
+ * controls 1e/1f pin that behaviour on purpose. Keeping it as the primary read
+ * is what the operator reported: the Subjects table showed a stored enum as a
+ * room decision, and a teacher reading the room column saw `OWNER_DEPT:MAPEH`
+ * rather than a department.
+ *
+ * This function is the narrower, honest replacement for the PRIMARY line only:
+ * it names the department where the glossary vouches for one, and otherwise
+ * shows the **department code itself** — `MAPEH` is the identifier a school
+ * scheduler writes on a timetable and reads back all day, so it is a readable
+ * department name, not implementation language. The internal `OWNER_DEPT:`
+ * prefix is a storage detail and never appears here; the full stored marker
+ * stays reachable in the `@/ui` detail affordance through `subjectFeatureHelp`.
+ *
+ * This is why the two functions coexist rather than one replacing the other:
+ * the primary read is prose a scheduler scans, and the detail is the diagnostic
+ * an officer needs when a code is wrong.
+ */
+export function ownerDepartmentRead(ownerDepartments: OwnerDepartmentRef[]): string {
+	if (ownerDepartments.length === 0) return '';
+	if (hasNamedOwnerDepartments(ownerDepartments)) {
+		return ownerDepartmentPhrase(ownerDepartments);
+	}
+	// No plain name is available, so the phrase withholds the "department" noun
+	// (A3-C4-1e). The code alone is still a true statement about the data, and
+	// unlike the marker it is something the operator recognises.
+	return ownerDepartments.map((owner) => owner.code).join(', ');
+}
+
+/**
  * The calm, plain sentence for a subject's feature needs. Carries BOTH the
  * plain names and the raw codes, so the diagnostic survives the copy fix.
  *
@@ -131,10 +164,17 @@ export function subjectFeatureHelp(split: SubjectFeatureSplit): string {
 	if (ownerDepartments.length > 0) {
 		const raw = ownerDepartments.map((owner) => owner.raw).join(', ');
 		const counted = ownerDepartments.length === 1 ? 'this' : 'these';
+		// A5-C2B / demo-walk item 7: the unmapped branch used to read "… and has
+		// no plain name for that code, so it is shown as stored." That sentence
+		// PUT the gap on screen as the answer, so the page's own text admitted
+		// there was nothing to read. It now states the owning code, which is the
+		// true fact, and stops there. The marker itself is still spelled out —
+		// reachability is what A3-C4-1c requires, and it is why this sentence
+		// remains the DETAIL rather than the primary read.
 		parts.push(
 			hasNamedOwnerDepartments(ownerDepartments)
 				? `It is owned by the ${ownerDepartmentPhrase(ownerDepartments)}. ATLAS records ${counted} as ${raw}.`
-				: `ATLAS records ${counted} as ${raw}, and has no plain name for that code, so it is shown as stored.`,
+				: `ATLAS records the owning code as ${raw}.`,
 		);
 	}
 	if (parts.length === 0) return `This subject needs no special room features.`;

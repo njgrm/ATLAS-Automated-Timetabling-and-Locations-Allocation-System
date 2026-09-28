@@ -706,7 +706,7 @@ stats={subjectStats}
 									sort. Sorting by isSeedable presented bootstrap
 									seed state as operator priority. */}
 								<th className="px-4 py-3 text-left font-semibold text-muted-foreground uppercase tracking-wider text-xs">Teacher coverage</th>
-									<th className="px-4 py-3 text-right font-semibold text-muted-foreground uppercase tracking-wider text-xs">Action</th>
+									<th className="sticky right-0 z-20 border-l border-border/40 bg-muted/90 px-4 py-3 text-right font-semibold text-muted-foreground uppercase tracking-wider text-xs backdrop-blur-md">Action</th>
 								</tr>
 							</thead>
 							<tbody className="divide-y divide-border/40">

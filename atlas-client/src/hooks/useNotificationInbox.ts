@@ -37,6 +37,18 @@ export type InboxNotification = {
 	resourceId: string | null;
 	read: boolean;
 	createdAt: string;
+	/**
+	 * The `Notification.data` JSON column, carrying the original event
+	 * `metadata`. `GET /notification-inbox/` returns Prisma rows unmodified, so
+	 * this has ALWAYS been on the wire; it was simply never declared here.
+	 *
+	 * A5-C2B / demo-walk item 5: `notification-presentation.ts` reads the subject,
+	 * section, teacher, room, day and times from here to write a readable
+	 * summary. Declaring the column is what lets the bell do that without a
+	 * server edit — see that module's header for why the presentation layer,
+	 * rather than a new endpoint, is the right place.
+	 */
+	data?: Record<string, unknown> | null;
 };
 
 /**
