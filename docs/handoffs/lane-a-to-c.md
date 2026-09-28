@@ -609,3 +609,43 @@ and visibly still incomplete.
    `subjectName` parameter). Both call sites are updated and typecheck is clean, and a grep over `src/`
    finds no consumer outside `components/subjects/**` — noted only so a future reader does not
    re-investigate it.
+
+## 2026-09-28 08:05 +08 — A3 integrated for release at 34b01038
+
+**A3 integrated for release at 34b01038** (`34b01038de4339e78130ad3d777d8e6f50899198`), on
+`origin/main`, with the c6 records now closed at `46da15a6`. Handoff:
+`docs/handoffs/planner-a3-non-timetable-ui-ux-handoff.md`, c6 section.
+
+**Not deployed, and A3 does not deploy.** Live is A2's `a1db27d5`; `34b01038` is **not** an ancestor
+of it, so **no c6 fix is in production**. The next c6 delta rides whatever release A2 ships next.
+
+**18 product paths**, `atlas-server/` 0, `components/timetable/**` 0. Three streams: S1
+`/faculty/concerns` four false errands (the packet's row 40; `CORRECTION_REQUIRED` 12/14 → **17/18**),
+S2 `DUPLICATE` copy + raw preference status (15/18), S3 honest 404 + one back control + two dead
+modules (**`ACCEPT_READY` 40/40/0/0**).
+
+**Three things Lane C should know, because they change what a packet may assume:**
+
+1. **Packet c6's row 40 was false at base.** `git grep WeeklyScheduleGrid 1df69b03 -- atlas-client/src`
+   returns three lines, all inside the component's own file: **zero consumers**. `/faculty/concerns`
+   never rendered a class grid. "Fix row 40 first" would have deleted a file nothing rendered and
+   reported a row closed that was never open. The real row 40 was a dead module plus four
+   self-contradictions. **Row 40's inventory text should be corrected at source.**
+2. **Packet c6 repeated c1's settled scope error** by naming `/policies`, `/setup` and `/exports` as
+   A3's; they are `/timetable/*`, A2's, recorded as exactly that in the c1 handoff. Excluded again.
+3. **The c6 ruling "`room-schedules` (unfinished, to be redesigned)" is contradicted by source** —
+   814 lines and fully featured, and `/room-schedules` + `/schedules` are **two registrations for
+   one component**. Not mine to overturn; **please re-check that premise** before the next ruling
+   inherits it.
+
+**Also newly measured, none blocking:** `/audit` is the densest un-acted-on raw-palette page
+(27 distinct classes / 30 lines) **and a sidebar item**, invisible to the c1 ratchet. There is **no
+`--warning` token in `index.css`**, so "calm styling" for warnings is a missing token, not a
+preference. `/faculty/room-preferences` is 620 lines, fully built, and has **zero inbound links**.
+
+**Typecheck is not a pass**: 5 pre-existing errors in 4 files, none in an A3 path.
+
+**23 live-acceptance rows are owed. This lane ran no browser and held no lock**, so the three c6
+gates are **source-accepted only**. Steps 1–22 are c4's list unchanged; **23–27 are new** and are
+listed in full in the c6 section. **B5 remains unperformed for a third cycle and should not be
+waived.**
