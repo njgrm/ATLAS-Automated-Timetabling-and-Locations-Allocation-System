@@ -39,6 +39,7 @@
     "test:a3-sections-map": "tsx --test src/components/sections/__tests__/a3-sections-map-layout.test.ts src/components/sections/__tests__/a3-sections-map-picker-occupant.test.tsx src/components/sections/__tests__/a3-sections-map-home-room-persist.test.tsx src/components/sections/__tests__/a3-room-picker-uniform-rows.test.tsx",
     "test:a3-c4-sections": "tsx --test src/components/sections/__tests__/a3-c4-home-room-truth.test.ts src/components/sections/__tests__/a3-c4-sections-surface.test.tsx",
     "test:a3-teachers-load": "tsx --test src/components/faculty-assignments/__tests__/a3-teachers-load-c3.test.tsx src/components/faculty-assignments/__tests__/a3-swap-confirmation-c3.test.tsx src/components/faculty-assignments/__tests__/a3-teaching-load-review-c2.test.tsx",
+    "test:a3-c10-workload-audit": "tsx --test src/components/faculty-assignments/__tests__/a3-c10-workload-audit-summary.test.tsx",
     "test:a3-c4-tl-truth": "node --experimental-test-module-mocks --import tsx --test src/components/faculty-assignments/__tests__/a3-c4-draft-truth.test.tsx",
     "test:timetable-lifecycle-loading": "node --experimental-test-module-mocks --import tsx --test src/components/timetable/__tests__/timetable-lifecycle-loading-render-c03.test.tsx",
     "test:timetable-scheduling-quality-c03": "tsx --test src/components/timetable/__tests__/timetable-scheduling-quality-c03.test.tsx",

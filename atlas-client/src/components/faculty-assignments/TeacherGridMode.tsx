@@ -30,6 +30,11 @@ import { TeacherLoadReadout } from './TeacherLoadReadout';
 import { TeachingLoadFilterBar } from './TeachingLoadFilterBar';
 import { formatFacultyDisplayName } from '@/components/faculty/teacherNameDisplay';
 import { countDistinctSections } from '@/lib/teaching-load-counts';
+import {
+	buildTeacherWorkloadAuditSnapshot,
+	clearTeacherWorkloadAudit,
+	publishTeacherWorkloadAudit,
+} from './teacherWorkloadAudit';
 
 type TeacherGridModeProps = {
 	loading: boolean;
@@ -152,6 +157,46 @@ export function TeacherGridMode({
 }: TeacherGridModeProps) {
 	const [expandedId, setExpandedId] = useState<number | null>(selectedId);
 	const [collapsedDepts, setCollapsedDepts] = useState<Record<string, boolean>>({});
+
+	/* Fix 26 — the `Teacher Workload Audit Summary` data feed.
+	 *
+	 * The summary modal is rendered by `TeachingLoadModals`, a SIBLING of this
+	 * component, and `pages/TeachingLoad.tsx` passes it only the already-selected
+	 * teacher's inspector node. So the census it needs is published from here —
+	 * the one place in the client that already holds the whole roster, the
+	 * draft-aware effective hours map, and the explicit standard, and that already
+	 * derives every row's hours with `resolveTeachingActualHours`.
+	 *
+	 * Consequences worth stating: the summary's counts are the SAME numbers the
+	 * roster rows are showing at that instant (same function, same input map, so
+	 * unsaved draft changes are included in both), and the modal fetches nothing.
+	 * The census is the unfiltered `faculty` prop, because an audit is a census —
+	 * the summary says so on screen.
+	 *
+	 * `onSelectTeacher` is published alongside it so a click-through row selects
+	 * the teacher through the page's own selection setter. That is selection
+	 * state only: it never saves, discards, or applies a draft.
+	 */
+	const auditSnapshot = useMemo(
+		() => buildTeacherWorkloadAuditSnapshot({
+			faculty,
+			effectiveActualHours,
+			teachingStandardHours,
+			policyReady,
+			loading,
+		}),
+		[faculty, effectiveActualHours, teachingStandardHours, policyReady, loading],
+	);
+
+	useEffect(() => {
+		publishTeacherWorkloadAudit(auditSnapshot, onSelectTeacher);
+	}, [auditSnapshot, onSelectTeacher]);
+
+	// Unpublish on unmount. `pages/TeachingLoad.tsx` hides this grid behind
+	// "Advanced", and a retained census would be a roster from a screen that is
+	// no longer showing one; the summary's honest `unavailable` state is the
+	// truthful answer there.
+	useEffect(() => clearTeacherWorkloadAudit, []);
 
 	useEffect(() => {
 		if (selectedId !== null) {
