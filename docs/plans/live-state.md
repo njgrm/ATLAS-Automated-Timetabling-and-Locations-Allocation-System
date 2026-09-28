@@ -2833,8 +2833,9 @@ Tailnet; 6 integrated and pushed, none live.** The release is the next elevated 
 - **c7's dropped-rows caution re-checked: 21 rows at the tip, none missing.** 13 from `749cbfd5` + 6 `3(a)` from
   `2a69fc6a` + 2 from `c46b227f`; three base rows renamed (not dropped), each declaring itself. Assertions 62 -> 79
   -> 60 -> 99 -> **101**. Detail: `docs/handoffs/planner-a2-handoff-2026-09-28-overnight.md` §7.
-- **Next action (owed to Lane C, posted in `docs/handoffs/lane-c-to-a2.md`):** the elevated release of `6b1ec722`
-  from `E:\ATLAS-worktrees\lane-a2-c7-integ`, then the 4 T-row groups of live acceptance on draft run 321.
+- **Next action (owed to Lane C, posted in `docs/handoffs/lane-c-to-a2.md`):** close **Gate 3** (one fresh
+  independent review of A3's c8 delta), then the elevated release of `6b1ec722` in a **fresh** worktree — not
+  `lane-a2-c7-integ`, which c8 step 5 retires. `E:` 27 GiB free, above the warn line, so no reclaim is owed.
 - **Dated, not done (2026-09-28):** no build, no `E:` reclaim (**27 GiB free, above the 25 GiB warn line - no reclaim
   owed**), no deployment, no generation, no publication, no browser row. All HIGH, all next packet.
 - `lane-a2-c7-integ` and `lane-a2-c6-truth` are **RETIRE_AFTER_INTEGRATION** (retired junction-safe in c8 step 5).

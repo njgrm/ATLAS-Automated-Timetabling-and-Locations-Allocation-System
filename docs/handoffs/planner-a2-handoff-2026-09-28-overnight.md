@@ -545,6 +545,11 @@ Assertion count is monotonic across the corrections: 62 -> 79 -> 60 (the truncat
 Nothing was removed subtractive-ly, and the file header now enumerates its own rows and names `T1d` as never having
 existed.
 
+**Worktrees, retired in c8 step 5 (junction-safe, non-forced):** `lane-a2-c7-integ` (`RETIRE_AFTER_INTEGRATION` —
+its HEAD `1ef9875f` is on `origin/main`) and `lane-a2-c6-truth` (`RETIRE_AFTER_INTEGRATION` — `6186cf7f` is an
+ancestor of the pushed tip). **The elevated release must therefore build in a FRESH worktree**, not in
+`lane-a2-c7-integ`; that path no longer exists after this section.
+
 **Not done, deliberately (c8 step 6):** no build, no `E:` reclaim, no deployment, no generation, no publication, no
 browser row — all HIGH and all belonging to the next elevated packet. `E:` measured **27 GiB free** at issue, above
 the 25 GiB warn line, so **no reclaim is owed** before that build.
