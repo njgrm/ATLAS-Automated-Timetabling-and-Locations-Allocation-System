@@ -4707,3 +4707,58 @@ candidate through it (A5 = `atlas-client/**`, A9 = `atlas-server/**` — disjoin
   `refs/stash`-only) and 4 pre-existing stash entries from other lanes.
 - **Next action (single):** A4 merges `98cc1e34` into the next release train; Lane C then runs `Sync now` in
   reconcile mode with the operator and takes the three release-acceptance rows above.
+
+## Lane A8 — Teaching Load shortage, server truth (written only by Lane A8)
+
+**`A8 ready for release at 195b52fe` (accepted candidate `39b2dcc7`). 0 fixes live and seen / 6 server items
+integrated and NOT seen rendered / 0 dropped. NOT deployed — A4 owns every release (§14).** Packet
+`a8-tl-shortage-server-2026-09-29.md`; handoff `docs/reviews/a8-tl-shortage-server-c2/handoff.md`. Worktree
+`E:/ATLAS-worktrees/lane-a8-tl-shortage-server`, branch `work/tl-shortage-server-c2`, base `256abde4`.
+Range `4c806de3` → `39b2dcc7` (accepted) → `e9a04893` (planner docs) → `195b52fe` (merge of `origin/main`
+`846b3735`), pushed `846b3735..195b52fe`.
+
+- **The six items, all server-side.** (1) 40h mode now honours the teacher — one
+  `resolveRealFacultyCapMinutes` in `teaching-load-capacity.service.ts` used by auto-fill and the proposal
+  receiver cap, so a 30h teacher is no longer promised 40h. (2) Teacher-X mode reports the truth: the forced
+  `finalUnresolved = 0` is gone and `created`/`assignmentsCreated` count **persisted inserts only**;
+  `stillNeedRealTeacher` and `teacherXResolution.unsavedSubstituteRows` carry the truth. (3) Saved
+  placeholders are assignable — the suggestion pool is consulted only after every qualified real teacher is at
+  cap, only for subjects with a `facultySubject` row, bounded by the placeholder's own `maxHoursPerWeek`;
+  placeholder creation writes `facultySubject` in the same transaction; and
+  `POST /faculty-assignments/coverage/repair` creates a to-be-hired teacher **and** assigns the uncovered
+  pairs in one call, with actor-school scope, a zero-write `apply:false` preview, and no system token.
+  (4) Apply no longer false-409s — the drift check is scoped to the pairs the reviewed plan asserts instead of
+  the `insertSubjects × insertSections` cross product, and a real conflict names the changed subject/section.
+  (5) One load definition — generator, TL truth panel, auto-fill and rebalance share
+  `effectiveWeeklyCapMinutes`/`evaluateWeeklyLoad`; **the generator's HARD projection is byte-identical, so its
+  violation count cannot move.** (6) A policy save no longer resets 1800/300/2400.
+- **Evidence.** Fresh QA round 1 `CORRECTION_REQUIRED` **7/9/0/2** — two BLOCKING: `created` still counted
+  undelivered substitutes (measured `assignmentsCreated=1` with zero persisted), and the item-5 cap change had
+  turned authority assertion B3 red in `test:server-db` while move-eligibility and over-cap used two caps.
+  Correction `39b2dcc7`; QA round 2 `ACCEPT_READY` **5/5/0/0** (round 2 of 2). QA reproduced the failing-first
+  on base for items 4 and 2/3 (0/5 and 0/10), and proved the re-based B3 still discriminates with a
+  fold-advisory mutant it built itself. Merged tree: server `tsc` exit 0, `test:server-suite` **426/426**, the
+  five A8 scripts 12/12 + 20/20 + 5/5 + 7/7 + 11/11, and `teaching-load-suggestion-authority.test.ts` green on
+  a disposable drill DB with **zero residue**.
+- **API contract handed to A6** (read from code by QA, in the handoff): A6 must read
+  `applyResult.stillNeedRealTeacher`, `teacherXResolution.unsavedSubstituteRows`,
+  `assignedPairs[].sectionId` and `stillUncoveredPairs`; the 409 carries
+  `details.{driftScope, changedPairs, changedPairCount, remainingChangedPairCount}`. **A6 must NOT read
+  `created`/`assignmentsCreated` as delivered work** — they now equal the insert count, which changed.
+- **Dated blocker 2026-09-29 — NOT seen rendered.** No browser, staging or live row was run: the packet
+  performs no live/database read and the client UX is A6's. The **live 5-over-0 vs TL 0-over divergence was
+  NOT re-measured**; item 5 is proven on a committed hermetic fixture (old panel `[]`, new panel and generator
+  both `[1, 2, 5]`). A4 owns the post-deploy rows (§13).
+- **NON_BLOCKING residuals, 2026-09-29.** (1) 9 pre-existing `test:server-db` red files, reproduced
+  identically on base `256abde4`; they need their own owner, and one of them is network-flaky per A9.
+  (2) Two controls in `tl-shortage-single-cap-rule-c02.test.ts` assert source text; the item-1/5 control files
+  import the new module so they cannot run on base. (3) One unattributable host flake (50/8 vs 49/9).
+  (4) `docs/prompts/atlas-system-token-rotation-2026-09-26.md` inventory line corrected to match the new auth.
+  (5) `E:` free 26.3 GiB after this worktree — **above the 25 GiB warn line but close**; the next release
+  build should measure first (§3).
+- **Residue closed by this lane:** the correction executor's `atlas_restore_drill_20260929_a8corr1` was
+  dropped (before 1, after 0). No stash created or consumed; other lanes' entries untouched.
+- **Worktree disposition:** `E:/ATLAS-worktrees/lane-a8-tl-shortage-server` = `RETIRE_AFTER_INTEGRATION`,
+  left for A4 (§14 gives A4 E: capacity and junction-safe reclamation).
+- **Next action (single):** A6 builds the client against the contract above; A4 puts `195b52fe` in the next
+  train.
