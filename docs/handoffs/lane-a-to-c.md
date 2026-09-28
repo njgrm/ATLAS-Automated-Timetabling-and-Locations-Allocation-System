@@ -1936,3 +1936,61 @@ chips, Owned by AP, MAPEH, absent code chip) has **no rendered proof**: under a 
 the catalogue loader never dispatches and owsRendered: 1 is the empty state. Per your 02:35
 ruling it is judged on **staging :5274 after you deploy train 6**, and a **REJECT_UX there sends
 it back to me.** It is recorded as deferred, never as met.
+
+---
+
+## A5 C3 slice B - **A5 ready for release at 358812cf** (2026-09-29 ~03:2x, from Planner A5)
+
+Slice A is 419277e4; **slice B is 358812cf**; together they are the whole A5 C3 cycle.
+Client + docs only: **0 tlas-server/, 0 prisma/, 0 ops/, 0 lockfile, no env, no migration.**
+**A5 does not deploy - A4 owns the release.** Both slices ride the same train.
+
+**2 / 2 integrated. Slice A seen rendered on loopback; slice B is source+test proven and NOT seen
+rendered by anyone. 0 dropped.**
+
+**What slice B did - the parent packet's "carry the same treatment to every other page":**
+13 filter controls across /sections (3), /faculty (4), /teaching-load (4 + 1) and the
+archived-year picker (1) now go through the **same shared FilterPicker** slice A built.
+
+| | BEFORE | AFTER |
+|---|---|---|
+| Distinct primitives | 1 | 1 (now the shared one everywhere) |
+| Distinct trigger **heights** | **3** (40 / 44 / 36px) | **1** (36px) |
+| Triggers that **name themselves** | **1 of 13** | **13 of 13** |
+| Page-local chrome strings | 1 (CONTROL_CHROME) | 0 |
+| Look overrides removed | - | 29 |
+| **Visible words added** | - | **0** |
+
+Plus a **guard** (	est:a5-p3-picker-guard, wired in the same commit) that fails on a swept
+filter built from @/ui/select, on a look-changing override, or on a trigger built by hand.
+
+**Two BLOCKINGs QA found and are now closed, with failing-first proof:** Enter could still select a
+disabled option (reachable on the two long lists that earn a search box), and the archived-year
+picker **claimed All on a control that offers no such choice** - it lied while loading. Both were
+regressions the slice's own comments claimed to prevent.
+
+**A finding worth your attention, @A5's own QA found it and I am not hiding it:** the guard's
+committed claim that it caught hand-rolled triggers was **false** - the probe was case-sensitive and
+missed <Button role=combobox>, the form this codebase actually writes. Fixed, and I verified the
+new pattern discriminates (catches the missed form, does not fire on a plain <Button> or a real
+<FilterPicker>). A guard that claims coverage it lacks is worse than no guard.
+
+**@A4 - pin 358812cf.** 18 paths, all tlas-client/src + docs/reviews. Boundaries verified:
+no TeachingLoad.tsx, no Sections.tsx, no components/sections/*Map*, no SubjectFormModal.tsx,
+no /timetable call site. 	sc = the same **5** pre-existing errors in untouched files; build exit 0.
+Four base-identical red suites are recorded, not fixed (3-c4-copy 18/14/**1**/3,
+3-palette-ratchet-s-e 5/**3**/2, 3-c9-operator-tokens 21/**20**/1, 	imetable-relaxed-main
+83/**79**/4) - the range adds **zero** rose and **zero** accent tokens.
+
+**@Lane C - TWO release conditions, both yours, both with me as the return address.**
+1. **The /subjects subject TABLE ROW** - program chips, Owned by AP, MAPEH, absent code chip -
+   has never been seen rendered. Judge it on **staging :5274 after you deploy this train**; a
+   REJECT_UX there sends it back to A5.
+2. **/sections, /faculty and /teaching-load have NO rendered evidence at all**, and QA scored
+   three axes **UNSCOREABLE** without a 1366 render: **no truncation**, **nothing cramped**, and
+   **case/weight harmony**. Truncation is the one I expect to fail: the trigger is a fixed **128px**
+   box, the faces got *longer* (Home room: All where /sections had a ~340px column reading
+   All home-room states), and the label span is 	runcated. **A9 and D1 are the two I would judge
+   first** - D1 (Teaching Load losing UPPERCASE) is by definition a pixel judgement and is the
+   largest visual delta in either slice. My QA did **not** treat the layout note's arithmetic as a
+   measurement and neither should you.
