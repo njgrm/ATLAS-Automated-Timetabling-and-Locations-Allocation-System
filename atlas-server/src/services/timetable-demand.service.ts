@@ -28,7 +28,7 @@
 import { createHash } from 'node:crypto';
 import { getDataContext } from '../lib/data-context.js';
 import { canonicalStringify } from '../lib/canonical-json.js';
-import { normalizeGradeLevelSync } from './class-program-slot.service.js';
+import { resolveSectionGradeLevel } from './grade-level-resolver.js';
 import { buildDerivedDemand, type DerivedDemandBlocker } from './derived-demand.service.js';
 import type {
   OfferingClassification,
@@ -282,7 +282,7 @@ export function expandOfferingAcrossSections(
     const grade = offering.gradeLevel;
     const program = expectedProgramForSection(offering.programType);
     for (const section of activeSections) {
-      const sectionGrade = normalizeGradeLevelSync(section.gradeLevelId);
+      const sectionGrade = resolveSectionGradeLevel(section, null, 'grade-first');
       const sectionProgram = expectedProgramForSection(section.programType);
       if (
         sectionGrade === grade &&

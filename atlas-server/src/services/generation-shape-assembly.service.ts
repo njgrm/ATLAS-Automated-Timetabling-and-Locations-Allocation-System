@@ -8,40 +8,18 @@
  * Zero database access, zero writes.
  */
 
+import { resolveSectionGradeLevel } from './grade-level-resolver.js';
 import { buildTimetableShapeContract, type ConstructorInput, type TimetableShapeContract } from './schedule-constructor.js';
 
 export function normalizeProgramType(programType?: string | null): string {
 	return (programType ?? 'REGULAR').toUpperCase();
 }
 
-/**
- * Normalize EnrollPro internal grade_level_id to actual grade number.
- * Unlike normalizeGradeLevel, this ALWAYS maps known internal IDs (5-8 and the
- * current 17-20 feed IDs) to actual grades (7-10).
- */
-export function normalizeInternalGradeId(value: number): number {
-	const ENROLLPRO_MAPPINGS: Record<number, number> = {
-		5: 7,
-		6: 8,
-		7: 9,
-		8: 10,
-		17: 7,
-		18: 8,
-		19: 9,
-		20: 10,
-	};
-
-	if (value in ENROLLPRO_MAPPINGS) return ENROLLPRO_MAPPINGS[value];
-	if (value >= 7 && value <= 10) return value;
-	if (value >= 100) {
-		const normalized = value % 100;
-		if (normalized >= 1 && normalized <= 12) return normalized;
-	}
-	return value;
-}
+// Grade resolution has one implementation: `grade-level-resolver.ts` (name first).
+export { legacyGradeFromInternalId as normalizeInternalGradeId } from './grade-level-resolver.js';
 
 export function buildRunTimetableShapeContracts(input: {
-	sectionsByGrade: Array<{ gradeLevelId: number; sections: Array<{ programType?: string | null }> }>;
+	sectionsByGrade: Array<{ gradeLevelId: number; gradeLevelName?: string | null; sections: Array<{ programType?: string | null }> }>;
 	gradeWindows: Array<{ gradeLevel: number; programType?: string | null; startTime: string; endTime: string }>;
 	templateProfiles: Array<{ programType: string; periodLengthMinutes: number; periodsPerDay: number }>;
 	policy: ConstructorInput['policy'];
@@ -64,8 +42,9 @@ export function buildRunTimetableShapeContracts(input: {
 
 	const contracts: TimetableShapeContract[] = [];
 	for (const grade of input.sectionsByGrade) {
-		// gradeLevelId is an internal EnrollPro ID, normalize to actual grade number
-		const normalizedGradeLevel = normalizeInternalGradeId(grade.gradeLevelId);
+		// The EnrollPro grade NAME is authoritative; the internal id is re-minted on
+		// every EnrollPro rollover and is only a legacy fallback.
+		const normalizedGradeLevel = resolveSectionGradeLevel(grade);
 		const programTypes = new Set<string>(['REGULAR']);
 		for (const section of grade.sections) {
 			programTypes.add(normalizeProgramType(section.programType));

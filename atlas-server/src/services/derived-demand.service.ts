@@ -25,7 +25,8 @@ import { createHash } from 'node:crypto';
 
 import { canonicalStringify } from '../lib/canonical-json.js';
 import { getDataContext } from '../lib/data-context.js';
-import { normalizeGradeLevelSync, normalizeInternalGradeId } from './class-program-slot.service.js';
+import { normalizeGradeLevelSync } from './class-program-slot.service.js';
+import { buildGradeLevelRegistry, resolveSectionGradeLevel } from './grade-level-resolver.js';
 import type { DemandItem, SubjectInput } from './schedule-constructor.js';
 import type { SectionsByGrade } from './section-adapter.js';
 import type { VerifiedTermContract } from './enrollpro-term-contract.service.js';
@@ -1041,7 +1042,7 @@ export async function buildDerivedDemand(
 	const [sectionRows, subjectRows, policyRow] = await Promise.all([
 		client.sectionMirror.findMany({
 			where: { schoolId, schoolYearId, isActiveForScheduling: true, isStale: false },
-			select: { id: true, externalId: true, displayOrder: true, gradeLevelId: true, programType: true, isActiveForScheduling: true, isStale: true },
+			select: { id: true, externalId: true, displayOrder: true, gradeLevelId: true, gradeLevelName: true, programType: true, isActiveForScheduling: true, isStale: true },
 		}),
 		client.subject.findMany({
 			where: { schoolId },
@@ -1088,6 +1089,11 @@ export async function buildDerivedDemand(
 		termStructure = persisted.structure;
 	}
 
+	// Grade authority: the EnrollPro grade NAME of the section, else the name
+	// another section of this year carries for the same grade id, else the
+	// legacy id map. EnrollPro re-mints grade ids on every wipe/rollover.
+	const gradeRegistry = buildGradeLevelRegistry(sectionRows);
+
 	return deriveCanonicalDemand({
 		schoolId,
 		schoolYearId,
@@ -1098,11 +1104,11 @@ export async function buildDerivedDemand(
 		sections: sectionRows.map((section) => ({
 			sectionMirrorId: section.id,
 			externalId: section.externalId,
-			// GEN-C02R Correction 6: the authoritative grade is the EnrollPro
-			// internal `gradeLevelId`, normalized via the internal-ID mapping.
+			// Hotfix 2026-09-28: the authoritative grade is the EnrollPro grade
+			// NAME ("Grade 7"); the internal `gradeLevelId` is only a fallback.
 			// `displayOrder` is presentation ordering only and must never determine
-			// curriculum demand scope.
-			gradeLevel: normalizeInternalGradeId(section.gradeLevelId),
+			// curriculum demand scope (GEN-C02R Correction 6).
+			gradeLevel: resolveSectionGradeLevel(section, gradeRegistry),
 			programType: section.programType,
 			isActiveForScheduling: section.isActiveForScheduling,
 			isStale: section.isStale,
