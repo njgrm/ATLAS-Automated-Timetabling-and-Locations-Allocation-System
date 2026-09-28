@@ -2183,6 +2183,82 @@ function isInsideShiftBounds(slot: { startTime: string; endTime: string }, bound
 	return bounds.some((bound) => start >= bound.start && end <= bound.end);
 }
 
+/**
+ * A2-C7 item 3(c) — the break/lunch windows that apply to a moved session's own
+ * section scope, in the same `{ start, end }` shape `autoFixShiftBounds`
+ * returns.
+ *
+ * The measured defect: `manual_schedule_edits` id 12 relocated a class with
+ * `AUTO_FIX_MOVE_SOURCE` to MON 12:15-13:00, which is the `Lunch Break` BREAK
+ * row of that grade+program's own canonical class-program grid. The row existed
+ * in the run because ANOTHER class legitimately used 12:15, so the pool built
+ * from live entries admitted it, and the class then rendered behind the band
+ * with nothing on any surface naming the move.
+ *
+ * A break window is a non-teaching window by definition, so it is never a legal
+ * auto-fix target. Resolved from the SAME `WarningWindowAuthority` the shift
+ * bounds already use — the canonical BREAK rows are grade+program specific and
+ * arrive through `breakWindows` — so this adds no new authority source and no
+ * new query. Fails closed: no scope, no windows, nothing excluded, which is the
+ * pre-existing behaviour rather than a new rejection.
+ */
+function autoFixBreakBounds(
+	entry: ScheduledEntry,
+	authority: WarningWindowAuthority,
+): { start: number; end: number; dayOfWeek: string | null; label: string }[] {
+	const scope = authority.sectionScope?.get(entry.sectionId) ?? null;
+	const bounds: { start: number; end: number; dayOfWeek: string | null; label: string }[] = [];
+	for (const window of authority.breakWindows ?? []) {
+		if (!windowScopeMatches(window, scope)) continue;
+		const start = timeToMinutes(window.startTime);
+		const end = timeToMinutes(window.endTime);
+		if (end > start) {
+			bounds.push({
+				start,
+				end,
+				// A canonical break has no weekday and applies to every day; the
+				// policy-row Flag/HGP window is a Monday-only overlay and must not
+				// exclude the same interval on the other four days.
+				dayOfWeek: window.dayOfWeek ?? null,
+				label: (window.label ?? '').trim() || 'a break',
+			});
+		}
+	}
+	return bounds;
+}
+
+/** Any overlap, not containment: a 45-minute session must not straddle a break. */
+function overlapsAnyWindow(
+	slot: { day: string; startTime: string; endTime: string },
+	bounds: { start: number; end: number; dayOfWeek: string | null; label: string }[],
+): string | null {
+	const start = timeToMinutes(slot.startTime);
+	const end = timeToMinutes(slot.endTime);
+	for (const bound of bounds) {
+		if (bound.dayOfWeek !== null && bound.dayOfWeek !== slot.day) continue;
+		if (start < bound.end && end > bound.start) return bound.label;
+	}
+	return null;
+}
+
+/**
+ * A2-C7 item 3(c) — the ONE predicate the auto-fix pool consults, exported so a
+ * test can drive it against the real canonical class-program grid rather than
+ * against an invented fixture. Returns the label of the first break or lunch
+ * window the slot collides with, or `null` when the slot is a legal target.
+ *
+ * Named for what it decides, not for how it works: a caller that wants a yes/no
+ * asks "is this an auto-fixable slot", and the reason travels with the answer so
+ * a future message can name the window.
+ */
+export function autoFixBreakWindowCollision(
+	slot: { day: string; startTime: string; endTime: string },
+	entry: Pick<ScheduledEntry, 'sectionId'>,
+	authority: WarningWindowAuthority,
+): string | null {
+	return overlapsAnyWindow(slot, autoFixBreakBounds(entry as ScheduledEntry, authority));
+}
+
 function findAutoFixTarget(
 	entries: ScheduledEntry[],
 	entryA: ScheduledEntry,
@@ -2205,21 +2281,35 @@ function findAutoFixTarget(
 	//       term; and
 	//   (b) it lies inside a shift window that applies to the moved entry's own
 	//       section scope — otherwise a section can be parked after its day ends,
-	//       in a slot that is perfectly legal for a different grade.
+	//       in a slot that is perfectly legal for a different grade; and
 	//
-	// Both boundaries are required. Closing only (a) still permits the move into
-	// another grade's afternoon; closing only (b) still permits a cross-term draw.
+	//   (c) A2-C7 item 3(c) — it does not overlap a break or lunch window that
+	//       applies to the moved entry's own section scope. Boundary (b) alone is
+	//       not enough: the canonical grid's shift window is the span of its CLASS
+	//       rows, which still CONTAINS its own BREAK rows, so 12:15-13:00 was
+	//       inside the shift bounds while being the grade+program's own
+	//       `Lunch Break`. Measured: `manual_schedule_edits` id 12 moved a class
+	//       there and no surface named the move.
+	//
+	// All three boundaries are required. Closing only (a) still permits the move
+	// into another grade's afternoon; closing only (b) still permits a cross-term
+	// draw; closing only (a)+(b) still permits a class to be parked in recess.
 	const authority = resolveManualWindowAuthority(refData);
 	const termOf = (entry: ScheduledEntry) => autoFixTermScope(entry);
 	const poolFor = (moved: ScheduledEntry): { day: string; startTime: string; endTime: string }[] => {
 		const movedTerm = termOf(moved);
 		const bounds = autoFixShiftBounds(moved, authority);
 		if (bounds.length === 0) return []; // fail closed: no authority, no target
+		// A2-C7 item 3(c): resolved from the same authority, so a grade+program's
+		// own lunch/recess rows are the ones that exclude, never a global list.
 		const slotSet = new Set<string>();
 		for (const entry of entries) {
 			if (!effectiveTermsOverlap(termOf(entry), movedTerm)) continue;
 			const slot = { day: entry.day, startTime: entry.startTime, endTime: entry.endTime };
 			if (!isInsideShiftBounds(slot, bounds)) continue;
+			// A2-C7 item 3(c), through the exported predicate so the mounted test
+			// and the pool consult the SAME function, not two copies of the rule.
+			if (autoFixBreakWindowCollision(slot, moved, authority) !== null) continue;
 			slotSet.add(`${entry.day}|${entry.startTime}|${entry.endTime}`);
 		}
 		return [...slotSet].map((value) => {

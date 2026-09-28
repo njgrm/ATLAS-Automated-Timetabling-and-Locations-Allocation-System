@@ -418,21 +418,38 @@ export function SimplePublishAction({
 }) {
 	const reason = enabled ? null : (disabledReason ?? 'Publishing is not available for this run yet.');
 	return (
-		<GatedAction disabled={!enabled} reason={reason}>
-			<Button
-				type="button"
-				variant={primary ? 'default' : 'outline'}
-				size="sm"
-				className="h-11 gap-1.5 px-3 text-sm"
-				disabled={!enabled}
-				aria-label={reason ? `Publish schedule — ${reason}` : 'Publish schedule'}
-				onClick={onClick}
-				data-testid="timetable-simple-publish-action"
-			>
-				<Send className="size-3.5" aria-hidden="true" />
-				<span>Publish schedule</span>
-			</Button>
-		</GatedAction>
+		/* A2-C6-TRUTH (T3g) — the reason is IN PLACE, not in a tooltip.
+		 *
+		 * The live measurement, 2026-09-28: a big red `Publish schedule` on a draft
+		 * holding warnings, with the only explanation one screen away behind a
+		 * disabled control. A disabled button cannot be hovered reliably, cannot be
+		 * focused, and its `aria-label` is read by a screen reader rather than seen
+		 * by the person deciding whether to keep working — so the state was a red
+		 * control that looked broken and a reason that had to be hunted for. The
+		 * tooltip is KEPT for the keyboard/hover case, and the sentence is now also
+		 * printed next to the control, in the same place, before it is pressed. */
+		<span className="flex min-w-0 flex-col items-start gap-0.5">
+			<GatedAction disabled={!enabled} reason={reason}>
+				<Button
+					type="button"
+					variant={primary ? 'default' : 'outline'}
+					size="sm"
+					className="h-11 gap-1.5 px-3 text-sm"
+					disabled={!enabled}
+					aria-label={reason ? `Publish schedule — ${reason}` : 'Publish schedule'}
+					onClick={onClick}
+					data-testid="timetable-simple-publish-action"
+				>
+					<Send className="size-3.5" aria-hidden="true" />
+					<span>Publish schedule</span>
+				</Button>
+			</GatedAction>
+			{reason ? (
+				<p className="max-w-[22rem] text-xs font-medium text-muted-foreground" data-testid="timetable-publish-blocked-reason">
+					{reason}
+				</p>
+			) : null}
+		</span>
 	);
 }
 

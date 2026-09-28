@@ -60,10 +60,15 @@ export function ScheduleReviewInputStateBanner({
 							</Badge>
 						))}
 					</div>
-					<p className="hidden truncate text-xs font-medium leading-relaxed text-current/80 lg:block">
-						{inputState?.message ?? 'ATLAS could not check this run against the latest setup data.'}
-						{checkedAge ? ` · ${checkedAge}` : ''}
-					</p>
+				<p className="hidden truncate text-xs font-medium leading-relaxed text-current/80 lg:block">
+					{/* A2-C6-TRUTH (T3e) — the same ≤12-word rule as the Simple drift
+					    banner, for the same reason. The comparison's own `message` is the
+					    server's sentence and is passed through unchanged; only the
+					    component's own fallbacks are shortened. `isStale` is untouched, so
+					    #17/#59 predicate semantics are unchanged. */}
+					{inputState?.message ?? 'ATLAS could not check this run against the latest setup data.'}
+					{checkedAge ? ` · ${checkedAge}` : ''}
+				</p>
 				</div>
 			</div>
 

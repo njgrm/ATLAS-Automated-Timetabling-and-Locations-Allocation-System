@@ -508,15 +508,15 @@ export function AppShell() {
 						<div className='ml-auto flex items-center gap-2'>
 								<NotificationBell />
 								<AccessibilityMenu fontSize={fontSize} setFontSize={setFontSize} />
-								{activeTermLabel && (
-									<Badge
-										variant='outline'
-										className='hidden h-7 border-primary/20 bg-primary/5 px-2 text-xs text-primary sm:inline-flex'
-									>
-										Active Term: {activeTermLabel}
-									</Badge>
-								)}
-								{activeYearLabel && (
+							{/* A2-C6-TRUTH (T3b/T3c) — the separate `Active Term:` chip is
+							    REMOVED, not reworded. It was a second control for one fact
+							    that the term selector already owns, and it read the runtime
+							    rollover context's `activeTerm` rather than the term
+							    authority the timetable actually filters on — so it could
+							    name a term the workspace had not confirmed. The one line
+							    that states both facts now lives where the term is chosen
+							    (`SimpleTermScopeLine`, and the Expert orientation strip). */}
+							{activeYearLabel && (
 									<Badge variant='outline' className='min-h-7 px-2 text-xs'>
 										Active year: {activeYearLabel}
 									</Badge>

@@ -509,6 +509,45 @@ test('D1: the auto-fix never offers a slot outside the moved section\'s day, nor
 	);
 });
 
+test('D1-BREAK: no offered auto-fix target collides with a break or lunch window (A2-C7 item 3(c))', { skip: RUNNABLE ? false : 'DATABASE_URL is not configured' }, async () => {
+	// The live defect: `manual_schedule_edits` id 12 (run 321, 2026-09-27) moved
+	// a class with AUTO_FIX_MOVE_SOURCE to MONDAY 12:15-13:00, which is grade 7
+	// REGULAR's own `Lunch Break` BREAK row. The class then rendered behind the
+	// band and no surface named the move.
+	//
+	// HONEST SCOPE: this fixture's grade-7 shift window is 06:00-12:15, so its
+	// shift boundary already excludes 12:15 and this row CANNOT discriminate the
+	// break boundary on its own — it passes with or without the fix. The row is
+	// kept because it is the end-to-end assertion on the real service against a
+	// real database, and because it will start discriminating the moment the
+	// fixture's Shift Settings are widened to the production shape. The
+	// discriminating evidence is
+	// `timetable-autofix-break-window-a2.test.ts`, which builds the production
+	// shape (a shift window that spans lunch) and shows the rule flip.
+	for (const runId of [fixture.reproRun, fixture.legalRun]) {
+		const refData = await service.loadRunContext(runId, fixture.schoolId, fixture.schoolYearId);
+		const authority = service.resolveManualWindowAuthority(refData);
+		const preview = await previewSwap(runId);
+		// `previewSwap` always swaps A-G7-MAPEH-MON0730 (source) with
+		// B-G7-ESP-WED0815 (blocking), and both live in the fixture's grade-7
+		// section, so the moved entry's scope is the same whichever strategy won.
+		// Asserted rather than assumed: a scope that resolved to nothing would
+		// make the row vacuous.
+		assert.equal(authority.sectionScope.get(G7_A)?.gradeLevel, 7,
+			`run ${runId}: the moved entry's section resolves to grade 7, so the break windows are the grade-7 ones`);
+		for (const [label, candidate] of [['blocking', preview.autoFixBlockingTarget], ['source', preview.autoFixSourceTarget]] as const) {
+			if (!candidate) continue;
+			const collision = service.autoFixBreakWindowCollision(
+				{ day: candidate.day, startTime: candidate.startTime, endTime: candidate.endTime },
+				{ sectionId: G7_A },
+				authority,
+			);
+			assert.equal(collision, null,
+				`run ${runId}: the ${label} auto-fix target ${slotKey(candidate)} must not sit inside a break or lunch window (collides with ${collision})`);
+		}
+	}
+});
+
 test('D1-ALT: a legal in-shift/in-term auto-fix still exists, and the illegal slot is never offered', { skip: RUNNABLE ? false : 'DATABASE_URL is not configured' }, async () => {
 	const preview = await previewSwap(fixture.legalRun);
 	const target = preview.autoFixBlockingTarget;

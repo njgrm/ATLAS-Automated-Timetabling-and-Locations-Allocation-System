@@ -7,6 +7,9 @@ import { createTimetableScopedClient } from '@/components/timetable/timetableSch
 import { parseDraftPlacementId, scopePreviewToCandidate } from '@/lib/timetable-utils';
 import { isSameTimetableSlot, resolvePreGenSlotDisplacement } from '@/lib/timetable-swap-routing';
 import { deriveRunWideReadiness, isDraftPublishedStrict } from '@/components/timetable/timetableWorkspaceTruth';
+// A2-C6-TRUTH (T1): the ledger read state is the only thing that authorises the
+// "this run has no recorded changes" sentence.
+import type { EditHistoryReadState } from '@/lib/timetable-edit-history-truth';
 import { resolvePublicationActionIntent } from '@/lib/publication-approval-action';
 // A2-UX-WIRE-C2 (item 5, #58): the ONE outcome message for one generation.
 import { generationOutcomeToastSentence } from '@/lib/timetable-plain-language';
@@ -259,6 +262,12 @@ type UseTimetableMutationsInput = {
 	setDragItem: React.Dispatch<React.SetStateAction<any>>;
 	setRevertLoading: React.Dispatch<React.SetStateAction<boolean>>;
 	setViolationReport: React.Dispatch<React.SetStateAction<ViolationReport | null>>;
+	/**
+	 * A2-C6-TRUTH (T4) — the violation report already fetched for this run. Read
+	 * (never written) here so the publish acknowledgement gate derives from the
+	 * same live run-wide figure the header chip prints.
+	 */
+	violationReport?: ViolationReport | null;
 
 	viewMode: 'section' | 'faculty' | 'room';
 	entityFilter: string;
@@ -297,6 +306,8 @@ export type TimetableMutationState = {
 	runVersion: number;
 	apiBase: string | null;
 	fetchEditHistory: () => Promise<ManualEditRecord[]>;
+	/** A2-C6-TRUTH (T1b/T1c) — what the last ledger read proved. */
+	editHistoryReadState: EditHistoryReadState;
 	previewEdit: (proposal: ManualEditProposal) => Promise<PreviewResult | null>;
 	commitEdit: (proposal: ManualEditProposal, allowSoftOverride?: boolean) => Promise<boolean>;
 	commitEditWithMeta: (proposal: ManualEditProposal, allowSoftOverride?: boolean) => Promise<CommitResult | null>;
@@ -469,6 +480,8 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 		setDragItem,
 		setRevertLoading,
 		setViolationReport,
+		// A2-C6-TRUTH (T4): read-only, for the acknowledgement gate's figure.
+		violationReport,
 		setDraft,
 		viewMode,
 		entityFilter,
@@ -482,6 +495,11 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 
 	// Fix C: internal swap preview state — loaded when swap confirm dialog opens
 	const [swapPreview, setSwapPreview] = useState<SwapPreviewState | null>(null);
+	// A2-C6-TRUTH (T1b/T1c): what the last ledger read PROVED. The row list alone
+	// cannot tell a run nobody edited from a read that failed, because the old
+	// `catch { return [] }` made the two identical. The state is the only thing
+	// that authorises the empty-run sentence.
+	const [editHistoryReadState, setEditHistoryReadState] = useState<EditHistoryReadState>('idle');
 	const [regularSwapPreview, setRegularSwapPreview] = useState<RegularSwapPreviewState | null>(null);
 	const [regularSwapStrategy, setRegularSwapStrategy] = useState<'DIRECT_SWAP' | 'AUTO_FIX_MOVE_BLOCKING' | 'AUTO_FIX_MOVE_SOURCE' | null>(null);
 	const previewCacheRef = useRef<Map<string, PreviewResult>>(new Map());
@@ -888,7 +906,15 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 			return;
 		}
 
-		const softViolationCount = deriveRunWideReadiness(draft?.summary, violations).softCount;
+		// A2-C6-TRUTH (T4): the same live run-wide figure the header shows. The
+		// acknowledgement gate and the header chip must be ONE number — if the
+		// gate read the stored summary while the chip read the report, a run
+		// could be told "148 warnings" and be asked to acknowledge 48.
+		const softViolationCount = deriveRunWideReadiness(
+			draft?.summary,
+			violations,
+			violationReport?.counts?.runWide ?? null,
+		).softCount;
 		if (softViolationCount > 0 && !publishAcknowledged) {
 			toast.error('Review and acknowledge soft warnings before publishing.');
 			return;
@@ -956,7 +982,7 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 			const msg = axiosErr?.response?.data?.message ?? (e instanceof Error ? e.message : 'Publish request failed.');
 			toast.error(msg);
 		}
-	}, [actorRole, schoolId, schoolYearId, draft?.runId, violations, publishAcknowledged, setPublishAcknowledged, setShowPublishDialog, loadAll]);
+	}, [actorRole, schoolId, schoolYearId, draft?.runId, violations, publishAcknowledged, setPublishAcknowledged, setShowPublishDialog, loadAll, violationReport]);
 
 	const runIdNumeric = draft?.runId ?? null;
 	const runVersion = draft?.version ?? 0;
@@ -983,13 +1009,27 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 	// see it otherwise. The revert path needs exactly that, to learn the `editType`
 	// of the id the response handed back (`manual-edit.service.ts:1914`).
 	const fetchEditHistory = useCallback(async (): Promise<ManualEditRecord[]> => {
-		if (!apiBase) return [];
+		// A2-C6-TRUTH (T1b): a read is now announced before it starts, so a
+		// re-read triggered by a term or run change cannot leave the previous
+		// claim standing while the answer is still in flight.
+		setEditHistoryReadState('loading');
+		if (!apiBase) {
+			// No run on screen is not an empty run: the ledger stays `loading`
+			// only while a run exists, so the surface says "checking" rather
+			// than claiming the run has nothing.
+			setEditHistoryReadState('idle');
+			return [];
+		}
 		try {
 			const { data } = await atlasApi.get<{ edits: ManualEditRecord[] }>(apiBase);
 			setEditHistory(data.edits);
+			setEditHistoryReadState('ready');
 			return data.edits;
 		} catch {
-			// ignore
+			// A2-C6-TRUTH (T1c): the failure is SURFACED. It still returns `[]` so
+			// the 8 existing call sites keep their return type, but `[]` is no
+			// longer presented as the server's answer.
+			setEditHistoryReadState('error');
 			return [];
 		}
 	}, [apiBase, setEditHistory]);
@@ -2030,6 +2070,9 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 		runVersion,
 		apiBase,
 		fetchEditHistory,
+		// A2-C6-TRUTH (T1b): the read state travels with the rows so no surface
+		// has to infer "empty" from a length.
+		editHistoryReadState,
 		previewEdit,
 		commitEdit,
 		commitEditWithMeta,

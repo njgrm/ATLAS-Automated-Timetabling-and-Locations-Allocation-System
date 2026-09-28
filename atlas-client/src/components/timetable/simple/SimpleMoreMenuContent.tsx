@@ -17,6 +17,8 @@ import {
 import { Link } from 'react-router-dom';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { runAnchorLabel } from '@/lib/timetable-plain-language';
+// A2-C6-TRUTH (T1b): which sentence the Schedule history entry may print.
+import { editHistoryEmptyStateMessage, type EditHistoryReadState } from '@/lib/timetable-edit-history-truth';
 import { cn } from '@/lib/utils';
 import { Button } from '@/ui/button';
 import { Badge } from '@/ui/badge';
@@ -179,6 +181,10 @@ export function SimpleMoreMenuContent({
 		+ (hasUnassignedRunTasks ? 1 : 0)
 		+ (hasPendingRequests ? 1 : 0);
 	const expertToolCount = (hideReviewIssues ? 0 : 1) + 3;
+	// A2-C6-TRUTH (T1b): the entry's own state comes from the last READ, not from
+	// a row count that a failed or unfinished read also produces.
+	const historyReadState: EditHistoryReadState = context.editHistoryReadState ?? 'idle';
+	const historyReadable = historyReadState === 'ready' && context.editHistoryCount > 0;
 	const dayOptionsVisible = Boolean(context.policyAlignmentWarning) || context.hiddenRowCount > 0;
 	const helpAndDisplayCount = (onOpenTutorial ? 1 : 0) + (dayOptionsVisible ? 1 : 0) + 1;
 	return (
@@ -229,17 +235,23 @@ export function SimpleMoreMenuContent({
 				{/* LANE-C C03 (B10) — a disabled entry says why instead of only
 				    greying out; the reason stays readable (full opacity). */}
 				<DropdownMenuItem
-					className={cn('gap-2 text-xs', context.editHistoryCount === 0 ? 'h-auto min-h-9 items-start py-1.5 data-[disabled]:opacity-100' : 'h-9')}
-					disabled={context.editHistoryCount === 0}
+					className={cn('gap-2 text-xs', historyReadState !== 'ready' || context.editHistoryCount === 0 ? 'h-auto min-h-9 items-start py-1.5 data-[disabled]:opacity-100' : 'h-9')}
+					disabled={!historyReadable}
 					onSelect={(event) => { event.preventDefault(); onClose(); context.setShowEditHistory(true); }}
 					data-testid="timetable-more-schedule-history"
 				>
-					<History className={cn('size-3.5', context.editHistoryCount === 0 && 'mt-0.5 text-muted-foreground')} aria-hidden="true" />
-					{context.editHistoryCount === 0 ? (
+					<History className={cn('size-3.5', (historyReadState !== 'ready' || context.editHistoryCount === 0) && 'mt-0.5 text-muted-foreground')} aria-hidden="true" />
+					{historyReadState !== 'ready' || context.editHistoryCount === 0 ? (
 						<span className="flex flex-col">
 							<span className="text-muted-foreground">Schedule history</span>
-							<span className="text-xs text-muted-foreground" data-testid="timetable-more-schedule-history-reason">
-								Nothing to show yet: no class has been moved, swapped or given a new room in this schedule.
+							{/* A2-C6-TRUTH (T1b): the sentence is chosen by the READ, not by
+							    the row count. A term change cleared the ledger and nothing
+							    refilled it, so this entry printed "no class has been
+							    moved…" about a run holding four recorded changes. Only a
+							    `ready` read of zero rows may print the empty-run claim;
+							    an in-flight or failed read prints its own sentence. */}
+							<span className="text-xs text-muted-foreground" data-testid="timetable-more-schedule-history-reason" data-history-read-state={historyReadState}>
+								{editHistoryEmptyStateMessage(historyReadState, context.editHistoryCount)}
 							</span>
 						</span>
 					) : (

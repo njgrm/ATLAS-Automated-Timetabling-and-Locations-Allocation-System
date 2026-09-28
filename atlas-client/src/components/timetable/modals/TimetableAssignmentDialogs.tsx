@@ -3,6 +3,8 @@ import { History, RotateCcw } from 'lucide-react';
 import type { ScheduleReviewDialogsContext } from '@/components/timetable/timetableContexts.types';
 import type { ManualEditRecord } from '@/types';
 import { manualEditActionLabel } from '@/lib/timetable-plain-language';
+// A2-C6-TRUTH (T2a): the plain sentence naming a class the auto-fix relocated.
+import { describeEditAutoMove, editHistoryRevertBlockedReason, editHistorySummarySentence } from '@/lib/timetable-edit-history-truth';
 import {
 	ALREADY_UNDONE_EDIT_MESSAGE,
 	REVERT_EDIT_TYPE,
@@ -103,6 +105,23 @@ export function TimetableAssignmentDialogs({ context }: { context: ScheduleRevie
 		showEditHistory, setShowEditHistory, editHistory,
 		revertEditById, revertLoading, currentRunVersion,
 	} = context;
+	// A2-C6-TRUTH (T1b) and the A2-C7 corrections (QA
+	// `ses_f19fa473bffeDm5iNBes3VX7PH` row 2, BLOCKING; then
+	// `ses_f19df5126ffewpENLFnzt1xbsp` F1, NON_BLOCKING latent): this dialog kept
+	// its OWN empty-state sentence, so a FAILED read of a run with four recorded
+	// changes claimed the run had none. Both surfaces now read one exported
+	// derivation, so they cannot drift.
+	//
+	// The default is `idle`, NOT `ready`, and that matches the two sibling
+	// surfaces (`SimpleMoreMenuContent` uses `?? 'idle'` and the header context
+	// documents the same rule). `idle` can never authorise the empty-run claim;
+	// `ready` could. An absent read state must fail CLOSED, because the cost of
+	// the wrong default is a false statement about a run with real history, and
+	// the cost of the right one is a sentence that says "checking".
+	const historySentence = editHistorySummarySentence(
+		editHistory.length,
+		context.editHistoryReadState ?? 'idle',
+	);
 
 	return (
 		<Dialog open={showEditHistory} onOpenChange={setShowEditHistory}>
@@ -112,10 +131,8 @@ export function TimetableAssignmentDialogs({ context }: { context: ScheduleRevie
 						<History className="size-4" />
 						Manual edit history
 					</DialogTitle>
-					<DialogDescription>
-						{editHistory.length === 0
-							? 'No manual edits have been made on this run.'
-							: `${editHistory.length} edit${editHistory.length === 1 ? '' : 's'} recorded. Only the latest edit can be reverted; newer edits would make an older revert stale.`}
+					<DialogDescription data-testid="timetable-edit-history-summary">
+						{historySentence}
 					</DialogDescription>
 				</DialogHeader>
 				<div className="max-h-64 space-y-2 overflow-auto scrollbar-thin py-2">
@@ -134,8 +151,28 @@ export function TimetableAssignmentDialogs({ context }: { context: ScheduleRevie
 						// still works is the worse error.
 						const isUndone = !isRevert && isEditUndoneInHistory(edit.id, editHistory);
 						const undone = isRevert ? undoneEditLabel(edit, editHistory) : null;
-						const canRevert = !isRevert && !isUndone && isHead && currentRunVersion != null && !revertLoading;
-						const revertReason = isHead ? 'Revert this edit' : 'Only the latest edit can be reverted';
+						// A2-C6-TRUTH (T2a): a swap that carried an auto-fix moved a
+						// class the operator's control never named. The badge still says
+						// "Swapped two sessions" — which is true of the exchange — but on
+						// its own it reads as a two-class change. The recorded slots
+						// decide whether a third session was relocated, and the row says
+						// so in the same plain words the post-commit toast used.
+						const autoMove = describeEditAutoMove(edit);
+					const canRevert = !isRevert && !isUndone && isHead && currentRunVersion != null && !revertLoading;
+					// A2-C7 correction (QA `ses_f19fa473bffeDm5iNBes3VX7PH` finding on
+					// T2d, BLOCKING): the head row's tooltip reason WAS the button's own
+					// label. A JSDOM mount of the real dialog showed three DOM nodes
+					// reading exactly 'Revert this edit' — the TooltipTrigger wrapper
+					// span, the button, and the tooltip content — so the accessible name
+					// read as a stutter and the tooltip told an older user nothing.
+					// The reason is now derived in ONE place and is null for a live
+					// control, so a working button carries no tooltip at all.
+					const revertBlockedReason = editHistoryRevertBlockedReason({
+						canRevert,
+						hasRunVersion: currentRunVersion != null,
+						revertLoading,
+						isHead,
+					});
 						return (
 							<div key={edit.id} className="rounded-md border p-3 text-xs" data-testid="timetable-edit-history-row">
 								<div className="flex items-center justify-between gap-2">
@@ -173,11 +210,22 @@ export function TimetableAssignmentDialogs({ context }: { context: ScheduleRevie
 								<p className="mt-1 text-muted-foreground" data-testid="timetable-edit-history-actor">
 									Changed by a signed-in account. This record does not show which person.
 								</p>
-								{isRevert && (
-									/* D1. The naming is additive beside the actor sentence, never in
-									 * place of the badge, so the row still says what KIND of
-									 * record it is. When the ledger identifies nothing, the row
-									 * says exactly that instead of borrowing a neighbour. */
+							{autoMove && (
+								/* A2-C6-TRUTH (T2a). Additive beside the badge, never in place
+								 * of it: the row still says what KIND of record it is, and the
+								 * plain sentence below names the class that actually moved and
+								 * where it went. It is derived from the recorded before/after
+								 * slots, so it describes what was committed even if the run has
+								 * changed since. */
+								<p className="mt-1 font-medium text-amber-900" data-testid="timetable-edit-history-autofix">
+									{autoMove}
+								</p>
+							)}
+							{isRevert && (
+								/* D1. The naming is additive beside the actor sentence, never in
+								 * place of the badge, so the row still says what KIND of
+								 * record it is. When the ledger identifies nothing, the row
+								 * says exactly that instead of borrowing a neighbour. */
 									<p className="mt-1 text-muted-foreground" data-testid="timetable-edit-history-undid">
 										{undone === null ? 'Undid: an earlier change this record does not identify' : `Undid: ${undone}`}
 									</p>
@@ -208,10 +256,12 @@ export function TimetableAssignmentDialogs({ context }: { context: ScheduleRevie
 								)}
 								{!isRevert && !isUndone && (
 									<div className="mt-2 flex items-center justify-end">
-										{/* J2 (P4) + AGENTS.md section 8: the native `title`
+									{/* J2 (P4) + AGENTS.md section 8: the native `title`
 									 * attribute is forbidden for extra information. The
-									 * explanation moves to the @/ui Tooltip primitive and
-									 * stays available on the disabled button. */}
+									 * explanation moves to the @/ui Tooltip primitive, and
+									 * per the A2-C7 corrections it appears ONLY on a disabled
+									 * control, where it explains why — never on a live one,
+									 * where it would restate the label. */}
 										<TooltipProvider>
 											<Tooltip>
 												<TooltipTrigger asChild>
@@ -233,7 +283,19 @@ export function TimetableAssignmentDialogs({ context }: { context: ScheduleRevie
 														</Button>
 													</span>
 												</TooltipTrigger>
-												<TooltipContent>{revertReason}</TooltipContent>
+												{/* A2-C7 (QA `ses_f19df5126ffewpENLFnzt1xbsp` F2): the `null`
+												    contract is HONOURED. A live control's tooltip node
+												    was still in the DOM carrying a second hard-coded
+												    string — the exact pattern this commit exists to
+												    eliminate, and it contradicted the `null` means "no
+												    tooltip" contract the derivation and its test both
+												    state. Radix renders the trigger regardless, so the
+												    conditional is on the CONTENT, not the trigger. */}
+												{revertBlockedReason !== null && (
+													<TooltipContent data-testid="timetable-edit-history-revert-reason">
+														{revertBlockedReason}
+													</TooltipContent>
+												)}
 											</Tooltip>
 										</TooltipProvider>
 									</div>

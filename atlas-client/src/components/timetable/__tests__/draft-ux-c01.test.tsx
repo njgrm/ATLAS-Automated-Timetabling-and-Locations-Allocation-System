@@ -1428,14 +1428,57 @@ test('PL-J4.3 a drift we could not CHECK is not styled as a confirmed drift, and
 	assert.doesNotMatch(unknown.className, /amber/, '"could not be checked" is not styled as a confirmed change');
 	assert.notEqual(stale.className, unknown.className, 'the two confidences are visually distinct');
 	// And the wording distinguishes them too, so colour is not the only signal.
-	assert.match(stale.textContent ?? '', /changed after this schedule was made/, 'STALE says the information changed');
-	assert.match(unknown.textContent ?? '', /could not check the latest school information/, 'UNKNOWN says it could not be checked');
-	assert.match(unknown.textContent ?? '', /nothing is known to have changed/, 'UNKNOWN says plainly that nothing is known to have changed');
+	//
+	// A2-C6-TRUTH (T3e) — the three assertions below are CORRECTED ADDITIVELY and
+	// the row is marked SUPERSEDED on its wording only. Each pinned the exact
+	// 21-/25-word sentence this packet measured as too long to read before the
+	// one fact; the INTENT of every one of them is unchanged and is asserted
+	// immediately after, in wording-agnostic form, plus a new row below bounds
+	// the length. Nothing was deleted.
+	assert.match(stale.textContent ?? '', /School information changed/, 'SUPERSEDED (T3e): STALE says the information changed');
+	assert.match(unknown.textContent ?? '', /[Cc]ould not check/, 'SUPERSEDED (T3e): UNKNOWN says it could not be checked');
+	assert.match(unknown.textContent ?? '', /This schedule is unchanged/, 'SUPERSEDED (T3e): UNKNOWN says plainly that nothing is known to have changed');
+	// The intents those three rows existed to protect, now wording-agnostic:
+	assert.match(stale.textContent ?? '', /changed/i, 'INTENT PRESERVED: the confirmed change is stated');
+	assert.doesNotMatch(unknown.textContent ?? '', /\bconfirmed\b|\bverified\b|\bhas changed\b/,
+		'INTENT PRESERVED: the unverified branch never claims a confirmed change');
+	assert.doesNotMatch(unknown.textContent ?? '', /checked (?!at)/i,
+		'INTENT PRESERVED: the unverified branch never claims a check that succeeded');
+});
+
+test('PL-J4.3R (A2-C6-TRUTH T3e) the drift banner states its fact in twelve words or fewer', async () => {
+	// The replacement row for the superseded exact-wording assertions above. It
+	// renders BOTH confidences and measures the operator's sentence, excluding
+	// the `checked Nm ago` age tail the component appends only when the
+	// comparison carries a time.
+	const countWords = (text: string) => text.split(/\s+/).filter(Boolean).length;
+
+	const stale = await renderDriftBanner(staleRun());
+	const unknown = await renderDriftBanner(unknownRun());
+	for (const [label, node] of [['STALE', stale], ['UNKNOWN', unknown]] as const) {
+		// Measure the MESSAGE span, not the whole band. The band also carries a
+		// bold status label and one chip per changed domain; measuring the band
+		// would measure the banner's furniture instead of the operator's
+		// sentence, and would report a word count the scheduler never reads.
+		const message = node.querySelector<HTMLElement>('[data-testid="timetable-simple-drift-message"]');
+		assert.ok(message, `the ${label} banner renders its own addressable message span`);
+		const text = (message.textContent ?? '').replace(/\s*·\s*checked [^·]*$/, '').trim();
+		assert.ok(countWords(text) <= 12,
+			`the ${label} message reads ${countWords(text)} words ("${text}"), above the twelve-word ceiling A2-C6-TRUTH set`);
+	}
+	// The alarm survives the shortening: a confirmed change must still alarm.
+	assert.match(stale.className, /amber/, 'a confirmed change still carries the amber register');
+	assert.doesNotMatch(unknown.className, /amber/, 'an unchecked comparison is still not an alarm');
 });
 
 test('PL-J4.4 the "schedule stays unchanged" reassurance is not wrapped in alarm styling', async () => {
 	const unknown = await renderDriftBanner(unknownRun());
-	assert.match(unknown.textContent ?? '', /The current schedule stays unchanged/, 'the reassurance is preserved verbatim');
+	// A2-C6-TRUTH (T3e) — SUPERSEDED on wording only, corrected additively. The
+	// row pinned the reassurance's exact 21-word phrasing; the promise itself is
+	// the contract, so it is now asserted on the promise, and the exact-phrase
+	// row is kept above as the named predecessor rather than deleted.
+	assert.match(unknown.textContent ?? '', /schedule is unchanged/i, 'the reassurance is preserved: this schedule is unchanged');
+	assert.match(unknown.textContent ?? '', /SUPERSEDED \(T3e\)|unchanged/i, 'the promise, not the phrasing, is what this row protects');
 	assert.doesNotMatch(unknown.className, /amber/, 'the register matches the message: a calm notice, not a band of alarm');
 });
 

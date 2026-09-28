@@ -84,14 +84,52 @@ export function formatCheckedAtAge(checkedAt: string | null | undefined, now: nu
 }
 
 /**
+ * The run-wide gate counts as the SERVER just computed them, from
+ * `GET /runs/:id/violations`.
+ *
+ * A2-C6-TRUTH (#62, T4). The header figure was read from
+ * `RunSummary.softViolationCount`, a number the run row carries from whenever
+ * that row was last written. On live draft run 321 the run stored 148 SOFT
+ * violations and the header chip read 48, then read 148 after an edit that
+ * changed nothing about warnings — the tell that the chip was reading the
+ * summary's stored copy rather than the run's violations. `counts.runWide` is
+ * the same endpoint's own run-wide projection, recomputed on every read, so it
+ * cannot lag the number it reports.
+ */
+export type AuthoritativeRunWideCounts = {
+	total: number;
+	hard: number;
+	blockingHard?: number;
+	soft: number;
+	byCode: Record<string, number>;
+};
+
+function authoritativeCount(
+	counts: AuthoritativeRunWideCounts | null | undefined,
+	key: 'hard' | 'soft' | 'blockingHard',
+): number | null {
+	const value = counts?.[key];
+	return typeof value === 'number' && Number.isFinite(value) ? value : null;
+}
+
+/**
  * Derive the run-wide publication readiness from the canonical run summary
  * (`generation.service.ts:824,902-903` persists run-wide hard/soft counts).
  * The selected-term violation array is only a fallback for pre-generation
  * drafts that carry no run summary.
+ *
+ * A2-C6-TRUTH (T4): `authoritativeRunWide`, when the caller has the violation
+ * report for THIS run, outranks the summary for every count. The summary is a
+ * stored snapshot; the report is the live recomputation, and on a run whose
+ * summary predates its own violation set the two disagree — which is exactly how
+ * a header read 48 for a run holding 148. The summary remains the fallback for
+ * the pre-generation case that has no report at all, and the display array
+ * remains the last resort, so no caller loses a count.
  */
 export function deriveRunWideReadiness(
 	summary: RunSummary | null | undefined,
 	displayViolations: readonly Violation[],
+	authoritativeRunWide?: AuthoritativeRunWideCounts | null,
 ): RunWideReadiness {
 	const summaryHard = numericField(summary, 'hardViolationCount');
 	const summaryBlockingHard = numericField(summary, 'blockingHardViolationCount');
@@ -104,16 +142,27 @@ export function deriveRunWideReadiness(
 	const displayHard = displayViolations.filter((v) => v.severity === 'HARD').length;
 	const displaySoft = displayViolations.filter((v) => v.severity === 'SOFT').length;
 
+	// A2-C6-TRUTH (T4): the live run-wide projection outranks the stored summary.
+	// Each count is resolved independently, so a report that carries `hard` but
+	// not `blockingHard` still contributes what it actually knows.
+	const authoritativeHard = authoritativeCount(authoritativeRunWide, 'hard');
+	const authoritativeBlockingHard = authoritativeCount(authoritativeRunWide, 'blockingHard');
+	const authoritativeSoft = authoritativeCount(authoritativeRunWide, 'soft');
+
 	// F2 fail-closed: when the server allowlist count is absent (older run
 	// summary), fall back to the total HARD count so an unknown code can never
 	// silently become publishable.
-	const blockingHardCount = summaryBlockingHard ?? summaryHard ?? displayHard;
+	const blockingHardCount = authoritativeBlockingHard
+		?? summaryBlockingHard
+		?? authoritativeHard
+		?? summaryHard
+		?? displayHard;
 
 	return {
-		hardCount: summaryHard ?? displayHard,
+		hardCount: authoritativeHard ?? summaryHard ?? displayHard,
 		blockingHardCount,
-		softCount: summarySoft ?? displaySoft,
+		softCount: authoritativeSoft ?? summarySoft ?? displaySoft,
 		unassignedCount: summaryUnassigned ?? 0,
-		derivedFromDisplayFallback: !hasRunWideHard || !hasRunWideSoft,
+		derivedFromDisplayFallback: authoritativeSoft == null && (!hasRunWideHard || !hasRunWideSoft),
 	};
 }
