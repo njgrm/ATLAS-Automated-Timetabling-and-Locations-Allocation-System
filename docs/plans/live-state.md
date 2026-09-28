@@ -302,6 +302,43 @@ resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs
   `Dashboard.tsx`, `ui/sidebar.tsx` and `AppShell` are unchanged by this release and the layout CSS is identical
   in both builds, so it is **pre-existing, not a regression**. It needs an owner in a product lane.
 
+- **▶ LIVE: `9ca7f629a7e43a0e31c6b9fada97152541c2a877` — DEPLOYED 2026-09-28 ~21:05 +08 by Lane A4
+  (`a4-release-2026-09-28-2`, the second A4 train). Pinned staging SHA, branch `release/2026-09-28-2`.
+  Train contents: A2 `e910811b`, A5 `c5aba703`, A6 `6498c322`, A3 `13d75ce6`. The docs-only `f964eb46` above
+  the pin was **not** shipped; the release dir is detached at the pin exactly. Recorded by A4 in the same
+  action as the cutover, as §6 requires.**
+
+  | | |
+  |---|---|
+  | **LIVE** | **`9ca7f629a7e43a0e31c6b9fada97152541c2a877`** (pinned release commit, tree `4c984561`) |
+  | **Live dir** | `E:\ATLAS-worktrees\lane-a4-release-20260928-2` (HEAD == pin, detached, tracked tree clean) |
+  | **Listeners** | 5001 → **15996** (`atlas-server\dist\server.js`), 5174 → **13824** (`ops\runtime\host.mjs`); supervisor **27836** |
+  | **Rollback basis** | **`7590d485974337f834aa3972bb128090e6067b8d`**, dir `E:\ATLAS-worktrees\lane-a4-release-20260928-1` — retained, clean (0 status lines), startable (all three `node_modules`, generated `@prisma/client`, built `dist` present) |
+  | **Direction** | **FORWARD.** `git merge-base --is-ancestor 7590d485 9ca7f629` exits **0** |
+  | **Scope** | **client-only.** 159 files, +24,499/−2,452. **0** under `atlas-server/` or `prisma/` (verified by `git diff --name-only 7590d485..9ca7f629 -- atlas-server prisma` → empty). No auth/role/permission/JWT/session delta, no migration, no seed. 114 product files under `atlas-client/src`. |
+  | **Acceptance** | **DEPLOYED + acceptance satisfied.** Post-action QA `ses_f17d771a1ffepZisHXGqij42kC`: **10/11, 0 blocked, 0 unperformed**, `PLANNER_DECISION_REQUIRED` — **no BLOCKING defect**. All six browser rows PASS on the live Tailnet origin. |
+  | **Evidence** | `docs/reviews/a4-release-20260928-2/release.md` |
+
+  **Three things the next session must not misread.**
+  **Zero-write is now PROVEN, not PARTIAL** — the durable fix from release #1 landed. Baseline captured
+  **before** quiesce: `audit_logs` max id **1018** / count **467**, `_prisma_migrations` **11**, **51** public
+  tables. Post-cutover **all four unchanged**. Release #1's unrecoverable D7 gap is closed for this release only.
+  **`origin/main` advanced to `5481dcccf` mid-deploy and was deliberately NOT merged.** The pin is what staging
+  proved; `9ca7f629` is intentionally **not** an ancestor of `origin/main`. Later lane work waits for the next train.
+  **The Codex smoke for this release is a non-conforming artifact and is NOT acceptance evidence.** It emitted no
+  `SMOKE:` tally, answered a stale nine-row packet, and two of its claims are contradicted by live truth. The
+  real browser acceptance is the post-action QA's own six rows, performed on the live origin.
+
+  **Open and NOT fixed here, because A4 does not edit product code (as of 2026-09-28, independently re-confirmed
+  on `9ca7f629`):** the live **Dashboard still violates §8** — a global browser scrollbar (1958 > 768). The other
+  five routes are clean (768 = 768). `Dashboard.tsx`, `ui/sidebar.tsx` and `AppShell` are **not** in the 159-file
+  range, so this is **pre-existing, not a regression**. It needs an owner in a product lane.
+  **Live data blocks generation (as of 2026-09-28, not a deploy defect):** both `/timetable` 409s carry
+  `DERIVED_DEMAND_BLOCKED` with **24 × `ROTATION_ORDER_DUPLICATE`** (`SCI_BIO` and `AP` both at `rotationOrder 1`
+  in family `SCIENCE`, grades 7/9/10). The app fails closed correctly. This will block LIVE-GENERATION.
+
+- **▶ SUPERSEDED by the `9ca7f629` block above.**
+
 - **▶ SUPERSEDED by the `7590d485` block above — the DEPLOYMENT-PENDING line that follows is now history.**
   It correctly described the state before this cutover; `4c35cc8f` was never deployed under it because A4 shipped a
   merge of it with A3's c9 instead. Kept as dated history.

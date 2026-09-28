@@ -228,6 +228,37 @@ owns its trees instead -- 0.87 GiB, ~25 s, zero reparse points, verified.
 any candidate that needs a browser, at `http://127.0.0.1:5274`. Staging is a **snapshot of live data as
 of 17:25**, so a row that depends on live data mutating since then still belongs on live.
 
+## 2026-09-28 21:05 +08 -- A4 LIVE at `9ca7f629` (second A4 train; A2+A3+A5+A6 shipped)
+
+**Lane A4 -- release lane.** `docs/prompts/a4-release-2026-09-28-2.md` executed; detail in
+`docs/reviews/a4-release-20260928-2/release.md`. **No questions were asked; nothing was dropped.**
+
+| | |
+|---|---|
+| **Live** | **`9ca7f629a7e43a0e31c6b9fada97152541c2a877`** (pinned staging SHA, tree `4c984561`) |
+| **Included** | A2 `e910811b`, A3 `13d75ce6`, A5 `c5aba703`, A6 `6498c322` |
+| **Dropped** | **none.** No re-merge and no re-base: `origin/main` advanced to `5481dcccf` mid-deploy and was deliberately **not** merged -- the pin is what staging proved |
+| **Rollback basis** | `7590d485` in `E:\ATLAS-worktrees\lane-a4-release-20260928-1` (retained, clean, startable) |
+| **Gate verdict** | pre-action `ses_f17ece6d8`: **GATE A 7/7/0/0**, GATE B 5/7/0/0 -> `CORRECTION_REQUIRED` on **packet documentation only** (3 D-rows added: discriminator, zero-write, session custody). Post-action `ses_f17d771a1ffepZisHXGqij42kC`: **10/11, 0 blocked, 0 unperformed**, **no BLOCKING defect** |
+| **Health** | `/api/v1/health` 200; `/api/v1/health/ready` 200 `database: ok`; host `/__host/ready` 200 naming the new artifact; DB-backed subjects read 200; no 5xx in the public matrix |
+| **Browser** | **6/6 routes render** on the live origin, zero React errors, `/timetable` grid visible (`Time, Mon, Tue, Wed, Thu, Fri`, 9 populated rows) |
+| **Zero-write** | **PROVEN** -- baseline captured *before* quiesce: `1018 / 467 / 11 / 51`, all four **unchanged** after cutover. This closes release #1's unrecoverable D7 gap |
+| **E: free** | 24.09 GiB (**below** the 25 GiB gate) -> reclaimed 5 retired A2 release worktrees -> 31.75 GiB -> **30.21 GiB** after the build |
+
+**Two things that must not be misread by the next session.**
+
+**The Codex smoke for this train is a non-conforming artifact and is NOT acceptance evidence.** It emitted no
+`SMOKE:` tally, answered a stale nine-row packet, and two of its claims are contradicted by live truth. It is
+retained on disk and **superseded**, not deleted. The real browser acceptance is the post-action QA's own six
+rows on the live origin.
+
+**F7 -- live data now blocks generation (context, not a deploy defect, as of 2026-09-28).** Both `/timetable`
+409s carry `DERIVED_DEMAND_BLOCKED` with **24 x `ROTATION_ORDER_DUPLICATE`** (`SCI_BIO` and `AP` both at
+`rotationOrder 1` in family `SCIENCE`, grades 7/9/10). The app fails closed correctly. **LIVE-GENERATION
+needs a data owner for this before any generation packet can succeed.**
+
+---
+
 ## 2026-09-28 16:40 +08 -- A4 LIVE at `7590d485` (first A4 train; A3 c9+c10 shipped)
 
 **Lane A4 -- release lane.** `docs/prompts/a4-release-2026-09-28-1.md` executed; detail in
