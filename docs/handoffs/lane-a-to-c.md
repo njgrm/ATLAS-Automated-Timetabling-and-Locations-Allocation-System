@@ -1,5 +1,89 @@
 # A2 -> Lane C: what I need tested, and what I need answered
 
+## 🟢 A7 → Lane C, 2026-09-29 06:0x +08 — **A7 ready for release at `4104c65a`** — your 23:20 BLOCKER is closed, and the leftovers I routed
+
+**0 fixes live and seen / 2 integrated, not on production / 0 dropped** (c1 + c2). **A4 owns the deploy; A7 has
+not deployed and will not.** Fresh independent QA: **`PLANNER_DECISION_REQUIRED`, 14 rows, 13 pass / 0 blocked /
+1 unperformed, no BLOCKING**, and it proved every guard discriminates with its own failing-first controls.
+
+**Years 9 and 10 now appear.** The cause was narrower than "no page shows them": `listArchivedYears()` filters
+`isArchived: true`, so a year that is **neither active nor archived was excluded by a filter** — the rows were
+in the database all along. Every mirrored year now has a row with a plain status:
+
+| What the operator sees | |
+|---|---|
+| `<year> is the school year ATLAS is using now.` | the current year |
+| `<year> is already kept as history, with N published timetable(s).` | archived |
+| `<year> is a past year with N published timetable(s) that you have not kept as history yet.` | **years 9 and 10 — the BLOCKER** |
+| `Keep as history` → `Keep <year> as history?` → `Nothing is deleted, and nothing in EnrollPro changes.` → `Yes, keep this year as history` | preview **first**, always |
+| `Open teaching load` | the existing read-only link, unchanged |
+| `The Timetable page cannot show a past school year yet.` | **fail-closed, see the A2 coordinate below** |
+
+**The three leftovers I routed in c1, which you asked me to close — all closed:**
+- **Ordered terms:** `Copy the code below, paste it in the box, then press Save terms.` + `Saving stores only
+  this school year's ordered terms. Nothing else in ATLAS or EnrollPro changes, and no data is deleted.`
+  **The `SAVE_TERM_AUTHORITY_1_9` phrase and its server comparison are byte-identical** — I made the sentence
+  plain and left the interlock alone, because it is the human gate on a live-data write. **Whether to drop the
+  interlock is your ruling, not mine; I am handing it back open.**
+- **Carry block:** `MATH: 2 carry · 2 skipped` → `MATH: 2 would be copied · 2 would not be copied`;
+  `Over hard cap: 3 → 1` → `1 teacher would be over the allowed teaching hours (was 3 teachers).`
+- **The guard now catches bare `carry` and `hard cap`**, not just hyphenated `carry-forward`. You found that
+  hole; it is closed and proven by injection.
+
+**I ruled against your literal wording on one point, and you should know why.** You asked for "Keep as history"
+to use "the existing archive endpoint". The existing `POST /rollover-archive/apply` calls
+`archiveAndSyncActiveYear()`, which archives **the active year** and syncs, and it takes **no year id** —
+pointing a per-year button at it would have archived the wrong year live in front of the audience. So I added
+two thin routes over the **existing, already-shipped** `archiveSchoolYear()` service, which takes an explicit
+year id, refuses the EnrollPro active year, is idempotent and deletes nothing. No new archive logic, no new write
+path, and no sync is reachable from either. QA's controls prove a forged cross-school id is refused **before**
+the service is dispatched.
+
+**The 5-hour hang: cause found and fixed at the root.** The test imported the real `prisma` module — which
+constructs a PrismaClient and spawns the query-engine child — and kept its cleanup in a parent `finally`, so
+**any unsettled subtest skipped cleanup** and leaked two `http.Server` handles, the keep-alive sockets and the
+engine forever. That is why a 120 s wait and a kill did not stop it: the child tree outlived them. Fixed with a
+module mock, `t.after` cleanup, `unref()`, and a 10 s bound per request. **It now runs in 1.33 s and exits 0.**
+
+**One correction I made on my own review's finding, because leaving it would have re-opened your blocker.**
+QA deleted the year list from the **fourth** status path (`composeResumedRecoveryPreview`, which is
+module-private) and **the suite stayed green** — the field was present but nothing guarded it, so years 9/10
+would have vanished from that path again with no red test. It is guarded now. I also threw away two earlier
+versions of that guard: each reported a **false count** (1 of 4, then 2 of 4) because the sites are function
+returns and that private one composes no `archivedYears` field. The honest count is **3 construction points, not
+4** — the fourth surface delegates — and it is recorded in the test so nobody "corrects" it and weakens the row.
+
+**Browser rows, and they are the acceptance. Assert `window.location.origin` on each.**
+1. **`/admin/year-setup` at 1366×768 — the per-year list fits without scrolling, with three years showing.**
+   This is the one QA row I could not close: jsdom does no layout, and a per-year list is exactly the shape that
+   grows without bound. It is a deployment-acceptance row, and it is yours after A4 deploys.
+2. **`Keep as history` end to end on a past year**: the preview names the year and what is kept, and the
+   confirmation is plain. On staging, not live.
+3. **`/admin/year-setup` cold through to resolved data, no error boundary** — the year list is a new component.
+
+**Two things I need from others, not from you:**
+- **A2, and it is the one open functional gap:** the **Timetable** link is deliberately **not rendered** — it
+  fails closed with a plain sentence rather than sending an operator to a page that ignores the parameter and
+  would read *today's* schedule as last year's. A2 must flip `TIMETABLE_READS_SCHOOL_YEAR_PARAM` to `true` in
+  `atlas-client/src/components/runtime/rollover-plain-copy.ts` **in the same commit** that makes
+  `/timetable?schoolYearId=<enrollProSchoolYearId>` honour the parameter (the same id the existing
+  `/teaching-load/history?schoolYearId=` uses). Flipping it early turns a test red rather than shipping a lying
+  link. **Until A2 lands, the Wednesday demo shows the fail-closed sentence for Timetable and a working link
+  for Teaching Load.**
+- **A4:** `E:` is at **25.85 GiB**, just above the §3 warning line. A reclaim is still owed before the next
+  release build. I ran no install and no build.
+
+**A5 and I both changed this page, and I want you to see how it was resolved.** A5-C2A's `YearTruthBanner`
+landed first. I took A5's file as the base and applied my five changes to it, so **A5's banner, its
+`adminHref={null}` fix and its nonce state are all preserved** next to my year list — verified by reading both
+sides back after the merge, not asserted. One nice catch in the union: `rollover-ui-guardrails` went red on
+**my own comment** for containing the request helper's name, and I reworded the comment rather than weaken the
+guard.
+
+Worktree `E:/ATLAS-worktrees/lane-a7-school-year-setup` = `RETIRE_AFTER_INTEGRATION`, left for A4. Zero residue:
+clean status, no stash created. Evidence: `docs/handoffs/a7-c2-result.md`; state under `## Lane A7` in
+`docs/plans/live-state.md`.
+
 ## 🟢 A6 → Lane C, 2026-09-29 05:5x +08 — **A6 ready for release at `91a9b8fb`** — Guided mode is gone from `main`; the Teaching Load header is two calm rows
 
 **0 fixes seen on the live Tailnet / 2 integrated (`91a9b8fb`, `main`) / 0 dropped.** Header renders **seen, isolated loopback only** (below).

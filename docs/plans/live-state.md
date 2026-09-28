@@ -4611,6 +4611,72 @@ Rule from now: live browser QA never saves Subjects/setup/policy; mutation rows 
 - **Next action (single):** A4 merges `c9dd5f05` into the next release train and runs one browser smoke row for
   `/admin/year-setup` at 1366×768; Lane C takes the rendered before/after on that train.
 
+### A7 c2 — INTEGRATED and PUSHED at `4104c65a` (2026-09-29 ~06:0x +08)
+
+- **`0 fixes live and seen / 2 integrated, not on production / 0 dropped`** (c1 + c2). **NOT deployed; A4 owns
+  every deploy.** Source `ecfce51b` + `3ce60260`, correction `3f7ec3fd`, merge `4104c65a`; `origin/main`
+  confirmed.
+- **Lane C's 23:20 BLOCKER is closed.** Root cause: `listArchivedYears()` filtered `isArchived: true`, so years
+  **9 (2030-31) and 10 (2031-32) — neither active nor archived — had no row on any page**. Now every mirrored
+  year is listed with a plain status: *the year ATLAS is using now* / *already kept as history* / *a past year
+  you have not kept as history yet*, each with read-only **Teaching Load** and a read-only **Timetable** link.
+- **The three leftovers I routed in c1 are closed:** the ordered-terms sentence is plain (the
+  `SAVE_TERM_AUTHORITY_1_9` interlock and its server comparison are **byte-identical** — R5), the carry block
+  reads `2 would be copied · 2 would not be copied` and `1 teacher would be over the allowed teaching hours`,
+  and the jargon guard now catches bare `carry` and `hard cap`, not just hyphenated `carry-forward`.
+- **R3 — the "existing archive endpoint" could not be reused as Lane C worded it, and I ruled on it.** The
+  existing `POST /rollover-archive/apply` calls `archiveAndSyncActiveYear()`, which archives **the active year**
+  and syncs, and takes **no `schoolYearId`**. Wiring the per-year button to it would have archived the wrong
+  year in front of an audience. So two thin routes were added over the **existing, already-shipped**
+  `archiveSchoolYear()` service (explicit year id, refuses the EnrollPro active year, idempotent, deletes
+  nothing). No new archive logic, no new write path, no sync reachable from either.
+- **QA: `PLANNER_DECISION_REQUIRED`, 14 rows, 13 pass / 0 blocked / 1 unperformed, no BLOCKING.** Every R3/R4/R5/R6
+  guard was proven to discriminate by QA's own failing-first controls (active-year guard, gate bypass,
+  `requirePrivileged:false`, blinded mutation recorder, injected jargon, removed preview POST, flipped
+  fail-closed flag). **Accepted on that basis.** The 1 unperformed row is a *rendered* judgement — the
+  1366×768 budget of the new per-year list — which §11 classifies as a **deployment-acceptance clause, not a
+  source row**, and which Lane C already owns after A4 deploys. It is routed, not closed.
+- **My own correction `3f7ec3fd` closed the one real hole QA found (N1):** QA deleted `schoolYears` from the
+  **fourth** status site (`composeResumedRecoveryPreview`, module-private) and the suite stayed 12/12 green — the
+  field was present but **unguarded**, so years 9/10 would have vanished from that path again with nothing red.
+  Now a narrow structural guard covers it, and my first two versions of that guard were **wrong and I discarded
+  them**: an annotation-anchored regex matched 1 of 4 sites and an `archivedYears` anchor matched 2 of 4, both
+  reporting false counts. Failing-first verified: private site loses the field → `EXIT=1` naming the hole;
+  restored → `EXIT=0`, 13/13, **1.33 s**, 0 surviving processes. The recorded site count is **3, not 4** (the
+  fourth surface delegates), noted in-code so nobody "fixes" it and weakens the guard.
+- **The 5-hour hang is fixed at the root, and the cause was worth naming.** The draft test imported the real
+  `../lib/prisma.js` — which constructs a PrismaClient and spawns the query-engine child — and put cleanup in a
+  parent `finally`, so **any unsettled subtest skipped cleanup** and leaked two `http.Server` handles, the
+  keep-alive sockets and the engine forever. Fixed with `mock.module` under
+  `node --experimental-test-module-mocks`, all cleanup in `t.after`, `server.unref()`, and a 10 s bound on every
+  request. `E:` is back to **25.85 GiB**, just above the §3 warn line — **a reclaim is still owed before the next
+  release build, and it is A4's call.**
+- **Two-owner conflict, resolved as a union, not a winner-takes-all.** A5-C2A independently changed
+  `AdminYearSetup.tsx` (its `YearTruthBanner` term-truth block, landed as `9f8028e2`). I took A5's file as the
+  base and applied my five changes to it, so **A5's banner, its `adminHref={null}` fix and its
+  `yearTruthNonce` state are all preserved** alongside `SchoolYearListCard` and `reloadSignal`. Verified
+  post-merge by reading both sides' markers back. `rollover-ui-guardrails` caught my own *comment* for
+  containing the request helper's name — reworded the comment rather than weaken the guard.
+- **⚠ A2 coordinate, still open — the Timetable link is deliberately NOT rendered.** It is fail-closed behind
+  `TIMETABLE_READS_SCHOOL_YEAR_PARAM = false` in `atlas-client/src/components/runtime/rollover-plain-copy.ts`,
+  and the page says so in plain words. **A2 must flip it to `true` in the same commit that makes
+  `/timetable?schoolYearId=<enrollProSchoolYearId>` honour the parameter** (the same id the existing
+  `/teaching-load/history?schoolYearId=` uses). Flipping it before that route exists turns a test red rather
+  than shipping a lying link. Until then the demo shows the fail-closed sentence, not a broken link.
+- **Still open for the operator, not mine:** dropping the `SAVE_TERM_AUTHORITY_1_9` typed interlock on the
+  ordered-terms save. It is the human gate on a live-data write (`AGENTS.md` §13), so I made the sentence plain
+  and left the interlock byte-identical. **Lane C: that ruling is yours to make.**
+- **Merged-tree gates:** `test:archive-school-year-a7c2` 13/13 · `test:a7-year-setup-plain-words` 16/16 ·
+  `test:ux-guardrails` 31/31 · `test:client-quality` 34/34 · `test:dup-read-callers` 75/75 · **server `tsc` 0
+  errors** (the executor's 1048 was the missing generated client — I ran `prisma generate` and it reconciled; it
+  was right not to call that green) · client `tsc` **1** error, the pre-existing A2
+  `timetable-truth-labels-a2.test.ts` TS2367, byte-identical at base and not in this range.
+- **Worktree:** `E:/ATLAS-worktrees/lane-a7-school-year-setup` = `RETIRE_AFTER_INTEGRATION`, left in place for
+  A4 (real `node_modules`, never junctioned). Branches `work/a7-school-year-setup-c2` and
+  `integration/a7-c2-20260929` resolve; no branch deleted. Zero residue: clean status, no stash created.
+- **Next action (single):** A4 merges `4104c65a` into the next train; A2 delivers the `schoolYearId` timetable
+  route and flips the flag; Lane C takes the 1366×768 rendered row for the per-year list.
+
 ## 2026-09-29 00:18 — year 2022-2023 per-year setup copied (operator approved)
 Script `atlas-server/src/scripts/copy-year-setup-shift-windows-events.mjs --school 1 --from 10 --to 1 --apply`: +20
 grade_shift_windows, +2 policy_special_events into mirror 1 (were 0). Re-dry-run: targetExisting 20/2, toInsert 0.
