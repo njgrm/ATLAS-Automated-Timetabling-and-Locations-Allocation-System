@@ -1814,3 +1814,71 @@ zero draft changes, Confirm → exactly one, double-confirm → exactly one.
 **Worktree:** `lane-a6-teachers-tl` is `RETIRE_AFTER_INTEGRATION`, left in place for A4 (§14 gives A4 E:
 capacity and junction-safe reclamation); `work/a6-teachers-tl` resolves to `4706ba65`. Full detail in
 `docs/handoffs/planner-a6-handoff.md`.
+
+---
+
+## A5 c2 - A5 ready for release at bf1a7913 (2026-09-29, from Planner A5)
+
+**f1a7913 is on origin/main.** Two slices, one closure, one push window. Not deployed - A4 owns the
+release (@A4: pin f1a7913, not a moving main tip). 7/7 rendered on isolated loopback builds, 0 live.
+
+**Measured EnrollPro latency (read-only GETs, 2026-09-28 ~20:18 +08, dev-jegs).**
+/integration/v1/health n=10, all HTTP 200: min **307** / p50 **329** / p95 **423** / max **921** ms.
+ctive-term n=8 38-71 ms, school-year n=8 40-89, aculty n=8 29-76, sections n=8 35-136 (these
+four are unauthenticated, so they do not characterise the authenticated DB work).
+**Your 19:20 reading of 3.2-3.3 s is a latency tail, not a downed companion.** ATLAS's 4 s abort budgets
+(enrollpro-term-contract.service.ts:376, ctive-term-adapter.service.ts:99, section-adapter.ts:25)
+are 9-10x the measured p95, so **no timeout was changed** - that would have been the wrong fix.
+
+**What actually caused both blockers:** EnrollPro truthfully returns a typed 409
+ACTIVE_TERM_UNRESOLVED while the host clock (2026) sits before the active school year (2031-2032), and
+ATLAS rendered that as a hard, workflow-disabling "unresolved" while the shell showed Term T2 from the
+cached ordered structure. **Two sources of truth for one fact.** Fixed with one canonical resolver
+(ctive-term-resolver.service.ts): live wins; a typed unresolved degrades to the saved snapshot only
+when its semanticRevision equals the live structure's, labelled with the real captured time.
+
+**Item DONE/PARTIAL per your own words** (rendered before/after, ISOLATED_LOCAL_BROWSER, port 5204/5205):
+1. Root cause - **DONE**, measured, and it was *not* a timeout.
+2. Blocker 1 Teacher Concerns - **DONE**. The dead-end card is gone; the page reads the same resolver as
+   the shell, shows "Using saved term data from Sep 25, 2026, 04:00 PM", and the picker is usable.
+3. Blocker 2 School Year Setup - **DONE**. Now renders Active school year: 2031-2032 - Term 2, from
+   saved data - it names the term, so it can no longer contradict your header. The dead "Year setup"
+   self-link beside Preview is gone.
+4. Audit "81 blockers" - **DONE** on your first option: the count is now scoped and dated to the setup
+   records and explicitly distinguished from a published schedule, and "Average roster load" carries its
+   target (75%, 30h of 40h). I did **not** touch the Dashboard copy - that is yours/A2's. **The
+   contradiction is resolved, not restated.**
+5. Notifications - **PARTIAL, honestly.** No raw operation/entry id leaks in the collapsed panel and the
+   raw record now sits behind ONE deliberate disclosure (your "expandable detail view"). A real row now
+   reads e.g. Room request: a different room was requested for Mon 07:30-08:30, sent for review.
+   **PARTIAL because:** a room/subject *name* is still absent - oom-preference.service.ts:737-745
+   publishes equestedRoomId, not a name, and widening published metadata is a shared-runtime change I
+   did not take. **Your call, not mine.**
+6. Room Preferences - **DONE**. Leads with "No room requests", names the active filters, and offers Clear
+   filters; version/collaboration demoted.
+7. Subjects - **DONE** on both halves. OWNER_DEPT:MAPEH now reads Owned by MAPEH with the code kept in
+   the accessible description, and the row action is pinned in view and renamed to one verb.
+
+**Two things I need you to know.**
+- **A defect I could not fix because the file is not mine:** hooks/useDashboardData.ts:449-483 discards
+  an actor-school resolution whose token epoch moved, so /dashboard/readiness-summary is issued on some
+  frames and not others. It made my rendered gate a coin flip. **Dashboard is yours/A2's.** Not fixed here.
+- **A7 and I now share pages/AdminYearSetup.tsx** (merged additively 2026-09-29). A7's plain-word copy
+  and post-apply confirmation are intact; I re-applied dminHref={null} after A7 reintroduced the
+  explicit href, and A7's request allowlist now includes the /runtime/context read my truth banner adds.
+  Both lanes' gates pass on the merged tree.
+
+**Gates:** server tsc 0, build clean, server started isolated and health 200 (@A4: no live touch).
+5-c2a server 14/14 + client 11/11, 5-c2b 16/16, 7-year-setup-plain-words 10/10,
+
+otification-inbox 5/5, 3-c8-audit 7/7, 3-c8-room-preach 7/7, 5-subjects-c1 14/14,
+3-subjects 32/32, ux-guardrails 31/31, 3-c6-concerns 16/16, dup-read-callers 75/75.
+Rendered: slice A 3/3, slice B 6/6 on four consecutive runs.
+
+**Owed to the Tailnet, still open:** these 7 rows plus c5aba703's Subjects rows. **My loopback rows
+are ISOLATED_LOCAL_BROWSER and are not ATLAS acceptance** - they prove the candidate's own rendered
+paint, nothing about `njgrm.buru-degree.ts.net`. Steps are in my `lane-a-to-c` backlog above.jgrm.buru-degree.ts.net. Steps are in my lane-a-to-c backlog above.
+
+**@A4:** pin f1a7913. The net diff from e1c02d94 is 30 paths, all tlas-client/tlas-server/
+configs, **no migration, no prisma/, no ops/, no seed, no env, no lockfile**. **E: free space is
+~24 GiB, BELOW the 25 GiB warning line - run the release-directory reclaim before the build.**

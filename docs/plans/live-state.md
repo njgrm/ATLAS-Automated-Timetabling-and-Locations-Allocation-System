@@ -4310,39 +4310,61 @@ decidable from source. Worktrees `lane-a3-c10-{s1-sections,s3-tldensity,s4-teach
 
 ## Lane A5 — current lane (written only by Planner A5)
 
-- **Stream:** `A5-SUBJECTS-C1` — **INTEGRATED at `c5aba703`, ready for release, NOT deployed.**
-  Operator items **34+35**, **9.1**, **41**, **17.1** from `docs/reviews/operator-fixes-20260928/`,
-  plus Lane C's **FIX-20** (`lane-a-to-c.md:127`). Product range `7f06f853..d53fcf84` merged onto
-  `bf50359f`; 19 paths, no conflicts. Fresh QA `ACCEPT_READY` **16/16/0/0**. I never deploy (§14).
-- **Fixes live and seen: 0** (Tailnet is A4's release). Integrated and rendered on an isolated
-  loopback build: **5 of 5** — 10/10 Playwright rows green, 98/98 unit rows green on the merged
-  tree, build green, typecheck 1 pre-existing error (`timetable-truth-labels-a2.test.ts:523`,
-  blob byte-identical at base). Dropped: 0.
-- **Gate discipline earned this cycle (2026-09-28), worth keeping:** the inherited uncommitted work
-  **deleted** the tooltip `Portal`, which reintroduces items 34/35 verbatim; measured `11 pass / 3
-  fail`, so it was reverted rather than reviewed as a change. The committed
-  `test:visual:a5-subjects-c1` script pointed at a **`.gitignore`d spec** — a gate no clone could
-  run — fixed with the repo's own `!` pattern. And a **class-list assertion was TRUE while the
-  rendered paint was WRONG** (`@/ui` `Input`'s trailing `sm:text-sm` beat bare `text-xs` through
-  tailwind-merge; the browser measured 14px), so item 41's row asserts measured `fontSize`.
-- **Ownership:** I own the shared `ui/tooltip.tsx` primitive and the new
-  `components/table/SortableColumnHeader.tsx`; A3/A6 must not touch the primitive. My Subjects
-  files: `pages/Subjects.tsx`, `components/subjects/*`. Cross-lane notice + the release post are in
-  `docs/handoffs/lane-a-to-c.md`.
+- **Stream (superseded 2026-09-29):** `A5-SUBJECTS-C1` — **INTEGRATED at `c5aba703`, NOT deployed.**
+  Retained below for its Tailnet obligations. Its claim that `SubjectFormModal.tsx:983` `title=` is an
+  AGENTS.md §8 raw-`title` violation is **WITHDRAWN**: it is a React prop on `@/ui` `ConfirmationModal`,
+  and `a7`/slice-B QA both refuted it. The `test:a3-c4-copy` failure is a **pre-existing over-broad
+  regex**, not a §8 breach. Do not "fix" that file.
+- **Stream (current):** `A5-C2-20260928` — **INTEGRATED and PUSHED to `main` at `bf1a7913`, NOT deployed.**
+  Packet `docs/prompts/a5-2026-09-28-c2.md` (Lane C demo walk). Two slices, one closure, one push:
+  slice A `d0a0dadc` + correction `0839a934`; slice B `ac8adf09` + correction `e73eb203`; plus one
+  integration-owned test fix `03bdf6bc`. Fresh QA per slice: A `CORRECTION_REQUIRED` 22/24 (1 blocking,
+  1 blocked), B `CORRECTION_REQUIRED` 17/20 (3 blocking); all closed and accepted. I never deploy (§14).
+- **Fixes live and seen: 0** (Tailnet is A4's release). Integrated and **rendered** on isolated loopback
+  builds: **7 of 7** (slice A 3/3, slice B 6/6 on four consecutive runs). Merged-tree gates green:
+  server tsc 0 / build clean / `a5-c2a` 14/14 / `active-term-live-resolution` 8/8 / `-c02` 13/13;
+  client build clean, tsc 5 pre-existing; `a5-c2b` 16/16, `a5-c2a` 11/11, `a7-year-setup-plain-words`
+  10/10, `notification-inbox` 5/5, `a3-c8-audit` 7/7, `a3-c8-room-preach` 7/7, `a5-subjects-c1` 14/14,
+  `a3-subjects` 32/32, `ux-guardrails` 31/31, `a3-c6-concerns` 16/16. Dropped: 0.
+- **Measured EnrollPro latency (planner + executor, read-only GETs, 2026-09-28 ~20:18 +08).**
+  `dev-jegs /integration/v1/health` n=10: min 307 / p50 329 / p95 423 / max 921 ms, all 200.
+  `active-term` n=8 38–71 ms, `school-year` n=8 40–89, `faculty` n=8 29–76, `sections` n=8 35–136
+  (unauthenticated, so these do not characterise the authenticated DB work). **Lane C's 19:20 reading
+  of 3.2–3.3 s is a latency tail, not a downed companion.** ATLAS's 4 s abort budgets are 9–10x the
+  measured p95, so **no timeout was changed** — the cause was a two-sources-of-truth defect: EnrollPro
+  truthfully returns a typed `409 ACTIVE_TERM_UNRESOLVED` while the host clock (2026) precedes the
+  active school year (2031-2032), and ATLAS rendered that as a hard, workflow-disabling "unresolved"
+  while the shell showed Term T2 from the cached ordered structure.
+- **Ownership:** `atlas-server/src/services/active-term-resolver.service.ts` (NEW, the one canonical
+  active-term resolver), `runtime-context.service.ts`, `academic-term.service.ts`,
+  `active-term-adapter.service.ts`, `components/runtime/RolloverGuidanceCard.tsx` (now accepts
+  `adminHref={null}`), `lib/enrollpro-public-settings.ts`, `lib/notification-presentation.ts` (NEW),
+  `pages/{TeacherConcerns,AdminYearSetup,Audit,OfficerRoomPreferences,Subjects}.tsx`,
+  `components/subjects/{subject-feature-presentation,SubjectRow,SubjectCoverageSheet}`,
+  `components/app-shell/NotificationBell.tsx`. **`AdminYearSetup.tsx` is now shared with A7** — merged
+  additively on 2026-09-29; re-read before editing.
+- **Cross-lane merge finding, 2026-09-29, NON_BLOCKING, for Lane C / A2 — the Dashboard actor-scope
+  race.** `atlas-client/src/hooks/useDashboardData.ts:449-483` discards an actor-school resolution whose
+  token epoch has moved, so `/dashboard/readiness-summary` is issued on some frames and not others. It
+  made my rendered row nondeterministic (3/3 then 1 failure in 2). **The Dashboard is not A5's file and
+  is NOT fixed here** — the gate now exercises the mock branch deterministically instead.
+- **Also merged 2026-09-29:** A7-C1's plain-word copy + post-apply confirmation were preserved, and its
+  strict request allowlist in `a7-year-setup-plain-words.test.tsx:703` was updated because A5's
+  `YearTruthBanner` legitimately adds `/runtime/context`; A7's own "no added request" claim is now
+  asserted separately so it still discriminates.
 - **Dated backlog 2026-09-28, NON_BLOCKING, unowned:** `AdminDataTable.tsx:328` still restates the
-  accessible name as the tooltip *copy*, so the action-shaped wording reaches Subjects only — a
-  later migration onto `SortableColumnHeader` would give `/teachers` copy parity.
+  accessible name as the tooltip *copy*, so the action-shaped wording reaches Subjects only.
 - **Owed and not decidable from source:** the ATLAS-origin rows on `https://njgrm.buru-degree.ts.net`
-  after A4 ships `c5aba703` — header bubble dark/above/unclipped, All Status filtering both axes,
-  one-line filter row with Term present, coverage-dialog drag-resize, and the filled-form
-  **"Discard your changes?"** confirmation. Exact steps are posted in `docs/handoffs/lane-a-to-c.md`.
-- **Next action (single):** await A4's release of `c5aba703`; A5 then closes the Tailnet rows.
-- **Worktree disposition, 2026-09-28:** `lane-a5-subjects-c1` (branch `work/a5-subjects-c1`) and
-  `lane-a5-subjects-c1-integ` (branch `integration/a5-subjects-c1-2026-09-28`) are both
-  `RETIRE_AFTER_INTEGRATION`, retired junction-safe in the closure that pushed `c5aba703`. No branch
-  deleted; `work/a5-subjects-c1` still resolves to `d53fcf84`. **Pushed `main` tip is `c78d75b7`**,
-  which contains the A5 merge `c5aba703` **and** A2's c11 slice 2 — A4 pins its own release commit
-  naming `c5aba703`, not this tip.
+  after A4 ships — `c5aba703`'s header bubble / All Status / filter row / coverage dialog / Discard
+  confirmation, **and** c2's seven rows (Teacher Concerns, School Year Setup, Audit, Notifications,
+  Room Preferences, Subjects ×2). Exact steps are in `docs/handoffs/lane-a-to-c.md`. **Loopback rows are
+  `ISOLATED_LOCAL_BROWSER` and are NOT ATLAS acceptance** (§12).
+- **Next action (single):** await A4's release of `bf1a7913`; A5 then closes the Tailnet rows above.
+- **Worktree disposition, 2026-09-29:** `lane-a5-c2a-20260928` (`work/a5-c2a-20260928` → `0839a934`),
+  `lane-a5-c2b-20260928` (`work/a5-c2b-20260928` → `e73eb203`) and `lane-a5-c2-20260928`
+  (`integration/a5-c2-2026-09-28` → `bf1a7913`) are all `RETIRE_AFTER_INTEGRATION`, pending A4's
+  confirmation. No branch deleted. **E: free space is ~24 GiB — BELOW the §3 25 GiB warning line**;
+  A4 owns the release-directory reclaim before the next release build.
 
 ## Lane A6 — current lane (written only by Planner A6)
 
