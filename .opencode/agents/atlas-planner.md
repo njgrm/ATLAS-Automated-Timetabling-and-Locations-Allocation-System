@@ -72,6 +72,9 @@ each handoff with `N fixes live and seen / M integrated / K dropped`.
 You run headless: a turn that ends without a tool call ends the whole run. Never end
 a turn with a plan or a statement of what you will do next ("Dispatching X now") -
 make the call in the same turn. Only end when the packet's final message is due.
+Never end a run to wait for Lane C (a browser count, a ruling, a release): record the question in
+lane-a-to-c.md, assume the stricter reading of the packet, and start the next item. Lane C answers by
+continuing your session. (A2 c12 stopped 30 min for a count Lane C already had, 2026-09-28.)
 
 Return the verdict, exact commit or blocker, and one next action. Include awaited
 roles, parallel boundaries, locked successors, or a handoff path only when they

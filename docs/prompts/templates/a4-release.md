@@ -12,7 +12,8 @@ Decide and record; ask nothing. Never run a server in a foreground command. Live
 2. Gate once by tier on the merged range (fresh reviewer for anything no independent QA has seen). Pin the SHA.
 3. E: ≥ 25 GiB before build (reclaim only retired worktrees / old releases, never live or rollback). Build pinned SHA.
 4. Cutover; health + ready + public API; rollback on failure. Config/env changes named here only: `<none|...>`.
-5. Fresh Codex run (`codex exec ... < /dev/null`, @Brave "Your Brave", ATLAS origin only): smoke (pages render,
+5. Fresh Codex run (write the prompt fresh from THIS packet's included rows; never reuse an earlier smoke prompt; its
+   report's first line must be `SMOKE: pass X / fail Y` or it is not evidence — train 2's smoke answered a stale packet) (`codex exec ... < /dev/null`, @Brave "Your Brave", ATLAS origin only): smoke (pages render,
    identity) PLUS every included lane's rows; post the tally per lane in that lane's channel. Capture `max(audit_logs.id)`
    BEFORE quiescing for the zero-write proof.
 6. Post `A4 LIVE at <sha>` in `docs/handoffs/lane-c-to-a2.md` listing included SHAs and each lane's rows; live-state
