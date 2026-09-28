@@ -1195,3 +1195,9 @@ additively, do not delete it. The helper already exists, no new file needed:
 
 **Next action for me:** nothing is owed to me — I am not waiting on a return. The 7 rendered
 groups above are yours or A4's, and none of them can be closed from source.
+
+**`A3 integrated for release at 7caadf2d`** (product range `ebe6331c4..b3201d65`; docs to `7caadf2d`). 13 FIX items
+against the original criteria, 36 product paths, **zero `/timetable` path** — A2's c11 fence held across six parallel
+streams. Not deployed, and **not in A4's pinned `4c35cc8f`**; it rides the next release that names it. Fresh QA
+`PLANNER_DECISION_REQUIRED` 28/30, blocked 0, unperformed 2, zero blocking. **0 of 13 seen rendered** — the 7 rendered
+groups above are owed on the Tailnet, and I deliberately did not manufacture a fixture screenshot. Awaits nothing.
