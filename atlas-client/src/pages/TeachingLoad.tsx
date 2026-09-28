@@ -21,7 +21,7 @@ import { useTeachingLoadUI } from '@/hooks/useTeachingLoadUI';
 import { TeacherGridMode } from '@/components/faculty-assignments/TeacherGridMode';
 import { SectionGridMode } from '@/components/faculty-assignments/SectionGridMode';
 import { TeachingLoadInspectorPanel } from '@/components/faculty-assignments/TeachingLoadInspectorPanel';
-import { WorkspaceToolbar } from '@/components/faculty-assignments/WorkspaceToolbar';
+import { WorkspaceToolbar, isTeachingLoadSourceDegraded } from '@/components/faculty-assignments/WorkspaceToolbar';
 import { TeachingLoadRepairQueue } from '@/components/faculty-assignments/TeachingLoadRepairQueue';
 import { openTeacherReview } from '@/components/faculty-assignments/teacherReviewEntry';
 import { TeachingLoadDraftActionBar } from '@/components/faculty-assignments/TeachingLoadDraftActionBar';
@@ -563,6 +563,9 @@ export default function TeachingLoad() {
 		openTeacherReview({ setViewMode: ui.setViewMode, setReviewModalOpen });
 	}, [data.setSelectedId, ui.setViewMode]);
 
+	// A6 C2 CORRECTION: the SAME exported predicate the header's amber line uses, so the row cannot say "not reachable" and "looks ready" at once.
+	const sourceDegraded = isTeachingLoadSourceDegraded({ dataSource: data.dataSource, isOnline: data.isOnline, dataSourceNotice: data.degradedNotice });
+
 	const {
 		activeRepairId,
 		routedRepairId,
@@ -580,6 +583,7 @@ export default function TeachingLoad() {
 		coverageAssigned: coverageHeadline.assigned,
 		coverageTotal: coverageHeadline.total,
 		coverageUnassigned: coverageHeadline.unassigned,
+		sourceDegraded,
 		writeBlockedReason: workspaceState.writeBlockedReason,
 		onSelectFaculty: data.setSelectedId,
 		onSave: () => {

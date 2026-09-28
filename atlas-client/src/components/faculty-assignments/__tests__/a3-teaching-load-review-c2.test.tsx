@@ -276,6 +276,12 @@ function TeachingLoadReviewHost(props: { onRowSelect?: (id: number) => void } = 
 		coverageAssigned: 1,
 		coverageTotal: 1,
 		coverageUnassigned: 0,
+		// A6 C2 CORRECTION: the hook now REQUIRES the source's degraded state
+		// rather than defaulting to the healthy rendering. This host is a
+		// verified-source fixture — it drives `onOpenReview` into a real dialog
+		// and asserts the healthy review path — so `false` is the true value
+		// here, not a value chosen to keep the test green.
+		sourceDegraded: false,
 		writeBlockedReason: null,
 		onSelectFaculty: () => {},
 		onSave: () => {},

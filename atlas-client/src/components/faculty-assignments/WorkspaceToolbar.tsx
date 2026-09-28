@@ -157,6 +157,34 @@ export const TEACHING_LOAD_HEADER_MODEL = {
  * step with the theme, and there are no pills left to keep in step.
  */
 
+/**
+ * A6 C2 CORRECTION — the ONE definition of "the Teaching Load source is not
+ * verified", exported so the page can hand the SAME answer to the repair queue.
+ *
+ * It exists because two consumers must never disagree. This component decides
+ * whether row 2 prints the amber `EnrollPro not reachable` line INSTEAD of a
+ * derived count, and `pages/TeachingLoad.tsx` decides whether the repair queue
+ * withholds its own derived figures. A second, separately-written copy of the
+ * rule in either place would let a scheduler read "EnrollPro not reachable" and
+ * "Teaching Load looks ready" in the same glance — which is exactly the defect
+ * the correction exists to close, and exactly what the first QA pass rendered.
+ *
+ * `refreshing` is NOT degraded, and is checked BEFORE the notice on purpose:
+ * ATLAS is actively asking EnrollPro, so "not reachable" would be a lie
+ * mid-check, and a notice left over from an earlier attempt must not turn a live
+ * check into a claim of failure. The order below is therefore load-bearing and is
+ * the same order `degradedTail` used, so the header's own copy is unchanged.
+ */
+export function isTeachingLoadSourceDegraded(input: {
+	dataSource: WorkspaceToolbarProps['dataSource'];
+	isOnline: boolean;
+	dataSourceNotice: string | null;
+}): boolean {
+	if (!input.isOnline) return true;
+	if (input.dataSource === 'refreshing') return false;
+	return input.dataSource !== 'live' || Boolean(input.dataSourceNotice);
+}
+
 export function WorkspaceToolbar({
 	realAssignedPairs,
 	syntheticPlaceholderPairs,
@@ -302,14 +330,21 @@ export function WorkspaceToolbar({
 	 * honest line instead. Offline and `none` are degraded but say so in their
 	 * own words, because "EnrollPro not reachable" is false when ATLAS is the
 	 * thing that is down.
+	 *
+	 * A6 C2 CORRECTION: the DECISION is no longer restated here. This memo only
+	 * chooses the wording, and it asks `isTeachingLoadSourceDegraded` — the same
+	 * exported predicate `pages/TeachingLoad.tsx` uses to decide whether the
+	 * repair queue withholds its figures. The three strings and their order are
+	 * byte-for-byte the behaviour that was here before, so no committed row on
+	 * this header changes.
 	 */
+	const isSourceDegraded = isTeachingLoadSourceDegraded({ dataSource, isOnline, dataSourceNotice });
 	const degradedTail = useMemo(() => {
 		if (!isOnline) return 'ATLAS is offline';
 		if (dataSource === 'none') return 'no live Teaching Load source is available';
-		if (dataSource === 'refreshing') return null;
-		if (dataSource !== 'live' || dataSourceNotice) return 'EnrollPro not reachable';
-		return null;
-	}, [dataSource, dataSourceNotice, isOnline]);
+		if (!isSourceDegraded) return null;
+		return 'EnrollPro not reachable';
+	}, [dataSource, isOnline, isSourceDegraded]);
 
 	/*
 	 * `savedAtLabel` is the PAGE's real field, never a synthesised clock reading.

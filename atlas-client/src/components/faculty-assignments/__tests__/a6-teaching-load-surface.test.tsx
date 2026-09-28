@@ -97,6 +97,9 @@ const { TeachingLoadInspectorTriggers } = await import('@/components/faculty-ass
 const { WorkspaceToolbar } = await import('@/components/faculty-assignments/WorkspaceToolbar');
 const { TeachingLoadModals } = await import('@/components/faculty-assignments/TeachingLoadModals');
 const { TeachingLoadRepairQueue } = await import('@/components/faculty-assignments/TeachingLoadRepairQueue');
+// A6 C2 CORRECTION: the real hook, so row 2's slot carries the hook's OWN
+// strings. Hand-written items here are what let the degraded defect through.
+const { useTeachingLoadRepairQueue } = await import('@/hooks/useTeachingLoadRepairQueue');
 const { SectionGridMode } = await import('@/components/faculty-assignments/SectionGridMode');
 const { ReviewTeachersModal } = await import('@/components/faculty-assignments/ReviewTeachersModal');
 const { WorkloadInspector } = await import('@/components/faculty-assignments/WorkloadInspector');
@@ -1271,8 +1274,63 @@ test('A6-C2-1 the `Load summary` breakdown has NO sideways scroller and stacks e
 	assert.match(scrollers[0]!.getAttribute('class') ?? '', /max-h-\[70vh\]/, 'and it must be bounded to the viewport');
 });
 
-/** Row 2 as the page composes it: the repair queue only, plus the More-menu link. */
-function headerHost(overrides: Record<string, any> = {}, slotOverrides: Record<string, any> = {}) {
+/**
+ * A6 C2 CORRECTION — row 2's slot is now the REAL repair queue driven by the
+ * REAL hook, not a hand-written item.
+ *
+ * WHY THE OLD FIXTURE WAS WRONG, and why the row that used it stayed green
+ * through a real defect. `headerHost` used to pass
+ * `{ kind: 'review-ready', status: 'Ready for review' }` — a paraphrase. The
+ * production `review-ready` status is
+ * `${coverageAssigned} of ${coverageTotal} classes have a teacher.`
+ * (`useTeachingLoadRepairQueue.ts`), so the A6-C2-3 assertion
+ * `doesNotMatch(rowText, /\b\d+ classes? need/)` never saw the number that was
+ * actually on the row, and never saw the number's sibling claim,
+ * `Teaching Load looks ready`. AGENTS.md §11: a control's fixture must come
+ * from the real surface, or it passes against a fiction. The fixture below is
+ * the hook's own output, so a future reword of the real string is caught here.
+ *
+ * The values are QA's own, so the numbers are the ones the operator would see:
+ * 23 assigned of 24 total, one class open, and no draft — which is the state
+ * that resolves to the single `review-ready` item.
+ */
+const REAL_QUEUE_COVERAGE = { coverageAssigned: 23, coverageTotal: 24, coverageUnassigned: 0, activeDraftCount: 0 };
+
+function RealRepairQueueSlot(props: { sourceDegraded: boolean; advancedGridVisible?: boolean }) {
+	const [, setAdvancedGridVisible] = useState(true);
+	const queue = useTeachingLoadRepairQueue({
+		searchParams: new URLSearchParams(),
+		setSearchParams: () => {},
+		faculty: [],
+		effectiveAssignmentsByFaculty: {},
+		activeDraftCount: REAL_QUEUE_COVERAGE.activeDraftCount,
+		isReadOnlyMode: false,
+		selectedId: null,
+		coverageAssigned: REAL_QUEUE_COVERAGE.coverageAssigned,
+		coverageTotal: REAL_QUEUE_COVERAGE.coverageTotal,
+		coverageUnassigned: REAL_QUEUE_COVERAGE.coverageUnassigned,
+		sourceDegraded: props.sourceDegraded,
+		writeBlockedReason: null,
+		onSelectFaculty: () => {},
+		onSave: () => {},
+		onShowSubjectCoverage: () => {},
+		onShowTeachersWithoutLoad: () => {},
+		onShowOverloaded: () => {},
+		onShowPlaceholder: () => {},
+		onOpenReview: () => {},
+		setAdvancedGridVisible,
+	});
+	return createElement(TeachingLoadRepairQueue as any, {
+		items: queue.repairQueueItems,
+		activeItemId: queue.activeRepairId,
+		isReadOnly: false, saving: false,
+		advancedGridVisible: props.advancedGridVisible ?? true,
+		onPrimaryAction: queue.handleRepairPrimaryAction,
+	});
+}
+
+/** Row 2 as the page composes it: the REAL repair queue, plus the More-menu link. */
+function headerHost(overrides: Record<string, any> = {}, slotOverrides: Record<string, any> = {}, sourceDegraded = false) {
 	return render(createElement(WorkspaceToolbar as any, {
 		realAssignedPairs: 22, syntheticPlaceholderPairs: 1, unassignedPairs: 2, totalPairs: 24,
 		overCapCount: 1, excessTeachingCount: 0, policyReady: true,
@@ -1285,11 +1343,10 @@ function headerHost(overrides: Record<string, any> = {}, slotOverrides: Record<s
 		workspaceStateLabel: 'Ready', workspaceStateDescription: 'Live roster verified.',
 		workspaceStateNextAction: 'Assign the remaining classes.',
 		activeDraftCount: 0, saving: false, onSave: () => {}, onRetrySource: () => {},
-		stateLineSlot: createElement(TeachingLoadRepairQueue as any, {
-			items: [{ id: 'review-ready', kind: 'review-ready', title: 'Teaching Load looks ready', description: 'd', status: 'Ready for review', actionLabel: STAFF_WORKLOAD_REVIEW_LABEL }],
-			activeItemId: 'review-ready', isReadOnly: false, saving: false, advancedGridVisible: true,
-			onPrimaryAction: () => {}, ...slotOverrides,
-		}),
+		// A6 C2 CORRECTION: the slot is the hook's OWN output. `slotOverrides`
+		// stays for the one caller that needs to pin a prop, and it is spread
+		// LAST so it can still override.
+		stateLineSlot: createElement(Fragment2, null, createElement(RealRepairQueueSlot as any, { sourceDegraded, ...slotOverrides })),
 		historyAction: createElement(Link as any, { to: '/teaching-load/history', 'data-testid': 'teaching-load-history-link' }, 'Archived load'),
 		...overrides,
 	}));
@@ -1354,50 +1411,237 @@ test('A6-C2-3 a degraded source shows ONE amber line and NO live-looking derived
 	// Walk item 2, verbatim: "`% staffed 100%` and `Classes without a teacher 0`
 	// sit beside `Unknown number of classes`… A scheduler can falsely conclude
 	// staffing is complete."
-	const host = headerHost({
-		dataSource: 'cached', isWorkspaceWritable: false,
-		dataSourceNotice: 'EnrollPro could not be reached, so ATLAS is using the last saved sections.',
-	});
-	const row2 = host.querySelector('[data-testid="teaching-load-readiness-strip"]')!;
+	//
+	// A6 C2 CORRECTION — the slot is the REAL queue on the REAL hook, so this row
+	// now sees the strings the operator sees. It previously asserted against a
+	// hand-written `status: 'Ready for review'`, which is why the repair queue's
+	// real `23 of 24 classes have a teacher.` and its `Teaching Load looks ready`
+	// completeness title passed straight through a row whose whole subject is
+	// derived counts beside an unknown. `REAL_QUEUE_COVERAGE` is non-zero on both
+	// figures precisely so the number WOULD render if the withholding regressed.
+	const DEGRADED_STATES: Array<{ label: string; toolbar: Record<string, any>; slot: Record<string, any> }> = [
+		// `CACHED + read-only + degradedNotice` — the exact state QA rendered.
+		{
+			label: 'CACHED + read-only + degradedNotice',
+			toolbar: { dataSource: 'cached', isWorkspaceWritable: false, dataSourceNotice: 'EnrollPro could not be reached, so ATLAS is using the last saved sections.' },
+			slot: { sourceDegraded: true },
+		},
+		// `CACHED + a real saved-at timestamp`.
+		{
+			label: 'CACHED + realSavedAt',
+			toolbar: { dataSource: 'cached', isWorkspaceWritable: false, dataSourceNotice: 'x', savedAtLabel: '2026-09-28T09:14:00.000Z' },
+			slot: { sourceDegraded: true },
+		},
+		// `OFFLINE`: EnrollPro is not what is down, but the source is still not verified.
+		{
+			label: 'OFFLINE',
+			toolbar: { isOnline: false },
+			slot: { sourceDegraded: true },
+		},
+		// `NONE`: there is no source at all.
+		{
+			label: 'NONE',
+			toolbar: { dataSource: 'none', isWorkspaceWritable: false },
+			slot: { sourceDegraded: true },
+		},
+	];
 
-	// (a) EXACTLY ONE amber line, and it says EnrollPro is not reachable.
-	const amber = Array.from(row2.querySelectorAll('[data-testid="teaching-load-degraded-notice"]'));
-	assert.equal(amber.length, 1, `the degraded state must render exactly ONE amber line, found ${amber.length}`);
-	assert.match(amber[0]!.textContent ?? '', /EnrollPro not reachable/, 'the amber line must name the cause');
-	assert.match(
-		amber[0]!.getAttribute('class') ?? '',
-		/warning-muted/,
-		'the degraded line must be visibly amber, not an ordinary chip',
-	);
-	assert.equal(
-		row2.querySelectorAll('[data-testid="teaching-load-status-sentence"]').length,
-		0,
-		'the live status sentence must be REPLACED, not printed beside the amber line',
-	);
+	for (const state of DEGRADED_STATES) {
+		const host = headerHost(state.toolbar, state.slot);
+		const row2 = host.querySelector('[data-testid="teaching-load-readiness-strip"]')!;
+		assert.ok(row2, `${state.label}: row 2 must render`);
 
-	// (b) No bare derived figure survives anywhere on row 2. This is the defect:
-	// a percentage or a count rendered next to an unverified authority.
-	const rowText = row2.textContent ?? '';
-	assert.doesNotMatch(rowText, /% staffed/, 'the `% staffed` figure must be suppressed while degraded');
-	assert.doesNotMatch(rowText, /\b\d+ classes? need/, 'a computed classes-needing-a-teacher count must be suppressed');
-	assert.doesNotMatch(rowText, /Above weekly max/, 'the alert count must be suppressed too, or it states an unverifiable number');
-	assert.doesNotMatch(rowText, /\b100%\b/, 'never a confident 100% next to an unknown');
-	// And no element on the row still claims a staffing percentage at all.
-	assert.equal(row2.querySelector('[data-testid="teaching-load-alert-over-cap"]'), null, 'no alert count while degraded');
+		// (a) EXACTLY ONE amber line, and it says the source is not reachable.
+		const amber = Array.from(row2.querySelectorAll('[data-testid="teaching-load-degraded-notice"]'));
+		assert.equal(amber.length, 1, `${state.label}: exactly ONE amber line, found ${amber.length}`);
+		assert.match(
+			amber[0]!.textContent ?? '',
+			/(EnrollPro not reachable|ATLAS is offline|no live Teaching Load source is available)/,
+			`${state.label}: the amber line must name the cause in its own honest words`,
+		);
+		assert.match(
+			amber[0]!.getAttribute('class') ?? '',
+			/warning-muted/,
+			`${state.label}: the degraded line must be visibly amber, not an ordinary chip`,
+		);
+		assert.equal(
+			row2.querySelectorAll('[data-testid="teaching-load-status-sentence"]').length,
+			0,
+			`${state.label}: the live status sentence must be REPLACED, not printed beside the amber line`,
+		);
 
-	// (c) The saved-at time is used when the caller supplies one, and OMITTED
+		// (b) THE BLOCKING HALF: nothing on row 2 may read as a live completeness
+		// claim, and no unlabelled derived count may survive. These shapes are the
+		// hook's OWN strings, so a reword that reintroduces a number fails here.
+		const rowText = row2.textContent ?? '';
+		assert.doesNotMatch(
+			rowText,
+			/% staffed/,
+			`${state.label}: the \`% staffed\` figure must be suppressed while degraded`,
+		);
+		assert.doesNotMatch(
+			rowText,
+			/\b\d+ classes? need/,
+			`${state.label}: a computed classes-needing-a-teacher count must be suppressed`,
+		);
+		assert.doesNotMatch(
+			rowText,
+			/\b\d+ of \d+ classes have a teacher/,
+			`${state.label}: the repair queue's \`N of M classes have a teacher\` completeness figure must be suppressed — this is the blocking defect`,
+		);
+		assert.doesNotMatch(
+			rowText,
+			/Teaching Load looks ready/,
+			`${state.label}: the queue's \`Teaching Load looks ready\` title asserts completeness and must be suppressed`,
+		);
+		assert.doesNotMatch(
+			rowText,
+			/Above weekly max/,
+			`${state.label}: the alert count must be suppressed too, or it states an unverifiable number`,
+		);
+		assert.doesNotMatch(rowText, /\b100%\b/, `${state.label}: never a confident 100% next to an unknown`);
+		// And no element on the row still claims a staffing percentage at all.
+		assert.equal(
+			row2.querySelector('[data-testid="teaching-load-alert-over-cap"]'),
+			null,
+			`${state.label}: no alert count while degraded`,
+		);
+
+		// (c) Withheld is not silent: the queue states its own uncertainty on the
+		// row, so a reader is not left with a gap they must interpret.
+		const queueChip = row2.querySelector('[data-testid="teaching-load-current-repair"]');
+		assert.ok(queueChip, `${state.label}: the repair queue must still render on the degraded row`);
+		assert.match(
+			queueChip!.textContent ?? '',
+			/Unverified .* EnrollPro is not reachable/,
+			`${state.label}: the queue must name what is unknown in place of the figure`,
+		);
+		assert.match(
+			queueChip!.textContent ?? '',
+			/Teaching Load not verified/,
+			`${state.label}: the queue's title must state non-verification, not readiness`,
+		);
+
+		// (d) NOT a dead row. The ONE primary action is the header's whole reason
+		// for existing, and a degraded row that cannot act is a different defect.
+		const action = row2.querySelector('[data-testid="teaching-load-repair-review"]') as HTMLButtonElement;
+		assert.ok(action, `${state.label}: the ONE primary action must remain on row 2`);
+		assert.equal(action.disabled, false, `${state.label}: the primary action must stay operable while degraded`);
+		assert.match(action.textContent ?? '', new RegExp(STAFF_WORKLOAD_REVIEW_LABEL), `${state.label}: its label must be the operator's`);
+		assert.ok(
+			((amber[0] as HTMLElement).compareDocumentPosition(action) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0,
+			`${state.label}: the action must sit after the amber line, on the same row`,
+		);
+	}
+
+	// (e) The saved-at time is used when the caller supplies one, and OMITTED
 	// rather than invented when it does not.
-	const stamped = headerHost({
-		dataSource: 'cached', isWorkspaceWritable: false, dataSourceNotice: 'x',
-		savedAtLabel: '2026-09-28T09:14:00.000Z',
-	});
+	const stamped = headerHost(
+		{ dataSource: 'cached', isWorkspaceWritable: false, dataSourceNotice: 'x', savedAtLabel: '2026-09-28T09:14:00.000Z' },
+		{ sourceDegraded: true },
+	);
 	const stampedLine = stamped.querySelector('[data-testid="teaching-load-degraded-notice"]')!;
 	assert.match(stampedLine.textContent ?? '', /Using saved data from /, 'a real timestamp is used when the page has one');
-	const unstamped = headerHost({ dataSource: 'cached', isWorkspaceWritable: false, dataSourceNotice: 'x' });
+	const unstamped = headerHost(
+		{ dataSource: 'cached', isWorkspaceWritable: false, dataSourceNotice: 'x' },
+		{ sourceDegraded: true },
+	);
 	assert.match(
 		unstamped.querySelector('[data-testid="teaching-load-degraded-notice"]')!.textContent ?? '',
 		/Using the last saved data/,
 		'with no proven timestamp the clause is dropped, never faked',
+	);
+});
+
+test('A6-C2-3-HEALTHY the verified source still STATES its count and its queue title', () => {
+	// THE POSITIVE ROW for the correction above, and it exists so that fix cannot
+	// be satisfied by deleting the information everywhere. It is its own row
+	// rather than an extra render inside A6-C2-3 for the same reason
+	// `A6-40-3-REAL-SINGULAR` is: a second mount in the same test would share the
+	// `afterEach` teardown story and blur which mount a failure came from.
+	//
+	// It asserts the EXACT strings the withheld row above forbids, from the same
+	// `REAL_QUEUE_COVERAGE` figures. If the hook stopped publishing them while
+	// healthy, this goes red — so the corrected row is discriminating about
+	// STATE, not about text that was simply removed.
+	const host = headerHost();
+	const row2 = host.querySelector('[data-testid="teaching-load-readiness-strip"]')!;
+	const rowText = row2.textContent ?? '';
+
+	assert.equal(
+		row2.querySelectorAll('[data-testid="teaching-load-degraded-notice"]').length,
+		0,
+		'a verified source must NOT render the degraded line',
+	);
+	assert.match(
+		rowText,
+		/23 of 24 classes have a teacher/,
+		'the verified source must still state the queue\'s real completeness figure, from the hook\'s own coverage values',
+	);
+	assert.match(
+		rowText,
+		/Teaching Load looks ready/,
+		'the verified source must still state the queue\'s real readiness title',
+	);
+	// And the header's own sentence is untouched, which is the rest of the row's job.
+	assert.match(rowText, /96% staffed/, 'the verified source keeps the `% staffed` figure');
+	assert.match(rowText, /2 classes need a teacher/, 'and the classes-needing-a-teacher clause');
+
+	// The status element is the REAL rendered surface, not a substring of a
+	// tooltip: it is `hidden sm:inline`, so it is visible at 1366 and above.
+	const status = row2.querySelector('[data-testid="teaching-load-repair-status"]')!;
+	assert.ok(status, 'the queue\'s status element must render while healthy');
+	assert.equal(
+		(status.textContent ?? '').trim(),
+		'23 of 24 classes have a teacher.',
+		'the status must be the hook\'s exact sentence, and it must be on the chip itself',
+	);
+});
+
+test('A6-C2-3-WIRING one shared predicate decides BOTH the amber line and the queue', () => {
+	// Belt-and-braces over the rendered rows, on the one thing they cannot see:
+	// WHICH truth the page hands each consumer. A row can render correctly while
+	// the page feeds the queue a boolean the header never used, and then the two
+	// disagree in production on a state this file does not enumerate.
+	//
+	// Labelled as a wiring row and never as acceptance evidence for the visible
+	// change: the visible claim is A6-C2-3 and A6-C2-3-HEALTHY, which render.
+	const page = read('src/pages/TeachingLoad.tsx');
+	assert.match(
+		page,
+		/isTeachingLoadSourceDegraded\(\{ dataSource: data\.dataSource, isOnline: data\.isOnline, dataSourceNotice: data\.degradedNotice \}\)/,
+		'the page must derive the queue\'s degraded state from the REAL data fields through the shared predicate',
+	);
+	assert.match(
+		page,
+		/sourceDegraded,$/m,
+		'the derived boolean must be what the page passes to the repair queue hook',
+	);
+	// Required, not optional: an omitted argument must not render healthy.
+	const hook = read('src/hooks/useTeachingLoadRepairQueue.ts');
+	assert.match(hook, /\tsourceDegraded: boolean;/, 'the hook parameter must be REQUIRED, so a new caller cannot inherit the healthy rendering');
+	assert.doesNotMatch(hook, /sourceDegraded\?:/, 'an optional degraded parameter would reopen this defect silently');
+
+	// The header's own copy is the same function, so the two cannot drift.
+	const toolbar = read('src/components/faculty-assignments/WorkspaceToolbar.tsx');
+	assert.match(
+		toolbar,
+		/export function isTeachingLoadSourceDegraded\(/,
+		'the predicate must be exported, or the page would have to re-state the rule',
+	);
+	assert.match(
+		toolbar,
+		/const isSourceDegraded = isTeachingLoadSourceDegraded\(\{ dataSource, isOnline, dataSourceNotice \}\)/,
+		'the amber line must be decided by the same predicate, not a second copy of the rule',
+	);
+	// `refreshing` stays NON-degraded in the shared predicate: ATLAS is actively
+	// asking EnrollPro, so "not reachable" would be a lie mid-check. This is the
+	// one branch where the two implementations could silently disagree, so it is
+	// pinned here.
+	assert.match(
+		toolbar,
+		/if \(input\.dataSource === 'refreshing'\) return false;/,
+		'a live check must never count as degraded, and the order is load-bearing',
 	);
 });
 
