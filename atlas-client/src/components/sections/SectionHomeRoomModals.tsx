@@ -52,14 +52,14 @@ export function SwapConfirmationModal({
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
 			<DialogContent className="max-w-xl rounded-3xl p-0 overflow-hidden border-border/40 shadow-2xl">
-				<div className="bg-amber-50/50 border-b border-amber-100 px-6 py-4 flex items-center gap-3">
-					<div className="size-10 rounded-full bg-amber-100 flex items-center justify-center text-amber-600 shadow-inner">
+				<div className="bg-warning-muted/50 border-b border-warning-border px-6 py-4 flex items-center gap-3">
+					<div className="size-10 rounded-full bg-warning/10 flex items-center justify-center text-warning shadow-inner">
 						<AlertTriangle className="size-5" />
 					</div>
 					<div>
 						{/* Phase 1.2: plain-language title + description. */}
-						<DialogTitle className="text-lg font-bold text-amber-900">Move to {targetRoomName}?</DialogTitle>
-						<DialogDescription className="text-amber-700/70 text-xs font-medium">
+						<DialogTitle className="text-lg font-bold text-warning-foreground">Move to {targetRoomName}?</DialogTitle>
+						<DialogDescription className="text-warning/70 text-xs font-medium">
 							That room already has a home section. ATLAS needs your confirmation before swapping.
 						</DialogDescription>
 					</div>
@@ -85,10 +85,10 @@ export function SwapConfirmationModal({
 
 						<div className="space-y-3">
 							<p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground px-1">The other section</p>
-							<div className="p-4 rounded-2xl border-2 border-amber-200 bg-amber-50/50 shadow-sm">
-								<p className="font-bold text-amber-900 truncate">{displacedSectionName}</p>
-								<div className="mt-3 flex items-center gap-2 text-xs text-amber-700/70 font-semibold">
-									<Badge variant="outline" className="bg-white/50 border-amber-200 text-amber-600 h-5 px-1.5 text-xs font-bold">
+							<div className="p-4 rounded-2xl border-2 border-warning-border bg-warning-muted/50 shadow-sm">
+								<p className="font-bold text-warning-foreground truncate">{displacedSectionName}</p>
+								<div className="mt-3 flex items-center gap-2 text-xs text-warning/70 font-semibold">
+									<Badge variant="outline" className="bg-white/50 border-warning-border text-warning h-5 px-1.5 text-xs font-bold">
 										{targetRoomName}
 									</Badge>
 								</div>
@@ -109,15 +109,15 @@ export function SwapConfirmationModal({
 							</div>
 
 							<div className="flex items-center gap-3 text-sm">
-								<div className="size-6 rounded-full bg-amber-100 flex items-center justify-center text-amber-600">
+								<div className="size-6 rounded-full bg-warning/10 flex items-center justify-center text-warning">
 									<ArrowDownToLine className="size-3.5" />
 								</div>
 								<span className="font-medium text-foreground">
 									{displacedSectionName}{' '}
 									{currentRoomName ? (
-										<>moves to <span className="font-bold text-amber-600">{currentRoomName}</span></>
+										<>moves to <span className="font-bold text-warning">{currentRoomName}</span></>
 									) : (
-										<span className="font-bold text-amber-600 italic">will have no home room</span>
+										<span className="font-bold text-warning italic">will have no home room</span>
 									)}
 								</span>
 							</div>
@@ -131,10 +131,10 @@ export function SwapConfirmationModal({
 						<div
 							role="alert"
 							data-testid="swap-displaced-unassigned-warning"
-							className="rounded-2xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900"
+							className="rounded-2xl border border-warning-border bg-warning-muted p-3 text-sm text-warning-foreground"
 						>
 							<p className="font-semibold">Warning: {displacedSectionName} will no longer have a home room.</p>
-							<p className="mt-0.5 text-amber-800/80">Reassign it before generating the timetable.</p>
+							<p className="mt-0.5 text-warning-foreground/80">Reassign it before generating the timetable.</p>
 						</div>
 					) : null}
 				</div>
@@ -182,7 +182,7 @@ export function UnassignConfirmationModal({
 		<Dialog open={open} onOpenChange={onOpenChange}>
 			<DialogContent className="max-w-sm rounded-3xl p-8 overflow-hidden border-border/40 shadow-2xl">
 				<div className="flex flex-col items-center text-center space-y-4">
-					<div className="size-14 rounded-full bg-amber-100 flex items-center justify-center text-amber-600 shadow-inner">
+					<div className="size-14 rounded-full bg-warning/10 flex items-center justify-center text-warning shadow-inner">
 						<AlertCircle className="size-7" />
 					</div>
 

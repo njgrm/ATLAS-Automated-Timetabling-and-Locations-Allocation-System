@@ -244,31 +244,31 @@ export function SubjectCoverageSheet({
 
 							<div className="space-y-4">
 								<h4 className="text-xs font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-2">
-									<div className={`size-1.5 rounded-full ${(detail?.uncoveredGrades.length ?? 0) > 0 ? 'bg-amber-500' : 'bg-emerald-500'}`} />
+									<div className={`size-1.5 rounded-full ${(detail?.uncoveredGrades.length ?? 0) > 0 ? 'bg-warning' : 'bg-emerald-500'}`} />
 									Section coverage
 								</h4>
-								<div className={((detail?.uncoveredGrades.length ?? 0) > 0) ? 'rounded-xl border border-amber-200 bg-amber-50 p-4' : 'rounded-xl border border-emerald-200 bg-emerald-50 p-4'}>
+								<div className={((detail?.uncoveredGrades.length ?? 0) > 0) ? 'rounded-xl border border-warning-border bg-warning-muted p-4' : 'rounded-xl border border-emerald-200 bg-emerald-50 p-4'}>
 									{(detail?.uncoveredGrades.length ?? 0) > 0 ? (
 										<div className="space-y-3">
-											<p className="text-sm font-bold text-amber-900">Some required sections still need a teacher for this subject.</p>
+											<p className="text-sm font-bold text-warning-foreground">Some required sections still need a teacher for this subject.</p>
 											<div className="flex flex-wrap gap-1.5">
 												{detail?.uncoveredGrades.map((grade) => (
 													<Badge key={grade} variant="outline" className={`font-bold ${GRADE_COLORS[String(grade)] ?? ''}`}>{gradeLabel(grade)}</Badge>
 												))}
 											</div>
 											<Link to={`/teaching-load?view=subjects&subjectId=${subject.id}&filter=missing-coverage`} className="inline-flex">
-												<Button size="sm" variant="outline" className="gap-2 border-amber-300 text-amber-900 hover:bg-amber-100">
+												<Button size="sm" variant="outline" className="gap-2 border-warning-border text-warning-foreground hover:bg-warning/10">
 													Fix coverage in Teaching Load
 													<ChevronRight className="size-3.5" />
 												</Button>
 											</Link>
 										</div>
 									) : (detail?.programScopes.length ?? 0) > 0 ? (
-										<div className="flex items-start gap-3 text-amber-900">
-											<AlertTriangle className="mt-0.5 size-4 shrink-0 text-amber-600" />
+										<div className="flex items-start gap-3 text-warning-foreground">
+											<AlertTriangle className="mt-0.5 size-4 shrink-0 text-warning" />
 											<div>
 												<p className="text-sm font-bold">All required sections have assigned teachers.</p>
-												<p className="text-xs font-medium text-amber-800">This subject is scoped to specific programs. Review section coverage in Teaching Load before generation.</p>
+												<p className="text-xs font-medium text-warning-foreground">This subject is scoped to specific programs. Review section coverage in Teaching Load before generation.</p>
 											</div>
 										</div>
 									) : (

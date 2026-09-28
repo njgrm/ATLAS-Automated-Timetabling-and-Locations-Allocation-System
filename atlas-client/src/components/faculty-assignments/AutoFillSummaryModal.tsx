@@ -113,7 +113,7 @@ function SuggestedRowsPreviewList({ rows }: { rows: Array<{ subjectCode: string;
 									<span className="hidden sm:inline">{config.label}</span>
 								</div>
 								{row.warning && (
-									<div className="col-span-4 text-xs text-amber-700 font-semibold mt-0.5">{row.warning}</div>
+									<div className="col-span-4 text-xs text-warning font-semibold mt-0.5">{row.warning}</div>
 								)}
 							</div>
 						);
@@ -214,7 +214,7 @@ export function AutoFillSummaryModal({
 	const sourceToneClass = sectionSource === 'enrollpro'
 		? 'border-emerald-200 bg-emerald-50/60 text-emerald-900'
 		: sectionSource === 'stub'
-			? 'border-amber-200 bg-amber-50/60 text-amber-900'
+			? 'border-warning-border bg-warning-muted/60 text-warning-foreground'
 			: 'border-blue-200 bg-blue-50/60 text-blue-900';
 
 	const previewState = resolveSuggestionPreviewState({
@@ -314,10 +314,10 @@ export function AutoFillSummaryModal({
 							<div className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6" data-testid="teaching-load-distribution-summary">
 								{[
 									{ label: 'Covered rows', value: result.distribution.summary.coveredRows, tone: 'bg-emerald-50 text-emerald-700' },
-									{ label: 'Uncovered rows', value: result.distribution.summary.uncoveredRows, tone: 'bg-amber-50 text-amber-700' },
+									{ label: 'Uncovered rows', value: result.distribution.summary.uncoveredRows, tone: 'bg-warning-muted text-warning' },
 									{ label: 'Proposed moves', value: result.distribution.summary.proposedMoves, tone: 'bg-blue-50 text-blue-700' },
 									{ label: 'Unresolved imbalance', value: result.distribution.summary.unresolvedImbalance, tone: 'bg-rose-50 text-rose-700' },
-									{ label: 'Above standard', value: result.distribution.summary.aboveStandardFaculty, tone: 'bg-amber-50 text-amber-700' },
+									{ label: 'Above standard', value: result.distribution.summary.aboveStandardFaculty, tone: 'bg-warning-muted text-warning' },
 									{ label: 'Over hard cap', value: result.distribution.summary.hardCapBreaches, tone: 'bg-rose-50 text-rose-700' },
 								].map((stat) => (
 									<div key={stat.label} className={`rounded-xl border border-border/40 px-3 py-2 text-center ${stat.tone}`}>
@@ -329,24 +329,24 @@ export function AutoFillSummaryModal({
 						)}
 
 						{specialProgramApprovalQueue.length > 0 && (
-							<div className="mb-4 rounded-xl border border-amber-300 bg-amber-50/60 px-3 py-2.5 text-amber-950">
+							<div className="mb-4 rounded-xl border border-warning-border bg-warning-muted/60 px-3 py-2.5 text-warning-foreground">
 								<div className="flex items-center justify-between gap-2">
 									<p className="text-xs font-bold uppercase tracking-[0.14em]">Manual Capability Approval Required</p>
-									<Badge variant="outline" className="h-4 border-amber-300 bg-white/70 px-1.5 text-xs font-bold uppercase text-amber-800">
+									<Badge variant="outline" className="h-4 border-warning-border bg-white/70 px-1.5 text-xs font-bold uppercase text-warning-foreground">
 										{specialProgramApprovalQueue.length} Candidate{specialProgramApprovalQueue.length === 1 ? '' : 's'}
 									</Badge>
 								</div>
-								<p className="mt-1 text-xs font-semibold leading-snug text-amber-900/90">
+								<p className="mt-1 text-xs font-semibold leading-snug text-warning-foreground/90">
 									These candidates are plausible for SPA/SPS redistribution but remain blocked until a scheduler grants an explicit capability override.
 								</p>
 								<div className="mt-2 grid gap-1.5">
 									{specialProgramApprovalQueue.slice(0, 6).map((candidate) => (
-										<div key={`${candidate.subjectCode}:${candidate.facultyId}`} className="rounded-lg border border-amber-200 bg-white/70 px-2 py-1.5 text-xs font-semibold">
+										<div key={`${candidate.subjectCode}:${candidate.facultyId}`} className="rounded-lg border border-warning-border bg-white/70 px-2 py-1.5 text-xs font-semibold">
 											<div className="flex items-center justify-between gap-2">
-												<span className="font-bold text-amber-900">{candidate.subjectCode} * {candidate.facultyName}</span>
-												<span className="text-amber-700/90">{candidate.currentTotalAssignedPairs} pairs</span>
+												<span className="font-bold text-warning-foreground">{candidate.subjectCode} * {candidate.facultyName}</span>
+												<span className="text-warning/90">{candidate.currentTotalAssignedPairs} pairs</span>
 											</div>
-											<p className="mt-1 text-amber-800/90">Needs: {candidate.requiredSpecializationCodes.join(', ')}</p>
+											<p className="mt-1 text-warning-foreground/90">Needs: {candidate.requiredSpecializationCodes.join(', ')}</p>
 										</div>
 									))}
 								</div>
@@ -389,10 +389,10 @@ export function AutoFillSummaryModal({
 											<Badge variant="outline" className="text-xs font-bold uppercase">Rows: {staffingTruth.baseline.totalTeachableRows}</Badge>
 										</div>
 										<div className="grid gap-3 md:grid-cols-3">
-											<div className="rounded-xl border border-amber-200 bg-amber-50/50 p-3 space-y-1">
-												<p className="text-xs font-bold uppercase tracking-widest text-amber-700">Real Only</p>
-												<p className="text-lg font-semibold text-amber-900">{staffingTruth.realOnly.shortageRows} rows</p>
-												<p className="text-xs font-semibold text-amber-800/80">{staffingTruth.realOnly.shortageConcurrentHoursPerWeek}h shortage</p>
+											<div className="rounded-xl border border-warning-border bg-warning-muted/50 p-3 space-y-1">
+												<p className="text-xs font-bold uppercase tracking-widest text-warning">Real Only</p>
+												<p className="text-lg font-semibold text-warning-foreground">{staffingTruth.realOnly.shortageRows} rows</p>
+												<p className="text-xs font-semibold text-warning-foreground/80">{staffingTruth.realOnly.shortageConcurrentHoursPerWeek}h shortage</p>
 											</div>
 											<div className="rounded-xl border border-blue-200 bg-blue-50/50 p-3 space-y-1">
 												<p className="text-xs font-bold uppercase tracking-widest text-blue-700">Maximum 40h</p>
@@ -508,8 +508,8 @@ export function AutoFillSummaryModal({
 
 								{/* Actionable Strategy Recommendations */}
 								<div className="grid gap-4 md:grid-cols-2 pt-2">
-									<div className="p-4 rounded-xl bg-amber-50 border border-amber-100 space-y-1.5">
-										<p className="text-xs font-bold text-amber-700 uppercase tracking-widest flex items-center gap-2">
+									<div className="p-4 rounded-xl bg-warning-muted border border-warning-border space-y-1.5">
+										<p className="text-xs font-bold text-warning uppercase tracking-widest flex items-center gap-2">
 											<Users2 className="size-3.5" /> Strategy: Internal Balance
 										</p>
 										<p className="text-xs text-blue-900/80 leading-relaxed font-bold">
@@ -542,14 +542,14 @@ export function AutoFillSummaryModal({
 							</div>
 						) : hasResult && result && !hasShortage && hasImbalance && distribution ? (
 							<div className="space-y-5 max-w-3xl mx-auto" data-testid="teaching-load-distribution-imbalance">
-								<div className="rounded-2xl border border-amber-200 bg-amber-50/70 p-4">
+								<div className="rounded-2xl border border-warning-border bg-warning-muted/70 p-4">
 									<div className="flex items-start gap-3">
-										<div className="size-10 shrink-0 rounded-full bg-amber-100 flex items-center justify-center text-amber-700">
+										<div className="size-10 shrink-0 rounded-full bg-warning/10 flex items-center justify-center text-warning">
 											<AlertTriangle className="size-5" />
 										</div>
 										<div className="min-w-0">
 											<h3 className="text-lg font-bold text-foreground">Coverage complete, but workload is unbalanced</h3>
-											<p className="text-sm font-medium text-amber-900/90 leading-relaxed">
+											<p className="text-sm font-medium text-warning-foreground/90 leading-relaxed">
 												All {distribution.summary.coveredRows} subject-section pairs have an owner. This is not full success:
 												{distribution.summary.aboveStandardFaculty} teacher{distribution.summary.aboveStandardFaculty === 1 ? '' : 's'} exceed the teaching standard,
 												and ATLAS proposes {distribution.summary.proposedMoves} exact move{distribution.summary.proposedMoves === 1 ? '' : 's'} to qualified same-department receivers.
@@ -560,10 +560,10 @@ export function AutoFillSummaryModal({
 								<div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
 									{[
 										{ label: 'Covered rows', value: distribution.summary.coveredRows, tone: 'bg-emerald-50 text-emerald-700' },
-										{ label: 'Uncovered rows', value: distribution.summary.uncoveredRows, tone: 'bg-amber-50 text-amber-700' },
+										{ label: 'Uncovered rows', value: distribution.summary.uncoveredRows, tone: 'bg-warning-muted text-warning' },
 										{ label: 'Proposed moves', value: distribution.summary.proposedMoves, tone: 'bg-blue-50 text-blue-700' },
 										{ label: 'Unresolved imbalance', value: distribution.summary.unresolvedImbalance, tone: 'bg-rose-50 text-rose-700' },
-										{ label: 'Above standard', value: distribution.summary.aboveStandardFaculty, tone: 'bg-amber-50 text-amber-700' },
+										{ label: 'Above standard', value: distribution.summary.aboveStandardFaculty, tone: 'bg-warning-muted text-warning' },
 										{ label: 'Over hard cap', value: distribution.summary.hardCapBreaches, tone: 'bg-rose-50 text-rose-700' },
 									].map((stat) => (
 										<div key={stat.label} className={`rounded-xl border border-border/40 px-3 py-2 text-center ${stat.tone}`}>
@@ -630,7 +630,7 @@ export function AutoFillSummaryModal({
 										<p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Temporary Substitute</p>
 									</div>
 									<div className="space-y-1 text-center">
-										<div className="inline-flex items-center justify-center size-8 rounded-full bg-amber-100 text-amber-600 mb-1">
+										<div className="inline-flex items-center justify-center size-8 rounded-full bg-warning/10 text-warning mb-1">
 											<XCircle className="size-4" />
 										</div>
 										<p className="text-2xl font-bold tracking-tight">{breakdown.unresolvedRows}</p>
@@ -685,12 +685,12 @@ export function AutoFillSummaryModal({
 							</div>
 						)}
 						{applyDisabledReason && !reviewOnly && (
-							<p data-testid="teaching-load-suggestion-feedback" className="rounded-lg border border-amber-200 bg-amber-50 px-2 py-1 text-xs font-semibold text-amber-800" aria-live="polite">
+							<p data-testid="teaching-load-suggestion-feedback" className="rounded-lg border border-warning-border bg-warning-muted px-2 py-1 text-xs font-semibold text-warning-foreground" aria-live="polite">
 								{applyDisabledReason}
 							</p>
 						)}
 						{reviewWarning && !applyDisabledReason && (
-							<p data-testid="teaching-load-suggestion-warning" className="rounded-lg border border-amber-200 bg-amber-50 px-2 py-1 text-xs font-semibold text-amber-800" aria-live="polite">
+							<p data-testid="teaching-load-suggestion-warning" className="rounded-lg border border-warning-border bg-warning-muted px-2 py-1 text-xs font-semibold text-warning-foreground" aria-live="polite">
 								{reviewWarning}
 							</p>
 						)}

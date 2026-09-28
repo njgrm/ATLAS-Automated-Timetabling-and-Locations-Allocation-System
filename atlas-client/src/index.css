@@ -88,6 +88,22 @@
 	--secondary: 220 14% 96%;
 	--secondary-foreground: 222 47% 11%;
 
+	/* ─── Warning family (A3-C8) — "needs attention", deliberately NOT alarming.
+	   Saturation is pulled well below Tailwind amber-* (76% vs 92-96%) and the
+	   lightness lifted, so a warning banner reads as informational friction
+	   rather than a failure. It stays a full four-role family so two meanings
+	   never collapse into one shade:
+	     --warning             mid amber — icons, accents, solid attention dots
+	     --warning-foreground  dark readable amber — body/label text on a surface
+	     --warning-muted       pale amber — the panel surface behind a warning
+	     --warning-border      the tint of the surface's own border
+	   Red stays reserved: --destructive and the DepEd grade ramp (G9 red per
+	   AGENTS.md §8) are untouched, and a yellow warning never reads as G8. ─── */
+	--warning: 35 76% 44%;
+	--warning-foreground: 28 62% 26%;
+	--warning-muted: 44 92% 96%;
+	--warning-border: 41 78% 85%;
+
 	/* ─── Default accent: emerald (SMART scheduling portal identity).
 	   May be overridden at runtime by applyEnrollProAccentTheme() when a
 	   school sets a custom brand color in EnrollPro. ─── */
@@ -126,6 +142,22 @@
 	--sidebar-ring: var(--accent-ring);
 }
 
+/* ─── Warning family, dark pair (A3-C8) — DEFINED BUT NOT REACHABLE TODAY.
+   There is no theme toggle in the client: nothing writes a `dark` class onto
+   <html>/<body> (no classList/add('dark') writer exists in src/), and
+   index.css had no dark token surface at all before A3-C8. So these four
+   overrides are a real, greppable, tested surface that no running code path
+   currently selects. They are defined ahead of the toggle on purpose, and
+   they must not be read as evidence that dark mode ships today. The ramp
+   inverts: the pale surface becomes a dark one, and the dark text becomes a
+   light amber that keeps the same contrast against it. ─── */
+.dark {
+	--warning: 42 88% 62%;
+	--warning-foreground: 45 92% 86%;
+	--warning-muted: 30 42% 15%;
+	--warning-border: 34 48% 29%;
+}
+
 @theme inline {
 	--font-sans: 'Inter Variable', ui-sans-serif, system-ui, sans-serif;
 	--font-heading: 'Poppins', 'Inter Variable', ui-sans-serif, system-ui, sans-serif;
@@ -152,6 +184,10 @@
 	--color-accent-foreground: hsl(var(--accent-foreground));
 	--color-destructive: hsl(var(--destructive));
 	--color-destructive-foreground: hsl(var(--destructive-foreground));
+	--color-warning: hsl(var(--warning));
+	--color-warning-foreground: hsl(var(--warning-foreground));
+	--color-warning-muted: hsl(var(--warning-muted));
+	--color-warning-border: hsl(var(--warning-border));
 	--color-border: hsl(var(--border));
 	--color-input: hsl(var(--input));
 	--color-ring: hsl(var(--ring));

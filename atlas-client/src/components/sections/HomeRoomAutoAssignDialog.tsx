@@ -55,7 +55,7 @@ type Props = {
 
 const GRADE_COLORS: Record<number, string> = {
 	7: 'bg-green-100 text-green-700',
-	8: 'bg-yellow-100 text-yellow-700',
+	8: 'bg-warning-muted text-warning',
 	9: 'bg-red-100 text-red-700',
 	10: 'bg-blue-100 text-blue-700',
 };
@@ -231,7 +231,7 @@ export function HomeRoomAutoAssignDialog({ open, onOpenChange, schoolId, schoolY
 							<Badge variant="outline">{result.counts.sectionsConsidered} considered</Badge>
 							<Badge variant="outline" className="bg-green-50 text-green-700">{result.counts.assigned} to assign</Badge>
 							{result.counts.skipped > 0 && (
-								<Badge variant="outline" className="bg-amber-50 text-amber-700">{result.counts.skipped} skipped</Badge>
+								<Badge variant="outline" className="bg-warning-muted text-warning">{result.counts.skipped} skipped</Badge>
 							)}
 							{result.counts.existingPreserved > 0 && (
 								<Badge variant="outline">{result.counts.existingPreserved} preserved</Badge>
@@ -273,13 +273,13 @@ export function HomeRoomAutoAssignDialog({ open, onOpenChange, schoolId, schoolY
 					{/* Skipped sections */}
 					{result && !loading && result.skipped.length > 0 && (
 						<div className="space-y-2">
-							<p className="text-xs font-semibold text-amber-600 uppercase tracking-wider">Skipped sections</p>
+							<p className="text-xs font-semibold text-warning uppercase tracking-wider">Skipped sections</p>
 							<div className="space-y-1">
 								{result.skipped.map((item) => (
-									<div key={item.sectionId} className="flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50 px-2 py-1 text-xs">
+									<div key={item.sectionId} className="flex items-center gap-2 rounded-md border border-warning-border bg-warning-muted px-2 py-1 text-xs">
 										<Badge className={`text-[0.65rem] ${GRADE_COLORS[item.gradeLevel] ?? ''}`}>G{item.gradeLevel}</Badge>
 										<span className="font-medium flex-1 truncate">{item.sectionName}</span>
-										<span className="text-amber-600">{REASON_LABELS[item.reason] ?? item.reason}</span>
+										<span className="text-warning">{REASON_LABELS[item.reason] ?? item.reason}</span>
 									</div>
 								))}
 							</div>

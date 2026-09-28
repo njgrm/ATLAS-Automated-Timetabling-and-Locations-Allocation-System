@@ -30,7 +30,7 @@ type TeachingLoadTruthPanelProps = {
 const CHIP_TONE: Record<'neutral' | 'success' | 'warning' | 'danger' | 'unknown', string> = {
 	neutral: 'border-border/60 bg-background text-foreground',
 	success: 'border-emerald-200 bg-emerald-50 text-emerald-800',
-	warning: 'border-amber-200 bg-amber-50 text-amber-800',
+	warning: 'border-warning-border bg-warning-muted text-warning-foreground',
 	danger: 'border-rose-200 bg-rose-50 text-rose-800',
 	unknown: 'border-dashed border-border bg-muted/40 text-muted-foreground',
 };
@@ -154,7 +154,7 @@ export function TeachingLoadTruthPanel({ model, loading = false, sourceRevision 
 												'h-6 cursor-help rounded-full px-2 text-xs font-semibold shadow-none',
 												upstreamVerified
 													? 'border-slate-200 bg-slate-50 text-slate-700'
-													: 'border-amber-200 bg-amber-50 text-amber-800',
+													: 'border-warning-border bg-warning-muted text-warning-foreground',
 											)}
 											data-testid="teaching-load-truth-source-badge"
 										>
@@ -298,7 +298,7 @@ export function TeachingLoadTruthPanel({ model, loading = false, sourceRevision 
 				<div
 					data-testid="teaching-load-truth-policy-unknown"
 					role="status"
-					className="mt-1.5 flex items-center gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-2 py-1 text-xs font-semibold text-amber-800"
+					className="mt-1.5 flex items-center gap-1.5 rounded-lg border border-warning-border bg-warning-muted px-2 py-1 text-xs font-semibold text-warning-foreground"
 				>
 					<AlertTriangle className="size-3.5" />
 					<span>{model.policyCapacity.reason}</span>
@@ -319,7 +319,7 @@ export function TeachingLoadTruthPanel({ model, loading = false, sourceRevision 
 			{model && isKnown(model.zeroLoadFaculty) && model.zeroLoadFaculty.value.count > 0 && (
 				<div
 					data-testid="teaching-load-truth-zero-load-note"
-					className="mt-1.5 flex items-center gap-1.5 text-xs font-semibold text-amber-700"
+					className="mt-1.5 flex items-center gap-1.5 text-xs font-semibold text-warning"
 				>
 					<Users className="size-3.5" />
 					<span>{model.zeroLoadFaculty.value.count} active teacher(s) currently carry no load.</span>
