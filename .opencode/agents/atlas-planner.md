@@ -4,7 +4,7 @@ mode: primary
 model: opencode-go/space-bunny-free
 variant: high
 temperature: 0.1
-steps: 120
+steps: 250
 permission:
   edit:
     "*": deny
