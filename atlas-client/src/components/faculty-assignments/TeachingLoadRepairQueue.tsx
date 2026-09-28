@@ -37,7 +37,7 @@ type TeachingLoadRepairQueueProps = {
 function taskTone(kind: TeachingLoadRepairTaskKind) {
 	if (kind === 'save-draft') return 'border-sky-200 bg-sky-50 text-sky-700';
 	if (kind === 'over-cap') return 'border-rose-200 bg-rose-50 text-rose-700';
-	if (kind === 'missing-load' || kind === 'teacher-missing-load') return 'border-amber-200 bg-amber-50 text-amber-700';
+	if (kind === 'missing-load' || kind === 'teacher-missing-load') return 'border-warning-border bg-warning-muted text-warning';
 	if (kind === 'placeholder') return 'border-violet-200 bg-violet-50 text-violet-700';
 	if (kind === 'read-only') return 'border-slate-200 bg-slate-50 text-slate-700';
 	return 'border-emerald-200 bg-emerald-50 text-emerald-700';
@@ -102,7 +102,7 @@ export function TeachingLoadRepairQueue({
 							<p className="shrink-0 font-semibold text-foreground" aria-live="polite">{currentItem.status}</p>
 						</div>
 						{currentItem.disabledReason && (
-							<p data-testid="teaching-load-repair-disabled-reason" className="mt-1 rounded-lg border border-amber-200 bg-amber-50 px-2 py-1 text-xs font-semibold text-amber-800">
+							<p data-testid="teaching-load-repair-disabled-reason" className="mt-1 rounded-lg border border-warning-border bg-warning-muted px-2 py-1 text-xs font-semibold text-warning-foreground">
 								{currentItem.disabledReason}
 							</p>
 						)}

@@ -40,12 +40,12 @@ const TONE_STYLES: Record<Tone, { card: string; iconWrap: string; icon: string; 
 		cta: 'text-red-800 hover:text-red-900',
 	},
 	warning: {
-		card: 'border-amber-200 bg-amber-50',
-		iconWrap: 'bg-amber-100',
-		icon: 'text-amber-700',
-		title: 'text-amber-900',
-		body: 'text-amber-800/80',
-		cta: 'text-amber-800 hover:text-amber-900',
+		card: 'border-warning-border bg-warning-muted',
+		iconWrap: 'bg-warning/10',
+		icon: 'text-warning',
+		title: 'text-warning-foreground',
+		body: 'text-warning-foreground/80',
+		cta: 'text-warning-foreground hover:text-warning-foreground',
 	},
 	success: {
 		card: 'border-emerald-200 bg-emerald-50',

@@ -22,7 +22,7 @@ function NotificationRow({
 	const target = resolveNotificationRoute(item.resourceType, item.resourceId);
 	const body = (
 		<span className="flex min-w-0 items-start gap-2">
-			{!item.read && <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-amber-500" aria-hidden="true" />}
+			{!item.read && <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-warning" aria-hidden="true" />}
 			<span className={cn('min-w-0', item.read && 'pl-4')}>
 				<span className="block truncate font-medium text-foreground">{item.title}</span>
 				{item.body && <span className="mt-0.5 line-clamp-2 block text-xs text-muted-foreground">{item.body}</span>}
@@ -35,7 +35,7 @@ function NotificationRow({
 			<div
 				data-testid="notification-bell-item"
 				data-read={item.read ? 'true' : 'false'}
-				className={cn('w-full rounded-lg px-3 py-2.5 text-left text-sm', !item.read && 'bg-amber-50')}
+				className={cn('w-full rounded-lg px-3 py-2.5 text-left text-sm', !item.read && 'bg-warning-muted')}
 			>
 				{body}
 			</div>
@@ -51,7 +51,7 @@ function NotificationRow({
 			onClick={() => onOpen(item)}
 			className={cn(
 				'h-auto w-full items-start justify-start rounded-lg px-3 py-2.5 text-left text-sm font-normal whitespace-normal',
-				!item.read && 'bg-amber-50',
+				!item.read && 'bg-warning-muted',
 			)}
 		>
 			{body}
@@ -90,7 +90,7 @@ export function NotificationBell() {
 					{unreadCount > 0 && (
 						<span
 							data-testid="notification-bell-unread-count"
-							className="absolute top-1.5 right-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-500 px-1 text-xs leading-none font-bold text-white"
+							className="absolute top-1.5 right-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-warning px-1 text-xs leading-none font-bold text-white"
 						>
 							{unreadCount > 9 ? '9+' : unreadCount}
 						</span>

@@ -53,6 +53,22 @@ type Props = {
 	onApplied: () => void;
 };
 
+/**
+ * DepEd grade colours (AGENTS.md §8): G7 green, G8 yellow, G9 red, G10 blue.
+ *
+ * A3-C8r1 swept this file's G8 badge (Tailwind's yellow 100 surface + yellow 700 text) onto
+ * the warning family, which was wrong: this is a live grade badge (rendered where
+ * `GRADE_COLORS` is consumed in this file — see the guard in
+ * a3-c8-warning-token.test.ts, which asserts the reference rather than a line number,
+ * because the line moves every time a comment is added here)
+ * as `G{grade}`), so the sweep turned G8 from yellow into "needs attention" and broke the §8
+ * grade ramp. The entry below is restored to its original shades and is exempted, by exact
+ * line, from the A3-C8 ratchet — see GRADE_BADGE_EXEMPTIONS in
+ * `src/lib/__tests__/a3-c8-warning-token.test.ts`, which is what makes the exemption safe.
+ *
+ * Note the class names are deliberately NOT spelled out in this comment: the ratchet counts
+ * LINES CONTAINING a raw colour class, so quoting them here would add a false offender.
+ */
 const GRADE_COLORS: Record<number, string> = {
 	7: 'bg-green-100 text-green-700',
 	8: 'bg-yellow-100 text-yellow-700',
@@ -231,7 +247,7 @@ export function HomeRoomAutoAssignDialog({ open, onOpenChange, schoolId, schoolY
 							<Badge variant="outline">{result.counts.sectionsConsidered} considered</Badge>
 							<Badge variant="outline" className="bg-green-50 text-green-700">{result.counts.assigned} to assign</Badge>
 							{result.counts.skipped > 0 && (
-								<Badge variant="outline" className="bg-amber-50 text-amber-700">{result.counts.skipped} skipped</Badge>
+								<Badge variant="outline" className="bg-warning-muted text-warning">{result.counts.skipped} skipped</Badge>
 							)}
 							{result.counts.existingPreserved > 0 && (
 								<Badge variant="outline">{result.counts.existingPreserved} preserved</Badge>
@@ -273,13 +289,13 @@ export function HomeRoomAutoAssignDialog({ open, onOpenChange, schoolId, schoolY
 					{/* Skipped sections */}
 					{result && !loading && result.skipped.length > 0 && (
 						<div className="space-y-2">
-							<p className="text-xs font-semibold text-amber-600 uppercase tracking-wider">Skipped sections</p>
+							<p className="text-xs font-semibold text-warning uppercase tracking-wider">Skipped sections</p>
 							<div className="space-y-1">
 								{result.skipped.map((item) => (
-									<div key={item.sectionId} className="flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50 px-2 py-1 text-xs">
+									<div key={item.sectionId} className="flex items-center gap-2 rounded-md border border-warning-border bg-warning-muted px-2 py-1 text-xs">
 										<Badge className={`text-[0.65rem] ${GRADE_COLORS[item.gradeLevel] ?? ''}`}>G{item.gradeLevel}</Badge>
 										<span className="font-medium flex-1 truncate">{item.sectionName}</span>
-										<span className="text-amber-600">{REASON_LABELS[item.reason] ?? item.reason}</span>
+										<span className="text-warning">{REASON_LABELS[item.reason] ?? item.reason}</span>
 									</div>
 								))}
 							</div>
