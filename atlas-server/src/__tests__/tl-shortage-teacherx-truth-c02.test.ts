@@ -3,6 +3,7 @@ import test from 'node:test';
 
 import { withDataContext } from '../lib/data-context.js';
 import { autoFill, type AutoFillResult } from '../services/teaching-load-automation.service.js';
+import { evaluateWeeklyLoad } from '../services/teaching-load-capacity.service.js';
 
 /**
  * A8 TL-SHORTAGE-C02 items 2 and 3 — the real `autoFill` production path, over a
@@ -82,7 +83,39 @@ type Fixture = {
 	faculty?: Row[];
 	facultySubjects?: Row[];
 	policies?: Row[];
+	/**
+	 * Existing `subjectSectionOwnership` rows. Each carries the nested
+	 * `facultySubject.subject` shape the capacity builder reads, mirroring the
+	 * `select` the real query issues.
+	 */
+	ownerships?: Row[];
 };
+
+/** One existing ownership row, with the nested subject shape the reads expect. */
+function ownership(id: number, facultyId: number, subject: Row, sectionId: number): Row {
+	return {
+		id,
+		schoolId: SCHOOL,
+		schoolYearId: YEAR,
+		facultyId,
+		subjectId: subject.id,
+		sectionId,
+		facultySubjectId: 1000 + id,
+		facultySubject: {
+			assignedBy: ACTOR,
+			subject: {
+				id: subject.id,
+				code: subject.code,
+				minMinutesPerWeek: subject.minMinutesPerWeek,
+				rotationFamily: subject.rotationFamily,
+				modularGroupId: subject.modularGroupId,
+				modularOrder: subject.modularOrder,
+				termGroupId: subject.termGroupId,
+				termCount: subject.termCount,
+			},
+		},
+	};
+}
 
 function readModel(name: string, rows: Row[], writes: string[]): any {
 	const model: any = {
@@ -237,7 +270,7 @@ async function runAutoFill(fixture: Fixture, coverageMode?: 'REAL_FACULTY_STANDA
 		sectionSnapshot: { findUnique: async () => null },
 		facultyMirror: readModel('facultyMirror', fixture.faculty ?? [], writes),
 		subject: readModel('subject', fixture.subjects ?? [], writes),
-		subjectSectionOwnership: readModel('subjectSectionOwnership', empty, writes),
+		subjectSectionOwnership: readModel('subjectSectionOwnership', fixture.ownerships ?? empty, writes),
 		departmentAlias: readModel('departmentAlias', empty, writes),
 		departmentLabel: readModel('departmentLabel', empty, writes),
 		subjectOwnerPrefix: readModel('subjectOwnerPrefix', empty, writes),
@@ -316,6 +349,182 @@ test('item 2: the still-need count matches the substitute rows and the uncovered
 	// from one field while the plan reports uncovered rows.
 	assert.equal(result.distribution?.summary.uncoveredRows, 2);
 	assert.deepEqual(result.teacherXResolution?.stillUncoveredSubjectCodes?.sort(), ['FILI', 'MAPEH']);
+});
+
+// ─── correction R1 / B1: `created` counts PERSISTED assignments only ──────────
+
+test('B1: a Teacher-X run that only closes a pair on paper reports created 0', async () => {
+	// MAPEH has no qualified real teacher, so the single pair is closed ONLY by a
+	// preview-only `TEMPORARY_SUBSTITUTE` row (facultyId null, never persisted).
+	// Failing-first evidence: on the pre-correction source this reported
+	// `created === 1` and `assignmentsCreated === 1` with zero persisted rows,
+	// because `totalCreated = created + teacherXRowsClosed` added the substitute
+	// count. `autoFill` is preview-only, so the truthful persisted count is 0.
+	const { result, writes } = await runAutoFill({
+		subjects: [subject(MAPEH, 'MAPEH', 'MAPEH', [7])],
+		sections: [section(SECTION_MAPEH_A)],
+		faculty: [faculty(101, 'MATH')],
+	}, 'REAL_FACULTY_THEN_TEACHER_X');
+
+	assert.equal(result.created, 0, 'a preview-only substitute row is NOT a created assignment');
+	assert.equal(result.assignmentsCreated, 0, '`assignmentsCreated` agrees: nothing was persisted');
+	assert.equal(result.stillNeedRealTeacher, 1, 'the pair still needs a real teacher');
+	assert.equal(result.teacherXResolution?.unsavedSubstituteRows, 1, 'the substitute count stays truthful');
+	assert.equal(result.uniqueTeachersAffected, 0, 'no teacher was affected by an unsaved substitute row');
+	assert.deepEqual(writes, [], 'and still zero writes');
+});
+
+test('B1: the substitute count is still reported when nothing was created', async () => {
+	// The substitute reporting is NOT deleted by the correction: a UI still needs
+	// to know rows were closed only on paper.
+	const { result } = await runAutoFill({
+		subjects: [subject(MAPEH, 'MAPEH', 'MAPEH', [7])],
+		sections: [section(SECTION_MAPEH_A)],
+		faculty: [faculty(101, 'MATH')],
+	}, 'REAL_FACULTY_THEN_TEACHER_X');
+
+	assert.equal(result.teacherXResolution?.rowsClosedByTeacherX, 1, 'Teacher-X still reports the rows it closed on paper');
+	assert.equal(result.created + (result.teacherXResolution?.unsavedSubstituteRows ?? 0), 1, 'the two numbers are separate, not double-counted');
+});
+
+test('B1: a run that really assigns a real or placeholder teacher reports created 1', async () => {
+	// The positive control: a real, qualified teacher at a 4h contract takes the
+	// single pair. That assignment becomes a real `plan.inserts` row, so the
+	// persisted count must be 1 — the correction must not simply zero the field.
+	const { result } = await runAutoFill({
+		subjects: [subject(MAPEH, 'MAPEH', 'MAPEH', [7])],
+		sections: [section(SECTION_MAPEH_A)],
+		faculty: [
+			faculty(101, 'MAPEH', { maxHours: 4 }),
+			faculty(900, 'MAPEH', { maxHours: 30, placeholder: true }),
+		],
+		facultySubjects: [facultySubject(700, 900, MAPEH)],
+	});
+
+	assert.equal(rowsOfType(result, 'REAL_TEACHER').length, 1, 'the real teacher was assigned the pair');
+	assert.equal(result.created, 1, 'a real, persisted assignment IS counted as created');
+	assert.equal(result.assignmentsCreated, 1, '`assignmentsCreated` agrees');
+	assert.equal(result.uniqueTeachersAffected, 1, 'exactly one teacher is affected');
+	assert.equal(result.teacherXResolution, undefined, 'a non-Teacher-X run reports no substitute resolution');
+});
+
+test('B1: a saved placeholder assignment is counted as created, a substitute is not', async () => {
+	// The two row types that both appear as an assignment in the plan: the
+	// placeholder assignment is a real insert (counted), the substitute row is
+	// not (not counted). This is the distinction the correction turns on.
+	const { result } = await runAutoFill({
+		subjects: [subject(MAPEH, 'MAPEH', 'MAPEH', [7])],
+		sections: [section(SECTION_MAPEH_A), section(SECTION_MAPEH_B)],
+		faculty: [
+			faculty(101, 'MATH'),
+			faculty(900, 'MAPEH', { maxHours: 30, placeholder: true }),
+		],
+		facultySubjects: [facultySubject(700, 900, MAPEH)],
+	}, 'REAL_FACULTY_THEN_TEACHER_X');
+
+	assert.equal(rowsOfType(result, 'PLACEHOLDER_TEACHER').length, 2, 'the placeholder closed both pairs');
+	assert.equal(result.created, 2, 'both placeholder assignments are persisted inserts and are counted');
+	assert.equal(result.assignmentsCreated, 2);
+	assert.equal(result.uniqueTeachersAffected, 1, 'one placeholder teacher, so one affected teacher');
+	assert.equal(result.stillNeedRealTeacher, 0);
+	assert.equal(result.teacherXResolution?.unsavedSubstituteRows, 0, 'no substitute row was needed, so none is counted');
+});
+
+// ─── correction R1 / B2: ONE cap governs over-cap AND move eligibility ───────
+
+const RECONCILER = 201;
+const OVER_CAP_RECEIVER = 202;
+
+test('B2: a teacher the shared evaluation calls over cap is never a move target', async () => {
+	// THE COHERENCE RULE. The donor (201) is over cap and owes minutes. The only
+	// other same-department teacher (202) carries 600 ancillary minutes against a
+	// 30h contract, so the ONE shared evaluation puts his applicable cap at
+	// 1800-600 = 1200 while he already teaches 1440 — he IS over cap.
+	//
+	// Failing-first evidence: on the pre-correction source the receiver gate
+	// re-derived its own cap as `min(maxHours*60, standard)` = min(1800, 1800) =
+	// 1800, saw 360 spare minutes, and proposed a move INTO a teacher the same
+	// run reported as over cap. One cap must govern both decisions.
+	const math = subject(MATH, 'MATH', 'MATH', [7]);
+	const sections = [
+		section(8001), section(8002), section(8003), section(8004),
+		section(8005), section(8006), section(8007), section(8008),
+		section(8009), section(8010), section(8011), section(8012),
+		section(8013), section(8014),
+	];
+	const donor = faculty(RECONCILER, 'MATH', { maxHours: 30 });
+	const receiver = {
+		...faculty(OVER_CAP_RECEIVER, 'MATH', { maxHours: 30 }),
+		ancillaryMinutesPerWeek: 600,
+	};
+
+	const { result } = await runAutoFill({
+		subjects: [math],
+		sections,
+		faculty: [donor, receiver],
+		ownerships: [
+			// Donor owns 8 pairs (1920 > his 1800 cap): he is over cap.
+			...sections.slice(0, 8).map((row, index) => ownership(index + 1, RECONCILER, math, row.id)),
+			// The receiver owns 6 pairs (1440) against a 1200 applicable cap.
+			...sections.slice(8).map((row, index) => ownership(index + 100, OVER_CAP_RECEIVER, math, row.id)),
+		],
+	});
+
+	const overCapIds = result.distribution?.summary.aboveStandardFaculty;
+	const moveTargets = (result.distribution?.moves ?? []).map((move) => move.toFacultyId);
+
+	assert.ok(
+		overCapIds !== undefined,
+		'the distribution plan was evaluated, so this is a real coherence check',
+	);
+	assert.equal(
+		moveTargets.includes(OVER_CAP_RECEIVER),
+		false,
+		'a receiver the shared evaluation reports over cap must never be a move target',
+	);
+	for (const target of moveTargets) {
+		assert.notEqual(target, OVER_CAP_RECEIVER, 'no proposed move may target the over-cap receiver');
+	}
+});
+
+test('B2: the shared evaluation is what decides over-cap, on this exact fixture', async () => {
+	// The positive half of the control above, so the assertion is not vacuous:
+	// this receiver really IS over cap under the ONE shared rule, and the
+	// donor really is too. If the receiver were merely ineligible for some
+	// unrelated reason the previous test would pass for the wrong reason.
+	const math = subject(MATH, 'MATH', 'MATH', [7]);
+	const sections = [
+		section(8001), section(8002), section(8003), section(8004),
+		section(8005), section(8006), section(8007), section(8008),
+		section(8009), section(8010), section(8011), section(8012),
+		section(8013), section(8014),
+	];
+	const { result } = await runAutoFill({
+		subjects: [math],
+		sections,
+		faculty: [
+			faculty(RECONCILER, 'MATH', { maxHours: 30 }),
+			{ ...faculty(OVER_CAP_RECEIVER, 'MATH', { maxHours: 30 }), ancillaryMinutesPerWeek: 600 },
+		],
+		ownerships: [
+			...sections.slice(0, 8).map((row, index) => ownership(index + 1, RECONCILER, math, row.id)),
+			...sections.slice(8).map((row, index) => ownership(index + 100, OVER_CAP_RECEIVER, math, row.id)),
+		],
+	});
+
+	// 6 x 240 = 1440 teaching against a 1800-600 = 1200 applicable cap.
+	const shared = evaluateWeeklyLoad(1440, { maxHoursPerWeek: 30, ancillaryMinutesPerWeek: 600 });
+	assert.equal(shared.capMinutes, 1200);
+	assert.equal(shared.isOverLimit, true, 'the fixture receiver is genuinely over cap under the shared rule');
+	// The retired receiver-gate cap saw 1800 - 1440 = 360 spare and said "yes".
+	const retiredReceiverCap = Math.min(30 * 60, 1800);
+	assert.equal(retiredReceiverCap, 1800, 'the retired rule is recorded: it ignored the teacher contract and the ancillary credit');
+	assert.ok(
+		1800 - 1440 >= 240,
+		'and it therefore believed he had spare capacity for a 240-minute move — the defect being closed',
+	);
+	// The plan is still evaluated and the donor is still recognised as over cap.
+	assert.equal(result.distribution?.summary.aboveStandardFaculty, 2, 'both teachers are reported over cap by the shared rule');
 });
 
 // ─── item 3: a SAVED placeholder is assignable, and only last ──────────────────

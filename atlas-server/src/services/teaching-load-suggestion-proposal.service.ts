@@ -114,6 +114,14 @@ function isCompleteEvaluatedDistribution(plan: unknown): plan is TeachingLoadDis
  */
 function distributionPlanSignature(plan: TeachingLoadDistributionPlan): string {
 	const parts: string[] = [`P:${plan.policy?.revision ?? 'NO_POLICY'}`];
+	// N1 (correction R1): `retains` are deliberately NOT in this signature. The
+	// retain drift check below runs against `refreshedPlan.retains` inside the
+	// apply transaction, so the pair whose owner is asserted is the one the
+	// freshly-computed plan will leave alone — not the one the reviewer saw.
+	// Binding retains here would additionally reject an apply whenever the
+	// recomputed retain set differs in any pair, which is a different (and
+	// stricter) contract than the preview->transaction window check below.
+	// Retains are also never written, so they cannot cause a silent overwrite.
 	for (const insert of plan.inserts) {
 		parts.push(`I:${insert.subjectId}:${insert.sectionId}:${insert.facultyId}`);
 	}
@@ -519,13 +527,28 @@ export async function applyTeachingLoadSuggestionProposal(input: {
 		// The fix asserts the plan's real surface instead of the query's:
 		//   INSERTS — a row may exist only for the SAME teacher (idempotent
 		//            replay); a different owner is a real conflict.
-		//   RETAINS — the pair must still be owned by the teacher the reviewer
-		//            saw. A missing row or a different owner means the retained
-		//            decision no longer describes reality, so the operator is told
-		//            to re-preview instead of being shown a false conflict.
+		//   RETAINS — for every pair the REFRESHED plan would leave alone, the
+		//            live owner must still be the teacher that refreshed plan
+		//            names.
 		//   MOVES   — already re-validated per move below against the live row by
 		//            id, including subject, section and faculty-subject. A second
 		//            pre-check here would be a weaker duplicate of that authority.
+		//
+		// A8 TL-SHORTAGE-C02 correction R1 (N1) — the exact guarantee of the
+		// RETAINS check, stated honestly: it is a NARROW check on the
+		// preview -> transaction window, and it is taken from `refreshedPlan`,
+		// NOT from the reviewed `previewPayload`. `distributionPlanSignature`
+		// binds the policy revision, inserts and moves; it does NOT bind
+		// `retains`, so this check cannot detect a retain set that changed
+		// between preview and apply — it can only detect a retain set that the
+		// freshly-computed plan asserts and the live rows contradict.
+		//
+		// That is sufficient, and it is not a silent-overwrite hole: retains are
+		// never written (apply writes only `plan.inserts` and `plan.moves`), the
+		// transaction is `Serializable` (:929), and a genuinely changed owner is
+		// either a conflicting INSERT (caught above) or a move target re-validated
+		// below. The previous wording claimed the pair "must still be owned by
+		// the teacher the reviewer saw", which overstated what this code proves.
 		//
 		// Pairs outside the plan's asserted surface are not the plan's business
 		// and are never drift.

@@ -308,8 +308,21 @@ async function runFixtureTests() {
 		donorId = (donor as any).id as number;
 		// Receiver carries advisory/ancillary credit that the retired logic would
 		// have counted against teaching capacity and overload status.
+		//
+		// A8 TL-SHORTAGE-C02 item 5 (correction R1): this receiver's contract is
+		// 40h, NOT the 30h it originally carried. Under the ONE shared definition
+		// his applicable cap is 40h (2400) - 600 ancillary = 1800, and he teaches
+		// 6 x 240 = 1440, so he sits UNDER cap with 360 real spare minutes.
+		//
+		// The 30h/600 fixture this replaces put him at 1800-600 = 1200 against
+		// 1440 teaching — i.e. genuinely over cap — so B3's original assertions
+		// ("NOT flagged" and "stays capacity-eligible") were asserting that a rule
+		// the generator would also flag was harmless, and the two claims were
+		// mutually exclusive under the new definition. See the re-based assertions
+		// in section B3 for what the contract now means and why it is still a real
+		// control rather than a tautology.
 		const receiver = await instrumented.facultyMirror.create({
-			data: { schoolId: fixtureSchoolId, externalId: 8002, employeeId: 'R2RECV', firstName: 'Rita', lastName: 'Receiver', department: 'MATH', isActiveForScheduling: true, isClassAdviser: false, maxHoursPerWeek: 30, ancillaryMinutesPerWeek: 600 },
+			data: { schoolId: fixtureSchoolId, externalId: 8002, employeeId: 'R2RECV', firstName: 'Rita', lastName: 'Receiver', department: 'MATH', isActiveForScheduling: true, isClassAdviser: false, maxHoursPerWeek: 40, ancillaryMinutesPerWeek: 600 },
 			select: { id: true },
 		});
 		receiverId = (receiver as any).id as number;
@@ -378,7 +391,29 @@ async function runFixtureTests() {
 			assertEqual(rebalance.sectionsResolved, 15, 'evaluator resolved all fixture sections');
 			const overIds = rebalance.overCapFaculty.map((row) => row.facultyId);
 			assert(overIds.includes(donorId), 'donor above the teaching standard is flagged');
-			assert(!overIds.includes(receiverId), 'receiver with advisory credit but teaching under standard is NOT flagged');
+			// A8 TL-SHORTAGE-C02 item 5 (correction R1): B3 is RE-BASED onto the ONE
+			// shared definition, not weakened. What the contract means now:
+			// "advisory/ancillary credit is neutral for OVERLOAD CLASSIFICATION" —
+			// a teacher is flagged on their concurrent TEACHING minutes measured
+			// against their OWN applicable cap (contract less ancillary), never on
+			// their credited total and never against the school standard.
+			//
+			// The receiver teaches 1440 minutes against a 40h-600 = 1800 applicable
+			// cap, so he is NOT flagged even though his credited total
+			// (1440 + 600 = 2040) exceeds BOTH his own cap AND the 1800 school
+			// standard. That keeps this a real control rather than a tautology: an
+			// implementation that folded advisory minutes into the teaching load
+			// would flag him and fail here, and the 30h/600 fixture this replaces
+			// was asserting the opposite of the shared rule (it made him genuinely
+			// over cap at 1440 > 1200 while also claiming he was not).
+			assert(!overIds.includes(receiverId), 'receiver with advisory credit but teaching within his own applicable cap is NOT flagged');
+			// And the shared cap governs move eligibility too, so a receiver the
+			// evaluation calls over cap can never be a move target. This is the
+			// coherence rule that QA found violated (a move was proposed into a
+			// teacher the same run reported as over cap).
+			for (const move of rebalance.proposedMoves) {
+				assert(!overIds.includes(move.toFacultyId), 'no proposed move targets a teacher this evaluation reported over cap');
+			}
 			const receiverMove = rebalance.proposedMoves.find((move) => move.toFacultyId === receiverId);
 			assert(!!receiverMove, 'receiver stays capacity-eligible despite advisory credit');
 			assertEqual(receiverMove?.toQualificationAuthority, 'DEPARTMENT', 'move binds the receiver qualification authority');

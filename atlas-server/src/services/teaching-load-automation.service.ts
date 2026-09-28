@@ -362,8 +362,25 @@ export interface TeachingLoadDistributionPolicyBinding {
 
 export interface AutoFillResult {
 	preserved: number;
+	/**
+	 * TL-SHORTAGE-C02 item 2 (correction R1) — PERSISTED assignments only: the
+	 * number of distribution INSERTs, which is exactly what a reviewed apply
+	 * writes as `subjectSectionOwnership` rows.
+	 *
+	 * It does NOT include Teacher-X `TEMPORARY_SUBSTITUTE` rows. Those are
+	 * preview-only (they carry `facultyId: null`, are stripped from the plan and
+	 * are never persisted), so counting them here made a run that created
+	 * nothing report a non-zero created count. Read the substitute rows from
+	 * `teacherXResolution.unsavedSubstituteRows` and the real uncovered count
+	 * from `stillNeedRealTeacher`.
+	 */
 	created: number;
+	/** Same persisted-assignment count as `created`; kept for back-compat. */
 	assignmentsCreated: number;
+	/**
+	 * Distinct teachers named by the persisted INSERTs. A substitute row names no
+	 * teacher, so it can never make this count non-zero.
+	 */
 	uniqueTeachersAffected: number;
 	unresolved: number;
 	coverageMode: CoverageMode;
@@ -3239,12 +3256,8 @@ export async function autoFill(
 	appendShiftCoherenceWarnings(warnings, autoFillShiftCoherenceNotices, autoFillCandidateRejections);
 
 	// ─── Step 7: Persist new assignments ──────────────────────────────────────
-	let created = 0;
-	const affectedTeacherIds = new Set<number>();
-
 	let teacherXResolution: AutoFillResult['teacherXResolution'] | undefined;
 	let teacherXRowsClosed = 0;
-	let teacherXPlaceholderTeacherCount = 0;
 
 	if (coverageMode === 'REAL_FACULTY_THEN_TEACHER_X') {
 		const unresolvedSubjectCodes = [...new Set(unresolvedPairs.map((pair) => pair.subject.code.trim().toUpperCase()))];
@@ -3264,8 +3277,20 @@ export async function autoFill(
 		};
 	}
 
-	const totalCreated = created + teacherXRowsClosed;
-	const uniqueTeachersAffected = affectedTeacherIds.size + teacherXPlaceholderTeacherCount;
+	// TL-SHORTAGE-C02 item 2 (correction R1 / B1): `created` and
+	// `assignmentsCreated` count PERSISTED assignments ONLY, and are computed
+	// below from the distribution plan's INSERTs.
+	//
+	// The previous `totalCreated = created + teacherXRowsClosed` added the
+	// Teacher-X substitute count, so a run that persisted nothing reported
+	// `assignmentsCreated: 1` — exactly the false claim the packet item was
+	// meant to close, reappearing on the field a UI renders first. A
+	// `TEMPORARY_SUBSTITUTE` row carries `facultyId: null`, is stripped from the
+	// distribution plan, and is never written by apply.
+	//
+	// The substitute reporting is unchanged and still truthful in
+	// `teacherXResolution.rowsClosedByTeacherX` / `unsavedSubstituteRows`, and
+	// the real uncovered count is `stillNeedRealTeacher`.
 	// TL-SHORTAGE-C02 item 2: Teacher-X mode must NOT force `unresolved` to 0.
 	// Its `TEMPORARY_SUBSTITUTE` rows (facultyId null) are stripped from the
 	// distribution plan and never persisted — apply writes only `plan.inserts` —
@@ -3395,10 +3420,24 @@ export async function autoFill(
 		);
 	}
 
+	// TL-SHORTAGE-C02 item 2 (correction R1 / B1): PERSISTED assignments only.
+	// A distribution INSERT is exactly what a reviewed apply writes as a
+	// `subjectSectionOwnership` row, so this count equals what apply persists.
+	// A `TEMPORARY_SUBSTITUTE` row has `facultyId: null`, is stripped from the
+	// plan in `buildTeachingLoadDistributionPlan`, and is therefore never an
+	// INSERT — it must not be counted here. The substitute reporting is
+	// unchanged and still truthful in `teacherXResolution`
+	// (`rowsClosedByTeacherX` / `unsavedSubstituteRows`), and the real
+	// uncovered count is `stillNeedRealTeacher`.
+	const created = distribution.inserts.length;
+	const uniqueTeachersAffected = new Set<number>(
+		distribution.inserts.map((insert) => insert.facultyId),
+	).size;
+
 	return {
 		preserved,
-		created: totalCreated,
-		assignmentsCreated: totalCreated,
+		created,
+		assignmentsCreated: created,
 		uniqueTeachersAffected,
 		unresolved: finalUnresolved,
 		stillNeedRealTeacher,
@@ -4130,14 +4169,29 @@ export async function previewOrApplyOverCapRebalance(
 				}
 
 				const candidateTeaching = simCapacityUsed.get(candidate.id) ?? 0;
-				// Receiver teaching capacity is measured from actual teaching minutes
-				// under the effective teaching standard. Advisory/ancillary credit is
-				// neutral and never reduces this capacity.
-				const candidateCap = Math.min(
-					Math.max(0, Math.round(candidate.maxHoursPerWeek * 60)),
-					effectiveStandardMinutes,
-				);
-				const spareMinutes = candidateCap - candidateTeaching;
+				// TL-SHORTAGE-C02 item 5 (correction R1 / B2): receiver eligibility
+				// and over-cap reporting are now ONE decision, made by the ONE
+				// shared evaluation.
+				//
+				// This previously re-derived the cap inline as
+				// `min(maxHours*60, effectiveStandardMinutes)`, which ignored the
+				// teacher's own contract and their ancillary credit, while the
+				// over-cap report above judged the same teacher by
+				// `evaluateWeeklyLoad`. A 30h teacher carrying 600 ancillary
+				// minutes was reported OVER cap (1440 teaching vs a 1200
+				// applicable cap) and, in the same run, still received a move
+				// because the retired gate saw 1800-1440 = 360 spare minutes.
+				// Routing both through `evaluateWeeklyLoad` makes the coherence
+				// rule structural: a receiver this evaluation calls over limit
+				// has no spare capacity, so `spareMinutes < minutes` rejects them
+				// with the same `HARD_CAP_EXCEEDED` reason as any other
+				// over-committed teacher. No separate guard is needed, and a
+				// second copy of the cap rule cannot reappear here.
+				const candidateEvaluation = evaluateWeeklyLoad(candidateTeaching, {
+					maxHoursPerWeek: candidate.maxHoursPerWeek,
+					ancillaryMinutesPerWeek: candidate.ancillaryMinutesPerWeek,
+				});
+				const spareMinutes = candidateEvaluation.capMinutes - candidateTeaching;
 				if (spareMinutes < minutes) {
 					ownershipRejections.push({
 						subjectId: subject.id,

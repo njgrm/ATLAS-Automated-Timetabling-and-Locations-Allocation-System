@@ -40,8 +40,15 @@ carries `SYSTEM_ADMIN`:
 `requirePrivilegedRole`,** so nothing else stands between the published string and production-data writes. Those
 include `POST /rollover-recovery/apply`, `POST /rollover-sync/apply`, `POST /rollover-archive/apply`,
 `POST /rollover-recovery/mark-test-data` and `POST /rollover-sync/reset-dummy-year` — rollover and archive
-operations on live teaching-load data. `faculty-assignment` adds `POST /coverage/repair`,
+operations on live teaching-load data. `faculty-assignment` adds
 `POST /coverage/rebalance-special-programs` and `POST /coverage/recover-real-faculty`.
+
+**Correction (A8 TL-SHORTAGE-C02, 2026-09-29):** `POST /coverage/repair` is **no longer** in that
+system-token set. It now requires an operator JWT (`authenticate` + `requirePrivilegedRole`), checks the
+actor's school against the target school (`rejectCapabilityOverrideScope`), and no longer defaults to
+school 1. It had zero callers repo-wide, so nothing legitimate depended on the old shape. The
+`faculty-assignment` write-route count above therefore drops from **3 to 2**. The other two routes and
+every `runtime.router.ts` claim in this section are unchanged and were re-verified as still accurate.
 
 ATLAS is served to the Tailnet at `https://njgrm.buru-degree.ts.net`, so the reachable population is **any enrolled
 Tailnet node** — the same threat model as the closed PostgreSQL grant, except here the credential grants admin
