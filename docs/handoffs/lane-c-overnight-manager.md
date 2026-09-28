@@ -75,6 +75,11 @@ Rules for the planners:
 (TL suggestion 2022-2023 = 264 rows). Rollback `9ca7f629`. **Next train candidates:** A2 6d034431 (index), A7 c9dd5f05
 (School Year Setup plain words) + A7 c2 (past years list/Keep as history/read-only links, running `a7-c2`), A2 past-year
 view (running a2-c12r6; its TEST HAS AN INFINITE LOOP - reached 15 and 37 GB, crashed dwm/Brave/Codex; posted to A2).
+**01:20 update:** Codex applied TL 2022-2023 on live (239 assigned, 25 substitutes, 11 over 30h). Timetable GENERATE DISABLED:
+468 setup blockers (docs/reviews/codex-live-year1-flow-20260929.md). Lane C executor (hotfix-newyear-readiness) diagnosing:
+code bug vs per-year setup to inherit (year 1 has 0 grade_shift_windows vs 20 in year 10) vs operator decisions; also the
+wrong zero-demand headline with 264 rows. Rollovers stay PAUSED until year 1 can generate.
+
 **Codex job running (bfld2f932 waiter, terra@medium):** on LIVE applies TL, generates, publishes 2022-2023 + older-user UX
 review -> scratchpad/codex-qa/live-year1-flow/report.md. Then route findings, then operator does next EnrollPro rollover
 (Preview + Sync now; Lane C verifies with sy.cjs / fcheck.cjs).
