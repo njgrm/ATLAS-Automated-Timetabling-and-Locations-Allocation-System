@@ -654,9 +654,13 @@ test('ROW 7 REGRESSION: the move cost NO control — the count is identical befo
 	// this change too. Measured both ways on this exact fixture, with the same
 	// query and the same `hiddenAtDesktop` filter:
 	//
-	//   pre-move  (TimetableSimpleHeader.tsx at the base commit): 7 controls
-	//   post-move (this candidate):                                 7 controls
+	//   pre-move  (this row run against a materialized BASE tree):  7 controls
+	//   post-move (this candidate):                                   7 controls
 	//   the 7th in BOTH: <button class="inline-flex shrink-0 items-center">
+	//
+	// The "before" figure comes from running THIS row against the base tree, not
+	// from the ROW 4 mutant: ROW 4's mutant arms the swap, and this row's fixture
+	// is disarmed, so that mutation is a no-op here and cannot be its evidence.
 	//
 	// So the number is unchanged by item H, and the surplus is a PRE-EXISTING
 	// condition, not one this slice created. Weakening the row to "<= 7", or

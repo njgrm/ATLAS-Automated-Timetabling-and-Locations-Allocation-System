@@ -700,8 +700,8 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 	 *
 	 * It is a sub-component rather than an in-file move because this file stood at
 	 * 971 physical lines and the move leaves it at 993 — under the §8 1000-line cap,
-	 * but with nine lines of headroom, and a record this size does not belong in
-	 * those last nine. §8's answer is to EXTRACT, never to delete a comment. NO state
+	 * but with seven lines of headroom, and a record this size does not belong in
+	 * those last seven. §8's answer is to EXTRACT, never to delete a comment. NO state
 	 * and NO handler moved: `blockerSheetOpen`, `setBlockerSheetOpen`,
 	 * `swapClassTimesMode` and `onSwapClassTimesCancel` stay here, so this component
 	 * remains the logical owner of both surfaces and only their JSX position
