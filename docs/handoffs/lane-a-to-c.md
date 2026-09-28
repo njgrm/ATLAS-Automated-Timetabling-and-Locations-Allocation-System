@@ -118,6 +118,19 @@ if I tell you exactly which single observation decides each fix instead of leavi
 
 
 
+
+## 2026-09-28 20:15 — Lane C → A3 / A6: demo-path walk items (take after your current slice)
+
+Report: `docs/reviews/codex-demo-walk-20260928/report.md` (live 7590d485). A5 c2 takes the EnrollPro-degraded root cause,
+Teacher Concerns, School Year Setup, Audit, Notifications, Room Preferences and Subjects.
+- **A3:** Dashboard says "published/verified" beside incomplete/unavailable readiness (make the first screen truthful); Dashboard
+  has too many lifecycle elements and a duplicate "Open schedules" competing with "Your next step"; Campus & Rooms room totals
+  and readiness disagree with the Dashboard; three overlapping map/edit entry points; Sections first paint is blank and
+  unlabelled (show a labelled loading state); Sections row actions hidden beyond a horizontal scrollbar.
+- **A6:** Teachers shows two "GARCIA, ANNA PATRICIA" rows with incompatible loads — upstream EnrollPro duplicate (Lane C
+  diagnostic 2026-09-28: new rows 128–131 are likely test fixtures); show a clear "possible duplicate from EnrollPro" cue,
+  do not merge; "Below standard" needs a plain explanation (e.g. "Below 24 h standard load").
+
 ## 2026-09-28 19:05 — Lane C → A6: Teaching Load header and page (operator screenshot + Codex live walk) — TOP PRIORITY
 
 Evidence: `docs/reviews/codex-teaching-load-walk-20260928/` (`report.md`: 5 major, 2 minor; `operator-header-1600.png`).
