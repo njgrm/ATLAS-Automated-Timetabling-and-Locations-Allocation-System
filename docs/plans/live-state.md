@@ -4500,10 +4500,58 @@ decidable from source. Worktrees `lane-a3-c10-{s1-sections,s3-tldensity,s4-teach
 
 ## Lane A6 — current lane (written only by Planner A6)
 
-- **Stream:** Teachers + Teaching Load. Source only, non-elevated, **never deploys** (AGENTS.md §14). Current cycle
-  `a6-tl-header-budget-2026-09-29`; packet `docs/prompts/a6-tl-header-budget-impl-2026-09-29.md`. Worktree
+- **`A6 ready for release at e2ff35ba` (2026-09-29, packet c5, written by Lane C on A6's behalf). Candidate
+  `bcccddc7` over base `b768dba8` (= `316534f2` + packet). 0 fixes live and seen / 5 integrated and NOT seen
+  rendered / 0 dropped.** Packet `docs/prompts/a6-c5-outage-placeholders-2026-09-29.md`; handoff and layout note
+  in `docs/reviews/a6-c5-outage-placeholders/`. Merged onto `origin/main` `dca34646` (27 commits of other lanes'
+  work) as a clean auto-union; the only overlapping path was `atlas-client/package.json`.
+- **What c5 delivered:** the outage is now one plain sentence per short subject in header row 2, replacing the
+  `% staffed` figure and the "Assign teachers to open classes" queue item; one `Cover these classes` dialog
+  (30 h / stretch to 40 h / leave open, each with a consequence line and a preview number from a zero-write
+  `apply:false` preview, then one `Assign this teacher now`) on `POST /faculty-assignments/coverage/repair`
+  (A8 c2, `195b52fe`); placeholders labelled `to be hired — not a real person yet` on the roster row, the
+  sections grid and the suggestion preview row; `% staffed` and `Still without a teacher` no longer count a
+  placeholder-held class as staffed; the 409 names the changed classes in plain words and offers `Review again`.
+- **QA, quoted honestly:** fresh round 1 `CORRECTION_REQUIRED` — **12 source rows passed / 19, blocked 0,
+  unperformed 4**, 3 BLOCKING design-gate findings (row 2 was *longer* than what it replaces at the 3-subject cap
+  and overflow: 26 and 31 words against a measured 19; the overflow fact stated twice; the layout note misstated
+  all three of its own figures and pointed at a control that did not exist). One bounded correction `bcccddc7`
+  closed all three: row 2 measured 30/12/14/16/18/18 words for 0/1/2/3/4/6 subjects against a 30-word before, and
+  the word-budget control `A6C5-WORD-1/2` now decides it — planner proved it discriminates by mutation
+  (`8 pass / 4 fail`, bytes restored, tree byte-identical). **Not `ACCEPT_READY`.**
+- **The 4 unperformed rows are the browser and rubric rows — `NEEDS_SESSION(lane_c/playwright-mcp)` and
+  `NEEDS_SESSION(atlas_qa/default-profile)`.** `/teaching-load` redirects to `/login` on the loopback preview
+  (which proxies to staging `5101`) and no QA credential exists in the worktree. So: **no before/after at
+  1366x768, no scored `ux-communication-rubric`, and the two unrendered S7 surfaces (sections grid cell,
+  suggestion preview row) are wiring-proved only.** Per §11 these BLOCK the release of this screen; the merge does
+  not. Lane C's staging walk is the second judge and owns them.
+- **Gate tallies on the merged tree `e2ff35ba`:** `test:a6-c5-outage` 23/23 · `test:a6-teaching-load` 29/29 ·
+  `test:a6-tl-header-budget` 9/9 · `test:tl-no-demand-hotfix` 5/5 · `test:a3-c10-tl-density` 9/9 ·
+  `teaching-load-canonical-workload` 33/33 · `test:ux-a2-header-budget` 28/28 (A2's merged work preserved) ·
+  `test:ux-guardrails` 31/31 · `test:client-quality` 34/34 · `tsc` 5 errors, byte-identical to base (parity, not
+  exit 0 — the row as written in the packet names a script that does not exist; QA ruled parity the right reading).
+- **Dated 2026-09-29 — one §2 breach, disclosed and reversed.** The correction executor used a
+  `Get-Content | Set-Content` round-trip on `a6-c5-outage-derivation.test.tsx`, which §2 forbids. Planner
+  re-verified every file in the range byte-wise: **0 U+FFFD, 0 mojibake sequences, em dashes intact.** Recorded, not
+  silently absorbed. **Planner's own correction:** the candidate had reindented all 165 lines of
+  `atlas-client/package.json` (2-space → tab) to add one script and two test paths; planner restored the base
+  formatting at `cb70f307` and QA audited that the script map and dependencies are semantically identical.
+- **Open follow-ups (recorded, not built):** `teach outside department` option — the A8 endpoint has no
+  `canTeachOutsideDepartment` field, so a control promising it would lie · `applyingRef` in-flight guard on the
+  cover apply · dead `onReviewAgain` export · `S11` roster/zero-load clause is A9's to discharge ·
+  `buildGuidedEmptyTeachingLoadMessage` identifier still says Guided (not user-visible) · `Excess teaching load: N`
+  is withheld during a shortage (advisory, no per-teacher queue item).
+- **Worktree disposition:** `E:/ATLAS-worktrees/lane-a6-tl-header` = `RETIRE_AFTER_INTEGRATION`, left for A4, which
+  owns E: capacity and junction-safe reclamation (§14). The planner's scratch baseline checkout
+  `lane-a6-c5-baseline` (junctioned `node_modules`, used only for the base-red measurement) was removed
+  junction-first, then non-forced `git worktree remove`, then `prune`. E: free 24.65 GiB at the start of this
+  cycle, **below the 25 GiB warn line** — A4 owns the reclaim before the next release build.
+
+- **Prior cycle, superseded by the c5 record above:** `a6-tl-header-budget-2026-09-29`, packet
+  `docs/prompts/a6-tl-header-budget-impl-2026-09-29.md`.
+- **Stream:** Teachers + Teaching Load. Source only, non-elevated, **never deploys** (AGENTS.md §14). Worktree
   `E:/ATLAS-worktrees/lane-a6-tl-header` (client `node_modules` installed, real, never junctioned), branches
-  `work/a6-tl-header-budget` and `integration/a6-c4-20260929`.
+  `work/a6-c5-outage-placeholders` and `integration/a6-c5-20260929`.
 - **Integrated and pushed 2026-09-29 — `A6 ready for release at 91a9b8fb`** (merge `52210369`, reviewed candidate
   `b1cfd033`, evidence `405381bb`, Lane C post `3da49450`). **0 fixes live / 2 integrated, seen only on an isolated
   loopback / 0 dropped.** Prior cycle `5481dcc` is on `main` and **still not seen rendered**.
