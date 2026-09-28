@@ -25,6 +25,7 @@ import { FilterPicker } from '@/ui/filter-picker';
 import { Popover, PopoverContent, PopoverTrigger, PopoverClose } from '@/ui/popover';
 import { cn } from '@/lib/utils';
 import { getAssignmentOwnershipKey, ownershipDepartmentEligibility, selectEligibleOwnerCandidates, teachingUtilizationPercentFor, resolveTeachingActualHours, type FacultyOwnershipState } from '@/lib/faculty-assignment-helpers';
+import { PLACEHOLDER_TRUTH_LABEL } from '@/components/faculty-assignments/teachingLoadOutage';
 import type { Subject, ExternalSection, FacultySummary, FacultyAssignmentDraft } from '@/types';
 
 export type SectionGridModeProps = {
@@ -465,11 +466,27 @@ export function SectionGridMode({
 																							isCurrentOwner && "bg-emerald-50/50"
 																						)}
 																					>
-																						<div className="min-w-0">
-																							<p className={cn("text-xs font-semibold uppercase truncate", isCurrentOwner ? "text-emerald-900" : "text-foreground")}>
-																								{f.lastName}, {f.firstName}
-																							</p>
-																							<div className="flex items-center gap-2 mt-0.5">
+															<div className="min-w-0">
+																<p className={cn("text-xs font-semibold uppercase truncate", isCurrentOwner ? "text-emerald-900" : "text-foreground")}>
+																	{f.lastName}, {f.firstName}
+																</p>
+																{/* A6 c5 §3, surface 2 of 3. The sections grid used to
+																    suppress the percentage for a placeholder and print
+																    nothing in its place, so the only signal was the
+																    absence of a number — which reads as a rendering
+																    quirk, not as "this person does not exist yet". The
+																    label is the packet's own sentence and it is the
+																    same constant the roster row and the suggestion
+																    preview row use. */}
+																{f.isPlaceholder && (
+																	<span
+																		data-testid="teaching-load-owner-option-placeholder"
+																		className="block text-[10px] font-bold leading-tight text-muted-foreground"
+																	>
+																		{PLACEHOLDER_TRUTH_LABEL}
+																	</span>
+																)}
+																<div className="flex items-center gap-2 mt-0.5">
 																								<span className={cn(
 																									"text-[11px] font-bold uppercase tracking-tighter",
 																									loadPct == null ? "text-muted-foreground" : loadPct > 100 ? "text-rose-600" : loadPct > 80 ? "text-amber-600" : "text-emerald-600"

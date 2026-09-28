@@ -56,6 +56,21 @@ type WorkspaceToolbarProps = {
 	 */
 	stateLineSlot?: ReactNode;
 	/**
+	 * A6 c5 §1 — the page's shortage line, rendered INSTEAD of this toolbar's own
+	 * status sentence when there is a real shortage.
+	 *
+	 * This is a SLOT for the same reason `stateLineSlot` is: the line's figures
+	 * come from the page's ownership index, which this component has no access
+	 * to, and a toolbar that recomputed them would be a second authority for the
+	 * one number the header exists to state. The toolbar keeps the POSITION and
+	 * the SUPPRESSION RULE; the page keeps the figures.
+	 *
+	 * `null` or absent means "no shortage", and the status sentence renders
+	 * exactly as it always has — so every committed row that renders this
+	 * component without the slot is untouched.
+	 */
+	shortageLineSlot?: ReactNode;
+	/**
 	 * FIX 38 — the header's `Load summary` control.
 	 *
 	 * This is a SLOT, not a callback, on purpose. The toolbar owns the control's
@@ -167,6 +182,30 @@ type WorkspaceToolbarProps = {
  *                                            when the content does not fit, and
  *                                            the measurement exists to keep that
  *                                            case from becoming the normal one.
+ */
+/**
+ * A3-C10-S3 — WHERE ROW 2 CAME FROM, and why nothing is hidden in it.
+ *
+ * The truth summary (42px), the "Next step" repair-queue banner (58px) and the
+ * archived-load control were three `shrink-0` bands stacked under this strip.
+ * At 1366x768 that put the first assignment row at ~430px of 768 (Lane C, live
+ * release a1db27d5) under five stacked header rows. They are ONE line now, and
+ * row 2 is where the record of that move lives — this component owns the row.
+ *
+ * NOTHING WAS HIDDEN, only relocated: the truth panel kept every figure and
+ * testid in the `Load summary` dialog (built by the page from its own
+ * `truthModel`), the repair queue kept its count, live status, safety
+ * `disabledReason` and primary action, and `Archived load` is still a real link
+ * to `/teaching-load/history` — the page builds it, this component positions it
+ * in More. Only the repair queue's prose `description` moved behind a hover,
+ * whose trigger already names the task, the count and the status.
+ *
+ * A6 c5 then removed two more things from this row, and the reasons are stated
+ * at the two sites that do it: the `% staffed` figure (which counted a
+ * placeholder-held class as staffed) and the `missing-load` repair-queue item
+ * (which routed a scheduler to another tab to learn which subject was short).
+ * Both are replaced by `TeachingLoadShortageLine`, supplied by the page through
+ * `shortageLineSlot`.
  */
 export const TEACHING_LOAD_HEADER_MODEL = {
 	APP_CHROME_PX: 56,
@@ -339,6 +378,7 @@ export function WorkspaceToolbar({
 	onSave,
 	onRetrySource,
 	stateLineSlot,
+	shortageLineSlot,
 	loadSummaryAction,
 	historyAction,
 	savedAtLabel = null,
@@ -523,6 +563,34 @@ export function WorkspaceToolbar({
 		);
 		return parts.join(' · ');
 	}, [completenessPercent, dataSource, unassignedPairs]);
+
+	/*
+	 * A6 c5 §1 — THE SUBTRACTION, and the one judgement it forced.
+	 *
+	 * The packet is explicit and repeated: the shortage line *replaces* the
+	 * `alertChip` and the repair queue's "Assign teachers to open classes" item,
+	 * and "two chips that say the same thing is a §8 violation". So when the page
+	 * supplies a shortage line, this toolbar renders NEITHER its own status
+	 * sentence NOR the alert clause beside it. The line is the whole status
+	 * claim on row 2, plus its one action.
+	 *
+	 * WHAT THAT DOES TO `Above weekly max: N`, stated rather than assumed. That
+	 * count is the one figure that blocks generation outright, so deleting it
+	 * from row 2 for the duration of a staffing shortage would hide a blocker
+	 * behind an unrelated fix. It is NOT hidden, and this is the reason: the
+	 * `alertChip` was always a DUPLICATE of the repair queue's per-teacher
+	 * `over-cap` items (`<name> is over the weekly max · 32.0h used / 30h max`),
+	 * and the queue is still on row 2, in `stateLineSlot`, untouched by this
+	 * slice. Removing the chip therefore leaves the blocker stated exactly once
+	 * rather than zero times — which is §8's actual rule, and a strict
+	 * improvement over the two-vocabulary arrangement it replaces.
+	 *
+	 * The `data-alert-key` / `data-testid` contracts and the a3-c10 T7 row that
+	 * read them are untouched: they render this component WITHOUT the slot, which
+	 * is the no-shortage state, and in that state the sentence and the alert
+	 * render exactly as they always have.
+	 */
+	const hasShortageLine = Boolean(shortageLineSlot);
 
 	return (
 		<CompactTitleStrip
@@ -763,6 +831,12 @@ export function WorkspaceToolbar({
 						<AlertTriangle className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
 						<span>{degradedLine}</span>
 					</span>
+				) : hasShortageLine ? (
+					/* A6 c5: the page's shortage line IS the status claim, so neither
+					 * the `% staffed` sentence nor the alert clause is printed beside
+					 * it. See the `hasShortageLine` memo for why the over-cap figure
+					 * is still stated exactly once, on the repair queue. */
+					shortageLineSlot
 				) : (
 					<span
 						data-testid="teaching-load-status-sentence"
