@@ -4497,3 +4497,9 @@ Script `atlas-server/src/scripts/copy-year-setup-shift-windows-events.mjs --scho
 grade_shift_windows, +2 policy_special_events into mirror 1 (were 0). Re-dry-run: targetExisting 20/2, toInsert 0.
 Receipt (revert with `--revert`): `D:/ATLAS-runtime-config/backups/year-setup-copy-20260929/receipt-year1.json`.
 Lane C re-runs it (from the previous year) after every rollover until A7's carry-over lands.
+
+## 2026-09-29 01:05 — departments set for 3 dept-less teachers (operator approved)
+faculty_mirrors id 3 Melchora Aquino → SCI, id 20 Apolinario Mabini → SCI, id 33 Jose Rizal → MAPEH (were NULL;
+chosen from their faculty_subjects). Live AND staging. Backups: `D:/ATLAS-runtime-config/backups/faculty-dept-20260929/{live,staging}-before.json`
+(revert = set department NULL for those ids). **Not durable:** faculty sync (`faculty.service.ts` ~L604-647) copies
+EnrollPro's `department` (null) back on the next sync / rollover. Durable fix = EnrollPro sets their department, or A6 c5 item 2.
