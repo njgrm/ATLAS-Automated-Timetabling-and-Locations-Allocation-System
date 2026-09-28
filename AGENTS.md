@@ -182,6 +182,21 @@ Classify by behaviour and authority, not ease of rollback. User-facing or produc
   VISUAL-only release keeps the D-rows (health, discriminators, zero-write, public matrix) plus **one browser smoke
   row per changed screen**; the full browser row set is for releases that carry MEDIUM/HIGH work.
 
+### Throughput rules (operator, 2026-09-28 afternoon)
+
+Evidence: ~10 planner cycles from 2026-09-27 night to 2026-09-28 14:00 put 6 fixes live; three releases stalled on
+non-risks; A3 marked 4 items QA_PASSED against its own narrowed rewrites.
+
+- **Two review rounds, then decide.** After a second `CORRECTION_REQUIRED` on the same candidate, the planner either
+  ships the corrected candidate with the open finding recorded as a follow-up row, or drops it from the cycle. No
+  third round. BLOCKING safety findings (data loss, auth, live writes) are the only exception.
+- **Grade against the requester's own words.** A ledger row quotes the original requirement; a narrower rewrite
+  cannot be marked met. Lane C's live walk against the original text is the verdict.
+- **The cycle metric is fixes seen live.** A handoff opens with "N fixes live and seen / M integrated / K dropped".
+  Self-corrections of the planner's own records go in one line, not a section.
+- **Staging first.** Once staging exists (§14 A4), a candidate counts as ready only after it renders on staging and
+  the lane's rows pass there; production then needs only the A4 smoke.
+
 ### Gates that have actually caught defects — keep these
 
 For MEDIUM and HIGH work, read `docs/reference/agent-verification-gates.md` and apply only the gates relevant to the change. Production-path proof, failing-first proof, scope authority, and zero-write rejection stay mandatory when applicable. Live browser evidence never proves undeployed source bytes.
