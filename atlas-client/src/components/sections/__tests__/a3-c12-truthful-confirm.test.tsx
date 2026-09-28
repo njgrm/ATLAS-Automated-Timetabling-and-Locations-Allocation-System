@@ -442,6 +442,16 @@ test('FIX-12 wiring ratchet: the page reports a blocked pick through the notice 
 		/const result = await performHomeRoomUpdate\(section, nextHomeRoomId\);[\s\S]{0,600}?if \(result\.status === 'saved'\) \{[\s\S]{0,200}?toast\.success\('Home room saved'/,
 		'the direct path must report its own outcome, and only a saved result may say saved',
 	);
+	assert.match(
+		page,
+		/\} else if \(result\.status === 'queued'\) \{[\s\S]{0,400}?setCacheNotice\(result\.detail\);[\s\S]{0,200}?toast\.info\(/,
+		'a queued change is an INFORMATIONAL disposition: the review says "informational/queued message", and the error tone told the operator it was refused',
+	);
+	assert.doesNotMatch(
+		page,
+		/result\.status === 'queued'\) setCacheNotice\(result\.detail\);\s*toast\.error\(/,
+		'the queued branch must not fall through to the error tone',
+	);
 	const modal = codeOf('../SectionRoomMapModal.tsx');
 	assert.match(modal, /if \(!canWrite \|\| !isStagedChange\) return;/, 'the confirm guard must be in the handler, not only in the attribute');
 	assert.match(modal, /catch \(err\) \{[\s\S]{0,400}?setLoadFailure\(ROOM_MAP_OFFLINE_MESSAGE\);/, 'a failed load must be recorded as a failure, not as an empty campus');

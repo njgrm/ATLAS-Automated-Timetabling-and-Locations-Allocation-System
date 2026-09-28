@@ -517,9 +517,16 @@ export default function Sections() {
 			// "N changes are waiting to sync" line, and one success does not make
 			// that untrue.
 			toast.success('Home room saved', { description: `${section.name} now uses ${roomName}.` });
+		} else if (result.status === 'queued') {
+			// A queued edit is an INFORMATIONAL disposition, not a failure. The
+			// reviewer's own words: "Queued locally for sync — informational/
+			// queued message, not a false server-success claim." Painting it in
+			// the error tone told a mouse-first operator the change was refused
+			// when it is safely held and will sync.
+			setCacheNotice(result.detail);
+			toast.info(homeRoomResultCopy(result).headline, { description: `${section.name} — ${result.detail}` });
 		} else {
-			if (result.status === 'queued') setCacheNotice(result.detail);
-			toast.error(homeRoomResultCopy(result).headline, { description: result.status === 'failed' ? result.detail : `${section.name} — ${result.detail}` });
+			toast.error(homeRoomResultCopy(result).headline, { description: result.detail });
 		}
 	}, [activeSchoolYearId, dataSource, homeRoomOptions, homeRoomWrite, roomOccupancyMap, state.status, performHomeRoomUpdate]);
 
