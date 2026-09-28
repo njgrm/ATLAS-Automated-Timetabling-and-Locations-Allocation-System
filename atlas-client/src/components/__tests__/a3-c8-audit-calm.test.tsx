@@ -18,7 +18,7 @@
  *
  * Two other lanes pin `Audit.tsx`'s raw-neutral TEXT count at **exactly 8** with
  * `assert.equal`, and I may not edit either file:
- *   palette-token-sweep-a3-s-e.test.ts:189  STEP_2_SURVIVING_RESIDUALS  ['src/pages/Audit.tsx', 8]
+ *   palette-token-sweep-a3-s-e.test.ts:193  STEP_2_SURVIVING_RESIDUALS  ['src/pages/Audit.tsx', 8]
  *   palette-slate400-step2-a3-s-f.test.ts:184 EXPECTED_RESIDUAL_PER_OWNED_FILE [.., 8]
  * Both also pin the GLOBAL residual (`ratchet.total === 95`, `inScope.total === 68`).
  *
