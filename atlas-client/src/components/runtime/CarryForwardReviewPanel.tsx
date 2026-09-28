@@ -53,6 +53,19 @@ function hours(minutes: number): string {
  * reason CODES stay the `data-testid` and the map key, and the preview request
  * body is byte-identical.
  */
+/**
+ * A7-C2 item 4: the plain sentence for the one number a scheduler cannot decode.
+ * "Over hard cap" named an internal cap; the operator needs to know how many
+ * TEACHERS would end up over the allowed teaching hours, and whether that number
+ * goes up or down. Nothing is invented: both numbers are the server's.
+ */
+export function overLimitSentence(before: number, after: number): string {
+	const plural = (n: number) => `${n} teacher${n === 1 ? '' : 's'}`;
+	if (after > before) return `${plural(after)} would be over the allowed teaching hours (was ${plural(before)}).`;
+	if (after < before) return `${plural(after)} would be over the allowed teaching hours (was ${plural(before)}).`;
+	return `${plural(after)} would be over the allowed teaching hours.`;
+}
+
 export function CarryForwardReviewPanel({ schoolId, activeSchoolYearId, archivedYears }: CarryForwardReviewPanelProps) {
 	const defaultSourceYearId = useMemo(() => pickDefaultSourceYear(archivedYears)?.enrollProSchoolYearId ?? null, [archivedYears]);
 	const [sourceYearId, setSourceYearId] = useState<number | null>(defaultSourceYearId);
@@ -204,24 +217,34 @@ export function CarryForwardReviewPanel({ schoolId, activeSchoolYearId, archived
 					) : null}
 
 					<div className="grid gap-3 lg:grid-cols-2">
+						{/* A7-C2 item 4 (2026-09-29): "Over hard cap" and the bare
+						    "carry"/"skipped" pair were the two words Lane C found still
+						    on screen after A7-C1. The machine contract is unchanged; only
+						    the SENTENCE is now plain. `overCap` becomes a statement about
+						    teachers over the allowed teaching hours, and `carry` becomes
+						    "would be copied" — the preview has copied nothing yet. */}
 						<div className="rounded-xl border p-3 text-xs">
-							<p className="font-semibold text-slate-800">Teaching distribution (before → after)</p>
+							<p className="font-semibold text-slate-800">How the teaching hours are shared, before and after</p>
 							<ul className="mt-2 space-y-1 text-muted-foreground">
-								<li>Over hard cap: {preview.before.distribution.overCap} → {preview.after.distribution.overCap}</li>
-								<li>Excess: {preview.before.distribution.excess} → {preview.after.distribution.excess}</li>
-								<li>At standard: {preview.before.distribution.atStandard} → {preview.after.distribution.atStandard}</li>
+								<li data-testid="carry-forward-over-cap">
+									{overLimitSentence(preview.before.distribution.overCap, preview.after.distribution.overCap)}
+								</li>
+								<li>Above the standard load: {preview.before.distribution.excess} → {preview.after.distribution.excess}</li>
+								<li>At the standard load: {preview.before.distribution.atStandard} → {preview.after.distribution.atStandard}</li>
 								<li>{BELOW_STANDARD_LABEL}: {preview.before.distribution.belowStandard} → {preview.after.distribution.belowStandard}</li>
-								<li>Zero load: {preview.before.distribution.zeroLoad} → {preview.after.distribution.zeroLoad}</li>
+								<li>No teaching load: {preview.before.distribution.zeroLoad} → {preview.after.distribution.zeroLoad}</li>
 							</ul>
 							<p className="mt-2 text-muted-foreground" data-testid="carry-forward-overload">{overloadText}</p>
 						</div>
 						<div className="rounded-xl border p-3 text-xs">
 							<p className="font-semibold text-slate-800">Adviser coverage</p>
 							<p className="mt-1 text-muted-foreground">{preview.adviserCoverage.satisfied} satisfied · {preview.adviserCoverage.unsatisfied} not yet satisfied</p>
-							<p className="mt-2 font-semibold text-slate-800">Per-department review</p>
+							<p className="mt-2 font-semibold text-slate-800">By department</p>
 							<ul className="mt-1 space-y-1 text-muted-foreground">
 								{preview.perDepartment.map((entry) => (
-									<li key={entry.department}>{entry.department}: {entry.carry} carry · {entry.skipped} skipped</li>
+									<li key={entry.department} data-testid={`carry-forward-department-${entry.department}`}>
+										{entry.department}: {entry.carry} would be copied · {entry.skipped} would not be copied
+									</li>
 								))}
 							</ul>
 						</div>

@@ -15,7 +15,7 @@
  * machine contract (`code`, `action`, `classification`, typed confirmation
  * phrases) is unchanged and lives in `@/lib/settings` and the server.
  */
-import type { ArchiveAndSyncPreviewResult, RolloverStatus } from '@/lib/settings';
+import type { ArchiveAndSyncPreviewResult, RolloverStatus, SchoolYearState } from '@/lib/settings';
 
 /** Secondary action on the status card. It is the EXISTING preview handler. */
 export const PLAIN_SECONDARY_LABEL = 'See what will change first';
@@ -29,12 +29,6 @@ export const PLAIN_NEXT_STEP_LINE = 'Next: check Sections, then Teaching Load, t
 export const PLAIN_INTRO = "Start the new school year in ATLAS after EnrollPro moves to it. Last year's schedules are kept for reference.";
 /** Replaces "Automatic year sync is off. Sync stays manual." (A7-C1 §1.2). */
 export const PLAIN_AUTOMATION_OFF = 'Nothing changes in ATLAS until you press the button.';
-/** Replaces "Archived school years" (A7-C1 §1.6). */
-export const PLAIN_PAST_YEARS_HEADING = 'Past school years';
-/** Replaces the election sentence under it (A7-C1 §1.6). */
-export const PLAIN_PAST_YEARS_HELPER = "These years are kept exactly as they were. You can look up last year's schedules and teaching load here.";
-/** Replaces "Open read-only Teaching Load" (A7-C1 §1.6). */
-export const PLAIN_PAST_YEARS_LINK = "Open last year's teaching load";
 /** Shown instead of a number we do not have. Never invent a number. */
 export const PLAIN_COUNTS_UNKNOWN = 'Sections and teachers were brought in.';
 
@@ -258,4 +252,75 @@ export function plainClearableCopy(artifactCounts: Record<string, number> | null
 /** The Year Setup page renders this state from `status`; the trigger is `onApplied`. */
 export function isPlainStartedVisible(started: RolloverStatus | null): boolean {
 	return started != null;
+}
+
+// ─── A7-C2: every school year, and "Keep as history" for one of them ─────────
+
+/** Replaces the c1 "Past school years" heading, which could only ever list kept years. */
+export const PLAIN_SCHOOL_YEARS_HEADING = 'Every school year in ATLAS';
+/** Replaces the c1 helper under that heading. */
+export const PLAIN_SCHOOL_YEARS_HELPER = 'The year ATLAS is using now, the years you have already kept, and the years you have not kept yet.';
+
+/**
+ * The one plain sentence per year, and it names the year first. This is the
+ * sentence that replaces the three-state machine an operator had to infer from
+ * an empty list; before A7-C2 a year that was neither active nor archived had
+ * no sentence anywhere, because it had no row.
+ */
+export function plainSchoolYearStateSentence(input: {
+	yearLabel: string;
+	state: SchoolYearState;
+	publishedTimetables?: number | null;
+}): string {
+	const kept = input.publishedTimetables ? `${input.publishedTimetables} published timetable(s)` : null;
+	switch (input.state) {
+		case 'current':
+			return `${input.yearLabel} is the school year ATLAS is using now.`;
+		case 'kept as history':
+			return kept
+				? `${input.yearLabel} is already kept as history, with ${kept}.`
+				: `${input.yearLabel} is already kept as history.`;
+		case 'past, not yet kept':
+			return kept
+				? `${input.yearLabel} is a past year with ${kept} that you have not kept as history yet.`
+				: `${input.yearLabel} is a past year that you have not kept as history yet.`;
+	}
+}
+
+/** The per-year "Keep as history" action. Preview first, never apply first. */
+export const PLAIN_KEEP_YEAR_LABEL = 'Keep as history';
+/** The dialog title, which names the year before anything else. */
+export function plainKeepYearTitle(yearLabel: string): string {
+	return `Keep ${yearLabel} as history?`;
+}
+/** The question the operator must answer before the write is allowed. */
+export const PLAIN_KEEP_YEAR_CONFIRM = 'Yes, keep this year as history';
+/** What the operator is told about the effect, in one calm sentence. */
+export const PLAIN_KEEP_YER_EFFECT = 'Nothing is deleted, and nothing in EnrollPro changes.';
+
+/**
+ * R6: the Timetable link is `/timetable?schoolYearId=<enrollProSchoolYearId>`,
+ * using the SAME id the Teaching Load history link already uses. A2 owns the
+ * route. Until it exists the link MUST fail closed — an operator sent to a
+ * timetable page that silently ignores the parameter would read today's
+ * schedule as last year's, which is worse than being told it is not ready.
+ *
+ * A2 flips `TIMETABLE_READS_SCHOOL_YEAR_PARAM` to `true` in the same commit
+ * that makes the route honour the parameter. It is one boolean on purpose: the
+ * page must not be able to link without also stating the fail-closed sentence.
+ */
+export const TIMETABLE_READS_SCHOOL_YEAR_PARAM = false;
+
+export function plainTimetableYearHref(enrollProSchoolYearId: number): string | null {
+	return TIMETABLE_READS_SCHOOL_YEAR_PARAM
+		? `/timetable?schoolYearId=${enrollProSchoolYearId}`
+		: null;
+}
+
+/** The fail-closed sentence shown in place of the link. */
+export const PLAIN_TIMETABLE_YEAR_UNAVAILABLE = "The Timetable page cannot show a past school year yet.";
+
+/** The existing, unchanged read-only Teaching Load destination (R6, item 3). */
+export function plainTeachingLoadYearHref(enrollProSchoolYearId: number): string {
+	return `/teaching-load/history?schoolYearId=${enrollProSchoolYearId}`;
 }

@@ -1,15 +1,16 @@
 import { useEffect, useState } from 'react';
-import { Link, Navigate, useNavigate } from 'react-router-dom';
-import { Archive, ArrowLeft, CheckCircle2, ShieldAlert } from 'lucide-react';
+import { Navigate, useNavigate } from 'react-router-dom';
+import { ArrowLeft, CheckCircle2, ShieldAlert } from 'lucide-react';
 
 import { RolloverResetPanel } from '@/components/runtime/RolloverResetPanel';
 import { PageHeader } from '@/components/app-shell/PageHeader';
 import { RolloverGuidanceCard } from '@/components/runtime/RolloverGuidanceCard';
+import { SchoolYearListCard } from '@/components/runtime/SchoolYearListCard';
 import { CarryForwardReviewPanel } from '@/components/runtime/CarryForwardReviewPanel';
 import { Button } from '@/ui/button';
 import { verifySessionToken, type RolloverStatus } from '@/lib/settings';
 import { clearAtlasAuthStorage, clearUserRoleCache, hasAnyAuthToken } from '@/lib/auth';
-import { PLAIN_INTRO, PLAIN_PAST_YEARS_HEADING, PLAIN_PAST_YEARS_HELPER, PLAIN_PAST_YEARS_LINK, plainStartedCopy } from '@/components/runtime/rollover-plain-copy';
+import { PLAIN_INTRO, plainStartedCopy } from '@/components/runtime/rollover-plain-copy';
 import type { BridgeUser } from '@/types';
 
 const ADMIN_ROLES = new Set(['admin', 'SYSTEM_ADMIN', 'officer']);
@@ -35,6 +36,10 @@ export default function AdminYearSetup() {
 	// A7-C1: set only by the card's own `onApplied`, so the confirmation appears
 	// after a real apply and never on a read.
 	const [started, setStarted] = useState<RolloverStatus | null>(null);
+	// A7-C2: bumped by the per-year "Keep as history" so the status CARD reloads
+	// the status it already owns. The page deliberately does not fetch it again:
+	// `rollover-ui-guardrails.test.ts` holds Year Setup to one status reader.
+	const [reloadSignal, setReloadSignal] = useState(0);
 
 	useEffect(() => {
 		if (!hasAnyAuthToken()) {
@@ -158,33 +163,24 @@ export default function AdminYearSetup() {
 					adminHref="/admin/year-setup"
 					allowTestDataMarking
 					plainLanguageNextStep
+					reloadSignal={reloadSignal}
 					onStatus={setStatus}
 					onApplied={setStarted}
 				/>
 
-				{/* RR-09B: kept school years shown as history. A7-C1 §1.6 drops the
-				    "election" sentence and the read-only technical wording; the
-				    destination, the ids in the href and the `data-testid` are unchanged. */}
-				{status?.archivedYears?.length ? (
-					<div className="rounded-xl border border-slate-200 bg-white/80 p-4" data-testid="admin-year-setup-archived">
-						<div className="flex items-center gap-1.5 text-sm font-semibold text-slate-800">
-							<Archive className="size-4 text-muted-foreground" />
-							{PLAIN_PAST_YEARS_HEADING}
-						</div>
-						<p className="mt-1 text-xs text-muted-foreground">{PLAIN_PAST_YEARS_HELPER}</p>
-						<ul className="mt-2 grid gap-2 sm:grid-cols-2">
-							{status.archivedYears.map((year) => (
-								<li key={year.enrollProSchoolYearId}>
-									<Button asChild type="button" variant="outline" className="h-auto min-h-11 w-full justify-start whitespace-normal px-3 py-2 text-left" data-testid={`year-setup-history-${year.enrollProSchoolYearId}`}>
-										<Link to={`/teaching-load/history?schoolYearId=${year.enrollProSchoolYearId}`}>
-											<span><span className="font-semibold">{year.yearLabel}</span><span className="block text-xs text-muted-foreground">{PLAIN_PAST_YEARS_LINK}{year.preservedCounts?.publishedGenerationRuns ? ` · ${year.preservedCounts.publishedGenerationRuns} published timetable(s)` : ''}</span></span>
-										</Link>
-									</Button>
-								</li>
-							))}
-						</ul>
-					</div>
-				) : null}
+				{/* A7-C2 §1: EVERY school year, not only the kept ones. The c1 card
+				    read `status.archivedYears`, whose server query filters
+				    `isArchived: true`, so a year that was neither the active year
+				    nor archived had no row anywhere — the 2026-09-28 defect. This
+				    card reads the new `status.schoolYears` (R4), which lists every
+				    mirrored year, and carries the per-year "Keep as history" action
+				    (item 2) and the read-only Teaching Load / Timetable links
+				    (item 3, R6). */}
+				<SchoolYearListCard
+					schoolId={schoolId}
+					schoolYears={status?.schoolYears ?? []}
+					onKept={() => setReloadSignal((n) => n + 1)}
+				/>
 
 					{/* Optional audited carry-forward preview (zero-write). Apply is a
 						separate, separately approved HIGH action and is not reachable here. */}

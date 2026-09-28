@@ -99,8 +99,11 @@ type MirrorRow = {
 };
 
 function mirror(overrides: Partial<MirrorRow> & Pick<MirrorRow, 'schoolId' | 'enrollProSchoolYearId' | 'yearLabel'>): MirrorRow {
+	// `id` is applied AFTER the spread so an explicit `id` override wins instead
+	// of being silently overwritten by the default (TS2783). The cast is honest:
+	// the parameter type already requires schoolId, enrollProSchoolYearId and
+	// yearLabel, which the spread supplies.
 	return {
-		id: overrides.enrollProSchoolYearId,
 		isActive: false,
 		isArchived: false,
 		archivedAt: null,
@@ -115,7 +118,8 @@ function mirror(overrides: Partial<MirrorRow> & Pick<MirrorRow, 'schoolId' | 'en
 		lastSyncMetadata: null,
 		updatedAt: new Date('2098-01-01T00:00:00.000Z'),
 		...overrides,
-	};
+		id: overrides.id ?? overrides.enrollProSchoolYearId,
+	} as MirrorRow;
 }
 
 function matchUnique(row: MirrorRow, args: any): boolean {
@@ -167,7 +171,7 @@ function delegate(model: string, prefix: string, log: MutationLog, rows?: Mirror
 			record('create');
 			const created = mirror({ schoolId: SCHOOL_ID, enrollProSchoolYearId: 0, yearLabel: '', ...(args?.data ?? {}) });
 			if (rows) rows.push(created);
-			return { id: created.id, ...created };
+			return { ...created, id: created.id };
 		},
 		update: async (args: any) => {
 			record('update');
