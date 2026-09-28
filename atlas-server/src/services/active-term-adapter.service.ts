@@ -51,6 +51,24 @@ export type ActiveTermResult = {
 	orderedTerms?: Array<{ identity: string; displayLabel: string; order: number }>;
 	termFormat?: 'TRIMESTER' | 'QUARTERS' | null;
 	termCount?: number | null;
+	/**
+	 * A5-C2A — true when the answer came from the saved verified ordered-term
+	 * snapshot rather than a live EnrollPro read. A degraded answer ALWAYS
+	 * carries `cachedAt`, and the client renders that capture time, so saved
+	 * data is never presented as live and never degrades silently.
+	 */
+	degraded?: boolean;
+	/** ISO capture time of the saved snapshot backing a degraded answer. */
+	cachedAt?: string | null;
+	/** True when a degraded snapshot is older than the canonical cache TTL. */
+	cachedBeyondTtl?: boolean;
+	/**
+	 * Whether the saved snapshot was re-verified against the LIVE EnrollPro
+	 * semantic revision before being treated as current. `true` = matched,
+	 * `false` = did not match (and the resolver then failed closed),
+	 * `null` = no live structure was available to compare against.
+	 */
+	semanticRevisionMatched?: boolean | null;
 };
 
 export function normalizeTermIndex(rawTerm: string | null | undefined, orderedTermIdentities?: string[]): { termIndex: number | null; normalizedTerm: string | null } {

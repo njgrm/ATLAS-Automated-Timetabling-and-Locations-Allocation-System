@@ -3,23 +3,36 @@ import { fetchAtlasRuntimeContext, fetchPublicSettings } from './settings';
 const ACTIVE_SCHOOL_YEAR_CACHE_PREFIX = 'atlas:active-school-year-context:v3';
 const ACTIVE_SCHOOL_YEAR_MAX_AGE_MS = 10 * 60 * 1000;
 
+type ActiveTermPayload = {
+	source: string;
+	reachable: boolean;
+	verified: boolean;
+	activeTerm: string | null;
+	termIndex: number | null;
+	schoolYearId: number | null;
+	matchedSchoolYear: boolean | null;
+	code: string | null;
+	message: string;
+	orderedTerms?: Array<{ identity: string; displayLabel: string; order: number }>;
+	termFormat?: 'TRIMESTER' | 'QUARTERS' | null;
+	termCount?: number | null;
+	/**
+	 * A5-C2A — the server resolver's degradation truth. `degraded` means the
+	 * active term came from the saved verified ordered-term snapshot, and
+	 * `cachedAt` is the REAL capture time of that snapshot. The client must
+	 * render both: saved data is never presented as live, and it never
+	 * degrades silently.
+	 */
+	degraded?: boolean;
+	cachedAt?: string | null;
+	cachedBeyondTtl?: boolean;
+	semanticRevisionMatched?: boolean | null;
+};
+
 type ActiveSchoolYearCacheRecord = {
 	activeSchoolYearId: number;
 	activeSchoolYearLabel: string | null;
-	activeTerm: {
-		source: string;
-		reachable: boolean;
-		verified: boolean;
-		activeTerm: string | null;
-		termIndex: number | null;
-		schoolYearId: number | null;
-		matchedSchoolYear: boolean | null;
-		code: string | null;
-		message: string;
-		orderedTerms?: Array<{ identity: string; displayLabel: string; order: number }>;
-		termFormat?: 'TRIMESTER' | 'QUARTERS' | null;
-		termCount?: number | null;
-	} | null;
+	activeTerm: ActiveTermPayload | null;
 	cachedAt: string;
 };
 
@@ -32,20 +45,7 @@ export type ActiveSchoolYearContext = {
 	source: ActiveSchoolYearContextSource;
 	stale: boolean;
 	cachedAt: string;
-	activeTerm: {
-		source: string;
-		reachable: boolean;
-		verified: boolean;
-		activeTerm: string | null;
-		termIndex: number | null;
-		schoolYearId: number | null;
-		matchedSchoolYear: boolean | null;
-		code: string | null;
-		message: string;
-		orderedTerms?: Array<{ identity: string; displayLabel: string; order: number }>;
-		termFormat?: 'TRIMESTER' | 'QUARTERS' | null;
-		termCount?: number | null;
-	} | null;
+	activeTerm: ActiveTermPayload | null;
 };
 
 export type ResolveActiveSchoolYearContextOptions = {
@@ -108,6 +108,55 @@ export function describeSchoolYearSource(context: ActiveSchoolYearContext): stri
 		return `Working from saved data (${context.activeSchoolYearLabel}).`;
 	}
 	return 'Working from saved data.';
+}
+
+/**
+ * A5-C2A — the ONE wording for "this answer came from saved data".
+ *
+ * Every surface that consumes the canonical active-term resolver must describe
+ * a degraded answer with this helper, so no page invents its own phrase and no
+ * page can present saved data as if it were live. Returns `null` for a live
+ * answer, which callers render as no notice at all.
+ */
+export function describeSavedTermSource(activeTerm: ActiveTermPayload | null | undefined): string | null {
+	if (!activeTerm || activeTerm.degraded !== true) return null;
+	const captured = formatCapturedTime(activeTerm.cachedAt);
+	if (!captured) {
+		return 'Using saved term data.';
+	}
+	return activeTerm.cachedBeyondTtl === true
+		? `Using saved term data from ${captured} (older than the usual refresh window).`
+		: `Using saved term data from ${captured}.`;
+}
+
+/**
+ * Render a snapshot capture time for a human. The REAL value is shown; an
+ * unparseable or absent stamp degrades to `null` so the caller can say it is
+ * saved data without inventing a time.
+ */
+function formatCapturedTime(cachedAt: string | null | undefined): string | null {
+	if (!cachedAt) return null;
+	const parsed = Date.parse(cachedAt);
+	if (!Number.isFinite(parsed)) return null;
+	return new Date(parsed).toLocaleString(undefined, {
+		year: 'numeric',
+		month: 'short',
+		day: 'numeric',
+		hour: '2-digit',
+		minute: '2-digit',
+	});
+}
+
+/**
+ * A5-C2A — a one-line, human reason for a genuinely unknown active term, taken
+ * from the server's typed answer so the page never dead-ends without saying
+ * why. Falls back to a generic sentence only when the server sent no code.
+ */
+export function describeUnresolvedTermReason(activeTerm: ActiveTermPayload | null | undefined): string {
+	const message = activeTerm?.message?.trim();
+	if (message) return message;
+	if (activeTerm?.code) return `EnrollPro reported ${activeTerm.code} and ATLAS has no saved ordered term to fall back to.`;
+	return 'ATLAS could not resolve an active ordered term from EnrollPro or from saved data.';
 }
 
 const activeSchoolYearMemory = new Map<number, ActiveSchoolYearCacheRecord>();

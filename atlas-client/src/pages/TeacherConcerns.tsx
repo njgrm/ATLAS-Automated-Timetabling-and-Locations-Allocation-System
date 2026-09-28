@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AlertTriangle, ClipboardList, RefreshCcw } from 'lucide-react';
+import { AlertTriangle, ClipboardList, Info, RefreshCcw } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { Button } from '@/ui/button';
@@ -10,7 +10,7 @@ import { PageHeader } from '@/components/app-shell/PageHeader';
 import { getActionableApiError } from '@/lib/actionable-api-error';
 import { getAtlasTokenEpochVersion, getPreferredAccessToken } from '@/lib/auth';
 import { useActorSchoolScope } from '@/lib/actor-scope-session';
-import { describeSchoolYearSource, resolveActiveSchoolYearContext } from '@/lib/enrollpro-public-settings';
+import { describeSavedTermSource, describeSchoolYearSource, describeUnresolvedTermReason, resolveActiveSchoolYearContext } from '@/lib/enrollpro-public-settings';
 import { resolveVerifiedActiveTermIndex } from '@/lib/timetable-data/timetablePrefetch';
 import type {
 	FacultyAvailabilityRecord,
@@ -57,6 +57,9 @@ export default function TeacherConcerns() {
 	const [schoolYearId, setSchoolYearId] = useState<number | null>(null);
 	const [schoolYearNotice, setSchoolYearNotice] = useState<string | null>(null);
 	const [activeTermIndex, setActiveTermIndex] = useState<number | null>(null);
+	/** A5-C2A — the server resolver's degradation truth, rendered verbatim. */
+	const [savedTermNotice, setSavedTermNotice] = useState<string | null>(null);
+	const [unresolvedTermReason, setUnresolvedTermReason] = useState<string | null>(null);
 	const [yearError, setYearError] = useState<string | null>(null);
 
 	const [faculty, setFaculty] = useState<FacultyMirror[]>([]);
@@ -74,14 +77,33 @@ export default function TeacherConcerns() {
 	const [concernError, setConcernError] = useState<string | null>(null);
 	const [saving, setSaving] = useState(false);
 	const [refreshNonce, setRefreshNonce] = useState(0);
+	/**
+	 * A5-C2A — a separate nonce for the canonical term RESOLUTION, not just the
+	 * concern read. Without it the "Re-check the active term" button would
+	 * re-fetch the teacher's record while leaving the unresolved term untouched,
+	 * which is the exact "handler wired, outcome wrong" defect.
+	 */
+	const [termRefreshNonce, setTermRefreshNonce] = useState(0);
 
 	const loadSeqRef = useRef(0);
 
-	/* ── Actor-school → active school year + verified ordered term ── */
+	/* ── Actor-school → active school year + verified ordered term ──
+	 *
+	 * A5-C2A: this page reads the SAME canonical resolver the app shell and the
+	 * concern WRITE path use. There is no page-local notion of the active term.
+	 * The previous copy resolved the term from a live-only EnrollPro read, so a
+	 * truthful reachable `ACTIVE_TERM_UNRESOLVED` (host clock outside every term
+	 * of the active year) produced "Active ordered term unresolved" and disabled
+	 * the whole teacher workflow while the shell showed the saved term. The
+	 * server resolver now degrades that case to LABELLED saved data carrying its
+	 * real capture time, and this page renders that label.
+	 */
 	useEffect(() => {
 		if (actorSchoolId == null) {
 			setSchoolYearId(null);
 			setActiveTermIndex(null);
+			setSavedTermNotice(null);
+			setUnresolvedTermReason(null);
 			return;
 		}
 		let cancelled = false;
@@ -89,23 +111,33 @@ export default function TeacherConcerns() {
 		const epoch = getAtlasTokenEpochVersion();
 		const isCurrent = () => !cancelled && isCurrentEpoch(token, epoch);
 		setYearError(null);
-		resolveActiveSchoolYearContext({ schoolId: actorSchoolId, allowStaleOnError: true, allowEnrollProFallback: false })
+		// `forceRefresh` is load-bearing, not cosmetic. The concern WRITE path
+		// re-resolves the active term live on the server and rejects a mismatched
+		// termIndex with `TERM_SCOPE_MISMATCH`, so a 10-minute-old client cache
+		// could make this page show a term the server no longer holds. Asking for
+		// a current answer is what makes the read and the write agree.
+		resolveActiveSchoolYearContext({ schoolId: actorSchoolId, allowStaleOnError: true, allowEnrollProFallback: false, forceRefresh: true })
 			.then((context) => {
 				if (!isCurrent()) return;
 				setSchoolYearId(context.activeSchoolYearId);
 				setSchoolYearNotice(describeSchoolYearSource(context));
-				setActiveTermIndex(resolveVerifiedActiveTermIndex(context.activeTerm));
+				const resolvedTerm = resolveVerifiedActiveTermIndex(context.activeTerm);
+				setActiveTermIndex(resolvedTerm);
+				setSavedTermNotice(describeSavedTermSource(context.activeTerm));
+				setUnresolvedTermReason(resolvedTerm == null ? describeUnresolvedTermReason(context.activeTerm) : null);
 			})
 			.catch(() => {
 				if (!isCurrent()) return;
 				setYearError('Failed to resolve the active school year for the actor school.');
 				setSchoolYearId(null);
 				setActiveTermIndex(null);
+				setSavedTermNotice(null);
+				setUnresolvedTermReason(null);
 			});
 		return () => {
 			cancelled = true;
 		};
-	}, [actorSchoolId]);
+	}, [actorSchoolId, termRefreshNonce]);
 
 	/* ── Actor-school teacher roster ── */
 	useEffect(() => {
@@ -196,7 +228,15 @@ export default function TeacherConcerns() {
 		[faculty],
 	);
 
-	const bumpRefresh = () => setRefreshNonce((nonce) => nonce + 1);
+	/**
+	 * A5-C2A — one action that re-runs BOTH the term resolution and the concern
+	 * read, so "re-check" actually changes the outcome on the page rather than
+	 * just refetching the record behind an unchanged verdict.
+	 */
+	const bumpRefresh = () => {
+		setRefreshNonce((nonce) => nonce + 1);
+		setTermRefreshNonce((nonce) => nonce + 1);
+	};
 
 	const runWrite = async (action: () => Promise<FacultyAvailabilityRecord>, successMessage: string) => {
 		setSaving(true);
@@ -277,6 +317,18 @@ export default function TeacherConcerns() {
 
 					{schoolYearNotice && <p className='text-xs text-muted-foreground'>{schoolYearNotice}</p>}
 
+					{/* A5-C2A — the saved-data label. Rendered whenever the canonical
+					    resolver answered from the saved verified ordered-term snapshot,
+					    with the REAL capture time, and the workflow stays usable. This
+					    is the one place this page describes its term source, so no second
+					    page-local notion of the active term can appear. */}
+					{savedTermNotice && (
+						<p className='flex items-center gap-1.5 text-xs text-muted-foreground' data-testid='concern-saved-term-notice'>
+							<Info className='size-3.5 shrink-0' aria-hidden='true' />
+							{savedTermNotice}
+						</p>
+					)}
+
 					{scopeResolved && actorSchoolId == null && (
 						<Card className='rounded-2xl border-destructive/20'>
 							<CardContent className='flex items-start gap-3 py-6'>
@@ -304,15 +356,23 @@ export default function TeacherConcerns() {
 					)}
 
 					{termUnresolved && actorSchoolId != null && schoolYearId != null && (
-						<Card className='rounded-2xl border-warning-border bg-warning-muted'>
+						<Card className='rounded-2xl border-warning-border bg-warning-muted' data-testid='concern-term-unresolved'>
 							<CardContent className='flex items-start gap-3 py-6'>
 								<AlertTriangle className='mt-0.5 size-5 text-warning' aria-hidden='true' />
-								<div>
+								<div className='min-w-0 space-y-2'>
 									<p className='text-sm font-semibold text-warning-foreground'>Active ordered term unresolved</p>
-									<p className='mt-1 text-xs leading-relaxed text-warning-foreground/90'>
-										Availability is term-scoped. Resolve the active ordered term before recording or reviewing a concern;
-										writes stay disabled rather than defaulting to Term 1.
+									<p className='text-xs leading-relaxed text-warning-foreground/90'>
+										{unresolvedTermReason ?? 'Availability is term-scoped, so ATLAS will not record a concern until an ordered term is verified.'}
+										Writes stay disabled rather than defaulting to Term 1.
 									</p>
+									{/* A5-C2A — one recoverable action, never a dead end. "Check for
+					    updates" re-runs the canonical resolver; if EnrollPro is back
+					    and its term structure still matches the saved one, the term
+					    resolves and this whole notice disappears. */}
+									<Button type='button' variant='outline' size='sm' onClick={bumpRefresh}>
+										<RefreshCcw className='mr-1.5 size-4' aria-hidden='true' />
+										Re-check the active term
+									</Button>
 								</div>
 							</CardContent>
 						</Card>

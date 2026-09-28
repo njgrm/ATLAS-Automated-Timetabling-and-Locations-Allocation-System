@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, Navigate, useNavigate } from 'react-router-dom';
-import { Archive, ArrowLeft, ShieldAlert } from 'lucide-react';
+import { AlertTriangle, Archive, ArrowLeft, RefreshCcw, ShieldAlert } from 'lucide-react';
 
 import { RolloverResetPanel } from '@/components/runtime/RolloverResetPanel';
 import { PageHeader } from '@/components/app-shell/PageHeader';
@@ -9,9 +9,104 @@ import { CarryForwardReviewPanel } from '@/components/runtime/CarryForwardReview
 import { Button } from '@/ui/button';
 import { verifySessionToken, type RolloverStatus } from '@/lib/settings';
 import { clearAtlasAuthStorage, clearUserRoleCache, hasAnyAuthToken } from '@/lib/auth';
+import { describeSavedTermSource, describeUnresolvedTermReason, resolveActiveSchoolYearContext } from '@/lib/enrollpro-public-settings';
+import { resolveVerifiedActiveTermIndex } from '@/lib/timetable-data/timetablePrefetch';
 import type { BridgeUser } from '@/types';
 
 const ADMIN_ROLES = new Set(['admin', 'SYSTEM_ADMIN', 'officer']);
+
+/**
+ * A5-C2A — the page's OWN year/term truth, read from the SAME canonical
+ * resolver the app shell uses. The recorded defect was that this page could say
+ * the active year was unresolved while the header beside it said the year was
+ * active. A page that contradicts the global year is worse than a page that says
+ * nothing, so this banner states the resolved year and term, or — when they are
+ * genuinely unknown — says exactly what could not be resolved and offers one
+ * retry. It never reports "unresolved" while an active year is known.
+ */
+function YearTruthBanner({ schoolId, nonce, onRetry }: { schoolId: number; nonce: number; onRetry: () => void }) {
+	const [state, setState] = useState<
+		| { kind: 'loading' }
+		| { kind: 'resolved'; label: string | null; termIndex: number; termLabel: string | null; savedNotice: string | null }
+		| { kind: 'unresolved'; reason: string }
+		| { kind: 'error'; reason: string }
+	>({ kind: 'loading' });
+
+	useEffect(() => {
+		let cancelled = false;
+		setState({ kind: 'loading' });
+		resolveActiveSchoolYearContext({ schoolId, allowStaleOnError: true, allowEnrollProFallback: false, forceRefresh: true })
+			.then((context) => {
+				if (cancelled) return;
+				const termIndex = resolveVerifiedActiveTermIndex(context.activeTerm);
+				if (termIndex == null) {
+					setState({ kind: 'unresolved', reason: describeUnresolvedTermReason(context.activeTerm) });
+					return;
+				}
+				setState({
+					kind: 'resolved',
+					label: context.activeSchoolYearLabel,
+					termIndex,
+					termLabel: context.activeTerm?.orderedTerms?.[termIndex - 1]?.displayLabel ?? null,
+					savedNotice: describeSavedTermSource(context.activeTerm),
+				});
+			})
+			.catch((error: unknown) => {
+				if (cancelled) return;
+				setState({
+					kind: 'error',
+					reason: error instanceof Error && error.message
+						? error.message
+						: 'ATLAS could not read the active school year from runtime data.',
+				});
+			});
+		return () => {
+			cancelled = true;
+		};
+	}, [schoolId, nonce]);
+
+	if (state.kind === 'loading') {
+		return (
+			<p className='text-xs text-muted-foreground' data-testid='year-truth-loading'>
+				Reading the active school year from ATLAS runtime data...
+			</p>
+		);
+	}
+
+	if (state.kind === 'resolved') {
+		// Name the term, not just its provenance. "Term from saved data" told a
+		// scheduler that a term existed while withholding which one, so the page
+		// still disagreed with the shell's "Term T2" in the only field a reader
+		// compares. Prefer the verified display label; fall back to the ordered
+		// index the resolver returned.
+		const termLabel = state.termLabel ?? `Term ${state.termIndex}`;
+		return (
+			<p className='text-xs text-muted-foreground' data-testid='year-truth-resolved'>
+				Active school year{state.label ? `: ${state.label}` : ''} · {termLabel}
+				{state.savedNotice ? `, from saved data. ${state.savedNotice}` : ', verified live from EnrollPro.'}
+			</p>
+		);
+	}
+
+	return (
+		<div className='flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900' data-testid='year-truth-unresolved'>
+			<AlertTriangle className='mt-0.5 size-4 shrink-0 text-amber-700' aria-hidden='true' />
+			<div className='min-w-0 space-y-1'>
+				<p className='font-semibold'>
+					{state.kind === 'error' ? 'ATLAS could not read the active school year.' : 'The active ordered term could not be resolved.'}
+				</p>
+				<p className='leading-relaxed'>{state.reason}</p>
+				{state.kind === 'unresolved' ? (
+					<p className='leading-relaxed'>This does not change the active school year; it only means the term-scoped actions below cannot pick a term. Saving the ordered terms in EnrollPro is what resolves it.</p>
+				) : null}
+				<Button type='button' variant='outline' size='sm' onClick={onRetry} data-testid='year-truth-retry'>
+					<RefreshCcw className='mr-1.5 size-4' aria-hidden='true' />
+					Re-check the school year
+				</Button>
+			</div>
+		</div>
+	);
+}
 
 /**
  * `/admin/year-setup` -- admin-only year setup route (Phase 0B.2, RR-09B).
@@ -31,6 +126,8 @@ export default function AdminYearSetup() {
 	const [user, setUser] = useState<BridgeUser | null>(null);
 	const [verifying, setVerifying] = useState(true);
 	const [status, setStatus] = useState<RolloverStatus | null>(null);
+	/** A5-C2A — bumped by the year-truth retry so it really re-reads. */
+	const [yearTruthNonce, setYearTruthNonce] = useState(0);
 
 	useEffect(() => {
 		if (!hasAnyAuthToken()) {
@@ -119,12 +216,27 @@ export default function AdminYearSetup() {
 						This page moves the old school year to read-only history (Archive and sync) and syncs the new school year from EnrollPro. Normal setup pages link here so year actions never appear beside routine work. The advanced destructive reset is reserved for genuinely disposable test data only.
 					</p>
 
-					{/* Dismissible status banner + non-destructive Archive and sync flow */}
+					{/* A5-C2A — the page's own year/term truth, from the SAME canonical
+					    resolver the app shell uses, so this page can never claim the
+					    active year is unresolved while the header says it is active. */}
+					<YearTruthBanner schoolId={schoolId} nonce={yearTruthNonce} onRetry={() => setYearTruthNonce((n) => n + 1)} />
+
+					{/* Dismissible status banner + non-destructive Archive and sync flow.
+					    A5-C2A: the `adminHref` self-link is removed. It pointed at
+					    `/admin/year-setup` — the page the operator is already on — so it
+					    rendered a "Year setup" control beside Preview whose only effect
+					    was to reload the current route. It is a dead-looking
+					    affordance, not a destination. */}
+					{/* A5-C2A: `adminHref={null}` is what actually removes the "Year setup"
+					    self-link. Dropping the prop was NOT enough - the card defaulted
+					    it to `/admin/year-setup`, so the dead control still rendered
+					    beside Preview. The other four consumers (Dashboard, Faculty,
+					    Sections, Teaching Load) keep the default and their links. */}
 					<RolloverGuidanceCard
 						schoolId={schoolId}
 						dismissible={false}
-						adminHref="/admin/year-setup"
 						allowTestDataMarking
+						adminHref={null}
 						onStatus={setStatus}
 					/>
 

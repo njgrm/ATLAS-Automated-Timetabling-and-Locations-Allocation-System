@@ -1,8 +1,21 @@
 import { getDataContext } from '../lib/data-context.js';
 import { findMappingConflicts, fetchSectionExternalIds, resolveMappingConflictAction } from './enrollpro-rollover.service.js';
 import { fetchEnrollProActiveSchoolYear } from './section-adapter.js';
+// A5-C2A: the runtime context resolves the active term through the ONE canonical
+// resolver. `fetchEnrollProActiveTerm` is used for exactly one field — the
+// reachability / typed-code DIAGNOSTIC when the live ORDERED STRUCTURE cannot be
+// verified. It is NOT authority for the term itself: a term named outside a
+// verified structure is discarded so this surface can never report a term the
+// availability write authority refuses. See `resolveRuntimeActiveTerm`.
 import { fetchEnrollProActiveTerm, type ActiveTermResult } from './active-term-adapter.service.js';
 import { normalizePersistedTermStructure } from './derived-demand.service.js';
+// A5-C2A — the ONE canonical active-term resolver, shared with the availability
+// authority and the generation preflight. A reachable, truthful
+// `ACTIVE_TERM_UNRESOLVED` degrades to LABELLED saved data re-verified against
+// the live semantic revision instead of hard-failing while the app shell shows
+// the saved term for the same school year.
+import { resolveCanonicalActiveTerm, type CanonicalActiveTermResolution } from './active-term-resolver.service.js';
+import { fetchEnrollProTermContract } from './enrollpro-term-contract.service.js';
 // ACTIVE-TERM-LIVE-RESOLUTION-C01: the date-derived persisted active term lives
 // in the shared academic-term authority. Re-exported here so existing importers
 // (incl. `offline-term-fallback-rrtc02.test.ts`) keep working.
@@ -12,6 +25,80 @@ export { derivePersistedActiveTerm };
 export type { PersistedTermBoundary };
 
 const db = () => getDataContext();
+
+/**
+ * A5-C2A — call the canonical active-term resolver for the runtime context.
+ * Returns `null` only when the school has no mirrored EnrollPro school year to
+ * resolve a term against; every other outcome (including a fail-closed `null`
+ * term) is a typed {@link CanonicalActiveTermResolution}.
+ */
+async function resolveRuntimeActiveTerm(
+	schoolId: number,
+	schoolYearId: number | null,
+	authToken: string | undefined,
+): Promise<CanonicalActiveTermResolution | null> {
+	if (!Number.isInteger(schoolYearId) || (schoolYearId as number) <= 0) return null;
+	const resolvedYearId = schoolYearId as number;
+	const resolution = await resolveCanonicalActiveTerm(
+		{ schoolId, schoolYearId: resolvedYearId },
+		{
+			// The canonical verified live read. The resolver reads the persisted
+			// verified snapshot itself and re-verifies it against this live
+			// structure's semantic revision before it is treated as current.
+			provider: ({ schoolId: id, schoolYearId: yearId }) =>
+				fetchEnrollProTermContract({ schoolId: id, schoolYearId: yearId, authToken }),
+		},
+	);
+
+	// A structural failure is not a verdict about which term is active — but it
+	// IS the verdict for the term FIELD here, because the availability/generation
+	// write authority never consults the active-term-only adapter. It resolves
+	// through this same canonical resolver and, on `liveStructureVerified ===
+	// false`, returns `termIndex: null` and rejects the write with 409
+	// `TERM_AUTHORITY_UNRESOLVED` (faculty-availability.service.ts ->
+	// resolveActiveAvailabilityTermIndex -> resolveActiveOrderedTermIndexLive).
+	//
+	// B1: this branch used to SUBSTITUTE the non-canonical
+	// `fetchEnrollProActiveTerm` answer, so a legacy adapter that named a term
+	// made this surface report `verified: true` + `degraded: false` for a term
+	// the write path refuses — the page painted a term as live with no
+	// saved-data label while every write was rejected. The read/write
+	// disagreement this module exists to remove, on the one branch the existing
+	// control did not cover.
+	//
+	// Option (a) is applied: the canonical structural-failure verdict is
+	// AUTHORITATIVE for the term field, so the term is WITHHELD
+	// (`termIndex: null`). The legacy adapter is still consulted for exactly one
+	// thing — the reachability and typed-code DIAGNOSTIC — which is preserved
+	// deliberately: `dashboard-stale-readiness` pins a school-year 200 +
+	// active-term 409 reporting exactly `ACTIVE_TERM_UNRESOLVED`, and a
+	// structural failure that swallowed a reachable upstream answer would report
+	// the healthy upstream as an outage. Its term is discarded because a term
+	// named outside a verified ordered structure cannot be scoped to one, and
+	// the write authority would refuse it in any case.
+	if (resolution.liveStructureVerified) return resolution;
+
+	const legacy = await fetchEnrollProActiveTerm(authToken, resolvedYearId);
+	return {
+		// Canonical term field: withheld, never taken from the legacy adapter.
+		termIndex: null,
+		termIdentity: null,
+		source:
+			legacy.source === 'enrollpro-verified' ? 'enrollpro-verified'
+				: legacy.source === 'enrollpro-unresolved' ? 'enrollpro-unresolved'
+					: legacy.source === 'enrollpro-contract-drift' ? 'enrollpro-contract-drift'
+						: 'enrollpro-unreachable',
+		// No term is served, so nothing here comes from saved data and the
+		// client owes the operator no saved-data label.
+		degraded: false,
+		cachedAt: null,
+		cachedBeyondTtl: false,
+		semanticRevisionMatched: null,
+		liveStructureVerified: false,
+		code: legacy.code,
+		message: legacy.message,
+	};
+}
 
 type RuntimeContextEvidenceType =
 	| 'school-year-mirror'
@@ -386,9 +473,12 @@ export async function resolveRuntimeContext(
 	};
 
 	if (verifyUpstream) {
-		// Resolve the persisted ordered identities first so the live active-term
-		// index is resolved against the exact contract rather than a T# guess.
-		let persistedOrderedIdentities: string[] | undefined;
+		// A5-C2A — the live active term is resolved by the ONE canonical resolver,
+		// which reads the persisted verified ordered snapshot itself (and
+		// re-verifies it against the live semantic revision) when EnrollPro
+		// truthfully reports that no term contains today. This context therefore
+		// no longer carries its own active-term policy.
+		//
 		// RR-TERM-CACHE offline resilience: the persisted verified contract carries
 		// its own active term. It is the fallback when the live active-term endpoint
 		// is unreachable, so the timetable still resolves one ordered term instead of
@@ -401,7 +491,6 @@ export async function resolveRuntimeContext(
 				schoolYearMirror.enrollProSchoolYearId,
 			);
 			if (persisted.ok) {
-				persistedOrderedIdentities = persisted.structure.terms.map((term) => term.identity);
 				const rawActive = (schoolYearMirror.termContractCache as { activeTerm?: { order?: unknown } }).activeTerm;
 				const activeOrder = rawActive && Number.isInteger(rawActive.order) ? Number(rawActive.order) : null;
 				persistedActiveTerm = derivePersistedActiveTerm(persisted.structure.terms, activeOrder, new Date());
@@ -409,22 +498,38 @@ export async function resolveRuntimeContext(
 		}
 
 		// Fetch school year and active term in parallel — each is independent
-		const [upstreamYear, activeTermResponse] = await Promise.all([
+		const [upstreamYear, canonicalActiveTerm] = await Promise.all([
 			fetchEnrollProActiveSchoolYear(authToken).catch(() => null),
-			fetchEnrollProActiveTerm(authToken, schoolYearMirror?.enrollProSchoolYearId ?? undefined, persistedOrderedIdentities).catch(() => null),
+			resolveRuntimeActiveTerm(schoolId, schoolYearMirror?.enrollProSchoolYearId ?? null, authToken),
 		]);
 
-		// Process active term result (independent of school year)
-		// `fetchEnrollProActiveTerm` always resolves an object (it catches its own
-		// failures), so the trigger is the typed source, not a nullish return.
-		// A reachable typed result (verified / unresolved / contract-drift) is
-		// authoritative and is never overridden by the persisted cache.
-		if (activeTermResponse && activeTermResponse.source !== 'enrollpro-unreachable') {
-			activeTermResult = activeTermResponse;
+		// A5-C2A — the active term now comes from the ONE canonical resolver, so
+		// this client-facing context and the availability/generation authority can
+		// never disagree. The previous local policy treated a reachable, truthful
+		// `ACTIVE_TERM_UNRESOLVED` (host clock outside every term of the active
+		// year) as an authoritative null and discarded the saved term the app shell
+		// was already showing — the two-sources-of-truth defect.
+		if (canonicalActiveTerm) {
+			activeTermResult = {
+				source: canonicalActiveTerm.source === 'enrollpro-verified' ? 'enrollpro-verified' : 'atlas-unverified',
+				reachable: !canonicalActiveTerm.source.startsWith('enrollpro-unreachable') && canonicalActiveTerm.source !== 'atlas-unverified',
+				verified: canonicalActiveTerm.termIndex != null,
+				activeTerm: canonicalActiveTerm.termIdentity,
+				termIndex: canonicalActiveTerm.termIndex,
+				schoolYearId: schoolYearMirror?.enrollProSchoolYearId ?? null,
+				matchedSchoolYear: null,
+				code: canonicalActiveTerm.code,
+				message: canonicalActiveTerm.message,
+				degraded: canonicalActiveTerm.degraded,
+				cachedAt: canonicalActiveTerm.cachedAt,
+				cachedBeyondTtl: canonicalActiveTerm.cachedBeyondTtl,
+				semanticRevisionMatched: canonicalActiveTerm.semanticRevisionMatched,
+			};
 		} else if (persistedActiveTerm) {
-			// EnrollPro is unreachable, but the persisted verified ordered contract
-			// carries a resolved active term. Surface it as verified so the client's
-			// D3 fallback loads one explicit ordered term instead of blocking.
+			// No canonical answer (no live structure and no usable snapshot) but the
+			// persisted verified ordered contract still carries a resolved active term.
+			// Surface it so the client resolves one explicit ordered term instead of
+			// dead-ending. Labelled with the snapshot capture time by the caller.
 			activeTermResult = {
 				source: 'enrollpro-unreachable',
 				reachable: false,
@@ -436,8 +541,6 @@ export async function resolveRuntimeContext(
 				code: null,
 				message: 'EnrollPro active-term endpoint is unreachable; using the persisted verified ordered term contract.',
 			};
-		} else if (activeTermResponse) {
-			activeTermResult = activeTermResponse;
 		} else {
 			activeTermResult = {
 				source: 'enrollpro-unreachable',

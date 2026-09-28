@@ -80,6 +80,7 @@
     "test:a3-c5-subjects-error-copy": "tsx --test src/components/subjects/__tests__/a3-c5-subjects-error-copy.test.tsx",
     "test:a3-c6-duplicate-copy": "tsx --test src/components/subjects/__tests__/a3-c6-duplicate-copy.test.tsx",
     "test:a3-c6-concerns": "node --experimental-test-module-mocks --import tsx --test src/components/faculty-shared/__tests__/a3-c6-concerns-truthfulness.test.tsx",
+    "test:a5-c2a-term-truth": "tsx --test src/lib/__tests__/a5-c2a-term-truth.test.ts",
     "test:a3-c6-route-hygiene": "node --experimental-test-module-mocks --import tsx --test src/components/__tests__/a3-c6-reachable-route-hygiene.test.tsx",
     "test:a3-c8-room-preach": "node --experimental-test-module-mocks --import tsx --test src/components/app-shell/__tests__/a3-c8-room-preferences-reachability.test.tsx",
     "test:a3-c8-audit": "node --experimental-test-module-mocks --import tsx --test src/components/__tests__/a3-c8-audit-calm.test.tsx",

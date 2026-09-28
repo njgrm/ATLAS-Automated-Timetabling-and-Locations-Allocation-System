@@ -44,6 +44,7 @@
     "test:visual:timetable-simplicity-lifecycle": "playwright test -c playwright.timetable-scheduler-simplicity-lifecycle.config.ts qa-artifacts/playwright/specs/timetable-scheduler-simplicity-lifecycle.spec.ts",
     "test:visual:carry-forward": "playwright test -c playwright.carry-forward.config.ts",
     "test:visual:a5-subjects-c1": "playwright test -c playwright.a5-subjects.config.ts",
+    "test:visual:a5-c2a-term-truth": "playwright test -c playwright.a5-c2a-term-truth.config.ts",
     "test": "echo \"Error: no test specified\" && exit 1",
     "db:generate": "npx prisma generate",
     "db:migrate": "npx prisma migrate dev --name init",
