@@ -65,8 +65,8 @@
  * missing module.
  */
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { execFileSync, spawnSync } from 'node:child_process';
+import { readdirSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { afterEach, beforeEach, test } from 'node:test';
 import { act, createElement } from 'react';
@@ -789,4 +789,104 @@ test('H9 RANGE-SCOPE ROW (NOT a behavioural row): the parked section-switch file
 		assert.equal(normalise(onDisk), normalise(atBase),
 			`atlas-client/src/${relative} is identical to the base across this range (line endings normalised) — it is explicitly out of scope`);
 	}
+});
+
+/**
+ * H10 - THE MEMORY DEFECT THIS SLICE CAUSED, AND ITS EXACT CAUSE.
+ *
+ * WHAT HAPPENED, measured 2026-09-29: `draft-ux-c01.test.tsx` died before it
+ * reported a single row - `tests 1`, zero subtests, ~7 s, exit code
+ * 4294967295 - and with the heap pinned it printed
+ * `FATAL ERROR: ... JavaScript heap out of memory` in ~6 s. The default heap
+ * limit HIDES it: the process is killed before V8 prints, so it presents as a
+ * silent hang, which is how it was mis-diagnosed twice.
+ *
+ * IT WAS NOT THE PRODUCTION CODE, and this row is the proof rather than the
+ * claim. Bisected one test at a time (34 rows, each in its own process at
+ * `--max-old-space-size=512`): exactly ONE row OOMs - `A2-C12-ITEM4`, the row
+ * this slice ADDED. Its render alone completes in 877 ms at 112 MB. The failing
+ * statement was
+ *
+ *     assert.equal(controlRow.querySelector(`[data-testid="${id}"]`), null, msg)
+ *
+ * When that assertion FAILS, `node:assert` builds its message with
+ * `util.inspect(actual, { depth: 1000, maxArrayLength: Infinity })` - and
+ * `actual` is a jsdom `Element`. A DOM node's property graph (parentNode ->
+ * ownerDocument -> the whole document, plus live collections) expands
+ * combinatorially under that depth, and the message alone exhausts the heap.
+ * Coercing the same value to a boolean first - `... === null` asserted against
+ * `true` - makes the identical failure report in ~1.2 s with no OOM.
+ *
+ * So the rule this row locks in is narrow and behavioural: A FAILING ASSERTION
+ * MUST NOT BE THE THING THAT EXHAUSTS THE HEAP. The row re-runs the real file,
+ * the real row, in a child process with a 256 MB heap, and fails if the child
+ * dies of heap exhaustion or if the row is not reported at all.
+ */
+function stripTestContext(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+	// node refuses to run a test file inside a test file, and the child must be
+	// allowed to, or the row asserts nothing. The child sets it for ITSELF.
+	const out = { ...env };
+	delete out.NODE_TEST_CONTEXT;
+	return out;
+}
+
+test('H10 a failing assertion in draft-ux-c01 reports its row; it never exhausts the heap (the 2026-09-29 OOM)', () => {
+	const child = spawnSync(process.execPath, [
+		'--max-old-space-size=256',
+		'--import', 'tsx',
+		'--test', '--test-reporter=tap',
+		'--test-name-pattern=A2-C12-ITEM4',
+		resolve(CLIENT_ROOT, 'src/components/timetable/__tests__/draft-ux-c01.test.tsx'),
+	], { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, cwd: CLIENT_ROOT, env: stripTestContext(process.env) });
+	const output = [child.stdout, child.stderr].filter(Boolean).join(String.fromCharCode(10));
+
+	assert.doesNotMatch(output, /heap out of memory/i,
+		'draft-ux-c01 A2-C12-ITEM4 must not exhaust its heap; a failing assert.equal against a jsdom Element is the shape that did');
+	assert.match(output, /A2-C12-ITEM4/,
+		'the child really ran that row (a silently-skipped row would satisfy the OOM assertion vacuously)');
+	assert.equal(child.signal, null, 'the child exited on its own; it was not killed by a signal');
+});
+
+/**
+ * H11 - A SOURCE-SHAPE ROW, AND IT SAYS SO IN ITS OWN NAME, like H9.
+ *
+ * Its subject is code shape, which no render can decide, so it greps. It exists
+ * because H10 fixes ONE occurrence and the same landmine is one keystroke away
+ * in any test in this client: hand a `querySelector` / `querySelectorAll` RESULT
+ * to `assert.equal` / `notEqual` / `deepEqual` and a failing comparison inspects
+ * a DOM node at depth 1000 and can take the process down. The fix is always the
+ * same shape - assert the boolean, the count, or the testid - so that is what
+ * this row requires. A wrapped or pre-coerced call does not match, and is
+ * allowed.
+ */
+/**
+ * H11 - A SOURCE-SHAPE ROW, AND IT SAYS SO IN ITS OWN NAME, like H9.
+ *
+ * H10 above is the BEHAVIOURAL guard: it runs the real row in a real child and
+ * fails if the heap dies. This row is the cheap, instant companion for the one
+ * site this slice actually introduced, so the shape cannot come back through a
+ * keystroke in the file that carried the OOM.
+ *
+ * SCOPE, STATED PLAINLY, because a wider version of this row is tempting and
+ * would be a lie: the narrow shape (`assert.equal(<node>, null)`) occurs 61
+ * times across this client TODAY, all of them pre-existing and none of them
+ * reported as OOMing - `draft-ux-c01` passes those rows at the base. The hazard
+ * is real (see H10) but its blast radius scales with the size of the document
+ * being inspected, so a blanket sweep is not this slice's to land and is not
+ * claimed here. Those 61 sites are recorded as a dated follow-up row in
+ * `docs/handoffs/lane-a-to-c.md` for the lanes that own them.
+ *
+ * What this row DOES require: the exact statement that OOMed is the boolean
+ * form. Reverting `... === null` to the bare node fails this row.
+ */
+test('H11 SOURCE-SHAPE ROW: the draft-ux-c01 statement that OOMed on 2026-09-29 compares a BOOLEAN, not a DOM node', () => {
+	const text = readFileSync(resolve(CLIENT_ROOT, 'src/components/timetable/__tests__/draft-ux-c01.test.tsx'), 'utf8');
+	const offenders = text.replace(/\r\n/g, '\n').split('\n')
+		.map((line, index) => ({ line: line.trim(), at: index + 1 }))
+		.filter(({ line }) => /assert\.(equal|notEqual|strictEqual|deepEqual|deepStrictEqual)\(\s*[A-Za-z0-9_$?.!\[\]]*\.(querySelector|querySelectorAll)\([^)]*\)\s*,\s*(null|undefined)\b/.test(line)
+			&& line.includes('controlRow'));
+	assert.deepEqual(offenders.map(({ at }) => at), [],
+		'the A2-C12-ITEM4 rows must assert `querySelector(...) === null` against a boolean: a bare node here exhausts the heap on failure (H10)');
+	assert.match(text, /querySelector\(`\[data-testid="\$\{id\}"\]`\) === null, true/,
+		'the boolean form is present in draft-ux-c01 (this is the fix H10 measures)');
 });

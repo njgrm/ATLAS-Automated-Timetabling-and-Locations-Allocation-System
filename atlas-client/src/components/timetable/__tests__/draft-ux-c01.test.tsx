@@ -360,7 +360,7 @@ test('A2-C12-ITEM4 control row still carries its own six, the two draft actions 
 		`the CONTROL ROW keeps its own budget of 6 (the two draft actions belong to the strip): got ${inControlRow.length}: ${inControlRow.join(' | ')}`);
 	for (const id of ['timetable-draft-strip-edit', 'timetable-draft-strip-discard']) {
 		assert.ok(header.querySelector(`[data-testid="${id}"]`), `${id} is visible in the header`);
-		assert.equal(controlRow!.querySelector(`[data-testid="${id}"]`), null,
+		assert.equal(controlRow!.querySelector(`[data-testid="${id}"]`) === null, true,
 			`${id} is in the status strip, not on the control row — the row the cap protected is unchanged`);
 	}
 	assert.equal([...header.querySelectorAll<HTMLElement>('button, a[href]')]
