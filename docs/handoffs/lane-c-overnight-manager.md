@@ -69,6 +69,26 @@ Rules for the planners:
 - Before Wednesday: a **demo walkthrough script** (the operator's path through the product) walked end to end on live,
   graded for older users, with every stumble fixed or listed.
 
+## CHECKPOINT 2026-09-28 11:25 +08 (read this first)
+
+- **Live** `a1db27d5` (health 200). The admin `opencode serve` on 127.0.0.1:4097 is still on **120 steps**; restart it
+  (ask the elevated server to spawn a fresh `opencode serve --hostname 127.0.0.1 --port 4097` with
+  OPENCODE_SERVER_PASSWORD unset, then exit) **when nothing is busy on it** (`/session/status`), then verify 250.
+- **Running:** A2 c7 (`docs/prompts/a2-timetable-2026-09-28-c7.md`, **local non-elevated** run); A3 c9
+  (`docs/prompts/a3-ui-ux-2026-09-28-c9.md`, root `ses_f1a382ebbffejFnOMHQvaLcx8s` on :4097); the duplicate-teacher
+  diagnostic (on :4097). Re-arm the watcher: `python <scratchpad>/planner-watch.py <root ids>` (`opencode session list`).
+- **Queued:** A3 c10 (`a3-ui-ux-2026-09-28-c10.md`, from the original-criteria scorecard, after c9). After A2 posts
+  "ready for release": an **elevated** A2 packet for the E: reclaim (operator-authorised: every release dir except
+  `a1db27d5` + `d31bfacb`, plus `4893cbde`), build, cutover, then Lane C live rows (B11, B16, B20, B22, A3's rows, the
+  scorecard items).
+- **Waiting on the operator's answer:** give load to the 4 zero-load teachers only after the duplicate check (Reyes,
+  Maria Angela and Garcia, Anna Patricia may be duplicates). Auto-assign ("Preview suggested assignments") proposes
+  nothing when every class is staffed: an A3 UX bug.
+- **Also do after A2's run:** set `JWT_EXPIRES_IN=7d` in `D:/ATLAS-runtime-config/atlas-server.env` (back up the file,
+  restore its ACL byte-identical) and restart live (operator decision C). A real remember-me waits until after Wednesday.
+- Evidence: `docs/reviews/lane-c-overnight-20260928/findings.md`,
+  `docs/reviews/fixes-original-criteria-audit-20260928/scorecard.md`.
+
 ## Operator decisions carried (2026-09-28)
 
 - **Sessions:** option C now — `JWT_EXPIRES_IN=7d` in `D:/ATLAS-runtime-config/atlas-server.env` (the default in
