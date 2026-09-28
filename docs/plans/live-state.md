@@ -4677,6 +4677,48 @@ Rule from now: live browser QA never saves Subjects/setup/policy; mutation rows 
 - **Next action (single):** A4 merges `4104c65a` into the next train; A2 delivers the `schoolYearId` timetable
   route and flips the flag; Lane C takes the 1366×768 rendered row for the per-year list.
 
+### A7 c3 — INTEGRATED and PUSHED at `d4120d50` (2026-09-29 ~07:0x +08): the past-year Timetable link is LIVE
+
+- **`6ce585f9` (feature) + `d4120d50` (correction) on `origin/main`; confirmed. NOT deployed — A4 owns deploys.**
+  6 paths. Lane C reported A2's past-year route live from train 5 (`31e4015f`), so
+  **`TIMETABLE_READS_SCHOOL_YEAR_PARAM` is now `true`** and the year rows link to
+  `/timetable?schoolYearId=<enrollProSchoolYearId>` instead of saying it is unavailable.
+- **I verified all three halves of Lane C's claim in this tree rather than taking it on trust**, because the
+  failure mode is an operator reading *today's* schedule as last year's: the client reads the param
+  (`ScheduleReviewWorkspace.tsx:350`), the server gates it (`resolvePastYearReadScope`), and — the part that
+  decides everything — **the id spaces match**: the route builds its allowed set from
+  `row.enrollProSchoolYearId`, the same id the year list and the existing Teaching Load link use, not the
+  internal mirror primary key. My first grep said the client did *not* read the param; that grep was too narrow
+  and the claim was wrong. Verified twice before acting.
+- **Fresh bounded QA returned `CORRECTION_REQUIRED` 7/8 with two BLOCKING findings, both in my evidence rather
+  than the shipped behaviour. Both are closed in `d4120d50`:**
+  - **B1:** the new id-space test validated a **test-local copy** of the router's expression, so QA switching the
+    real route to the internal key left the row named *"the past-year link id and the id the server accepts are
+    the same number"* **green** — only a substring grep went red, and a grep cannot tell code from a comment
+    quoting it. Fixed by naming and exporting the route's own `buildActorSchoolYearIds` and importing it.
+    **Failing-first after the fix: the route's helper returning the internal key now turns the EnrollPro-id row
+    red** — the exact row that had been vacuous. The old grep row is retained, marked superseded, and narrowed to
+    a naming/call-site tripwire.
+  - **B2:** the past-year-only guard shipped a comment claiming the current year "answers with a notice rather
+    than a timetable". **That was false** — `pastYearViewState` returns `kind: 'current-year'` and renders a
+    usable current-year timetable, and the client never surfaces the server's typed 409. The comment now states
+    the truth: the current year is omitted because it is one nav click away on the ordinary `/timetable` and the
+    past-year scope refuses it server-side, so the link would spend a doomed request. **A tidiness cut, not a
+    capability cut.** The lesson worth keeping: a comment that explains *why* is a behavioural claim, and QA
+    graded it as one.
+- **Open follow-up row, not claimed:** the retained fail-closed guard is still a **source assertion**; it now
+  pins that the card branches on the helper's return value and does not read the flag itself, but a full scoped
+  re-render with the flag mocked to `false` is owed. `mock.module` is process-wide and this file has 17 tests,
+  so doing it unsafely risks poisoning them; it belongs in a session with room to do it properly.
+- **Gates on the corrected tree:** `test:a7-year-setup-plain-words` 17/17 · `test:ux-guardrails` 31/31 ·
+  `test:past-year-id-space-c2` 5/5 · `test:past-year-timetable-scope-c12` 8/8 (preservation) ·
+  `test:archive-school-year-a7c2` 13/13 (preservation) · **server `tsc` 0 errors** · client `tsc` unchanged at
+  the 1 pre-existing A2 error.
+- **Worktree:** `E:/ATLAS-worktrees/lane-a7-school-year-setup` = `RETIRE_AFTER_INTEGRATION`, left for A4.
+  Zero residue: clean status, no stash created.
+- **Next action (single):** A4 includes `d4120d50` in the next train; Lane C's existing rendered rows for
+  `/admin/year-setup` now cover the link as well.
+
 ## 2026-09-29 00:18 — year 2022-2023 per-year setup copied (operator approved)
 Script `atlas-server/src/scripts/copy-year-setup-shift-windows-events.mjs --school 1 --from 10 --to 1 --apply`: +20
 grade_shift_windows, +2 policy_special_events into mirror 1 (were 0). Re-dry-run: targetExisting 20/2, toInsert 0.
