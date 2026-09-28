@@ -43,6 +43,12 @@ import {
   type RequirementIdentity,
 } from '../services/school-year-offering.service.js';
 import { upsertTermConfig } from '../services/term-config.service.js';
+import { requireDisposableDatabase } from './helpers/disposable-database-guard.js';
+
+// A9 (AGENTS.md §5, 2026-09-29): fail closed BEFORE the first row is created unless
+// DATABASE_URL names a disposable atlas_restore_drill_* database. A bare `tsx --test` of this
+// file is what created 5 schools rows in the live database (2026-09-29 incident).
+requireDisposableDatabase('curriculum-requirements-concurrency.test.ts');
 
 // Disposable fixtures — NEVER canonical school 1, NEVER another suite's IDs.
 const SCHOOL = 99971;

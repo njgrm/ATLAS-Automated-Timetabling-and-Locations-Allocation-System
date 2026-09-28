@@ -87,8 +87,11 @@ export class EnrollProFacultyAdapter implements FacultyAdapter {
 	): Promise<FacultyFetchResult> {
 		// Use the public integration/v1/faculty endpoint — no auth required.
 		// EnrollPro now paginates this feed (default limit=50), so collect all pages.
+		// A9: `personnelType=TEACHING` is mandatory. Without it EnrollPro returns every
+		// personnel type and ATLAS ingests non-teaching staff as teachers. See
+		// docs/reference/enrollpro-teaching-personnel-api-2026-09-29.md.
 		const baseUrl = process.env.ENROLLPRO_API ?? this.baseUrl;
-		const url = `${baseUrl}/integration/v1/faculty`;
+		const url = `${baseUrl}/integration/v1/faculty?personnelType=TEACHING`;
 		const token = authToken ?? process.env.ENROLLPRO_SERVICE_TOKEN;
 		const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
 
@@ -139,7 +142,10 @@ export class EnrollProFacultyAdapter implements FacultyAdapter {
 		const allRows: FacultyFeedRow[] = [];
 
 		while (currentPage <= totalPages) {
-			const pageUrl = `${url}?page=${currentPage}&limit=${pageSize}`;
+			// A9: `url` already carries `?personnelType=TEACHING`, so pagination
+			// parameters must join with `&` or the feed would be read unfiltered.
+			const separator = url.includes('?') ? '&' : '?';
+			const pageUrl = `${url}${separator}page=${currentPage}&limit=${pageSize}`;
 			const res = await fetch(pageUrl, { headers });
 
 			if (!res.ok) {

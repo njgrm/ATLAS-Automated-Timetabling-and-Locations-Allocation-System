@@ -11,6 +11,12 @@ import {
 import { assertRunIsEditable } from '../services/manual-edit.service.js';
 import { POLICY_DEFAULTS, isPromotableConstraintCode } from '../services/scheduling-policy.service.js';
 import type { GenerationInputSnapshot } from '../services/generation-input-snapshot.service.js';
+import { requireDisposableDatabase } from './helpers/disposable-database-guard.js';
+
+// A9 (AGENTS.md §5, 2026-09-29): fail closed BEFORE the first row is created unless
+// DATABASE_URL names a disposable atlas_restore_drill_* database. A bare `tsx --test` of this
+// file is what created 5 schools rows in the live database (2026-09-29 incident).
+requireDisposableDatabase('published-revision-authority-c12.test.ts');
 
 // PUBLISHED-REVISION-AUTHORITY-C12 — production-path evidence for R1-R4.
 // Every row exercises the real service or the real HTTP route against a

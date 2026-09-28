@@ -22,6 +22,7 @@ import express from 'express';
 import jwt from 'jsonwebtoken';
 
 import { dropDisposableDatabaseWithRetry } from './helpers/drop-disposable-database.js';
+import { DISPOSABLE_DATABASE_PATTERN } from './helpers/disposable-database-guard.js';
 
 import { createDerivedDemandRouter, type DerivedDemandAuthority } from '../routes/derived-demand.router.js';
 import type { DerivedDemandResult } from '../services/derived-demand.service.js';
@@ -186,7 +187,7 @@ function psql(argumentsList: string[], env: NodeJS.ProcessEnv): string {
 test('UX-C01R route: mounted read-only endpoint is zero-write against a disposable PostgreSQL fixture', { skip: RUNNABLE ? false : 'DATABASE_URL is not configured' }, async () => {
 	const source = new URL(SOURCE_URL!);
 	const disposableName = `atlas_restore_drill_${new Date().toISOString().slice(0, 10).replace(/-/g, '')}_uxc01r${randomBytes(4).toString('hex')}`;
-	assert.match(disposableName, /^atlas_restore_drill_[0-9]{8}_[a-z0-9]+$/, 'disposable name must satisfy the repository guard');
+	assert.match(disposableName, DISPOSABLE_DATABASE_PATTERN, 'disposable name must satisfy the repository guard');
 	assert.notEqual(disposableName, source.pathname.replace(/^\//, ''), 'must never target the configured database');
 
 	const adminEnv = { ...process.env, PGPASSWORD: decodeURIComponent(source.password) };

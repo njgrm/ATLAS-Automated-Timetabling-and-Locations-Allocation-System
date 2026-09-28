@@ -23,6 +23,12 @@ import express from 'express';
 import jwt from 'jsonwebtoken';
 
 import { dropDisposableDatabaseWithRetry } from './helpers/drop-disposable-database.js';
+import { DISPOSABLE_DATABASE_PATTERN, requireDisposableDatabase } from './helpers/disposable-database-guard.js';
+
+// A9 (AGENTS.md §5, 2026-09-29): fail closed BEFORE the first row is created unless
+// DATABASE_URL names a disposable atlas_restore_drill_* database. A bare `tsx --test` of this
+// file is what created 5 schools rows in the live database (2026-09-29 incident).
+requireDisposableDatabase('generation-readiness-disposable-genc02r.test.ts');
 
 const WORKDIR = process.cwd();
 const PSQL = 'D:/PostgreSQL/18/bin/psql.exe';
@@ -50,7 +56,7 @@ test('C2. mounted readiness diagnostic is zero-write against a disposable Postgr
 	process.env.JWT_SECRET = JWT_SECRET;
 	const source = new URL(SOURCE_URL!);
 	const disposableName = `atlas_restore_drill_${new Date().toISOString().slice(0, 10).replace(/-/g, '')}_genc02r${randomBytes(4).toString('hex')}`;
-	assert.match(disposableName, /^atlas_restore_drill_[0-9]{8}_[a-z0-9]+$/, 'disposable name must satisfy the repository guard');
+	assert.match(disposableName, DISPOSABLE_DATABASE_PATTERN, 'disposable name must satisfy the repository guard');
 	assert.notEqual(disposableName, source.pathname.replace(/^\//, ''), 'must never target the configured database');
 
 	const adminEnv = { ...process.env, PGPASSWORD: decodeURIComponent(source.password) };

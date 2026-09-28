@@ -28,6 +28,12 @@ import type { Prisma } from '@prisma/client';
 
 import app from '../app.js';
 import { prisma } from '../lib/prisma.js';
+import { requireDisposableDatabase } from './helpers/disposable-database-guard.js';
+
+// A9 (AGENTS.md §5, 2026-09-29): fail closed BEFORE the first row is created unless
+// DATABASE_URL names a disposable atlas_restore_drill_* database. A bare `tsx --test` of this
+// file is what created 5 schools rows in the live database (2026-09-29 incident).
+requireDisposableDatabase('dashboard-http-authority.test.ts');
 
 const SAND_MAIN = 7799001;
 const SAND_EMPTY = 7799002;

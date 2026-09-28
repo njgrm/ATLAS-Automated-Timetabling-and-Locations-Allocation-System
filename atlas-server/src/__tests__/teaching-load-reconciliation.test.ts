@@ -24,6 +24,12 @@ import { dirname, resolve } from 'node:path';
 import { createHash } from 'node:crypto';
 
 import { deriveCanonicalDemand, buildDerivedDemand, type DerivedDemandInput } from '../services/derived-demand.service.js';
+import { requireDisposableDatabase } from './helpers/disposable-database-guard.js';
+
+// A9 (AGENTS.md §5, 2026-09-29): fail closed BEFORE the first row is created unless
+// DATABASE_URL names a disposable atlas_restore_drill_* database. A bare `tsx --test` of this
+// file is what created 5 schools rows in the live database (2026-09-29 incident).
+requireDisposableDatabase('teaching-load-reconciliation.test.ts');
 
 const TEST_TERM_CONTRACT = {
   schoolId: 1,
