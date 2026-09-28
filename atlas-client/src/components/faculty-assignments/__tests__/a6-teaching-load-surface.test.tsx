@@ -2469,7 +2469,12 @@ test('A6-C3-3-N3 the withheld string names the cause the page ACTUALLY has', () 
 	// re-implements the rule it is meant to police passes whatever production
 	// does — it was vacuous, and it would have stayed green if the real predicate
 	// had been deleted. The clone is gone; the import above is the one under test.
-	const NARROW_STATES: Array<{ label: string; input: Record<string, any>; degraded: boolean }> = [
+	// The predicate's OWN parameter type, so the table below is checked against
+	// the real signature instead of an `any` bag that would accept a renamed or
+	// dropped field. `WorkspaceToolbarProps['dataSource']` is the union the
+	// production signature uses.
+	type DegradedInput = Parameters<typeof isTeachingLoadSourceDegraded>[0];
+	const NARROW_STATES: Array<{ label: string; input: DegradedInput; degraded: boolean }> = [
 		{ label: 'LIVE + online + no notice', input: { dataSource: 'live', isOnline: true, dataSourceNotice: null }, degraded: false },
 		{ label: 'LIVE + a leftover notice', input: { dataSource: 'live', isOnline: true, dataSourceNotice: 'x' }, degraded: true },
 		{ label: 'CACHED + online', input: { dataSource: 'cached', isOnline: true, dataSourceNotice: null }, degraded: true },
