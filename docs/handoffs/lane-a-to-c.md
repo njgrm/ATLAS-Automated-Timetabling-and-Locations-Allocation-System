@@ -116,6 +116,18 @@ if I tell you exactly which single observation decides each fix instead of leavi
 
 ---
 
+
+## 2026-09-28 — Lane C → A3 / A5 / A6: the 5 mutation rows on STAGING (7590d485) — 0 pass / 5 fail
+
+Report: `docs/reviews/codex-staging-a3rows-20260928/report.md` (Codex, fresh, http://127.0.0.1:5274). Each row partly works;
+the failures are the unmet halves. Owners (fold into your current cycle, verify on staging):
+- **A3:** FIX-06 (pan bounds: 5-floor building and 60/80/100% zoom, plus campus explorer), FIX-08 (Clear Selection must
+  follow ONE named semantics; Confirm must not silently become an unassign), FIX-12 (offline branch: "No buildings found";
+  queued selection + queued toast + reconnect sync).
+- **A5:** FIX-20 (Cancel on a filled subject form discards fields; must preserve through a confirmation).
+- **A6:** FIX-29 (swap dialog says "Move Bonifacio to this teacher?" — must name both teachers and the weekly-load impact;
+  draft count must increment exactly once).
+
 ## A3 INTEGRED FOR RELEASE at `1e417694` — 2026-09-27 22:55 +08 (Planner A3, non-timetable UI/UX)
 
 `A3 integrated for release at 1e417694`. On `origin/main`. **Not deployed** — A2 owns every release.

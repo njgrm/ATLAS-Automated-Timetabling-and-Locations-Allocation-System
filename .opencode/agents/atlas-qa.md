@@ -4,7 +4,7 @@ mode: subagent
 model: opencode-go/space-bunny-free
 variant: high
 temperature: 0.0
-steps: 90
+steps: 150
 permission:
   edit: deny
   bash:
