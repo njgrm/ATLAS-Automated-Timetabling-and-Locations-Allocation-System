@@ -129,7 +129,7 @@ have read `Archived year: all` on a control that offers no such choice.
 | Distinct trigger widths | **5** (`grid col`, `w-36`, `w-40`, `w-44`, `w-45`) | **2** (`w-32` shared, `fill` for one grid cell) |
 | Distinct trigger heights | **3** (40, 44, 36px) | **1** (36, the shared `PICKER_CONTROL_HEIGHT_CLASS`) |
 | Page-local chrome strings on a picker | **1** (`CONTROL_CHROME`, declared at `TeachingLoadFilterBar.tsx:65`) | **0** |
-| Triggers that name themselves | **0 of 13** | **13 of 13** |
+| Triggers that name themselves | **1 of 13** (only the history-year picker, which already had a visible `<Label>`; the other 12 were a bare value or a placeholder) | **13 of 13** |
 | Short lists showing a search box | n/a | **0** (R2-5 working) |
 | Visible words added | — | **0** |
 

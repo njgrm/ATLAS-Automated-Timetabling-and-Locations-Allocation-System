@@ -205,13 +205,24 @@ test('A5-C3-P3-1c: a swept file builds no trigger BY HAND — second positive co
 	 * POSITIVE question of every swept file, in the same shape as `P3-1b`: build the trigger
 	 * through the shared picker, and nothing else. A positive control cannot be satisfied by
 	 * not being there, so it does not need a heuristic to find the bad case.
+	 *
+	 * STATED BOUND, because QA round 2 proved the previous claim false. `P3-1c` catches a
+	 * hand-rolled trigger in either spelling of the element — `<button …>` and `<Button …>` —
+	 * but only while it carries `role="combobox"`. A combobox-shaped control written with
+	 * some other role would pass, and so would a look override on a sibling line that belongs
+	 * to no picker element and is not a trigger. That is the deliberate cost of not banning
+	 * tokens repo-wide, and it is bounded here rather than implied.
 	 */
 	const offenders: string[] = [];
 	for (const { f, src } of files) {
 		/* HOLE 2: a trigger-shaped element built by hand, anywhere in the file, on any line.
-		 * `FilterPicker` is the shared primitive; a raw `<button role="combobox">` beside it
-		 * is a page re-deciding what a filter looks like, which is the defect. */
-		if (/<button[^>]*role="combobox"/.test(src) || /<select[\s>]/i.test(src)) {
+		 * `FilterPicker` is the shared primitive; a `<button role="combobox">` or a
+		 * `<Button role="combobox">` beside it is a page re-deciding what a filter looks
+		 * like, which is the defect. **Both spellings matter**: this codebase writes the
+		 * capitalised form (`searchable-select.tsx` itself, and all four swept toolbars
+		 * import it), and a case-sensitive `<button` probe scored that hole closed when it
+		 * was not — QA round 2's third probe, `<Button role="combobox">`, ran green. */
+		if (/<[Bb]utton[^>]*role="combobox"/.test(src) || /<select[\s>]/i.test(src)) {
 			offenders.push(`${f}: a trigger built by hand instead of through @/ui/filter-picker`);
 		}
 		/* HOLE 1: the look tokens, checked against the WHOLE element rather than one line.
