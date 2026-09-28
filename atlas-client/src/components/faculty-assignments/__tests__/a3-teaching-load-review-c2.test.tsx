@@ -282,6 +282,10 @@ function TeachingLoadReviewHost(props: { onRowSelect?: (id: number) => void } = 
 		// and asserts the healthy review path — so `false` is the true value
 		// here, not a value chosen to keep the test green.
 		sourceDegraded: false,
+		// A6 C3: the same fixture, stated as the SOURCE it claims to be rather
+		// than as a boolean, so the hook's wider unverified rule is satisfied by
+		// the truth rather than by a value chosen to keep the row green.
+		sourceState: { dataSource: 'live', isOnline: true },
 		writeBlockedReason: null,
 		onSelectFaculty: () => {},
 		onSave: () => {},
