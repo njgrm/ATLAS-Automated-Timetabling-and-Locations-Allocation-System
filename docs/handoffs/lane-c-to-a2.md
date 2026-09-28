@@ -5,11 +5,32 @@
 > **Live is still `a1db27d5`** and must stay the rollback basis. I did not build, reclaim, deploy, generate or publish
 > — that is the next elevated packet, and this post is the handoff for it.
 >
-> **Pushed `6b1ec722`** (product pin; the docs commits above it are docs-only). Range `d5e00e9f...6b1ec722` = 30 paths,
-> **28 non-docs, all mine**, zero `prisma/`/lockfile/seed/schema. Gates re-run by me **on the merged tree**, not
-> quoted: a2-c6-truth **34/34**, draft-ux **33/33**, relaxed-main **79/82** (the same three pre-existing failures,
-> all in files byte-identical to the base), autofix-break-window **7/7**, swap-custody **16/16**, client `tsc` 5 errors
-> **0 new**, server `tsc` **exit 0**. **No gate regressed, so no executor round and no fresh QA were owed.**
+> **Pushed `6b1ec722`** (product pin; the docs commits above it are docs-only). **My** range
+> `d5e00e9f...6b1ec722` = 30 paths, **29 non-docs, all mine**, zero `prisma`/lockfile/seed/schema. Gates re-run by me
+> **on the merged tree**, not quoted: a2-c6-truth **34/34**, draft-ux **33/33**, relaxed-main **79/82** (the same
+> three pre-existing failures, all in files byte-identical to the base), autofix-break-window **7/7**,
+> swap-custody **16/16**, client `tsc` 5 errors **0 new**, server `tsc` **exit 0**. **No gate regressed, so no
+> executor round and no fresh QA were owed.**
+>
+> ### ⚠ READ THIS BEFORE YOU WRITE THE DEPLOY PACKET — the release is NOT my six fixes
+>
+> I first wrote "28 non-docs, all A2's". It was **29**, and it described **my** range, not the one you will ship.
+> Enumerated: the deploy range is **`a1db27d5...6b1ec722` = 84 commits, 106 paths, 81 non-docs**, of which only
+> **29** are my c6/c7 candidate. **52 non-docs come from `a1db27d5`**, and a provable **23-path block in there is
+> A3's c8 product work plus repo config**: `pages/Audit.tsx`, `app-shell/navigation.ts`,
+> `app-shell/NotificationBell.tsx`, `index.css`, `a3-c8-warning-token.test.ts`, `a3-c8-audit-calm.test.tsx`,
+> `a3-c8-room-preferences-reachability.test.tsx`, `runtime/RolloverGuidanceCard.tsx`,
+> `runtime/RolloverResetPanel.tsx`, `sections/HomeRoomAutoAssignDialog.tsx`, `sections/SectionHomeRoomModals.tsx`,
+> `sections/SectionsStatusBanners.tsx`, `smart/SmartPageShell.tsx`, `subjects/SubjectCoverageSheet.tsx`,
+> `faculty-assignments/AutoFillSummaryModal.tsx`, `TeachingLoadRepairQueue.tsx`, `TeachingLoadTruthPanel.tsx`,
+> `faculty-dashboard/ActionQueue.tsx`, the two palette sweeps, `AGENTS.md`, `.opencode/package.json`,
+> `.opencode/agents/atlas-planner.md`. The other 29 are **A2's c5 delta and A3's c6/c7** through the same union merge;
+> I am not splitting those by guess.
+>
+> **So: Gate 3 from the c5 packet is still OPEN** — one fresh independent review of A3's c8 delta alone. I have
+> reviewed **none** of it and A2 does not integrate A3's work, so **the deploy packet must carry that review as a
+> gate and must not execute on `CORRECTION_REQUIRED`** (§11, §13). My green gates and a healthy build say nothing
+> about that block. **Zero `prisma`/lockfile/seed/schema in the whole range** — enumerated, not remembered.
 >
 > **0 fixes verified rendered yet** — nothing of the six below is live until you run the cutover. I am not claiming
 > otherwise. Handoff: `docs/handoffs/planner-a2-handoff-2026-09-28-overnight.md` §7.

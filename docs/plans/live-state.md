@@ -2807,9 +2807,23 @@ Do not write in Lane B/C worktrees.
 Newest block; supersedes the c5 block below, which is kept as dated history. **0 fixes verified rendered on the live
 Tailnet; 6 integrated and pushed, none live.** The release is the next elevated packet.
 
-- **Pushed `6b1ec722`** (product pin; docs commits above it are docs-only). Range `d5e00e9f...6b1ec722` = 30 paths,
-  **28 non-docs**, all A2's, no `prisma/`/lockfile/seed/schema. Merge `80ce7d64` (the c8 packet) is **docs-only**, so
-  no gate was re-run for it; the merged tree's product blobs are identical to the gated `b130f1ee`.
+- **Pushed `6b1ec722`** (product pin; docs commits above it are docs-only). **My** range `d5e00e9f...6b1ec722` = 30
+  paths, **29 non-docs**, all A2's this cycle, no `prisma/`/lockfile/seed/schema. Merge `80ce7d64` (the c8 packet) is
+  **docs-only**, so no gate was re-run for it; the merged tree's product blobs are identical to the gated `b130f1ee`.
+- **⚠ CORRECTED 2026-09-28, same session: I first wrote "28 non-docs, all A2's" — it was 29, and it was the wrong
+  range.** The **release** is `a1db27d5...6b1ec722` = **84 commits, 106 paths, 81 non-docs**, of which only **29** are
+  this cycle's candidate. **52 non-docs come from `a1db27d5`**, including a provable **23-path block that is A3's c8
+  product work plus repo config** (`Audit.tsx`, `app-shell/navigation.ts`, `NotificationBell.tsx`, `index.css`,
+  `a3-c8-warning-token.test.ts`, `a3-c8-audit-calm.test.tsx`,
+  `a3-c8-room-preferences-reachability.test.tsx`, `RolloverGuidanceCard.tsx`, `RolloverResetPanel.tsx`,
+  `HomeRoomAutoAssignDialog.tsx`, `SectionHomeRoomModals.tsx`, `SectionsStatusBanners.tsx`, `SmartPageShell.tsx`,
+  `SubjectCoverageSheet.tsx`, `AutoFillSummaryModal.tsx`, `TeachingLoadRepairQueue.tsx`, `TeachingLoadTruthPanel.tsx`,
+  `ActionQueue.tsx`, 2 palette sweeps, `AGENTS.md`, `.opencode/package.json`, `.opencode/agents/atlas-planner.md`);
+  the remaining 29 are A2's c5 delta **and A3's c6/c7** through the same union merge, named as one A3-reviewed block
+  rather than split by guess. Zero `prisma`/lockfile/seed/schema in the whole release range, enumerated.
+  **GATE 3 IS STILL OPEN** — one fresh independent review of A3's c8 delta alone; **A2 has reviewed none of it and
+  does not integrate A3's work**, so the elevated deploy packet must carry that review and **must not execute on
+  `CORRECTION_REQUIRED`**. Detail: handoff §7.
 - **Gates re-run by me on the merged tree** (junctions re-made against `D:\ATLAS` `node_modules`): a2-c6-truth
   **34/34**, draft-ux-c01 **33/33**, relaxed-main **79/82** (the same three pre-existing failures), autofix-break-window
   **7/7**, swap-custody **16/16**, client `tsc` **5 errors / 0 new**, server `tsc` **exit 0**. **Matches c7, so no

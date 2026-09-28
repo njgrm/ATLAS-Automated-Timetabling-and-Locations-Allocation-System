@@ -473,8 +473,36 @@ the one server production file is comment-only, so the workbook behaves exactly 
 **User-facing fixes verified rendered on the live Tailnet: 0. Integrated and pushed, not yet live: 6.** c8 did not
 build, reclaim or deploy; the release is the next elevated packet. `LIVE` is unchanged at `a1db27d5`.
 
-**Pushed: `6b1ec722`** (product pin; the docs commits above it are docs-only). Range `d5e00e9f...6b1ec722` — 30 paths,
-**28 non-docs**, all Lane A2's; no `prisma/`, no lockfile, no seed, no schema. `a1db27d5` is the rollback basis.
+**Pushed: `6b1ec722`** (product pin; the docs commits above it are docs-only). **My** range
+`d5e00e9f...6b1ec722` is 30 paths — **29 non-docs**, all Lane A2's this cycle, plus one packet doc. No `prisma/`, no
+lockfile, no seed, no schema. `a1db27d5` is the rollback basis.
+
+> ### ⚠ CORRECTION (A2, 2026-09-28, same session) — the number above was wrong AND it described the wrong range
+>
+> I first wrote "**28** non-docs, all Lane A2's". **Two defects, both mine, both from describing a range I had
+> reviewed instead of enumerating the range that will ship** (AGENTS.md §13, verbatim hazard).
+>
+> 1. **29, not 28.** `git diff --name-only d5e00e9f...b130f1ee` returns 30 paths, exactly **1** of them under
+>    `docs/`. Enumerated, not estimated.
+> 2. **The RELEASE is not my six fixes.** The deploy packet ships `a1db27d5...6b1ec722`, and that range is
+>    **84 commits, 106 paths, 81 non-docs** — only **29** of them are this cycle's candidate. **52 non-docs come from
+>    `a1db27d5`**, and they are **not all mine**: a provable **23-path non-docs block is A3's c8 product work plus
+>    repo config** (`atlas-client/src/pages/Audit.tsx`,
+>    `atlas-client/src/components/app-shell/navigation.ts`, `NotificationBell.tsx`, `index.css`,
+>    `a3-c8-warning-token.test.ts`, `a3-c8-audit-calm.test.tsx`, `a3-c8-room-preferences-reachability.test.tsx`,
+>    `RolloverGuidanceCard.tsx`, `RolloverResetPanel.tsx`, `HomeRoomAutoAssignDialog.tsx`,
+>    `SectionHomeRoomModals.tsx`, `SectionsStatusBanners.tsx`, `SmartPageShell.tsx`, `SubjectCoverageSheet.tsx`,
+>    `AutoFillSummaryModal.tsx`, `TeachingLoadRepairQueue.tsx`, `TeachingLoadTruthPanel.tsx`, `ActionQueue.tsx`,
+>    the two palette sweeps, `AGENTS.md`, `.opencode/package.json`, `.opencode/agents/atlas-planner.md`). The other
+>    29 are my c5 delta **and A3's c6/c7**, absorbed by the same `a1db27d5..543c74b3` union merge, so I will not split
+>    them by guess — I am naming the union as one reviewed-by-A3 block.
+> 3. **Zero `prisma`/lockfile/seed/schema** in the whole release range, enumerated:
+>    `git diff --name-only a1db27d5 6b1ec722 | grep -Ei "prisma|lock|seed|schema"` returns nothing.
+>
+> **Consequence, and it is a gate, not a note:** **Gate 3 from the c5 packet is STILL OPEN** — one fresh independent
+> review of A3's c8 delta alone, covering those 23 non-docs paths. **A2 has reviewed none of it and does not
+> integrate A3's work**, so per §11 the elevated deploy packet must carry that review as a gate and **must not
+> execute on `CORRECTION_REQUIRED`.** A healthy build and my green gates say nothing about that block.
 
 | # | Fix | Live? |
 |---|---|---|
