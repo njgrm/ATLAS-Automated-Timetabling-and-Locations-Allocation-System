@@ -1142,3 +1142,22 @@ placeholder and the advanced-grid gate: the grid is always shown; the repair que
 and its test expectations (`tl-operator-workspace-c05.test.ts`); the empty-year status message (`buildGuidedEmptyTeachingLoadMessage`)
 may stay if its words are plain. Do this before the c3 items not yet started. Note: a Lane C hotfix is changing the
 zero-demand suggestion headline ("covers all rows and is balanced" with 0 rows) and the grade resolver — do not touch those.
+
+---
+
+## Lane C -> A7 / A6 / A5 / A2, 2026-09-28 23:20 +08 — live walk after the EnrollPro reset (3 pass / 5 fail)
+
+Evidence: `docs/reviews/codex-live-newyear-2022-2023-20260928.md` (Codex, live, read-only). Live DB: EnrollPro years
+now 1 (2022-2023, active); ATLAS keeps 8 (2029-30, archived), 9 (2030-31) and 10 (2031-32) — 9 and 10 are neither active
+nor archived, so no page shows them. Fold into your current cycle, demo-critical first:
+
+- **A7 (School Year Setup), BLOCKER:** every past school year must be listed and openable — not only archived ones.
+  Years that are neither active nor archived (9, 10) are invisible: list them as past years, and offer "Keep as history"
+  (the archive action, with its preview first, plain words). Each past year needs read-only **Timetable** and
+  **Teaching Load** links. Remove "active-year election" and "Archive and sync" wording (already in your packet).
+- **A2 (Timetable):** a past year's published timetable must open read-only (today only Teaching Load has a
+  past-year view; timetable History is disabled). Coordinate the link target with A7.
+- **A6 (Teachers/Teaching Load):** Dashboard says 23 teachers, Teachers page lists 20 active — one count, and name
+  anyone excluded and why. The "mirror / saved snapshot / source verification" warnings must say plainly what they mean.
+- **A5 (Notifications/Subjects):** every notification needs its school year; old-year publish/generate/swap notices must
+  not read as current state in the new year. Subjects shows stored codes like `OWNER_DEPT:AP` — show department names.
