@@ -310,6 +310,23 @@ resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs
 
 - Tailnet: `https://njgrm.buru-degree.ts.net`
 
+- **▶ CUTOVER TARGET, RECORDED BEFORE THE CUTOVER (AGENTS.md §13 — a pin is a commit, not a description).**
+  **Target release `c9be17fe` (full `c9be17feccd08e20e6c5110be041a72dc89ee2c6`), rollback basis
+  `9ca7f629` (`9ca7f629a7e43a0e31c6b9fada97152541c2a877`).** Recorded 2026-09-28 00:2x +08 by Lane A4, ahead of the
+  cutover, because `ops/runtime/deploy-runner.ps1` enforces `Assert-LiveReleaseRecorded` and fails closed without it.
+  Target dir `E:\ATLAS-worktrees\lane-a4-release-20260928-4prod` (HEAD == pin, `git status --short` empty, 0 reparse
+  points, own dependency trees seeded by copy from the same-pin staging release — no junction chain). Built: server
+  `tsc` exit 0, client `vite` exit 0, `atlas-server/dist/server.js` and `atlas-client/dist/index.html` present.
+  **Scope: NOT client-only** — 14 `atlas-server` paths (the Lane C grade-name hotfix `938de8aa`), 37 client paths,
+  **0 `prisma/`** (`git diff --name-only 9ca7f629 c9be17fe -- prisma/` is empty, so no migration and no schema
+  change). Delta from `9ca7f629`: 54 modified, 17 added, **0 deleted**. Direction FORWARD. Rollback is a one-step
+  supervised reset to the `9ca7f629` dir, verified present, clean, startable, both `dist`s built, live contract
+  installed with `ROLLOVER_AUTO_SYNC_ENABLED=false`.
+  **Discriminator is non-vacuous and was chosen against a proven trap:** `atlas-server/dist/services/grade-level-resolver.js`
+  is **PRESENT 3 586 B** in this build and **ABSENT** from the live build (`dist/services` 381 files vs 378).
+  `dist/server.js` is **byte-identical** across both builds (3 070 B, same SHA-256), so it would have been a
+  vacuous proof — it is not used.
+
 - **▶ STAGING is up at `c9be17fe` on 5101/5274 since 2026-09-28 23:2x +08 by Lane A4 (train 4) — this does
   NOT change the LIVE release named below.** `http://127.0.0.1:5274` and `https://njgrm.buru-degree.ts.net:8443`.
   Own env file, own `atlas_staging` database (refreshed from live this deploy: `SNAPSHOT_REFRESHED`,
