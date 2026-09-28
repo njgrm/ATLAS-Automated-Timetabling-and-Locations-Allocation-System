@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState, type Dispatch, type SetStateAction } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import type { SetURLSearchParams } from 'react-router-dom';
 
 import { getFacultyComparableLoadHours } from '@/lib/faculty-assignment-helpers';
@@ -64,7 +64,16 @@ type UseTeachingLoadRepairQueueParams = {
 	onShowOverloaded: () => void;
 	onShowPlaceholder: () => void;
 	onOpenReview: () => void;
-	setAdvancedGridVisible: Dispatch<SetStateAction<boolean>>;
+	/**
+	 * A6 c4 (G1) — `setAdvancedGridVisible` is GONE from this hook's contract.
+	 *
+	 * It existed for one reason: `handleRepairPrimaryAction` called
+	 * `setAdvancedGridVisible(true)` so that taking a repair action would pull the
+	 * advanced grid back up when the Guided placeholder was standing in front of
+	 * it. With Guided mode removed the grid is never hidden, so that call was a
+	 * no-op that kept a required argument alive in a page which had no state left
+	 * to set — a signature that claimed a capability the product no longer has.
+	 */
 };
 
 function formatTeacherName(member: { firstName: string; lastName: string }) {
@@ -166,7 +175,6 @@ export function useTeachingLoadRepairQueue({
 	onShowOverloaded,
 	onShowPlaceholder,
 	onOpenReview,
-	setAdvancedGridVisible,
 }: UseTeachingLoadRepairQueueParams) {
 	const [activeRepairId, setActiveRepairId] = useState<string | null>(null);
 	const teacherRepairIntent = searchParams.get('task');
@@ -399,7 +407,10 @@ export function useTeachingLoadRepairQueue({
 		else if (item.kind === 'over-cap') onShowOverloaded();
 		else if (item.kind === 'placeholder') onShowPlaceholder();
 		else onOpenReview();
-		setAdvancedGridVisible(true);
+		// A6 c4 (G1): the `setAdvancedGridVisible(true)` that used to close this
+		// function existed only to pull the grid back from the Guided placeholder.
+		// The grid is unconditional now, so the call is deleted rather than made
+		// conditional — there is no longer a state it could be guarding.
 	}, [
 		onOpenReview,
 		onSave,
@@ -408,7 +419,6 @@ export function useTeachingLoadRepairQueue({
 		onShowPlaceholder,
 		onShowTeachersWithoutLoad,
 		onShowSubjectCoverage,
-		setAdvancedGridVisible,
 		updateRepairRoute,
 	]);
 

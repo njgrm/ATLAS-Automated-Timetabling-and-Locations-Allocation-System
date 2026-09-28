@@ -31,7 +31,6 @@ type TeachingLoadRepairQueueProps = {
 	activeItemId?: string | null;
 	isReadOnly: boolean;
 	saving: boolean;
-	advancedGridVisible: boolean;
 	onPrimaryAction: (item: TeachingLoadRepairQueueItem) => void;
 };
 
@@ -82,15 +81,34 @@ const FALLBACK_ITEM: TeachingLoadRepairQueueItem = {
  *
  * The description is the ONLY thing that moved behind a hover, and the trigger
  * already states the task, its count and its status without it. The
- * `disabledReason` is a SAFETY state, so it is NOT behind a hover at all: it
- * renders as its own visible warning chip naming the reason.
+ * `disabledReason` is a SAFETY state, so it is NOT behind a hover at all: it is
+ * visible text on the chip itself (see the A6 c4 note at its render site).
+ *
+ * A6 c4 (G1) — the `advancedGridVisible` prop is GONE. It existed so the chip
+ * could restate the item's status in its tooltip only while the grid was hidden,
+ * because the placeholder in front of the grid was where a scheduler read the
+ * status from. Guided mode is removed, so the grid is always up and the status is
+ * always on the chip; the "grid was closed" branch has no remaining state, and
+ * reviving the gate to express it is exactly what this slice deletes.
+ *
+ * A6 c4 (G2) — two further changes, both from the operator's Header budget:
+ *   1. ONE amber line. `disabledReason` used to render as its OWN amber pill
+ *      beside the header's amber degraded notice, which is the "two amber lines
+ *      when EnrollPro is unreachable" Lane C measured on train 3. It is now
+ *      visible text INSIDE this chip, in the warning colour but with no fill and
+ *      no border of its own, so row 2 can only ever carry one filled warning
+ *      surface — and the reason is still readable, which a hover would not be.
+ *   2. NO truncated sentence. The title, the status, the reason and the action
+ *      label all lost `truncate`. The chip wraps (`min-h-7` + `flex-wrap`) rather
+ *      than cutting a claim off mid-word, and `a6-tl-header-budget` measures the
+ *      declared row content against the 1366px row so the wrap is a fallback and
+ *      not the normal case.
  */
 export function TeachingLoadRepairQueue({
 	items,
 	activeItemId,
 	isReadOnly,
 	saving,
-	advancedGridVisible,
 	onPrimaryAction,
 }: TeachingLoadRepairQueueProps) {
 	const currentItem = items.find((item) => item.id === activeItemId) ?? items[0] ?? FALLBACK_ITEM;
@@ -102,7 +120,7 @@ export function TeachingLoadRepairQueue({
 		<section
 			data-testid="teaching-load-repair-queue"
 			className="flex min-w-0 shrink items-center"
-			aria-label="Teaching Load guided next-step queue"
+			aria-label="Teaching Load next-step queue"
 		>
 			<Tooltip>
 				<TooltipTrigger asChild>
@@ -114,7 +132,7 @@ export function TeachingLoadRepairQueue({
 					<span
 						data-testid="teaching-load-current-repair"
 						data-repair-kind={currentItem.kind}
-						className={cn('flex h-7 min-w-0 items-center gap-1.5 rounded-full border px-2 text-xs font-semibold shadow-sm', taskTone(currentItem.kind))}
+						className={cn('flex min-h-7 min-w-0 max-w-full flex-wrap items-center gap-x-1.5 gap-y-0.5 rounded-full border px-2 py-0.5 text-xs font-semibold shadow-sm', taskTone(currentItem.kind))}
 					>
 						<CurrentIcon className="size-3.5 shrink-0" aria-hidden="true" />
 						{/* A6 C2 (Slice 2): `Next step` is a LABEL on the header's one
@@ -130,30 +148,37 @@ export function TeachingLoadRepairQueue({
 								{currentItem.countLabel}
 							</span>
 						)}
-						<span className="min-w-0 truncate font-bold text-foreground">{currentItem.title}</span>
+						<span className="font-bold text-foreground">{currentItem.title}</span>
 						{/* Announced, and visible: the status is never a hover-only fact. */}
-						<span className="hidden shrink-0 font-semibold sm:inline" aria-live="polite" data-testid="teaching-load-repair-status">
+						<span className="font-semibold" aria-live="polite" data-testid="teaching-load-repair-status">
 							{currentItem.status}
 						</span>
+						{/*
+						 * A6 c4 (G2.1): the safety reason, on the chip. Visible text
+						 * (so a scheduler who cannot use the action can still read
+						 * why), warning-coloured, and deliberately NOT a second filled
+						 * amber pill beside the header's degraded notice. `·` separates
+						 * it from the item's own status so the two claims are not read
+						 * as one sentence.
+						 */}
+						{currentItem.disabledReason && (
+							<span
+								data-testid="teaching-load-repair-disabled-reason"
+								className="font-semibold text-warning-foreground"
+							>
+								· {currentItem.disabledReason}
+							</span>
+						)}
 					</span>
 				</TooltipTrigger>
 				<TooltipContent side="bottom" className="max-w-80 text-xs font-medium leading-relaxed">
-					{/* The one thing that moved behind a hover. On the guided
-						placeholder the advanced grid is not up yet, so the queue
-						still explains itself in full. */}
-					{advancedGridVisible ? currentItem.description : `${currentItem.description} ${currentItem.status}`}
+					{/* The one thing that moved behind a hover. A6 c4 (G1): the
+					 * status is no longer restated here, because the grid behind
+					 * this chip is always rendered, so the status the trigger
+					 * states is never a hover away. */}
+					{currentItem.description}
 				</TooltipContent>
 			</Tooltip>
-
-			{/* A safety state, so it stays visible rather than becoming a hover. */}
-			{currentItem.disabledReason && (
-				<span
-					data-testid="teaching-load-repair-disabled-reason"
-					className="flex h-7 shrink-0 max-w-64 items-center truncate rounded-full border border-warning-border bg-warning-muted px-2 text-xs font-semibold text-warning-foreground"
-				>
-					{currentItem.disabledReason}
-				</span>
-			)}
 
 			<Button
 				type="button"
@@ -165,7 +190,7 @@ export function TeachingLoadRepairQueue({
 				data-testid="teaching-load-repair-review"
 			>
 				<ClipboardCheck className="size-3.5" />
-				<span className="max-w-32 truncate">{actionLabel}</span>
+				<span>{actionLabel}</span>
 			</Button>
 		</section>
 	);

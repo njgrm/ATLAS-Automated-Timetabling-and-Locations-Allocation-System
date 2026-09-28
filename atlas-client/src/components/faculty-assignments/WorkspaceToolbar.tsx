@@ -126,6 +126,47 @@ type WorkspaceToolbarProps = {
  *     = 223px, and the first assignment row measured ~430px from the viewport
  *       top at 1366x768 (Lane C, live release a1db27d5).
  *   The saving is 157px, which is ~3.9 more 40px assignment rows.
+ *
+ * A6 c4 (G2) — ROW 2 IS NO LONGER A PACKING, AND THE MODEL SAYS SO. Every number
+ * above is re-derived from the class strings on the candidate's own markup by
+ * `__tests__/a3-c10-tl-header-density.test.ts`, not carried over; the derived
+ * total is still 66px because the tallest member of row 2 is still the `h-7`
+ * next-step action. What changed is what row 2 is allowed to do, and the four
+ * entries below record the superseded arrangement as declared values rather than
+ * leaving it only in prose:
+ *
+ *   ROW_2_SUPERSEDED_TRUNCATE_COUNT     5  header: 2 (`statusSentence`,
+ *                                            `degradedLine`); next step: 3
+ *                                            (title, disabled reason, action
+ *                                            label). All five cut a claim off
+ *                                            mid-word. The operator's rule is
+ *                                            "no sentence is cut off with an
+ *                                            ellipsis", so they are gone and
+ *                                            `a6-tl-header-budget` fails if any
+ *                                            one comes back.
+ *   ROW_2_SUPERSEDED_AMBER_PILL_COUNT   1  the `disabledReason` rendered as its
+ *                                            own `bg-warning-muted` pill beside
+ *                                            the header's amber degraded notice:
+ *                                            Lane C's "two amber lines when
+ *                                            EnrollPro is unreachable". It is
+ *                                            now visible text inside the next
+ *                                            step's own chip.
+ *   ROW_2_WRAP_LINE_PX                 16  one `text-xs` line box — the unit the
+ *                                            row's wrap fallback adds. Declared
+ *                                            so the cost of not cutting a
+ *                                            sentence is a number, not a shrug.
+ *   HEADER_TOTAL_IF_SENTENCE_WRAPS_PX   74  9 + 28 + 1 + 32 + 4, i.e. row 2 with
+ *                                            the status sentence on two lines
+ *                                            (2 x 16) plus its `py-0.5`. This
+ *                                            is OVER the 70px budget, which is
+ *                                            the point: it is why the row
+ *                                            measures its declared content
+ *                                            against the 1366px row instead of
+ *                                            relying on the wrap. 74 - 66 = 8px
+ *                                            is what "undo the squeeze" costs
+ *                                            when the content does not fit, and
+ *                                            the measurement exists to keep that
+ *                                            case from becoming the normal one.
  */
 export const TEACHING_LOAD_HEADER_MODEL = {
 	APP_CHROME_PX: 56,
@@ -144,6 +185,14 @@ export const TEACHING_LOAD_HEADER_MODEL = {
 	PRE_CHANGE_HEADER_TOTAL_PX: 223,
 	/** Lane C's recorded first-data-row y-offset, 1366x768, release a1db27d5. */
 	MEASURED_FIRST_ROW_BASELINE_PX: 430,
+	/** A6 c4 (G2) — the five `truncate` class strings row 2 used to carry. */
+	ROW_2_SUPERSEDED_TRUNCATE_COUNT: 5,
+	/** A6 c4 (G2) — the second filled amber pill, removed. */
+	ROW_2_SUPERSEDED_AMBER_PILL_COUNT: 1,
+	/** A6 c4 (G2) — one `text-xs` line box, the wrap fallback's unit. */
+	ROW_2_WRAP_LINE_PX: 16,
+	/** A6 c4 (G2) — 9 + 28 + 1 + 32 + 4, the cost of not cutting a sentence. */
+	HEADER_TOTAL_IF_SENTENCE_WRAPS_PX: 74,
 } as const;
 
 /*
@@ -452,11 +501,20 @@ export function WorkspaceToolbar({
 	 * test id and tone, and putting the same words in both places printed them
 	 * twice.
 	 *
-	 * It is `truncate`d, never wrapped: the height budget is 2 band rows and
-	 * 70px, so a longer sentence loses its tail rather than becoming a third row.
+	 * It WRAPS, it is not `truncate`d. A6 c4 (G2.3) replaced `truncate` with
+	 * `flex-wrap` on the band: AGENTS.md §8 forbids a sentence ending in an
+	 * ellipsis, and a truncated sentence is that defect in a different guise.
+	 * Row 2 grows instead of clipping. Do not reintroduce `truncate` here — the
+	 * comment that used to justify it is what made the defect look deliberate.
 	 */
 	const statusSentence = useMemo(() => {
-		if (dataSource === 'refreshing') return 'Checking EnrollPro for the latest roster…';
+		// A6 c4 (G2.3): the trailing `…` is GONE. AGENTS.md §8 — "No sentence is
+		// cut off with an ellipsis" — and a literal ellipsis here is the copy
+		// equivalent of the `truncate` this row used to carry: it told the reader
+		// the sentence was clipped when it was not. The sentence is complete
+		// without it, and `a6-teaching-load-surface` A6-C3-3-N1 already asserts
+		// this string without the character.
+		if (dataSource === 'refreshing') return 'Checking EnrollPro for the latest roster';
 		const parts = [`${completenessPercent}% staffed`];
 		parts.push(
 			unassignedPairs > 0
@@ -667,34 +725,50 @@ export function WorkspaceToolbar({
 			 *   - and the page's `stateLineSlot`, whose `h-7` repair queue supplies
 			 *     the ONE primary action (`teaching-load-repair-review`).
 			 *
-			 * NO SIDEWAYS SCROLL. `overflow-x-auto` is gone from this row. The
-			 * sentence is `min-w-0` + `truncate`, so at 1366 a long sentence loses
-			 * its tail instead of pushing the roster sideways or becoming a third
-			 * band row.
+			 * NO SIDEWAYS SCROLL, AND NO CUT-OFF SENTENCE EITHER. `overflow-x-auto`
+			 * is gone from this row, and A6 c4 (G2) removed `truncate` from it as
+			 * well. The defect Lane C measured was not only a sideways scroller: it
+			 * was a row that hid a claim by cutting it. A scheduler whose status
+			 * sentence ends in `…` cannot tell a complete sentence from a clipped
+			 * one, which is the same failure as the sideways scroller in a slower
+			 * form. So `flex-nowrap` became `flex-wrap` and nothing on this row
+			 * truncates: a long sentence WRAPS onto a second line of the same band
+			 * rather than losing its tail. The band is still ONE row — `a3-c10` T3
+			 * and `A6-C2-4` both count BAND rows, and a wrapped line inside row 2 is
+			 * not a third band.
 			 *
-			 * HEIGHT: unchanged. Only the 1px `border-t` hairline separates the
-			 * rows and every member is `h-7`, so the band is still 1 + 28 = 29px
-			 * and `TEACHING_LOAD_HEADER_MODEL` still holds at 9 + 28 + 29 = 66px
-			 * against a 70px budget with a hard 2-row ceiling. The degraded line
-			 * therefore did NOT have to move into the dialog: it is a `h-7` pill in
-			 * this same 28px row, which is the operator's better outcome and the
-			 * reason no budget was broken. */}
-			<div className="flex min-w-0 flex-nowrap items-center gap-2 border-t border-border/40" data-testid="teaching-load-readiness-strip">
+			 * A wrapping row is only honest if the wrap is a fallback, so
+			 * `a6-tl-header-budget` measures the DECLARED content of both members
+			 * (the status line and the page's next step) against the 1366px row and
+			 * fails if they no longer fit. `truncate` hid the overflow; the measured
+			 * budget states it.
+			 *
+			 * HEIGHT: unchanged, and re-derived rather than carried over. Only the
+			 * 1px `border-t` hairline separates the rows, and the tallest member is
+			 * still the `h-7` repair-queue action button at 28px, so the band is
+			 * 1 + 28 = 29px and `TEACHING_LOAD_HEADER_MODEL` still holds at
+			 * 9 + 28 + 29 = 66px against the 70px budget with a hard 2-row ceiling.
+			 * The 4px of remaining slack is deliberately NOT spent on padding: the
+			 * operator's instruction was to undo the squeeze, and the way to undo a
+			 * squeeze is to stop packing four claim-bearers into one band — which is
+			 * what the repair queue's one-chip change did — not to re-tighten the
+			 * remaining two. */}
+			<div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 border-t border-border/40" data-testid="teaching-load-readiness-strip">
 				{degradedLine ? (
 					<span
 						data-testid="teaching-load-degraded-notice"
 						data-degraded={degradedTail ?? undefined}
-						className="flex h-7 min-w-0 shrink items-center gap-1.5 rounded-full border border-warning-border bg-warning-muted px-2.5 text-xs font-semibold text-warning-foreground"
+						className="flex min-h-7 min-w-0 items-start gap-1.5 rounded-full border border-warning-border bg-warning-muted px-2.5 py-0.5 text-xs font-semibold text-warning-foreground"
 					>
-						<AlertTriangle className="size-3.5 shrink-0" aria-hidden="true" />
-						<span className="min-w-0 truncate">{degradedLine}</span>
+						<AlertTriangle className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
+						<span>{degradedLine}</span>
 					</span>
 				) : (
 					<span
 						data-testid="teaching-load-status-sentence"
-						className="flex h-7 min-w-0 shrink items-center gap-1.5 rounded-full border border-border/60 bg-background px-2.5 text-xs font-semibold text-foreground"
+						className="flex min-h-7 min-w-0 items-start gap-1.5 rounded-full border border-border/60 bg-background px-2.5 py-0.5 text-xs font-semibold text-foreground"
 					>
-						<span className="min-w-0 truncate">{statusSentence}</span>
+						<span>{statusSentence}</span>
 						{/*
 						 * A6 C3 (N-1): the alert KEEPS its test id, its `data-alert-key`
 						 * and its exact `Above weekly max: N` label in the healthy case —

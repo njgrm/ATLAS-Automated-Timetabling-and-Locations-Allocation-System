@@ -576,12 +576,20 @@ export function teachingLoadScopeParams(
 }
 
 /**
- * Guided empty-state message with the dynamic active school-year label.
+ * Empty-state message with the dynamic active school-year label.
  * No hardcoded year literals.
+ *
+ * A6 c4 (G1): the words were `use the guided repair queue`. "Guided" named the
+ * mode this slice removes, and the queue it pointed at is the page's ordinary
+ * next-step surface — so the sentence was rewritten plainly, to `follow the
+ * next-step queue`. Nothing else changed, and the two substrings the committed
+ * control in `src/lib/__tests__/teaching-load-canonical-workload.test.ts`
+ * asserts (the year label, and `the active school year` for a null label) are
+ * untouched.
  */
 export function buildGuidedEmptyTeachingLoadMessage(schoolYearLabel: string | null): string {
 	const year = schoolYearLabel?.trim() ? schoolYearLabel.trim() : 'the active school year';
-	return `Build ${year} Teaching Load first. Start with the suggested draft or use the guided repair queue. Optionally, Year Setup can preview carrying forward compatible assignments from an archived year first.`;
+	return `Build ${year} Teaching Load first. Start with the suggested draft or follow the next-step queue. Optionally, Year Setup can preview carrying forward compatible assignments from an archived year first.`;
 }
 
 /**

@@ -91,6 +91,17 @@ const HEADER_MODEL = {
 	 */
 	PRE_CHANGE_HEADER_TOTAL_PX: 223,
 	MEASURED_FIRST_ROW_BASELINE_PX: 430,
+	/**
+	 * A6 c4 (G2), re-derived from the CANDIDATE's class strings — the row is a
+	 * `flex-wrap` band with no `truncate` on any of its members, and these four
+	 * record what that replaced. They are asserted for agreement with the
+	 * component's model by T1 and measured by `a6-tl-header-budget`; T1–T9 above
+	 * are unchanged, and none of their constants moved.
+	 */
+	ROW_2_SUPERSEDED_TRUNCATE_COUNT: 5,
+	ROW_2_SUPERSEDED_AMBER_PILL_COUNT: 1,
+	ROW_2_WRAP_LINE_PX: 16,
+	HEADER_TOTAL_IF_SENTENCE_WRAPS_PX: 74,
 } as const;
 
 /** The budget this control enforces. 66 + 4px of slack. */
@@ -301,7 +312,6 @@ function renderStateLine(): string {
 				activeItemId: 'missing-load',
 				isReadOnly: false,
 				saving: false,
-				advancedGridVisible: true,
 				onPrimaryAction: () => {},
 			}),
 		),
@@ -781,7 +791,7 @@ test('T7 every state compacted into row 2 is still visible and announced on the 
 		createElement(TooltipProvider, null, createElement(TeachingLoadRepairQueue, {
 			items: [{ ...REPAIR_ITEMS[0], disabledReason: 'Read-only: verify the source first' }],
 			activeItemId: 'missing-load', isReadOnly: false, saving: false,
-			advancedGridVisible: true, onPrimaryAction: () => {},
+			onPrimaryAction: () => {},
 		})),
 	);
 	const blockedDoc = new JSDOM(`<!doctype html><body>${blocked}</body>`).window.document;

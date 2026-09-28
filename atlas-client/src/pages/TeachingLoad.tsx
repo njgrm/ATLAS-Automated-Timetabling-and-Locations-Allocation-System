@@ -26,7 +26,6 @@ import { WorkspaceToolbar, isTeachingLoadSourceDegraded } from '@/components/fac
 import { TeachingLoadRepairQueue } from '@/components/faculty-assignments/TeachingLoadRepairQueue';
 import { openTeacherReview } from '@/components/faculty-assignments/teacherReviewEntry';
 import { TeachingLoadDraftActionBar } from '@/components/faculty-assignments/TeachingLoadDraftActionBar';
-import { TeachingLoadGuidedModePlaceholder } from '@/components/faculty-assignments/TeachingLoadGuidedModePlaceholder';
 import { TeachingLoadModals } from '@/components/faculty-assignments/TeachingLoadModals';
 import { TeachingLoadInspectorTriggers } from '@/components/faculty-assignments/TeachingLoadInspectorTriggers';
 import { TeachingLoadSummarySurface } from '@/components/faculty-assignments/TeachingLoadSummarySurface';
@@ -77,7 +76,25 @@ export default function TeachingLoad() {
 	// now on demand behind `Review teachers`, which returns the full 320px to the
 	// assignment workspace on every large viewport.
 	const [reviewModalOpen, setReviewModalOpen] = useState(false);
-	const [advancedGridVisible, setAdvancedGridVisible] = useState(true);
+	/*
+	 * A6 c4 (G1) — `advancedGridVisible` is GONE, and `a2c4c135` is the commit the
+	 * operator packet and `docs/prompts/a4-train-2026-09-29-5.md` both named as
+	 * "Guided mode removed". That commit is a docs-only fold, so the gate it
+	 * claimed to have removed was still live at `ce1257c8`: the grid rendered
+	 * behind `{advancedGridVisible ? … : <TeachingLoadGuidedModePlaceholder/>}`,
+	 * and the page could turn the grid OFF for an empty year (see the effect
+	 * below) so a scheduler met a placeholder instead of the roster.
+	 *
+	 * The operator's own instruction is the whole requirement: "what's the deal
+	 * with the guided mode thing? Just remove that please". There is now ONE
+	 * rendering of the workspace — the grid, in whichever of the two view modes
+	 * is selected — and no state that can take it away.
+	 *
+	 * `guidedDefaultApplied` STAYS. It is not the gate; it is the one-shot guard
+	 * that keeps the empty-year status message from being re-announced on every
+	 * later render, and that message is worth saying once whether or not a
+	 * placeholder stood in front of the grid.
+	 */
 	const [guidedDefaultApplied, setGuidedDefaultApplied] = useState(false);
 	const [draftStatusMessage, setDraftStatusMessage] = useState('No draft changes yet. Start with the next step below.');
 	// FIX 40: `Save changes` opens a confirmation rather than committing.
@@ -439,8 +456,10 @@ export default function TeachingLoad() {
 	);
 
 	useEffect(() => {
+		// A6 c4 (G1): this used to call `setAdvancedGridVisible(false)` here, which
+		// is what put a scheduler on the Guided placeholder for an empty year. The
+		// grid is unconditional now, so the one-shot message is all that is left.
 		if (!guidedDefaultApplied && emptyActiveYearTeachingLoad) {
-			setAdvancedGridVisible(false);
 			setGuidedDefaultApplied(true);
 			setDraftStatusMessage(buildGuidedEmptyTeachingLoadMessage(data.activeSchoolYearLabel));
 		}
@@ -491,7 +510,8 @@ export default function TeachingLoad() {
 		ui.setLoadFilter('all');
 		ui.setFilterStatus('all');
 		ui.setShowFilters(false);
-		setAdvancedGridVisible(true);
+		// A6 c4 (G1): the `setAdvancedGridVisible(true)` that used to sit here was a
+		// no-op guard against a gate that no longer exists.
 	}, [ui]);
 
 	/*
@@ -568,7 +588,6 @@ export default function TeachingLoad() {
 			ui.setLoadFilter('all');
 		},
 		onOpenReview: () => openTeacherReviewFor(null),
-		setAdvancedGridVisible,
 	});
 
 	const sectionsBySubject = useMemo(() => {
@@ -665,7 +684,6 @@ export default function TeachingLoad() {
 			activeItemId={activeRepairId ?? routedRepairId}
 			isReadOnly={data.isReadOnlyMode}
 			saving={data.saving}
-			advancedGridVisible={advancedGridVisible}
 			onPrimaryAction={handleRepairPrimaryAction}
 		/>
 	);
@@ -793,7 +811,11 @@ export default function TeachingLoad() {
 
 					<div className="flex min-h-[140px] flex-1 flex-col" data-testid="teaching-load-workspace">
 
-						{advancedGridVisible ? (ui.viewMode === 'teacher' ? (
+						{/* A6 c4 (G1): the `advancedGridVisible` ternary that gated this
+						 block is gone. The two view modes below are the only branches
+						 the workspace has, and the roster renders on the first paint in
+						 both of them. */}
+					{ui.viewMode === 'teacher' ? (
 							<TeacherGridMode
 								loading={data.loading}
 								faculty={data.faculty}
@@ -890,9 +912,7 @@ export default function TeachingLoad() {
 								workspaceStateLabel={workspaceState.label}
 								workspaceStateNextAction={workspaceState.nextAction}
 								writeBlockedReason={workspaceState.writeBlockedReason}
-							/>
-						)) : (
-							<TeachingLoadGuidedModePlaceholder onOpenAdvancedGrid={() => setAdvancedGridVisible(true)} />
+						/>
 					)}
 						</div>
 					</div>
@@ -909,7 +929,6 @@ export default function TeachingLoad() {
 				small-screen affordance and is PRESERVED. The desktop equivalent
 				is now the per-row `Review load` button. */}
 			<TeachingLoadInspectorTriggers
-				visible={advancedGridVisible}
 				onOpenMobile={() => setMobileInspectorOpen(true)}
 			/>
 
