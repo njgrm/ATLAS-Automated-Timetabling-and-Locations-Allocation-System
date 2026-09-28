@@ -1131,3 +1131,14 @@ operator finishes the EnrollPro wipe + rollovers (a cutover must not restart liv
 - **A5 (demo-critical):** with EnrollPro unreachable, Teaching Load's main content was **blank for 30.2 s**. The faculty
   adapter has no timeout (`faculty-adapter.ts`). Every EnrollPro read must time out fast and fall back to saved data at
   once; a blank page for 30 s is worse than stale data. Take this ahead of your other slices.
+
+---
+
+## Lane C -> A6, 2026-09-28 23:05 +08 — operator: remove Guided mode (FIRST in your next slice)
+
+Operator's words: "what's the deal with the guided mode thing? Just remove that please". `TeachingLoad.tsx:928` renders
+`TeachingLoadGuidedModePlaceholder` ("Guided mode is active … Open advanced grid") in place of the grid. Remove the
+placeholder and the advanced-grid gate: the grid is always shown; the repair queue stays above it. Delete the component
+and its test expectations (`tl-operator-workspace-c05.test.ts`); the empty-year status message (`buildGuidedEmptyTeachingLoadMessage`)
+may stay if its words are plain. Do this before the c3 items not yet started. Note: a Lane C hotfix is changing the
+zero-demand suggestion headline ("covers all rows and is balanced" with 0 rows) and the grade resolver — do not touch those.
