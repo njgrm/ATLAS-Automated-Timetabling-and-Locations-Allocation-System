@@ -59,6 +59,42 @@ import test from 'node:test';
  * one-unit lightness change to a token moves contrast by ~1.4:1, which is what makes control 1
  * discriminating rather than decorative.
  *
+ * ## STEP 3 (A3-C9, 2026-09-28) — read this before reusing anything above
+ *
+ * **The second row of the table above is no longer true and is retained as history, not
+ * deleted.** `--muted-foreground` has stopped being a rename. A3-C9 darkened it from
+ * 215 16% 47% to **215 16% 42%** (rgb(101,117,139) -> rgb(90,104,124)) because the
+ * paragraph above predicted this exact shortfall and it was the whole point:
+ *
+ * | surface | `slate-500` | token BEFORE A3-C9 | token AFTER A3-C9 |
+ * |---|---|---|---|
+ * | `--background` / `--card` / `--popover` | 4.764 | 4.718 (AA) | **5.650 (AA)** |
+ * | `--muted` / `--secondary` | 4.329 | 4.268 (**AA FAIL**) | **5.149 (AA)** |
+ *
+ * Measured per-channel divergence from `slate-500` moved from 3/255 to **8/12/18, max 18/255**.
+ * `CHANNEL_TOLERANCE = 3` therefore no longer describes that pair and is **superseded for
+ * `--muted-foreground` only**; it is retained unchanged above and still governs
+ * `slate-900 -> --foreground`, which is still a pure rename at a measured 2/255.
+ *
+ * Three consequences, all deliberate and all reversible by moving a pin the same way:
+ * 1. `--muted-foreground` is the app's SECONDARY TEXT token at **1292 `text-muted-foreground`
+ *    call sites across 190 files** (recursive `Get-ChildItem -Recurse -Include *.ts,*.tsx`).
+ *    That is a body-text role, so 4.5:1 is the applicable floor, not the 3:1 UI floor.
+ * 2. Control 1's contrast bound is **per-pair now**. For `--foreground` it is still the
+ *    symmetric `|after - before| <= 0.1` rename bound. For `--muted-foreground` that bound is
+ *    superseded, because it would forbid precisely the improvement the change exists to make;
+ *    it is replaced by a positive contract that contrast may only RISE and must now clear
+ *    4.5:1 on every surface in `SURFACES`. `before` is still measured, so the gain is proved.
+ * 3. Control 1b now pins the **exact measured** delta per pair (2 and 18) instead of only
+ *    checking a ceiling. A ceiling-only check is satisfied by any smaller delta and would have
+ *    stayed green through a drift back toward the old unreadable shade; exact pins fail in both
+ *    directions.
+ *
+ * This is a source-level measured accessibility improvement to a global token shared with the
+ * timetable and login surfaces. It is **not** a rendered-screen verification, and the A2 -> C
+ * handoff records the timetable blast radius. Step 2's warning above still stands: do not merge
+ * the two contracts, and do not widen a band to whatever happens to be green.
+ *
  * **Two corrections added by the planner after QA `ses_f1c2ec739ffexrHKqcRsIOKYJd`; neither
  * touches a control, a pin or a tolerance, and the figures above are kept as recorded.**
  *
@@ -108,6 +144,27 @@ const TAILWIND_THEME = join(CLIENT_ROOT, 'node_modules', 'tailwindcss', 'theme.c
 
 /** oklch<->sRGB conversion artifact between the two palettes, in 0-255 channel units. */
 const CHANNEL_TOLERANCE = 3;
+/**
+ * SUPERSEDED IN PART 2026-09-28 by A3-C9, for the `--muted-foreground` pair ONLY.
+ * The value `CHANNEL_TOLERANCE = 3` above is retained unchanged and still governs the
+ * `--foreground` pair, which is still a pure rename (measured 2/255). It is retained as
+ * evidence, not deleted, and it is still the live bound for `text-slate-900 -> --foreground`.
+ *
+ * `--muted-foreground` is no longer a rename. A3-C9 darkened it from 215 16% 47% to
+ * 215 16% 42% (rgb(101,117,139) -> rgb(90,104,124)) because it is the app's SECONDARY
+ * TEXT token at 1292 `text-muted-foreground` call sites across 190 files, and at the old
+ * value it cleared 4.5:1 on white (4.718) but failed on every light tint it is actually
+ * painted on (4.300 on --muted, 4.247 on the body wash) — a measured WCAG AA failure at
+ * 1292 sites, not a rounding concern.
+ *
+ * Measured per-channel divergence from `slate-500` is now 8/12/18, max 18/255. The band is
+ * pinned to the MEASURED value, not widened to whatever happens to be green: a lower
+ * lightness than 42% fails the AA assertion below, and a HIGHER one than 42% (i.e. drifting
+ * back toward the rename) is caught by this ceiling. The band is a floor-and-ceiling, not a
+ * ceiling alone, so the control still discriminates in both directions.
+ */
+const A3C9_MUTED_FOREGROUND_CHANNEL_DELTA = 18;
+
 /** Load-bearing perceptual bound: the measured real delta is 0.067; a one-unit token edit is ~1.4. */
 const CONTRAST_TOLERANCE = 0.1;
 
@@ -323,17 +380,34 @@ test('control 1: each swept token is the same colour as the Tailwind shade it re
 		const token = tokenRgb(tokenName);
 		assert.ok(shade, `installed palette has no ${from}`);
 
+		// A3-C9: the tolerance is per-pair, because the two pairs are now different KINDS
+		// of mapping. `--foreground` is still a rename and keeps the 3/255 artifact ceiling.
+		// `--muted-foreground` is a deliberate AA darkening and is held to its own measured
+		// band. Treating them identically is what made this row unusable in the first place:
+		// a real accessibility fix and a conversion artifact are not the same claim.
+		const isDeliberateDarkening = tokenName === '--muted-foreground';
+		const ceiling = isDeliberateDarkening ? A3C9_MUTED_FOREGROUND_CHANNEL_DELTA : CHANNEL_TOLERANCE;
+
 		const channel = maxChannelDelta(shade, token);
 		assert.ok(
-			channel <= CHANNEL_TOLERANCE,
+			channel <= ceiling,
 			[
 				`${from} and ${tokenName} have diverged by ${channel}/255 on some channel.`,
 				`${from} = ${shade.join(',')}   ${tokenName} = ${token.join(',')}.`,
 				'',
-				'This sweep is justified as a RENAME. Once the two colours differ by more than the',
-				`oklch<->HSL conversion artifact (currently ${CHANNEL_TOLERANCE}/255), it is a visible`,
-				'colour change and needs a rendered screen at 1366x768 before it ships.',
-			].join('\n'),
+				isDeliberateDarkening
+					? `A3-C9 pinned --muted-foreground's divergence from slate-500 at the MEASURED ${A3C9_MUTED_FOREGROUND_CHANNEL_DELTA}/255.`
+					: 'This sweep is justified as a RENAME. Once the two colours differ by more than the',
+				isDeliberateDarkening
+					? 'Drifting past it in EITHER direction is a failure: a larger delta means the token was moved'
+					: `oklch<->HSL conversion artifact (currently ${CHANNEL_TOLERANCE}/255), it is a visible`,
+				isDeliberateDarkening
+					? 'without re-measuring the AA contract, and a smaller one means it drifted back toward the'
+					: 'colour change and needs a rendered screen at 1366x768 before it ships.',
+				isDeliberateDarkening ? 'unreadable slate-500 rename. Re-measure and move the pin deliberately.' : '',
+			]
+				.filter(Boolean)
+				.join('\n'),
 		);
 
 		// The load-bearing bound. Perceptually, contrast is what governs legibility.
@@ -341,12 +415,33 @@ test('control 1: each swept token is the same colour as the Tailwind shade it re
 			const bg = tokenRgb(`--${surface}`);
 			const before = contrastRatio(shade, bg);
 			const after = contrastRatio(token, bg);
-			assert.ok(
-				Math.abs(after - before) <= CONTRAST_TOLERANCE,
-				`${from} -> ${tokenName} changes contrast on --${surface} by ` +
-					`${(after - before).toFixed(3)}:1 (${before.toFixed(3)} -> ${after.toFixed(3)}), ` +
-					`which exceeds the ${CONTRAST_TOLERANCE}:1 rename bound. This is a visual change, not a rename.`,
-			);
+
+			if (isDeliberateDarkening) {
+				// SUPERSEDED for this pair: the old assertion was
+				//   Math.abs(after - before) <= CONTRAST_TOLERANCE   (the RENAME bound)
+				// which is exactly wrong for a deliberate darkening — it forbids the improvement
+				// the change exists to make. It is retained here as history and replaced, per pair,
+				// by a POSITIVE contract: contrast must not fall, and the text role must now clear
+				// WCAG AA 4.5:1 on every surface. `before` is still measured, so the improvement
+				// is proved rather than asserted.
+				assert.ok(
+					after >= before,
+					`${from} -> ${tokenName} LOWERS contrast on --${surface} ` +
+						`(${before.toFixed(3)} -> ${after.toFixed(3)}:1). A deliberate AA darkening may only raise it.`,
+				);
+				assert.ok(
+					after >= 4.5,
+					`${tokenName} measures ${after.toFixed(3)}:1 on --${surface}, below WCAG AA 4.5:1 for text. ` +
+						`It is the secondary TEXT token at 1292 sites, so 4.5:1 is the applicable floor, not the 3:1 UI floor.`,
+				);
+			} else {
+				assert.ok(
+					Math.abs(after - before) <= CONTRAST_TOLERANCE,
+					`${from} -> ${tokenName} changes contrast on --${surface} by ` +
+						`${(after - before).toFixed(3)}:1 (${before.toFixed(3)} -> ${after.toFixed(3)}), ` +
+						`which exceeds the ${CONTRAST_TOLERANCE}:1 rename bound. This is a visual change, not a rename.`,
+				);
+			}
 		}
 	}
 });
@@ -354,12 +449,25 @@ test('control 1: each swept token is the same colour as the Tailwind shade it re
 test('control 1b: the measured deltas are what this file claims they are', () => {
 	// Guards the tolerances themselves: if someone widens CHANNEL_TOLERANCE to make a red build
 	// green, this fails first and says how far the colours actually are.
+	//
+	// A3-C9: this now asserts the MEASURED value of each pair, not merely that it is under a
+	// ceiling. A ceiling-only check is satisfied by any smaller delta, so it would stay green
+	// through a drift back toward the old unreadable shade. Pinning the exact numbers makes
+	// both directions load-bearing: any further edit to either token goes red here.
 	const fg = maxChannelDelta(shades.get('text-slate-900') as Rgb, tokenRgb('--foreground'));
 	const mf = maxChannelDelta(shades.get('text-slate-500') as Rgb, tokenRgb('--muted-foreground'));
-	assert.ok(
-		fg <= CHANNEL_TOLERANCE && mf <= CHANNEL_TOLERANCE,
-		`measured deltas are foreground ${fg}/255 and muted-foreground ${mf}/255, ` +
-			`outside the stated ceiling of ${CHANNEL_TOLERANCE}/255. Update this file's header table with the real numbers.`,
+	assert.equal(
+		fg,
+		2,
+		`the --foreground rename measured 2/255 from slate-900; it now measures ${fg}/255. ` +
+			'That pair is still a pure rename — if it moved, re-derive and re-record it here.',
+	);
+	assert.equal(
+		mf,
+		A3C9_MUTED_FOREGROUND_CHANNEL_DELTA,
+		`--muted-foreground measured ${A3C9_MUTED_FOREGROUND_CHANNEL_DELTA}/255 from slate-500 at A3-C9 ` +
+			`(215 16% 47% -> 215 16% 42%); it now measures ${mf}/255. Re-measure the AA contract in ` +
+			'src/index.css and move this pin deliberately, recording the per-file delta.',
 	);
 	// And the tolerances must stay tight enough for the control to actually discriminate: a
 	// one-unit lightness edit to a token must blow past CONTRAST_TOLERANCE.

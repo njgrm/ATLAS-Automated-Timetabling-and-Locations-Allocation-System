@@ -1,20 +1,47 @@
 /**
- * Teacher display-name casing — ONE convention for the Teachers and Teaching
- * Load surfaces (Fix 22).
+ * Teacher display-name casing — ONE convention for the Teachers, Teaching Load
+ * and Teacher-detail surfaces (Fix 22).
  *
- * SCOPE: DISPLAY ONLY. `firstName` / `lastName` are read and returned exactly
- * as stored. Nothing here mutates, normalises, trims, re-cases, or reorders a
- * persisted value; the only transformation is the `Last, First` presentation
- * order plus collapsing redundant whitespace. Class Schedule name rendering is
- * A2's and does not use this helper.
+ * SCOPE: DISPLAY ONLY. `firstName` / `lastName` are read exactly as stored and
+ * are never written, normalised, trimmed, re-cased or reordered by this module.
+ * The only transformations are (a) the `Last, First` presentation order,
+ * (b) collapsing redundant whitespace, and (c) UPPERCASING FOR DISPLAY.
  *
- * Why: the same teacher was rendered three different ways across this stream —
- *   - `Last, First` wrapped in a CSS `uppercase` transform (WorkloadInspector,
- *     TeacherGridMode), which shouts Filipino given names and is the hardest
- *     thing on the page to read;
- *   - `First Last` with no transform (FacultyProfileSheet);
- *   - `Last, First` with no transform (FacultyRow).
- * One helper, one convention: `Last, First`, stored casing preserved.
+ * WHY UPPERCASE, and why it is a *display* transform.
+ *
+ * The root cause of the mixed-casing defect is the DATA, not the renderer:
+ * some teachers are persisted uppercase and some are persisted Title Case, so
+ * any renderer that preserves stored casing necessarily shows both. Lane C
+ * observed exactly that on one screen at 1366x768: "AGUILAR, CARLO MIGUEL"
+ * beside "Alcantara, Roberto".
+ *
+ * The original Fix 22 acceptance criterion is explicit — "Teacher names render
+ * consistently uppercase in targeted UI" — and its recommended implementation
+ * says to prefer "a display-layer standard (`uppercase` class or centralized
+ * formatter) over mutating persisted person-name data".
+ *
+ * HISTORY, recorded because it is a correction. An earlier cycle in this same
+ * stream deliberately REMOVED a CSS `uppercase` transform and preserved stored
+ * casing, reasoning that "uppercase shouts Filipino given names". That was a
+ * narrowing rewrite AGAINST the acceptance criterion, and it left the live
+ * symptom in place. Cycle c10 re-issued the original criterion and the
+ * narrowing is overruled. A centralized formatter (this file) is used in
+ * preference to per-element CSS classes because two of its consumers —
+ * `components/faculty-assignments/WorkloadInspector.tsx` and
+ * `components/faculty-assignments/TeacherGridMode.tsx` — are owned by a
+ * parallel lane this one must not edit, and the formatter standardises them
+ * without a single cross-directory edit.
+ *
+ * SEARCH / SORT SAFETY (acceptance criterion 2). Because the transform lives
+ * here and NOT in the data, every consumer that needs the true underlying value
+ * calls `formatFacultyStoredName` / `teacherNameSortKey` below, and the roster's
+ * own search and sort read the raw `firstName` / `lastName` fields. A visible
+ * uppercase / stored-original split therefore cannot change what a search for
+ * "alcantara" matches, and cannot change sort order.
+ *
+ * NOT A DATABASE REWRITE (acceptance criterion 3). Nothing in ATLAS mutates a
+ * persisted person name. There is no `toUpperCase()` on any write path in this
+ * stream; if such a change is ever wanted it needs separate approval.
  */
 import type { FacultySummary } from '@/types';
 
@@ -29,18 +56,64 @@ function tidy(value: string | null | undefined): string {
 }
 
 /**
- * Canonical Teachers/Teaching Load display name: `Last, First`.
- * Falls back to whichever part exists, so a partially-entered placeholder
- * teacher still renders something rather than a stray comma.
+ * The UNDERLYING, stored-cased person name in `Last, First` order.
+ *
+ * This is the value search, sort and filtering must use. It is deliberately
+ * NOT uppercased: it is the byte-preserved record of what EnrollPro holds. Use
+ * `formatFacultyDisplayName` for anything a person reads.
  */
-export function formatFacultyDisplayName(faculty: NameLike | null | undefined): string {
+export function formatFacultyStoredName(faculty: NameLike | null | undefined): string {
 	const last = tidy(faculty?.lastName);
 	const first = tidy(faculty?.firstName);
 	if (last && first) return `${last}, ${first}`;
 	return last || first || 'Unnamed teacher';
 }
 
+/**
+ * The sort/search key for a teacher: stored casing, `Last First` (no comma) so
+ * it compares directly against a lower-cased query token.
+ *
+ * Casing must not influence matching order, which is why the roster lower-cases
+ * the query before comparing. This key is therefore LEFT IN STORED CASING and is
+ * the value the lower-casing is applied to — it does NOT uppercase anything.
+ * (A3-C10 QA finding F3: an earlier version of this docstring said "A name is
+ * UPPERCASE here", which described the opposite of the code three lines below. The
+ * code was right; the sentence was the trap, because an editor "fixing" either
+ * side would have broken either sort stability or the stored-value contract.)
+ *
+ * It is derived from the STORED fields, so it matches the stored value, never the
+ * displayed one. Any ordering that needs a display value must not use this.
+ */
+export function teacherNameSortKey(faculty: NameLike | null | undefined): string {
+	return `${tidy(faculty?.lastName)} ${tidy(faculty?.firstName)}`.trim();
+}
+
+/**
+ * Canonical Teachers/Teaching Load/Teacher-detail DISPLAY name: `LAST, FIRST`
+ * in UPPERCASE (Fix 22).
+ *
+ * Falls back to whichever part exists, so a partially-entered placeholder
+ * teacher still renders something rather than a stray comma.
+ */
+export function formatFacultyDisplayName(faculty: NameLike | null | undefined): string {
+	return formatFacultyStoredName(faculty).toUpperCase();
+}
+
 /** Convenience overload for the common `FacultySummary` call site. */
 export function formatFacultySummaryName(faculty: FacultySummary | null | undefined): string {
 	return formatFacultyDisplayName(faculty);
+}
+
+/**
+ * Uppercased avatar initials for a teacher, e.g. `AM` for
+ * "Alcantara, Roberto" (Fix 22 "badges/avatars" audit row).
+ *
+ * Reads the stored fields and uppercases the two first characters. Never
+ * mutates the input, and never returns a stray comma or digit when a name part
+ * is missing.
+ */
+export function formatFacultyInitials(faculty: NameLike | null | undefined): string {
+	const first = tidy(faculty?.firstName).charAt(0);
+	const last = tidy(faculty?.lastName).charAt(0);
+	return `${first}${last}`.toUpperCase();
 }

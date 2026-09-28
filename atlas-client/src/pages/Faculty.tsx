@@ -1,12 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
 import {
 	AlertTriangle,
-	BookOpenCheck,
-	Eye,
-	Pencil,
 	RefreshCw,
-	Trash2,
 	Users,
 } from 'lucide-react';
 
@@ -27,7 +22,6 @@ import {
 	FacultyAssignedClassesCell,
 	FacultyAssignedGradeChips,
 	FacultyPreferredGradesControl,
-	getFacultyLoadPresentation,
 	FacultyIdentityCell,
 	FacultyLoadStateBadge,
 	FacultyMobileCard,
@@ -35,6 +29,14 @@ import {
 } from '@/components/faculty/FacultyRow';
 import { FacultyProfileSheet } from '@/components/faculty/FacultyProfileSheet';
 import { FacultyRosterActions } from '@/components/faculty/FacultyRosterActions';
+import { FacultyWorkloadModal } from '@/components/faculty/FacultyWorkloadModal';
+import {
+	getTeacherRepairIntent,
+	useFacultyRowActions,
+	type FacultyRowRepairIntent,
+} from '@/components/faculty/FacultyRowActions';
+import { useRosterScrollMemory } from '@/components/faculty/rosterScrollMemory';
+import { teacherNameSortKey } from '@/components/faculty/teacherNameDisplay';
 import { TeacherAttentionFilters } from '@/components/faculty/TeacherAttentionFilters';
 import { toast } from 'sonner';
 import { departmentLabel } from '@/lib/deped-glossary';
@@ -93,43 +95,6 @@ type TeacherSummaryResponse = {
 
 type TeacherAttentionFilter = 'all' | 'needs-load' | 'over-cap' | 'no-active-load' | 'placeholders';
 
-function getTeacherRepairIntent(teacher: FacultySummary) {
-	const loadHours = teacher.policyCreditedHours ?? 0;
-	if (teacher.isPlaceholder) {
-		return {
-			task: 'review-placeholders',
-			label: 'Review temporary',
-			helper: 'This is a temporary record for a teacher who has not been hired yet. Replace it before publishing.',
-		};
-	}
-	if (!teacher.isActiveForScheduling) {
-		return {
-			task: 'review',
-			label: 'View details',
-			helper: 'This teacher is excluded from scheduling. Review before assigning load.',
-		};
-	}
-	if ((teacher.subjectCount ?? 0) === 0) {
-		return {
-			task: 'missing-load',
-			label: 'Assign teaching load',
-			helper: 'This active teacher has no Teaching Load yet.',
-		};
-	}
-	if (loadHours > teacher.maxHoursPerWeek) {
-		return {
-			task: 'over-cap',
-			label: 'Move classes',
-			helper: 'This teacher is over the weekly maximum. Move classes before generating the timetable.',
-		};
-	}
-	return {
-		task: 'review',
-		label: 'Review load',
-		helper: getFacultyLoadPresentation(teacher).help,
-	};
-}
-
 export default function Faculty() {
 	const [faculty, setFaculty] = useState<FacultySummary[]>([]);
 	const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null);
@@ -148,6 +113,23 @@ export default function Faculty() {
 	
 	// Roster profile drawer
 	const [profileTarget, setProfileTarget] = useState<FacultySummary | null>(null);
+
+	/**
+	 * Fix 25 — the in-page workload modal's selection.
+	 *
+	 * Both the teacher and the intent it was opened with are held, so the modal's
+	 * optional deep link can reproduce the exact `facultyId` + `task=` pair the
+	 * old row link used to produce. Opening sets this; closing clears it, which
+	 * is the ONLY state this feature touches — the roster's search, attention
+	 * filter, department/grade filters, sort, page and page size are untouched
+	 * and are never unmounted, because the modal is a sibling of the table.
+	 */
+	const [workloadTarget, setWorkloadTarget] = useState<{
+		faculty: FacultySummary;
+		intent: FacultyRowRepairIntent;
+	} | null>(null);
+
+	const rosterScroll = useRosterScrollMemory();
 
 	// Placeholder dialog and confirm deletion states
 	const [placeholderDialogOpen, setPlaceholderDialogOpen] = useState(false);
@@ -420,11 +402,22 @@ export default function Faculty() {
 		}
 
 		let list = faculty;
-		const compareTeacherName = (left: FacultySummary, right: FacultySummary) => `${left.lastName} ${left.firstName}`.localeCompare(`${right.lastName} ${right.firstName}`);
+		/**
+		 * Fix 22: sorting compares the STORED name, never the displayed one.
+		 * `teacherNameSortKey` uppercases only so casing cannot influence the
+		 * comparison, and it is derived from the stored `firstName`/`lastName`.
+		 * A visible-uppercase / stored-original split therefore cannot reorder
+		 * the roster.
+		 */
+		const compareTeacherName = (left: FacultySummary, right: FacultySummary) =>
+			teacherNameSortKey(left).localeCompare(teacherNameSortKey(right));
 
 		// Search
 		if (searchQuery.trim()) {
 			const q = searchQuery.toLowerCase();
+			// Fix 22: matching runs against the STORED first/last name, so a
+			// search for "alcantara" still finds a teacher whose row displays
+			// "ALCANTARA, ROBERTO". The display transform is presentation only.
 			list = list.filter(
 				(f) =>
 					f.firstName.toLowerCase().includes(q) ||
@@ -589,6 +582,38 @@ export default function Faculty() {
 		setPlaceholderDialogOpen(true);
 	}, []);
 
+	/**
+	 * Fix 25. The row's primary action opens the modal IN PLACE. The roster's
+	 * scroll offset is captured HERE, on the click, before the dialog exists —
+	 * that is the offset the user was actually looking at, and it is restored by
+	 * `closeWorkloadModal` on every dismissal path.
+	 */
+	const openWorkloadModal = useCallback(
+		(teacher: FacultySummary, event: React.MouseEvent<HTMLElement>) => {
+			rosterScroll.captureFrom(event.currentTarget);
+			setWorkloadTarget({ faculty: teacher, intent: getTeacherRepairIntent(teacher) });
+		},
+		[rosterScroll],
+	);
+
+	const closeWorkloadModal = useCallback(() => {
+		rosterScroll.restore();
+		setWorkloadTarget(null);
+	}, [rosterScroll]);
+
+	const rowActions = useFacultyRowActions({
+		onReviewLoad: openWorkloadModal,
+		onOpenProfile: setProfileTarget,
+		onEditTemporary: (teacher) => {
+			setPlaceholderEditTarget(teacher);
+			setPlaceholderDialogOpen(true);
+		},
+		onDeleteTemporary: setConfirmDeleteTarget,
+	});
+
+	/** `X` for `Create temporary teacher (Teacher X)`, from the real roster count. */
+	const nextTeacherNumber = (rosterStats?.totalCount ?? faculty.length) + 1;
+
 	const applyAttentionFilter = useCallback((filter: TeacherAttentionFilter) => {
 		setAttentionFilter(filter);
 		// Phase 3.3: "All teachers" only clears the attention filter. It no
@@ -663,6 +688,7 @@ return (
 			primaryActions={(
 				<FacultyRosterActions
 					slot="primary"
+					nextTeacherNumber={nextTeacherNumber}
 					onOpenReview={openRosterReview}
 					onCreateTemporary={openCreateTemporary}
 					onRefreshRoster={handleSync}
@@ -674,6 +700,7 @@ return (
 			secondaryActions={(
 				<FacultyRosterActions
 					slot="secondary"
+					nextTeacherNumber={nextTeacherNumber}
 					onOpenReview={openRosterReview}
 					onCreateTemporary={openCreateTemporary}
 					onRefreshRoster={handleSync}
@@ -847,53 +874,7 @@ return (
 						</Button>
 					),
 				} : null}
-			rowActions={{
-					label: 'Teacher actions',
-					menuTestId: 'teacher-row-more-actions',
-					primary: (teacher) => {
-						const repairIntent = getTeacherRepairIntent(teacher);
-						return (
-							<Button asChild size="sm" className="h-8 gap-2 px-3 text-xs font-bold" data-testid="teacher-row-primary-action">
-								<Link to={`/teaching-load?facultyId=${teacher.id}&task=${repairIntent.task}`} aria-label={`${repairIntent.label} for ${teacher.lastName}, ${teacher.firstName}`}>
-									<BookOpenCheck className="size-3.5" />
-									{repairIntent.label}
-								</Link>
-							</Button>
-						);
-					},
-					inlineSecondary: (teacher) => (
-						<Button
-							variant="outline"
-							size="sm"
-							className="h-8 gap-1.5 px-2.5 text-xs font-bold"
-							onClick={() => setProfileTarget(teacher)}
-							aria-label={`View profile for ${teacher.lastName}, ${teacher.firstName}`}
-							data-testid="teacher-row-profile-action"
-						>
-							<Eye className="size-3.5" />
-							Profile
-						</Button>
-					),
-					secondary: (teacher) => {
-						const actions = [];
-						if (teacher.isPlaceholder) {
-							actions.push({
-									label: 'Edit temporary teacher details',
-									icon: <Pencil className="size-4" />,
-									onSelect: () => {
-										setPlaceholderEditTarget(teacher);
-										setPlaceholderDialogOpen(true);
-									},
-								});
-						}
-						return actions;
-					},
-					destructive: (teacher) => teacher.isPlaceholder ? [{
-						label: 'Delete temporary teacher',
-						icon: <Trash2 className="size-4" />,
-						onSelect: () => setConfirmDeleteTarget(teacher),
-					}] : [],
-				}}
+			rowActions={rowActions}
 				renderMobileCard={(teacher, context) => (
 					<FacultyMobileCard
 						faculty={teacher}
@@ -903,6 +884,22 @@ return (
 						onProfileClick={() => setProfileTarget(teacher)}
 					/>
 				)}
+			/>
+
+			{/*
+			 * Fix 25 — the in-page workload modal. A SIBLING of the roster, not a
+			 * route, so opening it cannot unmount the table and cannot discard
+			 * the search, filters, sort or page. The one piece of state the
+			 * navigation used to destroy that is not React state at all — the
+			 * scroll offset — is captured on the click and restored by
+			 * `closeWorkloadModal` on every dismissal path.
+			 */}
+			<FacultyWorkloadModal
+				faculty={workloadTarget?.faculty ?? null}
+				open={workloadTarget !== null}
+				intent={workloadTarget?.intent ?? null}
+				scrollRegionRef={rosterScroll.regionRef}
+				onClose={closeWorkloadModal}
 			/>
 
 			{/* Roster review / profile — Fix 23: a centred Dialog, opened in place. */}

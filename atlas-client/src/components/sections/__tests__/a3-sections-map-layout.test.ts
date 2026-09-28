@@ -9,7 +9,7 @@
  * seen to discriminate: a control that cannot fail is not evidence.
  */
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { test } from 'node:test';
 
@@ -748,20 +748,160 @@ test('fix 06 control: the bottom-most floor is fully visible at 60% and 80% zoom
 
 /* ──────────────────────── fix 10: the micro-typography floor ─────────────── */
 
+/**
+ * Every product file that renders a room card, a room badge/pill, or a room
+ * sidebar/list entry. WIDENED on 2026-09-28 from the original 8.
+ *
+ * ── Why the original 8 was the wrong list (the named "baseline short by one
+ *    row" defect, short here by SIX WHOLE FILES) ──
+ * The old list was the set of files the *previous* stream happened to touch. It
+ * passed while 40 sub-11px sites sat in the six room-card/sidebar files that
+ * render the very cards this ratchet exists to protect — the room tiles, the
+ * section row's program badge (the `SPS`/`SPA` badge measured at 9.6px on the
+ * live surface), the details sheet's class badges, the auto-assign dialog, and
+ * the two campus-map room fields. None of the six was on the list, so the
+ * ratchet was structurally incapable of seeing the defect it names.
+ *
+ * ── THE THRESHOLD, pinned because the prose and the count disagree ──
+ * An OFFENDER is an authored font size STRICTLY BELOW 11.0 device px. That is
+ * the literal reading of "no text below 11px" and it is what the scan below
+ * enforces. Two numbers circulate in this repo and only one of them is this
+ * rule:
+ *
+ *   - 40  = sites strictly below 11.0px. THIS is the offender count.
+ *   - 51  = sites below 11.52px (0.72rem). NOT this rule — it is the `rem <
+ *           0.72rem` band, which additionally counts 11 sites sitting EXACTLY
+ *           AT 11.0px via `text-[0.6875rem]`.
+ *
+ * `0.6875rem * 16 = 11.0` exactly, so `text-[0.6875rem]` is AT the floor, not
+ * below it, and is legal. A reviewer re-deriving "below 11px" literally will
+ * count 40 and conclude this ratchet under-counts; it does not, and the
+ * equality is asserted below rather than left to a comment.
+ *
+ * Tailwind's root is 16px, so `text-[Nrem]` = N*16 device px. Konva's
+ * `fontSize` is in stage units and is scaled at draw time, but the AUTHORED
+ * value must still be legible before scaling, so it is floored the same way.
+ */
+const ROOM_SURFACE_OWNED = [
+	// ── the original 8, all still in scope ──
+	'src/components/sections/SectionRoomMapModal.tsx',
+	'src/components/sections/SectionRoomPicker.tsx',
+	'src/components/sections/SectionHomeRoomModals.tsx',
+	'src/components/sections/HomeRoomConfirmDialogs.tsx',
+	'src/components/sections/homeRoomEditStatus.ts',
+	'src/components/sections/homeRoomPersistence.ts',
+	'src/components/BuildingView.tsx',
+	'src/pages/Sections.tsx',
+	// ── the SIX the old list missed: the room cards, badges and sidebar rows ──
+	'src/components/BuildingPanel.tsx',
+	'src/components/sections/SectionDetailsSheet.tsx',
+	'src/components/sections/SectionRow.tsx',
+	'src/components/sections/HomeRoomAutoAssignDialog.tsx',
+	'src/components/campus-map/BuildingPlacementFields.tsx',
+	'src/components/campus-map/BuildingGradeScopeControl.tsx',
+	// ── two more campus-map room surfaces: clean today, listed so they cannot
+	//    rot into the same blindness without failing this control ──
+	'src/components/campus-map/RoomReadinessList.tsx',
+	'src/components/campus-map/CampusMapCanvasPreview.tsx',
+	// ── three more that the STRUCTURAL SWEEP below demands (all clean today) ──
+	'src/components/campus-map/CampusMapOverview.tsx',
+	'src/components/sections/SectionMobileCard.tsx',
+	'src/components/sections/SectionsHomeRoomActions.tsx',
+] as const;
+
+/**
+ * The structural sweep, kept BESIDE the explicit list, because each catches what
+ * the other cannot:
+ *
+ *  - the explicit list says WHICH files are protected, and `assert.equal(length)`
+ *    plus the Set/size and exists-assertions below stop it silently shrinking;
+ *  - the sweep says the list is COMPLETE — every room-card-ish file under the
+ *    two component directories this stream owns must be on it. Without the
+ *    sweep, the NEXT room-card file can be added tomorrow and repeat exactly
+ *    the failure this row was widened to fix: a protected surface nobody scans.
+ *
+ * The sweep is deliberately SCOPED to `components/sections` +
+ * `components/campus-map`. An unscoped marker sweep over all of
+ * `src/components` matches 37 files that still hold sub-11px text and that this
+ * packet has no authority to edit, so it would fail closed forever and teach the
+ * next session to ignore the row. The scope boundary is itself a disclosure:
+ * `components/room-schedules/*`, `components/dashboard/RoomSchedulePreview.tsx`
+ * and `components/RoomScheduleOverlay.tsx` render room text and are NOT covered
+ * by this row. They belong to another lane and are reported, not claimed.
+ */
+const ROOM_SURFACE_DIRS = ['src/components/sections', 'src/components/campus-map'] as const;
+
+/**
+ * A file is room-card-ish if it RENDERS a badge or a room name. The word
+ * markers `Occupancy` / `Utilization` were tried first and rejected: they also
+ * match the two pure-logic modules `buildingOccupancy.ts` and
+ * `home-room-readiness.ts`, which render nothing, so the sweep would have
+ * demanded that non-rendering files be typed. This token set matches exactly the
+ * 11 files under the two directories that actually put a badge or a room name on
+ * screen, all 11 of which are on the list above.
+ */
+const ROOM_SURFACE_MARKER = /(<Badge\b|room\.name|roomName|buildingName|RoomTile|RoomCard)/;
+
+function sweepRoomSurfaceFiles(root: string): string[] {
+	const found: string[] = [];
+	const walk = (dir: string): void => {
+		for (const entry of readdirSync(resolve(clientRoot, dir), { withFileTypes: true })) {
+			if (entry.name === 'node_modules' || entry.name === '__tests__') continue;
+			const child = `${dir}/${entry.name}`;
+			if (entry.isDirectory()) {
+				walk(child);
+			} else if (/\.tsx?$/.test(entry.name)) {
+				found.push(child);
+			}
+		}
+	};
+	walk(root);
+	return found.sort();
+}
+
+test('fix 10 control: the owned list cannot shrink, cannot rot, and is complete', () => {
+	const owned = ROOM_SURFACE_OWNED;
+
+	// Anti-shrink. The list grew 8 -> 19 on 2026-09-28; any future removal must
+	// change this number deliberately, in a reviewable diff, with its reason.
+	assert.equal(owned.length, 19, 'the owned room-surface list must stay at 19 files');
+	// Anti-duplication. A repeated path would make a length assertion lie.
+	assert.equal(new Set(owned).size, owned.length, 'the owned list must not repeat a path');
+	// Anti-rot. A deleted or renamed file must fail here, not be silently skipped.
+	for (const file of owned) {
+		assert.ok(existsSync(resolve(clientRoot, file)), `${file} is listed but no longer exists`);
+	}
+	// Anti-incompleteness: every room-card-ish file in the two owned directories
+	// is protected, so the next new room-card file cannot repeat this defect.
+	for (const dir of ROOM_SURFACE_DIRS) {
+		for (const candidate of sweepRoomSurfaceFiles(dir)) {
+			if (!ROOM_SURFACE_MARKER.test(source(candidate))) continue;
+			assert.ok(
+				(owned as readonly string[]).includes(candidate),
+				`${candidate} renders a room card/badge/occupancy surface and must be added to ROOM_SURFACE_OWNED`,
+			);
+		}
+	}
+	// The sweep must not be vacuous: if the marker ever stops matching, this
+	// control would "pass" by scanning nothing. Pin its reach.
+	const swept = ROOM_SURFACE_DIRS.flatMap(sweepRoomSurfaceFiles).filter((f) => ROOM_SURFACE_MARKER.test(source(f)));
+	assert.ok(swept.length >= 11, `the structural sweep must still reach the room surfaces, reached ${swept.length}`);
+});
+
+test('fix 10 control: the 11px threshold is the pinned one, and 0.6875rem is exactly AT it', () => {
+	// The equality the 40-vs-51 disagreement turns on, asserted so it cannot rot:
+	// `text-[0.6875rem]` is 11.0 device px, which is AT the floor and therefore
+	// a legal (not offending) value. See the threshold note above ROOM_SURFACE_OWNED.
+	assert.equal(0.6875 * 16, 11);
+	assert.equal(11 < 11, false, 'the rule is strictly below 11px, so exactly-11px text is allowed');
+	// And it is the value the room surfaces actually use, so the floor is real
+	// wiring rather than a number nothing reads.
+	const row = source('src/components/sections/SectionRow.tsx');
+	assert.ok(/text-\[0\.6875rem\]/.test(row), 'the raised badges must sit exactly on the 11px floor');
+});
+
 test('fix 10 control: no text below 11px remains in the files this stream owns', () => {
-	// All eight product files this stream touched, not a subset: a scan that
-	// silently covers 5 of 8 overstates its own name.
-	const owned = [
-		'src/components/sections/SectionRoomMapModal.tsx',
-		'src/components/sections/SectionRoomPicker.tsx',
-		'src/components/sections/SectionHomeRoomModals.tsx',
-		'src/components/sections/HomeRoomConfirmDialogs.tsx',
-		'src/components/sections/homeRoomEditStatus.ts',
-		'src/components/sections/homeRoomPersistence.ts',
-		'src/components/BuildingView.tsx',
-		'src/pages/Sections.tsx',
-	];
-	assert.equal(owned.length, 8);
+	const owned = ROOM_SURFACE_OWNED;
 	/** Tailwind's root is 16px, so text-[Nrem] = N*16 device px. */
 	const remPx = (rem: number) => rem * 16;
 	const offenders: string[] = [];
@@ -790,6 +930,38 @@ test('fix 10 control: no text below 11px remains in the files this stream owns',
 	assert.equal(ROOM_NAME_FONT, 11);
 });
 
+test('fix 10 control: the six newly-covered files contribute ZERO sub-11px sites, by count', (t) => {
+	// The count form of the row above, so a regression reports a NUMBER and not
+	// only a diff. The per-file figures are measured from the committed bytes.
+	const NEWLY_COVERED = [
+		'src/components/BuildingPanel.tsx',
+		'src/components/sections/SectionDetailsSheet.tsx',
+		'src/components/sections/SectionRow.tsx',
+		'src/components/sections/HomeRoomAutoAssignDialog.tsx',
+		'src/components/campus-map/BuildingPlacementFields.tsx',
+		'src/components/campus-map/BuildingGradeScopeControl.tsx',
+	];
+	const remPx = (rem: number) => rem * 16;
+	const rows: string[] = [];
+	for (const file of NEWLY_COVERED) {
+		const text = source(file);
+		const offenders: string[] = [];
+		for (const m of text.matchAll(/text-\[(\d+(?:\.\d+)?)rem\]/g)) {
+			if (remPx(Number(m[1])) < 11) offenders.push(`${remPx(Number(m[1]))}px`);
+		}
+		for (const m of text.matchAll(/text-\[(\d+(?:\.\d+)?)px\]/g)) {
+			if (Number(m[1]) < 11) offenders.push(`${m[1]}px`);
+		}
+		assert.deepEqual(offenders, [], `${file} must hold no text below 11px, found ${offenders.length}`);
+		const smallest = Math.min(
+			...[...text.matchAll(/text-\[(\d+(?:\.\d+)?)rem\]/g)].map((m) => remPx(Number(m[1]))),
+			...[...text.matchAll(/text-\[(\d+(?:\.\d+)?)px\]/g)].map((m) => Number(m[1])),
+		);
+		rows.push(`${file}: 0 sub-11px, smallest authored size ${smallest.toFixed(1)}px`);
+	}
+	t.diagnostic(`the six files the old tripwire never listed:\n${rows.join('\n')}`);
+});
+
 test('fix 10 control: the map and sidebar keep their internal scrolling instead of gaining a page scrollbar', () => {
 	const modal = source('src/components/sections/SectionRoomMapModal.tsx');
 	// The dialog is a fixed-height, self-scrolling shell: root overflow hidden,
@@ -803,4 +975,316 @@ test('fix 10 control: the map and sidebar keep their internal scrolling instead 
 	// The building pane is the one that clipped; it must stay a flex child with
 	// a definite height and clip its canvas rather than grow.
 	assert.match(modal, /className="flex-1 min-h-0 border rounded-3xl bg-background\/50 shadow-inner overflow-hidden"/);
+});
+
+/* ────────── fix 07 (this stream): a real box model for the DOM room cards ──────
+ *
+ * The 50-150% zoom claim was UNPROVEN on the live surface ("OK at 94% zoom;
+ * other zooms not stress-tested"), so this is a box model over the COMMITTED
+ * class contract rather than a source-text match. The method is the one the
+ * fix-06 control above already uses in this same file: parse the class contract
+ * out of the component, then do arithmetic on it. The ARITHMETIC is the claim;
+ * the parse is only its input, and it is why restoring the pre-change bytes
+ * flips the verdict rather than leaving the numbers untouched.
+ *
+ * The one browser fact this leans on is CSS flex sizing, and it is the exact
+ * mechanism of the defect:
+ *
+ *   a flex item's automatic minimum size is its CONTENT MIN-CONTENT width.
+ *   `truncate` is `white-space: nowrap`, so a truncated flex item's min-content
+ *   width is the WHOLE string — it cannot shrink, `truncate` never actually
+ *   truncates, the item overflows its track, and the program badge sharing that
+ *   line is pushed out of the cell into the next cell's occupancy / capacity
+ *   indicator. A wrapping title's min-content width is only its LONGEST WORD,
+ *   so the same string needs far less track.
+ *
+ * ── BADGE LINE-HEIGHT MODELLING NUMBER: 1.25 (Tailwind `leading-tight`) ──
+ * A badge's box height depends on its line box, and the shared `@/ui` Badge
+ * sets NO line-height, so its height is `fontSize * inheritedLeading`. This
+ * model uses 1.25 because that is what the raised badges in this stream AUTHOR
+ * explicitly rather than leaving to inheritance. Disclosed sensitivity:
+ *   - at 1.25 (authored here) an 11px badge has 13.75px of line content;
+ *   - at 1.3333 (what `text-xs` implies in Tailwind v4, `calc(1/0.75)`) a 12px
+ *     badge has 16.0px, and with the shared `py-0.5` that is 20.0px = exactly
+ *     the shared `h-5` — still inside the box, with zero slack;
+ *   - at 1.5 (a bare inherited default) that same 12px badge needs 18+4 = 22px
+ *     and WOULD clip, which is precisely why every badge raised here carries an
+ *     explicit `leading-tight` instead of inheriting.
+ * The shared `@/ui` Badge primitive is therefore NOT implicated: `ui/badge.tsx`
+ * and `ui/badge-variants.ts` are unmodified by this stream, and every figure
+ * above fits the primitive's committed `h-5 px-2 py-0.5` box.
+ */
+
+/** The scale factors the control sweeps, as a fraction of the authored size. */
+const ZOOM_SCALES = [0.5, 0.75, 1, 1.25, 1.5] as const;
+/** See the note above: badges are modelled at the leading they author. */
+const BADGE_LEADING = 1.25;
+
+/** Tailwind rem-px: root 16px. The pinned conversion the 11px floor rests on. */
+const REM_PX = 16;
+const remPx = (rem: number) => rem * REM_PX;
+const REM_UTIL = /text-\[(\d+(?:\.\d+)?)rem\]/;
+const PX_UTIL = /text-\[(\d+(?:\.\d+)?)px\]/;
+const NAMED_SIZE: Record<string, number> = { 'text-xs': 12, 'text-sm': 14, 'text-base': 16, 'text-lg': 18 };
+const GAP_PX: Record<string, number> = { 'gap-0': 0, 'gap-1': 4, 'gap-1.5': 6, 'gap-2': 8, 'gap-3': 12 };
+const PAD_PX: Record<string, number> = { 'px-1': 4, 'px-1.5': 6, 'px-2': 8, 'px-2.5': 10, 'px-3': 12 };
+const H_PX: Record<string, number> = { 'h-4': 16, 'h-5': 20, 'h-6': 24 };
+
+/** Pessimistic mixed-case metric — deliberately wider than Arial, so it over-estimates. */
+const charW = (text: string, fontPx: number): number => Array.from(text).reduce((sum, ch) => {
+	const upper = ch === ch.toUpperCase() && ch !== ch.toLowerCase();
+	return sum + (upper ? 0.72 : 0.62) * fontPx;
+}, 0);
+const textWidth = (text: string, fontPx: number): number => charW(text, fontPx);
+const longestWordWidth = (text: string, fontPx: number): number =>
+	Math.max(0, ...text.split(' ').map((w) => charW(w, fontPx)));
+
+/** The authored font size of an element, read off its own class list. */
+function fontPxOf(classList: string, inherited: number): number {
+	const rem = REM_UTIL.exec(classList);
+	if (rem) return remPx(Number(rem[1]));
+	const px = PX_UTIL.exec(classList);
+	if (px) return Number(px[1]);
+	for (const token of classList.split(/\s+/)) {
+		if (token in NAMED_SIZE) return NAMED_SIZE[token];
+	}
+	return inherited;
+}
+
+/** A Tailwind spacing utility -> px, for a fixed map or a bare `px-N` scale step. */
+function utilPx(map: Record<string, number>, classList: string, fallback: number): number {
+	for (const token of classList.split(/\s+/)) {
+		if (token in map) return map[token];
+		const bare = /^(?:px|py|h)-(\d+(?:\.\d+)?)$/.exec(token);
+		if (bare && (token.startsWith('px') || token.startsWith('py'))) return Number(bare[1]) * 4;
+	}
+	return fallback;
+}
+
+/** A badge's laid-out box. `Badge` is `whitespace-nowrap overflow-hidden`. */
+function badgeBox(label: string, classList: string, scale: number): { width: number; height: number } {
+	const fontPx = fontPxOf(classList, 12) * scale;
+	// A local `px-N` overrides the shared primitive's `px-2`.
+	const padX = utilPx(PAD_PX, classList, 8) * 2;
+	// `py-0` collapses the shared `py-0.5`; otherwise the primitive's 2+2 stands.
+	const py = classList.split(/\s+/).includes('py-0') ? 0 : 4;
+	const natural = Math.ceil(fontPx * BADGE_LEADING) + py;
+	// A local `h-N` pins the box, and the content may still be taller.
+	const pinned = H_PX[classList.split(/\s+/).find((t) => t in H_PX) ?? ''];
+	return {
+		width: Math.ceil(padX + textWidth(label, fontPx)),
+		height: pinned === undefined ? natural : Math.max(pinned, natural),
+	};
+}
+
+/**
+ * A flex LINE's required width: the sum of each item's MINIMUM contribution.
+ * `min-width: auto` resolves to min-content, which is the whole string for
+ * `nowrap` text and only the longest word for wrappable text.
+ */
+type LineItem = { text: string; fontPx: number; wraps: boolean };
+function lineRequired(items: LineItem[]): number {
+	return items.reduce((sum, it) => sum + (it.wraps ? longestWordWidth(it.text, it.fontPx) : textWidth(it.text, it.fontPx)), 0);
+}
+
+/* ── the section row: title + program badge sharing one line (the base) ─────── */
+
+/** Real section names, ordinary and pathological, as the live data has them. */
+const SECTION_NAMES = [
+	'G7 - Rizal',
+	'G7 - STEM_EXCEL Batch 1 - Section A',
+	'GRADE 10 - ICT - SPECIALISED PROGRAM STREAM - SECTION ALPHA BRAVO CHARLIE',
+];
+
+/**
+ * The name cell's reserved track. A STATED budget, not a browser measurement:
+ * the row is a `<td className="px-4 py-3">` in a six-column table and declares
+ * no `max-w`, so there is nothing in the DOM to read a track from. The
+ * approximation is safe in the direction that matters — the post-fix
+ * requirement is `max(longestWord, badge)`, bounded by a 15-character word, so
+ * it passes for ANY track at least this wide, and stating a narrower budget than
+ * the real one makes the control stricter, never looser.
+ */
+const NAME_CELL_TRACK = 260;
+
+test('fix 07 control: the program badge gets its own line, so the title track no longer grows with the name', (t) => {
+	const row = source('src/components/sections/SectionRow.tsx');
+
+	// ── parse the committed class contract ──
+	const titleM = /<span className="([^"]*)"[^>]*>\s*\{section\.name\}\s*<\/span>/.exec(row);
+	assert.ok(titleM, 'the section title span must be found in SectionRow');
+	const titleClasses = titleM[1];
+	const badgeM = /className=\{`([^`]*)`\}[\s\S]{0,80}?\{section\.programCode\}/.exec(row);
+	assert.ok(badgeM, 'the program badge class must be found in SectionRow');
+	const badgeClasses = badgeM[1];
+	const subRowM = /<div className="(mt-[\d.]+ flex flex-wrap items-center[^"]*)">/.exec(row);
+	assert.ok(subRowM, 'the sub-header row that carries the program badge must be found in SectionRow');
+	const gap = utilPx(GAP_PX, subRowM[1], 6);
+
+	// The DECISIVE structural read: the badge must be a child of the sub-header
+	// row BELOW the title, not a sibling of the title on the title's own line.
+	// On the base revision there is no sub-header row at all, so `subRowM` is
+	// null and this control fails before any arithmetic runs.
+	const titleEnd = titleM.index + titleM[0].length;
+	assert.ok(badgeM.index > titleEnd, 'the program badge must follow the title element, never share its line');
+	assert.ok(
+		subRowM.index > titleEnd && subRowM.index < badgeM.index,
+		'the program badge must live in the sub-header row below the title, so the two can never collide',
+	);
+
+	// The title span carries no size utility, so it inherits the body default.
+	const titleFont = fontPxOf(titleClasses, 16);
+	assert.equal(titleFont, 16, 'the title must resolve to the inherited 16px body default (fix 10: 14-16px band)');
+	const titleWraps = /line-clamp-\d/.test(titleClasses) || !/\btruncate\b/.test(titleClasses);
+
+	// `shrink-0` is what stops flex shrinking the badge out of existence; the
+	// base code had no `min-w-0` on the title, which is the other half.
+	assert.ok(/\bshrink-0\b/.test(badgeClasses), 'the program badge must be shrink-0 so flex cannot squeeze it to zero width');
+	assert.ok(/\bmin-w-0\b/.test(titleClasses), 'the title must be min-w-0 so it shrinks inside its line instead of overflowing it');
+	assert.ok(titleWraps, 'the title must wrap rather than being a single nowrap truncated line');
+
+	// ── the budget-free, load-bearing geometric claim ──
+	// A wrapping title needs only its longest word; a nowrap one needs the whole
+	// name. The badge is identical either way, so the difference is the wrap.
+	const sharedRequired = (name: string, scale: number) => lineRequired([
+		{ text: name, fontPx: titleFont * scale, wraps: false },
+	]) + gap + badgeBox('SPTVE', badgeClasses, scale).width;
+	const splitRequired = (name: string, scale: number) => Math.max(
+		lineRequired([{ text: name, fontPx: titleFont * scale, wraps: true }]),
+		badgeBox('SPTVE', badgeClasses, scale).width,
+	);
+
+	const SHORT = 'G7 - Rizal';
+	const LONG = SECTION_NAMES[2];
+	/** A name long enough to need the clamp, built from ONE repeated vocabulary. */
+	const OVERLONG = `${SHORT} ${SHORT} ${SHORT} ${SHORT}`;
+	const rows: string[] = [];
+	for (const scale of ZOOM_SCALES) {
+		const pct = Math.round(scale * 100);
+		// The requirement is EXACTLY the badge or the longest word, whichever is
+		// wider — asserted as an identity, so a future edit that reintroduced a
+		// nowrap title (and with it the full-name track) would break this.
+		for (const name of [...SECTION_NAMES, OVERLONG]) {
+			const badgeW = badgeBox('SPTVE', badgeClasses, scale).width;
+			assert.equal(
+				splitRequired(name, scale),
+				Math.max(longestWordWidth(name, titleFont * scale), badgeW),
+				`${pct}%: "${name}" must need only max(longest word, badge)`,
+			);
+		}
+		// A pathological name must never need its FULL single-line width: that is
+		// precisely what the shared line demanded and what overflowed the cell.
+		assert.ok(
+			splitRequired(LONG, scale) < textWidth(LONG, titleFont * scale),
+			`${pct}%: the split line (${splitRequired(LONG, scale).toFixed(1)}px) must be narrower than the whole name set on one line (${textWidth(LONG, titleFont * scale).toFixed(1)}px)`,
+		);
+		// And the clamp bounds the line COUNT, so a name of any length needs the
+		// same track. The two names below share their longest word and differ
+		// only in how many lines they would need.
+		assert.equal(
+			splitRequired(SHORT, scale),
+			splitRequired(OVERLONG, scale),
+			`${pct}%: the title track must depend on the longest word, not on how many lines the name needs `
+			+ `(1 line ${splitRequired(SHORT, scale).toFixed(1)} vs 4+ lines ${splitRequired(OVERLONG, scale).toFixed(1)})`,
+		);
+		// The absolute fit at the stated track, for every name and every scale.
+		for (const name of [...SECTION_NAMES, OVERLONG]) {
+			assert.ok(
+				splitRequired(name, scale) <= NAME_CELL_TRACK,
+				`${pct}%: "${name}" needs ${splitRequired(name, scale).toFixed(1)}px but the name cell reserves ${NAME_CELL_TRACK}px, so the badge would reach the occupancy/capacity cell`,
+			);
+		}
+		rows.push(
+			`${pct}%: split ${splitRequired(LONG, scale).toFixed(1)}px <= track ${NAME_CELL_TRACK}px | `
+			+ `shared-line arrangement would need ${sharedRequired(LONG, scale).toFixed(1)}px (overflow by ${(sharedRequired(LONG, scale) - NAME_CELL_TRACK).toFixed(1)}px)`,
+		);
+	}
+	t.diagnostic(
+		`SectionRow name cell: title ${titleFont}px, badge ${fontPxOf(badgeClasses, 12)}px, gap ${gap}px, stated track ${NAME_CELL_TRACK}px\n${rows.join('\n')}`,
+	);
+});
+
+test('fix 07 control: the room tile reserves a right-hand indicator track and keeps the widest badge inside it', (t) => {
+	const panel = source('src/components/BuildingPanel.tsx');
+
+	// Both the sortable (editor) and the read-only (dashboard) tile carry the
+	// same name and the same badges, so both are read and both must hold.
+	const nameMs = [...panel.matchAll(/<p className="([^"]*)"[^>]*>\{room\.name\}<\/p>/g)];
+	assert.equal(nameMs.length, 2, 'both room tiles must render the room name');
+	const typeMs = [...panel.matchAll(/<Badge variant="outline" className="([^"]*)"[\s\S]{0,90}?ROOM_TYPES\.find/g)];
+	assert.equal(typeMs.length, 2, 'both room tiles must render the room-type badge');
+	for (const m of nameMs) {
+		assert.equal(m[1], nameMs[0][1], 'both room tiles must use the same title class, so one control decides both');
+	}
+
+	// The right-hand indicator cluster: three `size="icon-xs"` (`size-6` = 24px)
+	// buttons in a `gap-1` (4px) row, and it is `shrink-0`.
+	const clusterM = /<div className="(flex shrink-0 items-center[^"]*)">/.exec(panel);
+	assert.ok(clusterM, 'the tile action cluster must be found');
+	const clusterGap = utilPx(GAP_PX, clusterM[1], 4);
+	assert.ok(/\bshrink-0\b/.test(clusterM[1]), 'the indicator cluster must be shrink-0 so the title yields to it');
+	// Counted from the cluster itself to the end of the tile, NOT from the top of
+	// the component: the edit dialog above it also renders one `size="icon-xs"`
+	// button (the feature-remover), and counting that would put a control button
+	// into the indicator track that does not render beside the room name.
+	const tileStart = panel.indexOf('function SortableRoomTile');
+	const tileEnd = panel.indexOf('function RoomTileReadOnly');
+	assert.ok(tileStart > 0 && tileEnd > tileStart, 'the SortableRoomTile body must be locatable');
+	const buttonCount = (panel.slice(clusterM.index, tileEnd).match(/size="icon-xs"/g) ?? []).length;
+	assert.equal(buttonCount, 3, 'the tile reserves a three-button indicator cluster');
+	const clusterW = buttonCount * 24 + (buttonCount - 1) * clusterGap;
+
+	// Chrome: the list is `px-4`, the tile is `px-2.5` on both sides, `gap-2`.
+	const liGap = utilPx(GAP_PX, 'gap-2', 8);
+	const SIDEBAR_TRACK = 300; // the sidebar's narrowest supported rendering
+	const tileTrack = SIDEBAR_TRACK - 32 - 20;
+	const titleTrack = tileTrack - liGap - clusterW;
+	assert.ok(titleTrack > 0, `the title track must be positive, got ${titleTrack}`);
+
+	// fix 11: the name is a two-line clamp, not a one-line truncate.
+	const clamped = /line-clamp-(\d)/.exec(nameMs[0][1]);
+	assert.ok(clamped, 'the room name must be clamped rather than truncated to a single line');
+	assert.equal(Number(clamped[1]), 2, 'the room name clamp must be two lines');
+	assert.ok(!/\btruncate\b/.test(nameMs[0][1]), 'the room name must not be a one-line truncate');
+	assert.ok(/\bmin-w-0\b/.test(nameMs[0][1]), 'the room name must be min-w-0 so it can wrap within its own track');
+	// `break-words` (`overflow-wrap: break-word`) is what makes a pathological
+	// single unbreakable word degrade gracefully instead of overflowing: the word
+	// breaks mid-token when it alone exceeds the track. An earlier draft of this
+	// control asserted the longest word must FIT the track and correctly failed
+	// at 150% on `SPECIALISED` (190.1px word, 160px track) — the word does not
+	// have to fit, it has to be breakable, and this is the assertion that says so.
+	assert.ok(
+		/\bbreak-words\b/.test(nameMs[0][1]),
+		'the room name must be break-words so an unbreakable pathological word cannot overflow its track',
+	);
+
+	const rows: string[] = [];
+	for (const scale of ZOOM_SCALES) {
+		const pct = Math.round(scale * 100);
+		const titleFont = fontPxOf(nameMs[0][1], 16) * scale;
+		// The longest label the shared tile badges ever carry.
+		const widest = Math.max(
+			badgeBox('Specialized', typeMs[0][1], scale).width,
+			badgeBox('Non-teaching', typeMs[0][1], scale).width,
+		);
+		// The badge is the REAL constraint on this tile, and it is the opposite
+		// case to the title: the shared `Badge` is `whitespace-nowrap
+		// overflow-hidden`, so a badge can neither wrap nor break, and one wider
+		// than the track is clipped rather than reflowed. This is what fix 10's
+		// "let the badge grow with its content" direction is protecting.
+		assert.ok(
+			widest <= titleTrack,
+			`${pct}%: the widest room badge (${widest}px) exceeds the ${titleTrack}px title track and would be clipped`,
+		);
+		// The title, by contrast, is `break-words`, so its required track is a
+		// single character — the widest unbreakable unit it can be forced into.
+		// Asserted for every scale so the track can never be squeezed to zero.
+		const titleRequirement = charW('W', titleFont);
+		assert.ok(
+			titleRequirement <= titleTrack,
+			`${pct}%: a breakable title needs only ${titleRequirement.toFixed(1)}px, which must fit the ${titleTrack}px track`,
+		);
+		rows.push(`${pct}%: title ${titleFont.toFixed(1)}px, indicator cluster ${clusterW}px, title track ${titleTrack}px, widest badge ${widest}px (slack ${(titleTrack - widest).toFixed(1)}px)`);
+	}
+	t.diagnostic(`BuildingPanel room tile (stated sidebar ${SIDEBAR_TRACK}px -> title track ${titleTrack}px):\n${rows.join('\n')}`);
 });

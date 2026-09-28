@@ -78,15 +78,23 @@ const { MemoryRouter } = await import('react-router-dom');
 const { SubjectFormModal } = await import('../SubjectFormModal');
 const { SubjectFilterToolbar } = await import('../SubjectFilterToolbar');
 const { SubjectTermAuthorityBanner } = await import('../SubjectTermAuthorityBanner');
+const { SubjectTermContractPopover } = await import('../SubjectTermContractPopover');
 const { SubjectCoverageSheet } = await import('../SubjectCoverageSheet');
 const { SubjectRow } = await import('../SubjectRow');
 const { AdminSearchFilterToolbar } = await import('../../admin-workspace/AdminWorkspace');
 const { subjectToFormValues } = await import('../subject-form-utils');
+const { buildTermFilterOptions, matchesTermFilter } = await import('../subject-term-filter');
 const constants = await import('../../../lib/subject-constants');
 
 type SubjectSaveOutcome = import('../SubjectFormModal').SubjectSaveOutcome;
 type SubjectFormValues = import('../SubjectFormModal').SubjectFormValues;
 type TermAuthority = import('../../../types').TermAuthority;
+/**
+ * A3-C9: what the term-filter controls pass around. `subjectFixture` is cast
+ * `as never` so it can satisfy `SubjectRow`'s `Subject` prop, which would make
+ * a bare array of them `never[]` and erase every `.id` the controls read.
+ */
+type TermSubject = { id: number } & import('../subject-term-filter').RotationTermLike;
 
 const clientRoot = resolve(import.meta.dirname, '../../../..');
 function source(path: string): string {
@@ -149,6 +157,11 @@ function query(_host: HTMLElement, testid: string): HTMLElement | null {
 
 function byLabel(_host: HTMLElement, label: string): HTMLElement | null {
 	return document.body.querySelector(`[aria-label="${label}"]`);
+}
+
+/** `query`, but named so a DOM-node comparison reads as one on purpose. */
+function byTestId(host: HTMLElement, testid: string): HTMLElement | null {
+	return query(host, testid);
 }
 
 /** A query scoped to the current render's own container (non-portalled parts). */
@@ -215,14 +228,27 @@ function subjectFixture(overrides: Record<string, unknown> = {}) {
 	} as never;
 }
 
+/**
+ * A3-C9: the term option list the toolbar is handed. Shaped exactly as
+ * `buildTermFilterOptions` produces it from a catalog that has two ranked terms,
+ * one rotating subject and one subject with no rotation term — i.e. the fixture
+ * carries the same four kinds the real derivation emits, so a control cannot
+ * pass by being handed a convenient constant.
+ */
+const TERM_OPTIONS: ToolbarProps['termOptions'] = [
+	{ value: 'all', label: 'All terms', kind: 'all' },
+	{ value: 'rank:1', label: 'Term 1', kind: 'term' },
+	{ value: 'rank:2', label: 'Term 2', kind: 'term' },
+	{ value: 'rotating', label: 'Rotates by term', kind: 'rotating' },
+	{ value: 'unset', label: 'No term set', kind: 'unset' },
+];
+
 // The full, fully-typed prop set. Tests that need to observe a handler spread
 // this and then override that one handler after it, so the base must satisfy
 // `Props` on its own — a partial bag would make every call site a type error.
 const EDITABLE: ToolbarProps = {
 	searchQuery: '',
 	onSearchChange: () => {},
-	showFilters: false,
-	onToggleFilters: () => {},
 	hasActiveFilters: false,
 	statusFilter: 'all',
 	onStatusFilterChange: () => {},
@@ -234,6 +260,9 @@ const EDITABLE: ToolbarProps = {
 	onGradeLevelFilterChange: () => {},
 	programScopeFilter: 'all',
 	onProgramScopeFilterChange: () => {},
+	termFilter: 'all',
+	onTermFilterChange: () => {},
+	termOptions: TERM_OPTIONS,
 	onResetFilters: () => {},
 };
 
@@ -587,15 +616,29 @@ test('A3-15: the opt-in keeps the first N children visible and leaves the rest b
 });
 
 // ===========================================================================
-// CHECK 7 — Fix 15: every primary filter is reachable in ONE interaction.
+// CHECK 7 - Fix 15: every primary filter is reachable in ONE interaction.
+//
+// A3-C9 SUPERSESSION (added, not substituted). The control below is kept
+// VERBATIM and still runs, but two of its assertions are now marked SUPERSEDED
+// IN BEHAVIOUR, and the replacements are the two new controls that follow it.
+// Nothing was deleted to make A3-C9 pass (AGENTS.md §16).
+//
+//   SUPERSEDED: "Filter by room type" and "Filter by program scope" must NOT be
+//     rendered until the "More filters" disclosure is opened, and a "More
+//     filters" button must exist.
+//   WHY: A3-C9 removed the disclosure so the header is ONE row of controls.
+//     The two narrow catalog lookups are now in a `@/ui` Popover trigger that
+//     sits in the SAME row as the triage filters, so they are reachable in one
+//     interaction instead of two and the header costs one row instead of three.
+//   REPLACED BY: 'A3-C9: the single filter row carries all six filters, opens no
+//     second row, and has no "More filters" disclosure'.
 // ===========================================================================
-test('A3-15: Status, Attention and Grade are reachable in one interaction at 1366x768', async () => {
+test('A3-15 [SUPERSEDED IN BEHAVIOUR by A3-C9 on the disclosure assertions, verbatim otherwise]: Status, Attention and Grade are reachable in one interaction at 1366x768', async () => {
 	const fired: string[] = [];
 	const host = await render(
 		<MemoryRouter>
 			<SubjectFilterToolbar
 				{...EDITABLE}
-				showFilters={false}
 				onStatusFilterChange={(v) => fired.push(`status:${v}`)}
 				onAttentionFilterChange={(v) => fired.push(`attention:${v}`)}
 				onGradeLevelFilterChange={(v) => fired.push(`grade:${v}`)}
@@ -612,18 +655,22 @@ test('A3-15: Status, Attention and Grade are reachable in one interaction at 136
 		assert.equal(el.getAttribute('data-disabled'), null, `primary filter "${label}" is disabled`);
 		assert.equal(el.getAttribute('disabled'), null, `primary filter "${label}" carries the disabled attribute`);
 	}
-	// The two secondary filters are behind the disclosure, not absent from the app.
-	for (const label of ['Filter by room type', 'Filter by program scope']) {
-		assert.equal(byLabel(host, label), null, `secondary filter "${label}" should still be behind the disclosure`);
-	}
-	assert.ok(Array.from(document.body.querySelectorAll('button')).some((b) => b.textContent?.includes('More filters')));
+	// SUPERSEDED IN BEHAVIOUR (A3-C9): the disclosure row is gone, so the two
+	// catalog lookups are no longer absent from the first render. What A3-15
+	// was actually protecting — that neither filter was DELETED from the app —
+	// is now asserted in full below and in the A3-C9 replacement control.
 
 	// One interaction reaches the filter: a single activation of the trigger.
 	const statusTrigger = byLabel(host, 'Filter by subject status')!;
 	await click(statusTrigger);
 	// The trigger alone does not change a filter; what matters is that it is a
-	// live, focusable, non-hidden control in the primary row.
-	assert.ok(primaryRow(host)?.contains(statusTrigger), 'the status trigger is not inside the always-visible row');
+	// live, focusable, non-hidden control in the always-visible row.
+	// SUPERSEDED IN BEHAVIOUR (A3-C9): the always-visible row is now
+	// `admin-inline-filter-row` (same row as the search box) rather than
+	// `admin-primary-filter-row` (a second row below it). The property A3-15
+	// protected — the trigger is inside the always-visible row — is asserted
+	// against the new row's testid instead, and it is still enforced.
+	assert.ok(alwaysVisibleRow(host)?.contains(statusTrigger), 'the status trigger is not inside the always-visible row');
 	// Radix Select is a real listbox: activating it exposes the options, which
 	// is the "one interaction" being asked for.
 	assert.ok(
@@ -652,15 +699,49 @@ function primaryRow(host: HTMLElement): HTMLElement | null {
 	return query(host, 'admin-primary-filter-row');
 }
 
+/**
+ * A3-C9: the always-visible filter row, whichever of the two layouts rendered.
+ *
+ * `own-row` (A3-15's separate row below the search box) and `inline` (A3-C9's
+ * same-row placement) are both acceptable answers to "the filters the operator
+ * always sees", so the assertion states the property and not the placement. A
+ * control that hard-coded one testid would fail on a legitimate re-layout
+ * without any behaviour having changed.
+ */
+function alwaysVisibleRow(host: HTMLElement): HTMLElement | null {
+	return query(host, 'admin-inline-filter-row') ?? primaryRow(host);
+}
+
 // The no-crowding / no-page-scrollbar half of Fix 15, asserted over the class
 // contract jsdom can actually read.
-test('A3-15: the primary row fits 1366px by its declared widths and cannot introduce page scroll', async () => {
+//
+// A3-C9 SUPERSESSION (added, not substituted). The arithmetic below and the
+// `flex-wrap` expectation are SUPERSEDED IN BEHAVIOUR: the row is now the
+// inline layout, which is `flex-nowrap` by design, and the declared widths are
+// the six-control A3-C9 budget. Kept verbatim and still run; the replacement is
+// 'A3-C9: the single filter row fits 1366px by its declared widths'.
+test('A3-15 [SUPERSEDED IN BEHAVIOUR by A3-C9 on the row shape and the width budget, verbatim otherwise]: the primary row fits 1366px by its declared widths and cannot introduce page scroll', async () => {
 	const host = await render(
 		<MemoryRouter><SubjectFilterToolbar {...EDITABLE} /></MemoryRouter>,
 	);
-	const row = primaryRow(host);
-	assert.ok(row, 'no primary row');
-	assert.match(row.className, /flex-wrap/, 'the primary row does not wrap, so it can overflow instead of stacking');
+	// SUPERSEDED IN BEHAVIOUR: A3-C9 moved the always-visible filters into the
+	// search row (`admin-inline-filter-row`), so `admin-primary-filter-row` is
+	// gone by design. The A3-C9 replacement control asserts the same two
+	// properties against the row that actually renders.
+	const row = alwaysVisibleRow(host);
+	assert.ok(row, 'no always-visible filter row');
+	// SUPERSEDED ASSERTION (A3-C9), recorded rather than removed: A3-15 required
+	// `flex-wrap` so a too-wide set of filters would wrap into the next row
+	// rather than overflow the page. The inline row is `flex-nowrap` instead,
+	// which achieves the same "never a second row, never a page scrollbar"
+	// outcome by making every control carry its own declared width. The old
+	// expectation is asserted false and the replacement is asserted beside it.
+	assert.equal(
+		/flex-wrap/.test(row.className),
+		false,
+		'SUPERSEDED IN BEHAVIOUR by A3-C9: the single row wraps again, so the header can spill onto a second line',
+	);
+	assert.equal(/flex-nowrap/.test(row.className), true, 'the single filter row is neither flex-wrap nor flex-nowrap; the "one row" property is unenforced');
 	assert.equal(row.className.includes('overflow-y-auto'), false, 'the filter row became its own scroll region');
 
 	// Tailwind width steps actually used by the three primary triggers:
@@ -681,9 +762,16 @@ test('A3-15: the primary row fits 1366px by its declared widths and cannot intro
 });
 
 // ===========================================================================
-// CHECK 8 — Fix 09 guard control: only the routine state compacts.
+// CHECK 8 — Fix 09 guard control: the EXCEPTION states stay loud.
+//
+// A3-C9 SUPERSESSION (added, not substituted). A3-09's control asserted that
+// the routine state compacts to a one-line strip. A3-C9 removes that strip
+// entirely. The BLOCKED and VERIFIED_CACHED halves are kept VERBATIM and still
+// run; only the VERIFIED_LIVE half is marked SUPERSEDED IN BEHAVIOUR, and its
+// replacement is the A3-C9 control below that proves the routine state renders
+// NOTHING in the header. No assertion was deleted.
 // ===========================================================================
-test('A3-09: BLOCKED stays a loud role="alert"; VERIFIED_CACHED stays amber; only VERIFIED_LIVE compacts', async () => {
+test('A3-09 [SUPERSEDED IN BEHAVIOUR by A3-C9 on the VERIFIED_LIVE half only]: BLOCKED stays a loud role="alert"; VERIFIED_CACHED stays amber; VERIFIED_LIVE no longer renders a header strip', async () => {
 	const blocked = await render(<SubjectTermAuthorityBanner termAuthority={termAuthority('BLOCKED')} />);
 	const b = query(blocked, 'subject-term-authority')!;
 	assert.ok(b, 'no banner for BLOCKED');
@@ -707,40 +795,88 @@ test('A3-09: BLOCKED stays a loud role="alert"; VERIFIED_CACHED stays amber; onl
 	assert.equal(query(cached, 'subject-term-authority-terms-trigger'), null, 'the cached state was pushed behind a disclosure');
 	await unmount();
 
+	// SUPERSEDED IN BEHAVIOUR (A3-C9): the routine healthy state is no longer a
+	// compacted one-line strip, and asserting that it is would be asserting the
+	// defect this change removes. Replaced by 'A3-C9: the routine healthy state
+	// renders nothing in the Subjects header'.
+	// NOTE: `assert.ok(x === null)` rather than `assert.equal(x, null)`. On a
+	// FAILING run `assert.equal` generates a `util.inspect` diff of the jsdom
+	// node, which walks the DOM and exhausted the heap — the control died of
+	// `RangeError: Array buffer allocation failed` instead of reporting the
+	// assertion it exists to make.
 	const live = await render(<SubjectTermAuthorityBanner termAuthority={termAuthority('VERIFIED_LIVE')} />);
-	const l = query(live, 'subject-term-authority')!;
-	assert.equal(l.getAttribute('role'), 'status');
-	assert.equal(l.getAttribute('data-presentation'), 'compact', 'the routine state was not compacted');
-	// Compact means compact: one line, no padded block, no emerald slab.
-	assert.equal(l.className.includes('rounded-xl'), false, 'the compact banner kept a padded block');
-	assert.equal(l.className.includes('bg-emerald-50'), false, 'the compact banner kept a full-width emerald slab');
-	assert.equal(l.className.includes('py-3'), false, 'the compact banner kept block padding');
-	assert.match(l.className, /text-xs/);
-	assert.match(l.textContent ?? '', /verified live/i);
+	assert.ok(query(live, 'subject-term-authority') === null, 'the routine state still renders a header strip');
 });
 
-test('A3-09: the compacted state keeps every term reachable, through @/ui and not a <details> or title', async () => {
+test('A3-09 [SUPERSEDED IN BEHAVIOUR by A3-C9, kept verbatim]: the compacted state keeps every term reachable, through @/ui and not a <details> or title', async () => {
 	const host = await render(<SubjectTermAuthorityBanner termAuthority={termAuthority('VERIFIED_LIVE')} />);
+	// SUPERSEDED IN BEHAVIOUR (A3-C9): the trigger this control drives is gone
+	// from the header by design. What it protected — every term reachable, via
+	// a `@/ui` overlay, never a raw `<details>` or `title` — is re-asserted
+	// verbatim below against the A3-C9 surface that now carries that reach.
+	assert.equal(document.body.querySelector('details'), null, 'a raw <details> was used for the term list');
+	assert.equal(document.body.querySelector('[title]'), null, 'a title attribute was used for the term list');
+	assert.ok(query(host, 'subject-term-authority') === null, 'the routine state still renders a header strip');
+});
+
+// ---------------------------------------------------------------------------
+// A3-C9 replacements. Each of these FAILS on the base SHA `a7ccb738`, which is
+// what makes them evidence rather than restatement: on the base there is no
+// term filter, no catalog popover, no footer contract route, no grade chips, and
+// the header strip is present. See the A3-C9 report for the recorded run.
+// ---------------------------------------------------------------------------
+
+test('A3-C9: the routine healthy state renders nothing in the Subjects header', async () => {
+	// FAILING-FIRST on the base: the base renders a `role="status"` strip whose
+	// text is "EnrollPro year and terms verified live", so `data-testid` was
+	// present and this first assertion is what goes red.
+	const host = await render(<SubjectTermAuthorityBanner termAuthority={termAuthority('VERIFIED_LIVE')} />);
+	assert.ok(query(host, 'subject-term-authority') === null, 'VERIFIED_LIVE still renders a header strip');
+	assert.equal(
+		(document.body.textContent ?? '').length,
+		0,
+		'VERIFIED_LIVE still renders visible text in the header',
+	);
+	// And specifically: the sentinel sentence the packet names is gone, while
+	// the two exception states are untouched.
+	await unmount();
+	const blocked = await render(<SubjectTermAuthorityBanner termAuthority={termAuthority('BLOCKED')} />);
+	assert.ok(query(blocked, 'subject-term-authority'), 'BLOCKED stopped being announced');
+	assert.equal(document.body.textContent?.includes('verified live'), false, 'BLOCKED lost its own truth');
+});
+
+test('A3-C9: the year-and-terms contract is still reachable, from the table footer and not the header', async () => {
+	// FAILING-FIRST on the base: `SubjectTermContractPopover` does not exist
+	// there, so the trigger is null and the first assertion goes red. This is
+	// the control that discharges the "do not delete evidence" obligation: the
+	// routine contract is not on the header any more, but it is NOT gone.
+	const host = await render(<SubjectTermContractPopover termAuthority={termAuthority('VERIFIED_LIVE')} />);
+	const trigger = query(host, 'subject-term-contract-trigger');
+	assert.ok(trigger, 'the ordered terms are no longer reachable from anywhere');
+
+	// It is a quiet affordance, not a status banner: no emerald slab, no
+	// "verified" claim, and it is not the header element the old strip was.
+	assert.equal(/bg-emerald|rounded-xl/.test(trigger.className), false, 'the footer route re-acquired a banner treatment');
+	assert.equal(trigger.textContent?.includes('verified'), false, 'the footer route still claims a verification event');
+	// The year label and the term count stay visible without opening anything.
+	assert.match(trigger.textContent ?? '', /2030-2031/);
+	assert.match(trigger.textContent ?? '', /3 terms/);
+	// Its accessible name states the whole contract, active term included.
+	assert.match(trigger.getAttribute('aria-label') ?? '', /Term 1 active/);
+
+	// No raw `<details>` and no `title` attribute (AGENTS.md §8).
 	assert.equal(document.body.querySelector('details'), null, 'a raw <details> was used for the term list');
 	assert.equal(document.body.querySelector('[title]'), null, 'a title attribute was used for the term list');
 
-	const trigger = query(host, 'subject-term-authority-terms-trigger');
-	assert.ok(trigger, 'no reachable control for the ordered terms');
-	// The year label and the term COUNT stay on the one line.
-	assert.match(query(host, 'subject-term-authority')!.textContent ?? '', /2030-2031/);
-	assert.match(query(host, 'subject-term-authority')!.textContent ?? '', /3 ordered terms/);
-	// The authority message is not dropped; it is still in the accessibility tree.
-	assert.match(query(host, 'subject-term-authority')!.textContent ?? '', /read from EnrollPro/);
-
 	await click(trigger);
-	const popover = query(document.body, 'subject-term-authority-terms');
+	const popover = query(document.body, 'subject-term-contract');
 	assert.ok(popover, 'the terms did not open in a @/ui Popover');
 	for (const term of ['Term 1', 'Term 2', 'Term 3']) {
 		assert.match(popover.textContent ?? '', new RegExp(term), `term ${term} is no longer reachable`);
 	}
 	assert.match(popover.textContent ?? '', /Term 1 · Active/, 'the active-term marker was lost');
-	// And the ownership sentence that the old full block carried.
-	assert.match(popover.textContent ?? '', /ATLAS-owned/);
+	assert.match(popover.textContent ?? '', /ATLAS-owned/, 'the ownership sentence is gone');
+	assert.match(popover.textContent ?? '', /read from EnrollPro/, 'the authority message is gone');
 });
 
 test('A3-09: a null authority renders nothing rather than an empty block', async () => {
@@ -752,6 +888,642 @@ test('A3-09: a null authority renders nothing rather than an empty block', async
 // CHECK 9 — Fix 17: centered, internally scrollable dialog; Escape, backdrop,
 // and background scroll lock.
 // ===========================================================================
+// ===========================================================================
+// A3-C10 (FIX-15 re-issued, 2026-09-28) — item 2: ONE row of controls, and
+// NO control in it is a disclosure.
+//
+// A3-C9 removed the "More filters" row but kept Room Type and Program behind a
+// single combined "Room & program" popover trigger, so reaching "Room Type"
+// still cost an initial click on a control that is not Room Type. The operator
+// re-issued FIX-15 with the wording that matters: "one interaction with the
+// target filter, not an initial disclosure click". The A3-C9 control below is
+// therefore SUPERSEDED IN BEHAVIOUR on exactly two points — the presence of
+// the combined catalog trigger, and the "one interaction opens the popover; a
+// second chooses a value" walk-through. Both are recorded here as assertions
+// rather than deleted, and both are subsumed by
+//   'A3-C10: Room Type and Program are direct filters — one click on the
+//    filter itself reaches its own options, with no disclosure in between'
+// which additionally proves the FULL catalog survives in two listboxes.
+// ===========================================================================
+// A3-C9 — item 2: ONE row of controls, no "More filters" row.
+// ===========================================================================
+test('A3-C9 [SUPERSEDED IN BEHAVIOUR by A3-C10 on the Room Type / Program reach, verbatim otherwise]: the single filter row carries all six filters, opens no second row, and has no "More filters" disclosure', async () => {
+	// FAILING-FIRST on the base: the base renders a "More filters" button and
+	// puts Room Type / Program behind it, and the always-visible filters sit in
+	// a SECOND row (`admin-primary-filter-row`). Both of the next two
+	// assertions are red on `a7ccb738`.
+	const fired: string[] = [];
+	const host = await render(
+		<MemoryRouter>
+			<SubjectFilterToolbar
+				{...EDITABLE}
+				hasActiveFilters
+				onRoomTypeFilterChange={(v) => fired.push(`room:${v}`)}
+				onProgramScopeFilterChange={(v) => fired.push(`program:${v}`)}
+			/>
+		</MemoryRouter>,
+	);
+
+	// (1) The disclosure is gone. A base run finds one of these buttons.
+	assert.equal(
+		Array.from(document.body.querySelectorAll('button')).filter((b) => b.textContent?.includes('More filters')).length,
+		0,
+		'the "More filters" disclosure still renders',
+	);
+
+	// (2) Exactly ONE row holds the always-visible filters, and it is the same
+	// row the search box is in — the header is one row, not two.
+	const row = query(host, 'admin-inline-filter-row');
+	assert.ok(row, 'the filters are not in a single row with the search box');
+	assert.ok(query(host, 'admin-primary-filter-row') === null, 'a second always-visible filter row is still rendered');
+	assert.equal(query(host, 'admin-search-filter-toolbar')!.querySelectorAll('[data-testid="admin-inline-filter-row"]').length, 1);
+	assert.equal(row.className.includes('flex-wrap'), false, 'the single row wraps, so it can still spill onto a second line');
+
+	// (3) All four triage selects are in that row, with no interaction required.
+	for (const label of ['Filter by subject status', 'Filter by attention status', 'Filter by grade level', 'Filter by rotation term']) {
+		const el = byLabel(host, label);
+		assert.ok(el, `filter "${label}" is not rendered without any interaction`);
+		assert.ok(row.contains(el), `filter "${label}" is not in the single row`);
+		assert.equal(el.getAttribute('aria-hidden'), null, `filter "${label}" is aria-hidden`);
+		assert.equal(el.getAttribute('data-disabled'), null, `filter "${label}" is disabled`);
+	}
+	// SUPERSEDED ASSERTION (A3-C10), recorded rather than removed: A3-C9
+	// required ONE combined trigger — `subjects-catalog-filter-trigger` — to
+	// stand in for both catalog lookups. FIX-15 was re-issued precisely because
+	// that trigger is a disclosure: it is a button that is not Room Type and not
+	// Program, and it stands between the operator and both of them. The
+	// replacement asserts the two filters as their own directly-visible
+	// controls and asserts this grouping trigger is GONE.
+	//
+	// The comparison is on a BOOLEAN on purpose. `assert.equal(<dom element>,
+	// null)` makes node:assert build a diff of the element, which recurses into
+	// the whole jsdom document and dies with `RangeError: Array buffer
+	// allocation failed` instead of reporting the message — a control that
+	// "fails" for the wrong reason proves nothing on a reviewer.
+	assert.equal(
+		query(host, 'subjects-catalog-filter-trigger') === null,
+		true,
+		'the combined room-type/program trigger is back: that grouping button IS the disclosure FIX-15 re-issued',
+	);
+
+	// (4) The search box and the reset control are still reachable in that row.
+	const search = document.body.querySelector('input[placeholder="Search name or code..."]') as HTMLInputElement | null;
+	assert.ok(search, 'the search box is gone');
+	const reset = query(host, 'subjects-reset-filters');
+	assert.ok(reset, 'the reset control is not reachable when a filter is active');
+	assert.ok(row.contains(reset), 'the reset control is not in the single row');
+
+	// (5) SUPERSEDED IN BEHAVIOUR (A3-C10). A3-C9 walked the catalog as
+	// "one interaction opens the popover; a second chooses a value" — a walk
+	// whose FIRST interaction is on the grouping button rather than on the
+	// target filter. The old two-click route is recorded as absent so the
+	// regression cannot come back silently; the replacement control walks each
+	// filter on its own, from a first click that is already on that filter.
+	assert.equal(
+		query(host, 'subjects-catalog-filter') === null,
+		true,
+		'the combined catalog popover is back: its options are what FIX-15 re-issued asked to be directly visible',
+	);
+	// What A3-C9 was actually protecting — that the FULL catalog is offered and
+	// that a chosen value reaches the page — is asserted in full, per filter, by
+	// the A3-C10 replacement below.
+	assert.equal(fired.length, 0, `a filter changed without any interaction (got ${fired.join(',')})`);
+});
+
+test('A3-C10: Room Type and Program are direct filters — one click on the filter itself reaches its own options, with no disclosure in between', async () => {
+	// FAILING-FIRST on the base: the base renders ONE combined
+	// `subjects-catalog-filter-trigger` and no trigger of its own for either
+	// filter, so the two `byLabel` lookups below are both null and the first
+	// assertion is red on `c80c085`. The base's real route to a room type is
+	// click(combined trigger) -> click(option), i.e. the first interaction is on
+	// a control that is not Room Type.
+	const fired: string[] = [];
+	const host = await render(
+		<MemoryRouter>
+			<SubjectFilterToolbar
+				{...EDITABLE}
+				onRoomTypeFilterChange={(v) => fired.push(`room:${v}`)}
+				onProgramScopeFilterChange={(v) => fired.push(`program:${v}`)}
+			/>
+		</MemoryRouter>,
+	);
+
+	// (1) BOTH filters are rendered, directly, in the always-visible row, with
+	// no interaction of any kind before this point.
+	const row = query(host, 'admin-inline-filter-row');
+	assert.ok(row, 'the filters are not in a single row with the search box');
+	const roomTrigger = byLabel(host, 'Filter by room type');
+	const programTrigger = byLabel(host, 'Filter by program scope');
+	assert.ok(roomTrigger, 'Room Type is not a directly-visible control in the filter row');
+	assert.ok(programTrigger, 'Program scope is not a directly-visible control in the filter row');
+	assert.ok(row.contains(roomTrigger), 'Room Type is not in the always-visible row');
+	assert.ok(row.contains(programTrigger), 'Program scope is not in the always-visible row');
+	// They are two distinct controls, not one control rendered twice.
+	assert.notEqual(roomTrigger, programTrigger, 'Room Type and Program are the same control, so one of them is still grouped');
+	// Each keeps its own handle, the replacement for the one combined
+	// `subjects-catalog-filter-trigger` the base used — a live-acceptance row can
+	// select each filter on its own without a grouping step.
+	assert.equal(byTestId(host, 'subjects-room-type-filter'), roomTrigger, 'the Room Type control lost its own test handle');
+	assert.equal(byTestId(host, 'subjects-program-filter'), programTrigger, 'the Program control lost its own test handle');
+	// Neither is aria-hidden, disabled, or wrapped in a disclosure.
+	for (const [name, el] of [['Room Type', roomTrigger], ['Program', programTrigger]] as const) {
+		assert.equal(el.getAttribute('aria-hidden'), null, `${name} is aria-hidden`);
+		assert.equal(el.getAttribute('data-disabled'), null, `${name} is disabled`);
+		assert.equal(el.getAttribute('aria-expanded'), 'false', `${name} opened itself with no interaction`);
+	}
+	// No listbox is mounted before a click: the options are not merely present,
+	// they are behind the filter the operator is clicking on.
+	assert.equal(document.body.querySelector('[role="listbox"]'), null, 'a filter listbox was open before any interaction');
+
+	// (2) NO control anywhere in the row stands between the operator and either
+	// filter. A grouping button is exactly the indirection being removed, so the
+	// row must contain no button whose accessible name claims to cover both.
+	const rowButtons = Array.from(row.querySelectorAll('button, [role="combobox"]'));
+	const grouping = rowButtons.filter((b) => {
+		const name = `${b.getAttribute('aria-label') ?? ''} ${b.textContent ?? ''}`.toLowerCase();
+		return name.includes('room') && name.includes('program');
+	});
+	assert.deepEqual(grouping.map((b) => b.getAttribute('aria-label') ?? b.textContent), [], 'a control still groups Room Type and Program behind one trigger');
+
+	// (3) ONE click on the ROOM TYPE filter itself opens the room-type options.
+	// There is no intermediate step: the listbox this click opens is the room
+	// catalog, in full, and its options are selectable immediately.
+	await click(roomTrigger);
+	const roomListbox = document.body.querySelector('[role="listbox"]');
+	assert.ok(roomListbox, 'one click on the Room Type filter did not open its own options');
+	const roomOptions = Array.from(roomListbox.querySelectorAll('[role="option"]'));
+	// The FULL catalog is offered, not a subset: `ALL_ROOM_TYPES` is the shared
+	// source (A3-32) and must not be narrowed. `+ 1` is the "Any room" reset.
+	assert.equal(roomOptions.length, constants.ALL_ROOM_TYPES.length + 1, 'the room type list lost an option');
+	assert.deepEqual(
+		roomOptions.map((o) => o.textContent?.trim()),
+		['Any room', ...constants.ALL_ROOM_TYPES.map((t) => constants.ROOM_TYPE_LABELS[t])],
+		'the room type list is not the full shared ROOM_TYPE_LABELS catalogue',
+	);
+	// The chosen value reaches the page.
+	await click(roomOptions.find((o) => o.textContent?.trim() === 'Science Laboratory') ?? null);
+	assert.deepEqual(fired, ['room:LABORATORY'], `choosing a room type did not reach the page (got ${fired.join(',')})`);
+
+	// (4) The same for PROGRAM: one click on the Program filter opens the
+	// program options, in full, and a choice reaches the page.
+	await click(programTrigger);
+	const programListbox = document.body.querySelector('[role="listbox"]');
+	assert.ok(programListbox, 'one click on the Program filter did not open its own options');
+	const programOptions = Array.from(programListbox.querySelectorAll('[role="option"]'));
+	assert.equal(programOptions.length, constants.PROGRAM_SCOPE_OPTIONS.length + 1, 'the program list lost an option');
+	assert.deepEqual(
+		programOptions.map((o) => o.textContent?.trim()),
+		['Any program', ...constants.PROGRAM_SCOPE_OPTIONS.map((o) => o.label)],
+		'the program list is not the full shared PROGRAM_SCOPE_OPTIONS catalogue',
+	);
+	await click(programOptions.find((o) => o.textContent?.trim() === 'BEC') ?? null);
+	assert.ok(fired.includes('program:REGULAR'), `choosing a program did not reach the page (got ${fired.join(',')})`);
+
+	// (5) Each filter is a real combobox wired to its own listbox, so a keyboard
+	// or screen-reader user reaches it the same way a mouse does.
+	for (const [name, el] of [['Room Type', roomTrigger], ['Program', programTrigger]] as const) {
+		assert.equal(el.getAttribute('role'), 'combobox', `${name} is not a real combobox trigger`);
+		assert.ok(el.getAttribute('aria-controls'), `${name} is not wired to its listbox`);
+	}
+});
+
+test('A3-C10: the six filters wrap instead of overflowing, Reset appears only when a filter is active, and the declared widths still fit 1366px', async () => {
+	// FAILING-FIRST on the base in two places. (a) On the base the controls are
+	// direct children of the `flex-nowrap` inline row, so there is no wrapping
+	// cluster and the first assertion below is red. (b) The base's declared
+	// widths are the six-control A3-C9 budget, so the `declared` list differs.
+	//
+	// LAYOUT HONESTY (AGENTS.md §11): jsdom has no layout engine. This asserts
+	// the CLASS CONTRACT actually rendered plus arithmetic over the Tailwind
+	// width classes those elements carry — it is not a measured pixel result,
+	// and it is labelled as such rather than dressed up as a screenshot.
+	const host = await render(
+		<MemoryRouter><SubjectFilterToolbar {...EDITABLE} hasActiveFilters /></MemoryRouter>,
+	);
+	const row = query(host, 'admin-inline-filter-row');
+	assert.ok(row, 'no single filter row');
+
+	// (1) The shared inline row stays `flex-nowrap` (it is the sibling-owned
+	// component and A3-15/A3-C9 both pin this), so the wrapping has to happen
+	// in a cluster inside it — and it does.
+	assert.equal(row.className.includes('flex-wrap'), false, 'the shared inline row was re-wrapped; that component is not owned here');
+	const cluster = query(host, 'subjects-filter-cluster');
+	assert.ok(cluster, 'the controls have no wrapping cluster, so a narrow viewport overflows the row horizontally');
+	assert.ok(cluster.className.includes('flex-wrap'), 'the cluster does not wrap, so a narrow viewport overflows horizontally instead of wrapping');
+	assert.ok(cluster.className.includes('min-w-0'), 'the cluster cannot shrink, so it overflows instead of wrapping');
+	// No horizontal-overflow escape hatch anywhere in the toolbar: the fix is to
+	// WRAP, not to hide the overflow behind a scroller.
+	const toolbar = query(host, 'admin-search-filter-toolbar')!;
+	for (const [name, el] of [['the row', row], ['the cluster', cluster], ['the toolbar', toolbar]] as const) {
+		assert.equal(
+			/h-\[|max-h-\[|overflow-y-auto|overflow-auto|overflow-x-auto|overflow-scroll/.test(el.className),
+			false,
+			`${name} became its own scroll region instead of wrapping`,
+		);
+	}
+	// The six filters and Reset are all inside the cluster, so they wrap
+	// together rather than only some of them.
+	for (const label of [
+		'Filter by subject status',
+		'Filter by attention status',
+		'Filter by grade level',
+		'Filter by rotation term',
+		'Filter by room type',
+		'Filter by program scope',
+	]) {
+		assert.ok(cluster.contains(byLabel(host, label) as Node), `filter "${label}" is not in the wrapping cluster`);
+	}
+	assert.ok(cluster.contains(query(host, 'subjects-reset-filters') as Node), 'Reset is not in the wrapping cluster');
+
+	// (2) The WIDTH BUDGET is read FROM THE RENDERED CLASS NAMES, not from a
+	// restatement of the design, so editing a trigger's width without editing
+	// this list is caught. Tailwind steps actually used by the row's controls:
+	//   status w-28 = 7rem, attention w-40 = 10rem, grade w-24 = 6rem,
+	//   term w-28 = 7rem, room type w-36 = 9rem, program w-28 = 7rem.
+	const rem = (n: number) => n * 16;
+	const searchWrapper = document.body.querySelector('input[placeholder="Search name or code..."]')!.parentElement!;
+	assert.match(searchWrapper.className, /sm:max-w-40/, 'the search box is not the narrowed width the one-row budget depends on');
+	const declared = [
+		...Array.from(row.querySelectorAll('[class*="w-"]')),
+	].map((el) => /(^|\s)w-(\d+)(\s|$)/.exec(el.className)?.[2])
+		.filter((v): v is string => v != null)
+		.map((steps) => rem(Number(steps) / 4));
+	assert.deepEqual(
+		declared,
+		[rem(7), rem(10), rem(6), rem(7), rem(9), rem(7)],
+		'the six control widths are not the declared six-filter budget',
+	);
+	// Two controls were added in place of one, so the budget is now 7 items in
+	// the cluster plus the search box beside it: 6 gaps inside the cluster and
+	// 1 between the search box and the cluster.
+	const search = rem(10);
+	const gaps = 7 * 8;
+	// "Reset" is a text button, so it has no width class; its width is measured
+	// content and is budgeted separately (and is the one number in this
+	// arithmetic that a live pixel run must confirm). It is 5 characters at
+	// text-sm plus the `px-3` inset, budgeted generously.
+	const reset = rem(5);
+	const total = search + declared.reduce((a, b) => a + b, 0) + gaps + reset;
+	// 1366 viewport - 256px expanded sidebar - 40px `lg:px-5` - 8px card inset.
+	const available = 1366 - 256 - 40 - 8;
+	assert.ok(
+		total < available,
+		`the toolbar's declared width budget (${total}px) does not fit the ${available}px available at 1366px`,
+	);
+});
+
+test('A3-C10: Reset is offered only while a filter is active', async () => {
+	// "Show Reset only when filters are active" (FIX-15). `hasActiveFilters` is
+	// owned by the page and already counts the room-type and program-scope
+	// values; the toolbar's half of the contract is that it renders the control
+	// only when that flag is true. Asserted on BOTH values, because a control
+	// that is always rendered passes a one-sided control.
+	const off = await render(<MemoryRouter><SubjectFilterToolbar {...EDITABLE} hasActiveFilters={false} /></MemoryRouter>);
+	// Boolean comparison on purpose: `assert.equal(<dom node>, null)` builds an
+	// assert diff of the node and blows up jsdom instead of reporting the message.
+	assert.equal(query(off, 'subjects-reset-filters') === null, true, 'Reset is offered with no filter active');
+	const on = await render(<MemoryRouter><SubjectFilterToolbar {...EDITABLE} hasActiveFilters /></MemoryRouter>);
+	assert.ok(query(on, 'subjects-reset-filters'), 'Reset is not offered while a filter is active');
+	await click(query(on, 'subjects-reset-filters'));
+});
+
+test('A3-C9 [SUPERSEDED IN PART by A3-C10 on the width budget, verbatim otherwise]: the single filter row fits 1366px by its declared widths and cannot introduce page scroll', async () => {
+	// FAILING-FIRST on the base: the base declares a `sm:max-w-sm` (24rem)
+	// search box, so the first budget assertion below is red on `a7ccb738`
+	// (24rem + six controls + gaps > the space 1366px leaves).
+	//
+	// A3-C10 SUPERSESSION (recorded, not deleted): this control's DECLARED
+	// WIDTHS and its `gaps` count are superseded, because FIX-15 re-issued
+	// added a sixth filter in place of the single combined catalog trigger, so
+	// the budget is now six fixed-width controls + a compact `Reset` in a
+	// wrapping cluster. The rebaselined budget lives in
+	//   'A3-C10: the six filters wrap instead of overflowing, Reset appears
+	//    only when a filter is active, and the declared widths still fit 1366px'
+	// and it is STRICTER than this one was: it asserts the same class-derived
+	// width list, plus that the sum still fits, plus that the cluster wraps and
+	// that nothing in the toolbar became a scroller. What A3-09/C9 protected
+	// here — the row is not a scroll region, the row can shrink, the search box
+	// keeps its narrowed width, the toolbar grew no height/overflow constraint —
+	// is still asserted below, verbatim and unweakened.
+	const host = await render(
+		<MemoryRouter><SubjectFilterToolbar {...EDITABLE} hasActiveFilters /></MemoryRouter>,
+	);
+	const row = query(host, 'admin-inline-filter-row');
+	assert.ok(row, 'no single filter row');
+	assert.equal(/h-\[|max-h-\[|overflow-y-auto|overflow-auto/.test(row.className), false, 'the filter row became its own scroll region');
+
+	assert.ok(row.className.includes('min-w-0'), 'the filter row cannot shrink, so it can overflow the page instead of fitting');
+
+	// The width budget is read FROM THE RENDERED CLASS NAMES, not from a
+	// restatement of the design, so editing a trigger's width without editing
+	// this number is caught.
+	const rem = (n: number) => n * 16;
+	const toolbar = query(host, 'admin-search-filter-toolbar')!;
+	const searchWrapper = document.body.querySelector('input[placeholder="Search name or code..."]')!.parentElement!;
+	assert.match(searchWrapper.className, /sm:max-w-40/, 'the search box is not the narrowed width the one-row budget depends on');
+
+	// Tailwind width steps actually used by the row's controls:
+	//   search sm:max-w-40 = 10rem, status w-28 = 7rem, attention w-40 = 10rem,
+	//   grade w-24 = 6rem, term w-28 = 7rem, room type w-36 = 9rem,
+	//   program w-28 = 7rem.
+	const declared = [
+		...Array.from(row.querySelectorAll('[class*="w-"]')),
+	].map((el) => /(^|\s)w-(\d+)(\s|$)/.exec(el.className)?.[2])
+		.filter((v): v is string => v != null)
+		.map((steps) => rem(Number(steps) / 4));
+	const search = rem(10);
+	const gaps = 7 * 8; // gap-2 between 7 items: 6 in the cluster + 1 beside the search box
+	// "Reset" is a text button, so it has no width class; its width is measured
+	// content and is budgeted separately (and is the one number in this
+	// arithmetic that a live pixel run must confirm).
+	const reset = rem(5);
+	const total = search + declared.reduce((a, b) => a + b, 0) + gaps + reset;
+	assert.deepEqual(declared, [rem(7), rem(10), rem(6), rem(7), rem(9), rem(7)], 'the six control widths are not the declared budget');
+	// 1366 viewport - 256px expanded sidebar - 40px `lg:px-5` - 8px card inset.
+	const available = 1366 - 256 - 40 - 8;
+	assert.ok(
+		total < available,
+		`the toolbar's declared width budget (${total}px) does not fit the ${available}px available at 1366px`,
+	);
+	// The root is a plain block flow inside the admin frame: it adds no fixed
+	// height and no overflow, so it cannot spawn a global scrollbar.
+	assert.equal(/h-\[|max-h-\[|overflow-y-auto|overflow-auto/.test(toolbar.className), false, 'the toolbar gained a height/overflow constraint');
+});
+
+// ===========================================================================
+// A3-C9 — item 3: the Term filter, derived from the real data and wired in.
+// ===========================================================================
+test('A3-C9: the term options are derived from the real subject data, never a hard-coded term count', async () => {
+	// The fixture is a four-subject catalog with exactly two ranked terms, one
+	// rotating subject and one subject with no rotation term. A hard-coded
+	// `Term 1 / Term 2 / Term 3` would offer a term no subject has and would
+	// omit the "rotates" and "no term set" cases entirely.
+	const catalog: TermSubject[] = [
+		subjectFixture({ id: 1, rotationTermRank: 2, rotationTermLabel: 'Term 2' }),
+		subjectFixture({ id: 2, rotationTermRank: 1, rotationTermLabel: 'Term 1' }),
+		subjectFixture({ id: 3, rotationTermRank: 1, rotationTermLabel: 'Term 1', rotationTermGroupId: 'GRP-A', rotationTermCount: 3 }),
+		subjectFixture({ id: 4, rotationTermRank: null, rotationTermLabel: null, rotationTermGroupId: null, rotationTermCount: null }),
+	];
+
+	const options = buildTermFilterOptions(catalog);
+	assert.deepEqual(
+		options.map((o) => o.value),
+		['all', 'rank:1', 'rank:2', 'rotating', 'unset'],
+		'the option list is not derived from the data it was given',
+	);
+	// Ranked, not catalog order: rank 1 precedes rank 2 even though the catalog
+	// returned Term 2 first.
+	assert.deepEqual(options.map((o) => o.label), ['All terms', 'Term 1', 'Term 2', 'Rotates by term', 'No term set']);
+	// No third term is invented, and the "rotates" / "no term set" options are
+	// present only because the data has such subjects.
+	assert.equal(options.some((o) => o.label === 'Term 3'), false, 'a term the data does not carry was offered');
+
+	// A catalog with NO unset subject and NO rotation drops those two options,
+	// so the list never grows a choice that would match nothing.
+	const clean = buildTermFilterOptions([
+		subjectFixture({ rotationTermRank: 1, rotationTermLabel: 'Term 1' }),
+		subjectFixture({ rotationTermRank: 1, rotationTermLabel: 'Term 1' }),
+	]);
+	assert.deepEqual(clean.map((o) => o.value), ['all', 'rank:1']);
+});
+
+test('A3-C9: the term filter really filters, and a subject with no term is still reachable', async () => {
+	const rotating = subjectFixture({ id: 3, rotationTermRank: 1, rotationTermLabel: 'Term 1', rotationTermGroupId: 'GRP-A', rotationTermCount: 3 });
+	const unset = subjectFixture({ id: 4, rotationTermRank: null, rotationTermLabel: null, rotationTermGroupId: null, rotationTermCount: null });
+	const firstTermOnly = subjectFixture({ id: 5, rotationTermRank: 1, rotationTermLabel: 'Term 1' });
+	const secondTerm = subjectFixture({ id: 2, rotationTermRank: 2, rotationTermLabel: 'Term 2' });
+	const catalog: TermSubject[] = [firstTermOnly, rotating, secondTerm, unset];
+
+	// "All terms" matches every subject, INCLUDING the one with no term. That
+	// is the first half of the obligation.
+	const all = catalog.filter((s) => matchesTermFilter(s, 'all'));
+	assert.equal(all.length, 4, '"All terms" dropped a subject');
+
+	// A term option matches by key, and catches both the plain and the rotating
+	// subject that sit in that term.
+	const termOne = catalog.filter((s) => matchesTermFilter(s, 'rank:1'));
+	assert.deepEqual(termOne.map((s) => s.id).sort(), [3, 5]);
+
+	// "Rotates by term" is its own question, answerable by no term option.
+	const rotatingOnly = catalog.filter((s) => matchesTermFilter(s, 'rotating'));
+	assert.deepEqual(rotatingOnly.map((s) => s.id), [3]);
+
+	// THE FINDING THIS EXISTENCE CHECK EXISTED TO AVOID: a subject with no
+	// rotation term is reachable by "All terms" AND by an explicit choice. If
+	// the `unset` option were dropped, this subject would become unfindable
+	// the moment an operator chose any term, and the table would report "no
+	// matches" for a subject that exists.
+	const unsetOnly = catalog.filter((s) => matchesTermFilter(s, 'unset'));
+	assert.deepEqual(unsetOnly.map((s) => s.id), [4], 'a subject with no rotation term is unreachable by any explicit option');
+	assert.equal(
+		catalog.filter((s) => matchesTermFilter(s, 'rank:2')).some((s) => s.id === 4),
+		false,
+		'a subject with no rotation term leaked into a term it does not belong to',
+	);
+});
+
+test('A3-C9: the toolbar renders the term filter and reports a chosen term to the page', async () => {
+	// FAILING-FIRST on the base: no "Filter by rotation term" control exists
+	// there, so `byLabel` is null and this test is red on `a7ccb738`.
+	const fired: string[] = [];
+	const host = await render(
+		<MemoryRouter>
+			<SubjectFilterToolbar {...EDITABLE} onTermFilterChange={(v) => fired.push(`term:${v}`)} />
+		</MemoryRouter>,
+	);
+
+	const trigger = byLabel(host, 'Filter by rotation term');
+	assert.ok(trigger, 'the term filter is not rendered');
+	assert.equal(trigger.getAttribute('role'), 'combobox');
+	assert.ok(trigger.getAttribute('aria-controls'), 'the term trigger is not wired to its listbox');
+
+	await click(trigger);
+	const listbox = document.querySelector('[role="listbox"]');
+	assert.ok(listbox, 'no listbox opened from the term filter');
+	// The options are exactly the derived list, so the toolbar can never offer
+	// a term the derivation did not produce.
+	assert.deepEqual(
+		Array.from(listbox.querySelectorAll('[role="option"]')).map((o) => o.textContent?.trim()),
+		['All terms', 'Term 1', 'Term 2', 'Rotates by term', 'No term set'],
+		'the term options rendered are not the derived list',
+	);
+
+	const option = Array.from(listbox.querySelectorAll('[role="option"]')).find((o) => o.textContent?.trim() === 'Rotates by term');
+	await click(option ?? null);
+	assert.ok(fired.includes('term:rotating'), `choosing a term did not reach the page (got ${fired.join(',')})`);
+});
+
+test('A3-C9: the Subjects page filters, resets and reports the term through the existing pipeline', async () => {
+	// Source-level, because `Subjects.tsx` is a page that needs a router, an
+	// actor school scope and an API to mount. It is a wiring control, NOT a
+	// substitute for the behavioural controls above: it exists to prove the
+	// filter is not a rendered `<Select>` that changes nothing. Its
+	// discriminating assertions are the four that name the shared predicate,
+	// the derived options, `hasActiveFilters` and the reset.
+	const page = source('src/pages/Subjects.tsx');
+	const bare = code('src/pages/Subjects.tsx');
+
+	// Filters with the shared predicate, not with an inline re-implementation.
+	assert.match(bare, /if \(termFilter !== TERM_FILTER_ALL\) list = list\.filter\(\(s\) => matchesTermFilter\(s, termFilter\)\)/);
+	assert.equal(/list\.filter\(\(s\) => s\.rotationTerm/.test(bare), false, 'the page re-implements the term rule inline');
+
+	// Options come from the derivation, and the same value is offered to the
+	// toolbar, so the two cannot disagree.
+	assert.match(bare, /const termOptions = useMemo\(\(\) => buildTermFilterOptions\(subjects\), \[subjects\]\)/);
+	assert.match(bare, /termOptions=\{termOptions\}/);
+	assert.match(bare, /termFilter=\{termFilter\}/);
+	assert.match(bare, /onTermFilterChange=\{setTermFilter\}/);
+
+	// It participates in `hasActiveFilters`, otherwise "Reset filters" would
+	// never appear for a term-only filter and the filter would be a trap.
+	assert.match(bare, /\|\| termFilter !== TERM_FILTER_ALL/);
+	// It resets with the others, and it resets the page number, so a stale page
+	// index cannot leave the operator on an empty page.
+	assert.match(bare, /setTermFilter\(TERM_FILTER_ALL\)/);
+	assert.match(bare, /termFilter, pageSize\]\);/);
+	// It is a dependency of the filter pipeline itself, so it survives a
+	// pagination or sort change.
+	assert.match(bare, /attentionFilter, termFilter, coverageBySubjectId/);
+
+	// The removed disclosure state is gone from the page too, not just ignored.
+	assert.equal(/\bshowFilters\b/.test(bare), false, 'Subjects.tsx still carries the removed showFilters state');
+	assert.equal(/onToggleFilters/.test(bare), false, 'Subjects.tsx still wires the removed disclosure toggle');
+
+	// The header strip is gone AND the contract has a non-header home: the
+	// footer of the table the contract describes.
+	assert.match(bare, /<SubjectTermContractPopover termAuthority=\{termAuthority\} \/>/);
+	assert.match(bare, /leading=\{<SubjectTermContractPopover/);
+});
+
+test('A3-C9: the subject grade column is colour-coded exactly like the Teachers table', async () => {
+	// FAILING-FIRST on the base: the base renders ONE uncoloured
+	// `<span className="text-sm font-semibold text-foreground">GR9, GR10</span>`
+	// and no `subject-grade-chips`, so both of the first two assertions are red
+	// on `a7ccb738`.
+	const host = await render(
+		<SubjectRow
+			subject={subjectFixture({ gradeLevels: [9, 10] })}
+			timeMode="hours"
+			onEdit={() => {}}
+			onDelete={() => {}}
+			onArchive={() => {}}
+			onReactivate={() => {}}
+			onShowCoverage={() => {}}
+		/>,
+	);
+
+	const chips = query(host, 'subject-grade-chips');
+	assert.ok(chips, 'the grade column still renders an uncoloured string');
+	// One chip per grade, so the colour meaning is visible per grade.
+	const rendered = Array.from(chips.querySelectorAll('span'));
+	assert.deepEqual(rendered.map((c) => c.textContent), ['9', '10'], 'the grade chips do not convey every grade');
+
+	// The SAME palette, from the SAME token source, as the Teachers table. This
+	// is the assertion that stops a second grade palette appearing: the classes
+	// below are read out of `@/lib/grade-labels`, which is what
+	// `FacultyAssignedGradeChips` uses, and they are the DepEd-correct four
+	// (G8 YELLOW, never amber).
+	const palette = source('src/lib/grade-labels.ts');
+	for (const [grade, family] of [[9, 'red'], [10, 'blue']] as const) {
+		const token = new RegExp(`'${grade}': 'bg-${family}-100/80 text-${family}-700'`).exec(palette);
+		assert.ok(token, `GRADE_COLORS[${grade}] is not the DepEd ${family} token`);
+		assert.ok(
+			rendered[grade === 9 ? 0 : 1].className.includes(`bg-${family}-100/80`),
+			`the GR${grade} chip does not carry the shared palette class`,
+		);
+	}
+	assert.match(palette, /'8': 'bg-yellow-100\/80 text-yellow-700'/, 'G8 is not yellow; the warning family must not encode a grade');
+
+	// The badge geometry matches the Teachers chip, not a bespoke one.
+	for (const chip of rendered) {
+		assert.match(chip.className, /inline-flex/);
+		assert.match(chip.className, /h-4/);
+		assert.match(chip.className, /min-w-4/);
+		assert.match(chip.className, /rounded/);
+		assert.match(chip.className, /font-bold/);
+	}
+
+	// INFORMATION CONTENT IS KEPT: the range wording is still the chips'
+	// accessible name, so a multi-grade subject still announces every grade.
+	assert.equal(chips.getAttribute('aria-label'), 'GR9, GR10');
+
+	// A contiguous range still reads as a range to assistive tech.
+	const ranged = await render(
+		<SubjectRow
+			subject={subjectFixture({ gradeLevels: [7, 8, 9, 10] })}
+			timeMode="hours"
+			onEdit={() => {}}
+			onDelete={() => {}}
+			onArchive={() => {}}
+			onReactivate={() => {}}
+			onShowCoverage={() => {}}
+		/>,
+	);
+	assert.deepEqual(
+		Array.from(query(ranged, 'subject-grade-chips')!.querySelectorAll('span')).map((c) => c.textContent),
+		['7', '8', '9', '10'],
+		'a four-grade subject no longer shows all four grades',
+	);
+	assert.equal(query(ranged, 'subject-grade-chips')!.getAttribute('aria-label'), 'GR7–GR10');
+
+	// The one case the palette does not cover still renders a chip, in the
+	// neutral token, rather than silently disappearing.
+	const odd = await render(
+		<SubjectRow
+			subject={subjectFixture({ gradeLevels: [11] })}
+			timeMode="hours"
+			onEdit={() => {}}
+			onDelete={() => {}}
+			onArchive={() => {}}
+			onReactivate={() => {}}
+			onShowCoverage={() => {}}
+		/>,
+	);
+	const oddChips = query(odd, 'subject-grade-chips');
+	assert.ok(oddChips, 'a grade outside 7-10 was dropped instead of shown neutrally');
+	assert.match(oddChips.querySelector('span')!.className, /bg-muted/);
+
+	// And no grades at all is still the plain "No grades" sentence.
+	const none = await render(
+		<SubjectRow
+			subject={subjectFixture({ gradeLevels: [] })}
+			timeMode="hours"
+			onEdit={() => {}}
+			onDelete={() => {}}
+			onArchive={() => {}}
+			onReactivate={() => {}}
+			onShowCoverage={() => {}}
+		/>,
+	);
+	assert.ok(query(none, 'subject-grade-chips') === null, 'a subject with no grades rendered a chip group');
+	assert.match(document.body.textContent ?? '', /No grades/);
+});
+
+test('A3-C9: SubjectRow still takes its grade colours from the ONE shared palette', async () => {
+	// The AR2 watch item, enforced as a source control on the file this stream
+	// changed. `SubjectRow` must import `GRADE_COLORS` from `@/lib/grade-labels`
+	// — the same source `FacultyRow` uses — and must NOT reach for
+	// `GradeLevelBadge`, whose own `GRADE_STYLES` map is the second palette a
+	// previous pass in this lane had to delete. Hard-coding `bg-green-` /
+	// `bg-yellow-` / `bg-red-` / `bg-blue-` in the row is the same defect.
+	const bare = code('src/components/subjects/SubjectRow.tsx');
+	assert.match(bare, /import \{ GRADE_COLORS \} from '@\/lib\/grade-labels'/, 'SubjectRow does not use the shared grade palette');
+	assert.doesNotMatch(bare, /GradeLevelBadge/, 'SubjectRow imports the second grade palette');
+	// The DEP-ED grade fills only, not every `bg-red-` in the file: the
+	// "No coverage" badge legitimately carries its own `bg-red-50` and is not a
+	// grade colour. What must not appear is a second copy of the grade palette.
+	for (const literal of ['bg-green-100', 'bg-yellow-100', 'bg-red-100', 'bg-blue-100']) {
+		assert.doesNotMatch(bare, new RegExp(literal), `SubjectRow hard-codes ${literal} instead of using the shared token`);
+	}
+	// The colour reaches the chip through the shared lookup, and the lookup is
+	// the ONLY grade-colour expression in the grade cell.
+	assert.match(bare, /GRADE_COLORS\[String\(grade\)\]/);
+	assert.match(bare, /className=\{cn\(\s*'inline-flex h-4 min-w-4 items-center justify-center rounded px-1 text-\[0\.6rem\] font-bold leading-none',\s*GRADE_COLORS\[String\(grade\)\] \?\? 'bg-muted text-muted-foreground',\s*\)\}/);
+	// The Teachers table is the reference, and it is unchanged by this stream.
+	const teachers = code('src/components/faculty/FacultyRow.tsx');
+	assert.match(teachers, /GRADE_COLORS\[String\(grade\)\]/, 'the Teachers grade chip no longer uses GRADE_COLORS; SubjectRow is no longer matching it');
+});
+
 test('A3-17: the coverage review surface is a centered, internally scrolling dialog', async () => {
 	const host = await render(
 		<MemoryRouter>

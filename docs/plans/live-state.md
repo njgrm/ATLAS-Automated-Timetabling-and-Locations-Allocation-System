@@ -149,6 +149,22 @@ resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs
 
 - Tailnet: `https://njgrm.buru-degree.ts.net`
 
+- **▶ DEPLOYMENT-PENDING — target re-pinned to `4c35cc8f`; the review gates are now CLOSED and the remaining
+  blocker is `E:` capacity, not a gate. Recorded 2026-09-28 ~14:0x +08 by Lane A2 (packet c12).**
+  **SUPERSEDES the c9 line below it**, which said the gate was open — that is no longer true, and reading it would
+  send the next session to re-gate bytes that are already gated. **The live release is unchanged and the line below is
+  still the truth.** Pinned target **`4c35cc8f808aad6d6e70f17920037d46d91bf10d`** = `6b1ec722` + the test-only B2 fix
+  (7 test files, **0 non-test paths**, product tree byte-identical). Gates closed **on exactly these bytes**:
+  **Gate 3 `ACCEPT_READY`, 25 paths, 27/27** (A3's c8 delta; the 25-path count was the load-bearing correction over
+  the packet's 24) and **B2 fresh QA `ACCEPT_READY` 7/7** (`test:client-suite` 12 fail at candidate and 12 at base
+  `a1db27d5`, difference set empty in both directions). **`4c35cc8f` is not a descendant of `c80c085b`**
+  (`merge-base --is-ancestor` exits 1), so **A3's c9 block is not in this release** and does not reopen its gates; the
+  5 paths that voided part of Gate 3 on `main` are **byte-identical between `6b1ec722` and `4c35cc8f`**. Packet c12
+  **did not build**: `E:` fell from a ~38.5 GiB baseline to **3.2 GiB** under a concurrent lane's install wave, below
+  the §3 25 GiB warn line and then below the **15 GiB fail-closed** line, so packet step 1 stopped there. **No cutover,
+  no deploy-runner invocation, no `JWT_EXPIRES_IN` change, no generation, no publication.** Live re-verified healthy
+  after the stop. Detail and next action: **`## Lane A2 - current lane`** (newest block).
+
 - **▶ LIVE: `a1db27d5a9c270c875868436988f5d8cef38af04` — DEPLOYED 2026-09-28 06:41 +08 by Lane A2 (packet c4).
   ACKNOWLEDGES: DEPLOYED, browser acceptance INCOMPLETE (`AUTH_SESSION_REQUIRED`) — a healthy process is not
   acceptance.** The `d31bfacb` record below is now the rollback basis. Cutover executed with the repo's own
@@ -2803,6 +2819,136 @@ Do not write in Lane B/C worktrees.
 
 ## Lane A2 - current lane (written only by Planner A2)
 
+### 2026-09-28 ~14:0x +08, packet c12 - **NOT DEPLOYED. Stopped at packet step 1 on `E:` capacity fail-closed. The review gates are CLOSED; Lane C's pinning ruling is verified correct.**
+Newest block; supersedes the c10 block below, kept as dated history. **0 fixes verified rendered on the live Tailnet; 7 integrated and pushed, none live.** Live release **unchanged at `a1db27d5`**, still the rollback basis. **c10 stopped on an open review gate; c12 stops on a capacity gate. Both are real gates, and this one is not a shrinking budget.**
+
+- **Lane C's ruling is CORRECT, and I verified all three legs of it rather than accepting it.** The ruling: a release ships a **pinned** tree, so A3's c9 commits landing on `main` after the pin neither enter this release nor reopen its gates.
+  1. **`c80c085b` (A3's c9 on `main`) is NOT an ancestor of `4c35cc8f`** — `git merge-base --is-ancestor c80c085b 4c35cc8f` exits **1**. c9 is genuinely outside the release.
+  2. **B2 is test-only**: `git diff --name-only 6b1ec722 4c35cc8f` = **exactly 7 paths, every one a test file, and the count of non-test paths is 0** — so the product tree is byte-identical and every gate decided at `6b1ec722` still decides `4c35cc8f`.
+  3. **The 5 paths that voided part of Gate 3 are byte-identical across the pin**: `atlas-client/package.json`, `atlas-client/src/index.css`, `a3-c8-warning-token.test.ts`, `palette-slate400-step2-a3-s-f.test.ts`, `palette-token-sweep-a3-s-e.test.ts` — all `SAME` by blob id between `6b1ec722` and `4c35cc8f`. They changed on `main`, which is not in this release.
+  **This is the answer to c10's blocker, and it is why c12 was worth writing down as a pin rather than a re-gate.**
+- **Release range enumerated, not described (§13):** `a1db27d5..4c35cc8f` = **112 paths, 86 non-docs**. **Zero `prisma/`, zero schema, zero lockfile, zero seed** (the one grep hit is `generation-b**lock**ers-c02.test.tsx`). 2 server production files, matching the c12 packet's expectation of a client-led release.
+- **Packet step 1 = `git worktree add --detach` at exactly the pin.** `E:/ATLAS-worktrees/lane-a2-release-4c35cc8f`, detached at `4c35cc8f808aad6d6e70f17920037d46d91bf10d`, `git status --short` empty, **0 reparse points**, 5 134 files / 0.58 GiB source. `atlas-client` `npm ci` completed (278 packages, rc=0, **0.201 GiB**). **Nothing else was installed and nothing was built.**
+- **BLOCKER (dated 2026-09-28 ~13:5x-14:0x +08, measured, named): `E:` capacity.** The packet's premise **"E: has 29 GiB; no reclaim" was true when written and false when executed.** Measured `E:` free across the step: **29.198 → 22.550 → 1.454 → 38.387 → 5.769 → 5.093 → 38.502 → 24.987 → 5.877 → 5.229 → 3.199 GiB.** A single `npm ci` that added **278 packages / 0.201 GiB** coincided with a **~19 GiB** drop, so the consumer is **not this cycle**. Attribution: `E:\ATLAS-worktrees` holds **44** worktree dirs; **A3 created six `lane-a3-c10-s*` worktrees in the same second (13:35:47)** and `lane-a3-c10-s1-sections` was running `tsx --test` out of its own `node_modules` at 13:50. `$RECYCLE.BIN` is **0.00 GiB**, so the oscillation is not a recycle-bin artefact. The volume sits in a **bimodal ~38.5 GiB / ~5 GiB** pattern. **`E:` at 5.2-3.2 GiB is below the §3 25 GiB warn line and below the 15 GiB fail-closed line**, and §3 fails closed on `E:` exactly as on `D:`. **I stopped rather than start a build into it**, because the documented failure mode of a full `E:` is the supervisor's log writes failing — the §3 note that this has "already taken the live runtime down once". `D:` is stable at 39.170 GiB but §3 routes new worktrees to `E:` and `D:/ATLAS-worktrees` is legacy-retention only, so `D:` is not mine to use.
+- **No reclaim is owed and none was run.** At the ~38.5 GiB baseline the volume is above the warn line, so the packet's "no reclaim" still holds for the baseline; the problem is the transient, not the resting size. For completeness I priced the reclaim: retiring the two stale A2 release dirs I own (`lane-a2-release-0da104f9` 1.47 GiB, `lane-a2-release-c0d91827` 1.46 GiB — both clean, both merged ancestors, both inside the operator's 2026-09-28 09:45 grant "retire every release dir except live `a1db27d5` and rollback `d31bfacb`") frees **2.93 GiB → ~6.1 GiB**, which is **still below fail-closed and therefore not worth spending a reclaim cycle on.** I did not touch A3's `lane-a3-release-f426f465`: A3 is live right now and another lane's release dir is not mine to retire. **§3 requires a manifest and a pre-action audit for a reclaim, which is a cycle of its own, not a footnote to this packet.**
+- **Not done, and deliberately so (2026-09-28):** **no server build, no client build, no `prisma generate`;** **no cutover; no deploy-runner invocation** (neither dry run nor `-Execute`); **no supervisor, task, listener or environment change**; **the `JWT_EXPIRES_IN=7d` step never ran and the env file was never opened, read, backed up or edited** — the packet sequences it *after* a healthy cutover and there is no cutover; **no sign-in, no password typed, no generation, no publication, no migration.** Live identity re-read read-only **after** the stop: machine scope `ATLAS_RUNTIME_RELEASE_SHA=a1db27d5a9c270c875868436988f5d8cef38af04` / `SOURCE_DIR=E:\ATLAS-worktrees\lane-a2-release-a1db27d5`, task `ATLAS-Runtime-Supervisor` `Running`, listeners **5001→54908, 5174→56752** — all three identity sources agree, and all match the c4 record. **§6's stale-override trap was live in this session again**: my own inherited `Env:` read `9b28c572` / `E:\ATLAS-worktrees\lane-a2-release-9b28c572`, two releases stale, and was not used for any decision. **Health after the stop: `/api/v1/health` 200, `/api/v1/health/ready` 200 `{"database":"ok"}`, public `/api/v1/schools/1/schedules/published?date=2026-09-28` 200 `runId=320 termIndex=2 servedByFallback=false`** — the live release is healthy and was left exactly as found.
+- **Worktrees:** `lane-a2-release-4c35cc8f` (detached @ `4c35cc8f`, **client deps installed, nothing built**, 0.79 GiB) `KEEP_ACTIVE` — it is the pinned release tree for the next attempt, and 0.79 GiB is negligible against a 33 GiB oscillation, so holding it costs the volume nothing and saves the next session the checkout. `lane-a2-c10-docs` now carries `docs/a2-c12-20260928` `KEEP_ACTIVE`. `lane-a2-c10-release` (`integration/a2-c10-20260928` @ `288a9c27`) stays **`PRESERVE_FOR_DECISION` and was not touched** — **verified it holds commits that exist on no remote** (`git branch -r` returns nothing for c10), so retiring it would lose work.
+- **Next action (single):** **wait for `E:` to hold above 25 GiB, then re-run packet c12 unchanged from step 1** — same pin `4c35cc8f`, same closed gates, same `a1db27d5` rollback basis, no re-gate, no re-measure of the gates. The capacity gate is environmental and self-clearing when A3's c10 wave reclaims; **the owner of that reclaim is Lane C / A3, not this lane.** If `E:` is still below 25 GiB when the next packet opens, the reclaim becomes the first step of that packet, on a manifest and an audit.
+
+- **ADDENDUM, same session, ~14:1x +08 — the "next action" line above is FALSIFIED by measurement, and it is superseded by this one. Kept, not deleted (§16).**
+  `E:` recovered to **38.861 GiB**, so per §3 the gate was satisfied *at that moment* and I attempted the remaining build **with a hard guard**: refuse any step whose pre-measurement is below 20 GiB. **The guard tripped immediately and nothing was installed.** `E:` measured **38.861 GiB** and then **6.238 GiB** — a **~32.6 GiB loss in under a minute**, with no command of mine running.
+  **What this changes: "wait for `E:` to hold above 25 GiB" is not achievable by polling, and I withdraw it as an instruction.** The volume spends most of its time in the **low mode (~5-6 GiB)**; the ~38.5 GiB readings are the brief exception, not the resting state. I had 11 samples earlier and mis-read their distribution as transient; the guard measurement is the one that settles it. A 32.6 GiB burst on a seconds timescale cannot be waited out, and starting a ~0.9 GiB install into it would be a coin flip whose only real downside is the documented one — a full `E:` failing the supervisor's log writes.
+  **Superseding next action (single):** **the reclaim is no longer an option to weigh, it is the first step of the next packet, and it needs an owner.** `E:` sits at **~6 GiB** against a **~38.5 GiB** ceiling, so the wave is holding roughly 32 GiB. `E:\ATLAS-worktrees` holds **44** registered worktrees against the §3 cap of **12 active task worktrees**, and **A3's six `lane-a3-c10-s*` worktrees were all created in the same second (13:35:47)** — that is where a reclaim's return is, not in my two stale release dirs. **This lane will not run that reclaim unasked**: §3 requires a frozen manifest and a pre-action audit, it spans another lane's active stream, and §14 gives one owner per stream. **The decision belongs to Lane C / A3 with the operator, and the ask is narrow: clear `E:` above 25 GiB, then re-run c12 unchanged.** Packet c12's own gate and pin are **settled and need no further review** — only disk.
+
+### 2026-09-28, packet c10 - **NOT DEPLOYED. Stopped on an open gate: the release range now carries A3's c9 block (22 non-docs paths) that no independent reviewer has seen, and 5 of Gate 3's 25 approved paths changed after Gate 3 ran.**
+Newest block; supersedes the c9 block below, kept as dated history. **0 fixes verified rendered on the live Tailnet; 7 integrated and pushed, none live.** Live release **unchanged at `a1db27d5`**, still the rollback basis. c9's stop was on a short scope; **this one is on a range that moved under me** - the §13 trap, not a shrinking budget.
+
+- **What DID complete and is verified.**
+  - **E: reclaim EXECUTED** (c10 step 3). Manifest `docs/reviews/reclaim-a2-c10-20260928/frozen-manifest.md` @ `37bd5342`, R1->R2->R3 additively. 7 registered worktrees, non-forced `git worktree remove` rc=0 each + one `prune` rc=0. **`E:` 19.797 -> 28.616 GiB (+8.819)**, back above the §3 25 GiB warn line. Registered worktrees **66 -> 59** (exactly 7). **624 branches unchanged, 3 stashes unchanged, `D:/ATLAS` residue identical to the pinned baseline** - zero residue, no branch deleted. Reclaim scope survived two independent audits: R1 `CORRECTION_REQUIRED` (retired the live release's named rollback basis) and R2 `CORRECTION_REQUIRED` (void capacity arithmetic). **Both corrections were real and both were mine.**
+  - **B2 DONE**: candidate `4c35cc8f` (base `6b1ec722`), 7 test files, **product tree byte-identical**. Fresh QA **`ACCEPT_READY` 7/7**: `test:client-suite` **12 fail** at candidate and **12 at base `a1db27d5`, difference set empty in both directions**; no assertion weakened/removed; all 8 re-pointed locators discriminate; `test:a2-c6-truth` 34/34.
+  - **Gate 3 `ACCEPT_READY`, 25 paths, 27/27** - and **this is where the correction that mattered happened: the packet said 24, I computed 25**, because `atlas-client/package.json`, `AGENTS.md`, `.opencode/package.json` and `.opencode/agents/atlas-planner.md` are also in A3's c8 block. A 24-path scope would have repeated c9's exact B1 defect. **But see the supersession below - 5 of those 25 have since changed.**
+- **BLOCKER (dated 2026-09-28, named): the release range moved.** I based the release worktree on `origin/main` @ `a17a813f`. `origin/main` has since advanced to **`c80c085b`** with **15 commits and 22 non-docs paths** of **A3's c9** work - Subjects filter row, section room picker, dialog theming and **AA contrast** (`74efb845`, `6cd5d7b2`, `e0d48d18`, `2b9cd297`, `cb02154f`). Three independent reasons this blocks the cutover: (1) `AGENTS.md` §11 - **a release must not ship source no independent reviewer has seen**; that delta needs its own review gate, "one fresh reviewer, the source range and the packet lint in the same pass". (2) **Gate 3's verdict is partially void** - `atlas-client/package.json`, `atlas-client/src/index.css`, `a3-c8-warning-token.test.ts`, `palette-slate400-step2-a3-s-f.test.ts`, `palette-token-sweep-a3-s-e.test.ts` all changed *after* the gate approved them, so it approved bytes that will not ship. (3) `AGENTS.md` §13 - derive the delta by enumerating the range, never from the candidates you happened to review. This is the recorded 2026-09-26 precedent, where a range described as client-only actually carried 14 `atlas-server` paths **including an auth-boundary change reaching production for the first time**.
+- **Not done, and deliberately so (2026-09-28):** **no build** (release worktree created and merged but **nothing installed, nothing built**), **no `JWT_EXPIRES_IN=7d`** - the env file was **never opened, backed up or edited**, because that step is sequenced *before* cutover and there is no cutover; **no cutover, no deploy-runner invocation, no supervisor/task change, no listener moved, no sign-in, no password typed, no generation, no publication.** Live identity re-read read-only: machine scope + task action + both listeners all still `a1db27d5`, 5001->54908, 5174->56752, task `Running`.
+- **Parallel cycle, no custody defect.** c11 packet `a2-timetable-2026-09-28-c11.md` (13:23) explicitly says it *"Runs in parallel with your elevated c10 release: do not touch c10's worktrees, `live-state.md` c10 lines or the release."* Verified: c11 sits on its own 3 worktrees branched from `origin/main` @ `0fd9e3ef`, disjoint from every c10 worktree. `lane-a2-c11-s1-exec` is **dirty** and was **never touched**.
+- **Worktrees:** `lane-a2-c10-docs` (`docs/a2-c10-20260928`) `KEEP_ACTIVE`; `lane-a2-c10-b2` (`fix/a2-moved-source-assertions-c10` @ `4c35cc8f`) and `lane-a2-c10-base` (detached @ `a1db27d5`) `RETIRE_AFTER_INTEGRATION`; `lane-a2-c10-release` (`integration/a2-c10-20260928`, merged `4c35cc8f` onto `c80c085b`, clean, **no `node_modules` installed**) `PRESERVE_FOR_DECISION` - it is the prepared release base for the next elevated packet, not a shipped artifact.
+- **Next action (single):** a fresh elevated packet must open with **a review gate for A3's c9 delta alone** (22 non-docs paths, `a17a813f..c80c085b`) **and re-gate the 5 changed Gate-3 paths**, then re-derive the client-suite baseline because `atlas-client/package.json` moved. Do not deploy `c80c085b` on c10's authority.
+
+### 2026-09-28, packet c9 - **NOT DEPLOYED. Gate 3 returned `CORRECTION_REQUIRED`; `6b1ec722` is still staged.**
+Newest block; supersedes the c7/c8 block below, which is kept as dated history. **0 fixes verified rendered on the live
+Tailnet; 6 integrated and pushed, none live.** The live release is **unchanged at `a1db27d5`** and remains the rollback
+basis. I stopped at the packet's own rule, and the open gate — not a shrinking budget — is the reason.
+
+- **Gate 3 verdict: `CORRECTION_REQUIRED`, 23 / 24 passed, blocked 0, unperformed 0.** One fresh independent read-only
+  reviewer over **A3's c8 delta** in `a1db27d5..6b1ec722` (23 paths, 10 commits: `b1435a61`, `c288a1bc`, `aac241e6`,
+  `19fd02ea`, `47e658b5`, `3106a3bc`, `5b118594`, `b48b1bdf`, `c140649d`, `98ad96ca`). **All 23 in-scope paths were
+  accepted**; the one failed row is my own **scope-completeness** defect, described below.
+- **B1 — the gate cannot certify `atlas-client/src/pages/TeacherConcerns.tsx`, and the fault is mine.** It is A3's c8
+  product delta (`b1435a61`, in range, in A3's own `SWEPT_FILES`) and it is **not** in the 23-path scope I gave the
+  reviewer. It is not a token sweep: it converts `{selectedFacultyId != null && (` to `{selectedFacultyId != null ? (`
+  and adds a **new operator-facing empty state** (`data-testid='concern-no-teacher-empty-state'`, new `ClipboardList`
+  import, ~28 lines of new copy: *"This page records one teacher's weekly availability, notes and room requests for
+  the active term"*), with **no test covering the new branch**. My c8 post's 23-path list is the error; §11's "a
+  release must not ship source that no independent reviewer has seen" is exactly why. The reviewer read the diff
+  incidentally and found it behaviour-preserving apart from the new empty state — **that is not a gate verdict and I am
+  not treating it as one.**
+- **B2 — my c8 "no gate regressed" claim is WRONG, and the regression is mine.** `test:client-suite` at `6b1ec722`:
+  **1207 / 1186 / 21 fail**, against `a1db27d5` **1204 / 1192 / 12 fail** — **9 new failures**, not 0. The reviewer
+  attributed rather than assumed: overlaying only its 23 paths onto `a1db27d5` gave **114/114, 0 fail**, so the 9 are
+  A2 source-text assertions on A2 timetable files. **I spot-verified the mechanism at the tip, read-only:** the
+  `data-testid="timetable-run-identity"` span moved `ScheduleReviewWorkspaceHeader.tsx:461` (base) →
+  `RunStateBadge.tsx:147` (tip), and `Technical detail` moved `TimetableSimpleHeader.tsx:685` (base) →
+  `simple/SimpleHeaderMessages.tsx:127` (tip) — my own c7 run-identity fix and header extraction, so the tests
+  assert against a file that no longer holds the string. **These are source-text assertions, which AGENTS.md's
+  "done means seen" rule does not accept as evidence for a user-facing change in any case.**
+- **Reviewer's NON_BLOCKING findings, for A3 — not mine to fix:** **F2** `3106a3bc` is titled "raise atlas-planner
+  steps 120 -> 250" but also bumps `@opencode-ai/plugin` `1.18.21` → `1.18.32`, undisclosed; proven currently inert
+  (`git grep` finds no consumer) — disclose it or drop the unconsumed pin, additively. **F3** `Audit.tsx:300` still
+  toasts *"Readiness report is using saved ATLAS evidence."* while the same concept was changed in-body to "Saved in
+  ATLAS". **F4** `ActionQueue.tsx` warning tone `cta:` now ends `hover:text-warning-foreground`, a no-op hover.
+  **F5** the 9 failures above (mine). **F6** client `tsc` 5 errors, byte-identical at base and tip, in A2 timetable
+  test files (3 × missing `playwright`, 1 implicit `any`, 1 no-overlap) — the same 5 my c8 post reported as "0 new".
+  Reviewer's tier note: **A3's c8 block is MEDIUM, not VISUAL** — `b48b1bdf`'s own carve-out makes a copy change that
+  alters what a status *claims* MEDIUM, and the `dataSource` status label changed.
+- **Capacity, measured not assumed.** `E:` free **27.42 GiB** at session start (above the §3 25 GiB warn line, so **no
+  reclaim is owed** and the operator-approved reclaim scope was **not** used). The live release tree measures
+  **1.46 GiB** (real `node_modules`, 0 reparse points, not junctions), matching the 1.46 GiB build cost Lane C
+  recorded 2026-09-26. **But the c9 docs checkout alone took `E:` to 25.66 GiB — 1.76 GiB for source with no
+  `node_modules`**, so my c8 figure of "27 GiB, no reclaim owed" no longer leaves room for a release worktree plus
+  build without a reclaim decision. Recording it because the next cycle will hit it. `D:` 39.16 GiB.
+- **Dated, not done (2026-09-28):** **no build, no cutover, no deploy-runner invocation, no `E:` reclaim, no
+  `JWT_EXPIRES_IN=7d` change** (the `atlas-server.env` backup/edit/ACL step never started), **no generation, no
+  publication, no browser row, no sign-in, no password typed.** Runtime identity re-read read-only and unchanged:
+  machine scope + task action + `Live release` all say `a1db27d5` / `E:\ATLAS-worktrees\lane-a2-release-a1db27d5`;
+  `IsInRole(Administrator)` **True**; `schtasks` `Running`, last run `28/09/2026 6:41:28`.
+- **Worktrees:** `lane-a2-docs-c9` (`docs/a2-c9-gate3-20260928`) — `RETIRE_AFTER_INTEGRATION`, retired junction-safe
+  after this push. The reviewer's two are **PRESERVE_FOR_DECISION and left in place**: `lane-gate3-a3c8-review`
+  (`review/gate3-a3c8-2026-09-28` @ `6b1ec722`) and `lane-gate3-a3c8-base` (detached @ `a1db27d5`) — the re-opened
+  gate needs both, `E:` has no build competing for space, and the reviewer authorised retirement without
+  recommending it. Both junction-free and clean; `cmd /c rmdir` + non-forced `git worktree remove` + `prune` if a
+  later cycle frees them. `lane-a2-c7-integ` / `lane-a2-c6-truth` were already retired in c8 step 5.
+- **Next action (single):** re-open Gate 3 with **24 paths** — the 23 above **plus
+  `atlas-client/src/pages/TeacherConcerns.tsx`** — and fix B2's 9 source-text assertions in A2's own tests
+  (re-point them at the moved source, or replace them with a rendered assertion, which is what "done means seen"
+  requires) before any elevated build. A green build says nothing about either finding.
+- Findings posted for A3 in `docs/handoffs/lane-a-to-c.md`; this is the single record of the cycle.
+
+### 2026-09-28 ~12:4x +08 - c7/c8 CLOSED, PUSHED at `6b1ec722`. **LIVE is unchanged at `a1db27d5`.**
+Newest block; supersedes the c5 block below, which is kept as dated history. **0 fixes verified rendered on the live
+Tailnet; 6 integrated and pushed, none live.** The release is the next elevated packet.
+
+- **Pushed `6b1ec722`** (product pin; docs commits above it are docs-only). **My** range `d5e00e9f...6b1ec722` = 30
+  paths, **29 non-docs**, all A2's this cycle, no `prisma/`/lockfile/seed/schema. Merge `80ce7d64` (the c8 packet) is
+  **docs-only**, so no gate was re-run for it; the merged tree's product blobs are identical to the gated `b130f1ee`.
+- **⚠ CORRECTED 2026-09-28, same session: I first wrote "28 non-docs, all A2's" — it was 29, and it was the wrong
+  range.** The **release** is `a1db27d5...6b1ec722` = **84 commits, 106 paths, 81 non-docs**, of which only **29** are
+  this cycle's candidate. **52 non-docs come from `a1db27d5`**, including a provable **23-path block that is A3's c8
+  product work plus repo config** (`Audit.tsx`, `app-shell/navigation.ts`, `NotificationBell.tsx`, `index.css`,
+  `a3-c8-warning-token.test.ts`, `a3-c8-audit-calm.test.tsx`,
+  `a3-c8-room-preferences-reachability.test.tsx`, `RolloverGuidanceCard.tsx`, `RolloverResetPanel.tsx`,
+  `HomeRoomAutoAssignDialog.tsx`, `SectionHomeRoomModals.tsx`, `SectionsStatusBanners.tsx`, `SmartPageShell.tsx`,
+  `SubjectCoverageSheet.tsx`, `AutoFillSummaryModal.tsx`, `TeachingLoadRepairQueue.tsx`, `TeachingLoadTruthPanel.tsx`,
+  `ActionQueue.tsx`, 2 palette sweeps, `AGENTS.md`, `.opencode/package.json`, `.opencode/agents/atlas-planner.md`);
+  the remaining 29 are A2's c5 delta **and A3's c6/c7** through the same union merge, named as one A3-reviewed block
+  rather than split by guess. Zero `prisma`/lockfile/seed/schema in the whole release range, enumerated.
+  **GATE 3 IS STILL OPEN** — one fresh independent review of A3's c8 delta alone; **A2 has reviewed none of it and
+  does not integrate A3's work**, so the elevated deploy packet must carry that review and **must not execute on
+  `CORRECTION_REQUIRED`**. Detail: handoff §7.
+- **Gates re-run by me on the merged tree** (junctions re-made against `D:\ATLAS` `node_modules`): a2-c6-truth
+  **34/34**, draft-ux-c01 **33/33**, relaxed-main **79/82** (the same three pre-existing failures), autofix-break-window
+  **7/7**, swap-custody **16/16**, client `tsc` **5 errors / 0 new**, server `tsc` **exit 0**. **Matches c7, so no
+  executor round and no fresh QA were owed.** The three failures and all five type errors are in files
+  **byte-identical to the range base**; `A8 control`'s `text-red-500` assertion is unchanged at the base and that
+  string is in neither `TimetableGrid.tsx` blob.
+- **c7's dropped-rows caution re-checked: 21 rows at the tip, none missing.** 13 from `749cbfd5` + 6 `3(a)` from
+  `2a69fc6a` + 2 from `c46b227f`; three base rows renamed (not dropped), each declaring itself. Assertions 62 -> 79
+  -> 60 -> 99 -> **101**. Detail: `docs/handoffs/planner-a2-handoff-2026-09-28-overnight.md` §7.
+- **Next action (owed to Lane C, posted in `docs/handoffs/lane-c-to-a2.md`):** close **Gate 3** (one fresh
+  independent review of A3's c8 delta), then the elevated release of `6b1ec722` in a **fresh** worktree — not
+  `lane-a2-c7-integ`, which c8 step 5 retires. `E:` 27 GiB free, above the warn line, so no reclaim is owed.
+- **Dated, not done (2026-09-28):** no build, no `E:` reclaim (**27 GiB free, above the 25 GiB warn line - no reclaim
+  owed**), no deployment, no generation, no publication, no browser row. All HIGH, all next packet.
+- `lane-a2-c7-integ` and `lane-a2-c6-truth` are **RETIRE_AFTER_INTEGRATION** (retired junction-safe in c8 step 5).
+
 **2026-09-28 09:40 +08 - packet c5, DONE and STOPPED SHORT OF A CUTOVER, deliberately. LIVE is unchanged:
 `a1db27d5`.** Four items integrated at **`543c74b3`**; the release is **STAGED, NOT BUILT, NOT CUT OVER** for two
 recorded gates. Authority: Lane C c5 + the standing 2026-09-20 authorization. **No gate was waived.** No question
@@ -3770,3 +3916,67 @@ unchanged, 23–27 are c6's unchanged, **28–33 are new**. None is decidable fr
 **source-accepted only, not browser-accepted**. A3 does not deploy; the next c8 delta rides whatever release A2 ships
 next. Worktrees `lane-a3-c8-{token,reach,audit,integ}` `RETIRE_AFTER_INTEGRATION`, junction-safe; 4 branches preserved,
 none deleted.
+
+### A3 c10 — 2026-09-28 ~16:0x +08 — integrated `99200804`, **NOT deployed, NOT in the pinned release**
+
+`Live release` untouched. The deployment-pending target is **`4c35cc8f`** (A2 c12 / A4), which does **not** contain
+this cycle — `99200804` is **new source on `main` after that pin**, so nothing here ships until a later release names
+it. A3 does not deploy.
+
+**What landed.** 13 FIX items against the **original** criteria, 36 paths, 19 commits, one push `ebe6331c4..99200804`.
+Fifteen gates green on the merged tree, 0 failures. Typecheck 5 errors, all A2-owned, **base is also 5** (my c9 note
+saying "1 error" was one executor's wrong report; corrected in the handoff). **Zero `/timetable` file in the push** —
+A2's c11 fence held.
+
+**The cycle's actual finding is a grading defect, not a layout defect.** Re-baselining all 34 items against the
+ORIGINAL text showed **4 of the 11 rows I had marked `QA_PASSED` were never met at all**, because I graded each against
+my own narrowed rewrite: FIX-24 (I shortened two strings the original quotes verbatim), FIX-22 (I removed the uppercase
+the original asks for), FIX-15 (a popover is still a disclosure), FIX-26 (I passed an item on half of it). Full
+re-baseline with per-row verdicts and evidence paths:
+`docs/reviews/a3-c10-original-criteria-rebaseline-20260928.md`.
+
+**A premise correction that affects anyone re-reading the scorecard:** the live release `a1db27d5` is **103 commits
+behind `origin/main`**, so it never contained c9's one-row `/subjects` toolbar. "Room Type and Program still behind
+More filters" was measured on a build that predates the fix. Do not re-run that row expecting the old build.
+
+**Verification.** Fresh independent QA over `ebe6331c4..b3201d65`: `PLANNER_DECISION_REQUIRED`, **28/30, blocked 0,
+unperformed 2, zero BLOCKING**, nine findings all NON_BLOCKING. Three fixed on the tip: a docstring describing the
+opposite of its code, a **display value used as a sort key**, an assertion that could never fail. Two planner
+corrections on the tip: S5's `DELETE-ON-S4-MERGE` initials stand-in discharged (one convention, not two), and the new
+audit summary **converged** onto the `--warning` token rather than re-pinning the c8 raw-amber ratchet, so the gate
+holds at its pinned **68 files / 230 lines** with both literals untouched.
+
+**0 of the 13 are verified rendered.** jsdom does no layout; every claim is token and geometry arithmetic over
+committed constants. I deliberately did **not** manufacture a loopback screenshot — a fixture-data render at a different
+origin is explicitly not ATLAS acceptance, and an image that could be mistaken for one is the failure the rules name.
+**Reported UNPERFORMED, not closed.** Seven rendered groups are owed on `https://njgrm.buru-degree.ts.net` at
+1366×768, plus five exact live steps for the items Lane C could not perform (06, 08, 12, 20, 29) and the 08 decision
+gate restated in three lines. All in §4 of the re-baseline file; posted in `docs/handoffs/lane-a-to-c.md`.
+
+**BLOCKING (named, not open): 08 `Clear Selection` is a product decision the original forbids guessing** — "Codex must
+not implement both branches". Options A/B/C restated in §2.2 of the re-baseline. **20**'s save confirmation was never
+built and the original's own note flags it as conflicting with FIX-16's "less clicks" goal, so scoping it is also the
+operator's call.
+
+**Handoff to A2, verified still open at `ebe6331c4`:** FIX-22's audit list reaches Class Schedule cells, which are
+`/timetable` and A2's fence. `src/lib/timetable-reference-labels.ts:49-59` leaves `lastName` stored-cased, so cells
+read `C. Aguilar` beside `R. Alcantara`; `TimetableGrid.tsx:498` is the cell. A pinned test asserts the mixed case
+(`timetable-cell-info.test.ts:125-127`) and must be superseded additively. The helper already exists.
+
+**Dated backlog (none blocking):** the 11px ratchet's marker sweep stops at a directory boundary and would newly catch
+**22 pre-existing** sub-11px sites in the faculty surfaces (`TeacherGridMode.tsx:309`, `FacultyRow.tsx` ×8,
+`FacultyProfileSheet.tsx` ×13) — byte-identical base→tip, **not a regression**; the sweep's anti-vacuity pin is a floor
+so its reach can narrow silently; `sameSnapshot` overstates its guarantee; three test files are now large enough to
+hide a completeness claim (1856 / 1290 / 1273 lines).
+
+**A custody defect I caused and corrected, recorded rather than hidden.** I committed the lane post **directly on
+`main` in `D:\ATLAS`**, which §10.2 forbids, and because that local `main` had never been advanced past `ebe6331c4`
+the commit did not contain this cycle's work. Cherry-picked onto `integration/a3-c10-20260928` and pushed from there;
+`D:\ATLAS` restored to a clean `main` at `99200804` with the stray commit correctly orphaned. No product bytes were
+involved and nothing was lost, but the lesson is that the §14 fetch+ff step is load-bearing precisely when it is
+skipped.
+
+**Next action: A3 awaits nothing.** The 7 rendered groups belong to Lane C / A4 on the next release, and none is
+decidable from source. Worktrees `lane-a3-c10-{s1-sections,s3-tldensity,s4-teachers,s5-auditmodal,s6-subjects}` and
+`lane-a3-c10-s2-roomcards` (the dirty one, PRESERVE_FOR_DECISION) `RETIRE_AFTER_INTEGRATION`, junction-safe;
+`lane-a3-c10-s2b-roomcards` and `lane-a3-c10-integ` `KEEP_ACTIVE` until the rendered rows report. No branch deleted.

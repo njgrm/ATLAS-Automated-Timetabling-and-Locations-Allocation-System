@@ -112,22 +112,35 @@ export function SectionRow({
 								<div className={`flex size-9 shrink-0 items-center justify-center rounded-lg border shadow-sm font-bold text-sm ${gColor} border-opacity-50`}>
 									{gKey || section.name[0]}
 								</div>
-								<div className="flex flex-col min-w-0">
-									<div className="flex items-center gap-2">
-										<span className="font-semibold text-foreground leading-tight truncate">{section.name}</span>
-										{section.isSpecialProgram && section.programCode && (
-											<Badge
-												variant="outline"
-												className={`text-[0.6rem] px-1.5 py-0 h-4 font-bold border-opacity-50 ${PROGRAM_BADGE[section.programCode] ?? PROGRAM_BADGE.OTHER}`}
-											>
-												{section.programCode}
-											</Badge>
-										)}
-									</div>
-									<span className="text-[0.65rem] text-muted-foreground uppercase tracking-tight">
+							<div className="flex flex-col min-w-0">
+								{/* FIX 07: the title OWNS the top row by itself. It used to
+									share one `flex items-center gap-2` line with the program
+									badge, and because `truncate` is `white-space: nowrap` on a
+									flex item whose automatic minimum size is its min-content
+									width, the title could not shrink — `truncate` never
+									ellipsised, the line overflowed the cell, and the badge was
+									pushed out into the next cell's grade / occupancy /
+									capacity indicator. The badge now sits on the sub-header
+									line below, so the title's required track is only its
+									longest word at any font scale, and the title wraps to two
+									lines (FIX 11) instead of guessing at a truncated one. */}
+								<span className="font-semibold text-foreground leading-tight line-clamp-2 min-w-0 break-words">
+									{section.name}
+								</span>
+								<div className="mt-0.5 flex flex-wrap items-center gap-1.5">
+									{section.isSpecialProgram && section.programCode && (
+										<Badge
+											variant="outline"
+											className={`shrink-0 text-[0.6875rem] leading-tight font-bold border-opacity-50 ${PROGRAM_BADGE[section.programCode] ?? PROGRAM_BADGE.OTHER}`}
+										>
+											{section.programCode}
+										</Badge>
+									)}
+									<span className="text-[0.6875rem] text-muted-foreground uppercase tracking-tight">
 										{section.isSpecialProgram ? section.programName : 'Regular Program'}
 									</span>
 								</div>
+							</div>
 							</Button>
 						</TooltipTrigger>
 						<TooltipContent>View section details</TooltipContent>
@@ -147,14 +160,14 @@ export function SectionRow({
 			<td className="px-4 py-3 text-right">
 				<div className="flex flex-col items-end">
 					<span className="text-sm font-semibold tabular-nums text-foreground">{section.enrolledCount}</span>
-					<span className="text-[0.65rem] text-muted-foreground uppercase tracking-tighter">Students</span>
+					<span className="text-[0.6875rem] text-muted-foreground uppercase tracking-tighter">Students</span>
 				</div>
 			</td>
 
 			<td className="px-4 py-3 text-right">
 				<div className="flex flex-col items-end">
 					<span className="text-sm font-medium tabular-nums text-muted-foreground">{section.maxCapacity}</span>
-					<span className="text-[0.65rem] text-muted-foreground uppercase tracking-tighter">Capacity</span>
+					<span className="text-[0.6875rem] text-muted-foreground uppercase tracking-tighter">Capacity</span>
 				</div>
 			</td>
 
@@ -180,7 +193,7 @@ export function SectionRow({
 						schoolId={schoolId}
 						roomOccupancy={roomOccupancy}
 					/>
-					<div className="flex items-start gap-1.5 text-[0.68rem] font-semibold leading-4 text-muted-foreground">
+					<div className="flex items-start gap-1.5 text-[0.6875rem] font-semibold leading-4 text-muted-foreground">
 						{selectedRoom ? <Home className="mt-0.5 size-3 shrink-0 text-emerald-600" /> : <AlertTriangle className="mt-0.5 size-3 shrink-0 text-amber-600" />}
 						<span>
 							{selectedRoom

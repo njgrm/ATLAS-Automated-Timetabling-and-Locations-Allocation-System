@@ -12,8 +12,21 @@
  * the committed class contract — the same width and height tokens the browser
  * would resolve — rather than asserted by eye. The occupant legibility is
  * asserted on the rendered element's own text and wrapping classes.
+ *
+ * ── A3 C9 ADDITIVE SUPERSESSION (packet item 6) ──────────────────────────────
+ * A mixed-row-height defect was measured on the live surface (vacant ~37.6px,
+ * occupied ~53.6px) and the cure is ONE fixed row height for every option. A
+ * fixed height and a wrapping occupant label are mutually exclusive, so the
+ * MECHANISM half of this control is superseded. Per AGENTS.md §16 nothing here
+ * is deleted: each superseded assertion is marked `SUPERSEDED (A3 C9)` in place
+ * and its replacement is asserted beside it, and the fix's actual promise —
+ * "a long section name is fully readable" — is re-delivered on three legs and
+ * still asserted below. The dedicated control for the new geometry is
+ * `a3-room-picker-uniform-rows.test.tsx` (reachable from `test:a3-sections-map`).
  */
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { after, test } from 'node:test';
 import { act, createElement, useState } from 'react';
 import type { Root } from 'react-dom/client';
@@ -103,7 +116,7 @@ function openPopover(host: HTMLElement) {
 	assert.ok(dom.window.document.querySelector('[role="listbox"]'), 'the room listbox must open');
 }
 
-test('fix 03 control: a long occupant name is fully readable, on its own wrapping line', () => {
+test('fix 03 control: a long occupant name is fully readable, on a single line with full-name recovery', () => {
 	const host = renderPicker(new Map([[201, LONG_OCCUPANT]]));
 	openPopover(host);
 
@@ -116,14 +129,59 @@ test('fix 03 control: a long occupant name is fully readable, on its own wrappin
 	);
 	assert.equal(occupant.dataset.occupiedFull, undefined, 'the label is not a data-attribute stand-in');
 
-	// Legibility rests on the label being allowed to wrap, not on the room
-	// name's truncate doing the work.
-	assert.match(occupant.className, /break-words/, 'the occupant label must be allowed to break');
-	assert.match(occupant.className, /whitespace-normal/, 'the occupant label must not be forced onto one line');
-	assert.doesNotMatch(occupant.className, /\btruncate\b/, 'the occupant label must not be truncated');
-	assert.doesNotMatch(occupant.className, /whitespace-nowrap/, 'the occupant label must not be nowrap');
-	assert.doesNotMatch(occupant.className, /ml-auto/, 'the occupant label must not be pushed to the far edge of a shared row');
-	assert.doesNotMatch(occupant.className, /uppercase/, 'an occupant name must not be shouted in caps at small size');
+	// ── SUPERSEDED (A3 C9), retained in place as history ──────────────────────
+	// These four asserted the fix-03 MECHANISM: that legibility came from the
+	// label being ALLOWED TO WRAP. C9 makes the row a fixed height, so wrapping
+	// would reintroduce the mixed-row-height defect. The promise they stood for
+	// is re-asserted immediately below.
+	//   was: assert.match(occupant.className, /break-words/, ...)
+	assert.doesNotMatch(occupant.className, /\bbreak-words\b/, 'SUPERSEDED (A3 C9): the label must no longer wrap');
+	//   was: assert.match(occupant.className, /whitespace-normal/, ...)
+	assert.doesNotMatch(occupant.className, /\bwhitespace-normal\b/, 'SUPERSEDED (A3 C9): the label must no longer wrap');
+	//   was: assert.doesNotMatch(occupant.className, /\btruncate\b/, ...)
+	assert.match(occupant.className, /\btruncate\b/, 'REPLACEMENT: the label is one truncated line, so the row height is fixed');
+	//   was: assert.doesNotMatch(occupant.className, /whitespace-nowrap/, ...)
+	assert.doesNotMatch(occupant.className, /\bwhitespace-nowrap\b/, 'the label truncates with ellipsis rather than clipping at the edge');
+
+	// ── SUPERSEDED (A3 C9), retained in place as history ──────────────────────
+	// `ml-auto` was forbidden because the label shared a non-wrapping row with
+	// the room name and was pushed off the edge. It now sits in its OWN trailing
+	// column, which is exactly the "single right-aligned badge" the live report
+	// asked for, and truncation bounds it.
+	//   was: assert.doesNotMatch(occupant.className, /ml-auto/, ...)
+	const trailing = occupant.parentElement as HTMLElement;
+	assert.match(trailing.className, /\bml-auto\b/, 'REPLACEMENT: the label lives in its own right-aligned trailing column');
+	assert.match(trailing.className, /\bmax-w-\S+/, 'REPLACEMENT: the trailing column is width-bounded, so the name truncates instead of overflowing');
+
+	// REPLACEMENT leg 1 — the full name survives truncation, because truncation
+	// is a CSS overflow and not a shortened string. This is the invariant the
+	// four superseded wrapping assertions above used to provide.
+	assert.equal(occupant.textContent, `Used by ${LONG_OCCUPANT}`, 'REPLACEMENT: truncation must never shorten the name');
+
+	// REPLACEMENT leg 2 — a pointer recovers the full name through a @/ui
+	// Tooltip. AGENTS.md §8 forbids a raw `title` attribute, so the trigger is
+	// asserted structurally rather than by the attribute it must not have.
+	const tip = dom.window.document.querySelector('[data-testid="room-option-occupant-full-trigger"]') as HTMLElement;
+	assert.ok(tip, 'REPLACEMENT: the occupant label must be wrapped in a tooltip trigger');
+	assert.equal(
+		Array.from(occupant.attributes).some((a) => a.name === 'title'),
+		false,
+		'REPLACEMENT: AGENTS.md §8 forbids a raw title attribute',
+	);
+
+	// REPLACEMENT leg 3 — a keyboard operator reads the full name, driven for
+	// real. React delegates focus through focusin, so HTMLElement.focus() is the
+	// path that actually reaches the handler.
+	const option = occupant.closest('[role="option"]') as HTMLElement;
+	act(() => { (option as unknown as { focus: () => void }).focus(); });
+	const hint = dom.window.document.querySelector('[data-testid="room-picker-occupied-hint"]') as HTMLElement;
+	assert.ok(hint, 'REPLACEMENT: focusing the occupied option must publish its occupant hint');
+	assert.ok(
+		(hint.textContent ?? '').includes(LONG_OCCUPANT),
+		'REPLACEMENT: the hint must state the FULL section name, so a one-line row never costs a keyboard operator the name',
+	);
+
+	assert.doesNotMatch(occupant.className, /\buppercase\b/, 'an occupant name must not be shouted in caps at small size');
 });
 
 test('fix 03 control: the popover is viewport-relative, so nothing is clipped at 1280px', () => {
@@ -163,8 +221,48 @@ test('fix 03 control: the popover is viewport-relative, so nothing is clipped at
 	assert.ok(footer, 'the "Browse Interactive Map" footer control must be present');
 	const footerEl = footer!.closest('div');
 	assert.ok(footerEl?.className.includes('shrink-0'), 'the footer must be shrink-0 so it cannot be squeezed by the list');
+
+	// ── SUPERSEDED (A3 C9), retained in place as history ──────────────────────
+	// This asserted the phrase "Room already has a home section" appears in the
+	// open list. That text was the SECOND line inside an occupied option, and a
+	// line inside an option is the exact defect C9 removes. The intent — "the
+	// occupant warning must still be stated, not only implied by the badge" — is
+	// preserved and asserted immediately below on the two surfaces that now own
+	// it: the picker's focused-occupant hint and the swap confirmation dialog.
+	//   was: assert.ok(body.textContent.includes('Room already has a home section'), ...)
+	assert.doesNotMatch(
+		dom.window.document.body.textContent ?? '',
+		/Room already has a home section/,
+		'SUPERSEDED (A3 C9): that sentence must no longer occupy a line inside the open option list',
+	);
+
+	// REPLACEMENT — the warning is still STATED, on the focused-occupant hint.
+	// Scoped to the listbox this test resolved, because the file unmounts only at
+	// the end, so an earlier test's portalled popover can still be in the body.
+	const option = listbox.querySelector('[data-occupied="true"]') as HTMLElement;
+	assert.ok(option, 'REPLACEMENT: the occupied option must still be discoverable');
+	act(() => { (option as unknown as { focus: () => void }).focus(); });
+	const hint = dom.window.document.querySelector('[data-testid="room-picker-occupied-hint"]') as HTMLElement;
+	assert.ok(hint, 'REPLACEMENT: the focused-occupant hint of the picker must still exist');
+	assert.match(
+		hint.textContent ?? '',
+		/out of this room/,
+		'REPLACEMENT: the hint must still say what selecting the occupied room will do',
+	);
+	assert.match(hint.textContent ?? '', /confirm/i, 'REPLACEMENT: the hint must still say a confirmation follows');
+
+	// REPLACEMENT — and the escalation itself is still a separate, later,
+	// user-initiated confirmation surface, untouched by the row redesign.
+	const modals = readFileSync(
+		resolve(import.meta.dirname, '../SectionHomeRoomModals.tsx'),
+		'utf8',
+	);
 	assert.ok(
-		dom.window.document.body.textContent?.includes('Room already has a home section'),
-		'the occupant warning must still be stated, not only implied by the badge',
+		modals.includes('already has a home section'),
+		'REPLACEMENT: the swap confirmation must still state that the room already has a home section',
+	);
+	assert.ok(
+		modals.includes('needs your confirmation before swapping'),
+		'REPLACEMENT: the swap confirmation must still require an explicit confirmation',
 	);
 });

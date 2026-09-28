@@ -1,7 +1,7 @@
 import { AlertTriangle, CheckCircle2, ClipboardCheck } from 'lucide-react';
 
-import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip';
 import { cn } from '@/lib/utils';
 
 export type TeachingLoadRepairTaskKind =
@@ -56,6 +56,31 @@ const FALLBACK_ITEM: TeachingLoadRepairQueueItem = {
  * One compact, task-first next-step surface. The repair queue owns the single
  * page-level primary action; all secondary navigation lives in the workspace
  * tabs and filters, so there are no competing Details/Skip/Find controls.
+ *
+ * A3-C10-S3 — this is the "Next Step" surface the header compaction folded
+ * into the workspace's single state line (row 2 of the command strip), so it
+ * renders as ONE `h-7` horizontal band instead of a `h-9` two-line card.
+ * Before: `py-1` band + `border`/`p-1.5` card + a 24px "Next step" badge row
+ * + a 16px description row; the committed control derives 58px for the whole
+ * banner, because its tallest member is the 36px `h-9` action button. After:
+ * 28px, the same height as every other chip on that line.
+ *
+ * TRUTH IS NOT DECORATION — what moved and how it stays announced:
+ *
+ *   state          before                          after
+ *   -------------  ------------------------------  ---------------------------
+ *   what to do     `Next step` badge + title        same, on the chip
+ *   how many       `countLabel` badge               same, on the chip
+ *   item status    second line, `aria-live`         same, on the chip, `aria-live`
+ *   description    second line, truncate            Tooltip on the chip
+ *   why disabled   own warning line below          own warning CHIP on the line
+ *   the action     `h-9` primary button             `h-7` primary button, same
+ *                  data-testid                      label, same data-testid
+ *
+ * The description is the ONLY thing that moved behind a hover, and the trigger
+ * already states the task, its count and its status without it. The
+ * `disabledReason` is a SAFETY state, so it is NOT behind a hover at all: it
+ * renders as its own visible warning chip naming the reason.
  */
 export function TeachingLoadRepairQueue({
 	items,
@@ -68,65 +93,73 @@ export function TeachingLoadRepairQueue({
 	const currentItem = items.find((item) => item.id === activeItemId) ?? items[0] ?? FALLBACK_ITEM;
 	const CurrentIcon = currentItem.kind === 'review-ready' ? CheckCircle2 : AlertTriangle;
 	const actionDisabled = saving || isReadOnly || Boolean(currentItem.disabledReason);
+	const actionLabel = saving ? 'Saving...' : currentItem.actionLabel;
 
 	return (
 		<section
 			data-testid="teaching-load-repair-queue"
-			className="shrink-0 border-b border-border/40 bg-background px-2 py-1"
+			className="flex min-w-0 shrink items-center"
 			aria-label="Teaching Load guided next-step queue"
 		>
-			<div
-				data-testid="teaching-load-current-repair"
-				className={cn('min-w-0 rounded-xl border p-1.5 shadow-sm', taskTone(currentItem.kind))}
-			>
-				<div className="flex min-w-0 items-center gap-2">
-					<div className="flex size-7 shrink-0 items-center justify-center rounded-full border bg-background/80">
-						<CurrentIcon className="size-4" />
-					</div>
-					<div className="min-w-0 flex-1">
-						<div className="flex min-w-0 flex-nowrap items-center gap-1.5">
-							<Badge variant="outline" className="h-6 shrink-0 bg-background/70 px-2 text-xs font-bold uppercase tracking-wide">
-								Next step
-							</Badge>
-							{currentItem.countLabel && (
-								<Badge variant="outline" className="hidden h-6 shrink-0 bg-background/70 text-xs font-bold sm:inline-flex">
-									{currentItem.countLabel}
-								</Badge>
-							)}
-							<p className="min-w-0 truncate text-sm font-bold text-foreground">{currentItem.title}</p>
-						</div>
-						<div className="mt-0.5 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-0.5 text-xs">
-							<p className={cn('min-w-0 max-w-2xl truncate font-medium leading-5 text-muted-foreground', advancedGridVisible ? 'hidden' : 'hidden sm:block')}>
-								{currentItem.description}
-							</p>
-							<p className="shrink-0 font-semibold text-foreground" aria-live="polite">{currentItem.status}</p>
-						</div>
-						{currentItem.disabledReason && (
-							<p data-testid="teaching-load-repair-disabled-reason" className="mt-1 rounded-lg border border-warning-border bg-warning-muted px-2 py-1 text-xs font-semibold text-warning-foreground">
-								{currentItem.disabledReason}
-							</p>
+			<Tooltip>
+				<TooltipTrigger asChild>
+					{/*
+					 * The chip is the announcement: the kind, the count, the task
+					 * and the live status are all its own text, so an operator can
+					 * see that work is queued without opening anything.
+					 */}
+					<span
+						data-testid="teaching-load-current-repair"
+						data-repair-kind={currentItem.kind}
+						className={cn('flex h-7 min-w-0 items-center gap-1.5 rounded-full border px-2 text-xs font-semibold shadow-sm', taskTone(currentItem.kind))}
+					>
+						<CurrentIcon className="size-3.5 shrink-0" aria-hidden="true" />
+						<span className="shrink-0 text-xs font-bold uppercase tracking-wide">Next step</span>
+						{currentItem.countLabel && (
+							/* A <span>, not a @/ui Badge: the badge primitive is a
+							 * <div>, and this chip is a <span> so it can sit inside the
+							 * state line without an invalid nested block element. */
+							<span className="h-5 shrink-0 rounded-full border border-current/30 bg-background/70 px-1.5 text-[11px] font-bold leading-5 text-foreground">
+								{currentItem.countLabel}
+							</span>
 						)}
-					</div>
-					<div className="flex shrink-0 flex-nowrap justify-end gap-1.5">
-						<Button
-							type="button"
-							size="sm"
-							className="h-9 gap-1.5 px-3 font-bold"
-							disabled={actionDisabled}
-							onClick={() => onPrimaryAction(currentItem)}
-							data-testid="teaching-load-repair-review"
-						>
-							<ClipboardCheck className="size-4" />
-							<span className="max-w-32 truncate">{saving ? 'Saving...' : currentItem.actionLabel}</span>
-						</Button>
-						{/* The advanced-grid reveal control lives only on the guided
-							placeholder, which renders in exactly the same
-							`!advancedGridVisible` state. Keeping a second copy here produced
-							two simultaneously-visible controls with one shared target and a
-							duplicate test id. */}
-					</div>
-				</div>
-			</div>
+						<span className="min-w-0 truncate font-bold text-foreground">{currentItem.title}</span>
+						{/* Announced, and visible: the status is never a hover-only fact. */}
+						<span className="hidden shrink-0 font-semibold sm:inline" aria-live="polite" data-testid="teaching-load-repair-status">
+							{currentItem.status}
+						</span>
+					</span>
+				</TooltipTrigger>
+				<TooltipContent side="bottom" className="max-w-80 text-xs font-medium leading-relaxed">
+					{/* The one thing that moved behind a hover. On the guided
+						placeholder the advanced grid is not up yet, so the queue
+						still explains itself in full. */}
+					{advancedGridVisible ? currentItem.description : `${currentItem.description} ${currentItem.status}`}
+				</TooltipContent>
+			</Tooltip>
+
+			{/* A safety state, so it stays visible rather than becoming a hover. */}
+			{currentItem.disabledReason && (
+				<span
+					data-testid="teaching-load-repair-disabled-reason"
+					className="flex h-7 shrink-0 max-w-64 items-center truncate rounded-full border border-warning-border bg-warning-muted px-2 text-xs font-semibold text-warning-foreground"
+				>
+					{currentItem.disabledReason}
+				</span>
+			)}
+
+			<Button
+				type="button"
+				size="sm"
+				className="h-7 shrink-0 gap-1.5 px-2.5 font-bold"
+				disabled={actionDisabled}
+				onClick={() => onPrimaryAction(currentItem)}
+				aria-label={actionLabel}
+				data-testid="teaching-load-repair-review"
+			>
+				<ClipboardCheck className="size-3.5" />
+				<span className="max-w-32 truncate">{actionLabel}</span>
+			</Button>
 		</section>
 	);
 }

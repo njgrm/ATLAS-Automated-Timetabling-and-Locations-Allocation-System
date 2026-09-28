@@ -438,7 +438,27 @@ test('F13-5b WorkloadInspector renders a grade chip per class row', () => {
 
 // ─────────────────────────────────────────────────── Fix 22
 
-test('F22-1 the underlying name value is unchanged; only the display changes', () => {
+/**
+ * ============================ SUPERSEDED (c10 re-issue) ============================
+ *
+ * SUPERSEDED BY c10 — REPLACED BY `F22-c10-1r` BELOW. The body is retained
+ * verbatim as evidence; it is NOT deleted, because a correction is additive.
+ *
+ * Original criterion (verbatim): "Teacher names render consistently uppercase in
+ * targeted UI." Re-issued by Planner A3 in cycle c10, which also overrules this
+ * control's premise. The control asserted that the display helper "never changes
+ * letter casing" and that "the stored name must never be shouted in caps" — but
+ * the root cause of the live defect is the DATA (some names persisted uppercase,
+ * some Title Case), so any stored-casing-preserving renderer necessarily shows
+ * both. Lane C observed exactly that at 1366x768: "AGUILAR, CARLO MIGUEL" beside
+ * "Alcantara, Roberto". This control therefore encodes a NARROWING of the
+ * original acceptance criterion and cannot be satisfied together with it.
+ *
+ * The "underlying value is unchanged" half of the claim is still load-bearing
+ * and is re-asserted in the replacement: the display transform is display-only
+ * and mutates nothing.
+ */
+test.skip('F22-1 the underlying name value is unchanged; only the display changes', () => {
 	const host = render(
 		createElement(WorkloadInspector as any, {
 			selected: FACULTY,
@@ -467,7 +487,21 @@ test('F22-1 the underlying name value is unchanged; only the display changes', (
 	assert.equal(FACULTY.lastName, 'Dela Cruz');
 });
 
-test('F22-2 the shared display helper never changes letter casing', () => {
+/**
+ * ============================ SUPERSEDED (c10 re-issue) ============================
+ *
+ * SUPERSEDED BY c10 — REPLACED BY `F22-c10-2r` BELOW. Body retained verbatim.
+ *
+ * Original criterion (verbatim): "Teacher names render consistently uppercase in
+ * targeted UI", with the recommended implementation "a display-layer standard
+ * (`uppercase` class or centralized formatter)". Re-issued by Planner A3 in cycle
+ * c10, overruling the earlier narrowing that this control locked in: it asserted
+ * that NO element rendering a teacher name may carry the uppercase class and
+ * that the display must never be in caps. That is the opposite of the criterion.
+ * See the superseded note on `F22-1` for why the stored-casing renderer could
+ * not fix the live symptom.
+ */
+test.skip('F22-2 the shared display helper never changes letter casing', () => {
 	const host = render(createElement(FacultyProfileSheet as any, { faculty: FACULTY, open: true, onOpenChange: () => {}, sourceFreshness: 'Verified live' }));
 	const title = dom.window.document.querySelector('[role="dialog"] h2, [role="dialog"] [id]');
 	assert.match(bodyText(), /Dela Cruz, Maria/);
@@ -729,7 +763,28 @@ test('F25-4 the attention chip filters still work and are the whole leading row'
 
 // ─────────────────────────────────────────────────── Fix 24
 
-test('F24-1 the Teachers menu labels are short, specific, and cannot wrap', () => {
+/**
+ * ============================ SUPERSEDED (c10 re-issue) ============================
+ *
+ * SUPERSEDED BY c10 — REPLACED BY `F24-c10-1r` BELOW. Body retained verbatim.
+ *
+ * Original requested copy (verbatim): "`Create Temporary` ->
+ * `Create temporary teacher (Teacher X)`" and "`Refresh teacher roster` ->
+ * `Refresh teacher list`", with "Menu must grow enough to keep these labels on
+ * one line." Re-issued by Planner A3 in cycle c10.
+ *
+ * This control asserts the OPPOSITE: it requires the SHORTENED labels
+ * "Add temporary" and "Refresh roster", requires that "Refresh teacher roster"
+ * be GONE, and closes by asserting the new labels are strictly SHORTER than the
+ * originals. That was an earlier cycle in this stream deliberately shortening
+ * the copy so it would fit — the direct inverse of the criterion, and it left
+ * the live symptom (the menu reading "Add temporary" / "Refresh roster") in
+ * place. Lane C observed that symptom; c10 restores the original copy and makes
+ * the ROW grow instead.
+ *
+ * Its nowrap half is still load-bearing and is re-asserted in the replacement.
+ */
+test.skip('F24-1 the Teachers menu labels are short, specific, and cannot wrap', () => {
 	const host = render(
 		createElement(FacultyRosterActions as any, {
 			slot: 'secondary', onOpenReview: () => {}, onCreateTemporary: () => {},
@@ -814,7 +869,24 @@ test('F24-1 the Teachers menu labels are short, specific, and cannot wrap', () =
  * and proven by mutation (three separate mutations, each byte-restored; the
  * evidence is in the executor handoff for this correction, not in this file).
  */
-test('F24-2 the row actions stay nowrap with the longest realistic faculty name', () => {
+/**
+ * ============================ SUPERSEDED (c10 re-issue) ============================
+ *
+ * SUPERSEDED BY c10 — REPLACED BY `F24-c10-2r` BELOW. Body retained verbatim.
+ *
+ * The LAYOUT contract in this control is still valid and is re-asserted in the
+ * replacement (nowrap, `truncate` on the name, `min-w-0` on the name column, the
+ * controls sharing one flex row). What is superseded is its NAME handling: it
+ * locates the name node by the STORED mixed-case string
+ * (`${LONG_LAST}, ${LONG_FIRST}`) and asserts the stored case is present in the
+ * card text. Under the c10 re-issue of Fix 22 the display is UPPERCASE by
+ * criterion, so the stored-case lookup can no longer find the node.
+ *
+ * This is the honest way to supersede it: the layout evidence survives, and only
+ * the casing premise is replaced. See the note on `F22-1` for the criterion
+ * being re-issued.
+ */
+test.skip('F24-2 the row actions stay nowrap with the longest realistic faculty name', () => {
 	const LONG_FIRST = 'Maria Cristina';
 	const LONG_LAST = 'Dela Cruz-Sant Definitely';
 	const faculty = { ...FACULTY, firstName: LONG_FIRST, lastName: LONG_LAST };
@@ -1036,4 +1108,166 @@ test('F26-2 the Review teachers control is desktop-only and opens the modal', ()
 	// page's second control, carrying the identical `Review teachers` label, was
 	// never exercised by any test. C2-1 below renders BOTH controls in one tree,
 	// binds the PRODUCTION opener to both, clicks each, and requires a dialog.
+});
+
+const { formatFacultyDisplayName, formatFacultyStoredName } = await import('@/components/faculty/teacherNameDisplay');
+const { REFRESH_TEACHER_LIST_LABEL, temporaryTeacherActionLabel } = await import('@/components/faculty/rosterActionLabels');
+
+// ─────────────────────── c10 re-issue: the replacements for the superseded rows
+//
+// These four tests are the ADDITIVE half of the c10 correction. Each one
+// replaces a superseded control above, and each is written so it discriminates
+// against the code as it was before c10 (the narrowed display, the shortened
+// copy) — which is why the superseded bodies are kept rather than deleted.
+
+test('F22-c10-1r the display name is UPPERCASE while the stored value stays byte-identical', () => {
+	const host = render(
+		createElement(WorkloadInspector as any, {
+			selected: FACULTY,
+			loadProfile: {
+				status: 'compliant', statusLabel: 'At standard', statusInstruction: null,
+				actualTeachingHours: 20, equivalentHours: 0, creditedTotalHours: 20,
+				rawTeachingHours: 20, rotationOvercountHours: 0, remainingHours: 20,
+				excessTeachingHours: 0, overloadHours: 0, breakdown: [],
+			},
+			rotationTermBreakdown: [], hoveredIncomingMinutes: 0, previewLoadHours: 20,
+			isReadOnlyMode: false, teachingStandardHours: 20, policyReady: true,
+		}),
+	);
+
+	// The criterion: "Teacher names render consistently uppercase in targeted UI."
+	const heading = Array.from(host.querySelectorAll('h4')).find((h) => h.textContent?.includes('DELA CRUZ'));
+	assert.ok(heading, 'the teacher name must render');
+	assert.equal(heading!.textContent, 'DELA CRUZ, MARIA', 'the DISPLAY name must be uppercase');
+
+	// The still-load-bearing half of the superseded claim: display-only, and the
+	// input object is not rewritten (acceptance criterion 3, no destructive DB
+	// name rewrite).
+	assert.equal(formatFacultyStoredName(FACULTY), 'Dela Cruz, Maria', 'the stored name must remain available verbatim');
+	assert.equal(FACULTY.firstName, 'Maria');
+	assert.equal(FACULTY.lastName, 'Dela Cruz');
+});
+
+test('F22-c10-2r the shared display helper UPPERCASES, and the profile dialog uses it', () => {
+	const host = render(
+		createElement(FacultyProfileSheet as any, {
+			faculty: FACULTY, open: true, onOpenChange: () => {}, sourceFreshness: 'Verified live',
+		}),
+	);
+	// The teacher-detail modal is one of the audited FIX-22 surfaces.
+	assert.match(bodyText(), /DELA CRUZ, MARIA/, 'the teacher detail modal must render the name uppercase');
+	assert.doesNotMatch(bodyText(), /Dela Cruz, Maria/, 'the stored casing must not reach the display');
+	// The formatter itself, on a Title Case name — the case Lane C saw live.
+	assert.equal(formatFacultyDisplayName({ firstName: 'Roberto', lastName: 'Alcantara' }), 'ALCANTARA, ROBERTO');
+	assert.ok(host);
+});
+
+test('F24-c10-1r the menu labels are the ORIGINAL requested copy and carry no raw title', () => {
+	const host = render(
+		createElement(FacultyRosterActions as any, {
+			slot: 'secondary', onOpenReview: () => {}, onCreateTemporary: () => {},
+			onRefreshRoster: () => {}, syncing: false, isOnline: true, refreshing: false,
+			nextTeacherNumber: 42,
+		}),
+	);
+	const labels = buttonsIn(host).map((b) => ({
+		text: (b.textContent ?? '').trim(),
+		nowrap: /\bwhitespace-nowrap\b/.test(b.getAttribute('class') ?? ''),
+		title: b.getAttribute('title'),
+	}));
+	const texts = labels.map((l) => l.text);
+
+	// `Create Temporary` -> `Create temporary teacher (Teacher X)`, X substituted.
+	assert.ok(texts.includes('Create temporary teacher (Teacher 42)'), `expected the original create copy, got ${JSON.stringify(texts)}`);
+	// `Refresh teacher roster` -> `Refresh teacher list`.
+	assert.ok(texts.includes(REFRESH_TEACHER_LIST_LABEL), `expected "${REFRESH_TEACHER_LIST_LABEL}", got ${JSON.stringify(texts)}`);
+	// The narrowed strings are gone.
+	assert.ok(!texts.includes('Add temporary'));
+	assert.ok(!texts.includes('Refresh roster'));
+	assert.ok(!texts.some((t) => t === 'Refresh teacher roster'));
+
+	// The superseded "shorter is better" claim is inverted: the restored labels
+	// are LONGER than the narrowed ones they replace.
+	assert.ok(temporaryTeacherActionLabel(42).length > 'Add temporary'.length);
+
+	// The nowrap half of the superseded control survives: nothing can wrap.
+	for (const label of labels) {
+		assert.ok(label.nowrap, `"${label.text}" must be whitespace-nowrap`);
+	}
+	// AGENTS.md §8: the extra information moved to a @/ui Tooltip, so no raw title.
+	for (const label of labels) {
+		assert.equal(label.title, null, `"${label.text}" must not carry a raw title attribute`);
+	}
+	// The row grows to hold the longer labels instead of the copy being cut down.
+	const row = host.querySelector('[data-testid="faculty-roster-action-row"]');
+	assert.ok(row, 'the action row must exist to carry the fit contract');
+	assert.match(row!.getAttribute('class') ?? '', /\bw-max\b/);
+	assert.match(row!.getAttribute('class') ?? '', /\bshrink-0\b/);
+});
+
+test('F24-c10-2r the row actions stay nowrap with the longest realistic faculty name, now displayed uppercase', () => {
+	const LONG_FIRST = 'Maria Cristina';
+	const LONG_LAST = 'Dela Cruz-Sant Definitely';
+	const faculty = { ...FACULTY, firstName: LONG_FIRST, lastName: LONG_LAST };
+	const DISPLAY_LAST = LONG_LAST.toUpperCase();
+	const DISPLAY_FIRST = LONG_FIRST.toUpperCase();
+
+	const rowActions = createElement(
+		'div',
+		{ 'data-testid': 'a3-c10-f24-row-actions' },
+		createElement(FacultyRosterActions as any, {
+			slot: 'secondary', onOpenReview: () => {}, onCreateTemporary: () => {},
+			onRefreshRoster: () => {}, syncing: false, isOnline: true, refreshing: false,
+			nextTeacherNumber: 7,
+		}),
+	);
+	const primaryAction = createElement(
+		'div',
+		{ 'data-testid': 'a3-c10-f24-primary-action' },
+		createElement(FacultyRosterActions as any, {
+			slot: 'primary', onOpenReview: () => {}, onCreateTemporary: () => {},
+			onRefreshRoster: () => {}, syncing: false, isOnline: true, refreshing: false,
+			nextTeacherNumber: 7,
+		}),
+	);
+
+	const host = render(
+		createElement(FacultyMobileCard as any, {
+			faculty, primaryAction, secondaryActionMenu: rowActions,
+			onAssignedClassesClick: () => {}, onProfileClick: () => {},
+		}),
+	);
+
+	// Precondition: the long name really reaches the render, in its DISPLAY form.
+	const card = host.querySelector('[data-testid="teacher-mobile-card"]');
+	assert.ok(card, 'the roster card must render');
+	const cardText = card!.textContent ?? '';
+	assert.ok(cardText.includes(DISPLAY_LAST), `the long last name must be rendered, got ${JSON.stringify(cardText)}`);
+	assert.ok(cardText.includes(DISPLAY_FIRST), `the long first name must be rendered, got ${JSON.stringify(cardText)}`);
+
+	// The layout contract the superseded control proved, re-asserted: one node
+	// carries the name, it truncates rather than widening the row, and the name
+	// column has `min-w-0` or `truncate` cannot engage inside flex.
+	const nameNode = Array.from(card!.querySelectorAll('p'))
+		.find((p) => (p.textContent ?? '').trim() === `${DISPLAY_LAST}, ${DISPLAY_FIRST}`);
+	assert.ok(nameNode, 'a single node must carry the full display name');
+	assert.match(nameNode!.getAttribute('class') ?? '', /\btruncate\b/, 'a long name must truncate, not widen the row');
+	assert.ok(
+		(nameNode!.parentElement?.parentElement?.getAttribute('class') ?? '').includes('min-w-0'),
+		'the name column needs min-w-0, or truncate cannot engage inside flex',
+	);
+
+	// The controls share that one flex row with the long name.
+	const identityRow = nameNode!.closest('.flex.items-start.justify-between');
+	assert.ok(identityRow, 'the name and the row actions must share one flex row');
+	assert.ok(identityRow!.querySelector('[data-testid="a3-c10-f24-row-actions"]'));
+	assert.ok(card!.querySelector('[data-testid="a3-c10-f24-primary-action"]'));
+
+	// Every roster control in the row is nowrap, and the restored long create
+	// label actually rendered rather than being cut down to fit.
+	for (const b of buttonsIn(identityRow!)) {
+		assert.match(b.getAttribute('class') ?? '', /\bwhitespace-nowrap\b/, `"${(b.textContent ?? '').trim()}" must be nowrap`);
+	}
+	assert.match(identityRow!.textContent ?? '', /Create temporary teacher \(Teacher 7\)/, 'the restored create label must render in the row');
+	assert.doesNotMatch(identityRow!.textContent ?? '', /undefined/, 'no control may render an undefined teacher number');
 });

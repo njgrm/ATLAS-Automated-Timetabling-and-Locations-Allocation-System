@@ -466,3 +466,90 @@ the one server production file is comment-only, so the workbook behaves exactly 
   still one comment-only server file). This is the "never describe a range from the candidates you happened to
   review" rule catching me mid-cycle — I re-enumerated instead of reusing §1's list, and `index.css` plus the two
   `.opencode/` paths are named for the Gate 3 reviewer.
+---
+
+# 7. c7 / c8 — 2026-09-28 (Planner A2, non-elevated)
+
+**User-facing fixes verified rendered on the live Tailnet: 0. Integrated and pushed, not yet live: 6.** c8 did not
+build, reclaim or deploy; the release is the next elevated packet. `LIVE` is unchanged at `a1db27d5`.
+
+**Pushed: `6b1ec722`** (product pin; the docs commits above it are docs-only). **My** range
+`d5e00e9f...6b1ec722` is 30 paths — **29 non-docs**, all Lane A2's this cycle, plus one packet doc. No `prisma/`, no
+lockfile, no seed, no schema. `a1db27d5` is the rollback basis.
+
+> ### ⚠ CORRECTION (A2, 2026-09-28, same session) — the number above was wrong AND it described the wrong range
+>
+> I first wrote "**28** non-docs, all Lane A2's". **Two defects, both mine, both from describing a range I had
+> reviewed instead of enumerating the range that will ship** (AGENTS.md §13, verbatim hazard).
+>
+> 1. **29, not 28.** `git diff --name-only d5e00e9f...b130f1ee` returns 30 paths, exactly **1** of them under
+>    `docs/`. Enumerated, not estimated.
+> 2. **The RELEASE is not my six fixes.** The deploy packet ships `a1db27d5...6b1ec722`, and that range is
+>    **84 commits, 106 paths, 81 non-docs** — only **29** of them are this cycle's candidate. **52 non-docs come from
+>    `a1db27d5`**, and they are **not all mine**: a provable **23-path non-docs block is A3's c8 product work plus
+>    repo config** (`atlas-client/src/pages/Audit.tsx`,
+>    `atlas-client/src/components/app-shell/navigation.ts`, `NotificationBell.tsx`, `index.css`,
+>    `a3-c8-warning-token.test.ts`, `a3-c8-audit-calm.test.tsx`, `a3-c8-room-preferences-reachability.test.tsx`,
+>    `RolloverGuidanceCard.tsx`, `RolloverResetPanel.tsx`, `HomeRoomAutoAssignDialog.tsx`,
+>    `SectionHomeRoomModals.tsx`, `SectionsStatusBanners.tsx`, `SmartPageShell.tsx`, `SubjectCoverageSheet.tsx`,
+>    `AutoFillSummaryModal.tsx`, `TeachingLoadRepairQueue.tsx`, `TeachingLoadTruthPanel.tsx`, `ActionQueue.tsx`,
+>    the two palette sweeps, `AGENTS.md`, `.opencode/package.json`, `.opencode/agents/atlas-planner.md`). The other
+>    29 are my c5 delta **and A3's c6/c7**, absorbed by the same `a1db27d5..543c74b3` union merge, so I will not split
+>    them by guess — I am naming the union as one reviewed-by-A3 block.
+> 3. **Zero `prisma`/lockfile/seed/schema** in the whole release range, enumerated:
+>    `git diff --name-only a1db27d5 6b1ec722 | grep -Ei "prisma|lock|seed|schema"` returns nothing.
+>
+> **Consequence, and it is a gate, not a note:** **Gate 3 from the c5 packet is STILL OPEN** — one fresh independent
+> review of A3's c8 delta alone, covering those 23 non-docs paths. **A2 has reviewed none of it and does not
+> integrate A3's work**, so per §11 the elevated deploy packet must carry that review as a gate and **must not
+> execute on `CORRECTION_REQUIRED`.** A healthy build and my green gates say nothing about that block.
+
+| # | Fix | Live? |
+|---|---|---|
+| 1 | **History truth (HIGH).** A term change emptied the run's edit ledger (`resetRunScopedUi` -> `setEditHistory([])`, refetch keyed on the run URL, not the term). Both run-scoped handlers refill; the scope-wide reset does not. | no |
+| 2 | **A class hidden under a break band is rendered, not swallowed** by the band label, with a collision count equal to the classes actually rendered. | no |
+| 3 | **The auto-fix never targets a break or lunch window**, and the swap history row names the class it relocated with its new time — a class name, never an entry id. | no |
+| 4 | **#62 / B9.** The warnings chip shows one run-wide number on every term, and it agrees with the publish panel. | no |
+| 5 | **Header for older readers.** Run number and publication state in plain words in Simple view, one verb ("Build a new draft") in the menu and the dialog, a truthful drift banner inside a 12-word budget, at most 3 status rows above the grid. | no |
+
+**Gates on the merged tree, re-junctioned against `D:\ATLAS` `node_modules` (all reproduced by me at the tip,
+not quoted from c7):**
+
+| Gate | Result |
+|---|---|
+| client `test:a2-c6-truth` | **34/34** |
+| client `test:draft-ux-c01` | **33/33** |
+| client `test:timetable-relaxed-main` | **79/82** — the same **three** pre-existing failures |
+| server `test:timetable-autofix-break-window-a2` | **7/7** |
+| server `test:timetable-swap-custody-a2` | **16/16** |
+| client `tsc --noEmit` | **5 errors, 0 new** — see below |
+| server `tsc --noEmit` | **exit 0, zero errors** |
+
+**Every gate matches c7, so no executor round and no fresh QA were owed.** The three `relaxed-main` failures are
+re-proven pre-existing rather than asserted: the two `playwright` module failures are in files **byte-identical to the
+range base** (`timetable-post-deploy-c04.test.ts`, `timetable-post-deploy-c05.test.ts`,
+`timetable-scheduling-quality-c03.test.tsx`) and `playwright` is not a declared `atlas-client` dependency; the third
+is `A8 control`, whose `assert.match(inside, /text-red-500/)` is present **unchanged at the base**, and whose subject
+string appears in **neither** `TimetableGrid.tsx` blob (base or tip) — so the row was already red. The client's 5
+typecheck errors sit in those same three base-identical files plus
+`atlas-client/src/lib/__tests__/timetable-truth-labels-a2.test.ts:523` (TS2367), also **byte-identical to the base**:
+zero new client type errors from this range.
+
+**c7's caution, re-checked (packet c8 step 2).** Row inventory of
+`atlas-client/src/components/timetable/__tests__/timetable-a2-c6-truth.test.ts` at the tip is **21 rows**:
+13 from `749cbfd5` + 6 `3(a)` rows from `2a69fc6a` + `T1b SURFACE 2` and the `3(a)` collision-count row from
+`c46b227f`. **No row is missing at the tip.** Three base rows were *renamed*, not dropped, and each says so at its own
+row: `T1a FAILING-FIRST` -> `T1a GUARD` (its OUTCOME is re-declared a **browser** row, since only a rendered term
+switch can show the ledger surviving), `T1b FAILING-FIRST` -> `T1b`, `T2d FAILING-FIRST` -> the strengthened T2d.
+Assertion count is monotonic across the corrections: 62 -> 79 -> 60 (the truncation fresh QA caught) -> **99 -> 101**.
+Nothing was removed subtractive-ly, and the file header now enumerates its own rows and names `T1d` as never having
+existed.
+
+**Worktrees, retired in c8 step 5 (junction-safe, non-forced):** `lane-a2-c7-integ` (`RETIRE_AFTER_INTEGRATION` —
+its HEAD `1ef9875f` is on `origin/main`) and `lane-a2-c6-truth` (`RETIRE_AFTER_INTEGRATION` — `6186cf7f` is an
+ancestor of the pushed tip). **The elevated release must therefore build in a FRESH worktree**, not in
+`lane-a2-c7-integ`; that path no longer exists after this section.
+
+**Not done, deliberately (c8 step 6):** no build, no `E:` reclaim, no deployment, no generation, no publication, no
+browser row — all HIGH and all belonging to the next elevated packet. `E:` measured **27 GiB free** at issue, above
+the 25 GiB warn line, so **no reclaim is owed** before that build.

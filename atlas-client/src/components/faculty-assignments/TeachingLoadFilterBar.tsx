@@ -13,10 +13,19 @@
  * workspace still never produces a global browser scrollbar
  * (`h-[calc(100svh-3.5rem)]` -> `flex-1 min-h-0` -> `overflow-y-auto`).
  *
+ * A3-C10-S3: the always-visible row moved from `h-9` to `h-8` controls and the
+ * block gap from `space-y-2` to `space-y-1.5`. That is 4px on the row the
+ * operator reads every day, taken from padding only — the four primary
+ * controls keep their full width, their order and their one-row contract
+ * (`teaching-load-primary-filters`), which F14-1 pins. The secondary
+ * disclosure is untouched.
+ *
  * Density is asserted structurally by
  * `src/components/faculty-assignments/__tests__/a3-teachers-load-a3.test.tsx`:
  * JSDOM performs no layout, so the control proves the reachable-in-one-row
- * contract and the absence of any new scroll container rather than pixels.
+ * contract and the absence of any new scroll container rather than pixels. The
+ * header stack above this row is controlled by
+ * `__tests__/a3-c10-tl-header-density.test.ts`.
  */
 import { AlertTriangle, Filter, LayoutGrid, ListFilter, RotateCcw, Search, Star } from 'lucide-react';
 import { Button } from '@/ui/button';
@@ -91,7 +100,7 @@ export function TeachingLoadFilterBar(props: TeachingLoadFilterBarProps) {
 	);
 
 	return (
-		<div className="space-y-2" data-testid="teaching-load-filter-bar">
+		<div className="space-y-1.5" data-testid="teaching-load-filter-bar">
 			{/* One row: the three filters an operator reaches for are all here. */}
 			<div className="flex flex-wrap items-center gap-2" data-testid="teaching-load-primary-filters">
 				<div className="relative flex-1 min-w-44 max-w-xs">
@@ -101,12 +110,12 @@ export function TeachingLoadFilterBar(props: TeachingLoadFilterBarProps) {
 						placeholder="Search teachers..."
 						value={searchQuery}
 						onChange={(e) => onSearchQueryChange(e.target.value)}
-						className="pl-10 h-9 bg-background shadow-sm border-border/60"
+						className="pl-10 h-8 bg-background shadow-sm border-border/60"
 					/>
 				</div>
 
 				<Select value={filterStatus} onValueChange={(value) => onFilterStatusChange(value as TeachingLoadStatusFilter)}>
-					<SelectTrigger aria-label="Filter by status" className="w-40 h-9 bg-background shadow-sm border-border/60 text-xs font-bold uppercase tracking-tight">
+					<SelectTrigger aria-label="Filter by status" className="w-40 h-8 bg-background shadow-sm border-border/60 text-xs font-bold uppercase tracking-tight">
 						<div className="flex items-center gap-2">
 							<ListFilter className="size-3.5 opacity-50" />
 							<SelectValue placeholder="Status" />
@@ -121,7 +130,7 @@ export function TeachingLoadFilterBar(props: TeachingLoadFilterBarProps) {
 				</Select>
 
 				<Select value={departmentFilter} onValueChange={onDepartmentFilterChange}>
-					<SelectTrigger aria-label="Filter by department" className="w-44 h-9 bg-background shadow-sm border-border/60 text-xs font-bold uppercase tracking-tight">
+					<SelectTrigger aria-label="Filter by department" className="w-44 h-8 bg-background shadow-sm border-border/60 text-xs font-bold uppercase tracking-tight">
 						<div className="flex items-center gap-2">
 							<LayoutGrid className="size-3.5 opacity-50" />
 							<SelectValue placeholder="Department" />
@@ -136,7 +145,7 @@ export function TeachingLoadFilterBar(props: TeachingLoadFilterBarProps) {
 				</Select>
 
 				<Select value={loadFilter} onValueChange={(value) => onLoadFilterChange(value as TeachingLoadLoadFilter)}>
-					<SelectTrigger aria-label="Filter by load" className="w-40 h-9 bg-background shadow-sm border-border/60 text-xs font-bold uppercase tracking-tight">
+					<SelectTrigger aria-label="Filter by load" className="w-40 h-8 bg-background shadow-sm border-border/60 text-xs font-bold uppercase tracking-tight">
 						<div className="flex items-center gap-2">
 							<Star className="size-3.5 opacity-50" />
 							<SelectValue placeholder="Load" />
@@ -154,7 +163,7 @@ export function TeachingLoadFilterBar(props: TeachingLoadFilterBarProps) {
 					type="button"
 					variant={showFilters ? 'secondary' : 'outline'}
 					size="sm"
-					className="h-9 shrink-0 gap-2 whitespace-nowrap font-bold"
+					className="h-8 shrink-0 gap-2 whitespace-nowrap font-bold"
 					onClick={onToggleFilters}
 					aria-expanded={showFilters}
 				>
@@ -213,7 +222,7 @@ export function TeachingLoadFilterBar(props: TeachingLoadFilterBarProps) {
 			{showFilters && (
 				<div className="flex flex-wrap items-center gap-2 rounded-xl border border-border/50 bg-background/80 p-2 shadow-sm" data-testid="teaching-load-secondary-filters">
 					<Select value={sortOrder} onValueChange={onSortOrderChange}>
-						<SelectTrigger aria-label="Sort teachers" className="w-44 h-9 bg-background shadow-sm border-border/60 text-xs font-bold uppercase tracking-tight">
+						<SelectTrigger aria-label="Sort teachers" className="w-44 h-8 bg-background shadow-sm border-border/60 text-xs font-bold uppercase tracking-tight">
 							<SelectValue placeholder="Sort teachers" />
 						</SelectTrigger>
 						<SelectContent>
@@ -222,7 +231,7 @@ export function TeachingLoadFilterBar(props: TeachingLoadFilterBarProps) {
 						</SelectContent>
 					</Select>
 
-					<div className="flex items-center gap-2 border-l border-border/40 pl-3 h-9">
+					<div className="flex items-center gap-2 border-l border-border/40 pl-3 h-8">
 						<Switch
 							id="show-outside-dept"
 							checked={showOutsideDept}
@@ -233,7 +242,7 @@ export function TeachingLoadFilterBar(props: TeachingLoadFilterBarProps) {
 						</Label>
 					</div>
 
-					<div className="flex items-center gap-2 border-l border-border/40 pl-3 h-9">
+					<div className="flex items-center gap-2 border-l border-border/40 pl-3 h-8">
 						<Switch
 							id="show-unmapped-specialization"
 							checked={showUnmappedSpecialization}

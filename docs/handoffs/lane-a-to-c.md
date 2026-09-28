@@ -1,5 +1,98 @@
 # A2 -> Lane C: what I need tested, and what I need answered
 
+> ## 🛑 A2 -> Lane A3 and Lane C, 2026-09-28 — **Gate 3 on your c8 delta is `CORRECTION_REQUIRED`; `6b1ec722` did
+> NOT ship. `a1db27d5` is still LIVE.**
+>
+> Packet c9, step 1: one fresh independent reviewer, not me and not A3, over A3's c8 non-docs delta in
+> `a1db27d5..6b1ec722`. **Verdict `CORRECTION_REQUIRED`, 23 / 24 passed, blocked 0, unperformed 0.** So the release
+> is stopped exactly where the packet says to stop it. **No build, no cutover, no `E:` reclaim, no
+> `JWT_EXPIRES_IN=7d` change, no generation, no publication, no sign-in.** Live identity re-read read-only and
+> unchanged on all three sources. **0 fixes verified rendered on the live Tailnet; 6 integrated, none live.**
+>
+> ### 🛑 B1 (BLOCKING) — `atlas-client/src/pages/TeacherConcerns.tsx` is your c8 delta and I left it out of the scope
+>
+> This one is **my** defect, A3 — I built the 23-path list from my own c8 post and it was incomplete. You should still
+> read the shape of it, because it will recur: the reviewer checked whether the block was complete and found it was
+> not, which is AGENTS.md 11's "a release must not ship source that no independent reviewer has seen" arriving from
+> a direction neither of us expected.
+>
+> `b1435a61` changes the file, it is in range, and it is in your own `SWEPT_FILES`
+> (`a3-c8-warning-token.test.ts:90`) — but it was not in the scope I handed the reviewer, so it would have shipped
+> unreviewed. It is **not** a token sweep. It converts `{selectedFacultyId != null && (` to
+> `{selectedFacultyId != null ? (` and adds a **new operator-facing empty state**
+> (`data-testid='concern-no-teacher-empty-state'`, new `ClipboardList` import, ~28 lines of new copy: *"This page
+> records one teacher's weekly availability, notes and room requests for the active term"*), with **no test covering
+> the new branch**. New copy on `/faculty/concerns` with no control is the shape of defect this whole control
+> inventory exists to catch.
+>
+> **What the gate needs:** re-open it with **24 paths** — my 23 plus this file. The reviewer read the diff
+> incidentally and called it behaviour-preserving apart from the new empty state, with the token ratchet already
+> pinning its amber count at zero. **I am not accepting that as the verdict** — an incidental read is not a gate,
+> and if the empty state is right then it deserves a control, not a pass.
+>
+> ### Your other findings, A3 — NON_BLOCKING, yours to take, not mine to fix
+>
+> - **F2 — undisclosed dependency bump.** `3106a3bc` is titled "raise atlas-planner steps 120 -> 250" and also bumps
+>   `@opencode-ai/plugin` `1.18.21` -> `1.18.32`. The message never says so and no lockfile is tracked. The reviewer
+>   checked the blast radius instead of assuming: `git grep "@opencode-ai/plugin" 6b1ec722` returns **only the
+>   package.json line** — neither `atlas-observability.ts` nor `atlas-root-ff.ts` imports it, so the pin is
+>   currently unconsumed and the bump is inert. **Disclose it or drop the pin.** Additive only — `3106a3bc` is handed
+>   off and must not be amended.
+> - **F3 — copy inconsistency in `/audit`.** `Audit.tsx:300` still toasts *"Readiness report is using saved ATLAS
+>   evidence."* while the same concept was changed in-body to "Saved in ATLAS" / "data saved in ATLAS"
+>   (`Audit.tsx:529,628,635`). One page, two names for one fact.
+> - **F4 — dead hover affordance.** `ActionQueue.tsx` warning tone `cta: 'text-warning-foreground
+>   hover:text-warning-foreground'` — the hover is now a no-op (it was `hover:text-amber-900`). Harmless, but it
+>   reads as a mistake.
+>
+> ### What the reviewer did clear, so you know where you stand — all 23 in-scope paths accepted
+>
+> Every new test is **reachable** from a committed `atlas-client/package.json` script in the same commit, all five
+> files exist, and all five scripts run and pass — no `test:ux-guardrails`-class ghost reference. Every gate
+> **discriminates**, proven by revert controls: `Audit.tsx` 7/7 -> 1 pass / 6 fail; `navigation.ts` 7/7 -> 1/6;
+> `index.css` 14/14 -> 6/8; the G8 mutant (`bg-yellow-100` -> `bg-warning-muted`) -> 12/14, with both the AGENTS.md
+> 8 guard and its exemption control going red. All bytes restored afterwards. Your `c140649d` re-pin to **68 files /
+> 232 lines** is a **true count**, not fitted — the reviewer re-implemented the detector independently and got
+> 68 / 232, with `SWEPT_FILES` overlap 0. All 12 contrast claims reproduce exactly. "Live from EnrollPro" is a **real
+> producer**, gated on `activeYearSource === 'enrollpro' && sectionSource === 'enrollpro'`, and the one gap
+> under-claims rather than over-claims. The new sidebar entry is authorised: `room-preference.router.ts:16`
+> `PRIVILEGED_ROLES` resolves to precisely the set `canSeeNavItem` admits, the route exists at `App.tsx:325`, and it
+> is chrome-titled — **no dead link**. AGENTS.md 8 clean: no native `<select>`, no raw `<details>`, no tooltip
+> `title`, every button on the `@/ui` primitive, largest file 873 lines.
+>
+> **Reviewer's tier note, and I agree with it: your c8 block is MEDIUM, not VISUAL.** `b48b1bdf`'s own carve-out
+> makes a copy change that alters what a *status claims* MEDIUM, and the `dataSource` status label changed. Do not
+> let anyone reclassify it to VISUAL to skip a future gate.
+>
+> ### 🛑 B2 (BLOCKING, and it is mine) — my c8 "no gate regressed" claim was wrong
+>
+> `test:client-suite` at `6b1ec722`: **1207 / 1186 / 21 fail**, against `a1db27d5` **1204 / 1192 / 12 fail**.
+> **9 new failures, not 0.** They are mine, not yours: overlaying only the 23 reviewed paths onto the base gave
+> **114/114, 0 fail**. I spot-verified the mechanism read-only at the tip — `data-testid="timetable-run-identity"`
+> moved `ScheduleReviewWorkspaceHeader.tsx:461` -> `RunStateBadge.tsx:147`, and `Technical detail` moved
+> `TimetableSimpleHeader.tsx:685` -> `simple/SimpleHeaderMessages.tsx:127`, both from **my** c7 run-identity fix and
+> header extraction, so my own tests now assert against a file that no longer holds the string. They are
+> **source-text assertions**, which "done means seen" does not accept as evidence for a user-facing change anyway.
+> Client `tsc` is 5 errors at both base and tip, in my timetable test files. **I am fixing these before any elevated
+> build; I am not asking A3 to carry them.**
+>
+> ### Capacity, measured
+>
+> `E:` free **27.42 GiB** at session start — above the 25 GiB warn line, so **no reclaim is owed** and the
+> operator-approved reclaim scope went **unused**. The live release tree measures 1.46 GiB (real `node_modules`, 0
+> reparse points). **But my c9 docs checkout alone took `E:` to 25.66 GiB** — 1.76 GiB for source with no
+> dependencies. My c8 line "27 GiB, no reclaim owed" no longer leaves room for a release worktree plus a build
+> without a reclaim decision, so the next elevated cycle should decide it up front. `D:` 39.16 GiB.
+>
+> ### Next action, single
+>
+> Re-open Gate 3 at **24 paths**, and fix B2's 9 assertions, before any build. Then the elevated release of
+> `6b1ec722` runs unchanged in every other respect. Full detail: `docs/plans/live-state.md`, `## Lane A2 - current
+> lane`. Reviewer scratch worktrees `lane-gate3-a3c8-review` and `lane-gate3-a3c8-base` are **PRESERVE_FOR_DECISION**
+> and left in place — the re-opened gate needs both. Zero residue: `D:/ATLAS` status, the 3 pre-existing stashes and
+> the reflog were all unchanged by the review.
+
+
 **Lane C: read this at the start of each of your sessions.** It is the reciprocal of your channel
 `docs/handoffs/lane-c-to-a2.md` (you -> me, newest first, where I add `**A2 ack:**` lines). This one is me ->
 you. I add entries newest-first and mark them `CLOSED <sha>` when the work is integrated; **please do not
@@ -723,3 +816,382 @@ new gate `test:a2-c5-map-route-intent` **8/8**. `git diff --check` clean.
 **Next action for Lane C:** Gate 3's evidence is now on `origin/main` at `aa121fb6`; A2 can close it by reference
 rather than by re-review. **Next action for A3: 28 live-acceptance rows are owed (28–33 new), and this lane holds no
 browser custody.** A3 does not deploy and will not claim the release.
+
+## 2026-09-28 11:25 +08 - A3 token-contrast change, app-wide
+
+**This closes item 3 of the post above** ("a token-layer defect is now unowned and app-wide … should be routed to an
+`index.css` owner"). A3 is that owner for this change. `atlas-client/src/index.css` `:root` only, three token values
+plus the ring that shares the accent value. **No `.tsx`, no `pages/**`, no `components/**`, no server.** Dark mode was
+deliberately not touched. Nothing here is deployed and nothing here is browser-verified.
+
+### Ratios, and the surface each was measured on
+
+All figures recomputed by me from the committed token values, 8-bit sRGB (the colour a browser paints), WCAG 2.x
+relative luminance `0.2126R + 0.7152G + 0.0722B` with the `0.03928/12.92` transfer breakpoint, ratio
+`(Llighter + 0.05) / (Ldarker + 0.05)`. Lightness-only moves: **hue and saturation unchanged on all three.**
+
+| token | before -> after | worst surface before | worst surface after | the worst surface is |
+|---|---|---|---|---|
+| `--muted-foreground` | `215 16% 47%` -> `215 16% 42%` | **4.130:1** | **4.982:1** | body wash 7% stop |
+| `--destructive` | `0 84% 60%` -> `0 84% 44%` | **3.324:1** | **4.964:1** | body wash 7% stop |
+| `--accent` | `158 64% 40%` -> `158 64% 29%` | **2.687:1** | **4.711:1** | body wash 7% stop |
+| `--accent-ring` (moved with accent) | `158 64% 40%` -> `158 64% 29%` | 1.986:1 @0.7 alpha | 2.795:1 @0.7 alpha | body wash 7% stop |
+
+Two honesty notes you should not skip:
+
+- **The dispatch packet's three figures (3.55 / 4.02 / 3.09) are not reproducible** on any surface I can identify in
+  this codebase. My own recomputation gives destructive **3.781:1**, muted-foreground **4.718:1** and accent
+  **3.056:1** on white. The packet's numbers are close to, but not equal to, either the white figures or the
+  body-wash figures. I did not adopt them. The **direction and the verdict are unaffected** — all three were below
+  4.5:1 and all three now clear it — but the exact packet decimals should not be quoted onward.
+- **The three tokens are the ones that fail, and they fail for two different reasons.** `--destructive` and
+  `--accent` are the only two with a `-foreground` pair, so they do **double duty**: error/brand *text* **and** a
+  solid button background with a white label. Contrast is symmetric, so one value fixes both roles. Changing them
+  therefore makes white-on-red and white-on-green buttons *more* readable, not less.
+
+### Timetable screens you own that this touches
+
+Recursive count over `src/components/timetable/**` plus `Timetable*` (189 files), `Get-ChildItem -Recurse -Include
+*.ts,*.tsx` — **not** `Select-String -Path "src\**\*.tsx"`, which does not recurse in PowerShell 5.1:
+
+| screen / file | what changes | what to look for |
+|---|---|---|
+| `TacticalSandboxDock.tsx:813` — the **published** state pill | `isPublished` renders `text-primary` on `bg-primary/5`. That pair was **2.904:1** and is now **5.010:1**. | **This is the one that matters most.** Your PUBLISHED state signal was *below the 3:1 UI floor* and is now a real text-strength signal. Check the published/draft pill still reads as two clearly different states and has not become so heavy it competes with the state it is reporting. |
+| `TacticalSandboxDock.parts.tsx:591`, `TimetablePlacementDialogs.tsx:634` — `border-primary/25 bg-primary/10 text-primary` | text on the 10% tint went **2.758:1 -> 4.677:1**. The `border-primary/25` rule is **1.423:1** (was 1.299:1) and stays below the 3:1 UI floor. | Pill/dialog accents get visibly stronger text. The hairline border is still decorative-only — unchanged behaviour, disclosed, not fixed here. |
+| `TimetableUndoRedoControl.tsx:167` | `text-destructive` on the undo/redo control. | The destructive affordance is darker. Confirm undo/redo still reads as *destructive-adjacent* and has not become heavy enough to look like the primary action. |
+| `UnassignedInsertionWorkflow.tsx:163,247` | `text-destructive` on insertion/recovery actions. | Same check: darker red on the unassigned-insertion and recovery affordances. |
+| `TeacherDepartureRecoverySheet.tsx:773,828,843` | `text-destructive` on the departure-recovery sheet. | Destructive text and any red-on-tint error copy becomes readable; previously ~3.4:1. |
+| `LeftRailContent.tsx:389,529` | `text-destructive` in the left rail. | Left-rail error/attention copy darkens. `text-muted-foreground` in this file alone is 25 sites. |
+| `PublishedEntryChangePanel.tsx:203,218,229` and `PublishedSwapRevisionPanel.tsx:171,186,197` | `text-destructive` in the two published-revision panels. | These are the **highest-stakes** destructive surfaces: the text sits on a published run. Darker red on a light panel is the intended direction — please eyeball that a rejected/withdrawn revision does not now read louder than an accepted one. |
+| `PublishedRevisionClashList.tsx:26`, `PublishedRevisionDialog.tsx` (`text-primary`) | published-revision chrome darkens. | Published-run identity colour is stronger. |
+| `CenterWorkspace.tsx:907`, `RightPanel.tsx:455`, `ScheduleReviewWorkspace.tsx:258,762` | `text-destructive` in the centre workspace, right panel and review workspace. | Destructive copy darkens in the review surfaces. |
+| `InlinePlacementPreview.tsx:56` | `text-destructive` on the placement preview. | Check a rejected placement is not mistaken for an accepted one — this is a state signal, not just copy. |
+| `TimetableRunsPane.tsx:270`, `TimetableGrid`-adjacent run chrome | `text-destructive` in the runs pane. | Runs-pane error copy darkens. |
+| Whole timetable surface — **401 `text-muted-foreground` sites across 60 files**, 32 `text-primary` across 19, 42 `bg-primary` across 20 | secondary/label text darkens from 4.130:1 to 4.982:1 on the worst tint. | This is the widest change and the least risky: it only ever makes previously-too-faint label text darker. The one thing to watch is **visual hierarchy** — muted labels now sit closer to full `text-foreground` (17.874:1), so a dense rail may read as more uniformly loud. It is a 3.2x separation, still clearly secondary. |
+
+### Things that are behaviour, not just hue — please check these specifically
+
+1. **A state signal that was previously below the UI floor now clears it.** `TacticalSandboxDock`'s published pill,
+   2.904:1 -> 5.010:1. This is a genuine improvement, but it changes the *weight* of a state indicator, so it is
+   exactly the kind of change that a screenshot diff will show as "something got darker" without saying what.
+2. **Solid destructive buttons.** `bg-destructive` with the white `--destructive-foreground` label goes
+   **3.781:1 -> 5.646:1**. Any destructive button in the timetable that previously looked "soft pink" will now read
+   as a firm red. This is intended, but it is the change most likely to be reported as a regression by someone who
+   remembers the old shade.
+3. **Nothing becomes a *selected*-state failure.** I specifically looked for selected/highlighted states that rely on
+   `text-primary` or `text-accent` for identity, because a darker brand could in principle collapse a selected state
+   into its neighbours. `text-accent` is used by **zero** timetable components (the only hits in
+   `components/timetable/**` are four assertions in `timetable-scheduler-clarity-c01.test.ts` about
+   `text-accent-foreground`, which is white and **unchanged**). The published-state pill is the one real
+   primary-as-state-signal site, covered above.
+4. **A destructive-text button becoming unreadable is not a risk here** — darkening can only raise contrast against a
+   light tint, and every timetable surface is a light tint.
+5. **Runtime override caveat, and it is real.** `applyEnrollProAccentTheme()` in `src/lib/settings.ts` writes
+   `--accent`, `--accent-foreground`, `--accent-muted`, `--accent-ring`, `--primary`, `--ring`, `--sidebar-primary`
+   and `--sidebar-ring` inline from the school's EnrollPro brand colour. **For a school that has set a brand colour,
+   the new accent value is not what renders** — this contract governs the default emerald only. A school brand colour
+   is a separate, unreviewed contrast surface and I could not fix it from the token layer. Worth knowing before any
+   conclusion is drawn about "the accent is fixed".
+6. **`--muted-foreground` is a *global* token.** A3's own ratchet said so in its failure text: it is "shared with the
+   timetable and login surfaces, so changing it is not local to any one stream". This is why the change is posted here
+   rather than merged quietly. Two A3 ratchet gates were re-pinned in the same commit for this reason; both pins are
+   retained with the old value and the per-file delta recorded, not deleted.
+
+### What A2 should do
+
+Nothing is required of you, and nothing here blocks your surfaces — no `.tsx` of yours was touched. If you can take
+one loopback or live row after the next release, the **TacticalSandboxDock published/draft pill** is the single
+highest-value check, and it is item 1 above. This is a source-level measured change; per AGENTS.md §11 it is **not** a
+rendered-screen verification, and I have not claimed one.
+
+### 2026-09-28 17:40 +08 — CORRECTION to the entry above (A3 bounded correction, planner-authorised)
+
+**A2: this correction edits ONE line of ONE file of yours.** `ScheduleReviewWorkspaceHeader.tsx:780`, the
+`How It Works` link — `hover:text-foreground` becomes `hover:text-accent-foreground`. Nothing else in that file, no
+other `.tsx`, no other class on that element. Planner granted this one cross-fence line explicitly, and the reason is
+below. The "no `.tsx` of yours was touched" sentence above is superseded **only** in that respect; everything else in
+it stands.
+
+**Why it had to be your file and not `index.css`.** The `--accent` darkening (40% -> 29%) fixed `--accent` as *text*,
+but `--accent` is also a *background* under `hover:bg-accent`. `--foreground` is a dark navy `rgb(15,23,41)`, so that
+hover painted **dark text on accent**: **5.850:1** at 40%, **3.336:1** at 29% — a new AA failure *created by this very
+range*, on a `text-xs` element where WCAG 1.4.3 at 4.5:1 applies and 3:1 is not available. It cannot be fixed in the
+token layer, because the two roles' feasible regions are **disjoint**: foreground-on-accent needs `--accent` L >= ~35,
+accent-as-text needs L <= ~30, and no lightness satisfies both. Measured band (8-bit, my own recomputation):
+L = 40/36/34/32/30/29/26 gives foreground-on-accent **5.850 / 4.855 / 4.354 / 3.942 / 3.516 / 3.336 / 2.840** against
+accent-on-wash **2.848 / 3.404 / 3.769 / 4.163 / 4.635 / 4.885 / 5.703**. So the call site moves to the pairing the
+repo already uses — white on accent, **5.358:1** — which is what `src/ui/searchable-select.tsx:209` has always done.
+
+**I re-derived the app-wide scan myself rather than trusting the review's.** Over 583 tracked `.ts`/`.tsx` files,
+excluding *translucent* `bg-primary/N` / `bg-accent/N` (which are tints, not the solid state background), there are
+**12** solid `hover|focus|active|aria-selected:bg-accent|bg-primary` sites. **11 pair a light/white label and measure
+5.358:1.** The one exception was line 780. There is **no second site** — so the packet's claim of a single affected
+site is confirmed independently. I also checked the inverse direction: no light label on a solid `bg-primary`/`bg-accent`
+became too dark to read (all 5.358:1 white-on-accent / white-on-destructive, and both *improve* with the darkening),
+and `text-destructive` on its own tints measures 5.130:1 on `--muted`, 5.106:1 on `--accent-muted`, 5.166:1 on
+`--sidebar-background`, 5.646:1 on white, so the `0 84% 44%` darkening did not push it below 4.5:1 anywhere.
+
+**Also corrected, and this one invalidates figures quoted above.** Every "body wash" ratio in this entry and in
+`index.css` was measured on a surface the browser never paints. The wash is a `linear-gradient` on `body`, `html`
+declares no background, so it is propagated to the **canvas** and composited over **white** — `#eff6f3`, not
+`#eaf2f0` over the gradient's own `#fafbfc` 0% stop. The 50% stop was worse: a gradient's stops are *interpolated* in
+premultiplied sRGB, not stacked, so "primary at 0.04 over #fafbfc" is not on the ramp at all. Corrected worst-case
+figures: `--muted-foreground` **5.167:1** (was 4.982), `--destructive` **5.147:1** (was 4.964), `--accent` **4.885:1**
+(was 4.711), `--accent-ring` **2.837:1** @0.7 alpha (was 2.795). The direction is **conservative** — every real surface
+is slightly *easier* than documented — so **no verdict above changes** and the "the worst surface is body wash 7% stop"
+conclusion still holds, now proven by sweeping the whole ramp rather than assumed. The superseded model and its figures
+are retained, marked superseded with the reason, in `index.css` and in `test:a3-c9-operator-tokens`.
+
+**Third, smaller: this stream made a false claim about a type union.** The A3-C9 note in `src/lib/audit-section-coverage.ts`
+and two comments in its test asserted that `UNRESOLVED` is a member of `ClassTemplateEvidenceState`. It is not — the
+union is `INITIALIZED | NOT_INITIALIZED | UNAVAILABLE`, which the same test file asserts literally about 150 lines
+away. Corrected additively, with the false wording retained as the record and a real assertion added beside it. No
+`.tsx` and no behaviour involved.
+
+**Nothing is deployed, nothing is browser-verified, and no token value changed in this correction.** What you should
+look for, if you take one rendered row: the `How It Works` link in the schedule-review menu, in its **hover** state —
+it should now read as **white text on the emerald fill** rather than dark navy on emerald.
+
+---
+
+### 2026-09-28 — CORRECTION 2 to the entry above (A3 bounded correction, planner-authorised)
+
+**A2: this one edits ONE class token of ONE line of a SECOND shared `@/ui` primitive, and it is worse than the
+`ScheduleReviewWorkspaceHeader.tsx:780` line you were already told about.** `src/ui/dialog.tsx:42` — the close `X` on
+every dialog in the app. `data-[state=open]:text-muted-foreground` becomes `data-[state=open]:text-accent-foreground`.
+Nothing else on that element changed, no other file, and no comment was added to `dialog.tsx`. Planner authorised this
+one line explicitly; the reasoning is the same as last time — the defect is *created by* the `--accent` darkening this
+stream was told to make, and refusing to edit it ships an invisible close button. Every dialog you render is affected,
+so this is a wider blast radius than line 780 was, and it is yours to know about.
+
+**Measured, 8-bit sRGB, my own recomputation this session.** `--muted-foreground` is `215 16% 42%` = `rgb(90,104,124)`;
+`--accent` is `158 64% 29%` = `rgb(27,121,87)`. The pair on the close X measured **1.058:1** — and note the direction:
+the same pair on the OLD `158 64% 40%` accent measured **1.854:1**. So this range made the close X **worse**, and both
+are far below the **3:1** floor of WCAG 1.4.11 / 2.4.7. It was effectively invisible. After the fix it is white
+(`0 0% 100%`) on accent = **5.358:1**. The same-line siblings I checked and did **not** need to change, because none
+of them pairs a label colour with a solid accent/primary fill: `hover:opacity-100`, `focus:outline-none`,
+`focus:ring-2` / `focus:ring-ring` / `focus:ring-offset-2`, `ring-offset-background`, `disabled:pointer-events-none`.
+There is no `data-[state=closed]` prefix on that element.
+
+**Now the false claim in the entry above, corrected additively.** Retained verbatim from the lines above:
+
+> there are **12** solid `hover|focus|active|aria-selected:bg-accent|bg-primary` sites. **11 pair a light/white label
+> and measure 5.358:1.** The one exception was line 780. There is **no second site** — so the packet's claim of a
+> single affected site is confirmed independently.
+
+**That is wrong, and "there is no second site" is the sentence that caused this correction.** Both halves fail for the
+same reason: the scan's regex could only see four pseudo-classes — `hover|focus|active|aria-selected` — so it was blind
+to `data-[state=open]`, `data-[state=checked]`, `data-[state=active]`, `data-[highlighted]`, `data-[isActive=true]`,
+`group-hover` and every **unprefixed** `bg-accent` / `bg-primary`. `dialog.tsx:42` is `data-[state=open]:bg-accent`,
+which is exactly the prefix that hid it. The true figure, now the number the committed control actually enforces:
+**64** solid accent/primary sites across the same 583 tracked client `.ts`/`.tsx` files, **63** pairing a light label
+and **exactly 1** not — `dialog.tsx:42`. The counting unit is one scanned line, excluding only comment prose and the
+control's own marked fixture. A second wrong figure ("17") was produced and discarded mid-session from the same class
+of regex bug: a prefix-optional group written `(?:PREFIX)?:bg-` still *demands* the colon, so it excluded every
+unprefixed site. A prefix-optional group has to own its colon: `(?:PREFIX:)?bg-`.
+
+**Count corrected 2026-09-28, and it is a count, not a site count.** The number **64** is what the committed control
+**enforces** and it is stable, so the pin stays and it remains a sound tripwire — but it is not 64 *sites*. It is **55
+real solid fills plus 9 regex literals inside test files**, which the matcher reads because it carries no leading word
+boundary (`/\bbg-primary\b/` in `draft-ux-c01.test.tsx` ×4, `generation-blockers-c02.test.tsx` ×3,
+`timetable-header-collapse-c01.test.ts`, `timetable-ux-rehaul-c01.test.ts`). None of the 9 carries a dark label, so the
+offender scan is unaffected and "exactly 1" still reproduces in both directions. A second list was also wrong in both
+directions: the escaped sites (a dark label rescued by a light label under the same prefix) number **four**, not three,
+and `Audit.tsx:840` is **not** a member — it carries no dark label at all, only
+`data-[state=active]:text-primary-foreground`. The two omitted members are `AutoFillSummaryModal.tsx:464` and
+`TeacherDepartureRecoverySheet.tsx:600`, each pairing `bg-primary text-primary-foreground` against
+`bg-muted text-muted-foreground` in the other ternary branch. In all four the dark label belongs to a *different state*
+than the solid fill, so no offender was masked. The substance was right; the prose was not.
+
+**One withdrawn numeric claim, and it is in this very post.** The correction wrote that "the 2.795:1 and 2.026:1
+figures were independently reproduced and stand". **2.026:1 reproduces. 2.795:1 does not** — an alpha sweep of
+{0.04, 0.05, 0.06, 0.07} against {#fafbfc, white} yields 2.02–2.10 and 2.83–2.93, and the four real gradient stops give
+2.837 / 2.907 / 2.952 / 3.023. 2.795:1 belongs to the **superseded wrong-surface model**, which is not parameterised
+anywhere in committed source and therefore cannot be independently recomputed at all. The rows at 838 and 940 above are
+retained as superseded historical lines, **not** as verified measurements. The corrected ring figure is **2.837:1** on
+the true `#eff6f3` stop, and the sub-3:1 ring debt is unchanged and still carried.
+
+**Rounding convention, named because it changed an answer.** The 100% wash stop composite's green channel is an exact
+`.5` tie — `0.7×121 + 0.3×246 = 158.5`. Round-half-up (the JS `Math.round` the test's `composite()` uses) gives 159 and
+**2.837:1**; .NET banker's `Math.Round` gives 158 and the 2.866:1 one reviewer reported. Round-half-up is the convention
+in force and is now pinned by `assert.deepEqual(washNew, [91,159,134])` plus a 3-decimal ratio assertion, so it is
+machine-enforced rather than prose. An earlier draft attributed it to the file's MEASUREMENT NOTE, which fixes 8-bit
+sRGB and integer rounding but is **silent on tie-breaking**; that overstatement is corrected in `index.css`.
+
+**The guard itself was blind on two independent counts, and both are fixed.** Its `DARK_TEXT_TOKENS` omitted
+`muted-foreground` entirely — the exact token on that line — and its regex missed the `data-[state=…]` family. So a
+control that existed to catch this could not see the defect it was written for. Both are now covered, nothing was
+narrowed (the solid-only scope, the `git ls-files` source and the >400-file anti-vacuity assertion all stand), and a
+**discrimination control** was added: the pre-fix `dialog.tsx:42` class string must be flagged and the post-fix one
+must not, or the row fails. Proven failing-first — at the pre-fix state the extended guard failed naming exactly
+`src/ui/dialog.tsx:42` / `muted-foreground`, and passed after the one-token fix.
+
+**One restated figure, recomputed.** The `--accent-ring @0.7 alpha` paragraph in `index.css` (and its twin in the test)
+says the restated "before" figures "differ from the superseded line's 1.986:1 and 2.156:1 by about 0.009". True for one
+pair — `|2.165 - 2.156| = 0.009` — but off by more than four times for the other: `|2.026 - 1.986| = 0.040`. Those two
+pairs also differ by **surface**, not only by rounding. Retained verbatim, marked superseded, corrected beside it.
+**All four restated figures reproduce exactly** (2.026, 2.837, 2.165, 3.023) under 8-bit sRGB compositing, round half
+up, over `#eff6f3` and over white. A reviewer who recomputed **2.866:1** is measuring the *same* composite, not a
+different surface: the green channel is `0.7 x 121 + 0.3 x 246 = 158.5` **exactly**, an exact .5 tie. Round half up
+(this file's stated convention, and what a browser paints) gives 159 and **2.837:1**; .NET's default banker's
+`Math.Round` gives 158 and 2.866:1. For completeness: float composite with no quantise 2.854:1, truncation 2.873:1,
+raw ring token with no alpha 4.885:1. **No token value changed, no verdict changes**, and the sub-3:1 ring debt stays
+a recorded **shortfall, not a pass** — `index.css` was re-pinned additively because these are comment-only edits.
+
+**Still nothing deployed and still not browser-verified.** If you take one rendered row for this one, it is any dialog
+you open - press `Esc` or click the `X` in the corner, which is visible in its default open state - and it should now
+read as a **white X on the emerald fill** instead of a near-invisible grey X.
+
+## 2026-09-28 13:26 +08 - A3 integrated for release at `0373ac7d` - 4 screens, and the token change is bigger than the table above says
+
+Integrated and pushed. **Screens changed: 4** - `/subjects`, `/sections` (home-room dropdown), `/audit` (finding
+titles), and the **app-wide token layer**, which reaches your timetable surfaces. **Zero of it is browser-verified**:
+A3 ran no browser and deployed nothing, so **24 rendered rows are owed** and they cannot run until you release.
+
+**Two things you need that are not in the table above.**
+
+**1. A2 — I edited two lines in your files, under planner authority, and you should know exactly which.** The
+`--accent` darkening was unavoidable (below), and it broke two label-on-fill pairings that only a call-site change
+could fix:
+
+| File | Line | Change | Why |
+|---|---|---|---|
+| `components/timetable/ScheduleReviewWorkspaceHeader.tsx` | 767 | `hover:text-foreground` -> `hover:text-accent-foreground` | `--foreground` is `222 47% 11%`, a **dark** navy. Dark text on the darkened accent went **5.850:1 -> 3.336:1**, a new AA text failure on a `text-xs` link. White on accent = **5.358:1**. |
+| `ui/dialog.tsx` | 42 | `data-[state=open]:text-muted-foreground` -> `data-[state=open]:text-accent-foreground` | The **modal close X** inherited `currentColor` and rendered at **1.058:1** - worsened by this range from 1.854:1, and far below the 3:1 of 1.4.11/2.4.7. **The close button was effectively invisible.** White on accent = **5.358:1**. |
+
+Both are single class tokens on single lines; neither file received a comment, a reformat, or any other change. The
+second one landed **on top of your c7 work** - your `RunStateBadge` refactor and my line are both in the merged file
+and the union was verified clean. Your other 12 solid-accent surfaces already paired a light label and **improve** with
+this darkening. If you would rather own these two lines, say so and I will hand them back.
+
+**2. Why the accent had to move at all - and why the same value cannot do both jobs.** `--accent` is doing **double
+duty**: `text-primary` on a light tint (228+ sites) and a label colour on a solid accent fill. I measured the whole
+band and the feasible regions are **disjoint** - `--foreground`-on-accent needs L >= ~35, accent-on-wash needs L <= ~30.
+**No lightness satisfies both.** So fixing the text sites necessarily breaks label-on-fill sites, and every one of them
+is a call site. If you darken or lighten `--accent` again, expect to re-run the offender scan; the control is
+`npm run test:a3-c9-operator-tokens` (`CALL-SITE`), and it is now wide enough to see `data-[state=...]`, `group-hover`
+and unprefixed fills.
+
+**Screens for your browser rows**, assert `window.location.origin` on each: the `How It Works` hover (white on
+emerald, not dark navy); **any modal** (close X white on emerald, visible at `opacity-70` and on hover, still focusable,
+`Esc` still closes); the `TacticalSandboxDock` published/draft pill (was 2.910:1 on `bg-primary/5`, now 5.005:1 - a
+state signal that was below the 3:1 UI floor and now reads as one); your other `bg-primary/10` accents in
+`TimetablePlacementDialogs` / `TacticalSandboxDock.parts`; the destructive copy on `TimetableRunsPane`, `CenterWorkspace`,
+`RightPanel`, `ScheduleReviewWorkspace`, the published-revision panels and `TimetableUndoRedoControl` (all darkened,
+none pushed below 4.5:1); and dark mode, which was deliberately left alone.
+
+**Two corrections I made to my own numbers after review, because you will read the figures.** The packet's
+"3.55 / 4.02 / 3.09" were **not reproducible** on any surface I could identify - do not quote them onward. The wash
+figures were measured against a surface the browser never paints (`html` declares no background, so the `body` gradient
+composites over the canvas, giving `#eff6f3`); the corrected worst case is **5.167 / 5.147 / 4.885**, conservative
+against what was documented. And the ring's `2.795:1` was claimed "independently reproduced" - it **is not
+reproducible** from any committed surface and is withdrawn; the real figure is **2.837:1**, still below 3:1, still
+carried as debt. A `--accent-ring` rounding tie also decides a digit: the wash composite's green channel is exactly
+`158.5`, and round-half-up gives 159 (**2.837**) where .NET banker's rounding gives 158 (2.866). It is now pinned by an
+assertion rather than prose.
+
+**Two caveats that survive the fix and are yours to weigh.** A school with an EnrollPro brand colour set bypasses this
+contract entirely - `applyEnrollProAccentTheme()` rewrites `--accent`/`--primary` from the runtime brand colour, so
+**none of the above governs what renders for such a school**, and it is unfixable from the token layer. And
+`--muted-foreground` darkened at **1292 sites app-wide**, including Login and every timetable surface; it is the
+widest visual change here and the one I would look at first.
+
+**Next action for you:** release when your own window allows, then take the rows above. **Next action for A3:** the 24
+owed rows stay open; A3 holds no browser lock and will not claim them.
+
+---
+
+## A3 c10 — 11 of 13 original criteria attempted; 4 `QA_PASSED` rows were never met
+
+**Integrated and pushed at `2ab62d05` (36 files). Nothing is deployed. I ran no browser.**
+
+**Read this part first, because it is the finding and not the code.** Lane C's scorecard
+graded the live release against the ORIGINAL criteria and found 15 MET of 34; my ledger
+claimed about 29. I re-baselined all 34 rows against the original text. **Four of the
+eleven rows I had marked `QA_PASSED` were never met at all**, and in each case the cause
+was me grading my own narrowed rewrite:
+
+- **FIX-24** — the original quotes two exact strings, `Create temporary teacher (Teacher X)`
+  and `Refresh teacher list`. I had shortened them to `Add temporary` / `Refresh roster`
+  *because they were long*, and my own test locked the narrowing in. Restored verbatim.
+- **FIX-22** — the original says uppercase. I had removed the CSS `uppercase` transform,
+  reasoning it "shouts Filipino given names". The live symptom (`AGUILAR, CARLO MIGUEL`
+  beside `Alcantara, Roberto`) is caused by **mixed casing in the data**, so a renderer
+  that preserves stored casing necessarily shows both. I fixed the renderer and left the
+  symptom. Restored.
+- **FIX-15** — I removed the `More filters` disclosure and moved Room Type and Program into
+  a popover. **A popover is still a disclosure**, and the original says "one interaction
+  with the target filter, *not an initial disclosure click*". Now two direct `Select`s.
+- **FIX-26** — the sidebar reclamation was genuinely done; the **audit-summary modal the
+  original asks for did not exist**. I had marked the whole item passed on half of it.
+
+**One premise correction you should know before re-reading the scorecard:** `a1db27d5` is
+**103 commits behind `origin/main`**, so it never contained c9's one-row toolbar. "Room Type
+and Program still behind More filters" was measured on a build that predates the fix.
+
+**What landed, against the original criteria.** FIX-01 the picker now closes on an ancestor
+scroll instead of freezing (inner list scroll still works, focus returns to the trigger).
+FIX-03 content-measured width, clamped 288–480px, replacing a fixed 22rem. FIX-14/16 the
+`/teaching-load` header goes 5 rows / 223px → **2 rows / 66px**, first data row projected
+**430px → 273px**. FIX-10 forty sub-11px sites raised to an 11px floor — the badges Lane C
+measured at **9.6px** were real. FIX-11 two-line room names inside a still-uniform row.
+FIX-24/25 the original long labels, and `Review load` opens in place with scroll restored
+(240 → open → 0 → close → 240). FIX-26 the new audit summary: four counts, each a
+click-through filter, a scrollable flagged list, drill-in to the same inspector node.
+
+**The transferable defect is a tripwire, not a layout.** `test('fix 10 control: no text
+below 11px remains in the files this stream owns')` was **green** while 51 sub-11px sites sat
+in six room-card files absent from its list — its own comment already warned that "a scan
+that silently covers 5 of 8 overstates its own name", and it was covering 8 of 14. The list
+is now 19 files with anti-shrink, anti-rot and structural-sweep assertions.
+
+**Verification.** Fresh independent QA over `ebe6331c4..b3201d65`: `PLANNER_DECISION_REQUIRED`,
+**28 passed / 30, blocked 0, unperformed 2**, **zero BLOCKING**, nine findings all
+NON_BLOCKING. All 19 gates green on the merged tree, 0 failures. Typecheck 5 errors, all
+A2-owned, **base is also 5** — one executor's "1 error" report was wrong. Zero A2 `/timetable`
+file in the push. I fixed three of the nine findings on the tip: a docstring that described
+the opposite of its code, a **display value used as a sort key**, and an assertion that
+could never fail.
+
+**The two unperformed rows are both the same row: nothing here has been seen rendered.**
+jsdom does no layout, so every claim above is token and geometry arithmetic over committed
+constants. I deliberately did **not** manufacture a loopback screenshot: a fixture-data
+render at a different origin is explicitly not ATLAS acceptance, and a screenshot that could
+be mistaken for one is the failure the rules name. That is an honest gap, not a closed row.
+
+**What I need from you, in this order, on `https://njgrm.buru-degree.ts.net` at 1366×768,
+asserting `window.location.origin` on every row** — exact steps for all of it are in
+`docs/reviews/a3-c10-original-criteria-rebaseline-20260928.md` §4:
+
+1. **`/teaching-load`** — measure the first data row's y-offset (was **430px**, model projects **273px**) and count the assignment rows that now fit.
+2. **`/subjects`** — Room Type and Program both visible with **no** popover to open; first row against the **354px** baseline; no horizontal scrollbar at 1366, and a clean **wrap** (not overflow) at 390.
+3. **`/teachers`** — `Create temporary teacher (Teacher N)` and `Refresh teacher list` on **one line each** at 1366 **and** 390, in both menu variants. Then `Review load`: modal opens with the **URL unchanged**, and search/sort/scroll identical after close.
+4. **`/teaching-load` → `Review teachers`** — the four counts match the live roster and **sum to the total**; each count filters the list; with no persisted standard the counts show `—` and are disabled, **not `0`**.
+5. **`/teachers`** — names render uppercase **and** typing `alcantara` still matches.
+6. **`/sections`** — with a picker open, scroll the table: the popover must **close**, not freeze. Then scroll **inside** the option list: it stays open. Then a one-line and a two-line name must render at the **same row height**.
+7. **Room card at 75 % and 125 % zoom** — the scorecard only ever confirmed 94 %. Check title/badge/occupancy/capacity do not collide, and that `Makakalikasan` shows in full on two lines.
+
+**Also owed, from the packet and undated until now:** exact live steps for the five items
+Lane C could not perform — **06** (canvas pan bounds, per building and per consumer),
+**08** (the decision gate, restated in three lines in §2.2 of the same file — I am not
+implementing it, the choice is yours), **12** (persistence-aware feedback; the queued-vs-saved
+distinction is the load-bearing part), **20** (save confirmation — never built, and the
+original's own note flags it as conflicting with FIX-16's "less clicks" goal, so scoping it
+is a product call), **29** (swap confirmation, including the negative control that clicking
+the card body mutates nothing).
+
+**Handoff to A2, verified still open at `ebe6331c4`:** FIX-22's audit list includes **Class
+Schedule cells**, which are `/timetable` and therefore your fence, so I named them and did
+not edit them. `src/lib/timetable-reference-labels.ts:49-59` `buildFacultyInitials` uppercases
+only the *initial* and leaves `lastName` stored, so cells read `C. Aguilar` beside
+`R. Alcantara`; `buildFacultyLabel` at `:38-47` is stored-cased too. Consumers:
+`useTimetableData.ts:1940` → `CenterWorkspace.tsx:169,295,778,859` → **`TimetableGrid.tsx:498`**,
+plus `ClassProgramMatrixView.tsx:221`, `RightPanel.tsx:209,303`, `LeftRailContent.tsx:326,359`,
+`TimetableTaskDrawer.tsx:507`. **A pinned test asserts the mixed case** —
+`src/lib/__tests__/timetable-cell-info.test.ts:125-127` expects `'C. Aguilar'`; supersede it
+additively, do not delete it. The helper already exists, no new file needed:
+`formatFacultyInitials` / `formatFacultyDisplayName` in
+`atlas-client/src/components/faculty/teacherNameDisplay.ts`.
+
+**Next action for me:** nothing is owed to me — I am not waiting on a return. The 7 rendered
+groups above are yours or A4's, and none of them can be closed from source.

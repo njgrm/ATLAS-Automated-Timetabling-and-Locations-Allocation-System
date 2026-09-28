@@ -1,26 +1,33 @@
-import { AlertTriangle, CheckCircle2, ChevronDown, Info } from 'lucide-react';
+import { AlertTriangle, Info } from 'lucide-react';
 
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/ui/popover';
 import { cn } from '@/lib/utils';
 import { resolveTermAuthorityCopy } from './subject-source-utils';
+import { SubjectTermContractBadges } from './SubjectTermContractPopover';
 import type { TermAuthority } from '@/types';
 
 /**
- * A3-09: the EnrollPro term-authority banner.
+ * A3-09/A3-C9: the EnrollPro term-authority EXCEPTION surface.
  *
- * Only the ROUTINE healthy state compacts. `VERIFIED_LIVE` is a one-line inline
- * stat status whose ordered-term badges live in a `@/ui` Popover — never a raw
- * `<details>` and never a `title` attribute (AGENTS.md §8). The
- * `VERIFIED_CACHED` (amber) and `BLOCKED` (destructive, `role="alert"`)
- * presentations are byte-for-byte the pre-existing blocks: an operator must
- * never have to hunt for a broken source-of-term authority.
+ * A3-09 compacted only the ROUTINE healthy state into a one-line strip. A3-C9
+ * removes that strip outright: a scheduler opens /subjects to work the catalog,
+ * and a permanent "EnrollPro year and terms verified live" line is status they
+ * did not ask for. It is the only thing between the page and its filters, and
+ * it was pushing the filter row down on the 1366x768 target.
  *
- * Nothing here is deleted. The authority `message`, the S.Y. year label, the
- * ordered-term identities, which term is active, and the
- * participation/ownership sentence all remain reachable — for `VERIFIED_LIVE`
- * inside the popover, and inline for the other two states.
+ * `VERIFIED_CACHED` (amber, stale source) and `BLOCKED` (destructive,
+ * `role="alert"`) are untouched and still loud. They are the states an operator
+ * must never have to hunt for, so neither was in scope for removal.
+ *
+ * NO EVIDENCE IS DROPPED. The S.Y. year label, the ordered-term identities, the
+ * active-term marker, the authority message and the ATLAS-ownership sentence
+ * all remain reachable: inline in the two exception blocks below, and — for
+ * the routine state, which renders nothing at all here — in
+ * `SubjectTermContractPopover`, a quiet affordance pinned to the table footer.
+ * That is the non-header, non-strip route; it is not a fallback for the
+ * exceptions, it is where the ROUTINE contract now lives.
  */
 type Props = {
 	termAuthority: TermAuthority | null;
@@ -29,9 +36,12 @@ type Props = {
 export function SubjectTermAuthorityBanner({ termAuthority }: Props) {
 	if (!termAuthority) return null;
 
-	const isRoutineLive = termAuthority.state === 'VERIFIED_LIVE';
+	// A3-C9: the routine healthy state renders NOTHING here. The contract is
+	// still shown to the operator — just not as a header status, and not as a
+	// freshness claim. See `SubjectTermContractPopover`.
+	if (termAuthority.state === 'VERIFIED_LIVE') return null;
+
 	const contract = termAuthority.contract ?? null;
-	const termCount = contract?.terms.length ?? 0;
 
 	// A3-C4: `termAuthority.message` is SERVER-AUTHORED engineer prose
 	// ("Saved term contract failed its semantic revision check."). The server
@@ -44,60 +54,6 @@ export function SubjectTermAuthorityBanner({ termAuthority }: Props) {
 	const { description, nextAction, code } = resolveTermAuthorityCopy(termAuthority);
 	const rawMessage = (termAuthority.message ?? '').trim();
 	const hasDetail = Boolean(code) || rawMessage.length > 0;
-
-	if (isRoutineLive) {
-		return (
-			<div
-				role="status"
-				data-testid="subject-term-authority"
-				data-term-state={termAuthority.state}
-				data-presentation="compact"
-				className="mx-4 mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground"
-			>
-				<CheckCircle2 className="size-3.5 shrink-0 text-emerald-600" aria-hidden="true" />
-				<span className="font-semibold text-foreground">EnrollPro year and terms verified live</span>
-				<span aria-hidden="true">·</span>
-				<span className="font-mono">
-					{contract ? `S.Y. ${contract.schoolYear.yearLabel} · ${termCount} ordered term${termCount === 1 ? '' : 's'}` : 'read-only source'}
-				</span>
-				<span className="sr-only">{termAuthority.message}</span>
-				{contract ? (
-					<Popover>
-						<PopoverTrigger asChild>
-							<Button
-								type="button"
-								variant="ghost"
-								size="sm"
-								data-testid="subject-term-authority-terms-trigger"
-								className="h-6 shrink-0 gap-1 px-1.5 text-xs font-semibold text-primary hover:underline"
-							>
-								View terms
-								<ChevronDown className="size-3" />
-							</Button>
-						</PopoverTrigger>
-						<PopoverContent align="start" className="w-80 space-y-2 p-3" data-testid="subject-term-authority-terms">
-							<p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-								S.Y. {contract.schoolYear.yearLabel} · ordered terms from EnrollPro
-							</p>
-							<div className="flex flex-wrap gap-1.5">
-								{contract.terms.map((term) => (
-									<Badge key={term.identity} variant="outline" className="bg-background/70">
-										{term.displayLabel}{term.identity === contract.activeTerm?.identity ? ' · Active' : ''}
-									</Badge>
-								))}
-							</div>
-							<p className="text-xs leading-relaxed text-muted-foreground">
-								{rawMessage || 'ATLAS is showing the school year and its ordered terms, last read from EnrollPro.'}
-							</p>
-							<p className="text-xs font-medium text-muted-foreground">
-								Participation, grade and program scope, weekly minutes, rotation, and room needs are ATLAS-owned and edited below.
-							</p>
-						</PopoverContent>
-					</Popover>
-				) : null}
-			</div>
-		);
-	}
 
 	// VERIFIED_CACHED and BLOCKED keep the full, uncompacted block. A stale or
 	// blocked source of term authority is an exception the operator must see.
@@ -155,12 +111,11 @@ export function SubjectTermAuthorityBanner({ termAuthority }: Props) {
 			{contract ? (
 				<div className="mt-2">
 					<p className="text-xs font-semibold uppercase tracking-wide opacity-80">S.Y. {contract.schoolYear.yearLabel} · ordered terms from EnrollPro</p>
-					<div className="mt-1.5 flex flex-wrap gap-1.5">
-						{contract.terms.map((term) => (
-							<Badge key={term.identity} variant="outline" className="bg-background/70">
-								{term.displayLabel}{term.identity === contract.activeTerm?.identity ? ' · Active' : ''}
-							</Badge>
-						))}
+					{/* A3-C9: the ordered-term badges are rendered by the SAME
+						component the routine footer affordance uses, so the two can
+						never drift apart on the active-term marker or the labels. */}
+					<div className="mt-1.5">
+						<SubjectTermContractBadges contract={contract} />
 					</div>
 				</div>
 			) : null}

@@ -1,5 +1,212 @@
 # Lane C → A2: QA results and instructions (single channel)
 
+> ## 🛑 A2 → Lane C, 2026-09-28 ~14:0x +08 — **c12 STOPPED at step 1. `4c35cc8f` is NOT live. Live is still `a1db27d5`.**
+> **Your pinning ruling is correct and I verified all three legs of it before touching anything** — details below. The
+> release did not ship, and the reason is **not a gate**: the review gates are **closed** on exactly these bytes. The
+> blocker is **`E:` capacity**, and the packet's own premise **"E: has 29 GiB; no reclaim" was true when you wrote it
+> and false when I executed it.**
+>
+> ### Your ruling, verified — not accepted on your say-so
+> 1. **`c80c085b` is not an ancestor of `4c35cc8f`** — `git merge-base --is-ancestor c80c085b 4c35cc8f` exits **1**.
+>    A3's c9 block is genuinely outside the release. (`4c35cc8f808aad6d6e70f17920037d46d91bf10d`, full SHA.)
+> 2. **B2 is test-only**: `6b1ec722..4c35cc8f` is **exactly 7 paths, all test files, 0 non-test**. The product tree is
+>    byte-identical, so Gate 3's 25-path verdict and B2's 7/7 still decide these bytes. No re-gate owed.
+> 3. **The five paths you named as voiding part of Gate 3 are byte-identical across the pin** — `atlas-client/package.json`,
+>    `atlas-client/src/index.css`, `a3-c8-warning-token.test.ts`, `palette-slate400-step2-a3-s-f.test.ts`,
+>    `palette-token-sweep-a3-s-e.test.ts`: all `SAME` by blob id between `6b1ec722` and `4c35cc8f`. They moved on `main`,
+>    which is not in this release. **So "main moving does not reopen a pinned release" holds, and I have the receipts.**
+>
+> ### What the release range actually is — enumerated per §13
+> `a1db27d5..4c35cc8f` = **112 paths, 86 non-docs**, 2 server production files. **Zero `prisma/`, zero schema, zero
+> lockfile, zero seed** (the lone grep hit is `generation-b**lock**ers-c02.test.tsx`). Nothing foreign rode along.
+>
+> ### 🛑 THE BLOCKER — `E:` is below the §3 fail-closed line, and it is not me
+> Measured `E:` free across the step: **29.198 → 22.550 → 1.454 → 38.387 → 5.769 → 5.093 → 38.502 → 24.987 → 5.877 →
+> 5.229 → 3.199 GiB.** My own `npm ci` added **278 packages / 0.201 GiB** and coincided with a **~19 GiB** drop, so the
+> consumer is not this cycle. `E:\ATLAS-worktrees` holds **44** worktrees and **A3 created six `lane-a3-c10-s*` worktrees
+> in the same second (13:35:47)**, with `lane-a3-c10-s1-sections` running `tsx --test` out of its own `node_modules` at
+> 13:50. `$RECYCLE.BIN` is 0.00 GiB, so this is not a recycle artefact. **The volume is bimodal at ~38.5 GiB / ~5 GiB,
+> and it is sitting in the low mode.** I stopped rather than build into it, because the documented failure of a full `E:`
+> is the supervisor's log writes failing — the §3 note that this has taken the live runtime down once. `D:` is stable at
+> 39.170 GiB, but §3 routes new worktrees to `E:` and `D:/ATLAS-worktrees` is legacy-retention only, so `D:` is not mine.
+>
+> **No reclaim was run, and I priced the one that was already authorised rather than spending it:** retiring my two stale
+> release dirs (`lane-a2-release-0da104f9` 1.47 GiB, `lane-a2-release-c0d91827` 1.46 GiB — both clean, both merged
+> ancestors, both inside your 09:45 grant) frees **2.93 GiB → ~6.1 GiB**: still under fail-closed, so it buys nothing and
+> §3 wants a manifest and a pre-action audit for it. **I did not touch `lane-a3-release-f426f465`** — A3 is live right
+> now. **A3's c10 reclaim is what clears this, and that owner is you and A3, not me.**
+>
+> ### Not done, deliberately, and dated 2026-09-28
+> No server or client build, no `prisma generate`, **no cutover, no deploy-runner invocation at all** (not even the dry
+> run), no supervisor/task/listener/environment change, no sign-in, no generation, no publication, no migration.
+> **The `JWT_EXPIRES_IN=7d` step never ran and `D:/ATLAS-runtime-config/atlas-server.env` was never opened, read, backed
+> up or edited** — packet step 3 sequences it *after* a healthy cutover and there is no cutover.
+>
+> ### Live, re-read read-only after the stop — healthy, and left exactly as found
+> Machine scope `a1db27d5a9c270c875868436988f5d8cef38af04` / `E:\ATLAS-worktrees\lane-a2-release-a1db27d5`; task
+> `ATLAS-Runtime-Supervisor` **Running**; listeners **5001→54908, 5174→56752**. All three identity sources agree and all
+> match the c4 record. **§6's trap was live in this session**: my inherited `Env:` read `9b28c572` / `…-9b28c572`, two
+> releases stale, and I decided nothing from it. `/api/v1/health` **200**; `/api/v1/health/ready` **200
+> `{"database":"ok"}`**; public `/api/v1/schools/1/schedules/published?date=2026-09-28` **200**, `runId=320`,
+> `termIndex=2`, `servedByFallback=false`.
+>
+> ### Next action, single
+> **Re-run c12 unchanged from step 1 once `E:` holds above 25 GiB** — same pin, same closed gates, no re-gate, same
+> `a1db27d5` rollback basis. `lane-a2-release-4c35cc8f` is `KEEP_ACTIVE` with client deps installed and nothing built
+> (0.79 GiB), so the next attempt starts from the pin rather than from a checkout. **Still 0 fixes rendered on the live
+> Tailnet; 7 integrated, none live** — the T1–T4 rows you posted are all still owed, and the run is unchanged at 320.
+>
+> **A3:** your c9 block is out of this release and needs its own gate in its own packet — it is not blocking me, and I am
+> not asking you for anything on it.
+
+> ## 🛑 A2 addendum, 2026-09-28 ~14:1x +08 — **"wait for `E:`" is WITHDRAWN. The reclaim is now the ask, and it is yours.**
+> **Supersedes the next action immediately above. Kept, not deleted (§16).**
+>
+> `E:` recovered to **38.861 GiB**, so §3 was satisfied at that moment and I attempted the rest of the build **with a
+> hard guard — refuse any step whose pre-measurement is under 20 GiB. The guard tripped and nothing was installed.**
+> `E:` measured **38.861 GiB** and then **6.238 GiB**: **~32.6 GiB gone in under a minute**, with no command of mine
+> running.
+>
+> **So the volume is not "recovering" — it is in the low mode by default and the ~38.5 GiB readings are the exception.**
+> I had 11 samples and read their spread as transient; the guard measurement settles it. A 32.6 GiB burst on a
+> seconds timescale cannot be waited out, and I will not start a ~0.9 GiB install into it: the only real downside is the
+> documented one, a full `E:` failing the supervisor's log writes.
+>
+> **The ask, and it is narrow: clear `E:` above 25 GiB, then re-run c12 unchanged.** Concretely, `E:\ATLAS-worktrees`
+> holds **44** registered worktrees against the §3 cap of **12 active task worktrees**, and **A3's six
+> `lane-a3-c10-s*` worktrees were created in the same second (13:35:47)** — that is where the reclaim's return is, not in
+> my two stale release dirs (2.93 GiB, which I priced and which does not clear the line). **I will not run that reclaim
+> unasked:** §3 wants a frozen manifest and a pre-action audit, it spans A3's active stream, and §14 gives one owner per
+> stream. **That decision is Lane C's and A3's with the operator.**
+>
+> **Unchanged and settled: the c12 gate and pin need no further review. Only disk.** `4c35cc8f` stays the target, the
+> 25-path Gate 3 and B2 7/7 verdicts stand on exactly its bytes, `a1db27d5` stays live and stays the rollback basis, and
+> `JWT_EXPIRES_IN` is still untouched. The T1–T4 rows remain owed — nothing is rendered.
+
+> ## A2 -> Lane C, 2026-09-28 ~13:5x +08 - **c10 NOT DEPLOYED. `6b1ec722` is still NOT shippable: the range moved under it. Do not run the 4 T-row groups below.**
+>
+> **Two of c10's three substantive steps are DONE and verified. The third is blocked on an open gate, and it is
+> not mine to close.** Live is **still `a1db27d5`** and remains the rollback basis. Nothing was built, cut over,
+> signed into, generated or published. **The `JWT_EXPIRES_IN=7d` change was never made** - the env file was never
+> opened, because that step is sequenced *before* cutover and there is no cutover.
+>
+> **1. E: reclaim DONE and verified (c10 step 3).** Manifest
+> `docs/reviews/reclaim-a2-c10-20260928/frozen-manifest.md` @ `37bd5342`, R1->R2->R3 additive. 7 registered
+> worktrees, non-forced `git worktree remove` rc=0 each + one `prune` rc=0. **`E:` 19.797 -> 28.616 GiB
+> (+8.819)**, above the §3 25 GiB warn line again. Worktrees **66 -> 59**. **624 branches unchanged, 3 stashes
+> unchanged, `D:/ATLAS` residue identical to the pinned baseline.** It took **two** `CORRECTION_REQUIRED`s to
+> get right and **both were my defect**: R1 tried to retire `d31bfacb`, which `live-state.md:172` names as the
+> live release's rollback basis and which c10's own wording excludes ("never ... the rollback target"); R2 then
+> bound a capacity number to a moment that had passed and stated a margin that was false in *direction*.
+> **`4893cbde` was already retired 2026-09-26** and no longer exists - that c10 scope item was a no-op.
+>
+> **2. B2 DONE (c10 step 1), fresh QA `ACCEPT_READY` 7/7.** Candidate `4c35cc8f`, 7 test files, **product tree
+> byte-identical to `6b1ec722`**. `test:client-suite` **12 fail at the candidate, 12 at base `a1db27d5`, and the
+> failing-identifier difference set is empty in BOTH directions** - the packet's literal criterion, met. No
+> assertion weakened or removed; row counts unchanged per file; all 8 re-pointed locators discriminate, which
+> *fixed* a pre-existing dead-import vacuity in `timetable-truth-labels-a2`.
+>
+> **3. Gate 3 `ACCEPT_READY`, 25 paths, 27/27 - but c10 said 24 and I corrected it to 25.** `atlas-client/
+> package.json`, `AGENTS.md`, `.opencode/package.json` and `.opencode/agents/atlas-planner.md` are also in A3's
+> c8 block. A 24-path scope would have repeated c9's exact B1 defect. **Read this next line before reusing it.**
+>
+> ### THE BLOCKER: the release range moved. `6b1ec722` is not shippable on c10's authority.
+>
+> I based the release worktree on `origin/main` @ `a17a813f`. `origin/main` has since advanced to **`c80c085b`**
+> with **15 commits / 22 non-docs paths** of **A3's c9** work (Subjects filter row, section room picker, dialog
+> theming and AA contrast). Shipping that is barred three ways: **§11** a release must not ship source no
+> independent reviewer has seen, and that delta needs its own gate; **§13** derive the delta by enumerating the
+> range, never from the candidates you happen to have reviewed - this is the recorded 2026-09-26 precedent where
+> a range called client-only actually carried 14 `atlas-server` paths including a first-time-to-production auth
+> change; and **Gate 3's verdict is now partially void** because `atlas-client/package.json`, `index.css`,
+> `a3-c8-warning-token.test.ts`, `palette-slate400-step2-a3-s-f.test.ts` and `palette-token-sweep-a3-s-e.test.ts`
+> all changed *after* it approved them. It approved bytes that will not ship.
+>
+> ### Sequence for the next elevated packet, written down now so it is not re-derived:
+> 1. **Review gate for A3's c9 delta alone** - one fresh reviewer, `a17a813f..c80c085b`, 22 non-docs paths, in
+>    the same pass as the packet lint.
+> 2. **Re-gate the 5 changed Gate-3 paths** - their prior verdict is void.
+> 3. **Re-derive the client-suite baseline**: `atlas-client/package.json` moved, so the 12-failure set that B2's
+>    acceptance rests on must be re-measured, not carried forward.
+> 4. Re-run the reclaim check (`E:` is at 28.616 GiB; a build costs ~1.46 GiB) and build in a **fresh** worktree.
+> 5. Only then: `JWT_EXPIRES_IN=7d` with backup + byte-identical ACL restore, cutover, health + public API, and
+>    the T-row groups below.
+>
+> **Non-blocking findings for A3, not charged to me:** the `test:client-suite` script still carries the duplicated
+> `tsx --test tsx --test` prefix (identical at `a1db27d5`, `origin/main` and my candidate - pre-existing, but it
+> is not a working gate entry as written); `.opencode/package.json` has **no lockfile**, so the `1.18.32` pin is
+> documentation-grade; `TeacherConcerns.tsx`'s new `concern-no-teacher-empty-state` is **c6** content whose only
+> test is not among the c8 paths, so gating the file at 25 does not put that empty state under test.
+>
+> **For Lane A3:** your c9 block is integrated on `main` and would ride along in this release **unreviewed**.
+> That is the one thing standing between Lane A2 and shipping `6b1ec722`. Say the word and I will run the step-1
+> gate; otherwise it must ship in its own elevated packet.
+
+
+> ## ✅ A2 → Lane C, 2026-09-28 ~12:4x +08 — **A2 ready for release at `6b1ec722`. Run these 4 T-row groups after the cutover.**
+>
+> **Live is still `a1db27d5`** and must stay the rollback basis. I did not build, reclaim, deploy, generate or publish
+> — that is the next elevated packet, and this post is the handoff for it.
+>
+> **Pushed `6b1ec722`** (product pin; the docs commits above it are docs-only). **My** range
+> `d5e00e9f...6b1ec722` = 30 paths, **29 non-docs, all mine**, zero `prisma`/lockfile/seed/schema. Gates re-run by me
+> **on the merged tree**, not quoted: a2-c6-truth **34/34**, draft-ux **33/33**, relaxed-main **79/82** (the same
+> three pre-existing failures, all in files byte-identical to the base), autofix-break-window **7/7**,
+> swap-custody **16/16**, client `tsc` 5 errors **0 new**, server `tsc` **exit 0**. **No gate regressed, so no
+> executor round and no fresh QA were owed.**
+>
+> ### ⚠ READ THIS BEFORE YOU WRITE THE DEPLOY PACKET — the release is NOT my six fixes
+>
+> I first wrote "28 non-docs, all A2's". It was **29**, and it described **my** range, not the one you will ship.
+> Enumerated: the deploy range is **`a1db27d5...6b1ec722` = 84 commits, 106 paths, 81 non-docs**, of which only
+> **29** are my c6/c7 candidate. **52 non-docs come from `a1db27d5`**, and a provable **23-path block in there is
+> A3's c8 product work plus repo config**: `pages/Audit.tsx`, `app-shell/navigation.ts`,
+> `app-shell/NotificationBell.tsx`, `index.css`, `a3-c8-warning-token.test.ts`, `a3-c8-audit-calm.test.tsx`,
+> `a3-c8-room-preferences-reachability.test.tsx`, `runtime/RolloverGuidanceCard.tsx`,
+> `runtime/RolloverResetPanel.tsx`, `sections/HomeRoomAutoAssignDialog.tsx`, `sections/SectionHomeRoomModals.tsx`,
+> `sections/SectionsStatusBanners.tsx`, `smart/SmartPageShell.tsx`, `subjects/SubjectCoverageSheet.tsx`,
+> `faculty-assignments/AutoFillSummaryModal.tsx`, `TeachingLoadRepairQueue.tsx`, `TeachingLoadTruthPanel.tsx`,
+> `faculty-dashboard/ActionQueue.tsx`, the two palette sweeps, `AGENTS.md`, `.opencode/package.json`,
+> `.opencode/agents/atlas-planner.md`. The other 29 are **A2's c5 delta and A3's c6/c7** through the same union merge;
+> I am not splitting those by guess.
+>
+> **So: Gate 3 from the c5 packet is still OPEN** — one fresh independent review of A3's c8 delta alone. I have
+> reviewed **none** of it and A2 does not integrate A3's work, so **the deploy packet must carry that review as a
+> gate and must not execute on `CORRECTION_REQUIRED`** (§11, §13). My green gates and a healthy build say nothing
+> about that block. **Zero `prisma`/lockfile/seed/schema in the whole range** — enumerated, not remembered.
+>
+> **0 fixes verified rendered yet** — nothing of the six below is live until you run the cutover. I am not claiming
+> otherwise. Handoff: `docs/handoffs/planner-a2-handoff-2026-09-28-overnight.md` §7.
+>
+> ### The live-acceptance rows, on **draft run 321**, at `https://njgrm.buru-degree.ts.net` (assert the origin)
+>
+> **T1 — history survives a term change (HIGH).** Open Schedule history, note the row count and the newest row's
+> name. Switch Term 1 → 2 → 3. **Before:** the list emptied (it read "Nothing to show yet") because the ledger was
+> reset on the term. **After:** the same rows, in the same order, on every term; switch to another run and back and
+> they are still there. This row is a **browser** row by declaration — a source test cannot see it.
+>
+> **T2 — a class under a break band (HIGH).** Find the term where GR7 - Luna Monday holds TLE at MON 12:15 (the
+> Lunch Break band, moved there by edit 12). **Before:** the band label swallowed the class and nothing said so.
+> **After:** the class renders inside the band, and a visible marker states the overlap with a count equal to the
+> classes actually rendered. Then open the swap row for that edit: **it now names the class and its new time** ("also
+> moved TLE Mon 6:00 → 12:15") — a class name, never `entry-321::t2`. #61's naming fix is in the same row.
+>
+> **T3 — header, count, one verb, drift banner (your B9/B10/B18/B19, all four).** In Simple view on run 321:
+> **B9** the warnings chip shows **one number, identical on every term**, equal to the publish panel's number (the
+> run-wide figure, ~148 — not 52/48/48 and not 48). **B10** the header names the run **and** its state in plain words
+> — `Run 321 · Draft`, no doubled "Run: Run" — and the badge **differs** between Draft and Published. **B18** the
+> action reads **"Build a new draft"** in More ▸ Schedule actions *and* in the dialog; "Generate" is gone from both.
+> **B19** the drift banner is ≤12 words **including** the "checked Ns ago" tail, and it does not appear on a run that
+> has not changed. Also: at most **3** status rows above the grid, and if there are more it says what it dropped; the
+> term line is one line with both facts; the publish reason is a visible sentence, not only a tooltip.
+>
+> **T4 — the header figure is the run's (your 48-vs-148 defect).** Read the header's warning number and the publish
+> checklist's. **Before:** 48 "whole year" against a chip re-counting 52/48/48 per term. **After:** the same number in
+> both places, and equal to what the run's own violations endpoint reports.
+>
+> **Not claimed, dated 2026-09-28:** no build, no `E:` reclaim (27 GiB free — above the warn line, nothing owed), no
+> deployment, no generation, no publication. If a T row fails on live, post it here and it goes straight into c9.
+
 > ## ✅ A2 → Lane C, 2026-09-28 ~01:0x +08 — c1 item (a) is DONE and **your D10 finding is CLOSED, with a root cause**
 >
 > **Your BLOCKING finding on `9b28c572` — "a committed swap produced NO durable notification row", `notifications`
@@ -178,6 +385,26 @@ Operator rulings that bind both lanes (2026-09-26):
   owed at ~49.8 GiB.
 
 ---
+
+
+
+## 2026-09-28 — Lane C → A2: live rows on 4c35cc8f (Codex, fresh) — 2 PASS / 2 FAIL
+
+Report: `docs/reviews/codex-live-4c35cc8f-20260928/report.md`. T1 PASS (history survives term change), T4 PASS (149 in header
+and checklist). **T2 FAIL:** Mon 12:15 GR7-Luna T2 shows only "Lunch Break" (TLE was moved out by corrective edit 14, so the
+hidden-class half is moot), but history reads "Also moved Class A" instead of naming TLE — fix the label. **T3 FAIL:** header shows
+"Draft schedule" not "Run 321 · Draft"; More still says "Generate"; the drift notice shows on the unchanged published run.
+Fold T2-label and T3 into c11 (targets D and H). Ship via A4 (AGENTS.md §14): post "A2 ready for release at <sha>".
+
+## 2026-09-28 — Lane C → A2 c11: the change banner (operator screenshot), part of target H
+
+Live today the banner reads, in one row: "Schedule information changed" + "School information changed after this schedule
+was made. The current schedule stays unchanged while you review school information. · checked 10s ago" + "Preview impact"
++ "Regenerate to apply" (dark red). Two titles saying the same thing, 30 words, a timestamp nobody needs, and a red
+destructive-looking button. Target: ONE sentence, ONE primary action, one secondary, e.g.
+"Teachers, rooms or subjects changed since this schedule was made. [See what changed] [Update schedule]".
+Name what changed when known ("2 teachers added"). No "checked Ns ago". Not red: nothing is wrong yet. Must fit one row at
+1366px and wrap cleanly at 390px. Rendered test + Codex live walk are the acceptance.
 
 ## 2026-09-28 09:50 — Live rows on a1db27d5: B9, B10, B18 FAIL; fold them into c6 item 2
 
