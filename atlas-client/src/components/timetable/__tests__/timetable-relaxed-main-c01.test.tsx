@@ -323,7 +323,24 @@ test('A4: the stale-input state never renders beside the verified-source authori
 		schoolYearContext: { activeSchoolYearLabel: '2030-2031', source: 'enrollpro-verified', activeTerm: null },
 	});
 	assert.match(markup, /timetable-simple-input-drift/, 'the drift state renders');
-	assert.match(markup, /The current schedule stays unchanged while you review school information\./, 'the notice makes the no-change promise explicit');
+	// SUPERSEDED (A2-C6-TRUTH, T3e, 2026-09-28) — the 21-word sentence this row
+	// pinned is gone; the promise it protected is NOT. Measured on live run 321,
+	// the band read 21 words (25 when calm) of subordination before the one fact
+	// an older reader needs, and it still showed `Preview impact` /
+	// `Regenerate to apply` on a run that had not changed. T3e is WORDING ONLY —
+	// the `alarming` / `driftClaimed` / `unverifiedNote` / `showRegenerateAction`
+	// predicates are untouched, so #17/#59 semantics are unchanged. The row is
+	// kept, not deleted: the intent ("the notice makes the no-change promise
+	// explicit") is asserted by the replacement immediately below.
+	// assert.match(markup, /The current schedule stays unchanged while you review school information\./, 'the notice makes the no-change promise explicit');
+	assert.match(markup, /This schedule is unchanged\./,
+		'T3e: the shortened notice still makes the no-change promise explicit');
+	// The age tail is part of the visible claim, so the budget is counted over
+	// the WHOLE span (sentence + ` · checked 0s ago`), not the sentence alone.
+	const driftMessage = markup.match(/data-testid="timetable-simple-drift-message"[^>]*>([\s\S]*?)<\/span>/)?.[1] ?? '';
+	const claimWords = driftMessage.replace(/\s+/g, ' ').trim().split(' ').filter(Boolean).length;
+	assert.ok(claimWords > 0 && claimWords <= 12,
+		`T3e/A2-C7: the whole drift claim is within the 12-word budget an older reader can hold (measured ${claimWords} incl. the age tail)`);
 	// SUPERSEDED (DRAFT-UX-C01, operator 2026-09-25): the one setup CTA moved into
 	// More ▸ Schedule actions and keeps its drift label there.
 	// const setupCta = markup.match(/data-testid="timetable-simple-review-setup"[\s\S]*?<\/a>/)?.[0] ?? '';

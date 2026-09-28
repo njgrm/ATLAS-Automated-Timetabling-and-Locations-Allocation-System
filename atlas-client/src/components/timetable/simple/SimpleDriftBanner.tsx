@@ -183,7 +183,14 @@ export function SimpleDriftBanner({
 							{domain.label}
 						</Badge>
 					)) : null}
-					<span className={cn(
+					{/* A2-C6-TRUTH (T3e) — the message span is addressable on its own, so the
+					 * word-budget row measures the OPERATOR'S SENTENCE and not the whole
+					 * band. The band also carries a bold status label ("Schedule
+					 * information changed" / "Schedule information could not be checked")
+					 * and one chip per changed domain; counting those together with the
+					 * sentence would measure the banner, not the claim. Wording/attribute
+					 * only — no predicate, no visibility change. */}
+					<span data-testid="timetable-simple-drift-message" className={cn(
 						/* A2-DRIFT-BANNER-390 (item 5) — at 390x844 this band was one
 						 * wrapping flex row whose `shrink-0` action buttons and domain
 						 * chips left the message a near one-word column, so the
@@ -206,9 +213,37 @@ export function SimpleDriftBanner({
 						'min-w-0 w-full basis-full break-words whitespace-normal sm:w-auto sm:flex-1',
 						alarming ? 'text-amber-800' : 'text-muted-foreground',
 					)}>
-						{alarming
-							? 'School information changed after this schedule was made. The current schedule stays unchanged while you review school information.'
-							: unverifiedNote ?? 'ATLAS could not check the latest school information, so nothing is known to have changed. The current schedule stays unchanged while you review school information.'}
+					{/* A2-C6-TRUTH (T3e) — 7 and 8 words, not 21 and 25.
+					 *
+					 * The measured banner on run 321 carried a 21-word alarm plus a
+					 * `checked Nm ago` tail, and the calm copy 25; an older reader got
+					 * three clauses of subordination before the one fact.
+					 *
+					 * WORDING ONLY. `alarming`, `driftClaimed`, `unverifiedNote` and
+					 * `showRegenerateAction` are untouched, so #17/#59 semantics are
+					 * unchanged: a genuine stale comparison still alarms, and the calm
+					 * branch still says nothing is known rather than claiming a check
+					 * that never ran. The "this schedule is unchanged" reassurance that
+					 * DRAFT-UX-C01 added is KEPT in both branches — it is a truthful
+					 * promise, and dropping it to save four words would have been
+					 * another small loss of meaning.
+					 *
+					 * A2-C7 budget correction (item 5, "a truthful drift banner of 12
+					 * words or fewer"). The 10-word alarm plus its ` · checked 0s ago`
+					 * tail measured 14 in the rendered span, over the line under the
+					 * strictest reading — count the whole visible claim, not the
+					 * sentence alone. Both branches are now 7 and 8, so the span reads
+					 * 11 alarming (with the age) and 8 calm (the calm branch carries no
+					 * `checkedAt`, so it has no tail to add). "until you rebuild" is
+					 * the four words given up: the alarming branch always renders the
+					 * adjacent `Regenerate to apply` control, so the action is stated
+					 * by a button rather than by a subordinate clause.
+					 *
+					 * The `unverifiedNote` case is the server's own sentence and is
+					 * passed through as-is rather than reworded here. */}
+					{alarming
+						? 'School information changed. This schedule is unchanged.'
+						: unverifiedNote ?? 'Could not check school information. This schedule is unchanged.'}
 						{/* The age is only stated when the comparison carries a time, which is
 						    exactly when `deriveRunFreshness` could tie it to this run. */}
 						{formatCheckedAtAge(drift.checkedAt) ? ` · ${formatCheckedAtAge(drift.checkedAt)}` : ''}

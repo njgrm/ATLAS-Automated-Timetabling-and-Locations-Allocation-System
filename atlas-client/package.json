@@ -77,6 +77,7 @@
     "test:a2-timetable-truth-labels": "tsx --test src/lib/__tests__/timetable-truth-labels-a2.test.ts src/lib/__tests__/timetable-daily-load-term-scope-a2.test.ts src/hooks/__tests__/useTeachingLoadRouteIntent-change-owner-a2.test.ts",
     "test:timetable-run-identity-a2": "tsx --test src/components/timetable/__tests__/timetable-run-identity-a2.test.tsx",
     "test:a2-ux-menu2-c2": "tsx --test src/components/timetable/__tests__/timetable-more-menu-a2.test.ts",
+    "test:a2-c6-truth": "tsx --test src/components/timetable/__tests__/timetable-a2-c6-truth.test.ts src/components/timetable/__tests__/timetable-run-identity-a2.test.tsx",
     "test:a2-c5-map-route-intent": "tsx --test src/components/timetable/__tests__/a2-c5-map-route-intent.test.tsx"
   },
   "dependencies": {

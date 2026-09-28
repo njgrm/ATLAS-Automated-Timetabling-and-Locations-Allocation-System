@@ -30,6 +30,8 @@ import type { ScheduleReviewWorkspaceHeaderContext } from '@/components/timetabl
 import type { EntryKindFilter, ProgramFilter } from '@/lib/schedule-review-helpers';
 import { onProfilerRender } from '@/components/timetable/ScheduleReviewWorkspace';
 import { isDraftPublishedStrict } from '@/components/timetable/timetableWorkspaceTruth';
+// A2-C6-TRUTH (T3a): the run identity, shared with Simple view.
+import { describeRunState, RunIdentityLine, RunStateBadge } from '@/components/timetable/RunStateBadge';
 import { ScheduleReviewInputStateBanner } from '@/components/timetable/ScheduleReviewInputStateBanner';
 import { TimetableAdvancedHeaderHelp } from '@/components/timetable/TimetableAdvancedHeaderHelp';
 import { deriveTimetableCapabilities, YEAR_SETUP_HREF } from '@/lib/timetable-capabilities';
@@ -87,21 +89,15 @@ function formatChangedDomains(domains: string[] | undefined): string[] {
  * `runStateBadgeLabel` already reads from the run. The key is derived from the
  * RUN (`draft.runId` + `isDraftPublishedStrict`), never from the layout mode.
  */
-type RunStateKey = 'planning' | 'published' | 'draft' | 'empty';
-
-const RUN_STATE_PRESENTATION: Record<RunStateKey, {
-	icon: LucideIcon;
-	sign: 'in-progress' | 'settled' | 'none';
-	tone: 'amber' | 'emerald' | 'muted';
-	toneClass: string;
-}> = {
-	planning: { icon: Hourglass, sign: 'in-progress', tone: 'amber', toneClass: 'border-amber-300 bg-amber-50 text-amber-950' },
-	published: { icon: CircleCheck, sign: 'settled', tone: 'emerald', toneClass: 'border-emerald-400 bg-emerald-50 text-emerald-950' },
-	draft: { icon: PencilLine, sign: 'in-progress', tone: 'amber', toneClass: 'border-amber-300 bg-amber-50 text-amber-950' },
-	empty: { icon: CircleDashed, sign: 'none', tone: 'muted', toneClass: 'border-border bg-muted text-muted-foreground' },
-};
-
-
+/**
+ * A2-UX-STATUS-C2 / U2 + #51 — one icon, one tone and one sign token per state.
+ *
+ * The presentation map, the state key and both renderers now live in
+ * `RunStateBadge` (A2-C6-TRUTH T3a), because Simple view is the DEFAULT view and
+ * it was printing no run identity at all while Expert printed it here. Two
+ * headers rendering one run's identity from one derivation is the only way
+ * "which schedule is this" cannot differ between the two views of the same run.
+ */
 function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceHeaderProps) {
 	const [showImpactPreview, setShowImpactPreview] = useState(false);
 	const [syncing, setSyncing] = useState(false);
@@ -148,6 +144,8 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 		openMapWorkspace,
 		handleRefresh,
 		editHistoryCount,
+		// A2-C6-TRUTH (T1b): a count earned by a completed read, not a cleared one.
+		editHistoryReadState,
 		setShowEditHistory,
 		tutorial,
 		summary,
@@ -432,25 +430,15 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 	// left untouched for the quick-place/sync request targets, which are a
 	// separate question from what this line prints.
 	const runOnScreenId = draft?.runId ?? null;
-	const runState = runStateSentence({
+	// U2/#51 and A2-C6-TRUTH (T3a): the key, the badge label and the sentence all
+	// come from `RunStateBadge`, so this header and Simple view cannot name the
+	// same run two different ways.
+	const runStateDescription = describeRunState({
 		isPreGeneration: isPreGenerationWorkspace,
-		hasRun: runOnScreenId != null,
 		runId: runOnScreenId,
 		isPublished: isRunPublished,
 	});
-	const runBadgeLabel = runStateBadgeLabel({
-		isPreGeneration: isPreGenerationWorkspace,
-		hasRun: runOnScreenId != null,
-		isPublished: isRunPublished,
-	});
-	// U2/#51 — keyed on the RUN, never on `isPreGenerationWorkspace`.
-	const runStateKey: RunStateKey = isPreGenerationWorkspace
-		? 'planning'
-		: runOnScreenId == null
-			? 'empty'
-			: isRunPublished ? 'published' : 'draft';
-	const runStatePresentation = RUN_STATE_PRESENTATION[runStateKey];
-	const RunStateIcon = runStatePresentation.icon;
+	const runStateKey = runStateDescription.key;
 
 	return (
 		<Profiler id="Header" onRender={onProfilerRender}>
@@ -458,25 +446,18 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 			<div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-b border-border/60 bg-muted/20 px-4 py-1.5 text-xs text-muted-foreground" data-testid="timetable-scheduler-orientation">
 				<span><span className="font-semibold text-foreground">Term:</span> {activeTermLabel ?? 'Term setup required'}</span>
 				<span><span className="font-semibold text-foreground">Scope:</span> {termFilter === 'all' ? 'All terms' : (termOptions.find((option) => option.value === String(termFilter))?.label ?? 'Selected term')}</span>
-				{runState ? <span data-testid="timetable-run-identity"><span className="font-semibold text-foreground">State:</span> {runState}</span> : null}
+				<RunIdentityLine isPreGeneration={isPreGenerationWorkspace} runId={runOnScreenId} isPublished={isRunPublished} className="text-xs text-muted-foreground" />
 				<span><span className="font-semibold text-foreground">Next:</span> {nextActionLabel}</span>
 			</div>
 			<div className="flex items-center gap-2 overflow-x-auto scrollbar-thin px-4 pt-2 pb-1.5 [@media(max-height:500px)]:pt-1 [@media(max-height:500px)]:pb-1">
-				{/* U2/#51 — the appearance follows the RUN. The pre-candidate badge keyed
-				 * `variant`/className on `isPreGenerationWorkspace`, so a PUBLISHED run
-				 * and an unpublished one wore the same badge and only the state word
-				 * distinguished them. */}
-				<Badge
-					variant="outline"
-					className={cn('h-7 shrink-0 gap-1.5 px-2.5 text-xs font-semibold', runStatePresentation.toneClass)}
-					data-testid="timetable-run-state-badge"
-					data-run-state={runStateKey}
-					data-run-state-sign={runStatePresentation.sign}
-					data-run-state-tone={runStatePresentation.tone}
-				>
-					<RunStateIcon className="size-3.5 shrink-0" aria-hidden="true" data-testid="timetable-run-state-sign" />
-					<span className="truncate">{runBadgeLabel}</span>
-				</Badge>
+				{/* U2/#51 — the appearance follows the RUN, and A2-C6-TRUTH (T3a) made
+				 * the renderer shared with Simple view, so the two views of one run
+				 * cannot disagree about its number or its Draft/Published word. */}
+				<RunStateBadge
+					isPreGeneration={isPreGenerationWorkspace}
+					runId={runOnScreenId}
+					isPublished={isRunPublished}
+				/>
 
 				{newerFailedRunNotice && (
 					<Badge variant="outline" data-testid="timetable-newer-run-failed" className="h-7 shrink-0 px-2 text-xs font-semibold border-amber-200 bg-amber-50 text-amber-950">
@@ -754,10 +735,16 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 								onClick={() => setShowEditHistory(true)}
 							>
 								<History className="size-3.5" />
-								<span className="text-xs">{editHistoryCount}</span>
+								{/* A2-C6-TRUTH (T1b): the digit is a claim about the run. A
+								    cleared-but-unread ledger and a failed read both render 0, so
+								    the control shows the read state instead of a number it has
+								    not earned. */}
+								<span className="text-xs" data-testid="timetable-history-count" data-history-read-state={editHistoryReadState}>
+									{editHistoryReadState === 'ready' ? editHistoryCount : '—'}
+								</span>
 							</Button>
 						</TooltipTrigger>
-						<TooltipContent>View manual edit history</TooltipContent>
+						<TooltipContent>{editHistoryReadState === 'ready' ? 'View manual edit history' : 'Reading manual edit history…'}</TooltipContent>
 					</Tooltip>
 				</TooltipProvider>
 

@@ -10,6 +10,7 @@ import type { ActiveSchoolYearContext } from '@/lib/enrollpro-public-settings';
 import type { TimetableCurriculumReadinessState } from '@/hooks/useTimetableData';
 import type { DragSource, PreGenDragSource } from '@/components/timetable/ScheduleReviewWorkspace.constants';
 import type { LeftRailContentContext, ScheduleReviewDialogsContext } from '@/components/timetable/timetableContexts.types';
+import type { EditHistoryReadState } from '@/lib/timetable-edit-history-truth';
 
 import {
 	CONFLICT_CODES,
@@ -81,6 +82,17 @@ export type ScheduleReviewWorkspaceHeaderContext = {
 	referenceLookupStatus: { state: 'loading' | 'ready' | 'needs-refresh'; label: string };
 	revertLoading: boolean;
 	editHistoryCount: number;
+	/**
+	 * A2-C6-TRUTH (T1b/T1c) — what the last ledger read PROVED. `editHistoryCount`
+	 * alone cannot distinguish a run nobody edited from a read that failed or has
+	 * not run, and the surface is only allowed to claim "no recorded changes" from
+	 * a `ready` read of zero rows.
+	 *
+	 * Optional so a test fixture that predates this field keeps compiling; an
+	 * absent value is read as `idle`, which can never authorise the empty-run
+	 * claim. That is the fail-closed default, not a convenience.
+	 */
+	editHistoryReadState?: EditHistoryReadState;
 	revertLastEdit: () => Promise<void>;
 	/**
 	 * A2-TIMETABLE-CUSTODY-R2 — why the header Undo is unavailable, or `null` when it

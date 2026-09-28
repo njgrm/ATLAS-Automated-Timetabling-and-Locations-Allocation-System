@@ -39,6 +39,8 @@ import {
 import { TimetableGrid } from '../../components/timetable/TimetableGrid';
 import { SWAP_MODE_STATUS_MESSAGES } from '../../hooks/useScheduleReviewWorkspaceState';
 import { SearchableSelect } from '../../ui/searchable-select';
+// A2-C6-TRUTH (T1b): the B10R replacement row decides on the predicate, not on text.
+import { mayClaimEmptyHistory } from '../../lib/timetable-edit-history-truth';
 import type { ScheduledEntry } from '../../types';
 
 const source = (path: string) => readFileSync(new URL(path, import.meta.url), 'utf8');
@@ -275,9 +277,41 @@ test('B9 an empty or loading draft says what it is instead of looking like the s
 test('B10 a disabled Schedule history says why, readably', () => {
 	const menu = source('../../components/timetable/simple/SimpleMoreMenuContent.tsx');
 	assert.match(menu, /data-testid="timetable-more-schedule-history-reason"/);
-	assert.match(menu, /Nothing to show yet: no class has been moved, swapped or given a new room in this schedule\./);
+	// A2-C6-TRUTH (T1b) — SUPERSEDED IN PART, corrected additively, not deleted.
+	//
+	// This row used to require the empty-run SENTENCE to be a literal in this
+	// component's source. That is the defect, not the contract: the sentence
+	// asserts a fact about the run, and the component printed it whenever
+	// `editHistoryCount === 0` — which a term change and a failed read both
+	// produce. Pinning the literal here is what kept the claim one row-count
+	// away from printing.
+	//
+	// The sentence now lives in ONE owner, `timetable-edit-history-truth`, and
+	// the component selects it by the last READ. So the row is corrected to
+	// assert the new ownership plus the read-driven selection, and the
+	// replacement row below proves the same thing on a RENDERED value.
+	assert.match(menu, /editHistoryEmptyStateMessage\(historyReadState, context\.editHistoryCount\)/,
+		'the sentence is chosen by the last read, not by a row count');
+	assert.doesNotMatch(menu, /no class has been moved, swapped or given a new room/,
+		'the component no longer owns — and can no longer misfire — the empty-run sentence');
 	assert.match(menu, /data-\[disabled\]:opacity-100/);
 	assert.match(menu, /Schedule history \(\{context\.editHistoryCount\}\)/);
+});
+
+test('B10R (A2-C6-TRUTH T1b) the empty-run sentence has exactly one owner and one precondition', () => {
+	// The replacement row for the superseded source-text assertion above, and it
+	// is on VALUES rather than on source text: the sentence is defined once, and
+	// the predicate that authorises it is a pure function.
+	const truth = source('../../lib/timetable-edit-history-truth.ts');
+	const sentenceMatches = truth.match(/Nothing to show yet: no class has been moved, swapped or given a new room in this schedule\./g) ?? [];
+	assert.equal(sentenceMatches.length, 1,
+		'the empty-run sentence exists in exactly one production place, so exactly one precondition can gate it');
+
+	assert.equal(mayClaimEmptyHistory('ready', 0), true, 'a completed read of zero rows may claim the run is empty');
+	for (const state of ['idle', 'loading', 'error'] as const) {
+		assert.equal(mayClaimEmptyHistory(state, 0), false,
+			`a ${state} read may never claim the run has no recorded changes`);
+	}
 });
 
 // ── B11 ───────────────────────────────────────────────────────────────────

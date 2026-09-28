@@ -3,6 +3,8 @@ import { History, RotateCcw } from 'lucide-react';
 import type { ScheduleReviewDialogsContext } from '@/components/timetable/timetableContexts.types';
 import type { ManualEditRecord } from '@/types';
 import { manualEditActionLabel } from '@/lib/timetable-plain-language';
+// A2-C6-TRUTH (T2a): the plain sentence naming a class the auto-fix relocated.
+import { describeEditAutoMove } from '@/lib/timetable-edit-history-truth';
 import {
 	ALREADY_UNDONE_EDIT_MESSAGE,
 	REVERT_EDIT_TYPE,
@@ -134,6 +136,13 @@ export function TimetableAssignmentDialogs({ context }: { context: ScheduleRevie
 						// still works is the worse error.
 						const isUndone = !isRevert && isEditUndoneInHistory(edit.id, editHistory);
 						const undone = isRevert ? undoneEditLabel(edit, editHistory) : null;
+						// A2-C6-TRUTH (T2a): a swap that carried an auto-fix moved a
+						// class the operator's control never named. The badge still says
+						// "Swapped two sessions" — which is true of the exchange — but on
+						// its own it reads as a two-class change. The recorded slots
+						// decide whether a third session was relocated, and the row says
+						// so in the same plain words the post-commit toast used.
+						const autoMove = describeEditAutoMove(edit);
 						const canRevert = !isRevert && !isUndone && isHead && currentRunVersion != null && !revertLoading;
 						const revertReason = isHead ? 'Revert this edit' : 'Only the latest edit can be reverted';
 						return (
@@ -173,11 +182,22 @@ export function TimetableAssignmentDialogs({ context }: { context: ScheduleRevie
 								<p className="mt-1 text-muted-foreground" data-testid="timetable-edit-history-actor">
 									Changed by a signed-in account. This record does not show which person.
 								</p>
-								{isRevert && (
-									/* D1. The naming is additive beside the actor sentence, never in
-									 * place of the badge, so the row still says what KIND of
-									 * record it is. When the ledger identifies nothing, the row
-									 * says exactly that instead of borrowing a neighbour. */
+							{autoMove && (
+								/* A2-C6-TRUTH (T2a). Additive beside the badge, never in place
+								 * of it: the row still says what KIND of record it is, and the
+								 * plain sentence below names the class that actually moved and
+								 * where it went. It is derived from the recorded before/after
+								 * slots, so it describes what was committed even if the run has
+								 * changed since. */
+								<p className="mt-1 font-medium text-amber-900" data-testid="timetable-edit-history-autofix">
+									{autoMove}
+								</p>
+							)}
+							{isRevert && (
+								/* D1. The naming is additive beside the actor sentence, never in
+								 * place of the badge, so the row still says what KIND of
+								 * record it is. When the ledger identifies nothing, the row
+								 * says exactly that instead of borrowing a neighbour. */
 									<p className="mt-1 text-muted-foreground" data-testid="timetable-edit-history-undid">
 										{undone === null ? 'Undid: an earlier change this record does not identify' : `Undid: ${undone}`}
 									</p>

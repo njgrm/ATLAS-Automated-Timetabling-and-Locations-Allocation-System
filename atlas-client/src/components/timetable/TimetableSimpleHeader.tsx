@@ -52,6 +52,11 @@ import {
 } from '@/components/timetable/simple/SimpleSetupSharedControls';
 import type { SimpleViewMode } from '@/components/timetable/simple/SimpleHeaderHelpers';
 import { SimpleTermSwitcher } from '@/components/timetable/simple/SimpleBeneficiaryControls';
+// A2-C6-TRUTH (T3a/T3b/T3c/T3f): the shared run identity, the one term line, and
+// the capped status region.
+import { RunStateBadge } from '@/components/timetable/RunStateBadge';
+import { SimpleTermScopeLine } from '@/components/timetable/simple/SimpleTermScopeLine';
+import { buildSimpleHeaderMessages, SimpleHeaderMessageList } from '@/components/timetable/simple/SimpleHeaderMessages';
 import {
 	countUnassignedForSelectedTerm,
 	lifecycleStepNeedsMoreEntry,
@@ -527,6 +532,18 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 					: null;
 	// S5 — the Simple layout's unassigned entry counts the selected term only.
 	const selectedTermLabel = typeof context.termFilter === 'number' ? `Term ${context.termFilter}` : 'All terms';
+	// A2-C6-TRUTH (T3b/T3c): the label the SELECTOR prints for the viewed term, so
+	// the scope line and the selector can never name the term differently.
+	const viewingTermLabel = typeof context.termFilter === 'number'
+		? (context.termOptions.find((option) => option.value === String(context.termFilter))?.label ?? selectedTermLabel)
+		: 'all terms';
+	const headerMessages = buildSimpleHeaderMessages({
+		latestRunFailed,
+		nonBlockingHardCount: publishBlockTruth.nonBlockingHardCount,
+		schoolNamesRefreshed,
+		setupBlockedDiagnostic,
+		setupOperatorMessage,
+	});
 	const unassignedForTerm = countUnassignedForSelectedTerm(
 		context.draft?.unassignedItems as Array<{ termIndex?: number | null }> | undefined,
 		context.termFilter,
@@ -627,6 +644,26 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 			>
 			<section data-testid="timetable-simple-status-region" role="region" aria-label="Timetable status" className="min-w-0 px-3">
 			<div className="flex min-w-0 flex-wrap items-center gap-1.5">
+				{/* A2-C6-TRUTH (T3a/T3b/T3c) — WHICH schedule, and which term, in one
+				    place. Simple is the DEFAULT view and it printed neither: the run
+				    number and Draft/Published word existed only in the Expert header
+				    (a surface move, not a regression — see `RunStateBadge`), and the
+				    app shell carried a separate `Active Term:` chip that could not see
+				    the term authority the timetable actually filters on. Both now come
+				    from one shared derivation. */}
+				<RunStateBadge
+					isPreGeneration={context.isPreGenerationWorkspace}
+					runId={context.draft?.runId ?? null}
+					isPublished={isRunPublished}
+					className="h-6 shrink-0 gap-1 px-2 text-xs font-semibold"
+				/>
+				<SimpleTermScopeLine
+					context={context}
+					termFilter={context.termFilter}
+					termOptions={context.termOptions}
+					viewingLabel={viewingTermLabel}
+					hasScheduleOnScreen={context.draft != null}
+				/>
 				{/* Only actionable drift and unresolved-term states belong in the
 				    ordinary header. Routine provenance remains in Expert diagnostics. */}
 				{showDriftState ? (
@@ -651,43 +688,10 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 				) : termAuthorityNotice ? (
 					<p className="min-w-0 flex-1 truncate text-xs font-medium text-amber-800" data-testid="timetable-term-authority-unverified">{termAuthorityNotice}</p>
 				) : null}
-				{latestRunFailed ? (
-					<p className="min-w-0 text-xs font-medium text-red-700" data-testid="timetable-last-generation-failed-message">
-						The last schedule build did not finish. Check schedule information, then try again.
-					</p>
-				) : null}
-				{publishBlockTruth.nonBlockingHardCount > 0 ? (
-					<p className="min-w-0 text-xs font-medium text-amber-800" data-testid="timetable-non-blocking-hard-notice">
-						{publishBlockTruth.nonBlockingHardCount} rule break{publishBlockTruth.nonBlockingHardCount === 1 ? '' : 's'} did not stop publishing, but {publishBlockTruth.nonBlockingHardCount === 1 ? 'it is' : 'they are'} still worth reviewing.
-					</p>
-				) : null}
-				{schoolNamesRefreshed ? (
-					<p
-						role="status"
-						className="min-w-0 text-xs font-medium text-emerald-800"
-						data-testid="timetable-school-names-refreshed"
-					>
-						School names refreshed. The schedule did not change.
-					</p>
-				) : null}
-				{setupBlockedDiagnostic ? (					<TooltipProvider delayDuration={200}>
-						<Tooltip>
-							<TooltipTrigger asChild>
-								<p
-									className="min-w-0 break-words text-xs text-muted-foreground underline decoration-dotted decoration-muted-foreground/50 underline-offset-2"
-									data-testid="timetable-curriculum-readiness-message"
-									tabIndex={0}
-								>
-									{setupOperatorMessage}
-								</p>
-							</TooltipTrigger>
-							<TooltipContent side="bottom" className="max-w-xs text-xs leading-relaxed">
-								<span className="block font-semibold">Technical detail</span>
-								<span className="mt-1 block">{setupBlockedDiagnostic}</span>
-							</TooltipContent>
-						</Tooltip>
-					</TooltipProvider>
-				) : null}
+				{/* A2-C6-TRUTH (T3f) — the remaining notices, capped at three with an
+				    honest remainder count. Their conditions, wording, priority order
+				    and testids are unchanged; only how many render at once moved. */}
+				<SimpleHeaderMessageList messages={headerMessages} />
 			</div>
 			</section>
 
