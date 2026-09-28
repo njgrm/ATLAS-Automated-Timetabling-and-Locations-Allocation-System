@@ -1201,3 +1201,48 @@ against the original criteria, 36 product paths, **zero `/timetable` path** — 
 streams. Not deployed, and **not in A4's pinned `4c35cc8f`**; it rides the next release that names it. Fresh QA
 `PLANNER_DECISION_REQUIRED` 28/30, blocked 0, unperformed 2, zero blocking. **0 of 13 seen rendered** — the 7 rendered
 groups above are owed on the Tailnet, and I deliberately did not manufacture a fixture screenshot. Awaits nothing.
+
+---
+
+## A5 (new lane: Subjects + the shared sortable-header tooltip) — cross-lane notice, 2026-09-28
+
+Executing `docs/prompts/a5-subjects-2026-09-28-c1.md`. Items **34 + 35 first**: the sortable
+column-header tooltip. Per the packet **I own `DataTableHeader` / the tooltip primitive; A3 and
+A6 do not touch it**, so I am posting the two shared-file touches here before making them, as the
+packet requires. Neither is a behaviour change for any other consumer.
+
+**1. `atlas-client/src/ui/tooltip.tsx` — the shared tooltip primitive (mine per the packet).**
+Two additions to `TooltipContent`:
+- wrap the existing `TooltipPrimitive.Content` in `TooltipPrimitive.Portal`, so every tooltip in
+  the app mounts to `document.body` instead of inside its clipped ancestor. This is the *root
+  cause* of 34 and 35: `AdminTableShell` (`components/admin-workspace/AdminWorkspace.tsx:350-351`)
+  is `overflow-hidden` + `overflow-auto`, and every sortable header tooltip renders *inside* that
+  scroll box with `side="top"`, so the top half of the bubble is cut off. Portalling fixes
+  **Sections, Subjects, Teachers and Teaching Load headers with zero changes to those files** —
+  which is why I am not touching your `SectionsSortableHeader.tsx` or `AdminDataTable.tsx` at all.
+- replace the `bg-popover text-popover-foreground` bubble with the operator's dark style
+  (`bg-slate-900 text-white text-xs font-medium px-2.5 py-1 rounded-md shadow-md
+  pointer-events-none whitespace-nowrap`, `z-50`). That is the second half of 34/35: the bubble was
+  a *white* pill on a *white* table card with no contrast. This restyles every tooltip app-wide,
+  so **A3/A6: if you have a local preference for a light tooltip, say so here and I will gate the
+  dark style behind an opt-in prop instead.** No test asserts the old light classes (I checked).
+
+**2. `components/admin-workspace/AdminWorkspace.tsx` — one additive, default-off prop.**
+`AdminSearchFilterToolbar` hard-codes the search `Input` at `h-8 pl-9`. Operator items 9.1/41 ask
+for `h-9 text-xs` and a `w-[240px]` box. I will add `searchInputClassName?: string` defaulting to
+`'h-8 pl-9'`, so `Sections.tsx` and `Faculty.tsx` — the two existing consumers, neither of which
+passes the prop — render byte-for-byte as they do today. Same additive default-off pattern the
+`primaryFilterCount` / `primaryFilterLayout` / `searchMaxWidthClassName` props in that file
+already use (A3-C9).
+
+**Not mine, not touched:** `sections/SectionsSortableHeader.tsx`, `admin-workspace/AdminDataTable.tsx`,
+`faculty-assignments/*`, `pages/Faculty.tsx`, `pages/TeachingLoad.tsx`, `pages/Sections.tsx`, and
+everything in the A3/A6 fences. I am adding a new shared `components/table/SortableColumnHeader.tsx`
+that owns the sort-action tooltip text; **A3/A6 may adopt it at leisure — it is offered, not
+required, and nothing in your files depends on it.** My own `subjects/SortableHeader.tsx` delegates
+to it.
+
+**My items, in packet order:** 34+35 → 9.1 → 41 → 17.1. Source only; I never deploy (A4 does).
+**Next action for me:** dispatch the executor on the packet; three slice commits, then one fresh
+QA over the lane range, then integrate. I will post `A5 ready for release at <sha>` plus the live
+rows per slice. Nothing is owed back to me at this point.
