@@ -165,11 +165,23 @@
    <html>/<body> (no classList/add('dark') writer exists in src/), and
    index.css had no dark token surface at all before A3-C8. So these four
    overrides are a real, greppable, tested surface that no running code path
-   currently selects. They are defined ahead of the toggle on purpose, and
-   they must not be read as evidence that dark mode ships today. A future
-   session that adds a `dark`-class writer turns the superseded rows in
-   palette-token-sweep-a3-s-e.test.ts and palette-slate400-step2-a3-s-f.test.ts
-   back into a real rendered-screen demand; that gate is the tripwire.
+  currently selects. They are defined ahead of the toggle on purpose, and
+  they must not be read as evidence that dark mode ships today. A future
+  session that adds a `dark`-class writer turns the superseded rows in
+  palette-token-sweep-a3-s-e.test.ts and palette-slate400-step2-a3-s-f.test.ts
+  back into a real rendered-screen demand; that gate is the tripwire.
+
+  STATED LIMITS OF THAT TRIPWIRE (measured 2026-09-28, planner-verified). The
+  writer scan is a pattern match over atlas-client/src (.ts/.tsx/.css), not a
+  build-graph proof. It CATCHES: classList add/toggle/remove, a template-literal
+  or double-quoted class attribute, setAttribute('class'), a theme provider
+  applying a colorScheme. It MISSES, among others: a computed class name such as
+  cn('card', isDark && 'dark') — which is this repo's own idiom at 67 call sites
+  in 50 files — a clsx({ dark }) object form, a single-quoted brace attribute
+  className={'dark'}, dataset.theme = 'dark', a third-party ThemeProvider, and
+  any writer in a .js file. So the tripwire is a real guard, NOT a complete one,
+  and a green row here must never be read as proof that no writer exists.
+  Widening the pattern is dated backlog, not a silent improvement.
 
    The SURFACE tokens invert (pale -> dark, dark text -> light amber). The
    ACCENT does not simply flip, because --warning has two live roles and in a

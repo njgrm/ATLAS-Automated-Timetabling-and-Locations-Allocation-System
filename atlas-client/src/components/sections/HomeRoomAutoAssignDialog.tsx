@@ -57,7 +57,10 @@ type Props = {
  * DepEd grade colours (AGENTS.md §8): G7 green, G8 yellow, G9 red, G10 blue.
  *
  * A3-C8r1 swept this file's G8 badge (Tailwind's yellow 100 surface + yellow 700 text) onto
- * the warning family, which was wrong: this is a live grade badge (rendered at :253 and :280
+ * the warning family, which was wrong: this is a live grade badge (rendered where
+ * `GRADE_COLORS` is consumed in this file — see the guard in
+ * a3-c8-warning-token.test.ts, which asserts the reference rather than a line number,
+ * because the line moves every time a comment is added here)
  * as `G{grade}`), so the sweep turned G8 from yellow into "needs attention" and broke the §8
  * grade ramp. The entry below is restored to its original shades and is exempted, by exact
  * line, from the A3-C8 ratchet — see GRADE_BADGE_EXEMPTIONS in

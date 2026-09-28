@@ -225,7 +225,21 @@ const SUPERSEDED_INDEX_CSS_LF_SHA256 = '6fe45e63b43d123483d1c4e3b1f06f083baeea8b
  * Recomputed in the same session that changed the file, with the method above. See
  * SUPERSEDED_INDEX_CSS_LF_SHA256 for the value it replaces and why the pin moved.
  */
-const INDEX_CSS_LF_SHA256_REPINNED = '91590da6958622ff254be55d1b8cc0c05aee47e57f56548bc5fbac4a401d8677';
+const INDEX_CSS_LF_SHA256_REPINNED_A3C8R1 = '91590da6958622ff254be55d1b8cc0c05aee47e57f56548bc5fbac4a401d8677';
+
+/**
+ * The pin A3-C8r1 set. Retained, never deleted (§16), and superseded on 2026-09-28 by
+ * A3-C8r2 — a planner-applied DOCUMENTATION-ONLY correction that added the stated-limits
+ * paragraph to the `.dark` block in index.css. No token value, no selector, no computed
+ * colour changed in that commit; only a comment grew, and the pin fired on the comment.
+ *
+ * That firing is the pin working, not the pin being wrong, and it is the reason this
+ * constant exists: it is the machine record that A3-C8r2 changed no colour. Diff
+ * `aac241e6..a3c8r2` and read the token values — they are byte-identical.
+ */
+const INDEX_CSS_LF_SHA256_SUPERSEDED_A3C8R1 = INDEX_CSS_LF_SHA256_REPINNED_A3C8R1;
+
+const INDEX_CSS_LF_SHA256_REPINNED = '51b95594beb80d5f488d4b36c20dcac3b06dd275d6bc52ef0f94df73dab4630e';
 
 const AA = 4.5;
 /** The S-e rename ceiling. Asserted to be EXCEEDED below, so nobody can widen their way to green. */
@@ -831,14 +845,24 @@ test('control 4 (SUPERSEDED 2026-09-28 by a3-c8-warning-token): index.css is byt
 	);
 });
 
-test('control 4 (REPLACEMENT, A3-C8r1): index.css is byte-identical to the re-pinned value', () => {
+test('control 4 (REPLACEMENT, A3-C8r2): index.css is byte-identical to the re-pinned value', () => {
 	const actual = lfSha256(INDEX_CSS);
 	assert.equal(
 		actual,
 		INDEX_CSS_LF_SHA256_REPINNED,
-		'src/index.css changed again since A3-C8r1. --muted-foreground is global and shared with the ' +
+		'src/index.css changed again since A3-C8r2. --muted-foreground is global and shared with the ' +
 			'timetable and login surfaces, so changing it is not local to any one stream. Re-measure and ' +
 			'rewrite this file and the handoff in the same commit if a global token change is genuinely intended.',
+	);
+	// The A3-C8r2 commit was documentation-only. This row is the machine proof, and it is why the
+	// r2 pin is not simply "moved again": it must be a DIFFERENT hash from the r1 pin, and the only
+	// difference between the two revisions is a comment inside the `.dark` block. If a future edit
+	// makes these two hashes equal, the comment was reverted and the stated-limits paragraph — the
+	// artifact that stops a reader treating the tripwire as exhaustive — is gone.
+	assert.notEqual(
+		actual,
+		INDEX_CSS_LF_SHA256_SUPERSEDED_A3C8R1,
+		'the A3-C8r2 stated-limits paragraph is missing from index.css: this hash equals the pre-r2 value, so the only change recorded as a documentation correction was in fact a revert of it.',
 	);
 	// The specific declaration this sweep's contrast figures were computed from. Unchanged by
 	// A3-C8r1, and that is the load-bearing part: that stream added a NEW token family and a

@@ -60,7 +60,9 @@ import test from 'node:test';
  */
 const GRADE_BADGE_EXEMPTIONS: { file: string; mustContain: string[] }[] = [
 	{
-		// Live grade badge, rendered as `G{grade}` at :253 and :280 of that file.
+		// Live grade badge, rendered wherever this file consumes `GRADE_COLORS`. Asserted
+		// by reference, not by line number: a comment added above shifts the line and a
+		// stale line citation is evidence pointing at the wrong place (§11).
 		file: 'components/sections/HomeRoomAutoAssignDialog.tsx',
 		mustContain: ["8: 'bg-yellow-100 text-yellow-700'"],
 	},
