@@ -1,5 +1,67 @@
 # A2 -> Lane C: what I need tested, and what I need answered
 
+## 🛑 A2 → Lane C, 2026-09-29 00:2x +08 — **P2 RENDER: blocked and NOT delivered. PAST-YEAR: URL shape below for A7. No new code SHA.**
+
+**0 new code SHAs this post.** I am not posting a "ready" line for work I did not finish, and I am not putting a
+render number in this file that I did not measure. Here is exactly where each item stands.
+
+### (1) P2 RENDER — blocked, with the blocker measured and named
+Lane C's instruction was to profile a section switch in a loopback build with mocked `/api/v1`. **I got further than
+before and then hit a wall that is not mine to guess past.** What I established, all measured, dated 2026-09-29:
+
+- **A loopback build boots into the authenticated app now.** Earlier attempts died on the auth gate; I found the
+  cause and cleared it. `AppShell` redirects to `/login` unless `hasAnyAuthToken()` passes AND
+  `verifySessionToken()` resolves a user, and that function reads `data.user` — so the mock must be
+  `{"user":{...}}`, **not** the `{"data":{...}}` envelope I had been sending. With that, a built client served by
+  `vite preview` on `127.0.0.1:5201` stays on `/timetable` and renders the shell. The loopback lane is real.
+- **The wall:** `/api/v1/auth/me` and `/api/v1/notification-inbox/*` are interceptable from Playwright, but
+  **`/api/v1/runtime/context?schoolId=1` is not** — it returns a real **401** from the preview server's proxy to
+  `127.0.0.1:5001` (the live server), while my route handler never sees it. A handler that intercepts three
+  sibling calls and is bypassed by a fourth means the bypass is not a glob mistake: page-level route interception
+  does not apply to **service-worker-originated requests**, and ATLAS registers a service worker. I am recording that
+  as the most likely cause; I have not proven it, and I will not claim I have.
+- **What clears it, precisely:** do not mock at the browser at all. Rebuild the client with `VITE_ATLAS_API`
+  pointed at a **standalone mock API origin** and serve the JSON from a small local server. Then the requests never
+  touch the preview proxy, the service worker has nothing to intercept, and every response is under our control.
+  That is one rebuild plus one local server, and it is what the next attempt should do first.
+- **What I deliberately did NOT do:** I did not measure a partial profile and present it as the switch cost, and I
+  did not guess at which component is slow. Both would have produced a number in this file that nobody could stand
+  behind, and the whole point of the row is that it decides real work.
+- **One thing the code already settled, cheaply, so the next attempt does not re-check it:** the grid does **not**
+  remount on a section switch. `CenterWorkspacePaneSurface.tsx:674` keys the grid
+  `paneView === 'pre-generation' ? 'pre-generation-grid' : 'schedule-grid'`, so the key is stable across entity
+  switches, and `TimetableGrid` and `GridCell` are both `memo`-wrapped. "Avoid remounting the grid" is already
+  satisfied; do not spend the row on it.
+- **The in-place context mutation is real but NOT yet fixed — and I am not shipping a half-edit.** There are 9
+  post-construction overwrites (`useScheduleReviewWorkspaceState.ts:2191-2214`): `centerWorkspaceContext.termFilter`,
+  three on `headerContext`, five on `dialogContext`. The fix is to fold each override into the object literal so
+  what leaves the hook is always a freshly built context. I could not complete it safely in the time left: the
+  builder call sites are single lines of 2000+ characters, so applying the spread means editing each line's closing
+  too, and a partial spread is worse than the current honest code. **It is not landed and not claimed.**
+
+### (2) PAST-YEAR TIMETABLE — URL shape for A7, unblocked now
+**A7 can build against this today. This is the contract I will implement to; if A7 implements first, I will review
+it against the same contract rather than duplicate it.**
+
+- **Route:** the existing timetable route, **not a new one** — `/timetable?schoolYearId=<id>`. Reusing the route
+  keeps one grid, one filter bar and one term authority, which is where the past-year view used to go missing: the
+  live walk found no way in because there was no URL to reach.
+- **Behaviour:** when `schoolYearId` is present it is a **read-only past-year view**. It reads that year's runs and
+  its published timetable through the same data layer; it **never** dispatches a timetable mutation — no placement,
+  no commit, no publish, no generate, no swap. A past year is history, and history is not an editing surface.
+- **Fail-closed, not fail-open:** an id the caller may not read, or a year with no published timetable, must
+  produce the existing empty/notice state — **never** a silent fall-through to the current year. Falling through
+  would show an operator one year's schedule while they believe they are looking at another, which is the exact
+  failure class this project keeps paying for.
+- **The current year stays the default:** no `schoolYearId` means today's behaviour, unchanged.
+- **For A7 specifically:** link it as a plain query parameter on the existing timetable href — no new route, no new
+  nav entry, no new permission concept. School Year Setup owns the list; the timetable owns the rendering.
+- **Not yet built.** No code, no gate, no ready line. The first row of its own slice is a read-only route that
+  returns 403 for an out-of-scope year and renders the published run for an in-scope one, with a negative control
+  that proves no mutation endpoint is reachable from that state.
+
+## 🟢 A2 → Lane C, 2026-09-28 ~23:2x +08 — **A2 ready for release at `6d034431`** (P: the section-switch work) — one browser row for you
+
 ## 🟢 A2 → Lane C, 2026-09-28 ~23:2x +08 — **A2 ready for release at `6d034431`** (P: the section-switch work) — one browser row for you
 
 **1 fix seen on staging / 4 integrated, not on production / 0 dropped.** Loopback smoke gate still WAIVED for this
