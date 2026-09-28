@@ -1,11 +1,37 @@
 /**
- * C11 D + M5 — the persistent draft-state strip, and the ONE publication plan
- * both the strip and the headers read.
+ * C11 D — the persistent draft-state line, and the ONE publication plan both
+ * headers read.
  *
  * The recorded walk (`docs/reviews/codex-timetable-walk-20260928/report.md`)
  * found no visible way to tell a draft from a published schedule (defect 3), no
  * Undo in the default Simple view at all (defect 6), and no Undo anywhere near
  * the place a manual edit lands.
+ *
+ * ── C11 CORRECTION 2 (QA-B2) — THIS COMPONENT IS NOW TEXT, AND ONLY TEXT ──────
+ *
+ * The first cut gave the strip three buttons of its own (Edit · Discard draft ·
+ * Publish). Fresh independent QA measured the consequence on the real header at
+ * 1366 px: the Simple view went from the accepted SIX visible controls to NINE,
+ * and it put TWO publication controls on screen at once — this strip's `Publish`
+ * and the header's existing `timetable-simple-publish-action`. For a scheduler
+ * that is the operator-facing form of "one derivation, two renderers": the same
+ * verb, twice, on the same screen.
+ *
+ * So the strip keeps exactly the thing the packet asked for — a PERSISTENT,
+ * ALWAYS-VISIBLE state SENTENCE ("Draft — not visible to teachers until you
+ * publish" / "Published"), derived once from `describeRunState` — and stops
+ * contributing any control of its own. The three D actions did not disappear;
+ * they resolved onto controls the headers ALREADY have, in the one-primary +
+ * one-secondary shape DRAFT-UX-C01 established:
+ *
+ *   - `Edit`      → the header's own PRIMARY action slot when a draft exists
+ *                   ("Edit draft"), replacing that state's primary verb;
+ *   - `Publish`   → the header's own publication control, exactly one on screen;
+ *   - `Discard`   → the existing More menu, with a visible reason when disabled.
+ *
+ * Every reason below is still VISIBLE TEXT beside the control it explains, never a
+ * `title` and never hover-only (AGENTS.md §8). A reason is no longer rendered
+ * HERE, because the control it explains is no longer here.
  *
  * ── WHY THE PUBLICATION RULE LIVES HERE AND NOT IN THE STRIP ─────────────────
  *
@@ -17,12 +43,9 @@
  * precisely the "do not add a second publication path, do not weaken
  * `capabilities`" boundary. So the rule is extracted here, exactly once, and
  * `TimetableSimpleHeader` now calls this same function. There is one rule and two
- * callers; the strip has no authority of its own and takes its actions as props.
+ * callers; the strip has no authority of its own.
  */
-import { PencilLine, Send, Trash2 } from 'lucide-react';
-
 import { describeRunState } from '@/components/timetable/RunStateBadge';
-import { Button } from '@/ui/button';
 
 export type DraftStripPublishPlan =
 	| { readonly kind: 'disabled'; readonly reason: string }
@@ -57,25 +80,8 @@ export function resolveDraftStripPublishPlan(input: {
 }
 
 /**
- * C11 F2 — the three actions a surface may hand the strip.
- *
- * All three are OPTIONAL. A surface with no action to offer passes nothing and the
- * strip renders that control disabled with a visible reason; it must never pass a
- * module-level no-op, which produced the "visible, enabled, silent" Edit and
- * Discard draft the correction removed.
- */
-export type DraftStripActions = {
-	/** Edit — enters the draft's manual-edit affordances for the current run. */
-	onEdit?: (() => void) | undefined;
-	/** Discard draft — the workspace's existing reset-draft confirmation. */
-	onDiscardDraft?: (() => void) | undefined;
-	/** Publish — the workspace's existing canonical publication dispatch. */
-	onPublish?: (() => void) | undefined;
-};
-
-/**
- * The persistent strip: one derivation of draft-vs-published, and the actions
- * that belong to it.
+ * The persistent state line: one derivation of draft-vs-published, and NOTHING
+ * else.
  *
  * The visibility sentence is NOT derived here. It comes from
  * `describeRunState` in `RunStateBadge`, which is already the single derivation
@@ -83,6 +89,10 @@ export type DraftStripActions = {
  * strip cannot disagree about the run on screen. A second
  * `isPublished ? ... : ...` in this file would reintroduce exactly the drift
  * A2-C6-TRUTH was written to remove.
+ *
+ * It renders a `<span>`, not a block, because the two headers place it INSIDE the
+ * status row they already have (QA-B2: the strip must not add a header row — the
+ * next slice owns header row count).
  */
 export function DraftVisibilityState({
 	visibility,
@@ -110,7 +120,7 @@ export type DraftStripResolvedProps = {
 };
 
 /**
- * Resolve every strip input from the run, in one place.
+ * Resolve every action input from the run, in one place.
  *
  * This exists for two reasons. The single-source rule: the visibility sentence is
  * read from `describeRunState`, never re-derived here, so the badge, the run
@@ -119,9 +129,9 @@ export type DraftStripResolvedProps = {
  * the 1000-line cap (AGENTS.md §8), so the derivation lives here instead of
  * growing that header.
  *
- * `hasSelectedClass` is the single fact both the strip's `Edit` and the More
- * menu's `Manual edit` read, so those two surfaces cannot disagree about whether
- * a manual edit is currently possible.
+ * `hasSelectedClass` is the single fact both the primary `Edit draft` action and
+ * the More menu's `Manual edit` read, so those two surfaces cannot disagree about
+ * whether a manual edit is currently possible.
  */
 export function resolveDraftStripProps(input: {
 	isPreGeneration: boolean;
@@ -153,125 +163,56 @@ export function resolveDraftStripProps(input: {
 export const DRAFT_EDIT_NEEDS_SELECTION = 'Pick a class on the grid first, then choose Edit.';
 
 /**
- * C11 F2 — a control with no handler is DISABLED, and says so in the open.
+ * The VISIBLE reasons for an action a surface cannot perform right now.
  *
- * The first cut of this slice had both headers pass module-level `() => {}`
- * fall-throughs for the actions they did not receive, so `Edit` and
- * `Discard draft` rendered ENABLED, said nothing, and did nothing — the exact
- * "visible, enabled, silent" control the packet forbids. These are the visible
- * reasons for a missing handler, one per control, so an operator who cannot
- * complete an action is told which one and why without hovering anything
- * (AGENTS.md §8: a blocked reason must be visible, not hover-only).
+ * These used to be rendered beside this strip's own buttons. Correction 2 (QA-B2)
+ * moved the buttons onto controls the headers already have, so each reason now
+ * travels with the control it explains — the primary `Edit draft` states the
+ * selection reason, the More-menu `Discard draft` states its own, and the
+ * publication control states the publication reason. They remain visible TEXT
+ * (AGENTS.md §8: never a `title`, never hover-only), never tooltips.
+ *
+ * A surface that has no action to offer at all passes no handler; the control it
+ * renders is disabled and states one of these sentences beside itself, so a
+ * scheduler is never shown an enabled control whose handler does nothing.
  */
 export const DRAFT_EDIT_UNAVAILABLE = 'Edit is not available on this schedule surface.';
 export const DRAFT_DISCARD_UNAVAILABLE = 'Discarding the draft is not available on this schedule surface.';
 export const DRAFT_PUBLISH_UNAVAILABLE = 'Publishing is not available on this schedule surface.';
+/** C11 correction 2 (QA-B2) — the More-menu `Discard draft` entry's own reason. */
+export const DRAFT_DISCARD_REASON_NEEDS_DRAFT = 'There is no draft on this schedule to discard.';
 
+/**
+ * The persistent draft-state line.
+ *
+ * C11 CORRECTION 2 (QA-B2) — it renders NO control. It is a sentence, so it
+ * cannot push the accepted six-control cap over, and it cannot be a second
+ * renderer of an action the header already offers. The three D actions are
+ * resolved by each header onto its OWN controls (see this file's header comment);
+ * what remains here is the one thing neither header had: a draft state that is
+ * always on screen, from the one shared derivation.
+ *
+ * `children` is the single Undo / Redo / History control (M5) — the ONE instance
+ * in the whole workspace, handed to both headers by
+ * `ScheduleReviewWorkspace`. It is still a child of this component so the two
+ * layouts can never drift onto two Undo surfaces, but the strip itself adds no
+ * control of its own.
+ */
 export function TimetableDraftStateStrip({
 	visibility,
-	editEnabled,
-	editBlockedReason,
-	discardEnabled,
-	publishEnabled,
-	publishBlockedReason,
 	children,
-	onEdit,
-	onDiscardDraft,
-	onPublish,
 }: {
 	visibility: string | null;
-	editEnabled: boolean;
-	editBlockedReason: string | null;
-	discardEnabled: boolean;
-	publishEnabled: boolean;
-	publishBlockedReason: string | null;
 	/** The single existing Undo / Redo / History control (M5). */
 	children?: React.ReactNode;
-	// C11 F2 — the three actions are OPTIONAL. A surface that has no action to
-	// offer passes nothing, and the control renders disabled with a visible reason
-	// instead of falling through to a module-level no-op.
-	onEdit?: (() => void) | undefined;
-	onDiscardDraft?: (() => void) | undefined;
-	onPublish?: (() => void) | undefined;
 }) {
-	// C11 F2 — a control is live only when the caller both permits it AND supplied
-	// a handler. `disabled` is the conjunction, so an enabled control can never be
-	// one whose handler does nothing.
-	const editLive = editEnabled && typeof onEdit === 'function';
-	const discardLive = discardEnabled && typeof onDiscardDraft === 'function';
-	const publishLive = publishEnabled && typeof onPublish === 'function';
-	const editReason = editLive ? null : (editBlockedReason ?? DRAFT_EDIT_UNAVAILABLE);
-	const discardReason = discardLive ? null : DRAFT_DISCARD_UNAVAILABLE;
-	const publishReason = publishLive ? null : (publishBlockedReason ?? DRAFT_PUBLISH_UNAVAILABLE);
-
 	return (
-		<div
-			role="region"
-			aria-label="Schedule draft state"
+		<span
+			className="inline-flex min-w-0 flex-wrap items-center gap-1.5"
 			data-testid="timetable-draft-state-strip"
-			className="flex min-w-0 flex-wrap items-center gap-1.5 border-b border-border bg-muted/20 px-3 py-1.5"
 		>
 			<DraftVisibilityState visibility={visibility} />
-			{/* AGENTS.md §8 — no raw `title`. A disabled control states its reason in
-			    the visible line beside it, not only in a tooltip, so a keyboard or
-			    touch operator gets the same information (the A2-TIMETABLE-CUSTODY-R2
-			    precedent for the header Undo). C11 F2 extends that to a control that
-			    has no handler at all. */}
-			<Button
-				type="button"
-				variant="outline"
-				size="sm"
-				className="h-7 gap-1.5 px-2 text-xs"
-				disabled={!editLive}
-				onClick={onEdit}
-				data-testid="timetable-draft-strip-edit"
-				aria-label={editLive ? 'Edit the draft schedule' : `Edit the draft schedule. ${editReason ?? ''}`}
-			>
-				<PencilLine className="size-3.5" aria-hidden="true" />
-				Edit
-			</Button>
-			<Button
-				type="button"
-				variant="outline"
-				size="sm"
-				className="h-7 gap-1.5 px-2 text-xs"
-				disabled={!discardLive}
-				onClick={onDiscardDraft}
-				data-testid="timetable-draft-strip-discard"
-				aria-label={discardLive ? 'Discard the draft' : `Discard the draft. ${discardReason ?? ''}`}
-			>
-				<Trash2 className="size-3.5" aria-hidden="true" />
-				Discard draft
-			</Button>
-			<Button
-				type="button"
-				variant="outline"
-				size="sm"
-				className="h-7 gap-1.5 px-2 text-xs"
-				disabled={!publishLive}
-				onClick={onPublish}
-				data-testid="timetable-draft-strip-publish"
-				aria-label={publishLive ? 'Publish the schedule' : `Publish the schedule. ${publishReason ?? ''}`}
-			>
-				<Send className="size-3.5" aria-hidden="true" />
-				Publish
-			</Button>
-			{editReason && !editLive ? (
-				<span role="status" data-testid="timetable-draft-strip-edit-reason" className="text-xs text-muted-foreground">
-					{editReason}
-				</span>
-			) : null}
-			{discardReason && !discardLive ? (
-				<span role="status" data-testid="timetable-draft-strip-discard-reason" className="text-xs text-muted-foreground">
-					{discardReason}
-				</span>
-			) : null}
-			{publishReason && !publishLive ? (
-				<span role="status" data-testid="timetable-draft-strip-publish-reason" className="text-xs text-muted-foreground">
-					{publishReason}
-				</span>
-			) : null}
 			{children}
-		</div>
+		</span>
 	);
 }

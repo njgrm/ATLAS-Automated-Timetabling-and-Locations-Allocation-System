@@ -34,6 +34,7 @@ import { isDraftPublishedStrict } from '@/components/timetable/timetableWorkspac
 import { describeRunState, RunIdentityLine, RunStateBadge } from '@/components/timetable/RunStateBadge';
 import { resolveExpertPublishGate, TimetableExpertPublishControl } from '@/components/timetable/TimetableExpertPublishControl';
 import { resolveDraftStripPublishPlan, TimetableDraftStateStrip } from '@/components/timetable/TimetableDraftStateStrip';
+import { TimetableExpertDraftActions } from '@/components/timetable/TimetableDraftActionsSurface';
 import { ScheduleReviewInputStateBanner } from '@/components/timetable/ScheduleReviewInputStateBanner';
 import { TimetableAdvancedHeaderHelp } from '@/components/timetable/TimetableAdvancedHeaderHelp';
 import { deriveTimetableCapabilities, YEAR_SETUP_HREF } from '@/lib/timetable-capabilities';
@@ -102,15 +103,13 @@ function formatChangedDomains(domains: string[] | undefined): string[] {
  * settling check vs an in-progress stroke), the tone, and the label that
  * `runStateBadgeLabel` already reads from the run. The key is derived from the
  * RUN (`draft.runId` + `isDraftPublishedStrict`), never from the layout mode.
- */
-/**
- * A2-UX-STATUS-C2 / U2 + #51 — one icon, one tone and one sign token per state.
  *
- * The presentation map, the state key and both renderers now live in
- * `RunStateBadge` (A2-C6-TRUTH T3a), because Simple view is the DEFAULT view and
- * it was printing no run identity at all while Expert printed it here. Two
- * headers rendering one run's identity from one derivation is the only way
- * "which schedule is this" cannot differ between the two views of the same run.
+ * A2-C6-TRUTH (T3a) then moved the presentation map, the state key and BOTH
+ * renderers into `RunStateBadge`, because Simple view is the DEFAULT view and it
+ * was printing no run identity at all while Expert printed it here. Two headers
+ * rendering one run's identity from one derivation is the only way "which
+ * schedule is this" cannot differ between the two views of the same run — which is
+ * why the block below is a note on that shared renderer, not a second badge.
  */
 function ScheduleReviewWorkspaceHeaderImpl({ context, onEditDraft, onDiscardDraft, undoRedoControl }: ScheduleReviewWorkspaceHeaderProps) {
 	const [showImpactPreview, setShowImpactPreview] = useState(false);
@@ -470,37 +469,19 @@ function ScheduleReviewWorkspaceHeaderImpl({ context, onEditDraft, onDiscardDraf
 	return (
 		<Profiler id="Header" onRender={onProfilerRender}>
 			<div className="shrink-0 border-b border-border bg-background">
-			{/* C11 D — the SAME persistent draft strip the Simple header renders. One
-			    component, one `describeRunState` derivation, one Undo — so the two views
-			    of one run cannot disagree about whether it is a draft. Rendered before
-			    the header rows so it is present in BOTH headers, never conditional. */}
-			<TimetableDraftStateStrip
-				visibility={runStateDescription.visibility}
-				editEnabled={hasSelectedEntry}
-				editBlockedReason={hasSelectedEntry ? null : 'Pick a class on the grid first, then choose Edit.'}
-				discardEnabled={draft != null}
-				publishEnabled={expertPublishGate.allowed}
-				publishBlockedReason={expertPublishGate.allowed ? null : expertPublishGate.reason}
-
-				// C11 F2 — NO no-op fall-through. Both actions are optional, and
-				// `TimetableDraftStateStrip` renders a control it was given no
-				// handler for as DISABLED with the reason visible beside it. The
-				// module-level `() => {}` this replaced is exactly the "visible,
-				// enabled, silent" control the correction removes, and the noop
-				// consts it needed are gone.
-				onEdit={onEditDraft}
-				onDiscardDraft={onDiscardDraft}
-				onPublish={() => {
-					setPublishAcknowledged(false);
-					setShowPublishDialog(true);
-				}}
-			>
-				{/* C11 M5 (F2) — the single Undo instance, as in the Simple header. */}{undoRedoControl}
-			</TimetableDraftStateStrip>
 			<div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-b border-border/60 bg-muted/20 px-4 py-1.5 text-xs text-muted-foreground" data-testid="timetable-scheduler-orientation">
 				<span><span className="font-semibold text-foreground">Term:</span> {activeTermLabel ?? 'Term setup required'}</span>
 				<span><span className="font-semibold text-foreground">Scope:</span> {termFilter === 'all' ? 'All terms' : (termOptions.find((option) => option.value === String(termFilter))?.label ?? 'Selected term')}</span>
 				<RunIdentityLine isPreGeneration={isPreGenerationWorkspace} runId={runOnScreenId} isPublished={isRunPublished} className="text-xs text-muted-foreground" />
+				{/* C11 D, correction 2 (QA-B2) — the SAME persistent draft-state SENTENCE the
+				    Simple header renders, in the orientation row this header already has, so
+				    the two views of one run cannot disagree about whether it is a draft. The
+				    strip's three buttons were what took Simple from six visible controls to
+				    nine and put two publication controls on screen; the actions resolve onto
+				    controls this header already has — `Publish` is
+				    `TimetableExpertPublishControl` below, and Edit/Discard are in "More
+				    tools" beside them. */}
+				<TimetableDraftStateStrip visibility={runStateDescription.visibility} />
 				<span><span className="font-semibold text-foreground">Next:</span> {nextActionLabel}</span>
 			</div>
 			<div className="flex items-center gap-2 overflow-x-auto scrollbar-thin px-4 pt-2 pb-1.5 [@media(max-height:500px)]:pt-1 [@media(max-height:500px)]:pb-1">
@@ -585,6 +566,11 @@ function ScheduleReviewWorkspaceHeaderImpl({ context, onEditDraft, onDiscardDraf
 					}}
 				/>
 
+				{/* C11 M5 (F2), correction 2 (QA-B2) — the single Undo instance, back in the
+				    toolbar, because the strip is a sentence now. What must not change is that
+				    there is exactly ONE (`A2-TIMETABLE-CUSTODY`), shared by both headers. */}
+				{undoRedoControl}
+
 				<TooltipProvider>
 					<Tooltip>
 						<TooltipTrigger asChild>
@@ -633,7 +619,7 @@ function ScheduleReviewWorkspaceHeaderImpl({ context, onEditDraft, onDiscardDraf
 
 					<DropdownMenu open={moreOpen} onOpenChange={setMoreOpen}>
 					<DropdownMenuTrigger asChild>
-						<Button variant="outline" size="sm" className="h-8 shrink-0 gap-1.5">
+						<Button variant="outline" size="sm" className="h-8 shrink-0 gap-1.5" data-testid="timetable-advanced-more-tools">
 							<MoreHorizontal className="size-3.5" />
 							More tools
 						</Button>
@@ -800,11 +786,21 @@ function ScheduleReviewWorkspaceHeaderImpl({ context, onEditDraft, onDiscardDraf
 						<TooltipContent>Start guided tour of the schedule review page</TooltipContent>
 					</Tooltip>
 				</TooltipProvider>
-				<Link to="/timetabling/how-it-works" className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md text-xs text-muted-foreground hover:text-foreground hover:bg-accent transition-colors">
-					<Lightbulb className="size-3.5" />
-					How It Works
-				</Link>
-						</div>
+					<Link to="/timetabling/how-it-works" className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md text-xs text-muted-foreground hover:text-foreground hover:bg-accent transition-colors">
+						<Lightbulb className="size-3.5" />
+						How It Works
+					</Link>
+				{/* C11 D, correction 2 (QA-B2) — `Edit draft` / `Discard draft` in the menu this
+				    header already has; without them the two props are unreferenced and Expert
+				    has NO way to enter or discard a draft. `Publish` is not here: the toolbar's
+				    own `TimetableExpertPublishControl` is the publication control. */}
+					<TimetableExpertDraftActions
+						hasSelectedClass={hasSelectedEntry}
+						hasDraft={draft != null}
+						onEdit={onEditDraft ?? null}
+						onDiscard={onDiscardDraft ?? null}
+					/>
+					</div>
 					</DropdownMenuContent>
 				</DropdownMenu>
 
@@ -994,6 +990,10 @@ function ScheduleReviewWorkspaceHeaderImpl({ context, onEditDraft, onDiscardDraf
 	);
 }
 
-/** A fixture that omits these still renders the strip; it edits and discards nothing. */
-
+/*
+ * The orphaned comment that stood here described a test fixture and attached to no
+ * declaration. It is now also FALSE: `onEditDraft` / `onDiscardDraft` are the two
+ * actions wired into "More tools" above, and a fixture that omits them gets both
+ * rows rendered and DISABLED with a visible reason.
+ */
 export const ScheduleReviewWorkspaceHeader = memo(ScheduleReviewWorkspaceHeaderImpl);

@@ -379,9 +379,21 @@ export function TimetablePlacementDialogs({ context }: { context: ScheduleReview
 		setDragItem(null);
 		restoreReviewFocus();
 	};
+	/**
+	 * C11 M4 — ONE exit for the draft-swap review, and it resets the ARMED state too.
+	 *
+	 * C11 CORRECTION 2 (QA N3) — this was the ONE exit path that did not run the
+	 * single reset. `closeGeneratedSwap` cleared the armed fields; `closeDraftSwap`
+	 * cleared only the dialog's own local state (`showSwapConfirm` / `swapAction`),
+	 * so closing the draft-swap review left the workspace mid-swap with Class A/B
+	 * standing — the same "needs a reload" symptom the reset was written to close,
+	 * on the one path a scheduler reaches first. Both closes now go through
+	 * `resetSwapClassTimesState`, so there is one definition of "the swap is over".
+	 */
 	const closeDraftSwap = () => {
 		setShowSwapConfirm(false);
 		setSwapAction(null);
+		resetSwapClassTimesState();
 		restoreReviewFocus();
 	};
 	/**
@@ -391,6 +403,7 @@ export function TimetablePlacementDialogs({ context }: { context: ScheduleReview
 	 * Cancel and the footer Cancel, so all five run the same reset and no exit
 	 * path can be added later that forgets the armed fields. See
 	 * `timetableSwapArming.resetSwapClassTimes` for the recorded defect.
+	 * C11 CORRECTION 2 (QA N3) — `closeDraftSwap` above is now symmetric with this.
 	 */
 	const closeGeneratedSwap = () => {
 		setRegularSwapPending(null);

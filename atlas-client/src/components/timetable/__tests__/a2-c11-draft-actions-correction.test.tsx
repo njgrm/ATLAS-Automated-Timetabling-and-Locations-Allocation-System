@@ -63,6 +63,17 @@ Object.assign(globalThis, {
 });
 Object.defineProperty(globalThis, 'navigator', { value: dom.window.navigator, configurable: true });
 
+// ── QA-B2 re-point: the two headers now render the draft actions inside the Radix
+// `More` menus they ALREADY have, so the F2 rows below have to open a real menu
+// rather than assert on a button that moved. Radix's dismissable layer calls these
+// three on every pointer event, and JSDOM implements none of them; the stubs are
+// the same ones `draft-ux-c01` uses to open this same menu, so the rows exercise
+// the production path rather than a simplified one.
+(dom.window.HTMLElement.prototype as unknown as { scrollIntoView: () => void }).scrollIntoView = () => {};
+(dom.window.HTMLElement.prototype as unknown as { hasPointerCapture: () => boolean }).hasPointerCapture = () => false;
+(dom.window.HTMLElement.prototype as unknown as { releasePointerCapture: () => void }).releasePointerCapture = () => {};
+(dom.window.HTMLElement.prototype as unknown as { setPointerCapture: () => void }).setPointerCapture = () => {};
+
 // The building arm renders the real `BuildingView`, which draws through konva and
 // therefore needs a 2D context. JSDOM returns null without the optional `canvas`
 // package, and nothing about the assertion needs pixels — so a recording stub
@@ -117,6 +128,25 @@ function renderIn(element: any, wrap?: (child: any) => any) {
 			assert.ok(el, `control ${id} is rendered, so it can be clicked`);
 			act(() => { el.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true, cancelable: true, button: 0 })); });
 		},
+		/**
+		 * Open a Radix menu the way a scheduler does: `pointerdown` on the trigger,
+		 * then let the portal, focus trap and measurement settle. Returns the menu
+		 * element, which lives in a PORTAL — so a row that wants a menu row must ask
+		 * this helper, not `host`.
+		 */
+		openMenu: async (testId: string): Promise<HTMLElement> => {
+			const trigger = host.querySelector(`[data-testid="${testId}"]`) as HTMLElement;
+			assert.ok(trigger, `trigger ${testId} is rendered, so the menu can be opened`);
+			await act(async () => {
+				trigger.dispatchEvent(new dom.window.MouseEvent('pointerdown', { bubbles: true, cancelable: true, button: 0 }));
+			});
+			for (let index = 0; index < 5; index += 1) {
+				await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
+			}
+			const menu = dom.window.document.querySelector('[role="menu"]') as HTMLElement | null;
+			assert.ok(menu, `More opens a menu (trigger ${testId})`);
+			return menu;
+		},
 	};
 }
 
@@ -127,6 +157,19 @@ function NavTo({ to }: { to: string }) {
 }
 
 const withRouter = (child: any) => createElement(MemoryRouter, { initialEntries: ['/timetable'] }, child);
+
+/**
+ * "Cannot act right now", for BOTH shapes the surfaces use: a real `<button>`
+ * carries the `disabled` property, while a Radix `DropdownMenuItem` is a `div`
+ * with `role="menuitem"` that carries `aria-disabled` instead. Reading only one of
+ * the two would make a disabled menu row report `undefined`, which is not `false`
+ * — the row would pass for the wrong reason.
+ */
+function cannotAct(element: Element | null): boolean {
+	assert.ok(element, 'the control is rendered, so its state can be read');
+	return element!.getAttribute('aria-disabled') === 'true'
+		|| (element! as HTMLButtonElement).disabled === true;
+}
 
 // ══════════════════════════════════════════════════════════════════════════════
 // FIXTURES
@@ -478,9 +521,49 @@ test('F1 WIRING: the route-applied signal is reported by the ONE sync and thread
 // F2 — one Undo in both layouts; no enabled control whose handler does nothing
 // ══════════════════════════════════════════════════════════════════════════════
 
-test('F2 RENDERED: the Expert header strip carries the single Undo, and its Edit and Discard are live', async () => {
+/*
+ * ── F2 (the three rows below) — SUPERSEDED BY QA-B2 CORRECTION 2, KEPT BESIDE ──
+ *
+ * The original F2 rows clicked `timetable-draft-strip-edit` / `-discard` and drove
+ * an 8-combination matrix over `TimetableDraftStateStrip`'s own `editEnabled` /
+ * `discardEnabled` / `publishEnabled` props. That component API is gone: the strip
+ * is TEXT-ONLY. Fresh QA measured why on the real Simple header at 1366 px — those
+ * three buttons took the accepted SIX visible controls to NINE and put TWO
+ * publication controls on screen at once.
+ *
+ * The INTENT of all three rows is preserved verbatim in the replacements below:
+ *   F2R1  the Expert header carries the single Undo AND has a live way to enter and
+ *          discard a draft (the regression QA named when it found the props
+ *          unreferenced);
+ *   F2R2  the Simple header mounts the same state sentence with a live Undo and a
+ *          live Discard;
+ *   F2R3  NO combination of permitted × handled produces an ENABLED control whose
+ *          handler does nothing — still all 8 combinations, now driven through the
+ *          real resolvers and the real rendered rows.
+ *
+ * Nothing was deleted. The original assertions are recorded in the block below and
+ * the replacements decide the new contract (AGENTS.md §16).
+ *
+ * For the record, the original F2R rows asserted, on each header: the strip is
+ * present (`timetable-draft-state-strip`) and names the run state; the Undo is
+ * enabled and one click calls `revertLastEdit`; and
+ * `timetable-draft-strip-edit` / `timetable-draft-strip-discard` are both
+ * `disabled === false` and each dispatches its own action exactly once. The
+ * original matrix asserted, for all 2×2×2 combinations, that each of the three
+ * strip controls' `disabled` equals `!permitted`, that every permitted one
+ * dispatches on click, that a handler-less render leaves NOTHING enabled while
+ * still rendering every control, that
+ * `timetable-draft-strip-edit-reason === DRAFT_EDIT_UNAVAILABLE` and
+ * `timetable-draft-strip-discard-reason === DRAFT_DISCARD_UNAVAILABLE`, and that
+ * no raw `title` carries a reason.
+ */
+
+test('F2R1 RENDERED (QA-B2 re-point): the Expert header has the single Undo, and Edit and Discard are LIVE in its "More tools" menu', async () => {
 	// The Expert strip was rendered with no `undoRedoControl`, no `onEditDraft` and
 	// no `onDiscardDraft`, so `advanced` had NO Undo and two enabled silent buttons.
+	// Correction 2 removed the strip's own buttons; the F2 defect would have simply
+	// MOVED if the header stopped offering Edit and Discard at all, so the prop
+	// contract is honoured in the menu this header already has.
 	const { ScheduleReviewWorkspaceHeader } = await import('@/components/timetable/ScheduleReviewWorkspaceHeader');
 	let reverted = 0;
 	let edited = 0;
@@ -494,25 +577,31 @@ test('F2 RENDERED: the Expert header strip carries the single Undo, and its Edit
 		} as any),
 		withRouter,
 	);
-	assert.ok(view.has('timetable-draft-state-strip'), 'the Expert layout renders the SAME persistent strip as Simple');
+	assert.ok(view.has('timetable-draft-state-strip'), 'the Expert layout renders the SAME persistent state sentence as Simple');
 	assert.ok(view.text.includes('not visible to teachers until you publish'), 'and it names the run state from the one derivation');
 
 	const undo = view.byLabel('Undo last manual timetable change');
-	assert.ok(undo, 'layoutMode === advanced HAS an Undo, mounted inside the strip');
+	assert.ok(undo, 'layoutMode === advanced HAS an Undo, in the toolbar it was always reachable from');
 	assert.equal((undo as HTMLButtonElement).disabled, false, 'and it is live with one edit in the draft');
 	act(() => { (undo as HTMLElement).dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true, cancelable: true, button: 0 })); });
 	assert.equal(reverted, 1, 'ONE click reverts the last edit in the Expert layout too');
 
-	const edit = view.host.querySelector('[data-testid="timetable-draft-strip-edit"]') as HTMLButtonElement;
-	const discard = view.host.querySelector('[data-testid="timetable-draft-strip-discard"]') as HTMLButtonElement;
-	assert.equal(edit.disabled, false, 'Edit is enabled because a handler WAS supplied');
-	assert.equal(discard.disabled, false, 'Discard draft is enabled because a handler WAS supplied');
-	view.click('timetable-draft-strip-edit');
-	view.click('timetable-draft-strip-discard');
+	// The two D actions live in the EXISTING "More tools" menu, so the header's
+	// visible-control count is unchanged.
+	assert.equal(view.host.querySelector('[data-testid="timetable-expert-edit-draft"]'), null,
+		'precondition: the actions are NOT toolbar controls — the menu is the surface');
+	const menu = await view.openMenu('timetable-advanced-more-tools');
+	const edit = menu.querySelector('[data-testid="timetable-expert-edit-draft"]') as HTMLElement;
+	const discard = menu.querySelector('[data-testid="timetable-expert-discard-draft"]') as HTMLElement;
+	assert.ok(edit, 'Edit draft is in the menu');
+	assert.equal(cannotAct(edit), false, 'Edit is enabled because a class IS selected AND a handler WAS supplied');
+	assert.equal(cannotAct(discard), false, 'Discard draft is enabled because a draft exists AND a handler WAS supplied');
+	edit.click();
+	discard.click();
 	assert.deepEqual([edited, discarded], [1, 1], 'and each dispatches its own real action exactly once');
 });
 
-test('F2 RENDERED: the Simple header strip is mounted and its actions are live', async () => {
+test('F2R2 RENDERED (QA-B2 re-point): the Simple header mounts the same sentence with a live Undo, and Discard is live in More', async () => {
 	const { TimetableSimpleHeader } = await import('@/components/timetable/TimetableSimpleHeader');
 	let reverted = 0;
 	let discarded = 0;
@@ -534,72 +623,140 @@ test('F2 RENDERED: the Simple header strip is mounted and its actions are live',
 		} as any),
 		withRouter,
 	);
-	assert.ok(view.has('timetable-draft-state-strip'), 'the Simple layout renders the SAME persistent strip');
+	assert.ok(view.has('timetable-draft-state-strip'), 'the Simple layout renders the SAME persistent state sentence');
 	assert.ok(view.text.includes('not visible to teachers until you publish'), 'and it names the run state from the one derivation');
 	assert.equal((view.byLabel('Undo last manual timetable change') as HTMLButtonElement).disabled, false, 'Undo is live');
-	assert.equal((view.host.querySelector('[data-testid="timetable-draft-strip-discard"]') as HTMLButtonElement).disabled, false, 'Discard is enabled');
-	view.click('timetable-draft-strip-discard');
+	// DRAFT-UX-C01 (operator, 2026-09-25) — the ONE solid primary once a run exists is
+	// `Publish schedule`, so the action row renders NO Edit control. The draft's own
+	// verb is a More-menu entry (asserted below), and the row still holds exactly one
+	// publication control — which is the defect this correction exists to close:
+	// pre-correction the strip added a second `Publish` here.
+	assert.equal(view.host.querySelector('[data-testid="timetable-simple-edit-draft-action"]'), null,
+		'the action row renders NO Edit primary — the draft verb lives in More');
+	assert.equal(view.host.querySelectorAll('[data-testid="timetable-simple-publish-action"]').length, 1,
+		'exactly ONE publication control in the action row, and it is the primary');
+
+	const menu = await view.openMenu('timetable-simple-more-trigger');
+	// The group's job is `Edit draft` · `Discard draft`, and Edit is live because a
+	// class is selected.
+	const edit = menu.querySelector('[data-testid="timetable-simple-edit-draft-action"]') as HTMLElement;
+	assert.ok(edit, 'Edit draft is in the menu, next to Discard draft');
+	assert.equal(cannotAct(edit), false, 'Edit draft is enabled because a class is selected AND a handler WAS supplied');
+	const discard = menu.querySelector('[data-testid="timetable-more-discard-draft"]') as HTMLElement;
+	assert.ok(discard, 'Discard draft is in the menu');
+	assert.equal(cannotAct(discard), false, 'Discard is enabled because a draft exists AND a handler WAS supplied');
+	edit.click();
+	discard.click();
+	// The menu published no second `Publish`: with the primary holding the
+	// publication verb, the menu's own row is not rendered at all.
+	assert.equal(menu.querySelector('[data-testid="timetable-more-publish"]'), null,
+		'and the menu adds no second publication control');
 	act(() => { (view.byLabel('Undo last manual timetable change') as HTMLElement).dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true, cancelable: true, button: 0 })); });
 	assert.deepEqual([discarded, reverted], [1, 1], 'and both dispatch their real actions');
 });
 
-test('F2 RENDERED: the strip can NEVER render an enabled control whose handler does nothing', () => {
+test('F2R3 RENDERED (QA-B2 re-point): no draft action can EVER be an enabled control whose handler does nothing', async () => {
 	// Every combination of "the caller permits it" × "the caller supplied a
-	// handler". The invariant is the conjunction, so there is no combination in
-	// which a control is enabled and inert — which is the F2 defect.
-	const stripControls = ['timetable-draft-strip-edit', 'timetable-draft-strip-discard', 'timetable-draft-strip-publish'];
+	// handler", now through the REAL resolvers and the REAL rendered rows — which is
+	// the F2 invariant, unchanged. The conjunction is the invariant, so there is no
+	// combination in which a control is enabled and inert.
+	const { TimetableExpertDraftActions, resolveExpertDraftMenuActions, resolveSimpleDraftMenuActions } =
+		await import('@/components/timetable/TimetableDraftActionsSurface');
+	const DRAFT_STRIP = {
+		visibility: 'Draft — not visible to teachers until you publish',
+		editEnabled: true, editBlockedReason: null,
+		discardEnabled: true,
+		publishEnabled: true, publishBlockedReason: null,
+	};
 	for (const editEnabled of [true, false]) {
 		for (const discardEnabled of [true, false]) {
 			for (const publishEnabled of [true, false]) {
+				// The two surfaces are checked against SEPARATE recorders, because they
+				// are separate controls: Expert's `Discard draft` row and Simple's More
+				// `Discard draft` row are different controls and each dispatches once.
 				const dispatched: string[] = [];
-				const view = renderIn(createElement(TimetableDraftStateStrip, {
-					visibility: 'Draft — not visible to teachers until you publish',
-					editEnabled, editBlockedReason: null,
-					discardEnabled,
-					publishEnabled, publishBlockedReason: null,
-					onEdit: () => dispatched.push('edit'),
-					onDiscardDraft: () => dispatched.push('discard'),
-					onPublish: () => dispatched.push('publish'),
-				}));
+				const simpleDispatched: string[] = [];
+				const strip = {
+					...DRAFT_STRIP,
+					editEnabled, discardEnabled, publishEnabled,
+				};
 				// Permitted AND handled: a control is live exactly when the caller
 				// permits it, and every live control dispatches when clicked.
-				const expectedDisabled: Record<string, boolean> = {
-					'timetable-draft-strip-edit': !editEnabled,
-					'timetable-draft-strip-discard': !discardEnabled,
-					'timetable-draft-strip-publish': !publishEnabled,
-				};
-				for (const id of stripControls) {
-					assert.equal((view.host.querySelector(`[data-testid="${id}"]`) as HTMLButtonElement).disabled, expectedDisabled[id],
+				const view = renderIn(createElement('div', null,
+					createElement(TimetableExpertDraftActions, {
+						hasSelectedClass: editEnabled,
+						hasDraft: discardEnabled,
+						onEdit: () => dispatched.push('edit'),
+						onDiscard: () => dispatched.push('discard'),
+					}),
+				));
+				const expert = resolveExpertDraftMenuActions({
+					hasSelectedClass: editEnabled,
+					hasDraft: discardEnabled,
+					onEdit: () => dispatched.push('edit'),
+					onDiscard: () => dispatched.push('discard'),
+				});
+				const simple = resolveSimpleDraftMenuActions({
+					// `generate` is the state in which the menu's own `Publish` row is
+					// rendered at all: DRAFT-UX-C01 (operator, 2026-09-25) keeps
+					// `Publish schedule` as the primary once a run exists, so the row is
+					// null in every published state. The conjunction under test is the
+					// same one either way.
+					headerPrimary: 'generate',
+					draftStrip: strip,
+					onPublish: () => simpleDispatched.push('publish'),
+					onEdit: () => simpleDispatched.push('edit'),
+					onDiscard: () => simpleDispatched.push('discard'),
+				});
+				for (const [id, permitted, resolved] of [
+					['timetable-expert-edit-draft', editEnabled, expert.edit.enabled],
+					['timetable-expert-discard-draft', discardEnabled, expert.discard.enabled],
+				] as const) {
+					assert.equal(cannotAct(view.host.querySelector(`[data-testid="${id}"]`)), !permitted,
 						`${id} is live exactly when the caller permits it AND supplies a handler`);
+					assert.equal(resolved, permitted, `and the resolver agrees with the rendered row for ${id}`);
 				}
+				assert.equal(simple.discard.enabled, discardEnabled, 'the Simple resolver agrees for Discard');
+				assert.equal(simple.edit.enabled, editEnabled, 'and for Edit draft');
+				assert.equal(simple.publish?.enabled, publishEnabled, 'and for Publish');
 				for (const [id, permitted] of [
-					['timetable-draft-strip-edit', editEnabled],
-					['timetable-draft-strip-discard', discardEnabled],
-					['timetable-draft-strip-publish', publishEnabled],
+					['timetable-expert-edit-draft', editEnabled],
+					['timetable-expert-discard-draft', discardEnabled],
 				] as const) {
 					if (permitted) view.click(id);
 				}
+				// Only the PERMITTED actions are activated — a disabled row is not
+				// dispatched, which is half of the invariant this row exists for.
+				if (simple.edit.enabled) simple.edit.onSelect();
+				if (simple.discard.enabled) simple.discard.onSelect();
+				if (simple.publish?.enabled) simple.publish.onSelect();
 				assert.deepEqual(
 					dispatched,
+					[editEnabled && 'edit', discardEnabled && 'discard'].filter(Boolean),
+					'every enabled Expert control dispatches its own action exactly once, and no disabled one does');
+				assert.deepEqual(
+					simpleDispatched,
 					[editEnabled && 'edit', discardEnabled && 'discard', publishEnabled && 'publish'].filter(Boolean),
-					'every enabled control dispatches its own action exactly once, and no disabled one does');
+					'and the same holds for the three Simple More-menu actions');
 
 				// Permitted but NOT handled: nothing enabled, and every reason visible.
-				const bare = renderIn(createElement(TimetableDraftStateStrip, {
-					visibility: null, editEnabled, editBlockedReason: null,
-					discardEnabled, publishEnabled, publishBlockedReason: null,
+				const bare = renderIn(createElement(TimetableExpertDraftActions, {
+					hasSelectedClass: editEnabled,
+					hasDraft: discardEnabled,
+					onEdit: null,
+					onDiscard: null,
 				}));
 				const enabledWithoutHandler: string[] = [];
-				for (const id of stripControls) {
-					const control = bare.host.querySelector(`[data-testid="${id}"]`) as HTMLButtonElement;
+				for (const id of ['timetable-expert-edit-draft', 'timetable-expert-discard-draft']) {
+					const control = bare.host.querySelector(`[data-testid="${id}"]`) as HTMLElement;
 					assert.ok(control, `${id} is still RENDERED, just disabled`);
-					if (!control.disabled) enabledWithoutHandler.push(id);
+					if (!cannotAct(control)) enabledWithoutHandler.push(id);
 				}
 				assert.deepEqual(enabledWithoutHandler, [],
 					`no enabled no-op with editEnabled=${editEnabled} discardEnabled=${discardEnabled} publishEnabled=${publishEnabled}`);
-				assert.equal(bare.testId('timetable-draft-strip-edit-reason'), DRAFT_EDIT_UNAVAILABLE,
+				assert.equal(bare.testId('timetable-expert-edit-draft-reason'), DRAFT_EDIT_UNAVAILABLE,
 					'and each disabled control states a VISIBLE reason');
-				assert.equal(bare.testId('timetable-draft-strip-discard-reason'), DRAFT_DISCARD_UNAVAILABLE);
+				assert.equal(bare.testId('timetable-expert-discard-draft-reason'), DRAFT_DISCARD_UNAVAILABLE);
 				assert.equal(bare.host.querySelector('[title]'), null, 'AGENTS.md §8 — no raw title carries the reason');
 			}
 		}

@@ -31,10 +31,32 @@ import { PUBLISHED_GENERATE_LABEL } from '@/components/timetable/simple/SimpleHe
 export type SimpleHeaderPrimary = 'generate' | 'publish' | 'published' | 'none';
 
 /**
- * The one visible primary. `Generate` with no generated run; once a run
- * exists, `Publish schedule` (or the published status surface when the run is
- * already published). A published run viewed from the working draft shows no
- * primary, exactly as before.
+ * The one visible primary. `Generate` with no generated run; `Publish schedule`
+ * once a run exists; the `Published` status surface when the run is already
+ * published. A published run viewed from the working draft shows no primary,
+ * exactly as before.
+ *
+ * ── DRAFT-UX-C01 (operator, 2026-09-25) — THE DECISION THIS SLOT OBEYS ─────────
+ *
+ * DRAFT-UX-C01 fixes the Simple header at AT MOST SIX visible controls at
+ * ≥1280 px with exactly ONE solid primary: `Generate` while the school
+ * year/term has no generated run, and `Publish schedule` once a run exists.
+ * Fifteen test files were re-pinned to implement it.
+ *
+ * The C11 correction briefly traded that primary for the draft's own verb: when a
+ * run existed and was not published, the one solid control said `Edit draft` and
+ * `Publish` moved into the More menu. That reversed an accepted operator
+ * decision, so it is reverted — `Publish` is the solid primary once a run exists.
+ *
+ * The control-count arithmetic that motivated the swap is still satisfied, and it
+ * is satisfied WITHOUT moving the primary: the draft state strip renders a
+ * SENTENCE and no control, and the draft's own actions live in the More menu
+ * beside `Discard draft`. So the header still shows six controls, still has one
+ * solid action, and still has exactly ONE publication control on screen in every
+ * state.
+ *
+ * This is one pure function precisely so the next slice can flip the
+ * primary ↔ More split without touching the header.
  */
 export function resolveSimpleHeaderPrimary(input: {
 	hasGeneratedRun: boolean;

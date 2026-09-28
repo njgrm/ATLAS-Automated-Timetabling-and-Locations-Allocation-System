@@ -67,10 +67,41 @@ test('R5 swap dialogs render human conflict details, not counts alone', () => {
 
 test('R5 draft swap commit is disabled while any hard blocker exists', () => {
 	const dialogs = source('src/components/timetable/modals/TimetablePlacementDialogs.tsx');
-	assert.match(dialogs, /draftSwapBlocked/);
-	assert.match(dialogs, /draftSwapHardViolations\.length > 0/);
-	assert.match(dialogs, /disabled=\{draftSwapBlocked\}/);
-	assert.match(dialogs, /data-testid="draft-swap-commit"/);
+	// ── C11 CORRECTION 2 (QA-B1) — RE-POINTED, additively ──────────────────────
+	//
+	// These four assertions hardcoded the file that OWNED the rule before C11 M4.
+	// M4 extracted the blocked review to `DraftSwapReviewVerdict.tsx` (so the
+	// confirm control and its reason sentence have ONE derivation), which left all
+	// four reading a file that no longer contains them. The behaviour did not
+	// change; the row was orphaned. The original four are RETAINED VERBATIM and
+	// marked SUPERSEDED, per AGENTS.md §16 (a correction is additive; deleting an
+	// assertion to close a finding fails review regardless of the fix):
+	//   assert.match(dialogs, /draftSwapBlocked/);
+	//   assert.match(dialogs, /draftSwapHardViolations\.length > 0/);
+	//   assert.match(dialogs, /disabled=\{draftSwapBlocked\}/);
+	//   assert.match(dialogs, /data-testid="draft-swap-commit"/);
+	//
+	// What the row is really about is unchanged: the draft-swap confirm control is
+	// disabled while any hard blocker exists, and the counts the rule reads are the
+	// ones the dialog computes. The replacement proves the same three things across
+	// the two files that now hold them.
+	const verdict = source('src/components/timetable/DraftSwapReviewVerdict.tsx');
+
+	// (1) The dialog still supplies the hard-violation count the rule reads.
+	assert.match(dialogs, /hardCount=\{draftSwapHardViolations\.length\}/,
+		'the dialog passes the hard-violation count the blocked rule reads');
+	assert.match(dialogs, /softCount=\{draftSwapSoftViolations\.length\}/);
+	// (2) The name the row always read is restored, and it is the ONE derivation.
+	assert.match(verdict, /export function draftSwapBlocked\(/,
+		'`draftSwapBlocked` exists again, under its accepted name');
+	assert.match(verdict, /input\.hardCount > 0/,
+		'and it still blocks on any hard violation');
+	// (3) The confirm control is disabled by that value, not by a second rule.
+	assert.match(verdict, /disabled=\{verdict\.confirmBlocked\}/);
+	assert.match(verdict, /const blocked = draftSwapBlocked\(input\);/,
+		'every verdict branch reports the one predicate, so the sentence and the control cannot disagree');
+	assert.match(verdict, /data-testid="draft-swap-commit"/,
+		'the confirm control keeps its testid');
 });
 
 test('R5 generated swap blocked state lists blockers and hides commit', () => {

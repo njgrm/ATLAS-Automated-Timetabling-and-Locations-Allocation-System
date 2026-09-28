@@ -111,39 +111,140 @@ test('D1 the visibility sentence comes from the ONE existing derivation, per sta
 	assert.equal(describeRunState({ isPreGeneration: true, runId: 321, isPublished: false }).visibility, null);
 });
 
-test('D2 a DRAFT run renders the strip, and clicking Publish calls the one publish handler', () => {
-	const calls: string[] = [];
-	const view = renderIn(createElement(TimetableDraftStateStrip, {
-		visibility: describeRunState({ isPreGeneration: false, runId: 321, isPublished: false }).visibility,
-		editEnabled: true, editBlockedReason: null,
-		discardEnabled: true,
-		publishEnabled: true, publishBlockedReason: null,
-		onEdit: () => calls.push('edit'),
-		onDiscardDraft: () => calls.push('discard'),
-		onPublish: () => calls.push('publish'),
-	}));
-	assert.equal(view.testId('timetable-draft-visibility'), 'Draft — not visible to teachers until you publish');
-	view.click('timetable-draft-strip-publish');
-	view.click('timetable-draft-strip-edit');
-	view.click('timetable-draft-strip-discard');
-	assert.deepEqual(calls, ['publish', 'edit', 'discard'], 'each strip control dispatches its own action exactly once');
+/*
+ * ── D2 / D3 — SUPERSEDED BY QA-B2 CORRECTION 2, KEPT BESIDE THEIR REPLACEMENT ──
+ *
+ * D2 was: "a DRAFT run renders the strip, and clicking Publish calls the one
+ * publish handler", clicking `timetable-draft-strip-publish` /
+ * `-edit` / `-discard`. D3 was: "a PUBLISHED run says Published and cannot
+ * Publish, with the reason VISIBLE", reading `timetable-draft-strip-publish-reason`.
+ *
+ * Both asserted against a strip API that no longer exists. Fresh independent QA
+ * measured the consequence on the REAL Simple header at 1366 px: those three
+ * buttons took the accepted SIX visible controls to NINE, and put TWO publication
+ * controls on screen at once (the strip's `Publish` and the header's). Correction 2
+ * made the strip TEXT-ONLY and resolved the three actions onto controls the
+ * headers already have.
+ *
+ * The INTENT of both rows is preserved verbatim in the replacements below: D2R
+ * still proves each action dispatches its own action exactly once, and D3R still
+ * proves a published run cannot be published again with the reason VISIBLE. Only
+ * the surface they click changed. Nothing was deleted, and the old assertions are
+ * not weakened — they are unreachable by construction, so they are recorded here
+ * as the historical form (AGENTS.md §16).
+ *
+ * The original D2 body, for the record:
+ *   render(TimetableDraftStateStrip, { visibility: <draft sentence>,
+ *     editEnabled: true, editBlockedReason: null, discardEnabled: true,
+ *     publishEnabled: true, publishBlockedReason: null,
+ *     onEdit: () => calls.push('edit'), onDiscardDraft: () => calls.push('discard'),
+ *     onPublish: () => calls.push('publish') })
+ *   click('timetable-draft-strip-publish'); click('timetable-draft-strip-edit');
+ *   click('timetable-draft-strip-discard');
+ *   assert.deepEqual(calls, ['publish', 'edit', 'discard'])
+ *
+ * The original D3 body, for the record:
+ *   render(TimetableDraftStateStrip, { visibility: <published sentence>,
+ *     publishEnabled: false, publishBlockedReason: PUBLISH_WHEN_ALREADY_PUBLISHED, … })
+ *   assert.equal(testId('timetable-draft-strip-publish-reason'), PUBLISH_WHEN_ALREADY_PUBLISHED)
+ *   assert.equal(publish.disabled, true)
+ *   assert.equal(host.querySelector('[title]'), null)
+ *   click(publish); assert.deepEqual(calls, [])
+ */
+
+test('D2 SUPERSEDED (QA-B2): the strip no longer renders Publish, Edit or Discard buttons', () => {
+	// Recorded, not asserted: `TimetableDraftStateStrip` once accepted `editEnabled`,
+	// `discardEnabled`, `publishEnabled`, `onEdit`, `onDiscardDraft` and `onPublish`,
+	// and rendered `timetable-draft-strip-edit` / `-discard` / `-publish`. D2R below
+	// is the row that decides the replacement contract, and it FAILS on this tree if
+	// the strip grows a control back.
+	assert.equal(typeof (TimetableDraftStateStrip as unknown as { length?: number }), 'function',
+		'the strip is still a component — it is simply text-only now');
 });
 
-test('D3 a PUBLISHED run says Published and cannot Publish, with the reason VISIBLE (no hover)', () => {
+test('D2R RENDERED (QA-B2 re-point): the draft strip is a SENTENCE and adds no control; the actions live on the headers own controls', async () => {
+	const { SimpleEditDraftAction } = await import('@/components/timetable/TimetableDraftActionsSurface');
+	const { SimplePublishAction } = await import('@/components/timetable/simple/SimpleHeaderHelpers');
+	const { resolveSimpleDraftMenuActions } = await import('@/components/timetable/TimetableDraftActionsSurface');
 	const calls: string[] = [];
-	const view = renderIn(createElement(TimetableDraftStateStrip, {
-		visibility: describeRunState({ isPreGeneration: false, runId: 321, isPublished: true }).visibility,
-		editEnabled: true, editBlockedReason: null,
-		discardEnabled: true,
-		publishEnabled: false, publishBlockedReason: PUBLISH_WHEN_ALREADY_PUBLISHED,
-		onEdit: () => calls.push('edit'),
-		onDiscardDraft: () => calls.push('discard'),
-		onPublish: () => calls.push('publish'),
+	// The strip itself, exactly as the Simple header renders it.
+	const strip = renderIn(createElement(TimetableDraftStateStrip, {
+		visibility: describeRunState({ isPreGeneration: false, runId: 321, isPublished: false }).visibility,
 	}));
-	assert.equal(view.testId('timetable-draft-visibility'), 'Published');
+	assert.equal(strip.testId('timetable-draft-visibility'), 'Draft — not visible to teachers until you publish',
+		'the DRAFT state still names its audience, from the one derivation');
+	// DISCRIMINATION: pre-correction this render produced THREE buttons. The row
+	// cannot pass while the strip owns a control.
+	assert.equal(strip.host.querySelectorAll('button').length, 0,
+		'the strip contributes ZERO controls, so the header stays inside its six-control cap');
+
+	// DRAFT-UX-C01 (operator, 2026-09-25): the header's ONE solid primary once a run
+	// exists is `Publish schedule`. The action row is rendered here exactly as the
+	// header renders it, and it carries NO Edit control — the draft's own verb is a
+	// More-menu entry, not a primary.
+	const view = renderIn(createElement('div', null,
+		createElement(SimplePublishAction, {
+			primary: true,
+			enabled: true,
+			disabledReason: null,
+			onClick: () => calls.push('publish'),
+		}),
+	));
+	assert.equal(view.host.querySelector('[data-testid="timetable-simple-edit-draft-action"]'), null,
+		'the action row renders NO Edit primary');
+	assert.equal(view.host.querySelectorAll('[data-testid="timetable-simple-publish-action"]').length, 1,
+		'and exactly ONE publication control, which is the primary');
+	view.click('timetable-simple-publish-action');
+
+	// `Edit draft` and `Discard` live in the menu that is already on screen, and the
+	// gate is the SAME derivation the primary reads, so neither can disagree with it.
+	const menu = resolveSimpleDraftMenuActions({
+		headerPrimary: 'publish',
+		draftStrip: {
+			visibility: 'Draft — not visible to teachers until you publish',
+			editEnabled: true, editBlockedReason: null,
+			discardEnabled: true,
+			publishEnabled: true, publishBlockedReason: null,
+		},
+		onPublish: () => calls.push('publish'),
+		onEdit: () => calls.push('edit'),
+		onDiscard: () => calls.push('discard'),
+	});
+	assert.equal(menu.publish, null,
+		'Publish renders in the menu ONLY when the primary slot is not the publication control — so there is exactly one publication control on screen');
+	assert.equal(menu.edit.enabled, true, 'Edit draft is reachable in the menu, enabled for a selected class WITH a handler');
+	assert.equal(menu.discard.enabled, true, 'and Discard is enabled for a draft with a handler');
+	// The moved renderer is the one the menu shows, and it dispatches its own action.
+	const renderedEdit = renderIn(createElement(SimpleEditDraftAction, {
+		primary: false,
+		enabled: menu.edit.enabled,
+		disabledReason: menu.edit.enabled ? null : menu.edit.reason,
+		onClick: menu.edit.onSelect,
+	}));
+	renderedEdit.click('timetable-simple-edit-draft-action');
+	menu.discard.onSelect();
+	assert.deepEqual(calls, ['publish', 'edit', 'discard'],
+		'each action dispatches its own action exactly once — the strip owns none of them, and the header owns only Publish');
+});
+
+test('D3R RENDERED (QA-B2 re-point): a PUBLISHED run says Published and cannot Publish, with the reason VISIBLE (no hover)', async () => {
+	const { SimplePublishAction } = await import('@/components/timetable/simple/SimpleHeaderHelpers');
+	const calls: string[] = [];
+	const strip = renderIn(createElement(TimetableDraftStateStrip, {
+		visibility: describeRunState({ isPreGeneration: false, runId: 321, isPublished: true }).visibility,
+	}));
+	assert.equal(strip.testId('timetable-draft-visibility'), 'Published');
+	// The reason now travels with the publication control itself, which is the
+	// control that can no longer act — the same sentence, on the real surface.
+	const view = renderIn(createElement(SimplePublishAction, {
+		enabled: false,
+		disabledReason: PUBLISH_WHEN_ALREADY_PUBLISHED,
+		primary: true,
+		onClick: () => calls.push('publish'),
+	}));
 	// The reason is rendered as text, not only placed in a `title`/tooltip.
-	assert.equal(view.testId('timetable-draft-strip-publish-reason'), PUBLISH_WHEN_ALREADY_PUBLISHED);
-	const publish = view.host.querySelector('[data-testid="timetable-draft-strip-publish"]') as HTMLButtonElement;
+	assert.equal(view.testId('timetable-publish-blocked-reason'), PUBLISH_WHEN_ALREADY_PUBLISHED);
+	const publish = view.host.querySelector('[data-testid="timetable-simple-publish-action"]') as HTMLButtonElement;
 	assert.equal(publish.disabled, true, 'a published run cannot be published again');
 	// AGENTS.md §8 — no raw `title` attribute carrying the explanation.
 	assert.equal(view.host.querySelector('[title]'), null, 'no raw title attribute is used for the reason');
@@ -504,14 +605,6 @@ test('M5 RENDERED: Undo sits in the persistent draft strip and one click reverts
 		TimetableDraftStateStrip,
 		{
 			visibility: 'Draft — not visible to teachers until you publish',
-			editEnabled: true,
-			editBlockedReason: null,
-			discardEnabled: true,
-			publishEnabled: true,
-			publishBlockedReason: null,
-			onEdit: () => {},
-			onDiscardDraft: () => {},
-			onPublish: () => {},
 		},
 		createElement(TimetableUndoRedoControl, {
 			editHistoryCount: 1,

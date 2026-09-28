@@ -68,6 +68,7 @@ import {
 	SimpleUnassignedSessionsItem,
 	SimpleWarningsControl,
 } from '@/components/timetable/simple/SimpleHeaderActions';
+import { resolveSimpleDraftMenuActions } from '@/components/timetable/TimetableDraftActionsSurface';
 import { SimpleDriftBanner } from '@/components/timetable/simple/SimpleDriftBanner';
 import { SimpleGenerationBlockerSheet } from '@/components/timetable/simple/SimpleGenerationBlockerSheet';
 import { describeRunInputDrift } from '@/components/timetable/timetableDriftRouting';
@@ -445,9 +446,8 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 		isRunPublished,
 		gateReason: capabilities.gates.publication.reason,
 	});
-	// C01R C1 — one publish control per state. DRAFT-UX-C01: the former
-	// lifecycle primary is no longer a visible control; while the publish slot
-	// owns its step it adds no More "Next step" entry either.
+	// C01R C1 — one publish control per state: while the publish slot owns its
+	// lifecycle step, no More "Next step" entry is added either.
 	const primaryRendersPublish = activeTask
 		? activeTaskDefinition.id === 'publish'
 		: lifecycleAction.kind === 'publish';
@@ -456,16 +456,8 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 		: lifecycleAction.kind === 'published';
 	const suppressPrimaryAction = primaryRendersPublish || primaryIsPublished;
 
-	/**
-	 * C11 D — the persistent draft-state strip's actions.
-	 *
-	 * `Edit` reveals the manual-edit affordances for the current run through the
-	 * SAME `enterManualEditView` the grid's own selection actions use — it does not
-	 * invent a second edit path and it does not navigate. `Discard draft` is the
-	 * workspace's existing reset-draft confirmation. `Publish` is
-	 * `handlePublishActionClick`, the same gated dispatch the existing control
-	 * uses, so the strip cannot publish when the header could not.
-	 */
+	// C11 D — the ONE derivation the More-menu `Edit draft` / `Discard draft` entries
+	// read, so neither can disagree about whether an action is available.
 	const draftStrip = resolveDraftStripProps({
 		isPreGeneration: context.isPreGenerationWorkspace,
 		runId: context.draft?.runId ?? null,
@@ -475,14 +467,12 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 		hasDraft: context.draft != null,
 	});
 	/**
-	 * C11 D — the ONE publication rule, now shared with the persistent draft
-	 * strip (`TimetableDraftStateStrip.resolveDraftStripPublishPlan`) so the strip
-	 * cannot become a second publication path. The order and the two branches are
-	 * unchanged from the inline body this replaced:
-	 *   - R7 — the shared capability model is the production guard, not a local count.
-	 *   - C07B/F2 — with the gate open the publish task is a real readiness surface:
-	 *     the task drawer renders the publish checklist (run-wide gate + grouped
-	 *     blockers + the Publish action) instead of leaving that component dead.
+	 * C11 D — the ONE publication rule, now shared with
+	 * `resolveDraftStripPublishPlan` so no surface can become a second publication
+	 * path. The order and the two branches are unchanged from the inline body this
+	 * replaced: R7 (the shared capability model is the guard, not a local count), and
+	 * C07B/F2 (an open gate routes to the publish task, a real readiness surface that
+	 * renders the checklist, instead of leaving that component dead).
 	 */
 	const handlePublishClick = () => {
 		const plan = resolveDraftStripPublishPlan({
@@ -531,15 +521,25 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 		}
 	};
 
-	// DRAFT-UX-C01 (operator, 2026-09-25) — the relaxed header: at ≥1280 px at
-	// most six visible controls (Term · View · picker · ONE merged warnings
-	// control · ONE primary · More). Generate is the primary with no generated
-	// run, Publish once a run exists; everything else moved into More with its
-	// gate, reason and dispatch unchanged.
+	// DRAFT-UX-C01 (operator, 2026-09-25) — the relaxed header: at ≥1280 px at most
+	// six visible controls, and ONE primary. See `resolveSimpleHeaderPrimary`.
 	const headerPrimary = resolveSimpleHeaderPrimary({
 		hasGeneratedRun,
 		isRunPublished,
 		isPreGenerationWorkspace: context.isPreGenerationWorkspace,
+	});
+	// C11 D, correction 2 (QA-B2) — the actions this header no longer renders as
+	// buttons, resolved ONCE above: `Edit draft` and `Discard draft` in the More
+	// menu, and `Publish` there only while the primary slot is not the publication
+	// control. See `TimetableDraftActionsSurface`.
+	const simpleDraftMenuActions = resolveSimpleDraftMenuActions({
+		headerPrimary,
+		draftStrip,
+		onPublish: handlePublishActionClick,
+		onEdit: typeof context.enterManualEditView === 'function'
+			? () => context.enterManualEditView('CHANGE_TIMESLOT')
+			: null,
+		onDiscard: onDiscardDraft ?? null,
 	});
 	const warningsDispatch = resolveWarningsControlDispatch({
 		lifecycleKind: lifecycleAction.kind,
@@ -677,35 +677,23 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 
 	return (
 		<header className="shrink-0 border-b border-border bg-background" data-testid="timetable-simple-header">
-			{/* DRAFT-UX-C01 — one status region (drift / term / failure / setup
-			    notices only) and one action row: Term · View · picker · the merged
-			    warnings control · the one primary · More. `School information`,
-			    `Download schedules`, the non-primary Generate/Publish and the former
-			    lifecycle next steps live in More ▸ Schedule actions. */}
-			{/* C11 D — the persistent draft strip. It is the FIRST thing in the
-			    header and is never conditional, so "is this a draft?" and "what can I
-			    do to it?" are answerable on every screen of this view. The visibility
-			    sentence comes from the shared `describeRunState` derivation — this file
+			{/* DRAFT-UX-C01 — one status region (drift / term / failure / setup notices)
+			    and one action row: Term · View · picker · warnings · primary · More.
+			C11 D, correction 2 (QA-B2) — the persistent draft STATE SENTENCE renders INSIDE
+			    that status region, not as a row of its own. It is a sentence and nothing else:
+			    the strip's three buttons were measured on this real header at 1366 px taking
+			    it from the accepted six visible controls to NINE, and putting two publication
+			    controls on screen. The three actions resolved onto controls this header
+			    already has — `Edit` is the primary slot, `Publish` and `Discard draft` are
+			    More entries. The sentence still comes from `describeRunState`, so this file
 			    creates no second draft-vs-published rule. */}
-			<TimetableDraftStateStrip
-				{...draftStrip}
-				onEdit={() => context.enterManualEditView('CHANGE_TIMESLOT')}
-				onDiscardDraft={onDiscardDraft}
-				onPublish={handlePublishActionClick}
-			>
-				{/* M5 — the single existing Undo / Redo / History control, now in the
-				    strip beside Edit so it is not buried. This is the SAME component the
-				    Expert toolbar rendered; the Expert-only copy was removed so there is
-				    exactly ONE Undo with one accessible name (A2-TIMETABLE-CUSTODY). */}
-				{undoRedoControl}
-			</TimetableDraftStateStrip>
 			<div
 				className="flex min-w-0 flex-col gap-1.5"
 				data-testid="timetable-simple-header-row"
-
 			>
 			<section data-testid="timetable-simple-status-region" role="region" aria-label="Timetable status" className="min-w-0 px-3">
 			<div className="flex min-w-0 flex-wrap items-center gap-1.5">
+				<TimetableDraftStateStrip visibility={draftStrip.visibility} />
 				{/* A2-C6-TRUTH (T3a/T3b/T3c) — WHICH schedule, and which term, in one
 				    place. Simple is the DEFAULT view and it printed neither: the run
 				    number and Draft/Published word existed only in the Expert header
@@ -791,7 +779,12 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 				/>
 				</SimpleWarningsControl>
 
-				<div className="flex min-w-0 flex-wrap items-center justify-start gap-1.5 lg:ml-auto lg:justify-end">
+					<div className="flex min-w-0 flex-wrap items-center justify-start gap-1.5 lg:ml-auto lg:justify-end">
+					{/* DRAFT-UX-C01 (operator, 2026-09-25) — the ONE solid primary:
+					    `Generate` with no generated run, `Publish schedule` once a run
+					    exists. The draft's own verb is NOT traded for it; it is an entry
+					    of the More menu beside `Discard draft`. See
+					    `resolveSimpleHeaderPrimary`. */}
 					{headerPrimary === 'generate' ? (
 						<SimpleGenerateAction
 							primary
@@ -810,6 +803,11 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 					) : headerPrimary === 'published' ? (
 						<SimplePublishedState followUpCount={context.summary?.unassignedCount ?? 0} />
 					) : null}
+
+					{/* M5 — the single existing Undo / Redo / History control: the SAME component
+					    the Expert toolbar rendered, and there is exactly one (A2-TIMETABLE-CUSTODY). */}
+					{undoRedoControl}
+
 
 					<DropdownMenu open={moreOpen} onOpenChange={setMoreOpen}>
 						<DropdownMenuTrigger asChild>
@@ -858,6 +856,10 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 									context={context}
 									runToolsAvailable={runToolsAvailable}
 									hideReviewIssues={moreHidesReviewIssues}
+									/* C11 D, correction 2 (QA-B2) — `Edit draft` and `Discard draft`
+									   render in this menu, and `Publish` renders here ONLY when the
+									   primary slot is not the publication control. */
+									draftActions={simpleDraftMenuActions}
 									onClose={() => setMoreOpen(false)}
 									onStartTask={startTask}
 									onOpenTeacherDeparture={openTeacherDeparture}
@@ -986,6 +988,11 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 	);
 }
 
-/** A fixture that omits the workspace's discard dialog still renders; it discards nothing. */
-
+/*
+ * C11 CORRECTION 2 (QA N1) — the doc comment that stood here was ORPHANED: it sat
+ * between the closing brace of the impl and this export, so it documented nothing.
+ * It is not re-homed; the behaviour it described is asserted by RENDERED rows in
+ * `a2-c11-draft-actions-correction.test.tsx` (F2R1/F2R2), which is the evidence §16
+ * requires.
+ */
 export const TimetableSimpleHeader = memo(TimetableSimpleHeaderImpl);

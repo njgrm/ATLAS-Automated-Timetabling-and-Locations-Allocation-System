@@ -189,17 +189,54 @@ test('R4 replacement: the visible Undo/Redo/History control is mounted for Advan
 	// moved. Both statements are RETAINED IN INTENT but now read a DERIVED
 	// answer from the real source: which layout modes can actually reach the
 	// control's mount, and which mode the workspace actually falls back to.
+	//
+	// ── C11 M5, 2026-09-28 — THIS ROW'S DEBT IS PAID, AND THE ROW IS SUPERSEDED ──
+	//
+	// The comment block above this test reads: *"Owed by: the successor cycle that
+	// owns the Simple Undo/Redo surface."* That successor is A2 c11 slice 1, target
+	// M5. It moved the single `TimetableUndoRedoControl` OUT of the
+	// `layoutMode === 'advanced'` branch and into the persistent draft strip, which
+	// BOTH headers render. The debt is therefore DISCHARGED, and the row's premise
+	// ("reachable only from the advanced layout") is now false — which is exactly
+	// why it went red. It was not a regression; it was the row finally disagreeing
+	// with the fixed product.
+	//
+	// Per AGENTS.md §16 the original assertions are RETAINED VERBATIM and marked
+	// SUPERSEDED, never deleted. They are retained in this comment rather than as
+	// live assertions because they assert a premise the fix made false — keeping
+	// them executable would be a permanently red row, which is the same defect in
+	// the other direction. The replacement below states the new contract, which is
+	// STRICTER in the direction that matters: Undo is reachable from BOTH layouts,
+	// and there is exactly ONE instance of it in the whole workspace.
+	//   assert.deepEqual(reachableModes, ['advanced'], 'the visible Undo/Redo/History control is reachable only from the advanced layout');
+	//   assert.ok(fallbackMode === null || !reachableModes.includes(fallbackMode), 'Simple does NOT render the visible Undo/Redo/History control; the control is advanced-only today');
 	const reachableModes = reachableUndoControlModes(workspace);
-	assert.deepEqual(reachableModes, ['advanced'], 'the visible Undo/Redo/History control is reachable only from the advanced layout');
+	assert.ok(
+		reachableModes.includes('simple'),
+		'C11 M5 — Simple renders the visible Undo/Redo/History control, which is the debt this row recorded',
+	);
+	assert.deepEqual(
+		[...reachableModes].sort(),
+		['advanced', 'simple'],
+		'and it is reachable from exactly those two layouts — no mode lost, none invented',
+	);
 	const fallbackMode = /atlas_timetable_layout_mode'\)\s*===\s*'advanced'\s*\?\s*'advanced'\s*:\s*'(\w+)'/.exec(workspace)?.[1] ?? null;
 	assert.equal(fallbackMode, 'simple', 'the workspace falls back to the simple layout');
 	assert.ok(
-		fallbackMode === null || !reachableModes.includes(fallbackMode as LayoutMode),
-		'Simple does NOT render the visible Undo/Redo/History control; the control is advanced-only today',
+		reachableModes.includes(fallbackMode as LayoutMode),
+		'so the DEFAULT layout reaches the control — the A2-TIMETABLE-CUSTODY single-surface rule now holds for the persona this lane serves',
 	);
 	assert.ok(
 		reachableModes.includes('advanced'),
 		'Advanced renders the visible Undo/Redo/History control',
+	);
+	// ONE Undo, not two: the Expert-only duplicate was removed when the control
+	// moved into the shared strip, so a scheduler in either layout sees one control
+	// with one accessible name.
+	assert.equal(
+		(workspace.match(/<TimetableUndoRedoControl/g) ?? []).length,
+		1,
+		'and it is mounted ONCE — the Expert duplicate C11 M5 removed must not return',
 	);
 });
 

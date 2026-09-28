@@ -234,8 +234,32 @@ test('A2 C5 M2-A SUPERSEDED (F2 re-review: true by construction — NOT a live c
 	);
 });
 
-/** The committed `CenterWorkspace` source, for the structural rows. */
+/**
+ * The committed CENTRE-PANE source, for the structural rows.
+ *
+ * ── C11 CORRECTION 2 (QA-B1) — RE-POINTED, additively ──────────────────────────
+ *
+ * These two rows read `CenterWorkspace.tsx` by path. C11 slice 1 moved the whole
+ * pane chain — the `resolveCenterPane` decision, the `AnimatePresence mode="wait"`
+ * arrangement, the pending branch and its frame — into
+ * `CenterWorkspacePaneSurface.tsx` (C11 F4: a test must drive a real component the
+ * product renders, and that file was at the 1000-line cap). `CenterWorkspace.tsx`
+ * kept the resizable panel and the tactical-sandbox dock and no longer contains any
+ * of the strings these rows assert, so both went red on a MOVE, not a regression.
+ *
+ * The property under test is unchanged and still load-bearing: the pending branch
+ * is decided at the outer ternary, before the animated chain opens. The reading
+ * moves to the file that now owns the arrangement. The prior path is still read —
+ * and asserted to be empty of the chain — so the two cannot drift apart silently
+ * (§16: a correction is additive; the old reading is marked superseded, not
+ * dropped).
+ */
 function centerWorkspaceSource(): string {
+	return readFileSync(resolve(CLIENT_ROOT, 'src/components/timetable/CenterWorkspacePaneSurface.tsx'), 'utf8');
+}
+
+/** The panel shell that C11 slice 1 left behind; it must no longer own the chain. */
+function centerWorkspacePanelSource(): string {
 	return readFileSync(resolve(CLIENT_ROOT, 'src/components/timetable/CenterWorkspace.tsx'), 'utf8');
 }
 
@@ -294,18 +318,54 @@ test('A2 C5 M2-A ARRANGEMENT, WIRING (load-bearing): the pending branch is decid
 		false,
 		'no pane arm is selected between the pending decision and the animated chain, so a pending render cannot reach the grid',
 	);
+	// C11 CORRECTION 2 (QA-B1) — SUPERSEDED, retained verbatim: the two-argument
+	// call this matched was the pre-correction-1 form. C11 correction 1 (F1) fixed a
+	// REGRESSION in `resolveCenterPane` by adding the third argument — the pathname
+	// the route→view sync has actually applied — so the override fires only while the
+	// route has not yet been applied and an in-app view change is never overridden.
+	//   assert.match(source, /const centerPane = resolveCenterPane\(pathname, centerView\);/);
+	// The replacement asserts the same thing the original was for (the workspace
+	// consumes the EXPORTED seam the DOM rows exercise) against the current
+	// signature, and additionally that the route-applied signal really is threaded,
+	// so the M1 fix cannot be reverted by dropping the third argument.
 	assert.match(
 		source,
-		/const centerPane = resolveCenterPane\(pathname, centerView\);/,
-		'the workspace consumes the exported seam the DOM rows exercise',
+		/const centerPane = resolveCenterPane\(pathname, centerView, routeAppliedPathname\);/,
+		'the workspace consumes the exported seam the DOM rows exercise, with the route-applied signal',
+	);
+	assert.match(
+		source,
+		/routeAppliedPathname/,
+		'the M1 correction signal is threaded into the pane surface, so in-app view changes are not overridden',
 	);
 	// The grid arms stay reachable INSIDE the chain, for every other view.
-	for (const arm of ["centerView === 'schedule'", "presentationMode === 'matrix'", "centerView === 'map'"]) {
+	//
+	// C11 CORRECTION 2 (QA-B1) — RE-POINTED, additively. The extraction renamed the
+	// local from `centerView` (the prop) to `paneView` (the RESOLVED view — the M1
+	// correction resolves the route against the view before the chain opens, so the
+	// two are no longer the same value inside this file). The three arms are
+	// unchanged; only the name they are keyed on moved. The pre-move forms are
+	// retained as SUPERSEDED so the rename cannot silently drop an arm:
+	//   for (const arm of ["centerView === 'schedule'", "presentationMode === 'matrix'", "centerView === 'map'"])
+	for (const arm of ["paneView === 'schedule'", "presentationMode === 'matrix'", "paneView === 'map'"]) {
 		assert.ok(
 			source.indexOf(arm, chain.start) > chain.start,
 			`${arm} must still be reachable inside the animated chain for non-pending renders`,
 		);
 	}
+
+	// (4) QA-B1 — the arrangement is read from the file that OWNS it, and the
+	//     panel shell that used to own it no longer does. Without this the re-point
+	//     would be a silent re-target: the row would keep passing if the chain were
+	//     ever moved back into `CenterWorkspace.tsx` and the pane surface lost it.
+	const panel = centerWorkspacePanelSource();
+	assert.equal(
+		panel.includes(PRESENCE_OPEN),
+		false,
+		'the panel shell does not own the animated chain — the re-pointed reading is the only reading',
+	);
+	assert.match(panel, /<CenterWorkspacePaneSurface \{\.\.\.props\}/,
+		'the panel renders the pane surface, which is where the arrangement now lives');
 });
 
 test('A2 C5 M2-A REPLACEMENT CONTROL (WIRING, structural): the pending branch is a SIBLING of the animated chain, not a descendant', () => {

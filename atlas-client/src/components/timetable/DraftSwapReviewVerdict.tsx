@@ -26,6 +26,33 @@ export type DraftSwapVerdict =
 	| { readonly tone: 'checking' | 'error' | 'blocked' | 'clear'; readonly sentence: string; readonly confirmBlocked: boolean };
 
 /**
+ * C11 CORRECTION 2 (QA-B1) — the blocked rule, restored under its accepted name.
+ *
+ * The R5 row "draft swap commit is disabled while any hard blocker exists"
+ * (`timetable-operator-repair.test.ts`) has read a binding literally named
+ * `draftSwapBlocked` since the first cut. The M4 extraction folded that binding
+ * into `verdict.confirmBlocked` inside this component, so the row was left reading
+ * a file that no longer holds the rule — three orphaned assertions, and a row that
+ * could no longer detect a regression in the behaviour it was written to protect.
+ *
+ * This is the SAME rule, not a second one: `describeDraftSwapVerdict` below calls
+ * it and every branch's `confirmBlocked` is its return value, so the name the R5
+ * row reads, the value the confirm control is disabled by, and the sentence shown
+ * beside it are all one derivation. Adding a new blocking reason means adding it
+ * here, and the row fails if that is forgotten.
+ */
+export function draftSwapBlocked(input: {
+	loading: boolean;
+	error: string | null;
+	hardCount: number;
+	saving: boolean;
+}): boolean {
+	return input.saving
+		|| Boolean(input.loading || input.error)
+		|| input.hardCount > 0;
+}
+
+/**
  * The one sentence. Never a bare count: it names the OUTCOME — what will or will
  * not happen if the operator proceeds — and the way out.
  */
@@ -36,30 +63,35 @@ export function describeDraftSwapVerdict(input: {
 	softCount: number;
 	saving: boolean;
 }): DraftSwapVerdict {
-	if (input.loading) return { tone: 'checking', sentence: 'Checking this switch now.', confirmBlocked: true };
-	if (input.saving) return { tone: 'checking', sentence: 'Saving this switch now.', confirmBlocked: true };
+	// QA-B1 — ONE derivation. `blocked` is what every branch below reports, so the
+	// sentence and the confirm control cannot disagree, and the R5 row has a stable
+	// name to read. The `clear` branches are only reachable when `blocked` is false
+	// (no loading, no saving, no error, no hard conflict).
+	const blocked = draftSwapBlocked(input);
+	if (input.loading) return { tone: 'checking', sentence: 'Checking this switch now.', confirmBlocked: blocked };
+	if (input.saving) return { tone: 'checking', sentence: 'Saving this switch now.', confirmBlocked: blocked };
 	if (input.error !== null) {
 		return {
 			tone: 'error',
 			sentence: `This switch could not be checked: ${input.error} Choose another class pair or cancel without saving.`,
-			confirmBlocked: true,
+			confirmBlocked: blocked,
 		};
 	}
 	if (input.hardCount > 0) {
 		return {
 			tone: 'blocked',
 			sentence: `This switch is blocked by ${input.hardCount} blocking conflict${input.hardCount === 1 ? '' : 's'}, so nothing is saved. Resolve them, or cancel and choose another class pair.`,
-			confirmBlocked: true,
+			confirmBlocked: blocked,
 		};
 	}
 	if (input.softCount > 0) {
 		return {
 			tone: 'clear',
 			sentence: `This switch can be saved now; ${input.softCount} warning${input.softCount === 1 ? '' : 's'} stay unchanged.`,
-			confirmBlocked: false,
+			confirmBlocked: blocked,
 		};
 	}
-	return { tone: 'clear', sentence: 'This switch can be saved now: no blocking conflict and no warnings.', confirmBlocked: false };
+	return { tone: 'clear', sentence: 'This switch can be saved now: no blocking conflict and no warnings.', confirmBlocked: blocked };
 }
 
 const TONE_CLASS: Record<DraftSwapVerdict['tone'], string> = {

@@ -308,7 +308,7 @@ export function SimpleFiltersContent({ context }: { context: ScheduleReviewWorks
  * so a closed gate renders a disabled control with a truthful tooltip and can
  * never dispatch a request.
  */
-function GatedAction({ disabled, reason, children }: { disabled: boolean; reason: string | null; children: ReactNode }) {
+export function GatedAction({ disabled, reason, children }: { disabled: boolean; reason: string | null; children: ReactNode }) {
 	if (!disabled || !reason) return <>{children}</>;
 	return (
 		<TooltipProvider delayDuration={200}>
@@ -402,6 +402,15 @@ export function SimpleGenerateAction({
 	);
 }
 
+/**
+ * C11 D, correction 2 (QA-B2) — the draft's own verb, `Edit draft`.
+ *
+ * MOVED to `TimetableDraftActionsSurface` (rendered by the More menu beside
+ * `Discard draft`). It used to occupy the header's ONE primary slot, which
+ * reversed DRAFT-UX-C01 (operator, 2026-09-25) — see
+ * `resolveSimpleHeaderPrimary`. It is moved, not duplicated: exactly one
+ * definition of this control exists in the workspace.
+ */
 export function SimplePublishAction({
 	enabled,
 	disabledReason,

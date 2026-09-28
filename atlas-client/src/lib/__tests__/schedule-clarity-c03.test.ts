@@ -116,8 +116,22 @@ test('B3 every published move path schedules a dated change instead of the refus
 	assert.match(workspace, /if \(state\.publishedChangeScope\) \{\s*state\.setPublishedEntryChange\(\{ entry: state\.selectedEntry, target: null, mode: 'room' \}\);\s*return;/);
 	assert.match(workspace, /<PublishedEntryChangePanel/);
 	assert.match(workspace, /Published schedule: a change starts on a date you choose\./);
-	const center = source('../../components/timetable/CenterWorkspace.tsx');
-	assert.match(center, /timetable-manual-edit-published-note/);
+	// ── C11 CORRECTION 2 (QA-B1) — RE-POINTED, additively ──────────────────────
+	// C11 slice 1 extracted the manual-edit empty pane into
+	// `CenterWorkspaceManualEditEmpty.tsx`, so `CenterWorkspace.tsx` no longer holds
+	// the published note. The note itself is unchanged. Retained as SUPERSEDED:
+	//   const center = source('../../components/timetable/CenterWorkspace.tsx');
+	//   assert.match(center, /timetable-manual-edit-published-note/);
+	assert.match(
+		source('../../components/timetable/CenterWorkspaceManualEditEmpty.tsx'),
+		/timetable-manual-edit-published-note/,
+		'the published-run note still lives in the manual-edit empty pane',
+	);
+	assert.match(
+		source('../../components/timetable/CenterWorkspacePaneSurface.tsx'),
+		/<CenterWorkspaceManualEditEmpty/,
+		'and the pane surface still renders that pane, so the note is on the real surface',
+	);
 });
 
 // ── B4 ────────────────────────────────────────────────────────────────────
@@ -219,10 +233,25 @@ test('B8 the first class picked for a swap is highlighted on the grid (the grid 
 
 test('B8 the inline status floats over the grid instead of pushing it down', () => {
 	const workspace = source('../../components/timetable/ScheduleReviewWorkspace.tsx');
-	assert.match(workspace, /className="relative z-30 h-0" data-testid="timetable-inline-status-anchor"/);
-	assert.match(workspace, /data-testid="timetable-inline-status"\s*className=\{`absolute inset-x-3 top-1/);
+	// ── C11 CORRECTION 2 (QA-B1) — RE-POINTED, additively ──────────────────────
+	// C11 slice 1 extracted the inline status into `TimetableMoveStatusLine.tsx`
+	// (`TimetableMoveStatusLine` is the one status surface both the move and the
+	// swap flows render), so the anchor markup is no longer in the workspace file.
+	// The arrangement is unchanged — the anchor is still a zero-height, high-z
+	// element and the status is still absolutely positioned inside it. Retained as
+	// SUPERSEDED:
+	//   assert.match(workspace, /className="relative z-30 h-0" data-testid="timetable-inline-status-anchor"/);
+	//   assert.match(workspace, /data-testid="timetable-inline-status"\s*className=\{`absolute inset-x-3 top-1/);
+	//   assert.doesNotMatch(workspace, /className=\{`border-b px-3 py-1 text-xs \$\{\s*state\.inlineActionStatus/);
+	// The replacement reads the file that owns the markup AND proves the workspace
+	// still mounts that component, so the two cannot drift apart.
+	const statusLine = source('../../components/timetable/TimetableMoveStatusLine.tsx');
+	assert.match(statusLine, /className="relative z-30 h-0" data-testid="timetable-inline-status-anchor"/);
+	assert.match(statusLine, /data-testid="timetable-inline-status"\s*className=\{`absolute inset-x-3 top-1/);
 	// SUPERSEDED: the in-flow status row `border-b px-3 py-1 text-xs`.
-	assert.doesNotMatch(workspace, /className=\{`border-b px-3 py-1 text-xs \$\{\s*state\.inlineActionStatus/);
+	assert.doesNotMatch(statusLine, /className=\{`border-b px-3 py-1 text-xs \$\{\s*state\.inlineActionStatus/);
+	assert.match(workspace, /<TimetableMoveStatusLine/,
+		'the workspace still mounts the one inline status surface, so the arrangement is on the real view');
 });
 
 test('B8 "Swap with another class" on a selected class makes it the first class', () => {
@@ -261,13 +290,37 @@ test('B9 the Draft view does not inherit the published chip or a live swap', () 
 	assert.match(header, /headerPrimary === 'published' \? \(\s*<SimplePublishedState/);
 	assert.match(source('../../components/timetable/simple/SimpleHeaderActions.tsx'), /return input\.isPreGenerationWorkspace \? 'none' : 'published';/);
 	const workspace = source('../../components/timetable/ScheduleReviewWorkspace.tsx');
-	assert.match(workspace, /if \(currentCenterView == null \|\| currentCenterView === 'schedule'\) return;\s*state\.setSwapClassTimesMode\?\.\(null\);/);
+	// ── C11 CORRECTION 2 (QA-B1) — RE-POINTED and STRENGTHENED, additively ─────
+	// The original assertion named the OPEN-CODED clear:
+	//   assert.match(workspace, /if \(currentCenterView == null \|\| currentCenterView === 'schedule'\) return;\s*state\.setSwapClassTimesMode\?\.\(null\);/);
+	// C11 M4 replaced that with the single `resetSwapClassTimesState`, which clears
+	// the mode AND both class ids. That is strictly MORE than the old line did — the
+	// old clear hid the banner while leaving a stale Class A/B to be re-adopted, which
+	// is the "needs a reload" symptom the walk recorded. So this row's requirement
+	// is unchanged and its evidence is now stronger; the old form is retained as
+	// SUPERSEDED.
+	assert.match(workspace, /if \(currentCenterView == null \|\| currentCenterView === 'schedule'\) return;\s*state\.resetSwapClassTimesState\?\.\(\);/,
+		'leaving the Schedule view clears the WHOLE armed swap through the one reset, not just the mode');
 	assert.match(workspace, /setActiveSimpleTask\(\(task\) => \(task === 'swap-sessions' \? null : task\)\)/);
+	// And the one reset really is the one that clears all three fields.
+	assert.match(
+		source('../../components/timetable/timetableSwapArming.ts'),
+		/export function resetSwapClassTimes\(/,
+		'the clear named above is the single shared reset, not a second open-coded one',
+	);
 });
 
 test('B9 an empty or loading draft says what it is instead of looking like the schedule vanished', () => {
-	const center = source('../../components/timetable/CenterWorkspace.tsx');
-	assert.match(center, /centerView === 'pre-generation' && sandboxGridEntries\.length === 0 \? \(/);
+	// ── C11 CORRECTION 2 (QA-B1) — RE-POINTED, additively ──────────────────────
+	// The pane chain moved to `CenterWorkspacePaneSurface.tsx`, and the extraction
+	// renamed the local `centerView` to `paneView` (the RESOLVED view). Retained as
+	// SUPERSEDED:
+	//   const center = source('../../components/timetable/CenterWorkspace.tsx');
+	//   assert.match(center, /centerView === 'pre-generation' && sandboxGridEntries\.length === 0 \? \(/);
+	//   assert.match(center, /the published schedule is not shown here and does not change/);
+	//   assert.match(center, /newDraftLoading\s*\/\/[^\n]*\n\s*\? 'Loading the draft…'/);
+	const center = source('../../components/timetable/CenterWorkspacePaneSurface.tsx');
+	assert.match(center, /paneView === 'pre-generation' && sandboxGridEntries\.length === 0 \? \(/);
 	assert.match(center, /the published schedule is not shown here and does not change/);
 	assert.match(center, /newDraftLoading\s*\/\/[^\n]*\n\s*\? 'Loading the draft…'/);
 });

@@ -10,7 +10,9 @@ import {
 	MapPin,
 	MousePointerClick,
 	RefreshCw,
+	Send,
 	Settings2,
+	Trash2,
 	UserRoundX,
 } from 'lucide-react';
 
@@ -23,6 +25,7 @@ import { editHistoryEmptyStateMessage, type EditHistoryReadState } from '@/lib/t
 import { cn } from '@/lib/utils';
 import { Button } from '@/ui/button';
 import { Badge } from '@/ui/badge';
+import { SimpleEditDraftAction } from '@/components/timetable/TimetableDraftActionsSurface';
 import { RefreshSetupNamesButton } from '@/components/timetable/simple/SimpleSetupSharedControls';
 import { SimpleDayOptions } from '@/components/timetable/simple/SimpleDayOptions';
 import { STATUS_ITEMS } from '@/components/timetable/TimetableStatusLegend';
@@ -64,6 +67,32 @@ export type SimpleMoreMenuContentProps = {
 	 * header to show it in the status region directly above the action row.
 	 */
 	onSchoolNamesRefreshed?: () => void;
+	/**
+	 * C11 D, correction 2 (QA-B2) — the draft actions the header does NOT render
+	 * as its own controls, rendered as entries in the menu that is ALREADY on
+	 * screen.
+	 *
+	 * The strip used to render `Edit`, `Discard draft` and `Publish` itself, which
+	 * took the Simple header from six visible controls to nine and put two
+	 * publication controls on screen at once. `Publish` is the header's own
+	 * publication control; `Edit draft` and `Discard draft` live here, beside the
+	 * `Manual edit` entry they sit beside in meaning, and beside Expert's
+	 * `More tools` rows in the same shape.
+	 *
+	 * DRAFT-UX-C01 (operator, 2026-09-25) fixes the ONE solid primary as
+	 * `Publish schedule` once a run exists, so the draft's own verb is a menu
+	 * entry — moving it here, not re-deciding the primary.
+	 *
+	 * The HEADER owns the gates — it holds the one `resolveDraftStripProps`
+	 * derivation — and passes each entry already decided, so a menu row can never
+	 * disagree with the header about whether the action is available.
+	 */
+	draftActions?: {
+		/** `null` when the header's primary already IS the publication control. */
+		publish: { visible: boolean; enabled: boolean; reason: string | null; onSelect: () => void } | null;
+		edit: { visible: boolean; enabled: boolean; reason: string | null; onSelect: () => void };
+		discard: { visible: boolean; enabled: boolean; reason: string | null; onSelect: () => void };
+	};
 };
 
 /**
@@ -172,15 +201,21 @@ export function SimpleMoreMenuContent({
 	onOpenTutorial,
 	onSchoolNamesRefreshed,
 	unassignedEntry = null,
+	draftActions,
 }: SimpleMoreMenuContentProps) {
 	// #50 — the item counts behind each heading. They are derived from the SAME
 	// conditions that render the rows, so a heading can never claim a row count
 	// the group does not have.
 	const hasUnassignedRunTasks = (context.summary?.unassignedCount ?? 0) > 0;
 	const hasPendingRequests = context.requestPendingCount > 0;
+	// C11 correction 2 (QA-B2) — the two D actions the header handed to this menu.
+	// Derived from the SAME conditions that render the rows, so the heading cannot
+	// claim rows the group does not have (#50).
+	const draftActionCount = (draftActions?.publish?.visible ? 1 : 0) + (draftActions?.discard?.visible ? 1 : 0);
 	const dailyTaskCount = 1 + 1 + 1 + (unassignedEntry ? 1 : 0)
 		+ (hasUnassignedRunTasks ? 1 : 0)
-		+ (hasPendingRequests ? 1 : 0);
+		+ (hasPendingRequests ? 1 : 0)
+		+ draftActionCount;
 	const expertToolCount = (hideReviewIssues ? 0 : 1) + 3;
 	// A2-C6-TRUTH (T1b): the entry's own state comes from the last READ, not from
 	// a row count that a failed or unfinished read also produces.
@@ -407,6 +442,73 @@ export function SimpleMoreMenuContent({
 						Building view
 					</Link>
 				</DropdownMenuItem>
+				{/* ── C11 D, correction 2 (QA-B2) — the draft actions the header handed
+				    to this menu ────────────────────────────────────────────────────
+				    `Publish`, `Edit draft` and `Discard draft` used to be buttons on
+				    the draft strip, which put the header over its accepted six-control
+				    cap and gave the view TWO publication controls at once. `Publish` is
+				    the header's own publication control now; `Edit draft` and
+				    `Discard draft` are here, beside the `Manual edit` entry they belong
+				    with, and each is DISABLED WITH A VISIBLE REASON rather than a
+				    hover-only tooltip (AGENTS.md §8). The header supplies the gate, so
+				    a menu row cannot disagree with the header about whether the action
+				    is available. */}
+				{draftActions?.publish?.visible ? (
+					<DropdownMenuItem
+						className={cn('gap-2 text-xs', draftActions.publish.enabled ? 'h-9' : 'h-auto min-h-9 items-start py-1.5 data-[disabled]:opacity-100')}
+						disabled={!draftActions.publish.enabled}
+						data-testid="timetable-more-publish"
+						onSelect={(event) => {
+							event.preventDefault();
+							onClose();
+							draftActions.publish?.onSelect();
+						}}
+					>
+						<Send className="size-3.5" aria-hidden="true" />
+						{draftActions.publish.enabled ? (
+							<span>Publish schedule</span>
+						) : (
+							<span className="flex flex-col">
+								<span className="text-muted-foreground">Publish schedule</span>
+								<span className="text-xs text-muted-foreground" data-testid="timetable-more-publish-reason">
+									{draftActions.publish.reason}
+								</span>
+							</span>
+						)}
+					</DropdownMenuItem>
+				) : null}
+				{draftActions?.edit?.visible ? (
+					<SimpleEditDraftAction
+						primary={false}
+						enabled={draftActions.edit.enabled}
+						disabledReason={draftActions.edit.reason}
+						onClick={draftActions.edit.onSelect}
+					/>
+				) : null}
+				{draftActions?.discard?.visible ? (
+					<DropdownMenuItem
+						className={cn('gap-2 text-xs', draftActions.discard.enabled ? 'h-9' : 'h-auto min-h-9 items-start py-1.5 data-[disabled]:opacity-100')}
+						disabled={!draftActions.discard.enabled}
+						data-testid="timetable-more-discard-draft"
+						onSelect={(event) => {
+							event.preventDefault();
+							onClose();
+							draftActions.discard?.onSelect();
+						}}
+					>
+						<Trash2 className="size-3.5" aria-hidden="true" />
+						{draftActions.discard.enabled ? (
+							<span>Discard draft</span>
+						) : (
+							<span className="flex flex-col">
+								<span className="text-muted-foreground">Discard draft</span>
+								<span className="text-xs text-muted-foreground" data-testid="timetable-more-discard-draft-reason">
+									{draftActions.discard.reason}
+								</span>
+							</span>
+						)}
+					</DropdownMenuItem>
+				) : null}
 			</div>
 			<div className="space-y-1 rounded-md border border-border bg-muted/20 p-2" data-testid="timetable-simple-more-schedule-data">
 				<MoreGroupHeading label="Schedule data" itemCount={3} />
