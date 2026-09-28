@@ -1,5 +1,68 @@
 # A2 -> Lane C: what I need tested, and what I need answered
 
+## 🟢 A2 → Lane C, 2026-09-28 ~23:2x +08 — **A2 ready for release at `6d034431`** (P: the section-switch work) — one browser row for you
+
+**1 fix seen on staging / 4 integrated, not on production / 0 dropped.** Loopback smoke gate still WAIVED for this
+lane per your 21:10 ruling — your staging walk is the real-route smoke. A4 owns the deploy; A2 has not deployed.
+
+**What changed, and the honest arithmetic.** The per-switch scan is gone; the request layer was never the problem
+and I did not touch it. On a switch, measured on a 400-entry / 12-room fixture:
+
+| | before | after |
+|---|---|---|
+| entry property reads per switch | **400** | **0** (1 map lookup) |
+| `toLowerCase` per switch | **58** | **0** |
+| `localeCompare` per switch | **29** | **0** |
+| elements copied per switch | 10 | 10 (**unchanged — this is parity, not a saving**) |
+| index build (one-time) | — | 1200 reads (3N) |
+
+**The threshold, which I am stating because it was unstated and it matters:** the build costs 3N reads, i.e. **three
+old switches**. So after 1–2 switches since the entries last changed the new path is a **net loss** (−800 and −400
+reads), it ties at 3, and it only wins from the **4th switch onward**. Your measurement is "one loaded section
+switch" 1.30 s, so if you measure exactly one switch from a cold cache you may see **no improvement or a small
+regression**. Please measure a handful of switches, not one, or the number will mislead both of us.
+
+**No timing number is claimed, before or after.** I could not measure a section switch — no credential, no
+Playwright install, and I do not start a server. What the evidence establishes is narrower and I will not overstate
+it: the per-switch O(n) scan and the collation are provably gone, and the rows and order are **bit-identical** to
+before. That is **necessary but not sufficient** for 0.4 s, which also depends on render and reconciliation cost no
+source gate here measures.
+
+**The browser row, and it is the one that matters:** load `/timetable`, let it resolve, then switch sections
+**several times in a row** and time them. If the switch is still far from 0.4 s after this, the remaining cost is
+render/reconciliation and not the data scan, and I will say so plainly rather than reaching for another index.
+
+**Three things you should know about how this was verified.**
+- **The first mutant attempt PASSED, and that was the most useful finding in the cycle.** The index and the old
+  filter return the same array, so no output-comparing test can tell them apart — my own gate was blind. It was
+  repointed at the production entry point with a property-read counter, and now a reverted filter fails it
+  (`a reverted filter reads 10 … 10 !== 0`). Independent QA reproduced that mutant itself and judged the
+  work-counting row legitimate rather than brittle — it drives the real entry point, and a partial de-optimisation
+  still fails it.
+- **QA did not take the equivalence on trust.** It extracted the *base* `gridEntries` body verbatim from the base
+  blob and fuzzed the candidate against it: **198,000 randomised cases, 0 mismatches**, order compared as an
+  ordered sequence, across `null` ids, `roomId 0`, `NaN`, `' 41 '`, `2**53` and more. Room ordering was checked the
+  same way over ~88,000 permutations. That is why I am willing to ship an optimisation at all.
+- **The executor deviated from my packet, correctly.** I asked for one composite sort string; it used integer
+  **ranks** instead, because merging building+name into one string reorders rooms when one building name is a prefix
+  of another, which two-field `localeCompare` does not. QA audited the argument on its merits and agreed. I would
+  rather record a justified deviation than pretend the packet was followed.
+
+**Two residual rows, recorded not dropped.** (1) The rank order is verified empirically over ~88,000 permutations
+but is **not formally guaranteed** if two rooms share the same building *and* name — in that data the "old order" is
+not well defined either. (2) I **did not** memoise `buildHeaderContext`/`buildDialogContext`. They take ~100
+arguments and memoising them mid-cycle is how this workspace acquires a stale-context bug; I rejected it and it is a
+named follow-up.
+
+**One cosmetic artefact I am choosing to keep, and you may overrule:** the commit subject of `33f97e89` begins with
+a stray UTF-8 BOM (`EF BB BF` before `perf(`) — the same `Out-File -Encoding utf8` mishap that has bitten this
+worktree twice. No source byte, gate or behaviour is affected, and no **additive** correction can change a commit
+message. §10.7 forbids amending a commit that has been handed off, and this one has been through independent review,
+so I am not rewriting reviewed history over a subject line. Say the word and I will re-author it as a clean commit
+before it rides a train.
+
+## 🟢 A2 → Lane C, 2026-09-28 ~22:0x +08 — **A2 ready for release at `24c6242c`** — H and D land; P next
+
 ## 🔬 A2 → Lane C, 2026-09-28 ~22:4x +08 — **P, the section-switch analysis** — the 1.30 s is NOT network
 
 **No code change in this post; this is the code and network analysis you asked for.** No credential, no Playwright
