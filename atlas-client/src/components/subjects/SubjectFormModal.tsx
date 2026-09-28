@@ -14,6 +14,7 @@ import {
 import { Button } from '@/ui/button';
 import { Badge } from '@/ui/badge';
 import { Checkbox } from '@/ui/checkbox';
+import { ConfirmationModal } from '@/ui/confirmation-modal';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/ui/dialog';
 import { Input } from '@/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui/select';
@@ -76,6 +77,27 @@ function resolveCanonicalRotationTermLabel(termLabel: string | null | undefined,
 		: null;
 }
 
+/**
+ * A5 / operator FIX-20: "Cancel on a filled subject form discards fields; must
+ * preserve through a confirmation."
+ *
+ * A stable, order-of-keys-independent serialization of the whole form, so
+ * "has the operator changed anything" is decided by VALUE and not by object
+ * identity or by which setter happened to run. Arrays keep their order on
+ * purpose: every toggle in this component already emits a sorted or
+ * order-preserving list, so a round trip (toggle a grade off and on again)
+ * compares equal, while a real reordering of the scope list is still a change
+ * the operator would want to be told about.
+ *
+ * A false "dirty" only produces one extra confirmation. A false "clean" loses
+ * the operator's work silently, which is the defect this exists to close, so
+ * the bias is deliberate.
+ */
+function formSignature(values: SubjectFormValues): string {
+	const keys = Object.keys(values).sort() as Array<keyof SubjectFormValues>;
+	return JSON.stringify(keys.map((key) => [key, values[key] ?? null]));
+}
+
 export function SubjectFormModal({
 	open,
 	mode,
@@ -87,6 +109,10 @@ export function SubjectFormModal({
 }: Props) {
 	const [form, setForm] = useState<SubjectFormValues>(initialValues ?? { ...emptyForm });
 	const [timeMode, setTimeMode] = useState<'minutes' | 'hours'>('hours');
+	// A5 FIX-20: the discard confirmation. It gates the CLOSE DECISION only. It
+	// is never a save, never a request, and never writes form state, so the
+	// A3-20 non-action contract below is untouched by it.
+	const [discardOpen, setDiscardOpen] = useState(false);
 	// A3-20: the truthful result surface. Cleared on every open so a previous
 	// attempt's outcome is never shown against a fresh form.
 	const [result, setResult] = useState<SubjectSaveOutcome | null>(null);
@@ -97,6 +123,10 @@ export function SubjectFormModal({
 	}>({});
 	const codeInputRef = useRef<HTMLInputElement>(null);
 	const formId = useId();
+	// A5 FIX-20: the form as it was SEEDED, held by value rather than by object
+	// identity, so "has anything changed" survives the many `setForm` spreads
+	// that re-create the object on every keystroke.
+	const baselineSignatureRef = useRef<string>(formSignature(initialValues ?? { ...emptyForm }));
 
 	// A3-C4: `requiredFeatures` is a mixed list — real room features plus the
 	// server's `OWNER_DEPT:<code>` ownership markers. Split it for display; the
@@ -105,23 +135,68 @@ export function SubjectFormModal({
 		splitSubjectFeatures(form.requiredFeatures);
 
 	useEffect(() => {
-		if (open) {
-			setForm(initialValues ?? { ...emptyForm });
-			setTimeMode('hours');
-			setResult(null);
-			setValidationErrors({});
-			// Phase 2.1: focus the code input on add so a non-technical user
-			// can start typing immediately.
-			if (mode === 'add') {
-				requestAnimationFrame(() => codeInputRef.current?.focus());
-			}
+		if (!open) {
+			// A5 FIX-20: a CLOSED modal owns no pending prompt. This matters after
+			// a successful save, where the page closes the form from its own save
+			// handler — the modal never called `onClose`, so without this the
+			// discard confirmation would outlive the dialog it belongs to.
+			setDiscardOpen(false);
+			return;
+		}
+		const seeded = initialValues ?? { ...emptyForm };
+		setForm(seeded);
+		// A5 FIX-20: the baseline is captured in the SAME commit as the seed, so
+		// "untouched" always means "exactly what this open was seeded with".
+		baselineSignatureRef.current = formSignature(seeded);
+		setTimeMode('hours');
+		setResult(null);
+		setValidationErrors({});
+		// A5 FIX-20: a fresh open never inherits a pending discard prompt from
+		// the previous one.
+		setDiscardOpen(false);
+		// Phase 2.1: focus the code input on add so a non-technical user
+		// can start typing immediately.
+		if (mode === 'add') {
+			requestAnimationFrame(() => codeInputRef.current?.focus());
 		}
 	}, [open, initialValues, mode]);
+
+	// A5 FIX-20: "Cancel on a filled subject form discards fields; must preserve
+	// through a confirmation."
+	//
+	// EVERY close path funnels through this one function, which is what makes the
+	// guarantee complete rather than a Cancel-button patch:
+	//   - the footer Cancel button      -> `requestClose`
+	//   - Escape                        -> the Dialog's `onOpenChange(false)`
+	//   - overlay / backdrop click      -> the Dialog's `onOpenChange(false)`
+	//   - the primitive's own corner X   -> the Dialog's `onOpenChange(false)`
+	//   - the page's `onClose` route    -> reached only from here
+	// A clean form closes immediately. A changed form asks first, and the form
+	// stays mounted and fully populated behind the question, so cancelling the
+	// question returns the operator to exactly the fields they left.
+	const isDirty = formSignature(form) !== baselineSignatureRef.current;
+	const requestClose = () => {
+		if (!isDirty) {
+			onClose();
+			return;
+		}
+		setDiscardOpen(true);
+	};
 
 	// A3-20 (Cancel / non-action): Cancel and Escape are a non-action path. They
 	// must issue no request and must not mutate form state, so the submit
 	// handler is the ONLY thing that calls onSave and it is the only thing that
 	// writes a result. This is asserted by a control, not by inspection.
+	//
+	// A5 FIX-20 RECONCILIATION (not a contradiction of the above): FIX-20 makes
+	// closing a FILLED form ask first, so "Cancel closes immediately" is no
+	// longer true on that path. Every property this comment claims is kept
+	// intact and asserted: no request is issued, no form state is mutated, no
+	// save outcome is written, and `onSave` is still called only by the submit
+	// handler. A confirmation is a question about the CLOSE decision, not a
+	// data action. What changes is only WHERE the decision is taken: untouched
+	// form closes immediately, filled form asks, and cancelling the ask returns
+	// the operator to the form with every field exactly as they left it.
 	const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
 		event.preventDefault();
 		if (!canSave) return;
@@ -249,7 +324,8 @@ export function SubjectFormModal({
 	const currentStepIndex = steps.findIndex((step) => step.id === currentStepId);
 
 	return (
-		<Dialog open={open} onOpenChange={(value) => { if (!value) onClose(); }}>
+		<>
+		<Dialog open={open} onOpenChange={(value) => { if (!value) requestClose(); }}>
 			<DialogContent
 				className="max-w-2xl max-h-[95svh] overflow-hidden flex flex-col p-0"
 				data-testid="subjects-form-dialog"
@@ -858,7 +934,7 @@ export function SubjectFormModal({
 					) : null}
 
 					<DialogFooter className="shrink-0 p-6 border-t bg-muted/20">
-						<Button type="button" variant="outline" onClick={onClose} disabled={saving} className="h-10 font-bold px-6">Cancel</Button>
+						<Button type="button" variant="outline" onClick={requestClose} disabled={saving} className="h-10 font-bold px-6">Cancel</Button>
 						<TooltipProvider>
 							<Tooltip>
 								<TooltipTrigger asChild>
@@ -885,5 +961,30 @@ export function SubjectFormModal({
 				</form>
 			</DialogContent>
 		</Dialog>
+
+		{/* A5 FIX-20: the discard confirmation.
+		 *
+		 * It is a SIBLING of the form dialog, not a child, and the form dialog is
+		 * deliberately left OPEN behind it. That is the whole point of the
+		 * requirement: the operator who cancels the cancellation must land back on
+		 * the form they were editing, with every field still populated, not on an
+		 * empty re-seeded one.
+		 *
+		 * It asks one question about the CLOSE decision and nothing else. It
+		 * issues no request, mutates no form state, and writes no save outcome —
+		 * the A3-20 non-action contract is unchanged by it. `onOpenChange` closing
+		 * the confirmation is the "keep editing" answer; `onConfirm` is the only
+		 * route to a real `onClose`.
+		 */}
+		<ConfirmationModal
+			open={discardOpen}
+			onOpenChange={setDiscardOpen}
+			variant="warning"
+			title="Discard your changes?"
+			description="This subject form has changes you have not saved. Discard them and close the form, or cancel to keep editing."
+			confirmText="Discard changes"
+			onConfirm={onClose}
+		/>
+		</>
 	);
 }

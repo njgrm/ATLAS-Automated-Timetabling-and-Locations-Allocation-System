@@ -28,6 +28,51 @@ rules are what make that safe:
 
 ## Lane A4 — release lane, 2026-09-28 (first A4 train)
 
+- **STAGING IS UP at `7590d485` — a second, isolated ATLAS on 5101 (API) / 5274 (client).**
+  `http://127.0.0.1:5274`. Release dir `E:\ATLAS-staging\7590d485…` (registered worktree, HEAD == pin,
+  0 reparse points, owns its dependency trees). Task `ATLAS-Staging-Supervisor` (SYSTEM, at startup).
+  Env `D:\ATLAS-runtime-config\atlas-staging.env`, ACL identical to the live env file. DB `atlas_staging`,
+  a streamed `pg_dump -Fc | pg_restore` snapshot of live. Deploy **26.3 s** with `-SkipBuild`.
+  Deploy with one command: `.\ops\staging\deploy-staging.ps1 -Sha <sha> -Execute`. Operator steps in
+  `docs/runbooks/staging.md`; every row in `docs/reviews/a4-staging-20260928/pre-action.md`.
+  Source on branch `work/a4-staging-20260928` at `834f1ad3` — **pushed, but NOT merged to `main`; it
+  needs a release train.** A planner reading this from `main` will not see the staging scripts yet.
+- **⚠ TWO GATES OPEN — staging is NOT QA-verified. Do not treat it as accepted.** (1) The **independent
+  post-action QA dispatch was declined** in that session, so the deployment is evidenced only by the
+  executor. `AGENTS.md` §11 does not close a HIGH cycle without one fresh independent reviewer.
+  (2) The **operator has not signed in** at `http://127.0.0.1:5274`, so no authenticated staging row has
+  run. Staging's `JWT_SECRET` is its own, so a Tailnet-seeded live session is **not** valid on 5274.
+- **Live was not touched, measured not asserted** (2026-09-28 ~17:35 +08): listeners still 5001 → **3516**,
+  5174 → **60116**; machine scope unchanged; live release tree clean at `7590d485`; live `audit_logs`
+  `1010|459|11` identical before **and** after, **re-checked after staging was up and serving**. The
+  pre-action baseline was captured *before* any mutation at
+  `C:\ProgramData\ATLAS\staging-audit\baseline-before.json` — the omission that left D7 `PARTIAL` on the
+  previous release does not recur.
+- **Recorded deviation from the staging packet, with a reason:** the packet suggested junctioning
+  dependencies from "the last good release". Rejected — the live release dir is a *numbered slot the next
+  train reuses*, and a junction chain rooted at a retired release has already downed this runtime once.
+  Each staging release owns its trees (0.87 GiB, ~25 s, 0 reparse points). Machine scope is also never
+  written: it is one global namespace shared with live, so staging sets its three `ATLAS_RUNTIME_*`
+  variables in a per-process `.cmd` launcher instead.
+- **Pre-action review earned its place — cite this before the next runtime-touching packet.** First pass:
+  `CORRECTION_REQUIRED`, **8/21 passed, 2 failed, 4 BLOCKING**. Two would each have killed the deploy
+  (`pg_restore` was given the archive as its `-f` **output** option and would have overwritten the dump it
+  was restoring from; probing a non-existent task terminated the script under `$ErrorActionPreference='Stop'`
+  on exactly the first-run path). Two were secret containment (staging env written *before* its ACL; a full
+  live DB dump left in a `BUILTIN\Users`-readable dir). Four more (B5–B8) appeared only while executing.
+  **All eight aborted before mutating, because the build phase runs before the quiesce phase.**
+- **Tailnet path for staging: decided NOT built (2026-09-28).** `tailscale` is present and the node is
+  `100.88.55.125 njgrm`, so a path is technically easy, but the packet's actual need — loopback on the PC
+  that runs the browser — is met, and exposing a production-data copy to the Tailnet is itself HIGH and
+  would need its own authorization. Reversible later in one command.
+- **Stream (unchanged):** own the release. Merge ready SHAs into one pinned release commit, gate once,
+  build, cut over, smoke, post. **A4 is the only lane that deploys and the only one that runs elevated.
+  A4 never edits product code or tests.**
+- **DONE — `a4-release-2026-09-28-1` is LIVE at `7590d485`.** Merge of `4c35cc8f` with A3 `7caadf2d` (c9+c10);
+  clean merge, zero conflicts, nothing dropped. Client-only: 70 files, 39 product, **0** under `atlas-server/`,
+  `prisma/`, `ops/`. Health 200 across health/ready/host and 3/3 public API paths. `E:` 38.0 -> **36.47 GiB**,
+  no reclaim triggered. Evidence: `docs/reviews/a4-release-20260928-1/release.md`.
+
 **Stream:** own the release. Merge ready SHAs into one pinned release commit, gate once, build, cut over, smoke,
 post. **A4 is the only lane that deploys and the only one that runs elevated. A4 never edits product code or tests.**
 
@@ -64,6 +109,34 @@ post. **A4 is the only lane that deploys and the only one that runs elevated. A4
   `PRESERVE_FOR_DECISION` (A3's, untouched).
 - **Next action (single):** Lane C runs the 9 A3 rendered rows + the rebaseline §2 steps against `7590d485` and
   posts to `lane-c-to-a2.md`. A2 ships c11 to the next train; A4 merges it into `release/2026-09-28-2`.
+
+### Staging hardening + Tailnet — CLOSED 2026-09-28 (packet `a4-staging-2026-09-28-b`)
+
+- **Three BLOCKING findings closed and merged to `origin/main` at `82462f91`** (ops/docs only; 0 files under
+  `atlas-client/`, `atlas-server/`, `prisma/`). `-TaskName` now refuses the live task by hard deny-list **and** a
+  positive `ATLAS-Staging` allow-rule; `-ReleaseRoot`/`-StagingEnvFile` are compared on the **resolved** path;
+  deploy output reports the `VITE_ENROLLPRO_URL` **key name and presence**, never the value.
+- **Fresh independent QA: 8 rows, 7 pass, 0 blocked, 0 unperformed — `CORRECTION_REQUIRED` on one row whose only
+  finding was a NON_BLOCKING runbook token gap.** Closed additively at `23aa2d0d` (3 tokens added; verified
+  two-way by extraction: 11 throwable, 11 documented, none unmatched). Gate `npm run test:staging-guards` **20/20**.
+  QA's own mutation controls: 1, 4 and 2 failures under three independent breakages — the gate discriminates.
+- **G1/G2 were the reviewer's route error, G5 was their privilege.** `/health` 404s on both live and staging
+  while the documented `/api/v1/health` returns 200 — re-derived here, both were false failures. `schtasks`
+  needed elevation this shell has: **both tasks are distinct and Registered/Running** — `ATLAS-Runtime-Supervisor`
+  (live, `…\lane-a4-release-20260928-1\ops\runtime\cli.mjs`) and `ATLAS-Staging-Supervisor`
+  (`E:\ATLAS-staging\staging-supervisor.cmd`).
+- **▶ STAGING IS ON THE TAILNET: `https://njgrm.buru-degree.ts.net:8443`** (`tailscale serve --https=8443` →
+  `127.0.0.1:5274`, **tailnet only, not Funnel**). Live **443 → 5174 Funnel untouched**; both mappings verified
+  present in `tailscale serve status` after the change.
+  **Prove the API port with a DB-backed read, not health** — the health payload is byte-identical on both
+  origins: `subjects?schoolId=1` returns **20361 B on 8443** vs **19517 B on 443**.
+- **LIVE UNTOUCHED, measured:** 5001→PID **3516**, 5174→PID **60116**, machine scope still
+  `lane-a4-release-20260928-1` / `7590d485…`, live tree clean at `7590d485`, live task Running. Live did not move.
+- **Open, dated 2026-09-28:** staging's **post-action QA row is still open** — this session closed the three
+  source-level guards, not the deployment acceptance. No authenticated staging row has run (needs a one-time
+  operator sign-in at `:8443`; sessions are origin-bound). Live browser acceptance of `7590d485` remains Lane C's.
+- **Worktrees:** `lane-a4-staging-20260928` = **`KEEP_ACTIVE`** (the staging deploy source). No reclaim was
+  triggered: `E:` **30.72 GiB**, `D:` **39.14 GiB**, both above the §3 warning.
 
 ---
 
@@ -189,6 +262,16 @@ resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs
 ## Live release
 
 - Tailnet: `https://njgrm.buru-degree.ts.net`
+
+- **▶ STAGING (second, isolated ATLAS) is up at `7590d485` on 5101/5274 since 2026-09-28 ~17:35 +08 by
+  Lane A4 — this does NOT change the LIVE release named below.** Loopback only: `http://127.0.0.1:5274`.
+  Own env file, own `atlas_staging` database (a dump snapshot of live), own scheduled task, own dependency
+  trees, and its own `JWT_SECRET` so no session crosses the two origins. **Two gates are still open — the
+  independent post-action QA dispatch was declined and the operator has not signed in — so staging is
+  NOT QA-verified.** Detail and rows: `docs/reviews/a4-staging-20260928/pre-action.md`; operator steps:
+  `docs/runbooks/staging.md`; source on branch `work/a4-staging-20260928` at `834f1ad3` (pushed, not yet
+  merged to `main`). Live listeners, machine scope, release tree and the live `audit_logs` signature
+  `1010|459|11` were all measured unchanged across the staging cutover.
 
 - **▶ LIVE: `7590d485974337f834aa3972bb128090e6067b8d` — DEPLOYED 2026-09-28 ~16:40 +08 by Lane A4
   (`a4-release-2026-09-28-1`, the first A4 train). Merge of the incumbent `4c35cc8f` with **A3 `7caadf2d`
@@ -2893,6 +2976,19 @@ Do not write in Lane B/C worktrees.
 
 ## Lane A2 - current lane (written only by Planner A2)
 
+### 2026-09-28 ~19:3x +08, packet c11 slice 2 - **INTEGRATED at `e59b8ba1` on `main`. 0 rendered live; 11 integrated, none live. A4 owns the deploy (§14).**
+Newest block; supersedes the slice-1 block below, kept as dated history. **H's row-count target is NOT REACHED and is recorded as an open follow-up row, not claimed.**
+
+- **Integrated and pushed: `e59b8ba1`**, merge of candidate `ac77bd59` over `c9c92f41`, base `f970320a`. **23 paths, all `atlas-client/`, 0 foreign.** Pushed range is exactly 3 commits, all mine. Posted `A2 ready for release at e59b8ba1` in `docs/handoffs/lane-c-to-a2.md`. `main` had advanced 13 commits under me (A4 staging + opencode) with **zero** `atlas-client/`/`atlas-server/` paths, so no product overlap; the merge was clean and combined gates on the merged tree reproduced the candidate's tallies.
+- **Recovered the killed session's work, then completed it.** `ses_f1934f0dcffeam3e43dmZjkFFE` died at 17:31 leaving **20 uncommitted files**. I reviewed the diff: the production work (H banner, T2 named history, T3a/b/c) was sound, additive and fail-closed, and I kept all of it. **The one real defect was its own half-written test file** (5 `ReferenceError`s) — 11/16 green. One executor finished exactly that, one bounded correction closed the 3 rows it then exposed.
+- **Targets DONE: the change-banner spec (your accepted shape), T2, T3a, T3b, T3c. NOT REACHED: header ≤ 2 rows at 1366** — measured in Chromium at 1366×768 as **7 text bands / 204px** (state strip · notice · `Publish schedule` · `3 Must fix, 145 advisories | More` · blocker line · `Cancel` · swap banner). JSDOM has no layout engine, so the committed row was renamed `STRUCTURAL` and I measured it rather than let a test name overclaim. **The blocker sheet and the swap banner are still inside the header's own box — that is where the remaining bands come from.**
+- **The load-bearing product fix: an unproven comparison may not claim a change.** T3e's accepted row pinned the promise "This schedule is unchanged." to a fixture whose comparison is provably **newer** than the run, where that promise is a lie. I split the claim on the reconciled verdict: a **proven** change names the area and offers `Update schedule`; an **unproven** one promises no change and offers **no** apply action. Both branches asserted in both layouts; 5 mutants caught, all blobs restored byte-exact.
+- **Gates (merged tree, real tallies):** c11-s2-header **16/16**; relaxed-main **83 tests / 80 pass / 3 fail**, and all 3 are **pre-existing at HEAD by byte-identical blobs** (2× `playwright` not installed, plus the A8 `text-red-500` marker A2-C7 moved out of `TimetableGrid.tsx` — not in this range); ux-guardrails 31/31; c11-draft-actions 41/41; scheduler-simplicity-c02 15/15; header-collapse 9/9; ux-audit-findings 12/13 (1 pre-existing); schedule-clarity 19/19; `tsc` **5 pre-existing errors, 0 new**. The 3 pre-existing rows are recorded as dated backlog, not absorbed.
+- **Not done, dated 2026-09-28:** **0 fixes rendered on the live Tailnet; 11 integrated, none live.** My one browser row is **isolated loopback** (throwaway harness, real Chromium, real components, no session) and is **never ATLAS acceptance** — `NEEDS_SESSION(space-bunny-free/this profile)`; I did not handle a credential, and I deleted the harness and stopped the dev server. No build, no deploy, no supervisor/task/env change, no generation, no publication, no migration, no live-data write.
+- **Worktrees:** `lane-a2-c11-s2-exec` (`work/a2-c11-s2-header` @ `ac77bd59`) **RETIRED** in this closure — recorded clean (`git status --short` = 0 lines), an ancestor of `origin/main`, no node process on it; its `node_modules` **junction** was `cmd /c rmdir`'d first, then non-forced `git worktree remove`, then `git worktree prune`. No branch deleted. `lane-a2-c11-integ` (`integration/a2-c11-20260928` @ `6dcc376f`) `KEEP_ACTIVE` as this lane's next integration boundary. **Self-correction, one line: the slice-1 block below says `lane-a2-c11-s1-qa` is `RETIRE_AFTER_INTEGRATION`; that is wrong — it is DIRTY (46 staged files) and owner-unverified, so §3 forces `PRESERVE_FOR_DECISION` and I did not touch it.** A4's `lane-a4-staging-*` and A3's worktrees were not touched.
+- **Next action (single):** **request A4 deploy `e59b8ba1` to staging `:8443`, then Lane C runs the c11 walk there** — the walk is the acceptance, and staging is the only surface that can decide H's real row count and the four rows still owed from slice 1's JSDOM evidence. **P (speed) is not started.**
+- **Backlog, dated 2026-09-28, still not mine:** the slice-1 backlog stands — `test:client-suite` is malformed (`tsx --test tsx --test …`) and `test:timetable-scheduler-clarity` names a **non-existent** path, so that gate silently runs 3 of 4 files. Plus the three pre-existing rows above.
+
 ### 2026-09-28 ~18:0x +08, packet c11 slice 1 - **INTEGRATED at `03c1423a` on `main`. 0 rendered live; 5 integrated, none live. A4 owns the deploy (§14) - A2 no longer releases.**
 Newest block; supersedes the c12 block below, kept as dated history. **Correction to those blocks: the live release is no longer `a1db27d5`. A4's first train shipped `7590d485` (A3 c9+c10), and c10/c12 are superseded by that release, not by anything of mine.**
 
@@ -4067,3 +4163,39 @@ skipped.
 decidable from source. Worktrees `lane-a3-c10-{s1-sections,s3-tldensity,s4-teachers,s5-auditmodal,s6-subjects}` and
 `lane-a3-c10-s2-roomcards` (the dirty one, PRESERVE_FOR_DECISION) `RETIRE_AFTER_INTEGRATION`, junction-safe;
 `lane-a3-c10-s2b-roomcards` and `lane-a3-c10-integ` `KEEP_ACTIVE` until the rendered rows report. No branch deleted.
+
+## Lane A5 — current lane (written only by Planner A5)
+
+- **Stream:** `A5-SUBJECTS-C1` — **INTEGRATED at `c5aba703`, ready for release, NOT deployed.**
+  Operator items **34+35**, **9.1**, **41**, **17.1** from `docs/reviews/operator-fixes-20260928/`,
+  plus Lane C's **FIX-20** (`lane-a-to-c.md:127`). Product range `7f06f853..d53fcf84` merged onto
+  `bf50359f`; 19 paths, no conflicts. Fresh QA `ACCEPT_READY` **16/16/0/0**. I never deploy (§14).
+- **Fixes live and seen: 0** (Tailnet is A4's release). Integrated and rendered on an isolated
+  loopback build: **5 of 5** — 10/10 Playwright rows green, 98/98 unit rows green on the merged
+  tree, build green, typecheck 1 pre-existing error (`timetable-truth-labels-a2.test.ts:523`,
+  blob byte-identical at base). Dropped: 0.
+- **Gate discipline earned this cycle (2026-09-28), worth keeping:** the inherited uncommitted work
+  **deleted** the tooltip `Portal`, which reintroduces items 34/35 verbatim; measured `11 pass / 3
+  fail`, so it was reverted rather than reviewed as a change. The committed
+  `test:visual:a5-subjects-c1` script pointed at a **`.gitignore`d spec** — a gate no clone could
+  run — fixed with the repo's own `!` pattern. And a **class-list assertion was TRUE while the
+  rendered paint was WRONG** (`@/ui` `Input`'s trailing `sm:text-sm` beat bare `text-xs` through
+  tailwind-merge; the browser measured 14px), so item 41's row asserts measured `fontSize`.
+- **Ownership:** I own the shared `ui/tooltip.tsx` primitive and the new
+  `components/table/SortableColumnHeader.tsx`; A3/A6 must not touch the primitive. My Subjects
+  files: `pages/Subjects.tsx`, `components/subjects/*`. Cross-lane notice + the release post are in
+  `docs/handoffs/lane-a-to-c.md`.
+- **Dated backlog 2026-09-28, NON_BLOCKING, unowned:** `AdminDataTable.tsx:328` still restates the
+  accessible name as the tooltip *copy*, so the action-shaped wording reaches Subjects only — a
+  later migration onto `SortableColumnHeader` would give `/teachers` copy parity.
+- **Owed and not decidable from source:** the ATLAS-origin rows on `https://njgrm.buru-degree.ts.net`
+  after A4 ships `c5aba703` — header bubble dark/above/unclipped, All Status filtering both axes,
+  one-line filter row with Term present, coverage-dialog drag-resize, and the filled-form
+  **"Discard your changes?"** confirmation. Exact steps are posted in `docs/handoffs/lane-a-to-c.md`.
+- **Next action (single):** await A4's release of `c5aba703`; A5 then closes the Tailnet rows.
+- **Worktree disposition, 2026-09-28:** `lane-a5-subjects-c1` (branch `work/a5-subjects-c1`) and
+  `lane-a5-subjects-c1-integ` (branch `integration/a5-subjects-c1-2026-09-28`) are both
+  `RETIRE_AFTER_INTEGRATION`, retired junction-safe in the closure that pushed `c5aba703`. No branch
+  deleted; `work/a5-subjects-c1` still resolves to `d53fcf84`. **Pushed `main` tip is `c78d75b7`**,
+  which contains the A5 merge `c5aba703` **and** A2's c11 slice 2 — A4 pins its own release commit
+  naming `c5aba703`, not this tip.

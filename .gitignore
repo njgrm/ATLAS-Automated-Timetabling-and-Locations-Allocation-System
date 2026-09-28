@@ -56,6 +56,11 @@ docs/progress/*
 !docs/reviews/**
 !docs/prompts/
 !docs/prompts/**
+# Runbooks are durable operator control-plane documentation: the exact command a
+# planner or an on-call operator must run, with its guards and its rollback.
+# Keep them tracked, like docs/reference.
+!docs/runbooks/
+!docs/runbooks/**
 !docs/verification/
 docs/verification/*
 !docs/verification/sca-03e-r-authority-closure-planner-manifest-2026-09-08.json
@@ -120,6 +125,7 @@ qa-artifacts/playwright/*
 qa-artifacts/playwright/specs/*
 !qa-artifacts/playwright/specs/teaching-load-post-qa-remediation.spec.ts
 !qa-artifacts/playwright/specs/client-route-smoke.spec.ts
+!qa-artifacts/playwright/specs/a5-subjects-c1.spec.ts
 
 # Root-level throwaway outputs
 /*.png

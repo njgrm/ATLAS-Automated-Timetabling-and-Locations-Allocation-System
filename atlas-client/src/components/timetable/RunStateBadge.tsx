@@ -123,21 +123,55 @@ export function describeRunState(input: {
 	};
 }
 
+/**
+ * C11 S2 (T3a) — WHICH run, in the badge itself.
+ *
+ * The recorded walk found the header reading only "Draft schedule": an older
+ * scheduler could say the schedule was a draft, but not WHICH draft. `Run 321 ·
+ * Draft` answers both in five words, and it is derived here rather than
+ * assembled at a call site, so the two headers cannot print the run number
+ * differently.
+ *
+ * `null` for the two states where there is no run to name — a pre-generation
+ * workspace and an empty grid — so a caller never prints "Run null".
+ */
+export function runIdentityBadgeLabel(input: {
+	isPreGeneration: boolean;
+	runId: number | null | undefined;
+	isPublished: boolean;
+}): string | null {
+	const { key } = describeRunState(input);
+	if (key === 'planning' || key === 'empty') return null;
+	if (input.runId == null || !Number.isFinite(input.runId)) return null;
+	return `Run ${input.runId} · ${key === 'published' ? 'Published' : 'Draft'}`;
+}
+
 /** The Draft/Published badge. Presentation only; it states, it does not act. */
 export function RunStateBadge({
 	isPreGeneration,
 	runId,
 	isPublished,
+	includeRunNumber = false,
 	className = 'h-7 shrink-0 gap-1.5 px-2.5 text-xs font-semibold',
 }: {
 	isPreGeneration: boolean;
 	runId: number | null | undefined;
 	isPublished: boolean;
+	/**
+	 * C11 S2 (T3a) — prefix the badge with the run on screen ("Run 321 · Draft").
+	 * Additive and off by default, so any existing caller that wants the bare
+	 * Draft/Published word keeps it and a caller that has no run number to print
+	 * is unaffected.
+	 */
+	includeRunNumber?: boolean;
 	className?: string;
 }) {
 	const { key, badgeLabel } = describeRunState({ isPreGeneration, runId, isPublished });
 	const presentation = RUN_STATE_PRESENTATION[key];
 	const Icon = presentation.icon;
+	const identity = includeRunNumber
+		? runIdentityBadgeLabel({ isPreGeneration, runId, isPublished })
+		: null;
 	return (
 		<Badge
 			variant="outline"
@@ -146,9 +180,10 @@ export function RunStateBadge({
 			data-run-state={key}
 			data-run-state-sign={presentation.sign}
 			data-run-state-tone={presentation.tone}
+			data-run-identity={identity ?? undefined}
 		>
 			<Icon className="size-3.5 shrink-0" aria-hidden="true" data-testid="timetable-run-state-sign" />
-			<span className="truncate">{badgeLabel}</span>
+			<span className="truncate">{identity ?? badgeLabel}</span>
 		</Badge>
 	);
 }

@@ -111,7 +111,17 @@ export function SimpleReadinessChip({
 		 * difference survives greyscale, and the rendered sentence states the
 		 * consequence so the distinction never depends on colour or on the
 		 * attribute at all. */
-		const consequence = publishBlockedReason || `${readiness} — this schedule cannot be published yet.`;
+		/* C11 S2 (item 2) — SEVERITY, on this branch too. The publish-blocked chip
+		 * replaced the label entirely, so a run with 3 must-fix AND 145 advisories
+		 * showed "3 Must fix — this schedule cannot be published yet." and the 145
+		 * were invisible — the same bare-count shape the split exists to close. The
+		 * count half now comes from `readiness` (the ONE derivation, already
+		 * severity-split) and only the CONSEQUENCE clause is added here, so the two
+		 * halves cannot be counted from different places. A run with no advisories
+		 * keeps the pre-existing `publishBlockedReason` byte-for-byte. */
+		const consequence = publishBlocked && softCount > 0
+			? `${readiness} — this schedule cannot be published yet.`
+			: (publishBlockedReason || `${readiness} — this schedule cannot be published yet.`);
 		return (
 			<Badge
 				variant="outline"

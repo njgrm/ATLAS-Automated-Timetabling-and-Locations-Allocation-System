@@ -117,6 +117,28 @@ if I tell you exactly which single observation decides each fix instead of leavi
 ---
 
 
+
+## 2026-09-28 19:05 — Lane C → A6: Teaching Load header and page (operator screenshot + Codex live walk) — TOP PRIORITY
+
+Evidence: `docs/reviews/codex-teaching-load-walk-20260928/` (`report.md`: 5 major, 2 minor; `operator-header-1600.png`).
+Operator: "it did the job of using only 1 vertical row, but did not do it gracefully and practically, it smushed everything."
+Live: the status rail overflows sideways (its own scrollbar), the warning chip is hidden under the Assign button (x=1115
+vs 1133), "Review subject co…" and the summary are truncated, and the summary contradicts the badges ("Unknown number of
+classes" next to "Classes without a teacher 8"). Letter-spaced ALL CAPS on nearly every label.
+
+Target header (two calm rows, no horizontal scroll at 1366 or 1920, sentence case, no letter-spaced caps):
+- Row 1: `Teaching Load` · Teachers | Sections · draft chip ("Draft — not saved" / "Saved") · right: Help, "Suggest
+  assignments" (secondary, not red), settings.
+- Row 2: one sentence of status + ONE primary action: "97% staffed · 8 classes need a teacher [Review 8 classes]".
+  The long summary moves behind a "Load summary" button that opens a dialog with a vertical list (item 38; no
+  sideways scrollers). Archived load moves into settings/More.
+- Degraded data: if EnrollPro is unreachable, one amber line "Using saved data from <time> — EnrollPro not reachable"
+  and suppress or label every derived count; never 100%/0 next to "unknown".
+Also from the walk: card "profile" expands into an inline assignment editor — make it a read-only profile dialog with a
+separate "Edit assignments" (with 16.1); Sections-tab empty search says "No sections require attention" — say "No sections
+match '<q>' [Clear search]"; footer "Review teachers" → "Review staff workload" with an explicit title (with 16.1/40).
+Verify on staging (https://njgrm.buru-degree.ts.net:8443) at 1366x768 and 1920x1080 before posting ready.
+
 ## 2026-09-28 — Lane C → A3 / A5 / A6: the 5 mutation rows on STAGING (7590d485) — 0 pass / 5 fail
 
 Report: `docs/reviews/codex-staging-a3rows-20260928/report.md` (Codex, fresh, http://127.0.0.1:5274). Each row partly works;
@@ -1213,3 +1235,109 @@ against the original criteria, 36 product paths, **zero `/timetable` path** — 
 streams. Not deployed, and **not in A4's pinned `4c35cc8f`**; it rides the next release that names it. Fresh QA
 `PLANNER_DECISION_REQUIRED` 28/30, blocked 0, unperformed 2, zero blocking. **0 of 13 seen rendered** — the 7 rendered
 groups above are owed on the Tailnet, and I deliberately did not manufacture a fixture screenshot. Awaits nothing.
+
+---
+
+## A5 (new lane: Subjects + the shared sortable-header tooltip) — cross-lane notice, 2026-09-28
+
+Executing `docs/prompts/a5-subjects-2026-09-28-c1.md`. Items **34 + 35 first**: the sortable
+column-header tooltip. Per the packet **I own `DataTableHeader` / the tooltip primitive; A3 and
+A6 do not touch it**, so I am posting the two shared-file touches here before making them, as the
+packet requires. Neither is a behaviour change for any other consumer.
+
+**1. `atlas-client/src/ui/tooltip.tsx` — the shared tooltip primitive (mine per the packet).**
+Two additions to `TooltipContent`:
+- wrap the existing `TooltipPrimitive.Content` in `TooltipPrimitive.Portal`, so every tooltip in
+  the app mounts to `document.body` instead of inside its clipped ancestor. This is the *root
+  cause* of 34 and 35: `AdminTableShell` (`components/admin-workspace/AdminWorkspace.tsx:350-351`)
+  is `overflow-hidden` + `overflow-auto`, and every sortable header tooltip renders *inside* that
+  scroll box with `side="top"`, so the top half of the bubble is cut off. Portalling fixes
+  **Sections, Subjects, Teachers and Teaching Load headers with zero changes to those files** —
+  which is why I am not touching your `SectionsSortableHeader.tsx` or `AdminDataTable.tsx` at all.
+- replace the `bg-popover text-popover-foreground` bubble with the operator's dark style
+  (`bg-slate-900 text-white text-xs font-medium px-2.5 py-1 rounded-md shadow-md
+  pointer-events-none whitespace-nowrap`, `z-50`). That is the second half of 34/35: the bubble was
+  a *white* pill on a *white* table card with no contrast. This restyles every tooltip app-wide,
+  so **A3/A6: if you have a local preference for a light tooltip, say so here and I will gate the
+  dark style behind an opt-in prop instead.** No test asserts the old light classes (I checked).
+
+**2. `components/admin-workspace/AdminWorkspace.tsx` — one additive, default-off prop.**
+`AdminSearchFilterToolbar` hard-codes the search `Input` at `h-8 pl-9`. Operator items 9.1/41 ask
+for `h-9 text-xs` and a `w-[240px]` box. I will add `searchInputClassName?: string` defaulting to
+`'h-8 pl-9'`, so `Sections.tsx` and `Faculty.tsx` — the two existing consumers, neither of which
+passes the prop — render byte-for-byte as they do today. Same additive default-off pattern the
+`primaryFilterCount` / `primaryFilterLayout` / `searchMaxWidthClassName` props in that file
+already use (A3-C9).
+
+**Not mine, not touched:** `sections/SectionsSortableHeader.tsx`, `admin-workspace/AdminDataTable.tsx`,
+`faculty-assignments/*`, `pages/Faculty.tsx`, `pages/TeachingLoad.tsx`, `pages/Sections.tsx`, and
+everything in the A3/A6 fences. I am adding a new shared `components/table/SortableColumnHeader.tsx`
+that owns the sort-action tooltip text; **A3/A6 may adopt it at leisure — it is offered, not
+required, and nothing in your files depends on it.** My own `subjects/SortableHeader.tsx` delegates
+to it.
+
+**My items, in packet order:** 34+35 → 9.1 → 41 → 17.1. Source only; I never deploy (A4 does).
+**Next action for me:** dispatch the executor on the packet; three slice commits, then one fresh
+QA over the lane range, then integrate. I will post `A5 ready for release at <sha>` plus the live
+rows per slice. Nothing is owed back to me at this point.
+
+---
+
+## `A5 ready for release at c5aba703` — 2026-09-28 (Planner A5, non-elevated, source only)
+
+`A5 ready for release at c5aba703`. On `origin/main`. **Not deployed — A4 owns every release.**
+Product range `7f06f853..d53fcf84`, merged onto `bf50359f` at merge `c5aba703`; 19 paths, **no
+conflicts**. Fresh independent QA `ACCEPT_READY` **16/16/0/0**, blocked 0, unperformed 0, no BLOCKING
+findings.
+
+**Per the operator's own words** (`docs/reviews/operator-fixes-20260928/fix-1.1.docx` /
+`fix-2.docx`), not a narrower rewrite:
+
+- **34 + 35 — DONE.** The shared tooltip primitive now mounts `TooltipPrimitive.Content` inside
+  `TooltipPrimitive.Portal` with `z-50` and a dark readable bubble. This is the whole fix on
+  **every** table and it needed **zero changes to Sections, Teachers or Teaching Load files** —
+  `AdminTableShell`'s `overflow-auto`/`overflow-hidden` wrapper was the clipping ancestor, not their
+  header components. QA proved the portal load-bearing rather than reading the comment: portal
+  removed in a scratch copy → the lane's own suite goes **11 pass / 3 fail**.
+- **9.1 — DONE.** The two dropdowns that both answered "status" are merged into one control with
+  **five** options spanning **both** axes (subject status *and* attention/coverage), applied as both
+  predicates; Reset restores everything. Rendered row 4 confirms it really reaches both.
+- **41 — DONE.** One compact row at 1366 (search + four selects), clean wrap at 900px, no page
+  scrollbar. **The Term filter stays a fifth select**, per your decision — rendered row 3 counts
+  five triggers and names Term.
+- **17.1 — DONE.** Coverage dialog: resizable (a real mouse drag grows it, it stays centred),
+  `min-w-[500px] max-w-[95vw] min-h-[420px] max-h-[90vh]`, teacher name **+ load**, no duplicate
+  grade row, `[GRx] name` grade-pill section chips.
+- **FIX-20 — DONE** (your item, `lane-a-to-c.md:127`). On a **filled** subject form, Cancel — and
+  Escape, overlay click, the corner X and the page `onOpenChange` route — now **preserve the
+  fields** through a confirmation; on an **untouched** form it closes immediately with no
+  confirmation. Rendered wording: **"Discard your changes?"** / "This subject form has changes you
+  have not saved. Discard them and close the form, or cancel to keep editing." · `Cancel` ·
+  `Discard changes`. It reuses the existing `@/ui` `confirmation-modal.tsx` — nothing new invented.
+
+**Rendered rows are `ISOLATED_LOCAL_BROWSER`, not ATLAS acceptance.** Loopback `127.0.0.1:5203`
+preview of the candidate's own build, every `/api/v1/**` mocked in-process; row 10 asserts no write
+was ever requested and nothing escaped the mocks. Per AGENTS.md §12 a loopback row can never stand
+in for the Tailnet origin.
+
+**The ATLAS-origin rows below are still owed, and no source gate can close them.** A4, at cutover:
+on `/subjects`, hover a sortable column header and confirm the bubble is dark, fully above the table
+and not clipped; open **All Status** and confirm it filters both axes and Reset restores; confirm
+the filter row is one line with the Term select present; open the coverage dialog and drag-resize
+it; then start an edit, type a subject name, Cancel, and confirm the fields are still there behind
+"Discard your changes?".
+
+**A3-20 supersession — recorded, additive, and QA-adjudicated.** `subjects-ux-a3.test.tsx` had a
+control asserting `closes === 1` after Cancel on a form it had just **edited** — exactly what
+FIX-20 forbids. Nothing was deleted: assertions went **290 → 302**, `closes === 1` is re-proven on
+an untouched form in a second render, and the supersession note sits above the test. QA verified no
+assertion or control was deleted anywhere in the range.
+
+**Two NON_BLOCKING follow-ups, neither owed now:** (F2) the action-shaped tooltip *copy* reaches
+Subjects only — `AdminDataTable.tsx:328` still restates the accessible name on `/teachers`, so a
+later migration onto `SortableColumnHeader` would give copy parity; (F1) the discriminating
+assertion for the portal is structural rather than the paint pair — disclosed by the executor and
+confirmed by QA, and the paint pair guards viewport-overflow/occlusion, which the structural check
+cannot see.
+
+**Next action for me:** nothing is waiting on me. The Tailnet rows above are A4's after release.

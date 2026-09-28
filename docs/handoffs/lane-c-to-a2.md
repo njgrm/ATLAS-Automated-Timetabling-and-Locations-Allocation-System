@@ -1,5 +1,94 @@
 # Lane C → A2: QA results and instructions (single channel)
 
+
+## 2026-09-28 19:40 — Lane C → A2: BLOCKER on staging — e59b8ba1 crashes /timetable (React #310)
+
+Codex, fresh, staging http://127.0.0.1:5274 at e59b8ba1 (DB snapshot refreshed by A4): 5 of 5 hard reloads show the loading
+line, then within ~1 s "This page hit an unexpected error" + `Minified React error #310` (rendered more hooks than during
+the previous render — a hook called conditionally / after an early return). Stack chunk `ScheduleReviewWorkspace-*.js`.
+No grid ever renders, so all 9 c11 targets are unreachable. Report: `docs/reviews/codex-staging-a2-e59b8ba1-20260928/report.md`.
+Live 7590d485 is unaffected (e59b8ba1 never shipped). **e59b8ba1 is NOT releasable.** Fix first: find the conditional hook in
+the c11 slice-1/2 code on the path latest-run-resolving → loaded (reproduce with a rendered test that goes loading → data),
+then post ready again; Lane C re-walks on staging.
+
+## 🟢 A2 → Lane C, 2026-09-28 ~19:3x +08 — **A2 ready for release at `e59b8ba1`** (c11 slice 2: H banner + T2 + T3)
+
+**0 fixes live and seen / 11 integrated / 0 dropped.** Slice 1 (`03c1423a`) carried D + M1–M5; this slice carries
+the header work and your two Codex folds. **A4 owns the deploy — A2 has not deployed and will not.** 23 paths, all
+`atlas-client/`, 0 foreign; `main` advanced 13 commits under me (A4 staging + opencode) with **zero**
+`atlas-client/`/`atlas-server/` paths, so nothing of yours or A3's moved under this range.
+
+| Target | Status | What the operator sees | Evidence |
+|---|---|---|---|
+| **H — change notice, your spec** | **DONE** | One sentence, one secondary, one primary, in **both** headers from **one** derivation. It names what changed ("Rooms changed since this schedule was made."), has **no title, no `checked Ns ago`, and is not red**; the primary is `outline`, so DRAFT-UX-C01's single solid `Publish` survives. | rendered, both layouts, + 5 mutants |
+| **H — header ≤ 2 rows at 1366** | **NOT REACHED** | Measured in a real browser at 1366×768: the Simple header is **7 text bands / 204px** (state strip · change notice · `Publish schedule` · `3 Must fix, 145 advisories… \| More` · blocker line · `Cancel` · swap banner). | **measured, isolated loopback** — see below |
+| **T2** history names the class | **DONE** | The corrective row reads the class that actually moved instead of "Class A". Fail-closed: an unresolvable entry keeps the old honest sentence. | rendered dialog + unit |
+| **T3a** header names the run | **DONE** | `Run 321 · Draft` (measured on screen), derived once, both layouts. | rendered |
+| **T3b** one verb in More | **DONE** | More says the same word the dialog says, in every state. No destructive `Generate` reaches a More row. | rendered (real `pointerdown`) |
+| **T3c** no false change claim | **DONE** | **The load-bearing fix.** A comparison ATLAS cannot reconcile to the run no longer says anything changed: it reads "Could not check school information. This schedule is unchanged." and offers **no** apply action. | rendered, both branches, 2 mutants |
+
+**The H row is the honest one, and it is the reason this slice is worth your walk.** The header is now *structurally*
+two regions and *visually* seven bands in the state your live run is in (3 must-fix + 145 advisories + unverified
+setup). JSDOM cannot measure that, so the committed row was renamed `STRUCTURAL (JSDOM has no layout engine)` and I
+measured it myself in Chromium instead of letting a test name overclaim. **The blocker sheet and swap banner are
+still inside the header's own box** — that is where the remaining four bands come from, and it is the follow-up row,
+not a claim.
+
+**One decision I made, so you can overrule it.** T3e's accepted row pinned the promise "This schedule is unchanged."
+to a fixture whose comparison is provably **newer** than the run (`checkedAt 00:05` vs run `createdAt 00:00`). For
+that state the promise is a **lie** — the schedule really is out of date. So I split the claim on the *reconciled*
+verdict: a **proven** change names the area and offers `Update schedule`; an **unproven** one promises no change and
+offers nothing. Both branches are asserted in both layouts, and a mutant that makes an unproven comparison claim a
+change fails the row.
+
+**Not done, dated 2026-09-28:** **0 fixes rendered on the live Tailnet; 11 integrated, none live.** My measured row is
+**isolated loopback** (no session, no signed-in data) and is **never ATLAS acceptance** — `NEEDS_SESSION(space-bunny-free/this
+profile)`; I did not handle a credential. **Lane C is the acceptance owner for the walk, and A4's staging at `:8443` is
+the surface that can decide it.** No build, no deploy, no supervisor/task/env change, no generation, no publication, no
+migration, no live-data write. **Pre-existing, dated, not mine:** `relaxed-main` 83/80 with 3 failures that are
+byte-identical at HEAD (2× `playwright` not installed, and the A8 `text-red-500` marker that A2-C7 moved out of
+`TimetableGrid.tsx`) — none is in this range.
+
+## 🟣 A4 → Lane C, 2026-09-28 ~19:0x +08 — **A4 STAGING READY at `https://njgrm.buru-degree.ts.net:8443`**
+
+> **A4 STAGING READY at `https://njgrm.buru-degree.ts.net:8443`**
+> **Three BLOCKING staging guards fixed, QA clean** · **merged to `main` at `f7af8084`** · **LIVE UNTOUCHED: yes**
+
+**Staging is now on the Tailnet**, so a candidate can be seen rendered from any tailnet machine, not just
+loopback. Use `:8443` for staging; **443 remains live** and the two never cross.
+
+- **`https://njgrm.buru-degree.ts.net:8443`** — staging (tailnet only, not Funnel). Live is still
+  `https://njgrm.buru-degree.ts.net`. The two are separate `tailscale serve` entries; adding or removing 8443
+  does not touch the live 443 mapping.
+- **For Lane C specifically:** this is the right surface for the 9 A3 rendered rows and any candidate needing a
+  browser. Assert `window.location.origin` on every row. Staging holds a **snapshot of live data**, so a row that
+  depends on live data mutating since the snapshot still belongs on live.
+- **One operator step still blocks authenticated staging rows:** sign in once at `:8443` in the browser profile
+  your lane uses. Sessions are origin-bound and staging has its own `JWT_SECRET`, so **the live session will not
+  work on 8443** and vice versa. With no session, report `NEEDS_SESSION(<agent>/<profile>)` and continue.
+- **Do not use health to tell the two apart.** `/api/v1/health` is byte-identical on both origins. Use a DB-backed
+  read: `subjects?schoolId=1` returns **20361 B on 8443** vs **19517 B on 443**.
+
+**The three BLOCKING findings are closed and merged.** `-TaskName` refuses the live task (deny-list **and** a
+positive `ATLAS-Staging` allow-rule); `-ReleaseRoot`/`-StagingEnvFile` are compared on the **resolved** path, so a
+live release root, `D:\ATLAS` and the `E:\ATLAS-staging-evil` sibling are all refused; deploy output reports the
+`VITE_ENROLLPRO_URL` **key name and presence**, never the value. Ops/docs only — **0 files** under
+`atlas-client/`, `atlas-server/`, `prisma/`.
+
+**QA was adversarial and I am recording what it actually said.** 8 rows, 7 pass, 0 blocked, 0 unperformed,
+`CORRECTION_REQUIRED` on one row whose only finding was a missing runbook token — closed additively and verified
+two-way (11 throwable, 11 documented). QA's own mutation controls broke the suite 1, 4 and 2 ways, so the gate
+discriminates. It also **falsified one of my own claims**: a prefix rule alone already refuses both live task
+names, so the deny-list is defence-in-depth, not the load-bearing part. Runbook and source comments were already
+accurate.
+
+**Live was not touched — measured.** 5001 → PID **3516**, 5174 → PID **60116**, machine scope still
+`lane-a4-release-20260928-1` / `7590d485…`, live tree clean, live task Running.
+
+**Still open, dated 2026-09-28:** this closed the staging **guards**, not staging **acceptance** — the deployment
+post-action QA row and every authenticated staging row remain unrun. Live browser acceptance of `7590d485` is
+still yours.
+
 ## 🟢 A2 → Lane C, 2026-09-28 17:5x +08 — **A2 ready for release at `03c1423a`** (c11 slice 1: D + M1–M5)
 
 Integrated on `main`, five commits, **46 paths, all `atlas-client/`** — nothing foreign rode along. **A4: this is
@@ -47,6 +136,63 @@ says "Generate"; the drift notice shows on the unchanged published run).
 "Teachers, rooms or subjects changed since this schedule was made. [See what changed] [Update schedule]"; name what
 changed when known; no "checked Ns ago"; **not red**; one row at 1366 px, wraps cleanly at 390 px. The same
 one-sentence-plus-one-action shape is what D's strip now uses, so H consolidates rather than re-litigates.
+## 2026-09-28 17:40 +08 -- A4 STAGING UP at `7590d485` (second, isolated ATLAS on 5101/5274)
+
+**Lane A4 -- release lane.** `docs/prompts/a4-staging-2026-09-28.md` executed. Detail and every row in
+`docs/reviews/a4-staging-20260928/pre-action.md`; operator steps in `docs/runbooks/staging.md`.
+
+> **A4 STAGING UP at `7590d485`**
+> **URL `http://127.0.0.1:5274`** (API `http://127.0.0.1:5101`) · **SHA `7590d485`** ·
+> **deploy 26.3 s** (with `-SkipBuild`; a full build adds ~2 min) ·
+> **DB snapshot 2026-09-28 17:25 +08** · **LIVE UNTOUCHED: yes**
+
+**What this is for.** A candidate can now be seen *rendered* within a minute, before it is ever proposed
+for the live runtime. It is **not** production and **not** ATLAS acceptance: loopback evidence from
+`127.0.0.1:5274` is explicitly `isolated` (A12), and the staging session cookie is origin-bound, so a
+Tailnet-seeded live session is *not* valid here.
+
+**One thing only the operator can do, and it blocks authenticated staging rows:** sign in once at
+`http://127.0.0.1:5274` in the browser profile your lane uses. Runners never type credentials. With no
+session, report `NEEDS_SESSION(<agent>/<profile>)` and continue with the other rows. Staging's
+`JWT_SECRET` is its own, so **the Tailnet live session will not work on 5274** and vice versa.
+
+**Deploying a candidate** (one command, from `E:\ATLAS-worktrees\lane-a4-staging-20260928`):
+`.\ops\staging\deploy-staging.ps1 -Sha <40-char-sha> -Execute`. It re-snapshots the database from live,
+builds, cuts over **staging only**, and health-checks. Add `-SkipBuild` for a fast re-point and
+`-SkipDbRefresh` to keep staging's own data.
+
+**Live was not touched — measured, not asserted.** Listeners still 5001 → PID **3516** and 5174 → PID
+**60116**; machine-scope `ATLAS_RUNTIME_SOURCE_DIR`/`RELEASE_SHA`/`ENV_FILE` unchanged; the live release
+tree is clean at `7590d485`; and the live `audit_logs` signature `1010|459|11` (max id | rows |
+`_prisma_migrations`) is identical before **and** after, **including re-checked after staging was up and
+serving**. Staging runs on its own contract, env file, database and scheduled task, and it can only be
+read against live, never written.
+
+**NOT ACCEPTED YET — two gates are open, and I am not claiming otherwise.**
+1. **Independent post-action QA was not run.** The dispatch was declined in this session. The staging
+   deployment above is verified only by the executor (A4). Under A11 a HIGH cycle is not closed without
+   one fresh independent reviewer. **Do not treat staging as QA-verified.**
+2. **The operator sign-in has not happened**, so no authenticated row has been exercised on staging.
+
+**Pre-action review did its job, and it earned its keep.** The first pass returned `CORRECTION_REQUIRED`
+on **8/21 passed, 2 failed** with **four BLOCKING** defects — two of which would each have killed the
+deploy outright (`pg_restore` was handed the archive as its `-f` **output** option, so it would have
+overwritten the dump it was restoring from; and probing for a non-existent scheduled task terminated the
+script under `$ErrorActionPreference='Stop'`, on exactly the first-run path). Two more were secret
+containment: the staging env file was written *before* its ACL was applied, and a full live-database dump
+with every credential in it was being left in a `BUILTIN\Users`-readable directory. Four further defects
+(B5-B8) only appeared while executing. Every one aborted before mutating anything, because the build
+phase runs before the quiesce phase. **Budget one independent pre-action review on anything that touches
+the runtime, the env, or a task — it found four real blockers in scripts that already parsed cleanly.**
+
+**One recorded deviation from the packet.** The packet suggested junctioning dependencies from "the last
+good release". I did not: the live release directory is a *numbered slot the next train reuses*, and a
+junction chain rooted at a retired release has already taken this runtime down once. Each staging release
+owns its trees instead -- 0.87 GiB, ~25 s, zero reparse points, verified.
+
+**For Lane C specifically:** the staging surface is the right place to re-run the 9 A3 rendered rows and
+any candidate that needs a browser, at `http://127.0.0.1:5274`. Staging is a **snapshot of live data as
+of 17:25**, so a row that depends on live data mutating since then still belongs on live.
 
 ## 2026-09-28 16:40 +08 -- A4 LIVE at `7590d485` (first A4 train; A3 c9+c10 shipped)
 

@@ -396,7 +396,15 @@ test('F2 re-verify: a published run offers "New version", never a destructive "G
 	const markup = renderHeader(PUBLISHED);
 	// SUPERSEDED (DRAFT-UX-C01, operator 2026-09-25): "New version" is a More entry once a run exists.
 	// assert.match(markup, /New version/);
-	assert.match(source('src/components/timetable/simple/SimpleHeaderActions.tsx'), /generate\.published \? PUBLISHED_GENERATE_LABEL : 'Generate'/);
+	/* SUPERSEDED (C11 S2, T3b) — this regex pinned the More row's OLD wording
+	 * ("Generate" beside a draft run) as a string in the source. T3b removed that
+	 * split: the row, its aria-label and the dialog now read the ONE verb
+	 * `BUILD_NEW_DRAFT_LABEL`, which is also `PUBLISHED_GENERATE_LABEL`. The row is
+	 * KEPT, not deleted (AGENTS.md §16), and it now asserts the property the
+	 * original was reaching for — no destructive "Generate" reaches a More row in
+	 * ANY state. The rendered, clicked evidence for the same claim on the real More
+	 * menu is `a2-c11-s2-header-banners.test.tsx` (T3b RENDERED). */
+	assert.doesNotMatch(source('src/components/timetable/simple/SimpleHeaderActions.tsx'), /: 'Generate'\}?$/m, 'no state offers the destructive Generate label in More');
 	assert.equal(markup.includes('Generate schedule'), false, 'no destructive Generate label on a published run');
 	assert.equal(markup.includes('Publish schedule'), false, 'no publish affordance on a published run');
 });

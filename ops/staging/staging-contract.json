@@ -1,0 +1,56 @@
+{
+  "$comment": "STAGING runtime contract (Lane A4, 2026-09-28). This is the reviewed runtime-supervision contract with ONLY the port pair and the stream/label changed, so the staging runtime is structurally identical to live and bound to a disjoint port pair. `ops/runtime/cli.mjs` resolves its contract from the DEPLOYED SOURCE DIRECTORY, so installing this file into a staging release directory gives staging its own contract without any change to the live contract in the live release directory. Product pin, invariants, environment reference, upstream, logs, supervision and the legacy-task inventory are copied verbatim from ops/runtime/runtime-contract.json so staging cannot drift into a weaker supervision model. Never copy this file into the live release directory.",
+  "contractVersion": 1,
+  "stream": "RUNTIME-SUPERVISION-STAGING-C01",
+  "productPin": "d44f29e04d359ad9b18e4443b0fd4fed1daeaecd",
+  "releaseLabel": "atlas-staging",
+  "serverEntry": "atlas-server/dist/server.js",
+  "clientDist": "atlas-client/dist",
+  "ports": {
+    "server": 5101,
+    "client": 5274
+  },
+  "invariants": {
+    "ROLLOVER_AUTO_SYNC_ENABLED": "false",
+    "ATLAS_SUPERVISED": "true"
+  },
+  "environmentReference": {
+    "variable": "ATLAS_RUNTIME_ENV_FILE",
+    "sourceDirVariable": "ATLAS_RUNTIME_SOURCE_DIR",
+    "releaseShaVariable": "ATLAS_RUNTIME_RELEASE_SHA",
+    "requiredKeys": ["DATABASE_URL", "JWT_SECRET"],
+    "description": "ATLAS_RUNTIME_ENV_FILE is the operator-owned absolute path to the durable ATLAS env file (dotenv format) outside any git worktree. ATLAS_RUNTIME_SOURCE_DIR is the operator-owned durable deployed source directory. ATLAS_RUNTIME_RELEASE_SHA is the operator-declared exact installed HEAD, which must equal `git -C <sourceDir> rev-parse HEAD` and must descend from the reviewed `productPin` (ancestry, not equality, because a commit cannot contain its own SHA). Secrets are loaded into the child process environment by name and are never copied to the repository, logged, or printed."
+  },
+  "logs": {
+    "directoryIsRepoRelativeToSourceDir": true,
+    "directoryVariable": "ATLAS_RUNTIME_LOG_DIR",
+    "defaultDirectory": "ops/runtime/logs",
+    "fileBaseName": "atlas-supervisor",
+    "maxBytes": 5242880,
+    "maxFiles": 5
+  },
+  "upstream": {
+    "enrollProOriginVariable": "ENROLLPRO_PROXY_ORIGIN",
+    "defaultEnrollProOrigin": "http://127.0.0.1:5000"
+  },
+  "supervision": {
+    "maxRestarts": 5,
+    "backoffBaseMs": 2000,
+    "backoffMaxMs": 60000,
+    "survivalWindowMs": 30000,
+    "readinessTimeoutMs": 45000,
+    "livenessTimeoutMs": 5000,
+    "shutdownGraceMs": 10000,
+    "healthLivenessPath": "/api/v1/health",
+    "healthReadinessPath": "/api/v1/health/ready"
+  },
+  "state": {
+    "fileBaseName": "supervisor-state.json"
+  },
+  "legacyScheduledTask": {
+    "name": "ATLAS-DevServer-Temp2",
+    "supersededBy": "RUNTIME-SUPERVISION-C01",
+    "disposition": "OBSOLETE_SUPERSEDED",
+    "note": "Read-only inventory only. Source work MUST NOT create, modify, disable, or delete this scheduled task. Disabling/removing it is reserved for the separately approved live-install packet."
+  }
+}
