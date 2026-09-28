@@ -4268,3 +4268,13 @@ Backups: `D:/ATLAS-runtime-config/backups/faculty-id-offset-20260928/{live,stagi
 Reverse: `external_id - 1000000` for rows `>= 1000000`. **Caveat:** a faculty sync against the pre-wipe EnrollPro matches by
 `employee_id` and writes the old `teacherId` back; Lane C is watching and re-applies if that happens before the new data syncs.
 School-year IDs need no change: ATLAS holds EnrollPro years 8–10; the new years are 1–5. Auto rollover sync stays ON.
+
+## 2026-09-28 23:40 +08 — Lane C live-data repair: subject AP (id 4)
+
+A QA run's Subjects save on live at 2026-09-28 15:59 +08 left AP `rotation_family/modular_group_id = SCIENCE`,
+`modular_order 1` (duplicate of SCI_BIO) and `grade_levels [7,9,10]`. Effect: derived demand BLOCKED
+(`ROTATION_ORDER_DUPLICATE`) for every year, and no Grade 8 AP. Restored on live and staging to rotation null and
+grades [7,8,9,10] (like FIL/ENG/MATH/ESP/MAPEH and every repo seed). Before-row backup:
+`D:/ATLAS-runtime-config/backups/faculty-id-offset-20260928/subject-4-before-{live,staging}.json`. With the grade-name
+hotfix, live 2022-2023 demand = 264 pairs / 552 lines (138 per grade). Subject edits are not audited — gap noted.
+Rule from now: live browser QA never saves Subjects/setup/policy; mutation rows run on staging.
