@@ -172,10 +172,136 @@ test('A5-C2B-5b: a legacy row whose stored title is the raw token summarises rea
 
 /**
  * DISCRIMINATES: on base the row shows `title` verbatim, so a row carrying
- * metadata renders NOTHING about the subject. This asserts the new behaviour:
- * the subject, section, room and time come from the `data` column.
+ * metadata renders NOTHING about the change. This asserts the new behaviour.
+ *
+ * THE FIXTURE IS THE REAL ONE, COPIED FROM THE PRODUCER, NOT INVENTED. An
+ * earlier revision of this row fed `subjectCode`/`sectionName`/`facultyName`/
+ * `requestedRoomName`/`day`/`startTime`/`endTime` and passed — while the real
+ * payload carries NONE of them and every real row collapsed to the unnamed
+ * fallback (§11: a control's fixture must come from the real surface). The
+ * object below is `room-preference.service.ts:737-745` verbatim, including the
+ * three keys that are ids and are therefore never printed.
  */
-test('A5-C2B-5c: a row with metadata states what changed, in names', () => {
+const REAL_ROOM_REQUEST_METADATA = {
+	requestedRoomId: 12,
+	actionType: 'ROOM_CHANGE',
+	// The stored weekday vocabulary is MONDAY..FRIDAY
+	// (`preference.router.ts:52`), displayed via the server's own DAY_LABELS.
+	targetDay: 'MONDAY',
+	targetStartTime: '07:30',
+	targetEndTime: '08:30',
+	targetEntryId: 'entry-321',
+	status: 'SUBMITTED',
+	// Injected by `notification-events.service.ts:250-255` on the way to the row.
+	runId: 7,
+	requestId: 41,
+	entryId: 'entry-321',
+};
+
+/**
+ * The report asked for the notice to NAME the change. On the real payload the
+ * readable facts are the action, the day, the time window and the request
+ * state — and the summary must carry all of them.
+ */
+test('A5-C2B-5c: a real room-preference row names the action, the day and the time window', () => {
+	const read = notificationRead({
+		type: 'ROOM_REQUEST_SUBMITTED',
+		domain: 'room-preference',
+		title: 'Teacher submitted a room request for review.',
+		body: null,
+		data: REAL_ROOM_REQUEST_METADATA,
+	});
+	assert.equal(read.kind, 'Room request');
+	assert.equal(
+		read.summary,
+		'Room request: a different room was requested for Mon 07:30-08:30, sent for review.',
+		'the summary must state the action, the day, the window and the request state',
+	);
+	// NO IDENTIFIER IS EVER PRINTED — not the room id, not the entry id, not the
+	// request or run id. `requestedRoomId: 12` becoming a bare `12` would be the
+	// same class of unreadable token the report complained about.
+	assert.doesNotMatch(
+		read.summary,
+		/\b(12|41|7|321|entry-321|run-7)\b/,
+		`the summary printed an identifier the operator cannot use: "${read.summary}"`,
+	);
+	assert.doesNotMatch(read.summary, /ROOM_CHANGE|MOVE_ENTRY|[A-Z][A-Z0-9]*_[A-Z0-9_]+/);
+});
+
+/**
+ * DISCRIMINATES: on base the room vocabulary did not exist and the row read the
+ * invented keys instead, so this exact object produced NO action. Every member
+ * of the vocabulary is exercised, so a producer adding a member to either server
+ * union and nobody translating it is visible here.
+ */
+test('A5-C2B-5g: every real action vocabulary member reads as a sentence', () => {
+	// `RoomPreferenceActionType` — room-preference.service.ts:49.
+	const room = {
+		ROOM_CHANGE: 'a different room was requested',
+		MOVE_TO_EMPTY_SLOT: 'a move to a free slot was requested',
+		SWAP_WITH_OCCUPIED: 'a swap with a booked slot was requested',
+		TIME_AND_ROOM_CHANGE: 'a different time and room were requested',
+	} as const;
+	for (const [actionType, phrase] of Object.entries(room)) {
+		const read = notificationRead({
+			type: 'ROOM_REQUEST_SUBMITTED',
+			domain: 'room-preference',
+			title: 'Teacher submitted a room request for review.',
+			data: { ...REAL_ROOM_REQUEST_METADATA, actionType },
+		});
+		assert.ok(read.summary.includes(phrase), `${actionType} did not read as "${phrase}" :: "${read.summary}"`);
+		assert.ok(read.summary.includes('Mon 07:30-08:30'), `${actionType} lost the slot it concerns :: "${read.summary}"`);
+	}
+
+	// `ManualEditType` — manual-edit.service.ts:58-65.
+	const edit = {
+		PLACE_UNASSIGNED: 'an unassigned class was placed',
+		MOVE_ENTRY: 'a scheduled class was moved',
+		CHANGE_ROOM: 'a class was moved to a different room',
+		CHANGE_FACULTY: 'a class was reassigned to another teacher',
+		CHANGE_TIMESLOT: 'a class was moved to a different time',
+		SWAP_ENTRIES: 'two scheduled classes were swapped',
+		REVERT: 'a timetable change was undone',
+	} as const;
+	for (const [editType, phrase] of Object.entries(edit)) {
+		const read = notificationRead({
+			type: 'TIMETABLE_EDIT_COMMITTED',
+			domain: 'timetable',
+			title: `Manual edit committed: ${editType}`,
+			data: { editId: 'edit-9', editType, entryId: 'entry-321::t2', termIndex: 2 },
+		});
+		assert.ok(read.summary.includes(phrase), `${editType} did not read as "${phrase}" :: "${read.summary}"`);
+		assert.ok(read.summary.includes('Term 2'), `${editType} lost the term it concerns :: "${read.summary}"`);
+		assert.doesNotMatch(read.summary, /entry-321|edit-9/);
+	}
+
+	// The FULL real manual-edit object, from manual-edit.service.ts:1433-1438.
+	// The report's own complaint was that a row read as an operation token; this
+	// is the row a scheduler actually receives for a move.
+	const committed = notificationRead({
+		type: 'TIMETABLE_EDIT_COMMITTED',
+		domain: 'timetable',
+		title: 'Manual edit committed: MOVE_ENTRY',
+		body: null,
+		data: { editId: 'edit-9', editType: 'MOVE_ENTRY', entryId: 'entry-321::t2', termIndex: 2 },
+	});
+	assert.equal(committed.kind, 'Timetable change');
+	assert.equal(committed.summary, 'Timetable change: a scheduled class was moved in Term 2.');
+	// The stored record is still exactly one disclosure deep (AGENTS.md N3: the
+	// raw id is present there on purpose), and the summary itself is clean.
+	assert.equal(committed.detail, 'Manual edit committed: MOVE_ENTRY');
+	assert.doesNotMatch(committed.summary, /MOVE_ENTRY|entry-321|::/);
+});
+
+/**
+ * THE NEGATIVE CONTROL, and the row that makes the correction load-bearing.
+ * DISCRIMINATES: on base this object produced `SCI10 · Bonifacio · …` and passed
+ * 5c; the corrected module must NOT read a single key of it, because no
+ * producer writes one. If a future change re-introduces these keys, this row
+ * fails — which is the point, because a fixture that invents keys is how the
+ * original defect passed review.
+ */
+test('A5-C2B-5h: the invented keys the old fixture carried are not read', () => {
 	const read = notificationRead({
 		type: 'ROOM_REQUEST_SUBMITTED',
 		domain: 'room-preference',
@@ -191,13 +317,42 @@ test('A5-C2B-5c: a row with metadata states what changed, in names', () => {
 			endTime: '08:30',
 		},
 	});
-	assert.equal(read.kind, 'Room request');
-	assert.match(read.summary, /SCI10/);
-	assert.match(read.summary, /Bonifacio/);
-	assert.match(read.summary, /Santos, Miguel/);
-	assert.match(read.summary, /Lab 3/);
-	assert.match(read.summary, /07:30-08:30/);
-	assert.doesNotMatch(read.summary, /MOVE_ENTRY|entry-\d/);
+	for (const invented of ['SCI10', 'Bonifacio', 'Santos', 'Lab 3', '07:30-08:30', 'MON']) {
+		assert.doesNotMatch(
+			read.summary,
+			new RegExp(invented),
+			`the summary read "${invented}" from a key no producer writes: "${read.summary}"`,
+		);
+	}
+	// With no real metadata the row falls back to the readable STORED sentence —
+	// the same no-fabrication path 5d pins — and fabricates nothing on top of it.
+	assert.equal(read.summary, 'Teacher submitted a room request for review.');
+
+	// The same keys with NO stored text: honestly unnamed rather than invented.
+	const noText = notificationRead({
+		type: 'ROOM_REQUEST_SUBMITTED',
+		domain: 'room-preference',
+		title: null,
+		body: null,
+		data: { subjectCode: 'SCI10', sectionName: 'Bonifacio', requestedRoomName: 'Lab 3' },
+	});
+	assert.equal(noText.summary, 'Room request. Open this notice for the recorded detail.');
+});
+
+/**
+ * §7 — a term that is absent stays absent. `termIndex: null` is what a
+ * non-term-scoped edit publishes, and reading it as "Term 1" is the fail-open
+ * this repository treats as a defect everywhere else.
+ */
+test('A5-C2B-5i: an absent term never becomes Term 1', () => {
+	const read = notificationRead({
+		type: 'TIMETABLE_EDIT_COMMITTED',
+		domain: 'timetable',
+		title: 'Manual edit committed: MOVE_ENTRY',
+		data: { editId: 'edit-9', editType: 'MOVE_ENTRY', entryId: 'entry-321::t2', termIndex: null },
+	});
+	assert.doesNotMatch(read.summary, /Term 1/, `"${read.summary}" invented a term the row does not hold`);
+	assert.equal(read.summary, 'Timetable change: a scheduled class was moved.');
 });
 
 /**

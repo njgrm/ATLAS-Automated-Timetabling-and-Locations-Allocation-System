@@ -17,15 +17,44 @@
  *     the effect. A scheduler reads the bell to answer "what moved?", and a
  *     title alone does not answer it.
  *
- * WHERE THE NEW WORDS COME FROM — and this is the whole justification for doing
- * it client-side. `GET /notification-inbox/` returns Prisma `Notification` rows
- * unmodified, and `Notification.data` is a `Json?` column holding the original
- * event `metadata` — the subject code, section, day, times and room the event
- * carried. That column is ALREADY ON THE WIRE and was simply never typed in the
- * client. So the subject and section names this module prints need no new
- * endpoint, no server edit, and no migration: the client finally reads a field
- * the response has always contained. `InboxNotification` is widened to declare
- * it, and `notificationData` is the single place that asserts the shape.
+ * WHERE THE NEW WORDS COME FROM. `GET /notification-inbox/` returns Prisma
+ * `Notification` rows unmodified, and `Notification.data` is a `Json?` column
+ * holding the original event `metadata` (`notification-inbox.service.ts`,
+ * `toNotificationRow`: `data: event.metadata`; the route's `findMany` carries no
+ * `select`). That column is already on the wire and was simply never typed in
+ * the client, so no endpoint, server edit or migration is needed to read it.
+ *
+ * WHAT THAT METADATA ACTUALLY CONTAINS — corrected, because the first version
+ * of this module got it wrong and the wrongness shipped. An earlier revision
+ * read `subjectCode`/`sectionName`/`facultyName`/`requestedRoomName`/`day`/
+ * `startTime`/`endTime` and cited `timetable-concurrent-commit.ts` as a
+ * producing service. BOTH claims were false, and every control that "proved"
+ * the summary was built from a fixture invented to carry those keys. The real
+ * producers write IDS and SCHEDULING FACTS, not names:
+ *
+ *   - `room-preference.service.ts:737-745` — `{ requestedRoomId, actionType,
+ *     targetDay, targetStartTime, targetEndTime, targetEntryId, status }`;
+ *     `:805-807` `{ requestedRoomId }`; `:1496-1500` `{ decisionStatus,
+ *     reviewerId, manualEditId }`; `:1602-1605` `{ totalActions, failedActions }`.
+ *   - `manual-edit.service.ts:1433-1438` — `{ editId, editType, entryId,
+ *     termIndex }`.
+ *
+ * (`timetable-concurrent-commit.ts` is a CLIENT `window.dispatchEvent` at
+ * `:267`, not a notification producer, and is not a source for this column.)
+ * The names that service builds — `subjectCode`, `sectionName`, `requestedRoomName`
+ * — live in the HTTP response DTO (`room-preference.service.ts:922-932`), not in
+ * the event metadata, so a notification row has never carried them.
+ *
+ * THE CHOICE: HONEST DEGRADATION, not a lookup, and not a server change. A room
+ * name would have to be resolved from a room list the app shell does not fetch
+ * (no `app-shell` component reads rooms), and the alternative — widening
+ * `publishRoomPreferenceEvent`'s metadata to carry names — is a change to what
+ * the server publishes, on a shared runtime path, for a label. So the summary
+ * names the ACTION in the operator's words (translating `actionType`/`editType`
+ * from the enumerations those services already declare), the DAY and TIME WINDOW
+ * from `targetDay`/`targetStartTime`/`targetEndTime`, and the TERM from
+ * `termIndex`. No identifier is ever printed, so a name that would be a bare
+ * number (`requestedRoomId: 12`) is omitted rather than shown as `12`.
  *
  * THE HONESTY RULE. A summary is only assembled from facts the row actually
  * holds. When a row carries no usable metadata — the legacy rows, which have
@@ -101,6 +130,86 @@ function describeKind(type: string | null | undefined, domain: string | null | u
 	return 'Schedule change';
 }
 
+/**
+ * The two scheduling enumerations a real producer writes into event metadata,
+ * in the operator's words. Both are read off the SERVER's own unions, so a new
+ * member fails to a generic summary rather than being guessed at:
+ *
+ *   - `RoomPreferenceActionType` — `room-preference.service.ts:49`.
+ *   - `ManualEditType` — `manual-edit.service.ts:58-65`.
+ *
+ * A key the vocabulary does not know is simply not an action: `actionType` is
+ * also written by `pre-generation-draft.service.ts` with a DIFFERENT vocabulary
+ * (`UPDATE`/`CREATE`/`SWAP`/`REPLACE`/`CLEAR_DRAFT`/`UNDO`/`REMOVE`), and
+ * translating that as a room request would be worse than saying nothing.
+ */
+const ROOM_ACTION_BY_TYPE: Readonly<Record<string, string>> = {
+	ROOM_CHANGE: 'a different room was requested',
+	MOVE_TO_EMPTY_SLOT: 'a move to a free slot was requested',
+	SWAP_WITH_OCCUPIED: 'a swap with a booked slot was requested',
+	TIME_AND_ROOM_CHANGE: 'a different time and room were requested',
+};
+
+const EDIT_ACTION_BY_TYPE: Readonly<Record<string, string>> = {
+	PLACE_UNASSIGNED: 'an unassigned class was placed',
+	MOVE_ENTRY: 'a scheduled class was moved',
+	CHANGE_ROOM: 'a class was moved to a different room',
+	CHANGE_FACULTY: 'a class was reassigned to another teacher',
+	CHANGE_TIMESLOT: 'a class was moved to a different time',
+	SWAP_ENTRIES: 'two scheduled classes were swapped',
+	REVERT: 'a timetable change was undone',
+};
+
+/** `status` (request state) and `decisionStatus` (review outcome), as read. */
+const ROOM_STATE_BY_VALUE: Readonly<Record<string, string>> = {
+	SUBMITTED: 'sent for review',
+	DRAFT: 'saved as a draft',
+	APPROVED: 'approved by a scheduler',
+	REJECTED: 'returned by a scheduler',
+};
+
+/**
+ * Weekday display, mirroring the server's own `DAY_LABELS`
+ * (`manual-edit.service.ts:899-901`) rather than inventing a convention. The
+ * stored vocabulary is `MONDAY`…`FRIDAY` (`preference.router.ts:52`,
+ * `AVAILABILITY_DAYS`). A value outside it is passed through as stored rather
+ * than guessed at, so an unexpected day is visible instead of mistranslated.
+ */
+const DAY_LABELS: Readonly<Record<string, string>> = {
+	MONDAY: 'Mon',
+	TUESDAY: 'Tue',
+	WEDNESDAY: 'Wed',
+	THURSDAY: 'Thu',
+	FRIDAY: 'Fri',
+};
+
+/**
+ * The ordered term, from `termIndex` (`manual-edit.service.ts:1437`). Only a
+ * positive integer renders: `null` means the edit was not term-scoped, and
+ * inventing "Term 1" there is exactly the failure this module exists to stop
+ * (AGENTS.md §7: missing term identity never becomes Term 1).
+ */
+function readTermLabel(data: InboxNotificationData): string | null {
+	const raw = data.termIndex;
+	const value = typeof raw === 'string' ? Number(raw.trim()) : raw;
+	if (typeof value !== 'number' || !Number.isInteger(value) || value < 1) return null;
+	return `Term ${value}`;
+}
+
+/**
+ * The day and the time window the row concerns, from the room-preference
+ * target fields. `requestedRoomId`, `targetEntryId` and `entryId` are DELIBERATELY
+ * NOT READ: they are identifiers, and the row already links to the target.
+ */
+function readRoomSlot(data: InboxNotificationData): string | null {
+	const storedDay = firstText(data, ['targetDay']);
+	const day = storedDay ? DAY_LABELS[storedDay.toUpperCase()] ?? storedDay : null;
+	const start = firstText(data, ['targetStartTime']);
+	const end = firstText(data, ['targetEndTime']);
+	const window = start && end ? `${start}-${end}` : start ?? end;
+	return [day, window].filter(Boolean).join(' ') || null;
+}
+
 export type NotificationRead = {
 	/** What kind of change this is, e.g. `Room request`. */
 	kind: string;
@@ -120,10 +229,11 @@ export type NotificationRead = {
  * Build the scheduler-readable read of one inbox row.
  *
  * `item.data` is the event `metadata` column. The keys read here are the ones
- * the producing services already write (`room-preference.service.ts`,
- * `timetable-concurrent-commit.ts`); none of them is invented for this module,
- * and a row missing every one of them degrades to the unnamed form rather than
- * asserting something.
+ * the producing services already write — `actionType`/`targetDay`/
+ * `targetStartTime`/`targetEndTime`/`status`/`decisionStatus`
+ * (`room-preference.service.ts`) and `editType`/`termIndex`
+ * (`manual-edit.service.ts`) — and nothing else. A row missing every one of them
+ * degrades to the unnamed form rather than asserting something.
  */
 export function notificationRead(item: {
 	type: string | null | undefined;
@@ -141,23 +251,24 @@ export function notificationRead(item: {
 			? (item.data as InboxNotificationData)
 			: {};
 
-	const subject = firstText(data, ['subjectCode', 'subject', 'subjectName']);
-	const section = firstText(data, ['sectionName', 'section', 'sectionCode']);
-	const teacher = firstText(data, ['facultyName', 'facultyLastName', 'teacherName']);
-	const room = firstText(data, ['requestedRoomName', 'roomName', 'targetRoomName', 'room']);
-	const day = firstText(data, ['day']);
-	const start = firstText(data, ['startTime']);
-	const end = firstText(data, ['endTime']);
+	// Which vocabulary applies is decided by WHICH KEY IS PRESENT, not by the
+	// event type string: the two `actionType` producers use different
+	// enumerations, and an unknown member yields no action rather than a wrong
+	// one. See the note on `ROOM_ACTION_BY_TYPE`.
+	const roomAction = ROOM_ACTION_BY_TYPE[firstText(data, ['actionType']) ?? ''] ?? null;
+	const editAction = EDIT_ACTION_BY_TYPE[firstText(data, ['editType']) ?? ''] ?? null;
+	const action = roomAction ?? editAction;
 
-	const what: string[] = [];
-	if (subject) what.push(subject);
-	if (section && section !== subject) what.push(section);
-	if (teacher) what.push(teacher);
-	if (room) what.push(room);
+	const roomSlot = roomAction ? readRoomSlot(data) : null;
+	const term = editAction ? readTermLabel(data) : null;
+	const state = roomAction
+		? ROOM_STATE_BY_VALUE[firstText(data, ['status', 'decisionStatus']) ?? ''] ?? null
+		: null;
 
-	const when: string[] = [];
-	if (day) when.push(day);
-	if (start && end) when.push(`${start}-${end}`);
+	// A room request concerns a SLOT ("for Mon 07:30-08:30"); a timetable edit
+	// concerns a TERM ("in Term 2"). The preposition states which, so the
+	// sentence is not ambiguous about what is being scheduled.
+	const where = roomSlot ? ` for ${roomSlot}` : term ? ` in ${term}` : '';
 
 	// The stored title is reusable as the summary ONLY when it is a sentence the
 	// operator can read. A legacy row's title is the internal token itself, so
@@ -165,12 +276,15 @@ export function notificationRead(item: {
 	const titleIsReadable = Boolean(storedTitle) && !containsRawIdentifier(storedTitle);
 
 	let summary: string;
-	if (titleIsReadable && what.length === 0 && when.length === 0) {
+	if (action) {
+		const statePart = state ? `, ${state}` : '';
+		summary = `${kind}: ${action}${where}${statePart}.`;
+	} else if (titleIsReadable && where === '' && state === null) {
 		// Nothing structural to add, and the stored message is already readable:
 		// use it rather than restating the kind in place of real information.
 		summary = storedTitle as string;
 	} else {
-		const detailParts = [...what, ...when].filter(Boolean);
+		const detailParts = [roomSlot, term, state].filter(Boolean);
 		summary = detailParts.length > 0
 			? `${kind}: ${detailParts.join(' · ')}`
 			: `${kind}. Open this notice for the recorded detail.`;

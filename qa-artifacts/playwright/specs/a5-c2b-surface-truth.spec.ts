@@ -85,9 +85,18 @@ const TERM_AUTHORITY = {
  * the operator's actual row still leaked.
  *
  * The first row is the legacy shape the operator saw (`data: null`, title IS the
- * internal token). The second is a well-formed row carrying the `data` metadata
- * column, which is what the readable summary is built from. The third is a long
- * notice, which is what the popover used to hard-clip.
+ * internal token). The second is a well-formed row carrying the REAL
+ * `data` metadata column, which is what the readable summary is built from. The
+ * third is a long notice, which is what the popover used to hard-clip.
+ *
+ * THE METADATA HERE IS COPIED FROM THE PRODUCERS, NOT INVENTED. An earlier
+ * revision of this fixture carried `subjectCode`/`sectionName`/`facultyName`/
+ * `requestedRoomName`/`day`/`startTime`/`endTime` and this spec passed — while
+ * no producer writes a single one of them and every real row collapsed to the
+ * unnamed fallback. The real shapes are `room-preference.service.ts:737-745`
+ * (an id, an action, a day, a time window, an entry id, a status) and
+ * `manual-edit.service.ts:1433-1438` (an edit id, an edit type, an entry id, a
+ * term index). The second row below is the first of those, verbatim.
  */
 const INBOX_ITEMS = [
 	{
@@ -114,14 +123,19 @@ const INBOX_ITEMS = [
 		resourceId: 'run-7',
 		read: true,
 		createdAt: '2026-09-28T02:10:00.000Z',
+		// `room-preference.service.ts:737-745` verbatim, plus the three keys
+		// `notification-events.service.ts:250-255` injects in transit.
 		data: {
-			subjectCode: 'SCI10',
-			sectionName: 'Bonifacio',
-			facultyName: 'Santos, Miguel',
-			requestedRoomName: 'Lab 3',
-			day: 'MON',
-			startTime: '07:30',
-			endTime: '08:30',
+			requestedRoomId: 12,
+			actionType: 'ROOM_CHANGE',
+			targetDay: 'MONDAY',
+			targetStartTime: '07:30',
+			targetEndTime: '08:30',
+			targetEntryId: 'entry-321',
+			status: 'SUBMITTED',
+			runId: 7,
+			requestId: 41,
+			entryId: 'entry-321',
 		},
 	},
 	{
@@ -136,7 +150,12 @@ const INBOX_ITEMS = [
 		resourceId: 'run-7',
 		read: true,
 		createdAt: '2026-09-28T03:00:00.000Z',
-		data: { subjectCode: 'FIL10', sectionName: 'Bonifacio', day: 'MON', startTime: '07:30', endTime: '08:30' },
+		// `data: null` ON PURPOSE. This row exists to measure the CLIP, and the
+		// length that used to be clipped is the STORED MESSAGE, not the summary
+		// built from metadata (a metadata-bearing row summarises to one short
+		// line — see row 901). Giving it invented metadata would have made it
+		// stop measuring what the report measured.
+		data: null,
 	},
 ];
 
@@ -443,6 +462,126 @@ async function installMocks(page: Page): Promise<void> {
 		// absorbed, for the reason on `unmockedRequests`.
 		if (url.includes('/faculty/grade-preferences')) return json({ preferences: [] });
 
+		// --- /dashboard (mounted by `/`, the route A5-C2B-5 navigates to) ---
+		//
+		// This branch was MISSING, and the ISO row caught it. `useDashboardData`
+		// (`useDashboardData.ts:532`) fetches `/dashboard/readiness-summary` on
+		// every shell mount; with no branch here it reached the fallback, was
+		// answered a bare `{}`, and `summary.campus.buildings` (`:537`, an
+		// UNGUARDED dereference) threw inside the `.then`. Whether that throw
+		// surfaced as a console error or was swallowed depended on mount
+		// ordering, so the ISO row failed roughly one run in two — a mandatory row
+		// reporting a race, not a fact.
+		//
+		// The payload is the real `DashboardReadinessSummary`
+		// (`dashboard-readiness.service.ts:191-215`). It deliberately carries an
+		// `activeSchoolYearId` AND a resolved `activeTerm`, because that is what
+		// makes the hook issue its four FOLLOW-ON reads
+		// (`useDashboardData.ts:567-612`). Each is mocked below rather than left
+		// to the fallback, so the surface is complete by construction instead of
+		// by luck. This slice asserts nothing about the Dashboard's own copy; the
+		// branches exist so the bell row runs on a shell that actually loaded.
+		if (url.includes('/dashboard/readiness-summary')) {
+			return json({
+				schoolId: 1,
+				activeSchoolYearId: 9,
+				activeSchoolYearLabel: '2026-2027',
+				resolvedAt: '2026-09-28T00:00:00.000Z',
+				sourceState: 'verified_live',
+				sourceMessage: 'Read live from ATLAS and the active EnrollPro year.',
+				campus: {
+					available: true,
+					campusImageUrl: null,
+					buildings: [],
+					teachingRoomCount: 0,
+					totalRoomCount: 0,
+					buildingSetupStatus: { done: false, subMessage: 'No buildings have been mapped yet.' },
+				},
+				subjects: { available: true, subjectCount: 3, unassignedSubjectCount: 0 },
+				faculty: { available: true, facultyCount: 2, lastSyncedAt: '2026-09-28T00:00:00.000Z' },
+				sections: { available: true, sectionCount: 3, lastSyncedAt: '2026-09-28T00:00:00.000Z' },
+				generation: {
+					available: true,
+					latestRunStatus: 'NONE',
+					latestRunId: null,
+					blockingHardCount: 0,
+					softViolationCount: 0,
+					isPublished: false,
+					publishedRunId: null,
+					createdAt: null,
+					finishedAt: null,
+				},
+				derivedDemand: {
+					available: true,
+					ready: true,
+					yearLabel: '2026-2027',
+					revision: 'a5c2b-revision',
+					termStructure: {
+						format: 'TRIMESTER',
+						terms: [
+							{ identity: 'T1', displayLabel: 'Term 1', order: 1 },
+							{ identity: 'T2', displayLabel: 'Term 2', order: 2 },
+							{ identity: 'T3', displayLabel: 'Term 3', order: 3 },
+						],
+					},
+					blockers: [],
+					subjectMetadataExceptions: [],
+					totals: { totalLines: 3, totalPairs: 3, byTerm: { T1: 1, T2: 1, T3: 1 } },
+					blockerCode: null,
+					blockerMessage: null,
+					error: null,
+				},
+				// `ActiveTermResult` — active-term-adapter.service.ts.
+				activeTerm: {
+					source: 'persisted_term_contract',
+					reachable: true,
+					verified: true,
+					activeTerm: 'T1',
+					termIndex: 1,
+					schoolYearId: 9,
+					matchedSchoolYear: true,
+					code: null,
+					message: 'Active term read from the persisted verified contract.',
+					orderedTerms: [
+						{ identity: 'T1', displayLabel: 'Term 1', order: 1 },
+						{ identity: 'T2', displayLabel: 'Term 2', order: 2 },
+						{ identity: 'T3', displayLabel: 'Term 3', order: 3 },
+					],
+					termFormat: 'TRIMESTER',
+					termCount: 3,
+				},
+				lifecyclePhase: 'PREFERENCES',
+				sources: {
+					runtimeContext: { state: 'verified_live', message: 'ok', source: 'atlas', fetchedAt: '2026-09-28T00:00:00.000Z' },
+					campus: { state: 'verified_live', message: 'ok', source: 'atlas', fetchedAt: '2026-09-28T00:00:00.000Z' },
+					subjects: { state: 'verified_live', message: 'ok', source: 'atlas', fetchedAt: '2026-09-28T00:00:00.000Z' },
+					faculty: { state: 'verified_live', message: 'ok', source: 'atlas', fetchedAt: '2026-09-28T00:00:00.000Z' },
+					sections: { state: 'verified_live', message: 'ok', source: 'atlas', fetchedAt: '2026-09-28T00:00:00.000Z' },
+					generation: { state: 'verified_live', message: 'ok', source: 'atlas', fetchedAt: '2026-09-28T00:00:00.000Z' },
+					derivedDemand: { state: 'verified_live', message: 'ok', source: 'atlas', fetchedAt: '2026-09-28T00:00:00.000Z' },
+				},
+			});
+		}
+		// The three follow-on reads the resolved `activeTerm` above makes the
+		// Dashboard issue (`useDashboardData.ts:578-612`). Their shapes are
+		// read from the consuming expressions, not guessed.
+		if (/\/schools\/\d+\/schedules\/published/.test(url)) {
+			return json({ source: { termScope: 'explicit' }, published: true, runId: null, entries: [] });
+		}
+		if (/\/generation\/\d+\/\d+\/runs\/latest\/violations/.test(url)) {
+			// `resolveRunWideHardViolationCount` reads `counts.runWide`
+			// (DASHBOARD-TRUTH-C01), so a bare `{}` would not be a valid report.
+			return json({
+				violations: [],
+				counts: { runWide: { hard: 0, soft: 0 } },
+				termIndex: 1,
+				runId: null,
+			});
+		}
+		if (/\/generation\/\d+\/\d+\/runs\/latest(\?|$)/.test(url)) {
+			return json({ run: { id: null, status: 'NONE', unassignedItems: [] } });
+		}
+
 		unmockedRequests.push(`${method} ${url.replace(/^https?:\/\/[^/]+/, '')}`);
 		return json({});
 	});
@@ -576,15 +715,19 @@ test('A5-C2B-5 RENDERED: the bell names what changed, leaks no raw id, and does 
 	expect(panelText, `the report saw "MOVE_ENT..." and "entry-321::t2" in the panel; rendered: ${panelText}`).not.toMatch(/MOVE_ENT|entry-321|::t2/);
 	expect(panelText).not.toMatch(/[A-Z][A-Z0-9]*_[A-Z0-9_]+/);
 
-	// (2) IT SAYS WHAT CHANGED. The well-formed row must name the subject,
-	// section, teacher, room and time — read from the `data` column the API
-	// already returned.
+	// (2) IT SAYS WHAT CHANGED — from the REAL payload. An earlier revision of
+	// this row asserted `SCI10`, `Bonifacio`, `Santos, Miguel` and `Lab 3`, and
+	// passed on a fixture that invented those keys. No producer writes them, so
+	// on the real surface the row read as the unnamed fallback. What the real
+	// metadata carries is the ACTION, the DAY, the TIME WINDOW and the request
+	// state, and those are what must now be on screen.
 	expect(panelText).toContain('Room request');
-	expect(panelText).toContain('SCI10');
-	expect(panelText).toContain('Bonifacio');
-	expect(panelText).toContain('Santos, Miguel');
-	expect(panelText).toContain('Lab 3');
+	expect(panelText).toContain('a different room was requested');
+	expect(panelText).toContain('Mon');
 	expect(panelText).toContain('07:30-08:30');
+	expect(panelText).toContain('sent for review');
+	// The identifiers the same payload carries must NOT be printed as tokens.
+	expect(panelText).not.toMatch(/entry-321|SCI10|Bonifacio|Lab 3/);
 
 	// (3) THE LEGACY ROW STILL SAYS SOMETHING USEFUL, NOT A TOKEN.
 	const firstSummary = (await page.getByTestId('notification-bell-item').first().innerText()).replace(/\s+/g, ' ');
@@ -630,6 +773,38 @@ test('A5-C2B-5 RENDERED: the bell names what changed, leaks no raw id, and does 
 	expect(detailText, 'the recorded detail is not the stored row').toContain('MOVE_ENTRY entry-321::t2');
 
 	await gateConsole(page, '/ (notification bell)');
+
+	// (6) THE SHELL'S STARTUP TRAFFIC MUST SETTLE BEFORE THIS ROW ENDS, OR THE
+	// ISO ROW IS A COIN FLIP. The Dashboard resolves its actor school
+	// asynchronously (`useDashboardData.ts:449-483`) and DISCARDS a resolution
+	// whose token epoch moved while it was in flight (`:466`), so
+	// `/dashboard/readiness-summary` is issued on a LATER frame than the bell
+	// assertions above. Row 5 finished in ~440ms, which is often before that
+	// frame lands — the page is then closed and the request never happens. That
+	// is why the ISO row failed roughly one run in two for a reviewer and passed
+	// three in a row for the executor: both were measuring the same race, and a
+	// pass proved only that the request had not arrived yet.
+	//
+	// The settle is bounded and its duration comes from the environment, so the
+	// row is a deliberate wait rather than a sleep that hides a slow leak. It
+	// waits for the readiness request to be OBSERVED, and fails loudly if it
+	// never arrives — which is what makes the mock surface below load-bearing
+	// instead of decorative.
+	const settleMs = Number(process.env.A5_C2B_DASHBOARD_SETTLE_MS ?? 3000);
+	const readinessAnswered = await page
+		.waitForRequest((request) => request.url().includes('/dashboard/readiness-summary'), { timeout: settleMs })
+		// The RESPONSE, not the request: the route handler records an escape into
+		// `unmockedRequests` and only then fulfils, so awaiting the request event
+		// alone returns while the record is still unobservable. That is the same
+		// ordering bug one level down, and it would have made the ISO row pass
+		// without ever seeing its own escape list.
+		.then((request) => request.response())
+		.then(() => true)
+		.catch(() => false);
+	expect(
+		readinessAnswered,
+		`the mounted Dashboard never issued and received an answer for /dashboard/readiness-summary within ${settleMs}ms, so this row is no longer proving the shell's isolation — the actor-scope resolution at useDashboardData.ts:449-483 stopped firing`,
+	).toBe(true);
 });
 
 // ───────── item 6 — /faculty/room-preferences, rendered ─────────
