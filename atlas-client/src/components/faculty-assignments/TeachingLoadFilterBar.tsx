@@ -61,6 +61,31 @@ import { AT_STANDARD_LABEL, BELOW_STANDARD_LABEL, EXCESS_LOAD_LABEL } from '@/li
  * radius, one border, one hover. Every select in the row carries the identical
  * string so the seven controls read as one instrument instead of a set of
  * similar things.
+ *
+ * A6 c4 (G2.5) — "ONE LOOK PER CONTROL" (AGENTS.md §8). Three defects in this
+ * row were live and are fixed here; one is deliberately NOT, and is recorded as
+ * a residual for the repo-wide picker sweep that owns it:
+ *
+ *   FIXED 1 — every trigger and every option shouted `uppercase tracking-tight`.
+ *     That is a text-style override applied on top of the `@/ui/select` primitive,
+ *     and it is the same letter-spaced ALL-CAPS treatment `A6-C2-4` already
+ *     forbids on the header strip: one control family, two looks. Removed.
+ *   FIXED 2 — the department trigger was `w-44` while the other three were
+ *     `w-40`, so the row's pickers were not even the same trigger SIZE. §8 asks
+ *     for "the same trigger size"; all four are `w-40` now.
+ *   FIXED 3 — the search `Input` re-declared its own chrome and omitted
+ *     `placeholder:text-muted-foreground`, which the select triggers inherit from
+ *     the primitive. §8 asks for "the same placeholder style"; the input now
+ *     carries it, so a placeholder is the same grey in both controls.
+ *
+ * NOT FIXED HERE: `CONTROL_CHROME` itself is a page-local `className` on the
+ * `@/ui/select` primitive, and §8's ideal is that the primitive's own variant
+ * supplies the look. Removing it is not mine to do: committed control `A6-39-1`
+ * in `a6-teaching-load-surface` asserts these exact eight tokens on each trigger,
+ * and deleting them would be deleting a control to make a suite green
+ * (AGENTS.md §16). The repo-wide picker sweep that owns `CONTROL_CHROME` — A5,
+ * `e93f16d8` — is the right place to lift it into `@/ui` so every page gets it.
+ * This slice does not widen into that.
  */
 const CONTROL_CHROME = 'h-9 rounded-xl border border-border/60 bg-background px-2.5 text-xs transition-colors hover:bg-muted/40';
 
@@ -144,63 +169,63 @@ export function TeachingLoadFilterBar(props: TeachingLoadFilterBarProps) {
 						placeholder="Search teachers..."
 						value={searchQuery}
 						onChange={(e) => onSearchQueryChange(e.target.value)}
-						className="h-9 rounded-xl border border-border/60 bg-background pl-10 text-xs transition-colors hover:bg-muted/40"
+						className="h-9 rounded-xl border border-border/60 bg-background pl-10 text-xs transition-colors hover:bg-muted/40 placeholder:text-muted-foreground"
 					/>
 				</div>
 
 				<Select value={filterStatus} onValueChange={(value) => onFilterStatusChange(value as TeachingLoadStatusFilter)}>
-					<SelectTrigger aria-label="Filter by status" className={`w-40 font-bold uppercase tracking-tight ${CONTROL_CHROME}`}>
+					<SelectTrigger aria-label="Filter by status" className={`w-40 font-bold ${CONTROL_CHROME}`}>
 						<div className="flex items-center gap-2">
 							<ListFilter className="size-3.5 opacity-50" />
 							<SelectValue placeholder="Status" />
 						</div>
 					</SelectTrigger>
 					<SelectContent>
-						<SelectItem value="all" className="text-xs font-bold uppercase tracking-tight">All status</SelectItem>
-						<SelectItem value="teaching-assigned" className="text-xs font-bold uppercase tracking-tight" disabled={(statusFacetCounts['teaching-assigned'] ?? 0) === 0}>Teaching assigned ({statusFacetCounts['teaching-assigned'] ?? 0})</SelectItem>
-						<SelectItem value="no-teaching" className="text-xs font-bold uppercase tracking-tight" disabled={(statusFacetCounts['no-teaching'] ?? 0) === 0}>No teaching load ({statusFacetCounts['no-teaching'] ?? 0})</SelectItem>
-						<SelectItem value="adviser-only" className="text-xs font-bold uppercase tracking-tight" disabled={(statusFacetCounts['adviser-only'] ?? 0) === 0}>Adviser only ({statusFacetCounts['adviser-only'] ?? 0}, subset)</SelectItem>
+						<SelectItem value="all" className="text-xs font-bold">All status</SelectItem>
+						<SelectItem value="teaching-assigned" className="text-xs font-bold" disabled={(statusFacetCounts['teaching-assigned'] ?? 0) === 0}>Teaching assigned ({statusFacetCounts['teaching-assigned'] ?? 0})</SelectItem>
+						<SelectItem value="no-teaching" className="text-xs font-bold" disabled={(statusFacetCounts['no-teaching'] ?? 0) === 0}>No teaching load ({statusFacetCounts['no-teaching'] ?? 0})</SelectItem>
+						<SelectItem value="adviser-only" className="text-xs font-bold" disabled={(statusFacetCounts['adviser-only'] ?? 0) === 0}>Adviser only ({statusFacetCounts['adviser-only'] ?? 0}, subset)</SelectItem>
 					</SelectContent>
 				</Select>
 
 				<Select value={departmentFilter} onValueChange={onDepartmentFilterChange}>
-					<SelectTrigger aria-label="Filter by department" className={`w-44 font-bold uppercase tracking-tight ${CONTROL_CHROME}`}>
+					<SelectTrigger aria-label="Filter by department" className={`w-40 font-bold ${CONTROL_CHROME}`}>
 						<div className="flex items-center gap-2">
 							<LayoutGrid className="size-3.5 opacity-50" />
 							<SelectValue placeholder="Department" />
 						</div>
 					</SelectTrigger>
 					<SelectContent>
-						<SelectItem value="all" className="text-xs font-bold uppercase tracking-tight">All departments</SelectItem>
+						<SelectItem value="all" className="text-xs font-bold">All departments</SelectItem>
 						{departmentOptions.map((option) => (
-							<SelectItem key={option.value} value={option.value} disabled={option.count === 0} className="text-xs font-bold uppercase tracking-tight">{option.label} ({option.count})</SelectItem>
+							<SelectItem key={option.value} value={option.value} disabled={option.count === 0} className="text-xs font-bold">{option.label} ({option.count})</SelectItem>
 						))}
 					</SelectContent>
 				</Select>
 
 				<Select value={loadFilter} onValueChange={(value) => onLoadFilterChange(value as TeachingLoadLoadFilter)}>
-					<SelectTrigger aria-label="Filter by load" className={`w-40 font-bold uppercase tracking-tight ${CONTROL_CHROME}`}>
+					<SelectTrigger aria-label="Filter by load" className={`w-40 font-bold ${CONTROL_CHROME}`}>
 						<div className="flex items-center gap-2">
 							<Star className="size-3.5 opacity-50" />
 							<SelectValue placeholder="Load" />
 						</div>
 					</SelectTrigger>
 					<SelectContent>
-						<SelectItem value="all" className="text-xs font-bold uppercase tracking-tight">All loads</SelectItem>
-						<SelectItem value="excess" className="text-xs font-bold uppercase tracking-tight text-amber-700" disabled={!policyReady || (loadFacetCounts.excess ?? 0) === 0}>{EXCESS_LOAD_LABEL} ({policyReady ? (loadFacetCounts.excess ?? 0) : '—'})</SelectItem>
-						<SelectItem value="at-standard" className="text-xs font-bold uppercase tracking-tight text-emerald-700" disabled={!policyReady || (loadFacetCounts['at-standard'] ?? 0) === 0}>{AT_STANDARD_LABEL} ({policyReady ? (loadFacetCounts['at-standard'] ?? 0) : '—'})</SelectItem>
-						<SelectItem value="below-standard" className="text-xs font-bold uppercase tracking-tight text-sky-700" disabled={!policyReady || (loadFacetCounts['below-standard'] ?? 0) === 0}>{BELOW_STANDARD_LABEL} ({policyReady ? (loadFacetCounts['below-standard'] ?? 0) : '—'})</SelectItem>
+						<SelectItem value="all" className="text-xs font-bold">All loads</SelectItem>
+						<SelectItem value="excess" className="text-xs font-bold text-amber-700" disabled={!policyReady || (loadFacetCounts.excess ?? 0) === 0}>{EXCESS_LOAD_LABEL} ({policyReady ? (loadFacetCounts.excess ?? 0) : '—'})</SelectItem>
+						<SelectItem value="at-standard" className="text-xs font-bold text-emerald-700" disabled={!policyReady || (loadFacetCounts['at-standard'] ?? 0) === 0}>{AT_STANDARD_LABEL} ({policyReady ? (loadFacetCounts['at-standard'] ?? 0) : '—'})</SelectItem>
+						<SelectItem value="below-standard" className="text-xs font-bold text-sky-700" disabled={!policyReady || (loadFacetCounts['below-standard'] ?? 0) === 0}>{BELOW_STANDARD_LABEL} ({policyReady ? (loadFacetCounts['below-standard'] ?? 0) : '—'})</SelectItem>
 					</SelectContent>
 				</Select>
 
 				{/* 5 — sort order. The most-recently-hidden control, promoted. */}
 				<Select value={sortOrder} onValueChange={onSortOrderChange}>
-					<SelectTrigger aria-label="Sort teachers" className={`w-40 font-bold uppercase tracking-tight ${CONTROL_CHROME}`}>
+					<SelectTrigger aria-label="Sort teachers" className={`w-40 font-bold ${CONTROL_CHROME}`}>
 						<SelectValue placeholder="Sort teachers" />
 					</SelectTrigger>
 					<SelectContent>
-						<SelectItem value="load-desc" className="text-xs font-bold uppercase tracking-tight">Highest load</SelectItem>
-						<SelectItem value="load-asc" className="text-xs font-bold uppercase tracking-tight">Lowest load</SelectItem>
+						<SelectItem value="load-desc" className="text-xs font-bold">Highest load</SelectItem>
+						<SelectItem value="load-asc" className="text-xs font-bold">Lowest load</SelectItem>
 					</SelectContent>
 				</Select>
 
@@ -217,7 +242,7 @@ export function TeachingLoadFilterBar(props: TeachingLoadFilterBarProps) {
 						checked={showOutsideDept}
 						onCheckedChange={onToggleOutsideDept}
 					/>
-					<Label htmlFor="show-outside-dept" className="cursor-pointer whitespace-nowrap text-xs font-semibold uppercase tracking-tight text-muted-foreground">
+					<Label htmlFor="show-outside-dept" className="cursor-pointer whitespace-nowrap text-xs font-semibold text-muted-foreground">
 						Cross-Dept
 					</Label>
 				</div>
@@ -228,7 +253,7 @@ export function TeachingLoadFilterBar(props: TeachingLoadFilterBarProps) {
 						checked={showUnmappedSpecialization}
 						onCheckedChange={onShowUnmappedSpecializationChange}
 					/>
-					<Label htmlFor="show-unmapped-specialization" className="cursor-pointer whitespace-nowrap text-xs font-semibold uppercase tracking-tight text-muted-foreground">
+					<Label htmlFor="show-unmapped-specialization" className="cursor-pointer whitespace-nowrap text-xs font-semibold text-muted-foreground">
 						Unmapped Specialization
 					</Label>
 				</div>

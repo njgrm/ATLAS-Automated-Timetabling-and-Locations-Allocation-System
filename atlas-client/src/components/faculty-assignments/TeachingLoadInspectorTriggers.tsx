@@ -21,15 +21,26 @@
  * and `pages/TeachingLoad.tsx` now selects the row's teacher as part of the row
  * button's own handler instead of requiring the scheduler to find them first.
  *
- * The mobile `View profile` button and its `visible` prop stay, because on a
- * phone there is no room in a roster row for a third control and the row's
- * expand affordance is the only way to reach the profile at all.
+ * The mobile `View profile` button stays, because on a phone there is no room in
+ * a roster row for a third control and the row's expand affordance is the only
+ * way to reach the profile at all.
+ *
+ * A6 c4 (G1) — `visible` is now OPTIONAL and is no longer the page's
+ * `advancedGridVisible`. Guided mode is removed and the grid is always rendered,
+ * so "is the grid up?" is a constant and the page must not re-introduce a state
+ * to answer it. The prop is kept (and kept optional) so the four committed
+ * controls that mount this component with an explicit `visible` still compile
+ * and still exercise the hidden branch, but the production page no longer sends
+ * it: the only value that would reach this component is "the grid is shown".
+ * `visible === false` is honoured rather than defaulted away, so a future caller
+ * that has a genuine reason to hide the mobile entry point is not silently
+ * overridden.
  */
 import { UserRound } from 'lucide-react';
 import { Button } from '@/ui/button';
 
 type TeachingLoadInspectorTriggersProps = {
-	visible: boolean;
+	visible?: boolean;
 	onOpenMobile: () => void;
 };
 
@@ -37,7 +48,7 @@ export function TeachingLoadInspectorTriggers({
 	visible,
 	onOpenMobile,
 }: TeachingLoadInspectorTriggersProps) {
-	if (!visible) return null;
+	if (visible === false) return null;
 
 	return (
 		/* Mobile: `lg:hidden`. Preserved. */

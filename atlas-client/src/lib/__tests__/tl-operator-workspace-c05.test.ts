@@ -498,22 +498,72 @@ test('R1 dead props, dead literal, and the clipped candidate list are removed', 
 
 test('R1 the advanced-grid reveal control exists exactly once across the workspace', () => {
 	const repairQueue = source('src/components/faculty-assignments/TeachingLoadRepairQueue.tsx');
-	const placeholder = source('src/components/faculty-assignments/TeachingLoadGuidedModePlaceholder.tsx');
 
-	// Both surfaces render in exactly the `!advancedGridVisible` state, so the old
-	// copy here was a simultaneously-visible duplicate target with a duplicate id.
+	// Both surfaces used to render in exactly the `!advancedGridVisible` state, so
+	// the old copy here was a simultaneously-visible duplicate target with a
+	// duplicate id. These three assertions are UNCHANGED and still pass: no
+	// surface may reintroduce the reveal control beside the placeholder.
 	assert.doesNotMatch(repairQueue, /teaching-load-advanced-grid-toggle/);
 	assert.doesNotMatch(repairQueue, /Browse all/);
 	assert.doesNotMatch(repairQueue, /onToggleAdvancedGrid/);
-	assert.match(placeholder, /teaching-load-advanced-grid-toggle/);
 
+	/**
+	 * SUPERSEDED BY A6 c4 (G1) — RECORDED, NOT DELETED (AGENTS.md §11/§16).
+	 *
+	 * The two assertions this row used to end with, verbatim:
+	 *
+	 *   assert.match(placeholder, /teaching-load-advanced-grid-toggle/);
+	 *   const owners = candidates.filter((file) => source(file).includes('teaching-load-advanced-grid-toggle'));
+	 *   assert.deepEqual(owners, ['src/components/faculty-assignments/TeachingLoadGuidedModePlaceholder.tsx']);
+	 *
+	 * They required `TeachingLoadGuidedModePlaceholder.tsx` to EXIST and to be the
+	 * only owner of the reveal control. `docs/prompts/a6-tl-header-budget-2026-09-29.md`
+	 * and `docs/prompts/a4-train-2026-09-29-5.md` both record Guided mode as
+	 * removed at `a2c4c135`; that commit is a docs-only fold, so the mode was
+	 * still live at `ce1257c8` and these assertions were pinning it in place. The
+	 * operator's own words are "what's the deal with the guided mode thing? Just
+	 * remove that please", so keeping them would have kept a deleted feature
+	 * under test forever.
+	 *
+	 * The claim they protected — the reveal control appears AT MOST ONCE, so a
+	 * duplicate id can never be rendered — is STRICTLY STRONGER below, which pins
+	 * the surviving count at ZERO and also pins the file's absence.
+	 */
 	const candidates = [
 		'src/components/faculty-assignments/TeachingLoadRepairQueue.tsx',
 		'src/components/faculty-assignments/TeachingLoadGuidedModePlaceholder.tsx',
 		'src/pages/TeachingLoad.tsx',
 	];
-	const owners = candidates.filter((file) => source(file).includes('teaching-load-advanced-grid-toggle'));
-	assert.deepEqual(owners, ['src/components/faculty-assignments/TeachingLoadGuidedModePlaceholder.tsx']);
+	const owners = candidates.filter((file) => existsSync(resolve(ROOT, file)) && source(file).includes('teaching-load-advanced-grid-toggle'));
+	assert.deepEqual(
+		owners,
+		[],
+		'no Teaching Load surface may own the advanced-grid reveal control any more: Guided mode is removed',
+	);
+	// And the placeholder itself is gone — file, import, gate and state.
+	assert.equal(
+		existsSync(resolve(ROOT, 'src/components/faculty-assignments/TeachingLoadGuidedModePlaceholder.tsx')),
+		false,
+		'TeachingLoadGuidedModePlaceholder.tsx must be deleted, not merely unrendered',
+	);
+	const page = source('src/pages/TeachingLoad.tsx');
+	assert.doesNotMatch(page, /TeachingLoadGuidedModePlaceholder/, 'the page must not import the deleted placeholder');
+	// Comments are stripped first, so this measures CODE: the A6 c4 comments in
+	// the page record the removal in prose and must not be what makes this pass
+	// or fail.
+	const pageCode = page
+		.replace(/\/\*[\s\S]*?\*\//g, ' ')
+		.replace(/^[ \t]*\/\/.*$/gm, ' ');
+	assert.doesNotMatch(
+		pageCode,
+		/\badvancedGridVisible\b/,
+		'the page must hold no `advancedGridVisible` state, gate or prop at all',
+	);
+	assert.match(
+		pageCode,
+		/ui\.viewMode === 'teacher' \?/,
+		'the two real view modes are the only branches the workspace has',
+	);
 });
 
 test('R1 the over-cap and excess chips stay distinct and each is a real control', () => {

@@ -1304,7 +1304,13 @@ const REAL_QUEUE_COVERAGE = { coverageAssigned: 23, coverageTotal: 24, coverageU
 
 function RealRepairQueueSlot(props: {
 	sourceDegraded: boolean;
-	advancedGridVisible?: boolean;
+	/**
+	 * A6 c4 (G1) — the `advancedGridVisible` knob is GONE. It used to let a row
+	 * mount the queue in the state the Guided placeholder forced, which is a
+	 * rendering the product no longer has. The `?:` default is removed with it:
+	 * there is no second state to fall back to, and a default would let a new row
+	 * pick one silently.
+	 */
 	/**
 	 * A6 C3 (QA finding B3, 2026-09-29): REQUIRED in the HARNESS, exactly as it
 	 * is in the hook. This parameter used to be optional with a
@@ -1315,15 +1321,16 @@ function RealRepairQueueSlot(props: {
 	 * about, and a row cannot be added without saying so.
 	 */
 	sourceState: { dataSource: 'live' | 'cached' | 'refreshing' | 'none'; isOnline: boolean };
+	isReadOnlyMode?: boolean;
+	writeBlockedReason?: string | null;
 }) {
-	const [, setAdvancedGridVisible] = useState(true);
 	const queue = useTeachingLoadRepairQueue({
 		searchParams: new URLSearchParams(),
 		setSearchParams: () => {},
 		faculty: [],
 		effectiveAssignmentsByFaculty: {},
 		activeDraftCount: REAL_QUEUE_COVERAGE.activeDraftCount,
-		isReadOnlyMode: false,
+		isReadOnlyMode: props.isReadOnlyMode ?? false,
 		selectedId: null,
 		coverageAssigned: REAL_QUEUE_COVERAGE.coverageAssigned,
 		coverageTotal: REAL_QUEUE_COVERAGE.coverageTotal,
@@ -1333,7 +1340,7 @@ function RealRepairQueueSlot(props: {
 		// exactly as they were. Every degraded row passes the state it is actually
 		// about, because the withheld string now depends on it.
 		sourceState: props.sourceState,
-		writeBlockedReason: null,
+		writeBlockedReason: props.writeBlockedReason ?? null,
 		onSelectFaculty: () => {},
 		onSave: () => {},
 		onShowSubjectCoverage: () => {},
@@ -1341,13 +1348,11 @@ function RealRepairQueueSlot(props: {
 		onShowOverloaded: () => {},
 		onShowPlaceholder: () => {},
 		onOpenReview: () => {},
-		setAdvancedGridVisible,
 	});
 	return createElement(TeachingLoadRepairQueue as any, {
 		items: queue.repairQueueItems,
 		activeItemId: queue.activeRepairId,
 		isReadOnly: false, saving: false,
-		advancedGridVisible: props.advancedGridVisible ?? true,
 		onPrimaryAction: queue.handleRepairPrimaryAction,
 	});
 }
@@ -2251,7 +2256,6 @@ function RealFacultyQueueHost(props: {
 	activeItemId: string;
 	coverageUnassigned?: number;
 }) {
-	const [, setAdvancedGridVisible] = useState(true);
 	const queue = useTeachingLoadRepairQueue({
 		searchParams: new URLSearchParams(),
 		setSearchParams: () => {},
@@ -2273,14 +2277,13 @@ function RealFacultyQueueHost(props: {
 		onShowOverloaded: () => {},
 		onShowPlaceholder: () => {},
 		onOpenReview: () => {},
-		setAdvancedGridVisible,
 	});
 	return createElement(TeachingLoadRepairQueue as any, {
 		items: queue.repairQueueItems,
 		// Focused by id so EVERY row can be read from the real component, not
 		// just whichever one sorts first.
 		activeItemId: props.activeItemId,
-		isReadOnly: false, saving: false, advancedGridVisible: true,
+		isReadOnly: false, saving: false,
 		onPrimaryAction: queue.handleRepairPrimaryAction,
 	});
 }

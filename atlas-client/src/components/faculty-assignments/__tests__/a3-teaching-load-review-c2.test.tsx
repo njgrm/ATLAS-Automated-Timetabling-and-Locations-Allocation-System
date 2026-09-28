@@ -256,7 +256,6 @@ function TeachingLoadReviewHost(props: { onRowSelect?: (id: number) => void } = 
 	// C2-3's `allocation` precondition below is only meaningful because of this.
 	const [viewMode, setViewMode] = useState<'teacher' | 'allocation'>('allocation');
 	const [reviewModalOpen, setReviewModalOpen] = useState(false);
-	const [advancedGridVisible, setAdvancedGridVisible] = useState(true);
 	const [selectedId, setSelectedId] = useState<number | null>(null);
 	const open = () => teacherReviewEntry.openTeacherReview({ setViewMode, setReviewModalOpen });
 	// The page's `openTeacherReviewFor`, verbatim: select the named teacher
@@ -294,7 +293,6 @@ function TeachingLoadReviewHost(props: { onRowSelect?: (id: number) => void } = 
 		onShowOverloaded: () => {},
 		onShowPlaceholder: () => {},
 		onOpenReview: () => openFor(null),
-		setAdvancedGridVisible,
 	});
 	return createElement(
 		Fragment,
@@ -311,7 +309,6 @@ function TeachingLoadReviewHost(props: { onRowSelect?: (id: number) => void } = 
 			activeItemId: queue.activeRepairId,
 			isReadOnly: false,
 			saving: false,
-			advancedGridVisible: true,
 			onPrimaryAction: queue.handleRepairPrimaryAction,
 		}),
 		createElement(TeachingLoadInspectorTriggers as any, {
