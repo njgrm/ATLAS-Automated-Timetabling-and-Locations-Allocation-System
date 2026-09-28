@@ -36,7 +36,8 @@ import {
 	type FacultyRowRepairIntent,
 } from '@/components/faculty/FacultyRowActions';
 import { useRosterScrollMemory } from '@/components/faculty/rosterScrollMemory';
-import { teacherNameSortKey } from '@/components/faculty/teacherNameDisplay';
+import { formatFacultyDisplayName, teacherNameSortKey } from '@/components/faculty/teacherNameDisplay';
+import { buildDuplicateNameCue, duplicateTeacherNameKey } from '@/components/faculty/duplicateTeacherNames';
 import { TeacherAttentionFilters } from '@/components/faculty/TeacherAttentionFilters';
 import { toast } from 'sonner';
 import { departmentLabel } from '@/lib/deped-glossary';
@@ -381,6 +382,25 @@ export default function Faculty() {
 		return Array.from(set).sort();
 	}, [faculty, serverDepartments]);
 
+	/**
+	 * A6 C3 (Lane C item #6) — the same-name CUE, computed ONCE over the whole
+	 * roster and looked up per row.
+	 *
+	 * It is a census, not a filter: no record is merged, hidden, reordered or
+	 * paged by it, and the lookup returns nothing for a unique name, so a roster
+	 * with no duplicates renders byte-for-byte as it did before. It is computed
+	 * from `faculty` (the full roster), not from `paged`, so a name that is
+	 * duplicated across two pages still shows its cue on both of them instead of
+	 * only on the page that happens to hold both records.
+	 */
+	const duplicateNameCue = useMemo(() => buildDuplicateNameCue(faculty), [faculty]);
+
+	/** The cue for ONE teacher, or nothing at all when the name is unique. */
+	const cueFor = useCallback((teacher: FacultySummary) => {
+		const cue = duplicateNameCue.get(duplicateTeacherNameKey(teacher));
+		return cue ? { count: cue.count, sameLoad: cue.sameLoad } : undefined;
+	}, [duplicateNameCue]);
+
 	const timeSince = useMemo(() => {
 		if (!lastSyncedAt) return null;
 		const diff = Date.now() - new Date(lastSyncedAt).getTime();
@@ -487,7 +507,13 @@ export default function Faculty() {
 			cellRole: 'identity',
 			sortKey: 'name',
 			cellClassName: 'min-w-52',
-			render: (teacher) => <FacultyIdentityCell faculty={teacher} />,
+			render: (teacher) => (
+				<FacultyIdentityCell
+					faculty={teacher}
+					duplicateRecordCount={cueFor(teacher)?.count}
+					duplicateRecordsShareLoad={cueFor(teacher)?.sameLoad}
+				/>
+			),
 		},
 		{
 			id: 'loadState',
@@ -857,13 +883,15 @@ return (
 				} : null}
 			rowActions={rowActions}
 				renderMobileCard={(teacher, context) => (
-					<FacultyMobileCard
-						faculty={teacher}
-						primaryAction={context.primaryAction}
-						secondaryActionMenu={context.secondaryActionMenu}
-						onAssignedClassesClick={() => setProfileTarget(teacher)}
-						onProfileClick={() => setProfileTarget(teacher)}
-					/>
+				<FacultyMobileCard
+					faculty={teacher}
+					primaryAction={context.primaryAction}
+					secondaryActionMenu={context.secondaryActionMenu}
+					duplicateRecordCount={cueFor(teacher)?.count}
+					duplicateRecordsShareLoad={cueFor(teacher)?.sameLoad}
+					onAssignedClassesClick={() => setProfileTarget(teacher)}
+					onProfileClick={() => setProfileTarget(teacher)}
+				/>
 				)}
 			/>
 

@@ -7,7 +7,12 @@ import {
 	STANDARD_WEEKLY_TEACHING_HOURS,
 } from '@/lib/faculty-assignment-helpers';
 import { GRADE_COLORS, gradeLabel } from '@/lib/grade-labels';
+import { BELOW_STANDARD_LABEL } from '@/lib/teaching-load-labels';
 import { formatFacultyDisplayName, formatFacultyInitials } from '@/components/faculty/teacherNameDisplay';
+import {
+	duplicateTeacherNameCueExplanation,
+	duplicateTeacherNameCueLabel,
+} from '@/components/faculty/duplicateTeacherNames';
 import { cn } from '@/lib/utils';
 import { Button } from '@/ui/button';
 import { Badge } from '@/ui/badge';
@@ -95,7 +100,25 @@ export function getFacultyLoadPresentation(faculty: FacultySummary): LoadPresent
 	const copy = {
 		excluded: { label: 'Excluded', badgeClassName: 'border-slate-200 bg-slate-100 text-slate-600', help: 'This teacher is not available for scheduling.' },
 		'no-load': { label: 'No load', badgeClassName: 'border-amber-200 bg-amber-50 text-amber-700', help: 'This active teacher has no load assigned yet.' },
-		'below-standard': { label: 'Below standard', badgeClassName: 'border-amber-200 bg-amber-50 text-amber-700', help: `This teacher is below the ${STANDARD_WEEKLY_TEACHING_HOURS}h standard and can still receive assignments.` },
+		'below-standard': {
+			// A6 C3 (Lane C item #15): the canonical one-word label, routed from the
+			// module A3 owns, so this surface and the Teaching Load filter speak the
+			// same word instead of two.
+			label: BELOW_STANDARD_LABEL,
+			// THE NEUTRAL TONE IS THE CUE. A teacher who is simply under the hours
+			// standard is not a defect, and amber made them read as one ΓÇö the operator
+			// saw a status they had to go and fix. `No load`, `Near cap`, `Over cap`
+			// and `Excluded` keep amber, orange, rose and slate, because those ARE
+			// actions: a coverage gap, a near ceiling, a blocked ceiling, a person who
+			// cannot be scheduled at all. The one state that needs no action now looks
+			// like the one that needs no action.
+			badgeClassName: 'border-sky-200 bg-sky-50 text-sky-700',
+			// Plain words, from the numbers already on this row: the target, the fact
+			// that it is not a problem, and the ceiling. The old sentence said "below
+			// the 30h standard" and stopped, which left a scheduler deciding whether
+			// that was a warning.
+			help: `${actualTeachingHours} of the ${STANDARD_WEEKLY_TEACHING_HOURS}h standard so far. Not a problem ΓÇö this teacher can take more classes, up to ${maxHours}h.`,
+		},
 		'above-standard': { label: 'Near cap', badgeClassName: 'border-orange-200 bg-orange-50 text-orange-700', help: `This teacher is above the ${STANDARD_WEEKLY_TEACHING_HOURS}h standard and still within the ${maxHours}h cap.` },
 		'over-cap': { label: 'Over cap', badgeClassName: 'border-rose-200 bg-rose-50 text-rose-700', help: `This teacher exceeds the ${maxHours}h cap. Move classes before generating the timetable.` },
 		within: { label: 'Ready', badgeClassName: 'border-emerald-200 bg-emerald-50 text-emerald-700', help: `This teacher is at the ${STANDARD_WEEKLY_TEACHING_HOURS}h standard.` },
@@ -105,7 +128,7 @@ export function getFacultyLoadPresentation(faculty: FacultySummary): LoadPresent
 		loadState === 'no-load' || loadState === 'excluded' ? 'text-muted-foreground'
 		: loadState === 'over-cap' ? 'text-rose-600'
 		: loadState === 'above-standard' ? 'text-orange-600'
-		: loadState === 'below-standard' ? 'text-amber-600'
+		: loadState === 'below-standard' ? 'text-sky-700'
 		: 'text-emerald-600';
 
 	return { ...copy, hoursClassName };
@@ -116,7 +139,56 @@ export function getCompactLoadLabel(faculty: FacultySummary): string {
 	return getFacultyLoadPresentation(faculty).label;
 }
 
-export function FacultyIdentityCell({ faculty }: { faculty: FacultySummary }) {
+/**
+ * A6 C3 (Lane C item #6) ΓÇö the same-name CUE, beside the name it belongs to.
+ *
+ * It is a cue and nothing more. The roster is NOT altered, merged, hidden,
+ * reordered or paged: both records still render, each with its own load, and
+ * the chip exists so a reader can SEE that the pair needs checking in EnrollPro
+ * instead of assuming ATLAS has already reconciled it. The words are chosen to
+ * match that limit: it names what is true (two or more records show this name),
+ * what to do (check EnrollPro), and what has NOT happened (ATLAS has not merged
+ * these records). It never implies the person did anything wrong.
+ *
+ * The tooltip and the same sentence are ALSO rendered to assistive technology
+ * through the `sr-only` span, because a hover-only explanation is not available
+ * to a keyboard or a screen reader, and the `Temporary` chip above already
+ * established that pattern on this surface. No raw `title=` (AGENTS.md ┬º8) and
+ * no native control.
+ */
+function DuplicateTeacherNameCue({ count, sameLoad }: { count: number; sameLoad: boolean }) {
+	const explanation = duplicateTeacherNameCueExplanation({ count, sameLoad });
+	return (
+		<Tooltip>
+			<TooltipTrigger asChild>
+				<span
+					data-testid="teacher-duplicate-name-cue"
+					className="inline-flex h-4 shrink-0 items-center gap-0.5 rounded-full border border-amber-200 bg-amber-50 px-1.5 text-[0.65rem] font-bold leading-none text-amber-700"
+				>
+					<AlertTriangle className="size-2.5 shrink-0" aria-hidden="true" />
+					{duplicateTeacherNameCueLabel(count)}
+					<span className="sr-only">{explanation}</span>
+				</span>
+			</TooltipTrigger>
+			<TooltipContent className="max-w-80 text-xs font-medium leading-relaxed">{explanation}</TooltipContent>
+		</Tooltip>
+	);
+}
+
+export function FacultyIdentityCell({
+	faculty,
+	duplicateRecordCount,
+	duplicateRecordsShareLoad = false,
+}: {
+	faculty: FacultySummary;
+	/**
+	 * OPTIONAL, and undefined means NO cue. Every existing caller and every
+	 * committed control that mounts this cell unchanged therefore renders exactly
+	 * as it did before, and the roster cannot gain a chip it did not ask for.
+	 */
+	duplicateRecordCount?: number;
+	duplicateRecordsShareLoad?: boolean;
+}) {
 	const isPlaceholder = faculty.isPlaceholder;
 	return (
 		<div className="flex min-w-0 items-center gap-3">
@@ -137,6 +209,9 @@ export function FacultyIdentityCell({ faculty }: { faculty: FacultySummary }) {
 								size="icon-xs"
 							/>
 						</>
+					)}
+					{duplicateRecordCount != null && duplicateRecordCount >= 2 && (
+						<DuplicateTeacherNameCue count={duplicateRecordCount} sameLoad={duplicateRecordsShareLoad} />
 					)}
 				</div>
 				{faculty.isClassAdviser && (
@@ -570,12 +645,18 @@ export function FacultyMobileCard({
 	secondaryActionMenu,
 	onAssignedClassesClick,
 	onProfileClick,
+	duplicateRecordCount,
+	duplicateRecordsShareLoad,
 }: {
 	faculty: FacultySummary;
 	primaryAction?: ReactNode;
 	secondaryActionMenu?: ReactNode;
 	onAssignedClassesClick?: () => void;
 	onProfileClick?: () => void;
+	/** A6 C3 item #6: forwarded to the identity cell, so the mobile card shows the
+	    same same-name cue the table row does. Undefined means no cue. */
+	duplicateRecordCount?: number;
+	duplicateRecordsShareLoad?: boolean;
 }) {
 	const weeklyHours = faculty.policyCreditedHours ?? 0;
 	const presentation = getFacultyLoadPresentation(faculty);
@@ -586,7 +667,11 @@ export function FacultyMobileCard({
 	return (
 		<div className="rounded-xl border border-slate-100 bg-slate-50/70 p-3 shadow-sm" data-testid="teacher-mobile-card">
 			<div className="flex items-start justify-between gap-3">
-				<FacultyIdentityCell faculty={faculty} />
+				<FacultyIdentityCell
+					faculty={faculty}
+					duplicateRecordCount={duplicateRecordCount}
+					duplicateRecordsShareLoad={duplicateRecordsShareLoad}
+				/>
 				{secondaryActionMenu}
 			</div>
 		<div className="mt-3 flex flex-wrap items-center gap-3 text-xs">
