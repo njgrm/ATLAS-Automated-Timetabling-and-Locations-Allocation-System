@@ -1332,3 +1332,63 @@ Report: `docs/reviews/codex-staging-train5-ce1257c8/report.md` (A 0/4; flow: TL 
 - **A2** → past year with no timetable (2029-2030, id 8) says "You cannot open that school year… it has no timetable to show." Say plainly: `No timetable was published for 2029-2030.` Also the 438 setup items: group by cause with one next step (with header packet).
 - **A7** → School Year Setup wording: "School year status", bare "EnrollPro"/"ATLAS": say `school records` / `this timetable`, or name them once.
 Train 5 ships anyway: nothing regressed; it delivers A7 c1, the past-year view and the TL headline fix.
+
+## A4 LIVE at `ce1257c8` — release train 2026-09-29 #5, step 3 (production). Executed on Lane C's GO 00:55 +08.
+
+**4 fixes live / 12 integrated / 0 dropped.** Staging Codex found nothing regressed; the release-check failures
+were missing lane work, routed to A5/A6/A7 — not this build. Live is `ce1257c8`; `c9be17fe` is the rollback basis.
+
+| | |
+| --- | --- |
+| **LIVE** | **`ce1257c815e4393f638e0c3cd19c71c561c2d1d1`** |
+| **Live dir** | `E:\ATLAS-worktrees\lane-a4-release-20260929-5`, branch `release/2026-09-29-5-prod`, HEAD == pin, `status --short` empty |
+| **Listeners** | 5001 → **36980**, 5174 → **17236** (were 35284 / 32376) |
+| **Machine scope** | `ATLAS_RUNTIME_SOURCE_DIR` / `ATLAS_RUNTIME_RELEASE_SHA` repointed to the pin; task action `…\lane-a4-release-20260929-5\ops\runtime\cli.mjs start`, Running |
+| **Rollback basis** | **`c9be17feccd08e20e6c5110be041a72dc89ee2c6`**, dir `E:\ATLAS-worktrees\lane-a4-release-20260928-4prod` — HEAD verified, clean, both `dist`s, invariant `false`. One-step supervised reset. |
+| **Scope** | 51 paths vs `c9be17fe`: A2 `6d034431`+`c1a04411`, A7 `c9dd5f05`, A6 `a2c4c135`, Lane C hotfix `5bccb65d`. **0 `prisma/`** → no migration. |
+| **Cutover** | `deploy-runner.ps1`, dry run first (`mutates: false`, lineage verified, `Assert-LiveReleaseRecorded` **passed**), then `-Execute` → `CUTOVER_STARTED`. Audit `C:\ProgramData\ATLAS\release-audit\ce1257c8-20260929-003720\`, A4 evidence `E:\ATLAS-staging\audit\train5-prod-20260929-003459\` |
+| **Acceptance** | **DEPLOYED.** S-W1, S-H1, S-Z2, S-R1, S-R2, S-D1, S-B1 **PASS**; S-Z1 **16/17 clean, 1 explained**; browser rows `S-W2` **DEFERRED to Lane C**. |
+
+### Correction: the packet's A6 line was wrong, and you caught it
+
+`a4-train-2026-09-29-5.md` line 13 says A6 `a2c4c135` is "**Guided mode removed from Teaching Load**".
+**It is not, and that SHA is not A6 product work at all** — `a2c4c135` is a **docs-only merge** (2 files, both
+`docs/`). A6's real c3 work is `46f050c7` (extraction + N-1/N-2/N-3 + Teachers demo-walk, 11 client files).
+**`TeachingLoadGuidedModePlaceholder` is still rendered** at `atlas-client/src/pages/TeachingLoad.tsx:895`, and
+`buildGuidedEmptyTeachingLoadMessage` still ships. **Guided mode is NOT removed in this train** — your own
+routing line ("Guided mode still present") was right and the packet was wrong. I had repeated the packet's claim
+in my staging record and live-state before this was caught; both are corrected.
+
+### S-Z1 zero-write — 16 of 17 tables byte-identical, and the one delta is not the cutover
+
+Baseline captured **before** the supervisor was quiesced: all 17 `@@map` table names, each `count` + `max(id)` +
+content checksum, via the repo's own `Invoke-PgTool` so the password never hit a command line.
+
+**16/17 identical.** One exception, `faculty_mirrors`: `count` **46 → 46**, `max(id)` **536 → 536** unchanged,
+content checksum differs (`45688f25…` → `9824a8ff…`, the latter confirmed deterministic across repeat reads).
+
+**Not an application-path write, and not the cutover.** No row carries a today timestamp — `max(updatedAt)` is
+`2026-09-28 15:53:40`, `max(last_synced_at)` `2026-09-28 14:40:42`, `max(version)` 3,
+`rows_with_updatedAt_today = 0`. A Prisma write bumps `updatedAt` and `version`; neither moved today. The
+coherent explanation is a **raw-SQL edit outside the application path** — most likely your "live dept set for 3
+teachers" recorded in `c8983eb9`, which bypasses `updatedAt`. **Please confirm it is yours; if it is not, it is an
+unexplained live-data change and I re-open it as an incident.**
+
+**My own measure was broken, and I record that too:** the first checksum formula interpolated the table *name*
+into a `::text` cast, so it hashed a constant rather than each row. Replaced with a per-row content hash; the
+delta above is reported from a deterministic re-read, not from that formula.
+
+**S-R2 is clean:** `audit_logs` **0 rows today**, `max(id)` **1038**, `teaching_load_cycles` **324**,
+`generation_runs` **321** — no generation, publication, migration or term-cache write on boot.
+
+**S-D1 over the live Tailnet origin:** `assets/AdminYearSetup-DAXETajy.js` **200 (21 376 B)**; a stale hash
+**404s**. Server presence discriminator: `dist/services/past-year-timetable-scope.js` present here, absent in
+`c9be17fe`.
+
+**Browser rows are yours** (`AGENTS.md` §11 — a row needing a browser has a named owner). Live smoke at
+`https://njgrm.buru-degree.ts.net`: past-year surface, School Year Setup plain words, TL modal headline. **Do not
+expect Guided mode to be gone.**
+
+**A5's `bf1a7913` is NOT in this train.** `origin/main` advanced twice during this cycle (A5 product work, then
+`c8983eb9`) and again to `cc3b7471`. A pinned release is never reopened because `main` moved (§14) — **A5 waits
+for train 6.**
