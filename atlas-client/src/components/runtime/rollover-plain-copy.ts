@@ -284,6 +284,15 @@ export function plainSchoolYearStateSentence(input: {
 			return kept
 				? `${input.yearLabel} is a past year with ${kept} that you have not kept as history yet.`
 				: `${input.yearLabel} is a past year that you have not kept as history yet.`;
+		/**
+		 * A7-C2 QA N5: an unrecognised state rendered NOTHING, so a year could
+		 * appear with a blank status line. `SchoolYearState` is a closed union
+		 * today, so this is unreachable — but "the row is silent" is exactly
+		 * the defect this cycle exists to remove, so the fallback has to say
+		 * something an operator can act on rather than nothing at all.
+		 */
+		default:
+			return `${input.yearLabel} is a past school year. Its status has not been checked yet.`;
 	}
 }
 
@@ -296,7 +305,7 @@ export function plainKeepYearTitle(yearLabel: string): string {
 /** The question the operator must answer before the write is allowed. */
 export const PLAIN_KEEP_YEAR_CONFIRM = 'Yes, keep this year as history';
 /** What the operator is told about the effect, in one calm sentence. */
-export const PLAIN_KEEP_YER_EFFECT = 'Nothing is deleted, and nothing in EnrollPro changes.';
+export const PLAIN_KEEP_YEAR_EFFECT = 'Nothing is deleted, and nothing in EnrollPro changes.';
 
 /**
  * R6: the Timetable link is `/timetable?schoolYearId=<enrollProSchoolYearId>`,

@@ -36,8 +36,8 @@ import { Label } from '@/ui/label';
 import type { ArchiveSchoolYearPreview, SchoolYearSummary } from '@/lib/settings';
 import {
 	PLAIN_KEEP_YEAR_CONFIRM,
+	PLAIN_KEEP_YEAR_EFFECT,
 	PLAIN_KEEP_YEAR_LABEL,
-	PLAIN_KEEP_YER_EFFECT,
 	PLAIN_SCHOOL_YEARS_HEADING,
 	PLAIN_SCHOOL_YEARS_HELPER,
 	PLAIN_TIMETABLE_YEAR_UNAVAILABLE,
@@ -68,6 +68,13 @@ function YearRow({ schoolId, year, onKept }: YearRowProps) {
 	const [applying, setApplying] = useState(false);
 	const [confirmed, setConfirmed] = useState(false);
 	const [error, setError] = useState<string | null>(null);
+
+	/**
+	 * A7-C2 QA N5: this dialog is rendered once per past year, so a fixed
+	 * `id`/`htmlFor` produced N duplicate DOM ids and every label pointed at
+	 * the first checkbox. Scoped to the year's own id, which is unique.
+	 */
+	const confirmFieldId = `year-setup-keep-confirm-${year.enrollProSchoolYearId}`;
 
 	const openPreview = useCallback(async () => {
 		setError(null);
@@ -174,10 +181,10 @@ function YearRow({ schoolId, year, onKept }: YearRowProps) {
 							{preview?.message ?? 'Checking what will be kept...'}
 						</DialogDescription>
 					</DialogHeader>
-					<p className="text-sm text-slate-700">{PLAIN_KEEP_YER_EFFECT}</p>
+					<p className="text-sm text-slate-700">{PLAIN_KEEP_YEAR_EFFECT}</p>
 					<div className="flex items-start gap-2">
 						<Input
-							id="year-setup-keep-confirm"
+							id={confirmFieldId}
 							type="checkbox"
 							checked={confirmed}
 							onChange={(event) => setConfirmed(event.target.checked === true)}
@@ -185,7 +192,7 @@ function YearRow({ schoolId, year, onKept }: YearRowProps) {
 							className="mt-0.5 size-5"
 							data-testid="year-setup-keep-confirm"
 						/>
-						<Label htmlFor="year-setup-keep-confirm" className="text-sm text-slate-700">
+						<Label htmlFor={confirmFieldId} className="text-sm text-slate-700">
 							{PLAIN_KEEP_YEAR_CONFIRM}
 						</Label>
 					</div>

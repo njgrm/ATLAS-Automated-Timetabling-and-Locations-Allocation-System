@@ -516,4 +516,88 @@ test('A7-C2 R3/R4: the per-year archive routes are school-scoped, refuse the act
 			process.env.ENROLLPRO_API = saved;
 		}
 	});
+
+	/**
+	 * A7-C2 QA N1 — the coverage hole this cycle's own review found.
+	 *
+	 * Three of the four `RolloverStatusResult` sites are reachable and are driven
+	 * behaviourally above. The fourth, `composeResumedRecoveryPreview`, is
+	 * module-private, so the QA control DELETED its `schoolYears` line and the
+	 * suite stayed 12/12 green: the field was present but unguarded, and years 9
+	 * and 10 would have vanished from that path again with nothing red.
+	 *
+	 * This is a structural guard, not a behavioural one, and it is labelled as
+	 * such on purpose. It is legitimate here — the claim is about a field's
+	 * presence in an internal literal, not about a user-facing behaviour, and
+	 * there is no other way to reach a private function. It is NOT offered as
+	 * acceptance evidence for anything an operator sees.
+	 *
+	 * It discriminates because it parses the real source: removing `schoolYears`
+	 * from ANY `RolloverStatusResult` literal — including the private site —
+	 * turns this red.
+	 */
+	await t.test('R4: every RolloverStatusResult literal in the service carries schoolYears', async () => {
+		const { readFileSync } = await import('node:fs');
+		const { fileURLToPath } = await import('node:url');
+		const { dirname, resolve } = await import('node:path');
+		const source = readFileSync(
+			resolve(dirname(fileURLToPath(import.meta.url)), '..', 'services', 'enrollpro-rollover.service.ts'),
+			'utf8',
+		);
+
+		// A7-C2 QA N1, second attempt. The first version of this guard parsed for
+		// `RolloverStatusResult` type annotations and found only 1 of the 4 sites,
+		// because two sites are function RETURNS, not annotated declarations. It
+		// then also mis-anchored on `archivedYears: await listArchivedYears(`, which
+		// appears at only 2 sites — `composeResumedRecoveryPreview` composes its
+		// status without that field at all. Both versions reported a false count
+		// rather than a true one, which is worse than no guard.
+		//
+		// The one site QA proved unguarded is `composeResumedRecoveryPreview`: the
+		// QA control deleted its `schoolYears` line and the suite stayed 12/12
+		// green. It is module-private, so the honest options are (a) seed a recovery
+		// marker row to reach it behaviourally — disproportionate for this cycle —
+		// or (b) assert the field structurally in exactly that function. This is (b),
+		// and it is labelled as a structural guard, NOT as behavioural coverage and
+		// NOT as acceptance evidence for anything an operator sees.
+		//
+		// It discriminates: deleting the `schoolYears` line from that function turns
+		// this row red. (Verified — see the handoff.)
+		const functionBody = (name: string): string => {
+			const start = source.indexOf(`function ${name}(`);
+			assert.ok(start >= 0, `${name} was not found in the service source`);
+			let depth = 0;
+			let opened = false;
+			for (let i = start; i < source.length; i += 1) {
+				if (source[i] === '{') { depth += 1; opened = true; }
+				else if (source[i] === '}') {
+					depth -= 1;
+					if (opened && depth === 0) return source.slice(start, i);
+				}
+			}
+			assert.fail(`could not find the end of ${name}`);
+		};
+
+		const privateSite = functionBody('composeResumedRecoveryPreview');
+		assert.ok(
+			/\bschoolYears\s*:/.test(privateSite),
+			'composeResumedRecoveryPreview does not compose schoolYears. A past year that is neither '
+				+ 'active nor kept would be invisible on the resumed-recovery path — the exact defect A7-C2 '
+				+ 'exists to fix, and QA proved this row was unguarded by deleting the field and staying green.',
+		);
+
+		// A site removed or added later must be noticed, not silently unguarded.
+		// The real count is 3, not 4: `previewRolloverSync` is a FOURTH logical
+		// status surface but it DELEGATES to `getRolloverStatus`, so it adds no
+		// construction point of its own. Recorded here so the next reader does not
+		// "fix" this number to 4 and weaken the guard.
+		const listCallSites = [...source.matchAll(/schoolYears:\s*await listSchoolYears\(/g)];
+		assert.equal(
+			listCallSites.length,
+			3,
+			`expected exactly 3 schoolYears construction sites, found ${listCallSites.length}. A site was added or `
+				+ `removed: if that is deliberate, update this number AND add behavioural coverage for the new site — `
+				+ `a silently unguarded site is precisely what QA N1 found.`,
+		);
+	});
 });

@@ -1238,9 +1238,15 @@ async function listArchivedYears(schoolId: number, withCounts: boolean): Promise
  *
  * It is called at all four status sites (both `getRolloverStatus` return sites,
  * `previewRolloverSync`, and the internal `composeResumedRecoveryPreview`); a
- * fifth site that forgets it is the defect this cycle fixes, so the helper is
- * exported and driven directly by
- * `src/__tests__/runtime-router-archive-school-year-a7c2.test.ts`.
+ * fifth site that forgets it is the defect this cycle fixes.
+ *
+ * A7-C2 QA N1: three sites are reachable and are driven BEHAVIOURALLY by
+ * `src/__tests__/runtime-router-archive-school-year-a7c2.test.ts`. The fourth,
+ * `composeResumedRecoveryPreview`, is module-private, and the QA control proved
+ * that deleting its `schoolYears` line left the suite green — the field was
+ * present but UNGUARDED. So that one site is covered by a narrow structural
+ * guard in the same test rather than a behavioural one. Do not describe the four
+ * as equally covered; they are not.
  */
 export async function listSchoolYears(
 	schoolId: number,
