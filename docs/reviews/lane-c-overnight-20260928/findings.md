@@ -67,3 +67,14 @@ Schedule history reads "Nothing to show yet …"; no run number or state label o
 
 Header audit: "Class Schedule" twice; the "Active Term: T2" chip sits beside an independent Term selector; six rows of
 messages and controls before the grid. `subagent_tokens` 92,153 + 100,995.
+
+## Home-room hover (`/sections`, 10:35, live `a1db27d5`)
+
+Operator report: the home-room dropdown "glitches while hovering". Runner (synthetic hover, Aguinaldo and Bonifacio
+rows): no hover-triggered height change, no scroll event, no second layer, no console output. **But the list has mixed
+row heights:** vacant rooms are ~37.6 px tall; occupied rooms are ~53.6 px tall and two-line ("Used by Aguinaldo" plus an
+orange "Room already has a home section") on a dark-red background. Scanning or moving the mouse across mixed heights
+reads as the list jumping. **Fix (A3):** one row height for every option, and occupancy as a single-line right-aligned
+badge (e.g. "Used by Aguinaldo") with a calm cue, not a second line; keep the confirmation on selecting an occupied
+room. If the operator still sees a flicker with a real mouse, capture a short screen recording; synthetic hover may
+miss pointer-driven re-renders. (ss_50077xaye, ss_6805zs8uv; `subagent_tokens` 78,809)
