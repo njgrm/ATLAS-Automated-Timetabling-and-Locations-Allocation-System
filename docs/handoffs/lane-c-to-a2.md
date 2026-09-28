@@ -1324,3 +1324,11 @@ Routing:
 ### 00:15 addendum — A5 sweep starts on `/subjects` (operator screenshot)
 
 Subjects filter row is the named offender: filters are pill-shaped (rounded-full) while the search box and the Section/Teacher pickers elsewhere are rounded rectangles; two filters read only `All...` (truncated, no label — nobody can tell what they filter); widths are uneven. Fix: same `@/ui` picker as Timetable/Teaching Load, each filter shows its name (e.g. `Grade: All`, `Program: All`) untruncated at 1366 wide, same height as the search box. Then carry the same treatment to every other page in the sweep.
+
+## 2026-09-29 00:55 — Codex staging train 5 (ce1257c8) → routing
+
+Report: `docs/reviews/codex-staging-train5-ce1257c8/report.md` (A 0/4; flow: TL applied, generate blocked at 438).
+- **A6** → packet `docs/prompts/a6-outage-placeholders-2026-09-29.md` (Guided mode still present; 3 dept-less teachers hidden; placeholder outage path; missing real-teacher note).
+- **A2** → past year with no timetable (2029-2030, id 8) says "You cannot open that school year… it has no timetable to show." Say plainly: `No timetable was published for 2029-2030.` Also the 438 setup items: group by cause with one next step (with header packet).
+- **A7** → School Year Setup wording: "School year status", bare "EnrollPro"/"ATLAS": say `school records` / `this timetable`, or name them once.
+Train 5 ships anyway: nothing regressed; it delivers A7 c1, the past-year view and the TL headline fix.
