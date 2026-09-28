@@ -19,3 +19,9 @@ docs/verification/** text eol=lf
 # LF-stable too (WF-C03 integration-owned portability correction, audit F1).
 .opencode/agents/** text eol=lf
 .opencode/plugins/** text eol=lf
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.pdf binary
