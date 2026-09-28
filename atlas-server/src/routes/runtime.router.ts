@@ -7,9 +7,11 @@ import {
 	applyRolloverSync,
 	applyTestYearRecovery,
 	archiveAndSyncActiveYear,
+	archiveSchoolYear,
 	classifyRecoveryState,
 	getRolloverStatus,
 	previewArchiveAndSync,
+	previewArchiveSchoolYear,
 	previewRolloverSync,
 	previewTestYearRecovery,
 	scaffoldTestYearRecoveryMirror,
@@ -28,6 +30,10 @@ type RuntimeRouterDelegates = {
 	resetDummyYearAndApplyRollover: typeof resetDummyYearAndApplyRollover;
 	publishNotificationEvent: typeof publishNotificationEvent;
 	getOrCreateTeachingLoadCycleSource: typeof getOrCreateTeachingLoadCycleSource;
+	// A7-C2 (R3): the per-year archive pair, so the mounted-route proof can count
+	// dispatches and prove each refusal happened BEFORE the service was reached.
+	previewArchiveSchoolYear: typeof previewArchiveSchoolYear;
+	archiveSchoolYear: typeof archiveSchoolYear;
 };
 
 export type RuntimeRouterOverrides = Partial<RuntimeRouterDelegates>;
@@ -37,6 +43,8 @@ const defaultRuntimeRouterDelegates: RuntimeRouterDelegates = {
 	resetDummyYearAndApplyRollover,
 	publishNotificationEvent,
 	getOrCreateTeachingLoadCycleSource,
+	previewArchiveSchoolYear,
+	archiveSchoolYear,
 };
 
 const runtimeDelegates = (req: Request): RuntimeRouterDelegates =>
@@ -108,6 +116,20 @@ function parseStrictSchoolId(raw: unknown): number | null {
 
 type RuntimeReadCaller = { schoolId: number; authSource: 'jwt' | 'system' };
 type RuntimeMutationCaller = { schoolId: number; authSource: 'jwt' | 'system' };
+
+/**
+ * A7-C2 (R3): strict positive-integer parse for the per-year `schoolYearId`.
+ * A missing or malformed year is a typed 400 BEFORE any service, upstream or
+ * database dispatch — a per-year archive must never be able to default to
+ * "some year".
+ */
+function parseStrictSchoolYearId(raw: unknown): number | null {
+	if (raw === undefined || raw === null || raw === '') return null;
+	if (typeof raw === 'number') return Number.isSafeInteger(raw) && raw > 0 ? raw : null;
+	if (typeof raw !== 'string' || !/^[1-9]\d*$/.test(raw)) return null;
+	const value = Number(raw);
+	return Number.isSafeInteger(value) && value > 0 ? value : null;
+}
 
 /**
  * Actor/tenant authorization gate for the three runtime READ routes
@@ -555,6 +577,68 @@ router.post('/term-authority/apply', authenticate, async (req: Request, res: Res
 			authToken: getUpstreamAuthToken(req),
 			confirmationText: req.body?.confirmationText,
 			fingerprint: req.body?.fingerprint,
+		}));
+		res.json(result);
+	} catch (err) {
+		next(err);
+	}
+});
+
+// ─── A7-C2: per-year "Keep as history" (R3) ────────────────────────────────
+//
+// A per-year archive button CANNOT reuse POST /rollover-archive/apply: that
+// route calls `archiveAndSyncActiveYear()`, which archives the year being
+// rolled over FROM and also runs a full sync, and it takes no `schoolYearId`.
+// Pointing a per-year button at it would archive the ACTIVE year and run a
+// sync — a data-integrity defect in front of an audience.
+//
+// These two routes are transport only. They add no archive logic: both call
+// the already-shipped `previewArchiveSchoolYear()` / `archiveSchoolYear()`
+// services with an EXPLICIT `schoolYearId`. No sync, rollover, term authority
+// or reset is reachable from either.
+//
+// `schoolId` always comes from `authorizeRuntimeMutation` — the authorised
+// caller — and never from the request body. Both routes carry
+// `requirePrivileged: true`, and the cross-school / active-year refusals
+// happen before any service call.
+
+router.post('/rollover-archive/year/preview', authenticateWithSystemToken, async (req: Request, res: Response, next: NextFunction) => {
+	try {
+		const caller = authorizeRuntimeMutation(req, res, { requirePrivileged: true });
+		if (!caller) return;
+		const schoolYearId = parseStrictSchoolYearId(req.body?.schoolYearId);
+		if (schoolYearId == null) {
+			res.status(400).json({ code: 'INVALID_PARAM', message: 'schoolYearId must be a positive integer.' });
+			return;
+		}
+		const delegates = runtimeDelegates(req);
+		const result = await withSchoolLock(caller.schoolId, () => delegates.previewArchiveSchoolYear({
+			schoolId: caller.schoolId,
+			schoolYearId,
+			authToken: getUpstreamAuthToken(req),
+		}));
+		res.json(result);
+	} catch (err) {
+		next(err);
+	}
+});
+
+router.post('/rollover-archive/year/apply', authenticateWithSystemToken, async (req: Request, res: Response, next: NextFunction) => {
+	try {
+		const caller = authorizeRuntimeMutation(req, res, { requirePrivileged: true });
+		if (!caller) return;
+		const schoolYearId = parseStrictSchoolYearId(req.body?.schoolYearId);
+		if (schoolYearId == null) {
+			res.status(400).json({ code: 'INVALID_PARAM', message: 'schoolYearId must be a positive integer.' });
+			return;
+		}
+		const delegates = runtimeDelegates(req);
+		const result = await withSchoolLock(caller.schoolId, () => delegates.archiveSchoolYear({
+			schoolId: caller.schoolId,
+			schoolYearId,
+			actorId: req.user?.userId ?? 0,
+			authToken: getUpstreamAuthToken(req),
+			reason: typeof req.body?.reason === 'string' ? req.body.reason : undefined,
 		}));
 		res.json(result);
 	} catch (err) {

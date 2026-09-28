@@ -141,13 +141,21 @@ function baseStatus(overrides: Record<string, unknown> = {}) {
 		teachingLoadResetRequired: false,
 		publishedResetBlocked: false,
 		archivedYears: [PREVIOUS_YEAR],
+		// A7-C2 (R4): the every-year list. THREE years, because the defect this
+		// cycle fixes is the one that is neither active nor archived — year 11 is
+		// exactly the case no page listed before.
+		schoolYears: [
+			{ enrollProSchoolYearId: SCHOOL_YEAR_ID, yearLabel: YEAR_LABEL, state: 'current', isArchived: false, archivedAt: null, preservedCounts: null },
+			{ enrollProSchoolYearId: 10, yearLabel: '2023-2024', state: 'past, not yet kept', isArchived: false, archivedAt: null, preservedCounts: { publishedGenerationRuns: 3, teachingLoadOwnerships: 55 } },
+			{ enrollProSchoolYearId: PREVIOUS_YEAR.enrollProSchoolYearId, yearLabel: PREVIOUS_YEAR.yearLabel, state: 'kept as history', isArchived: true, archivedAt: PREVIOUS_YEAR.archivedAt, preservedCounts: { publishedGenerationRuns: 2, teachingLoadOwnerships: 40 } },
+		],
 		automation: { enabled: false, lastAttemptAt: null, lastResult: null, nextAttemptAt: null, consecutiveFailures: 0, currentlyApplying: false },
 		termAuthority: { state: 'PERSISTED_CURRENT', code: null, message: 'The saved ordered terms match EnrollPro.', persisted: true, persistedSemanticRevision: 'r1', liveSemanticRevision: 'r1', cachedAt: '2022-06-01T00:00:00.000Z', termCount: 3, needsRepair: false, repairAction: 'NONE', canPreview: false },
 		...overrides,
 	};
 }
 
-function makeScenario(overrides: { status?: Record<string, unknown>; classification?: unknown; archive?: unknown; termPreview?: unknown; carryPreview?: unknown; reset?: unknown; noStatus?: boolean } = {}) {
+function makeScenario(overrides: { status?: Record<string, unknown>; classification?: unknown; archive?: unknown; termPreview?: unknown; carryPreview?: unknown; reset?: unknown; noStatus?: boolean; yearPreview?: unknown } = {}) {
 	return {
 		status: baseStatus(overrides.status ?? {}),
 		classification: overrides.classification ?? null,
@@ -156,6 +164,7 @@ function makeScenario(overrides: { status?: Record<string, unknown>; classificat
 		carryPreview: overrides.carryPreview ?? null,
 		reset: overrides.reset ?? null,
 		noStatus: overrides.noStatus ?? false,
+		yearPreview: overrides.yearPreview ?? null,
 	};
 }
 
@@ -211,6 +220,21 @@ function responseFor(url: string, method: 'get' | 'post') {
 	}
 	if (url.includes('/runtime/rollover-recovery/preview')) {
 		return { data: scenario.classification };
+	}
+	if (url.includes('/runtime/rollover-archive/year/preview')) {
+		// The REAL server sentence, read out of `previewArchiveSchoolYear` in
+		// `enrollpro-rollover.service.ts` at this candidate.
+		return { data: scenario.yearPreview ?? { schoolId: SCHOOL_ID, schoolYearId: 10, yearLabel: '2023-2024', state: 'past, not yet kept', isActiveYear: false, alreadyArchived: false, message: '2023-2024 would be kept as history. Its sections, schedules and teaching load stay exactly as they are, read-only. Nothing is deleted, and EnrollPro is not changed.', preservedCounts: { publishedGenerationRuns: 3, teachingLoadOwnerships: 55 } } };
+	}
+	if (url.includes('/runtime/rollover-archive/year/apply')) {
+		// The apply flips the year to kept, from the SERVER's answer, not from
+		// local optimism — the page reloads the status afterwards.
+		scenario = makeScenario({ status: baseStatus({ schoolYears: [
+			{ enrollProSchoolYearId: SCHOOL_YEAR_ID, yearLabel: YEAR_LABEL, state: 'current', isArchived: false, archivedAt: null, preservedCounts: null },
+			{ enrollProSchoolYearId: 10, yearLabel: '2023-2024', state: 'kept as history', isArchived: true, archivedAt: '2026-09-29T00:00:00.000Z', preservedCounts: { publishedGenerationRuns: 3, teachingLoadOwnerships: 55 } },
+			{ enrollProSchoolYearId: PREVIOUS_YEAR.enrollProSchoolYearId, yearLabel: PREVIOUS_YEAR.yearLabel, state: 'kept as history', isArchived: true, archivedAt: PREVIOUS_YEAR.archivedAt, preservedCounts: { publishedGenerationRuns: 2, teachingLoadOwnerships: 40 } },
+		] }), carryPreview: scenario.carryPreview });
+		return { data: { schoolId: SCHOOL_ID, schoolYearId: 10, yearLabel: '2023-2024', alreadyArchived: false, archivedAt: '2026-09-29T00:00:00.000Z', preservedCounts: { publishedGenerationRuns: 3, teachingLoadOwnerships: 55 } } };
 	}
 	if (url.includes('/runtime/rollover-archive/preview')) {
 		return { data: scenario.archive };
@@ -353,6 +377,18 @@ function click(el: Element | null | undefined) {
  * ATLAS after EnrollPro moves to it"), so naming it is plain, not leakage.
  */
 const BANNED = ['sync', 'synced', 'mirror', 'election', 'drift', 'archive', 'archived', 'carry-forward', 'dummy'] as const;
+/**
+ * A7-C2 item 4 (2026-09-29): the guard's hole, closed.
+ *
+ * `'carry-forward'` did NOT catch the bare `carry` in `MATH: 2 carry · 1
+ * skipped`, because the pre-fix panel wrote the bare word on that line, and
+ * `'carry'` was never in the list. Neither was `'hard cap'`. Both are internal
+ * distribution-band names that a scheduler cannot decode, so both are now
+ * banned outright — including inside `carry-forward`, which the old entry
+ * already covered and the new bare entry covers directly.
+ */
+const BANNED_BARE = ['carry', 'hard cap'] as const;
+const BANNED_ALL = [...BANNED, ...BANNED_BARE] as readonly string[];
 /** A raw database id rendered to a person. */
 const RAW_ID = /#\d+/;
 
@@ -522,7 +558,7 @@ test('row 1: no jargon reaches the operator in ANY reachable Year Setup state', 
 			host.querySelector('[data-testid="admin-year-setup-next-step"]') !== null || text.includes('Checking your access'),
 			`state "${state.name}": the status card did not render, so nothing was checked. Rendered: ${text}`,
 		);
-		for (const word of BANNED) {
+		for (const word of BANNED_ALL) {
 			const hit = new RegExp(`\\b${word}\\b`, 'i').exec(text);
 			assert.equal(
 				hit,
@@ -560,6 +596,27 @@ test('row 1 control: the ban really bites — the pre-fix copy fails it', () => 
 		assert.ok(hit, `the detector missed the pre-fix copy "${legacy}"`);
 	}
 	assert.ok(RAW_ID.test('2020-2021 (#7) as read-only history'), 'the detector must catch a raw id');
+});
+
+test('row 1c (A7-C2 item 4): the ban also catches the bare words the old guard let through', () => {
+	// The exact pre-A7-C2 distribution-block lines Lane C reported. Each must
+	// be caught by the NEW entries specifically — a control that also tripped on
+	// an old word would not show the hole was closed.
+	for (const [legacy, mustBe] of [
+		['MATH: 2 carry · 1 skipped', 'carry'],
+		['Over hard cap: 3 → 1', 'hard cap'],
+	] as const) {
+		const hit = BANNED_BARE.find((word) => new RegExp(`\\b${word}\\b`, 'i').test(legacy));
+		assert.equal(hit, mustBe, `"${legacy}" must be caught by the new bare-word ban, and by "${mustBe}"`);
+		assert.equal(
+			BANNED.includes(mustBe as typeof BANNED[number]),
+			false,
+			`"${mustBe}" was already covered by an old entry, so this control would prove nothing`,
+		);
+	}
+	// And the whole list must still bite on the full pre-fix line.
+	assert.ok(new RegExp(`\\bcarry\\b`, 'i').test('MATH: 2 carry · 1 skipped'));
+	assert.ok(new RegExp(`\\bhard cap\\b`, 'i').test('Over hard cap: 3 → 1'));
 });
 
 // ── Row 2: the intro paragraph ───────────────────────────────────────────────
@@ -813,4 +870,233 @@ test('row 7: the "Start from last year" card states that nothing changes until c
 	// And the machine contract survived the wording change.
 	const reasonLabels = Array.from(host.querySelectorAll('[data-testid^="carry-forward-reason-"]')).map((el) => el.getAttribute('data-testid'));
 	assert.deepEqual(reasonLabels.sort(), ['carry-forward-reason-ALREADY_OCCUPIED', 'carry-forward-reason-EXACT_CARRY', 'carry-forward-reason-MISSING_FACULTY']);
+});
+
+// ── A7-C2 item 4: the distribution block, in plain words ────────────────────
+
+test('A7-C2 item 4: the distribution block is plain, and both numbers are the server numbers', async () => {
+	reset();
+	// A non-zero `overCap` on BOTH sides, so the sentence has to state a number
+	// rather than fall through to a "no change" wording.
+	scenario = makeScenario({ carryPreview: { ...CARRY_PREVIEW, before: { ...CARRY_PREVIEW.before, distribution: { ...CARRY_PREVIEW.before.distribution, overCap: 3 } }, after: { ...CARRY_PREVIEW.after, distribution: { ...CARRY_PREVIEW.after.distribution, overCap: 1 } } } });
+	const host = await renderPage();
+	click(host.querySelector('[data-testid="carry-forward-preview-button"]'));
+	await flush();
+
+	const overCap = host.querySelector('[data-testid="carry-forward-over-cap"]');
+	assert.ok(overCap, 'the over-limit line did not render');
+	const text = overCap!.textContent!.replace(/\s+/g, ' ').trim();
+	assert.equal(
+		/over the allowed teaching hours/.test(text),
+		true,
+		`the over-limit line is not a plain statement about teaching hours: ${text}`,
+	);
+	assert.ok(text.includes('1 teacher'), `the AFTER number is missing or wrong: ${text}`);
+	assert.ok(text.includes('3 teachers'), `the BEFORE number is missing or wrong: ${text}`);
+	assert.equal(/hard cap/i.test(text), false, `"hard cap" is still on screen: ${text}`);
+
+	const dept = host.querySelector('[data-testid="carry-forward-department-MATH"]');
+	assert.ok(dept, 'the per-department line did not render');
+	const deptText = dept!.textContent!.replace(/\s+/g, ' ').trim();
+	assert.equal(deptText, 'MATH: 2 would be copied · 2 would not be copied', `the bare "carry"/"skipped" pair is still on screen: ${deptText}`);
+	assert.equal(/\bcarry\b/i.test(deptText), false, `"carry" is still on screen: ${deptText}`);
+
+	// The REAL production function, not a transcription of it.
+	const { overLimitSentence } = await import('@/components/runtime/CarryForwardReviewPanel');
+	assert.equal(overLimitSentence(1, 1), '1 teacher would be over the allowed teaching hours.');
+	assert.ok(overLimitSentence(0, 2).startsWith('2 teachers would be over'));
+	assert.ok(overLimitSentence(5, 2).includes('was 5 teachers'));
+});
+
+// ── A7-C2 item 1: every school year is listed ───────────────────────────────
+
+test('A7-C2 item 1: every school year is listed, including the one that is neither current nor kept', async () => {
+	reset();
+	const host = await renderPage();
+	const card = host.querySelector('[data-testid="admin-year-setup-school-years"]');
+	assert.ok(card, 'the every-year card did not render');
+	const text = card!.textContent!.replace(/\s+/g, ' ');
+
+	// The load-bearing row: year 10 is NOT the active year and NOT archived.
+	// Before A7-C2 it had no row anywhere, which is the whole defect.
+	const notKept = host.querySelector('[data-testid="year-setup-year-state-10"]');
+	assert.ok(notKept, 'the past-not-yet-kept year has no row on the page');
+	assert.equal(
+		notKept!.textContent!.replace(/\s+/g, ' ').trim(),
+		'2023-2024 is a past year with 3 published timetable(s) that you have not kept as history yet.',
+		'the not-yet-kept year has no plain status sentence',
+	);
+	for (const [id, expected] of [[9, '2022-2023 is the school year ATLAS is using now.'], [8, '2021-2022 is already kept as history, with 2 published timetable(s).']] as const) {
+		const cell = host.querySelector(`[data-testid="year-setup-year-state-${id}"]`);
+		assert.ok(cell, `year ${id} has no row on the page`);
+		assert.equal(cell!.textContent!.replace(/\s+/g, ' ').trim(), expected);
+	}
+	// One row per year, so the list is not a summary that hides a year. Matched
+	// with an exact `year-setup-year-<digits>` id: a `^=` prefix selector would
+	// also count the `year-setup-year-state-<id>` sentence and double the answer.
+	const rowIds = Array.from(host.querySelectorAll('[data-testid]'))
+		.map((el) => el.getAttribute('data-testid') ?? '')
+		.filter((id) => /^year-setup-year-\d+$/.test(id));
+	assert.deepEqual(rowIds.sort(), ['year-setup-year-10', 'year-setup-year-8', 'year-setup-year-9']);
+});
+
+// ── A7-C2 item 2: Keep as history, preview first ────────────────────────────
+
+test('A7-C2 item 2: "Keep as history" previews first, in plain words, and needs an explicit confirmation', async () => {
+	reset();
+	const host = await renderPage();
+
+	// The action exists ONLY for the year that is not yet kept.
+	assert.equal(host.querySelector('[data-testid="year-setup-keep-10"]') !== null, true, 'the not-yet-kept year has no Keep as history action');
+	for (const keptId of [9, 8]) {
+		assert.equal(
+			host.querySelector(`[data-testid="year-setup-keep-${keptId}"]`),
+			null,
+			`year ${keptId} must not offer a keep action; it is already current or kept`,
+		);
+	}
+
+	click(host.querySelector('[data-testid="year-setup-keep-10"]'));
+	await flush();
+
+	// The dialog is a PORTAL, so it is read from `document.body` like row 1 does.
+	assert.ok(
+		dom.window.document.body.querySelector('[data-testid="year-setup-keep-dialog"]'),
+		'the keep dialog did not open',
+	);
+	// PREVIEW FIRST: the only request so far is the zero-write preview.
+	assert.deepEqual(
+		recorded.filter((c) => c.url.includes('/rollover-archive/year/')).map((c) => c.url),
+		['/runtime/rollover-archive/year/preview'],
+		'the keep flow must PREVIEW before it can apply',
+	);
+
+	const dialogText = (dom.window.document.body.querySelector('[data-testid="year-setup-keep-dialog"]')!.textContent ?? '').replace(/\s+/g, ' ');
+	assert.ok(dialogText.includes('Keep 2023-2024 as history?'), `the dialog does not name the year: ${dialogText}`);
+	assert.ok(
+		dialogText.includes('Nothing is deleted, and nothing in EnrollPro changes.'),
+		`the dialog does not say plainly that nothing is deleted: ${dialogText}`,
+	);
+	assert.ok(
+		dialogText.includes('Its sections, schedules and teaching load stay exactly as they are, read-only.'),
+		`the dialog does not say what is kept: ${dialogText}`,
+	);
+	assert.ok(dialogText.includes('Yes, keep this year as history'), 'there is no explicit confirmation to click');
+
+	// The apply is UNREACHABLE until the confirmation is given.
+	const applyButton = dom.window.document.body.querySelector('[data-testid="year-setup-keep-apply"]') as HTMLButtonElement | null;
+	assert.ok(applyButton, 'the apply button did not render');
+	assert.equal(applyButton.disabled, true, 'the apply is reachable without the confirmation');
+
+	click(dom.window.document.body.querySelector('[data-testid="year-setup-keep-confirm"]'));
+	await flush();
+	assert.equal(
+		(dom.window.document.body.querySelector('[data-testid="year-setup-keep-apply"]') as HTMLButtonElement).disabled,
+		false,
+		'confirming did not enable the apply',
+	);
+
+	click(dom.window.document.body.querySelector('[data-testid="year-setup-keep-apply"]'));
+	await flush();
+
+	// The apply is the SECOND request, and the page reloads the real status
+	// afterwards so the row flips from the server's answer, not local state.
+	const urls = recorded.filter((c) => c.url.includes('/rollover-archive/year/') || c.url.includes('/runtime/rollover-status')).map((c) => c.url);
+	assert.deepEqual(
+		urls,
+		[
+			'/runtime/rollover-status',
+			'/runtime/rollover-archive/year/preview',
+			'/runtime/rollover-archive/year/apply',
+			'/runtime/rollover-status',
+		],
+		`the keep flow must preview, apply, then reload the status: ${JSON.stringify(urls)}`,
+	);
+	assert.equal(
+		dom.window.document.body.querySelector('[data-testid="year-setup-keep-dialog"]'),
+		null,
+		'the dialog stayed open after a successful keep',
+	);
+	assert.equal(
+		host.querySelector('[data-testid="year-setup-keep-10"]'),
+		null,
+		'a kept year must not still offer the keep action',
+	);
+});
+
+// ── A7-C2 item 3 / R6: the read-only links on every past-year row ───────────
+
+test('A7-C2 item 3: every past-year row keeps the Teaching Load link and fails closed on the Timetable link', async () => {
+	reset();
+	const host = await renderPage();
+
+	// R6: the SAME `enrollProSchoolYearId` the existing Teaching Load link uses.
+	assert.equal(
+		host.querySelector('[data-testid="year-setup-tl-10"]')?.getAttribute('href'),
+		'/teaching-load/history?schoolYearId=10',
+		'the Teaching Load link changed destination or id',
+	);
+	assert.equal(
+		host.querySelector('[data-testid="year-setup-tl-8"]')?.getAttribute('href'),
+		'/teaching-load/history?schoolYearId=8',
+		'the Teaching Load link changed destination or id',
+	);
+
+	// R6 FAIL-CLOSED: A2's `/timetable?schoolYearId=` is not in this tree, so the
+	// link must NOT be rendered — a link to a page that ignores the parameter
+	// would show an operator today's schedule as last year's.
+	const { TIMETABLE_READS_SCHOOL_YEAR_PARAM, PLAIN_TIMETABLE_YEAR_UNAVAILABLE } = await import('@/components/runtime/rollover-plain-copy');
+	assert.equal(
+		TIMETABLE_READS_SCHOOL_YEAR_PARAM,
+		false,
+		'this tree has no timetable component that reads the schoolYearId param; the flag must be false or the link lies',
+	);
+	const unavailable = host.querySelector('[data-testid="year-setup-timetable-unavailable-10"]');
+	assert.ok(unavailable, 'the Timetable link did not fail closed with a plain sentence');
+	assert.equal(unavailable!.textContent!.trim(), PLAIN_TIMETABLE_YEAR_UNAVAILABLE);
+	assert.equal(
+		Array.from(dom.window.document.body.querySelectorAll('a[href^="/timetable"]')).length,
+		0,
+		'a timetable link was rendered even though nothing honours the parameter',
+	);
+});
+
+// ── A7-C2 R5: the ordered-terms dialog sentence ─────────────────────────────
+
+test('A7-C2 R5: the terms dialog explains itself in plain words and keeps the interlock byte-identical', async () => {
+	reset();
+	scenario = makeScenario({
+		status: { termAuthority: { state: 'MISSING', code: null, message: 'The school year is current, but its ordered terms have not been saved in ATLAS yet.', persisted: false, persistedSemanticRevision: null, liveSemanticRevision: 'r2', cachedAt: null, termCount: 3, needsRepair: true, repairAction: 'PREVIEW_TERM_CACHE_SYNC', canPreview: true } },
+		termPreview: TERM_PREVIEW,
+	});
+	const host = await renderPage();
+	click(host.querySelector('[data-testid="rollover-term-repair-action"]'));
+	await flush();
+
+	const dialog = dom.window.document.body.querySelector('[data-testid="rollover-term-repair-dialog"]');
+	assert.ok(dialog, 'the ordered-terms dialog did not open');
+	const text = (dialog!.textContent ?? '').replace(/\s+/g, ' ');
+
+	// R5: the SENTENCE is plain, and it says what saving does.
+	assert.ok(
+		!/Type .* to confirm/.test(text),
+		`the instruction is still the pre-R5 sentence: ${text}`,
+	);
+	assert.ok(
+		/press Save terms/i.test(text),
+		`the plain instruction is missing: ${text}`,
+	);
+	assert.ok(
+		/Saving stores only this school year/.test(text),
+		`the dialog does not say what saving does: ${text}`,
+	);
+	// R5: the PHRASE is byte-identical, in a readable box of its own.
+	const code = dialog!.querySelector('[data-testid="rollover-term-repair-code"]');
+	assert.ok(code, 'the code is not presented in its own readable box');
+	assert.equal(code!.textContent!.trim(), 'SAVE_TERM_AUTHORITY_1_9', 'the interlock phrase changed; that is not this lane\'s decision');
+	// And the comparison against the server's confirmationText is untouched:
+	// the field's placeholder is still that exact phrase.
+	const input = dialog!.querySelector('#term-repair-confirmation') as HTMLInputElement | null;
+	assert.ok(input, 'the confirmation input did not render');
+	assert.equal(input!.getAttribute('placeholder'), 'SAVE_TERM_AUTHORITY_1_9');
 });

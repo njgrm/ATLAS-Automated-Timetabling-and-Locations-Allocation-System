@@ -173,6 +173,37 @@ export interface ArchivedYearSummary {
 	preservedCounts: Record<string, number> | null;
 }
 
+/**
+ * A7-C2 (R4): the three plain states a school year can be in. Deliberately the
+ * operator's words, not machine flags — `past, not yet kept` is the case this
+ * change exists for, and no operator would have recognised that phrase as a
+ * database state.
+ */
+export type SchoolYearState = 'current' | 'kept as history' | 'past, not yet kept';
+
+/** A7-C2 (R4): every school year ATLAS mirrors, not only the archived ones. */
+export interface SchoolYearSummary {
+	/** R6: the SAME id the Teaching Load history link already uses. */
+	enrollProSchoolYearId: number;
+	yearLabel: string;
+	state: SchoolYearState;
+	isArchived: boolean;
+	archivedAt: string | null;
+	preservedCounts: Record<string, number> | null;
+}
+
+/** A7-C2 (R3): the zero-write preview behind a single year's "Keep as history". */
+export interface ArchiveSchoolYearPreview {
+	schoolId: number;
+	schoolYearId: number;
+	yearLabel: string;
+	state: SchoolYearState;
+	isActiveYear: boolean;
+	alreadyArchived: boolean;
+	message: string;
+	preservedCounts: Record<string, number> | null;
+}
+
 export interface RolloverStatus {
 	schoolId: number;
 	atlasSchoolYearId: number | null;
@@ -224,6 +255,12 @@ export interface RolloverStatus {
 	publishedResetBlocked: boolean;
 	/** RR-09A: years already archived as read-only history. */
 	archivedYears?: ArchivedYearSummary[];
+	/**
+	 * A7-C2 (R4): EVERY school year — current, kept, and past-not-yet-kept.
+	 * Additive; `archivedYears` above is unchanged for `RolloverResetPanel` and
+	 * `CarryForwardReviewPanel`.
+	 */
+	schoolYears?: SchoolYearSummary[];
 }
 
 export interface TermAuthorityStatus {

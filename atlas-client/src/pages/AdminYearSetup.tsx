@@ -5,13 +5,14 @@ import { AlertTriangle, Archive, ArrowLeft, CheckCircle2, RefreshCcw, ShieldAler
 import { RolloverResetPanel } from '@/components/runtime/RolloverResetPanel';
 import { PageHeader } from '@/components/app-shell/PageHeader';
 import { RolloverGuidanceCard } from '@/components/runtime/RolloverGuidanceCard';
+import { SchoolYearListCard } from '@/components/runtime/SchoolYearListCard';
 import { CarryForwardReviewPanel } from '@/components/runtime/CarryForwardReviewPanel';
 import { Button } from '@/ui/button';
 import { verifySessionToken, type RolloverStatus } from '@/lib/settings';
 import { clearAtlasAuthStorage, clearUserRoleCache, hasAnyAuthToken } from '@/lib/auth';
 import { describeSavedTermSource, describeUnresolvedTermReason, resolveActiveSchoolYearContext } from '@/lib/enrollpro-public-settings';
 import { resolveVerifiedActiveTermIndex } from '@/lib/timetable-data/timetablePrefetch';
-import { PLAIN_INTRO, PLAIN_PAST_YEARS_HEADING, PLAIN_PAST_YEARS_HELPER, PLAIN_PAST_YEARS_LINK, plainStartedCopy } from '@/components/runtime/rollover-plain-copy';
+import { PLAIN_INTRO, plainStartedCopy } from '@/components/runtime/rollover-plain-copy';
 import type { BridgeUser } from '@/types';
 
 const ADMIN_ROLES = new Set(['admin', 'SYSTEM_ADMIN', 'officer']);
@@ -132,6 +133,16 @@ export default function AdminYearSetup() {
 	// A7-C1: set only by the card's own `onApplied`, so the confirmation appears
 	// after a real apply and never on a read.
 	const [started, setStarted] = useState<RolloverStatus | null>(null);
+
+	/**
+	 * A7-C2: bumped by the year list after a successful "Keep as history", so the
+	 * ONE status reader this page has re-reads. It is a prop on the card that owns
+	 * the read, NOT a second status request from this page — `rollover-ui-guardrails`
+	 * requires exactly one status card and no duplicate status request, and it
+	 * greps this file for the request helper's name, so this comment must not spell
+	 * it either.
+	 */
+	const [reloadSignal, setReloadSignal] = useState(0);
 
 	useEffect(() => {
 		if (!hasAnyAuthToken()) {
@@ -272,33 +283,26 @@ export default function AdminYearSetup() {
 					adminHref={null}
 					allowTestDataMarking
 					plainLanguageNextStep
+					reloadSignal={reloadSignal}
 					onStatus={setStatus}
 					onApplied={setStarted}
 				/>
 
-				{/* RR-09B: kept school years shown as history. A7-C1 §1.6 drops the
-				    "election" sentence and the read-only technical wording; the
-				    destination, the ids in the href and the `data-testid` are unchanged. */}
-				{status?.archivedYears?.length ? (
-					<div className="rounded-xl border border-slate-200 bg-white/80 p-4" data-testid="admin-year-setup-archived">
-						<div className="flex items-center gap-1.5 text-sm font-semibold text-slate-800">
-							<Archive className="size-4 text-muted-foreground" />
-							{PLAIN_PAST_YEARS_HEADING}
-						</div>
-						<p className="mt-1 text-xs text-muted-foreground">{PLAIN_PAST_YEARS_HELPER}</p>
-						<ul className="mt-2 grid gap-2 sm:grid-cols-2">
-							{status.archivedYears.map((year) => (
-								<li key={year.enrollProSchoolYearId}>
-									<Button asChild type="button" variant="outline" className="h-auto min-h-11 w-full justify-start whitespace-normal px-3 py-2 text-left" data-testid={`year-setup-history-${year.enrollProSchoolYearId}`}>
-										<Link to={`/teaching-load/history?schoolYearId=${year.enrollProSchoolYearId}`}>
-											<span><span className="font-semibold">{year.yearLabel}</span><span className="block text-xs text-muted-foreground">{PLAIN_PAST_YEARS_LINK}{year.preservedCounts?.publishedGenerationRuns ? ` · ${year.preservedCounts.publishedGenerationRuns} published timetable(s)` : ''}</span></span>
-										</Link>
-									</Button>
-								</li>
-							))}
-						</ul>
-					</div>
-				) : null}
+				{/* A7-C2 §1: EVERY school year, not only the kept ones.
+				    The c1 card below read `status.archivedYears`, whose server
+				    query filters `isArchived: true` — so a year that was neither
+				    the active year nor archived (2026-09-28: years 9 and 10) had
+				    no row anywhere on this page. A5-C2A independently arrived at
+				    the same fix from the term-truth side and its YearTruthBanner
+				    above is KEPT; only the kept-years card is replaced.
+				    The new card reads `status.schoolYears` (R4) and carries the
+				    per-year "Keep as history" action and the read-only
+				    Teaching Load / Timetable links. */}
+				<SchoolYearListCard
+					schoolId={schoolId}
+					schoolYears={status?.schoolYears ?? []}
+					onKept={() => setReloadSignal((n) => n + 1)}
+				/>
 
 					{/* Optional audited carry-forward preview (zero-write). Apply is a
 						separate, separately approved HIGH action and is not reachable here. */}

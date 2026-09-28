@@ -81,6 +81,13 @@ type RolloverGuidanceCardProps = {
 	 * the only caller that passes it.
 	 */
 	plainLanguageNextStep?: boolean;
+	/**
+	 * A7-C2: bump this to make the card reload the status it already owns. Used
+	 * by `/admin/year-setup` after a per-year "Keep as history", so the newly
+	 * kept year flips on screen without the page opening a SECOND status reader.
+	 * Defaults to 0, which disables the effect entirely.
+	 */
+	reloadSignal?: number;
 	onApplied?: (status: RolloverStatus) => void;
 	onStatus?: (status: RolloverStatus) => void;
 };
@@ -172,6 +179,7 @@ export function RolloverGuidanceCard({
 	adminHref = '/admin/year-setup' as string | null,
 	allowTestDataMarking = false,
 	plainLanguageNextStep = false,
+	reloadSignal = 0,
 	onApplied,
 	onStatus,
 }: RolloverGuidanceCardProps) {
@@ -264,6 +272,24 @@ export function RolloverGuidanceCard({
 		void loadStatus(false);
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [schoolId]);
+
+	/**
+	 * A7-C2: an opt-in "someone else changed the year, reload" signal. Bumping it
+	 * re-runs the card's OWN `loadStatus`, so the page still has exactly one
+	 * status reader — the guard in `rollover-ui-guardrails.test.ts` ("Year Setup
+	 * does not add a duplicate status request") is the reason this is a prop and
+	 * not a second `fetchRolloverStatus` in the page.
+	 *
+	 * The effect is skipped entirely while the signal is 0, so the five mounts
+	 * that do not pass it (Dashboard, Sections, Faculty, TeachingLoad, the two
+	 * timetable banners) behave exactly as before.
+	 */
+	useEffect(() => {
+		if (!reloadSignal) return;
+		if (!isResolvedActorSchoolId(schoolId)) return;
+		void loadStatus(false);
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [reloadSignal]);
 
 	// Dismiss persistence: one key per drift status so a re-dismiss survives a
 	// status transition. The banner re-shows when the drift status changes.
@@ -533,8 +559,27 @@ export function RolloverGuidanceCard({
 							))}
 						</ul>
 						<div className="space-y-2">
-							<Label htmlFor="term-repair-confirmation">
-								Type <code className="rounded bg-slate-100 px-1 py-0.5 text-xs">{termPreview.confirmationText}</code> to confirm
+							{/* A7-C2 R5 (2026-09-29). The SENTENCE is now plain and the
+							    code sits in a readable box. The required PHRASE and the
+							    COMPARISON are deliberately untouched: this is the human
+							    interlock on a live-data write (AGENTS.md §13) and the server
+							    compares the typed value to `termPreview.confirmationText`.
+							    Whether to keep the interlock at all is the operator's call and
+							    is handed back to Lane C as an open row, not decided here. */}
+							<p className="text-sm text-slate-700" data-testid="rollover-term-repair-instruction">
+								Copy the code below, paste it in the box, then press Save terms.
+							</p>
+							<div className="rounded-md border border-slate-300 bg-slate-50 p-2">
+								<p className="text-xs font-medium uppercase tracking-wide text-slate-500">Code to type</p>
+								<code
+									className="mt-0.5 block select-all break-all font-mono text-sm font-semibold tracking-wide text-slate-800"
+									data-testid="rollover-term-repair-code"
+								>
+									{termPreview.confirmationText}
+								</code>
+							</div>
+							<Label htmlFor="term-repair-confirmation" className="sr-only">
+								Code to type
 							</Label>
 							<Input
 								id="term-repair-confirmation"
@@ -544,6 +589,9 @@ export function RolloverGuidanceCard({
 								disabled={termApplying}
 								autoComplete="off"
 							/>
+							<p className="text-xs text-muted-foreground" data-testid="rollover-term-repair-effect">
+								Saving stores only this school year's ordered terms. Nothing else in ATLAS or EnrollPro changes, and no data is deleted.
+							</p>
 						</div>
 					</>
 				) : null}

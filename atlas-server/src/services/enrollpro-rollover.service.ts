@@ -167,6 +167,36 @@ export type RolloverStatusResult = {
 	testDataMarked: boolean;
 	/** RR-09A: years already archived as read-only history. */
 	archivedYears?: ArchivedYearSummary[];
+	/**
+	 * A7-C2 (R4): EVERY school year ATLAS mirrors for this school — the current
+	 * one, the ones already kept as history, and the past ones nobody has kept
+	 * yet. Before A7-C2 a year that was neither active nor archived appeared on no
+	 * page at all, which is how the 2026-09-28 operator rollover lost sight of
+	 * years 9 and 10.
+	 *
+	 * ADDITIVE ONLY. `archivedYears` above is left byte-identical because
+	 * `RolloverResetPanel` and `CarryForwardReviewPanel` consume it.
+	 */
+	schoolYears?: SchoolYearSummary[];
+};
+
+/**
+ * A7-C2 (R4): a plain state for a school year, in the operator's three words
+ * rather than a machine flag. `current` is the year ATLAS is working in now,
+ * `kept as history` is an archived year that is preserved read-only, and
+ * `past, not yet kept` is the case this cycle exists for: a real year with real
+ * data that no page listed.
+ */
+export type SchoolYearState = 'current' | 'kept as history' | 'past, not yet kept';
+
+export type SchoolYearSummary = {
+	/** The same `enrollProSchoolYearId` the Teaching Load history link uses (R6). */
+	enrollProSchoolYearId: number;
+	yearLabel: string;
+	state: SchoolYearState;
+	isArchived: boolean;
+	archivedAt: string | null;
+	preservedCounts: ArchivedYearPreservedCounts | null;
 };
 
 export type RolloverApplyResult = RolloverStatusResult & {
@@ -996,6 +1026,9 @@ export async function getRolloverStatus(
 			publishedResetBlocked: false,
 			testDataMarked: false,
 			archivedYears: await listArchivedYears(schoolId, false),
+			// A7-C2 R4: the every-year list is built here too, so the
+			// EnrollPro-unreachable page can still show what ATLAS holds.
+			schoolYears: await listSchoolYears(schoolId, atlasSchoolYearId, false),
 		};
 	}
 
@@ -1092,6 +1125,9 @@ export async function getRolloverStatus(
 		termAuthority: await resolveTermAuthority(upstreamYear),
 		publishedResetBlocked: resetPreview.publishedResetBlocked,
 		archivedYears: await listArchivedYears(schoolId, false),
+		// A7-C2 R4: every mirrored year, classified. `includeCounts` is the
+		// caller's request for `preservedCounts`, exactly as for archivedYears.
+		schoolYears: await listSchoolYears(schoolId, atlasSchoolYearId, options?.includeCounts === true),
 	};
 }
 
@@ -1197,6 +1233,137 @@ async function listArchivedYears(schoolId: number, withCounts: boolean): Promise
 			? await collectPreservedCounts(schoolId, mirror.enrollProSchoolYearId)
 			: null,
 	})));
+}
+
+/**
+ * A7-C2 (R4): the ONE helper that builds the every-year list.
+ *
+ * `listArchivedYears` above filters `isArchived: true`, which is precisely why
+ * years 9 and 10 were invisible: they are neither active nor archived, so they
+ * were excluded by a filter and not missing from the database. This helper
+ * therefore reads EVERY mirror the school has, and classifies each one from
+ * data the status response already carries.
+ *
+ * It is called at all four status sites (both `getRolloverStatus` return sites,
+ * `previewRolloverSync`, and the internal `composeResumedRecoveryPreview`); a
+ * fifth site that forgets it is the defect this cycle fixes.
+ *
+ * A7-C2 QA N1: three sites are reachable and are driven BEHAVIOURALLY by
+ * `src/__tests__/runtime-router-archive-school-year-a7c2.test.ts`. The fourth,
+ * `composeResumedRecoveryPreview`, is module-private, and the QA control proved
+ * that deleting its `schoolYears` line left the suite green — the field was
+ * present but UNGUARDED. So that one site is covered by a narrow structural
+ * guard in the same test rather than a behavioural one. Do not describe the four
+ * as equally covered; they are not.
+ */
+export async function listSchoolYears(
+	schoolId: number,
+	activeSchoolYearId: number | null,
+	withCounts: boolean,
+): Promise<SchoolYearSummary[]> {
+	const mirrors = await prisma.enrollProSchoolYearMirror.findMany({
+		where: { schoolId },
+		select: {
+			enrollProSchoolYearId: true,
+			yearLabel: true,
+			isArchived: true,
+			archivedAt: true,
+		},
+	});
+	const ordered = [...mirrors].sort((a, b) => b.enrollProSchoolYearId - a.enrollProSchoolYearId);
+	return Promise.all(ordered.map(async (mirror) => ({
+		enrollProSchoolYearId: mirror.enrollProSchoolYearId,
+		yearLabel: mirror.yearLabel,
+		state: mirror.enrollProSchoolYearId === activeSchoolYearId
+			? 'current' as const
+			: mirror.isArchived
+				? 'kept as history' as const
+				: 'past, not yet kept' as const,
+		isArchived: mirror.isArchived,
+		archivedAt: mirror.archivedAt?.toISOString() ?? null,
+		preservedCounts: withCounts
+			? await collectPreservedCounts(schoolId, mirror.enrollProSchoolYearId)
+			: null,
+	})));
+}
+
+export type PreviewArchiveSchoolYearResult = {
+	schoolId: number;
+	schoolYearId: number;
+	yearLabel: string;
+	/** The plain state the operator reads: `current`, `kept as history`, `past, not yet kept`. */
+	state: SchoolYearState;
+	/** True when the year ATLAS is working in now — never archivable. */
+	isActiveYear: boolean;
+	alreadyArchived: boolean;
+	/** A plain, human sentence. The UI renders this rather than composing its own. */
+	message: string;
+	preservedCounts: ArchivedYearPreservedCounts;
+};
+
+/**
+ * A7-C2 (R3): the ZERO-WRITE preview behind "Keep as history" for a single year.
+ *
+ * It answers exactly the three questions the dialog asks — which year, what is
+ * kept, and is anything deleted — and answers "no" to the last one, because
+ * `archiveSchoolYear` deletes nothing: it deactivates the mirror and preserves
+ * every row as read-only history.
+ *
+ * It performs the SAME active-year refusal as the apply path, BEFORE any write,
+ * so the operator is never shown a green "nothing is deleted" dialog for a year
+ * the save would then reject.
+ */
+export async function previewArchiveSchoolYear(
+	input: { schoolId: number; schoolYearId: number; authToken?: string },
+): Promise<PreviewArchiveSchoolYearResult> {
+	if (!Number.isInteger(input.schoolYearId) || input.schoolYearId <= 0) {
+		throw serviceError(400, 'INVALID_PARAM', 'schoolYearId must be a positive integer.', {
+			actionHint: 'Pick a school year from the list.',
+		});
+	}
+	const health = await fetchEnrollProIntegrationHealth(input.authToken);
+	if (!health.reachable) {
+		throw serviceError(503, 'ENROLLPRO_UNAVAILABLE', 'EnrollPro is unreachable. Cannot verify which year is active, so nothing was changed.', {
+			actionHint: 'Wait for EnrollPro to become reachable, then try again.',
+		});
+	}
+	const activeYear = await fetchEnrollProActiveSchoolYear(input.authToken);
+	if (!activeYear) {
+		throw serviceError(503, 'ENROLLPRO_UNAVAILABLE', 'EnrollPro active school year could not be verified. Nothing was changed.', {
+			actionHint: 'Wait for EnrollPro to become reachable, then try again.',
+		});
+	}
+	if (activeYear.id === input.schoolYearId) {
+		throw serviceError(409, 'CANNOT_ARCHIVE_ACTIVE_YEAR', `School year #${input.schoolYearId} is EnrollPro's active year (${activeYear.yearLabel}) and cannot be archived.`, {
+			actionHint: 'Keep the years that came before; the active year is the new one.',
+		});
+	}
+	const mirror = await prisma.enrollProSchoolYearMirror.findUnique({
+		where: { schoolId_enrollProSchoolYearId: { schoolId: input.schoolId, enrollProSchoolYearId: input.schoolYearId } },
+	});
+	if (!mirror) {
+		throw serviceError(404, 'SCHOOL_YEAR_MIRROR_NOT_FOUND', `No ATLAS mirror exists for school year #${input.schoolYearId}. Nothing to change.`, {
+			actionHint: 'Run a rollover sync first so ATLAS mirrors the year.',
+		});
+	}
+	const atlasActiveYearId = await getLatestAtlasSchoolYearId(input.schoolId);
+	const state: SchoolYearState = mirror.isArchived
+		? 'kept as history'
+		: mirror.enrollProSchoolYearId === atlasActiveYearId
+			? 'current'
+			: 'past, not yet kept';
+	return {
+		schoolId: input.schoolId,
+		schoolYearId: input.schoolYearId,
+		yearLabel: mirror.yearLabel,
+		state,
+		isActiveYear: mirror.enrollProSchoolYearId === atlasActiveYearId,
+		alreadyArchived: mirror.isArchived,
+		message: mirror.isArchived
+			? `${mirror.yearLabel} is already kept as history. Nothing was changed, and nothing would be.`
+			: `${mirror.yearLabel} would be kept as history. Its sections, schedules and teaching load stay exactly as they are, read-only. Nothing is deleted, and EnrollPro is not changed.`,
+		preservedCounts: await collectPreservedCounts(input.schoolId, input.schoolYearId),
+	};
 }
 
 /**
@@ -2194,6 +2361,11 @@ async function composeResumedRecoveryPreview(
 		teachingLoadResetRequired: false,
 		publishedResetBlocked: false,
 		testDataMarked: false,
+		// A7-C2 R4: the FOURTH status site. It composes its own
+		// `RolloverStatusResult`, so without this line the resumed-recovery
+		// classification would classify a rollover while showing an operator an
+		// empty year list. A fifth site that forgets this is a BLOCKING finding.
+		schoolYears: await listSchoolYears(schoolId, atlasSchoolYearId, false),
 	};
 	return classifyRecoveryState(schoolId, status);
 }
