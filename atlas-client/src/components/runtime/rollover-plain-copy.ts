@@ -317,8 +317,28 @@ export const PLAIN_KEEP_YEAR_EFFECT = 'Nothing is deleted, and nothing in Enroll
  * A2 flips `TIMETABLE_READS_SCHOOL_YEAR_PARAM` to `true` in the same commit
  * that makes the route honour the parameter. It is one boolean on purpose: the
  * page must not be able to link without also stating the fail-closed sentence.
+ *
+ * FLIPPED 2026-09-29, after verifying all three halves of the claim against this
+ * tree rather than taking it on trust:
+ *   1. the client reads it — `ScheduleReviewWorkspace.tsx` passes
+ *      `new URLSearchParams(location.search).get('schoolYearId')` into
+ *      `usePastYearTimetable`, and `pastYearViewState` turns it into a
+ *      past-year read or a typed notice;
+ *   2. the server resolves it — `resolvePastYearReadScope`
+ *      (`atlas-server/src/services/past-year-timetable-scope.ts`) gates the read;
+ *   3. THE ID SPACE MATCHES, which was the part that would have made this a lying
+ *      link. The router builds its allowed set as
+ *      `actorSchoolYearIds: yearRows.map((row) => row.enrollProSchoolYearId)` —
+ *      the same `enrollProSchoolYearId` this card and the existing
+ *      `/teaching-load/history?schoolYearId=` link already use. A proof that both
+ *      sides are the same space is
+ *      `atlas-server/src/__tests__/a7-past-year-id-space-c2.test.ts`.
+ *
+ * If the server ever stops accepting the EnrollPro year id, this must go back to
+ * `false`: the failure mode is an operator reading today's schedule as last
+ * year's, and a plain sentence is always better than that.
  */
-export const TIMETABLE_READS_SCHOOL_YEAR_PARAM = false;
+export const TIMETABLE_READS_SCHOOL_YEAR_PARAM = true;
 
 export function plainTimetableYearHref(enrollProSchoolYearId: number): string | null {
 	return TIMETABLE_READS_SCHOOL_YEAR_PARAM

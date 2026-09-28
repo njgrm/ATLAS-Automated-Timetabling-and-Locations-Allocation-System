@@ -74,7 +74,8 @@
     "test:timetable-swap-revert-enumeration-a2": "tsx src/__tests__/timetable-swap-revert-enumeration-a2.test.ts",
     "test:warning-count-scope-warn62": "tsx --test src/__tests__/warning-count-scope-warn62.test.ts",
     "test:generation-completion-copy-c2": "tsx --test src/__tests__/generation-completion-copy-c2.test.ts",
-    "test:archive-school-year-a7c2": "node --experimental-test-module-mocks --import tsx --test src/__tests__/runtime-router-archive-school-year-a7c2.test.ts"
+    "test:archive-school-year-a7c2": "node --experimental-test-module-mocks --import tsx --test src/__tests__/runtime-router-archive-school-year-a7c2.test.ts",
+    "test:past-year-id-space-c2": "tsx --test src/__tests__/a7-past-year-id-space-c2.test.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.19.2",

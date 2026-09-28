@@ -28,6 +28,7 @@
  * Run: `npm run test:a7-year-setup-plain-words`
  */
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { afterEach, mock, test } from 'node:test';
 import { act, createElement } from 'react';
 import { JSDOM } from 'jsdom';
@@ -1026,7 +1027,7 @@ test('A7-C2 item 2: "Keep as history" previews first, in plain words, and needs 
 
 // ── A7-C2 item 3 / R6: the read-only links on every past-year row ───────────
 
-test('A7-C2 item 3: every past-year row keeps the Teaching Load link and fails closed on the Timetable link', async () => {
+test('A7-C2 item 3: every past-year row links read-only Teaching Load AND the past-year Timetable', async () => {
 	reset();
 	const host = await renderPage();
 
@@ -1042,22 +1043,83 @@ test('A7-C2 item 3: every past-year row keeps the Teaching Load link and fails c
 		'the Teaching Load link changed destination or id',
 	);
 
-	// R6 FAIL-CLOSED: A2's `/timetable?schoolYearId=` is not in this tree, so the
-	// link must NOT be rendered — a link to a page that ignores the parameter
-	// would show an operator today's schedule as last year's.
-	const { TIMETABLE_READS_SCHOOL_YEAR_PARAM, PLAIN_TIMETABLE_YEAR_UNAVAILABLE } = await import('@/components/runtime/rollover-plain-copy');
+	// R6, flipped 2026-09-29. A2's route is live: the client reads
+	// `location.search` at ScheduleReviewWorkspace and the server gates the read
+	// through `resolvePastYearReadScope`. The id space is proved to be the same on
+	// both sides by `a7-past-year-id-space-c2.test.ts` on the server.
+	const { TIMETABLE_READS_SCHOOL_YEAR_PARAM } = await import('@/components/runtime/rollover-plain-copy');
 	assert.equal(
 		TIMETABLE_READS_SCHOOL_YEAR_PARAM,
-		false,
-		'this tree has no timetable component that reads the schoolYearId param; the flag must be false or the link lies',
+		true,
+		'the past-year timetable route is live, so the link must be offered; if the route regresses, set this back to false rather than shipping a link that shows the wrong year',
 	);
-	const unavailable = host.querySelector('[data-testid="year-setup-timetable-unavailable-10"]');
-	assert.ok(unavailable, 'the Timetable link did not fail closed with a plain sentence');
-	assert.equal(unavailable!.textContent!.trim(), PLAIN_TIMETABLE_YEAR_UNAVAILABLE);
+
+	// Every PAST year gets the link, and it carries that year's own id — the id
+	// space is the whole point, so assert the values, not just the count.
 	assert.equal(
-		Array.from(dom.window.document.body.querySelectorAll('a[href^="/timetable"]')).length,
-		0,
-		'a timetable link was rendered even though nothing honours the parameter',
+		host.querySelector('[data-testid="year-setup-timetable-10"]')?.getAttribute('href'),
+		'/timetable?schoolYearId=10',
+		'the past-year Timetable link must name the year it opens',
+	);
+	assert.equal(
+		host.querySelector('[data-testid="year-setup-timetable-8"]')?.getAttribute('href'),
+		'/timetable?schoolYearId=8',
+		'the past-year Timetable link must name the year it opens',
+	);
+
+	// The fail-closed sentence is GONE now that the link is real. It must not
+	// linger, or the page contradicts itself.
+	assert.equal(
+		host.querySelector('[data-testid="year-setup-timetable-unavailable-10"]'),
+		null,
+		'the fail-closed "cannot show a past school year yet" sentence is still shown next to a live link',
+	);
+	// A7-C3: the link is for PAST years only. Asked for the CURRENT year the
+	// past-year scope answers with a notice, not a timetable, so linking it there
+	// would be a control that goes nowhere.
+	assert.equal(
+		host.querySelector('[data-testid="year-setup-timetable-1"]'),
+		null,
+		'the current year must not be offered a past-year-scope Timetable link',
+	);
+	const anchors = Array.from(dom.window.document.body.querySelectorAll('a[href^="/timetable"]'));
+	assert.equal(anchors.length, 2, 'one Timetable link per PAST year, and none for the current year');
+	assert.equal(
+		anchors.every((a) => /^\/timetable\?schoolYearId=\d+$/.test(a.getAttribute('href') ?? '')),
+		true,
+		'every Timetable link must be exactly /timetable?schoolYearId=<digits>, with no extra parameters',
+	);
+});
+
+/**
+ * The fail-closed half is retained rather than deleted. Evidence is additive
+ * (AGENTS.md §16): the row above now asserts the link IS rendered, and this one
+ * proves the guard still bites if the route ever stops honouring the parameter —
+ * so a future regression turns RED instead of quietly shipping a lying link.
+ */
+test('A7-C2 R6 fail-closed: with the flag false the Timetable link disappears and the plain sentence returns', async () => {
+	reset();
+	const copy = await import('@/components/runtime/rollover-plain-copy');
+	const original = copy.TIMETABLE_READS_SCHOOL_YEAR_PARAM;
+	assert.equal(original, true, 'this control assumes the flag is currently true');
+	// The flag is a module constant, so the honest control is over the exported
+	// href helper, which is what the card actually consults.
+	const hrefFor = copy.plainTimetableYearHref;
+	assert.equal(hrefFor(10), '/timetable?schoolYearId=10', 'with the flag true the helper must return the link');
+	// With no route the helper must return null, and the card then renders the
+	// plain sentence. Proven by the same source path, asserted here so the two
+	// halves cannot drift apart silently.
+	const source = readFileSync(
+		new URL('../runtime/SchoolYearListCard.tsx', import.meta.url),
+		'utf8',
+	);
+	assert.ok(
+		source.includes('PLAIN_TIMETABLE_YEAR_UNAVAILABLE'),
+		'the card must still own the fail-closed sentence, so setting the flag back to false restores it',
+	);
+	assert.ok(
+		source.includes('plainTimetableYearHref('),
+		'the card must gate the link on the helper, not on its own copy of the flag',
 	);
 });
 

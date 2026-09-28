@@ -119,6 +119,8 @@ function YearRow({ schoolId, year, onKept }: YearRowProps) {
 
 	const timetableHref = plainTimetableYearHref(year.enrollProSchoolYearId);
 	const canKeep = year.state === 'past, not yet kept';
+	/** A7-C3: only a PAST year gets the past-year-scope Timetable link. */
+	const isPastYear = year.state !== 'current';
 
 	return (
 		<li className="rounded-lg border border-slate-200 bg-white p-3" data-testid={`year-setup-year-${year.enrollProSchoolYearId}`}>
@@ -150,27 +152,36 @@ function YearRow({ schoolId, year, onKept }: YearRowProps) {
 			</div>
 
 			{/* Item 3: the existing read-only Teaching Load link, unchanged, plus
-			    the Timetable link on the SAME id (R6). */}
+			    the Timetable link on the SAME id (R6).
+
+			    A7-C3: the Timetable link is offered for PAST years only. The route is
+			    a past-year read scope, and asked for the CURRENT year it answers with
+			    a notice rather than a timetable — so linking it there would be a
+			    control that goes nowhere. The current year already has the ordinary
+			    timetable route from the nav. The Teaching Load link is NOT restricted:
+			    it is the existing read-only history view and behaves for every year. */}
 			<div className="mt-2 flex flex-wrap items-center gap-2">
 				<Button asChild type="button" variant="outline" size="sm" className="min-h-11">
 					<Link to={plainTeachingLoadYearHref(year.enrollProSchoolYearId)} data-testid={`year-setup-tl-${year.enrollProSchoolYearId}`}>
 						Open teaching load
 					</Link>
 				</Button>
-				{timetableHref ? (
-					<Button asChild type="button" variant="outline" size="sm" className="min-h-11 gap-1.5">
-						<Link to={timetableHref} data-testid={`year-setup-timetable-${year.enrollProSchoolYearId}`}>
-							<CalendarDays className="size-3.5" />
-							Open timetable
-						</Link>
-					</Button>
-				) : (
-					/* Fail closed (R6): say so, do not link to a page that would
-					   silently ignore the parameter. */
-					<span className="text-xs text-muted-foreground" data-testid={`year-setup-timetable-unavailable-${year.enrollProSchoolYearId}`}>
-						{PLAIN_TIMETABLE_YEAR_UNAVAILABLE}
-					</span>
-				)}
+				{isPastYear ? (
+					timetableHref ? (
+						<Button asChild type="button" variant="outline" size="sm" className="min-h-11 gap-1.5">
+							<Link to={timetableHref} data-testid={`year-setup-timetable-${year.enrollProSchoolYearId}`}>
+								<CalendarDays className="size-3.5" />
+								Open timetable
+							</Link>
+						</Button>
+					) : (
+						/* Fail closed (R6): say so, do not link to a page that would
+						   silently ignore the parameter. */
+						<span className="text-xs text-muted-foreground" data-testid={`year-setup-timetable-unavailable-${year.enrollProSchoolYearId}`}>
+							{PLAIN_TIMETABLE_YEAR_UNAVAILABLE}
+						</span>
+					)
+				) : null}
 			</div>
 
 			<Dialog open={preview !== null} onOpenChange={(open) => { if (!open) closeDialog(); }}>
