@@ -159,6 +159,11 @@ function byLabel(_host: HTMLElement, label: string): HTMLElement | null {
 	return document.body.querySelector(`[aria-label="${label}"]`);
 }
 
+/** `query`, but named so a DOM-node comparison reads as one on purpose. */
+function byTestId(host: HTMLElement, testid: string): HTMLElement | null {
+	return query(host, testid);
+}
+
 /** A query scoped to the current render's own container (non-portalled parts). */
 function local(host: HTMLElement, selector: string): HTMLElement | null {
 	return document.body.querySelector(selector);
@@ -884,9 +889,25 @@ test('A3-09: a null authority renders nothing rather than an empty block', async
 // and background scroll lock.
 // ===========================================================================
 // ===========================================================================
+// A3-C10 (FIX-15 re-issued, 2026-09-28) — item 2: ONE row of controls, and
+// NO control in it is a disclosure.
+//
+// A3-C9 removed the "More filters" row but kept Room Type and Program behind a
+// single combined "Room & program" popover trigger, so reaching "Room Type"
+// still cost an initial click on a control that is not Room Type. The operator
+// re-issued FIX-15 with the wording that matters: "one interaction with the
+// target filter, not an initial disclosure click". The A3-C9 control below is
+// therefore SUPERSEDED IN BEHAVIOUR on exactly two points — the presence of
+// the combined catalog trigger, and the "one interaction opens the popover; a
+// second chooses a value" walk-through. Both are recorded here as assertions
+// rather than deleted, and both are subsumed by
+//   'A3-C10: Room Type and Program are direct filters — one click on the
+//    filter itself reaches its own options, with no disclosure in between'
+// which additionally proves the FULL catalog survives in two listboxes.
+// ===========================================================================
 // A3-C9 — item 2: ONE row of controls, no "More filters" row.
 // ===========================================================================
-test('A3-C9: the single filter row carries all six filters, opens no second row, and has no "More filters" disclosure', async () => {
+test('A3-C9 [SUPERSEDED IN BEHAVIOUR by A3-C10 on the Room Type / Program reach, verbatim otherwise]: the single filter row carries all six filters, opens no second row, and has no "More filters" disclosure', async () => {
 	// FAILING-FIRST on the base: the base renders a "More filters" button and
 	// puts Room Type / Program behind it, and the always-visible filters sit in
 	// a SECOND row (`admin-primary-filter-row`). Both of the next two
@@ -918,8 +939,7 @@ test('A3-C9: the single filter row carries all six filters, opens no second row,
 	assert.equal(query(host, 'admin-search-filter-toolbar')!.querySelectorAll('[data-testid="admin-inline-filter-row"]').length, 1);
 	assert.equal(row.className.includes('flex-wrap'), false, 'the single row wraps, so it can still spill onto a second line');
 
-	// (3) All four triage selects AND the catalog popover trigger are in that row,
-	// with no interaction required.
+	// (3) All four triage selects are in that row, with no interaction required.
 	for (const label of ['Filter by subject status', 'Filter by attention status', 'Filter by grade level', 'Filter by rotation term']) {
 		const el = byLabel(host, label);
 		assert.ok(el, `filter "${label}" is not rendered without any interaction`);
@@ -927,9 +947,24 @@ test('A3-C9: the single filter row carries all six filters, opens no second row,
 		assert.equal(el.getAttribute('aria-hidden'), null, `filter "${label}" is aria-hidden`);
 		assert.equal(el.getAttribute('data-disabled'), null, `filter "${label}" is disabled`);
 	}
-	const catalog = query(host, 'subjects-catalog-filter-trigger');
-	assert.ok(catalog, 'the room type / program trigger is not rendered');
-	assert.ok(row.contains(catalog), 'the room type / program trigger is not in the single row');
+	// SUPERSEDED ASSERTION (A3-C10), recorded rather than removed: A3-C9
+	// required ONE combined trigger — `subjects-catalog-filter-trigger` — to
+	// stand in for both catalog lookups. FIX-15 was re-issued precisely because
+	// that trigger is a disclosure: it is a button that is not Room Type and not
+	// Program, and it stands between the operator and both of them. The
+	// replacement asserts the two filters as their own directly-visible
+	// controls and asserts this grouping trigger is GONE.
+	//
+	// The comparison is on a BOOLEAN on purpose. `assert.equal(<dom element>,
+	// null)` makes node:assert build a diff of the element, which recurses into
+	// the whole jsdom document and dies with `RangeError: Array buffer
+	// allocation failed` instead of reporting the message — a control that
+	// "fails" for the wrong reason proves nothing on a reviewer.
+	assert.equal(
+		query(host, 'subjects-catalog-filter-trigger') === null,
+		true,
+		'the combined room-type/program trigger is back: that grouping button IS the disclosure FIX-15 re-issued',
+	);
 
 	// (4) The search box and the reset control are still reachable in that row.
 	const search = document.body.querySelector('input[placeholder="Search name or code..."]') as HTMLInputElement | null;
@@ -938,31 +973,238 @@ test('A3-C9: the single filter row carries all six filters, opens no second row,
 	assert.ok(reset, 'the reset control is not reachable when a filter is active');
 	assert.ok(row.contains(reset), 'the reset control is not in the single row');
 
-	// (5) Room Type and Program scope are still REAL filters, not a label. One
-	// interaction opens the popover; a second chooses a value, and the value
-	// reaches the page. On the base these controls did not exist at all.
-	await click(catalog);
-	const popover = query(host, 'subjects-catalog-filter');
-	assert.ok(popover, 'the catalog popover did not open');
-	const roomOptions = Array.from(popover.querySelectorAll('[data-testid="subjects-room-type-option"]'));
-	const programOptions = Array.from(popover.querySelectorAll('[data-testid="subjects-program-option"]'));
-	// The FULL catalog is offered, not a subset: `ALL_ROOM_TYPES` and
-	// `PROGRAM_SCOPE_OPTIONS` are the shared sources and must not be narrowed.
-	assert.equal(roomOptions.length, constants.ALL_ROOM_TYPES.length + 1, 'the room type list lost an option');
-	assert.equal(programOptions.length, constants.PROGRAM_SCOPE_OPTIONS.length + 1, 'the program list lost an option');
-	assert.ok(
-		roomOptions.some((o) => o.textContent?.trim() === constants.ROOM_TYPE_LABELS.LABORATORY),
-		'the room type list does not show the real ROOM_TYPE_LABELS wording',
+	// (5) SUPERSEDED IN BEHAVIOUR (A3-C10). A3-C9 walked the catalog as
+	// "one interaction opens the popover; a second chooses a value" — a walk
+	// whose FIRST interaction is on the grouping button rather than on the
+	// target filter. The old two-click route is recorded as absent so the
+	// regression cannot come back silently; the replacement control walks each
+	// filter on its own, from a first click that is already on that filter.
+	assert.equal(
+		query(host, 'subjects-catalog-filter') === null,
+		true,
+		'the combined catalog popover is back: its options are what FIX-15 re-issued asked to be directly visible',
 	);
-	// And the chosen value actually reaches the page.
-	await click(roomOptions.find((o) => o.getAttribute('data-value') === 'LABORATORY') ?? null);
-	assert.ok(fired.includes('room:LABORATORY'), `choosing a room type did not reach the page (got ${fired.join(',')})`);
+	// What A3-C9 was actually protecting — that the FULL catalog is offered and
+	// that a chosen value reaches the page — is asserted in full, per filter, by
+	// the A3-C10 replacement below.
+	assert.equal(fired.length, 0, `a filter changed without any interaction (got ${fired.join(',')})`);
 });
 
-test('A3-C9: the single filter row fits 1366px by its declared widths and cannot introduce page scroll', async () => {
+test('A3-C10: Room Type and Program are direct filters — one click on the filter itself reaches its own options, with no disclosure in between', async () => {
+	// FAILING-FIRST on the base: the base renders ONE combined
+	// `subjects-catalog-filter-trigger` and no trigger of its own for either
+	// filter, so the two `byLabel` lookups below are both null and the first
+	// assertion is red on `c80c085`. The base's real route to a room type is
+	// click(combined trigger) -> click(option), i.e. the first interaction is on
+	// a control that is not Room Type.
+	const fired: string[] = [];
+	const host = await render(
+		<MemoryRouter>
+			<SubjectFilterToolbar
+				{...EDITABLE}
+				onRoomTypeFilterChange={(v) => fired.push(`room:${v}`)}
+				onProgramScopeFilterChange={(v) => fired.push(`program:${v}`)}
+			/>
+		</MemoryRouter>,
+	);
+
+	// (1) BOTH filters are rendered, directly, in the always-visible row, with
+	// no interaction of any kind before this point.
+	const row = query(host, 'admin-inline-filter-row');
+	assert.ok(row, 'the filters are not in a single row with the search box');
+	const roomTrigger = byLabel(host, 'Filter by room type');
+	const programTrigger = byLabel(host, 'Filter by program scope');
+	assert.ok(roomTrigger, 'Room Type is not a directly-visible control in the filter row');
+	assert.ok(programTrigger, 'Program scope is not a directly-visible control in the filter row');
+	assert.ok(row.contains(roomTrigger), 'Room Type is not in the always-visible row');
+	assert.ok(row.contains(programTrigger), 'Program scope is not in the always-visible row');
+	// They are two distinct controls, not one control rendered twice.
+	assert.notEqual(roomTrigger, programTrigger, 'Room Type and Program are the same control, so one of them is still grouped');
+	// Each keeps its own handle, the replacement for the one combined
+	// `subjects-catalog-filter-trigger` the base used — a live-acceptance row can
+	// select each filter on its own without a grouping step.
+	assert.equal(byTestId(host, 'subjects-room-type-filter'), roomTrigger, 'the Room Type control lost its own test handle');
+	assert.equal(byTestId(host, 'subjects-program-filter'), programTrigger, 'the Program control lost its own test handle');
+	// Neither is aria-hidden, disabled, or wrapped in a disclosure.
+	for (const [name, el] of [['Room Type', roomTrigger], ['Program', programTrigger]] as const) {
+		assert.equal(el.getAttribute('aria-hidden'), null, `${name} is aria-hidden`);
+		assert.equal(el.getAttribute('data-disabled'), null, `${name} is disabled`);
+		assert.equal(el.getAttribute('aria-expanded'), 'false', `${name} opened itself with no interaction`);
+	}
+	// No listbox is mounted before a click: the options are not merely present,
+	// they are behind the filter the operator is clicking on.
+	assert.equal(document.body.querySelector('[role="listbox"]'), null, 'a filter listbox was open before any interaction');
+
+	// (2) NO control anywhere in the row stands between the operator and either
+	// filter. A grouping button is exactly the indirection being removed, so the
+	// row must contain no button whose accessible name claims to cover both.
+	const rowButtons = Array.from(row.querySelectorAll('button, [role="combobox"]'));
+	const grouping = rowButtons.filter((b) => {
+		const name = `${b.getAttribute('aria-label') ?? ''} ${b.textContent ?? ''}`.toLowerCase();
+		return name.includes('room') && name.includes('program');
+	});
+	assert.deepEqual(grouping.map((b) => b.getAttribute('aria-label') ?? b.textContent), [], 'a control still groups Room Type and Program behind one trigger');
+
+	// (3) ONE click on the ROOM TYPE filter itself opens the room-type options.
+	// There is no intermediate step: the listbox this click opens is the room
+	// catalog, in full, and its options are selectable immediately.
+	await click(roomTrigger);
+	const roomListbox = document.body.querySelector('[role="listbox"]');
+	assert.ok(roomListbox, 'one click on the Room Type filter did not open its own options');
+	const roomOptions = Array.from(roomListbox.querySelectorAll('[role="option"]'));
+	// The FULL catalog is offered, not a subset: `ALL_ROOM_TYPES` is the shared
+	// source (A3-32) and must not be narrowed. `+ 1` is the "Any room" reset.
+	assert.equal(roomOptions.length, constants.ALL_ROOM_TYPES.length + 1, 'the room type list lost an option');
+	assert.deepEqual(
+		roomOptions.map((o) => o.textContent?.trim()),
+		['Any room', ...constants.ALL_ROOM_TYPES.map((t) => constants.ROOM_TYPE_LABELS[t])],
+		'the room type list is not the full shared ROOM_TYPE_LABELS catalogue',
+	);
+	// The chosen value reaches the page.
+	await click(roomOptions.find((o) => o.textContent?.trim() === 'Science Laboratory') ?? null);
+	assert.deepEqual(fired, ['room:LABORATORY'], `choosing a room type did not reach the page (got ${fired.join(',')})`);
+
+	// (4) The same for PROGRAM: one click on the Program filter opens the
+	// program options, in full, and a choice reaches the page.
+	await click(programTrigger);
+	const programListbox = document.body.querySelector('[role="listbox"]');
+	assert.ok(programListbox, 'one click on the Program filter did not open its own options');
+	const programOptions = Array.from(programListbox.querySelectorAll('[role="option"]'));
+	assert.equal(programOptions.length, constants.PROGRAM_SCOPE_OPTIONS.length + 1, 'the program list lost an option');
+	assert.deepEqual(
+		programOptions.map((o) => o.textContent?.trim()),
+		['Any program', ...constants.PROGRAM_SCOPE_OPTIONS.map((o) => o.label)],
+		'the program list is not the full shared PROGRAM_SCOPE_OPTIONS catalogue',
+	);
+	await click(programOptions.find((o) => o.textContent?.trim() === 'BEC') ?? null);
+	assert.ok(fired.includes('program:REGULAR'), `choosing a program did not reach the page (got ${fired.join(',')})`);
+
+	// (5) Each filter is a real combobox wired to its own listbox, so a keyboard
+	// or screen-reader user reaches it the same way a mouse does.
+	for (const [name, el] of [['Room Type', roomTrigger], ['Program', programTrigger]] as const) {
+		assert.equal(el.getAttribute('role'), 'combobox', `${name} is not a real combobox trigger`);
+		assert.ok(el.getAttribute('aria-controls'), `${name} is not wired to its listbox`);
+	}
+});
+
+test('A3-C10: the six filters wrap instead of overflowing, Reset appears only when a filter is active, and the declared widths still fit 1366px', async () => {
+	// FAILING-FIRST on the base in two places. (a) On the base the controls are
+	// direct children of the `flex-nowrap` inline row, so there is no wrapping
+	// cluster and the first assertion below is red. (b) The base's declared
+	// widths are the six-control A3-C9 budget, so the `declared` list differs.
+	//
+	// LAYOUT HONESTY (AGENTS.md §11): jsdom has no layout engine. This asserts
+	// the CLASS CONTRACT actually rendered plus arithmetic over the Tailwind
+	// width classes those elements carry — it is not a measured pixel result,
+	// and it is labelled as such rather than dressed up as a screenshot.
+	const host = await render(
+		<MemoryRouter><SubjectFilterToolbar {...EDITABLE} hasActiveFilters /></MemoryRouter>,
+	);
+	const row = query(host, 'admin-inline-filter-row');
+	assert.ok(row, 'no single filter row');
+
+	// (1) The shared inline row stays `flex-nowrap` (it is the sibling-owned
+	// component and A3-15/A3-C9 both pin this), so the wrapping has to happen
+	// in a cluster inside it — and it does.
+	assert.equal(row.className.includes('flex-wrap'), false, 'the shared inline row was re-wrapped; that component is not owned here');
+	const cluster = query(host, 'subjects-filter-cluster');
+	assert.ok(cluster, 'the controls have no wrapping cluster, so a narrow viewport overflows the row horizontally');
+	assert.ok(cluster.className.includes('flex-wrap'), 'the cluster does not wrap, so a narrow viewport overflows horizontally instead of wrapping');
+	assert.ok(cluster.className.includes('min-w-0'), 'the cluster cannot shrink, so it overflows instead of wrapping');
+	// No horizontal-overflow escape hatch anywhere in the toolbar: the fix is to
+	// WRAP, not to hide the overflow behind a scroller.
+	const toolbar = query(host, 'admin-search-filter-toolbar')!;
+	for (const [name, el] of [['the row', row], ['the cluster', cluster], ['the toolbar', toolbar]] as const) {
+		assert.equal(
+			/h-\[|max-h-\[|overflow-y-auto|overflow-auto|overflow-x-auto|overflow-scroll/.test(el.className),
+			false,
+			`${name} became its own scroll region instead of wrapping`,
+		);
+	}
+	// The six filters and Reset are all inside the cluster, so they wrap
+	// together rather than only some of them.
+	for (const label of [
+		'Filter by subject status',
+		'Filter by attention status',
+		'Filter by grade level',
+		'Filter by rotation term',
+		'Filter by room type',
+		'Filter by program scope',
+	]) {
+		assert.ok(cluster.contains(byLabel(host, label) as Node), `filter "${label}" is not in the wrapping cluster`);
+	}
+	assert.ok(cluster.contains(query(host, 'subjects-reset-filters') as Node), 'Reset is not in the wrapping cluster');
+
+	// (2) The WIDTH BUDGET is read FROM THE RENDERED CLASS NAMES, not from a
+	// restatement of the design, so editing a trigger's width without editing
+	// this list is caught. Tailwind steps actually used by the row's controls:
+	//   status w-28 = 7rem, attention w-40 = 10rem, grade w-24 = 6rem,
+	//   term w-28 = 7rem, room type w-36 = 9rem, program w-28 = 7rem.
+	const rem = (n: number) => n * 16;
+	const searchWrapper = document.body.querySelector('input[placeholder="Search name or code..."]')!.parentElement!;
+	assert.match(searchWrapper.className, /sm:max-w-40/, 'the search box is not the narrowed width the one-row budget depends on');
+	const declared = [
+		...Array.from(row.querySelectorAll('[class*="w-"]')),
+	].map((el) => /(^|\s)w-(\d+)(\s|$)/.exec(el.className)?.[2])
+		.filter((v): v is string => v != null)
+		.map((steps) => rem(Number(steps) / 4));
+	assert.deepEqual(
+		declared,
+		[rem(7), rem(10), rem(6), rem(7), rem(9), rem(7)],
+		'the six control widths are not the declared six-filter budget',
+	);
+	// Two controls were added in place of one, so the budget is now 7 items in
+	// the cluster plus the search box beside it: 6 gaps inside the cluster and
+	// 1 between the search box and the cluster.
+	const search = rem(10);
+	const gaps = 7 * 8;
+	// "Reset" is a text button, so it has no width class; its width is measured
+	// content and is budgeted separately (and is the one number in this
+	// arithmetic that a live pixel run must confirm). It is 5 characters at
+	// text-sm plus the `px-3` inset, budgeted generously.
+	const reset = rem(5);
+	const total = search + declared.reduce((a, b) => a + b, 0) + gaps + reset;
+	// 1366 viewport - 256px expanded sidebar - 40px `lg:px-5` - 8px card inset.
+	const available = 1366 - 256 - 40 - 8;
+	assert.ok(
+		total < available,
+		`the toolbar's declared width budget (${total}px) does not fit the ${available}px available at 1366px`,
+	);
+});
+
+test('A3-C10: Reset is offered only while a filter is active', async () => {
+	// "Show Reset only when filters are active" (FIX-15). `hasActiveFilters` is
+	// owned by the page and already counts the room-type and program-scope
+	// values; the toolbar's half of the contract is that it renders the control
+	// only when that flag is true. Asserted on BOTH values, because a control
+	// that is always rendered passes a one-sided control.
+	const off = await render(<MemoryRouter><SubjectFilterToolbar {...EDITABLE} hasActiveFilters={false} /></MemoryRouter>);
+	// Boolean comparison on purpose: `assert.equal(<dom node>, null)` builds an
+	// assert diff of the node and blows up jsdom instead of reporting the message.
+	assert.equal(query(off, 'subjects-reset-filters') === null, true, 'Reset is offered with no filter active');
+	const on = await render(<MemoryRouter><SubjectFilterToolbar {...EDITABLE} hasActiveFilters /></MemoryRouter>);
+	assert.ok(query(on, 'subjects-reset-filters'), 'Reset is not offered while a filter is active');
+	await click(query(on, 'subjects-reset-filters'));
+});
+
+test('A3-C9 [SUPERSEDED IN PART by A3-C10 on the width budget, verbatim otherwise]: the single filter row fits 1366px by its declared widths and cannot introduce page scroll', async () => {
 	// FAILING-FIRST on the base: the base declares a `sm:max-w-sm` (24rem)
 	// search box, so the first budget assertion below is red on `a7ccb738`
 	// (24rem + six controls + gaps > the space 1366px leaves).
+	//
+	// A3-C10 SUPERSESSION (recorded, not deleted): this control's DECLARED
+	// WIDTHS and its `gaps` count are superseded, because FIX-15 re-issued
+	// added a sixth filter in place of the single combined catalog trigger, so
+	// the budget is now six fixed-width controls + a compact `Reset` in a
+	// wrapping cluster. The rebaselined budget lives in
+	//   'A3-C10: the six filters wrap instead of overflowing, Reset appears
+	//    only when a filter is active, and the declared widths still fit 1366px'
+	// and it is STRICTER than this one was: it asserts the same class-derived
+	// width list, plus that the sum still fits, plus that the cluster wraps and
+	// that nothing in the toolbar became a scroller. What A3-09/C9 protected
+	// here — the row is not a scroll region, the row can shrink, the search box
+	// keeps its narrowed width, the toolbar grew no height/overflow constraint —
+	// is still asserted below, verbatim and unweakened.
 	const host = await render(
 		<MemoryRouter><SubjectFilterToolbar {...EDITABLE} hasActiveFilters /></MemoryRouter>,
 	);
@@ -981,21 +1223,22 @@ test('A3-C9: the single filter row fits 1366px by its declared widths and cannot
 	assert.match(searchWrapper.className, /sm:max-w-40/, 'the search box is not the narrowed width the one-row budget depends on');
 
 	// Tailwind width steps actually used by the row's controls:
-	//   search sm:max-w-40 = 10rem, status w-28 = 7rem, attention w-44 = 11rem,
-	//   grade w-24 = 6rem, term w-32 = 8rem, catalog w-40 = 10rem.
+	//   search sm:max-w-40 = 10rem, status w-28 = 7rem, attention w-40 = 10rem,
+	//   grade w-24 = 6rem, term w-28 = 7rem, room type w-36 = 9rem,
+	//   program w-28 = 7rem.
 	const declared = [
 		...Array.from(row.querySelectorAll('[class*="w-"]')),
 	].map((el) => /(^|\s)w-(\d+)(\s|$)/.exec(el.className)?.[2])
 		.filter((v): v is string => v != null)
 		.map((steps) => rem(Number(steps) / 4));
 	const search = rem(10);
-	const gaps = 6 * 8; // gap-2 between 7 items in the row
-	// "Reset filters" is a text button, so it has no width class; its width is
-	// measured content and is budgeted separately (and is the one number in
-	// this arithmetic that a live pixel run must confirm).
-	const reset = rem(7.5);
+	const gaps = 7 * 8; // gap-2 between 7 items: 6 in the cluster + 1 beside the search box
+	// "Reset" is a text button, so it has no width class; its width is measured
+	// content and is budgeted separately (and is the one number in this
+	// arithmetic that a live pixel run must confirm).
+	const reset = rem(5);
 	const total = search + declared.reduce((a, b) => a + b, 0) + gaps + reset;
-	assert.deepEqual(declared, [rem(7), rem(11), rem(6), rem(8), rem(10)], 'the six control widths are not the declared budget');
+	assert.deepEqual(declared, [rem(7), rem(10), rem(6), rem(7), rem(9), rem(7)], 'the six control widths are not the declared budget');
 	// 1366 viewport - 256px expanded sidebar - 40px `lg:px-5` - 8px card inset.
 	const available = 1366 - 256 - 40 - 8;
 	assert.ok(
