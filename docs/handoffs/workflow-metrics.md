@@ -40,3 +40,12 @@ exit and reviews trends after every 3 rows; each process change is logged below 
 - Reliability: heartbeat notifications never reached the session → in-session monitor.sh; launch race (a6-hdr1 never
   started) → launcher retries pull; planners ending on a "next action" (A2, A5) → resumed with an explicit rule.
 - Metric to watch next: packet items shipped vs claimed (Guided mode gap), REJECT_UX rate per slice, live-touch incidents = 0.
+
+## 05:25 — hung shell calls (Lane C)
+- **Three planners were stuck on one command each.** A6 was stuck for about 2 h on a vite start with Start-Process -PassThru. A2 was stuck for about 2 h on `chrome.exe --version`. A7 was stuck for about 5 h on a `tsx` test that never exited: its 120 s kill left the grandchild process running. Together that is about 9 planner-hours lost overnight.
+- **Why the monitor missed them.** It only looked at how long the run log had been idle, with a 90 min threshold, and flagged only A6, and only at 132 min. A7 was not tracked at all because its run was not in status.sh's list.
+- **Fixes:**
+  - Planner rule "A shell call must return" (0c7dd534).
+  - The Playwright MCP now uses `--isolated`, one headless browser per run, so there is no shared-profile lock.
+  - monitor.sh checks every 10 min, not 15. It now alarms on any tool call that has been running for more than 20 min in any session (hungtool.cjs, which reads :4097).
+- **Metric:** hung-call minutes per night. Target: under 30.
