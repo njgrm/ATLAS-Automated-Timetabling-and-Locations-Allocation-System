@@ -1341,3 +1341,91 @@ confirmed by QA, and the paint pair guards viewport-overflow/occlusion, which th
 cannot see.
 
 **Next action for me:** nothing is waiting on me. The Tailnet rows above are A4's after release.
+
+---
+
+## `A6 ready for release at 6498c322` — 2026-09-28 (Planner A6, non-elevated, source only)
+
+`A6 ready for release at 6498c322`. On `origin/main` (pushed `b517c9fe..6498c322`, fast-forward).
+**Not deployed — A4 owns every release (§14). I ran no browser.**
+
+**0 fixes live and seen / 7 items integrated and QA-accepted / 0 dropped.** Product range
+`abe0153a..4706ba65` on base `5c566dba`, 25 paths, +3534/−435, then a 4-path bounded correction,
+integrated by merge `6498c322` onto `b517c9fe`. **Zero** `src/components/timetable/**`, zero
+`useScheduleReviewWorkspaceState.ts`, zero `src/ui/**`, no `DataTableHeader`/`thead` — A2's and A5's
+fences held. The only file in the merged tree that differs from the reviewed candidate is
+`pages/Subjects.tsx`, which is **A5's** and came in from `main`.
+
+**Your 19:05 TOP PRIORITY spec arrived DURING this cycle's integration and is NOT REACHED.** I am
+posting it as a blocker, not folding it into a "done" claim — this cycle spent its two review rounds
+on the seven packet items. **5 major are live in my fence, and three of them sit in code `6498c322`
+just changed**, so the before/after must be read on staging before anyone concludes the change helped
+or hurt. Your `bf50359f` walk was measured on `7590d485`, which predates my merge:
+
+1. **Major 1** (header status/action rail, 1070px, warning hidden under `Assign` at x=1115 vs 1133) —
+   `pages/TeachingLoad.tsx` header, which items 38 and 40 both edited. **Not addressed; may have
+   changed.** Your two-calm-rows target, sentence case, no letter-spaced caps, `Draft — not saved` /
+   `Saved` chip, `Suggest assignments` secondary-not-red, `Archived load` into settings — none of it
+   is in this release.
+2. **Major 2** (`% staffed 100%` / `Classes without a teacher 0` beside `Unknown number of classes`
+   in the saved-data path) — `TeachingLoadTruthPanel` + `teachingLoadWorkspaceMetrics.ts`, both in my
+   diff. **Not addressed.** The contradictory claims are still there; suppressing or labelling every
+   derived count in the degraded state is a separate bounded change.
+3. **Major 3** (two 34px horizontal scrollers, 1,189px and 2,388px of content) — **partly, and
+   UNVERIFIED.** Item 38 moved the summary behind a `Load summary` dialog, but I bounded the
+   **vertical** axis only (`max-h-[70vh] overflow-y-auto`); the two horizontal pill strips are the
+   page's own `TeachingLoadTruthPanel` node passed in as `children`, so if they were scrollers they
+   still are. This is the one item where my change may not have moved the number you measured. Needs
+   the dialog open on staging before I will claim anything.
+4. **Major 4** (card expands inline into a destructive-looking assignment editor; wants a read-only
+   profile dialog + explicit `Edit assignments`) — **not addressed.** Item 16.1 gave every card its own
+   `Review load`, which opens the read-only `Teacher Workload` modal; the inline expansion you measured
+   is a different affordance and is still there.
+5. **Major 5** (Sections tab says `NO SECTIONS REQUIRE ATTENTION` after a no-match search) — **not
+   addressed**; `No sections match '<q>'` + clear-search is unbuilt.
+6. **Minor 6** (fixed draft footer) and **Minor 7** (footer `Review teachers` label) are **already
+   addressed** by items 40 and 16.1: the sticky `DRAFT STATUS` footer is deleted and the detached
+   control is gone, replaced by a per-row `Review load`. Your Minor 7's second half — the workload
+   dialog's own title/label naming — I have not renamed.
+
+**What the seven packet items did land**, against the operator's own words in the two `.docx` files:
+24.1 header direct buttons `Update teacher list` then `Create temporary teacher (Teacher X)`
+(`Review teachers` and the `... More` popover removed; strings verbatim — mutating the label back to
+`Refresh roster` fails the row). 23.1 profile card resizable with guarded bounds and legible subject
+codes. 16.1 per-row `Review load`, detached control gone. 38 inline `TEACHING LOAD SUMMARY` removed,
+`Load summary` in the header, dialog renders the page's own truth panel so there is one authority.
+39 `More filters` deleted from the DOM; one row of search + 4 selects + sort + 2 toggles. 40 footer
+deleted, Undo/Redo + `Save changes` in the filter row, `Save Teaching Load Changes?` confirmation.
+**FIX-29** (yours, from A3's owed list): `Confirm Assignment Swap` naming source teacher, **target**
+teacher and section plus the weekly-load impact for both; the card body no longer transfers ownership;
+two rapid confirms dispatch exactly one swap.
+
+**Fresh QA `ACCEPT_READY`** 23 → 19/0/4, one BLOCKING, bounded correction, then scoped re-review
+**22/22/0/0**. Combined gates on the merged tree: 6/6 · 13/13 · 43 pass 0 fail 6 pre-existing skips ·
+13/13 · 9/9 · 12/12 · 8/8 · 20/20. `typecheck` 5 errors, **0 in my fence** (3 × missing `playwright`,
+A2, module not installed here; 1 byte-identical pre-existing A2 `TS2367`).
+
+**The finding worth your attention, because it is the same class as your Major 2.** QA's BLOCKING was
+a count wearing the wrong noun: the save gate said "You have X uncommitted load assignment
+**changes**" while `X` was the number of **teachers** holding a draft — a 3-teacher/7-assignment draft
+told a scheduler it was about to write 3 changes. The control that claimed to cover it could not fail:
+it mounted a harness-authored shell whose sentence the test itself wrote, so replacing the real
+template still passed 10/10 and 43/0. It now derives a real per-teacher symmetric difference of
+`(subjectId, sectionId)` pairs — the unit the save's whole-set `PUT` actually writes, removals
+included — and reads `You have 7 uncommitted load assignment changes across 3 teachers.` The unprovable
+`for Term N` was **withheld** rather than asserted. A number that names the wrong unit is a truthfulness
+defect in a write gate, and your Major 2 is the same failure at the page level: live-looking `100%`/`0`
+next to `Unknown`.
+
+**ATLAS-origin rows still owed after A4 ships** (assert `window.location.origin`, 1366×768 and
+1920×1080): 23.1's resize handle visible bottom-right and draggable; 39's seven controls on one row with
+no horizontal scrollbar; 38/40's no-scroll fold; the `Load summary` dialog free of sideways scrollers;
+the save confirmation's real count with Cancel saving nothing; and FIX-29's negative controls —
+card-body click mutates nothing, the swap control opens the dialog and still mutates nothing, Cancel →
+zero draft changes, Confirm → exactly one, double-confirm → exactly one.
+
+**Next action for me:** dispatch the next A6 cycle against your 5 major, starting with **Major 3** and
+**Major 1** because both touch code this release changed and I will not guess which way they moved.
+**Worktree:** `lane-a6-teachers-tl` is `RETIRE_AFTER_INTEGRATION`, left in place for A4 (§14 gives A4 E:
+capacity and junction-safe reclamation); `work/a6-teachers-tl` resolves to `4706ba65`. Full detail in
+`docs/handoffs/planner-a6-handoff.md`.

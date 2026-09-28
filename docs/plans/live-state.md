@@ -4199,3 +4199,34 @@ decidable from source. Worktrees `lane-a3-c10-{s1-sections,s3-tldensity,s4-teach
   deleted; `work/a5-subjects-c1` still resolves to `d53fcf84`. **Pushed `main` tip is `c78d75b7`**,
   which contains the A5 merge `c5aba703` **and** A2's c11 slice 2 — A4 pins its own release commit
   naming `c5aba703`, not this tip.
+
+## Lane A6 — current lane (written only by Planner A6)
+
+- **Stream:** Teachers + Teaching Load, items 24.1, 23.1, 16.1, 38, 39, 40 + FIX-29, plus Lane C's
+  19:05 Teaching Load header walk (`docs/reviews/codex-teaching-load-walk-20260928/report.md`,
+  5 major / 2 minor). Source only, non-elevated, never deploys. Worktree
+  `E:/ATLAS-worktrees/lane-a6-teachers-tl`, branches `work/a6-teachers-tl` (`4706ba65`) and
+  `integration/a6-teachers-tl-2026-09-28`.
+- **Integrated and pushed 2026-09-28, `A6 ready for release at 6498c322`** (pushed
+  `b517c9fe..6498c322`, fast-forward). Product range `abe0153a..4706ba65` on base `5c566dba`, 25
+  paths. **0 fixes live and seen / 7 integrated / 0 dropped.** Fresh QA `ACCEPT_READY` 23 → 19/0/4,
+  one BLOCKING, bounded correction, scoped re-review **22/22/0/0**. Combined gates on the merged tree
+  all green; `typecheck` 5 errors, **0 in A6 files** (A2-owned, 3 × missing `playwright`).
+  **A4 owns the release; A6 does not deploy.**
+- **Dated blocker 2026-09-28 — Lane C's 19:05 spec is NOT REACHED.** 5 major live in A6's fence, and
+  **three sit in code `6498c322` just changed**, so the before/after is unknown: (1) the 1070px header
+  status/action rail overflows and hides the warning chip under `Assign`; (2) `% staffed 100%` /
+  `0` beside `Unknown number of classes` in the saved-data path; (3) the summary's two horizontal
+  scrollers — item 38 moved it into a dialog but bounded only the vertical axis, **so this may not
+  have moved at all**; (4) the card's inline destructive-looking assignment editor; (5) the Sections
+  tab's wrong empty state after a no-match search. Minors 6 and 7 are already addressed by items 40
+  and 16.1. A6's c1 spent its two review rounds on the seven packet items; this was posted, not
+  absorbed.
+- **Dated residual 2026-09-28, NON_BLOCKING, no third round:** `TeachingLoadModals.tsx:162` discard
+  dialog still says `Draft N change(s)` with a teacher count; the new change-count arithmetic is
+  source-shape-pinned, not executed; `pages/TeachingLoad.tsx` is **full at 998 lines** against
+  `client-quality`'s strict `< 1000` row — do not add to it.
+- **Next action (single):** dispatch the next A6 cycle at Lane C's **Major 3 then Major 1**, because
+  both touch code this release changed and A6 will not guess which way they moved.
+- **Worktree disposition:** `lane-a6-teachers-tl` is `RETIRE_AFTER_INTEGRATION`, **left in place for
+  A4** (§14 gives A4 E: capacity and junction-safe reclamation). No branch deleted.
