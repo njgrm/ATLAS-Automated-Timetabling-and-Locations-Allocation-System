@@ -146,18 +146,26 @@ export function sectionHoverDeltaMinutesFor(
  * The review dialog's title and description, for the selected teacher OR the
  * selected section.
  *
- * WHY THE TITLE NAMES THE TEACHER. The dialog reached this text from three
- * entry points (fix 16.1's per-row `Review load`, the repair queue's Next Step
- * action, and the pre-existing page binding), and the operator's complaint was
- * that a review told you nothing about WHOSE load you were looking at. So a
- * selected teacher is named in the title, and only a genuinely empty selection
- * falls back to the whole-roster title. `data.selected` — not `selectedId` — is
- * the input, because a stale id resolves to `null` and would otherwise render a
- * named title for nobody.
+ * A6 C2 (Slice 5, Minor 7) — THE TITLE NAMES THE ROSTER-LEVEL PURPOSE, AND THE
+ * DESCRIPTION NAMES THE SUBJECT.
  *
- * The strings are returned TOGETHER so the two can never be taken from
- * different branches: a title that says "Teacher workload: X" beside a
- * section-coverage description is exactly the mismatch this function prevents.
+ * Lane C: the neutral `Review teachers` control opened `TEACHER WORKLOAD:
+ * VALDEZ, GABRIELA LUZ` — a dialog exposing Total/Underloaded/Balanced/Overloaded
+ * filters over a 42-person roster. The title presented a ROSTER-WIDE audit as one
+ * person's profile, and neither the label nor the copy explained why Valdez was
+ * the subject.
+ *
+ * So the title is constant for the teacher view — `Staff workload audit` — and
+ * when a teacher IS selected the DESCRIPTION says so, in words, instead of the
+ * title implying it by naming somebody. `data.selected`, not `selectedId`, is the
+ * input, because a stale id resolves to `null` and would otherwise render a
+ * named description for nobody.
+ *
+ * The strings are still returned TOGETHER so they can never be taken from
+ * different branches: a roster-audit title beside a section-coverage description
+ * is exactly the mismatch this function prevents. The RETURN SHAPE IS UNCHANGED
+ * (`{ title, description }`), so every committed control that reads it keeps
+ * working — the fix is the string, not the contract.
  */
 export function reviewModalCopy(
 	viewMode: string,
@@ -171,12 +179,12 @@ export function reviewModalCopy(
 	}
 	if (!selected) {
 		return {
-			title: 'Review teachers',
-			description: 'Select a teacher to inspect their workload.',
+			title: 'Staff workload audit',
+			description: 'Every active teacher’s teaching load and capacity. Choose a teacher in the list to narrow it to one person.',
 		};
 	}
 	return {
-		title: `Teacher workload: ${selected.lastName}, ${selected.firstName}`,
-		description: 'Teaching load, capacity, and the next safe action for this teacher.',
+		title: 'Staff workload audit',
+		description: `Narrowed to ${selected.lastName}, ${selected.firstName}. This is one person inside the staff-wide workload audit; their teaching load, capacity, and the next safe action.`,
 	};
 }
