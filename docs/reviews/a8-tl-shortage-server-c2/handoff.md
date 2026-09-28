@@ -106,15 +106,22 @@ full suite actually reports **9**, and all 9 are pre-existing and candidate-inde
 Attribution was **measured, not asserted**: with my two production files checked out at the
 candidate's exact bytes (`git checkout HEAD --`), the same 9 failed (0 pass / 9 fail). With the
 whole `atlas-server/src` tree restored to the pre-candidate base `256abde4`, the same 9 failed
-identically. None of the 9 imports an A8 module, and their failures are term-contract
-(`TERM_FILTER_NOT_READY`), period-length and section-scope assertions. Not attributed to this
-candidate; not fixed here.
+identically, and for the two that do import a changed module the assertion text is byte-identical
+on both trees. Their failures are term-contract (`TERM_FILTER_NOT_READY`), period-length and
+section-scope assertions. Not attributed to this candidate; not fixed here.
+
+*(Corrected by the planner at QA round 2: an earlier revision of this line claimed "none of the 9
+imports an A8 module", which is false — `teaching-load-suggestion-derived-demand-c03r2.test.ts` and
+`tt-warning-realism-c07a.test.ts` do. The conclusion is unchanged and rests on the stronger
+base-vs-candidate reproduction above, not on the import graph.)*
 
 **Honest caveat:** one full run reported 50 pass / 8 fail. The 9 failing files above failed in every
 run, so the variance is a *different* file flaking in that run rather than one of these 9 going
 green. The DB-suite tally is therefore `49-50 pass / 8-9 fail` with the same 9 core pre-existing
 failures. I did not chase the flake further; it is outside this packet's scope and outside the
-changed code.
+changed code. *(QA round 2 could not reproduce it and could not name the file that varied; it is
+recorded as an unattributable host flake on a file outside the changed set, not as an open defect
+in this candidate.)*
 
 ## Open / for the planner
 

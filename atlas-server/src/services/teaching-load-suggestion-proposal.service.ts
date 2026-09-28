@@ -545,7 +545,8 @@ export async function applyTeachingLoadSuggestionProposal(input: {
 		//
 		// That is sufficient, and it is not a silent-overwrite hole: retains are
 		// never written (apply writes only `plan.inserts` and `plan.moves`), the
-		// transaction is `Serializable` (:929), and a genuinely changed owner is
+		// transaction is `Serializable` (the apply transaction declares it), and a
+		// genuinely changed owner is
 		// either a conflicting INSERT (caught above) or a move target re-validated
 		// below. The previous wording claimed the pair "must still be owned by
 		// the teacher the reviewer saw", which overstated what this code proves.
