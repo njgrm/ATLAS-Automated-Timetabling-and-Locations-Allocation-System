@@ -311,6 +311,10 @@ work against `main` moving; a disk reading taken during a concurrent wave). A2 l
   lanes' worktrees (junction-safe; never a worktree its lane has not marked retired).
 - After each cutover A4 runs one **fresh Codex smoke** (pages render, release identity) and posts `A4 LIVE at <sha>`
   with every included lane's rows. Lane C runs the UX acceptance rows.
+- **Shipped-vs-claimed check before staging (2026-09-29):** for every lane item in the train, A4 finds the change in the
+  pinned diff (a removed string is absent from `dist`, a new label is present) and lists any claimed item it cannot find
+  as `NOT IN TRAIN`. Evidence: A6 c3 "Guided mode removed" shipped in train 5's notes but "Guided mode is active" was
+  still in `dist` and on live.
 - Fresh session per release. Packet template: `docs/prompts/templates/a4-release.md`.
 
 ---
