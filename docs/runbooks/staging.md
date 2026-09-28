@@ -74,6 +74,52 @@ A first staging deploy needs roughly **0.9 GiB** on `E:` for the three owned
 dependency trees. Check free space before it — §3 warns below 25 GiB and fails
 closed below 15 GiB.
 
+## What the deploy script refuses
+
+`ops/staging/staging-guards.ps1` holds the pins. They run in preflight, **before
+the dry-run return**, so a refusal is identical with and without `-Execute`, and
+long before any mutation — before the mutex, the worktree, the dependency seeds,
+the env-file write, the database refresh, the task stop or the `schtasks /create`.
+Every refusal is `STAGING_DEPLOY_STOP: <TOKEN>: <detail>`.
+
+| Token | Refused |
+|---|---|
+| `TASK_NAME_LIVE_DENYLIST` | `-TaskName ATLAS-Runtime-Supervisor` (also `\ATLAS-Runtime-Supervisor`, any case) and `ATLAS-DevServer-Temp2`. Scheduled tasks are one global namespace, so this would stop and then overwrite the live task. |
+| `TASK_NAME_NOT_STAGING` | any name that is not `ATLAS-Staging` or `ATLAS-Staging-<instance>` — including `ATLAS-Staging-Supervisor-evil`. |
+| `TASK_NAME_EMPTY` | empty or whitespace-only `-TaskName`. |
+| `RELEASE_ROOT_OUTSIDE_STAGING` | a resolved `-ReleaseRoot` outside `E:\ATLAS-staging`: a live release root, `D:\ATLAS`, the sibling trap `E:\ATLAS-staging-evil`, or `E:\ATLAS-staging\..\…` resolved **after** normalisation. |
+| `RELEASE_ROOT_NOT_ABSOLUTE` | a relative, UNC, device or wildcard `-ReleaseRoot`. |
+| `STAGING_ENV_LIVE_LEAF` | `-StagingEnvFile …\atlas-server.env`, i.e. the live env file. |
+| `STAGING_ENV_LEAF_MISMATCH` | any leaf other than `atlas-staging.env`. |
+| `STAGING_ENV_NOT_ABSOLUTE` | a relative, UNC, device or wildcard `-StagingEnvFile`. |
+
+The staging env file default is `D:\ATLAS-runtime-config\atlas-staging.env` and
+stays valid — do not relocate it, the launcher already points there.
+
+**No credential or companion-origin value is ever printed.** The client-build
+timeline line reports the *key name* and whether it was set
+(`VITE_ENROLLPRO_URL key set: true`), never the origin. A failed build is scrubbed
+of the origin before its last output lines are surfaced, the same way
+`Invoke-PgTool` scrubs the database password. Database names, ports, file paths
+and key names are not secrets and do appear in the plan and result JSON.
+
+`-Execute` still requires an elevated Administrator PowerShell. The **dry-run does
+not** and is read-only, so the guard gate below needs no privilege.
+
+## Guard gate
+
+```powershell
+npm run test:staging-guards
+```
+
+`ops/staging/__tests__/deploy-staging-guards.test.mjs` drives the real script in
+dry-run and asserts each refusal above, plus the positive controls (default
+parameters still print a plan and exit 0; `-ReleaseRoot 'E:\ATLAS-staging\'` with
+a trailing separator is accepted). Rows that must hold regardless of host state
+dot-source `staging-guards.ps1` as pure functions in a child PowerShell — the
+documented non-mutating entry point. Nothing in the suite mutates disk, the task
+scheduler, or a database.
+
 ## Refresh the database on demand
 
 ```powershell

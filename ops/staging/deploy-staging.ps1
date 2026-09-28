@@ -25,7 +25,23 @@
     chain rooted at a retired release has already taken this runtime down once.
 
 .PARAMETER Execute
-    Without it the script prints a plan and mutates nothing.
+    Without it the script prints a plan and mutates nothing. The dry-run path is
+    read-only and unelevated; only -Execute demands an elevated Administrator
+    PowerShell.
+
+.PARAMETER TaskName
+    Pinned by ops/staging/staging-guards.ps1. The live task is never a
+    participant: a hard deny-list plus a positive allow-rule refuse any name that
+    is not `ATLAS-Staging` or `ATLAS-Staging-<instance>`.
+
+.PARAMETER ReleaseRoot
+    Pinned to the staging root `E:\ATLAS-staging`. The RESOLVED path is compared,
+    so a live release root, the shared repo root, a `..` traversal out of the
+    root, and a sibling such as `E:\ATLAS-staging-evil` are all refused.
+
+.PARAMETER StagingEnvFile
+    Pinned to the leaf `atlas-staging.env`. The live `atlas-server.env` and any
+    other leaf are refused.
 
 .PARAMETER RotateJwtSecret
     Regenerate the staging JWT secret, invalidating every staging session.
@@ -59,16 +75,34 @@ param(
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 . (Join-Path $PSScriptRoot 'staging-common.ps1')
+. (Join-Path $PSScriptRoot 'staging-guards.ps1')
 
 function Fail([string] $Message) { throw "STAGING_DEPLOY_STOP: $Message" }
-function Invoke-Native([string] $File, [string[]] $Arguments, [string] $Cwd = '') {
+function Invoke-Native([string] $File, [string[]] $Arguments, [string] $Cwd = '', [string[]] $RedactValues = @()) {
+    <#
+    .SYNOPSIS
+        Run one native tool, fail closed on a non-zero exit, never surfacing a
+        secret or companion-origin VALUE.
+    .DESCRIPTION
+        -RedactValues is the same defence Invoke-PgTool applies to the database
+        password: the last lines of a failed build or codegen are surfaced because
+        they are the whole diagnostic value of a failure, so any caller passing a
+        value it must not print strips that value first. A build tool that ever
+        echoed VITE_ENROLLPRO_URL cannot then leak it into a refusal.
+    #>
     $previous = $ErrorActionPreference
     $ErrorActionPreference = 'Continue'
     try {
         if ($Cwd) { Push-Location $Cwd }
         try { $out = & $File @Arguments 2>&1 } finally { if ($Cwd) { Pop-Location } }
     } finally { $ErrorActionPreference = $previous }
-    if ($LASTEXITCODE -ne 0) { Fail "$File failed (exit $LASTEXITCODE): $(($out | Select-Object -Last 12) -join ' ')" }
+    if ($LASTEXITCODE -ne 0) {
+        $text = (($out | Select-Object -Last 12) -join ' ')
+        foreach ($secret in $RedactValues) {
+            if (-not [string]::IsNullOrWhiteSpace($secret)) { $text = $text -replace [regex]::Escape($secret), '***' }
+        }
+        Fail "$File failed (exit $LASTEXITCODE): $text"
+    }
     return ($out -join "`n")
 }
 function Get-HttpStatus([string] $Url) {
@@ -117,7 +151,32 @@ function Stop-TaskIfPresent {
 }
 
 # ------------------------------------------------------------------ preflight
-if (-not (Test-Administrator)) { Fail 'An elevated Administrator PowerShell is required to register the staging task and kill its supervisor tree.' }
+# Every guard below runs BEFORE the dry-run return, so a refusal is identical in
+# dry-run and in execute, and long before any mutation: nothing here is reached
+# until the release worktree is created, the dependency trees are seeded, the env
+# file is written, the database is refreshed, the task is stopped or the mutex at
+# `Global\ATLAS-StagingDeploy` is taken.
+#
+# The guards raise a plain `TOKEN: <detail>` message, and Invoke-StagingGuard
+# routes it through the same `Fail` helper the rest of preflight uses, so the
+# caller always sees one contract: STAGING_DEPLOY_STOP: <TOKEN>: <detail>. The
+# RESOLVED, trimmed value is what is assigned back, so no later Join-Path or
+# schtasks call can see a different string than the one that was validated.
+function Invoke-StagingGuard([scriptblock] $Guard) {
+    try { return (& $Guard) } catch { Fail $_.Exception.Message }
+}
+
+$TaskName       = Invoke-StagingGuard { Assert-StagingTaskName -Name $TaskName }
+$ReleaseRoot    = Invoke-StagingGuard { Assert-StagingReleaseRoot -Path $ReleaseRoot }
+$StagingEnvFile = Invoke-StagingGuard { Assert-StagingEnvFilePath -Path $StagingEnvFile -LiveEnvFile $LiveEnvFile }
+
+# Registering and starting a SYSTEM scheduled task and killing a supervisor tree
+# are HIGH, so an EXECUTE still demands an elevated shell. The DRY-RUN path only
+# reads (this file, the contract template, the live env file, machine scope, git)
+# and must stay runnable unelevated: that is what makes
+# `npm run test:staging-guards` a real gate rather than a privilege-gated one.
+# Execute-time elevation is unchanged.
+if ($Execute -and -not (Test-Administrator)) { Fail 'An elevated Administrator PowerShell is required to register the staging task and kill its supervisor tree.' }
 if ($ServerPort -eq 5001 -or $ServerPort -eq 5174 -or $ClientPort -eq 5001 -or $ClientPort -eq 5174) {
     Fail "Staging must never use a live port (5001/5174). Got $ServerPort/$ClientPort."
 }
@@ -285,9 +344,12 @@ if (-not $SkipBuild) {
     $previousEnrollPro = $env:VITE_ENROLLPRO_URL
     try {
         $env:VITE_ENROLLPRO_URL = $EnrollProOrigin
-        $null = Invoke-Native 'npm' @('run', 'build') -Cwd (Join-Path $releaseDir 'atlas-client')
+        $null = Invoke-Native 'npm' @('run', 'build') -Cwd (Join-Path $releaseDir 'atlas-client') -RedactValues @($EnrollProOrigin)
     } finally { $env:VITE_ENROLLPRO_URL = $previousEnrollPro }
-    Mark "client build (vite, VITE_ENROLLPRO_URL=$EnrollProOrigin)"
+    # Key NAME and presence only. This line used to interpolate the origin VALUE
+    # into the deploy timeline, which is copied into review artifacts, transcripts
+    # and handoffs. The origin is still exported into the build exactly as before.
+    Mark (Format-EnrollProClientBuildMark -Origin $EnrollProOrigin)
 }
 if (-not (Test-Path -LiteralPath (Join-Path $releaseDir 'atlas-server/dist/server.js'))) { Fail 'atlas-server/dist/server.js missing after build.' }
 if (-not (Test-Path -LiteralPath (Join-Path $releaseDir 'atlas-client/dist/index.html')))  { Fail 'atlas-client/dist/index.html missing after build.' }
