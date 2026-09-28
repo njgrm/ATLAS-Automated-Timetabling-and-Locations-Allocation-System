@@ -25,7 +25,7 @@ import type { FacultySummary } from '@/types';
 import { Link } from 'react-router-dom';
 import { getDepartmentColor } from '@/lib/department-colors';
 import { GradeBadge } from '@/components/faculty-assignments/GradeBadge';
-import { formatFacultyDisplayName } from '@/components/faculty/teacherNameDisplay';
+import { formatFacultyDisplayName, formatFacultyInitials } from '@/components/faculty/teacherNameDisplay';
 import { deriveLoadStatus, STANDARD_WEEKLY_TEACHING_HOURS } from '@/lib/faculty-assignment-helpers';
 import { departmentLabel } from '@/lib/deped-glossary';
 
@@ -124,11 +124,14 @@ export function FacultyProfileSheet({
 				<DialogHeader className="pb-6 border-b">
 					<div className="flex items-center gap-4">
 						<div className="flex size-14 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xl font-bold text-primary shadow-sm border border-primary/10">
-							{faculty.firstName?.[0] ?? ''}{faculty.lastName?.[0] ?? ''}
+							{/* Fix 22 (c10 re-issue): uppercase avatar initials, same display
+						    standard as the name beside them. Stored fields untouched. */}
+						{formatFacultyInitials(faculty)}
 						</div>
 						<div className="min-w-0">
 							<div className="flex items-center gap-2">
-								{/* Fix 22: canonical `Last, First`, stored casing preserved. */}
+								{/* Fix 22 (c10 re-issue): canonical `Last, First`, UPPERCASE for
+							    display. The stored name is unchanged. */}
 								<DialogTitle className="text-xl font-bold truncate">
 									{formatFacultyDisplayName(faculty)}
 								</DialogTitle>
