@@ -183,3 +183,10 @@ Metrics: `docs/handoffs/workflow-metrics.md` (trend review 1 at 19:55). Demo: We
 | 2026-09-27 23:10 | A3 | `ses_f1cdb5976ffeZApJg9uYqJopdx` (c0 done) | **ACCEPT**, 0 BLOCKING / 4 NON_BLOCKING; `1e417694` integrated, NOT live (live `c0d91827`) | c1 `overnight-a3-ui-ux-2026-09-28-c1.md` | UX-R02–R05/R03c not reached; #52 + B5 unperformed; #53 undeployed |
 | 2026-09-27 22:00 | A2 | `ses_f1ccfb677ffe2OdBUU7IleK4hV` (elevated) | running | — | packet c0 `overnight-a2-timetable-2026-09-27.md` |
 | 2026-09-27 22:00 | A3 | `ses_f1cdb5976ffeZApJg9uYqJopdx` | running | — | packet c0 `overnight-a3-ui-ux-2026-09-27.md` |
+
+## 00:30 — year 2022-2023 generation diagnosis (executor, 193k tokens / 78 tools)
+
+Root cause is STAFFING DATA, not a code bug: after the EnrollPro wipe only 23 teachers are active (23 stale); 23 × 30 h = exactly the 920 sessions needed, zero slack; only 2 MAPEH teachers. 355 items = 25 substitute-only class/subject pairs (MAPEH ×18 sections + MATH/ESP/SCI_BIO/TLE_ICT in S19/S20); 105 = owners at weekly limit; 8 hard violations (TLE rotation load measured differently TL vs generator — unverified, watch). Teachers #3, #20, #33 have no department → auto-match skips them (0 load).
+Also missing per-year setup: 0 shift windows (year 10 had 20), 0 special events (had 2).
+Candidate 5bccb65d (branch work/hotfix-newyear-readiness-20260929): TL modal headline fix + '25 classes still need a real teacher'; atlas-qa dispatched. Data script copy-year-setup-shift-windows-events.mjs (dry-run: +20 windows, +2 events; --apply receipt, --revert) awaits operator approval.
+Rollovers PAUSED pending operator staffing decision.
