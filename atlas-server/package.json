@@ -18,6 +18,7 @@
     "backup:retention": "tsx src/scripts/atlas-backup.ts retention",
     "migrate:guarded": "tsx src/scripts/atlas-migrate.ts",
     "test:migration-guard": "tsx src/__tests__/migration-guard.test.ts",
+    "test:past-year-timetable-scope-c12": "tsx --test src/__tests__/past-year-timetable-scope-c12.test.ts",
     "test:actor-school-mutations": "tsx src/__tests__/runtime-router-actor-school-mutations.test.ts",
     "test:actor-school-mutations-c02": "tsx src/__tests__/faculty-delete-actor-school-c02.test.ts",
     "test:actor-school-residual": "tsx src/__tests__/runtime-router-actor-school-residual.test.ts",

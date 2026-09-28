@@ -31,6 +31,10 @@ import { createSwapArmHandler } from '@/components/timetable/timetableSwapArming
 import { TimetableMoveStatusLine } from '@/components/timetable/TimetableMoveStatusLine';
 import ConcurrentCommitNoticeBar from '@/components/timetable/ConcurrentCommitNoticeBar';
 import { buildScopeKey, clearScopeState, shouldClearForScopeChange } from '@/components/timetable/timetableScopeHygiene';
+import { SimplePastYearView } from '@/components/timetable/simple/SimplePastYearView';
+import { SimplePastYearReadOnlySurface, type PastYearViewMode } from '@/components/timetable/simple/SimplePastYearReadOnlySurface';
+import { buildPastYearBackHref, resolvePastYearViewState } from '@/components/timetable/simple/pastYearViewState';
+import { usePastYearTimetable } from '@/components/timetable/simple/usePastYearTimetable';
 import { YEAR_SETUP_HREF } from '@/lib/timetable-capabilities';
 
 const TeacherDepartureRecoverySheet = lazy(() => import('@/components/timetable/TeacherDepartureRecoverySheet').then((module) => ({
@@ -99,6 +103,16 @@ export default function ScheduleReviewWorkspace() {
 	 * correction closes. Threaded to `CenterWorkspace` → `CenterWorkspacePaneSurface`.
 	 */
 	const [routeAppliedPathname, setRouteAppliedPathname] = useState<string | null>(null);
+
+	/**
+	 * A2 C12 / ITEM S2 — the past-year operator's term and view choices.
+	 *
+	 * `null` term means "let the SERVER resolve the term from that past year's own
+	 * frozen ordered-term contract" — the client does not assume Term 1 (§7). The
+	 * view axis is a local display choice and writes nothing.
+	 */
+	const [pastYearTermOrder, setPastYearTermOrder] = useState<number | null>(null);
+	const [pastYearViewMode, setPastYearViewMode] = useState<PastYearViewMode>('section');
 
 	const setLayoutMode = (mode: TimetableLayoutMode) => {
 		setLayoutModeState(mode);
@@ -322,6 +336,66 @@ export default function ScheduleReviewWorkspace() {
 		() => (moveArmed && moveTargetNotice.kind === 'targets' ? new Set(moveTargetNotice.slotKeys) : new Set<string>()),
 		[moveArmed, moveTargetNotice],
 	);
+
+	/**
+	 * A2 C12 / ITEM S2 — the PAST-YEAR read, and the hook that performs it.
+	 *
+	 * `usePastYearTimetable` is called HERE, above every early return, for the same
+	 * reason `moveTargetSlotKeys` is: a hook below the loading and error guards runs
+	 * in fewer renders than the ones that reach the body, which React rejects as
+	 * #310. See the comment on `moveTargetSlotKeys`.
+	 */
+	const pastYear = usePastYearTimetable({
+		schoolId: state.headerContext?.schoolId ?? null,
+		requestedSchoolYearId: new URLSearchParams(location.search).get('schoolYearId'),
+		termOrder: pastYearTermOrder,
+	});
+
+	/**
+	 * A2 C12 / ITEM S2 — the gate.
+	 *
+	 * THIS IS WHERE C1 IS ENFORCED, and it is enforced STRUCTURALLY: a past year
+	 * returns HERE, before the DndContext, `TimetableSimpleHeader`,
+	 * `ScheduleReviewWorkspaceBody`, the drag overlay, the workflow dialogs and the
+	 * undo/redo strip are mounted at all. So in a past year there is no reachable
+	 * path to a placement, quick-place, swap, generate, publish, discard, undo/redo
+	 * commit, manual-edit commit, or term/generation action — the components are not
+	 * mounted and refusing, they are absent. The operator is not offered an action a
+	 * server would reject.
+	 *
+	 * It sits above the loading and error guards deliberately: a past-year operator
+	 * must not be shown the CURRENT year's skeleton or the current year's error,
+	 * and `pastYearViewState` turns an unresolved read into a notice rather than a
+	 * fall-through.
+	 */
+	const pastYearView = resolvePastYearViewState({
+		requestedSchoolYearId: new URLSearchParams(location.search).get('schoolYearId'),
+		activeSchoolYearId: state.headerContext?.schoolYearContext?.activeSchoolYearId ?? null,
+		read: pastYear.read,
+	});
+
+	if (pastYearView.kind !== 'current-year') {
+		return (
+			<SimplePastYearView
+				view={pastYearView}
+				backHref={buildPastYearBackHref(location.pathname, location.search)}
+				currentSurface={null}
+				pastSurface={
+					pastYearView.kind === 'past-year' && pastYear.payload ? (
+						<SimplePastYearReadOnlySurface
+							yearLabel={pastYear.payload.pastYear.yearLabel ?? pastYearView.yearLabel}
+							entries={pastYear.payload.entries ?? []}
+							orderedTerms={pastYear.payload.source?.orderedTerms ?? []}
+							termIndex={pastYear.selectedTermIndex ?? pastYear.payload.source?.termIndex ?? 0}
+							onTermIndexChange={setPastYearTermOrder}
+							viewMode={pastYearViewMode}
+							onViewModeChange={setPastYearViewMode}
+						/>
+					) : null
+				}
+			/>
+		);
+	}
 
 	if (state.loading && !state.draft) {
 		const routeIntent = resolveTimetableLoadingIntent(location.pathname);

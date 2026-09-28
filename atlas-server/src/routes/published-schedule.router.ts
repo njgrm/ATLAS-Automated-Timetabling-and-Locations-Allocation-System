@@ -2,9 +2,10 @@ import { Router } from 'express';
 import type { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { getDataContext } from '../lib/data-context.js';
-import { extractSseToken } from '../middleware/authenticate.js';
+import { authenticate, extractSseToken } from '../middleware/authenticate.js';
 import { MAX_ACADEMIC_TERM_INDEX } from '../services/academic-term.service.js';
 import { resolveCanonicalFacultyFromAuthPayload } from '../services/faculty-identity.service.js';
+import { resolvePastYearReadScope } from '../services/past-year-timetable-scope.js';
 import { attachSseErrorGuard, registerSseCleanup, sseWrite } from '../lib/sse.js';
 import {
 	getPublishedFacultySchedule,
@@ -650,6 +651,113 @@ router.get(
 			const heartbeat = setInterval(() => sseWrite(res, ': heartbeat\n\n'), 15_000);
 			registerSseCleanup(req, res, () => { unsub(); clearInterval(heartbeat); });
 		} catch (e) { next(e); }
+	},
+);
+
+// ─── Past-year READ (A2 C12 / ITEM S2) ──────────────────────────────────────
+// The PUBLIC published family above is deliberately UNAUTHENTICATED: EnrollPro
+// and AIMS read it by contract, and adding authentication here would break a
+// companion. This route is a DIFFERENT path — one segment deeper than
+// `/schools/:schoolId/school-years/:schoolYearId/schedules/published`, so it can
+// never shadow or widen the public one — for an operator opening a PAST year
+// from inside ATLAS.
+//
+// It is a GET and it is the ONLY registration on this path: C1 is structural, so
+// a past year must have no reachable mutation on the server either.
+//
+// SCOPE IS THE ACTOR'S, NOT THE CALLER'S: `resolvePastYearReadScope` decides, and
+// the year list it is given is loaded for `actorSchoolId` — never for the
+// requested `schoolId`. A caller naming another school is refused on the school
+// check before the year list is consulted.
+//
+// TERM AUTHORITY (C5 / §7): the term is resolved from the REQUESTED YEAR'S OWN
+// frozen ordered-term contract — the past year's, never the current school's —
+// and a year whose contract does not resolve is a typed 409, never a Term 1.
+//
+// A past year with nothing published is a TYPED 404, never the current year.
+router.get(
+	'/schools/:schoolId/school-years/:schoolYearId/schedules/published/history',
+	authenticate,
+	async (req: Request, res: Response, next: NextFunction) => {
+		try {
+			// The actor's OWN year list. This is the load that makes the school
+			// check load-bearing: it is keyed by the actor, not by the path.
+			const actorSchoolId = Number(req.user?.schoolId);
+			const yearRows = Number.isSafeInteger(actorSchoolId) && actorSchoolId >= 1
+				? await db().enrollProSchoolYearMirror.findMany({
+					where: { schoolId: actorSchoolId },
+					select: { enrollProSchoolYearId: true },
+				})
+				: [];
+			const scope = resolvePastYearReadScope({
+				actorSchoolId,
+				requestedSchoolId: req.params.schoolId,
+				requestedSchoolYearId: req.params.schoolYearId,
+				actorSchoolYearIds: yearRows.map((row) => row.enrollProSchoolYearId),
+				activeSchoolYearId: await resolveActiveSchoolYearId(actorSchoolId),
+			});
+			if (!scope.ok) {
+				res.status(scope.status).json({ code: scope.code, message: scope.message });
+				return;
+			}
+
+			// C5 — the term axis is the REQUESTED YEAR'S, never the current year's.
+			//
+			// `requireActiveTermSelection` defaults to `'active'`, and for a PUBLISHED
+			// run `'active'` is resolved against THAT RUN'S OWN FROZEN ordered-term
+			// contract, scoped to `resolved.source.schoolYearId` — i.e. the past year
+			// asked for (`published-schedule.service.ts:973-988`). It is NOT the current
+			// school's active term. An explicit `termIndex` is validated against that
+			// same frozen contract and refused with 400 TERM_INDEX_OUTSIDE_CONTRACT when
+			// the past year has no such term.
+			//
+			// §7 — a past year whose frozen contract does not resolve is a typed 409
+			// TERM_STRUCTURE_UNAVAILABLE from the service, never a silent Term 1.
+			const scheduleOptions = requireActiveTermSelection(req, res);
+			if (!scheduleOptions) return;
+
+			// The year LABEL travels with the payload, from this same mirror, so
+			// the client never has to invent a second year-label source (C4).
+			const yearRow = await db().enrollProSchoolYearMirror.findUnique({
+				where: { schoolId_enrollProSchoolYearId: { schoolId: scope.schoolId, enrollProSchoolYearId: scope.schoolYearId } },
+				select: { enrollProSchoolYearId: true, yearLabel: true, isActive: true, isArchived: true },
+			});
+
+			try {
+				const payload = await getPublishedSchedulePayload(
+					scope.schoolId,
+					scope.schoolYearId,
+					scheduleOptions,
+					undefined,
+					scope.activeSchoolYearId,
+				);
+				res.json({
+					...payload,
+					pastYear: {
+						schoolYearId: scope.schoolYearId,
+						yearLabel: yearRow?.yearLabel ?? null,
+						isActive: yearRow?.isActive ?? false,
+						isArchived: yearRow?.isArchived ?? false,
+						readOnly: true,
+					},
+				});
+			} catch (serviceError: any) {
+				// A past year with nothing published is an empty/notice state on
+				// the client. It is NEVER the current year, and it never falls
+				// through to one: this is a typed 404, not a re-resolve.
+				if (serviceError?.code === 'PUBLISHED_RUN_NOT_FOUND') {
+					res.status(404).json({
+						code: 'PAST_YEAR_NOT_PUBLISHED',
+						message: `No timetable was published for school year ${scope.schoolYearId}.`,
+						schoolYearId: scope.schoolYearId,
+					});
+					return;
+				}
+				throw serviceError;
+			}
+		} catch (error) {
+			next(error);
+		}
 	},
 );
 
