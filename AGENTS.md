@@ -235,6 +235,24 @@ Deployment, schema/migration apply, live-data mutation, generation, publication,
 - Only one stream may swap or restart the shared 5001/5174 runtime at a time; others use isolated ports and label their evidence `isolated`.
 - Every temporary process, browser, fixture and database has a named cleanup owner.
 
+### Lane A4 — release (operator, 2026-09-28)
+
+Evidence: c9, c10 and c12 each stopped a deploy for reasons a release manager would not (the developer lane guarded its own
+work against `main` moving; a disk reading taken during a concurrent wave). A2 lost hours of timetable work to releases.
+
+- **A4 is the only lane that deploys** and the only one that runs elevated. A2/A3 (and any product lane) run
+  non-elevated, build candidates, and post `<lane> ready for release at <sha>` + the live rows in their channel.
+- A4 merges the ready SHAs into **one pinned release commit** (`release/<date>-<n>`), gates it once (§11 by tier),
+  builds, cuts over, health + public API, rolls back on failure. **A pinned release is never reopened because `main`
+  moved**; later work waits for the next train.
+- A4 resolves **mechanical conflicts only** (imports, package.json unions, docs). A semantic conflict goes back to the
+  owning lane with the exact paths; A4 never edits product code or tests.
+- A4 owns E: capacity (§3), runtime env/config changes, the service restart, and worktree reclamation of retired
+  lanes' worktrees (junction-safe; never a worktree its lane has not marked retired).
+- After each cutover A4 runs one **fresh Codex smoke** (pages render, release identity) and posts `A4 LIVE at <sha>`
+  with every included lane's rows. Lane C runs the UX acceptance rows.
+- Fresh session per release. Packet template: `docs/prompts/templates/a4-release.md`.
+
 ---
 
 ## 15. Live State Document
