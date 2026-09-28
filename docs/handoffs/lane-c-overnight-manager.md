@@ -191,3 +191,21 @@ Also missing per-year setup: 0 shift windows (year 10 had 20), 0 special events 
 Candidate 5bccb65d (branch work/hotfix-newyear-readiness-20260929): TL modal headline fix + '25 classes still need a real teacher'; atlas-qa dispatched. Data script copy-year-setup-shift-windows-events.mjs (dry-run: +20 windows, +2 events; --apply receipt, --revert) awaits operator approval.
 Rollovers PAUSED pending operator staffing decision.
 - 00:40 5bccb65d atlas-qa ACCEPT_READY (62.7k tokens; 4 TL failures pre-exist on main) → merged to main; rides next train. Rendered proof owed in that train's Codex check.
+
+## 03:05 checkpoint (pre-compact; operator asleep — Lane C makes judgement calls)
+
+**Direction (operator, 03:00):** make ATLAS fully ready for older schedulers — easy to navigate and understand, never
+dense or intimidating, and helping at every step (Teaching Load, Timetable, Teacher Concerns especially under
+constraints) so no guesswork or tedium is left to the user. Keep improving the workflow for speed and effectiveness,
+never over-engineered.
+**Live:** train 5 `ce1257c8` (rollback `c9be17fe`). On main for train 6: A5 c2 `bf1a7913`, A5 subjects slice A (`419277e4`),
+A9 teaching-personnel `c491e98d` (reset now reconciles, not prune).
+**Running:** a2-hdr2 (leak bisect → header), a5-subj2 (slice B picker sweep), a6-hdr1c (QA + integrate Guided removal/TL
+header, session ses_f17327a54ffeSVMoLIWDsajymK), a8-srv1 (TL server truth, QA round 1 correction). Queued: A6 c5
+`docs/prompts/a6-outage-placeholders-2026-09-29.md` (fresh session after a6-hdr1c), A7 carry-over packet (after a7-c2).
+**Train 6 plan:** when A6 Guided removal lands (+ whatever else is merged), cut A4 train 6 (fresh elevated session, reuse
+train-5 packet shape) incl. shipped-vs-claimed check, drop 7 stale drill DBs, E: reclaim. Codex staging walk (terra
+medium) then GO. After live: Sync now (reconcile) with operator → ids 3/20/33 stale, 2022-2023 = 20 teachers.
+**Rollovers PAUSED** until 2022-2023 generates. After each rollover: run the year-setup copy script (prev→new year).
+**Tooling:** monitor.sh (in-session heartbeat, 90-min idle), await.sh waiters, memguard pid 6256, Playwright MCP now
+`--headless` (global opencode.jsonc; backup in scratchpad) — stops the about:blank Chromium pop-ups.
