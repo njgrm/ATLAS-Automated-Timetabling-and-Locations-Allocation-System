@@ -18,3 +18,17 @@ Priority order (demo Wednesday 2026-09-30):
 4. The substitute preview did not show "N classes still need a real teacher" (hotfix 5bccb65d) — find which path Codex
    hit (strategy "Real teachers first, then substitutes") and make the note appear there.
 Tests failing-first per item. Rendered proof 1366x768. Push to main after QA; post ready-for-release. Do not end to wait.
+
+## Update 01:40 — merged with the shortage evidence (operator priority)
+Evidence: Codex `docs/reviews/codex-staging-shortage-ce1257c8/report.md` (4/10) + A8 audit
+`docs/reviews/a8-tl-shortage-audit-2026-09-29.md`. **A8 c2 does the server half** (40h cap, truthful counts, assignable
+placeholders + one create-and-assign endpoint, 409 naming, one load definition). You do the scheduler-facing half:
+5. **Shortage first:** the first screen says `25 classes have no teacher` and a hiring plan by SUBJECT (`MAPEH: hire 2`),
+   using saved data with its date — never "this figure is withheld". Fix `Subjects Affected` counting departments.
+6. **One step to cover it:** beside each short subject, `Add a teacher to be hired` → prefilled dialog → one
+   `Assign this teacher now` (A8's endpoint). No side-nav detour. Placeholders labelled `to be hired` in TL, Faculty,
+   timetable cards.
+7. **Choices with trade-offs in plain words:** 30 h / stretch to 40 h / teach outside department / leave open — each one
+   line of consequence and a preview number before apply.
+8. After Apply, the page says what is still open and the next step, not "complete".
+Judge by §11 Design judgement gate: how much thinking and clicking it removes. Rendered before/after at 1366x768.
