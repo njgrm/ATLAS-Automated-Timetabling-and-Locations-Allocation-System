@@ -100,7 +100,9 @@ export function useSubjectStats({ subjects, coverageBySubjectId }: SubjectStatsI
 type CoverageDetailInput = {
 	coverageSubject: Subject | null;
 	teacherCoverage: Record<number, {
-		assigned: { facultyId: number; name: string; grades: number[]; load: number; sections: string[] }[];
+		// A5 (17.1): sections are structured (`{ id, grade, name }`), matching
+		// `SubjectCoverageDetail` — the dialog renders the grade as a pill.
+		assigned: { facultyId: number; name: string; grades: number[]; load: number; sections: { id: number | null; grade: number | null; name: string }[] }[];
 	}>;
 };
 

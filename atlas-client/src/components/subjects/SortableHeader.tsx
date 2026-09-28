@@ -1,7 +1,4 @@
-import { ArrowDown, ArrowUp, ArrowUpDown } from 'lucide-react';
-import { Button } from '@/ui/button';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip';
-import { cn } from '@/lib/utils';
+import { SortableColumnHeader } from '@/components/table/SortableColumnHeader';
 
 // SCA-01.2: 'isSeedable' is not a sort field. Bootstrap seed state must not
 // rank the catalog — Teacher coverage is a plain display column.
@@ -17,6 +14,14 @@ type SortableHeaderProps = {
 	align?: 'left' | 'right';
 };
 
+/**
+ * A5 (items 34 + 35): the Subjects header is now a thin binding over the ONE
+ * shared `SortableColumnHeader`. The Subjects-specific sort keys stay declared
+ * here (other modules import these types), but the markup, the `aria-sort`
+ * value, the button and the portalled dark tooltip are owned by the shared
+ * primitive — so the clipping fix reaches this table without a second copy of
+ * the header, and no future table can reintroduce the bug.
+ */
 export function SortableHeader({
 	field,
 	label,
@@ -25,37 +30,14 @@ export function SortableHeader({
 	onToggleSort,
 	align = 'left',
 }: SortableHeaderProps) {
-	const isActive = sortField === field;
-	const direction = isActive ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none';
-	const ariaLabel = `Sort by ${label}, currently ${direction}`;
-
 	return (
-		<th
-			className={cn('px-4 py-3 text-left', align === 'right' && 'text-right')}
-			aria-sort={direction as 'ascending' | 'descending' | 'none'}
-		>
-			<TooltipProvider delayDuration={200}>
-				<Tooltip>
-					<TooltipTrigger asChild>
-						<Button
-							variant="ghost"
-							size="sm"
-							onClick={() => onToggleSort(field)}
-							aria-label={ariaLabel}
-							className={cn(
-								'h-auto px-0 py-0 font-semibold text-muted-foreground hover:text-foreground',
-								align === 'right' && 'ml-auto',
-							)}
-						>
-							{label}
-							{!isActive && <ArrowUpDown className="size-3 text-muted-foreground/50" />}
-							{isActive && sortDir === 'asc' && <ArrowUp className="size-3" />}
-							{isActive && sortDir === 'desc' && <ArrowDown className="size-3" />}
-						</Button>
-					</TooltipTrigger>
-					<TooltipContent side="top" className="text-xs">{ariaLabel}</TooltipContent>
-				</Tooltip>
-			</TooltipProvider>
-		</th>
+		<SortableColumnHeader
+			field={field}
+			label={label}
+			sortField={sortField}
+			sortDir={sortDir}
+			onToggleSort={onToggleSort}
+			align={align}
+		/>
 	);
 }

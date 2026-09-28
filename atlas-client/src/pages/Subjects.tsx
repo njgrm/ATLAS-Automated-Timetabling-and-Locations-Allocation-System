@@ -21,7 +21,7 @@ import { SubjectStatusBanners } from '@/components/subjects/SubjectStatusBanners
 import { SubjectTermAuthorityBanner } from '@/components/subjects/SubjectTermAuthorityBanner';
 import { useSubjectStats, useCoverageDetail, isRoomConstrainedSubject } from '@/components/subjects/useSubjectStats';
 import { subjectToFormValues } from '@/components/subjects/subject-form-utils';
-import { SubjectFilterToolbar } from '@/components/subjects/SubjectFilterToolbar';
+import { SubjectFilterToolbar, type SubjectStatusFilter } from '@/components/subjects/SubjectFilterToolbar';
 import { SubjectTermContractPopover } from '@/components/subjects/SubjectTermContractPopover';
 import {
 	TERM_FILTER_ALL,
@@ -48,7 +48,6 @@ import {
 } from '@/components/admin-workspace/AdminWorkspace';
 import { resolveSubjectsReadScope } from '@/lib/subject-school-scope';
 import { buildOperatorSubjectCreatePayload } from '@/lib/subject-create-payload';
-import { gradeCompact } from '@/lib/deped-glossary';
 
 
 const PAGE_SIZES = [10, 25, 50, 100];
@@ -88,7 +87,8 @@ export default function Subjects() {
 	// Teacher coverage drilldown
 	const [coverageSubject, setCoverageSubject] = useState<Subject | null>(null);
 	const [teacherCoverage, setTeacherCoverage] = useState<Record<number, {
-		assigned: { facultyId: number; name: string; grades: number[]; load: number; sections: string[] }[]
+		// A5 (17.1): structured sections — see `SubjectCoverageDetail`.
+		assigned: { facultyId: number; name: string; grades: number[]; load: number; sections: { id: number | null; grade: number | null; name: string }[] }[]
 	}>>({});
 	const [coverageLoading, setCoverageLoading] = useState(false);
 	// Phase 2.3: per-subject coverage fetch error so the drawer can distinguish
@@ -114,11 +114,16 @@ export default function Subjects() {
 	const [pageSize, setPageSize] = useState(25);
 
 	// Filters
-	const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
+	// A5 (operator items 9.1 + 41): ONE status control, replacing the two
+	// status-looking dropdowns. The value spans both former axes — subject
+	// lifecycle (`active` / `inactive`) and coverage attention
+	// (`missing-coverage` / `room-constrained`) — so nothing became
+	// unreachable when the duplicate was merged. The two existing predicates
+	// below are applied exactly as they were; only the state is one value now.
+	const [subjectStatusFilter, setSubjectStatusFilter] = useState<SubjectStatusFilter>('all');
 	const [roomTypeFilter, setRoomTypeFilter] = useState<RoomType | 'all'>('all');
 	const [gradeLevelFilter, setGradeLevelFilter] = useState<number | 'all'>('all');
 	const [programScopeFilter, setProgramScopeFilter] = useState<string>('all');
-	const [attentionFilter, setAttentionFilter] = useState<'all' | 'missing-coverage' | 'room-constrained'>('all');
 	// A3-C9: the term filter. Its VALUE is a string because the option list is
 	// derived from the data (see `subject-term-filter.ts`), and a hard-coded
 	// Term 1/2/3 would contradict a contract that is EnrollPro-owned.
@@ -214,14 +219,30 @@ export default function Subjects() {
 				params: { schoolId: actorSchoolId, schoolYearId },
 			});
 			
-			const assigned: { facultyId: number; name: string; grades: number[]; load: number; sections: string[] }[] = [];
+			const assigned: { facultyId: number; name: string; grades: number[]; load: number; sections: { id: number | null; grade: number | null; name: string }[] }[] = [];
 
 			for (const f of data.faculty ?? []) {
 				const isAssigned = (f.assignments ?? []).some((a: any) => a.subjectId === subjectId);
 				const load = (f as any).loadPercentage ?? 0;
 				if (isAssigned) {
 					const assignment = f.assignments.find((a: any) => a.subjectId === subjectId);
-					const sections = (assignment?.sections ?? []).map((section: any) => `${gradeCompact(section.displayOrder)} ${section.name}`);
+					/*
+					 * A5 (operator item 17.1): a section is passed as DATA.
+					 * It used to be minted as a single display string
+					 * (`` `${gradeCompact(section.displayOrder)} ${section.name}` ``)
+					 * which the dialog then rendered as text, so the grade was
+					 * printed inside the chip AND again in the header badge row. The
+					 * grade is now a number the dialog turns into a colour pill, the
+					 * name is the name, and `null` means "this section carries no
+					 * usable grade" — never a guess, and never a string to re-parse.
+					 */
+					const sections = (assignment?.sections ?? []).map((section: any) => ({
+						id: typeof section?.id === 'number' ? section.id : null,
+						grade: typeof section?.gradeLevel === 'number'
+							? section.gradeLevel
+							: (typeof section?.displayOrder === 'number' ? section.displayOrder : null),
+						name: typeof section?.name === 'string' ? section.name : '',
+					}));
 					assigned.push({ 
 						facultyId: f.id,
 						name: `${f.lastName}, ${f.firstName}`, 
@@ -295,9 +316,9 @@ export default function Subjects() {
 			);
 		}
 
-		// Status filter
-		if (statusFilter === 'active') list = list.filter((s) => s.isActive);
-		else if (statusFilter === 'inactive') list = list.filter((s) => !s.isActive);
+		// Status filter (A5: the lifecycle axis of the one merged control)
+		if (subjectStatusFilter === 'active') list = list.filter((s) => s.isActive);
+		else if (subjectStatusFilter === 'inactive') list = list.filter((s) => !s.isActive);
 
 		// Room type filter
 		if (roomTypeFilter !== 'all') list = list.filter((s) => s.preferredRoomType === roomTypeFilter);
@@ -310,14 +331,14 @@ export default function Subjects() {
 		// A3-C9: the term filter uses the SHARED predicate, so the option the
 		// toolbar offered and the rows that survive it cannot disagree.
 		if (termFilter !== TERM_FILTER_ALL) list = list.filter((s) => matchesTermFilter(s, termFilter));
-		if (attentionFilter === 'missing-coverage' && coverageBySubjectId) list = list.filter((s) => s.isActive && (coverageBySubjectId.get(s.id)?.uncoveredSectionCount ?? 0) > 0);
+		if (subjectStatusFilter === 'missing-coverage' && coverageBySubjectId) list = list.filter((s) => s.isActive && (coverageBySubjectId.get(s.id)?.uncoveredSectionCount ?? 0) > 0);
 		// A3-C5: this list is the "Room constrained" tile's twin, so it filters
 		// with the SAME predicate the tile counts with. It previously carried its
 		// own inline copy of the rule, which treated an ownership marker as a
 		// room need — so the tile and this list answered different questions on
 		// the same screen. The rule now lives in one place; this page stays a
 		// delegating surface and does not interpret the mixed feature list.
-		if (attentionFilter === 'room-constrained') list = list.filter(isRoomConstrainedSubject);
+		if (subjectStatusFilter === 'room-constrained') list = list.filter(isRoomConstrainedSubject);
 
 		// Sort
 		const sorted = [...list].sort((a, b) => {
@@ -336,10 +357,10 @@ export default function Subjects() {
 		const tp = Math.max(1, Math.ceil(tf / pageSize));
 		const start = (page - 1) * pageSize;
 		return { paged: sorted.slice(start, start + pageSize), totalFiltered: tf, totalPages: tp };
-	}, [subjects, searchQuery, statusFilter, roomTypeFilter, gradeLevelFilter, programScopeFilter, attentionFilter, termFilter, coverageBySubjectId, sortField, sortDir, page, pageSize]);
+	}, [subjects, searchQuery, subjectStatusFilter, roomTypeFilter, gradeLevelFilter, programScopeFilter, termFilter, coverageBySubjectId, sortField, sortDir, page, pageSize]);
 
 	// Reset page when filters change
-	useEffect(() => { setPage(1); }, [searchQuery, statusFilter, roomTypeFilter, gradeLevelFilter, programScopeFilter, attentionFilter, termFilter, pageSize]);
+	useEffect(() => { setPage(1); }, [searchQuery, subjectStatusFilter, roomTypeFilter, gradeLevelFilter, programScopeFilter, termFilter, pageSize]);
 
 	const toggleSort = (field: SortField) => {
 		if (sortField === field) {
@@ -434,11 +455,10 @@ export default function Subjects() {
 		}
 	};
 
-	const hasActiveFilters = statusFilter !== 'all'
+	const hasActiveFilters = subjectStatusFilter !== 'all'
 		|| roomTypeFilter !== 'all'
 		|| gradeLevelFilter !== 'all'
 		|| programScopeFilter !== 'all'
-		|| attentionFilter !== 'all'
 		|| termFilter !== TERM_FILTER_ALL
 		|| searchQuery.trim() !== '';
 
@@ -565,10 +585,8 @@ stats={subjectStats}
 					searchQuery={searchQuery}
 					onSearchChange={setSearchQuery}
 					hasActiveFilters={hasActiveFilters}
-					statusFilter={statusFilter}
-					onStatusFilterChange={(v) => setStatusFilter(v as typeof statusFilter)}
-					attentionFilter={attentionFilter}
-					onAttentionFilterChange={(v) => setAttentionFilter(v as typeof attentionFilter)}
+					subjectStatusFilter={subjectStatusFilter}
+					onSubjectStatusFilterChange={setSubjectStatusFilter}
 					roomTypeFilter={roomTypeFilter}
 					onRoomTypeFilterChange={(v) => setRoomTypeFilter(v as typeof roomTypeFilter)}
 					gradeLevelFilter={gradeLevelFilter}
@@ -579,11 +597,10 @@ stats={subjectStats}
 					onTermFilterChange={setTermFilter}
 					termOptions={termOptions}
 					onResetFilters={() => {
-						setStatusFilter('all');
+						setSubjectStatusFilter('all');
 						setRoomTypeFilter('all');
 						setGradeLevelFilter('all');
 						setProgramScopeFilter('all');
-						setAttentionFilter('all');
 						setTermFilter(TERM_FILTER_ALL);
 						setSearchQuery('');
 					}}

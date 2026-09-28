@@ -250,10 +250,12 @@ const EDITABLE: ToolbarProps = {
 	searchQuery: '',
 	onSearchChange: () => {},
 	hasActiveFilters: false,
-	statusFilter: 'all',
-	onStatusFilterChange: () => {},
-	attentionFilter: 'all',
-	onAttentionFilterChange: () => {},
+	// A5 (items 9.1 + 41): the two status-looking controls were merged into
+	// one, and the fixture follows the production prop set. The old
+	// `statusFilter` + `attentionFilter` pair is the duplicate the operator
+	// reported; every control below still runs.
+	subjectStatusFilter: 'all',
+	onSubjectStatusFilterChange: () => {},
 	roomTypeFilter: 'all',
 	onRoomTypeFilterChange: () => {},
 	gradeLevelFilter: 'all',
@@ -444,9 +446,21 @@ test('A3-20: a sonner toast raised while the dialog is open stacks above the dia
 });
 
 // ===========================================================================
-// CHECK 2 — Fix 20 Cancel / non-action: zero network, state intact.
+// CHECK 2 - Fix 20 Cancel / non-action: zero network, state intact.
+//
+// A5 / operator FIX-20 SUPERSESSION (recorded, not silent). This control
+// originally asserted `closes === 1` after Cancel on a form the test had just
+// EDITED. FIX-20 - "Cancel on a filled subject form discards fields; must
+// preserve through a confirmation" - requires that exact case NOT to close
+// immediately, so that one expectation was narrowed by the planner's D6, not by
+// this lane's discretion.
+//
+// Nothing is deleted. Every claim this control made is still made, and the
+// superseded claim is PROVEN on the path where it remains true (an UNTOUCHED
+// form), in its own render, immediately below. The dirty path keeps every
+// original non-action assertion and gains a stronger one.
 // ===========================================================================
-test('A3-20: Cancel is a non-action — no save call, no request, form state intact', async () => {
+test('A3-20: Cancel is a non-action - no save call, no request, form state intact', async () => {
 	const fetchCalls: string[] = [];
 	const originalFetch = globalThis.fetch;
 	(globalThis as { fetch?: unknown }).fetch = (...args: unknown[]) => {
@@ -482,15 +496,46 @@ test('A3-20: Cancel is a non-action — no save call, no request, form state int
 		assert.ok(cancel, 'Cancel button not found');
 		await click(cancel);
 
+		// A3-20's original non-action claims, all still asserted on the EDITED
+		// form, which is now the path FIX-20 governs.
 		assert.equal(saves, 0, 'Cancel invoked the save path');
-		assert.equal(closes, 1, 'Cancel did not take exactly one close action');
 		assert.deepEqual(fetchCalls, [], 'Cancel issued a network request');
 		assert.equal(query(host, 'subjects-form-result'), null, 'Cancel surfaced a save outcome');
+
+		// A5 FIX-20: on a CHANGED form Cancel asks first, so it has not closed.
+		// The original `closes === 1` expectation is proven in the second render
+		// below, on the untouched form, where it is still the contract.
+		assert.equal(closes, 0, 'Cancel on an EDITED form closed without asking - the FIX-20 defect');
 
 		// State intact: the edited name is still in the form, unmounted nowhere.
 		const after = document.body.querySelector<HTMLInputElement>('input[placeholder="e.g. Mathematics Grade 10"]');
 		assert.ok(after, 'form unmounted itself on Cancel');
 		assert.equal(after.value, 'Earth Science (edited)');
+
+		// ── The original `closes === 1` claim, on an UNTOUCHED form. ──
+		// A fresh render, no setter run, so "Cancel closes immediately" is
+		// exactly what it said it was proving.
+		closes = 0;
+		saves = 0;
+		fetchCalls.length = 0;
+		const cleanHost = await render(
+			<SubjectFormModal
+				open
+				mode="edit"
+				initialValues={subjectToFormValues(subjectFixture())}
+				saving={false}
+				onSave={async () => { saves += 1; return { status: 'saved' }; }}
+				onClose={() => { closes += 1; }}
+			/>,
+		);
+		assert.ok(cleanHost, 'the untouched render did not mount');
+		const cleanCancel = Array.from(document.body.querySelectorAll('button')).find((b) => b.textContent?.trim() === 'Cancel');
+		assert.ok(cleanCancel, 'Cancel button not found on the untouched form');
+		await click(cleanCancel);
+		assert.equal(saves, 0, 'Cancel on an untouched form invoked the save path');
+		assert.equal(closes, 1, 'Cancel did not take exactly one close action');
+		assert.deepEqual(fetchCalls, [], 'Cancel on an untouched form issued a network request');
+		assert.equal(query(cleanHost, 'subjects-form-result'), null, 'Cancel on an untouched form surfaced a save outcome');
 	} finally {
 		(globalThis as { fetch?: unknown }).fetch = originalFetch;
 	}
@@ -639,14 +684,27 @@ test('A3-15 [SUPERSEDED IN BEHAVIOUR by A3-C9 on the disclosure assertions, verb
 		<MemoryRouter>
 			<SubjectFilterToolbar
 				{...EDITABLE}
-				onStatusFilterChange={(v) => fired.push(`status:${v}`)}
-				onAttentionFilterChange={(v) => fired.push(`attention:${v}`)}
+				onSubjectStatusFilterChange={(v) => fired.push(`status:${v}`)}
 				onGradeLevelFilterChange={(v) => fired.push(`grade:${v}`)}
 			/>
 		</MemoryRouter>,
 	);
 
-	const primary = ['Filter by subject status', 'Filter by attention status', 'Filter by grade level'];
+	// A5 (items 9.1 + 41) RETARGET, recorded not deleted: the second
+	// status-looking control (`Filter by attention status`) was merged into
+	// `Filter by subject status` because two dropdowns that both answer
+	// "status" is the duplicate the operator reported. The row's property —
+	// the triage filters are rendered with no interaction required — is
+	// unchanged and is still asserted over the controls that exist.
+	const primary = ['Filter by subject status', 'Filter by grade level'];
+	// ADDED (A5): the merged control must not have swallowed the coverage
+	// axis the removed one carried. The options are asserted in the merged
+	// control's own listbox below, and in the A5 suite.
+	assert.equal(
+		byLabel(host, 'Filter by attention status') === null,
+		true,
+		'the duplicate status-looking control is back: two dropdowns both answering "status"',
+	);
 	// Present without opening anything.
 	for (const label of primary) {
 		const el = byLabel(host, label);
@@ -940,7 +998,12 @@ test('A3-C9 [SUPERSEDED IN BEHAVIOUR by A3-C10 on the Room Type / Program reach,
 	assert.equal(row.className.includes('flex-wrap'), false, 'the single row wraps, so it can still spill onto a second line');
 
 	// (3) All four triage selects are in that row, with no interaction required.
-	for (const label of ['Filter by subject status', 'Filter by attention status', 'Filter by grade level', 'Filter by rotation term']) {
+	// A5 RETARGET (recorded, not deleted): `Filter by attention status` was
+	// merged into `Filter by subject status` (items 9.1 + 41), so the row now
+	// lists the controls that exist. The property it protected — every triage
+	// filter is directly visible in the single row with no interaction — is
+	// unchanged.
+	for (const label of ['Filter by subject status', 'Filter by grade level', 'Filter by rotation term']) {
 		const el = byLabel(host, label);
 		assert.ok(el, `filter "${label}" is not rendered without any interaction`);
 		assert.ok(row.contains(el), `filter "${label}" is not in the single row`);
@@ -1053,11 +1116,12 @@ test('A3-C10: Room Type and Program are direct filters — one click on the filt
 	assert.ok(roomListbox, 'one click on the Room Type filter did not open its own options');
 	const roomOptions = Array.from(roomListbox.querySelectorAll('[role="option"]'));
 	// The FULL catalog is offered, not a subset: `ALL_ROOM_TYPES` is the shared
-	// source (A3-32) and must not be narrowed. `+ 1` is the "Any room" reset.
+	// source (A3-32) and must not be narrowed. `+ 1` is the reset option, whose
+	// label A5 re-issued as the operator's `All Room Types` (items 9.1 + 41).
 	assert.equal(roomOptions.length, constants.ALL_ROOM_TYPES.length + 1, 'the room type list lost an option');
 	assert.deepEqual(
 		roomOptions.map((o) => o.textContent?.trim()),
-		['Any room', ...constants.ALL_ROOM_TYPES.map((t) => constants.ROOM_TYPE_LABELS[t])],
+		['All Room Types', ...constants.ALL_ROOM_TYPES.map((t) => constants.ROOM_TYPE_LABELS[t])],
 		'the room type list is not the full shared ROOM_TYPE_LABELS catalogue',
 	);
 	// The chosen value reaches the page.
@@ -1073,7 +1137,7 @@ test('A3-C10: Room Type and Program are direct filters — one click on the filt
 	assert.equal(programOptions.length, constants.PROGRAM_SCOPE_OPTIONS.length + 1, 'the program list lost an option');
 	assert.deepEqual(
 		programOptions.map((o) => o.textContent?.trim()),
-		['Any program', ...constants.PROGRAM_SCOPE_OPTIONS.map((o) => o.label)],
+		['All Programs', ...constants.PROGRAM_SCOPE_OPTIONS.map((o) => o.label)],
 		'the program list is not the full shared PROGRAM_SCOPE_OPTIONS catalogue',
 	);
 	await click(programOptions.find((o) => o.textContent?.trim() === 'BEC') ?? null);
@@ -1123,9 +1187,12 @@ test('A3-C10: the six filters wrap instead of overflowing, Reset appears only wh
 	}
 	// The six filters and Reset are all inside the cluster, so they wrap
 	// together rather than only some of them.
+	// A5 RETARGET (recorded, not deleted): the six filters are now five
+	// controls, because the duplicate status dropdown was merged into
+	// `Filter by subject status` (items 9.1 + 41). Every one of the five is
+	// still asserted to be in the wrapping cluster below.
 	for (const label of [
 		'Filter by subject status',
-		'Filter by attention status',
 		'Filter by grade level',
 		'Filter by rotation term',
 		'Filter by room type',
@@ -1137,12 +1204,16 @@ test('A3-C10: the six filters wrap instead of overflowing, Reset appears only wh
 
 	// (2) The WIDTH BUDGET is read FROM THE RENDERED CLASS NAMES, not from a
 	// restatement of the design, so editing a trigger's width without editing
-	// this list is caught. Tailwind steps actually used by the row's controls:
-	//   status w-28 = 7rem, attention w-40 = 10rem, grade w-24 = 6rem,
-	//   term w-28 = 7rem, room type w-36 = 9rem, program w-28 = 7rem.
+	// this list is caught. A5 REBASELINE (items 9.1 + 41): the six-filter
+	// budget became five, because the duplicate status dropdown was merged,
+	// and the operator's own dimensions are now the contract. Tailwind steps
+	// actually used by the row's controls:
+	//   status w-40 = 10rem, grade w-24 = 6rem, program w-28 = 7rem,
+	//   room type w-36 = 9rem, term w-28 = 7rem; search w-[240px] = 240.
 	const rem = (n: number) => n * 16;
 	const searchWrapper = document.body.querySelector('input[placeholder="Search name or code..."]')!.parentElement!;
-	assert.match(searchWrapper.className, /sm:max-w-40/, 'the search box is not the narrowed width the one-row budget depends on');
+	assert.match(searchWrapper.className, /w-\[240px\]/, 'the search box is not the fixed compact width the one-row budget depends on');
+	assert.match(searchWrapper.className, /max-w-\[240px\]/, 'the search box can still grow past the compact width');
 	const declared = [
 		...Array.from(row.querySelectorAll('[class*="w-"]')),
 	].map((el) => /(^|\s)w-(\d+)(\s|$)/.exec(el.className)?.[2])
@@ -1150,18 +1221,17 @@ test('A3-C10: the six filters wrap instead of overflowing, Reset appears only wh
 		.map((steps) => rem(Number(steps) / 4));
 	assert.deepEqual(
 		declared,
-		[rem(7), rem(10), rem(6), rem(7), rem(9), rem(7)],
-		'the six control widths are not the declared six-filter budget',
+		[rem(10), rem(6), rem(7), rem(9), rem(7)],
+		'the five control widths are not the declared compact budget',
 	);
-	// Two controls were added in place of one, so the budget is now 7 items in
-	// the cluster plus the search box beside it: 6 gaps inside the cluster and
-	// 1 between the search box and the cluster.
-	const search = rem(10);
-	const gaps = 7 * 8;
+	// Five controls in the cluster plus the search box beside it: 5 gaps inside
+	// the cluster at `gap-2.5` and 1 between the search box and the cluster.
+	const search = 240;
+	const gaps = 6 * 10;
 	// "Reset" is a text button, so it has no width class; its width is measured
 	// content and is budgeted separately (and is the one number in this
 	// arithmetic that a live pixel run must confirm). It is 5 characters at
-	// text-sm plus the `px-3` inset, budgeted generously.
+	// text-xs plus the `px-3` inset, budgeted generously.
 	const reset = rem(5);
 	const total = search + declared.reduce((a, b) => a + b, 0) + gaps + reset;
 	// 1366 viewport - 256px expanded sidebar - 40px `lg:px-5` - 8px card inset.
@@ -1220,25 +1290,25 @@ test('A3-C9 [SUPERSEDED IN PART by A3-C10 on the width budget, verbatim otherwis
 	const rem = (n: number) => n * 16;
 	const toolbar = query(host, 'admin-search-filter-toolbar')!;
 	const searchWrapper = document.body.querySelector('input[placeholder="Search name or code..."]')!.parentElement!;
-	assert.match(searchWrapper.className, /sm:max-w-40/, 'the search box is not the narrowed width the one-row budget depends on');
+	assert.match(searchWrapper.className, /w-\[240px\]/, 'the search box is not the fixed compact width the one-row budget depends on');
 
-	// Tailwind width steps actually used by the row's controls:
-	//   search sm:max-w-40 = 10rem, status w-28 = 7rem, attention w-40 = 10rem,
-	//   grade w-24 = 6rem, term w-28 = 7rem, room type w-36 = 9rem,
-	//   program w-28 = 7rem.
+	// A5 REBASELINE (items 9.1 + 41): five controls, not six — the duplicate
+	// status dropdown was merged — at the operator's own widths.
+	//   search w-[240px] = 240px, status w-40 = 10rem, grade w-24 = 6rem,
+	//   program w-28 = 7rem, room type w-36 = 9rem, term w-28 = 7rem.
 	const declared = [
 		...Array.from(row.querySelectorAll('[class*="w-"]')),
 	].map((el) => /(^|\s)w-(\d+)(\s|$)/.exec(el.className)?.[2])
 		.filter((v): v is string => v != null)
 		.map((steps) => rem(Number(steps) / 4));
-	const search = rem(10);
-	const gaps = 7 * 8; // gap-2 between 7 items: 6 in the cluster + 1 beside the search box
+	const search = 240;
+	const gaps = 6 * 10; // gap-2.5 (10px) between 6 items: 5 in the cluster + 1 beside the search box
 	// "Reset" is a text button, so it has no width class; its width is measured
 	// content and is budgeted separately (and is the one number in this
 	// arithmetic that a live pixel run must confirm).
 	const reset = rem(5);
 	const total = search + declared.reduce((a, b) => a + b, 0) + gaps + reset;
-	assert.deepEqual(declared, [rem(7), rem(10), rem(6), rem(7), rem(9), rem(7)], 'the six control widths are not the declared budget');
+	assert.deepEqual(declared, [rem(10), rem(6), rem(7), rem(9), rem(7)], 'the five control widths are not the declared compact budget');
 	// 1366 viewport - 256px expanded sidebar - 40px `lg:px-5` - 8px card inset.
 	const available = 1366 - 256 - 40 - 8;
 	assert.ok(
@@ -1383,7 +1453,10 @@ test('A3-C9: the Subjects page filters, resets and reports the term through the 
 	assert.match(bare, /termFilter, pageSize\]\);/);
 	// It is a dependency of the filter pipeline itself, so it survives a
 	// pagination or sort change.
-	assert.match(bare, /attentionFilter, termFilter, coverageBySubjectId/);
+	// A5 RETARGET (recorded, not deleted): the term filter is still a
+	// dependency of the pipeline; the dependency list now names the one merged
+	// `subjectStatusFilter` (items 9.1 + 41) in place of the two status states.
+	assert.match(bare, /subjectStatusFilter, roomTypeFilter, gradeLevelFilter, programScopeFilter, termFilter, coverageBySubjectId/);
 
 	// The removed disclosure state is gone from the page too, not just ignored.
 	assert.equal(/\bshowFilters\b/.test(bare), false, 'Subjects.tsx still carries the removed showFilters state');
@@ -1530,7 +1603,7 @@ test('A3-17: the coverage review surface is a centered, internally scrolling dia
 			<SubjectCoverageSheet
 				subject={subjectFixture({ rotationFamily: 'SCIENCE' })}
 				loading={false}
-				detail={{ assigned: [{ facultyId: 7, name: 'Dela Cruz, Juan', grades: [9, 10], load: 80, sections: ['9-A'] }], uncoveredGrades: [10], programScopes: ['REGULAR'] }}
+				detail={{ assigned: [{ facultyId: 7, name: 'Dela Cruz, Juan', grades: [9, 10], load: 80, sections: [{ id: 9, grade: 9, name: 'A' }] }], uncoveredGrades: [10], programScopes: ['REGULAR'] }}
 				errorBySubjectId={new Map()}
 				onRetry={() => {}}
 				onClose={() => {}}
@@ -1545,7 +1618,16 @@ test('A3-17: the coverage review surface is a centered, internally scrolling dia
 	// Not a side sheet.
 	assert.equal(/inset-y-0|right-0/.test(dialog.className), false, 'the coverage surface is still anchored to an edge');
 	// It owns its scroll, and it is bounded so it cannot push page scroll.
-	assert.match(dialog.className, /max-h-\[90svh\]/);
+	// A5 RETARGET (recorded, not deleted): item 17.1(1) specified the dialog's
+	// bounds as `min-w-[500px] max-w-[95vw] min-h-[420px] max-h-[90vh]` because
+	// the card is now resizable, so the `90svh` cap became `90vh`. The property
+	// this row protected — the dialog is height-bounded and cannot push page
+	// scroll — is asserted on the new bound below, plus all four resize bounds.
+	assert.match(dialog.className, /max-h-\[90vh\]/);
+	assert.match(dialog.className, /min-w-\[500px\]/, 'the resizable dialog has no minimum width bound');
+	assert.match(dialog.className, /max-w-\[95vw\]/, 'the resizable dialog can grow past the viewport');
+	assert.match(dialog.className, /min-h-\[420px\]/, 'the resizable dialog has no minimum height bound');
+	assert.equal(dialog.style.resize, 'both', 'the coverage dialog is not resizable');
 	assert.match(dialog.className, /overflow-hidden/);
 	const scroller = query(host, 'subject-coverage-scroll');
 	assert.ok(scroller, 'no internal scroll region');

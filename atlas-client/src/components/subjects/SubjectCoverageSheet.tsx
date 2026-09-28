@@ -3,6 +3,7 @@ import {
 	AlertTriangle,
 	CheckCircle2,
 	ChevronRight,
+	GripHorizontal,
 	Info,
 	MapIcon,
 	RefreshCw,
@@ -32,7 +33,18 @@ export type SubjectCoverageDetail = {
 		name: string;
 		grades: number[];
 		load: number;
-		sections: string[];
+		/**
+		 * A5 (operator item 17.1): a section is STRUCTURED data, not a display
+		 * string. It used to be minted as `` `${gradeCompact(displayOrder)} ${name}` ``
+		 * and rendered as one text run, so the grade appeared twice per section —
+		 * once in the header badge row and once inside the chip. The grade is
+		 * now carried here and rendered as its own colour pill, and `name` is the
+		 * section NAME ONLY, so nothing has to be parsed back out of a string.
+		 *
+		 * `grade` is null when the section carries no usable grade; the pill is
+		 * then omitted rather than guessed.
+		 */
+		sections: Array<{ id: number | null; grade: number | null; name: string }>;
 	}>;
 	uncoveredGrades: number[];
 	programScopes: string[];
@@ -90,7 +102,25 @@ export function SubjectCoverageSheet({
 	return (
 		<Dialog open={!!subject} onOpenChange={(open) => !open && onClose()}>
 			<DialogContent
-				className="flex max-h-[90svh] max-w-2xl flex-col gap-0 overflow-hidden p-0"
+				/*
+				 * A5 (operator item 17.1(1)) — RESIZABLE WHILE STILL CENTERED.
+				 *
+				 * Centring needs no JavaScript. The shared primitive positions with
+				 * `left-[50%] top-[50%]` and the `animate-modal-in` keyframes in
+				 * `src/index.css` hold `transform: translate(-50%,-50%)` with
+				 * `forwards`, so the browser re-centres the box at whatever size
+				 * it currently is — including the size CSS `resize` writes during
+				 * a drag. Anyone tempted to add JS re-centring here should read
+				 * that first.
+				 *
+				 * `resize` is set through `style`, not a Tailwind class, so it does
+				 * not depend on a `resize-*` utility existing in the installed
+				 * Tailwind version. `w-[42rem]` is the first-paint width the
+				 * `max-w-2xl` this replaced was showing, and `overflow-hidden` keeps
+				 * the drag from spilling the dialog's own children.
+				 */
+				className="flex w-[42rem] min-w-[500px] max-w-[95vw] min-h-[420px] max-h-[90vh] flex-col gap-0 overflow-hidden p-0"
+				style={{ resize: 'both' }}
 				data-testid="subject-coverage-dialog"
 				data-presentation="centered-dialog"
 			>
@@ -195,38 +225,52 @@ export function SubjectCoverageSheet({
 								{(detail?.assigned.length ?? 0) > 0 ? (
 									<div className="space-y-3">
 										{detail?.assigned.map((t) => (
-											<div key={t.facultyId} className="group space-y-3 rounded-xl border border-emerald-100 bg-emerald-50/20 p-4 shadow-sm">
-												<div className="flex items-start justify-between gap-4 border-b border-emerald-100/50 pb-2">
-													<div className="min-w-0">
-														<p className="text-sm font-bold truncate leading-tight">{t.name}</p>
-														<div className="mt-1.5 flex flex-wrap gap-1">
-															{t.grades.map((g) => (
-																<Badge key={g} variant="outline" className={`text-xs px-1.5 py-0 h-4 font-bold border-opacity-40 ${GRADE_COLORS[String(g)] ?? ''}`}>
-																	{gradeLabel(g)}
-																</Badge>
-															))}
-														</div>
-													</div>
-													<Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100 shadow-none border-emerald-200 font-bold">
-														{t.load}% Load
-													</Badge>
-												</div>
+									<div key={t.facultyId} className="group space-y-3 rounded-xl border border-emerald-100 bg-emerald-50/20 p-4 shadow-sm">
+										{/*
+										 * A5 (operator item 17.1(2)): the teacher's ESSENTIALS only.
+										 * The grade-badge row that used to sit here is gone — every
+										 * one of those grades is already carried by the section
+										 * chips below as its own colour pill, so the header was
+										 * saying the same thing twice. `t.grades` is still in the
+										 * data (`useCoverageDetail` needs it to compute
+										 * `uncoveredGrades`); it is simply not repeated here.
+										 */}
+										<div className="flex items-start justify-between gap-4 border-b border-emerald-100/50 pb-2">
+											<p className="min-w-0 text-sm font-bold truncate leading-tight">{t.name}</p>
+											<Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100 shadow-none border-emerald-200 font-bold">
+												{t.load}% Load
+											</Badge>
+										</div>
 
-												{t.sections.length > 0 ? (
-													<div className="space-y-1.5">
-														<p className="text-xs font-bold text-emerald-700/70 uppercase tracking-wider">Assigned Sections</p>
-														<div className="flex flex-wrap gap-1.5">
-															{t.sections.map((section, idx) => (
-																<div key={idx} className="flex items-center gap-1.5 rounded bg-white border border-emerald-100/50 px-2 py-1 shadow-sm">
-																	<span className="text-xs font-semibold text-foreground">{section}</span>
-																</div>
-															))}
-														</div>
+										{t.sections.length > 0 ? (
+											/*
+											 * A5 (item 17.1(3)): `[colour-coded grade pill] Section
+											 * Name`, one pill per section, under the teacher's name.
+											 * The `ASSIGNED SECTIONS` subheader is gone — the chips
+											 * are self-describing and the heading duplicated the
+											 * "Assigned teachers" section title above it.
+											 *
+											 * The pill colour comes from the ONE shared DepEd palette
+											 * (`GRADE_COLORS`) and the text from the shared
+											 * `gradeLabel()`, so this surface cannot drift into a
+											 * second grade palette or a second spelling.
+											 */
+											<div className="flex flex-wrap gap-2 pt-2">
+												{t.sections.map((sec, idx) => (
+													<div key={sec.id ?? `section-${idx}`} className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-50 border border-slate-200/80">
+														{sec.grade != null ? (
+															<span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${GRADE_COLORS[String(sec.grade)] ?? ''}`}>
+																{gradeLabel(sec.grade)}
+															</span>
+														) : null}
+														<span className="text-xs font-medium text-slate-700">{sec.name}</span>
 													</div>
-												) : (
-													<p className="text-xs text-muted-foreground italic">No sections explicitly mapped.</p>
-												)}
+												))}
 											</div>
+										) : (
+											<p className="text-xs text-muted-foreground italic">No sections explicitly mapped.</p>
+										)}
+									</div>
 										))}
 									</div>
 								) : (
@@ -341,6 +385,22 @@ export function SubjectCoverageSheet({
 							)}
 						</>
 					)}
+				</div>
+
+				{/*
+				 * A5 (item 17.1(1)) — the visible resize affordance. CSS `resize`
+				 * draws its own corner handle in most browsers, but an operator
+				 * cannot discover a behaviour they cannot see, so the grip is
+				 * explicit. It is `pointer-events-none` and `aria-hidden`: the DRAG
+				 * belongs to the card underneath it, and the grip is decoration,
+				 * not a control.
+				 */}
+				<div
+					aria-hidden="true"
+					data-testid="subject-coverage-resize-grip"
+					className="pointer-events-none absolute bottom-1.5 right-2 flex items-center justify-center text-slate-400"
+				>
+					<GripHorizontal className="size-4" />
 				</div>
 			</DialogContent>
 		</Dialog>
