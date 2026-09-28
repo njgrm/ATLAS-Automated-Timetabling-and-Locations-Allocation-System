@@ -54,11 +54,10 @@ import type { SimpleViewMode } from '@/components/timetable/simple/SimpleHeaderH
 import { SimpleTermSwitcher } from '@/components/timetable/simple/SimpleBeneficiaryControls';
 // A2-C6-TRUTH (T3a/T3b/T3c/T3f): the shared run identity, the one term line, and
 // the capped status region.
-import { RunStateBadge } from '@/components/timetable/RunStateBadge';
-import { resolveDraftStripProps, resolveDraftStripPublishPlan, TimetableDraftStateStrip } from '@/components/timetable/TimetableDraftStateStrip';
+import { resolveDraftStripProps, resolveDraftStripPublishPlan } from '@/components/timetable/TimetableDraftStateStrip';
 import { TimetableSwapClassTimesBanner } from '@/components/timetable/TimetableSwapClassTimesBanner';
-import { SimpleTermScopeLine } from '@/components/timetable/simple/SimpleTermScopeLine';
-import { buildSimpleHeaderMessages, SimpleHeaderMessageList } from '@/components/timetable/simple/SimpleHeaderMessages';
+import { buildSimpleHeaderMessages } from '@/components/timetable/simple/SimpleHeaderMessages';
+import { SimpleHeaderStatusStrip } from '@/components/timetable/simple/SimpleHeaderStatusStrip';
 import {
 	countUnassignedForSelectedTerm,
 	lifecycleStepNeedsMoreEntry,
@@ -69,9 +68,8 @@ import {
 	SimpleWarningsControl,
 } from '@/components/timetable/simple/SimpleHeaderActions';
 import { resolveSimpleDraftMenuActions } from '@/components/timetable/TimetableDraftActionsSurface';
-import { SimpleDriftBanner } from '@/components/timetable/simple/SimpleDriftBanner';
 import { SimpleGenerationBlockerSheet } from '@/components/timetable/simple/SimpleGenerationBlockerSheet';
-import { describeRunInputDrift } from '@/components/timetable/timetableDriftRouting';
+import { useRunChangeNotice } from '@/components/timetable/simple/SimpleHeaderChangeNoticeSlot';
 import { SimpleMoreMenuContent, SimpleMoreScrollRegion } from '@/components/timetable/simple/SimpleMoreMenuContent';
 import { resolveTermAuthorityNotice } from '@/hooks/useTimetableData';
 import { ExportPresentationSettingsDialog } from '@/components/timetable/simple/ExportPresentationSettingsDialog';
@@ -298,11 +296,6 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 	// A4 — one authority state. The drift comparison is derived from the same
 	// canonical helper the drift banner uses, so the header decides precedence
 	// without a second source of truth.
-	const driftSummary = useMemo(
-		() => describeRunInputDrift(context.draft?.inputState ?? null),
-		[context.draft?.inputState],
-	);
-	const showDriftState = !context.isPreGenerationWorkspace && context.draft != null && driftSummary.status !== 'FRESH';
 	const setupState = describeSetupState(context.curriculumReadiness);
 	const scopeResolved = Number.isInteger(context.schoolId) && context.schoolId > 0
 		&& Number.isInteger(context.schoolYearId) && (context.schoolYearId ?? 0) > 0;
@@ -342,6 +335,19 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 	const generationReady = generationGate.enabled;
 	// Keep every real generation repair (navigate OR retry); only fall back to
 	// the setup-state repair when the generation gate offers no repair at all.
+	/* C11 S2 (items 1/2) — ONE shared gate for the change notice, shared with the
+	 * Expert layout and carrying the run's own timing (T3c). It used to be computed
+	 * here with NO timing, so `deriveRunFreshness` kept the server's verdict and
+	 * reported `trustworthy: true` for ANY comparison — which is why a notice
+	 * appeared on a published run that had not changed since it was made. */
+	const changeNotice = useRunChangeNotice({
+		context,
+		capabilities,
+		isPublished: isRunPublished,
+		generationEnabled: generationReady,
+		onRegenerate: context.handleTriggerGenerate,
+	});
+	const showDriftState = changeNotice.show;
 	const setupRepair = generationGate.repair.kind !== 'none' ? generationGate.repair : setupState.repair;
 	// F3 — a repair target equal to the current route is a dead control ("Review
 	// timetable" while already on /timetable). It must never be suppressed into
@@ -691,61 +697,28 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 				className="flex min-w-0 flex-col gap-1.5"
 				data-testid="timetable-simple-header-row"
 			>
-			<section data-testid="timetable-simple-status-region" role="region" aria-label="Timetable status" className="min-w-0 px-3">
-			<div className="flex min-w-0 flex-wrap items-center gap-1.5">
-				<TimetableDraftStateStrip visibility={draftStrip.visibility} />
-				{/* A2-C6-TRUTH (T3a/T3b/T3c) — WHICH schedule, and which term, in one
-				    place. Simple is the DEFAULT view and it printed neither: the run
-				    number and Draft/Published word existed only in the Expert header
-				    (a surface move, not a regression — see `RunStateBadge`), and the
-				    app shell carried a separate `Active Term:` chip that could not see
-				    the term authority the timetable actually filters on. Both now come
-				    from one shared derivation. */}
-				<RunStateBadge
-					isPreGeneration={context.isPreGenerationWorkspace}
-					runId={context.draft?.runId ?? null}
-					isPublished={isRunPublished}
-					className="h-6 shrink-0 gap-1 px-2 text-xs font-semibold"
-				/>
-				<SimpleTermScopeLine
-					context={context}
-					termFilter={context.termFilter}
-					termOptions={context.termOptions}
-					viewingLabel={viewingTermLabel}
-					hasScheduleOnScreen={context.draft != null}
-				/>
-				{/* Only actionable drift and unresolved-term states belong in the
-				    ordinary header. Routine provenance remains in Expert diagnostics. */}
-				{showDriftState ? (
-					<SimpleDriftBanner
-						schoolId={context.schoolId}
-						schoolYearId={context.schoolYearId}
-						activeGeneratedRunId={context.draft?.runId ?? context.activeGeneratedRunId ?? null}
-						draft={context.draft ?? null}
-						isPreGenerationWorkspace={context.isPreGenerationWorkspace}
-						loading={context.loading}
-						onRefresh={context.handleRefresh}
-						onRolloverStatus={setRolloverStatus}
-						capabilities={capabilities}
-						isPublished={isRunPublished}
-						layout="inline"
-						showActions={false}
-						showRolloverGuidance={false}
-						onRegenerate={context.handleTriggerGenerate}
-						regenerationEnabled={generationReady}
-						regenerating={context.generating}
-					/>
-				) : termAuthorityNotice ? (
-					<p className="min-w-0 flex-1 truncate text-xs font-medium text-amber-800" data-testid="timetable-term-authority-unverified">{termAuthorityNotice}</p>
-				) : null}
-				{/* A2-C6-TRUTH (T3f) — the remaining notices, capped at three with an
-				    honest remainder count. Their conditions, wording, priority order
-				    and testids are unchanged; only how many render at once moved. */}
-				<SimpleHeaderMessageList messages={headerMessages} />
-			</div>
-			</section>
+			{/* C11 S2 (item 2) — the header is TWO rows at 1366×768: this status strip
+			    (the persistent draft/published sentence, the run identity, the term
+			    line and the capped notices) and ONE control row. The change notice is
+			    no longer a row of its own — it is the first child of the control row
+			    below, so a change on screen cannot push the controls off the screen.
+			    `SimpleHeaderStatusStrip` is extracted from this file because the §8
+			    1000-line cap had two lines of headroom and a sub-component is the
+			    prescribed answer (no comment was deleted to make room). */}
+			<SimpleHeaderStatusStrip
+				context={context}
+				visibility={draftStrip.visibility}
+				isPublished={isRunPublished}
+				viewingTermLabel={viewingTermLabel}
+				termAuthorityNotice={termAuthorityNotice}
+				changeNoticeActive={showDriftState}
+				messages={headerMessages}
+			/>
 
 			<div className="flex min-w-0 flex-wrap items-center gap-1.5 px-3">
+				{/* The change notice: ONE sentence, ONE primary action, one secondary, and
+				    part of THIS row rather than a row of its own (C11 S2 item 2). */}
+				{changeNotice.node}
 				<SimpleTermSwitcher context={context} />
 
 				<div className="hidden min-w-0 flex-1 lg:flex lg:shrink-0 lg:min-w-[24rem]">

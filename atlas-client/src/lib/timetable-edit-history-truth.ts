@@ -205,6 +205,52 @@ export function describeEditAutoMove(edit: ManualEditRecord): string | null {
 }
 
 /**
+ * C11 S2 (T2) — the SAME sentence with the class NAME in it.
+ *
+ * The recorded defect: Mon 12:15 GR7-Luna T2 showed only "Lunch Break" (TLE had
+ * been moved out by corrective edit 14) and the history read "Also moved Class A
+ * to Monday 12:15 PM–1:00 PM." — naming the operator's own control ("Class A"),
+ * not the class that actually moved. "Class A" is a handle for a dialog, not a
+ * class, and the operator had no way to learn which of their classes ATLAS had
+ * relocated behind their back.
+ *
+ * The payload records `entryIdA` / `entryIdB` but NO section id, so the name has
+ * to be resolved by the caller, which holds the run's entries and the section
+ * label map. `resolveClassName` is that resolver; it returns `null` for an
+ * unknown entry, a draft with no entry list, or a payload of the wrong shape, and
+ * this function then falls back to `describeEditAutoMove` — the pre-existing
+ * sentence, which is honest about what it does and does not know.
+ *
+ * ADDITIVE (AGENTS.md §16): `describeEditAutoMove` above is unchanged and still
+ * decides the un-labelled form. Nothing was removed.
+ */
+export function describeEditAutoMoveNamed(
+	edit: ManualEditRecord,
+	resolveClassName: (entryId: string) => string | null,
+): string | null {
+	const move = readEditAutoMove(edit);
+	if (!move) return null;
+	const entryId = readEditAutoMoveEntryId(edit, move.which);
+	// TRIMMED before the truth test: a resolver that answers "   " has named
+	// nothing, and printing it would put a blank where the class name belongs.
+	const className = (entryId ? resolveClassName(entryId) : null)?.trim() ?? '';
+	if (className.length === 0) return describeEditAutoMove(edit);
+	return `Also moved ${className} to ${formatEditAutoMoveSlot(move.to)}.`;
+}
+
+/**
+ * The `entryId` of the side the auto-fix relocated, from the SAME recorded payload
+ * the move itself was derived from — never a re-derivation of the schedule.
+ */
+function readEditAutoMoveEntryId(edit: ManualEditRecord, which: 'A' | 'B'): string | null {
+	const after = asPayload(edit.afterPayload);
+	const before = asPayload(edit.beforePayload);
+	if (!after || !before) return null;
+	const value = which === 'A' ? after.entryIdA ?? before.entryIdA : after.entryIdB ?? before.entryIdB;
+	return typeof value === 'string' && value.length > 0 ? value : null;
+}
+
+/**
  * A2-C7 correction (QA `ses_f19fa473bffeDm5iNBes3VX7PH` row 2, BLOCKING): the
  * ONE sentence the manual-edit-history surfaces print, extracted so the dialog
  * and the More-menu entry cannot hold separate copies of the empty state.

@@ -4,7 +4,7 @@ import type { ScheduleReviewDialogsContext } from '@/components/timetable/timeta
 import type { ManualEditRecord } from '@/types';
 import { manualEditActionLabel } from '@/lib/timetable-plain-language';
 // A2-C6-TRUTH (T2a): the plain sentence naming a class the auto-fix relocated.
-import { describeEditAutoMove, editHistoryRevertBlockedReason, editHistorySummarySentence } from '@/lib/timetable-edit-history-truth';
+import { describeEditAutoMoveNamed, editHistoryRevertBlockedReason, editHistorySummarySentence } from '@/lib/timetable-edit-history-truth';
 import {
 	ALREADY_UNDONE_EDIT_MESSAGE,
 	REVERT_EDIT_TYPE,
@@ -157,7 +157,15 @@ export function TimetableAssignmentDialogs({ context }: { context: ScheduleRevie
 						// its own it reads as a two-class change. The recorded slots
 						// decide whether a third session was relocated, and the row says
 						// so in the same plain words the post-commit toast used.
-						const autoMove = describeEditAutoMove(edit);
+						/* C11 S2 (T2) — the row names the CLASS that moved, resolved from
+						 * the run's own entries. A workspace that has no resolver, or a
+						 * payload naming an entry the run no longer holds, falls back to the
+						 * pre-existing "Class A"/"Class B" sentence: an unnamed sentence is
+						 * honest, an invented class name is not. */
+						const autoMove = describeEditAutoMoveNamed(
+							edit,
+							context.editHistoryEntryClassName ?? (() => null),
+						);
 					const canRevert = !isRevert && !isUndone && isHead && currentRunVersion != null && !revertLoading;
 					// A2-C7 correction (QA `ses_f19fa473bffeDm5iNBes3VX7PH` finding on
 					// T2d, BLOCKING): the head row's tooltip reason WAS the button's own
