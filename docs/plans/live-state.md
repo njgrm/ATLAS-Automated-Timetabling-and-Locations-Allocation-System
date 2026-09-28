@@ -28,6 +28,51 @@ rules are what make that safe:
 
 ## Lane A4 — release lane, 2026-09-28 (first A4 train)
 
+- **STAGING IS UP at `7590d485` — a second, isolated ATLAS on 5101 (API) / 5274 (client).**
+  `http://127.0.0.1:5274`. Release dir `E:\ATLAS-staging\7590d485…` (registered worktree, HEAD == pin,
+  0 reparse points, owns its dependency trees). Task `ATLAS-Staging-Supervisor` (SYSTEM, at startup).
+  Env `D:\ATLAS-runtime-config\atlas-staging.env`, ACL identical to the live env file. DB `atlas_staging`,
+  a streamed `pg_dump -Fc | pg_restore` snapshot of live. Deploy **26.3 s** with `-SkipBuild`.
+  Deploy with one command: `.\ops\staging\deploy-staging.ps1 -Sha <sha> -Execute`. Operator steps in
+  `docs/runbooks/staging.md`; every row in `docs/reviews/a4-staging-20260928/pre-action.md`.
+  Source on branch `work/a4-staging-20260928` at `834f1ad3` — **pushed, but NOT merged to `main`; it
+  needs a release train.** A planner reading this from `main` will not see the staging scripts yet.
+- **⚠ TWO GATES OPEN — staging is NOT QA-verified. Do not treat it as accepted.** (1) The **independent
+  post-action QA dispatch was declined** in that session, so the deployment is evidenced only by the
+  executor. `AGENTS.md` §11 does not close a HIGH cycle without one fresh independent reviewer.
+  (2) The **operator has not signed in** at `http://127.0.0.1:5274`, so no authenticated staging row has
+  run. Staging's `JWT_SECRET` is its own, so a Tailnet-seeded live session is **not** valid on 5274.
+- **Live was not touched, measured not asserted** (2026-09-28 ~17:35 +08): listeners still 5001 → **3516**,
+  5174 → **60116**; machine scope unchanged; live release tree clean at `7590d485`; live `audit_logs`
+  `1010|459|11` identical before **and** after, **re-checked after staging was up and serving**. The
+  pre-action baseline was captured *before* any mutation at
+  `C:\ProgramData\ATLAS\staging-audit\baseline-before.json` — the omission that left D7 `PARTIAL` on the
+  previous release does not recur.
+- **Recorded deviation from the staging packet, with a reason:** the packet suggested junctioning
+  dependencies from "the last good release". Rejected — the live release dir is a *numbered slot the next
+  train reuses*, and a junction chain rooted at a retired release has already downed this runtime once.
+  Each staging release owns its trees (0.87 GiB, ~25 s, 0 reparse points). Machine scope is also never
+  written: it is one global namespace shared with live, so staging sets its three `ATLAS_RUNTIME_*`
+  variables in a per-process `.cmd` launcher instead.
+- **Pre-action review earned its place — cite this before the next runtime-touching packet.** First pass:
+  `CORRECTION_REQUIRED`, **8/21 passed, 2 failed, 4 BLOCKING**. Two would each have killed the deploy
+  (`pg_restore` was given the archive as its `-f` **output** option and would have overwritten the dump it
+  was restoring from; probing a non-existent task terminated the script under `$ErrorActionPreference='Stop'`
+  on exactly the first-run path). Two were secret containment (staging env written *before* its ACL; a full
+  live DB dump left in a `BUILTIN\Users`-readable dir). Four more (B5–B8) appeared only while executing.
+  **All eight aborted before mutating, because the build phase runs before the quiesce phase.**
+- **Tailnet path for staging: decided NOT built (2026-09-28).** `tailscale` is present and the node is
+  `100.88.55.125 njgrm`, so a path is technically easy, but the packet's actual need — loopback on the PC
+  that runs the browser — is met, and exposing a production-data copy to the Tailnet is itself HIGH and
+  would need its own authorization. Reversible later in one command.
+- **Stream (unchanged):** own the release. Merge ready SHAs into one pinned release commit, gate once,
+  build, cut over, smoke, post. **A4 is the only lane that deploys and the only one that runs elevated.
+  A4 never edits product code or tests.**
+- **DONE — `a4-release-2026-09-28-1` is LIVE at `7590d485`.** Merge of `4c35cc8f` with A3 `7caadf2d` (c9+c10);
+  clean merge, zero conflicts, nothing dropped. Client-only: 70 files, 39 product, **0** under `atlas-server/`,
+  `prisma/`, `ops/`. Health 200 across health/ready/host and 3/3 public API paths. `E:` 38.0 -> **36.47 GiB**,
+  no reclaim triggered. Evidence: `docs/reviews/a4-release-20260928-1/release.md`.
+
 **Stream:** own the release. Merge ready SHAs into one pinned release commit, gate once, build, cut over, smoke,
 post. **A4 is the only lane that deploys and the only one that runs elevated. A4 never edits product code or tests.**
 
@@ -189,6 +234,16 @@ resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs
 ## Live release
 
 - Tailnet: `https://njgrm.buru-degree.ts.net`
+
+- **▶ STAGING (second, isolated ATLAS) is up at `7590d485` on 5101/5274 since 2026-09-28 ~17:35 +08 by
+  Lane A4 — this does NOT change the LIVE release named below.** Loopback only: `http://127.0.0.1:5274`.
+  Own env file, own `atlas_staging` database (a dump snapshot of live), own scheduled task, own dependency
+  trees, and its own `JWT_SECRET` so no session crosses the two origins. **Two gates are still open — the
+  independent post-action QA dispatch was declined and the operator has not signed in — so staging is
+  NOT QA-verified.** Detail and rows: `docs/reviews/a4-staging-20260928/pre-action.md`; operator steps:
+  `docs/runbooks/staging.md`; source on branch `work/a4-staging-20260928` at `834f1ad3` (pushed, not yet
+  merged to `main`). Live listeners, machine scope, release tree and the live `audit_logs` signature
+  `1010|459|11` were all measured unchanged across the staging cutover.
 
 - **▶ LIVE: `7590d485974337f834aa3972bb128090e6067b8d` — DEPLOYED 2026-09-28 ~16:40 +08 by Lane A4
   (`a4-release-2026-09-28-1`, the first A4 train). Merge of the incumbent `4c35cc8f` with **A3 `7caadf2d`
