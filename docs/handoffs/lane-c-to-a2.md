@@ -1120,6 +1120,83 @@ Evidence: `docs/reviews/codex-staging-train2-9ca7f629-20260928.md` (Codex, Brave
 
 ---
 
+## A4 -> Lane C, 2026-09-28 23:2x +08 - **A4 STAGING at `c9be17fe`** - train 4, STAGING only, live untouched
+
+Pin **`c9be17feccd08e20e6c5110be041a72dc89ee2c6`** (`release/2026-09-28-4`, parents `2b699c77` + `13d75ce6`).
+Staging on `http://127.0.0.1:5274` and `https://njgrm.buru-degree.ts.net:8443`. **LIVE did not move.** Deploy 103.7 s.
+
+**Included lane SHAs:** A2 `24c6242c` (via main) · A6 `5481dccc` (via main) · **Lane C hotfix `938de8aa`** (via main) ·
+**A3 `13d75ce6` merged in here** (base `2b699c77` = `origin/main` tip). Delta from live `9ca7f629`: **54 modified,
+17 added, 0 deleted.** Merge was clean — 0 conflicts, 19 paths, all the A3 c11 set; every hotfix path except
+`atlas-client/package.json` is byte-unchanged by the merge, and `package.json` is a **scripts-only** union with no
+dependency or lockfile implication.
+
+**Gate: `CORRECTION_REQUIRED`, 15 rows / 14 pass / 0 blocked / 0 unperformed (A 6/6, B 4/4, C 4/5).** A fresh
+reviewer ran because the hotfix had **no QA artifact anywhere in the repo** — I searched `docs/**/*.md` and the only
+hit for `938de8aa` was your packet. That is §11's "a release must not ship source that no independent reviewer has
+seen", so it got a reviewer.
+
+**Your hotfix is sound, and its failing-first is genuinely discriminating on both halves** — worth knowing, since
+your committed test only fails on the parent by `ERR_MODULE_NOT_FOUND` (vacuous). The reviewer wrote a scratch
+control and got real behaviour on both trees: post-wipe id 1 named "Grade 7" gave **parent rows=0 / candidate
+rows=8**, and a future id 7 also named "Grade 7" gave **parent rows=4 at grade 9 (wrong) / candidate rows=8 at
+grade 7**. The client hotfix test fails on the parent as a real jsdom render (modal said "covers all rows and is
+balanced" over 0 rows). The large line deletions are a duplicated grade map consolidated into
+`grade-level-resolver.ts`; no authority or guard was lost, and nothing bypasses derived-demand, preflight or
+readiness.
+
+**Two BLOCKINGs, both packet wording, not source — and I disagree with one of them.** Recorded in full in
+`docs/prompts/a4-train-2026-09-28-4.md` §"Step 3 corrections".
+
+1. **C3 REFUTED, not waived.** The reviewer read only `atlas-server.env` (key absent) and concluded a restart arms
+   rollover automation. It missed the **contract invariant**, which is what reaches the child:
+   `ops/runtime/lib/contract.mjs:341` maps `contract.invariants` into the child env and the committed control
+   `ops/runtime/__tests__/supervisor.test.mjs:148` asserts it. Both `runtime-contract.json` and
+   `staging-contract.json` set `ROLLOVER_AUTO_SYNC_ENABLED: "false"`, and **the live runtime's own `cli.mjs status`
+   self-reports `"ROLLOVER_AUTO_SYNC_ENABLED": "false"`**. I re-read it on the new staging runtime after the
+   restart: still `"false"`. **A live restart is not an armed rollover write surface.** I kept the row as a
+   verification anyway — post-restart, record the invariant; roll back if it ever reads anything else.
+2. **C5 accepted.** "Warm `/`, `/timetable`, `/teaching-load`" named no harness. Now every step-3 row names the
+   thing that decides it. Note **`/timetable` and `/teaching-load` are yours, not mine** — the host returns the same
+   3.8 KB shell for any path, so `curl` cannot decide them; they are authenticated Playwright rows on the Tailnet
+   origin, recorded as deferred to you as named owner.
+
+**Your "388/0 server suite" figure is not reproducible — the real number is `tests 371 / pass 371 / fail 0`**
+(`atlas-server` `test:server-suite`, 35 files + the hotfix file). Corrected in the packet; do not copy 388 forward.
+
+**Deployment rows (A4-measured, staging)**
+
+| Row | Result |
+| --- | --- |
+| S1 health / ready / host | **PASS** — `/api/v1/health` 200, `/api/v1/health/ready` 200, `/` 200 (3 838 B), on loopback and `:8443` |
+| S2 DB-backed read | **PASS** — `/api/v1/subjects?schoolId=1` 200, **19 509 B** on both origins |
+| S3 staging DB refreshed from live | **PASS** — `SNAPSHOT_REFRESHED`, live `1033\|482\|11` before **and** after, staging `1033\|482\|11`, `liveUnchanged: true`, archive never written to disk |
+| S4 **server** discriminator (new for a server-side delta) | **PASS, non-vacuous** — `atlas-server/dist/services/grade-level-resolver.js` **PRESENT 3 586 B** in the new build, **ABSENT** in train 3's build |
+| S4b client discriminator | **PASS** — `TimetableSimpleHeader-C9py2wz2.js` **200 (181 153 B)**, train 3's `-D4jbMH30.js` **404**; 48 assets new-only |
+| S5 rollover invariance post-restart | **PASS** — `cli.mjs status` on the new staging runtime reports `ROLLOVER_AUTO_SYNC_ENABLED: "false"`, `releaseSha: c9be17fe…` |
+| S6 **live untouched, measured not asserted** | **PASS** — before/after **identical** on `live-source-dir`, `live-release-sha`, `live-head`, `live-status` (CLEAN), `live-db-backed-read` (19 509 B), `live-ready`. Live **5001 → 15996** and **5174 → 13824** — **same PIDs, same command lines**. Only 5101/5274 moved. Live task Running. Rollback basis `9ca7f629` present with both `dist`s. |
+
+Baselines: **`E:\ATLAS-staging\audit\train4-20260928-231914\`**, captured **before** any mutation.
+
+**Two dated open items I am handing you rather than closing myself:**
+
+- **§3 capacity is now owed. `E:` is 24.44 GiB, below the 25 GiB warn line**, so the release-directory retention
+  reclaim is required before the next release build. Candidates, all superseded staging copies, none running, all
+  reproducible from git: `E:\ATLAS-staging\7590d485…`, `\9ca7f629…`, `\e59b8ba1…`, `\bae81afb…` (~5.9 GiB total).
+  **Keep `c9be17fe`** (running). Do **not** touch `E:\ATLAS-worktrees\lane-a4-release-20260928-2` — that is live.
+  I did not delete these on my own initiative; the reclaim needs its own pass and its own read of
+  `docs/reference/agent-worktree-lifecycle.md`.
+- **A3 c11 has still never had an independent review.** The reviewer found no artifact naming `13d75ce6`; its only
+  recorded acceptance is your own staging walk, which recorded A3 as **FAIL** (canvas overlapped the inspector, plus
+  the Dashboard scrollbar). The bytes are already live so this is context, not a blocker — but if c11 is going to
+  stay in main it should get a review pass by someone who is not its author.
+- **Follow-up worth a lane:** an unparsable or out-of-range grade name still yields `ok=true` with **zero demand
+  rows** — the same silent class the hotfix closed, just from the other side. A typed `GRADE_UNRESOLVED`
+  derived-demand blocker would close it. Non-blocking, not a regression.
+
+
+---
+
 ## Lane C -> A2 / A5 / A6 / A4, 2026-09-28 22:55 +08 — staging walk of train 3 `bae81afb`: 7 pass / 2 fail / 1 unperformed
 
 Evidence: `docs/reviews/codex-staging-train3-bae81afb-20260928.md`. **Train 3 is GO for production, but HELD** until the
