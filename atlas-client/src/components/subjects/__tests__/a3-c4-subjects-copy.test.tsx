@@ -275,7 +275,26 @@ test('A3-C4-1c: the raw code and its plain expansion stay reachable in an @/ui a
 		'a bare title attribute was used — AGENTS.md §8 forbids it',
 	);
 	const described = document.body.textContent ?? '';
-	assert.match(described, /OWNER_DEPT:AP/, 'the raw code is no longer reachable anywhere on the row');
+	// A5 C3 / R1 A2, update not delete. SUPERSEDED ON THE ROW:
+	//   assert.match(described, /OWNER_DEPT:AP/,
+	//     'the raw code is no longer reachable anywhere on the row');
+	// The subject-CODE chip used to be what made the raw identifier reachable from the
+	// row, and R1 A2 removes it: the operator's instruction was "drop the code chip from
+	// the row; the name is enough", and a scheduler deciding coverage reads the name.
+	// The control's REAL intent — the identifier stays reachable somewhere an officer
+	// can act on it — is therefore re-pointed to the surfaces that legitimately carry
+	// it (the coverage sheet and the form modal), asserted below and at ITEM 1b.
+	// Nothing is deleted, and the chip is NOT re-added to satisfy this row.
+	assert.doesNotMatch(
+		document.body.querySelector('code')?.textContent ?? '',
+		/SCI10|PE10/,
+		'the subject-code chip is back on the row, which R1 A2 removes',
+	);
+	assert.doesNotMatch(
+		described,
+		/OWNER_DEPT/,
+		'the row still prints the storage marker; A5 C3 J6 takes it off the whole page',
+	);
 	assert.match(
 		described,
 		/Araling Panlipunan/,
@@ -452,11 +471,28 @@ test('A3-C4-1g: the help text makes no scheduling claim, with or without an owne
 	// And the owner-marked case: ownership is still stated, scheduling is not.
 	const owned = m.splitSubjectFeatures(['OWNER_DEPT:AP', 'LAB_BENCH']);
 	const ownedHelp = m.subjectFeatureHelp(owned);
+	// A5 C3 / J6, update not delete. SUPERSEDED: the assertion here was
+	//   assert.match(ownedHelp, /It is owned by the Araling Panlipunan department\./, …)
+	// J6 replaces the whole ownership clause with plain owning CODES, because the
+	// operator's words were "no raw `OWNER_DEPT:AP` strings anywhere" and this sentence
+	// is what printed them. The control's real intent — the detail still STATES ownership
+	// rather than going silent — is asserted below with the new wording.
 	assert.match(
 		ownedHelp,
-		/It is owned by the Araling Panlipunan department\./,
-		'the true ownership sentence was lost with the false scheduling clause',
+		/ATLAS records the owning code as AP\./,
+		'the detail no longer states how ownership is recorded',
 	);
+	assert.match(
+		ownedHelp,
+		/LAB_BENCH/,
+		'the real room feature dropped out of the ownership detail',
+	);
+	assert.doesNotMatch(
+		ownedHelp,
+		/OWNER_DEPT/,
+		'the detail still prints the storage marker, which J6 removes from this page',
+	);
+	assert.doesNotMatch(ownedHelp, /is scheduled against/i, 'the false scheduling clause is back');
 	assert.doesNotMatch(
 		ownedHelp,
 		/\bscheduled\b/i,
@@ -485,10 +521,16 @@ test('A3-C4-1h: the rendered Subjects row carries no scheduling claim in its hel
 
 	const owned = await render(rowFor(subjectFixture({ requiredFeatures: ['OWNER_DEPT:AP', 'LAB_BENCH'] })));
 	const read = document.body.textContent ?? '';
+	// A5 C3 / J7, update not delete. SUPERSEDED:
+	//   assert.match(read, /owned by the Araling Panlipunan department/i, …)
+	// The ownership line is still ON the row and still says who owns it — that is the
+	// property, and it survives. What changed is its form: J7 drops the redundant noun
+	// (the line already begins `Owned by`) and names the department the way a school office
+	// writes it, so the primary read is a comma list.
 	assert.match(
 		read,
-		/owned by the Araling Panlipunan department/i,
-		'the rendered row lost the ownership sentence that IS supported by the data',
+		/Owned by Araling Panlipunan(?! department)/i,
+		'the rendered row lost the ownership statement that IS supported by the data',
 	);
 	assert.doesNotMatch(read, /\bscheduled against\b/i, 'the rendered row still makes a scheduling claim');
 	await unmount();
@@ -502,35 +544,58 @@ test('A3-C4-1h: the rendered Subjects row carries no scheduling claim in its hel
  * `font-bold ... uppercase ... font-bold tracking-tight` `<code>` with no
  * `tabindex`, no `aria-label` and no affordance at all, so it is neither
  * subordinate nor self-explanatory.
+ *
+ * A5 C3 / R1 A2 SUPERSEDES THIS ROW'S PREMISE, and R3 §2.2 decides it: the chip does
+ * not become better-described, it is REMOVED. The operator's instruction was "drop the
+ * code chip from the row; the name is enough" — a scheduler came to find one subject and
+ * see whether it is covered, and the code is the identifier curriculum requirements and
+ * EnrollPro records key on, not one that decision reads. So every assertion about the
+ * chip's chrome, focusability and description is superseded, and the control's real
+ * intent — the code is reachable somewhere an officer can act on it — is re-pointed to
+ * the surfaces that legitimately carry it: the form modal (A3-C4-5b below) and the
+ * coverage sheet (A3-C4-5a below). Nothing is deleted, and the chip is NOT re-added.
  */
-test('A3-C4-2a: the subject-code chip is subordinate and plainly described', async () => {
+test('A3-C4-2a: the subject-code chip is gone from the row, and the row still says what matters', async () => {
 	const host = await render(rowFor(subjectFixture({ code: 'STE_APPLIED_CHEM', name: 'Applied Chemistry' })));
-	const chip = host.querySelector('code');
-	assert.ok(chip, 'no subject code chip rendered');
-	assert.equal(chip.textContent, 'STE_APPLIED_CHEM', 'the raw code must stay visible on the chip');
-	assert.doesNotMatch(
-		chip.className,
-		/\bfont-bold\b/,
-		'the raw code chip still shouts as loudly as the subject name',
-	);
+	// SUPERSEDED, in this order: assert.ok(chip, 'no subject code chip rendered');
+	// assert.equal(chip.textContent, 'STE_APPLIED_CHEM', …);
+	// assert.doesNotMatch(chip.className, /font-bold/, …);
+	// assert.equal(chip.getAttribute('tabindex'), '0', …);
+	// assert.match(ariaLabel, /code/i, …); assert.doesNotMatch(ariaLabel, /OWNER_DEPT/, …)
 	assert.equal(
-		chip.getAttribute('tabindex'), '0',
-		'the code chip is not keyboard reachable, so no tooltip can be opened',
+		host.querySelector('code'),
+		null,
+		'the subject-code chip is back on the row; R1 A2 removes it and R3 §2.2 confirms that',
 	);
-	const label = chip.getAttribute('aria-label') ?? '';
-	assert.match(label, /code/i, 'the code chip is not described as what it is');
-	assert.doesNotMatch(label, /OWNER_DEPT/, 'an unrelated code leaked into the subject-code description');
+	assert.doesNotMatch(
+		host.textContent ?? '',
+		/STE_APPLIED_CHEM/,
+		'the raw code is still rendered on the row, which is what the operator screenshotted',
+	);
+	// Scoped to the CODE, not to the row: the program chips A5 C3 added are focusable on
+	// purpose, so that their full name is reachable by keyboard rather than by hover alone.
+	assert.equal(
+		Array.from(host.querySelectorAll('[tabindex="0"]')).filter((n) =>
+			(n.textContent ?? '').includes('STE_APPLIED_CHEM'),
+		).length,
+		0,
+		'the row still spends a keyboard stop on the subject code',
+	);
+	// The name — the row's actual title — is untouched, and the status badge stays.
+	assert.match(host.textContent ?? '', /Applied Chemistry/, 'the subject name is no longer the row title');
+	assert.match(host.textContent ?? '', /Active/, 'the row lost its Active/Archived status badge');
 	await unmount();
 });
 
 /** The subject NAME is already on screen one line above, so the fix must not
  * duplicate it into the chip. */
-test('A3-C4-2b: the chip does not duplicate the subject name that is already shown', async () => {
+test('A3-C4-2b: the row no longer carries a chip that could duplicate the subject name', async () => {
 	const host = await render(rowFor(subjectFixture({ code: 'STE_APPLIED_CHEM', name: 'Applied Chemistry' })));
-	const chip = host.querySelector('code');
-	assert.notEqual(
-		chip?.textContent, 'Applied Chemistry',
-		'the chip was made to read as the name, duplicating the row title',
+	// SUPERSEDED: assert.notEqual(chip?.textContent, 'Applied Chemistry', …)
+	assert.equal(
+		host.querySelector('code'),
+		null,
+		'the chip is back on the row and could again duplicate the title',
 	);
 	assert.match(host.textContent ?? '', /Applied Chemistry/, 'the subject name is no longer on the row');
 	await unmount();
@@ -877,13 +942,26 @@ test('A3-C4-5a: the coverage sheet shows the marker as a plain department, not a
 	const read = visibleText(document.body);
 	assert.doesNotMatch(read, /OWNER_DEPT:/, 'the coverage sheet still shows the raw marker to the reader');
 	assert.match(read, /Araling Panlipunan/, 'the coverage sheet does not name the owning department');
+	// A5 C3 / J6, update not delete. SUPERSEDED: the assertion that used to sit here was
+	//   assert.match(document.body.textContent, /OWNER_DEPT:AP/,
+	//     'the raw marker is no longer reachable in the coverage sheet diagnostic');
+	// R1 J6 and R2-2 put the coverage sheet IN SCOPE and the operator's words were "no raw
+	// `OWNER_DEPT:AP` strings anywhere", so the marker leaves this diagnostic too. The
+	// control's real intent — an officer can still see how ownership is recorded — is kept
+	// by asserting the owning CODE is reachable here, which is the diagnostic that survives.
+	assert.doesNotMatch(
+		document.body.textContent ?? '',
+		/OWNER_DEPT/,
+		'the coverage sheet diagnostic still prints the storage marker, which J6 removes from this page',
+	);
 	assert.match(
 		document.body.textContent ?? '',
-		/OWNER_DEPT:AP/,
-		'the raw marker is no longer reachable in the coverage sheet diagnostic',
+		/\bAP\b/,
+		'the coverage sheet no longer shows the owning code at all, so the diagnostic was lost rather than cleaned',
 	);
 	await unmount();
 });
+
 
 test('A3-C4-5b: the form modal chips the marker as a plain department', async () => {
 	const host = await render(

@@ -362,10 +362,12 @@ export function SubjectCoverageSheet({
 											<span className="font-bold text-primary">{subjectRoomFeatures.join(', ')}</span>
 										</p>
 									) : null}
-								{/* A3-C4 + A5-C2B: ownership is a department, not a room
-									feature. The primary line reads as a department name (or the
-									department code where the glossary has no plain name); the raw
-									OWNER_DEPT marker stays reachable in the @/ui detail below. */}
+								{/* A3-C4 + A5-C2B + A5 C3/J6 + J7: ownership is a department, not a room
+									feature. The primary line names it as a plain comma list without the
+									noun (`Owned by AP, MAPEH.`), and the @/ui detail below now names
+									the owning CODES too — A5 C3 took the `OWNER_DEPT:` storage prefix
+									off this page entirely, so the operator's "no raw `OWNER_DEPT:<code>`
+									strings anywhere" holds with this sheet open. */}
 								{subjectOwnerPhrase ? (
 									<p className="text-sm font-medium">
 										Owned by <span className="font-bold text-primary">{subjectOwnerPhrase}</span>.

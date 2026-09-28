@@ -452,6 +452,14 @@ const TOOLBAR: ToolbarProps = {
 
 /** Open a select and return its rendered options, in order. */
 async function openSelect(trigger: Element | null): Promise<Element[]> {
+	// A5 C3: the filters are Radix POPOVER pickers now, not Radix `Select`. A popover is
+	// modal, so a popover left open by an earlier row makes the rest of the document
+	// `pointer-events: none` and the next click lands on an inert body. Closing first is
+	// what a real user gets by clicking away, and it keeps this row testing the filter
+	// rather than the previous row's cleanup.
+	await act(async () => {
+		document.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+	});
 	await click(trigger);
 	const listbox = document.body.querySelector('[role="listbox"]');
 	assert.ok(listbox, 'the select did not open its listbox');
@@ -485,28 +493,41 @@ test('A5-9.1/41: the filter row is ONE cluster with exactly one All Status contr
 	}
 
 	// EXACTLY ONE status-looking trigger, and its resting label is the
-	// operator's `All Status` — the duplicate `All statuses` dropdown is gone.
+	// operator's own `Status: All` — the duplicate `All statuses` dropdown is
+	// gone.
+	//
+	// A5 C3 R3 §1, update not delete: BEFORE this read `All Status` (and before
+	// that, in R1 A1's wording, `Status: All statuses`). The operator's words are
+	// `Grade: All`, `Program: All` — short name, one-word value — so the trigger
+	// now reads `Status: All` while the POPOVER keeps the full option labels and
+	// the ACCESSIBLE NAME keeps the long form. The property this row exists for
+	// is unchanged: exactly one status-looking control, directly present, and no
+	// second status dropdown anywhere.
 	const triggers = clusterTriggers();
 	const statusish = triggers.filter((t) => /status/i.test(`${t.getAttribute('aria-label') ?? ''} ${t.textContent ?? ''}`));
 	assert.equal(statusish.length, 1, `expected exactly one status control, found ${statusish.length}: ${statusish.map((t) => t.getAttribute('aria-label')).join(', ')}`);
-	assert.equal((statusish[0].textContent ?? '').trim(), 'All Status', 'the merged status control does not read "All Status"');
-	assert.equal(statusish[0].getAttribute('aria-label'), 'Filter by subject status');
-	assert.equal(/All statuses/.test(document.body.textContent ?? ''), false, 'the lowercase-plural duplicate label is back');
+	assert.equal((statusish[0].textContent ?? '').trim(), 'Status: All', 'the merged status control does not read the operator\'s "Status: All"');
 
 	// The operator's four filters are all directly present, plus the retained
 	// term filter. Nothing is behind a disclosure, and no second row exists.
 	assert.equal(triggers.length, 5, `expected 5 direct filters (Status, Grades, Programs, Room Types, Term), found ${triggers.length}`);
 	for (const label of [
-		'Filter by subject status',
-		'Filter by grade level',
-		'Filter by program scope',
-		'Filter by room type',
-		'Filter by rotation term',
+		'Filter by subject status: All statuses',
+		'Filter by grade level: All grades',
+		'Filter by program scope: All programs',
+		'Filter by room type: All room types',
+		'Filter by rotation term: All terms',
 	]) {
 		assert.ok(document.body.querySelector(`[aria-label="${label}"]`), `filter "${label}" is not directly visible`);
 	}
-	// The operator's resting labels, verbatim.
-	for (const label of ['All Status', 'All Grades', 'All Programs', 'All Room Types']) {
+	// A5 C3 R3 §1, update not delete: the operator's RESTING labels are now
+	// `{ShortName}: All` — `Status: All`, `Grade: All`, `Program: All`, `Room: All`.
+	// BEFORE this row pinned the long forms as the trigger's resting text
+	// (`All Status`, `All Grades`, `All Programs`, `All Room Types`), which is the
+	// defect the operator screenshotted: a rectangle that says only "All…" and
+	// never says which filter it is. The FULL labels are still what the popover
+	// offers, asserted below and in `subjects-ux-a3.test.tsx`.
+	for (const label of ['Status: All', 'Grade: All', 'Program: All', 'Room: All', 'Term: All']) {
 		assert.ok(triggers.some((t) => (t.textContent ?? '').trim() === label), `no trigger reads "${label}"`);
 	}
 
@@ -538,19 +559,40 @@ test('A5-9.1/41: the search box is the fixed compact width, and every select car
 		assert.ok(hasClass(search, token), `the search input is missing "${token}"`);
 	}
 
-	// The operator's exact trigger dimensions, on EVERY select.
+	// A5 C3: the trigger dimensions moved OUT of this page and into
+	// `@/ui/picker-trigger`, because `AGENTS.md` §8 "One look per control" says a
+	// control's size is a variant and a variant belongs in `@/ui` so every page gets
+	// it. BEFORE, every select had to carry this page's own string verbatim:
+	//   ['h-9', 'text-xs', 'px-3', 'rounded-xl', 'border', 'border-slate-200',
+	//    'bg-white', 'hover:bg-slate-50', 'transition-colors']
+	// AFTER, each trigger carries the shared variant — `h-9` (the one height token,
+	// also on the search box), `w-32` (the one even width), `text-xs`, `px-3`, and
+	// the case normalisation — and the radius/border/background come from
+	// `@/ui/button variant="outline"`, which is the Section and Teacher pickers'
+	 // look, the reference the operator named. The assertion is still per-trigger,
+	// still on the RENDERED class list, and a page that restated any of these
+	// would fail here.
 	const triggers = clusterTriggers();
 	assert.ok(triggers.length >= 4, 'no select triggers rendered');
 	for (const trigger of triggers) {
-		for (const token of ['h-9', 'text-xs', 'px-3', 'rounded-xl', 'border', 'border-slate-200', 'bg-white', 'hover:bg-slate-50', 'transition-colors']) {
-			assert.ok(hasClass(trigger, token), `a select trigger is missing "${token}": ${trigger.getAttribute('aria-label')}`);
+		for (const token of ['h-9', 'w-32', 'text-xs', 'px-3', 'normal-case']) {
+			assert.ok(hasClass(trigger, token), `a select trigger is missing the shared "${token}": ${trigger.getAttribute('aria-label')}`);
+		}
+		// The page-local chrome string is gone, not renamed: `rounded-xl` +
+		// `border-slate-200` + `bg-white` were this page's own look, and §8 forbids it.
+		for (const gone of ['rounded-xl', 'border-slate-200', 'bg-white']) {
+			assert.equal(hasClass(trigger, gone), false, `a select trigger still carries the page-local override "${gone}"`);
 		}
 	}
+	// All five share ONE width, which is what R1 J3 asks for and what makes the
+	// 1366 width budget decidable from source.
+	const widths = new Set(triggers.map((t) => (t.className.match(/(?:^|\s)w-[\w-]+/) ?? ['NONE'])[0].trim()));
+	assert.equal(widths.size, 1, `the five filters carry ${widths.size} different widths: ${[...widths].join(' | ')}`);
 
 	// Grades use the shared compact DepEd form, not `Grade 7`.
-	const options = await openSelect(document.body.querySelector('[aria-label="Filter by grade level"]'));
+	const options = await openSelect(document.body.querySelector('[aria-label="Filter by grade level: All grades"]'));
 	const labels = options.map((o) => (o.textContent ?? '').trim());
-	assert.equal(labels[0], 'All Grades', 'the grade filter has no "All Grades" reset option');
+	assert.equal(labels[0], 'All grades', 'the grade filter has no "All grades" reset option');
 	for (const grade of constants.GRADE_OPTIONS) {
 		assert.ok(labels.includes(`GR${grade}`), `the grade option is not the shared compact GR${grade} form`);
 	}
@@ -574,11 +616,11 @@ test('A5-9.1/41 LOAD-BEARING: the one status control reaches BOTH axes — lifec
 			/>
 		</MemoryRouter>,
 	);
-	const options = await openSelect(document.body.querySelector('[aria-label="Filter by subject status"]'));
+	const options = await openSelect(document.body.querySelector('[aria-label="Filter by subject status: All statuses"]'));
 	const labels = options.map((o) => (o.textContent ?? '').trim());
 	assert.deepEqual(
 		labels,
-		['All Status', 'Active', 'Archived', 'Missing teacher coverage', 'Room-constrained subjects'],
+		['All statuses', 'Active', 'Archived', 'Missing teacher coverage', 'Room-constrained subjects'],
 		'the merged status control does not offer the full union of the two old dropdowns',
 	);
 
@@ -586,7 +628,7 @@ test('A5-9.1/41 LOAD-BEARING: the one status control reaches BOTH axes — lifec
 	// used to carry — the whole point of merging rather than deleting. Each
 	// choice re-opens the control, because picking closes the listbox.
 	for (const label of ['Active', 'Missing teacher coverage', 'Room-constrained subjects', 'Archived']) {
-		const options = await openSelect(document.body.querySelector('[aria-label="Filter by subject status"]'));
+		const options = await openSelect(document.body.querySelector('[aria-label="Filter by subject status: All statuses"]'));
 		await chooseOption(options, label);
 	}
 	assert.deepEqual(

@@ -34,6 +34,7 @@ and said so — §6.
 | **Filter control look** | the **Section** and **Teacher** pickers | The operator's own frame (`lane-c-to-a2.md`, 2026-09-29 00:15): *"Subject dropdowns look different from the Section and Teacher dropdowns"*, and *"the search box and the Section/Teacher pickers elsewhere are rounded rectangles"* while the subject filters were not. Rounded rectangle, not pill. |
 | **Picker primitive** | `@/ui/searchable-select`, as `/timetable`'s entity picker already uses it | §8 "One look per control". Already proven on a long list with a real search box. |
 | **Self-naming pattern** | `/timetable`'s `Schedule for` + entity picker pair (`SimpleHeaderHelpers.tsx:206-240`) | The one place a picker already carries its own name and passes it as `ariaLabel` (LANE-C C03 B11). Copied as a *pattern*, not as a layout. |
+| **Compact trigger over a full option list** | **`/timetable`'s entity picker, again** | **A5 C3 R3 §1.** The reference is this one primitive, and this is what it already does: the trigger shows a short entity name (`GR7`, `STE`, a room's short name) over a popover of long ones, because the trigger is a fixed shared rectangle and the popover has the room. `/subjects` now does the same — `Grade: All` on the rectangle, `All grades / GR7 / GR8 / GR9 / GR10` in the list, and the long `Filter by grade level: All grades` as the accessible name, which a screen reader reads with no width limit. Rule 5 names this reference; it is not a local variant. |
 | **Table row shape** | `SubjectRow.tsx`'s **existing** geometry, subtracted from | R2-6: the action cell and grade chips were accepted in c2b. Not re-laid out. |
 
 **Explicitly NOT copied:** the `/timetable` **header**. The operator judged it *"regressed · messy"*
@@ -141,10 +142,20 @@ badge/chip elements; "controls" = interactive elements.
 | | before | after | Δ |
 |---|---|---|---|
 | controls | 6 (+`Reset` when active) | 6 (+`Reset` when active) | **0** |
-| words | 11 | 17 | **+6** |
-| distinct widths | 5 (`160/96/112/144/112px`) | 1 (`208px`) | **−4** |
+| words | 11 | 11 (five × `Name: All` = 2 words, replacing 11 words of bare values) | **0** |
+| distinct widths | 5 (`160/96/112/144/112px`) | 1 (`128px`, `w-32`) | **−4** |
+| cluster content width at 1366 | 1004px (fitted one line) | **1010px** (5 × 128 + 40 gaps + 80 Reset + 240 search + 10 gap) against **~1062px** available | **+6px, still one line, 52px slack** |
 | pill/rounded-rect mismatch vs Section+Teacher | 5 controls wrong | 0 | **−5** |
 | hidden extra click per short list | — | −1 click on `Grade`/`Program`/`Term` | **−1 click** |
+
+Intermediate state, recorded because it is what caused the wrap and what R3 §1 corrected: R1
+A1's longer `Room type: All room types` form at one even `w-52` came to **1420px against
+~1062px** and wrapped 3+2. The planner established that the cause was the packet's own wording
+rather than the layout, and restored the operator's `{ShortName}: {ShortValue}` spec. The
+trigger text is now 2 words per filter instead of 3-5, and the box is sized to hold the longest
+of them (`Program: All`, ~63px of text in a 128px rectangle). **The word count is unchanged
+against the original screen — the region still adds no words at all**, because the self-naming
+name is paid for by collapsing `All Grades` to `All`.
 
 **The +6 words is a region where I added visible words and removed fewer words than I added, and
 this is the explicit reason the packet gives for it (rule 3's escape clause).** R1 A1: *"each
@@ -207,12 +218,12 @@ Pure subtraction, and the "no raw codes" axis of the rubric is discharged outrig
 
 | | before | after | Δ |
 |---|---|---|---|
-| filter-row words | 11 | 17 | **+6** |
+| filter-row words | 11 | 11 | **0** |
 | words per table row (1 scope, AP+MAPEH, 1 feature) | 21 | 17 | **−4** |
 | chips per table row (1 scope) | 3 | 2 | **−1** |
 | focusable elements per row | 1 | 0 | **−1** |
 | raw storage enums anywhere on the screen | 1 | 0 | **−1** |
-| **10-row screen, whole first screen** | 11 + 210 = **221** | 17 + 170 = **187** | **−34 words** |
+| **10-row screen, whole first screen** | 11 + 210 = **221** | 11 + 170 = **181** | **−40 words** |
 
 The filter row is net +6 **once**; the row is net −4 and the row repeats. On any real catalog the
 screen is a net subtraction of words, a net subtraction of focusable elements, and a net
@@ -246,13 +257,12 @@ the same reason, on the operator's own instruction.
 
 ## 5. Failure modes this design could still hit, stated before it happens
 
-1. **Wrapping.** With R1 A1's longer `Room type: All room types`, five equal 208px triggers plus
-   the 240px search do not fit the ~1054px content width at 1366 and the cluster wraps to two
-   calm lines (3 + 2). That is accepted: §11 rule 1 says a literal limit met by cramming fails,
-   and a clean 3+2 wrap with nothing truncated is not cramming. The operator's own shorter
-   example (`Grade: All`, `Program: All` — `lane-c-to-a2.md` 00:15) would keep the cluster on
-   **one** line. I implemented R1 A1 as written and flag the shorter form as a decision for Lane
-   C's older-user walk (§6).
+1. **Wrapping — RESOLVED, and it was the spec's fault, not the layout's.** R1 A1's
+   `Room type: All room types` at one even `w-52` came to 1420px against ~1062px and wrapped
+   3+2. R3 §1 established that the wording was the planner's own lengthening of the operator's
+   example, and restored `{ShortName}: {ShortValue}`. The cluster is now **1010px and holds one
+   line with 52px to spare**. Recorded here because the earlier note claimed the wrap was an
+   accepted trade — it was not an acceptable trade, it was an error upstream of me.
 2. **Truncation.** The `Program` chip set is the widest cell content. If a subject's chips
    overflow, they wrap within col 2 rather than truncating — the row is a flex column.
 3. **A3's `PROGRAM_SCOPE_BADGE` is a page-local palette entry for a non-`REGULAR` code.** The
@@ -262,7 +272,7 @@ the same reason, on the operator's own instruction.
 
 | # | Decision | Reason | Ask |
 |---|---|---|---|
-| D1 | `Room type: All room types` etc. — R1 A1's **longer** labels, at one even `w-52`, wrapping 3+2 at 1366 | R1 A1's settled form; the operator's own example is the shorter `Grade: All` | Lane C: is one wrapped line calmer than five shorter triggers on one line? |
+| D1 | **RESOLVED by R3 §1 — settled by the planner, not by me.** The planner ruled that the `Grade: All grades` wording was the packet's own lengthening of the operator's example, and restored the operator's spec: `{ShortName}: {ShortValue}`. I implemented it as ruled. The measured consequence is in §3.1: the cluster is **1010px against ~1062px available at 1366 and holds one line**, so the 3+2 wrap is gone. No trigger was narrowed, no font shrunk, no filter pushed into `More`, and no fourth width invented. | — | closed |
 | D2 | Search box suppressed for ≤ 8 options (R2-5) | A 5-option `Grade` list gains nothing from a search box and the box is one more thing to aim at | Lane C, in the older-user walk |
 | D3 | `Tooltip` not `HoverCard` for the full program name (J4) | `@radix-ui/react-hover-card` is not a dependency; adding one is a lockfile change outside this slice | accept as a recorded substitution |
 | D4 | Subject code removed from the row with nothing behind it (A2) | It is an identifier for curriculum requirements and EnrollPro records, not for the coverage decision; it stays on the edit form | accept the loss of the tab stop |
