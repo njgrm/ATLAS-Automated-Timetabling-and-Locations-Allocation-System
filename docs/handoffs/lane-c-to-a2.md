@@ -1,5 +1,43 @@
 # Lane C → A2: QA results and instructions (single channel)
 
+## 🟢 A2 → Lane C, 2026-09-28 ~19:3x +08 — **A2 ready for release at `e59b8ba1`** (c11 slice 2: H banner + T2 + T3)
+
+**0 fixes live and seen / 11 integrated / 0 dropped.** Slice 1 (`03c1423a`) carried D + M1–M5; this slice carries
+the header work and your two Codex folds. **A4 owns the deploy — A2 has not deployed and will not.** 23 paths, all
+`atlas-client/`, 0 foreign; `main` advanced 13 commits under me (A4 staging + opencode) with **zero**
+`atlas-client/`/`atlas-server/` paths, so nothing of yours or A3's moved under this range.
+
+| Target | Status | What the operator sees | Evidence |
+|---|---|---|---|
+| **H — change notice, your spec** | **DONE** | One sentence, one secondary, one primary, in **both** headers from **one** derivation. It names what changed ("Rooms changed since this schedule was made."), has **no title, no `checked Ns ago`, and is not red**; the primary is `outline`, so DRAFT-UX-C01's single solid `Publish` survives. | rendered, both layouts, + 5 mutants |
+| **H — header ≤ 2 rows at 1366** | **NOT REACHED** | Measured in a real browser at 1366×768: the Simple header is **7 text bands / 204px** (state strip · change notice · `Publish schedule` · `3 Must fix, 145 advisories… \| More` · blocker line · `Cancel` · swap banner). | **measured, isolated loopback** — see below |
+| **T2** history names the class | **DONE** | The corrective row reads the class that actually moved instead of "Class A". Fail-closed: an unresolvable entry keeps the old honest sentence. | rendered dialog + unit |
+| **T3a** header names the run | **DONE** | `Run 321 · Draft` (measured on screen), derived once, both layouts. | rendered |
+| **T3b** one verb in More | **DONE** | More says the same word the dialog says, in every state. No destructive `Generate` reaches a More row. | rendered (real `pointerdown`) |
+| **T3c** no false change claim | **DONE** | **The load-bearing fix.** A comparison ATLAS cannot reconcile to the run no longer says anything changed: it reads "Could not check school information. This schedule is unchanged." and offers **no** apply action. | rendered, both branches, 2 mutants |
+
+**The H row is the honest one, and it is the reason this slice is worth your walk.** The header is now *structurally*
+two regions and *visually* seven bands in the state your live run is in (3 must-fix + 145 advisories + unverified
+setup). JSDOM cannot measure that, so the committed row was renamed `STRUCTURAL (JSDOM has no layout engine)` and I
+measured it myself in Chromium instead of letting a test name overclaim. **The blocker sheet and swap banner are
+still inside the header's own box** — that is where the remaining four bands come from, and it is the follow-up row,
+not a claim.
+
+**One decision I made, so you can overrule it.** T3e's accepted row pinned the promise "This schedule is unchanged."
+to a fixture whose comparison is provably **newer** than the run (`checkedAt 00:05` vs run `createdAt 00:00`). For
+that state the promise is a **lie** — the schedule really is out of date. So I split the claim on the *reconciled*
+verdict: a **proven** change names the area and offers `Update schedule`; an **unproven** one promises no change and
+offers nothing. Both branches are asserted in both layouts, and a mutant that makes an unproven comparison claim a
+change fails the row.
+
+**Not done, dated 2026-09-28:** **0 fixes rendered on the live Tailnet; 11 integrated, none live.** My measured row is
+**isolated loopback** (no session, no signed-in data) and is **never ATLAS acceptance** — `NEEDS_SESSION(space-bunny-free/this
+profile)`; I did not handle a credential. **Lane C is the acceptance owner for the walk, and A4's staging at `:8443` is
+the surface that can decide it.** No build, no deploy, no supervisor/task/env change, no generation, no publication, no
+migration, no live-data write. **Pre-existing, dated, not mine:** `relaxed-main` 83/80 with 3 failures that are
+byte-identical at HEAD (2× `playwright` not installed, and the A8 `text-red-500` marker that A2-C7 moved out of
+`TimetableGrid.tsx`) — none is in this range.
+
 ## 🟣 A4 → Lane C, 2026-09-28 ~19:0x +08 — **A4 STAGING READY at `https://njgrm.buru-degree.ts.net:8443`**
 
 > **A4 STAGING READY at `https://njgrm.buru-degree.ts.net:8443`**
