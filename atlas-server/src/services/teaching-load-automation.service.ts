@@ -54,6 +54,12 @@ import {
 	type EffectiveWorkloadPolicy,
 } from './scheduling-policy.service.js';
 import {
+	effectiveWeeklyCapMinutes,
+	evaluateWeeklyLoad,
+	resolveRealFacultyCapMinutes as resolveRealFacultyCapMinutesShared,
+	type TeachingLoadCapMode,
+} from './teaching-load-capacity.service.js';
+import {
 	buildQualificationPolicySnapshot,
 	evaluateQualificationWithPolicy,
 	resolveSubjectAllowedOwnerDepartments as resolvePersistedAllowedOwnerDepartments,
@@ -164,7 +170,15 @@ export interface SuggestedRowPreview {
 	sectionName: string;
 	facultyId: number | null;
 	facultyName: string;
-	assignmentType: 'KEPT_EXISTING' | 'REAL_TEACHER' | 'TEMPORARY_SUBSTITUTE';
+	/**
+	 * - `KEPT_EXISTING` — an ownership row the plan preserves unchanged.
+	 * - `REAL_TEACHER` — a new assignment to a real, qualified teacher.
+	 * - `PLACEHOLDER_TEACHER` — TL-SHORTAGE-C02 item 3: a new assignment to a
+	 *   SAVED `isPlaceholder` teacher who holds the subject qualification. This
+	 *   is a PERSISTED insert, unlike a substitute.
+	 * - `TEMPORARY_SUBSTITUTE` — preview-only, `facultyId` is null, never saved.
+	 */
+	assignmentType: 'KEPT_EXISTING' | 'REAL_TEACHER' | 'PLACEHOLDER_TEACHER' | 'TEMPORARY_SUBSTITUTE';
 	warning?: string | null;
 }
 
@@ -366,7 +380,22 @@ export interface AutoFillResult {
 		placeholderAssignmentsUpserted: number;
 		resolvedSubjectCodes: string[];
 		stillUncoveredSubjectCodes: string[];
+		/**
+		 * TL-SHORTAGE-C02 item 2 — the substitutes counted by `rowsClosedByTeacherX`
+		 * are PREVIEW-ONLY. They carry `facultyId: null`, are stripped from the
+		 * distribution plan, and are never persisted by apply, so this number is
+		 * NOT delivered coverage. Read it as "unsaved substitute rows", never as
+		 * "classes covered".
+		 */
+		unsavedSubstituteRows?: number;
 	};
+	/**
+	 * TL-SHORTAGE-C02 item 2 — subject-section pairs this plan still needs a REAL
+	 * teacher for, i.e. the number generation will emit `TL_DEMAND_UNCOVERED`
+	 * blockers for. This is the field a UI must read for Teacher-X mode;
+	 * `unresolved` carries the same value for back-compat.
+	 */
+	stillNeedRealTeacher?: number;
 	suggestedRows?: SuggestedRowPreview[];
 	/** Bounded, stable rejection details for uncovered subject-section rows. */
 	candidateRejections?: TeachingLoadCandidateRejection[];
@@ -665,14 +694,35 @@ async function fetchSectionsForAutoFill(
  * credits so the auto-fill's capacity gate matches the roster's policyCreditedHours
  * semantics (credited load = teaching + advisory + ancillary).
  */
+/**
+ * TL-SHORTAGE-C02 item 1: the auto-fill capacity gate delegates to the ONE
+ * shared cap rule. The hard-cap branch used to be a bare `HARD_CAP_MIN` that
+ * never read `maxHoursPerWeek`, so a 30h teacher was promised a 40h budget and
+ * then flagged over cap by the same plan.
+ */
 function resolveRealFacultyCapMinutes(faculty: FacultyRow, mode: CoverageMode, nonTeachingMinutes?: number): number {
-	const rawCap = mode === REAL_ONLY_STANDARD_MODE
-		? Math.min(Math.max(0, faculty.maxHoursPerWeek * 60), STANDARD_CAP_MIN)
-		: HARD_CAP_MIN;
-	if (nonTeachingMinutes != null && nonTeachingMinutes > 0) {
-		return Math.max(0, rawCap - nonTeachingMinutes);
-	}
-	return rawCap;
+	return resolveSharedRealFacultyCapMinutes(faculty.maxHoursPerWeek, mode, nonTeachingMinutes);
+}
+
+/**
+ * Module-level wrapper over the shared rule. The policy ceilings are resolved
+ * once from the effective workload policy where available so a persisted policy
+ * change is honoured, falling back to the workload defaults exactly as the
+ * former module constants did.
+ */
+function resolveSharedRealFacultyCapMinutes(
+	maxHoursPerWeek: number,
+	mode: CoverageMode,
+	nonTeachingMinutes?: number,
+	policy?: { teachingStandardMinutes?: number | null; hardCapMinutes?: number | null } | null,
+): number {
+	return resolveRealFacultyCapMinutesShared({
+		maxHoursPerWeek,
+		mode: mode === REAL_ONLY_STANDARD_MODE ? 'REAL_FACULTY_STANDARD' : 'REAL_FACULTY_HARD_CAP',
+		policyStandardMinutes: Math.max(0, Math.round(policy?.teachingStandardMinutes ?? STANDARD_CAP_MIN)),
+		policyHardCapMinutes: Math.max(0, Math.round(policy?.hardCapMinutes ?? HARD_CAP_MIN)),
+		nonTeachingMinutes,
+	});
 }
 
 function resolveRealCoverageMode(coverageMode: CoverageMode): CoverageMode {
@@ -855,6 +905,9 @@ export function __testResolveEffectiveCapMinutes(
 	mode: CoverageMode,
 	nonTeachingMinutes: number,
 ): number {
+	// Exported control surface for TL-SHORTAGE-C02 item 1: the auto-fill cap and
+	// the proposal-apply receiver cap must resolve identically for the same
+	// teacher, because both call the one shared rule.
 	return resolveRealFacultyCapMinutes(
 		{ id: 0, firstName: '', lastName: '', department: null, specialization: null, canTeachOutsideDepartment: false, maxHoursPerWeek, isPlaceholder: false, isClassAdviser: false, advisoryEquivalentHours: 0, ancillaryMinutesPerWeek: null, advisedSectionId: null },
 		mode,
@@ -2309,7 +2362,11 @@ async function buildTeachingLoadDistributionPlan(params: {
 		if (facultyId == null || !Number.isInteger(facultyId) || facultyId <= 0) continue;
 		if (row.assignmentType === 'KEPT_EXISTING') {
 			retains.push({ action: 'RETAIN', subjectId: row.subjectId, sectionId: row.sectionId, facultyId });
-		} else if (row.assignmentType === 'REAL_TEACHER') {
+		} else if (row.assignmentType === 'REAL_TEACHER' || row.assignmentType === 'PLACEHOLDER_TEACHER') {
+			// TL-SHORTAGE-C02 item 3: a SAVED placeholder assignment is a real
+			// persisted INSERT (apply writes `plan.inserts`), so it belongs here
+			// exactly like a real-teacher insert. An unsaved substitute row still
+			// falls through, because it carries `facultyId: null`.
 			inserts.push({ action: 'INSERT', subjectId: row.subjectId, sectionId: row.sectionId, facultyId });
 		}
 	}
@@ -2932,6 +2989,7 @@ export async function autoFill(
 			assignmentsCreated: 0,
 			uniqueTeachersAffected: 0,
 			unresolved: selectedUnresolvedForMode,
+			stillNeedRealTeacher: selectedUnresolvedForMode,
 			coverageMode,
 			warnings,
 			sectionSource: sectionResult.source,
@@ -3002,6 +3060,88 @@ export async function autoFill(
 	// shift windows is evaluated against the first.
 	const shiftAssignmentsByFacultyId = cloneShiftAssignments(baseShiftAssignmentsByFacultyId);
 
+	/**
+	 * TL-SHORTAGE-C02 item 3 — the SAVED-placeholder pool.
+	 *
+	 * A saved `isPlaceholder` teacher is a persisted ATLAS record that the
+	 * generator already accepts as an owner, so excluding it from the suggestion
+	 * engine made the only thing that unblocks generation invisible to the tool
+	 * that fills load. Placeholders are therefore assignable, but under strict
+	 * ordering and qualification rules:
+	 *
+	 *  - consulted ONLY after the real-teacher pass below has run, so a real
+	 *    qualified teacher is never displaced;
+	 *  - only for a subject the placeholder holds a persisted `facultySubject`
+	 *    qualification row for in this school year;
+	 *  - only up to the placeholder's own `maxHoursPerWeek` budget, measured with
+	 *    the same rotation-lane capacity ledger the real pass uses;
+	 *  - active and not stale only.
+	 *
+	 * Unlike `TEMPORARY_SUBSTITUTE` rows these are PERSISTED inserts, so they are
+	 * reported as the distinct `PLACEHOLDER_TEACHER` assignment type.
+	 */
+	const placeholderPool = faculty.filter((member) => member.isPlaceholder);
+	const placeholderAssignedFacultyIds = new Set<number>();
+	const placeholderClosedPairs: UnresolvedPair[] = [];
+	const placeholderSubjectIdsByFacultyId = new Map<number, Set<number>>();
+	if (placeholderPool.length > 0) {
+		const placeholderQualifications = await db().facultySubject.findMany({
+			where: {
+				schoolId,
+				schoolYearId,
+				facultyId: { in: placeholderPool.map((member) => member.id) },
+			},
+			select: { facultyId: true, subjectId: true },
+		});
+		for (const row of placeholderQualifications) {
+			const set = placeholderSubjectIdsByFacultyId.get(row.facultyId) ?? new Set<number>();
+			set.add(row.subjectId);
+			placeholderSubjectIdsByFacultyId.set(row.facultyId, set);
+		}
+	}
+
+	/**
+	 * Try to cover one still-uncovered pair with a saved placeholder. Returns the
+	 * placeholder that took it, or null. Capacity is read from the SAME ledger
+	 * the real pass writes through, and the budget is the placeholder's own
+	 * `maxHoursPerWeek` — never the school hard cap — so a placeholder can never
+	 * be handed a 40h budget it did not contract for.
+	 */
+	const tryAssignPlaceholder = (pair: UnresolvedPair): FacultyRow | null => {
+		const minutes = Math.max(0, Number(pair.subject.minMinutesPerWeek) || 0);
+		if (minutes <= 0) return null;
+		const laneKey = buildCapacityLaneKey({
+			subjectId: pair.subjectId,
+			subjectCode: pair.subject.code,
+			rotationFamily: pair.subject.rotationFamily,
+			modularGroupId: pair.subject.modularGroupId,
+			modularOrder: pair.subject.modularOrder,
+			termGroupId: pair.subject.termGroupId,
+			termCount: pair.subject.termCount,
+			sectionId: pair.sectionId,
+		});
+		// Deterministic order: least-loaded placeholder first, then lowest id.
+		const candidates = placeholderPool
+			.filter((member) => placeholderSubjectIdsByFacultyId.get(member.id)?.has(pair.subjectId) === true)
+			.map((member) => ({ member, used: capacityUsed.get(member.id) ?? 0 }))
+			.sort((left, right) => (left.used - right.used) || (left.member.id - right.member.id));
+		for (const candidate of candidates) {
+			const budget = effectiveWeeklyCapMinutes({
+				maxHoursPerWeek: candidate.member.maxHoursPerWeek,
+				ancillaryMinutesPerWeek: candidate.member.ancillaryMinutesPerWeek,
+			});
+			if (budget <= 0) continue;
+			const ledger = capacityLedgersByFaculty.get(candidate.member.id) ?? createEmptyCapacityLedger();
+			const delta = estimateCapacityLaneDeltaMinutes(ledger, laneKey, minutes);
+			if (candidate.used + delta > budget) continue;
+			applyCapacityLaneMinutesToLedger(ledger, laneKey, minutes);
+			capacityLedgersByFaculty.set(candidate.member.id, ledger);
+			capacityUsed.set(candidate.member.id, ledger.creditedMinutes);
+			return candidate.member;
+		}
+		return null;
+	};
+
 	for (const subjectId of orderedSubjectIds) {
 		const pairs = bySubjectId.get(subjectId)!;
 		const subjectRow = subjectMap.get(subjectId)!;
@@ -3060,6 +3200,16 @@ export async function autoFill(
 			}
 			const candidate = selection.faculty;
 			if (!candidate) {
+				// TL-SHORTAGE-C02 item 3: every real, qualified teacher for this
+				// subject is at cap (or none exists), so the saved-placeholder pool
+				// is consulted NOW — never before the real pass.
+				const placeholder = tryAssignPlaceholder(pair);
+				if (placeholder) {
+					placeholderAssignedFacultyIds.add(placeholder.id);
+					addPending(placeholder.id, pair.subjectId, pair.sectionId);
+					placeholderClosedPairs.push(pair);
+					continue;
+				}
 				warnings.push(`Lacking Faculty: no department-qualified teacher for ${subjectRow.name} (${pair.sectionName}).`);
 				unresolvedPairs.push(pair);
 			} else {
@@ -3108,12 +3258,24 @@ export async function autoFill(
 			placeholderAssignmentsUpserted: 0,
 			resolvedSubjectCodes: [],
 			stillUncoveredSubjectCodes: unresolvedSubjectCodes,
+			// Every substitute row is unsaved: `apply` persists only
+			// `distribution.inserts`, and substitutes are not inserts.
+			unsavedSubstituteRows: unresolvedPairs.length,
 		};
 	}
 
 	const totalCreated = created + teacherXRowsClosed;
 	const uniqueTeachersAffected = affectedTeacherIds.size + teacherXPlaceholderTeacherCount;
-	const finalUnresolved = coverageMode === 'REAL_FACULTY_THEN_TEACHER_X' ? 0 : selectedUnresolvedForMode;
+	// TL-SHORTAGE-C02 item 2: Teacher-X mode must NOT force `unresolved` to 0.
+	// Its `TEMPORARY_SUBSTITUTE` rows (facultyId null) are stripped from the
+	// distribution plan and never persisted — apply writes only `plan.inserts` —
+	// so the previous forced zero made the page read "complete" while generation
+	// still emitted one `TL_DEMAND_UNCOVERED` blocker per uncovered pair.
+	// `unresolved` now carries the REAL count in every mode, and the explicit
+	// `stillNeedRealTeacher` field carries the same number for Teacher-X so a
+	// caller never has to infer it from `unresolved`.
+	const stillNeedRealTeacher = unresolvedPairs.length;
+	const finalUnresolved = stillNeedRealTeacher;
 	const staffingReport = coverageMode === 'REAL_FACULTY_THEN_TEACHER_X'
 		? buildStaffingReport([], realFaculty, capacityUsed, REAL_ONLY_HARD_CAP_MODE, nonTeachingMinutesByFaculty)
 		: selectedStaffingReport;
@@ -3124,16 +3286,20 @@ export async function autoFill(
 	// Detect over-cap faculty from existing ownerships (Fix B).
 	// A faculty is over-cap when their credited teaching load + non-teaching
 	// credits exceed their maxHoursPerWeek cap.
+	// TL-SHORTAGE-C02 item 5: the auto-fill over-cap report reads the ONE shared
+	// load definition, so Teaching Load and generation agree on who is over
+	// limit instead of auto-fill pairing teaching+advisory minutes against the
+	// generator's whole-hour cap.
 	const overCapFacultyById = new Map<number, { overMinutes: number; facultyName: string }>();
 	for (const member of faculty) {
 		if (member.isPlaceholder) continue;
-		const teachingMinutes = capacityUsed.get(member.id) ?? 0;
-		const nonTeachingMinutes = nonTeachingMinutesByFaculty.get(member.id) ?? 0;
-		const totalCreditedMinutes = teachingMinutes + nonTeachingMinutes;
-		const capMinutes = Math.max(0, member.maxHoursPerWeek * 60);
-		if (totalCreditedMinutes > capMinutes) {
+		const evaluation = evaluateWeeklyLoad(capacityUsed.get(member.id) ?? 0, {
+			maxHoursPerWeek: member.maxHoursPerWeek,
+			ancillaryMinutesPerWeek: member.ancillaryMinutesPerWeek,
+		});
+		if (evaluation.isOverLimit) {
 			overCapFacultyById.set(member.id, {
-				overMinutes: totalCreditedMinutes - capMinutes,
+				overMinutes: evaluation.overMinutes,
 				facultyName: `${member.lastName}, ${member.firstName}`,
 			});
 		}
@@ -3168,10 +3334,14 @@ export async function autoFill(
 		});
 	}
 
-	// 2. REAL_TEACHER: proposed new assignments from pendingAssignments
+	// 2. REAL_TEACHER / PLACEHOLDER_TEACHER: proposed new assignments from
+	// pendingAssignments. TL-SHORTAGE-C02 item 3 — a saved placeholder is
+	// reported as its own assignment type so an operator can tell a persisted
+	// "to be hired" assignment from an unsaved substitute row.
 	for (const [facultyId, subjectMap_] of pendingAssignments) {
 		const facultyMember = faculty.find((m) => m.id === facultyId);
 		const facultyName = facultyMember ? `${facultyMember.lastName}, ${facultyMember.firstName}` : `Faculty #${facultyId}`;
+		const assignmentType = facultyMember?.isPlaceholder ? 'PLACEHOLDER_TEACHER' : 'REAL_TEACHER';
 		for (const [subjectId, sectionIds] of subjectMap_) {
 			const subjectRow_ = subjects.find((s) => s.id === subjectId);
 			for (const sectionId of sectionIds) {
@@ -3184,7 +3354,7 @@ export async function autoFill(
 					sectionName: sectionMeta_?.sectionName ?? `Section ${sectionId}`,
 					facultyId,
 					facultyName,
-					assignmentType: 'REAL_TEACHER',
+					assignmentType,
 					warning: null,
 				});
 			}
@@ -3231,6 +3401,7 @@ export async function autoFill(
 		assignmentsCreated: totalCreated,
 		uniqueTeachersAffected,
 		unresolved: finalUnresolved,
+		stillNeedRealTeacher,
 		coverageMode,
 		warnings,
 		sectionSource: sectionResult.source,
@@ -3790,24 +3961,30 @@ export async function previewOrApplyOverCapRebalance(
 	const realOwnershipRows = nonDemandOwnershipRowsForRebalance.filter((o) => realFaculty.some((f) => f.id === o.facultyId));
 	const { capacityUsed } = buildInitialCapacityTracking(realOwnershipRows as ExistingOwnershipRow[]);
 
-	// Detect over-cap faculty from ACTUAL teaching minutes under the effective
-	// persisted teaching standard. Advisory/ancillary credit is neutral: it stays
-	// visible as credited workload but can never make a teacher over standard.
+	// Detect over-cap faculty from ACTUAL teaching minutes against the ONE
+	// shared applicable cap (TL-SHORTAGE-C02 item 5). This replaces the previous
+	// `teachingMinutes > effectiveStandardMinutes`, which compared against the
+	// school 30h standard and never consulted `maxHoursPerWeek` — the reason the
+	// generator reported 5 teachers over limit while Teaching Load reported 0.
+	// Advisory/ancillary credit remains neutral: it is reported as credited
+	// workload but can never make a teacher over the applicable cap.
 	const overCapFaculty: OverCapRebalanceFacultyDetail[] = [];
 	for (const member of realFaculty) {
 		const teachingMinutes = capacityUsed.get(member.id) ?? 0;
 		const nonTeachingMinutes = nonTeachingMinutesByFaculty.get(member.id) ?? 0;
-		const totalCreditedMinutes = teachingMinutes + nonTeachingMinutes;
-		const capMinutes = effectiveStandardMinutes;
-		if (teachingMinutes > capMinutes) {
+		const evaluation = evaluateWeeklyLoad(teachingMinutes, {
+			maxHoursPerWeek: member.maxHoursPerWeek,
+			ancillaryMinutesPerWeek: member.ancillaryMinutesPerWeek,
+		});
+		if (evaluation.isOverLimit) {
 			overCapFaculty.push({
 				facultyId: member.id,
 				facultyName: `${member.lastName}, ${member.firstName}`,
 				teachingMinutes,
 				nonTeachingMinutes,
-				totalCreditedMinutes,
-				capMinutes,
-				overMinutes: teachingMinutes - capMinutes,
+				totalCreditedMinutes: teachingMinutes + nonTeachingMinutes,
+				capMinutes: evaluation.capMinutes,
+				overMinutes: evaluation.overMinutes,
 			});
 		}
 	}

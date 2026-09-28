@@ -1249,24 +1249,92 @@ export interface SectionAssignedClassesQueryOptions {
 }
 
 export interface PlaceholderCoverageRepairInput {
-  schoolId: number;
-  schoolYearId: number;
-  assignedBy: number;
-  authToken?: string;
-  subjectCodes?: string[];
-  apply?: boolean;
+	schoolId: number;
+	schoolYearId: number;
+	assignedBy: number;
+	authToken?: string;
+	subjectCodes?: string[];
+	/**
+	 * A8 TL-SHORTAGE-C02 item 3.3 — target subjects by internal id as well as by
+	 * code, so the client can name exactly the subject it is short of.
+	 */
+	subjectIds?: number[];
+	/**
+	 * The weekly contract of the to-be-hired teacher. Applied when a NEW
+	 * placeholder is created; an existing placeholder keeps its own contract and
+	 * the applied hours are reported in the response.
+	 */
+	maxHoursPerWeek?: number;
+	/** Optional display name for the to-be-hired teacher. */
+	teacherName?: string;
+	/**
+	 * REQUIRED. The authenticated actor's school. Fails closed when absent or
+	 * different from `schoolId` — there is no school-1 default on this route.
+	 */
+	actorSchoolId: number | null;
+	apply?: boolean;
+}
+
+/** A8 TL-SHORTAGE-C02 item 3.3 — the exact, typed plan this call would execute. */
+export interface PlaceholderCoveragePlanRow {
+	subjectId: number;
+	subjectCode: string;
+	subjectName: string;
+	/** Weekly teaching minutes this subject costs one section. */
+	minMinutesPerWeek: number;
+	/** EVERY uncovered pair, before the new teacher's contract is applied. */
+	uncoveredSectionIds: number[];
+	/** The subset the new teacher can actually hold, ascending. */
+	assignableSectionIds: number[];
+	/** Uncovered pairs deferred because the contract is exhausted, ascending. */
+	deferredSectionIds: number[];
+	plannedPairCount: number;
+	teacherName: string;
+	maxHoursPerWeek: number;
+}
+
+/** One (section, subject) pair this call actually assigned, or would assign. */
+export interface PlaceholderCoverageAssignedPair {
+	subjectId: number;
+	subjectCode: string;
+	sectionId: number;
+	facultyId: number;
+}
+
+export interface PlaceholderCoverageTeacher {
+	facultyId: number;
+	subjectId: number;
+	subjectCode: string;
+	firstName: string;
+	lastName: string;
+	facultySubjectId: number | null;
+	created: boolean;
+	maxHoursPerWeek: number;
 }
 
 export interface PlaceholderCoverageRepairResult {
-  applied: boolean;
-  before: ActiveSubjectCoverageSummary;
-  after: ActiveSubjectCoverageSummary;
-  createdPlaceholders: Array<{ facultyId: number; subjectCode: string }>;
-  reusedPlaceholders: Array<{ facultyId: number; subjectCode: string }>;
-  sectionsCoveredByPlaceholder: number;
-  placeholderAssignmentsUpserted: number;
-  resolvedSubjectCodes: string[];
-  stillUncoveredSubjectCodes: string[];
+	applied: boolean;
+	before: ActiveSubjectCoverageSummary;
+	after: ActiveSubjectCoverageSummary;
+	createdPlaceholders: Array<{ facultyId: number; subjectCode: string }>;
+	reusedPlaceholders: Array<{ facultyId: number; subjectCode: string }>;
+	sectionsCoveredByPlaceholder: number;
+	placeholderAssignmentsUpserted: number;
+	resolvedSubjectCodes: string[];
+	stillUncoveredSubjectCodes: string[];
+	/**
+	 * Item 3.3 — the plan, returned identically for `apply:false` (zero writes)
+	 * and `apply:true`. A preview is therefore exactly what the apply would do.
+	 */
+	plannedAssignments: PlaceholderCoveragePlanRow[];
+	/** The to-be-hired teacher(s), created or reused, with their real contract. */
+	teachers: PlaceholderCoverageTeacher[];
+	/** Exactly the pairs this call assigned. Empty when `apply:false`. */
+	assignedPairs: PlaceholderCoverageAssignedPair[];
+	/** Pairs that are STILL uncovered after the call, bounded per subject. */
+	stillUncoveredPairs: PlaceholderCoverageAssignedPair[];
+	/** Subject ids or codes named in the request that matched no active subject. */
+	unresolvedSubjectRefs: string[];
 }
 
 export interface CanonicalDepartmentMap {
@@ -1678,6 +1746,9 @@ async function loadCoverageContext(schoolId: number, schoolYearId: number, authT
         requiredFeatures: true,
         gradeLevels: true,
         programScopes: true,
+        // A8 TL-SHORTAGE-C02 item 3.3: the weekly cost of one section of this
+        // subject, used to bound a to-be-hired teacher's plan by their contract.
+        minMinutesPerWeek: true,
       },
       orderBy: { code: 'asc' },
     }),
@@ -2105,195 +2176,411 @@ function coveredStatus(ownedCount: number, relevantCount: number): 'FULL' | 'PAR
 }
 
 async function ensureSubjectPlaceholderFaculty(
-  tx: any,
-  schoolId: number,
-  subjectCode: string,
-): Promise<{ facultyId: number; created: boolean }> {
-  const firstName = 'Teacher X';
-  const lastName = subjectCode;
+	tx: any,
+	schoolId: number,
+	subjectCode: string,
+	options: { firstName?: string; lastName?: string; maxHoursPerWeek?: number } = {},
+): Promise<{ facultyId: number; created: boolean; maxHoursPerWeek: number; firstName: string; lastName: string }> {
+	// A8 TL-SHORTAGE-C02 item 3.3: a coverage repair may name the to-be-hired
+	// teacher. With no name supplied the historical "Teacher X <SUBJECT>" identity
+	// is kept exactly, so an existing caller finds the same placeholder as before.
+	const firstName = sanitizeCoverageName(options.firstName, 'Teacher X');
+	const lastName = sanitizeCoverageName(options.lastName, subjectCode);
+	const requestedMaxHours = Number.isFinite(Number(options.maxHoursPerWeek))
+		? Math.min(60, Math.max(1, Math.round(Number(options.maxHoursPerWeek))))
+		: 30;
 
-  const existing = await tx.facultyMirror.findFirst({
-    where: {
-      schoolId,
-      isPlaceholder: true,
-      firstName,
-      lastName,
-      isStale: false,
-    },
-    select: { id: true },
-  });
+	const existing = await tx.facultyMirror.findFirst({
+		where: {
+			schoolId,
+			isPlaceholder: true,
+			firstName,
+			lastName,
+			isStale: false,
+		},
+		select: { id: true, maxHoursPerWeek: true },
+	});
 
-  if (existing) {
-    return { facultyId: existing.id, created: false };
-  }
+	if (existing) {
+		// An existing placeholder keeps its OWN contract. Re-hiring hours silently
+		// would rewrite a workload budget nobody reviewed, so the real value is
+		// reported instead.
+		return {
+			facultyId: existing.id,
+			created: false,
+			maxHoursPerWeek: Math.max(1, Math.round(Number(existing.maxHoursPerWeek) || 30)),
+			firstName,
+			lastName,
+		};
+	}
 
-  const minExternal = await tx.facultyMirror.aggregate({
-    where: { schoolId },
-    _min: { externalId: true },
-  });
-  const nextExternalId = minExternal._min.externalId != null
-    ? Math.min(minExternal._min.externalId - 1, -1)
-    : -1;
+	const minExternal = await tx.facultyMirror.aggregate({
+		where: { schoolId },
+		_min: { externalId: true },
+	});
+	const nextExternalId = minExternal._min.externalId != null
+		? Math.min(minExternal._min.externalId - 1, -1)
+		: -1;
 
-  const created = await tx.facultyMirror.create({
-    data: {
-      schoolId,
-      externalId: nextExternalId,
-      firstName,
-      lastName,
-      department: 'PLACEHOLDER',
-      specialization: subjectCode,
-      employmentStatus: 'PLACEHOLDER',
-      isPlaceholder: true,
-      isActiveForScheduling: true,
-      canTeachOutsideDepartment: true,
-      maxHoursPerWeek: 30,
-      ancillaryLoadSource: 'NONE',
-      localNotes: `Auto-created coverage placeholder for ${subjectCode}`,
-      isStale: false,
-    },
-    select: { id: true },
-  });
+	const created = await tx.facultyMirror.create({
+		data: {
+			schoolId,
+			externalId: nextExternalId,
+			firstName,
+			lastName,
+			department: 'PLACEHOLDER',
+			specialization: subjectCode,
+			employmentStatus: 'PLACEHOLDER',
+			isPlaceholder: true,
+			isActiveForScheduling: true,
+			canTeachOutsideDepartment: true,
+			maxHoursPerWeek: requestedMaxHours,
+			ancillaryLoadSource: 'NONE',
+			localNotes: `Auto-created coverage placeholder for ${subjectCode}`,
+			isStale: false,
+		},
+		select: { id: true },
+	});
 
-  return { facultyId: created.id, created: true };
+	return { facultyId: created.id, created: true, maxHoursPerWeek: requestedMaxHours, firstName, lastName };
+}
+
+function sanitizeCoverageName(value: string | undefined, fallback: string): string {
+	const normalized = (value ?? '').trim();
+	return normalized.length > 0 ? normalized : fallback;
+}
+
+/**
+ * A8 TL-SHORTAGE-C02 item 3.3 — resolve the teacher identity a subject WOULD use,
+ * read-only, BEFORE the plan is built.
+ *
+ * A subject reuses an existing "Teacher X <SUBJECT>" placeholder when one exists.
+ * A reused teacher keeps its OWN weekly contract, so a plan bounded by the
+ * *requested* hours would promise less than the teacher can actually hold and
+ * would make the preview disagree with the apply. The real contract therefore
+ * has to be known first.
+ *
+ * If a concurrent operator creates the placeholder between this read and the
+ * apply, the apply reuses it and assigns FEWER pairs than planned — the failure
+ * direction is always under-promising, never over-promising — and the response
+ * reports the real contract in `teachers[].maxHoursPerWeek`.
+ */
+async function resolveCoveragePlaceholderIdentity(
+	schoolId: number,
+	subjectCode: string,
+	options: { firstName: string; lastName: string; maxHoursPerWeek: number },
+): Promise<{ facultyId: number | null; willCreate: boolean; maxHoursPerWeek: number }> {
+	const existing = await db().facultyMirror.findFirst({
+		where: { schoolId, isPlaceholder: true, firstName: options.firstName, lastName: options.lastName, isStale: false },
+		select: { id: true, maxHoursPerWeek: true },
+	});
+	if (existing) {
+		return {
+			facultyId: existing.id,
+			willCreate: false,
+			maxHoursPerWeek: Math.max(1, Math.round(Number(existing.maxHoursPerWeek) || options.maxHoursPerWeek)),
+		};
+	}
+	return { facultyId: null, willCreate: true, maxHoursPerWeek: options.maxHoursPerWeek };
+}
+
+/**
+ * A8 TL-SHORTAGE-C02 item 3.3 — build the exact plan the repair would execute.
+ *
+ * The plan is derived ONCE from the pre-apply coverage snapshot and the REAL
+ * contract of the teacher each subject would use, so an `apply:false` preview
+ * returns literally the same rows an `apply:true` executes. Each subject's
+ * assignable pairs are bounded by that contract: a 20-hour hire for a
+ * 240-minute subject takes at most five sections, and the sixth is reported as
+ * still uncovered rather than silently promised.
+ */
+function buildPlaceholderCoveragePlan(input: {
+	rows: Array<{
+		subject: { id: number; code: string; name: string; minMinutesPerWeek: number };
+		uncoveredSectionIds: number[];
+		teacherFirstName: string;
+		teacherLastName: string;
+		maxHoursPerWeek: number;
+	}>;
+}): PlaceholderCoveragePlanRow[] {
+	return input.rows.map((row) => {
+		const minMinutesPerWeek = Math.max(0, Number(row.subject.minMinutesPerWeek) || 0);
+		// A subject with no weekly-minute cost cannot be bounded by hours, so the
+		// contract does not restrict it; the shortage engine reports its own truth.
+		const capacityPairs = minMinutesPerWeek > 0
+			? Math.floor((row.maxHoursPerWeek * 60) / minMinutesPerWeek)
+			: row.uncoveredSectionIds.length;
+		const assignableSectionIds = row.uncoveredSectionIds.slice(0, Math.max(0, capacityPairs));
+		return {
+			subjectId: row.subject.id,
+			subjectCode: row.subject.code,
+			subjectName: row.subject.name,
+			minMinutesPerWeek,
+			uncoveredSectionIds: row.uncoveredSectionIds,
+			assignableSectionIds,
+			deferredSectionIds: row.uncoveredSectionIds.slice(assignableSectionIds.length),
+			plannedPairCount: assignableSectionIds.length,
+			teacherName: `${row.teacherFirstName} ${row.teacherLastName}`,
+			maxHoursPerWeek: row.maxHoursPerWeek,
+		};
+	});
 }
 
 export async function repairActiveSubjectCoverageWithPlaceholders(
-  input: PlaceholderCoverageRepairInput,
+	input: PlaceholderCoverageRepairInput,
 ): Promise<PlaceholderCoverageRepairResult> {
-  const apply = input.apply === true;
-  const before = await getActiveSubjectCoverageSummary(input.schoolId, input.schoolYearId, input.authToken);
-  const requested = input.subjectCodes?.length
-    ? new Set(input.subjectCodes.map((code) => code.trim().toUpperCase()))
-    : null;
+	// A8 TL-SHORTAGE-C02 item 3.3 — this route WRITES ownership and faculty rows.
+	// It is authority-checked in the service, not only in the router, so no caller
+	// path can reach the write with an implicit school scope.
+	await assertTeachingLoadWriteAuthority({
+		schoolId: input.schoolId,
+		schoolYearId: input.schoolYearId,
+		actorSchoolId: input.actorSchoolId,
+	});
 
-  const context = await loadCoverageContext(input.schoolId, input.schoolYearId, input.authToken);
-  const subjectsToRepair = context.subjects.filter((subject) => {
-    if (requested && !requested.has(subject.code.toUpperCase())) return false;
-    const beforeRow = before.rows.find((row) => row.subjectId === subject.id);
-    return Boolean(beforeRow && beforeRow.uncoveredSectionCount > 0);
-  });
+	const apply = input.apply === true;
+	const before = await getActiveSubjectCoverageSummary(input.schoolId, input.schoolYearId, input.authToken);
+	const requestedCodes = input.subjectCodes?.length
+		? new Set(input.subjectCodes.map((code) => code.trim().toUpperCase()))
+		: null;
+	const requestedIds = input.subjectIds?.length
+		? new Set(input.subjectIds)
+		: null;
 
-  const createdPlaceholders: Array<{ facultyId: number; subjectCode: string }> = [];
-  const reusedPlaceholders: Array<{ facultyId: number; subjectCode: string }> = [];
-  let sectionsCoveredByPlaceholder = 0;
-  let placeholderAssignmentsUpserted = 0;
+	const context = await loadCoverageContext(input.schoolId, input.schoolYearId, input.authToken);
+	const subjectsToRepair = context.subjects.filter((subject) => {
+		if (requestedCodes && !requestedCodes.has(subject.code.toUpperCase())) return false;
+		if (requestedIds && !requestedIds.has(subject.id)) return false;
+		const beforeRow = before.rows.find((row) => row.subjectId === subject.id);
+		return Boolean(beforeRow && beforeRow.uncoveredSectionCount > 0);
+	});
 
-  if (apply && subjectsToRepair.length > 0) {
-    for (const subject of subjectsToRepair) {
-      await db().$transaction(async (tx) => {
-        const relevantSectionIds = getRelevantSectionIdsForSubject(subject, context.sections);
-        if (relevantSectionIds.length === 0) return;
+	// A requested subject that matched nothing is reported, never silently ignored:
+	// the client asked for a shortage repair on a specific subject.
+	const resolvedCodes = new Set(subjectsToRepair.map((subject) => subject.code.toUpperCase()));
+	const unresolvedSubjectRefs: string[] = [
+		...(requestedCodes ? [...requestedCodes].filter((code) => !resolvedCodes.has(code)).sort() : []),
+		...(requestedIds
+			? [...requestedIds]
+				.filter((id) => !subjectsToRepair.some((subject) => subject.id === id))
+				.map((id) => `id:${id}`)
+				.sort()
+			: []),
+	];
 
-        const existingOwnership = await tx.subjectSectionOwnership.findMany({
-          where: {
-            schoolId: input.schoolId,
-            schoolYearId: input.schoolYearId,
-            subjectId: subject.id,
-            sectionId: { in: relevantSectionIds },
-          },
-          select: { sectionId: true },
-        });
-        const ownedSet = new Set(existingOwnership.map((row: { sectionId: number }) => row.sectionId));
-        const uncoveredSectionIds = relevantSectionIds.filter((sectionId) => !ownedSet.has(sectionId));
-        if (uncoveredSectionIds.length === 0) return;
+	const requestedMaxHours = Number.isFinite(Number(input.maxHoursPerWeek))
+		? Math.min(60, Math.max(1, Math.round(Number(input.maxHoursPerWeek))))
+		: 30;
+	const teacherName = sanitizeCoverageName(input.teacherName, 'Teacher X');
 
-        const placeholder = await ensureSubjectPlaceholderFaculty(tx, input.schoolId, subject.code);
-        if (placeholder.created) {
-          createdPlaceholders.push({ facultyId: placeholder.facultyId, subjectCode: subject.code });
-        } else {
-          reusedPlaceholders.push({ facultyId: placeholder.facultyId, subjectCode: subject.code });
-        }
+	// The teacher identity each subject WOULD use is resolved first, so the plan
+	// is bounded by the contract that teacher really has (see
+	// `resolveCoveragePlaceholderIdentity`), and the plan is computed BEFORE the
+	// apply branch, from the same `before` snapshot: a preview is exactly what
+	// the apply executes.
+	const plannedAssignments = buildPlaceholderCoveragePlan({
+		rows: await Promise.all(subjectsToRepair.map(async (subject) => {
+			const [teacherFirstName, teacherLastName] = splitTeacherName(teacherName, subject.code);
+			const identity = await resolveCoveragePlaceholderIdentity(input.schoolId, subject.code, {
+				firstName: teacherFirstName,
+				lastName: teacherLastName,
+				maxHoursPerWeek: requestedMaxHours,
+			});
+			const beforeRow = before.rows.find((row) => row.subjectId === subject.id);
+			return {
+				subject: {
+					id: subject.id,
+					code: subject.code,
+					name: subject.name,
+					minMinutesPerWeek: (subject as { minMinutesPerWeek?: number }).minMinutesPerWeek ?? 0,
+				},
+				uncoveredSectionIds: [...new Set((beforeRow?.uncoveredSections ?? []).map((section) => section.sectionId))]
+					.sort((left, right) => left - right),
+				teacherFirstName,
+				teacherLastName,
+				maxHoursPerWeek: identity.maxHoursPerWeek,
+			};
+		})),
+	});
 
-        const existingAssignment = await tx.facultySubject.findUnique({
-          where: { facultyId_subjectId_schoolYearId: { facultyId: placeholder.facultyId, subjectId: subject.id, schoolYearId: input.schoolYearId } },
-          select: { id: true, sectionIds: true, gradeLevels: true },
-        });
+	const createdPlaceholders: Array<{ facultyId: number; subjectCode: string }> = [];
+	const reusedPlaceholders: Array<{ facultyId: number; subjectCode: string }> = [];
+	const teachers: PlaceholderCoverageTeacher[] = [];
+	const assignedPairs: PlaceholderCoverageAssignedPair[] = [];
+	let sectionsCoveredByPlaceholder = 0;
+	let placeholderAssignmentsUpserted = 0;
 
-        const mergedSectionIds = existingAssignment
-          ? [...new Set([...existingAssignment.sectionIds, ...uncoveredSectionIds])].sort((a, b) => a - b)
-          : [...new Set(uncoveredSectionIds)].sort((a, b) => a - b);
+	if (apply && subjectsToRepair.length > 0) {
+		for (const planned of plannedAssignments) {
+			if (planned.assignableSectionIds.length === 0) continue;
+			await db().$transaction(async (tx) => {
+				// The plan is re-validated against the transaction's own view: a
+				// pair covered between the preview and here is not re-assigned.
+				const relevantSectionIds = getRelevantSectionIdsForSubject(
+					subjectsToRepair.find((subject) => subject.id === planned.subjectId)!,
+					context.sections,
+				);
+				if (relevantSectionIds.length === 0) return;
 
-        const gradeBySectionId = new Map(context.sections.map((section) => [section.id, section.gradeLevel]));
-        const mergedGradeLevels = [...new Set(mergedSectionIds.map((sectionId) => gradeBySectionId.get(sectionId)).filter((value): value is number => Number.isInteger(value)))].sort((a, b) => a - b);
+				const existingOwnership = await tx.subjectSectionOwnership.findMany({
+					where: {
+						schoolId: input.schoolId,
+						schoolYearId: input.schoolYearId,
+						subjectId: planned.subjectId,
+						sectionId: { in: relevantSectionIds },
+					},
+					select: { sectionId: true },
+				});
+				const ownedSet = new Set(existingOwnership.map((row: { sectionId: number }) => row.sectionId));
+				const assignable = planned.assignableSectionIds.filter((sectionId) => !ownedSet.has(sectionId));
+				if (assignable.length === 0) return;
 
-        let facultySubjectId: number;
-        if (!existingAssignment) {
-          const created = await tx.facultySubject.create({
-            data: {
-              facultyId: placeholder.facultyId,
-              subjectId: subject.id,
-              schoolId: input.schoolId,
-              schoolYearId: input.schoolYearId,
-              gradeLevels: mergedGradeLevels,
-              sectionIds: mergedSectionIds,
-              assignedBy: input.assignedBy,
-            },
-            select: { id: true },
-          });
-          facultySubjectId = created.id;
-          placeholderAssignmentsUpserted += 1;
-        } else {
-          await tx.facultySubject.update({
-            where: { id: existingAssignment.id },
-            data: {
-              sectionIds: mergedSectionIds,
-              gradeLevels: mergedGradeLevels,
-              assignedBy: input.assignedBy,
-            },
-          });
-          facultySubjectId = existingAssignment.id;
-        }
+				const [teacherFirstName, teacherLastName] = splitTeacherName(planned.teacherName, planned.subjectCode);
+				const placeholder = await ensureSubjectPlaceholderFaculty(tx, input.schoolId, planned.subjectCode, {
+					firstName: teacherFirstName,
+					lastName: teacherLastName,
+					maxHoursPerWeek: planned.maxHoursPerWeek,
+				});
+				if (placeholder.created) {
+					createdPlaceholders.push({ facultyId: placeholder.facultyId, subjectCode: planned.subjectCode });
+				} else {
+					reusedPlaceholders.push({ facultyId: placeholder.facultyId, subjectCode: planned.subjectCode });
+				}
 
-        if (uncoveredSectionIds.length > 0) {
-          await tx.subjectSectionOwnership.createMany({
-            data: uncoveredSectionIds.map((sectionId) => ({
-              schoolId: input.schoolId,
-              schoolYearId: input.schoolYearId,
-              facultySubjectId,
-              facultyId: placeholder.facultyId,
-              subjectId: subject.id,
-              sectionId,
-              assignedAt: new Date(),
-            })),
-          });
-          sectionsCoveredByPlaceholder += uncoveredSectionIds.length;
-        }
-      });
-    }
-  }
+				const existingAssignment = await tx.facultySubject.findUnique({
+					where: { facultyId_subjectId_schoolYearId: { facultyId: placeholder.facultyId, subjectId: planned.subjectId, schoolYearId: input.schoolYearId } },
+					select: { id: true, sectionIds: true, gradeLevels: true },
+				});
 
-  const after = apply
-    ? await getActiveSubjectCoverageSummary(input.schoolId, input.schoolYearId, input.authToken)
-    : before;
+				const mergedSectionIds = existingAssignment
+					? [...new Set([...existingAssignment.sectionIds, ...assignable])].sort((a, b) => a - b)
+					: [...new Set(assignable)].sort((a, b) => a - b);
 
-  if (apply) {
-    await refreshTeachingLoadCycle(input.schoolId, input.schoolYearId);
-  }
+				const gradeBySectionId = new Map(context.sections.map((section) => [section.id, section.gradeLevel]));
+				const mergedGradeLevels = [...new Set(mergedSectionIds.map((sectionId) => gradeBySectionId.get(sectionId)).filter((value): value is number => Number.isInteger(value)))].sort((a, b) => a - b);
 
-  const resolvedSubjectCodes = before.rows
-    .filter((row) => row.uncoveredSectionCount > 0)
-    .filter((row) => {
-      const afterRow = after.rows.find((candidate) => candidate.subjectId === row.subjectId);
-      return (afterRow?.uncoveredSectionCount ?? row.uncoveredSectionCount) === 0;
-    })
-    .map((row) => row.subjectCode);
+				let facultySubjectId: number;
+				if (!existingAssignment) {
+					const created = await tx.facultySubject.create({
+						data: {
+							facultyId: placeholder.facultyId,
+							subjectId: planned.subjectId,
+							schoolId: input.schoolId,
+							schoolYearId: input.schoolYearId,
+							gradeLevels: mergedGradeLevels,
+							sectionIds: mergedSectionIds,
+							assignedBy: input.assignedBy,
+						},
+						select: { id: true },
+					});
+					facultySubjectId = created.id;
+					placeholderAssignmentsUpserted += 1;
+				} else {
+					await tx.facultySubject.update({
+						where: { id: existingAssignment.id },
+						data: {
+							sectionIds: mergedSectionIds,
+							gradeLevels: mergedGradeLevels,
+							assignedBy: input.assignedBy,
+						},
+					});
+					facultySubjectId = existingAssignment.id;
+				}
 
-  const stillUncoveredSubjectCodes = after.rows
-    .filter((row) => row.uncoveredSectionCount > 0)
-    .map((row) => row.subjectCode);
+				await tx.subjectSectionOwnership.createMany({
+					data: assignable.map((sectionId) => ({
+						schoolId: input.schoolId,
+						schoolYearId: input.schoolYearId,
+						facultySubjectId,
+						facultyId: placeholder.facultyId,
+						subjectId: planned.subjectId,
+						sectionId,
+						assignedAt: new Date(),
+					})),
+				});
+				sectionsCoveredByPlaceholder += assignable.length;
+				for (const sectionId of assignable) {
+					assignedPairs.push({
+						subjectId: planned.subjectId,
+						subjectCode: planned.subjectCode,
+						sectionId,
+						facultyId: placeholder.facultyId,
+					});
+				}
+				teachers.push({
+					facultyId: placeholder.facultyId,
+					subjectId: planned.subjectId,
+					subjectCode: planned.subjectCode,
+					firstName: placeholder.firstName,
+					lastName: placeholder.lastName,
+					facultySubjectId,
+					created: placeholder.created,
+					maxHoursPerWeek: placeholder.maxHoursPerWeek,
+				});
+			});
+		}
+	}
 
-  return {
-    applied: apply,
-    before,
-    after,
-    createdPlaceholders,
-    reusedPlaceholders,
-    sectionsCoveredByPlaceholder,
-    placeholderAssignmentsUpserted,
-    resolvedSubjectCodes,
-    stillUncoveredSubjectCodes,
-  };
+	const after = apply
+		? await getActiveSubjectCoverageSummary(input.schoolId, input.schoolYearId, input.authToken)
+		: before;
+
+	if (apply) {
+		await refreshTeachingLoadCycle(input.schoolId, input.schoolYearId);
+	}
+
+	const resolvedSubjectCodes = before.rows
+		.filter((row) => row.uncoveredSectionCount > 0)
+		.filter((row) => {
+			const afterRow = after.rows.find((candidate) => candidate.subjectId === row.subjectId);
+			return (afterRow?.uncoveredSectionCount ?? row.uncoveredSectionCount) === 0;
+		})
+		.map((row) => row.subjectCode);
+
+	const stillUncoveredSubjectCodes = after.rows
+		.filter((row) => row.uncoveredSectionCount > 0)
+		.map((row) => row.subjectCode);
+
+	// The authoritative remainder is read from the AFTER snapshot, so it is true
+	// even when a pair was covered by a concurrent operator instead of by us.
+	const stillUncoveredPairs: PlaceholderCoverageAssignedPair[] = [];
+	for (const row of after.rows) {
+		const teacher = teachers.find((candidate) => candidate.subjectId === row.subjectId);
+		for (const section of row.uncoveredSections) {
+			stillUncoveredPairs.push({
+				subjectId: row.subjectId,
+				subjectCode: row.subjectCode,
+				sectionId: section.sectionId,
+				facultyId: teacher?.facultyId ?? 0,
+			});
+		}
+	}
+
+	return {
+		applied: apply,
+		before,
+		after,
+		createdPlaceholders,
+		reusedPlaceholders,
+		sectionsCoveredByPlaceholder,
+		placeholderAssignmentsUpserted,
+		resolvedSubjectCodes,
+		stillUncoveredSubjectCodes,
+		plannedAssignments,
+		teachers,
+		assignedPairs,
+		stillUncoveredPairs,
+		unresolvedSubjectRefs,
+	};
+}
+
+/** "Teacher X FILI" -> ["Teacher X", "FILI"]; a bare name keeps the subject default. */
+function splitTeacherName(teacherName: string, subjectCode: string): [string, string] {
+	const normalized = teacherName.trim();
+	if (normalized.length === 0) return ['Teacher X', subjectCode];
+	const separator = normalized.search(/\s+/);
+	if (separator <= 0) return [normalized, subjectCode];
+	return [normalized.slice(0, separator), normalized.slice(separator + 1).trim() || subjectCode];
 }
 
 const DEFAULT_REAL_RECOVERY_SUBJECT_CODES = ['SCI_ES', 'TLE_FCS_EXP', 'SCI_CHEM', 'HG'];

@@ -11,6 +11,7 @@
 import crypto from 'crypto';
 
 import { prisma } from '../lib/prisma.js';
+import { getDataContext } from '../lib/data-context.js';
 import { createFacultyAdapter, type ExternalFaculty, type FacultyFetchResult } from './faculty-adapter.js';
 import { invalidateStaleCompletedRuns } from './generation.service.js';
 import { seedQualifiedAssignments } from './assignment-seed.service.js';
@@ -18,6 +19,15 @@ import { syncAdvisoryHgAssignments } from './hg-advisory.service.js';
 import { sectionAdapter } from './section-adapter.js';
 
 const adapter = createFacultyAdapter();
+
+/**
+ * A8 TL-SHORTAGE-C02 item 3.2 — the placeholder-creation write resolves its
+ * client through the injectable data context. Outside an injected scope this is
+ * the production singleton, so production behaviour is unchanged; inside one it
+ * is the same client the request already uses, which is what lets the
+ * qualification write be exercised without a second database.
+ */
+const db = () => getDataContext();
 
 export type FacultySourceLabel = 'enrollpro' | 'cached-enrollpro' | 'stub';
 export type FacultySyncMode = 'reconcile' | 'prune';
@@ -868,6 +878,29 @@ export interface CreatePlaceholderFacultyInput {
 	maxHoursPerWeek?: number;
 	canTeachOutsideDepartment?: boolean;
 	localNotes?: string | null;
+	/**
+	 * A8 TL-SHORTAGE-C02 item 3.2 — the subjects this placeholder is QUALIFIED to
+	 * teach. A placeholder with no `FacultySubject` row can never be proposed by
+	 * the suggestion engine or the coverage repair, so creating a "to-be-hired"
+	 * teacher without its qualification produced a teacher the shortage workflow
+	 * could not use. Required (with `assignedBy`) whenever `subjectIds` is given.
+	 */
+	subjectIds?: number[];
+	/** Required whenever `subjectIds` is given: Teaching Load is year-scoped. */
+	schoolYearId?: number;
+	/** Required whenever `subjectIds` is given: who authorised the qualification. */
+	assignedBy?: number;
+}
+
+function placeholderFacultyError(
+	statusCode: number,
+	code: string,
+	message: string,
+): Error & { statusCode: number; code: string } {
+	const error = new Error(message) as Error & { statusCode: number; code: string };
+	error.statusCode = statusCode;
+	error.code = code;
+	return error;
 }
 
 function sanitizeName(value: string | undefined, fallback: string): string {
@@ -880,6 +913,36 @@ function sanitizeOptionalText(value: string | null | undefined): string | null {
 	return normalized.length > 0 ? normalized : null;
 }
 
+/**
+ * A8 TL-SHORTAGE-C02 item 3.2 — resolve and validate the subject ids a new
+ * placeholder is qualified for. Fails closed: an unknown, inactive, or
+ * cross-school subject id is a typed rejection, never a silently dropped row.
+ */
+async function resolvePlaceholderQualificationSubjects(
+	tx: any,
+	schoolId: number,
+	subjectIds: number[],
+): Promise<Array<{ id: number; code: string }>> {
+	const unique = [...new Set(subjectIds)];
+	const invalid = unique.filter((id) => !Number.isInteger(id) || id <= 0);
+	if (invalid.length > 0) {
+		throw placeholderFacultyError(400, 'INVALID_PARAM', 'subjectIds must be positive integers.');
+	}
+	const rows = await tx.subject.findMany({
+		where: { id: { in: unique }, schoolId, isActive: true },
+		select: { id: true, code: true },
+	});
+	if (rows.length !== unique.length) {
+		const found = new Set(rows.map((row: { id: number }) => row.id));
+		throw placeholderFacultyError(
+			400,
+			'FACULTY_SUBJECT_NOT_QUALIFIABLE',
+			`Unknown or inactive subject id(s): ${unique.filter((id) => !found.has(id)).join(', ')}.`,
+		);
+	}
+	return rows.map((row: { id: number; code: string }) => ({ id: row.id, code: row.code }));
+}
+
 export async function createPlaceholderFaculty(input: CreatePlaceholderFacultyInput) {
 	const firstName = sanitizeName(input.firstName, 'Teacher');
 	const lastName = sanitizeName(input.lastName, 'X');
@@ -890,7 +953,17 @@ export async function createPlaceholderFaculty(input: CreatePlaceholderFacultyIn
 		? Math.min(60, Math.max(1, Math.round(Number(input.maxHoursPerWeek))))
 		: 30;
 
-	return prisma.$transaction(async (tx) => {
+	const requestedSubjectIds = input.subjectIds ?? [];
+	if (requestedSubjectIds.length > 0) {
+		if (!Number.isInteger(input.schoolYearId) || (input.schoolYearId as number) <= 0) {
+			throw placeholderFacultyError(400, 'INVALID_PARAM', 'schoolYearId is required when qualifying a placeholder for subjects.');
+		}
+		if (!Number.isInteger(input.assignedBy) || (input.assignedBy as number) <= 0) {
+			throw placeholderFacultyError(403, 'ACTOR_REQUIRED', 'An authenticated operator is required to qualify a placeholder for subjects.');
+		}
+	}
+
+	return db().$transaction(async (tx) => {
 		const minExternal = await tx.facultyMirror.aggregate({
 			where: { schoolId: input.schoolId },
 			_min: { externalId: true },
@@ -899,7 +972,7 @@ export async function createPlaceholderFaculty(input: CreatePlaceholderFacultyIn
 			? Math.min(minExternal._min.externalId - 1, -1)
 			: -1;
 
-		return tx.facultyMirror.create({
+		const faculty = await tx.facultyMirror.create({
 			data: {
 				schoolId: input.schoolId,
 				externalId: nextExternalId,
@@ -919,6 +992,34 @@ export async function createPlaceholderFaculty(input: CreatePlaceholderFacultyIn
 				staleAt: null,
 			},
 		});
+
+		// Item 3.2: the qualification rows are written in the SAME transaction as
+		// the teacher, so a placeholder is never persisted unqualified. The
+		// `sectionIds` / `gradeLevels` parity invariant that
+		// `teaching-load-suggestion-proposal.service.ts` maintains holds here: the
+		// placeholder owns no section yet, so both are empty.
+		if (requestedSubjectIds.length > 0) {
+			const subjects = await resolvePlaceholderQualificationSubjects(tx, input.schoolId, requestedSubjectIds);
+			await tx.facultySubject.createMany({
+				data: subjects.map((row) => ({
+					facultyId: faculty.id,
+					subjectId: row.id,
+					schoolId: input.schoolId,
+					schoolYearId: input.schoolYearId as number,
+					gradeLevels: [],
+					sectionIds: [],
+					assignedBy: input.assignedBy as number,
+				})),
+			});
+		}
+
+		const facultySubjects = await tx.facultySubject.findMany({
+			where: { facultyId: faculty.id },
+			select: { id: true, subjectId: true, schoolYearId: true, sectionIds: true, gradeLevels: true },
+			orderBy: { subjectId: 'asc' },
+		});
+
+		return { ...faculty, facultySubjects };
 	});
 }
 

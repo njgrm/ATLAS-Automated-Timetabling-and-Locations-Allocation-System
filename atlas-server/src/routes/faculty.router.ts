@@ -323,13 +323,35 @@ router.get('/:id/homeroom-hint', authenticate, async (req: Request, res: Respons
 });
 
 // Auth: POST /faculty/placeholders — create explicit Teacher X placeholder faculty
+//
+// A8 TL-SHORTAGE-C02 item 3.2: `subjectIds` qualifies the new placeholder for
+// subjects IN THE SAME TRANSACTION, so a hand-made "to-be-hired" teacher is never
+// persisted without the qualification rows the shortage workflow needs.
+//
+// Actor-school scope is fail-closed: a caller with no assigned school cannot
+// create a placeholder for any school, and a body school that differs from the
+// authenticated actor's school is rejected. There is no school-1 default.
 router.post('/placeholders', authenticate, requirePrivilegedRole, async (req: Request, res: Response, next: NextFunction) => {
 	try {
-		const schoolId = Number(req.body.schoolId);
-		if (!schoolId || Number.isNaN(schoolId)) {
-			res.status(400).json({ code: 'INVALID_PARAM', message: 'schoolId is required.' });
+		const schoolId = parseStrictFacultySchoolId(req.body?.schoolId);
+		if (schoolId == null) {
+			res.status(400).json({ code: 'INVALID_PARAM', message: 'schoolId must be a positive integer.' });
 			return;
 		}
+		const actorSchoolId = actorFacultySchoolId(req);
+		if (actorSchoolId == null) {
+			res.status(403).json({ code: 'ACTOR_SCHOOL_REQUIRED', message: 'The authenticated actor must have an assigned school.' });
+			return;
+		}
+		if (actorSchoolId !== schoolId) {
+			res.status(403).json({ code: 'SCHOOL_MISMATCH', message: 'Request school does not match the authenticated actor school.' });
+			return;
+		}
+
+		const subjectIds = Array.isArray(req.body?.subjectIds)
+			? req.body.subjectIds.map((value: unknown) => (typeof value === 'number' ? value : Number(value)))
+			: undefined;
+		const schoolYearId = req.body?.schoolYearId == null ? undefined : parseStrictFacultySchoolId(req.body.schoolYearId) ?? undefined;
 
 		const placeholder = await facultyService.createPlaceholderFaculty({
 			schoolId,
@@ -340,6 +362,9 @@ router.post('/placeholders', authenticate, requirePrivilegedRole, async (req: Re
 			maxHoursPerWeek: req.body.maxHoursPerWeek,
 			canTeachOutsideDepartment: req.body.canTeachOutsideDepartment,
 			localNotes: typeof req.body.localNotes === 'string' ? req.body.localNotes : null,
+			subjectIds,
+			schoolYearId,
+			assignedBy: req.user?.userId ?? undefined,
 		});
 
 		res.status(201).json({ faculty: placeholder });

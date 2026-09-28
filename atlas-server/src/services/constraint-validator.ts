@@ -32,6 +32,7 @@ import {
 	entryTermScope,
 	effectiveTermsOverlap,
 } from './effective-scheduled-resources.js';
+import { evaluateWeeklyLoad } from './teaching-load-capacity.service.js';
 import { roomRequiredFeatures } from './subject-ownership.service.js';
 
 // ─── Violation codes ───
@@ -793,7 +794,23 @@ export function validateHardConstraints(ctx: ValidatorContext): ValidationResult
 		for (const [facultyId, terms] of minutesByFacultyTerm) {
 			const fac = facultyMap.get(facultyId);
 			if (!fac) continue;
-			const maxMinutes = fac.maxHoursPerWeek * 60;
+			// TL-SHORTAGE-C02 item 5: read the ONE shared applicable cap.
+			//
+			// `ctx.faculty[].maxHoursPerWeek` has ALREADY been reduced by
+			// ancillary and floored to whole hours by
+			// `generation-preflight.service.ts` (`buildPreflightValidatorContext`
+			// / `buildPreflightConstructorInput`), so evaluating through the
+			// shared rule with `ancillaryMinutesPerWeek: null` reproduces the
+			// former `fac.maxHoursPerWeek * 60` value exactly. The generator's HARD
+			// `FACULTY_OVERLOAD` classification and severity are therefore
+			// unchanged — this is a wiring change, not a threshold change. Any
+			// change in the generator's HARD count is a defect to report, not a
+			// tuning knob (`docs/reference/agent-timetable-invariants.md`).
+			const load = evaluateWeeklyLoad(0, {
+				maxHoursPerWeek: fac.maxHoursPerWeek,
+				ancillaryMinutesPerWeek: null,
+			});
+			const maxMinutes = load.capMinutes;
 			// Concurrent weekly load = direct (term 0) + the worst rotation term.
 			const direct = terms.get(0) ?? 0;
 			let worstTerm = 0;

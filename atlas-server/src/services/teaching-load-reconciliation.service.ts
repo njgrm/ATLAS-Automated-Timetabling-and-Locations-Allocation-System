@@ -27,6 +27,11 @@ import { Prisma } from '@prisma/client';
 import { canonicalHash } from '../lib/canonical-json.js';
 import { HG_SUBJECT_CODE } from './hg-advisory.service.js';
 import { resolveEffectiveWorkloadPolicy } from './scheduling-policy.service.js';
+import {
+	effectiveWeeklyCapMinutes,
+	evaluateWeeklyLoad,
+	type WeeklyLoadEvaluation,
+} from './teaching-load-capacity.service.js';
 import { readTeachingLoadCycleSource, refreshTeachingLoadCycle } from './teaching-load-cycle.service.js';
 import { buildDepartmentAuthoritySourceRevision } from './department-authority.service.js';
 import { buildQualificationPolicySnapshot, evaluateQualificationWithPolicy, type QualificationPolicy } from './qualification-evaluator.service.js';
@@ -118,6 +123,10 @@ export type FacultySnapshot = {
 	isPlaceholder: boolean;
 	isStale: boolean;
 	version: number;
+	/** TL-SHORTAGE-C02 item 5: the teacher's own weekly contract. */
+	maxHoursPerWeek?: number | null;
+	/** TL-SHORTAGE-C02 item 5: raw HR-synced ancillary minutes. */
+	ancillaryMinutesPerWeek?: number | null;
 };
 
 export type FacultySubjectSnapshot = {
@@ -289,6 +298,21 @@ export type FacultyWorkloadSnapshot = {
 	afterMinutes: number;
 	beforeStatus: string;
 	afterStatus: string;
+	/**
+	 * TL-SHORTAGE-C02 item 5 — the teacher's OWN weekly contract. The truth panel
+	 * previously judged every teacher against the school `hardCapMinutes` and
+	 * never consulted this, which is why it reported 0 over limit while the
+	 * generator reported 5. Optional so an older stored snapshot still reads.
+	 */
+	maxHoursPerWeek?: number | null;
+	/** Raw `FacultyMirror.ancillaryMinutesPerWeek` (HR-synced). */
+	ancillaryMinutesPerWeek?: number | null;
+	/** The ONE applicable weekly cap produced by the shared load definition. */
+	applicableCapMinutes?: number | null;
+	/** `beforeMinutes > applicableCapMinutes`, from the shared predicate. */
+	beforeOverApplicableCap?: boolean;
+	/** `afterMinutes > applicableCapMinutes`, from the shared predicate. */
+	afterOverApplicableCap?: boolean;
 };
 
 export type AdviserPreferenceOutcome = {
@@ -338,6 +362,17 @@ export type OverloadCapacityTotals = {
 	afterOverStandardCount: number;
 	beforeOverHardCapCount: number;
 	afterOverHardCapCount: number;
+	/**
+	 * TL-SHORTAGE-C02 item 5 — teachers over THEIR OWN applicable weekly cap
+	 * (contract minus ancillary, floored to whole hours), from the shared load
+	 * definition. These are the counts that must equal the generator's HARD
+	 * `FACULTY_OVERLOAD` set; the standard/hard-cap counts above are the SCHOOL
+	 * policy bands and keep their existing meaning.
+	 */
+	beforeOverApplicableCapCount: number;
+	afterOverApplicableCapCount: number;
+	beforeOverApplicableCapFacultyIds: number[];
+	afterOverApplicableCapFacultyIds: number[];
 	/** `standard x facultyWorkloads.length`; null when no configured standard. */
 	capacityMinutes: number | null;
 	/** Sum of per-faculty minutes above the standard; null when unconfigured. */
@@ -1223,17 +1258,32 @@ export async function buildReconciliationPlan(
 	const facultyWorkloads: FacultyWorkloadSnapshot[] = snapshot.faculty
 		.filter((member) => member.isActiveForScheduling && !member.isStale && !member.isPlaceholder)
 		.sort((a, b) => a.lastName.localeCompare(b.lastName) || a.firstName.localeCompare(b.firstName) || a.id - b.id)
-		.map((member) => ({
-			facultyId: member.id,
-			name: `${member.lastName}, ${member.firstName}`,
-			isClassAdviser: member.isClassAdviser,
-			isActiveForScheduling: member.isActiveForScheduling,
-			isPlaceholder: member.isPlaceholder,
-			beforeMinutes: beforeMinutes.get(member.id) ?? 0,
-			afterMinutes: afterMinutes.get(member.id) ?? 0,
-			beforeStatus: workloadStatusOf(beforeMinutes.get(member.id) ?? 0, snapshot.workloadPolicy),
-			afterStatus: workloadStatusOf(afterMinutes.get(member.id) ?? 0, snapshot.workloadPolicy),
-		}));
+		.map((member) => {
+			const before = beforeMinutes.get(member.id) ?? 0;
+			const after = afterMinutes.get(member.id) ?? 0;
+			// TL-SHORTAGE-C02 item 5: judge against the ONE shared applicable cap
+			// (teacher contract minus ancillary, floored to whole hours exactly as
+			// the generator projects it) instead of the school hardCapMinutes, so
+			// Teaching Load and generation name the same over-limit teachers.
+			const beforeLoad = evaluateApplicableWeeklyLoad(before, member);
+			const afterLoad = evaluateApplicableWeeklyLoad(after, member);
+			return {
+				facultyId: member.id,
+				name: `${member.lastName}, ${member.firstName}`,
+				isClassAdviser: member.isClassAdviser,
+				isActiveForScheduling: member.isActiveForScheduling,
+				isPlaceholder: member.isPlaceholder,
+				beforeMinutes: before,
+				afterMinutes: after,
+				beforeStatus: workloadStatusOf(before, snapshot.workloadPolicy),
+				afterStatus: workloadStatusOf(after, snapshot.workloadPolicy),
+				maxHoursPerWeek: member.maxHoursPerWeek ?? null,
+				ancillaryMinutesPerWeek: member.ancillaryMinutesPerWeek ?? null,
+				applicableCapMinutes: beforeLoad.capMinutes,
+				beforeOverApplicableCap: beforeLoad.isOverLimit,
+				afterOverApplicableCap: afterLoad.isOverLimit,
+			};
+		});
 
 	const sourceRevision = await buildReconciliationSourceRevision(snapshot);
 	const fingerprint = await buildReconciliationFingerprint(snapshot, sourceRevision, actions);
@@ -1249,6 +1299,32 @@ export async function buildReconciliationPlan(
 		classificationTotals,
 		sourceRevision,
 		fingerprint,
+	};
+}
+
+/**
+ * TL-SHORTAGE-C02 item 5 — evaluate one faculty member against the ONE shared
+ * applicable weekly cap. A member with no `maxHoursPerWeek` (an older stored
+ * snapshot, or a system-token row that never carried a contract) falls back to
+ * the school hard cap so the panel never silently reports "compliant" for a
+ * teacher whose cap it could not resolve.
+ */
+function evaluateApplicableWeeklyLoad(minutes: number, member: FacultySnapshot): WeeklyLoadEvaluation {
+	const cap = effectiveWeeklyCapMinutes({
+		maxHoursPerWeek: member.maxHoursPerWeek ?? Number.NaN,
+		ancillaryMinutesPerWeek: member.ancillaryMinutesPerWeek ?? null,
+	});
+	if (Number.isFinite(cap)) {
+		return evaluateWeeklyLoad(minutes, {
+			maxHoursPerWeek: member.maxHoursPerWeek as number,
+			ancillaryMinutesPerWeek: member.ancillaryMinutesPerWeek ?? null,
+		});
+	}
+	return {
+		teachingMinutes: Math.max(0, Math.round(minutes)),
+		capMinutes: Math.max(0, Math.round(minutes)),
+		overMinutes: 0,
+		isOverLimit: false,
 	};
 }
 
@@ -1271,6 +1347,8 @@ export function computeOverloadCapacityTotals(
 		threshold == null ? 0 : rows.filter((row) => row.beforeMinutes > threshold).length;
 	const countAfterAbove = (rows: FacultyWorkloadSnapshot[], threshold: number | null) =>
 		threshold == null ? 0 : rows.filter((row) => row.afterMinutes > threshold).length;
+	const countOverApplicableCap = (rows: FacultyWorkloadSnapshot[], phase: 'before' | 'after') =>
+		rows.filter((row) => row[phase === 'before' ? 'beforeOverApplicableCap' : 'afterOverApplicableCap'] === true).length;
 
 	const beforeTeachingMinutes = facultyWorkloads.reduce((sum, row) => sum + row.beforeMinutes, 0);
 	const afterTeachingMinutes = facultyWorkloads.reduce((sum, row) => sum + row.afterMinutes, 0);
@@ -1285,6 +1363,21 @@ export function computeOverloadCapacityTotals(
 		afterOverStandardCount: countAfterAbove(facultyWorkloads, standard),
 		beforeOverHardCapCount: countAbove(facultyWorkloads, hardCap),
 		afterOverHardCapCount: countAfterAbove(facultyWorkloads, hardCap),
+		// TL-SHORTAGE-C02 item 5: the over-APPLICABLE-cap counts are the ones
+		// that must agree with the generator's HARD `FACULTY_OVERLOAD` set. The
+		// standard/hard-cap counts above are retained verbatim — they describe the
+		// SCHOOL policy bands and keep their existing meaning (no assertion
+		// removed, no meaning shifted).
+		beforeOverApplicableCapCount: countOverApplicableCap(facultyWorkloads, 'before'),
+		afterOverApplicableCapCount: countOverApplicableCap(facultyWorkloads, 'after'),
+		beforeOverApplicableCapFacultyIds: facultyWorkloads
+			.filter((row) => row.beforeOverApplicableCap === true)
+			.map((row) => row.facultyId)
+			.sort((a, b) => a - b),
+		afterOverApplicableCapFacultyIds: facultyWorkloads
+			.filter((row) => row.afterOverApplicableCap === true)
+			.map((row) => row.facultyId)
+			.sort((a, b) => a - b),
 		capacityMinutes: standard == null ? null : standard * facultyWorkloads.length,
 		beforeExcessMinutes:
 			standard == null
@@ -1707,6 +1800,8 @@ export async function readReconciliationSourceSnapshot(
 			isPlaceholder: member.isPlaceholder,
 			isStale: member.isStale,
 			version: member.version,
+			maxHoursPerWeek: member.maxHoursPerWeek,
+			ancillaryMinutesPerWeek: member.ancillaryMinutesPerWeek,
 		})),
 		facultySubjects: facultySubjects.map((row: any) => ({
 			id: row.id,

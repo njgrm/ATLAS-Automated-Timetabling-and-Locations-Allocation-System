@@ -55,8 +55,10 @@ import {
 import { PolicyPaneConstraintWeights } from '@/components/scheduling-policy/PolicyPaneConstraintWeights';
 import { PolicyPaneSchedulingMode } from '@/components/scheduling-policy/PolicyPaneSchedulingMode';
 import {
+	buildPolicySavePayload,
 	buildProgramContextNote,
 	deepEqual,
+	LOCAL_POLICY_WORKLOAD_DEFAULTS,
 	toLocalGradeWindows,
 	toProgramOptionsFromSections,
 	type LocalPolicy,
@@ -81,10 +83,22 @@ function policyToLocal(p: SchedulingPolicy): LocalPolicy {
 		enableShiftCoherenceGuard?: boolean | null;
 		enforceShiftCoherenceGuard?: boolean | null;
 	};
+	// A8 TL-SHORTAGE-C02 item 6 — the three WORKLOAD columns. Read through a
+	// narrow local augmentation (same pattern as D9/D11 above) because the shared
+	// `SchedulingPolicy` client type is owned elsewhere. Carrying them here is
+	// what stops a pane save from resetting them to the server defaults.
+	const workload = p as SchedulingPolicy & {
+		teachingStandardMinutes?: number | null;
+		advisoryCreditMinutes?: number | null;
+		hardCapMinutes?: number | null;
+	};
 	return {
 		teacherMoveEnabled: p.teacherMoveEnabled ?? true,
 		periodLengthMinutes: p.periodLengthMinutes ?? 45,
 		periodsPerDay: p.periodsPerDay ?? 10,
+		teachingStandardMinutes: workload.teachingStandardMinutes ?? LOCAL_POLICY_WORKLOAD_DEFAULTS.teachingStandardMinutes,
+		advisoryCreditMinutes: workload.advisoryCreditMinutes ?? LOCAL_POLICY_WORKLOAD_DEFAULTS.advisoryCreditMinutes,
+		hardCapMinutes: workload.hardCapMinutes ?? LOCAL_POLICY_WORKLOAD_DEFAULTS.hardCapMinutes,
 		maxConsecutiveTeachingMinutesBeforeBreak: p.maxConsecutiveTeachingMinutesBeforeBreak,
 		minBreakMinutesAfterConsecutiveBlock: p.minBreakMinutesAfterConsecutiveBlock,
 		maxTeachingMinutesPerDay: p.maxTeachingMinutesPerDay,
@@ -221,11 +235,7 @@ export default function SchedulingPolicyPane({
 
 	const persistPolicyAndShiftWindows = useCallback(async (policyDraft: LocalPolicy, windowsDraft: LocalGradeWindow[]) => {
 		if (!schoolYearId) return;
-		const payload = {
-			...policyDraft,
-			enableLunchWindow: policyDraft.enableLunchWindow,
-			enforceLunchWindow: policyDraft.enableLunchWindow,
-		};
+		const payload = buildPolicySavePayload(policyDraft);
 		const [policyRes] = await Promise.all([
 			atlasApi.put<{ policy: SchedulingPolicy }>(`/policies/scheduling/${schoolId}/${schoolYearId}`, payload),
 			atlasApi.put<{ windows: GradeShiftWindow[] }>(`/generation/${schoolId}/${schoolYearId}/grade-windows`, {

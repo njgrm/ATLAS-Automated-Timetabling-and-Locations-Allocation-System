@@ -17,10 +17,38 @@ import {
 	type LocalGradeWindow,
 } from '@/components/scheduling-policy/schedulingPolicyWindowModel';
 
+// A8 TL-SHORTAGE-C02 item 6 — the workload contract and the save-payload builder
+// live in their own dependency-free module so the pane's save body is testable
+// without loading the component graph. Re-exported here so the pane keeps one
+// import surface.
+export {
+	LOCAL_POLICY_WORKLOAD_DEFAULTS,
+	LOCAL_POLICY_WORKLOAD_RANGES,
+	buildPolicySavePayload,
+	workloadMinutesOf,
+	type PolicyWorkloadMinutes,
+} from '@/components/scheduling-policy/policyWorkloadContract';
+
+/**
+ * A8 TL-SHORTAGE-C02 item 6 — the three WORKLOAD values.
+ *
+ * `PUT /policies/scheduling/:schoolId/:schoolYearId` upserts the policy row from
+ * the request body, and the server's `requirePositiveInt` falls back to
+ * `POLICY_DEFAULTS` for any field the body omits. The pane model had no field
+ * for these three, so saving ANY scheduling-policy change from the pane silently
+ * reset `teachingStandardMinutes`, `advisoryCreditMinutes` and `hardCapMinutes`
+ * to the defaults — for a school that had deliberately set different values, an
+ * unrelated save rewrote its entire Teaching Load contract. The defaults and the
+ * save-payload builder therefore live in `policyWorkloadContract.ts` (re-exported
+ * above) and these three fields are carried into the payload.
+ */
 export interface LocalPolicy {
 	teacherMoveEnabled: boolean;
 	periodLengthMinutes: number;
 	periodsPerDay: number;
+	teachingStandardMinutes: number;
+	advisoryCreditMinutes: number;
+	hardCapMinutes: number;
 	maxConsecutiveTeachingMinutesBeforeBreak: number;
 	minBreakMinutesAfterConsecutiveBlock: number;
 	maxTeachingMinutesPerDay: number;

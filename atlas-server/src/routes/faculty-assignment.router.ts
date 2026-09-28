@@ -434,33 +434,67 @@ router.get('/coverage/summary', authenticateWithSystemToken, requirePrivilegedRo
 	}
 });
 
-// Auth: POST /faculty-assignments/coverage/repair
-// Body: { schoolId: number, schoolYearId: number, apply?: boolean, subjectCodes?: string[] }
-router.post('/coverage/repair', authenticateWithSystemToken, requirePrivilegedRole, async (req: Request, res: Response, next: NextFunction) => {
+/**
+ * A8 TL-SHORTAGE-C02 item 3.3 — the ONE endpoint that hires a teacher for a
+ * shortage and covers its sections in a single call.
+ *
+ * `apply:false` is a zero-write preview that returns exactly the plan an
+ * `apply:true` would execute (`plannedAssignments`). `apply:true` additionally
+ * returns the to-be-hired teacher(s) in `teachers`, the exact pairs it assigned
+ * in `assignedPairs`, and everything still uncovered in `stillUncoveredPairs`.
+ *
+ * SUPERSEDES the pre-existing permissive handler on this path (see the handoff):
+ * the write is now operator-JWT only, fails closed when the authenticated actor
+ * has no school, and rejects a body school that differs from the actor's school.
+ * There is no school-1 default. The service re-checks the same authority, so the
+ * guarantee does not depend on this router.
+ *
+ * Auth: operator JWT + privileged role (a machine token may not mutate Teaching
+ * Load: no machine-mutation contract exists for this surface).
+ * Body: {
+ *   schoolId: number, schoolYearId: number,
+ *   apply?: boolean,                     // default false (preview)
+ *   subjectIds?: number[],               // and/or subjectCodes?: string[]
+ *   maxHoursPerWeek?: number,            // the to-be-hired teacher's contract
+ *   teacherName?: string,                // display name, default "Teacher X"
+ * }
+ * Responses: 400 INVALID_PARAM · 403 ACTOR_SCHOOL_REQUIRED / SCHOOL_MISMATCH /
+ * ACTOR_REQUIRED · 404 YEAR_MIRROR_NOT_FOUND · 409 ARCHIVED_YEAR_READ_ONLY /
+ * ACTIVE_YEAR_AMBIGUOUS.
+ */
+router.post('/coverage/repair', authenticate, requirePrivilegedRole, async (req: Request, res: Response, next: NextFunction) => {
 	try {
-		const schoolId = Number(req.body.schoolId);
-		const schoolYearId = Number(req.body.schoolYearId);
-		if (!schoolId || Number.isNaN(schoolId)) {
-			res.status(400).json({ code: 'INVALID_PARAM', message: 'schoolId is required.' });
+		let schoolId: number;
+		let schoolYearId: number;
+		try {
+			schoolId = parseStrictPositiveInt(req.body?.schoolId);
+			schoolYearId = parseStrictPositiveInt(req.body?.schoolYearId);
+		} catch (error: any) {
+			res.status(error?.statusCode ?? 400).json({ code: error?.code ?? 'INVALID_PARAM', message: error?.message ?? 'schoolId and schoolYearId must be positive integers.' });
 			return;
 		}
-		if (!schoolYearId || Number.isNaN(schoolYearId)) {
-			res.status(400).json({ code: 'INVALID_PARAM', message: 'schoolYearId is required.' });
-			return;
-		}
+		// Strict scope: no actor school is a rejection, never an implicit write.
+		if (rejectCapabilityOverrideScope(req, schoolId, res)) return;
 
-		const subjectCodes = Array.isArray(req.body.subjectCodes)
+		const subjectCodes = Array.isArray(req.body?.subjectCodes)
 			? req.body.subjectCodes.filter((value: unknown): value is string => typeof value === 'string')
 			: undefined;
-		const apply = req.body.apply === true;
+		const subjectIds = Array.isArray(req.body?.subjectIds)
+			? req.body.subjectIds.map((value: unknown) => (typeof value === 'number' ? value : Number(value)))
+			: undefined;
+		const apply = req.body?.apply === true;
 		const upstreamAuthToken = getUpstreamAuthToken(req);
 
 		const result = await assignmentService.repairActiveSubjectCoverageWithPlaceholders({
 			schoolId,
 			schoolYearId,
 			assignedBy: req.user?.userId ?? 0,
+			actorSchoolId: actorSchoolIdOf(req),
 			authToken: upstreamAuthToken,
 			subjectCodes,
+			subjectIds,
+			maxHoursPerWeek: req.body?.maxHoursPerWeek,
+			teacherName: typeof req.body?.teacherName === 'string' ? req.body.teacherName : undefined,
 			apply,
 		});
 

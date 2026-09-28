@@ -104,7 +104,8 @@
     "test:a2-ux-menu2-c2": "tsx --test src/components/timetable/__tests__/timetable-more-menu-a2.test.ts",
     "test:a2-c6-truth": "tsx --test src/components/timetable/__tests__/timetable-a2-c6-truth.test.ts src/components/timetable/__tests__/timetable-run-identity-a2.test.tsx",
     "test:a2-c5-map-route-intent": "tsx --test src/components/timetable/__tests__/a2-c5-map-route-intent.test.tsx",
-    "test:a5-c2b-surface-truth": "tsx --test src/__tests__/a5-c2b-surface-truth.test.ts"
+    "test:a5-c2b-surface-truth": "tsx --test src/__tests__/a5-c2b-surface-truth.test.ts",
+    "test:a8-policy-pane-workload": "tsx --test src/lib/__tests__/tl-shortage-policy-pane-roundtrip-c02.test.ts"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

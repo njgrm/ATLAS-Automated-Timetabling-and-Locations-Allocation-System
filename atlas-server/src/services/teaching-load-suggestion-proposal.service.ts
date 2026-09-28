@@ -13,6 +13,7 @@ import { refreshTeachingLoadCycle } from './teaching-load-cycle.service.js';
 import { buildDerivedDemand, type DerivedDemandResult } from './derived-demand.service.js';
 import { workloadPolicyRevision } from './workload-policy.service.js';
 import { getEffectiveWorkloadPolicyFromClient, type EffectiveWorkloadPolicy } from './scheduling-policy.service.js';
+import { resolveRealFacultyCapMinutes } from './teaching-load-capacity.service.js';
 
 const db = () => getDataContext();
 
@@ -131,6 +132,50 @@ function distributionPlanSignature(plan: TeachingLoadDistributionPlan): string {
 		].join(':'));
 	}
 	return parts.sort().join('|');
+}
+
+/**
+ * How many changed subject-section pairs a single 409 names inline. The remainder
+ * is reported as a count so a large drift never produces an unbounded response.
+ */
+const OWNERSHIP_CONFLICT_PAIR_LIMIT = 10;
+
+/**
+ * A8 TL-SHORTAGE-C02 item 4 — the ONE typed ownership-drift 409.
+ *
+ * `driftScope` tells the operator which part of the reviewed plan stopped being
+ * true, which is what turns an unactionable "something changed" into an
+ * explicit instruction:
+ *
+ *  - `INSERT` — a pair the plan would have created is already owned by a
+ *    different teacher.
+ *  - `RETAIN` — a pair the plan would have left alone is no longer owned by the
+ *    teacher the reviewer saw (including: someone inserted an owner for it).
+ *
+ * Both require the same remedy — preview again — so both keep the single
+ * `TEACHING_LOAD_PROPOSAL_STALE` code and the same typed `actionHint`.
+ */
+function ownershipConflictError(
+	rows: Array<{ subjectId: number; sectionId: number; facultyId: number | null }>,
+	driftScope: 'INSERT' | 'RETAIN',
+): ServiceError {
+	const changedPairs = rows.slice(0, OWNERSHIP_CONFLICT_PAIR_LIMIT).map((row) => ({
+		subjectId: row.subjectId,
+		sectionId: row.sectionId,
+		currentFacultyId: row.facultyId,
+	}));
+	const message = driftScope === 'RETAIN'
+		? 'A subject-section pair this suggestion would have kept is no longer owned by the same teacher. Preview a fresh Teaching Load suggestion.'
+		: 'One or more reviewed subject-section pairs changed ownership. Preview a fresh Teaching Load suggestion.';
+	return err(409, 'TEACHING_LOAD_PROPOSAL_STALE', message, {
+		actionHint: 'Preview a fresh Teaching Load suggestion, review it, then apply it.',
+		details: {
+			driftScope,
+			changedPairCount: rows.length,
+			changedPairs,
+			remainingChangedPairCount: Math.max(0, rows.length - changedPairs.length),
+		},
+	});
 }
 
 function distributionStale(message: string): ServiceError {
@@ -407,6 +452,19 @@ export async function applyTeachingLoadSuggestionProposal(input: {
 		const facultyIds = [...new Set(candidateRows.map((row) => row.facultyId as number))];
 		const subjectIds = [...new Set(candidateRows.map((row) => row.subjectId))];
 		const sectionIds = [...new Set(candidateRows.map((row) => row.sectionId))];
+		// TL-SHORTAGE-C02 item 4 — the ownership read is widened to the RETAIN
+		// pairs as well. The reviewed plan asserts an owner for every pair it
+		// leaves alone, so a retained pair whose owner changed is genuine drift
+		// and must be detectable. Exactness is then applied in memory below; the
+		// query is deliberately a superset and never a source of truth.
+		const ownershipSubjectIds = [...new Set([
+			...subjectIds,
+			...refreshedPlan.retains.map((retain) => retain.subjectId),
+		])];
+		const ownershipSectionIds = [...new Set([
+			...sectionIds,
+			...refreshedPlan.retains.map((retain) => retain.sectionId),
+		])];
 		const [facultyRows, subjectRows, sectionRows, ownershipRows] = await Promise.all([
 			facultyIds.length > 0 ? tx.facultyMirror.findMany({
 				where: {
@@ -436,8 +494,8 @@ export async function applyTeachingLoadSuggestionProposal(input: {
 				where: {
 					schoolId: existing.schoolId,
 					schoolYearId: existing.schoolYearId,
-					subjectId: { in: subjectIds },
-					sectionId: { in: sectionIds },
+					subjectId: { in: ownershipSubjectIds },
+					sectionId: { in: ownershipSectionIds },
 				},
 				select: { subjectId: true, sectionId: true, facultyId: true },
 			}) : Promise.resolve([]),
@@ -446,10 +504,54 @@ export async function applyTeachingLoadSuggestionProposal(input: {
 		if (facultyRows.length !== facultyIds.length || subjectRows.length !== subjectIds.length || sectionRows.length !== sectionIds.length) {
 			throw err(409, 'TEACHING_LOAD_PROPOSAL_STALE', 'The reviewed suggestion no longer matches active faculty, subjects, or sections. Preview a fresh proposal.');
 		}
+		// TL-SHORTAGE-C02 item 4 — scope the ownership-drift check to EXACTLY the
+		// pairs the reviewed plan asserts.
+		//
+		// ROOT CAUSE of the live `TEACHING_LOAD_PROPOSAL_STALE` Codex hit twice
+		// with no intervening change: `ownershipRows` is fetched over the cross
+		// product `subjects x sections`, but the plan asserts owners only for its
+		// INSERTS. Every other row in that cross product — a retained
+		// (`KEPT_EXISTING`) pair, a pair covered by a `MOVE`, or an unrelated
+		// subject/section combination — had no key in `proposedPairs`, so
+		// `proposedPairs.get(key)` was `undefined`, `undefined !== facultyId`
+		// compared true, and a FRESH, UNMUTATED preview reported drift.
+		//
+		// The fix asserts the plan's real surface instead of the query's:
+		//   INSERTS — a row may exist only for the SAME teacher (idempotent
+		//            replay); a different owner is a real conflict.
+		//   RETAINS — the pair must still be owned by the teacher the reviewer
+		//            saw. A missing row or a different owner means the retained
+		//            decision no longer describes reality, so the operator is told
+		//            to re-preview instead of being shown a false conflict.
+		//   MOVES   — already re-validated per move below against the live row by
+		//            id, including subject, section and faculty-subject. A second
+		//            pre-check here would be a weaker duplicate of that authority.
+		//
+		// Pairs outside the plan's asserted surface are not the plan's business
+		// and are never drift.
 		const proposedPairs = new Map(candidateRows.map((row) => [`${row.subjectId}:${row.sectionId}`, row.facultyId as number]));
-		const conflicting = ownershipRows.filter((row: any) => proposedPairs.get(`${row.subjectId}:${row.sectionId}`) !== row.facultyId);
-		if (conflicting.length > 0) {
-			throw err(409, 'TEACHING_LOAD_PROPOSAL_STALE', 'One or more reviewed subject-section pairs changed ownership. Preview a fresh proposal.');
+		const currentOwnerByPair = new Map(ownershipRows.map((row: any) => [`${row.subjectId}:${row.sectionId}`, row.facultyId as number | null]));
+		const conflictingInserts = ownershipRows.filter((row: any) => {
+			const key = `${row.subjectId}:${row.sectionId}`;
+			if (!proposedPairs.has(key)) return false;
+			return proposedPairs.get(key) !== row.facultyId;
+		});
+		if (conflictingInserts.length > 0) {
+			throw ownershipConflictError(
+				conflictingInserts.map((row: any) => ({ subjectId: row.subjectId, sectionId: row.sectionId, facultyId: row.facultyId as number | null })),
+				'INSERT',
+			);
+		}
+
+		const driftedRetains = refreshedPlan.retains
+			.filter((retain) => currentOwnerByPair.get(`${retain.subjectId}:${retain.sectionId}`) !== retain.facultyId)
+			.map((retain) => ({
+				subjectId: retain.subjectId,
+				sectionId: retain.sectionId,
+				facultyId: currentOwnerByPair.get(`${retain.subjectId}:${retain.sectionId}`) ?? null,
+			}));
+		if (driftedRetains.length > 0) {
+			throw ownershipConflictError(driftedRetains, 'RETAIN');
 		}
 
 		const sectionGrade = new Map<number, number>(sectionRows.map((row: any) => [row.externalId, row.displayOrder]));
@@ -680,10 +782,17 @@ export async function applyTeachingLoadSuggestionProposal(input: {
 			// Receiver capacity is ACTUAL teaching minutes under the effective
 			// persisted standard resolved through this transaction. Advisory and
 			// ancillary credit are neutral and never reduce this capacity.
-			const receiverCapMinutes = Math.min(
-				Math.max(0, Math.round(receiver.maxHoursPerWeek * 60)),
-				txPolicy.teachingStandardMinutes,
-			);
+			//
+			// TL-SHORTAGE-C02 item 1: this is the SECOND historical definition of
+			// the receiver cap. It now calls the one shared rule used by the
+			// auto-fill capacity gate, so both surfaces resolve identically.
+			const receiverCapMinutes = resolveRealFacultyCapMinutes({
+				maxHoursPerWeek: receiver.maxHoursPerWeek,
+				mode: 'REAL_FACULTY_STANDARD',
+				policyStandardMinutes: txPolicy.teachingStandardMinutes,
+				policyHardCapMinutes: txPolicy.hardCapMinutes,
+				nonTeachingMinutes: null,
+			});
 			if (receiverTeachingMinutes + currentSubjectMinutes > receiverCapMinutes) {
 				throw distributionStale('A proposed receiver no longer has capacity for this move. Preview a fresh proposal.');
 			}
