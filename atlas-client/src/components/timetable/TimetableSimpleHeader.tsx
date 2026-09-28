@@ -66,7 +66,6 @@ import { createSimpleTaskStarter } from '@/components/timetable/simple/SimpleHea
 // is still rendered, unchanged, whenever a swap is armed.
 import { SimpleHeaderTrailingSurfaces } from '@/components/timetable/simple/SimpleHeaderTrailingSurfaces';
 import { buildSimpleHeaderMessages } from '@/components/timetable/simple/SimpleHeaderMessages';
-import { SimpleHeaderStatusStrip } from '@/components/timetable/simple/SimpleHeaderStatusStrip';
 import {
 	countUnassignedForSelectedTerm,
 	lifecycleStepNeedsMoreEntry,
