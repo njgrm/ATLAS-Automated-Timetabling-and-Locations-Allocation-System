@@ -32,3 +32,11 @@ placeholders + one create-and-assign endpoint, 409 naming, one load definition).
    line of consequence and a preview number before apply.
 8. After Apply, the page says what is still open and the next step, not "complete".
 Judge by §11 Design judgement gate: how much thinking and clicking it removes. Rendered before/after at 1366x768.
+
+## Server contract is on main (Lane C, 03:50) — A8 c2 at 9a614c8b
+
+Build the client against it; do not re-derive it. The handoff lists every field.
+- The count of what still needs a teacher comes from `applyResult.stillNeedRealTeacher` and `teacherXResolution.unsavedSubstituteRows`. `created` and `assignmentsCreated` now count only saved rows, so never show them as work done.
+- "Cover these classes" uses `POST /faculty-assignments/coverage/repair`. Preview first with `apply:false` (writes nothing and returns the exact plan), then apply. Show `assignedPairs` and `stillUncoveredPairs` as class names, not ids.
+- Apply 409: `details.changedPairs` names the classes that changed. Say which classes changed, in plain words, and offer "Review again".
+- The 40h cap now follows each teacher's max hours; moves and over-cap checks use one cap.
