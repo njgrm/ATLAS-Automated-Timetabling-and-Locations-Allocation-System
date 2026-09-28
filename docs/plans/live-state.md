@@ -310,7 +310,13 @@ resolved blockers and older acceptance notes are in Git: `git show 0b70ea0a:docs
 
 - Tailnet: `https://njgrm.buru-degree.ts.net`
 
-- **▶ LIVE: `c9be17feccd08e20e6c5110be041a72dc89ee2c6` — DEPLOYED TO PRODUCTION 2026-09-29 00:3x +08 by
+- **▶ CUTOVER TARGET (recorded BEFORE the cutover, per `deploy-runner.ps1` `Assert-LiveReleaseRecorded`):
+  `ce1257c815e4393f638e0c3cd19c71c561c2d1d1`, rollback basis
+  `c9be17feccd08e20e6c5110be041a72dc89ee2c6` (current live). Lane A4, train 5, on Lane C's GO 00:55 +08.
+  This block leads the cutover and is replaced by a `LIVE:` block when it completes. The `LIVE: c9be17fe`
+  block below is the incumbent until then.**
+
+- **LIVE (until the cutover completes): `c9be17feccd08e20e6c5110be041a72dc89ee2c6` — DEPLOYED TO PRODUCTION 2026-09-29 00:3x +08 by
   Lane A4 (train 4, `release/2026-09-28-4`). This supersedes the `CUTOVER TARGET` block below, which led the
   cutover and is now history, and the `LIVE: 9ca7f629` block, which is the rollback basis.**
 
