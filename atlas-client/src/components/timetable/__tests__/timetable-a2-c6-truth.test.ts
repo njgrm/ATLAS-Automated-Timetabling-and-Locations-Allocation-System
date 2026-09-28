@@ -319,9 +319,12 @@ test('T1b SURFACE 2 FAILING-FIRST: the dialog\'s sentence is the shared derivati
 
 test('T2d FAILING-FIRST: a revert control announces its name once, and a tooltip never restates the label', () => {
 	// PRE-FIX PROOF: the exact string measured on the live dialog and reproduced
-	// by QA in a jsdom mount — three DOM nodes reading exactly 'Revert this
-	// edit': the TooltipTrigger wrapper span, the button, and the tooltip
-	// content, because the head row's reason WAS the button's own label.
+	// by QA `ses_f19fa473bffeDm5iNBes3VX7PH` in a jsdom mount — three DOM nodes
+	// reading exactly 'Revert this edit': the TooltipTrigger wrapper span, the
+	// button, and the tooltip content, because the head row's reason WAS the
+	// button's own label. Recorded as the defect's own wording, which is the
+	// point of a pre-fix proof; it is NOT load-bearing on its own, and the
+	// assertions below are what decide the row.
 	const preFixAccessibleName = 'Revert this edit Revert this edit Revert this edit';
 	assert.equal(preFixAccessibleName.split('Revert this edit').length - 1, 3,
 		'PRE-FIX PROOF: the name was announced three times for one control');
@@ -348,9 +351,22 @@ test('T2d FAILING-FIRST: a revert control announces its name once, and a tooltip
 		/Reopen this schedule/,
 		'the disabled control says what to do about it, in words the label cannot carry',
 	);
-	// Whatever the branch, the name is announced once: the label is rendered by
-	// the button and by nothing else.
-	assert.equal(LABEL.split(LABEL).length - 1, 1, 'the control label is one string, rendered once');
+	// Whatever the branch, the name is announced once. Decided by the REAL
+	// component, not by a test-local string: Radix renders the tooltip trigger
+	// regardless of whether there is tooltip CONTENT (QA `ses_f19df5126ffewpENLFnzt1xbsp`
+	// F2 measured exactly that), so "the label is one string" is not a property of
+	// the component and asserting it on a local constant proved nothing. What the
+	// component must guarantee is that the label is rendered by the BUTTON, once.
+	const dialogSource = readFileSync(
+		new URL('../modals/TimetableAssignmentDialogs.tsx', import.meta.url),
+		'utf8',
+	);
+	assert.equal((dialogSource.match(/^\s*Revert this edit\s*$/gm) ?? []).length, 1,
+		'the label appears exactly once in the dialog component, as the button text');
+	assert.match(dialogSource, /\{revertBlockedReason !== null && \(\s*<TooltipContent/,
+		'the tooltip CONTENT is conditional, so a live control really has none — the `null` contract is honoured, not merely documented');
+	assert.doesNotMatch(dialogSource, /revertBlockedReason \?\? '/,
+		'no second hard-coded fallback string survives beside the derivation');
 });
 
 /* ------------------------------------------------------------------ *
@@ -526,3 +542,253 @@ test('3(a) NON-VACUITY: an empty break band is still just a band', () => {
 		'a break nobody is sitting in claims no collision — the marker cannot read as a standing error');
 	assert.doesNotMatch(empty, /overlaps? (Lunch|[0-9])/, 'no overlap sentence is invented');
 });
+
+/* ===========================================================================
+ * A2-C7 RESTORATION - rows that must never have left this file.
+ *
+ * Fresh QA `ses_f19df5126ffewpENLFnzt1xbsp` returned `CORRECTION_REQUIRED` on
+ * the previous correction commit with F4 BLOCKING: seven ACCEPTED evidence rows
+ * (T3a, T3b, T3c, T3f, T3g, T4, T4-second) had been DELETED with no
+ * replacement, and the commit message had claimed "no assertion is removed".
+ * That was true and it was wrong: a file rewrite during the correction
+ * truncated this file from the T2d row onward and took the whole T3/T4 block
+ * with it, leaving their subjects as dead imports and the file header
+ * advertising rows it no longer contained.
+ *
+ * AGENTS.md section 16: corrections are ADDITIVE to evidence, never
+ * subtractive, and "a correction that removes evidence fails review regardless
+ * of whether the fix is correct". These rows are restored VERBATIM. Nothing
+ * here is rewritten, weakened or re-worded.
+ * =========================================================================== */
+
+test('T3a FAILING-FIRST: run 321 must name itself and its publication state', () => {
+	// PRE-FIX PROOF: the strings the packet measured on Simple view.
+	const preFixPage = ['REVIEW AND PUBLISH', 'Runs', 'Publish schedule', 'Latest Run'];
+	assert.equal(preFixPage.some((text) => /^Run \d/.test(text)), false,
+		'PRE-FIX PROOF: no run number anywhere on the page');
+	assert.equal(preFixPage.some((text) => /\bDraft\b|\bPublished\b/.test(text)), false,
+		'PRE-FIX PROOF: no Draft/Published word anywhere on the page');
+
+	const draft = describeRunState({ isPreGeneration: false, runId: 321, isPublished: false });
+	assert.equal(draft.key, 'draft', 'an unpublished run 321 is a draft');
+	assert.equal(draft.badgeLabel, 'Draft schedule', 'the badge names the state');
+	assert.equal(draft.sentence, 'Draft — teachers and students cannot see it yet. (Run 321)',
+		'the sentence names the run AND who can see it');
+
+	const published = describeRunState({ isPreGeneration: false, runId: 321, isPublished: true });
+	assert.equal(published.badgeLabel, 'Published schedule', 'the same run published reads differently');
+	assert.match(published.sentence ?? '', /Published — this is the schedule in use\. \(Run 321\)/);
+
+	assert.equal(runStateKeyOf({ isPreGeneration: false, runId: null, isPublished: false }), 'empty',
+		'no run on the grid is the empty state, never a draft badge');
+	assert.equal(runStateKeyOf({ isPreGeneration: true, runId: 321, isPublished: false }), 'planning',
+		'the pre-generation surface is a layout state, not a run state');
+});
+
+test('T3b FAILING-FIRST: an unverified authority must not produce a term name', () => {
+	// PRE-FIX PROOF: the chip the packet measured, over this authority.
+	assert.equal(UNVERIFIED_AUTHORITY.verified, false, 'PRE-FIX PROOF: the stored authority is unverified');
+	assert.equal('Active Term: T2'.includes('not confirmed'), false,
+		'PRE-FIX PROOF: the chip asserted a term the authority never confirmed');
+
+	assert.equal(verifiedActiveTermLabel({ activeTerm: UNVERIFIED_AUTHORITY } as never), null,
+		'an unverified authority resolves to NO term name');
+	assert.equal(verifiedActiveTermLabel({ activeTerm: { ...UNVERIFIED_AUTHORITY, verified: true, termIndex: null } } as never), null,
+		'verified with no index resolves to no name');
+	assert.equal(verifiedActiveTermLabel({ activeTerm: { ...UNVERIFIED_AUTHORITY, verified: true, termIndex: 2 } } as never), 'Term 2',
+		'verified with an index inside orderedTerms does resolve');
+	assert.equal(verifiedActiveTermLabel({ activeTerm: { ...UNVERIFIED_AUTHORITY, verified: true, termIndex: 9 } } as never), null,
+		'an index absent from orderedTerms fails closed');
+});
+
+test('T3c the term line is ONE line carrying both facts, and never invents a term', () => {
+	const unverifiedLine = termScopeLine({
+		viewing: 1,
+		viewingLabel: 'Term 1',
+		schoolYearContext: { activeTerm: UNVERIFIED_AUTHORITY } as never,
+		hasScheduleOnScreen: true,
+	});
+	assert.equal(unverifiedLine, 'Viewing Term 1 · active term not confirmed',
+		'the line states what is viewed and says the active term is unconfirmed');
+	assert.doesNotMatch(unverifiedLine, /Term 2/,
+		'the unverified line names no school term at all, not even as an aside');
+
+	const verifiedLine = termScopeLine({
+		viewing: 1,
+		viewingLabel: 'Term 1',
+		schoolYearContext: { activeTerm: { ...UNVERIFIED_AUTHORITY, verified: true, termIndex: 2 } } as never,
+		hasScheduleOnScreen: true,
+	});
+	assert.equal(verifiedLine, 'Viewing Term 1 · school is in Term 2',
+		'the verified line names the school term beside the viewed one');
+
+	const allTerms = termScopeLineParts({
+		viewing: 'all',
+		viewingLabel: 'all terms',
+		schoolYearContext: { activeTerm: UNVERIFIED_AUTHORITY } as never,
+		hasScheduleOnScreen: true,
+	});
+	assert.equal(allTerms.viewing, 'Viewing all terms', '"all terms" is a viewing state, not a term');
+	assert.equal(allTerms.activeTermVerified, false);
+});
+
+test('T3f FAILING-FIRST: the status region is capped at three and states the remainder', () => {
+	// PRE-FIX PROOF: the packet measured six rows, each an independent
+	// conditional, so the region had no ceiling at all.
+	const preFixRows = [
+		'timetable-term-authority-unverified',
+		'timetable-last-generation-failed-message',
+		'timetable-non-blocking-hard-notice',
+		'timetable-school-names-refreshed',
+		'timetable-curriculum-readiness-message',
+		'a sixth',
+	];
+	assert.equal(preFixRows.length, 6, 'PRE-FIX PROOF: six rows, no cap');
+
+	const messages = buildSimpleHeaderMessages({
+		latestRunFailed: true,
+		nonBlockingHardCount: 4,
+		schoolNamesRefreshed: true,
+		setupBlockedDiagnostic: 'diagnostic',
+		setupOperatorMessage: 'operator sentence',
+	});
+	assert.equal(messages.length, 4, 'four independent conditions are all still true');
+	assert.equal(SIMPLE_HEADER_MESSAGE_LIMIT, 3, 'the region shows three');
+	assert.equal(messages.slice(0, SIMPLE_HEADER_MESSAGE_LIMIT).length, 3);
+	assert.equal(messages.length - SIMPLE_HEADER_MESSAGE_LIMIT, 1,
+		'and the remainder is countable, so a capped region is never mistaken for a complete one');
+
+	// Every testid the pre-cap rows carried survives, so the committed rows that
+	// address them still decide on this component.
+	assert.deepEqual(messages.map((message) => message.id), [
+		'timetable-last-generation-failed-message',
+		'timetable-non-blocking-hard-notice',
+		'timetable-curriculum-readiness-message',
+		'timetable-school-names-refreshed',
+	], 'priority order, and the pre-cap testids, are unchanged');
+	assert.equal(messages[0].text, 'The last schedule build did not finish. Check schedule information, then try again.',
+		'the wording of a row is not altered by the cap');
+});
+
+test('T3g FAILING-FIRST: the publish reason is a visible sentence, not only a tooltip', () => {
+	// PRE-FIX PROOF: the measured state — a big red control whose only reason
+	// was one screen away.
+	const preFixReasonLocation: 'tooltip' | 'aria-label' | 'visible' = 'tooltip';
+	assert.equal(preFixReasonLocation, 'tooltip',
+		'PRE-FIX PROOF: the reason reached a hover, not the page');
+
+	// POST-FIX contract: the same reason string is rendered into
+	// `timetable-publish-blocked-reason`, so it is present in the markup
+	// unconditionally of hover and focus.
+	const reason = '1 setup item must be fixed first.';
+	assert.ok(reason.length > 0);
+	assert.match(reason, /setup item/, 'the gate reason names the blocker, not the mechanism');
+});
+
+test('T4 FAILING-FIRST: the header figure must equal the run\'s own violations count', () => {
+	// The measured run 321: 148 SOFT violations stored on the run, and a header
+	// that read 48, then 148 after an edit that changed nothing about warnings.
+	const STORED = 148;
+	const STALE_SUMMARY = 48;
+
+	// PRE-FIX PROOF: the derivation read the run row's stored summary, so it
+	// printed whatever that snapshot said.
+	const preFix = deriveRunWideReadiness(
+		{ softViolationCount: STALE_SUMMARY, hardViolationCount: 0, blockingHardViolationCount: 0 } as never,
+		[],
+	);
+	assert.equal(preFix.softCount, STALE_SUMMARY,
+		'PRE-FIX PROOF: with no live report the figure came from the stored summary — which is how 48 was printed for a run holding 148');
+
+	// POST-FIX: the run's own violations endpoint, which the client already
+	// fetches, is the authority.
+	const postFix = deriveRunWideReadiness(
+		{ softViolationCount: STALE_SUMMARY, hardViolationCount: 0, blockingHardViolationCount: 0 } as never,
+		[],
+		{ total: STORED, hard: 0, blockingHard: 0, soft: STORED, byCode: { FACULTY_EXCESSIVE_IDLE_GAP: STORED } },
+	);
+	assert.equal(postFix.softCount, STORED,
+		'the live run-wide count outranks the stored summary');
+	assert.notEqual(postFix.softCount, STALE_SUMMARY,
+		'the disagreement that produced 48-vs-148 is gone');
+
+	// The figure is a pure function of the run's violations, so a no-op edit
+	// cannot move it — the third measured data point.
+	const afterNoOpEdit = deriveRunWideReadiness(
+		{ softViolationCount: STORED, hardViolationCount: 0, blockingHardViolationCount: 0 } as never,
+		[],
+		{ total: STORED, hard: 0, blockingHard: 0, soft: STORED, byCode: { FACULTY_EXCESSIVE_IDLE_GAP: STORED } },
+	);
+	assert.equal(afterNoOpEdit.softCount, STORED, 'a no-op edit leaves the figure untouched');
+
+	// MUTANT CONTROL: the fix must actually discriminate. With the report absent
+	// the old path returns the stale 48, so the assertion above is not vacuous.
+	assert.equal(preFix.softCount, 48, 'the mutant (report removed) yields 48, so the row discriminates');
+});
+
+test('T4 the run-wide figure stays a pure function of the run, never of the term selector', () => {
+	const RUN_WIDE_SOFT = 148;
+	// The selected-term DISPLAY list is a subset; it must never become the gate.
+	const termTwoDisplay = softViolations(48);
+	const report = {
+		total: RUN_WIDE_SOFT,
+		hard: 0,
+		blockingHard: 0,
+		soft: RUN_WIDE_SOFT,
+		byCode: { FACULTY_EXCESSIVE_IDLE_GAP: RUN_WIDE_SOFT },
+	};
+	const readings = [termTwoDisplay, softViolations(60), softTwoDisplayAgain()].map((display) =>
+		deriveRunWideReadiness(
+			{ softViolationCount: 148, hardViolationCount: 0, blockingHardViolationCount: 0 } as never,
+			display,
+			report,
+		).softCount);
+	assert.deepEqual(readings, [RUN_WIDE_SOFT, RUN_WIDE_SOFT, RUN_WIDE_SOFT],
+		'48 was the term-scoped DISPLAY count; the header must read the run, whatever term is selected');
+
+	// And the fail-closed path is intact: a report with no blockingHard still
+	// refuses to let a run become publishable by collapsing to zero.
+	const failClosed = deriveRunWideReadiness(
+		{ hardViolationCount: 3, softViolationCount: 0, blockingHardViolationCount: null } as never,
+		[],
+		{ total: 3, hard: 3, soft: 0, byCode: { X: 3 } },
+	);
+	assert.equal(failClosed.blockingHardCount, 3,
+		'F2 fail-closed survives the new argument: an absent allowlist count falls back to the total HARD count');
+});
+
+// A2-C7 RESTORATION: shared fixture for the T3/T4 rows restored above.
+// It left this file in the same truncation and is reinstated verbatim.
+const UNVERIFIED_AUTHORITY = {
+	source: 'atlas-unverified',
+	reachable: false,
+	verified: false as const,
+	activeTerm: null,
+	termIndex: null,
+	schoolYearId: 10,
+	matchedSchoolYear: false,
+	code: 'ACTIVE_TERM_UNRESOLVED',
+	message: 'not resolved',
+	orderedTerms: [
+		{ identity: 'T1', displayLabel: 'Term 1', order: 1 },
+		{ identity: 'T2', displayLabel: 'Term 2', order: 2 },
+		{ identity: 'T3', displayLabel: 'Term 3', order: 3 },
+	],
+};
+
+// A2-C7 RESTORATION: shared fixture for the T3/T4 rows restored above.
+// It left this file in the same truncation and is reinstated verbatim.
+function softTwoDisplayAgain(): Violation[] {
+	return softViolations(52);
+}
+
+// A2-C7 RESTORATION: shared fixture for the T3/T4 rows restored above.
+// It left this file in the same truncation and is reinstated verbatim.
+function softViolations(count: number): Violation[] {
+	return Array.from({ length: count }, (_, index) => ({
+		code: 'FACULTY_EXCESSIVE_IDLE_GAP',
+		severity: 'SOFT' as const,
+		message: `gap ${index}`,
+		entryId: `entry-${index}`,
+	})) as unknown as Violation[];
+}

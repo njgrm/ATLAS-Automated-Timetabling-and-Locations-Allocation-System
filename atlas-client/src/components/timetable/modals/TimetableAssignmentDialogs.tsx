@@ -105,16 +105,22 @@ export function TimetableAssignmentDialogs({ context }: { context: ScheduleRevie
 		showEditHistory, setShowEditHistory, editHistory,
 		revertEditById, revertLoading, currentRunVersion,
 	} = context;
-	// A2-C6-TRUTH (T1b) and the A2-C7 correction (QA
-	// `ses_f19fa473bffeDm5iNBes3VX7PH` row 2, BLOCKING): this dialog kept its OWN
-	// empty-state sentence, so a FAILED read of a run with four recorded changes
-	// still claimed the run had none. The More-menu entry was already gated and
-	// this second surface was not — the exact defect T1b exists to close,
-	// surviving one branch over. Both surfaces now read the ONE derivation, so a
-	// future change to the wording moves both.
+	// A2-C6-TRUTH (T1b) and the A2-C7 corrections (QA
+	// `ses_f19fa473bffeDm5iNBes3VX7PH` row 2, BLOCKING; then
+	// `ses_f19df5126ffewpENLFnzt1xbsp` F1, NON_BLOCKING latent): this dialog kept
+	// its OWN empty-state sentence, so a FAILED read of a run with four recorded
+	// changes claimed the run had none. Both surfaces now read one exported
+	// derivation, so they cannot drift.
+	//
+	// The default is `idle`, NOT `ready`, and that matches the two sibling
+	// surfaces (`SimpleMoreMenuContent` uses `?? 'idle'` and the header context
+	// documents the same rule). `idle` can never authorise the empty-run claim;
+	// `ready` could. An absent read state must fail CLOSED, because the cost of
+	// the wrong default is a false statement about a run with real history, and
+	// the cost of the right one is a sentence that says "checking".
 	const historySentence = editHistorySummarySentence(
 		editHistory.length,
-		context.editHistoryReadState ?? 'ready',
+		context.editHistoryReadState ?? 'idle',
 	);
 
 	return (
@@ -250,10 +256,10 @@ export function TimetableAssignmentDialogs({ context }: { context: ScheduleRevie
 								)}
 								{!isRevert && !isUndone && (
 									<div className="mt-2 flex items-center justify-end">
-										{/* J2 (P4) + AGENTS.md section 8: the native `title`
+											{/* J2 (P4) + AGENTS.md section 8: the native `title`
 									 * attribute is forbidden for extra information. The
 									 * explanation moves to the @/ui Tooltip primitive, and
-									 * per the A2-C7 correction it appears ONLY on a disabled
+									 * per the A2-C7 corrections it appears ONLY on a disabled
 									 * control, where it explains why — never on a live one,
 									 * where it would restate the label. */}
 										<TooltipProvider>
@@ -277,9 +283,20 @@ export function TimetableAssignmentDialogs({ context }: { context: ScheduleRevie
 														</Button>
 													</span>
 												</TooltipTrigger>
-												<TooltipContent data-testid="timetable-edit-history-revert-reason">
-													{revertBlockedReason ?? 'Undo this change to the schedule.'}
-												</TooltipContent>											</Tooltip>
+												{/* A2-C7 (QA `ses_f19df5126ffewpENLFnzt1xbsp` F2): the `null`
+												    contract is HONOURED. A live control's tooltip node
+												    was still in the DOM carrying a second hard-coded
+												    string — the exact pattern this commit exists to
+												    eliminate, and it contradicted the `null` means "no
+												    tooltip" contract the derivation and its test both
+												    state. Radix renders the trigger regardless, so the
+												    conditional is on the CONTENT, not the trigger. */}
+												{revertBlockedReason !== null && (
+													<TooltipContent data-testid="timetable-edit-history-revert-reason">
+														{revertBlockedReason}
+													</TooltipContent>
+												)}
+											</Tooltip>
 										</TooltipProvider>
 									</div>
 								)}
