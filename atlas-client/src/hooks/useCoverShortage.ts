@@ -11,12 +11,27 @@
  *     discipline, and a test can read the request body instead of trusting a
  *     comment.
  *
- *  2. THE SCOPE IS THE PAGE'S OWN. `CreatePlaceholderDialog.tsx` hard-codes
- *     `DEFAULT_SCHOOL_ID = 1` on the same subsystem, and a committed negative
- *     control forbids that literal anywhere on this page. So `schoolId` and
+ *  2. THE SCOPE IS THE PAGE'S OWN. `CreatePlaceholderDialog.tsx` hard-codes a
+ *     school-1 default on the same subsystem. So `schoolId` and
  *     `schoolYearId` are REQUIRED parameters with no default, and the hook
  *     refuses to dispatch without both — a missing scope is a no-op, never an
  *     implicit write to school 1.
+ *
+ *     A6 c5 CORRECTION ROUND 1. This comment previously said the claim was
+ *     "a committed negative control forbids that literal anywhere on this
+ *     page", which was not true of THIS file: the school-1 control
+ *     (`teaching-load-canonical-workload.test.ts`, `TL_POLICY_FREE_FILES`) read
+ *     `pages/TeachingLoad.tsx` and the data hooks, and the page is not where
+ *     the request body is built. The control now lists this file too, so the
+ *     sentence above describes a real gate — and it discriminates: the moment
+ *     this file was added to the list, the control failed on the very literal
+ *     this comment used to quote, which is the evidence that the entry is read.
+ *     (The identifier is therefore named here as "a school-1 default"; a comment
+ *     that quoted the constant would be indistinguishable from a call site.)
+ *     The behavioural half is decided separately, on the request BODY with a
+ *     school that is not 1 (`A6C5-S4-2`) and on a refusal when the scope is
+ *     missing (`A6C5-S4-3`). The source control catches a reintroduced literal;
+ *     the behavioural control catches a default that is not a literal at all.
  *
  *  3. A SCOPE CHANGE INVALIDATES AN IN-FLIGHT REPLY. The page already owns a
  *     `scopeEpochRef` for the suggestion path, and this hook opens its own

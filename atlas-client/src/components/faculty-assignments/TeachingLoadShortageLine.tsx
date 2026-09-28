@@ -31,6 +31,14 @@
  * the same control as `Review staff workload` beside it. The `+N more` link is
  * a `@/ui/button` in `variant="link"`, the same primitive the rest of ATLAS uses
  * for a detail affordance — not a second bespoke look.
+ *
+ * A6 c5 CORRECTION ROUND 1 (B2) — THE OVERFLOW IS STATED ONCE. This component
+ * used to render a `+2 more` control while the sentence beside it ended
+ * `· 2 more subjects ·`, so one fact appeared on one row twice, in two
+ * vocabularies. The sentence no longer mentions the overflow; this control is
+ * the whole statement of it, and its hover now says what it OPENS rather than
+ * repeating how many subjects it hides. The count was not lost — the control
+ * still carries it, and the detail it opens names the subjects by name.
  */
 import { UserRoundPlus } from 'lucide-react';
 
@@ -85,6 +93,11 @@ export function TeachingLoadShortageLine({
 							size="sm"
 							className="h-auto shrink-0 p-0 text-xs font-semibold"
 							data-testid="teaching-load-shortage-more"
+							// The visible label is the count, so the accessible name
+							// STARTS with it and adds the destination. A name of
+							// `+1 more` alone told a screen-reader user nothing about
+							// what pressing it does.
+							aria-label={`+${line.moreSubjectCount} more short ${line.moreSubjectCount === 1 ? 'subject' : 'subjects'} — ${line.moreLabel}`}
 							onClick={onShowCoverageDetail}
 						>
 							{`+${line.moreSubjectCount} more`}

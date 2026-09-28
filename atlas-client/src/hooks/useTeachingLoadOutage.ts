@@ -113,9 +113,12 @@ export function useTeachingLoadOutage(params: UseTeachingLoadOutageParams) {
 	const shortageLine = useMemo(
 		() => buildShortageLineModel({
 			entries: shortage.entries,
+			// The row's head clause is the WORKSPACE's figure, not the sum of the
+			// subjects it had room to name — see `buildShortageLineModel`.
+			totalShortClasses: shortage.totalShortClasses,
 			dataDateLabel: formatShortageDataDate(params.fetchedAt),
 		}),
-		[params.fetchedAt, shortage.entries],
+		[params.fetchedAt, shortage.entries, shortage.totalShortClasses],
 	);
 
 	const isLive = !isTeachingLoadSourceDegraded({

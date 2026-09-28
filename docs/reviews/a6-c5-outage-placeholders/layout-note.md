@@ -17,47 +17,136 @@ not a new dashboard.
 A **word** is a whitespace-separated token in the *rendered* text of
 `[data-testid="teaching-load-readiness-strip"]` (row 2), whitespace-collapsed and
 trimmed. Punctuation-only tokens (the `·` separators) count, because they are
-rendered text a scheduler reads. This is the same rendered-markup instrument
-`__tests__/a6-tl-header-budget.test.ts` already uses, and the same declared
-`TEXT_XS_ADVANCE_PX = 6.6` advance backs the width claim, so no width is measured
-here and none is claimed.
+rendered text a scheduler reads.
+
+**AMENDED 2026-09-29 (correction round 1 — QA finding B3).** One more rule is
+needed, and finding it is what made this instrument able to catch the defect the
+correction was written for. **An element boundary is a word boundary.** JSDOM's
+`textContent` glues adjacent nodes that have no whitespace between them, so the
+row
+
+```
+… 12 Sept roster  |  +3 more  |  Cover these classes
+```
+
+came back as `roster+3` and `moreCover` — **two tokens standing for four**. A row
+could grow by two words and the count would not move, which is a control that
+cannot discriminate (AGENTS.md §11). So every rendered text *run* is counted and
+runs are joined with a space.
+
+**The three instruments disagree, and the disagreement is recorded rather than
+resolved in the note's favour.** On the same BEFORE, measured in JSDOM:
+
+| instrument | BEFORE |
+| --- | --- |
+| collapse across element boundaries (this note's original method, and QA's finding B1 table) | 24 |
+| QA's rendered measurement, as reported in the finding | 19 |
+| **every text run counted as its own words — ADOPTED** | **30** |
+
+The third is adopted because it is the **upper bound**: it can only ever
+over-report. The rule being defended is "the after number must not be larger",
+and an instrument that flatters the candidate is the wrong tool for it. Hover text
+is not row text, and it is not in the DOM — Radix does not render closed tooltip
+content, so no filtering is required and none is faked. What *is* counted is the
+repair queue's own `data-testid="teaching-load-repair-status"` span, because that
+is visible text on the chip; excluding it would have flattered the BEFORE by six
+words.
+
+This is the same instrument `__tests__/a6-c5-outage-derivation.test.tsx`
+(`A6C5-WORD-1`) commits, and the declared `TEXT_XS_ADVANCE_PX = 6.6` advance
+still backs the width claim, so no width is measured here and none is claimed.
 
 Fixture: the packet's own scenario — `realAssignedPairs 75`,
 `syntheticPlaceholderPairs 25`, `unassignedPairs 12`, `totalPairs 112`,
-`dataSource: live`, the real `missing-load` repair-queue item. Taken from the real
-surface (`WorkspaceToolbar` + `TeachingLoadRepairQueue`), not invented.
+`dataSource: live`, the real `missing-load` repair-queue item, and the packet's
+per-subject figures MAPEH 9 / English 4 / Fil 2 / Esp 1 / Sci 1. Taken from the
+real surface (`WorkspaceToolbar` + `TeachingLoadRepairQueue` +
+`TeachingLoadOutageSurface` + `useTeachingLoadOutage`), not invented.
 
 ## BEFORE — row 2, verbatim, in the outage state
 
 ```
-89% staffed · 12 classes need a teacher· Temporary substitutes: 25Next step12 openAssign teachers to open classes12 section-subject pairs need a teacher.Review subject coverage
+67% staffed · 12 classes need a teacher · Temporary substitutes: 25
+Next step 12 open Assign teachers to open classes
+12 section-subject pairs need a teacher.
+Review subject coverage
 ```
 
-**24 words.**
+**30 words, measured.** (This section previously declared 24. That figure came
+from the element-collapsing instrument above, which merged `teacher· Temporary`,
+`25Next`, `openAssign` and `teacher.Review` into single tokens. The 24 is
+superseded, not deleted — it is the same BEFORE read by a weaker instrument.)
+
+The committed control mounts the **candidate's** no-shortage row, which reads
+`67% staffed` because S3 already corrected the lying percentage. The row this
+packet replaced at the base read `89% staffed`. The two differ by one token
+(`89%` → `67%`), so the 30 is the count for both, and the control's 30 is the
+figure the candidate is measured against.
 
 Read aloud, that is one shortage fact stated three times, in three vocabularies:
 `12 classes need a teacher`, `Temporary substitutes: 25`, and
-`12 section-subject pairs need a teacher` — plus `89% staffed`, a percentage nobody
-asked for and which counts a placeholder-held class as staffed. The one control that
-would act (`Review subject coverage`) navigates to Subject Coverage to work out
-which subject is short, which is the thinking the packet exists to delete.
+`12 section-subject pairs need a teacher` — plus `67% staffed`, a percentage
+nobody asked for and which counts a placeholder-held class as staffed. The one
+control that would act (`Review subject coverage`) navigates to Subject Coverage
+to work out which subject is short, which is the thinking the packet exists to
+delete.
 
 ## AFTER — row 2, by design
 
 ```
-MAPEH: 9 classes need a teacher · English: 4 classes need a teacher · +2 more · 12 Sept roster  Cover these classes
+16 classes short: MAPEH 9, English 4, Fil 2 · 12 Sept roster  +1 more  Cover these classes
 ```
 
-**23 words.** Shorter than the 24 it replaces, and the words it drops are the
-duplicates and the percentage.
+**18 words, measured** — the widest state. Shorter than the 30 it replaces by 12
+words, and the words it drops are the duplicates, the percentage, and the
+per-subject repetition of one verb.
 
-Word arithmetic, so the claim is checkable: subject entries
-`{Subject}: {N} classes need a teacher` = 6 words each for a one-digit count
-(3 entries = 18), ` +2 more ` (2), ` 12 Sept roster ` (3) = 23, plus the action
-label `Cover these classes` (3) = **26 in the widest case**, and **20** with a
-single subject. The 24-word BEFORE is beaten whenever the outage names two or more
-subjects, and the case that could exceed it is bounded and measured by the
-committed control rather than by prose here.
+### The measured state table — and the arithmetic is no longer in this note
+
+The counting lives in a committed control, so it is the evidence rather than the
+claim. `A6C5-WORD-1` renders the real toolbar with the real surface in its
+`shortageLineSlot` and the real repair queue in its `stateLineSlot`, for every
+state below, and fails if any shortage state exceeds **19 words** or exceeds the
+**30-word BEFORE**. `A6C5-WORD-2` then fails if the per-subject figures or the
+data date were ever bought out of the budget.
+
+| state | before (30-word row) | after | rendered |
+| --- | --- | --- | --- |
+| 0 subjects | 30 | 30 | the base row, untouched by this slice |
+| 1 subject | 13 | **12** | `9 classes short: MAPEH 9 · 12 Sept roster Cover these classes` |
+| 2 subjects | 20 | **14** | `13 classes short: MAPEH 9, English 4 · 12 Sept roster Cover these classes` |
+| 3 subjects (the cap) | 27 | **16** | `15 classes short: MAPEH 9, English 4, Fil 2 · 12 Sept roster Cover these classes` |
+| 4 subjects (cap + overflow) | 33 | **18** | `16 classes short: MAPEH 9, English 4, Fil 2 · 12 Sept roster +1 more Cover these classes` |
+| 6 subjects (widest) | 33 | **18** | `19 classes short: MAPEH 9, English 4, Fil 2 · 12 Sept roster +3 more Cover these classes` |
+
+Three changes produce that, and each is a subtraction:
+
+1. **The verb is paid for once.** The superseded line repeated
+   `classes need a teacher` per subject — five words × the cap, which is why the
+   row got *longer* in exactly the states the cap was designed for. The head
+   clause carries `N classes short` and each subject carries only its name and
+   its figure.
+2. **The overflow is stated once, not twice.** The superseded sentence ended
+   `· N more subjects ·` while a separate `+N more` control rendered the same
+   fact beside it: one fact, two vocabularies, one row, which is the §8
+   violation. The sentence no longer mentions the overflow at all; the control
+   is the row's single statement of it, and its hover now says what it OPENS
+   rather than repeating how many it hides.
+3. **The workspace total is stated, because the list cannot sum to it.** With
+   the cap at three, the named figures do not add up to the workspace's total, so
+   a row of per-subject counts alone would understate the outage by exactly the
+   part it cannot show. The head clause is the total; the list after the colon
+   is its breakdown.
+
+**What the budget covers, stated rather than implied.** It bounds the states this
+slice renders, on this fixture, whose subject names are single tokens. A two-word
+subject name would add a token per named subject, and the cap of three is what
+bounds how many times that can happen — so the cap, not the number, is what keeps
+an unforeseen roster bounded. The zero-subject state is measured against the
+BEFORE (30 against 30) rather than the 19 budget, because in that state the row is
+the base row — `% staffed`, the alert chip and the `missing-load` next step —
+which other committed rows pin and which this slice has no authority to rewrite.
+Asserting ≤19 there would be a claim about another slice's sentence.
 
 ## What stays, what goes, what moves
 
@@ -116,7 +205,9 @@ action. The slot is untouched; only the shortage's own claim-bearing content mov
    The shortage line carries that claim now, per subject, in words a primary-school
    teacher can read out loud, and its action opens the cover dialog on this screen
    instead of routing to Subject Coverage. This is the packet's own "replaces", and
-   it is the single largest subtraction in the slice: **14 of 24 words**.
+   it is the single largest subtraction in the slice: **18 of the 30 measured
+   words** (this note previously said 14 of 24; both figures were computed on the
+   element-collapsing instrument and are superseded by the measurement).
 3. **The `% staffed` figure.** §8 forbids a status line that competes with itself,
    and it is the figure that lies (S3): it counts a placeholder-held class as
    staffed. It is not reworded and not moved — it is removed from row 2. It remains
@@ -137,8 +228,34 @@ action. The slot is untouched; only the shortage's own claim-bearing content mov
   clause: the packet forbids inventing one.
 - **`Still without a teacher`** → the `Load summary` dialog and the suggestion
   modal, recounted as "no *real* teacher" (S3).
+- **The page-level S9 note** — `teaching-load-still-need-real-teacher` in
+  `pages/TeachingLoad.tsx`. **It was missing from this ledger entirely** (finding
+  B3), so the note was not a truthful record of a change it made. Where it sits
+  and why:
+
+  - **Where:** the first line of the main column, immediately below the command
+    strip and above the roster — `px-3 pt-1 text-xs font-semibold
+    text-muted-foreground`, `hidden` below a 640px-tall viewport to match the
+    rollover card, and deliberately **not** a `shrink-0` band, because it is
+    content that scrolls with the roster and `a3-c10` T4 requires the main column
+    to carry exactly one `shrink-0` band.
+  - **What it says:** the workspace's own honest reading of the staffing figures
+    (`N classes still need a real teacher.`, from
+    `teachingLoadShortageNote`), rendered only while
+    `withoutRealTeacherCount > 0`.
+  - **Why it is here and not on row 2:** it is the ONE statement of the count
+    that reaches a scheduler who never opens a dialog and never looks at the
+    header. Row 2 now carries the per-subject line, and moving this sentence
+    onto that row would have put the same fact in two vocabularies on one row
+    again — the defect this slice exists to remove. It is also the reason the
+    row-2 budget could be met without deleting the total: the workspace figure
+    lives here, so row 2 may spend its words on the breakdown that row 2 is for.
+  - **What it is not:** it is not a next step and carries no control. Row 2 owns
+    the action (`Cover these classes`).
 - **Nothing moves behind a Tooltip** as a result of this slice. The existing
-  next-step `description` hover and the `Alert summary` hover are untouched.
+  next-step `description` hover and the `Alert summary` hover are untouched. The
+  one hover whose content this slice CHANGED is `+N more`, which now describes
+  its destination instead of restating the count beside it (finding B2).
 
 ## The one new control
 
@@ -162,23 +279,47 @@ target beyond the existing coverage detail, and any rename of
 
 ## Subtraction ledger
 
-| Removed from row 2 | Words |
+**AMENDED 2026-09-29 (correction round 1 — QA finding B3).** Every figure below
+was wrong, and the table measured nothing. What the slice took OFF row 2 is still
+itemised, because *what* went is the design record — but the table below is a
+CONTENT ledger, not a subtraction, and it deliberately carries no "removed"
+total: the BEFORE and the AFTER are different outage states, so their word counts
+do not subtract to a meaningful number. The decision is the measured state table
+above, and the two figures that decide it are the **30-word row this slice
+replaces** and the **19-word budget the correction set**.
+
+| Content removed from row 2 | Words |
 | --- | --- |
 | `· Temporary substitutes: 25` | 4 |
-| `89% staffed ·` | 2 |
-| `Next step` `12 open` (queue label + count) | 3 |
+| `67% staffed` + its separator | 3 |
+| `12 classes need a teacher` (the workspace-wide clause) | 5 |
+| `Next step` (queue label) | 2 |
+| `12 open` (queue count badge) | 2 |
 | `Assign teachers to open classes` | 5 |
-| `12 section-subject pairs need a teacher.` | 6 |
+| `12 section-subject pairs need a teacher.` (the chip's own status) | 6 |
 | `Review subject coverage` (the detouring action) | 3 |
-| **Removed** | **23** |
-| **Added** (`MAPEH: … · English: … · +2 more · 12 Sept roster` + `Cover these classes`) | **26 (widest) / 20 (one subject)** |
-| **BEFORE measured** | **24** |
-| **AFTER declared** | **26 widest / 20 one subject** |
+| **Row-2 content the slice removed, in the state it removed it from** | **30** |
 
-The two-subject case the packet actually describes — `MAPEH: 9 … · English: 4 … ·
-+2 more · 12 Sept roster Cover these classes` — is **23 words against 24**. A
-single-subject outage is **20 against 24**. The measurement the control makes is
-the *rendered* count, so the arithmetic above is the claim and the control is the
-evidence; where the widest synthetic case exceeds 24, the control fails and the
-copy gets shorter — the fix for an over-budget row is shorter copy, never a smaller
-font.
+Two entries of the earlier ledger are gone as separate rows because they were the
+defect rather than a subtraction: `classes need a teacher` repeated per subject is
+now paid for ONCE (the head clause carries `N classes short`, and each subject
+carries its own figure), and `2 more subjects` is gone because the overflow is
+stated once, by the `+N more` control. Neither is a word this note may spend, so
+neither belongs in a ledger of what was taken.
+
+The two-subject case the packet actually describes is 14 words against the 30-word
+row it replaces; a single-subject outage is 12; the cap is 16; and both overflow
+states are 18. The measurement is the *rendered* count, taken by the committed
+control `A6C5-WORD-1`, so that control is the evidence and this note is only the
+record of it. Where a state ever exceeds 19 the control fails and the copy gets
+shorter — the fix for an over-budget row is shorter copy, never a smaller font.
+
+**What the earlier version of this ledger claimed, and why each figure was
+wrong.** It declared BEFORE 24 (an instrument artefact, above), AFTER 23, one
+subject 20 and "26 widest" — and the widest case exceeded its own stated budget,
+which the note acknowledged in prose while attributing the measurement to "the
+committed control". No such control existed: `a6-c5-outage.test.tsx`'s `row2()`
+only LOCATES the strip, and no assertion anywhere in the client compared a
+rendered word count to any number. The claim was unearned, the row grew past the
+BEFORE in three of five states, and the arithmetic was the only witness. The
+control is now committed and is what decides it.

@@ -147,10 +147,23 @@ export function buildSubjectShortage(input: {
 	};
 }
 
-/** `MAPEH: 9 classes need a teacher` — singular at one, never abbreviated. */
-export function shortageClauseFor(entry: SubjectShortageEntry): string {
-	const noun = entry.shortClassCount === 1 ? 'class needs' : 'classes need';
-	return `${entry.subjectName}: ${entry.shortClassCount} ${noun} a teacher`;
+/**
+ * `MAPEH 9` — one subject's share of the outage, as a NAME AND A FIGURE.
+ *
+ * A6 c5 CORRECTION ROUND 1 (B1). This used to be the full sentence `MAPEH: 9
+ * classes need a teacher`, repeated once per subject. The verb is therefore
+ * paid for N times on a row that has a word budget, and the repetition is
+ * exactly the "one status per fact" defect AGENTS.md §8 names in a longer
+ * costume: the row said "classes need a teacher" three times about one
+ * shortage. The verb now appears ONCE, in the head clause, and each subject
+ * carries only what identifies it and how much of it is short.
+ *
+ * Kept as a named export, not inlined, so the two vocabularies the row used to
+ * print in two places cannot drift apart unnoticed — the committed word-budget
+ * control reads this same function through the rendered row.
+ */
+export function shortageEntryLabel(entry: SubjectShortageEntry): string {
+	return `${entry.subjectName} ${entry.shortClassCount}`;
 }
 
 /**
@@ -173,43 +186,73 @@ export function formatShortageDataDate(fetchedAt: string | null | undefined): st
 export type ShortageLineModel = {
 	/** The named subjects, capped. */
 	visible: SubjectShortageEntry[];
-	/** How many further short subjects the `+N more` link stands for. */
+	/** How many further short subjects the `+N more` control stands for. */
 	moreSubjectCount: number;
 	/** `12 Sept roster`, or null when ATLAS holds no timestamp. */
 	dataDateLabel: string | null;
 	/** The whole line's text, assembled here so no two call sites can differ. */
 	text: string;
-	/** The `+N more` link's accessible name, or null when nothing is hidden. */
+	/** The `+N more` control's hover, or null when nothing is hidden. */
 	moreLabel: string | null;
 };
 
 /**
- * The shortage line's own model, returned WHOLE so the visible text, the count
- * the `+N more` link stands for, and the link's accessible name can never come
- * from different branches.
+ * A6 c5 CORRECTION ROUND 1 (B1 + B2) — THE SENTENCE, AND THE TWO FIGURES IT DROPPED.
  *
- * The count is named, not numbered: the operator reads `2 more subjects`, and
- * a `+2` is a code, not a sentence.
+ * The row now reads `18 classes short: MAPEH 9, English 4, Fil 2 · 12 Sept
+ * roster`, which is 18 rendered words in its widest state (three named subjects,
+ * a `+3 more` control, the data date, and the one action) against a measured
+ * 24-word BEFORE. Three changes carry that, and each one is a subtraction:
+ *
+ *  1. **THE VERB IS PAID FOR ONCE.** The head clause carries "classes short"
+ *     and each subject carries its name and figure. The superseded shape paid
+ *     `classes need a teacher` per subject, which is five words × the cap.
+ *  2. **THE OVERFLOW IS STATED ONCE, NOT TWICE.** The superseded text appended
+ *     `N more subjects` to the sentence AND rendered a `+N more` control beside
+ *     it — one fact, two vocabularies, on one row, which is the §8 violation.
+ *     The sentence no longer mentions the overflow at all; the CONTROL is the
+ *     one statement, and the count it carries is exactly what was dropped.
+ *  3. **THE WORKSPACE FIGURE IS STATED, BECAUSE THE LIST CANNOT SUM TO IT.** With
+ *     the cap at three, the named figures do not add up to the workspace's
+ *     total, so a row of per-subject counts alone would understate the outage
+ *     by exactly the part it cannot show. The head clause is therefore the
+ *     total, and the list after the colon is its breakdown.
+ *
+ * The two figures the packet requires are both still here and neither is
+ * negotiable: the per-subject counts are the reason the row exists, and the
+ * data date is the only timestamp the client holds.
  */
+export const SHORTAGE_LINE_MORE_HOVER = 'Open the coverage detail for every class still open.';
+
 export function buildShortageLineModel(input: {
 	entries: SubjectShortageEntry[];
+	/** Every short class on the page, not only the ones named below. */
+	totalShortClasses: number;
 	dataDateLabel: string | null;
 	cap?: number;
 }): ShortageLineModel {
 	const cap = input.cap ?? SHORTAGE_LINE_SUBJECT_CAP;
 	const visible = input.entries.slice(0, cap);
 	const hidden = input.entries.length - visible.length;
-	const parts = visible.map(shortageClauseFor);
-	if (hidden > 0) parts.push(`${hidden} more ${hidden === 1 ? 'subject' : 'subjects'}`);
-	if (input.dataDateLabel) parts.push(input.dataDateLabel);
+	const total = Math.max(0, input.totalShortClasses);
+	const head = `${total} ${total === 1 ? 'class' : 'classes'} short`;
+	// The sentence NEVER mentions the overflow. The `+N more` control beside it
+	// is the row's single statement of that fact (B2), and a second wording of it
+	// in prose is exactly the "two chips that say the same thing" §8 forbids — so
+	// the count is stated once, by the thing you can press.
+	const sentence = visible.length > 0
+		? `${head}: ${visible.map(shortageEntryLabel).join(', ')}`
+		: head;
 	return {
 		visible,
 		moreSubjectCount: hidden,
 		dataDateLabel: input.dataDateLabel,
-		text: parts.join(' · '),
-		moreLabel: hidden > 0
-			? `${hidden} more ${hidden === 1 ? 'subject needs' : 'subjects need'} a teacher`
-			: null,
+		text: input.dataDateLabel ? `${sentence} · ${input.dataDateLabel}` : sentence,
+		// The hover says what the control DOES, never how many subjects it hides:
+		// restating the count here would put the same fact back on the row in a
+		// third place. Which subjects are hidden is what the detail it opens is
+		// for, so the number is never the only way to find out.
+		moreLabel: hidden > 0 ? SHORTAGE_LINE_MORE_HOVER : null,
 	};
 }
 
