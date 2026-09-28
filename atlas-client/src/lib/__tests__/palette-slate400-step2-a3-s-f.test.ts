@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { dirname, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -194,6 +195,38 @@ const EXPECTED_RESIDUAL_PER_OWNED_FILE: ReadonlyArray<readonly [string, number]>
  */
 const INDEX_CSS_LF_SHA256 = '6fe45e63b43d123483d1c4e3b1f06f083baeea8b56acb5caa12ba2951cda3de2';
 
+/**
+ * ── SUPERSEDED 2026-09-28 by a3-c8-warning-token (A3-C8r1) ──────────────────────
+ *
+ * The pin above is the value this file was carrying, and it IS the base value: QA proved both
+ * facts independently at candidate b1435a61e, and this commit re-proves the second one —
+ *
+ *   git show 4c683e1f3:atlas-client/src/index.css   (LF-normalised sha256)
+ *     === SUPERSEDED_INDEX_CSS_LF_SHA256
+ *
+ * ORIGINAL INTENT: correct, and the row around it still carries it. Its purpose was to stop a
+ * future session from silently editing a GLOBAL token shared with the timetable and login
+ * surfaces. Nothing about that changed.
+ *
+ * WHY IT WENT RED: commit b1435a61e added a `--warning*` token family and a `.dark` block to
+ * index.css, which is a legitimate global token change outside this stream's scope, exactly the
+ * event the pin was written to catch. It is not a defect in the pin.
+ *
+ * SUPERSEDED BY: this commit (A3-C8r1), which carries the new value in
+ * INDEX_CSS_LF_SHA256_REPINNED below, keeps the base value here verbatim for provenance, and
+ * adds the control that proves the new value is a real descendant rather than a guess.
+ *
+ * AGENTS.md §16: never re-pin silently. Both values, both commits and the reason are on record.
+ */
+const SUPERSEDED_INDEX_CSS_LF_SHA256 = '6fe45e63b43d123483d1c4e3b1f06f083baeea8b56acb5caa12ba2951cda3de2';
+
+/**
+ * The current LF-normalised SHA-256 of src/index.css, after A3-C8r1.
+ * Recomputed in the same session that changed the file, with the method above. See
+ * SUPERSEDED_INDEX_CSS_LF_SHA256 for the value it replaces and why the pin moved.
+ */
+const INDEX_CSS_LF_SHA256_REPINNED = '91590da6958622ff254be55d1b8cc0c05aee47e57f56548bc5fbac4a401d8677';
+
 const AA = 4.5;
 /** The S-e rename ceiling. Asserted to be EXCEEDED below, so nobody can widen their way to green. */
 const S_E_RENAME_CEILING = 3;
@@ -308,6 +341,39 @@ const lfSha256 = (absPath: string): string =>
 	createHash('sha256')
 		.update(Buffer.from(readFileSync(absPath, 'utf8').replace(/\r\n/g, '\n'), 'utf8'))
 		.digest('hex');
+
+/**
+ * The LF-normalised SHA-256 of a file AS IT WAS AT A COMMIT (A3-C8r1).
+ *
+ * Added so the superseded pin's provenance is proved from the base blob rather than asserted
+ * from a remembered constant — AGENTS.md §11: a computed artifact is valid only for the
+ * revision that produced it, and a hand-copied hash is exactly the thing that goes stale.
+ *
+ * Method matches `lfSha256` above: git hands back the blob with LF endings, so no
+ * normalisation is needed; the CRLF replacement is applied anyway so the two functions cannot
+ * disagree on a platform that checks out CRLF.
+ *
+ * Fails loudly rather than skipping. This gate runs inside a Git worktree of this repository;
+ * if `git` is unreachable that is a broken environment, not a row to quietly mark
+ * unperformed, and a silent skip would make this proof optional exactly when it is needed.
+ */
+const lfSha256AtRef = (ref: string, repoPath: string): string => {
+	let blob: string;
+	try {
+		blob = execFileSync('git', ['-C', CLIENT_ROOT, 'show', `${ref}:${repoPath}`], {
+			encoding: 'utf8',
+			maxBuffer: 32 * 1024 * 1024,
+		});
+	} catch (err) {
+		assert.fail(
+			`could not read ${repoPath} at ${ref} via git, so the superseded pin's provenance cannot be ` +
+				`proved and this row is NOT skippable: ${String(err)}`
+		);
+	}
+	return createHash('sha256')
+		.update(Buffer.from(blob.replace(/\r\n/g, '\n'), 'utf8'))
+		.digest('hex');
+};
 
 /** Every .tsx/.ts under a directory, recursively, with no exclusions at all. */
 function walkAll(dir: string, out: string[] = []): string[] {
@@ -504,11 +570,179 @@ test('control 2: the mapping is a deliberate darkening that crosses AA on white,
 		1,
 		'--muted-foreground is declared more than once in index.css. A second declaration (typically inside a .dark block) makes this mapping scheme-dependent, and a rendered screen is then required.',
 	);
-	assert.doesNotMatch(
+	// ── SUPERSEDED 2026-09-28 by a3-c8-warning-token (A3-C8r1) ────────────────────
+	// ORIGINAL ROW, RETAINED VERBATIM, NOW INVERTED TO PASS:
+	//
+	//   assert.doesNotMatch(
+	//     cssSource,
+	//     /\.dark\s*\{/,
+	//     'index.css now contains a .dark selector block. Re-verify this sweep on a rendered screen in each scheme.',
+	//   );
+	//
+	// ORIGINAL INTENT: correct and worth keeping. If a `.dark` block redefined
+	// --muted-foreground, the S-f mapping would stop being scheme-independent and this file's
+	// source-level contrast proof would stop being sufficient. The row immediately above
+	// (--muted-foreground declared exactly once in the whole stylesheet) enforces exactly that
+	// and is UNCHANGED; only the blanket "there is no `.dark` block at all" clause is superseded.
+	//
+	// WHY IT IS UNDECIDABLE TODAY: the row demands a rendered screen "in each scheme", but there
+	// is only one scheme. No file under atlas-client/src writes a `dark` class onto an element,
+	// so `.dark` is never selected and there is no second screen to verify against.
+	//
+	// INTRODUCED BY: b1435a61e ("refactor(client): add a warning token family and sweep 13 A3
+	// files onto it"), which added the `.dark { --warning* }` pair as a defined-but-unreached
+	// surface. QA returned this row red on candidate b1435a61e.
+	// SUPERSEDED BY: this commit (A3-C8r1), which replaces it with the decidable invariant
+	// immediately below — the same replacement used in palette-token-sweep-a3-s-e.test.ts, so
+	// the two gates cannot drift apart.
+	//
+	// AGENTS.md §16: a correction is additive to evidence, never subtractive. The original
+	// assertion text and its failure message are kept visible above, and the replacement is
+	// added BESIDE it.
+	assert.match(
 		cssSource,
 		/\.dark\s*\{/,
-		'index.css now contains a .dark selector block. Re-verify this sweep on a rendered screen in each scheme.',
+		'index.css no longer contains a .dark selector block, so this superseded row no longer describes the file. The replacement row below (no file under src writes a dark class) still holds and still gates the dark pair.',
 	);
+});
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * REPLACEMENT for the superseded row in `control 2`, A3-C8r1, 2026-09-28.
+ * Identical in substance to the replacement in palette-token-sweep-a3-s-e.test.ts. Kept as a
+ * second copy on purpose: each gate is run on its own by its own package.json script, so a
+ * shared helper would mean one of them could be green without the other ever running.
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+/**
+ * Files deliberately excluded from the dark-writer scan.
+ *
+ * `__tests__` only: a test file is not shipped, not mounted, and cannot put a class on a
+ * rendered element, while its fixture strings routinely spell `dark` in prose. Without the
+ * exclusion this scan detects its own evidence. Narrow, and stated rather than buried.
+ */
+const DARK_WRITER_SCAN_EXCLUDE = /(?:^|[\\/])__tests__[\\/]/;
+
+/**
+ * A STANDALONE `dark` class token — not `dark:`, not `darkMode`.
+ *
+ * `index.css:9` declares `@custom-variant dark (&:is(.dark *))` and five files use 45 `dark:`
+ * variants. Those are styles GATED ON a `.dark` class, not code that PUTS one on. Found by
+ * running the scan, not by reasoning about it.
+ */
+const DARK_CLASS_TOKEN = /(?<![\w:-])dark(?![\w:-])/;
+
+const CLASS_ATTR = /\b(?:className|class)\s*=\s*(?:\{`[^`]*`\}|"[^"]*"|'[^']*')/g;
+
+const DARK_WRITER_PATTERNS: { label: string; re: RegExp }[] = [
+	{
+		label: "classList.add/toggle/remove('dark')",
+		re: /classList\s*\.\s*(?:add|toggle|remove)\s*\(\s*[^)]*['"`]dark['"`]/,
+	},
+	{
+		label: "setAttribute('class', ...) adding a standalone `dark`",
+		re: /setAttribute\s*\(\s*['"`]class['"`]\s*,[^)]*(?<![\w:-])dark(?![\w:-])/,
+	},
+	{
+		label: 'a theme provider applying colorScheme to the document',
+		re: /(?:documentElement|document\.body|root)[\s\S]{0,40}colorScheme|style\s*=\s*\{\{[^}]*colorScheme/,
+	},
+];
+
+/** Every `dark`-class writer under atlas-client/src. Empty means the `.dark` block is inert. */
+function darkClassWriters(): string[] {
+	const out: string[] = [];
+	const walk = (dir: string): void => {
+		for (const entry of readdirSync(dir)) {
+			const child = join(dir, entry);
+			if (statSync(child).isDirectory()) {
+				walk(child);
+				continue;
+			}
+			if (!/\.(?:ts|tsx|css)$/.test(entry)) continue;
+			const abs = child.split(sep).join('/');
+			if (DARK_WRITER_SCAN_EXCLUDE.test(abs)) continue;
+			readFileSync(child, 'utf8')
+				.split(/\r?\n/)
+				.forEach((line, i) => {
+					const where = `${relative(CLIENT_ROOT, child)}:${i + 1}`;
+					for (const { label, re } of DARK_WRITER_PATTERNS) {
+						if (re.test(line)) out.push(`${where} (${label})`);
+					}
+					CLASS_ATTR.lastIndex = 0;
+					for (const attr of line.match(CLASS_ATTR) ?? []) {
+						if (DARK_CLASS_TOKEN.test(attr)) out.push(`${where} (a class attribute holding \`dark\`)`);
+					}
+				});
+		}
+	};
+	walk(join(CLIENT_ROOT, 'src'));
+	return out;
+}
+
+test('REPLACEMENT (A3-C8r1): the .dark block is a real dark pair AND no code can select it', () => {
+	const dark = cssSource.match(/\.dark\s*\{([\s\S]*?)\n\}/);
+	assert.ok(dark, 'index.css has no .dark scope block');
+	const root = cssSource.match(/:root\s*\{([\s\S]*?)\n\}/);
+	assert.ok(root, 'index.css has no top-level :root block');
+	for (const name of ['--warning', '--warning-foreground', '--warning-muted', '--warning-border']) {
+		const darkVal = dark[1].match(new RegExp(`^\\s*${name}:\\s*(.+?);`, 'm'))?.[1];
+		const rootVal = root[1].match(new RegExp(`^\\s*${name}:\\s*(.+?);`, 'm'))?.[1];
+		assert.ok(darkVal, `.dark does not define ${name}`);
+		assert.ok(rootVal, `:root does not define ${name}`);
+		assert.notEqual(darkVal, rootVal, `.dark ${name} is identical to :root (${darkVal}); the dark pair is a copy, not a ramp.`);
+	}
+
+	// The tripwire. The moment a writer appears, `.dark` is reachable, a second scheme exists,
+	// and the rendered-screen demand in the superseded row becomes both possible and necessary.
+	const writers = darkClassWriters();
+	assert.deepEqual(
+		writers,
+		[],
+		'a dark-class writer now exists, so the `.dark` block is REACHABLE and a rendered-screen ' +
+			'review in each scheme is required — including this sweep. Offenders: ' +
+			writers.join(', ') +
+			'. This is the tripwire the superseded row above was reaching for; do not silence it.',
+	);
+});
+
+test('CONTROL (A3-C8r1): the dark-writer scan CAN detect a writer, and is not fooled by `dark:` variants', () => {
+	const writers: [string, string][] = [
+		['classList.add', `document.documentElement.classList.add('dark')`],
+		['classList.toggle', `root.classList.toggle('dark', next)`],
+		['setAttribute', `el.setAttribute('class', cn('card dark'))`],
+		['colorScheme on the document', `document.documentElement.style.colorScheme = 'dark';`],
+		['className holding a standalone dark', `return <div className="rounded p-2 dark" />;`],
+	];
+	for (const [label, line] of writers) {
+		const viaPatterns = DARK_WRITER_PATTERNS.filter(({ re }) => re.test(line));
+		CLASS_ATTR.lastIndex = 0;
+		const viaClassAttr = (line.match(CLASS_ATTR) ?? []).some((a) => DARK_CLASS_TOKEN.test(a));
+		assert.ok(
+			viaPatterns.length > 0 || viaClassAttr,
+			`the fabricated ${label} writer "${line}" was not detected by any pattern; the replacement row cannot go red`,
+		);
+	}
+	const notWriters: [string, string][] = [
+		['a `dark:` Tailwind variant gated on the class', `className={\`border p-1 dark:bg-gray-900 dark:text-gray-300\`}`],
+		['an identifier merely containing "dark"', `root.classList.add('darkModePreview')`],
+		['converted warning markup', `className="bg-warning-muted text-warning"`],
+		['the EnrollPro settings FIELD, not a theme application', `colorScheme: Record<string, unknown> | null;`],
+	];
+	for (const [label, line] of notWriters) {
+		assert.deepEqual(
+			DARK_WRITER_PATTERNS.filter(({ re }) => re.test(line)).map((p) => p.label),
+			[],
+			`false positive on ${label}: ${line}`,
+		);
+		CLASS_ATTR.lastIndex = 0;
+		assert.equal(
+			(line.match(CLASS_ATTR) ?? []).some((a) => DARK_CLASS_TOKEN.test(a)),
+			false,
+			`false positive on ${label} via the class-attribute check: ${line}`,
+		);
+	}
+	assert.ok(DARK_WRITER_SCAN_EXCLUDE.test('src/lib/__tests__/anything.test.ts'), 'the __tests__ exclusion is not active');
+	assert.ok(!DARK_WRITER_SCAN_EXCLUDE.test('src/components/app-shell/AppShell.tsx'), 'the exclusion is broader than __tests__');
 });
 
 test('control 3: every must-not-touch surface is intact, and the timetable walk is real', () => {
@@ -558,18 +792,66 @@ test('control 3: every must-not-touch surface is intact, and the timetable walk 
 	);
 });
 
-test('control 4: index.css is byte-identical to the base', () => {
+test('control 4 (SUPERSEDED 2026-09-28 by a3-c8-warning-token): index.css is byte-identical to the base', () => {
+	// ── SUPERSEDED ROW, RETAINED VERBATIM, NOW INVERTED TO PASS ───────────────────
+	//
+	//   assert.equal(
+	//     actual,
+	//     INDEX_CSS_LF_SHA256,   // === '6fe45e63b43d123483d1c4e3b1f06f083baeea8b56acb5caa12ba2951cda3de2'
+	//     'src/index.css changed. --muted-foreground is global and shared with timetable and login surfaces, so changing it is not local to this stream. Re-measure and rewrite this file and the handoff in the same commit if a global token change is genuinely intended.',
+	//   );
+	//
+	// WHY IT IS SUPERSEDED, NOT VIOLATED: the pin did its job. It fired on a legitimate global
+	// token change made by ANOTHER stream (b1435a61e, A3-C8, which added `--warning*` and a
+	// `.dark` block to the same stylesheet). The failure message above prescribes exactly the
+	// remedy — "re-measure and rewrite this file and the handoff in the same commit" — and this
+	// is that commit.
+	//
+	// The INVERSION, stated rather than assumed: the base stylesheet IS still byte-identical to
+	// the value it was pinned to. The working file is not, and that is the whole point. So the
+	// superseded claim now asserts the BASE provenance (proved from the base blob, not from a
+	// remembered constant) and the working-tree pin asserts the new, deliberately-computed value.
+	// Neither direction is silently dropped.
+	assert.equal(
+		SUPERSEDED_INDEX_CSS_LF_SHA256,
+		'6fe45e63b43d123483d1c4e3b1f06f083baeea8b56acb5caa12ba2951cda3de2',
+		'the recorded superseded pin was edited. It is evidence; leave it verbatim.',
+	);
+	// The pin really was the base's hash — the fact QA established, re-established here.
+	assert.equal(
+		lfSha256AtRef('4c683e1f3', 'atlas-client/src/index.css'),
+		SUPERSEDED_INDEX_CSS_LF_SHA256,
+		`the superseded pin does not match src/index.css at base 4c683e1f3, so the provenance claim above is wrong. Measured ${lfSha256AtRef('4c683e1f3', 'atlas-client/src/index.css')}.`,
+	);
+	const actual = lfSha256(INDEX_CSS);
+	assert.notEqual(
+		actual,
+		SUPERSEDED_INDEX_CSS_LF_SHA256,
+		'src/index.css is byte-identical to the superseded (base) pin again, which means the A3-C8 warning family is no longer in the file. Either that was reverted deliberately or the repin below is stale.',
+	);
+});
+
+test('control 4 (REPLACEMENT, A3-C8r1): index.css is byte-identical to the re-pinned value', () => {
 	const actual = lfSha256(INDEX_CSS);
 	assert.equal(
 		actual,
-		INDEX_CSS_LF_SHA256,
-		'src/index.css changed. --muted-foreground is global and shared with timetable and login surfaces, so changing it is not local to this stream. Re-measure and rewrite this file and the handoff in the same commit if a global token change is genuinely intended.',
+		INDEX_CSS_LF_SHA256_REPINNED,
+		'src/index.css changed again since A3-C8r1. --muted-foreground is global and shared with the ' +
+			'timetable and login surfaces, so changing it is not local to any one stream. Re-measure and ' +
+			'rewrite this file and the handoff in the same commit if a global token change is genuinely intended.',
 	);
-	// The specific declaration this sweep's contrast figures were computed from.
+	// The specific declaration this sweep's contrast figures were computed from. Unchanged by
+	// A3-C8r1, and that is the load-bearing part: that stream added a NEW token family and a
+	// `.dark` block, and did not touch the token this file's numbers depend on.
 	assert.deepEqual(
 		tokens.get('--muted-foreground')?.value,
 		[215, 16, 47],
 		'--muted-foreground is no longer 215 16% 47%. Every contrast figure in the header table was computed from it.',
+	);
+	assert.equal(
+		(tokens.get('--muted-foreground') as { count: number }).count,
+		1,
+		'--muted-foreground is declared more than once in index.css; the A3-C8 `.dark` block must not redefine a token this file measured.',
 	);
 });
 
