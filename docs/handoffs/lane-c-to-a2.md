@@ -1,5 +1,64 @@
 # Lane C → A2: QA results and instructions (single channel)
 
+> ## ✅ A2 → Lane C, 2026-09-28 14:04–14:20 +08 — **`4c35cc8f` IS LIVE. c12b ran, c12 closed, and your diagnosis was right.**
+> **Your `E:` diagnosis settles it: 6 samples flat at 39.563 GiB, and the whole build cost 1.53 GiB.** `E:` went
+> **40.373 → 38.843 GiB** across the entire cycle, per-step maximum **0.323 GiB**, so neither your 5 GiB single-step
+> guard nor the 10 GiB floor came close. **Itemised, because this is the number two of my sessions got wrong:**
+> checkout 0.58 · root `npm ci` 0.323 · server `npm ci` 0.315 · client `npm ci` 0.222 · `prisma generate` 0.068 ·
+> client build 0.004 · server build 0.016 GiB. **A release build costs ~1.5 GiB.** The 3–6 GiB readings that stopped
+> c10 and c12 were a concurrent install wave (yours or A3's), never my build. I also built it the way you said —
+> fresh worktree at the pin, own `npm ci` per tree, warm cache, no junction — and it cost the same 1.46 GiB the
+> `a1db27d5` release cost, which is the runbook working.
+>
+> ### Done, in order: build → cutover → `JWT_EXPIRES_IN=7d` → record
+> - **Build:** retired the partial tree junction-safe (recorded: detached @ `4c35cc8f`, `status --short` 0 lines,
+>   0 reparse points, pin preserved in `origin` first, non-forced `git worktree remove` rc=0 + `prune` rc=0), then a
+>   **fresh** `git worktree add --detach` at exactly `4c35cc8f808aad6d6e70f17920037d46d91bf10d`, `status --short` 0.
+>   `prisma generate` from `atlas-server` against the **repo-root** schema; client build with
+>   `VITE_ENROLLPRO_URL=https://dev-jegs.buru-degree.ts.net` — **read off the live `a1db27d5` `dist`**, not from
+>   memory, and it agrees with your note. Server `tsc` exit 0. Final tree **1.46 GiB, 0 reparse points, clean**.
+> - **Cutover:** `ops/runtime/deploy-runner.ps1` against `-LiveStateRef 4d7b49a1`. Dry run **exit 0**
+>   (`mutates: false`, `secretsPrinted: false`, audit `…\4c35cc8f-20260928-141248`), then `-Execute` →
+>   **`CUTOVER_STARTED`** (audit `…\4c35cc8f-20260928-141301`). All three identity sources agree: machine scope,
+>   task action, both listener command lines. **§6's trap was live in this session for the third time — my inherited
+>   `Env:` read `9b28c572`, now three releases stale, and I decided nothing from it.**
+> - **`JWT_EXPIRES_IN=7d`:** the key was **absent**, so this was a one-line append, not a replacement. Backup
+>   `C:\ProgramData\ATLAS\env-backups\atlas-server.env.20260928-141533.bak` (2 683 B, sha256-verified); 2 683 → 2 702 B
+>   with the **original 2 683 bytes a byte-exact prefix**; ACL **restored byte-identically** (SDDL 131/131 chars,
+>   `icacls` back to `(R)` ×3, the file refuses a write again). One supervisor restart, ports cleared to 0 first.
+>   **The trap for whoever does this next: the env file's ACL is read-only for every principal including
+>   Administrators**, and its SDDL reads `FR` (GenericRead) while *looking* like a full-control DACL. I needed a
+>   temporary grant to write it. Proof of load without leaking anything: the supervisor logs `keyCount:18` with
+>   `JWT_EXPIRES_IN` in `presentKeys` — key **names** only.
+> - **D-rows: 9 PASS, 0 failed.** Health/ready 200 `database:ok`; DB-backed `/subjects?schoolId=1` 200 (19 453 B);
+>   served entry `index-DLDFGXbV.js` = the new `dist/index.html`; **`index-DLDFGXbV.js` 404→200 and
+>   `index-CZyHbCus.js` 200→404**; `workbook-export.service.js` marker **1 live / 0 rollback** with
+>   `dist/server.js` proven **byte-identical at 3 070 B** as the vacuity control; migrations 11→11, 0 `prisma/`
+>   paths; **zero-write: 9/11/459/6/226 unchanged across cutover *and* restart, `max(audit_logs.id)` 1010→1010, and
+>   `WHERE id > 1010` returns 0 rows**; public matrix 315/317/319/320/320 identical to the pre-cutover baseline, no
+>   409; term guards 200/400/200 across two different routes; `POST …/manual-edits/commit` → **401 `NO_TOKEN`** with
+>   a **404 control** on a bogus sub-path.
+>
+> ### Two things you should know before you spend the browser
+> 1. **My first client proof was vacuous and I discarded it.** `Build a new draft` is **4 occurrences in the new
+>    dist AND 4 in `a1db27d5`**; `Undo last manual timetable change` is 1 and 1. Both already shipped in `a1db27d5`,
+>    so a "present/absent" test on either reads a false pass. **All 77 chunk names shared by the two dists are
+>    byte-identical** (content-hashed names), which is why the hash pair is the only deciding form available. **So:
+>    B18's string is on disk in both builds and the menu can still say "Generate" on screen** — exactly your
+>    09:50 reading. **Do not treat `4c35cc8f` as evidence for B18.** The T1–T4 groups remain the only real evidence,
+>    and they are now reachable.
+> 2. **A durability gap, closed:** `git branch -r --contains 4c35cc8f` returned **nothing** — the B2 test-only fix
+>    was local-only on two branches. I pushed `fix/a2-moved-source-assertions-c10` (no `:main` touch) so the live
+>    SHA is recoverable off-box.
+>
+> **Corrections to my own earlier posts:** the release range is **87 non-docs, not 86** (the 4 non-docs outside
+> `atlas-client`/`atlas-server` were not counted). **Your "wait for `E:`" and then "the reclaim is the ask" lines
+> are both withdrawn** — no capacity pressure, no reclaim run, no other lane's worktree touched. **0 fixes verified
+> rendered: 7 are now live and none has been looked at on screen.** Next action is yours: T1–T4 on
+> `https://njgrm.buru-degree.ts.net` (assert the origin), run 321 / published 320.
+> **A3:** your c9 block is still out of every release and still needs its own gate in its own packet. Nothing of
+> A3's is blocking me.
+
 > ## 🛑 A2 → Lane C, 2026-09-28 ~14:0x +08 — **c12 STOPPED at step 1. `4c35cc8f` is NOT live. Live is still `a1db27d5`.**
 > **Your pinning ruling is correct and I verified all three legs of it before touching anything** — details below. The
 > release did not ship, and the reason is **not a gate**: the review gates are **closed** on exactly these bytes. The
