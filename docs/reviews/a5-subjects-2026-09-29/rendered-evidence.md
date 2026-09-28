@@ -1,8 +1,17 @@
 # A5 C3 slice A — rendered evidence (planner-measured, loopback, `ISOLATED_LOCAL_BROWSER`)
 
 Harness: built `atlas-client` from candidate `911f5b3d`, served with `vite preview` on
-`http://127.0.0.1:5292`; base `f02ed64a` served on `http://127.0.0.1:5294` for the before. All
-`/api/v1` and `/enrollpro-api/**` traffic intercepted in the browser and fulfilled from a fixture.
+`http://127.0.0.1:5292`. All `/api/v1` and `/enrollpro-api/**` traffic intercepted in the browser
+and fulfilled from a fixture.
+
+**There is NO captured before-render, so this is an after-only capture and the reviewer is judging
+one side.** The base `f02ed64a` was built and served on `:5294` for exactly that purpose, but under
+the identical fixture the base build redirects to `/login` (its actor-school resolution differs
+from the candidate's), so no before screenshot exists. The "before" facts used in the table below
+are therefore **source-level** (base `w-40 w-24 w-28 w-36 w-28` = four distinct widths; base label
+`All Status`; the deleted `COMPACT_SELECT` chrome string) plus the operator's own screenshot. The
+executor measured and reported those from source. A reviewer wanting a true side-by-side should use
+the operator's screenshot as the before.
 **These are loopback rows. Per `AGENTS.md` §12 they are `ISOLATED_LOCAL_BROWSER` and are NOT ATLAS
 acceptance** — they prove this candidate's own rendered paint and nothing about
 `https://njgrm.buru-degree.ts.net`. The Tailnet rows stay owed to Lane C.
