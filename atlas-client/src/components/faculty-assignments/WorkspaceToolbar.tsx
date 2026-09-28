@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, type ReactNode } from 'react';
 import { Zap, Activity, Settings2, Users } from 'lucide-react';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
@@ -40,7 +40,72 @@ type WorkspaceToolbarProps = {
 	saving: boolean;
 	onSave: () => void;
 	onRetrySource: () => void;
+	/**
+	 * A3-C10-S3 — the page's compact state line, rendered INSIDE row 2 beside the
+	 * `% staffed` / `Classes without a teacher` / alert chips.
+	 *
+	 * Before this prop the page stacked the truth summary, the repair queue and
+	 * the archived-load control as three further `shrink-0` bands under the
+	 * strip, so the first assignment row sat at ~430px of a 768px viewport. They
+	 * are one horizontal line now, and this slot is how they get there without
+	 * this component having to know what they are.
+	 *
+	 * The slot is NOT a disclosure: whatever the page passes must be visible and
+	 * self-announcing. A caller that wants a popover must put the count or state
+	 * on the trigger (see the repair queue's "N to fix" contract).
+	 */
+	stateLineSlot?: ReactNode;
 };
+
+/**
+ * A3-C10-S3 — TEACHING LOAD HEADER HEIGHT MODEL (768px-tall viewport).
+ *
+ * JSDOM performs no layout, so this is the declared model the committed
+ * control checks, and the control re-derives every number from the class
+ * strings below. Tailwind's scale is what it is: `py-1` = 4px per side, `h-7`
+ * = 28px, `border-t` = 1px. Change a size here and the control goes red, which
+ * is the point: the numbers live next to the classes that produce them.
+ *
+ *   APP_CHROME_PX            56   the `3.5rem` app bar above the route root
+ *                                     (`h-[calc(100svh-3.5rem)]` in the page)
+ *   STRIP_CONTAINER_BOX_PX    9   CompactTitleStrip `py-1` (8) + `border-b` (1)
+ *   ROW_1_COMMAND_PX         28   tallest control in the command row: the
+ *                                     `h-7` Help / Preview / More buttons
+ *   ROW_2_BORDER_PX           1   the `border-t` hairline between the rows
+ *   ROW_2_CHIP_PX            28   tallest chip in the state line (`h-7`)
+ *   ROW_2_BAND_PX            29   1 + 28: the whole of row 2
+ *   ---------------------------------------------
+ *   HEADER_TOTAL_PX          66   9 + 28 + 29
+ *
+ * BEFORE this change the same stack was FIVE rows, not three, and the numbers
+ * below are DERIVED by the committed control from the base class strings rather
+ * than estimated:
+ *   9 (strip) + 28 (command) + 45 (tab row: mt-1.5 6 + border-t 1 + pt-1.5 6
+ *     + h-8 32) + 41 (readiness: mt-1.5 6 + border-t 1 + pt-1.5 6 + h-7 28)
+ *     + 42 (truth summary band) + 58 (next-step banner: py-1 8 + border 2
+ *     + p-1.5 12 + its h-9 action row 36)
+ *     = 223px, and the first assignment row measured ~430px from the viewport
+ *       top at 1366x768 (Lane C, live release a1db27d5).
+ *   The saving is 157px, which is ~3.9 more 40px assignment rows.
+ */
+export const TEACHING_LOAD_HEADER_MODEL = {
+	APP_CHROME_PX: 56,
+	STRIP_CONTAINER_BOX_PX: 9,
+	ROW_1_COMMAND_PX: 28,
+	ROW_2_BORDER_PX: 1,
+	ROW_2_CHIP_PX: 28,
+	/** 1 + 28: the whole of row 2. */
+	ROW_2_BAND_PX: 29,
+	/** 9 + 28 + 29 */
+	HEADER_TOTAL_PX: 66,
+	/**
+	 * The pre-change stack, derived by the committed control from the base
+	 * class strings: 9 + 28 + 45 + 41 + 42 + 58.
+	 */
+	PRE_CHANGE_HEADER_TOTAL_PX: 223,
+	/** Lane C's recorded first-data-row y-offset, 1366x768, release a1db27d5. */
+	MEASURED_FIRST_ROW_BASELINE_PX: 430,
+} as const;
 
 const STRIP_TONE: Record<'success' | 'warning' | 'danger' | 'info', string> = {
 	success: 'border-emerald-200 bg-emerald-50 text-emerald-700',
@@ -79,6 +144,7 @@ export function WorkspaceToolbar({
 	saving,
 	onSave,
 	onRetrySource,
+	stateLineSlot,
 }: WorkspaceToolbarProps) {
 	const completenessPercent = totalPairs > 0 ? Math.round(((realAssignedPairs + syntheticPlaceholderPairs) / totalPairs) * 100) : 0;
 
@@ -166,7 +232,30 @@ export function WorkspaceToolbar({
 			/* A3-TITLE-STRIP-C3: the h1 keeps Teaching Load's own text-sm /
 				sm:text-base scale. Strip A's text-lg / lg:text-xl is not applied
 				here — that trade needs a rendered screen this stream cannot run. */
-			title={<h1 className="text-sm font-bold tracking-tight text-foreground sm:text-base">Teaching Load</h1>}
+			/* A3-C10-S3 ROW 1: title, the Teachers/Sections switch, and the status
+				badge share ONE line. The switch used to be a second strip row
+				(`mt-1.5 + border-t + pt-1.5` = 13px of pure gap around an `h-8`
+				`Tabs` = 45px) and now sits in the shared strip's `leading` group at
+				`h-7`, matching the `h-7` action buttons on the right. The `gap-2`
+				between them is the shared `leading` gap, so no local spacing is
+				declared here.
+
+				The `teaching-load-tab-row` id MOVES with it: it is the same
+				element, the same test id, one row higher. */
+			title={
+				<>
+				<h1 className="text-sm font-bold tracking-tight text-foreground sm:text-base">Teaching Load</h1>
+					{/* Row 1: the Teachers/Sections switch, on the command row. */}
+					<div className="flex min-w-0 items-center" data-testid="teaching-load-tab-row">
+						<Tabs value={viewMode} onValueChange={(v) => onViewModeChange(v as 'teacher' | 'allocation')} className="h-7">
+							<TabsList className="h-7 p-0.5 border border-border/40 bg-muted/50">
+								<TabsTrigger value="teacher" className="h-6 px-2.5 text-xs font-bold uppercase tracking-tight">Teachers</TabsTrigger>
+								<TabsTrigger value="allocation" className="h-6 px-2.5 text-xs font-bold uppercase tracking-tight">Sections</TabsTrigger>
+							</TabsList>
+						</Tabs>
+					</div>
+				</>
+			}
 			statusDescription={workspaceStateDescription}
 			statusNextAction={workspaceStateNextAction}
 			status={
@@ -231,7 +320,17 @@ export function WorkspaceToolbar({
 						<TooltipTrigger asChild>
 							<DropdownMenu>
 								<DropdownMenuTrigger asChild>
-									<Button variant="outline" size="icon-sm" className="h-7 w-7 shadow-sm" aria-label="More Teaching Load tools">
+									{/* A3-C10-S3: this used to be `size="icon-sm"` plus `h-7 w-7`,
+									 * which is NOT a shrink. The `icon-sm` variant contributes
+									 * `size-10` and tailwind-merge does not treat `size-*` and
+									 * `h-*` as the same group, so the button shipped with two
+									 * competing heights (40px and 28px) and which one won was
+									 * decided by stylesheet order, not by the call site. That
+									 * ambiguity sat on row 1, the row this whole budget is
+									 * measured against, so the variant is dropped and the size is
+									 * declared once, here. The `h-7 w-7 shadow-sm` prefix is
+									 * deliberate: the A3-TITLE-STRIP-C3 suite pins that literal. */}
+									<Button variant="outline" className="h-7 w-7 shadow-sm shrink-0 rounded-[min(var(--radius-md),12px)] p-0" aria-label="More Teaching Load tools">
 										<Settings2 className="size-4" />
 									</Button>
 								</DropdownMenuTrigger>
@@ -253,19 +352,21 @@ export function WorkspaceToolbar({
 				</>
 			}
 		>
-			{/* Row 2: Tabs — always visible, never hidden in an overflow strip. */}
-			<div className="mt-1.5 flex min-w-0 items-center gap-1.5 border-t border-border/40 pt-1.5" data-testid="teaching-load-tab-row">
-				<Tabs value={viewMode} onValueChange={(v) => onViewModeChange(v as 'teacher' | 'allocation')} className="h-8">
-					<TabsList className="h-8 p-0.5 border border-border/40 bg-muted/50">
-						<TabsTrigger value="teacher" className="h-7 px-3 text-xs font-bold uppercase tracking-tight">Teachers</TabsTrigger>
-						<TabsTrigger value="allocation" className="h-7 px-3 text-xs font-bold uppercase tracking-tight">Sections</TabsTrigger>
-					</TabsList>
-				</Tabs>
-			</div>
+			{/* A3-C10-S3 ROW 2 — the single compact state line. Everything that used
+				to be its own band under the strip is here now: the % staffed figure,
+				the classes-without-a-teacher count, the state-driven alert chip, and
+				the page's `stateLineSlot` (canonical truth summary, the "Next step"
+				chip and its action, and the archived-load control).
 
-			{/* Readiness strip: at-a-glance health below the command row.
-				% staffed (always) + Unassigned pairs (always, prominent) + state-driven alert chip. */}
-			<div className="mt-1.5 hidden min-w-0 flex-nowrap items-center gap-1.5 overflow-x-auto border-t border-border/40 pt-1.5 sm:flex" data-testid="teaching-load-readiness-strip">
+				HEIGHT: the old `mt-1.5 ... border-t ... pt-1.5` wrapper cost 13px
+				of margin+padding to separate a row that no longer exists. Only the
+				1px `border-t` hairline is kept, so the row is 1 + 28 = 29px.
+
+				NOT A DISCLOSURE. Every chip on this line is visible at a glance; the
+				caller's slot is a peer, not a hidden panel. Horizontal overflow
+				scrolls inside this shrink-0 strip (the same treatment the readiness
+				strip already had) and never becomes a global scrollbar. */}
+			<div className="flex min-w-0 flex-nowrap items-center gap-1.5 overflow-x-auto border-t border-border/40" data-testid="teaching-load-readiness-strip">
 				<div
 					className={cn(
 						'flex h-7 shrink-0 items-center gap-1.5 rounded-full border px-2.5 text-xs font-semibold shadow-sm',
@@ -311,6 +412,11 @@ export function WorkspaceToolbar({
 					</TooltipContent>
 				</Tooltip>
 			) : null}
+
+				{/* The page's own state, on the same line and at the same height.
+					`min-w-0` + the strip's `overflow-x-auto` is what keeps a long
+					truth sentence from pushing the roster sideways. */}
+				{stateLineSlot}
 			</div>
 
 			<p className="sr-only">

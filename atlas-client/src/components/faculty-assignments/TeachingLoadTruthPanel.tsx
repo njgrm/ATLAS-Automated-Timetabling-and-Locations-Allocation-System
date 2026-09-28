@@ -25,6 +25,19 @@ type TeachingLoadTruthPanelProps = {
 	upstreamVerified?: boolean;
 	/** Concise server explanations for unresolved pairs, shown on demand only. */
 	unresolvedReasons?: Array<{ code: string; message: string }>;
+	/**
+	 * A3-C10-S3 — render as a peer chip inside the workspace's single compact
+	 * state line instead of as a full-width card band.
+	 *
+	 * `inline` removes the card chrome (`rounded-xl border px-2 py-1.5 shadow-sm`
+	 * = 14px of box) and pins the collapsed summary row to `h-7` so the panel
+	 * is the same 28px as its neighbours. It changes NOTHING about what the
+	 * panel states: the same summary line, the same `data-testid` hooks, the
+	 * same source-verification badge, the same Details popover, and the same
+	 * in-DOM metric rows behind the same Accordion. The default stays `false`,
+	 * so any other caller keeps the card treatment.
+	 */
+	inline?: boolean;
 };
 
 const CHIP_TONE: Record<'neutral' | 'success' | 'warning' | 'danger' | 'unknown', string> = {
@@ -95,7 +108,7 @@ function DrillDownList({ title, values, empty }: { title: string; values: string
  * explanations, and server reasons on demand. Never renders a raw diagnostic
  * wall and never invents a number for an unknown authority.
  */
-export function TeachingLoadTruthPanel({ model, loading = false, sourceRevision = null, upstreamVerified = true, unresolvedReasons = [] }: TeachingLoadTruthPanelProps) {
+export function TeachingLoadTruthPanel({ model, loading = false, sourceRevision = null, upstreamVerified = true, unresolvedReasons = [], inline = false }: TeachingLoadTruthPanelProps) {
 	const zeroLoadNames = model && isKnown(model.zeroLoadFaculty) ? model.zeroLoadFaculty.value.names : [];
 	const adviserNames = model && isKnown(model.adviserStatus) ? model.adviserStatus.value.names : [];
 	const hgExplanation = model && isKnown(model.excludedHgRows) ? model.excludedHgRows.value.explanation : '';
@@ -115,7 +128,12 @@ export function TeachingLoadTruthPanel({ model, loading = false, sourceRevision 
 		<section
 			data-testid="teaching-load-truth-panel"
 			aria-label="Teaching Load summary"
-			className="rounded-xl border border-border/40 bg-background px-2 py-1.5 shadow-sm"
+			// A3-C10-S3: `inline` is the same surface as a peer of the other
+			// state-line chips, so it claims no box of its own. The card form
+			// below is unchanged and remains the default.
+			className={inline
+				? 'flex min-w-0 shrink items-center'
+				: 'rounded-xl border border-border/40 bg-background px-2 py-1.5 shadow-sm'}
 		>
 			{/*
 			 * CLIENT-QUALITY-C01: the truth surface is collapsed by default behind
@@ -125,9 +143,17 @@ export function TeachingLoadTruthPanel({ model, loading = false, sourceRevision 
 			 * existing canonical-truth contract tests keep observing the full
 			 * values while the operator sees a single compact line.
 			 */}
-			<Accordion collapsible className="w-full">
+			<Accordion collapsible className={inline ? 'min-w-0' : 'w-full'}>
 				<AccordionItem value="truth" className="border-b-0">
-					<AccordionTrigger className="items-center gap-1.5 py-1 text-left hover:no-underline">
+					<AccordionTrigger
+						className={cn(
+							'items-center gap-1.5 text-left hover:no-underline',
+							// A3-C10-S3: inline is a peer of the `h-7` state-line chips,
+							// so its collapsed trigger is `h-7` too and the whole panel
+							// costs the same 28px as its neighbours.
+							inline ? 'h-7 px-1.5' : 'py-1',
+						)}
+					>
 						<span className="flex min-w-0 flex-1 items-center gap-1.5">
 							<ClipboardList className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
 							<span className="shrink-0 text-xs font-bold uppercase tracking-widest text-muted-foreground">Teaching Load summary</span>

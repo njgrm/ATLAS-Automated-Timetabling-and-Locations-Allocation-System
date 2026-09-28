@@ -652,6 +652,60 @@ export default function TeachingLoad() {
 			: 'Select a teacher to inspect their workload.'
 		: 'Section coverage and ownership for the selected section.';
 
+	/* A3-C10-S3 — the compact state line.
+	 *
+	 * These three were `shrink-0` bands stacked under the command strip, between
+	 * it and the roster: the canonical truth summary (42px), the "Next step"
+	 * repair-queue banner (58px) and the archived-load control. At 1366x768 that
+	 * put the first assignment row at ~430px of 768 (Lane C, live release
+	 * a1db27d5) under five stacked header rows.
+	 *
+	 * They are now ONE horizontal line, rendered by the strip itself as row 2
+	 * beside the `% staffed`, classes-without-a-teacher and alert chips. The
+	 * declared height model lives on `TEACHING_LOAD_HEADER_MODEL` in
+	 * `WorkspaceToolbar.tsx`; the committed control is
+	 * `__tests__/a3-c10-tl-header-density.test.ts`.
+	 *
+	 * NOTHING IS HIDDEN. The truth panel keeps its summary sentence, its
+	 * source-verification badge, its Details popover and its full in-DOM metric
+	 * rows; the repair queue keeps its count, its live status, its safety
+	 * `disabledReason` and its primary action; the archived-load control is
+	 * still a link to `/teaching-load/history`. Only the repair queue's prose
+	 * description moved behind a hover whose trigger already names the task,
+	 * the count and the status. */
+	const headerStateLine = (
+		<>
+			<TeachingLoadTruthPanel
+				inline
+				model={truthModel}
+				loading={data.loading || data.authorityDiagnosticsLoading}
+				sourceRevision={data.authorityDiagnostics?.sourceRevision ?? null}
+				upstreamVerified={data.degradedNotice === null}
+				unresolvedReasons={truthUnresolvedReasons}
+			/>
+			<TeachingLoadRepairQueue
+				items={repairQueueItems}
+				activeItemId={activeRepairId ?? routedRepairId}
+				isReadOnly={data.isReadOnlyMode}
+				saving={data.saving}
+				advancedGridVisible={advancedGridVisible}
+				onPrimaryAction={handleRepairPrimaryAction}
+			/>
+			<Button
+				asChild
+				variant="outline"
+				size="sm"
+				className="h-7 shrink-0 gap-1.5 px-2 text-xs"
+				data-testid="teaching-load-history-link"
+			>
+				<Link to="/teaching-load/history">
+					<History className="size-3.5" aria-hidden="true" />
+					Archived load
+				</Link>
+			</Button>
+		</>
+	);
+
 	if (data.error && data.dataSource === 'none') {		return (
 			<div className="flex h-[calc(100svh-3.5rem)] items-center justify-center p-6">
 				<Card className="max-w-md border-red-200 bg-red-50 p-8 text-center shadow-lg">
@@ -706,6 +760,7 @@ export default function TeachingLoad() {
 						saving={data.saving}
 						onSave={handleSave}
 						onRetrySource={() => data.fetchData({ forceRefresh: true })}
+						stateLineSlot={headerStateLine}
 					/>
 					<p className="sr-only" aria-label="Teaching load workflow">
 						<span className="text-foreground">1. Choose a teacher or section</span>
@@ -725,53 +780,19 @@ export default function TeachingLoad() {
 							</div>
 						)}
 
-						{/* Summary-first canonical truth. Details (names, reasons) stay on
-							demand so an older scheduler is never handed a diagnostic wall.
-							CLIENT-QUALITY-C01: the panel is now collapsed by default, so this
-							strip is one compact line and is no longer suppressed on short
-							viewports; the archived-load control sits beside it so the global
-							rollover banner is not the only path to prior-year load. */}
-						<div className="shrink-0 flex items-start gap-2 px-3 pt-1 lg:px-5">
-							<div className="min-w-0 flex-1">
-								<TeachingLoadTruthPanel
-									model={truthModel}
-									loading={data.loading || data.authorityDiagnosticsLoading}
-									sourceRevision={data.authorityDiagnostics?.sourceRevision ?? null}
-									upstreamVerified={data.degradedNotice === null}
-									unresolvedReasons={truthUnresolvedReasons}
-								/>
-							</div>
-							<Button
-								asChild
-								variant="outline"
-								size="sm"
-								className="h-8 shrink-0 gap-1.5 text-xs"
-								data-testid="teaching-load-history-link"
-							>
-								<Link to="/teaching-load/history">
-									<History className="size-3.5" aria-hidden="true" />
-									Archived load
-								</Link>
-							</Button>
-						</div>
+					{/* A3-C10-S3: the canonical truth strip, the "Next step" repair queue
+						and the archived-load control were three `shrink-0` bands here
+						and are now one compact state line inside the command strip
+						(`headerStateLine` above). The roster therefore starts
+						immediately under the two-row header.
 
-						{/* Phase 4.1: the standalone TeachingLoadTaskGuide is removed.
-							Its "next step" prompt duplicated the repair queue, and its
-							% staffed badge already lives in the readiness strip under
-							the command header. The repair queue is now the single
-							"next step" surface. */}
-						<div className="shrink-0 [@media(max-height:640px)]:hidden">
-							<TeachingLoadRepairQueue
-								items={repairQueueItems}
-								activeItemId={activeRepairId ?? routedRepairId}
-								isReadOnly={data.isReadOnlyMode}
-								saving={data.saving}
-								advancedGridVisible={advancedGridVisible}
-								onPrimaryAction={handleRepairPrimaryAction}
-							/>
-						</div>
+						Phase 4.1 note, still true: the standalone TeachingLoadTaskGuide
+						remains removed, and the repair queue is still the single
+						"next step" surface. Its % staffed figure is still the one in
+						the readiness strip, now on the same line as everything else. */}
 
-						<div className="flex min-h-[140px] flex-1 flex-col" data-testid="teaching-load-workspace">
+					<div className="flex min-h-[140px] flex-1 flex-col" data-testid="teaching-load-workspace">
+
 						{advancedGridVisible ? (ui.viewMode === 'teacher' ? (
 							<TeacherGridMode
 								loading={data.loading}

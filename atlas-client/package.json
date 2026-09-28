@@ -67,6 +67,7 @@
     "test:a3-c8-audit": "node --experimental-test-module-mocks --import tsx --test src/components/__tests__/a3-c8-audit-calm.test.tsx",
     "test:a3-page-title-c1": "tsx --test src/components/__tests__/a3-canonical-page-title-c1.test.tsx",
     "test:a3-c4-copy": "tsx --test src/components/__tests__/a3-c4-dashboard-one-name-no-scroll.test.tsx src/components/__tests__/a3-c4-subjects-copy.test.ts",
+    "test:a3-c10-tl-density": "tsx --test src/components/faculty-assignments/__tests__/a3-c10-tl-header-density.test.ts",
     "test:a3-title-strip-c3": "tsx --test src/components/app-shell/__tests__/compact-title-strip-c3.test.tsx",
     "test:a3-palette-ratchet-s-e": "tsx --test src/lib/__tests__/palette-ratchet-a3-s-e.test.ts",
     "test:a3-palette-token-sweep": "tsx --test src/lib/__tests__/palette-token-sweep-a3-s-e.test.ts",
