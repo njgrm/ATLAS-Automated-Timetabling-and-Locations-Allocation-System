@@ -60,8 +60,13 @@ type RolloverGuidanceCardProps = {
 	schoolId: number;
 	compact?: boolean;
 	dismissible?: boolean;
-	/** Where the destructive year-setup/reset surface lives. Defaults to `/admin/year-setup`. */
-	adminHref?: string;
+	/**
+	 * Where the destructive year-setup/reset surface lives. Defaults to
+	 * `/admin/year-setup`. Pass `null` when this card is rendered ON that route,
+	 * so the "Year setup" control is dropped rather than becoming a self-link
+	 * whose only effect is to reload the current page.
+	 */
+	adminHref?: string | null;
 	/** Enables the marker flow only inside the protected year-setup surface. */
 	allowTestDataMarking?: boolean;
 	onApplied?: (status: RolloverStatus) => void;
@@ -152,7 +157,7 @@ export function RolloverGuidanceCard({
 	schoolId,
 	compact = false,
 	dismissible = true,
-	adminHref = '/admin/year-setup',
+	adminHref = '/admin/year-setup' as string | null,
 	allowTestDataMarking = false,
 	onApplied,
 	onStatus,
@@ -560,7 +565,11 @@ export function RolloverGuidanceCard({
 						Save terms
 					</Button>
 				) : null}
-				{canPreviewReset || isBlocking ? (
+				{/* A5-C2A: the year-setup control is rendered ONLY when it has a real
+				    destination. On `/admin/year-setup` itself `adminHref` is null and
+				    the control disappears, instead of rendering a link/button whose
+				    only effect is to reload the page the operator is already on. */}
+				{adminHref && (canPreviewReset || isBlocking) ? (
 					<Button type="button" variant="ghost" size="sm" asChild className="ml-auto h-7 shrink-0 px-2 text-xs font-semibold" data-testid="rollover-banner-open-year-setup">
 						<Link to={adminHref}>Year setup</Link>
 					</Button>
@@ -776,15 +785,17 @@ export function RolloverGuidanceCard({
 						</>
 					)}
 					{/* Destructive reset is intentionally NOT exposed here. The "Open year setup" link routes to /admin/year-setup where the reset lives. */}
-					{canPreviewReset ? (
-						<Button type="button" variant="outline" size="sm" asChild data-testid="rollover-banner-open-year-setup">
-							<Link to={adminHref}>Open year setup</Link>
-						</Button>
-					) : (
-						<Button type="button" variant="ghost" size="sm" asChild className="text-muted-foreground">
-							<Link to={adminHref}>Year setup</Link>
-						</Button>
-					)}
+					{adminHref ? (
+						canPreviewReset ? (
+							<Button type="button" variant="outline" size="sm" asChild data-testid="rollover-banner-open-year-setup">
+								<Link to={adminHref}>Open year setup</Link>
+							</Button>
+						) : (
+							<Button type="button" variant="ghost" size="sm" asChild className="text-muted-foreground">
+								<Link to={adminHref}>Year setup</Link>
+							</Button>
+						)
+					) : null}
 				</div>
 			</CardContent>
 		</Card>

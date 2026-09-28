@@ -126,6 +126,7 @@ qa-artifacts/playwright/specs/*
 !qa-artifacts/playwright/specs/teaching-load-post-qa-remediation.spec.ts
 !qa-artifacts/playwright/specs/client-route-smoke.spec.ts
 !qa-artifacts/playwright/specs/a5-subjects-c1.spec.ts
+!qa-artifacts/playwright/specs/a5-c2a-term-truth.spec.ts
 
 # Root-level throwaway outputs
 /*.png

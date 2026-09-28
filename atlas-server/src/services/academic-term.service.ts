@@ -23,6 +23,10 @@
 import { getDataContext } from '../lib/data-context.js';
 import { normalizePersistedTermStructure } from './derived-demand.service.js';
 import { fetchEnrollProTermContract, type TermContractFetchResult } from './enrollpro-term-contract.service.js';
+// A5-C2A — the one canonical active-term policy. This module keeps the bounded
+// live memo and the network-free persisted reads; the decision itself is shared
+// with the client runtime context so a read and a write cannot disagree.
+import { loadPersistedActiveTermSnapshot, resolveCanonicalActiveTerm } from './active-term-resolver.service.js';
 
 export type AcademicTermFormat = 'TRIMESTER' | 'QUARTERS';
 
@@ -241,60 +245,19 @@ async function fetchActiveOrderedTermLive(
 	return request;
 }
 
-type LiveActiveOrderInterpretation =
-	| { kind: 'resolved'; order: number }
-	| { kind: 'authoritative-null' }
-	| { kind: 'unreachable' };
-
 /**
- * Mirror `runtime-context.service.ts` semantics exactly:
- *  - a live verified active term → its order;
- *  - a reachable typed result with no active term (`ACTIVE_TERM_UNRESOLVED`,
- *    `CONTRACT_INVALID`, or a reachable source failure) is authoritative and
- *    resolves to `null` — never a fallback and never Term 1;
- *  - only an `enrollpro-unreachable` result (network failure or missing
- *    credential) triggers the date-derived persisted fallback.
+ * A5-C2A — `interpretLiveActiveOrder` and the date-derived fallback that used
+ * to live here are now THE canonical policy in
+ * `active-term-resolver.service.ts`, so this module and the client runtime
+ * context can never disagree about the active term again. The old local policy
+ * hard-failed on a reachable, truthful `ACTIVE_TERM_UNRESOLVED` while the app
+ * shell displayed the saved term for the same school year; that contradiction
+ * was the recorded root cause of the Teacher Concerns dead end.
+ *
+ * This function keeps only the bounded single-flight + short-TTL memo and
+ * delegates the decision. See {@link resolveCanonicalActiveTerm} for the policy
+ * and for the fail-closed invariants it does not weaken.
  */
-function interpretLiveActiveOrder(result: TermContractFetchResult | null): LiveActiveOrderInterpretation {
-	if (!result) return { kind: 'unreachable' };
-	if (!result.ok) {
-		return result.error.code === 'ENROLLPRO_UNREACHABLE' ? { kind: 'unreachable' } : { kind: 'authoritative-null' };
-	}
-	const { contract } = result;
-	if (contract.activeTerm && Number.isInteger(contract.activeTerm.order)) {
-		return { kind: 'resolved', order: contract.activeTerm.order };
-	}
-	return contract.activeTermState.reachable ? { kind: 'authoritative-null' } : { kind: 'unreachable' };
-}
-
-/**
- * Date-derived persisted active term — the same derivation the client runtime
- * context uses. Reads one persisted verified snapshot and never calls the
- * network.
- */
-async function loadPersistedActiveOrderedTermIndex(
-	schoolId: number,
-	schoolYearId: number,
-	client: unknown,
-	now: Date,
-): Promise<number | null> {
-	const dataClient = (client ?? getDataContext()) as TermAuthorityClient;
-	let mirror: Awaited<ReturnType<TermAuthorityClient['enrollProSchoolYearMirror']['findUnique']>>;
-	try {
-		mirror = await dataClient.enrollProSchoolYearMirror.findUnique({
-			where: { schoolId_enrollProSchoolYearId: { schoolId, enrollProSchoolYearId: schoolYearId } },
-			select: { isActive: true, isArchived: true, termContractCache: true, termContractCachedAt: true },
-		});
-	} catch {
-		return null;
-	}
-	if (!mirror || !mirror.isActive || mirror.isArchived || !mirror.termContractCache || !mirror.termContractCachedAt) return null;
-	const normalized = normalizePersistedTermStructure(mirror.termContractCache, schoolId, schoolYearId);
-	if (!normalized.ok) return null;
-	const rawActive = (mirror.termContractCache as { activeTerm?: { order?: unknown } }).activeTerm;
-	const snapshotOrder = rawActive && Number.isInteger(rawActive.order) ? Number(rawActive.order) : null;
-	return derivePersistedActiveTerm(normalized.structure.terms, snapshotOrder, now)?.termIndex ?? null;
-}
 
 export type ResolveActiveOrderedTermIndexLiveOptions = {
 	/** Live-contract provider seam; defaults to `fetchEnrollProTermContract`. */
@@ -330,10 +293,20 @@ export async function resolveActiveOrderedTermIndexLive(
 	} catch {
 		live = null;
 	}
-	const interpreted = interpretLiveActiveOrder(live);
-	if (interpreted.kind === 'resolved') return interpreted.order;
-	if (interpreted.kind === 'authoritative-null') return null;
-	return loadPersistedActiveOrderedTermIndex(schoolId, schoolYearId, options.client, now);
+	const resolution = await resolveCanonicalActiveTerm(
+		{ schoolId, schoolYearId },
+		{
+			provider: async () => {
+				if (!live) throw new Error('The live EnrollPro term read is unavailable.');
+				return live;
+			},
+			now,
+			loadSnapshot: options.client
+				? (id, yearId) => loadPersistedActiveTermSnapshot(id, yearId, options.client as never)
+				: undefined,
+		},
+	);
+	return resolution.termIndex;
 }
 
 // ─── ACTIVE-TERM-LIVE-RESOLUTION-C02: entry-point pre-resolution ───
