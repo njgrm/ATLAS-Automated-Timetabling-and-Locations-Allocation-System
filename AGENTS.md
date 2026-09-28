@@ -184,6 +184,32 @@ Classify by behaviour and authority, not ease of rollback. User-facing or produc
   VISUAL-only release keeps the D-rows (health, discriminators, zero-write, public matrix) plus **one browser smoke
   row per changed screen**; the full browser row set is for releases that carry MEDIUM/HIGH work.
 
+### Design judgement gate (operator, 2026-09-29)
+
+Operator and members, 2026-09-29: changes "have not been graceful, they've been too literal, like no thought was put
+into the changes and they just passed QA like UX/UI was never considered." Evidence on live Tailnet: the `/timetable`
+header squeezed to 2 rows by cramming (truncated sentences, helper text under buttons, two chips saying "no schedule");
+the Teaching Load header "compaction … not graceful"; Subjects filters as pills beside rectangular pickers, two reading
+`All...`, spelled-out program names, raw `OWNER_DEPT:` strings. Each passed its tests, its QA and a screenshot. Causes:
+packets said *what to change*, not *what the user should feel*; executors met the letter; "seen" meant a screenshot
+existed, not that anyone judged it; every fix **added** a line, chip or sentence and nothing was taken away.
+
+Rules for every user-facing change:
+1. **Packets state intent, not just instructions.** Name the user (older, mouse-first scheduler), the task on that
+   screen, and what should feel different (calmer, one obvious next step). A literal rule such as "2 rows" is a limit,
+   never the goal: meeting it by cramming fails.
+2. **Design before code.** The executor writes a short layout note (what stays, what goes, what moves behind a Tooltip,
+   `More` or a detail) and checks it against §8 and the page patterns before writing JSX.
+3. **Subtract first.** A change may not add visible words, chips, lines or controls to a region without removing at
+   least as much, unless the packet says why. Prefer deleting, merging and hiding idle things over rewording.
+4. **Judged, not just seen.** Before merge, a reviewer who did not build it compares before/after screenshots at
+   1366x768 and scores them against `ux-communication-rubric`: one primary action, no truncation, no jargon or raw codes,
+   one status per fact, controls matching other pages (§8 One look per control), nothing cramped. Any miss =
+   `REJECT_UX`, even when every test passes. Lane C's staging Codex walk (older-user view) is the second judge and
+   **blocks** the release of that screen; its findings do not just get routed.
+5. **Copy what works.** Headers, filter bars, table rows, status chips and empty states follow the one page that does it
+   best (named in the packet); no lane invents a local variant.
+
 ### Throughput rules (operator, 2026-09-28 afternoon)
 
 Evidence: ~10 planner cycles from 2026-09-27 night to 2026-09-28 14:00 put 6 fixes live; three releases stalled on
