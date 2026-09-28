@@ -92,6 +92,12 @@ Every refusal is `STAGING_DEPLOY_STOP: <TOKEN>: <detail>`.
 | `STAGING_ENV_LIVE_LEAF` | `-StagingEnvFile …\atlas-server.env`, i.e. the live env file. |
 | `STAGING_ENV_LEAF_MISMATCH` | any leaf other than `atlas-staging.env`. |
 | `STAGING_ENV_NOT_ABSOLUTE` | a relative, UNC, device or wildcard `-StagingEnvFile`. |
+| `STAGING_ENV_IS_LIVE_ENV` | a `-StagingEnvFile` that **resolves** to the live env file named by `-LiveEnvFile`, even under a differently-cased or dotted spelling that survives the leaf checks. |
+| `LIVE_ENV_NOT_ABSOLUTE` | a relative, UNC or wildcard `-LiveEnvFile`. Fail-closed: the script will not compare paths it cannot resolve. |
+| `STAGING_ROOT_ANCHOR_INVALID` | the **pinned anchor itself** `E:\ATLAS-staging` is not resolvable. Defence in depth — a broken host, not an operator input. |
+
+This table is the complete set of tokens the guard module can throw; the last
+three are the resolved-path and anchor checks that run *after* the shape checks.
 
 The staging env file default is `D:\ATLAS-runtime-config\atlas-staging.env` and
 stays valid — do not relocate it, the launcher already points there.
