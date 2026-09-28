@@ -31,6 +31,35 @@ interface SearchableSelectProps {
 	triggerId?: string;
 	/** Accessible name of the search box; defaults to "Search" + `ariaLabel`. */
 	searchLabel?: string;
+	/**
+	 * A5 C3 — the filter's own NAME, composed into the visible trigger text as
+	 * `<prefix>: <selected>` so the control reads `Grade: All grades` rather than a bare
+	 * `All grades`.
+	 *
+	 * Additive and default-off (`undefined` renders exactly the previous text). `ariaLabel`
+	 * already composes the same pair into the accessible name, so passing both keeps the visible
+	 * label and the accessible name from ever disagreeing — the LANE-C C03 (B11) rule. This
+	 * primitive deliberately has no opinion about whether a picker wants a prefix; the policy
+	 * lives in `@/ui/filter-picker`, which is where every page builds its filters.
+	 */
+	triggerLabelPrefix?: string;
+	/**
+	 * A5 C3 R3 §1 — the SHORT value to compose into the visible trigger text, when the
+	 * caller's own vocabulary for a chosen option is shorter than its full label
+	 * (`GR7`, `STE`, `Classroom`). Additive and default-off: omitted, the trigger shows the
+	 * selected option's full label exactly as before, so `/timetable` is unaffected. The
+	 * POPOVER and the ACCESSIBLE NAME always use the full label — the popover has the room
+	 * for it, and a screen reader has no width limit.
+	 */
+	triggerLabelValue?: string;
+	/**
+	 * A5 C3 / R2-5 — whether the option list shows its search box. Defaults to `true`, which is
+	 * this primitive's own behaviour and is unchanged, so `/timetable`'s entity picker (a long
+	 * list that must keep its box) is untouched. `@/ui/filter-picker` is what decides the rule.
+	 */
+	showSearch?: boolean;
+	/** A5 C3 — a `data-testid` for the trigger button, so existing test handles survive the sweep. */
+	triggerTestId?: string;
 }
 
 type FlatOption = { value: string; label: string; index: number };
@@ -48,6 +77,10 @@ export function SearchableSelect({
 	ariaLabel,
 	triggerId,
 	searchLabel,
+	triggerLabelPrefix,
+	triggerLabelValue,
+	showSearch = true,
+	triggerTestId,
 }: SearchableSelectProps) {
 	const [open, setOpen] = React.useState(false);
 	const [query, setQuery] = React.useState('');
@@ -147,6 +180,16 @@ export function SearchableSelect({
 		: ariaLabel
 			? `${ariaLabel}: ${value ? selectedLabel : placeholder}`
 			: undefined;
+	/* A5 C3: the visible face carries the same "<name>: <value>" pair the accessible name
+	 * does. The prefix is omitted entirely when absent, so a picker that does not want one
+	 * renders byte-for-byte what it rendered before. `triggerLabelValue` shortens only the
+	 * VISIBLE value; the accessible name above still uses the full label. */
+	const visibleValue = triggerLabelValue ?? (value ? selectedLabel : placeholder);
+	const visibleLabel = triggerLabelPrefix
+		? `${triggerLabelPrefix}: ${visibleValue}`
+		: value
+			? selectedLabel
+			: placeholder;
 
 	return (
 		<Popover
@@ -158,18 +201,45 @@ export function SearchableSelect({
 			}}
 		>
 			<PopoverTrigger asChild>
+				{/*
+				 * A5 C3 CORRECTION ROUND 1 (B5): the primitive's own `min-w-[160px]`
+				 * floor is GONE, and that is the fix.
+				 *
+				 * `min-w-*` and `w-*` are DIFFERENT tailwind-merge groups, so that floor
+				 * did not lose to a caller's `w-32` - it coexisted with it, and CSS
+				 * `min-width` beats `width`. Every trigger rendered at 160px whatever
+				 * width variant the page asked for: the `sm`/`md`/`fill` variants in
+				 * `@/ui/picker-trigger` were inert, the Subjects suites were asserting a
+				 * class the browser ignored, and the `/subjects` cluster's real content
+				 * width was 5 x 160 = 800px rather than the 5 x 128 = 640px the ledger
+				 * claimed.
+				 *
+				 * The floor is removed from the SHARED PRIMITIVE, which is the correct
+				 * place under `AGENTS.md` section 8: a shared primitive is what silently
+				 * overrode the shared variant, and a page-local `min-w-0` would have been
+				 * exactly the page-local override of a shared surface that this whole
+				 * change exists to remove. A variant that genuinely needs a floor states
+				 * it in `@/ui/picker-trigger`, where every page gets it.
+				 *
+				 * `/timetable` is unchanged and provably so: its call site already passes
+				 * its own `min-w-[9rem]`, `min-w-*` is one merge group, and the caller's
+				 * floor has always won there, so removing the base floor changes nothing
+				 * it was ever governing. `a5-c3-picker-contract.test.tsx` asserts both
+				 * halves of that.
+				 */}
 				<Button
 					id={triggerId}
+					data-testid={triggerTestId}
 					variant="outline"
 					role="combobox"
 					aria-expanded={open}
 					aria-haspopup="listbox"
 					disabled={disabled}
 					aria-disabled={disabled}
-					aria-label={triggerLabel}
-					className={cn('min-w-[160px] justify-between font-normal', triggerClassName)}
-				>
-					<span className="truncate">{value ? selectedLabel : placeholder}</span>
+				aria-label={triggerLabel}
+				className={cn('justify-between font-normal', triggerClassName)}
+			>
+					<span className="truncate">{visibleLabel}</span>
 					<ChevronsUpDown className="ml-1 size-3 shrink-0 opacity-50" />
 				</Button>
 			</PopoverTrigger>
@@ -178,21 +248,27 @@ export function SearchableSelect({
 				collisionPadding={8}
 				onOpenAutoFocus={(e) => { e.preventDefault(); inputRef.current?.focus(); }}
 			>
-				{/* Search input */}
-				<div className="flex items-center border-b px-2">
-					<Search className="mr-1 size-3 shrink-0 opacity-50" />
-					<input
-						ref={inputRef}
-						value={query}
-						onChange={(e) => setQuery(e.target.value)}
-						onKeyDown={handleSearchKeyDown}
-						placeholder="Search…"
-						aria-label={searchLabel ?? (ariaLabel ? `Search ${ariaLabel.toLowerCase()}` : 'Search schedule options')}
-						aria-controls={listId}
-						aria-activedescendant={flatOptions.length > 0 ? optionId(Math.min(activeIndex, flatOptions.length - 1)) : undefined}
-						className="flex h-9 w-full bg-transparent py-1.5 text-sm outline-none placeholder:text-muted-foreground"
-					/>
-				</div>
+				{/* Search input. A5 C3 / R2-5: `showSearch` is false only when the CALLER
+				    decided the list is too short to search (`@/ui/filter-picker`, > 8
+				    options). The default is true, so this primitive's own behaviour — and
+				    `/timetable`'s entity picker — is unchanged. The focus handoff is already
+				    null-safe, so a list without a box opens straight onto its options. */}
+				{showSearch ? (
+					<div className="flex items-center border-b px-2">
+						<Search className="mr-1 size-3 shrink-0 opacity-50" />
+						<input
+							ref={inputRef}
+							value={query}
+							onChange={(e) => setQuery(e.target.value)}
+							onKeyDown={handleSearchKeyDown}
+							placeholder="Search…"
+							aria-label={searchLabel ?? (ariaLabel ? `Search ${ariaLabel.toLowerCase()}` : 'Search schedule options')}
+							aria-controls={listId}
+							aria-activedescendant={flatOptions.length > 0 ? optionId(Math.min(activeIndex, flatOptions.length - 1)) : undefined}
+							className="flex h-9 w-full bg-transparent py-1.5 text-sm outline-none placeholder:text-muted-foreground"
+						/>
+					</div>
+				) : null}
 				{/* List */}
 				<div id={listId} role="listbox" aria-label={ariaLabel} className="max-h-[min(15rem,calc(var(--radix-popover-content-available-height)-2.5rem))] overflow-y-auto p-1">
 					{filtered.length === 0 && (

@@ -16,13 +16,12 @@ import {
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from '@/ui/dropdown-menu';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip';
 import { ROOM_TYPE_LABELS } from '@/lib/subject-constants';
 import { GRADE_COLORS } from '@/lib/grade-labels';
 import { cn } from '@/lib/utils';
 import { AccessibleInfo } from '@/components/smart/AccessibleInfo';
-import { programFullLabel } from '@/lib/deped-glossary';
 import { splitSubjectFeatures, subjectFeatureHelp, ownerDepartmentRead } from './subject-feature-presentation';
+import { ProgramScopeChips } from './ProgramScopeChips';
 import type { Subject, SubjectCoverageRow } from '@/types';
 
 interface SubjectRowProps {
@@ -102,11 +101,6 @@ export function SubjectRow({
 		: ROOM_TYPE_LABELS[subject.preferredRoomType] ?? subject.preferredRoomType;
 
 	const programScopes = subject.programScopes ?? [];
-	const programText = programScopes.length === 0
-		? null
-		: programScopes.length === 1
-		? programFullLabel(programScopes[0])
-		: `${programScopes.length} programs`;
 
 	const isArchived = !subject.isActive;
 
@@ -119,12 +113,6 @@ export function SubjectRow({
 		[subject.requiredFeatures],
 	);
 	const roomFeatureCount = featureSplit.roomFeatures.length;
-	// A5-C2B / demo-walk item 7: the PRIMARY read names the department (or, for
-	// a code the glossary cannot expand, the department code) and never prints
-	// the stored `OWNER_DEPT:` marker the operator reported seeing. The marker
-	// stays reachable in the `AccessibleInfo` detail below, which is built from
-	// `featureHelp` — so this moves the marker off the primary line rather than
-	// removing it from reachability.
 	const ownerPhrase = ownerDepartmentRead(featureSplit.ownerDepartments);
 	const featureHelp = useMemo(
 		() => subjectFeatureHelp(featureSplit),
@@ -142,36 +130,24 @@ export function SubjectRow({
 
 	return (
 		<tr className="border-b last:border-0 hover:bg-muted/30 transition-colors group">
-			{/* Col 1 — Subject: name, code, max 2 status badges */}
+			{/* Col 1 — Subject: name + one status badge.
+
+				A5 C3 / A2: the subject-CODE chip is GONE from this row, along with
+				its `TooltipProvider`/`Tooltip` wrapper, its `tabIndex={0}` and its
+				40-word `aria-label`. That is a subtraction of one chip, one focusable
+				element and one affordance from EVERY row of the catalog, in the region
+				where the operator is reading names.
+
+				Why it goes rather than moves behind a detail: the user named in §11 rule 1
+				came to find one subject and see whether it is covered. `subject.name` is
+				already the row's bold title; the code is the identifier curriculum
+				requirements and EnrollPro records key on, not one a scheduler decides
+				coverage from. It is still on the edit form, where an officer enters it.
+				No `title=` attribute replaces it (§8). */}
 			<td className="px-4 py-3">
 				<div className="flex flex-col min-w-0">
 					<span className="font-bold text-foreground leading-tight truncate">{subject.name}</span>
 					<div className="mt-1 flex flex-wrap items-center gap-1.5">
-						{/* A3-C4: the subject code is a real, cross-referenced identifier
-							(it is the key curriculum requirements and EnrollPro records use),
-							so it stays — but it is demoted to a subordinate, focusable,
-							plainly-described chip. It deliberately does NOT repeat the
-							subject name, which is already the row's bold title one line
-							above. The @/ui Tooltip carries the code and what it is for;
-							AGENTS.md §8 forbids a `title` attribute. */}
-						<TooltipProvider delayDuration={200}>
-							<Tooltip>
-								<TooltipTrigger asChild>
-									<code
-										tabIndex={0}
-										aria-label={`Subject code ${subject.code}. Use the subject name above when scheduling; the code is the identifier used in curriculum requirements and EnrollPro records.`}
-										className="cursor-help rounded border border-border/40 bg-muted/30 px-1 py-0.5 font-mono text-[0.7rem] tracking-tight text-muted-foreground"
-									>
-										{subject.code}
-									</code>
-								</TooltipTrigger>
-								<TooltipContent side="top" className="max-w-64 text-xs leading-relaxed">
-									<span className="font-semibold">Subject code</span> · {subject.code}. This is the identifier
-									curriculum requirements and EnrollPro records use. Use{' '}
-									<span className="font-semibold">{subject.name}</span> when scheduling.
-								</TooltipContent>
-							</Tooltip>
-						</TooltipProvider>
 						{isArchived && (
 							<Badge className="h-4 px-1.5 text-[0.65rem] font-bold bg-amber-100 text-amber-700 border border-amber-200 shadow-none">Archived</Badge>
 						)}
@@ -206,9 +182,11 @@ export function SubjectRow({
 					) : (
 						<span className="text-sm text-muted-foreground">No grades</span>
 					)}
-					{programText && (
-						<span className="text-xs text-muted-foreground">{programText}</span>
-					)}
+					{/* A5 C3 / A3: the program line was ONE string — the spelled-out full
+					    name for a single scope, `"{n} programs"` for more. It is now one
+					    chip per scope, in the operator's own abbreviation, with the full
+					    name in the chip's @/ui Tooltip. Same line count, far less text. */}
+					<ProgramScopeChips scopes={programScopes} />
 				</div>
 			</td>
 
@@ -222,17 +200,26 @@ export function SubjectRow({
 				</div>
 			</td>
 
-			{/* Col 4 — Room need */}
+			{/* Col 4 — Room need. One fact per line; no line is a joined sentence.
+
+				A5 C2B (NOT re-done here) put the department on the PRIMARY line without the
+				raw marker; R2-4 says prove that, do not "improve" it. A5 C3 / J7 only drops
+				the trailing `department`/`departments` noun and the `and`, so the line reads
+				`Owned by AP, MAPEH` — the line already begins `Owned by`, so the noun was
+				both redundant and, in the two-department case, ungrammatical
+				(`Owned by Araling Panlipunan and MAPEH departments`). */}
 			<td className="px-4 py-3">
 				<div className="flex flex-col">
 					<span className="text-xs font-medium text-foreground">{roomNeedLabel}</span>
-					{/* A3-C4: ownership is a department, not a room feature. The plain
-						learning-area name is the primary read; the raw OWNER_DEPT code
-						stays reachable in the AccessibleInfo mirror (an @/ui tooltip, not
-						a `title` attribute). */}
 					{ownerPhrase && (
 						<span className="text-[0.7rem] text-muted-foreground">Owned by {ownerPhrase}</span>
 					)}
+					{/* A5 C3 / J6: the detail affordance still exists and still explains how
+					    ownership is recorded, but it no longer prints the `OWNER_DEPT:`
+					    storage prefix. The owning CODES are the diagnostic; the prefix is
+					    syntax. The operator's words were "no raw `OWNER_DEPT:<code>` strings
+					    anywhere", and this is the last place on `/subjects` that could
+					    produce one. */}
 					{featureSplit.ownerDepartments.length > 0 && roomFeatureCount === 0 ? (
 						<AccessibleInfo
 							label={`Room features and owning department for ${subject.name}`}
@@ -245,11 +232,14 @@ export function SubjectRow({
 							label={`Room features required by ${subject.name}`}
 							shortHelp={featureHelp}
 						>
+							{/* `uppercase font-semibold` removed: this is a count, and a
+							    shouted `+2 FEATURES` competes with the coverage badge that
+							    is the actual answer to the question this page is opened for. */}
 							<Button
 								type="button"
 								variant="link"
 								size="sm"
-								className="mt-0.5 self-start h-auto p-0 text-[0.7rem] text-amber-600 font-semibold uppercase cursor-help hover:underline"
+								className="mt-0.5 self-start h-auto p-0 text-[0.7rem] font-medium cursor-help hover:underline"
 							>
 								+{roomFeatureCount} feature{roomFeatureCount === 1 ? '' : 's'}
 							</Button>

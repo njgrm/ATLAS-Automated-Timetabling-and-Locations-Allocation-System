@@ -16,8 +16,8 @@ import {
 	DropdownMenuTrigger,
 } from '@/ui/dropdown-menu';
 import { gradeLabel } from '@/lib/grade-labels';
-import { programFullLabel } from '@/lib/deped-glossary';
 import { ROOM_TYPE_LABELS } from '@/lib/subject-constants';
+import { ProgramScopeChips } from './ProgramScopeChips';
 import type { Subject } from '@/types';
 
 export type SubjectCoverageRow = {
@@ -52,7 +52,6 @@ export function SubjectMobileCard({
 		? [...subject.gradeLevels].sort((a, b) => a - b).map((grade) => gradeLabel(grade)).join(', ')
 		: 'No grades';
 	const programScopes = subject.programScopes ?? [];
-	const programCopy = programScopes.length === 0 ? null : programScopes.length === 1 ? programFullLabel(programScopes[0]) : `${programScopes.length} programs`;
 	// Prompt 01A: isSeedable is bootstrap metadata, not timetable inclusion.
 	// Generation schedules by isActive — coverage applies to every active subject.
 	const needsCoverage = coverageRow != null && subject.isActive && coverageRow.uncoveredSectionCount > 0;
@@ -63,7 +62,9 @@ export function SubjectMobileCard({
 			<div className="flex items-start justify-between gap-3">
 				<div className="min-w-0">
 					<div className="flex flex-wrap items-center gap-1.5">
-						<code className="text-[0.7rem] font-mono text-muted-foreground uppercase px-1 py-0.5 bg-muted/30 rounded border border-border/40 font-bold tracking-tight">{subject.code}</code>
+						{/* A5 C3 / A2: the subject-code chip is gone here too, for the same
+						    reason as the desktop row — the name is the title and the code is
+						    not what a scheduler decides coverage from. */}
 						{isArchived && <Badge className="h-4 px-1.5 text-[0.65rem] font-bold bg-amber-100 text-amber-700 border border-amber-200 shadow-none">Archived</Badge>}
 						{!isArchived && <Badge variant="outline" className="h-4 px-1.5 text-[0.65rem] font-bold bg-emerald-50 text-emerald-700 border-emerald-200 shadow-none">Active</Badge>}
 					</div>
@@ -74,8 +75,19 @@ export function SubjectMobileCard({
 			<div className="mt-2.5 space-y-1.5 text-xs">
 				<div className="flex items-center justify-between gap-2">
 					<span className="text-muted-foreground font-medium">Grade level</span>
-					<span className="font-semibold text-foreground text-right">{grades}{programCopy ? ` · ${programCopy}` : ''}</span>
+					<span className="font-semibold text-foreground text-right">{grades}</span>
 				</div>
+				{/* A5 C3 / A3: programs were welded onto the grade value as
+				    `GR7, GR8 · Regular Program` — two different facts on one line, so the
+				    value read as a sentence to be decoded. They get their own row and the
+				    same chips the desktop row uses, so the two layouts say the same
+				    thing in the same words. */}
+				{programScopes.length > 0 && (
+					<div className="flex items-center justify-between gap-2">
+						<span className="text-muted-foreground font-medium">Program</span>
+						<ProgramScopeChips scopes={programScopes} />
+					</div>
+				)}
 				<div className="flex items-center justify-between gap-2">
 					<span className="text-muted-foreground font-medium">Coverage</span>
 					{isArchived ? (

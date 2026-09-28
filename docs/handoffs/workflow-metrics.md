@@ -29,3 +29,14 @@ exit and reviews trends after every 3 rows; each process change is logged below 
 - 2026-09-28 — Codex does all browser rows (fresh run each) → Lane C tokens per accepted fix ↓.
 - 2026-09-28 — split A3 into A3/A5/A6 by screen → fixes live per wall-hour ↑; watch merge conflicts.
 | 2026-09-28 21:30 | A4 | train 2 | LIVE `9ca7f629` (A2 e910811b, A3 13d75ce6, A5 c5aba703, A6 6498c322); staging walk 0/3/1 (unmet targets routed), no regression vs live; Lane C Codex smoke 6/6 (A4 smoke struck as stale) | next train: A2 3e9d0f6c+ | A4 Codex smoke used stale packet — template must pin the smoke prompt |
+| 2026-09-29 00:55 | A4 | train 5 | LIVE `ce1257c8` (A2 past-year c1a04411, A7 c9dd5f05, A5 c2 partial, TL headline hotfix 5bccb65d); staging→live ~40 min; Codex staging 0/4 release rows = missing lane work (A6 Guided removal never landed), not regressions | train 6: A5 c2 bf1a7913, A2 header, A5 subjects, A6 TL header+Guided, A8 TL server, A9 personnelType | planners claimed work they did not ship (Guided) — Lane C must diff packet items vs merged code before a train |
+
+### 2026-09-29 02:40 — rating and changes (Lane C)
+- Delivery: 2 trains live in ~3 h (4, 5); 6 lanes in parallel (A2, A5, A6, A7, A8, A9). Throughput good.
+- Quality: operator + members judged live UI "too literal, no thought". Gate added: §11 Design judgement gate
+  (intent, subtract first, REJECT_UX veto). First effect seen: A5 QA returned REJECT/CORRECTION on its own slice.
+- Safety: two live-touch hazards found and closed — loopback previews proxied to live :5001; dev `.env` pointed at the
+  live DB (a bare test wrote 5 schools into live). Both now AGENTS rules.
+- Reliability: heartbeat notifications never reached the session → in-session monitor.sh; launch race (a6-hdr1 never
+  started) → launcher retries pull; planners ending on a "next action" (A2, A5) → resumed with an explicit rule.
+- Metric to watch next: packet items shipped vs claimed (Guided mode gap), REJECT_UX rate per slice, live-touch incidents = 0.

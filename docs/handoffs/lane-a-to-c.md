@@ -1882,3 +1882,57 @@ paint, nothing about `njgrm.buru-degree.ts.net`. Steps are in my `lane-a-to-c` b
 **@A4:** pin f1a7913. The net diff from e1c02d94 is 30 paths, all tlas-client/tlas-server/
 configs, **no migration, no prisma/, no ops/, no seed, no env, no lockfile**. **E: free space is
 ~24 GiB, BELOW the 25 GiB warning line - run the release-directory reclaim before the build.**
+---
+
+## A5 C3 slice A - **A5 ready for release at d6310ecc** (2026-09-29 ~02:4x, from Planner A5)
+
+d6310ecc is on origin/main. Client-only, **no server / prisma / ops / lockfile / migration / env / seed**.
+**A5 does not deploy - A4 owns the release.** Slice B (Sections/Faculty/Teaching Load + the guard) is
+not in this pin; it rides the next train.
+
+**1 / 1 integrated and SEEN RENDERED on loopback. 0 live. 0 dropped.** Rendered rows are
+ISOLATED_LOCAL_BROWSER - they prove this candidate's own paint, **nothing about
+njgrm.buru-degree.ts.net**. The Tailnet rows stay yours.
+
+**What the operator asked for, and the measured proof at 1366x768** (dedicated Playwright profile,
+catch-all bort() so nothing proxied to live 5001; errorBoundary: false):
+
+| Ask | Result |
+|---|---|
+| `each filter shows its name (e.g. Grade: All, Program: All)` | **PASS** - all five: Status: All / Grade: All / Program: All / Room: All / Term: All |
+| "same height as the search box" | **PASS** - 36px = 36px, measured |
+| "even widths" | **PASS** - five triggers at **128px**; base had four widths (160/96/112/144/112) |
+| "pill-shaped while the search box ... [is] rounded rectangles" | **PASS** - one shared @/ui variant at the search box's height |
+| no global scrollbar | **PASS** - scrollHeight === clientHeight === 768; cluster 812x36, one line |
+
+Table: subject code chip dropped (row **and** mobile card); program scopes are abbreviated chips
+(BEC/STE/...), never "4 programs" and never the spelled-out name; ownership reads
+**Owned by AP, MAPEH**; the literal OWNER_DEPT: leaves the /subjects screen.
+
+**Gates:** two independent QA rounds. Round 1 CORRECTION_REQUIRED 20/16/3/1 - three BLOCKINGs
+(a flake the candidate introduced, a deleted one-line-fit guard replaced by a tautology, and the
+inert width token). Round 2 CORRECTION_REQUIRED **22/21/0/0/1** - **B1-B6 all closed on the
+reviewer's own numbers** (3-subjects 32/32 on **6/6** runs) and **the AGENTS.md SS11 rule-4 gate
+returns NO REJECT_UX on the filter row, scored on the real render**. The one remaining FAILURE was
+record integrity, not safety, and was corrected directly.
+
+**Two of my own errors, on the record because SS16 holds planner records to the same rule:**
+1. My R1 packet over-specified the filter labels as Grade: All grades when your words are
+   Grade: All. **My brief caused the 3+2 wrap it existed to prevent.** R3 restored your spec.
+2. My first "after" screenshots were **error boundaries**, and I cited one as a PASS. Withdrawn,
+   replaced, and I attributed the crash to my own fixture - a second, more specific attribution of
+   mine was also disproved by round 2 and is now marked UNATTRIBUTED.
+
+**@A4 - pin d6310ecc.** Net delta over origin/main: 16 tlas-client paths + docs, **0
+tlas-server/, 0 prisma/, 0 ops/, 0 lockfile, no env, no migration.** A3-C4-2a/2b and the
+c2b 7b controls were **re-pointed and added, never deleted** (19 asserts removed vs 104 added; QA
+traced every removal). 	est:a3-c4-copy's 1 failure is **pre-existing and identical at base**
+(SubjectFormModal.tsx raw 	itle= - my named out-of-scope file). 	sc = the same **5**
+pre-existing errors in untouched 	imetable-* files; client build exit 0. E: is 25.6 GiB - reclaim
+still owed before the next build.
+
+**@Lane C - one RELEASE CONDITION, your ruling, owner named.** The **subject table row** (program
+chips, Owned by AP, MAPEH, absent code chip) has **no rendered proof**: under a mocked /api/v1
+the catalogue loader never dispatches and owsRendered: 1 is the empty state. Per your 02:35
+ruling it is judged on **staging :5274 after you deploy train 6**, and a **REJECT_UX there sends
+it back to me.** It is recorded as deferred, never as met.
