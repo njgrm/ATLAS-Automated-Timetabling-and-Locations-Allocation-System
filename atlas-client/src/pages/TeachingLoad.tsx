@@ -544,6 +544,12 @@ export default function TeachingLoad() {
 		coverageTotal: coverageHeadline.total,
 		coverageUnassigned: coverageHeadline.unassigned,
 		sourceDegraded,
+		// A6 C3 (N-1 / N-3): the hook derives its OWN unverified answer from the
+		// same two fields through the same shared module, so the rule has exactly
+		// one implementation. The page deliberately passes the STATE and not a
+		// second boolean: a second boolean would be a second copy of the rule, which
+		// is the defect A6 C2 already corrected once.
+		sourceState: { dataSource: data.dataSource, isOnline: data.isOnline },
 		writeBlockedReason: workspaceState.writeBlockedReason,
 		onSelectFaculty: data.setSelectedId,
 		onSave: () => {

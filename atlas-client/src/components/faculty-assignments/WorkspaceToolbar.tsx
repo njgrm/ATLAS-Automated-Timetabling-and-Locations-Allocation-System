@@ -185,6 +185,80 @@ export function isTeachingLoadSourceDegraded(input: {
 	return input.dataSource !== 'live' || Boolean(input.dataSourceNotice);
 }
 
+/*
+ * A6 C3 (N-1 / N-3) — THE WIDER QUESTION, AND THE CAUSE IT ACTUALLY HAS.
+ *
+ * `isTeachingLoadSourceDegraded` above answers ONE narrow question: is there
+ * something wrong with the source right now, in the sense that justifies an
+ * amber line? It deliberately says `false` for `refreshing`, because ATLAS is
+ * actively asking EnrollPro and "not reachable" would be a lie mid-check.
+ *
+ * That narrowness is correct for the amber line and wrong for a FIGURE. While
+ * ATLAS is `refreshing`, the coverage totals, the over-cap count and the
+ * teacher's hours on screen all still describe the LAST SAVED snapshot — they
+ * are simply not confirmed yet. So the wider question is its own predicate:
+ * "are the figures on this page confirmed?", answered by
+ * `isTeachingLoadSourceUnverified`. It is wider in two ways: `refreshing` is
+ * unverified, and it needs no `dataSourceNotice`, because a stale notice left
+ * over from an earlier attempt says nothing about whether the CURRENT numbers
+ * are confirmed.
+ *
+ * WHY IT REFUSES TO NAME A CAUSE IT DOES NOT HAVE. The three functions below
+ * are the one place the withheld string is written, so the header's amber line
+ * and the repair queue's per-row status cannot disagree about WHY a number is
+ * missing — which is defect N-3, where `OFFLINE` and `NONE` were both labelled
+ * "EnrollPro is not reachable". That is false when ATLAS is the thing that is
+ * down, and false when there is no source to reach. Naming the cause the page
+ * actually has is the point: an operator who reads "ATLAS is offline" knows
+ * that waiting will not help, and one who reads "no live Teaching Load source
+ * is available" knows to look upstream, while "EnrollPro not reachable" is the
+ * one answer that covers all three cases and is therefore only sometimes true.
+ *
+ * The `cached` + online case MUST keep producing the exact string the queue
+ * already printed (`Unverified — EnrollPro is not reachable, so this figure is
+ * withheld.`), so the common degraded state reads identically to before.
+ */
+export function isTeachingLoadSourceUnverified(input: {
+	dataSource: WorkspaceToolbarProps['dataSource'];
+	isOnline: boolean;
+}): boolean {
+	return !input.isOnline || input.dataSource !== 'live';
+}
+
+export function teachingLoadUnverifiedReason(input: {
+	dataSource: WorkspaceToolbarProps['dataSource'];
+	isOnline: boolean;
+}): string {
+	if (!input.isOnline) return 'ATLAS is offline';
+	if (input.dataSource === 'refreshing') return 'ATLAS is checking EnrollPro now';
+	if (input.dataSource === 'none') return 'no live Teaching Load source is available';
+	return 'EnrollPro not reachable';
+}
+
+/*
+ * A6 C3: the withheld SENTENCE, composed per state rather than from one fixed
+ * clause. The `cached` + online case is pinned to the exact string this page has
+ * printed since A6 C2, byte-for-byte, so the state a scheduler meets most often
+ * reads identically to before.
+ *
+ * It is written out per state instead of composed from
+ * `teachingLoadUnverifiedReason` for one grammar reason: that function's
+ * `EnrollPro not reachable` is the AMBER LINE's clause, and the sentence needs
+ * the same clause in a sentence — `EnrollPro IS not reachable`. Composing one
+ * from the other silently dropped the `is` and changed a string the committed
+ * `A6-C2-3` row asserts. The other three states are new, so they are written to
+ * read as sentences.
+ */
+export function teachingLoadUnverifiedStatus(input: {
+	dataSource: WorkspaceToolbarProps['dataSource'];
+	isOnline: boolean;
+}): string {
+	if (!input.isOnline) return 'Unverified — ATLAS is offline, so this figure is withheld.';
+	if (input.dataSource === 'refreshing') return 'Unverified — ATLAS is checking EnrollPro now, so this figure is withheld.';
+	if (input.dataSource === 'none') return 'Unverified — no live Teaching Load source is available, so this figure is withheld.';
+	return 'Unverified — EnrollPro is not reachable, so this figure is withheld.';
+}
+
 export function WorkspaceToolbar({
 	realAssignedPairs,
 	syntheticPlaceholderPairs,
@@ -339,11 +413,17 @@ export function WorkspaceToolbar({
 	 * this header changes.
 	 */
 	const isSourceDegraded = isTeachingLoadSourceDegraded({ dataSource, isOnline, dataSourceNotice });
+	// A6 C3 (N-1): the WIDER predicate, for the two things the degraded one must
+	// not decide. `refreshing` is deliberately absent from `isSourceDegraded` —
+	// "not reachable" would be a lie mid-check — but the figures on screen are
+	// still the last saved snapshot, so a derived count may not be printed as if
+	// it were live while the check runs. The header already says so honestly
+	// (`Checking EnrollPro for the latest roster…`); this is what keeps the
+	// snapshot-derived `Above weekly max: N` out of the same sentence.
+	const isSourceUnverified = isTeachingLoadSourceUnverified({ dataSource, isOnline });
 	const degradedTail = useMemo(() => {
-		if (!isOnline) return 'ATLAS is offline';
-		if (dataSource === 'none') return 'no live Teaching Load source is available';
 		if (!isSourceDegraded) return null;
-		return 'EnrollPro not reachable';
+		return teachingLoadUnverifiedReason({ dataSource, isOnline });
 	}, [dataSource, isOnline, isSourceDegraded]);
 
 	/*
@@ -616,15 +696,16 @@ export function WorkspaceToolbar({
 					>
 						<span className="min-w-0 truncate">{statusSentence}</span>
 						{/*
-						 * The alert KEEPS its test id and its number, but it is now
-						 * text INSIDE the sentence rather than a fourth pill. A
-						 * generation blocker must not be the first thing a scheduler
-						 * loses to a 1366px viewport, and it must not become a second
-						 * competing action either — the repair queue's `h-7` button is
-						 * the ONE action on this row, and for an over-cap teacher it is
-						 * the `Move classes` item that actually resolves it.
+						 * A6 C3 (N-1): the alert KEEPS its test id, its `data-alert-key`
+						 * and its exact `Above weekly max: N` label in the healthy case —
+						 * it is simply not printed while the figures are unconfirmed. The
+						 * count is read from the last saved snapshot, so a scheduler
+						 * mid-check would read it as a live generation blocker; the amber
+						 * line and the queue say the same thing, so the header must too.
+						 * The wrapped control is the same, the tone is the same, and the
+						 * alert returns the moment the source is verified.
 						 */}
-						{alertChip && (
+						{alertChip && !isSourceUnverified && (
 							<span data-testid={alertChip.testId} data-alert-key={alertChip.key} className="shrink-0 font-bold text-destructive">
 								· {alertChip.label}
 							</span>
