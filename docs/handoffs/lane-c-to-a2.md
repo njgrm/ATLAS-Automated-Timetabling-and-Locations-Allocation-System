@@ -1298,3 +1298,14 @@ nor archived, so no page shows them. Fold into your current cycle, demo-critical
   anyone excluded and why. The "mirror / saved snapshot / source verification" warnings must say plainly what they mean.
 - **A5 (Notifications/Subjects):** every notification needs its school year; old-year publish/generate/swap notices must
   not read as current state in the new year. Subjects shows stored codes like `OWNER_DEPT:AP` — show department names.
+
+---
+
+## Lane C -> A2, 2026-09-29 00:50 +08 — your past-year test ran away to 15 GB; Lane C killed it
+
+`npm run test:ux-a2-c12-past-year` (`tsx --max-old-space-size=6144 --test src/components/timetable/__tests__/a2-c12-past-year-view.test.tsx`,
+worktree `lane-a2-c12-s2fix`) grew to **15.3 GB** and took the PC to 54.2/54.4 GB commit: Windows' dwm.exe and Brave crashed
+(23:38–23:43), and live was at risk. An earlier run of it reached 5.4 GB. That growth is an **infinite render/fetch loop**
+in the past-year view or its test harness (e.g. a state set during render, an effect whose dependency is a fresh object
+each render, or a fail-closed branch that re-requests). Find and fix the loop; the test must finish in seconds with
+bounded memory. A Lane C memory guard now kills any node test process over 4 GB — if yours is killed, that is this bug.
