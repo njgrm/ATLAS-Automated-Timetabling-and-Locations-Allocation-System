@@ -276,6 +276,53 @@ export default function ScheduleReviewWorkspace() {
 		return () => setTimetableEntryReadOnly(false);
 	}, [isDraftPublished]);
 
+	/**
+	 * C11 M3 — the legal move targets in the CURRENT view, from the very slots and
+	 * entries the grid is already rendering (no new data, no new request).
+	 *
+	 * Computed live rather than only on arm, because the view can change while a move
+	 * is armed — switching term or section changes what is legal, and a target list
+	 * captured when the operator armed the move would go stale silently.
+	 */
+	const moveTargetNotice = describeMoveTargets({
+		slots: (state.centerWorkspaceContext?.timeSlots ?? []) as MoveSlot[],
+		occupants: ((state.centerWorkspaceContext?.draftEntries ?? []) as Array<{ entryId: string; day: string; startTime: string; endTime: string }>).map((candidate) => ({
+			entryId: candidate.entryId,
+			day: String(candidate.day),
+			startTime: String(candidate.startTime),
+			endTime: String(candidate.endTime),
+		})),
+		movingEntry: state.selectedEntry
+			? { entryId: state.selectedEntry.entryId, day: String(state.selectedEntry.day), startTime: String(state.selectedEntry.startTime) }
+			: null,
+	});
+
+	/**
+	 * C11 M3 (F3) — the highlight is live only while a move is actually ARMED.
+	 *
+	 * The banner's "N highlighted free time slots" is a claim about the grid, so
+	 * the grid must show exactly those cells and only then. `describeMoveTargets`
+	 * is computed for the current view whether or not a move is armed (the
+	 * no-target sentence needs it), so the ARMING flag is what keeps the cells from
+	 * glowing at all times.
+	 */
+	const moveArmed = state.centerWorkspaceContext?.kbSelectedSource?.type === 'entry';
+	/**
+	 * This memo sits ABOVE every early return in this component, deliberately.
+	 *
+	 * The loading and no-context guards below both return before the grid renders, so
+	 * a `useMemo` placed after them was called in FEWER renders than the ones that
+	 * reach it. The first `/timetable` paint returns at the loading guard, and the
+	 * render that follows the latest run resolving reaches this hook: one hook more
+	 * than the previous render, which React rejects as error #310 ("Rendered more
+	 * hooks than during the previous render") and the page reports as an unexpected
+	 * error. Hook order must not depend on which branch a render takes.
+	 */
+	const moveTargetSlotKeys = useMemo(
+		() => (moveArmed && moveTargetNotice.kind === 'targets' ? new Set(moveTargetNotice.slotKeys) : new Set<string>()),
+		[moveArmed, moveTargetNotice],
+	);
+
 	if (state.loading && !state.draft) {
 		const routeIntent = resolveTimetableLoadingIntent(location.pathname);
 		if (routeIntent) return <>{routeViewSync}<TimetableRouteLoadingState intent={routeIntent} /></>;
@@ -309,42 +356,6 @@ export default function ScheduleReviewWorkspace() {
 		return <TimetableSkeleton />;
 	}
 	const showSchedulerChrome = isTimetableSchedulerView(state.headerContext.centerView);
-
-	/**
-	 * C11 M3 — the legal move targets in the CURRENT view, from the very slots and
-	 * entries the grid is already rendering (no new data, no new request).
-	 *
-	 * Computed live rather than only on arm, because the view can change while a move
-	 * is armed — switching term or section changes what is legal, and a target list
-	 * captured when the operator armed the move would go stale silently.
-	 */
-	const moveTargetNotice = describeMoveTargets({
-		slots: (state.centerWorkspaceContext?.timeSlots ?? []) as MoveSlot[],
-		occupants: ((state.centerWorkspaceContext?.draftEntries ?? []) as Array<{ entryId: string; day: string; startTime: string; endTime: string }>).map((candidate) => ({
-			entryId: candidate.entryId,
-			day: String(candidate.day),
-			startTime: String(candidate.startTime),
-			endTime: String(candidate.endTime),
-		})),
-		movingEntry: state.selectedEntry
-			? { entryId: state.selectedEntry.entryId, day: String(state.selectedEntry.day), startTime: String(state.selectedEntry.startTime) }
-			: null,
-	});
-
-	/**
-	 * C11 M3 (F3) — the highlight is live only while a move is actually ARMED.
-	 *
-	 * The banner's "N highlighted free time slots" is a claim about the grid, so
-	 * the grid must show exactly those cells and only then. `describeMoveTargets`
-	 * is computed for the current view whether or not a move is armed (the
-	 * no-target sentence needs it), so the ARMING flag is what keeps the cells from
-	 * glowing at all times.
-	 */
-	const moveArmed = state.centerWorkspaceContext?.kbSelectedSource?.type === 'entry';
-	const moveTargetSlotKeys = useMemo(
-		() => (moveArmed && moveTargetNotice.kind === 'targets' ? new Set(moveTargetNotice.slotKeys) : new Set<string>()),
-		[moveArmed, moveTargetNotice],
-	);
 
 	const startMoveSelectedEntry = () => {
 		if (!state.selectedEntry) return;
