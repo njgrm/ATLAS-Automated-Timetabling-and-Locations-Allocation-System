@@ -76,14 +76,136 @@
 	--background: 0 0% 100%;
 	--foreground: 222 47% 11%;
 	--muted: 220 14% 96%;
-	--muted-foreground: 215 16% 47%;
+
+	/* ─── Muted foreground (A3-C9) — the app's SECONDARY TEXT token. ───
+	   ── CONTRAST CONTRACT (measured 2026-09-28; enforced by test:a3-c9-operator-tokens) ──
+	   A recursive scan (`Get-ChildItem -Recurse -Include *.ts,*.tsx`) counts
+	   `text-muted-foreground` at 1292 call sites across 190 files. That is a
+	   BODY-TEXT role, not an icon role, so WCAG 1.4.3 AA 4.5:1 applies — the 3:1
+	   1.4.11 floor was never available to it.
+
+	   The value was a straight rename of Tailwind `slate-500` (rgb(101,117,139)),
+	   so it was never contrast-tuned; the slate-500 shade only clears 4.5:1 on
+	   pure white and fails on every light tint it is actually painted on. Measured
+	   at the old 215 16% 47%: 4.697:1 on white but 4.268:1 on --muted and
+	   4.130:1 on the 100% stop of the body wash — an AA FAIL at 1292 sites.
+
+	   Hue 215 and saturation 16 are UNCHANGED; only lightness moved 47% -> 42%,
+	   which is what keeps it a cool grey rather than a new colour and keeps it
+	   clearly secondary to --foreground (17.874:1 on white vs 5.667 here, a 3.2x
+	   separation that is preserved). Measured on the new value (rgb(90,104,124)):
+
+	     --muted-foreground  5.667:1 on --background/--card  5.149:1 on --muted
+	                          5.125:1 on --accent-muted       5.185:1 on --sidebar-background
+	                          5.306:1 body wash 50% stop       5.167:1 body wash 100% stop
+
+	   Worst real surface is 5.167:1, so AA now holds on every surface this token
+	   is painted on rather than only on white. This is a real, measured
+	   accessibility improvement to source, NOT a rendered-screen verification.
+
+	   MEASUREMENT NOTE: every ratio in this file is computed on 8-BIT sRGB, i.e.
+	   after the HSL triple is rounded to rgb() integers, because that is the colour
+	   a browser actually paints. An unrounded float conversion differs in the third
+	   decimal (e.g. the old value reads 4.718 unrounded vs 4.697 rounded) and the
+	   rounded figure is the one to read. Formula: WCAG 2.x relative luminance
+	   0.2126R + 0.7152G + 0.0722B with the 0.03928/12.92 sRGB transfer breakpoint,
+	   ratio (Llighter + 0.05) / (Ldarker + 0.05). Recomputed from the committed
+	   token values by test:a3-c9-operator-tokens, not restated from this comment.
+
+	   ── SURFACE-MODEL CORRECTION (2026-09-28, A3-C9 bounded correction) ──
+	   The first draft of these annotations measured the two `body` wash stops
+	   against a surface that the browser never paints, so every "body wash" figure
+	   in this file was wrong. It is retained here, with the reason, because a
+	   corrected number nobody can trace is not a correction.
+
+	   SUPERSEDED MODEL — the wash alphas composited over the gradient's own literal
+	   0% stop #fafbfc, giving a "100% stop" of rgb(234,242,240) / #eaf2f0 and a "50%
+	   stop" of rgb(241,246,245) / #f1f6f5. Figures that produced:
+	         --muted-foreground 4.982:1 · --destructive 4.964:1 · --accent 4.711:1
+
+	   WHY IT WAS WRONG, on two counts:
+	     1. THE BASE IS THE CANVAS, NOT THE 0% STOP. The wash is a `linear-gradient`
+	        on `body`, and the `html` rule below declares `@apply font-sans` and NO
+	        background, so per CSS Backgrounds the body background is propagated to
+	        the CANVAS and painted over the UA canvas colour, white. A gradient's
+	        0% stop is another colour IN the ramp, not a backdrop under its last stop;
+	        used as a backdrop it is a phantom surface.
+	     2. THE 50% STOP IS AN INTERPOLATION, NOT A STACK. Stops are interpolated in
+	        premultiplied sRGB (CSS Images 3). "primary at 0.04 over #fafbfc" is
+	        neither of the two real stops and is not on the ramp at all.
+
+	   TRUE MODEL — what the browser actually paints, and what the figures above and
+	   the two sibling annotations now use:
+	     · 100% stop = hsl(--primary / 0.07) over the white canvas
+	                  = rgb(239,246,243) / #eff6f3
+	     · 50% stop  = premultiplied midpoint of #fafbfc and hsl(--primary / 0.07),
+	                  alpha 0.535, over the white canvas
+	                  = rgb(245,248,248)
+	     · the governing surface is the 100% end, which the gate now PROVES by
+	       sweeping the whole 135deg ramp rather than assuming it is monotonic.
+
+	   DIRECTION OF THE ERROR: CONSERVATIVE. Every corrected figure is HIGHER than
+	   the superseded one, so no verdict in this file changes and the AA conclusion
+	   of A3-C9 stands unchanged. What was wrong was a documented surface, not a
+	   measurement that failed.
+	   SECOND, MINOR DISCREPANCY, also corrected: the superseded figures
+	   4.982 / 4.964 / 4.711 are UNROUNDED float composites, which contradicts the
+	   8-BIT rule stated directly above them. The 8-BIT values for that same
+	   (phantom) surface are 4.981 / 4.962 / 4.710. The delta is under 0.002 and
+	   changes nothing; it is recorded because this file's own convention is that a
+	   documented ratio names a real surface AND is read at the rounding a browser
+	   paints. ─── */
+	--muted-foreground: 215 16% 42%;
+
 	--border: 220 13% 91%;
 	--card: 0 0% 100%;
 	--card-foreground: 222 47% 11%;
 	--popover: 0 0% 100%;
 	--popover-foreground: 222 47% 11%;
 	--input: 220 13% 91%;
-	--destructive: 0 84% 60%;
+
+	/* ─── Destructive (A3-C9) — one value, TWO roles. ───
+	   ── CONTRAST CONTRACT (measured 2026-09-28; enforced by test:a3-c9-operator-tokens) ──
+	   A recursive scan counts `text-destructive` at 80 call sites across 51 files
+	   and `bg-destructive` across 27 files, so this token is genuinely doing double
+	   duty and the change has to serve BOTH:
+	     · TEXT role — error copy in forms, banners, sheets and panels. 4.5:1.
+	     · SOLID-BUTTON role — `bg-destructive` + `text-destructive-foreground`
+	       (white). Contrast is symmetric, so the text and the button-white roles
+	       are the SAME measured pair and one value satisfies both.
+	   At the old 0 84% 60% (rgb(239,67,67)) that pair measured 3.781:1 on white
+	   and 3.324:1 on the 100% body-wash stop: a fail on the text role AND on the
+	   white-label solid button. The 3:1 1.4.11 floor was not met either once the
+	   surface is a light tint rather than white.
+
+	   Hue 0 and saturation 84 are UNCHANGED; only lightness moved 60% -> 44%,
+	   which keeps the same red and does NOT re-hue it toward the G9 red badge in
+	   GRADE_COLORS (that ramp is a separate literal `bg-red-100/80 text-red-700`
+	   in src/lib/grade-labels.ts and is deliberately NOT a token). Measured on the
+	   new value (rgb(206,18,18)):
+
+	     --destructive                 5.646:1 on --background/--card
+	                                   5.130:1 on --muted
+	                                   5.106:1 on --accent-muted
+	                                   5.166:1 on --sidebar-background
+	                                   5.287:1 body wash 50% stop
+	                                   5.147:1 body wash 100% stop
+	     --destructive-foreground on --destructive
+	                                   5.646:1 (white label on the solid button)
+
+	   Worst real surface is 5.147:1. Both roles now clear AA with headroom instead
+	   of one role trading off against the other.
+
+	   SURFACE-MODEL CORRECTION (2026-09-28): the two wash figures above were
+	   originally 5.168:1 and 4.964:1, measured on a surface the browser never
+	   paints. Superseded, with the reason and the corrected model stated in full
+	   under the `--muted-foreground` annotation above, which owns the file's
+	   measurement convention. The 100% wash stop is hsl(--primary / 0.07) over
+	   the WHITE CANVAS — rgb(239,246,243) / #eff6f3 — because `html` declares no
+	   background, not rgb(234,242,240) over the gradient's own #fafbfc 0% stop.
+	   Every corrected figure is HIGHER, so the direction is conservative and the
+	   AA conclusion is unchanged. ─── */
+	--destructive: 0 84% 44%;
 	--destructive-foreground: 0 0% 100%;
 	--secondary: 220 14% 96%;
 	--secondary-foreground: 222 47% 11%;
@@ -124,11 +246,183 @@
 
 	/* ─── Default accent: emerald (SMART scheduling portal identity).
 	   May be overridden at runtime by applyEnrollProAccentTheme() when a
-	   school sets a custom brand color in EnrollPro. ─── */
-	--accent: 158 64% 40%;
+	   school sets a custom brand color in EnrollPro.
+
+	   ── CONTRAST CONTRACT (measured 2026-09-28; enforced by test:a3-c9-operator-tokens) ──
+	   --accent is the single most load-bearing token in the file, because three
+	   aliases resolve to it (--primary, --sidebar-primary, --theme-accent) and
+	   --ring resolves to --accent-ring. A recursive scan counts:
+	     · `text-accent`     18 call sites (14 real: ui/dropdown-menu 4,
+	                          ui/searchable-select 2, SchoolYearSwitcher 2,
+	                          ui/sidebar 1, ui/select 1) — TEXT role, 4.5:1.
+	     · `text-primary`   228 call sites, and `--primary: var(--accent)` —
+	                          TEXT role, 4.5:1. This is the real weight: 228 is
+	                          4x the count of the previous A3-C8 warning token.
+	     · `bg-primary` / `bg-accent` solid buttons carrying
+	       `text-accent-foreground` (white) — again the same measured pair.
+	   At the old 158 64% 40% (rgb(37,167,119)) the pair measured 3.056:1 on
+	   white and 2.687:1 on the 100% body-wash stop: below the 4.5:1 text
+	   threshold at 242 text sites AND below the 3:1 1.4.11 floor for the brand
+	   colour as a non-text affordance. This was the worst of the three tokens.
+
+	   Hue 158 and saturation 64 are UNCHANGED; only lightness moved 40% -> 29%,
+	   which keeps the same emerald identity rather than turning it into a
+	   different brand. Measured on the new value (rgb(27,121,87)):
+
+	     --accent                  5.358:1 on --background/--card
+	                              4.869:1 on --muted
+	                              4.846:1 on --accent-muted
+	                              4.903:1 on --sidebar-background
+	                              5.018:1 body wash 50% stop
+	                              4.885:1 body wash 100% stop
+	     --accent-foreground on --accent
+	                              5.358:1 (white label on the solid button)
+
+	   Worst real surface is 4.885:1, so AA holds for both the text role and the
+	   solid-button label on every surface, not only on white.
+
+	   CALL-SITE CONSEQUENCE OF THIS DARKENING (2026-09-28, found by review and fixed at
+	   the call site, not here). --accent is also used as a BACKGROUND under
+	   `hover:bg-accent` / `focus:bg-accent` / `aria-selected:bg-accent`, and at
+	   40% the dark text that hover used to paint on it read 5.850:1. At 29% the
+	   same pairing reads 3.336:1, which is a NEW AA failure created by this
+	   darkening. It cannot be repaired in this token layer: --foreground needs
+	   --accent L >= ~35 to clear 4.5:1, and --accent as text needs L <= ~30, so
+	   the two feasible regions are DISJOINT and no single lightness satisfies both
+	   (measured at 40/36/34/32/30/29/26: foreground-on-accent 5.850/4.855/4.354/
+	   3.942/3.516/3.336/2.840 against accent-on-wash 2.848/3.404/3.769/4.163/4.635/
+	   4.885/5.703). Exactly one call site painted a dark text colour on a solid
+	   accent state background; it was corrected to `hover:text-accent-foreground`,
+	   the pairing already used by src/ui/searchable-select.tsx, which measures
+	   5.358:1 white-on-accent. All 13 other solid bg-accent / bg-primary sites
+	   already pair white and therefore IMPROVE with this darkening.
+	   ── A3-C9 CORRECTION 2 (2026-09-28). The two sentences quoted verbatim above
+	   are FALSE as counts, and this is the record. Both are retained unaltered.
+	     SUPERSEDED: "Exactly one call site painted a dark text colour on a solid
+	     accent state background" and "All 13 other solid bg-accent / bg-primary
+	     sites already pair white and therefore IMPROVE with this darkening."
+	     REASON: both were read off a scan whose regex only matched four
+	     pseudo-classes — `hover|focus|focus-visible|active|aria-selected` — so it
+	     could not see any `data-[state=…]`, `data-[highlighted]`,
+	     `data-[isActive=true]`, `group-hover` or unprefixed site, and "one" and
+	     "13 other" were never a measurement. `data-[state=open]:bg-accent` is
+	     precisely the prefix that hid the second offender.
+	     TRUE: the corrected scan, now the enforced control in
+	     src/lib/__tests__/a3-c9-operator-tokens.test.ts, finds 64 solid
+	     bg-accent/bg-primary sites across the 583 tracked client .ts/.tsx files,
+	     counted one per scanned line, excluding only comment prose and that
+	     control's own marked fixture.
+	     COUNT, CORRECTED 2026-09-28. The prose above said "64 ... sites". A
+	     reviewer re-derived it and 64 is what the control ENFORCES but it is not
+	     64 sites: it is 55 real solid fills plus 9 REGEX LITERALS inside test
+	     files, which the matcher reads because it has no leading word boundary
+	     (/\bbg-primary\b/ in draft-ux-c01.test.tsx x4, generation-blockers-c02
+	     .test.tsx x3, timetable-header-collapse-c01.test.tsx and
+	     timetable-ux-rehaul-c01.test.ts). The pinned 64 stays: it is a stable
+	     superset and a real add or removal still moves it, so it is a sound
+	     tripwire. What is withdrawn is the claim that it counts sites. The
+	     offender scan is unaffected — none of the 9 literals carries a dark label,
+	     and the pre-fix offender count of exactly ONE reproduces in both
+	     directions. BEFORE this correction 63 paired a light
+	     label and exactly ONE did not, and it was a real defect:
+	     src/ui/dialog.tsx:42 carried `data-[state=open]:text-muted-foreground` on
+	     `data-[state=open]:bg-accent`, i.e. muted-foreground rgb(90,104,124) on
+	     solid accent rgb(27,121,87) = 1.058:1, which is worse than the 1.854:1 the
+	     same pair read at the old 40% and far below the 3:1 of 1.4.11/2.4.7. The
+	     close X was effectively invisible. It is now `text-accent-foreground`,
+	     white on accent = 5.358:1, the same pairing the rest of the app uses, so
+	     AFTER this correction all 64 matched lines pair a light label and the control
+	     asserts exactly that. The 63 clean sites do IMPROVE with this darkening,
+	     which is the one part of the superseded wording that survives.
+
+	   --accent-ring is moved in step with it, because in this file the two have
+	   always carried the SAME value and splitting them would leave a focus ring
+	   lighter than the brand it outlines. It is a UI affordance, not text, so its
+	   floor is the 3:1 of WCAG 1.4.11 / 2.4.7, measured through the 0.7 alpha the
+	   `:focus-visible` rule actually applies:
+	     --accent-ring @0.7 alpha   1.986:1 -> 2.795:1 on the 100% body-wash stop
+	                                2.156:1 -> 3.014:1 on --background
+	   That is a measured improvement, and the body-wash figure is still BELOW
+	   3:1 — carried debt this brief does not fix, because the 0.7 alpha lives in
+	   the `:focus-visible` outline rule, not in this token, and raising it is a
+	   focus-visual-weight decision beyond text contrast. Recorded here so the
+	   residual is visible rather than rediscovered.
+
+	   SURFACE-MODEL CORRECTION (2026-09-28): the two wash figures above were
+	   originally 4.905:1 and 4.711:1, and the ring's wash figure 2.795:1 was
+	   originally 2.802:1, all measured on a surface the browser never paints.
+	   Superseded, with the reason and the corrected model stated in full under the
+	   `--muted-foreground` annotation above, which owns the file's measurement
+	   convention. Restated on the true surfaces — the 100% wash stop is
+	   hsl(--primary / 0.07) over the WHITE CANVAS = rgb(239,246,243) / #eff6f3.
+	   The pair below is re-derived on 8-BIT sRGB per the MEASUREMENT NOTE above, which
+	   is also why its "before" figures differ from the superseded line's 1.986:1 and
+	   2.156:1 by about 0.009: those two were UNROUNDED, and 8-BIT is the figure this
+	   file says to read.
+	     --accent-ring @0.7 alpha   2.026:1 -> 2.837:1 on the 100% body-wash stop
+	                                2.165:1 -> 3.023:1 on --background
+	   ── A3-C9 CORRECTION 2 (2026-09-28). Every figure in the restated pair above was
+	   recomputed and ALL FOUR REPRODUCE, so none of them is changed here. What does not
+	   reproduce is the "by about 0.009" clause, which is retained verbatim above and
+	   marked superseded.
+	     SUPERSEDED: "its 'before' figures differ from the superseded line's 1.986:1 and
+	     2.156:1 by about 0.009".
+	     REASON: it is true for one pair and off by more than four times for the other.
+	     |2.165 - 2.156| = 0.009, but |2.026 - 1.986| = 0.040. A single "about 0.009"
+	     cannot describe both. The two pairs also differ by SURFACE, not only by
+	     rounding: 1.986:1/2.156:1 were measured on the superseded wash model, 2.026:1/
+	     2.165:1 on the true #eff6f3 stop and on --background respectively.
+	     TRUE, and the figures that are now pinned to a stated convention: the composite is
+	     the 0.7 `:focus-visible` alpha of --accent-ring composited in 8-BIT sRGB over the
+	     surface, then WCAG 2.x relative luminance. TIE-BREAKING, corrected
+	     2026-09-28: this was written "per the MEASUREMENT NOTE", which OVERSTATES
+	     it. The note fixes 8-BIT sRGB and rounding to rgb() integers but is SILENT
+	     on tie-breaking, and it matters here — the green channel lands on an exact
+	     .5 tie, 0.7*121 + 0.3*246 = 158.5. Round half UP (the JS `Math.round` in the
+	     test's `composite()`) gives 159 and 2.837:1; .NET banker's `Math.Round` gives
+	     158 and the 2.866:1 a reviewer reported. Half-up is the convention in force
+	     and is now pinned by `assert.deepEqual(washNew, [91,159,134])` plus the
+	     3-decimal ratio assertion, so it is machine-enforced rather than prose.
+	       0.7 x rgb(27,121,87)   + 0.3 x rgb(239,246,243) = rgb(91,159,134)  -> 2.837:1
+	       0.7 x rgb(37,167,119) + 0.3 x rgb(239,246,243) = rgb(98,191,156) -> 2.026:1
+	       0.7 x rgb(27,121,87)   + 0.3 x rgb(255,255,255) = rgb(95,161,137)  -> 3.023:1
+	       0.7 x rgb(37,167,119) + 0.3 x rgb(255,255,255) = rgb(102,193,160)-> 2.165:1
+	     All four match the pair above to the published precision.
+	     PARTIALLY SUPERSEDED 2026-09-28. The claim was "The 2.795:1 and 2.026:1
+	     figures were independently reproduced and stand." Of those, ONLY 2.026:1
+	     reproduces (0.7 x rgb(37,167,119) + 0.3 x rgb(239,246,243) = rgb(98,191,156)).
+	     2.795:1 does NOT reproduce from any committed surface: an alpha sweep of
+	     {0.04,0.05,0.06,0.07} against {#fafbfc, white} yields 2.02-2.10 and 2.83-2.93,
+	     and the four real gradient stops give 2.837 / 2.907 / 2.952 / 3.023. 2.795:1
+	     and its companion 1.986:1 belong to the SUPERSEDED wrong-surface model, which
+	     is not parameterised anywhere in committed source and so cannot be
+	     independently recomputed. "Independently reproduced" was an unsupported claim
+	     about an unparameterised figure; it is withdrawn. The 2.795:1 text above stays
+	     as a superseded historical line, not as a verified measurement.
+	     ONE ROUNDING IS WORTH NAMING, because a reviewer recomputed 2.866:1 and could
+	     not obtain 2.837:1 under any convention tried. It is the same composite, not a
+	     different surface: the green channel is 0.7 x 121 + 0.3 x 246 = 158.5 exactly, an
+	     exact .5 tie. Round half up (this file's stated convention, and what a browser
+	     paints) gives 159 and 2.837:1; .NET's default banker's `Math.Round` gives 158 and
+	     2.866:1. For completeness the other readings are 2.854:1 for a float composite
+	     with no 8-bit quantise, 2.873:1 for truncation, and 4.885:1 for the raw ring token
+	     with no alpha at all. 2.837:1 is retained as the figure of record.
+	   Every corrected figure is HIGHER, so the direction is conservative: the
+	   carried 3:1 shortfall and the AA conclusion are both unchanged.
+
+	   RUNTIME-OVERRIDE LIMIT, disclosed: `applyEnrollProAccentTheme()` in
+	   src/lib/settings.ts writes --accent, --accent-foreground, --accent-muted,
+	   --accent-ring, --primary, --ring, --sidebar-primary and --sidebar-ring
+	   inline from a school's EnrollPro brand colour, and --primary/-ring/-
+	   sidebar-* are then all re-pointed at var(--accent). So for a school that
+	   HAS set a brand colour this contract does not govern the rendered value at
+	   all — the guarantee above is for the DEFAULT emerald only, and a brand
+	   colour is a separate, unreviewed contrast surface. Not fixable in this
+	   token layer. ─── */
+	--accent: 158 64% 29%;
 	--accent-foreground: 0 0% 100%;
 	--accent-muted: 152 81% 92%;
-	--accent-ring: 158 64% 40%;
+	--accent-ring: 158 64% 29%;
 
 	/* shadcn aliases */
 	--primary: var(--accent);
@@ -196,8 +490,30 @@
    A3-C8r1's 42 88% 62% sat outside that window: the badge read 1.687:1. As a
    side effect the accent is now 4.037:1 against --warning-foreground instead of
    1.434:1, so an icon is no longer the same lightness as the label beside it.
-   --warning-border is left at 1.934:1 here for the same reason as in :root:
-   a decorative hairline, and a light border on a dark panel is not an upgrade. ─── */
+    --warning-border is left at 1.934:1 here for the same reason as in :root:
+    a decorative hairline, and a light border on a dark panel is not an upgrade.
+
+    A3-C9 (2026-09-28) DELIBERATELY ADDED NO --destructive / --muted-foreground /
+    --accent OVERRIDE HERE, and did not make dark mode worse. Three reasons, in
+    the order they actually matter:
+    1. THIS BLOCK DEFINES NO DARK SURFACE. There is no dark --background, no
+       dark --foreground, no dark --muted and no dark --card anywhere in this
+       stylesheet, so a dark-mode contrast ratio for any of the three tokens has
+       no background to be measured against. Authoring dark values for tokens
+       with no dark surface would be three more unreviewed, unrenderable numbers
+       presented as a contract.
+    2. DARK IS NOT REACHABLE (established above, and still true at A3-C9).
+    3. CASCADE: because this block does NOT redefine the three tokens, the
+       unreachable dark rendering resolves them through :root, exactly as it did
+       before this change. So the A3-C9 darkening moves the (unreachable) dark
+       scheme in the same direction it already pointed. The one honest cost: a
+       DARKER --muted-foreground would read WORSE on a real dark surface than the
+       old value did. That is accepted deliberately, because a mid-grey that
+       clears 4.5:1 for 1292 light-surface text sites is worth more than an
+       unread number in a block nothing selects. Recorded here so it is a
+       decision on the record rather than an oversight.
+    The first session that writes a `dark` class MUST re-measure all three of
+    these tokens against a real dark surface and add the overrides in this block. ─── */
 .dark {
 	--warning: 40 88% 32%;
 	--warning-foreground: 45 92% 86%;

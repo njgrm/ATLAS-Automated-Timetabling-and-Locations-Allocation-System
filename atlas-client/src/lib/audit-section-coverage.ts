@@ -119,10 +119,48 @@ export function classifyClassTemplateEvidence(
 	return templateProgramTypes(templates).size > 0 ? 'INITIALIZED' : 'NOT_INITIALIZED';
 }
 
+/**
+ * A3-C9 (2026-09-28): the three `title` strings below used to begin
+ * `Section coverage is UNRESOLVED: ...`. The old wording claimed:
+ *
+ *     "`UNRESOLVED` is a member of the `ClassTemplateEvidenceState` union declared at the top of
+ *      this file"
+ *
+ * THAT CLAIM WAS FALSE, and it is retained here verbatim only as the record of the error. The
+ * union is, and always was, exactly THREE members — `INITIALIZED`, `NOT_INITIALIZED`,
+ * `UNAVAILABLE` — as declared at line 25 of this file and as this file's own test asserts
+ * literally. `UNRESOLVED` was never one of them: it was a word in an old English TITLE STRING,
+ * not a machine state, and the prose above conflated the two. The corrected wording follows
+ * beside the error, not in place of it.
+ *
+ * A3-C9 (2026-09-28): the three `title` strings below used to begin
+ * `Section coverage is UNRESOLVED: ...`. `UNRESOLVED` is NOT a member of the
+ * `ClassTemplateEvidenceState` union — that union is `INITIALIZED | NOT_INITIALIZED |
+ * UNAVAILABLE`. It was a word in a sentence, not a machine state. It reached an operator
+ * reading the Audit page, who cannot act on it, while the
+ * sibling `detail` and `why` fields on the SAME object already said the same thing in calm plain
+ * language. The titles now speak that register too, so the whole finding reads as one voice.
+ *
+ * What was deliberately NOT changed, and why:
+ *   · The `ClassTemplateEvidenceState` union keeps `INITIALIZED` / `NOT_INITIALIZED` /
+ *     `UNAVAILABLE`. Three branches in `assessSectionCoverage` key off those values, so renaming
+ *     a member is a real behaviour change, not a copy fix. The enum is the legitimate home of
+ *     these tokens.
+ *   · The finding `id`s keep `section-coverage-unresolved-*`. They are kebab-case React/DOM
+ *     keys consumed by pages/Audit.tsx, not copy. Renaming them would break the page for no
+ *     operator benefit, and Audit.tsx is outside this change.
+ *   · The `blockedLabel`, `detail`, `why`, `actionLabel`, `route` and `repairTarget` fields are
+ *     unchanged: they were already calm and already actionable, and they are what the operator
+ *     acts on. Removing the enum from the title therefore weakens nothing.
+ *
+ * The finding remains a `blocker` in all three branches, so it still keeps the Audit page out of
+ * the green state. Only the wording of the title changed.
+ */
+
 function notInitializedFinding(): SectionCoverageUnresolvedFinding {
 	return {
 		id: 'section-coverage-unresolved-not-initialized',
-		title: 'Section coverage is UNRESOLVED: no class templates are initialized',
+		title: 'Section coverage could not be checked: no class templates are set up',
 		blockedLabel: 'Section coverage cannot be verified.',
 		detail: 'ATLAS could not verify section-subject coverage because no class templates are initialized for the loaded sections.',
 		why: 'Class templates define which subjects each section requires. Without them ATLAS cannot check coverage, so a clean coverage result must not be reported.',
@@ -136,7 +174,7 @@ function notInitializedFinding(): SectionCoverageUnresolvedFinding {
 function unavailableFinding(): SectionCoverageUnresolvedFinding {
 	return {
 		id: 'section-coverage-unresolved-unavailable',
-		title: 'Section coverage is UNRESOLVED: class templates could not be loaded',
+		title: 'Section coverage could not be checked: the class templates could not be loaded',
 		blockedLabel: 'Section coverage cannot be verified.',
 		detail: 'ATLAS could not verify section-subject coverage because the class-template evidence did not load.',
 		why: 'Without the class templates ATLAS cannot know which subjects each section requires, so a clean coverage result must not be reported.',
@@ -151,7 +189,7 @@ function unmatchedProgramFinding(programCodes: string[]): SectionCoverageUnresol
 	const listed = programCodes.join(', ');
 	return {
 		id: 'section-coverage-unresolved-unmatched-programs',
-		title: `Section coverage is UNRESOLVED for ${programCodes.length} program type${programCodes.length === 1 ? '' : 's'} without a class template`,
+		title: `Section coverage could not be checked for ${programCodes.length} program type${programCodes.length === 1 ? '' : 's'} without a class template`,
 		blockedLabel: 'Section coverage cannot be verified for every loaded section.',
 		detail: `No class template exists for: ${listed}. Sections in these program types were skipped by the coverage check.`,
 		why: 'A section whose program type has no class template cannot be checked for required subject coverage, so its clean result must not be reported.',

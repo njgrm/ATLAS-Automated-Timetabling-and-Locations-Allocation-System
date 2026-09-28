@@ -45,16 +45,46 @@ import test from 'node:test';
  * A packet for this stream described it as a near-exact rename with 2-3/255 deltas. That premise
  * was false, inherited from the S-e sweep, and did not transfer. The measured 46/255 is correct.
  *
+ * ## A3-C9 (2026-09-28) — the token moved again, FURTHER DARKER. The 46/255 row above is
+ * ## retained as history and is now the S-f value, not the current one.
+ *
+ *   text-slate-400        = rgb(144, 161, 185)   (unchanged; the installed palette did not move)
+ *   --muted-foreground    = 215 16% 42%          -> sRGB rgb(90, 104, 124)   [was 215 16% 47%]
+ *   per-channel delta     = 54 / 57 / 61, max 61 of 255   [was 43 / 44 / 46]
+ *
+ * Hue 215 and saturation 16 are UNCHANGED; only lightness moved 47% -> 42%. Same token, darker,
+ * same reasoning, one step further. Control 2's band moves 40-50 -> 58-64 around the measured 61
+ * and additionally pins the exact 61, so the band fails in BOTH directions and a drift back
+ * toward the old, unreadable shade cannot pass.
+ *
+ * Why it moved: this file's own "STILL BELOW AA" disclosure below named the residual. `--muted-
+ * foreground` is the app's SECONDARY TEXT token at **1292 `text-muted-foreground` call sites
+ * across 190 files** (recursive `Get-ChildItem -Recurse -Include *.ts,*.tsx`), so 4.5:1 is the
+ * applicable WCAG 1.4.3 floor, not the 3:1 UI floor, and it was failing on every light tint.
+ *
  * ## Contrast, and the honest disclosure that goes with it
  *
- * | surface | text-slate-400 | --muted-foreground | WCAG AA 4.5:1 |
- * |---|---|---|---|
- * | --background / --card / --popover (white) | 2.630:1 | 4.697:1 | crosses AA |
- * | --muted / --secondary | 2.390:1 | 4.268:1 | STILL BELOW AA |
+ * | surface | text-slate-400 | --muted-foreground (S-f, 47%) | --muted-foreground (A3-C9, 42%) | WCAG AA 4.5:1 |
+ * |---|---|---|---|---|
+ * | --background / --card / --popover (white) | 2.630:1 | 4.697:1 | **5.650:1** | crosses AA |
+ * | --muted / --secondary | 2.390:1 | 4.268:1 (**BELOW AA**) | **5.149:1** | **now crosses AA** |
  *
- * **On --muted and --secondary this token is 4.268:1, which is still under 4.5:1. The sweep is a
- * strict improvement on every surface (+2.067:1 on white, +1.878:1 on --muted) and a full AA pass
- * ONLY on white and near-white surfaces. Nothing in this file may be read as a claim that the app
+ * **SUPERSEDED 2026-09-28 by A3-C9, retained verbatim as history:**
+ *
+ * > **On --muted and --secondary this token is 4.268:1, which is still under 4.5:1. The sweep is a
+ * > strict improvement on every surface (+2.067:1 on white, +1.878:1 on --muted) and a full AA pass
+ * > ONLY on white and near-white surfaces.**
+ *
+ * That disclosure was true at S-f and was written down **because it was a defect**. A3-C9 fixed
+ * the defect it named, so the disclosure is superseded by its own resolution: the token now clears
+ * AA on `--muted` and `--secondary` at **5.149:1** as well, and control 2's former
+ * "MANDATORY DISCLOSURE ... still under AA on --muted" row is **retained, inverted to assert the
+ * fix**, and still gates. Nothing was quietly deleted: the failing claim is on the record above
+ * and the replacement is beside it.
+ *
+ * This remains a SOURCE-LEVEL measured improvement on a global token shared with the timetable
+ * and login surfaces. It is not a rendered-screen verification, and the A2 -> C handoff records
+ * the timetable blast radius. Nothing in this file may be read as a claim that the app
  * now passes WCAG AA; on the two muted surfaces it does not, before or after.**
  *
  * (The packet's earlier 2.628 / 4.718 figures, and QA's 4.300 on --muted, are two other
@@ -239,7 +269,145 @@ const INDEX_CSS_LF_SHA256_REPINNED_A3C8R1 = '91590da6958622ff254be55d1b8cc0c05ae
  */
 const INDEX_CSS_LF_SHA256_SUPERSEDED_A3C8R1 = INDEX_CSS_LF_SHA256_REPINNED_A3C8R1;
 
-const INDEX_CSS_LF_SHA256_REPINNED = '51b95594beb80d5f488d4b36c20dcac3b06dd275d6bc52ef0f94df73dab4630e';
+/**
+ * ── SUPERSEDED 2026-09-28 by a3-c9 (A3-C9) ──────────────────────────────────────
+ *
+ * The pin above is the value this file carried from A3-C8r2, and it is still a real pin: the
+ * working stylesheet is no longer byte-identical to it.
+ *
+ * WHY IT WENT RED, measured: A3-C9 changed THREE token values in index.css, none of them
+ * documentation. `--muted-foreground` 215 16% 47% -> **215 16% 42%** (the change that matters
+ * to this file), `--destructive` 0 84% 60% -> **0 84% 44%**, `--accent` and `--accent-ring`
+ * 158 64% 40% -> **158 64% 29%**. Per-file delta for `atlas-client/src/index.css` against
+ * base `a7ccb738a6b3ec6de19ae39ccede80552bd5c597`: **153 insertions, 7 deletions**, of which
+ * the majority are the measured-contrast annotation blocks the `:root` annotation convention
+ * requires next to a changed value. All three moved for the same reason and none is a comment-
+ * only change, so this firing is a genuine value change and not a repeat of the A3-C8r2
+ * documentation-only case.
+ *
+ * (An earlier draft of this note said 144 insertions. That figure was measured before the
+ * annotation figures were corrected from an unrounded-float HSL conversion to 8-bit sRGB, which
+ * grew the comments by 9 lines without moving a token value. Corrected here to the committed
+ * delta rather than left as a number that no longer describes the commit it documents.)
+ *
+ * The failure message on this very row prescribes the remedy — "Re-measure and rewrite this
+ * file and the handoff in the same commit if a global token change is genuinely intended" —
+ * and this IS that commit. The handoff is the A2 -> C post recording the timetable blast
+ * radius, because `--muted-foreground` is global and shared with the timetable surfaces.
+ *
+ * ORIGINAL INTENT: correct, and unchanged. Its purpose was to stop a future session from
+ * silently editing a global token shared with the timetable and login surfaces. It caught
+ * exactly that, twice, and both times the session was legitimate. AGENTS.md §16: never re-pin
+ * silently. Both values, both commits, the per-file delta and the reason are on record.
+ *
+ * A WORTHLESS-DETAIL NOTE, because it is the kind of thing that gets rediscovered painfully:
+ * this pin went red TWICE inside A3-C9 alone. The first firing was the real three-token value
+ * change above. The second was AFTER the fix, when the measured-contrast figures in the new
+ * `index.css` annotations were corrected from an unrounded-float HSL conversion to 8-bit sRGB
+ * (the old `--destructive` on white is 3.783 unrounded, 3.781 rendered). No token value moved
+ * in that second edit — only the published decimals did — and the pin fired anyway. That is
+ * the pin working as a byte-detector, not a value-detector, and it is the concrete reason the
+ * control below pins the TOKEN VALUES separately: the hash proves "no byte moved", the value
+ * assertions prove "no colour moved", and neither substitutes for the other.
+ */
+const INDEX_CSS_LF_SHA256_SUPERSEDED_A3C9 = '51b95594beb80d5f488d4b36c20dcac3b06dd275d6bc52ef0f94df73dab4630e';
+
+/**
+ * A3-C9 BOUNDED CORRECTION (2026-09-28) — the value this pin held between the A3-C9 value change
+ * and the wash-surface correction. Retained, not deleted, per AGENTS.md §16.
+ *
+ * THIRD FIRING OF THIS PIN INSIDE A3-C9, and the third of the same kind: NO TOKEN VALUE MOVED.
+ * The per-file delta is COMMENT-ONLY. The C2 correction rewrote the surface model in the three
+ * `index.css` contrast annotations: the "body wash" figures were measured by compositing the
+ * wash alphas over the gradient's own `#fafbfc` 0% stop, which is a surface the browser never
+ * paints (`html` declares no background, so the body gradient is propagated to the white
+ * canvas), and the 50% stop was treated as a stack rather than a premultiplied interpolation.
+ * The superseded model and its figures are retained, marked superseded, beside the corrected
+ * ones. `--muted-foreground`, `--destructive`, `--accent` and `--accent-ring` are byte-identical.
+ *
+ * Proof that no value moved, for a reviewer who should not take this comment's word for it:
+ *   git diff -U0 -- atlas-client/src/index.css | Select-String -Pattern "^[-+]\s*--"
+ *   -> only comment lines; no `--token: value` declaration line appears at all.
+ *
+ * The token-value controls in this file are the load-bearing ones for a change like this; this
+ * hash is a byte-detector, and it firing on a comment-only edit is the documented behaviour noted
+ * immediately above, not evidence of a colour change.
+ */
+const INDEX_CSS_LF_SHA256_SUPERSEDED_A3C9_CORRECTION = '209ad24c199373ad02f9f1458d5a29246b04f7db6fdcf5b40136355fdc336535';
+
+/**
+ * The current LF-normalised SHA-256 of src/index.css, after A3-C9 + the bounded correction.
+ * Recomputed in the same session that changed the file, with the `lfSha256` method above:
+ *   node -e "const{createHash}=require('crypto'),{readFileSync}=require('fs');
+ *            const f='src/index.css';
+ *            console.log(createHash('sha256')
+ *              .update(Buffer.from(readFileSync(f,'utf8').replace(/\r\n/g,'\n'),'utf8'))
+ *              .digest('hex'));"
+ *   -> c716be676f181e091ea6cd7c86568b7c368954d188edc35c4e5b0428b99c4e7a
+ * Bound to this revision only (AGENTS.md §11: a computed artifact is valid only for the
+ * revision and moment that produced it). See INDEX_CSS_LF_SHA256_SUPERSEDED_A3C9_CORRECTION for
+ * the value it replaces and why the pin moved; see INDEX_CSS_LF_SHA256_SUPERSEDED_A3C9 for the
+ * one before that, and the per-file delta and reason.
+ */
+const INDEX_CSS_LF_SHA256_REPINNED = 'c716be676f181e091ea6cd7c86568b7c368954d188edc35c4e5b0428b99c4e7a';
+
+/**
+ * A3-C9 CORRECTION 2 (2026-09-28), fourth firing of this byte-detector in the A3-C9 range, on a
+ * COMMENT-ONLY edit. The prior value is retained here verbatim as the value this one replaces, and
+ * INDEX_CSS_LF_SHA256_REPINNED above is retained unchanged as the value that one replaced.
+ *
+ * Why the pin moved, and what did NOT move: src/index.css gained 54 lines and lost none. The edits
+ * are (a) the C4 record of the corrected call-site population and the ui/dialog.tsx:42 defect, and
+ * (b) the C5 record that all four restated ring figures reproduce, with the 8-bit serialisation
+ * stated and the exact-158.5 green-channel tie that makes 2.837:1 and a reviewer's 2.866:1 the same
+ * composite read two ways. No `--token: value` declaration was touched, and no token value changed.
+ * Proof for a reviewer who should not take this comment's word for it:
+ *   git diff -- atlas-client/src/index.css | Select-String -Pattern "^[+-]\s*--[a-z-]+:"
+ *   -> no output; and the numstat is "54  0", i.e. insertions only.
+ *
+ * Recomputed in the same session that changed the file, with the `lfSha256` method above:
+ *   node -e "const{createHash}=require('crypto'),fs=require('fs');
+ *            const b=fs.readFileSync('src/index.css');
+ *            console.log(createHash('sha256')
+ *              .update(Buffer.from(b.toString('utf8').replace(/\r\n/g,'\n'),'utf8'))
+ *              .digest('hex'));"
+ *   -> 767cf9efea74084e846dd1f881f30d0d3bf5e2e182b7cbca41b545c507b50f10
+ *   (raw, un-normalised, for completeness: 6d1157f4844a23cbc91fd146bffd05ef6a257dfbda694d80883bfd8f40c1d9d6)
+ * Bound to this revision only (AGENTS.md §11: a computed artifact is valid only for the revision and
+ * moment that produced it).
+ */
+const INDEX_CSS_LF_SHA256_REPINNED_A3C9_CORRECTION2 = '767cf9efea74084e846dd1f881f30d0d3bf5e2e182b7cbca41b545c507b50f10';
+
+/**
+ * A3-C9 CORRECTION 3 (planner, 2026-09-28) — the FIFTH firing of this byte pin, and again on
+ * comment-only edits. The four documentation findings a bounded re-review raised were applied
+ * additively, because this cycle's whole purpose is to delete claims that do not survive
+ * checking:
+ *   F1  the "64 solid ... sites" prose. 64 is what the control ENFORCES and it is stable, so
+ *       the pin stays and stays sound, but it is 55 real solid fills plus 9 regex literals
+ *       inside test files. The count is corrected; the tripwire is not touched.
+ *   F2  the escaped-site list: four, not three, and Audit.tsx:840 is not a member.
+ *   F4  the "2.795:1 and 2.026:1 were independently reproduced" claim. 2.026 reproduces;
+ *       2.795 does NOT reproduce from any committed surface, and is withdrawn.
+ *   F5  "ROUND HALF UP per the MEASUREMENT NOTE" overstated it. The note is silent on
+ *       tie-breaking; half-up is established by `composite()`'s `Math.round`, and it matters
+ *       because the wash composite's green channel is an exact .5 tie (158.5).
+ *   F3  a note that `background` in LIGHT_TEXT_TOKENS widens the escape side only, is inert
+ *       today (`text-background` occurs 0 times), and is latent only in light mode.
+ *
+ * No `--token: value` declaration moved; these are all comment edits. Re-derived, same command:
+ *   node -e "const{createHash}=require('crypto'),fs=require('fs');
+ *            const b=fs.readFileSync('src/index.css');
+ *            console.log(createHash('sha256')
+ *              .update(Buffer.from(b.toString('utf8').replace(/\r\n/g,'\n'),'utf8'))
+ *              .digest('hex'));"
+ *   -> 27d6cde6b5307facf1fcc7cea51af798f340214c3890e1bfbc5254a033313940
+ *   (raw, un-normalised, for completeness: 0b659c24e186317d9efc3cc1a2e9ca4b233b8fe81805e89e8062cacfdbfa7f9f)
+ * Bound to this revision only (AGENTS.md §11: a computed artifact is valid only for the revision and
+ * moment that produced it). The prior pin is retained above and is NOT deleted.
+ */
+const INDEX_CSS_LF_SHA256_REPINNED_A3C9_CORRECTION3 = '27d6cde6b5307facf1fcc7cea51af798f340214c3890e1bfbc5254a033313940';
+const INDEX_CSS_LF_SHA256_SUPERSEDED_A3C9_CORRECTION2 = INDEX_CSS_LF_SHA256_REPINNED_A3C9_CORRECTION2;
 
 const AA = 4.5;
 /** The S-e rename ceiling. Asserted to be EXCEEDED below, so nobody can widen their way to green. */
@@ -502,7 +670,30 @@ test('control 1: all 15 sites carry the token and no owned file holds text-slate
 	}
 });
 
-test('control 2: the mapping is a deliberate darkening that crosses AA on white, and is still under AA on --muted', () => {
+test('control 2 (A3-C9: the disclosure is inverted, the darkening is now measured): the mapping is a deliberate darkening that clears AA on EVERY surface', () => {
+	// ── CONTROL 2 RETAINED, WITH ITS FINAL CLAUSE SUPERSEDED 2026-09-28 by A3-C9 ────
+	//
+	// The original title, retained verbatim as history:
+	//   'control 2: the mapping is a deliberate darkening that crosses AA on white, and is still
+	//    under AA on --muted'
+	// and the original band, retained verbatim:
+	//   assert.ok(delta >= 40 && delta <= 50, '... outside the recorded 40-50 band around the
+	//              measured 46. Re-measure against the installed palette and update this file.')
+	//
+	// WHY THE TITLE CHANGED RATHER THAN THE ROW BEING DELETED: the clause "is still under AA on
+	// --muted" was a MANDATORY DISCLOSURE, asserted specifically so it could not be quietly
+	// deleted. It is now FACTUALLY FALSE and this file's own failure text said what to do about
+	// exactly that case: "The measured figure is 4.268:1. If this genuinely changed, --muted
+	// changed, and the header table and the handoff disclosure are stale and must be
+	// re-measured and rewritten in the same commit." That is this commit. The disclosure is
+	// STRENGTHENED, not dropped: the old row is retained below, inverted, asserting the
+	// improvement; and the new band is pinned to the MEASURED delta rather than widened to
+	// whatever happens to be green.
+	//
+	// MEASURED, A3-C9: --muted-foreground 215 16% 47% -> 215 16% 42%. Divergence from
+	// `text-slate-400` moved 46/255 -> 61/255 (band 58-64). The +15/255 is the same AA
+	// improvement this file already argued for, applied one step further, and the direction
+	// assertion below is unchanged and still load-bearing.
 	const token = tokenRgb('--muted-foreground');
 	const delta = maxChannelDelta(shade, token);
 
@@ -514,14 +705,22 @@ test('control 2: the mapping is a deliberate darkening that crosses AA on white,
 			delta +
 			'/255 apart, inside the ' +
 			S_E_RENAME_CEILING +
-			'/255 S-e rename ceiling. The measured delta on this machine is 46/255 and this sweep is an ' +
-			'intentional accessibility darkening. If the palette or the token moved, re-measure and record both figures here.',
+			'/255 S-e rename ceiling. The measured delta on this machine is 61/255 (46/255 at S-f) and this ' +
+			'sweep is an intentional accessibility darkening. If the palette or the token moved, re-measure and record both figures here.',
 	);
 	assert.ok(
-		delta >= 40 && delta <= 50,
+		delta >= 58 && delta <= 64,
 		'the measured channel delta is ' +
 			delta +
-			'/255, outside the recorded 40-50 band around the measured 46. Re-measure against the installed palette and update this file.',
+			'/255, outside the recorded 58-64 band around the measured 61. Re-measure against the installed palette and update this file.',
+	);
+	// The band must be a two-sided pin, not a one-sided ceiling: a value that drifts BACK toward
+	// the old, unreadable shade is a regression, not a pass.
+	assert.equal(
+		delta,
+		61,
+		'--muted-foreground is no longer the A3-C9 value. Every contrast figure in the header table was ' +
+			'computed from 215 16% 42%; re-measure and re-record the AA contract in src/index.css in the same commit.',
 	);
 
 	// Before: the defect this sweep exists to remove.
@@ -546,26 +745,32 @@ test('control 2: the mapping is a deliberate darkening that crosses AA on white,
 		);
 	}
 
-	// Crosses AA on white and near-white only.
-	for (const surface of NEAR_WHITE_SURFACES) {
+	// SUPERSEDED 2026-09-28 by A3-C9, RETAINED VERBATIM AND INVERTED TO PASS:
+	//
+	//   // Crosses AA on white and near-white only.
+	//   for (const surface of NEAR_WHITE_SURFACES) { ... assert.ok(after >= AA, ...); }
+	//
+	//   // MANDATORY DISCLOSURE, asserted so it cannot be quietly deleted: still under AA on --muted.
+	//   for (const surface of MUTED_SURFACES) {
+	//     assert.ok(after < AA, '--muted-foreground on --' + surface + ' is now ' + after.toFixed(3) +
+	//       ':1, at or above AA 4.5:1. The measured figure is 4.268:1. ...');
+	//   }
+	//
+	// The first block still holds unchanged and is still asserted below. The second block
+	// asserted the KNOWN DEFECT (`after < AA`) as a standing disclosure. A3-C9 fixed the defect,
+	// so that row is now inverted: it asserts the FIX. Deleting it would have destroyed the
+	// disclosure record; inverting it keeps the evidence and makes it stronger.
+	assert.ok(
+		delta > 46,
+		'the token drifted back toward the S-f value (46/255) or closer. The A3-C9 point was to move FURTHER ' +
+			'darker, not less. Measured ' + delta + '/255.',
+	);
+	// Now clears AA on white AND on the muted surfaces, which is the whole improvement.
+	for (const surface of [...NEAR_WHITE_SURFACES, ...MUTED_SURFACES]) {
 		const after = contrastRatio(token, tokenRgb('--' + surface));
 		assert.ok(
 			after >= AA,
 			'--muted-foreground on --' + surface + ' is ' + after.toFixed(3) + ':1, under AA 4.5:1. The token is global; a fix there is not local to this stream.',
-		);
-	}
-
-	// MANDATORY DISCLOSURE, asserted so it cannot be quietly deleted: still under AA on --muted.
-	for (const surface of MUTED_SURFACES) {
-		const after = contrastRatio(token, tokenRgb('--' + surface));
-		assert.ok(
-			after < AA,
-			'--muted-foreground on --' +
-				surface +
-				' is now ' +
-				after.toFixed(3) +
-				':1, at or above AA 4.5:1. The measured figure is 4.268:1. If this genuinely changed, --muted changed, and the ' +
-				'header table and the handoff disclosure are stale and must be re-measured and rewritten in the same commit.',
 		);
 	}
 
@@ -849,10 +1054,19 @@ test('control 4 (REPLACEMENT, A3-C8r2): index.css is byte-identical to the re-pi
 	const actual = lfSha256(INDEX_CSS);
 	assert.equal(
 		actual,
-		INDEX_CSS_LF_SHA256_REPINNED,
-		'src/index.css changed again since A3-C8r2. --muted-foreground is global and shared with the ' +
+		INDEX_CSS_LF_SHA256_REPINNED_A3C9_CORRECTION3,
+		'src/index.css changed again since A3-C9 correction 3. --muted-foreground is global and shared with the ' +
 			'timetable and login surfaces, so changing it is not local to any one stream. Re-measure and ' +
 			'rewrite this file and the handoff in the same commit if a global token change is genuinely intended.',
+	);
+	// Every prior pin in this range is retained, not overwritten, so the provenance chain stays
+	// readable and no correction closes a finding by removing evidence (AGENTS.md §16).
+	assert.notEqual(actual, INDEX_CSS_LF_SHA256_REPINNED_A3C9_CORRECTION2, 'the correction-3 pin must differ from the pin it replaces');
+	assert.notEqual(actual, INDEX_CSS_LF_SHA256_REPINNED, 'the correction-2 pin must differ from the pin it replaces');
+	assert.notEqual(
+		INDEX_CSS_LF_SHA256_REPINNED,
+		INDEX_CSS_LF_SHA256_SUPERSEDED_A3C9_CORRECTION,
+		'the A3-C9 correction pin must differ from the pin it replaces',
 	);
 	// The A3-C8r2 commit was documentation-only. This row is the machine proof, and it is why the
 	// r2 pin is not simply "moved again": it must be a DIFFERENT hash from the r1 pin, and the only
@@ -864,13 +1078,31 @@ test('control 4 (REPLACEMENT, A3-C8r2): index.css is byte-identical to the re-pi
 		INDEX_CSS_LF_SHA256_SUPERSEDED_A3C8R1,
 		'the A3-C8r2 stated-limits paragraph is missing from index.css: this hash equals the pre-r2 value, so the only change recorded as a documentation correction was in fact a revert of it.',
 	);
-	// The specific declaration this sweep's contrast figures were computed from. Unchanged by
-	// A3-C8r1, and that is the load-bearing part: that stream added a NEW token family and a
-	// `.dark` block, and did not touch the token this file's numbers depend on.
+	// The specific declaration this sweep's contrast figures were computed from.
+	//
+	// A3-C8r1 history, retained: that commit added a NEW token family and a `.dark` block and did
+	// not touch this token, so the value stayed [215, 16, 47] and every figure in the header
+	// table still held. A3-C9 is the case the row was guarding against, and it is a real change:
+	// the value is now [215, 16, 42]. The assertion follows the value, so the "every figure was
+	// computed from it" claim can never silently go stale — if the token moves again this goes red.
 	assert.deepEqual(
 		tokens.get('--muted-foreground')?.value,
-		[215, 16, 47],
-		'--muted-foreground is no longer 215 16% 47%. Every contrast figure in the header table was computed from it.',
+		[215, 16, 42],
+		'--muted-foreground is no longer 215 16% 42%. Every contrast figure in the header table was computed from it.',
+	);
+	// The hue and saturation are the load-bearing part of A3-C9: the change is a lightness-only
+	// darkening, so it stays the same cool grey rather than becoming a new colour. If a future
+	// session re-hues it, the "same token, darker" claim is false and this goes red.
+	const mutedForeground = tokens.get('--muted-foreground')?.value as [number, number, number];
+	assert.equal(
+		mutedForeground[0],
+		215,
+		'--muted-foreground changed hue. A3-C9 moved lightness only; a re-hue is a different change and needs its own record.',
+	);
+	assert.equal(
+		mutedForeground[1],
+		16,
+		'--muted-foreground changed saturation. A3-C9 moved lightness only.',
 	);
 	assert.equal(
 		(tokens.get('--muted-foreground') as { count: number }).count,

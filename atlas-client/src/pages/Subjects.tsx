@@ -22,6 +22,12 @@ import { SubjectTermAuthorityBanner } from '@/components/subjects/SubjectTermAut
 import { useSubjectStats, useCoverageDetail, isRoomConstrainedSubject } from '@/components/subjects/useSubjectStats';
 import { subjectToFormValues } from '@/components/subjects/subject-form-utils';
 import { SubjectFilterToolbar } from '@/components/subjects/SubjectFilterToolbar';
+import { SubjectTermContractPopover } from '@/components/subjects/SubjectTermContractPopover';
+import {
+	TERM_FILTER_ALL,
+	buildTermFilterOptions,
+	matchesTermFilter,
+} from '@/components/subjects/subject-term-filter';
 import { SubjectTablePagination } from '@/components/subjects/SubjectTablePagination';
 import { SortableHeader } from '@/components/subjects/SortableHeader';
 import type { SortField, SortDir } from '@/components/subjects/SortableHeader';
@@ -78,7 +84,6 @@ export default function Subjects() {
 	const [archivingLoading, setArchivingLoading] = useState(false);
 	const [activeSchoolYearId, setActiveSchoolYearId] = useState<number | null>(null);
 	const [termAuthority, setTermAuthority] = useState<TermAuthority | null>(null);
-	const [showFilters, setShowFilters] = useState(false);
 
 	// Teacher coverage drilldown
 	const [coverageSubject, setCoverageSubject] = useState<Subject | null>(null);
@@ -114,6 +119,10 @@ export default function Subjects() {
 	const [gradeLevelFilter, setGradeLevelFilter] = useState<number | 'all'>('all');
 	const [programScopeFilter, setProgramScopeFilter] = useState<string>('all');
 	const [attentionFilter, setAttentionFilter] = useState<'all' | 'missing-coverage' | 'room-constrained'>('all');
+	// A3-C9: the term filter. Its VALUE is a string because the option list is
+	// derived from the data (see `subject-term-filter.ts`), and a hard-coded
+	// Term 1/2/3 would contradict a contract that is EnrollPro-owned.
+	const [termFilter, setTermFilter] = useState<string>(TERM_FILTER_ALL);
 
 	// SCA-01.1 / ACTOR-SCOPE-C01: actor school scope — resolved from /auth/me and
 	// bound to the authenticated token epoch, and the ONLY source of the catalog
@@ -298,6 +307,9 @@ export default function Subjects() {
 
 		// Program scope filter
 		if (programScopeFilter !== 'all') list = list.filter((s) => (s.programScopes ?? []).includes(programScopeFilter));
+		// A3-C9: the term filter uses the SHARED predicate, so the option the
+		// toolbar offered and the rows that survive it cannot disagree.
+		if (termFilter !== TERM_FILTER_ALL) list = list.filter((s) => matchesTermFilter(s, termFilter));
 		if (attentionFilter === 'missing-coverage' && coverageBySubjectId) list = list.filter((s) => s.isActive && (coverageBySubjectId.get(s.id)?.uncoveredSectionCount ?? 0) > 0);
 		// A3-C5: this list is the "Room constrained" tile's twin, so it filters
 		// with the SAME predicate the tile counts with. It previously carried its
@@ -324,10 +336,10 @@ export default function Subjects() {
 		const tp = Math.max(1, Math.ceil(tf / pageSize));
 		const start = (page - 1) * pageSize;
 		return { paged: sorted.slice(start, start + pageSize), totalFiltered: tf, totalPages: tp };
-	}, [subjects, searchQuery, statusFilter, roomTypeFilter, gradeLevelFilter, programScopeFilter, attentionFilter, coverageBySubjectId, sortField, sortDir, page, pageSize]);
+	}, [subjects, searchQuery, statusFilter, roomTypeFilter, gradeLevelFilter, programScopeFilter, attentionFilter, termFilter, coverageBySubjectId, sortField, sortDir, page, pageSize]);
 
 	// Reset page when filters change
-	useEffect(() => { setPage(1); }, [searchQuery, statusFilter, roomTypeFilter, gradeLevelFilter, programScopeFilter, attentionFilter, pageSize]);
+	useEffect(() => { setPage(1); }, [searchQuery, statusFilter, roomTypeFilter, gradeLevelFilter, programScopeFilter, attentionFilter, termFilter, pageSize]);
 
 	const toggleSort = (field: SortField) => {
 		if (sortField === field) {
@@ -427,7 +439,21 @@ export default function Subjects() {
 		|| gradeLevelFilter !== 'all'
 		|| programScopeFilter !== 'all'
 		|| attentionFilter !== 'all'
+		|| termFilter !== TERM_FILTER_ALL
 		|| searchQuery.trim() !== '';
+
+	// A3-C9: the term options, derived from the catalog actually on screen, so
+	// the list never offers a term no subject carries and never hides one that
+	// does.
+	const termOptions = useMemo(() => buildTermFilterOptions(subjects), [subjects]);
+
+	// A3-C9: if the data stops offering the selected option (a refetch changed
+	// which terms exist), fall back rather than filter to an empty table on a
+	// value that is no longer offered.
+	useEffect(() => {
+		if (termFilter === TERM_FILTER_ALL) return;
+		if (!termOptions.some((option) => option.value === termFilter)) setTermFilter(TERM_FILTER_ALL);
+	}, [termFilter, termOptions]);
 
 	const handleArchiveSubject = async (target: Subject) => {
 		setArchivingLoading(true);
@@ -538,8 +564,6 @@ stats={subjectStats}
 				<SubjectFilterToolbar
 					searchQuery={searchQuery}
 					onSearchChange={setSearchQuery}
-					showFilters={showFilters}
-					onToggleFilters={() => setShowFilters(!showFilters)}
 					hasActiveFilters={hasActiveFilters}
 					statusFilter={statusFilter}
 					onStatusFilterChange={(v) => setStatusFilter(v as typeof statusFilter)}
@@ -551,12 +575,16 @@ stats={subjectStats}
 					onGradeLevelFilterChange={setGradeLevelFilter}
 					programScopeFilter={programScopeFilter}
 					onProgramScopeFilterChange={setProgramScopeFilter}
+					termFilter={termFilter}
+					onTermFilterChange={setTermFilter}
+					termOptions={termOptions}
 					onResetFilters={() => {
 						setStatusFilter('all');
 						setRoomTypeFilter('all');
 						setGradeLevelFilter('all');
 						setProgramScopeFilter('all');
 						setAttentionFilter('all');
+						setTermFilter(TERM_FILTER_ALL);
 						setSearchQuery('');
 					}}
 				/>
@@ -583,9 +611,10 @@ stats={subjectStats}
 			onRetryLoad={fetchSubjects}
 		/>
 
-		{/* A3-09: the term-authority banner is now a component so the routine
-			VERIFIED_LIVE state can be a one-line inline status while BLOCKED and
-			VERIFIED_CACHED keep the loud, uncompacted treatment. */}
+		{/* A3-09/A3-C9: the term-authority EXCEPTION surface. `VERIFIED_LIVE` now
+			renders nothing here (see `SubjectTermAuthorityBanner`); the routine
+			year-and-terms contract moved to the table footer's quiet affordance
+			below, so it stays reachable without costing the header a row. */}
 		<SubjectTermAuthorityBanner termAuthority={termAuthority} />
 
 		{/* A3-C5-4: the last failed subject change. The toast carried the calm
@@ -624,6 +653,7 @@ stats={subjectStats}
 		<AdminTableShell
 				footer={!loading && subjects.length > 0 ? (
 					<SubjectTablePagination
+						leading={<SubjectTermContractPopover termAuthority={termAuthority} />}
 						page={page}
 						pageSize={pageSize}
 						totalFiltered={totalFiltered}
