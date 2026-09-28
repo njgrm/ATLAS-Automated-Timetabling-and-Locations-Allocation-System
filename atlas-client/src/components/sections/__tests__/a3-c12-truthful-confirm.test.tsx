@@ -434,7 +434,16 @@ test('FIX-12 wiring ratchet: the page reports a blocked pick through the notice 
 	assert.match(page, /const isReadOnlyMode = !homeRoomWrite\.canWrite;/, 'the row gate and the map gate must be one derivation');
 	assert.match(
 		page,
-		/if \(!homeRoomWrite\.canWrite\) \{[\s\S]{0,400}?setCacheNotice\(notice\);[\s\S]{0,200}?toast\.error\('Home-room change not saved'/,
+		/homeRoomWrite=\{homeRoomWrite\}[\s\S]{0,400}?onNotSaved=\{setCacheNotice\}/,
+		'the page must pass its write gate AND its not-saved notice channel to the map modal surface',
+	);
+	// The §8 extraction moved the modal mounts (and the read-only report) into
+	// `SectionsHomeRoomMapModals.tsx`; the report itself must still raise BOTH the
+	// page notice and a toast, never return silently.
+	const mapModals = codeOf('../SectionsHomeRoomMapModals.tsx');
+	assert.match(
+		mapModals,
+		/if \(!homeRoomWrite\.canWrite\) \{[\s\S]{0,400}?onNotSaved\(notice\);[\s\S]{0,200}?toast\.error\('Home-room change not saved'/,
 		'the blocked path must set the page notice AND raise a toast, never return silently',
 	);
 	assert.match(

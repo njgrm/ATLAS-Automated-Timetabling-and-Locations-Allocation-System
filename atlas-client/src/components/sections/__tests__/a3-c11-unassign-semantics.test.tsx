@@ -431,8 +431,23 @@ test('FIX-08 wiring ratchet: the page still routes an unassign request to the ex
 	assert.match(page, /type: 'unassign',/, 'and still mark the pending assignment as an unassign');
 	assert.match(
 		page,
+		/homeRoomWrite=\{homeRoomWrite\}/,
+		'the page must hand its ONE write gate to the map modal surface (FIX-12)',
+	);
+	// The §8 extraction moved the modal mounts out of the page, so the gate is now
+	// passed to the extracted surface and applied there. Asserting BOTH halves is
+	// stronger than the single-page row this replaces: a gate that stops at the
+	// page, or one the extracted surface drops, both fail.
+	const mapModals = codeOf('../SectionsHomeRoomMapModals.tsx');
+	assert.match(
+		mapModals,
 		/canWrite=\{homeRoomWrite\.canWrite\}[\s\S]{0,200}writeBlockedReason=\{homeRoomWrite\.notSavedNotice\}/,
 		'the map modal must be told the write gate (FIX-12)',
+	);
+	assert.match(
+		mapModals,
+		/canWrite=\{false\}[\s\S]{0,200}writeBlockedReason=\{GLOBAL_BROWSE_BLOCKED_REASON\}/,
+		'the school-wide browse surface stays a read with its own stated reason',
 	);
 	const modal = codeOf('../SectionRoomMapModal.tsx');
 	assert.match(modal, /onSelect\(null\);/, 'the Unassign control must route through onSelect(null)');
