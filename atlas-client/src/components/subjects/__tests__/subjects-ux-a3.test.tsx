@@ -446,9 +446,21 @@ test('A3-20: a sonner toast raised while the dialog is open stacks above the dia
 });
 
 // ===========================================================================
-// CHECK 2 — Fix 20 Cancel / non-action: zero network, state intact.
+// CHECK 2 - Fix 20 Cancel / non-action: zero network, state intact.
+//
+// A5 / operator FIX-20 SUPERSESSION (recorded, not silent). This control
+// originally asserted `closes === 1` after Cancel on a form the test had just
+// EDITED. FIX-20 - "Cancel on a filled subject form discards fields; must
+// preserve through a confirmation" - requires that exact case NOT to close
+// immediately, so that one expectation was narrowed by the planner's D6, not by
+// this lane's discretion.
+//
+// Nothing is deleted. Every claim this control made is still made, and the
+// superseded claim is PROVEN on the path where it remains true (an UNTOUCHED
+// form), in its own render, immediately below. The dirty path keeps every
+// original non-action assertion and gains a stronger one.
 // ===========================================================================
-test('A3-20: Cancel is a non-action — no save call, no request, form state intact', async () => {
+test('A3-20: Cancel is a non-action - no save call, no request, form state intact', async () => {
 	const fetchCalls: string[] = [];
 	const originalFetch = globalThis.fetch;
 	(globalThis as { fetch?: unknown }).fetch = (...args: unknown[]) => {
@@ -484,15 +496,46 @@ test('A3-20: Cancel is a non-action — no save call, no request, form state int
 		assert.ok(cancel, 'Cancel button not found');
 		await click(cancel);
 
+		// A3-20's original non-action claims, all still asserted on the EDITED
+		// form, which is now the path FIX-20 governs.
 		assert.equal(saves, 0, 'Cancel invoked the save path');
-		assert.equal(closes, 1, 'Cancel did not take exactly one close action');
 		assert.deepEqual(fetchCalls, [], 'Cancel issued a network request');
 		assert.equal(query(host, 'subjects-form-result'), null, 'Cancel surfaced a save outcome');
+
+		// A5 FIX-20: on a CHANGED form Cancel asks first, so it has not closed.
+		// The original `closes === 1` expectation is proven in the second render
+		// below, on the untouched form, where it is still the contract.
+		assert.equal(closes, 0, 'Cancel on an EDITED form closed without asking - the FIX-20 defect');
 
 		// State intact: the edited name is still in the form, unmounted nowhere.
 		const after = document.body.querySelector<HTMLInputElement>('input[placeholder="e.g. Mathematics Grade 10"]');
 		assert.ok(after, 'form unmounted itself on Cancel');
 		assert.equal(after.value, 'Earth Science (edited)');
+
+		// ── The original `closes === 1` claim, on an UNTOUCHED form. ──
+		// A fresh render, no setter run, so "Cancel closes immediately" is
+		// exactly what it said it was proving.
+		closes = 0;
+		saves = 0;
+		fetchCalls.length = 0;
+		const cleanHost = await render(
+			<SubjectFormModal
+				open
+				mode="edit"
+				initialValues={subjectToFormValues(subjectFixture())}
+				saving={false}
+				onSave={async () => { saves += 1; return { status: 'saved' }; }}
+				onClose={() => { closes += 1; }}
+			/>,
+		);
+		assert.ok(cleanHost, 'the untouched render did not mount');
+		const cleanCancel = Array.from(document.body.querySelectorAll('button')).find((b) => b.textContent?.trim() === 'Cancel');
+		assert.ok(cleanCancel, 'Cancel button not found on the untouched form');
+		await click(cleanCancel);
+		assert.equal(saves, 0, 'Cancel on an untouched form invoked the save path');
+		assert.equal(closes, 1, 'Cancel did not take exactly one close action');
+		assert.deepEqual(fetchCalls, [], 'Cancel on an untouched form issued a network request');
+		assert.equal(query(cleanHost, 'subjects-form-result'), null, 'Cancel on an untouched form surfaced a save outcome');
 	} finally {
 		(globalThis as { fetch?: unknown }).fetch = originalFetch;
 	}
