@@ -57,6 +57,29 @@ type UseTeachingLoadRepairQueueParams = {
 		isOnline: boolean;
 	};
 	writeBlockedReason: string | null;
+	/**
+	 * A6 c5 §1 — "is there a real shortage right now?", from the PAGE's own line
+	 * model.
+	 *
+	 * REQUIRED, for the reason `sourceDegraded` is: an omitted argument must not
+	 * silently change which items the queue offers. Two things depend on it and
+	 * both were defects:
+	 *
+	 *   1. The `missing-load` item is GONE while a shortage exists. The packet
+	 *      says the shortage line *replaces* it, and it did: the line names the
+	 *      subject, the queue item asked the scheduler to click through to
+	 *      Subject Coverage to find out which subject was short. Keeping both
+	 *      would put one fact on row 2 twice, in two vocabularies.
+	 *   2. The `review-ready` FALLBACK is suppressed while a shortage exists.
+	 *      With the `missing-load` item removed, an outage page would otherwise
+	 *      fall through to `Teaching Load looks ready · 23 of 24 classes have a
+	 *      teacher.` — the queue contradicting the line sitting directly above
+	 *      it. A degraded row must never become a contradiction.
+	 *
+	 * `null`/absent keeps the pre-A6-c5 behaviour exactly, so every committed
+	 * control that calls this hook without the new argument is untouched.
+	 */
+	hasShortage?: boolean;
 	onSelectFaculty: (facultyId: number) => void;
 	onSave: () => void;
 	onShowSubjectCoverage: () => void;
@@ -168,6 +191,7 @@ export function useTeachingLoadRepairQueue({
 	sourceDegraded,
 	sourceState,
 	writeBlockedReason,
+	hasShortage = false,
 	onSelectFaculty,
 	onSave,
 	onShowSubjectCoverage,
@@ -230,7 +254,19 @@ export function useTeachingLoadRepairQueue({
 				countLabel: `${activeDraftCount} draft`,
 			});
 		}
-		if (coverageUnassigned > 0) {
+		/*
+		 * A6 c5 §1 — THE `missing-load` ITEM IS GONE, and this is the subtraction
+		 * the packet names: the shortage line "replaces" it. It asked a scheduler
+		 * to read `12 section-subject pairs need a teacher` and then click through
+		 * to Subject Coverage to discover WHICH subject was short; the line states
+		 * that per subject, in words, with a button that starts fixing it.
+		 *
+		 * The `kind`, the routing (`view=allocation` → `missing-load`) and
+		 * `onShowSubjectCoverage` are all RETAINED, because they are how a deep
+		 * link and a saved filter still resolve to the sections view. What is
+		 * removed is only the queue ROW, so the same fact cannot appear twice.
+		 */
+		if (coverageUnassigned > 0 && !hasShortage) {
 			items.push({
 				id: 'missing-load',
 				kind: 'missing-load',
@@ -280,7 +316,19 @@ export function useTeachingLoadRepairQueue({
 				disabledReason: isReadOnlyMode ? writeBlockedReason : null,
 			});
 		}
-		if (items.length === 0) {
+		/*
+		 * A6 c5 §1 — the `review-ready` FALLBACK is suppressed while a shortage
+		 * exists, and this is the defect it prevents. With the `missing-load` item
+		 * removed above, an outage page fell through to `Teaching Load looks
+		 * ready · 23 of 24 classes have a teacher.` while the header line directly
+		 * above it read `MAPEH: 9 classes need a teacher`. The queue did not
+		 * merely duplicate the line; it CONTRADICTED it, and a queue that claims
+		 * readiness on a page with an outage is worse than no queue at all.
+		 *
+		 * Suppressed, not reworded: "wording" would still be a second claim, and
+		 * the shortage line is already the one statement of the fact.
+		 */
+		if (items.length === 0 && !hasShortage) {
 			items.push(buildReviewReadyItem(coverageAssigned, coverageTotal, sourceUnverified, withheldStatus, unverifiedReason));
 		}
 		/*
@@ -348,6 +396,7 @@ export function useTeachingLoadRepairQueue({
 		coverageTotal,
 		coverageUnassigned,
 		effectiveAssignmentsByFaculty,
+		hasShortage,
 		isReadOnlyMode,
 		overCapTeachers,
 		placeholderTeachers,

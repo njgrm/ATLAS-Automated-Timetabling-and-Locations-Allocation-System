@@ -71,11 +71,41 @@ function classesWord(count: number): string {
  * Plain note for classes that will not get a saved real teacher. Temporary
  * substitute rows are shown in the preview but never saved, so after apply
  * they are exactly the classes "still without a teacher".
+ *
+ * A6 c5 §"Already done" — this note existed only inside the summary modal's
+ * DESCRIPTION, which a scheduler reads after the fact. The packet requires it on
+ * the page itself, so `teachingLoadShortageNote` below is the page's copy and
+ * this stays the modal's; both call `classesWord`, so the two cannot spell the
+ * number differently.
  */
 export function stillNeedRealTeacherNote(substituteRows: number, unresolvedRows: number): string {
 	const count = Math.max(0, substituteRows) + Math.max(0, unresolvedRows);
+	// The zero case keeps its existing `0 rows remain unresolved` wording
+	// byte-for-byte. It is a different sentence from the non-zero one and no
+	// committed control changes here: A6 c5 adds a PAGE copy, it does not
+	// reword the modal's.
 	if (count === 0) return ' 0 rows remain unresolved.';
 	return ` ${classesWord(count)} still need${count === 1 ? 's' : ''} a real teacher.`;
+}
+
+/**
+ * The SAME note, trimmed for a status line.
+ *
+ * `stillNeedRealTeacherNote` returns a leading space because it is composed
+ * after a sentence in the modal description. A status line is the whole
+ * sentence, so the space is trimmed here rather than at the call site — a call
+ * site that trimmed it would be a second formatting decision, and a page that
+ * forgot would print ` Teaching Load saved.  3 classes…`.
+ *
+ * A6 c5 §"Already done" — the packet's finding was that this note existed ONLY
+ * inside the summary modal's description, which a scheduler reads after the
+ * fact. This is the page's copy, and it is the sentence the preview toast and
+ * the page status line both read.
+ */
+export function teachingLoadShortageNote(substituteRows: number, unresolvedRows: number): string {
+	const count = Math.max(0, substituteRows) + Math.max(0, unresolvedRows);
+	if (count === 0) return 'Every class has a real teacher.';
+	return `${classesWord(count)} still need${count === 1 ? 's' : ''} a real teacher.`;
 }
 
 /** Toast/status line after a suggestion is applied. */
