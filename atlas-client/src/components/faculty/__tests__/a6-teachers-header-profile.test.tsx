@@ -68,7 +68,16 @@ Object.assign(globalThis, {
 	addEventListener: () => {}, removeEventListener: () => {},
 	dispatchEvent: () => false,
 });
-Object.defineProperty(globalThis, 'navigator', { value: dom.window.navigator, configurable: true });
+	Object.defineProperty(globalThis, 'navigator', { value: dom.window.navigator, configurable: true });
+// A6 C3 (QA finding B4): the REAL `pages/Faculty.tsx` reads the session token and
+// the actor school through `@/lib/auth` and `@/lib/settings`, which use
+// `sessionStorage` / `localStorage` directly. The page cannot mount without them,
+// so they are added to the globals the harness already installs. They are plain
+// storage, so no earlier row in this file changes behaviour.
+Object.assign(globalThis, {
+	localStorage: dom.window.localStorage,
+	sessionStorage: dom.window.sessionStorage,
+});
 dom.window.HTMLElement.prototype.scrollIntoView ??= () => {};
 dom.window.HTMLElement.prototype.hasPointerCapture ??= () => false;
 dom.window.HTMLElement.prototype.setPointerCapture ??= () => {};
@@ -85,6 +94,11 @@ const { UPDATE_TEACHER_LIST_LABEL } = await import('@/components/faculty/rosterA
 const { FacultyIdentityCell, FacultyMobileCard, FacultyLoadStateBadge, getFacultyLoadPresentation } = await import('@/components/faculty/FacultyRow');
 const { findDuplicateTeacherNames, buildDuplicateNameCue, duplicateTeacherNameKey } = await import('@/components/faculty/duplicateTeacherNames');
 const { BELOW_STANDARD_LABEL } = await import('@/lib/teaching-load-labels');
+const { formatFacultyDisplayName, teacherNameSortKey } = await import('@/components/faculty/teacherNameDisplay');
+// A6 C3 (QA finding B4): the REAL page, and the two modules it needs mocked.
+const atlasApi = (await import('@/lib/api')).default;
+const { ATLAS_LOCAL_TOKEN_KEY } = await import('@/lib/auth');
+const FacultyPage = (await import('@/pages/Faculty')).default;
 
 const clientRoot = resolve(import.meta.dirname, '../../../..');
 const read = (relative: string) => readFileSync(resolve(clientRoot, relative), 'utf8');
@@ -699,4 +713,165 @@ test('A6-C3-6e the pure census: shared, unique, folded and empty', () => {
 	// A roster with no duplicates yields an empty cue map, which is what makes
 	// the whole feature a no-op on a clean roster.
 	assert.equal(buildDuplicateNameCue([TEACHER]).size, 0, 'a clean roster renders exactly as it did before');
+});
+
+/* ================================================================== *
+ * A6 C3 (QA finding B4) — the cue on the REAL `/teachers` route.
+ *
+ * QA finding B1 was that `teacherColumns` is a `useMemo` and A6 C3 had put a
+ * ROSTER-dependent closure inside it, so the columns froze on the first render —
+ * while the roster was still loading — and the cue was permanently `undefined`
+ * in production. Rows A6-C3-6a…6e all passed, because they mount the identity
+ * cell DIRECTLY and therefore cannot see a page-level memo. This row mounts
+ * `pages/Faculty.tsx` itself, which is the only mount that can.
+ * ================================================================== */
+
+/** The three reads the page makes before it can render a roster row. */
+function rosterApiStub(items: any[]) {
+	return async (url: string) => {
+		if (url.includes('/auth/me')) {
+			return { data: { user: { id: 1, schoolId: 1, role: 'ADMIN', firstName: 'QA', lastName: 'Row' } } };
+		}
+		if (url.includes('/runtime/context')) {
+			return {
+				data: {
+					schoolId: 1,
+					activeSchoolYearId: 1,
+					activeSchoolYearLabel: '2026-2027',
+					source: 'atlas-persisted',
+					stale: false,
+				},
+			};
+		}
+		if (url.includes('/faculty-assignments/summary')) {
+			// NO `pagination` and no `page`/`pageSize`: the page then keeps its
+			// client-side list path, so all three records are rendered from the one
+			// response and a server-side page boundary cannot hide a row from the
+			// count this row asserts.
+			return { data: { items, departments: [], rosterStats: null, fetchedAt: '2026-09-29T00:00:00.000Z' } };
+		}
+		if (url.includes('/runtime/rollover-status')) {
+			// The rollover guidance card the page renders above the table reads
+			// `status.drift.status`, so an empty body would crash the mount before
+			// the roster is ever drawn. This row is about the roster, so the card
+			// is given its own honest "cannot tell" value and asserted on nothing.
+			return { data: { drift: { status: 'enrollpro-unreachable' }, canResetDummyYear: false } };
+		}
+		return { data: {} };
+	};
+}
+
+/** Let the page's `await`ed effects settle: microtasks, then macrotasks. */
+async function settlePage() {
+	for (let round = 0; round < 12; round += 1) {
+		await act(async () => { await new Promise((done) => setTimeout(done, 0)); });
+	}
+}
+
+/** Mount the REAL page on a roster, and read back the rendered table. */
+async function mountRealRosterPage(items: any[]) {
+	dom.window.sessionStorage.setItem(ATLAS_LOCAL_TOKEN_KEY, 'a6-b4-session-token');
+	const originalGet = atlasApi.get;
+	const originalPost = atlasApi.post;
+	const originalDelete = atlasApi.delete;
+	const stub = rosterApiStub(items);
+	(atlasApi as any).get = (url: string, ...rest: any[]) => stub(String(url));
+	(atlasApi as any).post = async () => ({ data: {} });
+	(atlasApi as any).delete = async () => ({ data: {} });
+	try {
+		const host = render(createElement(FacultyPage as any, {}));
+		await settlePage();
+		const rows = Array.from(host.querySelectorAll('tr'))
+			.map((row) => {
+				const text = row.textContent ?? '';
+				const name = ['GARCIA, ANNA PATRICIA', 'ALCANTARA, ROBERTO', 'SANTOS, LIZA']
+					.find((candidate) => text.includes(candidate)) ?? null;
+				return {
+					name,
+					cues: row.querySelectorAll('[data-testid="teacher-duplicate-name-cue"]').length,
+					cueText: (row.querySelector('[data-testid="teacher-duplicate-name-cue"]')?.textContent ?? '').trim(),
+				};
+			})
+			.filter((row) => row.name !== null);
+		return { host, rows };
+	} finally {
+		(atlasApi as any).get = originalGet;
+		(atlasApi as any).post = originalPost;
+		(atlasApi as any).delete = originalDelete;
+		dom.window.sessionStorage.removeItem(ATLAS_LOCAL_TOKEN_KEY);
+	}
+}
+
+test('A6-C3-6f the cue reaches the REAL /teachers page, and changes nothing but the chips', async () => {
+	// The roster Lane C saw: GARCIA, ANNA PATRICIA twice with different loads,
+	// and one unique name. The control roster is the SAME THREE PEOPLE with the
+	// duplicate renamed, so the two mounts differ only in whether a name repeats.
+	const duplicated = [
+		{ ...TEACHER, id: 21, firstName: 'Anna Patricia', lastName: 'Garcia', actualTeachingHours: 18.8, sectionTeachingHours: 18.8, policyCreditedHours: 18.8, department: 'Mathematics' },
+		{ ...TEACHER, id: 23, firstName: 'Anna Patricia', lastName: 'Garcia', actualTeachingHours: 0, sectionTeachingHours: 0, policyCreditedHours: 0, subjectCount: 0, department: 'English' },
+		{ ...TEACHER, id: 22, firstName: 'Roberto', lastName: 'Alcantara', actualTeachingHours: 20 },
+	];
+	const control = [
+		duplicated[0],
+		{ ...duplicated[1], id: 23, firstName: 'Liza', lastName: 'Santos' },
+		duplicated[2],
+	];
+
+	const live = await mountRealRosterPage(duplicated);
+	assert.equal(
+		live.rows.length,
+		3,
+		`the real page must render all three roster rows, saw ${live.rows.length} (${JSON.stringify(live.rows.map((r) => r.name))})`,
+	);
+
+	// (1) BOTH rows of the duplicated pair carry the cue, with its own count.
+	const cued = live.rows.filter((row) => row.cues > 0);
+	assert.equal(cued.length, 2, `exactly the two same-name rows must carry the cue, saw ${cued.length}`);
+	for (const row of cued) {
+		assert.equal(row.name, 'GARCIA, ANNA PATRICIA', 'and they must be the two records that share the name');
+		assert.equal(row.cues, 1, 'one cue per row, not one per record');
+		assert.match(row.cueText, /Same name — 2 records/, `the chip states the count; saw "${row.cueText}"`);
+	}
+	// (2) The unique row carries none.
+	const unique = live.rows.filter((row) => row.name === 'ALCANTARA, ROBERTO');
+	assert.equal(unique.length, 1, 'the unique name must be rendered exactly once');
+	assert.equal(unique[0]!.cues, 0, 'and must carry no cue at all');
+
+	const baseline = await mountRealRosterPage(control);
+
+	// (3) NOTHING WAS MERGED, HIDDEN, REORDERED OR RE-PAGED. The control mount is
+	// the SAME THREE PEOPLE with the duplicate renamed, so both mounts render the
+	// same three records; each mount's rendered order is checked against the order
+	// the page's OWN comparator produces for its input, which is the only claim
+	// about ordering that does not hard-code a sort rule into a control.
+	for (const [label, mount, items] of [
+		['duplicated', live, duplicated],
+		['control', baseline, control],
+	] as const) {
+		const expected = [...items]
+			.map((member: any) => ({ key: teacherNameSortKey(member), name: formatFacultyDisplayName(member) }))
+			.sort((left, right) => left.key.localeCompare(right.key))
+			.map((entry) => entry.name);
+		assert.equal(mount.rows.length, items.length, `${label}: every record must render — none merged, hidden or re-paged`);
+		assert.deepEqual(
+			mount.rows.map((row) => row.name),
+			expected,
+			`${label}: the rendered name order must be the roster's own order, unchanged`,
+		);
+		assert.deepEqual(
+			[...mount.rows.map((row) => row.name)].sort(),
+			items.map((member: any) => formatFacultyDisplayName(member)).sort(),
+			`${label}: the rendered names must be exactly the names that went in`,
+		);
+	}
+	assert.equal(
+		baseline.rows.reduce((total, row) => total + row.cues, 0),
+		0,
+		'a roster with no duplicate names carries no cue anywhere — the feature is a no-op on a clean roster',
+	);
+	assert.equal(
+		live.rows.reduce((total, row) => total + row.cues, 0),
+		2,
+		'and the duplicated roster carries exactly the two cues, added and nothing more',
+	);
 });

@@ -500,6 +500,34 @@ export default function Faculty() {
 		setAttentionFilter('all');
 	}, []);
 
+	/**
+	 * The roster's column definitions.
+	 *
+	 * A6 C3 (QA finding B1, 2026-09-29) — THE DEPENDENCY ARRAY HERE IS
+	 * LOAD-BEARING, and it was not before.
+	 *
+	 * The `render` closures used to be per-teacher PURE: each one took a teacher
+	 * and read only that teacher, so freezing the column array for the life of the
+	 * page changed nothing a reader could see. A6 C3's same-name cue broke that
+	 * assumption. `render` now calls `cueFor(teacher)`, which closes over
+	 * `duplicateNameCue` — state derived from the whole roster — and this memo
+	 * still declared `[]`. The page renders the table on its first pass, while
+	 * the roster is still empty and the cue map is therefore empty, so the
+	 * closures froze permanently against an empty map and the cue was
+	 * `undefined` on the REAL `/teachers` route for the whole session. The cue
+	 * was correct in the unit rows and absent in production, which is exactly
+	 * the gap between a passing control and a working feature.
+	 *
+	 * `duplicateNameCue` is the ONE thing these closures read beyond their own
+	 * teacher, so it is the one dependency added — not `faculty` wholesale, which
+	 * would rebuild the array on every roster refetch for a cue that has not
+	 * changed. The map's identity is a `useMemo` over `faculty`, so it changes
+	 * exactly when the roster does.
+	 *
+	 * `A6-C3-6f` in `src/components/faculty/__tests__/a6-teachers-header-profile.test.tsx`
+	 * mounts this real page and is the row that can see this defect: reverted to
+	 * this file's base state, that row reports zero cues.
+	 */
 	const teacherColumns = useMemo<AdminDataTableColumn<FacultySummary, SortField>[]>(() => [
 		{
 			id: 'teacher',
@@ -548,7 +576,7 @@ export default function Faculty() {
 				</div>
 			),
 		},
-	], []);
+	], [duplicateNameCue]);
 
 	const teacherSourceState = useMemo<AdminSourceState>(() => {
 		if (dataSource === 'live') return 'verified-live';

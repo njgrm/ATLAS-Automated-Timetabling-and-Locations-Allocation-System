@@ -110,6 +110,7 @@ const { openTeacherReview, STAFF_WORKLOAD_REVIEW_LABEL } = teacherReviewEntry as
 };
 const { reviewModalCopy, buildTeachingLoadWorkspaceState } = await import('@/components/faculty-assignments/teachingLoadWorkspaceMetrics');
 const {
+	isTeachingLoadSourceDegraded,
 	isTeachingLoadSourceUnverified,
 	teachingLoadUnverifiedReason,
 	teachingLoadUnverifiedStatus,
@@ -1304,8 +1305,16 @@ const REAL_QUEUE_COVERAGE = { coverageAssigned: 23, coverageTotal: 24, coverageU
 function RealRepairQueueSlot(props: {
 	sourceDegraded: boolean;
 	advancedGridVisible?: boolean;
-	/** A6 C3: the SOURCE STATE the page would thread, not a second boolean. */
-	sourceState?: { dataSource: 'live' | 'cached' | 'refreshing' | 'none'; isOnline: boolean };
+	/**
+	 * A6 C3 (QA finding B3, 2026-09-29): REQUIRED in the HARNESS, exactly as it
+	 * is in the hook. This parameter used to be optional with a
+	 * `{ dataSource: 'live', isOnline: true }` default, which meant a new row
+	 * could reach the healthy rendering by omitting a required argument — the
+	 * harness would quietly stand in for a caller's decision. There is no default
+	 * now, so TypeScript names every mount that must state the source it is
+	 * about, and a row cannot be added without saying so.
+	 */
+	sourceState: { dataSource: 'live' | 'cached' | 'refreshing' | 'none'; isOnline: boolean };
 }) {
 	const [, setAdvancedGridVisible] = useState(true);
 	const queue = useTeachingLoadRepairQueue({
@@ -1323,7 +1332,7 @@ function RealRepairQueueSlot(props: {
 		// The verified source is the DEFAULT here, so the healthy rows above stay
 		// exactly as they were. Every degraded row passes the state it is actually
 		// about, because the withheld string now depends on it.
-		sourceState: props.sourceState ?? { dataSource: 'live', isOnline: true },
+		sourceState: props.sourceState,
 		writeBlockedReason: null,
 		onSelectFaculty: () => {},
 		onSave: () => {},
@@ -1345,7 +1354,13 @@ function RealRepairQueueSlot(props: {
 
 /** Row 2 as the page composes it: the REAL repair queue, plus the More-menu link. */
 function headerHost(overrides: Record<string, any> = {}, slotOverrides: Record<string, any> = {}, sourceDegraded = false) {
-	return render(createElement(WorkspaceToolbar as any, {
+	// A6 C3 (QA finding B3): the queue's REQUIRED `sourceState` is wired from the
+	// SAME toolbar props the row is about, because that is exactly what the page
+	// does — one `data.dataSource` / `data.isOnline` pair feeds the header and the
+	// hook. So a row that states its source on the header cannot leave the queue
+	// out, and the healthy mounts below need no special case. `slotOverrides` is
+	// spread LAST and still wins, for the rows that pin the slot explicitly.
+	const props: Record<string, any> = {
 		realAssignedPairs: 22, syntheticPlaceholderPairs: 1, unassignedPairs: 2, totalPairs: 24,
 		overCapCount: 1, excessTeachingCount: 0, policyReady: true,
 		onShowExcessTeachingLoad: () => {}, onShowTemporarySubstitutes: () => {},
@@ -1357,12 +1372,19 @@ function headerHost(overrides: Record<string, any> = {}, slotOverrides: Record<s
 		workspaceStateLabel: 'Ready', workspaceStateDescription: 'Live roster verified.',
 		workspaceStateNextAction: 'Assign the remaining classes.',
 		activeDraftCount: 0, saving: false, onSave: () => {}, onRetrySource: () => {},
+		...overrides,
+	};
+	return render(createElement(WorkspaceToolbar as any, {
+		...props,
 		// A6 C2 CORRECTION: the slot is the hook's OWN output. `slotOverrides`
 		// stays for the one caller that needs to pin a prop, and it is spread
 		// LAST so it can still override.
-		stateLineSlot: createElement(Fragment2, null, createElement(RealRepairQueueSlot as any, { sourceDegraded, ...slotOverrides })),
+		stateLineSlot: createElement(Fragment2, null, createElement(RealRepairQueueSlot as any, {
+			sourceDegraded,
+			sourceState: { dataSource: props.dataSource, isOnline: props.isOnline },
+			...slotOverrides,
+		})),
 		historyAction: createElement(Link as any, { to: '/teaching-load/history', 'data-testid': 'teaching-load-history-link' }, 'Archived load'),
-		...overrides,
 	}));
 }
 
@@ -2439,26 +2461,43 @@ test('A6-C3-3-N3 the withheld string names the cause the page ACTUALLY has', () 
 		'the cached + online withheld string must be byte-identical to the one A6 C2 printed',
 	);
 	// And the narrower predicate is UNCHANGED, including `refreshing`, so the
-	// header keeps its right to say "checking" rather than "down".
+	// header keeps its right to say "checking" rather than "down". This is the
+	// REAL exported function, not a copy of it.
+	//
+	// A6 C3 (QA finding B2, 2026-09-29): this used to declare a LOCAL clone of
+	// `isTeachingLoadSourceDegraded` and assert against that clone. A control that
+	// re-implements the rule it is meant to police passes whatever production
+	// does — it was vacuous, and it would have stayed green if the real predicate
+	// had been deleted. The clone is gone; the import above is the one under test.
+	const NARROW_STATES: Array<{ label: string; input: Record<string, any>; degraded: boolean }> = [
+		{ label: 'LIVE + online + no notice', input: { dataSource: 'live', isOnline: true, dataSourceNotice: null }, degraded: false },
+		{ label: 'LIVE + a leftover notice', input: { dataSource: 'live', isOnline: true, dataSourceNotice: 'x' }, degraded: true },
+		{ label: 'CACHED + online', input: { dataSource: 'cached', isOnline: true, dataSourceNotice: null }, degraded: true },
+		{ label: 'REFRESHING + online', input: { dataSource: 'refreshing', isOnline: true, dataSourceNotice: null }, degraded: false },
+		{ label: 'REFRESHING + a leftover notice', input: { dataSource: 'refreshing', isOnline: true, dataSourceNotice: 'x' }, degraded: false },
+		{ label: 'NONE + online', input: { dataSource: 'none', isOnline: true, dataSourceNotice: null }, degraded: true },
+		{ label: 'OFFLINE', input: { dataSource: 'live', isOnline: false, dataSourceNotice: null }, degraded: true },
+	];
+	for (const state of NARROW_STATES) {
+		assert.equal(
+			isTeachingLoadSourceDegraded(state.input),
+			state.degraded,
+			`${state.label}: the narrow predicate must still decide the amber line — a live check is NOT a failure, and a leftover notice does not turn one into a failure`,
+		);
+	}
+	// The distinction that B1/B2 are about, stated against the two REAL
+	// functions: `refreshing` is not degraded, but it IS unverified.
 	assert.equal(
-		teachingLoadSourceDegradedStaysNarrow(),
-		'refreshing is not degraded; every other non-live state is',
-		'the narrow predicate must keep its load-bearing order (pinned by A6-C2-3-WIRING too)',
+		isTeachingLoadSourceDegraded({ dataSource: 'refreshing', isOnline: true, dataSourceNotice: null }),
+		false,
+		'a live check must never be called a failure — the header keeps its own honest wording',
+	);
+	assert.equal(
+		isTeachingLoadSourceUnverified({ dataSource: 'refreshing', isOnline: true }),
+		true,
+		'while the SAME state must still withhold the figures, which is the wider question',
 	);
 });
-
-/** The narrow predicate, exercised through its own exported function. */
-function teachingLoadSourceDegradedStaysNarrow(): string {
-	const degraded = (input: { dataSource: any; isOnline: boolean; dataSourceNotice: string | null }) =>
-		!input.isOnline || (input.dataSource === 'refreshing' ? false : input.dataSource !== 'live' || Boolean(input.dataSourceNotice));
-	const refreshingIsNotDegraded = degraded({ dataSource: 'refreshing', isOnline: true, dataSourceNotice: null }) === false;
-	const othersAre = degraded({ dataSource: 'cached', isOnline: true, dataSourceNotice: null }) === true
-		&& degraded({ dataSource: 'none', isOnline: true, dataSourceNotice: null }) === true
-		&& degraded({ dataSource: 'live', isOnline: false, dataSourceNotice: null }) === true;
-	return refreshingIsNotDegraded && othersAre
-		? 'refreshing is not degraded; every other non-live state is'
-		: 'the narrow predicate changed';
-}
 
 test('A6-C3-3-WIRING the page threads the SOURCE STATE, and the hook requires it', () => {
 	const page = read('src/pages/TeachingLoad.tsx');
