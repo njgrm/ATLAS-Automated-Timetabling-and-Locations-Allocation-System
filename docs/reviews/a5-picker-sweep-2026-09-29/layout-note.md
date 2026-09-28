@@ -111,6 +111,33 @@ removing at least as much" — does not arise, because the ledger is zero on bot
 word/control columns. That is the point of R2's instruction to keep each page's own vocabulary:
 the sweep is a *uniformity* change, not a copy change.
 
+> **CORRECTION ROUND 1 — "0 words added" survives, but only because the one place it did NOT hold
+> is now corrected.** The history-year picker's unset face read a hard-coded `All` and its
+> `placeholder` could never render, so this slice *had* removed words an operator needs
+> (`Choose an archived year`). With the `@/ui` fix — unset shows `All` when the list has an `all`
+> member, the caller's `placeholder` when it does not — that control reads
+> `Archived year: Choose an archived year` again, and the zero holds honestly. A ledger that
+> counted zero while the trigger was lying about its own state was zero for the wrong reason.
+
+### 3.1a The removed Load colours were not merely a look override — they were teaching the wrong cue
+
+Recorded here because QA's finding is better than the reason I gave, and the ledger should carry
+the better reason.
+
+The first candidate justified dropping the three policy-band option colours
+(`text-amber-700` / `text-emerald-700` / `text-sky-700`) on the grounds that carrying them would
+mean a look prop on the shared primitive for one page, which is the defect this sweep exists to
+remove. That is true and it was sufficient. It is not the strongest argument.
+
+**The colours were also inconsistent with the product's own cue.** The removed mapping had
+`at-standard → emerald` and `below-standard → sky`, while the product's own
+`StackedWorkloadBar.tsx:50-55` maps those two the other way round. So a scheduler reading a
+faculty row all day was being taught, by the filter dropdown, **the opposite** of the cue she
+learns everywhere else — and the words in the option (`Excess`, `At standard`, `Below standard`)
+carry the same fact without a legend to misread. Removing them was not only tidier; it was
+removing a contradiction. Any future request to restore them should start from
+`StackedWorkloadBar`, not from this file.
+
 ### 3.2 The one place words DO go, and why it is a net subtraction
 
 Three of the thirteen triggers previously rendered a bare value with no name of its own:
@@ -173,6 +200,21 @@ down to sentence case.
 4. **The history picker's trigger now names itself as well as its `<Label>`.** Redundant, and
    recorded in §3.2 rather than hidden: a filter that names itself on one surface and not
    another is the defect this whole cycle exists to remove.
+5. **TRUNCATION IS THE AXIS MOST LIKELY TO FAIL, and this note should not assume it fits.**
+   The shared trigger is a fixed **128px** box, and this sweep made the visible faces **longer**
+   than several of the columns they replaced: `/sections`' Home-room filter used to own a
+   ~340px grid column reading `All home-room states` and now reads `Home room: All` in 128px;
+   `/teaching-load`'s `All status` in 160px becomes `Status: All` in 128px. And
+   `searchable-select.tsx:260` puts `truncate` on the label span, so an over-long face is
+   ellipsised rather than wrapped or pushed.
+   By hand the longest swept face is `Home room: All` at ~66px of text inside ~86px of content
+   box (128 less border, `px-3`, and the chevron), so it should fit — **but that is arithmetic, not
+   a measurement, and font metrics are exactly the kind of thing a class list cannot decide.**
+   No browser row exists for `/sections`, `/faculty` or `/teaching-load`; the reviewer scored
+   *no truncation*, *nothing cramped* and *case/weight harmony* UNSCOREABLE without a 1366
+   render, and D1 (losing UPPERCASE) is by definition a pixel judgement. **The planner runs
+   that gate; I have not assumed it passes, and this paragraph exists so the reviewer knows the
+   axis I would fail first.**
 5. **R2-5's search box must not appear on any swept list.** The longest is `/faculty`'s
    department list, which is data-derived and can exceed 8. Where it does, the box appears and
    that is the rule working, not a regression. The B5 guard asserts no swept *short* list

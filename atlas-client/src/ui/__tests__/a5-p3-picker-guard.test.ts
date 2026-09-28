@@ -21,11 +21,15 @@
  *
  *  1. A swept filter built from `@/ui/select` instead of the shared picker — the defect this whole
  *     cycle exists to remove, reintroduced by one import.
- *  2. A look-changing override in a swept file — `triggerClassName` or `className` reaching past
- *     the shared variant, or a page restating `rounded-xl` / `bg-background` / `uppercase
- *     tracking-tight` chrome. `FilterPicker` has no `className` prop, so this is mostly
- *     unreachable through it; the row exists because it was reachable through `SearchableSelect`
- *     and through hand-rolled markup.
+	 *  2. A look-changing override in a swept file — `triggerClassName` reaching past the shared
+	 *     variant, or a page restating `rounded-xl` / `uppercase tracking-tight` chrome on the
+	 *     line that builds a picker. **Scope, stated honestly:** this rule is
+	 *     allowlist-scoped and proximity-scoped, so it sees a picker on the line it is
+	 *     checking. It does NOT see hand-rolled markup — a raw `<button role="combobox">` in
+	 *     a swept file was green until the reviewer proved it by running the guard, and the
+	 *     fix is the second positive control `A5-C3-P3-1c`, not a wider ban. Neither hole is
+	 *     closed by a token ban here, deliberately: a repo-wide ban dies on the first
+	 *     legitimate `Select`, and this codebase is full of them on surfaces nobody swept.
  *  3. A page-local redefinition of the shared variant — a swept file re-declaring the height, a
  *     width or the chrome string that `@/ui/picker-trigger` owns. This is the one that already
  *     happened once (`CONTROL_CHROME` on the Teaching Load row) and it is why the string is
@@ -181,6 +185,55 @@ test('A5-C3-P3-3: a swept file does not redefine the shared picker variant', () 
 		}
 	}
 	assert.deepEqual(offenders, [], 'a swept file redefines the shared picker variant instead of using it');
+});
+
+test('A5-C3-P3-1c: a swept file builds no trigger BY HAND — second positive control, and it closes two proved holes', () => {
+	/* Why this row exists. The reviewer ran the guard two ways and it stayed GREEN 6/6 both
+	 * times, which is exactly how a guard that overclaims becomes worse than none:
+	 *
+	 *   HOLE 1 — `PICKER_LINE` was single-line, so a look token on a CONTINUATION line of a
+	 *   `<FilterPicker …>` (which is how every prop in this codebase is written) sailed
+	 *   straight through. Probed with `contentClassName="h-10 uppercase"` on the next line.
+	 *   HOLE 2 — the rule's doc claimed it reached "hand-rolled markup", and it did not. A
+	 *   hand-written `<button className="h-10 w-40 uppercase tracking-tight rounded-xl
+	 *   border-border/60">` in a swept file was also green, because the rule only looked at
+	 *   lines that mention a picker.
+	 *
+	 * The fix is NOT a token ban, and deliberately so: the allowlist-plus-proximity design is
+	 * right, because a repo-wide ban dies on the first legitimate `Select` — and this
+	 * codebase is full of them, on surfaces nobody swept. What closes both holes is asking a
+	 * POSITIVE question of every swept file, in the same shape as `P3-1b`: build the trigger
+	 * through the shared picker, and nothing else. A positive control cannot be satisfied by
+	 * not being there, so it does not need a heuristic to find the bad case.
+	 */
+	const offenders: string[] = [];
+	for (const { f, src } of files) {
+		/* HOLE 2: a trigger-shaped element built by hand, anywhere in the file, on any line.
+		 * `FilterPicker` is the shared primitive; a raw `<button role="combobox">` beside it
+		 * is a page re-deciding what a filter looks like, which is the defect. */
+		if (/<button[^>]*role="combobox"/.test(src) || /<select[\s>]/i.test(src)) {
+			offenders.push(`${f}: a trigger built by hand instead of through @/ui/filter-picker`);
+		}
+		/* HOLE 1: the look tokens, checked against the WHOLE element rather than one line.
+		 * A `<FilterPicker` that runs to a closing `/>` is one element however it is
+		 * formatted, so the unit of the check is the element, not the line. */
+		for (const match of src.matchAll(/<(FilterPicker|SelectTrigger|SearchableSelect)\b[\s\S]*?\/>/g)) {
+			for (const token of ['uppercase', 'tracking-tight', 'w-45', 'min-h-11', 'rounded-xl', 'CONTROL_CHROME']) {
+				if (match[0].includes(token)) {
+					offenders.push(`${f}: "${token}" on a <${match[1]}> element (continuation lines included)`);
+				}
+			}
+			if (/triggerClassName\s*=/.test(match[0])) {
+				offenders.push(`${f}: triggerClassName=… on a <${match[1]}> element`);
+			}
+		}
+	}
+	assert.deepEqual(
+		offenders,
+		[],
+		'a swept file builds a filter trigger by hand, or restates the shared variant on a picker element — ' +
+			'either one is a page re-deciding what a filter looks like, which is what @/ui/picker-trigger is for',
+	);
 });
 
 test('A5-C3-P3-4: the shared variant is still owned by @/ui, and still has no className escape hatch', () => {

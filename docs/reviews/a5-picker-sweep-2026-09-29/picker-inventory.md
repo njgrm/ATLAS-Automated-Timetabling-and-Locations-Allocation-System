@@ -33,8 +33,8 @@ New accessible names: `Filter by grade level`, `Filter by program scope`, `Filte
 
 | # | Control | BEFORE `file:line` | BEFORE primitive | BEFORE trigger class | BEFORE w | BEFORE h | Self-naming | Search box | AFTER primitive | AFTER w | AFTER h | Self-naming | Search box |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| 4 | Roster state | `Faculty.tsx:756` | `@/ui/select` | `h-10 w-44 text-sm bg-background` | 176px | **40px** | no (`All roster states`) | no (4 items) | `FilterPicker` | `w-32` (128) | **36px** | **yes** (`Roster: All`) | **no** |
-| 5 | Load state | `Faculty.tsx:766` | `@/ui/select` | `h-10 w-44 text-sm bg-background` | 176px | **40px** | no (`All load states`) | no (4 items) | `FilterPicker` | `w-32` | **36px** | **yes** (`Load: All`) | **no** |
+| 4 | Roster state | `Faculty.tsx:756` | `@/ui/select` | `h-10 w-44 text-sm bg-background` | 176px | **40px** | no (`All roster states`) | no (3 options) | `FilterPicker` | `w-32` (128) | **36px** | **yes** (`Roster: All`) | **no** |
+| 5 | Load state | `Faculty.tsx:766` | `@/ui/select` | `h-10 w-44 text-sm bg-background` | 176px | **40px** | no (`All load states`) | no (3 options) | `FilterPicker` | `w-32` | **36px** | **yes** (`Load: All`) | **no** |
 | 6 | Department | `Faculty.tsx:777` | `@/ui/select` | `h-10 w-44 text-sm bg-background` | 176px | **40px** | no (`All Departments`) | **data-derived** | `FilterPicker` | `w-32` | **36px** | **yes** (`Department: All`) | **only above 8 departments** |
 | 7 | Grade taught | `Faculty.tsx:787` | `@/ui/select` | `h-10 w-36 text-sm bg-background` | 144px | **40px** | name only (`Grade taught`) | no (5 items) | `FilterPicker` | `w-32` | **36px** | **yes** (`Grade: All`) | **no** |
 
@@ -42,7 +42,15 @@ New accessible names: `Filter by grade level`, `Filter by program scope`, `Filte
 its `primaryFilterCount` behaviour; the conditional `Reset filters`; the conditional rendering of
 row 6 (`departments.length > 0`). Every option label is the page's own.
 **B3:** the four rows moved to `components/faculty/FacultyFilterRow.tsx` **in the same commit**.
-`Faculty.tsx` 981 → **949 physical lines**.
+`Faculty.tsx` **981 → 952 physical lines** (885 non-blank).
+
+> **CORRECTION ROUND 1.** The first candidate said `949`, which was wrong. Re-derived two ways at
+> this tip: `File.ReadAllLines(...).Count` gives **952 physical / 885 non-blank**, and
+> `git cat-file -s` gives a 39 504-byte blob consistent with it. Both counters are recorded from
+> here on, because a number quoted from memory is a claim and a number read from the tree is
+> evidence — which is the lesson R1 J1's 981-vs-QA's-915 disagreement already taught this
+> inventory. **`Faculty.tsx` at 952 physical is under §8's 1000-line cap**, with 48 lines of
+> headroom; the extraction was required by the packet and by the arithmetic, not by a breach.
 **Δ: 13 controls in, 13 out; 4 widths collapsed to 1; 1 page-local `bg-background` removed.**
 
 ## 3. `/teaching-load` — `components/faculty-assignments/TeachingLoadFilterBar.tsx`
@@ -94,6 +102,22 @@ removed — the one control on this screen that looked like nothing else in the 
 have read `Archived year: all` on a control that offers no such choice.
 **Δ: 44px→36px; one filter is now named twice (recorded as layout-note D4).**
 
+> **CORRECTION ROUND 1 — the "Preserved" claim above was partly false, and QA proved it from
+> source.** Before this round the trigger's unset face was always the hard-coded `All`, because
+> `FilterPicker` computed `shortValue` as `'All'` for any unset value and the `??` fallback could
+> only fire on `null`. The `placeholder` this control passes — `Choose an archived year`, and
+> `Loading archived years…` while loading — therefore **could never render**, and the control
+> claimed a state it could not deliver. While `disabled` the visible face read `All` while
+> `aria-label` read `Loading archived years…`: two statuses for one fact.
+>
+> The fix is in `@/ui`, stated once: **an unset value shows `All` when the list really has an
+> `all` member, and the caller's `placeholder` when it does not; a disabled picker shows its
+> `disabledReason` on the visible face so it agrees with the accessible name.** The other twelve
+> swept filters all have an `all` member, so their visible faces are byte-identical to the first
+> candidate — `A5-C3-B2b` is the row that proves twelve were not broken to fix one. This control's
+> unset face now reads **`Archived year: Choose an archived year`**, and while loading
+> **`Archived year: Loading archived years…`**, which is what the pre-s Radix control said.
+
 ---
 
 ## 6. The sweep in one table
@@ -101,13 +125,32 @@ have read `Archived year: all` on a control that offers no such choice.
 | | BEFORE | AFTER |
 |---|---|---|
 | Controls swept | 13 | 13 |
-| Distinct primitives | **4** (`@/ui/select` only) | **1** (`@/ui/filter-picker`) |
-| Distinct trigger widths | **9** (`grid`, `w-36`, `w-40`, `w-44`, `w-45`, `w-52`, …) | **2** (`w-32` shared, `fill` for one grid cell) |
-| Distinct trigger heights | **3** (40, 44, 36) | **1** (36, the shared `PICKER_CONTROL_HEIGHT_CLASS`) |
-| Page-local chrome strings on a picker | **2** (`COMPACT_SELECT` on `/subjects` at the time; `CONTROL_CHROME` here) | **0** |
+| Distinct primitives | **1** (`@/ui/select` for all 13) | **1** (`@/ui/filter-picker`) |
+| Distinct trigger widths | **5** (`grid col`, `w-36`, `w-40`, `w-44`, `w-45`) | **2** (`w-32` shared, `fill` for one grid cell) |
+| Distinct trigger heights | **3** (40, 44, 36px) | **1** (36, the shared `PICKER_CONTROL_HEIGHT_CLASS`) |
+| Page-local chrome strings on a picker | **1** (`CONTROL_CHROME`, declared at `TeachingLoadFilterBar.tsx:65`) | **0** |
 | Triggers that name themselves | **0 of 13** | **13 of 13** |
 | Short lists showing a search box | n/a | **0** (R2-5 working) |
 | Visible words added | — | **0** |
+
+> **CORRECTION ROUND 1 — four self-contradictions in this table, now corrected above.**
+> **(a)** "Distinct primitives 4 (`@/ui/select` only)" was self-refuting: the count was 4 *and* the
+> parenthetical said they were all the same one. The truth is **1 → 1** — thirteen controls, one
+> primitive before and one after. The sweep's win is not "fewer primitives"; it is that the one
+> primitive is now `@/ui`'s instead of a page's.
+> **(b)** "Triggers that name themselves 0 of 13" contradicted row 4/5/13 of §2 and §5 above, which
+> record that the history picker already carried a visible `<Label>Archived school year</Label>`
+> and so DID name itself. The correct BEFORE figure is **12 of 13**: every picker was a bare value
+> except the history year, which had a real `<Label>` beside it.
+> **(c)** The BEFORE row counted `COMPACT_SELECT` as a second page-local chrome string. **It does
+> not exist at `419277e4`** — it was removed by slice A, which is the base for this whole sweep.
+> Counting it would have credited this slice with a deletion it did not make. Corrected to
+> `CONTROL_CHROME` alone, which is the one that was here.
+> **(d)** Roster and Load were listed as "(4 items)". Each list is **3 options** — `all` plus two
+> states. Corrected in §2.
+>
+> None of these changes a gate or a code path; all four are documentation that overstated or
+> contradicted its own evidence, which is the failure §16 exists to prevent.
 | Page-local look overrides removed | — | **≈29** |
 
 **Every option label, every `data-testid` and every page-owned accessible name is preserved.** What

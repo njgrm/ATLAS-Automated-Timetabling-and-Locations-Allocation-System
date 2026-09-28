@@ -281,6 +281,203 @@ test('A5-C3-B3a: a filter handed no options degrades to an empty control instead
 	assert.equal(trigger.getAttribute('aria-label'), 'Grade: All', 'the empty filter lost its accessible name');
 });
 
+/**
+ * B1, FAILING-FIRST (slice B correction round 1). On `54eeb4f2` the primitive guarded the MOUSE
+ * path only: `disabled={item.disabled}` on the option button, but Enter still called
+ * `choose(option.value)` unconditionally and the arrow walk still stepped onto disabled rows.
+ *
+ * The regression is exactly what the file's own `disabled` comment said it was preventing —
+ * Radix `SelectItem disabled` made the keyboard path unreachable, and migrating to this
+ * primitive brought it back. It is live in two of the thirteen swept controls, both of which
+ * earn R2-5's search box above eight options and therefore have a keyboard at all:
+ * `/teaching-load`'s Department filter (a school with nine or more departments) and the
+ * Teaching Load history's archived-year picker (nine or more archived years).
+ */
+test('A5-C3-B1a: a disabled option is neither highlighted by the arrow walk nor chosen by Enter', async () => {
+	const chosen: string[] = [];
+	const host = document.createElement('div');
+	document.body.appendChild(host);
+	const root: Root = createRoot(host);
+	await act(async () => {
+		root.render(
+			<FilterPicker
+				name="Department"
+				ariaLabel="Filter by department"
+				value="all"
+				onValueChange={(v) => chosen.push(v)}
+				/* 9 items crosses R2-5's threshold, so the list HAS a search box and
+				 * therefore a keyboard path — the shape the swept pages reach. */
+				searchable
+				options={[
+					{ value: 'all', label: 'All departments' },
+					{ value: 'AP', label: 'Araling Panlipunan (4)' },
+					{ value: 'empty', label: 'Science (0)', disabled: true },
+					{ value: 'MAPEH', label: 'MAPEH (2)' },
+				]}
+			/>,
+		);
+	});
+	const trigger = host.querySelector('[role="combobox"]') as HTMLElement;
+	await act(async () => { trigger.click(); });
+	const input = document.body.querySelector('input[placeholder="Search…"]') as HTMLInputElement;
+	assert.ok(input, 'the list must have a search box for the keyboard path to exist');
+
+	/* (1) ArrowDown twice from the initial highlight: `all` -> AP -> the DISABLED row. The
+	 * walk must skip it and land on MAPEH. */
+	await act(async () => {
+		input.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+	});
+	await act(async () => {
+		input.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+	});
+	const highlighted = Array.from(document.body.querySelectorAll('[role="option"]')) as HTMLElement[];
+	const active = highlighted.find((o) => o.getAttribute('data-active') === 'true');
+	assert.equal(
+		active?.textContent?.trim(),
+		'MAPEH (2)',
+		'the arrow walk landed the highlight on a disabled option instead of skipping it',
+	);
+
+	/* (2) Enter must not choose a disabled option even if the highlight somehow sits there. */
+	await act(async () => {
+		input.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+	});
+	assert.deepEqual(chosen, ['MAPEH'], `Enter chose the wrong option: ${chosen.join(',') || 'nothing'}`);
+
+	await act(async () => { root.unmount(); });
+	host.remove();
+});
+
+test('A5-C3-B1b: a disabled option is still READABLE — a zero count is information a scheduler wants', async () => {
+	const host = document.createElement('div');
+	document.body.appendChild(host);
+	const root: Root = createRoot(host);
+	await act(async () => {
+		root.render(
+			<FilterPicker
+				name="Department"
+				ariaLabel="Filter by department"
+				value="all"
+				onValueChange={() => {}}
+				searchable
+				options={[
+					{ value: 'all', label: 'All departments' },
+					{ value: 'empty', label: 'Science (0)', disabled: true },
+				]}
+			/>,
+		);
+	});
+	const trigger = host.querySelector('[role="combobox"]') as HTMLElement;
+	await act(async () => { trigger.click(); });
+	const option = Array.from(document.body.querySelectorAll('[role="option"]')) as HTMLElement[];
+	const zero = option.find((o) => o.textContent?.trim() === 'Science (0)');
+	assert.ok(zero, 'a zero-count option was hidden rather than dimmed');
+	assert.equal(zero.getAttribute('aria-disabled'), 'true', 'the disabled option is not announced as disabled');
+	await act(async () => { root.unmount(); });
+	host.remove();
+});
+
+/**
+ * B2, FAILING-FIRST (slice B correction round 1). `FilterPicker` always passed
+ * `triggerLabelValue={shortValue}` and `shortValue` was the literal `'All'` for the unset state,
+ * so a filter whose list has NO `all` member — `TeachingLoadHistoryView`'s archived year, with
+ * `allValue=""` — showed `Archived year: All`, a state it cannot deliver, and the
+ * `placeholder` that caller passed (`Choose an archived year`, `Loading archived years…`) could
+ * never render. A trigger that lies about its own state is a one-status-per-fact failure, and
+ * it is provable from source without a browser.
+ */
+test('A5-C3-B2a: a filter with no "all" member shows its PLACEHOLDER when nothing is chosen, never a hard-coded "All"', async () => {
+	const host = document.createElement('div');
+	document.body.appendChild(host);
+	const root: Root = createRoot(host);
+	const withPlaceholder = (placeholder: string) => (
+		<FilterPicker
+			name="Archived year"
+			ariaLabel="Archived school year"
+			allValue=""
+			value=""
+			onValueChange={() => {}}
+			placeholder={placeholder}
+			options={[
+				{ value: '4', label: '2025-2026' },
+				{ value: '3', label: '2024-2025 — no annual Teaching Load', disabled: true },
+			]}
+		/>
+	);
+	await act(async () => { root.render(withPlaceholder('Choose an archived year')); });
+	const trigger = host.querySelector('[role="combobox"]') as HTMLElement;
+	const visible = (trigger.textContent ?? '').replace(/\s+/g, ' ').trim();
+	assert.equal(
+		visible,
+		'Archived year: Choose an archived year',
+		'the unset face claims "All" on a control that offers no such choice, so the placeholder can never render',
+	);
+	await act(async () => { root.unmount(); });
+	host.remove();
+});
+
+test('A5-C3-B2b: the unset face of a filter that DOES have an "all" member is unchanged by the B2 fix', async () => {
+	/* The rule is stated once in `@/ui`; these thirteen swept controls all have an `all`
+	 * option, so their visible face must be exactly what it was. If this row goes red, the
+	 * fix for one picker has broken twelve. */
+	const host = document.createElement('div');
+	document.body.appendChild(host);
+	const root: Root = createRoot(host);
+	await act(async () => {
+		root.render(
+			<FilterPicker
+				name="Grade"
+				ariaLabel="Filter by grade level"
+				value="all"
+				onValueChange={() => {}}
+				options={[
+					{ value: 'all', label: 'All grades' },
+					{ value: '7', label: 'GR7' },
+				]}
+			/>,
+		);
+	});
+	const trigger = host.querySelector('[role="combobox"]') as HTMLElement;
+	assert.equal(
+		(trigger.textContent ?? '').replace(/\s+/g, ' ').trim(),
+		'Grade: All',
+		'a swept filter with an "all" option no longer reads "Name: All"',
+	);
+	await act(async () => { root.unmount(); });
+	host.remove();
+});
+
+test('A5-C3-B2c: a DISABLED filter\'s visible face and its accessible name say the same thing', async () => {
+	/* One status per fact. The primitive's accessible name already reports `disabledReason`;
+	 * before this fix the visible face still read `All` while the control was disabled and
+	 * offering nothing. */
+	const host = document.createElement('div');
+	document.body.appendChild(host);
+	const root: Root = createRoot(host);
+	await act(async () => {
+		root.render(
+			<FilterPicker
+				name="Archived year"
+				ariaLabel="Archived school year"
+				allValue=""
+				value=""
+				onValueChange={() => {}}
+				placeholder="Choose an archived year"
+				disabled
+				disabledReason="Loading archived years…"
+				options={[]}
+			/>,
+		);
+	});
+	const trigger = host.querySelector('[role="combobox"]') as HTMLElement;
+	const visible = (trigger.textContent ?? '').replace(/\s+/g, ' ').trim();
+	const accessible = trigger.getAttribute('aria-label');
+	await act(async () => { root.unmount(); });
+	host.remove();
+	assert.equal(accessible, 'Loading archived years…', 'the accessible name lost the disabled reason');
+	assert.equal(visible, 'Archived year: Loading archived years…', 'the visible face disagrees with the accessible name while disabled');
+});
+
 test('A5-C3-PICKERc: the short trigger and the long accessible name are the same control, so a picker is never unnamed', async () => {
 	const host = document.createElement('div');
 	document.body.appendChild(host);

@@ -80,7 +80,10 @@ interface SearchableSelectProps {
 	triggerTestId?: string;
 }
 
-type FlatOption = { value: string; label: string; index: number };
+/** A5 C3 slice B: `disabled` is carried through to the flat list, because the keyboard walk
+ * reads it (B1). An option that is only disabled on the rendered button is still choosable from
+ * the keyboard, which is the regression this type change exists to make impossible. */
+type FlatOption = { value: string; label: string; index: number; disabled?: boolean };
 
 export function SearchableSelect({
 	items,
@@ -137,8 +140,12 @@ export function SearchableSelect({
 	}, [filtered]);
 
 	React.useEffect(() => {
-		setActiveIndex(0);
-	}, [query, open]);
+		/* B1: the search field can narrow the list to a first match that is DISABLED, and
+		 * the highlight would then sit on a row that cannot be chosen. Land on the first
+		 * option that can be, so a typed query never produces a dead highlight. */
+		const first = flatOptions.findIndex((option) => !option.disabled);
+		setActiveIndex(first === -1 ? 0 : first);
+	}, [query, open, flatOptions]);
 
 	React.useEffect(() => {
 		if (!open || typeof document === 'undefined') return;
@@ -174,20 +181,51 @@ export function SearchableSelect({
 		setQuery('');
 	};
 
+	/**
+	 * A5 C3 slice B CORRECTION ROUND 1 (B1) — the next HIGHLIGHTABLE option from `from`,
+	 * skipping any that is `disabled`, and wrapping at both ends.
+	 *
+	 * A `disabled` option is readable on purpose — the count beside a zero is information a
+	 * scheduler wants — which is exactly why the highlight must not LAND on it. Arrowing onto
+	 * a greyed row and having Enter do nothing is a control that looks alive and is not, and
+	 * the walk now never produces that state.
+	 *
+	 * This matters in the swept pages: `/teaching-load`'s Department filter and the Teaching
+	 * Load history's archived-year filter both earn R2-5's search box above eight options (a
+	 * school with nine or more departments, nine or more archived years), and both carry
+	 * `disabled` options — a department at count zero, a year with no Teaching Load cycle.
+	 * Before this slice those were Radix `SelectItem disabled` and the keyboard could not
+	 * reach them. Migrating to this primitive reintroduced the path, and only the MOUSE branch
+	 * was guarded, so Enter could still choose one.
+	 */
+	const nextSelectableIndex = (from: number, step: 1 | -1): number => {
+		const count = flatOptions.length;
+		for (let step_ = 1; step_ <= count; step_ += 1) {
+			// `(from + step * step_)` is wrapped into range first so the walk cycles.
+			const candidate = (((from + step * step_) % count) + count) % count;
+			if (!flatOptions[candidate].disabled) return candidate;
+		}
+		// Every option is disabled: there is nowhere to go, so stay put.
+		return from;
+	};
+
 	// LANE-C C03 (B11) — typing a name and pressing Enter selects the highlighted
 	// match (the first one by default); arrow keys move the highlight.
 	const handleSearchKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
 		if (flatOptions.length === 0) return;
 		if (event.key === 'ArrowDown') {
 			event.preventDefault();
-			setActiveIndex((index) => Math.min(index + 1, flatOptions.length - 1));
+			setActiveIndex((index) => nextSelectableIndex(index, 1));
 		} else if (event.key === 'ArrowUp') {
 			event.preventDefault();
-			setActiveIndex((index) => Math.max(index - 1, 0));
+			setActiveIndex((index) => nextSelectableIndex(index, -1));
 		} else if (event.key === 'Enter') {
 			event.preventDefault();
 			const option = flatOptions[Math.min(activeIndex, flatOptions.length - 1)];
-			if (option) choose(option.value);
+			/* B1: refuse a disabled option even if the highlight somehow sits on one — the
+			 * search field can put the initial highlight on a match, so the guard cannot
+			 * live only in the arrow walk. */
+			if (option && !option.disabled) choose(option.value);
 		}
 	};
 

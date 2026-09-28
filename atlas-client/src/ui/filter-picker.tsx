@@ -148,11 +148,40 @@ export function FilterPicker({
 
 	/* A5 C3 R3 §1 — the trigger shows the SHORT value, the popover shows the long one.
 	 * `All` is one word for the unset state whatever the option list calls it, and a value
-	 * with no short label falls back to its full label rather than rendering nothing. */
+	 * with no short label falls back to its full label rather than rendering nothing.
+	 *
+	 * A5 C3 slice B CORRECTION ROUND 1 (B2) — the UNSET case is different, and this comment
+	 * is where it went wrong. `All` is only the right thing to show when the caller's list
+	 * actually HAS an "all" member, because a list that does not is offering a choice it
+	 * cannot deliver. `TeachingLoadHistoryView`'s archived-year filter is exactly that: no
+	 * `all` option, so `allValue=""`, so `shortValue` was always the literal `All` and the
+	 * `placeholder` this caller spent words on — `Choose an archived year`, and
+	 * `Loading archived years…` while it loaded — could never render. The trigger lied, and
+	 * the inventory's "Preserved" claim for that control was false while it did.
+	 *
+	 * So: no value chosen means show `All` when the list really HAS that choice, and the
+	 * PLACEHOLDER when it does not. On every swept filter but the archived-year picker there
+	 * is an `all` member, so those thirteen visible faces are unchanged — `Grade: All` still
+	 * reads `Grade: All` — which is the point of deriving it from the list instead of writing
+	 * it thirteen times. The rule is stated once, in `@/ui`, not left to call sites.
+	 *
+	 * The first attempt at this fix was wrong in exactly the way worth recording: it made the
+	 * placeholder win whenever the value was empty, and every swept filter's placeholder
+	 * defaults to its first option's FULL label — so `Grade: All` became `Grade: All grades`
+	 * on twelve controls to fix one. `A5-C3-B2b` is the row that caught it. */
 	const selected = list.find((o) => o.value === value);
-	const shortValue = value === '' || value === allValue
-		? 'All'
+	const isUnset = value === '' || value === allValue;
+	const offersAll = list.some((o) => o.value === allValue);
+	const shortValue = isUnset
+		? (offersAll ? 'All' : placeholder ?? fallbackPlaceholder)
 		: shortLabels?.[value] ?? selected?.label ?? value;
+	/* A DISABLED picker must not show a value it cannot offer. The primitive's accessible
+	 * name already says `disabledReason` (or `No options available`) when the whole control is
+	 * disabled; the visible face has to say the same thing or the two disagree and the screen
+	 * carries two statuses for one fact. */
+	const visibleValue = disabled
+		? (disabledReason ?? 'No options available')
+		: shortValue;
 
 	return (
 		<SearchableSelect
@@ -162,7 +191,7 @@ export function FilterPicker({
 			placeholder={placeholder ?? fallbackPlaceholder}
 			ariaLabel={ariaLabel ?? name}
 			triggerLabelPrefix={name}
-			triggerLabelValue={shortValue}
+			triggerLabelValue={visibleValue}
 			triggerId={triggerId}
 			triggerTestId={dataTestId}
 			triggerClassName={pickerTriggerClass(width)}
