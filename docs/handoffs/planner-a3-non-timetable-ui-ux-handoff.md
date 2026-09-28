@@ -2551,6 +2551,157 @@ and for Lane C, and the ruling stands until the operator changes it.
 runtime/task/env change, or companion-repo action was taken at any point in c8.** A3 ran no browser,
 held no lock, worked only in registered worktrees, deleted no branch, and pushed a range proven to
 contain only accepted commits plus A2's own absorbed product advance (`origin/main` advanced
-`4c683e1f → 4adc9f2f` mid-cycle with real timetable code; the union was verified clean and all 14
+`4c683e1f -> 4adc9f2f` mid-cycle with real timetable code; the union was verified clean and all 14
 A3 gates were re-run **on the merged tree**, which also closed the one cross-stream row the S2
 reviewer had to leave blocked because the S3 gate did not exist in its own worktree).
+
+### 2026-09-28 c9 — 4 screens changed, integrated at `0373ac7d`. **The VISUAL loop is NOT closed.**
+
+**Screens changed: 4.** `/subjects` (items 1-5), `/sections` home-room dropdown (item 6),
+`/audit` finding titles (item 8), and the **app-wide token layer** (item 7), which reaches every
+screen including A2's timetable. **0 verified rendered on the live Tailnet** — this lane ran no
+browser and deployed nothing, so every one of the 24 live-acceptance rows below is owed.
+
+**1. Candidates, all `ACCEPT_READY` from fresh independent review.**
+
+| Stream | Base | Candidate | Review | Rows |
+|---|---|---|---|---|
+| S1 `/subjects` items 1-5 | `a7ccb738` | `2b9cd297` | `ACCEPT_READY` | 7/7/0/0 |
+| S2 `/sections` item 6 | `a7ccb738` | `cb02154f` | `ACCEPT_READY` | 7/7/0/0 |
+| S3 tokens + leak, items 7-8 | `a7ccb738` | `74efb845`+`53eceebe` | **no verdict** (step ceiling) | 5 PASS / 2 unperformed |
+| S3 correction 1 | `53eceebe` | `6cd5d7b2` | `CORRECTION_REQUIRED` | 5/7, 1 BLOCKING |
+| S3 correction 2 | `6cd5d7b2` | `e0d48d18` | `ACCEPT_READY` | 6/6/0/0 |
+| planner correction (docs only) | `6cd5d7b2`+merge | `d88217f8` | self-checked | additive, 4 findings |
+
+**2. Two BLOCKING findings, both on my own packet's premise, both real.**
+
+- **The token layer cannot carry item 7.** `--accent` is doing double duty: `text-primary` on a
+  light tint (228+ sites) *and* a label colour on a solid accent fill. I measured the whole band and
+  the feasible regions are **disjoint** — `--foreground`-on-accent needs L >= ~35, accent-on-wash
+  needs L <= ~30. **No lightness satisfies both.** So darkening to fix the text sites necessarily
+  breaks label-on-fill sites, and each one is a call site that must change.
+- **That produced two cross-fence edits, both mine to authorise, neither silent.** Darkening
+  `--accent` to 29% dropped `ScheduleReviewWorkspaceHeader.tsx:780`'s `hover:text-foreground` on
+  `hover:bg-accent` from **5.850:1 to 3.336:1** — a new AA failure on a `text-xs` element inside
+  **A2's** file. Correction 1 fixed it to `hover:text-accent-foreground` (**5.358:1**). Then the
+  re-review found the guard that was written to prove completeness could not see the class it
+  existed to catch: its regex matched 5 pseudo-classes and omitted `data-[state=…]` and unprefixed
+  sites, and `DARK_TEXT_TOKENS` omitted `muted-foreground`. Re-deriving the enumeration found
+  `ui/dialog.tsx:42` — the **modal close X** rendering muted-foreground on solid accent at
+  **1.058:1**, *worsened* by this range from 1.854:1 and far below the 3:1 of 1.4.11/2.4.7. **This
+  was worse than the failure that triggered correction 1.** Correction 2 fixed it to
+  `text-accent-foreground` (**5.358:1**) and widened the guard on both counts, proven failing-first.
+
+**Authority relied on, recorded rather than assumed:** the operator's packet assigned the `index.css`
+fix to A3 for exactly this purpose ("post the change and the list of timetable screens it touches in
+`lane-a-to-c.md` so A2 is not surprised"). I authorised each cross-fence line myself, minimally and
+by name, and A2 was told in the same commits. **Both were consequences of a defect the packet exists
+to fix — refusing them would have shipped an invisible close button and left 228+ sub-AA text
+sites.** The alternative (not darkening `--accent` at all) was considered and rejected: it refuses
+the task.
+
+**3. Two executor numbers that did not survive review. Corrected here, per section 11.**
+
+- **S1 item 1** was reported as 1 control failing on base. The reviewer reproduced **3**. The error
+  direction *understated* the executor's own work, so it is not green-washing, but the published
+  number was not reproducible and does not stand.
+- **S2** was reported as base `0 pass / 5 fail`. The reviewer reproduced **`1 pass / 4 fail`** (plus
+  **2 fail** in the modified occupant file), because "selecting an occupied room still escalates to
+  a confirmation" is a preservation control that correctly passes on base. Decisive failing-first is
+  real; the number was not.
+
+**4. A third executor claim that was wrong, and the pattern it completes.** The S3 correction claimed
+"no second site" for the accent pairing. A reviewer found one, then a second one, and then a third
+wrong number (the `2.795:1` "independently reproduced" figure does not reproduce from any committed
+surface and is now withdrawn). **That is three consecutive cycles where my own executor's
+self-assessment was the weak link** (c5 F6, c6 C4, c8 grade badge, now c9 x2). The pattern is now
+consistent enough to state as a rule rather than an observation: *an executor reporting "I checked
+for X" is a claim, and a reviewer re-deriving X is the only thing that makes it evidence.* A3 should
+size review to cover the completeness claims, not the diff.
+
+**5. Gates on the merged tree — 245 pass, 0 fail, 3 pre-existing skips, 18 A3 gates.**
+`a3-subjects` 29 · `a3-c4-subjects-copy` 19 · `a3-c5-subjects-stats` 14 · `a3-c5-subjects-error-copy` 7 ·
+`a3-c6-duplicate-copy` 11 · `a3-c8-audit` 7 · `a3-sections-map` 25 · `a3-c4-sections` 26 ·
+`a3-truthful-numbers` 20 · `a3-c9-operator-tokens` 21 · `a3-c8-warning-token` 14 ·
+`a3-palette-token-sweep` 9 · `a3-palette-ratchet-s-e` 5 · `a3-palette-slate400-s-f` 9 ·
+`a3-teachers-load` 36 · `ux-guardrails` 31 · `global-scrollbars` 1 · `a3-c4-copy` 15/3 skipped.
+Typecheck **5 errors in 4 A2-owned files, no sixth** (baseline independently reproduced at base by
+three reviewers this cycle). Production build **exit 0**, `VITE_ENROLLPRO_URL` process-local for the
+one command and empty at Process/Machine/User before and after.
+
+**6. The cross-stream rows only a merged tree could decide — all closed.** S1 and S2 both re-pinned
+`a3-c8-warning-token`; S2 measured 232->230 raw amber lines while S1 added a new palette consumer.
+Both pins re-derived on the merged tree. S3's `index.css` byte pin fired **five** times (each on
+comment-only edits, which is what that pin does); all five re-pins are additive with every prior
+value retained. S3's corrected `CALL-SITE` guard and its population pin both ran on the merged tree
+**after A2's c7 timetable product code landed** (`a17a813f`, 25 files) — and A2's c7 edited the same
+file correction 1 had edited. The union was verified: my `hover:text-accent-foreground` sits at line
+767, A2's `RunStateBadge` refactor intact, `git diff --check` clean.
+
+**7. `VERIFIED_CACHED` is a judgement call I made and flag for review.** Item 1 said failure states
+"may still show". I kept `BLOCKED` (a `role="alert"`) and `VERIFIED_CACHED` (a stale-source warning,
+amber, full block) and removed only the routine `VERIFIED_LIVE` strip. The term contract is no
+longer dead: it moved to a footer popover (`SubjectTermContractPopover`) carrying the S.Y. label,
+term count, ordered terms, the Active marker and the authority message. **The packet authorised the
+removal; whether a stale-source block counts as "briefly, where the work is blocked" is a product
+call and it is the operator's to overturn.**
+
+**8. Ledger, terminal state as of 2026-09-28 +08.** Unchanged: `QA_PASSED` 01-07, 09-26, 29-33B.
+`BLOCKED_PRODUCT_DECISION` **08**. `BLOCKED_SOURCE_GAP` **27, 28, 34**. c4 item 7
+`BLOCKED_NOT_REPRODUCED`. **c9 closes no numbered finding** — items 1-8 are the operator's own
+decisions, and they closed the c8 backlog lines for the token layer and the `UNRESOLVED` leak, plus
+the c8 recorded raw-palette stumbles on `/subjects`.
+
+**New dated backlog, none blocking:**
+
+- **`--accent` remains double-duty, now proven, and is a token-layer design decision** rather than a
+  value problem. One accent cannot serve light-tint text and solid-fill labels. c9 fixed every
+  current call site; the next darkening will find the next one.
+- **`--accent-ring` is still below 3:1** (2.837:1 on the true wash stop) and is carried debt, asserted
+  as a shortfall so it cannot read as a pass.
+- **`--muted-foreground` darkened at 1292 sites app-wide**, including Login and every timetable
+  surface. The widest visual change in c9 and the one a reviewer should eyeball first.
+- **A school EnrollPro brand colour bypasses the accent contract entirely** —
+  `applyEnrollProAccentTheme()` rewrites `--accent`/`--primary` from the runtime brand colour, so
+  this contract does not govern what renders for such a school. Unfixable from the token layer.
+- **`room-picker-occupied-hint` is the better explanation of the operator's original symptom** and is
+  untouched. The live report could not reproduce a hover reflow; this banner is inserted/removed on
+  `onMouseEnter`/`onFocus` inside a fixed-height column and is the only code path in that component
+  that reflows on hover. Two reviewers reached that judgement independently. Carried as a
+  first-class open item, decided by a screen recording.
+- **The `CALL-SITE` guard's unit is one line**, so an element whose fill and label sit on different
+  lines would be invisible to it. A reviewer scanned per *element* (line-break-agnostic) and found
+  **36 production elements with a solid accent/primary fill, 0 offenders** — so the blind spot is
+  real but currently empty.
+- **The `index.css` byte pin has now fired five times in one range.** It is a byte-detector, not a
+  value-detector, so comment-only documentation work re-pins it every time. That is a real
+  maintenance cost and a successor to reconsider the pin's form.
+- Carried, unchanged: 5 pre-existing typecheck errors in 4 A2-owned files; `room-schedules` "unfinished"
+  premise contradicted by source (Lane C's to re-check); `.gitignore:70` `SMART/`; dark-writer
+  tripwire 8 of 14 shapes; 232 raw amber-yellow lines outside the 13-file sweep; `Dashboard.tsx`
+  966/1000.
+
+**9. Live-acceptance rows owed — 24, none decidable from source, none performed.** Named in the three
+review verdicts and summarised by screen: `/subjects` at 1366x768 (no strip, <=2 header rows, one
+filter row with no clipping, term filter actually filters, grade colours match the Teachers table
+side by side, footer term popover focus-return, empty-catalog state); `/sections` (occupied and
+vacant option heights **measured equal**, single-line occupancy badge, full-name tooltip on a long
+name, confirmation kept, and **a real-mouse sweep with a screen recording** — the row that decides
+the carried pointer symptom); **any modal** (close X white on emerald, visible at `opacity-70` and on
+hover, still focusable, `Esc` still closes); the `How It Works` hover (white on emerald); the
+`--muted-foreground` / `--destructive` / `--accent` spot-checks on A2's c7 surfaces including the
+`TacticalSandboxDock` published-state pill; dark mode; `/audit` finding titles. **Assert
+`window.location.origin` on every row against `https://njgrm.buru-degree.ts.net`.** Nothing is
+deployed, so these cannot run until A2 releases; loopback `127.0.0.1:5174` is a different origin and
+an ATLAS cookie is not sent to it.
+
+**No deployment, migration, generation, publication, live-data write, browser session,
+runtime/task/env change, or companion-repo action was taken at any point in c9.** A3 ran no browser,
+held no lock, deleted no branch, and pushed a range enumerated before the push containing only
+accepted candidates, two reviewed corrections, one planner documentation correction, and A2's own
+absorbed advance.
+
+**Verdict for c9:** four screens changed, integrated and pushed at **`0373ac7d`**, source-accepted
+only. **The VISUAL loop is open** — 24 rendered rows are owed, and the two BLOCKING findings above
+are the strongest argument in this lane's record for treating a completeness claim as unproven until
+someone re-derives it.

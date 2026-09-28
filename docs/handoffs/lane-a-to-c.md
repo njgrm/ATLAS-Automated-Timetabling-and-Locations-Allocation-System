@@ -1039,5 +1039,62 @@ raw ring token with no alpha 4.885:1. **No token value changed, no verdict chang
 a recorded **shortfall, not a pass** — `index.css` was re-pinned additively because these are comment-only edits.
 
 **Still nothing deployed and still not browser-verified.** If you take one rendered row for this one, it is any dialog
-you open — press `Esc` or click the `X` in the corner, which is visible in its default open state — and it should now
+you open - press `Esc` or click the `X` in the corner, which is visible in its default open state - and it should now
 read as a **white X on the emerald fill** instead of a near-invisible grey X.
+
+## 2026-09-28 13:26 +08 - A3 integrated for release at `0373ac7d` - 4 screens, and the token change is bigger than the table above says
+
+Integrated and pushed. **Screens changed: 4** - `/subjects`, `/sections` (home-room dropdown), `/audit` (finding
+titles), and the **app-wide token layer**, which reaches your timetable surfaces. **Zero of it is browser-verified**:
+A3 ran no browser and deployed nothing, so **24 rendered rows are owed** and they cannot run until you release.
+
+**Two things you need that are not in the table above.**
+
+**1. A2 — I edited two lines in your files, under planner authority, and you should know exactly which.** The
+`--accent` darkening was unavoidable (below), and it broke two label-on-fill pairings that only a call-site change
+could fix:
+
+| File | Line | Change | Why |
+|---|---|---|---|
+| `components/timetable/ScheduleReviewWorkspaceHeader.tsx` | 767 | `hover:text-foreground` -> `hover:text-accent-foreground` | `--foreground` is `222 47% 11%`, a **dark** navy. Dark text on the darkened accent went **5.850:1 -> 3.336:1**, a new AA text failure on a `text-xs` link. White on accent = **5.358:1**. |
+| `ui/dialog.tsx` | 42 | `data-[state=open]:text-muted-foreground` -> `data-[state=open]:text-accent-foreground` | The **modal close X** inherited `currentColor` and rendered at **1.058:1** - worsened by this range from 1.854:1, and far below the 3:1 of 1.4.11/2.4.7. **The close button was effectively invisible.** White on accent = **5.358:1**. |
+
+Both are single class tokens on single lines; neither file received a comment, a reformat, or any other change. The
+second one landed **on top of your c7 work** - your `RunStateBadge` refactor and my line are both in the merged file
+and the union was verified clean. Your other 12 solid-accent surfaces already paired a light label and **improve** with
+this darkening. If you would rather own these two lines, say so and I will hand them back.
+
+**2. Why the accent had to move at all - and why the same value cannot do both jobs.** `--accent` is doing **double
+duty**: `text-primary` on a light tint (228+ sites) and a label colour on a solid accent fill. I measured the whole
+band and the feasible regions are **disjoint** - `--foreground`-on-accent needs L >= ~35, accent-on-wash needs L <= ~30.
+**No lightness satisfies both.** So fixing the text sites necessarily breaks label-on-fill sites, and every one of them
+is a call site. If you darken or lighten `--accent` again, expect to re-run the offender scan; the control is
+`npm run test:a3-c9-operator-tokens` (`CALL-SITE`), and it is now wide enough to see `data-[state=...]`, `group-hover`
+and unprefixed fills.
+
+**Screens for your browser rows**, assert `window.location.origin` on each: the `How It Works` hover (white on
+emerald, not dark navy); **any modal** (close X white on emerald, visible at `opacity-70` and on hover, still focusable,
+`Esc` still closes); the `TacticalSandboxDock` published/draft pill (was 2.910:1 on `bg-primary/5`, now 5.005:1 - a
+state signal that was below the 3:1 UI floor and now reads as one); your other `bg-primary/10` accents in
+`TimetablePlacementDialogs` / `TacticalSandboxDock.parts`; the destructive copy on `TimetableRunsPane`, `CenterWorkspace`,
+`RightPanel`, `ScheduleReviewWorkspace`, the published-revision panels and `TimetableUndoRedoControl` (all darkened,
+none pushed below 4.5:1); and dark mode, which was deliberately left alone.
+
+**Two corrections I made to my own numbers after review, because you will read the figures.** The packet's
+"3.55 / 4.02 / 3.09" were **not reproducible** on any surface I could identify - do not quote them onward. The wash
+figures were measured against a surface the browser never paints (`html` declares no background, so the `body` gradient
+composites over the canvas, giving `#eff6f3`); the corrected worst case is **5.167 / 5.147 / 4.885**, conservative
+against what was documented. And the ring's `2.795:1` was claimed "independently reproduced" - it **is not
+reproducible** from any committed surface and is withdrawn; the real figure is **2.837:1**, still below 3:1, still
+carried as debt. A `--accent-ring` rounding tie also decides a digit: the wash composite's green channel is exactly
+`158.5`, and round-half-up gives 159 (**2.837**) where .NET banker's rounding gives 158 (2.866). It is now pinned by an
+assertion rather than prose.
+
+**Two caveats that survive the fix and are yours to weigh.** A school with an EnrollPro brand colour set bypasses this
+contract entirely - `applyEnrollProAccentTheme()` rewrites `--accent`/`--primary` from the runtime brand colour, so
+**none of the above governs what renders for such a school**, and it is unfixable from the token layer. And
+`--muted-foreground` darkened at **1292 sites app-wide**, including Login and every timetable surface; it is the
+widest visual change here and the one I would look at first.
+
+**Next action for you:** release when your own window allows, then take the rows above. **Next action for A3:** the 24
+owed rows stay open; A3 holds no browser lock and will not claim them.
