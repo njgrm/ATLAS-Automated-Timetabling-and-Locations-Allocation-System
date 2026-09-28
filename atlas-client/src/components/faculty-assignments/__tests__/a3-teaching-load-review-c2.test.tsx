@@ -106,9 +106,11 @@ dom.window.HTMLElement.prototype.releasePointerCapture ??= () => {};
 const { createRoot } = await import('react-dom/client');
 const { MemoryRouter } = await import('react-router-dom');
 const { TooltipProvider } = await import('@/ui/tooltip');
-// The real bottom bar. C2-1 renders it beside the real repair-queue banner so
-// the page's two controls sharing the label `Review teachers` are in one tree.
+// The real bottom bar. After fix 16.1 it renders the MOBILE control only, so the
+// page's remaining control under the label `Review teachers` is the repair
+// queue's Next Step action. See the `FIX 16.1` note on the host below.
 const { TeachingLoadInspectorTriggers } = await import('@/components/faculty-assignments/TeachingLoadInspectorTriggers');
+const { TeacherGridMode } = await import('@/components/faculty-assignments/TeacherGridMode');
 
 const clientRoot = resolve(import.meta.dirname, '../../../..');
 const read = (relative: string) => readFileSync(resolve(clientRoot, relative), 'utf8');
@@ -220,14 +222,33 @@ const REVIEW_TITLE = 'Teacher workload: Dela Cruz, Maria';
  * The real page wiring, minus the page's data layer: the real
  * `useTeachingLoadRepairQueue` (so the banner's primary action is production
  * code), the real `TeachingLoadRepairQueue` banner, the real
- * `TeachingLoadInspectorTriggers` bottom bar, the real `openTeacherReview` bound
- * to BOTH, and the real `ReviewTeachersModal` driven by the one `open` flag.
+ * `TeachingLoadInspectorTriggers` bottom bar, the real `TeacherGridMode` rows,
+ * the real `openTeacherReview` bound to BOTH entry points, and the real
+ * `ReviewTeachersModal` driven by the one `open` flag.
  *
  * `FACULTY` has a non-zero load and no placeholders, so the queue resolves to its
  * single `review-ready` item, whose `actionLabel` is the literal
  * `Review teachers` — the label the live surface showed on the dead control.
+ *
+ * FIX 16.1 (operator, 2026-09-28) — the two controls under that label became
+ * ONE, and the per-teacher entry point is new.
+ *
+ * The old host passed `onOpenReview: open` to `TeachingLoadInspectorTriggers`
+ * and counted two controls. The detached bottom-right button is deleted, so:
+ *
+ *   - `TeachingLoadInspectorTriggers` gets NO `onOpenReview` prop, and renders
+ *     only the mobile `View profile` control.
+ *   - `TeacherGridMode` is rendered with `onReviewLoad={openFor}`, where
+ *     `openFor(facultyId)` selects that teacher and then calls the SAME `open`.
+ *     This is the page's `openTeacherReviewFor` reproduced exactly.
+ *
+ * C2-1 and C2-3 are INVERTED to require `>= 1` and to pin the single surviving
+ * id, and C2-4 is ADDED to cover the per-row control — because "there is
+ * exactly one control with this label" and "the per-row control opens the
+ * right teacher" are different claims, and only the second one proves item
+ * 16.1.
  */
-function TeachingLoadReviewHost() {
+function TeachingLoadReviewHost(props: { onRowSelect?: (id: number) => void } = {}) {
 	// The host must start OFF the teacher view. `openTeacherReview` calls
 	// `setViewMode('teacher')`, so a host already in `teacher` cannot tell a
 	// working view-mode switch from a missing one — the very state in which the
@@ -236,7 +257,14 @@ function TeachingLoadReviewHost() {
 	const [viewMode, setViewMode] = useState<'teacher' | 'allocation'>('allocation');
 	const [reviewModalOpen, setReviewModalOpen] = useState(false);
 	const [advancedGridVisible, setAdvancedGridVisible] = useState(true);
+	const [selectedId, setSelectedId] = useState<number | null>(null);
 	const open = () => teacherReviewEntry.openTeacherReview({ setViewMode, setReviewModalOpen });
+	// The page's `openTeacherReviewFor`, verbatim: select the named teacher
+	// FIRST, then open the one shared modal.
+	const openFor = (facultyId?: number | null) => {
+		if (facultyId != null) setSelectedId(facultyId);
+		teacherReviewEntry.openTeacherReview({ setViewMode, setReviewModalOpen });
+	};
 	const queue = useTeachingLoadRepairQueue({
 		searchParams: new URLSearchParams(),
 		setSearchParams: () => {},
@@ -255,7 +283,7 @@ function TeachingLoadReviewHost() {
 		onShowTeachersWithoutLoad: () => {},
 		onShowOverloaded: () => {},
 		onShowPlaceholder: () => {},
-		onOpenReview: open,
+		onOpenReview: () => openFor(null),
 		setAdvancedGridVisible,
 	});
 	return createElement(
@@ -265,6 +293,9 @@ function TeachingLoadReviewHost() {
 		// disturb C2-1's label-based discovery, which enumerates `button`
 		// elements only. Verified by running the suite, not by reasoning.
 		createElement('div', { 'data-testid': 'host-view-mode' }, viewMode),
+		// The page's title derivation, so C2-4 can prove the modal names the
+		// teacher the row button named.
+		createElement('div', { 'data-testid': 'host-selected-id' }, selectedId == null ? '(none)' : String(selectedId)),
 		createElement(TeachingLoadRepairQueue as any, {
 			items: queue.repairQueueItems,
 			activeItemId: queue.activeRepairId,
@@ -276,11 +307,77 @@ function TeachingLoadReviewHost() {
 		createElement(TeachingLoadInspectorTriggers as any, {
 			visible: true,
 			onOpenMobile: () => {},
-			onOpenReview: open,
+		}),
+		createElement(TeacherGridMode as any, {
+			loading: false,
+			faculty: [FACULTY],
+			filteredFaculty: [FACULTY],
+			groupedFaculty: [['Mathematics', [FACULTY]]],
+			selectedId,
+			// The ROW's own selection path — the one `handleTeacherClick` calls
+			// when the row itself is activated. Kept SEPARATE from the page's
+			// selection so C2-4 can tell the two apart, which is the whole point:
+			// a `Review load` click must NOT travel through this one.
+			onSelectTeacher: props.onRowSelect ?? setSelectedId,
+			effectiveAssignmentsByFaculty: { 9: [{ subjectId: 1, sectionIds: [1], gradeLevels: [7] }] },
+			effectiveDraftAssignmentsByFaculty: {},
+			subjects: [],
+			sectionsBySubject: {},
+			saving: false,
+			isReadOnlyMode: false,
+			effectiveOwnershipMap: {},
+			savedConflictMap: {},
+			onSetSections: () => {},
+			onSwapSectionOwnership: () => {},
+			departmentQualifiedSubjects: [],
+			outsideDepartmentSubjects: [],
+			homeroomHint: null,
+			loadProfile: null,
+			onHoverLoadMinutes: () => {},
+			onClearHoverLoad: () => {},
+			activeFacultyIds: new Set<number>([FACULTY.id]),
+			resolveSectionHoverDeltaMinutes: () => 0,
+			onResetAssignments: () => {},
+			searchQuery: '',
+			onSearchQueryChange: () => {},
+			filterStatus: 'all',
+			onFilterStatusChange: () => {},
+			statusFacetCounts: { all: 1, 'teaching-assigned': 1, 'no-teaching': 0, 'adviser-only': 0, excess: 0 },
+			loadFilter: 'all',
+			loadFacetCounts: { excess: 0, 'at-standard': 1, 'below-standard': 0 },
+			onLoadFilterChange: () => {},
+			departmentFilter: 'all',
+			onDepartmentFilterChange: () => {},
+			departmentOptions: [],
+			filterAnnouncement: '',
+			onClearTeachingLoadFilters: () => {},
+			effectiveActualHours: new Map<number, number>(),
+			teachingStandardHours: 20,
+			policyReady: true,
+			sortOrder: 'load-desc',
+			onSortOrderChange: () => {},
+			showFilters: false,
+			onToggleFilters: () => {},
+			showOutsideDept: false,
+			onToggleOutsideDept: () => {},
+			showUnmappedSpecialization: false,
+			onShowUnmappedSpecializationChange: () => {},
+			completedSectionIds: new Set<number>(),
+			workspaceStateLabel: 'Ready',
+			workspaceStateNextAction: 'Assign the remaining classes.',
+			writeBlockedReason: null,
+			onReviewLoad: openFor,
 		}),
 		createElement(
 			ReviewTeachersModal as any,
-			{ open: reviewModalOpen, onOpenChange: setReviewModalOpen, title: REVIEW_TITLE, description: 'desc' },
+			{
+				open: reviewModalOpen,
+				onOpenChange: setReviewModalOpen,
+				title: selectedId == null
+					? 'Review teachers'
+					: `Teacher workload: ${FACULTY.lastName}, ${FACULTY.firstName}`,
+				description: 'desc',
+			},
 			createElement('div', null, 'inspector body'),
 		),
 	);
@@ -301,14 +398,26 @@ test('C2-1 every control labelled `Review teachers` actually opens the review di
 	const found = labelled.length;
 	const testIds = labelled.map((b) => b.getAttribute('data-testid') ?? '(no test id)');
 	t.diagnostic(`controls labelled "Review teachers": found ${found} -> [${testIds.join(', ')}]; wired to the production opener: ${found}`);
+	// FIX 16.1 removed the detached bottom-right control, so the floor drops from
+	// two to one. It is still a floor, not an exact count, on purpose: this row
+	// exists to catch a LABELLED control that does nothing, and a new
+	// unlabelled dead control is a different failure. The pin below is what makes
+	// the surviving set exact.
 	assert.ok(
-		found >= 2,
-		`the page must expose both the Next Step banner and the bottom bar under this label, found ${found}: [${testIds.join(', ')}]`,
+		found >= 1,
+		`the page must still expose its Next Step review action under this label, found ${found}: [${testIds.join(', ')}]`,
 	);
 	assert.deepEqual(
 		[...new Set(testIds)].sort(),
-		['teaching-load-repair-review', 'teaching-load-review-open'],
-		'the two controls found must be the banner and the bottom bar',
+		['teaching-load-repair-review'],
+		'after fix 16.1 the Next Step action is the only control carrying this label',
+	);
+	// The removed control must be gone from the rendered tree, not merely
+	// unlabelled.
+	assert.equal(
+		host.querySelector('[data-testid="teaching-load-review-open"]'),
+		null,
+		'the detached bottom-right `Review teachers` control must not render',
 	);
 
 	// Each control is exercised in its OWN render, so a dialog opened by the
@@ -354,13 +463,13 @@ test('C2-1 every control labelled `Review teachers` actually opens the review di
 		t.diagnostic(`${testId}: opened ${dialog.getAttribute('data-testid') ?? '(untagged dialog)'}`);
 		assert.match(
 			(dialog as HTMLElement).textContent ?? '',
-			new RegExp(REVIEW_TITLE),
+			/review/i,
 			`${testId} must open the teacher review dialog, not some other dialog`,
 		);
 	}
 });
 
-test('C2-2 both `onOpenReview` sites in the page bind the one production opener', () => {
+test('C2-2 every page entry point binds the ONE production opener, through the one wrapper', () => {
 	const page = read('src/pages/TeachingLoad.tsx');
 	// The pre-fix banner binding: it set a view mode that was already `teacher`,
 	// so the click took focus and opened nothing.
@@ -374,13 +483,35 @@ test('C2-2 both `onOpenReview` sites in the page bind the one production opener'
 		/onOpenReview=\{\(\) => setReviewModalOpen\(true\)\}/,
 		'the bottom bar must share the same opener rather than keeping a private one',
 	);
+	// FIX 16.1: the two former call sites are now ONE direct call plus the
+	// `openTeacherReviewFor` wrapper. Two openers would let the modal, its title
+	// and its view mode disagree between the Next Step action and a row button.
 	const bound = page.match(/openTeacherReview\(\{ setViewMode: ui\.setViewMode, setReviewModalOpen \}\)/g) ?? [];
 	assert.equal(
 		bound.length,
-		2,
-		`both onOpenReview sites must bind the one opener, found ${bound.length}`,
+		1,
+		`the page must contain exactly one direct opener call — the wrapper's — found ${bound.length}`,
 	);
 	assert.match(page, /import \{ openTeacherReview \} from '@\/components\/faculty-assignments\/teacherReviewEntry';/);
+
+	// The wrapper is the load-bearing part: it must SELECT the named teacher
+	// BEFORE opening, and both entry points must go through it.
+	assert.match(
+		page,
+		/const openTeacherReviewFor = useCallback\(\(facultyId\?: number \| null\) => \{/,
+		'the shared wrapper must exist and accept an optional faculty id',
+	);
+	assert.match(
+		page,
+		/if \(facultyId != null\) data\.setSelectedId\(facultyId\);[\s\S]{0,200}openTeacherReview\(\{ setViewMode: ui\.setViewMode, setReviewModalOpen \}\);/,
+		'the wrapper must select the named teacher and THEN open — otherwise the dialog opens against the previous teacher for one render',
+	);
+	// The repair queue (no teacher named) and the grid rows (a teacher named) are
+	// both bound to that one wrapper.
+	assert.match(page, /onOpenReview: \(\) => openTeacherReviewFor\(null\)/, 'the repair queue must open through the wrapper with no teacher');
+	assert.match(page, /onReviewLoad=\{openTeacherReviewFor\}/, 'every teacher row must open through the same wrapper');
+	// The removed prop must not be passed to the triggers component any more.
+	assert.doesNotMatch(page, /onOpenReview=\{/, 'the detached control and its prop binding must be gone');
 
 	// And the opener itself must open the dialog, not merely switch a view.
 	const opener = read('src/components/faculty-assignments/teacherReviewEntry.ts');
@@ -412,7 +543,7 @@ test('C2-2 both `onOpenReview` sites in the page bind the one production opener'
  * Additive to C2-1 and C2-2, which are unchanged: this asserts the view-mode
  * half of the same opener, not a replacement for the dialog assertion.
  *
- * Both controls are exercised, each from a clean document via the existing
+ * Each control is exercised, each from a clean document via the existing
  * per-iteration `teardown()`.
  */
 test('C2-3 every control labelled `Review teachers` drives the view mode to `teacher`', (t) => {
@@ -430,13 +561,13 @@ test('C2-3 every control labelled `Review teachers` drives the view mode to `tea
 	const labelled = buttonsIn(host).filter((b) => (b.textContent ?? '').trim() === 'Review teachers');
 	const testIds = labelled.map((b) => b.getAttribute('data-testid') ?? '(no test id)');
 	assert.ok(
-		labelled.length >= 2,
-		`the page must expose both the Next Step banner and the bottom bar under this label, found ${labelled.length}: [${testIds.join(', ')}]`,
+		labelled.length >= 1,
+		`the page must still expose a review action under this label, found ${labelled.length}: [${testIds.join(', ')}]`,
 	);
 	assert.deepEqual(
 		[...new Set(testIds)].sort(),
-		['teaching-load-repair-review', 'teaching-load-review-open'],
-		'the two controls found must be the banner and the bottom bar',
+		['teaching-load-repair-review'],
+		'after fix 16.1 the Next Step action is the only control carrying this label',
 	);
 
 	for (const testId of testIds) {
@@ -480,4 +611,157 @@ test('C2-3 every control labelled `Review teachers` drives the view mode to `tea
 		);
 		t.diagnostic(`${testId}: view mode "${before}" -> "${mode}"`);
 	}
+});
+
+/**
+ * FIX 16.1 — the per-teacher `Review load` button.
+ *
+ * ADDITIVE to C2-1, which after the operator's change can only prove that the
+ * ONE remaining `Review teachers` control works. Three further claims are
+ * separate and each can fail on its own:
+ *
+ *  1. The label. The requested control reads `Review load`, not `Review
+ *     teachers` — a shorter name that says which teacher it belongs to, because
+ *     the button is now INSIDE that teacher's row.
+ *  2. The teacher. Clicking the row's button must open the review for THAT
+ *     member, selected first.
+ *  3. The click must not ALSO run the row's own click handler.
+ *
+ * ON CLAIM 3, AND WHY IT IS NOT ASSERTED AS `aria-expanded === 'false'`.
+ *
+ * The row is a `div role="button"` whose handler is `handleTeacherClick`, and
+ * `handleTeacherClick` is exactly what `event.stopPropagation()` prevents the
+ * `Review load` click from reaching. So the load-bearing, discriminating claim
+ * is: the row's OWN click path did not run.
+ *
+ * A control that asserted the row stayed `aria-expanded="false"` would be
+ * asserting something that is NOT TRUE on the real page, and would fail for the
+ * wrong reason. Selecting a teacher expands its row: `TeacherGridMode` has a
+ * pre-existing `useEffect` on `selectedId` that calls `setExpandedId`. The page
+ * MUST select the clicked teacher (claim 2), so that effect legitimately fires
+ * and the row opens. That is existing page behaviour on the selection path, not
+ * the row's click handler running a second time, and it is deliberately not what
+ * this row claims.
+ *
+ * So claim 3 is measured the only way it can be: the grid is given a SEPARATE
+ * spy for its `onSelectTeacher` prop — the one `handleTeacherClick` calls — and
+ * that spy must stay at zero calls. Removing `stopPropagation` makes the click
+ * bubble to the row, `handleTeacherClick` runs, and the spy fires. The test
+ * therefore discriminates on the removal, which is what it is for.
+ */
+test('C2-4 the per-teacher `Review load` button opens THAT teacher without running the row handler', (t) => {
+	teardown();
+	// The spy stands in for the grid's own `onSelectTeacher` — the row-click
+	// path ONLY. It is a plain counter: a failing assertion must stay a readable
+	// number, never a node (see the `myersDiff` blow-up recorded in the header).
+	const rowClickPath: number[] = [];
+	const host = render(createElement(TeachingLoadReviewHost as any, {
+		onRowSelect: (id: number) => { rowClickPath.push(id); },
+	}));
+
+	// 1 — the label, read from the rendered DOM, enumerated like C2-1.
+	const rowControls = buttonsIn(host).filter((b) => (b.textContent ?? '').trim() === 'Review load');
+	assert.equal(rowControls.length, 1, 'each rendered teacher row must carry exactly one `Review load` button');
+	const control = rowControls[0];
+	assert.equal(
+		control.getAttribute('data-testid'),
+		'teaching-load-row-review',
+		'the per-row control must be addressable by its own test id',
+	);
+	// WCAG 2.5.3 Label in Name: the accessible name CONTAINS the visible label.
+	// The name additionally carries the DISPLAY form of the teacher, which under
+	// the c10 re-issue of Fix 22 is UPPERCASE — matching the stored mixed-case
+	// string here would be a control that can never pass.
+	const aria = control.getAttribute('aria-label') ?? '';
+	assert.ok(
+		aria.startsWith('Review load'),
+		`the accessible name must contain the visible label; got "${aria}"`,
+	);
+	assert.match(aria, /DELA CRUZ/, 'the accessible name must also name the teacher');
+	// AGENTS.md §8: no raw title on a control whose extra information belongs in
+	// a @/ui Tooltip.
+	assert.equal(control.getAttribute('title'), null, 'no raw title attribute on the per-row control');
+
+	// Preconditions, in the same order C2-1 uses: a clean document and no
+	// selection yet. Asserted on SCALARS for the reason recorded above.
+	const strayDialog = dom.window.document.querySelector('[role="dialog"]');
+	assert.equal(strayDialog === null, true, 'precondition: no dialog may exist before the row button is clicked');
+	assert.equal(
+		(host.querySelector('[data-testid="host-selected-id"]')?.textContent ?? '').trim(),
+		'(none)',
+		'precondition: no teacher is selected before the row button is clicked',
+	);
+	assert.equal(rowClickPath.length, 0, 'precondition: the row click path has not run');
+
+	click(control);
+
+	// 3 — FIRST, before anything else can confuse the reading: the row's own
+	// click handler must not have run. This is what `stopPropagation()` buys.
+	assert.equal(
+		rowClickPath.length,
+		0,
+		`clicking \`Review load\` must not also run the row's own click handler — the click bubbled; saw ${JSON.stringify(rowClickPath)}`,
+	);
+
+	// 2 — the teacher. The page's own binding must have SELECTED that teacher
+	// and then opened the shared modal, and the dialog must be titled for the
+	// clicked teacher. `host-selected-id` is the page's selection, driven by
+	// `openTeacherReviewFor` — a different binding from the grid's row path above.
+	const selectedAfter = (host.querySelector('[data-testid="host-selected-id"]')?.textContent ?? '').trim();
+	assert.equal(
+		selectedAfter,
+		String(FACULTY.id),
+		`the page must select the clicked teacher before opening; saw "${selectedAfter}"`,
+	);
+	const dialog = dom.window.document.querySelector('[role="dialog"]') as HTMLElement | null;
+	assert.ok(dialog, 'the per-row `Review load` button must open the review dialog');
+	assert.match(
+		dialog.textContent ?? '',
+		new RegExp(REVIEW_TITLE),
+		'the dialog must be titled for the teacher whose row was clicked, not the previously selected one',
+	);
+	t.diagnostic(`row "Review load" -> page selected ${selectedAfter} (row click path: ${rowClickPath.length} calls) -> ${dialog.getAttribute('data-testid') ?? '(untagged dialog)'}`);
+
+	// And the view mode, so the row path drives the SAME opener the queue does
+	// rather than opening a modal of its own.
+	const mode = (host.querySelector('[data-testid="host-view-mode"]')?.textContent ?? '').trim();
+	assert.equal(mode, 'teacher', 'the per-row control must drive the view mode to `teacher` through the same opener');
+});
+
+/**
+ * FIX 16.1 — the selection effect is pre-existing behaviour, recorded so the
+ * omission in C2-4 above reads as a decision rather than a gap.
+ *
+ * `TeacherGridMode` expands a row whenever `selectedId` changes to a real
+ * teacher. The page MUST select the teacher a `Review load` click names, so that
+ * effect fires and the row opens — which is correct and intended: the scheduler
+ * clicked that teacher's row, and seeing it open is the expected result. This
+ * row pins the effect is still there, so nobody "fixes" it away while trying to
+ * make a naive `aria-expanded === 'false'` control pass.
+ */
+test('C2-5 selecting a teacher expands its row (pre-existing, deliberately not C2-4\'s claim)', () => {
+	teardown();
+	const rowClickPath: number[] = [];
+	const host = render(createElement(TeachingLoadReviewHost as any, {
+		onRowSelect: (id: number) => { rowClickPath.push(id); },
+	}));
+
+	const control = buttonsIn(host).find((b) => (b.textContent ?? '').trim() === 'Review load')!;
+	assert.ok(control, 'precondition: the per-row control must render');
+	const row = control.closest('[role="button"][aria-expanded]') as HTMLElement | null;
+	assert.ok(row, 'precondition: the teacher row must render as an expandable control');
+	assert.equal(row!.getAttribute('aria-expanded'), 'false', 'precondition: the row starts collapsed');
+
+	click(control);
+
+	assert.equal(
+		rowClickPath.length,
+		0,
+		'the row click handler must still not run — C2-5 is about the SELECTION effect, not the click',
+	);
+	assert.equal(
+		row!.getAttribute('aria-expanded'),
+		'true',
+		'selecting the teacher must still expand its row; this is the pre-existing effect C2-4 deliberately does not claim',
+	);
 });

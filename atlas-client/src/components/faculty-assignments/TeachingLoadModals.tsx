@@ -23,6 +23,23 @@ type TeachingLoadModalsProps = {
 	reviewInspector: ReactNode;
 	reviewTitle: string;
 	reviewDescription: string;
+	/**
+	 * FIX 40 — the pre-save confirmation.
+	 *
+	 * This is a DIFFERENT gate from `saveWarningOpen` and both must survive.
+	 * `saveWarningOpen` is the timetable-sync warning: it appears only when
+	 * `hasGeneratedRuns` is true, and it says which classes move back to the
+	 * unassigned list. This one is unconditional on a draft, it names the number
+	 * of pending changes and the term, and it is the thing `Save changes` opens.
+	 * Collapsing them would silently drop the sync warning; keeping them apart
+	 * is the point.
+	 */
+	saveChangesConfirmOpen: boolean;
+	onSaveChangesConfirmOpenChange: (open: boolean) => void;
+	onSaveChangesConfirm: () => void;
+	pendingChangeCount: number;
+	/** ` for Term 2` when the scope has a term, `''` when it does not. */
+	pendingChangeScope: string;
 };
 
 export function TeachingLoadModals({
@@ -44,6 +61,11 @@ export function TeachingLoadModals({
 	reviewInspector,
 	reviewTitle,
 	reviewDescription,
+	saveChangesConfirmOpen,
+	onSaveChangesConfirmOpenChange,
+	onSaveChangesConfirm,
+	pendingChangeCount,
+	pendingChangeScope,
 }: TeachingLoadModalsProps) {
 	return (
 		<>
@@ -60,15 +82,33 @@ export function TeachingLoadModals({
 				applyDisabledReason={suggestionApplyDisabledReason}
 			/>
 
-			<ConfirmationModal
-				open={saveWarningOpen}
-				onOpenChange={onSaveWarningOpenChange}
-				title="Save teaching load changes?"
-				description="Saving now will update the timetable's unassigned list when ATLAS next syncs. Any class whose teacher you changed will be moved back to the unassigned list. Do you want to continue?"
-				onConfirm={onSaveConfirm}
-				confirmText="Save changes"
-				variant="warning"
-			/>
+		<ConfirmationModal
+			open={saveWarningOpen}
+			onOpenChange={onSaveWarningOpenChange}
+			title="Save teaching load changes?"
+			description="Saving now will update the timetable's unassigned list when ATLAS next syncs. Any class whose teacher you changed will be moved back to the unassigned list. Do you want to continue?"
+			onConfirm={onSaveConfirm}
+			confirmText="Save changes"
+			variant="warning"
+		/>
+
+		{/*
+		 * FIX 40 — what `Save changes` actually opens. The count is singularised
+		 * so "1 uncommitted load assignment change" never reads as a typo, and
+		 * the term is appended by the page only when the scope has one. Nothing
+		 * else varies: the consequence sentence is the same every time, which is
+		 * what makes it worth reading once.
+		 */}
+		<ConfirmationModal
+			open={saveChangesConfirmOpen}
+			onOpenChange={onSaveChangesConfirmOpenChange}
+			title="Save Teaching Load Changes?"
+			description={`You have ${pendingChangeCount} uncommitted load assignment change${pendingChangeCount === 1 ? '' : 's'}${pendingChangeScope}. This will update faculty workloads and sync with the scheduling engine.`}
+			onConfirm={onSaveChangesConfirm}
+			confirmText="Confirm & Save"
+			variant="primary"
+		/>
+
 
 			<ConfirmationModal
 				open={discardConfirmOpen}

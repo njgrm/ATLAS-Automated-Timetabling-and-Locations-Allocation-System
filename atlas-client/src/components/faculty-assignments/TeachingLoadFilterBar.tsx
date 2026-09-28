@@ -7,18 +7,32 @@
  * Status, Department, and Load to one always-visible row and leaves only Sort
  * and the two optional inclusion switches behind the disclosure.
  *
+ * FIX 39 (operator, 2026-09-28) — THE DISCLOSURE IS GONE ENTIRELY. The
+ * operator's row is one continuous `flex flex-wrap items-center gap-2` carrying
+ * all seven controls, in this exact order: search, status, department, load,
+ * sort, cross-dept, unmapped-specialization. There is no `More filters` button
+ * and there is no second row. The reasoning is the original criterion, not a
+ * preference: a filter an operator uses daily was two clicks away, and the
+ * second row was a `rounded-xl border bg-background/80 p-2 shadow-sm` card that
+ * claimed its own box in a header already measured in single-digit pixels of
+ * headroom.
+ *
+ * WHY THE SEARCH BOX LOST ITS `flex-1`.
+ * It was `flex-1 min-w-44 max-w-xs` — elastic, so its width changed with the
+ * viewport and pushed the controls beside it around. The operator's `w-[240px]`
+ * is a fixed width with `shrink-0`, so the row's content is the same at 1920 as
+ * at 1280 and the seven controls keep their order. `flex-wrap` still applies, so
+ * a narrow viewport wraps the row rather than clipping it.
+ *
  * The no-scroll architecture is untouched and load-bearing: this component adds
  * NO scroll container. It is a `shrink-0` block above the existing
  * `flex-1 overflow-auto` roster region in the Teaching Load shell, so the
  * workspace still never produces a global browser scrollbar
  * (`h-[calc(100svh-3.5rem)]` -> `flex-1 min-h-0` -> `overflow-y-auto`).
  *
- * A3-C10-S3: the always-visible row moved from `h-9` to `h-8` controls and the
- * block gap from `space-y-2` to `space-y-1.5`. That is 4px on the row the
- * operator reads every day, taken from padding only — the four primary
- * controls keep their full width, their order and their one-row contract
- * (`teaching-load-primary-filters`), which F14-1 pins. The secondary
- * disclosure is untouched.
+ * FIX 40 — the page's draft controls arrive as `draftControls` and are rendered
+ * at the END of this row, so the Undo / Redo / Discard / Save group is
+ * right-aligned on the same line and the bottom sticky footer could be deleted.
  *
  * Density is asserted structurally by
  * `src/components/faculty-assignments/__tests__/a3-teachers-load-a3.test.tsx`:
@@ -27,7 +41,8 @@
  * header stack above this row is controlled by
  * `__tests__/a3-c10-tl-header-density.test.ts`.
  */
-import { AlertTriangle, Filter, LayoutGrid, ListFilter, RotateCcw, Search, Star } from 'lucide-react';
+import type { ReactNode } from 'react';
+import { AlertTriangle, LayoutGrid, ListFilter, RotateCcw, Search, Star } from 'lucide-react';
 import { Button } from '@/ui/button';
 import { Badge } from '@/ui/badge';
 import { Input } from '@/ui/input';
@@ -40,6 +55,14 @@ import {
 	type TeachingLoadFacet,
 } from '@/lib/faculty-assignment-helpers';
 import { AT_STANDARD_LABEL, BELOW_STANDARD_LABEL, EXCESS_LOAD_LABEL } from '@/lib/teaching-load-labels';
+
+/**
+ * The operator's shared control chrome for this row, verbatim: one height, one
+ * radius, one border, one hover. Every select in the row carries the identical
+ * string so the seven controls read as one instrument instead of a set of
+ * similar things.
+ */
+const CONTROL_CHROME = 'h-9 rounded-xl border border-border/60 bg-background px-2.5 text-xs transition-colors hover:bg-muted/40';
 
 type TeachingLoadFilterBarProps = {
 	searchQuery: string;
@@ -57,6 +80,14 @@ type TeachingLoadFilterBarProps = {
 	onClearTeachingLoadFilters: () => void;
 	sortOrder: string;
 	onSortOrderChange: (o: any) => void;
+	/**
+	 * FIX 39 — retained in the signature but no longer rendered. `pages/
+	 * TeachingLoad.tsx`, `TeacherGridMode` and the committed controls all still
+	 * pass both, and the optional-inclusion switches that used to answer to them
+	 * are now permanently visible, so there is nothing left to toggle. The props
+	 * are kept rather than removed so a caller that still sends them compiles and
+	 * so the removal is a visible, single-file diff when it happens.
+	 */
 	showFilters: boolean;
 	onToggleFilters: () => void;
 	showOutsideDept: boolean;
@@ -64,6 +95,8 @@ type TeachingLoadFilterBarProps = {
 	showUnmappedSpecialization: boolean;
 	onShowUnmappedSpecializationChange: (s: boolean) => void;
 	policyReady: boolean;
+	/** FIX 40 — the page's draft controls, right-aligned on this row. */
+	draftControls?: ReactNode;
 };
 
 export function TeachingLoadFilterBar(props: TeachingLoadFilterBarProps) {
@@ -83,14 +116,15 @@ export function TeachingLoadFilterBar(props: TeachingLoadFilterBarProps) {
 		onClearTeachingLoadFilters,
 		sortOrder,
 		onSortOrderChange,
-		showFilters,
-		onToggleFilters,
 		showOutsideDept,
 		onToggleOutsideDept,
 		showUnmappedSpecialization,
 		onShowUnmappedSpecializationChange,
 		policyReady,
+		draftControls,
 	} = props;
+	// `showFilters` / `onToggleFilters` are intentionally NOT destructured: fix 39
+	// removed the disclosure that consumed them. See the prop docs above.
 
 	const hasActiveFilters = Boolean(
 		searchQuery.trim()
@@ -101,21 +135,21 @@ export function TeachingLoadFilterBar(props: TeachingLoadFilterBarProps) {
 
 	return (
 		<div className="space-y-1.5" data-testid="teaching-load-filter-bar">
-			{/* One row: the three filters an operator reaches for are all here. */}
+			{/* FIX 39: ONE row, seven controls, in the operator's order. */}
 			<div className="flex flex-wrap items-center gap-2" data-testid="teaching-load-primary-filters">
-				<div className="relative flex-1 min-w-44 max-w-xs">
+				<div className="relative w-[240px] shrink-0">
 					<Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
 					<Input
 						aria-label="Search teachers"
 						placeholder="Search teachers..."
 						value={searchQuery}
 						onChange={(e) => onSearchQueryChange(e.target.value)}
-						className="pl-10 h-8 bg-background shadow-sm border-border/60"
+						className="h-9 rounded-xl border border-border/60 bg-background pl-10 text-xs transition-colors hover:bg-muted/40"
 					/>
 				</div>
 
 				<Select value={filterStatus} onValueChange={(value) => onFilterStatusChange(value as TeachingLoadStatusFilter)}>
-					<SelectTrigger aria-label="Filter by status" className="w-40 h-8 bg-background shadow-sm border-border/60 text-xs font-bold uppercase tracking-tight">
+					<SelectTrigger aria-label="Filter by status" className={`w-40 font-bold uppercase tracking-tight ${CONTROL_CHROME}`}>
 						<div className="flex items-center gap-2">
 							<ListFilter className="size-3.5 opacity-50" />
 							<SelectValue placeholder="Status" />
@@ -130,7 +164,7 @@ export function TeachingLoadFilterBar(props: TeachingLoadFilterBarProps) {
 				</Select>
 
 				<Select value={departmentFilter} onValueChange={onDepartmentFilterChange}>
-					<SelectTrigger aria-label="Filter by department" className="w-44 h-8 bg-background shadow-sm border-border/60 text-xs font-bold uppercase tracking-tight">
+					<SelectTrigger aria-label="Filter by department" className={`w-44 font-bold uppercase tracking-tight ${CONTROL_CHROME}`}>
 						<div className="flex items-center gap-2">
 							<LayoutGrid className="size-3.5 opacity-50" />
 							<SelectValue placeholder="Department" />
@@ -145,7 +179,7 @@ export function TeachingLoadFilterBar(props: TeachingLoadFilterBarProps) {
 				</Select>
 
 				<Select value={loadFilter} onValueChange={(value) => onLoadFilterChange(value as TeachingLoadLoadFilter)}>
-					<SelectTrigger aria-label="Filter by load" className="w-40 h-8 bg-background shadow-sm border-border/60 text-xs font-bold uppercase tracking-tight">
+					<SelectTrigger aria-label="Filter by load" className={`w-40 font-bold uppercase tracking-tight ${CONTROL_CHROME}`}>
 						<div className="flex items-center gap-2">
 							<Star className="size-3.5 opacity-50" />
 							<SelectValue placeholder="Load" />
@@ -159,17 +193,52 @@ export function TeachingLoadFilterBar(props: TeachingLoadFilterBarProps) {
 					</SelectContent>
 				</Select>
 
-				<Button
-					type="button"
-					variant={showFilters ? 'secondary' : 'outline'}
-					size="sm"
-					className="h-8 shrink-0 gap-2 whitespace-nowrap font-bold"
-					onClick={onToggleFilters}
-					aria-expanded={showFilters}
-				>
-					<Filter className="size-4" />
-					More filters
-				</Button>
+				{/* 5 — sort order. The most-recently-hidden control, promoted. */}
+				<Select value={sortOrder} onValueChange={onSortOrderChange}>
+					<SelectTrigger aria-label="Sort teachers" className={`w-40 font-bold uppercase tracking-tight ${CONTROL_CHROME}`}>
+						<SelectValue placeholder="Sort teachers" />
+					</SelectTrigger>
+					<SelectContent>
+						<SelectItem value="load-desc" className="text-xs font-bold uppercase tracking-tight">Highest load</SelectItem>
+						<SelectItem value="load-asc" className="text-xs font-bold uppercase tracking-tight">Lowest load</SelectItem>
+					</SelectContent>
+				</Select>
+
+				{/* 6 and 7 — the optional-inclusion switches. Both are made
+				    compact by CHROME (h-9, px-2.5, tracking-tight, nowrap), not
+				    by shortening the operator's words: at 1366 the seven
+				    controls total ~1289px with gaps, inside a ~1326px
+				    content width, so the full `Unmapped Specialization` label
+				    closes the row without wrapping. `flex-wrap` is the
+				    backstop below that. */}
+				<div className="flex h-9 shrink-0 items-center gap-2 rounded-xl border border-border/60 bg-background px-2.5 transition-colors hover:bg-muted/40">
+					<Switch
+						id="show-outside-dept"
+						checked={showOutsideDept}
+						onCheckedChange={onToggleOutsideDept}
+					/>
+					<Label htmlFor="show-outside-dept" className="cursor-pointer whitespace-nowrap text-xs font-semibold uppercase tracking-tight text-muted-foreground">
+						Cross-Dept
+					</Label>
+				</div>
+
+				<div className="flex h-9 shrink-0 items-center gap-2 rounded-xl border border-border/60 bg-background px-2.5 transition-colors hover:bg-muted/40">
+					<Switch
+						id="show-unmapped-specialization"
+						checked={showUnmappedSpecialization}
+						onCheckedChange={onShowUnmappedSpecializationChange}
+					/>
+					<Label htmlFor="show-unmapped-specialization" className="cursor-pointer whitespace-nowrap text-xs font-semibold uppercase tracking-tight text-muted-foreground">
+						Unmapped Specialization
+					</Label>
+				</div>
+
+				{/* FIX 40: the draft group. `ml-auto` pushes it right, so the seven
+				    filters stay left-aligned and the actions sit at the end of
+				    the same line. */}
+				{draftControls ? (
+					<div className="ml-auto flex shrink-0 items-center gap-2">{draftControls}</div>
+				) : null}
 			</div>
 
 			{hasActiveFilters && (
@@ -218,42 +287,17 @@ export function TeachingLoadFilterBar(props: TeachingLoadFilterBarProps) {
 				</div>
 			)}
 
-			{/* Sort and the optional inclusion switches stay behind the disclosure. */}
-			{showFilters && (
-				<div className="flex flex-wrap items-center gap-2 rounded-xl border border-border/50 bg-background/80 p-2 shadow-sm" data-testid="teaching-load-secondary-filters">
-					<Select value={sortOrder} onValueChange={onSortOrderChange}>
-						<SelectTrigger aria-label="Sort teachers" className="w-44 h-8 bg-background shadow-sm border-border/60 text-xs font-bold uppercase tracking-tight">
-							<SelectValue placeholder="Sort teachers" />
-						</SelectTrigger>
-						<SelectContent>
-							<SelectItem value="load-desc" className="text-xs font-bold uppercase tracking-tight">Highest load</SelectItem>
-							<SelectItem value="load-asc" className="text-xs font-bold uppercase tracking-tight">Lowest load</SelectItem>
-						</SelectContent>
-					</Select>
-
-					<div className="flex items-center gap-2 border-l border-border/40 pl-3 h-8">
-						<Switch
-							id="show-outside-dept"
-							checked={showOutsideDept}
-							onCheckedChange={onToggleOutsideDept}
-						/>
-						<Label htmlFor="show-outside-dept" className="text-xs font-semibold uppercase tracking-widest cursor-pointer text-muted-foreground whitespace-nowrap">
-							Cross-Dept
-						</Label>
-					</div>
-
-					<div className="flex items-center gap-2 border-l border-border/40 pl-3 h-8">
-						<Switch
-							id="show-unmapped-specialization"
-							checked={showUnmappedSpecialization}
-							onCheckedChange={onShowUnmappedSpecializationChange}
-						/>
-						<Label htmlFor="show-unmapped-specialization" className="text-xs font-semibold uppercase tracking-widest cursor-pointer text-muted-foreground whitespace-nowrap">
-							Unmapped Specialization
-						</Label>
-					</div>
-				</div>
-			)}
+			{/*
+			 * FIX 39 removed the `showFilters && …` secondary block that lived
+			 * here. Its two children — the `Sort teachers` select and the two
+			 * inclusion switches — are now on the primary row above, and its
+			 * `rounded-xl border border-border/50 bg-background/80 p-2 shadow-sm`
+			 * card is gone with it. The active-filter badge row, the `sr-only`
+			 * announcement, and the `!policyReady` notice above are UNCHANGED:
+			 * they are a summary of what is applied, not a second place to
+			 * apply it, and they must keep rendering even with no filters
+			 * active.
+			 */}
 		</div>
 	);
 }

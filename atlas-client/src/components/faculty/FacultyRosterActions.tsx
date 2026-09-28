@@ -14,6 +14,23 @@
  * `rosterActionLabels` and the row is allowed to grow to its full intrinsic
  * width (`w-max` + `shrink-0`) instead of the copy being cut down to fit.
  *
+ * FIX 24.1 (operator, 2026-09-28) — BOTH ACTIONS ARE NOW DIRECT HEADER BUTTONS.
+ *
+ * The `slot` prop (`'primary' | 'secondary'`), the `onOpenReview` prop, the
+ * solid maroon `Review teachers` button, and the mobile `Review` button are all
+ * DELETED. What remains is exactly one row carrying the two roster actions, in
+ * the order the operator named: `Update teacher list`, then
+ * `Create temporary teacher (Teacher X)`. `Help` is not rendered here — the
+ * shared `AdminWorkspaceFrame` supplies it AFTER `primaryActions`, which is
+ * why the create button is emitted second rather than last.
+ *
+ * Deleting the two Review buttons is what lets the page drop its whole
+ * `secondaryActions` prop: the `... More` popover on this page existed only to
+ * hold a second copy of these two controls, so removing them removes the
+ * overflow menu with them. `pages/Faculty.tsx` no longer passes a
+ * `secondaryActions` slot at all, and `AdminWorkspace.tsx` — owned by another
+ * lane — is untouched.
+ *
  * ACCESSIBLE NAME / LABEL-IN-NAME (AGENTS.md §8).
  *
  * Both controls previously carried a raw `title` attribute
@@ -32,22 +49,16 @@
  * action inside that modal. See `FacultyWorkloadModal`.
  */
 import { useLayoutEffect, useRef } from 'react';
-import { BookOpenCheck, Plus, RefreshCw } from 'lucide-react';
+import { Plus, RefreshCw } from 'lucide-react';
 import { Button } from '@/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip';
 import {
 	measureRosterActionLabel,
-	REFRESH_TEACHER_LIST_LABEL,
+	UPDATE_TEACHER_LIST_LABEL,
 	temporaryTeacherActionLabel,
 } from '@/components/faculty/rosterActionLabels';
 
 type FacultyRosterActionsProps = {
-	/**
-	 * `AdminWorkspaceFrame` renders a primary slot and a secondary slot. Keeping
-	 * the same split preserves the existing header layout exactly.
-	 */
-	slot: 'primary' | 'secondary';
-	onOpenReview: () => void;
 	onCreateTemporary: () => void;
 	onRefreshRoster: () => void;
 	syncing: boolean;
@@ -61,8 +72,6 @@ type FacultyRosterActionsProps = {
 };
 
 export function FacultyRosterActions({
-	slot,
-	onOpenReview,
 	onCreateTemporary,
 	onRefreshRoster,
 	syncing,
@@ -72,28 +81,15 @@ export function FacultyRosterActions({
 }: FacultyRosterActionsProps) {
 	const createTemporaryLabel = temporaryTeacherActionLabel(nextTeacherNumber);
 	const rowRef = useRosterActionRowFit();
+	// The transient states keep the button honest about what is in flight; the
+	// settled label is the operator's requested copy.
 	const refreshLabel = syncing
 		? 'Refreshing...'
 		: !isOnline
 			? 'Offline'
 			: refreshing
 				? 'Checking...'
-				: REFRESH_TEACHER_LIST_LABEL;
-
-	if (slot === 'primary') {
-		return (
-			<Button
-				type="button"
-				onClick={onOpenReview}
-				size="sm"
-				data-testid="faculty-review-open"
-				className="hidden gap-2 whitespace-nowrap font-semibold shadow-sm sm:inline-flex"
-			>
-				<BookOpenCheck className="size-4" />
-				Review teachers
-			</Button>
-		);
-	}
+				: UPDATE_TEACHER_LIST_LABEL;
 
 	return (
 		<div
@@ -108,17 +104,28 @@ export function FacultyRosterActions({
 			 */
 			className="flex w-max shrink-0 items-center gap-2"
 		>
-			{/* Mobile variant of the same in-page review. */}
-			<Button
-				type="button"
-				onClick={onOpenReview}
-				size="sm"
-				data-testid="faculty-review-open-mobile"
-				className="gap-2 whitespace-nowrap font-semibold shadow-sm sm:hidden"
-			>
-				<BookOpenCheck className="size-4" />
-				Review
-			</Button>
+			{/* ORDER IS THE REQUESTED SEQUENCE: update, then create. `Help` is
+			    appended after this whole slot by the shared frame. */}
+			<Tooltip>
+				<TooltipTrigger asChild>
+					<Button
+						type="button"
+						variant="outline"
+						onClick={onRefreshRoster}
+						disabled={syncing || !isOnline}
+						size="sm"
+						data-testid="faculty-refresh-list"
+						data-label={UPDATE_TEACHER_LIST_LABEL}
+						className="gap-2 whitespace-nowrap font-semibold"
+					>
+						<RefreshCw className={`size-4 ${syncing ? 'animate-spin' : ''}`} />
+						{refreshLabel}
+					</Button>
+				</TooltipTrigger>
+				<TooltipContent side="bottom" className="max-w-xs p-3">
+					<p className="text-xs font-medium">Update the teacher list from EnrollPro.</p>
+				</TooltipContent>
+			</Tooltip>
 
 			<Tooltip>
 				<TooltipTrigger asChild>
@@ -138,27 +145,6 @@ export function FacultyRosterActions({
 					<p className="text-xs font-medium">
 						Add a temporary teacher record, for a teacher who has not been hired yet.
 					</p>
-				</TooltipContent>
-			</Tooltip>
-
-			<Tooltip>
-				<TooltipTrigger asChild>
-					<Button
-						type="button"
-						variant="outline"
-						onClick={onRefreshRoster}
-						disabled={syncing || !isOnline}
-						size="sm"
-						data-testid="faculty-refresh-list"
-						data-label={REFRESH_TEACHER_LIST_LABEL}
-						className="gap-2 whitespace-nowrap font-semibold"
-					>
-						<RefreshCw className={`size-4 ${syncing ? 'animate-spin' : ''}`} />
-						{refreshLabel}
-					</Button>
-				</TooltipTrigger>
-				<TooltipContent side="bottom" className="max-w-xs p-3">
-					<p className="text-xs font-medium">Refresh teacher list from EnrollPro.</p>
 				</TooltipContent>
 			</Tooltip>
 		</div>

@@ -1,4 +1,4 @@
-import { useMemo, useState, memo, useCallback } from 'react';
+import { useMemo, useState, memo, useCallback, useEffect, useRef } from 'react';
 import { BookOpen, ChevronDown, ChevronRight, Clock, Lock, ArrowLeftRight } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -41,6 +41,20 @@ export type SubjectRowProps = {
 	selectedFacultySpecialization?: string | null;
 	resolveSectionHoverDeltaMinutes?: (subject: Subject, sectionId: number) => number;
 	completedSectionIds?: Set<number>;
+	/**
+	 * FIX-29: the DISPLAY name of the teacher receiving the swap — the one this
+	 * row is being edited for. The confirmation must name the target, not just
+	 * "the teacher you are editing".
+	 *
+	 * The owner (`TeacherGridMode`) formats it with the ONE shared helper
+	 * `formatFacultyDisplayName`, so the dialog prints the same string the roster
+	 * card prints. This component deliberately does not re-derive a name: a
+	 * second name authority is how casing and ordering drift apart. A caller
+	 * that omits it degrades honestly (the dialog says the name is unavailable
+	 * and publishes `data-swap-target-name="unresolved"`) rather than silently
+	 * rendering a worse label.
+	 */
+	targetFacultyName?: string;
 };
 
 const PROGRAM_BADGE: Record<string, string> = {
@@ -92,6 +106,19 @@ function resolveRotationLaneKey(subject: Pick<Subject, 'rotationFamily' | 'rotat
 	return `${family}:term:${resolveRotationTermRank(subject)}`;
 }
 
+/**
+ * FIX-29: minutes-per-week rendered as hours, matching the `Xh / week` form the
+ * subject header already uses one screen up.
+ *
+ * This is UNIT FORMATTING ONLY. The swap impact is never computed here — it is
+ * read from the existing `resolveSectionHoverDeltaMinutes` prop that already
+ * drives the hover readout, so the dialog cannot disagree with the hover figure
+ * about the same section.
+ */
+function formatWeeklyHours(minutes: number): string {
+	return String(Math.round((minutes / 60) * 10) / 10);
+}
+
 export const SubjectRow = memo(({
 	subject,
 	assignment,
@@ -114,6 +141,7 @@ export const SubjectRow = memo(({
 	selectedFacultySpecialization = null,
 	resolveSectionHoverDeltaMinutes,
 	completedSectionIds = new Set(),
+	targetFacultyName,
 }: SubjectRowProps) => {
 	const [openGrades, setOpenGrades] = useState<Record<number, boolean>>({});
 
@@ -122,6 +150,11 @@ export const SubjectRow = memo(({
 	 * so it is a write and now always goes through the dedicated `ArrowLeftRight`
 	 * control AND an explicit confirmation. This state holds the request that
 	 * the confirmation is gating; it is cleared on cancel without dispatching.
+	 *
+	 * `impactMinutes` is FROZEN at request time from the existing
+	 * `resolveSectionHoverDeltaMinutes` prop, so the figure the operator reads
+	 * before confirming is the same one the confirm dispatches for, and it cannot
+	 * drift under the dialog while it is open.
 	 */
 	const [pendingSwap, setPendingSwap] = useState<{
 		sectionId: number;
@@ -129,7 +162,98 @@ export const SubjectRow = memo(({
 		fromFacultyId: number;
 		ownerName: string;
 		ownerIsPending: boolean;
+		impactMinutes: number | null;
 	} | null>(null);
+
+	/**
+	 * FIX-29 in-flight protection, part 1 of 2: a REF, not a flag.
+	 *
+	 * `setSwapInFlight` alone cannot stop a double dispatch, because the draft
+	 * write below is a synchronous local state update: two clicks landing in one
+	 * React batch both read the same pre-update `false` and both dispatch. A ref
+	 * is written synchronously and is therefore visible to the very next handler
+	 * in the same tick. It is reset when a NEW request is opened, so it can never
+	 * wedge the row closed.
+	 */
+	const swapDispatchedRef = useRef(false);
+
+	/** FIX-29 in-flight protection, part 2 of 2: the VISIBLE state. */
+	const [swapInFlight, setSwapInFlight] = useState(false);
+
+	/**
+	 * The dialog is closed on a macrotask, not in the same batch as the dispatch.
+	 * Closing synchronously would unmount the confirmation in the same commit
+	 * that set the in-flight flag, so the operator (and a real-browser pass
+	 * reading `aria-busy` / `data-swap-in-flight`) would never see it and the
+	 * guard would be invisible. Deferring by one task renders the disabled
+	 * confirm button with its spinner for a frame, then closes.
+	 */
+	const swapCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+	useEffect(() => {
+		return () => {
+			if (swapCloseTimerRef.current != null) clearTimeout(swapCloseTimerRef.current);
+		};
+	}, []);
+
+	/**
+	 * FIX-29: the weekly-load impact for a section, read from the SAME prop the
+	 * hover readout uses.
+	 *
+	 * Returns `null` — never `0` — when the surface has no figure for the
+	 * section. A missing figure and a genuine zero are different facts, and
+	 * printing `0` for the first one is a false claim that the swap is free.
+	 */
+	const resolveSwapImpactMinutes = useCallback(
+		(sectionId: number): number | null => {
+			if (typeof resolveSectionHoverDeltaMinutes !== 'function') return null;
+			const raw = resolveSectionHoverDeltaMinutes(subject, sectionId);
+			return Number.isFinite(raw) && raw > 0 ? raw : null;
+		},
+		[resolveSectionHoverDeltaMinutes, subject],
+	);
+
+	/** Open the gate. Resets the guard so each request gets exactly one dispatch. */
+	const requestSectionSwap = useCallback(
+		(section: ExternalSection, owner: FacultyOwnershipState & { isPending: boolean }) => {
+			swapDispatchedRef.current = false;
+			setSwapInFlight(false);
+			setPendingSwap({
+				sectionId: section.id,
+				sectionName: section.name,
+				fromFacultyId: owner.facultyId,
+				ownerName: owner.facultyName,
+				ownerIsPending: Boolean(owner.isPending),
+				impactMinutes: resolveSwapImpactMinutes(section.id),
+			});
+		},
+		[resolveSwapImpactMinutes],
+	);
+
+	/**
+	 * FIX-29: the one and only dispatch path. The ref guard is checked FIRST, so
+	 * a rapid second confirm in the same tick returns without writing.
+	 */
+	const confirmSectionSwap = useCallback(() => {
+		if (!pendingSwap) return;
+		if (swapDispatchedRef.current) return;
+		swapDispatchedRef.current = true;
+		setSwapInFlight(true);
+		// The draft mutation. `onSwapSectionOwnership` writes the page's local
+		// draft synchronously, so it cannot fail after returning; the row and the
+		// draft count re-render from the parent's committed state on the next
+		// render, never from anything optimistic kept here.
+		onSwapSectionOwnership?.(subject.id, pendingSwap.sectionId, pendingSwap.fromFacultyId, selectedFacultyId);
+		swapCloseTimerRef.current = setTimeout(() => {
+			swapCloseTimerRef.current = null;
+			setSwapInFlight(false);
+			setPendingSwap(null);
+		}, 0);
+	}, [onSwapSectionOwnership, pendingSwap, selectedFacultyId, subject.id]);
+
+	const swapImpactHours =
+		pendingSwap?.impactMinutes != null ? formatWeeklyHours(pendingSwap.impactMinutes) : null;
+	const swapTargetLabel = targetFacultyName?.trim() ? targetFacultyName : 'the teacher you are editing';
 
 	// Phase 4.7: subject-level hard-conflict signal (a section in this subject
 	// has more than one owner saved). Used by the header priority badge; the
@@ -686,17 +810,11 @@ export const SubjectRow = memo(({
 																							variant="outline"
 																							size="icon-xs"
 																							data-testid="section-swap-control"
-																							aria-label={`Swap ${section.name} from ${owner.facultyName} to the current teacher`}
-																							onClick={(e) => {
-																								e.stopPropagation();
-																								setPendingSwap({
-																									sectionId: section.id,
-																									sectionName: section.name,
-																									fromFacultyId: owner.facultyId,
-																									ownerName: owner.facultyName,
-																									ownerIsPending: Boolean(owner.isPending),
-																								});
-																							}}
+														aria-label={`Swap ${section.name} from ${owner.facultyName} to ${swapTargetLabel}`}
+														onClick={(e) => {
+															e.stopPropagation();
+															requestSectionSwap(section, owner);
+														}}
 																							className="h-6 w-6 text-primary border-primary/30 hover:bg-primary hover:text-white"
 																						>
 																							<ArrowLeftRight className="size-3" />
@@ -727,25 +845,107 @@ export const SubjectRow = memo(({
 				`onOpenChange(false)` is the Cancel path and dispatches nothing;
 				`onConfirm` dispatches exactly one swap and only after the
 				operator commits. A closed Dialog renders no portal, so this
-				costs nothing until a swap is actually requested. */}
+				costs nothing until a swap is actually requested.
+
+				FIX-29, the operator's own four criteria:
+				  - "Open `Confirm Assignment Swap` before mutation" — that is the
+				    title, verbatim. The question itself moved into the body, which
+				    now has room to name BOTH teachers instead of saying "the
+				    teacher you are editing".
+				  - "Show source/target teacher and section, plus resulting
+				    weekly-load impact where available" — source and target names,
+				    the section name, and the impact read from the existing hover
+				    prop. `data-swap-impact`/`data-swap-target-name` publish the
+				    two ways this can degrade so a real-browser pass reads the
+				    rendered outcome rather than assuming it.
+				  - "Confirm button has in-flight protection" — `loading` disables
+				    both buttons and spins the confirm, and `confirmSectionSwap`
+				    holds a ref so a same-tick second click cannot dispatch.
+				  - "Success feedback occurs only after draft mutation succeeds" —
+				    there is NO success text in this component. Nothing is claimed
+				    until the parent re-renders from the committed draft.
+
+				`aria-busy` lives on the body rather than on `DialogContent`
+				because `ConfirmationModal` owns that node and `@/ui/*` is another
+				lane's primitive; this is the outermost element this fence owns
+				inside the dialog. */}
 			<ConfirmationModal
 				open={pendingSwap !== null}
 				onOpenChange={(open) => {
-					if (!open) setPendingSwap(null);
-				}}
-				variant="warning"
-				title={`Move ${pendingSwap?.sectionName ?? 'this class'} to this teacher?`}
-				description={
-					pendingSwap
-						? `This class is currently ${pendingSwap.ownerIsPending ? 'selected by' : 'owned by'} ${pendingSwap.ownerName}. Confirming removes it from them and assigns it to the teacher you are editing. It is a draft until you save.`
-						: ''
-				}
-				confirmText="Move class"
-				onConfirm={() => {
-					if (!pendingSwap) return;
-					onSwapSectionOwnership?.(subject.id, pendingSwap.sectionId, pendingSwap.fromFacultyId, selectedFacultyId);
+					if (open) return;
+					/* `ConfirmationModal` closes itself on confirm when its `loading`
+					   prop is falsy, and at click time it still IS falsy, so the
+					   primitive asks us to close in the same tick we dispatched.
+					   Refuse while the guard is armed: the deferred close owns the
+					   teardown, which is what makes the in-flight state render at
+					   all. `@/ui/confirmation-modal` is another lane's primitive and
+					   is not edited. */
+					if (swapDispatchedRef.current) return;
+					if (swapCloseTimerRef.current != null) {
+						clearTimeout(swapCloseTimerRef.current);
+						swapCloseTimerRef.current = null;
+					}
+					setSwapInFlight(false);
 					setPendingSwap(null);
 				}}
+				variant="warning"
+				loading={swapInFlight}
+				title="Confirm Assignment Swap"
+				description={
+					pendingSwap ? (
+						/* SPANS, not divs/p. `ConfirmationModal` renders this node inside
+						   `DialogDescription`, which is a `<p>`, and a `<p>` may not
+						   contain block content. `display:block` spans give the same
+						   layout with valid HTML. */
+						<span
+							className="block space-y-3 text-left"
+							data-testid="swap-confirmation-body"
+							aria-busy={swapInFlight}
+							data-swap-in-flight={swapInFlight ? 'true' : 'false'}
+							data-swap-target-name={targetFacultyName?.trim() ? 'resolved' : 'unresolved'}
+							data-swap-impact={swapImpactHours ? 'available' : 'unavailable'}
+						>
+							<span className="block">
+								<span className="font-semibold text-foreground">{pendingSwap.sectionName}</span> is{' '}
+								{pendingSwap.ownerIsPending ? 'selected by' : 'owned by'}{' '}
+								<span className="font-semibold text-foreground">{pendingSwap.ownerName}</span>. Move it to{' '}
+								<span className="font-semibold text-foreground">{swapTargetLabel}</span>?
+							</span>
+
+							<span className="block rounded-lg border border-border/60 bg-muted/40 p-3">
+								<span className="block text-xs font-bold uppercase tracking-wide text-muted-foreground">
+									Weekly load impact
+								</span>
+								{swapImpactHours ? (
+									<span className="mt-1.5 block space-y-1 text-sm">
+										<span className="block">This section contributes {swapImpactHours} h / week.</span>
+										<span className="block">
+											<span className="font-semibold text-foreground">{pendingSwap.ownerName}</span> loses{' '}
+											{swapImpactHours} h / week.
+										</span>
+										<span className="block">
+											<span className="font-semibold text-foreground">{swapTargetLabel}</span> gains{' '}
+											{swapImpactHours} h / week.
+										</span>
+									</span>
+								) : (
+									<span className="mt-1.5 block text-sm">
+										Not available for this class: ATLAS has no weekly-load figure for it on this
+										surface, so the effect on either teacher&apos;s load is unknown.
+									</span>
+								)}
+							</span>
+
+							<span className="block text-sm">
+								It stays a draft until you save.
+							</span>
+						</span>
+					) : (
+						''
+					)
+				}
+				confirmText="Swap assignment"
+				onConfirm={confirmSectionSwap}
 			/>
 		</div>
 	);

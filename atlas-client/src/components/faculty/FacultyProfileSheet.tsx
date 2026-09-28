@@ -118,10 +118,38 @@ export function FacultyProfileSheet({
 		// not be centred and did not match the rest of the workspace.
 		<Dialog open={open} onOpenChange={onOpenChange}>
 			<DialogContent
-				className="max-h-[90vh] w-[calc(100vw-2rem)] max-w-2xl overflow-y-auto"
+				/*
+				 * FIX 23.1 (operator, 2026-09-28) — the profile card is now
+				 * RESIZABLE, because a fixed card forced the subject list into a
+				 * scroll the scheduler could not see past.
+				 *
+				 * `resize` is Tailwind's `resize: both`, and `overflow-hidden` on
+				 * the card is REQUIRED for a resize handle to appear at all: with
+				 * `overflow: auto` a native resizer needs its own scroll gutter and
+				 * competes with the inner scroll region. So the card clips and the
+				 * BODY below scrolls instead, which keeps exactly one scroll
+				 * container on this surface and none of them global.
+				 *
+				 * The `min-*(…,95vw)` form is the operator's `min-w-[500px]` /
+				 * `min-h-[400px]`, guarded: an UNGUARDED `min-w-[500px]` on a
+				 * 390px viewport is a hard overflow, and this file's own
+				 * no-scroll rule (AGENTS.md §8) would be broken by a 110px
+				 * horizontal scrollbar. `min(500px, 95vw)` keeps the requested
+				 * floor wherever it fits and degrades to the viewport elsewhere;
+				 * `max-w-[95vw]` / `max-h-[90vh]` bound the other axis so a
+				 * dragged-out card can never leave the visible area.
+				 *
+				 * `cn`/tailwind-merge resolves this against the primitive's base
+				 * (`grid w-full max-w-lg h-fit max-h-[90vh] overflow-y-auto
+				 * gap-4 p-6`): `flex`, `h-[70vh]`, `w-[min(56rem,95vw)]`,
+				 * `max-w-[95vw]`, `overflow-hidden` and `p-0` all win over their
+				 * base counterparts, while `border` and `shadow-lg` survive because
+				 * nothing here competes with them.
+				 */
+				className="flex h-[70vh] min-h-[min(400px,90vh)] min-w-[min(500px,95vw)] w-[min(56rem,95vw)] max-w-[95vw] max-h-[90vh] resize flex-col gap-0 overflow-hidden p-0"
 				data-testid="faculty-profile-dialog"
 			>
-				<DialogHeader className="pb-6 border-b">
+				<DialogHeader className="px-6 pt-6 pb-6 border-b">
 					<div className="flex items-center gap-4">
 						<div className="flex size-14 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xl font-bold text-primary shadow-sm border border-primary/10">
 							{/* Fix 22 (c10 re-issue): uppercase avatar initials, same display
@@ -166,7 +194,13 @@ export function FacultyProfileSheet({
 					</div>
 				</DialogHeader>
 
-				<div className="py-6 space-y-8">
+				{/* FIX 23.1: the BODY is the one scroll region. `min-h-0` +
+				    `flex-1` let it actually take the leftover height of the
+				    flex-column card (without `min-h-0` a flex child refuses to
+				    shrink below its content and the card, not the body, would
+				    scroll), and `px-6 pt-6` keeps content off the card edge now
+				    that the card itself is a clipping box. */}
+				<div className="min-h-0 flex-1 overflow-y-auto px-6 pt-6 space-y-8">
 					{/* Identity Section */}
 					<div className="space-y-4">
 						<h4 className="text-[0.7rem] font-bold text-muted-foreground uppercase tracking-widest">Roster identity</h4>
@@ -272,8 +306,20 @@ export function FacultyProfileSheet({
 									<div key={fs.id} className="p-3 rounded-xl border border-border bg-background shadow-sm space-y-2.5">
 										<div className="flex items-start justify-between gap-2 border-b pb-2 mb-2 border-border/40">
 											<div className="min-w-0">
-												<p className="text-sm font-bold truncate leading-tight">{fs.subject?.name || 'Unknown Subject'}</p>
-												<code className="text-[0.65rem] text-muted-foreground font-mono uppercase opacity-70">{fs.subject?.code}</code>
+											<p className="text-sm font-bold truncate leading-tight">{fs.subject?.name || 'Unknown Subject'}</p>
+											{/* FIX 23.1: `FIL` / `DEVL_READING` were a washed-out
+								    10.4px at 70% opacity — smaller and dimmer than any
+								    other label in the card, on a subject code a
+								    scheduler reads to identify a load row. The
+								    `opacity-70` is the defect, not the size: the
+								    design token `--muted-foreground` is
+								    `215 16% 42%`, which is 5.667:1 on this card's
+								    surface, so at full opacity `text-xs` is legible
+								    AA and no raw `text-slate-NNN` neutral is
+								    needed (raw neutrals are banned by the committed
+								    palette ratchet). */}
+											<code className="text-xs font-medium text-muted-foreground font-mono uppercase">{fs.subject?.code}</code>
+
 											</div>
 											<Badge variant="secondary" className="text-xs font-bold px-1.5 py-0.5 h-5 bg-muted/50">
 												{fs.subject?.minMinutesPerWeek ? `${Math.round((fs.subject.minMinutesPerWeek / 60) * 10) / 10}h` : '-'}

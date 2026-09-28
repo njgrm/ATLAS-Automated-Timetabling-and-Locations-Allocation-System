@@ -381,20 +381,50 @@ function TeachingLoadDraftTruthHost() {
 		};
 	});
 
+	/*
+	 * FIX 40: `TeachingLoadDraftActionBar` is now an inline toolbar group rather
+	 * than a bottom sticky footer, and its props changed with it:
+	 *
+	 *   - `canRedo` / `onRedo` ADDED. Redo was unreachable in the footer, so the
+	 *     real redo stack behind `data.canRedo` / `data.handleRedo` had no
+	 *     control at all. A6's controls below already exercise both, and the
+	 *     component now receives them.
+	 *   - `statusMessage` / `writeBlockedReason` REMOVED. They rendered the
+	 *     footer-only `DRAFT STATUS` heading and its helper paragraph. The page
+	 *     still owns `draftStatusMessage` (it feeds the toasts); only the footer
+	 *     that displayed it is gone.
+	 *
+	 * `onSave` is a no-op here: on the real page it OPENS a confirmation rather
+	 * than committing, and A6's own suite renders the real confirmation. What
+	 * this suite owns is the DRAFT GATE — the `disabled` state — and that is
+	 * entirely a function of `activeDraftCount`, `saving` and `isReadOnlyMode`.
+	 */
 	return createElement(TeachingLoadDraftActionBar as any, {
 		activeDraftCount: data.activeDraftCount,
 		canUndo: data.canUndo,
+		canRedo: data.canRedo,
 		isReadOnlyMode: data.isReadOnlyMode,
 		saving: data.saving,
-		statusMessage: 'Ready.',
-		writeBlockedReason: null,
 		onUndo: data.handleUndo,
+		onRedo: data.handleRedo,
 		onDiscard: () => {},
 		onSave: () => {},
 	});
 }
 
-/** The Save button's disabled state, read from the REAL rendered component. */
+/**
+ * The Save button's disabled state, read from the REAL rendered component.
+ *
+ * FIX 40 note: the bar is an inline toolbar group now, so it lives inside the
+ * filter row in production. This host still renders the bar directly, which is
+ * correct for what it measures — the DRAFT GATE, which is a function of the bar's
+ * own props and has nothing to do with where the bar is mounted. The mount
+ * position is pinned by A6's `a6-teaching-load-surface.test.tsx`.
+ *
+ * `/Save/` still matches the button: the operator's label is exactly
+ * `Save changes` (deliberately not the old count-bearing `Save 3` form), and
+ * this helper asserts a DISABLED STATE, not a string.
+ */
 function saveButtonIsDisabled(host: HTMLElement): boolean {
 	const bar = host.querySelector('[data-testid="teaching-load-draft-action-bar"]');
 	assert.ok(bar, 'the real draft action bar must render');

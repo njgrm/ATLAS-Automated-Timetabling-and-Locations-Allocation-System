@@ -9,6 +9,14 @@
  *   - `Refresh teacher roster` -> `Refresh teacher list`
  * and "Menu must grow enough to keep these labels on one line."
  *
+ * FIX 24.1 (operator, 2026-09-28) — the SECOND rename of the same action, and
+ * the one that is now shipped: `Refresh teacher list` -> `Update teacher list`.
+ * The requested header is a plain sequence of direct buttons, and "refresh"
+ * describes a background re-read while "update" describes what the scheduler
+ * actually does to their roster. The constant is renamed rather than
+ * re-valued so every consumer moves together: an old name left in place is
+ * how the two variants drifted in the first place.
+ *
  * An earlier cycle in this stream deliberately SHORTENED both labels to
  * "Add temporary" and "Refresh roster" so they would fit, which is the direct
  * opposite of the criterion and left the live symptom ("the menu reads 'Add
@@ -48,8 +56,15 @@ export function temporaryTeacherActionLabel(nextTeacherNumber?: number | null): 
 	return `Create temporary teacher (Teacher ${nextTeacherNumber})`;
 }
 
-/** The requested refresh copy, verbatim. */
-export const REFRESH_TEACHER_LIST_LABEL = 'Refresh teacher list';
+/**
+ * The requested update/refresh copy, verbatim: `Update teacher list`.
+ *
+ * Renamed from `REFRESH_TEACHER_LIST_LABEL` in fix 24.1. The old name is
+ * removed rather than aliased: a second exported name for one string is a third
+ * way for the header copy to drift, which is the defect this module exists to
+ * prevent.
+ */
+export const UPDATE_TEACHER_LIST_LABEL = 'Update teacher list';
 
 /**
  * The longest string the row can ever be asked to render.

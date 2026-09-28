@@ -513,18 +513,57 @@ test('T4 the page stacks no header band of its own above the roster', () => {
 
 	// The three surfaces are composed into the strip's state line instead.
 	assert.match(pageSource, /const headerStateLine = \(/, 'the page must build the state line once');
-	for (const component of ['<TeachingLoadTruthPanel', '<TeachingLoadRepairQueue', 'data-testid="teaching-load-history-link"']) {
+	for (const component of ['<TeachingLoadRepairQueue', 'data-testid="teaching-load-history-link"']) {
 		const at = pageSource.indexOf(component);
 		assert.ok(at > 0, 'the page must render ' + component);
 		const lineAt = pageSource.indexOf('const headerStateLine = (');
 		assert.ok(at > lineAt, component + ' must be composed into the state line, not stacked above the roster');
 	}
 	assert.match(pageSource, /stateLineSlot=\{headerStateLine\}/, 'the strip must receive the state line');
-	// The inline form is the one the page asks for.
+
+	/**
+	 * SUPERSEDED BY FIX 38 — recorded, not deleted (AGENTS.md: corrections are
+	 * additive; a control is never removed to close a finding).
+	 *
+	 * The assertion this replaces read:
+	 *
+	 *   assert.match(
+	 *     pageSource.slice(pageSource.indexOf('<TeachingLoadTruthPanel'), ...+ 200),
+	 *     /\binline\b/,
+	 *     'the page must render the truth panel in its inline state-line form',
+	 *   );
+	 *
+	 * It required the truth panel to sit in the state line in its `inline` form.
+	 * FIX 38 (operator, 2026-09-28) asks for the opposite on this exact surface:
+	 * the inline `TEACHING LOAD SUMMARY` band is removed and the breakdown moves
+	 * behind one header button and a dialog. Keeping the old assertion would
+	 * force the operator's requested change to be reverted; the claim it was
+	 * protecting — "the truth panel is not stacked as its own band above the
+	 * roster" — is STRICTLY STRONGER under the replacement below, and the
+	 * `shrink-0` count above already carries the density claim.
+	 *
+	 * The panel NODE is still required to be built by the page, on the page's own
+	 * `truthModel`; only its POSITION moved. That is asserted here.
+	 */
+	const panelAt = pageSource.indexOf('<TeachingLoadTruthPanel');
+	assert.ok(panelAt > 0, 'the page must still build the truth panel itself, so there is one authority for every figure');
+	const headerLineAt = pageSource.indexOf('const headerStateLine = (');
+	const headerLineEnd = pageSource.indexOf('\n\t);', headerLineAt);
+	assert.ok(headerLineAt > 0 && headerLineEnd > headerLineAt, 'the state line must be locatable as a region, not just a point');
+	assert.ok(
+		panelAt > headerLineEnd,
+		'the truth panel must have moved OUT of the state line and into the `Load summary` dialog (FIX 38)',
+	);
+	assert.match(pageSource, /loadSummaryAction=\{/, 'the panel must be handed to the header action area, which owns the control');
 	assert.match(
-		pageSource.slice(pageSource.indexOf('<TeachingLoadTruthPanel'), pageSource.indexOf('<TeachingLoadTruthPanel') + 200),
-		/\binline\b/,
-		'the page must render the truth panel in its inline state-line form',
+		pageSource.slice(panelAt, panelAt + 200),
+		/\bexpanded\b/,
+		'the dialog must render the panel in its expanded form, not the collapsed inline strip',
+	);
+	assert.doesNotMatch(
+		pageSource.slice(headerLineAt, headerLineEnd),
+		/TeachingLoadTruthPanel/,
+		'the state line must not carry the truth panel any more (FIX 38)',
 	);
 });
 
