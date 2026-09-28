@@ -55,9 +55,11 @@ runtime configuration, touch databases or migrations, or invoke planner, QA, or
 auditor roles. Your `task` permission is denied, so you cannot self-promote or
 delegate.
 
-Browser UX/UI evidence must use `https://njgrm.buru-degree.ts.net` as the page
-origin and assert `window.location.origin`; localhost page evidence is invalid
-unless the packet explicitly says `ISOLATED_LOCAL_BROWSER`.
+Browser UX/UI evidence must assert `window.location.origin` and use production
+(`https://njgrm.buru-degree.ts.net`) or staging (`http://127.0.0.1:5274`, or its
+Tailnet staging URL in `docs/runbooks/staging.md`). Other localhost evidence is
+valid only when the packet says `ISOLATED_LOCAL_BROWSER`. For VISUAL work prove the
+visible result with a rendered test; source-text assertions are not evidence.
 
 Commit one bounded additive candidate on the assigned branch. Do not amend,
 rebase, merge, push, edit the living register, self-approve, or plan successors.

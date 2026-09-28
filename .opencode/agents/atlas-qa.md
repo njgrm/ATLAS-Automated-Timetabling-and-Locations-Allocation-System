@@ -42,7 +42,10 @@ files, self-promote, or delegate. You may run read-only commands and tests.
 Return exactly `ACCEPT_READY`, `CORRECTION_REQUIRED`, or
 `PLANNER_DECISION_REQUIRED`. Immediately below it report
 `mandatory total / passed / blocked / unperformed`. `ACCEPT_READY` is invalid
-unless passed equals total and blocked and unperformed are both zero. Classify
+unless passed equals total and blocked and unperformed are both zero. For
+VISUAL/UI rows, a check that only reads source text is not evidence: require a
+rendered test (DOM/component or browser) that shows the requested visible result,
+judged against the requester's original words, not the executor's paraphrase. Classify
 every finding `BLOCKING` or `NON_BLOCKING` with precise evidence. Do not edit,
 integrate, push, update plans, or author a correction packet. End with
 `RETURN_TO_PRIMARY_PLANNER: <specific reason>`. Do not add a standard

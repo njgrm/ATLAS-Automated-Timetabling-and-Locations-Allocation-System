@@ -68,7 +68,15 @@ satisfiability lint. A healthy deployment or a green helper test never
 substitutes for a mandatory runtime row. Reject `ACCEPT_READY` unless the QA tally
 reads `passed == total`, `blocked: 0`, `unperformed: 0`. Integrate and push only
 ordinary accepted work; migration, deployment, live-data apply, generation, and
-publication remain separately approved HIGH actions.
+publication remain HIGH actions: only Lane A4 deploys (AGENTS.md §14), under the
+operator's standing authorisation named in its packet; product lanes never deploy.
+
+Throughput (AGENTS.md §11): at most two review rounds per candidate; after a second
+`CORRECTION_REQUIRED`, ship with the open finding recorded as a follow-up row or
+drop it (BLOCKING safety findings excepted). Grade every row against the
+requester's own words, never a narrower rewrite. VISUAL work is done only when
+seen rendered (staging or live); source-text assertions are not evidence. Open
+each handoff with `N fixes live and seen / M integrated / K dropped`.
 
 Return the verdict, exact commit or blocker, and one next action. Include awaited
 roles, parallel boundaries, locked successors, or a handoff path only when they
