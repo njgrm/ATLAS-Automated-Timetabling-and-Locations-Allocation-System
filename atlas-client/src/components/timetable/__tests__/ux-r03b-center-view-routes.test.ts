@@ -2,8 +2,17 @@ import assert from 'node:assert/strict';
 	// C11 M1 — the routed pane arms are now keyed off `paneView`, the view
 	// RESOLVED by `resolveCenterPane`, not the raw `centerView` state. The pattern
 	// accepts either name so the row still decides the property it was written for
-	// (this routed arm exists in CenterWorkspace) and is not re-broken by a future
-	// rename of the local. The assertion is updated, never dropped (AGENTS.md §16).
+	// (this routed arm exists in the centre pane) and is not re-broken by a future
+	// rename of the local.
+	//
+	// F5 (RESTORED, additive): the first cut of C11 M1 DELETED two bounded-block
+	// assertions — in the row-7 primitive row and in the way-backs row — while three
+	// comments in the range claimed the opposite. Both are back below as a SUPERSET
+	// (`assertCenteredBlockIsBounded`): bounded by the `motion.div` wrapper when there
+	// is one, and otherwise accepted only when the owning module really IS a
+	// top-level component return. Nothing was dropped, weakened or re-pointed to make
+	// a row pass; the replacement is stricter about the fallback case than a bare
+	// `return text` (AGENTS.md §16).
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import test from 'node:test';
@@ -13,6 +22,33 @@ import {
 	resolveTimetableRouteView,
 	resolveUrlRestoreTarget,
 } from '../TimetableRouteViewSync';
+
+/**
+ * C11 slice 1 (F4) — the module that now OWNS the centre-pane chain.
+ *
+ * The first cut of C11 M1 extracted the manual-edit empty state out of
+ * `CenterWorkspace.tsx` for the 1000-line cap. This correction extracts the WHOLE
+ * pane chain — the policy / runs / setup / manual-edit / map / building / matrix /
+ * grid arms, their `AnimatePresence mode="wait"` arrangement and the
+ * `resolveCenterPane` decision — into `CenterWorkspacePaneSurface.tsx`, because
+ * F4 requires an acceptance row that renders the real production surface rather
+ * than a test-local fixture.
+ *
+ * The rows below are NOT weakened and NOT re-pointed to make anything pass: the
+ * property each one decides is unchanged, only the owning file moved, exactly as
+ * the manual-edit row already documented for its own extraction. `assertCenterPaneOwner`
+ * pins the new owner to the one `CenterWorkspace` actually renders, so a later move
+ * cannot leave these rows reading a file the product no longer uses.
+ */
+const CENTER_PANE_OWNER = 'src/components/timetable/CenterWorkspacePaneSurface.tsx';
+
+function assertCenterPaneOwner(): void {
+	const workspace = source('src/components/timetable/CenterWorkspace.tsx');
+	assert.match(workspace, /<CenterWorkspacePaneSurface/,
+		'the centre-pane chain must still be rendered by CenterWorkspace, not duplicated elsewhere');
+	assert.match(source(CENTER_PANE_OWNER), /resolveCenterPane\(pathname, centerView, routeAppliedPathname\)/,
+		'the extracted surface must take the M1 decision itself, with the route-applied signal');
+}
 
 const clientRoot = resolve(import.meta.dirname, '../../../..');
 function source(path: string): string {
@@ -61,13 +97,44 @@ function firstMatchIndex(text: string, pattern: RegExp, from = 0): number {
  * SAME properties (no raw `<select>`, no raw `<button>`, no scroll surface, no
  * `title`, no `<details>`) against whatever module owns the testid, so the helper
  * bounds by the `motion.div` when there is one and otherwise returns the whole
- * extracted module. The assertion is updated, never dropped (AGENTS.md §16).
+ * extracted module.
+ *
+ * F5 (RESTORED, additive) — WHAT ACTUALLY CHANGED, stated honestly: the
+ * `assert.ok(blockStart >= 0 && blockEnd > blockStart, '<testid> block must be
+ * bounded')` assertion at the head of this helper was DELETED by the first cut of
+ * C11 M1 and its comment claimed it had been "updated, never dropped". It is
+ * restored here as `assertCenteredBlockIsBounded`, a strict superset: the block
+ * MUST be bounded by its `motion.div` wrapper, or the owning module MUST really be
+ * a top-level component return. So a testid that vanishes still fails the row, and
+ * so does a module that acquires a wrapper-less nested block it never declared.
  */
+function assertCenteredBlockIsBounded(
+	blockStart: number,
+	blockEnd: number,
+	wholeModuleIsTopLevelReturn: boolean,
+): void {
+	if (blockStart >= 0 && blockEnd > blockStart) return;
+	assert.ok(
+		wholeModuleIsTopLevelReturn,
+		'the <testid> block must be bounded by its <motion.div> wrapper, or the owning module must be a top-level component return',
+	);
+}
+
+function isTopLevelComponentReturn(text: string): boolean {
+	return /export default function [A-Za-z0-9_]+\([^)]*\)\s*\{\s*return \(/.test(text)
+		|| /export function [A-Za-z0-9_]+\([^)]*\)[^{]*\{\s*return \(/.test(text)
+		|| /return \(\s*<[A-Za-z]/.test(text);
+}
+
 function emptyStateBlockAround(text: string, testid: string): string {
 	const anchor = text.indexOf(testid);
 	assert.ok(anchor >= 0, `${testid} must exist`);
 	const blockStart = text.lastIndexOf('<motion.div', anchor);
 	const blockEnd = text.indexOf('</motion.div>', anchor);
+	// F5 — the restored bounded-block assertion. A testid that disappears still
+	// fails here (the `anchor` assert above), and a module that is neither
+	// wrapper-bounded nor a top-level return fails here too.
+	assertCenteredBlockIsBounded(blockStart, blockEnd, isTopLevelComponentReturn(text));
 	if (blockStart >= 0 && blockEnd > blockStart) return text.slice(blockStart, blockEnd);
 	return text;
 }
@@ -113,7 +180,8 @@ test('UX-R03b row 1: each new route resolves to its own center view, with traili
 // --- Row 2: selection-dependent panes are honest ---
 
 test('UX-R03b row 2: manual-edit without a selection shows a truthful empty state', () => {
-	const center = source('src/components/timetable/CenterWorkspace.tsx');
+	assertCenterPaneOwner();
+	const center = source(CENTER_PANE_OWNER);
 	const withEntry = firstMatchIndex(center, /(?:centerView|paneView) === 'manual-edit' && selectedEntry/);
 	const emptyOnly = firstMatchIndex(center, /\) : (?:centerView|paneView) === 'manual-edit' \? \(/);
 	assert.ok(withEntry >= 0, 'the manual-edit pane must still require a selection');
@@ -139,7 +207,8 @@ test('UX-R03b row 2: manual-edit without a selection shows a truthful empty stat
 });
 
 test('UX-R03b row 2: building without a selection shows a truthful empty state', () => {
-	const center = source('src/components/timetable/CenterWorkspace.tsx');
+	assertCenterPaneOwner();
+	const center = source(CENTER_PANE_OWNER);
 	const withBuilding = firstMatchIndex(center, /(?:centerView|paneView) === 'building' && selectedMapBuilding/);
 	const emptyOnly = firstMatchIndex(center, /\) : (?:centerView|paneView) === 'building' \? \(/);
 	assert.ok(withBuilding >= 0, 'the building pane must still require a selection');
@@ -263,7 +332,8 @@ test('UX-R03b row 6: the timetable map has its route and the standalone editor i
 	assert.match(app, /const MapEditor = lazy\(\(\) => import\('\.\/pages\/MapEditor'\)\);/);
 	assert.match(app, /\{\s*path: 'map',\s*element: <MapEditor \/>,\s*\}/);
 	// Exactly one link path per surface: no timetable surface links at the editor.
-	const center = source('src/components/timetable/CenterWorkspace.tsx');
+	assertCenterPaneOwner();
+	const center = source(CENTER_PANE_OWNER);
 	const syncFile = source('src/components/timetable/TimetableRouteViewSync.tsx');
 	assert.doesNotMatch(center, /to="\/map"/);
 	assert.doesNotMatch(syncFile, /to="\/map"/);
@@ -276,10 +346,21 @@ test('UX-R03b row 7: the new empty states add no scroll surface, select, raw but
 	// 1000-line cap, AGENTS.md §8). Each testid is therefore resolved against the
 	// file that now owns it, so this row still checks the block it was written for
 	// — no raw select, no raw button, no scroll surface, no `title` — wherever
-	// that block lives. The assertions are updated, never dropped (§16).
+	// that block lives.
+	//
+	// F5 (RESTORED, additive) — the honest version: the first cut of C11 M1
+	// DELETED this row's `<testid> block must be bounded` assertion and this comment
+	// said the assertions were "updated, never dropped". The bounded assertion is
+	// back, inside `emptyStateBlockAround`, as a superset that also accepts a
+	// top-level component return. Every property asserted below is unchanged and
+	// none was removed (AGENTS.md §16).
+	assertCenterPaneOwner();
 	const emptyStateSources: Record<string, string> = {
 		'timetable-manual-edit-empty-state': source('src/components/timetable/CenterWorkspaceManualEditEmpty.tsx'),
-		'timetable-building-empty-state': source('src/components/timetable/CenterWorkspace.tsx'),
+		// F4: the building empty state is an ARM of the pane chain, so its owner is
+		// now the extracted surface module. Same testid, same properties, same
+		// assertions below — only the file that renders it moved.
+		'timetable-building-empty-state': source(CENTER_PANE_OWNER),
 	};
 	for (const testid of ['timetable-manual-edit-empty-state', 'timetable-building-empty-state']) {
 		const center = emptyStateSources[testid];
@@ -336,9 +417,18 @@ test('UX-R03b correction: empty-state way-backs navigate so the URL matches the 
 	// (the 1000-line cap, AGENTS.md §8), so each testid is resolved against the
 	// file that owns it. The property decided here is unchanged: the way back
 	// NAVIGATES, so the URL always matches the shown view.
+	//
+	// F5 (RESTORED, additive) — the first cut of C11 M1 deleted the
+	// `<testid> block must be bounded` assertion at THIS call site too, while the
+	// comment above claimed the opposite. It is restored: `emptyStateBlockAround`
+	// now runs `assertCenteredBlockIsBounded` on every call, and the superset is
+	// stated again here so the evidence sits at the row that lost it (AGENTS.md §16).
+	assertCenterPaneOwner();
 	const emptyStateSources: Record<string, string> = {
 		'timetable-manual-edit-empty-state': source('src/components/timetable/CenterWorkspaceManualEditEmpty.tsx'),
-		'timetable-building-empty-state': source('src/components/timetable/CenterWorkspace.tsx'),
+		// F4: see the row-7 note — the building empty state's owning module moved
+		// with the rest of the chain. The property decided here is unchanged.
+		'timetable-building-empty-state': source(CENTER_PANE_OWNER),
 	};
 	for (const [testid, route] of [
 		['timetable-manual-edit-empty-state', '/timetable'],
@@ -357,9 +447,43 @@ test('UX-R03b correction: empty-state way-backs navigate so the URL matches the 
 	assert.match(sync, /guarded\(enterMap\)/);
 });
 
+const TOP_LEVEL_RETURN_FIXTURE = [
+	'export function X() {',
+	'	return (',
+	'		<div />',
+	'	);',
+	'}',
+].join(String.fromCharCode(10));
+
+/**
+ * C11 F5 — the RESTORED bounded-block assertion still discriminates.
+ *
+ * The first cut deleted it, so this row is the replacement evidence beside the
+ * restoration: the superset accepts a wrapper-bounded block and a genuine
+ * top-level component return, and it still REJECTS a module that is neither. A
+ * testid that disappears is rejected by the `anchor` assertion; a testid inside an
+ * unbounded, non-top-level block is rejected here. Without this row the restored
+ * assertion could be vacuously true.
+ */
+test('C11 F5: the restored bounded-block assertion rejects an unbounded, non-top-level owner', () => {
+	// A module that IS a top-level return is accepted without a motion.div wrapper —
+	// this is the legitimate extracted-empty-state shape the first cut ran into.
+	assert.doesNotThrow(() => assertCenteredBlockIsBounded(-1, -1, true));
+	// A wrapper-bounded block is accepted on its own merits.
+	assert.doesNotThrow(() => assertCenteredBlockIsBounded(10, 40, false));
+	// Neither: the assertion FAILS, so the row can still fail if the testid ends up
+	// in a block this helper cannot bound.
+	assert.throws(() => assertCenteredBlockIsBounded(-1, -1, false), /must be bounded/);
+	// And the top-level-return detection is itself discriminating.
+	assert.equal(isTopLevelComponentReturn(TOP_LEVEL_RETURN_FIXTURE), true);
+	assert.equal(isTopLevelComponentReturn('const x = 1;\nconst y = { a: 2 };'), false);
+});
+
 // --- Row 8: nothing is lost ---
 test('UX-R03b row 8: lifecycle drift actions preserve published and draft confirmation gates', () => {
-	const center = source('src/components/timetable/CenterWorkspace.tsx');
+	assertCenterPaneOwner();
+	// F4: the four centre-view arms live in the extracted pane-chain module now.
+	const center = source(CENTER_PANE_OWNER);
 	for (const view of ['pre-generation', 'manual-edit', 'map', 'building']) {
 		assert.ok(center.includes(`'${view}'`), `center view '${view}' must remain`);
 	}

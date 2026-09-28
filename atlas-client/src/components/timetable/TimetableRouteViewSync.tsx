@@ -157,6 +157,17 @@ type TimetableRouteViewSyncProps = {
 	enterSetupView: () => void;
 	/** Open state of the existing leave-draft guard dialog; drives F2 restore. */
 	leaveDialogOpen: boolean;
+	/**
+	 * C11 M1 CORRECTION (F1) — reports the pathname this sync has actually applied.
+	 *
+	 * `appliedPathnameRef` is what tells "the view is stale because the route
+	 * moved" from "the view changed in-app and the URL never moved", and that
+	 * distinction is the whole of the M1 pane decision (see
+	 * `MapRouteTransitionIntent.resolveCenterPane`). Surfacing the ref as a value
+	 * keeps the decision derived from the one signal that already exists instead
+	 * of a second heuristic. Reports `null` until the first path is applied.
+	 */
+	onRouteAppliedPathname?: (pathname: string) => void;
 };
 
 /**
@@ -187,6 +198,7 @@ export function TimetableRouteViewSync({
 	enterRunsView,
 	enterSetupView,
 	leaveDialogOpen,
+	onRouteAppliedPathname,
 }: TimetableRouteViewSyncProps) {
 	const { pathname, search, hash } = useLocation();
 	const navigate = useNavigate();
@@ -227,6 +239,12 @@ export function TimetableRouteViewSync({
 		}
 		if (appliedPathnameRef.current === pathname) return;
 		appliedPathnameRef.current = pathname;
+		// C11 M1 CORRECTION (F1) — published BEFORE the guarded dispatch below, so
+		// the parent sees the applied pathname in the same batched render as the
+		// view change it causes. It is reported even when `desired` already equals
+		// the shown view, because "the route is applied" is a fact about the route,
+		// not about whether a view change was needed.
+		onRouteAppliedPathname?.(pathname);
 		const desired = resolveTimetableRouteView(pathname);
 		if (centerViewRef.current === desired) return;
 		const {

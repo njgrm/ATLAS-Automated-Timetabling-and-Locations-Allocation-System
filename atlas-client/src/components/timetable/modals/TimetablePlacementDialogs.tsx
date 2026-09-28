@@ -1,4 +1,5 @@
 import { useRef, useState, type RefObject } from 'react';
+import { DraftSwapReviewVerdict } from '@/components/timetable/DraftSwapReviewVerdict';
 import { AlertTriangle, ArrowRight, ArrowRightLeft, CheckCircle2, ExternalLink, Loader2, Lock, RefreshCw, ShieldCheck, ShieldOff, ShieldQuestion } from 'lucide-react';
 
 import type { ScheduleReviewDialogsContext } from '@/components/timetable/timetableContexts.types';
@@ -321,7 +322,6 @@ export function TimetablePlacementDialogs({ context }: { context: ScheduleReview
 		...(swapPreview?.sourcePreview?.softViolations ?? []),
 		...(swapPreview?.displacedPreview?.softViolations ?? []),
 	];
-	const draftSwapBlocked = swapSaving || Boolean(swapPreview?.loading || swapPreview?.error) || draftSwapHardViolations.length > 0;
 	const generatedPlacementFeedback = assignPickerSaving
 		? { message: 'Saving...', tone: 'neutral' as const }
 		: !assignPickerTarget
@@ -645,12 +645,21 @@ export function TimetablePlacementDialogs({ context }: { context: ScheduleReview
 						<ConflictDetails items={draftSwapHardViolations} tone="bad" heading="Blocking conflicts" />
 						<ConflictDetails items={draftSwapSoftViolations} tone="warn" heading="Warnings to review" />
 					</div>
-					<footer className="flex items-center justify-end gap-2 border-t border-border px-3 py-2">
-						<Button variant="outline" onClick={closeDraftSwap}>Cancel</Button>
-						<Button disabled={draftSwapBlocked} onClick={() => void executeSwapAction()} data-testid="draft-swap-commit">
-							{swapSaving ? <Loader2 className="size-4 animate-spin" /> : null}Confirm switch
-						</Button>
-					</footer>
+					{/* C11 M4 (F3) — the blocked review now STATES its outcome in one
+					    sentence instead of a bare count, and the confirm control is
+					    disabled by the SAME verdict that produces the sentence, so the two
+					    cannot disagree. The reason is visible text on this row, not a
+					    hover (AGENTS.md §8). Extracted to `DraftSwapReviewVerdict.tsx` so
+					    the sentence has one derivation and a rendered acceptance row. */}
+					<DraftSwapReviewVerdict
+						loading={swapPreview?.loading ?? false}
+						error={swapPreview?.error ?? null}
+						hardCount={draftSwapHardViolations.length}
+						softCount={draftSwapSoftViolations.length}
+						saving={swapSaving}
+						onCancel={closeDraftSwap}
+						onConfirm={() => void executeSwapAction()}
+					/>
 				</section>
 			)}
 

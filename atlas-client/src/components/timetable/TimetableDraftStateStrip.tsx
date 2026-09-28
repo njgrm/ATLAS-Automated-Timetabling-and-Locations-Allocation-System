@@ -56,13 +56,21 @@ export function resolveDraftStripPublishPlan(input: {
 	return { kind: 'publish-task' };
 }
 
+/**
+ * C11 F2 — the three actions a surface may hand the strip.
+ *
+ * All three are OPTIONAL. A surface with no action to offer passes nothing and the
+ * strip renders that control disabled with a visible reason; it must never pass a
+ * module-level no-op, which produced the "visible, enabled, silent" Edit and
+ * Discard draft the correction removed.
+ */
 export type DraftStripActions = {
 	/** Edit — enters the draft's manual-edit affordances for the current run. */
-	onEdit: () => void;
+	onEdit?: (() => void) | undefined;
 	/** Discard draft — the workspace's existing reset-draft confirmation. */
-	onDiscardDraft: () => void;
+	onDiscardDraft?: (() => void) | undefined;
 	/** Publish — the workspace's existing canonical publication dispatch. */
-	onPublish: () => void;
+	onPublish?: (() => void) | undefined;
 };
 
 /**
@@ -144,6 +152,21 @@ export function resolveDraftStripProps(input: {
 /** One sentence, shared by the two headers and the More menu. */
 export const DRAFT_EDIT_NEEDS_SELECTION = 'Pick a class on the grid first, then choose Edit.';
 
+/**
+ * C11 F2 — a control with no handler is DISABLED, and says so in the open.
+ *
+ * The first cut of this slice had both headers pass module-level `() => {}`
+ * fall-throughs for the actions they did not receive, so `Edit` and
+ * `Discard draft` rendered ENABLED, said nothing, and did nothing — the exact
+ * "visible, enabled, silent" control the packet forbids. These are the visible
+ * reasons for a missing handler, one per control, so an operator who cannot
+ * complete an action is told which one and why without hovering anything
+ * (AGENTS.md §8: a blocked reason must be visible, not hover-only).
+ */
+export const DRAFT_EDIT_UNAVAILABLE = 'Edit is not available on this schedule surface.';
+export const DRAFT_DISCARD_UNAVAILABLE = 'Discarding the draft is not available on this schedule surface.';
+export const DRAFT_PUBLISH_UNAVAILABLE = 'Publishing is not available on this schedule surface.';
+
 export function TimetableDraftStateStrip({
 	visibility,
 	editEnabled,
@@ -164,10 +187,23 @@ export function TimetableDraftStateStrip({
 	publishBlockedReason: string | null;
 	/** The single existing Undo / Redo / History control (M5). */
 	children?: React.ReactNode;
-	onEdit: () => void;
-	onDiscardDraft: () => void;
-	onPublish: () => void;
+	// C11 F2 — the three actions are OPTIONAL. A surface that has no action to
+	// offer passes nothing, and the control renders disabled with a visible reason
+	// instead of falling through to a module-level no-op.
+	onEdit?: (() => void) | undefined;
+	onDiscardDraft?: (() => void) | undefined;
+	onPublish?: (() => void) | undefined;
 }) {
+	// C11 F2 — a control is live only when the caller both permits it AND supplied
+	// a handler. `disabled` is the conjunction, so an enabled control can never be
+	// one whose handler does nothing.
+	const editLive = editEnabled && typeof onEdit === 'function';
+	const discardLive = discardEnabled && typeof onDiscardDraft === 'function';
+	const publishLive = publishEnabled && typeof onPublish === 'function';
+	const editReason = editLive ? null : (editBlockedReason ?? DRAFT_EDIT_UNAVAILABLE);
+	const discardReason = discardLive ? null : DRAFT_DISCARD_UNAVAILABLE;
+	const publishReason = publishLive ? null : (publishBlockedReason ?? DRAFT_PUBLISH_UNAVAILABLE);
+
 	return (
 		<div
 			role="region"
@@ -179,16 +215,17 @@ export function TimetableDraftStateStrip({
 			{/* AGENTS.md §8 — no raw `title`. A disabled control states its reason in
 			    the visible line beside it, not only in a tooltip, so a keyboard or
 			    touch operator gets the same information (the A2-TIMETABLE-CUSTODY-R2
-			    precedent for the header Undo). */}
+			    precedent for the header Undo). C11 F2 extends that to a control that
+			    has no handler at all. */}
 			<Button
 				type="button"
 				variant="outline"
 				size="sm"
 				className="h-7 gap-1.5 px-2 text-xs"
-				disabled={!editEnabled}
+				disabled={!editLive}
 				onClick={onEdit}
 				data-testid="timetable-draft-strip-edit"
-				aria-label={editEnabled ? 'Edit the draft schedule' : `Edit the draft schedule. ${editBlockedReason ?? ''}`}
+				aria-label={editLive ? 'Edit the draft schedule' : `Edit the draft schedule. ${editReason ?? ''}`}
 			>
 				<PencilLine className="size-3.5" aria-hidden="true" />
 				Edit
@@ -198,9 +235,10 @@ export function TimetableDraftStateStrip({
 				variant="outline"
 				size="sm"
 				className="h-7 gap-1.5 px-2 text-xs"
-				disabled={!discardEnabled}
+				disabled={!discardLive}
 				onClick={onDiscardDraft}
 				data-testid="timetable-draft-strip-discard"
+				aria-label={discardLive ? 'Discard the draft' : `Discard the draft. ${discardReason ?? ''}`}
 			>
 				<Trash2 className="size-3.5" aria-hidden="true" />
 				Discard draft
@@ -210,22 +248,27 @@ export function TimetableDraftStateStrip({
 				variant="outline"
 				size="sm"
 				className="h-7 gap-1.5 px-2 text-xs"
-				disabled={!publishEnabled}
+				disabled={!publishLive}
 				onClick={onPublish}
 				data-testid="timetable-draft-strip-publish"
-				aria-label={publishEnabled ? 'Publish the schedule' : `Publish the schedule. ${publishBlockedReason ?? ''}`}
+				aria-label={publishLive ? 'Publish the schedule' : `Publish the schedule. ${publishReason ?? ''}`}
 			>
 				<Send className="size-3.5" aria-hidden="true" />
 				Publish
 			</Button>
-			{editBlockedReason && !editEnabled ? (
+			{editReason && !editLive ? (
 				<span role="status" data-testid="timetable-draft-strip-edit-reason" className="text-xs text-muted-foreground">
-					{editBlockedReason}
+					{editReason}
 				</span>
 			) : null}
-			{publishBlockedReason && !publishEnabled ? (
+			{discardReason && !discardLive ? (
+				<span role="status" data-testid="timetable-draft-strip-discard-reason" className="text-xs text-muted-foreground">
+					{discardReason}
+				</span>
+			) : null}
+			{publishReason && !publishLive ? (
 				<span role="status" data-testid="timetable-draft-strip-publish-reason" className="text-xs text-muted-foreground">
-					{publishBlockedReason}
+					{publishReason}
 				</span>
 			) : null}
 			{children}

@@ -27,6 +27,18 @@ type ScheduleReviewWorkspaceBodyProps = {
 	 */
 	onSetupSetRepairOrigin?: (origin: RepairOrigin | null) => void;
 	onWarningEntrySelect?: () => void;
+	/**
+	 * C11 M1 CORRECTION (F1) — the pathname the route→view sync has applied, or
+	 * `null` before it applied any. Forwarded to both `CenterWorkspace` renders, so
+	 * the centre-pane override applies only in the one-render lag after a URL move
+	 * and an in-app entry still reaches its own pane.
+	 */
+	routeAppliedPathname?: string | null;
+	/**
+	 * C11 M3 (F3) — the legal move-target slot keys for the current view, from the
+	 * one `describeMoveTargets` derivation, shown only while a move is armed.
+	 */
+	moveTargetSlotKeys?: ReadonlySet<string>;
 };
 
 function ScheduleReviewWorkspaceBodyImpl({
@@ -40,6 +52,8 @@ function ScheduleReviewWorkspaceBodyImpl({
 	onBackToBlockerSummary,
 	onSetupSetRepairOrigin,
 	onWarningEntrySelect,
+	routeAppliedPathname = null,
+	moveTargetSlotKeys,
 }: ScheduleReviewWorkspaceBodyProps) {
 	const {
 		leftPanelRef,
@@ -67,7 +81,7 @@ function ScheduleReviewWorkspaceBodyImpl({
 			<div className="relative flex flex-1 min-h-0 overflow-hidden" data-testid="timetable-simple-body">
 				<ResizablePanelGroup direction="horizontal" className="flex flex-1 min-h-0">
 					<Profiler id="Center/Grid" onRender={onProfilerRender}>
-						<CenterWorkspace {...centerWorkspaceContext} formatWarningMessage={rightPanelContext.formatConstraintMessage} teacherDepartureEntryIds={teacherDepartureEntryIds} onReassignTeacher={onReassignTeacher} simpleMode onWarningEntrySelect={onWarningEntrySelect} setupOnStartTask={onSimpleTaskChange} setupOnSetRepairOrigin={onSetupSetRepairOrigin ?? null} />
+						<CenterWorkspace {...centerWorkspaceContext} formatWarningMessage={rightPanelContext.formatConstraintMessage} teacherDepartureEntryIds={teacherDepartureEntryIds} onReassignTeacher={onReassignTeacher} simpleMode onWarningEntrySelect={onWarningEntrySelect} routeAppliedPathname={routeAppliedPathname} moveTargetSlotKeys={moveTargetSlotKeys} setupOnStartTask={onSimpleTaskChange} setupOnSetRepairOrigin={onSetupSetRepairOrigin ?? null} />
 					</Profiler>
 				</ResizablePanelGroup>
 				<TimetableTaskDrawer
@@ -114,7 +128,7 @@ function ScheduleReviewWorkspaceBodyImpl({
 			<ResizableHandle withHandle className={!isDesktop && isLeftCollapsed ? 'hidden' : undefined} />
 
 			<Profiler id="Center/Grid" onRender={onProfilerRender}>
-				<CenterWorkspace {...centerWorkspaceContext} formatWarningMessage={rightPanelContext.formatConstraintMessage} teacherDepartureEntryIds={teacherDepartureEntryIds} onReassignTeacher={onReassignTeacher} setupOnStartTask={onSimpleTaskChange} setupOnSetRepairOrigin={onSetupSetRepairOrigin ?? null} />
+				<CenterWorkspace {...centerWorkspaceContext} formatWarningMessage={rightPanelContext.formatConstraintMessage} teacherDepartureEntryIds={teacherDepartureEntryIds} onReassignTeacher={onReassignTeacher} routeAppliedPathname={routeAppliedPathname} moveTargetSlotKeys={moveTargetSlotKeys} setupOnStartTask={onSimpleTaskChange} setupOnSetRepairOrigin={onSetupSetRepairOrigin ?? null} />
 			</Profiler>
 
 			<RightPanel {...rightPanelContext} />

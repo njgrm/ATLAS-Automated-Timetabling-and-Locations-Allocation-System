@@ -690,7 +690,7 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 			<TimetableDraftStateStrip
 				{...draftStrip}
 				onEdit={() => context.enterManualEditView('CHANGE_TIMESLOT')}
-				onDiscardDraft={onDiscardDraft ?? noopDiscardDraft}
+				onDiscardDraft={onDiscardDraft}
 				onPublish={handlePublishActionClick}
 			>
 				{/* M5 — the single existing Undo / Redo / History control, now in the
@@ -987,6 +987,5 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 }
 
 /** A fixture that omits the workspace's discard dialog still renders; it discards nothing. */
-const noopDiscardDraft = () => {};
 
 export const TimetableSimpleHeader = memo(TimetableSimpleHeaderImpl);

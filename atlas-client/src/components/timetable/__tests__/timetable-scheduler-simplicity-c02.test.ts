@@ -7,6 +7,7 @@ import { QueryClient } from '@tanstack/react-query';
 import { buildSectionLabel } from '@/lib/timetable-reference-labels';
 import { requiresFacultyIssueConfirmation, resolveTimetableEntryPivot } from '@/lib/timetable-entry-pivot';
 import { timetableRunBundleQueryKey, timetableRunsQueryKey, timetableReferenceQueryKey, timetableRoomRequestQueryKey } from '@/lib/timetable-data/timetableQueryKeys';
+import { CENTER_PANE_OWNER, assertCenterPaneOwnerIsRendered, centerPaneSource } from './centerPaneOwner';
 
 const clientRoot = fileURLToPath(new URL('../../../..', import.meta.url));
 const source = (path: string) => readFileSync(`${clientRoot}/${path}`, 'utf8');
@@ -134,7 +135,21 @@ test('published return is visible and restores run, term, view, and entity after
 test('draft tray switch review is inline with one Confirm action', () => {
 	const dialogs = source('src/components/timetable/modals/TimetablePlacementDialogs.tsx');
 	assert.match(dialogs, /data-testid="draft-swap-inline-preview"/);
-	assert.match(dialogs, /Confirm switch/);
+	// C11 M4 (F3) — the blocked verdict and its ONE Confirm moved verbatim into
+	// `DraftSwapReviewVerdict.tsx`, because the blocked review stated only a count
+	// and left the disabled control with no visible reason. The property decided
+	// here is UNCHANGED: the switch review is still inline, and still has exactly
+	// ONE Confirm action. What moved is which module owns the label, so the row now
+	// pins BOTH halves — the dialog renders the extracted verdict, and the verdict
+	// still carries the single Confirm control.
+	assert.match(dialogs, /<DraftSwapReviewVerdict/,
+		'the inline preview renders the extracted blocked-review verdict');
+	assert.doesNotMatch(dialogs, /<Button[^>]*>\s*Confirm switch|Confirm switch<\/Button>/,
+		'and no SECOND Confirm control is left inline in the dialog');
+	const verdict = source('src/components/timetable/DraftSwapReviewVerdict.tsx');
+	assert.match(verdict, /data-testid="draft-swap-commit"/, 'the verdict owns the single Confirm control');
+	assert.match(verdict, /Confirm switch/, 'which is still labelled "Confirm switch"');
+	assert.equal((verdict.match(/data-testid="draft-swap-commit"/g) ?? []).length, 1, 'exactly one');
 	assert.doesNotMatch(dialogs, /draft-swap-review-dialog/);
 });
 
@@ -146,8 +161,15 @@ test('Teaching Load dock retains all three deliberate mount states', () => {
 });
 
 test('nested timetable pages keep focused routes without duplicating scheduler chrome', () => {
+	// C11 slice 1 (F4) — the centre-pane chain moved to
+	// `CenterWorkspacePaneSurface.tsx` (the AGENTS.md §8 cap, plus F4's
+	// requirement for a rendered row on the real surface). The property decided
+	// here is UNCHANGED and nothing was removed or weakened; only the owning
+	// module is read now, and `assertCenterPaneOwnerIsRendered()` pins the new
+	// owner to the one CenterWorkspace actually renders.
+	assertCenterPaneOwnerIsRendered();
 	const workspace = source('src/components/timetable/ScheduleReviewWorkspace.tsx');
-	const center = source('src/components/timetable/CenterWorkspace.tsx');
+	const center = centerPaneSource(CENTER_PANE_OWNER);
 	assert.match(workspace, /const showSchedulerChrome = isTimetableSchedulerView\(state\.headerContext\.centerView\)/);
 	// C11 M1 — the routed sub-page arms are now keyed off `paneView`, the RESOLVED
 	// view from `resolveCenterPane`, not the raw `centerView` state. The assertion
@@ -156,7 +178,20 @@ test('nested timetable pages keep focused routes without duplicating scheduler c
 	// that the chain consumes the decision, so a future change cannot quietly go
 	// back to keying off the lagging state that caused the stale-panel defect.
 	assert.match(center, /paneView === 'setup'|paneView === 'policy'|paneView === 'runs'/);
-	assert.match(center, /const centerPane = resolveCenterPane\(pathname, centerView\);/);
+	// SUPERSEDED, and REPLACED immediately below — not dropped (AGENTS.md §16). The
+	// candidate took a TWO-argument decision; the F1 correction added the third
+	// argument that gates the route override to the one-render lag window, because
+	// the two-argument form fired on every in-app entry and made Manual edit, Change
+	// room and the M2 room picker unreachable from /timetable. The superseded shape
+	// is now asserted ABSENT so it can never come back silently, and the corrected
+	// shape is asserted PRESENT — strictly stronger than the single assertion this
+	// replaces.
+	assert.equal(
+		/const centerPane = resolveCenterPane\(pathname, centerView\);/.test(center),
+		false,
+		'the two-argument centre-pane decision is superseded and must not return',
+	);
+	assert.match(center, /const centerPane = resolveCenterPane\(pathname, centerView, routeAppliedPathname\);/);
 	assert.match(center, /const paneView = centerPane\.kind === 'center-view' \? centerPane\.view : centerView;/);
 	assert.match(center, /\{centerPane\.kind === 'pending-map-intent' \? \(/);
 	assert.match(workspace, /h-\[calc\(100svh-3\.5rem\)\]/);

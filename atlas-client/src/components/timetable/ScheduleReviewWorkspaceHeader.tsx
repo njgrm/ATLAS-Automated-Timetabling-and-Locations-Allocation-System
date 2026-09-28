@@ -47,6 +47,14 @@ type ScheduleReviewWorkspaceHeaderProps = {
 	onEditDraft?: () => void;
 	/** C11 D — the workspace's EXISTING reset-draft confirmation. */
 	onDiscardDraft?: () => void;
+	/**
+	 * C11 F2 — the ONE existing `TimetableUndoRedoControl` instance, handed to the
+	 * strip exactly as the Simple header receives it. The first cut removed the
+	 * Expert-only Undo toolbar but rendered this strip with no child, so `advanced`
+	 * had NO Undo; one instance through BOTH strips keeps one Undo with one
+	 * accessible name (A2-TIMETABLE-CUSTODY single-surface).
+	 */
+	undoRedoControl?: React.ReactNode;
 };
 
 function formatTaskCount(count: number, label: string): string {
@@ -104,7 +112,7 @@ function formatChangedDomains(domains: string[] | undefined): string[] {
  * headers rendering one run's identity from one derivation is the only way
  * "which schedule is this" cannot differ between the two views of the same run.
  */
-function ScheduleReviewWorkspaceHeaderImpl({ context, onEditDraft, onDiscardDraft }: ScheduleReviewWorkspaceHeaderProps) {
+function ScheduleReviewWorkspaceHeaderImpl({ context, onEditDraft, onDiscardDraft, undoRedoControl }: ScheduleReviewWorkspaceHeaderProps) {
 	const [showImpactPreview, setShowImpactPreview] = useState(false);
 	const [syncing, setSyncing] = useState(false);
 	const [showSyncConfirm, setShowSyncConfirm] = useState(false);
@@ -474,13 +482,21 @@ function ScheduleReviewWorkspaceHeaderImpl({ context, onEditDraft, onDiscardDraf
 				publishEnabled={expertPublishGate.allowed}
 				publishBlockedReason={expertPublishGate.allowed ? null : expertPublishGate.reason}
 
-				onEdit={onEditDraft ?? noopEditDraft}
-				onDiscardDraft={onDiscardDraft ?? noopDiscardDraft}
+				// C11 F2 — NO no-op fall-through. Both actions are optional, and
+				// `TimetableDraftStateStrip` renders a control it was given no
+				// handler for as DISABLED with the reason visible beside it. The
+				// module-level `() => {}` this replaced is exactly the "visible,
+				// enabled, silent" control the correction removes, and the noop
+				// consts it needed are gone.
+				onEdit={onEditDraft}
+				onDiscardDraft={onDiscardDraft}
 				onPublish={() => {
 					setPublishAcknowledged(false);
 					setShowPublishDialog(true);
 				}}
-			/>
+			>
+				{/* C11 M5 (F2) — the single Undo instance, as in the Simple header. */}{undoRedoControl}
+			</TimetableDraftStateStrip>
 			<div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-b border-border/60 bg-muted/20 px-4 py-1.5 text-xs text-muted-foreground" data-testid="timetable-scheduler-orientation">
 				<span><span className="font-semibold text-foreground">Term:</span> {activeTermLabel ?? 'Term setup required'}</span>
 				<span><span className="font-semibold text-foreground">Scope:</span> {termFilter === 'all' ? 'All terms' : (termOptions.find((option) => option.value === String(termFilter))?.label ?? 'Selected term')}</span>
@@ -979,7 +995,5 @@ function ScheduleReviewWorkspaceHeaderImpl({ context, onEditDraft, onDiscardDraf
 }
 
 /** A fixture that omits these still renders the strip; it edits and discards nothing. */
-const noopEditDraft = () => {};
-const noopDiscardDraft = () => {};
 
 export const ScheduleReviewWorkspaceHeader = memo(ScheduleReviewWorkspaceHeaderImpl);

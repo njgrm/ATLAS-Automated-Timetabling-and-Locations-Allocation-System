@@ -20,6 +20,7 @@ import { act, createElement, useEffect, useState } from 'react';
 import type { ReactElement } from 'react';
 import type { Root } from 'react-dom/client';
 import { JSDOM } from 'jsdom';
+import { CENTER_PANE_OWNER, assertCenterPaneOwnerIsRendered, centerPaneSource } from './centerPaneOwner';
 
 const dom = new JSDOM('<!doctype html><html><body><div id="root"></div></body></html>', { url: 'http://localhost/timetable/runs' });
 Object.assign(globalThis, {
@@ -220,7 +221,14 @@ test('A2-6 item 6: mutant — the pre-fix runs.length-only pane fails this contr
 // --- the signal is the data layer's own, not a simulated one ---
 
 test('A2-6 item 6: the pending signal is the workspace load state, not a local delay', () => {
-	const center = source('src/components/timetable/CenterWorkspace.tsx');
+	// C11 slice 1 (F4) — the centre-pane chain moved to
+	// `CenterWorkspacePaneSurface.tsx` (the AGENTS.md §8 cap, plus F4's
+	// requirement for a rendered row on the real surface). The property decided
+	// here is UNCHANGED and no assertion was removed or weakened; only the owning
+	// module is read now, and `assertCenterPaneOwnerIsRendered()` keeps the row's
+	// teeth by pinning the new owner to the one CenterWorkspace actually renders.
+	assertCenterPaneOwnerIsRendered();
+	const center = centerPaneSource(CENTER_PANE_OWNER);
 	assert.match(center, /runsPending=\{runsPending\}/, 'the centre threads the pending signal into the pane');
 	assert.match(center, /runsUnavailableReason=\{runsUnavailableReason\}/, 'the centre threads the failure reason into the pane');
 	assert.match(
