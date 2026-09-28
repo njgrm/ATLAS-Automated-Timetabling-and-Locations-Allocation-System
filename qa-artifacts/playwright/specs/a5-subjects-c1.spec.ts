@@ -1136,6 +1136,109 @@ test('A5-17.1(2)+(3) RENDERED: every assigned teacher shows name + load, no dupl
 	expect([...seenGrades].sort()).toEqual(['GR10', 'GR7', 'GR9']);
 });
 
+// ────────────────────────────── operator FIX-20 ─────────────────────────────
+
+/**
+ * The Add/Edit Subject form dialog, and the Cancel button inside it.
+ *
+ * Scoped to the form's own `data-testid` rather than found by the text "Cancel":
+ * once the discard confirmation is on screen there are TWO buttons labelled
+ * "Cancel", and an unscoped `getByRole('button', { name: 'Cancel' })` would
+ * silently start resolving to the confirmation's — the row would then be
+ * cancelling the wrong thing and still go green.
+ */
+function formDialog(page: Page): Locator {
+	return page.locator('[data-testid="subjects-form-dialog"]');
+}
+
+function formCancel(page: Page): Locator {
+	return formDialog(page).getByRole('button', { name: 'Cancel', exact: true });
+}
+
+function discardConfirmation(page: Page): Locator {
+	return page.getByRole('dialog').filter({ hasText: 'Discard your changes?' });
+}
+
+async function openAddSubjectForm(page: Page): Promise<void> {
+	await page.getByRole('button', { name: 'Add subject' }).click();
+	await expect(formDialog(page)).toBeVisible();
+	await expect(formDialog(page).getByPlaceholder('e.g. Mathematics Grade 10')).toBeVisible();
+}
+
+test('FIX-20 RENDERED: cancelling a FILLED subject form preserves the fields through a real confirmation, and the operator can cancel the cancellation', async ({ page }) => {
+	await page.setViewportSize({ width: 1366, height: 768 });
+	await gotoSubjects(page);
+	await openAddSubjectForm(page);
+
+	// FILL THE FORM. This is the state the operator is in when they change
+	// their mind, and it is the state the defect destroyed.
+	const nameField = formDialog(page).getByPlaceholder('e.g. Mathematics Grade 10');
+	await nameField.fill('Espanol');
+	const codeField = formDialog(page).getByPlaceholder('e.g. MATH10');
+	await codeField.fill('ESP10');
+
+	// ── CANCEL on the filled form. ──
+	await formCancel(page).click();
+
+	// THE DEFECT: the form closed and the typed values went with it.
+	const confirmation = discardConfirmation(page);
+	await expect(confirmation, 'no discard confirmation was shown for a filled form').toBeVisible();
+	// The form is still on screen behind it — that is what "keep editing" means.
+	await expect(formDialog(page), 'the form was torn down behind the confirmation').toBeVisible();
+	await expect(nameField, 'the form was torn down behind the confirmation').toHaveValue('Espanol');
+	await expect(codeField, 'the typed subject code was discarded by Cancel').toHaveValue('ESP10');
+
+	// THE WORDING, as rendered. FIX-20 is a wording-bearing requirement, so the
+	// sentence the operator reads is part of the evidence, not a detail.
+	await expect(confirmation).toContainText('This subject form has changes you have not saved');
+	await expect(confirmation).toContainText('cancel to keep editing');
+	await expect(confirmation.getByRole('button', { name: 'Discard changes' })).toBeVisible();
+	await expect(confirmation.getByRole('button', { name: 'Cancel', exact: true })).toBeVisible();
+
+	// IT IS ACTUALLY ON TOP, not merely in the DOM. Both dialogs are portalled
+	// to `document.body` at the same `z-50`, so paint order is decided by DOM
+	// order — the only thing that makes the newer question the visible one.
+	const topAtConfirm = await page.evaluate(() => {
+		const button = Array.from(document.querySelectorAll('button'))
+			.find((b) => b.textContent?.trim() === 'Discard changes');
+		if (!button) return 'not-found';
+		const r = button.getBoundingClientRect();
+		const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+		return hit ? `${hit.tagName.toLowerCase()}:${(hit.textContent || '').trim()}` : 'none';
+	});
+	expect(topAtConfirm, 'the confirmation is not the topmost element at its own confirm button').toContain('Discard changes');
+
+	// ── CANCEL THE CANCELLATION: the operator changes their mind again. ──
+	await confirmation.getByRole('button', { name: 'Cancel', exact: true }).click();
+	await expect(discardConfirmation(page), 'cancelling the cancellation left the question on screen').toHaveCount(0);
+	await expect(formDialog(page), 'cancelling the cancellation closed the form anyway').toBeVisible();
+	await expect(nameField, 'the typed name was lost when the cancellation was cancelled').toHaveValue('Espanol');
+	await expect(codeField, 'the typed code was lost when the cancellation was cancelled').toHaveValue('ESP10');
+
+	// And the form is still live: a further keystroke lands.
+	await nameField.fill('Espanol 10');
+	await expect(nameField).toHaveValue('Espanol 10');
+
+	// ── CONFIRM THE DISCARD: the operator really does mean to leave. ──
+	await formCancel(page).click();
+	await expect(discardConfirmation(page)).toBeVisible();
+	await discardConfirmation(page).getByRole('button', { name: 'Discard changes' }).click();
+	await expect(formDialog(page), 'discarding did not close the form').toHaveCount(0);
+	await expect(discardConfirmation(page)).toHaveCount(0);
+});
+
+test('FIX-20 RENDERED NEGATIVE: cancelling an UNTOUCHED form closes it immediately, with no confirmation', async ({ page }) => {
+	await page.setViewportSize({ width: 1366, height: 768 });
+	await gotoSubjects(page);
+	await openAddSubjectForm(page);
+
+	// Opened and left completely alone.
+	await formCancel(page).click();
+
+	await expect(formDialog(page), 'an untouched form did not close immediately').toHaveCount(0);
+	await expect(discardConfirmation(page), 'an untouched form raised a discard confirmation').toHaveCount(0);
+});
+
 // ─────────────────────────── the no-write guarantee ─────────────────────────
 
 test('A5 ISOLATED: the browser never requested a write, nothing escaped the mocks, and the run stayed on loopback', async ({ page, baseURL }) => {
