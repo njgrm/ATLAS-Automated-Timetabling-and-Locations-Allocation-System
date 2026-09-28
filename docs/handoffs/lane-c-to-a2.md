@@ -1,5 +1,65 @@
 # Lane C → A2: QA results and instructions (single channel)
 
+> ## A2 -> Lane C, 2026-09-28 ~13:5x +08 - **c10 NOT DEPLOYED. `6b1ec722` is still NOT shippable: the range moved under it. Do not run the 4 T-row groups below.**
+>
+> **Two of c10's three substantive steps are DONE and verified. The third is blocked on an open gate, and it is
+> not mine to close.** Live is **still `a1db27d5`** and remains the rollback basis. Nothing was built, cut over,
+> signed into, generated or published. **The `JWT_EXPIRES_IN=7d` change was never made** - the env file was never
+> opened, because that step is sequenced *before* cutover and there is no cutover.
+>
+> **1. E: reclaim DONE and verified (c10 step 3).** Manifest
+> `docs/reviews/reclaim-a2-c10-20260928/frozen-manifest.md` @ `37bd5342`, R1->R2->R3 additive. 7 registered
+> worktrees, non-forced `git worktree remove` rc=0 each + one `prune` rc=0. **`E:` 19.797 -> 28.616 GiB
+> (+8.819)**, above the §3 25 GiB warn line again. Worktrees **66 -> 59**. **624 branches unchanged, 3 stashes
+> unchanged, `D:/ATLAS` residue identical to the pinned baseline.** It took **two** `CORRECTION_REQUIRED`s to
+> get right and **both were my defect**: R1 tried to retire `d31bfacb`, which `live-state.md:172` names as the
+> live release's rollback basis and which c10's own wording excludes ("never ... the rollback target"); R2 then
+> bound a capacity number to a moment that had passed and stated a margin that was false in *direction*.
+> **`4893cbde` was already retired 2026-09-26** and no longer exists - that c10 scope item was a no-op.
+>
+> **2. B2 DONE (c10 step 1), fresh QA `ACCEPT_READY` 7/7.** Candidate `4c35cc8f`, 7 test files, **product tree
+> byte-identical to `6b1ec722`**. `test:client-suite` **12 fail at the candidate, 12 at base `a1db27d5`, and the
+> failing-identifier difference set is empty in BOTH directions** - the packet's literal criterion, met. No
+> assertion weakened or removed; row counts unchanged per file; all 8 re-pointed locators discriminate, which
+> *fixed* a pre-existing dead-import vacuity in `timetable-truth-labels-a2`.
+>
+> **3. Gate 3 `ACCEPT_READY`, 25 paths, 27/27 - but c10 said 24 and I corrected it to 25.** `atlas-client/
+> package.json`, `AGENTS.md`, `.opencode/package.json` and `.opencode/agents/atlas-planner.md` are also in A3's
+> c8 block. A 24-path scope would have repeated c9's exact B1 defect. **Read this next line before reusing it.**
+>
+> ### THE BLOCKER: the release range moved. `6b1ec722` is not shippable on c10's authority.
+>
+> I based the release worktree on `origin/main` @ `a17a813f`. `origin/main` has since advanced to **`c80c085b`**
+> with **15 commits / 22 non-docs paths** of **A3's c9** work (Subjects filter row, section room picker, dialog
+> theming and AA contrast). Shipping that is barred three ways: **§11** a release must not ship source no
+> independent reviewer has seen, and that delta needs its own gate; **§13** derive the delta by enumerating the
+> range, never from the candidates you happen to have reviewed - this is the recorded 2026-09-26 precedent where
+> a range called client-only actually carried 14 `atlas-server` paths including a first-time-to-production auth
+> change; and **Gate 3's verdict is now partially void** because `atlas-client/package.json`, `index.css`,
+> `a3-c8-warning-token.test.ts`, `palette-slate400-step2-a3-s-f.test.ts` and `palette-token-sweep-a3-s-e.test.ts`
+> all changed *after* it approved them. It approved bytes that will not ship.
+>
+> ### Sequence for the next elevated packet, written down now so it is not re-derived:
+> 1. **Review gate for A3's c9 delta alone** - one fresh reviewer, `a17a813f..c80c085b`, 22 non-docs paths, in
+>    the same pass as the packet lint.
+> 2. **Re-gate the 5 changed Gate-3 paths** - their prior verdict is void.
+> 3. **Re-derive the client-suite baseline**: `atlas-client/package.json` moved, so the 12-failure set that B2's
+>    acceptance rests on must be re-measured, not carried forward.
+> 4. Re-run the reclaim check (`E:` is at 28.616 GiB; a build costs ~1.46 GiB) and build in a **fresh** worktree.
+> 5. Only then: `JWT_EXPIRES_IN=7d` with backup + byte-identical ACL restore, cutover, health + public API, and
+>    the T-row groups below.
+>
+> **Non-blocking findings for A3, not charged to me:** the `test:client-suite` script still carries the duplicated
+> `tsx --test tsx --test` prefix (identical at `a1db27d5`, `origin/main` and my candidate - pre-existing, but it
+> is not a working gate entry as written); `.opencode/package.json` has **no lockfile**, so the `1.18.32` pin is
+> documentation-grade; `TeacherConcerns.tsx`'s new `concern-no-teacher-empty-state` is **c6** content whose only
+> test is not among the c8 paths, so gating the file at 25 does not put that empty state under test.
+>
+> **For Lane A3:** your c9 block is integrated on `main` and would ride along in this release **unreviewed**.
+> That is the one thing standing between Lane A2 and shipping `6b1ec722`. Say the word and I will run the step-1
+> gate; otherwise it must ship in its own elevated packet.
+
+
 > ## ✅ A2 → Lane C, 2026-09-28 ~12:4x +08 — **A2 ready for release at `6b1ec722`. Run these 4 T-row groups after the cutover.**
 >
 > **Live is still `a1db27d5`** and must stay the rollback basis. I did not build, reclaim, deploy, generate or publish
