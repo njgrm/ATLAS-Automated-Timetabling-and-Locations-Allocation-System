@@ -335,3 +335,134 @@ stream for 1.47 GiB. Recorded rather than taken.
    correctly refused to quote strings from source. Unauthenticated `/public/schedules` is healthy and the release
    serves `index-CZyHbCus.js`, so the release is fine and only the session is missing. **Generation and
    publication were NOT executed** - separate HIGH steps, authority intact, not performed by this cutover.
+
+---
+
+# c5 - Planner A2, 2026-09-28 08:05-09:40 +08 - L1 is FALSIFIED and the auth fix is DECLINED; items 2-4b integrated; the release is STAGED, NOT BUILT, NOT CUT OVER
+
+Packet `docs/prompts/overnight-a2-timetable-2026-09-28-c5.md`. Authority: Lane C c5 (Lane C holds the operator's
+overnight delegation) + the standing 2026-09-20 authorization. Operator asleep; **no question was asked and none was
+needed.** **No gate was waived.** Live release unchanged: **`a1db27d5`**.
+
+## 1. What the morning must do, in order
+
+1. **Re-seed the browser sessions, then run `docs/prompts/a2-release-c5-543c74b3-2026-09-28.md` (rev 2).** That
+   packet is the whole remaining job for this release and it is fully gated. Its §0 names a **mandatory read**
+   (`a2-release-d049f85d-2026-09-28.md`) that defines rows D1-D8 and B9-B22.
+2. **Clear the capacity gate first.** `E:` is 26.84 GiB and a ~14 GiB build projects to **12.84 GiB**, below the
+   directive's 15 GiB fail-closed line. The policy-safe reclaim in §4A is **not** enough on its own. A build
+   attempted without a completed reclaim must not start.
+3. **L1 needs no product decision to close, and its real fix is the operator's.** The 8-hour remembered-session
+   lifetime is a genuine defect whose correct fix is a refresh-token design (a **migration**, its own HIGH gate) or
+   an explicit recorded risk acceptance of a longer-lived token. Neither is mine to take. Named, dated, not started.
+4. **B9-B22 (14 browser rows) are still UNPERFORMED, not waived**, and remain so until a session exists.
+
+## 2. L1 (HIGH, demo risk) - the premise is FALSIFIED, and the proposed fix is DECLINED
+
+**Verdict: a release or a server restart does NOT invalidate a remember-me session.** Six links, all independently
+verified by the pre-action reviewer: stateless JWT verification with no session store or revocation list
+(`authenticate.ts:100-114`); the signing secret supplied by a machine-scope env file outside every release worktree
+(`contract.mjs:230` reads only `refPath`; `sourceDir` feeds existence and containment checks only); neither live
+release dir carries an `.env`; the client persisting the token three ways, all origin-scoped (`auth.ts:140-190`, 30-day
+cookie); no refresh credential anywhere; and the decisive one - **`git diff --name-only d31bfacb a1db27d5` touches no
+auth file at all**, so the cutover could not have invalidated a session.
+
+**The real defect: "remember me" is a misnomer.** `local-auth.service.ts:10` signs with `JWT_EXPIRES_IN ?? '8h'`
+and `JWT_EXPIRES_IN` is absent from the 17-key durable env, so the effective TTL is exactly **8 hours** while the UI
+offers 30 days. At the cliff the request 401s, `expireAtlasSession()` runs `clearAtlasAuthStorage()`, and the
+remembered credential is destroyed. A non-remembered session is unaffected, which is why it read as a deploy event.
+
+**The reviewer's ruling, which I accept and which changed the outcome:** the proposed 9x token widening is **not
+acceptable as a unilateral source change** - with no per-session record the only kill switch is rotating
+`JWT_SECRET` for *every* user, the credential is JS-readable (`auth.ts:143`, no `HttpOnly`) and in `localStorage`,
+and "which sessions are remembered" becomes unanswerable. It was **also not delivered by its own scope**:
+`Login.tsx:153-156` never posts `rememberMe`, so the feature would have been **dead on arrival in production while
+its decisive acceptance row still passed** - a vacuous row. **c5's conditional is not met, so no auth-boundary
+change ships.** Full record: `docs/prompts/a2-c5-l1-session-lifetime-2026-09-28.md`.
+
+**My own claim was wrong and is withdrawn, not smoothed over.** I asserted the 8-hour cliff explained the ~07:00
+sign-out. It does not survive arithmetic: 01:35 to 07:00 is **5h25m**, and the last `LOCAL_LOGIN_SUCCESS`
+(id 1002, 2026-09-27 15:08:51) plus 8 hours is **23:08**, ~2.5h *before* the profile was seen working. And
+`local-auth.service.ts:775` mints a token with **no audit row**, so the mint time is unrecorded: the 8-hour theory
+is **unproven, not refuted**. What decides it: read the expired token's `exp`/`iat` from the profile and compare to
+07:00. Named successor.
+
+**What did ship from L1** is the one zero-risk artefact: `ops/runtime/__tests__/signing-secret-stability.test.mjs`
+(`08d95b38`, one file, 187 insertions, **no production change**), proving the resolved signing secret is
+byte-identical across two different release `sourceDir`s by SHA-256 over the UTF-8 bytes, with a **negative
+control** (two different synthetic secrets must yield different digests) so it cannot pass a constant-returning
+loader. Failing-first proven with **two** mutants, restored byte-exact. Planner-verified: 2/2, exit 0. This turns
+L1's falsification from handoff prose into a tripwire.
+
+## 3. Items 2, 3, 4 - integrated at `543c74b3`
+
+| Item | Result |
+|---|---|
+| **2 (#52)** | **FIXED.** The pending-map-route state bypasses the `AnimatePresence` chain (`CenterWorkspace.tsx:462-465`), so the previous section's grid is never rendered. The arrangement was proven to discriminate by scratch mutation (2 real `AssertionError`s, then restored byte-for-byte). |
+| **3 (#53)** | **HONEST BRANCH - nothing changed.** A real `buildingOccupancy` is not derivable on this surface: the denominator is self-referential and yields a fabricated 100%, `CenterWorkspace` has no verified ordered active term, `ScheduledEntry.termIndex` is optional so `pivotDraftToView` refuses with `TERM_IDENTITY_UNAVAILABLE`; and the existing `deriveBuildingOccupancy` is a room-*count* ratio that would mislabel itself. Evidence committed at `docs/handoffs/a2-c5-building-occupancy-and-workbook-labels.md`. |
+| **4a** | **FIXED.** "Locked classes kept" is a tri-state; it can no longer print an unmeasured `0` (failing-first: `actual: '0', expected: 'Not checked'`). |
+| **4b** | **FIXED, and the packet's premise was wrong.** It is **4 failing tests in one file**, not 4 files. It did **not** drop a `TEACHER` column: `d3900520` implemented column 8, and `1b272c3e` (2026-09-24 17:00) removed it from the **writer** while `2558d322` (16:50) did the test side - two halves of one decision the unit test never tracked. Corrected additively (`SUPERSEDED` markers, +2 net assertions). `test:server-suite` 365/361/4 -> **365/365**. |
+
+**Three review rounds, and each earned its cost.** Round 1 (`CORRECTION_REQUIRED` 6/11) caught that the
+`AnimatePresence` bypass was real but the *evidence* was a source-index check - proving wiring, not outcome - and
+caught that I had quoted a wrong base SHA. Round 2 (4/5) closed the workbook split, the export arithmetic and the
+tautological failing-first, but caught the self-fulfilling mutant: it injected the grid markup itself, and
+`AnimatePresence`'s `mode="wait"` deferral is gated on a layout effect `renderToStaticMarkup` never runs, so the row
+**passed with `AnimatePresence` deleted**. Round 3 (test-only) rescoped the rows honestly, superseded the mutant
+without deleting it, and proved the arrangement row fails under mutation.
+
+**Not claimed:** no browser row. 14 client test failures and 1 `Open Review readiness` failure are pre-existing,
+proven pre-existing by a base re-run with byte-offset equality. Client typecheck **1** pre-existing error, server
+**0** - **the 5-error baseline quoted in earlier packets does not reproduce and is withdrawn.**
+
+## 4. Two planner decisions I made, and recorded as mine
+
+- **4b was split, not "fixed".** The candidate had silently overridden an acceptance row on a premise I then
+  disproved with commit evidence. **Correcting an acceptance row is a planner decision**, so I made it explicitly:
+  keep the additive unit-test correction (the later commit is the truth), **revert** the restoration of the long
+  learner labels (a revert of an intentional *official-export* decision, mandated by nothing), and **revert** the
+  unassumed daily-totals arithmetic, which no test could discriminate. Both reverts are named successors with their
+  measured numbers. The false historical claim was committed in **five** places and all five were corrected.
+- **The `Env:` trap is live right now.** This session's process-scope `ATLAS_RUNTIME_SOURCE_DIR` reads
+  `…lane-a2-release-9b28c572` while machine scope, the task action and the live listeners all say `a1db27d5` - and
+  `9b28c572` is a reclaim candidate, so an executor trusting `Env:` would treat a directory scheduled for deletion as
+  the live release.
+
+## 5. The release: STAGED, NOT BUILT, NOT CUT OVER - both decisions confirmed by review
+
+Target **`543c74b340376f36c5ed93b39af62be7deaeced2`**, 42 commits, **47** paths, **30** non-docs
+(27 client / 2 server / 1 `ops/runtime`), **zero** `prisma/`/lockfile/seed. **Zero executable server lines change** -
+the one server production file is comment-only, so the workbook behaves exactly as the incumbent.
+
+- **Gate 1, OPEN:** `GET /api/v1/auth/me` -> **401**, reproduced independently by the reviewer. The
+  `/timetable` -> `/login` redirect is a **browser-harness** row and is not reproducible over raw HTTP (a raw
+  `GET /timetable` returns 200 with the SPA shell).
+- **Gate 2, OPEN:** `E:` 26.84 GiB stable; a ~14 GiB build projects to **12.84 GiB**, below the fail-closed line. The
+  policy-safe reclaim (`9b28c572` + `lane-a2-c5-truth` = 2.04 GiB) reaches only **14.88 GiB projected - still
+  short**, so **more reclaim is owed than my first draft showed**. My first draft's "marginally sufficient" conclusion
+  depended on retiring **`c0d91827`**, which is accepted **#2 back** and which the retention policy says to keep; the
+  review caught that breach.
+- **Pre-action review: `CORRECTION_REQUIRED` (12/34).** It confirmed both decisions and caught three artefacts that
+  would have broken or voided the cutover: the named D4 chunk **cannot exist** (a test file is not bundled), the
+  named D4 literal `Not checked` is **present in both builds**, and the record step omitted the **`origin/main`
+  push** that `deploy-runner.ps1:35` + `Assert-LiveReleaseRecorded` read - a local-only commit fails that gate closed.
+  All ten corrections are applied in rev 2.
+
+## 6. Lane coordination and worktrees
+
+- **Browser custody:** lock taken and released for the single session probe; no browser state mutated.
+- **`main` push:** A3 pushed its c6/c7/c8 records during this cycle (docs-only, 5 commits, 0 product paths) and my
+  integration branch absorbed them; the `bd789d86` I started from went stale and was re-based onto them.
+- **Worktrees created this cycle:** `lane-a2-c5-integ` (KEEP_ACTIVE), `lane-a2-c5-map` (KEEP_ACTIVE, accepted
+  candidate), `lane-a2-c5-l1g` (RETIRE_AFTER_INTEGRATION, merged), `lane-a2-c5-truth` (never written to; **reclaim
+  candidate**, 0.58 GiB). One executor dispatch was lost to a worktree I had not actually created - my error,
+  recorded, and the worktree was created before re-dispatch.
+- **A3's `34b01038` is an ancestor of the target**, so the release carries it as c5 item 5 required.
+- **⚠ The re-pin, and a third gate.** A3 pushed its c8 **product** code (20 non-docs paths) to `origin/main` after
+  my release packet was written, and the union merge absorbed it. **A2 has not reviewed any of it** and does not
+  integrate A3's work, so per §11 the packet now opens **Gate 3**: one fresh independent review of A3's c8 delta
+  alone, and **the deployment must not execute on `CORRECTION_REQUIRED`**. The release therefore has **three** open
+  gates, not two. Re-pinned to **`625a8024`** (53 commits, 68 paths, 50 non-docs, zero `prisma/`/lockfile/seed,
+  still one comment-only server file). This is the "never describe a range from the candidates you happened to
+  review" rule catching me mid-cycle — I re-enumerated instead of reusing §1's list, and `index.css` plus the two
+  `.opencode/` paths are named for the Gate 3 reviewer.

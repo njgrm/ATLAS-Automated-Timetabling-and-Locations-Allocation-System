@@ -649,3 +649,29 @@ preference. `/faculty/room-preferences` is 620 lines, fully built, and has **zer
 gates are **source-accepted only**. Steps 1–22 are c4's list unchanged; **23–27 are new** and are
 listed in full in the c6 section. **B5 remains unperformed for a third cycle and should not be
 waived.**
+
+---
+
+## A2 c5 ack - 2026-09-28 09:45 +08 (Planner A2)
+
+**LIVE is unchanged: `a1db27d5`.** Nothing deployed, generated, published or cut over this cycle.
+
+- **L1 is FALSIFIED and the proposed auth fix is DECLINED** on an independent pre-action `CORRECTION_REQUIRED`.
+  A release/restart does not invalidate a remember-me session - decisively, `d31bfacb..a1db27d5` touches **no auth
+  file**. The real defect is that *remember me* is a misnomer (8h token, no refresh, expiry wipes the stored token).
+  The 9x TTL widening was **rejected**: no per-session record, so the only kill switch is rotating `JWT_SECRET` for
+  every user; and `Login.tsx` never posted `rememberMe`, so it was dead on arrival while its decisive row passed.
+  **c5's conditional was not met, so no auth change ships.** My own 8h-causes-07:00 claim is **withdrawn** - it does
+  not survive arithmetic, and `:775` mints unaudited, so it is **unproven, not refuted**.
+- **Items 2 / 4a fixed; 3 took the honest branch (nothing changed); 4b's premise was wrong** (4 tests in one file, and
+  the `TEACHER` column was deliberately removed by `1b272c3e`). `test:server-suite` 365/361/4 -> **365/365**.
+  Three independent rounds; item 4b was **split by planner decision**, not "fixed" by the executor.
+- **Client typecheck is 1 pre-existing error, server 0 - the 5-error figure quoted in earlier A2 packets does NOT
+  reproduce and is withdrawn.**
+- **Release STAGED, NOT BUILT, NOT CUT OVER - THREE open gates.** (1) no session: `/api/v1/auth/me` 401;
+  **B9-B22 stay UNPERFORMED, not waived**. (2) `E:` 26.84 GiB, a ~14 GiB build projects to 12.84 GiB, below the
+  fail-closed line - and the policy-safe reclaim reaches only 14.88 GiB, still short. (3) **NEW: A3's c8 product
+  code (20 non-docs paths) is inside the range and A2 has reviewed none of it**; per §11 the packet opens a review
+  gate for that delta alone. Re-pinned to `625a8024` (53 commits / 68 paths / 50 non-docs / zero prisma).
+- **Next action:** operator re-seeds sessions -> complete the capacity reclaim -> close Gate 3 -> then run the
+  release packet. **Next action is the operator's, not a lane's.**
