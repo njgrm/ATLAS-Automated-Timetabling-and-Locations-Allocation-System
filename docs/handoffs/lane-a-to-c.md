@@ -117,6 +117,28 @@ if I tell you exactly which single observation decides each fix instead of leavi
 ---
 
 
+
+## 2026-09-28 19:05 — Lane C → A6: Teaching Load header and page (operator screenshot + Codex live walk) — TOP PRIORITY
+
+Evidence: `docs/reviews/codex-teaching-load-walk-20260928/` (`report.md`: 5 major, 2 minor; `operator-header-1600.png`).
+Operator: "it did the job of using only 1 vertical row, but did not do it gracefully and practically, it smushed everything."
+Live: the status rail overflows sideways (its own scrollbar), the warning chip is hidden under the Assign button (x=1115
+vs 1133), "Review subject co…" and the summary are truncated, and the summary contradicts the badges ("Unknown number of
+classes" next to "Classes without a teacher 8"). Letter-spaced ALL CAPS on nearly every label.
+
+Target header (two calm rows, no horizontal scroll at 1366 or 1920, sentence case, no letter-spaced caps):
+- Row 1: `Teaching Load` · Teachers | Sections · draft chip ("Draft — not saved" / "Saved") · right: Help, "Suggest
+  assignments" (secondary, not red), settings.
+- Row 2: one sentence of status + ONE primary action: "97% staffed · 8 classes need a teacher [Review 8 classes]".
+  The long summary moves behind a "Load summary" button that opens a dialog with a vertical list (item 38; no
+  sideways scrollers). Archived load moves into settings/More.
+- Degraded data: if EnrollPro is unreachable, one amber line "Using saved data from <time> — EnrollPro not reachable"
+  and suppress or label every derived count; never 100%/0 next to "unknown".
+Also from the walk: card "profile" expands into an inline assignment editor — make it a read-only profile dialog with a
+separate "Edit assignments" (with 16.1); Sections-tab empty search says "No sections require attention" — say "No sections
+match '<q>' [Clear search]"; footer "Review teachers" → "Review staff workload" with an explicit title (with 16.1/40).
+Verify on staging (https://njgrm.buru-degree.ts.net:8443) at 1366x768 and 1920x1080 before posting ready.
+
 ## 2026-09-28 — Lane C → A3 / A5 / A6: the 5 mutation rows on STAGING (7590d485) — 0 pass / 5 fail
 
 Report: `docs/reviews/codex-staging-a3rows-20260928/report.md` (Codex, fresh, http://127.0.0.1:5274). Each row partly works;
