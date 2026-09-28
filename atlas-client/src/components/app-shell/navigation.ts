@@ -3,6 +3,7 @@ import {
 	CalendarClock,
 	CalendarDays,
 	ClipboardList,
+	DoorOpen,
 	GraduationCap,
 	HeartHandshake,
 	LayoutDashboard,
@@ -34,6 +35,26 @@ export const teachersAndRoomsNav: NavItemDef[] = [
 	{ label: 'Teachers', to: '/teachers', icon: Users, adminOnly: true },
 	{ label: 'Teaching Load', to: '/teaching-load', icon: ClipboardList, adminOnly: true, schedulerAccess: true },
 	{ label: 'Teacher Concerns', to: '/faculty/concerns', icon: HeartHandshake, adminOnly: true, schedulerAccess: true },
+	// A3-C8 REACHABILITY — `/faculty/room-preferences` is a real, fully built
+	// review queue (620-line `OfficerRoomPreferences`, live summary read, preview
+	// and review actions) that the shell already titled correctly via the
+	// `routeChromeOverrides` entry for that path, yet had ZERO inbound links, so
+	// no operator could reach it.
+	//
+	// `schedulerAccess` is DELIBERATELY ABSENT and load-bearing. The server
+	// (`routes/room-preference.router.ts`) guards both the review PATCH and the
+	// appeal-status PATCH with `PRIVILEGED_ROLES = {admin, officer,
+	// SYSTEM_ADMIN}` and answers 403 FORBIDDEN — "Only admin, officer, or
+	// SYSTEM_ADMIN can review room preferences." This item is `adminOnly` and
+	// carries no `schedulerAccess`, so `canSeeNavItem` resolves visibility to
+	// exactly that same three-role set: nav visibility and server authority
+	// agree. Adding `schedulerAccess: true` would advertise an approve/reject
+	// queue to a scheduler holding only `timetable:read` — a NEW false errand,
+	// which is the exact defect class this lane exists to remove. The omission
+	// is pinned by test row 3 in
+	// `__tests__/a3-c8-room-preferences-reachability.test.tsx`; do not "fix"
+	// this by adding the flag.
+	{ label: 'Room Preferences', to: '/faculty/room-preferences', icon: DoorOpen, adminOnly: true },
 	{ label: 'Campus & Rooms', to: '/map', icon: MapPinned, adminOnly: true },
 ];
 
